@@ -21,18 +21,22 @@
 //! recorded facts with checked 256-bit arithmetic; a condition that is
 //! provably constant folds the branch to an unconditional jump, and the dead
 //! panic block is cleaned up by the existing CFG passes. Anything that is
-//! not provable is left untouched.
+//! not provable is left untouched. Semantic checks use the same facts in instruction order:
+//! a passing check refines all later execution, and a proven passing check can be removed before
+//! expansion. Facts roll back on leaving each dominator subtree, so a check on one conditional
+//! path cannot justify removing a check on another.
 
 use crate::{
     analysis::CfgInfo,
     mir::{
-        BlockId, Function, InstKind, Module, Terminator, Value, ValueId,
+        BlockId, Function, InstId, InstKind, Module, Terminator, Value, ValueId,
         utils::fold_terminator_to_jump,
     },
     pass::{MirPass, run_function_pass},
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
+    bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
     map::{FxHashMap, FxHashSet},
 };
@@ -68,6 +72,7 @@ const MAX_DEPTH: usize = 12;
 struct CheckElimStats {
     /// Number of branches folded to unconditional jumps.
     branches_folded: usize,
+    checks_removed: usize,
 }
 
 /// An inclusive unsigned 256-bit interval.
@@ -156,37 +161,45 @@ impl CheckEliminator {
             }
         }
 
-        let folds = self.collect_folds(func, &cfg, &preds);
+        let (folds, checks) = self.collect_folds(func, &cfg, &preds);
         self.ranges.clear();
         self.relations.clear();
         self.range_undo.clear();
         self.relation_undo.clear();
 
-        if folds.is_empty() {
+        if folds.is_empty() && checks.is_empty() {
             return 0;
         }
         for &(block, keep) in &folds {
             // jumpi condition, ..., keep -> jump keep
             fold_terminator_to_jump(func, block, keep);
         }
+        if !checks.is_empty() {
+            // check a proven passing condition -> nothing
+            for block in func.blocks.iter_mut() {
+                block.instructions.retain(|&id| !checks.contains(id));
+            }
+        }
         self.stats.branches_folded = folds.len();
-        folds.len()
+        self.stats.checks_removed = checks.count();
+        self.stats.branches_folded + self.stats.checks_removed
     }
 
-    /// Walks the dominator tree, recording edge facts and evaluating branch
-    /// conditions. Returns `(block, kept_target)` folds to apply.
+    /// Walks the dominator tree, recording edge and check facts. Returns branch folds and
+    /// proven passing checks to remove.
     fn collect_folds(
         &mut self,
         func: &Function,
         cfg: &CfgInfo,
         preds: &IndexVec<BlockId, Vec<BlockId>>,
-    ) -> Vec<(BlockId, BlockId)> {
+    ) -> (Vec<(BlockId, BlockId)>, DenseBitSet<InstId>) {
         enum Walk {
             Enter(BlockId),
             Exit { range_mark: usize, relation_mark: usize },
         }
 
         let mut folds = Vec::new();
+        let mut checks = DenseBitSet::new_empty(func.num_insts());
         let mut stack = vec![Walk::Enter(BlockId::ENTRY)];
         while let Some(item) = stack.pop() {
             match item {
@@ -213,6 +226,15 @@ impl CheckEliminator {
                         self.assume(func, condition, is_true, MAX_DEPTH);
                     }
 
+                    for &id in &func.blocks[block].instructions {
+                        if let InstKind::Check { condition, is_zero, .. } = func.inst(id).kind {
+                            if self.eval_truth(func, condition, MAX_DEPTH) == Some(is_zero) {
+                                checks.insert(id);
+                            }
+                            self.assume(func, condition, is_zero, MAX_DEPTH);
+                        }
+                    }
+
                     if let Some(Terminator::Branch { condition, then_block, else_block }) =
                         func.blocks[block].terminator.as_ref()
                         && then_block != else_block
@@ -227,7 +249,7 @@ impl CheckEliminator {
                 }
             }
         }
-        folds
+        (folds, checks)
     }
 
     // === Fact recording ===

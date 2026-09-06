@@ -18,7 +18,7 @@ contract ArrayBoundsPanic {
 
     // CHECK-LABEL: fn @memFix{{[( ]}}
     // CHECK: {{v[0-9]+}} = lt arg0, 3
-    // CHECK: jumpi
+    // CHECK: panic_if {{v[0-9]+}}, 0x32
     // CHECK: memory_object_load_element memoryfixedarray<3, 1>, {{v[0-9]+}}, arg0
     function memFix(uint256 i) public pure returns (uint256) {
         uint256[3] memory x;
@@ -28,7 +28,7 @@ contract ArrayBoundsPanic {
 
     // CHECK-LABEL: fn @memFixConst{{[( ]}}
     // CHECK: lt 2, 3
-    // CHECK: jumpi
+    // CHECK: panic_if {{v[0-9]+}}, 0x32
     // CHECK: memory_object_load_element memoryfixedarray<3, 1>, {{v[0-9]+}}, 2
     function memFixConst() public pure returns (uint256) {
         uint256[3] memory x;
@@ -38,7 +38,7 @@ contract ArrayBoundsPanic {
 
     // CHECK-LABEL: fn @memFixConstOob{{[( ]}}
     // CHECK: lt 5, 3
-    // CHECK: jumpi
+    // CHECK: panic_if {{v[0-9]+}}, 0x32
     // CHECK: memory_object_load_element memoryfixedarray<3, 1>, {{v[0-9]+}}, 5
     function memFixConstOob() public pure returns (uint256) {
         uint256[3] memory x;
@@ -48,7 +48,7 @@ contract ArrayBoundsPanic {
     // CHECK-LABEL: fn @memDyn{{[( ]}}
     // CHECK: [[LEN:v[0-9]+]] = memory_object_len memoryarray
     // CHECK: {{v[0-9]+}} = lt arg1, [[LEN]]
-    // CHECK: jumpi
+    // CHECK: panic_if {{v[0-9]+}}, 0x32
     function memDyn(uint256 n, uint256 i) public pure returns (uint256) {
         uint256[] memory x = new uint256[](n);
         return x[i];
@@ -57,7 +57,7 @@ contract ArrayBoundsPanic {
     // CHECK-LABEL: fn @stDyn{{[( ]}}
     // CHECK: [[LEN:v[0-9]+]] = sload 0
     // CHECK: {{v[0-9]+}} = lt arg0, [[LEN]]
-    // CHECK: jumpi
+    // CHECK: panic_if {{v[0-9]+}}, 0x32
     // CHECK: {{v[0-9]+}} = storage_array_data_slot 0
     // CHECK: {{v[0-9]+}} = add {{v[0-9]+}}, arg0
     function stDyn(uint256 i) public view returns (uint256) {
@@ -74,7 +74,7 @@ contract ArrayBoundsPanic {
 
     // CHECK-LABEL: fn @stFix{{[( ]}}
     // CHECK: {{v[0-9]+}} = lt arg0, 3
-    // CHECK: jumpi
+    // CHECK: panic_if {{v[0-9]+}}, 0x32
     // CHECK: sload
     function stFix(uint256 i) public view returns (uint256) {
         return sfix[i];

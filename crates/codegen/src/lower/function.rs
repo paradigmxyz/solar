@@ -440,7 +440,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let gcx = cx.gcx;
         Self {
             cx,
-            builder: FunctionBuilder::new(function)
+            builder: FunctionBuilder::new_semantic(function)
                 .with_revert_strings(gcx.sess.opts.revert_strings),
             types: types::TypeLowerer::new(gcx),
             values: FxHashMap::default(),
@@ -484,7 +484,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
         let mut function = Function::new(ident);
         if build(self, &mut function).is_none() {
-            FunctionBuilder::new(&mut function).invalid();
+            FunctionBuilder::new_semantic(&mut function).invalid();
             *self.cx.module.function_mut(id) = function;
             self.cx.state.helpers.remove(&name);
             return None;
@@ -944,7 +944,7 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
         function.name = reserved.name;
         function.attributes.is_function_pointer_dispatcher = true;
         {
-            let mut builder = FunctionBuilder::new(&mut function);
+            let mut builder = FunctionBuilder::new_semantic(&mut function);
             let function_value = builder.add_param(MirType::Function);
             let arguments =
                 shape.params.iter().copied().map(|ty| builder.add_param(ty)).collect::<Vec<_>>();

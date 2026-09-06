@@ -24,9 +24,8 @@ fn @internal_dispatcher_p_none_r_none(arg0: function) [function_pointer_dispatch
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2
   bb2:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 81 !metadata(memory=scratch)
-    revert 0, 36
+    panic_if true, 0x51
+    invalid
   bb1:
     icall @setFlag
     ret

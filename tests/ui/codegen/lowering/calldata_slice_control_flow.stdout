@@ -86,14 +86,11 @@ fn @_explicitTrim(arg0: calldataslice) -> calldataslice [pure] {
     v5 = gt v4, v4
     v6 = lt v4, 4
     v7 = or v5, v6
-    jumpi v7, bb4, bb5
-  bb5:
+    revert_if v7, empty
     v8 = sub v4, 4
     v9 = add v3, 4
     v10 = make_calldata_slice v9, v8
     ret v10
-  bb4:
-    revert 0, 0
 }
 
 fn @headTail(arg0: calldataslice) -> struct0 [selector=0xdd941f9b, pure, abi_params=[bytes], abi_returns=[word, word], abi_return_params=[u256, u256]] {
@@ -116,17 +113,16 @@ fn @_split(arg0: calldataslice) -> struct1 [pure] {
     v3 = gt v1, v1
     v4 = lt v1, v2
     v5 = or v3, v4
-    jumpi v5, bb1, bb2
-  bb2:
+    revert_if v5, empty
     v6 = sub v1, v2
     v7 = add v0, v2
     v8 = make_calldata_slice v7, v6
     v9 = slice_len arg0
     v10 = gt v9, 8
-    jumpi v10, bb3, bb4
-  bb4:
-    jump bb5
-  bb3:
+    jumpi v10, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
     v11 = slice_ptr arg0
     v12 = add v11, 8
     v13 = slice_ptr v8
@@ -137,12 +133,10 @@ fn @_split(arg0: calldataslice) -> struct1 [pure] {
     v18 = slice_ptr v15
     v19 = slice_len v15
     v20 = make_calldata_slice v18, v17
-    jump bb5
-  bb5:
-    v21 = phi [bb3: v20], [bb4: v8]
+    jump bb3
+  bb3:
+    v21 = phi [bb1: v20], [bb2: v8]
     v22 = insert_value struct1, undef struct1, 0, arg0
     v23 = insert_value struct1, v22, 1, v21
     ret v23
-  bb1:
-    revert 0, 0
 }

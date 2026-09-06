@@ -1,7 +1,13 @@
-//@compile-flags: -O none -Zdump=mir
-//@filecheck:
+//@ revisions: semantic expanded
+//@[semantic] compile-flags: -O none -Zdump=mir
+//@[expanded] compile-flags: -O none -Zdump=mir -Zmir-pipeline=lower-checks
+//@[semantic] filecheck: --check-prefix=SEM
+//@[expanded] filecheck:
 
 contract AddmodMulmod {
+    // SEM-LABEL: fn @am
+    // SEM: panic_if_zero arg2, 0x12
+    // SEM: addmod arg0, arg1, arg2
     // CHECK-LABEL: fn @am{{[( ]}}
     // CHECK: jumpi arg2,
     // CHECK: mstore 4, 18
@@ -10,6 +16,9 @@ contract AddmodMulmod {
         return addmod(x, y, n);
     }
 
+    // SEM-LABEL: fn @mm
+    // SEM: panic_if_zero arg2, 0x12
+    // SEM: mulmod arg0, arg1, arg2
     // CHECK-LABEL: fn @mm{{[( ]}}
     // CHECK: jumpi arg2,
     // CHECK: mstore 4, 18

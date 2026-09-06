@@ -1,0 +1,25 @@
+//@ revisions: default debug
+//@ compile-flags: -Zmir-pipeline=lower-checks
+//@[debug] compile-flags: --revert-strings debug
+@module LowerChecks
+
+// Splitting either predecessor must update only its incoming phi label. The panic payload
+// stays shared across both original blocks; the reason depends on revert-string mode.
+fn @branch_checks(arg0: bool, arg1: u256) -> u256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    mstore 64, arg1
+    panic_if_zero arg1, 0x1
+    v0 = add arg1, 1
+    revert_if_zero v0, tuple_data_too_short
+    mstore 96, v0
+    jump bb3
+  bb2:
+    panic_if_zero arg1, 0x1
+    v1 = mul arg1, 2
+    jump bb3
+  bb3:
+    v2 = phi [bb1: v0], [bb2: v1]
+    ret v2
+}

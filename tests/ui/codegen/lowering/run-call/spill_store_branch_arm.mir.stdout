@@ -75,22 +75,18 @@ fn @advance(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice) -> i2
     v8 = and v7, 0xffffff
     v9 = eq v7, v8
     v10 = iszero v9
-    jumpi v10, bb1, bb2
-  bb2:
+    revert_if v10, empty
     v11 = slice_ptr arg1
     v12 = add v11, 64
     v13 = calldataload v12
     v14 = and v13, 0xffffffffffffffffffffffffffffffffffffffff
     v15 = eq v13, v14
     v16 = iszero v15
-    jumpi v16, bb1, bb3
-  bb3:
+    revert_if v16, empty
     v17 = checked_add u256, v7, v13
     v18 = slice_len arg2
     v19 = checked_add u256, v17, v18
     ret v19
-  bb1:
-    revert 0, 0
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/spill_store_branch_arm.sol:Settler ===
@@ -161,8 +157,7 @@ fn @fetch(arg0: address) -> struct0 [view] {
   bb2:
     v8 = returndatasize
     v9 = lt v8, 32
-    jumpi v9, bb3, bb4
-  bb4:
+    revert_if v9, tuple_data_too_short
     v10 = add 0, 0
     v11 = mload v10
     v12 = add 0, 0
@@ -176,14 +171,13 @@ fn @fetch(arg0: address) -> struct0 [view] {
     v20 = slice_ptr v19
     v21 = slice_len v19
     v22 = staticcall v16, v15, v20, v21, 0, 32
-    jumpi v22, bb6, bb5
-  bb5:
+    jumpi v22, bb4, bb3
+  bb3:
     revert_returndata
-  bb6:
+  bb4:
     v23 = returndatasize
     v24 = lt v23, 32
-    jumpi v24, bb3, bb7
-  bb7:
+    revert_if v24, tuple_data_too_short
     v25 = add 0, 0
     v26 = mload v25
     v27 = add 0, 0
@@ -196,14 +190,13 @@ fn @fetch(arg0: address) -> struct0 [view] {
     v34 = slice_ptr v33
     v35 = slice_len v33
     v36 = staticcall v31, v30, v34, v35, 0, 32
-    jumpi v36, bb9, bb8
-  bb8:
+    jumpi v36, bb6, bb5
+  bb5:
     revert_returndata
-  bb9:
+  bb6:
     v37 = returndatasize
     v38 = lt v37, 32
-    jumpi v38, bb3, bb10
-  bb10:
+    revert_if v38, tuple_data_too_short
     v39 = add 0, 0
     v40 = mload v39
     v41 = add 0, 0
@@ -212,8 +205,6 @@ fn @fetch(arg0: address) -> struct0 [view] {
     v44 = insert_value struct0, v43, 1, v28
     v45 = insert_value struct0, v44, 2, v42
     ret v45
-  bb3:
-    revert 0, 0
 }
 
 fn @fetchRich(arg0: address) -> struct0 [view] {
@@ -232,8 +223,7 @@ fn @fetchRich(arg0: address) -> struct0 [view] {
   bb2:
     v8 = returndatasize
     v9 = lt v8, 32
-    jumpi v9, bb3, bb4
-  bb4:
+    revert_if v9, tuple_data_too_short
     v10 = add 0, 0
     v11 = mload v10
     v12 = add 0, 0
@@ -247,14 +237,13 @@ fn @fetchRich(arg0: address) -> struct0 [view] {
     v20 = slice_ptr v19
     v21 = slice_len v19
     v22 = staticcall v16, v15, v20, v21, 0, 32
-    jumpi v22, bb6, bb5
-  bb5:
+    jumpi v22, bb4, bb3
+  bb3:
     revert_returndata
-  bb6:
+  bb4:
     v23 = returndatasize
     v24 = lt v23, 32
-    jumpi v24, bb3, bb7
-  bb7:
+    revert_if v24, tuple_data_too_short
     v25 = add 0, 0
     v26 = mload v25
     v27 = add 0, 0
@@ -267,14 +256,13 @@ fn @fetchRich(arg0: address) -> struct0 [view] {
     v34 = slice_ptr v33
     v35 = slice_len v33
     v36 = staticcall v31, v30, v34, v35, 0, 32
-    jumpi v36, bb9, bb8
-  bb8:
+    jumpi v36, bb6, bb5
+  bb5:
     revert_returndata
-  bb9:
+  bb6:
     v37 = returndatasize
     v38 = lt v37, 32
-    jumpi v38, bb3, bb10
-  bb10:
+    revert_if v38, tuple_data_too_short
     v39 = add 0, 0
     v40 = mload v39
     v41 = add 0, 0
@@ -283,8 +271,6 @@ fn @fetchRich(arg0: address) -> struct0 [view] {
     v44 = insert_value struct0, v43, 1, v28
     v45 = insert_value struct0, v44, 2, v42
     ret v45
-  bb3:
-    revert 0, 0
 }
 
 fn @go() -> u256 [selector=0x0f59f83a, abi_params=[], abi_returns=[word]] {
@@ -370,20 +356,19 @@ fn @go() -> u256 [selector=0x0f59f83a, abi_params=[], abi_returns=[word]] {
     v39 = slice_len v37
     v40 = extcodesize v35
     v41 = iszero v40
-    jumpi v41, bb22, bb23
-  bb23:
+    revert_if v41, target_contract_has_no_code
     v42 = call v36, v35, 0, v38, v39, 0, 0
-    jumpi v42, bb25, bb24
-  bb24:
+    jumpi v42, bb23, bb22
+  bb22:
     revert_returndata
-  bb25:
+  bb23:
     jump bb21
   bb21:
     v43 = sgt v7, 0
-    jumpi v43, bb26, bb27
-  bb27:
-    jump bb28
-  bb26:
+    jumpi v43, bb24, bb25
+  bb25:
+    jump bb26
+  bb24:
     v44 = sload 0 !metadata(storage=slot(0))
     v45 = and v44, 0xffffffffffffffffffffffffffffffffffffffff
     v46 = gas
@@ -392,15 +377,14 @@ fn @go() -> u256 [selector=0x0f59f83a, abi_params=[], abi_returns=[word]] {
     v49 = slice_len v47
     v50 = extcodesize v45
     v51 = iszero v50
-    jumpi v51, bb22, bb29
-  bb29:
+    revert_if v51, target_contract_has_no_code
     v52 = call v46, v45, 0, v48, v49, 0, 0
-    jumpi v52, bb31, bb30
-  bb30:
+    jumpi v52, bb28, bb27
+  bb27:
     revert_returndata
-  bb31:
-    jump bb28
   bb28:
+    jump bb26
+  bb26:
     v53 = sload 0 !metadata(storage=slot(0))
     v54 = and v53, 0xffffffffffffffffffffffffffffffffffffffff
     v55 = gas
@@ -408,28 +392,25 @@ fn @go() -> u256 [selector=0x0f59f83a, abi_params=[], abi_returns=[word]] {
     v57 = slice_ptr v56
     v58 = slice_len v56
     v59 = staticcall v55, v54, v57, v58, 0, 32
-    jumpi v59, bb33, bb32
-  bb32:
+    jumpi v59, bb30, bb29
+  bb29:
     revert_returndata
-  bb33:
+  bb30:
     v60 = returndatasize
     v61 = lt v60, 32
-    jumpi v61, bb22, bb34
-  bb34:
+    revert_if v61, tuple_data_too_short
     v62 = add 0, 0
     v63 = mload v62
     v64 = add 0, 0
     v65 = mload v64
     v66 = eq v65, 100
     v67 = iszero v66
-    jumpi v67, bb35, bb36
-  bb36:
+    jumpi v67, bb31, bb32
+  bb32:
     ret 1
-  bb35:
+  bb31:
     icall @revert_error, 17, 0x746f6f6b2077726f6e6720616d6f756e74000000000000000000000000000000
     invalid
-  bb22:
-    revert 0, 0
   bb9:
     icall @revert_error, 1, 0x7800000000000000000000000000000000000000000000000000000000000000
     invalid
@@ -495,8 +476,7 @@ fn @goRich() -> u256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word]] {
   bb6:
     v35 = returndatasize
     v36 = lt v35, 32
-    jumpi v36, bb7, bb8
-  bb8:
+    revert_if v36, tuple_data_too_short
     v37 = add 0, 0
     v38 = mload v37
     v39 = add 0, 0
@@ -516,119 +496,119 @@ fn @goRich() -> u256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word]] {
     v53 = memory_object_load_field memorystruct<3>, v6, 0
     v54 = eq v53, 0
     v55 = iszero v54
-    jumpi v55, bb9, bb10
-  bb10:
+    jumpi v55, bb7, bb8
+  bb8:
     v72 = memory_object_load_field memorystruct<3>, v6, 1
     v73 = slt v72, 0
-    jumpi v73, bb23, bb24
-  bb24:
+    jumpi v73, bb21, bb22
+  bb22:
     v81 = memory_object_load_field memorystruct<3>, v6, 1
     v82 = sgt v52, v81
     v83 = iszero v82
     v84 = iszero v83
-    jumpi v84, bb30, bb31
-  bb31:
+    jumpi v84, bb28, bb29
+  bb29:
     v85 = sgt v46, 0
     v86 = iszero v85
     v87 = iszero v86
-    jumpi v87, bb32, bb33
-  bb33:
-    jump bb25
-  bb32:
+    jumpi v87, bb30, bb31
+  bb31:
+    jump bb23
+  bb30:
     icall @revert_error, 1, 0x6800000000000000000000000000000000000000000000000000000000000000
     invalid
-  bb30:
+  bb28:
     icall @revert_error, 1, 0x6700000000000000000000000000000000000000000000000000000000000000
     invalid
-  bb23:
+  bb21:
     v74 = memory_object_load_field memorystruct<3>, v6, 1
     v75 = slt v52, v74
     v76 = iszero v75
     v77 = iszero v76
-    jumpi v77, bb26, bb27
-  bb27:
+    jumpi v77, bb24, bb25
+  bb25:
     v78 = slt v46, 0
     v79 = iszero v78
     v80 = iszero v79
-    jumpi v80, bb28, bb29
-  bb29:
-    jump bb25
-  bb25:
-    jump bb11
-  bb28:
+    jumpi v80, bb26, bb27
+  bb27:
+    jump bb23
+  bb23:
+    jump bb9
+  bb26:
     icall @revert_error, 1, 0x6600000000000000000000000000000000000000000000000000000000000000
     invalid
-  bb26:
+  bb24:
     icall @revert_error, 1, 0x6500000000000000000000000000000000000000000000000000000000000000
     invalid
-  bb9:
+  bb7:
     v56 = memory_object_load_field memorystruct<3>, v6, 1
     v57 = slt v56, 0
-    jumpi v57, bb12, bb13
-  bb13:
+    jumpi v57, bb10, bb11
+  bb11:
     v65 = sgt v46, 0
     v66 = iszero v65
     v67 = iszero v66
-    jumpi v67, bb19, bb20
-  bb20:
+    jumpi v67, bb17, bb18
+  bb18:
     v68 = memory_object_load_field memorystruct<3>, v6, 1
     v69 = sgt v52, v68
     v70 = iszero v69
     v71 = iszero v70
-    jumpi v71, bb21, bb22
-  bb22:
-    jump bb14
-  bb21:
+    jumpi v71, bb19, bb20
+  bb20:
+    jump bb12
+  bb19:
     icall @revert_error, 1, 0x6400000000000000000000000000000000000000000000000000000000000000
     invalid
-  bb19:
+  bb17:
     icall @revert_error, 1, 0x6300000000000000000000000000000000000000000000000000000000000000
     invalid
-  bb12:
+  bb10:
     v58 = memory_object_load_field memorystruct<3>, v6, 1
     v59 = slt v46, v58
     v60 = iszero v59
     v61 = iszero v60
-    jumpi v61, bb15, bb16
-  bb16:
+    jumpi v61, bb13, bb14
+  bb14:
     v62 = slt v52, 0
     v63 = iszero v62
     v64 = iszero v63
-    jumpi v64, bb17, bb18
-  bb18:
-    jump bb14
-  bb14:
-    jump bb11
-  bb11:
+    jumpi v64, bb15, bb16
+  bb16:
+    jump bb12
+  bb12:
+    jump bb9
+  bb9:
     v88 = slt v46, 0
-    jumpi v88, bb34, bb35
-  bb35:
-    jump bb36
-  bb34:
+    jumpi v88, bb32, bb33
+  bb33:
+    jump bb34
+  bb32:
     v89 = sload 0 !metadata(storage=slot(0))
     v90 = and v89, 0xffffffffffffffffffffffffffffffffffffffff
     v91 = caller
     v92 = checked_sub i256, 0, v46
     icall @settle, v90, v91, v92
-    jump bb36
-  bb36:
+    jump bb34
+  bb34:
     v93 = slt v52, 0
-    jumpi v93, bb37, bb38
-  bb38:
-    jump bb39
-  bb37:
+    jumpi v93, bb35, bb36
+  bb36:
+    jump bb37
+  bb35:
     v94 = sload 0 !metadata(storage=slot(0))
     v95 = and v94, 0xffffffffffffffffffffffffffffffffffffffff
     v96 = caller
     v97 = checked_sub i256, 0, v52
     icall @settle, v95, v96, v97
-    jump bb39
-  bb39:
+    jump bb37
+  bb37:
     v98 = sgt v46, 0
-    jumpi v98, bb40, bb41
-  bb41:
-    jump bb42
-  bb40:
+    jumpi v98, bb38, bb39
+  bb39:
+    jump bb40
+  bb38:
     v99 = sload 0 !metadata(storage=slot(0))
     v100 = and v99, 0xffffffffffffffffffffffffffffffffffffffff
     v101 = gas
@@ -637,20 +617,19 @@ fn @goRich() -> u256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word]] {
     v104 = slice_len v102
     v105 = extcodesize v100
     v106 = iszero v105
-    jumpi v106, bb7, bb43
-  bb43:
+    revert_if v106, target_contract_has_no_code
     v107 = call v101, v100, 0, v103, v104, 0, 0
-    jumpi v107, bb45, bb44
-  bb44:
+    jumpi v107, bb42, bb41
+  bb41:
     revert_returndata
-  bb45:
-    jump bb42
   bb42:
+    jump bb40
+  bb40:
     v108 = sgt v52, 0
-    jumpi v108, bb46, bb47
-  bb47:
-    jump bb48
-  bb46:
+    jumpi v108, bb43, bb44
+  bb44:
+    jump bb45
+  bb43:
     v109 = sload 0 !metadata(storage=slot(0))
     v110 = and v109, 0xffffffffffffffffffffffffffffffffffffffff
     v111 = gas
@@ -659,19 +638,18 @@ fn @goRich() -> u256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word]] {
     v114 = slice_len v112
     v115 = extcodesize v110
     v116 = iszero v115
-    jumpi v116, bb7, bb49
-  bb49:
+    revert_if v116, target_contract_has_no_code
     v117 = call v111, v110, 0, v113, v114, 0, 0
-    jumpi v117, bb51, bb50
-  bb50:
+    jumpi v117, bb47, bb46
+  bb46:
     revert_returndata
-  bb51:
-    jump bb48
-  bb48:
+  bb47:
+    jump bb45
+  bb45:
     v118 = eq v40, 0xc1f
     v119 = iszero v118
-    jumpi v119, bb52, bb53
-  bb53:
+    jumpi v119, bb48, bb49
+  bb49:
     v120 = sload 0 !metadata(storage=slot(0))
     v121 = and v120, 0xffffffffffffffffffffffffffffffffffffffff
     v122 = gas
@@ -679,37 +657,34 @@ fn @goRich() -> u256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word]] {
     v124 = slice_ptr v123
     v125 = slice_len v123
     v126 = staticcall v122, v121, v124, v125, 0, 32
-    jumpi v126, bb55, bb54
-  bb54:
+    jumpi v126, bb51, bb50
+  bb50:
     revert_returndata
-  bb55:
+  bb51:
     v127 = returndatasize
     v128 = lt v127, 32
-    jumpi v128, bb7, bb56
-  bb56:
+    revert_if v128, tuple_data_too_short
     v129 = add 0, 0
     v130 = mload v129
     v131 = add 0, 0
     v132 = mload v131
     v133 = eq v132, 100
     v134 = iszero v133
-    jumpi v134, bb57, bb58
-  bb58:
+    jumpi v134, bb52, bb53
+  bb53:
     ret 2
-  bb57:
+  bb52:
     icall @revert_error, 22, 0x746f6f6b2077726f6e67207269636820616d6f756e7400000000000000000000
     invalid
-  bb52:
+  bb48:
     icall @revert_error, 17, 0x77726f6e672063616c6c20726573756c74000000000000000000000000000000
     invalid
-  bb17:
+  bb15:
     icall @revert_error, 1, 0x6200000000000000000000000000000000000000000000000000000000000000
     invalid
-  bb15:
+  bb13:
     icall @revert_error, 1, 0x6100000000000000000000000000000000000000000000000000000000000000
     invalid
-  bb7:
-    revert 0, 0
   bb3:
     icall @revert_error, 7, 0x6265666f72653100000000000000000000000000000000000000000000000000
     invalid
@@ -727,29 +702,25 @@ fn @settle(arg0: address, arg1: address, arg2: u256) {
     v4 = slice_len v2
     v5 = extcodesize arg0
     v6 = iszero v5
-    jumpi v6, bb1, bb2
-  bb2:
+    revert_if v6, target_contract_has_no_code
     v7 = call v0, arg0, 0, v3, v4, 0, 0
-    jumpi v7, bb4, bb3
-  bb3:
+    jumpi v7, bb2, bb1
+  bb1:
     revert_returndata
-  bb4:
+  bb2:
     v8 = gas
     v9 = abi_encode [word], selector 0x483f31ab00000000000000000000000000000000000000000000000000000000, args arg2
     v10 = slice_ptr v9
     v11 = slice_len v9
     v12 = extcodesize arg0
     v13 = iszero v12
-    jumpi v13, bb1, bb5
-  bb5:
+    revert_if v13, target_contract_has_no_code
     v14 = call v8, arg0, 0, v10, v11, 0, 0
-    jumpi v14, bb7, bb6
-  bb6:
+    jumpi v14, bb4, bb3
+  bb3:
     revert_returndata
-  bb7:
+  bb4:
     stop
-  bb1:
-    revert 0, 0
 }
 
 fn @revert_error(arg0: u256, arg1: u256) {

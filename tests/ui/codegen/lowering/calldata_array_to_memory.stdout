@@ -160,8 +160,8 @@ bb8:
   push 0
   push 0
   exchange 2, 3
-  jump bb17
-bb17:
+  jump bb15
+bb15:
   dup 4
   mload
   dup 2
@@ -169,7 +169,7 @@ bb17:
   dup 1
   push 288
   mstore
-  push bb19
+  push bb17
   jumpi
   dup 2
   push 0
@@ -179,7 +179,7 @@ bb17:
   pop
   pop
   jump bb52
-bb19:
+bb17:
   push 160
   mstore
   push 224
@@ -220,7 +220,7 @@ bb19:
   swap 3
   swap 1
   swap 2
-  jump bb17
+  jump bb15
 bb24:
   push 352
   push 64

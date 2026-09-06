@@ -16,8 +16,7 @@ fn @constructor() [constructor] {
     v20 = shl 192, 2
     v21 = lt 8, 10
     v22 = iszero v21
-    jumpi v22, bb7, bb9
-  bb9:
+    panic_if v22, 0x32
     v23 = div 8, 1
     v24 = add 3, v23
     v25 = mod 8, 1
@@ -35,8 +34,7 @@ fn @constructor() [constructor] {
     v36 = shl 192, 2
     v37 = lt 9, 10
     v38 = iszero v37
-    jumpi v38, bb7, bb10
-  bb10:
+    panic_if v38, 0x32
     v39 = div 9, 1
     v40 = add 3, v39
     v41 = mod 9, 1
@@ -57,8 +55,7 @@ fn @constructor() [constructor] {
     v3 = shl 192, v2
     v4 = lt v0, 9
     v5 = iszero v4
-    jumpi v5, bb7, bb8
-  bb8:
+    panic_if v5, 0x32
     v6 = div v0, 4
     v7 = add 0, v6
     v8 = mod v0, 4
@@ -79,10 +76,6 @@ fn @constructor() [constructor] {
   bb3:
     v19 = checked_add u256, v0, 1
     jump bb1
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
@@ -110,25 +103,24 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
   bb14:
     jump bb11
   bb11:
-    jump bb18
-  bb18:
-    v59 = phi [bb11: v41], [bb20: v59]
-    v60 = phi [bb11: v42], [bb20: v60]
-    v61 = phi [bb11: v43], [bb20: v77]
-    v62 = phi [bb11: 0], [bb20: v78]
+    jump bb16
+  bb16:
+    v59 = phi [bb11: v41], [bb18: v59]
+    v60 = phi [bb11: v42], [bb18: v60]
+    v61 = phi [bb11: v43], [bb18: v77]
+    v62 = phi [bb11: 0], [bb18: v78]
     v63 = lt v62, 10
-    jumpi v63, bb21, bb22
-  bb22:
-    jump bb19
-  bb19:
+    jumpi v63, bb19, bb20
+  bb20:
+    jump bb17
+  bb17:
     v79 = insert_value struct0, undef struct0, 0, v59
     v80 = insert_value struct0, v79, 1, v61
     ret v80
-  bb21:
+  bb19:
     v64 = lt v62, 10
     v65 = iszero v64
-    jumpi v65, bb16, bb24
-  bb24:
+    panic_if v65, 0x32
     v66 = div v62, 1
     v67 = add 3, v66
     v68 = mod v62, 1
@@ -141,17 +133,16 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v75 = and v74, 0xffffffffffffffff000000000000000000000000000000000000000000000000
     v76 = shr 192, v75
     v77 = checked_add u256, v61, v76
-    jump bb23
-  bb23:
-    jump bb20
-  bb20:
-    v78 = checked_add u256, v62, 1
+    jump bb21
+  bb21:
     jump bb18
+  bb18:
+    v78 = checked_add u256, v62, 1
+    jump bb16
   bb13:
     v45 = lt v42, 9
     v46 = iszero v45
-    jumpi v46, bb16, bb17
-  bb17:
+    panic_if v46, 0x32
     v47 = div v42, 4
     v48 = add 0, v47
     v49 = mod v42, 4
@@ -169,10 +160,6 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
   bb12:
     v58 = checked_add u256, v42, 1
     jump bb10
-  bb16:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb5:
     v16 = div v14, 1
     v17 = add 3, v16

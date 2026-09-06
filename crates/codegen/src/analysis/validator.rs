@@ -840,6 +840,19 @@ impl<'a> Validator<'a> {
                     }
                 };
                 match func.inst(id).kind {
+                    InstKind::Check { condition, .. } => {
+                        if func.inst(id).result_ty.is_some()
+                            || func.value_ty(condition).is_none_or(|ty| {
+                                !ty.is_word() || matches!(ty, MirType::MemoryObject(_))
+                            })
+                        {
+                            self.emit_at_inst(
+                                "conditional check requires a word condition and no result",
+                                block,
+                                id,
+                            );
+                        }
+                    }
                     InstKind::ValidateAbi(value) => {
                         if func.inst(id).result_ty.is_some()
                             || func.value_ty(value).is_none_or(|ty| !ty.is_word())

@@ -81,8 +81,7 @@ fn @success() -> u256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     v21 = returndatasize
     v22 = add v21, 63
     v23 = lt v22, v21
-    jumpi v23, bb4, bb6
-  bb6:
+    panic_if v23, 0x41
     v24 = not 31
     v25 = and v22, v24
     v26 = alloc memorybytes, exact, uninitialized, infallible, v25
@@ -102,17 +101,16 @@ fn @success() -> u256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     v38 = iszero v37
     v39 = eq v34, 0x4e487b71
     v40 = and v38, v39
-    jumpi true, bb7, bb8
-  bb8:
+    jumpi true, bb4, bb5
+  bb5:
     revert v28, v29
-  bb7:
+  bb4:
     ret 0
   bb1:
     v9 = returndatasize
     v10 = add v9, 63
     v11 = lt v10, v9
-    jumpi v11, bb4, bb5
-  bb5:
+    panic_if v11, 0x41
     v12 = not 31
     v13 = and v10, v12
     v14 = alloc memorybytes, exact, uninitialized, infallible, v13
@@ -125,10 +123,6 @@ fn @success() -> u256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     v19 = memory_object_len memorybytes, v18
     v20 = checked_add u256, v17, v19
     ret v20
-  bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb3:
     ret 0
 }
@@ -149,8 +143,7 @@ fn @failure() -> u256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
     v19 = returndatasize
     v20 = add v19, 63
     v21 = lt v20, v19
-    jumpi v21, bb4, bb6
-  bb6:
+    panic_if v21, 0x41
     v22 = not 31
     v23 = and v20, v22
     v24 = alloc memorybytes, exact, uninitialized, infallible, v23
@@ -170,17 +163,16 @@ fn @failure() -> u256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
     v36 = iszero v35
     v37 = eq v32, 0x4e487b71
     v38 = and v36, v37
-    jumpi true, bb7, bb8
-  bb8:
+    jumpi true, bb4, bb5
+  bb5:
     revert v26, v27
-  bb7:
+  bb4:
     ret 9
   bb1:
     v9 = returndatasize
     v10 = add v9, 63
     v11 = lt v10, v9
-    jumpi v11, bb4, bb5
-  bb5:
+    panic_if v11, 0x41
     v12 = not 31
     v13 = and v10, v12
     v14 = alloc memorybytes, exact, uninitialized, infallible, v13
@@ -191,10 +183,6 @@ fn @failure() -> u256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
     v17 = extract_value struct0, v16, 0
     v18 = extract_value struct0, v16, 1
     ret 0
-  bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb3:
     ret 0
 }

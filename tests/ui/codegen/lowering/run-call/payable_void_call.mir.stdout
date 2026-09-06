@@ -44,31 +44,27 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v12 = slice_len v10
     v13 = extcodesize v6
     v14 = iszero v13
-    jumpi v14, bb3, bb4
-  bb4:
+    revert_if v14, target_contract_has_no_code
     v15 = call v8, v6, 0, v11, v12, 0, 0
-    jumpi v15, bb6, bb5
-  bb5:
+    jumpi v15, bb4, bb3
+  bb3:
     revert_returndata
-  bb6:
+  bb4:
     v16 = gas
     v17 = abi_encode [], selector 0xe582dd3100000000000000000000000000000000000000000000000000000000
     v18 = slice_ptr v17
     v19 = slice_len v17
     v20 = staticcall v16, v6, v18, v19, 0, 32
-    jumpi v20, bb8, bb7
-  bb7:
+    jumpi v20, bb6, bb5
+  bb5:
     revert_returndata
-  bb8:
+  bb6:
     v21 = returndatasize
     v22 = lt v21, 32
-    jumpi v22, bb3, bb9
-  bb9:
+    revert_if v22, tuple_data_too_short
     v23 = add 0, 0
     v24 = mload v23
     v25 = add 0, 0
     v26 = mload v25
     ret v26
-  bb3:
-    revert 0, 0
 }

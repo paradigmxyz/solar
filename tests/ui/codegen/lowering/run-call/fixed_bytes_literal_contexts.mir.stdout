@@ -37,18 +37,16 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v8 = select v5, v6, v7
     v9 = lt v8, 32
     v10 = eq v5, v9
-    jumpi v10, bb1, bb2
-  bb2:
+    panic_if v10, 0x22
     v11 = lt v8, 0x10000000000000000
     v12 = iszero v11
-    jumpi v12, bb3, bb4
-  bb4:
+    panic_if v12, 0x41
     v13 = gt v8, 31
-    jumpi v13, bb5, bb6
-  bb6:
+    jumpi v13, bb1, bb2
+  bb2:
     v29 = eq v8, 31
-    jumpi v29, bb7, bb8
-  bb8:
+    jumpi v29, bb3, bb4
+  bb4:
     v35 = add v3, 2
     v36 = sub 31, v8
     v37 = mul v36, 8
@@ -59,8 +57,8 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v42 = shl v37, v41
     v43 = or v40, v42
     sstore 1, v43 !metadata(storage=slot(1))
-    jump bb9
-  bb7:
+    jump bb5
+  bb3:
     v30 = storage_array_data_slot 1
     v31 = not 255
     v32 = and v3, v31
@@ -68,8 +66,8 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v34 = or v32, v33
     sstore v30, v34 !metadata(storage=symbolic(v30))
     sstore 1, 65 !metadata(storage=slot(1))
-    jump bb9
-  bb5:
+    jump bb5
+  bb1:
     v14 = add v3, 2
     sstore 1, v14 !metadata(storage=slot(1))
     v15 = storage_array_data_slot 1
@@ -87,12 +85,11 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v27 = shl v20, v26
     v28 = or v24, v27
     sstore v17, v28 !metadata(storage=symbolic(v17))
-    jump bb9
-  bb9:
+    jump bb5
+  bb5:
     v44 = sload 2 !metadata(storage=slot(2))
     v45 = gt v44, 0xffffffffffffffff
-    jumpi v45, bb3, bb10
-  bb10:
+    panic_if v45, 0x41
     v46 = add v44, 1
     v47 = storage_array_data_slot 2
     v48 = div v44, 32
@@ -130,21 +127,19 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v78 = slice_ptr v77
     v79 = slice_len v77
     v80 = staticcall v75, v74, v78, v79, 0, 32
-    jumpi v80, bb12, bb11
-  bb11:
+    jumpi v80, bb7, bb6
+  bb6:
     revert_returndata
-  bb12:
+  bb7:
     v81 = returndatasize
     v82 = lt v81, 32
-    jumpi v82, bb13, bb14
-  bb14:
+    revert_if v82, tuple_data_too_short
     v83 = add 0, 0
     v84 = mload v83
     v85 = and v84, 0xff00000000000000000000000000000000000000000000000000000000000000
     v86 = eq v84, v85
     v87 = iszero v86
-    jumpi v87, bb13, bb15
-  bb15:
+    revert_if v87, empty
     v88 = add 0, 0
     v89 = mload v88
     v90 = sload 1 !metadata(storage=slot(1))
@@ -155,22 +150,20 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v95 = select v92, v93, v94
     v96 = lt v95, 32
     v97 = eq v92, v96
-    jumpi v97, bb1, bb16
-  bb16:
+    panic_if v97, 0x22
     v98 = lt 0, v95
     v99 = iszero v98
-    jumpi v99, bb17, bb18
-  bb18:
-    jumpi v92, bb19, bb20
-  bb20:
-    jump bb21
-  bb19:
+    panic_if v99, 0x32
+    jumpi v92, bb8, bb9
+  bb9:
+    jump bb10
+  bb8:
     v100 = storage_array_data_slot 1
     v101 = shr 5, 0
     v102 = add v100, v101
-    jump bb21
-  bb21:
-    v103 = phi [bb19: v102], [bb20: 1]
+    jump bb10
+  bb10:
+    v103 = phi [bb8: v102], [bb9: 1]
     v104 = and 0, 31
     v105 = sub 31, v104
     v106 = sload v103 !metadata(storage=symbolic(v103))
@@ -181,8 +174,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v111 = sload 2 !metadata(storage=slot(2))
     v112 = lt 0, v111
     v113 = iszero v112
-    jumpi v113, bb17, bb22
-  bb22:
+    panic_if v113, 0x32
     v114 = storage_array_data_slot 2
     v115 = div 0, 32
     v116 = add v114, v115
@@ -203,20 +195,6 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v131 = insert_value struct0, v130, 7, v110
     v132 = insert_value struct0, v131, 8, v123
     ret v132
-  bb17:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb13:
-    revert 0, 0
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 34 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @throughModifier() -> bytes1 [selector=0x6b6c6d94, abi_params=[], abi_returns=[word<bytes1>]] {

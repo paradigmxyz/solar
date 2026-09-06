@@ -7,39 +7,31 @@ fn @setS(arg0: u256, arg1: u256, arg2: u256) [selector=0x200618df, abi_params=[u
   bb0:
     v0 = lt arg0, 3
     v1 = iszero v0
-    jumpi v1, bb1, bb2
-  bb2:
+    panic_if v1, 0x32
     v2 = mul arg0, 2
     v3 = add 0, v2
     sstore v3, arg1 !metadata(storage=symbolic(v2))
     v4 = lt arg0, 3
     v5 = iszero v4
-    jumpi v5, bb1, bb3
-  bb3:
+    panic_if v5, 0x32
     v6 = mul arg0, 2
     v7 = add 0, v6
     v8 = add v7, 1
     sstore v8, arg2 !metadata(storage=offset(v6, 1))
     stop
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @getS(arg0: u256) -> struct0 [selector=0xd40d7b60, view, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = lt arg0, 3
     v1 = iszero v0
-    jumpi v1, bb1, bb2
-  bb2:
+    panic_if v1, 0x32
     v2 = mul arg0, 2
     v3 = add 0, v2
     v4 = sload v3 !metadata(storage=symbolic(v2))
     v5 = lt arg0, 3
     v6 = iszero v5
-    jumpi v6, bb1, bb3
-  bb3:
+    panic_if v6, 0x32
     v7 = mul arg0, 2
     v8 = add 0, v7
     v9 = add v8, 1
@@ -47,8 +39,4 @@ fn @getS(arg0: u256) -> struct0 [selector=0xd40d7b60, view, abi_params=[u256], a
     v11 = insert_value struct0, undef struct0, 0, v4
     v12 = insert_value struct0, v11, 1, v10
     ret v12
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
 }

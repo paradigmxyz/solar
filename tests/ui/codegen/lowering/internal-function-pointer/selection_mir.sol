@@ -51,7 +51,7 @@ contract FunctionPointerSelection {
     // CHECK: eq arg0, 2
     // CHECK: eq arg0, 3
     // CHECK: eq arg0, 7
-    // CHECK: mstore 4, 81
+    // CHECK: panic_if true, 0x51
     // CHECK: icall @incrementView, arg1
     // CHECK: icall @decrement, arg1
     // CHECK: icall @increment, arg1

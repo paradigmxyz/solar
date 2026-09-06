@@ -94,8 +94,7 @@ fn @one(arg0: u256) -> u256 [selector=0xef56f928, pure, abi_params=[u256], abi_r
     v5 = returndatasize
     v6 = add v5, 63
     v7 = lt v6, v5
-    jumpi v7, bb3, bb4
-  bb4:
+    panic_if v7, 0x41
     v8 = not 31
     v9 = and v6, v8
     v10 = alloc memorybytes, exact, uninitialized, infallible, v9
@@ -104,10 +103,6 @@ fn @one(arg0: u256) -> u256 [selector=0xef56f928, pure, abi_params=[u256], abi_r
     memory_object_copy_from_slice memorybytes, v10, v11
     v12 = abi_decode [u256], v10
     ret v12
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @two(arg0: u256) -> struct0 [selector=0xcf2a8612, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
@@ -124,8 +119,7 @@ fn @two(arg0: u256) -> struct0 [selector=0xcf2a8612, pure, abi_params=[u256], ab
     v5 = returndatasize
     v6 = add v5, 63
     v7 = lt v6, v5
-    jumpi v7, bb3, bb4
-  bb4:
+    panic_if v7, 0x41
     v8 = not 31
     v9 = and v6, v8
     v10 = alloc memorybytes, exact, uninitialized, infallible, v9
@@ -142,10 +136,6 @@ fn @two(arg0: u256) -> struct0 [selector=0xcf2a8612, pure, abi_params=[u256], ab
     v19 = insert_value struct0, undef struct0, 0, v17
     v20 = insert_value struct0, v19, 1, v18
     ret v20
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @aggregate(arg0: u256) -> memoryfixedarray [selector=0x407b7269, pure, abi_params=[u256], abi_returns=[array<2, word>]] {
@@ -164,8 +154,7 @@ fn @aggregate(arg0: u256) -> memoryfixedarray [selector=0x407b7269, pure, abi_pa
     v6 = returndatasize
     v7 = add v6, 63
     v8 = lt v7, v6
-    jumpi v8, bb3, bb4
-  bb4:
+    panic_if v8, 0x41
     v9 = not 31
     v10 = and v7, v9
     v11 = alloc memorybytes, exact, uninitialized, infallible, v10
@@ -174,10 +163,6 @@ fn @aggregate(arg0: u256) -> memoryfixedarray [selector=0x407b7269, pure, abi_pa
     memory_object_copy_from_slice memorybytes, v11, v12
     v13 = abi_decode [array<2, u256>], v11
     ret v13
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @boolean(arg0: u256) -> bool [selector=0xbc586ed6, pure, abi_params=[u256], abi_returns=[word<bool>]] {
@@ -194,8 +179,7 @@ fn @boolean(arg0: u256) -> bool [selector=0xbc586ed6, pure, abi_params=[u256], a
     v5 = returndatasize
     v6 = add v5, 63
     v7 = lt v6, v5
-    jumpi v7, bb3, bb4
-  bb4:
+    panic_if v7, 0x41
     v8 = not 31
     v9 = and v6, v8
     v10 = alloc memorybytes, exact, uninitialized, infallible, v9
@@ -204,10 +188,6 @@ fn @boolean(arg0: u256) -> bool [selector=0xbc586ed6, pure, abi_params=[u256], a
     memory_object_copy_from_slice memorybytes, v10, v11
     v12 = abi_decode [bool], v10
     ret v12
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @structBool(arg0: u256) -> memorystruct [selector=0x199436a8, pure, abi_params=[u256], abi_returns=[tuple<word<bool>, word>], abi_return_params=[tuple<bool, u256>]] {
@@ -227,8 +207,7 @@ fn @structBool(arg0: u256) -> memorystruct [selector=0x199436a8, pure, abi_param
     v6 = returndatasize
     v7 = add v6, 63
     v8 = lt v7, v6
-    jumpi v8, bb3, bb4
-  bb4:
+    panic_if v8, 0x41
     v9 = not 31
     v10 = and v7, v9
     v11 = alloc memorybytes, exact, uninitialized, infallible, v10
@@ -237,10 +216,6 @@ fn @structBool(arg0: u256) -> memorystruct [selector=0x199436a8, pure, abi_param
     memory_object_copy_from_slice memorybytes, v11, v12
     v13 = abi_decode [tuple<bool, u256>], v11
     ret v13
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @attached() -> u256 [selector=0xd9e6b370, view, abi_params=[], abi_returns=[word]] {
@@ -257,8 +232,7 @@ fn @attached() -> u256 [selector=0xd9e6b370, view, abi_params=[], abi_returns=[w
     v5 = returndatasize
     v6 = add v5, 63
     v7 = lt v6, v5
-    jumpi v7, bb3, bb4
-  bb4:
+    panic_if v7, 0x41
     v8 = not 31
     v9 = and v6, v8
     v10 = alloc memorybytes, exact, uninitialized, infallible, v9
@@ -267,10 +241,6 @@ fn @attached() -> u256 [selector=0xd9e6b370, view, abi_params=[], abi_returns=[w
     memory_object_copy_from_slice memorybytes, v10, v11
     v12 = abi_decode [u256], v10
     ret v12
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @dynamicArgument(arg0: memorybytes) -> struct0 [selector=0x11b8efbf, pure, abi_params=[bytes], abi_returns=[word, word], abi_return_params=[u256, u256]] {
@@ -287,8 +257,7 @@ fn @dynamicArgument(arg0: memorybytes) -> struct0 [selector=0x11b8efbf, pure, ab
     v5 = returndatasize
     v6 = add v5, 63
     v7 = lt v6, v5
-    jumpi v7, bb3, bb4
-  bb4:
+    panic_if v7, 0x41
     v8 = not 31
     v9 = and v6, v8
     v10 = alloc memorybytes, exact, uninitialized, infallible, v9
@@ -317,10 +286,6 @@ fn @dynamicArgument(arg0: memorybytes) -> struct0 [selector=0x11b8efbf, pure, ab
     v31 = insert_value struct0, undef struct0, 0, v25
     v32 = insert_value struct0, v31, 1, v30
     ret v32
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @none(arg0: u256) [selector=0x2758da14, pure, abi_params=[u256], abi_returns=[]] {
@@ -331,14 +296,11 @@ fn @none(arg0: u256) [selector=0x2758da14, pure, abi_params=[u256], abi_returns=
     v3 = gas
     v4 = extcodesize 0x1111111111111111111111111111111111111111
     v5 = iszero v4
-    jumpi v5, bb1, bb2
-  bb2:
+    revert_if v5, target_contract_has_no_code
     v6 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, 0, 0
-    jumpi v6, bb4, bb3
-  bb3:
-    revert_returndata
-  bb4:
-    stop
+    jumpi v6, bb2, bb1
   bb1:
-    revert 0, 0
+    revert_returndata
+  bb2:
+    stop
 }

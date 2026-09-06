@@ -68,9 +68,8 @@ fn @internal_dispatcher_p_u256_r_u256(arg0: function, arg1: u256) -> u256 [funct
     v4 = eq arg0, 7
     jumpi v4, bb5, bb6
   bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 81 !metadata(memory=scratch)
-    revert 0, 36
+    panic_if true, 0x51
+    invalid
   bb5:
     v5 = icall @incrementView, arg1
     ret v5

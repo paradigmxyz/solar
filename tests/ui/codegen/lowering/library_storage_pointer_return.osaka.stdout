@@ -70,8 +70,7 @@ fn @len() -> u256 [selector=0x56d88e27, view, abi_params=[], abi_returns=[word]]
     v5 = returndatasize
     v6 = add v5, 63
     v7 = lt v6, v5
-    jumpi v7, bb3, bb4
-  bb4:
+    panic_if v7, 0x41
     v8 = not 31
     v9 = and v6, v8
     v10 = alloc memorybytes, exact, uninitialized, infallible, v9
@@ -81,10 +80,6 @@ fn @len() -> u256 [selector=0x56d88e27, view, abi_params=[], abi_returns=[word]]
     v12 = abi_decode [storageptr], v10
     v13 = sload v12 !metadata(storage=symbolic(v12))
     ret v13
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @bytesLen() -> u256 [selector=0x6a4634a6, view, abi_params=[], abi_returns=[word]] {
@@ -101,8 +96,7 @@ fn @bytesLen() -> u256 [selector=0x6a4634a6, view, abi_params=[], abi_returns=[w
     v5 = returndatasize
     v6 = add v5, 63
     v7 = lt v6, v5
-    jumpi v7, bb3, bb4
-  bb4:
+    panic_if v7, 0x41
     v8 = not 31
     v9 = and v6, v8
     v10 = alloc memorybytes, exact, uninitialized, infallible, v9
@@ -118,17 +112,8 @@ fn @bytesLen() -> u256 [selector=0x6a4634a6, view, abi_params=[], abi_returns=[w
     v18 = select v15, v16, v17
     v19 = lt v18, 32
     v20 = eq v15, v19
-    jumpi v20, bb5, bb6
-  bb6:
+    panic_if v20, 0x22
     ret v18
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 34 !metadata(memory=scratch)
-    revert 0, 36
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @member() -> u256 [selector=0xe3f6b544, view, abi_params=[], abi_returns=[word]] {
@@ -145,8 +130,7 @@ fn @member() -> u256 [selector=0xe3f6b544, view, abi_params=[], abi_returns=[wor
     v5 = returndatasize
     v6 = add v5, 63
     v7 = lt v6, v5
-    jumpi v7, bb3, bb4
-  bb4:
+    panic_if v7, 0x41
     v8 = not 31
     v9 = and v6, v8
     v10 = alloc memorybytes, exact, uninitialized, infallible, v9
@@ -156,10 +140,6 @@ fn @member() -> u256 [selector=0xe3f6b544, view, abi_params=[], abi_returns=[wor
     v12 = abi_decode [storageptr], v10
     v13 = sload v12 !metadata(storage=symbolic(v12))
     ret v13
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @pair() -> struct0 [selector=0xa8aa1b31, view, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
@@ -176,8 +156,7 @@ fn @pair() -> struct0 [selector=0xa8aa1b31, view, abi_params=[], abi_returns=[wo
     v5 = returndatasize
     v6 = add v5, 63
     v7 = lt v6, v5
-    jumpi v7, bb3, bb4
-  bb4:
+    panic_if v7, 0x41
     v8 = not 31
     v9 = and v6, v8
     v10 = alloc memorybytes, exact, uninitialized, infallible, v9
@@ -195,10 +174,6 @@ fn @pair() -> struct0 [selector=0xa8aa1b31, view, abi_params=[], abi_returns=[wo
     v20 = insert_value struct0, undef struct0, 0, v17
     v21 = insert_value struct0, v20, 1, v19
     ret v21
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @fixedLast() -> u256 [selector=0x1dc0aacb, view, abi_params=[], abi_returns=[word]] {
@@ -215,8 +190,7 @@ fn @fixedLast() -> u256 [selector=0x1dc0aacb, view, abi_params=[], abi_returns=[
     v5 = returndatasize
     v6 = add v5, 63
     v7 = lt v6, v5
-    jumpi v7, bb3, bb4
-  bb4:
+    panic_if v7, 0x41
     v8 = not 31
     v9 = and v6, v8
     v10 = alloc memorybytes, exact, uninitialized, infallible, v9
@@ -226,19 +200,10 @@ fn @fixedLast() -> u256 [selector=0x1dc0aacb, view, abi_params=[], abi_returns=[
     v12 = abi_decode [storageptr], v10
     v13 = lt 2, 3
     v14 = iszero v13
-    jumpi v14, bb5, bb6
-  bb6:
+    panic_if v14, 0x32
     v15 = add v12, 2
     v16 = sload v15 !metadata(storage=offset(v12, 2))
     ret v16
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @mapValue(arg0: u256) -> u256 [selector=0x152381f4, view, abi_params=[u256], abi_returns=[word]] {
@@ -255,8 +220,7 @@ fn @mapValue(arg0: u256) -> u256 [selector=0x152381f4, view, abi_params=[u256], 
     v5 = returndatasize
     v6 = add v5, 63
     v7 = lt v6, v5
-    jumpi v7, bb3, bb4
-  bb4:
+    panic_if v7, 0x41
     v8 = not 31
     v9 = and v6, v8
     v10 = alloc memorybytes, exact, uninitialized, infallible, v9
@@ -267,10 +231,6 @@ fn @mapValue(arg0: u256) -> u256 [selector=0x152381f4, view, abi_params=[u256], 
     v13 = mapping_slot arg0, v12
     v14 = sload v13 !metadata(storage=symbolic(v13))
     ret v14
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @agg() -> struct0 [selector=0xf5e34bfa, view, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
@@ -287,8 +247,7 @@ fn @agg() -> struct0 [selector=0xf5e34bfa, view, abi_params=[], abi_returns=[wor
     v5 = returndatasize
     v6 = add v5, 63
     v7 = lt v6, v5
-    jumpi v7, bb3, bb4
-  bb4:
+    panic_if v7, 0x41
     v8 = not 31
     v9 = and v6, v8
     v10 = alloc memorybytes, exact, uninitialized, infallible, v9
@@ -305,20 +264,11 @@ fn @agg() -> struct0 [selector=0xf5e34bfa, view, abi_params=[], abi_returns=[wor
     v19 = sload v17 !metadata(storage=symbolic(v17))
     v20 = lt 1, 2
     v21 = iszero v20
-    jumpi v21, bb5, bb6
-  bb6:
+    panic_if v21, 0x32
     v22 = memory_object_load_element memoryfixedarray<2, 1>, v18, 1
     v23 = insert_value struct0, undef struct0, 0, v19
     v24 = insert_value struct0, v23, 1, v22
     ret v24
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @attached() -> u256 [selector=0xd9e6b370, view, abi_params=[], abi_returns=[word]] {
@@ -335,8 +285,7 @@ fn @attached() -> u256 [selector=0xd9e6b370, view, abi_params=[], abi_returns=[w
     v5 = returndatasize
     v6 = add v5, 63
     v7 = lt v6, v5
-    jumpi v7, bb3, bb4
-  bb4:
+    panic_if v7, 0x41
     v8 = not 31
     v9 = and v6, v8
     v10 = alloc memorybytes, exact, uninitialized, infallible, v9
@@ -346,8 +295,4 @@ fn @attached() -> u256 [selector=0xd9e6b370, view, abi_params=[], abi_returns=[w
     v12 = abi_decode [storageptr], v10
     v13 = sload v12 !metadata(storage=symbolic(v12))
     ret v13
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
 }

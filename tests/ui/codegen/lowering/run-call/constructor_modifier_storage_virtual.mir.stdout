@@ -5,22 +5,17 @@ fn @constructor() [constructor] {
     v0 = icall @value
     v1 = sload 0 !metadata(storage=slot(0))
     v2 = gt v1, 0xffffffffffffffff
-    jumpi v2, bb2, bb3
-  bb3:
+    panic_if v2, 0x41
     v3 = add v1, 1
     v4 = storage_array_data_slot 0
     v5 = add v4, v1
     sstore v5, v0 !metadata(storage=symbolic(v5))
     sstore 0, v3 !metadata(storage=slot(0))
-    jump bb4
-  bb4:
+    jump bb2
+  bb2:
     jump bb1
   bb1:
     stop
-  bb2:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @value() -> u256 [pure] {
@@ -44,18 +39,13 @@ fn @result() -> struct0 [selector=0x65372147, view, abi_params=[], abi_returns=[
     v1 = sload 0 !metadata(storage=slot(0))
     v2 = lt 0, v1
     v3 = iszero v2
-    jumpi v3, bb1, bb2
-  bb2:
+    panic_if v3, 0x32
     v4 = storage_array_data_slot 0
     v5 = add v4, 0
     v6 = sload v5 !metadata(storage=symbolic(v4))
     v7 = insert_value struct0, undef struct0, 0, v0
     v8 = insert_value struct0, v7, 1, v6
     ret v8
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @constructor() [constructor] {
@@ -63,22 +53,17 @@ fn @constructor() [constructor] {
     v0 = icall @value
     v1 = sload 0 !metadata(storage=slot(0))
     v2 = gt v1, 0xffffffffffffffff
-    jumpi v2, bb3, bb4
-  bb4:
+    panic_if v2, 0x41
     v3 = add v1, 1
     v4 = storage_array_data_slot 0
     v5 = add v4, v1
     sstore v5, v0 !metadata(storage=symbolic(v5))
     sstore 0, v3 !metadata(storage=slot(0))
-    jump bb5
-  bb5:
+    jump bb3
+  bb3:
     jump bb2
   bb2:
     jump bb1
   bb1:
     stop
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
 }

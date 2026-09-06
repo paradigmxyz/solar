@@ -53,16 +53,12 @@ fn @depth(arg0: u256) -> u256 [pure] {
 fn @check(arg0: bool) [pure] {
   bb0:
     v0 = iszero arg0
-    jumpi v0, bb1, bb2
-  bb2:
+    revert_if v0, empty
     v1 = icall @depth, 2
     v2 = eq v1, 2
     v3 = iszero v2
-    jumpi v3, bb1, bb3
-  bb3:
+    revert_if v3, empty
     stop
-  bb1:
-    revert 0, 0
 }
 
 fn @probe(arg0: u256) -> u256 [selector=0xdb082440, view, abi_params=[u256], abi_returns=[word]] {
@@ -77,8 +73,7 @@ fn @probe(arg0: u256) -> u256 [selector=0xdb082440, view, abi_params=[u256], abi
     v7 = returndatasize
     v8 = add v7, 63
     v9 = lt v8, v7
-    jumpi v9, bb1, bb2
-  bb2:
+    panic_if v9, 0x41
     v10 = not 31
     v11 = and v8, v10
     v12 = alloc memorybytes, exact, uninitialized, infallible, v11
@@ -88,8 +83,4 @@ fn @probe(arg0: u256) -> u256 [selector=0xdb082440, view, abi_params=[u256], abi
     icall @check, v6
     v14 = abi_decode [u256], v12
     ret v14
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
 }

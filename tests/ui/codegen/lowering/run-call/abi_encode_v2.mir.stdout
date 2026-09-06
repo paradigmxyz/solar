@@ -30,8 +30,7 @@ fn @f3() -> memorybytes [selector=0xaaf05f3d, pure, abi_params=[], abi_returns=[
     v4 = memory_object_len memorybytes, v2
     v5 = lt 0, v4
     v6 = iszero v5
-    jumpi v6, bb1, bb2
-  bb2:
+    panic_if v6, 0x32
     v7 = memory_object_load_byte memorybytes, v2, 0
     v8 = shl 248, v7
     v9 = alloc memorybytes, exact, uninitialized, infallible, 64
@@ -48,8 +47,7 @@ fn @f3() -> memorybytes [selector=0xaaf05f3d, pure, abi_params=[], abi_returns=[
     v18 = and v11, v17
     v19 = eq v8, v18
     v20 = iszero v19
-    jumpi v20, bb3, bb4
-  bb4:
+    revert_if v20, empty
     v21 = icall @literal_bytes_word, 0x6500000000000000000000000000000000000000000000000000000000000000, 1
     v22 = memory_object_load_element memorybytes, v21, 0
     v23 = memory_object_len memorybytes, v21
@@ -62,15 +60,13 @@ fn @f3() -> memorybytes [selector=0xaaf05f3d, pure, abi_params=[], abi_returns=[
     v30 = memory_object_len memorybytes, v2
     v31 = lt 0, v30
     v32 = iszero v31
-    jumpi v32, bb1, bb5
-  bb5:
+    panic_if v32, 0x32
     v33 = byte 0, v29
     memory_object_store_byte memorybytes, v2, 0, v33
     v34 = memory_object_len memorybytes, v2
     v35 = lt 0, v34
     v36 = iszero v35
-    jumpi v36, bb1, bb6
-  bb6:
+    panic_if v36, 0x32
     v37 = memory_object_load_byte memorybytes, v2, 0
     v38 = shl 248, v37
     v39 = icall @literal_bytes_word, 0x6500000000000000000000000000000000000000000000000000000000000000, 1
@@ -84,15 +80,8 @@ fn @f3() -> memorybytes [selector=0xaaf05f3d, pure, abi_params=[], abi_returns=[
     v47 = and v40, v46
     v48 = eq v38, v47
     v49 = iszero v48
-    jumpi v49, bb3, bb7
-  bb7:
+    revert_if v49, empty
     ret v1
-  bb3:
-    revert 0, 0
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @f4() -> memorybytes [selector=0xc3f90202, abi_params=[], abi_returns=[memory_bytes]] {
@@ -102,8 +91,7 @@ fn @f4() -> memorybytes [selector=0xc3f90202, abi_params=[], abi_returns=[memory
     v1 = add 0, 1
     v2 = sload v1 !metadata(storage=slot(1))
     v3 = gt v2, 0xffffffffffffffff
-    jumpi v3, bb1, bb2
-  bb2:
+    panic_if v3, 0x41
     v4 = add v2, 1
     v5 = storage_array_data_slot v1
     v6 = add v5, v2
@@ -112,8 +100,7 @@ fn @f4() -> memorybytes [selector=0xc3f90202, abi_params=[], abi_returns=[memory
     v7 = add 0, 1
     v8 = sload v7 !metadata(storage=slot(1))
     v9 = gt v8, 0xffffffffffffffff
-    jumpi v9, bb1, bb3
-  bb3:
+    panic_if v9, 0x41
     v10 = add v8, 1
     v11 = storage_array_data_slot v7
     v12 = add v11, v8
@@ -133,8 +120,7 @@ fn @f4() -> memorybytes [selector=0xc3f90202, abi_params=[], abi_returns=[memory
     v20 = memory_object_len memorybytes, v18
     v21 = lt 0, v20
     v22 = iszero v21
-    jumpi v22, bb4, bb5
-  bb5:
+    panic_if v22, 0x32
     v23 = memory_object_load_byte memorybytes, v18, 0
     v24 = shl 248, v23
     v25 = alloc memorybytes, exact, uninitialized, infallible, 64
@@ -151,8 +137,7 @@ fn @f4() -> memorybytes [selector=0xc3f90202, abi_params=[], abi_returns=[memory
     v34 = and v27, v33
     v35 = eq v24, v34
     v36 = iszero v35
-    jumpi v36, bb6, bb7
-  bb7:
+    revert_if v36, empty
     v37 = icall @literal_bytes_word, 0x6500000000000000000000000000000000000000000000000000000000000000, 1
     v38 = memory_object_load_element memorybytes, v37, 0
     v39 = memory_object_len memorybytes, v37
@@ -165,15 +150,13 @@ fn @f4() -> memorybytes [selector=0xc3f90202, abi_params=[], abi_returns=[memory
     v46 = memory_object_len memorybytes, v18
     v47 = lt 0, v46
     v48 = iszero v47
-    jumpi v48, bb4, bb8
-  bb8:
+    panic_if v48, 0x32
     v49 = byte 0, v45
     memory_object_store_byte memorybytes, v18, 0, v49
     v50 = memory_object_len memorybytes, v18
     v51 = lt 0, v50
     v52 = iszero v51
-    jumpi v52, bb4, bb9
-  bb9:
+    panic_if v52, 0x32
     v53 = memory_object_load_byte memorybytes, v18, 0
     v54 = shl 248, v53
     v55 = icall @literal_bytes_word, 0x6500000000000000000000000000000000000000000000000000000000000000, 1
@@ -187,19 +170,8 @@ fn @f4() -> memorybytes [selector=0xc3f90202, abi_params=[], abi_returns=[memory
     v63 = and v56, v62
     v64 = eq v54, v63
     v65 = iszero v64
-    jumpi v65, bb6, bb10
-  bb10:
+    revert_if v65, empty
     ret v17
-  bb6:
-    revert 0, 0
-  bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @literalRemainsLive() -> bool [selector=0x8eddb2e8, pure, abi_params=[], abi_returns=[word<bool>]] {
@@ -234,34 +206,28 @@ fn @load_storage_word_array(arg0: u256) -> memoryarray {
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = add v0, 1
     v2 = lt v1, v0
-    jumpi v2, bb1, bb2
-  bb2:
+    panic_if v2, 0x41
     v3 = mul v1, 32
     v4 = iszero 32
     v5 = div v3, 32
     v6 = eq v5, v1
     v7 = or v4, v6
     v8 = iszero v7
-    jumpi v8, bb1, bb3
-  bb3:
+    panic_if v8, 0x41
     v9 = alloc memoryarray<1>, exact, uninitialized, panic, v3
     set_memory_object_len memoryarray, v9, v0
     v10 = storage_array_data_slot arg0
-    jump bb4
-  bb4:
-    v11 = phi [bb3: 0], [bb5: v15]
+    jump bb1
+  bb1:
+    v11 = phi [bb0: 0], [bb2: v15]
     v12 = lt v11, v0
-    jumpi v12, bb5, bb6
-  bb6:
+    jumpi v12, bb2, bb3
+  bb3:
     ret v9
-  bb5:
+  bb2:
     v13 = add v10, v11
     v14 = sload v13 !metadata(storage=symbolic(v13))
     memory_object_store_element memoryarray<1>, v9, v11, v14
     v15 = add v11, 1
-    jump bb4
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    jump bb1
 }

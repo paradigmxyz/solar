@@ -73,8 +73,7 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word]] 
     v14 = returndatasize
     v15 = add v14, 63
     v16 = lt v15, v14
-    jumpi v16, bb4, bb6
-  bb6:
+    panic_if v16, 0x41
     v17 = not 31
     v18 = and v15, v17
     v19 = alloc memorybytes, exact, uninitialized, infallible, v18
@@ -89,22 +88,22 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word]] 
     v26 = iszero v25
     v27 = shr 224, v24
     v28 = eq v27, 0x8c379a0
-    jumpi v28, bb7, bb8
-  bb8:
-    jump bb9
-  bb7:
+    jumpi v28, bb4, bb5
+  bb5:
+    jump bb6
+  bb4:
     v29 = icall @try_decode_error_message, v21, v22
-    jump bb9
-  bb9:
-    v30 = phi [bb7: v29], [bb8: false]
+    jump bb6
+  bb6:
+    v30 = phi [bb4: v29], [bb5: false]
     v31 = lt v22, 36
     v32 = iszero v31
     v33 = eq v27, 0x4e487b71
     v34 = and v32, v33
-    jumpi v30, bb10, bb11
-  bb11:
+    jumpi v30, bb7, bb8
+  bb8:
     revert v21, v22
-  bb10:
+  bb7:
     v35 = memory_object_data memorybytes, v19
     v36 = memory_object_len memorybytes, v19
     v37 = add v35, 4
@@ -113,8 +112,7 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word]] 
     v40 = slice_len v39
     v41 = add v40, 63
     v42 = lt v41, v40
-    jumpi v42, bb4, bb12
-  bb12:
+    panic_if v42, 0x41
     v43 = not 31
     v44 = and v41, v43
     v45 = alloc memorybytes, exact, uninitialized, infallible, v44
@@ -126,8 +124,7 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word]] 
     v6 = returndatasize
     v7 = add v6, 63
     v8 = lt v7, v6
-    jumpi v8, bb4, bb5
-  bb5:
+    panic_if v8, 0x41
     v9 = not 31
     v10 = and v7, v9
     v11 = alloc memorybytes, exact, uninitialized, infallible, v10
@@ -137,20 +134,19 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word]] 
     v13 = abi_decode [u256], v11
     jump bb3
   bb3:
-    v47 = phi [bb5: v13], [bb12: 100]
+    v47 = phi [bb1: v13], [bb7: 100]
     v48 = address
     v49 = gas
     v50 = abi_encode [], selector 0x9c3674fc00000000000000000000000000000000000000000000000000000000
     v51 = slice_ptr v50
     v52 = slice_len v50
     v53 = staticcall v49, v48, v51, v52, 0, 0
-    jumpi v53, bb13, bb14
-  bb14:
+    jumpi v53, bb9, bb10
+  bb10:
     v63 = returndatasize
     v64 = add v63, 63
     v65 = lt v64, v63
-    jumpi v65, bb4, bb17
-  bb17:
+    panic_if v65, 0x41
     v66 = not 31
     v67 = and v64, v66
     v68 = alloc memorybytes, exact, uninitialized, infallible, v67
@@ -165,27 +161,27 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word]] 
     v75 = iszero v74
     v76 = shr 224, v73
     v77 = eq v76, 0x8c379a0
-    jumpi v77, bb18, bb19
-  bb19:
-    jump bb20
-  bb18:
+    jumpi v77, bb12, bb13
+  bb13:
+    jump bb14
+  bb12:
     v78 = icall @try_decode_error_message, v70, v71
-    jump bb20
-  bb20:
-    v79 = phi [bb18: v78], [bb19: false]
+    jump bb14
+  bb14:
+    v79 = phi [bb12: v78], [bb13: false]
     v80 = lt v71, 36
     v81 = iszero v80
     v82 = eq v76, 0x4e487b71
     v83 = and v81, v82
-    jumpi v79, bb21, bb22
-  bb22:
-    jumpi true, bb24, bb25
-  bb25:
+    jumpi v79, bb15, bb16
+  bb16:
+    jumpi true, bb17, bb18
+  bb18:
     revert v70, v71
-  bb24:
+  bb17:
     v99 = checked_add u256, v47, 300
-    jump bb15
-  bb21:
+    jump bb11
+  bb15:
     v84 = memory_object_data memorybytes, v68
     v85 = memory_object_len memorybytes, v68
     v86 = add v84, 4
@@ -194,8 +190,7 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word]] 
     v89 = slice_len v88
     v90 = add v89, 63
     v91 = lt v90, v89
-    jumpi v91, bb4, bb23
-  bb23:
+    panic_if v91, 0x41
     v92 = not 31
     v93 = and v90, v92
     v94 = alloc memorybytes, exact, uninitialized, infallible, v93
@@ -205,13 +200,12 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word]] 
     v96 = memory_object_len memorybytes, v95
     v97 = checked_add u256, 200, v96
     v98 = checked_add u256, v47, v97
-    jump bb15
-  bb13:
+    jump bb11
+  bb9:
     v54 = returndatasize
     v55 = add v54, 63
     v56 = lt v55, v54
-    jumpi v56, bb4, bb16
-  bb16:
+    panic_if v56, 0x41
     v57 = not 31
     v58 = and v55, v57
     v59 = alloc memorybytes, exact, uninitialized, infallible, v58
@@ -220,9 +214,9 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word]] 
     memory_object_copy_from_slice memorybytes, v59, v60
     v61 = abi_decode [u256], v59
     v62 = checked_add u256, v47, v61
-    jump bb15
-  bb15:
-    v100 = phi [bb16: v62], [bb23: v98], [bb24: v99]
+    jump bb11
+  bb11:
+    v100 = phi [bb9: v62], [bb15: v98], [bb17: v99]
     v101 = sload 0 !metadata(storage=slot(0))
     v102 = and v101, 0xffffffffffffffffffffffffffffffffffffffff
     v103 = gas
@@ -230,13 +224,12 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word]] 
     v105 = slice_ptr v104
     v106 = slice_len v104
     v107 = staticcall v103, v102, v105, v106, 0, 0
-    jumpi v107, bb26, bb27
-  bb27:
+    jumpi v107, bb19, bb20
+  bb20:
     v117 = returndatasize
     v118 = add v117, 63
     v119 = lt v118, v117
-    jumpi v119, bb4, bb30
-  bb30:
+    panic_if v119, 0x41
     v120 = not 31
     v121 = and v118, v120
     v122 = alloc memorybytes, exact, uninitialized, infallible, v121
@@ -256,27 +249,26 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word]] 
     v134 = iszero v133
     v135 = eq v130, 0x4e487b71
     v136 = and v134, v135
-    jumpi v136, bb31, bb32
-  bb32:
-    jumpi true, bb33, bb34
-  bb34:
+    jumpi v136, bb22, bb23
+  bb23:
+    jumpi true, bb24, bb25
+  bb25:
     revert v124, v125
-  bb33:
+  bb24:
     v142 = checked_add u256, v100, 500
-    jump bb28
-  bb31:
+    jump bb21
+  bb22:
     v137 = memory_object_data memorybytes, v122
     v138 = add v137, 4
     v139 = make_memory_slice v138, 32
     v140 = memory_slice_load_word memory, v139, 0
     v141 = checked_add u256, v100, 400
-    jump bb28
-  bb26:
+    jump bb21
+  bb19:
     v108 = returndatasize
     v109 = add v108, 63
     v110 = lt v109, v108
-    jumpi v110, bb4, bb29
-  bb29:
+    panic_if v110, 0x41
     v111 = not 31
     v112 = and v109, v111
     v113 = alloc memorybytes, exact, uninitialized, infallible, v112
@@ -285,9 +277,9 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word]] 
     memory_object_copy_from_slice memorybytes, v113, v114
     v115 = abi_decode [u256], v113
     v116 = checked_add u256, v100, v115
-    jump bb28
-  bb28:
-    v143 = phi [bb29: v116], [bb31: v141], [bb33: v142]
+    jump bb21
+  bb21:
+    v143 = phi [bb19: v116], [bb22: v141], [bb24: v142]
     v144 = sload 0 !metadata(storage=slot(0))
     v145 = and v144, 0xffffffffffffffffffffffffffffffffffffffff
     v146 = gas
@@ -295,13 +287,12 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word]] 
     v148 = slice_ptr v147
     v149 = slice_len v147
     v150 = staticcall v146, v145, v148, v149, 0, 0
-    jumpi v150, bb35, bb36
-  bb36:
+    jumpi v150, bb26, bb27
+  bb27:
     v163 = returndatasize
     v164 = add v163, 63
     v165 = lt v164, v163
-    jumpi v165, bb4, bb39
-  bb39:
+    panic_if v165, 0x41
     v166 = not 31
     v167 = and v164, v166
     v168 = alloc memorybytes, exact, uninitialized, infallible, v167
@@ -321,18 +312,17 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word]] 
     v180 = iszero v179
     v181 = eq v176, 0x4e487b71
     v182 = and v180, v181
-    jumpi true, bb40, bb41
-  bb41:
+    jumpi true, bb29, bb30
+  bb30:
     revert v170, v171
-  bb40:
+  bb29:
     v183 = checked_add u256, v143, 600
-    jump bb37
-  bb35:
+    jump bb28
+  bb26:
     v151 = returndatasize
     v152 = add v151, 63
     v153 = lt v152, v151
-    jumpi v153, bb4, bb38
-  bb38:
+    panic_if v153, 0x41
     v154 = not 31
     v155 = and v152, v154
     v156 = alloc memorybytes, exact, uninitialized, infallible, v155
@@ -344,9 +334,9 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word]] 
     v160 = extract_value struct0, v158, 1
     v161 = checked_add u256, v159, v160
     v162 = checked_add u256, v143, v161
-    jump bb37
-  bb37:
-    v184 = phi [bb38: v162], [bb40: v183]
+    jump bb28
+  bb28:
+    v184 = phi [bb26: v162], [bb29: v183]
     v185 = sload 0 !metadata(storage=slot(0))
     v186 = and v185, 0xffffffffffffffffffffffffffffffffffffffff
     v187 = gas
@@ -354,13 +344,12 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word]] 
     v189 = slice_ptr v188
     v190 = slice_len v188
     v191 = staticcall 0x186a0, v186, v189, v190, 0, 0
-    jumpi v191, bb42, bb43
-  bb43:
+    jumpi v191, bb31, bb32
+  bb32:
     v201 = returndatasize
     v202 = add v201, 63
     v203 = lt v202, v201
-    jumpi v203, bb4, bb46
-  bb46:
+    panic_if v203, 0x41
     v204 = not 31
     v205 = and v202, v204
     v206 = alloc memorybytes, exact, uninitialized, infallible, v205
@@ -380,18 +369,17 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word]] 
     v218 = iszero v217
     v219 = eq v214, 0x4e487b71
     v220 = and v218, v219
-    jumpi true, bb47, bb48
-  bb48:
+    jumpi true, bb34, bb35
+  bb35:
     revert v208, v209
-  bb47:
+  bb34:
     v221 = checked_add u256, v184, 700
-    jump bb44
-  bb42:
+    jump bb33
+  bb31:
     v192 = returndatasize
     v193 = add v192, 63
     v194 = lt v193, v192
-    jumpi v194, bb4, bb45
-  bb45:
+    panic_if v194, 0x41
     v195 = not 31
     v196 = and v193, v195
     v197 = alloc memorybytes, exact, uninitialized, infallible, v196
@@ -400,9 +388,9 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word]] 
     memory_object_copy_from_slice memorybytes, v197, v198
     v199 = abi_decode [u256], v197
     v200 = checked_add u256, v184, v199
-    jump bb44
-  bb44:
-    v222 = phi [bb45: v200], [bb47: v221]
+    jump bb33
+  bb33:
+    v222 = phi [bb31: v200], [bb34: v221]
     v223 = abi_encode []
     v224 = not 31
     v225 = and 340, v224
@@ -414,13 +402,12 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word]] 
     v229 = create 0, v226, 309
     v230 = eq v229, 0
     v231 = iszero v230
-    jumpi v231, bb49, bb50
-  bb50:
+    jumpi v231, bb36, bb37
+  bb37:
     v233 = returndatasize
     v234 = add v233, 63
     v235 = lt v234, v233
-    jumpi v235, bb4, bb52
-  bb52:
+    panic_if v235, 0x41
     v236 = not 31
     v237 = and v234, v236
     v238 = alloc memorybytes, exact, uninitialized, infallible, v237
@@ -440,17 +427,17 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word]] 
     v250 = iszero v249
     v251 = eq v246, 0x4e487b71
     v252 = and v250, v251
-    jumpi true, bb53, bb54
-  bb54:
+    jumpi true, bb39, bb40
+  bb40:
     revert v240, v241
-  bb53:
+  bb39:
     v253 = checked_add u256, v222, 900
-    jump bb51
-  bb49:
+    jump bb38
+  bb36:
     v232 = checked_add u256, v222, 800
-    jump bb51
-  bb51:
-    v254 = phi [bb49: v232], [bb53: v253]
+    jump bb38
+  bb38:
+    v254 = phi [bb36: v232], [bb39: v253]
     v255 = sload 0 !metadata(storage=slot(0))
     v256 = and v255, 0xffffffffffffffffffffffffffffffffffffffff
     v257 = shl 32, v256
@@ -463,13 +450,12 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word]] 
     v264 = slice_ptr v263
     v265 = slice_len v263
     v266 = call v262, v261, 0, v264, v265, 0, 0
-    jumpi v266, bb55, bb56
-  bb56:
+    jumpi v266, bb41, bb42
+  bb42:
     v276 = returndatasize
     v277 = add v276, 63
     v278 = lt v277, v276
-    jumpi v278, bb4, bb59
-  bb59:
+    panic_if v278, 0x41
     v279 = not 31
     v280 = and v277, v279
     v281 = alloc memorybytes, exact, uninitialized, infallible, v280
@@ -489,18 +475,17 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word]] 
     v293 = iszero v292
     v294 = eq v289, 0x4e487b71
     v295 = and v293, v294
-    jumpi true, bb60, bb61
-  bb61:
+    jumpi true, bb44, bb45
+  bb45:
     revert v283, v284
-  bb60:
+  bb44:
     v296 = checked_add u256, v254, 0x3e8
-    jump bb57
-  bb55:
+    jump bb43
+  bb41:
     v267 = returndatasize
     v268 = add v267, 63
     v269 = lt v268, v267
-    jumpi v269, bb4, bb58
-  bb58:
+    panic_if v269, 0x41
     v270 = not 31
     v271 = and v268, v270
     v272 = alloc memorybytes, exact, uninitialized, infallible, v271
@@ -509,14 +494,10 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word]] 
     memory_object_copy_from_slice memorybytes, v272, v273
     v274 = abi_decode [u256], v272
     v275 = checked_add u256, v254, v274
-    jump bb57
-  bb57:
-    v297 = phi [bb58: v275], [bb60: v296]
+    jump bb43
+  bb43:
+    v297 = phi [bb41: v275], [bb44: v296]
     ret v297
-  bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @revert_error(arg0: u256, arg1: u256) {

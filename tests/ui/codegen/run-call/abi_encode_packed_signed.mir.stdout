@@ -17,15 +17,10 @@ fn @firstByteInt8(arg0: u8, arg1: i8) -> bytes1 [selector=0xdf400c36, pure, abi_
     v10 = memory_object_len memorybytes, v4
     v11 = lt 0, v10
     v12 = iszero v11
-    jumpi v12, bb1, bb2
-  bb2:
+    panic_if v12, 0x32
     v13 = memory_object_load_byte memorybytes, v4, 0
     v14 = shl 248, v13
     ret v14
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @firstByteInt16(arg0: u8, arg1: i16) -> bytes1 [selector=0x3ed4619b, pure, abi_params=[u8, i16], abi_returns=[word<bytes1>]] {
@@ -45,15 +40,10 @@ fn @firstByteInt16(arg0: u8, arg1: i16) -> bytes1 [selector=0x3ed4619b, pure, ab
     v10 = memory_object_len memorybytes, v4
     v11 = lt 0, v10
     v12 = iszero v11
-    jumpi v12, bb1, bb2
-  bb2:
+    panic_if v12, 0x32
     v13 = memory_object_load_byte memorybytes, v4, 0
     v14 = shl 248, v13
     ret v14
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @firstByteInt32(arg0: u8, arg1: i32) -> bytes1 [selector=0x538ea5fe, pure, abi_params=[u8, i32], abi_returns=[word<bytes1>]] {
@@ -73,15 +63,10 @@ fn @firstByteInt32(arg0: u8, arg1: i32) -> bytes1 [selector=0x538ea5fe, pure, ab
     v10 = memory_object_len memorybytes, v4
     v11 = lt 0, v10
     v12 = iszero v11
-    jumpi v12, bb1, bb2
-  bb2:
+    panic_if v12, 0x32
     v13 = memory_object_load_byte memorybytes, v4, 0
     v14 = shl 248, v13
     ret v14
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @firstByteSigned16() -> bytes1 [selector=0x951569ca, pure, abi_params=[], abi_returns=[word<bytes1>]] {
@@ -102,15 +87,10 @@ fn @firstByteSigned16() -> bytes1 [selector=0x951569ca, pure, abi_params=[], abi
     v11 = memory_object_len memorybytes, v5
     v12 = lt 0, v11
     v13 = iszero v12
-    jumpi v13, bb1, bb2
-  bb2:
+    panic_if v13, 0x32
     v14 = memory_object_load_byte memorybytes, v5, 0
     v15 = shl 248, v14
     ret v15
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @packedHash(arg0: u8, arg1: i16, arg2: bytes3) -> bytes32 [selector=0x4ef47d0a, pure, abi_params=[u8, i16, bytes3], abi_returns=[word]] {
@@ -166,12 +146,10 @@ fn @packedDynamicHashModified(arg0: bytes32, arg1: calldataslice) -> bytes32 [se
     v0 = slice_len arg1
     v1 = add 32, v0
     v2 = lt v1, 32
-    jumpi v2, bb3, bb4
-  bb4:
+    panic_if v2, 0x41
     v3 = add v1, 63
     v4 = lt v3, v1
-    jumpi v4, bb3, bb5
-  bb5:
+    panic_if v4, 0x41
     v5 = not 31
     v6 = and v3, v5
     v7 = alloc memorybytes, exact, uninitialized, infallible, v6
@@ -180,23 +158,15 @@ fn @packedDynamicHashModified(arg0: bytes32, arg1: calldataslice) -> bytes32 [se
     memory_object_copy_from_slice_at memorybytes, v7, 32, arg1
     v8 = add 32, v0
     v9 = lt v8, 32
-    jumpi v9, bb3, bb6
-  bb6:
+    panic_if v9, 0x41
     v10 = keccak256_bytes v7
     jump bb2
   bb2:
     v11 = mload 64 !metadata(memory=scratch)
     v12 = gt v11, 128
     v13 = iszero v12
-    jumpi v13, bb7, bb8
-  bb8:
+    revert_if v13, empty
     jump bb1
   bb1:
     ret v10
-  bb7:
-    revert 0, 0
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
 }

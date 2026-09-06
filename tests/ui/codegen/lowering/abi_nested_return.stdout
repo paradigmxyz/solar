@@ -17,14 +17,9 @@ fn @structArray(arg0: u256) -> memoryarray [selector=0x0f634b74, pure, abi_param
     v7 = memory_object_len memoryarray, v0
     v8 = lt 0, v7
     v9 = iszero v8
-    jumpi v9, bb4, bb5
-  bb5:
+    panic_if v9, 0x32
     memory_object_store_element memoryarray<1>, v0, 0, v5
     ret v0
-  bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v3 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     memory_object_store_field memorystruct<2>, v3, 0, 0
@@ -50,37 +45,25 @@ fn @nestedArray(arg0: u256) -> memoryarray [selector=0x5abcbd75, pure, abi_param
     v7 = eq v6, arg0
     v8 = or v5, v7
     v9 = iszero v8
-    jumpi v9, bb4, bb5
-  bb5:
+    panic_if v9, 0x41
     v10 = add v4, 1
     v11 = lt v10, v4
-    jumpi v11, bb4, bb6
-  bb6:
+    panic_if v11, 0x41
     v12 = mul v10, 32
     v13 = iszero 32
     v14 = div v12, 32
     v15 = eq v14, v10
     v16 = or v13, v15
     v17 = iszero v16
-    jumpi v17, bb4, bb7
-  bb7:
+    panic_if v17, 0x41
     v18 = alloc memoryarray<1>, exact, zeroed, panic, v12
     set_memory_object_len memoryarray, v18, arg0
     v19 = memory_object_len memoryarray, v0
     v20 = lt 0, v19
     v21 = iszero v20
-    jumpi v21, bb8, bb9
-  bb9:
+    panic_if v21, 0x32
     memory_object_store_element memoryarray<1>, v0, 0, v18
     ret v0
-  bb8:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     memory_object_store_element memoryarray<1>, v0, v1, memoryarray 96
     v3 = add v1, 1

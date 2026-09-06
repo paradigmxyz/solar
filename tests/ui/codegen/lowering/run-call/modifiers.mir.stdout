@@ -71,18 +71,15 @@ fn @calldataBytes(arg0: calldataslice) -> memorybytes [selector=0x7965815f, pure
     v2 = slice_ptr arg0
     v3 = slice_len arg0
     v4 = gt v3, 0xffffffffffffffff
-    jumpi v4, bb5, bb6
-  bb6:
+    revert_if v4, invalid_calldata_tail_length
     v5 = calldatasize
     v6 = sub v5, v3
     v7 = sgt v2, v6
-    jumpi v7, bb5, bb7
-  bb7:
+    revert_if v7, calldata_tail_too_short
     v8 = slice_len arg0
     v9 = add v8, 63
     v10 = lt v9, v8
-    jumpi v10, bb8, bb9
-  bb9:
+    panic_if v10, 0x41
     v11 = not 31
     v12 = and v9, v11
     v13 = alloc memorybytes, exact, uninitialized, infallible, v12
@@ -93,12 +90,6 @@ fn @calldataBytes(arg0: calldataslice) -> memorybytes [selector=0x7965815f, pure
     jump bb1
   bb1:
     ret v13
-  bb8:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb5:
-    revert 0, 0
   bb2:
     icall @revert_error, 5, 0x6775617264000000000000000000000000000000000000000000000000000000
     invalid

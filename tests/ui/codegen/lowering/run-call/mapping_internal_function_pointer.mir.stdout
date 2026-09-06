@@ -83,9 +83,8 @@ fn @internal_dispatcher_p_none_r_none(arg0: function) [function_pointer_dispatch
     v2 = eq arg0, 4
     jumpi v2, bb5, bb6
   bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 81 !metadata(memory=scratch)
-    revert 0, 36
+    panic_if true, 0x51
+    invalid
   bb5:
     icall @stage2
     ret

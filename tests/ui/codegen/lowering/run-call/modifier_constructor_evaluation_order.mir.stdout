@@ -57,18 +57,13 @@ fn @f(arg0: u256) -> u256 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = gt v0, 0xffffffffffffffff
-    jumpi v1, bb1, bb2
-  bb2:
+    panic_if v1, 0x41
     v2 = add v0, 1
     v3 = storage_array_data_slot 0
     v4 = add v3, v0
     sstore v4, arg0 !metadata(storage=symbolic(v4))
     sstore 0, v2 !metadata(storage=slot(0))
     ret 0
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @load_storage_word_array(arg0: u256) -> memoryarray {
@@ -76,34 +71,28 @@ fn @load_storage_word_array(arg0: u256) -> memoryarray {
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = add v0, 1
     v2 = lt v1, v0
-    jumpi v2, bb1, bb2
-  bb2:
+    panic_if v2, 0x41
     v3 = mul v1, 32
     v4 = iszero 32
     v5 = div v3, 32
     v6 = eq v5, v1
     v7 = or v4, v6
     v8 = iszero v7
-    jumpi v8, bb1, bb3
-  bb3:
+    panic_if v8, 0x41
     v9 = alloc memoryarray<1>, exact, uninitialized, panic, v3
     set_memory_object_len memoryarray, v9, v0
     v10 = storage_array_data_slot arg0
-    jump bb4
-  bb4:
-    v11 = phi [bb3: 0], [bb5: v15]
+    jump bb1
+  bb1:
+    v11 = phi [bb0: 0], [bb2: v15]
     v12 = lt v11, v0
-    jumpi v12, bb5, bb6
-  bb6:
+    jumpi v12, bb2, bb3
+  bb3:
     ret v9
-  bb5:
+  bb2:
     v13 = add v10, v11
     v14 = sload v13 !metadata(storage=symbolic(v13))
     memory_object_store_element memoryarray<1>, v9, v11, v14
     v15 = add v11, 1
-    jump bb4
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    jump bb1
 }

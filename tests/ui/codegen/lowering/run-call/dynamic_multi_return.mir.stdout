@@ -50,8 +50,7 @@ fn @mixed() -> struct3 [selector=0x354df1f9, pure, abi_params=[], abi_returns=[m
     v1 = memory_object_len memoryarray, v0
     v2 = lt 0, v1
     v3 = iszero v2
-    jumpi v3, bb1, bb2
-  bb2:
+    panic_if v3, 0x32
     memory_object_store_element memoryarray<1>, v0, 0, 7
     v4 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v4, 1
@@ -61,10 +60,6 @@ fn @mixed() -> struct3 [selector=0x354df1f9, pure, abi_params=[], abi_returns=[m
     v7 = insert_value struct3, v6, 1, 7
     v8 = insert_value struct3, v7, 2, v4
     ret v8
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/dynamic_multi_return.sol:Caller ===
@@ -107,8 +102,7 @@ fn @strAndNum() -> struct0 [selector=0x713d228b, abi_params=[], abi_returns=[wor
     v12 = returndatasize
     v13 = add v12, 63
     v14 = lt v13, v12
-    jumpi v14, bb5, bb6
-  bb6:
+    panic_if v14, 0x41
     v15 = not 31
     v16 = and v13, v15
     v17 = alloc memorybytes, exact, uninitialized, infallible, v16
@@ -126,10 +120,6 @@ fn @strAndNum() -> struct0 [selector=0x713d228b, abi_params=[], abi_returns=[wor
     v27 = insert_value struct0, undef struct0, 0, v26
     v28 = insert_value struct0, v27, 1, v25
     ret v28
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @numAndStr() -> struct0 [selector=0xed19722c, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
@@ -159,8 +149,7 @@ fn @numAndStr() -> struct0 [selector=0xed19722c, abi_params=[], abi_returns=[wor
     v12 = returndatasize
     v13 = add v12, 63
     v14 = lt v13, v12
-    jumpi v14, bb5, bb6
-  bb6:
+    panic_if v14, 0x41
     v15 = not 31
     v16 = and v13, v15
     v17 = alloc memorybytes, exact, uninitialized, infallible, v16
@@ -178,10 +167,6 @@ fn @numAndStr() -> struct0 [selector=0xed19722c, abi_params=[], abi_returns=[wor
     v27 = insert_value struct0, undef struct0, 0, v24
     v28 = insert_value struct0, v27, 1, v26
     ret v28
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @twoStrings() -> struct0 [selector=0x477be19f, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
@@ -211,8 +196,7 @@ fn @twoStrings() -> struct0 [selector=0x477be19f, abi_params=[], abi_returns=[wo
     v12 = returndatasize
     v13 = add v12, 63
     v14 = lt v13, v12
-    jumpi v14, bb5, bb6
-  bb6:
+    panic_if v14, 0x41
     v15 = not 31
     v16 = and v13, v15
     v17 = alloc memorybytes, exact, uninitialized, infallible, v16
@@ -231,10 +215,6 @@ fn @twoStrings() -> struct0 [selector=0x477be19f, abi_params=[], abi_returns=[wo
     v28 = insert_value struct0, undef struct0, 0, v26
     v29 = insert_value struct0, v28, 1, v27
     ret v29
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @mixed() -> struct4 [selector=0x354df1f9, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
@@ -264,8 +244,7 @@ fn @mixed() -> struct4 [selector=0x354df1f9, abi_params=[], abi_returns=[word, w
     v12 = returndatasize
     v13 = add v12, 63
     v14 = lt v13, v12
-    jumpi v14, bb5, bb6
-  bb6:
+    panic_if v14, 0x41
     v15 = not 31
     v16 = and v13, v15
     v17 = alloc memorybytes, exact, uninitialized, infallible, v16
@@ -286,8 +265,7 @@ fn @mixed() -> struct4 [selector=0x354df1f9, abi_params=[], abi_returns=[word, w
     v30 = memory_object_len memoryarray, v26
     v31 = lt 0, v30
     v32 = iszero v31
-    jumpi v32, bb7, bb8
-  bb8:
+    panic_if v32, 0x32
     v33 = memory_object_load_element memoryarray<1>, v26, 0
     v34 = checked_sub u256, v27, 7
     v35 = checked_add u256, v33, v34
@@ -296,12 +274,4 @@ fn @mixed() -> struct4 [selector=0x354df1f9, abi_params=[], abi_returns=[word, w
     v38 = insert_value struct4, v37, 1, v35
     v39 = insert_value struct4, v38, 2, v36
     ret v39
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
 }

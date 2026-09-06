@@ -238,7 +238,8 @@ pub(super) fn lower(
                     .map(|&ret| TypeLowerer::mir_return_type(gcx.type_of_item(ret.into())))
                     .collect();
                 let return_type = context.module.intern_return_type(return_types);
-                let mut builder = FunctionBuilder::new(context.module.function_mut(mir_id));
+                let mut builder =
+                    FunctionBuilder::new_semantic(context.module.function_mut(mir_id));
                 for &param in function.parameters {
                     builder.add_param(TypeLowerer::mir_type(gcx.type_of_item(param.into())));
                 }
@@ -263,7 +264,7 @@ pub(super) fn lower(
                 if gcx.dcx().err_count() == errors_before {
                     let _: Option<()> = context.report_unsupported(contract.name.span, "contract");
                 }
-                FunctionBuilder::new(context.module.function_mut(mir_id)).invalid();
+                FunctionBuilder::new_semantic(context.module.function_mut(mir_id)).invalid();
                 return false;
             };
             mir.name = context.module.function(mir_id).name;
@@ -284,7 +285,7 @@ pub(super) fn lower(
     if let Some(immutable_id) = library_deploy_address {
         let mut constructor = Function::new(Ident::with_dummy_span(kw::Constructor));
         constructor.attributes.is_constructor = true;
-        let mut builder = FunctionBuilder::new(&mut constructor);
+        let mut builder = FunctionBuilder::new_semantic(&mut constructor);
         let address = builder.address();
         builder.store_immutable(immutable_id, address);
         builder.ret(std::iter::empty());

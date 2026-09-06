@@ -237,22 +237,19 @@ fn @outer() -> u256 [selector=0x87c3dbb6, view, abi_params=[], abi_returns=[word
   bb2:
     v20 = returndatasize
     v21 = lt v20, 32
-    jumpi v21, bb3, bb4
-  bb4:
+    revert_if v21, tuple_data_too_short
     v22 = add 0, 0
     v23 = mload v22
     v24 = add 0, 0
     v25 = mload v24
     v26 = eq v12, v25
     v27 = iszero v26
-    jumpi v27, bb5, bb6
-  bb6:
+    jumpi v27, bb3, bb4
+  bb4:
     ret 1
-  bb5:
+  bb3:
     icall @revert_error, 11, 0x6964206d69736d61746368000000000000000000000000000000000000000000
     invalid
-  bb3:
-    revert 0, 0
 }
 
 fn @inner(arg0: calldataslice) -> bytes32 [selector=0x3c12b05c, pure, abi_params=[bytes], abi_returns=[word]] {
@@ -260,18 +257,15 @@ fn @inner(arg0: calldataslice) -> bytes32 [selector=0x3c12b05c, pure, abi_params
     v0 = slice_ptr arg0
     v1 = slice_len arg0
     v2 = gt v1, 0xffffffffffffffff
-    jumpi v2, bb1, bb2
-  bb2:
+    revert_if v2, invalid_calldata_tail_length
     v3 = calldatasize
     v4 = sub v3, v1
     v5 = sgt v0, v4
-    jumpi v5, bb1, bb3
-  bb3:
+    revert_if v5, calldata_tail_too_short
     v6 = slice_len arg0
     v7 = add v6, 63
     v8 = lt v7, v6
-    jumpi v8, bb4, bb5
-  bb5:
+    panic_if v8, 0x41
     v9 = not 31
     v10 = and v7, v9
     v11 = alloc memorybytes, exact, uninitialized, infallible, v10
@@ -281,12 +275,6 @@ fn @inner(arg0: calldataslice) -> bytes32 [selector=0x3c12b05c, pure, abi_params
     v13 = memory_object_load_field memorystruct<4>, v12, 1, memorystruct
     v14 = keccak256 v13, 160
     ret v14
-  bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb1:
-    revert 0, 0
 }
 
 fn @revert_error(arg0: u256, arg1: u256) {
@@ -347,8 +335,7 @@ fn @run() -> u256 [selector=0xc0406226, view, abi_params=[], abi_returns=[word]]
   bb2:
     v18 = returndatasize
     v19 = lt v18, 32
-    jumpi v19, bb3, bb4
-  bb4:
+    revert_if v19, tuple_data_too_short
     v20 = add 0, 0
     v21 = mload v20
     v22 = add 0, 0
@@ -362,35 +349,32 @@ fn @run() -> u256 [selector=0xc0406226, view, abi_params=[], abi_returns=[word]]
     v29 = slice_ptr v28
     v30 = slice_len v28
     v31 = staticcall v25, v24, v29, v30, 0, 32
-    jumpi v31, bb6, bb5
-  bb5:
+    jumpi v31, bb4, bb3
+  bb3:
     revert_returndata
-  bb6:
+  bb4:
     v32 = returndatasize
     v33 = lt v32, 32
-    jumpi v33, bb3, bb7
-  bb7:
+    revert_if v33, tuple_data_too_short
     v34 = add 0, 0
     v35 = mload v34
     v36 = add 0, 0
     v37 = mload v36
     v38 = eq v23, v10
     v39 = iszero v38
-    jumpi v39, bb8, bb9
-  bb9:
+    jumpi v39, bb5, bb6
+  bb6:
     v40 = eq v37, v10
     v41 = iszero v40
-    jumpi v41, bb10, bb11
-  bb11:
+    jumpi v41, bb7, bb8
+  bb8:
     ret 1
-  bb10:
+  bb7:
     icall @revert_error, 8, 0x6d69786564206964000000000000000000000000000000000000000000000000
     invalid
-  bb8:
+  bb5:
     icall @revert_error, 10, 0x6b65794f6e6c7920696400000000000000000000000000000000000000000000
     invalid
-  bb3:
-    revert 0, 0
 }
 
 fn @revert_error(arg0: u256, arg1: u256) {

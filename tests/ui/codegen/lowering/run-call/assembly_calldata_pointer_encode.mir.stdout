@@ -9,14 +9,11 @@ fn @arrayCopy() -> memoryfixedarray [selector=0xb192499e, pure, abi_params=[], a
     v3 = calldatasize
     v4 = sub v3, v2
     v5 = slt v4, 64
-    jumpi v5, bb1, bb2
-  bb2:
+    revert_if v5, calldata_tail_too_short
     v6 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     v7 = make_calldata_slice v2, 64
     memory_object_copy_from_slice memoryfixedarray, v6, v7
     ret v6
-  bb1:
-    revert 0, 0
 }
 
 fn @bytesCopy() -> memorybytes [selector=0x6310efb6, pure, abi_params=[], abi_returns=[memory_bytes]] {
@@ -31,8 +28,7 @@ fn @bytesCopy() -> memorybytes [selector=0x6310efb6, pure, abi_params=[], abi_re
     v7 = slice_len v6
     v8 = add v7, 63
     v9 = lt v8, v7
-    jumpi v9, bb1, bb2
-  bb2:
+    panic_if v9, 0x41
     v10 = not 31
     v11 = and v8, v10
     v12 = alloc memorybytes, exact, uninitialized, infallible, v11
@@ -40,21 +36,13 @@ fn @bytesCopy() -> memorybytes [selector=0x6310efb6, pure, abi_params=[], abi_re
     v13 = slice_ptr v6
     v14 = slice_len v6
     v15 = gt v14, 0xffffffffffffffff
-    jumpi v15, bb3, bb4
-  bb4:
+    revert_if v15, invalid_calldata_tail_length
     v16 = calldatasize
     v17 = sub v16, v14
     v18 = sgt v13, v17
-    jumpi v18, bb3, bb5
-  bb5:
+    revert_if v18, calldata_tail_too_short
     memory_object_copy_from_slice memorybytes, v12, v6
     ret v12
-  bb3:
-    revert 0, 0
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @bytesHash() -> bytes32 [selector=0x05da852c, pure, abi_params=[], abi_returns=[word]] {
@@ -69,8 +57,7 @@ fn @bytesHash() -> bytes32 [selector=0x05da852c, pure, abi_params=[], abi_return
     v7 = slice_len v6
     v8 = add v7, 63
     v9 = lt v8, v7
-    jumpi v9, bb1, bb2
-  bb2:
+    panic_if v9, 0x41
     v10 = not 31
     v11 = and v8, v10
     v12 = alloc memorybytes, exact, uninitialized, infallible, v11
@@ -78,22 +65,14 @@ fn @bytesHash() -> bytes32 [selector=0x05da852c, pure, abi_params=[], abi_return
     v13 = slice_ptr v6
     v14 = slice_len v6
     v15 = gt v14, 0xffffffffffffffff
-    jumpi v15, bb3, bb4
-  bb4:
+    revert_if v15, invalid_calldata_tail_length
     v16 = calldatasize
     v17 = sub v16, v14
     v18 = sgt v13, v17
-    jumpi v18, bb3, bb5
-  bb5:
+    revert_if v18, calldata_tail_too_short
     memory_object_copy_from_slice memorybytes, v12, v6
     v19 = keccak256_bytes v12
     ret v19
-  bb3:
-    revert 0, 0
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @bytesLength() -> u256 [selector=0x46cab953, pure, abi_params=[], abi_returns=[word]] {
@@ -115,16 +94,11 @@ fn @arrayIndex() -> u256 [selector=0xf1de2d43, pure, abi_params=[], abi_returns=
     v1 = slice_len v0
     v2 = lt 1, v1
     v3 = iszero v2
-    jumpi v3, bb1, bb2
-  bb2:
+    panic_if v3, 0x32
     v4 = slice_ptr v0
     v5 = add v4, 32
     v6 = calldataload v5
     ret v6
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @structFirst() -> u8 [selector=0x2165fa18, pure, abi_params=[], abi_returns=[word<u8>]] {
@@ -136,11 +110,8 @@ fn @structFirst() -> u8 [selector=0x2165fa18, pure, abi_params=[], abi_returns=[
     v4 = and v3, 255
     v5 = eq v3, v4
     v6 = iszero v5
-    jumpi v6, bb1, bb2
-  bb2:
+    revert_if v6, empty
     ret v3
-  bb1:
-    revert 0, 0
 }
 
 fn @makeStruct() -> calldataslice [pure] {

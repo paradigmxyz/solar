@@ -3,8 +3,8 @@
 use super::{
     AbiEncodeMode, AllocationSemantics, BlockId, FrameMode, FrameSlotKind, Function, FunctionId,
     Immediate, ImmutableId, InstId, InstKind, Instruction, InstructionMetadata, MemoryObjectKind,
-    MemoryObjectLayout, MemoryRegion, MirType, SliceLocation, StorageAlias, StructId, Terminator,
-    Value, ValueId,
+    MemoryObjectLayout, MemoryRegion, MirType, PanicCode, RevertKind, RevertReason, SliceLocation,
+    StorageAlias, StructId, Terminator, Value, ValueId,
 };
 use crate::memory::EvmMemoryLayout;
 use alloy_primitives::U256;
@@ -12,27 +12,6 @@ use smallvec::SmallVec;
 use solar_config::RevertStrings;
 use solar_data_structures::map::FxHashMap;
 use solar_interface::Span;
-
-/// Solidity's built-in `Panic(uint256)` error codes.
-#[repr(u8)]
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub(crate) enum PanicCode {
-    Assert = 0x01,
-    ArithmeticOverflowUnderflow = 0x11,
-    DivisionByZero = 0x12,
-    EnumConversion = 0x21,
-    StorageEncoding = 0x22,
-    EmptyArrayPop = 0x31,
-    ArrayOutOfBounds = 0x32,
-    MemoryAllocationOverflow = 0x41,
-    InvalidInternalFunction = 0x51,
-}
-
-impl PanicCode {
-    const fn as_u64(self) -> u64 {
-        self as u64
-    }
-}
 
 pub(crate) trait ToUint {
     fn to_uint(self) -> U256;
@@ -80,103 +59,6 @@ impl_signed_to_uint!(i8, i16, i32, i64, i128, isize);
 /// The Error(string) selector, `keccak256("Error(string)")[..4]`, left-aligned in a word.
 pub(crate) const ERROR_SELECTOR: U256 = U256::from_limbs([0, 0, 0, 0x08c3_79a0_u64 << 32]);
 
-/// Why a revert with no user-supplied payload fires.
-///
-/// These reverts carry no data by default. With `--revert-strings debug`, each reason other than
-/// [`RevertReason::Empty`] is encoded as an `Error(string)` payload with the same message solc
-/// attaches to the corresponding check, so a failing transaction explains which internal check
-/// rejected it.
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub(crate) enum RevertReason {
-    /// Empty data in every mode: `require` and `revert()` without a message, stripped messages,
-    /// and checks solc never attaches a message to, such as decoded ABI word validators.
-    Empty,
-    /// A non-payable external entry point received Ether.
-    EtherSentToNonPayable,
-    /// The selector did not match any external function and no fallback exists, but the
-    /// contract has a `receive` function.
-    UnknownSelector,
-    /// The call matched nothing and the contract has neither a fallback nor a `receive`.
-    NoFallbackNorReceive,
-    /// ABI-encoded input ends before the static head of a tuple.
-    TupleDataTooShort,
-    /// A tuple element offset points outside the encoded input.
-    InvalidTupleOffset,
-    /// A dynamic array or `bytes` head offset points outside the encoded input.
-    InvalidCalldataArrayOffset,
-    /// A dynamic array or `bytes calldata` length exceeds the encodable range.
-    InvalidCalldataArrayLength,
-    /// A dynamic array's element data does not fit the encoded input.
-    InvalidCalldataArrayStride,
-    /// A `bytes` or `string` decoded to memory does not fit the encoded input.
-    InvalidByteArrayLength,
-    /// A struct member offset exceeds the encodable range.
-    InvalidStructOffset,
-    /// Calldata ends before the static head of a struct.
-    StructCalldataTooShort,
-    /// ABI-encoded memory data ends before the static head of a struct.
-    StructDataTooShort,
-    /// A calldata array element or struct member offset is out of range while re-encoding.
-    InvalidCalldataAccessOffset,
-    /// A calldata array element length exceeds the encodable range while re-encoding.
-    InvalidCalldataAccessLength,
-    /// A calldata array element's data does not fit in calldata while re-encoding.
-    InvalidCalldataAccessStride,
-    /// A calldata tail element offset is out of range.
-    InvalidCalldataTailOffset,
-    /// A calldata tail element length exceeds the encodable range.
-    InvalidCalldataTailLength,
-    /// A calldata tail element's data does not fit in calldata.
-    CalldataTailTooShort,
-    /// A slice end exceeds the sliced value's length.
-    SliceGreaterThanLength,
-    /// A slice starts after its end.
-    SliceStartsAfterEnd,
-    /// An external call target has no code.
-    TargetContractHasNoCode,
-    /// A non-view library function was called directly instead of through `DELEGATECALL`.
-    LibraryCalledWithoutDelegatecall,
-}
-
-impl RevertReason {
-    /// The message solc attaches to this check with `--revert-strings debug`, if any.
-    pub(crate) const fn message(self) -> Option<&'static str> {
-        Some(match self {
-            Self::Empty => return None,
-            Self::EtherSentToNonPayable => "Ether sent to non-payable function",
-            Self::UnknownSelector => "Unknown signature and no fallback defined",
-            Self::NoFallbackNorReceive => "Contract does not have fallback nor receive functions",
-            Self::TupleDataTooShort => "ABI decoding: tuple data too short",
-            Self::InvalidTupleOffset => "ABI decoding: invalid tuple offset",
-            Self::InvalidCalldataArrayOffset => "ABI decoding: invalid calldata array offset",
-            Self::InvalidCalldataArrayLength => "ABI decoding: invalid calldata array length",
-            Self::InvalidCalldataArrayStride => "ABI decoding: invalid calldata array stride",
-            Self::InvalidByteArrayLength => "ABI decoding: invalid byte array length",
-            Self::InvalidStructOffset => "ABI decoding: invalid struct offset",
-            Self::StructCalldataTooShort => "ABI decoding: struct calldata too short",
-            Self::StructDataTooShort => "ABI decoding: struct data too short",
-            Self::InvalidCalldataAccessOffset => "Invalid calldata access offset",
-            Self::InvalidCalldataAccessLength => "Invalid calldata access length",
-            Self::InvalidCalldataAccessStride => "Invalid calldata access stride",
-            Self::InvalidCalldataTailOffset => "Invalid calldata tail offset",
-            Self::InvalidCalldataTailLength => "Invalid calldata tail length",
-            Self::CalldataTailTooShort => "Calldata tail too short",
-            Self::SliceGreaterThanLength => "Slice is greater than length",
-            Self::SliceStartsAfterEnd => "Slice starts after end",
-            Self::TargetContractHasNoCode => "Target contract does not contain code",
-            Self::LibraryCalledWithoutDelegatecall => {
-                "Non-view function of library called without DELEGATECALL"
-            }
-        })
-    }
-}
-
-#[derive(Clone, Copy, Eq, Hash, PartialEq)]
-enum RevertKind {
-    Panic(PanicCode),
-    Reason(RevertReason),
-}
-
 /// Revert blocks shared while constructing one MIR function.
 #[derive(Default)]
 struct RevertBlocks(FxHashMap<RevertKind, BlockId>);
@@ -193,6 +75,7 @@ pub(crate) struct FunctionBuilder<'a> {
     current_debug_context: InstructionMetadata,
     /// How compiler-generated reverts with a [`RevertReason`] are encoded.
     revert_strings: RevertStrings,
+    semantic: bool,
 }
 
 /// A counted loop whose body is the builder's current block.
@@ -218,7 +101,13 @@ impl<'a> FunctionBuilder<'a> {
             revert_blocks: RevertBlocks::default(),
             current_debug_context: InstructionMetadata::EMPTY,
             revert_strings: RevertStrings::Default,
+            semantic: false,
         }
+    }
+
+    /// Builds semantic MIR without expanding checks into control flow.
+    pub(crate) fn new_semantic(func: &'a mut Function) -> Self {
+        Self { semantic: true, ..Self::new(func) }
     }
 
     /// Selects how compiler-generated reverts with a [`RevertReason`] are encoded.
@@ -351,6 +240,14 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Reverts with Solidity's `Panic(uint256)` payload.
     pub(crate) fn panic(&mut self, code: PanicCode) {
+        if self.semantic {
+            // panic_if true, code; unreachable
+            let condition = self.imm_bool(true);
+            self.panic_if(condition, code);
+            self.invalid();
+            return;
+        }
+        // mstore(0, Panic.selector); mstore(4, code); revert(0, 36)
         let selector = self.imm(U256::from(0x4e48_7b71_u64) << 224);
         let code = self.imm(code.as_u64());
         let zero = self.imm(U256::ZERO);
@@ -386,6 +283,13 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Terminates the current block by reverting for `reason`.
     pub(crate) fn revert_with(&mut self, reason: RevertReason) {
+        if self.semantic {
+            // revert_if true, reason; unreachable
+            let condition = self.imm_bool(true);
+            self.revert_if(condition, reason);
+            self.invalid();
+            return;
+        }
         match reason.message() {
             Some(message) if self.encodes_revert_reasons() => self.revert_error_string(message),
             _ => {
@@ -425,12 +329,23 @@ impl<'a> FunctionBuilder<'a> {
         self.revert(zero, size);
     }
 
-    fn branch_to_revert(
+    pub(crate) fn branch_to_revert(
         &mut self,
         condition: ValueId,
         condition_is_zero: bool,
         kind: RevertKind,
     ) -> BlockId {
+        if self.semantic {
+            // check condition, failure
+            self.emit_void_inst(InstKind::Check {
+                condition,
+                is_zero: condition_is_zero,
+                failure: kind,
+            });
+            return self.current_block();
+        }
+        // branch condition, failure, continuation
+        // failure: revert payload
         let (revert, new_revert) = self.revert_block(kind);
         let continue_block = self.create_block();
         if condition_is_zero {

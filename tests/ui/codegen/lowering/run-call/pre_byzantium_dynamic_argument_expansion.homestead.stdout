@@ -63,15 +63,14 @@ fn @plainCall() -> u256 [selector=0x707bf9ed, abi_params=[], abi_returns=[word]]
     v13 = slice_len v11
     v14 = extcodesize v6
     v15 = iszero v14
-    jumpi v15, bb3, bb4
-  bb4:
+    revert_if v15, target_contract_has_no_code
     v16 = gas
     v17 = sub v16, 50
     v18 = call v17, v6, 0, v12, v13, v12, 192
-    jumpi v18, bb6, bb5
-  bb5:
+    jumpi v18, bb4, bb3
+  bb3:
     revert_returndata
-  bb6:
+  bb4:
     v19 = add v12, 0
     v20 = mload v19
     v21 = add v12, 32
@@ -110,8 +109,6 @@ fn @plainCall() -> u256 [selector=0x707bf9ed, abi_params=[], abi_returns=[word]]
     v54 = extract_value struct0, v48, 5
     v55 = checked_add u256, v49, v54
     ret v55
-  bb3:
-    revert 0, 0
 }
 
 fn @tryCall() -> u256 [selector=0x118dfb0e, abi_params=[], abi_returns=[word]] {
@@ -140,19 +137,19 @@ fn @tryCall() -> u256 [selector=0x118dfb0e, abi_params=[], abi_returns=[word]] {
     v13 = slice_len v11
     v14 = extcodesize v6
     v15 = iszero v14
-    jumpi v15, bb3, bb4
-  bb4:
+    revert_if v15, target_contract_has_no_code
     v16 = gas
     v17 = sub v16, 50
     v18 = call v17, v6, 0, v12, v13, v12, 192
-    jumpi v18, bb5, bb6
+    jumpi v18, bb3, bb4
+  bb4:
+    jumpi true, bb6, bb7
+  bb7:
+    revert_if true, empty
+    invalid
   bb6:
-    jumpi true, bb8, bb9
-  bb9:
-    revert 0, 0
-  bb8:
-    jump bb7
-  bb5:
+    jump bb5
+  bb3:
     v19 = add v12, 0
     v20 = mload v19
     v21 = add v12, 32
@@ -178,12 +175,10 @@ fn @tryCall() -> u256 [selector=0x118dfb0e, abi_params=[], abi_returns=[word]] {
     v41 = add v12, 160
     v42 = mload v41
     v43 = checked_add u256, v32, v42
-    jump bb7
-  bb7:
-    v44 = phi [bb5: v43], [bb8: 7]
+    jump bb5
+  bb5:
+    v44 = phi [bb3: v43], [bb6: 7]
     ret v44
-  bb3:
-    revert 0, 0
 }
 
 fn @stringCall() -> u256 [selector=0xbdbbac6d, abi_params=[], abi_returns=[word]] {
@@ -212,15 +207,14 @@ fn @stringCall() -> u256 [selector=0xbdbbac6d, abi_params=[], abi_returns=[word]
     v13 = slice_len v11
     v14 = extcodesize v6
     v15 = iszero v14
-    jumpi v15, bb3, bb4
-  bb4:
+    revert_if v15, target_contract_has_no_code
     v16 = gas
     v17 = sub v16, 50
     v18 = call v17, v6, 0, v12, v13, v12, 192
-    jumpi v18, bb6, bb5
-  bb5:
+    jumpi v18, bb4, bb3
+  bb3:
     revert_returndata
-  bb6:
+  bb4:
     v19 = add v12, 0
     v20 = mload v19
     v21 = add v12, 32
@@ -259,6 +253,4 @@ fn @stringCall() -> u256 [selector=0xbdbbac6d, abi_params=[], abi_returns=[word]
     v54 = extract_value struct0, v48, 5
     v55 = checked_add u256, v49, v54
     ret v55
-  bb3:
-    revert 0, 0
 }

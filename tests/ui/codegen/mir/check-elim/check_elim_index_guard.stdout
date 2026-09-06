@@ -69,3 +69,27 @@
       ret v3
   }
   
+  fn @semantic_guards(arg0: bool, arg1: u256) {
+    bb0:
+      revert_if_zero arg0, empty
+-     panic_if_zero arg0, 0x1
+      v0 = lt arg1, 4
+      revert_if_zero v0, empty
+-     panic_if_zero v0, 0x32
+      ret
+  }
+  
+  fn @conditional_guard(arg0: bool, arg1: bool) {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb2:
+      panic_if_zero arg1, 0x12
+      jump bb3
+    bb1:
+      panic_if_zero arg1, 0x1
+-     panic_if_zero arg1, 0x32
+      jump bb3
+    bb3:
+      ret
+  }
+  

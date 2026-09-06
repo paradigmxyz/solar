@@ -100,15 +100,12 @@ fn @getter() -> u256 [selector=0x993a04b7, abi_params=[], abi_returns=[word]] {
   bb2:
     v6 = returndatasize
     v7 = lt v6, 32
-    jumpi v7, bb3, bb4
-  bb4:
+    revert_if v7, tuple_data_too_short
     v8 = add 0, 0
     v9 = mload v8
     v10 = add 0, 0
     v11 = mload v10
     ret v11
-  bb3:
-    revert 0, 0
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/transient_storage.sol:TransientModifier ===

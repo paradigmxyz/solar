@@ -53,8 +53,7 @@ fn @sum(arg0: calldataslice) -> u256 [selector=0x0194db8e, pure, abi_params=[arr
     v5 = slice_len v2
     v6 = lt v0, v5
     v7 = iszero v6
-    jumpi v7, bb7, bb8
-  bb8:
+    panic_if v7, 0x32
     v8 = slice_ptr v2
     v9 = mul v0, 32
     v10 = iszero 32
@@ -62,8 +61,7 @@ fn @sum(arg0: calldataslice) -> u256 [selector=0x0194db8e, pure, abi_params=[arr
     v12 = eq v11, v0
     v13 = or v10, v12
     v14 = iszero v13
-    jumpi v14, bb9, bb10
-  bb10:
+    panic_if v14, 0x41
     v15 = add v8, v9
     v16 = calldataload v15
     v17 = checked_add u256, v1, v16
@@ -73,14 +71,6 @@ fn @sum(arg0: calldataslice) -> u256 [selector=0x0194db8e, pure, abi_params=[arr
   bb3:
     v18 = checked_add u256, v0, 1
     jump bb1
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @increment() -> u256 [selector=0xd09de08a, abi_params=[], abi_returns=[word]] {
@@ -96,13 +86,8 @@ fn @testInline() [selector=0x2bb29eb9, view, abi_params=[], abi_returns=[]] {
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = eq v0, 40
     v2 = iszero v1
-    jumpi v2, bb1, bb2
-  bb2:
+    panic_if v2, 0x1
     stop
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 1 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @fullyInitializedNamedStruct() -> memorystruct [selector=0x03e8d290, pure, abi_params=[], abi_returns=[tuple<memory_array<word>, memory_bytes>]] {

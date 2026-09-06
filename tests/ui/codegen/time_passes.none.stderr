@@ -1,3 +1,4 @@
+time: <TIME>	MIR TimePasses lower-checks changed=false
 time: <TIME>	MIR TimePasses lower-arithmetic changed=false
 time: <TIME>	MIR TimePasses lower-builtins changed=false
 time: <TIME>	MIR TimePasses lower-abi changed=true

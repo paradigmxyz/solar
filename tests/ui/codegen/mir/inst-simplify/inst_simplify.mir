@@ -213,3 +213,21 @@ fn @wrapping_signed_division() -> u256 {
     v0 = wrapping_div i8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     ret v0
 }
+
+// CHECK-LABEL: fn @constant_checks
+// CHECK: - panic_if false, 0x1
+// CHECK: - panic_if_zero true, 0x12
+// CHECK: - revert_if 0, empty
+// CHECK: - revert_if_zero 7, tuple_data_too_short
+// CHECK: panic_if true, 0x11
+// CHECK: revert_if_zero arg0, empty
+fn @constant_checks(arg0: u256) {
+  bb0:
+    panic_if false, 0x1
+    panic_if_zero true, 0x12
+    revert_if 0, empty
+    revert_if_zero 7, tuple_data_too_short
+    panic_if true, 0x11
+    revert_if_zero arg0, empty
+    ret
+}

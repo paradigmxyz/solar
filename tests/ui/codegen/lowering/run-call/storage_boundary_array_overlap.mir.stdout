@@ -20,74 +20,65 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v0 = icall @getArray
     v1 = lt 0, 1
     v2 = iszero v1
-    jumpi v2, bb1, bb2
-  bb2:
+    panic_if v2, 0x32
     v3 = mul 0, 10
     v4 = add v0, v3
     v5 = lt 5, 10
     v6 = iszero v5
-    jumpi v6, bb1, bb3
-  bb3:
+    panic_if v6, 0x32
     v7 = add v4, 5
     v8 = sload v7 !metadata(storage=offset(v4, 5))
-    jump bb4
-  bb4:
-    v9 = phi [bb3: v8], [bb6: v9]
-    v10 = phi [bb3: 1], [bb6: v22]
-    v11 = phi [bb3: 0], [bb6: v11]
-    v12 = phi [bb3: 0], [bb6: v12]
-    v13 = phi [bb3: v0], [bb6: v13]
+    jump bb1
+  bb1:
+    v9 = phi [bb0: v8], [bb3: v9]
+    v10 = phi [bb0: 1], [bb3: v22]
+    v11 = phi [bb0: 0], [bb3: v11]
+    v12 = phi [bb0: 0], [bb3: v12]
+    v13 = phi [bb0: v0], [bb3: v13]
     v14 = lt v10, 10
-    jumpi v14, bb7, bb8
-  bb8:
-    jump bb5
+    jumpi v14, bb4, bb5
   bb5:
+    jump bb2
+  bb2:
     v23 = sload 0 !metadata(storage=slot(0))
     v24 = lt 0, 1
     v25 = iszero v24
-    jumpi v25, bb1, bb12
-  bb12:
+    panic_if v25, 0x32
     v26 = mul 0, 10
     v27 = add v13, v26
-    jump bb13
-  bb13:
-    v28 = phi [bb12: 0], [bb14: v31]
+    jump bb7
+  bb7:
+    v28 = phi [bb2: 0], [bb8: v31]
     v29 = lt v28, 10
-    jumpi v29, bb14, bb15
-  bb15:
+    jumpi v29, bb8, bb9
+  bb9:
     v32 = sload 0 !metadata(storage=slot(0))
     v33 = insert_value struct0, undef struct0, 0, v9
     v34 = insert_value struct0, v33, 1, v23
     v35 = insert_value struct0, v34, 2, v32
     ret v35
-  bb14:
+  bb8:
     v30 = add v27, v28
     sstore v30, 0 !metadata(storage=symbolic(v30))
     v31 = add v28, 1
-    jump bb13
-  bb7:
+    jump bb7
+  bb4:
     v15 = lt 0, 1
     v16 = iszero v15
-    jumpi v16, bb1, bb10
-  bb10:
+    panic_if v16, 0x32
     v17 = mul 0, 10
     v18 = add v13, v17
     v19 = lt v10, 10
     v20 = iszero v19
-    jumpi v20, bb1, bb11
-  bb11:
+    panic_if v20, 0x32
     v21 = add v18, v10
     sstore v21, v10 !metadata(storage=symbolic(v21))
-    jump bb9
-  bb9:
     jump bb6
   bb6:
+    jump bb3
+  bb3:
     v22 = checked_add u256, v10, 1
-    jump bb4
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    jump bb1
 }
 
 fn @constructor() [constructor] {

@@ -32,6 +32,9 @@ pub(crate) use inst::{
 mod arithmetic;
 pub(crate) use arithmetic::{ArithmeticKind, CheckedOp};
 
+mod checks;
+pub(crate) use checks::{PanicCode, RevertKind, RevertReason};
+
 mod effects;
 pub(crate) use effects::ControlEffects;
 
@@ -49,7 +52,7 @@ pub(crate) use module::{LibraryLink, LoweredModule};
 pub use module::{MirPhase, Module};
 
 mod builder;
-pub(crate) use builder::{ERROR_SELECTOR, FunctionBuilder, PanicCode, RevertReason, ToUint};
+pub(crate) use builder::{ERROR_SELECTOR, FunctionBuilder, ToUint};
 
 mod display;
 

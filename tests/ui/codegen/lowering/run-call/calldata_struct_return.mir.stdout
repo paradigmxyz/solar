@@ -59,8 +59,7 @@ fn @roundTrip() -> struct2 [selector=0x6643a628, view, abi_params=[], abi_return
     v13 = returndatasize
     v14 = add v13, 63
     v15 = lt v14, v13
-    jumpi v15, bb3, bb4
-  bb4:
+    panic_if v15, 0x41
     v16 = not 31
     v17 = and v14, v16
     v18 = alloc memorybytes, exact, uninitialized, infallible, v17
@@ -90,10 +89,6 @@ fn @roundTrip() -> struct2 [selector=0x6643a628, view, abi_params=[], abi_return
     v40 = insert_value struct2, v39, 5, v32
     v41 = insert_value struct2, v40, 6, v34
     ret v41
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @decode.3(arg0: calldataslice) -> struct1 [pure] {

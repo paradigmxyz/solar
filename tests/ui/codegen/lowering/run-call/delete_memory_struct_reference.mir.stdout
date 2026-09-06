@@ -14,8 +14,7 @@ fn @f() -> struct0 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word,
     v3 = memory_object_len memoryarray, v2
     v4 = lt 0, v3
     v5 = iszero v4
-    jumpi v5, bb1, bb2
-  bb2:
+    panic_if v5, 0x32
     memory_object_store_element memoryarray<1>, v2, 0, 7
     v6 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     v7 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
@@ -27,16 +26,11 @@ fn @f() -> struct0 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word,
     v11 = memory_object_len memoryarray, v10
     v12 = lt 0, v11
     v13 = iszero v12
-    jumpi v13, bb1, bb3
-  bb3:
+    panic_if v13, 0x32
     v14 = memory_object_load_element memoryarray<1>, v10, 0
     v15 = insert_value struct0, undef struct0, 0, v9
     v16 = insert_value struct0, v15, 1, v14
     ret v16
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @fixedArray() -> struct0 [selector=0x391e2457, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
@@ -45,26 +39,19 @@ fn @fixedArray() -> struct0 [selector=0x391e2457, pure, abi_params=[], abi_retur
     memory_zero v0, 64
     v1 = lt 0, 2
     v2 = iszero v1
-    jumpi v2, bb1, bb2
-  bb2:
+    panic_if v2, 0x32
     memory_object_store_element memoryfixedarray<2, 1>, v0, 0, 7
     v3 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     memory_zero v3, 64
     v4 = lt 0, 2
     v5 = iszero v4
-    jumpi v5, bb1, bb3
-  bb3:
+    panic_if v5, 0x32
     v6 = memory_object_load_element memoryfixedarray<2, 1>, v3, 0
     v7 = lt 0, 2
     v8 = iszero v7
-    jumpi v8, bb1, bb4
-  bb4:
+    panic_if v8, 0x32
     v9 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
     v10 = insert_value struct0, undef struct0, 0, v6
     v11 = insert_value struct0, v10, 1, v9
     ret v11
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
 }

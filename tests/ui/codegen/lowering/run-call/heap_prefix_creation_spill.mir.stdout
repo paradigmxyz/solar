@@ -43,22 +43,19 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
   bb4:
     v17 = returndatasize
     v18 = lt v17, 32
-    jumpi v18, bb5, bb6
-  bb6:
+    revert_if v18, tuple_data_too_short
     v19 = add 0, 0
     v20 = mload v19
     v21 = add 0, 0
     v22 = mload v21
     v23 = eq v22, 7
     v24 = iszero v23
-    jumpi v24, bb7, bb8
-  bb8:
+    jumpi v24, bb5, bb6
+  bb6:
     ret 1
-  bb7:
+  bb5:
     icall @revert_error, 5, 0x70726f7879000000000000000000000000000000000000000000000000000000
     invalid
-  bb5:
-    revert 0, 0
 }
 
 fn @_cloneDeterministic(arg0: address, arg1: memorybytes, arg2: bytes32) -> address {

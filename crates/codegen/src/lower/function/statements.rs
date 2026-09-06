@@ -463,7 +463,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // mstore(4, 32); mstore(36, length); mstore(68, word)
         // revert(0, 100)
         self.lazy_helper(sym::revert_error, |_, function| {
-            let mut builder = FunctionBuilder::new(function);
+            let mut builder = FunctionBuilder::new_semantic(function);
             let length = builder.add_param(MirType::uint256());
             let value = builder.add_param(MirType::uint256());
             let selector = builder.imm(ERROR_SELECTOR);

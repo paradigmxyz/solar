@@ -30,8 +30,7 @@ fn @constructor(arg0: memoryarray, arg1: address, arg2: u96) [constructor, abi_p
     v6 = memory_object_len memoryarray, v1
     v7 = lt v0, v6
     v8 = iszero v7
-    jumpi v8, bb7, bb8
-  bb8:
+    panic_if v8, 0x32
     v9 = memory_object_load_element memoryarray<1>, v1, v0
     v10 = and v9, 0xffffffffffffffffffffffff
     v11 = icall @mint, v3, v10
@@ -41,10 +40,6 @@ fn @constructor(arg0: memoryarray, arg1: address, arg2: u96) [constructor, abi_p
   bb3:
     v12 = checked_add u256, v0, 1
     jump bb1
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @latestKey() -> u96 [selector=0x8ee82b53, view, abi_params=[], abi_returns=[word<u96>]] {
@@ -79,8 +74,7 @@ fn @push(arg0: storageptr, arg1: u96, arg2: u160) {
     v8 = gt v6, v7
     v9 = iszero v8
     v10 = iszero v9
-    jumpi v10, bb4, bb5
-  bb5:
+    revert_if v10, empty
     jump bb3
   bb3:
     v11 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
@@ -90,8 +84,7 @@ fn @push(arg0: storageptr, arg1: u96, arg2: u160) {
     memory_object_store_field memorystruct<2>, v11, 1, v13
     v14 = sload arg0 !metadata(storage=symbolic(arg0))
     v15 = gt v14, 0xffffffffffffffff
-    jumpi v15, bb6, bb7
-  bb7:
+    panic_if v15, 0x41
     v16 = add v14, 1
     v17 = storage_array_data_slot arg0
     v18 = add v17, v14
@@ -113,12 +106,6 @@ fn @push(arg0: storageptr, arg1: u96, arg2: u160) {
     sstore v18, v32 !metadata(storage=symbolic(v18))
     sstore arg0, v16 !metadata(storage=symbolic(arg0))
     stop
-  bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb4:
-    revert 0, 0
 }
 
 fn @latest(arg0: storageptr) -> struct0 [view] {
@@ -204,15 +191,13 @@ fn @deploy() -> u96 [selector=0x775c300c, abi_params=[], abi_returns=[word<u96>]
     v1 = memory_object_len memoryarray, v0
     v2 = lt 0, v1
     v3 = iszero v2
-    jumpi v3, bb1, bb2
-  bb2:
+    panic_if v3, 0x32
     v4 = and 0xf52, 0xffffffffffffffffffffffff
     memory_object_store_element memoryarray<1>, v0, 0, v4
     v5 = memory_object_len memoryarray, v0
     v6 = lt 1, v5
     v7 = iszero v6
-    jumpi v7, bb1, bb3
-  bb3:
+    panic_if v7, 0x32
     v8 = and 6, 0xffffffffffffffffffffffff
     memory_object_store_element memoryarray<1>, v0, 1, v8
     v9 = and 0x1234, 0xffffffffffffffffffffffffffffffffffffffff
@@ -221,12 +206,10 @@ fn @deploy() -> u96 [selector=0x775c300c, abi_params=[], abi_returns=[word<u96>]
     v12 = slice_len v11
     v13 = add 0xdd5, v12
     v14 = lt v13, 0xdd5
-    jumpi v14, bb4, bb5
-  bb5:
+    panic_if v14, 0x41
     v15 = add v13, 31
     v16 = lt v15, v13
-    jumpi v16, bb4, bb6
-  bb6:
+    panic_if v16, 0x41
     v17 = not 31
     v18 = and v15, v17
     v19 = alloc raw, exact, uninitialized, infallible, v18
@@ -235,43 +218,31 @@ fn @deploy() -> u96 [selector=0x775c300c, abi_params=[], abi_returns=[word<u96>]
     v21 = add v19, 0xdd5
     mcopy v21, v20, v12 !metadata(memory=heap)
     v22 = create 0, v19, v13
-    jumpi v22, bb8, bb7
-  bb7:
+    jumpi v22, bb2, bb1
+  bb1:
     revert_returndata
-  bb8:
+  bb2:
     v23 = gas
     v24 = abi_encode [], selector 0x8ee82b5300000000000000000000000000000000000000000000000000000000
     v25 = slice_ptr v24
     v26 = slice_len v24
     v27 = staticcall v23, v22, v25, v26, 0, 32
-    jumpi v27, bb10, bb9
-  bb9:
+    jumpi v27, bb4, bb3
+  bb3:
     revert_returndata
-  bb10:
+  bb4:
     v28 = returndatasize
     v29 = lt v28, 32
-    jumpi v29, bb11, bb12
-  bb12:
+    revert_if v29, tuple_data_too_short
     v30 = add 0, 0
     v31 = mload v30
     v32 = and v31, 0xffffffffffffffffffffffff
     v33 = eq v31, v32
     v34 = iszero v33
-    jumpi v34, bb11, bb13
-  bb13:
+    revert_if v34, empty
     v35 = add 0, 0
     v36 = mload v35
     ret v36
-  bb11:
-    revert 0, 0
-  bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @multiReturn() -> u8 [selector=0xfeb8bba3, abi_params=[], abi_returns=[word<u8>]] {
@@ -300,20 +271,16 @@ fn @multiReturn() -> u8 [selector=0xfeb8bba3, abi_params=[], abi_returns=[word<u
   bb4:
     v12 = returndatasize
     v13 = lt v12, 32
-    jumpi v13, bb5, bb6
-  bb6:
+    revert_if v13, tuple_data_too_short
     v14 = add 0, 0
     v15 = mload v14
     v16 = and v15, 255
     v17 = eq v15, v16
     v18 = iszero v17
-    jumpi v18, bb5, bb7
-  bb7:
+    revert_if v18, empty
     v19 = add 0, 0
     v20 = mload v19
     ret v20
-  bb5:
-    revert 0, 0
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/checkpoint_constructor.sol:ConstructorMultiReturn ===

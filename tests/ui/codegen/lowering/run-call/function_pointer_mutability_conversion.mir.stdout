@@ -52,8 +52,7 @@ fn @testViewToDefault() -> struct0 [selector=0xea84b69f, abi_params=[], abi_retu
   bb9:
     v57 = lt 0, 1
     v58 = iszero v57
-    jumpi v58, bb13, bb14
-  bb14:
+    panic_if v58, 0x32
     v59 = div 0, 1
     v60 = add 0, v59
     v61 = mod 0, 1
@@ -70,22 +69,20 @@ fn @testViewToDefault() -> struct0 [selector=0xea84b69f, abi_params=[], abi_retu
     v72 = slice_ptr v71
     v73 = slice_len v71
     v74 = call v70, v69, 0, v72, v73, 0, 32
-    jumpi v74, bb16, bb15
-  bb15:
+    jumpi v74, bb14, bb13
+  bb13:
     revert_returndata
-  bb16:
+  bb14:
     v75 = returndatasize
     v76 = lt v75, 32
-    jumpi v76, bb17, bb18
-  bb18:
+    revert_if v76, tuple_data_too_short
     v77 = add 0, 0
     v78 = mload v77
     v79 = add 0, 0
     v80 = mload v79
     v81 = lt 0, 1
     v82 = iszero v81
-    jumpi v82, bb13, bb19
-  bb19:
+    panic_if v82, 0x32
     v83 = div 0, 4
     v84 = add 3, v83
     v85 = mod 0, 4
@@ -98,12 +95,6 @@ fn @testViewToDefault() -> struct0 [selector=0xea84b69f, abi_params=[], abi_retu
     v92 = insert_value struct0, undef struct0, 0, v80
     v93 = insert_value struct0, v92, 1, v91
     ret v93
-  bb17:
-    revert 0, 0
-  bb13:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb8:
     v34 = div v32, 4
     v35 = add 3, v34
@@ -197,8 +188,7 @@ fn @testPureToDefault() -> struct0 [selector=0x77df1859, abi_params=[], abi_retu
   bb9:
     v57 = lt 0, 1
     v58 = iszero v57
-    jumpi v58, bb13, bb14
-  bb14:
+    panic_if v58, 0x32
     v59 = div 0, 1
     v60 = add 0, v59
     v61 = mod 0, 1
@@ -215,22 +205,20 @@ fn @testPureToDefault() -> struct0 [selector=0x77df1859, abi_params=[], abi_retu
     v72 = slice_ptr v71
     v73 = slice_len v71
     v74 = call v70, v69, 0, v72, v73, 0, 32
-    jumpi v74, bb16, bb15
-  bb15:
+    jumpi v74, bb14, bb13
+  bb13:
     revert_returndata
-  bb16:
+  bb14:
     v75 = returndatasize
     v76 = lt v75, 32
-    jumpi v76, bb17, bb18
-  bb18:
+    revert_if v76, tuple_data_too_short
     v77 = add 0, 0
     v78 = mload v77
     v79 = add 0, 0
     v80 = mload v79
     v81 = lt 0, 1
     v82 = iszero v81
-    jumpi v82, bb13, bb19
-  bb19:
+    panic_if v82, 0x32
     v83 = div 0, 4
     v84 = add 3, v83
     v85 = mod 0, 4
@@ -243,12 +231,6 @@ fn @testPureToDefault() -> struct0 [selector=0x77df1859, abi_params=[], abi_retu
     v92 = insert_value struct0, undef struct0, 0, v80
     v93 = insert_value struct0, v92, 1, v91
     ret v93
-  bb17:
-    revert 0, 0
-  bb13:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb8:
     v34 = div v32, 4
     v35 = add 3, v34
@@ -342,8 +324,7 @@ fn @testPureToView() -> struct0 [selector=0x78f13937, abi_params=[], abi_returns
   bb9:
     v57 = lt 0, 1
     v58 = iszero v57
-    jumpi v58, bb13, bb14
-  bb14:
+    panic_if v58, 0x32
     v59 = div 0, 1
     v60 = add 1, v59
     v61 = mod 0, 1
@@ -360,22 +341,20 @@ fn @testPureToView() -> struct0 [selector=0x78f13937, abi_params=[], abi_returns
     v72 = slice_ptr v71
     v73 = slice_len v71
     v74 = staticcall v70, v69, v72, v73, 0, 32
-    jumpi v74, bb16, bb15
-  bb15:
+    jumpi v74, bb14, bb13
+  bb13:
     revert_returndata
-  bb16:
+  bb14:
     v75 = returndatasize
     v76 = lt v75, 32
-    jumpi v76, bb17, bb18
-  bb18:
+    revert_if v76, tuple_data_too_short
     v77 = add 0, 0
     v78 = mload v77
     v79 = add 0, 0
     v80 = mload v79
     v81 = lt 0, 1
     v82 = iszero v81
-    jumpi v82, bb13, bb19
-  bb19:
+    panic_if v82, 0x32
     v83 = div 0, 4
     v84 = add 4, v83
     v85 = mod 0, 4
@@ -388,12 +367,6 @@ fn @testPureToView() -> struct0 [selector=0x78f13937, abi_params=[], abi_returns
     v92 = insert_value struct0, undef struct0, 0, v80
     v93 = insert_value struct0, v92, 1, v91
     ret v93
-  bb17:
-    revert 0, 0
-  bb13:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb8:
     v34 = div v32, 4
     v35 = add 4, v34
@@ -471,9 +444,8 @@ fn @internal_dispatcher_p_none_r_u256(arg0: function) -> u256 [function_pointer_
     v2 = eq arg0, 6
     jumpi v2, bb3, bb4
   bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 81 !metadata(memory=scratch)
-    revert 0, 36
+    panic_if true, 0x51
+    invalid
   bb3:
     v3 = icall @internalPureTarget
     ret v3

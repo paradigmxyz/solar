@@ -9,7 +9,7 @@ contract MemoryFixedArrayAlloc {
     // CHECK-LABEL: fn @guardedFix{{[( ]}}
     // CHECK: [[ARRAY:v[0-9]+]] = alloc memoryfixedarray<3, 1>
     // CHECK: lt arg0, 3
-    // CHECK: jumpi
+    // CHECK: panic_if {{v[0-9]+}}, 0x32
     // CHECK: memory_object_load_element memoryfixedarray<3, 1>, [[ARRAY]], arg0
     function guardedFix(uint256 i) public pure returns (uint256) {
         uint256[3] memory x;

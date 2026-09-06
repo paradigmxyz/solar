@@ -14,15 +14,12 @@ fn @peel(arg0: calldataslice) -> calldataslice [pure] {
     v5 = gt v4, v4
     v6 = lt v4, 1
     v7 = or v5, v6
-    jumpi v7, bb4, bb5
-  bb5:
+    revert_if v7, empty
     v8 = sub v4, 1
     v9 = add v3, 1
     v10 = make_calldata_slice v9, v8
     v11 = icall @peel, v10
     ret v11
-  bb4:
-    revert 0, 0
   bb1:
     ret arg0
 }

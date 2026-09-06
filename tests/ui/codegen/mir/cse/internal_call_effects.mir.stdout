@@ -73,23 +73,17 @@ fn @memoryDisjoint() -> u256 [selector=0xc1ce920c, pure, abi_params=[], abi_retu
     memory_object_store_element memoryfixedarray<2, 1>, v0, 1, 20
     v1 = lt 0, 2
     v2 = iszero v1
-    jumpi v2, bb1, bb2
-  bb2:
+    panic_if v2, 0x32
     v3 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
     v4 = word_cast v0
     v5 = checked_add u256, v4, 32
     icall @writeMemory, v5
     v6 = lt 0, 2
     v7 = iszero v6
-    jumpi v7, bb1, bb3
-  bb3:
+    panic_if v7, 0x32
     v8 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
     v9 = checked_add u256, v3, v8
     ret v9
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @memoryOverlap() -> u256 [selector=0xb7b7ef77, pure, abi_params=[], abi_returns=[word]] {
@@ -99,21 +93,15 @@ fn @memoryOverlap() -> u256 [selector=0xb7b7ef77, pure, abi_params=[], abi_retur
     memory_object_store_element memoryfixedarray<2, 1>, v0, 1, 20
     v1 = lt 0, 2
     v2 = iszero v1
-    jumpi v2, bb1, bb2
-  bb2:
+    panic_if v2, 0x32
     v3 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
     icall @writeMemory, v0
     v4 = lt 0, 2
     v5 = iszero v4
-    jumpi v5, bb1, bb3
-  bb3:
+    panic_if v5, 0x32
     v6 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
     v7 = checked_add u256, v3, v6
     ret v7
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @memoryPartialOverlap() -> u256 [selector=0x3f1d4740, pure, abi_params=[], abi_returns=[word]] {
@@ -123,23 +111,17 @@ fn @memoryPartialOverlap() -> u256 [selector=0x3f1d4740, pure, abi_params=[], ab
     memory_object_store_element memoryfixedarray<2, 1>, v0, 1, 20
     v1 = lt 0, 2
     v2 = iszero v1
-    jumpi v2, bb1, bb2
-  bb2:
+    panic_if v2, 0x32
     v3 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
     v4 = word_cast v0
     v5 = checked_add u256, v4, 1
     icall @writeMemory, v5
     v6 = lt 0, 2
     v7 = iszero v6
-    jumpi v7, bb1, bb3
-  bb3:
+    panic_if v7, 0x32
     v8 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
     v9 = checked_add u256, v3, v8
     ret v9
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @memoryRecursive() -> u256 [selector=0xff857f19, pure, abi_params=[], abi_returns=[word]] {
@@ -150,21 +132,15 @@ fn @memoryRecursive() -> u256 [selector=0xff857f19, pure, abi_params=[], abi_ret
     memory_object_store_element memoryfixedarray<3, 1>, v0, 2, 30
     v1 = lt 0, 3
     v2 = iszero v1
-    jumpi v2, bb1, bb2
-  bb2:
+    panic_if v2, 0x32
     v3 = memory_object_load_element memoryfixedarray<3, 1>, v0, 0
     icall @writeMemoryRecursive, v0, 2
     v4 = lt 0, 3
     v5 = iszero v4
-    jumpi v5, bb1, bb3
-  bb3:
+    panic_if v5, 0x32
     v6 = memory_object_load_element memoryfixedarray<3, 1>, v0, 0
     v7 = checked_add u256, v3, v6
     ret v7
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @writeMemory(arg0: u256) [pure] {

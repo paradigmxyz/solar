@@ -121,8 +121,7 @@ fn @memoryStoreCleanup() -> u256 [selector=0xa32f54c2, pure, abi_params=[], abi_
     v2 = memory_object_len memoryarray, v1
     v3 = lt 0, v2
     v4 = iszero v3
-    jumpi v4, bb1, bb2
-  bb2:
+    panic_if v4, 0x32
     v5 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
     memory_object_store_element memoryarray<1>, v1, 0, v5
     v6 = shl 160, 1
@@ -131,10 +130,6 @@ fn @memoryStoreCleanup() -> u256 [selector=0xa32f54c2, pure, abi_params=[], abi_
     v9 = mload v8
     v10 = eq v9, v7
     ret v10
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @revert_error(arg0: u256, arg1: u256) {

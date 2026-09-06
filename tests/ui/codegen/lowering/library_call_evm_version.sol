@@ -128,7 +128,7 @@ contract C {
     // HOMESTEAD: [[WORD:v[0-9]+]] = mload
     // HOMESTEAD: [[CLEAN:v[0-9]+]] = eq [[WORD]],
     // HOMESTEAD: iszero [[CLEAN]]
-    // HOMESTEAD: revert 0, 0
+    // HOMESTEAD: revert_if {{v[0-9]+}}, empty
     // BYZANTIUM-LABEL: fn @boolean
     // BYZANTIUM: delegatecall {{.*}}, 0, 0
     // BYZANTIUM: returndatasize

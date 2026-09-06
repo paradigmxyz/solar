@@ -9,14 +9,9 @@ fn @guardedFix(arg0: u256) -> u256 [selector=0x93390577, pure, abi_params=[u256]
     memory_zero v0, 96
     v1 = lt arg0, 3
     v2 = iszero v1
-    jumpi v2, bb1, bb2
-  bb2:
+    panic_if v2, 0x32
     v3 = memory_object_load_element memoryfixedarray<3, 1>, v0, arg0
     ret v3
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @structArr(arg0: u256) -> u256 [selector=0x40b8037f, pure, abi_params=[u256], abi_returns=[word]] {
@@ -28,14 +23,9 @@ fn @structArr(arg0: u256) -> u256 [selector=0x40b8037f, pure, abi_params=[u256],
     v2 = memory_object_load_field memorystruct<1>, v0, 0, memoryfixedarray
     v3 = lt arg0, 3
     v4 = iszero v3
-    jumpi v4, bb1, bb2
-  bb2:
+    panic_if v4, 0x32
     v5 = memory_object_load_element memoryfixedarray<3, 1>, v2, arg0
     ret v5
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @nested(arg0: u256, arg1: u256) -> u256 [selector=0x50d1f082, pure, abi_params=[u256, u256], abi_returns=[word]] {
@@ -49,49 +39,41 @@ fn @nested(arg0: u256, arg1: u256) -> u256 [selector=0x50d1f082, pure, abi_param
   bb3:
     v5 = lt 0, 3
     v6 = iszero v5
-    jumpi v6, bb4, bb5
-  bb5:
+    panic_if v6, 0x32
     v7 = memory_object_load_element memoryfixedarray<3, 1>, v0, 0
     v8 = memory_object_from_ptr memoryfixedarray, v7
     v9 = eq v8, 0
-    jumpi v9, bb6, bb7
-  bb6:
+    jumpi v9, bb4, bb5
+  bb4:
     v10 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     memory_zero v10, 64
     memory_object_store_element memoryfixedarray<3, 1>, v0, 0, v10
-    jump bb7
-  bb7:
-    v11 = phi [bb5: v8], [bb6: v10]
+    jump bb5
+  bb5:
+    v11 = phi [bb3: v8], [bb4: v10]
     v12 = lt 0, 2
     v13 = iszero v12
-    jumpi v13, bb4, bb8
-  bb8:
+    panic_if v13, 0x32
     memory_object_store_element memoryfixedarray<2, 1>, v11, 0, 1
     v14 = lt arg0, 3
     v15 = iszero v14
-    jumpi v15, bb4, bb9
-  bb9:
+    panic_if v15, 0x32
     v16 = memory_object_load_element memoryfixedarray<3, 1>, v0, arg0
     v17 = memory_object_from_ptr memoryfixedarray, v16
     v18 = eq v17, 0
-    jumpi v18, bb10, bb11
-  bb10:
+    jumpi v18, bb6, bb7
+  bb6:
     v19 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     memory_zero v19, 64
     memory_object_store_element memoryfixedarray<3, 1>, v0, arg0, v19
-    jump bb11
-  bb11:
-    v20 = phi [bb9: v17], [bb10: v19]
+    jump bb7
+  bb7:
+    v20 = phi [bb5: v17], [bb6: v19]
     v21 = lt arg1, 2
     v22 = iszero v21
-    jumpi v22, bb4, bb12
-  bb12:
+    panic_if v22, 0x32
     v23 = memory_object_load_element memoryfixedarray<2, 1>, v20, arg1
     ret v23
-  bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     v3 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     memory_zero v3, 64
@@ -106,35 +88,27 @@ fn @fmpIntegrity() -> struct0 [selector=0xe547cb4d, pure, abi_params=[], abi_ret
     memory_zero v0, 96
     v1 = lt 2, 3
     v2 = iszero v1
-    jumpi v2, bb1, bb2
-  bb2:
+    panic_if v2, 0x32
     memory_object_store_element memoryfixedarray<3, 1>, v0, 2, 7
     v3 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v3, 1
     v4 = memory_object_len memoryarray, v3
     v5 = lt 0, v4
     v6 = iszero v5
-    jumpi v6, bb1, bb3
-  bb3:
+    panic_if v6, 0x32
     memory_object_store_element memoryarray<1>, v3, 0, 9
     v7 = lt 2, 3
     v8 = iszero v7
-    jumpi v8, bb1, bb4
-  bb4:
+    panic_if v8, 0x32
     v9 = memory_object_load_element memoryfixedarray<3, 1>, v0, 2
     v10 = memory_object_len memoryarray, v3
     v11 = lt 0, v10
     v12 = iszero v11
-    jumpi v12, bb1, bb5
-  bb5:
+    panic_if v12, 0x32
     v13 = memory_object_load_element memoryarray<1>, v3, 0
     v14 = insert_value struct0, undef struct0, 0, v9
     v15 = insert_value struct0, v14, 1, v13
     ret v15
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @literal() -> u256 [selector=0x1373185e, pure, abi_params=[], abi_returns=[word]] {
@@ -145,14 +119,9 @@ fn @literal() -> u256 [selector=0x1373185e, pure, abi_params=[], abi_returns=[wo
     memory_object_store_element memoryfixedarray<3, 1>, v0, 2, 3
     v1 = lt 2, 3
     v2 = iszero v1
-    jumpi v2, bb1, bb2
-  bb2:
+    panic_if v2, 0x32
     v3 = memory_object_load_element memoryfixedarray<3, 1>, v0, 2
     ret v3
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @bulkDefault(arg0: u256) -> u256 [selector=0xbe4421b6, pure, abi_params=[u256], abi_returns=[word]] {
@@ -161,14 +130,9 @@ fn @bulkDefault(arg0: u256) -> u256 [selector=0xbe4421b6, pure, abi_params=[u256
     memory_zero v0, 128
     v1 = lt arg0, 4
     v2 = iszero v1
-    jumpi v2, bb1, bb2
-  bb2:
+    panic_if v2, 0x32
     v3 = memory_object_load_element memoryfixedarray<4, 1>, v0, arg0
     ret v3
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 // === ROOT/tests/ui/codegen/lowering/memory_fixed_array_alloc.sol:NamedReturnAndDelete ===
@@ -184,13 +148,11 @@ fn @namedReturn() -> struct0 [selector=0xf76de570, pure, abi_params=[], abi_retu
     memory_zero v0, 96
     v1 = lt 0, 3
     v2 = iszero v1
-    jumpi v2, bb1, bb2
-  bb2:
+    panic_if v2, 0x32
     memory_object_store_element memoryfixedarray<3, 1>, v0, 0, 1
     v3 = lt 2, 3
     v4 = iszero v3
-    jumpi v4, bb1, bb3
-  bb3:
+    panic_if v4, 0x32
     memory_object_store_element memoryfixedarray<3, 1>, v0, 2, 3
     v5 = not 31
     v6 = and 95, v5
@@ -200,25 +162,19 @@ fn @namedReturn() -> struct0 [selector=0xf76de570, pure, abi_params=[], abi_retu
     v9 = memory_object_len memorybytes, v7
     v10 = lt 0, v9
     v11 = iszero v10
-    jumpi v11, bb1, bb4
-  bb4:
+    panic_if v11, 0x32
     v12 = byte 0, v8
     memory_object_store_byte memorybytes, v7, 0, v12
     v13 = memory_object_len memorybytes, v7
     v14 = lt 0, v13
     v15 = iszero v14
-    jumpi v15, bb1, bb5
-  bb5:
+    panic_if v15, 0x32
     v16 = memory_object_load_byte memorybytes, v7, 0
     v17 = shl 248, v16
     v18 = shr 248, v17
     v19 = insert_value struct0, undef struct0, 0, v0
     v20 = insert_value struct0, v19, 1, v18
     ret v20
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @emptyMemoryReferences() -> u256 [selector=0xc82d0745, pure, abi_params=[], abi_returns=[word]] {
@@ -275,43 +231,33 @@ fn @deleteRebind() -> struct2 [selector=0x81e51eb1, pure, abi_params=[], abi_ret
     memory_zero v0, 96
     v1 = lt 0, 3
     v2 = iszero v1
-    jumpi v2, bb1, bb2
-  bb2:
+    panic_if v2, 0x32
     memory_object_store_element memoryfixedarray<3, 1>, v0, 0, 5
     v3 = lt 1, 3
     v4 = iszero v3
-    jumpi v4, bb1, bb3
-  bb3:
+    panic_if v4, 0x32
     memory_object_store_element memoryfixedarray<3, 1>, v0, 1, 6
     v5 = lt 2, 3
     v6 = iszero v5
-    jumpi v6, bb1, bb4
-  bb4:
+    panic_if v6, 0x32
     memory_object_store_element memoryfixedarray<3, 1>, v0, 2, 7
     v7 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
     memory_zero v7, 96
     v8 = lt 2, 3
     v9 = iszero v8
-    jumpi v9, bb1, bb5
-  bb5:
+    panic_if v9, 0x32
     memory_object_store_element memoryfixedarray<3, 1>, v7, 2, 9
     v10 = lt 0, 3
     v11 = iszero v10
-    jumpi v11, bb1, bb6
-  bb6:
+    panic_if v11, 0x32
     v12 = memory_object_load_element memoryfixedarray<3, 1>, v7, 0
     v13 = lt 2, 3
     v14 = iszero v13
-    jumpi v14, bb1, bb7
-  bb7:
+    panic_if v14, 0x32
     v15 = memory_object_load_element memoryfixedarray<3, 1>, v7, 2
     v16 = insert_value struct2, undef struct2, 0, v12
     v17 = insert_value struct2, v16, 1, v15
     ret v17
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @bulkDeleteRebind() -> struct2 [selector=0x535bf203, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
@@ -320,36 +266,27 @@ fn @bulkDeleteRebind() -> struct2 [selector=0x535bf203, pure, abi_params=[], abi
     memory_zero v0, 128
     v1 = lt 0, 4
     v2 = iszero v1
-    jumpi v2, bb1, bb2
-  bb2:
+    panic_if v2, 0x32
     memory_object_store_element memoryfixedarray<4, 1>, v0, 0, 5
     v3 = lt 3, 4
     v4 = iszero v3
-    jumpi v4, bb1, bb3
-  bb3:
+    panic_if v4, 0x32
     memory_object_store_element memoryfixedarray<4, 1>, v0, 3, 7
     v5 = alloc memoryfixedarray<4, 1>, exact, uninitialized, infallible, 128
     memory_zero v5, 128
     v6 = lt 3, 4
     v7 = iszero v6
-    jumpi v7, bb1, bb4
-  bb4:
+    panic_if v7, 0x32
     memory_object_store_element memoryfixedarray<4, 1>, v5, 3, 9
     v8 = lt 0, 4
     v9 = iszero v8
-    jumpi v9, bb1, bb5
-  bb5:
+    panic_if v9, 0x32
     v10 = memory_object_load_element memoryfixedarray<4, 1>, v5, 0
     v11 = lt 3, 4
     v12 = iszero v11
-    jumpi v12, bb1, bb6
-  bb6:
+    panic_if v12, 0x32
     v13 = memory_object_load_element memoryfixedarray<4, 1>, v5, 3
     v14 = insert_value struct2, undef struct2, 0, v10
     v15 = insert_value struct2, v14, 1, v13
     ret v15
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
 }

@@ -133,40 +133,36 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v29 = slice_len v27
     v30 = extcodesize v23
     v31 = iszero v30
-    jumpi v31, bb5, bb6
-  bb6:
+    revert_if v31, target_contract_has_no_code
     v32 = call v24, v23, 0, v28, v29, 0, 0
-    jumpi v32, bb8, bb7
-  bb7:
+    jumpi v32, bb6, bb5
+  bb5:
     revert_returndata
-  bb8:
+  bb6:
     v33 = gas
     v34 = abi_encode [], selector 0x7c2efcba00000000000000000000000000000000000000000000000000000000
     v35 = slice_ptr v34
     v36 = slice_len v34
     v37 = staticcall v33, v23, v35, v36, 0, 32
-    jumpi v37, bb10, bb9
-  bb9:
+    jumpi v37, bb8, bb7
+  bb7:
     revert_returndata
-  bb10:
+  bb8:
     v38 = returndatasize
     v39 = lt v38, 32
-    jumpi v39, bb5, bb11
-  bb11:
+    revert_if v39, tuple_data_too_short
     v40 = add 0, 0
     v41 = mload v40
     v42 = add 0, 0
     v43 = mload v42
     v44 = eq v43, 76
     v45 = iszero v44
-    jumpi v45, bb12, bb13
-  bb13:
+    jumpi v45, bb9, bb10
+  bb10:
     ret 1
-  bb12:
+  bb9:
     icall @revert_error, 7, 0x666f727761726400000000000000000000000000000000000000000000000000
     invalid
-  bb5:
-    revert 0, 0
 }
 
 fn @revert_error(arg0: u256, arg1: u256) {

@@ -22,16 +22,13 @@ fn @constructor(arg0: function) [constructor, abi_params=[function]] {
   bb2:
     v8 = returndatasize
     v9 = lt v8, 32
-    jumpi v9, bb3, bb4
-  bb4:
+    revert_if v9, tuple_data_too_short
     v10 = add 0, 0
     v11 = mload v10
     v12 = add 0, 0
     v13 = mload v12
     sstore 0, v13 !metadata(storage=slot(0))
     stop
-  bb3:
-    revert 0, 0
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_function_pointer.sol:ArrayTarget ===
@@ -84,15 +81,12 @@ fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
   bb4:
     v15 = returndatasize
     v16 = lt v15, 32
-    jumpi v16, bb5, bb6
-  bb6:
+    revert_if v16, tuple_data_too_short
     v17 = add 0, 0
     v18 = mload v17
     v19 = add 0, 0
     v20 = mload v19
     ret v20
-  bb5:
-    revert 0, 0
 }
 
 fn @fArray() -> bool [selector=0x33554e3e, abi_params=[], abi_returns=[word<bool>]] {
@@ -104,8 +98,7 @@ fn @fArray() -> bool [selector=0x33554e3e, abi_params=[], abi_returns=[word<bool
     v3 = or v2, 0x990227f1
     v4 = lt 0, 1
     v5 = iszero v4
-    jumpi v5, bb1, bb2
-  bb2:
+    panic_if v5, 0x32
     v6 = shl 64, v3
     memory_object_store_element memoryfixedarray<1, 1>, v0, 0, v6
     v7 = abi_encode [array<1, function>], args v0
@@ -117,10 +110,10 @@ fn @fArray() -> bool [selector=0x33554e3e, abi_params=[], abi_returns=[word<bool
     v12 = add v10, 310
     mcopy v12, v11, 32 !metadata(memory=heap)
     v13 = create 0, v10, 342
-    jumpi v13, bb4, bb3
-  bb3:
+    jumpi v13, bb2, bb1
+  bb1:
     revert_returndata
-  bb4:
+  bb2:
     v14 = address
     v15 = shl 96, v14
     v16 = shr 224, 0x990227f100000000000000000000000000000000000000000000000000000000
@@ -131,26 +124,19 @@ fn @fArray() -> bool [selector=0x33554e3e, abi_params=[], abi_returns=[word<bool
     v21 = slice_ptr v20
     v22 = slice_len v20
     v23 = staticcall v19, v13, v21, v22, 0, 32
-    jumpi v23, bb6, bb5
-  bb5:
+    jumpi v23, bb4, bb3
+  bb3:
     revert_returndata
-  bb6:
+  bb4:
     v24 = returndatasize
     v25 = lt v24, 32
-    jumpi v25, bb7, bb8
-  bb8:
+    revert_if v25, tuple_data_too_short
     v26 = add 0, 0
     v27 = mload v26
     v28 = add 0, 0
     v29 = mload v28
     v30 = eq v29, v18
     ret v30
-  bb7:
-    revert 0, 0
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @sixteen() -> u256 [selector=0x990227f1, pure, abi_params=[], abi_returns=[word]] {

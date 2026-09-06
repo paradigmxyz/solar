@@ -1932,6 +1932,26 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     Some(mode.result_type()),
                 )
             }
+            sym::panic_if | sym::panic_if_zero | sym::revert_if | sym::revert_if_zero => {
+                let condition = self.parse_value(builder)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let failure = if matches!(mnemonic, sym::panic_if | sym::panic_if_zero) {
+                    let value = self.parser.parse_uint()?;
+                    let code = value
+                        .try_into()
+                        .ok()
+                        .and_then(super::PanicCode::from_u64)
+                        .ok_or_else(|| self.parser.error("invalid panic code"))?;
+                    super::RevertKind::Panic(code)
+                } else {
+                    let name = self.parser.parse_ident()?;
+                    let reason = super::RevertReason::from_name(name)
+                        .ok_or_else(|| self.parser.error("invalid revert reason"))?;
+                    super::RevertKind::Reason(reason)
+                };
+                let is_zero = matches!(mnemonic, sym::panic_if_zero | sym::revert_if_zero);
+                (InstKind::Check { condition, is_zero, failure }, None)
+            }
             sym::validate_abi => inst!(ValidateAbi(value)),
             sym::abi_decode => {
                 let layout = self.parse_abi_param_layout()?;

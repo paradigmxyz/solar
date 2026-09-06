@@ -698,6 +698,7 @@ impl Instruction {
             | InstKind::Ripemd160(..)
             | InstKind::EcRecover(..) => Some("builtin"),
             InstKind::ValidateAbi(..) => Some("ABI validation"),
+            InstKind::Check { .. } => Some("conditional check"),
             InstKind::AbiEncode { .. } => Some("ABI encoding"),
             InstKind::AbiDecode { .. } => Some("ABI decoding"),
             InstKind::StorageToMemory { .. }
@@ -1293,6 +1294,8 @@ pub(crate) enum InstKind {
     /// Require materialization and ABI validation of this source value even when unused.
     /// Entry decoding or an internal typed-body boundary discharges this obligation.
     ValidateAbi(ValueId),
+    /// Revert with a typed failure if the condition has the selected truth value.
+    Check { condition: ValueId, is_zero: bool, failure: super::RevertKind },
     /// SHA-256 of a bytes object, including precompile output allocation and returndata effects.
     Sha256(ValueId),
     /// Concatenate bytes objects and left-aligned fixed words into a fresh bytes object.
@@ -1556,6 +1559,7 @@ impl InstKind {
             | Self::MemoryObjectFromPtr { ptr: a, .. }
             | Self::WordCast(a)
             | Self::ValidateAbi(a)
+            | Self::Check { condition: a, .. }
             | Self::Not(a)
             | Self::Clz(a)
             | Self::IsZero(a)
@@ -1854,6 +1858,7 @@ impl InstKind {
             | Self::MemoryObjectFromPtr { ptr: a, .. }
             | Self::WordCast(a)
             | Self::ValidateAbi(a)
+            | Self::Check { condition: a, .. }
             | Self::Not(a)
             | Self::Clz(a)
             | Self::IsZero(a)
@@ -2110,6 +2115,12 @@ impl InstKind {
             Self::Keccak256Bytes(_) => "keccak256_bytes",
             Self::CheckedBinary { op, .. } => op.name(),
             Self::ValidateAbi(_) => "validate_abi",
+            Self::Check { is_zero, failure, .. } => match (failure, is_zero) {
+                (super::RevertKind::Panic(_), false) => "panic_if",
+                (super::RevertKind::Panic(_), true) => "panic_if_zero",
+                (super::RevertKind::Reason(_), false) => "revert_if",
+                (super::RevertKind::Reason(_), true) => "revert_if_zero",
+            },
             Self::Concat(_) => "concat",
             Self::Sha256(_) => "sha256",
             Self::Ripemd160(_) => "ripemd160",
@@ -2180,6 +2191,7 @@ impl InstKind {
     pub(crate) const fn effect_kind(&self) -> EffectKind {
         match self {
             Self::ValidateAbi(..)
+            | Self::Check { .. }
             | Self::CheckedBinary { .. }
             | Self::InsertValue { .. }
             | Self::ExtractValue { .. }

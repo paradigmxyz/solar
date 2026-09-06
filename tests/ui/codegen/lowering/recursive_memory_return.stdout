@@ -35,56 +35,44 @@ fn @mkArr(arg0: u256) -> memoryarray [selector=0xfb67dbf3, pure, abi_params=[u25
     v3 = eq v2, arg0
     v4 = or v1, v3
     v5 = iszero v4
-    jumpi v5, bb1, bb2
-  bb2:
+    panic_if v5, 0x41
     v6 = add v0, 1
     v7 = lt v6, v0
-    jumpi v7, bb1, bb3
-  bb3:
+    panic_if v7, 0x41
     v8 = mul v6, 32
     v9 = iszero 32
     v10 = div v8, 32
     v11 = eq v10, v6
     v12 = or v9, v11
     v13 = iszero v12
-    jumpi v13, bb1, bb4
-  bb4:
+    panic_if v13, 0x41
     v14 = alloc memoryarray<1>, exact, zeroed, panic, v8
     set_memory_object_len memoryarray, v14, arg0
-    jump bb5
-  bb5:
-    v15 = phi [bb4: arg0], [bb7: v15]
-    v16 = phi [bb4: v14], [bb7: v16]
-    v17 = phi [bb4: memoryarray 96], [bb7: v17]
-    v18 = phi [bb4: 0], [bb7: v24]
+    jump bb1
+  bb1:
+    v15 = phi [bb0: arg0], [bb3: v15]
+    v16 = phi [bb0: v14], [bb3: v16]
+    v17 = phi [bb0: memoryarray 96], [bb3: v17]
+    v18 = phi [bb0: 0], [bb3: v24]
     v19 = lt v18, v15
-    jumpi v19, bb8, bb9
-  bb9:
-    jump bb6
-  bb6:
+    jumpi v19, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
     ret v16
-  bb8:
+  bb4:
     v20 = checked_mul u256, v18, 10
     v21 = memory_object_len memoryarray, v16
     v22 = lt v18, v21
     v23 = iszero v22
-    jumpi v23, bb11, bb12
-  bb12:
+    panic_if v23, 0x32
     memory_object_store_element memoryarray<1>, v16, v18, v20
-    jump bb10
-  bb10:
-    jump bb7
-  bb7:
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
     v24 = checked_add u256, v18, 1
-    jump bb5
-  bb11:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    jump bb1
 }
 
 fn @fillImpl(arg0: memoryarray, arg1: u256) -> memoryarray [pure] {
@@ -99,16 +87,11 @@ fn @fillImpl(arg0: memoryarray, arg1: u256) -> memoryarray [pure] {
     v3 = memory_object_len memoryarray, arg0
     v4 = lt arg1, v3
     v5 = iszero v4
-    jumpi v5, bb4, bb5
-  bb5:
+    panic_if v5, 0x32
     memory_object_store_element memoryarray<1>, arg0, arg1, v2
     v6 = checked_add u256, arg1, 1
     v7 = icall @fillImpl, arg0, v6
     ret v7
-  bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb1:
     ret arg0
 }
@@ -121,26 +104,19 @@ fn @squares(arg0: u256) -> memoryarray [selector=0x1d1d15d4, pure, abi_params=[u
     v3 = eq v2, arg0
     v4 = or v1, v3
     v5 = iszero v4
-    jumpi v5, bb1, bb2
-  bb2:
+    panic_if v5, 0x41
     v6 = add v0, 1
     v7 = lt v6, v0
-    jumpi v7, bb1, bb3
-  bb3:
+    panic_if v7, 0x41
     v8 = mul v6, 32
     v9 = iszero 32
     v10 = div v8, 32
     v11 = eq v10, v6
     v12 = or v9, v11
     v13 = iszero v12
-    jumpi v13, bb1, bb4
-  bb4:
+    panic_if v13, 0x41
     v14 = alloc memoryarray<1>, exact, zeroed, panic, v8
     set_memory_object_len memoryarray, v14, arg0
     v15 = icall @fillImpl, v14, 0
     ret v15
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
 }

@@ -104,3 +104,10 @@ fn @pending_validation(arg0: u256) {
     validate_abi arg0
     ret
 }
+
+//~? ERROR: [fn13] [bb0, inst0] conditional check instruction `panic_if_zero` survives the `lowered` phase boundary
+fn @unlowered_check(arg0: u256) {
+  bb0:
+    panic_if_zero arg0, 0x1
+    ret
+}

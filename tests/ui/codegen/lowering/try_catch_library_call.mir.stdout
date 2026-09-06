@@ -86,8 +86,7 @@ fn @direct(arg0: bool) -> u256 [selector=0xa8f96c85, pure, abi_params=[bool], ab
     v15 = returndatasize
     v16 = add v15, 63
     v17 = lt v16, v15
-    jumpi v17, bb4, bb6
-  bb6:
+    panic_if v17, 0x41
     v18 = not 31
     v19 = and v16, v18
     v20 = alloc memorybytes, exact, uninitialized, infallible, v19
@@ -102,22 +101,22 @@ fn @direct(arg0: bool) -> u256 [selector=0xa8f96c85, pure, abi_params=[bool], ab
     v27 = iszero v26
     v28 = shr 224, v25
     v29 = eq v28, 0x8c379a0
-    jumpi v29, bb7, bb8
-  bb8:
-    jump bb9
-  bb7:
+    jumpi v29, bb4, bb5
+  bb5:
+    jump bb6
+  bb4:
     v30 = icall @try_decode_error_message, v22, v23
-    jump bb9
-  bb9:
-    v31 = phi [bb7: v30], [bb8: false]
+    jump bb6
+  bb6:
+    v31 = phi [bb4: v30], [bb5: false]
     v32 = lt v23, 36
     v33 = iszero v32
     v34 = eq v28, 0x4e487b71
     v35 = and v33, v34
-    jumpi v31, bb10, bb11
-  bb11:
+    jumpi v31, bb7, bb8
+  bb8:
     revert v22, v23
-  bb10:
+  bb7:
     v36 = memory_object_data memorybytes, v20
     v37 = memory_object_len memorybytes, v20
     v38 = add v36, 4
@@ -126,8 +125,7 @@ fn @direct(arg0: bool) -> u256 [selector=0xa8f96c85, pure, abi_params=[bool], ab
     v41 = slice_len v40
     v42 = add v41, 63
     v43 = lt v42, v41
-    jumpi v43, bb4, bb12
-  bb12:
+    panic_if v43, 0x41
     v44 = not 31
     v45 = and v42, v44
     v46 = alloc memorybytes, exact, uninitialized, infallible, v45
@@ -139,8 +137,7 @@ fn @direct(arg0: bool) -> u256 [selector=0xa8f96c85, pure, abi_params=[bool], ab
     v7 = returndatasize
     v8 = add v7, 63
     v9 = lt v8, v7
-    jumpi v9, bb4, bb5
-  bb5:
+    panic_if v9, 0x41
     v10 = not 31
     v11 = and v8, v10
     v12 = alloc memorybytes, exact, uninitialized, infallible, v11
@@ -149,10 +146,6 @@ fn @direct(arg0: bool) -> u256 [selector=0xa8f96c85, pure, abi_params=[bool], ab
     memory_object_copy_from_slice memorybytes, v12, v13
     v14 = abi_decode [u256], v12
     ret v14
-  bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb3:
     ret 0
 }
@@ -171,8 +164,7 @@ fn @attached(arg0: bool) -> u256 [selector=0x42425916, abi_params=[bool], abi_re
     v15 = returndatasize
     v16 = add v15, 63
     v17 = lt v16, v15
-    jumpi v17, bb4, bb6
-  bb6:
+    panic_if v17, 0x41
     v18 = not 31
     v19 = and v16, v18
     v20 = alloc memorybytes, exact, uninitialized, infallible, v19
@@ -187,22 +179,22 @@ fn @attached(arg0: bool) -> u256 [selector=0x42425916, abi_params=[bool], abi_re
     v27 = iszero v26
     v28 = shr 224, v25
     v29 = eq v28, 0x8c379a0
-    jumpi v29, bb7, bb8
-  bb8:
-    jump bb9
-  bb7:
+    jumpi v29, bb4, bb5
+  bb5:
+    jump bb6
+  bb4:
     v30 = icall @try_decode_error_message, v22, v23
-    jump bb9
-  bb9:
-    v31 = phi [bb7: v30], [bb8: false]
+    jump bb6
+  bb6:
+    v31 = phi [bb4: v30], [bb5: false]
     v32 = lt v23, 36
     v33 = iszero v32
     v34 = eq v28, 0x4e487b71
     v35 = and v33, v34
-    jumpi v31, bb10, bb11
-  bb11:
+    jumpi v31, bb7, bb8
+  bb8:
     revert v22, v23
-  bb10:
+  bb7:
     v36 = memory_object_data memorybytes, v20
     v37 = memory_object_len memorybytes, v20
     v38 = add v36, 4
@@ -211,8 +203,7 @@ fn @attached(arg0: bool) -> u256 [selector=0x42425916, abi_params=[bool], abi_re
     v41 = slice_len v40
     v42 = add v41, 63
     v43 = lt v42, v41
-    jumpi v43, bb4, bb12
-  bb12:
+    panic_if v43, 0x41
     v44 = not 31
     v45 = and v42, v44
     v46 = alloc memorybytes, exact, uninitialized, infallible, v45
@@ -224,8 +215,7 @@ fn @attached(arg0: bool) -> u256 [selector=0x42425916, abi_params=[bool], abi_re
     v7 = returndatasize
     v8 = add v7, 63
     v9 = lt v8, v7
-    jumpi v9, bb4, bb5
-  bb5:
+    panic_if v9, 0x41
     v10 = not 31
     v11 = and v8, v10
     v12 = alloc memorybytes, exact, uninitialized, infallible, v11
@@ -234,10 +224,6 @@ fn @attached(arg0: bool) -> u256 [selector=0x42425916, abi_params=[bool], abi_re
     memory_object_copy_from_slice memorybytes, v12, v13
     v14 = abi_decode [u256], v12
     ret v14
-  bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb3:
     ret 0
 }
@@ -256,8 +242,7 @@ fn @attachedValue(arg0: u256, arg1: bool) -> u256 [selector=0xcece4c7f, pure, ab
     v15 = returndatasize
     v16 = add v15, 63
     v17 = lt v16, v15
-    jumpi v17, bb4, bb6
-  bb6:
+    panic_if v17, 0x41
     v18 = not 31
     v19 = and v16, v18
     v20 = alloc memorybytes, exact, uninitialized, infallible, v19
@@ -272,22 +257,22 @@ fn @attachedValue(arg0: u256, arg1: bool) -> u256 [selector=0xcece4c7f, pure, ab
     v27 = iszero v26
     v28 = shr 224, v25
     v29 = eq v28, 0x8c379a0
-    jumpi v29, bb7, bb8
-  bb8:
-    jump bb9
-  bb7:
+    jumpi v29, bb4, bb5
+  bb5:
+    jump bb6
+  bb4:
     v30 = icall @try_decode_error_message, v22, v23
-    jump bb9
-  bb9:
-    v31 = phi [bb7: v30], [bb8: false]
+    jump bb6
+  bb6:
+    v31 = phi [bb4: v30], [bb5: false]
     v32 = lt v23, 36
     v33 = iszero v32
     v34 = eq v28, 0x4e487b71
     v35 = and v33, v34
-    jumpi v31, bb10, bb11
-  bb11:
+    jumpi v31, bb7, bb8
+  bb8:
     revert v22, v23
-  bb10:
+  bb7:
     v36 = memory_object_data memorybytes, v20
     v37 = memory_object_len memorybytes, v20
     v38 = add v36, 4
@@ -296,8 +281,7 @@ fn @attachedValue(arg0: u256, arg1: bool) -> u256 [selector=0xcece4c7f, pure, ab
     v41 = slice_len v40
     v42 = add v41, 63
     v43 = lt v42, v41
-    jumpi v43, bb4, bb12
-  bb12:
+    panic_if v43, 0x41
     v44 = not 31
     v45 = and v42, v44
     v46 = alloc memorybytes, exact, uninitialized, infallible, v45
@@ -309,8 +293,7 @@ fn @attachedValue(arg0: u256, arg1: bool) -> u256 [selector=0xcece4c7f, pure, ab
     v7 = returndatasize
     v8 = add v7, 63
     v9 = lt v8, v7
-    jumpi v9, bb4, bb5
-  bb5:
+    panic_if v9, 0x41
     v10 = not 31
     v11 = and v8, v10
     v12 = alloc memorybytes, exact, uninitialized, infallible, v11
@@ -319,10 +302,6 @@ fn @attachedValue(arg0: u256, arg1: bool) -> u256 [selector=0xcece4c7f, pure, ab
     memory_object_copy_from_slice memorybytes, v12, v13
     v14 = abi_decode [u256], v12
     ret v14
-  bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb3:
     ret 0
 }
@@ -335,16 +314,14 @@ fn @emptyCode() [selector=0xddb3636e, pure, abi_params=[], abi_returns=[]] {
     v3 = slice_len v1
     v4 = extcodesize 0x1111111111111111111111111111111111111111
     v5 = iszero v4
-    jumpi v5, bb1, bb2
-  bb2:
+    revert_if v5, target_contract_has_no_code
     v6 = delegatecall v0, 0x1111111111111111111111111111111111111111, v2, v3, 0, 0
-    jumpi v6, bb3, bb4
-  bb4:
+    jumpi v6, bb1, bb2
+  bb2:
     v7 = returndatasize
     v8 = add v7, 63
     v9 = lt v8, v7
-    jumpi v9, bb6, bb7
-  bb7:
+    panic_if v9, 0x41
     v10 = not 31
     v11 = and v8, v10
     v12 = alloc memorybytes, exact, uninitialized, infallible, v11
@@ -364,22 +341,16 @@ fn @emptyCode() [selector=0xddb3636e, pure, abi_params=[], abi_returns=[]] {
     v24 = iszero v23
     v25 = eq v20, 0x4e487b71
     v26 = and v24, v25
-    jumpi true, bb8, bb9
-  bb9:
+    jumpi true, bb4, bb5
+  bb5:
     revert v14, v15
-  bb8:
+  bb4:
     icall @revert_error, 6, 0x6361756768740000000000000000000000000000000000000000000000000000
     invalid
-  bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb3:
-    jump bb5
-  bb5:
-    stop
   bb1:
-    revert 0, 0
+    jump bb3
+  bb3:
+    stop
 }
 
 fn @try_decode_error_message(arg0: memptr, arg1: u256) -> bool {

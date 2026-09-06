@@ -173,40 +173,36 @@ fn @fixedRange() -> u256 [selector=0x5d040bd2, abi_params=[], abi_returns=[word]
     v30 = slice_len v28
     v31 = extcodesize v23
     v32 = iszero v31
-    jumpi v32, bb5, bb6
-  bb6:
+    revert_if v32, target_contract_has_no_code
     v33 = call v24, v23, 0, v29, v30, 0, 0
-    jumpi v33, bb8, bb7
-  bb7:
+    jumpi v33, bb6, bb5
+  bb5:
     revert_returndata
-  bb8:
+  bb6:
     v34 = gas
     v35 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
     v36 = slice_ptr v35
     v37 = slice_len v35
     v38 = staticcall v34, v23, v36, v37, 0, 32
-    jumpi v38, bb10, bb9
-  bb9:
+    jumpi v38, bb8, bb7
+  bb7:
     revert_returndata
-  bb10:
+  bb8:
     v39 = returndatasize
     v40 = lt v39, 32
-    jumpi v40, bb5, bb11
-  bb11:
+    revert_if v40, tuple_data_too_short
     v41 = add 0, 0
     v42 = mload v41
     v43 = add 0, 0
     v44 = mload v43
     v45 = eq v44, 166
     v46 = iszero v45
-    jumpi v46, bb12, bb13
-  bb13:
+    jumpi v46, bb9, bb10
+  bb10:
     ret 1
-  bb12:
+  bb9:
     icall @revert_error, 5, 0x6669786564000000000000000000000000000000000000000000000000000000
     invalid
-  bb5:
-    revert 0, 0
 }
 
 fn @crossBlock() -> u256 [selector=0xb0694ed5, abi_params=[], abi_returns=[word]] {
@@ -266,40 +262,36 @@ fn @crossBlock() -> u256 [selector=0xb0694ed5, abi_params=[], abi_returns=[word]
     v30 = slice_len v28
     v31 = extcodesize v23
     v32 = iszero v31
-    jumpi v32, bb5, bb6
-  bb6:
+    revert_if v32, target_contract_has_no_code
     v33 = call v24, v23, 0, v29, v30, 0, 0
-    jumpi v33, bb8, bb7
-  bb7:
+    jumpi v33, bb6, bb5
+  bb5:
     revert_returndata
-  bb8:
+  bb6:
     v34 = gas
     v35 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
     v36 = slice_ptr v35
     v37 = slice_len v35
     v38 = staticcall v34, v23, v36, v37, 0, 32
-    jumpi v38, bb10, bb9
-  bb9:
+    jumpi v38, bb8, bb7
+  bb7:
     revert_returndata
-  bb10:
+  bb8:
     v39 = returndatasize
     v40 = lt v39, 32
-    jumpi v40, bb5, bb11
-  bb11:
+    revert_if v40, tuple_data_too_short
     v41 = add 0, 0
     v42 = mload v41
     v43 = add 0, 0
     v44 = mload v43
     v45 = eq v44, 175
     v46 = iszero v45
-    jumpi v46, bb12, bb13
-  bb13:
+    jumpi v46, bb9, bb10
+  bb10:
     ret 1
-  bb12:
+  bb9:
     icall @revert_error, 11, 0x63726f737320626c6f636b000000000000000000000000000000000000000000
     invalid
-  bb5:
-    revert 0, 0
 }
 
 fn @dynamicRevert() -> u256 [selector=0x5dbb0715, abi_params=[], abi_returns=[word]] {
@@ -339,8 +331,7 @@ fn @dynamicRevert() -> u256 [selector=0x5dbb0715, abi_params=[], abi_returns=[wo
     v20 = returndatasize
     v21 = add v20, 63
     v22 = lt v21, v20
-    jumpi v22, bb5, bb6
-  bb6:
+    panic_if v22, 0x41
     v23 = not 31
     v24 = and v21, v23
     v25 = alloc memorybytes, exact, uninitialized, infallible, v24
@@ -349,34 +340,30 @@ fn @dynamicRevert() -> u256 [selector=0x5dbb0715, abi_params=[], abi_returns=[wo
     memory_object_copy_from_slice memorybytes, v25, v26
     v27 = iszero v19
     v28 = iszero v27
-    jumpi v28, bb7, bb8
-  bb8:
+    jumpi v28, bb5, bb6
+  bb6:
     v29 = memory_object_len memorybytes, v25
     v30 = eq v29, 228
     v31 = iszero v30
-    jumpi v31, bb9, bb10
-  bb10:
+    jumpi v31, bb7, bb8
+  bb8:
     v32 = add v25, 32
     v33 = mload v32
     v34 = shl 0, 0x1234
     v35 = eq v33, v34
     v36 = iszero v35
-    jumpi v36, bb11, bb12
-  bb12:
+    jumpi v36, bb9, bb10
+  bb10:
     ret 1
-  bb11:
+  bb9:
     icall @revert_error, 7, 0x7061796c6f616400000000000000000000000000000000000000000000000000
     invalid
-  bb9:
+  bb7:
     icall @revert_error, 6, 0x6c656e6774680000000000000000000000000000000000000000000000000000
     invalid
-  bb7:
+  bb5:
     icall @revert_error, 7, 0x7375636365737300000000000000000000000000000000000000000000000000
     invalid
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @revert_error(arg0: u256, arg1: u256) {
@@ -422,8 +409,7 @@ fn @bubble() -> memorybytes [selector=0x4ce637d6, view, abi_params=[], abi_retur
     v6 = returndatasize
     v7 = add v6, 63
     v8 = lt v7, v6
-    jumpi v8, bb3, bb4
-  bb4:
+    panic_if v8, 0x41
     v9 = not 31
     v10 = and v7, v9
     v11 = alloc memorybytes, exact, uninitialized, infallible, v10
@@ -432,10 +418,6 @@ fn @bubble() -> memorybytes [selector=0x4ce637d6, view, abi_params=[], abi_retur
     memory_object_copy_from_slice memorybytes, v11, v12
     v13 = abi_decode [bytes], v11
     ret v13
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:SharedPublicFrame ===

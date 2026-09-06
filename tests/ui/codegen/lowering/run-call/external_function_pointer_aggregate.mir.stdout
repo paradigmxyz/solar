@@ -19,23 +19,17 @@ fn @combine(arg0: memoryarray, arg1: memorybytes) -> struct0 [selector=0x3488ea1
     v0 = memory_object_len memoryarray, arg0
     v1 = lt 0, v0
     v2 = iszero v1
-    jumpi v2, bb1, bb2
-  bb2:
+    panic_if v2, 0x32
     v3 = memory_object_load_element memoryarray<1>, arg0, 0
     v4 = memory_object_len memoryarray, arg0
     v5 = lt 1, v4
     v6 = iszero v5
-    jumpi v6, bb1, bb3
-  bb3:
+    panic_if v6, 0x32
     v7 = memory_object_load_element memoryarray<1>, arg0, 1
     v8 = checked_add u256, v3, v7
     v9 = insert_value struct0, undef struct0, 0, v8
     v10 = insert_value struct0, v9, 1, arg1
     ret v10
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_aggregate.sol:ExternalFunctionPointerAggregate ===
@@ -91,8 +85,7 @@ fn @read() -> struct0 [selector=0x57de26a4, view, abi_params=[], abi_returns=[wo
     v12 = returndatasize
     v13 = add v12, 63
     v14 = lt v13, v12
-    jumpi v14, bb3, bb4
-  bb4:
+    panic_if v14, 0x41
     v15 = not 31
     v16 = and v13, v15
     v17 = alloc memorybytes, exact, uninitialized, infallible, v16
@@ -105,10 +98,6 @@ fn @read() -> struct0 [selector=0x57de26a4, view, abi_params=[], abi_returns=[wo
     v22 = insert_value struct0, undef struct0, 0, v20
     v23 = insert_value struct0, v22, 1, v21
     ret v23
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @readArguments() -> struct0 [selector=0x372fd38b, view, abi_params=[], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
@@ -122,14 +111,12 @@ fn @readArguments() -> struct0 [selector=0x372fd38b, view, abi_params=[], abi_re
     v5 = memory_object_len memoryarray, v4
     v6 = lt 0, v5
     v7 = iszero v6
-    jumpi v7, bb1, bb2
-  bb2:
+    panic_if v7, 0x32
     memory_object_store_element memoryarray<1>, v4, 0, 4
     v8 = memory_object_len memoryarray, v4
     v9 = lt 1, v8
     v10 = iszero v9
-    jumpi v10, bb1, bb3
-  bb3:
+    panic_if v10, 0x32
     memory_object_store_element memoryarray<1>, v4, 1, 3
     v11 = and v3, 0xffffffff
     v12 = shl 224, v11
@@ -143,15 +130,14 @@ fn @readArguments() -> struct0 [selector=0x372fd38b, view, abi_params=[], abi_re
     v18 = slice_ptr v17
     v19 = slice_len v17
     v20 = staticcall v14, v13, v18, v19, 0, 0
-    jumpi v20, bb5, bb4
-  bb4:
+    jumpi v20, bb2, bb1
+  bb1:
     revert_returndata
-  bb5:
+  bb2:
     v21 = returndatasize
     v22 = add v21, 63
     v23 = lt v22, v21
-    jumpi v23, bb6, bb7
-  bb7:
+    panic_if v23, 0x41
     v24 = not 31
     v25 = and v22, v24
     v26 = alloc memorybytes, exact, uninitialized, infallible, v25
@@ -164,14 +150,6 @@ fn @readArguments() -> struct0 [selector=0x372fd38b, view, abi_params=[], abi_re
     v31 = insert_value struct0, undef struct0, 0, v29
     v32 = insert_value struct0, v31, 1, v30
     ret v32
-  bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @increment(arg0: u256) -> u256 [selector=0x7cf5dab0, pure, abi_params=[u256], abi_returns=[word]] {
@@ -196,15 +174,12 @@ fn @invoke(arg0: function, arg1: u256) -> u256 [selector=0xec460bea, abi_params=
   bb2:
     v8 = returndatasize
     v9 = lt v8, 32
-    jumpi v9, bb3, bb4
-  bb4:
+    revert_if v9, tuple_data_too_short
     v10 = add 0, 0
     v11 = mload v10
     v12 = add 0, 0
     v13 = mload v12
     ret v13
-  bb3:
-    revert 0, 0
 }
 
 fn @pointerArgumentRoundtrip() -> u256 [selector=0x358b91d8, view, abi_params=[], abi_returns=[word]] {
@@ -221,8 +196,7 @@ fn @pointerArgumentRoundtrip() -> u256 [selector=0x358b91d8, view, abi_params=[]
     v9 = returndatasize
     v10 = add v9, 63
     v11 = lt v10, v9
-    jumpi v11, bb1, bb2
-  bb2:
+    panic_if v11, 0x41
     v12 = not 31
     v13 = and v10, v12
     v14 = alloc memorybytes, exact, uninitialized, infallible, v13
@@ -230,16 +204,9 @@ fn @pointerArgumentRoundtrip() -> u256 [selector=0x358b91d8, view, abi_params=[]
     v15 = make_returndata_slice 0, v9
     memory_object_copy_from_slice memorybytes, v14, v15
     v16 = iszero v8
-    jumpi v16, bb3, bb4
-  bb4:
+    revert_if v16, empty
     v17 = abi_decode [u256], v14
     ret v17
-  bb3:
-    revert 0, 0
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @pointer() -> function [selector=0x2f5f3b3c, view, abi_params=[], abi_returns=[function]] {
@@ -265,8 +232,7 @@ fn @pointerReturnRoundtrip() -> u256 [selector=0xd6aa3b50, abi_params=[], abi_re
     v6 = returndatasize
     v7 = add v6, 63
     v8 = lt v7, v6
-    jumpi v8, bb3, bb4
-  bb4:
+    panic_if v8, 0x41
     v9 = not 31
     v10 = and v7, v9
     v11 = alloc memorybytes, exact, uninitialized, infallible, v10
@@ -282,25 +248,18 @@ fn @pointerReturnRoundtrip() -> u256 [selector=0xd6aa3b50, abi_params=[], abi_re
     v19 = slice_ptr v18
     v20 = slice_len v18
     v21 = call v17, v16, 0, v19, v20, 0, 32
-    jumpi v21, bb6, bb5
-  bb5:
+    jumpi v21, bb4, bb3
+  bb3:
     revert_returndata
-  bb6:
+  bb4:
     v22 = returndatasize
     v23 = lt v22, 32
-    jumpi v23, bb7, bb8
-  bb8:
+    revert_if v23, tuple_data_too_short
     v24 = add 0, 0
     v25 = mload v24
     v26 = add 0, 0
     v27 = mload v26
     ret v27
-  bb7:
-    revert 0, 0
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @pointerStructRoundtrip() -> u256 [selector=0xbbd5d6bf, abi_params=[], abi_returns=[word]] {
@@ -328,15 +287,12 @@ fn @pointerStructRoundtrip() -> u256 [selector=0xbbd5d6bf, abi_params=[], abi_re
   bb2:
     v15 = returndatasize
     v16 = lt v15, 32
-    jumpi v16, bb3, bb4
-  bb4:
+    revert_if v16, tuple_data_too_short
     v17 = add 0, 0
     v18 = mload v17
     v19 = add 0, 0
     v20 = mload v19
     ret v20
-  bb3:
-    revert 0, 0
 }
 
 fn @pointerArrayRoundtrip() -> u256 [selector=0x38c40b23, abi_params=[], abi_returns=[word]] {
@@ -349,8 +305,7 @@ fn @pointerArrayRoundtrip() -> u256 [selector=0x38c40b23, abi_params=[], abi_ret
     v4 = memory_object_len memoryarray, v0
     v5 = lt 0, v4
     v6 = iszero v5
-    jumpi v6, bb1, bb2
-  bb2:
+    panic_if v6, 0x32
     v7 = shl 64, v3
     memory_object_store_element memoryarray<1>, v0, 0, v7
     v8 = address
@@ -359,15 +314,13 @@ fn @pointerArrayRoundtrip() -> u256 [selector=0x38c40b23, abi_params=[], abi_ret
     v11 = memory_object_len memoryarray, v0
     v12 = lt 1, v11
     v13 = iszero v12
-    jumpi v13, bb1, bb3
-  bb3:
+    panic_if v13, 0x32
     v14 = shl 64, v10
     memory_object_store_element memoryarray<1>, v0, 1, v14
     v15 = memory_object_len memoryarray, v0
     v16 = lt 0, v15
     v17 = iszero v16
-    jumpi v17, bb1, bb4
-  bb4:
+    panic_if v17, 0x32
     v18 = memory_object_load_element memoryarray<1>, v0, 0
     v19 = shr 64, v18
     v20 = and v19, 0xffffffff
@@ -378,14 +331,13 @@ fn @pointerArrayRoundtrip() -> u256 [selector=0x38c40b23, abi_params=[], abi_ret
     v25 = slice_ptr v24
     v26 = slice_len v24
     v27 = call v23, v22, 0, v25, v26, 0, 32
-    jumpi v27, bb6, bb5
-  bb5:
+    jumpi v27, bb2, bb1
+  bb1:
     revert_returndata
-  bb6:
+  bb2:
     v28 = returndatasize
     v29 = lt v28, 32
-    jumpi v29, bb7, bb8
-  bb8:
+    revert_if v29, tuple_data_too_short
     v30 = add 0, 0
     v31 = mload v30
     v32 = add 0, 0
@@ -393,8 +345,7 @@ fn @pointerArrayRoundtrip() -> u256 [selector=0x38c40b23, abi_params=[], abi_ret
     v34 = memory_object_len memoryarray, v0
     v35 = lt 1, v34
     v36 = iszero v35
-    jumpi v36, bb1, bb9
-  bb9:
+    panic_if v36, 0x32
     v37 = memory_object_load_element memoryarray<1>, v0, 1
     v38 = shr 64, v37
     v39 = and v38, 0xffffffff
@@ -405,26 +356,19 @@ fn @pointerArrayRoundtrip() -> u256 [selector=0x38c40b23, abi_params=[], abi_ret
     v44 = slice_ptr v43
     v45 = slice_len v43
     v46 = call v42, v41, 0, v44, v45, 0, 32
-    jumpi v46, bb11, bb10
-  bb10:
+    jumpi v46, bb4, bb3
+  bb3:
     revert_returndata
-  bb11:
+  bb4:
     v47 = returndatasize
     v48 = lt v47, 32
-    jumpi v48, bb7, bb12
-  bb12:
+    revert_if v48, tuple_data_too_short
     v49 = add 0, 0
     v50 = mload v49
     v51 = add 0, 0
     v52 = mload v51
     v53 = checked_add u256, v33, v52
     ret v53
-  bb7:
-    revert 0, 0
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @calldataTarget(arg0: calldataslice) -> bool [selector=0x3b20e329, pure, abi_params=[bytes], abi_returns=[word<bool>]] {
@@ -432,18 +376,15 @@ fn @calldataTarget(arg0: calldataslice) -> bool [selector=0x3b20e329, pure, abi_
     v0 = slice_ptr arg0
     v1 = slice_len arg0
     v2 = gt v1, 0xffffffffffffffff
-    jumpi v2, bb1, bb2
-  bb2:
+    revert_if v2, invalid_calldata_tail_length
     v3 = calldatasize
     v4 = sub v3, v1
     v5 = sgt v0, v4
-    jumpi v5, bb1, bb3
-  bb3:
+    revert_if v5, calldata_tail_too_short
     v6 = slice_len arg0
     v7 = add v6, 63
     v8 = lt v7, v6
-    jumpi v8, bb4, bb5
-  bb5:
+    panic_if v8, 0x41
     v9 = not 31
     v10 = and v7, v9
     v11 = alloc memorybytes, exact, uninitialized, infallible, v10
@@ -452,12 +393,6 @@ fn @calldataTarget(arg0: calldataslice) -> bool [selector=0x3b20e329, pure, abi_
     v12 = keccak256_bytes v11
     v13 = eq v12, 0x46e5f6b6987ca0bd7c8884e2d9fbfc072e24bb9d2a2ebb858bc217d66a45ab99
     ret v13
-  bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb1:
-    revert 0, 0
 }
 
 fn @calldataPointerRoundtrip() -> bool [selector=0x1d9b1866, abi_params=[], abi_returns=[word<bool>]] {
@@ -483,19 +418,15 @@ fn @calldataPointerRoundtrip() -> bool [selector=0x1d9b1866, abi_params=[], abi_
   bb2:
     v13 = returndatasize
     v14 = lt v13, 32
-    jumpi v14, bb3, bb4
-  bb4:
+    revert_if v14, tuple_data_too_short
     v15 = add 0, 0
     v16 = mload v15
     v17 = iszero v16
     v18 = iszero v17
     v19 = eq v16, v18
     v20 = iszero v19
-    jumpi v20, bb3, bb5
-  bb5:
+    revert_if v20, empty
     v21 = add 0, 0
     v22 = mload v21
     ret v22
-  bb3:
-    revert 0, 0
 }

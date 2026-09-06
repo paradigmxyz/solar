@@ -21,37 +21,34 @@ fn @check() -> u256 [selector=0x919840ad, pure, abi_params=[], abi_returns=[word
     v10 = memory_object_len memoryarray, v0
     v11 = lt 0, v10
     v12 = iszero v11
-    jumpi v12, bb7, bb8
-  bb8:
+    panic_if v12, 0x32
     memory_object_store_element memoryarray<1>, v0, 0, v4
     v13 = alloc memoryarray<1>, exact, zeroed, panic, 96
     set_memory_object_len memoryarray, v13, 2
     v14 = memory_object_len memoryarray, v0
     v15 = lt 0, v14
     v16 = iszero v15
-    jumpi v16, bb7, bb9
-  bb9:
+    panic_if v16, 0x32
     v17 = memory_object_load_element memoryarray<1>, v0, 0
     v18 = memory_object_from_ptr memoryarray, v17
     v19 = eq v18, 0
-    jumpi v19, bb10, bb11
-  bb10:
+    jumpi v19, bb7, bb8
+  bb7:
     v20 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v20, 0
     memory_object_store_element memoryarray<1>, v0, 0, v20
-    jump bb11
-  bb11:
-    v21 = phi [bb9: v18], [bb10: v20]
+    jump bb8
+  bb8:
+    v21 = phi [bb6: v18], [bb7: v20]
     v22 = memory_object_len memoryarray, v21
     v23 = lt 0, v22
     v24 = iszero v23
-    jumpi v24, bb7, bb12
-  bb12:
+    panic_if v24, 0x32
     v25 = memory_object_load_element memoryarray<1>, v21, 0
     v26 = memory_object_from_ptr memorystruct, v25
     v27 = eq v26, 0
-    jumpi v27, bb13, bb14
-  bb13:
+    jumpi v27, bb9, bb10
+  bb9:
     v28 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     v29 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v29, 0
@@ -60,36 +57,34 @@ fn @check() -> u256 [selector=0x919840ad, pure, abi_params=[], abi_returns=[word
     memory_zero v30, 64
     memory_object_store_field memorystruct<2>, v28, 1, v30
     memory_object_store_element memoryarray<1>, v21, 0, v28
-    jump bb14
-  bb14:
-    v31 = phi [bb12: v26], [bb13: v28]
+    jump bb10
+  bb10:
+    v31 = phi [bb8: v26], [bb9: v28]
     memory_object_store_field memorystruct<2>, v31, 0, v13
     v32 = memory_object_len memoryarray, v0
     v33 = lt 0, v32
     v34 = iszero v33
-    jumpi v34, bb7, bb15
-  bb15:
+    panic_if v34, 0x32
     v35 = memory_object_load_element memoryarray<1>, v0, 0
     v36 = memory_object_from_ptr memoryarray, v35
     v37 = eq v36, 0
-    jumpi v37, bb16, bb17
-  bb16:
+    jumpi v37, bb11, bb12
+  bb11:
     v38 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v38, 0
     memory_object_store_element memoryarray<1>, v0, 0, v38
-    jump bb17
-  bb17:
-    v39 = phi [bb15: v36], [bb16: v38]
+    jump bb12
+  bb12:
+    v39 = phi [bb10: v36], [bb11: v38]
     v40 = memory_object_len memoryarray, v39
     v41 = lt 0, v40
     v42 = iszero v41
-    jumpi v42, bb7, bb18
-  bb18:
+    panic_if v42, 0x32
     v43 = memory_object_load_element memoryarray<1>, v39, 0
     v44 = memory_object_from_ptr memorystruct, v43
     v45 = eq v44, 0
-    jumpi v45, bb19, bb20
-  bb19:
+    jumpi v45, bb13, bb14
+  bb13:
     v46 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     v47 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v47, 0
@@ -98,43 +93,40 @@ fn @check() -> u256 [selector=0x919840ad, pure, abi_params=[], abi_returns=[word
     memory_zero v48, 64
     memory_object_store_field memorystruct<2>, v46, 1, v48
     memory_object_store_element memoryarray<1>, v39, 0, v46
-    jump bb20
-  bb20:
-    v49 = phi [bb18: v44], [bb19: v46]
+    jump bb14
+  bb14:
+    v49 = phi [bb12: v44], [bb13: v46]
     v50 = memory_object_load_field memorystruct<2>, v49, 0, memoryarray
     v51 = memory_object_len memoryarray, v50
     v52 = lt 0, v51
     v53 = iszero v52
-    jumpi v53, bb7, bb21
-  bb21:
+    panic_if v53, 0x32
     v54 = and 3, 255
     memory_object_store_element memoryarray<1>, v50, 0, v54
     v55 = memory_object_len memoryarray, v0
     v56 = lt 0, v55
     v57 = iszero v56
-    jumpi v57, bb7, bb22
-  bb22:
+    panic_if v57, 0x32
     v58 = memory_object_load_element memoryarray<1>, v0, 0
     v59 = memory_object_from_ptr memoryarray, v58
     v60 = eq v59, 0
-    jumpi v60, bb23, bb24
-  bb23:
+    jumpi v60, bb15, bb16
+  bb15:
     v61 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v61, 0
     memory_object_store_element memoryarray<1>, v0, 0, v61
-    jump bb24
-  bb24:
-    v62 = phi [bb22: v59], [bb23: v61]
+    jump bb16
+  bb16:
+    v62 = phi [bb14: v59], [bb15: v61]
     v63 = memory_object_len memoryarray, v62
     v64 = lt 0, v63
     v65 = iszero v64
-    jumpi v65, bb7, bb25
-  bb25:
+    panic_if v65, 0x32
     v66 = memory_object_load_element memoryarray<1>, v62, 0
     v67 = memory_object_from_ptr memorystruct, v66
     v68 = eq v67, 0
-    jumpi v68, bb26, bb27
-  bb26:
+    jumpi v68, bb17, bb18
+  bb17:
     v69 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     v70 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v70, 0
@@ -143,43 +135,40 @@ fn @check() -> u256 [selector=0x919840ad, pure, abi_params=[], abi_returns=[word
     memory_zero v71, 64
     memory_object_store_field memorystruct<2>, v69, 1, v71
     memory_object_store_element memoryarray<1>, v62, 0, v69
-    jump bb27
-  bb27:
-    v72 = phi [bb25: v67], [bb26: v69]
+    jump bb18
+  bb18:
+    v72 = phi [bb16: v67], [bb17: v69]
     v73 = memory_object_load_field memorystruct<2>, v72, 0, memoryarray
     v74 = memory_object_len memoryarray, v73
     v75 = lt 1, v74
     v76 = iszero v75
-    jumpi v76, bb7, bb28
-  bb28:
+    panic_if v76, 0x32
     v77 = and 5, 255
     memory_object_store_element memoryarray<1>, v73, 1, v77
     v78 = memory_object_len memoryarray, v0
     v79 = lt 0, v78
     v80 = iszero v79
-    jumpi v80, bb7, bb29
-  bb29:
+    panic_if v80, 0x32
     v81 = memory_object_load_element memoryarray<1>, v0, 0
     v82 = memory_object_from_ptr memoryarray, v81
     v83 = eq v82, 0
-    jumpi v83, bb30, bb31
-  bb30:
+    jumpi v83, bb19, bb20
+  bb19:
     v84 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v84, 0
     memory_object_store_element memoryarray<1>, v0, 0, v84
-    jump bb31
-  bb31:
-    v85 = phi [bb29: v82], [bb30: v84]
+    jump bb20
+  bb20:
+    v85 = phi [bb18: v82], [bb19: v84]
     v86 = memory_object_len memoryarray, v85
     v87 = lt 0, v86
     v88 = iszero v87
-    jumpi v88, bb7, bb32
-  bb32:
+    panic_if v88, 0x32
     v89 = memory_object_load_element memoryarray<1>, v85, 0
     v90 = memory_object_from_ptr memorystruct, v89
     v91 = eq v90, 0
-    jumpi v91, bb33, bb34
-  bb33:
+    jumpi v91, bb21, bb22
+  bb21:
     v92 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     v93 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v93, 0
@@ -188,42 +177,39 @@ fn @check() -> u256 [selector=0x919840ad, pure, abi_params=[], abi_returns=[word
     memory_zero v94, 64
     memory_object_store_field memorystruct<2>, v92, 1, v94
     memory_object_store_element memoryarray<1>, v85, 0, v92
-    jump bb34
-  bb34:
-    v95 = phi [bb32: v90], [bb33: v92]
+    jump bb22
+  bb22:
+    v95 = phi [bb20: v90], [bb21: v92]
     v96 = memory_object_load_field memorystruct<2>, v95, 1, memoryfixedarray
     v97 = lt 0, 2
     v98 = iszero v97
-    jumpi v98, bb7, bb35
-  bb35:
+    panic_if v98, 0x32
     v99 = and 7, 255
     memory_object_store_element memoryfixedarray<2, 1>, v96, 0, v99
     v100 = memory_object_len memoryarray, v0
     v101 = lt 0, v100
     v102 = iszero v101
-    jumpi v102, bb7, bb36
-  bb36:
+    panic_if v102, 0x32
     v103 = memory_object_load_element memoryarray<1>, v0, 0
     v104 = memory_object_from_ptr memoryarray, v103
     v105 = eq v104, 0
-    jumpi v105, bb37, bb38
-  bb37:
+    jumpi v105, bb23, bb24
+  bb23:
     v106 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v106, 0
     memory_object_store_element memoryarray<1>, v0, 0, v106
-    jump bb38
-  bb38:
-    v107 = phi [bb36: v104], [bb37: v106]
+    jump bb24
+  bb24:
+    v107 = phi [bb22: v104], [bb23: v106]
     v108 = memory_object_len memoryarray, v107
     v109 = lt 0, v108
     v110 = iszero v109
-    jumpi v110, bb7, bb39
-  bb39:
+    panic_if v110, 0x32
     v111 = memory_object_load_element memoryarray<1>, v107, 0
     v112 = memory_object_from_ptr memorystruct, v111
     v113 = eq v112, 0
-    jumpi v113, bb40, bb41
-  bb40:
+    jumpi v113, bb25, bb26
+  bb25:
     v114 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     v115 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v115, 0
@@ -232,42 +218,39 @@ fn @check() -> u256 [selector=0x919840ad, pure, abi_params=[], abi_returns=[word
     memory_zero v116, 64
     memory_object_store_field memorystruct<2>, v114, 1, v116
     memory_object_store_element memoryarray<1>, v107, 0, v114
-    jump bb41
-  bb41:
-    v117 = phi [bb39: v112], [bb40: v114]
+    jump bb26
+  bb26:
+    v117 = phi [bb24: v112], [bb25: v114]
     v118 = memory_object_load_field memorystruct<2>, v117, 1, memoryfixedarray
     v119 = lt 1, 2
     v120 = iszero v119
-    jumpi v120, bb7, bb42
-  bb42:
+    panic_if v120, 0x32
     v121 = and 11, 255
     memory_object_store_element memoryfixedarray<2, 1>, v118, 1, v121
     v122 = memory_object_len memoryarray, v0
     v123 = lt 0, v122
     v124 = iszero v123
-    jumpi v124, bb7, bb43
-  bb43:
+    panic_if v124, 0x32
     v125 = memory_object_load_element memoryarray<1>, v0, 0
     v126 = memory_object_from_ptr memoryarray, v125
     v127 = eq v126, 0
-    jumpi v127, bb44, bb45
-  bb44:
+    jumpi v127, bb27, bb28
+  bb27:
     v128 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v128, 0
     memory_object_store_element memoryarray<1>, v0, 0, v128
-    jump bb45
-  bb45:
-    v129 = phi [bb43: v126], [bb44: v128]
+    jump bb28
+  bb28:
+    v129 = phi [bb26: v126], [bb27: v128]
     v130 = memory_object_len memoryarray, v129
     v131 = lt 0, v130
     v132 = iszero v131
-    jumpi v132, bb7, bb46
-  bb46:
+    panic_if v132, 0x32
     v133 = memory_object_load_element memoryarray<1>, v129, 0
     v134 = memory_object_from_ptr memorystruct, v133
     v135 = eq v134, 0
-    jumpi v135, bb47, bb48
-  bb47:
+    jumpi v135, bb29, bb30
+  bb29:
     v136 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     v137 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v137, 0
@@ -276,43 +259,40 @@ fn @check() -> u256 [selector=0x919840ad, pure, abi_params=[], abi_returns=[word
     memory_zero v138, 64
     memory_object_store_field memorystruct<2>, v136, 1, v138
     memory_object_store_element memoryarray<1>, v129, 0, v136
-    jump bb48
-  bb48:
-    v139 = phi [bb46: v134], [bb47: v136]
+    jump bb30
+  bb30:
+    v139 = phi [bb28: v134], [bb29: v136]
     v140 = memory_object_load_field memorystruct<2>, v139, 0, memoryarray
     v141 = memory_object_len memoryarray, v140
     v142 = lt 1, v141
     v143 = iszero v142
-    jumpi v143, bb7, bb49
-  bb49:
+    panic_if v143, 0x32
     v144 = and 7, 255
     memory_object_store_element memoryarray<1>, v140, 1, v144
     v145 = memory_object_len memoryarray, v0
     v146 = lt 0, v145
     v147 = iszero v146
-    jumpi v147, bb7, bb50
-  bb50:
+    panic_if v147, 0x32
     v148 = memory_object_load_element memoryarray<1>, v0, 0
     v149 = memory_object_from_ptr memoryarray, v148
     v150 = eq v149, 0
-    jumpi v150, bb51, bb52
-  bb51:
+    jumpi v150, bb31, bb32
+  bb31:
     v151 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v151, 0
     memory_object_store_element memoryarray<1>, v0, 0, v151
-    jump bb52
-  bb52:
-    v152 = phi [bb50: v149], [bb51: v151]
+    jump bb32
+  bb32:
+    v152 = phi [bb30: v149], [bb31: v151]
     v153 = memory_object_len memoryarray, v152
     v154 = lt 0, v153
     v155 = iszero v154
-    jumpi v155, bb7, bb53
-  bb53:
+    panic_if v155, 0x32
     v156 = memory_object_load_element memoryarray<1>, v152, 0
     v157 = memory_object_from_ptr memorystruct, v156
     v158 = eq v157, 0
-    jumpi v158, bb54, bb55
-  bb54:
+    jumpi v158, bb33, bb34
+  bb33:
     v159 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     v160 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v160, 0
@@ -321,42 +301,39 @@ fn @check() -> u256 [selector=0x919840ad, pure, abi_params=[], abi_returns=[word
     memory_zero v161, 64
     memory_object_store_field memorystruct<2>, v159, 1, v161
     memory_object_store_element memoryarray<1>, v152, 0, v159
-    jump bb55
-  bb55:
-    v162 = phi [bb53: v157], [bb54: v159]
+    jump bb34
+  bb34:
+    v162 = phi [bb32: v157], [bb33: v159]
     v163 = memory_object_load_field memorystruct<2>, v162, 1, memoryfixedarray
     v164 = lt 0, 2
     v165 = iszero v164
-    jumpi v165, bb7, bb56
-  bb56:
+    panic_if v165, 0x32
     v166 = and 0, 255
     memory_object_store_element memoryfixedarray<2, 1>, v163, 0, v166
     v167 = memory_object_len memoryarray, v0
     v168 = lt 0, v167
     v169 = iszero v168
-    jumpi v169, bb7, bb57
-  bb57:
+    panic_if v169, 0x32
     v170 = memory_object_load_element memoryarray<1>, v0, 0
     v171 = memory_object_from_ptr memoryarray, v170
     v172 = eq v171, 0
-    jumpi v172, bb58, bb59
-  bb58:
+    jumpi v172, bb35, bb36
+  bb35:
     v173 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v173, 0
     memory_object_store_element memoryarray<1>, v0, 0, v173
-    jump bb59
-  bb59:
-    v174 = phi [bb57: v171], [bb58: v173]
+    jump bb36
+  bb36:
+    v174 = phi [bb34: v171], [bb35: v173]
     v175 = memory_object_len memoryarray, v174
     v176 = lt 0, v175
     v177 = iszero v176
-    jumpi v177, bb7, bb60
-  bb60:
+    panic_if v177, 0x32
     v178 = memory_object_load_element memoryarray<1>, v174, 0
     v179 = memory_object_from_ptr memorystruct, v178
     v180 = eq v179, 0
-    jumpi v180, bb61, bb62
-  bb61:
+    jumpi v180, bb37, bb38
+  bb37:
     v181 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     v182 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v182, 0
@@ -365,43 +342,40 @@ fn @check() -> u256 [selector=0x919840ad, pure, abi_params=[], abi_returns=[word
     memory_zero v183, 64
     memory_object_store_field memorystruct<2>, v181, 1, v183
     memory_object_store_element memoryarray<1>, v174, 0, v181
-    jump bb62
-  bb62:
-    v184 = phi [bb60: v179], [bb61: v181]
+    jump bb38
+  bb38:
+    v184 = phi [bb36: v179], [bb37: v181]
     v185 = memory_object_load_field memorystruct<2>, v184, 0, memoryarray
     v186 = memory_object_len memoryarray, v185
     v187 = lt 1, v186
     v188 = iszero v187
-    jumpi v188, bb7, bb63
-  bb63:
+    panic_if v188, 0x32
     v189 = memory_object_load_element memoryarray<1>, v185, 1
     v190 = and v189, 255
     v191 = memory_object_len memoryarray, v0
     v192 = lt 0, v191
     v193 = iszero v192
-    jumpi v193, bb7, bb64
-  bb64:
+    panic_if v193, 0x32
     v194 = memory_object_load_element memoryarray<1>, v0, 0
     v195 = memory_object_from_ptr memoryarray, v194
     v196 = eq v195, 0
-    jumpi v196, bb65, bb66
-  bb65:
+    jumpi v196, bb39, bb40
+  bb39:
     v197 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v197, 0
     memory_object_store_element memoryarray<1>, v0, 0, v197
-    jump bb66
-  bb66:
-    v198 = phi [bb64: v195], [bb65: v197]
+    jump bb40
+  bb40:
+    v198 = phi [bb38: v195], [bb39: v197]
     v199 = memory_object_len memoryarray, v198
     v200 = lt 0, v199
     v201 = iszero v200
-    jumpi v201, bb7, bb67
-  bb67:
+    panic_if v201, 0x32
     v202 = memory_object_load_element memoryarray<1>, v198, 0
     v203 = memory_object_from_ptr memorystruct, v202
     v204 = eq v203, 0
-    jumpi v204, bb68, bb69
-  bb68:
+    jumpi v204, bb41, bb42
+  bb41:
     v205 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     v206 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v206, 0
@@ -410,23 +384,18 @@ fn @check() -> u256 [selector=0x919840ad, pure, abi_params=[], abi_returns=[word
     memory_zero v207, 64
     memory_object_store_field memorystruct<2>, v205, 1, v207
     memory_object_store_element memoryarray<1>, v198, 0, v205
-    jump bb69
-  bb69:
-    v208 = phi [bb67: v203], [bb68: v205]
+    jump bb42
+  bb42:
+    v208 = phi [bb40: v203], [bb41: v205]
     v209 = memory_object_load_field memorystruct<2>, v208, 0, memoryarray
     v210 = memory_object_len memoryarray, v209
     v211 = lt 1, v210
     v212 = iszero v211
-    jumpi v212, bb7, bb70
-  bb70:
+    panic_if v212, 0x32
     v213 = memory_object_load_element memoryarray<1>, v209, 1
     v214 = and v213, 255
     v215 = checked_add u8, v190, v214
     ret v215
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb5:
     v7 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     memory_object_store_field memorystruct<2>, v7, 0, memoryarray 96

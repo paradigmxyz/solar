@@ -186,7 +186,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // object[0] = word
         // return object
         self.lazy_helper(sym::literal_bytes_word, |_, function| {
-            let mut builder = FunctionBuilder::new(function);
+            let mut builder = FunctionBuilder::new_semantic(function);
             let word = builder.add_param(MirType::bytes32());
             let length = builder.add_param(MirType::uint256());
             builder.add_return(MirType::MemoryObject(MemoryObjectKind::Bytes));
@@ -235,7 +235,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     fn ensure_bytes_literal_helper(&mut self, symbol: ByteSymbol) -> FunctionId {
         // literal_bytes() -> bytes
         self.lazy_helper(helper_name(sym::literal_bytes, symbol.as_u32()), |this, function| {
-            let mut builder = FunctionBuilder::new(function);
+            let mut builder = FunctionBuilder::new_semantic(function);
             builder.add_return(MirType::MemoryObject(MemoryObjectKind::Bytes));
             let object = Self::build_bytes_literal(
                 this.cx.gcx,

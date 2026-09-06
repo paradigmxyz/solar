@@ -58,15 +58,12 @@ fn @plain() -> u256 [selector=0x59748c98, abi_params=[], abi_returns=[word]] {
   bb4:
     v12 = returndatasize
     v13 = lt v12, 32
-    jumpi v13, bb5, bb6
-  bb6:
+    revert_if v13, tuple_data_too_short
     v14 = add 0, 0
     v15 = mload v14
     v16 = add 0, 0
     v17 = mload v16
     ret v17
-  bb5:
-    revert 0, 0
 }
 
 fn @salted() -> u256 [selector=0x1f981516, abi_params=[], abi_returns=[word]] {
@@ -96,15 +93,12 @@ fn @salted() -> u256 [selector=0x1f981516, abi_params=[], abi_returns=[word]] {
   bb4:
     v13 = returndatasize
     v14 = lt v13, 32
-    jumpi v14, bb5, bb6
-  bb6:
+    revert_if v14, tuple_data_too_short
     v15 = add 0, 0
     v16 = mload v15
     v17 = add 0, 0
     v18 = mload v17
     ret v18
-  bb5:
-    revert 0, 0
 }
 
 fn @pair() -> u256 [selector=0xa8aa1b31, abi_params=[], abi_returns=[word]] {
@@ -146,8 +140,7 @@ fn @pair() -> u256 [selector=0xa8aa1b31, abi_params=[], abi_returns=[word]] {
   bb6:
     v19 = returndatasize
     v20 = lt v19, 32
-    jumpi v20, bb7, bb8
-  bb8:
+    revert_if v20, tuple_data_too_short
     v21 = add 0, 0
     v22 = mload v21
     v23 = add 0, 0
@@ -157,20 +150,17 @@ fn @pair() -> u256 [selector=0xa8aa1b31, abi_params=[], abi_returns=[word]] {
     v27 = slice_ptr v26
     v28 = slice_len v26
     v29 = staticcall v25, v13, v27, v28, 0, 32
-    jumpi v29, bb10, bb9
-  bb9:
+    jumpi v29, bb8, bb7
+  bb7:
     revert_returndata
-  bb10:
+  bb8:
     v30 = returndatasize
     v31 = lt v30, 32
-    jumpi v31, bb7, bb11
-  bb11:
+    revert_if v31, tuple_data_too_short
     v32 = add 0, 0
     v33 = mload v32
     v34 = add 0, 0
     v35 = mload v34
     v36 = checked_add u256, v24, v35
     ret v36
-  bb7:
-    revert 0, 0
 }

@@ -19,8 +19,7 @@ fn @f(arg0: u256) -> u256 [selector=0xb3de648b, abi_params=[u256], abi_returns=[
     sstore 0, v8 !metadata(storage=slot(0))
     v9 = eq arg0, arg0
     v10 = iszero v9
-    jumpi v10, bb5, bb6
-  bb6:
+    panic_if v10, 0x1
     jump bb3
   bb3:
     v11 = sload 0 !metadata(storage=slot(0))
@@ -28,8 +27,7 @@ fn @f(arg0: u256) -> u256 [selector=0xb3de648b, abi_params=[u256], abi_returns=[
     sstore 0, v12 !metadata(storage=slot(0))
     v13 = eq 5, 5
     v14 = iszero v13
-    jumpi v14, bb5, bb7
-  bb7:
+    panic_if v14, 0x1
     jump bb2
   bb2:
     v15 = sload 0 !metadata(storage=slot(0))
@@ -37,13 +35,8 @@ fn @f(arg0: u256) -> u256 [selector=0xb3de648b, abi_params=[u256], abi_returns=[
     sstore 0, v16 !metadata(storage=slot(0))
     v17 = eq 2, 2
     v18 = iszero v17
-    jumpi v18, bb5, bb8
-  bb8:
+    panic_if v18, 0x1
     jump bb1
   bb1:
     ret v6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 1 !metadata(memory=scratch)
-    revert 0, 36
 }

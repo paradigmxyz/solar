@@ -26,8 +26,7 @@ fn @readU64(arg0: calldataslice, arg1: u256) -> struct0 [pure] {
     v8 = slice_len v1
     v9 = lt v0, v8
     v10 = iszero v9
-    jumpi v10, bb7, bb8
-  bb8:
+    panic_if v10, 0x32
     v11 = slice_ptr v1
     v12 = calldata_slice_load_word calldata, v1, v0
     v13 = byte 0, v12
@@ -41,10 +40,6 @@ fn @readU64(arg0: calldataslice, arg1: u256) -> struct0 [pure] {
   bb3:
     v18 = checked_add u256, v2, 1
     jump bb1
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @readTwice(arg0: calldataslice) -> struct0 [selector=0xc62a8eb2, pure, abi_params=[bytes], abi_returns=[word<u64>, word<u64>], abi_return_params=[u64, u64]] {

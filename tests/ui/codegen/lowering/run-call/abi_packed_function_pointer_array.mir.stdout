@@ -14,8 +14,7 @@ fn @memoryEncode() -> memorybytes [selector=0xe39243fb, pure, abi_params=[], abi
     v3 = memory_object_len memoryarray, v0
     v4 = lt 0, v3
     v5 = iszero v4
-    jumpi v5, bb1, bb2
-  bb2:
+    panic_if v5, 0x32
     v6 = shl 64, v2
     memory_object_store_element memoryarray<1>, v0, 0, v6
     v7 = memory_object_len memoryarray, v0
@@ -25,16 +24,13 @@ fn @memoryEncode() -> memorybytes [selector=0xe39243fb, pure, abi_params=[], abi
     v11 = eq v10, v7
     v12 = or v9, v11
     v13 = iszero v12
-    jumpi v13, bb3, bb4
-  bb4:
+    panic_if v13, 0x41
     v14 = add 0, v8
     v15 = lt v14, 0
-    jumpi v15, bb3, bb5
-  bb5:
+    panic_if v15, 0x41
     v16 = add v14, 63
     v17 = lt v16, v14
-    jumpi v17, bb3, bb6
-  bb6:
+    panic_if v17, 0x41
     v18 = not 31
     v19 = and v16, v18
     v20 = alloc memorybytes, exact, uninitialized, infallible, v19
@@ -45,45 +41,33 @@ fn @memoryEncode() -> memorybytes [selector=0xe39243fb, pure, abi_params=[], abi
     v24 = eq v23, v7
     v25 = or v22, v24
     v26 = iszero v25
-    jumpi v26, bb3, bb7
-  bb7:
+    panic_if v26, 0x41
     v27 = add 0, v21
     v28 = lt v27, 0
-    jumpi v28, bb3, bb8
-  bb8:
-    jump bb9
-  bb9:
-    v29 = phi [bb8: 0], [bb13: v41]
+    panic_if v28, 0x41
+    jump bb1
+  bb1:
+    v29 = phi [bb0: 0], [bb2: v41]
     v30 = lt v29, v7
-    jumpi v30, bb10, bb11
-  bb11:
+    jumpi v30, bb2, bb3
+  bb3:
     ret v20
-  bb10:
+  bb2:
     v31 = mul v29, 32
     v32 = iszero 32
     v33 = div v31, 32
     v34 = eq v33, v29
     v35 = or v32, v34
     v36 = iszero v35
-    jumpi v36, bb3, bb12
-  bb12:
+    panic_if v36, 0x41
     v37 = add 0, v31
     v38 = lt v37, 0
-    jumpi v38, bb3, bb13
-  bb13:
+    panic_if v38, 0x41
     v39 = memory_object_load_element memoryarray<1>, v0, v29
     v40 = and v39, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
     memory_object_store_word memorybytes, v20, v37, v40
     v41 = add v29, 1
-    jump bb9
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    jump bb1
 }
 
 fn @encode(arg0: calldataslice) -> memorybytes [selector=0xea460cbb, pure, abi_params=[array<_, function>], abi_returns=[memory_bytes]] {
@@ -96,33 +80,29 @@ fn @encode(arg0: calldataslice) -> memorybytes [selector=0xea460cbb, pure, abi_p
     v5 = eq v4, v0
     v6 = or v3, v5
     v7 = iszero v6
-    jumpi v7, bb1, bb2
-  bb2:
+    panic_if v7, 0x41
     v8 = calldatasize
     v9 = sub v8, v1
     v10 = slt v9, v2
-    jumpi v10, bb3, bb4
-  bb4:
+    revert_if v10, calldata_tail_too_short
     v11 = mul v0, 32
     v12 = iszero 32
     v13 = div v11, 32
     v14 = eq v13, v0
     v15 = or v12, v14
     v16 = iszero v15
-    jumpi v16, bb1, bb5
-  bb5:
+    panic_if v16, 0x41
     v17 = add 32, v11
     v18 = lt v17, 32
-    jumpi v18, bb1, bb6
-  bb6:
+    panic_if v18, 0x41
     v19 = alloc memoryarray<1>, exact, uninitialized, infallible, v17
     set_memory_object_len memoryarray, v19, v0
-    jump bb7
-  bb7:
-    v20 = phi [bb6: 0], [bb11: v35]
+    jump bb1
+  bb1:
+    v20 = phi [bb0: 0], [bb2: v35]
     v21 = lt v20, v0
-    jumpi v21, bb8, bb9
-  bb9:
+    jumpi v21, bb2, bb3
+  bb3:
     v36 = memory_object_len memoryarray, v19
     v37 = mul v36, 32
     v38 = iszero 32
@@ -130,16 +110,13 @@ fn @encode(arg0: calldataslice) -> memorybytes [selector=0xea460cbb, pure, abi_p
     v40 = eq v39, v36
     v41 = or v38, v40
     v42 = iszero v41
-    jumpi v42, bb1, bb12
-  bb12:
+    panic_if v42, 0x41
     v43 = add 0, v37
     v44 = lt v43, 0
-    jumpi v44, bb1, bb13
-  bb13:
+    panic_if v44, 0x41
     v45 = add v43, 63
     v46 = lt v45, v43
-    jumpi v46, bb1, bb14
-  bb14:
+    panic_if v46, 0x41
     v47 = not 31
     v48 = and v45, v47
     v49 = alloc memorybytes, exact, uninitialized, infallible, v48
@@ -150,62 +127,50 @@ fn @encode(arg0: calldataslice) -> memorybytes [selector=0xea460cbb, pure, abi_p
     v53 = eq v52, v36
     v54 = or v51, v53
     v55 = iszero v54
-    jumpi v55, bb1, bb15
-  bb15:
+    panic_if v55, 0x41
     v56 = add 0, v50
     v57 = lt v56, 0
-    jumpi v57, bb1, bb16
-  bb16:
-    jump bb17
-  bb17:
-    v58 = phi [bb16: 0], [bb21: v70]
+    panic_if v57, 0x41
+    jump bb4
+  bb4:
+    v58 = phi [bb3: 0], [bb5: v70]
     v59 = lt v58, v36
-    jumpi v59, bb18, bb19
-  bb19:
+    jumpi v59, bb5, bb6
+  bb6:
     ret v49
-  bb18:
+  bb5:
     v60 = mul v58, 32
     v61 = iszero 32
     v62 = div v60, 32
     v63 = eq v62, v58
     v64 = or v61, v63
     v65 = iszero v64
-    jumpi v65, bb1, bb20
-  bb20:
+    panic_if v65, 0x41
     v66 = add 0, v60
     v67 = lt v66, 0
-    jumpi v67, bb1, bb21
-  bb21:
+    panic_if v67, 0x41
     v68 = memory_object_load_element memoryarray<1>, v19, v58
     v69 = and v68, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
     memory_object_store_word memorybytes, v49, v66, v69
     v70 = add v58, 1
-    jump bb17
-  bb8:
+    jump bb4
+  bb2:
     v22 = mul v20, 32
     v23 = iszero 32
     v24 = div v22, 32
     v25 = eq v24, v20
     v26 = or v23, v25
     v27 = iszero v26
-    jumpi v27, bb1, bb10
-  bb10:
+    panic_if v27, 0x41
     v28 = add v1, v22
     v29 = calldataload v28
     v30 = and v29, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
     v31 = eq v29, v30
     v32 = iszero v31
-    jumpi v32, bb3, bb11
-  bb11:
+    revert_if v32, empty
     v33 = shr 64, v29
     v34 = shl 64, v33
     memory_object_store_element memoryarray<1>, v19, v20, v34
     v35 = add v20, 1
-    jump bb7
-  bb3:
-    revert 0, 0
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    jump bb1
 }

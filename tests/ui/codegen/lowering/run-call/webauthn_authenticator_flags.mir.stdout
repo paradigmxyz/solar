@@ -28,18 +28,13 @@ fn @testTypedConstant() -> bool [selector=0x62655512, pure, abi_params=[], abi_r
     v2 = memory_object_len memorybytes, v1
     v3 = lt 32, v2
     v4 = iszero v3
-    jumpi v4, bb1, bb2
-  bb2:
+    panic_if v4, 0x32
     v5 = memory_object_load_byte memorybytes, v1, 32
     v6 = shl 248, v5
     v7 = and v6, 0x100000000000000000000000000000000000000000000000000000000000000
     v8 = and v7, 0xff00000000000000000000000000000000000000000000000000000000000000
     v9 = eq v8, 0x100000000000000000000000000000000000000000000000000000000000000
     ret v9
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @auth() -> memorystruct [pure] {

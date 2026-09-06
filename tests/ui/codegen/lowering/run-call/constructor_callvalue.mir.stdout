@@ -56,22 +56,19 @@ fn @rejectsExplicit() -> bool [selector=0x90887b1f, payable, abi_params=[], abi_
     v5 = memory_object_len memorybytes, v0
     v6 = add 0, v5
     v7 = lt v6, 0
-    jumpi v7, bb1, bb2
-  bb2:
+    panic_if v7, 0x41
     v8 = memory_object_data memorybytes, v0
     v9 = make_memory_slice v8, v5
     v10 = abi_encode [word], object, args 1
     v11 = memory_object_len memorybytes, v10
     v12 = add v6, v11
     v13 = lt v12, v6
-    jumpi v13, bb1, bb3
-  bb3:
+    panic_if v13, 0x41
     v14 = memory_object_data memorybytes, v10
     v15 = make_memory_slice v14, v11
     v16 = add v12, 63
     v17 = lt v16, v12
-    jumpi v17, bb1, bb4
-  bb4:
+    panic_if v17, 0x41
     v18 = not 31
     v19 = and v16, v18
     v20 = alloc memorybytes, exact, uninitialized, infallible, v19
@@ -79,21 +76,15 @@ fn @rejectsExplicit() -> bool [selector=0x90887b1f, payable, abi_params=[], abi_
     memory_object_copy_from_slice_at memorybytes, v20, 0, v9
     v21 = add 0, v5
     v22 = lt v21, 0
-    jumpi v22, bb1, bb5
-  bb5:
+    panic_if v22, 0x41
     memory_object_copy_from_slice_at memorybytes, v20, v21, v15
     v23 = add v21, v11
     v24 = lt v23, v21
-    jumpi v24, bb1, bb6
-  bb6:
+    panic_if v24, 0x41
     v25 = icall @deploy, v20
     v26 = and v25, 0xffffffffffffffffffffffffffffffffffffffff
     v27 = eq v26, 0
     ret v27
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @rejectsImplicit() -> bool [selector=0x05da30eb, payable, abi_params=[], abi_returns=[word<bool>]] {

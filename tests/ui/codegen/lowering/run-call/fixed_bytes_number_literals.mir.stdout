@@ -55,15 +55,12 @@ fn @viaExternal() -> u256 [selector=0x09338c08, abi_params=[], abi_returns=[word
   bb4:
     v13 = returndatasize
     v14 = lt v13, 32
-    jumpi v14, bb5, bb6
-  bb6:
+    revert_if v14, tuple_data_too_short
     v15 = add 0, 0
     v16 = mload v15
     v17 = add 0, 0
     v18 = mload v17
     ret v18
-  bb5:
-    revert 0, 0
 }
 
 fn @giveInternal(arg0: bytes4) -> bytes4 [pure] {
@@ -172,8 +169,7 @@ fn @takeSlice(arg0: calldataslice) -> bytes32 [selector=0x4f4c8d8b, pure, abi_pa
     v2 = gt 5, v1
     v3 = lt 5, 0
     v4 = or v2, v3
-    jumpi v4, bb1, bb2
-  bb2:
+    revert_if v4, empty
     v5 = sub 5, 0
     v6 = add v0, 0
     v7 = make_calldata_slice v6, v5
@@ -186,8 +182,6 @@ fn @takeSlice(arg0: calldataslice) -> bytes32 [selector=0x4f4c8d8b, pure, abi_pa
     v14 = select v10, v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v15 = and v8, v14
     ret v15
-  bb1:
-    revert 0, 0
 }
 
 fn @calldataSliceCast() -> bytes32 [selector=0x93f40587, view, abi_params=[], abi_returns=[word]] {
@@ -208,15 +202,12 @@ fn @calldataSliceCast() -> bytes32 [selector=0x93f40587, view, abi_params=[], ab
   bb2:
     v8 = returndatasize
     v9 = lt v8, 32
-    jumpi v9, bb3, bb4
-  bb4:
+    revert_if v9, tuple_data_too_short
     v10 = add 0, 0
     v11 = mload v10
     v12 = add 0, 0
     v13 = mload v12
     ret v13
-  bb3:
-    revert 0, 0
 }
 
 fn @stringAddressCast() -> address [selector=0x6e03912b, pure, abi_params=[], abi_returns=[word<u160>]] {

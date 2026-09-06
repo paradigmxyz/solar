@@ -46,5 +46,7 @@ error: [fn11] [bb0, inst0] checked arithmetic instruction `checked_add` survives
 
 error: [fn12] [bb0, inst0] ABI validation instruction `validate_abi` survives the `lowered` phase boundary
 
-error: aborting due to 24 previous errors
+error: [fn13] [bb0, inst0] conditional check instruction `panic_if_zero` survives the `lowered` phase boundary
+
+error: aborting due to 25 previous errors
 

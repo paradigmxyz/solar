@@ -12,7 +12,7 @@ enum StorageArrayElement {
 /// Builds the helper for decoding one storage `bytes`/`string` slot.
 fn build_storage_bytes_helper(function: &mut Function) {
     // load_storage_bytes(slot) -> bytes_object
-    let mut builder = FunctionBuilder::new(function);
+    let mut builder = FunctionBuilder::new_semantic(function);
     let slot = builder.add_param(MirType::uint256());
     builder.add_return(MirType::MemoryObject(MemoryObjectKind::Bytes));
     let object = lower_storage_bytes_inline(&mut builder, slot);
@@ -24,7 +24,7 @@ fn build_storage_array_helper(function: &mut Function, element: StorageArrayElem
     // array = alloc_dynamic_array(length); set_length(array, length)
     // data_slot = storage_array_data_slot(slot)
     // for i < length { array[i] = load/unpack(data_slot, i) }
-    let mut builder = FunctionBuilder::new(function);
+    let mut builder = FunctionBuilder::new_semantic(function);
     let slot = builder.add_param(MirType::uint256());
     builder.add_return(MirType::MemoryObject(MemoryObjectKind::DynamicArray));
 
@@ -110,7 +110,7 @@ fn packed_storage_array_position(
 /// Builds the helper for clearing the data words of a storage bytes value.
 fn build_storage_clear_helper(function: &mut Function) {
     // for i in first_word..words { sstore(data_slot + i, 0) }
-    let mut builder = FunctionBuilder::new(function);
+    let mut builder = FunctionBuilder::new_semantic(function);
     let slot = builder.add_param(MirType::uint256());
     let first_word = builder.add_param(MirType::uint256());
     let words = builder.add_param(MirType::uint256());
@@ -152,7 +152,7 @@ fn emit_clear_storage_words(
 /// storage like solc's `copy_byte_array_to_storage`: one body per contract instead of one per
 /// assignment site.
 fn build_storage_bytes_store_helper(function: &mut Function, clear_helper: FunctionId) {
-    let mut builder = FunctionBuilder::new(function);
+    let mut builder = FunctionBuilder::new_semantic(function);
     let slot = builder.add_param(MirType::uint256());
     let object = builder.add_param(MirType::MemoryObject(MemoryObjectKind::Bytes));
 

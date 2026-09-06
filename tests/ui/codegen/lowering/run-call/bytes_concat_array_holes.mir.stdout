@@ -23,8 +23,7 @@ fn @chunksAndHash() -> struct0 [pure] {
     v7 = memory_object_len memoryarray, v0
     v8 = lt 0, v7
     v9 = iszero v8
-    jumpi v9, bb4, bb5
-  bb5:
+    panic_if v9, 0x32
     memory_object_store_element memoryarray<1>, v0, 0, v4
     v10 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v10, 4
@@ -33,17 +32,12 @@ fn @chunksAndHash() -> struct0 [pure] {
     v12 = memory_object_len memoryarray, v0
     v13 = lt 15, v12
     v14 = iszero v13
-    jumpi v14, bb4, bb6
-  bb6:
+    panic_if v14, 0x32
     memory_object_store_element memoryarray<1>, v0, 15, v10
     v15 = shl 0, 7
     v16 = insert_value struct0, undef struct0, 0, v0
     v17 = insert_value struct0, v16, 1, v15
     ret v17
-  bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     memory_object_store_element memoryarray<1>, v0, v1, memorybytes 96
     v3 = add v1, 1
@@ -76,19 +70,18 @@ fn @join() -> struct1 [selector=0xb688a363, pure, abi_params=[], abi_returns=[wo
     v10 = memory_object_len memoryarray, v5
     v11 = lt v6, v10
     v12 = iszero v11
-    jumpi v12, bb7, bb8
-  bb8:
+    panic_if v12, 0x32
     v13 = memory_object_load_element memoryarray<1>, v5, v6
     v14 = memory_object_from_ptr memorybytes, v13
     v15 = eq v14, 0
-    jumpi v15, bb9, bb10
-  bb9:
+    jumpi v15, bb7, bb8
+  bb7:
     v16 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v16, 0
     memory_object_store_element memoryarray<1>, v5, v6, v16
-    jump bb10
-  bb10:
-    v17 = phi [bb8: v14], [bb9: v16]
+    jump bb8
+  bb8:
+    v17 = phi [bb4: v14], [bb7: v16]
     v18 = concat ( memorybytes v4, memorybytes v17 )
     jump bb6
   bb6:
@@ -96,8 +89,4 @@ fn @join() -> struct1 [selector=0xb688a363, pure, abi_params=[], abi_returns=[wo
   bb3:
     v19 = checked_add u256, v6, 1
     jump bb1
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
 }

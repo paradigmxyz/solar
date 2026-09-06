@@ -42,16 +42,15 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     memory_object_store_element memoryfixedarray<10, 1>, v2, 9, v12
     v13 = lt 0, 1
     v14 = iszero v13
-    jumpi v14, bb1, bb2
-  bb2:
+    panic_if v14, 0x32
     v15 = mul 0, 3
     v16 = add v1, v15
-    jump bb3
-  bb3:
-    v17 = phi [bb2: 0], [bb8: v41]
+    jump bb1
+  bb1:
+    v17 = phi [bb0: 0], [bb6: v41]
     v18 = lt v17, 10
-    jumpi v18, bb4, bb5
-  bb5:
+    jumpi v18, bb2, bb3
+  bb3:
     v42 = alloc memoryfixedarray<5, 1>, exact, uninitialized, infallible, 160
     v43 = and 11, 0xffffffffffffffff
     memory_object_store_element memoryfixedarray<5, 1>, v42, 0, v43
@@ -65,49 +64,45 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     memory_object_store_element memoryfixedarray<5, 1>, v42, 4, v47
     v48 = lt 0, 1
     v49 = iszero v48
-    jumpi v49, bb1, bb9
-  bb9:
+    panic_if v49, 0x32
     v50 = mul 0, 3
     v51 = add v1, v50
-    jump bb10
-  bb10:
-    v52 = phi [bb9: 0], [bb15: v76]
+    jump bb7
+  bb7:
+    v52 = phi [bb3: 0], [bb12: v76]
     v53 = lt v52, 10
-    jumpi v53, bb11, bb12
-  bb12:
-    jump bb16
-  bb16:
-    v77 = phi [bb12: 0], [bb18: v101]
-    v78 = phi [bb12: 0], [bb18: v102]
-    v79 = phi [bb12: 0], [bb18: v79]
-    v80 = phi [bb12: v0], [bb18: v80]
-    v81 = phi [bb12: v1], [bb18: v81]
+    jumpi v53, bb8, bb9
+  bb9:
+    jump bb13
+  bb13:
+    v77 = phi [bb9: 0], [bb15: v101]
+    v78 = phi [bb9: 0], [bb15: v102]
+    v79 = phi [bb9: 0], [bb15: v79]
+    v80 = phi [bb9: v0], [bb15: v80]
+    v81 = phi [bb9: v1], [bb15: v81]
     v82 = lt 0, 1
     v83 = iszero v82
-    jumpi v83, bb1, bb19
-  bb19:
+    panic_if v83, 0x32
     v84 = mul 0, 3
     v85 = add v81, v84
     v86 = lt v78, 10
-    jumpi v86, bb20, bb21
-  bb21:
-    jump bb17
+    jumpi v86, bb16, bb17
   bb17:
+    jump bb14
+  bb14:
     v103 = sload v80 !metadata(storage=symbolic(v80))
     v104 = insert_value struct0, undef struct0, 0, v77
     v105 = insert_value struct0, v104, 1, v103
     ret v105
-  bb20:
+  bb16:
     v87 = lt 0, 1
     v88 = iszero v87
-    jumpi v88, bb1, bb23
-  bb23:
+    panic_if v88, 0x32
     v89 = mul 0, 3
     v90 = add v81, v89
     v91 = lt v78, 10
     v92 = iszero v91
-    jumpi v92, bb1, bb24
-  bb24:
+    panic_if v92, 0x32
     v93 = div v78, 4
     v94 = add v90, v93
     v95 = mod v78, 4
@@ -117,20 +112,20 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v99 = shr v98, v97
     v100 = and v99, 0xffffffffffffffff
     v101 = checked_add u256, v77, v100
-    jump bb22
-  bb22:
     jump bb18
   bb18:
+    jump bb15
+  bb15:
     v102 = checked_add u256, v78, 1
-    jump bb16
-  bb11:
+    jump bb13
+  bb8:
     v54 = div v52, 4
     v55 = add v51, v54
     v56 = mod v52, 4
     v57 = mul v56, 8
     v58 = lt v52, 5
-    jumpi v58, bb13, bb14
-  bb14:
+    jumpi v58, bb10, bb11
+  bb11:
     v68 = mul v57, 8
     v69 = shl v68, 0xffffffffffffffff
     v70 = sload v55 !metadata(storage=symbolic(v55))
@@ -140,8 +135,8 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v74 = shl v68, v73
     v75 = or v72, v74
     sstore v55, v75 !metadata(storage=symbolic(v55))
-    jump bb15
-  bb13:
+    jump bb12
+  bb10:
     v59 = memory_object_load_element memoryfixedarray<5, 1>, v42, v52
     v60 = mul v57, 8
     v61 = shl v60, 0xffffffffffffffff
@@ -152,18 +147,18 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v66 = shl v60, v65
     v67 = or v64, v66
     sstore v55, v67 !metadata(storage=symbolic(v55))
-    jump bb15
-  bb15:
+    jump bb12
+  bb12:
     v76 = add v52, 1
-    jump bb10
-  bb4:
+    jump bb7
+  bb2:
     v19 = div v17, 4
     v20 = add v16, v19
     v21 = mod v17, 4
     v22 = mul v21, 8
     v23 = lt v17, 10
-    jumpi v23, bb6, bb7
-  bb7:
+    jumpi v23, bb4, bb5
+  bb5:
     v33 = mul v22, 8
     v34 = shl v33, 0xffffffffffffffff
     v35 = sload v20 !metadata(storage=symbolic(v20))
@@ -173,8 +168,8 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v39 = shl v33, v38
     v40 = or v37, v39
     sstore v20, v40 !metadata(storage=symbolic(v20))
-    jump bb8
-  bb6:
+    jump bb6
+  bb4:
     v24 = memory_object_load_element memoryfixedarray<10, 1>, v2, v17
     v25 = mul v22, 8
     v26 = shl v25, 0xffffffffffffffff
@@ -185,12 +180,8 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v31 = shl v25, v30
     v32 = or v29, v31
     sstore v20, v32 !metadata(storage=symbolic(v20))
-    jump bb8
-  bb8:
+    jump bb6
+  bb6:
     v41 = add v17, 1
-    jump bb3
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    jump bb1
 }

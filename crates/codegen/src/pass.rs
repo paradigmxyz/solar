@@ -71,6 +71,7 @@ pub static ALL_PASSES: &[&dyn MirPass] = &[
     &adce::Adce,
     &lower_arithmetic::LowerArithmetic,
     &lower_builtins::LowerBuiltins,
+    &lower_checks::LowerChecks,
     &lower_abi::LowerAbi,
     &lower_dispatch::LowerDispatch,
     &lower_structs::LowerStructs,
@@ -187,11 +188,7 @@ pub static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     &memory_dse::MemoryDse,
     &adce::Adce,
     &dce::Dce,
-    // MIR outlining remains profitable even though EVM IR can merge
-    // equivalent terminal blocks: lowering and stack scheduling can
-    // hide their shared semantic shape from the backend passes.
-    &outline_reverts::OutlineReverts,
-    // Outlining and late control-flow rewrites expose scalar simplifications.
+    // Late control-flow rewrites expose scalar simplifications.
     // Thread and clean the CFG first so the rest of this sequence observes the
     // simplified graph in one pass through the pipeline.
     &jump_threading::JumpThreading,
@@ -208,6 +205,9 @@ pub static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
 
 /// Expands semantic operations and makes the backend representation explicit.
 pub static LOWERING_PIPELINE: &[&dyn MirPass] = &[
+    &lower_checks::LowerChecks,
+    // Share source check payloads before expanding arithmetic checks and builtin buffers.
+    &outline_reverts::OutlineReverts,
     &lower_arithmetic::LowerArithmetic,
     &lower_builtins::LowerBuiltins,
     // Expansion exposes scalar checks and object copies to this bounded cleanup group.

@@ -41,7 +41,7 @@ contract InternalVoidCall {
     }
 
     // CHECK-LABEL: fn @returnRevert{{[( ]}}
-    // CHECK: revert 0, 0
+    // CHECK: revert_if true, empty
     function returnRevert() public pure {
         return revert();
     }

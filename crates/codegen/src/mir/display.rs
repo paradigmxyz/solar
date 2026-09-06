@@ -573,6 +573,13 @@ fn display_inst_kind<'a>(
         InstKind::MemoryObjectData(object, kind) => {
             write!(f, "memory_object_data {kind}, {}", display_val(*object, func))
         }
+        InstKind::Check { condition, failure, .. } => {
+            write!(f, "{} {}, ", kind.mnemonic(), display_val(*condition, func))?;
+            match failure {
+                super::RevertKind::Panic(code) => write!(f, "0x{:x}", code.as_u64()),
+                super::RevertKind::Reason(reason) => write!(f, "{}", reason.name()),
+            }
+        }
         InstKind::CheckedBinary { op, arithmetic, lhs, rhs } => write!(
             f,
             "{} {}, {}, {}",

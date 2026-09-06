@@ -8,16 +8,13 @@ fn @forward(arg0: address, arg1: u256, arg2: calldataslice) [selector=0xd7f31eb9
     v3 = slice_len v1
     v4 = extcodesize arg0
     v5 = iszero v4
-    jumpi v5, bb1, bb2
-  bb2:
+    revert_if v5, target_contract_has_no_code
     v6 = call v0, arg0, 0, v2, v3, 0, 0
-    jumpi v6, bb4, bb3
-  bb3:
-    revert_returndata
-  bb4:
-    stop
+    jumpi v6, bb2, bb1
   bb1:
-    revert 0, 0
+    revert_returndata
+  bb2:
+    stop
 }
 
 fn @forwardNarrow(arg0: address, arg1: calldataslice) [selector=0x251c2c33, abi_params=[address, array<_, u8>], abi_returns=[]] {
@@ -28,14 +25,11 @@ fn @forwardNarrow(arg0: address, arg1: calldataslice) [selector=0x251c2c33, abi_
     v3 = slice_len v1
     v4 = extcodesize arg0
     v5 = iszero v4
-    jumpi v5, bb1, bb2
-  bb2:
+    revert_if v5, target_contract_has_no_code
     v6 = call v0, arg0, 0, v2, v3, 0, 0
-    jumpi v6, bb4, bb3
-  bb3:
-    revert_returndata
-  bb4:
-    stop
+    jumpi v6, bb2, bb1
   bb1:
-    revert 0, 0
+    revert_returndata
+  bb2:
+    stop
 }

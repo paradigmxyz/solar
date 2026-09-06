@@ -3,13 +3,8 @@
 fn @assert_panic(arg0: bool) [selector=0x727ee374, pure, abi_params=[bool], abi_returns=[]] {
   bb0:
     v0 = iszero arg0
-    jumpi v0, bb1, bb2
-  bb2:
+    panic_if v0, 0x1
     stop
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 1 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @require_message(arg0: bool) [selector=0x79cfb63f, pure, abi_params=[bool], abi_returns=[]] {

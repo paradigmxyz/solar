@@ -30,8 +30,7 @@ fn @pair() -> struct0 [selector=0xa8aa1b31, pure, abi_params=[], abi_returns=[wo
     v5 = returndatasize
     v6 = add v5, 63
     v7 = lt v6, v5
-    jumpi v7, bb3, bb4
-  bb4:
+    panic_if v7, 0x41
     v8 = not 31
     v9 = and v6, v8
     v10 = alloc memorybytes, exact, uninitialized, infallible, v9
@@ -48,8 +47,4 @@ fn @pair() -> struct0 [selector=0xa8aa1b31, pure, abi_params=[], abi_returns=[wo
     v19 = insert_value struct0, undef struct0, 0, v17
     v20 = insert_value struct0, v19, 1, v18
     ret v20
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
 }

@@ -30,8 +30,7 @@ fn @reduce(arg0: memoryarray, arg1: function, arg2: u256) -> u256 {
     v7 = memory_object_len memoryarray, v2
     v8 = lt v1, v7
     v9 = iszero v8
-    jumpi v9, bb7, bb8
-  bb8:
+    panic_if v9, 0x32
     v10 = memory_object_load_element memoryarray<1>, v2, v1
     v11 = icall @internal_dispatcher_p_u256_u256_r_u256, v4, v10, v3
     jump bb6
@@ -40,10 +39,6 @@ fn @reduce(arg0: memoryarray, arg1: function, arg2: u256) -> u256 {
   bb3:
     v12 = checked_add u256, v1, 1
     jump bb1
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @sum(arg0: u256, arg1: u256) -> u256 [pure] {
@@ -57,9 +52,8 @@ fn @internal_dispatcher_p_u256_u256_r_u256(arg0: function, arg1: u256, arg2: u25
     v0 = eq arg0, 2
     jumpi v0, bb1, bb2
   bb2:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 81 !metadata(memory=scratch)
-    revert 0, 36
+    panic_if true, 0x51
+    invalid
   bb1:
     v1 = icall @sum, arg1, arg2
     ret v1

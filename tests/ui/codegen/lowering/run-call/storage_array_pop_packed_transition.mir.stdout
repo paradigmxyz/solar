@@ -17,26 +17,25 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u16
   bb5:
     jump bb2
   bb2:
-    jump bb9
-  bb9:
-    v24 = phi [bb2: v0], [bb11: v24]
-    v25 = phi [bb2: 1], [bb11: v47]
-    v26 = phi [bb2: v1], [bb11: v26]
-    v27 = phi [bb2: v2], [bb11: v27]
-    v28 = phi [bb2: v3], [bb11: v28]
+    jump bb7
+  bb7:
+    v24 = phi [bb2: v0], [bb9: v24]
+    v25 = phi [bb2: 1], [bb9: v47]
+    v26 = phi [bb2: v1], [bb9: v26]
+    v27 = phi [bb2: v2], [bb9: v27]
+    v28 = phi [bb2: v3], [bb9: v28]
     v29 = gt v25, 10
     v30 = iszero v29
-    jumpi v30, bb12, bb13
-  bb13:
-    jump bb10
-  bb10:
+    jumpi v30, bb10, bb11
+  bb11:
+    jump bb8
+  bb8:
     v48 = sload 0 !metadata(storage=slot(0))
     v49 = checked_sub u256, v48, 1
     v50 = sload 0 !metadata(storage=slot(0))
     v51 = lt v49, v50
     v52 = iszero v51
-    jumpi v52, bb17, bb18
-  bb18:
+    panic_if v52, 0x32
     v53 = storage_array_data_slot 0
     v54 = div v49, 16
     v55 = add v53, v54
@@ -46,27 +45,26 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u16
     v59 = mul v57, 8
     v60 = shr v59, v58
     v61 = and v60, 0xffff
-    jump bb19
-  bb19:
-    v62 = phi [bb18: v24], [bb21: v62]
-    v63 = phi [bb18: v25], [bb21: v63]
-    v64 = phi [bb18: v26], [bb21: v64]
-    v65 = phi [bb18: v27], [bb21: v65]
-    v66 = phi [bb18: 1], [bb21: v86]
-    v67 = phi [bb18: v61], [bb21: v67]
+    jump bb13
+  bb13:
+    v62 = phi [bb8: v24], [bb15: v62]
+    v63 = phi [bb8: v25], [bb15: v63]
+    v64 = phi [bb8: v26], [bb15: v64]
+    v65 = phi [bb8: v27], [bb15: v65]
+    v66 = phi [bb8: 1], [bb15: v86]
+    v67 = phi [bb8: v61], [bb15: v67]
     v68 = gt v66, 10
     v69 = iszero v68
-    jumpi v69, bb22, bb23
-  bb23:
-    jump bb20
-  bb20:
+    jumpi v69, bb16, bb17
+  bb17:
+    jump bb14
+  bb14:
     v87 = sload 0 !metadata(storage=slot(0))
     v88 = checked_sub u256, v87, 1
     v89 = sload 0 !metadata(storage=slot(0))
     v90 = lt v88, v89
     v91 = iszero v90
-    jumpi v91, bb17, bb26
-  bb26:
+    panic_if v91, 0x32
     v92 = storage_array_data_slot 0
     v93 = div v88, 16
     v94 = add v92, v93
@@ -76,28 +74,27 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u16
     v98 = mul v96, 8
     v99 = shr v98, v97
     v100 = and v99, 0xffff
-    jump bb27
-  bb27:
-    v101 = phi [bb26: v62], [bb29: v101]
-    v102 = phi [bb26: v63], [bb29: v102]
-    v103 = phi [bb26: 1], [bb29: v126]
-    v104 = phi [bb26: v64], [bb29: v104]
-    v105 = phi [bb26: v100], [bb29: v105]
-    v106 = phi [bb26: v66], [bb29: v106]
-    v107 = phi [bb26: v67], [bb29: v107]
+    jump bb19
+  bb19:
+    v101 = phi [bb14: v62], [bb21: v101]
+    v102 = phi [bb14: v63], [bb21: v102]
+    v103 = phi [bb14: 1], [bb21: v126]
+    v104 = phi [bb14: v64], [bb21: v104]
+    v105 = phi [bb14: v100], [bb21: v105]
+    v106 = phi [bb14: v66], [bb21: v106]
+    v107 = phi [bb14: v67], [bb21: v107]
     v108 = gt v103, 10
     v109 = iszero v108
-    jumpi v109, bb30, bb31
-  bb31:
-    jump bb28
-  bb28:
+    jumpi v109, bb22, bb23
+  bb23:
+    jump bb20
+  bb20:
     v127 = sload 0 !metadata(storage=slot(0))
     v128 = checked_sub u256, v127, 1
     v129 = sload 0 !metadata(storage=slot(0))
     v130 = lt v128, v129
     v131 = iszero v130
-    jumpi v131, bb17, bb34
-  bb34:
+    panic_if v131, 0x32
     v132 = storage_array_data_slot 0
     v133 = div v128, 16
     v134 = add v132, v133
@@ -107,31 +104,30 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u16
     v138 = mul v136, 8
     v139 = shr v138, v137
     v140 = and v139, 0xffff
-    jump bb35
-  bb35:
-    v141 = phi [bb34: v102], [bb37: v141]
-    v142 = phi [bb34: v105], [bb37: v142]
-    v143 = phi [bb34: v106], [bb37: v143]
-    v144 = phi [bb34: v140], [bb37: v144]
-    v145 = phi [bb34: v103], [bb37: v145]
-    v146 = phi [bb34: v104], [bb37: v146]
-    v147 = phi [bb34: 1], [bb37: v167]
-    v148 = phi [bb34: v107], [bb37: v148]
+    jump bb25
+  bb25:
+    v141 = phi [bb20: v102], [bb27: v141]
+    v142 = phi [bb20: v105], [bb27: v142]
+    v143 = phi [bb20: v106], [bb27: v143]
+    v144 = phi [bb20: v140], [bb27: v144]
+    v145 = phi [bb20: v103], [bb27: v145]
+    v146 = phi [bb20: v104], [bb27: v146]
+    v147 = phi [bb20: 1], [bb27: v167]
+    v148 = phi [bb20: v107], [bb27: v148]
     v149 = gt v147, 18
     v150 = iszero v149
-    jumpi v150, bb38, bb39
-  bb39:
-    jump bb36
-  bb36:
+    jumpi v150, bb28, bb29
+  bb29:
+    jump bb26
+  bb26:
     v168 = insert_value struct0, undef struct0, 0, v148
     v169 = insert_value struct0, v168, 1, v142
     v170 = insert_value struct0, v169, 2, v144
     ret v170
-  bb38:
+  bb28:
     v151 = sload 0 !metadata(storage=slot(0))
     v152 = eq v151, 0
-    jumpi v152, bb15, bb41
-  bb41:
+    panic_if v152, 0x31
     v153 = sub v151, 1
     sstore 0, v153 !metadata(storage=slot(0))
     v154 = storage_array_data_slot 0
@@ -148,17 +144,16 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u16
     v165 = shl v159, v164
     v166 = or v163, v165
     sstore v156, v166 !metadata(storage=symbolic(v156))
-    jump bb40
-  bb40:
-    jump bb37
-  bb37:
-    v167 = checked_add u256, v147, 1
-    jump bb35
+    jump bb30
   bb30:
+    jump bb27
+  bb27:
+    v167 = checked_add u256, v147, 1
+    jump bb25
+  bb22:
     v110 = sload 0 !metadata(storage=slot(0))
     v111 = eq v110, 0
-    jumpi v111, bb15, bb33
-  bb33:
+    panic_if v111, 0x31
     v112 = sub v110, 1
     sstore 0, v112 !metadata(storage=slot(0))
     v113 = storage_array_data_slot 0
@@ -175,17 +170,16 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u16
     v124 = shl v118, v123
     v125 = or v122, v124
     sstore v115, v125 !metadata(storage=symbolic(v115))
-    jump bb32
-  bb32:
-    jump bb29
-  bb29:
+    jump bb24
+  bb24:
+    jump bb21
+  bb21:
     v126 = checked_add u256, v103, 1
-    jump bb27
-  bb22:
+    jump bb19
+  bb16:
     v70 = sload 0 !metadata(storage=slot(0))
     v71 = eq v70, 0
-    jumpi v71, bb15, bb25
-  bb25:
+    panic_if v71, 0x31
     v72 = sub v70, 1
     sstore 0, v72 !metadata(storage=slot(0))
     v73 = storage_array_data_slot 0
@@ -202,21 +196,16 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u16
     v84 = shl v78, v83
     v85 = or v82, v84
     sstore v75, v85 !metadata(storage=symbolic(v75))
-    jump bb24
-  bb24:
-    jump bb21
-  bb21:
+    jump bb18
+  bb18:
+    jump bb15
+  bb15:
     v86 = checked_add u256, v66, 1
-    jump bb19
-  bb17:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb12:
+    jump bb13
+  bb10:
     v31 = sload 0 !metadata(storage=slot(0))
     v32 = eq v31, 0
-    jumpi v32, bb15, bb16
-  bb16:
+    panic_if v32, 0x31
     v33 = sub v31, 1
     sstore 0, v33 !metadata(storage=slot(0))
     v34 = storage_array_data_slot 0
@@ -233,22 +222,17 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u16
     v45 = shl v39, v44
     v46 = or v43, v45
     sstore v36, v46 !metadata(storage=symbolic(v36))
-    jump bb14
-  bb14:
-    jump bb11
-  bb11:
-    v47 = checked_add u256, v25, 1
+    jump bb12
+  bb12:
     jump bb9
-  bb15:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 49 !metadata(memory=scratch)
-    revert 0, 36
+  bb9:
+    v47 = checked_add u256, v25, 1
+    jump bb7
   bb4:
     v6 = and v1, 0xffff
     v7 = sload 0 !metadata(storage=slot(0))
     v8 = gt v7, 0xffffffffffffffff
-    jumpi v8, bb7, bb8
-  bb8:
+    panic_if v8, 0x41
     v9 = add v7, 1
     v10 = storage_array_data_slot 0
     v11 = div v7, 16
@@ -271,8 +255,4 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u16
   bb3:
     v23 = checked_add u256, v1, 1
     jump bb1
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
 }

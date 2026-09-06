@@ -147,8 +147,7 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v13 = returndatasize
     v14 = add v13, 63
     v15 = lt v14, v13
-    jumpi v15, bb3, bb4
-  bb4:
+    panic_if v15, 0x41
     v16 = not 31
     v17 = and v14, v16
     v18 = alloc memorybytes, exact, uninitialized, infallible, v17
@@ -156,8 +155,8 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v19 = make_returndata_slice 0, v13
     memory_object_copy_from_slice memorybytes, v18, v19
     v20 = iszero v12
-    jumpi v20, bb5, bb6
-  bb6:
+    jumpi v20, bb3, bb4
+  bb4:
     v21 = abi_decode [bytes32], v18
     v22 = not 31
     v23 = and 319, v22
@@ -166,19 +165,15 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v25 = keccak256_bytes v24
     v26 = eq v21, v25
     v27 = iszero v26
-    jumpi v27, bb7, bb8
-  bb8:
+    jumpi v27, bb5, bb6
+  bb6:
     ret 1
-  bb7:
+  bb5:
     icall @revert_error, 6, 0x6f75747075740000000000000000000000000000000000000000000000000000
     invalid
-  bb5:
+  bb3:
     icall @revert_error, 4, 0x63616c6c00000000000000000000000000000000000000000000000000000000
     invalid
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @revert_error(arg0: u256, arg1: u256) {
