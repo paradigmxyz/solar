@@ -11,6 +11,10 @@
 //! distinct label states are retained per block and exact height; further states widen to unknown
 //! labels. This bounds call-path combinations while preserving structural height growth
 //! and prevents optimization from using heights behind unproved return edges.
+//! Validation follows at most one closing edge of an explicit cycle with a
+//! reachable exit: its iteration count is a runtime property. Closed cycles and
+//! optimization bounds retain the full height analysis. Observed height changes
+//! across a limited cycle never establish absolute bounds for encoding.
 
 use super::{BlockId, InstKind, Instruction, Module, TerminatorKind};
 use crate::backend::evm::op;
@@ -36,7 +40,7 @@ pub(crate) fn validate(gcx: Gcx<'_>, module: &Module) -> Option<StackHeights> {
                 continue;
             }
             let next = block.insts.get(index + 1);
-            let name = inst_name(&inst.kind);
+            let name = kept_inst_name(&inst.kind);
             let message = match inst.kind {
                 InstKind::Op(op::GAS | op::SUB) if next.is_none() => Some(format!(
                     "`{name}` must be followed by the instruction it is kept with"
@@ -44,13 +48,13 @@ pub(crate) fn validate(gcx: Gcx<'_>, module: &Module) -> Option<StackHeights> {
                 InstKind::Op(op::GAS) => next.and_then(|next| {
                     (next.kind != InstKind::Op(op::SUB) || !next.keep_with_next).then(|| format!(
                         "`gas` is kept with the next instruction, which must be a `sub` kept with the call, not `{}`",
-                        inst_name(&next.kind)
+                        kept_inst_name(&next.kind)
                     ))
                 }),
                 InstKind::Op(op::SUB) => next.and_then(|next| {
                     (!matches!(next.kind, InstKind::Op(op::CALL | op::CALLCODE | op::DELEGATECALL | op::STATICCALL))).then(|| format!(
                         "`sub` is kept with the next instruction, which must be a call, not `{}`",
-                        inst_name(&next.kind)
+                        kept_inst_name(&next.kind)
                     ))
                 }),
                 _ => Some(format!("`{name}` cannot be kept with a next instruction")),
@@ -182,7 +186,7 @@ pub(crate) fn validate(gcx: Gcx<'_>, module: &Module) -> Option<StackHeights> {
         }
     }
 
-    match stack_analysis(module) {
+    match stack_analysis(module, CyclePolicy::OneTraversal) {
         Ok((heights, _)) => Some(heights),
         Err((id, message)) => {
             fail(id, message);
@@ -205,7 +209,7 @@ pub(crate) fn stack_heights(module: &Module) -> Result<StackHeights, (BlockId, S
 /// Computes optimization bounds and unknown-transfer status in one analysis.
 /// Encoding validation separately retains the raw bounds of concrete paths.
 pub(super) fn stack_facts(module: &Module) -> Result<(StackHeights, bool), (BlockId, String)> {
-    stack_analysis(module).map(|(mut heights, unknown)| {
+    stack_analysis(module, CyclePolicy::AllHeights).map(|(mut heights, unknown)| {
         if unknown {
             heights.raw.fill(None);
         }
@@ -216,28 +220,45 @@ pub(super) fn stack_facts(module: &Module) -> Result<(StackHeights, bool), (Bloc
 /// Whether an executed computed transfer has no proved label destination.
 /// Failed proofs also prevent deleting blocks based on incomplete control flow.
 pub(super) fn has_unknown_jump(module: &Module) -> bool {
-    stack_analysis(module).map_or(true, |(_, unknown)| unknown)
+    stack_analysis(module, CyclePolicy::AllHeights).map_or(true, |(_, unknown)| unknown)
 }
 
-fn stack_analysis(module: &Module) -> Result<(StackHeights, bool), (BlockId, String)> {
+/// Validation checks one cycle traversal; optimization needs absolute bounds.
+#[derive(Clone, Copy)]
+enum CyclePolicy {
+    OneTraversal,
+    AllHeights,
+}
+
+fn stack_analysis(
+    module: &Module,
+    cycles: CyclePolicy,
+) -> Result<(StackHeights, bool), (BlockId, String)> {
+    let cycle_edges = match cycles {
+        CyclePolicy::OneTraversal => cycle_edges(module),
+        CyclePolicy::AllHeights => FxHashSet::default(),
+    };
     let mut bounds =
         IndexVec::<BlockId, Option<(usize, usize)>>::from_vec(vec![None; module.blocks.len()]);
     let mut pending = VecDeque::new();
     let mut unknown_jump = false;
-    let mut states =
-        FxHashMap::<(BlockId, usize), Option<FxHashSet<Vec<Option<(BlockId, usize)>>>>>::default();
+    let mut states = FxHashMap::<
+        (BlockId, usize, bool),
+        Option<FxHashSet<Vec<Option<(BlockId, usize)>>>>,
+    >::default();
     let mut prototypes = FxHashMap::<BlockId, Vec<Option<(BlockId, usize)>>>::default();
     // The physical graph is immutable throughout this analysis.
     let mut recursive = FxHashMap::default();
     let mut unproved = DenseBitSet::new_empty(module.blocks.len());
     if let Some(entry) = module.block_ids().next() {
-        pending.push_back((entry, Vec::new()));
+        pending.push_back((entry, Vec::new(), false));
     }
-    while let Some((id, mut stack)) = pending.pop_front() {
+    while let Some((id, mut stack, crossed_cycle)) = pending.pop_front() {
         // A fixed height admits a bounded number of precise label contexts. Beyond
         // that, unknown labels subsume every context without changing the height.
-        let contexts =
-            states.entry((id, stack.len())).or_insert_with(|| Some(FxHashSet::default()));
+        let contexts = states
+            .entry((id, stack.len(), crossed_cycle))
+            .or_insert_with(|| Some(FxHashSet::default()));
         let Some(precise) = contexts else {
             forget_destinations(module, &stack, &mut unproved);
             continue;
@@ -329,7 +350,7 @@ fn stack_analysis(module: &Module) -> Result<(StackHeights, bool), (BlockId, Str
                     if let Some((target, prefix)) = jump_target {
                         let mut outgoing = vec![None; prefix];
                         outgoing.extend_from_slice(&stack);
-                        pending.push_back((target, outgoing));
+                        pending.push_back((target, outgoing, crossed_cycle));
                     }
                 }
             }
@@ -358,6 +379,19 @@ fn stack_analysis(module: &Module) -> Result<(StackHeights, bool), (BlockId, Str
         }
         stack.truncate(stack.len() - inputs as usize);
         for target in successors(&block.terminator.kind) {
+            let closes_cycle = cycle_edges.contains(&(id, target));
+            if closes_cycle {
+                // NOTE: Runtime iteration counts are not a validation obligation.
+                // Check exits after one closing edge, but do not carry its drift
+                // through a second cycle. These observations are not upper bounds.
+                if prototypes.get(&target).is_none_or(|entry| entry.len() != stack.len()) {
+                    mark_reachable(module, target, &mut unproved);
+                    forget_destinations(module, &stack, &mut unproved);
+                }
+                if crossed_cycle {
+                    continue;
+                }
+            }
             let mut outgoing = stack.clone();
             if let Some(prototype) = prototypes.get(&target)
                 && outgoing.len() > prototype.len()
@@ -381,7 +415,7 @@ fn stack_analysis(module: &Module) -> Result<(StackHeights, bool), (BlockId, Str
                     mark_reachable(module, target, &mut unproved);
                 }
             }
-            pending.push_back((target, outgoing));
+            pending.push_back((target, outgoing, crossed_cycle || closes_cycle));
         }
         if let Some((target, prefix)) = dynamic {
             let mut outgoing = vec![None; prefix];
@@ -389,13 +423,70 @@ fn stack_analysis(module: &Module) -> Result<(StackHeights, bool), (BlockId, Str
             if prefix > 0 {
                 mark_reachable(module, target, &mut unproved);
             }
-            pending.push_back((target, outgoing));
+            pending.push_back((target, outgoing, crossed_cycle));
         }
     }
     for id in unproved.iter() {
         bounds[id] = None;
     }
     Ok((bounds, unknown_jump))
+}
+
+/// Finds DFS backedges in the explicit control-flow graph without recursion.
+///
+/// Only cycles with a reachable exit receive the traversal limit. A closed loop
+/// must keep iterating, so its structural stack growth remains an error. Reverse
+/// reachability from explicit graph exits proves that leaving a cycle is possible.
+/// A validation path may cross one selected edge, so entries at different loop
+/// blocks still receive their first traversal, including irreducible loops.
+/// Label references are not control edges: including unused addresses could
+/// consume the cycle budget on an acyclic path. Computed transfers retain the
+/// separate continuation-aware analysis above.
+fn cycle_edges(module: &Module) -> FxHashSet<(BlockId, BlockId)> {
+    let mut predecessors =
+        IndexVec::<BlockId, Vec<BlockId>>::from_vec(vec![Vec::new(); module.blocks.len()]);
+    let mut exits = Vec::new();
+    for id in module.block_ids() {
+        let mut targets = successors(&module.blocks[id].terminator.kind).peekable();
+        if targets.peek().is_none() {
+            exits.push(id);
+        }
+        for target in targets {
+            predecessors[target].push(id);
+        }
+    }
+    let mut can_exit = DenseBitSet::new_empty(module.blocks.len());
+    while let Some(id) = exits.pop() {
+        if can_exit.insert(id) {
+            exits.extend_from_slice(&predecessors[id]);
+        }
+    }
+    let mut edges = FxHashSet::default();
+    let mut visited = DenseBitSet::new_empty(module.blocks.len());
+    let mut active = DenseBitSet::new_empty(module.blocks.len());
+    for entry in module.block_ids() {
+        if !visited.insert(entry) {
+            continue;
+        }
+        active.insert(entry);
+        let mut pending = vec![(entry, successors(&module.blocks[entry].terminator.kind))];
+        while let Some((id, targets)) = pending.last_mut() {
+            if let Some(target) = targets.next() {
+                if active.contains(target) {
+                    if can_exit.contains(target) {
+                        edges.insert((*id, target));
+                    }
+                } else if visited.insert(target) {
+                    active.insert(target);
+                    pending.push((target, successors(&module.blocks[target].terminator.kind)));
+                }
+            } else {
+                active.remove(*id);
+                pending.pop();
+            }
+        }
+    }
+    edges
 }
 
 fn physical_successors(module: &Module, id: BlockId) -> impl Iterator<Item = BlockId> + '_ {
@@ -479,6 +570,14 @@ pub(crate) fn successors(kind: &TerminatorKind) -> impl Iterator<Item = BlockId>
         _ => (&[][..], None),
     };
     targets.iter().copied().chain(other)
+}
+
+fn kept_inst_name(kind: &InstKind) -> String {
+    match kind {
+        InstKind::Op(op::DUP1..=op::DUP16) => "dup".into(),
+        InstKind::Op(op::SWAP1..=op::SWAP16) => "swap".into(),
+        _ => inst_name(kind),
+    }
 }
 
 fn inst_name(kind: &InstKind) -> String {
@@ -637,7 +736,9 @@ pub(super) fn validate_encoding(
     let heights = if let Some(heights) = heights {
         heights
     } else {
-        computed = stack_analysis(module).map_err(|(id, message)| fail(id, message))?.0;
+        computed = stack_analysis(module, CyclePolicy::OneTraversal)
+            .map_err(|(id, message)| fail(id, message))?
+            .0;
         &computed
     };
     let order = module.block_ids().collect::<Vec<_>>();
