@@ -2,8 +2,8 @@
 @module TernaryOperandReuse_runtime
 bb0:
   callvalue
-  push bb4
-  jumpi
+  jumpi bb2, bb10
+bb10:
   push 0
   calldataload
   push 224
@@ -11,49 +11,53 @@ bb0:
   dup 1
   push 0x718ec94
   eq
-  push bb5
-  jumpi
-  dup 1
+  jumpi bb16, bb15
+bb15:
   push 0xfd9e0caf
-  eq
-  push bb8
-  jumpi
-  jump bb4
-bb4 [cold]:
-  push 0
-  push 0
-  revert
+  sub
+  jumpi bb2, bb5
 bb5:
-  push 68
   calldatasize
-  lt
-  push bb4
-  jumpi
-  caller
   push 36
-  calldataload
-  push 4
-  calldataload
-  addmod
-  jump bb9
-bb9:
-  push 0
-  mstore
+  gt
+  jumpi bb2, bb7
+bb7:
   caller
-  push 32
-  mstore
-  push 64
-  push 0
-  return
-bb8:
-  push 36
-  calldatasize
-  lt
-  push bb4
-  jumpi
   push 4
   calldataload
   caller
   caller
   mulmod
-  jump bb9
+  push 0
+  mstore
+  push 32
+  mstore
+  push 64
+  push 0
+  return
+bb2:
+  push 0
+  push 0
+  revert
+bb16:
+  calldatasize
+  push 68
+  gt
+  jumpi bb2, bb3
+bb3:
+  caller
+  push 36
+  calldataload
+  push 4
+  calldataload
+  caller
+  swap 2
+  swap 1
+  addmod
+  push 0
+  mstore
+  push 32
+  mstore
+  push 64
+  push 0
+  return
