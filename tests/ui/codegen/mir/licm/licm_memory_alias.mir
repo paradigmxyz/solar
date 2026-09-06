@@ -7,19 +7,21 @@ immutables:
 // CHECK-LABEL: @hoist_non_aliasing_mload
 // CHECK: +     [[LOAD:v[0-9]+]] = mload [[ADDR:[0-9]+]]
 // CHECK-NEXT:  jump {{bb[0-9]+}}
-// CHECK:       ret [[LOAD]]
+// CHECK: [[RESULT:v[0-9]+]] = phi [bb0: 0], [bb2: [[LOAD]]]
+// CHECK: ret [[RESULT]]
 // CHECK: -     [[LOAD]] = mload [[ADDR]]
 fn @hoist_non_aliasing_mload() -> u256 {
   bb0:
     jump bb1
   bb1:
+    v1 = phi [bb0: 0], [bb2: v0]
     jumpi true, bb2, bb3
   bb2:
     v0 = mload 0
     mstore 64, 1
     jump bb1
   bb3:
-    ret v0
+    ret v1
 }
 
 // CHECK-LABEL: @keep_aliasing_mload
@@ -31,31 +33,34 @@ fn @keep_aliasing_mload() -> u256 {
   bb0:
     jump bb1
   bb1:
+    v1 = phi [bb0: 0], [bb2: v0]
     jumpi true, bb2, bb3
   bb2:
     v0 = mload 0
     mstore 16, 1
     jump bb1
   bb3:
-    ret v0
+    ret v1
 }
 
 // CHECK-LABEL: @hoist_non_aliasing_keccak
 // CHECK: +     [[HASH:v[0-9]+]] = keccak256 [[ADDR:[0-9]+]], [[SIZE:[0-9]+]]
 // CHECK-NEXT:  jump {{bb[0-9]+}}
-// CHECK:       ret [[HASH]]
+// CHECK: [[RESULT:v[0-9]+]] = phi [bb0: 0], [bb2: [[HASH]]]
+// CHECK: ret [[RESULT]]
 // CHECK: -     [[HASH]] = keccak256 [[ADDR]], [[SIZE]]
 fn @hoist_non_aliasing_keccak() -> bytes32 {
   bb0:
     jump bb1
   bb1:
+    v1 = phi [bb0: 0], [bb2: v0]
     jumpi true, bb2, bb3
   bb2:
     v0 = keccak256 0, 32
     mstore 64, 1
     jump bb1
   bb3:
-    ret v0
+    ret v1
 }
 
 // CHECK-LABEL: @keep_aliasing_keccak
@@ -67,33 +72,36 @@ fn @keep_aliasing_keccak() -> bytes32 {
   bb0:
     jump bb1
   bb1:
+    v1 = phi [bb0: 0], [bb2: v0]
     jumpi true, bb2, bb3
   bb2:
     v0 = keccak256 0, 32
     mstore 16, 1
     jump bb1
   bb3:
-    ret v0
+    ret v1
 }
 
 // CHECK-LABEL: @hoist_unassigned_immutable
 // CHECK: +     [[LOAD:v[0-9]+]] = loadimmutable value
 // CHECK-NEXT: +     [[VALUE:v[0-9]+]] = mul [[LOAD]], 2
 // CHECK-NEXT:       jump {{bb[0-9]+}}
-// CHECK:       ret [[VALUE]]
+// CHECK: [[RESULT:v[0-9]+]] = phi [bb0: 0], [bb2: [[VALUE]]]
+// CHECK: ret [[RESULT]]
 // CHECK: -     [[LOAD]] = loadimmutable value
 // CHECK-NEXT: -     [[VALUE]] = mul [[LOAD]], 2
 fn @hoist_unassigned_immutable() -> u256 {
   bb0:
     jump bb1
   bb1:
+    v2 = phi [bb0: 0], [bb2: v1]
     jumpi true, bb2, bb3
   bb2:
     v0 = loadimmutable value
     v1 = mul v0, 2
     jump bb1
   bb3:
-    ret v1
+    ret v2
 }
 
 // CHECK-LABEL: @keep_assigned_immutable
@@ -104,6 +112,7 @@ fn @keep_assigned_immutable() -> u256 {
   bb0:
     jump bb1
   bb1:
+    v2 = phi [bb0: 0], [bb2: v1]
     jumpi true, bb2, bb3
   bb2:
     v0 = loadimmutable value
@@ -111,5 +120,5 @@ fn @keep_assigned_immutable() -> u256 {
     storeimmutable value, 1
     jump bb1
   bb3:
-    ret v1
+    ret v2
 }

@@ -5,16 +5,17 @@
     bb0:
       jump bb1
     bb1:
-      v0 = phi [bb0: 64], [bb2: v4]
-      v1 = lt v0, 100
-      jumpi v1, bb2, bb3
+      v0 = phi [bb0: 0], [bb2: v4]
+      v1 = phi [bb0: 64], [bb2: v5]
+      v2 = lt v1, 100
+      jumpi v2, bb2, bb3
     bb3:
-      ret v3
+      ret v0
     bb2:
-      v2 = mul v0, 32
-      mstore v2, 1
-      v3 = mload 0
-      v4 = add v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      v3 = mul v1, 32
+      mstore v3, 1
+      v4 = mload 0
+      v5 = add v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
       jump bb1
   }
   

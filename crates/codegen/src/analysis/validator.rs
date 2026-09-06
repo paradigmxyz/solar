@@ -20,10 +20,9 @@
 //! 8. **Instruction-block consistency**: each instruction's `block` field matches the block whose
 //!    `instructions` vector contains it.
 //! 9. **Predecessor consistency**: every stored predecessor actually branches to the block.
-//! 10. **Use reachability**: for every reachable use of an instruction result, the defining block
-//!     can reach the using block (phi inputs: their incoming predecessor). Within an acyclic block,
-//!     the definition must also precede an instruction use. MIR is deliberately loose SSA, but a
-//!     use its definition can never reach is garbage on every execution.
+//! 10. **SSA dominance**: every instruction result dominates each reachable use (phi inputs:
+//!     their incoming predecessor). Within a block, definitions precede ordinary uses, including
+//!     in loops; loop-carried values must use explicit phis.
 //! 11. **Call consistency**: internal and tail-call targets exist and their argument counts match
 //!     the callee.
 //! 12. **Immutable consistency**: immutable declarations and stores use supported representations,
@@ -44,7 +43,6 @@ use alloy_primitives::U256;
 use solar_data_structures::{
     bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
-    map::FxHashMap,
 };
 use solar_interface::{diagnostics::DiagCtxt, kw};
 use std::fmt;
@@ -328,15 +326,8 @@ impl<'a> Validator<'a> {
             self.emit_at_block("entry block must have no predecessors", BlockId::ENTRY);
         }
 
-        // ----- Use reachability -----
-        // MIR is deliberately loose SSA: a definition need not dominate its
-        // uses, because cross-block values travel through reserved spill
-        // slots and the source guarantees definite assignment. The invariant
-        // that must still hold is reachability: if the defining block can
-        // never reach the using block (its incoming predecessor, for phi
-        // inputs), the use reads garbage on every execution. Structural
-        // errors are reported first: CFG construction assumes valid block
-        // references.
+        // ----- SSA dominance -----
+        // Structural errors must be reported before constructing the CFG.
         if self.error_count != errors_before {
             return;
         }
@@ -350,24 +341,6 @@ impl<'a> Validator<'a> {
                 }
             }
         }
-        let mut reach_cache: FxHashMap<BlockId, DenseBitSet<BlockId>> = FxHashMap::default();
-        let mut reaches = |from: BlockId, to: BlockId| {
-            let set = reach_cache.entry(from).or_insert_with(|| {
-                let mut seen = DenseBitSet::new_empty(func.blocks.len());
-                let mut stack = vec![from];
-                while let Some(current) = stack.pop() {
-                    if let Some(term) = func.blocks[current].terminator.as_ref() {
-                        term.for_each_successor(|succ| {
-                            if seen.insert(succ) {
-                                stack.push(succ);
-                            }
-                        });
-                    }
-                }
-                seen
-            });
-            set.contains(to)
-        };
         for (block_id, block) in func.blocks.iter_enumerated() {
             if !cfg.is_reachable(block_id) {
                 continue;
@@ -383,13 +356,14 @@ impl<'a> Validator<'a> {
                             if !cfg.is_reachable(pred) {
                                 continue;
                             }
-                            if let Some((def, _)) = def_location_of[value]
+                            if let Some((def, _)) =
+                                self.live_definition(func, &def_location_of, value, block_id)
                                 && def != pred
-                                && !reaches(def, pred)
+                                && !cfg.dominators().dominates(def, pred)
                             {
                                 self.emit_at_inst(
                                     format_args!(
-                                        "phi input {value:?} from bb{} can never be reached by \
+                                        "phi input {value:?} from bb{} is not dominated by \
                                  its definition in bb{}",
                                         pred.index(),
                                         def.index()
@@ -402,23 +376,24 @@ impl<'a> Validator<'a> {
                     }
                     kind => {
                         for &operand in kind.operands().iter() {
-                            if let Some((def, def_index)) = def_location_of[operand] {
+                            if let Some((def, def_index)) =
+                                self.live_definition(func, &def_location_of, operand, block_id)
+                            {
                                 if def == block_id {
-                                    // Only a forward use needs the cycle exception.
-                                    if def_index >= index && !reaches(block_id, block_id) {
+                                    if def_index >= index {
                                         self.emit_at_inst(
                                             format_args!(
                                                 "use of {operand:?} precedes its definition in \
-                                                 this acyclic block"
+                                                 this block"
                                             ),
                                             block_id,
                                             inst_id,
                                         );
                                     }
-                                } else if !reaches(def, block_id) {
+                                } else if !cfg.dominators().dominates(def, block_id) {
                                     self.emit_at_inst(
                                         format_args!(
-                                            "use of {operand:?} can never be reached by its \
+                                            "use of {operand:?} is not dominated by its \
                                              definition in bb{}",
                                             def.index()
                                         ),
@@ -433,13 +408,14 @@ impl<'a> Validator<'a> {
             }
             if let Some(term) = &block.terminator {
                 term.for_each_operand(|operand| {
-                    if let Some((def, _)) = def_location_of[operand]
+                    if let Some((def, _)) =
+                        self.live_definition(func, &def_location_of, operand, block_id)
                         && def != block_id
-                        && !reaches(def, block_id)
+                        && !cfg.dominators().dominates(def, block_id)
                     {
                         self.emit_at_block(
                             format_args!(
-                                "terminator use of {operand:?} can never be reached by its \
+                                "terminator use of {operand:?} is not dominated by its \
                          definition in bb{}",
                                 def.index()
                             ),
@@ -449,6 +425,21 @@ impl<'a> Validator<'a> {
                 });
             }
         }
+    }
+
+    /// Returns an instruction's live definition, rejecting orphaned instruction values.
+    fn live_definition(
+        &mut self,
+        func: &Function,
+        locations: &IndexVec<ValueId, Option<(BlockId, usize)>>,
+        value: ValueId,
+        block: BlockId,
+    ) -> Option<(BlockId, usize)> {
+        let location = locations[value];
+        if location.is_none() && matches!(func.value(value), Value::Inst(_)) {
+            self.emit_at_block(format_args!("use of {value:?} has no live definition"), block);
+        }
+        location
     }
 
     fn validate_immutables(&mut self, module: &Module, func: &Function) {
@@ -818,6 +809,30 @@ mod tests {
 
     fn make_func() -> Function {
         Function::new(Ident::DUMMY)
+    }
+
+    #[test]
+    fn orphaned_instruction_result_is_caught() {
+        with_session(|sess| {
+            let mut func = make_func();
+            {
+                let mut builder = FunctionBuilder::new(&mut func);
+                // value = calldatasize
+                // return value
+                let value = builder.calldatasize();
+                builder.ret([value]);
+            }
+            func.blocks[BlockId::ENTRY].instructions.clear();
+            Validator::new(&sess.dcx).validate_standalone_function(&func);
+            assert_data_eq!(
+                sess.emitted_diagnostics().unwrap().to_string(),
+                str![[r#"
+error: [bb0] use of ValueId(0) has no live definition
+
+
+"#]]
+            );
+        });
     }
 
     #[test]

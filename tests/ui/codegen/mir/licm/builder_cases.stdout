@@ -29,14 +29,15 @@
   
   fn @hoist_non_aliasing_sload() -> u256 {
     bb0:
-+     v0 = sload 0 !metadata(storage=slot(0))
++     v1 = sload 0 !metadata(storage=slot(0))
       jump bb1
     bb1:
+      v0 = phi [bb0: 0], [bb2: v1]
       jumpi 1, bb2, bb3
     bb3:
       ret v0
     bb2:
--     v0 = sload 0
+-     v1 = sload 0
 -     sstore 1, 1
 +     sstore 1, 1 !metadata(storage=slot(1))
       jump bb1
@@ -46,13 +47,14 @@
     bb0:
       jump bb1
     bb1:
+      v0 = phi [bb0: 0], [bb2: v1]
       jumpi 1, bb2, bb3
     bb3:
       ret v0
     bb2:
--     v0 = sload 0
+-     v1 = sload 0
 -     sstore 0, 1
-+     v0 = sload 0 !metadata(storage=slot(0))
++     v1 = sload 0 !metadata(storage=slot(0))
 +     sstore 0, 1 !metadata(storage=slot(0))
       jump bb1
   }
@@ -61,12 +63,13 @@
     bb0:
       jump bb1
     bb1:
+      v0 = phi [bb0: 0], [bb2: v2]
       jumpi 1, bb2, bb3
     bb3:
-      ret v1
+      ret v0
     bb2:
-      v0 = gas
-      v1 = mul arg0, 7
+      v1 = gas
+      v2 = mul arg0, 7
       jump bb1
   }
   

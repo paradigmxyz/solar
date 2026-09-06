@@ -5,13 +5,14 @@
     bb0:
       jump bb1
     bb1:
+      v0 = phi [bb0: 0], [bb2: v2]
       jumpi 1, bb2, bb3
     bb3:
-      ret v1
+      ret v0
     bb2:
-      v0 = balance 0xbeef
-      v1 = mul v0, 3
-      v2 = call 0x3e8, 0xbeef, 1, 0, 0, 0, 0
+      v1 = balance 0xbeef
+      v2 = mul v1, 3
+      v3 = call 0x3e8, 0xbeef, 1, 0, 0, 0, 0
       jump bb1
   }
   
@@ -19,28 +20,30 @@
     bb0:
       jump bb1
     bb1:
+      v0 = phi [bb0: 0], [bb2: v2]
       jumpi 1, bb2, bb3
     bb3:
-      ret v1
+      ret v0
     bb2:
-      v0 = balance 0xbeef
-      v1 = mul v0, 3
-      v2 = callcode 0x3e8, 0xbeef, 1, 0, 0, 0, 0
+      v1 = balance 0xbeef
+      v2 = mul v1, 3
+      v3 = callcode 0x3e8, 0xbeef, 1, 0, 0, 0, 0
       jump bb1
   }
   
   fn @hoist_balance_without_calls() -> u256 {
     bb0:
-+     v0 = balance 0xbeef
-+     v1 = mul v0, 3
++     v1 = balance 0xbeef
++     v2 = mul v1, 3
       jump bb1
     bb1:
+      v0 = phi [bb0: 0], [bb2: v2]
       jumpi 1, bb2, bb3
     bb3:
-      ret v1
+      ret v0
     bb2:
--     v0 = balance 0xbeef
--     v1 = mul v0, 3
+-     v1 = balance 0xbeef
+-     v2 = mul v1, 3
       jump bb1
   }
   
@@ -48,13 +51,14 @@
     bb0:
       jump bb1
     bb1:
+      v0 = phi [bb0: 0], [bb2: v2]
       jumpi 1, bb2, bb3
     bb3:
-      ret v1
+      ret v0
     bb2:
-      v0 = extcodesize 0xbeef
-      v1 = mul v0, 3
-      v2 = create 0, 0, 32
+      v1 = extcodesize 0xbeef
+      v2 = mul v1, 3
+      v3 = create 0, 0, 32
       jump bb1
   }
   
@@ -62,13 +66,14 @@
     bb0:
       jump bb1
     bb1:
+      v0 = phi [bb0: 0], [bb2: v2]
       jumpi 1, bb2, bb3
     bb3:
-      ret v1
+      ret v0
     bb2:
-      v0 = returndatasize
-      v1 = mul v0, 3
-      v2 = staticcall 0x3e8, 0xbeef, 0, 0, 0, 0
+      v1 = returndatasize
+      v2 = mul v1, 3
+      v3 = staticcall 0x3e8, 0xbeef, 0, 0, 0, 0
       jump bb1
   }
   
@@ -76,12 +81,13 @@
     bb0:
       jump bb1
     bb1:
+      v0 = phi [bb0: 0], [bb2: v2]
       jumpi 1, bb2, bb3
     bb3:
-      ret v1
+      ret v0
     bb2:
-      v0 = msize
-      v1 = mul v0, 3
+      v1 = msize
+      v2 = mul v1, 3
       jump bb1
   }
   
