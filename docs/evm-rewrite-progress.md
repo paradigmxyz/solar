@@ -21,29 +21,34 @@ positions and PUSH widths. There is no Atom stream or assembly-level CFG
 optimization. MIR semantics remain in their retained layers. No legacy backend
 or temporary unsupported rewrite fallback is used.
 
-At `25f1421b`, the fresh scope has 11,688 Rust lines across 33 files, versus
-34,638 deleted raw lines: 22,950 fewer. These counts include comments, blanks
-and local tests. A historical production-only count was not retained and is
+At the gas-only writer milestone, the fresh scope has 12,114 Rust lines across
+35 files, versus 34,638 deleted raw lines: 22,524 fewer (65.0%). These counts
+include comments, blanks and local tests. A historical production-only count was not retained and is
 not reconstructed from forbidden source.
 
 ## Verification checkpoints
 
-The latest full workspace run (`accepted-september6/`) has 1,353 passes, one
-failing UI aggregate and two skips. Its UI lane has 10,920 passes, 53 remaining
-failures and 806 filtered revisions. Foundry and workspace/all-target Clippy
-pass; retained out-of-scope warnings remain. Standard JSON passes inside UI.
+The latest full workspace run (`gas-writer-protection/`) has 1,358 passes,
+one failing UI aggregate and two skips. Its UI lane has 10,911 passes,
+78 failures and 806 filtered revisions. All 78 failures reproduce with the
+pre-writer executable, including three Standard JSON expectations. Foundry and
+workspace/all-target Clippy finish successfully; existing warnings remain.
+The two new writer warnings were fixed in an output-equivalent cleanup.
+The focused helper lane passes 99 tests.
 
-Current isolated screens retain 716 successful UI sources per optimization
-mode and the same eight known failures. Both hot reports retain all 15 runtime
-cases, 175 ordered gas labels and 139 observations. The latest complete
-`accepted-september6/all-corpus/` run compiles all 24 original gas-mode IDs,
-including nine heavy compile-only cases. Supplemental captures now reproduce all nine heavy input/output fingerprints
-and compare all 1,672 contract IDs and 3,344 artifact fields, retaining empty
-objects and linker placeholders explicitly. Their strict size gate fails;
-`heavy-supplement/audit-7f6627d4/` retains the independent inventory and rankings.
+The audited writer screens retain 719 successful UI sources per optimization
+mode and the same eight known failures. The cleanup screen adds the bitmap
+fixture (720 successes); it separately passes all four UI revisions before
+and after. Both hot reports retain all 15
+runtime cases and 175 ordered gas labels. Nine heavy compile captures complete
+the original 24-case corpus, matching 1,672 contracts and 3,344 artifact fields.
+The independent ledger is `gas-writer-protection/heavy-audit/`. The sealed
+quality gate still fails: 776/563 UI artifacts, 20/19 hot artifacts, 24/30 hot
+gas labels (gas/size), and 1,102 heavy artifacts remain larger or more costly.
 
-Writer correctness is covered by 531 compiled stress calls and independent
-stack/memory models. The internal-call stack-return differential reaches bounded
+An earlier writer/call/recursion checkpoint covers 531 compiled stress calls.
+The new contiguous fixture adds 1,032 replays and the gas-only sparse fixture
+396 before/after/solc executions, alongside independent stack/memory models. The internal-call stack-return differential reaches bounded
 agreement with pinned solc in both modes. Reviewed ABI/termination cases retain
 513 concrete checks and eight bounded agreements. New tail/terminal-sharing
 observer regressions pass 76 concrete executions and their focused UI tests.
@@ -69,7 +74,8 @@ or a final sealed-baseline comparison.
 A direct sealed/current checkpoint pair on the same archived input is
 54.62→67.63 seconds (+23.8%), with peak RSS 822,828→632,296 KiB
 (804→617 MiB). All 432 contract IDs and 348 nonempty creation artifacts match,
-with no compile errors. This single pair establishes remaining time debt;
+with no compile errors. This historical pair established debt at that checkpoint; final matched
+sealed timing remains required.
 `sealed-time-checkpoint/` retains it separately from the isolated wins above.
 
 Validation remains enabled. Routine comparisons use the debug compiler in this
@@ -78,29 +84,27 @@ are retained under `target/codegen-bench/evm-rewrite-candidate/`.
 
 ## Output quality still owed
 
-The strict ledger at `enum-local-tail/sealed-ranking/` joins original
+The strict ledger at `gas-writer-protection/heavy-audit/` joins original
 IDs and ordered call labels. Comment-only source amendments have exact bytecode
 proofs and derived reports; sealed reports and the archive remain untouched.
 
 | Matched corpus | Creation-byte delta | Runtime-byte delta | Call-gas delta |
 | --- | ---: | ---: | ---: |
-| UI, gas (694 original successes) | +2,543 | +4,307 | — |
-| UI, size (694 original successes) | −29,824 | −25,306 | — |
-| Hot, gas (15 cases) | +22,360 | +22,797 | −27,313 |
+| UI, gas (694 original successes) | +2,435 | +4,199 | — |
+| UI, size (694 original successes) | −29,791 | −25,273 | — |
+| Hot, gas (15 cases) | +18,803 | +19,240 | −27,313 |
 | Hot, size (15 cases) | +25,741 | +26,113 | −92,067 |
-| Heavy projects, original settings (9 cases) | +25,004,197 | +20,453,457 | — |
+| Heavy projects, original settings (9 cases) | +19,125,818 | +15,783,586 | — |
 
 Aggregates do not pass acceptance: 1,339 individual UI artifacts remain larger;
 24 gas-mode and 30 size-mode hot labels remain higher. Current hot size checks
 also have 20/19 larger creation-or-runtime artifacts in gas/size. The required
 tail observer fix exposes additional size debt rather than retaining unsafe
-sharing. All 44 extra UI mode rows are reported separately from the baseline. The heavy
-corpus has 1,101 larger artifacts across 575 contracts: total runtime output
-grows 23,499,815→43,953,272 bytes. Seaport accounts for 94.47% of that growth.
-Its router grows 9,822→48,812 bytes; the current investigation attributes most
-of that gap to repeated spill protection around direct memory writers. These
-compile-only captures establish size debt, not runtime correctness for arbitrary
-heavy contracts.
+sharing. New UI sources are reported separately from the baseline. The heavy
+corpus has 1,102 larger artifacts: total runtime output grows
+23,499,815→39,283,401 bytes. Router runtime is now 25,978 versus sealed 9,822
+bytes, down from the preceding rewrite's 48,812. These compile-only captures
+establish size debt, not runtime correctness for arbitrary heavy contracts.
 
 ## Active work and remaining gates
 
@@ -169,7 +173,7 @@ UI revisions and 94 helper tests pass. Both hot reports remain byte/gas exact.
 The 717-success UI screen adds 127 creation and 109 runtime bytes per mode:
 82 larger artifacts, including 51 enlarged sealed debts and one new sealed debt
 (`TryErrorCatch` size creation 612 versus sealed 608). These correctness costs
-remain explicit while a separate definite-write analysis is investigated.
+remain explicit and were recovered in part by the definite-write change below.
 `fmp-terminal-reads/` retains failures, corrected test directives, isolated
 return/revert and disjoint cases, source hashes and independent comparisons.
 
@@ -190,14 +194,32 @@ gas across both modes. `scheduler-identical/` and `stack-effect-resize/` retain
 all source snapshots and comparisons; the second resize timing pair is under
 `scheduler-identical-common/`.
 
-The selected-home writer trial is not accepted yet. It saves 11,929 Router
-runtime bytes and 2.65 MB of full Seaport runtime output, with no individual
-Seaport size increases. A quiet three-leg run takes 54.36 seconds sealed,
-53.37 before and 54.37 after; after RSS is 616,500 versus sealed 843,516 KiB.
-Hot gas remains exact and Nitro shrinks 1,983/2,270 bytes in gas/size. However,
-size-mode `StorageNestedStructMemory` grows 24 bytes in both artifacts, so the
-trial remains uncommitted while its outlining interaction is investigated.
-`targeted-writer-protection/` retains source snapshots and every comparison.
+Gas-mode writer protection now saves only the two initialized aligned homes
+that an arbitrary MSTORE can overlap. A contiguous range or a bounded bitmap
+selects those homes; holes and protocol words retain ordinary protection.
+Size mode keeps ordinary backups: the ungated candidates increased one fixture
+by 24 and then 14 bytes, so those variants were rejected. The gas-only change
+has no individual increase against its immediate predecessor across UI, hot
+and all nine heavy projects. Heavy creation shrinks 5,878,394 bytes and runtime
+4,669,881 bytes across 302 artifacts; Nitro shrinks 3,557 bytes with hot gas
+unchanged. This is progress toward, not passage of, the sealed baseline gate.
+
+A quiet Seaport pair takes 53.34→55.09 seconds (+3.3%) and 630,724→605,956 KiB
+RSS (−3.9%); no compiler-time win is claimed. A fresh CPU profile identifies
+scheduler count scans as a candidate for a separate output-neutral trial.
+During profiling, three older candidate files (command, compiler output and
+recorder log) were accidentally overwritten. Their original bytes are lost;
+the older profile/analysis and sealed baseline archive remain intact. The
+fresh run and explicit provenance limitation are retained separately in
+`current-cpu-profile/gas-writer-20260906/`. New capture directories must be
+created exclusively before opening outputs.
+
+`targeted-writer-protection/`, `bitmap-writer-protection/` and
+`gas-writer-protection/` retain all rejected variants, exact mode-boundary
+comparisons and independent memory/stack execution. The sparse regression
+exposes wrong checksums in the sealed compiler; pinned solc and before/after
+rewrite executions agree. Those sealed discrepancies are retained explicitly,
+with valid gas-comparison denominators kept separate.
 
 Finish all supported behavior and investigate every remaining assertion before
 updating it. Repeat full workspace/UI, Foundry, differential, both size corpora,
