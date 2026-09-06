@@ -3,14 +3,16 @@
 
 contract ConstructorSuccessPostlude {
     // CHECK-LABEL: @module ConstructorSuccessPostlude_deployment
-    // CHECK: push [[FAIL:bb[0-9]+]]
-    // CHECK-NEXT: jumpi
-    // CHECK: push [[FAIL]]
-    // CHECK-NEXT: jumpi
+    // CHECK: callvalue
+    // CHECK-NEXT: jumpi [[FAIL:bb[0-9]+]], {{bb[0-9]+}}
+    // CHECK: gt
+    // CHECK-NEXT: jumpi [[FAIL]], {{bb[0-9]+}}
+    // CHECK: [[FAIL]]:
+    // CHECK: revert
+    // CHECK: jumpi [[FAIL]], [[SUCCESS:bb[0-9]+]]
+    // CHECK: [[SUCCESS]]:
     // CHECK: codecopy
     // CHECK: return
-    // CHECK: [[FAIL]] [cold]:
-    // CHECK: revert
     constructor(bool fail) {
         if (fail) revert();
     }

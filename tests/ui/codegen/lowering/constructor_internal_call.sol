@@ -14,22 +14,28 @@ contract ConstructorInternalCall {
     // MIR: [[VALUE:v[0-9]+]] = internal_call @helper, 1, [[MASKED]]
     // MIR: sstore 0, [[VALUE]]
     // EVMIR-LABEL: @module ConstructorInternalCall_deployment
-    // EVMIR: pop
+    // EVMIR: push 7
+    // EVMIR-NEXT: and
     // EVMIR-NEXT: push [[CTOR_CONT:bb[0-9]+]]
+    // EVMIR-NEXT: swap 1
+    // EVMIR-NEXT: jump [[HELPER_ENTRY:bb[0-9]+]]
+    // EVMIR: [[HELPER_ENTRY]]:
     // EVMIR-NEXT: jump [[HELPER:bb[0-9]+]]
     // EVMIR: [[HELPER]]:
-    // EVMIR: push [[RECURSE_BLOCK:bb[0-9]+]]
-    // EVMIR-NEXT: jumpi
+    // EVMIR: jumpi [[RECURSE_BLOCK:bb[0-9]+]], {{bb[0-9]+}}
+    // EVMIR: [[CTOR_CONT]]:
+    // EVMIR: sstore
+    // EVMIR: codecopy
+    // EVMIR: return
     // EVMIR: [[RECURSE_BLOCK]]:
     // EVMIR-NEXT: push 11
     // EVMIR: mul
     // EVMIR: jumpi
-    // EVMIR-NEXT: push 1
-    // EVMIR: push {{bb[0-9]+}}
-    // EVMIR-NEXT: jump [[HELPER]]
-    // EVMIR: [[CTOR_CONT]]:
-    // EVMIR: sstore
-    // EVMIR: return
+    // EVMIR: push 1
+    // EVMIR: sub
+    // EVMIR-NEXT: push {{bb[0-9]+}}
+    // EVMIR-NEXT: swap 1
+    // EVMIR-NEXT: jump [[HELPER_ENTRY]]
     // EVMIR-LABEL: @module ConstructorInternalCall_runtime
     // EVMIR: push 0x3fa4f245
     // EVMIR: sload

@@ -126,7 +126,12 @@ A fresh frozen-runner checkpoint reports 61 failed and 3,031 passed revisions.
 Two failures were executable-name differences in CLI help and pass with a
 `solar` symlink; one size timing snapshot now omits the analysis skipped by the
 new tail observation guard. All six focused help/timing revisions pass, leaving
-58 other failures to investigate. Evidence is in `accepted-ui-current/`.
+58 other failures to investigate at that checkpoint. A subsequent review repairs
+three constructor/memory-offset snapshots after 216 deployment observations,
+126 calls and two bounded symbolic agreements; all optimized per-fixture gas
+and sizes are nonincreasing versus sealed. Evidence is in `snapshot-three-review/`.
+`snapshot-five-review/` retains exact comment-only bytecode proofs and derived
+source-fingerprint reports; use its sealed derived report for future joins.
 
 A three-line identical-stack shortcut was rejected: output was exact, but its
 isolated compiler-time pair worsened 65.36→67.13 seconds (+2.7%). The one-line

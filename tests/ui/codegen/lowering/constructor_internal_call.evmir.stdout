@@ -2,83 +2,92 @@
 // === ConstructorInternalCall_deployment ===
 @module ConstructorInternalCall_deployment
 bb0:
-  push 314
+  push 176
   codesize
   sub
   dup 1
-  push 314
-  push 224
+  push 176
+  push 128
   codecopy
-  push 224
-  add
-  push 31
+  push 159
   add
   push 31
   not
   and
   push 64
   mstore
-  callvalue
-  push bb12
-  jumpi
-  push 224
-  push 314
-  codesize
-  sub
-  add
-  push 256
-  gt
-  push bb12
-  jumpi
-  push 7
-  push 224
+  jump bb5
+bb5:
+  push 128
   mload
-  and
-  push 64
-  mload
-  push 160
-  mload
-  dup 2
-  push 32
-  add
-  mstore
-  dup 2
-  dup 2
-  push 64
-  add
-  mstore
-  dup 1
-  push 160
-  mstore
-  push 224
-  add
-  push 64
-  mstore
-  pop
-  push bb11
   jump bb1
 bb1:
-  push 160
-  mload
-  push 64
+  callvalue
+  jumpi bb13, bb2
+bb2:
+  push 176
+  codesize
+  sub
+  push 128
   add
-  mload
-  push bb3
-  jumpi
+  push 160
+  gt
+  jumpi bb14, bb4
+bb4:
+  push 7
+  and
+  push bb15
+  swap 1
+  jump bb12
+bb12:
+  jump bb6
+bb6:
+  dup 1
+  jumpi bb8, bb16
+bb16:
+  pop
+  jump bb7
+bb7:
   push 1
-  jump bb13
-bb13:
-  push 160
-  mload
-  push 96
-  add
-  mstore
+  swap 1
   jump
-bb12 [cold]:
+bb15:
   push 0
+  sstore
+  jump bb20
+bb20:
+  push 32
+  push 144
   push 0
-  revert
-bb7 [cold]:
+  codecopy
+  push 32
+  push 0
+  return
+bb18:
+  dup 2
+  add
+  dup 1
+  swap 2
+  gt
+  jumpi bb19, bb11
+bb11:
+  swap 1
+  jump
+bb8:
+  push 11
+  dup 2
+  mul
+  push 11
+  dup 2
+  div
+  dup 3
+  eq
+  jumpi bb10, bb17
+bb17:
+  pop
+  pop
+  jump bb9
+bb9:
   push 0x4e487b71
   push 224
   shl
@@ -90,134 +99,42 @@ bb7 [cold]:
   push 36
   push 0
   revert
-bb3:
-  push 11
-  push 160
-  mload
-  push 64
-  add
-  mload
-  mul
-  push 11
-  dup 2
-  div
-  push 160
-  mload
-  push 64
-  add
-  mload
-  sub
-  push bb7
-  jumpi
+bb10:
   push 1
-  push 160
-  mload
-  push 64
-  add
-  mload
+  swap 1
+  swap 2
   sub
-  dup 2
-  push 160
-  mload
-  push 128
-  add
-  mstore
-  push 64
-  mload
-  push 160
-  mload
-  dup 2
-  push 32
-  add
-  mstore
-  dup 2
-  dup 2
-  push 64
-  add
-  mstore
-  dup 1
-  push 160
-  mstore
-  push 224
-  add
-  push 64
-  mstore
-  pop
-  pop
-  push bb5
-  jump bb1
-bb5:
-  push 160
-  mload
-  push 96
-  add
-  mload
-  push 160
-  mload
-  push 64
-  mstore
-  push 160
-  mload
-  push 32
-  add
-  mload
-  dup 1
-  push 160
-  mstore
-  push 128
-  add
-  mload
+  push bb18
   swap 1
-  dup 2
-  add
-  swap 1
-  dup 2
-  lt
-  push bb7
-  jumpi
-  jump bb13
-bb11:
-  push 160
-  mload
-  push 96
-  add
-  mload
-  push 160
-  mload
-  push 64
-  mstore
-  push 160
-  mload
-  push 32
-  add
-  mload
-  push 160
-  mstore
+  jump bb12
+bb13:
+  pop
+  jump bb3
+bb3:
   push 0
-  sstore
-  push 33
-  dup 1
-  push 281
   push 0
-  codecopy
-  push 0
-  return
+  revert
+bb14:
+  pop
+  jump bb3
+bb19:
+  pop
+  jump bb9
 
 // === ConstructorInternalCall_runtime ===
 @module ConstructorInternalCall_runtime
 bb0:
   callvalue
-  push bb3
-  jumpi
+  jumpi bb6, bb4
+bb4:
   push 0
   calldataload
   push 224
   shr
-  dup 1
   push 0x3fa4f245
   sub
-  push bb3
-  jumpi
+  jumpi bb6, bb1
+bb1:
   push 0
   sload
   push 128
@@ -225,7 +142,7 @@ bb0:
   push 32
   push 128
   return
-bb3 [cold]:
+bb6:
   push 0
   push 0
   revert
