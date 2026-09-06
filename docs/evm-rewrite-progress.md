@@ -22,8 +22,8 @@ PUSH widths. There is no Atom stream or assembly-level CFG optimization. MIR
 semantics remain in their retained layers. No legacy backend or temporary
 unsupported rewrite fallback is used.
 
-The current scope has 12,615 Rust lines across 36 files, versus 34,638 deleted
-raw lines: 22,023 fewer (63.6%). Counts include comments, blanks and local tests.
+The current scope has 12,641 Rust lines across 36 files, versus 34,638 deleted
+raw lines: 21,997 fewer (63.6%). Counts include comments, blanks and local tests.
 A historical production-only count was not retained and is not reconstructed
 from forbidden source.
 
@@ -305,11 +305,20 @@ in `925db056`; all four matrix revisions pass with both the accepted compiler
 and byte-store trial, with the same MIR snapshot. Full workspace coverage before
 that new fixture retains the same 62 failures. No sealed debt was removed.
 
-Current compiler-time work tests sharing raw validation bounds with assembly
-only while indexed lowering borrows the original immutable module. Every owned
-lowering and width retry still needs its own graph analysis. This is separate
-from optimization bounds, which intentionally discard concrete heights when
-unknown control exists. No global cache or retained-MIR change is proposed.
+Raw validation reuse is accepted in `a904c535`. Assembly reuses concrete bounds
+only when indexed lowering borrows the original immutable graph; every owned
+attempt gets fresh analysis. Public validation and optimization bounds remain
+unchanged. The 63 focused exact-output pairs include a proved borrowed-to-owned
+width retry and concrete overflow alongside unknown control. All 725 UI sources
+per mode, both hot lanes (15 cases / 175 ordered labels each), and 3,344 heavy
+artifacts are byte-exact. All 540 reference sites and 193 diagnostic blocks are
+unchanged; three projects only reorder their warnings. Helpers, ordinary Clippy
+and Foundry pass. Workspace has 1,358 passes, one UI aggregate failure and two
+skips; expanded UI has 10,983 passes and the same 62 failures. Quiet times improve
+53.17→53.11 and 53.42→53.16 seconds (−0.1% / −0.5%); sampled peak RSS falls
+633,540→597,128 and 598,176→581,824 KiB (−5.7% / −2.7%). These small compiler
+improvements remove no sealed output debt. Evidence is in
+`assembly-raw-facts-{trial,focused,heavy-review}-20260906/`.
 
 ## Evidence provenance
 
