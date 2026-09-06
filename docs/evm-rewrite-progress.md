@@ -22,14 +22,14 @@ PUSH widths. There is no Atom stream or assembly-level CFG optimization. MIR
 semantics remain in their retained layers. No legacy backend or temporary
 unsupported rewrite fallback is used.
 
-The current scope has 12,505 Rust lines across 35 files, versus 34,638 deleted
-raw lines: 22,133 fewer (64.0%). Counts include comments, blanks and local tests.
+The current scope has 12,512 Rust lines across 35 files, versus 34,638 deleted
+raw lines: 22,126 fewer (64.0%). Counts include comments, blanks and local tests.
 A historical production-only count was not retained and is not reconstructed
 from forbidden source.
 
 ## Current verification
 
-The committed call-gas fix (`ee916cdb`) has 1,358 workspace passes, one failing
+The committed lazy call-gas fix (`728f8df7`) has 1,358 workspace passes, one failing
 UI aggregate and two skips. Its UI lane has 10,963 passes, 62 failures and 806
 filtered revisions. The added regression passes; remaining failure IDs are
 exactly unchanged from the writer checkpoint.
@@ -218,8 +218,17 @@ pairs and nine complete project JSON outputs remain exact. Evidence is in
 `terminal-forwarded-owner-final-replay-20260906/`. Quiet times increase
 53.07→57.30 and 53.20→54.88 seconds (+8.0% / +3.2%); sampled maximum RSS
 falls 614,808→585,260 and 633,120→600,100 KiB. Full 432-contract output stays
-exact. Current work defers the observer scan until an actual duplicate needs it;
-the measured slowdown is not waived by the correctness fix.
+exact. The followup defers the observer scan until an actual duplicate needs it;
+the measured slowdown was investigated rather than waived. The accepted lazy
+followup (`728f8df7`) queries observers only for an actual unlabelled duplicate,
+with one cached answer. Its 45,242-case model preserves the exact redirect map;
+all corpus/diagnostic output and six focused disassemblies remain exact.
+Three-way timing retains both original/eager/lazy orders: 54.82/60.36/53.48 and
+53.01/54.91/53.91 seconds. Lazy improves both eager comparisons; against the
+original writer the mixed −2.4%/+1.7% result shows no consistent remaining
+slowdown in these captures. Evidence is in `terminal-observer-lazy-20260906/`,
+`lazy-terminal-forwarded-review-20260906/` and
+`terminal-observer-lazy-focused-20260906/`.
 
 An FMP-provenance screen found no eligible runtime root under the retained
 no-reset analysis, so no broader memory-disjointness assumption was introduced.
