@@ -56,6 +56,14 @@ observer regressions pass 76 concrete executions and their focused UI tests.
 Bounds, initial incomplete runs and extra layout-dependent probe failures remain
 explicit in the evidence; none is counted as a passing unrestricted proof.
 
+The 74 remaining failures have now been classified from preserved actual output.
+All are snapshot mismatches, but replaying existing FileChecks exposes 36 masked
+assertion failures; 22 checks pass and 16 have no FileCheck. Three embedded child
+creation snapshots reconstruct exactly from one child blob and four derived
+length operands apiece. Their optimized artifacts are no larger than sealed;
+concrete replay is pending before any expectation update. The complete inventory
+is `writer-delta-20260906/failure-triage/`.
+
 ## Compiler time
 
 These are separate sequential debug-compiler Seaport comparisons with identical
@@ -83,6 +91,13 @@ No initializer speedup is claimed. The first repeat check rejected reordered
 warnings; all contract/source outputs and the complete 90-warning multiset are
 exact. Original failure and reviewed rerun remain in
 `fmp-entry-frontier-final-20260906/quiet-timing{,-reviewed}/`.
+
+A fresh profile of the committed writer-delta executable on the same 432-contract
+input attributes 29.2% of sampled stacks to verification and 15.5% to scheduling
+(inclusive scopes overlap). Its generated output and complete warning multiset
+match the quiet capture. The profile is retained in
+`current-cpu-profile/writer-delta-refresh-20260906/profile.json.gz`; open it with
+`samply load target/codegen-bench/evm-rewrite-candidate/current-cpu-profile/writer-delta-refresh-20260906/profile.json.gz`.
 
 Validation remains enabled. Routine comparisons use the debug compiler in this
 checkout. Exact commands, source/executable hashes, profiles and measurements
