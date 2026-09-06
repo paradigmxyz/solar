@@ -69,9 +69,9 @@ fn @sum(arg0: calldataslice) -> u256 [selector=0xe3db0bf3, pure, abi_params=[arr
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: arg0], [bb18: v0]
-    v1 = phi [bb0: 0], [bb18: v38]
-    v2 = phi [bb0: 0], [bb18: v36]
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: 0], [bb3: v37]
+    v2 = phi [bb0: 0], [bb3: v36]
     v3 = slice_len v0
     v4 = lt v1, v3
     jumpi v4, bb4, bb5
@@ -123,23 +123,13 @@ fn @sum(arg0: calldataslice) -> u256 [selector=0xe3db0bf3, pure, abi_params=[arr
     v33 = add v20, 32
     v34 = make_calldata_slice v33, v26
     v35 = icall @_length, v34
-    v36 = add v2, v35
-    v37 = lt v36, v2
-    jumpi v37, bb16, bb17
-  bb17:
+    v36 = checked_add u256, v2, v35
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v38 = add v1, 1
-    v39 = lt v38, v1
-    jumpi v39, bb16, bb18
-  bb18:
+    v37 = checked_add u256, v1, 1
     jump bb1
-  bb16:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb11:
     revert 0, 0
   bb9:

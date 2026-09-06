@@ -573,6 +573,31 @@ fn display_inst_kind<'a>(
         InstKind::MemoryObjectData(object, kind) => {
             write!(f, "memory_object_data {kind}, {}", display_val(*object, func))
         }
+        InstKind::CheckedBinary { op, arithmetic, lhs, rhs } => write!(
+            f,
+            "{} {}, {}, {}",
+            op.name(),
+            arithmetic.ty(),
+            display_val(*lhs, func),
+            display_val(*rhs, func)
+        ),
+        InstKind::Concat(parts) => {
+            write!(f, "concat (")?;
+            for (index, part) in parts.iter().enumerate() {
+                if index != 0 {
+                    write!(f, ",")?;
+                }
+                match part {
+                    super::ConcatPart::Bytes(value) => {
+                        write!(f, " memorybytes {}", display_val(*value, func))?
+                    }
+                    super::ConcatPart::Fixed { value, size } => {
+                        write!(f, " bytes{} {}", size.bytes(), display_val(*value, func))?
+                    }
+                }
+            }
+            write!(f, " )")
+        }
         InstKind::AbiEncode { mode, selector, args, layout } => {
             write!(f, "abi_encode {layout}")?;
             match mode {

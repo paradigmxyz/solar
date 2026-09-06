@@ -3,8 +3,8 @@
 
 contract MultiReturn {
     // CHECK-LABEL: fn @div_mod{{[( ]}}
-    // CHECK: {{v[0-9]+}} = div arg0, arg1
-    // CHECK: {{v[0-9]+}} = mod arg0, arg1
+    // CHECK: {{v[0-9]+}} = checked_div {{[ui][0-9]+}}, arg0, arg1
+    // CHECK: {{v[0-9]+}} = checked_rem {{[ui][0-9]+}}, arg0, arg1
     // CHECK: [[RET_0:v[0-9]+]] = insert_value [[RET_TY:struct[0-9]+]], undef [[RET_TY]], 0, {{v[0-9]+}}
     // CHECK: [[RET_1:v[0-9]+]] = insert_value [[RET_TY]], [[RET_0]], 1, {{v[0-9]+}}
     // CHECK: ret [[RET_1]]
@@ -24,8 +24,8 @@ contract MultiReturn {
     }
 
     // CHECK-LABEL: fn @triple{{[( ]}}
-    // CHECK: {{v[0-9]+}} = add arg0, arg0
-    // CHECK: {{v[0-9]+}} = add {{v[0-9]+}}, arg0
+    // CHECK: {{v[0-9]+}} = checked_add {{[ui][0-9]+}}, arg0, arg0
+    // CHECK: {{v[0-9]+}} = checked_add {{[ui][0-9]+}}, {{v[0-9]+}}, arg0
     // CHECK: [[RET_0:v[0-9]+]] = insert_value [[RET_TY:struct[0-9]+]], undef [[RET_TY]], 0, arg0
     // CHECK: [[RET_1:v[0-9]+]] = insert_value [[RET_TY]], [[RET_0]], 1, {{v[0-9]+}}
     // CHECK: [[RET_2:v[0-9]+]] = insert_value [[RET_TY]], [[RET_1]], 2, {{v[0-9]+}}

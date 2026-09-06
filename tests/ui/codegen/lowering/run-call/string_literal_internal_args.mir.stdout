@@ -85,15 +85,8 @@ fn @encodeConstantCast() -> u256 [selector=0x355fad3a, pure, abi_params=[], abi_
 fn @lenPlus(arg0: memorybytes, arg1: u256) -> u256 [pure] {
   bb0:
     v0 = memory_object_len memorybytes, arg0
-    v1 = add v0, arg1
-    v2 = lt v1, v0
-    jumpi v2, bb1, bb2
-  bb2:
+    v1 = checked_add u256, v0, arg1
     ret v1
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @lenBytes(arg0: memorybytes) -> u256 [pure] {

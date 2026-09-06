@@ -39,15 +39,8 @@ fn @inspectItems(arg0: calldataslice) -> u256 [selector=0x68057f1e, pure, abi_pa
     v15 = slice_ptr v14
     v16 = add v15, 128
     v17 = calldataload v16
-    v18 = add v8, v17
-    v19 = lt v18, v8
-    jumpi v19, bb4, bb5
-  bb5:
+    v18 = checked_add u256, v8, v17
     ret v18
-  bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

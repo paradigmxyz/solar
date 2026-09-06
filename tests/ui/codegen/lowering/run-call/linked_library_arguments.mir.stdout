@@ -79,15 +79,8 @@ fn @test_using() -> u256 [selector=0xd6c053d5, pure, abi_params=[], abi_returns=
     v7 = icall @pick, v0
     v8 = extract_value struct0, v7, 0
     v9 = extract_value struct0, v7, 1
-    v10 = add v8, v9
-    v11 = lt v10, v8
-    jumpi v11, bb4, bb5
-  bb5:
+    v10 = checked_add u256, v8, v9
     ret v10
-  bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -96,15 +89,8 @@ fn @test_using() -> u256 [selector=0xd6c053d5, pure, abi_params=[], abi_returns=
 
 fn @add(arg0: u256, arg1: u256) -> u256 [pure] {
   bb0:
-    v0 = add arg0, arg1
-    v1 = lt v0, arg0
-    jumpi v1, bb1, bb2
-  bb2:
+    v0 = checked_add u256, arg0, arg1
     ret v0
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @get(arg0: storageptr) -> u256 [view] {
@@ -116,16 +102,9 @@ fn @get(arg0: storageptr) -> u256 [view] {
 fn @bump(arg0: storageptr) {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
-    v1 = add v0, 1
-    v2 = lt v1, v0
-    jumpi v2, bb1, bb2
-  bb2:
+    v1 = checked_add u256, v0, 1
     sstore arg0, v1 !metadata(storage=symbolic(arg0))
     stop
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @pick(arg0: memoryarray) -> struct0 [pure] {

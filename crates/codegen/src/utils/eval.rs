@@ -6,9 +6,9 @@
 
 use crate::{
     backend::evm::op,
-    mir::{InstKind, ValueId},
+    mir::{ArithmeticKind, CheckedOp, InstKind, ValueId},
 };
-use alloy_primitives::U256;
+use alloy_primitives::{I256, U256};
 use std::cmp::Ordering;
 
 type Word = U256;
@@ -21,6 +21,9 @@ pub(crate) fn eval_inst<E>(
     kind: &InstKind,
     mut get: impl FnMut(ValueId) -> Result<U256, E>,
 ) -> Result<Option<U256>, E> {
+    if let InstKind::CheckedBinary { op, arithmetic, lhs, rhs } = *kind {
+        return Ok(eval_checked(op, arithmetic, get(lhs)?, get(rhs)?));
+    }
     let Some(opcode) = kind.evm_opcode() else { return Ok(None) };
     let Some((inputs, 1)) = op::stack_io(opcode) else { return Ok(None) };
     if inputs > 3 {
@@ -40,6 +43,59 @@ pub(crate) fn eval_inst<E>(
         *value = get(operand)?;
     }
     Ok(eval_opcode(opcode, values))
+}
+
+/// Returns a value only when the complete checked operation succeeds.
+fn eval_checked(op: CheckedOp, kind: ArithmeticKind, lhs: U256, rhs: U256) -> Option<U256> {
+    let fits = |value| match kind {
+        ArithmeticKind::Unsigned(bits) => bits == 256 || value >> bits == U256::ZERO,
+        ArithmeticKind::Signed(bits) => signextend(U256::from(bits / 8 - 1), value) == value,
+    };
+    if !fits(lhs) || op != CheckedOp::Pow && !fits(rhs) {
+        return None;
+    }
+    if op == CheckedOp::Pow {
+        let mut exponent = rhs;
+        let mut base = lhs;
+        let mut power = U256::ONE;
+        while !exponent.is_zero() {
+            if exponent.bit(0) {
+                power = eval_checked(CheckedOp::Mul, kind, power, base)?;
+            }
+            exponent >>= 1;
+            if !exponent.is_zero() {
+                base = eval_checked(CheckedOp::Mul, kind, base, base)?;
+            }
+        }
+        return Some(power);
+    }
+    let result = match kind {
+        ArithmeticKind::Unsigned(_) => match op {
+            CheckedOp::Add => lhs.checked_add(rhs)?,
+            CheckedOp::Sub => lhs.checked_sub(rhs)?,
+            CheckedOp::Mul => lhs.checked_mul(rhs)?,
+            CheckedOp::Div | CheckedOp::WrappingDiv => lhs.checked_div(rhs)?,
+            CheckedOp::Rem => lhs.checked_rem(rhs)?,
+            CheckedOp::Pow => unreachable!(),
+        },
+        ArithmeticKind::Signed(bits) => {
+            let a = I256::from_raw(lhs);
+            let b = I256::from_raw(rhs);
+            match op {
+                CheckedOp::Add => a.checked_add(b)?.into_raw(),
+                CheckedOp::Sub => a.checked_sub(b)?.into_raw(),
+                CheckedOp::Mul => a.checked_mul(b)?.into_raw(),
+                CheckedOp::Div => a.checked_div(b)?.into_raw(),
+                CheckedOp::WrappingDiv if !rhs.is_zero() => {
+                    signextend(U256::from(bits / 8 - 1), i256_div(lhs, rhs))
+                }
+                CheckedOp::Rem if !rhs.is_zero() => i256_mod(lhs, rhs),
+                CheckedOp::WrappingDiv | CheckedOp::Rem => return None,
+                CheckedOp::Pow => unreachable!(),
+            }
+        }
+    };
+    fits(result).then_some(result)
 }
 
 /// Evaluates a pure EVM opcode with concrete operands in pop order.

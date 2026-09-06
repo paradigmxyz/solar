@@ -21,28 +21,11 @@ fn @helper(arg0: u256) -> u256 [pure] {
   bb2:
     jump bb3
   bb3:
-    v1 = mul arg0, 11
-    v2 = iszero 11
-    v3 = div v1, 11
-    v4 = eq v3, arg0
-    v5 = or v2, v4
-    v6 = iszero v5
-    jumpi v6, bb4, bb5
-  bb5:
-    v7 = sub arg0, 1
-    v8 = lt arg0, 1
-    jumpi v8, bb4, bb6
-  bb6:
-    v9 = icall @helper, v7
-    v10 = add v1, v9
-    v11 = lt v10, v1
-    jumpi v11, bb4, bb7
-  bb7:
-    ret v10
-  bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    v1 = checked_mul u256, arg0, 11
+    v2 = checked_sub u256, arg0, 1
+    v3 = icall @helper, v2
+    v4 = checked_add u256, v1, v3
+    ret v4
   bb1:
     ret 1
 }

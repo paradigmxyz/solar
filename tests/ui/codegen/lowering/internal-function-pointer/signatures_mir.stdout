@@ -45,17 +45,10 @@ fn @callPair(arg0: u256) -> struct0 [selector=0x85ead1f5, abi_params=[u256], abi
 
 fn @pair(arg0: u256) -> struct0 [pure] {
   bb0:
-    v0 = add arg0, 1
-    v1 = lt v0, arg0
-    jumpi v1, bb1, bb2
-  bb2:
-    v2 = insert_value struct0, undef struct0, 0, arg0
-    v3 = insert_value struct0, v2, 1, v0
-    ret v3
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    v0 = checked_add u256, arg0, 1
+    v1 = insert_value struct0, undef struct0, 0, arg0
+    v2 = insert_value struct0, v1, 1, v0
+    ret v2
 }
 
 fn @callZero() [selector=0x46e2b562, abi_params=[], abi_returns=[]] {
@@ -66,15 +59,8 @@ fn @callZero() [selector=0x46e2b562, abi_params=[], abi_returns=[]] {
 
 fn @sum(arg0: u256, arg1: u256) -> u256 [pure] {
   bb0:
-    v0 = add arg0, arg1
-    v1 = lt v0, arg0
-    jumpi v1, bb1, bb2
-  bb2:
+    v0 = checked_add u256, arg0, arg1
     ret v0
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @callTwoArgs() -> u256 [selector=0xc406c3a3, abi_params=[], abi_returns=[word]] {

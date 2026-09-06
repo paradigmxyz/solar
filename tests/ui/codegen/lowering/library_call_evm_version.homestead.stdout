@@ -7,34 +7,16 @@ types:
 
 fn @dbl(arg0: u256) -> u256 [selector=0x5d2a6863, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
-    v0 = mul 2, arg0
-    v1 = iszero arg0
-    v2 = div v0, arg0
-    v3 = eq v2, 2
-    v4 = or v1, v3
-    v5 = iszero v4
-    jumpi v5, bb1, bb2
-  bb2:
+    v0 = checked_mul u256, 2, arg0
     ret v0
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @pair(arg0: u256) -> struct0 [selector=0x645751af, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
-    v0 = add arg0, 1
-    v1 = lt v0, arg0
-    jumpi v1, bb1, bb2
-  bb2:
-    v2 = insert_value struct0, undef struct0, 0, arg0
-    v3 = insert_value struct0, v2, 1, v0
-    ret v3
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    v0 = checked_add u256, arg0, 1
+    v1 = insert_value struct0, undef struct0, 0, arg0
+    v2 = insert_value struct0, v1, 1, v0
+    ret v2
 }
 
 fn @arr(arg0: u256) -> memoryfixedarray [selector=0x71e5ee5f, pure, abi_params=[u256], abi_returns=[array<2, word>]] {

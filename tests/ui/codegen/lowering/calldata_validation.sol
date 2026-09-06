@@ -95,7 +95,7 @@ contract CalldataValidation {
     // CHECK-LABEL: fn @vFull{{[( ]}}
     // CHECK: {{v[0-9]+}} = lt {{v[0-9]+}}, 100
     // CHECK-NOT: calldataload
-    // CHECK: add arg0, arg1
+    // CHECK: checked_add u256, arg0, arg1
     function vFull(uint256 a, bytes32 b, int256 c) external pure returns (uint256) {
         return a + uint256(b) + uint256(c);
     }

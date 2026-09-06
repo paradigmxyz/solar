@@ -475,19 +475,19 @@ fn @arrLenAndSum() -> struct0 [selector=0x3dc68ceb, abi_params=[], abi_returns=[
     v20 = memory_object_len memoryarray, v19
     jump bb7
   bb7:
-    v21 = phi [bb6: 0], [bb17: v33]
-    v22 = phi [bb6: v20], [bb17: v22]
-    v23 = phi [bb6: v19], [bb17: v23]
-    v24 = phi [bb6: 0], [bb17: v31]
+    v21 = phi [bb6: 0], [bb9: v32]
+    v22 = phi [bb6: v20], [bb9: v22]
+    v23 = phi [bb6: v19], [bb9: v23]
+    v24 = phi [bb6: 0], [bb9: v31]
     v25 = memory_object_len memoryarray, v23
     v26 = lt v21, v25
     jumpi v26, bb10, bb11
   bb11:
     jump bb8
   bb8:
-    v35 = insert_value struct0, undef struct0, 0, v22
-    v36 = insert_value struct0, v35, 1, v24
-    ret v36
+    v33 = insert_value struct0, undef struct0, 0, v22
+    v34 = insert_value struct0, v33, 1, v24
+    ret v34
   bb10:
     v27 = memory_object_len memoryarray, v23
     v28 = lt v21, v27
@@ -495,23 +495,13 @@ fn @arrLenAndSum() -> struct0 [selector=0x3dc68ceb, abi_params=[], abi_returns=[
     jumpi v29, bb13, bb14
   bb14:
     v30 = memory_object_load_element memoryarray<1>, v23, v21
-    v31 = add v24, v30
-    v32 = lt v31, v24
-    jumpi v32, bb15, bb16
-  bb16:
+    v31 = checked_add u256, v24, v30
     jump bb12
   bb12:
     jump bb9
   bb9:
-    v33 = add v21, 1
-    v34 = lt v33, v21
-    jumpi v34, bb15, bb17
-  bb17:
+    v32 = checked_add u256, v21, 1
     jump bb7
-  bb15:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb13:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -681,24 +671,14 @@ fn @fixedSum() -> u256 [selector=0x1f080ca7, abi_params=[], abi_returns=[word]] 
     jumpi v20, bb7, bb9
   bb9:
     v21 = memory_object_load_element memoryfixedarray<3, 1>, v15, 1
-    v22 = add v18, v21
-    v23 = lt v22, v18
-    jumpi v23, bb10, bb11
-  bb11:
-    v24 = lt 2, 3
-    v25 = iszero v24
-    jumpi v25, bb7, bb12
-  bb12:
-    v26 = memory_object_load_element memoryfixedarray<3, 1>, v15, 2
-    v27 = add v22, v26
-    v28 = lt v27, v22
-    jumpi v28, bb10, bb13
-  bb13:
-    ret v27
+    v22 = checked_add u256, v18, v21
+    v23 = lt 2, 3
+    v24 = iszero v23
+    jumpi v24, bb7, bb10
   bb10:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    v25 = memory_object_load_element memoryfixedarray<3, 1>, v15, 2
+    v26 = checked_add u256, v22, v25
+    ret v26
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -803,22 +783,23 @@ fn @nestedSum() -> u256 [selector=0x002c8096, abi_params=[], abi_returns=[word]]
     jumpi v22, bb7, bb8
   bb8:
     v23 = memory_object_load_element memoryarray<1>, v19, 0
-    v24 = eq v23, 0
-    jumpi v24, bb9, bb10
+    v24 = memory_object_from_ptr memoryarray, v23
+    v25 = eq v24, 0
+    jumpi v25, bb9, bb10
   bb9:
-    v25 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v25, 0
-    memory_object_store_element memoryarray<1>, v19, 0, v25
+    v26 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v26, 0
+    memory_object_store_element memoryarray<1>, v19, 0, v26
     jump bb10
   bb10:
-    v26 = phi [bb8: v23], [bb9: v25]
-    v27 = memory_object_len memoryarray, v26
-    v28 = lt 0, v27
-    v29 = iszero v28
-    jumpi v29, bb7, bb11
+    v27 = phi [bb8: v24], [bb9: v26]
+    v28 = memory_object_len memoryarray, v27
+    v29 = lt 0, v28
+    v30 = iszero v29
+    jumpi v30, bb7, bb11
   bb11:
-    v30 = memory_object_load_element memoryarray<1>, v26, 0
-    ret v30
+    v31 = memory_object_load_element memoryarray<1>, v27, 0
+    ret v31
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

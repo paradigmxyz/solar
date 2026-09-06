@@ -289,23 +289,13 @@ fn @mixed() -> struct4 [selector=0x354df1f9, abi_params=[], abi_returns=[word, w
     jumpi v32, bb7, bb8
   bb8:
     v33 = memory_object_load_element memoryarray<1>, v26, 0
-    v34 = sub v27, 7
-    v35 = lt v27, 7
-    jumpi v35, bb9, bb10
-  bb10:
-    v36 = add v33, v34
-    v37 = lt v36, v33
-    jumpi v37, bb9, bb11
-  bb11:
-    v38 = memory_object_len memorybytes, v28
-    v39 = insert_value struct4, undef struct4, 0, v29
-    v40 = insert_value struct4, v39, 1, v36
-    v41 = insert_value struct4, v40, 2, v38
-    ret v41
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    v34 = checked_sub u256, v27, 7
+    v35 = checked_add u256, v33, v34
+    v36 = memory_object_len memorybytes, v28
+    v37 = insert_value struct4, undef struct4, 0, v29
+    v38 = insert_value struct4, v37, 1, v35
+    v39 = insert_value struct4, v38, 2, v36
+    ret v39
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

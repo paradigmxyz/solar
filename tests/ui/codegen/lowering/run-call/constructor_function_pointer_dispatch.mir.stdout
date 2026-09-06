@@ -18,21 +18,10 @@ fn @getName() -> bytes6 [selector=0x17d7de7c, view, abi_params=[], abi_returns=[
 fn @leftByteShift(arg0: bytes6, arg1: u256) -> bytes6 [selector=0x49858898, pure, abi_params=[bytes6, u256], abi_returns=[word<bytes6>]] {
   bb0:
     v0 = and arg0, 0xffffffffffff0000000000000000000000000000000000000000000000000000
-    v1 = mul arg1, 8
-    v2 = iszero 8
-    v3 = div v1, 8
-    v4 = eq v3, arg1
-    v5 = or v2, v4
-    v6 = iszero v5
-    jumpi v6, bb1, bb2
-  bb2:
-    v7 = shl v1, v0
-    v8 = and v7, 0xffffffffffff0000000000000000000000000000000000000000000000000000
-    ret v8
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    v1 = checked_mul u256, arg1, 8
+    v2 = shl v1, v0
+    v3 = and v2, 0xffffffffffff0000000000000000000000000000000000000000000000000000
+    ret v3
 }
 
 fn @applyShift(arg0: function, arg1: u256) {

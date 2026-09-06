@@ -801,15 +801,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         builtin: Builtin,
         args: hir::CallArgs<'_>,
     ) -> Option<ValueId> {
-        enum Part {
-            Literal(Vec<u8>),
-            Dynamic { value: ValueId, length: ValueId },
-            Fixed { value: ValueId, length: u64 },
-        }
-
         let exprs = self.variadic_builtin_args(builtin, &args)?;
         let mut all_literals = Some(Vec::new());
-        let mut total = self.builder.imm(0);
         let mut parts = Vec::with_capacity(exprs.len());
         for expr in exprs {
             let ty = self.cx.gcx.type_of_expr(expr.id)?;
@@ -823,34 +816,26 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         let bytes = bytes.as_byte_str().to_vec();
                         if let Some(all_literals) = &mut all_literals {
                             all_literals.extend_from_slice(&bytes);
-                        } else {
-                            let length = self.builder.imm(bytes.len() as u64);
-                            total = self.builder.add(total, length);
                         }
-                        parts.push(Part::Literal(bytes));
+                        for chunk in bytes.chunks(32) {
+                            let value = self.lower_string_literal_word(chunk);
+                            parts.push(ConcatPart::Fixed {
+                                value,
+                                size: TypeSize::new_int_bits(chunk.len() as u16 * 8),
+                            });
+                        }
                         continue;
                     }
-                    if let Some(all_literals) = all_literals.take() {
-                        let length = self.builder.imm(all_literals.len() as u64);
-                        total = self.builder.add(total, length);
-                    }
+                    all_literals = None;
                     let memory_ty = ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
                     let value = self.lower_typed_expr(expr, memory_ty)?;
                     let value = self.materialize_memory_argument(memory_ty, value, expr.span)?;
-                    let length = self.builder.memory_object_len(value, MemoryObjectKind::Bytes);
-                    total = self.builder.add(total, length);
-                    parts.push(Part::Dynamic { value, length });
+                    parts.push(ConcatPart::Bytes(value));
                 }
                 TyKind::Elementary(ElementaryType::FixedBytes(size)) => {
-                    if let Some(all_literals) = all_literals.take() {
-                        let length = self.builder.imm(all_literals.len() as u64);
-                        total = self.builder.add(total, length);
-                    }
+                    all_literals = None;
                     let value = self.lower_expr(expr)?;
-                    let length = u64::from(size.bytes());
-                    let length_value = self.builder.imm(length);
-                    total = self.builder.add(total, length_value);
-                    parts.push(Part::Fixed { value, length });
+                    parts.push(ConcatPart::Fixed { value, size });
                 }
                 _ => return self.cx.report_unsupported(expr.span, "concat argument"),
             }
@@ -868,47 +853,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             );
         }
 
-        // output = alloc_bytes(total)
-        let size = self.builder.padded_size(total);
-        let output = self.builder.alloc_object(
-            size,
-            MemoryObjectLayout::Bytes,
-            AllocationSemantics::SOLIDITY_UNINITIALIZED,
-        );
-        self.builder.set_memory_object_len(output, total, MemoryObjectKind::Bytes);
-
-        let mut offset = self.builder.imm(0);
-        // for part { copy(literal | dynamic | fixed, output, offset) }
-        for part in parts {
-            match part {
-                Part::Literal(bytes) => {
-                    for chunk in bytes.chunks(32) {
-                        let value = self.lower_string_literal_word(chunk);
-                        self.builder.memory_object_store_word(output, offset, value);
-                        let length = self.builder.imm(chunk.len() as u64);
-                        offset = self.builder.add(offset, length);
-                    }
-                }
-                Part::Dynamic { value, length } => {
-                    let source_ptr =
-                        self.builder.memory_object_data(value, MemoryObjectKind::Bytes);
-                    let source = self.builder.make_slice(source_ptr, length, SliceLocation::Memory);
-                    self.builder.memory_object_copy_from_slice_at(
-                        output,
-                        MemoryObjectKind::Bytes,
-                        offset,
-                        source,
-                    );
-                    offset = self.builder.add(offset, length);
-                }
-                Part::Fixed { value, length } => {
-                    self.builder.memory_object_store_word(output, offset, value);
-                    let length = self.builder.imm(length);
-                    offset = self.builder.add(offset, length);
-                }
-            }
-        }
-        Some(output)
+        // output = concat(parts)
+        Some(self.builder.emit_inst(
+            InstKind::Concat(parts),
+            Some(MirType::MemoryObject(MemoryObjectKind::Bytes)),
+        ))
     }
 
     fn lower_yul_unit_builtin_call(

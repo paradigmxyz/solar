@@ -43,51 +43,46 @@ fn @memoryRead(arg0: calldataslice) -> u256 [selector=0xba65adf9, pure, abi_para
     jumpi v60, bb17, bb18
   bb18:
     v61 = memory_object_load_element memoryarray<1>, v19, 0
-    v62 = eq v61, 0
-    jumpi v62, bb19, bb20
+    v62 = memory_object_from_ptr memoryarray, v61
+    v63 = eq v62, 0
+    jumpi v63, bb19, bb20
   bb19:
-    v63 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v63, 0
-    memory_object_store_element memoryarray<1>, v19, 0, v63
+    v64 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v64, 0
+    memory_object_store_element memoryarray<1>, v19, 0, v64
     jump bb20
   bb20:
-    v64 = phi [bb18: v61], [bb19: v63]
-    v65 = memory_object_len memoryarray, v64
-    v66 = lt 0, v65
-    v67 = iszero v66
-    jumpi v67, bb17, bb21
+    v65 = phi [bb18: v62], [bb19: v64]
+    v66 = memory_object_len memoryarray, v65
+    v67 = lt 0, v66
+    v68 = iszero v67
+    jumpi v68, bb17, bb21
   bb21:
-    v68 = memory_object_load_element memoryarray<1>, v64, 0
-    v69 = memory_object_len memoryarray, v19
-    v70 = lt 1, v69
-    v71 = iszero v70
-    jumpi v71, bb17, bb22
+    v69 = memory_object_load_element memoryarray<1>, v65, 0
+    v70 = memory_object_len memoryarray, v19
+    v71 = lt 1, v70
+    v72 = iszero v71
+    jumpi v72, bb17, bb22
   bb22:
-    v72 = memory_object_load_element memoryarray<1>, v19, 1
-    v73 = eq v72, 0
-    jumpi v73, bb23, bb24
+    v73 = memory_object_load_element memoryarray<1>, v19, 1
+    v74 = memory_object_from_ptr memoryarray, v73
+    v75 = eq v74, 0
+    jumpi v75, bb23, bb24
   bb23:
-    v74 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v74, 0
-    memory_object_store_element memoryarray<1>, v19, 1, v74
+    v76 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v76, 0
+    memory_object_store_element memoryarray<1>, v19, 1, v76
     jump bb24
   bb24:
-    v75 = phi [bb22: v72], [bb23: v74]
-    v76 = memory_object_len memoryarray, v75
-    v77 = lt 1, v76
-    v78 = iszero v77
-    jumpi v78, bb17, bb25
+    v77 = phi [bb22: v74], [bb23: v76]
+    v78 = memory_object_len memoryarray, v77
+    v79 = lt 1, v78
+    v80 = iszero v79
+    jumpi v80, bb17, bb25
   bb25:
-    v79 = memory_object_load_element memoryarray<1>, v75, 1
-    v80 = add v68, v79
-    v81 = lt v80, v68
-    jumpi v81, bb26, bb27
-  bb27:
-    ret v80
-  bb26:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    v81 = memory_object_load_element memoryarray<1>, v77, 1
+    v82 = checked_add u256, v69, v81
+    ret v82
   bb17:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

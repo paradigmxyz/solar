@@ -1415,36 +1415,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // input = materialize(bytes)
         let input = self.lower_typed_expr(input, memory_ty)?;
         let input = self.materialize_memory_argument(memory_ty, input, span)?;
-        let input_ptr = self.builder.memory_object_data(input, MemoryObjectKind::Bytes);
-        let input_len = self.builder.memory_object_len(input, MemoryObjectKind::Bytes);
-
-        // output = bytes(32)
-        // precompile_call(sha256 ? 2 : 3, input, output)
-        let (output_ptr, output_len) = self.alloc_precompile_output();
-        let address = self.builder.imm(if builtin == Builtin::Sha256 { 2 } else { 3 });
-        let output_size = self.builder.imm(32);
-        self.lower_precompile_call(address, input_ptr, input_len, output_ptr, output_size);
-        let zero = self.builder.imm(0);
-        let output_slice = self.builder.make_slice(output_ptr, output_len, SliceLocation::Memory);
-        // result = mload(output.data)
-        let value = self.builder.memory_slice_load_word(output_slice, zero);
-        Some(if builtin == Builtin::Ripemd160 {
-            // result = result << 96
-            let scale = self.builder.imm(1_u128 << 96);
-            self.builder.mul(scale, value)
+        // result = sha256(input) / ripemd160(input)
+        let kind = if builtin == Builtin::Sha256 {
+            InstKind::Sha256(input)
         } else {
-            value
-        })
+            InstKind::Ripemd160(input)
+        };
+        Some(self.builder.emit_inst(kind, Some(MirType::uint256())))
     }
 
     pub(super) fn lower_ecrecover_call(&mut self, args: hir::CallArgs<'_>) -> Option<ValueId> {
-        // input = bytes(160)
-        // store(input, hash, 0)
-        // store(input, v, 32)
-        // store(input, r, 64)
-        // store(input, s, 96)
-        // precompile_call(1, input.data, 128, output.data, 32)
-        // result = load(output, 0)
         let values = self.builtin_args::<4>(Builtin::EcRecover, &args)?;
         let hash = &values[0];
         let v = &values[1];
@@ -1455,61 +1435,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let r = self.lower_expr(r)?;
         let s = self.lower_expr(s)?;
 
-        let input_size = self.builder.imm(192);
-        let input = self.builder.alloc_object(
-            input_size,
-            MemoryObjectLayout::Bytes,
-            AllocationSemantics::SOLIDITY_ZEROED,
-        );
-        let input_len = self.builder.imm(160);
-        self.builder.set_memory_object_len(input, input_len, MemoryObjectKind::Bytes);
-        let input_ptr = self.builder.memory_object_data(input, MemoryObjectKind::Bytes);
-        let zero = self.builder.imm(0);
-        self.builder.memory_object_store_word(input, zero, hash);
-        for (offset, value) in [(32, v), (64, r), (96, s)] {
-            let offset = self.builder.imm(offset);
-            self.builder.memory_object_store_word(input, offset, value);
-        }
-        let (output_ptr, output_len) = self.alloc_precompile_output();
-
-        let address = self.builder.imm(1);
-        let input_size = self.builder.imm(128);
-        let output_size = self.builder.imm(32);
-        self.lower_precompile_call(address, input_ptr, input_size, output_ptr, output_size);
-        let output_slice = self.builder.make_slice(output_ptr, output_len, SliceLocation::Memory);
-        Some(self.builder.memory_slice_load_word(output_slice, zero))
-    }
-
-    fn alloc_precompile_output(&mut self) -> (ValueId, ValueId) {
-        let size = self.builder.imm(64);
-        let output = self.builder.alloc_object(
-            size,
-            MemoryObjectLayout::Bytes,
-            AllocationSemantics::SOLIDITY_ZEROED,
-        );
-        let length = self.builder.imm(32);
-        self.builder.set_memory_object_len(output, length, MemoryObjectKind::Bytes);
-        let pointer = self.builder.memory_object_data(output, MemoryObjectKind::Bytes);
-        (pointer, length)
-    }
-
-    fn lower_precompile_call(
-        &mut self,
-        address: ValueId,
-        input_ptr: ValueId,
-        input_size: ValueId,
-        output_ptr: ValueId,
-        output_size: ValueId,
-    ) {
-        let evm_version = self.cx.gcx.sess.opts.evm_version;
-        let gas = crate::utils::precompile_gas(&mut self.builder, evm_version);
-        if evm_version.has_static_call() {
-            // staticcall(precompile_gas, address, input, output)
-            self.builder.staticcall(gas, address, input_ptr, input_size, output_ptr, output_size);
-        } else {
-            // call(precompile_gas, address, 0, input, output)
-            let value = self.builder.imm(U256::ZERO);
-            self.builder.call(gas, address, value, input_ptr, input_size, output_ptr, output_size);
-        }
+        // result = ecrecover(hash, v, r, s)
+        Some(self.builder.emit_inst(InstKind::EcRecover(hash, v, r, s), Some(MirType::uint256())))
     }
 }

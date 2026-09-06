@@ -80,31 +80,31 @@ fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice,
     icall @_schedule, v27, arg5
     jump bb12
   bb12:
-    v28 = phi [bb11: arg5], [bb35: v28]
-    v29 = phi [bb11: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1], [bb35: v29]
-    v30 = phi [bb11: arg2], [bb35: v30]
-    v31 = phi [bb11: v27], [bb35: v31]
-    v32 = phi [bb11: arg3], [bb35: v32]
-    v33 = phi [bb11: 0], [bb35: v105]
-    v34 = phi [bb11: arg0], [bb35: v34]
-    v35 = phi [bb11: arg4], [bb35: v35]
-    v36 = phi [bb11: arg1], [bb35: v36]
+    v28 = phi [bb11: arg5], [bb14: v28]
+    v29 = phi [bb11: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1], [bb14: v29]
+    v30 = phi [bb11: arg2], [bb14: v30]
+    v31 = phi [bb11: v27], [bb14: v31]
+    v32 = phi [bb11: arg3], [bb14: v32]
+    v33 = phi [bb11: 0], [bb14: v105]
+    v34 = phi [bb11: arg0], [bb14: v34]
+    v35 = phi [bb11: arg4], [bb14: v35]
+    v36 = phi [bb11: arg1], [bb14: v36]
     v37 = slice_len v34
     v38 = lt v33, v37
     jumpi v38, bb15, bb16
   bb16:
     jump bb13
   bb13:
-    v107 = eq v35, 0
-    v108 = iszero v107
-    jumpi v108, bb36, bb37
-  bb37:
-    jump bb38
-  bb36:
+    v106 = eq v35, 0
+    v107 = iszero v106
+    jumpi v107, bb34, bb35
+  bb35:
+    jump bb36
+  bb34:
     mstore 0, v35 !metadata(memory=scratch)
     log2 0, 32, 0x20fda5fd27a1ea7bf5b9567f143ac5470bb059374a27e8f67cb44f946f6d0387, v31
-    jump bb38
-  bb38:
+    jump bb36
+  bb36:
     jump bb5
   bb5:
     jump bb1
@@ -208,15 +208,8 @@ fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice,
   bb17:
     jump bb14
   bb14:
-    v105 = add v33, 1
-    v106 = lt v105, v33
-    jumpi v106, bb34, bb35
-  bb35:
+    v105 = checked_add u256, v33, 1
     jump bb12
-  bb34:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb22:
     revert 0, 0
   bb20:
@@ -258,17 +251,10 @@ fn @_schedule(arg0: bytes32, arg1: u256) {
     jump bb6
   bb6:
     v10 = timestamp
-    v11 = add v10, arg1
-    v12 = lt v11, v10
-    jumpi v12, bb7, bb8
-  bb8:
-    v13 = mapping_slot arg0, 1
-    sstore v13, v11 !metadata(storage=symbolic(v13))
+    v11 = checked_add u256, v10, arg1
+    v12 = mapping_slot arg0, 1
+    sstore v12, v11 !metadata(storage=symbolic(v12))
     stop
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb4:
     v7 = abi_encode [word, word], selector 0x48b6d3db00000000000000000000000000000000000000000000000000000000, args arg1, v5
     v8 = slice_ptr v7

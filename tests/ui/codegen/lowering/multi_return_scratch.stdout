@@ -19,22 +19,12 @@ fn @triple(arg0: u256) -> struct0 [pure] {
   bb2:
     jump bb3
   bb3:
-    v4 = add arg0, 1
-    v5 = lt v4, arg0
-    jumpi v5, bb4, bb5
-  bb5:
-    v6 = add arg0, 2
-    v7 = lt v6, arg0
-    jumpi v7, bb4, bb6
-  bb6:
-    v8 = insert_value struct0, undef struct0, 0, arg0
-    v9 = insert_value struct0, v8, 1, v4
-    v10 = insert_value struct0, v9, 2, v6
-    ret v10
-  bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    v4 = checked_add u256, arg0, 1
+    v5 = checked_add u256, arg0, 2
+    v6 = insert_value struct0, undef struct0, 0, arg0
+    v7 = insert_value struct0, v6, 1, v4
+    v8 = insert_value struct0, v7, 2, v5
+    ret v8
   bb1:
     v1 = insert_value struct0, undef struct0, 0, 1
     v2 = insert_value struct0, v1, 1, 2
@@ -63,29 +53,16 @@ fn @ternary(arg0: bool, arg1: u256) -> struct2 [selector=0x09a143f6, pure, abi_p
   bb0:
     jumpi arg0, bb1, bb2
   bb2:
-    v2 = add arg1, 2
-    v3 = lt v2, arg1
-    jumpi v3, bb4, bb6
-  bb6:
-    v4 = add arg1, 3
-    v5 = lt v4, arg1
-    jumpi v5, bb4, bb7
-  bb7:
+    v1 = checked_add u256, arg1, 2
+    v2 = checked_add u256, arg1, 3
     jump bb3
   bb1:
-    v0 = add arg1, 1
-    v1 = lt v0, arg1
-    jumpi v1, bb4, bb5
-  bb5:
+    v0 = checked_add u256, arg1, 1
     jump bb3
   bb3:
-    v6 = phi [bb5: arg1], [bb7: v2]
-    v7 = phi [bb5: v0], [bb7: v4]
-    v8 = insert_value struct2, undef struct2, 0, v6
-    v9 = insert_value struct2, v8, 1, v7
-    ret v9
-  bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    v3 = phi [bb1: arg1], [bb2: v1]
+    v4 = phi [bb1: v0], [bb2: v2]
+    v5 = insert_value struct2, undef struct2, 0, v3
+    v6 = insert_value struct2, v5, 1, v4
+    ret v6
 }

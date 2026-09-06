@@ -511,16 +511,9 @@ fn @byteArrays() -> struct3 [selector=0x2d074e2f, abi_params=[], abi_returns=[me
 fn @nextLhs() -> u256 {
   bb0:
     v0 = sload 3 !metadata(storage=slot(3))
-    v1 = add v0, 1
-    v2 = lt v1, v0
-    jumpi v2, bb1, bb2
-  bb2:
+    v1 = checked_add u256, v0, 1
     sstore 3, v1 !metadata(storage=slot(3))
     ret v0
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @nextRhs() -> u256 {

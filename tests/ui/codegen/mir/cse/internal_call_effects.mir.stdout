@@ -6,15 +6,8 @@ fn @disjoint() -> u256 [selector=0xbf1f2d2a, abi_params=[], abi_returns=[word]] 
     v0 = sload 0 !metadata(storage=slot(0))
     icall @writeOne
     v1 = sload 0 !metadata(storage=slot(0))
-    v2 = add v0, v1
-    v3 = lt v2, v0
-    jumpi v3, bb1, bb2
-  bb2:
+    v2 = checked_add u256, v0, v1
     ret v2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @overlap() -> u256 [selector=0xea9e4070, abi_params=[], abi_returns=[word]] {
@@ -23,15 +16,8 @@ fn @overlap() -> u256 [selector=0xea9e4070, abi_params=[], abi_returns=[word]] {
     v0 = sload 1 !metadata(storage=slot(1))
     icall @writeOne
     v1 = sload 1 !metadata(storage=slot(1))
-    v2 = add v0, v1
-    v3 = lt v2, v0
-    jumpi v3, bb1, bb2
-  bb2:
+    v2 = checked_add u256, v0, v1
     ret v2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @unknown(arg0: u256) -> u256 [selector=0x71667367, abi_params=[u256], abi_returns=[word]] {
@@ -40,15 +26,8 @@ fn @unknown(arg0: u256) -> u256 [selector=0x71667367, abi_params=[u256], abi_ret
     v0 = sload 0 !metadata(storage=slot(0))
     icall @writeSlot, arg0
     v1 = sload 0 !metadata(storage=slot(0))
-    v2 = add v0, v1
-    v3 = lt v2, v0
-    jumpi v3, bb1, bb2
-  bb2:
+    v2 = checked_add u256, v0, v1
     ret v2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @recursive(arg0: u256) -> u256 [selector=0x6fe03c36, abi_params=[u256], abi_returns=[word]] {
@@ -57,15 +36,8 @@ fn @recursive(arg0: u256) -> u256 [selector=0x6fe03c36, abi_params=[u256], abi_r
     v0 = sload 0 !metadata(storage=slot(0))
     icall @recurse, arg0
     v1 = sload 0 !metadata(storage=slot(0))
-    v2 = add v0, v1
-    v3 = lt v2, v0
-    jumpi v3, bb1, bb2
-  bb2:
+    v2 = checked_add u256, v0, v1
     ret v2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @transientSlots() -> u256 [selector=0xe5208ad5, abi_params=[], abi_returns=[word]] {
@@ -74,15 +46,8 @@ fn @transientSlots() -> u256 [selector=0xe5208ad5, abi_params=[], abi_returns=[w
     v0 = tload 0
     icall @writeTransientOne
     v1 = tload 0
-    v2 = add v0, v1
-    v3 = lt v2, v0
-    jumpi v3, bb1, bb2
-  bb2:
+    v2 = checked_add u256, v0, v1
     ret v2
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @observedReturn() -> u256 [selector=0xba4bd320, pure, abi_params=[], abi_returns=[word]] {
@@ -111,25 +76,16 @@ fn @memoryDisjoint() -> u256 [selector=0xc1ce920c, pure, abi_params=[], abi_retu
     jumpi v2, bb1, bb2
   bb2:
     v3 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
-    v4 = add v0, 32
-    v5 = lt v4, v0
-    jumpi v5, bb3, bb4
-  bb4:
-    icall @writeMemory, v4
+    v4 = word_cast v0
+    v5 = checked_add u256, v4, 32
+    icall @writeMemory, v5
     v6 = lt 0, 2
     v7 = iszero v6
-    jumpi v7, bb1, bb5
-  bb5:
-    v8 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
-    v9 = add v3, v8
-    v10 = lt v9, v3
-    jumpi v10, bb3, bb6
-  bb6:
-    ret v9
+    jumpi v7, bb1, bb3
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    v8 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
+    v9 = checked_add u256, v3, v8
+    ret v9
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -152,15 +108,8 @@ fn @memoryOverlap() -> u256 [selector=0xb7b7ef77, pure, abi_params=[], abi_retur
     jumpi v5, bb1, bb3
   bb3:
     v6 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
-    v7 = add v3, v6
-    v8 = lt v7, v3
-    jumpi v8, bb4, bb5
-  bb5:
+    v7 = checked_add u256, v3, v6
     ret v7
-  bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -177,25 +126,16 @@ fn @memoryPartialOverlap() -> u256 [selector=0x3f1d4740, pure, abi_params=[], ab
     jumpi v2, bb1, bb2
   bb2:
     v3 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
-    v4 = add v0, 1
-    v5 = lt v4, v0
-    jumpi v5, bb3, bb4
-  bb4:
-    icall @writeMemory, v4
+    v4 = word_cast v0
+    v5 = checked_add u256, v4, 1
+    icall @writeMemory, v5
     v6 = lt 0, 2
     v7 = iszero v6
-    jumpi v7, bb1, bb5
-  bb5:
-    v8 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
-    v9 = add v3, v8
-    v10 = lt v9, v3
-    jumpi v10, bb3, bb6
-  bb6:
-    ret v9
+    jumpi v7, bb1, bb3
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    v8 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
+    v9 = checked_add u256, v3, v8
+    ret v9
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -219,15 +159,8 @@ fn @memoryRecursive() -> u256 [selector=0xff857f19, pure, abi_params=[], abi_ret
     jumpi v5, bb1, bb3
   bb3:
     v6 = memory_object_load_element memoryfixedarray<3, 1>, v0, 0
-    v7 = add v3, v6
-    v8 = lt v7, v3
-    jumpi v8, bb4, bb5
-  bb5:
+    v7 = checked_add u256, v3, v6
     ret v7
-  bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -249,22 +182,12 @@ fn @writeMemoryRecursive(arg0: u256, arg1: u256) [pure] {
   bb2:
     jump bb3
   bb1:
-    v2 = add arg0, 32
-    v3 = lt v2, arg0
-    jumpi v3, bb4, bb5
-  bb5:
-    v4 = sub arg1, 1
-    v5 = lt arg1, 1
-    jumpi v5, bb4, bb6
-  bb6:
-    icall @writeMemoryRecursive, v2, v4
+    v2 = checked_add u256, arg0, 32
+    v3 = checked_sub u256, arg1, 1
+    icall @writeMemoryRecursive, v2, v3
     jump bb3
   bb3:
     stop
-  bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @writeOne() {
@@ -288,18 +211,11 @@ fn @recurse(arg0: u256) {
   bb2:
     jump bb3
   bb1:
-    v2 = sub arg0, 1
-    v3 = lt arg0, 1
-    jumpi v3, bb4, bb5
-  bb5:
+    v2 = checked_sub u256, arg0, 1
     icall @recurse, v2
     jump bb3
   bb3:
     stop
-  bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @writeTransientOne() {

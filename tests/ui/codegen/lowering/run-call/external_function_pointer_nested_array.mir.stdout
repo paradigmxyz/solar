@@ -140,138 +140,138 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     set_memory_object_len memoryarray, v0, 3
     jump bb1
   bb1:
-    v1 = phi [bb0: 0], [bb10: v15]
-    v2 = phi [bb0: 0], [bb10: v2]
-    v3 = phi [bb0: v0], [bb10: v3]
-    v4 = phi [bb0: 0], [bb10: v4]
-    v5 = phi [bb0: 0], [bb10: v5]
+    v1 = phi [bb0: 0], [bb3: v15]
+    v2 = phi [bb0: 0], [bb3: v2]
+    v3 = phi [bb0: v0], [bb3: v3]
+    v4 = phi [bb0: 0], [bb3: v4]
+    v5 = phi [bb0: 0], [bb3: v5]
     v6 = memory_object_len memoryarray, v3
     v7 = lt v1, v6
     jumpi v7, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    v17 = address
-    v18 = shl 32, v17
-    v19 = or v18, 0x573a6b2f
-    v20 = memory_object_len memoryarray, v3
-    v21 = lt 0, v20
-    v22 = iszero v21
-    jumpi v22, bb7, bb11
+    v16 = address
+    v17 = shl 32, v16
+    v18 = or v17, 0x573a6b2f
+    v19 = memory_object_len memoryarray, v3
+    v20 = lt 0, v19
+    v21 = iszero v20
+    jumpi v21, bb7, bb9
+  bb9:
+    v22 = shl 64, v18
+    memory_object_store_element memoryarray<1>, v3, 0, v22
+    v23 = abi_encode []
+    v24 = not 31
+    v25 = and 0x6f5, v24
+    v26 = alloc raw, exact, uninitialized, infallible, v25
+    data_copy ExternalFunctionPointerNestedArrayTarget_initcode_0, v26, 0x6d6
+    v27 = slice_ptr v23
+    v28 = add v26, 0x6d6
+    mcopy v28, v27, 0 !metadata(memory=heap)
+    v29 = create 0, v26, 0x6d6
+    jumpi v29, bb11, bb10
+  bb10:
+    revert_returndata
   bb11:
-    v23 = shl 64, v19
-    memory_object_store_element memoryarray<1>, v3, 0, v23
-    v24 = abi_encode []
-    v25 = not 31
-    v26 = and 0x6f5, v25
-    v27 = alloc raw, exact, uninitialized, infallible, v26
-    data_copy ExternalFunctionPointerNestedArrayTarget_initcode_0, v27, 0x6d6
-    v28 = slice_ptr v24
-    v29 = add v27, 0x6d6
-    mcopy v29, v28, 0 !metadata(memory=heap)
-    v30 = create 0, v27, 0x6d6
-    jumpi v30, bb13, bb12
+    v30 = gas
+    v31 = abi_encode [memory_array<function>], selector 0x2ed7fe6a00000000000000000000000000000000000000000000000000000000, args v3
+    v32 = slice_ptr v31
+    v33 = slice_len v31
+    v34 = alloc raw, exact, uninitialized, infallible, 96
+    v35 = call v30, v29, 0, v32, v33, v34, 96
+    jumpi v35, bb13, bb12
   bb12:
     revert_returndata
   bb13:
-    v31 = gas
-    v32 = abi_encode [memory_array<function>], selector 0x2ed7fe6a00000000000000000000000000000000000000000000000000000000, args v3
-    v33 = slice_ptr v32
-    v34 = slice_len v32
-    v35 = alloc raw, exact, uninitialized, infallible, 96
-    v36 = call v31, v30, 0, v33, v34, v35, 96
-    jumpi v36, bb15, bb14
-  bb14:
-    revert_returndata
+    v36 = returndatasize
+    v37 = lt v36, 96
+    jumpi v37, bb14, bb15
   bb15:
-    v37 = returndatasize
-    v38 = lt v37, 96
-    jumpi v38, bb16, bb17
-  bb17:
-    v39 = abi_decode [array<3, function>], v35
-    v40 = lt 0, 3
-    v41 = iszero v40
-    jumpi v41, bb7, bb18
-  bb18:
-    v42 = memory_object_load_element memoryfixedarray<3, 1>, v39, 0
-    v43 = shr 64, v42
-    v44 = and v43, 0xffffffff
-    v45 = shl 224, v44
-    v46 = shr 32, v43
-    v47 = gas
-    v48 = abi_encode [], selector v45
-    v49 = slice_ptr v48
-    v50 = slice_len v48
-    v51 = call v47, v46, 0, v49, v50, 0, 32
-    jumpi v51, bb20, bb19
-  bb19:
-    revert_returndata
-  bb20:
-    v52 = returndatasize
-    v53 = lt v52, 32
-    jumpi v53, bb16, bb21
-  bb21:
-    v54 = add 0, 0
-    v55 = mload v54
-    v56 = add 0, 0
-    v57 = mload v56
-    v58 = lt 1, 3
-    v59 = iszero v58
-    jumpi v59, bb7, bb22
-  bb22:
-    v60 = memory_object_load_element memoryfixedarray<3, 1>, v39, 1
-    v61 = shr 64, v60
-    v62 = and v61, 0xffffffff
-    v63 = shl 224, v62
-    v64 = shr 32, v61
-    v65 = gas
-    v66 = abi_encode [], selector v63
-    v67 = slice_ptr v66
-    v68 = slice_len v66
-    v69 = call v65, v64, 0, v67, v68, 0, 32
-    jumpi v69, bb24, bb23
-  bb23:
-    revert_returndata
-  bb24:
-    v70 = returndatasize
-    v71 = lt v70, 32
-    jumpi v71, bb16, bb25
-  bb25:
-    v72 = add 0, 0
-    v73 = mload v72
-    v74 = add 0, 0
-    v75 = mload v74
-    v76 = lt 2, 3
-    v77 = iszero v76
-    jumpi v77, bb7, bb26
-  bb26:
-    v78 = memory_object_load_element memoryfixedarray<3, 1>, v39, 2
-    v79 = shr 64, v78
-    v80 = and v79, 0xffffffff
-    v81 = shl 224, v80
-    v82 = shr 32, v79
-    v83 = gas
-    v84 = abi_encode [], selector v81
-    v85 = slice_ptr v84
-    v86 = slice_len v84
-    v87 = call v83, v82, 0, v85, v86, 0, 32
-    jumpi v87, bb28, bb27
-  bb27:
-    revert_returndata
-  bb28:
-    v88 = returndatasize
-    v89 = lt v88, 32
-    jumpi v89, bb16, bb29
-  bb29:
-    v90 = add 0, 0
-    v91 = mload v90
-    v92 = add 0, 0
-    v93 = mload v92
-    v94 = insert_value struct0, undef struct0, 0, v57
-    v95 = insert_value struct0, v94, 1, v75
-    v96 = insert_value struct0, v95, 2, v93
-    ret v96
+    v38 = abi_decode [array<3, function>], v34
+    v39 = lt 0, 3
+    v40 = iszero v39
+    jumpi v40, bb7, bb16
   bb16:
+    v41 = memory_object_load_element memoryfixedarray<3, 1>, v38, 0
+    v42 = shr 64, v41
+    v43 = and v42, 0xffffffff
+    v44 = shl 224, v43
+    v45 = shr 32, v42
+    v46 = gas
+    v47 = abi_encode [], selector v44
+    v48 = slice_ptr v47
+    v49 = slice_len v47
+    v50 = call v46, v45, 0, v48, v49, 0, 32
+    jumpi v50, bb18, bb17
+  bb17:
+    revert_returndata
+  bb18:
+    v51 = returndatasize
+    v52 = lt v51, 32
+    jumpi v52, bb14, bb19
+  bb19:
+    v53 = add 0, 0
+    v54 = mload v53
+    v55 = add 0, 0
+    v56 = mload v55
+    v57 = lt 1, 3
+    v58 = iszero v57
+    jumpi v58, bb7, bb20
+  bb20:
+    v59 = memory_object_load_element memoryfixedarray<3, 1>, v38, 1
+    v60 = shr 64, v59
+    v61 = and v60, 0xffffffff
+    v62 = shl 224, v61
+    v63 = shr 32, v60
+    v64 = gas
+    v65 = abi_encode [], selector v62
+    v66 = slice_ptr v65
+    v67 = slice_len v65
+    v68 = call v64, v63, 0, v66, v67, 0, 32
+    jumpi v68, bb22, bb21
+  bb21:
+    revert_returndata
+  bb22:
+    v69 = returndatasize
+    v70 = lt v69, 32
+    jumpi v70, bb14, bb23
+  bb23:
+    v71 = add 0, 0
+    v72 = mload v71
+    v73 = add 0, 0
+    v74 = mload v73
+    v75 = lt 2, 3
+    v76 = iszero v75
+    jumpi v76, bb7, bb24
+  bb24:
+    v77 = memory_object_load_element memoryfixedarray<3, 1>, v38, 2
+    v78 = shr 64, v77
+    v79 = and v78, 0xffffffff
+    v80 = shl 224, v79
+    v81 = shr 32, v78
+    v82 = gas
+    v83 = abi_encode [], selector v80
+    v84 = slice_ptr v83
+    v85 = slice_len v83
+    v86 = call v82, v81, 0, v84, v85, 0, 32
+    jumpi v86, bb26, bb25
+  bb25:
+    revert_returndata
+  bb26:
+    v87 = returndatasize
+    v88 = lt v87, 32
+    jumpi v88, bb14, bb27
+  bb27:
+    v89 = add 0, 0
+    v90 = mload v89
+    v91 = add 0, 0
+    v92 = mload v91
+    v93 = insert_value struct0, undef struct0, 0, v56
+    v94 = insert_value struct0, v93, 1, v74
+    v95 = insert_value struct0, v94, 2, v92
+    ret v95
+  bb14:
     revert 0, 0
   bb4:
     v8 = address
@@ -288,15 +288,8 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
   bb6:
     jump bb3
   bb3:
-    v15 = add v1, 1
-    v16 = lt v15, v1
-    jumpi v16, bb9, bb10
-  bb10:
+    v15 = checked_add u256, v1, 1
     jump bb1
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -321,30 +314,23 @@ fn @g() -> u256 [selector=0xe2179b8e, abi_params=[], abi_returns=[word]] {
 fn @h() -> function [selector=0xb8c9d365, abi_params=[], abi_returns=[function]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = add v0, 1
-    v2 = lt v1, v0
+    v1 = checked_add u256, v0, 1
+    sstore 0, v1 !metadata(storage=slot(0))
+    v2 = eq v0, 0
     jumpi v2, bb1, bb2
   bb2:
-    sstore 0, v1 !metadata(storage=slot(0))
-    v3 = eq v0, 0
-    jumpi v3, bb3, bb4
-  bb4:
-    v7 = address
-    v8 = shl 32, v7
-    v9 = or v8, 0xe2179b8e
-    jump bb5
-  bb3:
-    v4 = address
-    v5 = shl 32, v4
-    v6 = or v5, 0x26121ff0
-    jump bb5
-  bb5:
-    v10 = phi [bb3: v6], [bb4: v9]
-    ret v10
+    v6 = address
+    v7 = shl 32, v6
+    v8 = or v7, 0xe2179b8e
+    jump bb3
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    v3 = address
+    v4 = shl 32, v3
+    v5 = or v4, 0x26121ff0
+    jump bb3
+  bb3:
+    v9 = phi [bb1: v5], [bb2: v8]
+    ret v9
 }
 
 fn @htwo() -> function [selector=0x573a6b2f, abi_params=[], abi_returns=[function]] {

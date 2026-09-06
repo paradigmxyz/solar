@@ -191,3 +191,25 @@ fn @fold_clz_constants() -> (u256, u256, u256, u256, u256) {
     v4 = clz 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     ret v0, v1, v2, v3, v4
 }
+
+// CHECK-LABEL: fn @checked_constants
+// CHECK: {{^[ +].*}}checked_add u8, 255, 1
+// CHECK: {{^[ +].*}}checked_div i8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+// CHECK: {{^[ +].*}}checked_div u256, 1, 0
+// CHECK: {{^[ +].*}}ret 243
+fn @checked_constants() -> u256 {
+  bb0:
+    v0 = checked_add u8, 255, 1
+    v1 = checked_div i8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v2 = checked_div u256, 1, 0
+    v3 = checked_pow u8, 3, 5
+    ret v3
+}
+
+// CHECK-LABEL: fn @wrapping_signed_division
+// CHECK: {{^[ +].*}}ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
+fn @wrapping_signed_division() -> u256 {
+  bb0:
+    v0 = wrapping_div i8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    ret v0
+}

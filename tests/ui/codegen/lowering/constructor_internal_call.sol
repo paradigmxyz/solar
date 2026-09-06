@@ -39,7 +39,7 @@ contract ConstructorICall {
     }
 
     // MIR-LABEL: fn @helper{{[( ]}}
-    // MIR: [[NEXT:v[0-9]+]] = sub arg0, 1
+    // MIR: [[NEXT:v[0-9]+]] = checked_sub {{[ui][0-9]+}}, arg0, 1
     // MIR: {{v[0-9]+}} = icall @helper, [[NEXT]]
     // MIR: ret
     function helper(uint256 n) internal pure returns (uint256) {

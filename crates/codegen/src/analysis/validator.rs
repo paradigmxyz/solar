@@ -797,6 +797,35 @@ impl<'a> Validator<'a> {
     fn validate_memory_object_types(&mut self, func: &Function) {
         for (block, body) in func.blocks.iter_enumerated() {
             for &id in &body.instructions {
+                if let InstKind::Concat(parts) = &func.inst(id).kind {
+                    for part in parts {
+                        let valid = match part {
+                            crate::mir::ConcatPart::Bytes(value) => {
+                                matches!(
+                                    func.value_ty(*value),
+                                    Some(
+                                        MirType::MemoryObject(MemoryObjectKind::Bytes)
+                                            | MirType::MemPtr
+                                            | MirType::UInt(_)
+                                    )
+                                )
+                            }
+                            crate::mir::ConcatPart::Fixed { value, .. } => {
+                                func.value_ty(*value).is_some_and(|ty| {
+                                    ty.is_word() && !matches!(ty, MirType::MemoryObject(_))
+                                })
+                            }
+                        };
+                        if !valid {
+                            self.emit_at_inst("concat input has an incompatible type", block, id);
+                        }
+                    }
+                    if func.inst(id).result_ty
+                        != Some(MirType::MemoryObject(MemoryObjectKind::Bytes))
+                    {
+                        self.emit_at_inst("concat requires a memorybytes result", block, id);
+                    }
+                }
                 let mut check = |object, expected| {
                     if let Some(MirType::MemoryObject(actual)) = func.value_ty(object)
                         && actual != expected
@@ -811,6 +840,62 @@ impl<'a> Validator<'a> {
                     }
                 };
                 match func.inst(id).kind {
+                    InstKind::CheckedBinary { arithmetic, lhs, rhs, .. } => {
+                        let (crate::mir::ArithmeticKind::Unsigned(bits)
+                        | crate::mir::ArithmeticKind::Signed(bits)) = arithmetic;
+                        if !(8..=256).contains(&bits) || bits % 8 != 0 {
+                            self.emit_at_inst("checked arithmetic has an invalid width", block, id);
+                        }
+                        if [lhs, rhs].iter().any(|value| {
+                            func.value_ty(*value).is_none_or(|ty| {
+                                !ty.is_word() || matches!(ty, MirType::MemoryObject(_))
+                            })
+                        }) {
+                            self.emit_at_inst(
+                                "checked arithmetic requires word operands",
+                                block,
+                                id,
+                            );
+                        }
+                        if func.inst(id).result_ty != Some(MirType::uint256()) {
+                            self.emit_at_inst(
+                                "checked arithmetic requires a u256 result",
+                                block,
+                                id,
+                            );
+                        }
+                    }
+                    InstKind::Sha256(object) | InstKind::Ripemd160(object) => {
+                        if !matches!(
+                            func.value_ty(object),
+                            Some(
+                                MirType::MemoryObject(MemoryObjectKind::Bytes)
+                                    | MirType::MemPtr
+                                    | MirType::UInt(_)
+                            )
+                        ) {
+                            self.emit_at_inst(
+                                "hash builtin requires a memorybytes operand",
+                                block,
+                                id,
+                            );
+                        }
+                        if func.inst(id).result_ty != Some(MirType::uint256()) {
+                            self.emit_at_inst("hash builtin requires a u256 result", block, id);
+                        }
+                    }
+                    InstKind::EcRecover(a, b, c, d) => {
+                        if [a, b, c, d].iter().any(|v| {
+                            func.value_ty(*v).is_none_or(|ty| {
+                                !ty.is_word() || matches!(ty, MirType::MemoryObject(_))
+                            })
+                        }) {
+                            self.emit_at_inst("ecrecover requires word operands", block, id);
+                        }
+                        if func.inst(id).result_ty != Some(MirType::uint256()) {
+                            self.emit_at_inst("ecrecover requires a u256 result", block, id);
+                        }
+                    }
                     InstKind::MemoryObjectLen(object, kind)
                     | InstKind::SetMemoryObjectLen(object, _, kind)
                     | InstKind::MemoryObjectData(object, kind)

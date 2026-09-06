@@ -716,6 +716,11 @@ impl Instruction {
             }
             InstKind::Fmp | InstKind::SetFmp(..) => Some("abstract allocation"),
             InstKind::MemoryZero(..) => Some("memory zero"),
+            InstKind::CheckedBinary { .. } => Some("checked arithmetic"),
+            InstKind::Concat(..)
+            | InstKind::Sha256(..)
+            | InstKind::Ripemd160(..)
+            | InstKind::EcRecover(..) => Some("builtin"),
             InstKind::AbiEncode { .. } => Some("ABI encoding"),
             InstKind::AbiDecode { .. } => Some("ABI decoding"),
             InstKind::StorageToMemory { .. }
@@ -893,6 +898,13 @@ pub(crate) enum InstKind {
     // Arithmetic operations
     /// Addition: `a + b`
     Add(ValueId, ValueId),
+    /// Solidity arithmetic with explicit width, signedness, and failure semantics.
+    CheckedBinary {
+        op: super::CheckedOp,
+        arithmetic: super::ArithmeticKind,
+        lhs: ValueId,
+        rhs: ValueId,
+    },
     /// Subtraction: `a - b`
     Sub(ValueId, ValueId),
     /// Multiplication: `a * b`
@@ -1301,6 +1313,14 @@ pub(crate) enum InstKind {
     /// projections. `lower-memory-objects` expands it into those projections
     /// and a physical `keccak256`.
     Keccak256Bytes(ValueId),
+    /// SHA-256 of a bytes object, including precompile output allocation and returndata effects.
+    Sha256(ValueId),
+    /// Concatenate bytes objects and left-aligned fixed words into a fresh bytes object.
+    Concat(Vec<ConcatPart>),
+    /// Left-aligned RIPEMD-160 of a bytes object, with the same effects as `sha256`.
+    Ripemd160(ValueId),
+    /// Recover an address from hash, recovery ID, and signature words.
+    EcRecover(ValueId, ValueId, ValueId, ValueId),
     /// Hash a fixed-width mapping key and its parent slot.
     ///
     /// The temporary scratch memory used by its late lowering is not an
@@ -1433,7 +1453,8 @@ impl InstKind {
     pub(crate) fn collect_operands<A: Array<Item = ValueId>>(&self, out: &mut SmallVec<A>) {
         match self {
             // Binary operations
-            Self::InsertValue { aggregate: a, value: b, .. }
+            Self::CheckedBinary { lhs: a, rhs: b, .. }
+            | Self::InsertValue { aggregate: a, value: b, .. }
             | Self::DataCopy(_, a, b)
             | Self::Add(a, b)
             | Self::Sub(a, b)
@@ -1542,6 +1563,8 @@ impl InstKind {
                 out.push(*memory);
             }
 
+            Self::Concat(parts) => out.extend(parts.iter().map(ConcatPart::value)),
+
             Self::AbiEncode { selector, args, .. } => {
                 out.extend(selector.iter().chain(args).copied());
             }
@@ -1567,6 +1590,8 @@ impl InstKind {
             | Self::BlobHash(a)
             | Self::StoreImmutable(_, a)
             | Self::Keccak256Bytes(a)
+            | Self::Sha256(a)
+            | Self::Ripemd160(a)
             | Self::StorageArrayDataSlot(a)
             | Self::MemoryObjectLen(a, _)
             | Self::MemoryObjectData(a, _)
@@ -1597,7 +1622,10 @@ impl InstKind {
             }
 
             // 4-operand operations
-            Self::ExtCodeCopy(a, b, c, d) | Self::Create2(a, b, c, d) | Self::Log2(a, b, c, d) => {
+            Self::EcRecover(a, b, c, d)
+            | Self::ExtCodeCopy(a, b, c, d)
+            | Self::Create2(a, b, c, d)
+            | Self::Log2(a, b, c, d) => {
                 out.push(*a);
                 out.push(*b);
                 out.push(*c);
@@ -1714,7 +1742,8 @@ impl InstKind {
     /// Visits every operand mutably.
     pub(crate) fn visit_operands_mut(&mut self, mut f: impl FnMut(&mut ValueId)) {
         match self {
-            Self::InsertValue { aggregate: a, value: b, .. }
+            Self::CheckedBinary { lhs: a, rhs: b, .. }
+            | Self::InsertValue { aggregate: a, value: b, .. }
             | Self::DataCopy(_, a, b)
             | Self::Add(a, b)
             | Self::Sub(a, b)
@@ -1823,6 +1852,12 @@ impl InstKind {
                 f(memory);
             }
 
+            Self::Concat(parts) => {
+                for part in parts {
+                    f(part.value_mut());
+                }
+            }
+
             Self::AbiEncode { selector, args, .. } => {
                 if let Some(selector) = selector {
                     f(selector);
@@ -1853,6 +1888,8 @@ impl InstKind {
             | Self::StoreImmutable(_, a)
             | Self::SlicePtr(a)
             | Self::Keccak256Bytes(a)
+            | Self::Sha256(a)
+            | Self::Ripemd160(a)
             | Self::StorageArrayDataSlot(a)
             | Self::SliceLen(a)
             | Self::MemoryObjectLen(a, _)
@@ -1878,7 +1915,10 @@ impl InstKind {
                 f(c);
             }
 
-            Self::ExtCodeCopy(a, b, c, d) | Self::Create2(a, b, c, d) | Self::Log2(a, b, c, d) => {
+            Self::EcRecover(a, b, c, d)
+            | Self::ExtCodeCopy(a, b, c, d)
+            | Self::Create2(a, b, c, d)
+            | Self::Log2(a, b, c, d) => {
                 f(a);
                 f(b);
                 f(c);
@@ -2086,6 +2126,11 @@ impl InstKind {
             Self::BlobHash(_) => "blobhash",
             Self::Keccak256(_, _) => "keccak256",
             Self::Keccak256Bytes(_) => "keccak256_bytes",
+            Self::CheckedBinary { op, .. } => op.name(),
+            Self::Concat(_) => "concat",
+            Self::Sha256(_) => "sha256",
+            Self::Ripemd160(_) => "ripemd160",
+            Self::EcRecover(..) => "ecrecover",
             Self::MappingSlot(_, _) => "mapping_slot",
             Self::MappingSlotMemory(_, _) => "mapping_slot_memory",
             Self::MappingSlotCalldata(_, _) => "mapping_slot_calldata",
@@ -2151,11 +2196,16 @@ impl InstKind {
     #[must_use]
     pub(crate) const fn effect_kind(&self) -> EffectKind {
         match self {
-            Self::InsertValue { .. }
+            Self::CheckedBinary { .. }
+            | Self::InsertValue { .. }
             | Self::ExtractValue { .. }
             | Self::MemoryObjectFromPtr { .. }
             | Self::WordCast(_) => EffectKind::Pure,
-            Self::MStore(_, _)
+            Self::Concat(..)
+            | Self::Sha256(..)
+            | Self::Ripemd160(..)
+            | Self::EcRecover(..)
+            | Self::MStore(_, _)
             | Self::MStore8(_, _)
             | Self::MemoryZero(_, _)
             | Self::SetFmp(_)
@@ -2328,5 +2378,26 @@ mod tests {
         assert_size::<InstKind>(str!["40"]);
         assert_size::<InstructionMetadata>(str!["40"]);
         assert_size::<Instruction>(str!["96"]);
+    }
+}
+
+/// One ordered input to byte concatenation, without allocating buffers for fixed literals.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub(crate) enum ConcatPart {
+    Bytes(ValueId),
+    Fixed { value: ValueId, size: super::TypeSize },
+}
+
+impl ConcatPart {
+    pub(crate) fn value(&self) -> ValueId {
+        match *self {
+            Self::Bytes(value) | Self::Fixed { value, .. } => value,
+        }
+    }
+
+    pub(crate) fn value_mut(&mut self) -> &mut ValueId {
+        match self {
+            Self::Bytes(value) | Self::Fixed { value, .. } => value,
+        }
     }
 }

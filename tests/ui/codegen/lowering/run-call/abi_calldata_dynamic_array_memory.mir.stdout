@@ -121,15 +121,8 @@ fn @sumMemory(arg0: memoryarray) -> u256 [selector=0x13201b5d, pure, abi_params=
     jumpi v6, bb1, bb3
   bb3:
     v7 = memory_object_load_element memoryarray<1>, arg0, 1
-    v8 = add v3, v7
-    v9 = lt v8, v3
-    jumpi v9, bb4, bb5
-  bb5:
+    v8 = checked_add u256, v3, v7
     ret v8
-  bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

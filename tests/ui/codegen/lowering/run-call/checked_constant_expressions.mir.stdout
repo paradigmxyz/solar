@@ -2,15 +2,8 @@
 @module CheckedConstants
 fn @underflow() -> u256 [selector=0xdc75bec7, pure, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = sub 100, 150
-    v1 = lt 100, 150
-    jumpi v1, bb1, bb2
-  bb2:
+    v0 = checked_sub u256, 100, 150
     ret v0
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @uncheckedNarrow() -> bool [selector=0x005e3fdf, pure, abi_params=[], abi_returns=[word<bool>]] {

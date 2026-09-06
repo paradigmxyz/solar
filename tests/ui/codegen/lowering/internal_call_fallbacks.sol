@@ -11,14 +11,14 @@ contract ICallFallbacks {
     }
 
     // CHECK-LABEL: fn @a{{[( ]}}
-    // CHECK: [[NEXT:v[0-9]+]] = sub arg0, 1
+    // CHECK: [[NEXT:v[0-9]+]] = checked_sub {{[ui][0-9]+}}, arg0, 1
     // CHECK: icall @b, [[NEXT]]
     function a(uint256 x) internal returns (uint256) {
         return x == 0 ? 0 : b(x - 1);
     }
 
     // CHECK-LABEL: fn @b{{[( ]}}
-    // CHECK: [[NEXT:v[0-9]+]] = sub arg0, 1
+    // CHECK: [[NEXT:v[0-9]+]] = checked_sub {{[ui][0-9]+}}, arg0, 1
     // CHECK: icall @a, [[NEXT]]
     function b(uint256 x) internal returns (uint256) {
         return x == 0 ? 0 : a(x - 1);
@@ -36,7 +36,7 @@ contract ICallFallbacks {
     }
 
     // CHECK-LABEL: fn @pair{{[( ]}}
-    // CHECK: [[SECOND:v[0-9]+]] = add arg0, 1
+    // CHECK: [[SECOND:v[0-9]+]] = checked_add {{[ui][0-9]+}}, arg0, 1
     // CHECK: [[RET_0:v[0-9]+]] = insert_value [[RET_TY:struct[0-9]+]], undef [[RET_TY]], 0, arg0
     // CHECK: [[RET_1:v[0-9]+]] = insert_value [[RET_TY]], [[RET_0]], 1, [[SECOND]]
     // CHECK: ret [[RET_1]]

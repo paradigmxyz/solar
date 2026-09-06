@@ -22,41 +22,34 @@ fn @run() -> struct0 [selector=0xc0406226, abi_params=[], abi_returns=[word, wor
     v2 = icall @_get, v1, 0xb334f8ce3b01e25d0b6fe82d0fdb6eb534f3183d7dc5a6bb44d8eb9f676f650c
     v3 = sload v2 !metadata(storage=symbolic(v2))
     v4 = and v3, 0xffffffffffffffffffffffffffffffff
-    v5 = add v4, 5
-    v6 = gt v5, 0xffffffffffffffffffffffffffffffff
-    jumpi v6, bb1, bb2
-  bb2:
-    v7 = sload v2 !metadata(storage=symbolic(v2))
-    v8 = not 0xffffffffffffffffffffffffffffffff
-    v9 = and v7, v8
-    v10 = and v5, 0xffffffffffffffffffffffffffffffff
-    v11 = or v9, v10
-    sstore v2, v11 !metadata(storage=symbolic(v2))
-    v12 = mapping_slot 0xe35b2940ca10a9581573918a0d9ed2422f97cc9196f63510c77f5a0ed5393cfd, 0
-    v13 = add v12, 1
-    v14 = mapping_slot 0xb334f8ce3b01e25d0b6fe82d0fdb6eb534f3183d7dc5a6bb44d8eb9f676f650c, v13
-    v15 = sload v14 !metadata(storage=symbolic(v14))
-    v16 = and v15, 0xffffffffffffffffffffffffffffffff
-    v17 = icall @_getPool, 0xe35b2940ca10a9581573918a0d9ed2422f97cc9196f63510c77f5a0ed5393cfd
-    v18 = add v17, 1
-    v19 = icall @_get, v18, 0xb334f8ce3b01e25d0b6fe82d0fdb6eb534f3183d7dc5a6bb44d8eb9f676f650c
-    v20 = sload v19 !metadata(storage=symbolic(v19))
-    v21 = and v20, 0xffffffffffffffffffffffffffffffff
-    v22 = add v0, 1
-    v23 = icall @_get, v22, 0xb334f8ce3b01e25d0b6fe82d0fdb6eb534f3183d7dc5a6bb44d8eb9f676f650c
-    v24 = add v23, 1
-    sstore v24, 12 !metadata(storage=offset(v23, 1))
-    v25 = mapping_slot 0xe35b2940ca10a9581573918a0d9ed2422f97cc9196f63510c77f5a0ed5393cfd, 0
-    v26 = add v25, 1
-    v27 = mapping_slot 0xb334f8ce3b01e25d0b6fe82d0fdb6eb534f3183d7dc5a6bb44d8eb9f676f650c, v26
-    v28 = add v27, 1
-    v29 = sload v28 !metadata(storage=offset(v27, 1))
-    v30 = insert_value struct0, undef struct0, 0, v16
-    v31 = insert_value struct0, v30, 1, v21
-    v32 = insert_value struct0, v31, 2, v29
-    ret v32
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    v5 = checked_add u128, v4, 5
+    v6 = sload v2 !metadata(storage=symbolic(v2))
+    v7 = not 0xffffffffffffffffffffffffffffffff
+    v8 = and v6, v7
+    v9 = and v5, 0xffffffffffffffffffffffffffffffff
+    v10 = or v8, v9
+    sstore v2, v10 !metadata(storage=symbolic(v2))
+    v11 = mapping_slot 0xe35b2940ca10a9581573918a0d9ed2422f97cc9196f63510c77f5a0ed5393cfd, 0
+    v12 = add v11, 1
+    v13 = mapping_slot 0xb334f8ce3b01e25d0b6fe82d0fdb6eb534f3183d7dc5a6bb44d8eb9f676f650c, v12
+    v14 = sload v13 !metadata(storage=symbolic(v13))
+    v15 = and v14, 0xffffffffffffffffffffffffffffffff
+    v16 = icall @_getPool, 0xe35b2940ca10a9581573918a0d9ed2422f97cc9196f63510c77f5a0ed5393cfd
+    v17 = add v16, 1
+    v18 = icall @_get, v17, 0xb334f8ce3b01e25d0b6fe82d0fdb6eb534f3183d7dc5a6bb44d8eb9f676f650c
+    v19 = sload v18 !metadata(storage=symbolic(v18))
+    v20 = and v19, 0xffffffffffffffffffffffffffffffff
+    v21 = add v0, 1
+    v22 = icall @_get, v21, 0xb334f8ce3b01e25d0b6fe82d0fdb6eb534f3183d7dc5a6bb44d8eb9f676f650c
+    v23 = add v22, 1
+    sstore v23, 12 !metadata(storage=offset(v22, 1))
+    v24 = mapping_slot 0xe35b2940ca10a9581573918a0d9ed2422f97cc9196f63510c77f5a0ed5393cfd, 0
+    v25 = add v24, 1
+    v26 = mapping_slot 0xb334f8ce3b01e25d0b6fe82d0fdb6eb534f3183d7dc5a6bb44d8eb9f676f650c, v25
+    v27 = add v26, 1
+    v28 = sload v27 !metadata(storage=offset(v26, 1))
+    v29 = insert_value struct0, undef struct0, 0, v15
+    v30 = insert_value struct0, v29, 1, v20
+    v31 = insert_value struct0, v30, 2, v28
+    ret v31
 }

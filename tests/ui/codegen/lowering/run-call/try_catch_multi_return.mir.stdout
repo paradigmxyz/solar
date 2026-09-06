@@ -78,34 +78,34 @@ fn @success() -> u256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     v8 = staticcall v2, v1, v6, v7, 0, 0
     jumpi v8, bb1, bb2
   bb2:
-    v22 = returndatasize
-    v23 = add v22, 63
-    v24 = lt v23, v22
-    jumpi v24, bb4, bb8
+    v21 = returndatasize
+    v22 = add v21, 63
+    v23 = lt v22, v21
+    jumpi v23, bb4, bb6
+  bb6:
+    v24 = not 31
+    v25 = and v22, v24
+    v26 = alloc memorybytes, exact, uninitialized, infallible, v25
+    set_memory_object_len memorybytes, v26, v21
+    v27 = make_returndata_slice 0, v21
+    memory_object_copy_from_slice memorybytes, v26, v27
+    v28 = memory_object_data memorybytes, v26
+    v29 = memory_object_len memorybytes, v26
+    v30 = make_memory_slice v28, v29
+    v31 = memory_slice_load_word memory, v30, 0
+    v32 = lt v29, 4
+    v33 = iszero v32
+    v34 = shr 224, v31
+    v35 = eq v34, 0x8c379a0
+    v36 = and v33, v35
+    v37 = lt v29, 36
+    v38 = iszero v37
+    v39 = eq v34, 0x4e487b71
+    v40 = and v38, v39
+    jumpi true, bb7, bb8
   bb8:
-    v25 = not 31
-    v26 = and v23, v25
-    v27 = alloc memorybytes, exact, uninitialized, infallible, v26
-    set_memory_object_len memorybytes, v27, v22
-    v28 = make_returndata_slice 0, v22
-    memory_object_copy_from_slice memorybytes, v27, v28
-    v29 = memory_object_data memorybytes, v27
-    v30 = memory_object_len memorybytes, v27
-    v31 = make_memory_slice v29, v30
-    v32 = memory_slice_load_word memory, v31, 0
-    v33 = lt v30, 4
-    v34 = iszero v33
-    v35 = shr 224, v32
-    v36 = eq v35, 0x8c379a0
-    v37 = and v34, v36
-    v38 = lt v30, 36
-    v39 = iszero v38
-    v40 = eq v35, 0x4e487b71
-    v41 = and v39, v40
-    jumpi true, bb9, bb10
-  bb10:
-    revert v29, v30
-  bb9:
+    revert v28, v29
+  bb7:
     ret 0
   bb1:
     v9 = returndatasize
@@ -123,15 +123,8 @@ fn @success() -> u256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     v17 = extract_value struct0, v16, 0
     v18 = extract_value struct0, v16, 1
     v19 = memory_object_len memorybytes, v18
-    v20 = add v17, v19
-    v21 = lt v20, v17
-    jumpi v21, bb6, bb7
-  bb7:
+    v20 = checked_add u256, v17, v19
     ret v20
-  bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)

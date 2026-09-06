@@ -162,3 +162,20 @@
 +     ret 256, 255, 248, 1, 0
   }
   
+  fn @checked_constants() -> u256 {
+    bb0:
+      v0 = checked_add u8, 255, 1
+      v1 = checked_div i8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      v2 = checked_div u256, 1, 0
+-     v3 = checked_pow u8, 3, 5
+-     ret v3
++     ret 243
+  }
+  
+  fn @wrapping_signed_division() -> u256 {
+    bb0:
+-     v0 = wrapping_div i8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-     ret v0
++     ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
+  }
+  

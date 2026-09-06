@@ -8,9 +8,9 @@ contract SpillStoreUnloaded {
     // CHECK: eq
     // CHECK: mul
     // CHECK: gt
-    // CHECK-NEXT: push [[JOIN:bb[0-9]+]]
+    // CHECK-NEXT: iszero
+    // CHECK-NEXT: push [[SWAP:bb[0-9]+]]
     // CHECK-NEXT: jumpi
-    // CHECK-NEXT: swap 1
     // CHECK-NEXT: jump [[JOIN:bb[0-9]+]]
     // CHECK: [[JOIN]]:
     // CHECK-NEXT: push 160
@@ -29,6 +29,9 @@ contract SpillStoreUnloaded {
     // CHECK-NEXT: push 32
     // CHECK-NEXT: push 128
     // CHECK-NEXT: return
+    // CHECK: [[SWAP]]:
+    // CHECK-NEXT: swap 1
+    // CHECK-NEXT: jump [[JOIN]]
     function pick(uint256 a, uint256 b) external pure returns (uint256) {
         uint256 c = a * b;
         if (a > b) {

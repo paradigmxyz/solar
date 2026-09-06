@@ -48,48 +48,32 @@ fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
     jump bb22
   bb26:
     v13 = sload 0 !metadata(storage=slot(0))
-    v14 = add v13, 1
-    v15 = lt v14, v13
-    jumpi v15, bb29, bb30
-  bb30:
+    v14 = checked_add u256, v13, 1
     sstore 0, v14 !metadata(storage=slot(0))
     jump bb22
   bb22:
-    v16 = phi [bb30: 42], [bb24: v9]
-    v17 = sload 0 !metadata(storage=slot(0))
-    v18 = add v17, 1
-    v19 = lt v18, v17
-    jumpi v19, bb29, bb31
-  bb31:
-    sstore 0, v18 !metadata(storage=slot(0))
+    v15 = phi [bb26: 42], [bb24: v9]
+    v16 = sload 0 !metadata(storage=slot(0))
+    v17 = checked_add u256, v16, 1
+    sstore 0, v17 !metadata(storage=slot(0))
     jump bb15
   bb15:
-    v20 = phi [bb31: v16], [bb17: v6]
-    v21 = phi [bb31: v11], [bb17: v4]
-    v22 = sload 0 !metadata(storage=slot(0))
-    v23 = add v22, 1
-    v24 = lt v23, v22
-    jumpi v24, bb29, bb32
-  bb32:
-    sstore 0, v23 !metadata(storage=slot(0))
+    v18 = phi [bb22: v15], [bb17: v6]
+    v19 = phi [bb22: v11], [bb17: v4]
+    v20 = sload 0 !metadata(storage=slot(0))
+    v21 = checked_add u256, v20, 1
+    sstore 0, v21 !metadata(storage=slot(0))
     jump bb8
   bb8:
-    v25 = phi [bb32: v20], [bb10: v3]
-    v26 = phi [bb32: v21], [bb10: v1]
-    v27 = sload 0 !metadata(storage=slot(0))
-    v28 = add v27, 1
-    v29 = lt v28, v27
-    jumpi v29, bb29, bb33
-  bb33:
-    sstore 0, v28 !metadata(storage=slot(0))
+    v22 = phi [bb15: v18], [bb10: v3]
+    v23 = phi [bb15: v19], [bb10: v1]
+    v24 = sload 0 !metadata(storage=slot(0))
+    v25 = checked_add u256, v24, 1
+    sstore 0, v25 !metadata(storage=slot(0))
     jump bb1
   bb1:
-    v30 = phi [bb33: v25], [bb3: v0]
-    ret v30
-  bb29:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    v26 = phi [bb8: v22], [bb3: v0]
+    ret v26
   bb4:
     invalid
   bb7:

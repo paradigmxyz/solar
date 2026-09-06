@@ -42,7 +42,7 @@ contract C {
     // recursive helper returning a memory array, consumed by a public function
     // CHECK-LABEL: fn @fillImpl{{[( ]}}
     // CHECK: memory_object_store_element memoryarray<1>, arg0, arg1
-    // CHECK: [[NEXT:v[0-9]+]] = add arg1, 1
+    // CHECK: [[NEXT:v[0-9]+]] = checked_add {{[ui][0-9]+}}, arg1, 1
     // CHECK: [[RESULT:v[0-9]+]] = icall @fillImpl, arg0, [[NEXT]]
     // CHECK: ret [[RESULT]]
     // CHECK: ret arg0

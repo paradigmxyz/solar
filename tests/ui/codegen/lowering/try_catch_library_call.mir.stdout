@@ -42,15 +42,8 @@ fn @add(arg0: u256, arg1: u256, arg2: bool) -> u256 [selector=0x07f6a6c2, pure, 
     v3 = iszero v2
     jumpi v3, bb1, bb2
   bb2:
-    v4 = add arg0, arg1
-    v5 = lt v4, arg0
-    jumpi v5, bb3, bb4
-  bb4:
+    v4 = checked_add u256, arg0, arg1
     ret v4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb1:
     icall @revert_error, 6, 0x6661696c65640000000000000000000000000000000000000000000000000000
     invalid

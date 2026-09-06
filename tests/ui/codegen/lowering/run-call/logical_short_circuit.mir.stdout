@@ -6,16 +6,9 @@ types:
 fn @bump() -> bool [selector=0x68110b2f, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = add v0, 1
-    v2 = lt v1, v0
-    jumpi v2, bb1, bb2
-  bb2:
+    v1 = checked_add u256, v0, 1
     sstore 0, v1 !metadata(storage=slot(0))
     ret true
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @andSkipsRhs() -> struct0 [selector=0x59db58e9, abi_params=[], abi_returns=[word, word<bool>], abi_return_params=[u256, bool]] {

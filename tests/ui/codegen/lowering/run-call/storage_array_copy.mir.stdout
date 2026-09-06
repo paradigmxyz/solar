@@ -173,39 +173,41 @@ fn @copyAggregate() -> struct0 [selector=0x515a112e, abi_params=[], abi_returns=
     jumpi v22, bb3, bb6
   bb6:
     v23 = memory_object_load_element memoryarray<1>, v19, 0
-    v24 = eq v23, 0
-    jumpi v24, bb7, bb8
+    v24 = memory_object_from_ptr memorystruct, v23
+    v25 = eq v24, 0
+    jumpi v25, bb7, bb8
   bb7:
-    v25 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    memory_object_store_field memorystruct<2>, v25, 0, 0
-    memory_object_store_field memorystruct<2>, v25, 1, 0
-    memory_object_store_element memoryarray<1>, v19, 0, v25
+    v26 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    memory_object_store_field memorystruct<2>, v26, 0, 0
+    memory_object_store_field memorystruct<2>, v26, 1, 0
+    memory_object_store_element memoryarray<1>, v19, 0, v26
     jump bb8
   bb8:
-    v26 = phi [bb6: v23], [bb7: v25]
-    v27 = memory_object_load_field memorystruct<2>, v26, 0
-    v28 = memory_object_len memoryarray, v19
-    v29 = lt 0, v28
-    v30 = iszero v29
-    jumpi v30, bb3, bb9
+    v27 = phi [bb6: v24], [bb7: v26]
+    v28 = memory_object_load_field memorystruct<2>, v27, 0
+    v29 = memory_object_len memoryarray, v19
+    v30 = lt 0, v29
+    v31 = iszero v30
+    jumpi v31, bb3, bb9
   bb9:
-    v31 = memory_object_load_element memoryarray<1>, v19, 0
-    v32 = eq v31, 0
-    jumpi v32, bb10, bb11
+    v32 = memory_object_load_element memoryarray<1>, v19, 0
+    v33 = memory_object_from_ptr memorystruct, v32
+    v34 = eq v33, 0
+    jumpi v34, bb10, bb11
   bb10:
-    v33 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    memory_object_store_field memorystruct<2>, v33, 0, 0
-    memory_object_store_field memorystruct<2>, v33, 1, 0
-    memory_object_store_element memoryarray<1>, v19, 0, v33
+    v35 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    memory_object_store_field memorystruct<2>, v35, 0, 0
+    memory_object_store_field memorystruct<2>, v35, 1, 0
+    memory_object_store_element memoryarray<1>, v19, 0, v35
     jump bb11
   bb11:
-    v34 = phi [bb9: v31], [bb10: v33]
-    v35 = memory_object_load_field memorystruct<2>, v34, 1
-    v36 = memory_object_len memoryarray, v19
-    v37 = insert_value struct0, undef struct0, 0, v27
-    v38 = insert_value struct0, v37, 1, v35
-    v39 = insert_value struct0, v38, 2, v36
-    ret v39
+    v36 = phi [bb9: v33], [bb10: v35]
+    v37 = memory_object_load_field memorystruct<2>, v36, 1
+    v38 = memory_object_len memoryarray, v19
+    v39 = insert_value struct0, undef struct0, 0, v28
+    v40 = insert_value struct0, v39, 1, v37
+    v41 = insert_value struct0, v40, 2, v38
+    ret v41
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

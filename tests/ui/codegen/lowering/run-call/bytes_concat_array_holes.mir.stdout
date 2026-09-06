@@ -57,68 +57,45 @@ fn @join() -> struct1 [selector=0xb688a363, pure, abi_params=[], abi_returns=[wo
     v2 = extract_value struct0, v0, 1
     jump bb1
   bb1:
-    v3 = phi [bb0: v2], [bb12: v3]
-    v4 = phi [bb0: memorybytes 96], [bb12: v25]
-    v5 = phi [bb0: v1], [bb12: v5]
-    v6 = phi [bb0: 0], [bb12: v32]
-    v7 = phi [bb0: 0], [bb12: v7]
+    v3 = phi [bb0: v2], [bb3: v3]
+    v4 = phi [bb0: memorybytes 96], [bb3: v18]
+    v5 = phi [bb0: v1], [bb3: v5]
+    v6 = phi [bb0: 0], [bb3: v19]
+    v7 = phi [bb0: 0], [bb3: v7]
     v8 = memory_object_len memoryarray, v5
     v9 = lt v6, v8
     jumpi v9, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    v34 = keccak256_bytes v4
-    v35 = insert_value struct1, undef struct1, 0, v34
-    v36 = insert_value struct1, v35, 1, v3
-    ret v36
+    v20 = keccak256_bytes v4
+    v21 = insert_value struct1, undef struct1, 0, v20
+    v22 = insert_value struct1, v21, 1, v3
+    ret v22
   bb4:
-    v10 = add 0, 0
-    v11 = memory_object_len memorybytes, v4
-    v12 = add v10, v11
-    v13 = memory_object_len memoryarray, v5
-    v14 = lt v6, v13
-    v15 = iszero v14
-    jumpi v15, bb7, bb8
+    v10 = memory_object_len memoryarray, v5
+    v11 = lt v6, v10
+    v12 = iszero v11
+    jumpi v12, bb7, bb8
   bb8:
-    v16 = memory_object_load_element memoryarray<1>, v5, v6
-    v17 = eq v16, 0
-    jumpi v17, bb9, bb10
+    v13 = memory_object_load_element memoryarray<1>, v5, v6
+    v14 = memory_object_from_ptr memorybytes, v13
+    v15 = eq v14, 0
+    jumpi v15, bb9, bb10
   bb9:
-    v18 = alloc memorybytes, exact, uninitialized, infallible, 32
-    set_memory_object_len memorybytes, v18, 0
-    memory_object_store_element memoryarray<1>, v5, v6, v18
+    v16 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v16, 0
+    memory_object_store_element memoryarray<1>, v5, v6, v16
     jump bb10
   bb10:
-    v19 = phi [bb8: v16], [bb9: v18]
-    v20 = memory_object_len memorybytes, v19
-    v21 = add v12, v20
-    v22 = add v21, 63
-    v23 = not 31
-    v24 = and v22, v23
-    v25 = alloc memorybytes, exact, uninitialized, panic, v24
-    set_memory_object_len memorybytes, v25, v21
-    v26 = memory_object_data memorybytes, v4
-    v27 = make_memory_slice v26, v11
-    memory_object_copy_from_slice_at memorybytes, v25, 0, v27
-    v28 = add 0, v11
-    v29 = memory_object_data memorybytes, v19
-    v30 = make_memory_slice v29, v20
-    memory_object_copy_from_slice_at memorybytes, v25, v28, v30
-    v31 = add v28, v20
+    v17 = phi [bb8: v14], [bb9: v16]
+    v18 = concat ( memorybytes v4, memorybytes v17 )
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v32 = add v6, 1
-    v33 = lt v32, v6
-    jumpi v33, bb11, bb12
-  bb12:
+    v19 = checked_add u256, v6, 1
     jump bb1
-  bb11:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

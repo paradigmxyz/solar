@@ -38,8 +38,8 @@ fn @solidityLoop() -> u256 [selector=0xf8459dc8, pure, abi_params=[], abi_return
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb12: v7]
-    v1 = phi [bb0: 0], [bb12: v6]
+    v0 = phi [bb0: 0], [bb3: v6]
+    v1 = phi [bb0: 0], [bb3: v5]
     v2 = eq v0, 3
     jumpi v2, bb4, bb5
   bb5:
@@ -50,24 +50,14 @@ fn @solidityLoop() -> u256 [selector=0xf8459dc8, pure, abi_params=[], abi_return
   bb8:
     jump bb9
   bb9:
-    v4 = add v1, v0
-    v5 = lt v4, v1
-    jumpi v5, bb10, bb11
-  bb11:
+    v4 = checked_add u256, v1, v0
     jump bb3
   bb7:
     jump bb3
   bb3:
-    v6 = phi [bb11: v4], [bb7: v1]
-    v7 = add v0, 1
-    v8 = lt v7, v0
-    jumpi v8, bb10, bb12
-  bb12:
+    v5 = phi [bb9: v4], [bb7: v1]
+    v6 = checked_add u256, v0, 1
     jump bb1
-  bb10:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb4:
     jump bb2
   bb2:

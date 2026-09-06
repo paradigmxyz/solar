@@ -663,33 +663,34 @@ fn @store_recursive_storage_0_0(arg0: u256, arg1: memorystruct) {
     sstore v8, v10 !metadata(storage=offset(arg0, 2))
     jump bb6
   bb6:
-    v19 = phi [bb2: 0], [bb10: v30]
+    v19 = phi [bb2: 0], [bb10: v31]
     v20 = lt v19, v10
     jumpi v20, bb7, bb8
   bb8:
     stop
   bb7:
     v21 = memory_object_load_element memoryarray<1>, v9, v19
-    v22 = eq v21, 0
-    jumpi v22, bb9, bb10
+    v22 = memory_object_from_ptr memorystruct, v21
+    v23 = eq v22, 0
+    jumpi v23, bb9, bb10
   bb9:
-    v23 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    memory_object_store_field memorystruct<3>, v23, 0, 0
-    v24 = alloc memorybytes, exact, uninitialized, infallible, 32
-    set_memory_object_len memorybytes, v24, 0
-    memory_object_store_field memorystruct<3>, v23, 1, v24
-    v25 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v25, 0
-    memory_object_store_field memorystruct<3>, v23, 2, v25
-    memory_object_store_element memoryarray<1>, v9, v19, v23
+    v24 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    memory_object_store_field memorystruct<3>, v24, 0, 0
+    v25 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v25, 0
+    memory_object_store_field memorystruct<3>, v24, 1, v25
+    v26 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v26, 0
+    memory_object_store_field memorystruct<3>, v24, 2, v26
+    memory_object_store_element memoryarray<1>, v9, v19, v24
     jump bb10
   bb10:
-    v26 = phi [bb7: v21], [bb9: v23]
-    v27 = storage_array_data_slot v8
-    v28 = mul v19, 3
-    v29 = add v27, v28
-    icall @store_recursive_storage_0_0, v29, v26
-    v30 = add v19, 1
+    v27 = phi [bb7: v22], [bb9: v24]
+    v28 = storage_array_data_slot v8
+    v29 = mul v19, 3
+    v30 = add v28, v29
+    icall @store_recursive_storage_0_0, v30, v27
+    v31 = add v19, 1
     jump bb6
   bb4:
     v15 = storage_array_data_slot v8

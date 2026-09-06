@@ -2,64 +2,50 @@
 @module ExternalFunctionPointerStorageArray
 fn @a() [selector=0x0dbe671f, abi_params=[], abi_returns=[]] {
   bb0:
-    v0 = add 0, 0
-    v1 = sload 0 !metadata(storage=slot(0))
-    v2 = and v1, 1
-    v3 = eq v2, 1
-    v4 = shr 1, v1
-    v5 = and v4, 127
-    v6 = select v3, v4, v5
-    v7 = lt v6, 32
-    v8 = eq v3, v7
-    jumpi v8, bb1, bb2
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = and v0, 1
+    v2 = eq v1, 1
+    v3 = shr 1, v0
+    v4 = and v3, 127
+    v5 = select v2, v3, v4
+    v6 = lt v5, 32
+    v7 = eq v2, v6
+    jumpi v7, bb1, bb2
   bb2:
-    v9 = add v6, 31
-    v10 = div v9, 32
-    v11 = add v6, 63
-    v12 = lt v11, v6
-    jumpi v12, bb3, bb4
+    v8 = add v5, 31
+    v9 = div v8, 32
+    v10 = add v5, 63
+    v11 = lt v10, v5
+    jumpi v11, bb3, bb4
   bb4:
-    v13 = not 31
-    v14 = and v11, v13
-    v15 = alloc memorybytes, exact, uninitialized, panic, v14
-    set_memory_object_len memorybytes, v15, v6
-    jumpi v3, bb6, bb5
+    v12 = not 31
+    v13 = and v10, v12
+    v14 = alloc memorybytes, exact, uninitialized, panic, v13
+    set_memory_object_len memorybytes, v14, v5
+    jumpi v2, bb6, bb5
   bb5:
-    v16 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    memory_object_store_word memorybytes, v15, 0, v16
+    v15 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    memory_object_store_word memorybytes, v14, 0, v15
     jump bb7
   bb6:
-    v17 = storage_array_data_slot 0
+    v16 = storage_array_data_slot 0
     jump bb8
   bb8:
-    v18 = phi [bb6: 0], [bb9: v23]
-    v19 = lt v18, v10
-    jumpi v19, bb9, bb10
+    v17 = phi [bb6: 0], [bb9: v22]
+    v18 = lt v17, v9
+    jumpi v18, bb9, bb10
   bb10:
     jump bb7
   bb7:
-    v24 = memory_object_len memorybytes, v15
-    v25 = add v0, v24
-    v26 = add v25, 10
-    v27 = add v26, 63
-    v28 = not 31
-    v29 = and v27, v28
-    v30 = alloc memorybytes, exact, uninitialized, panic, v29
-    set_memory_object_len memorybytes, v30, v26
-    v31 = memory_object_data memorybytes, v15
-    v32 = make_memory_slice v31, v24
-    memory_object_copy_from_slice_at memorybytes, v30, 0, v32
-    v33 = add 0, v24
-    memory_object_store_word memorybytes, v30, v33, 0x5b612063616c6c65645d00000000000000000000000000000000000000000000
-    v34 = add v33, 10
-    icall @store_storage_bytes, 0, v30
+    v23 = concat ( memorybytes v14, bytes10 0x5b612063616c6c65645d00000000000000000000000000000000000000000000 )
+    icall @store_storage_bytes, 0, v23
     stop
   bb9:
-    v20 = add v17, v18
-    v21 = sload v20 !metadata(storage=symbolic(v20))
-    v22 = mul v18, 32
-    memory_object_store_word memorybytes, v15, v22, v21
-    v23 = add v18, 1
+    v19 = add v16, v17
+    v20 = sload v19 !metadata(storage=symbolic(v19))
+    v21 = mul v17, 32
+    memory_object_store_word memorybytes, v14, v21, v20
+    v22 = add v17, 1
     jump bb8
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
@@ -73,64 +59,50 @@ fn @a() [selector=0x0dbe671f, abi_params=[], abi_returns=[]] {
 
 fn @b() [selector=0x4df7e3d0, abi_params=[], abi_returns=[]] {
   bb0:
-    v0 = add 0, 0
-    v1 = sload 0 !metadata(storage=slot(0))
-    v2 = and v1, 1
-    v3 = eq v2, 1
-    v4 = shr 1, v1
-    v5 = and v4, 127
-    v6 = select v3, v4, v5
-    v7 = lt v6, 32
-    v8 = eq v3, v7
-    jumpi v8, bb1, bb2
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = and v0, 1
+    v2 = eq v1, 1
+    v3 = shr 1, v0
+    v4 = and v3, 127
+    v5 = select v2, v3, v4
+    v6 = lt v5, 32
+    v7 = eq v2, v6
+    jumpi v7, bb1, bb2
   bb2:
-    v9 = add v6, 31
-    v10 = div v9, 32
-    v11 = add v6, 63
-    v12 = lt v11, v6
-    jumpi v12, bb3, bb4
+    v8 = add v5, 31
+    v9 = div v8, 32
+    v10 = add v5, 63
+    v11 = lt v10, v5
+    jumpi v11, bb3, bb4
   bb4:
-    v13 = not 31
-    v14 = and v11, v13
-    v15 = alloc memorybytes, exact, uninitialized, panic, v14
-    set_memory_object_len memorybytes, v15, v6
-    jumpi v3, bb6, bb5
+    v12 = not 31
+    v13 = and v10, v12
+    v14 = alloc memorybytes, exact, uninitialized, panic, v13
+    set_memory_object_len memorybytes, v14, v5
+    jumpi v2, bb6, bb5
   bb5:
-    v16 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    memory_object_store_word memorybytes, v15, 0, v16
+    v15 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    memory_object_store_word memorybytes, v14, 0, v15
     jump bb7
   bb6:
-    v17 = storage_array_data_slot 0
+    v16 = storage_array_data_slot 0
     jump bb8
   bb8:
-    v18 = phi [bb6: 0], [bb9: v23]
-    v19 = lt v18, v10
-    jumpi v19, bb9, bb10
+    v17 = phi [bb6: 0], [bb9: v22]
+    v18 = lt v17, v9
+    jumpi v18, bb9, bb10
   bb10:
     jump bb7
   bb7:
-    v24 = memory_object_len memorybytes, v15
-    v25 = add v0, v24
-    v26 = add v25, 10
-    v27 = add v26, 63
-    v28 = not 31
-    v29 = and v27, v28
-    v30 = alloc memorybytes, exact, uninitialized, panic, v29
-    set_memory_object_len memorybytes, v30, v26
-    v31 = memory_object_data memorybytes, v15
-    v32 = make_memory_slice v31, v24
-    memory_object_copy_from_slice_at memorybytes, v30, 0, v32
-    v33 = add 0, v24
-    memory_object_store_word memorybytes, v30, v33, 0x5b622063616c6c65645d00000000000000000000000000000000000000000000
-    v34 = add v33, 10
-    icall @store_storage_bytes, 0, v30
+    v23 = concat ( memorybytes v14, bytes10 0x5b622063616c6c65645d00000000000000000000000000000000000000000000 )
+    icall @store_storage_bytes, 0, v23
     stop
   bb9:
-    v20 = add v17, v18
-    v21 = sload v20 !metadata(storage=symbolic(v20))
-    v22 = mul v18, 32
-    memory_object_store_word memorybytes, v15, v22, v21
-    v23 = add v18, 1
+    v19 = add v16, v17
+    v20 = sload v19 !metadata(storage=symbolic(v19))
+    v21 = mul v17, 32
+    memory_object_store_word memorybytes, v14, v21, v20
+    v22 = add v17, 1
     jump bb8
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)

@@ -8,25 +8,12 @@ fn @v() -> u256 [selector=0x7c2efcba, view, abi_params=[], abi_returns=[word]] {
 
 fn @setBig(arg0: u256, arg1: u256, arg2: u256, arg3: calldataslice) [selector=0xe6a9b505, abi_params=[u256, u256, u256, bytes], abi_returns=[]] {
   bb0:
-    v0 = add arg0, arg1
-    v1 = lt v0, arg0
-    jumpi v1, bb1, bb2
-  bb2:
-    v2 = add v0, arg2
-    v3 = lt v2, v0
-    jumpi v3, bb1, bb3
-  bb3:
-    v4 = slice_len arg3
-    v5 = add v2, v4
-    v6 = lt v5, v2
-    jumpi v6, bb1, bb4
-  bb4:
-    sstore 0, v5 !metadata(storage=slot(0))
+    v0 = checked_add u256, arg0, arg1
+    v1 = checked_add u256, v0, arg2
+    v2 = slice_len arg3
+    v3 = checked_add u256, v1, v2
+    sstore 0, v3 !metadata(storage=slot(0))
     stop
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_spill.sol:Proxy ===

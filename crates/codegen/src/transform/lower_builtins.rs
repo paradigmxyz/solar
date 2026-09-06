@@ -1,0 +1,236 @@
+//! Expand semantic precompile builtins after optimization and before ABI and memory lowering.
+//!
+//! The frontend evaluates arguments and retains typed builtin identities. This pass materializes
+//! the precompile input/output buffers and target-version-specific call sequence. Allocation and
+//! memory operations remain semantic for the later layout and placement passes. Precompile calls
+//! retain their returndata and memory observations even when their scalar result is unused.
+
+use crate::{
+    mir::{
+        AllocationSemantics, ConcatPart, FunctionBuilder, InstKind, MemoryObjectKind,
+        MemoryObjectLayout, Module, SliceLocation, ValueId,
+    },
+    pass::{MirPass, run_function_pass},
+};
+use solar_config::EvmVersion;
+use solar_data_structures::map::FxHashMap;
+
+pub(crate) struct LowerBuiltins;
+
+impl MirPass for LowerBuiltins {
+    fn name(&self) -> &'static str {
+        "lower-builtins"
+    }
+
+    fn is_required(&self) -> bool {
+        true
+    }
+
+    fn run_pass(
+        &self,
+        gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
+        run_function_pass(module, analyses, |func, _| {
+            if !func.instructions().any(|id| {
+                matches!(
+                    func.inst(id).kind,
+                    InstKind::Concat(..)
+                        | InstKind::Sha256(..)
+                        | InstKind::Ripemd160(..)
+                        | InstKind::EcRecover(..)
+                )
+            }) {
+                return false;
+            }
+            let mut replacements = FxHashMap::default();
+            for block in func.blocks.indices() {
+                let instructions = std::mem::take(&mut func.blocks[block].instructions);
+                let mut builder = FunctionBuilder::new(func);
+                builder.switch_to_block(block);
+                for id in instructions {
+                    if !matches!(
+                        builder.func().inst(id).kind,
+                        InstKind::Concat(..)
+                            | InstKind::Sha256(..)
+                            | InstKind::Ripemd160(..)
+                            | InstKind::EcRecover(..)
+                    ) {
+                        builder.func_mut().blocks[block].instructions.push(id);
+                        continue;
+                    }
+                    let inst = builder.func().inst(id).clone();
+                    builder.set_debug_context(&inst.metadata);
+                    // builtin(args) -> buffer setup; precompile call; result load
+                    let result = match inst.kind {
+                        InstKind::Concat(parts) => lower_concat(&mut builder, parts),
+                        InstKind::Sha256(input) => {
+                            lower_hash(&mut builder, gcx.sess.opts.evm_version, input, false)
+                        }
+                        InstKind::Ripemd160(input) => {
+                            lower_hash(&mut builder, gcx.sess.opts.evm_version, input, true)
+                        }
+                        InstKind::EcRecover(hash, v, r, s) => {
+                            lower_ecrecover(&mut builder, gcx.sess.opts.evm_version, hash, v, r, s)
+                        }
+                        _ => unreachable!("builtin checked above"),
+                    };
+                    let old =
+                        builder.func().inst_result_value(id).expect("builtin must produce a value");
+                    replacements.insert(old, result);
+                }
+            }
+            func.replace_uses_canonicalized(&replacements);
+            true
+        })
+    }
+}
+
+fn lower_hash(
+    builder: &mut FunctionBuilder<'_>,
+    evm: EvmVersion,
+    input: ValueId,
+    ripemd: bool,
+) -> ValueId {
+    // input_ptr = memory_object_data input
+    // input_len = memory_object_len input
+    // output = bytes(32)
+    // precompile_call(sha256 ? 2 : 3, input, output)
+    // result = mload(output.data)
+    let input_ptr = builder.memory_object_data(input, MemoryObjectKind::Bytes);
+    let input_len = builder.memory_object_len(input, MemoryObjectKind::Bytes);
+    let (output_ptr, output_len) = alloc_output(builder);
+    let address = builder.imm(if ripemd { 3 } else { 2 });
+    let output_size = builder.imm(32);
+    precompile_call(builder, evm, address, input_ptr, input_len, output_ptr, output_size);
+    let zero = builder.imm(0);
+    let output = builder.make_slice(output_ptr, output_len, SliceLocation::Memory);
+    let value = builder.memory_slice_load_word(output, zero);
+    if ripemd {
+        // result = result << 96
+        let scale = builder.imm(1_u128 << 96);
+        builder.mul(scale, value)
+    } else {
+        value
+    }
+}
+
+fn lower_ecrecover(
+    builder: &mut FunctionBuilder<'_>,
+    evm: EvmVersion,
+    hash: ValueId,
+    v: ValueId,
+    r: ValueId,
+    s: ValueId,
+) -> ValueId {
+    // input = bytes(160)
+    // store(input, hash, 0)
+    // store(input, v, 32)
+    // store(input, r, 64)
+    // store(input, s, 96)
+    // precompile_call(1, input.data, 128, output.data, 32)
+    // result = load(output, 0)
+    let size = builder.imm(192);
+    let input =
+        builder.alloc_object(size, MemoryObjectLayout::Bytes, AllocationSemantics::SOLIDITY_ZEROED);
+    let length = builder.imm(160);
+    builder.set_memory_object_len(input, length, MemoryObjectKind::Bytes);
+    let pointer = builder.memory_object_data(input, MemoryObjectKind::Bytes);
+    for (offset, value) in [(0, hash), (32, v), (64, r), (96, s)] {
+        let offset = builder.imm(offset);
+        builder.memory_object_store_word(input, offset, value);
+    }
+    let (output, output_len) = alloc_output(builder);
+    let address = builder.imm(1);
+    let input_size = builder.imm(128);
+    let output_size = builder.imm(32);
+    precompile_call(builder, evm, address, pointer, input_size, output, output_size);
+    let slice = builder.make_slice(output, output_len, SliceLocation::Memory);
+    let zero = builder.imm(0);
+    builder.memory_slice_load_word(slice, zero)
+}
+
+fn alloc_output(builder: &mut FunctionBuilder<'_>) -> (ValueId, ValueId) {
+    // output = alloc bytes(64), zeroed
+    // memory_object_len output = 32
+    // pointer = memory_object_data output
+    let size = builder.imm(64);
+    let output =
+        builder.alloc_object(size, MemoryObjectLayout::Bytes, AllocationSemantics::SOLIDITY_ZEROED);
+    let length = builder.imm(32);
+    builder.set_memory_object_len(output, length, MemoryObjectKind::Bytes);
+    let pointer = builder.memory_object_data(output, MemoryObjectKind::Bytes);
+    (pointer, length)
+}
+
+fn precompile_call(
+    builder: &mut FunctionBuilder<'_>,
+    evm: EvmVersion,
+    address: ValueId,
+    input: ValueId,
+    input_size: ValueId,
+    output: ValueId,
+    output_size: ValueId,
+) {
+    let gas = crate::utils::precompile_gas(builder, evm);
+    if evm.has_static_call() {
+        // staticcall(precompile_gas, address, input, output)
+        builder.staticcall(gas, address, input, input_size, output, output_size);
+    } else {
+        // call(precompile_gas, address, 0, input, output)
+        let zero = builder.imm(0);
+        builder.call(gas, address, zero, input, input_size, output, output_size);
+    }
+}
+
+fn lower_concat(builder: &mut FunctionBuilder<'_>, parts: Vec<ConcatPart>) -> ValueId {
+    // total = sum(part lengths)
+    // output = alloc_bytes(padded_size(total))
+    // memory_object_len output = total
+    let mut total = builder.imm(0);
+    let lengths = parts
+        .iter()
+        .map(|part| {
+            let length = match *part {
+                ConcatPart::Bytes(value) => {
+                    builder.memory_object_len(value, MemoryObjectKind::Bytes)
+                }
+                ConcatPart::Fixed { size, .. } => builder.imm(size.bytes()),
+            };
+            total = builder.add(total, length);
+            length
+        })
+        .collect::<Vec<_>>();
+    let size = builder.padded_size(total);
+    let output = builder.alloc_object(
+        size,
+        MemoryObjectLayout::Bytes,
+        AllocationSemantics::SOLIDITY_UNINITIALIZED,
+    );
+    builder.set_memory_object_len(output, total, MemoryObjectKind::Bytes);
+    let mut offset = builder.imm(0);
+    for (part, length) in parts.into_iter().zip(lengths) {
+        match part {
+            ConcatPart::Bytes(value) => {
+                // source = memory_slice(memory_object_data(value), length)
+                // copy(output, offset, source)
+                let pointer = builder.memory_object_data(value, MemoryObjectKind::Bytes);
+                let source = builder.make_slice(pointer, length, SliceLocation::Memory);
+                builder.memory_object_copy_from_slice_at(
+                    output,
+                    MemoryObjectKind::Bytes,
+                    offset,
+                    source,
+                );
+            }
+            ConcatPart::Fixed { value, .. } => {
+                // store_word(output, offset, value)
+                builder.memory_object_store_word(output, offset, value);
+            }
+        }
+        // offset += length
+        offset = builder.add(offset, length);
+    }
+    output
+}

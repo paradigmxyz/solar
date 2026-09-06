@@ -63,11 +63,17 @@ impl InstKind {
     /// Returns context-free effects; use alias and call summaries for resource footprints.
     pub(crate) const fn effects(&self) -> InstructionEffects {
         let control = match self {
+            Self::CheckedBinary { .. } => {
+                ControlEffects { may_revert: true, ..ControlEffects::NONE }
+            }
             Self::ICall { .. } => ControlEffects::UNKNOWN,
             Self::Alloc { semantics, .. } => ControlEffects {
                 may_revert: matches!(semantics.failure, super::AllocationFailure::Panic),
                 ..ControlEffects::NONE
             },
+            Self::Concat(..) | Self::Sha256(..) | Self::Ripemd160(..) | Self::EcRecover(..) => {
+                ControlEffects { may_revert: true, ..ControlEffects::NONE }
+            }
             Self::AbiEncode { .. } => ControlEffects { may_revert: true, ..ControlEffects::NONE },
             Self::AbiDecode { .. } => ControlEffects { may_revert: true, ..ControlEffects::NONE },
             Self::ReturnDataCopy(..) => ControlEffects { may_revert: true, ..ControlEffects::NONE },
@@ -221,7 +227,10 @@ impl InstKind {
             observes_execution: matches!(self, Self::Gas | Self::MSize),
             has_identity: matches!(
                 self,
-                Self::Alloc { .. } | Self::AbiEncode { .. } | Self::StorageToMemory { .. }
+                Self::Alloc { .. }
+                    | Self::AbiEncode { .. }
+                    | Self::StorageToMemory { .. }
+                    | Self::Concat(..)
             ),
         }
     }

@@ -34,19 +34,8 @@ fn @peek(arg0: storageptr) -> u256 [selector=0xcbdd72a4, view, abi_params=[stora
 
 fn @twice(arg0: u256) -> u256 [selector=0x3cf3bbf4, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
-    v0 = mul 2, arg0
-    v1 = iszero arg0
-    v2 = div v0, arg0
-    v3 = eq v2, 2
-    v4 = or v1, v3
-    v5 = iszero v4
-    jumpi v5, bb1, bb2
-  bb2:
+    v0 = checked_mul u256, 2, arg0
     ret v0
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @probe() -> struct0 [selector=0xb74af5a9, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {

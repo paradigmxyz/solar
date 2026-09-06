@@ -141,15 +141,8 @@ fn @dynamic() -> u256 [selector=0x4bd54f04, abi_params=[], abi_returns=[word]] {
     v104 = storage_array_data_slot 1
     v105 = add v104, 4
     v106 = sload v105 !metadata(storage=offset(v104, 4))
-    v107 = add v100, v106
-    v108 = lt v107, v100
-    jumpi v108, bb18, bb19
-  bb19:
+    v107 = checked_add u256, v100, v106
     ret v107
-  bb18:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb16:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -407,15 +400,8 @@ fn @nested() -> u256 [selector=0x4ce2d543, abi_params=[], abi_returns=[word]] {
     v243 = mul v241, 8
     v244 = shr v243, v242
     v245 = and v244, 0xffffffffffffffffffffffffffffff
-    v246 = add 3, v245
-    v247 = gt v246, 0xffffffffffffffffffffffffffffff
-    jumpi v247, bb46, bb47
-  bb47:
+    v246 = checked_add u120, 3, v245
     ret v246
-  bb46:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb27:
     v176 = mul v174, 3
     v177 = add 14, v176
@@ -583,15 +569,8 @@ fn @fixedToDynamic() -> u256 [selector=0xf12520ec, abi_params=[], abi_returns=[w
     v26 = storage_array_data_slot 11
     v27 = add v26, 8
     v28 = sload v27 !metadata(storage=offset(v26, 8))
-    v29 = add v22, v28
-    v30 = lt v29, v22
-    jumpi v30, bb15, bb16
-  bb16:
+    v29 = checked_add u256, v22, v28
     ret v29
-  bb15:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb12:
     v18 = memory_object_load_element memoryfixedarray<9, 1>, v3, v16
     v19 = storage_array_data_slot 11

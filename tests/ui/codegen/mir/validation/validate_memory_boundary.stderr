@@ -40,5 +40,9 @@ error: [fn8] [bb0, inst0] abstract allocation instruction `alloc` survives the `
 
 error: [fn9] [bb0, inst0] deferred allocation requires a constant size
 
-error: aborting due to 21 previous errors
+error: [fn10] [bb0, inst0] builtin instruction `ecrecover` survives the `lowered` phase boundary
+
+error: [fn11] [bb0, inst0] checked arithmetic instruction `checked_add` survives the `lowered` phase boundary
+
+error: aborting due to 23 previous errors
 

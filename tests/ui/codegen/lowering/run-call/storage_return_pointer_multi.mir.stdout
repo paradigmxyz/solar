@@ -50,27 +50,17 @@ fn @test() -> u256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
     sstore v17, v20 !metadata(storage=symbolic(v16))
     v23 = sload v1 !metadata(storage=symbolic(v1))
     v24 = sload v2 !metadata(storage=symbolic(v2))
-    v25 = add v23, v24
-    v26 = lt v25, v23
-    jumpi v26, bb7, bb8
-  bb8:
-    v27 = sload v2 !metadata(storage=symbolic(v2))
-    v28 = lt 0, v27
-    v29 = iszero v28
-    jumpi v29, bb4, bb9
-  bb9:
-    v30 = storage_array_data_slot v2
-    v31 = add v30, 0
-    v32 = sload v31 !metadata(storage=symbolic(v30))
-    v33 = add v25, v32
-    v34 = lt v33, v25
-    jumpi v34, bb7, bb10
-  bb10:
-    ret v33
+    v25 = checked_add u256, v23, v24
+    v26 = sload v2 !metadata(storage=symbolic(v2))
+    v27 = lt 0, v26
+    v28 = iszero v27
+    jumpi v28, bb4, bb7
   bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    v29 = storage_array_data_slot v2
+    v30 = add v29, 0
+    v31 = sload v30 !metadata(storage=symbolic(v29))
+    v32 = checked_add u256, v25, v31
+    ret v32
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

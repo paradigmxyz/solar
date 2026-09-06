@@ -83,3 +83,17 @@ fn @dynamic_deferred(arg0: u256) -> memptr {
     v0 = alloc raw, exact, uninitialized, infallible, arg0 !metadata(deferred_alloc)
     ret v0
 }
+
+//~? ERROR: [fn10] [bb0, inst0] builtin instruction `ecrecover` survives the `lowered` phase boundary
+fn @unlowered_precompile() -> u256 {
+  bb0:
+    v0 = ecrecover 0, 0, 0, 0
+    ret v0
+}
+
+//~? ERROR: [fn11] [bb0, inst0] checked arithmetic instruction `checked_add` survives the `lowered` phase boundary
+fn @unlowered_arithmetic(arg0: u256) -> u256 {
+  bb0:
+    v0 = checked_add u256, arg0, 1
+    ret v0
+}

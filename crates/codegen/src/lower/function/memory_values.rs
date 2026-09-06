@@ -57,6 +57,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         element: Ty<'gcx>,
         value: ValueId,
     ) -> Option<ValueId> {
+        // value = memory_object_from_ptr<element>(value)
+        let kind = self.types.memory_layout(element)?.kind();
+        let value = self.builder.memory_object_from_ptr(value, kind);
         let zero = self.builder.imm(U256::ZERO);
         let is_null = self.builder.eq(value, zero);
         let preheader = self.builder.current_block();

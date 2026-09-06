@@ -11,11 +11,11 @@ fn @init(arg0: calldataslice, arg1: address) -> u256 [selector=0x5c58abd8, pure,
     jumpi v5, bb1, bb2
   bb2:
     v6 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
-    v7 = add v2, v6
-    v8 = gt v7, 0xffffffffffffffffffffffffffffffffffffffff
-    jumpi v8, bb3, bb4
+    v8 = add v2, v6
+    v9 = gt v8, 0xffffffffffffffffffffffffffffffffffffffff
+    jumpi v9, bb3, bb4
   bb4:
-    ret v7
+    ret v8
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -67,11 +67,11 @@ fn @words(arg0: calldataslice) -> u256 [selector=0x6d5f7443, pure, abi_params=[t
     v22 = slice_ptr arg0
     v23 = add v22, 32
     v24 = calldataload v23
-    v25 = add v21, v24
-    v26 = lt v25, v21
-    jumpi v26, bb6, bb7
+    v26 = add v21, v24
+    v27 = lt v26, v21
+    jumpi v27, bb6, bb7
   bb7:
-    ret v25
+    ret v26
   bb6:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -115,11 +115,11 @@ fn @signedWords(arg0: calldataslice) -> u256 [selector=0x69491962, pure, abi_par
     v22 = slice_ptr arg0
     v23 = add v22, 32
     v24 = calldataload v23
-    v25 = add v21, v24
-    v26 = lt v25, v21
-    jumpi v26, bb6, bb7
+    v26 = add v21, v24
+    v27 = lt v26, v21
+    jumpi v27, bb6, bb7
   bb7:
-    ret v25
+    ret v26
   bb6:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -224,11 +224,11 @@ fn @nestedWords(arg0: calldataslice) -> u256 [selector=0x0b0be15f, pure, abi_par
     v65 = add v52, 32
     v66 = make_calldata_slice v65, v58
     v67 = slice_len v66
-    v68 = add v21, v67
-    v69 = lt v68, v21
-    jumpi v69, bb16, bb17
+    v69 = add v21, v67
+    v70 = lt v69, v21
+    jumpi v70, bb16, bb17
   bb17:
-    ret v68
+    ret v69
   bb16:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)

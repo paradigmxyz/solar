@@ -28,17 +28,10 @@ fn @combine(arg0: memoryarray, arg1: memorybytes) -> struct0 [selector=0x3488ea1
     jumpi v6, bb1, bb3
   bb3:
     v7 = memory_object_load_element memoryarray<1>, arg0, 1
-    v8 = add v3, v7
-    v9 = lt v8, v3
-    jumpi v9, bb4, bb5
-  bb5:
-    v10 = insert_value struct0, undef struct0, 0, v8
-    v11 = insert_value struct0, v10, 1, arg1
-    ret v11
-  bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    v8 = checked_add u256, v3, v7
+    v9 = insert_value struct0, undef struct0, 0, v8
+    v10 = insert_value struct0, v9, 1, arg1
+    ret v10
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -183,15 +176,8 @@ fn @readArguments() -> struct0 [selector=0x372fd38b, view, abi_params=[], abi_re
 
 fn @increment(arg0: u256) -> u256 [selector=0x7cf5dab0, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
-    v0 = add arg0, 1
-    v1 = lt v0, arg0
-    jumpi v1, bb1, bb2
-  bb2:
+    v0 = checked_add u256, arg0, 1
     ret v0
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @invoke(arg0: function, arg1: u256) -> u256 [selector=0xec460bea, abi_params=[function, u256], abi_returns=[word]] {
@@ -431,15 +417,8 @@ fn @pointerArrayRoundtrip() -> u256 [selector=0x38c40b23, abi_params=[], abi_ret
     v50 = mload v49
     v51 = add 0, 0
     v52 = mload v51
-    v53 = add v33, v52
-    v54 = lt v53, v33
-    jumpi v54, bb13, bb14
-  bb14:
+    v53 = checked_add u256, v33, v52
     ret v53
-  bb13:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb7:
     revert 0, 0
   bb1:

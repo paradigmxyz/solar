@@ -77,11 +77,11 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
   bb12:
     jump bb16
   bb16:
-    v77 = phi [bb12: 0], [bb27: v101]
-    v78 = phi [bb12: 0], [bb27: v103]
-    v79 = phi [bb12: 0], [bb27: v79]
-    v80 = phi [bb12: v0], [bb27: v80]
-    v81 = phi [bb12: v1], [bb27: v81]
+    v77 = phi [bb12: 0], [bb18: v101]
+    v78 = phi [bb12: 0], [bb18: v102]
+    v79 = phi [bb12: 0], [bb18: v79]
+    v80 = phi [bb12: v0], [bb18: v80]
+    v81 = phi [bb12: v1], [bb18: v81]
     v82 = lt 0, 1
     v83 = iszero v82
     jumpi v83, bb1, bb19
@@ -93,10 +93,10 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
   bb21:
     jump bb17
   bb17:
-    v105 = sload v80 !metadata(storage=symbolic(v80))
-    v106 = insert_value struct0, undef struct0, 0, v77
-    v107 = insert_value struct0, v106, 1, v105
-    ret v107
+    v103 = sload v80 !metadata(storage=symbolic(v80))
+    v104 = insert_value struct0, undef struct0, 0, v77
+    v105 = insert_value struct0, v104, 1, v103
+    ret v105
   bb20:
     v87 = lt 0, 1
     v88 = iszero v87
@@ -116,23 +116,13 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v98 = mul v96, 8
     v99 = shr v98, v97
     v100 = and v99, 0xffffffffffffffff
-    v101 = add v77, v100
-    v102 = lt v101, v77
-    jumpi v102, bb25, bb26
-  bb26:
+    v101 = checked_add u256, v77, v100
     jump bb22
   bb22:
     jump bb18
   bb18:
-    v103 = add v78, 1
-    v104 = lt v103, v78
-    jumpi v104, bb25, bb27
-  bb27:
+    v102 = checked_add u256, v78, 1
     jump bb16
-  bb25:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb11:
     v54 = div v52, 4
     v55 = add v51, v54

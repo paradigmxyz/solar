@@ -2069,6 +2069,64 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
             // Hashing.
             kw::Keccak256 => inst!(Keccak256(a, b) => MirType::bytes32()),
+            sym::checked_add
+            | sym::checked_sub
+            | sym::checked_mul
+            | sym::checked_div
+            | sym::wrapping_div
+            | sym::checked_rem
+            | sym::checked_pow => {
+                let op = match mnemonic {
+                    sym::checked_add => super::CheckedOp::Add,
+                    sym::checked_sub => super::CheckedOp::Sub,
+                    sym::checked_mul => super::CheckedOp::Mul,
+                    sym::checked_div => super::CheckedOp::Div,
+                    sym::wrapping_div => super::CheckedOp::WrappingDiv,
+                    sym::checked_rem => super::CheckedOp::Rem,
+                    _ => super::CheckedOp::Pow,
+                };
+                let arithmetic = match self.parse_type()? {
+                    MirType::UInt(size) => super::ArithmeticKind::Unsigned(size.bits()),
+                    MirType::Int(size) => super::ArithmeticKind::Signed(size.bits()),
+                    _ => {
+                        return Err(self
+                            .parser
+                            .error("checked arithmetic requires an integer type"));
+                    }
+                };
+                self.parser.expect(TokenKind::Comma)?;
+                let lhs = self.parse_value(builder)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let rhs = self.parse_value(builder)?;
+                (InstKind::CheckedBinary { op, arithmetic, lhs, rhs }, Some(MirType::uint256()))
+            }
+            sym::concat => {
+                self.parser.expect(TokenKind::OpenDelim(Delimiter::Parenthesis))?;
+                let mut parts = Vec::new();
+                while !self.parser.check(TokenKind::CloseDelim(Delimiter::Parenthesis)) {
+                    let ty = self.parse_type()?;
+                    let value = self.parse_value(builder)?;
+                    parts.push(match ty {
+                        MirType::MemoryObject(MemoryObjectKind::Bytes) => {
+                            super::ConcatPart::Bytes(value)
+                        }
+                        MirType::FixedBytes(size) => super::ConcatPart::Fixed { value, size },
+                        _ => {
+                            return Err(self
+                                .parser
+                                .error("concat requires memorybytes or fixed bytes inputs"));
+                        }
+                    });
+                    if !self.parser.eat(TokenKind::Comma) {
+                        break;
+                    }
+                }
+                self.parser.expect(TokenKind::CloseDelim(Delimiter::Parenthesis))?;
+                (InstKind::Concat(parts), Some(MirType::MemoryObject(MemoryObjectKind::Bytes)))
+            }
+            sym::sha256 => inst!(Sha256(a) => MirType::uint256()),
+            sym::ripemd160 => inst!(Ripemd160(a) => MirType::uint256()),
+            sym::ecrecover => inst!(EcRecover(a, b, c, d) => MirType::uint256()),
             sym::keccak256_bytes => inst!(Keccak256Bytes(a) => MirType::bytes32()),
             sym::mapping_slot => inst!(MappingSlot(key, slot) => MirType::bytes32()),
             sym::mapping_slot_memory => {

@@ -84,27 +84,12 @@ fn @matchesReference() -> bool [selector=0xedf3feeb, pure, abi_params=[], abi_re
 
 fn @erc7201Reference(arg0: memorybytes) -> u256 [pure] {
   bb0:
-    v0 = add 0, 0
-    v1 = keccak256_bytes arg0
-    v2 = sub v1, 1
-    v3 = lt v1, 1
-    jumpi v3, bb1, bb2
-  bb2:
-    v4 = shl 0, v2
-    v5 = add v0, 32
-    v6 = add v5, 63
-    v7 = not 31
-    v8 = and v6, v7
-    v9 = alloc memorybytes, exact, uninitialized, panic, v8
-    set_memory_object_len memorybytes, v9, v5
-    memory_object_store_word memorybytes, v9, 0, v4
-    v10 = add 0, 32
-    v11 = keccak256_bytes v9
-    v12 = not 255
-    v13 = and v11, v12
-    ret v13
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    v0 = keccak256_bytes arg0
+    v1 = checked_sub u256, v0, 1
+    v2 = shl 0, v1
+    v3 = concat ( bytes32 v2 )
+    v4 = keccak256_bytes v3
+    v5 = not 255
+    v6 = and v4, v5
+    ret v6
 }

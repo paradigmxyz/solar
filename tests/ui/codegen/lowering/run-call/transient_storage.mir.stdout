@@ -119,43 +119,27 @@ fn @run() -> u16 [selector=0xc0406226, abi_params=[], abi_returns=[word<u16>]] {
     v1 = and v0, 0xffff
     v2 = tload 0
     v3 = and v2, 0xffff
-    v4 = add v3, 10
-    v5 = gt v4, 0xffff
-    jumpi v5, bb2, bb3
-  bb3:
-    v6 = tload 0
-    v7 = not 0xffff
-    v8 = and v6, v7
-    v9 = and v4, 0xffff
-    v10 = or v8, v9
-    tstore 0, v10
-    v11 = tload 0
-    v12 = and v11, 0xffff
-    v13 = mul v12, 10
-    v14 = iszero 10
-    v15 = div v13, 10
-    v16 = eq v15, v12
-    v17 = or v14, v16
-    v18 = iszero v17
-    v19 = gt v13, 0xffff
-    v20 = or v18, v19
-    jumpi v20, bb2, bb5
-  bb5:
-    v21 = tload 0
-    v22 = not 0xffff
-    v23 = and v21, v22
-    v24 = and v13, 0xffff
-    v25 = or v23, v24
-    tstore 0, v25
-    v26 = tload 0
-    v27 = and v26, 0xffff
-    jump bb4
-  bb4:
+    v4 = checked_add u16, v3, 10
+    v5 = tload 0
+    v6 = not 0xffff
+    v7 = and v5, v6
+    v8 = and v4, 0xffff
+    v9 = or v7, v8
+    tstore 0, v9
+    v10 = tload 0
+    v11 = and v10, 0xffff
+    v12 = checked_mul u16, v11, 10
+    v13 = tload 0
+    v14 = not 0xffff
+    v15 = and v13, v14
+    v16 = and v12, 0xffff
+    v17 = or v15, v16
+    tstore 0, v17
+    v18 = tload 0
+    v19 = and v18, 0xffff
+    jump bb2
+  bb2:
     jump bb1
   bb1:
-    ret v27
-  bb2:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    ret v19
 }

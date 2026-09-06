@@ -53,15 +53,8 @@ fn @copy(arg0: calldataslice) -> u256 [selector=0xd1ee4a1a, pure, abi_params=[tu
     v32 = memory_object_load_field memorystruct<2>, v1, 0, memorybytes
     v33 = memory_object_len memorybytes, v32
     v34 = memory_object_load_field memorystruct<2>, v1, 1
-    v35 = add v33, v34
-    v36 = lt v35, v33
-    jumpi v36, bb9, bb10
-  bb10:
+    v35 = checked_add u256, v33, v34
     ret v35
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb6:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -466,15 +459,8 @@ fn @copyWords(arg0: calldataslice) -> u256 [selector=0x7ce58428, pure, abi_param
     jumpi v24, bb7, bb8
   bb8:
     v25 = memory_object_load_element memoryarray<1>, v19, 0
-    v26 = add v21, v25
-    v27 = lt v26, v21
-    jumpi v27, bb9, bb10
-  bb10:
+    v26 = checked_add u256, v21, v25
     ret v26
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -552,17 +538,18 @@ fn @copyArray(arg0: calldataslice) -> u256 [selector=0x58bdfbf3, pure, abi_param
     jumpi v57, bb16, bb17
   bb17:
     v58 = memory_object_load_element memoryarray<1>, v19, 0
-    v59 = eq v58, 0
-    jumpi v59, bb18, bb19
+    v59 = memory_object_from_ptr memorybytes, v58
+    v60 = eq v59, 0
+    jumpi v60, bb18, bb19
   bb18:
-    v60 = alloc memorybytes, exact, uninitialized, infallible, 32
-    set_memory_object_len memorybytes, v60, 0
-    memory_object_store_element memoryarray<1>, v19, 0, v60
+    v61 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v61, 0
+    memory_object_store_element memoryarray<1>, v19, 0, v61
     jump bb19
   bb19:
-    v61 = phi [bb17: v58], [bb18: v60]
-    v62 = memory_object_len memorybytes, v61
-    ret v62
+    v62 = phi [bb17: v59], [bb18: v61]
+    v63 = memory_object_len memorybytes, v62
+    ret v63
   bb16:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

@@ -9,7 +9,8 @@ is a late lowering decision.
 ## Phase model
 
 The two representation phases and checked backend boundary are implemented.
-The builtin and effect migrations described below remain the next steps.
+Shared instruction effects, checked arithmetic, precompiles, and concatenation
+now use the phase boundary. The remaining builtin families are described below.
 The CFG and aggregate contracts below also describe implemented behavior.
 
 Use two stable MIR representations, `semantic` and `lowered`, followed by the
@@ -69,10 +70,13 @@ effects, and constant-folding rules. Use typed intrinsic identities or existing
 Keep source functions and compiler intrinsics distinct, and retain callee-derived
 return signatures for ordinary calls.
 
-Several operations already follow this approach: ABI encoding/decoding,
-aggregate copies, memory-object accesses, and abstract allocations. Extend that
-model to checked arithmetic, checks, concatenation, precompiles, array push/pop,
-and the Solidity-level call preparation currently expanded by the frontend.
+ABI encoding/decoding, aggregate copies, memory-object accesses, abstract
+allocations, checked arithmetic, concatenation, and precompiles follow this
+approach. `lower-arithmetic` expands checked word operations and exponentiation
+loops. `lower-builtins` expands precompile buffers/calls and concatenation copies.
+The final scalar/check cleanup group runs after these conversions; the semantic
+operation still counts as control flow when inlining estimates its expansion.
+Checks, array push/pop, and Solidity-level call preparation remain to migrate.
 Yul word operations already express their complete semantics and need no extra
 opaque wrapper. Type-only builtins can disappear, and genuine constant results
 can fold without constructing a runtime implementation.

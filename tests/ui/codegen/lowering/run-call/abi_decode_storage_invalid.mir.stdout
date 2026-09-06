@@ -101,15 +101,8 @@ fn @decodeNarrow(arg0: memorybytes) -> u256 [selector=0x3964f0f9, abi_params=[by
     v25 = and v24, 255
     v26 = memory_object_load_field memorystruct<6>, v23, 1
     v27 = and v26, 255
-    v28 = add v25, v27
-    v29 = gt v28, 255
-    jumpi v29, bb11, bb12
-  bb12:
+    v28 = checked_add u8, v25, v27
     ret v28
-  bb11:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb9:
     v19 = add v16, v17
     v20 = sload v19 !metadata(storage=symbolic(v19))

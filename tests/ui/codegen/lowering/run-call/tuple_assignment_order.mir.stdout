@@ -281,16 +281,9 @@ fn @nextIndex() -> u256 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = sload 0 !metadata(storage=slot(0))
-    v2 = add v1, 1
-    v3 = lt v2, v1
-    jumpi v3, bb1, bb2
-  bb2:
+    v2 = checked_add u256, v1, 1
     sstore 0, v2 !metadata(storage=slot(0))
     ret v0
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @threeValues() -> struct1 [pure] {

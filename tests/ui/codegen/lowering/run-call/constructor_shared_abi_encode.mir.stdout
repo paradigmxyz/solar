@@ -9,16 +9,9 @@ fn @calls() -> u256 [selector=0x305f72b7, view, abi_params=[], abi_returns=[word
 fn @record(arg0: address, arg1: calldataslice) [selector=0x01b2c698, abi_params=[address, bytes], abi_returns=[]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = add v0, 1
-    v2 = lt v1, v0
-    jumpi v2, bb1, bb2
-  bb2:
+    v1 = checked_add u256, v0, 1
     sstore 0, v1 !metadata(storage=slot(0))
     stop
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_shared_abi_encode.sol:DynamicCaller ===

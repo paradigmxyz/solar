@@ -626,7 +626,9 @@ fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInli
                 InstKind::Phi(_) => summary.has_phi = true,
                 // ABI decoding validates its input through branches, and dynamic encoding
                 // emits copy loops and padding branches, so neither operation is a tiny leaf.
-                InstKind::AbiDecode { .. } => summary.has_control_flow = true,
+                InstKind::AbiDecode { .. } | InstKind::CheckedBinary { .. } => {
+                    summary.has_control_flow = true;
+                }
                 InstKind::AbiEncode { layout, .. } if abi_layout_has_loops(layout) => {
                     summary.has_control_flow = true;
                 }
@@ -924,6 +926,12 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (MirCos
         | InstKind::Keccak256(..) => (30, 1),
         // Expands to length load + data pointer + physical keccak.
         InstKind::Keccak256Bytes(_) => (36, 5),
+        // Includes allocation, argument packing, the precompile call, and result extraction.
+        InstKind::Sha256(_) | InstKind::Ripemd160(_) => (800, 64),
+        InstKind::EcRecover(..) => (900, 100),
+        InstKind::CheckedBinary { op: crate::mir::CheckedOp::Pow, .. } => (300, 128),
+        InstKind::CheckedBinary { .. } => (30, 20),
+        InstKind::Concat(parts) => (60 + parts.len() as u64 * 20, 24 + parts.len() * 12),
         InstKind::MappingSlot(..) => (36, 3),
         InstKind::MappingSlotMemory(..) => (60, 8),
         InstKind::MappingSlotCalldata(..) => (63, 9),

@@ -133,111 +133,111 @@ fn @copyDoesNotOverlapSource() -> struct1 [selector=0x8b005e62, abi_params=[], a
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb10: v0]
-    v1 = phi [bb0: 0], [bb10: v23]
-    v2 = phi [bb0: 0], [bb10: v2]
-    v3 = phi [bb0: 0], [bb10: v3]
-    v4 = phi [bb0: 0], [bb10: v4]
+    v0 = phi [bb0: 0], [bb3: v0]
+    v1 = phi [bb0: 0], [bb3: v23]
+    v2 = phi [bb0: 0], [bb3: v2]
+    v3 = phi [bb0: 0], [bb3: v3]
+    v4 = phi [bb0: 0], [bb3: v4]
     v5 = lt v1, 7
     jumpi v5, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    v25 = shl 192, 2
-    v26 = lt 9, 10
-    v27 = iszero v26
-    jumpi v27, bb7, bb11
+    v24 = shl 192, 2
+    v25 = lt 9, 10
+    v26 = iszero v25
+    jumpi v26, bb7, bb9
+  bb9:
+    v27 = add 11, 9
+    sstore v27, v24 !metadata(storage=slot(20))
+    v28 = lt 8, 10
+    v29 = iszero v28
+    jumpi v29, bb7, bb10
+  bb10:
+    v30 = add 11, 8
+    sstore v30, v24 !metadata(storage=slot(19))
+    v31 = alloc memoryfixedarray<7, 1>, exact, uninitialized, panic, 224
+    jump bb11
   bb11:
-    v28 = add 11, 9
-    sstore v28, v25 !metadata(storage=slot(20))
-    v29 = lt 8, 10
-    v30 = iszero v29
-    jumpi v30, bb7, bb12
-  bb12:
-    v31 = add 11, 8
-    sstore v31, v25 !metadata(storage=slot(19))
-    v32 = alloc memoryfixedarray<7, 1>, exact, uninitialized, panic, 224
-    jump bb13
+    v32 = phi [bb10: 0], [bb12: v44]
+    v33 = lt v32, 7
+    jumpi v33, bb12, bb13
   bb13:
-    v33 = phi [bb12: 0], [bb14: v45]
-    v34 = lt v33, 7
-    jumpi v34, bb14, bb15
-  bb15:
-    jump bb16
-  bb16:
-    v46 = phi [bb15: 0], [bb21: v51]
-    v47 = lt v46, 10
-    jumpi v47, bb17, bb18
-  bb18:
-    v52 = lt 6, 7
-    v53 = iszero v52
-    jumpi v53, bb7, bb22
-  bb22:
-    v54 = div 6, 3
-    v55 = add 0, v54
-    v56 = mod 6, 3
-    v57 = mul v56, 9
-    v58 = sload v55 !metadata(storage=symbolic(v54))
-    v59 = mul v57, 8
-    v60 = shr v59, v58
-    v61 = and v60, 0xffffffffffffffffff
-    v62 = shl 184, v61
-    v63 = shr 184, v62
-    v64 = lt 1, 10
-    v65 = iszero v64
-    jumpi v65, bb7, bb23
-  bb23:
-    v66 = add 11, 1
-    v67 = sload v66 !metadata(storage=slot(12))
-    v68 = and v67, 0xffffffffffffffffff0000000000000000000000000000000000000000000000
-    v69 = shr 184, v68
-    v70 = lt 6, 10
-    v71 = iszero v70
-    jumpi v71, bb7, bb24
-  bb24:
-    v72 = add 11, 6
-    v73 = sload v72 !metadata(storage=slot(17))
-    v74 = and v73, 0xffffffffffffffffff0000000000000000000000000000000000000000000000
-    v75 = shr 184, v74
-    v76 = lt 9, 10
-    v77 = iszero v76
-    jumpi v77, bb7, bb25
-  bb25:
-    v78 = add 11, 9
-    v79 = sload v78 !metadata(storage=slot(20))
-    v80 = insert_value struct1, undef struct1, 0, v63
-    v81 = insert_value struct1, v80, 1, v69
-    v82 = insert_value struct1, v81, 2, v75
-    v83 = insert_value struct1, v82, 3, v79
-    ret v83
-  bb17:
-    v48 = add 11, v46
-    v49 = lt v46, 7
-    jumpi v49, bb19, bb20
-  bb20:
-    sstore v48, 0 !metadata(storage=offset(v46, 11))
-    jump bb21
-  bb19:
-    v50 = memory_object_load_element memoryfixedarray<7, 1>, v32, v46
-    sstore v48, v50 !metadata(storage=offset(v46, 11))
-    jump bb21
-  bb21:
-    v51 = add v46, 1
-    jump bb16
+    jump bb14
   bb14:
-    v35 = div v33, 3
-    v36 = add 0, v35
-    v37 = mod v33, 3
-    v38 = mul v37, 9
-    v39 = sload v36 !metadata(storage=symbolic(v35))
-    v40 = mul v38, 8
-    v41 = shr v40, v39
-    v42 = and v41, 0xffffffffffffffffff
-    v43 = shl 184, v42
-    v44 = and v43, 0xffffffffffffffffff0000000000000000000000000000000000000000000000
-    memory_object_store_element memoryfixedarray<7, 1>, v32, v33, v44
-    v45 = add v33, 1
-    jump bb13
+    v45 = phi [bb13: 0], [bb19: v50]
+    v46 = lt v45, 10
+    jumpi v46, bb15, bb16
+  bb16:
+    v51 = lt 6, 7
+    v52 = iszero v51
+    jumpi v52, bb7, bb20
+  bb20:
+    v53 = div 6, 3
+    v54 = add 0, v53
+    v55 = mod 6, 3
+    v56 = mul v55, 9
+    v57 = sload v54 !metadata(storage=symbolic(v53))
+    v58 = mul v56, 8
+    v59 = shr v58, v57
+    v60 = and v59, 0xffffffffffffffffff
+    v61 = shl 184, v60
+    v62 = shr 184, v61
+    v63 = lt 1, 10
+    v64 = iszero v63
+    jumpi v64, bb7, bb21
+  bb21:
+    v65 = add 11, 1
+    v66 = sload v65 !metadata(storage=slot(12))
+    v67 = and v66, 0xffffffffffffffffff0000000000000000000000000000000000000000000000
+    v68 = shr 184, v67
+    v69 = lt 6, 10
+    v70 = iszero v69
+    jumpi v70, bb7, bb22
+  bb22:
+    v71 = add 11, 6
+    v72 = sload v71 !metadata(storage=slot(17))
+    v73 = and v72, 0xffffffffffffffffff0000000000000000000000000000000000000000000000
+    v74 = shr 184, v73
+    v75 = lt 9, 10
+    v76 = iszero v75
+    jumpi v76, bb7, bb23
+  bb23:
+    v77 = add 11, 9
+    v78 = sload v77 !metadata(storage=slot(20))
+    v79 = insert_value struct1, undef struct1, 0, v62
+    v80 = insert_value struct1, v79, 1, v68
+    v81 = insert_value struct1, v80, 2, v74
+    v82 = insert_value struct1, v81, 3, v78
+    ret v82
+  bb15:
+    v47 = add 11, v45
+    v48 = lt v45, 7
+    jumpi v48, bb17, bb18
+  bb18:
+    sstore v47, 0 !metadata(storage=offset(v45, 11))
+    jump bb19
+  bb17:
+    v49 = memory_object_load_element memoryfixedarray<7, 1>, v31, v45
+    sstore v47, v49 !metadata(storage=offset(v45, 11))
+    jump bb19
+  bb19:
+    v50 = add v45, 1
+    jump bb14
+  bb12:
+    v34 = div v32, 3
+    v35 = add 0, v34
+    v36 = mod v32, 3
+    v37 = mul v36, 9
+    v38 = sload v35 !metadata(storage=symbolic(v34))
+    v39 = mul v37, 8
+    v40 = shr v39, v38
+    v41 = and v40, 0xffffffffffffffffff
+    v42 = shl 184, v41
+    v43 = and v42, 0xffffffffffffffffff0000000000000000000000000000000000000000000000
+    memory_object_store_element memoryfixedarray<7, 1>, v31, v32, v43
+    v44 = add v32, 1
+    jump bb11
   bb4:
     v6 = and v1, 0xffffffffffffffffff
     v7 = shl 184, v6
@@ -263,15 +263,8 @@ fn @copyDoesNotOverlapSource() -> struct1 [selector=0x8b005e62, abi_params=[], a
   bb6:
     jump bb3
   bb3:
-    v23 = add v1, 1
-    v24 = lt v23, v1
-    jumpi v24, bb9, bb10
-  bb10:
+    v23 = checked_add u256, v1, 1
     jump bb1
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

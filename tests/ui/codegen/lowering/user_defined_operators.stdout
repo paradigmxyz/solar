@@ -41,34 +41,31 @@ fn @doFlip() [selector=0x7cf9d6d4, abi_wrapper, pure] {
 
 fn @add(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
-    v0 = add arg0, arg1
-    v1 = slt arg0, 0
-    v3 = slt v0, 0
-    v5 = xor v3, v1
-    v2 = slt arg1, 0
-    v4 = xor v1, v2
-    v6 = iszero v4
-    v7 = and v6, v5
-    jumpi v7, bb1, bb2
+    v1 = add arg0, arg1
+    v2 = slt arg0, 0
+    v4 = slt v1, 0
+    v6 = xor v4, v2
+    v3 = slt arg1, 0
+    v5 = xor v2, v3
+    v7 = iszero v5
+    v8 = and v7, v6
+    jumpi v8, bb1, bb2
   bb2:
-    ret v0
+    ret v1
   bb1:
-    tail_call @revert_stub
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @neg(arg0: i256) -> i256 [pure] {
   bb0:
-    v0 = eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
-    jumpi v0, bb1, bb2
+    v1 = eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
+    jumpi v1, bb1, bb2
   bb2:
-    v1 = sub 0, arg0
-    ret v1
+    v2 = sub 0, arg0
+    ret v2
   bb1:
-    tail_call @revert_stub
-}
-
-fn @revert_stub() {
-  bb0:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36

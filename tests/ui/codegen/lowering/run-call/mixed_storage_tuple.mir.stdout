@@ -105,15 +105,8 @@ fn @test_h() -> u256 [selector=0xeafd81e0, abi_params=[], abi_returns=[word]] {
     v6 = storage_array_data_slot 0
     v7 = add v6, 0
     v8 = sload v7 !metadata(storage=symbolic(v6))
-    v9 = add v1, v8
-    v10 = lt v9, v1
-    jumpi v10, bb3, bb4
-  bb4:
+    v9 = checked_add u256, v1, v8
     ret v9
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

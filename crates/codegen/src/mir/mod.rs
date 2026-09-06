@@ -25,9 +25,12 @@ pub(crate) use value::{Immediate, Value};
 mod inst;
 pub(crate) use inst::{
     AbiEncodeMode, AllocationAlignment, AllocationFailure, AllocationInitialization,
-    AllocationKind, AllocationSemantics, EffectKind, InstKind, Instruction, InstructionMetadata,
-    MemoryRegion, StorageAlias,
+    AllocationKind, AllocationSemantics, ConcatPart, EffectKind, InstKind, Instruction,
+    InstructionMetadata, MemoryRegion, StorageAlias,
 };
+
+mod arithmetic;
+pub(crate) use arithmetic::{ArithmeticKind, CheckedOp};
 
 mod effects;
 pub(crate) use effects::ControlEffects;

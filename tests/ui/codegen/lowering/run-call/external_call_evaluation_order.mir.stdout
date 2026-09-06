@@ -3,16 +3,9 @@
 fn @mutate() -> u256 [selector=0x7795b5fc, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = add v0, 1
-    v2 = lt v1, v0
-    jumpi v2, bb1, bb2
-  bb2:
+    v1 = checked_add u256, v0, 1
     sstore 0, v1 !metadata(storage=slot(0))
     ret v1
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/external_call_evaluation_order.sol:ExternalCallEvaluationOrder ===
@@ -26,95 +19,39 @@ immutables:
 fn @receiver() -> address {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
-    v1 = mul v0, 10
-    v2 = iszero 10
-    v3 = div v1, 10
-    v4 = eq v3, v0
-    v5 = or v2, v4
-    v6 = iszero v5
-    jumpi v6, bb1, bb2
-  bb2:
-    v7 = add v1, 1
-    v8 = lt v7, v1
-    jumpi v8, bb1, bb3
-  bb3:
-    sstore 1, v7 !metadata(storage=slot(1))
-    v9 = address
-    ret v9
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    v1 = checked_mul u256, v0, 10
+    v2 = checked_add u256, v1, 1
+    sstore 1, v2 !metadata(storage=slot(1))
+    v3 = address
+    ret v3
 }
 
 fn @arg() -> u256 {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
-    v1 = mul v0, 10
-    v2 = iszero 10
-    v3 = div v1, 10
-    v4 = eq v3, v0
-    v5 = or v2, v4
-    v6 = iszero v5
-    jumpi v6, bb1, bb2
-  bb2:
-    v7 = add v1, 4
-    v8 = lt v7, v1
-    jumpi v8, bb1, bb3
-  bb3:
-    sstore 1, v7 !metadata(storage=slot(1))
+    v1 = checked_mul u256, v0, 10
+    v2 = checked_add u256, v1, 4
+    sstore 1, v2 !metadata(storage=slot(1))
     ret 7
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @gasOpt() -> u256 {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
-    v1 = mul v0, 10
-    v2 = iszero 10
-    v3 = div v1, 10
-    v4 = eq v3, v0
-    v5 = or v2, v4
-    v6 = iszero v5
-    jumpi v6, bb1, bb2
-  bb2:
-    v7 = add v1, 2
-    v8 = lt v7, v1
-    jumpi v8, bb1, bb3
-  bb3:
-    sstore 1, v7 !metadata(storage=slot(1))
-    v9 = gas
-    ret v9
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    v1 = checked_mul u256, v0, 10
+    v2 = checked_add u256, v1, 2
+    sstore 1, v2 !metadata(storage=slot(1))
+    v3 = gas
+    ret v3
 }
 
 fn @valueOpt() -> u256 {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
-    v1 = mul v0, 10
-    v2 = iszero 10
-    v3 = div v1, 10
-    v4 = eq v3, v0
-    v5 = or v2, v4
-    v6 = iszero v5
-    jumpi v6, bb1, bb2
-  bb2:
-    v7 = add v1, 3
-    v8 = lt v7, v1
-    jumpi v8, bb1, bb3
-  bb3:
-    sstore 1, v7 !metadata(storage=slot(1))
+    v1 = checked_mul u256, v0, 10
+    v2 = checked_add u256, v1, 3
+    sstore 1, v2 !metadata(storage=slot(1))
     ret 0
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @sink(arg0: u256) [selector=0xa4ba067e, payable, abi_params=[u256], abi_returns=[]] {
@@ -229,15 +166,8 @@ fn @dirtyIndex() -> u256 [selector=0xe98f4d7c, pure, abi_params=[], abi_returns=
 fn @mutate() -> u256 [selector=0x7795b5fc, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = add v0, 7
-    v2 = lt v1, v0
-    jumpi v2, bb1, bb2
-  bb2:
+    v1 = checked_add u256, v0, 7
     ret v1
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @staticReceiverMutability() -> u256 [selector=0xde2015ae, abi_params=[], abi_returns=[word]] {

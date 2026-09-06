@@ -6,7 +6,7 @@ contract Test {
     // CHECK: sub
     // CHECK: push 2
     // CHECK: dup 2
-    // CHECK: eq
+    // CHECK: sub
     // CHECK: push {{bb[0-9]+}}
     // CHECK: jumpi
     // CHECK: push 3

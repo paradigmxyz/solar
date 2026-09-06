@@ -14,21 +14,14 @@ fn @a(arg0: u256) -> u256 {
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
   bb2:
-    v1 = sub arg0, 1
-    v2 = lt arg0, 1
-    jumpi v2, bb4, bb5
-  bb5:
-    v3 = icall @b, v1
+    v1 = checked_sub u256, arg0, 1
+    v2 = icall @b, v1
     jump bb3
-  bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb1:
     jump bb3
   bb3:
-    v4 = phi [bb1: 0], [bb5: v3]
-    ret v4
+    v3 = phi [bb1: 0], [bb2: v2]
+    ret v3
 }
 
 fn @b(arg0: u256) -> u256 {
@@ -36,21 +29,14 @@ fn @b(arg0: u256) -> u256 {
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
   bb2:
-    v1 = sub arg0, 1
-    v2 = lt arg0, 1
-    jumpi v2, bb4, bb5
-  bb5:
-    v3 = icall @a, v1
+    v1 = checked_sub u256, arg0, 1
+    v2 = icall @a, v1
     jump bb3
-  bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb1:
     jump bb3
   bb3:
-    v4 = phi [bb1: 0], [bb5: v3]
-    ret v4
+    v3 = phi [bb1: 0], [bb2: v2]
+    ret v3
 }
 
 fn @multi(arg0: u256) -> struct0 [selector=0x645444bd, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
@@ -65,17 +51,10 @@ fn @multi(arg0: u256) -> struct0 [selector=0x645444bd, pure, abi_params=[u256], 
 
 fn @pair(arg0: u256) -> struct0 [pure] {
   bb0:
-    v0 = add arg0, 1
-    v1 = lt v0, arg0
-    jumpi v1, bb1, bb2
-  bb2:
-    v2 = insert_value struct0, undef struct0, 0, arg0
-    v3 = insert_value struct0, v2, 1, v0
-    ret v3
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    v0 = checked_add u256, arg0, 1
+    v1 = insert_value struct0, undef struct0, 0, arg0
+    v2 = insert_value struct0, v1, 1, v0
+    ret v2
 }
 
 fn @callVoid(arg0: u256) [selector=0xf42b07b1, pure, abi_params=[u256], abi_returns=[]] {
@@ -92,18 +71,11 @@ fn @branchingVoid(arg0: u256) [pure] {
   bb2:
     jump bb3
   bb1:
-    v2 = sub arg0, 1
-    v3 = lt arg0, 1
-    jumpi v3, bb4, bb5
-  bb5:
+    v2 = checked_sub u256, arg0, 1
     icall @branchingVoid, v2
     jump bb3
   bb3:
     stop
-  bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @callEntry(arg0: u256) -> u256 [selector=0x7a7de4a9, pure, abi_params=[u256], abi_returns=[word]] {
@@ -116,35 +88,22 @@ fn @entry(arg0: u256) -> u256 [pure] {
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: arg0], [bb9: v0]
-    v1 = phi [bb0: 0], [bb9: v6]
-    v2 = phi [bb0: 0], [bb9: v4]
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: 0], [bb3: v5]
+    v2 = phi [bb0: 0], [bb3: v4]
     v3 = lt v1, v0
     jumpi v3, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    v8 = add v2, 1
-    v9 = lt v8, v2
-    jumpi v9, bb7, bb10
-  bb10:
-    ret v8
+    v6 = checked_add u256, v2, 1
+    ret v6
   bb4:
-    v4 = add v2, 1
-    v5 = lt v4, v2
-    jumpi v5, bb7, bb8
-  bb8:
+    v4 = checked_add u256, v2, 1
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v6 = add v1, 1
-    v7 = lt v6, v1
-    jumpi v7, bb7, bb9
-  bb9:
+    v5 = checked_add u256, v1, 1
     jump bb1
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
 }

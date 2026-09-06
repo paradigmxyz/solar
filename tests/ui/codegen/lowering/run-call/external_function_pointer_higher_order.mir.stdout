@@ -2,15 +2,8 @@
 @module ExternalFunctionPointerHigherOrderTarget
 fn @addTwo(arg0: u256) -> u256 [selector=0xcae57913, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
-    v0 = add arg0, 2
-    v1 = lt v0, arg0
-    jumpi v1, bb1, bb2
-  bb2:
+    v0 = checked_add u256, arg0, 2
     ret v0
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_higher_order.sol:ExternalFunctionPointerHigherOrder ===

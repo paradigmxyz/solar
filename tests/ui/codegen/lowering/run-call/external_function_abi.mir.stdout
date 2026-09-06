@@ -2,15 +2,8 @@
 @module ExternalFunctionAbi
 fn @target(arg0: u256) -> u256 [selector=0x9811c7c1, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
-    v0 = add arg0, 1
-    v1 = lt v0, arg0
-    jumpi v1, bb1, bb2
-  bb2:
+    v0 = checked_add u256, arg0, 1
     ret v0
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @echo(arg0: function) -> function [selector=0x90898ee4, pure, abi_params=[function], abi_returns=[function]] {

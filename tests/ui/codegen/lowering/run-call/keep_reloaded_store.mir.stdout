@@ -2,19 +2,8 @@
 @module Target
 fn @six(arg0: u256) -> u256 [selector=0x84b8ba08, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
-    v0 = mul arg0, 6
-    v1 = iszero 6
-    v2 = div v0, 6
-    v3 = eq v2, arg0
-    v4 = or v1, v3
-    v5 = iszero v4
-    jumpi v5, bb1, bb2
-  bb2:
+    v0 = checked_mul u256, arg0, 6
     ret v0
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/keep_reloaded_store.sol:KeepReloadedStore ===
@@ -53,20 +42,10 @@ fn @depth(arg0: u256) -> u256 [pure] {
   bb2:
     jump bb3
   bb3:
-    v1 = sub arg0, 1
-    v2 = lt arg0, 1
-    jumpi v2, bb4, bb5
-  bb5:
-    v3 = icall @depth, v1
-    v4 = add v3, 1
-    v5 = lt v4, v3
-    jumpi v5, bb4, bb6
-  bb6:
-    ret v4
-  bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    v1 = checked_sub u256, arg0, 1
+    v2 = icall @depth, v1
+    v3 = checked_add u256, v2, 1
+    ret v3
   bb1:
     ret 0
 }

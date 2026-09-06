@@ -123,17 +123,18 @@ fn @makeNestedArray(arg0: u256) -> u256 [selector=0x95572958, pure, abi_params=[
     jumpi v24, bb8, bb10
   bb10:
     v25 = memory_object_load_element memoryarray<1>, v0, 0
-    v26 = eq v25, 0
-    jumpi v26, bb11, bb12
+    v26 = memory_object_from_ptr memoryarray, v25
+    v27 = eq v26, 0
+    jumpi v27, bb11, bb12
   bb11:
-    v27 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v27, 0
-    memory_object_store_element memoryarray<1>, v0, 0, v27
+    v28 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v28, 0
+    memory_object_store_element memoryarray<1>, v0, 0, v28
     jump bb12
   bb12:
-    v28 = phi [bb10: v25], [bb11: v27]
-    v29 = memory_object_len memoryarray, v28
-    ret v29
+    v29 = phi [bb10: v26], [bb11: v28]
+    v30 = memory_object_len memoryarray, v29
+    ret v30
   bb8:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

@@ -1140,6 +1140,13 @@ impl AliasAnalysis {
                     write_memory(&mut effects, ptr, size);
                 }
             }
+            InstKind::Concat(..)
+            | InstKind::Sha256(..)
+            | InstKind::Ripemd160(..)
+            | InstKind::EcRecover(..) => {
+                effects.read_any(AddressSpace::Memory);
+                effects.write_any(AddressSpace::Memory);
+            }
             InstKind::AbiEncode { .. } => {
                 let InstKind::AbiEncode { args, layout, .. } = kind else { unreachable!() };
                 for (&arg, ty) in args.iter().zip(layout.types.iter()) {

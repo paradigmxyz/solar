@@ -204,22 +204,23 @@ fn @literal(arg0: calldataslice, arg1: u256, arg2: u256) -> u256 [selector=0x75a
     jumpi v37, bb9, bb10
   bb10:
     v38 = memory_object_load_element memoryfixedarray<1, 1>, v0, 0
-    v39 = eq v38, 0
-    jumpi v39, bb11, bb12
+    v39 = memory_object_from_ptr memoryarray, v38
+    v40 = eq v39, 0
+    jumpi v40, bb11, bb12
   bb11:
-    v40 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v40, 0
-    memory_object_store_element memoryfixedarray<1, 1>, v0, 0, v40
+    v41 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v41, 0
+    memory_object_store_element memoryfixedarray<1, 1>, v0, 0, v41
     jump bb12
   bb12:
-    v41 = phi [bb10: v38], [bb11: v40]
-    v42 = memory_object_len memoryarray, v41
-    v43 = lt 0, v42
-    v44 = iszero v43
-    jumpi v44, bb9, bb13
+    v42 = phi [bb10: v39], [bb11: v41]
+    v43 = memory_object_len memoryarray, v42
+    v44 = lt 0, v43
+    v45 = iszero v44
+    jumpi v45, bb9, bb13
   bb13:
-    v45 = memory_object_load_element memoryarray<1>, v41, 0
-    ret v45
+    v46 = memory_object_load_element memoryarray<1>, v42, 0
+    ret v46
   bb9:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

@@ -1,5 +1,8 @@
-//@compile-flags: -O none -Zdump=mir
-//@filecheck:
+//@ revisions: semantic expanded
+//@[semantic] compile-flags: -O none -Zdump=mir
+//@[expanded] compile-flags: -O none -Zdump=mir -Zmir-pipeline=lower-arithmetic
+//@[semantic] filecheck: --check-prefix=SEM
+//@[expanded] filecheck:
 
 // Pins the per-op checked-arithmetic check shapes so they stay at or below
 // solc's happy-path gas:
@@ -10,6 +13,14 @@
 // - signed mul: division-inverse check plus `and(eq(lhs, MIN), slt(rhs, 0))`.
 // - div/mod: branch directly on the divisor, no `iszero`/`eq` flag.
 // - sub-word left shifts: mask unsigned results and sign-extend signed results.
+// SEM-LABEL: fn @sadd
+// SEM: checked_add i256, arg0, arg1
+// SEM-LABEL: fn @ssub
+// SEM: checked_sub i256, arg0, arg1
+// SEM-LABEL: fn @smul
+// SEM: checked_mul i256, arg0, arg1
+// SEM-LABEL: fn @sdiv
+// SEM: checked_div i256, arg0, arg1
 contract CheckedArithmeticShapes {
     // CHECK-LABEL: fn @sadd{{[( ]}}
     // CHECK: [[SUM:v[0-9]+]] = add arg0, arg1

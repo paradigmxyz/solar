@@ -194,33 +194,23 @@ fn @copyFixed() -> u32 [selector=0x23235673, abi_params=[], abi_returns=[word<u3
     v93 = mul v91, 8
     v94 = shr v93, v92
     v95 = and v94, 0xffffffff
-    v96 = add v85, v95
-    v97 = gt v96, 0xffffffff
-    jumpi v97, bb21, bb22
-  bb22:
-    v98 = sload 0 !metadata(storage=slot(0))
-    v99 = lt 2, v98
-    v100 = iszero v99
-    jumpi v100, bb1, bb23
-  bb23:
-    v101 = storage_array_data_slot 0
-    v102 = div 2, 8
-    v103 = add v101, v102
-    v104 = mod 2, 8
-    v105 = mul v104, 4
-    v106 = sload v103 !metadata(storage=symbolic(v103))
-    v107 = mul v105, 8
-    v108 = shr v107, v106
-    v109 = and v108, 0xffffffff
-    v110 = add v96, v109
-    v111 = gt v110, 0xffffffff
-    jumpi v111, bb21, bb24
-  bb24:
-    ret v110
+    v96 = checked_add u32, v85, v95
+    v97 = sload 0 !metadata(storage=slot(0))
+    v98 = lt 2, v97
+    v99 = iszero v98
+    jumpi v99, bb1, bb21
   bb21:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    v100 = storage_array_data_slot 0
+    v101 = div 2, 8
+    v102 = add v100, v101
+    v103 = mod 2, 8
+    v104 = mul v103, 4
+    v105 = sload v102 !metadata(storage=symbolic(v102))
+    v106 = mul v104, 8
+    v107 = shr v106, v105
+    v108 = and v107, 0xffffffff
+    v109 = checked_add u32, v96, v108
+    ret v109
   bb14:
     v51 = div v49, 8
     v52 = add 1, v51

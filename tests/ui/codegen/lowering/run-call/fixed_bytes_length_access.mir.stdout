@@ -7,18 +7,11 @@ types:
 fn @f(arg0: bytes32) -> struct0 [selector=0xd7da973a, view, abi_params=[bytes32], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = shl 128, 2
-    v1 = add 1, 7
-    v2 = gt v1, 255
-    jumpi v2, bb1, bb2
-  bb2:
-    v3 = insert_value struct0, undef struct0, 0, 32
-    v4 = insert_value struct0, v3, 1, 16
-    v5 = insert_value struct0, v4, 2, v1
-    ret v5
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    v1 = checked_add u8, 1, 7
+    v2 = insert_value struct0, undef struct0, 0, 32
+    v3 = insert_value struct0, v2, 1, 16
+    v4 = insert_value struct0, v3, 2, v1
+    ret v4
 }
 
 fn @sideEffect() -> struct1 [selector=0x3a058265, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
@@ -33,14 +26,7 @@ fn @sideEffect() -> struct1 [selector=0x3a058265, abi_params=[], abi_returns=[wo
 fn @makeBytes() -> bytes4 {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
-    v1 = add v0, 1
-    v2 = lt v1, v0
-    jumpi v2, bb1, bb2
-  bb2:
+    v1 = checked_add u256, v0, 1
     sstore 1, v1 !metadata(storage=slot(1))
     ret 0
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
 }

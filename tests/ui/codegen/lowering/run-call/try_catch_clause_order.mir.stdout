@@ -13,21 +13,15 @@ fn @boom(arg0: u256) -> u256 [selector=0xb443a085, pure, abi_params=[u256], abi_
     jump bb6
   bb6:
     v3 = eq arg0, 3
-    jumpi v3, bb9, bb10
-  bb10:
-    jump bb11
-  bb11:
-    ret 42
+    jumpi v3, bb7, bb8
+  bb8:
+    jump bb9
   bb9:
+    ret 42
+  bb7:
     revert 0, 0
   bb4:
-    jumpi 0, bb8, bb7
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 18 !metadata(memory=scratch)
-    revert 0, 36
-  bb8:
-    v2 = div 1, 0
+    v2 = checked_div u256, 1, 0
     ret v2
   bb1:
     icall @revert_error, 4, 0x6e6f706500000000000000000000000000000000000000000000000000000000

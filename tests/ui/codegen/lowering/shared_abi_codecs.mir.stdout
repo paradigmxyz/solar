@@ -62,56 +62,48 @@ fn @roundTrip(arg0: u256, arg1: calldataslice) -> u256 [selector=0x00746047, pur
     jumpi v65, bb17, bb18
   bb18:
     v66 = memory_object_load_element memoryarray<1>, v62, 0
-    v67 = eq v66, 0
-    jumpi v67, bb19, bb20
+    v67 = memory_object_from_ptr memoryarray, v66
+    v68 = eq v67, 0
+    jumpi v68, bb19, bb20
   bb19:
-    v68 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v68, 0
-    memory_object_store_element memoryarray<1>, v62, 0, v68
+    v69 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v69, 0
+    memory_object_store_element memoryarray<1>, v62, 0, v69
     jump bb20
   bb20:
-    v69 = phi [bb18: v66], [bb19: v68]
-    v70 = memory_object_len memoryarray, v69
-    v71 = lt 0, v70
-    v72 = iszero v71
-    jumpi v72, bb17, bb21
+    v70 = phi [bb18: v67], [bb19: v69]
+    v71 = memory_object_len memoryarray, v70
+    v72 = lt 0, v71
+    v73 = iszero v72
+    jumpi v73, bb17, bb21
   bb21:
-    v73 = memory_object_load_element memoryarray<1>, v69, 0
-    v74 = add v61, v73
-    v75 = lt v74, v61
-    jumpi v75, bb22, bb23
-  bb23:
+    v74 = memory_object_load_element memoryarray<1>, v70, 0
+    v75 = checked_add u256, v61, v74
     v76 = memory_object_load_field memorystruct<2>, v60, 1, memoryarray
     v77 = memory_object_len memoryarray, v76
     v78 = lt 1, v77
     v79 = iszero v78
-    jumpi v79, bb17, bb24
-  bb24:
-    v80 = memory_object_load_element memoryarray<1>, v76, 1
-    v81 = eq v80, 0
-    jumpi v81, bb25, bb26
-  bb25:
-    v82 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v82, 0
-    memory_object_store_element memoryarray<1>, v76, 1, v82
-    jump bb26
-  bb26:
-    v83 = phi [bb24: v80], [bb25: v82]
-    v84 = memory_object_len memoryarray, v83
-    v85 = lt 0, v84
-    v86 = iszero v85
-    jumpi v86, bb17, bb27
-  bb27:
-    v87 = memory_object_load_element memoryarray<1>, v83, 0
-    v88 = add v74, v87
-    v89 = lt v88, v74
-    jumpi v89, bb22, bb28
-  bb28:
-    ret v88
+    jumpi v79, bb17, bb22
   bb22:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    v80 = memory_object_load_element memoryarray<1>, v76, 1
+    v81 = memory_object_from_ptr memoryarray, v80
+    v82 = eq v81, 0
+    jumpi v82, bb23, bb24
+  bb23:
+    v83 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v83, 0
+    memory_object_store_element memoryarray<1>, v76, 1, v83
+    jump bb24
+  bb24:
+    v84 = phi [bb22: v81], [bb23: v83]
+    v85 = memory_object_len memoryarray, v84
+    v86 = lt 0, v85
+    v87 = iszero v86
+    jumpi v87, bb17, bb25
+  bb25:
+    v88 = memory_object_load_element memoryarray<1>, v84, 0
+    v89 = checked_add u256, v75, v88
+    ret v89
   bb17:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

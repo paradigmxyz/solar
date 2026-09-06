@@ -54,95 +54,86 @@ fn @copy() -> u256 [selector=0x60726abb, abi_params=[], abi_returns=[word]] {
     jumpi v32, bb3, bb6
   bb6:
     v33 = memory_object_load_element memoryarray<1>, v29, 0
-    v34 = eq v33, 0
-    jumpi v34, bb7, bb8
+    v34 = memory_object_from_ptr memorybytes, v33
+    v35 = eq v34, 0
+    jumpi v35, bb7, bb8
   bb7:
-    v35 = alloc memorybytes, exact, uninitialized, infallible, 32
-    set_memory_object_len memorybytes, v35, 0
-    memory_object_store_element memoryarray<1>, v29, 0, v35
+    v36 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v36, 0
+    memory_object_store_element memoryarray<1>, v29, 0, v36
     jump bb8
   bb8:
-    v36 = phi [bb6: v33], [bb7: v35]
-    v37 = memory_object_len memorybytes, v36
-    v38 = memory_object_len memoryarray, v29
-    v39 = lt 1, v38
-    v40 = iszero v39
-    jumpi v40, bb3, bb9
+    v37 = phi [bb6: v34], [bb7: v36]
+    v38 = memory_object_len memorybytes, v37
+    v39 = memory_object_len memoryarray, v29
+    v40 = lt 1, v39
+    v41 = iszero v40
+    jumpi v41, bb3, bb9
   bb9:
-    v41 = memory_object_load_element memoryarray<1>, v29, 1
-    v42 = eq v41, 0
-    jumpi v42, bb10, bb11
+    v42 = memory_object_load_element memoryarray<1>, v29, 1
+    v43 = memory_object_from_ptr memorybytes, v42
+    v44 = eq v43, 0
+    jumpi v44, bb10, bb11
   bb10:
-    v43 = alloc memorybytes, exact, uninitialized, infallible, 32
-    set_memory_object_len memorybytes, v43, 0
-    memory_object_store_element memoryarray<1>, v29, 1, v43
+    v45 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v45, 0
+    memory_object_store_element memoryarray<1>, v29, 1, v45
     jump bb11
   bb11:
-    v44 = phi [bb9: v41], [bb10: v43]
-    v45 = memory_object_len memorybytes, v44
-    v46 = add v37, v45
-    v47 = lt v46, v37
-    jumpi v47, bb12, bb13
-  bb13:
-    v48 = memory_object_len memoryarray, v29
-    v49 = lt 0, v48
-    v50 = iszero v49
-    jumpi v50, bb3, bb14
-  bb14:
-    v51 = memory_object_load_element memoryarray<1>, v29, 0
-    v52 = eq v51, 0
-    jumpi v52, bb15, bb16
-  bb15:
-    v53 = alloc memorybytes, exact, uninitialized, infallible, 32
-    set_memory_object_len memorybytes, v53, 0
-    memory_object_store_element memoryarray<1>, v29, 0, v53
-    jump bb16
-  bb16:
-    v54 = phi [bb14: v51], [bb15: v53]
-    v55 = memory_object_len memorybytes, v54
-    v56 = lt 1, v55
-    v57 = iszero v56
-    jumpi v57, bb3, bb17
-  bb17:
-    v58 = memory_object_load_byte memorybytes, v54, 1
-    v59 = shl 248, v58
-    v60 = shr 248, v59
-    v61 = add v46, v60
-    v62 = lt v61, v46
-    jumpi v62, bb12, bb18
-  bb18:
-    v63 = memory_object_len memoryarray, v29
-    v64 = lt 1, v63
-    v65 = iszero v64
-    jumpi v65, bb3, bb19
-  bb19:
-    v66 = memory_object_load_element memoryarray<1>, v29, 1
-    v67 = eq v66, 0
-    jumpi v67, bb20, bb21
-  bb20:
-    v68 = alloc memorybytes, exact, uninitialized, infallible, 32
-    set_memory_object_len memorybytes, v68, 0
-    memory_object_store_element memoryarray<1>, v29, 1, v68
-    jump bb21
-  bb21:
-    v69 = phi [bb19: v66], [bb20: v68]
-    v70 = memory_object_len memorybytes, v69
-    v71 = lt 39, v70
-    v72 = iszero v71
-    jumpi v72, bb3, bb22
-  bb22:
-    v73 = memory_object_load_byte memorybytes, v69, 39
-    v74 = shl 248, v73
-    v75 = shr 248, v74
-    v76 = add v61, v75
-    v77 = lt v76, v61
-    jumpi v77, bb12, bb23
-  bb23:
-    ret v76
+    v46 = phi [bb9: v43], [bb10: v45]
+    v47 = memory_object_len memorybytes, v46
+    v48 = checked_add u256, v38, v47
+    v49 = memory_object_len memoryarray, v29
+    v50 = lt 0, v49
+    v51 = iszero v50
+    jumpi v51, bb3, bb12
   bb12:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    v52 = memory_object_load_element memoryarray<1>, v29, 0
+    v53 = memory_object_from_ptr memorybytes, v52
+    v54 = eq v53, 0
+    jumpi v54, bb13, bb14
+  bb13:
+    v55 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v55, 0
+    memory_object_store_element memoryarray<1>, v29, 0, v55
+    jump bb14
+  bb14:
+    v56 = phi [bb12: v53], [bb13: v55]
+    v57 = memory_object_len memorybytes, v56
+    v58 = lt 1, v57
+    v59 = iszero v58
+    jumpi v59, bb3, bb15
+  bb15:
+    v60 = memory_object_load_byte memorybytes, v56, 1
+    v61 = shl 248, v60
+    v62 = shr 248, v61
+    v63 = checked_add u256, v48, v62
+    v64 = memory_object_len memoryarray, v29
+    v65 = lt 1, v64
+    v66 = iszero v65
+    jumpi v66, bb3, bb16
+  bb16:
+    v67 = memory_object_load_element memoryarray<1>, v29, 1
+    v68 = memory_object_from_ptr memorybytes, v67
+    v69 = eq v68, 0
+    jumpi v69, bb17, bb18
+  bb17:
+    v70 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v70, 0
+    memory_object_store_element memoryarray<1>, v29, 1, v70
+    jump bb18
+  bb18:
+    v71 = phi [bb16: v68], [bb17: v70]
+    v72 = memory_object_len memorybytes, v71
+    v73 = lt 39, v72
+    v74 = iszero v73
+    jumpi v74, bb3, bb19
+  bb19:
+    v75 = memory_object_load_byte memorybytes, v71, 39
+    v76 = shl 248, v75
+    v77 = shr 248, v76
+    v78 = checked_add u256, v63, v77
+    ret v78
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

@@ -21,8 +21,8 @@ contract Ternary {
     // CHECK-LABEL: fn @abs_diff{{[( ]}}
     // CHECK: [[LT:v[0-9]+]] = lt arg0, arg1
     // CHECK: {{v[0-9]+}} = iszero [[LT]]
-    // CHECK: sub arg1, arg0
-    // CHECK: sub arg0, arg1
+    // CHECK: checked_sub {{[ui][0-9]+}}, arg1, arg0
+    // CHECK: checked_sub {{[ui][0-9]+}}, arg0, arg1
     // CHECK: phi [
     function abs_diff(uint256 a, uint256 b) public pure returns (uint256) {
         return a >= b ? a - b : b - a;

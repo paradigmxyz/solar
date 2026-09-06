@@ -34,9 +34,9 @@ fn @test() -> u256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
   bb5:
     jump bb9
   bb9:
-    v12 = phi [bb5: 0], [bb20: v30]
-    v13 = phi [bb5: 0], [bb20: v28]
-    v14 = phi [bb5: v0], [bb20: v14]
+    v12 = phi [bb5: 0], [bb11: v29]
+    v13 = phi [bb5: 0], [bb11: v28]
+    v14 = phi [bb5: v0], [bb11: v14]
     v15 = lt 0, 1
     v16 = iszero v15
     jumpi v16, bb1, bb12
@@ -62,23 +62,13 @@ fn @test() -> u256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
   bb17:
     v26 = add v23, v12
     v27 = sload v26 !metadata(storage=symbolic(v26))
-    v28 = add v13, v27
-    v29 = lt v28, v13
-    jumpi v29, bb18, bb19
-  bb19:
+    v28 = checked_add u256, v13, v27
     jump bb15
   bb15:
     jump bb11
   bb11:
-    v30 = add v12, 1
-    v31 = lt v30, v12
-    jumpi v31, bb18, bb20
-  bb20:
+    v29 = checked_add u256, v12, 1
     jump bb9
-  bb18:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb4:
     v8 = add v5, v6
     v9 = lt v6, 10

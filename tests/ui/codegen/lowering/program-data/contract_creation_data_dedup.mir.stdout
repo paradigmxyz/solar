@@ -158,15 +158,8 @@ fn @pair() -> u256 [selector=0xa8aa1b31, abi_params=[], abi_returns=[word]] {
     v33 = mload v32
     v34 = add 0, 0
     v35 = mload v34
-    v36 = add v24, v35
-    v37 = lt v36, v24
-    jumpi v37, bb12, bb13
-  bb13:
+    v36 = checked_add u256, v24, v35
     ret v36
-  bb12:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb7:
     revert 0, 0
 }

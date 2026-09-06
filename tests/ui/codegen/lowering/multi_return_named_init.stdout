@@ -7,19 +7,19 @@ fn @readU64(arg0: calldataslice, arg1: u256) -> struct0 [pure] {
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: arg1], [bb11: v17]
-    v1 = phi [bb0: arg0], [bb11: v1]
-    v2 = phi [bb0: 0], [bb11: v19]
-    v3 = phi [bb0: 0], [bb11: v16]
-    v4 = phi [bb0: arg1], [bb11: v4]
+    v0 = phi [bb0: arg1], [bb3: v17]
+    v1 = phi [bb0: arg0], [bb3: v1]
+    v2 = phi [bb0: 0], [bb3: v18]
+    v3 = phi [bb0: 0], [bb3: v16]
+    v4 = phi [bb0: arg1], [bb3: v4]
     v5 = lt v2, 8
     jumpi v5, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    v21 = insert_value struct0, undef struct0, 0, v3
-    v22 = insert_value struct0, v21, 1, v0
-    ret v22
+    v19 = insert_value struct0, undef struct0, 0, v3
+    v20 = insert_value struct0, v19, 1, v0
+    ret v20
   bb4:
     v6 = shl 8, v3
     v7 = and v6, 0xffffffffffffffff
@@ -34,23 +34,13 @@ fn @readU64(arg0: calldataslice, arg1: u256) -> struct0 [pure] {
     v14 = shl 248, v13
     v15 = shr 248, v14
     v16 = or v7, v15
-    v17 = add v0, 1
-    v18 = lt v17, v0
-    jumpi v18, bb9, bb10
-  bb10:
+    v17 = checked_add u256, v0, 1
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v19 = add v2, 1
-    v20 = lt v19, v2
-    jumpi v20, bb9, bb11
-  bb11:
+    v18 = checked_add u256, v2, 1
     jump bb1
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

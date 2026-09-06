@@ -9,9 +9,10 @@ use crate::{
     memory::EvmMemoryLayout,
     mir::{
         AbiLayout, AbiParamLayout, AbiParamLocation, AbiParamType, AbiType, AbiWordValidator,
-        AllocationSemantics, BlockId, ERROR_SELECTOR, Function, FunctionBuilder, FunctionId,
-        ImmutableId, InstKind, LibraryLink, MemoryObjectKind, MemoryObjectLayout, MirType, Module,
-        PanicCode, RevertReason, SliceLocation, Value, ValueId,
+        AllocationSemantics, ArithmeticKind, BlockId, CheckedOp, ConcatPart, ERROR_SELECTOR,
+        Function, FunctionBuilder, FunctionId, ImmutableId, InstKind, LibraryLink,
+        MemoryObjectKind, MemoryObjectLayout, MirType, Module, PanicCode, RevertReason,
+        SliceLocation, Value, ValueId,
     },
 };
 use alloy_primitives::{U256, keccak256};
@@ -351,12 +352,6 @@ enum LValuePlace<'gcx> {
     MemoryField { object: ValueId, layout: MemoryObjectLayout, field: u64, ty: Ty<'gcx> },
     MemoryElement { object: ValueId, layout: MemoryObjectLayout, index: ValueId, ty: Ty<'gcx> },
     MemoryByte { object: ValueId, index: ValueId, ty: Ty<'gcx> },
-}
-
-#[derive(Clone, Copy)]
-enum ArithmeticKind {
-    Unsigned(u16),
-    Signed(u16),
 }
 
 #[derive(Clone, Copy)]
@@ -1032,13 +1027,6 @@ fn is_signed_packed_scalar(ty: Ty<'_>) -> bool {
         TyKind::Elementary(solar_sema::hir::ElementaryType::Int(_)) => true,
         _ => false,
     }
-}
-
-fn signed_bounds(bits: u16, builder: &mut FunctionBuilder<'_>) -> (ValueId, ValueId) {
-    let magnitude = U256::from(1) << (bits - 1);
-    let min = builder.imm(U256::MAX - magnitude + U256::ONE);
-    let max = builder.imm(magnitude - U256::ONE);
-    (min, max)
 }
 
 fn report_error<T>(gcx: Gcx<'_>, span: Span, message: &'static str) -> Option<T> {

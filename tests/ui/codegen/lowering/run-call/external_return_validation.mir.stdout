@@ -338,24 +338,17 @@ fn @dirtyMemoryLvalue() -> bool [selector=0x91f3b994, pure, abi_params=[], abi_r
   bb2:
     v3 = memory_object_load_element memoryfixedarray<1, 1>, v0, 0
     v4 = and v3, 255
-    v5 = add v4, 1
-    v6 = gt v5, 255
-    jumpi v6, bb3, bb4
-  bb4:
-    v7 = and v5, 255
-    memory_object_store_element memoryfixedarray<1, 1>, v0, 0, v7
-    v8 = lt 0, 1
-    v9 = iszero v8
-    jumpi v9, bb1, bb5
-  bb5:
-    v10 = memory_object_load_element memoryfixedarray<1, 1>, v0, 0
-    v11 = and v10, 255
-    v12 = eq v11, 2
-    ret v12
+    v5 = checked_add u8, v4, 1
+    v6 = and v5, 255
+    memory_object_store_element memoryfixedarray<1, 1>, v0, 0, v6
+    v7 = lt 0, 1
+    v8 = iszero v7
+    jumpi v8, bb1, bb3
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    v9 = memory_object_load_element memoryfixedarray<1, 1>, v0, 0
+    v10 = and v9, 255
+    v11 = eq v10, 2
+    ret v11
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

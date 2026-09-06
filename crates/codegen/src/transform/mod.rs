@@ -22,6 +22,8 @@ pub(crate) mod lower_abi;
 pub(crate) mod lower_abi_encode;
 pub(crate) mod lower_aggregates;
 pub(crate) mod lower_alloc;
+pub(crate) mod lower_arithmetic;
+pub(crate) mod lower_builtins;
 pub(crate) mod lower_dispatch;
 pub(crate) mod lower_evm_shaped;
 pub(crate) mod lower_frame_slots;

@@ -69,6 +69,8 @@ pub static ALL_PASSES: &[&dyn MirPass] = &[
     &copy_elision::CopyElision,
     &dce::Dce,
     &adce::Adce,
+    &lower_arithmetic::LowerArithmetic,
+    &lower_builtins::LowerBuiltins,
     &lower_abi::LowerAbi,
     &lower_dispatch::LowerDispatch,
     &lower_structs::LowerStructs,
@@ -200,6 +202,15 @@ pub static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     &inline::SpecializeFunctionPointers,
     &function_compaction::DeadArgElim,
     &cfg_simplify::FunctionDce,
+    &function_compaction::MergeEquivalentFunctions,
+    &cfg_simplify::FunctionDce,
+];
+
+/// Expands semantic operations and makes the backend representation explicit.
+pub static LOWERING_PIPELINE: &[&dyn MirPass] = &[
+    &lower_arithmetic::LowerArithmetic,
+    &lower_builtins::LowerBuiltins,
+    // Expansion exposes scalar checks and object copies to this bounded cleanup group.
     &sccp::Sccp,
     &inst_simplify::InstSimplify,
     &gvn::Gvn,
@@ -209,12 +220,6 @@ pub static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     &frame_promotion::FrameSlotPromotion,
     &memory_dse::MemoryDse,
     &adce::Adce,
-    &function_compaction::MergeEquivalentFunctions,
-    &cfg_simplify::FunctionDce,
-];
-
-/// Expands semantic operations and makes the backend representation explicit.
-pub static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &lower_abi::LowerAbi,
     // ABI lowering leaves tiny canonical-word helpers after the earlier
     // inlining pass; expand those leaves before encoding wrappers.
