@@ -456,6 +456,17 @@ byte per artifact and three opcode gas on exercised zero-value paths. The
 unoptimized/custom-pipeline size increases are explicitly retained in the review;
 no optimized regression is hidden. Evidence: `dump-contract-review/`.
 
+Outlining now computes physical stack-height prefixes once per block and looks
+up each candidate start, replacing repeated prefix scans. Unknown effects end
+the cache at the same point where the former scan declined the candidate. This
+adds 14 lines in the production file. All 715 UI successes per mode and both
+15-case/175-label hot reports retain exact bytecode and gas; 92 helpers pass.
+Two sequential Seaport pairs preserve all 432 contracts exactly. Times are
+132.95 -> 125.65 and 132.64 -> 126.69 seconds, a 5.0% reduction in paired median
+time. Peak RSS rises 2.0--2.6%; this bounded cache trades memory for avoided work.
+The earlier larger Option-cache prototype and its measurements remain separate.
+Evidence: `outline-prefix-heights/compact/`; no pass was removed or reordered.
+
 ## Remaining acceptance
 
 Complete targeted fixes, remove every new baseline failure, and investigate

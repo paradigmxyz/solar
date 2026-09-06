@@ -22,13 +22,15 @@
 //! sixteen whose original instruction ranges are disjoint. All sites are then
 //! split from right to left, so earlier coordinates remain valid without
 //! rescanning or nesting newly outlined bodies. Metadata and relocatable
-//! observations are excluded.
+//! observations are excluded. Stack-height prefixes are computed once per block;
+//! checking each candidate never rescans instructions preceding its window.
 
 use super::{Block, BlockId, EvmPass, InstKind, Module, TerminatorKind, verify::effect};
 use crate::backend::evm::op;
 use alloy_primitives::U256;
 use solar_data_structures::{
     bit_set::DenseBitSet,
+    index::IndexVec,
     map::{FxHashMap, FxHasher},
 };
 use solar_sema::Gcx;
@@ -44,6 +46,23 @@ impl EvmPass for Outline {
         let ids = module.block_ids().collect::<Vec<_>>();
         let Ok(heights) = super::verify::stack_heights(module) else { return false };
         let reachable = super::verify::physical_reachability(module);
+        let prefixes = module
+            .blocks
+            .iter()
+            .map(|block| {
+                let mut height = 0isize;
+                let mut offsets = Vec::with_capacity(block.insts.len() + 1);
+                offsets.push(height);
+                for inst in &block.insts {
+                    let Some((inputs, outputs)) = effect(&inst.kind).or(inst.stack_effect) else {
+                        break;
+                    };
+                    height += outputs as isize - inputs as isize;
+                    offsets.push(height);
+                }
+                offsets
+            })
+            .collect::<IndexVec<BlockId, Vec<_>>>();
         // Advance every original start by one instruction per round. Only one
         // window length is resident, preserving all candidates with linear storage.
         let mut states = ids
@@ -108,7 +127,7 @@ impl EvmPass for Outline {
                         sites.push(candidate);
                     }
                 }
-                sites.retain(|site| peak_fits(module, &heights, &reachable, site, &body));
+                sites.retain(|site| peak_fits(&prefixes, &heights, &reachable, site, &body));
                 if sites.len() < 2 {
                     continue;
                 }
@@ -136,7 +155,7 @@ impl EvmPass for Outline {
                 retain_candidate(&mut ranked, (score, stub, sites, inputs), limit);
             }
         }
-        if let Some(parameterized) = parameterized(gcx, module, &heights, &reachable) {
+        if let Some(parameterized) = parameterized(gcx, module, &prefixes, &heights, &reachable) {
             retain_candidate(&mut ranked, parameterized, limit);
         }
         let selected = disjoint_candidates(ranked);
@@ -326,6 +345,7 @@ fn disjoint_candidates(ranked: Vec<Candidate>) -> Vec<Candidate> {
 fn parameterized(
     gcx: Gcx<'_>,
     module: &Module,
+    prefixes: &IndexVec<BlockId, Vec<isize>>,
     heights: &super::verify::StackHeights,
     reachable: &DenseBitSet<BlockId>,
 ) -> Option<Candidate> {
@@ -401,7 +421,7 @@ fn parameterized(
                 skeleton.push(inst);
             }
         }
-        sites.retain(|site| peak_fits(module, heights, reachable, site, &skeleton));
+        sites.retain(|site| peak_fits(prefixes, heights, reachable, site, &skeleton));
         if sites.len() < 2 {
             continue;
         }
@@ -437,7 +457,7 @@ fn parameterized(
 }
 
 fn peak_fits(
-    module: &Module,
+    prefixes: &IndexVec<BlockId, Vec<isize>>,
     heights: &super::verify::StackHeights,
     reachable: &DenseBitSet<BlockId>,
     site: &Site,
@@ -449,14 +469,8 @@ fn peak_fits(
         None => return false,
     };
     // Even unreachable bodies retain an intrinsic peak at or below the limit.
-    let mut height = entry as isize;
-    for inst in &module.blocks[site.id].insts[..site.start] {
-        let Some((inputs, outputs)) = effect(&inst.kind).or(inst.stack_effect) else {
-            return false;
-        };
-        height += outputs as isize - inputs as isize;
-    }
-    height += site.parameters.len() as isize + 1;
+    let Some(&prefix) = prefixes[site.id].get(site.start) else { return false };
+    let mut height = entry as isize + prefix + site.parameters.len() as isize + 1;
     // Continuation push followed by the direct jump's transient target push.
     if height + 1 > 1024 {
         return false;
