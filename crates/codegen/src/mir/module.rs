@@ -44,43 +44,19 @@ struct Data {
     emit_in_runtime: bool,
 }
 
-/// The lowering phase a [`Module`] is in.
+/// The representation contract of a MIR module.
 ///
-/// MIR is a phased IR, like rustc's MIR: the same data structures pass through
-/// well-defined phases, and passes declare what phase they expect and produce.
-/// Phases only move forward. The enum order is the lowering order, so
-/// [`MirPhase`] derives `Ord` and `Module::advance_phase` can assert monotonicity.
-///
-/// Optimization runs on the compact high-level form first; the progressive
-/// lowering phases then rewrite high-level constructs into MIR itself instead
-/// of leaving them as backend special cases. The codegen pipeline runs ABI,
-/// dispatch, memory-object, allocation, and EVM-shape lowering by default. The
-/// backend only consumes an `evm-shaped` module; a lowering pass that cannot
-/// complete leaves the module at an earlier phase and codegen reports it.
+/// Semantic MIR retains typed operations through optimization. Lowered MIR contains only
+/// backend-supported word operations, with ABI routing and memory layouts made explicit.
+/// Individual conversion passes may mix representations; only checked completion advances
+/// the phase. Optimization history is not part of the representation.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum MirPhase {
-    /// Fresh from HIR lowering: typed values, internal calls by function id,
-    /// dispatch and ABI handling not yet materialized as MIR.
+    /// Typed SSA with semantic operations and layouts.
     #[default]
-    Built,
-    /// The canonical optimization pipeline has run.
-    Optimized,
-    /// Every external function has been rewritten into a self-decoding wrapper:
-    /// it decodes calldata into typed arguments and calls the original body as
-    /// an internal function; the body keeps its fused external termination.
-    /// The wrapper keeps its selector but takes no MIR arguments.
-    Abi,
-    /// The selector switch has been materialized as an ordinary MIR `entry`
-    /// function that routes to the ABI wrappers.
-    Dispatch,
-    /// Semantic memory objects have been lowered to physical pointer and word
-    /// operations. Produced by the `lower-memory-objects` pass.
-    MemoryLowered,
-    /// Functions take the shape the backend expects: every call edge either
-    /// returns or is an explicit `tail_call` (a call to a callee that cannot
-    /// return is rewritten into one, arguments included). Produced by the
-    /// `lower-evm-shaped` pass after all required representation lowering.
-    EvmShaped,
+    Semantic,
+    /// Word SSA with explicit ABI, memory, and backend calling conventions.
+    Lowered,
 }
 
 impl MirPhase {
@@ -88,12 +64,8 @@ impl MirPhase {
     #[must_use]
     pub const fn name(self) -> &'static str {
         match self {
-            Self::Built => "built",
-            Self::Optimized => "optimized",
-            Self::Abi => "abi",
-            Self::Dispatch => "dispatch",
-            Self::MemoryLowered => "memory-lowered",
-            Self::EvmShaped => "evm-shaped",
+            Self::Semantic => "semantic",
+            Self::Lowered => "lowered",
         }
     }
 
@@ -101,14 +73,21 @@ impl MirPhase {
     #[must_use]
     pub(crate) fn by_name(name: Symbol) -> Option<Self> {
         Some(match name {
-            sym::built => Self::Built,
-            sym::optimized => Self::Optimized,
-            sym::abi => Self::Abi,
-            sym::dispatch => Self::Dispatch,
-            sym::memory_dash_lowered => Self::MemoryLowered,
-            sym::evm_dash_shaped => Self::EvmShaped,
+            sym::semantic => Self::Semantic,
+            sym::lowered => Self::Lowered,
             _ => return None,
         })
+    }
+}
+
+/// An immutable MIR view whose backend representation has been checked.
+pub(crate) struct LoweredModule<'a>(&'a Module);
+
+impl std::ops::Deref for LoweredModule<'_> {
+    type Target = Module;
+
+    fn deref(&self) -> &Module {
+        self.0
     }
 }
 
@@ -146,7 +125,7 @@ pub struct Module {
     /// [`Self::library_deploy_address`].
     pub(crate) is_library: bool,
     /// The lowering phase this module is in.
-    pub(crate) phase: MirPhase,
+    pub(super) phase: MirPhase,
     /// Whether passes must account for every instruction's source debug information.
     debug_info_tracked: bool,
 }
@@ -210,7 +189,7 @@ impl Module {
             library_links: Vec::new(),
             is_interface: false,
             is_library: false,
-            phase: MirPhase::Built,
+            phase: MirPhase::Semantic,
             debug_info_tracked: false,
         }
     }
@@ -226,28 +205,52 @@ impl Module {
         self.debug_info_tracked
     }
 
-    /// Advances this module to a later phase.
-    ///
-    /// Phases only move forward; a pipeline that would regress the phase is a
-    /// bug in pass scheduling.
-    pub(crate) fn advance_phase(&mut self, phase: MirPhase) {
-        debug_assert!(
-            phase >= self.phase,
-            "MIR phase cannot regress: {} -> {}",
-            self.phase.name(),
-            phase.name()
-        );
+    /// Returns the verified representation phase.
+    #[must_use]
+    pub const fn phase(&self) -> MirPhase {
+        self.phase
+    }
+
+    /// Checks the destination representation before advancing the phase.
+    pub(crate) fn advance_phase(
+        &mut self,
+        dcx: &solar_interface::diagnostics::DiagCtxt,
+        phase: MirPhase,
+    ) -> solar_interface::Result<()> {
+        assert!(phase >= self.phase, "MIR phase cannot regress");
+        crate::analysis::validate_phase(dcx, self, phase)?;
         self.phase = phase;
+        Ok(())
+    }
+
+    /// Checks backend legality and borrows the module without permitting further rewrites.
+    pub(crate) fn as_lowered(
+        &self,
+        dcx: &solar_interface::diagnostics::DiagCtxt,
+    ) -> solar_interface::Result<LoweredModule<'_>> {
+        if self.phase != MirPhase::Lowered {
+            return Err(dcx
+                .err(format!(
+                    "EVM codegen requires MIR in the `lowered` phase, stopped at `{}`",
+                    self.phase.name(),
+                ))
+                .span(self.name.span)
+                .emit());
+        }
+        crate::analysis::validate_phase(dcx, self, MirPhase::Lowered)?;
+        Ok(LoweredModule(self))
+    }
+
+    /// Returns whether all external entries have an explicit ABI implementation.
+    pub(crate) fn has_explicit_abi(&self) -> bool {
+        self.functions
+            .iter()
+            .all(|func| !func.is_external_entry() || func.attributes.is_abi_wrapper)
     }
 
     /// Returns whether a live value or function signature still uses an SSA struct.
     pub(crate) fn has_struct_values(&self) -> bool {
         self.has_value_type(|ty| matches!(ty, MirType::Struct(_)))
-    }
-
-    /// Returns whether a live value or function signature needs aggregate lowering.
-    pub(crate) fn has_aggregate_values(&self) -> bool {
-        self.has_value_type(|ty| matches!(ty, MirType::Struct(_) | MirType::Slice(_)))
     }
 
     fn has_value_type(&self, predicate: impl Fn(MirType) -> bool) -> bool {

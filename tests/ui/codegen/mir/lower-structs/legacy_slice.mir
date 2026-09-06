@@ -1,8 +1,9 @@
 //@ revisions: structs boundary
 //@[structs] compile-flags: -Zmir-pipeline=lower-structs
 //@[boundary] compile-flags: -Zmir-pipeline=lower-structs,lower-frame-slots,lower-memory-objects,lower-slices,lower-evm-shaped
+//~[boundary]? ERROR: `lower-memory-objects` requires scalar structs; run `lower-structs` first
 @module LegacySlice
-@phase dispatch
+@phase semantic
 
 types:
   struct0: {memoryslice, u256}

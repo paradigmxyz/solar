@@ -6,11 +6,11 @@ EVM stack. These boundaries serve different purposes: maintaining SSA is a
 correctness requirement for every transform; choosing a physical representation
 is a late lowering decision.
 
-## Proposed phase model
+## Phase model
 
-This section proposes the next architecture change. The implementation still
-uses `built`, `optimized`, `abi`, `dispatch`, `memory-lowered`, and `evm-shaped`.
-The CFG and aggregate contracts below describe implemented behavior.
+The two representation phases and checked backend boundary are implemented.
+The builtin and effect migrations described below remain the next steps.
+The CFG and aggregate contracts below also describe implemented behavior.
 
 Use two stable MIR representations, `semantic` and `lowered`, followed by the
 existing EVM IR. Keep one set of MIR data structures. Optimization history is
@@ -113,10 +113,11 @@ APIs and HIR-to-MIR fixtures as well as the phase checks.
 
 ### Make phase transitions checked boundaries
 
-The current phase restrictions are spread across the verifier, lowering guards,
-and backend checks. `MirPass::run_pass` returns a change flag, so callers cannot
-use that result to distinguish an unsupported lowering from a harmless no-op.
-`is_enabled` also mixes optional optimization with representation readiness.
+Required conversions use `MirPass::try_run_pass` to report failure separately
+from their changed flag. The pass manager and custom pipelines stop on errors.
+`abi_wrapper` marks an explicit entry ABI; it is verified independently of the
+module phase. The final phase uses a shared legality check, and runtime codegen
+requires an immutable `LoweredModule` view.
 
 Define one legality implementation for instructions, types, function signatures,
 terminators, and module entries. Use it both when completing conversion and when

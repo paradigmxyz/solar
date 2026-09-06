@@ -1,11 +1,11 @@
 // === ROOT/tests/ui/codegen/lowering/abi_decode_structs.sol:AbiDecodeStructs ===
 @module AbiDecodeStructs
-@phase evm-shaped
+@phase lowered
 types:
   struct0: {u256, u256, u256}
   struct1: {u256, memorybytes, u256}
 
-fn @dFlat() [selector=0x6644232b, pure] {
+fn @dFlat() [selector=0x6644232b, abi_wrapper, pure] {
   bb0:
     v25 = calldatasize
     v26 = lt v25, 36
@@ -51,7 +51,7 @@ fn @dFlat() [selector=0x6644232b, pure] {
     revert 0, 0
 }
 
-fn @dNested() [selector=0xfc7ec666, pure] {
+fn @dNested() [selector=0xfc7ec666, abi_wrapper, pure] {
   bb0:
     v51 = calldatasize
     v52 = lt v51, 36
@@ -185,7 +185,7 @@ fn @dNested() [selector=0xfc7ec666, pure] {
     revert 0, 0
 }
 
-fn @dFixed() [selector=0xc298c02b, pure] {
+fn @dFixed() [selector=0xc298c02b, abi_wrapper, pure] {
   bb0:
     v30 = calldatasize
     v31 = lt v30, 36
@@ -257,7 +257,7 @@ fn @dFixed() [selector=0xc298c02b, pure] {
     revert 0, 0
 }
 
-fn @dDynArr() [selector=0xaca542ca, pure] {
+fn @dDynArr() [selector=0xaca542ca, abi_wrapper, pure] {
   bb0:
     v42 = calldatasize
     v43 = lt v42, 36

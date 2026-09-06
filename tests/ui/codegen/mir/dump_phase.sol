@@ -14,7 +14,7 @@
 // NONE-NOT: @phase
 // NONE-LABEL: fn @f(arg0: u256)
 // NONE: add arg0, 0
-// GAS: @phase evm-shaped
+// GAS: @phase lowered
 // GAS-NOT: add arg0, 0
 // PIPELINE: {{^// === .*:DumpPhase \(after none\) ===$}}
 // PIPELINE: @module DumpPhase

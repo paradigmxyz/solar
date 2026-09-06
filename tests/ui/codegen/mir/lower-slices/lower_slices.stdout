@@ -2,8 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/lower-slices/lower_slices.mir (after lower-abi) ===
   @module LowerSlices
 - fn @entry(arg0: calldataslice) [selector=0x12345678] {
-+ @phase abi
-+ fn @entry() [selector=0x12345678] {
++ fn @entry() [selector=0x12345678, abi_wrapper] {
     bb0:
 +     v1 = calldatasize
 +     v2 = lt v1, 36
@@ -53,8 +52,7 @@
 - // === ROOT/tests/ui/codegen/mir/lower-slices/lower_slices.mir (before lower-slices) ===
 + // === ROOT/tests/ui/codegen/mir/lower-slices/lower_slices.mir (after lower-slices) ===
   @module LowerSlices
-  @phase abi
-  fn @entry() [selector=0x12345678] {
+  fn @entry() [selector=0x12345678, abi_wrapper] {
     bb0:
       v1 = calldatasize
       v2 = lt v1, 36

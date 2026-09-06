@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/user_defined_operators.sol:UserDefinedOperators ===
 @module UserDefinedOperators
-@phase evm-shaped
-fn @doAdd() [selector=0xe9148a2a, pure] {
+@phase lowered
+fn @doAdd() [selector=0xe9148a2a, abi_wrapper, pure] {
   bb0:
     v1 = calldatasize
     v2 = lt v1, 68
@@ -14,7 +14,7 @@ fn @doAdd() [selector=0xe9148a2a, pure] {
     revert 0, 0
 }
 
-fn @doNeg() [selector=0x8fa81b4e, pure] {
+fn @doNeg() [selector=0x8fa81b4e, abi_wrapper, pure] {
   bb0:
     v1 = calldatasize
     v2 = lt v1, 36
@@ -27,7 +27,7 @@ fn @doNeg() [selector=0x8fa81b4e, pure] {
     revert 0, 0
 }
 
-fn @doFlip() [selector=0x7cf9d6d4, pure] {
+fn @doFlip() [selector=0x7cf9d6d4, abi_wrapper, pure] {
   bb0:
     v2 = calldatasize
     v3 = lt v2, 36

@@ -1,7 +1,6 @@
 - // === ROOT/tests/ui/codegen/mir/lower-structs/slices.mir (before lower-structs) ===
 + // === ROOT/tests/ui/codegen/mir/lower-structs/slices.mir (after lower-structs) ===
   @module StructSlices
-  @phase dispatch
   types:
     struct0: {}
     struct1: {calldataslice, u256}

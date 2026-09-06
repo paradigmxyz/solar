@@ -1,10 +1,10 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_struct_member_index.sol:CalldataStructMemberIndex ===
 @module CalldataStructMemberIndex
-@phase evm-shaped
+@phase lowered
 types:
   struct0: {u256, u256, u256}
 
-fn @plain() [selector=0xc2dcee6a, pure] {
+fn @plain() [selector=0xc2dcee6a, abi_wrapper, pure] {
   bb0:
     v15 = calldatasize
     v16 = lt v15, 68
@@ -45,7 +45,7 @@ fn @plain() [selector=0xc2dcee6a, pure] {
     revert 0, 0
 }
 
-fn @member() [selector=0x49eb8b89, pure] {
+fn @member() [selector=0x49eb8b89, abi_wrapper, pure] {
   bb0:
     v36 = calldatasize
     v37 = lt v36, 68
@@ -107,7 +107,7 @@ fn @member() [selector=0x49eb8b89, pure] {
     revert 0, 0
 }
 
-fn @word() [selector=0xd192e846, pure] {
+fn @word() [selector=0xd192e846, abi_wrapper, pure] {
   bb0:
     v33 = calldatasize
     v34 = lt v33, 68
@@ -168,7 +168,7 @@ fn @word() [selector=0xd192e846, pure] {
     revert 0, 0
 }
 
-fn @lengths() [selector=0xb7a3bd0f, pure] {
+fn @lengths() [selector=0xb7a3bd0f, abi_wrapper, pure] {
   bb0:
     v69 = calldatasize
     v70 = lt v69, 36

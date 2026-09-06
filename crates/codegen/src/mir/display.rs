@@ -296,6 +296,9 @@ fn display_function_attributes(func: &Function, is_dispatch_entry: bool) -> impl
                 format_args!("selector=0x{:08x}", u32::from_be_bytes(selector)),
             )?;
         }
+        if func.attributes.is_abi_wrapper {
+            write_function_attribute(f, &mut first, "abi_wrapper")?;
+        }
         if func.attributes.is_constructor {
             write_function_attribute(f, &mut first, "constructor")?;
         }

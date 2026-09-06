@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/mir/coalesce-allocs/coalesce_allocs_structs.sol:CoalesceAllocsFixture ===
 @module CoalesceAllocsFixture
-@phase evm-shaped
-fn @combine() [selector=0xd9171e32, pure] {
+@phase lowered
+fn @combine() [selector=0xd9171e32, abi_wrapper, pure] {
   bb0:
     v12 = calldatasize
     v13 = lt v12, 36

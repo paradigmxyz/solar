@@ -1,7 +1,7 @@
 //! MIR pass execution, following rustc's MIR pass manager.
 
 use crate::{
-    mir::{MirPhase, Module, validate},
+    mir::{Module, validate},
     pass::ModuleAnalyses,
     timing::PassTimer,
 };
@@ -106,6 +106,16 @@ pub trait MirPass: Sync {
         false
     }
 
+    /// Runs a transform, reporting a failed required conversion separately from a no-op.
+    fn try_run_pass(
+        &self,
+        gcx: Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut ModuleAnalyses,
+    ) -> Result<bool> {
+        Ok(self.run_pass(gcx, module, analyses))
+    }
+
     /// Runs the pass and returns whether it changed MIR.
     #[must_use]
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool;
@@ -113,27 +123,21 @@ pub trait MirPass: Sync {
 
 /// Runs a sequence of MIR passes without validating after each pass.
 #[must_use]
-pub fn run_passes_no_validate(
-    gcx: Gcx<'_>,
-    module: &mut Module,
-    passes: &[&dyn MirPass],
-    phase_change: Option<MirPhase>,
-) -> bool {
+pub fn run_passes_no_validate(gcx: Gcx<'_>, module: &mut Module, passes: &[&dyn MirPass]) -> bool {
     let output = PassOutput { name: None };
-    run_passes_inner(gcx, module, passes, phase_change, false, output)
+    run_passes_inner(gcx, module, passes, false, output)
 }
 
-/// Runs a sequence of MIR passes, then applies `phase_change` when present.
+/// Runs a sequence of MIR passes, checking each changed result when verification is enabled.
 #[must_use]
 pub fn run_passes(
     gcx: Gcx<'_>,
     module: &mut Module,
     passes: &[&dyn MirPass],
-    phase_change: Option<MirPhase>,
     name: Option<&str>,
 ) -> bool {
     let output = PassOutput { name };
-    run_passes_inner(gcx, module, passes, phase_change, true, output)
+    run_passes_inner(gcx, module, passes, true, output)
 }
 
 #[must_use]
@@ -141,7 +145,6 @@ fn run_passes_inner(
     gcx: Gcx<'_>,
     module: &mut Module,
     passes: &[&dyn MirPass],
-    phase_change: Option<MirPhase>,
     validate_each: bool,
     output: PassOutput<'_>,
 ) -> bool {
@@ -163,7 +166,9 @@ fn run_passes_inner(
             assert_debug_info_handled(module, pass_name, "before");
             analyses.begin_pass();
             let timer = PassTimer::new(gcx.sess.opts.unstable.time_passes);
-            let pass_changed = pass.run_pass(gcx, module, &mut analyses);
+            let Ok(pass_changed) = pass.try_run_pass(gcx, module, &mut analyses) else {
+                return changed;
+            };
             timer.finish("MIR", module.name, pass_name, pass_changed);
             analyses.finish_pass(pass_changed);
             changed |= pass_changed;
@@ -179,21 +184,6 @@ fn run_passes_inner(
         } else if gcx.sess.opts.unstable.print_after_each && !gcx.sess.opts.unstable.pass_diff {
             println!("// === {output_name} (after {pass_name}) ===");
             print!("{}", module.to_text());
-        }
-    }
-
-    if let Some(new_phase) = phase_change {
-        assert!(
-            module.phase <= new_phase,
-            "invalid MIR phase transition from {} to {}",
-            module.phase.name(),
-            new_phase.name()
-        );
-        let phase_changed = module.phase != new_phase;
-        module.advance_phase(new_phase);
-        changed |= phase_changed;
-        if phase_changed && validate_each && should_validate_ir(gcx) {
-            validate_module_after_pass(module, new_phase.name());
         }
     }
 

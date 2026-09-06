@@ -702,6 +702,141 @@ pub(crate) struct Instruction {
 }
 
 impl Instruction {
+    /// Returns the semantic operation that still needs representation lowering.
+    pub(crate) fn unlowered_reason(&self) -> Option<&'static str> {
+        match &self.kind {
+            InstKind::InsertValue { .. } | InstKind::ExtractValue { .. } => Some("struct value"),
+            InstKind::MakeSlice { .. } | InstKind::SlicePtr(..) | InstKind::SliceLen(..) => {
+                Some("slice")
+            }
+            InstKind::Fmp | InstKind::SetFmp(..) => Some("abstract allocation"),
+            InstKind::MemoryZero(..) => Some("memory zero"),
+            InstKind::AbiEncode { .. } => Some("ABI encoding"),
+            InstKind::AbiDecode { .. } => Some("ABI decoding"),
+            InstKind::StorageToMemory { .. }
+            | InstKind::MemoryToStorage { .. }
+            | InstKind::ClearStorage { .. } => Some("aggregate"),
+            InstKind::MappingSlot(..)
+            | InstKind::MappingSlotMemory(..)
+            | InstKind::MappingSlotCalldata(..)
+            | InstKind::StorageArrayDataSlot(..)
+            | InstKind::StorageArrayElementSlot { .. } => Some("storage slot"),
+            InstKind::StoreImmutable(..) => Some("immutable assignment"),
+            InstKind::FrameLoad { .. } | InstKind::FrameStore { .. } => Some("frame slot"),
+            InstKind::MemoryObjectFromPtr { .. }
+            | InstKind::WordCast(..)
+            | InstKind::MemoryObjectLen(..)
+            | InstKind::SetMemoryObjectLen(..)
+            | InstKind::MemoryObjectData(..)
+            | InstKind::MemoryObjectFieldAddr { .. }
+            | InstKind::MemoryObjectElementAddr { .. }
+            | InstKind::MemoryObjectLoadField { .. }
+            | InstKind::MemoryObjectStoreField { .. }
+            | InstKind::MemoryObjectLoadElement { .. }
+            | InstKind::MemoryObjectLoadByte { .. }
+            | InstKind::MemoryObjectStoreElement { .. }
+            | InstKind::MemoryObjectStoreByte { .. }
+            | InstKind::MemoryObjectStoreWord { .. }
+            | InstKind::MemorySliceLoadWord { .. }
+            | InstKind::CalldataSliceLoadWord { .. }
+            | InstKind::MemoryObjectCopyFromSlice { .. }
+            | InstKind::MemoryObjectCopyFromSliceAt { .. }
+            | InstKind::MemoryObjectCopy { .. }
+            | InstKind::Keccak256Bytes(..) => Some("memory-object"),
+            InstKind::Alloc { kind, semantics, .. } => (!self.metadata.deferred_alloc()
+                || !matches!(kind, AllocationKind::Raw)
+                || *semantics != AllocationSemantics::INTERNAL)
+                .then_some("abstract allocation"),
+            InstKind::Add(..)
+            | InstKind::Sub(..)
+            | InstKind::Mul(..)
+            | InstKind::Div(..)
+            | InstKind::SDiv(..)
+            | InstKind::Mod(..)
+            | InstKind::SMod(..)
+            | InstKind::Exp(..)
+            | InstKind::AddMod(..)
+            | InstKind::MulMod(..)
+            | InstKind::And(..)
+            | InstKind::Or(..)
+            | InstKind::Xor(..)
+            | InstKind::Not(..)
+            | InstKind::Clz(..)
+            | InstKind::Shl(..)
+            | InstKind::Shr(..)
+            | InstKind::Sar(..)
+            | InstKind::Byte(..)
+            | InstKind::Lt(..)
+            | InstKind::Gt(..)
+            | InstKind::SLt(..)
+            | InstKind::SGt(..)
+            | InstKind::Eq(..)
+            | InstKind::IsZero(..)
+            | InstKind::MLoad(..)
+            | InstKind::MStore(..)
+            | InstKind::MStore8(..)
+            | InstKind::MSize
+            | InstKind::MCopy(..)
+            | InstKind::SLoad(..)
+            | InstKind::SStore(..)
+            | InstKind::TLoad(..)
+            | InstKind::TStore(..)
+            | InstKind::CalldataLoad(..)
+            | InstKind::CalldataCopy(..)
+            | InstKind::CalldataSize
+            | InstKind::InternalFrameAddr(..)
+            | InstKind::ConstructorArgsBase
+            | InstKind::ConstructorArgsEnd
+            | InstKind::DataCopy(..)
+            | InstKind::CodeSize
+            | InstKind::CodeCopy(..)
+            | InstKind::ExtCodeSize(..)
+            | InstKind::ExtCodeCopy(..)
+            | InstKind::ExtCodeHash(..)
+            | InstKind::LoadImmutable(..)
+            | InstKind::ReturnDataSize
+            | InstKind::ReturnDataCopy(..)
+            | InstKind::Caller
+            | InstKind::CallValue
+            | InstKind::Origin
+            | InstKind::GasPrice
+            | InstKind::BlockHash(..)
+            | InstKind::Coinbase
+            | InstKind::Timestamp
+            | InstKind::BlockNumber
+            | InstKind::PrevRandao
+            | InstKind::GasLimit
+            | InstKind::SlotNum
+            | InstKind::ChainId
+            | InstKind::Address
+            | InstKind::Balance(..)
+            | InstKind::SelfBalance
+            | InstKind::Gas
+            | InstKind::BaseFee
+            | InstKind::BlobBaseFee
+            | InstKind::BlobHash(..)
+            | InstKind::Keccak256(..)
+            | InstKind::Call { .. }
+            | InstKind::CallCode { .. }
+            | InstKind::StaticCall { .. }
+            | InstKind::DelegateCall { .. }
+            | InstKind::ExtCall { .. }
+            | InstKind::ExtDelegateCall { .. }
+            | InstKind::ExtStaticCall { .. }
+            | InstKind::ICall { .. }
+            | InstKind::Create(..)
+            | InstKind::Create2(..)
+            | InstKind::Log0(..)
+            | InstKind::Log1(..)
+            | InstKind::Log2(..)
+            | InstKind::Log3(..)
+            | InstKind::Log4(..)
+            | InstKind::Phi(..)
+            | InstKind::Select(..)
+            | InstKind::SignExtend(..) => None,
+        }
+    }
+
     /// Creates a new instruction.
     #[must_use]
     pub(crate) const fn new(kind: InstKind, result_ty: Option<MirType>) -> Self {

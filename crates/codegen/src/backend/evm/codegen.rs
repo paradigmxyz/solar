@@ -2791,20 +2791,12 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         self.reset_for_module(module);
         self.run_optimization_passes(module);
+        if self.gcx.dcx().has_errors().is_err() {
+            return EvmArtifact::default();
+        }
         self.function_return_counts =
             module.functions.iter().map(|func| func.returns.len()).collect();
         if self.emit_unsupported(module) {
-            return EvmArtifact::default();
-        }
-        if module.phase != MirPhase::EvmShaped {
-            self.gcx
-                .dcx()
-                .err(format!(
-                    "EVM codegen requires MIR in the `evm-shaped` phase, stopped at `{}`",
-                    module.phase.name()
-                ))
-                .span(module.name.span)
-                .emit();
             return EvmArtifact::default();
         }
         self.immutable_staging_base = immutable_staging_base(module);
@@ -2830,6 +2822,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
         }
+        let Ok(lowered) = module.as_lowered(self.gcx.dcx()) else {
+            return EvmArtifact::default();
+        };
+        let module = &*lowered;
         // Runtime and constructor emission inspect the same final MIR. Compute module-wide facts
         // once instead of rebuilding them for each artifact and caller-stack retry.
         let call_graph = CallGraphInfo::new(module);
@@ -2841,7 +2837,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         };
 
         // First generate the runtime code
-        let runtime_code = self.generate_runtime_code(module, &call_graph);
+        let runtime_code = self.generate_runtime_code(&lowered, &call_graph);
         let runtime_len = runtime_code.bytecode.len();
         let immutable_refs = std::mem::take(&mut self.runtime_immutable_refs);
 
@@ -3267,12 +3263,12 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Generates runtime bytecode for a module.
     fn generate_runtime_code(
         &mut self,
-        module: &Module,
+        module: &crate::mir::LoweredModule<'_>,
         call_graph: &CallGraphInfo,
     ) -> GeneratedCode {
         assert_eq!(
-            module.phase,
-            MirPhase::EvmShaped,
+            module.phase(),
+            MirPhase::Lowered,
             "EVM codegen requires MIR in the final phase"
         );
         let runtime_code_size_limit = self.gcx.sess.opts.evm_version.runtime_code_size_limit();
@@ -9895,7 +9891,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             | InstKind::Log3(offset, size, _, _, _)
             | InstKind::Log4(offset, size, _, _, _, _) => overlaps(*offset, *size),
             InstKind::MSize | InstKind::Fmp | InstKind::SetFmp(_) | InstKind::Alloc { .. } => true,
-            // These semantic memory operations are normally gone by the `evm-shaped` phase. If
+            // These semantic memory operations are normally gone by the `lowered` phase. If
             // one remains, its complete accessed range is not represented as physical operands
             // here, so retain the Solidity memory invariant conservatively.
             InstKind::MemoryObjectLen(_, _)
@@ -12496,7 +12492,7 @@ mod tests {
             FunctionBuilder::new(&mut entry).stop();
             let entry = module.add_function(entry);
             module.set_dispatch_entry(entry);
-            module.advance_phase(MirPhase::EvmShaped);
+            module.advance_phase(codegen.gcx.dcx(), MirPhase::Lowered).unwrap();
 
             let mut first_module = module.clone();
             let first = codegen.generate_deployment_bytecode(&mut first_module);
@@ -12535,7 +12531,7 @@ mod tests {
     fn data_copy_reaches_destination_before_relocation_push() {
         with_codegen(CompileOpts::default(), |mut codegen| {
             let mut module = Module::new(Ident::DUMMY);
-            module.phase = MirPhase::EvmShaped;
+            module.advance_phase(codegen.gcx.dcx(), MirPhase::Lowered).unwrap();
             let data = module.add_data(vec![0; WORD_BYTES].into(), None);
 
             let mut function = Function::new(Ident::DUMMY);
@@ -12688,11 +12684,12 @@ mod tests {
                     module.set_dispatch_entry(function);
                 }
             }
-            module.advance_phase(MirPhase::EvmShaped);
+            module.advance_phase(codegen.gcx.dcx(), MirPhase::Lowered).unwrap();
             let call_graph = CallGraphInfo::new(&module);
             codegen.cold_functions = DenseBitSet::new_empty(module.functions.len());
 
-            let _ = codegen.generate_runtime_code(&module, &call_graph);
+            let _ = codegen
+                .generate_runtime_code(&module.as_lowered(codegen.gcx.dcx()).unwrap(), &call_graph);
 
             assert!(!codegen.stack_returns_enabled);
             assert!(codegen.gcx.dcx().has_errors().is_err());

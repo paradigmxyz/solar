@@ -8,8 +8,8 @@
 //!
 //! This runs after SSA structs and mutable frame slots have been lowered. It leaves modules with
 //! live SSA structs untouched: erasing an object's type while a struct still declares that field
-//! would break the aggregate type contract. A dispatch-phase module advances to memory-lowered
-//! only after these representation changes complete.
+//! would break the aggregate type contract. The module stays semantic until
+//! the final conversion verifies all backend representation requirements.
 
 use crate::{
     memory::{EvmMemoryLayout, MemoryLayoutPolicy},
@@ -28,6 +28,21 @@ use solar_sema::Gcx;
 pub(crate) struct LowerMemoryObjects;
 
 impl MirPass for LowerMemoryObjects {
+    fn try_run_pass(
+        &self,
+        gcx: Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> solar_interface::Result<bool> {
+        if module.has_struct_values() {
+            return Err(gcx
+                .dcx()
+                .err("`lower-memory-objects` requires scalar structs; run `lower-structs` first")
+                .emit());
+        }
+        Ok(self.run_pass(gcx, module, analyses))
+    }
+
     fn name(&self) -> &'static str {
         "lower-memory-objects"
     }
@@ -42,16 +57,12 @@ impl MirPass for LowerMemoryObjects {
         module: &mut Module,
         _analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        if module.phase >= MirPhase::MemoryLowered || module.has_struct_values() {
+        if module.phase() == MirPhase::Lowered || module.has_struct_values() {
             return false;
         }
         let mut changed = false;
         for func in module.functions.iter_mut() {
             changed |= lower_function::<EvmMemoryLayout>(func);
-        }
-        if module.phase == MirPhase::Dispatch {
-            module.advance_phase(MirPhase::MemoryLowered);
-            changed = true;
         }
         changed
     }

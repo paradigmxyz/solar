@@ -1,11 +1,11 @@
 // === ROOT/tests/ui/codegen/lowering/program-data/program_data.sol:C ===
 @module C
-@phase evm-shaped
+@phase lowered
 data:
   literal_0: hex"41414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465665a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a21"
   literal_1: hex"303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465665a"
 
-fn @data() [selector=0x73d4a13a, pure] {
+fn @data() [selector=0x73d4a13a, abi_wrapper, pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch, effect=memory_write)
     v29 = add v0, 320
@@ -45,7 +45,7 @@ fn @data() [selector=0x73d4a13a, pure] {
     returndata v27, v22
 }
 
-fn @subslice() [selector=0xb9ad073e, pure] {
+fn @subslice() [selector=0xb9ad073e, abi_wrapper, pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch, effect=memory_write)
     v29 = add v0, 224
@@ -85,19 +85,19 @@ fn @subslice() [selector=0xb9ad073e, pure] {
     returndata v27, v22
 }
 
-fn @dataHash() [selector=0x1b3012a3, pure] {
+fn @dataHash() [selector=0x1b3012a3, abi_wrapper, pure] {
   bb0:
     mstore 128, 0xfc1266ee7e93ac2873e7623af26456cf53c18a33ce56a117ef3ef0d901c28394
     returndata 128, 32
 }
 
-fn @subsliceHash() [selector=0xe5a3e763, pure] {
+fn @subsliceHash() [selector=0xe5a3e763, abi_wrapper, pure] {
   bb0:
     mstore 128, 0xfe104a769973081412d46a6d04c990a5e9cc804baf45fa43d99b7dbee24984b8
     returndata 128, 32
 }
 
-fn @zeroData() [selector=0x6ec059cd, pure] {
+fn @zeroData() [selector=0x6ec059cd, abi_wrapper, pure] {
   bb0:
     v2 = icall @zeroData.body
     v6 = mload 64 !metadata(memory=scratch)
@@ -131,7 +131,7 @@ fn @zeroData() [selector=0x6ec059cd, pure] {
     returndata v27, v22
 }
 
-fn @zeroWord() [selector=0x4c092794, pure] {
+fn @zeroWord() [selector=0x4c092794, abi_wrapper, pure] {
   bb0:
     v2 = icall @zeroWord.body
     v6 = mload 64 !metadata(memory=scratch)
@@ -165,7 +165,7 @@ fn @zeroWord() [selector=0x4c092794, pure] {
     returndata v27, v22
 }
 
-fn @splatData() [selector=0xe1910fda, pure] {
+fn @splatData() [selector=0xe1910fda, abi_wrapper, pure] {
   bb0:
     v5 = icall @splatData.body
     v9 = mload 64 !metadata(memory=scratch)
@@ -199,7 +199,7 @@ fn @splatData() [selector=0xe1910fda, pure] {
     returndata v30, v25
 }
 
-fn @zeroHash() [selector=0x672c8259, pure] {
+fn @zeroHash() [selector=0x672c8259, abi_wrapper, pure] {
   bb0:
     v0 = icall @zeroData.body
     v4 = mload v0
@@ -209,7 +209,7 @@ fn @zeroHash() [selector=0x672c8259, pure] {
     returndata 128, 32
 }
 
-fn @zeroWordHash() [selector=0x0d00d797, pure] {
+fn @zeroWordHash() [selector=0x0d00d797, abi_wrapper, pure] {
   bb0:
     v0 = icall @zeroWord.body
     v4 = mload v0
@@ -219,7 +219,7 @@ fn @zeroWordHash() [selector=0x0d00d797, pure] {
     returndata 128, 32
 }
 
-fn @splatHash() [selector=0x38f844b9, pure] {
+fn @splatHash() [selector=0x38f844b9, abi_wrapper, pure] {
   bb0:
     v0 = icall @splatData.body
     v4 = mload v0

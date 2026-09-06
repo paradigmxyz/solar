@@ -1,7 +1,7 @@
 //@compile-flags: -Zmir-pipeline=lower-memory-objects
 //@filecheck:
 @module LowerMemoryObjects
-@phase dispatch
+@phase semantic
 
 // CHECK-LABEL: {{^[ +].*}}fn @objects{{[( ]}}
 // CHECK: + [[OBJECT:v[0-9]+]] = alloc raw

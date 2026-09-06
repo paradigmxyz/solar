@@ -1,8 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped_cleanup.mir (before lower-evm-shaped) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped_cleanup.mir (after lower-evm-shaped) ===
   @module LowerEvmShapedCleanup
-- @phase memory-lowered
-+ @phase evm-shaped
++ @phase lowered
   fn @entry() {
     bb0:
       tail_call @caller

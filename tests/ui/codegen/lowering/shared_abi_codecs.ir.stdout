@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/shared_abi_codecs.sol:SharedAbiCodecs ===
 @module SharedAbiCodecs
-@phase evm-shaped
-fn @encodeFirst() [selector=0xe9a7b169, pure] {
+@phase lowered
+fn @encodeFirst() [selector=0xe9a7b169, abi_wrapper, pure] {
   bb0:
     v1 = calldatasize
     v2 = lt v1, 36
@@ -42,7 +42,7 @@ fn @encodeFirst() [selector=0xe9a7b169, pure] {
     revert 0, 0
 }
 
-fn @encodeSecond() [selector=0x108c1ec5, pure] {
+fn @encodeSecond() [selector=0x108c1ec5, abi_wrapper, pure] {
   bb0:
     v1 = calldatasize
     v2 = lt v1, 36
@@ -112,7 +112,7 @@ fn @encodeSecond() [selector=0x108c1ec5, pure] {
     revert 0, 0
 }
 
-fn @roundTrip() [selector=0x00746047, pure] {
+fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
   bb0:
     v167 = calldatasize
     v168 = lt v167, 68

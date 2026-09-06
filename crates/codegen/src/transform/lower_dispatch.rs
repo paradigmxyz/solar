@@ -29,7 +29,7 @@
 //! library called without DELEGATECALL" message.
 //!
 //! This pass runs after [`super::lower_abi::LowerAbi`] in the codegen pipeline.
-//! The backend only consumes the final `evm-shaped` module.
+//! The backend only consumes the final `lowered` module.
 
 use crate::{
     mir::{
@@ -45,12 +45,31 @@ use solar_interface::{Ident, sym};
 pub(crate) struct LowerDispatch;
 
 impl MirPass for LowerDispatch {
+    fn try_run_pass(
+        &self,
+        gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> solar_interface::Result<bool> {
+        if !module.has_explicit_abi() {
+            return Err(gcx
+                .dcx()
+                .err("`lower-dispatch` requires explicit ABI entries; run `lower-abi` first")
+                .emit());
+        }
+        let changed = self.run_pass(gcx, module, analyses);
+        if module.dispatch_entry().is_none() {
+            return Err(gcx.dcx().err("`lower-dispatch` cannot route this entry signature").emit());
+        }
+        Ok(changed)
+    }
+
     fn name(&self) -> &'static str {
         "lower-dispatch"
     }
 
     fn is_enabled(&self, _gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
-        module.phase == MirPhase::Abi
+        module.phase() == MirPhase::Semantic
     }
 
     fn is_required(&self) -> bool {
@@ -76,11 +95,8 @@ fn lower_dispatch(
     has_bitwise_shifting: bool,
     revert_strings: RevertStrings,
 ) -> bool {
-    // Dispatch routes to the argument-free ABI wrappers, so it requires the
-    // ABI phase. Running on `built`/`optimized` MIR would leave
-    // argument-taking external functions unroutable while still advancing
-    // the phase; require the precondition and bail otherwise.
-    if module.phase != MirPhase::Abi {
+    // An existing entry already makes selector routing explicit.
+    if module.dispatch_entry().is_some() {
         return false;
     }
 
@@ -134,7 +150,6 @@ fn lower_dispatch(
         has_bitwise_shifting,
         revert_strings,
     );
-    module.advance_phase(MirPhase::Dispatch);
     true
 }
 

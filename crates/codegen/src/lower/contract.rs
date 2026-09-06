@@ -364,6 +364,7 @@ pub(super) fn declaration(
     mir.attributes = FunctionAttributes {
         visibility: function.visibility,
         state_mutability: function.state_mutability,
+        is_abi_wrapper: false,
         is_constructor: function.kind == hir::FunctionKind::Constructor,
         is_fallback: function.kind == hir::FunctionKind::Fallback,
         is_receive: function.kind == hir::FunctionKind::Receive,

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_slice_named_return.sol:CalldataSliceNamedReturn ===
 @module CalldataSliceNamedReturn
-@phase evm-shaped
+@phase lowered
 fn @unwrap(arg0: calldataptr, arg1: u256) -> (calldataptr, u256) [pure] {
   bb0:
     v1 = sub arg1, 32
@@ -15,7 +15,7 @@ fn @unwrap(arg0: calldataptr, arg1: u256) -> (calldataptr, u256) [pure] {
     ret v17, v18
 }
 
-fn @use() [selector=0x01bd03f7, pure] {
+fn @use() [selector=0x01bd03f7, abi_wrapper, pure] {
   bb0:
     v2 = calldatasize
     v3 = lt v2, 36

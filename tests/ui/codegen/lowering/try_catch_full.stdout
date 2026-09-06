@@ -1,10 +1,10 @@
 // === ROOT/tests/ui/codegen/lowering/try_catch_full.sol:TryCatchFull ===
 @module TryCatchFull
-@phase evm-shaped
+@phase lowered
 types:
   struct0: {u256, memorybytes}
 
-fn @full() [selector=0xd17b272f, view] {
+fn @full() [selector=0xd17b272f, abi_wrapper, view] {
   bb0:
     v67 = calldatasize
     v68 = lt v67, 36
@@ -221,7 +221,7 @@ fn @full() [selector=0xd17b272f, view] {
     revert 0, 0
 }
 
-fn @rethrows() [selector=0x0d7fadfb, view] {
+fn @rethrows() [selector=0x0d7fadfb, abi_wrapper, view] {
   bb0:
     v53 = calldatasize
     v54 = lt v53, 36

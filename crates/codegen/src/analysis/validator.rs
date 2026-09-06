@@ -42,7 +42,7 @@
 use crate::{
     analysis::CfgInfo,
     mir::{
-        BlockId, Function, FunctionId, Immediate, InstId, InstKind, MemoryObjectKind, MirType,
+        BlockId, Function, FunctionId, InstId, InstKind, MemoryObjectKind, MirPhase, MirType,
         Module, Value, ValueId,
     },
 };
@@ -114,7 +114,7 @@ impl<'a> Validator<'a> {
             self.validate_struct_values(module, func);
             self.validate_memory_object_types(func);
         }
-        self.validate_function_phase(module, func);
+        self.validate_function_phase(module.phase(), func);
     }
 
     fn validate_function_body(&mut self, module: Option<&Module>, func: &Function) {
@@ -548,7 +548,7 @@ impl<'a> Validator<'a> {
                 }
             }
         }
-        self.validate_module_phase(module);
+        self.validate_module_phase(module, module.phase());
         self.validate_immutable_declarations(module);
         for (id, func) in module.iter_functions() {
             self.function = Some(id);
@@ -974,17 +974,17 @@ impl<'a> Validator<'a> {
     /// Checks that the module's content satisfies its declared
     /// [`MirPhase`](crate::mir::MirPhase), so
     /// the phase is a real contract rather than a label.
-    fn validate_module_phase(&mut self, module: &Module) {
+    fn validate_module_phase(&mut self, module: &Module, phase: MirPhase) {
         // From the `dispatch` phase on, routing is materialized: a module with
         // a runtime interface must contain exactly one synthesized `entry`.
-        if module.phase < crate::mir::MirPhase::Dispatch {
+        if phase < MirPhase::Lowered {
             return;
         }
         let dispatch_entry = module.dispatch_entry();
         if dispatch_entry.is_some_and(|entry| module.functions.get(entry).is_none()) {
             self.emit(format_args!(
                 "module is in the `{}` phase but has an invalid `entry` routing function",
-                module.phase.name()
+                phase.name()
             ));
         } else if dispatch_entry.is_none()
             && module.functions.iter().any(|f| {
@@ -993,15 +993,25 @@ impl<'a> Validator<'a> {
         {
             self.emit(format_args!(
                 "module is in the `{}` phase but has no `entry` routing function",
-                module.phase.name()
+                phase.name()
             ));
         }
     }
 
-    fn validate_function_phase(&mut self, module: &Module, func: &Function) {
-        // From the `abi` phase on, every bodied external (selector-bearing)
-        // function is an argument-free self-decoding wrapper.
-        if module.phase >= crate::mir::MirPhase::Abi
+    fn validate_function_phase(&mut self, phase: MirPhase, func: &Function) {
+        if phase == MirPhase::Lowered && func.is_external_entry() && !func.attributes.is_abi_wrapper
+        {
+            self.emit("external entry has no explicit ABI implementation");
+        }
+        if func.attributes.is_abi_wrapper
+            && (func.abi_params.is_some()
+                || func.abi_returns.is_some()
+                || func.abi_return_params.is_some())
+        {
+            self.emit("ABI wrapper retains an implicit ABI layout");
+        }
+        // A self-decoding runtime wrapper has no callable MIR parameters.
+        if (phase == MirPhase::Lowered || func.attributes.is_abi_wrapper)
             && func.selector.is_some()
             && !func.params.is_empty()
         {
@@ -1009,118 +1019,49 @@ impl<'a> Validator<'a> {
                 "selector function `{}` still takes arguments in the `{}` phase \
                  (expected an argument-free ABI wrapper)",
                 func.name,
-                module.phase.name()
+                phase.name()
             ));
         }
-        // The memory-lowered phase is a strict representation boundary: no
-        // nominal object types, layouts, or semantic accesses may survive.
-        if module.phase >= crate::mir::MirPhase::MemoryLowered {
-            let signature_types = func
-                .arg_indices()
-                .map(|index| func.arg_ty(index))
-                .chain(func.returns.iter().copied());
-            for ty in signature_types {
-                if matches!(ty, crate::mir::MirType::MemoryObject(_)) {
-                    self.emit(format_args!(
-                        "memory-object signature type `{ty}` survives the `{}` phase boundary",
-                        module.phase.name()
-                    ));
-                }
-            }
-            let mut values = DenseBitSet::new_empty(func.num_values());
-            for value in func.live_values() {
-                if value.index() < func.num_values() {
-                    values.insert(value);
-                }
-            }
-            for value in values.iter() {
-                if let Value::Undef(ty) | Value::Immediate(Immediate::Pointer(_, ty)) =
-                    func.value(value)
-                    && matches!(ty, crate::mir::MirType::MemoryObject(_))
-                {
-                    self.emit(format_args!(
-                        "memory-object value type survives the `{}` phase boundary",
-                        module.phase.name()
-                    ));
-                }
-            }
-            for (block_id, block) in func.blocks.iter_enumerated() {
-                for &inst_id in &block.instructions {
-                    let inst = func.inst(inst_id);
-                    let semantic = inst.kind.is_memory_object_op()
-                        || matches!(
-                            inst.kind,
-                            InstKind::FrameLoad { .. } | InstKind::FrameStore { .. }
-                        )
-                        || inst
-                            .result_ty
-                            .is_some_and(|ty| matches!(ty, crate::mir::MirType::MemoryObject(_)));
-                    if semantic {
-                        self.emit_at_inst(
-                            format_args!(
-                                "memory-object instruction `{}` survives the `{}` phase boundary",
-                                inst.kind.mnemonic(),
-                                module.phase.name()
-                            ),
-                            block_id,
-                            inst_id,
-                        );
-                    }
-                }
-            }
-        }
-        // EVM-shaped MIR is the semantic boundary consumed by the word-based
-        // backend. High-level memory operations must have been expanded by
-        // their named lowering passes before the module enters this phase.
-        if module.phase >= crate::mir::MirPhase::EvmShaped {
-            if let Some(ty) = func
+        if phase == MirPhase::Lowered {
+            let types = func
                 .arg_indices()
                 .map(|index| func.arg_ty(index))
                 .chain(func.returns.iter().copied())
                 .chain(func.live_values().filter_map(|value| func.value_ty(value)))
-                .find(|ty| matches!(ty, MirType::Struct(_) | MirType::Slice(_)))
+                .chain(func.instructions().filter_map(|id| func.inst(id).result_ty));
+            if let Some(ty) =
+                types.into_iter().find(|ty| !ty.is_word() || matches!(ty, MirType::MemoryObject(_)))
             {
                 self.emit(format_args!(
-                    "aggregate type `{ty}` survives the `evm-shaped` phase boundary"
+                    "non-word type `{ty}` survives the `lowered` phase boundary"
                 ));
             }
             for (block_id, block) in func.blocks.iter_enumerated() {
+                if matches!(block.terminator, Some(crate::mir::Terminator::RevertReturndata)) {
+                    self.emit_at_block(
+                        "returndata bubbling survives the `lowered` phase boundary",
+                        block_id,
+                    );
+                }
                 for &inst_id in &block.instructions {
                     let kind = &func.inst(inst_id).kind;
-                    let semantic_op = match kind {
-                        InstKind::InsertValue { .. } | InstKind::ExtractValue { .. } => {
-                            Some("struct value")
-                        }
-                        InstKind::MakeSlice { .. }
-                        | InstKind::SlicePtr(_)
-                        | InstKind::SliceLen(_) => Some("slice"),
-                        InstKind::Fmp | InstKind::SetFmp(_) => Some("abstract allocation"),
-                        InstKind::Alloc { .. } if !func.inst(inst_id).metadata.deferred_alloc() => {
-                            Some("abstract allocation")
-                        }
-                        InstKind::MemoryZero(_, _) => Some("memory zero"),
-                        InstKind::AbiEncode { .. } => Some("ABI encoding"),
-                        InstKind::AbiDecode { .. } => Some("ABI decoding"),
-                        InstKind::StorageToMemory { .. }
-                        | InstKind::MemoryToStorage { .. }
-                        | InstKind::ClearStorage { .. } => Some("aggregate"),
-                        InstKind::MappingSlot(_, _)
-                        | InstKind::MappingSlotMemory(_, _)
-                        | InstKind::MappingSlotCalldata(_, _)
-                        | InstKind::StorageArrayDataSlot(_)
-                        | InstKind::StorageArrayElementSlot { .. } => Some("storage slot"),
-                        InstKind::StoreImmutable(..) => Some("immutable assignment"),
-                        InstKind::FrameLoad { .. } | InstKind::FrameStore { .. } => {
-                            Some("frame slot")
-                        }
-                        _ => None,
-                    };
+                    if let InstKind::Alloc { size, .. } = *kind
+                        && func.inst(inst_id).metadata.deferred_alloc()
+                        && func.value_u64(size).is_none()
+                    {
+                        self.emit_at_inst(
+                            "deferred allocation requires a constant size",
+                            block_id,
+                            inst_id,
+                        );
+                    }
+                    let semantic_op = func.inst(inst_id).unlowered_reason();
                     if let Some(semantic_op) = semantic_op {
                         self.emit_at_inst(
                             format_args!(
                                 "{semantic_op} instruction `{}` survives the `{}` phase boundary",
                                 kind.mnemonic(),
-                                module.phase.name()
+                                phase.name()
                             ),
                             block_id,
                             inst_id,
@@ -1134,6 +1075,21 @@ impl<'a> Validator<'a> {
 
 pub(crate) fn validate(dcx: &DiagCtxt, module: &Module) {
     Validator::new(dcx).validate_module(module);
+}
+
+/// Checks representation legality without computing dominance or call summaries.
+pub(crate) fn validate_phase(
+    dcx: &DiagCtxt,
+    module: &Module,
+    phase: MirPhase,
+) -> solar_interface::Result<()> {
+    let mut validator = Validator::new(dcx);
+    validator.validate_module_phase(module, phase);
+    for (id, func) in module.iter_functions() {
+        validator.function = Some(id);
+        validator.validate_function_phase(phase, func);
+    }
+    dcx.has_errors()
 }
 
 // =============================================================================
@@ -1185,19 +1141,20 @@ error: [bb0] use of ValueId(0) has no live definition
     fn missing_dispatch_entry_is_caught_without_runtime_attributes() {
         with_session(|sess| {
             let mut module = Module::new(Ident::DUMMY);
-            module.phase = crate::mir::MirPhase::EvmShaped;
+
             for _ in 0..2 {
                 let mut func = make_func();
                 func.selector = Some([0; 4]);
+                func.attributes.is_abi_wrapper = true;
                 FunctionBuilder::new(&mut func).stop();
                 module.functions.push(func);
             }
-            Validator::new(&sess.dcx).validate_module(&module);
+            let _ = validate_phase(&sess.dcx, &module, MirPhase::Lowered);
             assert!(sess.dcx.has_errors().is_err());
             assert_data_eq!(
                 sess.emitted_diagnostics().unwrap().to_string(),
                 str![[r#"
-error: module is in the `evm-shaped` phase but has no `entry` routing function
+error: module is in the `lowered` phase but has no `entry` routing function
 
 
 "#]]

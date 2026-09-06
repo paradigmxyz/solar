@@ -1,18 +1,16 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_dispatch_library.mir (before lower-dispatch) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_dispatch_library.mir (after lower-dispatch) ===
   @module DispatchLibrary
-- @phase abi
-+ @phase dispatch
   @library
   immutables:
     library_deploy_address: address
   
-  fn @view() [selector=0x00000001, view] {
+  fn @view() [selector=0x00000001, abi_wrapper, view] {
     bb0:
       stop
   }
   
-  fn @write() [selector=0x00000002] {
+  fn @write() [selector=0x00000002, abi_wrapper] {
     bb0:
       stop
 + }

@@ -17,7 +17,6 @@
 //!     &mut module,
 //!     &[&dce::Dce],
 //!     None,
-//!     None,
 //! );
 //! ```
 
@@ -155,7 +154,7 @@ impl<P: MirPass> MirPass for GasOnly<P> {
 }
 
 /// The canonical MIR pipeline used by EVM codegen.
-pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
+pub static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     // Clone one constant call to a shared pure leaf so scalar passes can fold it.
     &GasOnly::new(inline::InlineConstantLeaves),
     // Broad MIR inlining remains available as an ad-hoc pass, but static internal
@@ -212,9 +211,10 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &adce::Adce,
     &function_compaction::MergeEquivalentFunctions,
     &cfg_simplify::FunctionDce,
-    // Progressive lowering materializes ABI wrappers, selector routing, and
-    // tail-call edges as MIR. Each pass bails without advancing the phase
-    // when the module is outside its scope.
+];
+
+/// Expands semantic operations and makes the backend representation explicit.
+pub static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &lower_abi::LowerAbi,
     // ABI lowering leaves tiny canonical-word helpers after the earlier
     // inlining pass; expand those leaves before encoding wrappers.
@@ -258,6 +258,10 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &lower_memory_zero::LowerMemoryZero,
     &lower_mcopy::LowerMCopy,
     &lower_evm_shaped::LowerEvmShaped,
+];
+
+/// Optimizes lowered word SSA before physical stack scheduling.
+pub static LOWERED_PIPELINE: &[&dyn MirPass] = &[
     // Late lowering can leave pure address and length calculations unused.
     // Remove their complete dependency chains before selecting physical stack order.
     &dce::Dce,
@@ -267,8 +271,8 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
 /// Runs the configured MIR pipeline, substituting it for the canonical pipeline.
 ///
 /// `name` overrides the module name in pass output. The canonical pipeline advances the module
-/// through optimization and lowering. Ad-hoc pass lists passed to `-Zmir-pipeline` do not advance
-/// the optimized phase.
+/// through semantic optimization, representation conversion, and word optimization. Individual
+/// passes preserve the phase except the checked completion of `lower-evm-shaped`.
 #[tracing::instrument(
     name = "mir_pipeline",
     level = "debug",
@@ -287,7 +291,10 @@ pub fn run_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module, name: Option<
             let mut changed = false;
             for pass in passes {
                 if let Some(pass) = pass {
-                    changed |= run_passes(gcx, module, &[pass], None, Some(&name));
+                    changed |= run_passes(gcx, module, &[pass], Some(&name));
+                    if gcx.dcx().has_errors().is_err() {
+                        return changed;
+                    }
                 } else if gcx.sess.opts.unstable.pass_diff {
                     let text = module.to_text();
                     print_pass_diff(&name, "none", &text, &text);
@@ -300,16 +307,17 @@ pub fn run_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module, name: Option<
         }
     }
 
-    let lowering_start = DEFAULT_PIPELINE
-        .iter()
-        .position(|pass| pass.name() == lower_abi::LowerAbi.name())
-        .expect("default pipeline must contain `lower-abi`");
-    let (optimization_passes, lowering_passes) = DEFAULT_PIPELINE.split_at(lowering_start);
     let mut changed = false;
-    if module.phase <= MirPhase::Optimized {
-        changed |= run_passes(gcx, module, optimization_passes, Some(MirPhase::Optimized), None);
+    if module.phase() == MirPhase::Semantic {
+        changed |= run_passes(gcx, module, SEMANTIC_PIPELINE, None);
+        if gcx.dcx().has_errors().is_err() {
+            return changed;
+        }
+        changed |= run_passes(gcx, module, LOWERING_PIPELINE, None);
     }
-    changed |= run_passes(gcx, module, lowering_passes, None, None);
+    if gcx.dcx().has_errors().is_ok() {
+        changed |= run_passes(gcx, module, LOWERED_PIPELINE, None);
+    }
     changed
 }
 

@@ -613,6 +613,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     self.parser.expect(TokenKind::Eq)?;
                     builder.func_mut().abi_params = Some(self.parse_abi_param_layout()?);
                 }
+                sym::abi_wrapper => builder.func_mut().attributes.is_abi_wrapper = true,
                 sym::entry => self.parsed_dispatch_entry = true,
                 sym::may_return_memory => {
                     builder.func_mut().attributes.may_return_memory = true;

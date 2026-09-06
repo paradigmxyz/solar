@@ -2,8 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dynamic_return.mir (after lower-abi) ===
   @module LowerAbiDynamicReturn
 - fn @givesBytes(arg0: memorybytes) -> memorybytes [selector=0x0dead001, abi_returns=[memory_bytes]] {
-+ @phase abi
-+ fn @givesBytes() [selector=0x0dead001] {
++ fn @givesBytes() [selector=0x0dead001, abi_wrapper] {
     bb0:
 -     ret arg0
 +     v0 = calldatasize
@@ -40,7 +39,7 @@
   }
   
 - fn @givesAddresses() -> memoryarray [selector=0x0dead002, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
-+ fn @givesAddresses() [selector=0x0dead002] {
++ fn @givesAddresses() [selector=0x0dead002, abi_wrapper] {
     bb0:
       v0 = icall @canonicalAddresses
 -     ret v0
@@ -51,7 +50,7 @@
   }
   
 - fn @givesAddressesAgain() -> memoryarray [selector=0x0dead003, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
-+ fn @givesAddressesAgain() [selector=0x0dead003] {
++ fn @givesAddressesAgain() [selector=0x0dead003, abi_wrapper] {
     bb0:
       v0 = icall @canonicalAddresses
 -     ret v0
@@ -81,7 +80,7 @@
   }
   
 - fn @givesAddressArrays() -> memoryarray [selector=0x0dead005, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
-+ fn @givesAddressArrays() [selector=0x0dead005] {
++ fn @givesAddressArrays() [selector=0x0dead005, abi_wrapper] {
     bb0:
       v0 = icall @canonicalAddressArrays
 -     ret v0
@@ -92,7 +91,7 @@
   }
   
 - fn @givesAddressArraysAgain() -> memoryarray [selector=0x0dead006, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
-+ fn @givesAddressArraysAgain() [selector=0x0dead006] {
++ fn @givesAddressArraysAgain() [selector=0x0dead006, abi_wrapper] {
     bb0:
       v0 = icall @canonicalAddressArrays
 -     ret v0
@@ -123,7 +122,7 @@
   }
   
 - fn @givesDirtyAddressArrays() -> memoryarray [selector=0x0dead007, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
-+ fn @givesDirtyAddressArrays() [selector=0x0dead007] {
++ fn @givesDirtyAddressArrays() [selector=0x0dead007, abi_wrapper] {
     bb0:
       v0 = icall @dirtyAddressArrays
 -     ret v0
@@ -135,7 +134,7 @@
   }
   
 - fn @givesDirtyAddressArraysAgain() -> memoryarray [selector=0x0dead008, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
-+ fn @givesDirtyAddressArraysAgain() [selector=0x0dead008] {
++ fn @givesDirtyAddressArraysAgain() [selector=0x0dead008, abi_wrapper] {
     bb0:
       v0 = icall @dirtyAddressArrays
 -     ret v0
@@ -147,7 +146,7 @@
   }
   
 - fn @givesZeroedTuple() -> memorystruct [selector=0x0dead004, abi_returns=[tuple<word, word>], abi_return_params=[tuple<u128, address>]] {
-+ fn @givesZeroedTuple() [selector=0x0dead004] {
++ fn @givesZeroedTuple() [selector=0x0dead004, abi_wrapper] {
     bb0:
       v0 = alloc memorystruct<2>, exact, uninitialized, panic, 64
       memory_zero v0, 64

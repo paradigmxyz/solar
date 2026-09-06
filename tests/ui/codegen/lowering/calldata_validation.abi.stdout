@@ -1,7 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_validation.sol:CalldataValidation ===
 @module CalldataValidation
-@phase abi
-fn @vUint8() [selector=0xd5f6949e, pure] {
+fn @vUint8() [selector=0xd5f6949e, abi_wrapper, pure] {
   bb0:
     v0 = calldatasize
     v1 = lt v0, 36
@@ -22,7 +21,7 @@ fn @vUint8() [selector=0xd5f6949e, pure] {
     revert 0, 0
 }
 
-fn @vInt16() [selector=0xe9697b4d, pure] {
+fn @vInt16() [selector=0xe9697b4d, abi_wrapper, pure] {
   bb0:
     v0 = calldatasize
     v1 = lt v0, 36
@@ -43,7 +42,7 @@ fn @vInt16() [selector=0xe9697b4d, pure] {
     revert 0, 0
 }
 
-fn @vBool() [selector=0x18a11c47, pure] {
+fn @vBool() [selector=0x18a11c47, abi_wrapper, pure] {
   bb0:
     v0 = calldatasize
     v1 = lt v0, 36
@@ -63,7 +62,7 @@ fn @vBool() [selector=0x18a11c47, pure] {
     revert 0, 0
 }
 
-fn @vAddress() [selector=0x23347413, pure] {
+fn @vAddress() [selector=0x23347413, abi_wrapper, pure] {
   bb0:
     v0 = calldatasize
     v1 = lt v0, 36
@@ -84,7 +83,7 @@ fn @vAddress() [selector=0x23347413, pure] {
     revert 0, 0
 }
 
-fn @vBytes4() [selector=0x2c920949, pure] {
+fn @vBytes4() [selector=0x2c920949, abi_wrapper, pure] {
   bb0:
     v0 = calldatasize
     v1 = lt v0, 36
@@ -105,7 +104,7 @@ fn @vBytes4() [selector=0x2c920949, pure] {
     revert 0, 0
 }
 
-fn @vEnum() [selector=0x5aa5e60a, pure] {
+fn @vEnum() [selector=0x5aa5e60a, abi_wrapper, pure] {
   bb0:
     v0 = calldatasize
     v1 = lt v0, 36
@@ -125,7 +124,7 @@ fn @vEnum() [selector=0x5aa5e60a, pure] {
     revert 0, 0
 }
 
-fn @vWidened() [selector=0x3d71ddd7, pure] {
+fn @vWidened() [selector=0x3d71ddd7, abi_wrapper, pure] {
   bb0:
     v1 = calldatasize
     v2 = lt v1, 36
@@ -148,7 +147,7 @@ fn @vWidened() [selector=0x3d71ddd7, pure] {
     revert 0, 0
 }
 
-fn @vMulti() [selector=0x403ecab4, pure] {
+fn @vMulti() [selector=0x403ecab4, abi_wrapper, pure] {
   bb0:
     v5 = calldatasize
     v6 = lt v5, 68
@@ -185,7 +184,7 @@ fn @vMulti() [selector=0x403ecab4, pure] {
     revert 0, 0
 }
 
-fn @vFull() [selector=0x76fef307, pure] {
+fn @vFull() [selector=0x76fef307, abi_wrapper, pure] {
   bb0:
     v4 = calldatasize
     v5 = lt v4, 100

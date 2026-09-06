@@ -1,14 +1,12 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_dispatch.mir (before lower-dispatch) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_dispatch.mir (after lower-dispatch) ===
   @module LowerDispatch
-- @phase abi
-+ @phase dispatch
-  fn @ping() [selector=0x12000000] {
+  fn @ping() [selector=0x12000000, abi_wrapper] {
     bb0:
       stop
   }
   
-  fn @pong() [selector=0x8d3a3e57] {
+  fn @pong() [selector=0x8d3a3e57, abi_wrapper] {
     bb0:
       stop
 + }

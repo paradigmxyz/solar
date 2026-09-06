@@ -1,8 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/library_selector.sol:L ===
 @module L
-@phase evm-shaped
+@phase lowered
 @library
-fn @f() [selector=0xb3de648b, pure] {
+fn @f() [selector=0xb3de648b, abi_wrapper, pure] {
   bb0:
     v0 = calldatasize
     v1 = lt v0, 36
@@ -29,8 +29,8 @@ fn @entry() [entry] {
 
 // === ROOT/tests/ui/codegen/lowering/library_selector.sol:C ===
 @module C
-@phase evm-shaped
-fn @sel() [selector=0x41c910e1, pure] {
+@phase lowered
+fn @sel() [selector=0x41c910e1, abi_wrapper, pure] {
   bb0:
     mstore 128, 0xb3de648b00000000000000000000000000000000000000000000000000000000
     returndata 128, 32

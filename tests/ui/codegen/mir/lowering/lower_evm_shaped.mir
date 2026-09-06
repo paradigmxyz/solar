@@ -8,7 +8,7 @@
 // either, but it is recursive, so its call stays an ordinary `icall`.
 // `@entry` is present so the module satisfies the memory-lowered phase contract.
 @module LowerEvmShaped
-@phase memory-lowered
+@phase semantic
 fn @entry() [entry] {
   bb0:
     v0 = calldataload 0
@@ -22,7 +22,7 @@ fn @entry() [entry] {
 // CHECK-LABEL: {{^[ +].*}}fn @caller{{[( ]}}
 // CHECK: - icall @fused
 // CHECK: + tail_call @fused, {{v[0-9]+}} !metadata(span=10..20, modifier_depth=1)
-fn @caller() [selector=0x00000007] {
+fn @caller() [selector=0x00000007, abi_wrapper] {
   bb0:
     v0 = calldataload 4
     icall fn2, v0 !metadata(span=10..20, modifier_depth=1)

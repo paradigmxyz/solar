@@ -1,14 +1,12 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_dispatch_hoisted_callvalue.mir (before lower-dispatch) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_dispatch_hoisted_callvalue.mir (after lower-dispatch) ===
   @module DispatchHoisted
-- @phase abi
-+ @phase dispatch
-  fn @a() [selector=0x00000001] {
+  fn @a() [selector=0x00000001, abi_wrapper] {
     bb0:
       stop
   }
   
-  fn @b() [selector=0x00000002] {
+  fn @b() [selector=0x00000002, abi_wrapper] {
     bb0:
       stop
 + }

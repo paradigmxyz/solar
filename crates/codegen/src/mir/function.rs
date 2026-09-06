@@ -100,6 +100,14 @@ impl Function {
         }
     }
 
+    /// Returns whether this function is an external ABI entry.
+    pub(crate) fn is_external_entry(&self) -> bool {
+        self.selector.is_some()
+            || self.attributes.is_constructor
+            || self.attributes.is_receive
+            || self.attributes.is_fallback
+    }
+
     /// Returns the value for the given ID.
     #[must_use]
     pub(crate) fn value(&self, id: ValueId) -> &Value {
@@ -597,6 +605,8 @@ pub(crate) struct FunctionAttributes {
     pub(crate) visibility: Visibility,
     /// State mutability.
     pub(crate) state_mutability: StateMutability,
+    /// Whether the external entry decodes its own ABI inputs and encodes its outputs.
+    pub(crate) is_abi_wrapper: bool,
     /// Whether this is a constructor.
     pub(crate) is_constructor: bool,
     /// Whether this is a fallback function.
@@ -622,6 +632,7 @@ impl Default for FunctionAttributes {
         Self {
             visibility: Visibility::Internal,
             state_mutability: StateMutability::NonPayable,
+            is_abi_wrapper: false,
             is_constructor: false,
             is_fallback: false,
             is_receive: false,

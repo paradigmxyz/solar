@@ -33,4 +33,4 @@ mod scalar_evolution;
 pub(crate) use scalar_evolution::{AffineExpr, ScalarEvolution};
 
 mod validator;
-pub(crate) use validator::validate;
+pub(crate) use validator::{validate, validate_phase};

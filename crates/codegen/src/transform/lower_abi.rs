@@ -58,12 +58,30 @@ use solar_interface::{Ident, Span, Symbol, sym};
 pub(crate) struct LowerAbi;
 
 impl MirPass for LowerAbi {
+    fn try_run_pass(
+        &self,
+        gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> solar_interface::Result<bool> {
+        let changed = self.run_pass(gcx, module, analyses);
+        if !module.has_explicit_abi()
+            || module.functions.iter().any(|func| {
+                func.instructions()
+                    .any(|id| matches!(func.inst(id).kind, InstKind::AbiDecode { .. }))
+            })
+        {
+            return Err(gcx.dcx().err("`lower-abi` cannot lower this ABI shape").emit());
+        }
+        Ok(changed)
+    }
+
     fn name(&self) -> &'static str {
         "lower-abi"
     }
 
     fn is_enabled(&self, _gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
-        module.phase <= MirPhase::Optimized
+        module.phase() == MirPhase::Semantic
     }
 
     fn is_required(&self) -> bool {
@@ -82,6 +100,17 @@ impl MirPass for LowerAbi {
             gcx.sess.opts.optimization.is_gas(),
         )
     }
+}
+
+fn mark_abi_wrappers(module: &mut Module) -> bool {
+    let mut changed = false;
+    for func in &mut module.functions {
+        if func.is_external_entry() && !func.attributes.is_abi_wrapper {
+            func.attributes.is_abi_wrapper = true;
+            changed = true;
+        }
+    }
+    changed
 }
 
 #[derive(Debug, Default)]
@@ -152,9 +181,8 @@ impl DecodeOptions<'_> {
 
 impl LowerAbiCx {
     fn run(&mut self, module: &mut Module, evm_version: EvmVersion, gas_mode: bool) -> bool {
-        // Idempotent: only `built`/`optimized` modules have an implicit ABI
-        // boundary to materialize.
-        if module.phase >= MirPhase::Abi {
+        // Lowered modules already have explicit ABI entries.
+        if module.phase() == MirPhase::Lowered {
             return false;
         }
         self.has_bitwise_shifting = evm_version.has_bitwise_shifting();
@@ -171,13 +199,13 @@ impl LowerAbiCx {
         let mut callvalue = super::utils::DispatchCallvalue::default();
         for (id, func) in module.functions.iter_enumerated() {
             callvalue.observe(func);
-            if is_wrappable_external(func) {
+            if is_wrappable_external(func) && !func.attributes.is_abi_wrapper {
                 targets.push(id);
                 if !can_encode_live_returns(module, func) {
                     return false;
                 }
             }
-            if func.attributes.is_constructor {
+            if func.attributes.is_constructor && !func.attributes.is_abi_wrapper {
                 if super::utils::rejects_callvalue(func) {
                     rejecting_constructor = Some(id);
                 }
@@ -189,7 +217,10 @@ impl LowerAbiCx {
                     }
                 }
             }
-            if func.attributes.is_fallback && is_bytes_fallback(func) {
+            if func.attributes.is_fallback
+                && !func.attributes.is_abi_wrapper
+                && is_bytes_fallback(func)
+            {
                 if !can_lower_bytes_fallback_returns(func) {
                     return false;
                 }
@@ -214,8 +245,7 @@ impl LowerAbiCx {
             && bytes_fallback.is_none()
             && rejecting_constructor.is_none()
         {
-            module.advance_phase(MirPhase::Abi);
-            return true;
+            return mark_abi_wrappers(module);
         }
 
         self.synthesize_shared_calldata_slice_helpers(module, &targets);
@@ -304,7 +334,7 @@ impl LowerAbiCx {
             }
         }
 
-        module.advance_phase(MirPhase::Abi);
+        mark_abi_wrappers(module);
         true
     }
 
@@ -969,6 +999,7 @@ impl LowerAbiCx {
         body.name = MangledSymbol::new(Symbol::intern(&format!("{}.body", body.name.symbol)));
         body.name_span = Span::DUMMY;
         body.selector = None;
+        body.attributes.is_abi_wrapper = false;
         Self::clear_abi_metadata(&mut body);
         body.attributes.visibility = solar_sema::hir::Visibility::Internal;
         body.for_each_instruction_mut(|_, inst| inst.metadata.set_abi_validation(false));

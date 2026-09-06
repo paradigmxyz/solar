@@ -2,7 +2,7 @@
 //@[structs] compile-flags: -Zmir-pipeline=lower-structs
 //@[words] compile-flags: -Zmir-pipeline=lower-structs,lower-frame-slots,lower-slices
 @module StructSlices
-@phase dispatch
+@phase semantic
 
 types:
   struct0: {}

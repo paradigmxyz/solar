@@ -1,24 +1,22 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_dispatch_parity.mir (before lower-dispatch) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_dispatch_parity.mir (after lower-dispatch) ===
   @module DispatchParity
-- @phase abi
-+ @phase dispatch
-  fn @pay() [selector=0x00000001, payable] {
+  fn @pay() [selector=0x00000001, abi_wrapper, payable] {
     bb0:
       stop
   }
   
-  fn @nopay() [selector=0x00000002] {
+  fn @nopay() [selector=0x00000002, abi_wrapper] {
     bb0:
       stop
   }
   
-  fn @recv() [receive, payable] {
+  fn @recv() [abi_wrapper, receive, payable] {
     bb0:
       stop
   }
   
-  fn @fb() [fallback, payable] {
+  fn @fb() [abi_wrapper, fallback, payable] {
     bb0:
       stop
 + }

@@ -1,0 +1,4 @@
+error: `lower-memory-objects` requires scalar structs; run `lower-structs` first
+
+error: aborting due to 1 previous error
+

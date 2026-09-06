@@ -1,10 +1,10 @@
 // === ROOT/tests/ui/codegen/lowering/abi_decode_dynamic_arrays.sol:AbiDecodeDynamicArrays ===
 @module AbiDecodeDynamicArrays
-@phase evm-shaped
+@phase lowered
 types:
   struct0: {u256, memoryarray, memorybytes}
 
-fn @words() [selector=0x5a7641c8, pure] {
+fn @words() [selector=0x5a7641c8, abi_wrapper, pure] {
   bb0:
     v34 = calldatasize
     v35 = lt v34, 36
@@ -90,7 +90,7 @@ fn @words() [selector=0x5a7641c8, pure] {
     revert 0, 0
 }
 
-fn @bools() [selector=0xcfb203c5, pure] {
+fn @bools() [selector=0xcfb203c5, abi_wrapper, pure] {
   bb0:
     v42 = calldatasize
     v43 = lt v42, 36
@@ -242,7 +242,7 @@ fn @bools() [selector=0xcfb203c5, pure] {
     revert 0, 0
 }
 
-fn @strs() [selector=0x68f4ce0b, pure] {
+fn @strs() [selector=0x68f4ce0b, abi_wrapper, pure] {
   bb0:
     v56 = calldatasize
     v57 = lt v56, 36
@@ -409,7 +409,7 @@ fn @strs() [selector=0x68f4ce0b, pure] {
     revert 0, 0
 }
 
-fn @mixed() [selector=0x6791505c, pure] {
+fn @mixed() [selector=0x6791505c, abi_wrapper, pure] {
   bb0:
     v62 = calldatasize
     v63 = lt v62, 36

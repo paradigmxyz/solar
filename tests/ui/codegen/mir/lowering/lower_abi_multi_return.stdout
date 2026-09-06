@@ -1,7 +1,6 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_multi_return.mir (before lower-abi) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_multi_return.mir (after lower-abi) ===
   @module LowerAbiMultiReturn
-+ @phase abi
   types:
     struct0: {u256, u256}
   
@@ -9,7 +8,7 @@
     owner: address
   
 - fn @pair(arg0: u256) -> (u256, u256) [selector=0x1f6a26ff, abi_returns=[word, word]] {
-+ fn @pair() [selector=0x1f6a26ff] {
++ fn @pair() [selector=0x1f6a26ff, abi_wrapper] {
     bb0:
 +     v1 = calldatasize
 +     v2 = lt v1, 36
@@ -30,7 +29,7 @@
   }
   
 - fn @owner() -> address [selector=0x8da5cb5b, abi_returns=[word], abi_return_params=[address]] {
-+ fn @owner() [selector=0x8da5cb5b] {
++ fn @owner() [selector=0x8da5cb5b, abi_wrapper] {
     bb0:
       v0 = loadimmutable owner
 -     ret v0
@@ -41,7 +40,7 @@
   }
   
 - fn @unreachable_cycle() -> struct0 [selector=0x01020304, abi_params=[], abi_returns=[word, word]] {
-+ fn @unreachable_cycle() [selector=0x01020304] {
++ fn @unreachable_cycle() [selector=0x01020304, abi_wrapper] {
     bb0:
 -     ret undef struct0
 +     v1 = extract_value struct0, undef struct0, 0

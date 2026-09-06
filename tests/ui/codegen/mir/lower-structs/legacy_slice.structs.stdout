@@ -1,7 +1,6 @@
 - // === ROOT/tests/ui/codegen/mir/lower-structs/legacy_slice.mir (before lower-structs) ===
 + // === ROOT/tests/ui/codegen/mir/lower-structs/legacy_slice.mir (after lower-structs) ===
   @module LegacySlice
-  @phase dispatch
   types:
     struct0: {memoryslice, u256}
     struct1: {memorybytes}

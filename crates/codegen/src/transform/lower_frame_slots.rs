@@ -26,7 +26,7 @@ impl MirPass for LowerFrameSlots {
         module: &mut Module,
         _analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        if module.phase < MirPhase::Dispatch || module.phase >= MirPhase::MemoryLowered {
+        if module.phase() == MirPhase::Lowered {
             return false;
         }
         let mut changed = false;

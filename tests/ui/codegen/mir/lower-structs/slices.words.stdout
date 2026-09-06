@@ -1,7 +1,6 @@
 - // === ROOT/tests/ui/codegen/mir/lower-structs/slices.mir (before lower-structs) ===
 + // === ROOT/tests/ui/codegen/mir/lower-structs/slices.mir (after lower-structs) ===
   @module StructSlices
-  @phase dispatch
   types:
     struct0: {}
     struct1: {calldataslice, u256}
@@ -216,7 +215,6 @@
 - // === ROOT/tests/ui/codegen/mir/lower-structs/slices.mir (before lower-frame-slots) ===
 + // === ROOT/tests/ui/codegen/mir/lower-structs/slices.mir (after lower-frame-slots) ===
   @module StructSlices
-  @phase dispatch
   types:
     struct0: {}
     struct1: {calldataslice, u256}
@@ -390,7 +388,6 @@
 - // === ROOT/tests/ui/codegen/mir/lower-structs/slices.mir (before lower-slices) ===
 + // === ROOT/tests/ui/codegen/mir/lower-structs/slices.mir (after lower-slices) ===
   @module StructSlices
-  @phase dispatch
   types:
     struct0: {}
     struct1: {calldataslice, u256}

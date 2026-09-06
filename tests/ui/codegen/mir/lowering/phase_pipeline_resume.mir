@@ -1,12 +1,12 @@
 //@compile-flags: -Zmir-pipeline=default
 //@filecheck:
 // CHECK: @module PhasePipelineResume
-// CHECK-NEXT: @phase evm-shaped
+// CHECK-NEXT: @phase lowered
 // The canonical pipeline resumes progressive lowering when the input has
 // already passed the optimization phase.
 @module PhasePipelineResume
-@phase abi
-fn @ping() [selector=0x5c36b186] {
+@phase semantic
+fn @ping() [selector=0x5c36b186, abi_wrapper] {
   bb0:
     stop
 }

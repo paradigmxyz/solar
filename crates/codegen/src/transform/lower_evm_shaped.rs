@@ -9,7 +9,7 @@
 //! This pass rewrites a resultless `icall` to a callee that cannot
 //! return (no reachable `ret` or `stop` terminator) into a
 //! [`Terminator::TailCall`], dropping the dead remainder of the block. The
-//! module comes out in the `evm-shaped` phase: every call edge either returns
+//! module comes out in the `lowered` phase: every call edge either returns
 //! or is an explicit tail call, which is the control-flow shape the backend
 //! consumes.
 //!
@@ -42,26 +42,18 @@ impl MirPass for LowerEvmShaped {
     }
 
     fn is_enabled(&self, _gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
-        module.phase == MirPhase::MemoryLowered
-            && !module.has_aggregate_values()
-            && module.functions.iter().all(|func| {
-                func.instructions().all(|inst_id| {
-                    let inst = func.inst(inst_id);
-                    match inst.kind {
-                        InstKind::InsertValue { .. }
-                        | InstKind::ExtractValue { .. }
-                        | InstKind::WordCast(_)
-                        | InstKind::MakeSlice { .. }
-                        | InstKind::SlicePtr(_)
-                        | InstKind::SliceLen(_)
-                        | InstKind::Fmp
-                        | InstKind::SetFmp(_)
-                        | InstKind::StoreImmutable(..) => false,
-                        InstKind::Alloc { .. } => inst.metadata.deferred_alloc(),
-                        _ => true,
-                    }
-                })
-            })
+        module.phase() == MirPhase::Semantic
+    }
+
+    fn try_run_pass(
+        &self,
+        gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> solar_interface::Result<bool> {
+        let changed = self.run_pass(gcx, module, analyses);
+        module.advance_phase(gcx.dcx(), MirPhase::Lowered)?;
+        Ok(changed)
     }
 
     fn is_required(&self) -> bool {
@@ -79,7 +71,7 @@ impl MirPass for LowerEvmShaped {
 }
 
 fn lower_evm_shaped(module: &mut Module) -> bool {
-    if module.phase != MirPhase::MemoryLowered {
+    if module.phase() != MirPhase::Semantic {
         return false;
     }
 
@@ -160,7 +152,6 @@ fn lower_evm_shaped(module: &mut Module) -> bool {
         split_clobbering_phi_edges(func);
     }
 
-    module.advance_phase(MirPhase::EvmShaped);
     true
 }
 
