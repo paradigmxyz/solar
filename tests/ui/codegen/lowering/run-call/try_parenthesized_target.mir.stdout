@@ -22,30 +22,39 @@ fn @revert_error(arg0: u256, arg1: u256) {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/try_parenthesized_target.sol:Caller ===
 @module Caller
-data:
-  Target_initcode_0: hex"34600d5760a58060115f395ff35b5f5ffd346028575f3560e01c80639c3674fc146020578063d909b403146024576028565b603e565b602c565b5f5ffd5b60056080526020608001608090036080f35b60e0604052600260a0527f6e6f00000000000000000000000000000000000000000000000000000000000060c0527f08c379a0000000000000000000000000000000000000000000000000000000005f52602060045260a05160245260c05160445260645ffd"
-
 fn @constructor() [constructor] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 213, v1
+    v2 = and 253, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy Target_initcode_0, v3, 182
-    v4 = slice_ptr v0
-    v5 = add v3, 182
-    mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 182
-    jumpi v6, bb2, bb1
+    mstore v3, 0x34600757600b565b5f5ffd5b60c98060155f395ff360a5565b60056080526020
+    v4 = add v3, 32
+    mstore v4, 0x608001608090036080f35b6003565b7f6e6f0000000000000000000000000000
+    v5 = add v3, 64
+    mstore v5, 0x600260e052610100526081565b601956
+    v6 = add v3, 96
+    mstore v6, 0x5b7f08c379a00000000000000000000000000000000000000000000000000000
+    v7 = add v3, 128
+    mstore v7, 0x5f52602060045260249091905260445260645ffd5b60e05161010051604b
+    v8 = add v3, 160
+    mstore v8, 0x565b3460a1575f3560e01c60bb565b6047565b6015565b5f80fd5b608c565b63
+    v9 = add v3, 192
+    mstore v9, 0xd909b4030360a157609d565b506099565b80639c3674fc1460b65760a9560000
+    v10 = slice_ptr v0
+    v11 = add v3, 222
+    mcopy v11, v10, 0 !metadata(memory=heap)
+    v12 = create 0, v3, 222
+    jumpi v12, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v7 = sload 0 !metadata(storage=slot(0))
-    v8 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v9 = and v7, v8
-    v10 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
-    v11 = or v9, v10
-    sstore 0, v11 !metadata(storage=slot(0))
+    v13 = sload 0 !metadata(storage=slot(0))
+    v14 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v15 = and v13, v14
+    v16 = and v12, 0xffffffffffffffffffffffffffffffffffffffff
+    v17 = or v15, v16
+    sstore 0, v17 !metadata(storage=slot(0))
     stop
 }
 

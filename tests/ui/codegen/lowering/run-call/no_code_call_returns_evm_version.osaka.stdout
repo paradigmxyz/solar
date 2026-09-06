@@ -29,7 +29,7 @@ fn @pair() -> memoryfixedarray [selector=0xa8aa1b31, pure, abi_params=[], abi_re
 // === ROOT/tests/ui/codegen/lowering/run-call/no_code_call_returns_evm_version.sol:NoCodeReturnCalls ===
 @module NoCodeReturnCalls
 data:
-  NoCodeCallee_initcode_0: hex"34600d5760eb8060115f395ff35b5f5ffd346028575f3560e01c80633fa4f245146020578063a8aa1b31146024576028565b602c565b603e565b5f5ffd5b602a6080526020608001608090036080f35b6101206040526040518060c0528060c05260408101604052604036828060c0523760025f1015156096575b7f4e487b71000000000000000000000000000000000000000000000000000000005f52603260045260245ffd5b8060c052600181526002600110156069576020810160028152505f5b8060e052600281101560db576020818060e05202820151602082026080015260018101905060b2565b6040608001915050608090036080f3"
+  NoCodeCallee_initcode_0: hex"34600757600b565b5f5ffd5b6101048060165f395ff360cb565b602a6080526020608001608090036080f35b6003565b60405160408101604052604036823760025f101560cf576061565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52603260045260245ffd5b6001815260026001101560d457602081016002905260d9565b6002811060855760de565b60208102820151602082026080015260019001607a565b6040608001608090036080f35b60c06040526019565b3460c7575f3560e01c60f6565b6015565b60a9565b5f80fd5b60b2565b506034565b506034565b5f607a565b5050609c565b63a8aa1b310360c75760c3565b5060bf565b80633fa4f2451460f15760e456"
 
 fn @direct() -> u256 [selector=0x222b1407, abi_params=[], abi_returns=[word]] {
   bb0:
@@ -184,13 +184,13 @@ fn @live() -> u256 [selector=0x957aa58c, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 283, v1
+    v2 = and 313, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy NoCodeCallee_initcode_0, v3, 252
+    data_copy NoCodeCallee_initcode_0, v3, 282
     v4 = slice_ptr v0
-    v5 = add v3, 252
+    v5 = add v3, 282
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 252
+    v6 = create 0, v3, 282
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata
@@ -221,13 +221,13 @@ fn @liveAggregate() -> (u256, u256) [selector=0xc64a4ee9, abi_params=[], abi_ret
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 283, v1
+    v2 = and 313, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy NoCodeCallee_initcode_0, v3, 252
+    data_copy NoCodeCallee_initcode_0, v3, 282
     v4 = slice_ptr v0
-    v5 = add v3, 252
+    v5 = add v3, 282
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 252
+    v6 = create 0, v3, 282
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata
