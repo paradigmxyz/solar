@@ -583,8 +583,10 @@ fn tail_merge(gcx: Gcx<'_>, module: &mut Module) -> bool {
                     _ => 1,
                 })
                 .sum::<usize>();
-            let terminal_bytes =
-                if matches!(a.terminator.kind, TerminatorKind::Jump(_)) { 3 } else { 1 };
+            let terminal_bytes = match a.terminator.kind {
+                TerminatorKind::Jump(_) | TerminatorKind::JumpI(..) => 3,
+                _ => 1,
+            };
             if common < 3 || suffix_bytes + terminal_bytes < 7 {
                 continue;
             }

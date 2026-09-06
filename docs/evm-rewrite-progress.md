@@ -580,6 +580,18 @@ matched call gas falls 292. These regressions remain acceptance blockers; unsafe
 sharing is not retained to hide them. Evidence: `tail-merge-observers/`. A
 separate terminal-body forwarded-gas counterexample remains under repair.
 
+Conditional-tail costing now counts a conditional label push and JUMPI rather
+than a single terminal byte (+2 production lines). Matching UI screens save
+15 creation/runtime bytes in size mode across two cases, with no increases;
+both hot reports remain exact. Six affected UI revisions pass. The tuple case
+has 288 concrete four-compiler calls and bounded symbolic agreement before and
+after in actual size mode. Its cold-path opcode increases remain below sealed,
+and transaction gas is unchanged. A focused physical fixture has 48 exact
+branch replays; explicit sharing adds 12 opcode gas there and is not claimed as
+a gas win. Enum output remains unchanged because branch-target forwarding
+happens later; the original enum hypothesis was incomplete. Evidence:
+`conditional-tail-cost/`.
+
 ## Remaining acceptance
 
 Complete targeted fixes, remove every new baseline failure, and investigate
