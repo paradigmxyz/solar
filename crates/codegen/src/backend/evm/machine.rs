@@ -863,14 +863,18 @@ fn save_writer_homes(
     if saved.addresses.len() + operands + stack.values().len() + 3 > 1024 {
         return Err("live values across a memory writer exceed the EVM stack limit".into());
     }
-    // <activation return label>; <live residents for direct writers>
+    let writer_operands = mixed.then(|| context.function.inst(inst).kind.operands());
+    let resident_operand =
+        |value| writer_operands.as_ref().is_some_and(|operands| operands.contains(&value));
+    // <activation return label>; <live residents and dying writer operands>
     // <saved homes>; <saved frame pointer>
     if !context.layout.spills.homes.is_empty() {
         let mut base = stack.values()[..prefix(context)].to_vec();
         if mixed {
             base.extend(stack.values()[prefix(context)..].iter().copied().filter(|slot| {
                 matches!(slot, Slot::Value(value)
-                    if !context.layout.spills.homes.contains_key(value) && live(*value))
+                    if !context.layout.spills.homes.contains_key(value)
+                        && (live(*value) || resident_operand(*value)))
             }));
         }
         output.extend(
@@ -884,7 +888,14 @@ fn save_writer_homes(
             stack.push(Slot::Protected(index));
         }
     }
-    if mixed {
+    // A bounded dying operand below the backups uses ordinary preparation, which keeps
+    // surviving residents and Protected words in their original order before the operands.
+    if mixed
+        && !stack
+            .values()
+            .iter()
+            .any(|slot| matches!(slot, Slot::Value(value) if resident_operand(*value)))
+    {
         saved.protected_prefix = Some(stack.values().len());
     }
     Ok(saved)

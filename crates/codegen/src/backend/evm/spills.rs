@@ -10,9 +10,10 @@
 //! temporary region permits phi edge copies to read every source before writing any destination,
 //! including cyclic transfers. Ordinary low-pressure functions retain stack-only values.
 //! A bounded set of additional non-Phi values can remain on the stack across blocks when their
-//! conservative live intervals fit the same budget. Direct memory writers keep their operands in
-//! homes while other live residents remain below explicit stack backups. Calls and other writers
-//! retain memory homes, and the physical scheduler validates each proposed mixed layout. Address
+//! conservative live intervals fit the same budget. Direct memory writers keep live operands in
+//! homes; dying operands can remain resident when all values, operands and protocol backups fit
+//! sixteen words. Larger windows freeze other residents below explicit backups. Calls and other
+//! writers retain memory homes, and the scheduler validates each proposed mixed layout. Address
 //! placement and dynamic-frame lifetime remain in storage planning; this module emits no physical
 //! instructions.
 
@@ -254,7 +255,7 @@ fn resident_candidates(
                 mandatory.union(&before);
             }
         }
-        for &inst in block.instructions.iter().rev() {
+        for (position, &inst) in block.instructions.iter().enumerate().rev() {
             let kind = &function.inst(inst).kind;
             if let Some(value) = function.inst_result_value(inst) {
                 before.remove(value);
@@ -276,11 +277,29 @@ fn resident_candidates(
                 || (effects.writes_space(AddressSpace::Memory)
                     && !disjoint_frame_write(function, &effects))
             {
-                // Writer operands must load above a frozen prefix of residents and saved homes.
+                // Larger windows load writer operands above frozen residents and saved homes.
                 // Reserve a return word, three protocol backups and three address temporaries.
                 if direct_writer(kind) && before.count() + operands.len() + 7 <= 1024 {
+                    // A dying operand may move through the backups only when the complete
+                    // window fits legacy SWAP reach: values, operand copies, a return label,
+                    // and three protocol backups. Literals are charged by operand arity.
+                    let movable = before
+                        .iter()
+                        .filter(|&value| {
+                            matches!(
+                                function.value(value),
+                                mir::Value::Inst(_) | mir::Value::Arg(_)
+                            )
+                        })
+                        .take(17)
+                        .count()
+                        + operands.len()
+                        + 4
+                        <= 16;
                     for &operand in &operands {
-                        mandatory.insert(operand);
+                        if !movable || live.is_used_at_or_after(operand, block_id, position + 1) {
+                            mandatory.insert(operand);
+                        }
                     }
                 } else {
                     mandatory.union(&before);

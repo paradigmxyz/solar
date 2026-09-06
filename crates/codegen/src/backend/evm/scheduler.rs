@@ -347,6 +347,73 @@ mod tests {
     }
 
     #[test]
+    fn dying_writer_operands_cross_backups_without_reordering_survivors() {
+        for version in [EvmVersion::Osaka, EvmVersion::Amsterdam] {
+            for prefix_len in [0, 1, 1008, 1012, 1020] {
+                let prefix = (0..prefix_len).map(|value| 4096 + value).collect::<Vec<u16>>();
+                for residents in 0..=8 {
+                    for backups in 1..=12 {
+                        for arity in 2..=4 {
+                            for repeated in [false, true] {
+                                let operands = (0..arity)
+                                    .map(
+                                        |index| {
+                                            if index == 0 || repeated { 50 } else { 300 + index }
+                                        },
+                                    )
+                                    .collect::<Vec<u16>>();
+                                let mut initial = prefix.clone();
+                                initial.push(50);
+                                initial.extend(100..100 + residents);
+                                initial.extend(200..200 + backups);
+                                for &value in operands.iter().rev() {
+                                    if !initial.contains(&value) {
+                                        initial.push(value);
+                                    }
+                                }
+                                let mut surviving = prefix.clone();
+                                surviving.extend(100..100 + residents);
+                                surviving.extend(200..200 + backups);
+                                let mut expected = surviving.clone();
+                                expected.extend(operands.iter().rev());
+                                if initial.len().max(expected.len()) - prefix.len() > 16
+                                    || initial.len() > 1024
+                                {
+                                    continue;
+                                }
+                                let mut stack = Stack::new(initial.clone());
+                                let prepared =
+                                    stack.prepare(&operands, prefix.len(), version, |value| {
+                                        (100..300).contains(&value)
+                                    });
+                                if expected.len() > 1024 {
+                                    assert_eq!(prepared, Err(StackError::Overflow));
+                                    assert_eq!(stack.values(), initial);
+                                } else {
+                                    let mut executed = replay(initial, &prepared.unwrap(), &prefix);
+                                    assert_eq!(executed, expected);
+                                    for &operand in &operands {
+                                        assert_eq!(executed.pop(), Some(operand));
+                                    }
+                                    assert_eq!(executed, surviving);
+                                    for backup in (200..200 + backups).rev() {
+                                        assert_eq!(executed.pop(), Some(backup));
+                                    }
+                                    assert_eq!(&executed[..prefix.len()], prefix);
+                                    assert_eq!(
+                                        &executed[prefix.len()..],
+                                        (100..100 + residents).collect::<Vec<_>>()
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
     fn prepare_canonicalizes_live_aliases_and_preserves_operand_order() {
         let initial = vec![9, 1, 2, 1, 3];
         let mut stack = Stack::new(initial.clone());

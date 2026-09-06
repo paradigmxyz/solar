@@ -425,6 +425,16 @@ Seaport time is flat (140.174 -> 140.171 seconds), with peak RSS 737,000 -> 734,
 KiB; this is a work/allocation reduction, not a demonstrated compiler speedup.
 Evidence is in `function-layout-occupancy/` and `reachable-layouts/`.
 
+Dying direct-writer operands can now stay resident when the complete operand and
+backup window fits sixteen words. Larger windows retain the frozen-prefix
+protocol. This adds 31 production lines and one pure scheduler regression.
+All 92 helpers and 531 writer replay calls pass. The isolated comparison retains
+715 successful UI cases per mode and all 15 hot cases/175 ordered labels, with
+no individual byte or gas increases. UI creation/runtime bytes fall by 298/255
+in gas/size; hot creation/runtime bytes fall by 103/93 and call gas by 42 in
+each mode. Evidence: `dying-writer-operands/` and
+`writer-resident-tests/dying-after/`. Sealed-baseline debts remain open.
+
 ## Remaining acceptance
 
 Complete targeted fixes, remove every new baseline failure, and investigate
