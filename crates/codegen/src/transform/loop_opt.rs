@@ -240,7 +240,7 @@ impl LoopOptimizer {
     fn can_hoist_safely(&self, func: &Function, inst_id: InstId, ctx: LoopOptContext<'_>) -> bool {
         let inst = func.inst(inst_id);
 
-        if inst.kind.has_side_effects() {
+        if inst.must_execute(false) {
             return false;
         }
         if matches!(inst.kind, InstKind::Phi(_)) {
@@ -324,7 +324,7 @@ impl LoopOptimizer {
             }
             _ => {}
         }
-        true
+        inst.kind.effects().can_speculate()
     }
 
     /// Returns true if hoisting `inst_id` into the preheader cannot make it execute when the

@@ -10,19 +10,33 @@
 //! value identities escape into a caller summary.
 
 use super::{
-    Access, AddressSpace, AliasAnalysis, Location, LocationSize, MemoryAddress, MemoryBase,
-    MemoryLocation,
+    Access, AddressSpace, AliasAnalysis, CallGraphInfo, Location, LocationSize, MemoryAddress,
+    MemoryBase, MemoryLocation,
 };
 use crate::{
     memory::EvmMemoryLayout,
     mir::{
-        ArgIdx, Function, FunctionId, InstId, InstKind, MemoryRegion, Module, StorageAlias,
-        Terminator, Value, ValueId,
+        ArgIdx, ControlEffects, Function, FunctionId, InstId, InstKind, MemoryRegion, Module,
+        StorageAlias, Terminator, Value, ValueId,
     },
 };
 use alloy_primitives::U256;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashSet};
 use std::collections::{BTreeSet, VecDeque};
+
+/// Includes observations in callees, conservatively retaining reads without a call summary.
+pub(crate) fn may_observe_msize(func: &Function, summaries: Option<&MemoryCallSummaries>) -> bool {
+    let callee_observes = |callee| {
+        summaries.and_then(|summaries| summaries.get(callee)).is_none_or(|s| s.may_observe_msize())
+    };
+    func.instructions().any(|inst| match &func.inst(inst).kind {
+        InstKind::MSize => true,
+        InstKind::ICall { function, .. } => callee_observes(*function),
+        _ => false,
+    }) || func.blocks.iter().any(|block| {
+        matches!(&block.terminator, Some(Terminator::TailCall { function, .. }) if callee_observes(*function))
+    })
+}
 
 /// A bounded set of storage slots, or an unknown access to the whole space.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -146,6 +160,8 @@ impl MemoryFootprint {
 /// Conservative memory effects and pointer captures for one MIR function.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct FunctionMemorySummary {
+    control: ControlEffects,
+    observable: bool,
     /// Read address spaces as a bit per [`space_index`].
     reads: u8,
     /// Written address spaces as a bit per [`space_index`].
@@ -176,6 +192,8 @@ pub(crate) struct FunctionMemorySummary {
 impl FunctionMemorySummary {
     fn empty(params: usize) -> Self {
         Self {
+            control: ControlEffects::NONE,
+            observable: false,
             reads: 0,
             writes: 0,
             slot_reads: Default::default(),
@@ -194,6 +212,8 @@ impl FunctionMemorySummary {
 
     fn conservative(params: usize) -> Self {
         Self {
+            control: ControlEffects::UNKNOWN,
+            observable: true,
             reads: 0b1111,
             writes: 0b1111,
             slot_reads: std::array::from_fn(|_| SlotFootprint {
@@ -214,6 +234,14 @@ impl FunctionMemorySummary {
             captures: DenseBitSet::new_filled(params),
             observes: DenseBitSet::new_filled(params),
         }
+    }
+
+    /// Whether an unused call can disappear without losing effects or termination behavior.
+    pub(crate) fn can_discard_call(&self, observes_msize: bool) -> bool {
+        !(self.observable
+            || self.control.any()
+            || self.has_multiple_returns
+            || observes_msize && self.reads(AddressSpace::Memory))
     }
 
     /// Returns whether the function may read an address space.
@@ -325,6 +353,8 @@ impl FunctionMemorySummary {
     }
 
     fn merge_effects(&mut self, other: &Self) {
+        self.control.merge(other.control);
+        self.observable |= other.observable;
         self.reads |= other.reads;
         self.writes |= other.writes;
         for index in 0..2 {
@@ -360,10 +390,12 @@ impl MemoryCallSummaries {
         }
 
         let sources = module.functions.iter().map(parameter_sources).collect::<IndexVec<_, _>>();
+        let calls = CallGraphInfo::new(module);
         let mut local = IndexVec::with_capacity(module.functions.len());
         for (func_id, func) in module.functions.iter_enumerated() {
             let mut summary = local_summary(module, func, &sources[func_id]);
             summary.has_multiple_returns = func.returns.len() > 1;
+            summary.control.may_diverge |= calls.is_recursive(func_id);
             local.push(summary);
         }
         let mut summaries = local.clone();
@@ -499,7 +531,7 @@ fn local_summary(
     let mut summary = FunctionMemorySummary::empty(func.params.len());
     let aa = AliasAnalysis::new(func);
     let heap_derived = heap_derived_values(func);
-    for block in &func.blocks {
+    for (block_id, block) in func.blocks.iter_enumerated() {
         for &inst_id in &block.instructions {
             let kind = &func.inst(inst_id).kind;
             if let InstKind::ICall { function, .. } = kind {
@@ -513,6 +545,9 @@ fn local_summary(
                 }
                 continue;
             }
+            let behavior = kind.effects();
+            summary.control.merge(behavior.control);
+            summary.observable |= behavior.observable;
             let effects = aa.instruction_mod_ref(func, inst_id);
             for &access in effects.reads() {
                 summary.record_access(func, access, false);
@@ -556,6 +591,26 @@ fn local_summary(
                     capture_sources(&mut summary, func, sources, *offset);
                 }
                 _ => {}
+            }
+        }
+
+        if let Some(term) = &block.terminator {
+            // Every CFG cycle contains a non-forward edge. Extra acyclic back edges only
+            // make this termination proof conservative; recursive calls are handled above.
+            term.for_each_successor(|target| summary.control.may_diverge |= target <= block_id);
+            match term {
+                Terminator::Revert { .. } | Terminator::RevertReturndata => {
+                    summary.control.may_revert = true
+                }
+                Terminator::Stop
+                | Terminator::ReturnData { .. }
+                | Terminator::SelfDestruct { .. }
+                | Terminator::Invalid => summary.control.may_terminate = true,
+                Terminator::Jump(_)
+                | Terminator::Branch { .. }
+                | Terminator::Switch { .. }
+                | Terminator::Return { .. }
+                | Terminator::TailCall { .. } => {}
             }
         }
 

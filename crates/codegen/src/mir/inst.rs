@@ -702,6 +702,11 @@ pub(crate) struct Instruction {
 }
 
 impl Instruction {
+    /// Returns whether an unused instruction must retain its execution.
+    pub(crate) fn must_execute(&self, observes_msize: bool) -> bool {
+        self.metadata.abi_validation() || self.kind.effects().must_execute(observes_msize)
+    }
+
     /// Returns the semantic operation that still needs representation lowering.
     pub(crate) fn unlowered_reason(&self) -> Option<&'static str> {
         match &self.kind {
@@ -2107,63 +2112,10 @@ impl InstKind {
         }
     }
 
-    /// Returns true if this instruction has side effects.
-    /// Side-effect instructions must not be eliminated by DCE.
+    /// Returns whether the instruction has required effects, including control effects.
     #[must_use]
     pub(crate) const fn has_side_effects(&self) -> bool {
-        matches!(
-            self,
-            // Storage writes
-            Self::SStore(_, _)
-            | Self::MemoryToStorage { .. }
-            | Self::ClearStorage { .. }
-            | Self::TStore(_, _)
-            // Memory writes (may affect external calls)
-            | Self::MStore(_, _)
-            | Self::MStore8(_, _)
-            | Self::MemoryZero(_, _)
-            | Self::SetFmp(_)
-            | Self::Alloc { .. }
-            | Self::SetMemoryObjectLen(_, _, _)
-            | Self::FrameStore { .. }
-            | Self::MemoryObjectStoreField { .. }
-            | Self::MemoryObjectStoreElement { .. }
-            | Self::MemoryObjectStoreByte { .. }
-            | Self::MemoryObjectStoreWord { .. }
-            | Self::MemoryObjectCopyFromSlice { .. }
-            | Self::MemoryObjectCopyFromSliceAt { .. }
-            | Self::MemoryObjectCopy { .. }
-            | Self::AbiEncode { .. }
-            | Self::AbiDecode { .. }
-            | Self::StorageToMemory { .. }
-            | Self::MCopy(_, _, _)
-            // External calls
-            | Self::Call { .. }
-            | Self::CallCode { .. }
-            | Self::StaticCall { .. }
-            | Self::DelegateCall { .. }
-            | Self::ExtCall { .. }
-            | Self::ExtDelegateCall { .. }
-            | Self::ExtStaticCall { .. }
-            | Self::ICall { .. }
-            // Contract creation
-            | Self::Create(_, _, _)
-            | Self::Create2(_, _, _, _)
-            // Event emission
-            | Self::Log0(_, _)
-            | Self::Log1(_, _, _)
-            | Self::Log2(_, _, _, _)
-            | Self::Log3(_, _, _, _, _)
-            | Self::Log4(_, _, _, _, _, _)
-            // Data copy operations (write to memory)
-            | Self::CalldataCopy(_, _, _)
-            | Self::DataCopy(_, _, _)
-            | Self::CodeCopy(_, _, _)
-            | Self::ExtCodeCopy(_, _, _, _)
-            | Self::ReturnDataCopy(_, _, _)
-            // Immutable assignment.
-            | Self::StoreImmutable(..)
-        )
+        self.effects().must_execute(false)
     }
 
     /// Returns whether this instruction still carries a semantic memory-object operation.

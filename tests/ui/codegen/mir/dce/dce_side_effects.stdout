@@ -9,3 +9,78 @@
       stop
   }
   
+  fn @calls(arg0: u256) {
+    bb0:
+-     icall @empty
+-     v0 = icall @identity, arg0
+      icall @fails
+      icall @logs
+      icall @recursive
+      icall @looping
+      ret
+  }
+  
+  fn @empty() {
+    bb0:
+      ret
+  }
+  
+  fn @identity(arg0: u256) -> u256 {
+    bb0:
+      ret arg0
+  }
+  
+  fn @fails() {
+    bb0:
+      revert 0, 0
+  }
+  
+  fn @logs() {
+    bb0:
+      log0 0, 0
+      ret
+  }
+  
+  fn @recursive() {
+    bb0:
+      icall @recursive
+      ret
+  }
+  
+  fn @looping() {
+    bb0:
+      jump bb1
+    bb1:
+      jump bb1
+  }
+  
+  fn @memory_observer() -> u256 {
+    bb0:
+      icall @reads_memory
+      v0 = msize
+      ret v0
+  }
+  
+  fn @reads_memory() -> u256 {
+    bb0:
+      v0 = mload 0x1000
+      ret v0
+  }
+  
+  fn @callee_observes_memory(arg0: bool) -> u256 {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb1:
+      v0 = mload 0x1000
+      jump bb2
+    bb2:
+      v1 = icall @observe_memory
+      ret v1
+  }
+  
+  fn @observe_memory() -> u256 {
+    bb0:
+      v0 = msize
+      ret v0
+  }
+  

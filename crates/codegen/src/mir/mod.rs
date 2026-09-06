@@ -29,6 +29,9 @@ pub(crate) use inst::{
     MemoryRegion, StorageAlias,
 };
 
+mod effects;
+pub(crate) use effects::ControlEffects;
+
 mod block;
 pub(crate) use block::{BasicBlock, Terminator};
 

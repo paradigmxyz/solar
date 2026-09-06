@@ -1,16 +1,20 @@
 //! Dead Code Elimination (DCE) optimization pass.
 //!
-//! This pass removes MIR instructions whose results are never used and have no side effects.
+//! Remove unused computations and internal calls whose summaries prove that they have no
+//! observable behavior and terminate normally. Memory reads remain live when `msize` can observe
+//! their expansion. Calls with missing bodies, recursive cycles, checks, or external termination
+//! remain conservative; lowered multi-return buffer writes also prevent removal. Run on either
+//! representation, with a fresh module summary shared across the function-local fixed points.
 
 use crate::{
-    analysis::CfgInfo,
+    analysis::{CfgInfo, MemoryCallSummaries, may_observe_msize},
     mir::{
-        BlockId, EffectKind, Function, InstId, InstKind, Module, ValueId,
-        utils::invalidate_unreachable_block,
+        BlockId, Function, InstId, InstKind, Module, ValueId, utils::invalidate_unreachable_block,
     },
     pass::{MirPass, run_function_pass},
 };
 use solar_data_structures::bit_set::GrowableBitSet;
+use std::sync::Arc;
 
 /// Function pass for dead code elimination.
 pub(crate) struct Dce;
@@ -26,8 +30,14 @@ impl MirPass for Dce {
         module: &mut Module,
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
+        let summaries = Arc::new(MemoryCallSummaries::new(module));
         run_function_pass(module, analyses, |func, _| {
-            DeadCodeEliminator::new().run_to_fixpoint(func) != 0
+            DeadCodeEliminator {
+                call_summaries: Some(Arc::clone(&summaries)),
+                ..Default::default()
+            }
+            .run_to_fixpoint(func)
+                != 0
         })
     }
 }
@@ -43,6 +53,7 @@ impl MirPass for Dce {
 /// Side-effect instructions (SSTORE, MSTORE, CALL, LOG, etc.) are always kept.
 #[derive(Debug, Default)]
 pub(crate) struct DeadCodeEliminator {
+    call_summaries: Option<Arc<MemoryCallSummaries>>,
     /// Number of instructions eliminated in the last run.
     eliminated_count: usize,
     /// Values used by instructions or terminators.
@@ -142,23 +153,24 @@ impl DeadCodeEliminator {
         // A memory read can expand the EVM memory high-water mark, which a later `msize`
         // observes even when the loaded value is discarded. Keep reads in such functions; a
         // tighter path-sensitive proof is not worth risking a silent semantic change here.
-        let observes_msize =
-            func.instructions().any(|inst_id| matches!(func.inst(inst_id).kind, InstKind::MSize));
+        let observes_msize = may_observe_msize(func, self.call_summaries.as_deref());
 
         for (block_id, block) in func.blocks.iter_enumerated() {
             for &inst_id in &block.instructions {
                 let inst = func.inst(inst_id);
 
                 // Instructions with side effects are always kept.
-                if inst.kind.has_side_effects()
-                    || inst.metadata.abi_validation()
-                    || (observes_msize && inst.kind.effect_kind() == EffectKind::MemoryRead)
-                {
+                let discardable_call = !inst.metadata.abi_validation()
+                    && matches!(&inst.kind, InstKind::ICall { function, .. }
+                        if self.call_summaries.as_ref().and_then(|summaries| summaries.get(*function))
+                            .is_some_and(|summary| summary.can_discard_call(observes_msize)));
+                if inst.must_execute(observes_msize) && !discardable_call {
                     continue;
                 }
 
-                if let Some(result) = func.inst_result_value(inst_id)
-                    && !self.used_values.contains(result)
+                if func
+                    .inst_result_value(inst_id)
+                    .is_none_or(|result| !self.used_values.contains(result))
                 {
                     self.dead.push((block_id, inst_id));
                 }

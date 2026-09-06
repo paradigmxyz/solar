@@ -172,9 +172,12 @@ accesses must conservatively alias unless a disjointness proof exists. Do not
 attach heap-allocated effect records to every instruction. Unknown calls remain
 conservative; known intrinsics expose their summaries without expanding their
 implementation.
-Extend internal-call summaries with control effects before using memory purity
-to remove or speculate calls. A recursive function with no writes need not
-terminate; a check with no writes can still revert.
+DCE, CSE, and LICM use shared derived deletion, commoning, and speculation
+properties. Internal-call summaries include failure, divergence, and external
+termination. DCE removes unused calls only when these summaries prove normal
+termination and no observable effects. Recursive calls and possible CFG cycles
+remain conservative. DCE and ADCE preserve memory expansion when `msize` in the
+function or a callee can observe it.
 
 Track changing observations such as `gasleft`, returndata, balances, `msize`,
 and the free-memory pointer separately from stable inputs such as calldata.

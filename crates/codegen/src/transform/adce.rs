@@ -6,6 +6,7 @@
 //! and values escaping a candidate dead block all prevent rewriting.
 
 use crate::{
+    analysis::may_observe_msize,
     mir::{BlockId, Function, Module, Terminator, ValueId, utils::replace_terminator},
     pass::{MirPass, run_function_pass},
 };
@@ -55,6 +56,7 @@ struct AggressiveDeadCodeEliminator {
 
 #[derive(Debug)]
 struct AdceContext {
+    observes_msize: bool,
     value_uses: FxHashMap<ValueId, DenseBitSet<BlockId>>,
 }
 
@@ -173,7 +175,7 @@ impl AggressiveDeadCodeEliminator {
         search: &mut TargetSearch,
     ) -> Option<BlockId> {
         if func.block_has_phi(block_id)
-            || self.block_has_effect(func, block_id)
+            || self.block_has_effect(func, block_id, ctx.observes_msize)
             || self.block_def_escapes(func, ctx, block_id)
         {
             return Some(block_id);
@@ -196,10 +198,10 @@ impl AggressiveDeadCodeEliminator {
         }
     }
 
-    fn block_has_effect(&self, func: &Function, block_id: BlockId) -> bool {
+    fn block_has_effect(&self, func: &Function, block_id: BlockId, observes_msize: bool) -> bool {
         func.blocks[block_id].instructions.iter().any(|&inst_id| {
             let inst = func.inst(inst_id);
-            inst.kind.has_side_effects() || inst.metadata.abi_validation()
+            inst.must_execute(observes_msize)
         })
     }
 
@@ -223,7 +225,7 @@ impl AggressiveDeadCodeEliminator {
 impl AdceContext {
     fn new(func: &Function) -> Self {
         let value_uses = Self::value_uses(func);
-        Self { value_uses }
+        Self { value_uses, observes_msize: may_observe_msize(func, None) }
     }
 
     fn value_uses(func: &Function) -> FxHashMap<ValueId, DenseBitSet<BlockId>> {

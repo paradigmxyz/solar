@@ -685,6 +685,9 @@ impl CommonSubexprEliminator {
         kind: &InstKind,
         replacements: &FxHashMap<ValueId, ValueId>,
     ) -> Option<ExprKey> {
+        if !kind.effects().can_common() {
+            return None;
+        }
         // Helper to get canonical operands after in-block replacements.
         let operand = |v: ValueId| Self::operand_key(func, v, replacements);
         let value = |v: ValueId| mir_utils::resolve_replacement(v, replacements);
