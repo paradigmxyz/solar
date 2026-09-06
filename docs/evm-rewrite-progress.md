@@ -265,6 +265,25 @@ Clippy invocation failed on existing warnings outside this scheduler change and
 is retained separately. Evidence is in `scheduler-copy-count-20260906/`; the
 preceding sealed size/gas ledger remains unchanged by exact output identity.
 
+Five more expectations are reviewed at `c062ba84`: three embedded child-initcode
+MIR snapshots and the two dump disassemblies. All 36 compiles and 90 actual
+executions match current, sealed and pinned solc oracles. All 32 optimized size
+comparisons and 20 call-gas comparisons are non-increasing; unoptimized gas
+increases remain explicit. Sources and FileChecks are unchanged, and all 14
+focused revisions pass. The subsequent trial workspace run has 10,955 UI passes
+and 69 failures: exactly these five resolved, no new failure IDs. Evidence is in
+`writer-snapshot-runtime-review-20260906/`.
+
+The automatic perfect-table cap16 trial is rejected and reverted. Although it
+saves 1,745 UI creation/runtime bytes, 984 hot gas across 24 labels, and
+67,966/65,916 heavy creation/runtime bytes without an individual size increase,
+a 17-key default path costs 124→167 opcode gas versus sealed 136. Five defaults
+create new sealed gas debt. All 1,593 focused executions return correct results;
+correctness and aggregate gains do not waive the per-label gate. A shared-budget
+constructor grows 18 bytes but remains 18 below sealed, a separately investigated
+change rather than the rejection reason. No compiler timing was run after the
+decisive gas failure. Evidence is in `auto-perfect-cap16-{trial,focused,heavy}-20260906/`.
+
 Finish all supported behavior and investigate every remaining assertion before
 updating it. Repeat full workspace/UI, Foundry, differential, both size corpora,
 all 24 project compilations and both identical-label hot-gas lanes on the final
