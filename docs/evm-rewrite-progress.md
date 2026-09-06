@@ -30,9 +30,10 @@ not reconstructed from forbidden source.
 
 The latest full workspace run (`canonical-block-append-20260906/`) has 1,358
 passes, one failing UI aggregate and two skips. Its UI lane has 10,950 passes,
-74 failures and 806 filtered revisions. The four-line append trial is still
-awaiting timing acceptance; its complete UI/hot/heavy output is byte-exact with
-the committed initializer checkpoint. Workspace/all-target Clippy passes.
+74 failures and 806 filtered revisions. The four-line append trial was rejected:
+all UI/hot/heavy output is byte-exact with the committed initializer checkpoint,
+but timing pairs 51.59→52.36 and 51.71→59.39 seconds show no benefit. The slow
+second measurement remains retained; the fresh source is reverted. Workspace/all-target Clippy passes.
 Foundry last passed at `gas-writer-protection/`; a final rerun remains required.
 
 The independent current ledger is `fmp-frontier-sealed-ledger-20260906/`.
@@ -201,6 +202,9 @@ stay unchanged, focused before/after revisions pass, and 126 fallback echo
 calls have no gas increase. SF's checks now pin stack recursion and fixed
 multi-result storage (`6e7bfadf`), with six comment-only bytecode identity
 proofs. Recursive 20-argument UI tests separately exercise dynamic allocation.
+The SF-amended derived sealed report for future source joins is
+`fmp-entry-frontier-20260906/sf-review/sealed-ui-derived-for-future.json`.
+Its 1,404 original rows and bytecode totals are unchanged.
 The two retained MIR graphs (`db5fd896`) check parsing in CI; their backend
 execution evidence is explicitly separate. Evidence lives in
 `fmp-entry-frontier-20260906/` and `fmp-relocation-snapshots-20260906/`.
