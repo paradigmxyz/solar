@@ -9,21 +9,51 @@
 // optimization, while the unoptimized revision retains the explicit jumps.
 contract ColdCallFallthrough {
     // NONE-LABEL: @module ColdCallFallthrough_runtime
-    // NONE: eq
-    // NONE-NEXT: push [[NONE_DISPATCH:bb[0-9]+]]
-    // NONE-NEXT: jumpi
-    // NONE: [[NONE_DISPATCH]]:
-    // NONE-NEXT: jump [[WRAPPER:bb[0-9]+]]
-    // NONE: [[WRAPPER]]:
-    // NONE: eq
-    // NONE-NEXT: iszero
-    // NONE-NEXT: push [[HOT:bb[0-9]+]]
-    // NONE-NEXT: jumpi
-    // NONE-NEXT: jump [[NONE_COLD:bb[0-9]+]]
-    // NONE: [[NONE_COLD]]:
-    // NONE: jump
-    // NONE: [[HOT]]:
+    // NONE: jump {{bb[0-9]+}}
+    // NONE-NEXT: [[WRAPPER:bb[0-9]+]]:
+    // NONE: jumpi [[SHORT:bb[0-9]+]], [[VALID:bb[0-9]+]]
+    // NONE-NEXT: [[BODY:bb[0-9]+]]:
+    // NONE-NEXT: push 0
+    // NONE-NEXT: push 4
+    // NONE-NEXT: calldataload
+    // NONE-NEXT: eq
+    // NONE-NEXT: jumpi [[NONE_COLD:bb[0-9]+]], [[HOT_EDGE:bb[0-9]+]]
+    // NONE-NEXT: [[NONE_COLD]]:
+    // NONE-NEXT: push 4
+    // NONE-NEXT: calldataload
+    // NONE-NEXT: push 224
+    // NONE-NEXT: mstore
+    // NONE-NEXT: jump [[ABORT:bb[0-9]+]]
+    // NONE-NEXT: [[HOT_EDGE]]:
+    // NONE-NEXT: jump [[HOT:bb[0-9]+]]
+    // NONE-NEXT: [[HOT]]:
     // NONE: return
+    // NONE: [[VALID]]:
+    // NONE-NEXT: jump [[BODY]]
+    // NONE-NEXT: [[ENTRY:bb[0-9]+]]:
+    // NONE-NEXT: jump [[WRAPPER]]
+    // NONE: [[ABORT]]:
+    // NONE-NEXT: push 224
+    // NONE-NEXT: mload
+    // NONE-NEXT: jump {{bb[0-9]+}}
+    // NONE: push 0x8c379a000000000000000000000000000000000000000000000000000000000
+    // NONE: revert
+    // NONE: callvalue
+    // NONE: shr
+    // NONE-NEXT: jump [[DISPATCH:bb[0-9]+]]
+    // NONE-NEXT: [[CASE:bb[0-9]+]]:
+    // NONE-NEXT: jump [[ENTRY]]
+    // NONE: push 0x4b692dff
+    // NONE-NEXT: sub
+    // NONE-NEXT: jumpi {{bb[0-9]+}}, {{bb[0-9]+}}
+    // NONE-NEXT: [[TAKEN:bb[0-9]+]]:
+    // NONE-NEXT: pop
+    // NONE-NEXT: jump [[CASE]]
+    // NONE-NEXT: [[DISPATCH]]:
+    // NONE-NEXT: dup 1
+    // NONE-NEXT: push 0x161e4029
+    // NONE-NEXT: eq
+    // NONE-NEXT: jumpi [[TAKEN]], {{bb[0-9]+}}
 
     // SIZE-LABEL: @module ColdCallFallthrough_runtime
     // SIZE: eq
