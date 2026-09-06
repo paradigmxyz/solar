@@ -185,10 +185,10 @@ fn movable_data(module: &Module) -> bool {
                         return false;
                     }
                 }
-                InstKind::Op(op::CODECOPY) => {
-                    if index < 2 || !matches!(insts[index - 2].kind, InstKind::PushData { .. }) {
-                        return false;
-                    }
+                InstKind::Op(op::CODECOPY)
+                    if index < 2 || !matches!(insts[index - 2].kind, InstKind::PushData { .. }) =>
+                {
+                    return false;
                 }
                 _ => {}
             }

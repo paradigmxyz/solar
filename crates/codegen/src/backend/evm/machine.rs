@@ -29,6 +29,7 @@ use solar_config::{EvmVersion, OptimizationMode};
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 
 mod call_entry;
+mod call_reserve;
 mod debug;
 mod entry_order;
 mod initialization;
@@ -443,9 +444,19 @@ fn lower_function(
         let mut current = layout.blocks[block_id];
         let mut stack = Stack::new(layout.entries[block_id].clone());
         let mut insts = Vec::new();
+        let mut emitted_until = 0;
         for (position, &inst_id) in block.instructions.iter().enumerate() {
+            if position < emitted_until {
+                continue;
+            }
             let instruction = function.inst(inst_id);
             if matches!(instruction.kind, mir::InstKind::Phi(_)) {
+                continue;
+            }
+            if matches!(instruction.kind, mir::InstKind::Gas)
+                && call_reserve::lower(context, (block_id, position), &mut stack, &mut insts)?
+            {
+                emitted_until = position + 3;
                 continue;
             }
             let origin_start = insts.len();

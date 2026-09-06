@@ -886,8 +886,16 @@ fn tail_merge(gcx: Gcx<'_>, module: &mut Module) -> bool {
             } else {
                 continue;
             };
-            let common =
+            let mut common =
                 a.insts.iter().rev().zip(b.insts.iter().rev()).take_while(|(a, b)| a == b).count();
+            // prefix; [gas; sub; call]; suffix -> prefix; [gas; sub; call]; jump tail
+            // A new transfer may start only outside a kept instruction pair.
+            while common != 0
+                && (!super::split_allowed(&a.insts, a.insts.len() - common)
+                    || !super::split_allowed(&b.insts, b.insts.len() - common))
+            {
+                common -= 1;
+            }
             let suffix_bytes = a.insts[a.insts.len() - common..]
                 .iter()
                 .map(|inst| match inst.kind {

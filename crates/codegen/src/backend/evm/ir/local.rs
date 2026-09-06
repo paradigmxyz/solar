@@ -217,7 +217,8 @@ fn literal_observers_allow(module: &Module) -> bool {
 }
 
 fn canonical(inst: &Instruction) -> bool {
-    !matches!(inst.kind, InstKind::Op(op::JUMPDEST))
+    !inst.keep_with_next
+        && !matches!(inst.kind, InstKind::Op(op::JUMPDEST))
         && inst.stack_effect.is_none_or(|actual| verify::effect(&inst.kind) == Some(actual))
 }
 
@@ -253,7 +254,10 @@ fn rewrite(
     len: usize,
     replacement: Vec<Instruction>,
 ) -> bool {
-    if insts[start..start + len] == replacement {
+    if !super::split_allowed(insts, start)
+        || !super::split_allowed(insts, start + len)
+        || insts[start..start + len] == replacement
+    {
         return false;
     }
     // <matched physical instructions> -> <equivalent replacement>

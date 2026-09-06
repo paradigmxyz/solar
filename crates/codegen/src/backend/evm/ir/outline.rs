@@ -80,7 +80,8 @@ impl EvmPass for Outline {
                 let Some(inst) = module.blocks[*id].insts.get(*start + len - 1) else {
                     return false;
                 };
-                if inst.stack_effect.is_some()
+                if inst.keep_with_next
+                    || inst.stack_effect.is_some()
                     || !outlinable(&inst.kind, gcx.sess.opts.optimization.is_size())
                 {
                     return false;
@@ -355,7 +356,8 @@ fn parameterized(
         let mut body = Vec::new();
         let mut parameters = Vec::new();
         for inst in &module.blocks[id].insts {
-            if inst.stack_effect.is_some()
+            if inst.keep_with_next
+                || inst.stack_effect.is_some()
                 || !outlinable(&inst.kind, gcx.sess.opts.optimization.is_size())
                 || body.len() == 64
             {

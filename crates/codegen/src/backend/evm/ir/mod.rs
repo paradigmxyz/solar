@@ -2,6 +2,8 @@
 //!
 //! MIR values and call conventions do not survive into this representation. Block
 //! identities remain explicit until assembly; byte offsets are never CFG identities.
+//! The semantic `keep_with_next` constraint preserves the adjacent GAS/SUB/CALL
+//! reserve sequence; unlike source provenance, optimizations must respect it.
 
 use super::debug_info::{DebugFunction, DebugFunctionExit};
 use alloy_primitives::U256;
@@ -81,12 +83,19 @@ pub(crate) struct Instruction {
     pub(crate) kind: InstKind,
     pub(crate) stack_effect: Option<(u8, u8)>,
     pub(crate) debug: Option<Box<DebugMetadata>>,
+    /// The following instruction must remain adjacent in this block.
+    pub(crate) keep_with_next: bool,
 }
 
 impl From<InstKind> for Instruction {
     fn from(kind: InstKind) -> Self {
-        Self { kind, stack_effect: None, debug: None }
+        Self { kind, stack_effect: None, debug: None, keep_with_next: false }
     }
+}
+
+/// Whether a rewrite may create a boundary before this instruction.
+pub(crate) fn split_allowed(insts: &[Instruction], index: usize) -> bool {
+    index == 0 || !insts[index - 1].keep_with_next
 }
 
 /// Optional provenance, kept separate from semantic instruction and block equality.
@@ -136,13 +145,17 @@ impl DebugMetadata {
 
 impl PartialEq for Instruction {
     fn eq(&self, other: &Self) -> bool {
-        self.kind == other.kind && self.stack_effect == other.stack_effect
+        self.kind == other.kind
+            && self.stack_effect == other.stack_effect
+            && self.keep_with_next == other.keep_with_next
     }
 }
 
 impl PartialEq for Terminator {
     fn eq(&self, other: &Self) -> bool {
-        self.kind == other.kind && self.stack_effect == other.stack_effect
+        self.kind == other.kind
+            && self.stack_effect == other.stack_effect
+            && self.keep_with_next == other.keep_with_next
     }
 }
 
@@ -190,11 +203,13 @@ pub(crate) struct Terminator {
     pub(crate) kind: TerminatorKind,
     pub(crate) stack_effect: Option<(u8, u8)>,
     pub(crate) debug: Option<Box<DebugMetadata>>,
+    /// The following instruction must remain adjacent in this block.
+    pub(crate) keep_with_next: bool,
 }
 
 impl From<TerminatorKind> for Terminator {
     fn from(kind: TerminatorKind) -> Self {
-        Self { kind, stack_effect: None, debug: None }
+        Self { kind, stack_effect: None, debug: None, keep_with_next: false }
     }
 }
 

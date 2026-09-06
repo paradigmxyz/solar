@@ -545,3 +545,24 @@ limitation recorded in
 `current-cpu-profile/gas-writer-20260906/artifact-provenance-note.md`.
 New artifact directories are created exclusively. Prior progress text is retained
 in `equal-review-final-20260906/progress-before-condense.md` and earlier commits.
+
+### Main CI repair: gas reserve scheduling
+
+Merged main `8d553ca1` in `2d5f077f` and pushed the merge to draft PR #1388.
+The first CI run reached all jobs; runtime benchmarks, docs, feature builds and
+WASM passed. Forty full snapshots were independently recaptured and changed
+only for canonical `icall`/`!metadata` spelling. No test inputs or execution
+oracles changed. Subsequent publication of local fixes is currently rejected
+by automatic approval review despite the existing push authorization.
+
+Pre-EIP-150 lowering now prepares call operands and spill backups before the
+adjacent `GAS; SUB; CALL` sequence. Semantic adjacency metadata survives parsing
+and blocks rewrites that would insert work inside that reserve. Frozen compiler
+`8f88f1f26b6e98c1e65e100478bc47e09687559aed17cb07eb32e74215376e3f`
+passed 1,388 workspace tests; the UI aggregate has 95 failures, down from 153
+(11,285 UI cases passed, 849 filtered). All 15 previously reported Homestead
+out-of-gas failures disappeared. Remaining snapshots can mask later runtime
+checks, so this is not complete runtime admission. Evidence is retained under
+`main-ci-reserve-20260906/`; compiler sources stayed fixed through the build
+and workspace run. CI-style Clippy exposed additional MSRV lint findings;
+those remain a separate repair. Full rewrite performance acceptance is open.

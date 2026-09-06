@@ -41,6 +41,13 @@ struct Reader<'sess, 'ast> {
     reference_ids: FxHashMap<u32, BlockId>,
 }
 
+#[derive(Default)]
+struct ParsedMetadata {
+    stack_effect: Option<(u8, u8)>,
+    debug: Option<Box<DebugMetadata>>,
+    keep_with_next: bool,
+}
+
 impl<'sess> Reader<'sess, '_> {
     fn module(mut self) -> PResult<'sess, Module> {
         self.parser.expect(TokenKind::At)?;
@@ -97,7 +104,7 @@ impl<'sess> Reader<'sess, '_> {
                 if terminated {
                     return Err(self
                         .parser
-                        .error(format!("instruction after terminator in block `bb{}`", label)));
+                        .error(format!("instruction after terminator in block `bb{label}`")));
                 }
                 let name = self.parser.parse_ident()?;
                 let kind = if name == sym::push {
@@ -162,8 +169,10 @@ impl<'sess> Reader<'sess, '_> {
                     if let Some(term) = term {
                         // terminator targets !meta(stack=inputs->outputs)
                         block.terminator = term.into();
-                        (block.terminator.stack_effect, block.terminator.debug) =
-                            self.metadata()?;
+                        let metadata = self.metadata()?;
+                        block.terminator.stack_effect = metadata.stack_effect;
+                        block.terminator.debug = metadata.debug;
+                        block.terminator.keep_with_next = metadata.keep_with_next;
                         terminated = true;
                         continue;
                     }
@@ -189,8 +198,10 @@ impl<'sess> Reader<'sess, '_> {
                     if let Some(term) = term {
                         // terminal_opcode !meta(stack=inputs->outputs)
                         block.terminator = term.into();
-                        (block.terminator.stack_effect, block.terminator.debug) =
-                            self.metadata()?;
+                        let metadata = self.metadata()?;
+                        block.terminator.stack_effect = metadata.stack_effect;
+                        block.terminator.debug = metadata.debug;
+                        block.terminator.keep_with_next = metadata.keep_with_next;
                         terminated = true;
                         continue;
                     }
@@ -201,8 +212,8 @@ impl<'sess> Reader<'sess, '_> {
                     }
                 };
                 // physical_instruction !meta(stack=inputs->outputs)
-                let (stack_effect, debug) = self.metadata()?;
-                block.insts.push(Instruction { kind, stack_effect, debug });
+                let ParsedMetadata { stack_effect, debug, keep_with_next } = self.metadata()?;
+                block.insts.push(Instruction { kind, stack_effect, debug, keep_with_next });
             }
             if !terminated {
                 return Err(self.parser.error("expected block terminator"));
@@ -214,7 +225,7 @@ impl<'sess> Reader<'sess, '_> {
         }
         for (label, span) in self.references {
             if !labels.contains_key(&label) {
-                return Err(self.parser.error_at(span, format!("unknown block `bb{}`", label)));
+                return Err(self.parser.error_at(span, format!("unknown block `bb{label}`")));
             }
         }
         let mut resolved = solar_data_structures::index::IndexVec::<BlockId, BlockId>::from_vec(
@@ -310,9 +321,9 @@ impl<'sess> Reader<'sess, '_> {
         Ok(DebugFunction { identifier, declaration: self.debug_span()? })
     }
 
-    fn metadata(&mut self) -> PResult<'sess, (Option<(u8, u8)>, Option<Box<DebugMetadata>>)> {
+    fn metadata(&mut self) -> PResult<'sess, ParsedMetadata> {
         if !self.parser.eat(TokenKind::Not) {
-            return Ok((None, None));
+            return Ok(ParsedMetadata::default());
         }
         if !self.parser.eat_keyword(sym::metadata) {
             self.parser.expect_keyword(sym::meta)?;
@@ -320,9 +331,12 @@ impl<'sess> Reader<'sess, '_> {
         self.parser.expect(TokenKind::OpenDelim(Delimiter::Parenthesis))?;
         let mut stack = None;
         let mut debug = None;
+        let mut keep_with_next = false;
         while !self.parser.check(TokenKind::CloseDelim(Delimiter::Parenthesis)) {
             let key = self.parser.parse_ident()?;
-            if self.parser.eat(TokenKind::Eq) {
+            if key == sym::keep_with_next {
+                keep_with_next = true;
+            } else if self.parser.eat(TokenKind::Eq) {
                 if key == sym::stack {
                     let inputs = self.small_uint()?;
                     self.parser.expect(TokenKind::Arrow)?;
@@ -397,7 +411,7 @@ impl<'sess> Reader<'sess, '_> {
             }
         }
         self.parser.expect(TokenKind::CloseDelim(Delimiter::Parenthesis))?;
-        Ok((stack, debug))
+        Ok(ParsedMetadata { stack_effect: stack, debug, keep_with_next })
     }
 }
 
@@ -443,6 +457,7 @@ impl fmt::Display for PrintedModule<'_> {
                     inst.stack_effect
                         .filter(|&effect| Some(effect) != super::verify::effect(&inst.kind)),
                     inst.debug.as_deref(),
+                    inst.keep_with_next,
                 )?;
                 f.write_char('\n')?;
             }
@@ -454,6 +469,7 @@ impl fmt::Display for PrintedModule<'_> {
                     .stack_effect
                     .filter(|&effect| effect != super::verify::term_effect(&block.terminator.kind)),
                 block.terminator.debug.as_deref(),
+                block.terminator.keep_with_next,
             )?;
             f.write_char('\n')?;
         }
@@ -473,8 +489,12 @@ fn print_metadata(
     f: &mut fmt::Formatter<'_>,
     effect: Option<(u8, u8)>,
     debug: Option<&DebugMetadata>,
+    keep_with_next: bool,
 ) -> fmt::Result {
     let mut fields = Vec::new();
+    if keep_with_next {
+        fields.push("keep_with_next".to_owned());
+    }
     if let Some((inputs, outputs)) = effect {
         fields.push(format!("stack={inputs}->{outputs}"));
     }

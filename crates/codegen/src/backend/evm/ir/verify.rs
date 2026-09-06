@@ -7,9 +7,9 @@
 //! prefixes on return labels; their global height remains unknown. Entry bounds
 //! permit safe local temporary expansion only where an absolute bound is proved.
 //! Unknown computed destinations invalidate absolute incoming bounds throughout
-//! the module: a known edge cannot exclude an additional dynamic entry prefix. At most sixteen distinct label states are
-//! retained per block and exact height; further states widen to unknown labels.
-//! This bounds call-path combinations while preserving structural height growth
+//! the module: a known edge cannot exclude an additional dynamic entry prefix. At most sixteen
+//! distinct label states are retained per block and exact height; further states widen to unknown
+//! labels. This bounds call-path combinations while preserving structural height growth
 //! and prevents optimization from using heights behind unproved return edges.
 
 use super::{BlockId, InstKind, Instruction, Module, TerminatorKind};
@@ -28,6 +28,52 @@ pub(crate) fn validate(gcx: Gcx<'_>, module: &Module) -> Option<StackHeights> {
             .err(format!("EVM IR verification failed: block {}: {message}", block.index()))
             .emit();
     };
+    let mut invalid_keep = false;
+    for id in module.block_ids() {
+        let block = &module.blocks[id];
+        for (index, inst) in block.insts.iter().enumerate() {
+            if !inst.keep_with_next {
+                continue;
+            }
+            let next = block.insts.get(index + 1);
+            let name = inst_name(&inst.kind);
+            let message = match inst.kind {
+                InstKind::Op(op::GAS | op::SUB) if next.is_none() => Some(format!(
+                    "`{name}` must be followed by the instruction it is kept with"
+                )),
+                InstKind::Op(op::GAS) => next.and_then(|next| {
+                    (next.kind != InstKind::Op(op::SUB) || !next.keep_with_next).then(|| format!(
+                        "`gas` is kept with the next instruction, which must be a `sub` kept with the call, not `{}`",
+                        inst_name(&next.kind)
+                    ))
+                }),
+                InstKind::Op(op::SUB) => next.and_then(|next| {
+                    (!matches!(next.kind, InstKind::Op(op::CALL | op::CALLCODE | op::DELEGATECALL | op::STATICCALL))).then(|| format!(
+                        "`sub` is kept with the next instruction, which must be a call, not `{}`",
+                        inst_name(&next.kind)
+                    ))
+                }),
+                _ => Some(format!("`{name}` cannot be kept with a next instruction")),
+            };
+            if let Some(message) = message {
+                fail(id, message);
+                invalid_keep = true;
+            }
+        }
+        if block.terminator.keep_with_next {
+            fail(
+                id,
+                format!(
+                    "terminator `{}` cannot be kept with a next instruction",
+                    term_name(&block.terminator.kind)
+                ),
+            );
+            invalid_keep = true;
+        }
+    }
+    if invalid_keep {
+        return None;
+    }
     for id in module.block_ids() {
         let block = &module.blocks[id];
         for inst in &block.insts {
@@ -496,6 +542,10 @@ pub(crate) fn rewrite_fits(
     end: usize,
     replacement: &[Instruction],
 ) -> bool {
+    let insts = &module.blocks[block].insts;
+    if !super::split_allowed(insts, start) || !super::split_allowed(insts, end) {
+        return false;
+    }
     let Some((old_need, old_peak, _)) = local_profile(&module.blocks[block].insts[start..end])
     else {
         return false;

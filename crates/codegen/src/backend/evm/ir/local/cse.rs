@@ -69,15 +69,14 @@ pub(super) fn common_expressions(insts: &mut Vec<Instruction>, version: EvmVersi
                 canonical(inst)
                     && (discardable_push(&inst.kind) || matches!(inst.kind, InstKind::Dup(_)))
             });
-        if let InstKind::Op(op::MSTORE) = inst.kind {
-            if let Some(address) = address
-                && memory.get(&address) == arguments.get(1)
-                && tail_copies
-            {
-                // <address and value copies>; mstore -> identity
-                insts.truncate(insts.len() - 2);
-                continue;
-            }
+        if let InstKind::Op(op::MSTORE) = inst.kind
+            && let Some(address) = address
+            && memory.get(&address) == arguments.get(1)
+            && tail_copies
+        {
+            // <address and value copies>; mstore -> identity
+            insts.truncate(insts.len() - 2);
+            continue;
         }
         let key = match &inst.kind {
             InstKind::Push(_)
