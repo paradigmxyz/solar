@@ -1,0 +1,22 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/multiple_fmp_frontiers.sol:MultipleFmpFrontiers ===
+@module MultipleFmpFrontiers
+fn @s() -> u256 [selector=0x86b714e2, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @left() -> bool [selector=0x16e64048, pure, abi_params=[], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = iszero v0
+    v2 = iszero v1
+    ret v2
+}
+
+fn @right() -> bool [selector=0x1f2a63c0, pure, abi_params=[], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = gt v0, 63
+    ret v1
+}

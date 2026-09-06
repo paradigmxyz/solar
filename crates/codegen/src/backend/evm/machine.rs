@@ -91,7 +91,8 @@ pub(crate) fn lower(
     if deployment {
         output.program_size_id = Some(PROGRAM_END_ID);
     }
-    let mut reachable = CallGraphInfo::new(module).reachable_callees_from([root]);
+    let call_graph = CallGraphInfo::new(module);
+    let mut reachable = call_graph.reachable_callees_from([root]);
     reachable.insert(root);
     let mut returnable = DenseBitSet::new_empty(module.functions.len());
     for id in reachable.iter() {
@@ -219,7 +220,10 @@ pub(crate) fn lower(
                 plan.fixed_memory_end,
             )
         });
-    if reads_fmp {
+    let fmp_entry = (reads_fmp && !deployment)
+        .then(|| initialization::unique_frontier(module, root, &plan, &layouts, &call_graph))
+        .flatten();
+    if reads_fmp && fmp_entry.is_none() {
         // mstore(0x40, fixed_memory_end)
         output.blocks[prologue].insts.extend([
             ir::InstKind::Push(U256::from(plan.fixed_memory_end)).into(),
@@ -269,6 +273,15 @@ pub(crate) fn lower(
             data_map: &data_map,
         };
         let mut entry = Vec::new();
+        if fmp_entry == Some(id) {
+            // mstore(0x40, fixed_memory_end)
+            // <the unique external entry materialization follows>
+            entry.extend([
+                ir::InstKind::Push(U256::from(plan.fixed_memory_end)).into(),
+                ir::InstKind::Push(U256::from(EvmMemoryLayout::FMP_SLOT)).into(),
+                ir::InstKind::Op(op::MSTORE).into(),
+            ]);
+        }
         if context.storage.stack_arguments {
             let (mut stack, desired) = call_entry::entry(function, context.layout)
                 .ok_or("non-argument value is live at function entry")?;

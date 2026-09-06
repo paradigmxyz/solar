@@ -1,0 +1,15 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/unique_fmp_frontier.sol:UniqueFmpFrontier ===
+@module UniqueFmpFrontier
+fn @s() -> u256 [selector=0x86b714e2, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @initialized() -> bool [selector=0x158ef93e, pure, abi_params=[], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = iszero v0
+    v2 = iszero v1
+    ret v2
+}

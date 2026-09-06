@@ -1,0 +1,47 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/fmp_observers.sol:GasFrontierObserver ===
+@module GasFrontierObserver
+fn @s() -> u256 [selector=0x86b714e2, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @observed() -> u256 [selector=0xba210709, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = gas
+    v1 = mload 64 !metadata(memory=scratch)
+    v2 = add v1, v0
+    ret v2
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/fmp_observers.sol:CodeFrontierObserver ===
+@module CodeFrontierObserver
+fn @s() -> u256 [selector=0x86b714e2, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @observed() -> u256 [selector=0xba210709, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = codesize
+    v1 = mload 64 !metadata(memory=scratch)
+    v2 = add v1, v0
+    ret v2
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/fmp_observers.sol:ForwardedGasFrontierObserver ===
+@module ForwardedGasFrontierObserver
+fn @s() -> u256 [selector=0x86b714e2, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @observed(arg0: address) -> u256 [selector=0x171aa9e4, view, abi_params=[address], abi_returns=[word]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = gas
+    v2 = staticcall v1, arg0, 0, 0, 0, 0
+    ret v0
+}
