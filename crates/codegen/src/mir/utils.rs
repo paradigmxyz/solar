@@ -109,9 +109,11 @@ pub(crate) enum StorageAliasScope {
 /// Self-loops (`pred == succ`) are supported: the new block takes over the
 /// backedge and `succ`'s phis are rekeyed from `pred` to the new block.
 pub(crate) fn split_edge(func: &mut Function, pred: BlockId, succ: BlockId) -> BlockId {
+    // pred -> new_block -> succ !metadata(pred terminator)
     let new_block = func.blocks.push(BasicBlock {
         instructions: Vec::new(),
         terminator: Some(Terminator::Jump(succ)),
+        terminator_metadata: func.blocks[pred].terminator_metadata.clone(),
         predecessors: smallvec![pred],
     });
 

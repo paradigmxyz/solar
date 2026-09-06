@@ -1,0 +1,10 @@
+[
+  {
+    "source": "Arithmetic.sol",
+    "contract": "Arithmetic",
+    "cases": [
+      {"name": "checked", "signature": "checked(uint256)", "args": ["1"], "checkpoints": ["require", "checked"], "output": "0000000000000000000000000000000000000000000000000000000000000001"},
+      {"name": "revert", "signature": "checked(uint256)", "args": ["0"], "success": false, "checkpoints": ["require"]}
+    ]
+  }
+]

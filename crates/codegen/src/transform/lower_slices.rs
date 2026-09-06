@@ -360,12 +360,7 @@ impl LowerSlices {
                 builder.func_mut().blocks[block_id].instructions.push(inst_id);
                 let Some((signature, result)) = (match builder.func().inst(inst_id).kind {
                     InstKind::ICall { function, .. } => {
-                        signatures.get(&function).and_then(|signature| {
-                            builder
-                                .func()
-                                .inst_result_value(inst_id)
-                                .map(|result| (signature, result))
-                        })
+                        signatures.get(&function).zip(builder.func().inst_result_value(inst_id))
                     }
                     _ => None,
                 }) else {
@@ -434,6 +429,7 @@ impl LowerSlices {
             let values = values.clone();
             let mut builder = FunctionBuilder::new(func);
             builder.switch_to_block(block_id);
+            builder.inherit_terminator_debug_context(block_id);
             let mut expanded = Vec::with_capacity(values.len() + added_slots);
             for (value, repr) in values.into_iter().zip(signature) {
                 Self::expand_physical_value(&mut builder, value, *repr, &mut expanded);

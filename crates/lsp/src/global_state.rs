@@ -88,7 +88,7 @@ enum AnalysisTaskOutcome {
     Superseded,
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 struct AnalysisPathIndex {
     resolved_dependencies: FxHashSet<PathBuf>,
     existing_unresolved_candidates: FxHashSet<PathBuf>,
@@ -258,6 +258,14 @@ struct AnalysisCommitState {
     analysis_config: Option<Arc<Config>>,
     natspec_pending_source_changes: FxHashSet<PathBuf>,
     natspec_context_change_version: usize,
+    cached_output: Option<CachedAnalysisOutput>,
+}
+
+#[derive(Clone)]
+struct CachedAnalysisOutput {
+    vfs_content_revision: u64,
+    config: Arc<Config>,
+    output: AnalysisOutput,
 }
 
 impl AnalysisCommitState {
@@ -831,6 +839,7 @@ impl GlobalState {
                 publish_diagnostic_batches(client, update.batches, &config);
 
                 commit.cache_invalidated = true;
+                commit.cached_output = None;
                 commit.discovery_pending = false;
                 commit.workspace_roots_before_change = None;
                 commit.analysis_paths = AnalysisPathIndex::default();
@@ -1576,6 +1585,34 @@ fn run_analysis(
     progress: &ProgressTicket,
     cancellation: &IndexingCancellation,
 ) -> AnalysisTaskOutcome {
+    let has_disk_paths = !disk_paths.is_empty();
+    let vfs_content_revision = snapshot.vfs.read().content_revision();
+    let config = snapshot.config.clone();
+    if has_disk_paths {
+        snapshot.analysis_commit.lock().cached_output = None;
+    }
+    if !has_disk_paths && !cancellation.is_cancelled() && snapshot.is_current(version) {
+        let cached = {
+            let commit = snapshot.analysis_commit.lock();
+            if commit.cache_invalidated {
+                None
+            } else {
+                commit.cached_output.as_ref().and_then(|cached| {
+                    (cached.vfs_content_revision == vfs_content_revision
+                        && Arc::ptr_eq(&cached.config, &config))
+                    .then(|| cached.output.clone())
+                })
+            }
+        };
+        if let Some(output) = cached {
+            progress.report("Reusing workspace index");
+            if snapshot.publish_analysis_output(version, output) {
+                return AnalysisTaskOutcome::Published;
+            }
+            return AnalysisTaskOutcome::Superseded;
+        }
+    }
+
     progress.report("Reading workspace sources");
     if cancellation.is_cancelled() || !snapshot.is_current(version) {
         return AnalysisTaskOutcome::Superseded;
@@ -1616,6 +1653,10 @@ fn run_analysis(
     }
 
     let output = results.finish();
+    if !has_disk_paths {
+        snapshot.analysis_commit.lock().cached_output =
+            Some(CachedAnalysisOutput { vfs_content_revision, config, output: output.clone() });
+    }
     progress.report("Publishing workspace index");
     if snapshot.publish_analysis_output(version, output) {
         AnalysisTaskOutcome::Published
@@ -1696,18 +1737,21 @@ fn handle_analysis_failure(
     tracing::warn!(%error, version, "workspace indexing task failed");
     let refresh_requests = commit.fail_external_refresh();
     commit.cache_invalidated = true;
+    commit.cached_output = None;
     commit.discovery_pending = false;
     commit.natspec_context_change_version = commit.natspec_context_change_version.max(version);
     published_analysis_version.send_replace(version);
     Some(refresh_requests)
 }
 
+#[derive(Clone)]
 struct AnalysisResult {
     analyzed_documents: AnalyzedDocuments,
     diagnostics: DiagnosticMap,
     symbol_tables: SymbolTables,
 }
 
+#[derive(Clone)]
 struct AnalysisOutput {
     result: AnalysisResult,
     analysis_paths: AnalysisPathIndex,

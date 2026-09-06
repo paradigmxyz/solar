@@ -27,6 +27,7 @@ pub use contract::{
 };
 
 mod ir_parse;
+mod source_info;
 
 pub mod lower;
 

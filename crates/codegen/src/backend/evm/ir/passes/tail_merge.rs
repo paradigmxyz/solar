@@ -7,7 +7,9 @@
 //! the cost of its new jumps and labels, and the pass keeps address-taken or
 //! otherwise incompatible entries separate. Debug metadata never participates
 //! in equivalence: path-specific function activations stay on the original
-//! blocks or the jumps that replace their instruction suffixes.
+//! blocks or the jumps that replace their instruction suffixes. Those jumps also
+//! retain the suffix's entry location before its origins are merged, so single-origin
+//! source maps do not lose both callers' locations on a shared body.
 //!
 //! A shared tail starts at a block boundary, so both the merged block and the representative may
 //! only be cut where `keep_with_next` allows a split. That keeps sequences whose intervening gas
@@ -21,7 +23,7 @@ use super::{
     },
 };
 use crate::backend::evm::{
-    ir::{Block, BlockId, Hotness, Module, Terminator, TerminatorKind},
+    ir::{Block, BlockId, Hotness, Metadata, Module, Terminator, TerminatorKind},
     op::{StackOp, push_len},
 };
 use solar_data_structures::map::FxHashMap;
@@ -281,18 +283,15 @@ impl RunState {
             }
 
             let &(max_common, max_tail) = tails.last().expect("merge group must have a tail");
-            let representative_invoke = suffix_function_invoke(
-                &module.blocks[group.representative].instructions,
-                max_common,
-            );
+            let representative_debug =
+                suffix_debug_info(&module.blocks[group.representative], max_common);
+            // prefix; suffix !metadata(origin) => prefix; jump tail !metadata(origin)
             module.blocks[group.representative]
                 .instructions
                 .truncate(instructions.len() - max_common);
             let mut terminator =
                 Terminator::new(TerminatorKind::Jump(max_tail)).with_debug_info_dropped();
-            if let Some(function) = representative_invoke {
-                terminator.metadata.set_function_invoke(function);
-            }
+            terminator.metadata.copy_debug_info_from(&representative_debug);
             module.blocks[group.representative].terminator = Some(terminator);
             for &(block, common) in &group.sites {
                 let tail = tails
@@ -300,14 +299,12 @@ impl RunState {
                     .map(|index| tails[index].1)
                     .expect("tail must exist for every merge site");
                 let len = module.blocks[block].instructions.len();
-                let function_invoke =
-                    suffix_function_invoke(&module.blocks[block].instructions, common);
+                let debug_info = suffix_debug_info(&module.blocks[block], common);
+                // prefix; suffix !metadata(origin) => prefix; jump tail !metadata(origin)
                 module.blocks[block].instructions.truncate(len - common);
                 let mut terminator =
                     Terminator::new(TerminatorKind::Jump(tail)).with_debug_info_dropped();
-                if let Some(function) = function_invoke {
-                    terminator.metadata.set_function_invoke(function);
-                }
+                terminator.metadata.copy_debug_info_from(&debug_info);
                 module.blocks[block].terminator = Some(terminator);
             }
         }
@@ -316,16 +313,28 @@ impl RunState {
     }
 }
 
-fn suffix_function_invoke(
-    instructions: &[crate::backend::evm::ir::Instruction],
-    len: usize,
-) -> Option<crate::backend::evm::DebugFunction> {
-    let mut functions = instructions[instructions.len() - len..]
+fn suffix_debug_info(block: &Block, len: usize) -> Metadata {
+    let suffix = &block.instructions[block.instructions.len() - len..];
+    let mut metadata = Metadata::default();
+    metadata.mark_debug_info_dropped();
+    if let Some(origin) = suffix
         .iter()
-        .filter_map(|instruction| instruction.metadata.function_invoke());
+        .map(|inst| &inst.metadata)
+        .chain(block.terminator.iter().map(|term| &term.metadata))
+        // Already-shared suffixes cannot provide a path-specific jump origin.
+        // Prefer a unique origin from this site; otherwise leave it unmapped.
+        .find(|metadata| metadata.source_spans().len() == 1)
+    {
+        metadata.copy_source_debug_from(origin);
+    }
+    let mut functions =
+        suffix.iter().filter_map(|instruction| instruction.metadata.function_invoke());
     let function = functions.next();
     debug_assert!(functions.all(|other| Some(other) == function));
-    function
+    if let Some(function) = function {
+        metadata.set_function_invoke(function);
+    }
+    metadata
 }
 
 fn is_candidate(block: &Block) -> bool {
