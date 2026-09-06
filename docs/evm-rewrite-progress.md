@@ -547,6 +547,15 @@ not counted as agreements. Original tracked call inputs are unchanged. Comment
 edits preserve exact generated artifacts in both modes and the custom pipeline.
 Evidence: `future-home-current-review/`. The refreshed Foundry lane also passes.
 
+Four small ABI/termination snapshots now reflect explicit physical branches.
+Their assertions retain selector, calldata-boundary, loop self-edge, return and
+revert obligations. Four focused UI tests pass. The five-case review retains
+513 concrete sealed/current/solc checks, eight bounded symbolic agreements and
+five exact capture/assembly roundtrips. Only the four cases with no optimized
+size/gas regression are updated; enum conversion remains unchanged with a real
+five-byte debt in both modes. Its duplicated conditional suffix has been
+identified for a separate profitability trial. Evidence: `abi-termination-review/`.
+
 ## Remaining acceptance
 
 Complete targeted fixes, remove every new baseline failure, and investigate

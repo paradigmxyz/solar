@@ -2,10 +2,10 @@
 @module EmptyExternalReturn_runtime
 bb0:
   callvalue
-  push bb2
-  jumpi
+  jumpi bb6, bb4
+bb4:
   stop
-bb2 [cold]:
+bb6:
   push 0
   push 0
   revert
