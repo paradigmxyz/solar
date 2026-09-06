@@ -2,8 +2,8 @@
 @module YulSlotnum_runtime
 bb0:
   callvalue
-  push bb4
-  jumpi
+  jumpi bb9, bb6
+bb6:
   push 0
   calldataload
   push 224
@@ -11,32 +11,31 @@ bb0:
   dup 1
   push 0xa02bebd
   eq
-  push bb5
-  jumpi
-  dup 1
+  jumpi bb12, bb11
+bb11:
   push 0x3359632e
-  eq
-  push bb6
-  jumpi
-  jump bb4
-bb4 [cold]:
-  push 0
-  push 0
-  revert
-bb5:
-  push 0
-  not
-  push 192
-  shr
+  sub
+  jumpi bb9, bb3
+bb3:
   slotnum
-  and
-  jump bb7
-bb7:
   push 128
   mstore
   push 32
   push 128
   return
-bb6:
+bb9:
+  push 0
+  push 0
+  revert
+bb12:
   slotnum
-  jump bb7
+  push 0
+  not
+  push 192
+  shr
+  and
+  push 128
+  mstore
+  push 32
+  push 128
+  return

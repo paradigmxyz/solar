@@ -2,8 +2,8 @@
 @module FunctionCall_runtime
 bb0:
   callvalue
-  push bb4
-  jumpi
+  jumpi bb6, bb18
+bb18:
   push 0
   calldataload
   push 224
@@ -11,19 +11,57 @@ bb0:
   dup 1
   push 0x7fdb7587
   eq
-  push bb5
-  jumpi
-  dup 1
+  jumpi bb29, bb28
+bb28:
   push 0xd386d5a2
-  eq
-  push bb10
-  jumpi
-  jump bb4
-bb4 [cold]:
+  sub
+  jumpi bb6, bb9
+bb9:
+  calldatasize
+  push 68
+  gt
+  jumpi bb6, bb13
+bb13:
+  push 36
+  calldataload
+  push 4
+  calldataload
+  add
+  push 4
+  calldataload
+  dup 2
+  lt
+  jumpi bb15, bb11
+bb11:
+  push bb25
+  swap 1
+  jump bb1
+bb25:
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb24:
+  push bb25
+  swap 1
+  jump bb1
+bb1:
+  dup 1
+  dup 1
+  add
+  dup 1
+  swap 2
+  gt
+  jumpi bb15, bb3
+bb3:
+  swap 1
+  jump
+bb6:
   push 0
   push 0
   revert
-bb19 [cold]:
+bb15:
   push 0x4e487b71
   push 224
   shl
@@ -35,59 +73,15 @@ bb19 [cold]:
   push 36
   push 0
   revert
-bb5:
-  push 36
+bb29:
+  pop
   calldatasize
-  lt
-  push bb4
-  jumpi
-  push bb7
-  push 4
-  calldataload
-  jump bb16
-bb16:
-  dup 1
-  dup 1
-  add
-  dup 1
-  push 256
-  mstore
-  swap 1
-  dup 2
-  lt
-  push bb19
-  jumpi
-  swap 1
-  jump
+  push 36
+  gt
+  jumpi bb6, bb7
 bb7:
-  push bb8
-  swap 1
-  jump bb16
-bb10:
-  push 68
-  calldatasize
-  lt
-  push bb4
-  jumpi
-  push 36
-  calldataload
   push 4
   calldataload
-  add
-  push 4
-  calldataload
-  dup 2
-  lt
-  push bb19
-  jumpi
-  push bb13
+  push bb24
   swap 1
-  jump bb16
-bb13:
-  jump bb8
-bb8:
-  push 128
-  mstore
-  push 32
-  push 128
-  return
+  jump bb1
