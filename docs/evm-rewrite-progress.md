@@ -21,14 +21,14 @@ positions and PUSH widths. There is no Atom stream or assembly-level CFG
 optimization. MIR semantics remain in their retained layers. No legacy backend
 or temporary unsupported rewrite fallback is used.
 
-At the writer-delta milestone, the fresh scope has 12,487 Rust lines across
-35 files, versus 34,638 deleted raw lines: 22,151 fewer (64.0%). These counts
+At the scheduler copy-count milestone, the fresh scope has 12,488 Rust lines across
+35 files, versus 34,638 deleted raw lines: 22,150 fewer (64.0%). These counts
 include comments, blanks and local tests. A historical production-only count was not retained and is
 not reconstructed from forbidden source.
 
 ## Verification checkpoints
 
-The latest full workspace run (`writer-delta-20260906/`) has 1,358
+The latest full workspace run (`scheduler-copy-count-20260906/`) has 1,358
 passes, one failing UI aggregate and two skips. Its UI lane has 10,950 passes,
 74 failures and 806 filtered revisions. The four-line append trial was rejected:
 all UI/hot/heavy output is byte-exact with the committed initializer checkpoint,
@@ -80,6 +80,7 @@ or a final sealed-baseline comparison.
 | Resize unknown stack outputs | 67.63→66.61; 67.34→67.13 s (−1.5%/−0.3%) | Modest; RSS +5.6%/+0.1% |
 | Memoize recursion reachability | 66.10→60.10; 65.60→55.62 s (−9.1%/−15.2%) | RSS +8.7%/−2.7% |
 | Stop completed stack counts | 54.83→52.07; 55.84→51.59 s (−5.0%/−7.6%) | RSS +3.1%/+5.5% |
+| Count missing copies once | 52.98→52.16; 53.09→52.28 s (−1.5% both) | RSS −2.7%/+0.9% |
 
 Fresh reversed sealed/current pairs on the same archived Seaport input are
 54.58→54.71 and 54.37→52.98 seconds, with peak RSS 867,224→603,696 and
@@ -252,6 +253,17 @@ preserved results, but those checks do not waive size regressions. A synthetic
 expose repeated label scans, not a project-wide timing claim. The trial added
 143 raw lines and is absent from production. Original failures, byte-size joins,
 boundary checks and source snapshots remain in `vector-indexed-20260906/`.
+
+The duplicate scheduler now counts each deficit once (`b99b7c37`) instead of
+rescanning after every emitted copy. Independent review and 21,222 modeled states
+preserve exact operations, first errors and atomic failure. Both quiet pairs
+improve about 1.5%. All 724 successful UI cases per mode, both 15-case/175-label
+hot lanes, 1,672 heavy contract outputs and 26 retained diagnostics are exact.
+All 99 helpers, Foundry and ordinary workspace/all-target Clippy pass; full
+workspace retains exactly the same 74 UI failures. An additional `-D warnings`
+Clippy invocation failed on existing warnings outside this scheduler change and
+is retained separately. Evidence is in `scheduler-copy-count-20260906/`; the
+preceding sealed size/gas ledger remains unchanged by exact output identity.
 
 Finish all supported behavior and investigate every remaining assertion before
 updating it. Repeat full workspace/UI, Foundry, differential, both size corpora,
