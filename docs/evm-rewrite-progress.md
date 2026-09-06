@@ -290,6 +290,27 @@ both size corpora, all project compilations and identical-label hot lanes on the
 final state. Require no per-case size or gas regression under -Ogas or -Osize,
 then finalize compiler time/RSS, LOC and the candidate evidence archive.
 
+The byte-store selected-home extension was rejected for compiler cost, with no
+measured semantic defect. It saves 108 creation/runtime bytes and 145 opcode gas
+per exercised path in an added rewrite fixture; a new sparse fixture saves 156
+bytes. The common sealed UI, hot and heavy inventories remain byte/gas exact.
+Quiet times rise 53.07→53.60 and 53.01→53.71 seconds (+1.0% / +1.3%), confirming
+an earlier +1.3% / +1.5% pair. An output-identical loop variant is slower again
+at 54.30 / 54.37 seconds. Both variants were removed using fresh rewrite
+snapshots, preserving all evidence in `writer-byte-{store,loop}-trial-20260906/`.
+The 1,257 focused executions agree; only a fixed-destination symbolic probe
+reaches bounded agreement in both modes. Sparse arbitrary writers have concrete
+coverage, not a complete symbolic proof. The new sparse regression is retained
+in `925db056`; all four matrix revisions pass with both the accepted compiler
+and byte-store trial, with the same MIR snapshot. Full workspace coverage before
+that new fixture retains the same 62 failures. No sealed debt was removed.
+
+Current compiler-time work tests sharing raw validation bounds with assembly
+only while indexed lowering borrows the original immutable module. Every owned
+lowering and width retry still needs its own graph analysis. This is separate
+from optimization bounds, which intentionally discard concrete heights when
+unknown control exists. No global cache or retained-MIR change is proposed.
+
 ## Evidence provenance
 
 The sealed archive SHA-256 remains
