@@ -1,0 +1,24 @@
+//@ compile-flags: -Zevm-ir-pipeline=terminal-dedup
+//@ filecheck:
+// The three-byte terminal body does not pay for a new transfer. Keep both
+// entry invocations intact when no sharing occurs.
+// CHECK: {{^ }}bb1 [invoke=first@1..10]:
+// CHECK: {{^ +}}revert !metadata(span=20..25)
+// CHECK: {{^ }}bb2 [invoke=second@11..20]:
+// CHECK: {{^ +}}revert !metadata(span=40..45)
+// CHECK-NOT: +   jump
+@module DebugInfoSmall
+
+bb0:
+  push 1 !metadata(span=1..5)
+  jumpi bb1, bb2 !metadata(span=6..10)
+
+bb1 [invoke=first@1..10]:
+  push 0 !metadata(span=11..15)
+  dup 1 !metadata(span=16..19)
+  revert !metadata(span=20..25)
+
+bb2 [invoke=second@11..20]:
+  push 0 !metadata(span=31..35)
+  dup 1 !metadata(span=36..39)
+  revert !metadata(span=40..45)
