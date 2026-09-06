@@ -229,6 +229,15 @@ RSS is +1.6%/−1.8%. This is an explicit compiler-time tradeoff for measured ga
 and size wins, not a compilation speedup. Evidence is in `writer-delta-20260906/`,
 `writer-delta-heavy-20260906/` and `router-writer-delta-20260906/`.
 
+A wide indexed-table encoding trial was rejected and reverted. Eleven UI
+contracts enlarged 22 creation/runtime artifacts already above or crossing the
+sealed baseline. Both hot lanes stayed exact and 1,116 focused executions
+preserved results, but those checks do not waive size regressions. A synthetic
+16-table case also rose from 0.201 to 1.756 seconds; these exploratory timings
+expose repeated label scans, not a project-wide timing claim. The trial added
+143 raw lines and is absent from production. Original failures, byte-size joins,
+boundary checks and source snapshots remain in `vector-indexed-20260906/`.
+
 Finish all supported behavior and investigate every remaining assertion before
 updating it. Repeat full workspace/UI, Foundry, differential, both size corpora,
 all 24 project compilations and both identical-label hot-gas lanes on the final
