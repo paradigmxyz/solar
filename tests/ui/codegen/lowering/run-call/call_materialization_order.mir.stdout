@@ -2,7 +2,7 @@
 @module CallMaterializationOrder
 fn @run(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> u256 [selector=0x15509d2b, pure, abi_params=[u256, u256, u256, u256], abi_returns=[word]] {
   bb0:
-    v0 = internal_call @outer, 1, arg0, arg1, arg2, arg3
+    v0 = icall @outer, 1, arg0, arg1, arg2, arg3
     ret v0
 }
 
@@ -24,7 +24,7 @@ fn @outer(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> u256 [pure] {
   bb2:
     ret v2
   bb4:
-    v8 = internal_call @fold, 1, v0, v3, v1
+    v8 = icall @fold, 1, v0, v3, v1
     v9 = add v8, v4
     v10 = add v2, v9
     jump bb6

@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/evm-ir/block-cse/unknown_prefix.evmir (after block-cse) ===
   @module UnknownPrefix
   bb0:
-    callf !meta(stack=0->1)
+    callf !metadata(stack=0->1)
     push 42
     swap 1
     push 42

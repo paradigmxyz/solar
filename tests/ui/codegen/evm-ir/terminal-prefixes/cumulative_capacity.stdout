@@ -2,10 +2,10 @@
 + // === ROOT/tests/ui/codegen/evm-ir/terminal-prefixes/cumulative_capacity.evmir (after terminal-prefixes) ===
   @module CumulativeTerminalCapacity
   bb0:
-    callf !meta(stack=0->255)
-    callf !meta(stack=0->255)
-    callf !meta(stack=0->255)
-    callf !meta(stack=0->255)
+    callf !metadata(stack=0->255)
+    callf !metadata(stack=0->255)
+    callf !metadata(stack=0->255)
+    callf !metadata(stack=0->255)
     push 0
     push 0
     jump bb1

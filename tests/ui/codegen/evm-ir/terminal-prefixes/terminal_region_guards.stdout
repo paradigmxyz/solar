@@ -31,11 +31,11 @@
     jumpi bb6, bb9
   bb7:
     pop
-    callf !meta(stack=0->255)
-    callf !meta(stack=0->255)
-    callf !meta(stack=0->255)
-    callf !meta(stack=0->255)
-    callf !meta(stack=0->4)
+    callf !metadata(stack=0->255)
+    callf !metadata(stack=0->255)
+    callf !metadata(stack=0->255)
+    callf !metadata(stack=0->255)
+    callf !metadata(stack=0->4)
     jump bb8
   bb8:
     pop

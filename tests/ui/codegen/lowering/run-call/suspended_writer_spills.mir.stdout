@@ -38,7 +38,7 @@ fn @run() -> u256 [selector=0xc0406226, view, abi_params=[], abi_returns=[word]]
   bb2:
     jump bb3
   bb3:
-    internal_call @clobber, 0, 1
+    icall @clobber, 0, 1
     v26 = and v18, v19
     v27 = and v16, v17
     v28 = and v27, v26
@@ -74,7 +74,7 @@ fn @clobber(arg0: u256) {
     jump bb3
   bb1:
     v2 = sub arg0, 1
-    internal_call @clobber, 0, v2
+    icall @clobber, 0, v2
     jump bb3
   bb3:
     v3 = returndatasize

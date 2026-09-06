@@ -13,18 +13,18 @@
     sstore
     stop
   bb2:
-    callf !meta(stack=0->255)
-    callf !meta(stack=0->255)
-    callf !meta(stack=0->255)
-    callf !meta(stack=0->255)
-    callf !meta(stack=0->4)
+    callf !metadata(stack=0->255)
+    callf !metadata(stack=0->255)
+    callf !metadata(stack=0->255)
+    callf !metadata(stack=0->255)
+    callf !metadata(stack=0->4)
     swap 1
     pop
     push 0
     sstore
     stop
   bb3:
-    callf !meta(stack=0->3)
+    callf !metadata(stack=0->3)
     swap 1
     pop
     dup 2
@@ -32,7 +32,7 @@
     sstore
     stop
   bb4:
-    callf !meta(stack=0->2)
+    callf !metadata(stack=0->2)
     swap 1
     pop
     gas
@@ -40,7 +40,7 @@
     sstore
     stop
   bb5:
-    callf !meta(stack=0->2)
+    callf !metadata(stack=0->2)
     swap 1
     pop
     pc
@@ -48,10 +48,10 @@
     sstore
     stop
   bb6:
-    callf !meta(stack=0->2)
+    callf !metadata(stack=0->2)
     swap 1
     pop
-    op_0c !meta(stack=0->0)
+    op_0c !metadata(stack=0->0)
     push 0
     sstore
     stop

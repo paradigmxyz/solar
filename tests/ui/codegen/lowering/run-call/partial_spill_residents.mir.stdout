@@ -3,7 +3,7 @@
 fn @run(arg0: calldataslice, arg1: u256) -> u256 [selector=0x943d2a88, pure, abi_params=[array<20, u256>, u256], abi_returns=[word]] {
   bb0:
     v0 = slice_ptr arg0
-    v1 = internal_call @rotate, 1, v0, arg1
+    v1 = icall @rotate, 1, v0, arg1
     ret v1
 }
 

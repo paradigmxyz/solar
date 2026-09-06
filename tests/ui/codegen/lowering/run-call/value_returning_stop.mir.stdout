@@ -16,7 +16,7 @@ fn @inner(arg0: u256) -> (u256, u256) [selector=0xc715a02a, pure, abi_params=[u2
     v3 = lt arg0, 1
     jumpi v3, bb7, bb8
   bb8:
-    v4 = internal_call @inner, 2, v2
+    v4 = icall @inner, 2, v2
     v5 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v6 = add v5, 32
     v7 = mload v6
@@ -33,7 +33,7 @@ fn @inner(arg0: u256) -> (u256, u256) [selector=0xc715a02a, pure, abi_params=[u2
 
 fn @outer(arg0: u256) -> (u256, u256) [selector=0x94209e43, pure, abi_params=[u256], abi_returns=[word, word]] {
   bb0:
-    v0 = internal_call @inner, 2, arg0
+    v0 = icall @inner, 2, arg0
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 32
     v3 = mload v2

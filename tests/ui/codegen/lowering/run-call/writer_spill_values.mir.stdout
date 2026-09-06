@@ -2,14 +2,14 @@
 @module WriterSpillValues
 fn @fixedScratch(arg0: calldataslice) -> u256 [selector=0x92b559a7, pure, abi_params=[array<20, u256>], abi_returns=[word]] {
   bb0:
-    v0 = internal_call @run, 1, arg0, 0
+    v0 = icall @run, 1, arg0, 0
     ret v0
 }
 
 fn @run(arg0: calldataslice, arg1: u256) -> u256 [selector=0x943d2a88, pure, abi_params=[array<20, u256>, u256], abi_returns=[word]] {
   bb0:
     v0 = slice_ptr arg0
-    v1 = internal_call @write, 1, v0, arg1
+    v1 = icall @write, 1, v0, arg1
     ret v1
 }
 

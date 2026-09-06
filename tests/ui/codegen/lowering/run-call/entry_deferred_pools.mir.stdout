@@ -22,8 +22,8 @@ fn @preserved(arg0: u256, arg1: u256) -> bool [selector=0x27399793, pure, abi_pa
   bb0:
     v0 = abi_encode [word, word, word, word], object, args arg0, arg1, arg0, arg1
     v1 = keccak256_bytes v0
-    v2 = internal_call @one, 1, arg0
-    v3 = internal_call @two, 1, arg0, arg1
+    v2 = icall @one, 1, arg0
+    v3 = icall @two, 1, arg0, arg1
     v4 = keccak256_bytes v0
     v5 = eq v4, v1
     jumpi v5, bb1, bb2

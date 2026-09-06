@@ -3,9 +3,9 @@
 fn @run(arg0: calldataslice) -> u256 [selector=0xc091ffb2, pure, abi_params=[array<64, u256>], abi_returns=[word]] {
   bb0:
     v0 = slice_ptr arg0
-    v1 = internal_call @sibling, 1, v0
+    v1 = icall @sibling, 1, v0
     v2 = slice_ptr arg0
-    v3 = internal_call @parent, 1, v2
+    v3 = icall @parent, 1, v2
     v4 = add v3, v1
     ret v4
 }
@@ -114,12 +114,12 @@ fn @recurse(arg0: u256, arg1: u256) -> u256 {
   bb0:
     switch arg1, default bb3, [0 => bb2]
   bb2:
-    v0 = internal_call @leaf, 1, arg0
+    v0 = icall @leaf, 1, arg0
     jump bb1
   bb3:
     v1 = sub arg1, 1
-    v2 = internal_call @recurse, 1, arg0, v1
-    v3 = internal_call @leaf, 1, arg0
+    v2 = icall @recurse, 1, arg0, v1
+    v3 = icall @leaf, 1, arg0
     v4 = add v3, v2
     jump bb1
   bb1:
@@ -225,7 +225,7 @@ fn @parent(arg0: u256) -> u256 {
     v93 = add v92, v85
     v94 = add v93, v78
     v95 = add arg0, 0x400
-    v96 = internal_call @recurse, 1, v95, 2
+    v96 = icall @recurse, 1, v95, 2
     v97 = add v96, v94
     ret v97
 }

@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/evm-ir/outline/return_permutation.evmir (after outline) ===
   @module ReturnPermutation
   bb0:
-    callf !meta(stack=0->1)
+    callf !metadata(stack=0->1)
     callvalue
     jumpi bb1, bb2
   bb1:
@@ -14,10 +14,10 @@
 +   swap 1
 +   jump bb5
 + bb3:
-+   callf !meta(stack=8->0)
++   callf !metadata(stack=8->0)
 +   stop
 + bb4:
-+   callf !meta(stack=8->0)
++   callf !metadata(stack=8->0)
 +   stop
 + bb5:
     push 164
@@ -71,9 +71,9 @@
 + bb7:
     jump bb4
 - bb3:
--   callf !meta(stack=8->0)
+-   callf !metadata(stack=8->0)
 -   stop
 - bb4:
--   callf !meta(stack=8->0)
+-   callf !metadata(stack=8->0)
 -   stop
   

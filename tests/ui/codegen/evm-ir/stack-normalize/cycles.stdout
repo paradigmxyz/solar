@@ -2,7 +2,7 @@
 + // === ROOT/tests/ui/codegen/evm-ir/stack-normalize/cycles.evmir (after stack-normalize) ===
   @module StackCycles
   bb0:
-    callf !meta(stack=0->9)
+    callf !metadata(stack=0->9)
 -   swap 7
 -   swap 8
 -   swap 6

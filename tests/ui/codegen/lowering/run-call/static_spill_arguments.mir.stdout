@@ -2,7 +2,7 @@
 @module StaticSpillArguments
 fn @probe(arg0: u256, arg1: u256) -> u256 [selector=0x048d4c80, pure, abi_params=[u256, u256], abi_returns=[word]] {
   bb0:
-    v0 = internal_call @outer, 1, 4, arg0, arg1, 77
+    v0 = icall @outer, 1, 4, arg0, arg1, 77
     ret v0
 }
 
@@ -127,7 +127,7 @@ fn @outer(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> u256 {
     v38 = add arg0, 608
     v39 = calldataload v38
     v40 = add arg0, 32
-    v41 = internal_call @inner, 1, v40, arg1, arg1, 99, arg2
+    v41 = icall @inner, 1, v40, arg1, arg1, 99, arg2
     v42 = eq arg1, 0
     v43 = iszero v42
     jumpi v43, bb1, bb2

@@ -6,14 +6,14 @@
     calldataload
     jumpi bb1, bb2
   bb1:
-    callf !meta(stack=0->0)
+    callf !metadata(stack=0->0)
     push 11
     push 22
     push 33
     push 44
     stop
   bb2:
-    callf !meta(stack=0->0)
+    callf !metadata(stack=0->0)
     push 11
     push 22
     push 33

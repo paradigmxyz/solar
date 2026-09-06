@@ -16,7 +16,7 @@
     mstore
     jump bb2
   bb2:
-    callf !meta(stack=0->3)
+    callf !metadata(stack=0->3)
     pop
     pop
     pop

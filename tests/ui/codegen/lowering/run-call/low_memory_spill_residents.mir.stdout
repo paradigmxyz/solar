@@ -4,7 +4,7 @@ fn @run(arg0: calldataslice, arg1: u256, arg2: u256) -> u256 [selector=0x40e0fde
   bb0:
     v0 = and arg1, 3
     v1 = slice_ptr arg0
-    v2 = internal_call @walk, 1, v1, v0, arg2
+    v2 = icall @walk, 1, v1, v0, arg2
     ret v2
 }
 
@@ -74,7 +74,7 @@ fn @walk(arg0: u256, arg1: u256, arg2: u256) -> u256 {
     jump bb6
   bb4:
     v45 = sub arg1, 1
-    v46 = internal_call @walk, 1, arg0, v45, arg2
+    v46 = icall @walk, 1, arg0, v45, arg2
     v47 = add v42, v46
     jump bb6
   bb6:

@@ -41,7 +41,7 @@ fn @partialPair() [selector=0x94ae8541, pure, abi_params=[], abi_returns=[]] {
 fn @beforeCall(arg0: u256) [selector=0x37fa0cfa, abi_params=[u256], abi_returns=[word]] {
   bb0:
     mstore 64, 0x1234 !metadata(memory=scratch)
-    internal_call @marker, 0, arg0
+    icall @marker, 0, arg0
     returndata 64, 32
 }
 

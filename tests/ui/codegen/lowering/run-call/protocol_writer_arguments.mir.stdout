@@ -50,7 +50,7 @@ fn @run(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0x24b912e5, pure, 
     v23 = lt v22, arg1
     jumpi v23, bb1, bb13
   bb13:
-    v24 = internal_call @recurse, 1, arg0, arg2, arg1, v0, v2, v4, v6, v8, v10, v12, v14, v16, v18, v20, v22
+    v24 = icall @recurse, 1, arg0, arg2, arg1, v0, v2, v4, v6, v8, v10, v12, v14, v16, v18, v20, v22
     ret v24
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
@@ -85,7 +85,7 @@ fn @recurse(arg0: u256, arg1: u256, arg2: u256, arg3: u256, arg4: u256, arg5: u2
     v3 = lt arg0, 1
     jumpi v3, bb4, bb5
   bb5:
-    v4 = internal_call @recurse, 1, v2, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14
+    v4 = icall @recurse, 1, v2, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14
     ret v4
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
@@ -137,7 +137,7 @@ fn @run(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0x24b912e5, pure, 
     v19 = lt v18, arg1
     jumpi v19, bb1, bb11
   bb11:
-    v20 = internal_call @recurse, 1, arg0, arg2, arg1, v0, v2, v4, v6, v8, v10, v12, v14, v16, v18
+    v20 = icall @recurse, 1, arg0, arg2, arg1, v0, v2, v4, v6, v8, v10, v12, v14, v16, v18
     ret v20
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
@@ -170,7 +170,7 @@ fn @recurse(arg0: u256, arg1: u256, arg2: u256, arg3: u256, arg4: u256, arg5: u2
     v3 = lt arg0, 1
     jumpi v3, bb4, bb5
   bb5:
-    v4 = internal_call @recurse, 1, v2, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12
+    v4 = icall @recurse, 1, v2, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12
     ret v4
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
