@@ -3,10 +3,11 @@
 //! Peepholes use bounded adjacent identities in EVM pop order, respecting opaque
 //! stack metadata and unresolved deferred values. Constant evaluation delegates
 //! to the retained 256-bit evaluator. Compact literals use the shared bounded
-//! materializer. Terminal cleanup removes only an unobserved pure suffix, stopping
-//! at effects or unknown stack contracts. Stack-only normalization symbolically
-//! executes permutations and asks the private scheduler for a cheaper equivalent.
-//! All changes happen on explicit block instructions before primitive assembly;
+//! materializer and can reuse only the immediately preceding literal as a construction base.
+//! Complete adjacent-pair stack and byte/gas checks bound this reuse. Terminal cleanup removes only
+//! an unobserved pure suffix, stopping at effects or unknown stack contracts. Stack-only
+//! normalization symbolically executes permutations and asks the private scheduler for a cheaper
+//! equivalent. All changes happen on explicit block instructions before primitive assembly;
 //! no operation moves across a control-flow edge or mutable observation. Raw
 //! JUMPDESTs are alternate entries: stack identities and height proofs stop
 //! there even when the textual block continues.
@@ -40,11 +41,11 @@ impl EvmPass for LocalPass {
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
         let version = gcx.sess.opts.evm_version;
         let mut changed = false;
-        // The literal/copy rule shortens code. Private labels are control-only,
+        // The literal/copy rules shorten code. Private labels are control-only,
         // but parsed labels, numeric jumps and code/gas observations can expose it.
         // Conservatively include gas forwarded to external calls and creations.
         // This permission concerns only this new rule, not gas invariance of the pipeline.
-        let literal_copy_order = matches!(self.0, "dce" | "peephole")
+        let literal_copy_order = matches!(self.0, "dce" | "peephole" | "compact-pushes")
             && module.block_ids().all(|id| {
                 module.blocks[id].insts.iter().all(|inst| {
                     !matches!(inst.kind, InstKind::PushData { .. } | InstKind::PushDeferred(_))
@@ -86,6 +87,7 @@ impl EvmPass for LocalPass {
                     let peak = stack_usage(&old).map(|(_, _, peak)| peak);
                     let mut relative_height = Some(0i64);
                     let mut height = entry_max;
+                    let mut previous_literal = None;
                     // push value -> <compact literal construction>
                     for inst in old {
                         if matches!(inst.kind, InstKind::Op(op::JUMPDEST)) {
@@ -111,11 +113,41 @@ impl EvmPass for LocalPass {
                                 .map(|height| 1024usize.saturating_sub(height))
                                 .or_else(|| usize::try_from(peak? - relative_height?).ok())
                                 .unwrap_or(1);
-                            let replacement =
+                            let mut replacement =
                                 immediate::materialize_bounded(version, value, budget);
+                            if literal_copy_order
+                                && let Some((previous, start)) = previous_literal
+                                && matches!(replacement.as_slice(), [
+                                    Instruction { kind: InstKind::Push(base), .. },
+                                    Instruction { kind: InstKind::Op(op::NOT), .. }, ..
+                                ] if !*base == previous)
+                            {
+                                let mut pair = block.insts[start..].to_vec();
+                                let split = pair.len();
+                                pair.extend_from_slice(&replacement);
+                                let old_usage = stack_usage(&pair);
+                                let old_cost = immediate::cost(version, &pair);
+                                // <previous literal>; push ~previous; not; <construction tail>
+                                // <previous literal>; dup1; <construction tail>
+                                pair.splice(split..split + 2, [InstKind::Dup(1).into()]);
+                                let cost = immediate::cost(version, &pair);
+                                if let Some((need, net, peak)) = stack_usage(&pair)
+                                    && let Some((old_need, old_net, old_peak)) = old_usage
+                                    && need <= old_need
+                                    && net == old_net
+                                    && peak <= old_peak
+                                    && cost.0 < old_cost.0
+                                    && cost.1 <= old_cost.1
+                                {
+                                    // dup1; <construction tail>
+                                    replacement.splice(..2, [InstKind::Dup(1).into()]);
+                                }
+                            }
+                            previous_literal = Some((value, block.insts.len()));
                             changed |= replacement.as_slice() != [inst];
                             block.insts.extend(replacement);
                         } else {
+                            previous_literal = None;
                             block.insts.push(inst);
                         }
                         height = next_height;

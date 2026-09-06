@@ -6,8 +6,7 @@
 -   push 0xffffffffffffffffffffffffffffffffffffffff
 +   push 0
 +   not
-+   push 0
-+   not
++   dup 1
 +   push 96
 +   shr
     stop

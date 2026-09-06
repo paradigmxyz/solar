@@ -399,6 +399,14 @@ Sixteen sealed/current constructor/dispatch executions agree; all five focused
 UI/FileCheck cases pass. Four expectation files change, with originals, raw
 outputs and replay traces retained in `timing-cli-review/`.
 
+Compact-push construction now reuses the immediately preceding literal under
+complete-pair stack, byte and gas checks. The focused size/Berlin disassembly
+regains the sealed cost (one/two bytes and two/three gas saved). The harmless
+shifted-string coefficient change is separately value/cost checked before
+updating two FileCheck lines. All eight focused cases pass; all 714 UI cases
+per mode and both 15-case hot reports remain byte/gas identical for this isolated
+change. Evidence and original expectations remain in `compact-adjacent-literal/`.
+
 ## Remaining acceptance
 
 Complete targeted fixes, remove every new baseline failure, and investigate
