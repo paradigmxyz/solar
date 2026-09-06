@@ -14,7 +14,10 @@
 //! control state; parsed IR can expose their numeric addresses as ordinary data.
 //! Tail merging uses the same relocation exclusions and additionally declines
 //! modules that read GAS or forward gas to external calls or creations: its new
-//! transfer can affect observations after the shared suffix, not only within it. A final
+//! transfer can affect observations after the shared suffix, not only within it.
+//! Unequal conditional terminators can match through one empty forwarding block
+//! per target; only accepted shared tails use those destinations. Equal original
+//! terminators retain their existing behavior, and metadata is never discarded. A final
 //! taken-edge-only cleanup redirects duplicate exits to surviving identical
 //! bodies without adding a transfer or changing the surviving layout. The
 //! earliest identical body remains the owner and may gain a JUMPDEST. Only
@@ -26,7 +29,9 @@
 //! preventing new conditional traces from stealing their preferred fallthrough. These transforms
 //! operate before assembly, where block references and loop/cold annotations are still explicit.
 
-use super::{Block, BlockId, EvmPass, InstKind, Module, TerminatorKind, verify::successors};
+use super::{
+    Block, BlockId, EvmPass, InstKind, Module, Terminator, TerminatorKind, verify::successors,
+};
 use crate::{backend::evm::op, timing::PassTimer};
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
 use solar_sema::Gcx;
@@ -538,6 +543,34 @@ fn share_reverts(module: &mut Module) -> bool {
     changed
 }
 
+/// Matches conditional destinations through one empty, unannotated forwarding block.
+fn forwarded_conditional(
+    module: &Module,
+    a: &Terminator,
+    b: &Terminator,
+) -> Option<TerminatorKind> {
+    if a.stack_effect != b.stack_effect {
+        return None;
+    }
+    let (TerminatorKind::JumpI(ay, an), TerminatorKind::JumpI(by, bn)) = (&a.kind, &b.kind) else {
+        return None;
+    };
+    let forward = |id: BlockId| {
+        let block = &module.blocks[id];
+        if block.insts.is_empty()
+            && block.terminator.stack_effect.is_none()
+            && let TerminatorKind::Jump(target) = block.terminator.kind
+            && target != id
+        {
+            target
+        } else {
+            id
+        }
+    };
+    let (yes, no) = (forward(*ay), forward(*an));
+    (yes == forward(*by) && no == forward(*bn)).then_some(TerminatorKind::JumpI(yes, no))
+}
+
 fn tail_merge(gcx: Gcx<'_>, module: &mut Module) -> bool {
     // A new transfer can affect any later gas observation, including forwarded
     // gas in a callee or initializer. No continuation-level exclusion is proved.
@@ -564,9 +597,13 @@ fn tail_merge(gcx: Gcx<'_>, module: &mut Module) -> bool {
             }
             let a = &module.blocks[id];
             let b = &module.blocks[other];
-            if a.terminator != b.terminator {
+            let forwarded = if a.terminator == b.terminator {
+                None
+            } else if let Some(kind) = forwarded_conditional(module, &a.terminator, &b.terminator) {
+                Some(kind)
+            } else {
                 continue;
-            }
+            };
             let common =
                 a.insts.iter().rev().zip(b.insts.iter().rev()).take_while(|(a, b)| a == b).count();
             let suffix_bytes = a.insts[a.insts.len() - common..]
@@ -611,9 +648,14 @@ fn tail_merge(gcx: Gcx<'_>, module: &mut Module) -> bool {
             ) {
                 continue;
             }
+            let mut terminator = a.terminator.clone();
+            if let Some(kind) = forwarded {
+                // jumpi empty_forwarder, other -> jumpi forwarded_target, other
+                terminator.kind = kind;
+            }
             let tail = Block {
                 insts: a.insts[a.insts.len() - common..].to_vec(),
-                terminator: a.terminator.clone(),
+                terminator,
                 cold: a.cold && b.cold,
                 loop_header: a.loop_header || b.loop_header,
             };

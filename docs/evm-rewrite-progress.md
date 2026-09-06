@@ -75,22 +75,22 @@ are retained under `target/codegen-bench/evm-rewrite-candidate/`.
 
 ## Output quality still owed
 
-The strict ledger at `terminal-forwarded-guard/sealed-ranking/` joins original
+The strict ledger at `enum-local-tail/sealed-ranking/` joins original
 IDs and ordered call labels. Comment-only source amendments have exact bytecode
 proofs and derived reports; sealed reports and the archive remain untouched.
 
 | Matched corpus | Creation-byte delta | Runtime-byte delta | Call-gas delta |
 | --- | ---: | ---: | ---: |
-| UI, gas (694 original successes) | +2,587 | +4,351 | — |
-| UI, size (694 original successes) | −28,967 | −24,449 | — |
-| Hot, gas (15 cases) | +22,396 | +22,833 | −27,214 |
-| Hot, size (15 cases) | +25,778 | +26,150 | −91,968 |
+| UI, gas (694 original successes) | +2,543 | +4,307 | — |
+| UI, size (694 original successes) | −29,824 | −25,306 | — |
+| Hot, gas (15 cases) | +22,360 | +22,797 | −27,313 |
+| Hot, size (15 cases) | +25,741 | +26,113 | −92,067 |
 
-Aggregates do not pass acceptance: 1,347 individual UI artifacts remain larger;
+Aggregates do not pass acceptance: 1,339 individual UI artifacts remain larger;
 24 gas-mode and 30 size-mode hot labels remain higher. Current hot size checks
 also have 20/19 larger creation-or-runtime artifacts in gas/size. The required
 tail observer fix exposes additional size debt rather than retaining unsafe
-sharing. All 42 extra UI mode rows are reported separately from the baseline.
+sharing. All 44 extra UI mode rows are reported separately from the baseline.
 
 ## Active work and remaining gates
 
@@ -98,7 +98,7 @@ Work is committed in small chunks. Recent changes remove allocation costs,
 retain safe writer operands, rotate protected results in bounded chunks, and
 repair code/gas-observation guards. Reviewed corrections save 121 Nitro bytes
 per mode and 15 more UI size bytes; all individual comparisons are retained.
-The five-byte enum debt remains unresolved. Immutable-read rematerialization
+The five-byte enum debt remains unresolved in gas mode. Immutable-read rematerialization
 and moving size-only tail merging later were rejected after strict comparison:
 the former enlarged 89 existing UI artifact debts and created 18; the latter
 enlarged 64 and created two. Rematerialization also worsened five Maple gas
@@ -112,6 +112,14 @@ with no individual increases. The new nested-call regression passes all four
 matrix revisions; 576 broader differential calls also match. The first matched
 Seaport pair is flat (66.35→66.61 seconds); no compile-time win is claimed.
 `call-materialization-order/` and `resize-call-order-review/` retain proof.
+
+Tail merging now matches equivalent conditional targets through one empty,
+unannotated forwarding hop, preserving pass order and existing observer guards.
+It saves 813 creation/runtime UI bytes in size mode with no individual increases;
+gas-mode output and both hot lanes are exact. Enum size runtime falls 101→94
+bytes (sealed 96); its few local opcode-gas increases remain below sealed gas.
+All 32 tail-merge UI revisions, 102 enum checks and 480 raw execution checks
+pass. `enum-local-tail/` retains every pair, including PC/GAS and cycle cases.
 
 A fresh frozen-runner checkpoint reports 61 failed and 3,031 passed revisions.
 Two failures were executable-name differences in CLI help and pass with a

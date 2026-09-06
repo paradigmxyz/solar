@@ -1,0 +1,79 @@
+- // === ROOT/tests/ui/codegen/evm-ir/tail-merge/forwarded_conditional.evmir (before tail-merge) ===
++ // === ROOT/tests/ui/codegen/evm-ir/tail-merge/forwarded_conditional.evmir (after tail-merge) ===
+  @module ForwardedConditional
+  bb0:
+    push 0
+    calldataload
+    jumpi bb1, bb2
+  bb1:
+    push 3
+-   push 32
+-   calldataload
+-   lt
+-   jumpi bb3, bb4
++   jump bb19
+  bb2:
+    push 2
+-   push 32
+-   calldataload
+-   lt
+-   jumpi bb7, bb4
++   jump bb19
+  bb3:
+    push 100
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  bb4:
+    push 200
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  bb7:
+    jump bb3
+  bb8:
+    push 5
+    push 64
+    calldataload
+    lt
+    jumpi bb9, bb10
+  bb9:
+    stop
+  bb10:
+    invalid
+  bb11:
+    push 6
+    push 64
+    calldataload
+    lt
+    jumpi bb12, bb10
+  bb12:
+    jump bb9
+  bb13:
+    push 7
+    push 96
+    calldataload
+    lt
+    jumpi bb17, bb18
+  bb14:
+    push 8
+    push 96
+    calldataload
+    lt
+    jumpi bb15, bb18
+  bb15:
+    jump bb17
+  bb17:
+    stop
+  bb18:
+    invalid
++ bb19:
++   push 32
++   calldataload
++   lt
++   jumpi bb3, bb4
+  
