@@ -122,15 +122,10 @@ fn lower_structs(module: &mut Module) -> bool {
         let Some(offsets) = super::utils::rebase_frame_offsets(func, slots) else { return false };
         shifts.push(offsets);
     }
-    let returns = module
-        .functions
-        .iter()
-        .map(|func| func.returns.iter().flat_map(|&ty| layouts.flatten(ty)).collect::<Vec<_>>())
-        .collect::<IndexVec<_, _>>();
     for (id, func) in module.functions.iter_mut_enumerated() {
         // unreachable aggregate definitions -> removed blocks and phi inputs
         let _ = super::cfg_simplify::remove_unreachable_blocks(func);
-        lower_function(func, &layouts, &returns);
+        lower_function(func, &layouts);
         // frame_addr(old_local_base + offset) -> frame_addr(new_local_base + offset)
         for &(inst, offset) in &shifts[id] {
             func.inst_mut(inst).kind = InstKind::InternalFrameAddr(offset);
@@ -206,11 +201,7 @@ fn components(value: ValueId, aggregates: &FxHashMap<ValueId, Box<[ValueId]>>) -
     aggregates.get(&value).map_or_else(|| vec![value], |values| values.to_vec())
 }
 
-fn lower_function(
-    func: &mut Function,
-    layouts: &Layouts,
-    return_types: &IndexVec<FunctionId, Vec<MirType>>,
-) {
+fn lower_function(func: &mut Function, layouts: &Layouts) {
     let mut aggregates = FxHashMap::default();
     let mut replacements = FxHashMap::default();
     let mut values = func.live_values().collect::<Vec<_>>();
@@ -319,17 +310,15 @@ fn lower_function(
                 // buffer = frame_load multi_return
                 // rest = mload(buffer + field_offset)
                 InstKind::ICall { function, args, .. } => {
-                    let returns =
-                        u32::try_from(return_types[function].len()).expect("return count fits u32");
                     let args =
                         args.iter().flat_map(|&value| components(value, &aggregates)).collect();
                     if let Some(fields) = fields {
                         let types = layouts.flatten(inst.result_ty.unwrap());
                         if types.is_empty() {
-                            builder.icall_void(function, args, 0);
+                            builder.icall_void(function, args);
                             Vec::new()
                         } else {
-                            let first = builder.icall(function, args, types[0], fields.len());
+                            let first = builder.icall(function, args, types[0]);
                             let mut values = vec![first];
                             if fields.len() > 1 {
                                 let base = builder.frame_load(
@@ -350,7 +339,7 @@ fn lower_function(
                         }
                     } else {
                         builder.func_mut().inst_mut(id).kind =
-                            InstKind::ICall { function, args: args.into(), returns };
+                            InstKind::ICall { function, args: args.into() };
                         builder.func_mut().blocks[block].instructions.push(id);
                         continue;
                     }

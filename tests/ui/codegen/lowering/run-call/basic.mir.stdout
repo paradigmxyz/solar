@@ -162,7 +162,7 @@ fn @reservedSpillFreshness(arg0: bool) -> u256 [selector=0x45f98aed, abi_params=
     v7 = lt v6, v0
     jumpi v7, bb4, bb6
   bb6:
-    v8 = icall @pairInternal, 1, v6
+    v8 = icall @pairInternal, v6
     v9 = extract_value struct0, v8, 0
     v10 = extract_value struct0, v8, 1
     v11 = add v9, v10
@@ -175,7 +175,7 @@ fn @reservedSpillFreshness(arg0: bool) -> u256 [selector=0x45f98aed, abi_params=
   bb8:
     jump bb3
   bb1:
-    v1 = icall @pairInternal, 1, v0
+    v1 = icall @pairInternal, v0
     v2 = extract_value struct0, v1, 0
     v3 = extract_value struct0, v1, 1
     v4 = add v2, v3

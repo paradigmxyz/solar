@@ -35,7 +35,7 @@ fn @loopTuple(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0x2a5696fb, 
     v9 = eq v8, 1
     jumpi v9, bb1, bb2
   bb2:
-    v11 = icall @mix, 1, v6
+    v11 = icall @mix, v6
     jump bb3
   bb1:
     v10 = mul v6, v4
@@ -81,7 +81,7 @@ fn @loopTuple(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0x2a5696fb, 
     v47 = xor v45, v46
     ret v47
   bb7:
-    v29 = icall @step, 1, v23, v26
+    v29 = icall @step, v23, v26
     v30 = extract_value struct0, v29, 0
     v31 = extract_value struct0, v29, 1
     jump bb9
@@ -106,7 +106,7 @@ fn @loopTupleInline(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0xb423
     v9 = eq v8, 1
     jumpi v9, bb1, bb2
   bb2:
-    v11 = icall @mix, 1, v6
+    v11 = icall @mix, v6
     jump bb3
   bb1:
     v10 = mul v6, v4

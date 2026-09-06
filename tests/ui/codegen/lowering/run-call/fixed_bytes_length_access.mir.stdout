@@ -23,7 +23,7 @@ fn @f(arg0: bytes32) -> struct0 [selector=0xd7da973a, view, abi_params=[bytes32]
 
 fn @sideEffect() -> struct1 [selector=0x3a058265, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
-    v0 = icall @makeBytes, 1
+    v0 = icall @makeBytes
     v1 = sload 1 !metadata(storage=slot(1))
     v2 = insert_value struct1, undef struct1, 0, 4
     v3 = insert_value struct1, v2, 1, v1

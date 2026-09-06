@@ -8,10 +8,10 @@ types:
 
 fn @fixedArray() -> u256 [selector=0x391e2457, pure, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = icall @freeMemoryPointer, 1
+    v0 = icall @freeMemoryPointer
     v1 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
     memory_zero v1, 96
-    v2 = icall @freeMemoryPointer, 1
+    v2 = icall @freeMemoryPointer
     v3 = sub v2, v0
     v4 = lt v2, v0
     jumpi v4, bb1, bb2
@@ -25,11 +25,11 @@ fn @fixedArray() -> u256 [selector=0x391e2457, pure, abi_params=[], abi_returns=
 
 fn @structure() -> u256 [selector=0x6c92f462, pure, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = icall @freeMemoryPointer, 1
+    v0 = icall @freeMemoryPointer
     v1 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     memory_object_store_field memorystruct<2>, v1, 0, 0
     memory_object_store_field memorystruct<2>, v1, 1, 0
-    v2 = icall @freeMemoryPointer, 1
+    v2 = icall @freeMemoryPointer
     v3 = sub v2, v0
     v4 = lt v2, v0
     jumpi v4, bb1, bb2
@@ -45,8 +45,8 @@ fn @aliasDoesNotAllocate() -> u256 [selector=0xb2b4bf46, pure, abi_params=[], ab
   bb0:
     v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
     memory_zero v0, 96
-    v1 = icall @freeMemoryPointer, 1
-    v2 = icall @freeMemoryPointer, 1
+    v1 = icall @freeMemoryPointer
+    v2 = icall @freeMemoryPointer
     v3 = sub v2, v1
     v4 = lt v2, v1
     jumpi v4, bb1, bb2
@@ -60,8 +60,8 @@ fn @aliasDoesNotAllocate() -> u256 [selector=0xb2b4bf46, pure, abi_params=[], ab
 
 fn @dynamicDefaults() -> struct0 [selector=0xd295ba8d, pure, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
-    v0 = icall @freeMemoryPointer, 1
-    v1 = icall @freeMemoryPointer, 1
+    v0 = icall @freeMemoryPointer
+    v1 = icall @freeMemoryPointer
     v2 = sub v1, v0
     v3 = lt v1, v0
     jumpi v3, bb1, bb2
@@ -85,12 +85,12 @@ fn @dynamicDefaults() -> struct0 [selector=0xd295ba8d, pure, abi_params=[], abi_
 
 fn @nestedDynamicDefaults() -> struct0 [selector=0xd34386dc, pure, abi_params=[], abi_returns=[word, word, word, word<bool>], abi_return_params=[u256, u256, u256, bool]] {
   bb0:
-    v0 = icall @freeMemoryPointer, 1
+    v0 = icall @freeMemoryPointer
     v1 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
     memory_object_store_field memorystruct<3>, v1, 0, 0
     memory_object_store_field memorystruct<3>, v1, 1, memorybytes 96
     memory_object_store_field memorystruct<3>, v1, 2, memoryarray 96
-    v2 = icall @freeMemoryPointer, 1
+    v2 = icall @freeMemoryPointer
     v3 = sub v2, v0
     v4 = lt v2, v0
     jumpi v4, bb1, bb2
@@ -99,7 +99,7 @@ fn @nestedDynamicDefaults() -> struct0 [selector=0xd34386dc, pure, abi_params=[]
     v6 = mload v5
     v7 = add v1, 64
     v8 = mload v7
-    v9 = icall @freeMemoryPointer, 1
+    v9 = icall @freeMemoryPointer
     v10 = not 31
     v11 = and 64, v10
     v12 = alloc memorybytes, exact, zeroed, panic, v11
@@ -123,13 +123,13 @@ fn @defaultBytesReturn() -> memorybytes [selector=0x2a63b10a, pure, abi_params=[
 
 fn @defaultThroughICall() -> bool [selector=0x4ed54f6b, pure, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
-    v0 = icall @isEmpty, 1, memorybytes 96
+    v0 = icall @isEmpty, memorybytes 96
     ret v0
 }
 
 fn @fixedArrayDynamicDefaults() -> struct1 [selector=0x94633452, pure, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
-    v0 = icall @freeMemoryPointer, 1
+    v0 = icall @freeMemoryPointer
     v1 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     jump bb1
   bb1:
@@ -137,7 +137,7 @@ fn @fixedArrayDynamicDefaults() -> struct1 [selector=0x94633452, pure, abi_param
     v3 = lt v2, 2
     jumpi v3, bb2, bb3
   bb3:
-    v5 = icall @freeMemoryPointer, 1
+    v5 = icall @freeMemoryPointer
     v6 = sub v5, v0
     v7 = lt v5, v0
     jumpi v7, bb4, bb5
@@ -161,7 +161,7 @@ fn @fixedArrayDynamicDefaults() -> struct1 [selector=0x94633452, pure, abi_param
 
 fn @nestedStaticDefaults() -> u256 [selector=0x1ebfa70d, pure, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = icall @freeMemoryPointer, 1
+    v0 = icall @freeMemoryPointer
     v1 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     v2 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     memory_object_store_field memorystruct<2>, v2, 0, 0
@@ -170,7 +170,7 @@ fn @nestedStaticDefaults() -> u256 [selector=0x1ebfa70d, pure, abi_params=[], ab
     v3 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     memory_zero v3, 64
     memory_object_store_field memorystruct<2>, v1, 1, v3
-    v4 = icall @freeMemoryPointer, 1
+    v4 = icall @freeMemoryPointer
     v5 = sub v4, v0
     v6 = lt v4, v0
     jumpi v6, bb1, bb2
@@ -193,9 +193,9 @@ fn @literalBytes() -> memorybytes [selector=0x95549276, pure, abi_params=[], abi
 
 fn @literalAllocation() -> u256 [selector=0x222f8ae4, pure, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = icall @freeMemoryPointer, 1
-    v1 = icall @literalBytes, 1
-    v2 = icall @freeMemoryPointer, 1
+    v0 = icall @freeMemoryPointer
+    v1 = icall @literalBytes
+    v2 = icall @freeMemoryPointer
     v3 = sub v2, v0
     v4 = lt v2, v0
     jumpi v4, bb1, bb2
@@ -209,7 +209,7 @@ fn @literalAllocation() -> u256 [selector=0x222f8ae4, pure, abi_params=[], abi_r
 
 fn @rawAssemblyPointers() -> struct2 [selector=0x46fec25e, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
-    v0 = icall @rawPointerPair, 1
+    v0 = icall @rawPointerPair
     v1 = extract_value struct3, v0, 0
     v2 = extract_value struct3, v0, 1
     v3 = memory_object_len memorybytes, v1

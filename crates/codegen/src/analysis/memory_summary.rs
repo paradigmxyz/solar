@@ -156,6 +156,8 @@ pub(crate) struct FunctionMemorySummary {
     slot_writes: [SlotFootprint; 2],
     memory_reads: MemoryFootprint,
     memory_writes: MemoryFootprint,
+    /// Whether the signature uses the lowered multi-return buffer convention.
+    pub(crate) has_multiple_returns: bool,
     may_reset_fmp: bool,
     /// Whether the function may move the free-memory pointer below its current value.
     may_recycle_fmp: bool,
@@ -180,6 +182,7 @@ impl FunctionMemorySummary {
             slot_writes: Default::default(),
             memory_reads: Default::default(),
             memory_writes: Default::default(),
+            has_multiple_returns: false,
             may_reset_fmp: false,
             may_recycle_fmp: false,
             may_observe_fmp: false,
@@ -203,6 +206,7 @@ impl FunctionMemorySummary {
             }),
             memory_reads: MemoryFootprint { unknown: true, ..Default::default() },
             memory_writes: MemoryFootprint { unknown: true, ..Default::default() },
+            has_multiple_returns: false,
             may_reset_fmp: true,
             may_recycle_fmp: true,
             may_observe_fmp: true,
@@ -358,7 +362,9 @@ impl MemoryCallSummaries {
         let sources = module.functions.iter().map(parameter_sources).collect::<IndexVec<_, _>>();
         let mut local = IndexVec::with_capacity(module.functions.len());
         for (func_id, func) in module.functions.iter_enumerated() {
-            local.push(local_summary(func, &sources[func_id]));
+            let mut summary = local_summary(module, func, &sources[func_id]);
+            summary.has_multiple_returns = func.returns.len() > 1;
+            local.push(summary);
         }
         let mut summaries = local.clone();
 
@@ -482,6 +488,7 @@ const fn space_index(space: AddressSpace) -> usize {
 }
 
 fn local_summary(
+    module: &Module,
     func: &Function,
     sources: &IndexVec<ValueId, DenseBitSet<ArgIdx>>,
 ) -> FunctionMemorySummary {
@@ -495,12 +502,12 @@ fn local_summary(
     for block in &func.blocks {
         for &inst_id in &block.instructions {
             let kind = &func.inst(inst_id).kind;
-            if let InstKind::ICall { returns, .. } = kind {
+            if let InstKind::ICall { function, .. } = kind {
                 // Callee effects merge through the call graph, but a multi-result
                 // call also writes the caller-side multi-return buffer during
                 // backend lowering. That traffic exists in no MIR body, so it
                 // must be a local memory effect of the calling function.
-                if *returns > 1 {
+                if module.functions.get(*function).is_none_or(|callee| callee.returns.len() > 1) {
                     summary.record_access(func, Access::Any(AddressSpace::Memory), false);
                     summary.record_access(func, Access::Any(AddressSpace::Memory), true);
                 }
@@ -894,7 +901,7 @@ mod tests {
                     } else {
                         // icall leaf(128)
                         // ret
-                        builder.icall_void(leaf, vec![pointer], 0);
+                        builder.icall_void(leaf, vec![pointer]);
                         builder.ret([]);
                     }
                 }
@@ -976,7 +983,7 @@ mod tests {
         {
             let mut builder = FunctionBuilder::new(&mut reader_caller);
             let ptr = builder.add_param(MirType::MemPtr);
-            builder.icall_void(reader, vec![ptr], 1);
+            builder.icall_void(reader, vec![ptr]);
             builder.ret([]);
         }
         let reader_caller = module.add_function(reader_caller);
@@ -985,7 +992,7 @@ mod tests {
         {
             let mut builder = FunctionBuilder::new(&mut returning_caller);
             let ptr = builder.add_param(MirType::MemPtr);
-            builder.icall_void(returning, vec![ptr], 1);
+            builder.icall_void(returning, vec![ptr]);
             builder.ret([]);
         }
         let returning_caller = module.add_function(returning_caller);

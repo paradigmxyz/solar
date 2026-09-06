@@ -41,8 +41,8 @@ fn @constructor() [constructor] {
 
 fn @test() -> struct0 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
-    v0 = icall @load_storage_word_array, 1, 0
-    v1 = icall @consume, 1, v0
+    v0 = icall @load_storage_word_array, 0
+    v1 = icall @consume, v0
     v2 = extract_value struct0, v1, 0
     v3 = extract_value struct0, v1, 1
     v4 = insert_value struct0, undef struct0, 0, v2

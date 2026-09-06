@@ -59,13 +59,13 @@ fn @g(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0x191157d1, pure, ab
     v33 = mul arg1, 10
     v34 = add v32, v33
     v35 = add v34, 11
-    v36 = icall @mix, 1, v27
+    v36 = icall @mix, v27
     v37 = xor v36, v15
     v38 = and v37, 4
     v39 = eq v38, 0
     jumpi v39, bb1, bb2
   bb2:
-    v57 = icall @step, 1, v15, v31
+    v57 = icall @step, v15, v31
     v58 = extract_value struct0, v57, 0
     v59 = extract_value struct0, v57, 1
     jump bb10
@@ -119,7 +119,7 @@ fn @g(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0x191157d1, pure, ab
   bb22:
     jump bb23
   bb23:
-    v96 = icall @mix, 1, v93
+    v96 = icall @mix, v93
     jump bb20
   bb20:
     jump bb16

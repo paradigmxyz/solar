@@ -57,7 +57,7 @@ fn @f() -> struct0 [view] {
 
 fn @test_g() -> struct0 [selector=0xc51b800f, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
-    v0 = icall @f, 1
+    v0 = icall @f
     v1 = extract_value struct0, v0, 0
     v2 = extract_value struct0, v0, 1
     v3 = sload 0 !metadata(storage=slot(0))
@@ -93,7 +93,7 @@ fn @test_g() -> struct0 [selector=0xc51b800f, abi_params=[], abi_returns=[word, 
 
 fn @test_h() -> u256 [selector=0xeafd81e0, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = icall @f, 1
+    v0 = icall @f
     v1 = extract_value struct0, v0, 0
     v2 = extract_value struct0, v0, 1
     sstore v2, 42 !metadata(storage=symbolic(v2))

@@ -93,7 +93,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let result_ty = types::TypeLowerer::mir_return_type(
             self.cx.gcx.type_of_item(function.returns[0].into()),
         );
-        let result = self.builder.icall(mir_id, values.to_vec(), result_ty, 1);
+        let result = self.builder.icall(mir_id, values.to_vec(), result_ty);
         self.dirty_values.insert(result);
         Some(result)
     }
@@ -501,14 +501,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if function.returns.is_empty() {
             // icall_void(dispatcher, function, args)
             // result = 0
-            self.builder.icall_void(dispatcher, values, 0);
+            self.builder.icall_void(dispatcher, values);
             return Some(self.builder.imm(U256::ZERO));
         }
         let return_types =
             function.returns.iter().map(|&ty| types::TypeLowerer::mir_return_type(ty)).collect();
         let result_ty = self.cx.module.intern_return_type(return_types)?;
         // result = icall(dispatcher, function, args)
-        let result = self.builder.icall(dispatcher, values, result_ty, 1);
+        let result = self.builder.icall(dispatcher, values, result_ty);
         self.dirty_values.insert(result);
         Some(result)
     }
@@ -849,7 +849,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if function.returns.is_empty() {
             // icall_void(function, call_args)
             // result = 0
-            self.builder.icall_void(mir_id, values, 0);
+            self.builder.icall_void(mir_id, values);
             return Some(self.builder.imm(U256::ZERO));
         }
         let return_types = function
@@ -859,7 +859,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .collect();
         let result_ty = self.cx.module.intern_return_type(return_types)?;
         // result = icall(function, call_args)
-        let result = self.builder.icall(mir_id, values, result_ty, 1);
+        let result = self.builder.icall(mir_id, values, result_ty);
         self.dirty_values.insert(result);
         Some(result)
     }

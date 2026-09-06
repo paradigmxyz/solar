@@ -25,7 +25,7 @@
   
   fn @call() -> bool {
     bb0:
-      v0 = icall @pair, 1, 42, true
+      v0 = icall @pair, 42, true
       v1 = extract_value struct0, v0, 1
       ret v1
   }
@@ -69,13 +69,13 @@
   
   fn @empty_call() {
     bb0:
-      v0 = icall @empty, 1, undef struct2
+      v0 = icall @empty, undef struct2
       ret
   }
   
   fn @discard() {
     bb0:
-      v0 = icall @pair, 1, 42, true
+      icall @pair, 42, true
       ret
   }
   
@@ -92,14 +92,14 @@
   
   fn @select_call(arg0: bool, arg1: struct0) -> struct0 {
     bb0:
-      v0 = icall @pair, 1, 42, true
+      v0 = icall @pair, 42, true
       v1 = select arg0, v0, arg1
       ret v1
   }
   
   fn @numeric_call() -> struct0 {
     bb0:
-      v0 = icall @pair, 1, 42, true
+      v0 = icall @pair, 42, true
       ret v0
   }
   

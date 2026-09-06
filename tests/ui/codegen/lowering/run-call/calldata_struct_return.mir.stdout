@@ -12,7 +12,7 @@ types:
 
 fn @direct(arg0: calldataslice) -> struct0 [selector=0x18f2e0cb, pure, abi_params=[bytes], abi_returns=[word<bool>, word], abi_return_params=[bool, u256]] {
   bb0:
-    v0 = icall @decode.3, 1, arg0
+    v0 = icall @decode.3, arg0
     v1 = extract_value struct1, v0, 0
     v2 = extract_value struct1, v0, 1
     v3 = slice_ptr v2
@@ -25,7 +25,7 @@ fn @direct(arg0: calldataslice) -> struct0 [selector=0x18f2e0cb, pure, abi_param
 
 fn @decode.1(arg0: calldataslice) -> struct1 [selector=0xe5c5e9a3, pure, abi_params=[bytes], abi_returns=[word<bool>, tuple<word, word, word, word, memory_bytes, memory_bytes>], abi_return_params=[bool, tuple<bytes32, bytes32, u256, u256, bytes, bytes>]] {
   bb0:
-    v0 = icall @decode.3, 1, arg0
+    v0 = icall @decode.3, arg0
     v1 = extract_value struct1, v0, 0
     v2 = extract_value struct1, v0, 1
     v3 = insert_value struct1, undef struct1, 0, v1

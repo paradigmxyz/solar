@@ -4,5 +4,7 @@ error: [fn2] tail_call targets nonexistent function fn9
 
 error: [fn3] icall targets nonexistent function fn9
 
-error: aborting due to 3 previous errors
+error: [fn4] icall to `callee` produces a value but the callee returns no values
+
+error: aborting due to 4 previous errors
 

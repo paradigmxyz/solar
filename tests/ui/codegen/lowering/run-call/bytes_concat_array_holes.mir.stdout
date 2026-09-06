@@ -52,7 +52,7 @@ fn @chunksAndHash() -> struct0 [pure] {
 
 fn @join() -> struct1 [selector=0xb688a363, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[bytes32, bytes32]] {
   bb0:
-    v0 = icall @chunksAndHash, 1
+    v0 = icall @chunksAndHash
     v1 = extract_value struct0, v0, 0
     v2 = extract_value struct0, v0, 1
     jump bb1

@@ -6,7 +6,7 @@ contract FunctionPointerSignatures {
     function() internal stateFn = setFlag;
 
     // CHECK-LABEL: fn @callVoid(
-    // CHECK: icall @[[DISPATCHER_0:internal_dispatcher_[A-Za-z0-9_]+]], 0, 2
+    // CHECK: icall @[[DISPATCHER_0:internal_dispatcher_[A-Za-z0-9_]+]], 2
     function callVoid() public returns (bool) {
         function() internal fn = setFlag;
         fn();
@@ -21,14 +21,14 @@ contract FunctionPointerSignatures {
     // CHECK: [[STORED:v[0-9]+]] = sload 0
     // CHECK: [[SHIFTED:v[0-9]+]] = shr 8, [[STORED]]
     // CHECK: [[MASKED:v[0-9]+]] = and [[SHIFTED]], 0xffffffffffffffff
-    // CHECK: icall @[[DISPATCHER_0]], 0, [[MASKED]]
+    // CHECK: icall @[[DISPATCHER_0]], [[MASKED]]
     function callState() public returns (bool) {
         stateFn();
         return flag;
     }
 
     // CHECK-LABEL: fn @callPair(
-    // CHECK: icall @[[DISPATCHER_1:internal_dispatcher_[A-Za-z0-9_]+]], 1, [[PAIR:[0-9]+]], arg0
+    // CHECK: icall @[[DISPATCHER_1:internal_dispatcher_[A-Za-z0-9_]+]], [[PAIR:[0-9]+]], arg0
     function callPair(uint256 value) public returns (uint256, uint256) {
         function(uint256) internal returns (uint256, uint256) fn = pair;
         return fn(value);
@@ -39,7 +39,7 @@ contract FunctionPointerSignatures {
     }
 
     // CHECK-LABEL: fn @callZero(
-    // CHECK: icall @[[DISPATCHER_0]], 0, 0
+    // CHECK: icall @[[DISPATCHER_0]], 0
     function callZero() public {
         function() internal fn;
         fn();
@@ -50,7 +50,7 @@ contract FunctionPointerSignatures {
     }
 
     // CHECK-LABEL: fn @callTwoArgs(
-    // CHECK: icall @[[DISPATCHER_2:internal_dispatcher_[A-Za-z0-9_]+]], 1, [[SUM:[0-9]+]], 5, 1
+    // CHECK: icall @[[DISPATCHER_2:internal_dispatcher_[A-Za-z0-9_]+]], [[SUM:[0-9]+]], 5, 1
     function callTwoArgs() public returns (uint256) {
         function(uint256, uint256) internal returns (uint256) sumFn = sum;
         return sumFn(5, 1);
@@ -59,14 +59,14 @@ contract FunctionPointerSignatures {
     // CHECK: fn @[[DISPATCHER_0]](
     // CHECK: eq arg0, 2
     // CHECK: mstore 4, 81
-    // CHECK: icall @setFlag, 0
+    // CHECK: icall @setFlag
     // CHECK: fn @[[DISPATCHER_1]](
     // CHECK: eq arg0, [[PAIR]]
-    // CHECK: [[PAIR_RESULT:v[0-9]+]] = icall @pair, 1, arg1
+    // CHECK: [[PAIR_RESULT:v[0-9]+]] = icall @pair, arg1
     // CHECK: ret [[PAIR_RESULT]]
     // CHECK: fn @[[DISPATCHER_2]](
     // CHECK: eq arg0, 7
-    // CHECK: icall @sum, 1, arg1, arg2
+    // CHECK: icall @sum, arg1, arg2
     // CHECK-LABEL: fn @constructor(
     // CHECK: sstore 0,
 }

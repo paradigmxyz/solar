@@ -270,7 +270,7 @@ impl MirInliner {
                 summaries.get(&caller_id).map(|s| s.instruction_count).unwrap_or_default();
             let mut cursor = (0, 0);
             while let Some(site) =
-                self.find_next_call(module.function(caller_id), cursor, &loop_depths)
+                self.find_next_call(module, module.function(caller_id), cursor, &loop_depths)
             {
                 stats.call_sites += 1;
                 cursor = (site.block.index(), site.inst_index + 1);
@@ -416,6 +416,7 @@ impl MirInliner {
 
     fn find_next_call(
         &self,
+        module: &Module,
         func: &Function,
         start: (usize, usize),
         loop_depths: &FxHashMap<BlockId, usize>,
@@ -423,14 +424,14 @@ impl MirInliner {
         for (block, bb) in func.blocks.iter_enumerated().skip(start.0) {
             let start_inst = if block.index() == start.0 { start.1 } else { 0 };
             for (inst_index, &inst_id) in bb.instructions.iter().enumerate().skip(start_inst) {
-                if let InstKind::ICall { function, ref args, returns } = func.inst(inst_id).kind {
+                if let InstKind::ICall { function, ref args } = func.inst(inst_id).kind {
                     return Some(CallSite {
                         block,
                         inst_index,
                         inst: inst_id,
                         callee: function,
                         args_len: args.len(),
-                        returns: returns as usize,
+                        returns: module.function(function).returns.len(),
                         loop_depth: loop_depths.get(&block).copied().unwrap_or_default(),
                         has_constant_function_selector: args
                             .first()
@@ -606,7 +607,7 @@ fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInli
                     | MirType::Slice(_)
             )
         }),
-        is_transparent_forwarder: is_transparent_forwarder(func),
+        is_transparent_forwarder: is_transparent_forwarder(module, func),
         is_function_pointer_dispatcher: func.attributes.is_function_pointer_dispatcher,
         has_function_selector: func.params.first() == Some(&MirType::Function),
         is_pure: func.attributes.state_mutability == StateMutability::Pure,
@@ -693,7 +694,7 @@ fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInli
     summary
 }
 
-fn is_transparent_forwarder(func: &Function) -> bool {
+fn is_transparent_forwarder(module: &Module, func: &Function) -> bool {
     if func.attributes.no_inline
         || func.selector.is_some()
         || func.attributes.is_constructor
@@ -711,7 +712,10 @@ fn is_transparent_forwarder(func: &Function) -> bool {
     }
 
     let [call] = func.blocks[BlockId::ENTRY].instructions.as_slice() else { return false };
-    let InstKind::ICall { returns: 1, .. } = func.inst(*call).kind else { return false };
+    let InstKind::ICall { function, .. } = func.inst(*call).kind else { return false };
+    if module.function(function).returns.len() != 1 {
+        return false;
+    }
     let Some(result) = func.inst_result_value(*call) else { return false };
     matches!(
         func.blocks[BlockId::ENTRY].terminator.as_ref(),
@@ -933,8 +937,8 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (MirCos
         | InstKind::ExtCall { .. }
         | InstKind::ExtDelegateCall { .. }
         | InstKind::ExtStaticCall { .. } => (700, 1),
-        InstKind::ICall { args, returns, .. } => {
-            let returns = *returns as usize;
+        InstKind::ICall { function, args } => {
+            let returns = module.function(*function).returns.len();
             (80 + ((args.len() + returns) as u64) * 20, 16 + (args.len() + returns) * 4)
         }
         InstKind::Create(..) | InstKind::Create2(..) => (32_000, 1),
@@ -1041,7 +1045,7 @@ fn specialize_function_pointers(module: &mut Module) -> usize {
             }
 
             let dispatcher = module.function(callee).clone();
-            if let Some(target) = direct_dispatch_target(&dispatcher, &selector) {
+            if let Some(target) = direct_dispatch_target(module, &dispatcher, &selector) {
                 if rewrite_dispatch_call(module.function_mut(caller), block, inst_index, target) {
                     specialized += 1;
                 }
@@ -1080,7 +1084,11 @@ fn find_next_constant_function_call(
     None
 }
 
-fn direct_dispatch_target(dispatcher: &Function, selector: &Immediate) -> Option<MirFunctionId> {
+fn direct_dispatch_target(
+    module: &Module,
+    dispatcher: &Function,
+    selector: &Immediate,
+) -> Option<MirFunctionId> {
     let selector = selector.as_u256()?;
     for block in dispatcher.blocks.iter() {
         let Terminator::Branch { condition, then_block, .. } = block.terminator.as_ref()? else {
@@ -1099,18 +1107,22 @@ fn direct_dispatch_target(dispatcher: &Function, selector: &Immediate) -> Option
                     == Some(selector)
         });
         if matches_selector {
-            return direct_dispatch_case_target(dispatcher, *then_block);
+            return direct_dispatch_case_target(module, dispatcher, *then_block);
         }
     }
     None
 }
 
-fn direct_dispatch_case_target(dispatcher: &Function, block: BlockId) -> Option<MirFunctionId> {
+fn direct_dispatch_case_target(
+    module: &Module,
+    dispatcher: &Function,
+    block: BlockId,
+) -> Option<MirFunctionId> {
     let block = &dispatcher.blocks[block];
     let [call] = block.instructions.as_slice() else {
         return None;
     };
-    let InstKind::ICall { function, args, returns } = &dispatcher.inst(*call).kind else {
+    let InstKind::ICall { function, args } = &dispatcher.inst(*call).kind else {
         return None;
     };
     if !args.iter().enumerate().all(|(index, &arg)| {
@@ -1125,7 +1137,7 @@ fn direct_dispatch_case_target(dispatcher: &Function, block: BlockId) -> Option<
     let Some(Terminator::Return { values }) = &block.terminator else {
         return None;
     };
-    match *returns {
+    match module.function(*function).returns.len() {
         0 if values.is_empty() => Some(*function),
         1 if values.as_slice() == [dispatcher.inst_result_value(*call)?] => Some(*function),
         _ => None,
@@ -1160,7 +1172,7 @@ fn propagate_function_pointer_cast(
     let Some(&call_inst) = caller.blocks[call_block].instructions.get(call_inst_index) else {
         return false;
     };
-    let InstKind::ICall { ref args, returns: 1, .. } = caller.inst(call_inst).kind else {
+    let InstKind::ICall { ref args, .. } = caller.inst(call_inst).kind else {
         return false;
     };
     let Some(&arg) = args.first() else {
@@ -1197,13 +1209,10 @@ fn inline_call_impl(
     callee: &Function,
 ) -> Option<()> {
     let call_inst = caller.blocks[call_block].instructions[call_inst_index];
-    let InstKind::ICall { args, returns, .. } = caller.inst(call_inst).kind.clone() else {
+    let InstKind::ICall { args, .. } = caller.inst(call_inst).kind.clone() else {
         return None;
     };
-    let returns = returns as usize;
-    if returns != callee.returns.len() {
-        return None;
-    }
+    let returns = callee.returns.len();
 
     let call_result = caller.inst_result_value(call_inst);
     if returns > 0 && call_result.is_none() {
@@ -1609,7 +1618,7 @@ mod tests {
 
         let mut ordinary = Function::new(Ident::DUMMY);
         let mut builder = FunctionBuilder::new(&mut ordinary);
-        builder.icall_void(callee, Vec::new(), 0);
+        builder.icall_void(callee, Vec::new());
         builder.stop();
         module.add_function(ordinary);
 
@@ -1629,7 +1638,7 @@ mod tests {
         let mut caller = Function::new(Ident::DUMMY);
         caller.internal_frame_size = u64::MAX;
         let mut builder = FunctionBuilder::new(&mut caller);
-        builder.icall_void(callee_id, Vec::new(), 0);
+        builder.icall_void(callee_id, Vec::new());
         builder.stop();
         let call = caller.blocks[BlockId::ENTRY].instructions[0];
         let call_index = caller.blocks[BlockId::ENTRY]

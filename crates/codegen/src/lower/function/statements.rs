@@ -394,7 +394,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             PreparedRevertPayload::ShortString { length, data } => {
                 // revert(abi_encode(Error(string), length, data))
                 let helper = self.ensure_revert_error_helper();
-                self.builder.icall_void(helper, vec![length, data], 0);
+                self.builder.icall_void(helper, vec![length, data]);
                 self.builder.invalid();
             }
             PreparedRevertPayload::EmptyString => {

@@ -17,10 +17,10 @@ fn @escape() -> memptr {
 }
 
 // CHECK-LABEL: fn @entry()
-// CHECK: v0 = icall @escape, 1
+// CHECK: v0 = icall @escape
 fn @entry() [selector=0x01020304] {
   bb0:
-    v0 = icall fn0, 1
+    v0 = icall fn0
     ret
 }
 
@@ -36,10 +36,10 @@ fn @escape_slice() -> memoryslice {
 }
 
 // CHECK-LABEL: fn @slice_entry()
-// CHECK: icall @escape_slice, 0
+// CHECK: icall @escape_slice
 fn @slice_entry() [selector=0x05060708] {
   bb0:
-    v0 = icall fn2, 1
+    v0 = icall fn2
     ret
 }
 
@@ -56,9 +56,9 @@ fn @escape_struct() -> struct1 {
 }
 
 // CHECK-LABEL: fn @struct_entry()
-// CHECK: icall @escape_struct, 0
+// CHECK: icall @escape_struct
 fn @struct_entry() [selector=0x090a0b0c] {
   bb0:
-    v0 = icall @escape_struct, 1
+    v0 = icall @escape_struct
     ret
 }

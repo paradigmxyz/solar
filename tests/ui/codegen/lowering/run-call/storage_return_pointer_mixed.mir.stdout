@@ -71,7 +71,7 @@ fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
   bb11:
     jump bb12
   bb12:
-    v30 = icall @g, 1
+    v30 = icall @g
     v31 = extract_value struct0, v30, 0
     v32 = extract_value struct0, v30, 1
     v33 = extract_value struct0, v30, 2

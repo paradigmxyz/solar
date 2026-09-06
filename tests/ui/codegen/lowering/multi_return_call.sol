@@ -18,7 +18,7 @@ library Math {
 contract C {
     // Destructuring a multi-value internal call: both `ok` and `c` must bind.
     // CHECK-LABEL: fn @sat{{[( ]}}
-    // CHECK: [[PAIR:v[0-9]+]] = icall @tryAdd, 1, arg0, arg1
+    // CHECK: [[PAIR:v[0-9]+]] = icall @tryAdd, arg0, arg1
     // CHECK: extract_value {{struct[0-9]+}}, [[PAIR]], 0
     // CHECK: extract_value {{struct[0-9]+}}, [[PAIR]], 1
     function sat(uint256 a, uint256 b) public pure returns (uint256) {
@@ -29,7 +29,7 @@ contract C {
 
     // `return lib.f()` must return both tuple values, not just the first.
     // CHECK-LABEL: fn @tryA{{[( ]}}
-    // CHECK: [[PAIR:v[0-9]+]] = icall @tryAdd, 1, arg0, arg1
+    // CHECK: [[PAIR:v[0-9]+]] = icall @tryAdd, arg0, arg1
     // CHECK: extract_value {{struct[0-9]+}}, [[PAIR]], 0
     // CHECK: extract_value {{struct[0-9]+}}, [[PAIR]], 1
     // CHECK: [[RET_0:v[0-9]+]] = insert_value [[RET_TY:struct[0-9]+]], undef [[RET_TY]], 0, {{v[0-9]+}}

@@ -11,7 +11,7 @@ fn @dFlat() [selector=0x6644232b, pure] {
     v26 = lt v25, 36
     jumpi v26, bb1, bb5
   bb5:
-    v27 = icall @decode_calldata_type, 1, 4
+    v27 = icall @decode_calldata_type, 4
     v10 = add v27, 32
     v11 = mload v27
     v12 = add v10, v11
@@ -57,7 +57,7 @@ fn @dNested() [selector=0xfc7ec666, pure] {
     v52 = lt v51, 36
     jumpi v52, bb1, bb11
   bb11:
-    v53 = icall @decode_calldata_type, 1, 4
+    v53 = icall @decode_calldata_type, 4
     v10 = add v53, 32
     v11 = mload v53
     v12 = add v10, v11
@@ -98,7 +98,7 @@ fn @dNested() [selector=0xfc7ec666, pure] {
     mstore v83, v30
     mstore v22, v23
     v32 = add v17, 96
-    v33 = icall @decode_memory_type, 1, v32, v17, v12
+    v33 = icall @decode_memory_type, v32, v17, v12
     v84 = add v22, 32
     mstore v84, v33
     v34 = add v17, 128
@@ -191,7 +191,7 @@ fn @dFixed() [selector=0xc298c02b, pure] {
     v31 = lt v30, 36
     jumpi v31, bb3, bb10
   bb10:
-    v32 = icall @decode_calldata_type, 1, 4
+    v32 = icall @decode_calldata_type, 4
     v11 = add v32, 32
     v12 = mload v32
     v13 = add v11, v12
@@ -247,7 +247,7 @@ fn @dFixed() [selector=0xc298c02b, pure] {
   bb8:
     v26 = shl 5, v24
     v27 = add v18, v26
-    v28 = icall @decode_memory_type, 1, v27, v18, v13
+    v28 = icall @decode_memory_type, v27, v18, v13
     v39 = mul v24, 32
     v40 = add v23, v39
     mstore v40, v28
@@ -263,7 +263,7 @@ fn @dDynArr() [selector=0xaca542ca, pure] {
     v43 = lt v42, 36
     jumpi v43, bb1, bb12
   bb12:
-    v44 = icall @decode_calldata_type, 1, 4
+    v44 = icall @decode_calldata_type, 4
     v2 = add v44, 32
     v3 = mload v44
     v4 = add v2, v3
@@ -320,7 +320,7 @@ fn @dDynArr() [selector=0xaca542ca, pure] {
     mstore 128, v1
     returndata 128, 32
   bb10:
-    v38 = icall @decode_memory_type, 1, v35, v10, v4
+    v38 = icall @decode_memory_type, v35, v10, v4
     v47 = add v24, 32
     v48 = mul v36, 32
     v49 = add v47, v48

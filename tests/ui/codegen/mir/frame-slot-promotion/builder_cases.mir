@@ -100,7 +100,7 @@ fn @msize_observed() -> u256 {
 // CHECK-LABEL: @icall
 // CHECK:       [[FRAME:v[0-9]+]] = internal_frame_addr
 // CHECK: -     mstore [[FRAME]], 42
-// CHECK:       icall @callee, 0
+// CHECK:       icall @callee
 // CHECK: -     [[OLD:v[0-9]+]] = mload [[FRAME]]
 // CHECK: -     ret [[OLD]]
 // CHECK:       ret 42
@@ -108,7 +108,7 @@ fn @icall() -> u256 {
   bb0:
     v0 = internal_frame_addr 128
     mstore v0, 42
-    icall @callee, 0
+    icall @callee
     v1 = mload v0
     ret v1
 }

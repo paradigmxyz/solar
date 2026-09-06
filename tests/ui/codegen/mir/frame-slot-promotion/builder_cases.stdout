@@ -60,7 +60,7 @@
     bb0:
       v0 = internal_frame_addr 128
 -     mstore v0, 42
-      icall @callee, 0
+      icall @callee
 -     v1 = mload v0
 -     ret v1
 +     ret 42

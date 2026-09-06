@@ -105,7 +105,7 @@ fn @g(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0x191157d1, abi_para
   bb7:
     jump bb8
   bb8:
-    v54 = icall @mix, 1, v51
+    v54 = icall @mix, v51
     jump bb5
   bb5:
     jump bb1
@@ -114,7 +114,7 @@ fn @g(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0x191157d1, abi_para
   bb2:
     v55 = phi [bb6: v50], [bb4: v40]
     v56 = phi [bb6: v51], [bb4: v48]
-    v57 = icall @step, 1, v44, v45
+    v57 = icall @step, v44, v45
     v58 = extract_value struct0, v57, 0
     v59 = extract_value struct0, v57, 1
     v60 = and v41, 7
@@ -131,7 +131,7 @@ fn @g(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0x191157d1, abi_para
     v69 = eq v68, 0
     jumpi v69, bb11, bb12
   bb12:
-    v76 = icall @mix, 1, v67
+    v76 = icall @mix, v67
     v77 = xor v76, v41
     jump bb13
   bb11:

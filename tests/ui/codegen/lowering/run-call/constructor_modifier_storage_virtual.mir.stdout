@@ -2,7 +2,7 @@
 @module ConstructorModifierStorageVirtualBase
 fn @constructor() [constructor] {
   bb0:
-    v0 = icall @value, 1
+    v0 = icall @value
     v1 = sload 0 !metadata(storage=slot(0))
     v2 = gt v1, 0xffffffffffffffff
     jumpi v2, bb2, bb3
@@ -60,7 +60,7 @@ fn @result() -> struct0 [selector=0x65372147, view, abi_params=[], abi_returns=[
 
 fn @constructor() [constructor] {
   bb0:
-    v0 = icall @value, 1
+    v0 = icall @value
     v1 = sload 0 !metadata(storage=slot(0))
     v2 = gt v1, 0xffffffffffffffff
     jumpi v2, bb3, bb4

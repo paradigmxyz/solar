@@ -828,7 +828,7 @@ impl<'a> Validator<'a> {
     /// mirrors how the display and every pass treat instructions.
     fn validate_calls(&mut self, module: &Module, func: &Function) {
         for inst_id in func.instructions() {
-            let InstKind::ICall { function, args, returns } = &func.inst(inst_id).kind else {
+            let InstKind::ICall { function, args } = &func.inst(inst_id).kind else {
                 continue;
             };
             let Some(callee) = module.functions.get(*function) else {
@@ -846,15 +846,10 @@ impl<'a> Validator<'a> {
                     callee.params.len()
                 ));
             }
-            // Dead-result elimination rewrites the site and the callee signature
-            // together; a disagreement means one side of the return protocol was
-            // dropped and the other still delivers or consumes a value.
-            if *returns as usize != callee.returns.len() {
+            if func.inst(inst_id).result_ty.is_some() && callee.returns.is_empty() {
                 self.emit(format_args!(
-                    "icall to `{}` expects {} result(s), callee returns {}",
+                    "icall to `{}` produces a value but the callee returns no values",
                     callee.name,
-                    returns,
-                    callee.returns.len()
                 ));
             }
         }

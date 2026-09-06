@@ -7,7 +7,7 @@ types:
 fn @encode(arg0: u256) -> struct0 [selector=0xdeb21fa2, pure, abi_params=[u256], abi_returns=[word, word, word], abi_return_params=[u256, u256, bytes32]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
-    v1 = icall @walk, 1, arg0, v0
+    v1 = icall @walk, arg0, v0
     v2 = extract_value struct1, v1, 0
     v3 = extract_value struct1, v1, 1
     v4 = sub v2, v0
@@ -27,7 +27,7 @@ fn @walk(arg0: u256, arg1: u256) -> struct1 {
   bb2:
     jump bb3
   bb3:
-    v6 = icall @container, 1, arg0, arg1
+    v6 = icall @container, arg0, arg1
     v7 = extract_value struct1, v6, 0
     v8 = extract_value struct1, v6, 1
     v9 = insert_value struct1, undef struct1, 0, v7
@@ -45,7 +45,7 @@ fn @container(arg0: u256, arg1: u256) -> struct1 {
   bb0:
     v0 = add arg1, 1
     v1 = sub arg0, 1
-    v2 = icall @walk, 1, v1, v0
+    v2 = icall @walk, v1, v0
     v3 = extract_value struct1, v2, 0
     v4 = extract_value struct1, v2, 1
     v5 = add 160, arg0

@@ -982,13 +982,13 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                     })
                     .collect::<Vec<_>>();
                 if shape.returns.is_empty() {
-                    builder.icall_void(mir_id, call_arguments, 0);
+                    builder.icall_void(mir_id, call_arguments);
                     builder.ret([]);
                 } else {
                     // result = icall target(arguments)
                     // ret result
                     let result_ty = builder.func().returns[0];
-                    let result = builder.icall(mir_id, call_arguments, result_ty, 1);
+                    let result = builder.icall(mir_id, call_arguments, result_ty);
                     builder.ret([result]);
                 }
                 builder.switch_to_block(next_block);

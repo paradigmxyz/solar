@@ -16,7 +16,7 @@ fn @bindAfterDeclaration(arg0: u256, arg1: u256) -> struct0 [selector=0x605b6474
     v3 = add v0, 1
     sstore v3, v1 !metadata(storage=offset(v0, 1))
     v4 = sload v0 !metadata(storage=symbolic(v0))
-    v5 = icall @readB, 1, v0
+    v5 = icall @readB, v0
     v6 = insert_value struct0, undef struct0, 0, v4
     v7 = insert_value struct0, v6, 1, v5
     ret v7
@@ -50,7 +50,7 @@ fn @rebind(arg0: bool, arg1: u256, arg2: u256, arg3: u256) -> struct0 [selector=
 fn @rebindParameter(arg0: u256, arg1: u256, arg2: u256) -> struct0 [selector=0xe4706ccb, abi_params=[u256, u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = mapping_slot arg0, 0
-    icall @rebindParameterInner, 0, v0, arg1, arg2
+    icall @rebindParameterInner, v0, arg1, arg2
     v1 = mapping_slot arg0, 0
     v2 = sload v1 !metadata(storage=symbolic(v1))
     v3 = mapping_slot arg1, 0

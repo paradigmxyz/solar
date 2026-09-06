@@ -298,7 +298,7 @@ fn @nestedRoundtrip() -> struct1 [selector=0x07f0bc21, pure, abi_params=[], abi_
     mstore v24, 0x78797a0000000000000000000000000000000000000000000000000000000000
     memory_object_store_field memorystruct<3>, v0, 2, v23
     v25 = abi_encode [tuple<tuple<word, word<u160>, word<bool>>, tuple<word, memory_bytes, memory_array<word>>, memory_bytes>], object, args v0
-    v26 = icall @dNested, 1, v25
+    v26 = icall @dNested, v25
     v27 = extract_value struct1, v26, 0
     v28 = extract_value struct1, v26, 1
     v29 = extract_value struct1, v26, 2
@@ -382,7 +382,7 @@ fn @dynamicArrayRoundtrip() -> struct3 [selector=0x533c608a, pure, abi_params=[]
   bb9:
     memory_object_store_element memoryarray<1>, v0, 1, v17
     v31 = abi_encode [memory_array<tuple<word, memory_bytes, memory_array<word>>>], object, args v0
-    v32 = icall @dDynArr, 1, v31
+    v32 = icall @dDynArr, v31
     v33 = extract_value struct3, v32, 0
     v34 = extract_value struct3, v32, 1
     v35 = extract_value struct3, v32, 2

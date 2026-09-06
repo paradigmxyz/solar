@@ -2297,6 +2297,8 @@ pub struct EvmCodegen<'gcx> {
     block_labels: FxHashMap<BlockId, Label>,
     /// Function labels for direct internal calls.
     function_labels: FxHashMap<FunctionId, Label>,
+    /// Return arities inferred from the final lowered function signatures.
+    function_return_counts: IndexVec<FunctionId, usize>,
     /// Functions whose reachable exits all abort. Calls to these functions
     /// make their containing block cold as well.
     cold_functions: DenseBitSet<FunctionId>,
@@ -2450,6 +2452,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             scheduler: StackScheduler::for_evm_version(gcx.sess.opts.evm_version),
             block_labels: FxHashMap::default(),
             function_labels: FxHashMap::default(),
+            function_return_counts: IndexVec::new(),
             cold_functions: DenseBitSet::new_empty(0),
             empty_stop_functions: DenseBitSet::new_empty(0),
             cold_blocks: DenseBitSet::new_empty(0),
@@ -2788,6 +2791,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         self.reset_for_module(module);
         self.run_optimization_passes(module);
+        self.function_return_counts =
+            module.functions.iter().map(|func| func.returns.len()).collect();
         if self.emit_unsupported(module) {
             return EvmArtifact::default();
         }
@@ -3347,6 +3352,8 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     fn reset_runtime_codegen(&mut self, module: &Module) {
+        self.function_return_counts =
+            module.functions.iter().map(|func| func.returns.len()).collect();
         self.asm.clear();
         self.asm.set_artifact_kind(ArtifactKind::Runtime);
         self.asm.set_evm_ir_name(module.name.name);
@@ -6899,14 +6906,14 @@ impl<'gcx> EvmCodegen<'gcx> {
                 );
             }
 
-            InstKind::ICall { function, args, returns } => {
+            InstKind::ICall { function, args } => {
                 self.preserve_stack_only_operands(args, liveness, block, inst_idx);
                 self.emit_icall(
                     func_id,
                     func,
                     *function,
                     args,
-                    *returns as usize,
+                    self.function_return_counts[*function],
                     result_value,
                     liveness,
                     block,
@@ -7380,16 +7387,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
 
         for (caller, func) in module.functions.iter_enumerated() {
-            for inst_id in func.instructions() {
-                if let InstKind::ICall { function, returns, .. } = &func.inst(inst_id).kind
-                    && self
-                        .stack_return_plan(*function)
-                        .is_some_and(|plan| *returns as usize != plan.arity)
-                    && let Some(abi) = self.static_call_abis.get_mut(function)
-                {
-                    abi.returns = None;
-                }
-            }
             for block in &func.blocks {
                 if let Some(Terminator::TailCall { function, .. }) = &block.terminator {
                     if !self.cold_functions.contains(*function)
@@ -9365,6 +9362,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         for _ in 0..module.functions.len() {
             let mut changed = false;
             for (func_id, func) in module.functions.iter_enumerated() {
+                if func.returns.len() != 1 {
+                    continue;
+                }
                 let mut offset = offsets.get(&func_id).copied().unwrap_or(0);
                 for block in &func.blocks {
                     let Some(Terminator::Return { values }) = &block.terminator else { continue };
@@ -9422,9 +9422,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 {
                     Some(0)
                 }
-                InstKind::ICall { function, returns: 1, .. } => {
-                    returned_offsets.get(function).copied()
-                }
+                InstKind::ICall { function, .. } => returned_offsets.get(function).copied(),
                 InstKind::Sub(base, amount) => {
                     let base = derive(*base, visiting, memo).or_else(|| {
                         func.value_ty(*base).is_some_and(MirType::is_memory_reference).then_some(0)
@@ -9545,8 +9543,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                 || module.functions[func_id].instructions().any(|inst_id| {
                     matches!(
                         module.functions[func_id].inst(inst_id).kind,
-                        InstKind::ICall { function, returns, .. }
-                            if returns > 1 || !self.static_frame_functions.contains(function)
+                        InstKind::ICall { function, .. }
+                            if module.function(function).returns.len() > 1 || !self.static_frame_functions.contains(function)
                     )
                 })
         });
@@ -9820,9 +9818,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     {
                         Some(true)
                     }
-                    InstKind::ICall { function, returns: 1, .. }
-                        if helper_returns.contains(*function) =>
-                    {
+                    InstKind::ICall { function, .. } if helper_returns.contains(*function) => {
                         Some(true)
                     }
                     InstKind::Add(first, second) => {
@@ -12686,7 +12682,7 @@ mod tests {
                 let mut function = Function::new(Ident::DUMMY);
                 let mut builder = FunctionBuilder::new(&mut function);
                 if index < MAX_STACK_DEPTH {
-                    builder.icall_void(FunctionId::from_usize(index + 1), Vec::new(), 0);
+                    builder.icall_void(FunctionId::from_usize(index + 1), Vec::new());
                 }
                 builder.stop();
                 let function = module.add_function(function);
@@ -12771,7 +12767,6 @@ mod tests {
         let call = InstKind::ICall {
             function: FunctionId::from_usize(0),
             args: vec![value; MAX_STACK_ACCESS].into(),
-            returns: 0,
         };
         assert_eq!(
             EvmCodegen::instruction_transient_growth(&call, MAX_STACK_ACCESS),

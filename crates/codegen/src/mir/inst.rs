@@ -1167,7 +1167,7 @@ pub(crate) enum InstKind {
     /// EOF external static call: `extstaticcall(addr, argsOffset, argsSize)`.
     ExtStaticCall { addr: ValueId, args_offset: ValueId, args_size: ValueId },
     /// Internal function call lowered to a direct jump.
-    ICall { function: FunctionId, args: Box<[ValueId]>, returns: u32 },
+    ICall { function: FunctionId, args: Box<[ValueId]> },
 
     // Contract creation
     /// Create contract: `create(value, offset, size)`

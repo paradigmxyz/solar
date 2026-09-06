@@ -12,7 +12,7 @@ fn @refs() -> struct0 [view] {
 
 fn @test() -> u256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = icall @refs, 1
+    v0 = icall @refs
     v1 = extract_value struct0, v0, 0
     v2 = extract_value struct0, v0, 1
     v3 = sload v1 !metadata(storage=symbolic(v1))

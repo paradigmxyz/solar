@@ -35,8 +35,8 @@ fn @singleArmCall(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0xe22d2f
     v9 = eq v8, 1
     jumpi v9, bb1, bb2
   bb2:
-    v11 = icall @mix, 1, v6
-    v12 = icall @mix, 1, v5
+    v11 = icall @mix, v6
+    v12 = icall @mix, v5
     jump bb3
   bb1:
     v10 = mul v6, v4
@@ -83,7 +83,7 @@ fn @singleArmCall(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0xe22d2f
     v50 = xor v48, v49
     ret v50
   bb7:
-    v31 = icall @step, 1, v25, v28
+    v31 = icall @step, v25, v28
     v32 = extract_value struct0, v31, 0
     v33 = extract_value struct0, v31, 1
     v34 = xor v21, v24
@@ -109,7 +109,7 @@ fn @branchInLoop(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0xfa97e8d
     v9 = eq v8, 1
     jumpi v9, bb1, bb2
   bb2:
-    v11 = icall @mix, 1, v6
+    v11 = icall @mix, v6
     jump bb3
   bb1:
     v10 = mul v6, v4
@@ -159,10 +159,10 @@ fn @branchInLoop(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0xfa97e8d
     v30 = eq v29, 0
     jumpi v30, bb10, bb11
   bb11:
-    v34 = icall @mix, 1, v23
+    v34 = icall @mix, v23
     jump bb12
   bb10:
-    v31 = icall @step, 1, v17, v20
+    v31 = icall @step, v17, v20
     v32 = extract_value struct0, v31, 0
     v33 = extract_value struct0, v31, 1
     jump bb12
@@ -192,7 +192,7 @@ fn @earlyReturn(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0x07b42de1
     v9 = eq v8, 1
     jumpi v9, bb1, bb2
   bb2:
-    v11 = icall @mix, 1, v6
+    v11 = icall @mix, v6
     jump bb3
   bb1:
     v10 = mul v6, v4
@@ -238,7 +238,7 @@ fn @earlyReturn(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0x07b42de1
     v57 = xor v55, v56
     ret v57
   bb7:
-    v29 = icall @step, 1, v24, v14
+    v29 = icall @step, v24, v14
     v30 = extract_value struct0, v29, 0
     v31 = extract_value struct0, v29, 1
     v32 = and v31, 4
@@ -279,7 +279,7 @@ fn @twoBranchLoops(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0x319be
     v9 = eq v8, 1
     jumpi v9, bb1, bb2
   bb2:
-    v11 = icall @mix, 1, v6
+    v11 = icall @mix, v6
     jump bb3
   bb1:
     v10 = mul v6, v4
@@ -312,7 +312,7 @@ fn @twoBranchLoops(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0x319be
     v34 = eq v33, 1
     jumpi v34, bb10, bb11
   bb11:
-    v36 = icall @mix, 1, v24
+    v36 = icall @mix, v24
     jump bb12
   bb10:
     v35 = mul v26, v21
@@ -359,7 +359,7 @@ fn @twoBranchLoops(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0x319be
     v73 = xor v71, v72
     ret v73
   bb16:
-    v55 = icall @step, 1, v48, v52
+    v55 = icall @step, v48, v52
     v56 = extract_value struct0, v55, 0
     v57 = extract_value struct0, v55, 1
     jump bb18
@@ -369,7 +369,7 @@ fn @twoBranchLoops(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0x319be
     v58 = add v47, 1
     jump bb13
   bb7:
-    v29 = icall @step, 1, v18, v21
+    v29 = icall @step, v18, v21
     v30 = extract_value struct0, v29, 0
     v31 = extract_value struct0, v29, 1
     jump bb9
@@ -394,7 +394,7 @@ fn @whileTrueThenLoop(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0xd5
     v9 = eq v8, 1
     jumpi v9, bb1, bb2
   bb2:
-    v11 = icall @mix, 1, v6
+    v11 = icall @mix, v6
     jump bb3
   bb1:
     v10 = mul v6, v4
@@ -421,7 +421,7 @@ fn @whileTrueThenLoop(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0xd5
   bb7:
     jump bb5
   bb6:
-    v27 = icall @step, 1, v15, v18
+    v27 = icall @step, v15, v18
     v28 = extract_value struct0, v27, 0
     v29 = extract_value struct0, v27, 1
     v30 = add v14, 1
@@ -481,7 +481,7 @@ fn @whileTrueThenLoop(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0xd5
     v72 = xor v71, v37
     ret v72
   bb15:
-    v53 = icall @step, 1, v43, v48
+    v53 = icall @step, v43, v48
     v54 = extract_value struct0, v53, 0
     v55 = extract_value struct0, v53, 1
     jump bb17

@@ -28,7 +28,7 @@
   
   fn @consume(arg0: memoryslice, arg1: calldataslice, arg2: returndataslice) -> u256 {
     bb0:
--     v0 = icall @pack, 1, arg0, arg1, arg2
+-     v0 = icall @pack, arg0, arg1, arg2
 -     v1 = extract_value struct2, v0, 0
 -     v2 = extract_value struct2, v0, 2
 -     v3 = extract_value struct1, v2, 0
@@ -37,7 +37,7 @@
 -     v6 = slice_len v1
 -     v7 = slice_len v3
 -     v8 = slice_len v5
-+     v12 = icall @pack, 7, arg0, arg1, arg2
++     v12 = icall @pack, arg0, arg1, arg2
 +     v13 = frame_load multi_return, word, 0 !metadata(memory=scratch)
 +     v14 = add v13, 32
 +     v15 = mload v14
@@ -185,7 +185,7 @@
   
   fn @consume(arg0: memoryslice, arg1: calldataslice, arg2: returndataslice) -> u256 {
     bb0:
-      v12 = icall @pack, 7, arg0, arg1, arg2
+      v12 = icall @pack, arg0, arg1, arg2
 -     v13 = frame_load multi_return, word, 0 !metadata(memory=scratch)
 -     v14 = add v13, 32
 +     v29 = mload 32 !metadata(memory=scratch)
@@ -319,8 +319,8 @@
 - fn @consume(arg0: memoryslice, arg1: calldataslice, arg2: returndataslice) -> u256 {
 + fn @consume(arg0: memptr, arg1: u256, arg2: calldataptr, arg3: u256, arg4: u256, arg5: u256) -> u256 {
     bb0:
--     v12 = icall @pack, 7, arg0, arg1, arg2
-+     v12 = icall @pack, 7, arg0, arg1, arg2, arg3, arg4, arg5
+-     v12 = icall @pack, arg0, arg1, arg2
++     v12 = icall @pack, arg0, arg1, arg2, arg3, arg4, arg5
       v29 = mload 32 !metadata(memory=scratch)
       v14 = add v29, 32
       v15 = mload v14

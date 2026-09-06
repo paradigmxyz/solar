@@ -16,9 +16,9 @@ fn @getCanary() -> storageptr [pure] {
 
 fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
-    v0 = icall @getCanary, 1
+    v0 = icall @getCanary
     sstore v0, 99 !metadata(storage=symbolic(v0))
-    v1 = icall @getArray, 1
+    v1 = icall @getArray
     v2 = alloc memoryfixedarray<10, 1>, exact, uninitialized, infallible, 320
     v3 = and 1, 0xffffffffffffffff
     memory_object_store_element memoryfixedarray<10, 1>, v2, 0, v3

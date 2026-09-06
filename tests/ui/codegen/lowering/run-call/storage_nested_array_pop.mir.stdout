@@ -333,7 +333,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     mstore 4, 49 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v6 = icall @load_storage_packed_array_2_0, 1, 0
+    v6 = icall @load_storage_packed_array_2_0, 0
     v7 = sload 1 !metadata(storage=slot(1))
     v8 = gt v7, 0xffffffffffffffff
     jumpi v8, bb7, bb8

@@ -94,7 +94,7 @@ fn @testViewToDefault() -> struct0 [selector=0xea84b69f, abi_params=[], abi_retu
     v88 = mul v86, 8
     v89 = shr v88, v87
     v90 = and v89, 0xffffffffffffffff
-    v91 = icall @internal_dispatcher_p_none_r_u256, 1, v90
+    v91 = icall @internal_dispatcher_p_none_r_u256, v90
     v92 = insert_value struct0, undef struct0, 0, v80
     v93 = insert_value struct0, v92, 1, v91
     ret v93
@@ -239,7 +239,7 @@ fn @testPureToDefault() -> struct0 [selector=0x77df1859, abi_params=[], abi_retu
     v88 = mul v86, 8
     v89 = shr v88, v87
     v90 = and v89, 0xffffffffffffffff
-    v91 = icall @internal_dispatcher_p_none_r_u256, 1, v90
+    v91 = icall @internal_dispatcher_p_none_r_u256, v90
     v92 = insert_value struct0, undef struct0, 0, v80
     v93 = insert_value struct0, v92, 1, v91
     ret v93
@@ -384,7 +384,7 @@ fn @testPureToView() -> struct0 [selector=0x78f13937, abi_params=[], abi_returns
     v88 = mul v86, 8
     v89 = shr v88, v87
     v90 = and v89, 0xffffffffffffffff
-    v91 = icall @internal_dispatcher_p_none_r_u256, 1, v90
+    v91 = icall @internal_dispatcher_p_none_r_u256, v90
     v92 = insert_value struct0, undef struct0, 0, v80
     v93 = insert_value struct0, v92, 1, v91
     ret v93
@@ -475,9 +475,9 @@ fn @internal_dispatcher_p_none_r_u256(arg0: function) -> u256 [function_pointer_
     mstore 4, 81 !metadata(memory=scratch)
     revert 0, 36
   bb3:
-    v3 = icall @internalPureTarget, 1
+    v3 = icall @internalPureTarget
     ret v3
   bb1:
-    v1 = icall @internalViewTarget, 1
+    v1 = icall @internalViewTarget
     ret v1
 }

@@ -22,7 +22,7 @@ fn @pack(arg0: memoryslice, arg1: calldataslice, arg2: returndataslice) -> struc
 
 fn @consume(arg0: memoryslice, arg1: calldataslice, arg2: returndataslice) -> u256 {
   bb0:
-    v0 = icall @pack, 1, arg0, arg1, arg2
+    v0 = icall @pack, arg0, arg1, arg2
     v1 = extract_value struct2, v0, 0
     v2 = extract_value struct2, v0, 2
     v3 = extract_value struct1, v2, 0

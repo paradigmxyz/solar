@@ -474,10 +474,6 @@ fn prune_unused_returns(module: &mut Module) -> usize {
             })
             .collect::<Vec<_>>();
         for inst_id in calls {
-            let InstKind::ICall { returns, .. } = &mut func.inst_mut(inst_id).kind else {
-                unreachable!()
-            };
-            *returns = 0;
             func.remove_inst_result(inst_id);
         }
     }

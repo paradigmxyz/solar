@@ -25,7 +25,7 @@ fn @entry() [entry] {
 fn @caller() [selector=0x00000007] {
   bb0:
     v0 = calldataload 4
-    icall fn2, 0, v0
+    icall fn2, v0
     stop
 }
 fn @fused(arg0: u256) {
@@ -39,7 +39,7 @@ fn @fused(arg0: u256) {
 // CHECK: {{^[ +].*}}icall @spin
 fn @spin(arg0: u256) {
   bb0:
-    icall fn3, 0, arg0
+    icall fn3, arg0
     revert 0, 0
 }
 

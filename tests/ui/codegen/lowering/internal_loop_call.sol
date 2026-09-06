@@ -18,7 +18,7 @@ contract C {
     }
 
     // CHECK-LABEL: fn @run{{[( ]}}
-    // CHECK: {{v[0-9]+}} = icall @sumTo, 1, arg0
+    // CHECK: {{v[0-9]+}} = icall @sumTo, arg0
     function run(uint256 n) public pure returns (uint256) {
         return sumTo(n);
     }

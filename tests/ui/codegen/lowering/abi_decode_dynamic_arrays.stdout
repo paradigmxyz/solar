@@ -10,7 +10,7 @@ fn @words() [selector=0x5a7641c8, pure] {
     v35 = lt v34, 36
     jumpi v35, bb1, bb9
   bb9:
-    v36 = icall @decode_calldata_type, 1, 4
+    v36 = icall @decode_calldata_type, 4
     v1 = add v36, 32
     v2 = mload v36
     v3 = add v1, v2
@@ -96,7 +96,7 @@ fn @bools() [selector=0xcfb203c5, pure] {
     v43 = lt v42, 36
     jumpi v43, bb1, bb13
   bb13:
-    v44 = icall @decode_calldata_type, 1, 4
+    v44 = icall @decode_calldata_type, 4
     v1 = add v44, 32
     v2 = mload v44
     v3 = add v1, v2
@@ -248,7 +248,7 @@ fn @strs() [selector=0x68f4ce0b, pure] {
     v57 = lt v56, 36
     jumpi v57, bb1, bb15
   bb15:
-    v58 = icall @decode_calldata_type, 1, 4
+    v58 = icall @decode_calldata_type, 4
     v1 = add v58, 32
     v2 = mload v58
     v3 = add v1, v2
@@ -415,7 +415,7 @@ fn @mixed() [selector=0x6791505c, pure] {
     v63 = lt v62, 36
     jumpi v63, bb1, bb12
   bb12:
-    v64 = icall @decode_calldata_type, 1, 4
+    v64 = icall @decode_calldata_type, 4
     v7 = add v64, 32
     v8 = mload v64
     v9 = add v7, v8

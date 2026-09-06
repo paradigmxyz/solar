@@ -92,7 +92,7 @@ struct CanonInst {
 enum CanonPayload {
     None,
     FrameAddr(u64),
-    Call(FunctionId, usize),
+    Call(FunctionId),
 }
 
 /// A canonicalized operand: block-local results compare by definition
@@ -266,9 +266,7 @@ impl CfgSimplifier {
             let extra = match &inst.kind {
                 InstKind::Phi(_) => return None,
                 InstKind::InternalFrameAddr(offset) => CanonPayload::FrameAddr(*offset),
-                InstKind::ICall { function, returns, .. } => {
-                    CanonPayload::Call(*function, *returns as usize)
-                }
+                InstKind::ICall { function, .. } => CanonPayload::Call(*function),
                 InstKind::Alloc { .. }
                 | InstKind::MemoryObjectLen(_, _)
                 | InstKind::SetMemoryObjectLen(_, _, _)

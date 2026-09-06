@@ -7,7 +7,7 @@ fn @output() -> bytes32 [selector=0xf20eaeb8, pure, abi_params=[], abi_returns=[
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = add v0, 32
-    v2 = icall @emitWord, 1, v1
+    v2 = icall @emitWord, v1
     v3 = extract_value struct0, v2, 0
     v4 = extract_value struct0, v2, 1
     v5 = mload v1

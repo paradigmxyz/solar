@@ -299,11 +299,11 @@ fn @fetchRich(arg0: address) -> struct0 [view] {
 
 fn @go() -> u256 [selector=0x0f59f83a, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = icall @fetch, 1, 1
+    v0 = icall @fetch, 1
     v1 = extract_value struct0, v0, 0
     v2 = extract_value struct0, v0, 1
     v3 = extract_value struct0, v0, 2
-    v4 = icall @fetch, 1, 2
+    v4 = icall @fetch, 2
     v5 = extract_value struct0, v4, 0
     v6 = extract_value struct0, v4, 1
     v7 = extract_value struct0, v4, 2
@@ -331,7 +331,7 @@ fn @go() -> u256 [selector=0x0f59f83a, abi_params=[], abi_returns=[word]] {
   bb12:
     jump bb8
   bb11:
-    icall @revert_error, 0, 4, 0x6f76657200000000000000000000000000000000000000000000000000000000
+    icall @revert_error, 4, 0x6f76657200000000000000000000000000000000000000000000000000000000
     invalid
   bb6:
     v17 = slt v7, 0
@@ -355,7 +355,7 @@ fn @go() -> u256 [selector=0x0f59f83a, abi_params=[], abi_returns=[word]] {
     jumpi v27, bb16, bb17
   bb17:
     v28 = sub 0, v3
-    icall @settle, 0, v25, v26, v28
+    icall @settle, v25, v26, v28
     jump bb15
   bb15:
     v29 = slt v7, 0
@@ -370,7 +370,7 @@ fn @go() -> u256 [selector=0x0f59f83a, abi_params=[], abi_returns=[word]] {
     jumpi v33, bb16, bb21
   bb21:
     v34 = sub 0, v7
-    icall @settle, 0, v31, v32, v34
+    icall @settle, v31, v32, v34
     jump bb20
   bb20:
     v35 = sgt v3, 0
@@ -442,7 +442,7 @@ fn @go() -> u256 [selector=0x0f59f83a, abi_params=[], abi_returns=[word]] {
   bb39:
     ret 1
   bb38:
-    icall @revert_error, 0, 17, 0x746f6f6b2077726f6e6720616d6f756e74000000000000000000000000000000
+    icall @revert_error, 17, 0x746f6f6b2077726f6e6720616d6f756e74000000000000000000000000000000
     invalid
   bb25:
     revert 0, 0
@@ -451,10 +451,10 @@ fn @go() -> u256 [selector=0x0f59f83a, abi_params=[], abi_returns=[word]] {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb9:
-    icall @revert_error, 0, 1, 0x7800000000000000000000000000000000000000000000000000000000000000
+    icall @revert_error, 1, 0x7800000000000000000000000000000000000000000000000000000000000000
     invalid
   bb1:
-    icall @revert_error, 0, 2, 0x6430000000000000000000000000000000000000000000000000000000000000
+    icall @revert_error, 2, 0x6430000000000000000000000000000000000000000000000000000000000000
     invalid
 }
 
@@ -484,13 +484,13 @@ fn @goRich() -> u256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word]] {
     mstore v11, 0x1234567800000000000000000000000000000000000000000000000000000000
     v12 = memory_object_load_field memorystruct<5>, v0, 0
     v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffff
-    v14 = icall @fetchRich, 1, v13
+    v14 = icall @fetchRich, v13
     v15 = extract_value struct0, v14, 0
     v16 = extract_value struct0, v14, 1
     v17 = extract_value struct0, v14, 2
     v18 = memory_object_load_field memorystruct<5>, v0, 1
     v19 = and v18, 0xffffffffffffffffffffffffffffffffffffffff
-    v20 = icall @fetchRich, 1, v19
+    v20 = icall @fetchRich, v19
     v21 = extract_value struct0, v20, 0
     v22 = extract_value struct0, v20, 1
     v23 = extract_value struct0, v20, 2
@@ -523,13 +523,13 @@ fn @goRich() -> u256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word]] {
     v40 = mload v39
     v41 = memory_object_load_field memorystruct<5>, v0, 0
     v42 = and v41, 0xffffffffffffffffffffffffffffffffffffffff
-    v43 = icall @fetchRich, 1, v42
+    v43 = icall @fetchRich, v42
     v44 = extract_value struct0, v43, 0
     v45 = extract_value struct0, v43, 1
     v46 = extract_value struct0, v43, 2
     v47 = memory_object_load_field memorystruct<5>, v0, 1
     v48 = and v47, 0xffffffffffffffffffffffffffffffffffffffff
-    v49 = icall @fetchRich, 1, v48
+    v49 = icall @fetchRich, v48
     v50 = extract_value struct0, v49, 0
     v51 = extract_value struct0, v49, 1
     v52 = extract_value struct0, v49, 2
@@ -555,10 +555,10 @@ fn @goRich() -> u256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word]] {
   bb33:
     jump bb25
   bb32:
-    icall @revert_error, 0, 1, 0x6800000000000000000000000000000000000000000000000000000000000000
+    icall @revert_error, 1, 0x6800000000000000000000000000000000000000000000000000000000000000
     invalid
   bb30:
-    icall @revert_error, 0, 1, 0x6700000000000000000000000000000000000000000000000000000000000000
+    icall @revert_error, 1, 0x6700000000000000000000000000000000000000000000000000000000000000
     invalid
   bb23:
     v74 = memory_object_load_field memorystruct<3>, v6, 1
@@ -576,10 +576,10 @@ fn @goRich() -> u256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word]] {
   bb25:
     jump bb11
   bb28:
-    icall @revert_error, 0, 1, 0x6600000000000000000000000000000000000000000000000000000000000000
+    icall @revert_error, 1, 0x6600000000000000000000000000000000000000000000000000000000000000
     invalid
   bb26:
-    icall @revert_error, 0, 1, 0x6500000000000000000000000000000000000000000000000000000000000000
+    icall @revert_error, 1, 0x6500000000000000000000000000000000000000000000000000000000000000
     invalid
   bb9:
     v56 = memory_object_load_field memorystruct<3>, v6, 1
@@ -599,10 +599,10 @@ fn @goRich() -> u256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word]] {
   bb22:
     jump bb14
   bb21:
-    icall @revert_error, 0, 1, 0x6400000000000000000000000000000000000000000000000000000000000000
+    icall @revert_error, 1, 0x6400000000000000000000000000000000000000000000000000000000000000
     invalid
   bb19:
-    icall @revert_error, 0, 1, 0x6300000000000000000000000000000000000000000000000000000000000000
+    icall @revert_error, 1, 0x6300000000000000000000000000000000000000000000000000000000000000
     invalid
   bb12:
     v58 = memory_object_load_field memorystruct<3>, v6, 1
@@ -632,7 +632,7 @@ fn @goRich() -> u256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word]] {
     jumpi v92, bb37, bb38
   bb38:
     v93 = sub 0, v46
-    icall @settle, 0, v90, v91, v93
+    icall @settle, v90, v91, v93
     jump bb36
   bb36:
     v94 = slt v52, 0
@@ -647,7 +647,7 @@ fn @goRich() -> u256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word]] {
     jumpi v98, bb37, bb42
   bb42:
     v99 = sub 0, v52
-    icall @settle, 0, v96, v97, v99
+    icall @settle, v96, v97, v99
     jump bb41
   bb41:
     v100 = sgt v46, 0
@@ -723,28 +723,28 @@ fn @goRich() -> u256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word]] {
   bb61:
     ret 2
   bb60:
-    icall @revert_error, 0, 22, 0x746f6f6b2077726f6e67207269636820616d6f756e7400000000000000000000
+    icall @revert_error, 22, 0x746f6f6b2077726f6e67207269636820616d6f756e7400000000000000000000
     invalid
   bb55:
-    icall @revert_error, 0, 17, 0x77726f6e672063616c6c20726573756c74000000000000000000000000000000
+    icall @revert_error, 17, 0x77726f6e672063616c6c20726573756c74000000000000000000000000000000
     invalid
   bb37:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb17:
-    icall @revert_error, 0, 1, 0x6200000000000000000000000000000000000000000000000000000000000000
+    icall @revert_error, 1, 0x6200000000000000000000000000000000000000000000000000000000000000
     invalid
   bb15:
-    icall @revert_error, 0, 1, 0x6100000000000000000000000000000000000000000000000000000000000000
+    icall @revert_error, 1, 0x6100000000000000000000000000000000000000000000000000000000000000
     invalid
   bb7:
     revert 0, 0
   bb3:
-    icall @revert_error, 0, 7, 0x6265666f72653100000000000000000000000000000000000000000000000000
+    icall @revert_error, 7, 0x6265666f72653100000000000000000000000000000000000000000000000000
     invalid
   bb1:
-    icall @revert_error, 0, 7, 0x6265666f72653000000000000000000000000000000000000000000000000000
+    icall @revert_error, 7, 0x6265666f72653000000000000000000000000000000000000000000000000000
     invalid
 }
 

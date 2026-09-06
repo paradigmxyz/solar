@@ -19,7 +19,7 @@ fn @dynamic(arg0: calldataslice) -> struct0 [selector=0xd543852a, abi_params=[by
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffff
-    v2 = icall @internal_dispatcher_p_calldataslice_r_calldataslice_u256_calldataslice, 1, v1, arg0
+    v2 = icall @internal_dispatcher_p_calldataslice_r_calldataslice_u256_calldataslice, v1, arg0
     v3 = extract_value struct1, v2, 0
     v4 = extract_value struct1, v2, 1
     v5 = extract_value struct1, v2, 2
@@ -33,7 +33,7 @@ fn @dynamic(arg0: calldataslice) -> struct0 [selector=0xd543852a, abi_params=[by
 
 fn @specialized(arg0: calldataslice) -> struct0 [selector=0xe932b9d2, pure, abi_params=[bytes], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
-    v0 = icall @internal_dispatcher_p_calldataslice_r_calldataslice_u256_calldataslice, 1, 4, arg0
+    v0 = icall @internal_dispatcher_p_calldataslice_r_calldataslice_u256_calldataslice, 4, arg0
     v1 = extract_value struct1, v0, 0
     v2 = extract_value struct1, v0, 1
     v3 = extract_value struct1, v0, 2
@@ -64,6 +64,6 @@ fn @internal_dispatcher_p_calldataslice_r_calldataslice_u256_calldataslice(arg0:
     mstore 4, 81 !metadata(memory=scratch)
     revert 0, 36
   bb1:
-    v1 = icall @identity, 1, arg1
+    v1 = icall @identity, arg1
     ret v1
 }

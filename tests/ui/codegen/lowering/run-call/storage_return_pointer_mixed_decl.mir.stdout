@@ -14,7 +14,7 @@ fn @g() -> struct0 {
 
 fn @f() -> bool [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
-    v0 = icall @g, 1
+    v0 = icall @g
     v1 = extract_value struct0, v0, 0
     v2 = extract_value struct0, v0, 1
     v3 = extract_value struct0, v0, 2
@@ -43,7 +43,7 @@ fn @f() -> bool [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>]] {
   bb8:
     jump bb9
   bb9:
-    v13 = icall @g, 1
+    v13 = icall @g
     v14 = extract_value struct0, v13, 0
     v15 = extract_value struct0, v13, 1
     v16 = extract_value struct0, v13, 2
@@ -54,7 +54,7 @@ fn @f() -> bool [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>]] {
   bb11:
     jump bb12
   bb12:
-    v20 = icall @g, 1
+    v20 = icall @g
     v21 = extract_value struct0, v20, 0
     v22 = extract_value struct0, v20, 1
     v23 = extract_value struct0, v20, 2
@@ -64,7 +64,7 @@ fn @f() -> bool [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>]] {
   bb14:
     jump bb15
   bb15:
-    v26 = icall @g, 1
+    v26 = icall @g
     v27 = extract_value struct0, v26, 0
     v28 = extract_value struct0, v26, 1
     v29 = extract_value struct0, v26, 2

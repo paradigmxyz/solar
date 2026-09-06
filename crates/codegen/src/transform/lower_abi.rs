@@ -445,7 +445,7 @@ impl LowerAbiCx {
                         ) {
                             value
                         } else {
-                            builder.icall(helper, vec![value], ty.mir_type(), 1)
+                            builder.icall(helper, vec![value], ty.mir_type())
                         }
                     } else {
                         canonicalize_return_value(
@@ -576,7 +576,7 @@ impl LowerAbiCx {
                     let result_ty = builder.func().value_ty(result).expect("typed ABI decode");
                     if let Some(&helper) = decode_helpers.get(layout.as_ref()) {
                         // result = icall decode_helper(data)
-                        let value = builder.icall(helper, vec![data], result_ty, 1);
+                        let value = builder.icall(helper, vec![data], result_ty);
                         replacements.insert(result, value);
                         continue;
                     }
@@ -996,13 +996,13 @@ impl LowerAbiCx {
         let mut builder = FunctionBuilder::new(func);
         builder.switch_to_block(block);
         if return_types.is_empty() {
-            builder.icall_void(body_id, args, 0);
+            builder.icall_void(body_id, args);
             builder.ret([]);
         } else if return_types.len() == 1 {
-            let result = builder.icall(body_id, args, return_types[0], 1);
+            let result = builder.icall(body_id, args, return_types[0]);
             builder.ret([result]);
         } else {
-            let result = builder.icall(body_id, args, return_types[0], return_types.len());
+            let result = builder.icall(body_id, args, return_types[0]);
             let mut values = Vec::with_capacity(return_types.len());
             values.push(result);
             let base = builder.frame_load(0, FrameMode::MultiReturn, FrameSlotKind::Word);
@@ -1057,7 +1057,7 @@ impl LowerAbiCx {
             let zero = builder.imm(0);
             let length = builder.calldatasize();
             let input = builder.make_slice(zero, length, SliceLocation::Calldata);
-            builder.icall_void(body_id, vec![input], 0);
+            builder.icall_void(body_id, vec![input]);
             builder.invalid();
         }
         *module.function_mut(fallback_id) = wrapper;
@@ -1261,7 +1261,7 @@ impl LowerAbiCx {
                                 && !builder.encodes_revert_reasons()
                                 && let Some(helper) = self.calldata_slice_helper
                             {
-                                builder.icall_void(helper, vec![head], 1);
+                                builder.icall_void(helper, vec![head]);
                             } else {
                                 Self::validate_dynamic_aggregate_argument(
                                     &mut builder,
@@ -1279,7 +1279,7 @@ impl LowerAbiCx {
                                 && matches!(arg_type, MirType::MemoryObject(_))
                                 && let Some(&helper) = self.aggregate_type_helpers.get(ty)
                             {
-                                let value = builder.icall(helper, vec![head], arg_type, 1);
+                                let value = builder.icall(helper, vec![head], arg_type);
                                 logical_values[index] = Some(value);
                             } else {
                                 let value = Self::decode_aggregate_argument(
@@ -1300,14 +1300,14 @@ impl LowerAbiCx {
                             && matches!(arg_type, MirType::MemoryObject(_))
                             && let Some(&helper) = self.aggregate_type_helpers.get(ty)
                         {
-                            builder.icall(helper, vec![head], arg_type, 1)
+                            builder.icall(helper, vec![head], arg_type)
                         } else if !constructor
                             && decode_type == arg_type
                             && matches!(arg_type, MirType::Slice(SliceLocation::Calldata))
                             && matches!(ty, AbiParamType::Bytes)
                             && let Some(helper) = self.calldata_slice_helper
                         {
-                            let base = builder.icall(helper, vec![head], MirType::uint256(), 1);
+                            let base = builder.icall(helper, vec![head], MirType::uint256());
                             let len = builder.calldataload(base);
                             let data = builder.add_u64_offset(base, 32);
                             builder.make_slice(data, len, SliceLocation::Calldata)
@@ -1576,7 +1576,7 @@ impl LowerAbiCx {
                 || offset_reason == RevertReason::InvalidTupleOffset)
             && let Some(&helper) = helpers.and_then(|helpers| helpers.get(ty))
         {
-            return builder.icall(helper, vec![head, tuple_base, input_end], ty.mir_type(), 1);
+            return builder.icall(helper, vec![head, tuple_base, input_end], ty.mir_type());
         }
         if !constructor
             && matches!(ty, crate::mir::AbiParamType::Bytes)
@@ -3100,7 +3100,8 @@ fn find_canonical_return_calls(
             for (&value, ty) in values.iter().zip(&layout.types) {
                 if cleanup_helpers.contains_key(ty)
                     && let Value::Inst(inst) = func.value(value)
-                    && let InstKind::ICall { function, returns: 1, .. } = func.inst(*inst).kind
+                    && let InstKind::ICall { function, .. } = func.inst(*inst).kind
+                    && module.function(function).returns.len() == 1
                     && func.value_ty(value) == Some(ty.mir_type())
                 {
                     candidates.insert((function, ty.clone()));
@@ -3220,7 +3221,8 @@ fn is_canonical_return_value_inner(
     }
     if calls.module.is_some()
         && let Value::Inst(inst) = func.value(value)
-        && let InstKind::ICall { function, returns: 1, .. } = func.inst(*inst).kind
+        && let InstKind::ICall { function, .. } = func.inst(*inst).kind
+        && calls.module.is_some_and(|module| module.function(function).returns.len() == 1)
         && func.value_ty(value) == Some(ty.mir_type())
         && (ty.is_scalar_word() || is_unmodified_call_result(func, value, *inst))
     {
@@ -3321,7 +3323,7 @@ fn is_canonical_return_call(
     canonical_calls: &FxHashSet<(FunctionId, AbiParamType)>,
 ) -> bool {
     let Value::Inst(inst) = func.value(value) else { return false };
-    let InstKind::ICall { function, returns: 1, .. } = func.inst(*inst).kind else {
+    let InstKind::ICall { function, .. } = func.inst(*inst).kind else {
         return false;
     };
     func.blocks[block].instructions.last() == Some(inst)

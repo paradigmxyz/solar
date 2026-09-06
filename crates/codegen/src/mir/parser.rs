@@ -364,16 +364,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             };
             match reference.target {
                 FunctionRefTarget::Instruction(inst) => {
-                    let result_ty = module.functions[*function].returns.first().copied();
                     let instruction = module.functions[owner].inst_mut(inst);
-                    let InstKind::ICall { function: target, returns, .. } = &mut instruction.kind
-                    else {
+                    let InstKind::ICall { function: target, .. } = &mut instruction.kind else {
                         unreachable!()
                     };
                     *target = *function;
-                    if *returns > 0 && result_ty.is_some() {
-                        instruction.result_ty = result_ty;
-                    }
                 }
                 FunctionRefTarget::Terminator(block) => {
                     let Some(Terminator::TailCall { function: target, .. }) =
@@ -394,8 +389,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             let instructions = function.instructions().collect::<Vec<_>>();
             for &id in &instructions {
                 let instruction = function.inst_mut(id);
-                if let InstKind::ICall { function, returns, .. } = instruction.kind
-                    && returns > 0
+                if let InstKind::ICall { function, .. } = instruction.kind
                     && instruction.result_ty.is_some()
                     && let Some(Some(ty)) = return_types.get(function)
                 {
@@ -1261,7 +1255,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         }
 
         // Otherwise — instruction.
-        let (kind, result_ty) = self.parse_inst_kind(mnemonic, mnemonic_span, builder)?;
+        let (kind, mut result_ty) = self.parse_inst_kind(mnemonic, mnemonic_span, builder)?;
+        if matches!(kind, InstKind::ICall { .. }) && result_label.is_none() {
+            result_ty = None;
+        }
 
         let metadata = self.parse_metadata(builder)?;
         let mut inst = Instruction::new(kind, result_ty);
@@ -2071,14 +2068,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 => MirType::uint256()),
             sym::icall => {
                 let function = self.parse_function_id()?;
-                self.parser.expect(TokenKind::Comma)?;
-                let returns = self.parser.parse_uint()?.to::<u32>();
                 let mut args = Vec::new();
                 while self.parser.eat(TokenKind::Comma) {
                     args.push(self.parse_value(builder)?);
                 }
-                let result_ty = (returns > 0).then(MirType::uint256);
-                (InstKind::ICall { function, args: args.into(), returns }, result_ty)
+                (InstKind::ICall { function, args: args.into() }, Some(MirType::uint256()))
             }
             sym::internal_frame_addr => {
                 let offset = self.parser.parse_uint()?.to::<u64>();

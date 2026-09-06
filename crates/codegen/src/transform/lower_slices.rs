@@ -359,16 +359,12 @@ impl LowerSlices {
             for inst_id in instructions {
                 builder.func_mut().blocks[block_id].instructions.push(inst_id);
                 let Some((signature, result)) = (match builder.func().inst(inst_id).kind {
-                    InstKind::ICall { function, returns, .. } => {
+                    InstKind::ICall { function, .. } => {
                         signatures.get(&function).and_then(|signature| {
-                            (usize::try_from(returns).ok() == Some(signature.len()))
-                                .then(|| {
-                                    builder
-                                        .func()
-                                        .inst_result_value(inst_id)
-                                        .map(|result| (signature, result))
-                                })
-                                .flatten()
+                            builder
+                                .func()
+                                .inst_result_value(inst_id)
+                                .map(|result| (signature, result))
                         })
                     }
                     _ => None,
@@ -376,18 +372,7 @@ impl LowerSlices {
                     continue;
                 };
 
-                let returns = u32::try_from(
-                    signature.len()
-                        + signature.iter().filter(|&&repr| repr == ParamRepr::Pair).count(),
-                )
-                .expect("MIR return count fits in u32");
-
                 let instruction = builder.func_mut().inst_mut(inst_id);
-                let InstKind::ICall { returns: call_returns, .. } = &mut instruction.kind else {
-                    unreachable!()
-                };
-                changed |= *call_returns != returns;
-                *call_returns = returns;
                 let Some(MirType::Slice(location)) = instruction.result_ty else {
                     continue;
                 };

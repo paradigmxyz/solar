@@ -688,7 +688,7 @@ fn encode_dynamic_body(
             let location = effective_slice_location(builder.func(), value, *location);
             if location == SliceLocation::Memory {
                 if let Some(helper) = array_helper(builder.func(), helpers, element, value) {
-                    return builder.icall(helper, vec![value, dest], MirType::uint256(), 1);
+                    return builder.icall(helper, vec![value, dest], MirType::uint256());
                 }
                 return encode_memory_array(builder, element, value, dest, helpers);
             }

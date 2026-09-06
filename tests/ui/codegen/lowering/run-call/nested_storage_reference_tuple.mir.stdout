@@ -7,7 +7,7 @@ types:
 
 fn @fromCall() -> struct0 [selector=0xbe4b486b, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
-    icall @initialize, 0
+    icall @initialize
     v0 = lt 0, 3
     v1 = iszero v0
     jumpi v1, bb1, bb2
@@ -18,7 +18,7 @@ fn @fromCall() -> struct0 [selector=0xbe4b486b, abi_params=[], abi_returns=[word
     jumpi v4, bb1, bb3
   bb3:
     v5 = add 0, 1
-    v6 = icall @pair, 1
+    v6 = icall @pair
     v7 = extract_value struct1, v6, 0
     v8 = extract_value struct1, v6, 1
     sstore v7, 31 !metadata(storage=symbolic(v7))
@@ -54,7 +54,7 @@ fn @fromCall() -> struct0 [selector=0xbe4b486b, abi_params=[], abi_returns=[word
 
 fn @fromTuple() -> struct0 [selector=0x7550b31f, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
-    icall @initialize, 0
+    icall @initialize
     v0 = lt 0, 3
     v1 = iszero v0
     jumpi v1, bb1, bb2
@@ -108,7 +108,7 @@ fn @fromTuple() -> struct0 [selector=0x7550b31f, abi_params=[], abi_returns=[wor
 
 fn @fromFunctionPointer() -> struct0 [selector=0xceab4ac0, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
-    icall @initialize, 0
+    icall @initialize
     v0 = lt 0, 3
     v1 = iszero v0
     jumpi v1, bb1, bb2
@@ -126,7 +126,7 @@ fn @fromFunctionPointer() -> struct0 [selector=0xceab4ac0, abi_params=[], abi_re
     jump bb6
   bb6:
     v6 = phi [bb4: 6], [bb5: 6]
-    v7 = icall @internal_dispatcher_p_none_r_storageptr_storageptr, 1, v6
+    v7 = icall @internal_dispatcher_p_none_r_storageptr_storageptr, v6
     v8 = extract_value struct1, v7, 0
     v9 = extract_value struct1, v7, 1
     sstore v8, 31 !metadata(storage=symbolic(v8))
@@ -162,7 +162,7 @@ fn @fromFunctionPointer() -> struct0 [selector=0xceab4ac0, abi_params=[], abi_re
 
 fn @fromDeclaration() -> struct2 [selector=0x3d9dfb25, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
-    icall @initialize, 0
+    icall @initialize
     v0 = lt 1, 3
     v1 = iszero v0
     jumpi v1, bb1, bb2
@@ -242,6 +242,6 @@ fn @internal_dispatcher_p_none_r_storageptr_storageptr(arg0: function) -> struct
     mstore 4, 81 !metadata(memory=scratch)
     revert 0, 36
   bb1:
-    v1 = icall @pair, 1
+    v1 = icall @pair
     ret v1
 }

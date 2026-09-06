@@ -13,7 +13,7 @@
   
   fn @wrap(arg0: memorybytes) -> struct0 {
     bb0:
-      v0 = icall @legacy, 1, arg0
+      v0 = icall @legacy, arg0
       v1 = insert_value struct0, undef struct0, 0, v0
       v2 = insert_value struct0, v1, 1, 42
       ret v2

@@ -21,6 +21,13 @@ fn @unknownTarget() {
 //~? ERROR: [fn3] icall targets nonexistent function fn9
 fn @unknownInternalTarget() {
   bb0:
-    icall fn9, 0
+    icall fn9
     stop
+}
+
+//~? ERROR: [fn4] icall to `callee` produces a value but the callee returns no values
+fn @voidResult() -> u256 {
+  bb0:
+    v0 = icall @callee, 42
+    ret v0
 }

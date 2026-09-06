@@ -168,16 +168,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 helper,
                 vec![word, length],
                 MirType::MemoryObject(MemoryObjectKind::Bytes),
-                1,
             )
         } else if self.cx.shared_literals.contains(&symbol) {
             let helper = self.ensure_bytes_literal_helper(symbol);
-            self.builder.icall(
-                helper,
-                Vec::new(),
-                MirType::MemoryObject(MemoryObjectKind::Bytes),
-                1,
-            )
+            self.builder.icall(helper, Vec::new(), MirType::MemoryObject(MemoryObjectKind::Bytes))
         } else {
             self.lower_bytes_literal(bytes)?
         };

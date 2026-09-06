@@ -12,8 +12,8 @@ fn @lengthThroughRef() -> u256 [selector=0xeaac3ffa, abi_params=[], abi_returns=
     mstore v1, 0x6161616161616161616161616161616161616161616161616161616161616161
     v2 = add v1, 32
     mstore v2, 0x6161616161616161000000000000000000000000000000000000000000000000
-    icall @store_storage_bytes, 0, 32, v0
-    v3 = icall @length, 1, 32
+    icall @store_storage_bytes, 32, v0
+    v3 = icall @length, 32
     ret v3
 }
 
@@ -25,8 +25,8 @@ fn @returnThroughRef() -> u256 [selector=0x49589c2a, abi_params=[], abi_returns=
     mstore v1, 0x6161616161616161616161616161616161616161616161616161616161616161
     v2 = add v1, 32
     mstore v2, 0x6161616161616161000000000000000000000000000000000000000000000000
-    icall @store_storage_bytes, 0, 32, v0
-    v3 = icall @read, 1, 32
+    icall @store_storage_bytes, 32, v0
+    v3 = icall @read, 32
     v4 = memory_object_len memorybytes, v3
     ret v4
 }
@@ -150,7 +150,7 @@ fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
     v19 = and v2, v18
     jumpi v19, bb5, bb6
   bb5:
-    icall @clear_storage_words, 0, arg0, v17, v12
+    icall @clear_storage_words, arg0, v17, v12
     jump bb6
   bb6:
     jumpi v16, bb7, bb8

@@ -4,7 +4,7 @@ fn @disjoint() -> u256 [selector=0xbf1f2d2a, abi_params=[], abi_returns=[word]] 
   bb0:
     sstore 0, 10 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
-    icall @writeOne, 0
+    icall @writeOne
     v1 = sload 0 !metadata(storage=slot(0))
     v2 = add v0, v1
     v3 = lt v2, v0
@@ -21,7 +21,7 @@ fn @overlap() -> u256 [selector=0xea9e4070, abi_params=[], abi_returns=[word]] {
   bb0:
     sstore 1, 10 !metadata(storage=slot(1))
     v0 = sload 1 !metadata(storage=slot(1))
-    icall @writeOne, 0
+    icall @writeOne
     v1 = sload 1 !metadata(storage=slot(1))
     v2 = add v0, v1
     v3 = lt v2, v0
@@ -38,7 +38,7 @@ fn @unknown(arg0: u256) -> u256 [selector=0x71667367, abi_params=[u256], abi_ret
   bb0:
     sstore 0, 10 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
-    icall @writeSlot, 0, arg0
+    icall @writeSlot, arg0
     v1 = sload 0 !metadata(storage=slot(0))
     v2 = add v0, v1
     v3 = lt v2, v0
@@ -55,7 +55,7 @@ fn @recursive(arg0: u256) -> u256 [selector=0x6fe03c36, abi_params=[u256], abi_r
   bb0:
     sstore 0, 10 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
-    icall @recurse, 0, arg0
+    icall @recurse, arg0
     v1 = sload 0 !metadata(storage=slot(0))
     v2 = add v0, v1
     v3 = lt v2, v0
@@ -72,7 +72,7 @@ fn @transientSlots() -> u256 [selector=0xe5208ad5, abi_params=[], abi_returns=[w
   bb0:
     tstore 0, 10
     v0 = tload 0
-    icall @writeTransientOne, 0
+    icall @writeTransientOne
     v1 = tload 0
     v2 = add v0, v1
     v3 = lt v2, v0
@@ -88,7 +88,7 @@ fn @transientSlots() -> u256 [selector=0xe5208ad5, abi_params=[], abi_returns=[w
 fn @observedReturn() -> u256 [selector=0xba4bd320, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     mstore 128, 7
-    icall @returnMemory, 0
+    icall @returnMemory
     mstore 128, 9
     ret 9
 }
@@ -96,7 +96,7 @@ fn @observedReturn() -> u256 [selector=0xba4bd320, pure, abi_params=[], abi_retu
 fn @observedRevert() [selector=0xcc19b047, pure, abi_params=[], abi_returns=[]] {
   bb0:
     mstore 128, 7
-    icall @revertMemory, 0
+    icall @revertMemory
     mstore 128, 9
     stop
 }
@@ -115,7 +115,7 @@ fn @memoryDisjoint() -> u256 [selector=0xc1ce920c, pure, abi_params=[], abi_retu
     v5 = lt v4, v0
     jumpi v5, bb3, bb4
   bb4:
-    icall @writeMemory, 0, v4
+    icall @writeMemory, v4
     v6 = lt 0, 2
     v7 = iszero v6
     jumpi v7, bb1, bb5
@@ -146,7 +146,7 @@ fn @memoryOverlap() -> u256 [selector=0xb7b7ef77, pure, abi_params=[], abi_retur
     jumpi v2, bb1, bb2
   bb2:
     v3 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
-    icall @writeMemory, 0, v0
+    icall @writeMemory, v0
     v4 = lt 0, 2
     v5 = iszero v4
     jumpi v5, bb1, bb3
@@ -181,7 +181,7 @@ fn @memoryPartialOverlap() -> u256 [selector=0x3f1d4740, pure, abi_params=[], ab
     v5 = lt v4, v0
     jumpi v5, bb3, bb4
   bb4:
-    icall @writeMemory, 0, v4
+    icall @writeMemory, v4
     v6 = lt 0, 2
     v7 = iszero v6
     jumpi v7, bb1, bb5
@@ -213,7 +213,7 @@ fn @memoryRecursive() -> u256 [selector=0xff857f19, pure, abi_params=[], abi_ret
     jumpi v2, bb1, bb2
   bb2:
     v3 = memory_object_load_element memoryfixedarray<3, 1>, v0, 0
-    icall @writeMemoryRecursive, 0, v0, 2
+    icall @writeMemoryRecursive, v0, 2
     v4 = lt 0, 3
     v5 = iszero v4
     jumpi v5, bb1, bb3
@@ -242,7 +242,7 @@ fn @writeMemory(arg0: u256) [pure] {
 
 fn @writeMemoryRecursive(arg0: u256, arg1: u256) [pure] {
   bb0:
-    icall @writeMemory, 0, arg0
+    icall @writeMemory, arg0
     v0 = eq arg1, 0
     v1 = iszero v0
     jumpi v1, bb1, bb2
@@ -257,7 +257,7 @@ fn @writeMemoryRecursive(arg0: u256, arg1: u256) [pure] {
     v5 = lt arg1, 1
     jumpi v5, bb4, bb6
   bb6:
-    icall @writeMemoryRecursive, 0, v2, v4
+    icall @writeMemoryRecursive, v2, v4
     jump bb3
   bb3:
     stop
@@ -281,7 +281,7 @@ fn @writeSlot(arg0: u256) {
 
 fn @recurse(arg0: u256) {
   bb0:
-    icall @writeOne, 0
+    icall @writeOne
     v0 = eq arg0, 0
     v1 = iszero v0
     jumpi v1, bb1, bb2
@@ -292,7 +292,7 @@ fn @recurse(arg0: u256) {
     v3 = lt arg0, 1
     jumpi v3, bb4, bb5
   bb5:
-    icall @recurse, 0, v2
+    icall @recurse, v2
     jump bb3
   bb3:
     stop

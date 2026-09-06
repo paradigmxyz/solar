@@ -1391,16 +1391,13 @@ impl<'a> FunctionBuilder<'a> {
         function: FunctionId,
         args: Vec<ValueId>,
         result_ty: MirType,
-        returns: usize,
     ) -> ValueId {
-        let returns = u32::try_from(returns).expect("too many internal call return values");
-        self.emit_inst(InstKind::ICall { function, args: args.into(), returns }, Some(result_ty))
+        self.emit_inst(InstKind::ICall { function, args: args.into() }, Some(result_ty))
     }
 
     /// Emits an internal function call whose result, if any, is not used as a value.
-    pub(crate) fn icall_void(&mut self, function: FunctionId, args: Vec<ValueId>, returns: usize) {
-        let returns = u32::try_from(returns).expect("too many internal call return values");
-        self.emit_void_inst(InstKind::ICall { function, args: args.into(), returns });
+    pub(crate) fn icall_void(&mut self, function: FunctionId, args: Vec<ValueId>) {
+        self.emit_void_inst(InstKind::ICall { function, args: args.into() });
     }
 
     /// Emits an address inside the current internal-call frame.
