@@ -21,8 +21,8 @@ positions and PUSH widths. There is no Atom stream or assembly-level CFG
 optimization. MIR semantics remain in their retained layers. No legacy backend
 or temporary unsupported rewrite fallback is used.
 
-At `ce278bcd`, the fresh scope has 11,684 Rust lines across 33 files, versus
-34,638 deleted raw lines: 22,954 fewer. These counts include comments, blanks
+At `25f1421b`, the fresh scope has 11,688 Rust lines across 33 files, versus
+34,638 deleted raw lines: 22,950 fewer. These counts include comments, blanks
 and local tests. A historical production-only count was not retained and is
 not reconstructed from forbidden source.
 
@@ -37,9 +37,10 @@ Current isolated screens retain 716 successful UI sources per optimization
 mode and the same eight known failures. Both hot reports retain all 15 runtime
 cases, 175 ordered gas labels and 139 observations. The latest complete
 `accepted-september6/all-corpus/` run compiles all 24 original gas-mode IDs,
-including nine heavy compile-only cases. Those reports retain aggregate counts
-and input/output fingerprints for the heavy cases; supplemental captures are
-still needed to compare their individual contract inventories and artifacts.
+including nine heavy compile-only cases. Supplemental captures now reproduce all nine heavy input/output fingerprints
+and compare all 1,672 contract IDs and 3,344 artifact fields, retaining empty
+objects and linker placeholders explicitly. Their strict size gate fails;
+`heavy-supplement/audit-7f6627d4/` retains the independent inventory and rankings.
 
 Writer correctness is covered by 531 compiled stress calls and independent
 stack/memory models. The internal-call stack-return differential reaches bounded
@@ -87,12 +88,19 @@ proofs and derived reports; sealed reports and the archive remain untouched.
 | UI, size (694 original successes) | −29,824 | −25,306 | — |
 | Hot, gas (15 cases) | +22,360 | +22,797 | −27,313 |
 | Hot, size (15 cases) | +25,741 | +26,113 | −92,067 |
+| Heavy projects, original settings (9 cases) | +25,004,197 | +20,453,457 | — |
 
 Aggregates do not pass acceptance: 1,339 individual UI artifacts remain larger;
 24 gas-mode and 30 size-mode hot labels remain higher. Current hot size checks
 also have 20/19 larger creation-or-runtime artifacts in gas/size. The required
 tail observer fix exposes additional size debt rather than retaining unsafe
-sharing. All 44 extra UI mode rows are reported separately from the baseline.
+sharing. All 44 extra UI mode rows are reported separately from the baseline. The heavy
+corpus has 1,101 larger artifacts across 575 contracts: total runtime output
+grows 23,499,815→43,953,272 bytes. Seaport accounts for 94.47% of that growth.
+Its router grows 9,822→48,812 bytes; the current investigation attributes most
+of that gap to repeated spill protection around direct memory writers. These
+compile-only captures establish size debt, not runtime correctness for arbitrary
+heavy contracts.
 
 ## Active work and remaining gates
 
