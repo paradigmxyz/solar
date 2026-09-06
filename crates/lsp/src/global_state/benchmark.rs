@@ -9,6 +9,7 @@ use crate::{
     diagnostics::{AnalyzedDocuments, DiagnosticStore, PullReport},
     handlers,
     project_fixture::ProjectFixture,
+    symbols::CompletionContext,
     utils::apply_document_changes,
     vfs::VfsPath,
     workspace::{
@@ -20,9 +21,9 @@ use crate::{
 use async_lsp::ClientSocket;
 use crop::Rope;
 use lsp_types::{
-    Diagnostic, DidChangeTextDocumentParams, GotoDefinitionResponse, Hover, HoverContents,
-    Location, Position, PreviousResultId, Range, TextDocumentContentChangeEvent, Url,
-    VersionedTextDocumentIdentifier, WorkspaceFolder, WorkspaceSymbol,
+    CompletionItem, Diagnostic, DidChangeTextDocumentParams, GotoDefinitionResponse, Hover,
+    HoverContents, Location, Position, PreviousResultId, Range, TextDocumentContentChangeEvent,
+    Url, VersionedTextDocumentIdentifier, WorkspaceFolder, WorkspaceSymbol,
 };
 use normalize_path::NormalizePath;
 use solar_config::{CompileOpts, Threads};
@@ -863,6 +864,12 @@ impl BenchmarkAnalysis {
                 BenchmarkResponse::WorkspaceSymbols(self.symbol_tables.workspace_symbols(query))
             }
         }
+    }
+
+    /// Complete names at a source position without protocol transport or parsing.
+    #[inline(never)]
+    pub fn completions(&self, uri: &Url, position: Position, prefix: &str) -> Vec<CompletionItem> {
+        self.symbol_tables.completion_items(uri, position, CompletionContext::new(prefix, None))
     }
 
     /// Resolve one declaration or reference position synchronously.

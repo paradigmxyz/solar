@@ -130,6 +130,38 @@ fn analysis_build(c: &mut Criterion) {
     group.finish();
 }
 
+fn completion_queries(c: &mut Criterion) {
+    let fixture = benchmark_source(HOVER_FUNCTION_COUNT);
+    let (uri, position) =
+        fixture.project.unique_anchor("benchmark.sol", "function_0255(1, 2, address(0))").unwrap();
+    let analysis = fixture.project.analyze();
+    assert_clean(&analysis);
+    let mut group = c.benchmark_group("lsp/completion");
+    for (name, prefix) in
+        [("all", ""), ("selective", "function_0255"), ("no-match", "not_a_symbol")]
+    {
+        let items = analysis.completions(&uri, position, prefix);
+        match name {
+            "all" => assert!(items.len() >= HOVER_FUNCTION_COUNT),
+            "selective" => assert_eq!(
+                items.iter().map(|item| item.label.as_str()).collect::<Vec<_>>(),
+                ["function_0255"]
+            ),
+            _ => assert!(items.is_empty()),
+        }
+        group.bench_function(BenchmarkId::from_parameter(name), |b| {
+            b.iter(|| {
+                black_box(analysis.completions(
+                    black_box(&uri),
+                    black_box(position),
+                    black_box(prefix),
+                ))
+            });
+        });
+    }
+    group.finish();
+}
+
 fn bounded_workspace_discovery(c: &mut Criterion) {
     let temp = tempfile::tempdir().expect("benchmark temporary directory");
     let project = temp.path().join("project");
@@ -654,6 +686,7 @@ fn unifap_benches(c: &mut Criterion) {
 criterion_group!(
     benches,
     analysis_build,
+    completion_queries,
     bounded_workspace_discovery,
     symbol_table_aggregation,
     burst_hover,
