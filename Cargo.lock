@@ -4538,6 +4538,7 @@ dependencies = [
  "either",
  "glob",
  "lsp-types",
+ "memchr",
  "normalize-path",
  "serde",
  "serde_json",

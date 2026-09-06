@@ -227,23 +227,21 @@ fn collect_line_starts(rope: &Rope) -> Vec<usize> {
     let mut line_starts = Vec::with_capacity(rope.line_len() + 1);
     line_starts.push(0);
 
-    let mut bytes = rope.bytes().enumerate().peekable();
-    while let Some((offset, byte)) = bytes.next() {
-        let next_line = match byte {
-            b'\r' => {
-                let mut next_line = offset + 1;
-                if bytes.peek().is_some_and(|(_, byte)| *byte == b'\n') {
-                    bytes.next();
-                    next_line += 1;
-                }
-                Some(next_line)
+    let mut chunk_start = 0;
+    let mut previous_cr_end = None;
+    for chunk in rope.chunks() {
+        for index in memchr::memchr2_iter(b'\r', b'\n', chunk.as_bytes()) {
+            let offset = chunk_start + index;
+            let is_cr = chunk.as_bytes()[index] == b'\r';
+            // Merge CRLF even when the two bytes belong to different rope chunks.
+            if !is_cr && previous_cr_end == Some(offset) {
+                *line_starts.last_mut().unwrap() = offset + 1;
+            } else {
+                line_starts.push(offset + 1);
             }
-            b'\n' => Some(offset + 1),
-            _ => None,
-        };
-        if let Some(next_line) = next_line {
-            line_starts.push(next_line);
+            previous_cr_end = is_cr.then_some(offset + 1);
         }
+        chunk_start += chunk.len();
     }
 
     line_starts
@@ -440,7 +438,7 @@ fn severity(level: Level) -> lsp_types::DiagnosticSeverity {
 
 #[cfg(test)]
 mod tests {
-    use super::{checked_text_range, position_at_byte, text_range};
+    use super::{checked_text_range, collect_line_starts, position_at_byte, text_range};
     use crop::Rope;
     use lsp_types::{Position, Range, request::Request};
     use solar_interface::{
@@ -461,6 +459,24 @@ mod tests {
             .workspace
             .and_then(|workspace| workspace.diagnostic)
             .and_then(|diagnostic| diagnostic.refresh_support)
+    }
+
+    #[test]
+    fn line_starts_match_mixed_newlines_across_rope_chunks() {
+        for padding in 0..2048 {
+            let source =
+                format!("{}\r\n{}", "a".repeat(padding), "😀\r\nA\rB\n\r\n\n\r".repeat(200));
+            let rope = Rope::from(source.as_str());
+            assert!(rope.chunks().count() > 1);
+            let expected = std::iter::once(0)
+                .chain(source.bytes().enumerate().filter_map(|(offset, byte)| {
+                    (byte == b'\n'
+                        || (byte == b'\r' && source.as_bytes().get(offset + 1) != Some(&b'\n')))
+                    .then_some(offset + 1)
+                }))
+                .collect::<Vec<_>>();
+            assert_eq!(collect_line_starts(&rope), expected, "padding {padding}");
+        }
     }
 
     #[test]
