@@ -2,11 +2,11 @@
 // === ConstructorICall_deployment ===
 @module ConstructorICall_deployment
 bb0:
-  push 176
+  push 174
   codesize
   sub
   dup 1
-  push 176
+  push 174
   push 128
   codecopy
   push 159
@@ -25,7 +25,7 @@ bb1:
   callvalue
   jumpi bb13, bb2
 bb2:
-  push 176
+  push 174
   codesize
   sub
   push 128
@@ -56,11 +56,11 @@ bb15:
   sstore
   jump bb20
 bb20:
-  push 32
+  push 30
   push 144
   push 0
   codecopy
-  push 32
+  push 30
   push 0
   return
 bb18:
@@ -137,10 +137,10 @@ bb4:
 bb1:
   push 0
   sload
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb6 [cold]:
   push 0

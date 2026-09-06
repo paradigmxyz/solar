@@ -5,7 +5,7 @@ bb0:
   callvalue
   jumpi bb1, bb2
 bb2:
-  push 917
+  push 915
   dup 1
   push 18
   push 0
@@ -555,10 +555,10 @@ bb54:
   dup 1
   push 192
   mstore
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb22 [cold]:
   push 0

@@ -38,10 +38,10 @@ bb3:
   push 0x123456789abcde
   dup 1
   addmod
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb4 [cold]:
   push 0
@@ -49,7 +49,7 @@ bb4 [cold]:
   revert
 // === ROOT/tests/ui/codegen/lowering/equal_immediate_scheduling.sol:EqualImmediateScheduling (runtime) ===
 CALLVALUE
-PUSH1 0x48 ; bb1
+PUSH1 0x46 ; bb1
 JUMPI
 PUSH0
 CALLDATALOAD
@@ -57,12 +57,12 @@ PUSH1 0xe0
 SHR
 PUSH4 0xd9171e32
 SUB
-PUSH1 0x48 ; bb1
+PUSH1 0x46 ; bb1
 JUMPI
 CALLDATASIZE
 PUSH1 0x24
 GT
-PUSH1 0x48 ; bb1
+PUSH1 0x46 ; bb1
 JUMPI
 PUSH1 0x04
 CALLDATALOAD
@@ -86,10 +86,10 @@ CALLDATALOAD
 PUSH7 0x123456789abcde
 DUP1
 ADDMOD
-PUSH1 0x80
+PUSH0
 MSTORE
 PUSH1 0x20
-PUSH1 0x80
+PUSH0
 RETURN
 ; bb1
 JUMPDEST

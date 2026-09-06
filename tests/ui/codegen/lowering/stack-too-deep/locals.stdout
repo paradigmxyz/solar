@@ -5,7 +5,7 @@ bb0:
   callvalue
   jumpi bb1, bb2
 bb2:
-  push 756
+  push 754
   dup 1
   push 18
   push 0
@@ -499,10 +499,10 @@ bb43:
   gt
   jumpi bb2, bb44
 bb44:
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb2 [cold]:
   push 0x4e487b71
