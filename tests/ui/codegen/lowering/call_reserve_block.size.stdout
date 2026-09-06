@@ -36,7 +36,7 @@ bb0:
   dup 1
   push 0x2f5f3b3c
   eq
-  push bb10
+  push bb9
   jumpi
   dup 1
   push 0x9a1f63d8
@@ -84,8 +84,8 @@ bb0:
   jumpi
   push 160
   mload
-  jump bb11
-bb11:
+  jump bb10
+bb10:
   mload
   push 128
   mstore
@@ -96,7 +96,7 @@ bb4 [cold]:
   push 0
   dup 1
   invalid
-bb10:
+bb9:
   push 256
   push 64
   mstore
@@ -165,4 +165,4 @@ bb10:
   iszero
   push bb4
   jumpi
-  jump bb11
+  jump bb10

@@ -224,8 +224,7 @@ fn lower_function(
     let blocks = func.blocks.indices();
     for block in blocks {
         let instructions = std::mem::take(&mut func.blocks[block].instructions);
-        let original_terminator = func.blocks[block].terminator.take();
-        let terminator_metadata = func.blocks[block].terminator_metadata.clone();
+        let (original_terminator, terminator_metadata) = func.blocks[block].take_terminator();
         let mut builder = FunctionBuilder::new(func).with_revert_strings(revert_strings);
         builder.switch_to_block(block);
         for inst in instructions {

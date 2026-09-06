@@ -4229,7 +4229,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
 
                 if self.capture_debug_info {
-                    self.asm.set_source_span(inst.metadata.source_span());
+                    self.asm.set_source_spans(inst.metadata.source_spans());
                     self.asm.set_modifier_depth(inst.metadata.modifier_depth());
                 }
 
@@ -4601,7 +4601,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             // Generate terminator. An edge-specific resident branch owns its cleanup and jumps.
             if self.capture_debug_info {
                 let metadata = &block.terminator_metadata;
-                self.asm.set_source_span(metadata.source_span());
+                self.asm.set_source_spans(metadata.source_spans());
                 self.asm.set_modifier_depth(metadata.modifier_depth());
             }
             if let (

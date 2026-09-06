@@ -125,8 +125,8 @@ fn @bools() [selector=0xcfb203c5, pure] {
     v101 = lt v100, v23
     v102 = gt v100, 0xffffffffffffffff
     v103 = or v101, v102
-    jumpi v103, bb24, bb23
-  bb23:
+    jumpi v103, bb23, bb22
+  bb22:
     mstore 64, v100 !metadata(memory=scratch)
     mstore v23, v13
     v24 = shl 5, v13
@@ -149,23 +149,23 @@ fn @bools() [selector=0xcfb203c5, pure] {
     v45 = mload v23
     v46 = add v45, 1
     v47 = lt v46, v45
-    jumpi v47, bb14, bb15
-  bb15:
+    jumpi v47, bb4, bb14
+  bb14:
     v48 = shl 5, v46
     v50 = shr 5, v48
     v51 = eq v50, v46
-    jumpi v51, bb16, bb14
-  bb16:
+    jumpi v51, bb15, bb4
+  bb15:
     v54 = mload 64 !metadata(memory=scratch, effect=memory_write)
     v104 = add v54, v48
     mstore 64, v104 !metadata(memory=scratch)
     mstore v54, v45
-    jump bb17
-  bb17:
-    v55 = phi [bb16: 0], [bb18: v60]
+    jump bb16
+  bb16:
+    v55 = phi [bb15: 0], [bb17: v60]
     v56 = lt v55, v45
-    jumpi v56, bb18, bb19
-  bb19:
+    jumpi v56, bb17, bb18
+  bb18:
     v64 = mload 64 !metadata(memory=scratch)
     v65 = add v64, 32
     v66 = sub v65, v64
@@ -179,12 +179,12 @@ fn @bools() [selector=0xcfb203c5, pure] {
     v72 = add v64, 64
     v73 = add v54, 32
     v74 = add v72, v71
-    jump bb20
-  bb20:
-    v75 = phi [bb19: 0], [bb21: v83]
+    jump bb19
+  bb19:
+    v75 = phi [bb18: 0], [bb20: v83]
     v76 = lt v75, v70
-    jumpi v76, bb21, bb22
-  bb22:
+    jumpi v76, bb20, bb21
+  bb21:
     v84 = sub v74, v64
     v86 = add v84, 31
     v88 = and v86, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -192,7 +192,7 @@ fn @bools() [selector=0xcfb203c5, pure] {
     v105 = add v89, v88
     mstore 64, v105 !metadata(memory=scratch)
     returndata v89, v84
-  bb21:
+  bb20:
     v77 = shl 5, v75
     v78 = add v73, v77
     v80 = mload v78
@@ -201,8 +201,8 @@ fn @bools() [selector=0xcfb203c5, pure] {
     v79 = add v72, v77
     mstore v79, v82
     v83 = add v75, 1
-    jump bb20
-  bb18:
+    jump bb19
+  bb17:
     v94 = add v23, 32
     v95 = mul v55, 32
     v96 = add v94, v95
@@ -213,11 +213,7 @@ fn @bools() [selector=0xcfb203c5, pure] {
     v99 = add v97, v95
     mstore v99, v59
     v60 = add v55, 1
-    jump bb17
-  bb14:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    jump bb16
   bb10:
     v37 = mload v34
     v38 = lt v37, 2
@@ -231,7 +227,7 @@ fn @bools() [selector=0xcfb203c5, pure] {
     v40 = add v34, 32
     v41 = add v35, 1
     jump bb9
-  bb24:
+  bb23:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36

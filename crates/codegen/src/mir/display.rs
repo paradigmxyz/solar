@@ -709,6 +709,7 @@ fn display_metadata<'a>(
         Memory(MemoryRegion),
         Hir(hir::ExprId),
         Span { lo: u32, hi: u32 },
+        Spans(&'a InstructionMetadata),
         ModifierDepth(u32),
         Unchecked,
         DeferredAlloc,
@@ -724,6 +725,16 @@ fn display_metadata<'a>(
             MetadataField::Memory(memory) => write!(f, "memory={}", memory.name()),
             MetadataField::Hir(hir_expr) => write!(f, "hir={}", hir_expr.index()),
             MetadataField::Span { lo, hi } => write!(f, "span={lo}..{hi}"),
+            MetadataField::Spans(metadata) => write!(
+                f,
+                "spans=[{}]",
+                metadata.source_spans().format_with(", ", |f, span| write!(
+                    f,
+                    "{}..{}",
+                    span.lo().0,
+                    span.hi().0
+                )),
+            ),
             MetadataField::ModifierDepth(depth) => write!(f, "modifier_depth={depth}"),
             MetadataField::Unchecked => write!(f, "unchecked"),
             MetadataField::DeferredAlloc => write!(f, "deferred_alloc"),
@@ -759,7 +770,11 @@ fn display_metadata<'a>(
         if metadata.displays_source_span()
             && let Some(span) = metadata.source_span()
         {
-            fields.push(MetadataField::Span { lo: span.lo().0, hi: span.hi().0 });
+            if metadata.source_spans().count() == 1 {
+                fields.push(MetadataField::Span { lo: span.lo().0, hi: span.hi().0 });
+            } else {
+                fields.push(MetadataField::Spans(metadata));
+            }
             if metadata.modifier_depth() != 0 {
                 fields.push(MetadataField::ModifierDepth(metadata.modifier_depth()));
             }

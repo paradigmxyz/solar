@@ -194,6 +194,8 @@ pub(super) fn lower(
         lowerer.lower_function_body(hir_function.modifiers, body)?;
     }
     if !lowerer.is_terminated() {
+        // ret named_returns !metadata(function definition)
+        lowerer.builder.replace_source_span(hir_function.span);
         lowerer.finish(hir_function.returns)?;
     }
     Some(mir)
@@ -205,6 +207,7 @@ pub(super) fn lower_synthetic_constructor(
     mut context: LoweringContext<'_, '_>,
     contract_id: hir::ContractId,
 ) -> Option<Function> {
+    let span = context.gcx.hir.contract(contract_id).span;
     let mut mir =
         Function::new(solar_interface::Ident::with_dummy_span(solar_interface::kw::Constructor));
     mir.attributes.is_constructor = true;
@@ -212,6 +215,8 @@ pub(super) fn lower_synthetic_constructor(
     lowerer.lower_implicit_base_constructors(contract_id)?;
     lowerer.lower_state_initializers(contract_id)?;
     if !lowerer.is_terminated() {
+        // stop !metadata(contract definition)
+        lowerer.builder.replace_source_span(span);
         lowerer.finish(&[])?;
     }
     Some(mir)
@@ -972,6 +977,7 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                 builder.branch(is_match, case_block, next_block);
 
                 builder.switch_to_block(case_block);
+                let previous_span = builder.replace_source_span(gcx.hir.function(function_id).span);
                 let call_arguments = arguments
                     .iter()
                     .copied()
@@ -1025,6 +1031,7 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                     }
                     builder.ret(values);
                 }
+                builder.replace_source_span(previous_span);
                 builder.switch_to_block(next_block);
             }
 

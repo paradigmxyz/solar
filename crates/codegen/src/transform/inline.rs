@@ -1208,7 +1208,7 @@ fn inline_call_impl(
     }
 
     let continuation = caller.alloc_block();
-    let old_terminator = caller.blocks[call_block].terminator.take();
+    let (old_terminator, metadata) = caller.blocks[call_block].take_terminator();
     let old_successors = old_terminator.as_ref().map(Terminator::successors).unwrap_or_default();
     let suffix = {
         let block = &mut caller.blocks[call_block];
@@ -1217,9 +1217,9 @@ fn inline_call_impl(
     caller.blocks[call_block].instructions.pop();
     // continuation: suffix; old_terminator !metadata(caller)
     caller.blocks[continuation].instructions = suffix;
-    caller.blocks[continuation].terminator = old_terminator;
-    caller.blocks[continuation].terminator_metadata =
-        caller.blocks[call_block].terminator_metadata.clone();
+    if let Some(terminator) = old_terminator {
+        caller.blocks[continuation].set_terminator(terminator, metadata);
+    }
     redirect_phi_predecessors(caller, &old_successors, call_block, continuation);
 
     let caller_is_external = caller.selector.is_some()
@@ -1317,12 +1317,7 @@ impl<'a> InlineCloner<'a> {
             for &inst_id in &block.instructions {
                 let inst = self.callee.inst(inst_id).clone();
                 let mut instruction = Instruction::new(inst.kind.clone(), inst.result_ty);
-                if inst.metadata.displays_source_span() {
-                    instruction.metadata.set_source_span(inst.metadata.source_span());
-                } else {
-                    instruction.metadata.set_debug_source_span(inst.metadata.source_span());
-                }
-                instruction.metadata.set_modifier_depth(inst.metadata.modifier_depth());
+                instruction.metadata.copy_debug_context(&inst.metadata);
                 let new_inst = if let Some(callee_result) = self.callee.inst_result_value(inst_id) {
                     let (new_inst, new_result) = self.caller.alloc_value_inst(instruction);
                     self.value_map.insert(callee_result, new_result);

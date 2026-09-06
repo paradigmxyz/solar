@@ -20,6 +20,15 @@
 +     revert 0, 0
   }
   
+  fn @bubble() {
+    bb0:
+-     revert_returndata !metadata(spans=[50..60, 70..80], modifier_depth=2)
++     v0 = returndatasize !metadata(spans=[50..60, 70..80], modifier_depth=2)
++     returndatacopy 0, 0, v0 !metadata(memory=abi_return, spans=[50..60, 70..80], modifier_depth=2)
++     v1 = returndatasize !metadata(spans=[50..60, 70..80], modifier_depth=2)
++     revert 0, v1 !metadata(spans=[50..60, 70..80], modifier_depth=2)
+  }
+  
 - // === ROOT/tests/ui/codegen/mir/lowering/terminator_metadata.mir (before lower-abi-encode) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/terminator_metadata.mir (after lower-abi-encode) ===
   @module TerminatorMetadata
@@ -38,5 +47,13 @@
       returndata 128, v3 !metadata(span=30..40)
     bb2:
       revert 0, 0
+  }
+  
+  fn @bubble() {
+    bb0:
+      v0 = returndatasize !metadata(spans=[50..60, 70..80], modifier_depth=2)
+      returndatacopy 0, 0, v0 !metadata(memory=abi_return, spans=[50..60, 70..80], modifier_depth=2)
+      v1 = returndatasize !metadata(spans=[50..60, 70..80], modifier_depth=2)
+      revert 0, v1 !metadata(spans=[50..60, 70..80], modifier_depth=2)
   }
   

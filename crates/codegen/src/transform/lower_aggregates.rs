@@ -100,8 +100,7 @@ fn lower_function(func: &mut Function) -> bool {
     let blocks = func.blocks.indices();
     for block in blocks {
         let instructions = std::mem::take(&mut func.blocks[block].instructions);
-        let terminator = func.blocks[block].terminator.take();
-        let terminator_metadata = func.blocks[block].terminator_metadata.clone();
+        let (terminator, terminator_metadata) = func.blocks[block].take_terminator();
         let mut builder = FunctionBuilder::new(func);
         builder.switch_to_block(block);
         for inst in instructions {

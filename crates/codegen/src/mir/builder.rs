@@ -189,12 +189,8 @@ pub(crate) struct FunctionBuilder<'a> {
     current_block: BlockId,
     /// Revert blocks shared within this function.
     revert_blocks: RevertBlocks,
-    /// Source span attached to instructions emitted in the current lowering scope.
-    current_source_span: Span,
-    /// Whether explicit textual source metadata should remain visible after lowering.
-    current_displays_source_span: bool,
-    /// Legacy source-map modifier nesting depth attached to new instructions.
-    current_modifier_depth: u32,
+    /// Source context attached to instructions emitted in the current lowering scope.
+    current_debug_context: InstructionMetadata,
     /// How compiler-generated reverts with a [`RevertReason`] are encoded.
     revert_strings: RevertStrings,
 }
@@ -220,9 +216,7 @@ impl<'a> FunctionBuilder<'a> {
             func,
             current_block: BlockId::ENTRY,
             revert_blocks: RevertBlocks::default(),
-            current_source_span: Span::DUMMY,
-            current_displays_source_span: false,
-            current_modifier_depth: 0,
+            current_debug_context: InstructionMetadata::EMPTY,
             revert_strings: RevertStrings::Default,
         }
     }
@@ -246,19 +240,21 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Replaces the source span attached to newly emitted instructions.
     pub(crate) fn replace_source_span(&mut self, span: Span) -> Span {
-        std::mem::replace(&mut self.current_source_span, span)
+        let previous = self.current_debug_context.source_span().unwrap_or(Span::DUMMY);
+        self.current_debug_context.set_debug_source_span(Some(span));
+        previous
     }
 
     /// Replaces the modifier nesting depth attached to newly emitted instructions.
     pub(crate) fn replace_modifier_depth(&mut self, depth: u32) -> u32 {
-        std::mem::replace(&mut self.current_modifier_depth, depth)
+        let previous = self.current_debug_context.modifier_depth();
+        self.current_debug_context.set_modifier_depth(depth);
+        previous
     }
 
     /// Inherits source context while replacing an instruction or control transfer.
     pub(crate) fn set_debug_context(&mut self, metadata: &InstructionMetadata) {
-        self.current_source_span = metadata.source_span().unwrap_or(Span::DUMMY);
-        self.current_displays_source_span = metadata.displays_source_span();
-        self.current_modifier_depth = metadata.modifier_depth();
+        self.current_debug_context.copy_debug_context(metadata);
     }
 
     /// Inherits the source context of a terminator being lowered in this block.
@@ -268,12 +264,7 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     fn set_current_debug_context(&self, metadata: &mut InstructionMetadata) {
-        if self.current_displays_source_span {
-            metadata.set_source_span(Some(self.current_source_span));
-        } else {
-            metadata.set_debug_source_span(Some(self.current_source_span));
-        }
-        metadata.set_modifier_depth(self.current_modifier_depth);
+        metadata.copy_debug_context(&self.current_debug_context);
     }
 
     /// Returns the current block.
@@ -282,7 +273,10 @@ impl<'a> FunctionBuilder<'a> {
         self.current_block
     }
 
-    /// Switches to a different block.
+    /// Switches blocks without changing the enclosing source-lowering scope.
+    ///
+    /// Rewrites using a fresh builder must explicitly inherit the debug context
+    /// of the instruction or terminator they replace after switching blocks.
     pub(crate) fn switch_to_block(&mut self, block: BlockId) {
         self.current_block = block;
     }
@@ -466,6 +460,14 @@ impl<'a> FunctionBuilder<'a> {
             kind => kind,
         };
         if let Some(&block) = self.revert_blocks.0.get(&kind) {
+            // Shared revert body !metadata(union of all failed-check origins)
+            for index in 0..self.func.blocks[block].instructions.len() {
+                let inst = self.func.blocks[block].instructions[index];
+                self.func.inst_mut(inst).metadata.merge_debug_context(&self.current_debug_context);
+            }
+            self.func.blocks[block]
+                .terminator_metadata
+                .merge_debug_context(&self.current_debug_context);
             return (block, false);
         }
         let block = self.create_block();
@@ -1754,10 +1756,9 @@ impl<'a> FunctionBuilder<'a> {
         for successor in terminator.successors() {
             self.func.blocks[successor].predecessors.push(current);
         }
-        self.func.blocks[current].terminator = Some(terminator);
         let mut metadata = InstructionMetadata::EMPTY;
         self.set_current_debug_context(&mut metadata);
-        self.func.blocks[current].terminator_metadata = metadata;
+        self.func.blocks[current].set_terminator(terminator, metadata);
     }
 
     /// Returns a reference to the function.

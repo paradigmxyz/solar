@@ -319,6 +319,7 @@ impl LowerAbiCx {
 
                 let mut builder = FunctionBuilder::new(func);
                 builder.switch_to_block(block);
+                builder.inherit_terminator_debug_context(block);
                 let zero = builder.imm(U256::ZERO);
                 if evm_version.supports_returndata() {
                     // size = returndatasize()
@@ -555,8 +556,8 @@ impl LowerAbiCx {
             for block in blocks {
                 let instructions =
                     std::mem::take(&mut builder.func_mut().blocks[block].instructions);
-                let terminator = builder.func_mut().blocks[block].terminator.take();
-                let terminator_metadata = builder.func().blocks[block].terminator_metadata.clone();
+                let (terminator, terminator_metadata) =
+                    builder.func_mut().blocks[block].take_terminator();
                 builder.switch_to_block(block);
                 for inst in instructions {
                     let InstKind::AbiDecode { data, layout } = &builder.func().inst(inst).kind

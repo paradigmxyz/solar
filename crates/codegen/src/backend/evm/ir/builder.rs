@@ -86,8 +86,17 @@ impl<'gcx> Assembler<'gcx> {
 
     /// Sets the source span attached to subsequently emitted operations.
     pub(crate) fn set_source_span(&mut self, span: Option<solar_interface::Span>) {
+        self.set_source_spans(span);
+    }
+
+    /// Sets all retained source origins attached to subsequently emitted operations.
+    pub(crate) fn set_source_spans(
+        &mut self,
+        spans: impl IntoIterator<Item = solar_interface::Span>,
+    ) {
         self.program.track_debug_info();
-        self.current_source_span = span.unwrap_or(solar_interface::Span::DUMMY);
+        self.current_source_spans.clear();
+        self.current_source_spans.extend(spans.into_iter().filter(|span| !span.is_dummy()));
     }
 
     /// Sets the legacy source-map modifier nesting depth attached to new operations.
@@ -377,7 +386,7 @@ impl<'gcx> Assembler<'gcx> {
         assert!(!targets.is_empty(), "indexed jump must have at least one target");
         let block = self.current_block.take().expect("indexed jump requires a current block");
         let mut metadata = ir::Metadata::default();
-        metadata.set_source_span(Some(self.current_source_span));
+        metadata.set_source_spans(self.current_source_spans.iter().copied());
         metadata.set_modifier_depth(self.current_modifier_depth);
         self.indexed_jump_relocations.push((block, targets, metadata));
     }
@@ -459,7 +468,7 @@ impl<'gcx> Assembler<'gcx> {
     }
 
     fn push_ir_instruction(&mut self, mut instruction: ir::Instruction) -> (ir::BlockId, usize) {
-        instruction.metadata.set_source_span(Some(self.current_source_span));
+        instruction.metadata.set_source_spans(self.current_source_spans.iter().copied());
         instruction.metadata.set_modifier_depth(self.current_modifier_depth);
         let (block, index) = self.next_instruction_position();
         self.program.blocks[block].instructions.push(instruction);

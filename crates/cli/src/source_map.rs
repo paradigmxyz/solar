@@ -68,8 +68,9 @@ impl SourceMapEncoder {
         instruction: &DebugInstruction,
     ) -> SourceMapEntry {
         // A shared instruction has no single source origin in this format. Its
-        // incoming transfers retain path-specific locations; choosing one origin
-        // here would attribute other callers to an unrelated source statement.
+        // incoming transfers retain path-specific locations where available;
+        // choosing one origin here would attribute other callers to an unrelated
+        // source statement. This applies to sharing in both MIR and EVM IR.
         let location = match instruction.source_spans.as_slice() {
             [span] => Some(*span),
             _ => None,

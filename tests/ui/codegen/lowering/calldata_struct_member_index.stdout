@@ -46,18 +46,18 @@ fn @member() [selector=0x49eb8b89, pure] {
   bb0:
     v36 = calldatasize
     v37 = lt v36, 68
-    jumpi v37, bb10, bb11
-  bb11:
+    jumpi v37, bb1, bb10
+  bb10:
     v38 = calldataload 4
     v39 = add v38, 4
     v40 = sub v36, 4
     v41 = gt v38, v40
-    jumpi v41, bb10, bb12
-  bb12:
+    jumpi v41, bb1, bb11
+  bb11:
     v42 = sub v36, v39
     v43 = gt 128, v42
-    jumpi v43, bb10, bb13
-  bb13:
+    jumpi v43, bb1, bb12
+  bb12:
     v1 = add v39, 32
     v2 = calldatasize
     v3 = sub v2, v1
@@ -102,26 +102,24 @@ fn @member() [selector=0x49eb8b89, pure] {
     returndata 128, 32
   bb1:
     revert 0, 0
-  bb10:
-    revert 0, 0
 }
 
 fn @word() [selector=0xd192e846, pure] {
   bb0:
     v33 = calldatasize
     v34 = lt v33, 68
-    jumpi v34, bb10, bb11
-  bb11:
+    jumpi v34, bb1, bb10
+  bb10:
     v35 = calldataload 4
     v36 = add v35, 4
     v37 = sub v33, 4
     v38 = gt v35, v37
-    jumpi v38, bb10, bb12
-  bb12:
+    jumpi v38, bb1, bb11
+  bb11:
     v39 = sub v33, v36
     v40 = gt 128, v39
-    jumpi v40, bb10, bb13
-  bb13:
+    jumpi v40, bb1, bb12
+  bb12:
     v1 = add v36, 64
     v2 = calldatasize
     v3 = sub v2, v1
@@ -165,26 +163,24 @@ fn @word() [selector=0xd192e846, pure] {
     returndata 128, 32
   bb1:
     revert 0, 0
-  bb10:
-    revert 0, 0
 }
 
 fn @lengths() [selector=0xb7a3bd0f, pure] {
   bb0:
     v66 = calldatasize
     v67 = lt v66, 36
-    jumpi v67, bb14, bb15
-  bb15:
+    jumpi v67, bb1, bb14
+  bb14:
     v68 = calldataload 4
     v69 = add v68, 4
     v70 = sub v66, 4
     v71 = gt v68, v70
-    jumpi v71, bb14, bb16
-  bb16:
+    jumpi v71, bb1, bb15
+  bb15:
     v72 = sub v66, v69
     v73 = gt 128, v72
-    jumpi v73, bb14, bb17
-  bb17:
+    jumpi v73, bb1, bb16
+  bb16:
     v1 = add v69, 32
     v2 = calldatasize
     v3 = sub v2, v1
@@ -264,8 +260,6 @@ fn @lengths() [selector=0xb7a3bd0f, pure] {
     mstore 192, v56
     returndata 128, 96
   bb1:
-    revert 0, 0
-  bb14:
     revert 0, 0
 }
 

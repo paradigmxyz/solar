@@ -6,7 +6,10 @@
 //! normal encoder path.
 
 use crate::{
-    mir::{BlockId, Function, Immediate, InstKind, Module, Terminator, Value, ValueId},
+    mir::{
+        BlockId, Function, Immediate, InstKind, InstructionMetadata, Module, Terminator, Value,
+        ValueId,
+    },
     pass::{MirPass, run_function_pass},
     utils::eval,
 };
@@ -210,15 +213,18 @@ impl PureEvaluator {
 
     fn rewrite_to_return(&self, func: &mut Function, values: &[U256]) {
         let entry = BlockId::ENTRY;
-        // Folded paths can have distinct return origins; do not invent one shared location.
+        // Folded paths retain all return origins, excluding unrelated analysis facts.
         let mut origins = func
             .blocks
             .iter()
             .filter(|block| matches!(block.terminator, Some(Terminator::Return { .. })));
-        let metadata = origins
-            .next()
-            .map(|block| block.terminator_metadata.clone())
-            .filter(|metadata| origins.all(|block| block.terminator_metadata == *metadata));
+        let mut metadata = origins.next().map_or_else(
+            || InstructionMetadata::EMPTY.debug_context(),
+            |block| block.terminator_metadata.debug_context(),
+        );
+        for block in origins {
+            metadata.merge_debug_context(&block.terminator_metadata);
+        }
         let block_ids = func.blocks.indices();
         for block_id in block_ids {
             let block = &mut func.blocks[block_id];
@@ -227,7 +233,8 @@ impl PureEvaluator {
                 block.predecessors.clear();
             } else {
                 block.predecessors.clear();
-                block.terminator = Some(Terminator::Invalid);
+                // Dead block -> invalid !metadata(intentionally dropped)
+                block.set_generated_terminator(Terminator::Invalid);
             }
         }
 
@@ -240,12 +247,7 @@ impl PureEvaluator {
             })
             .collect();
         func.returns = returns;
-        // entry: ret constants !metadata(common return origin, or intentionally dropped)
-        func.blocks[entry].terminator = Some(Terminator::Return { values });
-        if let Some(metadata) = metadata {
-            func.blocks[entry].terminator_metadata = metadata;
-        } else {
-            func.blocks[entry].terminator_metadata.mark_debug_info_dropped();
-        }
+        // entry: ret constants !metadata(union of return origins)
+        func.blocks[entry].set_terminator(Terminator::Return { values }, metadata);
     }
 }

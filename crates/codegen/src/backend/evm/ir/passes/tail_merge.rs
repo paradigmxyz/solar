@@ -321,7 +321,9 @@ fn suffix_debug_info(block: &Block, len: usize) -> Metadata {
         .iter()
         .map(|inst| &inst.metadata)
         .chain(block.terminator.iter().map(|term| &term.metadata))
-        .find(|metadata| !metadata.source_spans().is_empty())
+        // Already-shared suffixes cannot provide a path-specific jump origin.
+        // Prefer a unique origin from this site; otherwise leave it unmapped.
+        .find(|metadata| metadata.source_spans().len() == 1)
     {
         metadata.copy_source_debug_from(origin);
     }

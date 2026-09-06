@@ -1286,6 +1286,25 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     let value = self.parser.parse_uint()?;
                     metadata.set_modifier_depth(self.u256_to_u32(value)?);
                 }
+                sym::spans => {
+                    self.parser.expect(TokenKind::Eq)?;
+                    self.parser.expect(TokenKind::OpenDelim(Delimiter::Bracket))?;
+                    let mut spans = SmallVec::<[Span; 2]>::new();
+                    loop {
+                        let (lo, hi) = self.parser.parse_span_bounds()?;
+                        let span = Span::new(BytePos(lo), BytePos(hi));
+                        if spans.len() < crate::source_info::MAX_DEBUG_SPANS
+                            && !spans.contains(&span)
+                        {
+                            spans.push(span);
+                        }
+                        if !self.parser.eat(TokenKind::Comma) {
+                            break;
+                        }
+                    }
+                    self.parser.expect(TokenKind::CloseDelim(Delimiter::Bracket))?;
+                    metadata.set_source_spans(spans);
+                }
                 _ => return Err(self.parser.error(format!("unknown metadata key `{key}`"))),
             }
 

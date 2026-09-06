@@ -116,22 +116,22 @@ fn @roundTrip() [selector=0x00746047, pure] {
   bb0:
     v167 = calldatasize
     v168 = lt v167, 68
-    jumpi v168, bb28, bb46
-  bb46:
+    jumpi v168, bb3, bb44
+  bb44:
     v169 = calldataload 36
     v170 = add v169, 4
     v171 = add v169, 36
     v172 = gt v169, 0xffffffffffffffff
     v173 = gt v171, v167
     v174 = or v172, v173
-    jumpi v174, bb28, bb47
-  bb47:
+    jumpi v174, bb3, bb45
+  bb45:
     v175 = calldataload v170
     v177 = sub v167, v171
     v178 = shr 5, v177
     v179 = gt v175, v178
-    jumpi v179, bb28, bb48
-  bb48:
+    jumpi v179, bb3, bb46
+  bb46:
     v0 = mload 64 !metadata(memory=scratch, effect=memory_write)
     v217 = add v0, 64
     mstore 64, v217 !metadata(memory=scratch)
@@ -170,18 +170,18 @@ fn @roundTrip() [selector=0x00746047, pure] {
     v95 = lt v94, v92
     v96 = lt v93, 32
     v97 = or v95, v96
-    jumpi v97, bb28, bb29
-  bb29:
+    jumpi v97, bb3, bb28
+  bb28:
     v98 = mload v92
     v99 = add v92, v98
     v100 = sub v94, v92
     v101 = gt v98, v100
-    jumpi v101, bb28, bb30
-  bb30:
+    jumpi v101, bb3, bb29
+  bb29:
     v102 = sub v94, v99
     v103 = gt 64, v102
-    jumpi v103, bb28, bb31
-  bb31:
+    jumpi v103, bb3, bb30
+  bb30:
     v104 = alloc raw, exact, uninitialized, infallible, 64 !metadata(deferred_alloc)
     v105 = mload v99
     mstore v104, v105
@@ -192,44 +192,44 @@ fn @roundTrip() [selector=0x00746047, pure] {
     v110 = gt v107, 0xffffffffffffffff
     v111 = gt v109, v94
     v112 = or v110, v111
-    jumpi v112, bb28, bb32
-  bb32:
+    jumpi v112, bb3, bb31
+  bb31:
     v113 = mload v108
     v115 = add v113, 1
     v116 = lt v115, v113
-    jumpi v116, bb33, bb34
-  bb34:
+    jumpi v116, bb1, bb32
+  bb32:
     v117 = shl 5, v115
     v119 = shr 5, v117
     v120 = eq v119, v115
-    jumpi v120, bb35, bb33
-  bb35:
+    jumpi v120, bb33, bb1
+  bb33:
     v123 = mload 64 !metadata(memory=scratch, effect=memory_write)
     v205 = add v123, v117
     v206 = lt v205, v123
     v207 = gt v205, 0xffffffffffffffff
     v208 = or v206, v207
-    jumpi v208, bb50, bb49
-  bb49:
+    jumpi v208, bb48, bb47
+  bb47:
     mstore 64, v205 !metadata(memory=scratch)
     mstore v123, v113
     v124 = shl 5, v113
     v126 = shr 5, v124
     v127 = eq v126, v113
-    jumpi v127, bb36, bb33
-  bb36:
+    jumpi v127, bb34, bb1
+  bb34:
     v130 = sub v94, v109
     v131 = shr 5, v130
     v132 = gt v113, v131
-    jumpi v132, bb28, bb37
-  bb37:
-    jump bb38
+    jumpi v132, bb3, bb35
+  bb35:
+    jump bb36
+  bb36:
+    v133 = phi [bb35: v113], [bb43: v164]
+    v134 = phi [bb35: v109], [bb43: v165]
+    v135 = phi [bb35: 0], [bb43: v166]
+    jumpi v133, bb37, bb38
   bb38:
-    v133 = phi [bb37: v113], [bb45: v164]
-    v134 = phi [bb37: v109], [bb45: v165]
-    v135 = phi [bb37: 0], [bb45: v166]
-    jumpi v133, bb39, bb40
-  bb40:
     v197 = add v104, 32
     mstore v197, v123
     v61 = mload v104
@@ -294,44 +294,44 @@ fn @roundTrip() [selector=0x00746047, pure] {
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb39:
+  bb37:
     v137 = mload v134
     v138 = add v109, v137
     v139 = add v138, 32
     v140 = gt v137, 0xffffffffffffffff
     v141 = gt v139, v94
     v142 = or v140, v141
-    jumpi v142, bb28, bb41
-  bb41:
+    jumpi v142, bb3, bb39
+  bb39:
     v143 = mload v138
     v145 = add v143, 1
     v146 = lt v145, v143
-    jumpi v146, bb33, bb42
-  bb42:
+    jumpi v146, bb1, bb40
+  bb40:
     v147 = shl 5, v145
     v149 = shr 5, v147
     v150 = eq v149, v145
-    jumpi v150, bb43, bb33
-  bb43:
+    jumpi v150, bb41, bb1
+  bb41:
     v153 = mload 64 !metadata(memory=scratch, effect=memory_write)
     v209 = add v153, v147
     v210 = lt v209, v153
     v211 = gt v209, 0xffffffffffffffff
     v212 = or v210, v211
-    jumpi v212, bb52, bb51
-  bb51:
+    jumpi v212, bb50, bb49
+  bb49:
     mstore 64, v209 !metadata(memory=scratch)
     mstore v153, v143
     v154 = shl 5, v143
     v156 = shr 5, v154
     v157 = eq v156, v143
-    jumpi v157, bb44, bb33
-  bb44:
+    jumpi v157, bb42, bb1
+  bb42:
     v160 = sub v94, v139
     v161 = shr 5, v160
     v162 = gt v143, v161
-    jumpi v162, bb28, bb45
-  bb45:
+    jumpi v162, bb3, bb43
+  bb43:
     v199 = add v153, 32
     mcopy v199, v139, v154
     v202 = add v123, 32
@@ -341,16 +341,12 @@ fn @roundTrip() [selector=0x00746047, pure] {
     v164 = sub v133, 1
     v165 = add v134, 32
     v166 = add v135, 1
-    jump bb38
-  bb52:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    jump bb36
   bb50:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
-  bb33:
+  bb48:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
@@ -410,8 +406,6 @@ fn @roundTrip() [selector=0x00746047, pure] {
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb3:
-    revert 0, 0
-  bb28:
     revert 0, 0
 }
 

@@ -13,6 +13,9 @@
 //! ## Dead Function Elimination
 //! Remove functions that are never called, starting from entry points
 //! (public/external functions, constructor, fallback, receive).
+//!
+//! Terminal-block equivalence ignores source context. Shared instructions and
+//! terminators retain the bounded union of their original locations instead.
 
 use crate::{
     analysis::{CallGraphInfo, CfgInfo},
@@ -75,7 +78,6 @@ struct CanonBlock {
     term_mnemonic: &'static str,
     term_function: Option<FunctionId>,
     term_operands: Vec<CanonOperand>,
-    term_metadata: InstructionMetadata,
 }
 
 /// Alpha-equivalence key for one instruction of a terminal block.
@@ -221,6 +223,19 @@ impl CfgSimplifier {
         }
 
         for (dup, keep) in merges {
+            // duplicate instructions; terminal -> shared instructions; terminal
+            // Merge debug origins without changing the structural equivalence key.
+            let origins = func.blocks[keep]
+                .instructions
+                .iter()
+                .zip(&func.blocks[dup].instructions)
+                .map(|(&target, &source)| (target, func.inst(source).metadata.debug_context()))
+                .collect::<Vec<_>>();
+            for (target, metadata) in origins {
+                func.inst_mut(target).metadata.merge_debug_context(&metadata);
+            }
+            let metadata = func.blocks[dup].terminator_metadata.debug_context();
+            func.blocks[keep].terminator_metadata.merge_debug_context(&metadata);
             let predecessors: Vec<_> = func.blocks[dup].predecessors.to_vec();
             for pred in predecessors {
                 self.redirect_terminator(func, pred, dup, keep);
@@ -229,7 +244,7 @@ impl CfgSimplifier {
                 }
             }
             func.blocks[dup].instructions.clear();
-            func.blocks[dup].terminator = Some(Terminator::Invalid);
+            func.blocks[dup].set_generated_terminator(Terminator::Invalid);
             func.blocks[dup].predecessors.clear();
             self.stats.terminal_blocks_deduplicated += 1;
         }
@@ -302,7 +317,7 @@ impl CfgSimplifier {
             };
             let mut metadata = inst.metadata.clone();
             metadata.set_hir_expr(None);
-            metadata.set_source_span(None);
+            metadata.mark_debug_info_dropped();
             metadata.loop_depth = 0;
             insts.push(CanonInst {
                 mnemonic: inst.kind.mnemonic(),
@@ -316,13 +331,7 @@ impl CfgSimplifier {
         let term_function =
             if let Terminator::TailCall { function, .. } = term { Some(*function) } else { None };
         let term_operands = term.operands().into_iter().map(canon_operand).collect();
-        Some(CanonBlock {
-            insts,
-            term_mnemonic: term.mnemonic(),
-            term_function,
-            term_operands,
-            term_metadata: block.terminator_metadata.clone(),
-        })
+        Some(CanonBlock { insts, term_mnemonic: term.mnemonic(), term_function, term_operands })
     }
 
     fn simplify_trivial_phis(&mut self, func: &mut Function) {

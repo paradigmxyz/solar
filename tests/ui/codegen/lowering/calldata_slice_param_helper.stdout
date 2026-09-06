@@ -21,15 +21,13 @@ fn @lastWord2() [selector=0x97f495a8, pure] {
   bb0:
     v11 = calldatasize
     v12 = lt v11, 36
-    jumpi v12, bb3, bb4
-  bb4:
+    jumpi v12, bb1, bb3
+  bb3:
     v13 = icall @decode_calldata_slice, 1, 4
     v14 = calldataload v13
     v15 = add v13, 32
     v0 = icall @_last, 1, v15, v14
     jumpi v14, bb2, bb1
-  bb1:
-    revert 0, 0
   bb2:
     v6 = sub v14, 1
     v7 = add v15, 1
@@ -37,7 +35,7 @@ fn @lastWord2() [selector=0x97f495a8, pure] {
     v10 = xor v0, v9
     mstore 128, v10
     returndata 128, 32
-  bb3:
+  bb1:
     revert 0, 0
 }
 
