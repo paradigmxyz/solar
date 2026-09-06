@@ -97,3 +97,10 @@ fn @unlowered_arithmetic(arg0: u256) -> u256 {
     v0 = checked_add u256, arg0, 1
     ret v0
 }
+
+//~? ERROR: [fn12] [bb0, inst0] ABI validation instruction `validate_abi` survives the `lowered` phase boundary
+fn @pending_validation(arg0: u256) {
+  bb0:
+    validate_abi arg0
+    ret
+}

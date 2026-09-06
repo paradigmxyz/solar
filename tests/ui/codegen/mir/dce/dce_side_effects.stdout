@@ -84,3 +84,10 @@
       ret v0
   }
   
+  fn @abi_dependency(arg0: memorystruct) {
+    bb0:
+      v0 = memory_object_load_field memorystruct<1>, arg0, 0
+      validate_abi v0
+      ret
+  }
+  

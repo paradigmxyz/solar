@@ -840,6 +840,17 @@ impl<'a> Validator<'a> {
                     }
                 };
                 match func.inst(id).kind {
+                    InstKind::ValidateAbi(value) => {
+                        if func.inst(id).result_ty.is_some()
+                            || func.value_ty(value).is_none_or(|ty| !ty.is_word())
+                        {
+                            self.emit_at_inst(
+                                "ABI validation requires one word operand and no result",
+                                block,
+                                id,
+                            );
+                        }
+                    }
                     InstKind::CheckedBinary { arithmetic, lhs, rhs, .. } => {
                         let (crate::mir::ArithmeticKind::Unsigned(bits)
                         | crate::mir::ArithmeticKind::Signed(bits)) = arithmetic;

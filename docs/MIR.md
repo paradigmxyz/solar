@@ -193,8 +193,10 @@ undefined-behavior assumptions into Solidity checks or raw EVM operations.
 
 Correctness properties belong in operation semantics or verified analysis
 results. They must not depend on retaining optional source/debug metadata.
-In particular, replace keep-alive ABI-validation markers with explicit semantic
-validation as that lowering migrates. Keep genuine layout proofs and allocation
+`validate_abi` keeps a source ABI validation obligation explicit in the operand
+graph, including unused calldata struct fields. ABI lowering discharges it only
+when entry decoding or a typed internal body supplies the validation contract.
+This obligation round-trips through MIR text and cannot cross the lowered boundary. Keep genuine layout proofs and allocation
 semantics explicit; do not discard them as mere optimization hints.
 
 ### LLVM and MLIR lessons

@@ -163,13 +163,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && let TyKind::Fn(function) = field_ty.peel_refs().kind
             && function.is_external()
         {
-            let inst = match self.builder.func().value(value) {
-                Value::Inst(inst) => Some(*inst),
-                _ => None,
-            };
-            if let Some(inst) = inst {
-                self.builder.func_mut().inst_mut(inst).metadata.set_abi_validation(true);
-            }
+            // validate_abi field_value
+            self.builder.validate_abi(value);
         }
         Some(self.normalize_memory_scalar(field_ty, value))
     }

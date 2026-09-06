@@ -223,17 +223,6 @@ impl InstructionMetadata {
         self.flags.clear_deferred_alloc();
     }
 
-    /// Returns whether this instruction must survive optimization until ABI lowering.
-    #[must_use]
-    pub(crate) fn abi_validation(&self) -> bool {
-        self.flags.abi_validation()
-    }
-
-    /// Marks this instruction as an ABI validation dependency.
-    pub(crate) fn set_abi_validation(&mut self, value: bool) {
-        self.flags.set_abi_validation(value);
-    }
-
     /// Returns whether removing this allocation's FMP bump would change Solidity-visible state.
     #[must_use]
     pub(crate) fn preserves_fmp(&self) -> bool {
@@ -256,7 +245,6 @@ impl MetadataFlags {
     const EFFECT_SHIFT: u16 = 3;
     const UNCHECKED: u16 = 0b1000_0000;
     const DEFERRED_ALLOC: u16 = 0b1_0000_0000;
-    const ABI_VALIDATION: u16 = 0b10_0000_0000;
     const PRESERVES_FMP: u16 = 0b100_0000_0000;
     const DISPLAY_SOURCE_SPAN: u16 = 0b1000_0000_0000;
     const DEBUG_INFO_HANDLED: u16 = 0b1_0000_0000_0000;
@@ -307,18 +295,6 @@ impl MetadataFlags {
 
     fn clear_deferred_alloc(&mut self) {
         self.0 &= !Self::DEFERRED_ALLOC;
-    }
-
-    fn abi_validation(self) -> bool {
-        self.0 & Self::ABI_VALIDATION != 0
-    }
-
-    fn set_abi_validation(&mut self, value: bool) {
-        if value {
-            self.0 |= Self::ABI_VALIDATION;
-        } else {
-            self.0 &= !Self::ABI_VALIDATION;
-        }
     }
 
     fn preserves_fmp(self) -> bool {
@@ -704,7 +680,7 @@ pub(crate) struct Instruction {
 impl Instruction {
     /// Returns whether an unused instruction must retain its execution.
     pub(crate) fn must_execute(&self, observes_msize: bool) -> bool {
-        self.metadata.abi_validation() || self.kind.effects().must_execute(observes_msize)
+        self.kind.effects().must_execute(observes_msize)
     }
 
     /// Returns the semantic operation that still needs representation lowering.
@@ -721,6 +697,7 @@ impl Instruction {
             | InstKind::Sha256(..)
             | InstKind::Ripemd160(..)
             | InstKind::EcRecover(..) => Some("builtin"),
+            InstKind::ValidateAbi(..) => Some("ABI validation"),
             InstKind::AbiEncode { .. } => Some("ABI encoding"),
             InstKind::AbiDecode { .. } => Some("ABI decoding"),
             InstKind::StorageToMemory { .. }
@@ -1313,6 +1290,9 @@ pub(crate) enum InstKind {
     /// projections. `lower-memory-objects` expands it into those projections
     /// and a physical `keccak256`.
     Keccak256Bytes(ValueId),
+    /// Require materialization and ABI validation of this source value even when unused.
+    /// Entry decoding or an internal typed-body boundary discharges this obligation.
+    ValidateAbi(ValueId),
     /// SHA-256 of a bytes object, including precompile output allocation and returndata effects.
     Sha256(ValueId),
     /// Concatenate bytes objects and left-aligned fixed words into a fresh bytes object.
@@ -1575,6 +1555,7 @@ impl InstKind {
             Self::ExtractValue { aggregate: a, .. }
             | Self::MemoryObjectFromPtr { ptr: a, .. }
             | Self::WordCast(a)
+            | Self::ValidateAbi(a)
             | Self::Not(a)
             | Self::Clz(a)
             | Self::IsZero(a)
@@ -1872,6 +1853,7 @@ impl InstKind {
             Self::ExtractValue { aggregate: a, .. }
             | Self::MemoryObjectFromPtr { ptr: a, .. }
             | Self::WordCast(a)
+            | Self::ValidateAbi(a)
             | Self::Not(a)
             | Self::Clz(a)
             | Self::IsZero(a)
@@ -2127,6 +2109,7 @@ impl InstKind {
             Self::Keccak256(_, _) => "keccak256",
             Self::Keccak256Bytes(_) => "keccak256_bytes",
             Self::CheckedBinary { op, .. } => op.name(),
+            Self::ValidateAbi(_) => "validate_abi",
             Self::Concat(_) => "concat",
             Self::Sha256(_) => "sha256",
             Self::Ripemd160(_) => "ripemd160",
@@ -2196,7 +2179,8 @@ impl InstKind {
     #[must_use]
     pub(crate) const fn effect_kind(&self) -> EffectKind {
         match self {
-            Self::CheckedBinary { .. }
+            Self::ValidateAbi(..)
+            | Self::CheckedBinary { .. }
             | Self::InsertValue { .. }
             | Self::ExtractValue { .. }
             | Self::MemoryObjectFromPtr { .. }

@@ -929,6 +929,7 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (MirCos
         // Includes allocation, argument packing, the precompile call, and result extraction.
         InstKind::Sha256(_) | InstKind::Ripemd160(_) => (800, 64),
         InstKind::EcRecover(..) => (900, 100),
+        InstKind::ValidateAbi(_) => (0, 0),
         InstKind::CheckedBinary { op: crate::mir::CheckedOp::Pow, .. } => (300, 128),
         InstKind::CheckedBinary { .. } => (30, 20),
         InstKind::Concat(parts) => (60 + parts.len() as u64 * 20, 24 + parts.len() * 12),

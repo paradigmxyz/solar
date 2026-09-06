@@ -1237,6 +1237,7 @@ symbols! {
         uninitialized,
         unknown,
         unwrap,
+        validate_abi,
         value,
         void,
         word,

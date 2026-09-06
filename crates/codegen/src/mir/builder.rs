@@ -1195,6 +1195,12 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_inst(InstKind::WordCast(value), Some(MirType::uint256()))
     }
 
+    /// Preserve a source ABI validation obligation until interface lowering discharges it.
+    pub(crate) fn validate_abi(&mut self, value: ValueId) {
+        // validate_abi value
+        self.emit_void_inst(InstKind::ValidateAbi(value));
+    }
+
     /// Gives raw pointer bits an object type without checking the object.
     pub(crate) fn memory_object_from_ptr(
         &mut self,

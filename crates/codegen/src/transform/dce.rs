@@ -160,8 +160,7 @@ impl DeadCodeEliminator {
                 let inst = func.inst(inst_id);
 
                 // Instructions with side effects are always kept.
-                let discardable_call = !inst.metadata.abi_validation()
-                    && matches!(&inst.kind, InstKind::ICall { function, .. }
+                let discardable_call = matches!(&inst.kind, InstKind::ICall { function, .. }
                         if self.call_summaries.as_ref().and_then(|summaries| summaries.get(*function))
                             .is_some_and(|summary| summary.can_discard_call(observes_msize)));
                 if inst.must_execute(observes_msize) && !discardable_call {

@@ -1932,6 +1932,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     Some(mode.result_type()),
                 )
             }
+            sym::validate_abi => inst!(ValidateAbi(value)),
             sym::abi_decode => {
                 let layout = self.parse_abi_param_layout()?;
                 self.parser.expect(TokenKind::Comma)?;

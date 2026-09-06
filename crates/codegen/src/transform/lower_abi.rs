@@ -1002,8 +1002,17 @@ impl LowerAbiCx {
         body.attributes.is_abi_wrapper = false;
         Self::clear_abi_metadata(&mut body);
         body.attributes.visibility = solar_sema::hir::Visibility::Internal;
-        body.for_each_instruction_mut(|_, inst| inst.metadata.set_abi_validation(false));
+        Self::discharge_abi_validations(&mut body);
         body
+    }
+
+    fn discharge_abi_validations(func: &mut Function) {
+        // validate_abi value -> validated entry decoding or a typed internal argument
+        for block in func.blocks.indices() {
+            let mut instructions = std::mem::take(&mut func.blocks[block].instructions);
+            instructions.retain(|&id| !matches!(func.inst(id).kind, InstKind::ValidateAbi(_)));
+            func.blocks[block].instructions = instructions;
+        }
     }
 
     fn clear_abi_inputs(func: &mut Function) {
@@ -1412,7 +1421,7 @@ impl LowerAbiCx {
             Self::retag_calldata_slice_values(func, value);
         }
         Self::rewrite_calldata_canonicalization(func);
-        func.for_each_instruction_mut(|_, inst| inst.metadata.set_abi_validation(false));
+        Self::discharge_abi_validations(func);
         let order = std::iter::once(guard)
             .chain(func.blocks.indices().filter(|&block| block != guard))
             .collect::<Vec<_>>();
