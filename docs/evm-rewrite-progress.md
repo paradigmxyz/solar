@@ -22,14 +22,14 @@ PUSH widths. There is no Atom stream or assembly-level CFG optimization. MIR
 semantics remain in their retained layers. No legacy backend or temporary
 unsupported rewrite fallback is used.
 
-The current scope has 12,512 Rust lines across 35 files, versus 34,638 deleted
-raw lines: 22,126 fewer (64.0%). Counts include comments, blanks and local tests.
+The current scope has 12,520 Rust lines across 35 files, versus 34,638 deleted
+raw lines: 22,118 fewer (63.9%). Counts include comments, blanks and local tests.
 A historical production-only count was not retained and is not reconstructed
 from forbidden source.
 
 ## Current verification
 
-The committed lazy call-gas fix (`728f8df7`) has 1,358 workspace passes, one failing
+The committed shared stack analysis (`9897cc1a`) has 1,358 workspace passes, one failing
 UI aggregate and two skips. Its UI lane has 10,963 passes, 62 failures and 806
 filtered revisions. The added regression passes; remaining failure IDs are
 exactly unchanged from the writer checkpoint.
@@ -229,6 +229,26 @@ original writer the mixed −2.4%/+1.7% result shows no consistent remaining
 slowdown in these captures. Evidence is in `terminal-observer-lazy-20260906/`,
 `lazy-terminal-forwarded-review-20260906/` and
 `terminal-observer-lazy-focused-20260906/`.
+
+An early four-instruction literal-orientation rule was rejected and reverted.
+It saves one byte in AcyclicStackPhi and aggregate UI bytes, but 16 artifacts
+grow and 12 worsen sealed debts. FunctionPointerDirtyBits grows ten bytes:
+reordering consumes a high-bit mask before later CSE can reuse it, requiring a
+second compact mask at each of two sites. Both hot lanes pass. No heavy or quiet
+timing lane followed the size failure. The exact local rule and a separate late
+block-IR placement remain under review in `literal-orientation-trial-20260906/`
+and `acyclic-literal-orientation-draft-20260906/`.
+
+The committed compiler-time change (`9897cc1a`) shares normalized stack bounds and unknown-jump
+status between local-pass callers. Raw encoding validation remains separate,
+including concrete overflow rejection beside an unknown edge. All UI/hot/heavy
+outputs and 53 focused exit/stdout/stderr pairs are exact; workspace retains the
+same 62 failures. Its initial focused harness missed eight inline error
+annotations; the compiler results were already identical and the static
+classification correction is retained. Quiet paired times improve 53.22→53.01
+and 53.71→52.71 seconds (−0.4% / −1.9%); sampled maximum RSS rises
+582,352→634,640 and 581,912→634,880 KiB (+9.0% / +9.1%). This memory
+tradeoff remains explicit in `local-stack-facts-trial-20260906/`.
 
 An FMP-provenance screen found no eligible runtime root under the retained
 no-reset analysis, so no broader memory-disjointness assumption was introduced.
