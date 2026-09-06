@@ -211,11 +211,21 @@ pub(crate) fn lower(
     let reads_fmp = plan.max_dynamic_frame_size != 0
         || reachable.iter().any(|id| {
             let function = module.function(id);
-            function.instructions().any(|inst| {
-                if matches!(function.inst(inst).kind, mir::InstKind::InternalCall { .. }) {
-                    return false;
-                }
-                let effects = layouts[&id].alias.instruction_mod_ref(function, inst);
+            let alias = &layouts[&id].alias;
+            let instructions = function
+                .instructions()
+                .filter(|&inst| {
+                    !matches!(function.inst(inst).kind, mir::InstKind::InternalCall { .. })
+                })
+                .map(|inst| alias.instruction_mod_ref(function, inst));
+            // Call targets are scanned separately; their conservative summaries would erase
+            // otherwise proven disjoint terminal reads.
+            let terminals = function.blocks.iter().filter_map(|block| {
+                let terminator = block.terminator.as_ref()?;
+                (!matches!(terminator, mir::Terminator::TailCall { .. }))
+                    .then(|| alias.terminator_mod_ref(function, terminator))
+            });
+            instructions.chain(terminals).any(|effects| {
                 effects.observes_memory_size()
                     || super::spills::accesses_overlap(
                         &plan.functions[id],

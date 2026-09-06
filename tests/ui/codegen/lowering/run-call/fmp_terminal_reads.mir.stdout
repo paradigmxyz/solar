@@ -1,0 +1,27 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/fmp_terminal_reads.sol:FmpTerminalReads ===
+@module FmpTerminalReads
+fn @direct() [selector=0x222b1407, pure, abi_params=[], abi_returns=[]] {
+  bb0:
+    returndata 64, 32
+}
+
+fn @fail() [selector=0xa9cc4718, pure, abi_params=[], abi_returns=[]] {
+  bb0:
+    revert 64, 32
+}
+
+fn @slice(arg0: u256, arg1: u256) [selector=0x39bb463b, pure, abi_params=[u256, u256], abi_returns=[]] {
+  bb0:
+    returndata arg0, arg1
+}
+
+fn @failSlice(arg0: u256, arg1: u256) [selector=0x37ba5de9, pure, abi_params=[u256, u256], abi_returns=[]] {
+  bb0:
+    revert arg0, arg1
+}
+
+fn @wrapped(arg0: u256, arg1: u256, arg2: u256) [selector=0x89a8e302, pure, abi_params=[u256, u256, u256], abi_returns=[]] {
+  bb0:
+    v0 = add arg0, arg1
+    returndata v0, arg2
+}

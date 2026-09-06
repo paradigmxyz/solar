@@ -161,6 +161,18 @@ all 432 contract outputs exact. Cache lifetime and keys depend only on the
 immutable graph; validation/context widening remain unchanged. Evidence is in
 `verifier-recursion-memo/`.
 
+Terminal memory reads now participate in the global free-memory-pointer
+initialization check. Assembly return/revert previously returned zero when they
+read slot 64 directly; the fix matches the preserved compiler and pinned solc.
+The frozen replay retains 288 calls plus 180 isolated calls, and all four new
+UI revisions and 94 helper tests pass. Both hot reports remain byte/gas exact.
+The 717-success UI screen adds 127 creation and 109 runtime bytes per mode:
+82 larger artifacts, including 51 enlarged sealed debts and one new sealed debt
+(`TryErrorCatch` size creation 612 versus sealed 608). These correctness costs
+remain explicit while a separate definite-write analysis is investigated.
+`fmp-terminal-reads/` retains failures, corrected test directives, isolated
+return/revert and disjoint cases, source hashes and independent comparisons.
+
 A three-line identical-stack shortcut was rejected: output was exact, but its
 isolated compiler-time pair worsened 65.36→67.13 seconds (+2.7%). The one-line
 verifier resize replacement retains exact diagnostics, all UI bytecode and hot
