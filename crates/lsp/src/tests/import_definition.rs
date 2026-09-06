@@ -107,7 +107,7 @@ fn import_definition_discards_a_stale_vfs_result() {
         "/Main.sol",
     );
     let mut state = fixture.state();
-    let old_tables = state.symbol_tables.read().clone();
+    let old_tables = state.symbol_tables.load_full();
     state.mark_analysis_pending_for_test();
     let (uri, position) = fixture.marker_location("$1");
     let params = goto_params(uri, position);

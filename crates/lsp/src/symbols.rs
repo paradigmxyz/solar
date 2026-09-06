@@ -1111,19 +1111,15 @@ impl SymbolTables {
     ) -> Arc<[CompletionItem]> {
         // Member visibility and attached functions depend on both source and contract context.
         // Keep compiler types in this analysis-local cache and share only the owned LSP items.
-        let key = (ty, source, contract);
-        if let Some(items) = cache.get(&key) {
-            return Arc::clone(items);
-        }
-        let mut items = gcx
-            .members_of(ty, source, contract)
-            .map(|member| self.completion_item_for_member(gcx, member))
-            .collect::<Vec<_>>();
-        sort_completion_items(&mut items);
-        items.dedup_by(|a, b| a.label == b.label);
-        let items = Arc::from(items);
-        cache.insert(key, Arc::clone(&items));
-        items
+        Arc::clone(cache.entry((ty, source, contract)).or_insert_with(|| {
+            let mut items = gcx
+                .members_of(ty, source, contract)
+                .map(|member| self.completion_item_for_member(gcx, member))
+                .collect::<Vec<_>>();
+            sort_completion_items(&mut items);
+            items.dedup_by(|a, b| a.label == b.label);
+            Arc::from(items)
+        }))
     }
 
     fn push_declaration(&mut self, key: SymbolKey, declaration: DeclarationSymbol) -> SymbolId {

@@ -32,7 +32,7 @@ fn state(project: &TestProject) -> GlobalState {
     state.config = Arc::new(project.config());
     *state.vfs.write() = project.vfs();
     let output = analyze_project_output(project);
-    *state.symbol_tables.write() = output.result.symbol_tables;
+    state.symbol_tables.store(output.result.symbol_tables);
     state.analysis_commit.lock().analysis_paths = output.analysis_paths;
     state
 }

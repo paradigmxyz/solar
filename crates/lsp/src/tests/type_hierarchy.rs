@@ -692,7 +692,7 @@ fn requests_read_the_latest_published_analysis() {
     let sub_base =
         old_tables.prepare_type_hierarchy(&uri, Position::new(3, 10)).unwrap().pop().unwrap();
     let mut state = GlobalState::new(ClientSocket::new_closed());
-    *state.symbol_tables.write() = old_tables;
+    state.symbol_tables.store(old_tables);
     state.analysis_version.fetch_add(1, Ordering::AcqRel);
 
     let mut prepare = std::pin::pin!(crate::handlers::prepare_type_hierarchy(
@@ -738,7 +738,7 @@ fn requests_capture_the_analysis_epoch_when_created() {
     let base = tables.prepare_type_hierarchy(&uri, Position::new(0, 10)).unwrap().pop().unwrap();
     let child = tables.prepare_type_hierarchy(&uri, Position::new(1, 10)).unwrap().pop().unwrap();
     let mut state = GlobalState::new(ClientSocket::new_closed());
-    *state.symbol_tables.write() = tables;
+    state.symbol_tables.store(tables);
 
     let mut prepare = std::pin::pin!(crate::handlers::prepare_type_hierarchy(
         &mut state,

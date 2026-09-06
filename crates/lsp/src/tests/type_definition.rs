@@ -393,7 +393,7 @@ fn waits_for_current_analysis_before_returning_type_definitions() {
         partial_result_params: PartialResultParams::default(),
     };
     let mut state = GlobalState::new(ClientSocket::new_closed());
-    *state.symbol_tables.write() = old_tables;
+    state.symbol_tables.store(old_tables);
     state.analysis_version.fetch_add(1, Ordering::AcqRel);
 
     let mut request = std::pin::pin!(crate::handlers::goto_type_definition(&mut state, params));

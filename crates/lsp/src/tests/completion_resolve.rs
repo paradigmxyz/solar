@@ -168,7 +168,7 @@ async fn returns_stale_completion_item_unchanged_when_symbol_is_deleted() {
         )],
     ));
     assert!(replacement.diagnostics.is_empty());
-    *symbol_tables.write() = replacement.symbol_tables;
+    symbol_tables.store(replacement.symbol_tables);
 
     let resolved = request_resolve_item(&mut router, item.clone()).await;
 
@@ -345,7 +345,7 @@ async fn resolves_only_compatible_completion_items_across_analysis_batches() {
     let state = GlobalState::new(ClientSocket::new_closed());
     *state.vfs.write() = project.vfs();
     let symbol_tables = state.symbol_tables.clone();
-    *symbol_tables.write() = left.symbol_tables.clone();
+    symbol_tables.store(left.symbol_tables.clone());
     let mut router = crate::new_router_with_state(state);
     let item = request_completion_item_at(
         &mut router,
@@ -360,7 +360,7 @@ async fn resolves_only_compatible_completion_items_across_analysis_batches() {
     let mut results = AnalysisResultAccumulator::default();
     results.push(left);
     results.push(equivalent);
-    *symbol_tables.write() = results.finish().symbol_tables;
+    symbol_tables.store(results.finish().symbol_tables);
 
     let resolved = request_resolve_item(&mut router, item.clone()).await;
     assert!(resolved.documentation.is_some());
@@ -380,7 +380,7 @@ async fn resolves_only_compatible_completion_items_across_analysis_batches() {
     let mut results = AnalysisResultAccumulator::default();
     results.push(left);
     results.push(right);
-    *symbol_tables.write() = results.finish().symbol_tables;
+    symbol_tables.store(results.finish().symbol_tables);
 
     let resolved = request_resolve_item(&mut router, item.clone()).await;
 
@@ -409,7 +409,7 @@ async fn returns_completion_item_unchanged_for_conflicting_source_snapshots() {
     let mut results = AnalysisResultAccumulator::default();
     results.push(current);
     results.push(shifted);
-    *symbol_tables.write() = results.finish().symbol_tables;
+    symbol_tables.store(results.finish().symbol_tables);
 
     let resolved = request_resolve_item(&mut router, item.clone()).await;
 

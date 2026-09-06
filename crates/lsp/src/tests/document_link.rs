@@ -101,7 +101,7 @@ fn equivalent_percent_encoded_uri_returns_document_links() {
         partial_result_params: PartialResultParams::default(),
     };
     let mut state = GlobalState::new(ClientSocket::new_closed());
-    *state.symbol_tables.write() = tables;
+    state.symbol_tables.store(tables);
     let mut request = std::pin::pin!(crate::handlers::document_links(&mut state, params));
     let waker = Waker::noop();
     let mut context = Context::from_waker(waker);
@@ -205,7 +205,7 @@ fn waits_for_current_analysis_before_returning_document_links() {
         partial_result_params: PartialResultParams::default(),
     };
     let mut state = GlobalState::new(ClientSocket::new_closed());
-    *state.symbol_tables.write() = old_tables;
+    state.symbol_tables.store(old_tables);
     state.analysis_version.fetch_add(1, Ordering::AcqRel);
 
     let mut request = std::pin::pin!(crate::handlers::document_links(&mut state, params));

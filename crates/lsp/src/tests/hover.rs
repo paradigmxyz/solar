@@ -1221,7 +1221,7 @@ fn waits_for_latest_analysis_before_returning_hover() {
         work_done_progress_params: WorkDoneProgressParams::default(),
     };
     let mut state = GlobalState::new(ClientSocket::new_closed());
-    *state.symbol_tables.write() = old_tables;
+    state.symbol_tables.store(old_tables);
     state.mark_analysis_pending_for_test();
 
     let mut request = std::pin::pin!(crate::handlers::hover(&mut state, params));

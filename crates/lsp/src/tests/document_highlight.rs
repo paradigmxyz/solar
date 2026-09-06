@@ -275,7 +275,7 @@ fn waits_for_current_analysis_before_returning_highlights() {
         partial_result_params: PartialResultParams::default(),
     };
     let mut state = GlobalState::new(ClientSocket::new_closed());
-    *state.symbol_tables.write() = old_tables;
+    state.symbol_tables.store(old_tables);
     state.analysis_version.fetch_add(1, Ordering::AcqRel);
 
     let mut request = std::pin::pin!(crate::handlers::document_highlight(&mut state, params));

@@ -29,6 +29,7 @@ solar-interface = { workspace = true, features = ["json"] }
 solar-parse.workspace = true
 solar-sema.workspace = true
 
+arc-swap.workspace = true
 async-lsp = { workspace = true, features = ["omni-trait"] }
 crop = { workspace = true, features = ["utf16-metric"] }
 either.workspace = true

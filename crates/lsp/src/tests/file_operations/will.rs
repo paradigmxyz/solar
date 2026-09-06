@@ -33,7 +33,7 @@ fn state_with_config(project: &TestProject, config: Config) -> GlobalState {
     let mut state = GlobalState::new(ClientSocket::new_closed());
     state.config = Arc::new(config);
     *state.vfs.write() = project.vfs();
-    *state.symbol_tables.write() = output.result.symbol_tables;
+    state.symbol_tables.store(output.result.symbol_tables);
     state.analysis_commit.lock().analysis_paths = output.analysis_paths;
     state
 }
@@ -61,7 +61,7 @@ fn assert_will_file_operations_refuse_pruned_importer(
 
     let mut delete_state = state_with_config(project, config.clone());
     assert!(
-        delete_state.symbol_tables.read().document_links(&importer).is_empty(),
+        delete_state.symbol_tables.load().document_links(&importer).is_empty(),
         "pruned importer was unexpectedly analyzed: {}",
         importer.display()
     );
@@ -76,7 +76,7 @@ fn assert_will_file_operations_refuse_pruned_importer(
 
     let mut rename_state = state_with_config(project, config);
     assert!(
-        rename_state.symbol_tables.read().document_links(&importer).is_empty(),
+        rename_state.symbol_tables.load().document_links(&importer).is_empty(),
         "pruned importer was unexpectedly analyzed: {}",
         importer.display()
     );
@@ -687,7 +687,7 @@ fn will_rename_returns_import_edits_without_mutating_state() {
         "import \"./Target.sol\";"
     );
     assert_eq!(
-        state.symbol_tables.read().document_links(&importer)[0].target,
+        state.symbol_tables.load().document_links(&importer)[0].target,
         Some(old_target_uri)
     );
 }
