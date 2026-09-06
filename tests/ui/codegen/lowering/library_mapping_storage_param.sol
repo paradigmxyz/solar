@@ -41,12 +41,14 @@ contract C {
     // CHECK: mstore
     // CHECK: mstore
     // CHECK: keccak256
-    // CHECK-NEXT: dup 1
-    // CHECK: sload
-    // CHECK: push 1
-    // CHECK: add
+    // CHECK-NEXT: push 1
+    // CHECK-NEXT: dup 2
     // CHECK-NEXT: sload
-    // CHECK: add
+    // CHECK-NEXT: swap 2
+    // CHECK-NEXT: add
+    // CHECK-NEXT: sload
+    // CHECK-NEXT: dup 2
+    // CHECK-NEXT: add
     // CHECK: return
     function total(address k) external view returns (uint256) {
         return L.sum(reserves, k);

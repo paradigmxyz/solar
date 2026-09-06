@@ -8,32 +8,32 @@ bb0:
 @module C_runtime
 bb0:
   callvalue
-  push bb3
-  jumpi
+  jumpi bb13, bb11
+bb11:
   push 0
   calldataload
   push 224
   shr
-  dup 1
   push 0xd2514e84
   sub
-  push bb3
-  jumpi
-  push 36
+  jumpi bb13, bb1
+bb1:
   calldatasize
-  lt
-  push bb3
-  jumpi
+  push 36
+  gt
+  jumpi bb2, bb3
+bb3:
   push 4
   calldataload
   push 160
   shr
-  push bb3
-  jumpi
-  push bb7
-  push 0
+  jumpi bb2, bb4
+bb4:
   push 4
   calldataload
+  push 0
+  push bb15
+  swap 2
   push 0
   not
   push 96
@@ -46,36 +46,36 @@ bb0:
   push 64
   push 0
   keccak256
-  dup 1
-  sload
-  swap 1
   push 1
+  dup 2
+  sload
+  swap 2
   add
   sload
   dup 2
   add
   dup 1
-  push 256
-  mstore
-  swap 1
-  dup 2
-  lt
-  push bb11
-  jumpi
+  swap 2
+  gt
+  jumpi bb16, bb8
+bb8:
   swap 1
   jump
-bb3 [cold]:
-  push 0
-  push 0
-  revert
-bb7:
+bb15:
   push 128
   mstore
   push 32
   push 128
   return
-bb11 [cold]:
-  pop
+bb2:
+  push 0
+  push 0
+  revert
+bb13:
+  push 0
+  push 0
+  revert
+bb16:
   push 0x4e487b71
   push 224
   shl
