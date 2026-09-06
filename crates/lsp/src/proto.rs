@@ -9,7 +9,7 @@ use lsp_types::{
 };
 use solar_config::version::SHORT_VERSION;
 use solar_interface::{
-    BytePos, CharPos, SourceMap, Span,
+    BytePos, SourceMap, Span,
     data_structures::map::FxHashMap,
     diagnostics::{Diag, Level},
     source_map::SourceFile,
@@ -391,25 +391,24 @@ fn span_to_location_with(
     if file.start_pos != hi_file.start_pos {
         return None;
     }
-    let lo = file.lookup_file_pos(file.relative_position(span.lo()));
-    let hi = file.lookup_file_pos(file.relative_position(span.hi()));
-
     Some(lsp_types::Location {
         uri: uri(&file)?,
         range: lsp_types::Range {
-            start: lsp_position(&file, lo.0, lo.1)?,
-            end: lsp_position(&file, hi.0, hi.1)?,
+            start: lsp_position(&file, span.lo())?,
+            end: lsp_position(&file, span.hi())?,
         },
     })
 }
 
-fn lsp_position(file: &SourceFile, line: usize, column: CharPos) -> Option<lsp_types::Position> {
-    let line_index = line.checked_sub(1)?;
+fn lsp_position(file: &SourceFile, pos: BytePos) -> Option<lsp_types::Position> {
+    let offset = file.relative_position(pos);
+    let line_index = file.lookup_line(offset)?;
+    let start = file.lines()[line_index].to_usize();
+    let column = offset.to_usize().checked_sub(start)?;
     let character = if file.multibyte_chars.is_empty() {
         // Keep the old `get_line` behavior without scanning the line: a line's `lines` entry
         // includes the following `\n`, while LSP ranges stop before that terminator. A CRLF line
         // deliberately retains its `\r`, matching `get_line` and the previous conversion.
-        let start = file.lines().get(line_index)?.to_usize();
         let mut end = file
             .lines()
             .get(line_index + 1)
@@ -417,25 +416,14 @@ fn lsp_position(file: &SourceFile, line: usize, column: CharPos) -> Option<lsp_t
         if end > start && file.src.as_bytes().get(end - 1) == Some(&b'\n') {
             end -= 1;
         }
-        u32::try_from(column.to_usize().min(end.saturating_sub(start))).ok()?
+        u32::try_from(column.min(end.saturating_sub(start))).ok()?
     } else {
-        utf16_column(column, file.get_line(line_index)?)
+        // Only scan this line's prefix, not all multibyte characters preceding the line.
+        let line = file.get_line(line_index)?;
+        let prefix = line.get(..column.min(line.len()))?;
+        u32::try_from(prefix.encode_utf16().count()).ok()?
     };
     Some(lsp_types::Position::new(u32::try_from(line_index).ok()?, character))
-}
-
-/// Takes a UTF8 string slice and a UTF8 character position (relative to the line start), and
-/// converts the position to a UTF16 character position.
-fn utf16_column(utf8_pos: CharPos, line: &str) -> u32 {
-    let mut utf16_codepoints = 0;
-    for (idx, char) in line.chars().enumerate() {
-        if idx >= utf8_pos.to_usize() {
-            break;
-        }
-        utf16_codepoints += char.len_utf16();
-    }
-
-    utf16_codepoints as u32
 }
 
 #[inline]
@@ -616,6 +604,33 @@ mod tests {
         let location = super::span_to_location(&source_map, span).unwrap();
 
         assert_eq!(location.range, Range::new(Position::new(0, 4), Position::new(0, 9)));
+    }
+
+    #[test]
+    fn span_to_location_matches_character_columns_on_later_lines() {
+        let source = "// 😀中é\r\n// ─────────\ncontract C { string s = unicode\"😀é\"; }\n";
+        let source_map = SourceMap::empty();
+        let file = source_map
+            .new_source_file(std::env::temp_dir().join("MultilineLocation.sol"), source)
+            .unwrap();
+        for offset in source.char_indices().map(|(offset, _)| offset).chain([source.len()]) {
+            let pos = file.start_pos + BytePos::from_usize(offset);
+            let span = Span::new(pos, pos);
+            if span.is_dummy() {
+                continue;
+            }
+            let (line, column) = file.lookup_file_pos(file.relative_position(pos));
+            let expected_column = file
+                .get_line(line - 1)
+                .unwrap()
+                .chars()
+                .take(column.to_usize())
+                .map(char::len_utf16)
+                .sum::<usize>();
+            let location = super::span_to_location(&source_map, span).unwrap();
+            let expected = Position::new((line - 1) as u32, expected_column as u32);
+            assert_eq!(location.range, Range::new(expected, expected), "byte {offset}");
+        }
     }
 
     #[test]
