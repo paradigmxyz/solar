@@ -193,6 +193,27 @@ projects and timing were not run. The proposed private-control extension must
 preserve old observer-free decisions and prove any forwarded-gas restriction
 with execution evidence before changing them.
 
+Allowing live MSTORE operands within the existing sixteen-word window was
+rejected and reverted despite 700 correct focused calls and smaller UI output.
+The nested-struct audit's 48 calls all return correctly, but memory copying costs
+14 more gas under -Ogas and 243 more under -Osize, worsening sealed debts.
+All nine heavy projects compile with identical IDs and valid reference tables;
+eight artifacts grow despite aggregate savings of 631,797 creation and 538,576
+runtime bytes. Router falls from 24,648 to 24,313 runtime bytes, legitimately
+removing one 24,576-byte warning. The first strict audit rejected that missing
+warning; its corrected threshold proof and all eight increases remain explicit.
+No quiet timing was run. All helpers, Clippy and Foundry pass; workspace retains
+exactly 62 UI failures. Evidence is in `live-mstore-residents-trial-20260906/`,
+`live-mstore-residents-heavy-review-20260906/`,
+`live-mstore-residents-study-20260906/` and `live-mstore-nested-replay-20260906/`.
+
+The terminal followup now has concrete forwarded-CALL evidence: on the false
+path, adding JUMPDEST changes a child's returned GAS from 75,170 to 75,169 at a
+100,000-gas limit. Eighteen raw calls and a meaningful proposed UI fixture are
+retained in `terminal-owner-forwarded-call-20260906/`. Current work tests a
+narrow owner restriction for gas-forwarding modules while preserving prior
+observer-free decisions.
+
 An FMP-provenance screen found no eligible runtime root under the retained
 no-reset analysis, so no broader memory-disjointness assumption was introduced.
 Current work examines live MSTORE operands within the existing complete stack
