@@ -284,6 +284,12 @@ constructor grows 18 bytes but remains 18 below sealed, a separately investigate
 change rather than the rejection reason. No compiler timing was run after the
 decisive gas failure. Evidence is in `auto-perfect-cap16-{trial,focused,heavy}-20260906/`.
 
+Reusing perfect-table scratch storage was also rejected: both quiet pairs
+regressed, 52.35→53.09 and 52.36→53.11 seconds, despite exact full output for all
+432 Seaport contracts. The source is reverted. The model's allocation reduction
+was insufficient evidence for a speed claim; first-attempt clearing also adds
+work. `perfect-scratch-reuse-trial-20260906/` retains the measurements and proof.
+
 Finish all supported behavior and investigate every remaining assertion before
 updating it. Repeat full workspace/UI, Foundry, differential, both size corpora,
 all 24 project compilations and both identical-label hot-gas lanes on the final
