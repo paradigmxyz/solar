@@ -399,23 +399,34 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     instruction.result_ty = Some(*ty);
                 }
             }
-            // select cond, aggregate, aggregate -> a result with the aggregate's type
-            // Resolve after calls, including forward and numeric function references. Each select
-            // acquires an aggregate type at most once, so cyclic value references cannot oscillate.
+            // phi/select of aggregate operands -> an aggregate-typed result
+            // Resolve after calls, including forward and numeric function references. Each merge
+            // acquires a composite type at most once, so cyclic value references cannot oscillate.
             loop {
                 let mut changed = false;
                 for &id in &instructions {
                     let instruction = function.inst(id);
-                    if let InstKind::Select(_, a, b) = instruction.kind
-                        && !matches!(
-                            instruction.result_ty,
-                            Some(MirType::Struct(_) | MirType::Slice(_))
+                    let composite = |ty| {
+                        matches!(
+                            ty,
+                            MirType::Struct(_) | MirType::Slice(_) | MirType::MemoryObject(_)
                         )
-                        && let Some(ty) = [a, b]
+                    };
+                    if instruction.result_ty.is_some_and(composite) {
+                        continue;
+                    }
+                    let ty = match &instruction.kind {
+                        InstKind::Select(_, a, b) => [*a, *b]
                             .into_iter()
                             .filter_map(|value| function.value_ty(value))
-                            .find(|ty| matches!(ty, MirType::Struct(_) | MirType::Slice(_)))
-                    {
+                            .find(|&ty| composite(ty)),
+                        InstKind::Phi(incoming) => incoming
+                            .iter()
+                            .filter_map(|&(_, value)| function.value_ty(value))
+                            .find(|&ty| composite(ty)),
+                        _ => None,
+                    };
+                    if let Some(ty) = ty {
                         function.inst_mut(id).result_ty = Some(ty);
                         changed = true;
                     }

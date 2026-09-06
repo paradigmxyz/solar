@@ -6,6 +6,7 @@
     struct0: {}
     struct1: {calldataslice, u256}
     struct2: {memoryslice, struct0, struct1, returndataslice}
+    struct3: {memorybytes}
   
 - fn @pack(arg0: memoryslice, arg1: calldataslice, arg2: returndataslice) -> struct2 {
 + fn @pack(arg0: memoryslice, arg1: calldataslice, arg2: returndataslice) -> (memptr, u256, calldataptr, u256, u256, u256, u256) {
@@ -161,5 +162,54 @@
   fn @revert_stub() {
     bb0:
       revert 0, 0
+  }
+  
+- fn @phi_call_results(arg0: bool, arg1: calldataslice) -> struct1 {
++ fn @phi_call_results(arg0: bool, arg1: calldataslice) -> (calldataptr, u256, u256) {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb2:
+      v1 = icall @slice_identity, arg1
+      jump bb3
+    bb1:
+      v0 = icall @slice_identity, arg1
+      jump bb3
+    bb3:
+      v2 = phi [bb1: v0], [bb2: v1]
+      v3 = select arg0, v2, v2
+-     v4 = insert_value struct1, undef struct1, 0, v3
+-     v5 = insert_value struct1, v4, 1, 42
+-     ret v5
++     v6 = slice_ptr v3
++     v7 = slice_len v3
++     ret v6, v7, 42
+  }
+  
+  fn @slice_identity(arg0: calldataslice) -> calldataslice {
+    bb0:
+      ret arg0
+  }
+  
+- fn @memory_call_results(arg0: bool, arg1: memorybytes) -> struct3 {
++ fn @memory_call_results(arg0: bool, arg1: memorybytes) -> memorybytes {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb2:
+      v1 = icall @memory_identity, arg1
+      jump bb3
+    bb1:
+      v0 = icall @memory_identity, arg1
+      jump bb3
+    bb3:
+      v2 = phi [bb1: v0], [bb2: v1]
+      v3 = select arg0, v2, v2
+-     v4 = insert_value struct3, undef struct3, 0, v3
+-     ret v4
++     ret v3
+  }
+  
+  fn @memory_identity(arg0: memorybytes) -> memorybytes {
+    bb0:
+      ret arg0
   }
   
