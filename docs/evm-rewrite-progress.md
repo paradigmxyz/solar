@@ -22,8 +22,8 @@ PUSH widths. There is no Atom stream or assembly-level CFG optimization. MIR
 semantics remain in their retained layers. No legacy backend or temporary
 unsupported rewrite fallback is used.
 
-The current scope has 12,660 Rust lines across 36 files, versus 34,638 deleted
-raw lines: 21,978 fewer (63.5%). Counts include comments, blanks and local tests.
+The current scope has 12,792 Rust lines across 36 files, versus 34,638 deleted
+raw lines: 21,846 fewer (63.1%). Counts include comments, blanks and local tests.
 A historical production-only count was not retained and is not reconstructed
 from forbidden source.
 
@@ -33,12 +33,14 @@ The current workspace run has 1,358 passes, one failing UI aggregate and two
 skips. Expanded UI has 11,015 passes, 44 remaining failures and 806 filtered
 revisions. All 99 codegen helpers, Foundry and ordinary workspace/all-target
 Clippy pass. Thirty targeted revisions pass after reviewing ten changed
-snapshots and one comment-only FileCheck update; there are no new failures.
+snapshots and one comment-only FileCheck update; there are no new failures. The
+new recursive-writer fixture separately passes all four matrix revisions.
 
 The current quality ledger is `disjoint-mask-sealed-ledger-20260906/`;
 `absolute-unknown-range-trial-20260906/` preserves its optimized outputs exactly.
 All 694 original successful UI IDs and eight known failures match in each mode;
-31 added successes remain separate. Both hot lanes retain all 15 runtime cases,
+31 added successes remain separate in those captures; the recursive-writer
+fixture was added afterward and is separately verified. Both hot lanes retain all 15 runtime cases,
 175 ordered gas labels and exact observations. Nine heavy captures match the
 original inputs/settings, 1,672 contract IDs and 3,344 artifacts, including
 1,002 empty outputs and 14 linked-placeholder artifacts. The latest compiler-time
@@ -353,9 +355,33 @@ sealed return 1 and 2 instead of pinned solc's `0xdeadbeef`. This is not adopted
 as an expectation. `recursive-copy-depth-review-20260906/` isolates a
 15-argument recursive copy rejected with `InaccessibleDepth`; sealed and solc
 execute 24 reference calls successfully. Pressure planning omitted saved
-protocol words. Both defects predate the absolute-range change and remain
-completion blockers alongside the measured gas/size debts. The next scheduler
-trial accounts for those words; broader memory visibility requires separate work.
+protocol words. Both defects predate the absolute-range change. The scheduler gap is now
+fixed below; broader memory visibility remains a completion blocker alongside
+the measured gas/size debts.
+
+Protocol-aware pressure planning is accepted in `d5655a62` (+131 raw Rust lines),
+with regression coverage in `6ed236ff`. The existing checked scheduler includes
+possible saved control words; a single recheck handles the first dynamic frame
+created by spills. Absolute-only pre-layout overlap checks preserve the existing
+13-argument DUP16 boundary while the previously rejected 15-argument recursive
+copy now executes. An initial maximum-only variant was rejected for +580 runtime
+bytes and up to +2,999 gas on the supported boundary case; all evidence remains.
+The refinement has 324 focused oracle passes, 72 comparable gas rows and 36
+artifact rows exact. Both modes reach bounded solc agreement on an activated
+fixed-depth/copy subset; the initial path-limit failure is retained. Two mixed
+static-parent/dynamic-callee controls have 48 candidate/sealed passes with traced
+frame transitions; pinned solc rejects them as stack-too-deep. All UI/hot/heavy
+outputs and 540 reference sites remain exact, with the same 44 workspace UI
+failures. Quiet times improve 53.21→52.58 and 52.81→52.51 seconds (−1.2% / −0.6%);
+sampled RSS is mixed, 609,460→596,980 and 594,712→599,264 KiB (−2.0% / +0.8%).
+The measured binary precedes a same-order nested-if style cleanup; the final
+binary has three complete focused compiler-output pairs exact, four UI revisions
+and ordinary Clippy passing. Evidence is in `protocol-pressure-focused-20260906/`,
+`protocol-overlap-pressure-{trial,heavy-review-v2}-20260906/` and
+`protocol-pressure-final-style-20260906/`. The fresh scope recount corrects a
+one-line understatement in the prior progress total. The next isolated trial
+rematerializes immutable calldata reads to avoid their source-visible spill homes;
+that is a targeted repair, not a general unsafe-assembly memory solution.
 
 ## Evidence provenance
 
