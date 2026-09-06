@@ -22,21 +22,22 @@ PUSH widths. There is no Atom stream or assembly-level CFG optimization. MIR
 semantics remain in their retained layers. No legacy backend or temporary
 unsupported rewrite fallback is used.
 
-The current scope has 12,520 Rust lines across 35 files, versus 34,638 deleted
-raw lines: 22,118 fewer (63.9%). Counts include comments, blanks and local tests.
+The current scope has 12,615 Rust lines across 36 files, versus 34,638 deleted
+raw lines: 22,023 fewer (63.6%). Counts include comments, blanks and local tests.
 A historical production-only count was not retained and is not reconstructed
 from forbidden source.
 
 ## Current verification
 
-The committed shared stack analysis (`9897cc1a`) has 1,358 workspace passes, one failing
-UI aggregate and two skips. Its UI lane has 10,963 passes, 62 failures and 806
-filtered revisions. The added regression passes; remaining failure IDs are
-exactly unchanged from the writer checkpoint.
+The late-orientation workspace run has 1,358 passes, one failing UI aggregate
+and two skips. Its UI lane has 10,961 passes, 64 failures and 806 filtered
+revisions. The only two new failures were timing snapshots missing the new pass
+name; after reviewing their four added lines, all 20 focused UI checks pass,
+including the newly added revisioned fixtures. The original 62 failures remain.
 All 99 codegen helpers, Foundry and ordinary workspace/all-target Clippy pass. An additional deny-warnings invocation found
 existing warnings outside the changed scheduler; its failure remains retained.
 
-The current quality ledger is `writer-word-index-sealed-ledger-20260906/`.
+The current quality ledger is `late-literal-orientation-sealed-ledger-20260906/`.
 All 694 original successful UI IDs and eight known failures match in each mode;
 30 added successes remain separate. Both hot lanes retain all 15 runtime cases,
 175 ordered gas labels and exact observations. Nine heavy captures match the
@@ -117,14 +118,14 @@ cannot waive individual regressions.
 
 | Matched corpus | Creation-byte delta | Runtime-byte delta | Call-gas delta |
 | --- | ---: | ---: | ---: |
-| UI, gas (694 original successes) | +2,121 | +3,885 | — |
-| UI, size (694 original successes) | −30,193 | −25,648 | — |
-| Hot, gas (15 cases) | +17,721 | +18,158 | −27,313 |
-| Hot, size (15 cases) | +25,740 | +26,112 | −92,067 |
-| Heavy projects, original settings (9 cases) | +17,839,410 | +14,700,018 | — |
+| UI, gas (694 original successes) | +1,561 | +3,325 | — |
+| UI, size (694 original successes) | −30,889 | −26,344 | — |
+| Hot, gas (15 cases) | +17,717 | +18,154 | −27,793 |
+| Hot, size (15 cases) | +25,734 | +26,106 | −92,547 |
+| Heavy projects, original settings (9 cases) | +17,838,508 | +14,699,368 | — |
 
-There remain 768/555 larger UI artifacts, 20/19 larger hot artifacts and 24/30
-higher hot gas labels in gas/size mode, plus 1,102 larger heavy artifacts.
+There remain 760/550 larger UI artifacts, 20/19 larger hot artifacts and 24/30
+higher hot gas labels in gas/size mode, plus 1,101 larger heavy artifacts.
 SeaportRouter runtime is 24,648 versus sealed 9,822 bytes, down from an earlier
 rewrite's 48,812. Heavy captures establish size debt, not arbitrary runtime
 correctness. Required observer and arbitrary-memory correctness guards remain.
@@ -238,6 +239,20 @@ second compact mask at each of two sites. Both hot lanes pass. No heavy or quiet
 timing lane followed the size failure. The exact local rule and a separate late
 block-IR placement remain under review in `literal-orientation-trial-20260906/`
 and `acyclic-literal-orientation-draft-20260906/`.
+
+The late placement is accepted in `9c1b7639`. The final named pass preserves
+earlier constant reuse and rejects observers, unproved control and indexed
+jumps. Its 244 focused executions and two fresh bounded solsymdiff runs agree.
+No UI or heavy artifact grows: creation/runtime each shrink 562 bytes in gas
+mode and 698 in size mode; heavy totals shrink 902/650. Hot arithmetic calls
+save 30/150/300 gas per mode, with every other ordered label unchanged.
+The function-pointer regression is byte/gas exact. All 540 heavy reference
+sites and measured warning values validate. Quiet times rise 53.06→53.18 and
+52.79→53.11 seconds (+0.2% / +0.6%); sampled maximum RSS rises 0.7% / 0.5%.
+That small compiler cost is retained for the output-quality gain. Evidence is
+in `late-literal-orientation-{trial,runtime,heavy-review}-20260906/` and
+`late-literal-symbolic-20260906/`; the tracked fixtures cover both old and modern
+forks, metadata, observers and control exclusions.
 
 The committed compiler-time change (`9897cc1a`) shares normalized stack bounds and unknown-jump
 status between local-pass callers. Raw encoding validation remains separate,
