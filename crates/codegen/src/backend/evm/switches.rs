@@ -104,7 +104,8 @@ impl Planner {
                 if count > 256 {
                     break;
                 }
-                for shift in 0usize..256 {
+                // Beyond the largest key, every case collides at index zero.
+                for shift in 0usize..sorted.last().unwrap().0.bit_len() {
                     let mut occupied = vec![None; count];
                     let mut collision = false;
                     for &(key, target) in cases {
