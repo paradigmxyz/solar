@@ -2,6 +2,11 @@
 //!
 //! Simplification forwards empty jumps, removes redundant conditional edges,
 //! joins identical conditional successors, merges uniquely entered blocks, and
+//! folds exclusive one-literal arms to a shared continuation when their difference
+//! is a power of two. Literal selection uses ISZERO and a shift plus ADD/SUB,
+//! requires ordinary metadata and unchanged stack peak, and must reduce primitive
+//! bytes without increasing either path's gas. Code/gas/forwarded-gas observations
+//! disable this new rule; the existing simplifications retain their own policy. It
 //! retains the closure of all explicit and
 //! address-taken targets. Unknown computed jumps preserve the module, including
 //! the instructions whose references require those targets to have JUMPDESTs.
@@ -33,6 +38,8 @@ use super::{
     Block, BlockId, EvmPass, InstKind, Module, Terminator, TerminatorKind, verify::successors,
 };
 use crate::{backend::evm::op, timing::PassTimer};
+use alloy_primitives::U256;
+use solar_config::EvmVersion;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
 use solar_sema::Gcx;
 
@@ -47,8 +54,8 @@ impl EvmPass for CfgSimplify {
     fn name(&self) -> &'static str {
         "cfg-simplify"
     }
-    fn run_pass(&self, _gcx: Gcx<'_>, module: &mut Module) -> bool {
-        simplify(module)
+    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
+        simplify(module, gcx.sess.opts.evm_version)
     }
 }
 impl EvmPass for BlockLayout {
@@ -129,7 +136,7 @@ fn redirect(module: &mut Module, targets: &IndexVec<BlockId, BlockId>) -> bool {
     changed
 }
 
-fn simplify(module: &mut Module) -> bool {
+fn simplify(module: &mut Module, version: EvmVersion) -> bool {
     if module.block_ids().any(|id| {
         module.blocks[id].terminator.kind == TerminatorKind::DynamicJump
             || module.blocks[id].insts.iter().any(|inst| inst.kind == InstKind::Op(op::JUMPI))
@@ -140,6 +147,7 @@ fn simplify(module: &mut Module) -> bool {
     if empty_revert_program(module) {
         return true;
     }
+    let mut allow_literal_selection = None;
     let mut changed = false;
     loop {
         let ids = module.block_ids().collect::<Vec<_>>();
@@ -224,6 +232,30 @@ fn simplify(module: &mut Module) -> bool {
             }
         }
         let mut removed = DenseBitSet::new_empty(module.blocks.len());
+        if version.has_bitwise_shifting() && allow_literal_selection != Some(false) {
+            for &id in &ids {
+                if let Some((selection, [yes, no, join])) =
+                    literal_diamond(module, id, &incoming, &exposed, &removed, version)
+                    && *allow_literal_selection.get_or_insert_with(|| {
+                        !sharing_observes_code(module)
+                            && !module
+                                .block_ids()
+                                .any(|id| module.blocks[id].insts.iter().any(observes_gas))
+                    })
+                {
+                    let continuation = module.blocks[join].clone();
+                    // condition; jumpi {push yes}, {push no}; shared continuation
+                    // iszero; scale difference; select literal; shared continuation
+                    module.blocks[id].insts.extend(selection);
+                    module.blocks[id].insts.extend(continuation.insts);
+                    module.blocks[id].terminator = continuation.terminator;
+                    removed.insert(yes);
+                    removed.insert(no);
+                    removed.insert(join);
+                    progress = true;
+                }
+            }
+        }
         for &id in &ids {
             if !removed.contains(id)
                 && let TerminatorKind::Jump(target) = module.blocks[id].terminator.kind
@@ -262,6 +294,81 @@ fn simplify(module: &mut Module) -> bool {
             return changed;
         }
     }
+}
+
+/// Collapses an exclusive two-literal diamond without introducing a transfer.
+fn literal_diamond(
+    module: &Module,
+    id: BlockId,
+    incoming: &IndexVec<BlockId, usize>,
+    exposed: &DenseBitSet<BlockId>,
+    removed: &DenseBitSet<BlockId>,
+    version: EvmVersion,
+) -> Option<(Vec<super::Instruction>, [BlockId; 3])> {
+    let parent = &module.blocks[id];
+    let TerminatorKind::JumpI(yes, no) = parent.terminator.kind else { return None };
+    let a = &module.blocks[yes];
+    let b = &module.blocks[no];
+    let TerminatorKind::Jump(join) = a.terminator.kind else { return None };
+    if parent.terminator.stack_effect.is_some()
+        || a.terminator.stack_effect.is_some()
+        || b.terminator.stack_effect.is_some()
+        || b.terminator.kind != TerminatorKind::Jump(join)
+        || yes == no
+        || yes == join
+        || no == join
+        || id == join
+        || incoming[yes] != 1
+        || incoming[no] != 1
+        || incoming[join] != 2
+        || removed.contains(id)
+        || [yes, no, join].iter().any(|&block| {
+            block == id
+                || Some(block) == module.block_ids().next()
+                || exposed.contains(block)
+                || removed.contains(block)
+                || module.blocks[block].loop_header
+                || module.blocks[block].cold != parent.cold
+        })
+    {
+        return None;
+    }
+    let [yes_push] = a.insts.as_slice() else { return None };
+    let [no_push] = b.insts.as_slice() else { return None };
+    let (InstKind::Push(yes_value), InstKind::Push(no_value)) = (&yes_push.kind, &no_push.kind)
+    else {
+        return None;
+    };
+    if yes_push.stack_effect.is_some() || no_push.stack_effect.is_some() || yes_value == no_value {
+        return None;
+    }
+    let difference =
+        if no_value > yes_value { *no_value - *yes_value } else { *yes_value - *no_value };
+    if !(difference & (difference - U256::ONE)).is_zero() {
+        return None;
+    }
+    // condition -> !condition -> (!condition << log2(difference))
+    // yes + delta, or yes - delta
+    let mut selection = vec![InstKind::Op(op::ISZERO).into()];
+    let shift = difference.trailing_zeros();
+    if shift != 0 {
+        selection.extend([InstKind::Push(U256::from(shift)).into(), InstKind::Op(op::SHL).into()]);
+    }
+    selection.extend([
+        InstKind::Push(*yes_value).into(),
+        InstKind::Op(if no_value > yes_value { op::ADD } else { op::SUB }).into(),
+    ]);
+    let cost = super::immediate::cost(version, &selection);
+    let a_cost = super::immediate::cost(version, &a.insts);
+    let b_cost = super::immediate::cost(version, &b.insts);
+    // At least one arm jumps to the join; both its destination and the taken
+    // arm need JUMPDEST. Every path pays JUMPI, one literal and the join label.
+    if cost.0 >= 8 + a_cost.0 + b_cost.0 || cost.1 > 14 + a_cost.1.min(b_cost.1) {
+        return None;
+    }
+    // Selection needs one word and peaks one above it, exactly the original
+    // condition plus temporary JUMPI target. The joined body sees the same stack.
+    Some((selection, [yes, no, join]))
 }
 
 fn layout(module: &mut Module) -> bool {
