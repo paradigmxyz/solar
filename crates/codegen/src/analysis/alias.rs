@@ -294,7 +294,13 @@ impl ModRef {
         self.writes.iter().any(|&access| aa.access_may_alias(access, location))
     }
 
-    fn merge_call_summary(&mut self, summary: &super::memory_summary::FunctionMemorySummary) {
+    fn merge_call_summary(
+        &mut self,
+        summary: &super::memory_summary::FunctionMemorySummary,
+        func: &Function,
+        aa: &AliasAnalysis,
+        args: &[ValueId],
+    ) {
         for space in [
             AddressSpace::Memory,
             AddressSpace::Storage,
@@ -312,7 +318,11 @@ impl ModRef {
                         self.read(access);
                     }
                 };
-                if let Some(slots) = summary.storage_slots(space, write) {
+                if space == AddressSpace::Memory {
+                    for access in summary.memory_accesses(func, aa, args, write) {
+                        record(access);
+                    }
+                } else if let Some(slots) = summary.storage_slots(space, write) {
                     for &slot in slots {
                         let location = match space {
                             AddressSpace::Storage => Location::Storage(StorageAlias::Slot(slot)),
@@ -544,7 +554,7 @@ impl AliasAnalysis {
         {
             address.region = region;
         }
-        Some(MemoryLocation::new(address, size))
+        Self::bounded_memory_location(func, address, size)
     }
 
     /// Returns the physical word holding a semantic memory object's length.
@@ -563,7 +573,11 @@ impl AliasAnalysis {
         {
             address.region = region;
         }
-        Some(MemoryLocation::new(address, LocationSize::Const(EvmMemoryLayout::WORD_SIZE)))
+        Self::bounded_memory_location(
+            func,
+            address,
+            LocationSize::Const(EvmMemoryLayout::WORD_SIZE),
+        )
     }
 
     /// Returns the physical word holding a semantic memory object's field.
@@ -583,7 +597,11 @@ impl AliasAnalysis {
         {
             address.region = region;
         }
-        Some(MemoryLocation::new(address, LocationSize::Const(EvmMemoryLayout::WORD_SIZE)))
+        Self::bounded_memory_location(
+            func,
+            address,
+            LocationSize::Const(EvmMemoryLayout::WORD_SIZE),
+        )
     }
 
     /// Returns the physical word holding a semantic memory object's element.
@@ -605,7 +623,11 @@ impl AliasAnalysis {
         {
             address.region = region;
         }
-        Some(MemoryLocation::new(address, LocationSize::Const(EvmMemoryLayout::WORD_SIZE)))
+        Self::bounded_memory_location(
+            func,
+            address,
+            LocationSize::Const(EvmMemoryLayout::WORD_SIZE),
+        )
     }
 
     /// Creates a memory location without instruction metadata.
@@ -616,7 +638,34 @@ impl AliasAnalysis {
         address: ValueId,
         size: LocationSize,
     ) -> Option<MemoryLocation> {
-        Some(MemoryLocation::new(self.memory_address(func, address)?, size))
+        Self::bounded_memory_location(func, self.memory_address(func, address)?, size)
+    }
+
+    /// Retains allocation disjointness only when the complete access fits its allocation.
+    fn bounded_memory_location(
+        func: &Function,
+        mut address: MemoryAddress,
+        size: LocationSize,
+    ) -> Option<MemoryLocation> {
+        if let MemoryBase::Allocation(inst) | MemoryBase::DynamicAllocation(inst) = address.base {
+            let bound = match func.inst(inst).kind {
+                InstKind::Alloc { size, .. } => func.value_u64(size),
+                _ => None,
+            };
+            let within_bounds = size.as_const().is_some_and(|size| {
+                size == 0
+                    || address
+                        .offset
+                        .checked_add(size)
+                        .zip(bound)
+                        .is_some_and(|(end, bound)| end <= bound)
+            });
+            if !within_bounds {
+                address.base = MemoryBase::Value(func.inst_result_value(inst)?);
+                address.region = MemoryRegion::Unknown;
+            }
+        }
+        Some(MemoryLocation::new(address, size))
     }
 
     /// Converts a MIR size operand to a canonical location size.
@@ -1225,7 +1274,9 @@ impl AliasAnalysis {
                 if let Some(summary) =
                     self.call_summaries.as_deref().and_then(|summaries| summaries.get(function))
                 {
-                    effects.merge_call_summary(summary);
+                    let args =
+                        kind.operands().into_iter().map(resolve).collect::<SmallVec<[_; 8]>>();
+                    effects.merge_call_summary(summary, func, self, &args);
                 } else {
                     effects.read_any(AddressSpace::Memory);
                     effects.write_any(AddressSpace::Memory);
@@ -1278,7 +1329,7 @@ impl AliasAnalysis {
                 if let Some(summary) =
                     self.call_summaries.as_deref().and_then(|summaries| summaries.get(function))
                 {
-                    effects.merge_call_summary(summary);
+                    effects.merge_call_summary(summary, func, self, &terminator.operands());
                 } else {
                     effects.read_any(AddressSpace::Memory);
                     effects.write_any(AddressSpace::Memory);

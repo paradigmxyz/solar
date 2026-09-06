@@ -8,6 +8,11 @@
 //@ run-call: observedReturn() => 7
 //@ run-call-fail: observedRevert() => 0x0000000000000000000000000000000000000000000000000000000000000007
 
+//@ run-call: memoryDisjoint() => 20
+//@ run-call: memoryOverlap() => 17
+//@ run-call: memoryPartialOverlap() => 10
+//@ run-call: memoryRecursive() => 17
+
 contract InternalCallEffects {
     function disjoint() external returns (uint256) {
         assembly { sstore(0, 10) }
@@ -70,6 +75,51 @@ contract InternalCallEffects {
         assembly { mstore(128, 7) }
         revertMemory();
         assembly { mstore(128, 9) }
+    }
+
+    function memoryDisjoint() external pure returns (uint256) {
+        uint256[2] memory values = [uint256(10), uint256(20)];
+        uint256 pointer;
+        assembly { pointer := values }
+        uint256 before = values[0];
+        writeMemory(pointer + 32);
+        return before + values[0];
+    }
+
+    function memoryOverlap() external pure returns (uint256) {
+        uint256[2] memory values = [uint256(10), uint256(20)];
+        uint256 pointer;
+        assembly { pointer := values }
+        uint256 before = values[0];
+        writeMemory(pointer);
+        return before + values[0];
+    }
+
+    function memoryPartialOverlap() external pure returns (uint256) {
+        uint256[2] memory values = [uint256(10), uint256(20)];
+        uint256 pointer;
+        assembly { pointer := values }
+        uint256 before = values[0];
+        writeMemory(pointer + 1);
+        return before + values[0];
+    }
+
+    function memoryRecursive() external pure returns (uint256) {
+        uint256[3] memory values = [uint256(10), uint256(20), uint256(30)];
+        uint256 pointer;
+        assembly { pointer := values }
+        uint256 before = values[0];
+        writeMemoryRecursive(pointer, 2);
+        return before + values[0];
+    }
+
+    function writeMemory(uint256 pointer) internal pure {
+        assembly { mstore(pointer, 7) }
+    }
+
+    function writeMemoryRecursive(uint256 pointer, uint256 depth) internal pure {
+        writeMemory(pointer);
+        if (depth != 0) writeMemoryRecursive(pointer + 32, depth - 1);
     }
 
     function writeOne() internal {

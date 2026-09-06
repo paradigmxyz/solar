@@ -36,6 +36,25 @@
       ret 0
   }
   
+  fn @zero_sized_write() -> u256 {
+    bb0:
+      v0 = alloc raw, exact, uninitialized, infallible, 0
+      mstore v0, 7
+      v1 = fmp
+      v2 = mload v1
+      ret v2
+  }
+  
+  fn @write_past_allocation() -> u256 {
+    bb0:
+      v0 = alloc raw, exact, uninitialized, infallible, 32
+      v1 = alloc raw, exact, uninitialized, infallible, 32
+      v2 = add v0, 32
+      mstore v2, 7
+      v3 = mload v1
+      ret v3
+  }
+  
 - // === ROOT/tests/ui/codegen/mir/copy-elision/write_only.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/copy-elision/write_only.mir (after dce) ===
   @module CopyElision
@@ -71,5 +90,24 @@
       mstore v1, 9
       mstore8 0, v1
       ret 0
+  }
+  
+  fn @zero_sized_write() -> u256 {
+    bb0:
+      v0 = alloc raw, exact, uninitialized, infallible, 0
+      mstore v0, 7
+      v1 = fmp
+      v2 = mload v1
+      ret v2
+  }
+  
+  fn @write_past_allocation() -> u256 {
+    bb0:
+      v0 = alloc raw, exact, uninitialized, infallible, 32
+      v1 = alloc raw, exact, uninitialized, infallible, 32
+      v2 = add v0, 32
+      mstore v2, 7
+      v3 = mload v1
+      ret v3
   }
   

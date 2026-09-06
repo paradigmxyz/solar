@@ -3,15 +3,21 @@
 //! Summaries are computed to a fixpoint over internal-call edges. Missing
 //! bodies stay fully conservative; recursive groups converge because every
 //! effect grows monotonically. Persistent and transient storage retain bounded sets of exact
-//! slots; symbolic accesses and oversized sets widen to the entire address space. No callee-local
+//! slots. Memory retains fixed byte ranges relative to formal parameters or absolute addresses.
+//! Unknown accesses and oversized sets widen to the entire address space. Actual arguments
+//! instantiate each call footprint; allocation-relative ranges require a bounds proof before
+//! they can benefit from allocation disjointness. No callee-local
 //! value identities escape into a caller summary.
 
-use super::{Access, AddressSpace, AliasAnalysis, Location};
+use super::{
+    Access, AddressSpace, AliasAnalysis, Location, LocationSize, MemoryAddress, MemoryBase,
+    MemoryLocation,
+};
 use crate::{
     memory::EvmMemoryLayout,
     mir::{
-        ArgIdx, Function, FunctionId, InstId, InstKind, Module, StorageAlias, Terminator, Value,
-        ValueId,
+        ArgIdx, Function, FunctionId, InstId, InstKind, MemoryRegion, Module, StorageAlias,
+        Terminator, Value, ValueId,
     },
 };
 use alloy_primitives::U256;
@@ -51,6 +57,92 @@ impl SlotFootprint {
     }
 }
 
+/// A memory base that remains meaningful outside the function declaring it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum FootprintBase {
+    Absolute,
+    Parameter(ArgIdx),
+}
+
+/// One fixed byte range relative to an absolute address or formal parameter.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+struct MemoryRange {
+    base: FootprintBase,
+    offset: u64,
+    size: u64,
+}
+
+impl MemoryRange {
+    fn export(func: &Function, access: Access) -> Option<Self> {
+        let Access::Location(Location::Memory(location)) = access else { return None };
+        let size = location.size.as_const()?;
+        location.address.offset.checked_add(size)?;
+        let base = match location.address.base {
+            MemoryBase::Absolute => FootprintBase::Absolute,
+            MemoryBase::Value(value) => {
+                let Value::Arg(index) = func.value(value) else { return None };
+                FootprintBase::Parameter(*index)
+            }
+            _ => return None,
+        };
+        Some(Self { base, offset: location.address.offset, size })
+    }
+
+    fn instantiate(
+        self,
+        func: &Function,
+        aa: &AliasAnalysis,
+        args: &[ValueId],
+    ) -> Option<MemoryLocation> {
+        let mut address = match self.base {
+            FootprintBase::Absolute => MemoryAddress::absolute(self.offset),
+            FootprintBase::Parameter(index) => {
+                aa.memory_address(func, *args.get(index.index())?)?.checked_add(self.offset)?
+            }
+        };
+        let end = address.offset.checked_add(self.size)?;
+        match address.base {
+            MemoryBase::Allocation(inst) | MemoryBase::DynamicAllocation(inst) => {
+                let InstKind::Alloc { size, .. } = func.inst(inst).kind else { return None };
+                if end > func.value_u64(size)? {
+                    return None;
+                }
+            }
+            MemoryBase::InternalFrame => return None,
+            _ => {}
+        }
+        // A range may cross region boundaries even when its starting pointer does not.
+        address.region = MemoryRegion::Unknown;
+        Some(MemoryLocation::new(address, LocationSize::Const(self.size)))
+    }
+}
+
+/// A bounded set of byte ranges. Widening is sticky, including across recursive calls.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct MemoryFootprint {
+    ranges: BTreeSet<MemoryRange>,
+    unknown: bool,
+}
+
+impl MemoryFootprint {
+    fn insert(&mut self, range: Option<MemoryRange>) {
+        if self.unknown {
+            return;
+        }
+        if let Some(range) = range {
+            if range.size == 0 {
+                return;
+            }
+            self.ranges.insert(range);
+            if self.ranges.len() <= 32 {
+                return;
+            }
+        }
+        self.unknown = true;
+        self.ranges.clear();
+    }
+}
+
 /// Conservative memory effects and pointer captures for one MIR function.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct FunctionMemorySummary {
@@ -62,6 +154,8 @@ pub(crate) struct FunctionMemorySummary {
     slot_reads: [SlotFootprint; 2],
     /// Exact persistent and transient storage writes.
     slot_writes: [SlotFootprint; 2],
+    memory_reads: MemoryFootprint,
+    memory_writes: MemoryFootprint,
     may_reset_fmp: bool,
     /// Whether the function may move the free-memory pointer below its current value.
     may_recycle_fmp: bool,
@@ -84,6 +178,8 @@ impl FunctionMemorySummary {
             writes: 0,
             slot_reads: Default::default(),
             slot_writes: Default::default(),
+            memory_reads: Default::default(),
+            memory_writes: Default::default(),
             may_reset_fmp: false,
             may_recycle_fmp: false,
             may_observe_fmp: false,
@@ -105,6 +201,8 @@ impl FunctionMemorySummary {
                 unknown: true,
                 ..Default::default()
             }),
+            memory_reads: MemoryFootprint { unknown: true, ..Default::default() },
+            memory_writes: MemoryFootprint { unknown: true, ..Default::default() },
             may_reset_fmp: true,
             may_recycle_fmp: true,
             may_observe_fmp: true,
@@ -181,12 +279,35 @@ impl FunctionMemorySummary {
         (!footprint.unknown).then_some(&footprint.slots)
     }
 
-    fn record_access(&mut self, access: Access, write: bool) {
+    /// Instantiates bounded memory effects using the caller's actual pointer arguments.
+    pub(crate) fn memory_accesses(
+        &self,
+        func: &Function,
+        aa: &AliasAnalysis,
+        args: &[ValueId],
+        write: bool,
+    ) -> impl Iterator<Item = Access> {
+        let footprint = if write { &self.memory_writes } else { &self.memory_reads };
+        footprint.unknown.then_some(Access::Any(AddressSpace::Memory)).into_iter().chain(
+            footprint.ranges.iter().map(move |range| {
+                range
+                    .instantiate(func, aa, args)
+                    .map(|location| Access::Location(Location::Memory(location)))
+                    .unwrap_or(Access::Any(AddressSpace::Memory))
+            }),
+        )
+    }
+
+    fn record_access(&mut self, func: &Function, access: Access, write: bool) {
         let space = access.address_space();
         if write {
             self.writes |= 1 << space_index(space);
         } else {
             self.reads |= 1 << space_index(space);
+        }
+        if space == AddressSpace::Memory {
+            let footprint = if write { &mut self.memory_writes } else { &mut self.memory_reads };
+            footprint.insert(MemoryRange::export(func, access));
         }
         if let Some(index) = slot_space_index(space) {
             let slot = match access {
@@ -327,6 +448,12 @@ fn merge_call(
         &conservative
     };
     summary.merge_effects(callee);
+    let aa = AliasAnalysis::new(func);
+    for write in [false, true] {
+        for access in callee.memory_accesses(func, &aa, args, write) {
+            summary.record_access(func, access, write);
+        }
+    }
     for (index, &arg) in args.iter().enumerate() {
         if callee.captures_param(ArgIdx::new(index)) {
             capture_sources(summary, func, sources, arg);
@@ -374,17 +501,17 @@ fn local_summary(
                 // backend lowering. That traffic exists in no MIR body, so it
                 // must be a local memory effect of the calling function.
                 if *returns > 1 {
-                    summary.reads |= 1 << space_index(AddressSpace::Memory);
-                    summary.writes |= 1 << space_index(AddressSpace::Memory);
+                    summary.record_access(func, Access::Any(AddressSpace::Memory), false);
+                    summary.record_access(func, Access::Any(AddressSpace::Memory), true);
                 }
                 continue;
             }
             let effects = aa.instruction_mod_ref(func, inst_id);
             for &access in effects.reads() {
-                summary.record_access(access, false);
+                summary.record_access(func, access, false);
             }
             for &access in effects.writes() {
-                summary.record_access(access, true);
+                summary.record_access(func, access, true);
             }
             summary.may_reset_fmp |= aa.instruction_may_reset_fmp(func, inst_id);
             summary.may_recycle_fmp |= instruction_may_recycle_fmp(func, inst_id);
@@ -430,10 +557,10 @@ fn local_summary(
         {
             let effects = aa.terminator_mod_ref(func, term);
             for &access in effects.reads() {
-                summary.record_access(access, false);
+                summary.record_access(func, access, false);
             }
             for &access in effects.writes() {
-                summary.record_access(access, true);
+                summary.record_access(func, access, true);
             }
         }
 
@@ -732,6 +859,7 @@ mod tests {
     use super::*;
     use crate::mir::{FunctionBuilder, MirType};
     use solar_interface::{Ident, sym};
+    use std::sync::Arc;
 
     #[test]
     fn propagates_terminator_memory_reads() {
@@ -742,7 +870,8 @@ mod tests {
                 {
                     let mut builder = FunctionBuilder::new(&mut leaf);
                     // return/revert memory[offset..offset + size]
-                    let offset = builder.imm(128);
+                    let pointer = builder.add_param(MirType::MemPtr);
+                    let offset = builder.add_u64_offset(pointer, 32);
                     let size = builder.imm(32);
                     let term = if revert {
                         Terminator::Revert { offset, size }
@@ -755,16 +884,17 @@ mod tests {
                 let mut caller = Function::new(Ident::with_dummy_span(sym::icall));
                 {
                     let mut builder = FunctionBuilder::new(&mut caller);
+                    let pointer = builder.imm(128);
                     if tail {
-                        // tail_call leaf()
+                        // tail_call leaf(128)
                         builder.set_terminator(Terminator::TailCall {
                             function: leaf,
-                            args: Default::default(),
+                            args: vec![pointer].into(),
                         });
                     } else {
-                        // icall leaf()
+                        // icall leaf(128)
                         // ret
-                        builder.icall_void(leaf, vec![], 0);
+                        builder.icall_void(leaf, vec![pointer], 0);
                         builder.ret([]);
                     }
                 }
@@ -775,6 +905,26 @@ mod tests {
                     assert!(summary.reads(AddressSpace::Memory), "revert={revert}, tail={tail}");
                     assert!(!summary.writes(AddressSpace::Memory));
                 }
+                let func = module.function(caller);
+                let aa = AliasAnalysis::with_call_summaries(func, Arc::new(summaries));
+                let effects = if tail {
+                    aa.terminator_mod_ref(
+                        func,
+                        func.blocks[crate::mir::BlockId::ENTRY].terminator.as_ref().unwrap(),
+                    )
+                } else {
+                    aa.instruction_mod_ref(func, func.instructions().next().unwrap())
+                };
+                let mut address = MemoryAddress::absolute(160);
+                address.region = MemoryRegion::Unknown;
+                assert_eq!(
+                    effects.reads(),
+                    &[Access::Location(Location::Memory(MemoryLocation::new(
+                        address,
+                        LocationSize::Const(32)
+                    )))]
+                );
+                assert!(effects.writes().is_empty());
             }
         }
     }

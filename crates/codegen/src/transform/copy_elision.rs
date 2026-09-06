@@ -11,11 +11,12 @@
 //! Ordinary dead-store elimination keeps such copies because they write
 //! memory; proving the destination allocation is unread lets them go. The pass
 //! is conservative: any read of the allocation (`mload`, `keccak256`, a copy
-//! that reads it, or an escape into a call/return) keeps every write.
+//! that reads it, or an escape into a call/return) keeps every write. Writes must fit a known
+//! allocation extent; writes outside it can affect other objects, even when this object is unread.
 
 use crate::{
-    analysis::{Access, AddressSpace, AliasAnalysis, Location, LocationSize},
-    mir::{Function, InstId, InstKind, Module, ValueId},
+    analysis::{Access, AddressSpace, AliasAnalysis, Location, MemoryLocation},
+    mir::{Function, InstId, InstKind, Module, Value, ValueId},
     pass::{MirPass, run_function_pass},
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
@@ -79,9 +80,12 @@ impl CopyElisionCx {
                 {
                     continue;
                 }
-                let Some(writes) = self.write_only_writes(func, object) else { continue };
-                dead.extend(writes);
-                self.eliminated += 1;
+                if let Some(writes) = self.write_only_writes(func, object)
+                    && self.writes_fit_allocation(func, alias, object, &writes)
+                {
+                    dead.extend(writes);
+                    self.eliminated += 1;
+                }
             }
             if dead.is_empty() {
                 break;
@@ -94,14 +98,51 @@ impl CopyElisionCx {
         changed
     }
 
+    fn writes_fit_allocation(
+        &self,
+        func: &Function,
+        alias: &AliasAnalysis,
+        object: ValueId,
+        writes: &[InstId],
+    ) -> bool {
+        if let Value::Inst(inst) = func.value(object)
+            && let InstKind::Alloc { size, .. } = func.inst(*inst).kind
+            && let Some(size) = func.value_u64(size)
+            && let Some(address) = alias.memory_address(func, object)
+            && let Some(end) = address.offset.checked_add(size)
+        {
+            writes.iter().all(|&inst| {
+                alias.instruction_mod_ref(func, inst).writes().iter().all(|access| {
+                    if let Access::Location(Location::Memory(location)) = access
+                        && location.address.base == address.base
+                        && location.address.offset >= address.offset
+                        && let Some(size) = location.size.as_const()
+                        && let Some(write_end) = location.address.offset.checked_add(size)
+                    {
+                        write_end <= end
+                    } else {
+                        false
+                    }
+                })
+            })
+        } else {
+            false
+        }
+    }
+
     fn allocation_may_be_read(
         &self,
         func: &Function,
         alias: &AliasAnalysis,
         object: ValueId,
     ) -> bool {
-        let Some(allocation) = alias.bare_memory_location(func, object, LocationSize::Unknown)
-        else {
+        let allocation = if let Value::Inst(inst) = func.value(object)
+            && let InstKind::Alloc { size, .. } = func.inst(*inst).kind
+            && let Some(address) = alias.memory_address(func, object)
+        {
+            // The allocation's own extent is in bounds, including when its size is dynamic.
+            MemoryLocation::new(address, alias.location_size(func, size))
+        } else {
             return true;
         };
         let reads_allocation = |access: Access| match access {
