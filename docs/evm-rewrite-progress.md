@@ -356,6 +356,24 @@ Functionality reviews, per-artifact/per-label output-quality recovery, final
 full-workspace validation and complete heavy-corpus remeasurement remain open.
 The sealed archive checksum was reverified unchanged.
 
+## Direct-writer residents
+
+Direct memory writers now keep eligible live residents below an explicit stack
+prefix of saved homes. Only writer operands require homes; calls retain the
+conservative policy. This adds 46 production lines and a pure scheduler test
+covering deep prefixes, duplicate operands and atomic overflow rejection.
+All 90 helper tests and 531 same-source runtime calls pass. Isolated comparisons
+retain 714 successful UI cases per mode and all 15 hot cases/175 ordered labels.
+There are no per-artifact or per-label increases: UI creation/runtime bytes fall
+by 1,387 in gas mode and 1,419 in size mode; hot creation/runtime bytes fall by
+459 and total call gas by 48 in each mode. Evidence is in `writer-residents/`,
+`writer-resident-tests/after-expanded/` and `writer-assembly-common/`.
+
+The independent RPO interval-order trial is rejected. Its Nitro improvement
+comes with eight UI artifact increases, including two existing nested-struct
+fixtures already above the sealed baseline. Only that traversal hunk was
+reversed; the evidence remains in `spill-interval-rpo/assessment/`.
+
 ## Remaining acceptance
 
 Complete targeted fixes, remove every new baseline failure, and investigate

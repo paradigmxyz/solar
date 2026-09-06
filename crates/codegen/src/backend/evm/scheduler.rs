@@ -301,6 +301,52 @@ mod tests {
     }
 
     #[test]
+    fn writer_operands_preserve_long_protected_prefixes() {
+        for version in [EvmVersion::Osaka, EvmVersion::Amsterdam] {
+            for prefix_len in [1, 8, 16, 17, 255, 1018, 1019, 1020, 1021, 1022, 1023, 1024] {
+                let prefix = (0..prefix_len as u16).collect::<Vec<_>>();
+                for arity in 1..=4 {
+                    for repeated in [false, true] {
+                        let operands = (0..arity)
+                            .map(|index| 2048 + if repeated { index / 2 } else { index })
+                            .collect::<Vec<u16>>();
+                        let mut initial = prefix.clone();
+                        for &operand in operands.iter().rev() {
+                            if !initial.contains(&operand) {
+                                initial.push(operand);
+                            }
+                        }
+                        if initial.len() > 1024 {
+                            continue;
+                        }
+                        let mut expected = prefix.clone();
+                        expected.extend(operands.iter().rev());
+                        let mut stack = Stack::new(initial.clone());
+                        let prepared = stack.prepare(&operands, prefix_len, version, |_| false);
+                        if expected.len() > 1024 {
+                            assert_eq!(prepared, Err(StackError::Overflow));
+                            assert_eq!(stack.values(), initial);
+                        } else {
+                            let mut executed = replay(initial, &prepared.unwrap(), &prefix);
+                            assert_eq!(executed, expected);
+                            executed.truncate(executed.len() - operands.len());
+                            assert_eq!(executed, prefix);
+                        }
+                    }
+                }
+            }
+            let prefix_len = version.reachable_stack_depth() + 1;
+            let initial = (0..prefix_len).collect::<Vec<_>>();
+            let mut stack = Stack::new(initial.clone());
+            assert_eq!(
+                stack.prepare(&[0], prefix_len, version, |_| false),
+                Err(StackError::InaccessibleDepth)
+            );
+            assert_eq!(stack.values(), initial);
+        }
+    }
+
+    #[test]
     fn prepare_canonicalizes_live_aliases_and_preserves_operand_order() {
         let initial = vec![9, 1, 2, 1, 3];
         let mut stack = Stack::new(initial.clone());

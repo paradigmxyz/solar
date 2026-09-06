@@ -731,6 +731,7 @@ fn return_values(
 struct SavedHomes {
     addresses: Vec<super::storage::FrameAddress>,
     tracked: usize,
+    protected_prefix: Option<usize>,
 }
 
 fn control_live_after(context: &Context<'_>, block: mir::BlockId, position: usize) -> bool {
@@ -777,7 +778,7 @@ fn save_writer_homes(
 ) -> Result<SavedHomes, String> {
     let effects = context.layout.alias.instruction_mod_ref(context.function, inst);
     if !effects.writes_space(crate::analysis::AddressSpace::Memory) {
-        return Ok(SavedHomes { addresses: Vec::new(), tracked: 0 });
+        return Ok(SavedHomes { addresses: Vec::new(), tracked: 0, protected_prefix: None });
     }
     let control_live = context.plan.max_dynamic_frame_size != 0 && control_live();
     let mut homes = context
@@ -830,17 +831,26 @@ fn save_writer_homes(
     {
         addresses.push(frame_pointer);
     }
-    let tracked = if context.layout.spills.homes.is_empty() { addresses.len() } else { 0 };
-    let saved = SavedHomes { addresses, tracked };
+    let mixed = !context.layout.spills.homes.is_empty()
+        && super::spills::direct_writer(&context.function.inst(inst).kind);
+    let tracked = if context.layout.spills.homes.is_empty() || mixed { addresses.len() } else { 0 };
+    let mut saved = SavedHomes { addresses, tracked, protected_prefix: None };
     if saved.addresses.is_empty() {
         return Ok(saved);
     }
     if saved.addresses.len() + operands + stack.values().len() + 3 > 1024 {
         return Err("live values across a memory writer exceed the EVM stack limit".into());
     }
-    // <activation return label>; <opaque saved words>; <saved frame pointer>
+    // <activation return label>; <live residents for direct writers>
+    // <saved homes>; <saved frame pointer>
     if !context.layout.spills.homes.is_empty() {
-        let base = stack.values()[..prefix(context)].to_vec();
+        let mut base = stack.values()[..prefix(context)].to_vec();
+        if mixed {
+            base.extend(stack.values()[prefix(context)..].iter().copied().filter(|slot| {
+                matches!(slot, Slot::Value(value)
+                    if !context.layout.spills.homes.contains_key(value) && live(*value))
+            }));
+        }
         output.extend(
             stack.reconcile(&base, prefix(context), context.version).map_err(schedule_error)?,
         );
@@ -851,6 +861,9 @@ fn save_writer_homes(
         if tracked != 0 {
             stack.push(Slot::Protected(index));
         }
+    }
+    if mixed {
+        saved.protected_prefix = Some(stack.values().len());
     }
     Ok(saved)
 }
@@ -890,7 +903,16 @@ fn lower_opcode(
     let saved = save_writer_homes(context, inst_id, stack, insts, live, operands.len(), || {
         control_live_after(context, block_id, position)
     })?;
-    if saved.tracked == 0
+    if let Some(fixed_prefix) = saved.protected_prefix {
+        let operands = operands.iter().copied().map(Slot::Value).collect::<Vec<_>>();
+        materialize(context, stack, insts, &operands)?;
+        // <return label>; <residents>; <Protected backups>; <reverse operand pop order>
+        insts.extend(
+            stack
+                .prepare(&operands, fixed_prefix, context.version, |_| false)
+                .map_err(schedule_error)?,
+        );
+    } else if saved.tracked == 0
         && !matches!(opcode, op::GAS | op::PC)
         && op::stack_io(opcode).is_some_and(|(_, outputs)| outputs == 1)
         && let Some(preferred) = preferred_branch_values(

@@ -4,14 +4,15 @@
 //! and phi edges to find functions that exceed the target DUP window. Dying operands are consumed
 //! in place instead of being counted twice. Those functions receive reusable memory homes for
 //! overlapping live intervals; short-lived expression temporaries, dying branch conditions and
-//! single internal return values remain on the stack. A temporary may also end at an allocation-local or
-//! low-memory store whose writes are disjoint from every compiler-owned word. Calls, other writers and wider
-//! terminal protocols stop the bounded local window. A separate temporary region permits phi
-//! edge copies to read every source before writing any destination,
+//! single internal return values remain on the stack. A temporary may also end at an
+//! allocation-local or low-memory store whose writes are disjoint from every compiler-owned word.
+//! Calls, other writers and wider terminal protocols stop the bounded local window. A separate
+//! temporary region permits phi edge copies to read every source before writing any destination,
 //! including cyclic transfers. Ordinary low-pressure functions retain stack-only values.
 //! A bounded set of additional non-Phi values can remain on the stack across blocks when their
-//! conservative live intervals fit the same budget. Calls and potentially aliasing writers retain
-//! memory homes, and the physical scheduler validates each proposed mixed layout. Address
+//! conservative live intervals fit the same budget. Direct memory writers keep their operands in
+//! homes while other live residents remain below explicit stack backups. Calls and other writers
+//! retain memory homes, and the physical scheduler validates each proposed mixed layout. Address
 //! placement and dynamic-frame lifetime remain in storage planning; this module emits no physical
 //! instructions.
 
@@ -261,7 +262,8 @@ fn resident_candidates(
                     mandatory.insert(value);
                 }
             }
-            for value in kind.operands() {
+            let operands = kind.operands();
+            for &value in &operands {
                 uses[value] += 1;
                 if matches!(kind, mir::InstKind::Phi(_)) {
                     mandatory.insert(value);
@@ -274,7 +276,15 @@ fn resident_candidates(
                 || (effects.writes_space(AddressSpace::Memory)
                     && !disjoint_frame_write(function, &effects))
             {
-                mandatory.union(&before);
+                // Writer operands must load above a frozen prefix of residents and saved homes.
+                // Reserve a return word, three protocol backups and three address temporaries.
+                if direct_writer(kind) && before.count() + operands.len() + 7 <= 1024 {
+                    for &operand in &operands {
+                        mandatory.insert(operand);
+                    }
+                } else {
+                    mandatory.union(&before);
+                }
             }
         }
     }
@@ -307,6 +317,20 @@ fn resident_candidates(
         }
     }
     proposed
+}
+
+/// Zero-result source writers whose operands can load above a frozen activation prefix.
+pub(super) fn direct_writer(kind: &mir::InstKind) -> bool {
+    matches!(
+        kind,
+        mir::InstKind::MStore(..)
+            | mir::InstKind::MStore8(..)
+            | mir::InstKind::MCopy(..)
+            | mir::InstKind::CalldataCopy(..)
+            | mir::InstKind::CodeCopy(..)
+            | mir::InstKind::ReturnDataCopy(..)
+            | mir::InstKind::ExtCodeCopy(..)
+    )
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
