@@ -1,20 +1,23 @@
-//! Combines a call's argument rotation with its callee's canonical entry order.
+//! Combines argument preparation and continuation insertion with callee entry order.
 //!
 //! Stack-argument callees normally rearrange reverse ABI argument order in a
 //! shared entry block. For spill-free callees, the caller can instead reconcile
 //! directly to that exact canonical stack and jump to the first MIR block. The
 //! suspended caller, saved writer words and continuation remain unchanged; no
 //! memory setup or restoration is bypassed. Other callers keep the ordinary
-//! shared entry. Arguments have already been materialized by the actual emitter.
+//! shared entry. Both alternatives use the actual materializer in the same order.
 //!
-//! The candidate uses the existing physical scheduler, with the complete caller
-//! prefix fixed. It must shrink caller instruction bytes without increasing
-//! executed stack gas or the original combined input/peak requirement. Callee
+//! The candidate uses the existing physical scheduler, keeps the activation's
+//! return label fixed and restores the exact original suspended caller prefix.
+//! It must shrink caller instruction bytes without increasing executed stack gas
+//! or the original combined input/peak requirement. Callee
 //! entry construction is shared with the ordinary emitter, including duplicate
-//! argument identities. Spill-bearing callers retain their existing protocol.
-//! Final jump widths, layout and outlining still require corpus measurement.
+//! argument identities. The existing post-preparation entry fusion is evaluated
+//! first; the complete-boundary candidate must improve that incumbent or keep it.
+//! Spill-bearing callers retain their existing protocol. Final jump widths, layout and outlining
+//! still require corpus measurement.
 
-use super::{Context, FunctionLayout, Slot};
+use super::{Context, FunctionLayout, Slot, materialize, prefix};
 use crate::{
     backend::evm::{ir, scheduler::Stack},
     mir,
@@ -48,8 +51,8 @@ pub(super) fn choose(
     layout: &FunctionLayout,
     args: &[mir::ValueId],
     incoming: &Stack<Slot>,
-    caller_len: usize,
-    original: &[ir::Instruction],
+    (continuation, caller): (ir::BlockId, &[Slot]),
+    (original, rotation_start): (&[ir::Instruction], usize),
 ) -> Option<(Vec<ir::Instruction>, ir::BlockId)> {
     if matches!(context.optimization, OptimizationMode::None)
         || !context.plan.functions[callee].stack_arguments
@@ -58,38 +61,70 @@ pub(super) fn choose(
     {
         return None;
     }
-    let continuation = *incoming.values().last()?;
-    if !matches!(continuation, Slot::CallLabel(_)) {
-        return None;
-    }
+    let continuation_slot = Slot::CallLabel(continuation);
     let (mut entry_stack, entry_values) = entry(context.module.function(callee), layout)?;
     // <reverse argument order> -> <canonical callee entry>
     let entry_insts = entry_stack.reconcile(&entry_values, 1, context.version).ok()?;
-    let mut desired = incoming.values().get(..caller_len)?.to_vec();
+    let mut desired = caller.to_vec();
     for slot in entry_values {
         desired.push(match slot {
-            Slot::ReturnAddress => continuation,
+            Slot::ReturnAddress => continuation_slot,
             Slot::Argument(index) => Slot::Value(*args.get(index.index())?),
             _ => return None,
         });
     }
-    // <suspended caller>; <args>; <continuation>
+    let improves = |candidate: &[ir::Instruction],
+                    previous: &[ir::Instruction],
+                    entry: &[ir::Instruction]| {
+        let mut combined = previous.to_vec();
+        combined.extend_from_slice(entry);
+        let Some(old_usage) = ir::scheduling_usage(&combined) else { return false };
+        let Some(new_usage) = ir::scheduling_usage(candidate) else { return false };
+        if new_usage.0 > old_usage.0 || new_usage.1 != old_usage.1 || new_usage.2 > old_usage.2 {
+            return false;
+        }
+        let old_caller = ir::scheduling_cost(context.version, previous);
+        let old = ir::scheduling_cost(context.version, &combined);
+        let new = ir::scheduling_cost(context.version, candidate);
+        // Entry swaps can cancel with the first body shuffle. Require a caller-byte
+        // saving instead of relying only on the estimated cost of that shared entry.
+        new.1 < old_caller.1 && new.0 <= old.0
+    };
+    let mut prepared = caller.to_vec();
+    prepared.extend(args.iter().rev().copied().map(Slot::Value));
+    prepared.push(continuation_slot);
+    // <already prepared arguments>; <continuation>
     // -> <same suspended caller>; <exact canonical callee entry>
-    let candidate = incoming.clone().reconcile(&desired, caller_len, context.version).ok()?;
-    let mut combined = original.to_vec();
-    combined.extend(entry_insts);
-    let old_usage = ir::scheduling_usage(&combined)?;
-    let new_usage = ir::scheduling_usage(&candidate)?;
-    if new_usage.0 > old_usage.0 || new_usage.1 != old_usage.1 || new_usage.2 > old_usage.2 {
-        return None;
+    let mut incumbent = Stack::new(prepared)
+        .reconcile(&desired, caller.len(), context.version)
+        .ok()
+        .filter(|candidate| improves(candidate, &original[rotation_start..], &entry_insts))
+        .map(|candidate| {
+            let mut complete = original[..rotation_start].to_vec();
+            complete.extend(candidate);
+            complete
+        });
+    let complete = (|| {
+        let mut stack = incoming.clone();
+        let mut candidate = Vec::new();
+        let operands = args.iter().copied().map(Slot::Value).collect::<Vec<_>>();
+        materialize(context, &mut stack, &mut candidate, &operands).ok()?;
+        // <original stack>; <materialized arguments>; push <continuation>
+        // -> <same suspended caller>; <exact canonical callee entry>
+        candidate.push(ir::InstKind::PushLabel(continuation).into());
+        stack.push(continuation_slot);
+        candidate.extend(stack.reconcile(&desired, prefix(context), context.version).ok()?);
+        Some(candidate)
+    })();
+    let (previous, tail) = incumbent
+        .as_ref()
+        .map_or((original, entry_insts.as_slice()), |previous| (previous.as_slice(), &[][..]));
+    if let Some(candidate) = complete
+        && improves(&candidate, previous, tail)
+    {
+        incumbent = Some(candidate);
     }
-    let old_caller = ir::scheduling_cost(context.version, original);
-    let old = ir::scheduling_cost(context.version, &combined);
-    let new = ir::scheduling_cost(context.version, &candidate);
-    // Entry swaps can cancel with the first body shuffle. Require a caller-byte
-    // saving instead of relying only on the estimated cost of that shared entry.
-    (new.1 < old_caller.1 && new.0 <= old.0)
-        .then_some((candidate, layout.blocks[mir::BlockId::ENTRY]))
+    incumbent.map(|candidate| (candidate, layout.blocks[mir::BlockId::ENTRY]))
 }
 
 /// Omits generated entry stubs whose addresses were never used during lowering.

@@ -389,27 +389,31 @@ fn lower_function(
                         stack.push(Slot::Value(value));
                     }
                 } else {
-                    prepare(context, &mut stack, &mut insts, args, live)?;
+                    let incoming = stack.clone();
+                    let mut original = Vec::new();
+                    prepare(context, &mut stack, &mut original, args, live)?;
                     caller = stack.values()[..stack.values().len() - args.len()].to_vec();
                     // push <continuation>
                     // <suspended caller>; <continuation>; <argN..arg0>
-                    insts.push(ir::InstKind::PushLabel(continuation).into());
+                    original.push(ir::InstKind::PushLabel(continuation).into());
                     stack.push(Slot::CallLabel(continuation));
+                    let rotation_start = original.len();
                     let mut desired = caller.clone();
                     desired.push(Slot::CallLabel(continuation));
                     desired.extend(args.iter().rev().copied().map(Slot::Value));
-                    let incoming = stack.clone();
-                    let original = stack
-                        .reconcile(&desired, prefix(context), context.version)
-                        .map_err(schedule_error)?;
+                    original.extend(
+                        stack
+                            .reconcile(&desired, prefix(context), context.version)
+                            .map_err(schedule_error)?,
+                    );
                     if let Some((prepared, direct)) = call_entry::choose(
                         context,
                         *callee,
                         &layouts[callee],
                         args,
                         &incoming,
-                        caller.len(),
-                        &original,
+                        (continuation, &caller),
+                        (&original, rotation_start),
                     ) {
                         // <suspended caller>; <continuation>; <canonical callee entry>
                         // jump <first callee MIR block>

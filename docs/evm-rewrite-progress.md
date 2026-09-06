@@ -427,13 +427,25 @@ Evidence is in `function-layout-occupancy/` and `reachable-layouts/`.
 
 Dying direct-writer operands can now stay resident when the complete operand and
 backup window fits sixteen words. Larger windows retain the frozen-prefix
-protocol. This adds 31 production lines and one pure scheduler regression.
+protocol. This adds 30 lines in production files and one pure scheduler regression.
 All 92 helpers and 531 writer replay calls pass. The isolated comparison retains
 715 successful UI cases per mode and all 15 hot cases/175 ordered labels, with
 no individual byte or gas increases. UI creation/runtime bytes fall by 298/255
 in gas/size; hot creation/runtime bytes fall by 103/93 and call gas by 42 in
 each mode. Evidence: `dying-writer-operands/` and
 `writer-resident-tests/dying-after/`. Sealed-baseline debts remain open.
+
+Call-entry fusion now considers the complete argument preparation and continuation
+insertion, while retaining the prior narrow fusion as its incumbent. This adds
+39 lines in production files. Both compilers pass all 24 focused revisions; the helper
+suite passes all 92 tests. Exact UI/hot identities and outcomes are retained.
+Hot creation/runtime bytes fall by 630/620 in gas and 585/575 in size, with no
+artifact increases. Five Maple approve labels each save 12 gas. Nine labels per
+mode rise locally by 1, 11 or 12 gas but remain below their sealed baselines;
+aggregate call gas falls by 522/648. The four UI artifact increases are each one
+byte in `static_frames.sol`, still 155--210 bytes below sealed; other UI runtime
+bytes fall by 277/278 overall. These reviewed tradeoffs introduce no sealed debt.
+Maple still owes 17/19 gas per approve label. Evidence: `complete-call-entry/`.
 
 ## Remaining acceptance
 
