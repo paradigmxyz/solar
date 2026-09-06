@@ -506,8 +506,8 @@ fn call_use_is_safe(
         && !summary.may_observe_msize()
         && args.iter().enumerate().filter(|(_, arg)| **arg == operand).all(|(index, _)| {
             let index = ArgIdx::new(index);
-            !summary.captures_param(index)
-                && !(summary.may_observe_fmp() && summary.observes_param(index))
+            !(summary.captures_param(index)
+                || summary.may_observe_fmp() && summary.observes_param(index))
         })
         && args.contains(&operand)
 }

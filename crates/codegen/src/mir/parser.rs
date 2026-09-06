@@ -260,9 +260,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn parse_data_declarations(&mut self, module: &mut Module) -> PResult<'sess, ()> {
         self.parser.expect_keyword(sym::data)?;
         self.parser.expect(TokenKind::Colon)?;
-        while !self.parser.is_eof()
-            && !self.parser.check_keyword(sym::immutables)
-            && !(self.parser.check_keyword(sym::fn_)
+        while !(self.parser.is_eof()
+            || self.parser.check_keyword(sym::immutables)
+            || self.parser.check_keyword(sym::fn_)
                 && self.parser.look_ahead(1).kind == TokenKind::At)
         {
             let (id, name) = self.parser.parse_data_id()?;
@@ -281,8 +281,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn parse_immutable_declarations(&mut self, module: &mut Module) -> PResult<'sess, ()> {
         self.parser.expect_keyword(sym::immutables)?;
         self.parser.expect(TokenKind::Colon)?;
-        while !self.parser.is_eof()
-            && !(self.parser.check_keyword(sym::fn_)
+        while !(self.parser.is_eof()
+            || self.parser.check_keyword(sym::fn_)
                 && self.parser.look_ahead(1).kind == TokenKind::At)
         {
             let name_span = self.parser.token().span;
@@ -1812,10 +1812,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     Value::Inst(inst)
                         if matches!(builder.func().inst(*inst).kind, InstKind::ICall { .. })
                 );
-                if !matches!(data_ty, Some(MirType::MemoryObject(MemoryObjectKind::Bytes)))
-                    && !(data_ty == Some(MirType::MemPtr)
-                        && !layout.types.iter().any(AbiParamType::has_dynamic_child))
-                    && !pending_call
+                if !(matches!(data_ty, Some(MirType::MemoryObject(MemoryObjectKind::Bytes)))
+                    || data_ty == Some(MirType::MemPtr)
+                        && !layout.types.iter().any(AbiParamType::has_dynamic_child)
+                    || pending_call)
                 {
                     return Err(self
                         .parser

@@ -90,7 +90,7 @@ impl<'sess> Reader<'sess, '_> {
                     } else {
                         return Err(self
                             .parser
-                            .error("expected `cold`, `loop` or `invoke` block attribute"));
+                            .error("expected `cold`, `loop`, or `invoke` block attribute"));
                     }
                     if !self.parser.eat(TokenKind::Comma) {
                         break;

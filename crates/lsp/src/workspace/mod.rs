@@ -1230,7 +1230,6 @@ mod tests {
             &project.path("/outer/./nested/../nested"),
             &project.path("/outer/nested")
         ));
-        drop(root_matches);
         assert!(foundry_config.workspace_config(&project.path("/outer/other")).unwrap().is_none());
     }
 

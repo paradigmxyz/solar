@@ -843,7 +843,7 @@ fn make_ethdebug_program(
                 .into_iter()
                 .collect();
             EthdebugInstruction {
-                offset: instruction.offset as usize,
+                offset: instruction.offset,
                 operation: EthdebugOperation { mnemonic, arguments },
                 context: make_ethdebug_context(
                     gcx,
@@ -877,7 +877,7 @@ fn push_argument<'a>(bytecode: &'a [u8], instruction: &DebugInstruction) -> Opti
     if !(1..=32).contains(&width) {
         return None;
     }
-    let start = instruction.offset as usize + 1;
+    let start = instruction.offset + 1;
     let end = start.checked_add(width)?;
     bytecode.get(start..end)
 }
@@ -935,7 +935,7 @@ fn make_ethdebug_function_invoke(
     instruction: &DebugInstruction,
 ) -> Option<EthdebugFunctionInvoke> {
     let target = crate::source_map::static_jump_target(bytecode, previous, instruction)
-        .or_else(|| (instruction.opcode == 0x5b).then_some(instruction.offset as usize))
+        .or_else(|| (instruction.opcode == 0x5b).then_some(instruction.offset))
         .map(|target| EthdebugInvocationTarget {
             pointer: EthdebugCodePointer { location: "code", offset: target, length: 1 },
         });

@@ -45,7 +45,7 @@ impl SourceMapEncoder {
         let function_entries = instructions
             .iter()
             .filter(|instruction| instruction.function_invoke.is_some())
-            .map(|instruction| instruction.offset as usize)
+            .map(|instruction| instruction.offset)
             .collect::<FxHashSet<_>>();
         let entries = instructions.iter().enumerate().map(|(index, instruction)| {
             self.entry(
@@ -119,14 +119,12 @@ pub(crate) fn static_jump_target(
     }
     let previous = previous?;
     let width = previous.opcode.checked_sub(0x5f)? as usize;
-    if !(1..=32).contains(&width)
-        || previous.offset as usize + width + 1 != instruction.offset as usize
-    {
+    if !(1..=32).contains(&width) || previous.offset + width + 1 != instruction.offset {
         return None;
     }
-    let start = previous.offset as usize + 1;
+    let start = previous.offset + 1;
     let mut target = 0usize;
-    for &byte in bytecode.get(start..instruction.offset as usize)? {
+    for &byte in bytecode.get(start..instruction.offset)? {
         target = target.checked_mul(256)?.checked_add(usize::from(byte))?;
     }
     (bytecode.get(target).copied() == Some(0x5b)).then_some(target)
