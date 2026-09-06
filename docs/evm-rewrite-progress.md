@@ -62,6 +62,7 @@ or a final sealed-baseline comparison.
 | Lazy verifier diagnostic strings | 74.85→68.60 s; 74.61→69.13 s (median −7.8%) | RSS +4.8% / −1.5% |
 | Reuse call-entry costs | 70.38→68.63 s (one pair, provisional) | RSS −4.9% |
 | Borrow successor targets | 68.37→68.61 s (flat; no speedup claim) | RSS +6.0%, one pair |
+| Resize unknown stack outputs | 67.63→66.61; 67.34→67.13 s (−1.5%/−0.3%) | Modest; RSS +5.6%/+0.1% |
 
 A direct sealed/current checkpoint pair on the same archived input is
 54.62→67.63 seconds (+23.8%), with peak RSS 822,828→632,296 KiB
@@ -126,6 +127,13 @@ Two failures were executable-name differences in CLI help and pass with a
 `solar` symlink; one size timing snapshot now omits the analysis skipped by the
 new tail observation guard. All six focused help/timing revisions pass, leaving
 58 other failures to investigate. Evidence is in `accepted-ui-current/`.
+
+A three-line identical-stack shortcut was rejected: output was exact, but its
+isolated compiler-time pair worsened 65.36→67.13 seconds (+2.7%). The one-line
+verifier resize replacement retains exact diagnostics, all UI bytecode and hot
+gas across both modes. `scheduler-identical/` and `stack-effect-resize/` retain
+all source snapshots and comparisons; the second resize timing pair is under
+`scheduler-identical-common/`.
 
 Finish all supported behavior and investigate every remaining assertion before
 updating it. Repeat full workspace/UI, Foundry, differential, both size corpora,

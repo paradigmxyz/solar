@@ -264,7 +264,7 @@ fn stack_analysis(module: &Module) -> Result<(StackHeights, bool), (BlockId, Str
                         unknown_jump = true;
                     }
                     stack.truncate(height - inputs as usize);
-                    stack.extend(std::iter::repeat_n(None, outputs as usize));
+                    stack.resize(stack.len() + outputs as usize, None);
                     if let InstKind::PushLabel(target) = inst.kind {
                         *stack.last_mut().unwrap() = Some((target, 0));
                     }
