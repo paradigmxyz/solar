@@ -399,7 +399,7 @@ fn @copy() -> u256 [selector=0x60726abb, abi_params=[], abi_returns=[word]] {
     jump bb68
   bb68:
     v272 = phi [bb66: v268], [bb67: v270]
-    v273 = memory_object_load_field memorystruct<3>, v272, 2
+    v273 = memory_object_load_field memorystruct<3>, v272, 2, memoryarray
     v274 = memory_object_len memoryarray, v273
     v275 = lt 0, v274
     v276 = iszero v275
@@ -536,7 +536,7 @@ fn @copy() -> u256 [selector=0x60726abb, abi_params=[], abi_returns=[word]] {
     jump bb99
   bb99:
     v344 = phi [bb97: v340], [bb98: v342]
-    v345 = memory_object_load_field memorystruct<3>, v344, 2
+    v345 = memory_object_load_field memorystruct<3>, v344, 2, memoryarray
     v346 = memory_object_len memoryarray, v345
     v347 = lt 0, v346
     v348 = iszero v347

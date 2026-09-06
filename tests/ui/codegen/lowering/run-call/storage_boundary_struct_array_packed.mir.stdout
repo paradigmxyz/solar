@@ -1,5 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_boundary_struct_array_packed.sol:StorageBoundaryStructArrayPacked ===
 @module StorageBoundaryStructArrayPacked
+types:
+  struct0: {u256, u256}
+
 fn @getBoundaryArray() -> storageptr [pure] {
   bb0:
     v0 = sub 0, 5
@@ -16,7 +19,7 @@ fn @getCanary() -> storageptr [pure] {
     ret 5
 }
 
-fn @test() -> (u256, bool) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word<bool>]] {
+fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word<bool>], abi_return_params=[u256, bool]] {
   bb0:
     v0 = icall @getCanary, 1
     sstore v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff !metadata(storage=symbolic(v0))
@@ -109,7 +112,9 @@ fn @test() -> (u256, bool) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[wor
     jump bb56
   bb56:
     v263 = phi [bb58: v262], [bb55: false]
-    ret v195, v263
+    v264 = insert_value struct0, undef struct0, 0, v195
+    v265 = insert_value struct0, v264, 1, v263
+    ret v265
   bb38:
     v201 = lt 0, 1
     v202 = iszero v201

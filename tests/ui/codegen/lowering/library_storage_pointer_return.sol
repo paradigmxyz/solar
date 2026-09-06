@@ -153,10 +153,18 @@ contract C {
     // first word of the head.
     // PREBYZ-LABEL: fn @agg
     // PREBYZ: delegatecall {{.*}}, [[IN:v[0-9]+]], {{v[0-9]+}}, [[IN]], 96
-    // PREBYZ: [[SLOT:v[0-9]+]] = abi_decode [storageptr, array<2, u256>]
+    // PREBYZ: [[DECODED:v[0-9]+]] = abi_decode [storageptr, array<2, u256>]
+    // PREBYZ: [[FIRST:v[0-9]+]] = extract_value {{struct[0-9]+}}, [[DECODED]], 0
+    // PREBYZ: [[PACKED:v[0-9]+]] = insert_value {{struct[0-9]+}}, undef {{struct[0-9]+}}, 0, [[FIRST]]
+    // PREBYZ: [[PAIR:v[0-9]+]] = insert_value {{struct[0-9]+}}, [[PACKED]], 1,
+    // PREBYZ: [[SLOT:v[0-9]+]] = extract_value {{struct[0-9]+}}, [[PAIR]], 0
     // PREBYZ: sload [[SLOT]]
     // POSTBYZ-LABEL: fn @agg
-    // POSTBYZ: [[SLOT:v[0-9]+]] = abi_decode [storageptr, array<2, u256>]
+    // POSTBYZ: [[DECODED:v[0-9]+]] = abi_decode [storageptr, array<2, u256>]
+    // POSTBYZ: [[FIRST:v[0-9]+]] = extract_value {{struct[0-9]+}}, [[DECODED]], 0
+    // POSTBYZ: [[PACKED:v[0-9]+]] = insert_value {{struct[0-9]+}}, undef {{struct[0-9]+}}, 0, [[FIRST]]
+    // POSTBYZ: [[PAIR:v[0-9]+]] = insert_value {{struct[0-9]+}}, [[PACKED]], 1,
+    // POSTBYZ: [[SLOT:v[0-9]+]] = extract_value {{struct[0-9]+}}, [[PAIR]], 0
     // POSTBYZ: sload [[SLOT]]
     function agg() external view returns (uint256, uint256) {
         (Lib.Plain storage p, uint256[2] memory m) = Lib.aggRef(plain);

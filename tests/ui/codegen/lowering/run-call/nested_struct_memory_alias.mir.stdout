@@ -97,7 +97,7 @@ fn @check() -> u256 [selector=0x919840ad, pure, abi_params=[], abi_returns=[word
     jump bb20
   bb20:
     v45 = phi [bb18: v40], [bb19: v42]
-    v46 = memory_object_load_field memorystruct<2>, v45, 0
+    v46 = memory_object_load_field memorystruct<2>, v45, 0, memoryarray
     v47 = memory_object_len memoryarray, v46
     v48 = lt 0, v47
     v49 = iszero v48
@@ -140,7 +140,7 @@ fn @check() -> u256 [selector=0x919840ad, pure, abi_params=[], abi_returns=[word
     jump bb27
   bb27:
     v66 = phi [bb25: v61], [bb26: v63]
-    v67 = memory_object_load_field memorystruct<2>, v66, 0
+    v67 = memory_object_load_field memorystruct<2>, v66, 0, memoryarray
     v68 = memory_object_len memoryarray, v67
     v69 = lt 1, v68
     v70 = iszero v69
@@ -183,7 +183,7 @@ fn @check() -> u256 [selector=0x919840ad, pure, abi_params=[], abi_returns=[word
     jump bb34
   bb34:
     v87 = phi [bb32: v82], [bb33: v84]
-    v88 = memory_object_load_field memorystruct<2>, v87, 1
+    v88 = memory_object_load_field memorystruct<2>, v87, 1, memoryfixedarray
     v89 = lt 0, 2
     v90 = iszero v89
     jumpi v90, bb7, bb35
@@ -225,7 +225,7 @@ fn @check() -> u256 [selector=0x919840ad, pure, abi_params=[], abi_returns=[word
     jump bb41
   bb41:
     v107 = phi [bb39: v102], [bb40: v104]
-    v108 = memory_object_load_field memorystruct<2>, v107, 1
+    v108 = memory_object_load_field memorystruct<2>, v107, 1, memoryfixedarray
     v109 = lt 1, 2
     v110 = iszero v109
     jumpi v110, bb7, bb42
@@ -267,7 +267,7 @@ fn @check() -> u256 [selector=0x919840ad, pure, abi_params=[], abi_returns=[word
     jump bb48
   bb48:
     v127 = phi [bb46: v122], [bb47: v124]
-    v128 = memory_object_load_field memorystruct<2>, v127, 0
+    v128 = memory_object_load_field memorystruct<2>, v127, 0, memoryarray
     v129 = memory_object_len memoryarray, v128
     v130 = lt 1, v129
     v131 = iszero v130
@@ -310,7 +310,7 @@ fn @check() -> u256 [selector=0x919840ad, pure, abi_params=[], abi_returns=[word
     jump bb55
   bb55:
     v148 = phi [bb53: v143], [bb54: v145]
-    v149 = memory_object_load_field memorystruct<2>, v148, 1
+    v149 = memory_object_load_field memorystruct<2>, v148, 1, memoryfixedarray
     v150 = lt 0, 2
     v151 = iszero v150
     jumpi v151, bb7, bb56
@@ -352,7 +352,7 @@ fn @check() -> u256 [selector=0x919840ad, pure, abi_params=[], abi_returns=[word
     jump bb62
   bb62:
     v168 = phi [bb60: v163], [bb61: v165]
-    v169 = memory_object_load_field memorystruct<2>, v168, 0
+    v169 = memory_object_load_field memorystruct<2>, v168, 0, memoryarray
     v170 = memory_object_len memoryarray, v169
     v171 = lt 1, v170
     v172 = iszero v171
@@ -395,7 +395,7 @@ fn @check() -> u256 [selector=0x919840ad, pure, abi_params=[], abi_returns=[word
     jump bb69
   bb69:
     v190 = phi [bb67: v185], [bb68: v187]
-    v191 = memory_object_load_field memorystruct<2>, v190, 0
+    v191 = memory_object_load_field memorystruct<2>, v190, 0, memoryarray
     v192 = memory_object_len memoryarray, v191
     v193 = lt 1, v192
     v194 = iszero v193
@@ -418,7 +418,7 @@ fn @check() -> u256 [selector=0x919840ad, pure, abi_params=[], abi_returns=[word
     revert 0, 36
   bb5:
     v7 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    memory_object_store_field memorystruct<2>, v7, 0, 96
+    memory_object_store_field memorystruct<2>, v7, 0, memoryarray 96
     v8 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     memory_zero v8, 64
     memory_object_store_field memorystruct<2>, v7, 1, v8
@@ -426,7 +426,7 @@ fn @check() -> u256 [selector=0x919840ad, pure, abi_params=[], abi_returns=[word
     v9 = add v5, 1
     jump bb4
   bb2:
-    memory_object_store_element memoryarray<1>, v0, v1, 96
+    memory_object_store_element memoryarray<1>, v0, v1, memoryarray 96
     v3 = add v1, 1
     jump bb1
 }

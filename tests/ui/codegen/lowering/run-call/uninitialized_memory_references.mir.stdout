@@ -1,13 +1,19 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/uninitialized_memory_references.sol:UninitializedMemoryReferences ===
 @module UninitializedMemoryReferences
-fn @fmpIsStable() -> (bool, u256, u256) [selector=0x8543d886, pure, abi_params=[], abi_returns=[word<bool>, word, word]] {
+types:
+  struct0: {u256, u256, u256}
+
+fn @fmpIsStable() -> struct0 [selector=0x8543d886, pure, abi_params=[], abi_returns=[word<bool>, word, word], abi_return_params=[bool, u256, u256]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = mload 64 !metadata(memory=scratch)
     v2 = eq v0, v1
-    v3 = memory_object_len memorybytes, 96
-    v4 = memory_object_len memoryarray, 96
-    ret v2, v3, v4
+    v3 = memory_object_len memorybytes, memorybytes 96
+    v4 = memory_object_len memoryarray, memoryarray 96
+    v5 = insert_value struct0, undef struct0, 0, v2
+    v6 = insert_value struct0, v5, 1, v3
+    v7 = insert_value struct0, v6, 2, v4
+    ret v7
 }
 
 fn @nullArrayElementsEncodeAsEmpty() -> bool [selector=0x71417b4d, pure, abi_params=[], abi_returns=[word<bool>]] {
@@ -52,11 +58,11 @@ fn @nullArrayElementsEncodeAsEmpty() -> bool [selector=0x71417b4d, pure, abi_par
     v20 = phi [bb7: v19], [bb8: false]
     ret v20
   bb5:
-    memory_object_store_element memoryarray<1>, v7, v8, 96
+    memory_object_store_element memoryarray<1>, v7, v8, memoryarray 96
     v10 = add v8, 1
     jump bb4
   bb2:
-    memory_object_store_element memoryarray<1>, v0, v1, 96
+    memory_object_store_element memoryarray<1>, v0, v1, memorybytes 96
     v3 = add v1, 1
     jump bb1
 }

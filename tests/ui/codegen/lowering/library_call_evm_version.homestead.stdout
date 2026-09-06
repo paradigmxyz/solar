@@ -1,6 +1,10 @@
 // === ROOT/tests/ui/codegen/lowering/library_call_evm_version.sol:Lib ===
 @module Lib
 @library
+types:
+  struct0: {u256, u256}
+  struct1: {u256, u256, u256, u256, u256, u256}
+
 fn @dbl(arg0: u256) -> u256 [selector=0x5d2a6863, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = mul 2, arg0
@@ -18,13 +22,15 @@ fn @dbl(arg0: u256) -> u256 [selector=0x5d2a6863, pure, abi_params=[u256], abi_r
     revert 0, 36
 }
 
-fn @pair(arg0: u256) -> (u256, u256) [selector=0x645751af, pure, abi_params=[u256], abi_returns=[word, word]] {
+fn @pair(arg0: u256) -> struct0 [selector=0x645751af, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = add arg0, 1
     v1 = lt v0, arg0
     jumpi v1, bb1, bb2
   bb2:
-    ret arg0, v0
+    v2 = insert_value struct0, undef struct0, 0, arg0
+    v3 = insert_value struct0, v2, 1, v0
+    ret v3
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -74,14 +80,24 @@ fn @noret(arg0: u256) [selector=0x089b9644, pure, abi_params=[u256], abi_returns
     stop
 }
 
-fn @six(arg0: memorybytes) -> (u256, u256, u256, u256, u256, u256) [selector=0xb84d18fb, pure, abi_params=[bytes], abi_returns=[word, word, word, word, word, word]] {
+fn @six(arg0: memorybytes) -> struct1 [selector=0xb84d18fb, pure, abi_params=[bytes], abi_returns=[word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256]] {
   bb0:
     v0 = memory_object_len memorybytes, arg0
-    ret v0, 1, 2, 3, 4, 5
+    v1 = insert_value struct1, undef struct1, 0, v0
+    v2 = insert_value struct1, v1, 1, 1
+    v3 = insert_value struct1, v2, 2, 2
+    v4 = insert_value struct1, v3, 3, 3
+    v5 = insert_value struct1, v4, 4, 4
+    v6 = insert_value struct1, v5, 5, 5
+    ret v6
 }
 
 // === ROOT/tests/ui/codegen/lowering/library_call_evm_version.sol:C ===
 @module C
+types:
+  struct0: {u256, u256}
+  struct1: {u256, u256, u256, u256, u256, u256}
+
 fn @one(arg0: u256) -> u256 [selector=0xef56f928, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = fmp
@@ -110,7 +126,7 @@ fn @one(arg0: u256) -> u256 [selector=0xef56f928, pure, abi_params=[u256], abi_r
     revert 0, 0
 }
 
-fn @two(arg0: u256) -> (u256, u256) [selector=0xcf2a8612, pure, abi_params=[u256], abi_returns=[word, word]] {
+fn @two(arg0: u256) -> struct0 [selector=0xcf2a8612, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = fmp
     v1 = add v0, 64
@@ -133,13 +149,17 @@ fn @two(arg0: u256) -> (u256, u256) [selector=0xcf2a8612, pure, abi_params=[u256
     v11 = mload v10
     v12 = add v3, 32
     v13 = mload v12
-    frame_store multi_return, word, 0, v3 !metadata(memory=scratch)
     v14 = add v3, 0
     v15 = mload v14
-    v16 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v17 = add v16, 32
-    v18 = mload v17
-    ret v15, v18
+    v16 = add v3, 32
+    v17 = mload v16
+    v18 = insert_value struct0, undef struct0, 0, v15
+    v19 = insert_value struct0, v18, 1, v17
+    v20 = extract_value struct0, v19, 0
+    v21 = extract_value struct0, v19, 1
+    v22 = insert_value struct0, undef struct0, 0, v20
+    v23 = insert_value struct0, v22, 1, v21
+    ret v23
   bb1:
     revert 0, 0
 }
@@ -269,7 +289,7 @@ fn @attached() -> u256 [selector=0xd9e6b370, view, abi_params=[], abi_returns=[w
     revert 0, 0
 }
 
-fn @dynamicArgument(arg0: memorybytes) -> (u256, u256) [selector=0x11b8efbf, pure, abi_params=[bytes], abi_returns=[word, word]] {
+fn @dynamicArgument(arg0: memorybytes) -> struct0 [selector=0x11b8efbf, pure, abi_params=[bytes], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = fmp
     v1 = add v0, 192
@@ -300,21 +320,33 @@ fn @dynamicArgument(arg0: memorybytes) -> (u256, u256) [selector=0x11b8efbf, pur
     v19 = mload v18
     v20 = add v3, 160
     v21 = mload v20
-    frame_store multi_return, word, 0, v3 !metadata(memory=scratch)
     v22 = add v3, 0
     v23 = mload v22
-    v24 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v25 = add v24, 32
-    v26 = mload v25
-    v27 = add v24, 64
-    v28 = mload v27
-    v29 = add v24, 96
-    v30 = mload v29
-    v31 = add v24, 128
-    v32 = mload v31
-    v33 = add v24, 160
-    v34 = mload v33
-    ret v23, v34
+    v24 = add v3, 32
+    v25 = mload v24
+    v26 = add v3, 64
+    v27 = mload v26
+    v28 = add v3, 96
+    v29 = mload v28
+    v30 = add v3, 128
+    v31 = mload v30
+    v32 = add v3, 160
+    v33 = mload v32
+    v34 = insert_value struct1, undef struct1, 0, v23
+    v35 = insert_value struct1, v34, 1, v25
+    v36 = insert_value struct1, v35, 2, v27
+    v37 = insert_value struct1, v36, 3, v29
+    v38 = insert_value struct1, v37, 4, v31
+    v39 = insert_value struct1, v38, 5, v33
+    v40 = extract_value struct1, v39, 0
+    v41 = extract_value struct1, v39, 1
+    v42 = extract_value struct1, v39, 2
+    v43 = extract_value struct1, v39, 3
+    v44 = extract_value struct1, v39, 4
+    v45 = extract_value struct1, v39, 5
+    v46 = insert_value struct0, undef struct0, 0, v40
+    v47 = insert_value struct0, v46, 1, v45
+    ret v47
   bb1:
     revert 0, 0
 }

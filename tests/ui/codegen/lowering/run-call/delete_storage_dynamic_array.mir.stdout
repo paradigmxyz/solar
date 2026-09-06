@@ -1,6 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/delete_storage_dynamic_array.sol:DeleteStorageDynamicArray ===
 @module DeleteStorageDynamicArray
-fn @clearAndPush() -> (u256, u24) [selector=0x1698ee0c, abi_params=[], abi_returns=[word, word<u24>]] {
+types:
+  struct0: {u256, u256}
+
+fn @clearAndPush() -> struct0 [selector=0x1698ee0c, abi_params=[], abi_returns=[word, word<u24>], abi_return_params=[u256, u24]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = gt v0, 0xffffffffffffffff
@@ -72,7 +75,9 @@ fn @clearAndPush() -> (u256, u24) [selector=0x1698ee0c, abi_params=[], abi_retur
     v53 = mul v51, 8
     v54 = shr v53, v52
     v55 = and v54, 0xffffff
-    ret v43, v55
+    v56 = insert_value struct0, undef struct0, 0, v43
+    v57 = insert_value struct0, v56, 1, v55
+    ret v57
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

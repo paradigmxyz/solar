@@ -1,6 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_nested_array_pop.sol:StorageNestedArrayPop ===
 @module StorageNestedArrayPop
-fn @test() -> (u256, u256, u256) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word, word]] {
+types:
+  struct0: {u256, u256, u256}
+
+fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     jump bb1
   bb1:
@@ -164,7 +167,10 @@ fn @test() -> (u256, u256, u256) [selector=0xf8a8fd6d, abi_params=[], abi_return
     v234 = lt v233, v231
     jumpi v234, bb77, bb78
   bb78:
-    ret v200, v202, v204
+    v237 = insert_value struct0, undef struct0, 0, v200
+    v238 = insert_value struct0, v237, 1, v202
+    v239 = insert_value struct0, v238, 2, v204
+    ret v239
   bb77:
     v235 = add v232, v233
     sstore v235, 0 !metadata(storage=symbolic(v235))

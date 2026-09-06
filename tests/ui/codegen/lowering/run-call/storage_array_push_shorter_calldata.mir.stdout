@@ -1,6 +1,11 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_array_push_shorter_calldata.sol:StorageArrayPushShorterCalldata ===
 @module StorageArrayPushShorterCalldata
-fn @pushShorterCalldata(arg0: calldataslice) -> (u256, u256, u256) [selector=0x4e10bf3a, abi_params=[array<2, u256>], abi_returns=[word, word, word]] {
+types:
+  struct0: {u256, u256, u256}
+  struct1: {u256, u256, u256, u256, u256, u256}
+  struct2: {u256, u256}
+
+fn @pushShorterCalldata(arg0: calldataslice) -> struct0 [selector=0x4e10bf3a, abi_params=[array<2, u256>], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = calldatasize
@@ -68,7 +73,10 @@ fn @pushShorterCalldata(arg0: calldataslice) -> (u256, u256, u256) [selector=0x4
   bb17:
     v46 = add v43, 2
     v47 = sload v46 !metadata(storage=offset(v43, 2))
-    ret v27, v37, v47
+    v48 = insert_value struct0, undef struct0, 0, v27
+    v49 = insert_value struct0, v48, 1, v37
+    v50 = insert_value struct0, v49, 2, v47
+    ret v50
   bb11:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -95,7 +103,7 @@ fn @pushShorterCalldata(arg0: calldataslice) -> (u256, u256, u256) [selector=0x4
     revert 0, 0
 }
 
-fn @pushNarrowCalldata(arg0: calldataslice) -> (u256, u256, u256) [selector=0x3c12c61b, abi_params=[array<2, u8>], abi_returns=[word, word, word]] {
+fn @pushNarrowCalldata(arg0: calldataslice) -> struct0 [selector=0x3c12c61b, abi_params=[array<2, u8>], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = calldatasize
@@ -169,7 +177,10 @@ fn @pushNarrowCalldata(arg0: calldataslice) -> (u256, u256, u256) [selector=0x3c
   bb21:
     v55 = add v52, 2
     v56 = sload v55 !metadata(storage=offset(v52, 2))
-    ret v36, v46, v56
+    v57 = insert_value struct0, undef struct0, 0, v36
+    v58 = insert_value struct0, v57, 1, v46
+    v59 = insert_value struct0, v58, 2, v56
+    ret v59
   bb15:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -207,7 +218,7 @@ fn @pushNarrowCalldata(arg0: calldataslice) -> (u256, u256, u256) [selector=0x3c
     revert 0, 0
 }
 
-fn @pushNestedShorterCalldata(arg0: calldataslice) -> (u256, u256, u256, u256, u256, u256) [selector=0xae051216, abi_params=[array<2, array<2, u256>>], abi_returns=[word, word, word, word, word, word]] {
+fn @pushNestedShorterCalldata(arg0: calldataslice) -> struct1 [selector=0xae051216, abi_params=[array<2, array<2, u256>>], abi_returns=[word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = calldatasize
@@ -357,7 +368,13 @@ fn @pushNestedShorterCalldata(arg0: calldataslice) -> (u256, u256, u256, u256, u
   bb44:
     v120 = add v117, 2
     v121 = sload v120 !metadata(storage=offset(v117, 2))
-    ret v51, v65, v79, v93, v107, v121
+    v122 = insert_value struct1, undef struct1, 0, v51
+    v123 = insert_value struct1, v122, 1, v65
+    v124 = insert_value struct1, v123, 2, v79
+    v125 = insert_value struct1, v124, 3, v93
+    v126 = insert_value struct1, v125, 4, v107
+    v127 = insert_value struct1, v126, 5, v121
+    ret v127
   bb26:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -434,7 +451,7 @@ fn @pushNestedShorterCalldata(arg0: calldataslice) -> (u256, u256, u256, u256, u
     revert 0, 0
 }
 
-fn @pushExactCalldata(arg0: calldataslice) -> (u256, u256) [selector=0x9b4dcbee, abi_params=[array<2, u256>], abi_returns=[word, word]] {
+fn @pushExactCalldata(arg0: calldataslice) -> struct2 [selector=0x9b4dcbee, abi_params=[array<2, u256>], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = calldatasize
@@ -488,7 +505,9 @@ fn @pushExactCalldata(arg0: calldataslice) -> (u256, u256) [selector=0x9b4dcbee,
   bb15:
     v36 = add v33, 1
     v37 = sload v36 !metadata(storage=offset(v33, 1))
-    ret v27, v37
+    v38 = insert_value struct2, undef struct2, 0, v27
+    v39 = insert_value struct2, v38, 1, v37
+    ret v39
   bb11:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

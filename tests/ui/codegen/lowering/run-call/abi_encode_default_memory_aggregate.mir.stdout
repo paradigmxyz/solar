@@ -43,8 +43,8 @@ fn @hashDynamicTuple() -> bytes32 [selector=0xfe92a929, pure, abi_params=[], abi
   bb2:
     v3 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
     memory_object_store_field memorystruct<3>, v3, 0, 0
-    memory_object_store_field memorystruct<3>, v3, 1, 96
-    memory_object_store_field memorystruct<3>, v3, 2, 96
+    memory_object_store_field memorystruct<3>, v3, 1, memorybytes 96
+    memory_object_store_field memorystruct<3>, v3, 2, memoryarray 96
     memory_object_store_element memoryarray<1>, v0, v1, v3
     v4 = add v1, 1
     jump bb1
@@ -100,7 +100,7 @@ fn @hashDynamicFixedArray() -> bytes32 [selector=0x6c0960c7, pure, abi_params=[]
     v7 = add v1, 1
     jump bb1
   bb5:
-    memory_object_store_element memoryfixedarray<3, 1>, v3, v4, 96
+    memory_object_store_element memoryfixedarray<3, 1>, v3, v4, memorybytes 96
     v6 = add v4, 1
     jump bb4
 }
@@ -127,7 +127,7 @@ fn @hashNestedTuple() -> bytes32 [selector=0xe4f5ccbe, pure, abi_params=[], abi_
     memory_object_store_field memorystruct<3>, v4, 1, 0
     memory_object_store_field memorystruct<3>, v4, 2, 0
     memory_object_store_field memorystruct<2>, v3, 0, v4
-    memory_object_store_field memorystruct<2>, v3, 1, 96
+    memory_object_store_field memorystruct<2>, v3, 1, memorybytes 96
     memory_object_store_element memoryarray<1>, v0, v1, v3
     v5 = add v1, 1
     jump bb1

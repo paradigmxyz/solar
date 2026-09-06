@@ -1,5 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/function_pointer_mutability_conversion.sol:FunctionPointerMutabilityConversion ===
 @module FunctionPointerMutabilityConversion
+types:
+  struct0: {u256, u256}
+
 fn @externalDefaultTarget() -> u256 [selector=0x7660b402, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     ret 11
@@ -25,7 +28,7 @@ fn @internalPureTarget() -> u256 [pure] {
     ret 23
 }
 
-fn @testViewToDefault() -> (u256, u256) [selector=0xea84b69f, abi_params=[], abi_returns=[word, word]] {
+fn @testViewToDefault() -> struct0 [selector=0xea84b69f, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
     v1 = address
@@ -92,7 +95,9 @@ fn @testViewToDefault() -> (u256, u256) [selector=0xea84b69f, abi_params=[], abi
     v89 = shr v88, v87
     v90 = and v89, 0xffffffffffffffff
     v91 = icall @internal_dispatcher_p_none_r_u256, 1, v90
-    ret v80, v91
+    v92 = insert_value struct0, undef struct0, 0, v80
+    v93 = insert_value struct0, v92, 1, v91
+    ret v93
   bb17:
     revert 0, 0
   bb13:
@@ -168,7 +173,7 @@ fn @testViewToDefault() -> (u256, u256) [selector=0xea84b69f, abi_params=[], abi
     jump bb1
 }
 
-fn @testPureToDefault() -> (u256, u256) [selector=0x77df1859, abi_params=[], abi_returns=[word, word]] {
+fn @testPureToDefault() -> struct0 [selector=0x77df1859, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
     v1 = address
@@ -235,7 +240,9 @@ fn @testPureToDefault() -> (u256, u256) [selector=0x77df1859, abi_params=[], abi
     v89 = shr v88, v87
     v90 = and v89, 0xffffffffffffffff
     v91 = icall @internal_dispatcher_p_none_r_u256, 1, v90
-    ret v80, v91
+    v92 = insert_value struct0, undef struct0, 0, v80
+    v93 = insert_value struct0, v92, 1, v91
+    ret v93
   bb17:
     revert 0, 0
   bb13:
@@ -311,7 +318,7 @@ fn @testPureToDefault() -> (u256, u256) [selector=0x77df1859, abi_params=[], abi
     jump bb1
 }
 
-fn @testPureToView() -> (u256, u256) [selector=0x78f13937, abi_params=[], abi_returns=[word, word]] {
+fn @testPureToView() -> struct0 [selector=0x78f13937, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
     v1 = address
@@ -378,7 +385,9 @@ fn @testPureToView() -> (u256, u256) [selector=0x78f13937, abi_params=[], abi_re
     v89 = shr v88, v87
     v90 = and v89, 0xffffffffffffffff
     v91 = icall @internal_dispatcher_p_none_r_u256, 1, v90
-    ret v80, v91
+    v92 = insert_value struct0, undef struct0, 0, v80
+    v93 = insert_value struct0, v92, 1, v91
+    ret v93
   bb17:
     revert 0, 0
   bb13:

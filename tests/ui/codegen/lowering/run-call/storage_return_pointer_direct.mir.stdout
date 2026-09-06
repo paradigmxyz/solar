@@ -1,5 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_return_pointer_direct.sol:StorageReturnPointerDirect ===
 @module StorageReturnPointerDirect
+types:
+  struct0: {u256, u256}
+
 fn @pick(arg0: bool) -> storageptr [view] {
   bb0:
     jumpi arg0, bb1, bb2
@@ -11,11 +14,13 @@ fn @pick(arg0: bool) -> storageptr [view] {
     ret 1
 }
 
-fn @test(arg0: bool, arg1: u256) -> (u256, u256) [selector=0xc6a64c1f, abi_params=[bool, u256], abi_returns=[word, word]] {
+fn @test(arg0: bool, arg1: u256) -> struct0 [selector=0xc6a64c1f, abi_params=[bool, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = icall @pick, 1, arg0
     sstore v0, arg1 !metadata(storage=symbolic(v0))
     v1 = sload 0 !metadata(storage=slot(0))
     v2 = sload 1 !metadata(storage=slot(1))
-    ret v1, v2
+    v3 = insert_value struct0, undef struct0, 0, v1
+    v4 = insert_value struct0, v3, 1, v2
+    ret v4
 }

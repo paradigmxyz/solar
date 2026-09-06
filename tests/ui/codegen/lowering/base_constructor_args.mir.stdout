@@ -490,6 +490,9 @@ fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
 
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:ConstructorArgumentOrder ===
 @module ConstructorArgumentOrder
+types:
+  struct0: {u256, u256, u256, u256}
+
 fn @constructor() [constructor] {
   bb0:
     v0 = icall @record, 1, 1
@@ -527,7 +530,7 @@ fn @record(arg0: u256) -> u256 {
     revert 0, 36
 }
 
-fn @order() -> (u256, u256, u256, u256) [selector=0xbf15071d, view, abi_params=[], abi_returns=[word, word, word, word]] {
+fn @order() -> struct0 [selector=0xbf15071d, view, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = lt 0, v0
@@ -561,7 +564,11 @@ fn @order() -> (u256, u256, u256, u256) [selector=0xbf15071d, view, abi_params=[
     v21 = storage_array_data_slot 0
     v22 = add v21, 3
     v23 = sload v22 !metadata(storage=offset(v21, 3))
-    ret v5, v11, v17, v23
+    v24 = insert_value struct0, undef struct0, 0, v5
+    v25 = insert_value struct0, v24, 1, v11
+    v26 = insert_value struct0, v25, 2, v17
+    v27 = insert_value struct0, v26, 3, v23
+    ret v27
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -823,6 +830,9 @@ fn @constructor() [constructor] {
 
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:DomainBase ===
 @module DomainBase
+types:
+  struct0: {memorybytes, memorybytes}
+
 fn @constructor(arg0: memorybytes, arg1: memorybytes) [constructor, abi_params=[bytes, bytes]] {
   bb0:
     icall @store_storage_bytes, 0, 0, arg0
@@ -830,11 +840,13 @@ fn @constructor(arg0: memorybytes, arg1: memorybytes) [constructor, abi_params=[
     stop
 }
 
-fn @domain() -> (memorybytes, memorybytes) [selector=0xc2fb26a6, view, abi_params=[], abi_returns=[memory_bytes, memory_bytes]] {
+fn @domain() -> struct0 [selector=0xc2fb26a6, view, abi_params=[], abi_returns=[memory_bytes, memory_bytes], abi_return_params=[bytes, bytes]] {
   bb0:
     v0 = icall @load_storage_bytes, 1, 0
     v1 = icall @load_storage_bytes, 1, 1
-    ret v0, v1
+    v2 = insert_value struct0, undef struct0, 0, v0
+    v3 = insert_value struct0, v2, 1, v1
+    ret v3
 }
 
 fn @clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
@@ -1001,6 +1013,9 @@ fn @load_storage_bytes(arg0: u256) -> memorybytes {
 
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:PermitBase ===
 @module PermitBase
+types:
+  struct0: {memorybytes, memorybytes}
+
 fn @constructor(arg0: memorybytes) [constructor, abi_params=[bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
@@ -1016,11 +1031,13 @@ fn @constructor(arg0: memorybytes) [constructor, abi_params=[bytes]] {
     stop
 }
 
-fn @domain() -> (memorybytes, memorybytes) [selector=0xc2fb26a6, view, abi_params=[], abi_returns=[memory_bytes, memory_bytes]] {
+fn @domain() -> struct0 [selector=0xc2fb26a6, view, abi_params=[], abi_returns=[memory_bytes, memory_bytes], abi_return_params=[bytes, bytes]] {
   bb0:
     v0 = icall @load_storage_bytes, 1, 0
     v1 = icall @load_storage_bytes, 1, 1
-    ret v0, v1
+    v2 = insert_value struct0, undef struct0, 0, v0
+    v3 = insert_value struct0, v2, 1, v1
+    ret v3
 }
 
 fn @clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
@@ -1194,6 +1211,9 @@ fn @constructor(arg0: memorybytes, arg1: memorybytes) [constructor, abi_params=[
 
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:EmptyBaseArgumentMask ===
 @module EmptyBaseArgumentMask
+types:
+  struct0: {memorybytes, memorybytes}
+
 fn @constructor() [constructor] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
@@ -1227,11 +1247,13 @@ fn @constructor() [constructor] {
     stop
 }
 
-fn @domain() -> (memorybytes, memorybytes) [selector=0xc2fb26a6, view, abi_params=[], abi_returns=[memory_bytes, memory_bytes]] {
+fn @domain() -> struct0 [selector=0xc2fb26a6, view, abi_params=[], abi_returns=[memory_bytes, memory_bytes], abi_return_params=[bytes, bytes]] {
   bb0:
     v0 = icall @load_storage_bytes, 1, 0
     v1 = icall @load_storage_bytes, 1, 1
-    ret v0, v1
+    v2 = insert_value struct0, undef struct0, 0, v0
+    v3 = insert_value struct0, v2, 1, v1
+    ret v3
 }
 
 fn @clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {

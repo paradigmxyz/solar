@@ -28,6 +28,9 @@ fn @pair() -> memoryfixedarray [selector=0xa8aa1b31, pure, abi_params=[], abi_re
 
 // === ROOT/tests/ui/codegen/lowering/run-call/no_code_call_returns_evm_version.sol:NoCodeReturnCalls ===
 @module NoCodeReturnCalls
+types:
+  struct0: {u256, u256}
+
 data:
   NoCodeCallee_initcode_0: hex"3460105761010e8060166000396000f35b60006000fe346046576000357c0100000000000000000000000000000000000000000000000000000000900480633fa4f24514603e578063a8aa1b31146042576046565b604b565b605d565b600080fe5b602a6080526020608001608090036080f35b6101206040526040518060c0528060c05260408101604052604036828060c052376002600010151560b8575b7f4e487b7100000000000000000000000000000000000000000000000000000000600052603260045260246000fe5b8060c0526001815260026001101560895760208101600281525060005b8060e052600281101560fe576020818060e05202820151602082026080015260018101905060d5565b6040608001915050608090036080f3"
 
@@ -242,7 +245,7 @@ fn @live() -> u256 [selector=0x957aa58c, abi_params=[], abi_returns=[word]] {
     revert 0, 0
 }
 
-fn @liveAggregate() -> (u256, u256) [selector=0xc64a4ee9, abi_params=[], abi_returns=[word, word]] {
+fn @liveAggregate() -> struct0 [selector=0xc64a4ee9, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -289,7 +292,9 @@ fn @liveAggregate() -> (u256, u256) [selector=0xc64a4ee9, abi_params=[], abi_ret
     jumpi v24, bb7, bb9
   bb9:
     v25 = memory_object_load_element memoryfixedarray<2, 1>, v19, 1
-    ret v22, v25
+    v26 = insert_value struct0, undef struct0, 0, v22
+    v27 = insert_value struct0, v26, 1, v25
+    ret v27
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

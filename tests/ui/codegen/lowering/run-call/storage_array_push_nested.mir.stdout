@@ -191,12 +191,12 @@ fn @pushStruct() -> u256 [selector=0x7f91da62, abi_params=[], abi_returns=[word]
     v1 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
     memory_zero v1, 96
     memory_object_store_field memorystruct<4>, v0, 2, v1
-    memory_object_store_field memorystruct<4>, v0, 3, 96
+    memory_object_store_field memorystruct<4>, v0, 3, memoryarray 96
     v2 = and 2, 0xffff
     memory_object_store_field memorystruct<4>, v0, 0, v2
     v3 = and 3, 0xffff
     memory_object_store_field memorystruct<4>, v0, 1, v3
-    v4 = memory_object_load_field memorystruct<4>, v0, 2
+    v4 = memory_object_load_field memorystruct<4>, v0, 2, memoryfixedarray
     v5 = lt 2, 3
     v6 = iszero v5
     jumpi v6, bb1, bb2
@@ -206,7 +206,7 @@ fn @pushStruct() -> u256 [selector=0x7f91da62, abi_params=[], abi_returns=[word]
     v8 = alloc memoryarray<1>, exact, zeroed, panic, 160
     set_memory_object_len memoryarray, v8, 4
     memory_object_store_field memorystruct<4>, v0, 3, v8
-    v9 = memory_object_load_field memorystruct<4>, v0, 3
+    v9 = memory_object_load_field memorystruct<4>, v0, 3, memoryarray
     v10 = memory_object_len memoryarray, v9
     v11 = lt 2, v10
     v12 = iszero v11

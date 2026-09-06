@@ -1,6 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/storage_reference_loop.sol:StorageReferenceLoop ===
 @module StorageReferenceLoop
-fn @rebindLoop(arg0: bool, arg1: u256, arg2: u256, arg3: u256) -> (u256, u256) [selector=0x936672d8, abi_params=[bool, u256, u256, u256], abi_returns=[word, word]] {
+types:
+  struct0: {u256, u256}
+
+fn @rebindLoop(arg0: bool, arg1: u256, arg2: u256, arg3: u256) -> struct0 [selector=0x936672d8, abi_params=[bool, u256, u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = mapping_slot arg1, 0
     jump bb1
@@ -23,7 +26,9 @@ fn @rebindLoop(arg0: bool, arg1: u256, arg2: u256, arg3: u256) -> (u256, u256) [
     v15 = sload v14 !metadata(storage=symbolic(v14))
     v16 = mapping_slot v6, 0
     v17 = sload v16 !metadata(storage=symbolic(v16))
-    ret v15, v17
+    v18 = insert_value struct0, undef struct0, 0, v15
+    v19 = insert_value struct0, v18, 1, v17
+    ret v19
   bb4:
     jumpi v5, bb7, bb8
   bb8:

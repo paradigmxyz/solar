@@ -1,6 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/indexed_event_aggregates.sol:IndexedAggregates ===
 @module IndexedAggregates
-fn @test_nested() -> (u256, memorybytes) [selector=0x9160d787, abi_params=[], abi_returns=[word, memory_bytes]] {
+types:
+  struct0: {u256, memorybytes}
+
+fn @test_nested() -> struct0 [selector=0x9160d787, abi_params=[], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
     set_memory_object_len memoryarray, v0, 2
@@ -112,7 +115,9 @@ fn @test_nested() -> (u256, memorybytes) [selector=0x9160d787, abi_params=[], ab
     set_memory_object_len memorybytes, v87, 5
     v88 = memory_object_data memorybytes, v87
     mstore v88, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
-    ret v86, v87
+    v89 = insert_value struct0, undef struct0, 0, v86
+    v90 = insert_value struct0, v89, 1, v87
+    ret v90
   bb27:
     v69 = memory_object_load_element memoryarray<1>, v0, v66
     v70 = iszero v69
@@ -176,7 +181,7 @@ fn @test_nested() -> (u256, memorybytes) [selector=0x9160d787, abi_params=[], ab
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    memory_object_store_element memoryarray<1>, v0, v1, 96
+    memory_object_store_element memoryarray<1>, v0, v1, memoryarray 96
     v3 = add v1, 1
     jump bb1
 }
@@ -297,7 +302,7 @@ fn @test_strings() -> memorybytes [selector=0xcdb50c38, abi_params=[], abi_retur
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    memory_object_store_element memoryarray<1>, v0, v1, 96
+    memory_object_store_element memoryarray<1>, v0, v1, memorybytes 96
     v3 = add v1, 1
     jump bb1
 }

@@ -1,5 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_call_special_args_v2.sol:AbiEncodeCallSpecialArgs ===
 @module AbiEncodeCallSpecialArgs
+types:
+  struct0: {u256, u256}
+
 fn @fNoArgs() [selector=0x1af93581, abi_params=[], abi_returns=[]] {
   bb0:
     stop
@@ -10,9 +13,11 @@ fn @fArray(arg0: memoryarray) [selector=0x0a326c0c, abi_params=[array<_, u256>],
     stop
 }
 
-fn @fUint(arg0: u256, arg1: u256) -> (u256, u256) [selector=0x432672b2, abi_params=[u256, u256], abi_returns=[word, word]] {
+fn @fUint(arg0: u256, arg1: u256) -> struct0 [selector=0x432672b2, abi_params=[u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
-    ret 0, 0
+    v0 = insert_value struct0, undef struct0, 0, 0
+    v1 = insert_value struct0, v0, 1, 0
+    ret v1
 }
 
 fn @test() -> bool [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bool>]] {
@@ -26,9 +31,9 @@ fn @test() -> bool [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<
   bb2:
     jump bb3
   bb1:
-    v5 = abi_encode [memory_array<word>], object, selector 0xa326c0c00000000000000000000000000000000000000000000000000000000, args 96
+    v5 = abi_encode [memory_array<word>], object, selector 0xa326c0c00000000000000000000000000000000000000000000000000000000, args memoryarray 96
     v6 = keccak256_bytes v5
-    v7 = abi_encode [memory_array<word>], object, selector 0xa326c0c00000000000000000000000000000000000000000000000000000000, args 96
+    v7 = abi_encode [memory_array<word>], object, selector 0xa326c0c00000000000000000000000000000000000000000000000000000000, args memoryarray 96
     v8 = keccak256_bytes v7
     v9 = eq v6, v8
     jump bb3

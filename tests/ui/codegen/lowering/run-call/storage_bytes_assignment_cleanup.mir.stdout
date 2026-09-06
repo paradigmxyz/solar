@@ -1,9 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_bytes_assignment_cleanup.sol:StorageBytesAssignmentCleanup ===
 @module StorageBytesAssignmentCleanup
+types:
+  struct0: {u256, u256, u256}
+
 data:
   literal_0: hex"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 
-fn @cleanup() -> (bool, bool, u256) [selector=0x3cecd719, abi_params=[], abi_returns=[word<bool>, word<bool>, word]] {
+fn @cleanup() -> struct0 [selector=0x3cecd719, abi_params=[], abi_returns=[word<bool>, word<bool>, word], abi_return_params=[bool, bool, u256]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 96
     set_memory_object_len memorybytes, v0, 64
@@ -33,14 +36,17 @@ fn @cleanup() -> (bool, bool, u256) [selector=0x3cecd719, abi_params=[], abi_ret
     v18 = eq v13, v17
     jumpi v18, bb1, bb2
   bb2:
-    ret v7, v10, v16
+    v19 = insert_value struct0, undef struct0, 0, v7
+    v20 = insert_value struct0, v19, 1, v10
+    v21 = insert_value struct0, v20, 2, v16
+    ret v21
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 34 !metadata(memory=scratch)
     revert 0, 36
 }
 
-fn @cleanupShort() -> (bool, bool, u256) [selector=0x14d48529, abi_params=[], abi_returns=[word<bool>, word<bool>, word]] {
+fn @cleanupShort() -> struct0 [selector=0x14d48529, abi_params=[], abi_returns=[word<bool>, word<bool>, word], abi_return_params=[bool, bool, u256]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 96
     set_memory_object_len memorybytes, v0, 64
@@ -70,7 +76,10 @@ fn @cleanupShort() -> (bool, bool, u256) [selector=0x14d48529, abi_params=[], ab
     v18 = eq v13, v17
     jumpi v18, bb1, bb2
   bb2:
-    ret v7, v10, v16
+    v19 = insert_value struct0, undef struct0, 0, v7
+    v20 = insert_value struct0, v19, 1, v10
+    v21 = insert_value struct0, v20, 2, v16
+    ret v21
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 34 !metadata(memory=scratch)

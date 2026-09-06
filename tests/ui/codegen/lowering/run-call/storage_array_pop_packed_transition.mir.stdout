@@ -1,6 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_array_pop_packed_transition.sol:StorageArrayPopPackedTransition ===
 @module StorageArrayPopPackedTransition
-fn @test() -> (u16, u16, u16) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u16>, word<u16>, word<u16>]] {
+types:
+  struct0: {u256, u256, u256}
+
+fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u16>, word<u16>, word<u16>], abi_return_params=[u16, u16, u16]] {
   bb0:
     jump bb1
   bb1:
@@ -129,7 +132,10 @@ fn @test() -> (u16, u16, u16) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[
   bb47:
     jump bb44
   bb44:
-    ret v155, v149, v151
+    v176 = insert_value struct0, undef struct0, 0, v155
+    v177 = insert_value struct0, v176, 1, v149
+    v178 = insert_value struct0, v177, 2, v151
+    ret v178
   bb46:
     v158 = sload 0 !metadata(storage=slot(0))
     v159 = eq v158, 0

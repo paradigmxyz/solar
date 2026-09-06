@@ -1,6 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_array_push_length_cap.sol:C ===
 @module C
-fn @grow() -> (u256, u256, u256) [selector=0x5298948e, abi_params=[], abi_returns=[word, word, word]] {
+types:
+  struct0: {u256, u256, u256}
+
+fn @grow() -> struct0 [selector=0x5298948e, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = gt v0, 0xffffffffffffffff
@@ -37,7 +40,10 @@ fn @grow() -> (u256, u256, u256) [selector=0x5298948e, abi_params=[], abi_return
     v20 = add v19, 1
     v21 = sload v20 !metadata(storage=offset(v19, 1))
     v22 = sload 1 !metadata(storage=slot(1))
-    ret v15, v21, v22
+    v23 = insert_value struct0, undef struct0, 0, v15
+    v24 = insert_value struct0, v23, 1, v21
+    v25 = insert_value struct0, v24, 2, v22
+    ret v25
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

@@ -1,6 +1,10 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_bytes_dirty_tail.sol:StorageBytesDirtyTail ===
 @module StorageBytesDirtyTail
-fn @storeLong() -> (bytes32, bytes32, u256) [selector=0xc4a6ec73, abi_params=[], abi_returns=[word, word, word]] {
+types:
+  struct0: {u256, u256, u256}
+  struct1: {u256, u256}
+
+fn @storeLong() -> struct0 [selector=0xc4a6ec73, abi_params=[], abi_returns=[word, word, word], abi_return_params=[bytes32, bytes32, u256]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     mstore v0, 33
@@ -27,14 +31,17 @@ fn @storeLong() -> (bytes32, bytes32, u256) [selector=0xc4a6ec73, abi_params=[],
     v16 = eq v11, v15
     jumpi v16, bb1, bb2
   bb2:
-    ret v6, v8, v14
+    v17 = insert_value struct0, undef struct0, 0, v6
+    v18 = insert_value struct0, v17, 1, v8
+    v19 = insert_value struct0, v18, 2, v14
+    ret v19
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 34 !metadata(memory=scratch)
     revert 0, 36
 }
 
-fn @storeShort() -> (bytes32, u256) [selector=0x5296e6c1, abi_params=[], abi_returns=[word, word]] {
+fn @storeShort() -> struct1 [selector=0x5296e6c1, abi_params=[], abi_returns=[word, word], abi_return_params=[bytes32, u256]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     mstore v0, 5
@@ -55,7 +62,9 @@ fn @storeShort() -> (bytes32, u256) [selector=0x5296e6c1, abi_params=[], abi_ret
     v12 = eq v7, v11
     jumpi v12, bb1, bb2
   bb2:
-    ret v4, v10
+    v13 = insert_value struct1, undef struct1, 0, v4
+    v14 = insert_value struct1, v13, 1, v10
+    ret v14
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 34 !metadata(memory=scratch)

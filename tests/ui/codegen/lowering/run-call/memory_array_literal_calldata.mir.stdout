@@ -60,7 +60,7 @@ fn @collect(arg0: calldataslice, arg1: calldataslice) -> memoryfixedarray [selec
   bb4:
     revert 0, 0
   bb2:
-    memory_object_store_element memoryfixedarray<2, 1>, v0, v1, 96
+    memory_object_store_element memoryfixedarray<2, 1>, v0, v1, memorybytes 96
     v3 = add v1, 1
     jump bb1
 }

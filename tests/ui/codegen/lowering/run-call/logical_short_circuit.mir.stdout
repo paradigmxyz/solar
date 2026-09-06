@@ -1,5 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/logical_short_circuit.sol:LogicalShortCircuit ===
 @module LogicalShortCircuit
+types:
+  struct0: {u256, u256}
+
 fn @bump() -> bool [selector=0x68110b2f, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -15,7 +18,7 @@ fn @bump() -> bool [selector=0x68110b2f, abi_params=[], abi_returns=[word<bool>]
     revert 0, 36
 }
 
-fn @andSkipsRhs() -> (u256, bool) [selector=0x59db58e9, abi_params=[], abi_returns=[word, word<bool>]] {
+fn @andSkipsRhs() -> struct0 [selector=0x59db58e9, abi_params=[], abi_returns=[word, word<bool>], abi_return_params=[u256, bool]] {
   bb0:
     jumpi false, bb1, bb2
   bb2:
@@ -49,12 +52,14 @@ fn @andSkipsRhs() -> (u256, bool) [selector=0x59db58e9, abi_params=[], abi_retur
   bb3:
     v16 = phi [bb8: v15], [bb2: false]
     v17 = sload 0 !metadata(storage=slot(0))
-    ret v17, v16
+    v18 = insert_value struct0, undef struct0, 0, v17
+    v19 = insert_value struct0, v18, 1, v16
+    ret v19
   bb6:
     revert 0, 0
 }
 
-fn @orSkipsRhs() -> (u256, bool) [selector=0x136ed8bf, abi_params=[], abi_returns=[word, word<bool>]] {
+fn @orSkipsRhs() -> struct0 [selector=0x136ed8bf, abi_params=[], abi_returns=[word, word<bool>], abi_return_params=[u256, bool]] {
   bb0:
     jumpi true, bb2, bb1
   bb1:
@@ -90,10 +95,12 @@ fn @orSkipsRhs() -> (u256, bool) [selector=0x136ed8bf, abi_params=[], abi_return
   bb3:
     v16 = phi [bb8: v15], [bb2: true]
     v17 = sload 0 !metadata(storage=slot(0))
-    ret v17, v16
+    v18 = insert_value struct0, undef struct0, 0, v17
+    v19 = insert_value struct0, v18, 1, v16
+    ret v19
 }
 
-fn @andRunsRhs() -> (u256, bool) [selector=0x87ab0848, abi_params=[], abi_returns=[word, word<bool>]] {
+fn @andRunsRhs() -> struct0 [selector=0x87ab0848, abi_params=[], abi_returns=[word, word<bool>], abi_return_params=[u256, bool]] {
   bb0:
     jumpi true, bb1, bb2
   bb2:
@@ -127,12 +134,14 @@ fn @andRunsRhs() -> (u256, bool) [selector=0x87ab0848, abi_params=[], abi_return
   bb3:
     v16 = phi [bb8: v15], [bb2: false]
     v17 = sload 0 !metadata(storage=slot(0))
-    ret v17, v16
+    v18 = insert_value struct0, undef struct0, 0, v17
+    v19 = insert_value struct0, v18, 1, v16
+    ret v19
   bb6:
     revert 0, 0
 }
 
-fn @orRunsRhs() -> (u256, bool) [selector=0x6baa9b2a, abi_params=[], abi_returns=[word, word<bool>]] {
+fn @orRunsRhs() -> struct0 [selector=0x6baa9b2a, abi_params=[], abi_returns=[word, word<bool>], abi_return_params=[u256, bool]] {
   bb0:
     jumpi false, bb2, bb1
   bb1:
@@ -168,5 +177,7 @@ fn @orRunsRhs() -> (u256, bool) [selector=0x6baa9b2a, abi_params=[], abi_returns
   bb3:
     v16 = phi [bb8: v15], [bb2: true]
     v17 = sload 0 !metadata(storage=slot(0))
-    ret v17, v16
+    v18 = insert_value struct0, undef struct0, 0, v17
+    v19 = insert_value struct0, v18, 1, v16
+    ret v19
 }

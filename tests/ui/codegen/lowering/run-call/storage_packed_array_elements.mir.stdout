@@ -1,6 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_packed_array_elements.sol:StoragePackedArrayElements ===
 @module StoragePackedArrayElements
-fn @read() -> (u8, u32, u120) [selector=0x57de26a4, abi_params=[], abi_returns=[word<u8>, word<u32>, word<u120>]] {
+types:
+  struct0: {u256, u256, u256}
+
+fn @read() -> struct0 [selector=0x57de26a4, abi_params=[], abi_returns=[word<u8>, word<u32>, word<u120>], abi_return_params=[u8, u32, u120]] {
   bb0:
     v0 = lt 32, 33
     v1 = iszero v0
@@ -174,7 +177,10 @@ fn @read() -> (u8, u32, u120) [selector=0x57de26a4, abi_params=[], abi_returns=[
     v139 = mul v137, 8
     v140 = shr v139, v138
     v141 = and v140, 0xffffffffffffffffffffffffffffff
-    ret v121, v131, v141
+    v142 = insert_value struct0, undef struct0, 0, v121
+    v143 = insert_value struct0, v142, 1, v131
+    v144 = insert_value struct0, v143, 2, v141
+    ret v144
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

@@ -173,7 +173,7 @@ impl LowerAbiCx {
             callvalue.observe(func);
             if is_wrappable_external(func) {
                 targets.push(id);
-                if !can_encode_live_returns(func) {
+                if !can_encode_live_returns(module, func) {
                     return false;
                 }
             }
@@ -573,14 +573,10 @@ impl LowerAbiCx {
                     } else {
                         data
                     };
+                    let result_ty = builder.func().value_ty(result).expect("typed ABI decode");
                     if let Some(&helper) = decode_helpers.get(layout.as_ref()) {
-                        let return_count = layout.types.len();
-                        let value = builder.icall(
-                            helper,
-                            vec![data],
-                            layout.types[0].mir_type(),
-                            return_count,
-                        );
+                        // result = icall decode_helper(data)
+                        let value = builder.icall(helper, vec![data], result_ty, 1);
                         replacements.insert(result, value);
                         continue;
                     }
@@ -597,24 +593,13 @@ impl LowerAbiCx {
                     ) else {
                         return false;
                     };
-                    replacements.insert(result, values[0]);
-
-                    if values.len() > 1 {
-                        let words = values.len() as u64;
-                        let (object, object_layout) =
-                            builder.alloc_word_array(words, AllocationSemantics::INTERNAL);
-                        let base = builder.memory_object_data(object, MemoryObjectKind::FixedArray);
-                        builder.frame_store(0, FrameMode::MultiReturn, FrameSlotKind::Word, base);
-                        for (index, value) in values.iter().copied().enumerate().skip(1) {
-                            let index = builder.imm(index as u64);
-                            builder.memory_object_store_element(
-                                object,
-                                object_layout,
-                                index,
-                                value,
-                            );
-                        }
-                    }
+                    // result = insert_value(undef, field0), ...
+                    let value = if let MirType::Struct(id) = result_ty {
+                        builder.make_struct(id, values)
+                    } else {
+                        values[0]
+                    };
+                    replacements.insert(result, value);
                 }
                 super::lower_abi_encode::move_terminator(&mut builder, block, terminator);
             }
@@ -787,9 +772,8 @@ impl LowerAbiCx {
         {
             let mut builder = self.builder(&mut function);
             let data = builder.add_param(MirType::MemoryObject(MemoryObjectKind::Bytes));
-            for ty in &layout.types {
-                builder.add_return(ty.mir_type());
-            }
+            let fields = layout.types.iter().map(AbiParamType::mir_type).collect();
+            builder.add_return(module.intern_return_type(fields).expect("decode has outputs"));
             let base = builder.memory_object_data(data, MemoryObjectKind::Bytes);
             let length = builder.memory_object_len(data, MemoryObjectKind::Bytes);
             let values = decode_memory_tuple(
@@ -888,6 +872,50 @@ impl LowerAbiCx {
                 &original.returns,
                 logical_values.into_iter().map(Option::unwrap).collect(),
             );
+        }
+        if let [MirType::Struct(id)] = original.returns.as_slice() {
+            let fields = module.struct_types[*id].fields.clone();
+            let wrapper = module.function_mut(wrapper_id);
+            wrapper.returns = fields.to_vec();
+            let blocks = wrapper.blocks.indices();
+            for block in blocks {
+                let Some(Terminator::Return { values }) = &wrapper.blocks[block].terminator else {
+                    continue;
+                };
+                let [aggregate] = values.as_slice() else { continue };
+                let aggregate = *aggregate;
+                let mut builder = FunctionBuilder::new(wrapper);
+                builder.switch_to_block(block);
+                // field0 = extract_value result, 0
+                // ...
+                // ret field0, ...
+                let values = fields
+                    .iter()
+                    .enumerate()
+                    .map(|(index, &field)| {
+                        let mut current = aggregate;
+                        let mut remaining = builder.func().num_insts();
+                        while remaining != 0
+                            && let Value::Inst(inst) = builder.func().value(current)
+                            && let InstKind::InsertValue {
+                                ty,
+                                aggregate: previous,
+                                index: inserted_index,
+                                value,
+                            } = builder.func().inst(*inst).kind
+                            && ty == *id
+                        {
+                            if inserted_index == index as u32 {
+                                return value;
+                            }
+                            remaining -= 1;
+                            current = previous;
+                        }
+                        builder.extract_value(*id, aggregate, index as u32, field)
+                    })
+                    .collect();
+                builder.set_terminator(Terminator::Return { values });
+            }
         }
         let return_params = module.function_mut(wrapper_id).abi_return_params.take();
         self.encode_live_returns(
@@ -3041,13 +3069,20 @@ fn can_lower_bytes_fallback_returns(func: &Function) -> bool {
 }
 
 /// Whether every value-carrying return has a matching semantic ABI layout.
-fn can_encode_live_returns(func: &Function) -> bool {
+fn can_encode_live_returns(module: &Module, func: &Function) -> bool {
     func.blocks.iter().all(|block| {
         let Some(Terminator::Return { values }) = &block.terminator else {
             return true;
         };
+        let count = match values.as_slice() {
+            [value] => match func.value_ty(*value) {
+                Some(MirType::Struct(id)) => module.struct_types[id].fields.len(),
+                _ => 1,
+            },
+            _ => values.len(),
+        };
         values.is_empty()
-            || func.abi_returns.as_ref().is_some_and(|layout| layout.types.len() == values.len())
+            || func.abi_returns.as_ref().is_some_and(|layout| layout.types.len() == count)
     })
 }
 

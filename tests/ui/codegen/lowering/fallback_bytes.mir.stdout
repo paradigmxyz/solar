@@ -1,6 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/fallback_bytes.sol:FallbackBytes ===
 @module FallbackBytes
-fn @invoke(arg0: memorybytes) -> (u256, bytes32) [selector=0xa6514259, abi_params=[bytes], abi_returns=[word, word]] {
+types:
+  struct0: {u256, u256}
+
+fn @invoke(arg0: memorybytes) -> struct0 [selector=0xa6514259, abi_params=[bytes], abi_returns=[word, word], abi_return_params=[u256, bytes32]] {
   bb0:
     v0 = address
     v1 = gas
@@ -23,7 +26,9 @@ fn @invoke(arg0: memorybytes) -> (u256, bytes32) [selector=0xa6514259, abi_param
   bb4:
     v13 = memory_object_len memorybytes, v10
     v14 = keccak256_bytes v10
-    ret v13, v14
+    v15 = insert_value struct0, undef struct0, 0, v13
+    v16 = insert_value struct0, v15, 1, v14
+    ret v16
   bb3:
     revert 0, 0
   bb1:

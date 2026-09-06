@@ -24,7 +24,7 @@ fn @testFlags() -> bool [selector=0x74da97f7, pure, abi_params=[], abi_returns=[
 fn @testTypedConstant() -> bool [selector=0x62655512, pure, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = icall @auth, 1
-    v1 = memory_object_load_field memorystruct<6>, v0, 0
+    v1 = memory_object_load_field memorystruct<6>, v0, 0, memorybytes
     v2 = memory_object_len memorybytes, v1
     v3 = lt 32, v2
     v4 = iszero v3
@@ -50,8 +50,8 @@ fn @auth() -> memorystruct [pure] {
     data_copy literal_0, v1, 64
     v2 = alloc memorystruct<6>, exact, uninitialized, infallible, 192
     memory_zero v2, 192
-    memory_object_store_field memorystruct<6>, v2, 0, 96
-    memory_object_store_field memorystruct<6>, v2, 1, 96
+    memory_object_store_field memorystruct<6>, v2, 0, memorybytes 96
+    memory_object_store_field memorystruct<6>, v2, 1, memorybytes 96
     memory_object_store_field memorystruct<6>, v2, 0, v0
     v3 = not 31
     v4 = and 109, v3

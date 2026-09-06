@@ -2,6 +2,10 @@
 //@ filecheck:
 @module MemoryReturn
 
+types:
+  struct0: {memoryslice, u256}
+  struct1: {struct0, bool}
+
 // Reading the free-memory pointer is an observable memory read, so retain the result protocol.
 // CHECK-LABEL: fn @escape() -> memptr
 // CHECK: v0 = fmp
@@ -36,5 +40,25 @@ fn @escape_slice() -> memoryslice {
 fn @slice_entry() [selector=0x05060708] {
   bb0:
     v0 = icall fn2, 1
+    ret
+}
+
+// CHECK-LABEL: fn @escape_struct() [may_return_memory]
+// CHECK: ret
+fn @escape_struct() -> struct1 {
+  bb0:
+    v0 = make_memory_slice 128, 32
+    v1 = insert_value struct0, undef struct0, 0, v0
+    v2 = insert_value struct0, v1, 1, 42
+    v3 = insert_value struct1, undef struct1, 0, v2
+    v4 = insert_value struct1, v3, 1, true
+    ret v4
+}
+
+// CHECK-LABEL: fn @struct_entry()
+// CHECK: icall @escape_struct, 0
+fn @struct_entry() [selector=0x090a0b0c] {
+  bb0:
+    v0 = icall @escape_struct, 1
     ret
 }

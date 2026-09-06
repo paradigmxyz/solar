@@ -681,6 +681,9 @@ pub(crate) enum InstKind {
     /// Reads one field of an SSA struct without accessing memory.
     ExtractValue { ty: StructId, aggregate: ValueId, index: u32 },
 
+    /// Treats unchanged word bits as an object pointer without asserting validity or ownership.
+    MemoryObjectFromPtr { ptr: ValueId, kind: MemoryObjectKind },
+
     // Arithmetic operations
     /// Addition: `a + b`
     Add(ValueId, ValueId),
@@ -1341,6 +1344,7 @@ impl InstKind {
 
             // Unary operations
             Self::ExtractValue { aggregate: a, .. }
+            | Self::MemoryObjectFromPtr { ptr: a, .. }
             | Self::Not(a)
             | Self::Clz(a)
             | Self::IsZero(a)
@@ -1624,6 +1628,7 @@ impl InstKind {
             Self::AbiDecode { data, .. } => f(data),
 
             Self::ExtractValue { aggregate: a, .. }
+            | Self::MemoryObjectFromPtr { ptr: a, .. }
             | Self::Not(a)
             | Self::Clz(a)
             | Self::IsZero(a)
@@ -1767,6 +1772,7 @@ impl InstKind {
         match self {
             Self::InsertValue { .. } => "insert_value",
             Self::ExtractValue { .. } => "extract_value",
+            Self::MemoryObjectFromPtr { .. } => "memory_object_from_ptr",
             Self::Add(_, _) => "add",
             Self::Sub(_, _) => "sub",
             Self::Mul(_, _) => "mul",
@@ -1962,6 +1968,7 @@ impl InstKind {
         matches!(
             self,
             Self::Alloc { kind: AllocationKind::Object(_), .. }
+                | Self::MemoryObjectFromPtr { .. }
                 | Self::MemoryObjectLen(_, _)
                 | Self::SetMemoryObjectLen(_, _, _)
                 | Self::MemoryObjectData(_, _)
@@ -1987,7 +1994,9 @@ impl InstKind {
     #[must_use]
     pub(crate) const fn effect_kind(&self) -> EffectKind {
         match self {
-            Self::InsertValue { .. } | Self::ExtractValue { .. } => EffectKind::Pure,
+            Self::InsertValue { .. }
+            | Self::ExtractValue { .. }
+            | Self::MemoryObjectFromPtr { .. } => EffectKind::Pure,
             Self::MStore(_, _)
             | Self::MStore8(_, _)
             | Self::MemoryZero(_, _)

@@ -24,9 +24,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
             }
         }
+        let return_types = function
+            .returns
+            .iter()
+            .map(|&ret| types::TypeLowerer::mir_return_type(self.cx.gcx.type_of_item(ret.into())))
+            .collect();
+        if let Some(ty) = self.cx.module.intern_return_type(return_types) {
+            self.builder.add_return(ty);
+        }
         for &ret in function.returns {
             let ty = self.cx.gcx.type_of_item(ret.into());
-            self.builder.add_return(types::TypeLowerer::mir_return_type(ty));
             if ty.is_ref_at(DataLocation::Storage) {
                 let zero = self.builder.imm(U256::ZERO);
                 self.storage_refs.insert(

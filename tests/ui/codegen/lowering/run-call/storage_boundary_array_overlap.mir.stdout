@@ -1,5 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_boundary_array_overlap.sol:StorageBoundaryArrayOverlap ===
 @module StorageBoundaryArrayOverlap
+types:
+  struct0: {u256, u256, u256}
+
 fn @y() -> u256 [selector=0xa56dfe4a, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -12,7 +15,7 @@ fn @getArray() -> storageptr [pure] {
     ret v0
 }
 
-fn @test() -> (u256, u256, u256) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word, word]] {
+fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = icall @getArray, 1
     v1 = lt 0, 1
@@ -53,7 +56,10 @@ fn @test() -> (u256, u256, u256) [selector=0xf8a8fd6d, abi_params=[], abi_return
     jumpi v30, bb16, bb17
   bb17:
     v33 = sload 0 !metadata(storage=slot(0))
-    ret v9, v24, v33
+    v34 = insert_value struct0, undef struct0, 0, v9
+    v35 = insert_value struct0, v34, 1, v24
+    v36 = insert_value struct0, v35, 2, v33
+    ret v36
   bb16:
     v31 = add v28, v29
     sstore v31, 0 !metadata(storage=symbolic(v31))

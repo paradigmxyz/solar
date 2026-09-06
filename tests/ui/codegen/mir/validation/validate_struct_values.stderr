@@ -12,5 +12,7 @@ error: [fn5] [bb0] tail-call arguments do not match the struct signature
 
 error: [fn6] a struct result must be the function's only result
 
-error: aborting due to 7 previous errors
+error: [fn7] [bb0, inst0] memory object pointer conversion requires a word and matching object result
+
+error: aborting due to 8 previous errors
 

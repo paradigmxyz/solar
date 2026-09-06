@@ -1,5 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_string_bytes_conversion.sol:StorageStringBytesConversion ===
 @module StorageStringBytesConversion
+types:
+  struct0: {memorybytes, u256}
+
 fn @constructor(arg0: memorybytes) [constructor, abi_params=[bytes]] {
   bb0:
     icall @store_storage_bytes, 0, 0, arg0
@@ -435,11 +438,11 @@ fn @popThroughConversion() -> memorybytes [selector=0x14044da4, abi_params=[], a
     revert 0, 36
 }
 
-fn @transitionThroughConversion() -> (memorybytes, bytes32) [selector=0x7117dd67, abi_params=[], abi_returns=[memory_bytes, word]] {
+fn @transitionThroughConversion() -> struct0 [selector=0x7117dd67, abi_params=[], abi_returns=[memory_bytes, word], abi_return_params=[bytes, bytes32]] {
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 96], [bb7: v0]
+    v0 = phi [bb0: memorybytes 96], [bb7: v0]
     v1 = phi [bb0: 0], [bb7: v1]
     v2 = sload 0 !metadata(storage=slot(0))
     v3 = and v2, 1
@@ -556,7 +559,9 @@ fn @transitionThroughConversion() -> (memorybytes, bytes32) [selector=0x7117dd67
   bb31:
     jump bb28
   bb28:
-    ret v112, v97
+    v121 = insert_value struct0, undef struct0, 0, v112
+    v122 = insert_value struct0, v121, 1, v97
+    ret v122
   bb30:
     v117 = add v114, v115
     v118 = sload v117 !metadata(storage=symbolic(v117))

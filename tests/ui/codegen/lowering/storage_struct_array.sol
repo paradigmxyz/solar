@@ -26,7 +26,9 @@ contract StorageStructArray {
     // CHECK: sload {{v[0-9]+}} !metadata(storage=symbolic([[OFFSET]]))
     // CHECK: [[OFFSET2:v[0-9]+]] = mul arg0, 2
     // CHECK: sload {{v[0-9]+}} !metadata(storage=offset([[OFFSET2]], 1))
-    // CHECK: ret {{v[0-9]+}}, {{v[0-9]+}}
+    // CHECK: [[RET_0:v[0-9]+]] = insert_value [[RET_TY:struct[0-9]+]], undef [[RET_TY]], 0, {{v[0-9]+}}
+    // CHECK: [[RET_1:v[0-9]+]] = insert_value [[RET_TY]], [[RET_0]], 1, {{v[0-9]+}}
+    // CHECK: ret [[RET_1]]
     function getS(uint256 i) public view returns (uint256, uint256) {
         return (arr[i].a, arr[i].b);
     }

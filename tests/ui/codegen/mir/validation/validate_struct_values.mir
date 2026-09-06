@@ -6,6 +6,7 @@
 //~? ERROR: [fn4] [bb0] terminator cannot consume a struct value
 //~? ERROR: [fn5] [bb0] tail-call arguments do not match the struct signature
 //~? ERROR: [fn6] a struct result must be the function's only result
+//~? ERROR: [fn7] [bb0, inst0] memory object pointer conversion requires a word and matching object result
 @module InvalidStructValues
 
 types:
@@ -51,4 +52,10 @@ fn @invalid_tail(arg0: u256) -> struct0 {
 fn @mixed_return(arg0: struct0, arg1: u256) -> (struct0, u256) {
   bb0:
     ret arg0, arg1
+}
+
+fn @invalid_object_pointer(arg0: struct0) -> memorybytes {
+  bb0:
+    v0 = memory_object_from_ptr memorybytes, arg0
+    ret v0
 }

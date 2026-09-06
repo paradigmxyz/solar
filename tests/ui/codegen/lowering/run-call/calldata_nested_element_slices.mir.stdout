@@ -1,5 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/calldata_nested_element_slices.sol:CalldataNestedElementSlices ===
 @module CalldataNestedElementSlices
+types:
+  struct0: {u256, u256}
+  struct1: {u256, u256, calldataslice}
+
 fn @nestedBytes() -> u256 [selector=0x126aa804, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
@@ -56,7 +60,7 @@ fn @nestedBytes() -> u256 [selector=0x126aa804, view, abi_params=[], abi_returns
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    memory_object_store_element memoryarray<1>, v0, v1, 96
+    memory_object_store_element memoryarray<1>, v0, v1, memorybytes 96
     v3 = add v1, 1
     jump bb1
 }
@@ -148,7 +152,7 @@ fn @sum(arg0: calldataslice) -> u256 [selector=0xe3db0bf3, pure, abi_params=[arr
     revert 0, 36
 }
 
-fn @structMember() -> (u256, bool) [selector=0x9f2d7231, view, abi_params=[], abi_returns=[word, word<bool>]] {
+fn @structMember() -> struct0 [selector=0x9f2d7231, view, abi_params=[], abi_returns=[word, word<bool>], abi_return_params=[u256, bool]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1
@@ -197,13 +201,17 @@ fn @structMember() -> (u256, bool) [selector=0x9f2d7231, view, abi_params=[], ab
     v27 = iszero v26
     jumpi v27, bb8, bb10
   bb10:
-    frame_store multi_return, word, 0, v15 !metadata(memory=scratch)
     v28 = add v15, 0
     v29 = mload v28
-    v30 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v31 = add v30, 32
-    v32 = mload v31
-    ret v29, v32
+    v30 = add v15, 32
+    v31 = mload v30
+    v32 = insert_value struct0, undef struct0, 0, v29
+    v33 = insert_value struct0, v32, 1, v31
+    v34 = extract_value struct0, v33, 0
+    v35 = extract_value struct0, v33, 1
+    v36 = insert_value struct0, undef struct0, 0, v34
+    v37 = insert_value struct0, v36, 1, v35
+    ret v37
   bb8:
     revert 0, 0
   bb4:
@@ -214,13 +222,13 @@ fn @structMember() -> (u256, bool) [selector=0x9f2d7231, view, abi_params=[], ab
     v3 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
     memory_object_store_field memorystruct<3>, v3, 0, 0
     memory_object_store_field memorystruct<3>, v3, 1, 0
-    memory_object_store_field memorystruct<3>, v3, 2, 96
+    memory_object_store_field memorystruct<3>, v3, 2, memorybytes 96
     memory_object_store_element memoryarray<1>, v0, v1, v3
     v4 = add v1, 1
     jump bb1
 }
 
-fn @inspect(arg0: calldataslice) -> (u256, bool) [selector=0x903f85b3, pure, abi_params=[array<_, tuple<address, u256, bytes>>], abi_returns=[word, word<bool>]] {
+fn @inspect(arg0: calldataslice) -> struct0 [selector=0x903f85b3, pure, abi_params=[array<_, tuple<address, u256, bytes>>], abi_returns=[word, word<bool>], abi_return_params=[u256, bool]] {
   bb0:
     v0 = slice_len arg0
     v1 = lt 0, v0
@@ -282,7 +290,9 @@ fn @inspect(arg0: calldataslice) -> (u256, bool) [selector=0x903f85b3, pure, abi
     v43 = slice_len v42
     v44 = gt v39, v43
     v45 = iszero v44
-    ret v40, v45
+    v46 = insert_value struct0, undef struct0, 0, v40
+    v47 = insert_value struct0, v46, 1, v45
+    ret v47
   bb3:
     revert 0, 0
   bb1:
@@ -324,17 +334,12 @@ fn @tupleTernary() -> u256 [selector=0x75466b3a, view, abi_params=[], abi_return
 
 fn @useTuple(arg0: calldataslice, arg1: bool) -> u256 [selector=0xf8c72565, pure, abi_params=[bytes, bool], abi_returns=[word]] {
   bb0:
-    v0 = icall @_decode, 3, arg0, arg1
-    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v2 = add v1, 32
-    v3 = mload v2
-    v4 = add v1, 64
-    v5 = mload v4
-    v6 = add v1, 96
-    v7 = mload v6
-    v8 = make_calldata_slice v5, v7
-    v9 = slice_len v8
-    ret v9
+    v0 = icall @_decode, 1, arg0, arg1
+    v1 = extract_value struct1, v0, 0
+    v2 = extract_value struct1, v0, 1
+    v3 = extract_value struct1, v0, 2
+    v4 = slice_len v3
+    ret v4
 }
 
 fn @_length(arg0: calldataslice) -> u256 [pure] {
@@ -343,7 +348,7 @@ fn @_length(arg0: calldataslice) -> u256 [pure] {
     ret v0
 }
 
-fn @_decode(arg0: calldataslice, arg1: bool) -> (u48, u48, calldataslice) [pure] {
+fn @_decode(arg0: calldataslice, arg1: bool) -> struct1 [pure] {
   bb0:
     v0 = make_calldata_slice 0, 0
     jumpi arg1, bb1, bb2
@@ -376,7 +381,10 @@ fn @_decode(arg0: calldataslice, arg1: bool) -> (u48, u48, calldataslice) [pure]
     v18 = phi [bb5: 0], [bb6: 1]
     v19 = phi [bb5: 0], [bb6: 2]
     v20 = phi [bb5: v9], [bb6: v17]
-    ret v18, v19, v20
+    v21 = insert_value struct1, undef struct1, 0, v18
+    v22 = insert_value struct1, v21, 1, v19
+    v23 = insert_value struct1, v22, 2, v20
+    ret v23
   bb4:
     revert 0, 0
 }

@@ -1,5 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_dynamic_bytes_array.sol:AbiCalldataDynamicBytesArray ===
 @module AbiCalldataDynamicBytesArray
+types:
+  struct0: {u256, u256, u256, u256, u256, u256, u256, u256}
+
 fn @encode(arg0: calldataslice) -> bytes32 [selector=0x04f02d88, pure, abi_params=[array<_, bytes>], abi_returns=[word]] {
   bb0:
     v0 = abi_encode [calldata_array<calldata_bytes>], scratch, args arg0
@@ -9,7 +12,7 @@ fn @encode(arg0: calldataslice) -> bytes32 [selector=0x04f02d88, pure, abi_param
     ret v3
 }
 
-fn @inspect(arg0: calldataslice) -> (u256, u256, u256, u256, u256, u256, u256, u256) [selector=0x9d6ce1dc, pure, abi_params=[array<_, bytes>], abi_returns=[word, word, word, word, word, word, word, word]] {
+fn @inspect(arg0: calldataslice) -> struct0 [selector=0x9d6ce1dc, pure, abi_params=[array<_, bytes>], abi_returns=[word, word, word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256, u256, u256]] {
   bb0:
     v0 = slice_len arg0
     v1 = slice_len arg0
@@ -302,7 +305,15 @@ fn @inspect(arg0: calldataslice) -> (u256, u256, u256, u256, u256, u256, u256, u
     v208 = byte 0, v207
     v209 = shl 248, v208
     v210 = shr 248, v209
-    ret v0, v25, v57, v89, v114, v146, v178, v210
+    v211 = insert_value struct0, undef struct0, 0, v0
+    v212 = insert_value struct0, v211, 1, v25
+    v213 = insert_value struct0, v212, 2, v57
+    v214 = insert_value struct0, v213, 3, v89
+    v215 = insert_value struct0, v214, 4, v114
+    v216 = insert_value struct0, v215, 5, v146
+    v217 = insert_value struct0, v216, 6, v178
+    v218 = insert_value struct0, v217, 7, v210
+    ret v218
   bb3:
     revert 0, 0
   bb1:

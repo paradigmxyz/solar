@@ -1149,19 +1149,7 @@ impl CommonSubexprEliminator {
     }
 
     fn cmp_immediate(a: &Immediate, b: &Immediate) -> Ordering {
-        let rank = |imm: &Immediate| match imm {
-            Immediate::Bool(_) => 0,
-            Immediate::UInt(_, _) => 1,
-            Immediate::Int(_, _) => 2,
-        };
-        rank(a).cmp(&rank(b)).then_with(|| match (a, b) {
-            (Immediate::Bool(a), Immediate::Bool(b)) => a.cmp(b),
-            (Immediate::UInt(a_value, a_bits), Immediate::UInt(b_value, b_bits))
-            | (Immediate::Int(a_value, a_bits), Immediate::Int(b_value, b_bits)) => {
-                a_bits.cmp(b_bits).then_with(|| a_value.cmp(b_value))
-            }
-            _ => Ordering::Equal,
-        })
+        a.cmp(b)
     }
 
     fn value_use_counts(func: &Function) -> FxHashMap<ValueId, usize> {

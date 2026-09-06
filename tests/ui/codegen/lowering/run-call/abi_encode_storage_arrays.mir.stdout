@@ -1,5 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_storage_arrays.sol:AbiEncodeStorageArrays ===
 @module AbiEncodeStorageArrays
+types:
+  struct0: {u256, u256, u256, u256, u256, u256}
+
 fn @encodeDynamicStatic(arg0: calldataslice) -> memorybytes [selector=0x199f835c, abi_params=[array<_, array<2, u256>>], abi_returns=[memory_bytes]] {
   bb0:
     v0 = slice_len arg0
@@ -185,7 +188,7 @@ fn @encodeDynamicStatic(arg0: calldataslice) -> memorybytes [selector=0x199f835c
     revert 0, 36
 }
 
-fn @readDynamicStorage(arg0: calldataslice) -> (u256, u256, u256, u256, u256, u256) [selector=0x26153afa, abi_params=[array<_, array<2, u256>>], abi_returns=[word, word, word, word, word, word]] {
+fn @readDynamicStorage(arg0: calldataslice) -> struct0 [selector=0x26153afa, abi_params=[array<_, array<2, u256>>], abi_returns=[word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256]] {
   bb0:
     v0 = slice_len arg0
     v1 = slice_ptr arg0
@@ -326,7 +329,13 @@ fn @readDynamicStorage(arg0: calldataslice) -> (u256, u256, u256, u256, u256, u2
   bb42:
     v119 = add v116, 1
     v120 = sload v119 !metadata(storage=offset(v116, 1))
-    ret v70, v80, v90, v100, v110, v120
+    v121 = insert_value struct0, undef struct0, 0, v70
+    v122 = insert_value struct0, v121, 1, v80
+    v123 = insert_value struct0, v122, 2, v90
+    v124 = insert_value struct0, v123, 3, v100
+    v125 = insert_value struct0, v124, 4, v110
+    v126 = insert_value struct0, v125, 5, v120
+    ret v126
   bb30:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

@@ -1,5 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/do_while_continue.sol:DoWhileContinue ===
 @module DoWhileContinue
+types:
+  struct0: {u256, u256}
+
 fn @falseCondition() -> u256 [selector=0x0c55a706, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     jump bb1
@@ -61,7 +64,7 @@ fn @countToThree() -> u256 [selector=0x1da4c6ce, pure, abi_params=[], abi_return
     invalid
 }
 
-fn @conditionSideEffect() -> (u256, u256) [selector=0x9f218831, pure, abi_params=[], abi_returns=[word, word]] {
+fn @conditionSideEffect() -> struct0 [selector=0x9f218831, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     jump bb1
   bb1:
@@ -82,7 +85,9 @@ fn @conditionSideEffect() -> (u256, u256) [selector=0x9f218831, pure, abi_params
   bb8:
     jump bb2
   bb2:
-    ret v2, v4
+    v7 = insert_value struct0, undef struct0, 0, v2
+    v8 = insert_value struct0, v7, 1, v4
+    ret v8
   bb7:
     jump bb1
   bb4:

@@ -428,7 +428,7 @@ fn @encodeDynamicIndex(arg0: memoryarray) -> bytes32 [selector=0x7d5331fb, pure,
 
 fn @encodeStructField(arg0: memorystruct) -> bytes32 [selector=0xa7ad7e04, pure, abi_params=[tuple<array<2, u256>>], abi_returns=[word]] {
   bb0:
-    v0 = memory_object_load_field memorystruct<1>, arg0, 0
+    v0 = memory_object_load_field memorystruct<1>, arg0, 0, memoryfixedarray
     v1 = not 31
     v2 = and 127, v1
     v3 = alloc memorybytes, exact, uninitialized, infallible, v2

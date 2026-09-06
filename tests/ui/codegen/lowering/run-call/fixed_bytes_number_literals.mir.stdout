@@ -18,6 +18,10 @@ fn @constructor() [constructor] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_number_literals.sol:FixedBytesLiterals ===
 @module FixedBytesLiterals
+types:
+  struct0: {u256, memorybytes}
+  struct1: {u256, u256, u256}
+
 data:
   Probe_initcode_0: hex"60c060405234600c576010565b5f5ffd5b607580601a5f395ff334601a575f3560e01c806314beb1ca14601657601a565b601e565b5f5ffd5b60243610156066576062565b7fffffffff000000000000000000000000000000000000000000000000000000006004351660e01c6080526020608001608090036080f35b5f5ffd5b60043560201b1515606257602a56"
 
@@ -135,9 +139,9 @@ fn @bytesObjectCast() -> bytes4 [selector=0x3edbb59d, pure, abi_params=[], abi_r
 
 fn @returnedBytesObjectCast() -> u256 [selector=0x28a9d934, pure, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = icall @returnBytes, 2
-    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v2 = memory_object_load_element memoryfixedarray<2, 1>, v1, 1
+    v0 = icall @returnBytes, 1
+    v1 = extract_value struct0, v0, 0
+    v2 = extract_value struct0, v0, 1
     v3 = memory_object_load_element memorybytes, v2, 0
     v4 = memory_object_len memorybytes, v2
     v5 = lt v4, 32
@@ -150,13 +154,15 @@ fn @returnedBytesObjectCast() -> u256 [selector=0x28a9d934, pure, abi_params=[],
     ret v11
 }
 
-fn @returnBytes() -> (bool, memorybytes) [pure] {
+fn @returnBytes() -> struct0 [pure] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 1
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0xe00000000000000000000000000000000000000000000000000000000000000
-    ret true, v0
+    v2 = insert_value struct0, undef struct0, 0, true
+    v3 = insert_value struct0, v2, 1, v0
+    ret v3
 }
 
 fn @takeSlice(arg0: calldataslice) -> bytes32 [selector=0x4f4c8d8b, pure, abi_params=[bytes], abi_returns=[word]] {
@@ -236,7 +242,7 @@ fn @emptyStringCompare() -> bool [selector=0x97e464f0, pure, abi_params=[], abi_
     ret v10
 }
 
-fn @stateLiterals() -> (bytes4, bytes2, bytes4) [selector=0x803da9a2, view, abi_params=[], abi_returns=[word<bytes4>, word<bytes2>, word<bytes4>]] {
+fn @stateLiterals() -> struct1 [selector=0x803da9a2, view, abi_params=[], abi_returns=[word<bytes4>, word<bytes2>, word<bytes4>], abi_return_params=[bytes4, bytes2, bytes4]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = and v0, 0xffffffff
@@ -246,7 +252,10 @@ fn @stateLiterals() -> (bytes4, bytes2, bytes4) [selector=0x803da9a2, view, abi_
     v5 = and v4, 0xffff
     v6 = shl 240, v5
     v7 = loadimmutable immutableLiteral
-    ret v2, v6, v7
+    v8 = insert_value struct1, undef struct1, 0, v2
+    v9 = insert_value struct1, v8, 1, v6
+    v10 = insert_value struct1, v9, 2, v7
+    ret v10
 }
 
 fn @give(arg0: bytes4) -> bytes4 [pure] {

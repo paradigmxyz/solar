@@ -10,5 +10,7 @@ error: [fn0] [bb0, inst2] memory-object instruction `set_memory_object_len` surv
 
 error: [fn0] [bb0, inst3] memory-object instruction `memory_object_load_byte` survives the `memory-lowered` phase boundary
 
-error: aborting due to 6 previous errors
+error: [fn1] memory-object value type survives the `memory-lowered` phase boundary
+
+error: aborting due to 7 previous errors
 

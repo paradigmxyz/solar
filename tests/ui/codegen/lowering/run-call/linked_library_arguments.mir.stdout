@@ -4,6 +4,9 @@
 
 // === ROOT/tests/ui/codegen/lowering/run-call/linked_library_arguments.sol:LinkedLibraryArgs ===
 @module LinkedLibraryArgs
+types:
+  struct0: {u256, u256}
+
 fn @test_value() -> u256 [selector=0x130d6dc5, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = icall @add, 1, 40, 2
@@ -23,7 +26,7 @@ fn @test_storage_write() -> u256 [selector=0x66f2b6c3, abi_params=[], abi_return
     ret v0
 }
 
-fn @test_multi() -> (u256, u256) [selector=0x255f2946, pure, abi_params=[], abi_returns=[word, word]] {
+fn @test_multi() -> struct0 [selector=0x255f2946, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
     set_memory_object_len memoryarray, v0, 2
@@ -39,11 +42,12 @@ fn @test_multi() -> (u256, u256) [selector=0x255f2946, pure, abi_params=[], abi_
     jumpi v6, bb1, bb3
   bb3:
     memory_object_store_element memoryarray<1>, v0, 1, 8
-    v7 = icall @pick, 2, v0
-    v8 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v9 = add v8, 32
-    v10 = mload v9
-    ret v7, v10
+    v7 = icall @pick, 1, v0
+    v8 = extract_value struct0, v7, 0
+    v9 = extract_value struct0, v7, 1
+    v10 = insert_value struct0, undef struct0, 0, v8
+    v11 = insert_value struct0, v10, 1, v9
+    ret v11
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -72,15 +76,14 @@ fn @test_using() -> u256 [selector=0xd6c053d5, pure, abi_params=[], abi_returns=
     jumpi v6, bb1, bb3
   bb3:
     memory_object_store_element memoryarray<1>, v0, 1, 8
-    v7 = icall @pick, 2, v0
-    v8 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v9 = add v8, 32
-    v10 = mload v9
-    v11 = add v7, v10
-    v12 = lt v11, v7
-    jumpi v12, bb4, bb5
+    v7 = icall @pick, 1, v0
+    v8 = extract_value struct0, v7, 0
+    v9 = extract_value struct0, v7, 1
+    v10 = add v8, v9
+    v11 = lt v10, v8
+    jumpi v11, bb4, bb5
   bb5:
-    ret v11
+    ret v10
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -125,7 +128,7 @@ fn @bump(arg0: storageptr) {
     revert 0, 36
 }
 
-fn @pick(arg0: memoryarray) -> (u256, u256) [pure] {
+fn @pick(arg0: memoryarray) -> struct0 [pure] {
   bb0:
     v0 = memory_object_len memoryarray, arg0
     v1 = lt 0, v0
@@ -139,7 +142,9 @@ fn @pick(arg0: memoryarray) -> (u256, u256) [pure] {
     jumpi v6, bb1, bb3
   bb3:
     v7 = memory_object_load_element memoryarray<1>, arg0, 1
-    ret v3, v7
+    v8 = insert_value struct0, undef struct0, 0, v3
+    v9 = insert_value struct0, v8, 1, v7
+    ret v9
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

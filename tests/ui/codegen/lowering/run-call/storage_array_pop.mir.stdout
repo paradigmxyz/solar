@@ -1,6 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_array_pop.sol:StorageArrayPop ===
 @module StorageArrayPop
-fn @test() -> (u256, u256) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word]] {
+types:
+  struct0: {u256, u256}
+
+fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = gt v0, 0xffffffffffffffff
@@ -41,7 +44,9 @@ fn @test() -> (u256, u256) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[wor
     v21 = add v20, v19
     sstore v21, 0 !metadata(storage=symbolic(v21))
     v22 = sload 0 !metadata(storage=slot(0))
-    ret v16, v22
+    v23 = insert_value struct0, undef struct0, 0, v16
+    v24 = insert_value struct0, v23, 1, v22
+    ret v24
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 49 !metadata(memory=scratch)

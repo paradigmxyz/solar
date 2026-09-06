@@ -351,7 +351,7 @@ fn @allocate() -> u256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
   bb71:
     ret 7
   bb21:
-    memory_object_store_element memoryarray<1>, v46, v47, 96
+    memory_object_store_element memoryarray<1>, v46, v47, memoryarray 96
     v49 = add v47, 1
     jump bb20
   bb4:
@@ -359,7 +359,7 @@ fn @allocate() -> u256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    memory_object_store_element memoryarray<1>, v0, v1, 96
+    memory_object_store_element memoryarray<1>, v0, v1, memoryarray 96
     v3 = add v1, 1
     jump bb1
 }

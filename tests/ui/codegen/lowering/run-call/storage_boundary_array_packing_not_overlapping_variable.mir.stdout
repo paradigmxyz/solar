@@ -1,5 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_boundary_array_packing_not_overlapping_variable.sol:StorageBoundaryArrayPacking ===
 @module StorageBoundaryArrayPacking
+types:
+  struct0: {u256, u256}
+
 fn @getArray() -> storageptr [pure] {
   bb0:
     v0 = sub 0, 1
@@ -11,7 +14,7 @@ fn @getCanary() -> storageptr [pure] {
     ret 2
 }
 
-fn @test() -> (u256, u256) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word]] {
+fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = icall @getCanary, 1
     sstore v0, 99 !metadata(storage=symbolic(v0))
@@ -91,7 +94,9 @@ fn @test() -> (u256, u256) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[wor
     jump bb17
   bb17:
     v105 = sload v80 !metadata(storage=symbolic(v80))
-    ret v77, v105
+    v106 = insert_value struct0, undef struct0, 0, v77
+    v107 = insert_value struct0, v106, 1, v105
+    ret v107
   bb20:
     v87 = lt 0, 1
     v88 = iszero v87

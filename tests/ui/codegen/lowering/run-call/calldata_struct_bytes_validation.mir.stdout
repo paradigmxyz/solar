@@ -50,7 +50,7 @@ fn @copy(arg0: calldataslice) -> u256 [selector=0xd1ee4a1a, pure, abi_params=[tu
   bb8:
     v31 = calldataload v27
     memory_object_store_field memorystruct<2>, v1, 1, v31
-    v32 = memory_object_load_field memorystruct<2>, v1, 0
+    v32 = memory_object_load_field memorystruct<2>, v1, 0, memorybytes
     v33 = memory_object_len memorybytes, v32
     v34 = memory_object_load_field memorystruct<2>, v1, 1
     v35 = add v33, v34

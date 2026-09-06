@@ -151,6 +151,39 @@ pub struct Module {
 }
 
 impl Module {
+    /// Interns a structural value type within this module.
+    pub(crate) fn intern_struct(&mut self, fields: impl Into<Box<[MirType]>>) -> MirType {
+        let fields = fields.into();
+        if let Some((id, _)) =
+            self.struct_types.iter_enumerated().find(|(_, ty)| ty.fields == fields)
+        {
+            return MirType::Struct(id);
+        }
+        MirType::Struct(self.struct_types.push(StructType { fields }))
+    }
+
+    /// Represents a function's logical outputs as zero, one, or one struct value.
+    pub(crate) fn intern_return_type(&mut self, fields: Vec<MirType>) -> Option<MirType> {
+        match fields.as_slice() {
+            [] => None,
+            [ty] => Some(*ty),
+            _ => Some(self.intern_struct(
+                fields.into_iter().map(MirType::return_field_type).collect::<Vec<_>>(),
+            )),
+        }
+    }
+
+    /// Returns whether a value can contain a reference to caller-visible memory.
+    pub(crate) fn type_may_reference_memory(&self, ty: MirType) -> bool {
+        match ty {
+            MirType::Struct(id) => self.struct_types[id]
+                .fields
+                .iter()
+                .any(|&field| self.type_may_reference_memory(field)),
+            _ => ty.is_memory_reference(),
+        }
+    }
+
     /// Parses textual MIR.
     pub fn parse(
         sess: &solar_interface::Session,

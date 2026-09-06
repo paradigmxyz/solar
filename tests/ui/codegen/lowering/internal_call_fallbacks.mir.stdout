@@ -1,5 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/internal_call_fallbacks.sol:ICallFallbacks ===
 @module ICallFallbacks
+types:
+  struct0: {u256, u256}
+
 fn @recurse(arg0: u256) -> u256 [selector=0xb2041d21, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = icall @a, 1, arg0
@@ -50,22 +53,25 @@ fn @b(arg0: u256) -> u256 {
     ret v4
 }
 
-fn @multi(arg0: u256) -> (u256, u256) [selector=0x645444bd, pure, abi_params=[u256], abi_returns=[word, word]] {
+fn @multi(arg0: u256) -> struct0 [selector=0x645444bd, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
-    v0 = icall @pair, 2, arg0
-    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v2 = add v1, 32
-    v3 = mload v2
-    ret v0, v3
+    v0 = icall @pair, 1, arg0
+    v1 = extract_value struct0, v0, 0
+    v2 = extract_value struct0, v0, 1
+    v3 = insert_value struct0, undef struct0, 0, v1
+    v4 = insert_value struct0, v3, 1, v2
+    ret v4
 }
 
-fn @pair(arg0: u256) -> (u256, u256) [pure] {
+fn @pair(arg0: u256) -> struct0 [pure] {
   bb0:
     v0 = add arg0, 1
     v1 = lt v0, arg0
     jumpi v1, bb1, bb2
   bb2:
-    ret arg0, v0
+    v2 = insert_value struct0, undef struct0, 0, arg0
+    v3 = insert_value struct0, v2, 1, v0
+    ret v3
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)

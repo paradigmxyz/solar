@@ -1,24 +1,33 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_length_access.sol:C ===
 @module C
-fn @f(arg0: bytes32) -> (u256, u256, u256) [selector=0xd7da973a, view, abi_params=[bytes32], abi_returns=[word, word, word]] {
+types:
+  struct0: {u256, u256, u256}
+  struct1: {u256, u256}
+
+fn @f(arg0: bytes32) -> struct0 [selector=0xd7da973a, view, abi_params=[bytes32], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = shl 128, 2
     v1 = add 1, 7
     v2 = gt v1, 255
     jumpi v2, bb1, bb2
   bb2:
-    ret 32, 16, v1
+    v3 = insert_value struct0, undef struct0, 0, 32
+    v4 = insert_value struct0, v3, 1, 16
+    v5 = insert_value struct0, v4, 2, v1
+    ret v5
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
 }
 
-fn @sideEffect() -> (u256, u256) [selector=0x3a058265, abi_params=[], abi_returns=[word, word]] {
+fn @sideEffect() -> struct1 [selector=0x3a058265, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = icall @makeBytes, 1
     v1 = sload 1 !metadata(storage=slot(1))
-    ret 4, v1
+    v2 = insert_value struct1, undef struct1, 0, 4
+    v3 = insert_value struct1, v2, 1, v1
+    ret v3
 }
 
 fn @makeBytes() -> bytes4 {

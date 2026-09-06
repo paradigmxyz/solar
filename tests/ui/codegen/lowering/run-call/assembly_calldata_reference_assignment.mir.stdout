@@ -1,6 +1,10 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/assembly_calldata_reference_assignment.sol:AssemblyCalldataReferenceAssignment ===
 @module AssemblyCalldataReferenceAssignment
-fn @structs(arg0: calldataslice, arg1: calldataslice) -> (u256, u256) [selector=0x46afc9f8, pure, abi_params=[tuple<u256>, tuple<u256, u256>], abi_returns=[word, word]] {
+types:
+  struct0: {u256, u256}
+  struct1: {u256, u256, u256}
+
+fn @structs(arg0: calldataslice, arg1: calldataslice) -> struct0 [selector=0x46afc9f8, pure, abi_params=[tuple<u256>, tuple<u256, u256>], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = slice_ptr arg1
     v1 = slice_len arg0
@@ -13,10 +17,12 @@ fn @structs(arg0: calldataslice, arg1: calldataslice) -> (u256, u256) [selector=
     v8 = slice_ptr v4
     v9 = add v8, 0
     v10 = calldataload v9
-    ret v7, v10
+    v11 = insert_value struct0, undef struct0, 0, v7
+    v12 = insert_value struct0, v11, 1, v10
+    ret v12
 }
 
-fn @staticArray(arg0: calldataslice) -> (u256, u256) [selector=0xaa2fa031, pure, abi_params=[array<2, array<2, u256>>], abi_returns=[word, word]] {
+fn @staticArray(arg0: calldataslice) -> struct0 [selector=0xaa2fa031, pure, abi_params=[array<2, array<2, u256>>], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = slice_len arg0
     v1 = make_calldata_slice 4, v0
@@ -52,14 +58,16 @@ fn @staticArray(arg0: calldataslice) -> (u256, u256) [selector=0xaa2fa031, pure,
     v23 = slice_ptr v19
     v24 = add v23, 32
     v25 = calldataload v24
-    ret v13, v25
+    v26 = insert_value struct0, undef struct0, 0, v13
+    v27 = insert_value struct0, v26, 1, v25
+    ret v27
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
 }
 
-fn @dynamicArray(arg0: calldataslice) -> (u256, u256, u256) [selector=0xb8731349, pure, abi_params=[array<_, array<2, u256>>], abi_returns=[word, word, word]] {
+fn @dynamicArray(arg0: calldataslice) -> struct1 [selector=0xb8731349, pure, abi_params=[array<_, array<2, u256>>], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
@@ -100,7 +108,10 @@ fn @dynamicArray(arg0: calldataslice) -> (u256, u256, u256) [selector=0xb8731349
     v28 = slice_ptr v24
     v29 = add v28, 32
     v30 = calldataload v29
-    ret v6, v18, v30
+    v31 = insert_value struct1, undef struct1, 0, v6
+    v32 = insert_value struct1, v31, 1, v18
+    v33 = insert_value struct1, v32, 2, v30
+    ret v33
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

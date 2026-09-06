@@ -1027,7 +1027,7 @@ fn @test2(arg0: calldataslice) [selector=0x56647b67, abi_params=[array<_, array<
     v26 = add v23, 1
     jump bb12
   bb2:
-    memory_object_store_element memoryarray<1>, v0, v1, 96
+    memory_object_store_element memoryarray<1>, v0, v1, memoryarray 96
     v3 = add v1, 1
     jump bb1
 }

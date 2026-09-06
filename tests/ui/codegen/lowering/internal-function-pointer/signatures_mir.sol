@@ -28,7 +28,7 @@ contract FunctionPointerSignatures {
     }
 
     // CHECK-LABEL: fn @callPair(
-    // CHECK: icall @[[DISPATCHER_1:internal_dispatcher_[A-Za-z0-9_]+]], 2, [[PAIR:[0-9]+]], arg0
+    // CHECK: icall @[[DISPATCHER_1:internal_dispatcher_[A-Za-z0-9_]+]], 1, [[PAIR:[0-9]+]], arg0
     function callPair(uint256 value) public returns (uint256, uint256) {
         function(uint256) internal returns (uint256, uint256) fn = pair;
         return fn(value);
@@ -62,10 +62,8 @@ contract FunctionPointerSignatures {
     // CHECK: icall @setFlag, 0
     // CHECK: fn @[[DISPATCHER_1]](
     // CHECK: eq arg0, [[PAIR]]
-    // CHECK: icall @pair, 2, arg1
-    // CHECK: frame_load multi_return, word, 0
-    // CHECK: [[PAIR_OFFSET:v[0-9]+]] = add
-    // CHECK: mload [[PAIR_OFFSET]]
+    // CHECK: [[PAIR_RESULT:v[0-9]+]] = icall @pair, 1, arg1
+    // CHECK: ret [[PAIR_RESULT]]
     // CHECK: fn @[[DISPATCHER_2]](
     // CHECK: eq arg0, 7
     // CHECK: icall @sum, 1, arg1, arg2

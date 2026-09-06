@@ -154,7 +154,7 @@ fn @readNested(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> u256 [selector
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    memory_object_store_element memoryarray<1>, v14, v15, 96
+    memory_object_store_element memoryarray<1>, v14, v15, memoryarray 96
     v17 = add v15, 1
     jump bb5
   bb1:

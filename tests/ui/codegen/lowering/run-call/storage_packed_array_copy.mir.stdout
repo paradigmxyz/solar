@@ -1,5 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_packed_array_copy.sol:StoragePackedArrayCopy ===
 @module StoragePackedArrayCopy
+types:
+  struct0: {u256, u256}
+
 fn @constructor() [constructor] {
   bb0:
     jump bb1
@@ -89,7 +92,7 @@ fn @constructor() [constructor] {
     revert 0, 36
 }
 
-fn @test() -> (u256, u256) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word]] {
+fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = alloc memoryfixedarray<9, 1>, exact, uninitialized, panic, 288
     jump bb1
@@ -125,7 +128,9 @@ fn @test() -> (u256, u256) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[wor
   bb25:
     jump bb22
   bb22:
-    ret v61, v63
+    v83 = insert_value struct0, undef struct0, 0, v61
+    v84 = insert_value struct0, v83, 1, v63
+    ret v84
   bb24:
     v66 = lt v64, 10
     v67 = iszero v66

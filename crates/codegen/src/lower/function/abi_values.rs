@@ -268,7 +268,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let data = self.materialize_memory_argument(memory_ty, data, data_expr.span)?;
         let (data, layout) = self.lower_abi_decode_layout(data, &decoded_types, args[1].span)?;
         let layout = self.cx.module.intern_abi_param_layout(layout);
-        Some(self.builder.abi_decode(layout, data))
+        let fields =
+            decoded_types.iter().map(|&ty| types::TypeLowerer::mir_return_type(ty)).collect();
+        let result_ty = self.cx.module.intern_return_type(fields)?;
+        Some(self.builder.abi_decode(layout, data, result_ty))
     }
 
     fn lower_abi_decode_layout(
@@ -297,9 +300,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         types: &[Ty<'gcx>],
         span: Span,
     ) -> Option<Vec<ValueId>> {
-        // data, layout = lower_decode_layout(data, types)
-        // first = abi_decode(layout, data)
-        // values = [first] | load_multi_return_values(first, ...)
         let decoded_types = types
             .iter()
             .copied()
@@ -307,17 +307,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .collect::<Vec<_>>();
         let (data, layout) = self.lower_abi_decode_layout(data, &decoded_types, span)?;
         let layout = self.cx.module.intern_abi_param_layout(layout);
-        let first = self.builder.abi_decode(layout, data);
-        if decoded_types.len() == 1 {
-            return Some(vec![first]);
-        }
-        let base = self.multi_return_buffer_base();
-        Some(self.load_multi_return_values(
-            first,
-            base,
-            decoded_types.len(),
-            decoded_types.iter().skip(1).copied().map(Some),
-        ))
+        let fields =
+            decoded_types.iter().map(|&ty| types::TypeLowerer::mir_return_type(ty)).collect();
+        let result_ty = self.cx.module.intern_return_type(fields)?;
+        // result = abi_decode(layout, data)
+        // fields = extract_value result, 0; ...
+        let value = self.builder.abi_decode(layout, data, result_ty);
+        Some(self.unpack_return_value(value))
     }
 
     pub(super) fn revert_external_call(&mut self, success: ValueId) {
@@ -374,7 +370,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let layout = self.cx.module.intern_abi_param_layout(AbiParamLayout::new(
             vec![AbiParamType::Bytes].into_boxed_slice(),
         ));
-        Some(self.builder.abi_decode(layout, payload))
+        Some(self.builder.abi_decode(
+            layout,
+            payload,
+            MirType::MemoryObject(MemoryObjectKind::Bytes),
+        ))
     }
 
     /// Checks whether an `Error(string)` payload can be decoded without reverting.

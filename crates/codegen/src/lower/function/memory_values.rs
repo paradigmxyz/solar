@@ -277,7 +277,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && matches!(layout, MemoryObjectLayout::Bytes | MemoryObjectLayout::DynamicArray { .. })
         {
             // object = ZERO_SLOT
-            return Some(self.builder.imm(EvmMemoryLayout::ZERO_SLOT));
+            let value = crate::mir::Immediate::for_type(
+                Some(MirType::MemoryObject(layout.kind())),
+                U256::from(EvmMemoryLayout::ZERO_SLOT),
+            );
+            return Some(self.builder.func_mut().alloc_value(Value::Immediate(value)));
         }
 
         // object = alloc(default_layout)

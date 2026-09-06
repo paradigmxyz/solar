@@ -143,7 +143,7 @@ fn @makeNestedArray(arg0: u256) -> u256 [selector=0x95572958, pure, abi_params=[
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    memory_object_store_element memoryarray<1>, v0, v1, 96
+    memory_object_store_element memoryarray<1>, v0, v1, memoryarray 96
     v3 = add v1, 1
     jump bb1
 }
@@ -183,7 +183,7 @@ fn @makeStructArray(arg0: u256) -> u256 [selector=0x4273d03f, pure, abi_params=[
   bb6:
     v17 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     memory_object_store_field memorystruct<2>, v17, 0, 0
-    memory_object_store_field memorystruct<2>, v17, 1, 96
+    memory_object_store_field memorystruct<2>, v17, 1, memorybytes 96
     memory_object_store_element memoryarray<1>, v14, v15, v17
     v18 = add v15, 1
     jump bb5

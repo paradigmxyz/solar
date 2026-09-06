@@ -1,6 +1,11 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_delete_packed_struct.sol:StorageDeletePackedStruct ===
 @module StorageDeletePackedStruct
-fn @clearArray() -> (u8, u16, u8, u8, u16, u8) [selector=0xe80b7ab6, abi_params=[], abi_returns=[word<u8>, word<u16>, word<u8>, word<u8>, word<u16>, word<u8>]] {
+types:
+  struct0: {u256, u256, u256, u256, u256, u256}
+  struct1: {u256, u256, u256}
+  struct2: {u256, u256, u256, u256}
+
+fn @clearArray() -> struct0 [selector=0xe80b7ab6, abi_params=[], abi_returns=[word<u8>, word<u16>, word<u8>, word<u8>, word<u16>, word<u8>], abi_return_params=[u8, u16, u8, u8, u16, u8]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = gt v0, 0xffffffffffffffff
@@ -162,7 +167,13 @@ fn @clearArray() -> (u8, u16, u8, u8, u16, u8) [selector=0xe80b7ab6, abi_params=
     v120 = sload v119 !metadata(storage=offset(v118, 1))
     v121 = shr 24, v120
     v122 = and v121, 255
-    ret v83, v91, v99, v106, v114, v122
+    v123 = insert_value struct0, undef struct0, 0, v83
+    v124 = insert_value struct0, v123, 1, v91
+    v125 = insert_value struct0, v124, 2, v99
+    v126 = insert_value struct0, v125, 3, v106
+    v127 = insert_value struct0, v126, 4, v114
+    v128 = insert_value struct0, v127, 5, v122
+    ret v128
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -173,7 +184,7 @@ fn @clearArray() -> (u8, u16, u8, u8, u16, u8) [selector=0xe80b7ab6, abi_params=
     revert 0, 36
 }
 
-fn @clearReference() -> (u8, u16, u8, u8, u16, u8) [selector=0xc844d6fe, abi_params=[], abi_returns=[word<u8>, word<u16>, word<u8>, word<u8>, word<u16>, word<u8>]] {
+fn @clearReference() -> struct0 [selector=0xc844d6fe, abi_params=[], abi_returns=[word<u8>, word<u16>, word<u8>, word<u8>, word<u16>, word<u8>], abi_return_params=[u8, u16, u8, u8, u16, u8]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = gt v0, 0xffffffffffffffff
@@ -335,7 +346,13 @@ fn @clearReference() -> (u8, u16, u8, u8, u16, u8) [selector=0xc844d6fe, abi_par
     v120 = sload v119 !metadata(storage=offset(v118, 1))
     v121 = shr 24, v120
     v122 = and v121, 255
-    ret v83, v91, v99, v106, v114, v122
+    v123 = insert_value struct0, undef struct0, 0, v83
+    v124 = insert_value struct0, v123, 1, v91
+    v125 = insert_value struct0, v124, 2, v99
+    v126 = insert_value struct0, v125, 3, v106
+    v127 = insert_value struct0, v126, 4, v114
+    v128 = insert_value struct0, v127, 5, v122
+    ret v128
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -346,7 +363,7 @@ fn @clearReference() -> (u8, u16, u8, u8, u16, u8) [selector=0xc844d6fe, abi_par
     revert 0, 36
 }
 
-fn @clearMapping() -> (u8, u16, u8) [selector=0xf644c4b0, abi_params=[], abi_returns=[word<u8>, word<u16>, word<u8>]] {
+fn @clearMapping() -> struct1 [selector=0xf644c4b0, abi_params=[], abi_returns=[word<u8>, word<u16>, word<u8>], abi_return_params=[u8, u16, u8]] {
   bb0:
     v0 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
     v1 = and 4, 255
@@ -394,10 +411,13 @@ fn @clearMapping() -> (u8, u16, u8) [selector=0xf644c4b0, abi_params=[], abi_ret
     v36 = sload v35 !metadata(storage=symbolic(v35))
     v37 = shr 24, v36
     v38 = and v37, 255
-    ret v30, v34, v38
+    v39 = insert_value struct1, undef struct1, 0, v30
+    v40 = insert_value struct1, v39, 1, v34
+    v41 = insert_value struct1, v40, 2, v38
+    ret v41
 }
 
-fn @assign() -> (u8, u16, u8) [selector=0x12ae6397, abi_params=[], abi_returns=[word<u8>, word<u16>, word<u8>]] {
+fn @assign() -> struct1 [selector=0x12ae6397, abi_params=[], abi_returns=[word<u8>, word<u16>, word<u8>], abi_return_params=[u8, u16, u8]] {
   bb0:
     v0 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
     v1 = and 4, 255
@@ -475,7 +495,10 @@ fn @assign() -> (u8, u16, u8) [selector=0x12ae6397, abi_params=[], abi_returns=[
     v56 = sload v55 !metadata(storage=symbolic(v54))
     v57 = shr 24, v56
     v58 = and v57, 255
-    ret v42, v50, v58
+    v59 = insert_value struct1, undef struct1, 0, v42
+    v60 = insert_value struct1, v59, 1, v50
+    v61 = insert_value struct1, v60, 2, v58
+    ret v61
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -495,7 +518,7 @@ fn @clearDirtyWord() -> u256 [selector=0xc9cbcc52, abi_params=[], abi_returns=[w
     ret v1
 }
 
-fn @clearStructWithMapping() -> (u256, u8, u256, u256) [selector=0xb447ab5f, abi_params=[], abi_returns=[word, word<u8>, word, word]] {
+fn @clearStructWithMapping() -> struct2 [selector=0xb447ab5f, abi_params=[], abi_returns=[word, word<u8>, word, word], abi_return_params=[u256, u8, u256, u256]] {
   bb0:
     v0 = add 3, 1
     sstore 3, 1 !metadata(storage=slot(3))
@@ -520,5 +543,9 @@ fn @clearStructWithMapping() -> (u256, u8, u256, u256) [selector=0xb447ab5f, abi
     v14 = mapping_slot 1, v0
     v15 = sload v14 !metadata(storage=symbolic(v14))
     v16 = sload v0 !metadata(storage=slot(4))
-    ret v10, v13, v16, v15
+    v17 = insert_value struct2, undef struct2, 0, v10
+    v18 = insert_value struct2, v17, 1, v13
+    v19 = insert_value struct2, v18, 2, v16
+    v20 = insert_value struct2, v19, 3, v15
+    ret v20
 }

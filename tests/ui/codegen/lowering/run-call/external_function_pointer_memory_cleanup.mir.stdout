@@ -1,5 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_memory_cleanup.sol:ExternalFunctionPointerMemoryCleanup ===
 @module ExternalFunctionPointerMemoryCleanup
+types:
+  struct0: {u256, u256}
+
 fn @dummy() [selector=0x32e43a11, abi_params=[], abi_returns=[]] {
   bb0:
     stop
@@ -72,7 +75,7 @@ fn @memoryLayout() -> bool [selector=0x5caf991a, view, abi_params=[], abi_return
     ret v11
 }
 
-fn @cleanup(arg0: u256) -> (u256, u256) [selector=0x0aa40018, view, abi_params=[u256], abi_returns=[word, word]] {
+fn @cleanup(arg0: u256) -> struct0 [selector=0x0aa40018, view, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     v1 = address
@@ -119,7 +122,9 @@ fn @cleanup(arg0: u256) -> (u256, u256) [selector=0x0aa40018, view, abi_params=[
     v28 = mload v27
     v29 = add 0, 0
     v30 = mload v29
-    ret v18, v30
+    v31 = insert_value struct0, undef struct0, 0, v18
+    v32 = insert_value struct0, v31, 1, v30
+    ret v32
   bb3:
     revert 0, 0
 }

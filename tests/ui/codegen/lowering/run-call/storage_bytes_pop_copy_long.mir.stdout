@@ -5,7 +5,7 @@ fn @test() -> memorybytes [selector=0xf8a8fd6d, abi_params=[], abi_returns=[memo
     jump bb1
   bb1:
     v0 = phi [bb0: 0], [bb17: v44]
-    v1 = phi [bb0: 96], [bb17: v1]
+    v1 = phi [bb0: memorybytes 96], [bb17: v1]
     v2 = lt v0, 33
     jumpi v2, bb4, bb5
   bb5:
@@ -230,7 +230,7 @@ fn @testNoPop() -> memorybytes [selector=0xa43e8948, abi_params=[], abi_returns=
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 96], [bb17: v0]
+    v0 = phi [bb0: memorybytes 96], [bb17: v0]
     v1 = phi [bb0: 0], [bb17: v44]
     v2 = lt v1, 33
     jumpi v2, bb4, bb5

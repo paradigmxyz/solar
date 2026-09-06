@@ -1,6 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_indexing_3d.sol:AbiCalldataIndexing3d ===
 @module AbiCalldataIndexing3d
-fn @f(arg0: calldataslice, arg1: u256, arg2: u256, arg3: u256) -> (u256, u256, u256, u256) [selector=0xe272a16e, pure, abi_params=[array<_, array<2, array<_, u256>>>, u256, u256, u256], abi_returns=[word, word, word, word]] {
+types:
+  struct0: {u256, u256, u256, u256}
+
+fn @f(arg0: calldataslice, arg1: u256, arg2: u256, arg3: u256) -> struct0 [selector=0xe272a16e, pure, abi_params=[array<_, array<2, array<_, u256>>>, u256, u256, u256], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
     v0 = slice_len arg0
     v1 = slice_len arg0
@@ -194,7 +197,11 @@ fn @f(arg0: calldataslice, arg1: u256, arg2: u256, arg3: u256) -> (u256, u256, u
   bb29:
     v138 = add v131, v132
     v139 = calldataload v138
-    ret v0, 2, v75, v139
+    v140 = insert_value struct0, undef struct0, 0, v0
+    v141 = insert_value struct0, v140, 1, 2
+    v142 = insert_value struct0, v141, 2, v75
+    v143 = insert_value struct0, v142, 3, v139
+    ret v143
   bb5:
     revert 0, 0
   bb3:

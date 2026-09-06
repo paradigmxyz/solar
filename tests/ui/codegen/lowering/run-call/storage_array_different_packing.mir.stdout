@@ -1,6 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_array_different_packing.sol:StorageArrayDifferentPacking ===
 @module StorageArrayDifferentPacking
-fn @test() -> (bytes10, bytes10, bytes10, bytes10, bytes10) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bytes10>, word<bytes10>, word<bytes10>, word<bytes10>, word<bytes10>]] {
+types:
+  struct0: {u256, u256, u256, u256, u256}
+
+fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bytes10>, word<bytes10>, word<bytes10>, word<bytes10>, word<bytes10>], abi_return_params=[bytes10, bytes10, bytes10, bytes10, bytes10]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 320
     set_memory_object_len memoryarray, v0, 9
@@ -164,7 +167,12 @@ fn @test() -> (bytes10, bytes10, bytes10, bytes10, bytes10) [selector=0xf8a8fd6d
     v189 = shr v188, v187
     v190 = and v189, 0xffffffffffffffffffff
     v191 = shl 176, v190
-    ret v139, v152, v165, v178, v191
+    v192 = insert_value struct0, undef struct0, 0, v139
+    v193 = insert_value struct0, v192, 1, v152
+    v194 = insert_value struct0, v193, 2, v165
+    v195 = insert_value struct0, v194, 3, v178
+    v196 = insert_value struct0, v195, 4, v191
+    ret v196
   bb27:
     v101 = memory_object_load_element memoryarray<1>, v78, v99
     v102 = storage_array_data_slot 1

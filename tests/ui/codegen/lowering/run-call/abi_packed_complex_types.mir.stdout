@@ -1,6 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_packed_complex_types.sol:AbiPackedComplexTypes ===
 @module AbiPackedComplexTypes
-fn @f() -> (bytes32, bytes32, bytes32) [selector=0x26121ff0, abi_params=[], abi_returns=[word, word, word]] {
+types:
+  struct0: {u256, u256, u256}
+
+fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word, word], abi_return_params=[bytes32, bytes32, bytes32]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 128
     set_memory_object_len memoryarray, v0, 3
@@ -153,7 +156,10 @@ fn @f() -> (bytes32, bytes32, bytes32) [selector=0x26121ff0, abi_params=[], abi_
     v131 = shl 96, v130
     mstore 0, v131 !metadata(memory=scratch)
     v132 = keccak256 0, 20 !metadata(memory=scratch)
-    ret v93, v129, v132
+    v133 = insert_value struct0, undef struct0, 0, v93
+    v134 = insert_value struct0, v133, 1, v129
+    v135 = insert_value struct0, v134, 2, v132
+    ret v135
   bb27:
     v118 = mul v116, 32
     v119 = iszero 32
@@ -374,7 +380,7 @@ fn @hashStructAbi() -> bytes32 [selector=0x46dfc0fe, pure, abi_params=[], abi_re
     jumpi v7, bb1, bb3
   bb3:
     v8 = and v6, 0xffffffffffffffffffffffffffffff
-    v9 = memory_object_load_field memorystruct<2>, v0, 1
+    v9 = memory_object_load_field memorystruct<2>, v0, 1, memoryfixedarray
     v10 = lt 0, 2
     v11 = iszero v10
     jumpi v11, bb4, bb5
@@ -386,7 +392,7 @@ fn @hashStructAbi() -> bytes32 [selector=0x46dfc0fe, pure, abi_params=[], abi_re
     jumpi v14, bb1, bb6
   bb6:
     v15 = and v13, 0xffffffffffffffffffffffffffffff
-    v16 = memory_object_load_field memorystruct<2>, v0, 1
+    v16 = memory_object_load_field memorystruct<2>, v0, 1, memoryfixedarray
     v17 = lt 1, 2
     v18 = iszero v17
     jumpi v18, bb4, bb7

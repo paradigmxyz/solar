@@ -1,6 +1,10 @@
 - // === ROOT/tests/ui/codegen/mir/dead-arg-elim/memory_return.mir (before dead-arg-elim) ===
 + // === ROOT/tests/ui/codegen/mir/dead-arg-elim/memory_return.mir (after dead-arg-elim) ===
   @module MemoryReturn
+  types:
+    struct0: {memoryslice, u256}
+    struct1: {struct0, bool}
+  
   fn @escape() -> memptr {
     bb0:
       v0 = fmp
@@ -25,6 +29,25 @@
     bb0:
 -     v0 = icall @escape_slice, 1
 +     icall @escape_slice, 0
+      ret
+  }
+  
+- fn @escape_struct() -> struct1 {
++ fn @escape_struct() [may_return_memory] {
+    bb0:
+      v0 = make_memory_slice 128, 32
+      v1 = insert_value struct0, undef struct0, 0, v0
+      v2 = insert_value struct0, v1, 1, 42
+      v3 = insert_value struct1, undef struct1, 0, v2
+      v4 = insert_value struct1, v3, 1, true
+-     ret v4
++     ret
+  }
+  
+  fn @struct_entry() [selector=0x090a0b0c] {
+    bb0:
+-     v0 = icall @escape_struct, 1
++     icall @escape_struct, 0
       ret
   }
   

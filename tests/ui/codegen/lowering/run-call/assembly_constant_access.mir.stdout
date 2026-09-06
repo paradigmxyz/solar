@@ -1,16 +1,29 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/assembly_constant_access.sol:AssemblyConstantAccess ===
 @module AssemblyConstantAccess
-fn @assemblyValues() -> (u256, bytes2, bytes3, bool, address) [selector=0x5fa26448, pure, abi_params=[], abi_returns=[word, word<bytes2>, word<bytes3>, word<bool>, word<u160>]] {
+types:
+  struct0: {u256, u256, u256, u256, u256}
+  struct1: {u256, u256}
+
+fn @assemblyValues() -> struct0 [selector=0x5fa26448, pure, abi_params=[], abi_returns=[word, word<bytes2>, word<bytes3>, word<bool>, word<u160>], abi_return_params=[u256, bytes2, bytes3, bool, address]] {
   bb0:
-    ret 2, 0xabcd000000000000000000000000000000000000000000000000000000000000, 0x6162630000000000000000000000000000000000000000000000000000000000, true, 0x1212121212121212121212121212121212121212
+    v0 = insert_value struct0, undef struct0, 0, 2
+    v1 = insert_value struct0, v0, 1, 0xabcd000000000000000000000000000000000000000000000000000000000000
+    v2 = insert_value struct0, v1, 2, 0x6162630000000000000000000000000000000000000000000000000000000000
+    v3 = insert_value struct0, v2, 3, true
+    v4 = insert_value struct0, v3, 4, 0x1212121212121212121212121212121212121212
+    ret v4
 }
 
-fn @assemblyReferences() -> (bytes2, bytes3) [selector=0x7bafbded, pure, abi_params=[], abi_returns=[word<bytes2>, word<bytes3>]] {
+fn @assemblyReferences() -> struct1 [selector=0x7bafbded, pure, abi_params=[], abi_returns=[word<bytes2>, word<bytes3>], abi_return_params=[bytes2, bytes3]] {
   bb0:
-    ret 0xabcd000000000000000000000000000000000000000000000000000000000000, 0x6162630000000000000000000000000000000000000000000000000000000000
+    v0 = insert_value struct1, undef struct1, 0, 0xabcd000000000000000000000000000000000000000000000000000000000000
+    v1 = insert_value struct1, v0, 1, 0x6162630000000000000000000000000000000000000000000000000000000000
+    ret v1
 }
 
-fn @solidityValues() -> (bytes2, bytes3) [selector=0x8c965a6e, pure, abi_params=[], abi_returns=[word<bytes2>, word<bytes3>]] {
+fn @solidityValues() -> struct1 [selector=0x8c965a6e, pure, abi_params=[], abi_returns=[word<bytes2>, word<bytes3>], abi_return_params=[bytes2, bytes3]] {
   bb0:
-    ret 0xabcd000000000000000000000000000000000000000000000000000000000000, 0x6162630000000000000000000000000000000000000000000000000000000000
+    v0 = insert_value struct1, undef struct1, 0, 0xabcd000000000000000000000000000000000000000000000000000000000000
+    v1 = insert_value struct1, v0, 1, 0x6162630000000000000000000000000000000000000000000000000000000000
+    ret v1
 }

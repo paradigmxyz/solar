@@ -72,28 +72,30 @@ fn @assignment(arg0: u256) -> u256 [selector=0xc806bb2c, pure, abi_params=[u256]
     jump bb37
   bb37:
     v60 = phi [bb35: v57], [bb36: v59]
-    v61 = memory_object_len memoryarray, v60
-    v62 = lt 1, v61
-    v63 = iszero v62
-    jumpi v63, bb13, bb38
+    v61 = memory_object_from_ptr memoryarray, v60
+    v62 = memory_object_len memoryarray, v61
+    v63 = lt 1, v62
+    v64 = iszero v63
+    jumpi v64, bb13, bb38
   bb38:
-    v64 = memory_object_load_element memoryarray<1>, v60, 1
-    v65 = eq v64, 0
-    jumpi v65, bb39, bb40
+    v65 = memory_object_load_element memoryarray<1>, v61, 1
+    v66 = eq v65, 0
+    jumpi v66, bb39, bb40
   bb39:
-    v66 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v66, 0
-    memory_object_store_element memoryarray<1>, v60, 1, v66
+    v67 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v67, 0
+    memory_object_store_element memoryarray<1>, v61, 1, v67
     jump bb40
   bb40:
-    v67 = phi [bb38: v64], [bb39: v66]
-    v68 = memory_object_len memoryarray, v67
-    v69 = lt 1, v68
-    v70 = iszero v69
-    jumpi v70, bb13, bb41
+    v68 = phi [bb38: v65], [bb39: v67]
+    v69 = memory_object_from_ptr memoryarray, v68
+    v70 = memory_object_len memoryarray, v69
+    v71 = lt 1, v70
+    v72 = iszero v71
+    jumpi v72, bb13, bb41
   bb41:
-    v71 = memory_object_load_element memoryarray<1>, v67, 1
-    ret v71
+    v73 = memory_object_load_element memoryarray<1>, v69, 1
+    ret v73
   bb7:
     v9 = alloc memoryarray<1>, exact, zeroed, panic, 128
     set_memory_object_len memoryarray, v9, 3
@@ -172,11 +174,11 @@ fn @assignment(arg0: u256) -> u256 [selector=0xc806bb2c, pure, abi_params=[u256]
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb11:
-    memory_object_store_element memoryarray<1>, v9, v10, 96
+    memory_object_store_element memoryarray<1>, v9, v10, memoryarray 96
     v12 = add v10, 1
     jump bb10
   bb2:
-    memory_object_store_element memoryarray<1>, v0, v1, 96
+    memory_object_store_element memoryarray<1>, v0, v1, memoryarray 96
     v3 = add v1, 1
     jump bb1
 }
@@ -317,11 +319,11 @@ fn @newValue(arg0: u256) -> u256 [selector=0x44772b8c, pure, abi_params=[u256], 
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb11:
-    memory_object_store_element memoryarray<1>, v9, v10, 96
+    memory_object_store_element memoryarray<1>, v9, v10, memoryarray 96
     v12 = add v10, 1
     jump bb10
   bb2:
-    memory_object_store_element memoryarray<1>, v0, v1, 96
+    memory_object_store_element memoryarray<1>, v0, v1, memoryarray 96
     v3 = add v1, 1
     jump bb1
 }

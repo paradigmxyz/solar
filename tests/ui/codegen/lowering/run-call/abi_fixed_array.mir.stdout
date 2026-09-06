@@ -1,5 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_fixed_array.sol:AbiFixedArray ===
 @module AbiFixedArray
+types:
+  struct0: {u256, u256}
+
 fn @makeFixedArray() -> memoryfixedarray {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -17,11 +20,13 @@ fn @makeFixedArray() -> memoryfixedarray {
     revert 0, 36
 }
 
-fn @fixedArrayLengthSideEffect() -> (u256, u256) [selector=0x336fc624, abi_params=[], abi_returns=[word, word]] {
+fn @fixedArrayLengthSideEffect() -> struct0 [selector=0x336fc624, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = icall @makeFixedArray, 1
     v1 = sload 0 !metadata(storage=slot(0))
-    ret 2, v1
+    v2 = insert_value struct0, undef struct0, 0, 2
+    v3 = insert_value struct0, v2, 1, v1
+    ret v3
 }
 
 fn @read(arg0: calldataslice, arg1: u256) -> u256 [selector=0x8f65cc66, pure, abi_params=[array<3, u256>, u256], abi_returns=[word]] {
@@ -141,7 +146,7 @@ fn @readPair(arg0: memorystruct) -> u256 [selector=0x5d4d7bfe, pure, abi_params=
 fn @readDynamicPair(arg0: memorystruct) -> u256 [selector=0x96a23d6f, pure, abi_params=[tuple<u256, bytes>], abi_returns=[word]] {
   bb0:
     v0 = memory_object_load_field memorystruct<2>, arg0, 0
-    v1 = memory_object_load_field memorystruct<2>, arg0, 1
+    v1 = memory_object_load_field memorystruct<2>, arg0, 1, memorybytes
     v2 = memory_object_len memorybytes, v1
     v3 = add v0, v2
     v4 = lt v3, v0
@@ -156,7 +161,7 @@ fn @readDynamicPair(arg0: memorystruct) -> u256 [selector=0x96a23d6f, pure, abi_
 
 fn @readWordList(arg0: memorystruct) -> u256 [selector=0xb5e6ddb8, pure, abi_params=[tuple<array<_, u256>, u256>], abi_returns=[word]] {
   bb0:
-    v0 = memory_object_load_field memorystruct<2>, arg0, 0
+    v0 = memory_object_load_field memorystruct<2>, arg0, 0, memoryarray
     v1 = memory_object_len memoryarray, v0
     v2 = memory_object_load_field memorystruct<2>, arg0, 1
     v3 = add v1, v2
@@ -172,7 +177,7 @@ fn @readWordList(arg0: memorystruct) -> u256 [selector=0xb5e6ddb8, pure, abi_par
 
 fn @readSignedList(arg0: memorystruct) -> u256 [selector=0xa15ab30e, pure, abi_params=[tuple<array<_, i256>, u256>], abi_returns=[word]] {
   bb0:
-    v0 = memory_object_load_field memorystruct<2>, arg0, 0
+    v0 = memory_object_load_field memorystruct<2>, arg0, 0, memoryarray
     v1 = memory_object_len memoryarray, v0
     v2 = memory_object_load_field memorystruct<2>, arg0, 1
     v3 = add v1, v2
@@ -188,9 +193,9 @@ fn @readSignedList(arg0: memorystruct) -> u256 [selector=0xa15ab30e, pure, abi_p
 
 fn @readNestedList(arg0: memorystruct) -> u256 [selector=0x2fc71376, pure, abi_params=[tuple<array<_, array<_, u256>>>], abi_returns=[word]] {
   bb0:
-    v0 = memory_object_load_field memorystruct<1>, arg0, 0
+    v0 = memory_object_load_field memorystruct<1>, arg0, 0, memoryarray
     v1 = memory_object_len memoryarray, v0
-    v2 = memory_object_load_field memorystruct<1>, arg0, 0
+    v2 = memory_object_load_field memorystruct<1>, arg0, 0, memoryarray
     v3 = memory_object_len memoryarray, v2
     v4 = lt 0, v3
     v5 = iszero v4
@@ -282,7 +287,7 @@ fn @readMode(arg0: u8) -> u256 [selector=0x1bcfbcf9, pure, abi_params=[enum<2, u
 
 fn @readNestedArray(arg0: memorystruct) -> u256 [selector=0x8a855eb4, pure, abi_params=[tuple<array<2, u256>, u8>], abi_returns=[word]] {
   bb0:
-    v0 = memory_object_load_field memorystruct<2>, arg0, 0
+    v0 = memory_object_load_field memorystruct<2>, arg0, 0, memoryfixedarray
     v1 = lt 1, 2
     v2 = iszero v1
     jumpi v2, bb1, bb2
@@ -307,7 +312,7 @@ fn @readNestedArray(arg0: memorystruct) -> u256 [selector=0x8a855eb4, pure, abi_
 
 fn @readNestedBytes(arg0: memorystruct) -> u256 [selector=0x8516eaf9, pure, abi_params=[tuple<array<2, bytes>>], abi_returns=[word]] {
   bb0:
-    v0 = memory_object_load_field memorystruct<1>, arg0, 0
+    v0 = memory_object_load_field memorystruct<1>, arg0, 0, memoryfixedarray
     v1 = lt 0, 2
     v2 = iszero v1
     jumpi v2, bb1, bb2
@@ -323,7 +328,7 @@ fn @readNestedBytes(arg0: memorystruct) -> u256 [selector=0x8516eaf9, pure, abi_
   bb4:
     v6 = phi [bb2: v3], [bb3: v5]
     v7 = memory_object_len memorybytes, v6
-    v8 = memory_object_load_field memorystruct<1>, arg0, 0
+    v8 = memory_object_load_field memorystruct<1>, arg0, 0, memoryfixedarray
     v9 = lt 1, 2
     v10 = iszero v9
     jumpi v10, bb1, bb5
@@ -504,7 +509,7 @@ fn @result() -> u256 [selector=0x65372147, view, abi_params=[], abi_returns=[wor
 fn @constructor(arg0: memorystruct) [constructor, abi_params=[tuple<u256, bytes>]] {
   bb0:
     v0 = memory_object_load_field memorystruct<2>, arg0, 0
-    v1 = memory_object_load_field memorystruct<2>, arg0, 1
+    v1 = memory_object_load_field memorystruct<2>, arg0, 1, memorybytes
     v2 = memory_object_len memorybytes, v1
     v3 = add v0, v2
     v4 = lt v3, v0

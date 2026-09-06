@@ -89,7 +89,7 @@ fn @nestedArray(arg0: u256) -> memoryarray [selector=0x5abcbd75, pure, abi_param
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    memory_object_store_element memoryarray<1>, v0, v1, 96
+    memory_object_store_element memoryarray<1>, v0, v1, memoryarray 96
     v3 = add v1, 1
     jump bb1
 }

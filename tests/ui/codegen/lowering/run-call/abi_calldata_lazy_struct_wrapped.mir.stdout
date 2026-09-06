@@ -1,6 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_lazy_struct_wrapped.sol:AbiCalldataLazyStructWrapped ===
 @module AbiCalldataLazyStructWrapped
-fn @read(arg0: calldataslice) -> (u256, memorybytes) [selector=0x171e22c6, pure, abi_params=[array<_, tuple<u256, bytes>>], abi_returns=[word, memory_bytes]] {
+types:
+  struct0: {u256, memorybytes}
+
+fn @read(arg0: calldataslice) -> struct0 [selector=0x171e22c6, pure, abi_params=[array<_, tuple<u256, bytes>>], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
   bb0:
     v0 = slice_len arg0
     v1 = lt 0, v0
@@ -98,7 +101,9 @@ fn @read(arg0: calldataslice) -> (u256, memorybytes) [selector=0x171e22c6, pure,
     v67 = alloc memorybytes, exact, uninitialized, infallible, v66
     set_memory_object_len memorybytes, v67, v62
     memory_object_copy_from_slice memorybytes, v67, v55
-    ret v18, v67
+    v68 = insert_value struct0, undef struct0, 0, v18
+    v69 = insert_value struct0, v68, 1, v67
+    ret v69
   bb15:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)

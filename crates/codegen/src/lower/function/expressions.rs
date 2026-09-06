@@ -152,8 +152,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
         // value = normalize(mload_field(object, field))
         let layout = self.types.memory_layout(receiver_ty)?;
-        let value = self.builder.memory_object_load_field(object, layout, field as u64);
-        let field_ty = self.cx.gcx.type_of_item(id.into());
+        let field_ty =
+            self.cx.gcx.type_of_item(id.into()).with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
+        let value = if let MirType::MemoryObject(kind) = types::TypeLowerer::mir_type(field_ty) {
+            self.builder.memory_object_load_object_field(object, layout, field as u64, kind)
+        } else {
+            self.builder.memory_object_load_field(object, layout, field as u64)
+        };
         if receiver_ty.is_ref_at(DataLocation::Calldata)
             && let TyKind::Fn(function) = field_ty.peel_refs().kind
             && function.is_external()

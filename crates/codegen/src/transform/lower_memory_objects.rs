@@ -83,6 +83,13 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
                         instruction.kind =
                             InstKind::Alloc { size, kind: AllocationKind::Raw, semantics };
                     }
+                    InstKind::MemoryObjectFromPtr { ptr, .. } => {
+                        // object -> ptr
+                        if let Some(result) = builder.func().inst_result_value(inst) {
+                            replacements.insert(result, ptr);
+                        }
+                        return false;
+                    }
                     InstKind::MemoryObjectLen(object, kind) => {
                         if matches!(builder.func().value_ty(object), Some(MirType::Slice(_))) {
                             builder.func_mut().inst_mut(inst).kind = InstKind::SliceLen(object);
@@ -678,7 +685,7 @@ fn erase_object_types(func: &mut Function) {
     }
     for value in values.iter() {
         match func.value_mut(value) {
-            Value::Undef(ty) => erase_object_type(ty),
+            Value::Undef(ty) | Value::Immediate(Immediate::Pointer(_, ty)) => erase_object_type(ty),
             Value::Arg(_) | Value::Inst(_) | Value::Immediate(_) | Value::Error(_) => {}
         }
     }

@@ -18,9 +18,9 @@ library Math {
 contract C {
     // Destructuring a multi-value internal call: both `ok` and `c` must bind.
     // CHECK-LABEL: fn @sat{{[( ]}}
-    // CHECK: icall @tryAdd, 2, arg0, arg1
-    // CHECK: frame_load multi_return, word, 0
-    // CHECK: mload
+    // CHECK: [[PAIR:v[0-9]+]] = icall @tryAdd, 1, arg0, arg1
+    // CHECK: extract_value {{struct[0-9]+}}, [[PAIR]], 0
+    // CHECK: extract_value {{struct[0-9]+}}, [[PAIR]], 1
     function sat(uint256 a, uint256 b) public pure returns (uint256) {
         (bool ok, uint256 c) = Math.tryAdd(a, b);
         if (!ok) return type(uint256).max;
@@ -29,10 +29,12 @@ contract C {
 
     // `return lib.f()` must return both tuple values, not just the first.
     // CHECK-LABEL: fn @tryA{{[( ]}}
-    // CHECK: icall @tryAdd, 2, arg0, arg1
-    // CHECK: frame_load multi_return, word, 0
-    // CHECK: mload
-    // CHECK: ret {{v[0-9]+}}, {{v[0-9]+}}
+    // CHECK: [[PAIR:v[0-9]+]] = icall @tryAdd, 1, arg0, arg1
+    // CHECK: extract_value {{struct[0-9]+}}, [[PAIR]], 0
+    // CHECK: extract_value {{struct[0-9]+}}, [[PAIR]], 1
+    // CHECK: [[RET_0:v[0-9]+]] = insert_value [[RET_TY:struct[0-9]+]], undef [[RET_TY]], 0, {{v[0-9]+}}
+    // CHECK: [[RET_1:v[0-9]+]] = insert_value [[RET_TY]], [[RET_0]], 1, {{v[0-9]+}}
+    // CHECK: ret [[RET_1]]
     function tryA(uint256 a, uint256 b) public pure returns (bool, uint256) {
         return Math.tryAdd(a, b);
     }

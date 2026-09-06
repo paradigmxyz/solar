@@ -1,5 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_return_validation.sol:ExternalReturnValidation ===
 @module ExternalReturnValidation
+types:
+  struct0: {memorystruct, memorystruct}
+
 fn @short() -> u256 [selector=0x38bea4cb, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = address
@@ -193,22 +196,20 @@ fn @distinctDynamicReturns() -> u256 [selector=0x56c7de2c, abi_params=[], abi_re
     v12 = make_returndata_slice 0, v6
     memory_object_copy_from_slice memorybytes, v11, v12
     v13 = abi_decode [tuple<array<_, u256>>, tuple<array<_, u256>>], v11
-    v14 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v15 = memory_object_load_element memoryfixedarray<2, 1>, v14, 1
-    v16 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v17 = memory_object_data memoryfixedarray, v16
-    frame_store multi_return, word, 0, v17 !metadata(memory=scratch)
-    memory_object_store_element memoryfixedarray<2, 1>, v16, 1, v15
-    v18 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v19 = memory_object_load_element memoryfixedarray<2, 1>, v18, 1
-    v20 = memory_object_load_field memorystruct<1>, v13, 0
+    v14 = extract_value struct0, v13, 0
+    v15 = extract_value struct0, v13, 1
+    v16 = insert_value struct0, undef struct0, 0, v14
+    v17 = insert_value struct0, v16, 1, v15
+    v18 = extract_value struct0, v17, 0
+    v19 = extract_value struct0, v17, 1
+    v20 = memory_object_load_field memorystruct<1>, v18, 0, memoryarray
     v21 = memory_object_len memoryarray, v20
     v22 = lt 0, v21
     v23 = iszero v22
     jumpi v23, bb5, bb6
   bb6:
     memory_object_store_element memoryarray<1>, v20, 0, 9
-    v24 = memory_object_load_field memorystruct<1>, v19, 0
+    v24 = memory_object_load_field memorystruct<1>, v19, 0, memoryarray
     v25 = memory_object_len memoryarray, v24
     v26 = lt 0, v25
     v27 = iszero v26

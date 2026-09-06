@@ -14,10 +14,10 @@ contract MultiReturnScratch {
     }
 
     // CHECK-LABEL: fn @assign{{[( ]}}
-    // CHECK: icall
-    // CHECK: frame_load multi_return, word, 0
-    // CHECK: mload
-    // CHECK: mload
+    // CHECK: [[TRIPLE:v[0-9]+]] = icall
+    // CHECK: extract_value {{struct[0-9]+}}, [[TRIPLE]], 0
+    // CHECK: extract_value {{struct[0-9]+}}, [[TRIPLE]], 1
+    // CHECK: extract_value {{struct[0-9]+}}, [[TRIPLE]], 2
     // CHECK: = mapping_slot
     // CHECK: sstore
     function assign(uint256 key, uint256 seed)

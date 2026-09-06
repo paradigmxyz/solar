@@ -1,6 +1,10 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/bytes_concat_array_holes.sol:BytesConcatArrayHoles ===
 @module BytesConcatArrayHoles
-fn @chunksAndHash() -> (memoryarray, bytes32) [pure] {
+types:
+  struct0: {memoryarray, u256}
+  struct1: {u256, u256}
+
+fn @chunksAndHash() -> struct0 [pure] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 672
     set_memory_object_len memoryarray, v0, 20
@@ -33,79 +37,82 @@ fn @chunksAndHash() -> (memoryarray, bytes32) [pure] {
   bb6:
     memory_object_store_element memoryarray<1>, v0, 15, v10
     v15 = shl 0, 7
-    ret v0, v15
+    v16 = insert_value struct0, undef struct0, 0, v0
+    v17 = insert_value struct0, v16, 1, v15
+    ret v17
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    memory_object_store_element memoryarray<1>, v0, v1, 96
+    memory_object_store_element memoryarray<1>, v0, v1, memorybytes 96
     v3 = add v1, 1
     jump bb1
 }
 
-fn @join() -> (bytes32, bytes32) [selector=0xb688a363, pure, abi_params=[], abi_returns=[word, word]] {
+fn @join() -> struct1 [selector=0xb688a363, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[bytes32, bytes32]] {
   bb0:
-    v0 = icall @chunksAndHash, 2
-    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v2 = add v1, 32
-    v3 = mload v2
+    v0 = icall @chunksAndHash, 1
+    v1 = extract_value struct0, v0, 0
+    v2 = extract_value struct0, v0, 1
     jump bb1
   bb1:
-    v4 = phi [bb0: v3], [bb12: v4]
-    v5 = phi [bb0: 96], [bb12: v26]
-    v6 = phi [bb0: v0], [bb12: v6]
-    v7 = phi [bb0: 0], [bb12: v33]
-    v8 = phi [bb0: 0], [bb12: v8]
-    v9 = memory_object_len memoryarray, v6
-    v10 = lt v7, v9
-    jumpi v10, bb4, bb5
+    v3 = phi [bb0: v2], [bb12: v3]
+    v4 = phi [bb0: memorybytes 96], [bb12: v25]
+    v5 = phi [bb0: v1], [bb12: v5]
+    v6 = phi [bb0: 0], [bb12: v32]
+    v7 = phi [bb0: 0], [bb12: v7]
+    v8 = memory_object_len memoryarray, v5
+    v9 = lt v6, v8
+    jumpi v9, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    v35 = keccak256_bytes v5
-    ret v35, v4
+    v34 = keccak256_bytes v4
+    v35 = insert_value struct1, undef struct1, 0, v34
+    v36 = insert_value struct1, v35, 1, v3
+    ret v36
   bb4:
-    v11 = add 0, 0
-    v12 = memory_object_len memorybytes, v5
-    v13 = add v11, v12
-    v14 = memory_object_len memoryarray, v6
-    v15 = lt v7, v14
-    v16 = iszero v15
-    jumpi v16, bb7, bb8
+    v10 = add 0, 0
+    v11 = memory_object_len memorybytes, v4
+    v12 = add v10, v11
+    v13 = memory_object_len memoryarray, v5
+    v14 = lt v6, v13
+    v15 = iszero v14
+    jumpi v15, bb7, bb8
   bb8:
-    v17 = memory_object_load_element memoryarray<1>, v6, v7
-    v18 = eq v17, 0
-    jumpi v18, bb9, bb10
+    v16 = memory_object_load_element memoryarray<1>, v5, v6
+    v17 = eq v16, 0
+    jumpi v17, bb9, bb10
   bb9:
-    v19 = alloc memorybytes, exact, uninitialized, infallible, 32
-    set_memory_object_len memorybytes, v19, 0
-    memory_object_store_element memoryarray<1>, v6, v7, v19
+    v18 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v18, 0
+    memory_object_store_element memoryarray<1>, v5, v6, v18
     jump bb10
   bb10:
-    v20 = phi [bb8: v17], [bb9: v19]
-    v21 = memory_object_len memorybytes, v20
-    v22 = add v13, v21
-    v23 = add v22, 63
-    v24 = not 31
-    v25 = and v23, v24
-    v26 = alloc memorybytes, exact, uninitialized, panic, v25
-    set_memory_object_len memorybytes, v26, v22
-    v27 = memory_object_data memorybytes, v5
-    v28 = make_memory_slice v27, v12
-    memory_object_copy_from_slice_at memorybytes, v26, 0, v28
-    v29 = add 0, v12
-    v30 = memory_object_data memorybytes, v20
-    v31 = make_memory_slice v30, v21
-    memory_object_copy_from_slice_at memorybytes, v26, v29, v31
-    v32 = add v29, v21
+    v19 = phi [bb8: v16], [bb9: v18]
+    v20 = memory_object_len memorybytes, v19
+    v21 = add v12, v20
+    v22 = add v21, 63
+    v23 = not 31
+    v24 = and v22, v23
+    v25 = alloc memorybytes, exact, uninitialized, panic, v24
+    set_memory_object_len memorybytes, v25, v21
+    v26 = memory_object_data memorybytes, v4
+    v27 = make_memory_slice v26, v11
+    memory_object_copy_from_slice_at memorybytes, v25, 0, v27
+    v28 = add 0, v11
+    v29 = memory_object_data memorybytes, v19
+    v30 = make_memory_slice v29, v20
+    memory_object_copy_from_slice_at memorybytes, v25, v28, v30
+    v31 = add v28, v20
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v33 = add v7, 1
-    v34 = lt v33, v7
-    jumpi v34, bb11, bb12
+    v32 = add v6, 1
+    v33 = lt v32, v6
+    jumpi v33, bb11, bb12
   bb12:
     jump bb1
   bb11:

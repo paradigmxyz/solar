@@ -444,7 +444,7 @@ fn @constructor() [constructor] {
     v16 = add v12, 1
     jump bb9
   bb2:
-    memory_object_store_element memoryarray<1>, v0, v1, 96
+    memory_object_store_element memoryarray<1>, v0, v1, memoryarray 96
     v3 = add v1, 1
     jump bb1
 }
@@ -518,7 +518,7 @@ fn @test2() -> memoryfixedarray [selector=0x66e41cb7, view, abi_params=[], abi_r
     v9 = add v5, 1
     jump bb4
   bb2:
-    memory_object_store_element memoryfixedarray<2, 1>, v0, v1, 96
+    memory_object_store_element memoryfixedarray<2, 1>, v0, v1, memoryarray 96
     v3 = add v1, 1
     jump bb1
 }

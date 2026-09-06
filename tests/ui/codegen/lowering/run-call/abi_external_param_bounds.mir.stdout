@@ -26,14 +26,14 @@ fn @wordsCalldata(arg0: calldataslice) -> u256 [selector=0x6918e29e, pure, abi_p
 
 fn @dynamicStruct(arg0: memorystruct) -> u256 [selector=0xb47f1a21, pure, abi_params=[tuple<bytes>], abi_returns=[word]] {
   bb0:
-    v0 = memory_object_load_field memorystruct<1>, arg0, 0
+    v0 = memory_object_load_field memorystruct<1>, arg0, 0, memorybytes
     v1 = memory_object_len memorybytes, v0
     ret v1
 }
 
 fn @wideDynamic(arg0: memorystruct) -> u256 [selector=0xe16c8534, pure, abi_params=[tuple<u256, bytes>], abi_returns=[word]] {
   bb0:
-    v0 = memory_object_load_field memorystruct<2>, arg0, 1
+    v0 = memory_object_load_field memorystruct<2>, arg0, 1, memorybytes
     v1 = memory_object_len memorybytes, v0
     ret v1
 }

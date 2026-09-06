@@ -68,7 +68,7 @@ fn @mkArr(arg0: u256) -> memoryarray [selector=0xfb67dbf3, pure, abi_params=[u25
   bb5:
     v15 = phi [bb4: arg0], [bb15: v15]
     v16 = phi [bb4: v14], [bb15: v16]
-    v17 = phi [bb4: 96], [bb15: v17]
+    v17 = phi [bb4: memoryarray 96], [bb15: v17]
     v18 = phi [bb4: 0], [bb15: v29]
     v19 = lt v18, v15
     jumpi v19, bb8, bb9

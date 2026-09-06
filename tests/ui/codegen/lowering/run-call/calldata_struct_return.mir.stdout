@@ -4,34 +4,36 @@
 
 // === ROOT/tests/ui/codegen/lowering/run-call/calldata_struct_return.sol:CalldataStructReturn ===
 @module CalldataStructReturn
-fn @direct(arg0: calldataslice) -> (bool, u256) [selector=0x18f2e0cb, pure, abi_params=[bytes], abi_returns=[word<bool>, word]] {
+types:
+  struct0: {u256, u256}
+  struct1: {u256, calldataslice}
+  struct2: {u256, u256, u256, u256, u256, u256, u256}
+  struct3: {u256, memorystruct}
+
+fn @direct(arg0: calldataslice) -> struct0 [selector=0x18f2e0cb, pure, abi_params=[bytes], abi_returns=[word<bool>, word], abi_return_params=[bool, u256]] {
   bb0:
-    v0 = icall @decode.3, 2, arg0
-    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v2 = add v1, 32
-    v3 = mload v2
-    v4 = add v1, 64
-    v5 = mload v4
-    v6 = make_calldata_slice v3, v5
-    v7 = slice_ptr v6
-    v8 = add v7, 64
-    v9 = calldataload v8
-    ret v0, v9
+    v0 = icall @decode.3, 1, arg0
+    v1 = extract_value struct1, v0, 0
+    v2 = extract_value struct1, v0, 1
+    v3 = slice_ptr v2
+    v4 = add v3, 64
+    v5 = calldataload v4
+    v6 = insert_value struct0, undef struct0, 0, v1
+    v7 = insert_value struct0, v6, 1, v5
+    ret v7
 }
 
-fn @decode.1(arg0: calldataslice) -> (bool, calldataslice) [selector=0xe5c5e9a3, pure, abi_params=[bytes], abi_returns=[word<bool>, tuple<word, word, word, word, memory_bytes, memory_bytes>], abi_return_params=[bool, tuple<bytes32, bytes32, u256, u256, bytes, bytes>]] {
+fn @decode.1(arg0: calldataslice) -> struct1 [selector=0xe5c5e9a3, pure, abi_params=[bytes], abi_returns=[word<bool>, tuple<word, word, word, word, memory_bytes, memory_bytes>], abi_return_params=[bool, tuple<bytes32, bytes32, u256, u256, bytes, bytes>]] {
   bb0:
-    v0 = icall @decode.3, 2, arg0
-    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v2 = add v1, 32
-    v3 = mload v2
-    v4 = add v1, 64
-    v5 = mload v4
-    v6 = make_calldata_slice v3, v5
-    ret v0, v6
+    v0 = icall @decode.3, 1, arg0
+    v1 = extract_value struct1, v0, 0
+    v2 = extract_value struct1, v0, 1
+    v3 = insert_value struct1, undef struct1, 0, v1
+    v4 = insert_value struct1, v3, 1, v2
+    ret v4
 }
 
-fn @roundTrip() -> (bool, u256, u256, u256, u256, u256, u256) [selector=0x6643a628, view, abi_params=[], abi_returns=[word<bool>, word, word, word, word, word, word]] {
+fn @roundTrip() -> struct2 [selector=0x6643a628, view, abi_params=[], abi_returns=[word<bool>, word, word, word, word, word, word], abi_return_params=[bool, u256, u256, u256, u256, u256, u256]] {
   bb0:
     v0 = address
     v1 = gas
@@ -66,32 +68,39 @@ fn @roundTrip() -> (bool, u256, u256, u256, u256, u256, u256) [selector=0x6643a6
     v19 = make_returndata_slice 0, v13
     memory_object_copy_from_slice memorybytes, v18, v19
     v20 = abi_decode [bool, tuple<bytes32, bytes32, u256, u256, bytes, bytes>], v18
-    v21 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v22 = memory_object_load_element memoryfixedarray<2, 1>, v21, 1
-    v23 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v24 = memory_object_data memoryfixedarray, v23
-    frame_store multi_return, word, 0, v24 !metadata(memory=scratch)
-    memory_object_store_element memoryfixedarray<2, 1>, v23, 1, v22
-    v25 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v26 = memory_object_load_element memoryfixedarray<2, 1>, v25, 1
+    v21 = extract_value struct3, v20, 0
+    v22 = extract_value struct3, v20, 1
+    v23 = insert_value struct3, undef struct3, 0, v21
+    v24 = insert_value struct3, v23, 1, v22
+    v25 = extract_value struct3, v24, 0
+    v26 = extract_value struct3, v24, 1
     v27 = memory_object_load_field memorystruct<6>, v26, 0
     v28 = memory_object_load_field memorystruct<6>, v26, 1
     v29 = memory_object_load_field memorystruct<6>, v26, 2
     v30 = memory_object_load_field memorystruct<6>, v26, 3
-    v31 = memory_object_load_field memorystruct<6>, v26, 4
+    v31 = memory_object_load_field memorystruct<6>, v26, 4, memorybytes
     v32 = memory_object_len memorybytes, v31
-    v33 = memory_object_load_field memorystruct<6>, v26, 5
+    v33 = memory_object_load_field memorystruct<6>, v26, 5, memorybytes
     v34 = memory_object_len memorybytes, v33
-    ret v20, v27, v28, v29, v30, v32, v34
+    v35 = insert_value struct2, undef struct2, 0, v25
+    v36 = insert_value struct2, v35, 1, v27
+    v37 = insert_value struct2, v36, 2, v28
+    v38 = insert_value struct2, v37, 3, v29
+    v39 = insert_value struct2, v38, 4, v30
+    v40 = insert_value struct2, v39, 5, v32
+    v41 = insert_value struct2, v40, 6, v34
+    ret v41
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
 }
 
-fn @decode.3(arg0: calldataslice) -> (bool, calldataslice) [pure] {
+fn @decode.3(arg0: calldataslice) -> struct1 [pure] {
   bb0:
     v0 = slice_ptr arg0
     v1 = make_calldata_slice v0, 0
-    ret true, v1
+    v2 = insert_value struct1, undef struct1, 0, true
+    v3 = insert_value struct1, v2, 1, v1
+    ret v3
 }

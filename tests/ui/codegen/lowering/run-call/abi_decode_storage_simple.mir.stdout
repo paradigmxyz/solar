@@ -1,6 +1,10 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_storage_simple.sol:AbiDecodeStorageSimple ===
 @module AbiDecodeStorageSimple
-fn @decode(arg0: memorybytes) -> (u256, u256, bytes1) [selector=0xe5c5e9a3, abi_params=[bytes], abi_returns=[word, word, word<bytes1>]] {
+types:
+  struct0: {u256, u256, u256}
+  struct1: {u256, memorybytes}
+
+fn @decode(arg0: memorybytes) -> struct0 [selector=0xe5c5e9a3, abi_params=[bytes], abi_returns=[word, word, word<bytes1>], abi_return_params=[u256, u256, bytes1]] {
   bb0:
     icall @store_storage_bytes, 0, 0, arg0
     v0 = sload 0 !metadata(storage=slot(0))
@@ -39,8 +43,8 @@ fn @decode(arg0: memorybytes) -> (u256, u256, bytes1) [selector=0xe5c5e9a3, abi_
     jump bb7
   bb7:
     v23 = abi_decode [u256, bytes], v14
-    v24 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v25 = memory_object_load_element memoryfixedarray<2, 1>, v24, 1
+    v24 = extract_value struct1, v23, 0
+    v25 = extract_value struct1, v23, 1
     v26 = memory_object_len memorybytes, v25
     v27 = memory_object_len memorybytes, v25
     v28 = lt 0, v27
@@ -49,7 +53,10 @@ fn @decode(arg0: memorybytes) -> (u256, u256, bytes1) [selector=0xe5c5e9a3, abi_
   bb12:
     v30 = memory_object_load_byte memorybytes, v25, 0
     v31 = shl 248, v30
-    ret v23, v26, v31
+    v32 = insert_value struct0, undef struct0, 0, v24
+    v33 = insert_value struct0, v32, 1, v26
+    v34 = insert_value struct0, v33, 2, v31
+    ret v34
   bb11:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

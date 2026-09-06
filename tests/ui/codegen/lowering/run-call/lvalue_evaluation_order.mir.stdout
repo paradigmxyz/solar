@@ -1,5 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/lvalue_evaluation_order.sol:LValueEvaluationOrder ===
 @module LValueEvaluationOrder
+types:
+  struct0: {u256, u256, u256}
+
 fn @constructor() [constructor] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -27,7 +30,7 @@ fn @constructor() [constructor] {
     revert 0, 36
 }
 
-fn @compound() -> (u256, u256, u256) [selector=0xf69e2046, abi_params=[], abi_returns=[word, word, word]] {
+fn @compound() -> struct0 [selector=0xf69e2046, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = add v0, 1
@@ -65,7 +68,10 @@ fn @compound() -> (u256, u256, u256) [selector=0xf69e2046, abi_params=[], abi_re
     v21 = storage_array_data_slot 0
     v22 = add v21, 1
     v23 = sload v22 !metadata(storage=offset(v21, 1))
-    ret v11, v17, v23
+    v24 = insert_value struct0, undef struct0, 0, v11
+    v25 = insert_value struct0, v24, 1, v17
+    v26 = insert_value struct0, v25, 2, v23
+    ret v26
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -76,7 +82,7 @@ fn @compound() -> (u256, u256, u256) [selector=0xf69e2046, abi_params=[], abi_re
     revert 0, 36
 }
 
-fn @postIncrement() -> (u256, u256, u256) [selector=0x016e4842, abi_params=[], abi_returns=[word, word, word]] {
+fn @postIncrement() -> struct0 [selector=0x016e4842, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = add v0, 1
@@ -114,7 +120,10 @@ fn @postIncrement() -> (u256, u256, u256) [selector=0x016e4842, abi_params=[], a
     v21 = storage_array_data_slot 0
     v22 = add v21, 1
     v23 = sload v22 !metadata(storage=offset(v21, 1))
-    ret v11, v17, v23
+    v24 = insert_value struct0, undef struct0, 0, v11
+    v25 = insert_value struct0, v24, 1, v17
+    v26 = insert_value struct0, v25, 2, v23
+    ret v26
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -143,7 +152,7 @@ fn @value() -> u256 [selector=0x3fa4f245, abi_params=[], abi_returns=[word]] {
     revert 0, 36
 }
 
-fn @pushSideEffect() -> (u256, u256, u256) [selector=0x0753e3a7, abi_params=[], abi_returns=[word, word, word]] {
+fn @pushSideEffect() -> struct0 [selector=0x0753e3a7, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = address
     v1 = gas
@@ -189,7 +198,10 @@ fn @pushSideEffect() -> (u256, u256, u256) [selector=0x0753e3a7, abi_params=[], 
     v27 = storage_array_data_slot 2
     v28 = add v27, 1
     v29 = sload v28 !metadata(storage=offset(v27, 1))
-    ret v17, v23, v29
+    v30 = insert_value struct0, undef struct0, 0, v17
+    v31 = insert_value struct0, v30, 1, v23
+    v32 = insert_value struct0, v31, 2, v29
+    ret v32
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

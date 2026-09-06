@@ -120,7 +120,7 @@ fn @sharedBytesDefault() -> bool [selector=0x8e773052, pure, abi_params=[], abi_
     v8 = eq v7, v5
     ret v8
   bb2:
-    memory_object_store_element memoryarray<1>, v0, v1, 96
+    memory_object_store_element memoryarray<1>, v0, v1, memorybytes 96
     v3 = add v1, 1
     jump bb1
 }

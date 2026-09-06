@@ -1,13 +1,18 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/try_bare_catch_evm_version.sol:TryCallee ===
 @module TryCallee
+types:
+  struct0: {u256, u256}
+
 fn @value() -> u256 [selector=0x3fa4f245, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     ret 42
 }
 
-fn @pair() -> (u256, u256) [selector=0xa8aa1b31, pure, abi_params=[], abi_returns=[word, word]] {
+fn @pair() -> struct0 [selector=0xa8aa1b31, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
-    ret 1, 2
+    v0 = insert_value struct0, undef struct0, 0, 1
+    v1 = insert_value struct0, v0, 1, 2
+    ret v1
 }
 
 fn @agg() -> memoryfixedarray [selector=0xf5e34bfa, pure, abi_params=[], abi_returns=[array<2, word>]] {
@@ -43,6 +48,9 @@ fn @fail() [selector=0xa9cc4718, payable, abi_params=[], abi_returns=[word]] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/try_bare_catch_evm_version.sol:TryBareCatch ===
 @module TryBareCatch
+types:
+  struct0: {u256, u256}
+
 data:
   TryCallee_initcode_0: hex"34600e5761015c8060125f395ff35b5f5ffd5f3560e01c80633fa4f24514603a5780635dfc2e4a14603e578063a8aa1b31146043578063a9cc4718146047578063f5e34bfa14604c576050565b6054565b61014d565b606e565b610158565b6095565b5f5ffd5b34606a57602a6080526020608001608090036080f35b5f5ffd5b60c060405234609157600160805260206080016002815260209001608090036080f35b5f5ffd5b61012060405234610149576040518060c0528060c05260408101604052604036828060c0523760025f10151560f2575b7f4e487b71000000000000000000000000000000000000000000000000000000005f52603260045260245ffd5b8060c052600b815260026001101560c5576020810160168152505f5b8060e0526002811015610139576020818060e05202820151602082026080015260018101905061010e565b6040608001915050608090036080f35b5f5ffd5b3461015457005b5f5ffd5b5f5ffd"
 
@@ -142,33 +150,33 @@ fn @liveTwo() -> u256 [selector=0xa9b44a2a, abi_params=[], abi_returns=[word]] {
     v11 = call v7, v6, 0, v9, v10, 0, 0
     jumpi v11, bb3, bb4
   bb4:
-    v25 = returndatasize
-    v26 = add v25, 63
-    v27 = lt v26, v25
-    jumpi v27, bb6, bb10
+    v24 = returndatasize
+    v25 = add v24, 63
+    v26 = lt v25, v24
+    jumpi v26, bb6, bb10
   bb10:
-    v28 = not 31
-    v29 = and v26, v28
-    v30 = alloc memorybytes, exact, uninitialized, infallible, v29
-    set_memory_object_len memorybytes, v30, v25
-    v31 = make_returndata_slice 0, v25
-    memory_object_copy_from_slice memorybytes, v30, v31
-    v32 = memory_object_data memorybytes, v30
-    v33 = memory_object_len memorybytes, v30
-    v34 = make_memory_slice v32, v33
-    v35 = memory_slice_load_word memory, v34, 0
-    v36 = lt v33, 4
-    v37 = iszero v36
-    v38 = shr 224, v35
-    v39 = eq v38, 0x8c379a0
-    v40 = and v37, v39
-    v41 = lt v33, 36
-    v42 = iszero v41
-    v43 = eq v38, 0x4e487b71
-    v44 = and v42, v43
+    v27 = not 31
+    v28 = and v25, v27
+    v29 = alloc memorybytes, exact, uninitialized, infallible, v28
+    set_memory_object_len memorybytes, v29, v24
+    v30 = make_returndata_slice 0, v24
+    memory_object_copy_from_slice memorybytes, v29, v30
+    v31 = memory_object_data memorybytes, v29
+    v32 = memory_object_len memorybytes, v29
+    v33 = make_memory_slice v31, v32
+    v34 = memory_slice_load_word memory, v33, 0
+    v35 = lt v32, 4
+    v36 = iszero v35
+    v37 = shr 224, v34
+    v38 = eq v37, 0x8c379a0
+    v39 = and v36, v38
+    v40 = lt v32, 36
+    v41 = iszero v40
+    v42 = eq v37, 0x4e487b71
+    v43 = and v41, v42
     jumpi true, bb11, bb12
   bb12:
-    revert v32, v33
+    revert v31, v32
   bb11:
     jump bb5
   bb3:
@@ -184,17 +192,16 @@ fn @liveTwo() -> u256 [selector=0xa9b44a2a, abi_params=[], abi_returns=[word]] {
     v18 = make_returndata_slice 0, v12
     memory_object_copy_from_slice memorybytes, v17, v18
     v19 = abi_decode [u256, u256], v17
-    v20 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v21 = add v20, 32
-    v22 = mload v21
-    v23 = add v19, v22
-    v24 = lt v23, v19
-    jumpi v24, bb8, bb9
+    v20 = extract_value struct0, v19, 0
+    v21 = extract_value struct0, v19, 1
+    v22 = add v20, v21
+    v23 = lt v22, v20
+    jumpi v23, bb8, bb9
   bb9:
     jump bb5
   bb5:
-    v45 = phi [bb9: v23], [bb11: 7]
-    ret v45
+    v44 = phi [bb9: v22], [bb11: 7]
+    ret v44
   bb8:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)

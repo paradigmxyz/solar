@@ -73,7 +73,7 @@ pub(crate) fn display_function_dot<'a>(
             if inst.result_ty.is_some() {
                 write!(f, "v{} = ", inst_result_index(func, inst_id))?;
             }
-            write!(f, "{}\\l", display_inst_kind(&inst.kind, func, module))
+            write!(f, "{}\\l", display_inst_kind(&inst.kind, inst.result_ty, func, module))
         })
     }
 
@@ -237,7 +237,7 @@ pub(crate) fn display_function_text<'a>(
             writeln!(
                 f,
                 "{}{}",
-                display_inst_kind(&inst.kind, func, module),
+                display_inst_kind(&inst.kind, inst.result_ty, func, module),
                 display_metadata(inst, func)
             )
         })
@@ -361,6 +361,7 @@ fn inst_result_index(func: &Function, inst_id: InstId) -> usize {
 /// Formats an instruction kind for display.
 fn display_inst_kind<'a>(
     kind: &'a InstKind,
+    result_ty: Option<MirType>,
     func: &'a Function,
     module: Option<&'a Module>,
 ) -> impl fmt::Display + 'a {
@@ -395,6 +396,14 @@ fn display_inst_kind<'a>(
             ty.index(),
             display_val(*aggregate, func)
         ),
+        InstKind::MemoryObjectFromPtr { ptr, kind } => {
+            write!(
+                f,
+                "memory_object_from_ptr {}, {}",
+                MirType::MemoryObject(*kind),
+                display_val(*ptr, func)
+            )
+        }
         InstKind::StoreImmutable(id, value) => {
             write!(f, "storeimmutable {}", display_immutable_ref(*id, module))?;
             write!(f, ", {}", display_val(*value, func))
@@ -444,7 +453,15 @@ fn display_inst_kind<'a>(
             display_val(*index, func)
         ),
         InstKind::MemoryObjectLoadField { object, layout, field } => {
-            write!(f, "memory_object_load_field {layout}, {}, {field}", display_val(*object, func))
+            write!(
+                f,
+                "memory_object_load_field {layout}, {}, {field}",
+                display_val(*object, func)
+            )?;
+            if let Some(ty @ MirType::MemoryObject(_)) = result_ty {
+                write!(f, ", {ty}")?;
+            }
+            Ok(())
         }
         InstKind::MemoryObjectStoreField { object, layout, field, value } => write!(
             f,
@@ -452,12 +469,18 @@ fn display_inst_kind<'a>(
             display_val(*object, func),
             display_val(*value, func)
         ),
-        InstKind::MemoryObjectLoadElement { object, layout, index } => write!(
-            f,
-            "memory_object_load_element {layout}, {}, {}",
-            display_val(*object, func),
-            display_val(*index, func)
-        ),
+        InstKind::MemoryObjectLoadElement { object, layout, index } => {
+            write!(
+                f,
+                "memory_object_load_element {layout}, {}, {}",
+                display_val(*object, func),
+                display_val(*index, func)
+            )?;
+            if let Some(ty @ MirType::MemoryObject(_)) = result_ty {
+                write!(f, ", {ty}")?;
+            }
+            Ok(())
+        }
         InstKind::MemoryObjectLoadByte { object, index } => write!(
             f,
             "memory_object_load_byte memorybytes, {}, {}",

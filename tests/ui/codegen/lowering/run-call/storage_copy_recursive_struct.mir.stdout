@@ -1,6 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_copy_recursive_struct.sol:StorageCopyRecursiveStruct ===
 @module StorageCopyRecursiveStruct
-fn @exercise() -> (u256, u128, u256, u128, u256, u128, u256, u128, u256, u256) [selector=0xd32cb0fe, abi_params=[], abi_returns=[word, word<u128>, word, word<u128>, word, word<u128>, word, word<u128>, word, word]] {
+types:
+  struct0: {u256, u256, u256, u256, u256, u256, u256, u256, u256, u256}
+
+fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word, word<u128>, word, word<u128>, word, word<u128>, word, word<u128>, word, word], abi_return_params=[u256, u128, u256, u128, u256, u128, u256, u128, u256, u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = not 0xffffffffffffffffffffffffffffffff
@@ -391,7 +394,17 @@ fn @exercise() -> (u256, u128, u256, u128, u256, u128, u256, u128, u256, u256) [
     v292 = eq v287, v291
     jumpi v292, bb29, bb35
   bb35:
-    ret v171, v179, v187, v202, v217, v239, v252, v269, v277, v290
+    v293 = insert_value struct0, undef struct0, 0, v171
+    v294 = insert_value struct0, v293, 1, v179
+    v295 = insert_value struct0, v294, 2, v187
+    v296 = insert_value struct0, v295, 3, v202
+    v297 = insert_value struct0, v296, 4, v217
+    v298 = insert_value struct0, v297, 5, v239
+    v299 = insert_value struct0, v298, 6, v252
+    v300 = insert_value struct0, v299, 7, v269
+    v301 = insert_value struct0, v300, 8, v277
+    v302 = insert_value struct0, v301, 9, v290
+    ret v302
   bb29:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 34 !metadata(memory=scratch)

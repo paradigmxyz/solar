@@ -1,5 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/memory_struct_assembly_list.sol:MemoryStructAssemblyList ===
 @module MemoryStructAssemblyList
+types:
+  struct0: {u256, u256}
+
 fn @empty() -> memorystruct [pure] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
@@ -101,16 +104,18 @@ fn @secondAppend() -> bool [selector=0xdce19125, view, abi_params=[], abi_return
     ret v12
 }
 
-fn @recursiveYul(arg0: u256) -> (u256, bytes1) [selector=0x2aa1bcc4, pure, abi_params=[u256], abi_returns=[word, word<bytes1>]] {
+fn @recursiveYul(arg0: u256) -> struct0 [selector=0x2aa1bcc4, pure, abi_params=[u256], abi_returns=[word, word<bytes1>], abi_return_params=[u256, bytes1]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = icall @encode, 1, arg0, v0
     v2 = sub v1, v0
     v3 = mload v0
-    ret v2, v3
+    v4 = insert_value struct0, undef struct0, 0, v2
+    v5 = insert_value struct0, v4, 1, v3
+    ret v5
 }
 
-fn @nestedListEncoding() -> (u256, bytes32) [selector=0xb61d93a1, pure, abi_params=[], abi_returns=[word, word]] {
+fn @nestedListEncoding() -> struct0 [selector=0xb61d93a1, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, bytes32]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     memory_object_store_field memorystruct<1>, v0, 0, 0
@@ -132,7 +137,9 @@ fn @nestedListEncoding() -> (u256, bytes32) [selector=0xb61d93a1, pure, abi_para
     v16 = icall @encodeList, 1, v14, v15
     v17 = sub v16, v15
     v18 = mload v15
-    ret v17, v18
+    v19 = insert_value struct0, undef struct0, 0, v17
+    v20 = insert_value struct0, v19, 1, v18
+    ret v20
 }
 
 fn @updateTail(arg0: memorystruct, arg1: memorystruct) [pure] {

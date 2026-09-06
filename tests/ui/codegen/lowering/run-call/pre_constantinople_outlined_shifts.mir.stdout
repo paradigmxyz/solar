@@ -1,6 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/pre_constantinople_outlined_shifts.sol:PreConstantinopleOutlinedShifts ===
 @module PreConstantinopleOutlinedShifts
-fn @test() -> (u256, u256, u256) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word, word]] {
+types:
+  struct0: {u256, u256, u256}
+
+fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 1
@@ -340,7 +343,10 @@ fn @test() -> (u256, u256, u256) [selector=0xf8a8fd6d, abi_params=[], abi_return
     v236 = eq v231, v235
     jumpi v236, bb1, bb41
   bb41:
-    ret v87, v226, v234
+    v237 = insert_value struct0, undef struct0, 0, v87
+    v238 = insert_value struct0, v237, 1, v226
+    v239 = insert_value struct0, v238, 2, v234
+    ret v239
   bb19:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 49 !metadata(memory=scratch)

@@ -1,6 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_array_push_shorter.sol:StorageArrayPushShorter ===
 @module StorageArrayPushShorter
-fn @pushShorterMemory() -> (u256, u256, u256) [selector=0x465dc3fc, abi_params=[], abi_returns=[word, word, word]] {
+types:
+  struct0: {u256, u256, u256}
+
+fn @pushShorterMemory() -> struct0 [selector=0x465dc3fc, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     memory_object_store_element memoryfixedarray<2, 1>, v0, 0, 5
@@ -65,7 +68,10 @@ fn @pushShorterMemory() -> (u256, u256, u256) [selector=0x465dc3fc, abi_params=[
   bb15:
     v42 = add v39, 2
     v43 = sload v42 !metadata(storage=offset(v39, 2))
-    ret v23, v33, v43
+    v44 = insert_value struct0, undef struct0, 0, v23
+    v45 = insert_value struct0, v44, 1, v33
+    v46 = insert_value struct0, v45, 2, v43
+    ret v46
   bb9:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -90,7 +96,7 @@ fn @pushShorterMemory() -> (u256, u256, u256) [selector=0x465dc3fc, abi_params=[
     revert 0, 36
 }
 
-fn @pushShorterLiteral() -> (u256, u256, u256) [selector=0x6f3a582e, abi_params=[], abi_returns=[word, word, word]] {
+fn @pushShorterLiteral() -> struct0 [selector=0x6f3a582e, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     v1 = and 1, 255
@@ -154,7 +160,10 @@ fn @pushShorterLiteral() -> (u256, u256, u256) [selector=0x6f3a582e, abi_params=
   bb15:
     v43 = add v40, 2
     v44 = sload v43 !metadata(storage=offset(v40, 2))
-    ret v24, v34, v44
+    v45 = insert_value struct0, undef struct0, 0, v24
+    v46 = insert_value struct0, v45, 1, v34
+    v47 = insert_value struct0, v46, 2, v44
+    ret v47
   bb9:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -179,7 +188,7 @@ fn @pushShorterLiteral() -> (u256, u256, u256) [selector=0x6f3a582e, abi_params=
     revert 0, 36
 }
 
-fn @pushNarrowMemory() -> (u256, u256, u256) [selector=0xedb7ea7a, abi_params=[], abi_returns=[word, word, word]] {
+fn @pushNarrowMemory() -> struct0 [selector=0xedb7ea7a, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     v1 = and 7, 255
@@ -243,7 +252,10 @@ fn @pushNarrowMemory() -> (u256, u256, u256) [selector=0xedb7ea7a, abi_params=[]
   bb15:
     v43 = add v40, 2
     v44 = sload v43 !metadata(storage=offset(v40, 2))
-    ret v24, v34, v44
+    v45 = insert_value struct0, undef struct0, 0, v24
+    v46 = insert_value struct0, v45, 1, v34
+    v47 = insert_value struct0, v46, 2, v44
+    ret v47
   bb9:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

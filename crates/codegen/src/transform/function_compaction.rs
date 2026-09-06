@@ -27,11 +27,10 @@ type ArgDependents = IndexVec<FunctionId, IndexVec<ArgIdx, Vec<(FunctionId, ArgI
 /// dead argument can strand the call whose result kept another function's result live, so the two
 /// analyses are iterated to a joint fixed point.
 ///
-/// The component analyses stay distinct rather than sharing one lattice because MIR represents only
-/// a single-word result as an SSA value — additional results travel through the ephemeral
-/// multi-return buffer — so result pruning is restricted to one-word signatures and, like today,
-/// runs only under `-Osize`. Under other objectives argument liveness is already an internal fixed
-/// point, so a single pass suffices with no outer iteration.
+/// Result pruning removes a complete SSA result, including a struct, and runs only under `-Osize`.
+/// It leaves legacy multi-result signatures intact because their extra results use a shared buffer.
+/// Under other objectives argument liveness is already an internal fixed point, so a single pass
+/// suffices with no outer iteration.
 pub(crate) struct DeadArgElim;
 
 impl MirPass for DeadArgElim {
@@ -368,13 +367,11 @@ fn record_arg_dependencies(
     }
 }
 
-/// Removes a one-word result when every direct caller discards it.
+/// Removes a complete SSA result when every direct caller discards it.
 ///
-/// MIR represents only the first internal-call result as an SSA value. Additional results travel
-/// through the ephemeral multi-return buffer, so changing an arbitrary component would require
-/// making that buffer protocol explicit in the IR. Restricting this transform to one-word
-/// signatures keeps the proof local and still removes the complete return slot and call-result
-/// protocol for common effect-only helpers.
+/// Scalar and struct results both have one SSA value. Legacy multi-result signatures still carry
+/// extra results through a shared buffer and remain unchanged. Preserve the memory-return flag
+/// before erasing the signature, including when a nested struct field refers to memory.
 fn prune_unused_returns(module: &mut Module) -> usize {
     let mut called = DenseBitSet::new_empty(module.functions.len());
     for func in &module.functions {
@@ -486,9 +483,11 @@ fn prune_unused_returns(module: &mut Module) -> usize {
     }
 
     for func_id in removed_set.iter() {
+        let may_return_memory =
+            module.type_may_reference_memory(module.function(func_id).returns[0]);
         let func = module.function_mut(func_id);
         // Candidates carry exactly one result, so clearing it removes one signature slot.
-        func.attributes.may_return_memory |= func.returns[0].is_memory_reference();
+        func.attributes.may_return_memory |= may_return_memory;
         let removed_slots = func.returns.len() as u64;
         func.returns.clear();
         for block in &mut func.blocks {

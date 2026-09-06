@@ -315,27 +315,27 @@ fn @callExternal() -> bool [selector=0x5f431992, abi_params=[], abi_returns=[wor
   bb0:
     v0 = alloc memorystruct<5>, exact, uninitialized, infallible, 160
     memory_zero v0, 160
-    memory_object_store_field memorystruct<5>, v0, 0, 96
-    memory_object_store_field memorystruct<5>, v0, 2, 96
-    memory_object_store_field memorystruct<5>, v0, 3, 96
+    memory_object_store_field memorystruct<5>, v0, 0, memoryarray 96
+    memory_object_store_field memorystruct<5>, v0, 2, memorybytes 96
+    memory_object_store_field memorystruct<5>, v0, 3, memorybytes 96
     v1 = alloc memoryarray<1>, exact, zeroed, panic, 128
     set_memory_object_len memoryarray, v1, 3
     memory_object_store_field memorystruct<5>, v0, 0, v1
-    v2 = memory_object_load_field memorystruct<5>, v0, 0
+    v2 = memory_object_load_field memorystruct<5>, v0, 0, memoryarray
     v3 = memory_object_len memoryarray, v2
     v4 = lt 0, v3
     v5 = iszero v4
     jumpi v5, bb1, bb2
   bb2:
     memory_object_store_element memoryarray<1>, v2, 0, 0
-    v6 = memory_object_load_field memorystruct<5>, v0, 0
+    v6 = memory_object_load_field memorystruct<5>, v0, 0, memoryarray
     v7 = memory_object_len memoryarray, v6
     v8 = lt 1, v7
     v9 = iszero v8
     jumpi v9, bb1, bb3
   bb3:
     memory_object_store_element memoryarray<1>, v6, 1, 1
-    v10 = memory_object_load_field memorystruct<5>, v0, 0
+    v10 = memory_object_load_field memorystruct<5>, v0, 0, memoryarray
     v11 = memory_object_len memoryarray, v10
     v12 = lt 2, v11
     v13 = iszero v12

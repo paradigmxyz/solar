@@ -1,5 +1,10 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_bytes_element_access.sol:StorageBytesElementAccess ===
 @module StorageBytesElementAccess
+types:
+  struct0: {u256, u256}
+  struct1: {u256, u256, u256, u256, u256}
+  struct2: {u256, u256, u256}
+
 fn @_fill(arg0: u256) {
   bb0:
     v0 = add arg0, 63
@@ -103,7 +108,7 @@ fn @at(arg0: u256) -> bytes1 [selector=0xe0886f90, view, abi_params=[u256], abi_
     revert 0, 36
 }
 
-fn @readSingle() -> (u8, u256) [selector=0xf6f3185a, abi_params=[], abi_returns=[word<u8>, word]] {
+fn @readSingle() -> struct0 [selector=0xf6f3185a, abi_params=[], abi_returns=[word<u8>, word], abi_return_params=[u8, u256]] {
   bb0:
     icall @_fill, 0, 1
     v0 = sload 0 !metadata(storage=slot(0))
@@ -148,7 +153,9 @@ fn @readSingle() -> (u8, u256) [selector=0xf6f3185a, abi_params=[], abi_returns=
     v29 = eq v24, v28
     jumpi v29, bb1, bb8
   bb8:
-    ret v21, v27
+    v30 = insert_value struct0, undef struct0, 0, v21
+    v31 = insert_value struct0, v30, 1, v27
+    ret v31
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -159,7 +166,7 @@ fn @readSingle() -> (u8, u256) [selector=0xf6f3185a, abi_params=[], abi_returns=
     revert 0, 36
 }
 
-fn @readEdges(arg0: u256) -> (u8, u8, u8, u8, u256) [selector=0x0ecdc808, abi_params=[u256], abi_returns=[word<u8>, word<u8>, word<u8>, word<u8>, word]] {
+fn @readEdges(arg0: u256) -> struct1 [selector=0x0ecdc808, abi_params=[u256], abi_returns=[word<u8>, word<u8>, word<u8>, word<u8>, word], abi_return_params=[u8, u8, u8, u8, u256]] {
   bb0:
     icall @_fill, 0, arg0
     v0 = sload 0 !metadata(storage=slot(0))
@@ -308,7 +315,12 @@ fn @readEdges(arg0: u256) -> (u8, u8, u8, u8, u256) [selector=0x0ecdc808, abi_pa
     v99 = eq v94, v98
     jumpi v99, bb1, bb26
   bb26:
-    ret v21, v43, v67, v91, v97
+    v100 = insert_value struct1, undef struct1, 0, v21
+    v101 = insert_value struct1, v100, 1, v43
+    v102 = insert_value struct1, v101, 2, v67
+    v103 = insert_value struct1, v102, 3, v91
+    v104 = insert_value struct1, v103, 4, v97
+    ret v104
   bb13:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -323,7 +335,7 @@ fn @readEdges(arg0: u256) -> (u8, u8, u8, u8, u256) [selector=0x0ecdc808, abi_pa
     revert 0, 36
 }
 
-fn @writeEdges(arg0: u256) -> (u8, u8, u8, u8, u256) [selector=0x633fe221, abi_params=[u256], abi_returns=[word<u8>, word<u8>, word<u8>, word<u8>, word]] {
+fn @writeEdges(arg0: u256) -> struct1 [selector=0x633fe221, abi_params=[u256], abi_returns=[word<u8>, word<u8>, word<u8>, word<u8>, word], abi_return_params=[u8, u8, u8, u8, u256]] {
   bb0:
     icall @_fill, 0, arg0
     v0 = shl 248, 170
@@ -550,7 +562,12 @@ fn @writeEdges(arg0: u256) -> (u8, u8, u8, u8, u256) [selector=0x633fe221, abi_p
     v153 = eq v148, v152
     jumpi v153, bb1, bb37
   bb37:
-    ret v75, v97, v121, v145, v151
+    v154 = insert_value struct1, undef struct1, 0, v75
+    v155 = insert_value struct1, v154, 1, v97
+    v156 = insert_value struct1, v155, 2, v121
+    v157 = insert_value struct1, v156, 3, v145
+    v158 = insert_value struct1, v157, 4, v151
+    ret v158
   bb8:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -565,7 +582,7 @@ fn @writeEdges(arg0: u256) -> (u8, u8, u8, u8, u256) [selector=0x633fe221, abi_p
     revert 0, 36
 }
 
-fn @bumpAll(arg0: u256) -> (u256, u256) [selector=0x583a2887, abi_params=[u256], abi_returns=[word, word]] {
+fn @bumpAll(arg0: u256) -> struct0 [selector=0x583a2887, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     icall @_fill, 0, arg0
     jump bb1
@@ -621,7 +638,9 @@ fn @bumpAll(arg0: u256) -> (u256, u256) [selector=0x583a2887, abi_params=[u256],
     v112 = eq v107, v111
     jumpi v112, bb4, bb37
   bb37:
-    ret v66, v110
+    v113 = insert_value struct0, undef struct0, 0, v66
+    v114 = insert_value struct0, v113, 1, v110
+    ret v114
   bb27:
     v79 = sload 0 !metadata(storage=slot(0))
     v80 = and v79, 1
@@ -765,7 +784,7 @@ fn @bumpAll(arg0: u256) -> (u256, u256) [selector=0x583a2887, abi_params=[u256],
     revert 0, 36
 }
 
-fn @compoundEdges(arg0: u256) -> (u8, u8, u256) [selector=0xd8df6f4c, abi_params=[u256], abi_returns=[word<u8>, word<u8>, word]] {
+fn @compoundEdges(arg0: u256) -> struct2 [selector=0xd8df6f4c, abi_params=[u256], abi_returns=[word<u8>, word<u8>, word], abi_return_params=[u8, u8, u256]] {
   bb0:
     icall @_fill, 0, arg0
     v0 = sload 0 !metadata(storage=slot(0))
@@ -936,7 +955,10 @@ fn @compoundEdges(arg0: u256) -> (u8, u8, u256) [selector=0xd8df6f4c, abi_params
     v119 = eq v114, v118
     jumpi v119, bb1, bb26
   bb26:
-    ret v87, v111, v117
+    v120 = insert_value struct2, undef struct2, 0, v87
+    v121 = insert_value struct2, v120, 1, v111
+    v122 = insert_value struct2, v121, 2, v117
+    ret v122
   bb8:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -951,7 +973,7 @@ fn @compoundEdges(arg0: u256) -> (u8, u8, u256) [selector=0xd8df6f4c, abi_params
     revert 0, 36
 }
 
-fn @deleteLast(arg0: u256) -> (u8, u8, u256) [selector=0x32a309a7, abi_params=[u256], abi_returns=[word<u8>, word<u8>, word]] {
+fn @deleteLast(arg0: u256) -> struct2 [selector=0x32a309a7, abi_params=[u256], abi_returns=[word<u8>, word<u8>, word], abi_return_params=[u8, u8, u256]] {
   bb0:
     icall @_fill, 0, arg0
     v0 = sub arg0, 1
@@ -1076,7 +1098,10 @@ fn @deleteLast(arg0: u256) -> (u8, u8, u256) [selector=0x32a309a7, abi_params=[u
     v82 = eq v77, v81
     jumpi v82, bb3, bb22
   bb22:
-    ret v50, v74, v80
+    v83 = insert_value struct2, undef struct2, 0, v50
+    v84 = insert_value struct2, v83, 1, v74
+    v85 = insert_value struct2, v84, 2, v80
+    ret v85
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -1144,7 +1169,7 @@ fn @rawByte(arg0: u256) -> u256 [selector=0xa88f9005, abi_params=[u256], abi_ret
     revert 0, 36
 }
 
-fn @shortString() -> (u8, u8, u256) [selector=0x2f9c7ab1, abi_params=[], abi_returns=[word<u8>, word<u8>, word]] {
+fn @shortString() -> struct2 [selector=0x2f9c7ab1, abi_params=[], abi_returns=[word<u8>, word<u8>, word], abi_return_params=[u8, u8, u256]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 5
@@ -1225,7 +1250,10 @@ fn @shortString() -> (u8, u8, u256) [selector=0x2f9c7ab1, abi_params=[], abi_ret
     v53 = eq v48, v52
     jumpi v53, bb1, bb13
   bb13:
-    ret v23, v45, v51
+    v54 = insert_value struct2, undef struct2, 0, v23
+    v55 = insert_value struct2, v54, 1, v45
+    v56 = insert_value struct2, v55, 2, v51
+    ret v56
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -1236,7 +1264,7 @@ fn @shortString() -> (u8, u8, u256) [selector=0x2f9c7ab1, abi_params=[], abi_ret
     revert 0, 36
 }
 
-fn @longString() -> (u8, u8, u256) [selector=0x68a55dc0, abi_params=[], abi_returns=[word<u8>, word<u8>, word]] {
+fn @longString() -> struct2 [selector=0x68a55dc0, abi_params=[], abi_returns=[word<u8>, word<u8>, word], abi_return_params=[u8, u8, u256]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 96
     set_memory_object_len memorybytes, v0, 33
@@ -1319,7 +1347,10 @@ fn @longString() -> (u8, u8, u256) [selector=0x68a55dc0, abi_params=[], abi_retu
     v54 = eq v49, v53
     jumpi v54, bb1, bb13
   bb13:
-    ret v24, v46, v52
+    v55 = insert_value struct2, undef struct2, 0, v24
+    v56 = insert_value struct2, v55, 1, v46
+    v57 = insert_value struct2, v56, 2, v52
+    ret v57
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -1330,7 +1361,7 @@ fn @longString() -> (u8, u8, u256) [selector=0x68a55dc0, abi_params=[], abi_retu
     revert 0, 36
 }
 
-fn @writeShortString() -> (u8, u8, u256) [selector=0x9aa67864, abi_params=[], abi_returns=[word<u8>, word<u8>, word]] {
+fn @writeShortString() -> struct2 [selector=0x9aa67864, abi_params=[], abi_returns=[word<u8>, word<u8>, word], abi_return_params=[u8, u8, u256]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 5
@@ -1459,7 +1490,10 @@ fn @writeShortString() -> (u8, u8, u256) [selector=0x9aa67864, abi_params=[], ab
     v88 = eq v83, v87
     jumpi v88, bb1, bb18
   bb18:
-    ret v58, v80, v86
+    v89 = insert_value struct2, undef struct2, 0, v58
+    v90 = insert_value struct2, v89, 1, v80
+    v91 = insert_value struct2, v90, 2, v86
+    ret v91
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -1470,7 +1504,7 @@ fn @writeShortString() -> (u8, u8, u256) [selector=0x9aa67864, abi_params=[], ab
     revert 0, 36
 }
 
-fn @writeLongString() -> (u8, u8, u256) [selector=0x233b60b4, abi_params=[], abi_returns=[word<u8>, word<u8>, word]] {
+fn @writeLongString() -> struct2 [selector=0x233b60b4, abi_params=[], abi_returns=[word<u8>, word<u8>, word], abi_return_params=[u8, u8, u256]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 96
     set_memory_object_len memorybytes, v0, 33
@@ -1601,7 +1635,10 @@ fn @writeLongString() -> (u8, u8, u256) [selector=0x233b60b4, abi_params=[], abi
     v89 = eq v84, v88
     jumpi v89, bb1, bb18
   bb18:
-    ret v59, v81, v87
+    v90 = insert_value struct2, undef struct2, 0, v59
+    v91 = insert_value struct2, v90, 1, v81
+    v92 = insert_value struct2, v91, 2, v87
+    ret v92
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

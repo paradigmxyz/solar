@@ -633,7 +633,7 @@ fn @constructor() [constructor] {
     v468 = add v465, 1
     jump bb144
   bb136:
-    memory_object_store_element memoryarray<1>, v444, v445, 96
+    memory_object_store_element memoryarray<1>, v444, v445, memoryarray 96
     v447 = add v445, 1
     jump bb135
   bb124:
@@ -754,7 +754,7 @@ fn @constructor() [constructor] {
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb95:
-    memory_object_store_element memoryarray<1>, v257, v258, 96
+    memory_object_store_element memoryarray<1>, v257, v258, memoryarray 96
     v260 = add v258, 1
     jump bb94
   bb67:
@@ -939,7 +939,7 @@ fn @constructor() [constructor] {
     v171 = add v168, 1
     jump bb63
   bb53:
-    memory_object_store_element memoryarray<1>, v145, v146, 96
+    memory_object_store_element memoryarray<1>, v145, v146, memoryarray 96
     v148 = add v146, 1
     jump bb52
   bb19:
@@ -1176,7 +1176,7 @@ fn @constructor() [constructor] {
     v7 = add v1, 1
     jump bb1
   bb5:
-    memory_object_store_element memoryfixedarray<2, 1>, v3, v4, 96
+    memory_object_store_element memoryfixedarray<2, 1>, v3, v4, memoryarray 96
     v6 = add v4, 1
     jump bb4
 }

@@ -1,11 +1,17 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/tuple_assignment_order.sol:TupleAssignmentOrder ===
 @module TupleAssignmentOrder
-fn @swap() -> (u256, u256) [selector=0x8119c065, pure, abi_params=[], abi_returns=[word, word]] {
+types:
+  struct0: {u256, u256}
+  struct1: {u256, u256, u256}
+
+fn @swap() -> struct0 [selector=0x8119c065, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
-    ret 2, 1
+    v0 = insert_value struct0, undef struct0, 0, 2
+    v1 = insert_value struct0, v0, 1, 1
+    ret v1
 }
 
-fn @repeatedMemoryTarget() -> (u256, u256, u256) [selector=0xe028cc76, view, abi_params=[], abi_returns=[word, word, word]] {
+fn @repeatedMemoryTarget() -> struct1 [selector=0xe028cc76, view, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
     memory_zero v0, 96
@@ -45,14 +51,17 @@ fn @repeatedMemoryTarget() -> (u256, u256, u256) [selector=0xe028cc76, view, abi
     jumpi v17, bb1, bb8
   bb8:
     v18 = memory_object_load_element memoryfixedarray<3, 1>, v0, 0
-    ret v12, v15, v18
+    v19 = insert_value struct1, undef struct1, 0, v12
+    v20 = insert_value struct1, v19, 1, v15
+    v21 = insert_value struct1, v20, 2, v18
+    ret v21
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
 }
 
-fn @repeatedStateTarget() -> (u256, u256) [selector=0x9f06da88, abi_params=[], abi_returns=[word, word]] {
+fn @repeatedStateTarget() -> struct0 [selector=0x9f06da88, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = icall @setCursor, 1, 1
     v1 = icall @setCursor, 1, 2
@@ -62,21 +71,21 @@ fn @repeatedStateTarget() -> (u256, u256) [selector=0x9f06da88, abi_params=[], a
     sstore 2, v0 !metadata(storage=slot(2))
     v3 = sload 0 !metadata(storage=slot(0))
     v4 = sload 2 !metadata(storage=slot(2))
-    ret v3, v4
+    v5 = insert_value struct0, undef struct0, 0, v3
+    v6 = insert_value struct0, v5, 1, v4
+    ret v6
 }
 
 fn @repeatedCallTarget() -> u256 [selector=0xbf139358, pure, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = icall @threeValues, 3
-    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v2 = add v1, 32
-    v3 = mload v2
-    v4 = add v1, 64
-    v5 = mload v4
-    ret v0
+    v0 = icall @threeValues, 1
+    v1 = extract_value struct1, v0, 0
+    v2 = extract_value struct1, v0, 1
+    v3 = extract_value struct1, v0, 2
+    ret v1
 }
 
-fn @sideEffectfulTargets() -> (u256, u256, u256) [selector=0x1a1f53e1, abi_params=[], abi_returns=[word, word, word]] {
+fn @sideEffectfulTargets() -> struct1 [selector=0x1a1f53e1, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     memory_zero v0, 64
@@ -103,14 +112,17 @@ fn @sideEffectfulTargets() -> (u256, u256, u256) [selector=0x1a1f53e1, abi_param
   bb5:
     v12 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
     v13 = sload 0 !metadata(storage=slot(0))
-    ret v9, v12, v13
+    v14 = insert_value struct1, undef struct1, 0, v9
+    v15 = insert_value struct1, v14, 1, v12
+    v16 = insert_value struct1, v15, 2, v13
+    ret v16
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
 }
 
-fn @storageBytesTargets() -> (bytes1, bytes1) [selector=0x58cc8be8, abi_params=[], abi_returns=[word<bytes1>, word<bytes1>]] {
+fn @storageBytesTargets() -> struct0 [selector=0x58cc8be8, abi_params=[], abi_returns=[word<bytes1>, word<bytes1>], abi_return_params=[bytes1, bytes1]] {
   bb0:
     v0 = sload 3 !metadata(storage=slot(3))
     v1 = and v0, 1
@@ -246,7 +258,9 @@ fn @storageBytesTargets() -> (bytes1, bytes1) [selector=0x58cc8be8, abi_params=[
     v89 = shr v88, v87
     v90 = and v89, 255
     v91 = shl 248, v90
-    ret v70, v91
+    v92 = insert_value struct0, undef struct0, 0, v70
+    v93 = insert_value struct0, v92, 1, v91
+    ret v93
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -279,9 +293,12 @@ fn @nextIndex() -> u256 {
     revert 0, 36
 }
 
-fn @threeValues() -> (u256, u256, u256) [pure] {
+fn @threeValues() -> struct1 [pure] {
   bb0:
-    ret 1, 2, 3
+    v0 = insert_value struct1, undef struct1, 0, 1
+    v1 = insert_value struct1, v0, 1, 2
+    v2 = insert_value struct1, v1, 2, 3
+    ret v2
 }
 
 fn @constructor() [constructor] {

@@ -2,6 +2,9 @@
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_multi_return.mir (after lower-abi) ===
   @module LowerAbiMultiReturn
 + @phase abi
+  types:
+    struct0: {u256, u256}
+  
   immutables:
     owner: address
   
@@ -35,5 +38,29 @@
 +     v1 = add 128, 32
 +     v2 = sub v1, 128
 +     returndata 128, v2
+  }
+  
+- fn @unreachable_cycle() -> struct0 [selector=0x01020304, abi_params=[], abi_returns=[word, word]] {
++ fn @unreachable_cycle() [selector=0x01020304] {
+    bb0:
+-     ret undef struct0
++     v1 = extract_value struct0, undef struct0, 0
++     v2 = extract_value struct0, undef struct0, 1
++     mstore 128, v1
++     v4 = add 128, 32
++     mstore v4, v2
++     v5 = add v4, 32
++     v6 = sub v5, 128
++     returndata 128, v6
+    bb1:
+      v0 = insert_value struct0, v0, 0, 1
+-     ret v0
++     v3 = extract_value struct0, v0, 1
++     mstore 128, 1
++     v7 = add 128, 32
++     mstore v7, v3
++     v8 = add v7, 32
++     v9 = sub v8, 128
++     returndata 128, v9
   }
   

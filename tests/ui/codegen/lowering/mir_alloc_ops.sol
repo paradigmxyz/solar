@@ -18,7 +18,11 @@ contract MirAllocOps {
     }
 
     // CHECK-LABEL: fn @frameShadow{{[( ]}}
-    // CHECK: ret 1, 2, 3, 4
+    // CHECK: [[RET_0:v[0-9]+]] = insert_value [[RET_TY:struct[0-9]+]], undef [[RET_TY]], 0, 1
+    // CHECK: [[RET_1:v[0-9]+]] = insert_value [[RET_TY]], [[RET_0]], 1, 2
+    // CHECK: [[RET_2:v[0-9]+]] = insert_value [[RET_TY]], [[RET_1]], 2, 3
+    // CHECK: [[RET_3:v[0-9]+]] = insert_value [[RET_TY]], [[RET_2]], 3, 4
+    // CHECK: ret [[RET_3]]
     function frameShadow()
         external
         pure

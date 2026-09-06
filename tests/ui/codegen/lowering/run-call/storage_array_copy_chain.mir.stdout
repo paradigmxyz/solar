@@ -1,5 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_array_copy_chain.sol:Chain ===
 @module Chain
+types:
+  struct0: {u256, u256, u256}
+  struct1: {u256, u256}
+
 fn @constructor() [constructor] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -91,7 +95,7 @@ fn @constructor() [constructor] {
     revert 0, 36
 }
 
-fn @ctorNested() -> (u256, u256, u256) [selector=0x23c43244, view, abi_params=[], abi_returns=[word, word, word]] {
+fn @ctorNested() -> struct0 [selector=0x23c43244, view, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = lt 0, v0
@@ -117,14 +121,17 @@ fn @ctorNested() -> (u256, u256, u256) [selector=0x23c43244, view, abi_params=[]
     v15 = add v14, 0
     v16 = sload v15 !metadata(storage=symbolic(v14))
     v17 = sload 0 !metadata(storage=slot(0))
-    ret v10, v16, v17
+    v18 = insert_value struct0, undef struct0, 0, v10
+    v19 = insert_value struct0, v18, 1, v16
+    v20 = insert_value struct0, v19, 2, v17
+    ret v20
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
 }
 
-fn @runtimeNested(arg0: u256) -> (u256, u256) [selector=0x916a6a26, abi_params=[u256], abi_returns=[word, word]] {
+fn @runtimeNested(arg0: u256) -> struct1 [selector=0x916a6a26, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = gt v0, 0xffffffffffffffff
@@ -196,7 +203,9 @@ fn @runtimeNested(arg0: u256) -> (u256, u256) [selector=0x916a6a26, abi_params=[
     v46 = lt v44, 2
     jumpi v46, bb12, bb18
   bb18:
-    ret v38, v45
+    v47 = insert_value struct1, undef struct1, 0, v38
+    v48 = insert_value struct1, v47, 1, v45
+    ret v48
   bb14:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -224,7 +233,7 @@ fn @runtimeNested(arg0: u256) -> (u256, u256) [selector=0x916a6a26, abi_params=[
     revert 0, 36
 }
 
-fn @storageToStorage() -> (u256, u256, u256) [selector=0xdb07d74b, abi_params=[], abi_returns=[word, word, word]] {
+fn @storageToStorage() -> struct0 [selector=0xdb07d74b, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = icall @load_storage_word_array, 1, 0
     v1 = memory_object_len memoryarray, v0
@@ -272,7 +281,10 @@ fn @storageToStorage() -> (u256, u256, u256) [selector=0xdb07d74b, abi_params=[]
     v31 = lt v30, v29
     jumpi v31, bb12, bb14
   bb14:
-    ret v20, v27, v30
+    v32 = insert_value struct0, undef struct0, 0, v20
+    v33 = insert_value struct0, v32, 1, v27
+    v34 = insert_value struct0, v33, 2, v30
+    ret v34
   bb12:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)

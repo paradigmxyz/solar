@@ -1,29 +1,32 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_storage_struct.sol:AbiDecodeStorageStruct ===
 @module AbiDecodeStorageStruct
-fn @f() -> (u256, u256, u256, u256) [selector=0x26121ff0, abi_params=[], abi_returns=[word, word, word, word]] {
+types:
+  struct0: {u256, u256, u256, u256}
+
+fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     memory_object_store_field memorystruct<2>, v0, 0, 0
-    memory_object_store_field memorystruct<2>, v0, 1, 96
+    memory_object_store_field memorystruct<2>, v0, 1, memoryarray 96
     memory_object_store_field memorystruct<2>, v0, 0, 8
     v1 = alloc memoryarray<1>, exact, zeroed, panic, 128
     set_memory_object_len memoryarray, v1, 3
     memory_object_store_field memorystruct<2>, v0, 1, v1
-    v2 = memory_object_load_field memorystruct<2>, v0, 1
+    v2 = memory_object_load_field memorystruct<2>, v0, 1, memoryarray
     v3 = memory_object_len memoryarray, v2
     v4 = lt 0, v3
     v5 = iszero v4
     jumpi v5, bb1, bb2
   bb2:
     memory_object_store_element memoryarray<1>, v2, 0, 9
-    v6 = memory_object_load_field memorystruct<2>, v0, 1
+    v6 = memory_object_load_field memorystruct<2>, v0, 1, memoryarray
     v7 = memory_object_len memoryarray, v6
     v8 = lt 1, v7
     v9 = iszero v8
     jumpi v9, bb1, bb3
   bb3:
     memory_object_store_element memoryarray<1>, v6, 1, 10
-    v10 = memory_object_load_field memorystruct<2>, v0, 1
+    v10 = memory_object_load_field memorystruct<2>, v0, 1, memoryarray
     v11 = memory_object_len memoryarray, v10
     v12 = lt 2, v11
     v13 = iszero v12
@@ -69,23 +72,27 @@ fn @f() -> (u256, u256, u256, u256) [selector=0x26121ff0, abi_params=[], abi_ret
   bb11:
     v38 = abi_decode [tuple<u256, array<_, u256>>], v29
     v39 = memory_object_load_field memorystruct<2>, v38, 0
-    v40 = memory_object_load_field memorystruct<2>, v38, 1
+    v40 = memory_object_load_field memorystruct<2>, v38, 1, memoryarray
     v41 = memory_object_len memoryarray, v40
-    v42 = memory_object_load_field memorystruct<2>, v38, 1
+    v42 = memory_object_load_field memorystruct<2>, v38, 1, memoryarray
     v43 = memory_object_len memoryarray, v42
     v44 = lt 0, v43
     v45 = iszero v44
     jumpi v45, bb1, bb15
   bb15:
     v46 = memory_object_load_element memoryarray<1>, v42, 0
-    v47 = memory_object_load_field memorystruct<2>, v38, 1
+    v47 = memory_object_load_field memorystruct<2>, v38, 1, memoryarray
     v48 = memory_object_len memoryarray, v47
     v49 = lt 2, v48
     v50 = iszero v49
     jumpi v50, bb1, bb16
   bb16:
     v51 = memory_object_load_element memoryarray<1>, v47, 2
-    ret v39, v41, v46, v51
+    v52 = insert_value struct0, undef struct0, 0, v39
+    v53 = insert_value struct0, v52, 1, v41
+    v54 = insert_value struct0, v53, 2, v46
+    v55 = insert_value struct0, v54, 3, v51
+    ret v55
   bb13:
     v34 = add v31, v32
     v35 = sload v34 !metadata(storage=symbolic(v34))

@@ -232,12 +232,18 @@ pub(super) fn lower(
                 if gcx.dcx().err_count() == errors_before {
                     let _: Option<()> = context.report_unsupported(function.span, "function");
                 }
+                let return_types = function
+                    .returns
+                    .iter()
+                    .map(|&ret| TypeLowerer::mir_return_type(gcx.type_of_item(ret.into())))
+                    .collect();
+                let return_type = context.module.intern_return_type(return_types);
                 let mut builder = FunctionBuilder::new(context.module.function_mut(mir_id));
                 for &param in function.parameters {
                     builder.add_param(TypeLowerer::mir_type(gcx.type_of_item(param.into())));
                 }
-                for &ret in function.returns {
-                    builder.add_return(TypeLowerer::mir_return_type(gcx.type_of_item(ret.into())));
+                if let Some(ty) = return_type {
+                    builder.add_return(ty);
                 }
                 builder.invalid();
                 continue;

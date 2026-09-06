@@ -1,6 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_packed_word_array.sol:AbiEncodePackedWordArray ===
 @module AbiEncodePackedWordArray
-fn @pack() -> (bytes32, u256) [selector=0xef082838, pure, abi_params=[], abi_returns=[word, word]] {
+types:
+  struct0: {u256, u256}
+
+fn @pack() -> struct0 [selector=0xef082838, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[bytes32, u256]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
     set_memory_object_len memoryarray, v0, 2
@@ -59,7 +62,9 @@ fn @pack() -> (bytes32, u256) [selector=0xef082838, pure, abi_params=[], abi_ret
   bb12:
     v43 = keccak256_bytes v22
     v44 = memory_object_len memorybytes, v22
-    ret v43, v44
+    v45 = insert_value struct0, undef struct0, 0, v43
+    v46 = insert_value struct0, v45, 1, v44
+    ret v46
   bb11:
     v33 = mul v31, 32
     v34 = iszero 32

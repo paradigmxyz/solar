@@ -1,6 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/mapping_struct_dynamic_getter.sol:MappingDynamicGetter ===
 @module MappingDynamicGetter
-fn @m(arg0: u256) -> (u256, memorybytes) [selector=0x6e9410b6, view, abi_params=[u256], abi_returns=[word, memory_bytes]] {
+types:
+  struct0: {u256, memorybytes}
+
+fn @m(arg0: u256) -> struct0 [selector=0x6e9410b6, view, abi_params=[u256], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
   bb0:
     v0 = mapping_slot arg0, 0
     v1 = sload v0 !metadata(storage=symbolic(v0))
@@ -40,7 +43,9 @@ fn @m(arg0: u256) -> (u256, memorybytes) [selector=0x6e9410b6, view, abi_params=
   bb10:
     jump bb7
   bb7:
-    ret v1, v17
+    v26 = insert_value struct0, undef struct0, 0, v1
+    v27 = insert_value struct0, v26, 1, v17
+    ret v27
   bb9:
     v22 = add v19, v20
     v23 = sload v22 !metadata(storage=symbolic(v22))
@@ -72,7 +77,7 @@ fn @constructor() [constructor] {
     stop
 }
 
-fn @read() -> (u256, memorybytes) [selector=0x57de26a4, view, abi_params=[], abi_returns=[word, memory_bytes]] {
+fn @read() -> struct0 [selector=0x57de26a4, view, abi_params=[], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {
   bb0:
     v0 = mapping_slot 1, 0
     v1 = sload v0 !metadata(storage=symbolic(v0))
@@ -113,7 +118,9 @@ fn @read() -> (u256, memorybytes) [selector=0x57de26a4, view, abi_params=[], abi
   bb10:
     jump bb7
   bb7:
-    ret v1, v18
+    v27 = insert_value struct0, undef struct0, 0, v1
+    v28 = insert_value struct0, v27, 1, v18
+    ret v28
   bb9:
     v23 = add v20, v21
     v24 = sload v23 !metadata(storage=symbolic(v23))

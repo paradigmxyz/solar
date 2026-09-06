@@ -1,5 +1,11 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_roundtrip.sol:AbiEncodeRoundtrip ===
 @module AbiEncodeRoundtrip
+types:
+  struct0: {u256, u256, u256}
+  struct1: {memoryfixedarray, memorybytes, u256}
+  struct2: {u256, u256, u256, u256}
+  struct3: {memoryarray, memorybytes}
+
 fn @roundtrip(arg0: u256) -> u256 [selector=0x33cddcf6, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = abi_encode [word], object, args arg0
@@ -87,7 +93,7 @@ fn @nestedWordsRoundtrip(arg0: memoryarray) -> u256 [selector=0xd8828f2f, pure, 
     revert 0, 36
 }
 
-fn @mixedRoundtrip() -> (u256, u256, u8) [selector=0xb3f929db, pure, abi_params=[], abi_returns=[word, word, word<u8>]] {
+fn @mixedRoundtrip() -> struct0 [selector=0xb3f929db, pure, abi_params=[], abi_returns=[word, word, word<u8>], abi_return_params=[u256, u256, u8]] {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     memory_zero v0, 64
@@ -108,24 +114,26 @@ fn @mixedRoundtrip() -> (u256, u256, u8) [selector=0xb3f929db, pure, abi_params=
     v7 = and 3, 255
     v8 = abi_encode [array<2, word>, memory_bytes, word<u8>], object, args v0, v5, v7
     v9 = abi_decode [array<2, u256>, bytes, u8], v8
-    v10 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v11 = memory_object_load_element memoryfixedarray<3, 1>, v10, 1
-    v12 = add v10, 64
-    v13 = mload v12
-    v14 = lt 1, 2
-    v15 = iszero v14
-    jumpi v15, bb1, bb4
+    v10 = extract_value struct1, v9, 0
+    v11 = extract_value struct1, v9, 1
+    v12 = extract_value struct1, v9, 2
+    v13 = lt 1, 2
+    v14 = iszero v13
+    jumpi v14, bb1, bb4
   bb4:
-    v16 = memory_object_load_element memoryfixedarray<2, 1>, v9, 1
-    v17 = memory_object_len memorybytes, v11
-    ret v16, v17, v13
+    v15 = memory_object_load_element memoryfixedarray<2, 1>, v10, 1
+    v16 = memory_object_len memorybytes, v11
+    v17 = insert_value struct0, undef struct0, 0, v15
+    v18 = insert_value struct0, v17, 1, v16
+    v19 = insert_value struct0, v18, 2, v12
+    ret v19
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
 }
 
-fn @nestedMixedRoundtrip() -> (u256, u256, u256, u256) [selector=0x337c7ce0, pure, abi_params=[], abi_returns=[word, word, word, word]] {
+fn @nestedMixedRoundtrip() -> struct2 [selector=0x337c7ce0, pure, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
     set_memory_object_len memoryarray, v0, 2
@@ -220,21 +228,21 @@ fn @nestedMixedRoundtrip() -> (u256, u256, u256, u256) [selector=0x337c7ce0, pur
     mstore v43, 0x102030400000000000000000000000000000000000000000000000000000000
     v44 = abi_encode [memory_array<memory_array<word>>, memory_bytes], object, args v0, v42
     v45 = abi_decode [array<_, array<_, u256>>, bytes], v44
-    v46 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v47 = memory_object_load_element memoryfixedarray<2, 1>, v46, 1
-    v48 = memory_object_len memoryarray, v45
-    v49 = memory_object_len memoryarray, v45
+    v46 = extract_value struct3, v45, 0
+    v47 = extract_value struct3, v45, 1
+    v48 = memory_object_len memoryarray, v46
+    v49 = memory_object_len memoryarray, v46
     v50 = lt 0, v49
     v51 = iszero v50
     jumpi v51, bb4, bb19
   bb19:
-    v52 = memory_object_load_element memoryarray<1>, v45, 0
+    v52 = memory_object_load_element memoryarray<1>, v46, 0
     v53 = eq v52, 0
     jumpi v53, bb20, bb21
   bb20:
     v54 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v54, 0
-    memory_object_store_element memoryarray<1>, v45, 0, v54
+    memory_object_store_element memoryarray<1>, v46, 0, v54
     jump bb21
   bb21:
     v55 = phi [bb19: v52], [bb20: v54]
@@ -244,18 +252,18 @@ fn @nestedMixedRoundtrip() -> (u256, u256, u256, u256) [selector=0x337c7ce0, pur
     jumpi v58, bb4, bb22
   bb22:
     v59 = memory_object_load_element memoryarray<1>, v55, 1
-    v60 = memory_object_len memoryarray, v45
+    v60 = memory_object_len memoryarray, v46
     v61 = lt 1, v60
     v62 = iszero v61
     jumpi v62, bb4, bb23
   bb23:
-    v63 = memory_object_load_element memoryarray<1>, v45, 1
+    v63 = memory_object_load_element memoryarray<1>, v46, 1
     v64 = eq v63, 0
     jumpi v64, bb24, bb25
   bb24:
     v65 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v65, 0
-    memory_object_store_element memoryarray<1>, v45, 1, v65
+    memory_object_store_element memoryarray<1>, v46, 1, v65
     jump bb25
   bb25:
     v66 = phi [bb23: v63], [bb24: v65]
@@ -266,13 +274,17 @@ fn @nestedMixedRoundtrip() -> (u256, u256, u256, u256) [selector=0x337c7ce0, pur
   bb26:
     v70 = memory_object_load_element memoryarray<1>, v66, 0
     v71 = memory_object_len memorybytes, v47
-    ret v48, v59, v70, v71
+    v72 = insert_value struct2, undef struct2, 0, v48
+    v73 = insert_value struct2, v72, 1, v59
+    v74 = insert_value struct2, v73, 2, v70
+    v75 = insert_value struct2, v74, 3, v71
+    ret v75
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    memory_object_store_element memoryarray<1>, v0, v1, 96
+    memory_object_store_element memoryarray<1>, v0, v1, memoryarray 96
     v3 = add v1, 1
     jump bb1
 }

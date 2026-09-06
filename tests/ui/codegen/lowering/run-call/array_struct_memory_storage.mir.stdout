@@ -51,7 +51,7 @@ fn @copy() -> u256 [selector=0x60726abb, abi_params=[], abi_returns=[word]] {
     jump bb8
   bb8:
     v24 = phi [bb6: v19], [bb7: v21]
-    v25 = memory_object_load_field memorystruct<3>, v24, 2
+    v25 = memory_object_load_field memorystruct<3>, v24, 2, memoryarray
     v26 = memory_object_len memoryarray, v25
     v27 = lt 0, v26
     v28 = iszero v27
@@ -80,7 +80,7 @@ fn @copy() -> u256 [selector=0x60726abb, abi_params=[], abi_returns=[word]] {
     jump bb12
   bb12:
     v38 = phi [bb10: v33], [bb11: v35]
-    v39 = memory_object_load_field memorystruct<3>, v38, 2
+    v39 = memory_object_load_field memorystruct<3>, v38, 2, memoryarray
     v40 = memory_object_len memoryarray, v39
     v41 = lt 1, v40
     v42 = iszero v41
@@ -109,7 +109,7 @@ fn @copy() -> u256 [selector=0x60726abb, abi_params=[], abi_returns=[word]] {
     jump bb16
   bb16:
     v52 = phi [bb14: v47], [bb15: v49]
-    v53 = memory_object_load_field memorystruct<3>, v52, 2
+    v53 = memory_object_load_field memorystruct<3>, v52, 2, memoryarray
     v54 = memory_object_len memoryarray, v53
     v55 = lt 2, v54
     v56 = iszero v55
@@ -408,7 +408,7 @@ fn @copy() -> u256 [selector=0x60726abb, abi_params=[], abi_returns=[word]] {
     v4 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
     memory_zero v4, 96
     memory_object_store_field memorystruct<3>, v3, 1, v4
-    memory_object_store_field memorystruct<3>, v3, 2, 96
+    memory_object_store_field memorystruct<3>, v3, 2, memoryarray 96
     memory_object_store_element memoryarray<1>, v0, v1, v3
     v5 = add v1, 1
     jump bb1

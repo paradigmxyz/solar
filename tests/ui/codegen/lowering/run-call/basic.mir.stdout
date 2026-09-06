@@ -1,5 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/basic.sol:RunCall ===
 @module RunCall
+types:
+  struct0: {u256, u256}
+
 fn @constructor() [constructor] {
   bb0:
     sstore 0, 40 !metadata(storage=slot(0))
@@ -28,7 +31,7 @@ fn @negate(arg0: bool) -> bool [selector=0xb9225c15, pure, abi_params=[bool], ab
     ret v2
 }
 
-fn @pair(arg0: u256, arg1: bool) -> (u256, bool) [selector=0xedaceefe, pure, abi_params=[u256, bool], abi_returns=[word, word<bool>]] {
+fn @pair(arg0: u256, arg1: bool) -> struct0 [selector=0xedaceefe, pure, abi_params=[u256, bool], abi_returns=[word, word<bool>], abi_return_params=[u256, bool]] {
   bb0:
     v0 = add arg0, 1
     v1 = lt v0, arg0
@@ -37,7 +40,9 @@ fn @pair(arg0: u256, arg1: bool) -> (u256, bool) [selector=0xedaceefe, pure, abi
     v2 = eq arg1, 0
     v3 = iszero v2
     v4 = iszero v3
-    ret v0, v4
+    v5 = insert_value struct0, undef struct0, 0, v0
+    v6 = insert_value struct0, v5, 1, v4
+    ret v6
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -136,8 +141,8 @@ fn @fullyInitializedNamedStruct() -> memorystruct [selector=0x03e8d290, pure, ab
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1
     v1 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    memory_object_store_field memorystruct<2>, v1, 0, 96
-    memory_object_store_field memorystruct<2>, v1, 1, 96
+    memory_object_store_field memorystruct<2>, v1, 0, memoryarray 96
+    memory_object_store_field memorystruct<2>, v1, 1, memorybytes 96
     memory_object_store_field memorystruct<2>, v1, 0, v0
     v2 = not 31
     v3 = and 64, v2
@@ -153,45 +158,43 @@ fn @reservedSpillFreshness(arg0: bool) -> u256 [selector=0x45f98aed, abi_params=
     jumpi arg0, bb1, bb2
   bb2:
     sstore 0, 99 !metadata(storage=slot(0))
-    v7 = add v0, 7
-    v8 = lt v7, v0
-    jumpi v8, bb4, bb6
+    v6 = add v0, 7
+    v7 = lt v6, v0
+    jumpi v7, bb4, bb6
   bb6:
-    v9 = icall @pairInternal, 2, v7
-    v10 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v11 = add v10, 32
-    v12 = mload v11
-    v13 = add v9, v12
-    v14 = lt v13, v9
-    jumpi v14, bb4, bb7
+    v8 = icall @pairInternal, 1, v6
+    v9 = extract_value struct0, v8, 0
+    v10 = extract_value struct0, v8, 1
+    v11 = add v9, v10
+    v12 = lt v11, v9
+    jumpi v12, bb4, bb7
   bb7:
-    v15 = add v13, v0
-    v16 = lt v15, v13
-    jumpi v16, bb4, bb8
+    v13 = add v11, v0
+    v14 = lt v13, v11
+    jumpi v14, bb4, bb8
   bb8:
     jump bb3
   bb1:
-    v1 = icall @pairInternal, 2, v0
-    v2 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v3 = add v2, 32
-    v4 = mload v3
-    v5 = add v1, v4
-    v6 = lt v5, v1
-    jumpi v6, bb4, bb5
+    v1 = icall @pairInternal, 1, v0
+    v2 = extract_value struct0, v1, 0
+    v3 = extract_value struct0, v1, 1
+    v4 = add v2, v3
+    v5 = lt v4, v2
+    jumpi v5, bb4, bb5
   bb5:
     jump bb3
   bb3:
-    v17 = phi [bb5: v4], [bb8: v0]
-    v18 = phi [bb5: v1], [bb8: v0]
-    v19 = phi [bb5: v5], [bb8: v15]
-    ret v19
+    v15 = phi [bb5: v3], [bb8: v0]
+    v16 = phi [bb5: v2], [bb8: v0]
+    v17 = phi [bb5: v4], [bb8: v13]
+    ret v17
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
 }
 
-fn @pairInternal(arg0: u256) -> (u256, u256) [pure] {
+fn @pairInternal(arg0: u256) -> struct0 [pure] {
   bb0:
     v0 = add arg0, 1
     v1 = lt v0, arg0
@@ -201,7 +204,9 @@ fn @pairInternal(arg0: u256) -> (u256, u256) [pure] {
     v3 = lt v2, arg0
     jumpi v3, bb1, bb3
   bb3:
-    ret v0, v2
+    v4 = insert_value struct0, undef struct0, 0, v0
+    v5 = insert_value struct0, v4, 1, v2
+    ret v5
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)

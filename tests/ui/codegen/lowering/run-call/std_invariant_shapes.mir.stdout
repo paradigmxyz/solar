@@ -1,5 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/std_invariant_shapes.sol:Shapes ===
 @module Shapes
+types:
+  struct0: {u256, u256}
+  struct1: {u256, u256, u256}
+
 fn @targetContract(arg0: address) {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -141,7 +145,7 @@ fn @targetSelectors() -> memoryarray [selector=0x916a17c6, view, abi_params=[], 
     ret v0
 }
 
-fn @pushAndReadContracts() -> (u256, address) [selector=0x4a1b3b99, abi_params=[], abi_returns=[word, word<u160>]] {
+fn @pushAndReadContracts() -> struct0 [selector=0x4a1b3b99, abi_params=[], abi_returns=[word, word<u160>], abi_return_params=[u256, address]] {
   bb0:
     icall @targetContract, 0, 170
     v0 = address
@@ -176,7 +180,9 @@ fn @pushAndReadContracts() -> (u256, address) [selector=0x4a1b3b99, abi_params=[
   bb6:
     v19 = memory_object_load_element memoryarray<1>, v14, 0
     v20 = and v19, 0xffffffffffffffffffffffffffffffffffffffff
-    ret v15, v20
+    v21 = insert_value struct0, undef struct0, 0, v15
+    v22 = insert_value struct0, v21, 1, v20
+    ret v22
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -187,7 +193,7 @@ fn @pushAndReadContracts() -> (u256, address) [selector=0x4a1b3b99, abi_params=[
     revert 0, 36
 }
 
-fn @pushAndReadSelectors() -> (u256, u256, bytes4) [selector=0x5c0d845c, abi_params=[], abi_returns=[word, word, word<bytes4>]] {
+fn @pushAndReadSelectors() -> struct1 [selector=0x5c0d845c, abi_params=[], abi_returns=[word, word, word<bytes4>], abi_return_params=[u256, u256, bytes4]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
     set_memory_object_len memoryarray, v0, 2
@@ -254,7 +260,7 @@ fn @pushAndReadSelectors() -> (u256, u256, bytes4) [selector=0x5c0d845c, abi_par
     jump bb10
   bb10:
     v36 = phi [bb8: v32], [bb9: v34]
-    v37 = memory_object_load_field memorystruct<2>, v36, 1
+    v37 = memory_object_load_field memorystruct<2>, v36, 1, memoryarray
     v38 = memory_object_len memoryarray, v37
     v39 = memory_object_len memoryarray, v27
     v40 = lt 0, v39
@@ -274,7 +280,7 @@ fn @pushAndReadSelectors() -> (u256, u256, bytes4) [selector=0x5c0d845c, abi_par
     jump bb13
   bb13:
     v46 = phi [bb11: v42], [bb12: v44]
-    v47 = memory_object_load_field memorystruct<2>, v46, 1
+    v47 = memory_object_load_field memorystruct<2>, v46, 1, memoryarray
     v48 = memory_object_len memoryarray, v47
     v49 = lt 0, v48
     v50 = iszero v49
@@ -282,7 +288,10 @@ fn @pushAndReadSelectors() -> (u256, u256, bytes4) [selector=0x5c0d845c, abi_par
   bb14:
     v51 = memory_object_load_element memoryarray<1>, v47, 0
     v52 = and v51, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    ret v28, v38, v52
+    v53 = insert_value struct1, undef struct1, 0, v28
+    v54 = insert_value struct1, v53, 1, v38
+    v55 = insert_value struct1, v54, 2, v52
+    ret v55
   bb6:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)

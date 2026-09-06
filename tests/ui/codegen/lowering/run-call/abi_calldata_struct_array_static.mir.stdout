@@ -1,6 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_struct_array_static.sol:AbiCalldataStructArrayStatic ===
 @module AbiCalldataStructArrayStatic
-fn @f(arg0: calldataslice) -> (u256, u256, u256, u256, u256) [selector=0xa7d2e4a7, pure, abi_params=[array<_, tuple<u256, u256>>], abi_returns=[word, word, word, word, word]] {
+types:
+  struct0: {u256, u256, u256, u256, u256}
+
+fn @f(arg0: calldataslice) -> struct0 [selector=0xa7d2e4a7, pure, abi_params=[array<_, tuple<u256, u256>>], abi_returns=[word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256]] {
   bb0:
     v0 = slice_len arg0
     v1 = slice_len arg0
@@ -47,7 +50,12 @@ fn @f(arg0: calldataslice) -> (u256, u256, u256, u256, u256) [selector=0xa7d2e4a
     v34 = slice_ptr v33
     v35 = add v34, 32
     v36 = calldataload v35
-    ret v0, v9, v18, v27, v36
+    v37 = insert_value struct0, undef struct0, 0, v0
+    v38 = insert_value struct0, v37, 1, v9
+    v39 = insert_value struct0, v38, 2, v18
+    v40 = insert_value struct0, v39, 3, v27
+    v41 = insert_value struct0, v40, 4, v36
+    ret v41
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

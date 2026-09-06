@@ -1,6 +1,10 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/inline_assembly_scalar_cleanup.sol:InlineAssemblyScalarCleanup ===
 @module InlineAssemblyScalarCleanup
-fn @arithmetic() -> (u8, u8, u8, u8, u8, u8) [selector=0x980a67fd, pure, abi_params=[], abi_returns=[word<u8>, word<u8>, word<u8>, word<u8>, word<u8>, word<u8>]] {
+types:
+  struct0: {u256, u256, u256, u256, u256, u256}
+  struct1: {u256, u256}
+
+fn @arithmetic() -> struct0 [selector=0x980a67fd, pure, abi_params=[], abi_returns=[word<u8>, word<u8>, word<u8>, word<u8>, word<u8>, word<u8>], abi_return_params=[u8, u8, u8, u8, u8, u8]] {
   bb0:
     v0 = and 257, 255
     v1 = add v0, 0
@@ -35,14 +39,20 @@ fn @arithmetic() -> (u8, u8, u8, u8, u8, u8) [selector=0x980a67fd, pure, abi_par
     v18 = and v17, 255
     v19 = and 257, 255
     v20 = shr 1, v19
-    ret v1, v4, v13, v15, v18, v20
+    v21 = insert_value struct0, undef struct0, 0, v1
+    v22 = insert_value struct0, v21, 1, v4
+    v23 = insert_value struct0, v22, 2, v13
+    v24 = insert_value struct0, v23, 3, v15
+    v25 = insert_value struct0, v24, 4, v18
+    v26 = insert_value struct0, v25, 5, v20
+    ret v26
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
 }
 
-fn @comparisons() -> (bool, bool, bool, bool, bool, bool) [selector=0x6cf2b655, pure, abi_params=[], abi_returns=[word<bool>, word<bool>, word<bool>, word<bool>, word<bool>, word<bool>]] {
+fn @comparisons() -> struct0 [selector=0x6cf2b655, pure, abi_params=[], abi_returns=[word<bool>, word<bool>, word<bool>, word<bool>, word<bool>, word<bool>], abi_return_params=[bool, bool, bool, bool, bool, bool]] {
   bb0:
     v0 = and 257, 255
     v1 = eq v0, 1
@@ -59,10 +69,16 @@ fn @comparisons() -> (bool, bool, bool, bool, bool, bool) [selector=0x6cf2b655, 
     v12 = gt v11, 0
     v13 = and 257, 255
     v14 = lt v13, 1
-    ret v1, v4, v7, v10, v12, v14
+    v15 = insert_value struct0, undef struct0, 0, v1
+    v16 = insert_value struct0, v15, 1, v4
+    v17 = insert_value struct0, v16, 2, v7
+    v18 = insert_value struct0, v17, 3, v10
+    v19 = insert_value struct0, v18, 4, v12
+    v20 = insert_value struct0, v19, 5, v14
+    ret v20
 }
 
-fn @increments() -> (u8, u8) [selector=0x56aa2dc5, pure, abi_params=[], abi_returns=[word<u8>, word<u8>]] {
+fn @increments() -> struct1 [selector=0x56aa2dc5, pure, abi_params=[], abi_returns=[word<u8>, word<u8>], abi_return_params=[u8, u8]] {
   bb0:
     v0 = and 256, 255
     v1 = add v0, 1
@@ -74,7 +90,9 @@ fn @increments() -> (u8, u8) [selector=0x56aa2dc5, pure, abi_params=[], abi_retu
     v5 = gt v4, 255
     jumpi v5, bb1, bb3
   bb3:
-    ret v1, v3
+    v6 = insert_value struct1, undef struct1, 0, v1
+    v7 = insert_value struct1, v6, 1, v3
+    ret v7
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -110,12 +128,14 @@ fn @negation() -> i8 [selector=0x336c96f8, pure, abi_params=[], abi_returns=[wor
     revert 0, 36
 }
 
-fn @wideningConversions() -> (u16, u256) [selector=0x06a404a3, pure, abi_params=[], abi_returns=[word<u16>, word]] {
+fn @wideningConversions() -> struct1 [selector=0x06a404a3, pure, abi_params=[], abi_returns=[word<u16>, word], abi_return_params=[u16, u256]] {
   bb0:
     v0 = and 0x12345678, 255
     v1 = and 0x12345678, 255
     v2 = icall @widen, 1, v1
-    ret v0, v2
+    v3 = insert_value struct1, undef struct1, 0, v0
+    v4 = insert_value struct1, v3, 1, v2
+    ret v4
 }
 
 fn @explicitWideningReturn() -> u256 [selector=0xbd2ce75e, pure, abi_params=[], abi_returns=[word]] {
@@ -148,11 +168,13 @@ fn @assemblyRead() -> u256 [selector=0x4f21d5c0, pure, abi_params=[], abi_return
     ret 257
 }
 
-fn @internalArguments() -> (u8, u8) [selector=0xd0754141, pure, abi_params=[], abi_returns=[word<u8>, word<u8>]] {
+fn @internalArguments() -> struct1 [selector=0xd0754141, pure, abi_params=[], abi_returns=[word<u8>, word<u8>], abi_return_params=[u8, u8]] {
   bb0:
     v0 = icall @dirtyNot, 1, 0x4200
     v1 = icall @dirtyNot, 1, 0x4200
-    ret v0, v1
+    v2 = insert_value struct1, undef struct1, 0, v0
+    v3 = insert_value struct1, v2, 1, v1
+    ret v3
 }
 
 fn @storageAssignment() -> u256 [selector=0x7bae1f27, abi_params=[], abi_returns=[word]] {

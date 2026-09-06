@@ -55,7 +55,7 @@ fn @copy(arg0: calldataslice) -> u256 [selector=0x2f4f3794, pure, abi_params=[ar
     jump bb22
   bb22:
     v77 = phi [bb20: v73], [bb21: v75]
-    v78 = memory_object_load_field memorystruct<1>, v77, 0
+    v78 = memory_object_load_field memorystruct<1>, v77, 0, memoryarray
     v79 = memory_object_len memoryarray, v78
     v80 = add v69, v79
     v81 = lt v80, v69
@@ -78,7 +78,7 @@ fn @copy(arg0: calldataslice) -> u256 [selector=0x2f4f3794, pure, abi_params=[ar
     jump bb27
   bb27:
     v89 = phi [bb25: v85], [bb26: v87]
-    v90 = memory_object_load_field memorystruct<1>, v89, 0
+    v90 = memory_object_load_field memorystruct<1>, v89, 0, memoryarray
     v91 = memory_object_len memoryarray, v90
     v92 = lt 0, v91
     v93 = iszero v92

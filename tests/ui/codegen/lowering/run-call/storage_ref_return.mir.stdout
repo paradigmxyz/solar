@@ -1,12 +1,15 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_ref_return.sol:Pools ===
 @module Pools
+types:
+  struct0: {u256, u256}
+
 fn @_getPool(arg0: bytes32) -> storageptr [view] {
   bb0:
     v0 = mapping_slot arg0, 0
     ret v0
 }
 
-fn @run() -> (u256, u256) [selector=0xc0406226, abi_params=[], abi_returns=[word, word]] {
+fn @run() -> struct0 [selector=0xc0406226, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = mapping_slot 0xe35b2940ca10a9581573918a0d9ed2422f97cc9196f63510c77f5a0ed5393cfd, 0
     v1 = sload v0 !metadata(storage=symbolic(v0))
@@ -39,7 +42,9 @@ fn @run() -> (u256, u256) [selector=0xc0406226, abi_params=[], abi_returns=[word
     v23 = mapping_slot 0xe35b2940ca10a9581573918a0d9ed2422f97cc9196f63510c77f5a0ed5393cfd, 0
     v24 = add v23, 1
     v25 = sload v24 !metadata(storage=offset(v23, 1))
-    ret v22, v25
+    v26 = insert_value struct0, undef struct0, 0, v22
+    v27 = insert_value struct0, v26, 1, v25
+    ret v27
   bb1:
     icall @revert_error, 0, 16, 0x72656164207468726f7567682072656600000000000000000000000000000000
     invalid

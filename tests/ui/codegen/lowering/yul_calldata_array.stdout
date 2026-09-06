@@ -1,9 +1,14 @@
 // === ROOT/tests/ui/codegen/lowering/yul_calldata_array.sol:C ===
 @module C
-fn @probe(arg0: calldataslice) -> (u256, u256) [selector=0xaf74ef39, pure, abi_params=[array<_, u256>], abi_returns=[word, word]] {
+types:
+  struct0: {u256, u256}
+
+fn @probe(arg0: calldataslice) -> struct0 [selector=0xaf74ef39, pure, abi_params=[array<_, u256>], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = slice_len arg0
     v1 = slice_ptr arg0
     v2 = calldataload v1
-    ret v0, v2
+    v3 = insert_value struct0, undef struct0, 0, v0
+    v4 = insert_value struct0, v3, 1, v2
+    ret v4
 }

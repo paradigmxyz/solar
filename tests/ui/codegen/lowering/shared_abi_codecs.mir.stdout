@@ -55,7 +55,7 @@ fn @roundTrip(arg0: u256, arg1: calldataslice) -> u256 [selector=0x00746047, pur
     v59 = icall @encodeFirst, 1, v0
     v60 = abi_decode [tuple<u256, array<_, array<_, u256>>>], v59
     v61 = memory_object_load_field memorystruct<2>, v60, 0
-    v62 = memory_object_load_field memorystruct<2>, v60, 1
+    v62 = memory_object_load_field memorystruct<2>, v60, 1, memoryarray
     v63 = memory_object_len memoryarray, v62
     v64 = lt 0, v63
     v65 = iszero v64
@@ -81,7 +81,7 @@ fn @roundTrip(arg0: u256, arg1: calldataslice) -> u256 [selector=0x00746047, pur
     v75 = lt v74, v61
     jumpi v75, bb22, bb23
   bb23:
-    v76 = memory_object_load_field memorystruct<2>, v60, 1
+    v76 = memory_object_load_field memorystruct<2>, v60, 1, memoryarray
     v77 = memory_object_len memoryarray, v76
     v78 = lt 1, v77
     v79 = iszero v78

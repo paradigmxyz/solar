@@ -1,5 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_storage_struct.sol:ExternalFunctionPointerStorageStruct ===
 @module ExternalFunctionPointerStorageStruct
+types:
+  struct0: {u256, u256}
+
 fn @firstTarget() -> u256 [selector=0xf5db9820, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     ret 1
@@ -99,7 +102,7 @@ fn @constructor() [constructor] {
     revert 0, 36
 }
 
-fn @read() -> (u256, u256) [selector=0x57de26a4, abi_params=[], abi_returns=[word, word]] {
+fn @read() -> struct0 [selector=0x57de26a4, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = lt 0, 2
     v1 = iszero v0
@@ -157,7 +160,9 @@ fn @read() -> (u256, u256) [selector=0x57de26a4, abi_params=[], abi_returns=[wor
     v37 = mload v36
     v38 = add 0, 0
     v39 = mload v38
-    ret v19, v39
+    v40 = insert_value struct0, undef struct0, 0, v19
+    v41 = insert_value struct0, v40, 1, v39
+    ret v41
   bb5:
     revert 0, 0
   bb1:

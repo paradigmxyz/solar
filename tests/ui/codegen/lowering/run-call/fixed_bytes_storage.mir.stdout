@@ -1,5 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_storage.sol:FixedBytesStorage ===
 @module FixedBytesStorage
+types:
+  struct0: {u256, u256, u256, u256, u256}
+  struct1: {u256, u256}
+
 fn @constructor() [constructor] {
   bb0:
     v0 = shl 16, 0xffff
@@ -49,7 +53,7 @@ fn @constructor() [constructor] {
     stop
 }
 
-fn @read() -> (u8, u8, u16, i8, u24) [selector=0x57de26a4, view, abi_params=[], abi_returns=[word<u8>, word<u8>, word<u16>, word<i8>, word<u24>]] {
+fn @read() -> struct0 [selector=0x57de26a4, view, abi_params=[], abi_returns=[word<u8>, word<u8>, word<u16>, word<i8>, word<u24>], abi_return_params=[u8, u8, u16, i8, u24]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 255
@@ -72,7 +76,12 @@ fn @read() -> (u8, u8, u16, i8, u24) [selector=0x57de26a4, view, abi_params=[], 
     v18 = and v17, 0xffffff
     v19 = shl 232, v18
     v20 = shr 232, v19
-    ret v3, v6, v11, v15, v20
+    v21 = insert_value struct0, undef struct0, 0, v3
+    v22 = insert_value struct0, v21, 1, v6
+    v23 = insert_value struct0, v22, 2, v11
+    v24 = insert_value struct0, v23, 3, v15
+    v25 = insert_value struct0, v24, 4, v20
+    ret v25
 }
 
 fn @raw() -> bytes32 [selector=0xc096a632, view, abi_params=[], abi_returns=[word]] {
@@ -81,12 +90,14 @@ fn @raw() -> bytes32 [selector=0xc096a632, view, abi_params=[], abi_returns=[wor
     ret v0
 }
 
-fn @selector() -> (bytes4, u32) [selector=0xea3d508a, pure, abi_params=[], abi_returns=[word<bytes4>, word<u32>]] {
+fn @selector() -> struct1 [selector=0xea3d508a, pure, abi_params=[], abi_returns=[word<bytes4>, word<u32>], abi_return_params=[bytes4, u32]] {
   bb0:
     v0 = calldataload 0
     v1 = and v0, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v2 = calldataload 0
     v3 = and v2, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v4 = shr 224, v3
-    ret v1, v4
+    v5 = insert_value struct1, undef struct1, 0, v1
+    v6 = insert_value struct1, v5, 1, v4
+    ret v6
 }

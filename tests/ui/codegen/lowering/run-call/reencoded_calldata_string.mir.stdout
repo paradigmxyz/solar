@@ -8,7 +8,7 @@ fn @f(arg0: calldataslice) -> memorybytes [selector=0x91e145ef, abi_params=[byte
     v1 = phi [bb0: v0], [bb3: v10]
     v2 = phi [bb0: arg0], [bb3: v2]
     v3 = phi [bb0: v0], [bb3: v3]
-    v4 = phi [bb0: 96], [bb3: v4]
+    v4 = phi [bb0: memorybytes 96], [bb3: v4]
     v5 = add v3, 256
     v6 = lt v1, v5
     v7 = eq v6, 0

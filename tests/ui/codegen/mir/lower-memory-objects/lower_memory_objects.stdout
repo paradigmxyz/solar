@@ -61,3 +61,11 @@
       stop
   }
   
+- fn @raw_pointer(arg0: u256) -> memorybytes {
++ fn @raw_pointer(arg0: u256) -> memptr {
+    bb0:
+-     v0 = memory_object_from_ptr memorybytes, arg0
+-     ret v0
++     ret arg0
+  }
+  

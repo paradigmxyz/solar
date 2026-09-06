@@ -1,5 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_struct_bytes_index.sol:StorageStructBytesIndex ===
 @module StorageStructBytesIndex
+types:
+  struct0: {u256, u256}
+
 fn @constructor() [constructor] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
@@ -10,7 +13,7 @@ fn @constructor() [constructor] {
     stop
 }
 
-fn @f() -> (u256, u256) [selector=0x26121ff0, abi_params=[], abi_returns=[word, word]] {
+fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 1
@@ -119,7 +122,9 @@ fn @f() -> (u256, u256) [selector=0x26121ff0, abi_params=[], abi_returns=[word, 
     v71 = eq v66, v70
     jumpi v71, bb1, bb19
   bb19:
-    ret v63, v69
+    v72 = insert_value struct0, undef struct0, 0, v63
+    v73 = insert_value struct0, v72, 1, v69
+    ret v73
   bb9:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

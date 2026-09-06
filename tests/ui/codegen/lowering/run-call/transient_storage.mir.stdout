@@ -1,12 +1,17 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/transient_storage.sol:TransientStorage ===
 @module TransientStorage
+types:
+  struct0: {u256, u256, u256, u256, u256, u256}
+  struct1: {u256, u256, u256}
+  struct2: {u256, u256}
+
 fn @temporary() -> u256 [selector=0x52099d8b, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = tload 0
     ret v0
 }
 
-fn @separateSpaces(arg0: u256, arg1: u256) -> (u256, u256, u256, u256, u256, u256) [selector=0x9ef32708, abi_params=[u256, u256], abi_returns=[word, word, word, word, word, word]] {
+fn @separateSpaces(arg0: u256, arg1: u256) -> struct0 [selector=0x9ef32708, abi_params=[u256, u256], abi_returns=[word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256]] {
   bb0:
     sstore 0, arg0 !metadata(storage=slot(0))
     tstore 0, arg1
@@ -14,10 +19,16 @@ fn @separateSpaces(arg0: u256, arg1: u256) -> (u256, u256, u256, u256, u256, u25
     v1 = tload 0
     v2 = sload 0 !metadata(storage=slot(0))
     v3 = tload 0
-    ret v0, v1, v2, v3, 0, 0
+    v4 = insert_value struct0, undef struct0, 0, v0
+    v5 = insert_value struct0, v4, 1, v1
+    v6 = insert_value struct0, v5, 2, v2
+    v7 = insert_value struct0, v6, 3, v3
+    v8 = insert_value struct0, v7, 4, 0
+    v9 = insert_value struct0, v8, 5, 0
+    ret v9
 }
 
-fn @packed() -> (u16, u16, u256) [selector=0x8f23d5f6, abi_params=[], abi_returns=[word<u16>, word<u16>, word]] {
+fn @packed() -> struct1 [selector=0x8f23d5f6, abi_params=[], abi_returns=[word<u16>, word<u16>, word], abi_return_params=[u16, u16, u256]] {
   bb0:
     v0 = tload 1
     v1 = not 0xffff
@@ -39,7 +50,10 @@ fn @packed() -> (u16, u16, u256) [selector=0x8f23d5f6, abi_params=[], abi_return
     v15 = tload 1
     v16 = shr 16, v15
     v17 = and v16, 0xffff
-    ret v14, v17, v12
+    v18 = insert_value struct1, undef struct1, 0, v14
+    v19 = insert_value struct1, v18, 1, v17
+    v20 = insert_value struct1, v19, 2, v12
+    ret v20
 }
 
 fn @signed() -> i16 [selector=0x232a6b9d, abi_params=[], abi_returns=[word<i16>]] {
@@ -60,13 +74,15 @@ fn @signed() -> i16 [selector=0x232a6b9d, abi_params=[], abi_returns=[word<i16>]
     ret v11
 }
 
-fn @clear() -> (u256, u256) [selector=0x52efea6e, abi_params=[], abi_returns=[word, word]] {
+fn @clear() -> struct2 [selector=0x52efea6e, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     tstore 0, 42
     tstore 0, 0
     v0 = tload 0
     v1 = tload 0
-    ret v0, v1
+    v2 = insert_value struct2, undef struct2, 0, v0
+    v3 = insert_value struct2, v2, 1, v1
+    ret v3
 }
 
 fn @getter() -> u256 [selector=0x993a04b7, abi_params=[], abi_returns=[word]] {

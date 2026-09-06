@@ -1,6 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/isolated_array_pop.sol:IsolatedArrayPop ===
 @module IsolatedArrayPop
-fn @access() -> (u256, u256, u256) [selector=0x71907f17, abi_params=[], abi_returns=[word, word, word]] {
+types:
+  struct0: {u256, u256, u256}
+
+fn @access() -> struct0 [selector=0x71907f17, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = gt v0, 0xffffffffffffffff
@@ -47,7 +50,10 @@ fn @access() -> (u256, u256, u256) [selector=0x71907f17, abi_params=[], abi_retu
     v30 = eq v25, v29
     jumpi v30, bb9, bb10
   bb10:
-    ret v10, v22, v28
+    v31 = insert_value struct0, undef struct0, 0, v10
+    v32 = insert_value struct0, v31, 1, v22
+    v33 = insert_value struct0, v32, 2, v28
+    ret v33
   bb9:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 34 !metadata(memory=scratch)

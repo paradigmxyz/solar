@@ -9,10 +9,9 @@ use crate::{
     memory::EvmMemoryLayout,
     mir::{
         AbiLayout, AbiParamLayout, AbiParamLocation, AbiParamType, AbiType, AbiWordValidator,
-        AllocationSemantics, BlockId, ERROR_SELECTOR, FrameMode, FrameSlotKind, Function,
-        FunctionBuilder, FunctionId, ImmutableId, InstKind, LibraryLink, MemoryObjectKind,
-        MemoryObjectLayout, MirType, Module, PanicCode, RevertReason, SliceLocation, Value,
-        ValueId,
+        AllocationSemantics, BlockId, ERROR_SELECTOR, Function, FunctionBuilder, FunctionId,
+        ImmutableId, InstKind, LibraryLink, MemoryObjectKind, MemoryObjectLayout, MirType, Module,
+        PanicCode, RevertReason, SliceLocation, Value, ValueId,
     },
 };
 use alloy_primitives::{U256, keccak256};
@@ -171,7 +170,8 @@ pub(super) fn lower(
                 types::TypeLowerer::mir_return_type(gcx.type_of_item(ret.into()))
                     == MirType::Slice(SliceLocation::Calldata)
             });
-            if has_calldata_aggregate_return
+            if hir_function.returns.len() > 1
+                || has_calldata_aggregate_return
                 || output_param_shapes.iter().any(AbiParamType::needs_nested_return_cleanup)
             {
                 mir.abi_return_params =
@@ -393,13 +393,6 @@ impl InternalFunctionPointerShape {
         }
     }
 
-    fn from_function(function: &Function) -> Self {
-        Self {
-            params: function.params.iter().copied().skip(1).collect(),
-            returns: function.returns.clone(),
-        }
-    }
-
     fn is_assembly_cast_compatible_with(&self, target: &Self) -> bool {
         // Assembly casts preserve these full-word argument representations. Keep return shapes
         // exact because internal calls can expose dirty return words.
@@ -435,6 +428,7 @@ fn helper_name(prefix: Symbol, suffix: impl Display) -> Symbol {
 #[derive(Default)]
 pub(super) struct InternalFunctionPointerRegistry {
     targets: FxHashSet<hir::FunctionId>,
+    dispatchers: FxHashMap<FunctionId, InternalFunctionPointerShape>,
 }
 
 fn internal_function_pointer_id(function_id: hir::FunctionId) -> u64 {
@@ -920,7 +914,7 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
     let dispatchers = module
         .iter_functions()
         .filter(|(_, function)| function.attributes.is_function_pointer_dispatcher)
-        .map(|(id, function)| (InternalFunctionPointerShape::from_function(function), id))
+        .map(|(id, _)| (state.pointer_registry.dispatchers[&id].clone(), id))
         .collect::<Vec<_>>();
     for (shape, dispatcher) in dispatchers {
         let mut candidates = state
@@ -954,7 +948,7 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
             let function_value = builder.add_param(MirType::Function);
             let arguments =
                 shape.params.iter().copied().map(|ty| builder.add_param(ty)).collect::<Vec<_>>();
-            for ty in shape.returns.iter().copied() {
+            if let Some(ty) = module.intern_return_type(shape.returns.clone()) {
                 builder.add_return(ty);
             }
 
@@ -991,39 +985,11 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                     builder.icall_void(mir_id, call_arguments, 0);
                     builder.ret([]);
                 } else {
-                    let result = builder.icall(
-                        mir_id,
-                        call_arguments,
-                        shape.returns[0],
-                        shape.returns.len(),
-                    );
-                    let mut values = Vec::with_capacity(shape.returns.len());
-                    values.push(result);
-                    if shape.returns.len() > 1 {
-                        let base =
-                            builder.frame_load(0, FrameMode::MultiReturn, FrameSlotKind::Word);
-                        let mut word_index =
-                            if matches!(shape.returns[0], MirType::Slice(_)) { 2 } else { 1 };
-                        for &ty in &shape.returns[1..] {
-                            let offset = u64::try_from(word_index)
-                                .unwrap_or(u64::MAX)
-                                .saturating_mul(EvmMemoryLayout::WORD_SIZE);
-                            let position = builder.add_u64_offset(base, offset);
-                            let first_word = builder.mload(position);
-                            let value = if let MirType::Slice(location) = ty {
-                                let length_position =
-                                    builder.add_u64_offset(position, EvmMemoryLayout::WORD_SIZE);
-                                let length = builder.mload(length_position);
-                                word_index += 2;
-                                builder.make_slice(first_word, length, location)
-                            } else {
-                                word_index += 1;
-                                first_word
-                            };
-                            values.push(value);
-                        }
-                    }
-                    builder.ret(values);
+                    // result = icall target(arguments)
+                    // ret result
+                    let result_ty = builder.func().returns[0];
+                    let result = builder.icall(mir_id, call_arguments, result_ty, 1);
+                    builder.ret([result]);
                 }
                 builder.switch_to_block(next_block);
             }

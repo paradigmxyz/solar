@@ -30,11 +30,15 @@ fn @f() -> u256 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word]] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/external_call_returndata_size.sol:ExternalCallReturndataSize ===
 @module ExternalCallReturndataSize
+types:
+  struct0: {u256, u256}
+  struct1: {u256, u256, u256}
+
 data:
   LongReturn_initcode_0: hex"34600d5760d48060115f395ff35b5f5ffd34601a575f3560e01c806326121ff014601657601a565b601e565b5f5ffd5b610360604052604051806103005280610300526102808101604052610280368280610300523760145f101515607b575b7f4e487b71000000000000000000000000000000000000000000000000000000005f52603260045260245ffd5b8061030052602a8152601460011015604e5760208101602b8152505f5b8061032052601481101560c35760208180610320520282015160208202608001526001810190506098565b610280608001915050608090036080f3"
   ShortReturn_initcode_1: hex"34600d5760308060115f395ff35b5f5ffd34601a575f3560e01c806326121ff014601657601a565b601e565b5f5ffd5b602a6080526020608001608090036080f3"
 
-fn @directOne() -> (u256, u256) [selector=0x6aec8241, abi_params=[], abi_returns=[word, word]] {
+fn @directOne() -> struct0 [selector=0x6aec8241, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -69,12 +73,14 @@ fn @directOne() -> (u256, u256) [selector=0x6aec8241, abi_params=[], abi_returns
     v18 = mload v17
     v19 = mload 64 !metadata(memory=scratch)
     v20 = sub v19, v7
-    ret v20, v18
+    v21 = insert_value struct0, undef struct0, 0, v20
+    v22 = insert_value struct0, v21, 1, v18
+    ret v22
   bb5:
     revert 0, 0
 }
 
-fn @pointerOne() -> (u256, u256) [selector=0xc114b656, abi_params=[], abi_returns=[word, word]] {
+fn @pointerOne() -> struct0 [selector=0xc114b656, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -114,12 +120,14 @@ fn @pointerOne() -> (u256, u256) [selector=0xc114b656, abi_params=[], abi_return
     v23 = mload v22
     v24 = mload 64 !metadata(memory=scratch)
     v25 = sub v24, v9
-    ret v25, v23
+    v26 = insert_value struct0, undef struct0, 0, v25
+    v27 = insert_value struct0, v26, 1, v23
+    ret v27
   bb5:
     revert 0, 0
 }
 
-fn @directTwo() -> (u256, u256, u256) [selector=0x5ffbc6a1, abi_params=[], abi_returns=[word, word, word]] {
+fn @directTwo() -> struct1 [selector=0x5ffbc6a1, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -152,20 +160,25 @@ fn @directTwo() -> (u256, u256, u256) [selector=0x5ffbc6a1, abi_params=[], abi_r
     v16 = mload v15
     v17 = add v10, 32
     v18 = mload v17
-    frame_store multi_return, word, 0, v10 !metadata(memory=scratch)
     v19 = add v10, 0
     v20 = mload v19
-    v21 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v22 = add v21, 32
-    v23 = mload v22
-    v24 = mload 64 !metadata(memory=scratch)
-    v25 = sub v24, v7
-    ret v25, v20, v23
+    v21 = add v10, 32
+    v22 = mload v21
+    v23 = insert_value struct0, undef struct0, 0, v20
+    v24 = insert_value struct0, v23, 1, v22
+    v25 = extract_value struct0, v24, 0
+    v26 = extract_value struct0, v24, 1
+    v27 = mload 64 !metadata(memory=scratch)
+    v28 = sub v27, v7
+    v29 = insert_value struct1, undef struct1, 0, v28
+    v30 = insert_value struct1, v29, 1, v25
+    v31 = insert_value struct1, v30, 2, v26
+    ret v31
   bb5:
     revert 0, 0
 }
 
-fn @pointerTwo() -> (u256, u256, u256) [selector=0x48c1a795, abi_params=[], abi_returns=[word, word, word]] {
+fn @pointerTwo() -> struct1 [selector=0x48c1a795, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -203,19 +216,21 @@ fn @pointerTwo() -> (u256, u256, u256) [selector=0x48c1a795, abi_params=[], abi_
     v21 = mload v20
     v22 = add v15, 32
     v23 = mload v22
-    frame_store multi_return, word, 0, v15 !metadata(memory=scratch)
     v24 = add v15, 0
     v25 = mload v24
     v26 = add v15, 32
     v27 = mload v26
     v28 = mload 64 !metadata(memory=scratch)
     v29 = sub v28, v9
-    ret v29, v25, v27
+    v30 = insert_value struct1, undef struct1, 0, v29
+    v31 = insert_value struct1, v30, 1, v25
+    v32 = insert_value struct1, v31, 2, v27
+    ret v32
   bb5:
     revert 0, 0
 }
 
-fn @directShort() -> (u256, u256) [selector=0x4a8b977e, abi_params=[], abi_returns=[word, word]] {
+fn @directShort() -> struct0 [selector=0x4a8b977e, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -247,18 +262,22 @@ fn @directShort() -> (u256, u256) [selector=0x4a8b977e, abi_params=[], abi_retur
     v15 = mload v14
     v16 = add v9, 32
     v17 = mload v16
-    frame_store multi_return, word, 0, v9 !metadata(memory=scratch)
     v18 = add v9, 0
     v19 = mload v18
-    v20 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v21 = add v20, 32
-    v22 = mload v21
-    ret v19, v22
+    v20 = add v9, 32
+    v21 = mload v20
+    v22 = insert_value struct0, undef struct0, 0, v19
+    v23 = insert_value struct0, v22, 1, v21
+    v24 = extract_value struct0, v23, 0
+    v25 = extract_value struct0, v23, 1
+    v26 = insert_value struct0, undef struct0, 0, v24
+    v27 = insert_value struct0, v26, 1, v25
+    ret v27
   bb5:
     revert 0, 0
 }
 
-fn @pointerShort() -> (u256, u256) [selector=0xc6a7045a, abi_params=[], abi_returns=[word, word]] {
+fn @pointerShort() -> struct0 [selector=0xc6a7045a, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -295,12 +314,13 @@ fn @pointerShort() -> (u256, u256) [selector=0xc6a7045a, abi_params=[], abi_retu
     v20 = mload v19
     v21 = add v14, 32
     v22 = mload v21
-    frame_store multi_return, word, 0, v14 !metadata(memory=scratch)
     v23 = add v14, 0
     v24 = mload v23
     v25 = add v14, 32
     v26 = mload v25
-    ret v24, v26
+    v27 = insert_value struct0, undef struct0, 0, v24
+    v28 = insert_value struct0, v27, 1, v26
+    ret v28
   bb5:
     revert 0, 0
 }

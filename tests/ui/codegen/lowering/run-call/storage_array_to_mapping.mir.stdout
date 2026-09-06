@@ -477,7 +477,7 @@ fn @constructor() [constructor] {
     v21 = add v18, 1
     jump bb9
   bb2:
-    memory_object_store_element memoryarray<1>, v0, v1, 96
+    memory_object_store_element memoryarray<1>, v0, v1, memoryarray 96
     v3 = add v1, 1
     jump bb1
 }

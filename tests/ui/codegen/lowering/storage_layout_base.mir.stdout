@@ -1,18 +1,32 @@
 // === ROOT/tests/ui/codegen/lowering/storage_layout_base.sol:LayoutSlots ===
 @module LayoutSlots
-fn @slots() -> (u256, u256, u256, u256, u256, u256) [selector=0x48547d69, pure, abi_params=[], abi_returns=[word, word, word, word, word, word]] {
+types:
+  struct0: {u256, u256, u256, u256, u256, u256}
+
+fn @slots() -> struct0 [selector=0x48547d69, pure, abi_params=[], abi_returns=[word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256]] {
   bb0:
-    ret 7, 0, 7, 1, 8, 0
+    v0 = insert_value struct0, undef struct0, 0, 7
+    v1 = insert_value struct0, v0, 1, 0
+    v2 = insert_value struct0, v1, 2, 7
+    v3 = insert_value struct0, v2, 3, 1
+    v4 = insert_value struct0, v3, 4, 8
+    v5 = insert_value struct0, v4, 5, 0
+    ret v5
 }
 
 // === ROOT/tests/ui/codegen/lowering/storage_layout_base.sol:LayoutStorage ===
 @module LayoutStorage
-fn @store(arg0: u256) -> (u256, u256) [selector=0x6057361d, abi_params=[u256], abi_returns=[word, word]] {
+types:
+  struct0: {u256, u256}
+
+fn @store(arg0: u256) -> struct0 [selector=0x6057361d, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     sstore 42, arg0 !metadata(storage=slot(42))
     v0 = sload 42 !metadata(storage=slot(42))
     v1 = sload 42 !metadata(storage=slot(42))
-    ret v1, v0
+    v2 = insert_value struct0, undef struct0, 0, v1
+    v3 = insert_value struct0, v2, 1, v0
+    ret v3
 }
 
 // === ROOT/tests/ui/codegen/lowering/storage_layout_base.sol:LayoutBase ===
@@ -27,9 +41,15 @@ fn @constructor() [constructor] {
 
 // === ROOT/tests/ui/codegen/lowering/storage_layout_base.sol:LayoutDerived ===
 @module LayoutDerived
-fn @slots() -> (u256, u256, u256) [selector=0x48547d69, pure, abi_params=[], abi_returns=[word, word, word]] {
+types:
+  struct0: {u256, u256, u256}
+
+fn @slots() -> struct0 [selector=0x48547d69, pure, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
-    ret 2, 3, 4
+    v0 = insert_value struct0, undef struct0, 0, 2
+    v1 = insert_value struct0, v0, 1, 3
+    v2 = insert_value struct0, v1, 2, 4
+    ret v2
 }
 
 fn @constructor() [constructor] {
@@ -39,9 +59,14 @@ fn @constructor() [constructor] {
 
 // === ROOT/tests/ui/codegen/lowering/storage_layout_base.sol:LayoutTransient ===
 @module LayoutTransient
-fn @slots() -> (u256, u256) [selector=0x48547d69, pure, abi_params=[], abi_returns=[word, word]] {
+types:
+  struct0: {u256, u256}
+
+fn @slots() -> struct0 [selector=0x48547d69, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
-    ret 0, 7
+    v0 = insert_value struct0, undef struct0, 0, 0
+    v1 = insert_value struct0, v0, 1, 7
+    ret v1
 }
 
 // === ROOT/tests/ui/codegen/lowering/storage_layout_base.sol:LayoutErc7201 ===

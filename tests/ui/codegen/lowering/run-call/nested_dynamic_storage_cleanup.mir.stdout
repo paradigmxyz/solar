@@ -1,6 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/nested_dynamic_storage_cleanup.sol:NestedDynamicStorageCleanup ===
 @module NestedDynamicStorageCleanup
-fn @f() -> (u256, u256) [selector=0x26121ff0, abi_params=[], abi_returns=[word, word]] {
+types:
+  struct0: {u256, u256}
+
+fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = gt v0, 0xffffffffffffffff
@@ -132,7 +135,9 @@ fn @f() -> (u256, u256) [selector=0x26121ff0, abi_params=[], abi_returns=[word, 
     v98 = add v95, 1
     v99 = sload v98 !metadata(storage=offset(v95, 1))
     v100 = sload v97 !metadata(storage=symbolic(v97))
-    ret v99, v100
+    v101 = insert_value struct0, undef struct0, 0, v99
+    v102 = insert_value struct0, v101, 1, v100
+    ret v102
   bb28:
     v74 = memory_object_load_element memoryarray<1>, v40, v72
     v75 = eq v74, 0
@@ -201,7 +206,7 @@ fn @f() -> (u256, u256) [selector=0x26121ff0, abi_params=[], abi_returns=[word, 
     v70 = add v66, 1
     jump bb24
   bb12:
-    memory_object_store_element memoryarray<1>, v40, v41, 96
+    memory_object_store_element memoryarray<1>, v40, v41, memoryarray 96
     v43 = add v41, 1
     jump bb11
   bb3:

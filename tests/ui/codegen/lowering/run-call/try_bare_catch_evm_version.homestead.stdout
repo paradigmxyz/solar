@@ -1,13 +1,18 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/try_bare_catch_evm_version.sol:TryCallee ===
 @module TryCallee
+types:
+  struct0: {u256, u256}
+
 fn @value() -> u256 [selector=0x3fa4f245, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     ret 42
 }
 
-fn @pair() -> (u256, u256) [selector=0xa8aa1b31, pure, abi_params=[], abi_returns=[word, word]] {
+fn @pair() -> struct0 [selector=0xa8aa1b31, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
-    ret 1, 2
+    v0 = insert_value struct0, undef struct0, 0, 1
+    v1 = insert_value struct0, v0, 1, 2
+    ret v1
 }
 
 fn @agg() -> memoryfixedarray [selector=0xf5e34bfa, pure, abi_params=[], abi_returns=[array<2, word>]] {
@@ -134,7 +139,6 @@ fn @liveTwo() -> u256 [selector=0xa9b44a2a, abi_params=[], abi_returns=[word]] {
     v18 = mload v17
     v19 = add v10, 32
     v20 = mload v19
-    frame_store multi_return, word, 0, v10 !metadata(memory=scratch)
     v21 = add v10, 0
     v22 = mload v21
     v23 = add v10, 32

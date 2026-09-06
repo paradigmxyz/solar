@@ -1,6 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_array_push_storage_source.sol:C ===
 @module C
-fn @pushWide() -> (u256, u256, u256, u256) [selector=0xafa784c4, abi_params=[], abi_returns=[word, word, word, word]] {
+types:
+  struct0: {u256, u256, u256, u256}
+
+fn @pushWide() -> struct0 [selector=0xafa784c4, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
     v0 = lt 0, 2
     v1 = iszero v0
@@ -79,7 +82,11 @@ fn @pushWide() -> (u256, u256, u256, u256) [selector=0xafa784c4, abi_params=[], 
     v52 = add v49, 2
     v53 = sload v52 !metadata(storage=offset(v49, 2))
     v54 = sload 5 !metadata(storage=slot(5))
-    ret v33, v43, v53, v54
+    v55 = insert_value struct0, undef struct0, 0, v33
+    v56 = insert_value struct0, v55, 1, v43
+    v57 = insert_value struct0, v56, 2, v53
+    v58 = insert_value struct0, v57, 3, v54
+    ret v58
   bb10:
     v20 = add v17, v18
     v21 = lt v18, 2
@@ -110,7 +117,7 @@ fn @pushWide() -> (u256, u256, u256, u256) [selector=0xafa784c4, abi_params=[], 
     revert 0, 36
 }
 
-fn @pushPacked() -> (u256, u256, u256, u256) [selector=0x686690bf, abi_params=[], abi_returns=[word, word, word, word]] {
+fn @pushPacked() -> struct0 [selector=0x686690bf, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
     v0 = lt 0, 2
     v1 = iszero v0
@@ -211,7 +218,11 @@ fn @pushPacked() -> (u256, u256, u256, u256) [selector=0x686690bf, abi_params=[]
     v81 = add v78, 2
     v82 = sload v81 !metadata(storage=offset(v78, 2))
     v83 = sload 5 !metadata(storage=slot(5))
-    ret v62, v72, v82, v83
+    v84 = insert_value struct0, undef struct0, 0, v62
+    v85 = insert_value struct0, v84, 1, v72
+    v86 = insert_value struct0, v85, 2, v82
+    v87 = insert_value struct0, v86, 3, v83
+    ret v87
   bb10:
     v49 = add v46, v47
     v50 = lt v47, 2

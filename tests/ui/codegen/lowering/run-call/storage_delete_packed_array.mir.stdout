@@ -1,6 +1,10 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_delete_packed_array.sol:StorageDeletePackedArray ===
 @module StorageDeletePackedArray
-fn @clear() -> (u8, u8, u8) [selector=0x52efea6e, abi_params=[], abi_returns=[word<u8>, word<u8>, word<u8>]] {
+types:
+  struct0: {u256, u256, u256}
+  struct1: {u256, u256, u256, u256, u256, u256}
+
+fn @clear() -> struct0 [selector=0x52efea6e, abi_params=[], abi_returns=[word<u8>, word<u8>, word<u8>], abi_return_params=[u8, u8, u8]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = gt v0, 0xffffffffffffffff
@@ -123,7 +127,10 @@ fn @clear() -> (u8, u8, u8) [selector=0x52efea6e, abi_params=[], abi_returns=[wo
     v97 = mul v95, 8
     v98 = shr v97, v96
     v99 = and v98, 255
-    ret v75, v87, v99
+    v100 = insert_value struct0, undef struct0, 0, v75
+    v101 = insert_value struct0, v100, 1, v87
+    v102 = insert_value struct0, v101, 2, v99
+    ret v102
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -134,7 +141,7 @@ fn @clear() -> (u8, u8, u8) [selector=0x52efea6e, abi_params=[], abi_returns=[wo
     revert 0, 36
 }
 
-fn @clearReference() -> (u8, u8, u8) [selector=0xc844d6fe, abi_params=[], abi_returns=[word<u8>, word<u8>, word<u8>]] {
+fn @clearReference() -> struct0 [selector=0xc844d6fe, abi_params=[], abi_returns=[word<u8>, word<u8>, word<u8>], abi_return_params=[u8, u8, u8]] {
   bb0:
     v0 = lt 0, 3
     v1 = iszero v0
@@ -229,7 +236,10 @@ fn @clearReference() -> (u8, u8, u8) [selector=0xc844d6fe, abi_params=[], abi_re
     v73 = mul v71, 8
     v74 = shr v73, v72
     v75 = and v74, 255
-    ret v55, v65, v75
+    v76 = insert_value struct0, undef struct0, 0, v55
+    v77 = insert_value struct0, v76, 1, v65
+    v78 = insert_value struct0, v77, 2, v75
+    ret v78
   bb6:
     v44 = add 1, v42
     sstore v44, 0 !metadata(storage=offset(v42, 1))
@@ -241,7 +251,7 @@ fn @clearReference() -> (u8, u8, u8) [selector=0xc844d6fe, abi_params=[], abi_re
     revert 0, 36
 }
 
-fn @deleteThenPush() -> (u256, u8, u256) [selector=0x63470f4e, abi_params=[], abi_returns=[word, word<u8>, word]] {
+fn @deleteThenPush() -> struct0 [selector=0x63470f4e, abi_params=[], abi_returns=[word, word<u8>, word], abi_return_params=[u256, u8, u256]] {
   bb0:
     sstore 0, 42 !metadata(storage=slot(0))
     v0 = sload 6 !metadata(storage=slot(6))
@@ -314,7 +324,10 @@ fn @deleteThenPush() -> (u256, u8, u256) [selector=0x63470f4e, abi_params=[], ab
     v54 = shr v53, v52
     v55 = and v54, 255
     v56 = sload 6 !metadata(storage=slot(6))
-    ret v43, v55, v56
+    v57 = insert_value struct0, undef struct0, 0, v43
+    v58 = insert_value struct0, v57, 1, v55
+    v59 = insert_value struct0, v58, 2, v56
+    ret v59
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -330,7 +343,7 @@ fn @deleteThenPush() -> (u256, u8, u256) [selector=0x63470f4e, abi_params=[], ab
     revert 0, 36
 }
 
-fn @clearFixed() -> (u8, u8, u8) [selector=0x94bd0f54, abi_params=[], abi_returns=[word<u8>, word<u8>, word<u8>]] {
+fn @clearFixed() -> struct0 [selector=0x94bd0f54, abi_params=[], abi_returns=[word<u8>, word<u8>, word<u8>], abi_return_params=[u8, u8, u8]] {
   bb0:
     v0 = lt 0, 3
     v1 = iszero v0
@@ -425,7 +438,10 @@ fn @clearFixed() -> (u8, u8, u8) [selector=0x94bd0f54, abi_params=[], abi_return
     v73 = mul v71, 8
     v74 = shr v73, v72
     v75 = and v74, 255
-    ret v55, v65, v75
+    v76 = insert_value struct0, undef struct0, 0, v55
+    v77 = insert_value struct0, v76, 1, v65
+    v78 = insert_value struct0, v77, 2, v75
+    ret v78
   bb6:
     v44 = add 1, v42
     sstore v44, 0 !metadata(storage=offset(v42, 1))
@@ -522,7 +538,7 @@ fn @clearFixedDirtyWord() -> u256 [selector=0xb56337b4, abi_params=[], abi_retur
     jump bb1
 }
 
-fn @clearOddWidthDirtyWords() [selector=0xf2b0f658, abi_params=[], abi_returns=[word, word, word, word, word, word]] {
+fn @clearOddWidthDirtyWords() [selector=0xf2b0f658, abi_params=[], abi_returns=[word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256]] {
   bb0:
     sstore 2, 7 !metadata(storage=slot(2))
     mstore 0, 2 !metadata(memory=scratch)

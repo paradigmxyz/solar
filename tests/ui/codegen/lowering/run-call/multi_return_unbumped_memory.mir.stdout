@@ -1,21 +1,25 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/multi_return_unbumped_memory.sol:MultiReturnUnbumpedMemory ===
 @module MultiReturnUnbumpedMemory
+types:
+  struct0: {u256, u256}
+
 fn @output() -> bytes32 [selector=0xf20eaeb8, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = add v0, 32
-    v2 = icall @emitWord, 2, v1
-    v3 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v4 = add v3, 32
-    v5 = mload v4
-    v6 = mload v1
-    ret v6
+    v2 = icall @emitWord, 1, v1
+    v3 = extract_value struct0, v2, 0
+    v4 = extract_value struct0, v2, 1
+    v5 = mload v1
+    ret v5
 }
 
-fn @emitWord(arg0: u256) -> (u256, u256) {
+fn @emitWord(arg0: u256) -> struct0 {
   bb0:
     v0 = shl 240, 0x1234
     mstore arg0, v0
     v1 = add arg0, 2
-    ret v1, 0
+    v2 = insert_value struct0, undef struct0, 0, v1
+    v3 = insert_value struct0, v2, 1, 0
+    ret v3
 }

@@ -37,7 +37,10 @@
 
 use crate::{
     analysis::CfgInfo,
-    mir::{BlockId, Function, FunctionId, InstId, InstKind, MirType, Module, Value, ValueId},
+    mir::{
+        BlockId, Function, FunctionId, Immediate, InstId, InstKind, MemoryObjectKind, MirType,
+        Module, Value, ValueId,
+    },
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
@@ -592,6 +595,47 @@ impl<'a> Validator<'a> {
                             }
                         }
                     }
+                    InstKind::AbiDecode { data, layout } => {
+                        self.check_struct_type(
+                            func.value_ty(*data),
+                            Some(MirType::MemoryObject(MemoryObjectKind::Bytes)),
+                            block,
+                            id,
+                        );
+                        let valid = match inst.result_ty {
+                            Some(MirType::Struct(ty)) => {
+                                module.struct_types.get(ty).is_some_and(|ty| {
+                                    ty.fields.len() == layout.types.len()
+                                        && ty.fields.iter().zip(&layout.types).all(
+                                            |(&field, abi)| {
+                                                field == abi.mir_type().return_field_type()
+                                            },
+                                        )
+                                })
+                            }
+                            Some(ty) => layout.types.len() == 1 && ty == layout.types[0].mir_type(),
+                            None => false,
+                        };
+                        if !valid {
+                            self.emit_at_inst(
+                                "ABI decode result does not match its layout",
+                                block,
+                                id,
+                            );
+                        }
+                    }
+                    InstKind::MemoryObjectFromPtr { ptr, kind } => {
+                        if inst.result_ty != Some(MirType::MemoryObject(*kind))
+                            || !func.value_ty(*ptr).is_some_and(|ty| {
+                                !matches!(
+                                    ty,
+                                    MirType::Struct(_) | MirType::Slice(_) | MirType::Void
+                                )
+                            })
+                        {
+                            self.emit_at_inst("memory object pointer conversion requires a word and matching object result", block, id);
+                        }
+                    }
                     InstKind::InsertValue { .. } | InstKind::ExtractValue { .. } => {}
                     _ => {
                         if matches!(inst.result_ty, Some(MirType::Struct(_))) {
@@ -639,7 +683,8 @@ impl<'a> Validator<'a> {
                     );
                 }
                 let result = if let Some(value) = inserted {
-                    if func.value_ty(value) != Some(field) {
+                    if !func.value_ty(value).is_some_and(|actual| field.accepts_field_value(actual))
+                    {
                         self.emit_at_inst(
                             format_args!("inserted value must have type `{field}`"),
                             block,
@@ -918,7 +963,8 @@ impl<'a> Validator<'a> {
                 }
             }
             for value in values.iter() {
-                if let Value::Undef(ty) = func.value(value)
+                if let Value::Undef(ty) | Value::Immediate(Immediate::Pointer(_, ty)) =
+                    func.value(value)
                     && matches!(ty, crate::mir::MirType::MemoryObject(_))
                 {
                     self.emit(format_args!(

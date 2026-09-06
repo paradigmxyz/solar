@@ -1,6 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_array_literal_slices.sol:StorageArrayLiteralSlices ===
 @module StorageArrayLiteralSlices
-fn @copy(arg0: calldataslice) -> (u256, u256, u256, u256) [selector=0x8d80fe50, abi_params=[array<_, u256>], abi_returns=[word, word, word, word]] {
+types:
+  struct0: {u256, u256, u256, u256}
+
+fn @copy(arg0: calldataslice) -> struct0 [selector=0x8d80fe50, abi_params=[array<_, u256>], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     v1 = slice_ptr arg0
@@ -131,7 +134,11 @@ fn @copy(arg0: calldataslice) -> (u256, u256, u256, u256) [selector=0x8d80fe50, 
     v117 = storage_array_data_slot v113
     v118 = add v117, 1
     v119 = sload v118 !metadata(storage=offset(v117, 1))
-    ret v97, v106, v110, v119
+    v120 = insert_value struct0, undef struct0, 0, v97
+    v121 = insert_value struct0, v120, 1, v106
+    v122 = insert_value struct0, v121, 2, v110
+    v123 = insert_value struct0, v122, 3, v119
+    ret v123
   bb35:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

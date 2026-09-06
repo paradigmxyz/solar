@@ -1,5 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_array_member_memory_arg.sol:C ===
 @module C
+types:
+  struct0: {u256, u256}
+
 fn @constructor() [constructor] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -36,17 +39,18 @@ fn @constructor() [constructor] {
     revert 0, 36
 }
 
-fn @test() -> (u256, u256) [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word, word]] {
+fn @test() -> struct0 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = icall @load_storage_word_array, 1, 0
-    v1 = icall @consume, 2, v0
-    v2 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v3 = add v2, 32
-    v4 = mload v3
-    ret v1, v4
+    v1 = icall @consume, 1, v0
+    v2 = extract_value struct0, v1, 0
+    v3 = extract_value struct0, v1, 1
+    v4 = insert_value struct0, undef struct0, 0, v2
+    v5 = insert_value struct0, v4, 1, v3
+    ret v5
 }
 
-fn @consume(arg0: memoryarray) -> (u256, u256) [pure] {
+fn @consume(arg0: memoryarray) -> struct0 [pure] {
   bb0:
     v0 = memory_object_len memoryarray, arg0
     jump bb1
@@ -60,7 +64,9 @@ fn @consume(arg0: memoryarray) -> (u256, u256) [pure] {
   bb5:
     jump bb2
   bb2:
-    ret v1, v4
+    v14 = insert_value struct0, undef struct0, 0, v1
+    v15 = insert_value struct0, v14, 1, v4
+    ret v15
   bb4:
     v6 = memory_object_len memoryarray, v3
     v7 = lt v2, v6

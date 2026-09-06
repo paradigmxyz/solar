@@ -1,6 +1,10 @@
 // === ROOT/tests/ui/codegen/lowering/library_storage_pointer_return.sol:Lib ===
 @module Lib
 @library
+types:
+  struct0: {u256, memoryfixedarray}
+  struct1: {u256, u256}
+
 fn @arrRef(arg0: storageptr) -> storageptr [selector=0x1fbd3e50, pure, abi_params=[storageptr], abi_returns=[word]] {
   bb0:
     ret arg0
@@ -26,24 +30,32 @@ fn @mapRef(arg0: storageptr) -> storageptr [selector=0xca34aaa5, pure, abi_param
     ret arg0
 }
 
-fn @aggRef(arg0: storageptr) -> (storageptr, memoryfixedarray) [selector=0xed18bf21, pure, abi_params=[storageptr], abi_returns=[word, array<2, word>]] {
+fn @aggRef(arg0: storageptr) -> struct0 [selector=0xed18bf21, pure, abi_params=[storageptr], abi_returns=[word, array<2, word>], abi_return_params=[storageptr, array<2, u256>]] {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     memory_zero v0, 64
     v1 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     memory_object_store_element memoryfixedarray<2, 1>, v1, 0, 1
     memory_object_store_element memoryfixedarray<2, 1>, v1, 1, 2
-    ret arg0, v1
+    v2 = insert_value struct0, undef struct0, 0, arg0
+    v3 = insert_value struct0, v2, 1, v1
+    ret v3
 }
 
-fn @pairRef(arg0: storageptr) -> (u256, storageptr) [selector=0x4a3c24da, view, abi_params=[storageptr], abi_returns=[word, word]] {
+fn @pairRef(arg0: storageptr) -> struct1 [selector=0x4a3c24da, view, abi_params=[storageptr], abi_returns=[word, word], abi_return_params=[u256, storageptr]] {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
-    ret v0, arg0
+    v1 = insert_value struct1, undef struct1, 0, v0
+    v2 = insert_value struct1, v1, 1, arg0
+    ret v2
 }
 
 // === ROOT/tests/ui/codegen/lowering/library_storage_pointer_return.sol:C ===
 @module C
+types:
+  struct0: {u256, u256}
+  struct1: {u256, memoryfixedarray}
+
 fn @len() -> u256 [selector=0x56d88e27, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = abi_encode [word], selector 0x1fbd3e5000000000000000000000000000000000000000000000000000000000, args 0
@@ -150,7 +162,7 @@ fn @member() -> u256 [selector=0xe3f6b544, view, abi_params=[], abi_returns=[wor
     revert 0, 36
 }
 
-fn @pair() -> (u256, u256) [selector=0xa8aa1b31, view, abi_params=[], abi_returns=[word, word]] {
+fn @pair() -> struct0 [selector=0xa8aa1b31, view, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = abi_encode [word], selector 0x4a3c24da00000000000000000000000000000000000000000000000000000000, args 0
     v1 = slice_ptr v0
@@ -173,18 +185,16 @@ fn @pair() -> (u256, u256) [selector=0xa8aa1b31, view, abi_params=[], abi_return
     v11 = make_returndata_slice 0, v5
     memory_object_copy_from_slice memorybytes, v10, v11
     v12 = abi_decode [u256, storageptr], v10
-    v13 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v14 = add v13, 32
-    v15 = mload v14
-    v16 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v17 = memory_object_data memoryfixedarray, v16
-    frame_store multi_return, word, 0, v17 !metadata(memory=scratch)
-    memory_object_store_element memoryfixedarray<2, 1>, v16, 1, v15
-    v18 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v19 = add v18, 32
-    v20 = mload v19
-    v21 = sload v20 !metadata(storage=symbolic(v20))
-    ret v12, v21
+    v13 = extract_value struct0, v12, 0
+    v14 = extract_value struct0, v12, 1
+    v15 = insert_value struct0, undef struct0, 0, v13
+    v16 = insert_value struct0, v15, 1, v14
+    v17 = extract_value struct0, v16, 0
+    v18 = extract_value struct0, v16, 1
+    v19 = sload v18 !metadata(storage=symbolic(v18))
+    v20 = insert_value struct0, undef struct0, 0, v17
+    v21 = insert_value struct0, v20, 1, v19
+    ret v21
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -263,7 +273,7 @@ fn @mapValue(arg0: u256) -> u256 [selector=0x152381f4, view, abi_params=[u256], 
     revert 0, 36
 }
 
-fn @agg() -> (u256, u256) [selector=0xf5e34bfa, view, abi_params=[], abi_returns=[word, word]] {
+fn @agg() -> struct0 [selector=0xf5e34bfa, view, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = abi_encode [word], selector 0xed18bf2100000000000000000000000000000000000000000000000000000000, args 2
     v1 = slice_ptr v0
@@ -286,21 +296,21 @@ fn @agg() -> (u256, u256) [selector=0xf5e34bfa, view, abi_params=[], abi_returns
     v11 = make_returndata_slice 0, v5
     memory_object_copy_from_slice memorybytes, v10, v11
     v12 = abi_decode [storageptr, array<2, u256>], v10
-    v13 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v14 = memory_object_load_element memoryfixedarray<2, 1>, v13, 1
-    v15 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v16 = memory_object_data memoryfixedarray, v15
-    frame_store multi_return, word, 0, v16 !metadata(memory=scratch)
-    memory_object_store_element memoryfixedarray<2, 1>, v15, 1, v14
-    v17 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v18 = memory_object_load_element memoryfixedarray<2, 1>, v17, 1
-    v19 = sload v12 !metadata(storage=symbolic(v12))
+    v13 = extract_value struct1, v12, 0
+    v14 = extract_value struct1, v12, 1
+    v15 = insert_value struct1, undef struct1, 0, v13
+    v16 = insert_value struct1, v15, 1, v14
+    v17 = extract_value struct1, v16, 0
+    v18 = extract_value struct1, v16, 1
+    v19 = sload v17 !metadata(storage=symbolic(v17))
     v20 = lt 1, 2
     v21 = iszero v20
     jumpi v21, bb5, bb6
   bb6:
     v22 = memory_object_load_element memoryfixedarray<2, 1>, v18, 1
-    ret v19, v22
+    v23 = insert_value struct0, undef struct0, 0, v19
+    v24 = insert_value struct0, v23, 1, v22
+    ret v24
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

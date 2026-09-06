@@ -1,5 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/low_level_call_storage_bytes.sol:LowLevelCallStorageBytes ===
 @module LowLevelCallStorageBytes
+types:
+  struct0: {u256, memorybytes}
+
 fn @callData() -> memorybytes [selector=0x4e417a98, view, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -101,7 +104,7 @@ fn @prepare(arg0: address, arg1: calldataslice) [selector=0xaacd9878, abi_params
     revert 0, 0
 }
 
-fn @fire() -> (bool, memorybytes) [selector=0x457094cc, abi_params=[], abi_returns=[word<bool>, memory_bytes]] {
+fn @fire() -> struct0 [selector=0x457094cc, abi_params=[], abi_returns=[word<bool>, memory_bytes], abi_return_params=[bool, bytes]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
@@ -155,7 +158,9 @@ fn @fire() -> (bool, memorybytes) [selector=0x457094cc, abi_params=[], abi_retur
     set_memory_object_len memorybytes, v34, v29
     v35 = make_returndata_slice 0, v29
     memory_object_copy_from_slice memorybytes, v34, v35
-    ret v28, v34
+    v36 = insert_value struct0, undef struct0, 0, v28
+    v37 = insert_value struct0, v36, 1, v34
+    ret v37
   bb9:
     v22 = add v19, v20
     v23 = sload v22 !metadata(storage=symbolic(v22))

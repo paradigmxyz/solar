@@ -1128,6 +1128,7 @@ symbols! {
         memory_object_data,
         memory_object_element_addr,
         memory_object_field_addr,
+        memory_object_from_ptr,
         memory_object_len,
         memory_object_load_byte,
         memory_object_load_element,

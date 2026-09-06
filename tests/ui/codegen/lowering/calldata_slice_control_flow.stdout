@@ -1,5 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_slice_control_flow.sol:CalldataSliceControlFlow ===
 @module CalldataSliceControlFlow
+types:
+  struct0: {u256, u256}
+  struct1: {calldataslice, calldataslice}
+
 fn @trimLen(arg0: calldataslice) -> u256 [selector=0x341fda35, pure, abi_params=[bytes], abi_returns=[word]] {
   bb0:
     v0 = icall @_trim, 1, arg0
@@ -106,21 +110,19 @@ fn @_explicitTrim(arg0: calldataslice) -> calldataslice [pure] {
     revert 0, 0
 }
 
-fn @headTail(arg0: calldataslice) -> (u256, u256) [selector=0xdd941f9b, pure, abi_params=[bytes], abi_returns=[word, word]] {
+fn @headTail(arg0: calldataslice) -> struct0 [selector=0xdd941f9b, pure, abi_params=[bytes], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
-    v0 = icall @_split, 2, arg0
-    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v2 = add v1, 64
-    v3 = mload v2
-    v4 = add v1, 96
-    v5 = mload v4
-    v6 = make_calldata_slice v3, v5
-    v7 = slice_len v0
-    v8 = slice_len v6
-    ret v7, v8
+    v0 = icall @_split, 1, arg0
+    v1 = extract_value struct1, v0, 0
+    v2 = extract_value struct1, v0, 1
+    v3 = slice_len v1
+    v4 = slice_len v2
+    v5 = insert_value struct0, undef struct0, 0, v3
+    v6 = insert_value struct0, v5, 1, v4
+    ret v6
 }
 
-fn @_split(arg0: calldataslice) -> (calldataslice, calldataslice) [pure] {
+fn @_split(arg0: calldataslice) -> struct1 [pure] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
@@ -152,7 +154,9 @@ fn @_split(arg0: calldataslice) -> (calldataslice, calldataslice) [pure] {
     jump bb5
   bb5:
     v21 = phi [bb3: v20], [bb4: v8]
-    ret arg0, v21
+    v22 = insert_value struct1, undef struct1, 0, arg0
+    v23 = insert_value struct1, v22, 1, v21
+    ret v23
   bb1:
     revert 0, 0
 }

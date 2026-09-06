@@ -1,5 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/internal-function-pointer/signatures_mir.sol:FunctionPointerSignatures ===
 @module FunctionPointerSignatures
+types:
+  struct0: {u256, u256}
+
 fn @callVoid() -> bool [selector=0xd04622c6, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     icall @internal_dispatcher_p_none_r_none, 0, 2
@@ -30,22 +33,25 @@ fn @callState() -> bool [selector=0xb67d6f95, abi_params=[], abi_returns=[word<b
     ret v4
 }
 
-fn @callPair(arg0: u256) -> (u256, u256) [selector=0x85ead1f5, abi_params=[u256], abi_returns=[word, word]] {
+fn @callPair(arg0: u256) -> struct0 [selector=0x85ead1f5, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
-    v0 = icall @internal_dispatcher_p_u256_r_u256_u256, 2, 5, arg0
-    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v2 = add v1, 32
-    v3 = mload v2
-    ret v0, v3
+    v0 = icall @internal_dispatcher_p_u256_r_u256_u256, 1, 5, arg0
+    v1 = extract_value struct0, v0, 0
+    v2 = extract_value struct0, v0, 1
+    v3 = insert_value struct0, undef struct0, 0, v1
+    v4 = insert_value struct0, v3, 1, v2
+    ret v4
 }
 
-fn @pair(arg0: u256) -> (u256, u256) [pure] {
+fn @pair(arg0: u256) -> struct0 [pure] {
   bb0:
     v0 = add arg0, 1
     v1 = lt v0, arg0
     jumpi v1, bb1, bb2
   bb2:
-    ret arg0, v0
+    v2 = insert_value struct0, undef struct0, 0, arg0
+    v3 = insert_value struct0, v2, 1, v0
+    ret v3
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -90,7 +96,7 @@ fn @internal_dispatcher_p_none_r_none(arg0: function) [function_pointer_dispatch
     ret
 }
 
-fn @internal_dispatcher_p_u256_r_u256_u256(arg0: function, arg1: u256) -> (u256, u256) [function_pointer_dispatcher] {
+fn @internal_dispatcher_p_u256_r_u256_u256(arg0: function, arg1: u256) -> struct0 [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 5
     jumpi v0, bb1, bb2
@@ -99,11 +105,8 @@ fn @internal_dispatcher_p_u256_r_u256_u256(arg0: function, arg1: u256) -> (u256,
     mstore 4, 81 !metadata(memory=scratch)
     revert 0, 36
   bb1:
-    v1 = icall @pair, 2, arg1
-    v2 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v3 = add v2, 32
-    v4 = mload v3
-    ret v1, v4
+    v1 = icall @pair, 1, arg1
+    ret v1
 }
 
 fn @internal_dispatcher_p_u256_u256_r_u256(arg0: function, arg1: u256, arg2: u256) -> u256 [function_pointer_dispatcher] {

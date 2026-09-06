@@ -1,6 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/shared_public_body.sol:SharedPublicBody ===
 @module SharedPublicBody
-fn @shared(arg0: u256) -> (u256, u256) [selector=0x727ee1fa, abi_params=[u256], abi_returns=[word, word]] {
+types:
+  struct0: {u256, u256}
+
+fn @shared(arg0: u256) -> struct0 [selector=0x727ee1fa, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     sstore 0, 1 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -22,20 +25,23 @@ fn @shared(arg0: u256) -> (u256, u256) [selector=0x727ee1fa, abi_params=[u256], 
     sstore 0, v6 !metadata(storage=slot(0))
     jump bb1
   bb1:
-    ret v1, v3
+    v8 = insert_value struct0, undef struct0, 0, v1
+    v9 = insert_value struct0, v8, 1, v3
+    ret v9
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
 }
 
-fn @invoke(arg0: u256) -> (u256, u256) [selector=0x2b30d2b8, abi_params=[u256], abi_returns=[word, word]] {
+fn @invoke(arg0: u256) -> struct0 [selector=0x2b30d2b8, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
-    v0 = icall @shared, 2, arg0
-    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v2 = add v1, 32
-    v3 = mload v2
-    ret v0, v3
+    v0 = icall @shared, 1, arg0
+    v1 = extract_value struct0, v0, 0
+    v2 = extract_value struct0, v0, 1
+    v3 = insert_value struct0, undef struct0, 0, v1
+    v4 = insert_value struct0, v3, 1, v2
+    ret v4
 }
 
 fn @fib(arg0: u256) -> u256 [selector=0xc6c2ea17, pure, abi_params=[u256], abi_returns=[word]] {

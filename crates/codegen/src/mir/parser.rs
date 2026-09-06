@@ -1299,6 +1299,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 symbol == kw::True
                     || symbol == kw::False
                     || symbol == sym::err
+                    || symbol == sym::undef
+                    || matches!(
+                        self.parser.look_ahead(1).kind,
+                        TokenKind::Literal(TokenLitKind::Integer, _)
+                    )
                     || symbol
                         .as_str()
                         .strip_prefix("arg")
@@ -1676,10 +1681,18 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     .parse_uint()?
                     .try_into()
                     .map_err(|_| self.parser.error("memory field index does not fit in u64"))?;
-                (
-                    InstKind::MemoryObjectLoadField { object, layout, field },
-                    Some(MirType::uint256()),
-                )
+                let ty = if self.parser.eat(TokenKind::Comma) {
+                    let ty = self.parse_type()?;
+                    if !matches!(ty, MirType::MemoryObject(_)) {
+                        return Err(self
+                            .parser
+                            .error("object load annotation must be a memory-object type"));
+                    }
+                    ty
+                } else {
+                    MirType::uint256()
+                };
+                (InstKind::MemoryObjectLoadField { object, layout, field }, Some(ty))
             }
             sym::memory_object_store_field => {
                 let name = self.parser.parse_ident()?;
@@ -1703,10 +1716,18 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let object = self.parse_value(builder)?;
                 self.parser.expect(TokenKind::Comma)?;
                 let index = self.parse_value(builder)?;
-                (
-                    InstKind::MemoryObjectLoadElement { object, layout, index },
-                    Some(MirType::uint256()),
-                )
+                let ty = if self.parser.eat(TokenKind::Comma) {
+                    let ty = self.parse_type()?;
+                    if !matches!(ty, MirType::MemoryObject(_)) {
+                        return Err(self
+                            .parser
+                            .error("object load annotation must be a memory-object type"));
+                    }
+                    ty
+                } else {
+                    MirType::uint256()
+                };
+                (InstKind::MemoryObjectLoadElement { object, layout, index }, Some(ty))
             }
             sym::memory_object_load_byte => {
                 let name = self.parser.parse_ident()?;
@@ -1886,11 +1907,24 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                         .parser
                         .error("ABI decode requires bytes or a static memory pointer"));
                 }
-                let result_ty = layout
-                    .types
-                    .first()
-                    .map(AbiParamType::mir_type)
-                    .ok_or_else(|| self.parser.error("ABI decode requires a result type"))?;
+                let fields = layout.types.iter().map(AbiParamType::mir_type).collect::<Vec<_>>();
+                let result_ty = match fields.as_slice() {
+                    [] => return Err(self.parser.error("ABI decode requires a result type")),
+                    [ty] => *ty,
+                    _ => {
+                        let fields = fields
+                            .into_iter()
+                            .map(MirType::return_field_type)
+                            .collect::<Box<[_]>>();
+                        let id = self
+                            .struct_types
+                            .iter_enumerated()
+                            .find_map(|(id, ty)| (ty.fields == fields).then_some(id));
+                        MirType::Struct(
+                            id.unwrap_or_else(|| self.struct_types.push(StructType { fields })),
+                        )
+                    }
+                };
                 let layout = self.intern_abi_param_layout(layout);
                 (InstKind::AbiDecode { data, layout }, Some(result_ty))
             }
@@ -2089,6 +2123,14 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     .filter(|ty| matches!(ty, MirType::Struct(_) | MirType::Slice(_)))
                     .unwrap_or(MirType::uint256());
                 (InstKind::Select(condition, then_value, else_value), Some(ty))
+            }
+            sym::memory_object_from_ptr => {
+                let MirType::MemoryObject(kind) = self.parse_type()? else {
+                    return Err(self.parser.error("expected a memory object type"));
+                };
+                self.parser.expect(TokenKind::Comma)?;
+                let ptr = self.parse_value(builder)?;
+                (InstKind::MemoryObjectFromPtr { ptr, kind }, Some(MirType::MemoryObject(kind)))
             }
             sym::insert_value | sym::extract_value => {
                 let MirType::Struct(ty) = self.parse_type()? else {

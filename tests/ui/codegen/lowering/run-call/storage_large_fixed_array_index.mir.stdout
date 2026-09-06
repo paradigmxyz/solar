@@ -1,6 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_large_fixed_array_index.sol:StorageLargeFixedArrayIndex ===
 @module StorageLargeFixedArrayIndex
-fn @test() -> (u256, u256) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word]] {
+types:
+  struct0: {u256, u256}
+
+fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = mapping_slot 0, 0
     v1 = lt 0x80000000000000000000000000000000000000000000000000, 0x100000000000000000000000000000000000000000000000000
@@ -59,7 +62,9 @@ fn @test() -> (u256, u256) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[wor
   bb12:
     v33 = add v30, 0
     v34 = sload v33 !metadata(storage=symbolic(v30))
-    ret v24, v34
+    v35 = insert_value struct0, undef struct0, 0, v24
+    v36 = insert_value struct0, v35, 1, v34
+    ret v36
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)

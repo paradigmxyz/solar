@@ -3,7 +3,7 @@
 use super::{
     AbiEncodeMode, AllocationSemantics, BlockId, FrameMode, FrameSlotKind, Function, FunctionId,
     Immediate, ImmutableId, InstId, InstKind, Instruction, MemoryObjectKind, MemoryObjectLayout,
-    MemoryRegion, MirType, SliceLocation, StorageAlias, Terminator, Value, ValueId,
+    MemoryRegion, MirType, SliceLocation, StorageAlias, StructId, Terminator, Value, ValueId,
 };
 use crate::memory::EvmMemoryLayout;
 use alloy_primitives::U256;
@@ -954,6 +954,21 @@ impl<'a> FunctionBuilder<'a> {
         )
     }
 
+    /// Loads a memory-object reference stored in a struct field.
+    pub(crate) fn memory_object_load_object_field(
+        &mut self,
+        object: ValueId,
+        layout: MemoryObjectLayout,
+        field: u64,
+        kind: MemoryObjectKind,
+    ) -> ValueId {
+        // result = memory_object_load_field layout, object, field
+        self.emit_inst(
+            InstKind::MemoryObjectLoadField { object, layout, field },
+            Some(MirType::MemoryObject(kind)),
+        )
+    }
+
     /// Stores a direct struct field through the semantic object layout.
     pub(crate) fn memory_object_store_field(
         &mut self,
@@ -1120,17 +1135,68 @@ impl<'a> FunctionBuilder<'a> {
         )
     }
 
+    /// Replaces a field of a struct value.
+    pub(crate) fn insert_value(
+        &mut self,
+        ty: StructId,
+        aggregate: ValueId,
+        index: u32,
+        value: ValueId,
+    ) -> ValueId {
+        // result = insert_value aggregate, index, value
+        self.emit_inst(
+            InstKind::InsertValue { ty, aggregate, index, value },
+            Some(MirType::Struct(ty)),
+        )
+    }
+
+    /// Projects a field with its declared type from a struct value.
+    pub(crate) fn extract_value(
+        &mut self,
+        ty: StructId,
+        aggregate: ValueId,
+        index: u32,
+        field: MirType,
+    ) -> ValueId {
+        // result = extract_value aggregate, index
+        self.emit_inst(InstKind::ExtractValue { ty, aggregate, index }, Some(field))
+    }
+
+    /// Gives raw pointer bits an object type without checking the object.
+    pub(crate) fn memory_object_from_ptr(
+        &mut self,
+        ptr: ValueId,
+        kind: MemoryObjectKind,
+    ) -> ValueId {
+        // object = memory_object_from_ptr ptr
+        self.emit_inst(
+            InstKind::MemoryObjectFromPtr { ptr, kind },
+            Some(MirType::MemoryObject(kind)),
+        )
+    }
+
+    /// Builds a struct from its ordered field values.
+    pub(crate) fn make_struct(
+        &mut self,
+        ty: StructId,
+        values: impl IntoIterator<Item = ValueId>,
+    ) -> ValueId {
+        // result = undef struct
+        // result = insert_value result, index, field
+        let mut result = self.func.alloc_value(Value::Undef(MirType::Struct(ty)));
+        for (index, value) in values.into_iter().enumerate() {
+            result = self.insert_value(ty, result, index as u32, value);
+        }
+        result
+    }
+
     /// Decodes a memory-backed ABI tuple into semantic values.
     pub(crate) fn abi_decode(
         &mut self,
         layout: crate::mir::AbiParamLayoutRef,
         data: ValueId,
+        result_ty: MirType,
     ) -> ValueId {
-        let result_ty = layout
-            .types
-            .first()
-            .map(crate::mir::AbiParamType::mir_type)
-            .expect("ABI decode requires at least one result");
         self.emit_inst(InstKind::AbiDecode { data, layout }, Some(result_ty))
     }
 
@@ -1684,7 +1750,15 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Sets a return terminator.
     pub(crate) fn ret(&mut self, values: impl IntoIterator<Item = ValueId>) {
-        let values: SmallVec<[ValueId; 2]> = values.into_iter().collect();
+        let mut values = values.into_iter().collect::<SmallVec<[ValueId; 2]>>();
+        if let [MirType::Struct(ty)] = self.func.returns.as_slice()
+            && !(values.len() == 1 && self.func.value_ty(values[0]) == Some(MirType::Struct(*ty)))
+        {
+            // result = insert_value(undef, field0), ...
+            // ret result
+            let result = self.make_struct(*ty, values);
+            values = smallvec::smallvec![result];
+        }
         self.set_terminator(Terminator::Return { values });
     }
 

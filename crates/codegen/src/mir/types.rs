@@ -284,6 +284,28 @@ impl MirType {
             || matches!(self, Self::FixedBytes(size) if size.bytes() == 32)
     }
 
+    /// Returns the carrier type used for scalar fields of a return tuple.
+    /// Scalar words may contain dirty upper bits; aggregates preserve them until cleanup.
+    pub(crate) const fn return_field_type(self) -> Self {
+        match self {
+            Self::UInt(_)
+            | Self::Int(_)
+            | Self::Bool
+            | Self::Address
+            | Self::FixedBytes(_)
+            | Self::Function
+            | Self::StoragePtr => Self::uint256(),
+            _ => self,
+        }
+    }
+
+    /// Checks whether a struct field can carry this value without changing its bits.
+    pub(crate) fn accepts_field_value(self, actual: Self) -> bool {
+        self == actual
+            || (self == Self::uint256()
+                && !matches!(actual, Self::Struct(_) | Self::Slice(_) | Self::Void))
+    }
+
     /// Returns the uint256 type.
     #[must_use]
     pub(crate) const fn uint256() -> Self {

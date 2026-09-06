@@ -1,5 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/acyclic_stack_phi_runtime.sol:AcyclicStackPhi ===
 @module AcyclicStackPhi
+types:
+  struct0: {u256, u256}
+
 fn @trimLen(arg0: calldataslice) -> u256 [selector=0x341fda35, pure, abi_params=[bytes], abi_returns=[word]] {
   bb0:
     v0 = icall @trim, 1, arg0
@@ -33,7 +36,7 @@ fn @trim(arg0: calldataslice) -> calldataslice [pure] {
     revert 0, 0
 }
 
-fn @repeatedSourceJoin(arg0: bool, arg1: u256, arg2: u256) -> (u256, u256) [selector=0x406b1ab7, pure, abi_params=[bool, u256, u256], abi_returns=[word, word]] {
+fn @repeatedSourceJoin(arg0: bool, arg1: u256, arg2: u256) -> struct0 [selector=0x406b1ab7, pure, abi_params=[bool, u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     jumpi arg0, bb1, bb2
   bb2:
@@ -42,7 +45,9 @@ fn @repeatedSourceJoin(arg0: bool, arg1: u256, arg2: u256) -> (u256, u256) [sele
     jump bb3
   bb3:
     v0 = phi [bb1: arg1], [bb2: arg2]
-    ret v0, arg1
+    v1 = insert_value struct0, undef struct0, 0, v0
+    v2 = insert_value struct0, v1, 1, arg1
+    ret v2
 }
 
 fn @loopJoin(arg0: u256) -> u256 [selector=0x136d329b, pure, abi_params=[u256], abi_returns=[word]] {

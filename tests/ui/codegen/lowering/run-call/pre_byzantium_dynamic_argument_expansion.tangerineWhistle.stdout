@@ -1,27 +1,42 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/pre_byzantium_dynamic_argument_expansion.sol:WideCallee ===
 @module WideCallee
-fn @six(arg0: memorybytes) -> (u256, u256, u256, u256, u256, u256) [selector=0xb84d18fb, pure, abi_params=[bytes], abi_returns=[word, word, word, word, word, word]] {
+types:
+  struct0: {u256, u256, u256, u256, u256, u256}
+
+fn @six(arg0: memorybytes) -> struct0 [selector=0xb84d18fb, pure, abi_params=[bytes], abi_returns=[word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256]] {
   bb0:
     v0 = memory_object_len memorybytes, arg0
     v1 = add v0, 4
     v2 = lt v1, v0
     jumpi v2, bb1, bb2
   bb2:
-    ret v1, 1, 2, 3, 4, 5
+    v3 = insert_value struct0, undef struct0, 0, v1
+    v4 = insert_value struct0, v3, 1, 1
+    v5 = insert_value struct0, v4, 2, 2
+    v6 = insert_value struct0, v5, 3, 3
+    v7 = insert_value struct0, v6, 4, 4
+    v8 = insert_value struct0, v7, 5, 5
+    ret v8
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
 }
 
-fn @sixString(arg0: memorybytes) -> (u256, u256, u256, u256, u256, u256) [selector=0xa52f51f1, pure, abi_params=[bytes], abi_returns=[word, word, word, word, word, word]] {
+fn @sixString(arg0: memorybytes) -> struct0 [selector=0xa52f51f1, pure, abi_params=[bytes], abi_returns=[word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256]] {
   bb0:
     v0 = memory_object_len memorybytes, arg0
     v1 = add v0, 4
     v2 = lt v1, v0
     jumpi v2, bb1, bb2
   bb2:
-    ret v1, 1, 2, 3, 4, 5
+    v3 = insert_value struct0, undef struct0, 0, v1
+    v4 = insert_value struct0, v3, 1, 1
+    v5 = insert_value struct0, v4, 2, 2
+    v6 = insert_value struct0, v5, 3, 3
+    v7 = insert_value struct0, v6, 4, 4
+    v8 = insert_value struct0, v7, 5, 5
+    ret v8
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -30,6 +45,9 @@ fn @sixString(arg0: memorybytes) -> (u256, u256, u256, u256, u256, u256) [select
 
 // === ROOT/tests/ui/codegen/lowering/run-call/pre_byzantium_dynamic_argument_expansion.sol:WideCalls ===
 @module WideCalls
+types:
+  struct0: {u256, u256, u256, u256, u256, u256}
+
 data:
   WideCallee_initcode_0: hex"346010576103578060166000396000f35b60006000fe346047576000357c010000000000000000000000000000000000000000000000000000000090048063a52f51f114603e578063b84d18fb146043576047565b610111565b604c565b600080fe5b6102c0604052602436101560f55760f0565b6101605180610160525160048101806101405280610140528181109150501560af577f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fe5b610140518061014052608052602060800160018152602090016002815260209001600381526020900160048152602090016005815260209001608090036080f35b600080fe5b60fe60046101db565b6101a0518061016052806101605250605e565b6102c060405260243610156101bd576101b8565b61016051806101605251600481018061014052806101405281811091505015610177577f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fe5b610140518061014052608052602060800160018152602090016002815260209001600381526020900160048152602090016005815260209001608090036080f35b600080fe5b6101c760046101db565b6101a0518061016052806101605250610125565b610180526101805135806102a052600401806101e052806101e0526020810167ffffffffffffffff6102a0511136806101c05282119150171561021e575b600080fe5b806101e052358061020052806102005260206101e0510180610220528061022052603f820180610240528061024052828061020052811015610289577f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fe5b601f1981169050604051806102605280610260528181018061028052915081610280528061026052811067ffffffffffffffff821181179050156102f657610328565b602061026051016101e0513580610200526101e0516020018061022052823750610260516101a052565b80610280526040528161020052818061020052610260515280610220528061022052360381119050156102cc57610219565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fe"
 
@@ -76,25 +94,35 @@ fn @plainCall() -> u256 [selector=0x707bf9ed, abi_params=[], abi_returns=[word]]
     v25 = mload v24
     v26 = add v11, 160
     v27 = mload v26
-    frame_store multi_return, word, 0, v11 !metadata(memory=scratch)
     v28 = add v11, 0
     v29 = mload v28
-    v30 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v31 = add v30, 32
-    v32 = mload v31
-    v33 = add v30, 64
-    v34 = mload v33
-    v35 = add v30, 96
-    v36 = mload v35
-    v37 = add v30, 128
-    v38 = mload v37
-    v39 = add v30, 160
-    v40 = mload v39
-    v41 = add v29, v40
-    v42 = lt v41, v29
-    jumpi v42, bb7, bb8
+    v30 = add v11, 32
+    v31 = mload v30
+    v32 = add v11, 64
+    v33 = mload v32
+    v34 = add v11, 96
+    v35 = mload v34
+    v36 = add v11, 128
+    v37 = mload v36
+    v38 = add v11, 160
+    v39 = mload v38
+    v40 = insert_value struct0, undef struct0, 0, v29
+    v41 = insert_value struct0, v40, 1, v31
+    v42 = insert_value struct0, v41, 2, v33
+    v43 = insert_value struct0, v42, 3, v35
+    v44 = insert_value struct0, v43, 4, v37
+    v45 = insert_value struct0, v44, 5, v39
+    v46 = extract_value struct0, v45, 0
+    v47 = extract_value struct0, v45, 1
+    v48 = extract_value struct0, v45, 2
+    v49 = extract_value struct0, v45, 3
+    v50 = extract_value struct0, v45, 4
+    v51 = extract_value struct0, v45, 5
+    v52 = add v46, v51
+    v53 = lt v52, v46
+    jumpi v53, bb7, bb8
   bb8:
-    ret v41
+    ret v52
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -150,7 +178,6 @@ fn @tryCall() -> u256 [selector=0x118dfb0e, abi_params=[], abi_returns=[word]] {
     v25 = mload v24
     v26 = add v11, 160
     v27 = mload v26
-    frame_store multi_return, word, 0, v11 !metadata(memory=scratch)
     v28 = add v11, 0
     v29 = mload v28
     v30 = add v11, 32
@@ -222,25 +249,35 @@ fn @stringCall() -> u256 [selector=0xbdbbac6d, abi_params=[], abi_returns=[word]
     v25 = mload v24
     v26 = add v11, 160
     v27 = mload v26
-    frame_store multi_return, word, 0, v11 !metadata(memory=scratch)
     v28 = add v11, 0
     v29 = mload v28
-    v30 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v31 = add v30, 32
-    v32 = mload v31
-    v33 = add v30, 64
-    v34 = mload v33
-    v35 = add v30, 96
-    v36 = mload v35
-    v37 = add v30, 128
-    v38 = mload v37
-    v39 = add v30, 160
-    v40 = mload v39
-    v41 = add v29, v40
-    v42 = lt v41, v29
-    jumpi v42, bb7, bb8
+    v30 = add v11, 32
+    v31 = mload v30
+    v32 = add v11, 64
+    v33 = mload v32
+    v34 = add v11, 96
+    v35 = mload v34
+    v36 = add v11, 128
+    v37 = mload v36
+    v38 = add v11, 160
+    v39 = mload v38
+    v40 = insert_value struct0, undef struct0, 0, v29
+    v41 = insert_value struct0, v40, 1, v31
+    v42 = insert_value struct0, v41, 2, v33
+    v43 = insert_value struct0, v42, 3, v35
+    v44 = insert_value struct0, v43, 4, v37
+    v45 = insert_value struct0, v44, 5, v39
+    v46 = extract_value struct0, v45, 0
+    v47 = extract_value struct0, v45, 1
+    v48 = extract_value struct0, v45, 2
+    v49 = extract_value struct0, v45, 3
+    v50 = extract_value struct0, v45, 4
+    v51 = extract_value struct0, v45, 5
+    v52 = add v46, v51
+    v53 = lt v52, v46
+    jumpi v53, bb7, bb8
   bb8:
-    ret v41
+    ret v52
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)

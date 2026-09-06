@@ -1,6 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/calldata_index_reference.sol:CalldataIndexReference ===
 @module CalldataIndexReference
-fn @dynamicFixed(arg0: calldataslice) -> (u256, u256, u256) [selector=0x71cafd78, pure, abi_params=[array<_, array<2, u256>>], abi_returns=[word, word, word]] {
+types:
+  struct0: {u256, u256, u256}
+
+fn @dynamicFixed(arg0: calldataslice) -> struct0 [selector=0x71cafd78, pure, abi_params=[array<_, array<2, u256>>], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
@@ -13,14 +16,17 @@ fn @dynamicFixed(arg0: calldataslice) -> (u256, u256, u256) [selector=0x71cafd78
     v6 = add v5, 64
     v7 = make_calldata_slice v6, 2
     v8 = slice_ptr v7
-    ret v0, v1, v8
+    v9 = insert_value struct0, undef struct0, 0, v0
+    v10 = insert_value struct0, v9, 1, v1
+    v11 = insert_value struct0, v10, 2, v8
+    ret v11
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
 }
 
-fn @staticFixed(arg0: calldataslice) -> (u256, u256, u256) [selector=0xc2cb46f3, pure, abi_params=[array<2, array<2, u256>>], abi_returns=[word, word, word]] {
+fn @staticFixed(arg0: calldataslice) -> struct0 [selector=0xc2cb46f3, pure, abi_params=[array<2, array<2, u256>>], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = slice_len arg0
     v1 = lt 1, v0
@@ -47,14 +53,17 @@ fn @staticFixed(arg0: calldataslice) -> (u256, u256, u256) [selector=0xc2cb46f3,
     v16 = slice_ptr v5
     v17 = add v16, 32
     v18 = calldataload v17
-    ret v6, v12, v18
+    v19 = insert_value struct0, undef struct0, 0, v6
+    v20 = insert_value struct0, v19, 1, v12
+    v21 = insert_value struct0, v20, 2, v18
+    ret v21
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
 }
 
-fn @nestedDynamic(arg0: calldataslice) -> (u256, u256, u256) [selector=0xd5de94f6, pure, abi_params=[array<_, array<_, u256>>], abi_returns=[word, word, word]] {
+fn @nestedDynamic(arg0: calldataslice) -> struct0 [selector=0xd5de94f6, pure, abi_params=[array<_, array<_, u256>>], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = slice_len arg0
     v1 = lt 1, v0
@@ -100,7 +109,10 @@ fn @nestedDynamic(arg0: calldataslice) -> (u256, u256, u256) [selector=0xd5de94f
     v29 = slice_ptr v23
     v30 = add v29, 32
     v31 = calldataload v30
-    ret v24, v25, v31
+    v32 = insert_value struct0, undef struct0, 0, v24
+    v33 = insert_value struct0, v32, 1, v25
+    v34 = insert_value struct0, v33, 2, v31
+    ret v34
   bb3:
     revert 0, 0
   bb1:
@@ -109,7 +121,7 @@ fn @nestedDynamic(arg0: calldataslice) -> (u256, u256, u256) [selector=0xd5de94f
     revert 0, 36
 }
 
-fn @dynamicBytes(arg0: calldataslice) -> (u256, u256, u256) [selector=0x925ccb10, pure, abi_params=[array<_, bytes>], abi_returns=[word, word, word]] {
+fn @dynamicBytes(arg0: calldataslice) -> struct0 [selector=0x925ccb10, pure, abi_params=[array<_, bytes>], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = slice_len arg0
     v1 = lt 1, v0
@@ -157,7 +169,10 @@ fn @dynamicBytes(arg0: calldataslice) -> (u256, u256, u256) [selector=0x925ccb10
     v31 = byte 0, v30
     v32 = shl 248, v31
     v33 = shr 248, v32
-    ret v24, v25, v33
+    v34 = insert_value struct0, undef struct0, 0, v24
+    v35 = insert_value struct0, v34, 1, v25
+    v36 = insert_value struct0, v35, 2, v33
+    ret v36
   bb3:
     revert 0, 0
   bb1:

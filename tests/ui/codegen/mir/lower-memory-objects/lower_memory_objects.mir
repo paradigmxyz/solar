@@ -43,3 +43,11 @@ fn @copy_object(arg0: memorybytes, arg1: memorybytes, arg2: u256) {
     memory_object_copy memorybytes, arg0, memorybytes, arg1, arg2
     stop
 }
+
+// CHECK-LABEL: {{^[ +].*}}fn @raw_pointer{{[( ]}}
+// CHECK: + ret arg0
+fn @raw_pointer(arg0: u256) -> memorybytes {
+  bb0:
+    v0 = memory_object_from_ptr memorybytes, arg0
+    ret v0
+}
