@@ -59,7 +59,7 @@ impl EvmPass for CoalesceCopies {
                     index += 1;
                     continue;
                 };
-                if let Some(replacement) = run.replacement
+                if let Some(mut replacement) = run.replacement
                     && super::verify::rewrite_fits(
                         module,
                         &heights,
@@ -70,6 +70,12 @@ impl EvmPass for CoalesceCopies {
                         &replacement,
                     )
                 {
+                    if module.debug_info_tracked {
+                        transfer_copy_debug(
+                            &module.blocks[id].insts[index..index + run.len],
+                            &mut replacement,
+                        );
+                    }
                     // mstore(dest+i, mload(src+i)) -> mcopy(dest, src, bytes)
                     module.blocks[id].insts.splice(index..index + run.len, replacement);
                     changed = true;
@@ -80,6 +86,38 @@ impl EvmPass for CoalesceCopies {
             }
         }
         changed
+    }
+}
+
+/// Unions a sequential copy run's origins, placing its sole consistent events on the copy.
+fn transfer_copy_debug(source: &[Instruction], replacement: &mut [Instruction; 4]) {
+    let mut origins = source.iter().filter_map(|inst| inst.debug.as_deref());
+    let Some(first) = origins.next() else { return };
+    let mut debug = first.clone();
+    for origin in origins {
+        debug.merge(origin);
+    }
+    // An event absent from other operations is not a conflicting alternative path.
+    let invoke = source.iter().find_map(|inst| inst.debug.as_ref()?.function_invoke);
+    let exit = source.iter().find_map(|inst| inst.debug.as_ref()?.function_exit);
+    debug.function_invoke = invoke.filter(|event| {
+        source
+            .iter()
+            .filter_map(|inst| inst.debug.as_ref()?.function_invoke)
+            .all(|other| other == *event)
+    });
+    debug.function_exit = exit.filter(|event| {
+        source
+            .iter()
+            .filter_map(|inst| inst.debug.as_ref()?.function_exit)
+            .all(|other| other == *event)
+    });
+    // size; source; destination; copy
+    replacement[3].debug = Some(Box::new(debug.clone()));
+    debug.function_invoke = None;
+    debug.function_exit = None;
+    for inst in &mut replacement[..3] {
+        inst.debug = Some(Box::new(debug.clone()));
     }
 }
 
@@ -346,16 +384,20 @@ fn pack(gcx: Gcx<'_>, module: &mut Module, existing: bool) -> bool {
     for run in runs.into_iter().rev() {
         if let Some((id, offset)) = run.data {
             // base; mstore(base+i, word_i) -> base; size; data; dup3; codecopy
-            module.blocks[run.block].insts.splice(
-                run.start..run.end,
-                [
-                    InstKind::Push(U256::from(run.bytes.len())),
-                    InstKind::PushData { id, offset },
-                    InstKind::Dup(3),
-                    InstKind::Op(op::CODECOPY),
-                ]
-                .map(Into::into),
-            );
+            let mut replacement = [
+                InstKind::Push(U256::from(run.bytes.len())),
+                InstKind::PushData { id, offset },
+                InstKind::Dup(3),
+                InstKind::Op(op::CODECOPY),
+            ]
+            .map(Into::into);
+            if module.debug_info_tracked {
+                transfer_copy_debug(
+                    &module.blocks[run.block].insts[run.start..run.end],
+                    &mut replacement,
+                );
+            }
+            module.blocks[run.block].insts.splice(run.start..run.end, replacement);
             changed = true;
         }
     }

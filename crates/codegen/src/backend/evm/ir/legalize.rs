@@ -33,6 +33,7 @@ impl EvmPass for LegalizeShifts {
             let block = &mut module.blocks[id];
             let input = std::mem::take(&mut block.insts);
             for inst in input {
+                let start = block.insts.len();
                 match inst.kind {
                     // x shift -> x shift 2 -> x (2 ** shift) -> result
                     InstKind::Op(op::SHL) => {
@@ -89,7 +90,20 @@ impl EvmPass for LegalizeShifts {
                         changed = true;
                     }
                     // instruction -> instruction
-                    _ => block.insts.push(inst),
+                    _ => {
+                        block.insts.push(inst);
+                        continue;
+                    }
+                }
+                if let Some(mut debug) = inst.debug {
+                    // operands; shift result
+                    let last = block.insts.len() - 1;
+                    block.insts[last].debug = Some(debug.clone());
+                    debug.function_invoke = None;
+                    debug.function_exit = None;
+                    for expanded in &mut block.insts[start..last] {
+                        expanded.debug = Some(debug.clone());
+                    }
                 }
             }
         }
@@ -106,7 +120,9 @@ pub(super) fn lower_unavailable_reverts(gcx: Gcx<'_>, module: &mut Module) {
         let block = &mut module.blocks[id];
         if block.terminator.kind == TerminatorKind::Revert {
             // revert offset, size -> invalid
+            let debug = block.terminator.debug.take();
             block.terminator = TerminatorKind::Invalid.into();
+            block.terminator.debug = debug;
         }
     }
 }
