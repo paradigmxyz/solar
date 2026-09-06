@@ -8,19 +8,19 @@ fn @ping() -> u256 [selector=0x5c36b186, pure, abi_params=[], abi_returns=[word]
 // === ROOT/tests/ui/codegen/lowering/run-call/heap_prefix_creation_spill.sol:Harness ===
 @module Harness
 data:
-  Implementation_initcode_0: hex"34600757600b565b5f5ffd5b60448060155f395ff36033565b60076080526020608001608090036080f35b60a06040526003565b34602f575f3560e01c6037565b6015565b5f80fd5b601e565b635c36b18603602f57602b56"
+  Implementation_initcode_0: hex"34600757600b565b5f5ffd5b603f8060155f395ff3602e565b60076080526020608001608090036080f35b6003565b34602a575f3560e01c6032565b6015565b5f80fd5b6019565b635c36b18603602a57602656"
 
 fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 120, v1
+    v2 = and 115, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy Implementation_initcode_0, v3, 89
+    data_copy Implementation_initcode_0, v3, 84
     v4 = slice_ptr v0
-    v5 = add v3, 89
+    v5 = add v3, 84
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 89
+    v6 = create 0, v3, 84
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata

@@ -45,9 +45,6 @@ bb5:
 bb6:
   jump bb2
 bb7:
-  push 160
-  push 64
-  mstore
   jump bb1
 bb8:
   callvalue

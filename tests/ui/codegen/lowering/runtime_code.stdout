@@ -7,17 +7,14 @@ fn @value() -> u256 [selector=0x3fa4f245, pure, abi_params=[], abi_returns=[word
 
 // === ROOT/tests/ui/codegen/lowering/runtime_code.sol:RuntimeCode ===
 @module RuntimeCode
-data:
-  RuntimeCodeTarget_runtime_code_0: hex"6033565b60076080526020608001608090036080f35b60a06040526003565b34602f575f3560e01c6037565b6015565b5f80fd5b601e565b633fa4f24503602f57602b56"
-
 fn @runtime() -> u256 [selector=0x54d75aa6, pure, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 128
-    set_memory_object_len memorybytes, v0, 68
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 96
+    set_memory_object_len memorybytes, v0, 63
     v1 = memory_object_data memorybytes, v0
-    v2 = add v1, 64
-    mstore v2, 0
-    data_copy RuntimeCodeTarget_runtime_code_0, v1, 68
+    mstore v1, 0x602e565b60076080526020608001608090036080f35b6003565b34602a575f35
+    v2 = add v1, 32
+    mstore v2, 0x60e01c6032565b6015565b5f80fd5b6019565b633fa4f24503602a5760265600
     v3 = memory_object_len memorybytes, v0
     ret v3
 }
