@@ -22,6 +22,7 @@ use solar_config::EvmVersion;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
 use solar_interface::Result;
 use solar_sema::Gcx;
+use std::borrow::Cow;
 
 /// Completely resolved bytecode and its immutable patch sites.
 pub(crate) struct Encoded {
@@ -84,13 +85,17 @@ pub(crate) fn encode(gcx: Gcx<'_>, module: &ir::Module) -> Result<Vec<u8>> {
 }
 
 pub(crate) fn assemble(gcx: Gcx<'_>, module: &ir::Module) -> Result<Encoded> {
-    ir::validate(gcx, module);
+    let heights = ir::validate_for_encoding(gcx, module);
     gcx.dcx().has_errors()?;
     let version = gcx.sess.opts.evm_version;
     for width in 1..=4 {
         let lowered = super::indexed::lower(module, width);
+        let cached_heights = match &lowered {
+            Cow::Borrowed(_) => heights.as_ref(),
+            Cow::Owned(_) => None,
+        };
         let module = lowered.as_ref();
-        ir::validate_encoding(gcx, module)?;
+        ir::validate_encoding(gcx, module, cached_heights)?;
         let assembly =
             lower(module, version, width).map_err(|message| gcx.dcx().err(message).emit())?;
         match resolve(assembly, module, version) {

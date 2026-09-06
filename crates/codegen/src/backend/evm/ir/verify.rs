@@ -22,7 +22,7 @@ use solar_data_structures::{
 use solar_sema::Gcx;
 use std::collections::VecDeque;
 
-pub(super) fn validate(gcx: Gcx<'_>, module: &Module) {
+pub(crate) fn validate(gcx: Gcx<'_>, module: &Module) -> Option<StackHeights> {
     let fail = |block: BlockId, message: String| {
         gcx.dcx()
             .err(format!("EVM IR verification failed: block {}: {message}", block.index()))
@@ -44,23 +44,23 @@ pub(super) fn validate(gcx: Gcx<'_>, module: &Module) {
                             actual.0, actual.1
                         ),
                     );
-                    return;
+                    return None;
                 }
             } else if inst.stack_effect.is_none() {
                 let name = inst_name(&inst.kind);
                 fail(id, format!("instruction `{name}` must declare an explicit stack effect"));
-                return;
+                return None;
             }
             match inst.kind {
                 InstKind::Op(opcode) if (op::PUSH1..=op::PUSH32).contains(&opcode) => {
                     let name = inst_name(&inst.kind);
                     fail(id, format!("`{name}` must carry an encoded push value"));
-                    return;
+                    return None;
                 }
                 InstKind::PushData { id: data_id, offset } => {
                     let Some(data) = module.data.get(data_id) else {
                         fail(id, "unknown program data identifier".into());
-                        return;
+                        return None;
                     };
                     if offset as usize > data.bytes.len() {
                         fail(
@@ -70,21 +70,21 @@ pub(super) fn validate(gcx: Gcx<'_>, module: &Module) {
                                 data.bytes.len()
                             ),
                         );
-                        return;
+                        return None;
                     }
                 }
                 InstKind::PushLabel(target) if module.blocks.get(target).is_none() => {
                     fail(id, "unknown block reference".into());
-                    return;
+                    return None;
                 }
                 InstKind::PushImmutable { width, .. } if !(1..=32).contains(&width) => {
                     fail(id, "immutable width must be between 1 and 32 bytes".into());
-                    return;
+                    return None;
                 }
                 InstKind::Dup(0) | InstKind::Swap(0) => {
                     let name = inst_name(&inst.kind);
                     fail(id, format!("`{name}` depth must be positive"));
-                    return;
+                    return None;
                 }
                 _ => {}
             }
@@ -104,12 +104,12 @@ pub(super) fn validate(gcx: Gcx<'_>, module: &Module) {
                     expected.1
                 ),
             );
-            return;
+            return None;
         }
         for target in successors(&block.terminator.kind) {
             if module.blocks.get(target).is_none() {
                 fail(id, "unknown block reference".into());
-                return;
+                return None;
             }
         }
     }
@@ -132,12 +132,16 @@ pub(super) fn validate(gcx: Gcx<'_>, module: &Module) {
             }
         }
         if unavailable {
-            return;
+            return None;
         }
     }
 
-    if let Err((id, message)) = stack_heights(module) {
-        fail(id, message);
+    match stack_analysis(module) {
+        Ok((heights, _)) => Some(heights),
+        Err((id, message)) => {
+            fail(id, message);
+            None
+        }
     }
 }
 
@@ -564,8 +568,14 @@ pub(crate) fn physical_reachability(module: &Module) -> DenseBitSet<BlockId> {
 /// Layout is final here, including wide-table splitting. Direct fallthroughs
 /// need no address push. Conditional and packed-index jumps need one temporary
 /// word before consuming their condition/index. Unknown recursive prefixes have
-/// no absolute bound and must not be assigned an invented height.
-pub(super) fn validate_encoding(gcx: Gcx<'_>, module: &Module) -> solar_interface::Result<()> {
+/// no absolute bound and must not be assigned an invented height. Supplied heights
+/// must be raw validation facts for this exact immutable module, not optimization
+/// bounds that discard concrete paths when other control transfers are unknown.
+pub(super) fn validate_encoding(
+    gcx: Gcx<'_>,
+    module: &Module,
+    heights: Option<&StackHeights>,
+) -> solar_interface::Result<()> {
     let fail = |id: BlockId, message: String| {
         gcx.dcx()
             .err(format!("EVM IR verification failed: block {}: {message}", module.block_label(id)))
@@ -573,7 +583,13 @@ pub(super) fn validate_encoding(gcx: Gcx<'_>, module: &Module) -> solar_interfac
     };
     // A concrete overflowing path remains invalid even when another dynamic
     // entry prevents treating its observed height as an optimization bound.
-    let (heights, _) = stack_analysis(module).map_err(|(id, message)| fail(id, message))?;
+    let computed;
+    let heights = if let Some(heights) = heights {
+        heights
+    } else {
+        computed = stack_analysis(module).map_err(|(id, message)| fail(id, message))?.0;
+        &computed
+    };
     let order = module.block_ids().collect::<Vec<_>>();
     for (position, &id) in order.iter().enumerate() {
         let block = &module.blocks[id];

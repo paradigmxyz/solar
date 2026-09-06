@@ -22,6 +22,7 @@ mod passes;
 pub use passes::*;
 mod text;
 mod verify;
+pub(crate) use verify::validate as validate_for_encoding;
 
 newtype_index! {
     /// A physical basic block identity.
@@ -204,7 +205,7 @@ pub(crate) fn finish_lowering(gcx: Gcx<'_>, module: &mut Module) -> Result<()> {
 
 /// Validates a physical EVM program.
 pub fn validate(gcx: Gcx<'_>, module: &Module) {
-    verify::validate(gcx, module);
+    let _ = verify::validate(gcx, module);
 }
 
 /// Returns the encoded byte count and static gas of compact literal materialization.
@@ -229,8 +230,12 @@ pub(crate) fn scheduling_cost(
 }
 
 /// Validates final layout and indexed-lowering encoding stack peaks.
-pub(crate) fn validate_encoding(gcx: Gcx<'_>, module: &Module) -> Result<()> {
-    verify::validate_encoding(gcx, module)
+pub(crate) fn validate_encoding(
+    gcx: Gcx<'_>,
+    module: &Module,
+    heights: Option<&verify::StackHeights>,
+) -> Result<()> {
+    verify::validate_encoding(gcx, module, heights)
 }
 
 /// Required input, net height change and relative peak of a physical scheduling trial.
