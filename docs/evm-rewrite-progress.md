@@ -21,16 +21,16 @@ positions and PUSH widths. There is no Atom stream or assembly-level CFG
 optimization. MIR semantics remain in their retained layers. No legacy backend
 or temporary unsupported rewrite fallback is used.
 
-At the scheduler copy-count milestone, the fresh scope has 12,488 Rust lines across
-35 files, versus 34,638 deleted raw lines: 22,150 fewer (64.0%). These counts
+At the bounded-search milestone, the fresh scope has 12,489 Rust lines across
+35 files, versus 34,638 deleted raw lines: 22,149 fewer (64.0%). These counts
 include comments, blanks and local tests. A historical production-only count was not retained and is
 not reconstructed from forbidden source.
 
 ## Verification checkpoints
 
-The latest full workspace run (`scheduler-copy-count-20260906/`) has 1,358
-passes, one failing UI aggregate and two skips. Its UI lane has 10,950 passes,
-74 failures and 806 filtered revisions. The four-line append trial was rejected:
+The latest full workspace run (`perfect-shift-bound-trial-20260906/`) has 1,358
+passes, one failing UI aggregate and two skips. Its UI lane has 10,955 passes,
+69 failures and 806 filtered revisions. The four-line append trial was rejected:
 all UI/hot/heavy output is byte-exact with the committed initializer checkpoint,
 but timing pairs 51.59→52.36 and 51.71→59.39 seconds show no benefit. The slow
 second measurement remains retained; the fresh source is reverted. Workspace/all-target Clippy passes.
@@ -81,6 +81,7 @@ or a final sealed-baseline comparison.
 | Memoize recursion reachability | 66.10→60.10; 65.60→55.62 s (−9.1%/−15.2%) | RSS +8.7%/−2.7% |
 | Stop completed stack counts | 54.83→52.07; 55.84→51.59 s (−5.0%/−7.6%) | RSS +3.1%/+5.5% |
 | Count missing copies once | 52.98→52.16; 53.09→52.28 s (−1.5% both) | RSS −2.7%/+0.9% |
+| Bound futile perfect shifts | 52.61→52.20; 52.31→51.87 s (about −0.8% both) | RSS +2.2%/+0.6% |
 
 Fresh reversed sealed/current pairs on the same archived Seaport input are
 54.58→54.71 and 54.37→52.98 seconds, with peak RSS 867,224→603,696 and
@@ -289,6 +290,17 @@ regressed, 52.35→53.09 and 52.36→53.11 seconds, despite exact full output fo
 432 Seaport contracts. The source is reverted. The model's allocation reduction
 was insufficient evidence for a speed claim; first-attempt clearing also adds
 work. `perfect-scratch-reuse-trial-20260906/` retains the measurements and proof.
+
+Perfect-table search now stops at the largest key's bit length (`f3d9a8dc`).
+Every omitted attempt must collide at zero before reserving budget or emitting
+blocks. This keeps the original table policy, per-shift allocation and forced
+256-target support. Two quiet pairs improve about 0.8%; all UI/hot/heavy outputs
+and 26 diagnostics remain exact. Nineteen paired forced/budget/boundary compiles
+preserve full IR and bytecode, including successful shift255. Their exact object
+joins support 609 prior runtime executions, not a claim of fresh executions.
+All 99 helpers, Clippy and Foundry pass; the full workspace retains 69 UI failures.
+Evidence is in `perfect-shift-bound-{trial,focused}-20260906/`. The sealed gas/size
+ledger remains the writer-delta ledger by complete output identity.
 
 Finish all supported behavior and investigate every remaining assertion before
 updating it. Repeat full workspace/UI, Foundry, differential, both size corpora,
