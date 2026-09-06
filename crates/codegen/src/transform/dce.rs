@@ -5,8 +5,8 @@
 use crate::{
     analysis::CfgInfo,
     mir::{
-        BlockId, EffectKind, Function, InstId, InstKind, Module, Terminator, ValueId,
-        utils::repair_reachability_phis,
+        BlockId, EffectKind, Function, InstId, InstKind, Module, ValueId,
+        utils::invalidate_unreachable_block,
     },
     pass::{MirPass, run_function_pass},
 };
@@ -27,9 +27,7 @@ impl MirPass for Dce {
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
         run_function_pass(module, analyses, |func, _| {
-            let removed = DeadCodeEliminator::new().run_to_fixpoint(func);
-            let repaired = repair_reachability_phis(func);
-            removed != 0 || repaired
+            DeadCodeEliminator::new().run_to_fixpoint(func) != 0
         })
     }
 }
@@ -109,15 +107,8 @@ impl DeadCodeEliminator {
         // but we can clear their contents to prevent codegen)
         let mut changed = 0;
         for block_id in unreachable {
-            let block = func.block_mut(block_id);
-            changed += usize::from(
-                !block.instructions.is_empty()
-                    || !matches!(block.terminator, Some(Terminator::Invalid))
-                    || !block.predecessors.is_empty(),
-            );
-            block.instructions.clear();
-            block.terminator = Some(Terminator::Invalid);
-            block.predecessors.clear();
+            // unreachable block -> invalid
+            changed += usize::from(invalidate_unreachable_block(func, block_id));
         }
         changed
     }

@@ -27,7 +27,7 @@ use crate::{
     analysis::CfgInfo,
     mir::{
         BlockId, Function, InstKind, Module, Terminator, Value, ValueId,
-        utils::repair_reachability_phis,
+        utils::fold_terminator_to_jump,
     },
     pass::{MirPass, run_function_pass},
 };
@@ -55,9 +55,7 @@ impl MirPass for CheckElim {
         run_function_pass(module, analyses, |func, analyses| {
             let mut eliminator = CheckEliminator::new();
             eliminator.cfg = Some(Rc::clone(&analyses.cfg));
-            let changed = eliminator.run(func) != 0;
-            let repaired = repair_reachability_phis(func);
-            changed || repaired
+            eliminator.run(func) != 0
         })
     }
 }
@@ -168,7 +166,8 @@ impl CheckEliminator {
             return 0;
         }
         for &(block, keep) in &folds {
-            func.blocks[block].terminator = Some(Terminator::Jump(keep));
+            // jumpi condition, ..., keep -> jump keep
+            fold_terminator_to_jump(func, block, keep);
         }
         self.stats.branches_folded = folds.len();
         folds.len()

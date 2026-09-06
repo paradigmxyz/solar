@@ -1,4 +1,8 @@
 //! Shared MIR utility helpers.
+//!
+//! CFG rewrites must maintain terminators, predecessor lists, and phi inputs together. Prefer the
+//! local edge helpers below; the bulk repair helper is for transforms that construct these in
+//! batches. Neither kind of helper updates cached analyses or supplies values for new phi edges.
 
 use crate::mir::{BasicBlock, BlockId, Function, InstKind, Terminator, ValueId};
 use alloy_primitives::U256;
@@ -168,8 +172,77 @@ pub(crate) fn split_edge(func: &mut Function, pred: BlockId, succ: BlockId) -> B
     new_block
 }
 
+/// Removes a logical edge's predecessor entry and phi inputs after its last occurrence is gone.
+fn remove_predecessor(func: &mut Function, block: BlockId, predecessor: BlockId) {
+    func.blocks[block].predecessors.retain(|pred| *pred != predecessor);
+    // phi [..., predecessor: value, ...] -> phi [...]
+    let count = func.blocks[block].instructions.len();
+    for index in 0..count {
+        let id = func.blocks[block].instructions[index];
+        if let InstKind::Phi(incoming) = &mut func.inst_mut(id).kind {
+            incoming.retain(|&(pred, _)| pred != predecessor);
+        }
+    }
+}
+
+/// Folds a terminator to one of its existing successors and updates affected CFG links and phis.
+///
+/// The kept edge retains its phi values even when several branch arms or switch cases target it.
+/// This cannot introduce an edge: callers that redirect control must supply the new phi values.
+/// Terminator debug metadata is preserved. Cached CFG analyses must still be invalidated.
+pub(crate) fn fold_terminator_to_jump(func: &mut Function, block: BlockId, target: BlockId) {
+    let mut successors = func.blocks[block].terminator.as_ref().unwrap().successors();
+    assert!(successors.contains(&target), "folded target must be an existing successor");
+    successors.sort_unstable();
+    successors.dedup();
+    // branch/switch ..., target, ... -> jump target !metadata(old terminator)
+    func.blocks[block].terminator = Some(Terminator::Jump(target));
+    for successor in successors {
+        if successor != target {
+            remove_predecessor(func, successor, block);
+        }
+    }
+    // Multiple physical edges collapse to one; the logical phi input is unchanged.
+    let predecessors = &mut func.blocks[target].predecessors;
+    let first = predecessors.iter().position(|&pred| pred == block).unwrap();
+    let mut index = 0;
+    predecessors.retain(|pred| {
+        let keep = *pred != block || index == first;
+        index += 1;
+        keep
+    });
+}
+
+/// Clears a block proven unreachable and removes its outgoing CFG links and phi inputs.
+///
+/// Incoming edges remain until their source terminators change, including edges from other dead
+/// blocks. Keeping those backlinks makes this operation independent of block deletion order.
+/// Cached CFG analyses must still be invalidated. Returns whether the block changed.
+#[must_use]
+pub(crate) fn invalidate_unreachable_block(func: &mut Function, block: BlockId) -> bool {
+    if func.blocks[block].instructions.is_empty()
+        && matches!(func.blocks[block].terminator, Some(Terminator::Invalid))
+    {
+        return false;
+    }
+    let mut successors =
+        func.blocks[block].terminator.as_ref().map(Terminator::successors).unwrap_or_default();
+    successors.sort_unstable();
+    successors.dedup();
+    // unreachable block -> invalid
+    func.blocks[block].instructions.clear();
+    func.blocks[block].terminator = Some(Terminator::Invalid);
+    for successor in successors {
+        remove_predecessor(func, successor, block);
+    }
+    true
+}
+
 /// Rebuilds CFG edge lists from terminators and drops phi inputs from blocks
 /// that are no longer predecessors. Returns true if either changed.
+///
+/// This does not add missing phi inputs or repair SSA dominance. Use local edge helpers for
+/// incremental rewrites; reserve this scan for transforms that build CFG links in batches.
 #[must_use]
 pub(crate) fn repair_reachability_phis(func: &mut Function) -> bool {
     let mut predecessors = index_vec![smallvec![]; func.blocks.len()];

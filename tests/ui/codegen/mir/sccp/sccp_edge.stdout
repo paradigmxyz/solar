@@ -48,3 +48,31 @@
 +     invalid
   }
   
+  fn @duplicate_switch_edges(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+-     switch 1, default bb2, [1 => bb1, 2 => bb1, 3 => bb2]
+-   bb2:
+      jump bb1
+    bb1:
+-     v0 = phi [bb0: arg0], [bb2: arg1]
++     v0 = phi [bb0: arg0]
+      ret v0
++   bb2:
++     invalid
+  }
+  
+  fn @fold_loop_backedge(arg0: u256) -> u256 {
+    bb0:
+      jump bb1
+    bb1:
+-     v0 = phi [bb0: arg0], [bb1: 7]
+-     jumpi 0, bb1, bb2
++     v0 = phi [bb0: arg0]
++     jump bb2
+    bb2:
+      ret v0
+    bb3:
+-     jump bb3
++     invalid
+  }
+  

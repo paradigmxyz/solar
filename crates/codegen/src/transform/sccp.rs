@@ -17,7 +17,7 @@
 use crate::{
     mir::{
         BlockId, Function, Immediate, InstId, InstKind, Module, Terminator, Value, ValueId,
-        utils::{self as mir_utils, repair_reachability_phis},
+        utils as mir_utils,
     },
     pass::{MirPass, run_function_pass},
     utils::eval,
@@ -608,20 +608,10 @@ impl SccpCx {
 
         // Phase 5: Apply branch/switch rewrites.
         for (block_id, target) in control_rewrites {
-            let old_successors = func.blocks[block_id]
-                .terminator
-                .as_ref()
-                .map(Terminator::successors)
-                .unwrap_or_default();
             let was_switch =
                 matches!(func.blocks[block_id].terminator, Some(Terminator::Switch { .. }));
-            for successor in old_successors {
-                func.blocks[successor].predecessors.retain(|pred| *pred != block_id);
-            }
-            if !func.blocks[target].predecessors.contains(&block_id) {
-                func.blocks[target].predecessors.push(block_id);
-            }
-            func.blocks[block_id].terminator = Some(Terminator::Jump(target));
+            // branch/switch ..., target, ... -> jump target
+            mir_utils::fold_terminator_to_jump(func, block_id, target);
             if was_switch {
                 self.stats.switches_folded += 1;
             } else {
@@ -634,29 +624,15 @@ impl SccpCx {
             if executable_blocks.contains(block_id) {
                 continue;
             }
-            let block = &mut func.blocks[block_id];
-            // Predecessor lists are rebuilt from terminators by
-            // `repair_reachability_phis` below, so a never-taken switch target
-            // keeps a predecessor entry; checking it here would re-count the
-            // block as invalidated on every run.
-            let already_invalid = block.instructions.is_empty()
-                && matches!(block.terminator, Some(Terminator::Invalid));
-            if already_invalid {
-                continue;
-            }
-            block.instructions.clear();
-            block.terminator = Some(Terminator::Invalid);
-            block.predecessors.clear();
-            self.stats.blocks_invalidated += 1;
+            // non-executable block -> invalid
+            self.stats.blocks_invalidated +=
+                usize::from(mir_utils::invalidate_unreachable_block(func, block_id));
         }
-
-        let reachability_repaired = repair_reachability_phis(func);
 
         self.stats.constants_folded
             + self.stats.branches_folded
             + self.stats.switches_folded
             + self.stats.blocks_invalidated
-            + usize::from(reachability_repaired)
     }
 }
 
