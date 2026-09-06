@@ -31,7 +31,8 @@
 //! terminators retain their existing behavior, and metadata is never discarded. A final
 //! taken-edge-only cleanup redirects duplicate exits to surviving identical
 //! bodies without adding a transfer or changing the surviving layout. The
-//! earliest identical body remains the owner and may gain a JUMPDEST. Only
+//! earliest identical body remains the owner and may gain a JUMPDEST, except
+//! when the module forwards gas: then the owner must already be addressable. Only
 //! taken-only duplicates can be removed; computed control and code-address
 //! observations block the transform. Placement
 //! forms unconditional and conditional-false traces, removing their encoded
@@ -543,13 +544,16 @@ fn redirect_terminals(module: &mut Module) -> bool {
     let ids = module.block_ids().collect::<Vec<_>>();
     let mut protected = DenseBitSet::new_empty(module.blocks.len());
     let mut taken = DenseBitSet::new_empty(module.blocks.len());
+    let mut forwards_gas = false;
     if let Some(&entry) = ids.first() {
         protected.insert(entry);
     }
-    for &id in &ids {
+    for (position, &id) in ids.iter().enumerate() {
+        let next = ids.get(position + 1).copied();
         let block = &module.blocks[id];
         if block.terminator.kind == TerminatorKind::DynamicJump
             || block.insts.iter().any(|inst| {
+                forwards_gas |= observes_gas(inst);
                 matches!(
                     inst.kind,
                     InstKind::PushLabel(_) | InstKind::PushData { .. } | InstKind::PushDeferred(_)
@@ -576,10 +580,16 @@ fn redirect_terminals(module: &mut Module) -> bool {
         match &block.terminator.kind {
             TerminatorKind::Jump(target) => {
                 protected.insert(*target);
+                if Some(*target) != next {
+                    taken.insert(*target);
+                }
             }
             TerminatorKind::JumpI(yes, no) => {
                 taken.insert(*yes);
                 protected.insert(*no);
+                if Some(*no) != next {
+                    taken.insert(*no);
+                }
             }
             TerminatorKind::IndexedJump(targets) => {
                 for &target in targets {
@@ -602,7 +612,8 @@ fn redirect_terminals(module: &mut Module) -> bool {
     let mut targets = module.blocks.indices().collect::<IndexVec<BlockId, _>>();
     let mut changed = false;
     for (index, &id) in candidates.iter().enumerate() {
-        if targets[id] != id {
+        // A new JUMPDEST can change gas observed by an external callee.
+        if targets[id] != id || (forwards_gas && !taken.contains(id)) {
             continue;
         }
         for &other in &candidates[index + 1..] {
