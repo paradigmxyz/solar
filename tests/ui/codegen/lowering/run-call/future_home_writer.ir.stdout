@@ -1,9 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/future_home_writer.sol:FutureHomeWriter (runtime) ===
 @module FutureHomeWriter_runtime
 bb0:
-  push 736
-  push 64
-  mstore
   jump bb11
 bb1:
   calldatasize
@@ -24,6 +21,9 @@ bb3:
   swap 1
   jump bb6
 bb4:
+  push 736
+  push 64
+  mstore
   jump bb1
 bb5:
   push 64
