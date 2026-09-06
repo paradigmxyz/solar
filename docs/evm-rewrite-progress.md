@@ -161,8 +161,16 @@ count33 calibration and 21,209 candidate label checks. None closes the retained
 selector-gas debt, so it supplies no production policy. Its initial implicit-STOP
 oracle failure is retained in `packed-bucket-count-screen-20260906/`.
 
-Current work measures a constant opcode stack-effect table and studies reuse of
-successor-aware preparation for acyclic checked comparisons. The library wrapper
+A constant opcode stack-effect table was rejected and reverted. All 256 effects
+match in compiled Rust and all 432 timed contract outputs stay exact, but times
+53.02→52.98 and 53.02→53.21 seconds show no reliable benefit. Its 12 added lines
+and 768-byte static table are absent. The initial pure-harness assertion confused
+SELFDESTRUCT with INVALID; the corrected exhaustive check and original failure
+are retained in `opcode-stack-table-trial-20260906/`. Broader suites were not run
+after the timing rejection.
+
+Current work studies reuse of successor-aware preparation for acyclic checked
+comparisons. The library wrapper
 remains two gas above sealed; loop short paths and acyclic phi size debts also
 remain withheld in `library-phi-review-20260906/`. Finish supported functionality,
 resolve every expectation, and repeat full workspace/UI, Foundry, differential,
