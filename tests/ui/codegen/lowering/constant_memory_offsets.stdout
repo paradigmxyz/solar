@@ -45,11 +45,11 @@ bb1:
   push 32
   push 128
   return
-bb11:
+bb11 [cold]:
   push 0
   push 0
   revert
-bb13:
+bb13 [cold]:
   push 0x4e487b71
   push 224
   shl

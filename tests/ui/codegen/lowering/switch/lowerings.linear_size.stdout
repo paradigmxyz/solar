@@ -13,7 +13,7 @@ bb1:
 bb30:
   push 100
   jump bb32
-bb10:
+bb10 [cold]:
   push 0
   push 0
   revert

@@ -5,7 +5,7 @@ bb0:
   jumpi bb6, bb4
 bb4:
   stop
-bb6:
+bb6 [cold]:
   push 0
   push 0
   revert

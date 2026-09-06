@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/library_wrapper_storage_param.sol:DataTypes (runtime) ===
 @module DataTypes_runtime
-bb0:
+bb0 [cold]:
   push 0
   push 0
   revert
@@ -80,7 +80,7 @@ bb5:
   push 32
   push 128
   return
-bb2:
+bb2 [cold]:
   push 0x4e487b71
   push 224
   shl
@@ -92,7 +92,7 @@ bb2:
   push 36
   push 0
   revert
-bb6:
+bb6 [cold]:
   push 0
   push 0
   revert

@@ -66,7 +66,7 @@ library L {
     // CHECK: jumpi [[PANIC]], [[RETURN:bb[0-9]+]]
     // CHECK-NEXT: [[RETURN]]:
     // CHECK: return
-    // CHECK: [[PANIC]]:
+    // CHECK: [[PANIC]]{{( \[cold\])?}}:
     // CHECK-NEXT: push 0x4e487b71
     // CHECK: push 17
     // CHECK: revert

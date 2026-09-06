@@ -7,7 +7,7 @@ contract ConstructorSuccessPostlude {
     // CHECK-NEXT: jumpi [[FAIL:bb[0-9]+]], {{bb[0-9]+}}
     // CHECK: gt
     // CHECK-NEXT: jumpi [[FAIL]], {{bb[0-9]+}}
-    // CHECK: [[FAIL]]:
+    // CHECK: [[FAIL]]{{( \[cold\])?}}:
     // CHECK: revert
     // CHECK: jumpi [[FAIL]], [[SUCCESS:bb[0-9]+]]
     // CHECK: [[SUCCESS]]:

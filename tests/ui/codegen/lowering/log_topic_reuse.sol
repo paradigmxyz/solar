@@ -25,7 +25,7 @@ contract LogTopicReuse {
     // CHECK: log2
     // CHECK: sstore
     // CHECK-NEXT: stop
-    // CHECK: [[DISPATCH_REVERT]]:
+    // CHECK: [[DISPATCH_REVERT]]{{( \[cold\])?}}:
     // CHECK-NEXT: push 0
     // CHECK-NEXT: push 0
     // CHECK-NEXT: revert

@@ -17,7 +17,7 @@ contract WhileEmptyBody {
     // CHECK-NEXT: jumpi [[LOOP]], [[EXIT:bb[0-9]+]]
     // CHECK: [[EXIT]]:
     // CHECK-NEXT: stop
-    // CHECK: [[FAIL]]:
+    // CHECK: [[FAIL]]{{( \[cold\])?}}:
     // CHECK-NEXT: push 0
     // CHECK-NEXT: push 0
     // CHECK-NEXT: revert

@@ -20,7 +20,7 @@ bb1:
   push 8
   gt
   jumpi bb17, bb18
-bb18:
+bb18 [cold]:
   push 0
   push 0
   revert

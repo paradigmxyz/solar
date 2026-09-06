@@ -27,7 +27,7 @@ contract E {
     // CHECK-NEXT: calldataload
     // CHECK-NEXT: lt
     // CHECK-NEXT: jumpi [[BODY:bb[0-9]+]], [[PANIC:bb[0-9]+]]
-    // CHECK-NEXT: [[PANIC]]:
+    // CHECK-NEXT: [[PANIC]]{{( \[cold\])?}}:
     // CHECK-NEXT: push 0x4e487b71
     // CHECK-NEXT: push 224
     // CHECK-NEXT: shl
@@ -44,7 +44,7 @@ contract E {
     // CHECK-NEXT: calldataload
     // CHECK-NEXT: iszero
     // CHECK: return
-    // CHECK: [[REJECT]]:
+    // CHECK: [[REJECT]]{{( \[cold\])?}}:
     // CHECK-NEXT: push 0
     // CHECK-NEXT: push 0
     // CHECK-NEXT: revert

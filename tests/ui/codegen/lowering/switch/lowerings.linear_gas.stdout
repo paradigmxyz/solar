@@ -17,7 +17,7 @@ bb30:
   push 32
   push 0
   return
-bb10:
+bb10 [cold]:
   push 0
   push 0
   revert

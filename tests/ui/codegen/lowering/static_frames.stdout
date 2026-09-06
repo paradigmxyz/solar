@@ -71,10 +71,10 @@ bb40:
   exchange 1, 2
   eq
   jumpi bb42, bb99
-bb99:
+bb99 [cold]:
   pop
   jump bb41
-bb41:
+bb41 [cold]:
   pop
   jump bb65
 bb73:
@@ -162,7 +162,7 @@ bb81:
   swap 2
   eq
   jumpi bb16, bb82
-bb82:
+bb82 [cold]:
   pop
   pop
   jump bb14
@@ -198,7 +198,7 @@ bb21:
   swap 2
   eq
   jumpi bb22, bb86
-bb86:
+bb86 [cold]:
   pop
   pop
   pop
@@ -366,7 +366,7 @@ bb29:
   mstore
   swap 1
   jump
-bb10:
+bb10 [cold]:
   push 0
   push 0
   revert
@@ -483,22 +483,22 @@ bb57:
   push bb110
   swap 2
   jump bb45
-bb70:
+bb70 [cold]:
   push 0
   push 0
   revert
-bb75:
+bb75 [cold]:
   pop
   pop
   pop
   pop
   pop
   jump bb4
-bb4:
+bb4 [cold]:
   jump bb65
-bb65:
+bb65 [cold]:
   jump bb64
-bb64:
+bb64 [cold]:
   push 0x4e487b71
   push 224
   shl
@@ -510,107 +510,107 @@ bb64:
   push 36
   push 0
   revert
-bb76:
+bb76 [cold]:
   pop
   pop
   pop
   jump bb4
-bb77:
+bb77 [cold]:
   pop
   pop
   jump bb4
-bb78:
+bb78 [cold]:
   pop
   jump bb4
-bb80:
+bb80 [cold]:
   pop
   pop
   jump bb14
-bb14:
+bb14 [cold]:
   pop
   jump bb65
-bb83:
+bb83 [cold]:
   pop
   jump bb14
-bb85:
+bb85 [cold]:
   pop
   pop
   pop
   pop
   jump bb20
-bb20:
+bb20 [cold]:
   pop
   jump bb65
-bb87:
+bb87 [cold]:
   pop
   pop
   jump bb20
-bb88:
+bb88 [cold]:
   pop
   jump bb20
-bb89:
+bb89 [cold]:
   pop
   pop
   jump bb27
-bb27:
+bb27 [cold]:
   pop
   jump bb65
-bb90:
+bb90 [cold]:
   pop
   pop
   jump bb27
-bb91:
+bb91 [cold]:
   pop
   pop
   pop
   jump bb32
-bb32:
+bb32 [cold]:
   pop
   jump bb65
-bb94:
+bb94 [cold]:
   pop
   pop
   pop
   jump bb32
-bb96:
+bb96 [cold]:
   pop
   pop
   jump bb32
-bb98:
+bb98 [cold]:
   pop
   jump bb32
-bb100:
+bb100 [cold]:
   pop
   jump bb41
-bb103:
+bb103 [cold]:
   pop
   jump bb48
-bb48:
+bb48 [cold]:
   pop
   jump bb65
-bb105:
+bb105 [cold]:
   pop
   pop
   pop
   jump bb48
-bb107:
+bb107 [cold]:
   pop
   jump bb48
-bb109:
+bb109 [cold]:
   pop
   pop
   jump bb56
-bb56:
+bb56 [cold]:
   pop
   jump bb65
-bb111:
+bb111 [cold]:
   pop
   jump bb56
-bb112:
+bb112 [cold]:
   pop
   pop
   jump bb61
-bb61:
+bb61 [cold]:
   pop
   jump bb65
 bb114:
@@ -640,6 +640,6 @@ bb11:
   calldataload
   eq
   jumpi bb5, bb79
-bb79:
+bb79 [cold]:
   pop
   jump bb4

@@ -19,7 +19,7 @@ bb1:
   push 32
   push 128
   return
-bb6:
+bb6 [cold]:
   push 0
   dup 1
   invalid
@@ -69,7 +69,7 @@ bb25:
   dup 2
   extcodesize
   jumpi bb3, bb2
-bb2:
+bb2 [cold]:
   push 0
   dup 1
   invalid
@@ -114,7 +114,7 @@ bb26:
   dup 2
   extcodesize
   jumpi bb8, bb7
-bb7:
+bb7 [cold]:
   push 0
   dup 1
   invalid
@@ -166,7 +166,7 @@ bb9:
   push 32
   push 128
   return
-bb15:
+bb15 [cold]:
   push 0
   dup 1
   invalid

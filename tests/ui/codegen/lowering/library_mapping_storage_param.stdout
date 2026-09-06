@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/library_mapping_storage_param.sol:L (runtime) ===
 @module L_runtime
-bb0:
+bb0 [cold]:
   push 0
   push 0
   revert
@@ -67,11 +67,11 @@ bb15:
   push 32
   push 128
   return
-bb2:
+bb2 [cold]:
   push 0
   push 0
   revert
-bb16:
+bb16 [cold]:
   push 0x4e487b71
   push 224
   shl

@@ -20,7 +20,7 @@ contract StackPhiLoop {
     // CHECK-NEXT: dup 2
     // CHECK-NEXT: mul
     // CHECK: jumpi [[PRODUCT:bb[0-9]+]], [[PANIC:bb[0-9]+]]
-    // CHECK-NEXT: [[PANIC]]:
+    // CHECK-NEXT: [[PANIC]]{{( \[cold\])?}}:
     // CHECK: revert
     // CHECK-NEXT: [[PRODUCT]]:
     // CHECK: jumpi [[PANIC]], [[ACCUMULATE:bb[0-9]+]]

@@ -66,7 +66,7 @@ contract SwitchLowerings {
     // DENSE-NEXT: push 57
     // DENSE-NEXT: gt
     // DENSE-NEXT: jumpi [[TABLE:bb[0-9]+]], [[DEFAULT:bb[0-9]+]]
-    // DENSE-NEXT: [[DEFAULT]]:
+    // DENSE-NEXT: [[DEFAULT]]{{( \[cold\])?}}:
     // DENSE-NEXT: push 0
     // DENSE-NEXT: push 0
     // DENSE-NEXT: revert

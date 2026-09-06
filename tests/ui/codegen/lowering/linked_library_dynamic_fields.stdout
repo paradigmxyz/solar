@@ -81,7 +81,7 @@ bb15:
   dup 3
   eq
   jumpi bb17, bb16
-bb16:
+bb16 [cold]:
   push 0x4e487b71
   push 224
   shl
@@ -129,7 +129,7 @@ bb6:
   eq
   or
   jumpi bb42, bb7
-bb7:
+bb7 [cold]:
   push 0x4e487b71
   push 224
   shl
@@ -141,7 +141,7 @@ bb7:
   push 36
   push 0
   revert
-bb11:
+bb11 [cold]:
   push 0
   push 0
   revert
@@ -367,7 +367,7 @@ bb37:
   swap 2
   swap 1
   jumpi bb6, bb41
-bb41:
+bb41 [cold]:
   push 0x4e487b71
   push 224
   shl
@@ -479,11 +479,11 @@ bb4:
   push 32
   push 128
   return
-bb2:
+bb2 [cold]:
   push 0
   push 0
   revert
-bb9:
+bb9 [cold]:
   push 0
   push 0
   revert
@@ -607,7 +607,7 @@ bb24:
   swap 3
   delegatecall
   jumpi bb15, bb14
-bb14:
+bb14 [cold]:
   returndatasize
   push 0
   push 0
@@ -615,7 +615,7 @@ bb14:
   returndatasize
   push 0
   revert
-bb30:
+bb30 [cold]:
   push 0
   push 0
   revert
@@ -977,7 +977,7 @@ bb22:
   dup 5
   eq
   jumpi bb45, bb7
-bb7:
+bb7 [cold]:
   push 0x4e487b71
   push 224
   shl

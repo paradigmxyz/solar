@@ -27,7 +27,7 @@ bb27:
 bb9:
   push 107
   jump bb32
-bb10:
+bb10 [cold]:
   push 0
   push 0
   revert

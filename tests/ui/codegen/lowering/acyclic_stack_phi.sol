@@ -35,7 +35,7 @@ contract AcyclicStackPhi {
     // CHECK-NEXT: add
     // CHECK-NEXT: mload
     // CHECK: return
-    // CHECK-NEXT: [[REJECT]]:
+    // CHECK-NEXT: [[REJECT]]{{( \[cold\])?}}:
     // CHECK-NEXT: push 0
     // CHECK-NEXT: push 0
     // CHECK-NEXT: revert

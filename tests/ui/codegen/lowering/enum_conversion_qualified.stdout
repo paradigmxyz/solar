@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/enum_conversion_qualified.sol:DataTypes (runtime) ===
 @module DataTypes_runtime
-bb0:
+bb0 [cold]:
   push 0
   push 0
   revert
@@ -33,7 +33,7 @@ bb5:
   calldataload
   lt
   jumpi bb3, bb13
-bb13:
+bb13 [cold]:
   push 0x4e487b71
   push 224
   shl
@@ -54,7 +54,7 @@ bb3:
   push 32
   push 128
   return
-bb4:
+bb4 [cold]:
   push 0
   push 0
   revert

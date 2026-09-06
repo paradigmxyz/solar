@@ -102,7 +102,7 @@ bb5:
   push 64
   mstore
   return
-bb11:
+bb11 [cold]:
   push 0
   push 0
   revert
@@ -162,7 +162,7 @@ bb15:
   create
   dup 1
   jumpi bb17, bb16
-bb16:
+bb16 [cold]:
   returndatasize
   push 0
   push 0
@@ -194,7 +194,7 @@ bb3:
   swap 4
   staticcall
   jumpi bb4, bb2
-bb2:
+bb2 [cold]:
   returndatasize
   push 0
   push 0
@@ -215,7 +215,7 @@ bb6:
   push 32
   push 128
   return
-bb5:
+bb5 [cold]:
   push 0
   push 0
   revert
@@ -243,7 +243,7 @@ bb10:
   swap 4
   staticcall
   jumpi bb11, bb9
-bb9:
+bb9 [cold]:
   returndatasize
   push 0
   push 0
@@ -264,7 +264,7 @@ bb13:
   push 32
   push 128
   return
-bb12:
+bb12 [cold]:
   push 0
   push 0
   revert
@@ -346,7 +346,7 @@ bb21:
   swap 4
   staticcall
   jumpi bb22, bb16
-bb20:
+bb20 [cold]:
   push 0
   push 0
   revert
@@ -370,11 +370,11 @@ bb25:
   push 32
   push 128
   return
-bb32:
+bb32 [cold]:
   push 0
   push 0
   revert
-bb42:
+bb42 [cold]:
   push 0x4e487b71
   push 224
   shl

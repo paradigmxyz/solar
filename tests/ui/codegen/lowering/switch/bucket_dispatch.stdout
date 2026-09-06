@@ -12,7 +12,7 @@ bb66:
   dup 2
   mod
   indexed_jump bb99, bb104, bb105, bb112, bb99, bb99, bb99, bb99, bb119, bb99, bb99, bb99, bb123, bb124, bb125, bb126, bb129, bb130, bb99, bb99, bb133, bb99, bb99, bb136, bb141, bb142, bb145, bb146, bb147, bb148, bb149, bb152, bb155
-bb99:
+bb99 [cold]:
   push 0
   push 0
   revert

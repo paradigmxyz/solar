@@ -62,7 +62,7 @@ bb5:
   signextend
   eq
   jumpi bb6, bb3
-bb3:
+bb3 [cold]:
   push 0
   push 0
   revert
@@ -228,7 +228,7 @@ bb1:
   push 192
   push 128
   return
-bb6:
+bb6 [cold]:
   push 0
   push 0
   revert

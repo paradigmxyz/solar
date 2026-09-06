@@ -21,7 +21,7 @@ contract R {
     // CHECK-NEXT: push 32
     // CHECK-NEXT: push 0
     // CHECK-NEXT: return
-    // CHECK: [[FAIL]]:
+    // CHECK: [[FAIL]]{{( \[cold\])?}}:
     // CHECK-NEXT: push 0
     // CHECK-NEXT: push 0
     // CHECK-NEXT: revert

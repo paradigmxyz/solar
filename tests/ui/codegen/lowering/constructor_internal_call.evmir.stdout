@@ -83,11 +83,11 @@ bb8:
   dup 3
   eq
   jumpi bb10, bb17
-bb17:
+bb17 [cold]:
   pop
   pop
   jump bb9
-bb9:
+bb9 [cold]:
   push 0x4e487b71
   push 224
   shl
@@ -107,17 +107,17 @@ bb10:
   push bb18
   swap 1
   jump bb12
-bb13:
+bb13 [cold]:
   pop
   jump bb3
-bb3:
+bb3 [cold]:
   push 0
   push 0
   revert
-bb14:
+bb14 [cold]:
   pop
   jump bb3
-bb19:
+bb19 [cold]:
   pop
   jump bb9
 
@@ -142,7 +142,7 @@ bb1:
   push 32
   push 128
   return
-bb6:
+bb6 [cold]:
   push 0
   push 0
   revert

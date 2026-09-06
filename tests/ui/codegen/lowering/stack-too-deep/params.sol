@@ -20,7 +20,7 @@ contract StackTooDeepParams {
     // CHECK-NEXT: calldataload
     // CHECK: add
     // CHECK: return
-    // CHECK: [[DISPATCH_REVERT]]:
+    // CHECK: [[DISPATCH_REVERT]]{{( \[cold\])?}}:
     // CHECK-NEXT: push 0
     // CHECK-NEXT: push 0
     // CHECK-NEXT: revert

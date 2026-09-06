@@ -67,7 +67,7 @@ contract C {
     // CHECK: push 0x1000000000000000000000000000000000000001
     // CHECK: delegatecall
     // CHECK-NEXT: jumpi {{bb[0-9]+}}, [[FAIL:bb[0-9]+]]
-    // CHECK-NEXT: [[FAIL]]:
+    // CHECK-NEXT: [[FAIL]]{{( \[cold\])?}}:
     // CHECK: returndatacopy
     // CHECK: revert
     mapping(address => uint256) public score;
