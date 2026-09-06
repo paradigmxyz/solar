@@ -1,0 +1,23 @@
+- // === ROOT/tests/ui/codegen/evm-ir/literal-orientation/forwarded_call.evmir (before literal-orientation) ===
++ // === ROOT/tests/ui/codegen/evm-ir/literal-orientation/forwarded_call.evmir (after literal-orientation) ===
+  @module LateOrientationForwardedCall
+  bb0:
+    push 11
+    push 12
+    push 7
+    swap 1
+    swap 2
+    add
+    push 32
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0x1000
+    push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    call
+    pop
+    push 32
+    push 0
+    return
+  

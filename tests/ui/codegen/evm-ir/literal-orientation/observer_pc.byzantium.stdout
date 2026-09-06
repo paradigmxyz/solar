@@ -1,0 +1,17 @@
+- // === ROOT/tests/ui/codegen/evm-ir/literal-orientation/observer_pc.evmir (before literal-orientation) ===
++ // === ROOT/tests/ui/codegen/evm-ir/literal-orientation/observer_pc.evmir (after literal-orientation) ===
+  @module LateOrientationPC
+  bb0:
+    push 11
+    push 12
+    push 7
+    swap 1
+    swap 2
+    add
+    pc
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  

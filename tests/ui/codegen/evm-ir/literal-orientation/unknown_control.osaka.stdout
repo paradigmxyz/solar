@@ -1,0 +1,14 @@
+- // === ROOT/tests/ui/codegen/evm-ir/literal-orientation/unknown_control.evmir (before literal-orientation) ===
++ // === ROOT/tests/ui/codegen/evm-ir/literal-orientation/unknown_control.evmir (after literal-orientation) ===
+  @module LateOrientationUnknownControl
+  bb0:
+    push 11
+    push 12
+    push 7
+    swap 1
+    swap 2
+    add
+    push 0
+    calldataload
+    jump
+  

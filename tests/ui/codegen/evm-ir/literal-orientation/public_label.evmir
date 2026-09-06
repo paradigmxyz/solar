@@ -1,0 +1,29 @@
+//@ revisions: byzantium osaka
+//@ compile-flags: -Ogas -Zevm-ir-pipeline=literal-orientation
+//@[byzantium] compile-flags: --evm-version byzantium
+//@[osaka] compile-flags: --evm-version osaka
+//@ filecheck:
+@module LateOrientationPublicLabel
+
+// The pushed label is returned as data. Parsed IR carries no private proof.
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK: {{^[ +].*}}push 7
+// CHECK-NEXT: {{^[ +].*}}swap 1
+// CHECK-NEXT: {{^[ +].*}}swap 2
+// CHECK-NEXT: {{^[ +].*}}add
+// CHECK: {{^[ +].*}}push bb1
+bb0:
+  push 11
+  push 12
+  push 7
+  swap 1
+  swap 2
+  add
+  push bb1
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb1:
+  stop

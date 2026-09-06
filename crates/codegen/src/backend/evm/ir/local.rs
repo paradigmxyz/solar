@@ -20,10 +20,12 @@ use solar_sema::Gcx;
 mod cse;
 mod dead_copies;
 mod memory_roundtrip;
+mod orientation;
 mod peephole;
 mod stack;
 mod terminal;
 
+pub(super) use orientation::LiteralOrientation;
 pub(super) use terminal::TerminalPrefixes;
 
 use cse::common_expressions;
@@ -48,21 +50,7 @@ impl EvmPass for LocalPass {
         // This permission concerns these literal rules, not gas invariance of the pipeline.
         let literal_copy_order =
             matches!(self.0, "dce" | "peephole" | "compact-pushes" | "stack-normalize")
-                && module.block_ids().all(|id| {
-                    module.blocks[id].insts.iter().all(|inst| {
-                        !matches!(inst.kind, InstKind::PushData { .. } | InstKind::PushDeferred(_))
-                            && (!matches!(inst.kind, InstKind::PushLabel(_))
-                                || module.private_control_labels)
-                            && !matches!(inst.kind, InstKind::Op(code)
-                            if op::stack_io(code).is_none()
-                                || matches!(code, op::PC | op::GAS | op::CODESIZE | op::CODECOPY
-                                    | op::EXTCODECOPY | op::EXTCODESIZE | op::EXTCODEHASH
-                                    | op::JUMP | op::JUMPI | op::JUMPDEST
-                                    | op::CALL | op::CALLCODE | op::DELEGATECALL | op::STATICCALL
-                                    | op::EXTCALL | op::EXTDELEGATECALL | op::EXTSTATICCALL
-                                    | op::CREATE | op::CREATE2 | op::EOFCREATE))
-                    })
-                });
+                && literal_observers_allow(module);
         let facts = (matches!(
             self.0,
             "compact-pushes" | "reorder-pushes" | "dce" | "peephole" | "stack-normalize"
@@ -208,6 +196,24 @@ impl EvmPass for LocalPass {
         }
         changed
     }
+}
+
+/// Checks static code/gas observers; computed transfers need a separate proof.
+fn literal_observers_allow(module: &Module) -> bool {
+    module.block_ids().all(|id| {
+        module.blocks[id].insts.iter().all(|inst| {
+            !matches!(inst.kind, InstKind::PushData { .. } | InstKind::PushDeferred(_))
+                && (!matches!(inst.kind, InstKind::PushLabel(_)) || module.private_control_labels)
+                && !matches!(inst.kind, InstKind::Op(code)
+                if op::stack_io(code).is_none()
+                    || matches!(code, op::PC | op::GAS | op::CODESIZE | op::CODECOPY
+                        | op::EXTCODECOPY | op::EXTCODESIZE | op::EXTCODEHASH
+                        | op::JUMP | op::JUMPI | op::JUMPDEST
+                        | op::CALL | op::CALLCODE | op::DELEGATECALL | op::STATICCALL
+                        | op::EXTCALL | op::EXTDELEGATECALL | op::EXTSTATICCALL
+                        | op::CREATE | op::CREATE2 | op::EOFCREATE))
+        })
+    })
 }
 
 fn canonical(inst: &Instruction) -> bool {

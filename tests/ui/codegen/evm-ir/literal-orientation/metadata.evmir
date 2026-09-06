@@ -1,0 +1,16 @@
+//@ revisions: byzantium osaka
+//@ compile-flags: -Ogas -Zevm-ir-pipeline=literal-orientation
+//@[byzantium] compile-flags: --evm-version byzantium
+//@[osaka] compile-flags: --evm-version osaka
+//~? ERROR: EVM IR verification failed: block 0: `push` has stack effect 0->0, expected 0->1
+@module LateOrientationMetadata
+
+// Validation must reject this before the pass can hide the wrong metadata.
+bb0:
+  push 11
+  push 12
+  push 7 !meta(stack=0->0)
+  swap 1
+  swap 2
+  add
+  stop

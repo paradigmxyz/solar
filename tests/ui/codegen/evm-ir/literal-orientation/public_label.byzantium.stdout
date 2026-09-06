@@ -1,0 +1,19 @@
+- // === ROOT/tests/ui/codegen/evm-ir/literal-orientation/public_label.evmir (before literal-orientation) ===
++ // === ROOT/tests/ui/codegen/evm-ir/literal-orientation/public_label.evmir (after literal-orientation) ===
+  @module LateOrientationPublicLabel
+  bb0:
+    push 11
+    push 12
+    push 7
+    swap 1
+    swap 2
+    add
+    push bb1
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  bb1:
+    stop
+  

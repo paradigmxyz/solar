@@ -1,0 +1,33 @@
+//@ revisions: byzantium osaka
+//@ compile-flags: -Ogas -Zevm-ir-pipeline=literal-orientation
+//@[byzantium] compile-flags: --evm-version byzantium
+//@[osaka] compile-flags: --evm-version osaka
+//@ filecheck:
+@module LateOrientationForwardedCall
+
+// No GAS occurs here: the callee can observe the forwarded-gas difference.
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK: {{^[ +].*}}push 7
+// CHECK-NEXT: {{^[ +].*}}swap 1
+// CHECK-NEXT: {{^[ +].*}}swap 2
+// CHECK-NEXT: {{^[ +].*}}add
+// CHECK: {{^[ +].*}}call
+bb0:
+  push 11
+  push 12
+  push 7
+  swap 1
+  swap 2
+  add
+  push 32
+  push 0
+  push 0
+  push 0
+  push 0
+  push 4096
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  call
+  pop
+  push 32
+  push 0
+  return

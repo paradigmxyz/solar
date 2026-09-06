@@ -1,0 +1,21 @@
+- // === ROOT/tests/ui/codegen/evm-ir/literal-orientation/indexed.evmir (before literal-orientation) ===
++ // === ROOT/tests/ui/codegen/evm-ir/literal-orientation/indexed.evmir (after literal-orientation) ===
+  @module LateOrientationIndexed
+  bb0:
+    push 11
+    push 12
+    push 7
+    swap 1
+    swap 2
+    add
+    push 0
+    indexed_jump bb1
+  bb1:
+    push 0
+    mstore
+    push 32
+    mstore
+    push 64
+    push 0
+    return
+  
