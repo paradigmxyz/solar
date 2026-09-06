@@ -28,6 +28,7 @@ use std::{
     fmt::Write as _,
     ops::ControlFlow,
     path::{Path, PathBuf},
+    sync::Arc,
 };
 
 use crate::{
@@ -59,7 +60,7 @@ pub(crate) struct SymbolTables {
     scopes: IndexVec<ScopeId, Scope>,
     global_completions: Vec<CompletionItem>,
     builtin_member_completions: FxHashMap<String, Vec<CompletionItem>>,
-    receiver_member_completions: FxHashMap<SymbolId, Vec<CompletionItem>>,
+    receiver_member_completions: FxHashMap<SymbolId, Arc<[CompletionItem]>>,
     member_completions: Vec<MemberCompletionScope>,
     file_member_completions: FxHashMap<Url, Vec<usize>>,
     file_scopes: FxHashMap<Url, Vec<ScopeId>>,
@@ -202,7 +203,7 @@ struct ScopedDeclaration {
 struct MemberCompletionScope {
     uri: Url,
     range: Range,
-    items: Vec<CompletionItem>,
+    items: Arc<[CompletionItem]>,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -382,8 +383,10 @@ impl SymbolTables {
         }
         tables.type_hierarchy = TypeHierarchyIndex::build(gcx, &item_symbols, &tables.declarations);
         tables.build_scopes(gcx, &locations);
-        tables.build_receiver_member_completions(gcx);
-        tables.build_member_completions(gcx, &locations);
+        let mut member_completions = FxHashMap::default();
+        tables.build_receiver_member_completions(gcx, &mut member_completions);
+        tables.build_member_completions(gcx, &locations, &mut member_completions);
+        drop(member_completions);
         tables.build_references(gcx, &locations, &item_symbols);
         // HIR IDs are scoped to this compiler run and cannot back published LSP queries.
         tables.symbols_by_key = FxHashMap::default();
@@ -1072,7 +1075,11 @@ impl SymbolTables {
             .collect();
     }
 
-    fn build_receiver_member_completions(&mut self, gcx: Gcx<'_>) {
+    fn build_receiver_member_completions<'gcx>(
+        &mut self,
+        gcx: Gcx<'gcx>,
+        cache: &mut MemberCompletionCache<'gcx>,
+    ) {
         for variable_id in gcx.hir.variable_ids() {
             let Some(&symbol_id) =
                 self.symbols_by_key.get(&SymbolKey::Item(ItemId::Variable(variable_id)))
@@ -1081,8 +1088,13 @@ impl SymbolTables {
             };
             let variable = gcx.hir.variable(variable_id);
             let ty = gcx.type_of_item(ItemId::Variable(variable_id));
-            let items =
-                self.member_completion_items_for_ty(gcx, ty, variable.source, variable.contract);
+            let items = self.member_completion_items_for_ty(
+                gcx,
+                ty,
+                variable.source,
+                variable.contract,
+                cache,
+            );
             if !items.is_empty() {
                 self.receiver_member_completions.insert(symbol_id, items);
             }
@@ -1095,13 +1107,22 @@ impl SymbolTables {
         ty: Ty<'gcx>,
         source: hir::SourceId,
         contract: Option<hir::ContractId>,
-    ) -> Vec<CompletionItem> {
+        cache: &mut MemberCompletionCache<'gcx>,
+    ) -> Arc<[CompletionItem]> {
+        // Member visibility and attached functions depend on both source and contract context.
+        // Keep compiler types in this analysis-local cache and share only the owned LSP items.
+        let key = (ty, source, contract);
+        if let Some(items) = cache.get(&key) {
+            return Arc::clone(items);
+        }
         let mut items = gcx
             .members_of(ty, source, contract)
             .map(|member| self.completion_item_for_member(gcx, member))
             .collect::<Vec<_>>();
         sort_completion_items(&mut items);
         items.dedup_by(|a, b| a.label == b.label);
+        let items = Arc::from(items);
+        cache.insert(key, Arc::clone(&items));
         items
     }
 
@@ -1144,11 +1165,17 @@ impl SymbolTables {
         }
     }
 
-    fn build_member_completions(&mut self, gcx: Gcx<'_>, locations: &proto::LocationConverter) {
+    fn build_member_completions<'gcx>(
+        &mut self,
+        gcx: Gcx<'gcx>,
+        locations: &proto::LocationConverter,
+        cache: &mut MemberCompletionCache<'gcx>,
+    ) {
         let mut collector = MemberCompletionCollector {
             tables: self,
             locations,
             gcx,
+            cache,
             source: None,
             contract: None,
         };
@@ -1561,7 +1588,7 @@ impl SymbolTables {
                     return self
                         .receiver_member_completions
                         .get(&symbol_id)
-                        .map(Vec::as_slice)
+                        .map(AsRef::as_ref)
                         .or(Some(&[]));
                 }
             }
@@ -1966,7 +1993,11 @@ impl<'gcx> hir::Visit<'gcx> for ScopeBuilder<'_, 'gcx> {
     }
 }
 
+type MemberCompletionCache<'gcx> =
+    FxHashMap<(Ty<'gcx>, hir::SourceId, Option<hir::ContractId>), Arc<[CompletionItem]>>;
+
 struct MemberCompletionCollector<'a, 'gcx> {
+    cache: &'a mut MemberCompletionCache<'gcx>,
     tables: &'a mut SymbolTables,
     locations: &'a proto::LocationConverter,
     gcx: Gcx<'gcx>,
@@ -1995,6 +2026,7 @@ impl<'gcx> MemberCompletionCollector<'_, 'gcx> {
             receiver_ty,
             source,
             self.contract,
+            self.cache,
         );
         if items.is_empty() {
             return;
