@@ -111,15 +111,16 @@ impl EvmCodegen<'_> {
         let _changed = crate::pass::run_pipeline(self.gcx, module, None);
         self.gcx.dcx().has_errors()?;
         for (_, function) in module.iter_functions() {
-            if function
+            if let Some(instruction) = function
                 .instructions()
-                .any(|inst| matches!(function.inst(inst).kind, mir::InstKind::StoreImmutable(..)))
+                .map(|inst| function.inst(inst))
+                .find(|inst| matches!(inst.kind, mir::InstKind::StoreImmutable(..)))
             {
                 return Err(self
                     .gcx
                     .dcx()
                     .err("immutable assignments must be lowered before EVM codegen")
-                    .span(module.name.span)
+                    .span(instruction.metadata.source_span().unwrap_or(module.name.span))
                     .note(format!("remaining MIR slice is in function `{}`", function.name))
                     .emit());
             }
