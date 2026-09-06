@@ -15,7 +15,9 @@
 //! sixteen words. Larger windows freeze other residents below explicit backups. Calls and other
 //! writers retain memory homes, and the scheduler validates each proposed mixed layout. Address
 //! placement and dynamic-frame lifetime remain in storage planning; this module emits no physical
-//! instructions.
+//! instructions. Pressure checks include the possible saved protocol prefix. The initial bound
+//! describes an unspilled activation; resident validation uses the bound after a spill can disable
+//! stack arguments. Protected words are retained through preparation and removed before results.
 
 use super::scheduler::Stack;
 use crate::{
@@ -44,11 +46,19 @@ impl SpillPlan {
         live: &Liveness,
         cfg: &CfgInfo,
         alias: &AliasAnalysis,
-        returning: bool,
+        (returning, protocol_words): (bool, [usize; 2]),
         version: EvmVersion,
         stored: impl Fn(mir::ValueId) -> bool,
     ) -> Self {
-        if !exceeds_stack_window(function, live, cfg, returning, version, &stored) {
+        if !exceeds_stack_window(
+            function,
+            live,
+            cfg,
+            alias,
+            (returning, protocol_words[0]),
+            version,
+            &stored,
+        ) {
             return Self::default();
         }
         let mut local = DenseBitSet::new_empty(function.num_values());
@@ -115,9 +125,15 @@ impl SpillPlan {
         let intervals = live_intervals(function, live, cfg, &stored);
         let proposed = resident_candidates(function, live, cfg, alias, &intervals, window, &local);
         if proposed != local
-            && !exceeds_stack_window(function, live, cfg, returning, version, |value| {
-                stored(value) && proposed.contains(value)
-            })
+            && !exceeds_stack_window(
+                function,
+                live,
+                cfg,
+                alias,
+                (returning, protocol_words[1]),
+                version,
+                |value| stored(value) && proposed.contains(value),
+            )
         {
             local = proposed;
         }
@@ -357,6 +373,7 @@ enum PressureSlot {
     Value(mir::ValueId),
     ReturnAddress,
     Continuation,
+    Protected(u8),
 }
 
 /// Uses the physical scheduler itself to account for dying operands and simultaneous edge copies.
@@ -364,7 +381,8 @@ fn exceeds_stack_window(
     function: &mir::Function,
     live: &Liveness,
     cfg: &CfgInfo,
-    returning: bool,
+    alias: &AliasAnalysis,
+    (returning, protocol_words): (bool, usize),
     version: EvmVersion,
     stored: impl Fn(mir::ValueId) -> bool,
 ) -> bool {
@@ -410,6 +428,26 @@ fn exceeds_stack_window(
                         | mir::InstKind::DataCopy(..)
                         | mir::InstKind::InternalCall { .. }
                 );
+            let protected = if prepares
+                && protocol_words != 0
+                && kind.has_side_effects()
+                && !matches!(kind, mir::InstKind::DataCopy(..))
+            {
+                overlap::protocol_words(&alias.instruction_mod_ref(function, inst), protocol_words)
+            } else {
+                0
+            };
+            if protected != 0 {
+                let headroom =
+                    if matches!(kind, mir::InstKind::InternalCall { .. }) { 8 } else { 3 };
+                if stack.values().len() + protected + operands.len() + headroom > 1024 {
+                    return true;
+                }
+                // <current residents>; <saved protocol words>; <operand preparation follows>
+                for index in 0..protected {
+                    stack.push(PressureSlot::Protected(index as u8));
+                }
+            }
             if prepares
                 && !prepare_pressure(&mut stack, &operands, prefix, version, &stored, |v| {
                     live.is_used_at_or_after(v, block_id, position + 1)
@@ -429,6 +467,10 @@ fn exceeds_stack_window(
                 stack = Stack::new(caller);
             } else if prepares {
                 stack.truncate(stack.values().len() - operands.len());
+            }
+            // <retained residents>; <restored protocol words are consumed>; <result follows>
+            if protected != 0 {
+                stack.truncate(stack.values().len() - protected);
             }
             if let Some(value) = function.inst_result_value(inst)
                 && stored(value)
@@ -567,7 +609,7 @@ fn prepare_pressure(
         && stack
             .prepare(&slots, prefix, version, |slot| match slot {
                 PressureSlot::Value(value) => stored(value) && live(value),
-                PressureSlot::ReturnAddress => true,
+                PressureSlot::ReturnAddress | PressureSlot::Protected(_) => true,
                 PressureSlot::Continuation => false,
             })
             .is_ok()

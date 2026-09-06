@@ -16,7 +16,7 @@ use super::{
     calls, ir, op, parallel_copy,
     scheduler::Stack,
     spills::SpillPlan,
-    storage::{FunctionStorage, ModulePlan},
+    storage::{FrameBase, FunctionStorage, ModulePlan},
 };
 use crate::{
     analysis::{AliasAnalysis, CallGraphInfo, CfgInfo, Liveness},
@@ -128,6 +128,20 @@ pub(crate) fn lower(
     for (id, storage) in plan.functions.iter_mut_enumerated() {
         storage.stack_arguments &= returning.contains(id);
     }
+    let possible_dynamic = plan
+        .functions
+        .iter()
+        .any(|storage| storage.reachable && storage.base == FrameBase::Dynamic);
+    let dynamic_frames = plan.functions.iter().any(|storage| {
+        storage.reachable && storage.base == FrameBase::Dynamic && !storage.stack_arguments
+    });
+    let protocol_words = |storage: &FunctionStorage, active: bool| {
+        let dynamic = storage.base == FrameBase::Dynamic;
+        [
+            if active { 1 + 2 * usize::from(dynamic && !storage.stack_arguments) } else { 0 },
+            if dynamic { 3 } else { usize::from(possible_dynamic) },
+        ]
+    };
     // mstore(0x40, fixed_memory_end)
     // mstore(0xa0, 0) when dynamic activations are reachable
     let prologue = output.blocks.push(ir::Block::default());
@@ -143,14 +157,13 @@ pub(crate) fn lower(
             &live,
             &cfg,
             &alias,
-            returning.contains(id),
+            (returning.contains(id), protocol_words(&plan.functions[id], dynamic_frames)),
             version,
             |value| stored(function, value),
         );
         plan.reserve_spills(id, spills.words).map_err(str::to_owned)?;
         let mut blocks = IndexVec::new();
         let mut entries = IndexVec::<mir::BlockId, Vec<mir::ValueId>>::new();
-        let mut home_definitions = FxHashMap::default();
         for (block_id, block) in function.blocks.iter_enumerated() {
             blocks.push(if cfg.is_reachable(block_id) {
                 output.blocks.push(ir::Block::default())
@@ -162,20 +175,11 @@ pub(crate) fn lower(
                 .iter()
                 .filter(|&value| stored(function, value))
                 .collect::<Vec<_>>();
-            for (position, &inst) in block.instructions.iter().enumerate() {
-                if let Some(result) = function.inst_result_value(inst) {
-                    if spills.homes.contains_key(&result) {
-                        let available_at =
-                            if matches!(function.inst(inst).kind, mir::InstKind::Phi(_)) {
-                                0
-                            } else {
-                                position + 1
-                            };
-                        home_definitions.insert(result, (block_id, available_at));
-                    }
-                    if matches!(function.inst(inst).kind, mir::InstKind::Phi(_)) {
-                        values.push(result);
-                    }
+            for &inst in &block.instructions {
+                if let Some(result) = function.inst_result_value(inst)
+                    && matches!(function.inst(inst).kind, mir::InstKind::Phi(_))
+                {
+                    values.push(result);
                 }
             }
             values.sort_unstable();
@@ -195,6 +199,7 @@ pub(crate) fn lower(
             })
             .collect();
         let entry = output.blocks.push(ir::Block::default());
+        let home_definitions = home_definitions(function, &spills);
         layouts.insert(
             id,
             FunctionLayout {
@@ -211,6 +216,31 @@ pub(crate) fn lower(
         );
     }
     plan.finalize().map_err(str::to_owned)?;
+    // A spill can create the first dynamic frame. Recheck only stack-only layouts once;
+    // every newly spilled layout already used its larger post-spill protocol bound.
+    if !dynamic_frames && plan.max_dynamic_frame_size != 0 {
+        for id in reachable.iter() {
+            let function = module.function(id);
+            let layout = layouts.get_mut(&id).unwrap();
+            if layout.spills.homes.is_empty() {
+                layout.spills = SpillPlan::new(
+                    function,
+                    &layout.live,
+                    &layout.cfg,
+                    &layout.alias,
+                    (layout.returning, protocol_words(&plan.functions[id], true)),
+                    version,
+                    |value| stored(function, value),
+                );
+                plan.reserve_spills(id, layout.spills.words).map_err(str::to_owned)?;
+                for entry in &mut layout.entries {
+                    entry.retain(|slot| !matches!(slot, Slot::Value(value) if layout.spills.homes.contains_key(value)));
+                }
+                layout.home_definitions = home_definitions(function, &layout.spills);
+            }
+        }
+        plan.finalize().map_err(str::to_owned)?;
+    }
     let reads_fmp = plan.max_dynamic_frame_size != 0
         || reachable.iter().any(|id| {
             initialization::requires_fmp(
@@ -342,6 +372,31 @@ pub(crate) fn lower(
     }
     call_entry::prune_unused(&mut output, &layouts);
     Ok(MachineOutput { ir: output, plan })
+}
+
+fn home_definitions(
+    function: &mir::Function,
+    spills: &SpillPlan,
+) -> FxHashMap<mir::ValueId, (mir::BlockId, usize)> {
+    let mut definitions = FxHashMap::default();
+    if !spills.homes.is_empty() {
+        for (block_id, block) in function.blocks.iter_enumerated() {
+            for (position, &inst) in block.instructions.iter().enumerate() {
+                if let Some(result) = function.inst_result_value(inst)
+                    && spills.homes.contains_key(&result)
+                {
+                    let available_at = if matches!(function.inst(inst).kind, mir::InstKind::Phi(_))
+                    {
+                        0
+                    } else {
+                        position + 1
+                    };
+                    definitions.insert(result, (block_id, available_at));
+                }
+            }
+        }
+    }
+    definitions
 }
 
 fn lower_function(

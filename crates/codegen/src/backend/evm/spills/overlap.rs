@@ -9,11 +9,15 @@
 //! Final frame layout resolves static offsets and deferred allocations. Dynamic activations begin
 //! above the fixed-memory floor, permitting separation from fixed ranges below that floor. Before
 //! layout, stack-residence selection only accepts low-memory writes and writes entirely contained
-//! within a declared allocation. No instructions or value identities are rewritten by these checks.
+//! within a declared allocation. Protocol pressure checks resolve only literal absolute addresses,
+//! using a zero dynamic-frame floor; all other bases remain unknown until final layout. No
+//! instructions or value identities are rewritten by these checks.
 
 use crate::{
     analysis::{Access, AddressSpace, Location, MemoryAddress, MemoryBase, ModRef},
-    backend::evm::storage::{FrameAddress, FunctionStorage},
+    backend::evm::storage::{
+        FrameAddress, FunctionStorage, PREVIOUS_FRAME_OFFSET, SAVED_FMP_OFFSET,
+    },
     memory::EvmMemoryLayout,
     mir,
 };
@@ -54,13 +58,43 @@ pub(crate) fn accesses_overlap(
     accesses: &[Access],
     home: FrameAddress,
 ) -> bool {
+    accesses_overlap_with(accesses, home, fixed_memory_end, |address| {
+        physical_address(storage, address)
+    })
+}
+
+/// Counts possible protocol aliases without relying on provisional frame/allocation addresses.
+pub(super) fn protocol_words(effects: &ModRef, maximum: usize) -> usize {
+    // A bound of one includes only the global pointer; three also includes both frame headers.
+    [
+        FrameAddress::Absolute(EvmMemoryLayout::INTERNAL_FRAME_PTR_SLOT),
+        FrameAddress::Relative(PREVIOUS_FRAME_OFFSET),
+        FrameAddress::Relative(SAVED_FMP_OFFSET),
+    ]
+    .into_iter()
+    .take(maximum)
+    .filter(|&home| {
+        accesses_overlap_with(effects.writes(), home, 0, |address| {
+            matches!(address.base, MemoryBase::Absolute)
+                .then_some(FrameAddress::Absolute(address.offset))
+        })
+    })
+    .count()
+}
+
+fn accesses_overlap_with(
+    accesses: &[Access],
+    home: FrameAddress,
+    fixed_memory_end: u64,
+    resolve: impl Fn(MemoryAddress) -> Option<FrameAddress>,
+) -> bool {
     accesses.iter().any(|access| match access {
         Access::Any(AddressSpace::Memory) => true,
         Access::Location(Location::Memory(location)) => {
             if location.size.as_const() == Some(0) {
                 return false;
             }
-            physical_address(storage, location.address).is_none_or(|address| {
+            resolve(location.address).is_none_or(|address| {
                 ranges_overlap(address, location.size.as_const(), home, fixed_memory_end)
             })
         }
