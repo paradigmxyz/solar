@@ -1,0 +1,18 @@
+- // === ROOT/tests/ui/codegen/mir/none/terminator_metadata.mir (before none) ===
++ // === ROOT/tests/ui/codegen/mir/none/terminator_metadata.mir (after none) ===
+  @module TerminatorMetadata
+  fn @checked(arg0: u256) -> u256 {
+    bb0:
+      jumpi arg0, bb1, bb2 !metadata(span=10..20)
+    bb2:
+      revert 0, 0 !metadata(span=10..20)
+    bb1:
+      ret arg0 !metadata(span=30..40, modifier_depth=1)
+  }
+  
+  fn @mixed(arg0: u256) -> u256 {
+    bb0:
+      v0 = add arg0, 1
+      ret v0 !metadata(span=50..60)
+  }
+  

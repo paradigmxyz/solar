@@ -1,0 +1,25 @@
+//@ compile-flags: -Zmir-pipeline=cfg-simplify
+//@ filecheck:
+@module TerminatorMetadata
+
+// CHECK-LABEL: {{^[ +].*}}fn @merge{{[( ]}}
+// CHECK: ret arg0 !metadata(span=30..40)
+fn @merge(arg0: u256) -> u256 {
+  bb0:
+    jump bb1 !metadata(span=10..20)
+  bb1:
+    ret arg0 !metadata(span=30..40)
+}
+
+// Distinct source-level returns must not lose their locations during deduplication.
+// CHECK-LABEL: {{^[ +].*}}fn @distinct_returns{{[( ]}}
+// CHECK: ret arg0 !metadata(span=90..100)
+// CHECK: ret arg0 !metadata(span=70..80)
+fn @distinct_returns(arg0: u256, arg1: bool) -> u256 {
+  bb0:
+    jumpi arg1, bb1, bb2 !metadata(span=50..60)
+  bb1:
+    ret arg0 !metadata(span=70..80)
+  bb2:
+    ret arg0 !metadata(span=90..100)
+}

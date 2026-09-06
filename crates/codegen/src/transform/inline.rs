@@ -1215,8 +1215,11 @@ fn inline_call_impl(
         block.instructions.split_off(call_inst_index + 1)
     };
     caller.blocks[call_block].instructions.pop();
+    // continuation: suffix; old_terminator !metadata(caller)
     caller.blocks[continuation].instructions = suffix;
     caller.blocks[continuation].terminator = old_terminator;
+    caller.blocks[continuation].terminator_metadata =
+        caller.blocks[call_block].terminator_metadata.clone();
     redirect_phi_predecessors(caller, &old_successors, call_block, continuation);
 
     let caller_is_external = caller.selector.is_some()
@@ -1242,7 +1245,10 @@ fn inline_call_impl(
 
     let mut cloner = InlineCloner::new(caller, callee, frame_base, callee_frame_prefix, args);
     let cloned_entry = cloner.clone_blocks(continuation)?;
+    // icall @callee !metadata(call) => jump cloned_entry !metadata(call)
     cloner.caller.blocks[call_block].terminator = Some(Terminator::Jump(cloned_entry));
+    cloner.caller.blocks[call_block].terminator_metadata =
+        cloner.caller.inst(call_inst).metadata.debug_context();
 
     let mut replacements = FxHashMap::default();
     if returns > 0 {
@@ -1342,7 +1348,10 @@ impl<'a> InlineCloner<'a> {
             let caller_block = self.block_map[callee_block];
             let term =
                 self.clone_terminator(block.terminator.as_ref()?, caller_block, continuation)?;
+            // cloned_block: cloned_terminator !metadata(callee block)
             self.caller.blocks[caller_block].terminator = Some(term);
+            self.caller.blocks[caller_block].terminator_metadata =
+                block.terminator_metadata.clone();
         }
 
         Some(self.block_map[BlockId::ENTRY])

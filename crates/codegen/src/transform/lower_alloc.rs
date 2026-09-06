@@ -137,9 +137,11 @@ fn lower_checked_alloc(
     func.blocks[block].instructions = instructions;
     let old_terminator = func.blocks[block].terminator.take();
 
+    // continuation: tail; old_terminator !metadata(original block)
     let continuation = func.alloc_block();
     func.blocks[continuation].instructions = tail;
     func.blocks[continuation].terminator = old_terminator;
+    func.blocks[continuation].terminator_metadata = func.blocks[block].terminator_metadata.clone();
     redirect_successor_predecessors(func, block, continuation);
 
     let panic = func.alloc_block();

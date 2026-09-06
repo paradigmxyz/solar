@@ -67,8 +67,14 @@ impl SourceMapEncoder {
         previous: Option<&DebugInstruction>,
         instruction: &DebugInstruction,
     ) -> SourceMapEntry {
-        // Legacy maps have one origin, so shared instructions use their primary span.
-        let location = instruction.source_spans.first().and_then(|&span| {
+        // A shared instruction has no single source origin in this format. Its
+        // incoming transfers retain path-specific locations; choosing one origin
+        // here would attribute other callers to an unrelated source statement.
+        let location = match instruction.source_spans.as_slice() {
+            [span] => Some(*span),
+            _ => None,
+        }
+        .and_then(|span| {
             let source = gcx.sess.source_map().span_to_source(span).ok()?;
             let source_id = *self.source_ids.get(&source.file.start_pos.0)?;
             Some((source.data.start as i64, source.data.len() as i64, source_id))

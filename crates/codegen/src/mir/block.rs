@@ -1,6 +1,6 @@
 //! MIR basic blocks.
 
-use super::{BlockId, InstId, ValueId};
+use super::{BlockId, InstId, InstructionMetadata, ValueId};
 use smallvec::SmallVec;
 use std::fmt;
 
@@ -11,6 +11,8 @@ pub(crate) struct BasicBlock {
     pub(crate) instructions: Vec<InstId>,
     /// The terminator instruction.
     pub(crate) terminator: Option<Terminator>,
+    /// Source context of the control transfer, independent of the last value instruction.
+    pub(crate) terminator_metadata: InstructionMetadata,
     /// Predecessor blocks.
     pub(crate) predecessors: SmallVec<[BlockId; 4]>,
 }
@@ -19,7 +21,14 @@ impl BasicBlock {
     /// Creates a new empty basic block.
     #[must_use]
     pub(crate) fn new() -> Self {
-        Self { instructions: Vec::new(), terminator: None, predecessors: SmallVec::new() }
+        let mut terminator_metadata = InstructionMetadata::EMPTY;
+        terminator_metadata.mark_debug_info_dropped();
+        Self {
+            instructions: Vec::new(),
+            terminator: None,
+            terminator_metadata,
+            predecessors: SmallVec::new(),
+        }
     }
 }
 

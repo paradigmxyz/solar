@@ -210,6 +210,15 @@ impl PureEvaluator {
 
     fn rewrite_to_return(&self, func: &mut Function, values: &[U256]) {
         let entry = BlockId::ENTRY;
+        // Folded paths can have distinct return origins; do not invent one shared location.
+        let mut origins = func
+            .blocks
+            .iter()
+            .filter(|block| matches!(block.terminator, Some(Terminator::Return { .. })));
+        let metadata = origins
+            .next()
+            .map(|block| block.terminator_metadata.clone())
+            .filter(|metadata| origins.all(|block| block.terminator_metadata == *metadata));
         let block_ids = func.blocks.indices();
         for block_id in block_ids {
             let block = &mut func.blocks[block_id];
@@ -231,6 +240,12 @@ impl PureEvaluator {
             })
             .collect();
         func.returns = returns;
+        // entry: ret constants !metadata(common return origin, or intentionally dropped)
         func.blocks[entry].terminator = Some(Terminator::Return { values });
+        if let Some(metadata) = metadata {
+            func.blocks[entry].terminator_metadata = metadata;
+        } else {
+            func.blocks[entry].terminator_metadata.mark_debug_info_dropped();
+        }
     }
 }

@@ -110,6 +110,18 @@ impl InstructionMetadata {
         self.flags.displays_source_span()
     }
 
+    /// Copies source context without carrying instruction-specific analysis facts.
+    pub(crate) fn debug_context(&self) -> Self {
+        let mut metadata = Self::EMPTY;
+        if self.displays_source_span() {
+            metadata.set_source_span(self.source_span());
+        } else {
+            metadata.set_debug_source_span(self.source_span());
+        }
+        metadata.set_modifier_depth(self.modifier_depth());
+        metadata
+    }
+
     /// Returns the proven memory region.
     #[must_use]
     pub(crate) fn memory_region(&self) -> Option<MemoryRegion> {

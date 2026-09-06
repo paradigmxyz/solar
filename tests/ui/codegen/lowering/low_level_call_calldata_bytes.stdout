@@ -11,7 +11,7 @@ bb0:
   dup 1
   push 0x6a57f6c7
   eq
-  push bb12
+  push bb13
   jumpi
   dup 1
   push 0x6b995abd
@@ -40,8 +40,8 @@ bb5:
   jumpi
   push bb8
   push 36
-  jump bb19
-bb19:
+  jump bb21
+bb21:
   calldatasize
   swap 1
   calldataload
@@ -139,8 +139,8 @@ bb8:
   calldataload
   dup 9
   call
-  jump bb22
-bb22:
+  jump bb24
+bb24:
   swap 3
   pop
   pop
@@ -152,7 +152,7 @@ bb22:
   push 32
   push 128
   return
-bb12:
+bb13:
   push 416
   push 64
   mstore
@@ -167,10 +167,10 @@ bb12:
   shr
   push bb4
   jumpi
-  push bb15
+  push bb16
   push 36
-  jump bb19
-bb15:
+  jump bb21
+bb16:
   dup 1
   calldataload
   swap 1
@@ -229,4 +229,4 @@ bb15:
   calldataload
   dup 8
   delegatecall
-  jump bb22
+  jump bb24

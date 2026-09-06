@@ -206,6 +206,12 @@ fn assert_debug_info_handled(module: &Module, pass_name: &str, when: &str) {
     }
     for (function, func) in module.iter_functions() {
         for (block, body) in func.blocks.iter_enumerated() {
+            debug_assert!(
+                body.terminator_metadata.debug_info_is_handled(),
+                "MIR terminator debug information is unclassified {when} `{pass_name}` at fn{}, bb{}",
+                function.index(),
+                block.index(),
+            );
             for &inst in &body.instructions {
                 debug_assert!(
                     func.inst(inst).metadata.debug_info_is_handled(),

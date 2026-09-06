@@ -75,6 +75,7 @@ struct CanonBlock {
     term_mnemonic: &'static str,
     term_function: Option<FunctionId>,
     term_operands: Vec<CanonOperand>,
+    term_metadata: InstructionMetadata,
 }
 
 /// Alpha-equivalence key for one instruction of a terminal block.
@@ -315,7 +316,13 @@ impl CfgSimplifier {
         let term_function =
             if let Terminator::TailCall { function, .. } = term { Some(*function) } else { None };
         let term_operands = term.operands().into_iter().map(canon_operand).collect();
-        Some(CanonBlock { insts, term_mnemonic: term.mnemonic(), term_function, term_operands })
+        Some(CanonBlock {
+            insts,
+            term_mnemonic: term.mnemonic(),
+            term_function,
+            term_operands,
+            term_metadata: block.terminator_metadata.clone(),
+        })
     }
 
     fn simplify_trivial_phis(&mut self, func: &mut Function) {
@@ -535,8 +542,10 @@ impl CfgSimplifier {
         let target_successors =
             target_terminator.as_ref().map(Terminator::successors).unwrap_or_default();
 
+        // block: prefix; target_instructions; target_terminator !metadata(target)
         func.blocks[block_id].instructions.extend(target_instructions);
         func.blocks[block_id].terminator = target_terminator;
+        func.blocks[block_id].terminator_metadata = func.blocks[target].terminator_metadata.clone();
 
         for &succ in &target_successors {
             self.redirect_target_phi_incoming(func, target, succ, &[block_id]);

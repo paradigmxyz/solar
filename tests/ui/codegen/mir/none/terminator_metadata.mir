@@ -1,0 +1,28 @@
+//@ revisions: roundtrip simplify pipeline
+//@[roundtrip] compile-flags: -Zmir-pipeline=none
+//@[simplify] compile-flags: -Zmir-pipeline=inst-simplify,dce
+//@[pipeline] compile-flags: -Zmir-pipeline=default
+//@ filecheck:
+@module TerminatorMetadata
+
+// CHECK-LABEL: {{^[ +]*}}fn @checked{{[( ]}}
+// CHECK: jumpi arg0, bb1, bb2 !metadata(span=10..20)
+// CHECK: revert 0, 0 !metadata(span=10..20)
+// CHECK: ret arg0 !metadata(span=30..40, modifier_depth=1)
+fn @checked(arg0: u256) -> u256 {
+  bb0:
+    jumpi arg0, bb1, bb2 !metadata(span=10..20)
+  bb1:
+    ret arg0 !metadata(span=30..40, modifier_depth=1)
+  bb2:
+    revert 0, 0 !metadata(span=10..20)
+}
+
+// Mixed metadata remains valid when only a terminator has a source origin.
+// CHECK-LABEL: {{^[ +]*}}fn @mixed{{[( ]}}
+// CHECK: ret {{v[0-9]+}} !metadata(span=50..60)
+fn @mixed(arg0: u256) -> u256 {
+  bb0:
+    v1 = add arg0, 1
+    ret v1 !metadata(span=50..60)
+}

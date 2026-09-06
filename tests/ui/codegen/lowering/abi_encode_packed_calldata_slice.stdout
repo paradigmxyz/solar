@@ -16,7 +16,7 @@ bb0:
   dup 1
   push 0x2a5dea89
   eq
-  push bb10
+  push bb11
   jumpi
   jump bb4
 bb4 [cold]:
@@ -34,8 +34,8 @@ bb5:
   jumpi
   push bb7
   push 4
-  jump bb15
-bb15:
+  jump bb17
+bb17:
   calldatasize
   swap 1
   calldataload
@@ -110,8 +110,8 @@ bb7:
   pop
   swap 1
   dup 2
-  jump bb18
-bb18:
+  jump bb20
+bb20:
   add
   dup 2
   swap 1
@@ -123,7 +123,7 @@ bb18:
   push 32
   push 128
   return
-bb10:
+bb11:
   push 320
   push 64
   mstore
@@ -132,10 +132,10 @@ bb10:
   lt
   push bb4
   jumpi
-  push bb12
+  push bb13
   push 4
-  jump bb15
-bb12:
+  jump bb17
+bb13:
   dup 1
   calldataload
   swap 1
@@ -178,4 +178,4 @@ bb12:
   dup 2
   mstore
   push 32
-  jump bb18
+  jump bb20

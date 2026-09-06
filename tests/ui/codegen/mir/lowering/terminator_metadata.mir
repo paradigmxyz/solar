@@ -1,0 +1,11 @@
+//@ compile-flags: -Zmir-pipeline=lower-abi,lower-abi-encode
+//@ filecheck:
+@module TerminatorMetadata
+
+// CHECK-LABEL: {{^[ +].*}}fn @identity{{[( ]}}
+// CHECK: mstore {{.*}} !metadata(span=30..40)
+// CHECK: returndata {{.*}} !metadata(span=30..40)
+fn @identity(arg0: u256) -> u256 [selector=0xac37eebb, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    ret arg0 !metadata(span=30..40)
+}
