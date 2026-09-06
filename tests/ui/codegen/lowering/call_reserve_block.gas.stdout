@@ -2,33 +2,35 @@
 @module ReserveCallee_runtime
 bb0:
   callvalue
-  push bb3
-  jumpi
+  jumpi bb6, bb4
+bb4:
   push 0x100000000000000000000000000000000000000000000000000000000
   push 0
   calldataload
   div
-  dup 1
   push 0x3fa4f245
   sub
-  push bb3
-  jumpi
+  jumpi bb6, bb1
+bb1:
   push 42
   push 128
   mstore
   push 32
   push 128
   return
-bb3 [cold]:
+bb6:
   push 0
   dup 1
   invalid
 // === ROOT/tests/ui/codegen/lowering/call_reserve_block.sol:ReserveBlock (runtime) ===
 @module ReserveBlock_runtime
 bb0:
+  push 160
+  push 64
+  mstore
   callvalue
-  push bb4
-  jumpi
+  jumpi bb15, bb12
+bb12:
   push 0x100000000000000000000000000000000000000000000000000000000
   push 0
   calldataload
@@ -36,16 +38,12 @@ bb0:
   dup 1
   push 0x2f5f3b3c
   eq
-  push bb9
-  jumpi
-  dup 1
+  jumpi bb22, bb21
+bb21:
   push 0x9a1f63d8
   sub
-  push bb4
-  jumpi
-  push 224
-  push 64
-  mstore
+  jumpi bb15, bb1
+bb1:
   push 0
   sload
   push 0xffffffffffffffffffffffffffffffffffffffff
@@ -62,44 +60,69 @@ bb0:
   mstore
   dup 2
   extcodesize
-  iszero
-  push bb4
-  jumpi
-  dup 1
-  push 160
-  mstore
-  push 32
-  dup 2
-  push 4
-  dup 2
+  jumpi bb3, bb2
+bb2:
   push 0
-  dup 7
+  dup 1
+  invalid
+bb3:
+  push 32
+  push 4
+  push 0
   push 0xc350
-  call
+  swap 4
+  swap 5
+  swap 3
+  swap 4
+  dup 6
+  swap 4
+  dup 5
+  swap 3
   swap 2
-  pop
-  pop
-  iszero
-  push bb4
-  jumpi
-  push 160
-  mload
-  jump bb10
-bb10:
+  call
+  jumpi bb4, bb2
+bb4:
   mload
   push 128
   mstore
   push 32
   push 128
   return
-bb4 [cold]:
+bb8:
+  push 32
+  push 4
+  push 0
+  push 50
+  swap 4
+  swap 5
+  swap 3
+  swap 4
+  dup 6
+  swap 4
+  dup 5
+  swap 3
+  swap 2
+  gas !metadata(keep_with_next)
+  sub !metadata(keep_with_next)
+  call
+  jumpi bb9, bb7
+bb7:
   push 0
   dup 1
   invalid
 bb9:
-  push 256
-  push 64
+  mload
+  push 128
   mstore
+  push 32
+  push 128
+  return
+bb15:
+  push 0
+  dup 1
+  invalid
+bb22:
+  pop
   push 0
   sload
   push 0xffffffffffffffffffffffffffffffffffffffff
@@ -117,21 +140,17 @@ bb9:
   push 2
   exp
   mul
-  swap 1
   push 32
+  exchange 1, 2
   push 2
   exp
   swap 1
   div
-  push 64
-  mload
-  dup 1
-  push 160
-  mstore
-  push 32
-  add
   push 0
-  swap 1
+  push 64
+  mload
+  push 32
+  add
   mstore
   push 64
   mload
@@ -140,29 +159,10 @@ bb9:
   add
   push 64
   mstore
-  dup 3
-  dup 2
-  mstore
+  swap 1
   swap 2
-  pop
-  dup 1
-  extcodesize
-  iszero
-  push bb4
-  jumpi
-  push 32
-  dup 3
-  push 4
   dup 2
-  push 0
-  dup 6
-  push 50
-  gas !metadata(keep_with_next)
-  sub !metadata(keep_with_next)
-  call
-  swap 1
-  pop
-  iszero
-  push bb4
-  jumpi
-  jump bb10
+  mstore
+  dup 2
+  extcodesize
+  jumpi bb8, bb7
