@@ -13,7 +13,10 @@
 //! their ordinary protocol, and relative homes are excluded. The straight-line template consumes
 //! exactly the original value and destination, touches no uninitialized memory, and needs five
 //! temporary words. The second selection reuses the first modular address delta,
-//! adding one word width after rotating the first saved pair below it.
+//! adding one word width after rotating the first saved pair below it. Bitmap selections
+//! instead keep a word offset, testing membership before shifting the selected word back
+//! to a byte address. Negative offsets cannot name a bitmap bit; wrapping the last EVM
+//! word to zero either selects home zero or the same initialized fallback.
 //! Its exact literal bytes and static gas must improve the ordinary run protection. The
 //! caller retains the original stack-capacity check; at least twelve removed backups pay
 //! for the template's five temporaries. Final scheduling and outlining remain measured
@@ -162,60 +165,54 @@ fn backup_cost(version: EvmVersion, addresses: &[FrameAddress]) -> (usize, usize
 }
 
 fn template(start: u64, selection: Selection) -> Vec<ir::Instruction> {
-    let mut output =
-        Vec::with_capacity(if matches!(selection, Selection::Bitmap(_)) { 47 } else { 39 });
+    let bitmap = matches!(selection, Selection::Bitmap(_));
+    let base = if bitmap { start / 32 } else { start };
+    let mut output = Vec::with_capacity(if bitmap { 46 } else { 39 });
     // value; destination
-    // value; destination; delta; delta
-    // delta = (destination & !31) - start
-    output.extend(
-        [
-            Dup(1),
-            Push(U256::from(31)),
-            Op(op::NOT),
-            Op(op::AND),
-            Push(U256::from(start)),
-            Swap(1),
-            Op(op::SUB),
-            Dup(1),
-        ]
-        .map(Into::into),
-    );
+    // value; destination; offset; offset
+    // offset = (destination >> 5) - base for bitmap, otherwise aligned bytes - base
+    output.push(Dup(1).into());
+    if bitmap {
+        // value; destination; destination >> 5
+        output.extend([Push(U256::from(5)), Op(op::SHR)].map(Into::into));
+    } else {
+        // value; destination; destination & !31
+        output.extend([Push(U256::from(31)), Op(op::NOT), Op(op::AND)].map(Into::into));
+    }
+    // value; destination; offset; offset
+    output.extend([Push(U256::from(base)), Swap(1), Op(op::SUB), Dup(1)].map(Into::into));
     for second in [false, true] {
         if second {
-            // value; destination; delta; address0; old0
-            // value; destination; old0; address0; delta + 32
-            output.extend([Swap(2), Push(U256::from(32)), Op(op::ADD)].map(Into::into));
+            // value; destination; offset; address0; old0
+            // value; destination; old0; address0; offset + step
+            output.extend(
+                [Swap(2), Push(U256::from(if bitmap { 1 } else { 32 })), Op(op::ADD)]
+                    .map(Into::into),
+            );
         }
-        // delta; delta
+        // offset; offset
         output.push(Dup(1).into());
         match selection {
             Selection::Contiguous(bytes) => {
-                // delta; delta < bytes
+                // offset; offset < bytes
                 output.extend([Push(U256::from(bytes)), Swap(1), Op(op::LT)].map(Into::into));
             }
             Selection::Bitmap(mask) => {
-                // delta; index = delta >> 5
-                // delta; bit = (mask >> index) & 1
+                // offset; bit = (mask >> offset) & 1
                 output.extend(
-                    [
-                        Push(U256::from(5)),
-                        Op(op::SHR),
-                        Push(mask),
-                        Swap(1),
-                        Op(op::SHR),
-                        Push(U256::ONE),
-                        Op(op::AND),
-                    ]
-                    .map(Into::into),
+                    [Push(mask), Swap(1), Op(op::SHR), Push(U256::ONE), Op(op::AND)]
+                        .map(Into::into),
                 );
             }
         }
-        // selected = start + delta * bit
-        // selected; mload(selected)
-        output.extend(
-            [Op(op::MUL), Push(U256::from(start)), Op(op::ADD), Dup(1), Op(op::MLOAD)]
-                .map(Into::into),
-        );
+        // selected = base + offset * bit
+        output.extend([Op(op::MUL), Push(U256::from(base)), Op(op::ADD)].map(Into::into));
+        if bitmap {
+            // selected_word; selected_word << 5
+            output.extend([Push(U256::from(5)), Op(op::SHL)].map(Into::into));
+        }
+        // selected_address; mload(selected_address)
+        output.extend([Dup(1), Op(op::MLOAD)].map(Into::into));
     }
     // value; destination; old0; address0; address1; old1
     // old0; address0; address1; old1; value; destination
@@ -252,7 +249,15 @@ fn cost(version: EvmVersion, instructions: &[ir::Instruction]) -> (usize, usize)
             ir::InstKind::Dup(_)
             | ir::InstKind::Swap(_)
             | ir::InstKind::Op(
-                op::ADD | op::SUB | op::LT | op::NOT | op::AND | op::SHR | op::MLOAD | op::MSTORE,
+                op::ADD
+                | op::SUB
+                | op::LT
+                | op::NOT
+                | op::AND
+                | op::SHR
+                | op::SHL
+                | op::MLOAD
+                | op::MSTORE,
             ) => (1, 3),
             _ => unreachable!("unexpected selected-home template instruction"),
         };
@@ -295,7 +300,7 @@ mod tests {
         let (start, mask) = membership(&homes, homes.len()).unwrap();
         let instructions = template(start, Selection::Bitmap(mask));
         assert_eq!(ir::scheduling_usage(&instructions), Some((2, -2, 5)));
-        assert_eq!(cost(EvmVersion::London, &instructions), (73, 145));
+        assert_eq!(cost(EvmVersion::London, &instructions), (69, 142));
         assert_eq!(choose(&homes, homes.len(), EvmVersion::London).unwrap().range, 0..28);
         assert!(choose(&homes, homes.len(), EvmVersion::Byzantium).is_none());
 
