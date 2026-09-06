@@ -22,30 +22,28 @@ PUSH widths. There is no Atom stream or assembly-level CFG optimization. MIR
 semantics remain in their retained layers. No legacy backend or temporary
 unsupported rewrite fallback is used.
 
-The accepted scope has 12,792 Rust lines across 36 files, versus 34,638 deleted
-raw lines: 21,846 fewer (63.1%). Counts include comments, blanks and local tests.
+The accepted scope has 12,901 Rust lines across 37 files, versus 34,638 deleted
+raw lines: 21,737 fewer (62.8%). Counts include comments, blanks and local tests.
 A historical production-only count was not retained and is not reconstructed
 from forbidden source.
 
 ## Current verification
 
 The current workspace run has 1,358 passes, one failing UI aggregate and two
-skips. Expanded UI has 11,015 passes, 44 remaining failures and 806 filtered
+skips. Expanded UI has 11,031 passes, 44 remaining failures and 806 filtered
 revisions. All 99 codegen helpers, Foundry and ordinary workspace/all-target
-Clippy pass. Thirty targeted revisions pass after reviewing ten changed
-snapshots and one comment-only FileCheck update; there are no new failures. The
-new recursive-writer fixture separately passes all four matrix revisions.
+Clippy pass. The twelve new source-memory readback revisions pass, including
+unoptimized execution. Existing UI failure IDs are unchanged.
 
-The current quality ledger is `disjoint-mask-sealed-ledger-20260906/`;
-`absolute-unknown-range-trial-20260906/` preserves its optimized outputs exactly.
-All 694 original successful UI IDs and eight known failures match in each mode;
-31 added successes remain separate in those captures; the recursive-writer
-fixture was added afterward and is separately verified. Both hot lanes retain all 15 runtime cases,
-175 ordered gas labels and exact observations. Nine heavy captures match the
-original inputs/settings, 1,672 contract IDs and 3,344 artifacts, including
-1,002 empty outputs and 14 linked-placeholder artifacts. The latest compiler-time
-change shares raw bounds during immutable assembly (`a904c535`); its complete
-UI/hot/heavy output and 63 focused diagnostic/encoding pairs are exact.
+The current original-artifact ledger remains
+`disjoint-mask-sealed-ledger-20260906/`; the calldata-home milestone below
+preserves original UI, gas-hot and heavy bytes exactly. Size-hot Nitro creation
+and runtime each shrink 24 bytes, with unchanged gas and observations. All 694
+original successful UI IDs and eight known failures match in each mode; 35 added
+successes remain separate. Both hot lanes retain 15 runtime cases and 175 ordered
+gas labels. Nine heavy captures match the original inputs/settings, 1,672 contract
+IDs and 3,344 artifacts, including 1,002 empty outputs and 14 linked-placeholder
+artifacts; all 540 reference sites remain exact.
 
 Recent expectations were reviewed with actual execution before updating:
 
@@ -395,6 +393,38 @@ stack reuse, growing a representative sequence 18→19 bytes at equal static gas
 Evidence is in `calldata-rematerialization-{trial,sealed-ui-review}-20260906/`
 and `calldata-remat-small-growth-review-20260906/`. The next scope considers only
 values the ordinary planner already homes, preserving its layout and protocol.
+
+
+Calldata-home rematerialization is accepted in `0436448d` (+109 raw Rust lines),
+with three source readback fixtures in `e4e733c0`. Recipes replace only ordinary
+spill homes after frame planning; reserved words and the original spill protocol
+remain fixed. Gas mode selects only entirely eligible home sets, preserving mixed
+compact writer banks. Other modes select each eligible immutable read. There is
+no additional planning pass. The intermediate partial-home variant grew Navigator
+creation/runtime by 322 bytes: removing one home disabled eleven compact writer
+templates. An all-mode uniform variant then lost two none/mir readback checks.
+Both rejected candidates and exact attribution remain preserved.
+
+The final shape has 68 focused candidate and 14 pinned-solc passes, twelve new
+UI revisions passing, and fourteen traced source-write/later-MLOAD pairs without
+intervening overlapping writes. Seven previous and nine sealed wrong results
+remain explicit; ten additional pinned-solc calls supplement the original-source
+oracles. Fresh symbolic checks in both modes remain incomplete (solver unknown),
+with identical source/settings fingerprints; no agreement is claimed. All 4,000
+original UI artifacts and 3,344 heavy artifacts remain byte-exact. Added-source
+creation/runtime totals shrink 1,652/1,648 gas bytes and 2,213/2,209 size bytes;
+there are no individual increases. Both hot lanes preserve outputs and gas;
+size-mode Nitro alone shrinks 24 creation/runtime bytes. Quiet compiler pairs
+are 59.53→52.48 and 53.02→52.51 seconds; the unusually slow first baseline makes
+its larger gain uncertain. Sampled RSS is 634,688→633,576 and 634,884→635,056 KiB,
+essentially flat. Every timed JSON matches its reviewed 432-contract capture.
+Evidence is in `bank-preserving-calldata-{trial,heavy-review,sealed-ui-review,
+timing}-20260906/` and `homed-calldata-navigator-review-20260906/`.
+
+This remains a targeted repair: other private homes and protocol words can still
+interfere with unannotated assembly. Unchanged frame reservation does not prove
+source-memory, MSIZE or FMP invariance. That defect, the remaining 44 UI assertions
+and individual sealed gas/size debts continue to block completion.
 
 ## Evidence provenance
 
