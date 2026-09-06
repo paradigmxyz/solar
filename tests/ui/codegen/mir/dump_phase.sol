@@ -24,7 +24,7 @@
 // SUBSTITUTE: add arg0, 0
 // EVM-SUBSTITUTE: @module DumpPhase_runtime
 // EVM-SUBSTITUTE: jump [[NEXT:bb[0-9]+]]
-// EVM-SUBSTITUTE-NEXT: [[NEXT]]:
+// EVM-SUBSTITUTE: [[NEXT]]:
 contract DumpPhase {
     function f(uint256 x) public pure returns (uint256) {
         return x + 0;

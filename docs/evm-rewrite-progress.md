@@ -447,6 +447,15 @@ byte in `static_frames.sol`, still 155--210 bytes below sealed; other UI runtime
 bytes fall by 277/278 overall. These reviewed tradeoffs introduce no sealed debt.
 Maple still owes 17/19 gas per approve label. Evidence: `complete-call-entry/`.
 
+Three disassembly/custom-pipeline snapshots are updated after reviewing capture
+selection and explicit physical control flow. The custom-pipeline FileCheck now
+requires the jump target to exist later without requiring physical adjacency.
+All seven focused UI revisions, two IR assembly roundtrips and 144 concrete
+sealed/current deployment/dispatch replays pass. Both optimized modes save one
+byte per artifact and three opcode gas on exercised zero-value paths. The
+unoptimized/custom-pipeline size increases are explicitly retained in the review;
+no optimized regression is hidden. Evidence: `dump-contract-review/`.
+
 ## Remaining acceptance
 
 Complete targeted fixes, remove every new baseline failure, and investigate
