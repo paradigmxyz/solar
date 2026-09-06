@@ -181,6 +181,18 @@ Evidence is in `comparison-branch-order-trial-20260906/`,
 `comparison-branch-order-runtime-review-20260906/` and
 `branch-order-lvalue-attribution-20260906/`.
 
+A global terminal-owner guard was also rejected: requiring an existing
+JUMPDEST avoids a one-gas fallthrough cost but retains duplicate bodies and
+creates 16 new or worsened sealed size debts. The original pass explicitly
+permits that observer-free tradeoff. Both conservative and complete-addressability
+trials, their 32 raw control executions and the withheld regression fixture are
+retained in `terminal-owner-{label-fix,addressability}-20260906/` and
+`private-terminal-redirection-tests-20260906/`. The refined heavy lane matched
+three complete projects before encountering changed OpenZeppelin output; later
+projects and timing were not run. The proposed private-control extension must
+preserve old observer-free decisions and prove any forwarded-gas restriction
+with execution evidence before changing them.
+
 An FMP-provenance screen found no eligible runtime root under the retained
 no-reset analysis, so no broader memory-disjointness assumption was introduced.
 Current work examines live MSTORE operands within the existing complete stack
