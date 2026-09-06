@@ -11,7 +11,10 @@ contract EqualImmediateScheduling {
     // GAS: push 0x123456789abcde
     // GAS-NOT: push 0x123456789abcde
     // GAS: dup 1
-    // GAS-LABEL: {{^; bb0$}}
+    // GAS: CALLVALUE
+    // GAS-NEXT: PUSH{{[0-9]+}} {{0x[0-9a-f]+}} ; [[GAS_REJECT:bb[0-9]+]]
+    // GAS-NEXT: JUMPI
+    // GAS: {{^; }}[[GAS_REJECT]]{{$}}
     // GAS-NEXT: JUMPDEST
     // GAS-NEXT: PUSH0
     // GAS-NEXT: PUSH0
@@ -19,7 +22,10 @@ contract EqualImmediateScheduling {
     // SIZE: push 0x123456789abcde
     // SIZE-NOT: push 0x123456789abcde
     // SIZE: dup 1
-    // SIZE-LABEL: {{^; bb0$}}
+    // SIZE: CALLVALUE
+    // SIZE-NEXT: PUSH{{[0-9]+}} {{0x[0-9a-f]+}} ; [[SIZE_REJECT:bb[0-9]+]]
+    // SIZE-NEXT: JUMPI
+    // SIZE: {{^; }}[[SIZE_REJECT]]{{$}}
     // SIZE-NEXT: JUMPDEST
     // SIZE-NEXT: PUSH0
     // SIZE-NEXT: PUSH0
