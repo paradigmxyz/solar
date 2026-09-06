@@ -248,11 +248,12 @@ fn lower_function(func: &mut Function, layouts: &Layouts) {
         builder.switch_to_block(block);
         for id in instructions {
             let inst = builder.func().inst(id).clone();
-            builder.replace_source_span(inst.metadata.source_span().unwrap_or_default());
-            builder.replace_modifier_depth(inst.metadata.modifier_depth());
+            builder.set_debug_context(&inst.metadata);
             let result = builder.func().inst_result_value(id);
             let fields = result.and_then(|value| aggregates.get(&value));
             let outputs = match inst.kind {
+                // NOTE: Scalar insertions and projections emit no instruction. Their source
+                // checkpoints disappear with them; do not attach them to unrelated definitions.
                 // insert_value aggregate, index, value -> replace the selected leaf range
                 InstKind::InsertValue { ty, aggregate, index, value } => {
                     let mut leaves = components(aggregate, &aggregates);

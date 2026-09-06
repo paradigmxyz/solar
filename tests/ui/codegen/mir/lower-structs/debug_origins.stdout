@@ -1,0 +1,30 @@
+- // === ROOT/tests/ui/codegen/mir/lower-structs/debug_origins.mir (before lower-structs) ===
++ // === ROOT/tests/ui/codegen/mir/lower-structs/debug_origins.mir (after lower-structs) ===
+  @module StructDebugOrigins
+  types:
+    struct0: {u256, u256}
+  
+- fn @caller(arg0: u256, arg1: bool) -> struct0 {
++ fn @caller(arg0: u256, arg1: bool) -> (u256, u256) {
+    bb0:
+-     v0 = icall @pair, arg0 !metadata(spans=[10..20, 30..40], modifier_depth=2)
+-     v1 = select arg1, v0, undef struct0 !metadata(spans=[50..60, 70..80], modifier_depth=3)
+-     ret v1 !metadata(span=90..100, modifier_depth=4)
++     v2 = icall @pair, arg0 !metadata(spans=[10..20, 30..40], modifier_depth=2)
++     v3 = frame_load multi_return, word, 0 !metadata(memory=scratch, spans=[10..20, 30..40], modifier_depth=2)
++     v4 = add v3, 32 !metadata(spans=[10..20, 30..40], modifier_depth=2)
++     v5 = mload v4 !metadata(spans=[10..20, 30..40], modifier_depth=2)
++     v6 = select arg1, v2, undef u256 !metadata(spans=[50..60, 70..80], modifier_depth=3)
++     v7 = select arg1, v5, undef u256 !metadata(spans=[50..60, 70..80], modifier_depth=3)
++     ret v6, v7 !metadata(span=90..100, modifier_depth=4)
+  }
+  
+- fn @pair(arg0: u256) -> struct0 {
++ fn @pair(arg0: u256) -> (u256, u256) {
+    bb0:
+-     v0 = insert_value struct0, undef struct0, 0, arg0 !metadata(span=110..120)
+-     v1 = insert_value struct0, v0, 1, 42 !metadata(span=120..130)
+-     ret v1 !metadata(span=130..140)
++     ret arg0, 42 !metadata(span=130..140)
+  }
+  
