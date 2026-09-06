@@ -91,3 +91,17 @@ fn @select_undef(arg0: calldataslice, arg1: bool) -> struct1 {
     v2 = insert_value struct1, v1, 1, 42
     ret v2
 }
+
+fn @checked_slice(arg0: calldataslice, arg1: bool) -> calldataslice {
+  bb0:
+    jumpi arg1, bb1, bb2
+  bb1:
+    ret arg0
+  bb2:
+    tail_call @revert_stub
+}
+
+fn @revert_stub() {
+  bb0:
+    revert 0, 0
+}

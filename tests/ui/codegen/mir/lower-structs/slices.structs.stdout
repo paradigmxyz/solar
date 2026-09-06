@@ -149,3 +149,17 @@
 +     ret v3, v4, 42
   }
   
+  fn @checked_slice(arg0: calldataslice, arg1: bool) -> calldataslice {
+    bb0:
+      jumpi arg1, bb1, bb2
+    bb2:
+      tail_call @revert_stub
+    bb1:
+      ret arg0
+  }
+  
+  fn @revert_stub() {
+    bb0:
+      revert 0, 0
+  }
+  

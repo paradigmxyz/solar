@@ -20,9 +20,9 @@
 //! 8. **Instruction-block consistency**: each instruction's `block` field matches the block whose
 //!    `instructions` vector contains it.
 //! 9. **Predecessor consistency**: every stored predecessor actually branches to the block.
-//! 10. **SSA dominance**: every instruction result dominates each reachable use (phi inputs:
-//!     their incoming predecessor). Within a block, definitions precede ordinary uses, including
-//!     in loops; loop-carried values must use explicit phis.
+//! 10. **SSA dominance**: every instruction result dominates each reachable use (phi inputs: their
+//!     incoming predecessor). Within a block, definitions precede ordinary uses, including in
+//!     loops; loop-carried values must use explicit phis.
 //! 11. **Call consistency**: internal and tail-call targets exist and their argument counts match
 //!     the callee.
 //! 12. **Immutable consistency**: immutable declarations and stores use supported representations,

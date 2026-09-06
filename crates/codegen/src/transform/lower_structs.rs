@@ -3,10 +3,11 @@
 //! Fields retain declaration order through parameters, returns, calls, and control-flow merges.
 //! Every aggregate value receives leaf placeholders before rewriting instructions, so cyclic
 //! phis can refer to backedge definitions without depending on block traversal order. Unreachable
-//! blocks are removed first: their definitions need not obey SSA and can form substitution cycles. Insertions
-//! and projections become value substitutions; phis and selects become one instruction per leaf.
-//! Internal calls publish their scalar results through the backend return convention only here.
-//! All tail results are read immediately after their call, before another call can overwrite them.
+//! blocks are removed first: their definitions need not obey SSA and can form substitution cycles.
+//! Insertions and projections become value substitutions; phis and selects become one instruction
+//! per leaf. Internal calls publish their scalar results through the backend return convention only
+//! here. All tail results are read immediately after their call, before another call can overwrite
+//! them.
 //!
 //! This pass belongs before frame and memory-object lowering. Frame rebasing is checked for the
 //! whole module before changing signatures. Slice fields expand directly to pointer/length words;
@@ -163,7 +164,9 @@ fn slice_values_are_pairs(module: &Module) -> bool {
             Some(Terminator::TailCall { function, args }) => {
                 args_match(*function, args)
                     && module.functions.get(*function).is_some_and(|callee| {
-                        func.returns.iter().enumerate().all(|(index, &ty)| {
+                        !callee.blocks.iter().any(|block| {
+                            matches!(block.terminator, Some(Terminator::Return { .. }))
+                        }) || func.returns.iter().enumerate().all(|(index, &ty)| {
                             !matches!(ty, MirType::Slice(_))
                                 || callee.returns.get(index) == Some(&ty)
                         })

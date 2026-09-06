@@ -149,6 +149,20 @@
 +     ret v3, v4, 42
   }
   
+  fn @checked_slice(arg0: calldataslice, arg1: bool) -> calldataslice {
+    bb0:
+      jumpi arg1, bb1, bb2
+    bb2:
+      tail_call @revert_stub
+    bb1:
+      ret arg0
+  }
+  
+  fn @revert_stub() {
+    bb0:
+      revert 0, 0
+  }
+  
 - // === ROOT/tests/ui/codegen/mir/lower-structs/slices.mir (before lower-frame-slots) ===
 + // === ROOT/tests/ui/codegen/mir/lower-structs/slices.mir (after lower-frame-slots) ===
   @module StructSlices
@@ -264,6 +278,20 @@
       v3 = slice_ptr v0
       v4 = slice_len v0
       ret v3, v4, 42
+  }
+  
+  fn @checked_slice(arg0: calldataslice, arg1: bool) -> calldataslice {
+    bb0:
+      jumpi arg1, bb1, bb2
+    bb2:
+      tail_call @revert_stub
+    bb1:
+      ret arg0
+  }
+  
+  fn @revert_stub() {
+    bb0:
+      revert 0, 0
   }
   
 - // === ROOT/tests/ui/codegen/mir/lower-structs/slices.mir (before lower-slices) ===
@@ -392,5 +420,22 @@
 +     v9 = select arg2, arg0, undef calldataptr
 +     v10 = select arg2, arg1, undef u256
 +     ret v9, v10, 42
+  }
+  
+- fn @checked_slice(arg0: calldataslice, arg1: bool) -> calldataslice {
++ fn @checked_slice(arg0: calldataptr, arg1: u256, arg2: bool) -> (calldataptr, u256) {
+    bb0:
+-     jumpi arg1, bb1, bb2
++     jumpi arg2, bb1, bb2
+    bb2:
+      tail_call @revert_stub
+    bb1:
+-     ret arg0
++     ret arg0, arg1
+  }
+  
+  fn @revert_stub() {
+    bb0:
+      revert 0, 0
   }
   
