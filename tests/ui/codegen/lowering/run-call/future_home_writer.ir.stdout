@@ -32,13 +32,11 @@ bb5:
   mload
   swap 1
   sub
-  push 352
-  mstore
   push 320
   mload
   push 0xdeadbeef
-  push 352
-  mload
+  swap 1
+  swap 2
   mstore
   push 320
   mstore

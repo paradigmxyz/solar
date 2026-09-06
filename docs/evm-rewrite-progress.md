@@ -538,6 +538,15 @@ bounded symbolic agreement on the internal-call stack-return fixture in both
 modes. Current raw backend scope is 11,532 Rust lines across 33 files, including
 comments and tests: 23,106 fewer than the deleted raw scope.
 
+The future-home writer custom-pipeline expectation now pins its directly
+carried target and exact single-live-base restore sequence. All five revisions
+pass, with 18 concrete current calls (including the custom pipeline) and eight
+matching solc calls. Four extra solc probes hit its free-memory pointer or wrap
+the address; those layout-dependent failures and traces are retained explicitly,
+not counted as agreements. Original tracked call inputs are unchanged. Comment
+edits preserve exact generated artifacts in both modes and the custom pipeline.
+Evidence: `future-home-current-review/`. The refreshed Foundry lane also passes.
+
 ## Remaining acceptance
 
 Complete targeted fixes, remove every new baseline failure, and investigate

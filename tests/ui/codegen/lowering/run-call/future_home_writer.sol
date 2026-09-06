@@ -9,11 +9,14 @@ contract FutureHomeWriter {
         assembly {
             // Only the already-live calldata base needs restoring after the write. The twenty
             // loaded values are defined later, so their reusable homes need no backup yet.
-            // CHECK: push 0xdeadbeef
-            // CHECK-NEXT: push [[TARGET:[0-9a-fx]+]]
-            // CHECK-NEXT: mload
-            // CHECK-NEXT: mstore
+            // CHECK: sub
             // CHECK-NEXT: push [[BASE:[0-9a-fx]+]]
+            // CHECK-NEXT: mload
+            // CHECK-NEXT: push 0xdeadbeef
+            // CHECK-NEXT: swap 1
+            // CHECK-NEXT: swap 2
+            // CHECK-NEXT: mstore
+            // CHECK-NEXT: push [[BASE]]
             // CHECK-NEXT: mstore
             // CHECK-NEXT: push [[BASE]]
             // CHECK-NEXT: mload
