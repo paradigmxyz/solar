@@ -1,59 +1,56 @@
 //@compile-flags: -Zdump=evm-ir-runtime
 //@ filecheck:
 
-// Static frame overlays use compile-time-fixed frame addresses, while recursive
-// and mutually recursive calls share the dynamic frame allocator and epilogue.
+// Fixed multi-result storage coexists with stack-based scalar recursion and
+// mutually recursive calls; the getter bypasses the allocating entry initialization.
 contract SF {
     uint256 public s;
 
-    // The focused checks below cover the frame architecture without depending on the instruction
-    // order within every lowered function.
-    // CHECK: push 0x313ae541
-    // CHECK: eq
-    // CHECK-NEXT: push {{bb[0-9]+}}
-    // CHECK: push 0x86b714e2
-    // CHECK-NEXT: sub
-    // CHECK-NEXT: push {{bb[0-9]+}}
-    // CHECK-NEXT: jumpi
-    // CHECK-NEXT: push 0
-    // CHECK-NEXT: sload
-    // CHECK-NEXT: jump [[GETTER_RETURN:bb[0-9]+]]
-    // CHECK: [[GETTER_RETURN]]:
-    // CHECK: return
-    // The getter's accessed memory ranges are proven disjoint from the reserved FMP word, so the
-    // allocating entry alone initializes its reachable frame floor.
+    // Scalar recursion keeps its arguments and return addresses on the physical stack.
+    // CHECK-LABEL: @module SF_runtime
     // CHECK-NOT: push 64
-    // CHECK: [[TOP:bb[0-9]+]]:
-    // CHECK-NEXT: push 832
-    // CHECK-NEXT: push 64
+    // CHECK: push 0x313ae541
+    // CHECK-NEXT: eq
+    // CHECK-NEXT: jumpi [[TOP_SELECT:bb[0-9]+]], [[GETTER_SELECT:bb[0-9]+]]
+    // CHECK: [[GETTER_SELECT]]:
+    // CHECK-NEXT: push 0x86b714e2
+    // CHECK-NEXT: sub
+    // CHECK: sload
+    // CHECK-NEXT: push 128
     // CHECK-NEXT: mstore
-    // Runtime static frames omit the unused dynamic-frame header.
-    // CHECK: push 3{{$}}
-    // CHECK-NEXT: push 4{{$}}
-    // CHECK-NEXT: calldataload
-    // CHECK-NEXT: mul
-    // CHECK: push [[OVERFLOW:bb[0-9]+]]
-    // CHECK-NEXT: jumpi
-    // CHECK-NEXT: push [[CHAIN_RET:bb[0-9]+]]
-    // CHECK: push 416
-    // CHECK-NEXT: mstore
-    // CHECK: [[CHAIN_RET]]:
-    // CHECK-NEXT: dup 1
-    // CHECK-NEXT: push 256
-    // CHECK-NEXT: mstore
+    // CHECK-NEXT: push 32
+    // CHECK-NEXT: push 128
+    // CHECK-NEXT: return
     // CHECK: push 7
     // CHECK-NEXT: push 4
     // CHECK-NEXT: calldataload
     // CHECK-NEXT: mod
-    // CHECK: push bb80
-    // CHECK-NEXT: jump [[REC_DISPATCH:bb[0-9]+]]
-    // CHECK: [[REC_DISPATCH]]:
-    // CHECK-NEXT: push 160
-    // CHECK-NEXT: mload
-    // CHECK: push 288
+    // CHECK: push [[REC_CONT:bb[0-9]+]]
+    // CHECK: jump [[REC_BODY:bb[0-9]+]]
+    // CHECK: [[REC_BODY]]:
+    // CHECK: [[REC_CONT]]:
+    // CHECK-NEXT: push 5
+    // The second chainC result uses a fixed buffer advertised through scratch word 32.
+    // CHECK: mload
+    // CHECK-NEXT: push 32
     // CHECK-NEXT: add
+    // CHECK-NEXT: mload
+    // CHECK: push 256
+    // CHECK-NEXT: mstore
+    // CHECK-NEXT: push 224
+    // CHECK-NEXT: push 32
+    // CHECK-NEXT: mstore
+    // CHECK-NEXT: swap 1
+    // CHECK-NEXT: jump{{$}}
+    // A recursive edge reuses the same body with a distinct suspended continuation.
+    // CHECK: push {{bb[0-9]+}}
+    // CHECK: jump [[REC_BODY]]
+    // Only top's selected entry initializes the unchanged heap floor.
+    // CHECK: [[TOP_SELECT]]:
+    // CHECK: push 288
     // CHECK-NEXT: push 64
     // CHECK-NEXT: mstore
+    // CHECK-NOT: push 64
     function top(uint256 x) external returns (uint256) {
         uint256 keep = x * 3; // live across all the calls below
         uint256 a = chainA(x);
