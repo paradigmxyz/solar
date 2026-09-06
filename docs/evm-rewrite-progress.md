@@ -393,6 +393,12 @@ source/executable hashes, original outputs and review are in `assembly-buffer/`.
 These measurements compare this representation change only; they do not clear
 the rewrite's outstanding sealed-baseline performance debt.
 
+The timing/CLI expectation review preserves all MIR timing lines and updates
+only the truthful physical-pass sequence and one smaller selector-dispatch bin.
+Sixteen sealed/current constructor/dispatch executions agree; all five focused
+UI/FileCheck cases pass. Four expectation files change, with originals, raw
+outputs and replay traces retained in `timing-cli-review/`.
+
 ## Remaining acceptance
 
 Complete targeted fixes, remove every new baseline failure, and investigate
