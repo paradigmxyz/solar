@@ -51,3 +51,173 @@
       ret
   }
   
+  fn @disjoint_storage(arg0: u256) -> u256 {
+    bb0:
+      v0 = sload 0
+      icall @write_slot_one, 0
+-     v1 = sload 0
+-     v2 = add v0, v1
++     v2 = add v0, v0
+      ret v2
+  }
+  
+  fn @overlapping_storage(arg0: u256) -> u256 {
+    bb0:
+      v0 = sload 0
+      icall @write_slot_zero, 0
+      v1 = sload 0
+      v2 = add v0, v1
+      ret v2
+  }
+  
+  fn @unknown_storage(arg0: u256) -> u256 {
+    bb0:
+      v0 = sload 0
+      icall @write_unknown, 0, arg0
+      v1 = sload 0
+      v2 = add v0, v1
+      ret v2
+  }
+  
+  fn @transitive_storage(arg0: u256) -> u256 {
+    bb0:
+      v0 = sload 0
+      icall @tail_writer, 0
+-     v1 = sload 0
+-     v2 = add v0, v1
++     v2 = add v0, v0
+      ret v2
+  }
+  
+  fn @recursive_storage(arg0: u256) -> u256 {
+    bb0:
+      v0 = sload 0
+      icall @recursive_writer, 0, arg0
+-     v1 = sload 0
+-     v2 = add v0, v1
++     v2 = add v0, v0
+      ret v2
+  }
+  
+  fn @disjoint_transient(arg0: u256) -> u256 {
+    bb0:
+      v0 = tload 0
+      icall @write_transient_one, 0
+-     v1 = tload 0
+-     v2 = add v0, v1
++     v2 = add v0, v0
+      ret v2
+  }
+  
+  fn @overlapping_transient(arg0: u256) -> u256 {
+    bb0:
+      v0 = tload 0
+      icall @write_transient_zero, 0
+      v1 = tload 0
+      v2 = add v0, v1
+      ret v2
+  }
+  
+  fn @separate_spaces(arg0: u256) -> u256 {
+    bb0:
+      v0 = sload 0
+      icall @write_transient_zero, 0
+-     v1 = sload 0
+-     v2 = add v0, v1
++     v2 = add v0, v0
+      ret v2
+  }
+  
+  fn @wide_storage(arg0: u256) -> u256 {
+    bb0:
+      v0 = sload 0
+      icall @write_many_slots, 0
+      v1 = sload 0
+      v2 = add v0, v1
+      ret v2
+  }
+  
+  fn @write_slot_one() {
+    bb0:
+      sstore 1, 7
+      ret
+  }
+  
+  fn @write_slot_zero() {
+    bb0:
+      sstore 0, 7
+      ret
+  }
+  
+  fn @write_unknown(arg0: u256) {
+    bb0:
+      sstore arg0, 7
+      ret
+  }
+  
+  fn @tail_writer() {
+    bb0:
+      tail_call @write_slot_one
+  }
+  
+  fn @recursive_writer(arg0: u256) {
+    bb0:
+      sstore 1, 7
+      jumpi arg0, bb1, bb2
+    bb2:
+      ret
+    bb1:
+      icall @recursive_writer, 0, 0
+      ret
+  }
+  
+  fn @write_transient_one() {
+    bb0:
+      tstore 1, 7
+      ret
+  }
+  
+  fn @write_transient_zero() {
+    bb0:
+      tstore 0, 7
+      ret
+  }
+  
+  fn @write_many_slots() {
+    bb0:
+      sstore 1, 7
+      sstore 2, 7
+      sstore 3, 7
+      sstore 4, 7
+      sstore 5, 7
+      sstore 6, 7
+      sstore 7, 7
+      sstore 8, 7
+      sstore 9, 7
+      sstore 10, 7
+      sstore 11, 7
+      sstore 12, 7
+      sstore 13, 7
+      sstore 14, 7
+      sstore 15, 7
+      sstore 16, 7
+      sstore 17, 7
+      sstore 18, 7
+      sstore 19, 7
+      sstore 20, 7
+      sstore 21, 7
+      sstore 22, 7
+      sstore 23, 7
+      sstore 24, 7
+      sstore 25, 7
+      sstore 26, 7
+      sstore 27, 7
+      sstore 28, 7
+      sstore 29, 7
+      sstore 30, 7
+      sstore 31, 7
+      sstore 32, 7
+      sstore 33, 7
+      ret
+  }
+  

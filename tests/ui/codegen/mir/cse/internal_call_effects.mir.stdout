@@ -1,0 +1,153 @@
+// === ROOT/tests/ui/codegen/mir/cse/internal_call_effects.sol:InternalCallEffects ===
+@module InternalCallEffects
+fn @disjoint() -> u256 [selector=0xbf1f2d2a, abi_params=[], abi_returns=[word]] {
+  bb0:
+    sstore 0, 10 !metadata(storage=slot(0))
+    v0 = sload 0 !metadata(storage=slot(0))
+    icall @writeOne, 0
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = add v0, v1
+    v3 = lt v2, v0
+    jumpi v3, bb1, bb2
+  bb2:
+    ret v2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @overlap() -> u256 [selector=0xea9e4070, abi_params=[], abi_returns=[word]] {
+  bb0:
+    sstore 1, 10 !metadata(storage=slot(1))
+    v0 = sload 1 !metadata(storage=slot(1))
+    icall @writeOne, 0
+    v1 = sload 1 !metadata(storage=slot(1))
+    v2 = add v0, v1
+    v3 = lt v2, v0
+    jumpi v3, bb1, bb2
+  bb2:
+    ret v2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @unknown(arg0: u256) -> u256 [selector=0x71667367, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    sstore 0, 10 !metadata(storage=slot(0))
+    v0 = sload 0 !metadata(storage=slot(0))
+    icall @writeSlot, 0, arg0
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = add v0, v1
+    v3 = lt v2, v0
+    jumpi v3, bb1, bb2
+  bb2:
+    ret v2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @recursive(arg0: u256) -> u256 [selector=0x6fe03c36, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    sstore 0, 10 !metadata(storage=slot(0))
+    v0 = sload 0 !metadata(storage=slot(0))
+    icall @recurse, 0, arg0
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = add v0, v1
+    v3 = lt v2, v0
+    jumpi v3, bb1, bb2
+  bb2:
+    ret v2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @transientSlots() -> u256 [selector=0xe5208ad5, abi_params=[], abi_returns=[word]] {
+  bb0:
+    tstore 0, 10
+    v0 = tload 0
+    icall @writeTransientOne, 0
+    v1 = tload 0
+    v2 = add v0, v1
+    v3 = lt v2, v0
+    jumpi v3, bb1, bb2
+  bb2:
+    ret v2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @observedReturn() -> u256 [selector=0xba4bd320, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    mstore 128, 7
+    icall @returnMemory, 0
+    mstore 128, 9
+    ret 9
+}
+
+fn @observedRevert() [selector=0xcc19b047, pure, abi_params=[], abi_returns=[]] {
+  bb0:
+    mstore 128, 7
+    icall @revertMemory, 0
+    mstore 128, 9
+    stop
+}
+
+fn @writeOne() {
+  bb0:
+    sstore 1, 7 !metadata(storage=slot(1))
+    stop
+}
+
+fn @writeSlot(arg0: u256) {
+  bb0:
+    sstore arg0, 7 !metadata(storage=symbolic(arg0))
+    stop
+}
+
+fn @recurse(arg0: u256) {
+  bb0:
+    icall @writeOne, 0
+    v0 = eq arg0, 0
+    v1 = iszero v0
+    jumpi v1, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v2 = sub arg0, 1
+    v3 = lt arg0, 1
+    jumpi v3, bb4, bb5
+  bb5:
+    icall @recurse, 0, v2
+    jump bb3
+  bb3:
+    stop
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @writeTransientOne() {
+  bb0:
+    tstore 1, 7
+    stop
+}
+
+fn @returnMemory() [pure] {
+  bb0:
+    returndata 128, 32
+}
+
+fn @revertMemory() [pure] {
+  bb0:
+    revert 128, 32
+}

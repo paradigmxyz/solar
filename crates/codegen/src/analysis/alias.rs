@@ -294,6 +294,42 @@ impl ModRef {
         self.writes.iter().any(|&access| aa.access_may_alias(access, location))
     }
 
+    fn merge_call_summary(&mut self, summary: &super::memory_summary::FunctionMemorySummary) {
+        for space in [
+            AddressSpace::Memory,
+            AddressSpace::Storage,
+            AddressSpace::Transient,
+            AddressSpace::Immutable,
+        ] {
+            for write in [false, true] {
+                if !(if write { summary.writes(space) } else { summary.reads(space) }) {
+                    continue;
+                }
+                let mut record = |access| {
+                    if write {
+                        self.write(access);
+                    } else {
+                        self.read(access);
+                    }
+                };
+                if let Some(slots) = summary.storage_slots(space, write) {
+                    for &slot in slots {
+                        let location = match space {
+                            AddressSpace::Storage => Location::Storage(StorageAlias::Slot(slot)),
+                            AddressSpace::Transient => {
+                                Location::Transient(StorageAlias::Slot(slot))
+                            }
+                            _ => unreachable!(),
+                        };
+                        record(Access::Location(location));
+                    }
+                } else {
+                    record(Access::Any(space));
+                }
+            }
+        }
+    }
+
     fn read(&mut self, access: Access) {
         self.reads.push(access);
     }
@@ -1187,19 +1223,7 @@ impl AliasAnalysis {
                 if let Some(summary) =
                     self.call_summaries.as_deref().and_then(|summaries| summaries.get(function))
                 {
-                    for space in [
-                        AddressSpace::Memory,
-                        AddressSpace::Storage,
-                        AddressSpace::Transient,
-                        AddressSpace::Immutable,
-                    ] {
-                        if summary.reads(space) {
-                            effects.read_any(space);
-                        }
-                        if summary.writes(space) {
-                            effects.write_any(space);
-                        }
-                    }
+                    effects.merge_call_summary(summary);
                 } else {
                     effects.read_any(AddressSpace::Memory);
                     effects.write_any(AddressSpace::Memory);
@@ -1252,19 +1276,7 @@ impl AliasAnalysis {
                 if let Some(summary) =
                     self.call_summaries.as_deref().and_then(|summaries| summaries.get(function))
                 {
-                    for space in [
-                        AddressSpace::Memory,
-                        AddressSpace::Storage,
-                        AddressSpace::Transient,
-                        AddressSpace::Immutable,
-                    ] {
-                        if summary.reads(space) {
-                            effects.read_any(space);
-                        }
-                        if summary.writes(space) {
-                            effects.write_any(space);
-                        }
-                    }
+                    effects.merge_call_summary(summary);
                 } else {
                     effects.read_any(AddressSpace::Memory);
                     effects.write_any(AddressSpace::Memory);

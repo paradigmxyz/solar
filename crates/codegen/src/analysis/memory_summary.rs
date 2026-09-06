@@ -2,15 +2,54 @@
 //!
 //! Summaries are computed to a fixpoint over internal-call edges. Missing
 //! bodies stay fully conservative; recursive groups converge because every
-//! fact only moves from false to true.
+//! effect grows monotonically. Persistent and transient storage retain bounded sets of exact
+//! slots; symbolic accesses and oversized sets widen to the entire address space. No callee-local
+//! value identities escape into a caller summary.
 
-use super::{AddressSpace, AliasAnalysis};
+use super::{Access, AddressSpace, AliasAnalysis, Location};
 use crate::{
     memory::EvmMemoryLayout,
-    mir::{ArgIdx, Function, FunctionId, InstId, InstKind, Module, Terminator, Value, ValueId},
+    mir::{
+        ArgIdx, Function, FunctionId, InstId, InstKind, Module, StorageAlias, Terminator, Value,
+        ValueId,
+    },
 };
+use alloy_primitives::U256;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashSet};
-use std::collections::VecDeque;
+use std::collections::{BTreeSet, VecDeque};
+
+/// A bounded set of storage slots, or an unknown access to the whole space.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct SlotFootprint {
+    slots: BTreeSet<U256>,
+    unknown: bool,
+}
+
+impl SlotFootprint {
+    fn insert(&mut self, slot: Option<U256>) {
+        if self.unknown {
+            return;
+        }
+        if let Some(slot) = slot {
+            self.slots.insert(slot);
+            if self.slots.len() <= 32 {
+                return;
+            }
+        }
+        self.unknown = true;
+        self.slots.clear();
+    }
+
+    fn merge(&mut self, other: &Self) {
+        if other.unknown {
+            self.insert(None);
+        } else {
+            for &slot in &other.slots {
+                self.insert(Some(slot));
+            }
+        }
+    }
+}
 
 /// Conservative memory effects and pointer captures for one MIR function.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -19,6 +58,10 @@ pub(crate) struct FunctionMemorySummary {
     reads: u8,
     /// Written address spaces as a bit per [`space_index`].
     writes: u8,
+    /// Exact persistent and transient storage reads.
+    slot_reads: [SlotFootprint; 2],
+    /// Exact persistent and transient storage writes.
+    slot_writes: [SlotFootprint; 2],
     may_reset_fmp: bool,
     /// Whether the function may move the free-memory pointer below its current value.
     may_recycle_fmp: bool,
@@ -39,6 +82,8 @@ impl FunctionMemorySummary {
         Self {
             reads: 0,
             writes: 0,
+            slot_reads: Default::default(),
+            slot_writes: Default::default(),
             may_reset_fmp: false,
             may_recycle_fmp: false,
             may_observe_fmp: false,
@@ -52,6 +97,14 @@ impl FunctionMemorySummary {
         Self {
             reads: 0b1111,
             writes: 0b1111,
+            slot_reads: std::array::from_fn(|_| SlotFootprint {
+                unknown: true,
+                ..Default::default()
+            }),
+            slot_writes: std::array::from_fn(|_| SlotFootprint {
+                unknown: true,
+                ..Default::default()
+            }),
             may_reset_fmp: true,
             may_recycle_fmp: true,
             may_observe_fmp: true,
@@ -117,9 +170,42 @@ impl FunctionMemorySummary {
         index.index() >= self.captures.domain_size() || self.captures.contains(index)
     }
 
+    /// Returns exact storage slots, or `None` when the access covers the whole space.
+    pub(crate) fn storage_slots(
+        &self,
+        space: AddressSpace,
+        write: bool,
+    ) -> Option<&BTreeSet<U256>> {
+        let index = slot_space_index(space)?;
+        let footprint = if write { &self.slot_writes[index] } else { &self.slot_reads[index] };
+        (!footprint.unknown).then_some(&footprint.slots)
+    }
+
+    fn record_access(&mut self, access: Access, write: bool) {
+        let space = access.address_space();
+        if write {
+            self.writes |= 1 << space_index(space);
+        } else {
+            self.reads |= 1 << space_index(space);
+        }
+        if let Some(index) = slot_space_index(space) {
+            let slot = match access {
+                Access::Location(Location::Storage(StorageAlias::Slot(slot)))
+                | Access::Location(Location::Transient(StorageAlias::Slot(slot))) => Some(slot),
+                _ => None,
+            };
+            let footprints = if write { &mut self.slot_writes } else { &mut self.slot_reads };
+            footprints[index].insert(slot);
+        }
+    }
+
     fn merge_effects(&mut self, other: &Self) {
         self.reads |= other.reads;
         self.writes |= other.writes;
+        for index in 0..2 {
+            self.slot_reads[index].merge(&other.slot_reads[index]);
+            self.slot_writes[index].merge(&other.slot_writes[index]);
+        }
         self.may_reset_fmp |= other.may_reset_fmp;
         self.may_recycle_fmp |= other.may_recycle_fmp;
         self.may_observe_fmp |= other.may_observe_fmp;
@@ -251,6 +337,14 @@ fn merge_call(
     }
 }
 
+const fn slot_space_index(space: AddressSpace) -> Option<usize> {
+    match space {
+        AddressSpace::Storage => Some(0),
+        AddressSpace::Transient => Some(1),
+        _ => None,
+    }
+}
+
 const fn space_index(space: AddressSpace) -> usize {
     match space {
         AddressSpace::Memory => 0,
@@ -286,14 +380,11 @@ fn local_summary(
                 continue;
             }
             let effects = aa.instruction_mod_ref(func, inst_id);
-            for space in [
-                AddressSpace::Memory,
-                AddressSpace::Storage,
-                AddressSpace::Transient,
-                AddressSpace::Immutable,
-            ] {
-                summary.reads |= (effects.reads_space(space) as u8) << space_index(space);
-                summary.writes |= (effects.writes_space(space) as u8) << space_index(space);
+            for &access in effects.reads() {
+                summary.record_access(access, false);
+            }
+            for &access in effects.writes() {
+                summary.record_access(access, true);
             }
             summary.may_reset_fmp |= aa.instruction_may_reset_fmp(func, inst_id);
             summary.may_recycle_fmp |= instruction_may_recycle_fmp(func, inst_id);
@@ -331,6 +422,18 @@ fn local_summary(
                     capture_sources(&mut summary, func, sources, *offset);
                 }
                 _ => {}
+            }
+        }
+
+        if let Some(term) = &block.terminator
+            && !matches!(term, Terminator::TailCall { .. })
+        {
+            let effects = aa.terminator_mod_ref(func, term);
+            for &access in effects.reads() {
+                summary.record_access(access, false);
+            }
+            for &access in effects.writes() {
+                summary.record_access(access, true);
             }
         }
 
@@ -629,6 +732,52 @@ mod tests {
     use super::*;
     use crate::mir::{FunctionBuilder, MirType};
     use solar_interface::{Ident, sym};
+
+    #[test]
+    fn propagates_terminator_memory_reads() {
+        for revert in [false, true] {
+            for tail in [false, true] {
+                let mut module = Module::new(Ident::DUMMY);
+                let mut leaf = Function::new(Ident::with_dummy_span(sym::memory_read));
+                {
+                    let mut builder = FunctionBuilder::new(&mut leaf);
+                    // return/revert memory[offset..offset + size]
+                    let offset = builder.imm(128);
+                    let size = builder.imm(32);
+                    let term = if revert {
+                        Terminator::Revert { offset, size }
+                    } else {
+                        Terminator::ReturnData { offset, size }
+                    };
+                    builder.set_terminator(term);
+                }
+                let leaf = module.add_function(leaf);
+                let mut caller = Function::new(Ident::with_dummy_span(sym::icall));
+                {
+                    let mut builder = FunctionBuilder::new(&mut caller);
+                    if tail {
+                        // tail_call leaf()
+                        builder.set_terminator(Terminator::TailCall {
+                            function: leaf,
+                            args: Default::default(),
+                        });
+                    } else {
+                        // icall leaf()
+                        // ret
+                        builder.icall_void(leaf, vec![], 0);
+                        builder.ret([]);
+                    }
+                }
+                let caller = module.add_function(caller);
+                let summaries = MemoryCallSummaries::new(&module);
+                for function in [leaf, caller] {
+                    let summary = summaries.get(function).unwrap();
+                    assert!(summary.reads(AddressSpace::Memory), "revert={revert}, tail={tail}");
+                    assert!(!summary.writes(AddressSpace::Memory));
+                }
+            }
+        }
+    }
 
     #[test]
     fn propagates_captures_and_fmp_resets() {
