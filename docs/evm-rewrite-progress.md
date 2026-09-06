@@ -63,6 +63,12 @@ or a final sealed-baseline comparison.
 | Reuse call-entry costs | 70.38→68.63 s (one pair, provisional) | RSS −4.9% |
 | Borrow successor targets | 68.37→68.61 s (flat; no speedup claim) | RSS +6.0%, one pair |
 
+A direct sealed/current checkpoint pair on the same archived input is
+54.62→67.63 seconds (+23.8%), with peak RSS 822,828→632,296 KiB
+(804→617 MiB). All 432 contract IDs and 348 nonempty creation artifacts match,
+with no compile errors. This single pair establishes remaining time debt;
+`sealed-time-checkpoint/` retains it separately from the isolated wins above.
+
 Validation remains enabled. Routine comparisons use the debug compiler in this
 checkout. Exact commands, source/executable hashes, profiles and measurements
 are retained under `target/codegen-bench/evm-rewrite-candidate/`.
@@ -92,8 +98,15 @@ Work is committed in small chunks. Recent changes remove allocation costs,
 retain safe writer operands, rotate protected results in bounded chunks, and
 repair code/gas-observation guards. Reviewed corrections save 121 Nitro bytes
 per mode and 15 more UI size bytes; all individual comparisons are retained.
-The five-byte enum debt remains unresolved. Cheap immutable-read scheduling
-and a size-only tail-pass placement experiment are the next bounded trials.
+The five-byte enum debt remains unresolved. Immutable-read rematerialization
+and moving size-only tail merging later were rejected after strict comparison:
+the former enlarged 89 existing UI artifact debts and created 18; the latter
+enlarged 64 and created two. Rematerialization also worsened five Maple gas
+labels in both modes and created four ENS gas debts in size mode. All runtime
+observations and identities matched. Sources were restored from fresh trial
+snapshots; `nullary-tail-sealed-review/` retains every individual comparison.
+The Maple trace identifies extra stack permutations and entry transfer cost;
+call argument ordering is the next bounded investigation.
 
 Finish all supported behavior and investigate every remaining assertion before
 updating it. Repeat full workspace/UI, Foundry, differential, both size corpora,
