@@ -21,24 +21,26 @@ positions and PUSH widths. There is no Atom stream or assembly-level CFG
 optimization. MIR semantics remain in their retained layers. No legacy backend
 or temporary unsupported rewrite fallback is used.
 
-At the entry-initialization milestone, the fresh scope has 12,476 Rust lines across
-35 files, versus 34,638 deleted raw lines: 22,162 fewer (64.0%). These counts
+At the writer-delta milestone, the fresh scope has 12,487 Rust lines across
+35 files, versus 34,638 deleted raw lines: 22,151 fewer (64.0%). These counts
 include comments, blanks and local tests. A historical production-only count was not retained and is
 not reconstructed from forbidden source.
 
 ## Verification checkpoints
 
-The latest full workspace run (`canonical-block-append-20260906/`) has 1,358
+The latest full workspace run (`writer-delta-20260906/`) has 1,358
 passes, one failing UI aggregate and two skips. Its UI lane has 10,950 passes,
 74 failures and 806 filtered revisions. The four-line append trial was rejected:
 all UI/hot/heavy output is byte-exact with the committed initializer checkpoint,
 but timing pairs 51.59→52.36 and 51.71→59.39 seconds show no benefit. The slow
 second measurement remains retained; the fresh source is reverted. Workspace/all-target Clippy passes.
-Foundry last passed at `gas-writer-protection/`; a final rerun remains required.
+All 99 codegen helpers, Foundry and workspace/all-target Clippy pass at the
+writer-delta checkpoint; the same 74 failure IDs remain.
 
-The independent current ledger is `fmp-frontier-sealed-ledger-20260906/`.
+The current ledger is `writer-delta-sealed-ledger-20260906/`, with independent
+heavy and focused runtime audits.
 All 694 original successful UI IDs and eight known failures match in each mode;
-27 added successes remain separate. Both hot lanes retain all 15 runtime cases,
+30 added successes remain separate. Both hot lanes retain all 15 runtime cases,
 175 ordered gas labels and exact observations. Nine heavy captures match the
 original inputs/settings, 1,672 contract IDs and 3,344 artifacts, including
 1,002 empty outputs and 14 linked-placeholder artifacts. The sealed gate still
@@ -88,17 +90,17 @@ are retained under `target/codegen-bench/evm-rewrite-candidate/`.
 
 ## Output quality still owed
 
-The strict ledger at `fmp-frontier-sealed-ledger-20260906/` joins original
+The strict ledger at `writer-delta-sealed-ledger-20260906/` joins original
 IDs and ordered call labels. Comment-only source amendments have exact bytecode
 proofs and derived reports; sealed reports and the archive remain untouched.
 
 | Matched corpus | Creation-byte delta | Runtime-byte delta | Call-gas delta |
 | --- | ---: | ---: | ---: |
-| UI, gas (694 original successes) | +2,251 | +4,015 | — |
+| UI, gas (694 original successes) | +2,132 | +3,896 | — |
 | UI, size (694 original successes) | −30,193 | −25,648 | — |
-| Hot, gas (15 cases) | +18,803 | +19,240 | −27,313 |
+| Hot, gas (15 cases) | +17,883 | +18,320 | −27,313 |
 | Hot, size (15 cases) | +25,740 | +26,112 | −92,067 |
-| Heavy projects, original settings (9 cases) | +19,125,808 | +15,783,578 | — |
+| Heavy projects, original settings (9 cases) | +18,085,004 | +14,900,432 | — |
 
 Aggregates do not pass acceptance: 1,323 individual UI artifacts remain larger;
 24 gas-mode and 30 size-mode hot labels remain higher. Current hot size checks
@@ -106,8 +108,8 @@ also have 20/19 larger creation-or-runtime artifacts in gas/size. The required
 tail observer fix exposes additional size debt rather than retaining unsafe
 sharing. New UI sources are reported separately from the baseline. The heavy
 corpus has 1,102 larger artifacts: total runtime output grows
-23,499,815→39,283,393 bytes. Router runtime is now 25,978 versus sealed 9,822
-bytes, down from the preceding rewrite's 48,812. These compile-only captures
+23,499,815→38,400,247 bytes. SeaportRouter runtime is now 24,809 versus sealed
+9,822 bytes, down from the preceding rewrite's 48,812. These compile-only captures
 establish size debt, not runtime correctness for arbitrary heavy contracts.
 
 ## Active work and remaining gates
@@ -208,6 +210,24 @@ Its 1,404 original rows and bytecode totals are unchanged.
 The two retained MIR graphs (`db5fd896`) check parsing in CI; their backend
 execution evidence is explicitly separate. Evidence lives in
 `fmp-entry-frontier-20260906/` and `fmp-relocation-snapshots-20260906/`.
+
+Protected stores now reuse the first aligned address delta for the second
+selected home (`9f295e1b`), preserving modular arithmetic, stack peak and exact
+memory-access order. All 215 successful focused gas labels save 15 execution
+gas. The 724-source screen saves 172 creation/runtime bytes in gas mode; Nitro
+saves 920. All none/size output and hot gas labels remain exact. Nine projects
+save 1,040,804 creation and 883,146 runtime bytes, with 302 shrinking artifacts
+and no individual increase. Six library and 13 immutable metadata fields move
+offsets; identity/count/width/placeholder and nonoverlap checks pass.
+
+The focused run retains 2,616 calls, including all 1,962 required
+before/after/solc oracle matches and the same 181 known invalid sealed outputs.
+All 84 raw boundary pairs and eight UI revisions pass. The symbolic attempt
+hits its 60-second cap without a reported counterexample, so remains incomplete.
+Quiet Seaport pairs measure 51.81→52.81 and 51.51→53.11 seconds (+1.9%/+3.1%);
+RSS is +1.6%/−1.8%. This is an explicit compiler-time tradeoff for measured gas
+and size wins, not a compilation speedup. Evidence is in `writer-delta-20260906/`,
+`writer-delta-heavy-20260906/` and `router-writer-delta-20260906/`.
 
 Finish all supported behavior and investigate every remaining assertion before
 updating it. Repeat full workspace/UI, Foundry, differential, both size corpora,
