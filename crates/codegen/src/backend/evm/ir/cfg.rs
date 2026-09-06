@@ -20,6 +20,12 @@
 //! Tail merging uses the same relocation exclusions and additionally declines
 //! modules that read GAS or forward gas to external calls or creations: its new
 //! transfer can affect observations after the shared suffix, not only within it.
+//! In size mode, an exact six-byte Return/Revert suffix may instead be shared
+//! by an atomic group of at least eight blocks. All members independently pass
+//! the transfer-peak proof before any rewrite. Group costing reserves five bytes
+//! per transfer and one shared label, without credit for fallthrough; ordinary
+//! pair matching and gas-mode thresholds are unchanged. This is a bounded cost
+//! estimate through PUSH3 label widths, not an assembler fixed-point size proof.
 //! Unequal conditional terminators can match through one empty forwarding block
 //! per target; only accepted shared tails use those destinations. Equal original
 //! terminators retain their existing behavior, and metadata is never discarded. A final
@@ -698,6 +704,7 @@ fn tail_merge(gcx: Gcx<'_>, module: &mut Module) -> bool {
         if !size && module.blocks[id].loop_header {
             continue;
         }
+        let mut tried_short_tail = false;
         for &other in &ids[index + 1..] {
             if !size && module.blocks[other].loop_header {
                 continue;
@@ -732,7 +739,17 @@ fn tail_merge(gcx: Gcx<'_>, module: &mut Module) -> bool {
                 TerminatorKind::Jump(_) | TerminatorKind::JumpI(..) => 3,
                 _ => 1,
             };
-            if common < 3 || suffix_bytes + terminal_bytes < 7 {
+            let short = suffix_bytes + terminal_bytes < 7;
+            if common < 3
+                || (short
+                    && (!size
+                        || tried_short_tail
+                        || suffix_bytes + terminal_bytes != 6
+                        || !matches!(
+                            a.terminator.kind,
+                            TerminatorKind::Return | TerminatorKind::Revert
+                        )))
+            {
                 continue;
             }
             let transfer = [InstKind::Push(alloy_primitives::U256::ZERO).into()];
@@ -755,6 +772,40 @@ fn tail_merge(gcx: Gcx<'_>, module: &mut Module) -> bool {
             ) {
                 continue;
             }
+            let mut additional = Vec::new();
+            if short {
+                // A six-byte suffix has one exact starting point in this block.
+                // Scan its group once; committing an initial pair can lose bytes.
+                tried_short_tail = true;
+                let suffix = &a.insts[a.insts.len() - common..];
+                for &source in &ids[index + 1..] {
+                    let block = &module.blocks[source];
+                    if source != other
+                        && (size || !block.loop_header)
+                        && block.terminator == a.terminator
+                        && block.insts.ends_with(suffix)
+                        && super::verify::rewrite_fits(
+                            module,
+                            &heights,
+                            &reachable,
+                            source,
+                            block.insts.len() - common,
+                            block.insts.len(),
+                            &transfer,
+                        )
+                    {
+                        additional.push(source);
+                    }
+                }
+                let count = 2 + additional.len();
+                let body = suffix_bytes + terminal_bytes;
+                // n * body -> body + jumpdest + n * (push label; jump)
+                // Reserve five bytes per transfer (PUSH3 plus JUMP) and
+                // a new shared JUMPDEST; do not credit a possible fallthrough.
+                if count < 3 || count * body <= body + 1 + 5 * count {
+                    continue;
+                }
+            }
             let mut terminator = a.terminator.clone();
             if let Some(kind) = forwarded {
                 // jumpi empty_forwarder, other -> jumpi forwarded_target, other
@@ -763,14 +814,19 @@ fn tail_merge(gcx: Gcx<'_>, module: &mut Module) -> bool {
             let tail = Block {
                 insts: a.insts[a.insts.len() - common..].to_vec(),
                 terminator,
-                cold: a.cold && b.cold,
-                loop_header: a.loop_header || b.loop_header,
+                cold: a.cold
+                    && b.cold
+                    && additional.iter().all(|&source| module.blocks[source].cold),
+                loop_header: a.loop_header
+                    || b.loop_header
+                    || additional.iter().any(|&source| module.blocks[source].loop_header),
             };
-            // prefix_a; suffix; exit -> prefix_a; jump shared
-            // prefix_b; suffix; exit -> prefix_b; jump shared
+            // prefix_1; suffix; exit -> prefix_1; jump shared
+            // ...
+            // prefix_n; suffix; exit -> prefix_n; jump shared
             // shared: suffix; exit
             let shared = module.append_block(tail);
-            for source in [id, other] {
+            for source in [id, other].into_iter().chain(additional) {
                 let block = &mut module.blocks[source];
                 block.insts.truncate(block.insts.len() - common);
                 block.terminator = TerminatorKind::Jump(shared).into();

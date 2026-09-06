@@ -1,0 +1,157 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=tail-merge
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=tail-merge
+//@[gas] filecheck: --check-prefix=UNCHANGED
+//@[size] filecheck: --check-prefix=SHARED
+
+@module Group8
+bb0:
+  push 0
+  calldataload
+  push 8
+  swap 1
+  mod
+  indexed_jump bb1, bb2, bb3, bb4, bb5, bb6, bb7, bb8
+// UNCHANGED-LABEL: bb1:
+// UNCHANGED: {{^[ +].*}}push 101
+// UNCHANGED-NEXT: {{^[ +].*}}push 0
+// UNCHANGED-NEXT: {{^[ +].*}}mstore
+// UNCHANGED-NEXT: {{^[ +].*}}push 32
+// UNCHANGED-NEXT: {{^[ +].*}}push 0
+// UNCHANGED-NEXT: {{^[ +].*}}return
+// SHARED-LABEL: bb1:
+// SHARED: push 101
+// SHARED: + jump [[TAIL:bb[0-9]+]]
+bb1:
+  push 101
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+// UNCHANGED-LABEL: bb2:
+// UNCHANGED: {{^[ +].*}}push 102
+// UNCHANGED-NEXT: {{^[ +].*}}push 0
+// UNCHANGED-NEXT: {{^[ +].*}}mstore
+// UNCHANGED-NEXT: {{^[ +].*}}push 32
+// UNCHANGED-NEXT: {{^[ +].*}}push 0
+// UNCHANGED-NEXT: {{^[ +].*}}return
+// SHARED-LABEL: bb2:
+// SHARED: push 102
+// SHARED: + jump [[TAIL]]
+bb2:
+  push 102
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+// UNCHANGED-LABEL: bb3:
+// UNCHANGED: {{^[ +].*}}push 103
+// UNCHANGED-NEXT: {{^[ +].*}}push 0
+// UNCHANGED-NEXT: {{^[ +].*}}mstore
+// UNCHANGED-NEXT: {{^[ +].*}}push 32
+// UNCHANGED-NEXT: {{^[ +].*}}push 0
+// UNCHANGED-NEXT: {{^[ +].*}}return
+// SHARED-LABEL: bb3:
+// SHARED: push 103
+// SHARED: + jump [[TAIL]]
+bb3:
+  push 103
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+// UNCHANGED-LABEL: bb4:
+// UNCHANGED: {{^[ +].*}}push 104
+// UNCHANGED-NEXT: {{^[ +].*}}push 0
+// UNCHANGED-NEXT: {{^[ +].*}}mstore
+// UNCHANGED-NEXT: {{^[ +].*}}push 32
+// UNCHANGED-NEXT: {{^[ +].*}}push 0
+// UNCHANGED-NEXT: {{^[ +].*}}return
+// SHARED-LABEL: bb4:
+// SHARED: push 104
+// SHARED: + jump [[TAIL]]
+bb4:
+  push 104
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+// UNCHANGED-LABEL: bb5:
+// UNCHANGED: {{^[ +].*}}push 105
+// UNCHANGED-NEXT: {{^[ +].*}}push 0
+// UNCHANGED-NEXT: {{^[ +].*}}mstore
+// UNCHANGED-NEXT: {{^[ +].*}}push 32
+// UNCHANGED-NEXT: {{^[ +].*}}push 0
+// UNCHANGED-NEXT: {{^[ +].*}}return
+// SHARED-LABEL: bb5:
+// SHARED: push 105
+// SHARED: + jump [[TAIL]]
+bb5:
+  push 105
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+// UNCHANGED-LABEL: bb6:
+// UNCHANGED: {{^[ +].*}}push 106
+// UNCHANGED-NEXT: {{^[ +].*}}push 0
+// UNCHANGED-NEXT: {{^[ +].*}}mstore
+// UNCHANGED-NEXT: {{^[ +].*}}push 32
+// UNCHANGED-NEXT: {{^[ +].*}}push 0
+// UNCHANGED-NEXT: {{^[ +].*}}return
+// SHARED-LABEL: bb6:
+// SHARED: push 106
+// SHARED: + jump [[TAIL]]
+bb6:
+  push 106
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+// UNCHANGED-LABEL: bb7:
+// UNCHANGED: {{^[ +].*}}push 107
+// UNCHANGED-NEXT: {{^[ +].*}}push 0
+// UNCHANGED-NEXT: {{^[ +].*}}mstore
+// UNCHANGED-NEXT: {{^[ +].*}}push 32
+// UNCHANGED-NEXT: {{^[ +].*}}push 0
+// UNCHANGED-NEXT: {{^[ +].*}}return
+// SHARED-LABEL: bb7:
+// SHARED: push 107
+// SHARED: + jump [[TAIL]]
+bb7:
+  push 107
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+// UNCHANGED-LABEL: bb8:
+// UNCHANGED: {{^[ +].*}}push 108
+// UNCHANGED-NEXT: {{^[ +].*}}push 0
+// UNCHANGED-NEXT: {{^[ +].*}}mstore
+// UNCHANGED-NEXT: {{^[ +].*}}push 32
+// UNCHANGED-NEXT: {{^[ +].*}}push 0
+// UNCHANGED-NEXT: {{^[ +].*}}return
+// SHARED-LABEL: bb8:
+// SHARED: push 108
+// SHARED: + jump [[TAIL]]
+bb8:
+  push 108
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+
+// SHARED: + [[TAIL]]:
+// SHARED: {{^[ +].*}}push 0
+// SHARED-NEXT: {{^[ +].*}}mstore
+// SHARED-NEXT: {{^[ +].*}}push 32
+// SHARED-NEXT: {{^[ +].*}}push 0
+// SHARED-NEXT: {{^[ +].*}}return
