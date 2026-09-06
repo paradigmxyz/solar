@@ -636,3 +636,38 @@ ternary, library and data snapshots retain executable sources and runtime
 oracles, including thirty additional current/solc storage panic checks.
 Publication remains blocked by automatic approval review. The original
 performance debt and computed-memory interference bug remain open.
+
+
+### Main CI repair: block coalescing and cold annotations
+
+Whole-block coalescing is committed with a corrected marker-cost guard. The
+adversarial case exposed a retained fallthrough clone acquiring an additional
+JUMPDEST; the corrected gas pass declines that case. Its final compiler keeps
+all 4,780 UI objects and 3,344 heavy objects byte-identical to the measured
+trial, and both hot modes retain fifteen cases and 175 labels. Relative to the
+preceding accepted compiler, 81 UI objects shrink and none grow. Four timing
+legs of the pre-correction trial show 0.03% and 1.29% lower compiler time;
+these are not measurements of the final guard. Evidence is in
+`block-guard-{ui-independent,heavy-identity}-20260906/` and
+`block-dedup-adversarial-20260906/`.
+
+Cold-path classification now runs after final layout and only annotates IR.
+All 4,780 UI objects remain byte-identical. An earlier placement was rejected
+because it enlarged 2,302 objects; that trial remains archived. Fifty-two
+snapshot migrations change only cold labels, thirteen FileCheck sources keep
+their label identities and instruction assertions, and two timing snapshots
+add the actual new pass rows. Separate library and cold-call checks preserve
+branch polarity, complete failure paths and return behavior. Negative mutations
+reject incorrect labels, terminators and control flow. A focused run passes
+99 of 100 revisions; the remaining size-mode cold-call requirement is still
+unimplemented. Full workspace CI is not green.
+
+A new return-sharing experiment improves sizes but worsens existing sealed
+gas debts on tuple and Aave calls, so it is not enabled or committed. Its new
+source and 39 new fixture files are preserved with checksums outside active
+UI discovery in `return-sharing-held-source-20260906/`; no existing tracked
+test was moved or removed. A smaller terminal-word compaction is undergoing
+final compiler timing after passing corpus size and actual runtime checks.
+The original rewrite performance debts and computed-memory interference bug
+remain open. Publishing local commits is still blocked by automatic approval
+review despite the earlier user authorization.
