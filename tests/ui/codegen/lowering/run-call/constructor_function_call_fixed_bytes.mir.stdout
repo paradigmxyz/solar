@@ -2,7 +2,7 @@
 @module ConstructorFunctionCallFixedBytes
 fn @constructor() [constructor] {
   bb0:
-    internal_call @setName, 0, 0x6162630000000000000000000000000000000000000000000000000000000000
+    icall @setName, 0, 0x6162630000000000000000000000000000000000000000000000000000000000
     stop
 }
 

@@ -184,6 +184,7 @@ impl EvmPass for Outline {
                 terminator: block.terminator.clone(),
                 cold: block.cold,
                 loop_header: block.loop_header,
+                function_invoke: None,
             };
             let continuation_id = module.append_block(continuation);
             continuations.push(continuation_id);

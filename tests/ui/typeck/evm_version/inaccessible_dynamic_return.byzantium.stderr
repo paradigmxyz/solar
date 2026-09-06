@@ -1,0 +1,9 @@
+warning[2018]: function state mutability can be restricted to pure
+   ╭▸ ROOT/tests/ui/typeck/evm_version/inaccessible_dynamic_return.sol:LL:CC
+   │
+LL │ ┏     function dyn() external returns (bytes memory) {
+LL │ ┃
+LL │ ┃         return "x";
+LL │ ┃     }
+   ╰╴┗━━━━━┛
+

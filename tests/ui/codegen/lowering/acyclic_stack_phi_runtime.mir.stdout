@@ -2,7 +2,7 @@
 @module AcyclicStackPhi
 fn @trimLen(arg0: calldataslice) -> u256 [selector=0x341fda35, pure, abi_params=[bytes], abi_returns=[word]] {
   bb0:
-    v0 = internal_call @trim, 1, arg0
+    v0 = icall @trim, 1, arg0
     v1 = slice_len v0
     ret v1
 }

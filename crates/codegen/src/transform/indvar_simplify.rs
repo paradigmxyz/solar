@@ -209,10 +209,10 @@ impl IndVarSimplifier {
         }
 
         let initial = self.build_base_plus_offset(func, preheader, key.base, init_offset)?;
-        let (phi_inst, phi_value) = func.alloc_value_inst(Instruction::new(
-            InstKind::Phi(vec![(preheader, initial)]),
-            Some(MirType::uint256()),
-        ));
+        let (phi_inst, phi_value) = func.alloc_value_inst(
+            Instruction::new(InstKind::Phi(vec![(preheader, initial)]), Some(MirType::uint256()))
+                .with_debug_info_dropped(),
+        );
         self.insert_header_phi(func, loop_data.header, phi_inst);
 
         let delta = self.offset_value(func, delta)?;
@@ -263,7 +263,8 @@ impl IndVarSimplifier {
         kind: InstKind,
         ty: Option<MirType>,
     ) -> ValueId {
-        let (inst, value) = func.alloc_value_inst(Instruction::new(kind, ty));
+        let (inst, value) =
+            func.alloc_value_inst(Instruction::new(kind, ty).with_debug_info_dropped());
         func.blocks[block].instructions.push(inst);
         value
     }

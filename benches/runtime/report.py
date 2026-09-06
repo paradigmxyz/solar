@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode
 
-PERF_SITE_URL = "https://paradigmxyz.github.io/solar/"
+PERF_SITE_URL = "https://getfoundry.sh/perf/"
 
 
 def normalize_timings(timings: Any) -> dict[str, int | float]:

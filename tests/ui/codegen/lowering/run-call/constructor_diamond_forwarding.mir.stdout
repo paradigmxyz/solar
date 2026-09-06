@@ -49,20 +49,27 @@ fn @k() -> u256 [selector=0xb4f40c61, view, abi_params=[], abi_returns=[word]] {
 fn @constructor(arg0: u256, arg1: u256) [constructor, abi_params=[u256, u256]] {
   bb0:
     v0 = add arg1, 1
+    v1 = lt v0, arg1
+    jumpi v1, bb1, bb2
+  bb2:
     sstore 0, arg0 !metadata(storage=slot(0))
     sstore 1, v0 !metadata(storage=slot(1))
-    jump bb1
-  bb1:
-    sstore 2, arg0 !metadata(storage=slot(2))
-    jump bb2
-  bb2:
-    jump bb4
-  bb4:
     jump bb3
   bb3:
+    sstore 2, arg0 !metadata(storage=slot(2))
+    jump bb4
+  bb4:
+    jump bb6
+  bb6:
     jump bb5
   bb5:
+    jump bb7
+  bb7:
     stop
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @j() -> u256 [selector=0xb582ec5f, view, abi_params=[], abi_returns=[word]] {

@@ -1,0 +1,22 @@
+error: failed to evaluate constant: arithmetic overflow
+   ╭▸ ROOT/tests/ui/typeck/constant_shift_typed_amount.sol:LL:CC
+   │
+LL │         uint256[1 << S256] memory a;
+   ╰╴                ━━━━━━━━━ evaluation of constant value failed here
+
+error: failed to evaluate constant: arithmetic overflow
+   ╭▸ ROOT/tests/ui/typeck/constant_shift_typed_amount.sol:LL:CC
+   │
+LL │         uint256[(1 << S256) >> S256] memory b;
+   │                 ┬──────────━━━━━━━━
+   │                 │
+   ╰╴                evaluation of constant value failed here
+
+error: failed to evaluate constant: arithmetic overflow
+   ╭▸ ROOT/tests/ui/typeck/constant_shift_typed_amount.sol:LL:CC
+   │
+LL │         uint256[2 ** S256] memory c;
+   ╰╴                ━━━━━━━━━ evaluation of constant value failed here
+
+error: aborting due to 3 previous errors
+

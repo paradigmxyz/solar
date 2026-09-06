@@ -1,13 +1,13 @@
 //@compile-flags: -Zmir-pipeline=cse
 //@filecheck:
-@module CseInternalCallSummaries
+@module CseICallSummaries
 // CHECK-LABEL: {{^[ +].*}}fn @keep_load_across_reader{{[( ]}}
 // CHECK: - {{v[0-9]+}} = mload arg0
 // CHECK: + {{v[0-9]+}} = add [[LOAD:v[0-9]+]], [[LOAD]]
 fn @keep_load_across_reader(arg0: memptr) -> u256 {
   bb0:
     v1 = mload arg0
-    v2 = internal_call fn3, 1, arg0
+    v2 = icall fn3, 1, arg0
     v3 = mload arg0
     v4 = add v1, v3
     v5 = add v4, v2
@@ -20,7 +20,7 @@ fn @keep_load_across_reader(arg0: memptr) -> u256 {
 fn @invalidate_load_across_writer(arg0: memptr) -> u256 {
   bb0:
     v1 = mload arg0
-    internal_call fn4, 0, arg0
+    icall fn4, 0, arg0
     v2 = mload arg0
     v3 = add v1, v2
     ret v3
@@ -33,7 +33,7 @@ fn @preserve_freshness_across_call() -> u256 {
   bb0:
     v0 = alloc raw, exact, uninitialized, infallible, 32
     v1 = mload v0
-    internal_call fn5, 0
+    icall fn5, 0
     v2 = alloc raw, exact, uninitialized, infallible, 32
     mstore v2, 7
     v3 = mload v0

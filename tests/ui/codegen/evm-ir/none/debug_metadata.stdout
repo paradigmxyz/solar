@@ -1,0 +1,16 @@
+- // === ROOT/tests/ui/codegen/evm-ir/none/debug_metadata.evmir (before none) ===
++ // === ROOT/tests/ui/codegen/evm-ir/none/debug_metadata.evmir (after none) ===
+  @module DebugMetadata
+  bb0 [invoke=entry@1..40]:
+    push 1 !metadata(span=1..5)
+    op_0c !metadata(stack=0->0, span=8..13)
+    push 2
+    add !metadata(spans=[21..24, 25..28])
+    jumpi bb1, bb2 !metadata(span=30..40)
+  bb1:
+    stop !metadata(span=41..45, exit=return)
+  bb2:
+    push 0
+    dup 1
+    revert !metadata(span=46..52, exit=revert)
+  

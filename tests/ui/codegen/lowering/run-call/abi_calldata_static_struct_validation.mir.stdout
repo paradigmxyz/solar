@@ -12,7 +12,7 @@ fn @f(arg0: memorystruct) -> (u256, u256, u256) [selector=0x9a869a74, pure, abi_
 
 fn @encodeStruct() -> memorybytes [selector=0x01e941a3, pure, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = internal_call @makeStruct, 1
+    v0 = icall @makeStruct, 1
     v1 = abi_encode [tuple<word<u8>, word<u8>>], object, args v0
     ret v1
 }

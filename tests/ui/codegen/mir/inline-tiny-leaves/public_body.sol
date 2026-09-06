@@ -17,7 +17,7 @@ contract PublicBody {
 
     // CHECK-LABEL: fn @vested{{[( ]}}
     // CHECK: loadimmutable _start
-    // CHECK-NOT: internal_call @start
+    // CHECK-NOT: icall @start
     function vested() public view returns (uint256) {
         return start();
     }

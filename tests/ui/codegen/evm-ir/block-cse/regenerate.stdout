@@ -127,7 +127,7 @@
     mload
     push 0
     sload
-    callf !meta(stack=0->0)
+    callf !metadata(stack=0->0)
     push 32
     mload
     add

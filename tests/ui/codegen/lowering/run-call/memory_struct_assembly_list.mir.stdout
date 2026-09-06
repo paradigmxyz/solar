@@ -13,7 +13,7 @@ fn @append.1(arg0: memorystruct, arg1: u256) -> memorystruct [pure] {
     v1 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     memory_object_store_field memorystruct<1>, v1, 0, 0
     memory_object_store_field memorystruct<1>, v1, 0, v0
-    internal_call @updateTail, 0, arg0, v1
+    icall @updateTail, 0, arg0, v1
     ret arg0
 }
 
@@ -25,7 +25,7 @@ fn @append.2(arg0: memorystruct, arg1: memorystruct) -> memorystruct [pure] {
     v3 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     memory_object_store_field memorystruct<1>, v3, 0, 0
     mstore v3, v2
-    internal_call @updateTail, 0, arg0, v3
+    icall @updateTail, 0, arg0, v3
     ret arg0
 }
 
@@ -46,7 +46,7 @@ fn @defaultLocal() -> bool [selector=0x2f73c827, view, abi_params=[], abi_return
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     memory_object_store_field memorystruct<1>, v0, 0, 0
-    internal_call @dirtyFreeMemory, 0
+    icall @dirtyFreeMemory, 0
     v1 = mload v0
     v2 = iszero v1
     ret v2
@@ -54,8 +54,8 @@ fn @defaultLocal() -> bool [selector=0x2f73c827, view, abi_params=[], abi_return
 
 fn @defaultReturn() -> bool [selector=0x099c80fd, view, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
-    internal_call @dirtyFreeMemory, 0
-    v0 = internal_call @empty, 1
+    icall @dirtyFreeMemory, 0
+    v0 = icall @empty, 1
     v1 = mload v0
     v2 = iszero v1
     ret v2
@@ -65,8 +65,8 @@ fn @firstAppend() -> bool [selector=0x9d2b282b, view, abi_params=[], abi_returns
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     memory_object_store_field memorystruct<1>, v0, 0, 0
-    internal_call @dirtyFreeMemory, 0
-    v1 = internal_call @append.1, 1, v0, 7
+    icall @dirtyFreeMemory, 0
+    v1 = icall @append.1, 1, v0, 7
     v2 = mload v1
     v3 = and v2, 0xffffffffff
     v4 = shr 40, v2
@@ -85,9 +85,9 @@ fn @secondAppend() -> bool [selector=0xdce19125, view, abi_params=[], abi_return
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     memory_object_store_field memorystruct<1>, v0, 0, 0
-    internal_call @dirtyFreeMemory, 0
-    v1 = internal_call @append.1, 1, v0, 7
-    v2 = internal_call @append.1, 1, v1, 9
+    icall @dirtyFreeMemory, 0
+    v1 = icall @append.1, 1, v0, 7
+    v2 = icall @append.1, 1, v1, 9
     v3 = mload v2
     v4 = and v3, 0xffffffffff
     v5 = shr 40, v3
@@ -104,7 +104,7 @@ fn @secondAppend() -> bool [selector=0xdce19125, view, abi_params=[], abi_return
 fn @recursiveYul(arg0: u256) -> (u256, bytes1) [selector=0x2aa1bcc4, pure, abi_params=[u256], abi_returns=[word, word<bytes1>]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
-    v1 = internal_call @encode, 1, arg0, v0
+    v1 = icall @encode, 1, arg0, v0
     v2 = sub v1, v0
     v3 = mload v0
     ret v2, v3
@@ -114,22 +114,22 @@ fn @nestedListEncoding() -> (u256, bytes32) [selector=0xb61d93a1, pure, abi_para
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     memory_object_store_field memorystruct<1>, v0, 0, 0
-    v1 = internal_call @empty, 1
-    v2 = internal_call @append.2, 1, v0, v1
-    v3 = internal_call @empty, 1
-    v4 = internal_call @empty, 1
-    v5 = internal_call @append.2, 1, v3, v4
-    v6 = internal_call @append.2, 1, v2, v5
-    v7 = internal_call @empty, 1
-    v8 = internal_call @empty, 1
-    v9 = internal_call @append.2, 1, v7, v8
-    v10 = internal_call @empty, 1
-    v11 = internal_call @empty, 1
-    v12 = internal_call @append.2, 1, v10, v11
-    v13 = internal_call @append.2, 1, v9, v12
-    v14 = internal_call @append.2, 1, v6, v13
+    v1 = icall @empty, 1
+    v2 = icall @append.2, 1, v0, v1
+    v3 = icall @empty, 1
+    v4 = icall @empty, 1
+    v5 = icall @append.2, 1, v3, v4
+    v6 = icall @append.2, 1, v2, v5
+    v7 = icall @empty, 1
+    v8 = icall @empty, 1
+    v9 = icall @append.2, 1, v7, v8
+    v10 = icall @empty, 1
+    v11 = icall @empty, 1
+    v12 = icall @append.2, 1, v10, v11
+    v13 = icall @append.2, 1, v9, v12
+    v14 = icall @append.2, 1, v6, v13
     v15 = mload 64 !metadata(memory=scratch)
-    v16 = internal_call @encodeList, 1, v14, v15
+    v16 = icall @encodeList, 1, v14, v15
     v17 = sub v16, v15
     v18 = mload v15
     ret v17, v18
@@ -163,7 +163,7 @@ fn @encode(arg0: u256, arg1: u256) -> u256 {
   bb3:
     v4 = add arg1, 1
     v5 = sub arg0, 1
-    v6 = internal_call @encode, 1, v5, v4
+    v6 = icall @encode, 1, v5, v4
     v7 = add 192, arg0
     mstore8 arg1, v7
     ret v6
@@ -387,19 +387,19 @@ fn @encodeList(arg0: u256, arg1: u256) -> u256 {
   bb23:
     v46 = mload v14
     v47 = shr 48, v46
-    v48 = internal_call @encodeAddress, 1, v47, v7
+    v48 = icall @encodeAddress, 1, v47, v7
     jump bb8
   bb8:
     jump bb4
   bb21:
     v43 = mload v14
     v44 = shr 48, v43
-    v45 = internal_call @encodeList, 1, v44, v7
+    v45 = icall @encodeList, 1, v44, v7
     jump bb4
   bb18:
     v37 = mload v14
     v38 = shr 48, v37
-    v39 = internal_call @encodeBytes, 1, v38, v7, 128
+    v39 = icall @encodeBytes, 1, v38, v7, 128
     jump bb4
   bb12:
     v24 = iszero v19
@@ -412,12 +412,12 @@ fn @encodeList(arg0: u256, arg1: u256) -> u256 {
     v30 = mload v14
     v31 = shr 48, v30
     v32 = mload v31
-    v33 = internal_call @encodeUint, 1, v32, v7
+    v33 = icall @encodeUint, 1, v32, v7
     jump bb4
   bb15:
     v27 = mload v14
     v28 = shr 48, v27
-    v29 = internal_call @encodeUint, 1, v28, v7
+    v29 = icall @encodeUint, 1, v28, v7
     jump bb4
   bb9:
     jump bb5
@@ -434,7 +434,7 @@ fn @encodeList(arg0: u256, arg1: u256) -> u256 {
     jump bb26
   bb26:
     mstore v6, v51
-    v65 = internal_call @encodeBytes, 1, v6, v6, 192
+    v65 = icall @encodeBytes, 1, v6, v6, 192
     ret v65
   bb24:
     v56 = add v51, 192

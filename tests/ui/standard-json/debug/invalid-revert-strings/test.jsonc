@@ -1,0 +1,24 @@
+// CHECK: "errors": [
+// CHECK: "severity": "error"
+// CHECK: "message": "JSON parse error: unknown variant `Strip`, expected one of `default`, `strip`, `debug`, `verboseDebug`
+// CHECK-NOT: "contracts"
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract A {}"
+    }
+  },
+  "settings": {
+    "debug": {
+      "revertStrings": "Strip"
+    },
+    "outputSelection": {
+      "*": {
+        "*": [
+          "evm.bytecode.object"
+        ]
+      }
+    }
+  }
+}

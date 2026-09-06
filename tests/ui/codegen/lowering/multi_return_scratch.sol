@@ -14,7 +14,7 @@ contract MultiReturnScratch {
     }
 
     // CHECK-LABEL: fn @assign{{[( ]}}
-    // CHECK: internal_call
+    // CHECK: icall
     // CHECK: frame_load multi_return, word, 0
     // CHECK: mload
     // CHECK: mload

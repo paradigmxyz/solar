@@ -1,8 +1,8 @@
 //! Benchmark-only, in-memory LSP analysis support.
 
 use super::{
-    AnalysisBatch, AnalysisResult, AnalysisResultAccumulator, DiagnosticMap, SymbolTables, analyze,
-    analyze_with_source_map,
+    AnalysisBatch, AnalysisResult, AnalysisResultAccumulator, AnalysisTaskOutcome, DiagnosticMap,
+    SymbolTables, analyze, analyze_with_source_map, run_analysis,
 };
 use crate::{
     config::negotiate_capabilities,
@@ -505,6 +505,47 @@ pub struct BenchmarkDocumentUpdate {
     params: DidChangeTextDocumentParams,
 }
 
+/// A production analysis state used to compare a cold run with an unchanged-snapshot reuse.
+#[doc(hidden)]
+pub struct BenchmarkRepeatedAnalysis {
+    state: super::GlobalState,
+    version: usize,
+}
+
+impl BenchmarkRepeatedAnalysis {
+    /// Prepare one open document and reserve a stable analysis epoch.
+    pub fn new(source: String) -> Self {
+        let state = super::GlobalState::new(ClientSocket::new_closed());
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("benches/repeated-analysis.sol");
+        state.vfs.write().set_file_contents_with_version(
+            VfsPath::from(path),
+            Some(Rope::from(source.as_str())),
+            Some(1),
+        );
+        let version = 1;
+        state.analysis_version.store(version, std::sync::atomic::Ordering::Release);
+        state.analysis_commit.lock().vfs_content_revision = state.vfs.read().content_revision();
+        Self { state, version }
+    }
+
+    /// Run one production analysis epoch, returning whether it published successfully.
+    #[inline(never)]
+    pub fn run(&mut self) -> bool {
+        let mut snapshot = self.state.snapshot();
+        let progress = self.state.analysis_progress.reserve(self.version);
+        matches!(
+            run_analysis(
+                &mut snapshot,
+                self.version,
+                Vec::new(),
+                &progress,
+                &IndexingCancellation::default(),
+            ),
+            AnalysisTaskOutcome::Published
+        )
+    }
+}
+
 impl BenchmarkDocumentUpdate {
     /// Prepare one open document and a full-content update with the same source text.
     pub fn from_source(source: String) -> Self {
@@ -532,6 +573,120 @@ impl BenchmarkDocumentUpdate {
     pub fn apply(mut self) -> u64 {
         assert!(handlers::did_change_text_document(&mut self.state, self.params).is_continue());
         self.state.vfs.read().content_revision()
+    }
+}
+
+/// A prepared VFS snapshot containing several open documents.
+#[doc(hidden)]
+pub struct BenchmarkOpenDocuments {
+    snapshot: super::GlobalStateSnapshot,
+    source_bytes: usize,
+}
+
+/// A prepared open-document selection-range request workload.
+#[doc(hidden)]
+pub struct BenchmarkSelectionRangeRequests {
+    state: super::GlobalState,
+    path: VfsPath,
+    positions: Vec<Position>,
+}
+
+/// A prepared open-document folding-range request workload.
+#[doc(hidden)]
+pub struct BenchmarkFoldingRangeRequests {
+    state: super::GlobalState,
+    path: VfsPath,
+}
+
+impl BenchmarkFoldingRangeRequests {
+    /// Prepare one immutable open document for repeated folding-range requests.
+    pub fn new(source: String) -> Self {
+        let state = super::GlobalState::new(ClientSocket::new_closed());
+        let path = VfsPath::from(
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("benches/open-folding-range.sol"),
+        );
+        state.vfs.write().set_file_contents_with_version(
+            path.clone(),
+            Some(Rope::from(source.as_str())),
+            Some(1),
+        );
+        Self { state, path }
+    }
+
+    /// Run one folding-range request through the open-document source path.
+    #[inline(never)]
+    pub fn run(&self) -> Vec<lsp_types::FoldingRange> {
+        self.state
+            .vfs
+            .read()
+            .get_file_folding_range_source(&self.path)
+            .expect("the benchmark document should be open")
+            .folding_ranges()
+    }
+}
+
+impl BenchmarkSelectionRangeRequests {
+    /// Prepare one immutable open document and the positions queried on every request.
+    pub fn new(source: String, positions: impl IntoIterator<Item = Position>) -> Self {
+        let state = super::GlobalState::new(ClientSocket::new_closed());
+        let path = VfsPath::from(
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("benches/open-selection-range.sol"),
+        );
+        state.vfs.write().set_file_contents_with_version(
+            path.clone(),
+            Some(Rope::from(source.as_str())),
+            Some(1),
+        );
+        let positions = positions.into_iter().collect();
+        Self { state, path, positions }
+    }
+
+    /// Run one selection-range request through the open-document source path.
+    #[inline(never)]
+    pub fn run(&self) -> Option<Vec<lsp_types::SelectionRange>> {
+        let source = { self.state.vfs.read().get_file_selection_range_source(&self.path)? };
+        source.selection_ranges(&self.positions)
+    }
+}
+
+impl BenchmarkOpenDocuments {
+    /// Prepare `document_count` equally sized open-document overlays.
+    pub fn new(document_count: usize, bytes_per_document: usize) -> Self {
+        assert!(document_count > 0);
+        assert!(bytes_per_document > 0);
+
+        let state = super::GlobalState::new(ClientSocket::new_closed());
+        let mut vfs = state.vfs.write();
+        for index in 0..document_count {
+            let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("benches/open-documents")
+                .join(format!("Document-{index}.sol"));
+            let source = "x".repeat(bytes_per_document);
+            vfs.set_file_contents_with_version(
+                VfsPath::from(path),
+                Some(Rope::from(source.as_str())),
+                Some(1),
+            );
+        }
+        drop(vfs);
+
+        Self { snapshot: state.snapshot(), source_bytes: document_count * bytes_per_document }
+    }
+
+    /// The total source bytes represented by the open documents.
+    pub fn source_bytes(&self) -> usize {
+        self.source_bytes
+    }
+
+    /// Build production analysis batches from the prepared open documents.
+    #[inline(never)]
+    pub fn build_analysis_batches(&self) -> usize {
+        self.snapshot
+            .analysis_batches(Vec::new())
+            .into_iter()
+            .flat_map(|batch| batch.files)
+            .map(|(path, source)| path.as_os_str().len() + source.len())
+            .sum()
     }
 }
 
@@ -1197,5 +1352,37 @@ mod tests {
         ] {
             assert!(BenchmarkProject::from_fixture("malformed", fixture).is_err());
         }
+    }
+
+    #[test]
+    fn repeated_analysis_reuses_and_invalidates_snapshot() {
+        let mut analysis = BenchmarkRepeatedAnalysis::new("contract Cached {}".into());
+        assert!(analysis.run());
+        let first_revision = analysis
+            .state
+            .analysis_commit
+            .lock()
+            .cached_output
+            .as_ref()
+            .unwrap()
+            .vfs_content_revision;
+
+        assert!(analysis.run());
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("benches/repeated-analysis.sol");
+        analysis.state.vfs.write().set_file_contents_with_version(
+            VfsPath::from(path),
+            Some(Rope::from("contract Cached { uint value; }")),
+            Some(2),
+        );
+        assert!(analysis.run());
+        let second_revision = analysis
+            .state
+            .analysis_commit
+            .lock()
+            .cached_output
+            .as_ref()
+            .unwrap()
+            .vfs_content_revision;
+        assert_ne!(first_revision, second_revision);
     }
 }

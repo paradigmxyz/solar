@@ -43,7 +43,7 @@ pub(crate) use module::LibraryLink;
 pub use module::{MirPhase, Module};
 
 mod builder;
-pub(crate) use builder::{FunctionBuilder, PanicCode, ToUint};
+pub(crate) use builder::{ERROR_SELECTOR, FunctionBuilder, PanicCode, RevertReason, ToUint};
 
 mod display;
 
@@ -236,7 +236,8 @@ mod round_trip {
                 if contract.kind.is_interface() || contract.kind.is_abstract_contract() {
                     continue;
                 }
-                let module = lower::lower_contract(gcx, id, &empty);
+                let module =
+                    lower::lower_contract(gcx, id, &empty, gcx.dcx().has_errors().is_err());
                 let errors_before = gcx.dcx().err_count();
                 super::validate(gcx.dcx(), &module);
                 if gcx.dcx().err_count() != errors_before {
@@ -311,7 +312,8 @@ mod round_trip {
                 if contract.kind.is_interface() || contract.kind.is_abstract_contract() {
                     continue;
                 }
-                let module = lower::lower_contract(gcx, id, &empty);
+                let module =
+                    lower::lower_contract(gcx, id, &empty, gcx.dcx().has_errors().is_err());
                 if let Err(e) = check_round_trip_module(gcx.sess, &module) {
                     result = Err(format!("contract `{}`: {e}", contract.name));
                     return Ok(());

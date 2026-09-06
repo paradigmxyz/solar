@@ -25,8 +25,8 @@ fn @record(arg0: address, arg1: calldataslice) [selector=0x01b2c698, abi_params=
 @module DynamicCaller
 fn @constructor(arg0: address) [constructor, abi_params=[address]] {
   bb0:
-    internal_call @recordFirst, 0, arg0
-    internal_call @recordSecond, 0, arg0
+    icall @recordFirst, 0, arg0
+    icall @recordSecond, 0, arg0
     stop
 }
 

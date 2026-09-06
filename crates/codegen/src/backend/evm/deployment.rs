@@ -56,6 +56,7 @@ pub(crate) fn lower(
         });
         (output, ModulePlan::new(module, true)?)
     };
+    output.debug_info_tracked = module.debug_info_is_tracked();
     output.name = solar_interface::Symbol::intern(&format!("{}_deployment", module.name));
     if let Some(constructor) = constructor {
         let function = module.function(constructor);

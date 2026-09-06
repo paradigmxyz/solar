@@ -2,11 +2,11 @@
 @module StorageRevertReasons
 fn @mappingShort() [selector=0x9b5bf7ac, abi_params=[], abi_returns=[]] {
   bb0:
-    v0 = internal_call @literal_bytes_word, 1, 0x7800000000000000000000000000000000000000000000000000000000000000, 1
+    v0 = icall @literal_bytes_word, 1, 0x7800000000000000000000000000000000000000000000000000000000000000, 1
     v1 = mapping_slot 0, 0
-    internal_call @store_storage_bytes, 0, v1, v0
+    icall @store_storage_bytes, 0, v1, v0
     v2 = mapping_slot 0, 0
-    v3 = internal_call @load_storage_bytes, 1, v2
+    v3 = icall @load_storage_bytes, 1, v2
     v4 = abi_encode [memory_bytes], selector 0x8c379a000000000000000000000000000000000000000000000000000000000, args v3
     v5 = slice_ptr v4
     v6 = slice_len v4
@@ -22,9 +22,9 @@ fn @mappingLong() [selector=0xaf8ee9a6, abi_params=[], abi_returns=[]] {
     v2 = add v1, 32
     mstore v2, 0x3600000000000000000000000000000000000000000000000000000000000000
     v3 = mapping_slot 1, 0
-    internal_call @store_storage_bytes, 0, v3, v0
+    icall @store_storage_bytes, 0, v3, v0
     v4 = mapping_slot 1, 0
-    v5 = internal_call @load_storage_bytes, 1, v4
+    v5 = icall @load_storage_bytes, 1, v4
     v6 = abi_encode [memory_bytes], selector 0x8c379a000000000000000000000000000000000000000000000000000000000, args v5
     v7 = slice_ptr v6
     v8 = slice_len v6
@@ -33,11 +33,11 @@ fn @mappingLong() [selector=0xaf8ee9a6, abi_params=[], abi_returns=[]] {
 
 fn @mappingReference() [selector=0x49b1855e, abi_params=[], abi_returns=[]] {
   bb0:
-    v0 = internal_call @literal_bytes_word, 1, 0x7800000000000000000000000000000000000000000000000000000000000000, 1
+    v0 = icall @literal_bytes_word, 1, 0x7800000000000000000000000000000000000000000000000000000000000000, 1
     v1 = mapping_slot 2, 0
-    internal_call @store_storage_bytes, 0, v1, v0
+    icall @store_storage_bytes, 0, v1, v0
     v2 = mapping_slot 2, 0
-    v3 = internal_call @load_storage_bytes, 1, v2
+    v3 = icall @load_storage_bytes, 1, v2
     v4 = abi_encode [memory_bytes], selector 0x8c379a000000000000000000000000000000000000000000000000000000000, args v3
     v5 = slice_ptr v4
     v6 = slice_len v4
@@ -46,13 +46,13 @@ fn @mappingReference() [selector=0x49b1855e, abi_params=[], abi_returns=[]] {
 
 fn @nestedMapping() [selector=0x041c73d0, abi_params=[], abi_returns=[]] {
   bb0:
-    v0 = internal_call @literal_bytes_word, 1, 0x7800000000000000000000000000000000000000000000000000000000000000, 1
+    v0 = icall @literal_bytes_word, 1, 0x7800000000000000000000000000000000000000000000000000000000000000, 1
     v1 = mapping_slot 0, 1
     v2 = mapping_slot 1, v1
-    internal_call @store_storage_bytes, 0, v2, v0
+    icall @store_storage_bytes, 0, v2, v0
     v3 = mapping_slot 0, 1
     v4 = mapping_slot 1, v3
-    v5 = internal_call @load_storage_bytes, 1, v4
+    v5 = icall @load_storage_bytes, 1, v4
     v6 = abi_encode [memory_bytes], selector 0x8c379a000000000000000000000000000000000000000000000000000000000, args v5
     v7 = slice_ptr v6
     v8 = slice_len v6
@@ -61,9 +61,9 @@ fn @nestedMapping() [selector=0x041c73d0, abi_params=[], abi_returns=[]] {
 
 fn @structRequire() [selector=0x8bb9ced2, abi_params=[], abi_returns=[]] {
   bb0:
-    v0 = internal_call @literal_bytes_word, 1, 0x7800000000000000000000000000000000000000000000000000000000000000, 1
-    internal_call @store_storage_bytes, 0, 2, v0
-    v1 = internal_call @load_storage_bytes, 1, 2
+    v0 = icall @literal_bytes_word, 1, 0x7800000000000000000000000000000000000000000000000000000000000000, 1
+    icall @store_storage_bytes, 0, 2, v0
+    v1 = icall @load_storage_bytes, 1, 2
     v2 = iszero 0
     jumpi v2, bb1, bb2
   bb2:
@@ -162,7 +162,7 @@ fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
     v19 = and v2, v18
     jumpi v19, bb5, bb6
   bb5:
-    internal_call @clear_storage_words, 0, arg0, v17, v12
+    icall @clear_storage_words, 0, arg0, v17, v12
     jump bb6
   bb6:
     jumpi v16, bb7, bb8

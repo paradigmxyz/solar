@@ -2,7 +2,8 @@
 
 use crate::{
     ColorChoice, CompilerOutput, CompilerStage, Dump, ErrorFormat, EvmVersion, HumanEmitterKind,
-    ImportRemapping, Language, LibraryAddress, OptimizationMode, SwitchLowering, Threads,
+    ImportRemapping, Language, LibraryAddress, OptimizationMode, RevertStrings, SwitchLowering,
+    Threads,
 };
 use std::{num::NonZeroUsize, path::PathBuf};
 
@@ -101,6 +102,11 @@ pub struct CompileOpts {
     /// Expected executions per deployment used by lifetime-aware optimizer decisions.
     #[cfg_attr(feature = "clap", arg(skip))]
     pub optimizer_runs: Option<u64>,
+    /// Strip revert (and require) reason strings or add additional debugging information.
+    ///
+    /// `verboseDebug` is not implemented, matching solc.
+    #[cfg_attr(feature = "clap", arg(long, value_enum, default_value_t))]
+    pub revert_strings: RevertStrings,
 
     /// Library addresses for linking, as `LibraryName=0xADDRESS`.
     ///
@@ -237,6 +243,13 @@ impl CompileOpts {
             })
             .collect::<Result<_, _>>()?;
         self.input.retain(|s| !s.contains('='));
+
+        if self.revert_strings == RevertStrings::VerboseDebug {
+            return Err(make_clap_error(
+                clap::error::ErrorKind::InvalidValue,
+                "Only `default`, `strip` and `debug` are implemented for --revert-strings for now.",
+            ));
+        }
 
         if !self._unstable.is_empty() {
             let hack = self._unstable.iter().map(|s| format!("--{s}"));
@@ -423,6 +436,11 @@ pub struct UnstableOpts {
     /// Override the per-switch bit-slice table growth limit for benchmarking.
     #[cfg_attr(feature = "clap", arg(long))]
     pub switch_max_bit_slice_gas_code_growth: Option<usize>,
+
+    /// Assert instead of logging when a value is live across a planned stack edge into an
+    /// already-emitted block without a spill home.
+    #[cfg_attr(feature = "clap", arg(long))]
+    pub assert_planned_edge_spill_home: bool,
 
     // ----------------------------------------
     // Please add new options above this point!

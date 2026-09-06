@@ -217,6 +217,40 @@ str_enum! {
 }
 
 str_enum! {
+    /// Revert reason string handling.
+    ///
+    /// Matches solc's `--revert-strings` and Standard JSON `settings.debug.revertStrings`.
+    #[derive(Default)]
+    #[strum(serialize_all = "camelCase")]
+    #[non_exhaustive]
+    pub enum RevertStrings {
+        /// Keep user-supplied revert and require reason strings as written.
+        #[default]
+        Default,
+        /// Drop user-supplied revert and require reason strings, keeping any side effects of
+        /// evaluating them.
+        Strip,
+        /// Keep user-supplied reason strings and attach solc's messages to compiler-generated
+        /// reverts, such as "Ether sent to non-payable function".
+        Debug,
+        /// Not implemented, matching solc.
+        VerboseDebug,
+    }
+}
+
+impl RevertStrings {
+    /// Returns `true` if user-supplied revert reason strings are stripped.
+    pub const fn is_strip(self) -> bool {
+        matches!(self, Self::Strip)
+    }
+
+    /// Returns `true` if compiler-generated reverts carry `Error(string)` messages.
+    pub const fn is_debug(self) -> bool {
+        matches!(self, Self::Debug)
+    }
+}
+
+str_enum! {
     /// Switch lowering strategy.
     #[derive(Default)]
     #[strum(serialize_all = "kebab-case")]

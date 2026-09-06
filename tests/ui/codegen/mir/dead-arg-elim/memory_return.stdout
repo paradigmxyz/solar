@@ -9,7 +9,7 @@
   
   fn @entry() [selector=0x01020304] {
     bb0:
-      v0 = internal_call @escape, 1
+      v0 = icall @escape, 1
       ret
   }
   
@@ -23,8 +23,8 @@
   
   fn @slice_entry() [selector=0x05060708] {
     bb0:
--     v0 = internal_call @escape_slice, 1
-+     internal_call @escape_slice, 0
+-     v0 = icall @escape_slice, 1
++     icall @escape_slice, 0
       ret
   }
   

@@ -34,7 +34,7 @@ fn @triple(arg0: u256) -> (u256, u256, u256) [pure] {
 fn @assign(arg0: u256, arg1: u256) -> (u256, u256, u256, u256) [selector=0xf09915d4, abi_params=[u256, u256], abi_returns=[word, word, word, word]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
-    v1 = internal_call @triple, 3, arg1
+    v1 = icall @triple, 3, arg1
     v2 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v3 = add v2, 32
     v4 = mload v3

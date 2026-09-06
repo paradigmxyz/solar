@@ -11,6 +11,7 @@ use solar_sema::Gcx;
 
 mod assembly;
 mod calls;
+mod debug_info;
 mod deployment;
 mod disasm;
 mod entry_layout;
@@ -23,7 +24,13 @@ mod scheduler;
 mod spills;
 mod storage;
 mod switches;
+pub use debug_info::{DebugFunction, DebugFunctionExit, DebugInstruction};
 pub use disasm::{disassemble, disassemble_standard_json};
+
+/// Returns the canonical mnemonic for a defined opcode.
+pub const fn opcode_mnemonic(opcode: u8) -> Option<&'static str> {
+    op::name(opcode)
+}
 
 /// Machine-code output and optional physical IR captures for one contract.
 #[derive(Clone, Debug, Default)]
@@ -36,6 +43,10 @@ pub struct EvmArtifact {
     pub deployment_evm_ir: Option<ir::Module>,
     /// Runtime before encoding.
     pub runtime_evm_ir: Option<ir::Module>,
+    /// Final deployment instruction locations when debug output is requested.
+    pub deployment_debug_info: Option<Vec<DebugInstruction>>,
+    /// Final runtime instruction locations when debug output is requested.
+    pub runtime_debug_info: Option<Vec<DebugInstruction>>,
     /// Immutable placeholders, indexed at their PUSH opcodes.
     pub(crate) immutable_references: Vec<ImmutableReference>,
 }
@@ -53,17 +64,23 @@ pub struct EvmCodegen<'gcx> {
     gcx: Gcx<'gcx>,
     capture_evm_ir: bool,
     capture_mir: bool,
+    capture_debug_info: bool,
 }
 
 impl<'gcx> EvmCodegen<'gcx> {
     /// Creates an independent generator.
     pub fn new(gcx: Gcx<'gcx>) -> Self {
-        Self { gcx, capture_evm_ir: false, capture_mir: false }
+        Self { gcx, capture_evm_ir: false, capture_mir: false, capture_debug_info: false }
     }
 
     /// Enables physical IR captures.
     pub fn set_capture_evm_ir(&mut self, capture: bool) {
         self.capture_evm_ir = capture;
+    }
+
+    /// Enables final instruction debug captures without changing generated code.
+    pub fn set_capture_debug_info(&mut self, capture: bool) {
+        self.capture_debug_info = capture;
     }
 
     pub(crate) fn set_capture_mir(&mut self, capture: bool) {
@@ -90,6 +107,7 @@ impl EvmCodegen<'_> {
         if module.is_interface {
             return Ok(EvmArtifact::default());
         }
+        module.set_debug_info_tracked(self.capture_debug_info);
         let _changed = crate::pass::run_pipeline(self.gcx, module, None);
         self.gcx.dcx().has_errors()?;
         for (_, function) in module.iter_functions() {
@@ -151,6 +169,8 @@ impl EvmCodegen<'_> {
         resolve_capture(&mut runtime_ir, runtime.bytes.len());
         resolve_capture(&mut deployment_ir, deployment.bytes.len());
         Ok(EvmArtifact {
+            deployment_debug_info: deployment.debug_info,
+            runtime_debug_info: runtime.debug_info,
             deployment: deployment.bytes,
             runtime: runtime.bytes,
             runtime_evm_ir: self.capture_evm_ir.then_some(runtime_ir),

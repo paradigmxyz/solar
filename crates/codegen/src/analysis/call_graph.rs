@@ -55,6 +55,7 @@ impl CallGraphInfo {
 
     /// Returns the strongly connected recursive component containing `root`.
     #[must_use]
+    #[allow(dead_code, reason = "Retained MIR interface; the fresh backend uses its own planning")]
     pub(crate) fn recursive_component(&self, root: FunctionId) -> DenseBitSet<FunctionId> {
         let mut component = DenseBitSet::new_empty(self.reachable_from_entries.domain_size());
         if !self.is_recursive(root) {
@@ -96,7 +97,7 @@ impl CallGraphInfo {
     fn collect_internal_callees(func: &Function, function_count: usize) -> DenseBitSet<FunctionId> {
         let mut callees = DenseBitSet::new_empty(function_count);
         for inst_id in func.instructions() {
-            if let InstKind::InternalCall { function, .. } = func.inst(inst_id).kind {
+            if let InstKind::ICall { function, .. } = func.inst(inst_id).kind {
                 callees.insert(function);
             }
         }

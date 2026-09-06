@@ -11,8 +11,8 @@ fn @_empty() -> calldataslice [pure] {
 
 fn @emptyLen() -> u256 [selector=0x24046374, pure, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = internal_call @_empty, 1
-    v1 = internal_call @_sink, 1, v0
+    v0 = icall @_empty, 1
+    v1 = icall @_sink, 1, v0
     ret v1
 }
 

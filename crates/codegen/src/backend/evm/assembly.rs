@@ -10,9 +10,15 @@
 //! Immutable widths are fixed by their declarations and references identify the
 //! PUSH opcode. Each assembly owns its offsets and output, so failures cannot
 //! expose partial bytes or leak relocation state into another module.
+//!
+//! When requested, separate provenance ranges follow the same relocation widths.
+//! Final concrete instructions inherit their physical origin, including expanded
+//! stack operations and branches. Opaque data is excluded, and eliminated
+//! fallthroughs do not acquire fabricated instructions or source checkpoints.
 
 use super::{
     ImmutableReference,
+    debug_info::{self, DebugFunction, DebugInstruction},
     ir::{self, BlockId, DataId, InstKind, TerminatorKind},
     op,
 };
@@ -28,6 +34,8 @@ use std::borrow::Cow;
 pub(crate) struct Encoded {
     pub(crate) bytes: Vec<u8>,
     pub(crate) immutable_references: Vec<ImmutableReference>,
+    /// Final concrete instructions, present only when debug tracking was requested.
+    pub(crate) debug_info: Option<Vec<DebugInstruction>>,
 }
 
 /// A stream label; code and data retain separate typed index domains.
@@ -54,6 +62,19 @@ struct Relocation {
     width: usize,
 }
 
+/// Ordered provenance ranges in the pre-relocation byte buffer.
+#[derive(Default)]
+struct DebugOrigins {
+    ranges: Vec<DebugOrigin>,
+    invokes: Vec<(usize, DebugFunction)>,
+}
+
+struct DebugOrigin {
+    start: usize,
+    end: usize,
+    metadata: ir::DebugMetadata,
+}
+
 /// The assembler stores ordinary bytes once and only revisits placement records.
 #[derive(Default)]
 struct Assembly {
@@ -61,9 +82,35 @@ struct Assembly {
     labels: Vec<(Label, usize)>,
     relocations: Vec<Relocation>,
     immutable_references: Vec<ImmutableReference>,
+    debug: Option<DebugOrigins>,
 }
 
 impl Assembly {
+    fn record_origin(&mut self, start: usize, metadata: Option<&ir::DebugMetadata>) {
+        if let Some(debug) = &mut self.debug
+            && let Some(metadata) = metadata
+            && !metadata.dropped
+            && start < self.bytes.len()
+        {
+            debug.ranges.push(DebugOrigin {
+                start,
+                end: self.bytes.len(),
+                metadata: metadata.clone(),
+            });
+        }
+    }
+
+    fn record_invoke(&mut self, start: usize, function: Option<DebugFunction>) {
+        // NOTE: A zero-byte block has no source checkpoint. Do not attach its
+        // invocation to the following block or emit code to manufacture one.
+        if let Some(debug) = &mut self.debug
+            && let Some(function) = function
+            && start < self.bytes.len()
+        {
+            debug.invokes.push((start, function));
+        }
+    }
+
     fn label(&mut self, label: Label) {
         self.labels.push((label, self.bytes.len()));
     }
@@ -166,9 +213,13 @@ fn lower(
             _ => {}
         }
     }
-    let mut assembly = Assembly::default();
+    let mut assembly = Assembly {
+        debug: module.debug_info_tracked.then(DebugOrigins::default),
+        ..Default::default()
+    };
     for (position, &id) in order.iter().enumerate() {
         let block = &module.blocks[id];
+        let block_start = assembly.bytes.len();
         // <block label>:
         // jumpdest (only for addressable targets)
         assembly.label(Label::Block(id));
@@ -176,6 +227,7 @@ fn lower(
             assembly.bytes.extend_from_slice(&[0x5b]);
         }
         for inst in &block.insts {
+            let start = assembly.bytes.len();
             match &inst.kind {
                 // opcode
                 InstKind::Op(opcode) => assembly.bytes.extend_from_slice(&[*opcode]),
@@ -227,8 +279,10 @@ fn lower(
                     }
                 }
             }
+            assembly.record_origin(start, inst.debug.as_deref());
         }
         let next = order.get(position + 1).copied();
+        let term_start = assembly.bytes.len();
         match &block.terminator.kind {
             // jump <target> (omit an immediate fallthrough)
             TerminatorKind::Jump(target) => {
@@ -261,6 +315,8 @@ fn lower(
                         version,
                     );
                     assembly.bytes.extend_from_slice(&[op::SWAP1, op::BYTE, op::JUMP]);
+                    assembly.record_origin(term_start, block.terminator.debug.as_deref());
+                    assembly.record_invoke(block_start, block.function_invoke);
                     continue;
                 }
                 let bits = table_width * 8;
@@ -318,6 +374,8 @@ fn lower(
                 _ => unreachable!(),
             }]),
         }
+        assembly.record_origin(term_start, block.terminator.debug.as_deref());
+        assembly.record_invoke(block_start, block.function_invoke);
     }
     for (id, data) in module.data.iter_enumerated() {
         // <data label>:
@@ -445,8 +503,34 @@ fn resolve(
         }
         reference.code_offset += growth;
     }
+    if let Some(debug) = &mut assembly.debug {
+        let mut relocations = assembly.relocations.iter().peekable();
+        let mut growth = 0;
+        for origin in &mut debug.ranges {
+            for boundary in [&mut origin.start, &mut origin.end] {
+                while let Some(relocation) = relocations.next_if(|r| r.offset < *boundary) {
+                    growth += relocation.width;
+                }
+                *boundary += growth;
+            }
+        }
+        let mut relocations = assembly.relocations.iter().peekable();
+        let mut growth = 0;
+        for (offset, _) in &mut debug.invokes {
+            while let Some(relocation) = relocations.next_if(|r| r.offset < *offset) {
+                growth += relocation.width;
+            }
+            *offset += growth;
+        }
+    }
+    let code_len = program_size
+        - module.data.iter().map(|data| data.bytes.len()).sum::<usize>()
+        - module.appendix.len();
     if assembly.relocations.is_empty() {
+        let debug_info =
+            assembly.debug.map(|origins| origins.finish(&assembly.bytes[..code_len], version));
         return Ok(Encoded {
+            debug_info,
             bytes: assembly.bytes,
             immutable_references: assembly.immutable_references,
         });
@@ -462,13 +546,65 @@ fn resolve(
         copied = relocation.offset + 1;
     }
     bytes.extend_from_slice(&assembly.bytes[copied..]);
-    Ok(Encoded { bytes, immutable_references: assembly.immutable_references })
+    let debug_info = assembly.debug.map(|origins| origins.finish(&bytes[..code_len], version));
+    Ok(Encoded { bytes, immutable_references: assembly.immutable_references, debug_info })
+}
+
+impl DebugOrigins {
+    fn finish(self, code: &[u8], version: EvmVersion) -> Vec<DebugInstruction> {
+        let mut instructions = debug_info::collect(code, version);
+        let mut ranges = self.ranges.iter().peekable();
+        let mut invokes = self.invokes.iter().peekable();
+        for instruction in &mut instructions {
+            while ranges.peek().is_some_and(|origin| origin.end <= instruction.offset) {
+                ranges.next();
+            }
+            if let Some(origin) = ranges.peek()
+                && origin.start <= instruction.offset
+                && instruction.offset < origin.end
+            {
+                instruction.source_spans.clone_from(&origin.metadata.source_spans);
+                instruction.modifier_depth = origin.metadata.modifier_depth;
+                // NOTE: Expanded preparation instructions inherit the source, but
+                // only their final physical transfer carries a function event.
+                if instruction.offset + usize::from(instruction.length) == origin.end {
+                    if matches!(instruction.opcode, op::JUMP | op::JUMPI) {
+                        instruction.function_invoke = origin.metadata.function_invoke;
+                    }
+                    if matches!(
+                        instruction.opcode,
+                        op::JUMP
+                            | op::JUMPI
+                            | op::RETURN
+                            | op::REVERT
+                            | op::STOP
+                            | op::INVALID
+                            | op::SELFDESTRUCT
+                    ) {
+                        instruction.function_exit = origin.metadata.function_exit;
+                    }
+                }
+            }
+            if let Some((_, function)) =
+                invokes.next_if(|(offset, _)| *offset == instruction.offset)
+            {
+                // NOTE: One instruction may be both an entry and another transfer.
+                // Conflicting invocation identities are unknown, not arbitrarily chosen.
+                instruction.function_invoke = match instruction.function_invoke {
+                    Some(previous) if previous != *function => None,
+                    _ => Some(*function),
+                };
+            }
+        }
+        instructions
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::backend::evm::disassemble;
+    use solar_interface::{BytePos, Span, sym};
 
     #[test]
     fn interacting_forward_pushes_reach_fixed_point() {
@@ -711,6 +847,66 @@ MUL
             snapbox::str![[r#"
 PUSH2 0x0102
 PUSH2 0x0102
+"#]]
+        );
+    }
+
+    #[test]
+    fn debug_origins_follow_relocation_and_exclude_data() {
+        let mut module = ir::Module::default();
+        let target = module.blocks.push(ir::Block::default());
+        module.data.push(ir::Data { bytes: vec![op::ADD], ..Default::default() });
+        module.appendix.push(op::MUL);
+        let span = Span::new(BytePos(10), BytePos(20));
+        let metadata = ir::DebugMetadata { source_spans: vec![span], ..Default::default() };
+        let function = DebugFunction { identifier: sym::_anonymous, declaration: span };
+        let make_assembly = |tracked: bool| {
+            let mut assembly =
+                Assembly { debug: tracked.then(DebugOrigins::default), ..Default::default() };
+            // push target; push program_end; <260 STOPs>
+            // target: jumpdest; swap1; swap2; swap1; <data ADD>; <appendix MUL>
+            push(&mut assembly, Value::Address(Label::Block(target), 0), EvmVersion::Osaka);
+            push(&mut assembly, Value::ProgramEnd, EvmVersion::Osaka);
+            assembly.record_origin(0, Some(&metadata));
+            assembly.bytes.extend_from_slice(&[op::STOP; 260]);
+            assembly.label(Label::Block(target));
+            let entry = assembly.bytes.len();
+            assembly.bytes.push(op::JUMPDEST);
+            assembly.record_invoke(entry, Some(function));
+            let exchange = assembly.bytes.len();
+            assembly.bytes.extend_from_slice(&[op::SWAP1, op::SWAP1 + 1, op::SWAP1]);
+            assembly.record_origin(exchange, Some(&metadata));
+            assembly.bytes.extend_from_slice(&[op::ADD, op::MUL]);
+            assembly
+        };
+        let plain = resolve(make_assembly(false), &module, EvmVersion::Osaka).unwrap();
+        let tracked = resolve(make_assembly(true), &module, EvmVersion::Osaka).unwrap();
+        assert!(plain.debug_info.is_none());
+        assert_eq!(
+            disassemble(&plain.bytes, EvmVersion::Osaka),
+            disassemble(&tracked.bytes, EvmVersion::Osaka)
+        );
+        let instructions = tracked.debug_info.unwrap();
+        let last = instructions.last().unwrap();
+        assert_eq!(last.offset + usize::from(last.length), 270);
+        assert_eq!(instructions.iter().filter(|inst| inst.source_spans == [span]).count(), 5);
+        let invocation = instructions.iter().find(|inst| inst.function_invoke.is_some()).unwrap();
+        assert_eq!(invocation.offset, 266);
+        assert_eq!(invocation.function_invoke, Some(function));
+        let text = instructions
+            .iter()
+            .filter(|inst| !inst.source_spans.is_empty())
+            .map(|inst| format!("{}: {}", inst.offset, op::name(inst.opcode).unwrap()))
+            .collect::<Vec<_>>()
+            .join("\n");
+        snapbox::assert_data_eq!(
+            text,
+            snapbox::str![[r#"
+0: PUSH2
+3: PUSH2
+267: SWAP1
+268: SWAP2
+269: SWAP1
 "#]]
         );
     }

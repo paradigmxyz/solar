@@ -1,0 +1,14 @@
+{
+  "errors": [
+    {
+      "sourceLocation": null,
+      "secondarySourceLocations": [],
+      "type": "Exception",
+      "component": "general",
+      "severity": "error",
+      "errorCode": null,
+      "message": "only `default`, `strip` and `debug` are implemented for `settings.debug.revertStrings` for now",
+      "formattedMessage": "error: only `default`, `strip` and `debug` are implemented for `settings.debug.revertStrings` for now\n\n"
+    }
+  ]
+}

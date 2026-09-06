@@ -58,7 +58,7 @@ bb52:
   push 128
   return
 bb8:
-  push 320
+  push 384
   push 64
   mstore
   push 36
@@ -227,7 +227,7 @@ bb51 [cold]:
   push 17
   jump bb53
 bb24:
-  push 320
+  push 352
   push 64
   mstore
   push 36
@@ -316,7 +316,7 @@ bb24:
   mload
   jump bb52
 bb33:
-  push 544
+  push 576
   push 64
   mstore
   push 100

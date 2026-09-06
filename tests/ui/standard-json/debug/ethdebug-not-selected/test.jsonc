@@ -1,0 +1,26 @@
+// An explicit `debugInfo` selection must include `ethdebug` to request ethdebug output,
+// like solc. Omitting `debugInfo` entirely keeps the default and allows the output.
+// CHECK: "errors": [
+// CHECK: "severity": "error"
+// CHECK: "message": "`ethdebug` needs to be enabled in `settings.debug.debugInfo` if `evm.bytecode.ethdebug` or `evm.deployedBytecode.ethdebug` was selected as output"
+// CHECK-NOT: "contracts"
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract A {}"
+    }
+  },
+  "settings": {
+    "debug": {
+      "debugInfo": ["location"]
+    },
+    "outputSelection": {
+      "*": {
+        "*": [
+          "evm.deployedBytecode.ethdebug"
+        ]
+      }
+    }
+  }
+}

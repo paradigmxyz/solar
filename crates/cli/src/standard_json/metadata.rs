@@ -7,7 +7,7 @@ use super::{
 use alloy_primitives::{Bytes, keccak256};
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
-use solar_config::version::SEMVER_VERSION;
+use solar_config::{RevertStrings, version::SEMVER_VERSION};
 use solar_data_structures::{bit_set::GrowableBitSet, index::IndexVec};
 use solar_sema::{
     Gcx,
@@ -121,7 +121,7 @@ fn metadata_json(metadata: &Metadata<'_, '_, '_>, contract_id: ContractId) -> St
 
     let (optimizer_enabled, optimizer_runs) =
         optimizer_settings(metadata.settings.optimizer.as_ref());
-    let value = json!({
+    let mut value = json!({
         "compiler": { "version": SEMVER_VERSION },
         "language": "Solidity",
         "output": {
@@ -143,6 +143,9 @@ fn metadata_json(metadata: &Metadata<'_, '_, '_>, contract_id: ContractId) -> St
         "sources": sources,
         "version": 1,
     });
+    if opts.revert_strings != RevertStrings::Default {
+        value["settings"]["debug"] = json!({ "revertStrings": opts.revert_strings.to_string() });
+    }
     serde_json::to_string(&value).expect("contract metadata must serialize")
 }
 

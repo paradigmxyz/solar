@@ -1,9 +1,3 @@
-error[1750]: free functions cannot override
-   ╭▸ ROOT/tests/ui/resolve/override_specifier.sol:LL:CC
-   │
-LL │ function freeFunc() override(A) returns (uint) { return 42; }
-   ╰╴                    ━━━━━━━━━━━
-
 error[2353]: invalid contract `B` specified in override list
    ╭▸ ROOT/tests/ui/resolve/override_specifier.sol:LL:CC
    │
@@ -11,6 +5,12 @@ LL │     function foo() public override(A, B) returns (uint) { return 3; }
    │                           ━━━━━━━━━━━━━━
    │
    ╰ note: contract is not a direct or indirect base
+
+error[1750]: free functions cannot override
+   ╭▸ ROOT/tests/ui/resolve/override_specifier.sol:LL:CC
+   │
+LL │ function freeFunc() override(A) returns (uint) { return 42; }
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 error: aborting due to 2 previous errors
 

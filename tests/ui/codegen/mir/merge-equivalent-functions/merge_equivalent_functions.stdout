@@ -15,14 +15,14 @@
   
   fn @wrap_a(arg0: u256) -> u256 {
     bb0:
-      v0 = internal_call @leaf_a, 1, arg0
+      v0 = icall @leaf_a, 1, arg0
       ret v0
   }
   
   fn @wrap_b(arg0: u256) -> u256 {
     bb0:
--     v0 = internal_call @leaf_b, 1, arg0
-+     v0 = internal_call @leaf_a, 1, arg0
+-     v0 = icall @leaf_b, 1, arg0
++     v0 = icall @leaf_a, 1, arg0
       ret v0
   }
   
@@ -34,10 +34,10 @@
   
   fn @entry() -> u256 [selector=0x01020304] {
     bb0:
-      v0 = internal_call @wrap_a, 1, 1
--     v1 = internal_call @wrap_b, 1, 2
-+     v1 = internal_call @wrap_a, 1, 2
-      v2 = internal_call @different, 1, 3
+      v0 = icall @wrap_a, 1, 1
+-     v1 = icall @wrap_b, 1, 2
++     v1 = icall @wrap_a, 1, 2
+      v2 = icall @different, 1, 3
       v3 = add v0, v1
       v4 = add v3, v2
       ret v4
@@ -49,7 +49,7 @@
     bb2:
       ret arg1
     bb1:
-      v0 = internal_call @recursive_a, 1, 0, arg1
+      v0 = icall @recursive_a, 1, 0, arg1
       ret v0
   }
   
@@ -59,16 +59,16 @@
     bb2:
       ret arg1
     bb1:
--     v0 = internal_call @recursive_b, 1, 0, arg1
-+     v0 = internal_call @recursive_a, 1, 0, arg1
+-     v0 = icall @recursive_b, 1, 0, arg1
++     v0 = icall @recursive_a, 1, 0, arg1
       ret v0
   }
   
   fn @recursive_entry() [selector=0x01020306] {
     bb0:
-      v0 = internal_call @recursive_a, 1, 1, 1
--     v1 = internal_call @recursive_b, 1, 1, 2
-+     v1 = internal_call @recursive_a, 1, 1, 2
+      v0 = icall @recursive_a, 1, 1, 1
+-     v1 = icall @recursive_b, 1, 1, 2
++     v1 = icall @recursive_a, 1, 1, 2
       stop
   }
   

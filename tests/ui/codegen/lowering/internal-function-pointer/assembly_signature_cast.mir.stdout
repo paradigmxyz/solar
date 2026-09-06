@@ -2,19 +2,19 @@
 @module InternalFunctionPointerAssemblyCast
 fn @compareBytes32(arg0: bytes32, arg1: bytes32) -> bool [selector=0x824a2a4e, pure, abi_params=[bytes32, bytes32], abi_returns=[word<bool>]] {
   bb0:
-    v0 = internal_call @internal_dispatcher_p_u256_u256_r_bool, 1, 2, arg0, arg1
+    v0 = icall @internal_dispatcher_p_u256_u256_r_bool, 1, 2, arg0, arg1
     ret v0
 }
 
 fn @compareAddress(arg0: u256, arg1: u256) -> bool [selector=0xf627b917, pure, abi_params=[u256, u256], abi_returns=[word<bool>]] {
   bb0:
-    v0 = internal_call @internal_dispatcher_p_u256_u256_r_bool, 1, 4, arg0, arg1
+    v0 = icall @internal_dispatcher_p_u256_u256_r_bool, 1, 4, arg0, arg1
     ret v0
 }
 
 fn @compareInt256(arg0: u256, arg1: u256) -> bool [selector=0x28717b2d, pure, abi_params=[u256, u256], abi_returns=[word<bool>]] {
   bb0:
-    v0 = internal_call @internal_dispatcher_p_u256_u256_r_bool, 1, 6, arg0, arg1
+    v0 = icall @internal_dispatcher_p_u256_u256_r_bool, 1, 6, arg0, arg1
     ret v0
 }
 
@@ -53,14 +53,14 @@ fn @internal_dispatcher_p_u256_u256_r_bool(arg0: function, arg1: u256, arg2: u25
     mstore 4, 81 !metadata(memory=scratch)
     revert 0, 36
   bb5:
-    v7 = internal_call @_int256Less, 1, arg1, arg2
+    v7 = icall @_int256Less, 1, arg1, arg2
     ret v7
   bb3:
     v3 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
     v4 = and arg2, 0xffffffffffffffffffffffffffffffffffffffff
-    v5 = internal_call @_addressGreater, 1, v3, v4
+    v5 = icall @_addressGreater, 1, v3, v4
     ret v5
   bb1:
-    v1 = internal_call @_bytes32Greater, 1, arg1, arg2
+    v1 = icall @_bytes32Greater, 1, arg1, arg2
     ret v1
 }

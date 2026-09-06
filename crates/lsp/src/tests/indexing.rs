@@ -1,4 +1,6 @@
 use super::*;
+use async_lsp::LanguageServer;
+use std::sync::atomic::AtomicBool;
 
 #[test]
 fn analysis_tracks_excluded_transitive_dependencies_and_normalized_missing_candidates() {
@@ -584,22 +586,15 @@ async fn failed_current_workspace_discovery_terminates_the_analysis_epoch() {
         .begin_analysis(AnalysisMode::Rediscover, Vec::new(), Vec::new(), AnalysisTrigger::External)
         .unwrap();
     assert!(state.analysis_commit.lock().discovery_pending);
-    let monitor = WorkspaceDiscoveryMonitor {
-        version,
-        disk_paths: Vec::new(),
-        progress,
-        cancellation: IndexingCancellation::default(),
-        analysis_version: state.analysis_version.clone(),
-        published_analysis_version: state.published_analysis_version.clone(),
-        analysis_commit: state.analysis_commit.clone(),
-        client: state.client.clone(),
-        config: state.config.clone(),
-    };
-    let worker = tokio::task::spawn_blocking(|| -> Option<WorkspaceDiscoveryResult> {
-        panic!("test workspace discovery failure")
-    });
-
-    monitor.finish(worker).await;
+    assert!(
+        state
+            .on_workspace_discovery_failed(WorkspaceDiscoveryFailed {
+                version,
+                error: "test workspace discovery failure".into(),
+                progress,
+            })
+            .is_continue()
+    );
 
     tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
         .await
@@ -608,6 +603,293 @@ async fn failed_current_workspace_discovery_terminates_the_analysis_epoch() {
     let commit = state.analysis_commit.lock();
     assert!(commit.cache_invalidated);
     assert!(!commit.discovery_pending);
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn host_loader_failure_terminates_background_discovery_with_last_good_config() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /foundry.toml
+        [profile.default]
+        src = "src"
+
+        //- /src/Existing.sol
+        contract Existing {}
+        "#,
+    );
+    let fail = Arc::new(AtomicBool::new(false));
+    let loader_fail = fail.clone();
+    let launch_config =
+        crate::LaunchConfig::default().with_foundry_workspace_config_loader(move |root| {
+            if loader_fail.load(Ordering::Relaxed) {
+                return Err("host config unavailable");
+            }
+            Ok(crate::FoundryWorkspaceConfig::new(root).with_source_roots(["src"]))
+        });
+    let (_, mut config) = crate::config::negotiate_capabilities_with_pull_diagnostic_data(
+        project.initialize_params(),
+        false,
+        &launch_config,
+    );
+    config.rediscover_workspaces();
+    assert_eq!(config.workspaces()[0].source_roots(), &[project.path("/src")]);
+
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    state.config = Arc::new(config);
+    fail.store(true, Ordering::Relaxed);
+    let (version, progress) = state
+        .begin_analysis(AnalysisMode::Rediscover, Vec::new(), Vec::new(), AnalysisTrigger::External)
+        .unwrap();
+    let cancellation = IndexingCancellation::default();
+    let Err(error) = state.config.try_discover_workspaces(&cancellation) else {
+        panic!("host loader should fail workspace discovery")
+    };
+    assert!(
+        state
+            .on_workspace_discovery_failed(WorkspaceDiscoveryFailed {
+                version,
+                error: error.to_string(),
+                progress,
+            })
+            .is_continue()
+    );
+
+    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
+        .await
+        .expect("host loader failure should publish its terminal version")
+        .unwrap();
+    assert_eq!(state.config.workspaces()[0].source_roots(), &[project.path("/src")]);
+    let commit = state.analysis_commit.lock();
+    assert!(commit.cache_invalidated);
+    assert!(!commit.discovery_pending);
+}
+
+fn replace_workspace_folder(old_root: &Path, new_root: &Path) -> DidChangeWorkspaceFoldersParams {
+    DidChangeWorkspaceFoldersParams {
+        event: WorkspaceFoldersChangeEvent {
+            added: vec![WorkspaceFolder {
+                uri: Url::from_file_path(new_root).unwrap(),
+                name: "new".into(),
+            }],
+            removed: vec![WorkspaceFolder {
+                uri: Url::from_file_path(old_root).unwrap(),
+                name: "old".into(),
+            }],
+        },
+    }
+}
+
+fn workspace_folder_failure_fixture() -> (TestProject, Config) {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /a/foundry.toml
+        [profile.default]
+        src = "src"
+
+        //- /a/src/A.sol
+        contract A {}
+
+        //- /b/foundry.toml
+        [profile.default]
+        src = "src"
+
+        //- /b/src/B.sol
+        contract B {}
+        "#,
+    );
+    let rejected = project.path("/b");
+    let launch_config =
+        crate::LaunchConfig::default().with_foundry_workspace_config_loader(move |root| {
+            if root == rejected {
+                return Err("host config unavailable");
+            }
+            Ok(crate::FoundryWorkspaceConfig::new(root).with_source_roots(["src"]))
+        });
+    let (_, mut config) = crate::config::negotiate_capabilities_with_pull_diagnostic_data(
+        project.initialize_params_with_roots(&["/a"]),
+        false,
+        &launch_config,
+    );
+    config.rediscover_workspaces();
+    (project, config)
+}
+
+#[derive(Debug)]
+struct WorkspaceFolderState {
+    roots: Vec<PathBuf>,
+    workspace_base_paths: Vec<PathBuf>,
+    tracks_old_source: bool,
+    tracks_new_source: bool,
+    discovery_pending: bool,
+}
+
+fn workspace_folder_state(
+    state: &GlobalState,
+    old_root: &Path,
+    new_root: &Path,
+) -> WorkspaceFolderState {
+    WorkspaceFolderState {
+        roots: state.config.workspace_roots().to_vec(),
+        workspace_base_paths: state
+            .config
+            .workspaces()
+            .iter()
+            .filter_map(|workspace| workspace.compile_opts().base_path.clone())
+            .collect(),
+        tracks_old_source: state.config.tracks_source_file(&old_root.join("src/A.sol")),
+        tracks_new_source: state.config.tracks_source_file(&new_root.join("src/B.sol")),
+        discovery_pending: state.analysis_commit.lock().discovery_pending,
+    }
+}
+
+fn assert_failed_workspace_folder_change_rolled_back(state: WorkspaceFolderState, old_root: &Path) {
+    assert_eq!(state.roots, [old_root.to_path_buf()]);
+    assert_eq!(state.workspace_base_paths, [old_root.to_path_buf()]);
+    assert!(state.tracks_old_source);
+    assert!(!state.tracks_new_source);
+    assert!(!state.discovery_pending);
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn synchronous_workspace_folder_loader_failure_rolls_back_roots() {
+    let (project, config) = workspace_folder_failure_fixture();
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    state.config = Arc::new(config);
+
+    assert!(
+        crate::handlers::did_change_workspace_folders(
+            &mut state,
+            replace_workspace_folder(&project.path("/a"), &project.path("/b")),
+        )
+        .is_continue()
+    );
+
+    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
+        .await
+        .expect("failed synchronous discovery should publish its terminal version")
+        .unwrap();
+    assert_failed_workspace_folder_change_rolled_back(
+        workspace_folder_state(&state, &project.path("/a"), &project.path("/b")),
+        &project.path("/a"),
+    );
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn clearing_cache_discards_workspace_root_rollback_checkpoint() {
+    let (project, config) = workspace_folder_failure_fixture();
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    state.config = Arc::new(config);
+
+    let old_root = project.path("/a");
+    let new_root = project.path("/b");
+    let previous_roots = state.config.workspace_roots().to_vec();
+    {
+        let config = Arc::make_mut(&mut state.config);
+        config.remove_workspace(&old_root);
+        config.add_workspaces([new_root.clone()]);
+    }
+    state.record_workspace_root_change(previous_roots);
+    let _ = state
+        .begin_analysis(AnalysisMode::Rediscover, Vec::new(), Vec::new(), AnalysisTrigger::External)
+        .unwrap();
+    assert_eq!(
+        state.analysis_commit.lock().workspace_roots_before_change.as_deref(),
+        Some(std::slice::from_ref(&old_root))
+    );
+
+    state.clear_analysis_cache();
+    assert!(state.analysis_commit.lock().workspace_roots_before_change.is_none());
+    assert_eq!(state.config.workspace_roots(), std::slice::from_ref(&new_root));
+
+    let (version, progress) = state
+        .begin_analysis(AnalysisMode::Rediscover, Vec::new(), Vec::new(), AnalysisTrigger::External)
+        .unwrap();
+    let cancellation = IndexingCancellation::default();
+    let Err(error) = state.config.try_discover_workspaces(&cancellation) else {
+        panic!("host loader should fail workspace discovery")
+    };
+    assert!(
+        state
+            .on_workspace_discovery_failed(WorkspaceDiscoveryFailed {
+                version,
+                error: error.to_string(),
+                progress,
+            })
+            .is_continue()
+    );
+
+    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
+        .await
+        .expect("failed discovery should publish its terminal version")
+        .unwrap();
+    assert_eq!(state.config.workspace_roots(), [new_root]);
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn background_workspace_folder_loader_failure_rolls_back_roots() {
+    struct WorkspaceStateProbe {
+        old_root: PathBuf,
+        new_root: PathBuf,
+        response: oneshot::Sender<WorkspaceFolderState>,
+    }
+
+    let (project, config) = workspace_folder_failure_fixture();
+    let (setup_tx, setup_rx) = std_mpsc::sync_channel(1);
+    let (server_main, internal_client) = async_lsp::MainLoop::new_server(move |client| {
+        let mut state = GlobalState::new(client);
+        state.config = Arc::new(config);
+        state.background_discovery = true;
+        setup_tx.send(state.published_analysis_version.subscribe()).unwrap();
+        let mut router = crate::new_router_with_state(state);
+        router.event::<WorkspaceStateProbe>(|state, probe| {
+            let snapshot = workspace_folder_state(state, &probe.old_root, &probe.new_root);
+            assert!(probe.response.send(snapshot).is_ok());
+            ControlFlow::Continue(())
+        });
+        router
+    });
+    let (client_main, mut server) = async_lsp::MainLoop::new_client(|_| {
+        let mut router = Router::new(());
+        router.notification::<notification::PublishDiagnostics>(|_, _| ControlFlow::Continue(()));
+        router.notification::<notification::LogMessage>(|_, _| ControlFlow::Continue(()));
+        router
+    });
+    let mut published = setup_rx.recv().unwrap();
+    let (server_stream, client_stream) = tokio::io::duplex(64 << 10);
+    let (server_rx, server_tx) = tokio::io::split(server_stream);
+    let server_task =
+        tokio::spawn(server_main.run_buffered(server_rx.compat(), server_tx.compat_write()));
+    let (client_rx, client_tx) = tokio::io::split(client_stream);
+    let client_task =
+        tokio::spawn(client_main.run_buffered(client_rx.compat(), client_tx.compat_write()));
+
+    server
+        .did_change_workspace_folders(replace_workspace_folder(
+            &project.path("/a"),
+            &project.path("/b"),
+        ))
+        .unwrap();
+    tokio::time::timeout(ASYNC_TEST_TIMEOUT, async {
+        while *published.borrow() == 0 {
+            published.changed().await.unwrap();
+        }
+    })
+    .await
+    .expect("failed background discovery should publish its terminal version");
+
+    let (probe_tx, probe_rx) = oneshot::channel();
+    internal_client
+        .emit(WorkspaceStateProbe {
+            old_root: project.path("/a"),
+            new_root: project.path("/b"),
+            response: probe_tx,
+        })
+        .unwrap();
+    assert_failed_workspace_folder_change_rolled_back(probe_rx.await.unwrap(), &project.path("/a"));
+    server.shutdown(()).await.unwrap();
+    server.exit(()).unwrap();
+    assert!(server_task.await.unwrap().is_ok());
+    assert!(matches!(client_task.await.unwrap(), Err(async_lsp::Error::Eof)));
 }
 
 #[test]

@@ -1,11 +1,12 @@
 use crate::{
-    FoundryWorkspaceConfig, LaunchConfig, commands,
+    FoundryWorkspaceConfigSource, LaunchConfig, commands,
     diagnostics::DiagnosticOwner,
     file_operations::FileMoveBatch,
     flycheck::{FlycheckConfig, FlycheckInitializationOptions},
     import_resolution::ImportResolutionContext,
     workspace::{
-        FoundryConfigContext, SourceWatchRoot, Workspace, WorkspaceKind, WorkspacePathIndex,
+        FoundryConfigContext, SourceWatchRoot, Workspace, WorkspaceError, WorkspaceKind,
+        WorkspacePathIndex,
         index_policy::{
             IndexingCancellation, IndexingOptions, WorkspaceIndexMetrics, WorkspaceIndexPolicy,
         },
@@ -48,7 +49,7 @@ pub(crate) struct Config {
     workspace_roots: Vec<PathBuf>,
     forge_path: PathBuf,
     selected_profile: Option<String>,
-    foundry_workspace_configs: Vec<FoundryWorkspaceConfig>,
+    foundry_workspace_config_source: FoundryWorkspaceConfigSource,
     workspaces: Vec<Workspace>,
     manifest_watch_roots: Vec<SourceWatchRoot>,
     git_marker_watch_roots: Vec<PathBuf>,
@@ -132,7 +133,7 @@ impl Default for Config {
             workspace_roots: Vec::new(),
             forge_path: PathBuf::from("forge"),
             selected_profile: None,
-            foundry_workspace_configs: Vec::new(),
+            foundry_workspace_config_source: FoundryWorkspaceConfigSource::default(),
             workspaces: Vec::new(),
             manifest_watch_roots: Vec::new(),
             git_marker_watch_roots: Vec::new(),
@@ -670,39 +671,59 @@ impl Config {
         self.flychecks.iter().map(FlycheckConfig::owner)
     }
 
+    #[cfg(test)]
     pub(crate) fn rediscover_workspaces(&mut self) -> Vec<DiagnosticOwner> {
-        let cancellation = IndexingCancellation::default();
-        let Some(result) = self.discover_workspaces(&cancellation) else { return Vec::new() };
-        self.apply_workspace_discovery(result)
+        self.try_rediscover_workspaces().unwrap_or_default()
     }
 
+    pub(crate) fn try_rediscover_workspaces(
+        &mut self,
+    ) -> Result<Vec<DiagnosticOwner>, WorkspaceError> {
+        let cancellation = IndexingCancellation::default();
+        let Some(result) = self.try_discover_workspaces(&cancellation)? else {
+            return Ok(Vec::new());
+        };
+        Ok(self.apply_workspace_discovery(result))
+    }
+
+    #[cfg(any(test, feature = "bench"))]
     pub(crate) fn discover_workspaces(
         &self,
         cancellation: &IndexingCancellation,
     ) -> Option<WorkspaceDiscoveryResult> {
+        self.try_discover_workspaces(cancellation).ok().flatten()
+    }
+
+    pub(crate) fn try_discover_workspaces(
+        &self,
+        cancellation: &IndexingCancellation,
+    ) -> Result<Option<WorkspaceDiscoveryResult>, WorkspaceError> {
         let start = std::time::Instant::now();
         let mut metrics = WorkspaceIndexMetrics::default();
         let mut workspaces = Vec::new();
         let mut manifest_watch_roots = Vec::new();
         let mut git_marker_watch_roots = Vec::new();
         let mut seen_manifests = FxHashSet::default();
-        let foundry_config = FoundryConfigContext::new(
+        let mut foundry_config = FoundryConfigContext::from_source(
             self.selected_profile.as_deref(),
-            &self.foundry_workspace_configs,
+            &self.foundry_workspace_config_source,
         );
         for root in &self.workspace_roots {
             if cancellation.is_cancelled() {
-                return None;
+                return Ok(None);
             }
-            let (discovered, discovered_watch_roots, discovered_marker_watch_roots) =
+            let Some((discovered, discovered_watch_roots, discovered_marker_watch_roots)) =
                 ProjectManifest::discover_all_with_watch_roots(
                     std::slice::from_ref(root),
                     &self.workspace_roots,
                     &self.index_policy,
                     cancellation,
                     &mut metrics,
-                    foundry_config,
-                )?;
+                    &mut foundry_config,
+                )
+            else {
+                return Ok(None);
+            };
             manifest_watch_roots.extend(discovered_watch_roots);
             git_marker_watch_roots.extend(discovered_marker_watch_roots);
             info!(?root, ?discovered, "discovered projects");
@@ -715,14 +736,14 @@ impl Config {
             load_discovered_workspaces(
                 discovered,
                 &self.workspace_roots,
-                foundry_config,
+                &mut foundry_config,
                 &mut seen_manifests,
                 &mut workspaces,
-            );
+            )?;
         }
         info!(workspaces = ?workspaces.iter().map(Workspace::kind).collect::<Vec<_>>(), "loaded workspaces");
         if cancellation.is_cancelled() {
-            return None;
+            return Ok(None);
         }
         loop {
             if !Workspace::refresh_all_source_files(
@@ -731,7 +752,7 @@ impl Config {
                 cancellation,
                 &mut metrics,
             ) {
-                return None;
+                return Ok(None);
             }
             let mut roots = workspaces
                 .iter()
@@ -743,20 +764,21 @@ impl Config {
                 .collect::<Vec<_>>();
             roots.sort_unstable();
             roots.dedup();
-            let discovered = ProjectManifest::discover_in_source_watch_roots(
-                &roots,
-                cancellation,
-                &mut metrics,
-            )?;
-            if load_discovered_workspaces(
+            let Some(discovered) =
+                ProjectManifest::discover_in_source_watch_roots(&roots, cancellation, &mut metrics)
+            else {
+                return Ok(None);
+            };
+            match load_discovered_workspaces(
                 discovered,
                 &self.workspace_roots,
-                foundry_config,
+                &mut foundry_config,
                 &mut seen_manifests,
                 &mut workspaces,
-            ) == 0
-            {
-                break;
+            ) {
+                Ok(0) => break,
+                Ok(_) => {}
+                Err(error) => return Err(error),
             }
         }
         WorkspacePathIndex::reconcile_source_files(
@@ -778,12 +800,12 @@ impl Config {
         manifest_watch_roots.dedup();
         git_marker_watch_roots.sort_unstable();
         git_marker_watch_roots.dedup();
-        Some(WorkspaceDiscoveryResult {
+        Ok(Some(WorkspaceDiscoveryResult {
             workspaces,
             manifest_watch_roots,
             git_marker_watch_roots,
             metrics,
-        })
+        }))
     }
 
     pub(crate) fn apply_workspace_discovery(
@@ -809,6 +831,10 @@ impl Config {
                 self.workspace_roots.push(path);
             }
         }
+    }
+
+    pub(crate) fn replace_workspace_roots(&mut self, roots: Vec<PathBuf>) {
+        self.workspace_roots = roots;
     }
 
     pub(crate) fn reconcile_workspace_roots(
@@ -884,10 +910,10 @@ impl Config {
 fn load_discovered_workspaces(
     manifests: impl IntoIterator<Item = ProjectManifest>,
     workspace_roots: &[PathBuf],
-    foundry_config: FoundryConfigContext<'_>,
+    foundry_config: &mut FoundryConfigContext<'_>,
     seen_manifests: &mut FxHashSet<ProjectManifest>,
     workspaces: &mut Vec<Workspace>,
-) -> usize {
+) -> Result<usize, WorkspaceError> {
     let mut loaded = 0;
     for manifest in manifests {
         if !seen_manifests.insert(manifest.clone()) {
@@ -898,6 +924,10 @@ fn load_discovered_workspaces(
                 let fallback_root = path.parent().map(PathBuf::from);
                 match Workspace::load_foundry_bounded(path, workspace_roots, foundry_config) {
                     Ok(workspace) => workspaces.push(workspace),
+                    Err(error @ WorkspaceError::HostConfig { .. }) => {
+                        warn!(%error, "failed to load workspace");
+                        return Err(error);
+                    }
                     Err(error) => {
                         warn!(%error, "failed to load workspace");
                         if let Some(root) = fallback_root {
@@ -909,7 +939,7 @@ fn load_discovered_workspaces(
         }
         loaded += 1;
     }
-    loaded
+    Ok(loaded)
 }
 
 fn workspace_file_operation_options() -> FileOperationRegistrationOptions {
@@ -1198,7 +1228,9 @@ pub(crate) fn negotiate_capabilities_with_pull_diagnostic_data(
             workspace_roots,
             forge_path,
             selected_profile: launch_config.selected_profile().map(str::to_owned),
-            foundry_workspace_configs: launch_config.foundry_workspace_configs().to_vec(),
+            foundry_workspace_config_source: launch_config
+                .foundry_workspace_config_source()
+                .clone(),
             index_policy,
             flycheck_options,
             watched_file_dynamic_registration,

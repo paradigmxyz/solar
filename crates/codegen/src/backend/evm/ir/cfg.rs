@@ -147,6 +147,59 @@ fn redirect(module: &mut Module, targets: &IndexVec<BlockId, BlockId>) -> bool {
     changed
 }
 
+/// Merges alternative origins, explicitly dropping provenance if either side is unknown.
+fn merge_debug(
+    target: &mut Option<Box<super::DebugMetadata>>,
+    source: Option<&super::DebugMetadata>,
+) {
+    match (target.as_mut(), source) {
+        (Some(target), Some(source)) => target.merge(source),
+        (Some(target), None) => {
+            target.source_spans.clear();
+            target.dropped = true;
+            target.function_invoke = None;
+            target.function_exit = None;
+        }
+        (None, Some(_)) => {
+            *target = Some(Box::new(super::DebugMetadata { dropped: true, ..Default::default() }));
+        }
+        (None, None) => {}
+    }
+}
+
+/// A shared body represents every original path, not just its surviving owner.
+fn merge_block_debug(module: &mut Module, owner: BlockId, other: BlockId) {
+    if !module.debug_info_tracked || owner == other {
+        return;
+    }
+    let source = module.blocks[other].clone();
+    let target = &mut module.blocks[owner];
+    for (target, source) in target.insts.iter_mut().zip(&source.insts) {
+        merge_debug(&mut target.debug, source.debug.as_deref());
+    }
+    merge_debug(&mut target.terminator.debug, source.terminator.debug.as_deref());
+    if target.function_invoke != source.function_invoke {
+        target.function_invoke = None;
+    }
+}
+
+/// Moves an eliminated block's entry event onto its first surviving instruction.
+fn inline_debug_entry(block: &mut Block) {
+    if let Some(invoke) = block.function_invoke.take() {
+        let debug = if let Some(inst) = block.insts.first_mut() {
+            &mut inst.debug
+        } else {
+            &mut block.terminator.debug
+        };
+        let debug = debug.get_or_insert_with(Default::default);
+        if debug.function_invoke.is_none() || debug.function_invoke == Some(invoke) {
+            debug.function_invoke = Some(invoke);
+        } else {
+            debug.function_invoke = None;
+        }
+    }
+}
+
 fn simplify(module: &mut Module, version: EvmVersion) -> bool {
     if module.block_ids().any(|id| {
         module.blocks[id].terminator.kind == TerminatorKind::DynamicJump
@@ -176,19 +229,40 @@ fn simplify(module: &mut Module, version: EvmVersion) -> bool {
                 } else {
                     false
                 };
+            if same_successors
+                && let TerminatorKind::JumpI(yes, no) = module.blocks[id].terminator.kind
+            {
+                merge_block_debug(module, yes, no);
+            }
             let block = &mut module.blocks[id];
             // jumpi identical_body, identical_body -> pop; jump identical_body
             if same_successors && let TerminatorKind::JumpI(yes, _) = block.terminator.kind {
-                block.insts.push(InstKind::Op(op::POP).into());
+                let debug = block.terminator.debug.clone();
+                let mut pop: super::Instruction = InstKind::Op(op::POP).into();
+                pop.debug = debug.clone();
+                if let Some(debug) = &mut pop.debug {
+                    debug.function_invoke = None;
+                    debug.function_exit = None;
+                }
+                block.insts.push(pop);
                 block.terminator = TerminatorKind::Jump(yes).into();
+                block.terminator.debug = debug;
                 progress = true;
             }
             // jumpi target, target -> pop; jump target
             if let TerminatorKind::JumpI(yes, no) = block.terminator.kind
                 && yes == no
             {
-                block.insts.push(InstKind::Op(op::POP).into());
+                let debug = block.terminator.debug.clone();
+                let mut pop: super::Instruction = InstKind::Op(op::POP).into();
+                pop.debug = debug.clone();
+                if let Some(debug) = &mut pop.debug {
+                    debug.function_invoke = None;
+                    debug.function_exit = None;
+                }
+                block.insts.push(pop);
                 block.terminator = TerminatorKind::Jump(yes).into();
+                block.terminator.debug = debug;
                 progress = true;
             }
             // push target; jumpi; jump target -> pop; jump target
@@ -199,8 +273,12 @@ fn simplify(module: &mut Module, version: EvmVersion) -> bool {
                 && push.stack_effect.is_none()
                 && jump.stack_effect.is_none()
             {
+                let mut debug = jump.debug.clone();
+                merge_debug(&mut debug, push.debug.as_deref());
                 block.insts.truncate(block.insts.len() - 2);
-                block.insts.push(InstKind::Op(op::POP).into());
+                let mut pop: super::Instruction = InstKind::Op(op::POP).into();
+                pop.debug = debug;
+                block.insts.push(pop);
                 progress = true;
             }
         }
@@ -254,7 +332,20 @@ fn simplify(module: &mut Module, version: EvmVersion) -> bool {
                                 .any(|id| module.blocks[id].insts.iter().any(observes_gas))
                     })
                 {
-                    let continuation = module.blocks[join].clone();
+                    let mut continuation = module.blocks[join].clone();
+                    inline_debug_entry(&mut continuation);
+                    let selection = selection
+                        .into_iter()
+                        .map(|mut inst| {
+                            if module.debug_info_tracked {
+                                inst.debug = Some(Box::new(super::DebugMetadata {
+                                    dropped: true,
+                                    ..Default::default()
+                                }));
+                            }
+                            inst
+                        })
+                        .collect::<Vec<_>>();
                     // condition; jumpi {push yes}, {push no}; shared continuation
                     // iszero; scale difference; select literal; shared continuation
                     module.blocks[id].insts.extend(selection);
@@ -276,7 +367,8 @@ fn simplify(module: &mut Module, version: EvmVersion) -> bool {
                 && !removed.contains(target)
                 && Some(target) != ids.first().copied()
             {
-                let target_block = module.blocks[target].clone();
+                let mut target_block = module.blocks[target].clone();
+                inline_debug_entry(&mut target_block);
                 // predecessor instructions
                 // target instructions
                 // target terminator
@@ -532,10 +624,32 @@ fn terminal_dedup(module: &mut Module) -> bool {
                 ) {
                     continue;
                 }
+                merge_block_debug(module, id, other);
                 module.blocks[id].cold &= module.blocks[other].cold;
                 // duplicate terminal body -> jump canonical_body
+                let invoke = module.blocks[other]
+                    .insts
+                    .first()
+                    .and_then(|inst| inst.debug.as_deref())
+                    .and_then(|debug| debug.function_invoke);
                 module.blocks[other].insts.clear();
                 module.blocks[other].terminator = TerminatorKind::Jump(id).into();
+                if let Some(invoke) = invoke {
+                    // NOTE: The duplicate's real transfer owns this invocation. The shared
+                    // body cannot independently identify which entry path was taken.
+                    if let Some(debug) = module.blocks[id]
+                        .insts
+                        .first_mut()
+                        .and_then(|inst| inst.debug.as_deref_mut())
+                    {
+                        debug.function_invoke = None;
+                    }
+                    module.blocks[id].function_invoke = None;
+                    module.blocks[other].terminator.debug = Some(Box::new(super::DebugMetadata {
+                        function_invoke: Some(invoke),
+                        ..Default::default()
+                    }));
+                }
                 changed = true;
             }
         }
@@ -654,6 +768,11 @@ fn redirect_terminals(module: &mut Module) -> bool {
         return false;
     }
     if changed {
+        for &source in &ids {
+            if targets[source] != source {
+                merge_block_debug(module, targets[source], source);
+            }
+        }
         // taken duplicate_exit -> taken earlier_identical_exit
         // earlier_identical_exit; duplicate_exit -> earlier_identical_exit
         redirect(module, &targets);
@@ -680,12 +799,25 @@ fn share_reverts(module: &mut Module) -> bool {
             && branch.kind == InstKind::Op(op::JUMPI)
             && [invert, target, branch].iter().all(|inst| inst.stack_effect.is_none())
         {
+            let mut debug = branch.debug.clone();
+            merge_debug(&mut debug, invert.debug.as_deref());
+            merge_debug(&mut debug, target.debug.as_deref());
+            merge_debug(&mut debug, block.terminator.debug.as_deref());
             let block = &mut module.blocks[id];
             // iszero; push hot; jumpi; jump revert
             // -> push revert; jumpi; jump hot
             block.insts.truncate(block.insts.len() - 3);
-            block.insts.extend([InstKind::PushLabel(no), InstKind::Op(op::JUMPI)].map(Into::into));
+            block.insts.extend([InstKind::PushLabel(no), InstKind::Op(op::JUMPI)].map(|kind| {
+                let mut inst: super::Instruction = kind.into();
+                inst.debug = debug.clone();
+                if let Some(debug) = &mut inst.debug {
+                    debug.function_invoke = None;
+                    debug.function_exit = None;
+                }
+                inst
+            }));
             block.terminator = TerminatorKind::Jump(yes).into();
+            block.terminator.debug = debug;
             changed = true;
         }
     }
@@ -847,7 +979,7 @@ fn tail_merge(gcx: Gcx<'_>, module: &mut Module) -> bool {
                 // jumpi empty_forwarder, other -> jumpi forwarded_target, other
                 terminator.kind = kind;
             }
-            let tail = Block {
+            let mut tail = Block {
                 insts: a.insts[a.insts.len() - common..].to_vec(),
                 terminator,
                 cold: a.cold
@@ -856,7 +988,23 @@ fn tail_merge(gcx: Gcx<'_>, module: &mut Module) -> bool {
                 loop_header: a.loop_header
                     || b.loop_header
                     || additional.iter().any(|&source| module.blocks[source].loop_header),
+                function_invoke: None,
             };
+            if module.debug_info_tracked {
+                for source in [other].into_iter().chain(additional.iter().copied()) {
+                    let source = &module.blocks[source];
+                    for (target, source) in
+                        tail.insts.iter_mut().zip(&source.insts[source.insts.len() - common..])
+                    {
+                        merge_debug(&mut target.debug, source.debug.as_deref());
+                    }
+                    merge_debug(&mut tail.terminator.debug, source.terminator.debug.as_deref());
+                }
+                // Invocation belongs to the existing per-source jump into the shared suffix.
+                if let Some(debug) = tail.insts.first_mut().and_then(|inst| inst.debug.as_mut()) {
+                    debug.function_invoke = None;
+                }
+            }
             // prefix_1; suffix; exit -> prefix_1; jump shared
             // ...
             // prefix_n; suffix; exit -> prefix_n; jump shared
@@ -864,8 +1012,14 @@ fn tail_merge(gcx: Gcx<'_>, module: &mut Module) -> bool {
             let shared = module.append_block(tail);
             for source in [id, other].into_iter().chain(additional) {
                 let block = &mut module.blocks[source];
+                let debug =
+                    block.insts.get(block.insts.len() - common).and_then(|inst| inst.debug.clone());
                 block.insts.truncate(block.insts.len() - common);
                 block.terminator = TerminatorKind::Jump(shared).into();
+                block.terminator.debug = debug;
+                if let Some(debug) = &mut block.terminator.debug {
+                    debug.function_exit = None;
+                }
             }
             module.layout.get_or_insert_with(|| ids.clone()).push(shared);
             changed = true;
@@ -928,6 +1082,14 @@ fn empty_revert_program(module: &mut Module) -> bool {
         InstKind::Push(alloy_primitives::U256::ZERO).into(),
     ];
     module.blocks[entry].terminator = TerminatorKind::Revert.into();
+    if module.debug_info_tracked {
+        for inst in &mut module.blocks[entry].insts {
+            inst.debug =
+                Some(Box::new(super::DebugMetadata { dropped: true, ..Default::default() }));
+        }
+        module.blocks[entry].terminator.debug =
+            Some(Box::new(super::DebugMetadata { dropped: true, ..Default::default() }));
+    }
     module.layout = Some(vec![entry]);
     true
 }

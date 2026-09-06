@@ -1,0 +1,20 @@
+//@ filecheck:
+// CHECK-LABEL: "bytecode": {
+// CHECK: "sourceMap":
+// CHECK-LABEL: "deployedBytecode": {
+// CHECK: "sourceMap":
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract C { function f() external {} }"
+    }
+  },
+  "settings": {
+    "outputSelection": {
+      "*": {
+        "*": ["evm"]
+      }
+    }
+  }
+}

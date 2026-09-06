@@ -205,11 +205,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         } else {
             base_len
         };
-        // if end > base.length || end < start { revert(0, 0) }
         let past_end = self.builder.gt(end, base_len);
         let backwards = self.builder.lt(end, start);
-        let invalid = self.builder.or(past_end, backwards);
-        self.builder.revert_if(invalid);
+        if self.builder.encodes_revert_reasons() {
+            // if end < start { revert(Error("Slice starts after end")) }
+            // if end > base.length { revert(Error("Slice is greater than length")) }
+            self.builder.revert_if(backwards, RevertReason::SliceStartsAfterEnd);
+            self.builder.revert_if(past_end, RevertReason::SliceGreaterThanLength);
+        } else {
+            // if end > base.length || end < start { revert(0, 0) }
+            let invalid = self.builder.or(past_end, backwards);
+            self.builder.revert_if(invalid, RevertReason::Empty);
+        }
         let length = self.builder.sub(end, start);
         let start_offset = if element_stride == 1 {
             start

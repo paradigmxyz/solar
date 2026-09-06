@@ -1,27 +1,42 @@
 //! Parsing and canonical printing of physical EVM blocks and relocations.
 
-use super::{Block, BlockId, Data, DataId, InstKind, Instruction, Module, TerminatorKind};
-use crate::{backend::evm::op, ir_parse::Parser, mir::ImmutableId};
+use super::{
+    Block, BlockId, Data, DataId, DebugMetadata, InstKind, Instruction, Module, TerminatorKind,
+};
+use crate::{
+    backend::evm::{
+        debug_info::{DebugFunction, DebugFunctionExit},
+        op,
+    },
+    ir_parse::Parser,
+    mir::ImmutableId,
+};
 use alloy_primitives::U256;
 use solar_ast::{
     Arena,
     token::{Delimiter, TokenKind},
 };
 use solar_data_structures::map::FxHashMap;
-use solar_interface::{Result, Session, Span, source_map::SourceFile, sym};
+use solar_interface::{BytePos, Result, Session, Span, kw, source_map::SourceFile, sym};
 use solar_parse::{PErr, PResult};
 use std::fmt::{self, Write};
 
 pub(super) fn parse(sess: &Session, source: &SourceFile) -> Result<Module> {
     let arena = Arena::new();
     let parser = Parser::new(sess, &arena, source);
-    Reader { parser, references: Vec::new(), reference_ids: FxHashMap::default() }
-        .module()
-        .map_err(PErr::emit)
+    Reader {
+        parser,
+        references: Vec::new(),
+        reference_ids: FxHashMap::default(),
+        debug_info_tracked: false,
+    }
+    .module()
+    .map_err(PErr::emit)
 }
 
 struct Reader<'sess, 'ast> {
     parser: Parser<'sess, 'ast>,
+    debug_info_tracked: bool,
     references: Vec<(u32, Span)>,
     reference_ids: FxHashMap<u32, BlockId>,
 }
@@ -61,8 +76,14 @@ impl<'sess> Reader<'sess, '_> {
                         block.cold = true;
                     } else if self.parser.eat_keyword(sym::Loop) {
                         block.loop_header = true;
+                    } else if self.parser.eat_keyword(sym::invoke) {
+                        self.parser.expect(TokenKind::Eq)?;
+                        block.function_invoke = Some(self.debug_function()?);
+                        self.debug_info_tracked = true;
                     } else {
-                        return Err(self.parser.error("expected `cold` or `loop` block attribute"));
+                        return Err(self
+                            .parser
+                            .error("expected `cold`, `loop` or `invoke` block attribute"));
                     }
                     if !self.parser.eat(TokenKind::Comma) {
                         break;
@@ -141,7 +162,8 @@ impl<'sess> Reader<'sess, '_> {
                     if let Some(term) = term {
                         // terminator targets !meta(stack=inputs->outputs)
                         block.terminator = term.into();
-                        block.terminator.stack_effect = self.metadata()?;
+                        (block.terminator.stack_effect, block.terminator.debug) =
+                            self.metadata()?;
                         terminated = true;
                         continue;
                     }
@@ -167,7 +189,8 @@ impl<'sess> Reader<'sess, '_> {
                     if let Some(term) = term {
                         // terminal_opcode !meta(stack=inputs->outputs)
                         block.terminator = term.into();
-                        block.terminator.stack_effect = self.metadata()?;
+                        (block.terminator.stack_effect, block.terminator.debug) =
+                            self.metadata()?;
                         terminated = true;
                         continue;
                     }
@@ -178,7 +201,8 @@ impl<'sess> Reader<'sess, '_> {
                     }
                 };
                 // physical_instruction !meta(stack=inputs->outputs)
-                block.insts.push(Instruction { kind, stack_effect: self.metadata()? });
+                let (stack_effect, debug) = self.metadata()?;
+                block.insts.push(Instruction { kind, stack_effect, debug });
             }
             if !terminated {
                 return Err(self.parser.error("expected block terminator"));
@@ -227,6 +251,7 @@ impl<'sess> Reader<'sess, '_> {
                 _ => {}
             }
         }
+        module.debug_info_tracked = self.debug_info_tracked;
         Ok(module)
     }
 
@@ -274,13 +299,27 @@ impl<'sess> Reader<'sess, '_> {
             .map_err(|_| self.parser.error("integer exceeds `u16`"))
     }
 
-    fn metadata(&mut self) -> PResult<'sess, Option<(u8, u8)>> {
+    fn debug_span(&mut self) -> PResult<'sess, Span> {
+        let (lo, hi) = self.parser.parse_span_bounds()?;
+        Ok(Span::new(BytePos(lo), BytePos(hi)))
+    }
+
+    fn debug_function(&mut self) -> PResult<'sess, DebugFunction> {
+        let identifier = self.parser.parse_ident()?;
+        self.parser.expect(TokenKind::At)?;
+        Ok(DebugFunction { identifier, declaration: self.debug_span()? })
+    }
+
+    fn metadata(&mut self) -> PResult<'sess, (Option<(u8, u8)>, Option<Box<DebugMetadata>>)> {
         if !self.parser.eat(TokenKind::Not) {
-            return Ok(None);
+            return Ok((None, None));
         }
-        self.parser.expect_keyword(sym::meta)?;
+        if !self.parser.eat_keyword(sym::metadata) {
+            self.parser.expect_keyword(sym::meta)?;
+        }
         self.parser.expect(TokenKind::OpenDelim(Delimiter::Parenthesis))?;
         let mut stack = None;
+        let mut debug = None;
         while !self.parser.check(TokenKind::CloseDelim(Delimiter::Parenthesis)) {
             let key = self.parser.parse_ident()?;
             if self.parser.eat(TokenKind::Eq) {
@@ -294,6 +333,50 @@ impl<'sess> Reader<'sess, '_> {
                         u8::try_from(outputs)
                             .map_err(|_| self.parser.error("stack effect exceeds `u8`"))?,
                     ));
+                } else if matches!(
+                    key,
+                    sym::span | sym::spans | sym::invoke | sym::exit | sym::modifier_depth
+                ) {
+                    self.debug_info_tracked = true;
+                    let info = debug.get_or_insert_with(|| Box::new(DebugMetadata::default()));
+                    match key {
+                        sym::span => info.add_span(self.debug_span()?),
+                        sym::spans => {
+                            self.parser.expect(TokenKind::OpenDelim(Delimiter::Bracket))?;
+                            if self.parser.check(TokenKind::CloseDelim(Delimiter::Bracket)) {
+                                info.source_spans.clear();
+                                info.dropped = true;
+                            } else {
+                                loop {
+                                    info.add_span(self.debug_span()?);
+                                    if !self.parser.eat(TokenKind::Comma) {
+                                        break;
+                                    }
+                                }
+                            }
+                            self.parser.expect(TokenKind::CloseDelim(Delimiter::Bracket))?;
+                        }
+                        sym::invoke => info.function_invoke = Some(self.debug_function()?),
+                        sym::exit => {
+                            let value = self.parser.parse_ident()?;
+                            info.function_exit = Some(if value == kw::Return {
+                                DebugFunctionExit::Return
+                            } else if value == kw::Revert {
+                                DebugFunctionExit::Revert
+                            } else {
+                                return Err(self
+                                    .parser
+                                    .error("expected `return` or `revert` function exit"));
+                            });
+                        }
+                        sym::modifier_depth => {
+                            let value = self.parser.parse_uint()?;
+                            info.modifier_depth = u32::try_from(value).map_err(|_| {
+                                self.parser.error(format!("integer `{value}` does not fit in u32"))
+                            })?;
+                        }
+                        _ => unreachable!(),
+                    }
                 } else {
                     if matches!(
                         self.parser.token().kind,
@@ -314,7 +397,7 @@ impl<'sess> Reader<'sess, '_> {
             }
         }
         self.parser.expect(TokenKind::CloseDelim(Delimiter::Parenthesis))?;
-        Ok(stack)
+        Ok((stack, debug))
     }
 }
 
@@ -327,7 +410,7 @@ impl fmt::Display for PrintedModule<'_> {
         for id in module.block_ids() {
             let block = &module.blocks[id];
             write!(f, "bb{}", module.block_label(id))?;
-            if block.cold || block.loop_header {
+            if block.cold || block.loop_header || block.function_invoke.is_some() {
                 f.write_str(" [")?;
                 if block.cold {
                     f.write_str("cold")?;
@@ -338,25 +421,39 @@ impl fmt::Display for PrintedModule<'_> {
                 if block.loop_header {
                     f.write_str("loop")?;
                 }
+                if let Some(invoke) = block.function_invoke {
+                    if block.cold || block.loop_header {
+                        f.write_str(", ")?;
+                    }
+                    write!(
+                        f,
+                        "invoke={}@{}..{}",
+                        invoke.identifier,
+                        invoke.declaration.lo().0,
+                        invoke.declaration.hi().0
+                    )?;
+                }
                 f.write_char(']')?;
             }
             f.write_str(":\n")?;
             for inst in &block.insts {
                 write!(f, "  {}", PrintedInst(module, &inst.kind))?;
-                print_effect(
+                print_metadata(
                     f,
                     inst.stack_effect
                         .filter(|&effect| Some(effect) != super::verify::effect(&inst.kind)),
+                    inst.debug.as_deref(),
                 )?;
                 f.write_char('\n')?;
             }
             write!(f, "  {}", PrintedTerm(module, &block.terminator.kind))?;
-            print_effect(
+            print_metadata(
                 f,
                 block
                     .terminator
                     .stack_effect
                     .filter(|&effect| effect != super::verify::term_effect(&block.terminator.kind)),
+                block.terminator.debug.as_deref(),
             )?;
             f.write_char('\n')?;
         }
@@ -372,9 +469,54 @@ impl fmt::Display for PrintedModule<'_> {
     }
 }
 
-fn print_effect(f: &mut fmt::Formatter<'_>, effect: Option<(u8, u8)>) -> fmt::Result {
+fn print_metadata(
+    f: &mut fmt::Formatter<'_>,
+    effect: Option<(u8, u8)>,
+    debug: Option<&DebugMetadata>,
+) -> fmt::Result {
+    let mut fields = Vec::new();
     if let Some((inputs, outputs)) = effect {
-        write!(f, " !meta(stack={inputs}->{outputs})")?;
+        fields.push(format!("stack={inputs}->{outputs}"));
+    }
+    if let Some(debug) = debug {
+        if debug.dropped {
+            fields.push("spans=[]".to_owned());
+        } else if let [span] = debug.source_spans.as_slice() {
+            fields.push(format!("span={}..{}", span.lo().0, span.hi().0));
+        } else if !debug.source_spans.is_empty() {
+            fields.push(format!(
+                "spans=[{}]",
+                debug
+                    .source_spans
+                    .iter()
+                    .map(|span| format!("{}..{}", span.lo().0, span.hi().0))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ));
+        }
+        if debug.modifier_depth != 0 {
+            fields.push(format!("modifier_depth={}", debug.modifier_depth));
+        }
+        if let Some(invoke) = debug.function_invoke {
+            fields.push(format!(
+                "invoke={}@{}..{}",
+                invoke.identifier,
+                invoke.declaration.lo().0,
+                invoke.declaration.hi().0
+            ));
+        }
+        if let Some(exit) = debug.function_exit {
+            fields.push(format!(
+                "exit={}",
+                match exit {
+                    DebugFunctionExit::Return => "return",
+                    DebugFunctionExit::Revert => "revert",
+                }
+            ));
+        }
+    }
+    if !fields.is_empty() {
+        write!(f, " !metadata({})", fields.join(", "))?;
     }
     Ok(())
 }

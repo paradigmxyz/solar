@@ -20,6 +20,7 @@ use solar_interface::{
     Ident, Session, Span, Symbol,
     config::CompilerStage,
     diagnostics::{DiagCtxt, ErrorGuaranteed},
+    error_code,
     source_map::{FileName, SourceFile},
     sym,
 };
@@ -1697,10 +1698,12 @@ pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'g
                 }
 
                 let kind = f.description();
-                let msg = if ty.has_mapping(gcx) {
-                    format!("types containing mappings cannot be parameter or return types of public {kind}s")
-                } else if ty.is_recursive(gcx) {
+                // Recursiveness comes first, as in solc's `StructType::interfaceType`: a
+                // recursive struct is rejected before its members are inspected for mappings.
+                let msg = if ty.is_recursive(gcx) {
                     format!("recursive types cannot be parameter or return types of public {kind}s")
+                } else if ty.has_mapping(gcx) {
+                    format!("types containing mappings cannot be parameter or return types of public {kind}s")
                 } else if ty.has_internal_function() {
                     format!("types containing internal function pointers cannot be parameter or return types of public {kind}s")
                 } else {
@@ -1958,7 +1961,7 @@ fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) 
     let mut has_reference_or_mapping_type_slot = None;
     let mut has_reference_or_mapping_type = || {
         *has_reference_or_mapping_type_slot
-            .get_or_insert_with(|| ty.is_reference_type() || ty.has_mapping(gcx))
+            .get_or_insert_with(|| ty.has_reference_or_mapping_type(gcx))
     };
 
     let mut func_vis = None;
@@ -1967,6 +1970,11 @@ fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) 
         &[None, Some(Transient)]
     } else if !has_reference_or_mapping_type() || var.is_event_or_error_parameter() {
         &[None]
+    } else if var.is_try_catch_parameter() {
+        // A `try` clause parameter is declared in the `TryCatchClause`'s own scope, not in the
+        // enclosing callable's, so the enclosing function's kind and visibility do not widen
+        // its locations: the decoder always writes the value into a fresh memory object.
+        &[Some(Memory)]
     } else if var.is_callable_or_catch_parameter() {
         locs = SmallVec::<[_; 3]>::new();
         locs.push(Some(Memory));
@@ -1974,7 +1982,7 @@ fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) 
         if let Some(hir::ItemId::Function(f)) = var.parent {
             let f = gcx.hir.function(f);
             is_constructor_parameter = f.kind.is_constructor();
-            if !var.is_try_catch_parameter() && !is_constructor_parameter {
+            if !is_constructor_parameter {
                 func_vis = Some(f.visibility);
             }
             if is_constructor_parameter
@@ -1984,7 +1992,7 @@ fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) 
                 locs.push(Some(Storage));
             }
         }
-        if !var.is_try_catch_parameter() && !is_constructor_parameter {
+        if !is_constructor_parameter {
             locs.push(Some(Calldata));
         }
         &locs
@@ -2064,6 +2072,16 @@ fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) 
             }
         }
     };
+
+    // Only value types fit in a single transient storage slot.
+    // Reference: <https://github.com/argotorg/solidity/blob/v0.8.36/libsolidity/analysis/DeclarationTypeChecker.cpp#L537-L538>
+    if ty_loc == Transient && !ty.is_value_type() && !ty.references_error() {
+        gcx.dcx()
+            .err("transient data location is only supported for value types")
+            .code(error_code!(1834))
+            .span(var.span)
+            .emit();
+    }
 
     ty.with_loc_if_ref(gcx, ty_loc)
 }

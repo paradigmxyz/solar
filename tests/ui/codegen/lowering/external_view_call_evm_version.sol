@@ -10,11 +10,13 @@ interface Target {
 
 contract Caller {
     // HOMESTEAD-LABEL: fn @read
+    // HOMESTEAD: extcodesize
     // HOMESTEAD: call
     // HOMESTEAD-NOT: staticcall
     // HOMESTEAD-NOT: returndatasize
     // HOMESTEAD: revert_returndata
     // BYZANTIUM-LABEL: fn @read
+    // BYZANTIUM-NOT: extcodesize
     // BYZANTIUM: staticcall
     // BYZANTIUM: revert_returndata
     function read(Target target) external view returns (uint256) {
@@ -22,11 +24,13 @@ contract Caller {
     }
 
     // HOMESTEAD-LABEL: fn @readPointer
+    // HOMESTEAD: extcodesize
     // HOMESTEAD: call
     // HOMESTEAD-NOT: staticcall
     // HOMESTEAD-NOT: returndatasize
     // HOMESTEAD: revert_returndata
     // BYZANTIUM-LABEL: fn @readPointer
+    // BYZANTIUM-NOT: extcodesize
     // BYZANTIUM: staticcall
     // BYZANTIUM: revert_returndata
     // BYZANTIUM: returndatasize

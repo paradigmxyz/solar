@@ -1,0 +1,41 @@
+- // === ROOT/tests/ui/codegen/mir/lowering/lower_dispatch_library.mir (before lower-dispatch) ===
++ // === ROOT/tests/ui/codegen/mir/lowering/lower_dispatch_library.mir (after lower-dispatch) ===
+  @module DispatchLibrary
+- @phase abi
++ @phase dispatch
+  @library
+  immutables:
+    library_deploy_address: address
+  
+  fn @view() [selector=0x00000001, view] {
+    bb0:
+      stop
+  }
+  
+  fn @write() [selector=0x00000002] {
+    bb0:
+      stop
++ }
++ 
++ fn @entry() [entry] {
++   bb0:
++     jump bb1
++   bb1:
++     v0 = calldataload 0
++     v1 = shr 224, v0
++     switch v1, default bb4, [1 => bb2, 2 => bb3]
++   bb3:
++     v2 = loadimmutable library_deploy_address
++     v3 = address
++     v4 = eq v2, v3
++     jumpi v4, bb5, bb6
++   bb6:
++     tail_call @write
++   bb5:
++     revert 0, 0
++   bb2:
++     tail_call @view
++   bb4:
++     revert 0, 0
+  }
+  

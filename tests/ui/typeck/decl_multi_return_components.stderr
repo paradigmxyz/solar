@@ -1,0 +1,46 @@
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/decl_multi_return_components.sol:LL:CC
+   │
+LL │         (mapping(uint256 => uint256) storage m, Fake storage f) = Lib.pick(map, actual);
+   ╰╴                                                                  ━━━━━━━━━━━━━━━━━━━━━ expected `struct Fake storage`, found `struct Lib.Actual storage`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/decl_multi_return_components.sol:LL:CC
+   │
+LL │         (address a, Lib.Actual storage s) = Lib.two(actual);
+   ╰╴                                            ━━━━━━━━━━━━━━━ expected `address`, found `uint256`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/decl_multi_return_components.sol:LL:CC
+   │
+LL │         (mapping(uint256 => uint256) storage m, Fake storage f) = (Lib.pick(map, actual));
+   ╰╴                                                                  ━━━━━━━━━━━━━━━━━━━━━━━ expected `struct Fake storage`, found `struct Lib.Actual storage`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/decl_multi_return_components.sol:LL:CC
+   │
+LL │         (mapping(uint256 => uint256) storage m, Fake storage f) = ((Lib.pick(map, actual)));
+   ╰╴                                                                  ━━━━━━━━━━━━━━━━━━━━━━━━━ expected `struct Fake storage`, found `struct Lib.Actual storage`
+
+error: mismatched number of components
+   ╭▸ ROOT/tests/ui/typeck/decl_multi_return_components.sol:LL:CC
+   │
+LL │         (Fake storage f, uint256 v, uint256 w) = (actual, actual.a);
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┬─────────────────━
+   │                                                  │
+   ╰╴                                                 expected a tuple with 3 elements, found one with 2 elements
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/decl_multi_return_components.sol:LL:CC
+   │
+LL │         (Fake storage f, uint256 v, uint256 w) = (actual, actual.a);
+   ╰╴                                                  ━━━━━━ expected `struct Fake storage`, found `struct Lib.Actual storage`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/decl_multi_return_components.sol:LL:CC
+   │
+LL │         (uint256 v, Fake storage f) = (actual.a, actual);
+   ╰╴                                                 ━━━━━━ expected `struct Fake storage`, found `struct Lib.Actual storage`
+
+error: aborting due to 7 previous errors
+

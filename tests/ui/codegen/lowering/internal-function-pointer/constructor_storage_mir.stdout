@@ -20,7 +20,7 @@ fn @callStoredOnly() -> u256 [selector=0x11cfff8f, abi_params=[], abi_returns=[w
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffff
-    v2 = internal_call @internal_dispatcher_p_none_r_u256, 1, v1
+    v2 = icall @internal_dispatcher_p_none_r_u256, 1, v1
     ret v2
 }
 
@@ -33,6 +33,6 @@ fn @internal_dispatcher_p_none_r_u256(arg0: function) -> u256 [function_pointer_
     mstore 4, 81 !metadata(memory=scratch)
     revert 0, 36
   bb1:
-    v1 = internal_call @onlyStored, 1
+    v1 = icall @onlyStored, 1
     ret v1
 }

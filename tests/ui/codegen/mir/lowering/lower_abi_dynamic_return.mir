@@ -28,13 +28,13 @@ fn @canonicalAddresses() -> memoryarray {
 
 fn @givesAddresses() -> memoryarray [selector=0x0dead002, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
   bb0:
-    v0 = internal_call @canonicalAddresses, 1
+    v0 = icall @canonicalAddresses, 1
     ret v0
 }
 
 fn @givesAddressesAgain() -> memoryarray [selector=0x0dead003, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
   bb0:
-    v0 = internal_call @canonicalAddresses, 1
+    v0 = icall @canonicalAddresses, 1
     ret v0
 }
 
@@ -49,7 +49,7 @@ fn @canonicalAddressArrays() -> memoryarray {
     v3 = lt v2, v1
     jumpi v3, bb2, bb3
   bb2:
-    v4 = internal_call @canonicalAddresses, 1
+    v4 = icall @canonicalAddresses, 1
     memory_object_store_element memoryarray<1>, v0, v2, v4
     v5 = add v2, 1
     jump bb1
@@ -59,13 +59,13 @@ fn @canonicalAddressArrays() -> memoryarray {
 
 fn @givesAddressArrays() -> memoryarray [selector=0x0dead005, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
   bb0:
-    v0 = internal_call @canonicalAddressArrays, 1
+    v0 = icall @canonicalAddressArrays, 1
     ret v0
 }
 
 fn @givesAddressArraysAgain() -> memoryarray [selector=0x0dead006, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
   bb0:
-    v0 = internal_call @canonicalAddressArrays, 1
+    v0 = icall @canonicalAddressArrays, 1
     ret v0
 }
 
@@ -80,7 +80,7 @@ fn @dirtyAddressArrays() -> memoryarray {
     v3 = lt v2, v1
     jumpi v3, bb2, bb3
   bb2:
-    v4 = internal_call @canonicalAddresses, 1
+    v4 = icall @canonicalAddresses, 1
     memory_object_store_element memoryarray<1>, v4, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     memory_object_store_element memoryarray<1>, v0, v2, v4
     v5 = add v2, 1
@@ -91,13 +91,13 @@ fn @dirtyAddressArrays() -> memoryarray {
 
 fn @givesDirtyAddressArrays() -> memoryarray [selector=0x0dead007, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
   bb0:
-    v0 = internal_call @dirtyAddressArrays, 1
+    v0 = icall @dirtyAddressArrays, 1
     ret v0
 }
 
 fn @givesDirtyAddressArraysAgain() -> memoryarray [selector=0x0dead008, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
   bb0:
-    v0 = internal_call @dirtyAddressArrays, 1
+    v0 = icall @dirtyAddressArrays, 1
     ret v0
 }
 

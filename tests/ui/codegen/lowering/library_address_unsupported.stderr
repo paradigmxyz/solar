@@ -1,0 +1,10 @@
+error: codegen rewrite does not support this function yet
+   ╭▸ ROOT/tests/ui/codegen/lowering/library_address_unsupported.sol:LL:CC
+   │
+LL │ ┏     function addr() public pure returns (address) {
+LL │ ┃         return address(L);
+LL │ ┃     }
+   ╰╴┗━━━━━┛
+
+error: aborting due to 1 previous error
+

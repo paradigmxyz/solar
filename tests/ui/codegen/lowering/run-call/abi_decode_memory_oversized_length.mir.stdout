@@ -26,25 +26,25 @@ fn @decodeNestedArray(arg0: memoryarray) -> u256 [selector=0xad885292, pure, abi
 
 fn @wordArray() -> bool [selector=0xdbd2add2, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
-    v0 = internal_call @oversized, 1, 0x5592ecdf00000000000000000000000000000000000000000000000000000000
+    v0 = icall @oversized, 1, 0x5592ecdf00000000000000000000000000000000000000000000000000000000
     ret v0
 }
 
 fn @narrowArray() -> bool [selector=0x69b43bd0, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
-    v0 = internal_call @oversized, 1, 0x42670e3200000000000000000000000000000000000000000000000000000000
+    v0 = icall @oversized, 1, 0x42670e3200000000000000000000000000000000000000000000000000000000
     ret v0
 }
 
 fn @bytesValue() -> bool [selector=0x5a286ac0, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
-    v0 = internal_call @oversized, 1, 0x197621ce00000000000000000000000000000000000000000000000000000000
+    v0 = icall @oversized, 1, 0x197621ce00000000000000000000000000000000000000000000000000000000
     ret v0
 }
 
 fn @nestedArray() -> bool [selector=0x810ef4b8, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
-    v0 = internal_call @oversized, 1, 0xad88529200000000000000000000000000000000000000000000000000000000
+    v0 = icall @oversized, 1, 0xad88529200000000000000000000000000000000000000000000000000000000
     ret v0
 }
 

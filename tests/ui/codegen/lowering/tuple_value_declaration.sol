@@ -3,9 +3,16 @@
 //@ run-call: arrays 17, 29 => 17, 29
 //@ run-call: discarded => 13, 3
 //@ run-call: parenthesizedCall => 7
+//@ run-call: parenthesizedDeclaration => 7, 8
 
 contract TupleValueDeclaration {
+    struct Values {
+        uint256 a;
+        uint256 b;
+    }
+
     uint256 private count;
+    Values private stored;
 
     function pair(int256 x) external pure returns (int256, int256) {
         (int256 wad, int256 p) = (int256(1e18), x);
@@ -45,5 +52,16 @@ contract TupleValueDeclaration {
 
     function pairValues() internal pure returns (uint256, uint256) {
         return (7, 9);
+    }
+
+    function parenthesizedDeclaration() external returns (uint256, uint256) {
+        stored.a = 7;
+        (uint256 v, Values storage s) = ((storedPair()));
+        s.b = v + 1;
+        return (v, stored.b);
+    }
+
+    function storedPair() internal view returns (uint256, Values storage) {
+        return (stored.a, stored);
     }
 }

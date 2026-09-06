@@ -1,7 +1,7 @@
 //@compile-flags: -Zdump=evm-ir-runtime --pretty-json
 //@ filecheck: --implicit-check-not=mload
 
-contract InternalCallFrameDealloc {
+contract ICallFrameDealloc {
     // Scalar recursion passes its arguments and result on the stack, so this
     // case needs no memory-frame allocation or deallocation between calls.
     // CHECK-LABEL: @module InternalCallFrameDealloc_runtime

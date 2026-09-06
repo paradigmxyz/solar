@@ -814,7 +814,7 @@ impl AliasAnalysis {
                 .filter(|(arg, _)| **arg == operand)
                 .any(|(_, ty)| !Self::abi_type_reads_memory(ty)),
             InstKind::AbiDecode { data, .. } => operand != *data,
-            InstKind::InternalCall { function, args, .. } => self
+            InstKind::ICall { function, args, .. } => self
                 .call_summaries
                 .as_deref()
                 .and_then(|summaries| summaries.get(*function))
@@ -1174,7 +1174,7 @@ impl AliasAnalysis {
                     effects.write_any(AddressSpace::Transient);
                 }
             }
-            InstKind::InternalCall { function, returns, .. } => {
+            InstKind::ICall { function, returns, .. } => {
                 // MIR names only result 0; a multi-result call publishes its tail
                 // results through a caller-side buffer written by backend lowering.
                 // That write has no MIR representation, so even a memory-clean
@@ -1692,7 +1692,7 @@ impl AliasAnalysis {
     ) -> bool {
         match func.inst(inst).kind {
             InstKind::SetFmp(_) => true,
-            InstKind::InternalCall { function, .. } => call_summaries
+            InstKind::ICall { function, .. } => call_summaries
                 .and_then(|summaries| summaries.get(function))
                 .is_none_or(|summary| summary.may_reset_fmp()),
             InstKind::MStore(address, _) => Self::range_may_overlap_fmp(func, address, Some(32)),

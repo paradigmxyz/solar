@@ -8,7 +8,7 @@ fn @observed() -> u256 [selector=0xba210709, view, abi_params=[], abi_returns=[w
 
 fn @constructor() [constructor] {
   bb0:
-    v0 = internal_call @value, 1
+    v0 = icall @value, 1
     sstore 0, v0 !metadata(storage=slot(0))
     jump bb2
   bb2:
@@ -44,7 +44,7 @@ fn @observed() -> u256 [selector=0xba210709, view, abi_params=[], abi_returns=[w
 
 fn @constructor() [constructor] {
   bb0:
-    v0 = internal_call @value, 1
+    v0 = icall @value, 1
     sstore 0, v0 !metadata(storage=slot(0))
     jump bb3
   bb3:

@@ -3,10 +3,11 @@
 //! MIR values and call conventions do not survive into this representation. Block
 //! identities remain explicit until assembly; byte offsets are never CFG identities.
 
+use super::debug_info::{DebugFunction, DebugFunctionExit};
 use alloy_primitives::U256;
 use solar_config::EvmVersion;
 use solar_data_structures::{index::IndexVec, map::FxHashMap, newtype_index};
-use solar_interface::{Result, Session, Symbol, source_map::SourceFile};
+use solar_interface::{Result, Session, Span, Symbol, source_map::SourceFile};
 use solar_sema::Gcx;
 use std::fmt::Display;
 
@@ -32,9 +33,11 @@ newtype_index! {
 }
 
 /// A physical EVM program.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, Eq)]
 pub struct Module {
     pub(crate) name: Symbol,
+    /// Source provenance is requested; it never changes physical program semantics.
+    pub(crate) debug_info_tracked: bool,
     pub(crate) blocks: IndexVec<BlockId, Block>,
     pub(crate) layout: Option<Vec<BlockId>>,
     pub(crate) labels: FxHashMap<BlockId, u32>,
@@ -56,12 +59,13 @@ pub struct Module {
 }
 
 /// One contiguous sequence of scheduled physical instructions.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, Eq)]
 pub(crate) struct Block {
     pub(crate) insts: Vec<Instruction>,
     pub(crate) terminator: Terminator,
     pub(crate) cold: bool,
     pub(crate) loop_header: bool,
+    pub(crate) function_invoke: Option<DebugFunction>,
 }
 
 /// A relocatable region of immutable program bytes.
@@ -72,15 +76,97 @@ pub(crate) struct Data {
 }
 
 /// An already scheduled EVM instruction.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Eq)]
 pub(crate) struct Instruction {
     pub(crate) kind: InstKind,
     pub(crate) stack_effect: Option<(u8, u8)>,
+    pub(crate) debug: Option<Box<DebugMetadata>>,
 }
 
 impl From<InstKind> for Instruction {
     fn from(kind: InstKind) -> Self {
-        Self { kind, stack_effect: None }
+        Self { kind, stack_effect: None, debug: None }
+    }
+}
+
+/// Optional provenance, kept separate from semantic instruction and block equality.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) struct DebugMetadata {
+    pub(crate) source_spans: Vec<Span>,
+    pub(crate) modifier_depth: u32,
+    pub(crate) function_invoke: Option<DebugFunction>,
+    pub(crate) function_exit: Option<DebugFunctionExit>,
+    pub(crate) dropped: bool,
+}
+
+impl DebugMetadata {
+    /// Retains a bounded union of origins; exceeding the bound drops the entire set.
+    pub(crate) fn add_span(&mut self, span: Span) {
+        if !self.dropped && !self.source_spans.contains(&span) {
+            if self.source_spans.len() == crate::source_info::MAX_DEBUG_SPANS {
+                self.source_spans.clear();
+                self.dropped = true;
+            } else {
+                self.source_spans.push(span);
+                self.source_spans.sort_unstable();
+            }
+        }
+    }
+
+    /// Combines origins without choosing one of conflicting function events.
+    pub(crate) fn merge(&mut self, other: &Self) {
+        if other.dropped {
+            self.source_spans.clear();
+            self.dropped = true;
+        }
+        for &span in &other.source_spans {
+            self.add_span(span);
+        }
+        if self.modifier_depth != other.modifier_depth {
+            self.modifier_depth = 0;
+        }
+        if self.function_invoke != other.function_invoke {
+            self.function_invoke = None;
+        }
+        if self.function_exit != other.function_exit {
+            self.function_exit = None;
+        }
+    }
+}
+
+impl PartialEq for Instruction {
+    fn eq(&self, other: &Self) -> bool {
+        self.kind == other.kind && self.stack_effect == other.stack_effect
+    }
+}
+
+impl PartialEq for Terminator {
+    fn eq(&self, other: &Self) -> bool {
+        self.kind == other.kind && self.stack_effect == other.stack_effect
+    }
+}
+
+impl PartialEq for Block {
+    fn eq(&self, other: &Self) -> bool {
+        self.insts == other.insts
+            && self.terminator == other.terminator
+            && self.cold == other.cold
+            && self.loop_header == other.loop_header
+    }
+}
+
+impl PartialEq for Module {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+            && self.blocks == other.blocks
+            && self.layout == other.layout
+            && self.labels == other.labels
+            && self.private_control_labels == other.private_control_labels
+            && self.data == other.data
+            && self.deferred == other.deferred
+            && self.program_size_id == other.program_size_id
+            && self.appendix == other.appendix
+            && self.appendix_start_id == other.appendix_start_id
     }
 }
 
@@ -99,15 +185,16 @@ pub(crate) enum InstKind {
 }
 
 /// A block's explicit control transfer and optional interchange metadata.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, Eq)]
 pub(crate) struct Terminator {
     pub(crate) kind: TerminatorKind,
     pub(crate) stack_effect: Option<(u8, u8)>,
+    pub(crate) debug: Option<Box<DebugMetadata>>,
 }
 
 impl From<TerminatorKind> for Terminator {
     fn from(kind: TerminatorKind) -> Self {
-        Self { kind, stack_effect: None }
+        Self { kind, stack_effect: None, debug: None }
     }
 }
 

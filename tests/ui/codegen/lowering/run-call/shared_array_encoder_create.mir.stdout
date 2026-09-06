@@ -225,8 +225,8 @@ fn @mk3(arg0: address, arg1: address, arg2: address) -> address {
 
 fn @second() -> address [selector=0x5a8ac02d, abi_params=[], abi_returns=[word<u160>]] {
   bb0:
-    v0 = internal_call @mk, 1, 1, 2
-    v1 = internal_call @mk, 1, 3, 4
+    v0 = icall @mk, 1, 1, 2
+    v1 = icall @mk, 1, 3, 4
     v2 = gas
     v3 = abi_encode [word], selector 0x9507d39a00000000000000000000000000000000000000000000000000000000, args 0
     v4 = slice_ptr v3
@@ -278,8 +278,8 @@ fn @second() -> address [selector=0x5a8ac02d, abi_params=[], abi_returns=[word<u
 
 fn @both() -> (u256, u256) [selector=0x35f2e0a7, abi_params=[], abi_returns=[word, word]] {
   bb0:
-    v0 = internal_call @mk, 1, 1, 2
-    v1 = internal_call @mk3, 1, 3, 4, 5
+    v0 = icall @mk, 1, 1, 2
+    v1 = icall @mk3, 1, 3, 4, 5
     v2 = gas
     v3 = abi_encode [word], selector 0x9507d39a00000000000000000000000000000000000000000000000000000000, args 1
     v4 = slice_ptr v3
@@ -331,8 +331,8 @@ fn @both() -> (u256, u256) [selector=0x35f2e0a7, abi_params=[], abi_returns=[wor
 
 fn @lengths() -> (u256, u256) [selector=0xdab1fa12, abi_params=[], abi_returns=[word, word]] {
   bb0:
-    v0 = internal_call @mk, 1, 1, 2
-    v1 = internal_call @mk3, 1, 3, 4, 5
+    v0 = icall @mk, 1, 1, 2
+    v1 = icall @mk3, 1, 3, 4, 5
     v2 = gas
     v3 = abi_encode [], selector 0x56d88e2700000000000000000000000000000000000000000000000000000000
     v4 = slice_ptr v3

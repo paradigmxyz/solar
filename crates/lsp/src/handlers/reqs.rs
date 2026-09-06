@@ -110,17 +110,29 @@ pub(crate) fn folding_range(
 
     async move {
         let Some((vfs_path, path)) = request else { return Ok(None) };
-        let source = match document_contents(&vfs, &vfs_path, &path).await {
-            Ok(source) => source,
-            Err(error) => {
-                warn!(%error, "failed to read document");
-                return Ok(None);
-            }
-        };
-        let ranges =
-            tokio::task::spawn_blocking(move || crate::folding_range::folding_ranges(source))
+        let cached_source = { vfs.read().get_file_folding_range_source(&vfs_path) };
+        let ranges = if let Some(source) = cached_source {
+            tokio::task::spawn_blocking(move || source.folding_ranges())
                 .await
-                .map_err(folding_range_task_failed)?;
+                .map_err(folding_range_task_failed)?
+        } else {
+            let contents = { vfs.read().get_file_contents(&vfs_path).cloned() };
+            let task = if let Some(rope) = contents {
+                tokio::task::spawn_blocking(move || {
+                    crate::folding_range::folding_ranges_from_rope(rope)
+                })
+            } else {
+                let source = match tokio::fs::read_to_string(path).await {
+                    Ok(source) => source,
+                    Err(error) => {
+                        warn!(%error, "failed to read document");
+                        return Ok(None);
+                    }
+                };
+                tokio::task::spawn_blocking(move || crate::folding_range::folding_ranges(source))
+            };
+            task.await.map_err(folding_range_task_failed)?
+        };
         Ok(Some(ranges))
     }
 }
@@ -139,13 +151,19 @@ pub(crate) fn selection_range(
 
     async move {
         let (vfs_path, path, positions) = request?;
-        let source =
-            document_contents(&vfs, &vfs_path, &path).await.map_err(document_read_failed)?;
-        let ranges = tokio::task::spawn_blocking(move || {
-            crate::selection_range::selection_ranges(source, &positions)
-        })
-        .await
-        .map_err(selection_range_task_failed)?
+        let open_source = { vfs.read().get_file_selection_range_source(&vfs_path) };
+        let ranges = if let Some(source) = open_source {
+            tokio::task::spawn_blocking(move || source.selection_ranges(&positions))
+                .await
+                .map_err(selection_range_task_failed)?
+        } else {
+            let source = tokio::fs::read_to_string(path).await.map_err(document_read_failed)?;
+            tokio::task::spawn_blocking(move || {
+                crate::selection_range::selection_ranges(source, &positions)
+            })
+            .await
+            .map_err(selection_range_task_failed)?
+        }
         .ok_or_else(|| {
             ResponseError::new(ErrorCode::INVALID_PARAMS, "invalid selection range position")
         })?;

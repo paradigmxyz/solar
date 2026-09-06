@@ -46,7 +46,7 @@ fn @chunksAndHash() -> (memoryarray, bytes32) [pure] {
 
 fn @join() -> (bytes32, bytes32) [selector=0xb688a363, pure, abi_params=[], abi_returns=[word, word]] {
   bb0:
-    v0 = internal_call @chunksAndHash, 2
+    v0 = icall @chunksAndHash, 2
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 32
     v3 = mload v2

@@ -2,4 +2,4 @@
 @module module
 
 bb0:
-  return !meta(stack=0->0)
+  return !metadata(stack=0->0)

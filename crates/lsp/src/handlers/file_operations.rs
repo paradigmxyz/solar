@@ -347,8 +347,12 @@ fn reconcile_workspace_file_operations(
         }
         vfs.remove_file_prefixes(&deleted_paths);
     }
+    let previous_workspace_roots = state.config.workspace_roots().to_vec();
     let workspace_roots_changed =
         Arc::make_mut(&mut state.config).reconcile_workspace_roots(&moves, &deleted_paths);
+    if workspace_roots_changed {
+        state.record_workspace_root_change(previous_workspace_roots);
+    }
     removed_paths.extend(removed_roots);
     removed_paths.sort();
     removed_paths.dedup();

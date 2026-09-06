@@ -8,6 +8,40 @@ gas/size regressions block acceptance. The draft is
 milestones. Detailed evidence below lives under
 `target/codegen-bench/evm-rewrite-candidate/`.
 
+## Main integration and scheduling research
+
+The latest main integration targets `8d553ca1` (27 incoming commits). The fresh
+backend was preserved while retained MIR/CLI interfaces and tests were merged.
+Debug-output transport is implemented and the workspace compiles without
+warnings. The first merged CI-profile run has 1,388 passes, one UI aggregate
+failure and two skips; expanded UI has 11,227 passes, 153 failures and 849
+filtered revisions. CI repair is in progress. The verification ledger below
+describes the pre-merge compiler, not acceptance of this merge.
+
+[Stack scheduling research](evm-stack-scheduling-research.md) compares pinned
+solx, Venom and Sonatina source. The isolated 17-word entry trial remains in
+`stack-entry-window-trial-20260906/`, with its frozen compiler and source patch.
+It saves size in two nested-storage fixtures, but focused size-mode calls include
+gas increases and GAS/MSIZE observations change. It is not accepted or included
+in the merge. The first symbolic attempts omitted the required stateful flag and
+are recorded as incomplete, not agreement.
+
+The independent pre-merge test audit is in
+`test-harness-integrity-audit-20260906/`. It found zero standalone fixture or
+snapshot deletions/moves, no removed/narrowed original runtime calls, revisions,
+compiler flags or ignores, and no tracked harness changes. There are 149 added
+source fixtures and 209 added snapshots. All 28 modified original source files
+were reviewed; 26 change comments only, and two equivalent structural-branch
+rewrites have retained no-pass byte-identity evidence.
+
+This does not mean no tests were removed: the authorized backend deletion
+removed 204 old embedded tests, replaced so far by 36 fresh backend helpers.
+The 63 other codegen tests remain, explaining the net 168-test workspace drop.
+The audit does not certify one-to-one requirement replacement. Eleven early
+pattern-expectation changes have static/unchanged-input evidence rather than
+individually located historical runtime certificates. These limits and all 119
+modified snapshot hashes are retained; no failing tests are silently waived.
+
 ## Scope and architecture
 
 Deletion `e5ba34f2` matched all 40 agreed files; nothing outside scope required

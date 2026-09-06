@@ -4,251 +4,240 @@ use solar_sema::{Gcx, hir};
 use std::ops::ControlFlow;
 
 /// A lint pass that runs on Solar's analyzed HIR.
-pub trait LateLintPass<'hir>: Send + Sync {
+///
+/// Every hook receives the global context; the HIR is available as `gcx.hir`.
+pub trait LateLintPass<'gcx>: Send + Sync {
     fn check_nested_source(
         &mut self,
         _ctx: &LintContext<'_, '_>,
-        _gcx: Gcx<'hir>,
-        _hir: &'hir hir::Hir<'hir>,
+        _gcx: Gcx<'gcx>,
         _id: hir::SourceId,
     ) {
     }
-    fn check_nested_item(
-        &mut self,
-        _ctx: &LintContext<'_, '_>,
-        _hir: &'hir hir::Hir<'hir>,
-        _id: hir::ItemId,
-    ) {
+    fn check_nested_item(&mut self, _ctx: &LintContext<'_, '_>, _gcx: Gcx<'gcx>, _id: hir::ItemId) {
     }
     fn check_nested_contract(
         &mut self,
         _ctx: &LintContext<'_, '_>,
-        _gcx: Gcx<'hir>,
-        _hir: &'hir hir::Hir<'hir>,
+        _gcx: Gcx<'gcx>,
         _id: hir::ContractId,
     ) {
     }
     fn check_nested_function(
         &mut self,
         _ctx: &LintContext<'_, '_>,
-        _hir: &'hir hir::Hir<'hir>,
+        _gcx: Gcx<'gcx>,
         _id: hir::FunctionId,
     ) {
     }
     fn check_nested_var(
         &mut self,
         _ctx: &LintContext<'_, '_>,
-        _hir: &'hir hir::Hir<'hir>,
+        _gcx: Gcx<'gcx>,
         _id: hir::VariableId,
     ) {
     }
     fn check_item(
         &mut self,
         _ctx: &LintContext<'_, '_>,
-        _hir: &'hir hir::Hir<'hir>,
-        _item: hir::Item<'hir, 'hir>,
+        _gcx: Gcx<'gcx>,
+        _item: hir::Item<'gcx, 'gcx>,
     ) {
     }
     fn check_contract(
         &mut self,
         _ctx: &LintContext<'_, '_>,
-        _gcx: Gcx<'hir>,
-        _hir: &'hir hir::Hir<'hir>,
-        _contract: &'hir hir::Contract<'hir>,
+        _gcx: Gcx<'gcx>,
+        _contract: &'gcx hir::Contract<'gcx>,
     ) {
     }
     fn check_function(
         &mut self,
         _ctx: &LintContext<'_, '_>,
-        _gcx: Gcx<'hir>,
-        _hir: &'hir hir::Hir<'hir>,
-        _function: &'hir hir::Function<'hir>,
+        _gcx: Gcx<'gcx>,
+        _function: &'gcx hir::Function<'gcx>,
     ) {
     }
     fn check_modifier(
         &mut self,
         _ctx: &LintContext<'_, '_>,
-        _hir: &'hir hir::Hir<'hir>,
-        _modifier: &'hir hir::Modifier<'hir>,
+        _gcx: Gcx<'gcx>,
+        _modifier: &'gcx hir::Modifier<'gcx>,
     ) {
     }
     fn check_var(
         &mut self,
         _ctx: &LintContext<'_, '_>,
-        _hir: &'hir hir::Hir<'hir>,
-        _var: &'hir hir::Variable<'hir>,
+        _gcx: Gcx<'gcx>,
+        _var: &'gcx hir::Variable<'gcx>,
     ) {
     }
     fn check_expr(
         &mut self,
         _ctx: &LintContext<'_, '_>,
-        _gcx: Gcx<'hir>,
-        _hir: &'hir hir::Hir<'hir>,
-        _expr: &'hir hir::Expr<'hir>,
+        _gcx: Gcx<'gcx>,
+        _expr: &'gcx hir::Expr<'gcx>,
     ) {
     }
     fn check_call_args(
         &mut self,
         _ctx: &LintContext<'_, '_>,
-        _hir: &'hir hir::Hir<'hir>,
-        _args: &'hir hir::CallArgs<'hir>,
+        _gcx: Gcx<'gcx>,
+        _args: &'gcx hir::CallArgs<'gcx>,
     ) {
     }
     fn check_stmt(
         &mut self,
         _ctx: &LintContext<'_, '_>,
-        _gcx: Gcx<'hir>,
-        _hir: &'hir hir::Hir<'hir>,
-        _stmt: &'hir hir::Stmt<'hir>,
+        _gcx: Gcx<'gcx>,
+        _stmt: &'gcx hir::Stmt<'gcx>,
     ) {
     }
     fn check_ty(
         &mut self,
         _ctx: &LintContext<'_, '_>,
-        _hir: &'hir hir::Hir<'hir>,
-        _ty: &'hir hir::Type<'hir>,
+        _gcx: Gcx<'gcx>,
+        _ty: &'gcx hir::Type<'gcx>,
     ) {
     }
 }
 
 /// Dispatches a HIR traversal to a collection of late lint passes.
-pub struct LateLintVisitor<'a, 's, 'hir> {
+pub struct LateLintVisitor<'a, 's, 'gcx> {
     ctx: &'a LintContext<'s, 'a>,
-    passes: &'a mut [Box<dyn LateLintPass<'hir> + 's>],
-    gcx: Gcx<'hir>,
-    hir: &'hir hir::Hir<'hir>,
+    passes: &'a mut [Box<dyn LateLintPass<'gcx> + 's>],
+    gcx: Gcx<'gcx>,
 }
 
-impl<'a, 's, 'hir> LateLintVisitor<'a, 's, 'hir>
+impl<'a, 's, 'gcx> LateLintVisitor<'a, 's, 'gcx>
 where
-    's: 'hir,
+    's: 'gcx,
 {
     pub fn new(
         ctx: &'a LintContext<'s, 'a>,
-        passes: &'a mut [Box<dyn LateLintPass<'hir> + 's>],
-        gcx: Gcx<'hir>,
-        hir: &'hir hir::Hir<'hir>,
+        passes: &'a mut [Box<dyn LateLintPass<'gcx> + 's>],
+        gcx: Gcx<'gcx>,
     ) -> Self {
-        Self { ctx, passes, gcx, hir }
+        Self { ctx, passes, gcx }
     }
 }
 
-impl<'s, 'hir> hir::Visit<'hir> for LateLintVisitor<'_, 's, 'hir>
+impl<'s, 'gcx> hir::Visit<'gcx> for LateLintVisitor<'_, 's, 'gcx>
 where
-    's: 'hir,
+    's: 'gcx,
 {
     type BreakValue = Never;
 
-    fn hir(&self) -> &'hir hir::Hir<'hir> {
-        self.hir
+    fn hir(&self) -> &'gcx hir::Hir<'gcx> {
+        &self.gcx.hir
     }
 
     fn visit_nested_source(&mut self, id: hir::SourceId) -> ControlFlow<Self::BreakValue> {
         for pass in self.passes.iter_mut() {
-            pass.check_nested_source(self.ctx, self.gcx, self.hir, id);
+            pass.check_nested_source(self.ctx, self.gcx, id);
         }
         self.walk_nested_source(id)
     }
 
     fn visit_nested_item(&mut self, id: hir::ItemId) -> ControlFlow<Self::BreakValue> {
         for pass in self.passes.iter_mut() {
-            pass.check_nested_item(self.ctx, self.hir, id);
+            pass.check_nested_item(self.ctx, self.gcx, id);
         }
         self.walk_nested_item(id)
     }
 
     fn visit_nested_contract(&mut self, id: hir::ContractId) -> ControlFlow<Self::BreakValue> {
         for pass in self.passes.iter_mut() {
-            pass.check_nested_contract(self.ctx, self.gcx, self.hir, id);
+            pass.check_nested_contract(self.ctx, self.gcx, id);
         }
         self.walk_nested_contract(id)
     }
 
     fn visit_nested_function(&mut self, id: hir::FunctionId) -> ControlFlow<Self::BreakValue> {
         for pass in self.passes.iter_mut() {
-            pass.check_nested_function(self.ctx, self.hir, id);
+            pass.check_nested_function(self.ctx, self.gcx, id);
         }
         self.walk_nested_function(id)
     }
 
     fn visit_nested_var(&mut self, id: hir::VariableId) -> ControlFlow<Self::BreakValue> {
         for pass in self.passes.iter_mut() {
-            pass.check_nested_var(self.ctx, self.hir, id);
+            pass.check_nested_var(self.ctx, self.gcx, id);
         }
         self.walk_nested_var(id)
     }
 
     fn visit_contract(
         &mut self,
-        contract: &'hir hir::Contract<'hir>,
+        contract: &'gcx hir::Contract<'gcx>,
     ) -> ControlFlow<Self::BreakValue> {
         for pass in self.passes.iter_mut() {
-            pass.check_contract(self.ctx, self.gcx, self.hir, contract);
+            pass.check_contract(self.ctx, self.gcx, contract);
         }
         self.walk_contract(contract)
     }
 
     fn visit_function(
         &mut self,
-        function: &'hir hir::Function<'hir>,
+        function: &'gcx hir::Function<'gcx>,
     ) -> ControlFlow<Self::BreakValue> {
         for pass in self.passes.iter_mut() {
-            pass.check_function(self.ctx, self.gcx, self.hir, function);
+            pass.check_function(self.ctx, self.gcx, function);
         }
         self.walk_function(function)
     }
 
     fn visit_modifier(
         &mut self,
-        modifier: &'hir hir::Modifier<'hir>,
+        modifier: &'gcx hir::Modifier<'gcx>,
     ) -> ControlFlow<Self::BreakValue> {
         for pass in self.passes.iter_mut() {
-            pass.check_modifier(self.ctx, self.hir, modifier);
+            pass.check_modifier(self.ctx, self.gcx, modifier);
         }
         self.walk_modifier(modifier)
     }
 
-    fn visit_item(&mut self, item: hir::Item<'hir, 'hir>) -> ControlFlow<Self::BreakValue> {
+    fn visit_item(&mut self, item: hir::Item<'gcx, 'gcx>) -> ControlFlow<Self::BreakValue> {
         for pass in self.passes.iter_mut() {
-            pass.check_item(self.ctx, self.hir, item);
+            pass.check_item(self.ctx, self.gcx, item);
         }
         self.walk_item(item)
     }
 
-    fn visit_var(&mut self, var: &'hir hir::Variable<'hir>) -> ControlFlow<Self::BreakValue> {
+    fn visit_var(&mut self, var: &'gcx hir::Variable<'gcx>) -> ControlFlow<Self::BreakValue> {
         for pass in self.passes.iter_mut() {
-            pass.check_var(self.ctx, self.hir, var);
+            pass.check_var(self.ctx, self.gcx, var);
         }
         self.walk_var(var)
     }
 
-    fn visit_expr(&mut self, expr: &'hir hir::Expr<'hir>) -> ControlFlow<Self::BreakValue> {
+    fn visit_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Self::BreakValue> {
         for pass in self.passes.iter_mut() {
-            pass.check_expr(self.ctx, self.gcx, self.hir, expr);
+            pass.check_expr(self.ctx, self.gcx, expr);
         }
         self.walk_expr(expr)
     }
 
     fn visit_call_args(
         &mut self,
-        args: &'hir hir::CallArgs<'hir>,
+        args: &'gcx hir::CallArgs<'gcx>,
     ) -> ControlFlow<Self::BreakValue> {
         for pass in self.passes.iter_mut() {
-            pass.check_call_args(self.ctx, self.hir, args);
+            pass.check_call_args(self.ctx, self.gcx, args);
         }
         self.walk_call_args(args)
     }
 
-    fn visit_stmt(&mut self, stmt: &'hir hir::Stmt<'hir>) -> ControlFlow<Self::BreakValue> {
+    fn visit_stmt(&mut self, stmt: &'gcx hir::Stmt<'gcx>) -> ControlFlow<Self::BreakValue> {
         for pass in self.passes.iter_mut() {
-            pass.check_stmt(self.ctx, self.gcx, self.hir, stmt);
+            pass.check_stmt(self.ctx, self.gcx, stmt);
         }
         self.walk_stmt(stmt)
     }
 
-    fn visit_ty(&mut self, ty: &'hir hir::Type<'hir>) -> ControlFlow<Self::BreakValue> {
+    fn visit_ty(&mut self, ty: &'gcx hir::Type<'gcx>) -> ControlFlow<Self::BreakValue> {
         for pass in self.passes.iter_mut() {
-            pass.check_ty(self.ctx, self.hir, ty);
+            pass.check_ty(self.ctx, self.gcx, ty);
         }
         self.walk_ty(ty)
     }

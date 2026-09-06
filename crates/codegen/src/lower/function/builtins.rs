@@ -138,13 +138,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 "codegen cannot bind low-level call returndata before Byzantium",
             );
         }
-        let (gas, value, zero) =
+        let options =
             self.lower_call_options(call_opts, builtin == Builtin::AddressCall, "call option")?;
+        let (value, zero) = (options.value, options.zero);
         // input = materialize_memory(arg)
         let data = self.lower_typed_expr(data, memory_ty)?;
         let data = self.materialize_memory_argument(memory_ty, data, data_span)?;
         let input = self.builder.memory_object_data(data, MemoryObjectKind::Bytes);
         let input_size = self.builder.memory_object_len(data, MemoryObjectKind::Bytes);
+        // A bare call has no `extcodesize` guard, so before EIP-150 it also reserves the cost of
+        // creating the callee's account, which is unknowable here; solc reserves it for all three
+        // kinds too (`appendBareCall`).
+        // gas = gas() | sub(gas(), reserve)
+        let gas = self.call_gas(options.gas, options.value_set, true);
         // ok = call|staticcall|delegatecall(gas, to, value?, input, 0, 0)
         let success = match builtin {
             Builtin::AddressCall => {
@@ -231,7 +237,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             (false, 2, Some(returndata)) => Some(vec![success, returndata]),
             (false, _, Some(returndata)) => Some(vec![returndata]),
             (false, _, None) => {
-                self.cx.report_unsupported(expr.span, "low-level call return values")
+                self.cx.report_unsupported(expr.span, "low-level call return value list")
             }
         }
     }
@@ -584,13 +590,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let (required, message) = self.builtin_args_with_optional::<1>(builtin, &args)?;
                 let condition = required.first()?;
                 let condition = self.lower_expr(condition)?;
+                // The message is evaluated regardless of the condition, like a function call
+                // argument. With `--revert-strings strip`, only its side effects are kept.
                 let message = match message {
+                    Some(message) if self.strips_revert_string(message)? => None,
                     Some(message) => Some(self.prepare_revert_payload(message)?),
                     None => None,
                 };
                 let is_false = self.builder.iszero(condition);
                 let Some(message) = message else {
-                    self.builder.revert_if(is_false);
+                    self.builder.revert_if(is_false, RevertReason::Empty);
                     return Some(());
                 };
                 let revert_block = self.builder.create_block();
@@ -602,12 +611,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             Builtin::Revert => {
                 let _ = self.builtin_args::<0>(builtin, &args)?;
-                let zero = self.builder.imm(U256::ZERO);
-                self.builder.revert(zero, zero);
+                // revert(0, 0)
+                self.builder.revert_with(RevertReason::Empty);
             }
             Builtin::RevertMsg => {
                 let message = &self.builtin_args::<1>(builtin, &args)?[0];
-                self.lower_revert_payload(message)?;
+                if self.strips_revert_string(message)? {
+                    // revert(0, 0)
+                    self.builder.revert_with(RevertReason::Empty);
+                } else {
+                    self.lower_revert_payload(message)?;
+                }
             }
             Builtin::Selfdestruct => {
                 let address = &self.builtin_args::<1>(builtin, &args)?[0];

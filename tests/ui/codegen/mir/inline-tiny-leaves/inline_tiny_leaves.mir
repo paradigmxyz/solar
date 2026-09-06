@@ -3,12 +3,12 @@
 @module InlineTinyLeaves
 
 // CHECK-LABEL: {{^[ +].*}}fn @tiny_caller{{[( ]}}
-// CHECK: - {{.*}}internal_call @tiny
+// CHECK: - {{.*}}icall @tiny
 // CHECK: + {{v[0-9]+}} = add arg0, 1
 // CHECK: + {{v[0-9]+}} = sub {{v[0-9]+}}, 4
 fn @tiny_caller(arg0: u256) -> u256 {
   bb0:
-    v1 = internal_call @tiny, 1, arg0
+    v1 = icall @tiny, 1, arg0
     ret v1
 }
 
@@ -24,10 +24,10 @@ fn @tiny(arg0: u256) -> u256 {
 // A single-use five-instruction leaf disappears after function DCE, so inlining it also removes
 // the internal-call protocol without duplicating the body.
 // CHECK-LABEL: {{^[ +].*}}fn @large_caller{{[( ]}}
-// CHECK: - {{.*}}internal_call @large
+// CHECK: - {{.*}}icall @large
 fn @large_caller(arg0: u256) -> u256 {
   bb0:
-    v1 = internal_call @large, 1, arg0
+    v1 = icall @large, 1, arg0
     ret v1
 }
 
@@ -42,11 +42,11 @@ fn @large(arg0: u256) -> u256 {
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @storage_identity_caller{{[( ]}}
-// CHECK: - {{.*}}internal_call @storage_identity
+// CHECK: - {{.*}}icall @storage_identity
 // CHECK: + {{.*}}phi {{.*}}arg0
 fn @storage_identity_caller(arg0: storageptr) -> storageptr {
   bb0:
-    v1 = internal_call @storage_identity, 1, arg0
+    v1 = icall @storage_identity, 1, arg0
     ret v1
 }
 
@@ -56,10 +56,10 @@ fn @storage_identity(arg0: storageptr) -> storageptr [pure] {
 }
 
 // ABI decode expands into validation branches and must stay out of tiny-leaf inlining.
-// CHECK-NOT: - {{.*}}internal_call @decode_dynamic
+// CHECK-NOT: - {{.*}}icall @decode_dynamic
 fn @decode_caller(arg0: memorybytes) -> memoryarray {
   bb0:
-    v0 = internal_call @decode_dynamic, 1, arg0
+    v0 = icall @decode_dynamic, 1, arg0
     ret v0
 }
 

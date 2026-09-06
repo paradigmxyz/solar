@@ -157,7 +157,7 @@ fn @reservedSpillFreshness(arg0: bool) -> u256 [selector=0x45f98aed, abi_params=
     v8 = lt v7, v0
     jumpi v8, bb4, bb6
   bb6:
-    v9 = internal_call @pairInternal, 2, v7
+    v9 = icall @pairInternal, 2, v7
     v10 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v11 = add v10, 32
     v12 = mload v11
@@ -171,7 +171,7 @@ fn @reservedSpillFreshness(arg0: bool) -> u256 [selector=0x45f98aed, abi_params=
   bb8:
     jump bb3
   bb1:
-    v1 = internal_call @pairInternal, 2, v0
+    v1 = icall @pairInternal, 2, v0
     v2 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v3 = add v2, 32
     v4 = mload v3

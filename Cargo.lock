@@ -4420,7 +4420,6 @@ dependencies = [
  "arrayvec",
  "derive_more",
  "either",
- "memchr",
  "smallvec",
  "snapbox",
  "solar-ast",

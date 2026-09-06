@@ -94,7 +94,7 @@ fn @entry(arg0: u256) -> address [selector=0xe2095c07, view, abi_params=[u256], 
 @module Main
 fn @constructor(arg0: memoryarray, arg1: u256) [constructor, abi_params=[array<_, address>, u256]] {
   bb0:
-    v0 = internal_call @forward, 1, arg0
+    v0 = icall @forward, 1, arg0
     sstore 0, arg1 !metadata(storage=slot(0))
     v1 = memory_object_len memoryarray, v0
     v2 = sload 1 !metadata(storage=slot(1))

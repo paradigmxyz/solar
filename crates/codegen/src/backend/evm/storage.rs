@@ -239,7 +239,7 @@ impl ModulePlan {
             let mut targets = function
                 .instructions()
                 .filter_map(|inst| {
-                    if let InstKind::InternalCall { function, .. } = function.inst(inst).kind {
+                    if let InstKind::ICall { function, .. } = function.inst(inst).kind {
                         shared_deferred_entries.remove(function);
                         Some(function)
                     } else {

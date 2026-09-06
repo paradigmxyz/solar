@@ -29,6 +29,7 @@ use solar_config::{EvmVersion, OptimizationMode};
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 
 mod call_entry;
+mod debug;
 mod entry_order;
 mod initialization;
 mod rematerialize;
@@ -95,8 +96,12 @@ pub(crate) fn lower(
 ) -> Result<MachineOutput, String> {
     let deployment = module.function(root).attributes.is_constructor;
     let mut plan = ModulePlan::new(module, deployment).map_err(str::to_owned)?;
-    let mut output =
-        ir::Module { name: module.name.name, private_control_labels: true, ..Default::default() };
+    let mut output = ir::Module {
+        name: module.name.name,
+        private_control_labels: true,
+        debug_info_tracked: module.debug_info_is_tracked(),
+        ..Default::default()
+    };
     if deployment {
         output.program_size_id = Some(PROGRAM_END_ID);
     }
@@ -125,8 +130,7 @@ pub(crate) fn lower(
                 continue;
             }
             for &inst in &block.instructions {
-                if let mir::InstKind::InternalCall { function: callee, .. } =
-                    function.inst(inst).kind
+                if let mir::InstKind::ICall { function: callee, .. } = function.inst(inst).kind
                     && returnable.contains(callee)
                 {
                     returning.insert(callee);
@@ -391,6 +395,8 @@ pub(crate) fn lower(
             terminator: ir::TerminatorKind::Jump(context.layout.blocks[mir::BlockId::ENTRY]).into(),
             ..Default::default()
         };
+        output.blocks[context.layout.blocks[mir::BlockId::ENTRY]].function_invoke =
+            debug::function(&context);
         lower_function(&context, &layouts, &mut output, switches)?;
     }
     call_entry::prune_unused(&mut output, &layouts);
@@ -442,10 +448,9 @@ fn lower_function(
             if matches!(instruction.kind, mir::InstKind::Phi(_)) {
                 continue;
             }
+            let origin_start = insts.len();
             let live = |value| layout.live.is_used_at_or_after(value, block_id, position + 1);
-            if let mir::InstKind::InternalCall { function: callee, args, returns } =
-                &instruction.kind
-            {
+            if let mir::InstKind::ICall { function: callee, args, returns } = &instruction.kind {
                 let saved = save_writer_homes(
                     context,
                     (block_id, position),
@@ -509,6 +514,7 @@ fn lower_function(
                         insts.extend(original);
                     }
                 }
+                debug::instructions(context, &instruction.metadata, &mut insts[origin_start..]);
                 enter_call(
                     context,
                     &context.plan.functions[*callee],
@@ -620,6 +626,7 @@ fn lower_function(
                     insts.push(ir::InstKind::Swap(1).into());
                     insts.push(ir::InstKind::Op(op::CODECOPY).into());
                     stack.truncate(stack.values().len() - 2);
+                    debug::instructions(context, &instruction.metadata, &mut insts[origin_start..]);
                     continue;
                 }
                 _ => {
@@ -630,6 +637,7 @@ fn lower_function(
                 }
             }
             record_result(context, inst_id, &mut stack, &mut insts, true)?;
+            debug::instructions(context, &instruction.metadata, &mut insts[origin_start..]);
         }
         if let Some(selected) = entry_order::choose_operands(context, block_id, &stack, &insts) {
             // <same opcode sequence>; <paid restore of original post-instruction stack>
@@ -750,6 +758,7 @@ fn lower_function(
         // <physical terminator>
         output.blocks[current].insts = insts;
         output.blocks[current].terminator = terminator.into();
+        debug::terminator(context, block, &mut output.blocks[current].terminator);
     }
     Ok(())
 }
@@ -840,9 +849,9 @@ fn control_live_after(context: &Context<'_>, block: mir::BlockId, position: usiz
         return true;
     }
     let calls = |instructions: &[mir::InstId]| {
-        instructions.iter().any(|&inst| {
-            matches!(context.function.inst(inst).kind, mir::InstKind::InternalCall { .. })
-        })
+        instructions
+            .iter()
+            .any(|&inst| matches!(context.function.inst(inst).kind, mir::InstKind::ICall { .. }))
     };
     if calls(&context.function.blocks[block].instructions[position + 1..]) {
         return true;
@@ -1060,6 +1069,7 @@ fn lower_opcode(
     insts: &mut Vec<ir::Instruction>,
     operand_order: entry_order::OperandOrder,
 ) -> Result<(), String> {
+    let origin_start = insts.len();
     let function = context.function;
     let instruction = function.inst(inst_id);
     let live = |value| context.layout.live.is_used_at_or_after(value, block_id, position + 1);
@@ -1165,6 +1175,7 @@ fn lower_opcode(
         insts,
         op::stack_io(opcode).is_some_and(|(_, outputs)| outputs == 1),
     )?;
+    debug::instructions(context, &instruction.metadata, &mut insts[origin_start..]);
     Ok(())
 }
 

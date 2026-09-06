@@ -1,0 +1,14 @@
+error[5587]: `internal` and `private` functions cannot be payable
+   ╭▸ ROOT/tests/ui/typeck/payable_internal_function.sol:LL:CC
+   │
+LL │     function f() payable internal {}
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[5587]: `internal` and `private` functions cannot be payable
+   ╭▸ ROOT/tests/ui/typeck/payable_internal_function.sol:LL:CC
+   │
+LL │     function g() payable private {}
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 2 previous errors
+

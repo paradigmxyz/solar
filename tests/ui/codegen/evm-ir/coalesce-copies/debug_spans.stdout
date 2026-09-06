@@ -1,0 +1,16 @@
+- // === ROOT/tests/ui/codegen/evm-ir/coalesce-copies/debug_spans.evmir (before coalesce-copies) ===
++ // === ROOT/tests/ui/codegen/evm-ir/coalesce-copies/debug_spans.evmir (after coalesce-copies) ===
+  @module CoalesceCopyDebugSpans
+  bb0:
++   push 64 !metadata(span=50..60)
+    push 128 !metadata(span=50..60)
+-   mload !metadata(span=50..60)
+    push 256 !metadata(span=50..60)
+-   mstore !metadata(span=50..60)
+-   push 160 !metadata(span=50..60)
+-   mload !metadata(span=50..60)
+-   push 288 !metadata(span=50..60)
+-   mstore !metadata(span=50..60)
++   mcopy !metadata(span=50..60)
+    stop
+  

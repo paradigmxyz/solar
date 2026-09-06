@@ -1,0 +1,26 @@
+// Shapes no loop rotation reduces must bound the walk too: the cycle over `bb3` and `bb4` is
+// entered at both of its blocks and at two different depths, so one cycle edge lowers a minimum
+// while the other bound arrives on a forward edge into the same cycle.
+@module module
+
+bb0:
+  push 1
+  jumpi bb1, bb2
+
+bb1:
+  jump bb3
+
+bb2:
+  push 0
+  jump bb4
+
+bb3:
+  push 1
+  jumpi bb4, bb5
+
+bb4:
+  push 1
+  jumpi bb3, bb5
+
+bb5:
+  stop

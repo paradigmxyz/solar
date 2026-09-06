@@ -1,0 +1,8 @@
+error: integer `4294967296` does not fit in u32
+   ╭▸ ROOT/tests/ui/codegen/evm-ir/validation/debug_span_overflow.evmir:LL:CC
+   │
+LL │   push 1 !metadata(span=4294967296..5)
+   ╰╴                        ━━━━━━━━━━━
+
+error: aborting due to 1 previous error
+

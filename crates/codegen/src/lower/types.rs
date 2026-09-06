@@ -86,24 +86,36 @@ impl<'gcx> TypeLowerer<'gcx> {
         self.abi_type_inner(ty, ty.loc().unwrap_or(DataLocation::Memory))
     }
 
-    /// Builds the ABI shape of a return value, which is always encoded from
-    /// memory even when its source HIR type names calldata.
+    /// Returns the type a return value is encoded from and decoded into.
+    ///
+    /// A reference return is encoded from memory even when its source HIR type names calldata,
+    /// except for a storage reference, which keeps its location and travels as its slot word.
+    pub(super) fn return_encoding_ty(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> Ty<'gcx> {
+        if ty.encodes_as_slot() {
+            return ty;
+        }
+        ty.with_loc_if_ref(gcx, DataLocation::Memory)
+    }
+
+    /// Builds the ABI shape of a return value.
+    ///
+    /// A storage reference is one word holding its slot number.
     pub(super) fn abi_return_type(&mut self, ty: Ty<'gcx>) -> Option<AbiType> {
+        if ty.encodes_as_slot() {
+            return Some(AbiType::Word(None));
+        }
         self.abi_type(ty.with_loc_if_ref(self.gcx, DataLocation::Memory))
     }
 
     /// Builds the ABI return shape while retaining scalar MIR types for the ABI phase.
     pub(super) fn abi_return_param_type(&mut self, ty: Ty<'gcx>) -> Option<AbiParamType> {
-        self.abi_param_type(ty.with_loc_if_ref(self.gcx, DataLocation::Memory))
+        self.abi_param_type(Self::return_encoding_ty(self.gcx, ty))
     }
 
     /// Builds both ABI shapes for a return value in one recursive walk.
     pub(super) fn abi_return_shapes(&mut self, ty: Ty<'gcx>) -> Option<(AbiType, AbiParamType)> {
         self.seen_structs.clear();
-        self.abi_return_shapes_inner(
-            ty.with_loc_if_ref(self.gcx, DataLocation::Memory),
-            DataLocation::Memory,
-        )
+        self.abi_return_shapes_inner(Self::return_encoding_ty(self.gcx, ty), DataLocation::Memory)
     }
 
     /// Returns the semantic object layout for a memory-backed aggregate.
@@ -144,8 +156,7 @@ impl<'gcx> TypeLowerer<'gcx> {
         ty: Ty<'gcx>,
         location: DataLocation,
     ) -> Option<AbiParamType> {
-        if ty.is_ref_at(DataLocation::Storage) || matches!(ty.peel_refs().kind, TyKind::Mapping(..))
-        {
+        if ty.encodes_as_slot() {
             return Some(AbiParamType::Scalar(MirType::StoragePtr));
         }
         Some(match ty.peel_refs().kind {
@@ -211,12 +222,10 @@ impl<'gcx> TypeLowerer<'gcx> {
         ty: Ty<'gcx>,
         location: DataLocation,
     ) -> Option<(AbiType, AbiParamType)> {
-        let param_ty = ty.with_loc_if_ref(self.gcx, location);
-        if param_ty.is_ref_at(DataLocation::Storage)
-            || matches!(param_ty.peel_refs().kind, TyKind::Mapping(..))
-        {
+        if ty.encodes_as_slot() {
             return Some((AbiType::Word(None), AbiParamType::Scalar(MirType::StoragePtr)));
         }
+        let param_ty = ty.with_loc_if_ref(self.gcx, location);
 
         Some(match ty.peel_refs().kind {
             TyKind::Elementary(ElementaryType::String | ElementaryType::Bytes) => {

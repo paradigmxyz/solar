@@ -1,5 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/try_catch_library_call.sol:Lib ===
 @module Lib
+@library
+immutables:
+  library_deploy_address: address
+
 fn @direct(arg0: u256, arg1: bool) -> u256 [selector=0x52db6885, pure, abi_params=[u256, bool], abi_returns=[word]] {
   bb0:
     v0 = eq arg1, 0
@@ -10,7 +14,7 @@ fn @direct(arg0: u256, arg1: bool) -> u256 [selector=0x52db6885, pure, abi_param
   bb2:
     ret arg0
   bb1:
-    internal_call @revert_error, 0, 6, 0x6661696c65640000000000000000000000000000000000000000000000000000
+    icall @revert_error, 0, 6, 0x6661696c65640000000000000000000000000000000000000000000000000000
     invalid
 }
 
@@ -26,7 +30,7 @@ fn @attached(arg0: storageptr, arg1: u256, arg2: bool) -> u256 [selector=0x280ac
     v4 = sload arg0 !metadata(storage=symbolic(arg0))
     ret v4
   bb1:
-    internal_call @revert_error, 0, 6, 0x6661696c65640000000000000000000000000000000000000000000000000000
+    icall @revert_error, 0, 6, 0x6661696c65640000000000000000000000000000000000000000000000000000
     invalid
 }
 
@@ -48,7 +52,7 @@ fn @add(arg0: u256, arg1: u256, arg2: bool) -> u256 [selector=0x07f6a6c2, pure, 
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb1:
-    internal_call @revert_error, 0, 6, 0x6661696c65640000000000000000000000000000000000000000000000000000
+    icall @revert_error, 0, 6, 0x6661696c65640000000000000000000000000000000000000000000000000000
     invalid
 }
 
@@ -64,6 +68,13 @@ fn @revert_error(arg0: u256, arg1: u256) {
     mstore 36, arg0 !metadata(memory=scratch)
     mstore 68, arg1 !metadata(memory=scratch)
     revert 0, 100
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    v0 = address
+    storeimmutable library_deploy_address, v0
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/try_catch_library_call.sol:C ===
@@ -102,7 +113,7 @@ fn @direct(arg0: bool) -> u256 [selector=0xa8f96c85, pure, abi_params=[bool], ab
   bb8:
     jump bb9
   bb7:
-    v30 = internal_call @try_decode_error_message, 1, v22, v23
+    v30 = icall @try_decode_error_message, 1, v22, v23
     jump bb9
   bb9:
     v31 = phi [bb7: v30], [bb8: 0]
@@ -187,7 +198,7 @@ fn @attached(arg0: bool) -> u256 [selector=0x42425916, abi_params=[bool], abi_re
   bb8:
     jump bb9
   bb7:
-    v30 = internal_call @try_decode_error_message, 1, v22, v23
+    v30 = icall @try_decode_error_message, 1, v22, v23
     jump bb9
   bb9:
     v31 = phi [bb7: v30], [bb8: 0]
@@ -272,7 +283,7 @@ fn @attachedValue(arg0: u256, arg1: bool) -> u256 [selector=0xcece4c7f, pure, ab
   bb8:
     jump bb9
   bb7:
-    v30 = internal_call @try_decode_error_message, 1, v22, v23
+    v30 = icall @try_decode_error_message, 1, v22, v23
     jump bb9
   bb9:
     v31 = phi [bb7: v30], [bb8: 0]
@@ -364,7 +375,7 @@ fn @emptyCode() [selector=0xddb3636e, pure, abi_params=[], abi_returns=[]] {
   bb9:
     revert v14, v15
   bb8:
-    internal_call @revert_error, 0, 6, 0x6361756768740000000000000000000000000000000000000000000000000000
+    icall @revert_error, 0, 6, 0x6361756768740000000000000000000000000000000000000000000000000000
     invalid
   bb6:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)

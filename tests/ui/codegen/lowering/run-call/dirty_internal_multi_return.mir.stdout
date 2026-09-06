@@ -12,7 +12,7 @@ fn @dirty(arg0: u8) -> u8 [pure] {
 
 fn @multipleReturns() -> bool [selector=0xd40a8f12, pure, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
-    v0 = internal_call @dirtyPair, 2
+    v0 = icall @dirtyPair, 2
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 32
     v3 = mload v2
@@ -23,7 +23,7 @@ fn @multipleReturns() -> bool [selector=0xd40a8f12, pure, abi_params=[], abi_ret
 
 fn @functionPointer() -> bool [selector=0xbd108928, pure, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
-    v0 = internal_call @internal_dispatcher_p_u8_r_u8, 1, 2, 1
+    v0 = icall @internal_dispatcher_p_u8_r_u8, 1, 2, 1
     v1 = and v0, 255
     v2 = eq v1, 1
     ret v2
@@ -38,6 +38,6 @@ fn @internal_dispatcher_p_u8_r_u8(arg0: function, arg1: u8) -> u8 [function_poin
     mstore 4, 81 !metadata(memory=scratch)
     revert 0, 36
   bb1:
-    v1 = internal_call @dirty, 1, arg1
+    v1 = icall @dirty, 1, arg1
     ret v1
 }

@@ -1,0 +1,26 @@
+//@ filecheck:
+// A library's own deployment address, which guards its non-view functions against direct
+// calls, is reported like solc's IR pipeline does under `library_deploy_address` rather than
+// an AST ID. A library without non-view functions has no placeholder.
+// CHECK-LABEL: "Lib": {
+// CHECK: "deployedBytecode": {
+// CHECK-NEXT: "immutableReferences": {
+// CHECK-NEXT: "library_deploy_address": [
+// CHECK: "start": 20,
+// CHECK-NEXT: "length": 20
+// CHECK-LABEL: "ViewOnly": {
+// CHECK: "deployedBytecode": {
+// CHECK-NEXT: "immutableReferences": {}
+{
+  "language": "Solidity",
+  "sources": {},
+  "settings": {
+    "outputSelection": {
+      "*": {
+        "*": [
+          "evm.deployedBytecode.immutableReferences"
+        ]
+      }
+    }
+  }
+}

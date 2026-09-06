@@ -1,12 +1,13 @@
 // === ROOT/tests/ui/codegen/lowering/modifier_library_inheritance.sol:L ===
 @module L
+@library
 
 // === ROOT/tests/ui/codegen/lowering/modifier_library_inheritance.sol:Test ===
 @module Test
 fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
   bb0:
-    internal_call @libFun, 0, 0
-    internal_call @libFun, 0, 0
+    icall @libFun, 0, 0
+    icall @libFun, 0, 0
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }

@@ -4,10 +4,10 @@
 
 // The parser rejects stack-overflowing EVM IR before it reaches the pass pipeline.
 bb0:
-  callf !meta(stack=0->255)
-  callf !meta(stack=0->255)
-  callf !meta(stack=0->255)
-  callf !meta(stack=0->255)
+  callf !metadata(stack=0->255)
+  callf !metadata(stack=0->255)
+  callf !metadata(stack=0->255)
+  callf !metadata(stack=0->255)
   push 0
   push 0
   push 0

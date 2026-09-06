@@ -14,7 +14,7 @@ fn @h() -> address [selector=0xb8c9d365, abi_params=[], abi_returns=[word<u160>]
 
 fn @read() -> u256 [selector=0x57de26a4, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = internal_call @h, 1
+    v0 = icall @h, 1
     v1 = sload 0 !metadata(storage=slot(0))
     ret v1
 }

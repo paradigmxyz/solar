@@ -1,5 +1,6 @@
 library L1 {
     receive() external payable {} //~ERROR: libraries cannot have receive ether functions
+    //~^ ERROR: library functions cannot be payable
 }
 
 contract C3 {

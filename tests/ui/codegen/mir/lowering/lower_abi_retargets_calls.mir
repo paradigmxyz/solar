@@ -14,10 +14,10 @@ fn @pub(arg0: u256) -> u256 [selector=0x0a0a0a01, abi_returns=[word]] {
     ret v1
 }
 // CHECK: + fn @caller()
-// CHECK: + {{v[0-9]+}} = internal_call @pub.body
+// CHECK: + {{v[0-9]+}} = icall @pub.body
 fn @caller(arg0: u256) -> u256 [selector=0x0a0a0a02, abi_returns=[word]] {
   bb0:
-    v1 = internal_call fn0, 1, arg0
+    v1 = icall fn0, 1, arg0
     ret v1
 }
 
@@ -35,11 +35,11 @@ fn @literal() -> memorybytes [selector=0x0a0a0a03, abi_params=[], abi_returns=[m
 }
 
 // CHECK: + fn @literalCaller()
-// CHECK: + {{v[0-9]+}} = internal_call @literal.body
+// CHECK: + {{v[0-9]+}} = icall @literal.body
 // CHECK: + fn @pub.body{{[( ]}}
 // CHECK: + fn @literal.body{{[( ]}}
 fn @literalCaller() -> memorybytes [selector=0x0a0a0a04, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = internal_call fn2, 1
+    v0 = icall fn2, 1
     ret v0
 }

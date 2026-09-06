@@ -2,13 +2,13 @@
 @module StackOnlyRematerialization
 fn @first(arg0: bool) -> u256 [selector=0x6c94fb44, pure, abi_params=[bool], abi_returns=[word]] {
   bb0:
-    v0 = internal_call @storeAtDerivedAddress, 1, 256, arg0
+    v0 = icall @storeAtDerivedAddress, 1, 256, arg0
     ret v0
 }
 
 fn @second(arg0: bool) -> u256 [selector=0xc04a1ee8, pure, abi_params=[bool], abi_returns=[word]] {
   bb0:
-    v0 = internal_call @storeAtDerivedAddress, 1, 288, arg0
+    v0 = icall @storeAtDerivedAddress, 1, 288, arg0
     ret v0
 }
 

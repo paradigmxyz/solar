@@ -12,7 +12,7 @@ use solar_data_structures::{
     index::IndexVec,
     map::{FxHashMap, StdEntry},
 };
-use solar_interface::{Ident, Span};
+use solar_interface::{Ident, Span, Symbol};
 use solar_sema::hir::{StateMutability, Visibility};
 
 /// A function in the MIR.
@@ -22,6 +22,10 @@ pub(crate) struct Function {
     pub(crate) name: MangledSymbol,
     /// Source span of the function name.
     pub(crate) name_span: Span,
+    /// Source span of the complete function declaration.
+    pub(crate) declaration_span: Span,
+    /// Source-language identifier retained independently of the MIR symbol.
+    pub(crate) debug_identifier: Option<Symbol>,
     /// Function selector (4 bytes, for external functions).
     pub(crate) selector: Option<[u8; 4]>,
     /// Function attributes.
@@ -77,6 +81,8 @@ impl Function {
         Self {
             name: MangledSymbol::new(name.name),
             name_span: name.span,
+            declaration_span: name.span,
+            debug_identifier: None,
             selector: None,
             attributes: FunctionAttributes::default(),
             params: IndexVec::new(),
@@ -234,6 +240,7 @@ impl Function {
     /// Codegen calls this after the canonical pass pipeline and final phase check. Keep this
     /// limited to replacing immediate uses with an equal immediate unless the caller adds
     /// another validation boundary.
+    #[allow(dead_code, reason = "Retained MIR interface; the fresh backend uses its own planning")]
     pub(crate) fn canonicalize_immediate_uses(&mut self) -> usize {
         let mut canonical = FxHashMap::<Immediate, ValueId>::default();
         let mut replacements = FxHashMap::default();
@@ -274,6 +281,7 @@ impl Function {
     /// lowered operand occurrences denote the same physical word, which is
     /// required for carrying an argument through stack layouts without first
     /// materializing a memory home.
+    #[allow(dead_code, reason = "Retained MIR interface; the fresh backend uses its own planning")]
     pub(crate) fn canonicalize_argument_uses(&mut self) -> usize {
         if self.arg_types.is_empty() {
             return 0;

@@ -7,9 +7,6 @@ bb0:
 // === ROOT/tests/ui/codegen/lowering/library_wrapper_storage_param.sol:L (runtime) ===
 @module L_runtime
 bb0:
-  callvalue
-  push bb3
-  jumpi
   push 0
   calldataload
   push 224
@@ -17,14 +14,16 @@ bb0:
   dup 1
   push 0xdef537e0
   eq
-  push bb4
+  push bb1
   jumpi
-  jump bb3
-bb3 [cold]:
   push 0
   push 0
   revert
-bb9 [cold]:
+bb4 [cold]:
+  push 0
+  push 0
+  revert
+bb10 [cold]:
   push 0x4e487b71
   push 224
   shl
@@ -36,11 +35,16 @@ bb9 [cold]:
   push 36
   push 0
   revert
-bb4:
+bb1:
+  push_immutable 0, 20
+  address
+  eq
+  push bb4
+  jumpi
   push 68
   calldatasize
   lt
-  push bb3
+  push bb4
   jumpi
   push 1
   push 4
@@ -55,7 +59,7 @@ bb4:
   swap 1
   dup 2
   lt
-  push bb9
+  push bb10
   jumpi
   dup 2
   sstore
@@ -74,7 +78,7 @@ bb4:
   swap 2
   dup 3
   lt
-  push bb9
+  push bb10
   jumpi
   push 128
   shr
@@ -88,7 +92,7 @@ bb4:
   swap 1
   dup 2
   lt
-  push bb9
+  push bb10
   jumpi
   push 128
   mstore

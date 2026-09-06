@@ -87,7 +87,7 @@ fn @nested(arg0: calldataslice) -> u8 [selector=0xf4e4bddf, pure, abi_params=[ar
 
 fn @passToInternal(arg0: calldataslice) -> u8 [selector=0xbdb87238, pure, abi_params=[array<2, u8>], abi_returns=[word<u8>]] {
   bb0:
-    v0 = internal_call @second, 1, arg0
+    v0 = icall @second, 1, arg0
     ret v0
 }
 

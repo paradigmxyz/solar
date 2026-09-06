@@ -211,6 +211,7 @@ impl Liveness {
     /// Immediate and undefined values are rematerializable, so they do not
     /// need live-in/live-out tracking. Instruction results still retain exact
     /// last-use information for stack scheduling.
+    #[allow(dead_code, reason = "Retained MIR interface; the fresh backend uses its own planning")]
     pub(crate) fn compute_block_local_for_codegen(func: &Function) -> Option<Self> {
         let num_values = func.num_values();
         let mut defining_blocks = index_vec![None; func.num_insts()];
@@ -345,6 +346,7 @@ impl Liveness {
     /// 1. The instruction is the last use of the value within this block, AND
     /// 2. The value is NOT in live_out (meaning no successor blocks use it)
     #[must_use]
+    #[allow(dead_code, reason = "Retained MIR interface; the fresh backend uses its own planning")]
     pub(crate) fn is_dead_after(&self, val: ValueId, block: BlockId, inst_idx: usize) -> bool {
         // If the value is in live_out, it's used by successor blocks, so it's not dead
         if self.block_liveness[block].live_out.contains(val) {

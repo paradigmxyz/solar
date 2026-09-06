@@ -1,0 +1,29 @@
+- // === ROOT/tests/ui/codegen/mir/pure-eval/debug_origins.mir (before pure-eval) ===
++ // === ROOT/tests/ui/codegen/mir/pure-eval/debug_origins.mir (after pure-eval) ===
+  @module FoldedOrigins
+  fn @same_origin() -> u256 {
+    bb0:
+-     jumpi 1, bb1, bb2
+-   bb2:
+-     ret 7 !metadata(span=10..20, modifier_depth=1, effect=pure)
++     ret 7 !metadata(span=10..20, modifier_depth=1)
+    bb1:
+-     ret 7 !metadata(span=10..20, modifier_depth=1, loop_depth=2)
++     invalid
++   bb2:
++     invalid
+  }
+  
+  fn @distinct_origins() -> u256 {
+    bb0:
+-     jumpi 1, bb1, bb2
+-   bb2:
+-     ret 7 !metadata(span=50..60)
++     ret 7 !metadata(spans=[30..40, 50..60])
+    bb1:
+-     ret 7 !metadata(span=30..40)
++     invalid
++   bb2:
++     invalid
+  }
+  

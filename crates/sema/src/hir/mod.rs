@@ -907,15 +907,20 @@ impl Contract<'_> {
             || (!self.bases.is_empty() && self.linearized_bases.len() == 1)
     }
 
-    /// Returns an iterator over functions declared in the contract.
+    /// Returns an iterator over the functions declared in the contract itself, including its
+    /// constructor, modifiers, and `fallback` and `receive` functions.
     ///
-    /// Note that this does not include the constructor and fallback functions, as they are stored
-    /// separately. Use [`Contract::all_functions`] to include them.
+    /// Note that this does not include the inherited `fallback` and `receive` functions; use
+    /// [`Contract::all_functions`] for those.
     pub fn functions(&self) -> impl Iterator<Item = FunctionId> + Clone + use<'_> {
         self.items.iter().filter_map(ItemId::as_function)
     }
 
-    /// Returns an iterator over all functions declared in the contract.
+    /// Returns an iterator over the functions declared in the contract itself, followed by its
+    /// resolved constructor and `fallback` and `receive` functions.
+    ///
+    /// Note that the resolved functions repeat the ones declared in the contract itself, so this
+    /// can yield the same function twice.
     pub fn all_functions(&self) -> impl Iterator<Item = FunctionId> + Clone + use<'_> {
         self.functions().chain(self.ctor).chain(self.fallback).chain(self.receive)
     }

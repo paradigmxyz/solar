@@ -14,9 +14,9 @@ fn @_getPool(arg0: bytes32) -> storageptr [view] {
 
 fn @run() -> (u256, u256, u256) [selector=0xc0406226, abi_params=[], abi_returns=[word, word, word]] {
   bb0:
-    v0 = internal_call @_getPool, 1, 0xe35b2940ca10a9581573918a0d9ed2422f97cc9196f63510c77f5a0ed5393cfd
+    v0 = icall @_getPool, 1, 0xe35b2940ca10a9581573918a0d9ed2422f97cc9196f63510c77f5a0ed5393cfd
     v1 = add v0, 1
-    v2 = internal_call @_get, 1, v1, 0xb334f8ce3b01e25d0b6fe82d0fdb6eb534f3183d7dc5a6bb44d8eb9f676f650c
+    v2 = icall @_get, 1, v1, 0xb334f8ce3b01e25d0b6fe82d0fdb6eb534f3183d7dc5a6bb44d8eb9f676f650c
     v3 = sload v2 !metadata(storage=symbolic(v2))
     v4 = and v3, 0xffffffffffffffffffffffffffffffff
     v5 = add v4, 5
@@ -34,13 +34,13 @@ fn @run() -> (u256, u256, u256) [selector=0xc0406226, abi_params=[], abi_returns
     v14 = mapping_slot 0xb334f8ce3b01e25d0b6fe82d0fdb6eb534f3183d7dc5a6bb44d8eb9f676f650c, v13
     v15 = sload v14 !metadata(storage=symbolic(v14))
     v16 = and v15, 0xffffffffffffffffffffffffffffffff
-    v17 = internal_call @_getPool, 1, 0xe35b2940ca10a9581573918a0d9ed2422f97cc9196f63510c77f5a0ed5393cfd
+    v17 = icall @_getPool, 1, 0xe35b2940ca10a9581573918a0d9ed2422f97cc9196f63510c77f5a0ed5393cfd
     v18 = add v17, 1
-    v19 = internal_call @_get, 1, v18, 0xb334f8ce3b01e25d0b6fe82d0fdb6eb534f3183d7dc5a6bb44d8eb9f676f650c
+    v19 = icall @_get, 1, v18, 0xb334f8ce3b01e25d0b6fe82d0fdb6eb534f3183d7dc5a6bb44d8eb9f676f650c
     v20 = sload v19 !metadata(storage=symbolic(v19))
     v21 = and v20, 0xffffffffffffffffffffffffffffffff
     v22 = add v0, 1
-    v23 = internal_call @_get, 1, v22, 0xb334f8ce3b01e25d0b6fe82d0fdb6eb534f3183d7dc5a6bb44d8eb9f676f650c
+    v23 = icall @_get, 1, v22, 0xb334f8ce3b01e25d0b6fe82d0fdb6eb534f3183d7dc5a6bb44d8eb9f676f650c
     v24 = add v23, 1
     sstore v24, 12 !metadata(storage=offset(v23, 1))
     v25 = mapping_slot 0xe35b2940ca10a9581573918a0d9ed2422f97cc9196f63510c77f5a0ed5393cfd, 0

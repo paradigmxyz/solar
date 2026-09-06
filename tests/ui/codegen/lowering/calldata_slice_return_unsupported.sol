@@ -4,7 +4,7 @@ contract CalldataSliceReturnUnsupported {
     // A calldata slice returned from an internal function is inlined at the
     // call site so it folds away — straight-line bodies, control flow, explicit
     // returns, and multiple returns all inline. Recursion is the shape that
-    // cannot: inlining would not terminate, and a real `internal_call` would
+    // cannot: inlining would not terminate, and a real `icall` would
     // hand back a slice that is materialized at the external boundary.
     function peel(bytes calldata data)
         internal

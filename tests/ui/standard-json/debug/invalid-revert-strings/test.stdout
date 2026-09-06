@@ -1,0 +1,14 @@
+{
+  "errors": [
+    {
+      "sourceLocation": null,
+      "secondarySourceLocations": [],
+      "type": "Exception",
+      "component": "general",
+      "severity": "error",
+      "errorCode": null,
+      "message": "JSON parse error: unknown variant `Strip`, expected one of `default`, `strip`, `debug`, `verboseDebug` at line 5 column 30",
+      "formattedMessage": "error: JSON parse error: unknown variant `Strip`, expected one of `default`, `strip`, `debug`, `verboseDebug` at line 5 column 30\n\n"
+    }
+  ]
+}

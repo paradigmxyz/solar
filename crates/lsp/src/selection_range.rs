@@ -10,8 +10,10 @@ use solar_parse::{
     ast::{self, visit::Visit},
 };
 use std::{
+    borrow::Borrow,
     cmp::Reverse,
     ops::{ControlFlow, Range as ByteRange},
+    sync::{Arc, OnceLock},
 };
 
 pub(crate) fn selection_ranges(
@@ -20,38 +22,63 @@ pub(crate) fn selection_ranges(
 ) -> Option<Vec<SelectionRange>> {
     let rope = Rope::from(source.as_str());
     let index = proto::LspPositionIndex::new(&rope);
-    let cursors = positions
-        .iter()
-        .map(|&position| {
-            index.checked_text_range(Range::new(position, position)).map(|range| range.start)
-        })
-        .collect::<Option<Vec<_>>>()?;
+    let cursors = checked_cursors(&index, positions)?;
     if cursors.is_empty() {
         return Some(Vec::new());
     }
-
-    let candidates = collect_ranges(source, &rope);
-    cursors
-        .into_iter()
-        .map(|cursor| selection_range_for_cursor(&index, &candidates, cursor))
-        .collect()
+    let candidates = collect_ranges(SourceCode::Owned(source), &rope);
+    selection_ranges_for_cursors(&index, &candidates, cursors)
 }
 
-fn collect_ranges(source: String, rope: &Rope) -> Vec<ByteRange<usize>> {
+pub(crate) struct SelectionRangeIndex {
+    source: Arc<String>,
+    positions: proto::LspPositionIndex<Rope>,
+    candidates: OnceLock<Vec<ByteRange<usize>>>,
+}
+
+impl SelectionRangeIndex {
+    pub(crate) fn new(source: Arc<String>, rope: Rope) -> Self {
+        let positions = proto::LspPositionIndex::from_rope(rope);
+        Self { source, positions, candidates: OnceLock::new() }
+    }
+
+    pub(crate) fn selection_ranges(&self, positions: &[Position]) -> Option<Vec<SelectionRange>> {
+        let index = &self.positions;
+        let cursors = checked_cursors(index, positions)?;
+        if cursors.is_empty() {
+            return Some(Vec::new());
+        }
+
+        let candidates = self
+            .candidates
+            .get_or_init(|| collect_ranges(SourceCode::Shared(self.source.clone()), index.rope()));
+        selection_ranges_for_cursors(index, candidates, cursors)
+    }
+}
+
+enum SourceCode {
+    Owned(String),
+    Shared(Arc<String>),
+}
+
+fn collect_ranges(source: SourceCode, rope: &Rope) -> Vec<ByteRange<usize>> {
     let mut opts = CompileOpts::default();
     opts.unstable.recover_incomplete_input = true;
     let sess = Session::builder().opts(opts).with_silent_emitter(None).single_threaded().build();
 
     sess.enter_sequential(|| {
         let arena = ast::Arena::new();
-        let Ok(mut parser) = Parser::from_source_code(
-            &sess,
-            &arena,
-            FileName::Custom("lsp-selection-range.sol".into()),
-            source,
-        ) else {
+        let filename = FileName::Custom("lsp-selection-range.sol".into());
+        let source_file = match source {
+            SourceCode::Owned(source) => sess.source_map().new_source_file(filename, source),
+            SourceCode::Shared(source) => {
+                sess.source_map().new_source_file_shared(filename, source)
+            }
+        };
+        let Ok(source_file) = source_file else {
             return Vec::new();
         };
+        let mut parser = Parser::from_source_file(&sess, &arena, &source_file);
         let source_unit = match parser.parse_file() {
             Ok(source_unit) => source_unit,
             Err(error) => {
@@ -67,8 +94,31 @@ fn collect_ranges(source: String, rope: &Rope) -> Vec<ByteRange<usize>> {
     })
 }
 
-fn selection_range_for_cursor(
-    index: &proto::LspPositionIndex<'_>,
+fn checked_cursors<R: Borrow<Rope>>(
+    index: &proto::LspPositionIndex<R>,
+    positions: &[Position],
+) -> Option<Vec<usize>> {
+    positions
+        .iter()
+        .map(|&position| {
+            index.checked_text_range(Range::new(position, position)).map(|range| range.start)
+        })
+        .collect()
+}
+
+fn selection_ranges_for_cursors<R: Borrow<Rope>>(
+    index: &proto::LspPositionIndex<R>,
+    candidates: &[ByteRange<usize>],
+    cursors: Vec<usize>,
+) -> Option<Vec<SelectionRange>> {
+    cursors
+        .into_iter()
+        .map(|cursor| selection_range_for_cursor(index, candidates, cursor))
+        .collect()
+}
+
+fn selection_range_for_cursor<R: Borrow<Rope>>(
+    index: &proto::LspPositionIndex<R>,
     candidates: &[ByteRange<usize>],
     cursor: usize,
 ) -> Option<SelectionRange> {

@@ -68,7 +68,7 @@ fn @succeed(arg0: memorystruct) [selector=0x93edcd0d, abi_params=[tuple<u256>], 
 
 fn @fail(arg0: memorystruct) [selector=0xe8be0a6f, pure, abi_params=[tuple<u256>], abi_returns=[]] {
   bb0:
-    internal_call @revert_error, 0, 2, 0x6e6f000000000000000000000000000000000000000000000000000000000000
+    icall @revert_error, 0, 2, 0x6e6f000000000000000000000000000000000000000000000000000000000000
     invalid
 }
 
@@ -158,7 +158,7 @@ fn @trySuccess() -> u256 [selector=0x3984eec7, abi_params=[], abi_returns=[word]
     v2 = or v1, 0x93edcd0d
     v3 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     memory_object_store_field memorystruct<1>, v3, 0, 7
-    internal_call @invoke, 0, v2, v3
+    icall @invoke, 0, v2, v3
     v4 = sload 0 !metadata(storage=slot(0))
     ret v4
 }
@@ -170,7 +170,7 @@ fn @tryFailure() -> u256 [selector=0x86763122, abi_params=[], abi_returns=[word]
     v2 = or v1, 0xe8be0a6f
     v3 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     memory_object_store_field memorystruct<1>, v3, 0, 7
-    internal_call @invoke, 0, v2, v3
+    icall @invoke, 0, v2, v3
     v4 = sload 0 !metadata(storage=slot(0))
     ret v4
 }
@@ -182,7 +182,7 @@ fn @tryPair() -> (u256, memorybytes) [selector=0xf8a3207b, abi_params=[], abi_re
     v2 = or v1, 0x76ea4d37
     v3 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     memory_object_store_field memorystruct<1>, v3, 0, 7
-    v4 = internal_call @invokePair, 2, v2, v3
+    v4 = icall @invokePair, 2, v2, v3
     v5 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v6 = memory_object_load_element memoryfixedarray<2, 1>, v5, 1
     ret v4, v6

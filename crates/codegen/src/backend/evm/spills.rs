@@ -289,7 +289,7 @@ fn resident_candidates(
                 }
             }
             let effects = alias.instruction_mod_ref(function, inst);
-            if matches!(kind, mir::InstKind::InternalCall { .. })
+            if matches!(kind, mir::InstKind::ICall { .. })
                 || (effects.writes_space(AddressSpace::Memory)
                     && !disjoint_frame_write(function, &effects))
             {
@@ -426,7 +426,7 @@ fn exceeds_stack_window(
                     kind,
                     mir::InstKind::Select(..)
                         | mir::InstKind::DataCopy(..)
-                        | mir::InstKind::InternalCall { .. }
+                        | mir::InstKind::ICall { .. }
                 );
             let protected = if prepares
                 && protocol_words != 0
@@ -438,8 +438,7 @@ fn exceeds_stack_window(
                 0
             };
             if protected != 0 {
-                let headroom =
-                    if matches!(kind, mir::InstKind::InternalCall { .. }) { 8 } else { 3 };
+                let headroom = if matches!(kind, mir::InstKind::ICall { .. }) { 8 } else { 3 };
                 if stack.values().len() + protected + operands.len() + headroom > 1024 {
                     return true;
                 }
@@ -455,7 +454,7 @@ fn exceeds_stack_window(
             {
                 return true;
             }
-            if matches!(kind, mir::InstKind::InternalCall { .. }) {
+            if matches!(kind, mir::InstKind::ICall { .. }) {
                 let caller = stack.values()[..stack.values().len() - operands.len()].to_vec();
                 let mut desired = caller.clone();
                 desired.push(PressureSlot::Continuation);

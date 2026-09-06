@@ -2,19 +2,19 @@
 @module UserDefinedOperators
 fn @add_(arg0: u256, arg1: u256) -> u256 [selector=0xd1cbf1c5, pure, abi_params=[u256, u256], abi_returns=[word]] {
   bb0:
-    v0 = internal_call @add, 1, arg0, arg1
+    v0 = icall @add, 1, arg0, arg1
     ret v0
 }
 
 fn @mul_(arg0: u256, arg1: u256) -> u256 [selector=0xc42e9208, pure, abi_params=[u256, u256], abi_returns=[word]] {
   bb0:
-    v0 = internal_call @mul, 1, arg0, arg1
+    v0 = icall @mul, 1, arg0, arg1
     ret v0
 }
 
 fn @eq_(arg0: u256, arg1: u256) -> bool [selector=0xd8a1aad7, pure, abi_params=[u256, u256], abi_returns=[word<bool>]] {
   bb0:
-    v0 = internal_call @eq, 1, arg0, arg1
+    v0 = icall @eq, 1, arg0, arg1
     ret v0
 }
 

@@ -8,15 +8,18 @@ contract StorageBytesElements {
     bytes public b;
 
     // CHECK-LABEL: fn @init{{[( ]}}
-    // CHECK: internal_call @store_storage_bytes, 0, 0, arg0
+    // CHECK: icall @store_storage_bytes, 0, 0, arg0
     function init(bytes memory value) public {
         b = value;
     }
 
     // CHECK-LABEL: fn @poke{{[( ]}}
+    // CHECK: sload 0
     // CHECK: storage_array_data_slot 0
-    // CHECK: memory_object_store_byte memorybytes
-    // CHECK: internal_call @store_storage_bytes, 0, 0,
+    // CHECK: [[WORD:v[0-9]+]] = phi
+    // CHECK: sload [[WORD]]
+    // CHECK: sstore [[WORD]]
+    // CHECK-NOT: store_storage_bytes
     function poke() public {
         b[5] = 0xAA;
     }
@@ -31,16 +34,16 @@ contract StorageBytesElements {
 
 contract StorageStringConstructor {
     // CHECK-LABEL: fn @name{{[( ]}}
-    // CHECK: internal_call @load_storage_bytes, 1, 0
+    // CHECK: icall @load_storage_bytes, 1, 0
     string public name;
 
     // CHECK-LABEL: fn @symbol{{[( ]}}
-    // CHECK: internal_call @load_storage_bytes, 1, 1
+    // CHECK: icall @load_storage_bytes, 1, 1
     string public symbol;
 
     // CHECK-LABEL: fn @constructor{{[( ]}}
-    // CHECK: internal_call @store_storage_bytes, 0, 0, arg0
-    // CHECK: internal_call @store_storage_bytes, 0, 1, arg1
+    // CHECK: icall @store_storage_bytes, 0, 0, arg0
+    // CHECK: icall @store_storage_bytes, 0, 1, arg1
     constructor(string memory name_, string memory symbol_) {
         name = name_;
         symbol = symbol_;
@@ -49,16 +52,16 @@ contract StorageStringConstructor {
 
 contract StorageStringBase {
     // CHECK-LABEL: fn @name{{[( ]}}
-    // CHECK: internal_call @load_storage_bytes, 1, 0
+    // CHECK: icall @load_storage_bytes, 1, 0
     string public name;
 
     // CHECK-LABEL: fn @symbol{{[( ]}}
-    // CHECK: internal_call @load_storage_bytes, 1, 1
+    // CHECK: icall @load_storage_bytes, 1, 1
     string public symbol;
 
     // CHECK-LABEL: fn @constructor{{[( ]}}
-    // CHECK: internal_call @store_storage_bytes, 0, 0, arg0
-    // CHECK: internal_call @store_storage_bytes, 0, 1, arg1
+    // CHECK: icall @store_storage_bytes, 0, 0, arg0
+    // CHECK: icall @store_storage_bytes, 0, 1, arg1
     constructor(string memory name_, string memory symbol_) {
         name = name_;
         symbol = symbol_;
@@ -69,18 +72,18 @@ contract StorageStringDerived is StorageStringBase {
     // CHECK-LABEL: fn @constructor{{[( ]}}
     // CHECK: set_memory_object_len memorybytes, {{v[0-9]+}}, 9
     // CHECK: set_memory_object_len memorybytes, {{v[0-9]+}}, 4
-    // CHECK: internal_call @store_storage_bytes, 0, 0,
-    // CHECK: internal_call @store_storage_bytes, 0, 1,
+    // CHECK: icall @store_storage_bytes, 0, 0,
+    // CHECK: icall @store_storage_bytes, 0, 1,
     // CHECK-LABEL: fn @name{{[( ]}}
-    // CHECK: internal_call @load_storage_bytes, 1, 0
+    // CHECK: icall @load_storage_bytes, 1, 0
     // CHECK-LABEL: fn @symbol{{[( ]}}
-    // CHECK: internal_call @load_storage_bytes, 1, 1
+    // CHECK: icall @load_storage_bytes, 1, 1
     constructor() StorageStringBase("ERC20Mock", "E20M") {}
 }
 
 // CHECK-LABEL: fn @constructor{{[( ]}}
 // CHECK: set_memory_object_len memorybytes, {{v[0-9]+}}, 17
 // CHECK: set_memory_object_len memorybytes, {{v[0-9]+}}, 3
-// CHECK: internal_call @store_storage_bytes, 0, 0,
-// CHECK: internal_call @store_storage_bytes, 0, 1,
+// CHECK: icall @store_storage_bytes, 0, 0,
+// CHECK: icall @store_storage_bytes, 0, 1,
 contract StorageStringImplicitDerived is StorageStringBase("Base Literal Name", "BLN") {}

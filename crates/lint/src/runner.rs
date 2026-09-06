@@ -135,8 +135,7 @@ pub fn run_lints(
                     cx.with_ansi_help,
                     Some(file.clone()),
                 );
-                let mut visitor =
-                    LateLintVisitor::new(&lint_context, &mut late_passes, cx.gcx, &cx.gcx.hir);
+                let mut visitor = LateLintVisitor::new(&lint_context, &mut late_passes, cx.gcx);
                 _ = visitor.visit_nested_source(*source_id);
             }
 

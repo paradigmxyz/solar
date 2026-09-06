@@ -37,7 +37,7 @@ fn @full() [selector=0xd17b272f, view] {
     v31 = eq v30, 0x8c379a0
     jumpi v31, bb6, bb7
   bb6:
-    v32 = internal_call @try_decode_error_message, 1, v177, v25
+    v32 = icall @try_decode_error_message, 1, v177, v25
     jump bb7
   bb7:
     v33 = phi [bb6: v32], [bb5: 0]
@@ -132,7 +132,7 @@ fn @full() [selector=0xd17b272f, view] {
     mstore v48, v41
     v181 = add v48, 32
     mcopy v181, v40, v41
-    v56 = internal_call @decode_aggregate.5, 1, v48
+    v56 = icall @decode_aggregate.5, 1, v48
     v98 = mload 64 !metadata(memory=scratch)
     v99 = add v98, 64
     mstore v98, 1
@@ -177,7 +177,7 @@ fn @full() [selector=0xd17b272f, view] {
     mstore v12, v7
     v173 = add v12, 32
     returndatacopy v173, 0, v7
-    v55 = internal_call @decode_aggregate.4, 2, v12
+    v55 = icall @decode_aggregate.4, 2, v12
     v172 = mload 32 !metadata(memory=scratch)
     v176 = add v172, 32
     v16 = mload v176
@@ -254,7 +254,7 @@ fn @rethrows() [selector=0x0d7fadfb, view] {
     v31 = eq v30, 0x8c379a0
     jumpi v31, bb7, bb9
   bb7:
-    v32 = internal_call @try_decode_error_message, 1, v63, v25
+    v32 = icall @try_decode_error_message, 1, v63, v25
     jumpi v32, bb8, bb9
   bb9:
     revert v63, v25
@@ -272,7 +272,7 @@ fn @rethrows() [selector=0x0d7fadfb, view] {
     mstore v48, v41
     v67 = add v48, 32
     mcopy v67, v40, v41
-    v52 = internal_call @decode_aggregate.5, 1, v48
+    v52 = icall @decode_aggregate.5, 1, v48
     jump bb3
   bb1:
     v7 = returndatasize
@@ -287,7 +287,7 @@ fn @rethrows() [selector=0x0d7fadfb, view] {
     mstore v12, v7
     v60 = add v12, 32
     returndatacopy v60, 0, v7
-    v51 = internal_call @decode_aggregate.4, 2, v12
+    v51 = icall @decode_aggregate.4, 2, v12
     jump bb3
   bb3:
     v50 = phi [bb5: v51], [bb10: 1]

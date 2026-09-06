@@ -85,7 +85,7 @@ fn @rejectsExplicit() -> bool [selector=0x90887b1f, payable, abi_params=[], abi_
     v22 = lt v21, v19
     jumpi v22, bb1, bb6
   bb6:
-    v23 = internal_call @deploy, 1, v18
+    v23 = icall @deploy, 1, v18
     v24 = and v23, 0xffffffffffffffffffffffffffffffffffffffff
     v25 = eq v24, 0
     ret v25
@@ -101,7 +101,7 @@ fn @rejectsImplicit() -> bool [selector=0x05da30eb, payable, abi_params=[], abi_
     set_memory_object_len memorybytes, v0, 32
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0x34600757600b565b5f5ffd5b600b8060155f395ff36007565b5f80fd5b600356
-    v2 = internal_call @deploy, 1, v0
+    v2 = icall @deploy, 1, v0
     v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
     v4 = eq v3, 0
     ret v4
@@ -115,7 +115,7 @@ fn @rejectsSynthetic() -> bool [selector=0x28868c98, payable, abi_params=[], abi
     mstore v1, 0x6013565b34600f5760015f556017565b5f80fd5b6003565b600b60225f39600b
     v2 = add v1, 32
     mstore v2, 0x5ff36007565b5f80fd5b60035600000000000000000000000000000000000000
-    v3 = internal_call @deploy, 1, v0
+    v3 = icall @deploy, 1, v0
     v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
     v5 = eq v4, 0
     ret v5
@@ -129,7 +129,7 @@ fn @rejectsInherited() -> bool [selector=0xb3ba0b5d, payable, abi_params=[], abi
     mstore v1, 0x600f565b34600b576013565b5f80fd5b6003565b600b601e5f39600b5ff36007
     v2 = add v1, 32
     mstore v2, 0x565b5f80fd5b6003560000000000000000000000000000000000000000000000
-    v3 = internal_call @deploy, 1, v0
+    v3 = icall @deploy, 1, v0
     v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
     v5 = eq v4, 0
     ret v5
@@ -143,7 +143,7 @@ fn @acceptsPayable() -> bool [selector=0xd6e5da6b, payable, abi_params=[], abi_r
     mstore v1, 0x6007565b600b565b6003565b600b60165f39600b5ff36007565b5f80fd5b6003
     v2 = add v1, 32
     mstore v2, 0x5600000000000000000000000000000000000000000000000000000000000000
-    v3 = internal_call @deploy, 1, v0
+    v3 = icall @deploy, 1, v0
     v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
     v5 = eq v4, 0
     v6 = iszero v5

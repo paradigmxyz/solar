@@ -14,7 +14,7 @@ fn @getArray() -> storageptr [pure] {
 
 fn @test() -> (u256, u256, u256) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word, word]] {
   bb0:
-    v0 = internal_call @getArray, 1
+    v0 = icall @getArray, 1
     v1 = lt 0, 1
     v2 = iszero v1
     jumpi v2, bb1, bb2

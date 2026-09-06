@@ -33,7 +33,7 @@ fn @use() [selector=0x01bd03f7, pure] {
     v14 = or v9, v13
     jumpi v14, bb1, bb3
   bb3:
-    v0 = internal_call @unwrap, 2, v6, v10
+    v0 = icall @unwrap, 2, v6, v10
     v20 = mload 32 !metadata(memory=scratch)
     v21 = add v20, 32
     v22 = mload v21

@@ -60,6 +60,7 @@ pub(crate) fn immutable_staging_addr(base: u64, id: ImmutableId) -> u64 {
 }
 
 /// Returns the first constructor-memory address after all immutable words.
+#[allow(dead_code, reason = "Retained MIR interface; the fresh backend uses its own planning")]
 pub(crate) fn immutable_staging_end(base: u64, count: usize) -> u64 {
     let size = u64::try_from(count)
         .ok()

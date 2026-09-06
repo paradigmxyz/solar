@@ -1,0 +1,9 @@
+- // === ROOT/tests/ui/codegen/evm-ir/compact-pushes/debug_spans.evmir (before compact-pushes) ===
++ // === ROOT/tests/ui/codegen/evm-ir/compact-pushes/debug_spans.evmir (after compact-pushes) ===
+  @module CompactPushDebugSpans
+  bb0:
+-   push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff !metadata(span=10..20)
++   push 0 !metadata(span=10..20)
++   not !metadata(span=10..20)
+    stop
+  

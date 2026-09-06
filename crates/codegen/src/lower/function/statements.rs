@@ -4,6 +4,15 @@ use super::*;
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_stmt(&mut self, stmt: &hir::Stmt<'_>) -> Option<()> {
+        let previous = self.builder.replace_source_span(stmt.span);
+        let previous_modifier_depth = self.builder.replace_modifier_depth(self.modifier_depth);
+        let result = self.lower_stmt_inner(stmt);
+        self.builder.replace_modifier_depth(previous_modifier_depth);
+        self.builder.replace_source_span(previous);
+        result
+    }
+
+    fn lower_stmt_inner(&mut self, stmt: &hir::Stmt<'_>) -> Option<()> {
         match &stmt.kind {
             StmtKind::DeclSingle(id) => {
                 let initializer = self.cx.gcx.hir.variable(*id).initializer;
@@ -102,7 +111,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                             continue;
                         };
                         let Some(id) = id else {
-                            self.lower_expr(value)?;
+                            // The declaration drops this component, so its value needs no read.
+                            self.lower_discarded_expr(value)?;
                             continue;
                         };
                         let ty = self.cx.gcx.type_of_item((*id).into());
@@ -169,11 +179,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     self.lower_constant_storage_assignment(lhs, rhs)?;
                     return Some(());
                 }
-                if self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| ty.is_tuple()) {
-                    self.lower_values(expr)?;
-                } else {
-                    self.lower_expr(expr)?;
-                }
+                // Nothing observes the statement's value, which lets `a.push();` skip the
+                // read that produces the appended element.
+                self.with_discarded(expr, |this| {
+                    if this.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| ty.is_tuple()) {
+                        this.lower_values(expr).map(drop)
+                    } else {
+                        this.lower_expr(expr).map(drop)
+                    }
+                })?;
             }
             StmtKind::Block(block) => self.lower_block(*block)?,
             StmtKind::UncheckedBlock(block) => {
@@ -274,6 +288,66 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(())
     }
 
+    /// Returns `true` if `--revert-strings strip` drops the reason string `expr`.
+    ///
+    /// Custom error payloads are never stripped. Like solc, a reason that is not a compile-time
+    /// constant string is still evaluated so its side effects and failures are kept; only the
+    /// payload is dropped.
+    pub(super) fn strips_revert_string(&mut self, expr: &hir::Expr<'_>) -> Option<bool> {
+        if !self.cx.gcx.sess.opts.revert_strings.is_strip() {
+            return Some(false);
+        }
+        if let ExprKind::Call(callee, ..) = &expr.kind
+            && let Some(hir::Res::Item(hir::ItemId::Error(_))) = self.cx.gcx.resolved_expr(callee)
+        {
+            return Some(false);
+        }
+        if self.constant_string_bytes(expr).is_none() {
+            self.lower_discarded_expr(expr)?;
+        }
+        Some(true)
+    }
+
+    /// Lowers an expression whose value is dropped, such as a tuple declaration or assignment
+    /// hole, so that it can skip the reads only its value would need.
+    pub(super) fn lower_discarded_expr(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
+        self.with_discarded(expr, |this| this.lower_expr(expr))
+    }
+
+    /// Runs `f` with `expr` recorded as discarded, restoring the previously recorded discards on
+    /// every exit.
+    fn with_discarded<T>(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        f: impl FnOnce(&mut Self) -> Option<T>,
+    ) -> Option<T> {
+        let previous = self.discarded_exprs.len();
+        self.mark_discarded(expr);
+        let result = f(self);
+        self.discarded_exprs.truncate(previous);
+        result
+    }
+
+    /// Records the expressions of a discarded value: the discarded expression itself, and the
+    /// tuple components and conditional branches that only forward it, since nothing observes
+    /// their values either.
+    fn mark_discarded(&mut self, expr: &hir::Expr<'_>) {
+        let expr = expr.peel_parens();
+        self.discarded_exprs.push(expr.id);
+        match expr.kind {
+            ExprKind::Tuple(exprs) => {
+                for &expr in exprs.iter().flatten() {
+                    self.mark_discarded(expr);
+                }
+            }
+            ExprKind::Ternary(_, then_expr, else_expr) => {
+                self.mark_discarded(then_expr);
+                self.mark_discarded(else_expr);
+            }
+            _ => {}
+        }
+    }
+
     pub(super) fn lower_revert_payload(&mut self, expr: &hir::Expr<'_>) -> Option<()> {
         let payload = self.prepare_revert_payload(expr)?;
         self.emit_revert_payload(payload);
@@ -320,14 +394,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             PreparedRevertPayload::ShortString { length, data } => {
                 // revert(abi_encode(Error(string), length, data))
                 let helper = self.ensure_revert_error_helper();
-                self.builder.internal_call_void(helper, vec![length, data], 0);
+                self.builder.icall_void(helper, vec![length, data], 0);
                 self.builder.invalid();
             }
             PreparedRevertPayload::EmptyString => {
                 // payload = abi_encode(Error(string), "")
                 // revert(payload.data, payload.length)
-                let selector = keccak256("Error(string)");
-                let selector = self.builder.imm(U256::from_be_slice(&selector[..4]) << 224);
+                let selector = self.builder.imm(ERROR_SELECTOR);
                 let zero = self.builder.imm(0);
                 self.builder.mstore(zero, selector);
                 let offset = self.builder.imm(4);
@@ -342,8 +415,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             PreparedRevertPayload::ErrorString(value) => {
                 // payload = abi_encode(Error(string), value)
                 // revert(payload.data, payload.length)
-                let selector = keccak256("Error(string)");
-                let selector = self.builder.imm(U256::from_be_slice(&selector[..4]) << 224);
+                let selector = self.builder.imm(ERROR_SELECTOR);
                 let layout = Arc::new(AbiLayout::new(
                     vec![AbiType::Bytes(SliceLocation::Memory)].into_boxed_slice(),
                 ));
@@ -394,8 +466,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let mut builder = FunctionBuilder::new(function);
             let length = builder.add_param(MirType::uint256());
             let value = builder.add_param(MirType::uint256());
-            let selector = keccak256("Error(string)");
-            let selector = builder.imm(U256::from_be_slice(&selector[..4]) << 224);
+            let selector = builder.imm(ERROR_SELECTOR);
             let zero = builder.imm(0);
             builder.mstore(zero, selector);
             let offset = builder.imm(4);
@@ -419,7 +490,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<PreparedRevertPayload> {
         let parameters = self.cx.gcx.item_parameters(hir::ItemId::Error(error_id));
         if args.len() != parameters.len() {
-            return self.cx.report_unsupported(args.span, "error arguments");
+            return self.cx.report_unsupported(args.span, "error argument list");
         }
         let parameter_names =
             self.cx.gcx.callable_param_names(CallableParamSource::Error(error_id));
@@ -478,7 +549,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return Some(());
         }
         if args.len() != event.parameters.len() {
-            return self.cx.report_unsupported(args.span, "event arguments");
+            return self.cx.report_unsupported(args.span, "event argument list");
         }
 
         let parameter_names =
@@ -612,7 +683,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             &[topic1, topic2, topic3, topic4] => {
                 self.builder.log4(data_ptr, data_size, topic1, topic2, topic3, topic4)
             }
-            _ => return self.cx.report_unsupported(args.span, "event topics"),
+            _ => return self.cx.report_unsupported(args.span, "event topic list"),
         }
         Some(())
     }

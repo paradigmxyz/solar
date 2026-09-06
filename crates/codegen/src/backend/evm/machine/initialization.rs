@@ -39,7 +39,7 @@ pub(super) fn requires_fmp(
     };
     function
         .instructions()
-        .filter(|&inst| !matches!(function.inst(inst).kind, mir::InstKind::InternalCall { .. }))
+        .filter(|&inst| !matches!(function.inst(inst).kind, mir::InstKind::ICall { .. }))
         .map(|inst| alias.instruction_mod_ref(function, inst))
         .any(&reads_fmp)
         || function.blocks.iter().any(|block| {
@@ -56,7 +56,7 @@ fn defines_fmp(function: &mir::Function, instructions: &[mir::InstId]) -> bool {
         let (address, width) = match function.inst(inst).kind {
             mir::InstKind::MStore(address, _) => (address, 32),
             mir::InstKind::MStore8(address, _) => (address, 1),
-            mir::InstKind::InternalCall { .. } => break,
+            mir::InstKind::ICall { .. } => break,
             _ => continue,
         };
         if let Some(address) = function.value_u64(address) {
@@ -151,9 +151,7 @@ pub(super) fn unique_frontier(
         let function = module.function(id);
         for inst in function.instructions() {
             if match function.inst(inst).kind {
-                mir::InstKind::InternalCall { function, .. } => {
-                    function == frontier || function == root
-                }
+                mir::InstKind::ICall { function, .. } => function == frontier || function == root,
                 mir::InstKind::Gas
                 | mir::InstKind::CodeSize
                 | mir::InstKind::CodeCopy(..)

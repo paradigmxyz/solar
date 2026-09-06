@@ -23,8 +23,8 @@ pub(crate) use call_graph::CallGraphInfo;
 mod liveness;
 pub(crate) use liveness::Liveness;
 
+#[allow(dead_code, reason = "Retained MIR analysis and its independent helper tests")]
 mod phi_elimination;
-pub(crate) use phi_elimination::{CopyDest, CopySource, ParallelCopy, PhiEliminator};
 
 mod loop_analysis;
 pub(crate) use loop_analysis::{Loop, LoopAnalyzer};

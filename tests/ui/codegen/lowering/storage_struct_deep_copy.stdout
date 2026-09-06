@@ -155,10 +155,10 @@ fn @push() [selector=0xa60249a3] {
     v86 = add v5, 32
     mstore v86, v0
     v7 = sload 2 !metadata(storage=slot(2))
-    v8 = add v7, 1
-    v9 = lt v8, v7
-    jumpi v9, bb1, bb2
+    v8 = gt v7, 0xffffffffffffffff
+    jumpi v8, bb1, bb2
   bb2:
+    v9 = add v7, 1
     mstore 0, 2 !metadata(memory=scratch)
     v11 = shl 1, v7
     v77 = keccak256 0, 32 !metadata(memory=scratch)
@@ -204,7 +204,7 @@ fn @push() [selector=0xa60249a3] {
     sstore v66, v68 !metadata(storage=symbolic(v66))
     jump bb11
   bb11:
-    sstore 2, v8 !metadata(storage=slot(2))
+    sstore 2, v9 !metadata(storage=slot(2))
     stop
   bb8:
     v82 = add v20, 32
