@@ -56,6 +56,7 @@ pub static ALL_PASSES: &[&dyn EvmPass] = &[
     &super::cfg::TailMerge,
     &super::cfg::BlockLayout,
     &super::local::LiteralOrientation,
+    &super::local::EnvironmentCopies,
 ];
 
 /// Looks up a public pass by command-line name.
@@ -183,6 +184,7 @@ pub fn run_pipeline(gcx: Gcx<'_>, module: &mut Module, name: Option<&str>) -> bo
         &super::cfg::RedirectTerminals,
         &super::legalize::LegalizeShifts,
         &super::local::LiteralOrientation,
+        &super::local::EnvironmentCopies,
     ]);
     run_passes(gcx, module, &passes, None)
 }

@@ -1,0 +1,31 @@
+//@ revisions: none gas size
+//@ compile-flags: -Zevm-ir-pipeline=environment-copies
+//@[none] compile-flags: -Onone
+//@[gas] compile-flags: -Ogas
+//@[size] compile-flags: -Osize
+//@ filecheck:
+@module EnvironmentBarrier
+
+// The complete GAS/SUB/CALL reserve remains adjacent and unchanged.
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK: {{^ +}}caller
+// CHECK-NEXT: {{^ +}}dup 1
+// CHECK: {{^ +}}gas !metadata(keep_with_next)
+// CHECK-NEXT: {{^ +}}sub !metadata(keep_with_next)
+// CHECK-NEXT: {{^ +}}staticcall
+bb0:
+  caller
+  dup 1
+  pop
+  pop
+  push 0
+  push 0
+  push 0
+  push 0
+  push 1
+  push 50
+  gas !metadata(keep_with_next)
+  sub !metadata(keep_with_next)
+  staticcall
+  pop
+  stop

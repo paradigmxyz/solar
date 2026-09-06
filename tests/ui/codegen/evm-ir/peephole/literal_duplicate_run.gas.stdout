@@ -2,12 +2,12 @@
 @module LiteralDuplicateRun
 bb0:
   calldatasize
-  dup 1
+  calldatasize
   push 0
   mstore
   push 128
-  dup 2
-  dup 3
+  calldatasize
+  calldatasize
   calldatacopy
   push 128
   push 0

@@ -1,0 +1,34 @@
+//@ revisions: none gas size
+//@ compile-flags: -Zevm-ir-pipeline=environment-copies
+//@[none] compile-flags: -Onone
+//@[gas] compile-flags: -Ogas
+//@[size] compile-flags: -Osize
+//@ compile-flags: --evm-version amsterdam
+//@ filecheck:
+@module ExtendedEnvironmentCopy
+
+// A two-byte extended DUP remains unchanged; rereading it would change encoded
+// instruction offsets. The legacy-only rule must not widen its scope here.
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK: {{^ +}}dup 17
+// CHECK-NEXT: {{^ +}}stop
+bb0:
+  caller
+  push 1
+  push 2
+  push 3
+  push 4
+  push 5
+  push 6
+  push 7
+  push 8
+  push 9
+  push 10
+  push 11
+  push 12
+  push 13
+  push 14
+  push 15
+  push 16
+  dup 17
+  stop

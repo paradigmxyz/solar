@@ -1,0 +1,47 @@
+- // === ROOT/tests/ui/codegen/evm-ir/environment-copies/cheap_environment.evmir (before environment-copies) ===
++ // === ROOT/tests/ui/codegen/evm-ir/environment-copies/cheap_environment.evmir (after environment-copies) ===
+  @module EnvironmentCopies
+  bb0:
+    push 17
+    caller
+    push 23
+    dup 2 !metadata(span=10..20)
+    caller
+    push 0
+    mstore
+    push 32
+    mstore
+    push 64
+    mstore
+    push 96
+    mstore
+    push 128
+    mstore
+    push 160
+    push 0
+    return
+  bb1:
+    number
+    dup 1
+    stop
+  bb2:
+    push 0
+    mload
+    dup 1
+    stop
+  bb3:
+    returndatasize
+    dup 1
+    stop
+  bb4:
+    dup 1
+    caller
+    dup 2
+    swap 1
+    dup 1
+    stop
+  bb5:
+    caller
+    dup 1
+    stop
+  

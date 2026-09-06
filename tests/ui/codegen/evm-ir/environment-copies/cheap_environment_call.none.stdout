@@ -1,0 +1,18 @@
+- // === ROOT/tests/ui/codegen/evm-ir/environment-copies/cheap_environment_call.evmir (before environment-copies) ===
++ // === ROOT/tests/ui/codegen/evm-ir/environment-copies/cheap_environment_call.evmir (after environment-copies) ===
+  @module EnvironmentBarrier
+  bb0:
+    caller
+    dup 1
+    pop
+    pop
+    push 0
+    push 0
+    push 0
+    push 0
+    push 1
+    push 0x2710
+    staticcall
+    pop
+    stop
+  

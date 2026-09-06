@@ -1,0 +1,12 @@
+- // === ROOT/tests/ui/codegen/evm-ir/environment-copies/cheap_environment_gas.evmir (before environment-copies) ===
++ // === ROOT/tests/ui/codegen/evm-ir/environment-copies/cheap_environment_gas.evmir (after environment-copies) ===
+  @module EnvironmentBarrier
+  bb0:
+    caller
+    dup 1
+    pop
+    pop
+    gas
+    pop
+    stop
+  

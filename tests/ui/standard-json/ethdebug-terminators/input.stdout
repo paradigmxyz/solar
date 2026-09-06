@@ -186,7 +186,7 @@
                 {
                   "offset": 31,
                   "operation": {
-                    "mnemonic": "DUP2"
+                    "mnemonic": "CALLDATASIZE"
                   }
                 },
                 {

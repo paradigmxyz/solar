@@ -19,12 +19,14 @@ use solar_sema::Gcx;
 
 mod cse;
 mod dead_copies;
+mod environment;
 mod memory_roundtrip;
 mod orientation;
 mod peephole;
 mod stack;
 mod terminal;
 
+pub(super) use environment::EnvironmentCopies;
 pub(super) use orientation::LiteralOrientation;
 pub(super) use terminal::TerminalPrefixes;
 

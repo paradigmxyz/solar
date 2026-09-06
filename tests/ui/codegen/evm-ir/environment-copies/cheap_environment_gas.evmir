@@ -1,0 +1,20 @@
+//@ revisions: none gas size
+//@ compile-flags: -Zevm-ir-pipeline=environment-copies
+//@[none] compile-flags: -Onone
+//@[gas] compile-flags: -Ogas
+//@[size] compile-flags: -Osize
+//@ filecheck:
+@module EnvironmentBarrier
+
+// A later GAS observes the copied word preparation cost.
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK: {{^ +}}caller
+// CHECK-NEXT: {{^ +}}dup 1
+bb0:
+  caller
+  dup 1
+  pop
+  pop
+  gas
+  pop
+  stop
