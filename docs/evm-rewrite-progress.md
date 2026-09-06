@@ -237,8 +237,8 @@ three bounded symbolic agreements, three UI revisions and 99 helpers pass.
 The 721-source size screen saves 120 creation/runtime bytes (36 from an
 existing source), with no increases; gas-mode output and both hot lanes are
 exact. Seventeen local opcode-gas increases remain below sealed gas, while
-unchanged fallback debts remain explicit. Forced perfect-size output improves
-152→118 bytes but still exceeds sealed 105, so its snapshot remains untouched.
+unchanged fallback debts remain explicit. Forced perfect-size output initially improves
+152→118 bytes; the subsequent short-tail change below closes its sealed debt.
 `stride-switch-20260906-1/` retains first incomplete symbolic attempts,
 subsequent bounded agreements and the exact per-case comparisons.
 
@@ -261,7 +261,19 @@ An initial three-member short-tail sharing trial was rejected after an
 adversarial wide-label program grew 337→339 bytes. Its 760 execution checks
 retain correct results, but correctness does not waive the size failure.
 `multiway-tail-draft-20260906/verification/width-retry/` preserves the
-counterexample. A stronger transfer reserve is being tested separately.
+counterexample. The accepted eight-member group reserves five bytes per transfer,
+checks every member before rewriting, and leaves the wide-label control exact
+(`35c3dbe5`). All 784 raw calls and 38 tail UI revisions pass. The full size
+screen changes only the switch fixture, saving 20 creation/runtime bytes; gas
+output and both hot suites are exact. Its eight higher local execution-gas
+labels remain 21 below sealed. Perfect-size runtime is now 98 bytes versus
+sealed 105; that snapshot alone is reviewed at `9e722c60`. Evidence remains in
+`multiway-tail-reserve-isolated-20260906/`.
+
+An observer-loop early-exit cleanup was also rejected: two quiet reversed
+Seaport pairs measured 51.59→52.84 and 51.84→52.09 seconds, despite exact
+outputs. The small source cleanup was reverted; measurements remain in
+`literal-diamond-cleanup-20260906/`.
 
 Finish all supported behavior and investigate every remaining assertion before
 updating it. Repeat full workspace/UI, Foundry, differential, both size corpora,
