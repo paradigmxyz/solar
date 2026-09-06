@@ -4,7 +4,7 @@
 contract ICallFrameDealloc {
     // Scalar recursion passes its arguments and result on the stack, so this
     // case needs no memory-frame allocation or deallocation between calls.
-    // CHECK-LABEL: @module InternalCallFrameDealloc_runtime
+    // CHECK-LABEL: @module ICallFrameDealloc_runtime
     // CHECK: push 0xb3de648b
     // CHECK-NEXT: sub
     // CHECK-NEXT: jumpi
