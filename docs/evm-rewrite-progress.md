@@ -556,6 +556,17 @@ size/gas regression are updated; enum conversion remains unchanged with a real
 five-byte debt in both modes. Its duplicated conditional suffix has been
 identified for a separate profitability trial. Evidence: `abi-termination-review/`.
 
+Protected writer results now move beneath each disjoint absolute-home chunk
+with one SWAP instead of one per restored word. Relative address protocols and
+all overlap cases retain the original order. Removing the unused context and
+infallible result leaves a net 23 production lines. All 660 independent
+stack/memory models and 531 compiled writer/call/recursion replay calls pass.
+Matching 715 UI successes per mode save 51 creation/runtime bytes per mode with
+no increases. Both hot reports preserve every outcome and ordered gas label;
+Nitro creation/runtime shrink 121 bytes in each mode and measured call gas is
+unchanged. No predicted static-opcode saving is counted as a hot-gas win.
+Evidence: `restore-result-study/` and `writer-resident-tests/restore-result-after/`.
+
 ## Remaining acceptance
 
 Complete targeted fixes, remove every new baseline failure, and investigate

@@ -436,7 +436,7 @@ fn lower_function(
                 current = continuation;
                 stack = Stack::new(caller);
                 stack.truncate(stack.values().len() - saved.tracked);
-                restore_writer_homes(context, &saved, &mut insts, *returns != 0)?;
+                restore_writer_homes(&saved, &mut insts, *returns != 0);
                 if *returns != 0 {
                     if let Some(value) = function.inst_result_value(inst_id) {
                         if let Some(&home) = layout.spills.homes.get(&value) {
@@ -905,22 +905,46 @@ fn save_writer_homes(
     Ok(saved)
 }
 
-fn restore_writer_homes(
-    context: &Context<'_>,
-    saved: &SavedHomes,
-    output: &mut Vec<ir::Instruction>,
-    result: bool,
-) -> Result<(), String> {
-    for &address in saved.addresses.iter().rev() {
-        // <optional result>; mstore(protected_address, saved_value)
-        if result {
-            output.push(ir::InstKind::Swap(1).into());
+/// Restores private words while keeping an optional source result above the activation.
+/// Absolute, disjoint words can restore in chunks after one result rotation; relative addresses
+/// retain their original order because restoring the dynamic frame pointer affects their bases.
+fn restore_writer_homes(saved: &SavedHomes, output: &mut Vec<ir::Instruction>, result: bool) {
+    let absolute = result
+        && saved
+            .addresses
+            .iter()
+            .all(|address| matches!(address, super::storage::FrameAddress::Absolute(_)));
+    for chunk in saved.addresses.rchunks(16) {
+        let independent = absolute
+            && chunk.iter().enumerate().all(|(index, address)| {
+                chunk[..index].iter().all(|other| {
+                    matches!((address, other),
+                        (super::storage::FrameAddress::Absolute(a),
+                         super::storage::FrameAddress::Absolute(b))
+                        if a.abs_diff(*b) >= EvmMemoryLayout::WORD_SIZE)
+                })
+            });
+        if independent {
+            // <saved0..savedN-1>; result
+            // swapN
+            // mstore(home0, saved0)
+            // mstore(homeN-1, savedN-1); ...; mstore(home1, saved1)
+            output.push(ir::InstKind::Swap(chunk.len() as u16).into());
+            for &address in std::iter::once(&chunk[0]).chain(chunk[1..].iter().rev()) {
+                output.extend(calls::address(address));
+                output.push(ir::InstKind::Op(op::MSTORE).into());
+            }
+        } else {
+            for &address in chunk.iter().rev() {
+                // <optional result>; mstore(protected_address, saved_value)
+                if result {
+                    output.push(ir::InstKind::Swap(1).into());
+                }
+                output.extend(calls::address(address));
+                output.push(ir::InstKind::Op(op::MSTORE).into());
+            }
         }
-        output.extend(calls::address(address));
-        output.push(ir::InstKind::Op(op::MSTORE).into());
     }
-    let _ = context;
-    Ok(())
 }
 
 fn lower_opcode(
@@ -1011,11 +1035,10 @@ fn lower_opcode(
     stack.truncate(stack.values().len() - operands.len());
     stack.truncate(stack.values().len() - saved.tracked);
     restore_writer_homes(
-        context,
         &saved,
         insts,
         op::stack_io(opcode).is_some_and(|(_, outputs)| outputs == 1),
-    )?;
+    );
     record_result(
         context,
         inst_id,
