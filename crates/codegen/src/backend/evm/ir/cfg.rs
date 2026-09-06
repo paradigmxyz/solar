@@ -33,8 +33,12 @@
 //! bodies without adding a transfer or changing the surviving layout. The
 //! earliest identical body remains the owner and may gain a JUMPDEST, except
 //! when the module forwards gas: then the owner must already be addressable. Only
-//! taken-only duplicates can be removed; computed control and code-address
-//! observations block the transform. Placement
+//! taken-only duplicates can be removed. Private pushed labels require control-only
+//! provenance and their targets stay protected. Modules with indirect control require
+//! already-addressable owners, no forwarded-gas observations, and proved executed
+//! dynamic destinations. Observer and dynamic-target checks run only for actual
+//! matches before mutation. Public labels, unknown control and code observations
+//! block the transform. Placement
 //! forms unconditional and conditional-false traces, removing their encoded
 //! PUSH/JUMP transfers while keeping cold traces after hot ones. Existing
 //! unconditional trace edges reserve their targets in hotness/reference order,
@@ -545,35 +549,39 @@ fn redirect_terminals(module: &mut Module) -> bool {
     let mut protected = DenseBitSet::new_empty(module.blocks.len());
     let mut taken = DenseBitSet::new_empty(module.blocks.len());
     let mut forwards_gas = None;
+    let mut indirect_control = false;
+    let mut has_dynamic = false;
     if let Some(&entry) = ids.first() {
         protected.insert(entry);
     }
     for (position, &id) in ids.iter().enumerate() {
         let next = ids.get(position + 1).copied();
         let block = &module.blocks[id];
-        if block.terminator.kind == TerminatorKind::DynamicJump
-            || block.insts.iter().any(|inst| {
-                matches!(
+        if block.insts.iter().any(|inst| {
+            if let InstKind::PushLabel(target) = inst.kind {
+                indirect_control = true;
+                taken.insert(target);
+                protected.insert(target);
+            }
+            (matches!(inst.kind, InstKind::PushLabel(_)) && !module.private_control_labels)
+                || matches!(inst.kind, InstKind::PushData { .. } | InstKind::PushDeferred(_))
+                || matches!(inst.kind, InstKind::Op(code) if op::stack_io(code).is_none())
+                || matches!(
                     inst.kind,
-                    InstKind::PushLabel(_) | InstKind::PushData { .. } | InstKind::PushDeferred(_)
-                ) || matches!(inst.kind, InstKind::Op(code) if op::stack_io(code).is_none())
-                    || matches!(
-                        inst.kind,
-                        InstKind::Op(
-                            op::JUMP
-                                | op::JUMPI
-                                | op::JUMPDEST
-                                | op::PC
-                                | op::CODESIZE
-                                | op::CODECOPY
-                                | op::EXTCODECOPY
-                                | op::EXTCODESIZE
-                                | op::EXTCODEHASH
-                                | op::GAS
-                        )
+                    InstKind::Op(
+                        op::JUMP
+                            | op::JUMPI
+                            | op::JUMPDEST
+                            | op::PC
+                            | op::CODESIZE
+                            | op::CODECOPY
+                            | op::EXTCODECOPY
+                            | op::EXTCODESIZE
+                            | op::EXTCODEHASH
+                            | op::GAS
                     )
-            })
-        {
+                )
+        }) {
             return false;
         }
         match &block.terminator.kind {
@@ -595,6 +603,10 @@ fn redirect_terminals(module: &mut Module) -> bool {
                     taken.insert(target);
                 }
             }
+            TerminatorKind::DynamicJump => {
+                indirect_control = true;
+                has_dynamic = true;
+            }
             _ => {}
         }
     }
@@ -611,7 +623,7 @@ fn redirect_terminals(module: &mut Module) -> bool {
     let mut targets = module.blocks.indices().collect::<IndexVec<BlockId, _>>();
     let mut changed = false;
     for (index, &id) in candidates.iter().enumerate() {
-        if targets[id] != id {
+        if targets[id] != id || (indirect_control && !taken.contains(id)) {
             continue;
         }
         for &other in &candidates[index + 1..] {
@@ -621,19 +633,25 @@ fn redirect_terminals(module: &mut Module) -> bool {
                 && module.blocks[id].insts == module.blocks[other].insts
                 && module.blocks[id].terminator == module.blocks[other].terminator
             {
-                // A new JUMPDEST can change gas observed by an external callee.
-                // Check only real matches; the module stays immutable until redirection.
-                if !taken.contains(id)
+                // Indirect control forbids forwarded-gas changes; an added destination
+                // must not alter a callee's gas. The module is immutable until redirection.
+                if (indirect_control || !taken.contains(id))
                     && *forwards_gas.get_or_insert_with(|| {
                         ids.iter().any(|&id| module.blocks[id].insts.iter().any(observes_gas))
                     })
                 {
+                    if indirect_control {
+                        return false;
+                    }
                     break;
                 }
                 targets[other] = id;
                 changed = true;
             }
         }
+    }
+    if changed && has_dynamic && super::verify::has_unknown_jump(module) {
+        return false;
     }
     if changed {
         // taken duplicate_exit -> taken earlier_identical_exit
