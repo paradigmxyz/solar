@@ -30,6 +30,7 @@ use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMa
 
 mod call_entry;
 mod entry_order;
+mod initialization;
 
 /// The constructor program-end relocation is resolved by primitive assembly.
 const PROGRAM_END_ID: u32 = 0x0fff_ffff;
@@ -210,30 +211,12 @@ pub(crate) fn lower(
     plan.finalize().map_err(str::to_owned)?;
     let reads_fmp = plan.max_dynamic_frame_size != 0
         || reachable.iter().any(|id| {
-            let function = module.function(id);
-            let alias = &layouts[&id].alias;
-            let instructions = function
-                .instructions()
-                .filter(|&inst| {
-                    !matches!(function.inst(inst).kind, mir::InstKind::InternalCall { .. })
-                })
-                .map(|inst| alias.instruction_mod_ref(function, inst));
-            // Call targets are scanned separately; their conservative summaries would erase
-            // otherwise proven disjoint terminal reads.
-            let terminals = function.blocks.iter().filter_map(|block| {
-                let terminator = block.terminator.as_ref()?;
-                (!matches!(terminator, mir::Terminator::TailCall { .. }))
-                    .then(|| alias.terminator_mod_ref(function, terminator))
-            });
-            instructions.chain(terminals).any(|effects| {
-                effects.observes_memory_size()
-                    || super::spills::accesses_overlap(
-                        &plan.functions[id],
-                        plan.fixed_memory_end,
-                        effects.reads(),
-                        super::storage::FrameAddress::Absolute(EvmMemoryLayout::FMP_SLOT),
-                    )
-            })
+            initialization::requires_fmp(
+                module.function(id),
+                &layouts[&id].alias,
+                &plan.functions[id],
+                plan.fixed_memory_end,
+            )
         });
     if reads_fmp {
         // mstore(0x40, fixed_memory_end)

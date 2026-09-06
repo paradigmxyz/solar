@@ -1,0 +1,80 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/fmp_terminal_defined_writes.sol:DefinedTerminalWord ===
+@module DefinedTerminalWord
+fn @fullWord() [selector=0x1e6701de, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    mstore 64, 0x1234 !metadata(memory=scratch)
+    returndata 64, 32
+}
+
+fn @joinedWords() [selector=0x2f792a94, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    mstore 36, 0x11223344 !metadata(memory=scratch)
+    v0 = not 0
+    mstore 68, v0 !metadata(memory=scratch)
+    returndata 64, 32
+}
+
+fn @overlappingWords() [selector=0x08f14453, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    mstore 63, 0 !metadata(memory=scratch)
+    mstore 65, 0x1234 !metadata(memory=scratch)
+    returndata 64, 32
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/fmp_terminal_defined_writes.sol:PartialTerminalWord ===
+@module PartialTerminalWord
+fn @partialByte() [selector=0x38830a56, pure, abi_params=[], abi_returns=[]] {
+  bb0:
+    mstore8 64, 18 !metadata(memory=scratch)
+    revert 64, 32
+}
+
+fn @partialPair() [selector=0x94ae8541, pure, abi_params=[], abi_returns=[]] {
+  bb0:
+    mstore8 64, 18 !metadata(memory=scratch)
+    mstore8 65, 52 !metadata(memory=scratch)
+    revert 64, 32
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/fmp_terminal_defined_writes.sol:DefinedWordAcrossCall ===
+@module DefinedWordAcrossCall
+fn @beforeCall(arg0: u256) [selector=0x37fa0cfa, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    mstore 64, 0x1234 !metadata(memory=scratch)
+    internal_call @marker, 0, arg0
+    returndata 64, 32
+}
+
+fn @marker(arg0: u256) {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb9: v0]
+    v1 = phi [bb0: 0], [bb9: v6]
+    v2 = lt v1, v0
+    jumpi v2, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    stop
+  bb4:
+    v3 = sload 0 !metadata(storage=slot(0))
+    v4 = add v3, v1
+    v5 = lt v4, v3
+    jumpi v5, bb7, bb8
+  bb8:
+    sstore 0, v4 !metadata(storage=slot(0))
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v6 = add v1, 1
+    v7 = lt v6, v1
+    jumpi v7, bb7, bb9
+  bb9:
+    jump bb1
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}

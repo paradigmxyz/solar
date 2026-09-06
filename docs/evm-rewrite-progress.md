@@ -173,6 +173,16 @@ remain explicit while a separate definite-write analysis is investigated.
 `fmp-terminal-reads/` retains failures, corrected test directives, isolated
 return/revert and disjoint cases, source hashes and independent comparisons.
 
+A separate same-block definite-write query now removes redundant initialization
+when constant MSTORE/MSTORE8 operations define every FMP byte before a terminal
+read. It retains the instruction/MSIZE scan and stops coverage at internal calls.
+The isolated screen saves 88 creation and 70 runtime bytes per mode with no
+individual increases; both hot reports are exact. All four new UI revisions,
+300 isolated and 72 fixture calls match their oracles; the combined helper lane
+passes 97 tests. The partial-write and call-barrier controls remain byte-exact.
+`fmp-definite-writes/` retains the independent proof, final-source amendments
+and corrected comparisons. This recovers most of the preceding correctness cost.
+
 A three-line identical-stack shortcut was rejected: output was exact, but its
 isolated compiler-time pair worsened 65.36→67.13 seconds (+2.7%). The one-line
 verifier resize replacement retains exact diagnostics, all UI bytecode and hot
