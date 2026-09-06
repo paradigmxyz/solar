@@ -31,6 +31,7 @@ use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMa
 mod call_entry;
 mod entry_order;
 mod initialization;
+mod writer;
 
 /// The constructor program-end relocation is resolved by primitive assembly.
 const PROGRAM_END_ID: u32 = 0x0fff_ffff;
@@ -737,6 +738,7 @@ fn return_values(
 
 /// Values held above the virtual activation prefix while an overlapping writer executes.
 struct SavedHomes {
+    protection: Option<writer::Protection>,
     addresses: Vec<super::storage::FrameAddress>,
     tracked: usize,
     protected_prefix: Option<usize>,
@@ -787,7 +789,12 @@ fn save_writer_homes(
     let inst = context.function.blocks[block].instructions[position];
     let effects = context.layout.alias.instruction_mod_ref(context.function, inst);
     if !effects.writes_space(crate::analysis::AddressSpace::Memory) {
-        return Ok(SavedHomes { addresses: Vec::new(), tracked: 0, protected_prefix: None });
+        return Ok(SavedHomes {
+            protection: None,
+            addresses: Vec::new(),
+            tracked: 0,
+            protected_prefix: None,
+        });
     }
     let control_live = context.plan.max_dynamic_frame_size != 0 && control_live();
     let mut homes = context
@@ -821,6 +828,7 @@ fn save_writer_homes(
             addresses.push(address);
         }
     }
+    let spill_homes = addresses.len();
     if control_live
         && context.storage.base == super::storage::FrameBase::Dynamic
         && !context.storage.stack_arguments
@@ -853,12 +861,22 @@ fn save_writer_homes(
     let mixed = !context.layout.spills.homes.is_empty()
         && super::spills::direct_writer(&context.function.inst(inst).kind);
     let tracked = if context.layout.spills.homes.is_empty() || mixed { addresses.len() } else { 0 };
-    let mut saved = SavedHomes { addresses, tracked, protected_prefix: None };
+    let mut saved = SavedHomes { protection: None, addresses, tracked, protected_prefix: None };
     if saved.addresses.is_empty() {
         return Ok(saved);
     }
     if saved.addresses.len() + operands + stack.values().len() + 3 > 1024 {
         return Err("live values across a memory writer exceed the EVM stack limit".into());
+    }
+    if context.optimization.is_gas()
+        && matches!(context.function.inst(inst).kind, mir::InstKind::MStore(..))
+        && let Some(protection) = writer::choose(&saved.addresses, spill_homes, context.version)
+    {
+        // <unselected saved homes>
+        // <selected homes are protected after operand preparation>
+        saved.addresses.drain(protection.range.clone());
+        saved.tracked = saved.addresses.len();
+        saved.protection = Some(protection);
     }
     let writer_operands = mixed.then(|| context.function.inst(inst).kind.operands());
     let resident_operand =
@@ -1022,9 +1040,18 @@ fn lower_opcode(
     } else {
         prepare(context, stack, insts, &operands, live)?;
     }
-    // <operands in pop order>
-    // opcode
-    insts.push(ir::InstKind::Op(opcode).into());
+    if let Some(protection) = &saved.protection {
+        // <other backups>; value; destination
+        // select and save two initialized homes; mstore; restore selected homes
+        // The original capacity guard reserved at least twelve removed backups; the
+        // template instead needs five words above the prepared operands.
+        debug_assert!(stack.values().len() + 5 <= 1024);
+        insts.extend_from_slice(&protection.instructions);
+    } else {
+        // <operands in pop order>
+        // opcode
+        insts.push(ir::InstKind::Op(opcode).into());
+    }
     stack.truncate(stack.values().len() - operands.len());
     stack.truncate(stack.values().len() - saved.tracked);
     restore_writer_homes(
