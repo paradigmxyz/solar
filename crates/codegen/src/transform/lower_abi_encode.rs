@@ -1,10 +1,17 @@
 //! Lower semantic ABI encoding operations to memory and slice operations.
+//!
+//! After the main optimization pipeline, expand each `abi_encode` from its ABI
+//! layout into head stores and dynamic-tail copies, reusing outlined helpers when
+//! supplied by the lowering plan. Literal objects are kept until their projections
+//! can be folded. Generated stores inherit the encoding operation's source context;
+//! any block split moves the original terminator and its metadata together.
 
 use crate::{
     mir::{
         AbiEncodeMode, AbiLayout, AbiType, AbiWordValidator, BlockId, Function, FunctionBuilder,
-        FunctionId, InstKind, MemoryObjectKind, MemoryObjectLayout, MirType, Module, RevertReason,
-        SliceLocation, Terminator, Value, ValueId, utils::resolve_replacement,
+        FunctionId, InstKind, InstructionMetadata, MemoryObjectKind, MemoryObjectLayout, MirType,
+        Module, RevertReason, SliceLocation, Terminator, Value, ValueId,
+        utils::resolve_replacement,
     },
     pass::MirPass,
     transform::utils::redirect_successor_predecessors,
@@ -217,7 +224,7 @@ fn lower_function(
     let blocks = func.blocks.indices();
     for block in blocks {
         let instructions = std::mem::take(&mut func.blocks[block].instructions);
-        let original_terminator = func.blocks[block].terminator.take();
+        let (original_terminator, terminator_metadata) = func.blocks[block].take_terminator();
         let mut builder = FunctionBuilder::new(func).with_revert_strings(revert_strings);
         builder.switch_to_block(block);
         for inst in instructions {
@@ -235,13 +242,16 @@ fn lower_function(
                 .collect::<Vec<_>>();
             let layout = std::sync::Arc::clone(layout);
             let mode = *mode;
+            // abi_encode(args) !metadata(span) => stores/copies !metadata(span)
+            let metadata = builder.func().inst(inst).metadata.clone();
+            builder.set_debug_context(&metadata);
             let replacement = lower_encode(&mut builder, &layout, selector, &args, mode, helpers);
             literal_objects.extend(args.iter().copied());
             let result =
                 builder.func().inst_result_value(inst).expect("ABI encode must produce a value");
             replacements.insert(result, replacement);
         }
-        move_terminator(&mut builder, block, original_terminator);
+        move_terminator(&mut builder, block, original_terminator, terminator_metadata);
     }
     fold_slice_projections(func, &mut replacements);
     func.replace_uses_canonicalized(&replacements);
@@ -269,10 +279,13 @@ pub(crate) fn move_terminator(
     builder: &mut FunctionBuilder<'_>,
     original_block: BlockId,
     terminator: Option<Terminator>,
+    metadata: InstructionMetadata,
 ) {
     let final_block = builder.current_block();
     let Some(terminator) = terminator else { return };
+    // final_block: lowered_ops; original_terminator !metadata(original block)
     builder.func_mut().blocks[final_block].terminator = Some(terminator);
+    builder.func_mut().blocks[final_block].terminator_metadata = metadata;
     if final_block != original_block {
         redirect_successor_predecessors(builder.func_mut(), original_block, final_block);
     }

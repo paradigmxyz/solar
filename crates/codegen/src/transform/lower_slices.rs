@@ -468,6 +468,7 @@ impl LowerSlices {
             let values = values.clone();
             let mut builder = FunctionBuilder::new(func);
             builder.switch_to_block(block_id);
+            builder.inherit_terminator_debug_context(block_id);
             let mut expanded = Vec::with_capacity(values.len() + added_slots);
             for (value, repr) in values.into_iter().zip(signature) {
                 Self::expand_physical_value(&mut builder, value, *repr, &mut expanded);

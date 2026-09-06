@@ -233,7 +233,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         module.abi_layouts = std::mem::take(&mut self.abi_layouts);
         module.abi_param_layouts = std::mem::take(&mut self.abi_param_layouts);
         let tracks_debug_info = module.iter_functions().any(|(_, func)| {
-            func.instructions().any(|inst| {
+            func.blocks.iter().any(|block| {
+                let metadata = &block.terminator_metadata;
+                metadata.source_span().is_some() || metadata.modifier_depth() != 0
+            }) || func.instructions().any(|inst| {
                 let metadata = &func.inst(inst).metadata;
                 metadata.source_span().is_some() || metadata.modifier_depth() != 0
             })
@@ -1068,7 +1071,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             sym::jump => {
                 let target = self.parse_block_id(builder)?;
                 builder.set_terminator(Terminator::Jump(target));
-                return Ok(());
+                return self.parse_terminator_metadata(builder);
             }
             sym::jumpi => {
                 let condition = self.parse_value(builder)?;
@@ -1077,7 +1080,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 self.parser.expect(TokenKind::Comma)?;
                 let else_block = self.parse_block_id(builder)?;
                 builder.set_terminator(Terminator::Branch { condition, then_block, else_block });
-                return Ok(());
+                return self.parse_terminator_metadata(builder);
             }
             kw::Switch => {
                 let value = self.parse_value(builder)?;
@@ -1101,7 +1104,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     }
                 }
                 builder.set_terminator(Terminator::Switch { value, default, cases });
-                return Ok(());
+                return self.parse_terminator_metadata(builder);
             }
             sym::ret => {
                 let mut values: SmallVec<[ValueId; 2]> = SmallVec::new();
@@ -1114,38 +1117,38 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     }
                 }
                 builder.set_terminator(Terminator::Return { values });
-                return Ok(());
+                return self.parse_terminator_metadata(builder);
             }
             kw::Revert => {
                 let offset = self.parse_value(builder)?;
                 self.parser.expect(TokenKind::Comma)?;
                 let size = self.parse_value(builder)?;
                 builder.set_terminator(Terminator::Revert { offset, size });
-                return Ok(());
+                return self.parse_terminator_metadata(builder);
             }
             sym::revert_returndata => {
                 builder.set_terminator(Terminator::RevertReturndata);
-                return Ok(());
+                return self.parse_terminator_metadata(builder);
             }
             sym::returndata => {
                 let offset = self.parse_value(builder)?;
                 self.parser.expect(TokenKind::Comma)?;
                 let size = self.parse_value(builder)?;
                 builder.set_terminator(Terminator::ReturnData { offset, size });
-                return Ok(());
+                return self.parse_terminator_metadata(builder);
             }
             kw::Stop => {
                 builder.set_terminator(Terminator::Stop);
-                return Ok(());
+                return self.parse_terminator_metadata(builder);
             }
             kw::Selfdestruct => {
                 let recipient = self.parse_value(builder)?;
                 builder.set_terminator(Terminator::SelfDestruct { recipient });
-                return Ok(());
+                return self.parse_terminator_metadata(builder);
             }
             kw::Invalid => {
                 builder.set_terminator(Terminator::Invalid);
-                return Ok(());
+                return self.parse_terminator_metadata(builder);
             }
             sym::tail_call => {
                 let function = self.parse_function_id()?;
@@ -1155,7 +1158,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 }
                 builder.set_terminator(Terminator::TailCall { function, args });
                 self.finish_function_ref(FunctionRefTarget::Terminator(block));
-                return Ok(());
+                return self.parse_terminator_metadata(builder);
             }
             _ => {}
         }
@@ -1209,6 +1212,19 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             }
             _ => false,
         }
+    }
+
+    fn parse_terminator_metadata(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+    ) -> PResult<'sess, ()> {
+        let mut metadata = self.parse_metadata(builder)?;
+        if !metadata.debug_info_is_handled() {
+            metadata.mark_debug_info_dropped();
+        }
+        let block = builder.current_block();
+        builder.func_mut().blocks[block].terminator_metadata = metadata;
+        Ok(())
     }
 
     fn parse_metadata(
@@ -1269,6 +1285,25 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     self.parser.expect(TokenKind::Eq)?;
                     let value = self.parser.parse_uint()?;
                     metadata.set_modifier_depth(self.u256_to_u32(value)?);
+                }
+                sym::spans => {
+                    self.parser.expect(TokenKind::Eq)?;
+                    self.parser.expect(TokenKind::OpenDelim(Delimiter::Bracket))?;
+                    let mut spans = SmallVec::<[Span; 2]>::new();
+                    loop {
+                        let (lo, hi) = self.parser.parse_span_bounds()?;
+                        let span = Span::new(BytePos(lo), BytePos(hi));
+                        if spans.len() < crate::source_info::MAX_DEBUG_SPANS
+                            && !spans.contains(&span)
+                        {
+                            spans.push(span);
+                        }
+                        if !self.parser.eat(TokenKind::Comma) {
+                            break;
+                        }
+                    }
+                    self.parser.expect(TokenKind::CloseDelim(Delimiter::Bracket))?;
+                    metadata.set_source_spans(spans);
                 }
                 _ => return Err(self.parser.error(format!("unknown metadata key `{key}`"))),
             }

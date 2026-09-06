@@ -382,6 +382,10 @@ fn lower_terminator(
                 return;
             }
             if module.next_block(block_id) == Some(*target) {
+                // NOTE: Fallthrough emits no instruction for this edge's source span.
+                // If the successor is shared, its unique source location stays unknown.
+                // Do not retain jumps or duplicate code just to create a checkpoint,
+                // or move the span onto an instruction that also runs on another path.
                 return;
             }
             let label = label_for_block(assembler, module, *target, labels);

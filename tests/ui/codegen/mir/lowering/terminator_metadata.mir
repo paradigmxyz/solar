@@ -1,0 +1,21 @@
+//@ compile-flags: -Zmir-pipeline=lower-abi,lower-abi-encode
+//@ filecheck:
+@module TerminatorMetadata
+
+// CHECK-LABEL: {{^[ +].*}}fn @identity{{[( ]}}
+// CHECK: mstore {{.*}} !metadata(span=30..40)
+// CHECK: returndata {{.*}} !metadata(span=30..40)
+fn @identity(arg0: u256) -> u256 [selector=0xac37eebb, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    ret arg0 !metadata(span=30..40)
+}
+
+// Failed external-call bubbling inherits the source location and modifier frame.
+// CHECK-LABEL: {{^[ +].*}}fn @bubble{{[( ]}}
+// CHECK: returndatasize !metadata(spans=[50..60, 70..80], modifier_depth=2)
+// CHECK: returndatacopy {{.*}} !metadata(memory=abi_return, spans=[50..60, 70..80], modifier_depth=2)
+// CHECK: revert {{.*}} !metadata(spans=[50..60, 70..80], modifier_depth=2)
+fn @bubble() {
+  bb0:
+    revert_returndata !metadata(spans=[50..60, 70..80], modifier_depth=2)
+}

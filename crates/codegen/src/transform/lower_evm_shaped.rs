@@ -139,9 +139,12 @@ fn lower_evm_shaped(module: &mut Module) -> bool {
                     continue;
                 };
 
-                // Control never comes back: everything after the call is dead.
+                let metadata = func.inst(insts[position]).metadata.debug_context();
+                // icall callee, args !metadata(call) -> tail_call callee, args !metadata(call)
+                // Everything after the non-returning call is dead.
                 func.blocks[block_id].instructions.truncate(position);
-                func.blocks[block_id].terminator = Some(Terminator::TailCall { function, args });
+                func.blocks[block_id]
+                    .set_terminator(Terminator::TailCall { function, args }, metadata);
                 function_changed = true;
             }
             if function_changed {

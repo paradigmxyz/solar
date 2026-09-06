@@ -1208,15 +1208,18 @@ fn inline_call_impl(
     }
 
     let continuation = caller.alloc_block();
-    let old_terminator = caller.blocks[call_block].terminator.take();
+    let (old_terminator, metadata) = caller.blocks[call_block].take_terminator();
     let old_successors = old_terminator.as_ref().map(Terminator::successors).unwrap_or_default();
     let suffix = {
         let block = &mut caller.blocks[call_block];
         block.instructions.split_off(call_inst_index + 1)
     };
     caller.blocks[call_block].instructions.pop();
+    // continuation: suffix; old_terminator !metadata(caller)
     caller.blocks[continuation].instructions = suffix;
-    caller.blocks[continuation].terminator = old_terminator;
+    if let Some(terminator) = old_terminator {
+        caller.blocks[continuation].set_terminator(terminator, metadata);
+    }
     redirect_phi_predecessors(caller, &old_successors, call_block, continuation);
 
     let caller_is_external = caller.selector.is_some()
@@ -1242,7 +1245,10 @@ fn inline_call_impl(
 
     let mut cloner = InlineCloner::new(caller, callee, frame_base, callee_frame_prefix, args);
     let cloned_entry = cloner.clone_blocks(continuation)?;
+    // icall @callee !metadata(call) => jump cloned_entry !metadata(call)
     cloner.caller.blocks[call_block].terminator = Some(Terminator::Jump(cloned_entry));
+    cloner.caller.blocks[call_block].terminator_metadata =
+        cloner.caller.inst(call_inst).metadata.debug_context();
 
     let mut replacements = FxHashMap::default();
     if returns > 0 {
@@ -1311,12 +1317,7 @@ impl<'a> InlineCloner<'a> {
             for &inst_id in &block.instructions {
                 let inst = self.callee.inst(inst_id).clone();
                 let mut instruction = Instruction::new(inst.kind.clone(), inst.result_ty);
-                if inst.metadata.displays_source_span() {
-                    instruction.metadata.set_source_span(inst.metadata.source_span());
-                } else {
-                    instruction.metadata.set_debug_source_span(inst.metadata.source_span());
-                }
-                instruction.metadata.set_modifier_depth(inst.metadata.modifier_depth());
+                instruction.metadata.copy_debug_context(&inst.metadata);
                 let new_inst = if let Some(callee_result) = self.callee.inst_result_value(inst_id) {
                     let (new_inst, new_result) = self.caller.alloc_value_inst(instruction);
                     self.value_map.insert(callee_result, new_result);
@@ -1342,7 +1343,10 @@ impl<'a> InlineCloner<'a> {
             let caller_block = self.block_map[callee_block];
             let term =
                 self.clone_terminator(block.terminator.as_ref()?, caller_block, continuation)?;
+            // cloned_block: cloned_terminator !metadata(callee block)
             self.caller.blocks[caller_block].terminator = Some(term);
+            self.caller.blocks[caller_block].terminator_metadata =
+                block.terminator_metadata.clone();
         }
 
         Some(self.block_map[BlockId::ENTRY])

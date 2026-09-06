@@ -1,0 +1,26 @@
+//@ compile-flags: -Zmir-pipeline=pure-eval
+//@ filecheck:
+@module FoldedOrigins
+
+// Analysis fields do not erase a common source origin.
+// CHECK-LABEL: {{^[ +].*}}fn @same_origin{{[( ]}}
+// CHECK: + ret 7 !metadata(span=10..20, modifier_depth=1)
+fn @same_origin() -> u256 {
+  bb0:
+    jumpi true, bb1, bb2
+  bb1:
+    ret 7 !metadata(span=10..20, modifier_depth=1, loop_depth=2)
+  bb2:
+    ret 7 !metadata(span=10..20, modifier_depth=1, effect=pure)
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @distinct_origins{{[( ]}}
+// CHECK: + ret 7 !metadata(spans=[30..40, 50..60])
+fn @distinct_origins() -> u256 {
+  bb0:
+    jumpi true, bb1, bb2
+  bb1:
+    ret 7 !metadata(span=30..40)
+  bb2:
+    ret 7 !metadata(span=50..60)
+}

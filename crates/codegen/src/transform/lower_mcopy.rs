@@ -77,11 +77,14 @@ fn lower_mcopy(func: &mut Function, block: BlockId, position: usize, inst: crate
     let removed = instructions.pop();
     debug_assert_eq!(removed, Some(inst));
     func.blocks[block].instructions = instructions;
-    let old_terminator = func.blocks[block].terminator.take();
+    let (old_terminator, metadata) = func.blocks[block].take_terminator();
 
+    // continuation: tail; old_terminator !metadata(original block)
     let continuation = func.alloc_block();
     func.blocks[continuation].instructions = tail;
-    func.blocks[continuation].terminator = old_terminator;
+    if let Some(terminator) = old_terminator {
+        func.blocks[continuation].set_terminator(terminator, metadata);
+    }
     redirect_successor_predecessors(func, block, continuation);
 
     let loop_head = func.alloc_block();

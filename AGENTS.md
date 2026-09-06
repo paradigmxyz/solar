@@ -71,6 +71,22 @@ Pipeline: Lexing -> Parsing -> Semantic Analysis -> MIR -> EVM backend -> byteco
 - Keep the layers separate: MIR should not grow EVM stack-layout details, and
   EVM IR should not rediscover high-level Solidity typing or call semantics.
 
+### Debug Info
+
+Debug information must never change code generation. Never change executable
+MIR or EVM IR, optimization decisions, stack scheduling, block layout, or
+emitted bytecode to preserve or salvage debug metadata. Do not retain otherwise
+removable instructions or jumps, duplicate code, or disable optimizations to
+manufacture a source checkpoint.
+
+Preserve valid metadata when possible. When accurate metadata cannot be
+produced, explicitly mark it intentionally dropped or unknown instead of
+inventing a source location or selecting an arbitrary origin for shared code.
+Explain deliberate limitations with a `NOTE:` comment at the relevant code.
+Requesting debug outputs must leave generated executable code unchanged;
+cover this invariant with bytecode-neutrality tests when changing debug-info
+handling.
+
 ### MIR Phases
 
 MIR is a phased IR, like rustc's MIR: a `Module` carries a `MirPhase`, phases

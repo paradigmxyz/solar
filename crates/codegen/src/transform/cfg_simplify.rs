@@ -13,6 +13,9 @@
 //! ## Dead Function Elimination
 //! Remove functions that are never called, starting from entry points
 //! (public/external functions, constructor, fallback, receive).
+//!
+//! Terminal-block equivalence ignores source context. Shared instructions and
+//! terminators retain the bounded union of their original locations instead.
 
 use crate::{
     analysis::{CallGraphInfo, CfgInfo},
@@ -220,6 +223,19 @@ impl CfgSimplifier {
         }
 
         for (dup, keep) in merges {
+            // duplicate instructions; terminal -> shared instructions; terminal
+            // Merge debug origins without changing the structural equivalence key.
+            let origins = func.blocks[keep]
+                .instructions
+                .iter()
+                .zip(&func.blocks[dup].instructions)
+                .map(|(&target, &source)| (target, func.inst(source).metadata.debug_context()))
+                .collect::<Vec<_>>();
+            for (target, metadata) in origins {
+                func.inst_mut(target).metadata.merge_debug_context(&metadata);
+            }
+            let metadata = func.blocks[dup].terminator_metadata.debug_context();
+            func.blocks[keep].terminator_metadata.merge_debug_context(&metadata);
             let predecessors: Vec<_> = func.blocks[dup].predecessors.to_vec();
             for pred in predecessors {
                 self.redirect_terminator(func, pred, dup, keep);
@@ -228,7 +244,7 @@ impl CfgSimplifier {
                 }
             }
             func.blocks[dup].instructions.clear();
-            func.blocks[dup].terminator = Some(Terminator::Invalid);
+            func.blocks[dup].set_generated_terminator(Terminator::Invalid);
             func.blocks[dup].predecessors.clear();
             self.stats.terminal_blocks_deduplicated += 1;
         }
@@ -301,7 +317,7 @@ impl CfgSimplifier {
             };
             let mut metadata = inst.metadata.clone();
             metadata.set_hir_expr(None);
-            metadata.set_source_span(None);
+            metadata.mark_debug_info_dropped();
             metadata.loop_depth = 0;
             insts.push(CanonInst {
                 mnemonic: inst.kind.mnemonic(),
@@ -535,8 +551,10 @@ impl CfgSimplifier {
         let target_successors =
             target_terminator.as_ref().map(Terminator::successors).unwrap_or_default();
 
+        // block: prefix; target_instructions; target_terminator !metadata(target)
         func.blocks[block_id].instructions.extend(target_instructions);
         func.blocks[block_id].terminator = target_terminator;
+        func.blocks[block_id].terminator_metadata = func.blocks[target].terminator_metadata.clone();
 
         for &succ in &target_successors {
             self.redirect_target_phi_incoming(func, target, succ, &[block_id]);

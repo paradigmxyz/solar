@@ -806,7 +806,7 @@ impl StorageScalarPromoter {
         let store_block = func.alloc_block();
 
         let old_instructions = std::mem::take(&mut func.blocks[exit].instructions);
-        let old_terminator = func.blocks[exit].terminator.take();
+        let (old_terminator, terminator_metadata) = func.blocks[exit].take_terminator();
         let old_successors =
             old_terminator.as_ref().map(Terminator::successors).unwrap_or_default();
 
@@ -824,8 +824,10 @@ impl StorageScalarPromoter {
         );
         exit_instructions.push(dirty_load_inst);
 
+        // dirty = mload dirty_addr
+        // jumpi dirty, store_block, continuation !metadata(intentionally dropped)
         func.blocks[exit].instructions = exit_instructions;
-        func.blocks[exit].terminator = Some(Terminator::Branch {
+        func.blocks[exit].set_generated_terminator(Terminator::Branch {
             condition: dirty_value,
             then_block: store_block,
             else_block: continuation,
@@ -843,12 +845,15 @@ impl StorageScalarPromoter {
         func.blocks[store_block].predecessors.push(exit);
         func.blocks[store_block].instructions.push(load_inst);
         func.blocks[store_block].instructions.push(store_inst);
-        func.blocks[store_block].terminator = Some(Terminator::Jump(continuation));
+        func.blocks[store_block].set_generated_terminator(Terminator::Jump(continuation));
 
         func.blocks[continuation].predecessors.push(exit);
         func.blocks[continuation].predecessors.push(store_block);
+        // continuation: remaining_instructions; old_terminator !metadata(exit)
         func.blocks[continuation].instructions = continuation_instructions;
-        func.blocks[continuation].terminator = old_terminator;
+        if let Some(terminator) = old_terminator {
+            func.blocks[continuation].set_terminator(terminator, terminator_metadata);
+        }
 
         self.redirect_successor_phi_incoming(func, exit, continuation, &old_successors);
         for successor in old_successors {

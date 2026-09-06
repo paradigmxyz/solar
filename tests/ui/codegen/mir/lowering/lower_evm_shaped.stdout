@@ -17,9 +17,9 @@
   fn @caller() [selector=0x00000007] {
     bb0:
       v0 = calldataload 4
--     icall @fused, 0, v0
--     stop
-+     tail_call @fused, v0
+-     icall @fused, 0, v0 !metadata(span=10..20, modifier_depth=1)
+-     stop !metadata(span=30..40, modifier_depth=2)
++     tail_call @fused, v0 !metadata(span=10..20, modifier_depth=1)
   }
   
   fn @fused(arg0: u256) {
