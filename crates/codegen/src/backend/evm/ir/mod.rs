@@ -212,7 +212,7 @@ pub(crate) fn immediate_materialization_cost(
     evm_version: EvmVersion,
     value: U256,
 ) -> (usize, usize) {
-    immediate::cost(evm_version, &immediate::materialize(evm_version, value))
+    immediate::materialization_cost(evm_version, value)
 }
 
 /// Estimates private spill-copy schedules using target copy-run recognition.

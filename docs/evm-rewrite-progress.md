@@ -467,6 +467,17 @@ time. Peak RSS rises 2.0--2.6%; this bounded cache trades memory for avoided wor
 The earlier larger Option-cache prototype and its measurements remain separate.
 Evidence: `outline-prefix-heights/compact/`; no pass was removed or reordered.
 
+Literal construction now chooses a scalar four-form plan before allocating the
+winning instruction sequence. Cost-only queries allocate no instructions;
+candidate order, fork/budget rules and exact tie behavior remain unchanged.
+The production helper grows 83 -> 127 lines; a pure differential helper test
+checks all selected instructions and costs. All 92 helper tests pass, and all
+715 UI successes per mode plus both 15-case/175-label hot reports remain exact.
+Two sequential 432-contract Seaport pairs also retain identical bytecode:
+137.52 -> 129.18 and 134.17 -> 124.91 seconds, a 6.5% median time reduction.
+Peak RSS changes +0.2% and -0.3%, effectively flat in these two pairs. Evidence:
+`immediate-cost-plan/`, including initial build failures and their corrections.
+
 ## Remaining acceptance
 
 Complete targeted fixes, remove every new baseline failure, and investigate
