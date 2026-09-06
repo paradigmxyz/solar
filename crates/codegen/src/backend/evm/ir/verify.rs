@@ -340,7 +340,7 @@ fn stack_analysis(module: &Module) -> Result<(StackHeights, bool), (BlockId, Str
 
 fn physical_successors(module: &Module, id: BlockId) -> impl Iterator<Item = BlockId> + '_ {
     let block = &module.blocks[id];
-    successors(&block.terminator.kind).into_iter().chain(block.insts.iter().filter_map(|inst| {
+    successors(&block.terminator.kind).chain(block.insts.iter().filter_map(|inst| {
         if let InstKind::PushLabel(target) = inst.kind { Some(target) } else { None }
     }))
 }
@@ -411,13 +411,14 @@ pub(crate) fn term_effect(kind: &TerminatorKind) -> (u8, u8) {
     }
 }
 
-pub(crate) fn successors(kind: &TerminatorKind) -> Vec<BlockId> {
-    match kind {
-        TerminatorKind::Jump(target) => vec![*target],
-        TerminatorKind::JumpI(yes, no) => vec![*yes, *no],
-        TerminatorKind::IndexedJump(targets) => targets.clone(),
-        _ => Vec::new(),
-    }
+pub(crate) fn successors(kind: &TerminatorKind) -> impl Iterator<Item = BlockId> + '_ {
+    let (targets, other) = match kind {
+        TerminatorKind::Jump(target) => (std::slice::from_ref(target), None),
+        TerminatorKind::JumpI(yes, no) => (std::slice::from_ref(yes), Some(*no)),
+        TerminatorKind::IndexedJump(targets) => (targets.as_slice(), None),
+        _ => (&[][..], None),
+    };
+    targets.iter().copied().chain(other)
 }
 
 fn inst_name(kind: &InstKind) -> String {
@@ -588,4 +589,38 @@ pub(super) fn validate_encoding(gcx: Gcx<'_>, module: &Module) -> solar_interfac
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{BlockId, TerminatorKind, successors};
+
+    #[test]
+    fn successor_order_and_duplicates() {
+        let a = BlockId::new(7);
+        let b = BlockId::new(2);
+        let cases = [
+            (TerminatorKind::Jump(a), vec![a]),
+            (TerminatorKind::JumpI(a, b), vec![a, b]),
+            (TerminatorKind::JumpI(a, a), vec![a, a]),
+            (TerminatorKind::IndexedJump(vec![]), vec![]),
+            (TerminatorKind::IndexedJump(vec![b]), vec![b]),
+            (TerminatorKind::IndexedJump(vec![a, b, a]), vec![a, b, a]),
+            (TerminatorKind::DynamicJump, vec![]),
+            (TerminatorKind::Stop, vec![]),
+            (TerminatorKind::Return, vec![]),
+            (TerminatorKind::Revert, vec![]),
+            (TerminatorKind::Invalid, vec![]),
+            (TerminatorKind::SelfDestruct, vec![]),
+            (TerminatorKind::Unreachable, vec![]),
+        ];
+        for (kind, expected) in cases {
+            let mut actual = successors(&kind);
+            for target in expected {
+                assert_eq!(actual.next(), Some(target), "{kind:?}");
+            }
+            assert_eq!(actual.next(), None, "{kind:?}");
+            assert_eq!(actual.next(), None, "{kind:?}");
+        }
+    }
 }

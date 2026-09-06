@@ -85,7 +85,7 @@ impl EvmPass for TailMerge {
 }
 
 fn references(block: &Block) -> impl Iterator<Item = BlockId> + '_ {
-    successors(&block.terminator.kind).into_iter().chain(
+    successors(&block.terminator.kind).chain(
         block.insts.iter().filter_map(|inst| {
             if let InstKind::PushLabel(id) = inst.kind { Some(id) } else { None }
         }),

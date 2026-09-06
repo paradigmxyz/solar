@@ -519,6 +519,25 @@ models cover 10,098 sequences and 6,732 equal-tail costs. One sequential
 666,608 -> 634,124 KiB. This single pair is provisional timing evidence.
 Evidence: `call-entry-cost-reuse/guarded/`.
 
+Successor enumeration now borrows terminator targets and chains the conditional
+false edge, eliminating the helper Vec without changing edge order or duplicate
+counts. This adds one production line and a pure helper test. The frozen before
+binary exactly matches retained reports; all 715 UI successes per mode and both
+15-case/175-label hot comparisons preserve bytecode, observations and gas. All
+432 Seaport contracts remain exact. One sequential pair is flat: 68.37 -> 68.61
+seconds (+0.3%), with peak RSS 617,528 -> 654,476 KiB (+6.0%). No speedup or
+memory reduction is claimed from this pair. Evidence: `borrowed-successors/`.
+
+The refreshed workspace run has 1,352 passes, one failing UI aggregate and two
+skips. Its UI lane has 10,875 passes and 62 snapshot differences: three reviewed
+dump cases are resolved, while two immutable snapshots and the future-writer
+IR snapshot now differ. No expectation was blessed in this run. Independent
+review finds 17 snapshot-only differences and 45 with latent FileCheck failures;
+those assertions require investigation. The frozen guarded compiler reaches
+bounded symbolic agreement on the internal-call stack-return fixture in both
+modes. Current raw backend scope is 11,532 Rust lines across 33 files, including
+comments and tests: 23,106 fewer than the deleted raw scope.
+
 ## Remaining acceptance
 
 Complete targeted fixes, remove every new baseline failure, and investigate
