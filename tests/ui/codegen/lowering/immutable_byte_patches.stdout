@@ -5,11 +5,11 @@ bb0:
   push 288
   push 64
   mstore
-  push 208
+  push 204
   codesize
   sub
   dup 1
-  push 208
+  push 204
   push 288
   codecopy
   push 319
@@ -29,7 +29,7 @@ bb0:
   jumpi bb3, bb2
 bb2:
   push 288
-  push 208
+  push 204
   codesize
   sub
   dup 2
@@ -79,7 +79,7 @@ bb7:
   mstore
   push 256
   mstore
-  push 56
+  push 52
   push 152
   push 288
   codecopy
@@ -97,7 +97,7 @@ bb7:
   byte
   push 313
   mstore8
-  push 56
+  push 52
   push 288
   return
 
@@ -122,14 +122,12 @@ bb1:
   push_immutable 2, 1
   push 248
   shl
+  swap 1
   push 0
-  exchange 1, 2
   signextend
-  push 128
-  swap 2
-  swap 3
   swap 1
   swap 2
+  push 128
   mstore
   push 160
   mstore

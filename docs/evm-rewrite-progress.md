@@ -132,6 +132,14 @@ three constructor/memory-offset snapshots after 216 deployment observations,
 and sizes are nonincreasing versus sealed. Evidence is in `snapshot-three-review/`.
 `snapshot-five-review/` retains exact comment-only bytecode proofs and derived
 source-fingerprint reports; use its sealed derived report for future joins.
+Two immutable snapshots are also reviewed: 276 executions verify exact values,
+constructor failures, placeholder ranges and complete runtime patch templates.
+Only the relative order of immutable IDs 4/5 is unconstrained. Current output
+improves over the previously reviewed snapshots, but sealed creation debt and
+Widths' +1 size byte and +4/+7 read gas remain open. No symbolic agreement is
+claimed for immutable constructors, which that differential runner cannot execute.
+All six focused revisions across these five fixtures pass; 53 prior failures
+remain to investigate. Details are in `immutable-current-review/`.
 
 A three-line identical-stack shortcut was rejected: output was exact, but its
 isolated compiler-time pair worsened 65.36→67.13 seconds (+2.7%). The one-line

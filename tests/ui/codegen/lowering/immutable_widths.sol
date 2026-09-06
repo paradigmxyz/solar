@@ -25,8 +25,8 @@ contract ImmutableWidths {
     // CHECK-NEXT: push_immutable 1, 32
     // CHECK-NEXT: push_immutable 2, 32
     // CHECK-NEXT: push_immutable 3, 20
-    // CHECK-NEXT: push_immutable 4, 32
-    // CHECK-NEXT: push_immutable 5, 2
+    // CHECK-DAG: push_immutable 4, 32
+    // CHECK-DAG: push_immutable 5, 2
     function read() external view returns (uint8, int16, bytes3, address, uint, Tiny) {
         return (a, b, c, d, e, f);
     }

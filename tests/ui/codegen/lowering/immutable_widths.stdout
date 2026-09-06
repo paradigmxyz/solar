@@ -5,11 +5,11 @@ bb0:
   push 384
   push 64
   mstore
-  push 471
+  push 460
   codesize
   sub
   dup 1
-  push 471
+  push 460
   push 384
   codecopy
   push 415
@@ -35,7 +35,7 @@ bb0:
   jumpi bb3, bb2
 bb2:
   push 384
-  push 471
+  push 460
   codesize
   sub
   dup 2
@@ -125,7 +125,7 @@ bb9:
   mstore
   push 352
   mstore
-  push 200
+  push 189
   push 271
   push 384
   codecopy
@@ -155,15 +155,11 @@ bb9:
   or
   push 471
   mstore
-  push 320
-  mload
-  push 492
-  mstore
   push 352
   mload
   push 240
   shl
-  push 525
+  push 492
   mload
   push 0
   not
@@ -171,9 +167,13 @@ bb9:
   shr
   and
   or
-  push 525
+  push 492
   mstore
-  push 200
+  push 320
+  mload
+  push 495
+  mstore
+  push 189
   push 384
   return
 
@@ -195,42 +195,33 @@ bb1:
   push_immutable 1, 32
   push_immutable 2, 32
   push_immutable 3, 20
-  push_immutable 4, 32
   push_immutable 5, 2
+  push_immutable 4, 32
+  swap 2
+  swap 3
+  swap 4
   push 1
-  swap 5
-  swap 1
-  swap 2
-  swap 3
-  swap 4
-  swap 5
   signextend
-  push 128
-  swap 6
   swap 1
   swap 2
   swap 3
   swap 4
   swap 5
-  swap 6
+  push 128
   mstore
   push 160
   mstore
+  swap 1
+  swap 2
+  swap 3
   push 192
-  swap 4
+  mstore
   swap 1
   swap 2
-  swap 3
-  swap 4
-  mstore
   push 224
-  swap 2
-  swap 3
-  swap 1
-  swap 2
   mstore
+  swap 1
   push 256
-  exchange 1, 2
   mstore
   push 288
   mstore
