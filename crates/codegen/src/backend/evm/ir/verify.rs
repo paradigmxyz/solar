@@ -31,12 +31,12 @@ pub(super) fn validate(gcx: Gcx<'_>, module: &Module) {
     for id in module.block_ids() {
         let block = &module.blocks[id];
         for inst in &block.insts {
-            let name = inst_name(&inst.kind);
             let expected = effect(&inst.kind);
             if let Some((inputs, outputs)) = expected {
                 if let Some(actual) = inst.stack_effect
                     && actual != (inputs, outputs)
                 {
+                    let name = inst_name(&inst.kind);
                     fail(
                         id,
                         format!(
@@ -47,11 +47,13 @@ pub(super) fn validate(gcx: Gcx<'_>, module: &Module) {
                     return;
                 }
             } else if inst.stack_effect.is_none() {
+                let name = inst_name(&inst.kind);
                 fail(id, format!("instruction `{name}` must declare an explicit stack effect"));
                 return;
             }
             match inst.kind {
                 InstKind::Op(opcode) if (op::PUSH1..=op::PUSH32).contains(&opcode) => {
+                    let name = inst_name(&inst.kind);
                     fail(id, format!("`{name}` must carry an encoded push value"));
                     return;
                 }
@@ -80,6 +82,7 @@ pub(super) fn validate(gcx: Gcx<'_>, module: &Module) {
                     return;
                 }
                 InstKind::Dup(0) | InstKind::Swap(0) => {
+                    let name = inst_name(&inst.kind);
                     fail(id, format!("`{name}` depth must be positive"));
                     return;
                 }
@@ -203,7 +206,6 @@ fn stack_analysis(module: &Module) -> Result<(StackHeights, bool), (BlockId, Str
         }
         let block = &module.blocks[id];
         for inst in &block.insts {
-            let name = inst_name(&inst.kind);
             let height = stack.len();
             match inst.kind {
                 InstKind::Dup(depth) => {
@@ -242,6 +244,7 @@ fn stack_analysis(module: &Module) -> Result<(StackHeights, bool), (BlockId, Str
                 _ => {
                     let (inputs, outputs) =
                         effect(&inst.kind).or(inst.stack_effect).ok_or_else(|| {
+                            let name = inst_name(&inst.kind);
                             (
                                 id,
                                 format!(
@@ -250,7 +253,7 @@ fn stack_analysis(module: &Module) -> Result<(StackHeights, bool), (BlockId, Str
                             )
                         })?;
                     if inputs as usize > height {
-                        return Err((id, underflow(&name, height, inputs)));
+                        return Err((id, underflow(&inst_name(&inst.kind), height, inputs)));
                     }
                     let jump_target = if inst.kind == InstKind::Op(op::JUMPI) {
                         stack.last().copied().flatten()
@@ -273,6 +276,7 @@ fn stack_analysis(module: &Module) -> Result<(StackHeights, bool), (BlockId, Str
                 }
             }
             if stack.len() > 1024 {
+                let name = inst_name(&inst.kind);
                 return Err((
                     id,
                     format!(

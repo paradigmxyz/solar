@@ -502,6 +502,14 @@ fall by 2,033/1,578 in gas/size. Both hot modes save 48 gas and 24 creation/runt
 bytes with no individual increases. Evidence: `leading-literal-permutation/guarded/`;
 the superseded unguarded candidate and its failing replay remain preserved.
 
+Verifier instruction names are now formatted only on diagnostic paths. The
+change adds four production lines and preserves all 26 validation diagnostics
+exactly, all 715 UI successes per mode, and both 15-case/175-label hot reports.
+Two sequential Seaport pairs retain all 432 contracts byte-for-byte: 74.85 ->
+68.60 and 74.61 -> 69.13 seconds, a 7.8% median reduction. Peak RSS varies
++4.8% and -1.5%; no consistent memory improvement is established. Evidence:
+`lazy-verifier-diagnostics/`. No validation was disabled or weakened.
+
 ## Remaining acceptance
 
 Complete targeted fixes, remove every new baseline failure, and investigate
