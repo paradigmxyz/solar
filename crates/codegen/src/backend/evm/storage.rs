@@ -20,9 +20,9 @@
 //! sizes so reservations cannot leave stale relocations.
 //!
 //! Dynamic frames whose addresses are exposed, whose return types reference memory, or whose sticky
-//! `may_return_memory` attribute is set must remain allocated on return. The call emitter owns frame
-//! setup, restoration, runtime overflow checks and the EVM return-label stack protocol. This module
-//! checks every constant address/size calculation and never silently wraps a layout.
+//! `may_return_memory` attribute is set must remain allocated on return. The call emitter owns
+//! frame setup, restoration, runtime overflow checks and the EVM return-label stack protocol. This
+//! module checks every constant address/size calculation and never silently wraps a layout.
 
 use crate::{
     analysis::{CallGraphInfo, MemoryCallSummaries},
@@ -102,7 +102,8 @@ impl FunctionStorage {
         }
     }
 
-    /// Extra result buffers are consumed immediately after each return, so stack activations share a fixed per-function buffer.
+    /// Extra result buffers are consumed immediately after each return, so stack activations share
+    /// a fixed per-function buffer.
     pub(crate) fn return_address(&self, index: usize) -> Result<FrameAddress, &'static str> {
         if self.stack_arguments {
             Ok(FrameAddress::Absolute(add(self.stack_return_base, words(index)?)?))

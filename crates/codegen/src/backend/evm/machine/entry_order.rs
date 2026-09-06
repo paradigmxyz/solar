@@ -165,7 +165,8 @@ fn replay(
     for (position, &id) in context.function.blocks[block].instructions.iter().enumerate() {
         if let Some(opcode) = context.function.inst(id).kind.evm_opcode() {
             // <same prepared operands>; <same direct opcode>
-            lower_opcode(context, block, position, id, opcode, stack, insts, operand_order).ok()?;
+            lower_opcode(context, (block, position), id, opcode, stack, insts, operand_order)
+                .ok()?;
         }
     }
     Some(())

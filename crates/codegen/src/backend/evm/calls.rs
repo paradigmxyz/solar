@@ -10,10 +10,10 @@
 //! frame size to protect the unknown ancestor's complete region.
 //!
 //! Return setup preserves every physical stack word. It restores the previous frame pointer and
-//! reclaims the free-memory frontier only when storage planning proves the activation cannot escape.
-//! Source-level local initialization stays in MIR; these helpers initialize only protocol-owned
-//! header and argument words. Return labels, result arrangement, CFG edges and panic blocks belong
-//! to machine lowering rather than this module.
+//! reclaims the free-memory frontier only when storage planning proves the activation cannot
+//! escape. Source-level local initialization stays in MIR; these helpers initialize only
+//! protocol-owned header and argument words. Return labels, result arrangement, CFG edges and panic
+//! blocks belong to machine lowering rather than this module.
 
 use super::{
     ir::{InstKind, Instruction},

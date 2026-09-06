@@ -535,7 +535,7 @@ fn exceeds_stack_window(
                     }
                 }
                 mir::Terminator::ReturnData { offset, size }
-                | mir::Terminator::Revert { offset, size } => {
+                | mir::Terminator::Revert { offset, size }
                     if !prepare_pressure(
                         &mut stack,
                         &[*offset, *size],
@@ -543,9 +543,9 @@ fn exceeds_stack_window(
                         version,
                         &stored,
                         |_| false,
-                    ) {
-                        return true;
-                    }
+                    ) =>
+                {
+                    return true;
                 }
                 _ => {}
             }

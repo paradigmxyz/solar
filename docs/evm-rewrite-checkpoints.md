@@ -2,7 +2,7 @@
 
 ## Evidence and scope audit — 2026-09-05
 
-The starting deletion commit is `e5ba34f2` over baseline `9cb036c0`.
+The starting deletion commit is `e5ba34f2d3676b493aed6dc120c90a1b16605c0a` over baseline `9cb036c0`.
 Git path/status metadata matches all 40 paths in the deletion manifest exactly;
 there are no out-of-scope deletions to restore. No deleted source content was
 read or recovered. Git numstat records 34,638 removed lines, including comments,
@@ -383,7 +383,7 @@ experiments are retained in [checkpoint history](evm-rewrite-checkpoints.md).
 
 ## Scope and architecture
 
-Deletion commit `e5ba34f2` removed exactly the agreed 40 backend files. No
+Deletion commit `e5ba34f2d3676b493aed6dc120c90a1b16605c0a` removed exactly the agreed 40 backend files. No
 out-of-scope file required restoration. No deleted implementation was read or
 recovered. The fresh unsupported API milestone compiled the workspace and all
 targets; its source, executable and expected failure inventory remain preserved.

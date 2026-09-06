@@ -545,8 +545,7 @@ fn lower_function(
             if let Some(opcode) = instruction.kind.evm_opcode() {
                 lower_opcode(
                     context,
-                    block_id,
-                    position,
+                    (block_id, position),
                     inst_id,
                     opcode,
                     &mut stack,
@@ -1061,8 +1060,7 @@ fn restore_writer_homes(saved: &SavedHomes, output: &mut Vec<ir::Instruction>, r
 
 fn lower_opcode(
     context: &Context<'_>,
-    block_id: mir::BlockId,
-    position: usize,
+    (block_id, position): (mir::BlockId, usize),
     inst_id: mir::InstId,
     opcode: u8,
     stack: &mut Stack<Slot>,
@@ -1565,7 +1563,7 @@ fn load_immutable(
             context.optimization,
             context.version.has_bitwise_shifting(),
         )
-        .bytes() as u8;
+        .bytes();
         // push_immutable <id>, <encoded width>
         output.push(ir::InstKind::PushImmutable { id, width }.into());
         if width < 32 {

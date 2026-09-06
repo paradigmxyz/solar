@@ -2,12 +2,13 @@
 //!
 //! For calldata recipes, ordinary stack-pressure planning runs first, including any protocol
 //! recheck. Only its actual
-//! memory-home candidates are considered here. Gas optimization requires exclusively eligible homes, so
-//! selection cannot fragment a mixed bank and disable its compact writer protection. Other modes
-//! do not use that protection and select individual homes. Stack-resident calldata reads keep their existing
-//! definitions and schedules. Selected homes become cached literal-offset CALLDATALOAD recipes.
-//! Reserved words, Phi scratch and spill-protocol decisions remain unchanged, deliberately leaving
-//! unused storage rather than adding another allocation or scheduling analysis.
+//! memory-home candidates are considered here. Gas optimization requires exclusively eligible
+//! homes, so selection cannot fragment a mixed bank and disable its compact writer protection.
+//! Other modes do not use that protection and select individual homes. Stack-resident calldata
+//! reads keep their existing definitions and schedules. Selected homes become cached literal-offset
+//! CALLDATALOAD recipes. Reserved words, Phi scratch and spill-protocol decisions remain unchanged,
+//! deliberately leaving unused storage rather than adding another allocation or scheduling
+//! analysis.
 //!
 //! Offsets are immediate words or one ADD of two immediate words, evaluated with full EVM wrapping.
 //! Noncanonical effects, Phi values, arguments and other reads decline. Selection follows at most

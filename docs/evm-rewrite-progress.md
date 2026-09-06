@@ -44,7 +44,7 @@ modified snapshot hashes are retained; no failing tests are silently waived.
 
 ## Scope and architecture
 
-Deletion `e5ba34f2` matched all 40 agreed files; nothing outside scope required
+Deletion `e5ba34f2d3676b493aed6dc120c90a1b16605c0a` matched all 40 agreed files; nothing outside scope required
 restoration. No deleted implementation was read or recovered. The fresh
 unsupported API milestone compiled before functionality returned.
 
@@ -85,7 +85,7 @@ Recent expectations were reviewed with actual execution before updating:
 
 | Reviewed group | Evidence | Result |
 | --- | --- | --- |
-| Embedded children and dump output (`c062ba84`) | 36 compiles, 90 executions, 32 optimized size and 20 gas comparisons | All oracles agree; no optimized increase |
+| Embedded children and dump output (`c062ba84aba96d632bb7ee5d6e193bb909449b56`) | 36 compiles, 90 executions, 32 optimized size and 20 gas comparisons | All oracles agree; no optimized increase |
 | Code-object copies (`ed1b467f`) and Paris memory copy (`ffdc9c7d`) | 27 compiles, 99 executions; exact data/padding and label reconstruction | All oracles agree; no optimized increase |
 | Equal immediates (`ce287764`) | 9 compiles, 135 executions; six FileCheck replays | Optimized output saves two bytes and valid calls save five opcode gas |
 | Mapping storage (`fc1154ff`) | 54 executions; exact hashed-field storage traces | Optimized output saves two bytes and successful calls save 21 gas |
