@@ -24,7 +24,7 @@ from urllib.parse import urlencode
 
 from benchmark import workload_signature
 
-PERF_SITE_URL = "https://getfoundry.sh/perf/"
+PERF_SITE_URL = "https://getfoundry.sh/perf/solar/"
 
 METRICS = {
     "total_gas": "runtime gas",
