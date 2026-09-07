@@ -159,6 +159,27 @@ class RuleTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.verify(";; no proof obligations\n")
 
+    def test_constant_slice_constructors_use_evm_operand_order(self):
+        for op in ("Shl", "Shr", "Byte"):
+            source = f"""(rule (rewrite (Op.{op} (iconst index) (iconst value)))
+              (Op.Add (imm (u256_{op.lower()} index value)) (imm (u256 0))))"""
+            self.assertEqual(self.verify(source)["rules"][0]["status"], "proved")
+            reversed_source = source.replace(f"u256_{op.lower()} index value", f"u256_{op.lower()} value index")
+            rule = self.verify(reversed_source)["rules"][0]
+            self.assertEqual(rule["status"], "counterexample")
+            self.assertTrue(rule["replayed"])
+
+    def test_byte_index_guard_prevents_wrapping_into_word(self):
+        guard = "(if-let true (u256_lt index 32))"
+        source = f"""(rule (rewrite (Op.Byte (iconst index) (shl (iconst shift) x)))
+          (if-let true (u256_eq shift 8)) {guard}
+          (Op.Byte (imm (u256_add index (u256 1))) x))"""
+        self.assertEqual(self.verify(source)["rules"][0]["status"], "proved")
+        rule = self.verify(source.replace(guard, ""))["rules"][0]
+        self.assertEqual(rule["status"], "counterexample")
+        self.assertTrue(rule["replayed"])
+        self.assertGreaterEqual(int(rule["inputs"]["index"], 16), 32)
+
 
 class DiscoveryTests(unittest.TestCase):
     def test_empty_search_does_not_leave_stale_candidates(self):

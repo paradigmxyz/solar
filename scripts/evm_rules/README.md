@@ -122,7 +122,16 @@ The initial 36 mixed-bitwise spellings cover nine families with two different
 binary bitwise children. Six arithmetic spellings were proposed manually. A
 second mixed arithmetic/bitwise search supplied 35 additional spellings across
 ten families. Byte extraction and repeated sign extension add three rules.
-All 80 word rules pass the same source-based verification. Arithmetic and
+Nine further rules discard masks on bits that shifts or BYTE ignore and adjust
+byte indexes across aligned shifts. Index arithmetic must check the
+original index before adjustment; a huge index must not wrap into the word.
+Byte/shift fusion stays within one block to avoid replacing a temporary with a
+longer-lived input across a branch. This placement guard is overapproximated in
+the proof; correctness does not depend on its implementation.
+Constant SHL, SHR and BYTE constructors call the same EVM evaluator as constant
+folding. The verifier models their full-width indexes independently and records
+the evaluator's source hash in the trusted boundary.
+All 89 word rules pass the same source-based verification. Arithmetic and
 bitwise rewrites become competing e-class alternatives. Bounded operand matching can inspect up
 to four retained child spellings, one at a time, exposing nested opportunities
 within one pass. It preserves instruction placement and dominance; it does not

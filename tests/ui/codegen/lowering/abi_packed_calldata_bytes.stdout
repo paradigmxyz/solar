@@ -132,13 +132,6 @@ bb12:
   swap 1
   push 32
   add
-  push 0
-  not
-  push 96
-  shr
-  push 36
-  calldataload
-  and
   push 64
   mload
   push 0x707265
@@ -149,17 +142,16 @@ bb12:
   push 3
   dup 2
   add
-  dup 5
-  dup 5
+  dup 4
+  dup 4
   dup 3
   calldatacopy
-  swap 3
+  swap 2
   pop
-  swap 3
-  swap 1
   swap 2
   add
-  swap 1
+  push 36
+  calldataload
   push 96
   shl
   dup 2

@@ -110,9 +110,7 @@ bb9:
   mul
   push 0x3fa4f245
   or
-  push 0xffffffff
-  dup 2
-  and
+  dup 1
   push 224
   push 2
   exp

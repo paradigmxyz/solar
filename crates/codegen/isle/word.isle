@@ -134,3 +134,52 @@
 
 ;; Applying the same sign extension twice has no further effect.
 (rule (rewrite (Op.SignExtend index (signextend index x))) (Op.SignExtend index x))
+
+;; shl n, (and x, mask) => shl n, x
+;; shr n, (and x, mask) => shr n, x
+;; A mask may be omitted when every cleared bit is shifted out of the word.
+(rule (rewrite (Op.Shl (iconst shift) (band x (iconst mask))))
+  (if-let true (u256_same (u256_shl shift mask) (u256_shl shift (u256_max))))
+  (Op.Shl (imm shift) x))
+(rule (rewrite (Op.Shl (iconst shift) (band (iconst mask) x)))
+  (if-let true (u256_same (u256_shl shift mask) (u256_shl shift (u256_max))))
+  (Op.Shl (imm shift) x))
+(rule (rewrite (Op.Shr (iconst shift) (band x (iconst mask))))
+  (if-let true (u256_same (u256_shr shift mask) (u256_shr shift (u256_max))))
+  (Op.Shr (imm shift) x))
+(rule (rewrite (Op.Shr (iconst shift) (band (iconst mask) x)))
+  (if-let true (u256_same (u256_shr shift mask) (u256_shr shift (u256_max))))
+  (Op.Shr (imm shift) x))
+
+;; byte i, (and x, mask) => byte i, x
+;; BYTE ignores every mask bit outside the selected byte.
+(rule (rewrite (Op.Byte (iconst index) (band x (iconst mask))))
+  (if-let true (u256_eq (u256_byte index mask) 255))
+  (Op.Byte (imm index) x))
+(rule (rewrite (Op.Byte (iconst index) (band (iconst mask) x)))
+  (if-let true (u256_eq (u256_byte index mask) 255))
+  (Op.Byte (imm index) x))
+
+;; byte i, (shl n, x) => byte (i + n / 8), x
+;; byte i, (shr n, x) => byte (i - n / 8), x ; or zero if i < n / 8
+;; Adjust byte indexes across byte-aligned shifts. Check the original index
+;; before arithmetic so an out-of-range index cannot wrap back into the word.
+;; Keep the producer in the root block: crossing a branch can replace a cheap
+;; temporary with a loop-carried dependency that the stack scheduler must spill.
+(rule (rewrite (Op.Byte (iconst index) (and shifted (shl (iconst shift) x))))
+  (if-let true (in_current_block shifted))
+  (if-let true (u256_lt index 32))
+  (if-let byte (sign_byte shift))
+  (Op.Byte (imm (u256_add index (u256_sub (u256 31) byte))) x))
+(rule (rewrite (Op.Byte (iconst index) (and shifted (shr (iconst shift) x))))
+  (if-let true (in_current_block shifted))
+  (if-let true (u256_lt index 32))
+  (if-let byte (sign_byte shift))
+  (if-let true (u256_le (u256_sub (u256 31) byte) index))
+  (Op.Byte (imm (u256_sub index (u256_sub (u256 31) byte))) x))
+(rule (rewrite (Op.Byte (iconst index) (and shifted (shr (iconst shift) x))))
+  (if-let true (in_current_block shifted))
+  (if-let true (u256_lt index 32))
+  (if-let byte (sign_byte shift))
+  (if-let false (u256_le (u256_sub (u256 31) byte) index))
+  (Op.Add (imm (u256 0)) (imm (u256 0))))
