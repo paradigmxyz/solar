@@ -170,7 +170,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 MirType::MemoryObject(MemoryObjectKind::Bytes),
                 1,
             )
-        } else if let Some(&index) = self.cx.shared_literals.get(&symbol) {
+        } else if let Some(index) = self.cx.shared_literals.get_index_of(&symbol) {
             let helper = self.ensure_bytes_literal_helper(symbol, index);
             self.builder.icall(
                 helper,
