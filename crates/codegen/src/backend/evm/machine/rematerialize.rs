@@ -23,8 +23,8 @@
 //!
 //! The caller excludes construction, internal-call artifacts, returning owners and dynamic frames:
 //! a callee's tracked stack omits suspended ancestor words. This helper admits only native opcodes
-//! with at most three operands, no outgoing tail call, at most 256 value IDs and 512 instruction IDs.
-//! The ID bounds keep analysis small. A nonempty home bank comes from the spill-planning path,
+//! with at most three operands, no outgoing tail call, at most 256 value IDs and 512 instruction
+//! IDs. The ID bounds keep analysis small. A nonempty home bank comes from the spill-planning path,
 //! which retains at most eight overlapping resident values. After clearing that bank, at most
 //! three prepared operands and one binary-recipe temporary bring the stack peak to twelve words,
 //! with no suspended caller prefix. Cleanup at suppressed definitions removes dead dependencies;
