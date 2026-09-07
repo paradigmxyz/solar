@@ -221,15 +221,6 @@ impl Workspace {
         &self.source_roots
     }
 
-    pub(crate) fn has_whole_root_foundry_source(&self) -> bool {
-        self.kind == WorkspaceKind::Foundry
-            && self
-                .compile_opts
-                .base_path
-                .as_deref()
-                .is_some_and(|base_path| self.source_roots.iter().any(|root| root == base_path))
-    }
-
     pub(crate) fn source_watch_roots(&self) -> &[SourceWatchRoot] {
         &self.source_watch_roots
     }
@@ -419,9 +410,12 @@ impl Workspace {
         let mut files = source_files
             .iter()
             .filter(|path| {
-                ownership.is_none_or(|(index, workspace_idx)| {
-                    index.workspace_idx_for_flycheck_path(policy, path) == Some(workspace_idx)
-                })
+                ownership.map_or_else(
+                    || self.tracks_flycheck_file(policy, path),
+                    |(index, workspace_idx)| {
+                        index.workspace_idx_for_flycheck_path(policy, path) == Some(workspace_idx)
+                    },
+                )
             })
             .cloned()
             .collect::<Vec<_>>();
@@ -575,10 +569,15 @@ impl Workspace {
                     .collect::<Vec<_>>();
                 let import_remappings =
                     profile.remappings_with_include_paths(&root, &include_paths);
-                let source_roots = profile.source_roots(&root);
+                let flycheck_source_roots = profile.build_source_roots(&root);
+                // Index the project independently of the build's entry-point directories.
+                // Keep explicit roots for external sources and exclusion overrides.
+                let mut source_roots = vec![root.clone()];
+                source_roots
+                    .extend(flycheck_source_roots.iter().filter(|path| **path != root).cloned());
                 (
-                    source_roots.clone(),
                     source_roots,
+                    flycheck_source_roots,
                     include_paths,
                     import_remappings,
                     profile.evm_version(),
@@ -917,6 +916,10 @@ impl SourceFileCollector<'_, '_, '_> {
         if self.cancellation.is_cancelled() {
             return SourceTreeState::Cancelled;
         }
+        // A nested source root is collected separately with its own exclusion boundary.
+        if path != self.source_root && self.source_roots.iter().any(|root| root == path) {
+            return SourceTreeState::Pruned;
+        }
         self.metrics.visited += 1;
         let owner = self.ownership.and_then(|(index, _)| {
             if self.flycheck {
@@ -1141,7 +1144,12 @@ mod tests {
         );
         assert_eq!(
             workspace.source_roots(),
-            &[project.path("/contracts"), project.path("/test"), project.path("/script")]
+            &[
+                project.path("/"),
+                project.path("/contracts"),
+                project.path("/test"),
+                project.path("/script")
+            ]
         );
     }
 
@@ -1186,6 +1194,7 @@ mod tests {
         assert_eq!(
             workspace.source_roots(),
             &[
+                project.path("/"),
                 project.path("/custom-src"),
                 project.path("/default-test"),
                 project.path("/default-script")
@@ -1419,7 +1428,7 @@ mod tests {
         assert!(workspace.tracks_flycheck_file(&policy, &project.path("/test/Tracked.t.sol")));
         assert!(!workspace.tracks_flycheck_file(&policy, &project.path("/lib/Dependency.sol")));
         assert!(!workspace.tracks_flycheck_file(&policy, &project.path("/custom/Excluded.sol")));
-        assert_eq!(metrics.eager, 5);
+        assert_eq!(metrics.eager, 3);
     }
 
     #[test]
@@ -1685,8 +1694,8 @@ mod tests {
             //- /nested/src/Owned.sol
             contract Owned {}
 
-            //- /nested/Rejected.sol
-            contract Rejected {}
+            //- /nested/Outside.sol
+            contract Outside {}
             "#,
         );
         let mut workspaces = vec![
@@ -1704,8 +1713,11 @@ mod tests {
         WorkspacePathIndex::reconcile_source_files(&mut workspaces, &policy, &mut metrics);
 
         assert_eq!(workspaces[0].source_files(), &[project.path("/Outer.sol")]);
-        assert_eq!(workspaces[1].source_files(), &[project.path("/nested/src/Owned.sol")]);
-        assert_eq!(metrics.eager, 2);
+        assert_eq!(
+            workspaces[1].source_files(),
+            &[project.path("/nested/Outside.sol"), project.path("/nested/src/Owned.sol")]
+        );
+        assert_eq!(metrics.eager, 3);
     }
 
     #[test]

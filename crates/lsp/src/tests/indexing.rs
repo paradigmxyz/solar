@@ -5,79 +5,92 @@ use crop::Rope;
 use std::sync::atomic::AtomicBool;
 
 #[tokio::test(flavor = "current_thread")]
-async fn dependency_references_include_unopened_tests_and_scripts() {
-    let marked = MarkedProject::from_fixture(
-        r#"
+async fn dependency_references_survive_closing_arbitrary_project_sources() {
+    for foundry in [false, true] {
+        let marked = MarkedProject::from_fixture(
+            r#"
         //- /foundry.toml
         [profile.default]
         //- /src/Main.sol
         contract Main {}
         //- /lib/forge-std/src/Base.sol
         abstract contract Base { uint internal constant $1vm = 1; }
-        //- /test/Main.t.sol
+        //- /checks/Main.sol
         import "../lib/forge-std/src/Base.sol";
         contract Test is Base { function run() public pure returns (uint) { return $2vm; } }
-        //- /script/Main.s.sol
+        //- /examples/Main.sol
         import "../lib/forge-std/src/Base.sol";
         contract Script is Base { function run() public pure returns (uint) { return $3vm; } }
         "#,
-    );
-    let project = marked.project();
-    let uri = Url::from_file_path(project.path("/lib/forge-std/src/Base.sol")).unwrap();
-    let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.config = Arc::new(project.config());
-    let _ = handlers::did_open_text_document(
-        &mut state,
-        DidOpenTextDocumentParams {
-            text_document: TextDocumentItem::new(
-                uri.clone(),
-                "solidity".into(),
-                1,
-                project.read_file("/lib/forge-std/src/Base.sol"),
-            ),
-        },
-    );
-    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
-    let references =
-        state.symbol_tables.load().references(&uri, marked.marker("$1").position(), false).unwrap();
-    let expected = ["$3", "$2"].map(|name| {
-        let marker = marked.marker(name);
-        let position = marker.position();
-        lsp_types::Location::new(
-            Url::from_file_path(project.path(marker.path())).unwrap(),
-            Range::new(position, Position::new(position.line, position.character + 2)),
-        )
-    });
-    assert_eq!(references, expected);
-
-    let test_uri = Url::from_file_path(project.path("/test/Main.t.sol")).unwrap();
-    let _ = handlers::did_open_text_document(
-        &mut state,
-        DidOpenTextDocumentParams {
-            text_document: TextDocumentItem::new(
-                test_uri.clone(),
-                "solidity".into(),
-                1,
-                project.read_file("/test/Main.t.sol"),
-            ),
-        },
-    );
-    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
-    {
-        let tables = state.symbol_tables.load();
-        assert_eq!(
-            tables.references(&uri, marked.marker("$1").position(), false).unwrap(),
-            expected
         );
-        assert_eq!(
-            tables.references(&test_uri, marked.marker("$2").position(), false).unwrap(),
-            expected
-        );
-    }
-    for closed_uri in [test_uri, uri.clone()] {
-        let _ = handlers::did_close_text_document(
+        let project = marked.project();
+        if !foundry {
+            project.remove_file("/foundry.toml");
+        }
+        let uri = Url::from_file_path(project.path("/lib/forge-std/src/Base.sol")).unwrap();
+        let mut state = GlobalState::new(ClientSocket::new_closed());
+        state.config = Arc::new(project.config());
+        let _ = handlers::did_open_text_document(
             &mut state,
-            DidCloseTextDocumentParams { text_document: TextDocumentIdentifier::new(closed_uri) },
+            DidOpenTextDocumentParams {
+                text_document: TextDocumentItem::new(
+                    uri.clone(),
+                    "solidity".into(),
+                    1,
+                    project.read_file("/lib/forge-std/src/Base.sol"),
+                ),
+            },
+        );
+        tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+        let references = state
+            .symbol_tables
+            .load()
+            .references(&uri, marked.marker("$1").position(), false)
+            .unwrap();
+        let expected = ["$2", "$3"].map(|name| {
+            let marker = marked.marker(name);
+            let position = marker.position();
+            lsp_types::Location::new(
+                Url::from_file_path(project.path(marker.path())).unwrap(),
+                Range::new(position, Position::new(position.line, position.character + 2)),
+            )
+        });
+        assert_eq!(references, expected);
+
+        let test_uri = Url::from_file_path(project.path("/checks/Main.sol")).unwrap();
+        let _ = handlers::did_open_text_document(
+            &mut state,
+            DidOpenTextDocumentParams {
+                text_document: TextDocumentItem::new(
+                    test_uri.clone(),
+                    "solidity".into(),
+                    1,
+                    project.read_file("/checks/Main.sol"),
+                ),
+            },
+        );
+        tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+        {
+            let tables = state.symbol_tables.load();
+            assert_eq!(
+                tables.references(&uri, marked.marker("$1").position(), false).unwrap(),
+                expected
+            );
+            assert_eq!(
+                tables.references(&test_uri, marked.marker("$2").position(), false).unwrap(),
+                expected
+            );
+        }
+        let _ = handlers::did_change_text_document(
+            &mut state,
+            DidChangeTextDocumentParams {
+                text_document: VersionedTextDocumentIdentifier::new(test_uri.clone(), 2),
+                content_changes: vec![TextDocumentContentChangeEvent {
+                    range: None,
+                    range_length: None,
+                    text: project.read_file("/checks/Main.sol").replace("return vm", "return 0"),
+                }],
+            },
         );
         tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
         assert_eq!(
@@ -86,8 +99,29 @@ async fn dependency_references_include_unopened_tests_and_scripts() {
                 .load()
                 .references(&uri, marked.marker("$1").position(), false)
                 .unwrap(),
-            expected
+            expected[1..]
         );
+
+        for closed_uri in [test_uri, uri.clone()] {
+            let _ = handlers::did_close_text_document(
+                &mut state,
+                DidCloseTextDocumentParams {
+                    text_document: TextDocumentIdentifier::new(closed_uri),
+                },
+            );
+            tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(
+                state
+                    .symbol_tables
+                    .load()
+                    .references(&uri, marked.marker("$1").position(), false)
+                    .unwrap(),
+                expected
+            );
+        }
     }
 }
 
@@ -1286,8 +1320,11 @@ fn workspace_discovery_rechecks_sources_against_the_owning_workspace_policy() {
         .find(|workspace| workspace.compile_opts().base_path.as_deref() == Some(&nested_root))
         .unwrap();
     assert!(outer_workspace.source_files().is_empty());
-    assert_eq!(nested_workspace.source_files(), [project.path("/nested/src/Included.sol")]);
-    assert_eq!(config.index_metrics().eager, 1);
+    assert_eq!(
+        nested_workspace.source_files(),
+        [project.path("/nested/Outside.sol"), project.path("/nested/src/Included.sol")]
+    );
+    assert_eq!(config.index_metrics().eager, 2);
 
     let batches = snapshot_with_config(config, Vfs::default()).analysis_batches(Vec::new());
     let outer_batch = batches
@@ -1302,7 +1339,10 @@ fn workspace_discovery_rechecks_sources_against_the_owning_workspace_policy() {
     assert!(outer_batch.files.iter().all(|(path, _)| !path.starts_with(&nested_root)));
     assert_eq!(
         nested_batch.files,
-        vec![(project.path("/nested/src/Included.sol"), Arc::new("contract Included {}".into()),)]
+        vec![
+            (project.path("/nested/Outside.sol"), Arc::new("contract Outside {}".into())),
+            (project.path("/nested/src/Included.sol"), Arc::new("contract Included {}".into()))
+        ]
     );
 }
 
@@ -1337,6 +1377,7 @@ fn nested_external_source_root_outranks_an_outer_workspace_base() {
     assert_eq!(
         nested.source_roots(),
         [
+            project.path("/packages/app"),
             project.path("/shared"),
             project.path("/packages/app/test"),
             project.path("/packages/app/script")

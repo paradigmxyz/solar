@@ -2309,7 +2309,7 @@ fn analysis_batches_use_cached_workspace_source_files() {
     let mut batches = snapshot.analysis_batches(Vec::new());
     let batch = batches.pop().unwrap();
     assert!(batch.files.iter().any(|(path, _)| path == &created_after_discovery));
-    assert!(!batch.files.iter().any(|(path, _)| path == &outside_source_root));
+    assert!(batch.files.iter().any(|(path, _)| path == &outside_source_root));
 }
 
 #[test]

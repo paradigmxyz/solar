@@ -4,9 +4,12 @@ Solar LSP definitions and implementation.
 
 ## Workspace indexing
 
-Foundry workspaces index the selected profile's `src`, `test`, and `script` roots, so
-references include unopened tests and scripts. Dependencies under `lib` are loaded through
-imports rather than scanned as workspace sources. Indexing exclusions still apply.
+Workspace indexing discovers Solidity files throughout the project, independently of build
+entry-point directories and open editor tabs. Dependencies are loaded through imports;
+closing a file restores its disk contents without removing it from the project index.
+Indexing exclusions still apply. Foundry settings supply import resolution, compiler options,
+and build entry points for flycheck. Explicitly configured source directories remain included,
+including directories outside the project root.
 
 ## Embedding
 

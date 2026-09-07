@@ -69,9 +69,17 @@ async fn initialize_applies_launch_config_selected_profile_to_workspace_discover
         .unwrap();
     assert_eq!(
         workspace.source_roots(),
-        &[project.path("/custom-src"), project.path("/test"), project.path("/script")]
+        &[
+            project.path("/"),
+            project.path("/custom-src"),
+            project.path("/test"),
+            project.path("/script")
+        ]
     );
-    assert_eq!(workspace.source_files(), &[project.path("/custom-src/Custom.sol")]);
+    assert_eq!(
+        workspace.source_files(),
+        &[project.path("/custom-src/Custom.sol"), project.path("/default-src/Default.sol")]
+    );
 }
 
 #[test]
@@ -221,6 +229,7 @@ async fn initialize_applies_host_resolved_foundry_workspace_config() {
     assert_eq!(
         nested.source_roots(),
         &[
+            project.path("/custom-src/nested"),
             project.path("/custom-src/nested/src"),
             project.path("/custom-src/nested/test"),
             project.path("/custom-src/nested/script")
@@ -290,6 +299,7 @@ async fn host_foundry_workspace_configs_match_their_own_roots() {
     assert_eq!(
         source_roots("/three"),
         [
+            project.path("/three"),
             project.path("/three/local-three"),
             project.path("/three/test"),
             project.path("/three/script")

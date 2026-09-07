@@ -228,11 +228,11 @@ fn bounded_workspace_discovery(c: &mut Criterion) {
     let baseline = BenchmarkWorkspaceDiscovery::run(temp.path());
     assert_eq!(baseline.eager(), 0);
     assert_eq!(baseline.source_file_count(), 0);
-    // Manifest discovery prunes the import-only root without visiting its 10,000 descendants.
-    // The full workspace load still scans it once for remappings; discovery must not repeat it.
-    assert_eq!(baseline.pruned(), 1);
-    // Also visit the configured src, test, and script roots, even when absent.
-    assert_eq!(baseline.visited(), 6);
+    // Manifest and source discovery each prune the import-only root without visiting its
+    // 10,000 descendants. Loading the workspace scans it once for remappings.
+    assert_eq!(baseline.pruned(), 2);
+    // Include the project root and configured entry-point roots, even when absent.
+    assert_eq!(baseline.visited(), 9);
 
     let mut group = c.benchmark_group("lsp/workspace-discovery");
     group.bench_function(BenchmarkId::from_parameter("foundry-10k-import-only"), |b| {

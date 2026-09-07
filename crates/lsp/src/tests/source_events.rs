@@ -721,7 +721,7 @@ async fn watched_source_respects_the_most_specific_flycheck_owner() {
         ),
         ControlFlow::Continue(())
     ));
-    assert_eq!(state.analysis_version.load(Ordering::Acquire), 0);
+    assert_eq!(state.analysis_version.load(Ordering::Acquire), 1);
     assert!(
         state
             .config

@@ -111,7 +111,7 @@ impl FoundryWorkspaceConfig {
 
     /// Sets the effective workspace source roots.
     ///
-    /// Include test and script roots to make workspace references cover unopened callers.
+    /// Include the project root to discover callers outside build entry-point directories.
     pub fn with_source_roots<I, P>(mut self, roots: I) -> Self
     where
         I: IntoIterator<Item = P>,

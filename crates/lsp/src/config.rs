@@ -491,8 +491,6 @@ impl Config {
             || self.workspaces.iter().any(|workspace| {
                 !workspace.source_files_complete()
                     || workspace.has_unindexed_flycheck_source_files()
-                    || self.index_policy.uses_default_excludes()
-                        && workspace.has_whole_root_foundry_source()
             })
     }
 
@@ -2229,6 +2227,7 @@ mod tests {
         assert_eq!(
             nested.source_roots(),
             &[
+                project.path("/packages/token"),
                 project.path("/packages/token/contracts"),
                 project.path("/packages/token/test"),
                 project.path("/packages/token/script")
@@ -2533,6 +2532,18 @@ mod tests {
             ));
             expected.push(WatchedFileSpec::new(root, "**/foundry.toml"));
         }
+        for path in ["/repo", "/repo/workspace", "/repo/workspace/nested"] {
+            expected.push(WatchedFileSpec::with_kind(
+                project.path(path),
+                "*.sol",
+                WatchKind::Change,
+            ));
+        }
+        expected.push(WatchedFileSpec::with_kind(
+            explicit_root.clone(),
+            "*",
+            WatchKind::Create | WatchKind::Delete,
+        ));
         expected.extend(
             explicit_root
                 .ancestors()
@@ -2687,6 +2698,7 @@ mod tests {
         assert_eq!(
             foundry.source_roots(),
             &[
+                project.path("/configured"),
                 project.path("/configured/contracts"),
                 project.path("/configured/test"),
                 project.path("/configured/script")
@@ -2726,6 +2738,7 @@ mod tests {
             workspace.kind() == WorkspaceKind::Foundry
                 && workspace.source_roots()
                     == [
+                        project.path("/configured"),
                         project.path("/configured/contracts"),
                         project.path("/configured/test"),
                         project.path("/configured/script"),
