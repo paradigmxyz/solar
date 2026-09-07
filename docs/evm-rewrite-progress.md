@@ -987,3 +987,68 @@ calldata floors conceal some opcode differences. The unloaded-spill case
 has a promising branch-local alternative, with explicit layout and stack
 proofs required before implementation can be accepted. Original fixture
 bodies and expectations remain unchanged during this investigation.
+
+
+### Direct literal arms and one restored UI case
+
+`c66f69c5` selects exclusive literal arms arithmetically in the default Gas
+pipeline. Matching, costing and emission live in the focused EVM IR `diamond`
+module; the assembler and MIR layers are unchanged. Fresh return blocks use
+the existing unique-label allocator. Size is excluded after the first trial
+increased one corpus object and two executed paths. The rejected trial and
+exact duplicate-label round-trip failure remain in the evidence.
+
+`e05112be` adds five fixtures and six reviewed goldens: nine revisions pass,
+including 52 runtime calls. `0dda007c` separately migrates the original spill
+checks from frame-slot reloads to one shared stack-based addition, overflow
+check and return. Its program and flags are unchanged; fresh same-path Gas
+and Size full outputs are byte-identical before and after the comment edit.
+Its Gas runtime is 102 bytes versus 119 before and 109 sealed, saving 4–5
+opcode gas on success/addition-overflow paths. All fourteen focused labels
+remain below sealed gas. Size remains 103 bytes.
+
+The new workflow retains exact 24-case Gas and 15-case Size joins, each with
+175 ordered gas labels and 139 observations per compiler. Runtime gas and
+physical artifacts are unchanged in both hot corpora. Two MIR captures have
+proved bijective helper-name changes. All 3,344 heavy objects and metadata
+remain exact. The UI corpus has 808 sources and 4,912 objects: original Gas
+Branch/spill objects shrink by 9/17 bytes, the new runtime source shrinks by
+17 bytes per artifact, and Size is exact. Source-only supplements preserve
+the original denominator through fixture/comment edits; no new or worsened
+sealed debt is hidden. The Size audit rejects an intermediate runs=200 solc
+artifact copy and traces the correct 105 reused files to sealed runs=1 data.
+
+Full compiler time rises 1.42% (21/24 cases), with peak RSS down 0.20%.
+Emission extraction and cheap rejection reduced the initial Solarray cost;
+its final full-run delta is +0.27%. Fresh outlier repeats give Counter −2.25%,
+Aave +0.96% and Solmate +1.28%; they do not replace the full-run tradeoff.
+Clippy, nightly formatting and typos pass. All 36 Foundry projects pass,
+with 772 compiler and 765 solc tests and unchanged recorded gas/size values.
+Solc versions are project-specific, including two 0.8.12 pins. Symbolic
+truthiness has bounded agreement; checked multiplication remains incomplete
+under the hard-arithmetic heuristic, with concrete runtime checks passing.
+
+The final workspace has 1,395 passing tests and one failing UI aggregate:
+11,591 UI cases pass, four original cases fail, and 851 are filtered. Cold
+call fallthrough (Size), global calldata aliasing, low-level calldata calls
+and tuple assignment remain open. Backend Rust totals 15,725 raw lines in
+44 files, 18,913 fewer (54.6%) than the deleted scope; counts include comments
+and inline tests. Main `933bc1e2` was freshly fetched and is already merged.
+Publication remains blocked by the earlier automatic push rejection.
+
+Raw runs, hashes, failures, strict joins and timing reports are retained in
+`target/codegen-bench/evm-rewrite-candidate/direct-literal-arms-workflow-20260907/`,
+with adjacent test, spill-migration and Foundry/symbolic reviews. A redundant
+new-fixture dump flag exposed a matrix integration failure; all failed runs
+are retained and all runtime directives survived the correction.
+
+An independent follow-up census attributes 8,764 Router runtime bytes to
+137 spill-preservation fragments. Selective SSA residence needs real mixed
+stack/home Phi edges; relaxing mandatory Phi homes alone is invalid. Separate
+replays confirm mutable-memory readback errors in both the current and sealed
+compilers, so this is pre-existing semantic debt, not a sealed-correct
+regression. All 48 concrete calls and replay-confirmed fixed-prefix
+`solsymdiff` mismatches are retained under
+`arbitrary-memory-spill-correctness-20260907/`. Neither fewer spill homes nor
+small immutable recipes establish a general repair. Full functionality,
+sealed performance parity and passing CI remain unfinished.
