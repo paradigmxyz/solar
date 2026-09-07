@@ -45,10 +45,10 @@ struct NodeKey {
 
 impl Ord for NodeKey {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.uri
-            .as_str()
-            .cmp(other.uri.as_str())
-            .then_with(|| range_key(self.selection_range).cmp(&range_key(other.selection_range)))
+        self.uri.as_str().cmp(other.uri.as_str()).then_with(|| {
+            crate::proto::range_key(self.selection_range)
+                .cmp(&crate::proto::range_key(other.selection_range))
+        })
     }
 }
 
@@ -340,7 +340,7 @@ fn sort_and_dedup_symbols(
 ) {
     symbols.sort_unstable_by_key(|symbol| {
         let item = &items[symbol];
-        (item.uri.as_str(), range_key(item.selection_range))
+        (item.uri.as_str(), crate::proto::range_key(item.selection_range))
     });
     symbols.dedup();
 }
@@ -348,8 +348,4 @@ fn sort_and_dedup_symbols(
 fn sort_and_dedup_keys<T: Ord>(keys: &mut Vec<T>) {
     keys.sort_unstable();
     keys.dedup();
-}
-
-fn range_key(range: Range) -> (u32, u32, u32, u32) {
-    (range.start.line, range.start.character, range.end.line, range.end.character)
 }

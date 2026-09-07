@@ -28,7 +28,7 @@ pub(crate) fn folding_ranges_from_rope(rope: Rope) -> Vec<FoldingRange> {
     if is_single_line(&rope) {
         return Vec::new();
     }
-    let source = rope_to_string(&rope);
+    let source = crate::utils::rope_to_string(&rope);
     folding_ranges_with_rope(source, &rope)
 }
 
@@ -38,7 +38,7 @@ fn folding_ranges_with_rope(source: String, rope: &Rope) -> Vec<FoldingRange> {
     }
     let index = proto::LspPositionIndex::new(rope);
     let ranges = collect_ranges(source, rope).unwrap_or_else(|| {
-        let source = rope_to_string(rope);
+        let source = crate::utils::rope_to_string(rope);
         let LexicalInfo { mut ranges, fallback_ranges, .. } = collect_lexical_info(&source, true);
         ranges.extend(fallback_ranges);
         ranges
@@ -55,14 +55,6 @@ fn folding_ranges_with_rope(source: String, rope: &Rope) -> Vec<FoldingRange> {
 fn is_single_line(rope: &Rope) -> bool {
     // LSP counts lone CRs and a trailing empty line, unlike Rope's line metric.
     rope.line_len() <= 1 && rope.chunks().all(|chunk| !chunk.contains(['\r', '\n']))
-}
-
-fn rope_to_string(rope: &Rope) -> String {
-    let mut source = String::with_capacity(rope.byte_len());
-    for chunk in rope.chunks() {
-        source.push_str(chunk);
-    }
-    source
 }
 
 fn collect_lexical_info(source: &str, include_fallback: bool) -> LexicalInfo {
