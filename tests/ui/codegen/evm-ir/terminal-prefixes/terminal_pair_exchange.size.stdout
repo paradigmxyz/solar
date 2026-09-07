@@ -1,0 +1,62 @@
+- // === ROOT/tests/ui/codegen/evm-ir/terminal-prefixes/terminal_pair_exchange.evmir (before terminal-prefixes) ===
++ // === ROOT/tests/ui/codegen/evm-ir/terminal-prefixes/terminal_pair_exchange.evmir (after terminal-prefixes) ===
+  @module terminal_pair_exchange
+  bb0:
+    push 11
+    push 22
+-   push 128
++   push 0
+    exchange 1, 2
+    mstore
+-   push 160
++   push 32
+    mstore
+    push 64
+-   push 128
++   push 0
+    return
+  bb1:
+    push 22
+    push 11
+-   push 160
++   push 32
+    exchange 1, 2
+    mstore
+-   push 128
++   push 0
+    mstore
+    push 64
+-   push 128
++   push 0
+    return
+  bb2:
+    push 11
+    push 22
+-   push 128
++   push 0
+    exchange 1, 2
+    exchange 1, 2
+    exchange 1, 2
+    mstore
+-   push 160
++   push 32
+    mstore
+    push 64
+-   push 128
++   push 0
+    return
+  bb3:
+    push 11
+    push 22
+-   push 128
++   push 0
+    exchange 1, 2
+    mstore
+-   push 160
++   push 32
+    mstore
+    push 64
+-   push 128
++   push 0
+    return
+  

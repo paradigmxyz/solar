@@ -27,7 +27,9 @@
 //! operations, pure arithmetic and calldata reads may occur between those stores
 //! and RETURN. Any other write, memory/storage read, gas observation or call stops
 //! the proof. The stores can occur in either order; their literal addresses become
-//! zero and 32, preserving stored values, stack heights and metadata.
+//! zero and 32, preserving stored values, stack heights and metadata. A literal
+//! store address may precede exchanges confined below the top stack word; those
+//! exchanges leave the address on top and remain in their original order.
 //! Earlier effects are not crossed after full coverage is found. One-word returns
 //! retain the original exact-adjacency rule. The scan is linear, uses two optional
 //! instruction positions, and adds no range, CFG or stack-height analysis.
@@ -112,9 +114,19 @@ fn return_word_addresses(block: &Block) -> Option<[Option<usize>; 2]> {
                 return None;
             }
             if inst.kind == InstKind::Op(op::MSTORE) {
-                if let Some(address) = insts[..index].last()
-                    && canonical(address)
-                    && split_allowed(insts, index - 1)
+                let mut address_index = index.checked_sub(1)?;
+                if words == 2 {
+                    while let InstKind::Exchange(a, b) = insts[address_index].kind
+                        && a > 0
+                        && a < b
+                        && canonical(&insts[address_index])
+                    {
+                        address_index = address_index.checked_sub(1)?;
+                    }
+                }
+                let address = &insts[address_index];
+                if canonical(address)
+                    && split_allowed(insts, address_index)
                     && let InstKind::Push(value) = address.kind
                 {
                     let word = if value == base {
@@ -124,13 +136,13 @@ fn return_word_addresses(block: &Block) -> Option<[Option<usize>; 2]> {
                     } else {
                         return None;
                     };
-                    if addresses[word].replace(index - 1).is_some() {
+                    if addresses[word].replace(address_index).is_some() {
                         return None;
                     }
                     if addresses[..words].iter().all(Option::is_some) {
                         return Some(addresses);
                     }
-                    cursor = index - 1;
+                    cursor = address_index;
                     continue;
                 }
                 return None;
