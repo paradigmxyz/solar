@@ -283,7 +283,7 @@ fn unused_local_variable_fix(
         let mut finder = UnusedLocalStatementFinder { file, source, target };
         let ControlFlow::Break(range) = finder.visit_source_unit(source_unit) else { return None };
         let range = standalone_statement_range(source, range);
-        let edit = TextEdit::new(byte_range_to_lsp(contents, range)?, String::new());
+        let edit = TextEdit::new(proto::byte_range_to_lsp(contents, range)?, String::new());
         Some(("Remove unused local variable".into(), Applicability::MachineApplicable, vec![edit]))
     })
 }
@@ -342,7 +342,7 @@ fn unused_import_fix(
         } else {
             named_import_removal_range(source, file, import, target, item_range)?
         };
-        let edit = TextEdit::new(byte_range_to_lsp(contents, range)?, String::new());
+        let edit = TextEdit::new(proto::byte_range_to_lsp(contents, range)?, String::new());
         Some(("Remove unused import".into(), Applicability::MachineApplicable, vec![edit]))
     })
 }
@@ -413,7 +413,7 @@ fn spdx_fixes(
     {
         return Vec::new();
     }
-    let source = rope_to_string(contents);
+    let source = crate::utils::rope_to_string(contents);
     let eol = if source.contains("\r\n") { "\r\n" } else { "\n" };
     ["MIT", "UNLICENSED"]
         .into_iter()
@@ -438,7 +438,7 @@ fn compiler_pragma_fix(
     if diagnostic.range != lsp_types::Range::default() {
         return None;
     }
-    let source = rope_to_string(contents);
+    let source = crate::utils::rope_to_string(contents);
     let recommendation = diagnostic.message.trim_end().strip_prefix(PREFIX)?;
     let recommendation = recommendation.strip_suffix('.').unwrap_or(recommendation);
     let pragma = recommendation.strip_suffix('"')?;
@@ -533,7 +533,7 @@ fn function_mutability_fix(
                 if current.data == ast::StateMutability::View =>
             {
                 let range = local_range(file, current.span);
-                TextEdit::new(byte_range_to_lsp(contents, range)?, target.to_string())
+                TextEdit::new(proto::byte_range_to_lsp(contents, range)?, target.to_string())
             }
             _ => return None,
         };
@@ -651,7 +651,7 @@ fn with_parsed_target<T>(
 ) -> Option<T> {
     let target_range =
         proto::LspPositionIndex::new(contents).checked_text_range(diagnostic.range)?;
-    let source = rope_to_string(contents);
+    let source = crate::utils::rope_to_string(contents);
     let sess = Session::builder()
         .opts(CompileOpts::default())
         .with_silent_emitter(None)
@@ -736,21 +736,6 @@ fn keyword_insertion(
 
 fn local_range(file: &SourceFile, span: solar_interface::Span) -> std::ops::Range<usize> {
     file.relative_position(span.lo()).to_usize()..file.relative_position(span.hi()).to_usize()
-}
-
-fn byte_range_to_lsp(contents: &Rope, range: std::ops::Range<usize>) -> Option<lsp_types::Range> {
-    Some(lsp_types::Range::new(
-        proto::position_at_byte(contents, range.start)?,
-        proto::position_at_byte(contents, range.end)?,
-    ))
-}
-
-fn rope_to_string(contents: &Rope) -> String {
-    let mut source = String::with_capacity(contents.byte_len());
-    for chunk in contents.chunks() {
-        source.push_str(chunk);
-    }
-    source
 }
 
 fn kind_contains(requested: &CodeActionKind, action: &CodeActionKind) -> bool {

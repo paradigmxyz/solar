@@ -6,7 +6,7 @@ use super::{
     MemoryObjectLayout, MemoryRegion, MirType, SliceLocation, StorageAlias, Terminator, Value,
     ValueId,
 };
-use crate::memory::EvmMemoryLayout;
+use crate::mir::memory::EvmMemoryLayout;
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_config::RevertStrings;

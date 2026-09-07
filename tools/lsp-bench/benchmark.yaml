@@ -24,7 +24,7 @@ profiles:
     samples: 20
     cold_samples: 4
     lifecycle_samples: 4
-    timeout_ms: 30000
+    timeout_ms: 5000
     network_isolation: false
     require_authoritative: false
     scenarios:

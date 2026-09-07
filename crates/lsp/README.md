@@ -54,3 +54,8 @@ The benchmark groups intentionally keep separate timing boundaries:
 - `project-analysis` and `project-analysis-after-edit` measure compiler and symbol-table rebuilds.
 - `project-edit-application` measures UTF-16 document edit application without analysis.
 - `symbol-table-queries` measures synchronous query kernels, not complete LSP request latency.
+- `open-document-selection-range` measures repeated selection queries through the VFS snapshot,
+  including UTF-16 conversion and response construction. It covers start, middle, and end positions
+  in an unchanged document and multiple cursors, excluding transport and blocking-pool scheduling.
+- `open-document-selection-range-cold` includes the first request's parsing and index construction;
+  preparing and destroying the open document stays outside timing.

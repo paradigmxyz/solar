@@ -207,18 +207,18 @@ fn codegen_contracts(compiler: &mut CompilerRef<'_>) -> Result {
 fn ensure_contract_bytecode(
     gcx: solar::sema::Gcx<'_>,
     contract_id: solar::sema::hir::ContractId,
-    bytecodes: &mut FxHashMap<solar::sema::hir::ContractId, codegen::lower::ContractBytecodes>,
+    bytecodes: &mut FxHashMap<solar::sema::hir::ContractId, codegen::mir::lower::ContractBytecodes>,
 ) -> Result {
     if bytecodes.contains_key(&contract_id) {
         return Ok(());
     }
     // Valid code cannot have recursive creation dependencies; seed the entry
     // so an unexpected cycle terminates instead of recursing forever.
-    bytecodes.insert(contract_id, codegen::lower::ContractBytecodes::default());
+    bytecodes.insert(contract_id, codegen::mir::lower::ContractBytecodes::default());
     for dep in gcx.contract_bytecode_dependencies(contract_id).iter() {
         ensure_contract_bytecode(gcx, dep, bytecodes)?;
     }
-    let mut module = codegen::lower::lower_contract(
+    let mut module = codegen::mir::lower::lower_contract(
         gcx,
         contract_id,
         bytecodes,
@@ -228,7 +228,7 @@ fn ensure_contract_bytecode(
     let artifact = EvmCodegen::new(gcx).lower_module(&mut module);
     bytecodes.insert(
         contract_id,
-        codegen::lower::ContractBytecodes::new(
+        codegen::mir::lower::ContractBytecodes::new(
             artifact.deployment.clone().into(),
             artifact.runtime.clone().into(),
         ),

@@ -13,19 +13,20 @@
 //! keeps the original case order for linear scans and uses sorted values only
 //! for shapes whose dispatch arithmetic requires it.
 
-use super::{
-    super::{
-        assembler::Label,
-        ir::{
+use super::{EvmCodegen, stack::StackOp};
+use crate::{
+    backend::{
+        assembler::{
+            Label,
             assembly::{estimated_indexed_jump_code_size, packs_indexed_jump},
-            immediate_materialization_cost,
         },
-        op::{self, push_len},
-        stack::StackOp,
+        evm::{
+            ir::immediate_materialization_cost,
+            op::{self, push_len},
+        },
     },
-    EvmCodegen,
+    mir::{BlockId, Function, Terminator, ValueId},
 };
-use crate::mir::{BlockId, Function, Terminator, ValueId};
 use alloy_primitives::U256;
 use solar_config::{EvmVersion, OptimizationMode, SwitchLowering};
 use solar_data_structures::map::FxHashSet;

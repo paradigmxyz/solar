@@ -63,13 +63,7 @@ fn workspace_diagnostic_harness() -> WorkspaceDiagnosticHarness {
         });
         router
     });
-    let (server_stream, client_stream) = tokio::io::duplex(64 << 10);
-    let (server_rx, server_tx) = tokio::io::split(server_stream);
-    let server_task =
-        tokio::spawn(server_main.run_buffered(server_rx.compat(), server_tx.compat_write()));
-    let (client_rx, client_tx) = tokio::io::split(client_stream);
-    let client_task =
-        tokio::spawn(client_main.run_buffered(client_rx.compat(), client_tx.compat_write()));
+    let (server_task, client_task) = spawn_lsp_pair(server_main, client_main);
 
     WorkspaceDiagnosticHarness { client, server, progress, server_task, client_task }
 }

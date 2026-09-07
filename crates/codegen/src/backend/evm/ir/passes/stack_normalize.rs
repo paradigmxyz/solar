@@ -20,8 +20,8 @@
 use super::EvmPass;
 use crate::{
     backend::evm::{
+        codegen::{StackModel, StackOp, lowered_stack_cost, resynthesize_physical_ops},
         ir::{Instruction, Module},
-        stack::{StackModel, StackOp, lowered_stack_cost, resynthesize_physical_ops},
     },
     mir::ValueId,
 };
