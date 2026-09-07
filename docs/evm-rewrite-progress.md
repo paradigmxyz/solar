@@ -1397,9 +1397,9 @@ tests, gas and reported sizes against the previous retained reports. Clippy,
 nightly formatting and typos pass. The first symbolic attempt is incomplete
 on both legs at the same 25-second timeout; the guarded mutable-bank source
 still activates all eight retirements. Both longer attempts also
-time out at 180 seconds after compilation; neither establishes agreement. An
-artifact probe with scalar formals is being checked to avoid a possible
-static-array harness cost without changing calldata layout.
+time out at 180 seconds after compilation; neither establishes agreement. The scalar-formal probe also timed out on both legs at 90 seconds after
+compilation, with identical calldata layout and the same retirement activation.
+All six attempts remain incomplete; no differential agreement is claimed.
 Arbitrary-memory correctness, exact retry-boundary coverage and final sealed
 performance acceptance remain open.
 
@@ -1409,3 +1409,53 @@ Evidence: `failure-directed-homes-workflow-20260907/`,
 `failure-directed-homes-reversed-timing-20260907/` beneath
 `target/codegen-bench/evm-rewrite-candidate/`. The first two production drafts,
 failed checks and sealed comparisons are retained alongside the final results.
+
+
+### Adjacent call Boolean normalization
+
+Commit `c9130ac8` removes adjacent double ISZERO after the four legacy call
+opcodes in physical EVM IR. It retains the original call and fixes a scanner
+stall when adjacency metadata refuses the rewrite. Five new UI revisions
+cover the call families, metadata, raw-word refusals and the stalled case.
+The corrected `b4a1695e` binary passes them; the earlier `64bdcfc5` draft and
+its failing glue fixture remain preserved. Production adds six physical lines;
+the backend has 16,416 lines in 45 files, including comments and inline tests.
+
+Against accepted `a5dffa7b`, the identical UI corpus has 48 shrinking objects
+and no growth: Gas creation/runtime totals fall 32/32 bytes and Size 28/28.
+All 264 focused calls across both candidates and pinned solc pass. Each of
+24 low-level forwarding labels per mode saves six execution gas. A forwarded
+GAS observer saves 12 gas while its later offered and target gas rise by six;
+the direct observer stays exact. Trace evidence records these numerical changes.
+The low-level fixture is still six Gas bytes above the original sealed baseline
+(315/297 creation/runtime versus 309/291), and 17 Size bytes below it.
+
+Official full/Size workflows preserve 24/15 IDs, 175 ordered gas labels and
+139 observations per compiler. Runtime gas and physical output fingerprints
+are exact to the preceding candidate. Nine project fingerprints bridge all
+1,672 contracts and 3,344 objects; all 1,061 objects larger than sealed remain
+unchanged. The separately recorded Foundry suite passes 36 projects with
+identical ordered 772/765 compiler/solc tests, gas and reported sizes.
+
+Primary compiler-time geomean is +5.8486%, RSS +0.1649%. Candidate-first
+outlier repeats give +0.0836% time and +0.4187% RSS across four cases in two
+runs. Nitro and Forge have five samples per leg; Seaport and Solady have one
+under the ten-second cutoff. The large primary Nitro and Solady slowdowns did
+not recur. Both results remain recorded; neither their cause nor a compiler
+speed improvement is established. The blocked earlier draft's +0.4006% is a
+separate result. The one-sample Size lane has no controlled timing claim.
+
+Workspace results are 1,395 passes, one failing UI aggregate and two skips:
+11,632 UI revisions pass, four original failures remain, and 851 are filtered.
+Clippy, formatting and targeted typos pass. No existing test or expectation
+changed. Original arbitrary-memory correctness and sealed performance gates
+remain open. A subsequent empty-revert CFG experiment will address part of
+the low-level size debt; its shared-return assertion remains an explicit
+optimization obligation pending measured review.
+
+Evidence is retained under `adjacent-call-boolean-workflow-20260907/`,
+`adjacent-call-boolean-tests-20260907/`, `adjacent-call-boolean-replay-20260907/`
+and `adjacent-call-boolean-independent-20260907/` beneath the candidate
+evidence directory. A separate artifact-only pure-consumer scheduling draft
+was withheld after review found a two-run instruction-order instability;
+see `writer-observer-scheduling-design-20260907/ADVERSARIAL_REVIEW.md`.
