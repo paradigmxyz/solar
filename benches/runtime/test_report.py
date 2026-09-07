@@ -44,11 +44,11 @@ class ReportFormattingTests(unittest.TestCase):
         ):
             self.assertEqual(
                 benchmark.perf_link("Results"),
-                "[Results](https://getfoundry.sh/perf/?base=01234567&head=fedcba98#benchmarks)",
+                "[Results](https://getfoundry.sh/perf/solar/?base=01234567&head=fedcba98#benchmarks)",
             )
             self.assertEqual(
                 benchmark.perf_link("factorial", "factorial"),
-                "[factorial](https://getfoundry.sh/perf/?base=01234567&head=fedcba98&benchmark=factorial#artifacts)",
+                "[factorial](https://getfoundry.sh/perf/solar/?base=01234567&head=fedcba98&benchmark=factorial#artifacts)",
             )
 
     def test_perf_link_targets_artifact(self):
