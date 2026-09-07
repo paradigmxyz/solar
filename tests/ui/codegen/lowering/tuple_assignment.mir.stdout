@@ -1,0 +1,55 @@
+// === ROOT/tests/ui/codegen/lowering/tuple_assignment.sol:C ===
+@module C
+fn @viaNamed(arg0: address, arg1: calldataslice) -> bool [selector=0x5030da75, abi_params=[address, bytes], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = gas
+    v1 = slice_ptr arg1
+    v2 = slice_len arg1
+    v3 = gt v2, 0xffffffffffffffff
+    jumpi v3, bb1, bb2
+  bb2:
+    v4 = calldatasize
+    v5 = sub v4, v2
+    v6 = sgt v1, v5
+    jumpi v6, bb1, bb3
+  bb3:
+    v7 = slice_len arg1
+    v8 = add v7, 63
+    v9 = lt v8, v7
+    jumpi v9, bb4, bb5
+  bb5:
+    v10 = not 31
+    v11 = and v8, v10
+    v12 = alloc memorybytes, exact, uninitialized, infallible, v11
+    set_memory_object_len memorybytes, v12, v7
+    memory_object_copy_from_slice memorybytes, v12, arg1
+    v13 = memory_object_data memorybytes, v12
+    v14 = memory_object_len memorybytes, v12
+    v15 = call v0, arg0, 0, v13, v14, 0, 0
+    ret v15
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    revert 0, 0
+}
+
+fn @swap(arg0: u256, arg1: u256) -> (u256, u256) [selector=0xd96073cf, pure, abi_params=[u256, u256], abi_returns=[word, word]] {
+  bb0:
+    ret arg1, arg0
+}
+
+fn @two() -> (u256, u256) [pure] {
+  bb0:
+    ret 7, 9
+}
+
+fn @multi() -> (u256, u256) [selector=0x1b8f5d50, pure, abi_params=[], abi_returns=[word, word]] {
+  bb0:
+    v0 = icall @two, 2
+    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v2 = add v1, 32
+    v3 = mload v2
+    ret v0, v3
+}
