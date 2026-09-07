@@ -1,0 +1,149 @@
+// === ROOT/tests/ui/codegen/mir/storage-dse/control_flow_runtime.sol:StorageControlFlow ===
+@module StorageControlFlow
+fn @changingSlot() -> u256 [selector=0xf8e62371, abi_params=[], abi_returns=[word]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb3: v8]
+    v1 = phi [bb0: 0], [bb3: v1]
+    v2 = eq 1, 0
+    v3 = iszero v2
+    jumpi v3, bb4, bb5
+  bb5:
+    jump bb2
+  bb4:
+    sstore v0, 1 !metadata(storage=symbolic(v0))
+    v4 = lt v0, 2
+    v5 = iszero v4
+    v6 = eq v5, 0
+    v7 = iszero v6
+    jumpi v7, bb7, bb8
+  bb8:
+    jump bb9
+  bb9:
+    sstore v0, 2 !metadata(storage=symbolic(v0))
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v8 = add v0, 1
+    jump bb1
+  bb7:
+    jump bb2
+  bb2:
+    v9 = sload 0 !metadata(storage=slot(0))
+    ret v9
+}
+
+fn @observer() -> u256 [selector=0xeb70e498, abi_params=[], abi_returns=[word]] {
+  bb0:
+    sstore 0, 1 !metadata(storage=slot(0))
+    v0 = address
+    v1 = gas
+    v2 = abi_encode [], selector 0x5cd82f400000000000000000000000000000000000000000000000000000000
+    v3 = slice_ptr v2
+    v4 = slice_len v2
+    v5 = staticcall v1, v0, v3, v4, 0, 32
+    jumpi v5, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v6 = returndatasize
+    v7 = lt v6, 32
+    jumpi v7, bb3, bb4
+  bb4:
+    v8 = add 0, 0
+    v9 = mload v8
+    v10 = add 0, 0
+    v11 = mload v10
+    sstore 0, 2 !metadata(storage=slot(0))
+    ret v11
+  bb3:
+    revert 0, 0
+}
+
+fn @readWord() -> u256 [selector=0x05cd82f4, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @write(arg0: bool) -> u256 [selector=0x6ebfc750, abi_params=[bool], abi_returns=[word]] {
+  bb0:
+    sstore 0, 1 !metadata(storage=slot(0))
+    jumpi arg0, bb1, bb2
+  bb2:
+    sstore 0, 3 !metadata(storage=slot(0))
+    jump bb3
+  bb1:
+    sstore 0, 2 !metadata(storage=slot(0))
+    jump bb3
+  bb3:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @observed(arg0: bool) -> u256 [selector=0xc61230fa, abi_params=[bool], abi_returns=[word]] {
+  bb0:
+    sstore 0, 1 !metadata(storage=slot(0))
+    jumpi arg0, bb1, bb2
+  bb2:
+    sstore 0, 3 !metadata(storage=slot(0))
+    jump bb3
+  bb1:
+    v0 = sload 0 !metadata(storage=slot(0))
+    sstore 0, 2 !metadata(storage=slot(0))
+    jump bb3
+  bb3:
+    v1 = phi [bb1: v0], [bb2: 0]
+    ret v1
+}
+
+fn @pack(arg0: u8, arg1: u8) -> u256 [selector=0x5a5ffdde, abi_params=[u8, u8], abi_returns=[word]] {
+  bb0:
+    v0 = and arg0, 255
+    v1 = sload 1 !metadata(storage=slot(1))
+    v2 = not 255
+    v3 = and v1, v2
+    v4 = and v0, 255
+    v5 = or v3, v4
+    sstore 1, v5 !metadata(storage=slot(1))
+    v6 = and arg1, 255
+    v7 = shl 8, 255
+    v8 = sload 1 !metadata(storage=slot(1))
+    v9 = not v7
+    v10 = and v8, v9
+    v11 = and v6, 255
+    v12 = shl 8, v11
+    v13 = or v10, v12
+    sstore 1, v13 !metadata(storage=slot(1))
+    v14 = sload 1 !metadata(storage=slot(1))
+    v15 = and v14, 255
+    v16 = sload 1 !metadata(storage=slot(1))
+    v17 = shr 8, v16
+    v18 = and v17, 255
+    v19 = shl 8, v18
+    v20 = or v15, v19
+    ret v20
+}
+
+fn @preserve(arg0: u8, arg1: u8) -> u256 [selector=0xced1063a, abi_params=[u8, u8], abi_returns=[word]] {
+  bb0:
+    sstore 0, 0xffffffffffffffff !metadata(storage=slot(0))
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = not 255
+    v2 = and v0, v1
+    v3 = and arg0, 255
+    v4 = or v2, v3
+    sstore 0, v4 !metadata(storage=slot(0))
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = shl 8, 255
+    v7 = not v6
+    v8 = and v5, v7
+    v9 = and arg1, 255
+    v10 = shl 8, v9
+    v11 = or v8, v10
+    sstore 0, v11 !metadata(storage=slot(0))
+    v12 = sload 0 !metadata(storage=slot(0))
+    ret v12
+}
