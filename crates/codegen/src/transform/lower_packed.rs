@@ -454,7 +454,9 @@ impl PackedEncoder<'_, '_> {
         for (term, shift, size, signed) in terms {
             // word |= (term & width_mask_if_signed) << shift
             let term = if signed {
-                let mask = self.builder.imm((U256::from(1) << (size * 8)) - U256::from(1));
+                let mask = self
+                    .builder
+                    .imm((U256::from(1) << usize::try_from(size * 8).unwrap()) - U256::from(1));
                 self.builder.and(term, mask)
             } else {
                 term
