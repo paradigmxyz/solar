@@ -1,0 +1,37 @@
+//@ compile-flags: -Zdump=evm-ir-runtime
+//@ filecheck:
+// CHECK-LABEL: @module RetainedWriterAddress_runtime
+// CHECK: add !metadata(span=1585..1605)
+// CHECK-NEXT: dup 1 !metadata(span=1585..1605)
+// CHECK-NEXT: push [[HOME:[0-9]+]] !metadata(span=1585..1605)
+// CHECK-NEXT: mstore !metadata(span=1585..1605)
+// CHECK-NEXT: push [[VALUE:[0-9]+]] !metadata(span=1618..1638)
+// CHECK-NEXT: mload !metadata(span=1618..1638)
+// CHECK-NEXT: swap 1 !metadata(span=1618..1638)
+// CHECK-LABEL: "sourceMap":
+{
+  "language": "Solidity",
+  "sources": {
+    "Retained.sol": {
+      "content": "contract RetainedWriterAddress {\n    function run(uint256[18] calldata values, uint256 destination, uint256 source)\n        external pure returns (uint256 observed, uint256 checksum)\n    {\n        assembly {\n            function bounce(x, depth) -> result {\n                result := add(x, depth)\n                if depth { result := bounce(result, sub(depth, 1)) }\n            }\n            let a00 := mul(calldataload(add(values, 0)), 3)\n            let a01 := mul(calldataload(add(values, 32)), 3)\n            let a02 := mul(calldataload(add(values, 64)), 3)\n            let a03 := mul(calldataload(add(values, 96)), 3)\n            let a04 := mul(calldataload(add(values, 128)), 3)\n            let a05 := mul(calldataload(add(values, 160)), 3)\n            let a06 := mul(calldataload(add(values, 192)), 3)\n            let a07 := mul(calldataload(add(values, 224)), 3)\n            let a08 := mul(calldataload(add(values, 256)), 3)\n            let a09 := mul(calldataload(add(values, 288)), 3)\n            let a10 := mul(calldataload(add(values, 320)), 3)\n            let a11 := mul(calldataload(add(values, 352)), 3)\n            let a12 := mul(calldataload(add(values, 384)), 3)\n            let a13 := mul(calldataload(add(values, 416)), 3)\n            let a14 := mul(calldataload(add(values, 448)), 3)\n            let a15 := mul(calldataload(add(values, 480)), 3)\n            let a16 := mul(calldataload(add(values, 512)), 3)\n            let a17 := mul(calldataload(add(values, 544)), 3)\n            let payload := bounce(xor(a00, a17), and(destination, 1))\n            let ptr := add(destination, 32)\n            mstore(ptr, payload)\n            observed := mload(source)\n            checksum := add(add(add(add(add(add(add(add(add(add(add(add(add(add(add(add(add(a00, a01), a02), a03), a04), a05), a06), a07), a08), a09), a10), a11), a12), a13), a14), a15), a16), a17)\n        }\n    }\n}\n"
+    }
+  },
+  "settings": {
+    "evmVersion": "osaka",
+    "optimizer": {
+      "enabled": true,
+      "runs": 4294967295
+    },
+    "metadata": {
+      "appendCBOR": false,
+      "bytecodeHash": "none"
+    },
+    "outputSelection": {
+      "*": {
+        "*": [
+          "evm.deployedBytecode.sourceMap"
+        ]
+      }
+    }
+  }
+}

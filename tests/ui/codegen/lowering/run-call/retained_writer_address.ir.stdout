@@ -1,0 +1,1831 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/retained_writer_address.sol:RetainedWriterAddress (runtime) ===
+@module RetainedWriterAddress_runtime
+bb0:
+  jump bb13
+bb13:
+  jump bb9
+bb9:
+  callvalue
+  jumpi bb12, bb10
+bb10:
+  push 0
+  calldataload
+  push 224
+  shr
+  jump bb17
+bb17:
+  push 0xec8a0fc0
+  sub
+  jumpi bb12, bb11
+bb11:
+  jump bb4
+bb4:
+  push 832
+  push 64
+  mstore
+  jump bb1
+bb1:
+  calldatasize
+  push 644
+  gt
+  jumpi bb2, bb3
+bb3:
+  push 4
+  calldataload
+  push 3
+  mul
+  push 192
+  mstore
+  push 36
+  calldataload
+  push 3
+  mul
+  push 224
+  mstore
+  push 68
+  calldataload
+  push 3
+  mul
+  push 256
+  mstore
+  push 100
+  calldataload
+  push 3
+  mul
+  push 288
+  mstore
+  push 132
+  calldataload
+  push 3
+  mul
+  push 320
+  mstore
+  push 164
+  calldataload
+  push 3
+  mul
+  push 352
+  mstore
+  push 196
+  calldataload
+  push 3
+  mul
+  push 384
+  mstore
+  push 228
+  calldataload
+  push 3
+  mul
+  push 416
+  mstore
+  push 260
+  calldataload
+  push 3
+  mul
+  push 448
+  mstore
+  push 292
+  calldataload
+  push 3
+  mul
+  push 480
+  mstore
+  push 324
+  calldataload
+  push 3
+  mul
+  push 512
+  mstore
+  push 356
+  calldataload
+  push 3
+  mul
+  push 544
+  mstore
+  push 388
+  calldataload
+  push 3
+  mul
+  push 576
+  mstore
+  push 420
+  calldataload
+  push 3
+  mul
+  push 608
+  mstore
+  push 452
+  calldataload
+  push 3
+  mul
+  push 640
+  mstore
+  push 484
+  calldataload
+  push 3
+  mul
+  push 672
+  mstore
+  push 516
+  calldataload
+  push 3
+  mul
+  push 704
+  mstore
+  push 548
+  calldataload
+  push 3
+  mul
+  push 736
+  mstore
+  push 1
+  push 580
+  calldataload
+  and
+  push 768
+  mstore
+  push 736
+  mload
+  push 192
+  mload
+  xor
+  push 800
+  mstore
+  push 192
+  mload
+  push 224
+  mload
+  push 256
+  mload
+  push 288
+  mload
+  push 320
+  mload
+  push 352
+  mload
+  push 384
+  mload
+  push 416
+  mload
+  push 448
+  mload
+  push 480
+  mload
+  push 512
+  mload
+  push 544
+  mload
+  push 576
+  mload
+  push 608
+  mload
+  push 640
+  mload
+  push 672
+  mload
+  push 704
+  mload
+  push 736
+  mload
+  push bb14
+  push 768
+  mload
+  push 800
+  mload
+  jump bb8
+bb8:
+  swap 1
+  jump bb5
+bb14:
+  swap 16
+  push 256
+  mstore
+  push 736
+  mstore
+  push 704
+  mstore
+  push 672
+  mstore
+  push 640
+  mstore
+  push 608
+  mstore
+  push 576
+  mstore
+  push 544
+  mstore
+  push 512
+  mstore
+  push 480
+  mstore
+  push 448
+  mstore
+  push 416
+  mstore
+  push 384
+  mstore
+  push 352
+  mstore
+  push 320
+  mstore
+  push 288
+  mstore
+  swap 2
+  push 192
+  mstore
+  push 224
+  mstore
+  push 768
+  mstore
+  push 32
+  push 580
+  calldataload
+  add
+  dup 1
+  push 800
+  mstore
+  push 768
+  mload
+  swap 1
+  push 192
+  dup 2
+  push 31
+  not
+  and
+  sub
+  dup 1
+  dup 1
+  push 576
+  gt
+  mul
+  push 192
+  add
+  dup 1
+  mload
+  swap 2
+  push 32
+  add
+  dup 1
+  push 576
+  gt
+  mul
+  push 192
+  add
+  dup 1
+  mload
+  swap 1
+  swap 3
+  swap 5
+  swap 1
+  swap 2
+  swap 4
+  mstore
+  swap 1
+  mstore
+  mstore
+  push 224
+  mload
+  push 192
+  mload
+  add
+  push 256
+  mload
+  add
+  push 288
+  mload
+  add
+  push 320
+  mload
+  add
+  push 352
+  mload
+  add
+  push 384
+  mload
+  add
+  push 416
+  mload
+  add
+  push 448
+  mload
+  add
+  push 480
+  mload
+  add
+  push 512
+  mload
+  add
+  push 544
+  mload
+  add
+  push 576
+  mload
+  add
+  push 608
+  mload
+  add
+  push 640
+  mload
+  add
+  push 672
+  mload
+  add
+  push 704
+  mload
+  add
+  push 736
+  mload
+  add
+  push 612
+  calldataload
+  mload
+  push 128
+  mstore
+  push 160
+  mstore
+  push 64
+  push 128
+  return
+bb16:
+  jump bb7
+bb7:
+  swap 1
+  jump
+bb2 [cold]:
+  push 0
+  push 0
+  revert
+bb6:
+  push 1
+  swap 1
+  swap 2
+  sub
+  swap 1
+  push bb16
+  swap 2
+  jump bb5
+bb5:
+  dup 1
+  swap 2
+  add
+  dup 2
+  jumpi bb6, bb15
+bb15:
+  swap 1
+  pop
+  jump bb7
+bb12 [cold]:
+  push 0
+  push 0
+  revert
+// === ROOT/tests/ui/codegen/lowering/run-call/retained_writer_address.sol:RepeatedWriterAddress (runtime) ===
+@module RepeatedWriterAddress_runtime
+bb0:
+  jump bb13
+bb13:
+  jump bb9
+bb9:
+  callvalue
+  jumpi bb12, bb10
+bb10:
+  push 0
+  calldataload
+  push 224
+  shr
+  jump bb17
+bb17:
+  push 0xec8a0fc0
+  sub
+  jumpi bb12, bb11
+bb11:
+  jump bb4
+bb4:
+  push 832
+  push 64
+  mstore
+  jump bb1
+bb1:
+  calldatasize
+  push 644
+  gt
+  jumpi bb2, bb3
+bb3:
+  push 4
+  calldataload
+  push 3
+  mul
+  push 192
+  mstore
+  push 36
+  calldataload
+  push 3
+  mul
+  push 224
+  mstore
+  push 68
+  calldataload
+  push 3
+  mul
+  push 256
+  mstore
+  push 100
+  calldataload
+  push 3
+  mul
+  push 288
+  mstore
+  push 132
+  calldataload
+  push 3
+  mul
+  push 320
+  mstore
+  push 164
+  calldataload
+  push 3
+  mul
+  push 352
+  mstore
+  push 196
+  calldataload
+  push 3
+  mul
+  push 384
+  mstore
+  push 228
+  calldataload
+  push 3
+  mul
+  push 416
+  mstore
+  push 260
+  calldataload
+  push 3
+  mul
+  push 448
+  mstore
+  push 292
+  calldataload
+  push 3
+  mul
+  push 480
+  mstore
+  push 324
+  calldataload
+  push 3
+  mul
+  push 512
+  mstore
+  push 356
+  calldataload
+  push 3
+  mul
+  push 544
+  mstore
+  push 388
+  calldataload
+  push 3
+  mul
+  push 576
+  mstore
+  push 420
+  calldataload
+  push 3
+  mul
+  push 608
+  mstore
+  push 452
+  calldataload
+  push 3
+  mul
+  push 640
+  mstore
+  push 484
+  calldataload
+  push 3
+  mul
+  push 672
+  mstore
+  push 516
+  calldataload
+  push 3
+  mul
+  push 704
+  mstore
+  push 548
+  calldataload
+  push 3
+  mul
+  push 736
+  mstore
+  push 1
+  push 580
+  calldataload
+  and
+  push 768
+  mstore
+  push 736
+  mload
+  push 192
+  mload
+  xor
+  push 800
+  mstore
+  push 192
+  mload
+  push 224
+  mload
+  push 256
+  mload
+  push 288
+  mload
+  push 320
+  mload
+  push 352
+  mload
+  push 384
+  mload
+  push 416
+  mload
+  push 448
+  mload
+  push 480
+  mload
+  push 512
+  mload
+  push 544
+  mload
+  push 576
+  mload
+  push 608
+  mload
+  push 640
+  mload
+  push 672
+  mload
+  push 704
+  mload
+  push 736
+  mload
+  push bb14
+  push 768
+  mload
+  push 800
+  mload
+  jump bb8
+bb8:
+  swap 1
+  jump bb5
+bb14:
+  swap 16
+  push 256
+  mstore
+  push 736
+  mstore
+  push 704
+  mstore
+  push 672
+  mstore
+  push 640
+  mstore
+  push 608
+  mstore
+  push 576
+  mstore
+  push 544
+  mstore
+  push 512
+  mstore
+  push 480
+  mstore
+  push 448
+  mstore
+  push 416
+  mstore
+  push 384
+  mstore
+  push 352
+  mstore
+  push 320
+  mstore
+  push 288
+  mstore
+  swap 2
+  push 192
+  mstore
+  push 224
+  mstore
+  push 32
+  push 580
+  calldataload
+  add
+  dup 1
+  push 768
+  mstore
+  dup 1
+  push 192
+  dup 2
+  push 31
+  not
+  and
+  sub
+  dup 1
+  dup 1
+  push 576
+  gt
+  mul
+  push 192
+  add
+  dup 1
+  mload
+  swap 2
+  push 32
+  add
+  dup 1
+  push 576
+  gt
+  mul
+  push 192
+  add
+  dup 1
+  mload
+  swap 1
+  swap 3
+  swap 5
+  swap 1
+  swap 2
+  swap 4
+  mstore
+  swap 1
+  mstore
+  mstore
+  push 224
+  mload
+  push 192
+  mload
+  add
+  push 256
+  mload
+  add
+  push 288
+  mload
+  add
+  push 320
+  mload
+  add
+  push 352
+  mload
+  add
+  push 384
+  mload
+  add
+  push 416
+  mload
+  add
+  push 448
+  mload
+  add
+  push 480
+  mload
+  add
+  push 512
+  mload
+  add
+  push 544
+  mload
+  add
+  push 576
+  mload
+  add
+  push 608
+  mload
+  add
+  push 640
+  mload
+  add
+  push 672
+  mload
+  add
+  push 704
+  mload
+  add
+  push 736
+  mload
+  add
+  add
+  push 612
+  calldataload
+  mload
+  push 128
+  mstore
+  push 160
+  mstore
+  push 64
+  push 128
+  return
+bb16:
+  jump bb7
+bb7:
+  swap 1
+  jump
+bb2 [cold]:
+  push 0
+  push 0
+  revert
+bb6:
+  push 1
+  swap 1
+  swap 2
+  sub
+  swap 1
+  push bb16
+  swap 2
+  jump bb5
+bb5:
+  dup 1
+  swap 2
+  add
+  dup 2
+  jumpi bb6, bb15
+bb15:
+  swap 1
+  pop
+  jump bb7
+bb12 [cold]:
+  push 0
+  push 0
+  revert
+// === ROOT/tests/ui/codegen/lowering/run-call/retained_writer_address.sol:InterveningByteWriter (runtime) ===
+@module InterveningByteWriter_runtime
+bb0:
+  jump bb13
+bb13:
+  jump bb9
+bb9:
+  callvalue
+  jumpi bb12, bb10
+bb10:
+  push 0
+  calldataload
+  push 224
+  shr
+  jump bb17
+bb17:
+  push 0xec8a0fc0
+  sub
+  jumpi bb12, bb11
+bb11:
+  jump bb4
+bb4:
+  push 832
+  push 64
+  mstore
+  jump bb1
+bb1:
+  calldatasize
+  push 644
+  gt
+  jumpi bb2, bb3
+bb3:
+  push 4
+  calldataload
+  push 3
+  mul
+  push 192
+  mstore
+  push 36
+  calldataload
+  push 3
+  mul
+  push 224
+  mstore
+  push 68
+  calldataload
+  push 3
+  mul
+  push 256
+  mstore
+  push 100
+  calldataload
+  push 3
+  mul
+  push 288
+  mstore
+  push 132
+  calldataload
+  push 3
+  mul
+  push 320
+  mstore
+  push 164
+  calldataload
+  push 3
+  mul
+  push 352
+  mstore
+  push 196
+  calldataload
+  push 3
+  mul
+  push 384
+  mstore
+  push 228
+  calldataload
+  push 3
+  mul
+  push 416
+  mstore
+  push 260
+  calldataload
+  push 3
+  mul
+  push 448
+  mstore
+  push 292
+  calldataload
+  push 3
+  mul
+  push 480
+  mstore
+  push 324
+  calldataload
+  push 3
+  mul
+  push 512
+  mstore
+  push 356
+  calldataload
+  push 3
+  mul
+  push 544
+  mstore
+  push 388
+  calldataload
+  push 3
+  mul
+  push 576
+  mstore
+  push 420
+  calldataload
+  push 3
+  mul
+  push 608
+  mstore
+  push 452
+  calldataload
+  push 3
+  mul
+  push 640
+  mstore
+  push 484
+  calldataload
+  push 3
+  mul
+  push 672
+  mstore
+  push 516
+  calldataload
+  push 3
+  mul
+  push 704
+  mstore
+  push 548
+  calldataload
+  push 3
+  mul
+  push 736
+  mstore
+  push 1
+  push 580
+  calldataload
+  and
+  push 768
+  mstore
+  push 736
+  mload
+  push 192
+  mload
+  xor
+  push 800
+  mstore
+  push 192
+  mload
+  push 224
+  mload
+  push 256
+  mload
+  push 288
+  mload
+  push 320
+  mload
+  push 352
+  mload
+  push 384
+  mload
+  push 416
+  mload
+  push 448
+  mload
+  push 480
+  mload
+  push 512
+  mload
+  push 544
+  mload
+  push 576
+  mload
+  push 608
+  mload
+  push 640
+  mload
+  push 672
+  mload
+  push 704
+  mload
+  push 736
+  mload
+  push bb14
+  push 768
+  mload
+  push 800
+  mload
+  jump bb8
+bb8:
+  swap 1
+  jump bb5
+bb14:
+  swap 16
+  push 256
+  mstore
+  push 736
+  mstore
+  push 704
+  mstore
+  push 672
+  mstore
+  push 640
+  mstore
+  push 608
+  mstore
+  push 576
+  mstore
+  push 544
+  mstore
+  push 512
+  mstore
+  push 480
+  mstore
+  push 448
+  mstore
+  push 416
+  mstore
+  push 384
+  mstore
+  push 352
+  mstore
+  push 320
+  mstore
+  push 288
+  mstore
+  swap 2
+  push 192
+  mstore
+  push 224
+  mstore
+  push 768
+  mstore
+  push 32
+  push 580
+  calldataload
+  add
+  push 800
+  mstore
+  push 7
+  push 0
+  mstore8
+  push 768
+  mload
+  push 800
+  mload
+  push 192
+  dup 2
+  push 31
+  not
+  and
+  sub
+  dup 1
+  dup 1
+  push 576
+  gt
+  mul
+  push 192
+  add
+  dup 1
+  mload
+  swap 2
+  push 32
+  add
+  dup 1
+  push 576
+  gt
+  mul
+  push 192
+  add
+  dup 1
+  mload
+  swap 1
+  swap 3
+  swap 5
+  swap 1
+  swap 2
+  swap 4
+  mstore
+  swap 1
+  mstore
+  mstore
+  push 0
+  mload
+  push 0
+  byte
+  push 224
+  mload
+  push 192
+  mload
+  add
+  push 256
+  mload
+  add
+  push 288
+  mload
+  add
+  push 320
+  mload
+  add
+  push 352
+  mload
+  add
+  push 384
+  mload
+  add
+  push 416
+  mload
+  add
+  push 448
+  mload
+  add
+  push 480
+  mload
+  add
+  push 512
+  mload
+  add
+  push 544
+  mload
+  add
+  push 576
+  mload
+  add
+  push 608
+  mload
+  add
+  push 640
+  mload
+  add
+  push 672
+  mload
+  add
+  push 704
+  mload
+  add
+  push 736
+  mload
+  add
+  add
+  push 612
+  calldataload
+  mload
+  push 128
+  mstore
+  push 160
+  mstore
+  push 64
+  push 128
+  return
+bb16:
+  jump bb7
+bb7:
+  swap 1
+  jump
+bb2 [cold]:
+  push 0
+  push 0
+  revert
+bb6:
+  push 1
+  swap 1
+  swap 2
+  sub
+  swap 1
+  push bb16
+  swap 2
+  jump bb5
+bb5:
+  dup 1
+  swap 2
+  add
+  dup 2
+  jumpi bb6, bb15
+bb15:
+  swap 1
+  pop
+  jump bb7
+bb12 [cold]:
+  push 0
+  push 0
+  revert
+// === ROOT/tests/ui/codegen/lowering/run-call/retained_writer_address.sol:ResidentWriterSuffix (runtime) ===
+@module ResidentWriterSuffix_runtime
+bb0:
+  callvalue
+  jumpi bb2, bb6
+bb6:
+  push 0
+  calldataload
+  push 224
+  shr
+  push 0xec8a0fc0
+  sub
+  jumpi bb2, bb4
+bb4:
+  push 576
+  push 64
+  mstore
+  calldatasize
+  push 644
+  gt
+  jumpi bb2, bb3
+bb3:
+  push 4
+  calldataload
+  push 3
+  mul
+  push 36
+  calldataload
+  push 3
+  mul
+  push 192
+  mstore
+  push 68
+  calldataload
+  push 3
+  mul
+  push 224
+  mstore
+  push 100
+  calldataload
+  push 3
+  mul
+  push 132
+  calldataload
+  push 3
+  mul
+  push 164
+  calldataload
+  push 3
+  mul
+  push 196
+  calldataload
+  push 3
+  mul
+  push 228
+  calldataload
+  push 3
+  mul
+  push 260
+  calldataload
+  push 3
+  mul
+  push 292
+  calldataload
+  push 3
+  mul
+  push 324
+  calldataload
+  push 3
+  mul
+  push 356
+  calldataload
+  push 3
+  mul
+  push 388
+  calldataload
+  push 3
+  mul
+  push 420
+  calldataload
+  push 3
+  mul
+  push 452
+  calldataload
+  push 3
+  mul
+  push 484
+  calldataload
+  push 3
+  mul
+  push 516
+  calldataload
+  push 3
+  mul
+  push 548
+  calldataload
+  push 3
+  mul
+  dup 16
+  dup 2
+  xor
+  push 512
+  mstore
+  push 32
+  push 580
+  calldataload
+  add
+  push 544
+  mstore
+  push 192
+  mload
+  push 224
+  mload
+  push 512
+  mload
+  push 544
+  mload
+  mstore
+  push 224
+  mstore
+  dup 1
+  push 192
+  mstore
+  swap 1
+  swap 2
+  swap 3
+  swap 4
+  swap 5
+  swap 6
+  swap 7
+  swap 8
+  swap 9
+  swap 10
+  swap 11
+  swap 12
+  swap 13
+  swap 14
+  swap 15
+  swap 16
+  add
+  push 224
+  mload
+  add
+  exchange 1, 15
+  add
+  exchange 1, 13
+  add
+  exchange 1, 11
+  add
+  exchange 1, 9
+  add
+  exchange 1, 7
+  add
+  exchange 1, 5
+  add
+  exchange 1, 3
+  add
+  add
+  add
+  add
+  add
+  add
+  add
+  add
+  add
+  push 612
+  calldataload
+  mload
+  push 0
+  mstore
+  push 32
+  mstore
+  push 64
+  push 0
+  return
+bb2 [cold]:
+  push 0
+  push 0
+  revert
+// === ROOT/tests/ui/codegen/lowering/run-call/retained_writer_address.sol:FrozenWriterBase (runtime) ===
+@module FrozenWriterBase_runtime
+bb0:
+  callvalue
+  jumpi bb2, bb6
+bb6:
+  push 0
+  calldataload
+  push 224
+  shr
+  push 0x9ba6c5f7
+  sub
+  jumpi bb2, bb4
+bb4:
+  push 0x4a0
+  push 64
+  mstore
+  calldatasize
+  push 0x444
+  gt
+  jumpi bb2, bb3
+bb3:
+  push 4
+  calldataload
+  push 3
+  mul
+  push 36
+  calldataload
+  push 3
+  mul
+  push 192
+  mstore
+  push 68
+  calldataload
+  push 3
+  mul
+  push 224
+  mstore
+  push 100
+  calldataload
+  push 3
+  mul
+  push 256
+  mstore
+  push 132
+  calldataload
+  push 3
+  mul
+  push 288
+  mstore
+  push 164
+  calldataload
+  push 3
+  mul
+  push 320
+  mstore
+  push 196
+  calldataload
+  push 3
+  mul
+  push 352
+  mstore
+  push 228
+  calldataload
+  push 3
+  mul
+  push 384
+  mstore
+  push 260
+  calldataload
+  push 3
+  mul
+  push 416
+  mstore
+  push 292
+  calldataload
+  push 3
+  mul
+  push 448
+  mstore
+  push 324
+  calldataload
+  push 3
+  mul
+  push 480
+  mstore
+  push 356
+  calldataload
+  push 3
+  mul
+  push 512
+  mstore
+  push 388
+  calldataload
+  push 3
+  mul
+  push 544
+  mstore
+  push 420
+  calldataload
+  push 3
+  mul
+  push 576
+  mstore
+  push 452
+  calldataload
+  push 3
+  mul
+  push 608
+  mstore
+  push 484
+  calldataload
+  push 3
+  mul
+  push 640
+  mstore
+  push 516
+  calldataload
+  push 3
+  mul
+  push 672
+  mstore
+  push 548
+  calldataload
+  push 3
+  mul
+  push 704
+  mstore
+  push 580
+  calldataload
+  push 3
+  mul
+  push 736
+  mstore
+  push 612
+  calldataload
+  push 3
+  mul
+  push 768
+  mstore
+  push 644
+  calldataload
+  push 3
+  mul
+  push 800
+  mstore
+  push 676
+  calldataload
+  push 3
+  mul
+  push 832
+  mstore
+  push 708
+  calldataload
+  push 3
+  mul
+  push 864
+  mstore
+  push 740
+  calldataload
+  push 3
+  mul
+  push 896
+  mstore
+  push 772
+  calldataload
+  push 3
+  mul
+  push 928
+  mstore
+  push 804
+  calldataload
+  push 3
+  mul
+  push 836
+  calldataload
+  push 3
+  mul
+  push 868
+  calldataload
+  push 3
+  mul
+  push 900
+  calldataload
+  push 3
+  mul
+  push 932
+  calldataload
+  push 3
+  mul
+  push 964
+  calldataload
+  push 3
+  mul
+  push 996
+  calldataload
+  push 3
+  mul
+  dup 8
+  dup 2
+  xor
+  push 960
+  mstore
+  push 32
+  push 0x404
+  calldataload
+  add
+  dup 1
+  push 992
+  mstore
+  push 960
+  mload
+  swap 1
+  push 192
+  dup 2
+  push 31
+  not
+  and
+  sub
+  dup 1
+  dup 1
+  push 768
+  gt
+  mul
+  push 192
+  add
+  dup 1
+  mload
+  swap 2
+  push 32
+  add
+  dup 1
+  push 768
+  gt
+  mul
+  push 192
+  add
+  dup 1
+  mload
+  swap 1
+  swap 3
+  swap 5
+  swap 1
+  swap 2
+  swap 4
+  mstore
+  swap 1
+  mstore
+  mstore
+  push 5
+  shl
+  push 960
+  mstore
+  push 31
+  mul
+  push 992
+  mstore
+  push 30
+  mul
+  push 0x400
+  mstore
+  push 29
+  mul
+  push 0x420
+  mstore
+  push 28
+  mul
+  push 0x440
+  mstore
+  push 27
+  mul
+  push 0x460
+  mstore
+  push 26
+  mul
+  push 0x480
+  mstore
+  push 25
+  push 928
+  mload
+  mul
+  push 928
+  mstore
+  push 24
+  push 896
+  mload
+  mul
+  push 896
+  mstore
+  push 23
+  push 864
+  mload
+  mul
+  push 864
+  mstore
+  push 22
+  push 832
+  mload
+  mul
+  push 832
+  mstore
+  push 21
+  push 800
+  mload
+  mul
+  push 800
+  mstore
+  push 20
+  push 768
+  mload
+  mul
+  push 768
+  mstore
+  push 19
+  push 736
+  mload
+  mul
+  push 736
+  mstore
+  push 18
+  push 704
+  mload
+  mul
+  push 704
+  mstore
+  push 17
+  push 672
+  mload
+  mul
+  push 672
+  mstore
+  push 640
+  mload
+  push 4
+  shl
+  push 640
+  mstore
+  push 15
+  push 608
+  mload
+  mul
+  push 608
+  mstore
+  push 14
+  push 576
+  mload
+  mul
+  push 576
+  mstore
+  push 13
+  push 544
+  mload
+  mul
+  push 544
+  mstore
+  push 12
+  push 512
+  mload
+  mul
+  push 512
+  mstore
+  push 11
+  push 480
+  mload
+  mul
+  push 480
+  mstore
+  push 10
+  push 448
+  mload
+  mul
+  push 448
+  mstore
+  push 9
+  push 416
+  mload
+  mul
+  push 416
+  mstore
+  push 384
+  mload
+  push 3
+  shl
+  push 7
+  push 352
+  mload
+  mul
+  push 6
+  push 320
+  mload
+  mul
+  push 5
+  push 288
+  mload
+  mul
+  push 256
+  mload
+  push 2
+  shl
+  push 3
+  push 224
+  mload
+  mul
+  push 192
+  mload
+  push 1
+  shl
+  swap 1
+  swap 2
+  swap 3
+  swap 4
+  swap 5
+  swap 6
+  swap 7
+  add
+  add
+  add
+  add
+  add
+  add
+  add
+  push 416
+  mload
+  add
+  push 448
+  mload
+  add
+  push 480
+  mload
+  add
+  push 512
+  mload
+  add
+  push 544
+  mload
+  add
+  push 576
+  mload
+  add
+  push 608
+  mload
+  add
+  push 640
+  mload
+  add
+  push 672
+  mload
+  add
+  push 704
+  mload
+  add
+  push 736
+  mload
+  add
+  push 768
+  mload
+  add
+  push 800
+  mload
+  add
+  push 832
+  mload
+  add
+  push 864
+  mload
+  add
+  push 896
+  mload
+  add
+  push 928
+  mload
+  add
+  push 0x480
+  mload
+  add
+  push 0x460
+  mload
+  add
+  push 0x440
+  mload
+  add
+  push 0x420
+  mload
+  add
+  push 0x400
+  mload
+  add
+  push 992
+  mload
+  add
+  push 960
+  mload
+  add
+  push 0x424
+  calldataload
+  mload
+  push 0
+  mstore
+  push 32
+  mstore
+  push 64
+  push 0
+  return
+bb2 [cold]:
+  push 0
+  push 0
+  revert

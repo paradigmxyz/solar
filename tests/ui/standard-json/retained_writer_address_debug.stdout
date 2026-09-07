@@ -1,0 +1,420 @@
+// === Retained.sol:RetainedWriterAddress (runtime) ===
+@module RetainedWriterAddress_runtime
+bb0:
+  jump bb13
+bb13:
+  jump bb9
+bb9:
+  callvalue
+  jumpi bb12, bb10
+bb10:
+  push 0
+  calldataload
+  push 224
+  shr
+  jump bb17
+bb17:
+  push 0xec8a0fc0
+  sub
+  jumpi bb12, bb11
+bb11:
+  jump bb4
+bb4:
+  push 832
+  push 64
+  mstore
+  jump bb1
+bb1 [invoke=run@37..1890]:
+  calldatasize
+  push 644
+  gt
+  jumpi bb2, bb3
+bb3:
+  push 4 !metadata(span=408..436)
+  calldataload !metadata(span=408..436)
+  push 3 !metadata(span=404..440)
+  mul !metadata(span=404..440)
+  push 192 !metadata(span=404..440)
+  mstore !metadata(span=404..440)
+  push 36 !metadata(span=481..496)
+  calldataload !metadata(span=468..497)
+  push 3 !metadata(span=464..501)
+  mul !metadata(span=464..501)
+  push 224 !metadata(span=464..501)
+  mstore !metadata(span=464..501)
+  push 68 !metadata(span=542..557)
+  calldataload !metadata(span=529..558)
+  push 3 !metadata(span=525..562)
+  mul !metadata(span=525..562)
+  push 256 !metadata(span=525..562)
+  mstore !metadata(span=525..562)
+  push 100 !metadata(span=603..618)
+  calldataload !metadata(span=590..619)
+  push 3 !metadata(span=586..623)
+  mul !metadata(span=586..623)
+  push 288 !metadata(span=586..623)
+  mstore !metadata(span=586..623)
+  push 132 !metadata(span=664..680)
+  calldataload !metadata(span=651..681)
+  push 3 !metadata(span=647..685)
+  mul !metadata(span=647..685)
+  push 320 !metadata(span=647..685)
+  mstore !metadata(span=647..685)
+  push 164 !metadata(span=726..742)
+  calldataload !metadata(span=713..743)
+  push 3 !metadata(span=709..747)
+  mul !metadata(span=709..747)
+  push 352 !metadata(span=709..747)
+  mstore !metadata(span=709..747)
+  push 196 !metadata(span=788..804)
+  calldataload !metadata(span=775..805)
+  push 3 !metadata(span=771..809)
+  mul !metadata(span=771..809)
+  push 384 !metadata(span=771..809)
+  mstore !metadata(span=771..809)
+  push 228 !metadata(span=850..866)
+  calldataload !metadata(span=837..867)
+  push 3 !metadata(span=833..871)
+  mul !metadata(span=833..871)
+  push 416 !metadata(span=833..871)
+  mstore !metadata(span=833..871)
+  push 260 !metadata(span=912..928)
+  calldataload !metadata(span=899..929)
+  push 3 !metadata(span=895..933)
+  mul !metadata(span=895..933)
+  push 448 !metadata(span=895..933)
+  mstore !metadata(span=895..933)
+  push 292 !metadata(span=974..990)
+  calldataload !metadata(span=961..991)
+  push 3 !metadata(span=957..995)
+  mul !metadata(span=957..995)
+  push 480 !metadata(span=957..995)
+  mstore !metadata(span=957..995)
+  push 324 !metadata(span=1036..1052)
+  calldataload !metadata(span=1023..1053)
+  push 3 !metadata(span=1019..1057)
+  mul !metadata(span=1019..1057)
+  push 512 !metadata(span=1019..1057)
+  mstore !metadata(span=1019..1057)
+  push 356 !metadata(span=1098..1114)
+  calldataload !metadata(span=1085..1115)
+  push 3 !metadata(span=1081..1119)
+  mul !metadata(span=1081..1119)
+  push 544 !metadata(span=1081..1119)
+  mstore !metadata(span=1081..1119)
+  push 388 !metadata(span=1160..1176)
+  calldataload !metadata(span=1147..1177)
+  push 3 !metadata(span=1143..1181)
+  mul !metadata(span=1143..1181)
+  push 576 !metadata(span=1143..1181)
+  mstore !metadata(span=1143..1181)
+  push 420 !metadata(span=1222..1238)
+  calldataload !metadata(span=1209..1239)
+  push 3 !metadata(span=1205..1243)
+  mul !metadata(span=1205..1243)
+  push 608 !metadata(span=1205..1243)
+  mstore !metadata(span=1205..1243)
+  push 452 !metadata(span=1284..1300)
+  calldataload !metadata(span=1271..1301)
+  push 3 !metadata(span=1267..1305)
+  mul !metadata(span=1267..1305)
+  push 640 !metadata(span=1267..1305)
+  mstore !metadata(span=1267..1305)
+  push 484 !metadata(span=1346..1362)
+  calldataload !metadata(span=1333..1363)
+  push 3 !metadata(span=1329..1367)
+  mul !metadata(span=1329..1367)
+  push 672 !metadata(span=1329..1367)
+  mstore !metadata(span=1329..1367)
+  push 516 !metadata(span=1408..1424)
+  calldataload !metadata(span=1395..1425)
+  push 3 !metadata(span=1391..1429)
+  mul !metadata(span=1391..1429)
+  push 704 !metadata(span=1391..1429)
+  mstore !metadata(span=1391..1429)
+  push 548 !metadata(span=1470..1486)
+  calldataload !metadata(span=1457..1487)
+  push 3 !metadata(span=1453..1491)
+  mul !metadata(span=1453..1491)
+  push 736 !metadata(span=1453..1491)
+  mstore !metadata(span=1453..1491)
+  push 1 !metadata(span=1541..1560)
+  push 580 !metadata(span=1541..1560)
+  calldataload !metadata(span=1541..1560)
+  and !metadata(span=1541..1560)
+  push 768 !metadata(span=1541..1560)
+  mstore !metadata(span=1541..1560)
+  push 736 !metadata(span=1526..1539)
+  mload !metadata(span=1526..1539)
+  push 192 !metadata(span=1526..1539)
+  mload !metadata(span=1526..1539)
+  xor !metadata(span=1526..1539)
+  push 800 !metadata(span=1526..1539)
+  mstore !metadata(span=1526..1539)
+  push 192 !metadata(span=1519..1561)
+  mload !metadata(span=1519..1561)
+  push 224 !metadata(span=1519..1561)
+  mload !metadata(span=1519..1561)
+  push 256 !metadata(span=1519..1561)
+  mload !metadata(span=1519..1561)
+  push 288 !metadata(span=1519..1561)
+  mload !metadata(span=1519..1561)
+  push 320 !metadata(span=1519..1561)
+  mload !metadata(span=1519..1561)
+  push 352 !metadata(span=1519..1561)
+  mload !metadata(span=1519..1561)
+  push 384 !metadata(span=1519..1561)
+  mload !metadata(span=1519..1561)
+  push 416 !metadata(span=1519..1561)
+  mload !metadata(span=1519..1561)
+  push 448 !metadata(span=1519..1561)
+  mload !metadata(span=1519..1561)
+  push 480 !metadata(span=1519..1561)
+  mload !metadata(span=1519..1561)
+  push 512 !metadata(span=1519..1561)
+  mload !metadata(span=1519..1561)
+  push 544 !metadata(span=1519..1561)
+  mload !metadata(span=1519..1561)
+  push 576 !metadata(span=1519..1561)
+  mload !metadata(span=1519..1561)
+  push 608 !metadata(span=1519..1561)
+  mload !metadata(span=1519..1561)
+  push 640 !metadata(span=1519..1561)
+  mload !metadata(span=1519..1561)
+  push 672 !metadata(span=1519..1561)
+  mload !metadata(span=1519..1561)
+  push 704 !metadata(span=1519..1561)
+  mload !metadata(span=1519..1561)
+  push 736 !metadata(span=1519..1561)
+  mload !metadata(span=1519..1561)
+  push bb14 !metadata(span=1519..1561)
+  push 768 !metadata(span=1519..1561)
+  mload !metadata(span=1519..1561)
+  push 800 !metadata(span=1519..1561)
+  mload !metadata(span=1519..1561)
+  jump bb8
+bb8:
+  swap 1
+  jump bb5
+bb14:
+  swap 16
+  push 256
+  mstore
+  push 736
+  mstore
+  push 704
+  mstore
+  push 672
+  mstore
+  push 640
+  mstore
+  push 608
+  mstore
+  push 576
+  mstore
+  push 544
+  mstore
+  push 512
+  mstore
+  push 480
+  mstore
+  push 448
+  mstore
+  push 416
+  mstore
+  push 384
+  mstore
+  push 352
+  mstore
+  push 320
+  mstore
+  push 288
+  mstore
+  swap 2
+  push 192
+  mstore
+  push 224
+  mstore
+  push 768
+  mstore
+  push 32 !metadata(span=1585..1605)
+  push 580 !metadata(span=1585..1605)
+  calldataload !metadata(span=1585..1605)
+  add !metadata(span=1585..1605)
+  dup 1 !metadata(span=1585..1605)
+  push 800 !metadata(span=1585..1605)
+  mstore !metadata(span=1585..1605)
+  push 768 !metadata(span=1618..1638)
+  mload !metadata(span=1618..1638)
+  swap 1 !metadata(span=1618..1638)
+  push 192 !metadata(span=1618..1638)
+  dup 2 !metadata(span=1618..1638)
+  push 31 !metadata(span=1618..1638)
+  not !metadata(span=1618..1638)
+  and !metadata(span=1618..1638)
+  sub !metadata(span=1618..1638)
+  dup 1 !metadata(span=1618..1638)
+  dup 1 !metadata(span=1618..1638)
+  push 576 !metadata(span=1618..1638)
+  gt !metadata(span=1618..1638)
+  mul !metadata(span=1618..1638)
+  push 192 !metadata(span=1618..1638)
+  add !metadata(span=1618..1638)
+  dup 1 !metadata(span=1618..1638)
+  mload !metadata(span=1618..1638)
+  swap 2 !metadata(span=1618..1638)
+  push 32 !metadata(span=1618..1638)
+  add !metadata(span=1618..1638)
+  dup 1 !metadata(span=1618..1638)
+  push 576 !metadata(span=1618..1638)
+  gt !metadata(span=1618..1638)
+  mul !metadata(span=1618..1638)
+  push 192 !metadata(span=1618..1638)
+  add !metadata(span=1618..1638)
+  dup 1 !metadata(span=1618..1638)
+  mload !metadata(span=1618..1638)
+  swap 1 !metadata(span=1618..1638)
+  swap 3 !metadata(span=1618..1638)
+  swap 5 !metadata(span=1618..1638)
+  swap 1 !metadata(span=1618..1638)
+  swap 2 !metadata(span=1618..1638)
+  swap 4 !metadata(span=1618..1638)
+  mstore !metadata(span=1618..1638)
+  swap 1 !metadata(span=1618..1638)
+  mstore !metadata(span=1618..1638)
+  mstore !metadata(span=1618..1638)
+  push 224 !metadata(span=1765..1778)
+  mload !metadata(span=1765..1778)
+  push 192 !metadata(span=1765..1778)
+  mload !metadata(span=1765..1778)
+  add !metadata(span=1765..1778)
+  push 256 !metadata(span=1761..1784)
+  mload !metadata(span=1761..1784)
+  add !metadata(span=1761..1784)
+  push 288 !metadata(span=1757..1790)
+  mload !metadata(span=1757..1790)
+  add !metadata(span=1757..1790)
+  push 320 !metadata(span=1753..1796)
+  mload !metadata(span=1753..1796)
+  add !metadata(span=1753..1796)
+  push 352 !metadata(span=1749..1802)
+  mload !metadata(span=1749..1802)
+  add !metadata(span=1749..1802)
+  push 384 !metadata(span=1745..1808)
+  mload !metadata(span=1745..1808)
+  add !metadata(span=1745..1808)
+  push 416 !metadata(span=1741..1814)
+  mload !metadata(span=1741..1814)
+  add !metadata(span=1741..1814)
+  push 448 !metadata(span=1737..1820)
+  mload !metadata(span=1737..1820)
+  add !metadata(span=1737..1820)
+  push 480 !metadata(span=1733..1826)
+  mload !metadata(span=1733..1826)
+  add !metadata(span=1733..1826)
+  push 512 !metadata(span=1729..1832)
+  mload !metadata(span=1729..1832)
+  add !metadata(span=1729..1832)
+  push 544 !metadata(span=1725..1838)
+  mload !metadata(span=1725..1838)
+  add !metadata(span=1725..1838)
+  push 576 !metadata(span=1721..1844)
+  mload !metadata(span=1721..1844)
+  add !metadata(span=1721..1844)
+  push 608 !metadata(span=1717..1850)
+  mload !metadata(span=1717..1850)
+  add !metadata(span=1717..1850)
+  push 640 !metadata(span=1713..1856)
+  mload !metadata(span=1713..1856)
+  add !metadata(span=1713..1856)
+  push 672 !metadata(span=1709..1862)
+  mload !metadata(span=1709..1862)
+  add !metadata(span=1709..1862)
+  push 704 !metadata(span=1705..1868)
+  mload !metadata(span=1705..1868)
+  add !metadata(span=1705..1868)
+  push 736 !metadata(span=1701..1874)
+  mload !metadata(span=1701..1874)
+  add !metadata(span=1701..1874)
+  push 612 !metadata(span=1663..1676)
+  calldataload !metadata(span=1663..1676)
+  mload !metadata(span=1663..1676)
+  push 128 !metadata(span=37..1890)
+  mstore !metadata(span=37..1890)
+  push 160 !metadata(span=37..1890)
+  mstore !metadata(span=37..1890)
+  push 64
+  push 128
+  return !metadata(span=37..1890, exit=return)
+bb16:
+  jump bb7 !metadata(span=314..366)
+bb7:
+  swap 1
+  jump !metadata(span=229..380, exit=return)
+bb2 [cold]:
+  push 0
+  push 0
+  revert !metadata(exit=revert)
+bb6:
+  push 1 !metadata(span=350..363)
+  swap 1 !metadata(span=350..363)
+  swap 2 !metadata(span=350..363)
+  sub !metadata(span=350..363)
+  swap 1 !metadata(span=335..364)
+  push bb16 !metadata(span=335..364)
+  swap 2 !metadata(span=335..364)
+  jump bb5
+bb5:
+  dup 1 !metadata(span=284..297)
+  swap 2 !metadata(span=284..297)
+  add !metadata(span=284..297)
+  dup 2
+  jumpi bb6, bb15 !metadata(span=314..366)
+bb15:
+  swap 1
+  pop
+  jump bb7
+bb12 [cold]:
+  push 0
+  push 0
+  revert !metadata(exit=revert)
+{
+  "errors": [
+    {
+      "sourceLocation": null,
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "2264",
+      "message": "code generation is experimental",
+      "formattedMessage": "warning[2264]: code generation is experimental\n\n"
+    },
+    {
+      "sourceLocation": null,
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "2264",
+      "message": "code generation is experimental",
+      "formattedMessage": "warning[2264]: code generation is experimental\n\n"
+    }
+  ],
+  "sources": {
+    "Retained.sol": {
+      "id": 0
+    }
+  },
+  "contracts": {
+    "Retained.sol": {
+      "RetainedWriterAddress": {
+        "evm": {
+          "deployedBytecode": {
+            "sourceMap": ":::-:0;;;;;;;;;;;;;;;;;;;408:28:0;;404:36;;;;481:15;468:29;464:37;;;;542:15;529:29;525:37;;;;603:15;590:29;586:37;;;;664:16;651:30;647:38;;;;726:16;713:30;709:38;;;;788:16;775:30;771:38;;;;850:16;837:30;833:38;;;;912:16;899:30;895:38;;;;974:16;961:30;957:38;;;;1036:16;1023:30;1019:38;;;;1098:16;1085:30;1081:38;;;;1160:16;1147:30;1143:38;;;;1222:16;1209:30;1205:38;;;;1284:16;1271:30;1267:38;;;;1346:16;1333:30;1329:38;;;;1408:16;1395:30;1391:38;;;;1470:16;1457:30;1453:38;;;;1541:19;;;;;;1526:13;;;;;;;1519:42;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;-1:-1:-1;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;1585:20:0;;;;;;;1618;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;1765:13;;;;;1761:23;;;1757:33;;;1753:43;;;1749:53;;;1745:63;;;1741:73;;;1737:83;;;1733:93;;;1729:103;;;1725:113;;;1721:123;;;1717:133;;;1713:143;;;1709:153;;;1705:163;;;1701:173;;;1663:13;;;37:1853;;;;-1:-1:-1;;37:1853:0:o;-1:-1:-1:-;;;229:151:0:o;-1:-1:-1:-;;;;;350:13:0;;;;335:29;;;-1:-1:-1;284:13:0;;;-1:-1:-1;314:52:0;;-1:-1:-1;;;;;;;"
+          }
+        }
+      }
+    }
+  }
+}

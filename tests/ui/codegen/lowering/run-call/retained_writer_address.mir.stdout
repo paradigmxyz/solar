@@ -1,0 +1,662 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/retained_writer_address.sol:RetainedWriterAddress ===
+@module RetainedWriterAddress
+fn @run(arg0: calldataslice, arg1: u256, arg2: u256) -> (u256, u256) [selector=0xec8a0fc0, pure, abi_params=[array<18, u256>, u256, u256], abi_returns=[word, word]] {
+  bb0:
+    v0 = slice_ptr arg0
+    v1 = add v0, 0
+    v2 = calldataload v1
+    v3 = mul v2, 3
+    v4 = slice_ptr arg0
+    v5 = add v4, 32
+    v6 = calldataload v5
+    v7 = mul v6, 3
+    v8 = slice_ptr arg0
+    v9 = add v8, 64
+    v10 = calldataload v9
+    v11 = mul v10, 3
+    v12 = slice_ptr arg0
+    v13 = add v12, 96
+    v14 = calldataload v13
+    v15 = mul v14, 3
+    v16 = slice_ptr arg0
+    v17 = add v16, 128
+    v18 = calldataload v17
+    v19 = mul v18, 3
+    v20 = slice_ptr arg0
+    v21 = add v20, 160
+    v22 = calldataload v21
+    v23 = mul v22, 3
+    v24 = slice_ptr arg0
+    v25 = add v24, 192
+    v26 = calldataload v25
+    v27 = mul v26, 3
+    v28 = slice_ptr arg0
+    v29 = add v28, 224
+    v30 = calldataload v29
+    v31 = mul v30, 3
+    v32 = slice_ptr arg0
+    v33 = add v32, 256
+    v34 = calldataload v33
+    v35 = mul v34, 3
+    v36 = slice_ptr arg0
+    v37 = add v36, 288
+    v38 = calldataload v37
+    v39 = mul v38, 3
+    v40 = slice_ptr arg0
+    v41 = add v40, 320
+    v42 = calldataload v41
+    v43 = mul v42, 3
+    v44 = slice_ptr arg0
+    v45 = add v44, 352
+    v46 = calldataload v45
+    v47 = mul v46, 3
+    v48 = slice_ptr arg0
+    v49 = add v48, 384
+    v50 = calldataload v49
+    v51 = mul v50, 3
+    v52 = slice_ptr arg0
+    v53 = add v52, 416
+    v54 = calldataload v53
+    v55 = mul v54, 3
+    v56 = slice_ptr arg0
+    v57 = add v56, 448
+    v58 = calldataload v57
+    v59 = mul v58, 3
+    v60 = slice_ptr arg0
+    v61 = add v60, 480
+    v62 = calldataload v61
+    v63 = mul v62, 3
+    v64 = slice_ptr arg0
+    v65 = add v64, 512
+    v66 = calldataload v65
+    v67 = mul v66, 3
+    v68 = slice_ptr arg0
+    v69 = add v68, 544
+    v70 = calldataload v69
+    v71 = mul v70, 3
+    v72 = and arg1, 1
+    v73 = xor v3, v71
+    v74 = icall @bounce, 1, v73, v72
+    v75 = add arg1, 32
+    mstore v75, v74
+    v76 = mload arg2
+    v77 = add v3, v7
+    v78 = add v77, v11
+    v79 = add v78, v15
+    v80 = add v79, v19
+    v81 = add v80, v23
+    v82 = add v81, v27
+    v83 = add v82, v31
+    v84 = add v83, v35
+    v85 = add v84, v39
+    v86 = add v85, v43
+    v87 = add v86, v47
+    v88 = add v87, v51
+    v89 = add v88, v55
+    v90 = add v89, v59
+    v91 = add v90, v63
+    v92 = add v91, v67
+    v93 = add v92, v71
+    ret v76, v93
+}
+
+fn @bounce(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    v0 = add arg0, arg1
+    v1 = eq arg1, 0
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v3 = sub arg1, 1
+    v4 = icall @bounce, 1, v0, v3
+    jump bb3
+  bb3:
+    v5 = phi [bb1: v4], [bb2: v0]
+    ret v5
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/retained_writer_address.sol:RepeatedWriterAddress ===
+@module RepeatedWriterAddress
+fn @run(arg0: calldataslice, arg1: u256, arg2: u256) -> (u256, u256) [selector=0xec8a0fc0, pure, abi_params=[array<18, u256>, u256, u256], abi_returns=[word, word]] {
+  bb0:
+    v0 = slice_ptr arg0
+    v1 = add v0, 0
+    v2 = calldataload v1
+    v3 = mul v2, 3
+    v4 = slice_ptr arg0
+    v5 = add v4, 32
+    v6 = calldataload v5
+    v7 = mul v6, 3
+    v8 = slice_ptr arg0
+    v9 = add v8, 64
+    v10 = calldataload v9
+    v11 = mul v10, 3
+    v12 = slice_ptr arg0
+    v13 = add v12, 96
+    v14 = calldataload v13
+    v15 = mul v14, 3
+    v16 = slice_ptr arg0
+    v17 = add v16, 128
+    v18 = calldataload v17
+    v19 = mul v18, 3
+    v20 = slice_ptr arg0
+    v21 = add v20, 160
+    v22 = calldataload v21
+    v23 = mul v22, 3
+    v24 = slice_ptr arg0
+    v25 = add v24, 192
+    v26 = calldataload v25
+    v27 = mul v26, 3
+    v28 = slice_ptr arg0
+    v29 = add v28, 224
+    v30 = calldataload v29
+    v31 = mul v30, 3
+    v32 = slice_ptr arg0
+    v33 = add v32, 256
+    v34 = calldataload v33
+    v35 = mul v34, 3
+    v36 = slice_ptr arg0
+    v37 = add v36, 288
+    v38 = calldataload v37
+    v39 = mul v38, 3
+    v40 = slice_ptr arg0
+    v41 = add v40, 320
+    v42 = calldataload v41
+    v43 = mul v42, 3
+    v44 = slice_ptr arg0
+    v45 = add v44, 352
+    v46 = calldataload v45
+    v47 = mul v46, 3
+    v48 = slice_ptr arg0
+    v49 = add v48, 384
+    v50 = calldataload v49
+    v51 = mul v50, 3
+    v52 = slice_ptr arg0
+    v53 = add v52, 416
+    v54 = calldataload v53
+    v55 = mul v54, 3
+    v56 = slice_ptr arg0
+    v57 = add v56, 448
+    v58 = calldataload v57
+    v59 = mul v58, 3
+    v60 = slice_ptr arg0
+    v61 = add v60, 480
+    v62 = calldataload v61
+    v63 = mul v62, 3
+    v64 = slice_ptr arg0
+    v65 = add v64, 512
+    v66 = calldataload v65
+    v67 = mul v66, 3
+    v68 = slice_ptr arg0
+    v69 = add v68, 544
+    v70 = calldataload v69
+    v71 = mul v70, 3
+    v72 = and arg1, 1
+    v73 = xor v3, v71
+    v74 = icall @bounce, 1, v73, v72
+    v75 = add arg1, 32
+    mstore v75, v75
+    v76 = mload arg2
+    v77 = add v3, v7
+    v78 = add v77, v11
+    v79 = add v78, v15
+    v80 = add v79, v19
+    v81 = add v80, v23
+    v82 = add v81, v27
+    v83 = add v82, v31
+    v84 = add v83, v35
+    v85 = add v84, v39
+    v86 = add v85, v43
+    v87 = add v86, v47
+    v88 = add v87, v51
+    v89 = add v88, v55
+    v90 = add v89, v59
+    v91 = add v90, v63
+    v92 = add v91, v67
+    v93 = add v92, v71
+    v94 = add v93, v74
+    ret v76, v94
+}
+
+fn @bounce(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    v0 = add arg0, arg1
+    v1 = eq arg1, 0
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v3 = sub arg1, 1
+    v4 = icall @bounce, 1, v0, v3
+    jump bb3
+  bb3:
+    v5 = phi [bb1: v4], [bb2: v0]
+    ret v5
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/retained_writer_address.sol:InterveningByteWriter ===
+@module InterveningByteWriter
+fn @run(arg0: calldataslice, arg1: u256, arg2: u256) -> (u256, u256) [selector=0xec8a0fc0, pure, abi_params=[array<18, u256>, u256, u256], abi_returns=[word, word]] {
+  bb0:
+    v0 = slice_ptr arg0
+    v1 = add v0, 0
+    v2 = calldataload v1
+    v3 = mul v2, 3
+    v4 = slice_ptr arg0
+    v5 = add v4, 32
+    v6 = calldataload v5
+    v7 = mul v6, 3
+    v8 = slice_ptr arg0
+    v9 = add v8, 64
+    v10 = calldataload v9
+    v11 = mul v10, 3
+    v12 = slice_ptr arg0
+    v13 = add v12, 96
+    v14 = calldataload v13
+    v15 = mul v14, 3
+    v16 = slice_ptr arg0
+    v17 = add v16, 128
+    v18 = calldataload v17
+    v19 = mul v18, 3
+    v20 = slice_ptr arg0
+    v21 = add v20, 160
+    v22 = calldataload v21
+    v23 = mul v22, 3
+    v24 = slice_ptr arg0
+    v25 = add v24, 192
+    v26 = calldataload v25
+    v27 = mul v26, 3
+    v28 = slice_ptr arg0
+    v29 = add v28, 224
+    v30 = calldataload v29
+    v31 = mul v30, 3
+    v32 = slice_ptr arg0
+    v33 = add v32, 256
+    v34 = calldataload v33
+    v35 = mul v34, 3
+    v36 = slice_ptr arg0
+    v37 = add v36, 288
+    v38 = calldataload v37
+    v39 = mul v38, 3
+    v40 = slice_ptr arg0
+    v41 = add v40, 320
+    v42 = calldataload v41
+    v43 = mul v42, 3
+    v44 = slice_ptr arg0
+    v45 = add v44, 352
+    v46 = calldataload v45
+    v47 = mul v46, 3
+    v48 = slice_ptr arg0
+    v49 = add v48, 384
+    v50 = calldataload v49
+    v51 = mul v50, 3
+    v52 = slice_ptr arg0
+    v53 = add v52, 416
+    v54 = calldataload v53
+    v55 = mul v54, 3
+    v56 = slice_ptr arg0
+    v57 = add v56, 448
+    v58 = calldataload v57
+    v59 = mul v58, 3
+    v60 = slice_ptr arg0
+    v61 = add v60, 480
+    v62 = calldataload v61
+    v63 = mul v62, 3
+    v64 = slice_ptr arg0
+    v65 = add v64, 512
+    v66 = calldataload v65
+    v67 = mul v66, 3
+    v68 = slice_ptr arg0
+    v69 = add v68, 544
+    v70 = calldataload v69
+    v71 = mul v70, 3
+    v72 = and arg1, 1
+    v73 = xor v3, v71
+    v74 = icall @bounce, 1, v73, v72
+    v75 = add arg1, 32
+    mstore8 0, 7 !metadata(memory=scratch)
+    mstore v75, v74
+    v76 = mload arg2
+    v77 = mload 0 !metadata(memory=scratch)
+    v78 = byte 0, v77
+    v79 = add v3, v7
+    v80 = add v79, v11
+    v81 = add v80, v15
+    v82 = add v81, v19
+    v83 = add v82, v23
+    v84 = add v83, v27
+    v85 = add v84, v31
+    v86 = add v85, v35
+    v87 = add v86, v39
+    v88 = add v87, v43
+    v89 = add v88, v47
+    v90 = add v89, v51
+    v91 = add v90, v55
+    v92 = add v91, v59
+    v93 = add v92, v63
+    v94 = add v93, v67
+    v95 = add v94, v71
+    v96 = add v95, v78
+    ret v76, v96
+}
+
+fn @bounce(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    v0 = add arg0, arg1
+    v1 = eq arg1, 0
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v3 = sub arg1, 1
+    v4 = icall @bounce, 1, v0, v3
+    jump bb3
+  bb3:
+    v5 = phi [bb1: v4], [bb2: v0]
+    ret v5
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/retained_writer_address.sol:ResidentWriterSuffix ===
+@module ResidentWriterSuffix
+fn @run(arg0: calldataslice, arg1: u256, arg2: u256) -> (u256, u256) [selector=0xec8a0fc0, pure, abi_params=[array<18, u256>, u256, u256], abi_returns=[word, word]] {
+  bb0:
+    v0 = slice_ptr arg0
+    v1 = add v0, 0
+    v2 = calldataload v1
+    v3 = mul v2, 3
+    v4 = slice_ptr arg0
+    v5 = add v4, 32
+    v6 = calldataload v5
+    v7 = mul v6, 3
+    v8 = slice_ptr arg0
+    v9 = add v8, 64
+    v10 = calldataload v9
+    v11 = mul v10, 3
+    v12 = slice_ptr arg0
+    v13 = add v12, 96
+    v14 = calldataload v13
+    v15 = mul v14, 3
+    v16 = slice_ptr arg0
+    v17 = add v16, 128
+    v18 = calldataload v17
+    v19 = mul v18, 3
+    v20 = slice_ptr arg0
+    v21 = add v20, 160
+    v22 = calldataload v21
+    v23 = mul v22, 3
+    v24 = slice_ptr arg0
+    v25 = add v24, 192
+    v26 = calldataload v25
+    v27 = mul v26, 3
+    v28 = slice_ptr arg0
+    v29 = add v28, 224
+    v30 = calldataload v29
+    v31 = mul v30, 3
+    v32 = slice_ptr arg0
+    v33 = add v32, 256
+    v34 = calldataload v33
+    v35 = mul v34, 3
+    v36 = slice_ptr arg0
+    v37 = add v36, 288
+    v38 = calldataload v37
+    v39 = mul v38, 3
+    v40 = slice_ptr arg0
+    v41 = add v40, 320
+    v42 = calldataload v41
+    v43 = mul v42, 3
+    v44 = slice_ptr arg0
+    v45 = add v44, 352
+    v46 = calldataload v45
+    v47 = mul v46, 3
+    v48 = slice_ptr arg0
+    v49 = add v48, 384
+    v50 = calldataload v49
+    v51 = mul v50, 3
+    v52 = slice_ptr arg0
+    v53 = add v52, 416
+    v54 = calldataload v53
+    v55 = mul v54, 3
+    v56 = slice_ptr arg0
+    v57 = add v56, 448
+    v58 = calldataload v57
+    v59 = mul v58, 3
+    v60 = slice_ptr arg0
+    v61 = add v60, 480
+    v62 = calldataload v61
+    v63 = mul v62, 3
+    v64 = slice_ptr arg0
+    v65 = add v64, 512
+    v66 = calldataload v65
+    v67 = mul v66, 3
+    v68 = slice_ptr arg0
+    v69 = add v68, 544
+    v70 = calldataload v69
+    v71 = mul v70, 3
+    v72 = xor v3, v71
+    v73 = add arg1, 32
+    mstore v73, v72
+    v74 = mload arg2
+    v75 = add v3, v7
+    v76 = add v75, v11
+    v77 = add v76, v15
+    v78 = add v77, v19
+    v79 = add v78, v23
+    v80 = add v79, v27
+    v81 = add v80, v31
+    v82 = add v81, v35
+    v83 = add v82, v39
+    v84 = add v83, v43
+    v85 = add v84, v47
+    v86 = add v85, v51
+    v87 = add v86, v55
+    v88 = add v87, v59
+    v89 = add v88, v63
+    v90 = add v89, v67
+    v91 = add v90, v71
+    ret v74, v91
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/retained_writer_address.sol:FrozenWriterBase ===
+@module FrozenWriterBase
+fn @run(arg0: calldataslice, arg1: u256, arg2: u256) -> (u256, u256) [selector=0x9ba6c5f7, pure, abi_params=[array<32, u256>, u256, u256], abi_returns=[word, word]] {
+  bb0:
+    v0 = slice_ptr arg0
+    v1 = add v0, 0
+    v2 = calldataload v1
+    v3 = mul v2, 3
+    v4 = slice_ptr arg0
+    v5 = add v4, 32
+    v6 = calldataload v5
+    v7 = mul v6, 3
+    v8 = slice_ptr arg0
+    v9 = add v8, 64
+    v10 = calldataload v9
+    v11 = mul v10, 3
+    v12 = slice_ptr arg0
+    v13 = add v12, 96
+    v14 = calldataload v13
+    v15 = mul v14, 3
+    v16 = slice_ptr arg0
+    v17 = add v16, 128
+    v18 = calldataload v17
+    v19 = mul v18, 3
+    v20 = slice_ptr arg0
+    v21 = add v20, 160
+    v22 = calldataload v21
+    v23 = mul v22, 3
+    v24 = slice_ptr arg0
+    v25 = add v24, 192
+    v26 = calldataload v25
+    v27 = mul v26, 3
+    v28 = slice_ptr arg0
+    v29 = add v28, 224
+    v30 = calldataload v29
+    v31 = mul v30, 3
+    v32 = slice_ptr arg0
+    v33 = add v32, 256
+    v34 = calldataload v33
+    v35 = mul v34, 3
+    v36 = slice_ptr arg0
+    v37 = add v36, 288
+    v38 = calldataload v37
+    v39 = mul v38, 3
+    v40 = slice_ptr arg0
+    v41 = add v40, 320
+    v42 = calldataload v41
+    v43 = mul v42, 3
+    v44 = slice_ptr arg0
+    v45 = add v44, 352
+    v46 = calldataload v45
+    v47 = mul v46, 3
+    v48 = slice_ptr arg0
+    v49 = add v48, 384
+    v50 = calldataload v49
+    v51 = mul v50, 3
+    v52 = slice_ptr arg0
+    v53 = add v52, 416
+    v54 = calldataload v53
+    v55 = mul v54, 3
+    v56 = slice_ptr arg0
+    v57 = add v56, 448
+    v58 = calldataload v57
+    v59 = mul v58, 3
+    v60 = slice_ptr arg0
+    v61 = add v60, 480
+    v62 = calldataload v61
+    v63 = mul v62, 3
+    v64 = slice_ptr arg0
+    v65 = add v64, 512
+    v66 = calldataload v65
+    v67 = mul v66, 3
+    v68 = slice_ptr arg0
+    v69 = add v68, 544
+    v70 = calldataload v69
+    v71 = mul v70, 3
+    v72 = slice_ptr arg0
+    v73 = add v72, 576
+    v74 = calldataload v73
+    v75 = mul v74, 3
+    v76 = slice_ptr arg0
+    v77 = add v76, 608
+    v78 = calldataload v77
+    v79 = mul v78, 3
+    v80 = slice_ptr arg0
+    v81 = add v80, 640
+    v82 = calldataload v81
+    v83 = mul v82, 3
+    v84 = slice_ptr arg0
+    v85 = add v84, 672
+    v86 = calldataload v85
+    v87 = mul v86, 3
+    v88 = slice_ptr arg0
+    v89 = add v88, 704
+    v90 = calldataload v89
+    v91 = mul v90, 3
+    v92 = slice_ptr arg0
+    v93 = add v92, 736
+    v94 = calldataload v93
+    v95 = mul v94, 3
+    v96 = slice_ptr arg0
+    v97 = add v96, 768
+    v98 = calldataload v97
+    v99 = mul v98, 3
+    v100 = slice_ptr arg0
+    v101 = add v100, 800
+    v102 = calldataload v101
+    v103 = mul v102, 3
+    v104 = slice_ptr arg0
+    v105 = add v104, 832
+    v106 = calldataload v105
+    v107 = mul v106, 3
+    v108 = slice_ptr arg0
+    v109 = add v108, 864
+    v110 = calldataload v109
+    v111 = mul v110, 3
+    v112 = slice_ptr arg0
+    v113 = add v112, 896
+    v114 = calldataload v113
+    v115 = mul v114, 3
+    v116 = slice_ptr arg0
+    v117 = add v116, 928
+    v118 = calldataload v117
+    v119 = mul v118, 3
+    v120 = slice_ptr arg0
+    v121 = add v120, 960
+    v122 = calldataload v121
+    v123 = mul v122, 3
+    v124 = slice_ptr arg0
+    v125 = add v124, 992
+    v126 = calldataload v125
+    v127 = mul v126, 3
+    v128 = xor v3, v127
+    v129 = add arg1, 32
+    mstore v129, v128
+    v130 = mload arg2
+    v131 = mul v127, 32
+    v132 = mul v123, 31
+    v133 = mul v119, 30
+    v134 = mul v115, 29
+    v135 = mul v111, 28
+    v136 = mul v107, 27
+    v137 = mul v103, 26
+    v138 = mul v99, 25
+    v139 = mul v95, 24
+    v140 = mul v91, 23
+    v141 = mul v87, 22
+    v142 = mul v83, 21
+    v143 = mul v79, 20
+    v144 = mul v75, 19
+    v145 = mul v71, 18
+    v146 = mul v67, 17
+    v147 = mul v63, 16
+    v148 = mul v59, 15
+    v149 = mul v55, 14
+    v150 = mul v51, 13
+    v151 = mul v47, 12
+    v152 = mul v43, 11
+    v153 = mul v39, 10
+    v154 = mul v35, 9
+    v155 = mul v31, 8
+    v156 = mul v27, 7
+    v157 = mul v23, 6
+    v158 = mul v19, 5
+    v159 = mul v15, 4
+    v160 = mul v11, 3
+    v161 = mul v7, 2
+    v162 = add v3, v161
+    v163 = add v162, v160
+    v164 = add v163, v159
+    v165 = add v164, v158
+    v166 = add v165, v157
+    v167 = add v166, v156
+    v168 = add v167, v155
+    v169 = add v168, v154
+    v170 = add v169, v153
+    v171 = add v170, v152
+    v172 = add v171, v151
+    v173 = add v172, v150
+    v174 = add v173, v149
+    v175 = add v174, v148
+    v176 = add v175, v147
+    v177 = add v176, v146
+    v178 = add v177, v145
+    v179 = add v178, v144
+    v180 = add v179, v143
+    v181 = add v180, v142
+    v182 = add v181, v141
+    v183 = add v182, v140
+    v184 = add v183, v139
+    v185 = add v184, v138
+    v186 = add v185, v137
+    v187 = add v186, v136
+    v188 = add v187, v135
+    v189 = add v188, v134
+    v190 = add v189, v133
+    v191 = add v190, v132
+    v192 = add v191, v131
+    ret v130, v192
+}

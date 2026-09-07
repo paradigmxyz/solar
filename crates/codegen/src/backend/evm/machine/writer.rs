@@ -23,7 +23,19 @@
 //! properties rather than guarantees of this local cost comparison. Size mode retains ordinary
 //! backups so repeated load/store runs remain available to outlining.
 
-use crate::backend::evm::{ir, op, storage::FrameAddress};
+//! When the selected template covers every backup and preparation emitted no code,
+//! an immediately preceding homed address can keep one copy for this writer. Its
+//! home store remains unchanged; DUP1 and the existing operand SWAP1 replace the
+//! reload at equal gas. Exact producer, frozen prefix and canonical tail checks keep
+//! this local to one boundary. The caller shifts the debug range past the inserted
+//! copy so the preceding store retains its source origin. No residence, home or
+//! protection decision changes.
+
+use super::{Context, Slot};
+use crate::{
+    backend::evm::{ir, op, scheduler::Stack, storage::FrameAddress},
+    mir,
+};
 use alloy_primitives::U256;
 use ir::InstKind::{Dup, Op, Push, Swap};
 use solar_config::EvmVersion;
@@ -32,6 +44,62 @@ use std::ops::Range;
 pub(super) struct Protection {
     pub(super) range: Range<usize>,
     pub(super) instructions: Vec<ir::Instruction>,
+}
+
+/// Keeps an immediately produced address above its unchanged absolute spill store.
+/// The caller has selected a writer template with no ordinary backups and emitted no preparation.
+/// Its seven-word operand/template peak covers the extra copy and bounded operand materialization.
+/// Only the address is retained: DUP1 plus SWAP1 replaces one PUSH plus MLOAD at equal gas.
+pub(super) fn retain_address(
+    context: &Context<'_>,
+    (block, position): (mir::BlockId, usize),
+    stack: &mut Stack<Slot>,
+    output: &mut Vec<ir::Instruction>,
+) -> bool {
+    let Some(previous) = position
+        .checked_sub(1)
+        .map(|position| context.function.blocks[block].instructions[position])
+    else {
+        return false;
+    };
+    let inst = context.function.blocks[block].instructions[position];
+    let mir::InstKind::MStore(address, value) = context.function.inst(inst).kind else {
+        return false;
+    };
+    if address == value
+        || context.function.inst_result_value(previous) != Some(address)
+        || context
+            .function
+            .inst(previous)
+            .kind
+            .evm_opcode()
+            .and_then(op::stack_io)
+            .is_none_or(|(_, outputs)| outputs != 1)
+        || context.layout.suppressed.as_ref().is_some_and(|set| set.contains(previous))
+        || context.layout.rematerialized.contains_key(&address)
+    {
+        return false;
+    }
+    let Some(&home) = context.layout.spills.homes.get(&address) else { return false };
+    let Ok(FrameAddress::Absolute(home)) = context.storage.spill_address(home) else {
+        return false;
+    };
+    let Some(start) = output.len().checked_sub(2) else { return false };
+    if (home == 0 && context.version.has_push0())
+        || output[start].kind != ir::InstKind::Push(U256::from(home))
+        || output[start + 1].kind != ir::InstKind::Op(op::MSTORE)
+        || !ir::split_allowed(output, start)
+        || output[start..].iter().any(|inst| inst.keep_with_next || inst.stack_effect.is_some())
+    {
+        return false;
+    }
+    // address; dup1; push home; mstore
+    // <materialize value>; swap1; <unchanged protected writer>
+    let mut duplicate = ir::Instruction::from(ir::InstKind::Dup(1));
+    duplicate.debug = output[start].debug.clone();
+    output.insert(start, duplicate);
+    stack.push(Slot::Value(address));
+    true
 }
 
 /// The first `spill_homes` entries are initialized live value homes, never protocol words.

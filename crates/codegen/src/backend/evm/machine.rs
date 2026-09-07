@@ -1184,7 +1184,7 @@ fn lower_opcode(
     insts: &mut Vec<ir::Instruction>,
     operand_order: entry_order::OperandOrder,
 ) -> Result<(), String> {
-    let origin_start = insts.len();
+    let mut origin_start = insts.len();
     let function = context.function;
     let instruction = function.inst(inst_id);
     let live = |value| context.layout.live.is_used_at_or_after(value, block_id, position + 1);
@@ -1217,6 +1217,15 @@ fn lower_opcode(
         operands.len(),
         || control_live_after(context, block_id, position),
     )?;
+    if saved.protection.is_some()
+        && saved.addresses.is_empty()
+        && saved.protected_prefix == Some(stack.values().len())
+        && insts.len() == origin_start
+        && writer::retain_address(context, (block_id, position), stack, insts)
+    {
+        // The inserted copy belongs to the preceding producer, whose store shifted by one.
+        origin_start += 1;
+    }
     if let Some(fixed_prefix) = saved.protected_prefix {
         let operands = operands.iter().copied().map(Slot::Value).collect::<Vec<_>>();
         materialize(context, stack, insts, &operands)?;
