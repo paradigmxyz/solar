@@ -695,6 +695,7 @@ impl Instruction {
             InstKind::CheckedBinary { .. } => Some("checked arithmetic"),
             InstKind::ValidateStorageBytes(..)
             | InstKind::StorageBytesLoad(..)
+            | InstKind::StorageClearWords(..)
             | InstKind::Erc7201(..)
             | InstKind::CheckedAddMod(..)
             | InstKind::CheckedMulMod(..)
@@ -1159,6 +1160,8 @@ pub(crate) enum InstKind {
     ValidateStorageBytes(ValueId),
     /// Materialize a Solidity storage bytes value as a fresh memory bytes object.
     StorageBytesLoad(ValueId),
+    /// Clears hashed storage data words in the half-open range `first..end`.
+    StorageClearWords(ValueId, ValueId, ValueId),
     /// Load from storage: `sload(slot)`
     SLoad(ValueId),
     /// Store to storage: `sstore(slot, value)`
@@ -1630,6 +1633,7 @@ impl InstKind {
             | Self::CheckedMulMod(a, b, c)
             | Self::AddMod(a, b, c)
             | Self::MulMod(a, b, c)
+            | Self::StorageClearWords(a, b, c)
             | Self::Create(a, b, c)
             | Self::Log1(a, b, c)
             | Self::Select(a, b, c) => {
@@ -1940,6 +1944,7 @@ impl InstKind {
             | Self::CheckedMulMod(a, b, c)
             | Self::AddMod(a, b, c)
             | Self::MulMod(a, b, c)
+            | Self::StorageClearWords(a, b, c)
             | Self::Create(a, b, c)
             | Self::Log1(a, b, c)
             | Self::Select(a, b, c) => {
@@ -2116,6 +2121,7 @@ impl InstKind {
             Self::MCopy(_, _, _) => "mcopy",
             Self::ValidateStorageBytes(_) => "validate_storage_bytes",
             Self::StorageBytesLoad(_) => "load_storage_bytes",
+            Self::StorageClearWords(..) => "clear_storage_words",
             Self::SLoad(_) => "sload",
             Self::SStore(_, _) => "sstore",
             Self::TLoad(_) => "tload",
@@ -2305,9 +2311,10 @@ impl InstKind {
             | Self::MappingSlot(_, _)
             | Self::MappingSlotMemory(_, _) => EffectKind::MemoryRead,
             Self::SLoad(_) => EffectKind::StorageRead,
-            Self::SStore(_, _) | Self::MemoryToStorage { .. } | Self::ClearStorage { .. } => {
-                EffectKind::StorageWrite
-            }
+            Self::SStore(_, _)
+            | Self::MemoryToStorage { .. }
+            | Self::ClearStorage { .. }
+            | Self::StorageClearWords(..) => EffectKind::StorageWrite,
             Self::TLoad(_) => EffectKind::TransientRead,
             Self::TStore(_, _) => EffectKind::TransientWrite,
             Self::Call { .. }

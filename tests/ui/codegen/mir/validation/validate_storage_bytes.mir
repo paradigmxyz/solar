@@ -14,3 +14,10 @@ fn @load(arg0: memoryarray) -> memorybytes {
     v0 = load_storage_bytes arg0
     ret v0
 }
+
+//~? ERROR: [fn2] [bb0, inst0] storage clear requires word operands
+fn @clear(arg0: memorybytes) {
+  bb0:
+    clear_storage_words 0, arg0, 1
+    ret
+}

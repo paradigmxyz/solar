@@ -83,7 +83,9 @@ semantics. Runtime `erc7201` retains the namespace object, while a literal
 namespace folds directly to its constant slot. Storage bytes loads retain
 header validation, allocation and copying as one operation. Header reads keep
 `sload` visible to storage and loop passes; a separate validation operation
-retains its encoding check when the word is unused.
+retains its encoding check when the word is unused. Hashed storage-data clearing
+retains its slot and half-open word range as one storage-writing operation;
+builtin conversion emits the loop before physical address hashing.
 Storage promotion uses shared read/write effects to reject opaque accesses
 it cannot redirect through promoted values.
 `lower-checks` expands typed panic and revert checks into branches and shared

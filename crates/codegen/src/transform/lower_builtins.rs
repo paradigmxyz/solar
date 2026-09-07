@@ -60,10 +60,20 @@ impl MirPass for LowerBuiltins {
                     }
                     let inst = builder.func().inst(id).clone();
                     builder.set_debug_context(&inst.metadata);
-                    if let InstKind::ValidateStorageBytes(header) = inst.kind {
-                        // validate_storage_bytes(header) -> encoding predicate; panic if invalid
-                        super::lower_storage_bytes::validate(&mut builder, header);
-                        continue;
+                    match inst.kind {
+                        InstKind::ValidateStorageBytes(header) => {
+                            // validate_storage_bytes(header) -> encoding predicate; panic if
+                            // invalid
+                            super::lower_storage_bytes::validate(&mut builder, header);
+                            continue;
+                        }
+                        InstKind::StorageClearWords(slot, first, end) => {
+                            // for index in first..end { sstore(storage_array_data_slot(slot) +
+                            // index, 0) }
+                            super::lower_storage_bytes::clear_words(&mut builder, slot, first, end);
+                            continue;
+                        }
+                        _ => {}
                     }
                     // builtin(args) -> buffer setup; copies or precompile call; result
                     let result = match inst.kind {
@@ -121,6 +131,7 @@ fn is_builtin(kind: &InstKind) -> bool {
         kind,
         InstKind::ValidateStorageBytes(..)
             | InstKind::StorageBytesLoad(..)
+            | InstKind::StorageClearWords(..)
             | InstKind::Erc7201(..)
             | InstKind::CheckedAddMod(..)
             | InstKind::CheckedMulMod(..)

@@ -105,3 +105,9 @@
       ret
   }
   
+  fn @storage_clear(arg0: u256, arg1: u256) {
+    bb0:
+      clear_storage_words arg0, 1, arg1
+      ret
+  }
+  

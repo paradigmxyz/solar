@@ -192,6 +192,7 @@ impl InstKind {
             | Self::MappingSlotMemory(..)
             | Self::MappingSlotCalldata(..)
             | Self::StorageArrayDataSlot(..)
+            | Self::StorageClearWords(..)
             | Self::StorageArrayElementSlot { .. }
             | Self::Call { .. }
             | Self::CallCode { .. }

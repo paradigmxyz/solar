@@ -1230,6 +1230,7 @@ impl AliasAnalysis {
                     self.storage_alias_after_replacements(func, inst_id, *storage, replacements);
                 add_storage_range(&mut effects, base, layout.storage_slots(), true);
             }
+            InstKind::StorageClearWords(..) => effects.write_any(AddressSpace::Storage),
             InstKind::ClearStorage { .. } => {
                 let InstKind::ClearStorage { storage, layout } = kind else { unreachable!() };
                 let base =

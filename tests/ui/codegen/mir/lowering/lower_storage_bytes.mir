@@ -28,3 +28,16 @@ fn @edge(arg0: bool, arg1: u256, arg2: memorybytes) -> memorybytes {
     v1 = phi [bb1: v0], [bb2: arg2]
     ret v1
 }
+
+fn @clear(arg0: bool, arg1: u256, arg2: u256, arg3: u256) -> u256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    clear_storage_words arg1, arg2, arg3 !metadata(span=30..40, modifier_depth=3)
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v0 = phi [bb1: 1], [bb2: 2]
+    ret v0
+}

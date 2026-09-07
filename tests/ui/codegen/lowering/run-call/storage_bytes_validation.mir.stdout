@@ -48,22 +48,11 @@ fn @invalidShortDelete() [selector=0x1cba07c2, abi_params=[], abi_returns=[]] {
     v7 = div v6, 32
     jumpi v2, bb1, bb2
   bb1:
-    v8 = storage_array_data_slot 0
-    jump bb3
-  bb3:
-    v9 = phi [bb1: 0], [bb4: v12]
-    v10 = lt v9, v7
-    jumpi v10, bb4, bb5
-  bb5:
+    clear_storage_words 0, 0, v7
     jump bb2
   bb2:
     sstore 0, 0 !metadata(storage=slot(0))
     ret
-  bb4:
-    v11 = add v8, v9
-    sstore v11, 0 !metadata(storage=symbolic(v11))
-    v12 = add v9, 1
-    jump bb3
 }
 
 fn @invalidLongDelete() [selector=0x7dd42e48, abi_params=[], abi_returns=[]] {
@@ -80,22 +69,11 @@ fn @invalidLongDelete() [selector=0x7dd42e48, abi_params=[], abi_returns=[]] {
     v7 = div v6, 32
     jumpi v2, bb1, bb2
   bb1:
-    v8 = storage_array_data_slot 0
-    jump bb3
-  bb3:
-    v9 = phi [bb1: 0], [bb4: v12]
-    v10 = lt v9, v7
-    jumpi v10, bb4, bb5
-  bb5:
+    clear_storage_words 0, 0, v7
     jump bb2
   bb2:
     sstore 0, 0 !metadata(storage=slot(0))
     ret
-  bb4:
-    v11 = add v8, v9
-    sstore v11, 0 !metadata(storage=symbolic(v11))
-    v12 = add v9, 1
-    jump bb3
 }
 
 fn @invalidShortLength() -> u256 [selector=0xe7a318a7, abi_params=[], abi_returns=[word]] {

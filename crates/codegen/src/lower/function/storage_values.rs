@@ -112,44 +112,14 @@ fn packed_storage_array_position(
 
 /// Builds the helper for clearing the data words of a storage bytes value.
 fn build_storage_clear_helper(function: &mut Function) {
-    // for i in first_word..words { sstore(data_slot + i, 0) }
+    // clear_storage_words(slot, first_word, words)
     let mut builder = FunctionBuilder::new_semantic(function);
     let slot = builder.add_param(MirType::uint256());
     let first_word = builder.add_param(MirType::uint256());
     let words = builder.add_param(MirType::uint256());
-    let zero = builder.imm(0);
-    emit_clear_storage_words(&mut builder, slot, first_word, words, zero);
+    builder.clear_storage_words(slot, first_word, words);
     // ret
     builder.ret([]);
-}
-
-fn emit_clear_storage_words(
-    builder: &mut FunctionBuilder<'_>,
-    slot: ValueId,
-    first_word: ValueId,
-    words: ValueId,
-    zero: ValueId,
-) {
-    // data_slot = storage_array_data_slot(slot)
-    // for i in first_word..words { sstore(data_slot + i, 0) }
-    let data_slot = builder.storage_array_data_slot(slot);
-    let preheader = builder.current_block();
-    let header = builder.create_block();
-    let body = builder.create_block();
-    let exit = builder.create_block();
-    builder.jump(header);
-    builder.switch_to_block(header);
-    let index = builder.phi(vec![(preheader, first_word)]);
-    let condition = builder.lt(index, words);
-    builder.branch(condition, body, exit);
-    builder.switch_to_block(body);
-    let element_slot = builder.add(data_slot, index);
-    builder.sstore(element_slot, zero);
-    let next = builder.add_u64_offset(index, 1);
-    let backedge = builder.current_block();
-    builder.jump(header);
-    builder.add_phi_incoming(index, backedge, next);
-    builder.switch_to_block(exit);
 }
 
 /// Builds `store_storage_bytes(slot, object)`, shared by every `bytes`/`string` store into
@@ -1792,7 +1762,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let remainder_is_zero = self.builder.iszero(remainder);
                     let has_partial_slot = self.builder.iszero(remainder_is_zero);
                     let slots = self.builder.add(full_slots, has_partial_slot);
-                    emit_clear_storage_words(&mut self.builder, access.slot, zero, slots, zero);
+                    self.builder.clear_storage_words(access.slot, zero, slots);
                     return Some(());
                 }
 
@@ -1942,7 +1912,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
         // if is_long { clear_storage_words(slot, 0, words) }
         self.builder.switch_to_block(cleanup_block);
-        emit_clear_storage_words(&mut self.builder, slot, zero, words, zero);
+        self.builder.clear_storage_words(slot, zero, words);
         self.builder.jump(write_block);
 
         // sstore(slot, 0)

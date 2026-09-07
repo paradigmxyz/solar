@@ -1122,6 +1122,12 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_void_inst(InstKind::ValidateAbi(value));
     }
 
+    /// Clears the hashed data words of a storage array in `first..end`.
+    pub(crate) fn clear_storage_words(&mut self, slot: ValueId, first: ValueId, end: ValueId) {
+        // clear_storage_words slot, first, end
+        self.emit_void_inst(InstKind::StorageClearWords(slot, first, end));
+    }
+
     /// Validate a loaded Solidity storage bytes header.
     pub(crate) fn validate_storage_bytes(&mut self, header: ValueId) {
         // validate_storage_bytes header

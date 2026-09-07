@@ -130,3 +130,11 @@ fn @unused_storage_reads(arg0: u256) {
     v1 = load_storage_bytes arg0
     ret
 }
+
+// CHECK-LABEL: fn @storage_clear
+// CHECK: {{^[ +].*}}clear_storage_words arg0, 1, arg1
+fn @storage_clear(arg0: u256, arg1: u256) {
+  bb0:
+    clear_storage_words arg0, 1, arg1
+    ret
+}

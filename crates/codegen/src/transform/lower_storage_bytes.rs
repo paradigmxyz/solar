@@ -1,9 +1,12 @@
-//! Expand Solidity storage bytes reads during builtin conversion.
+//! Expand Solidity storage bytes reads and hashed data-word clearing during builtin conversion.
 //!
 //! Validate the short/long header before exposing its length or allocating memory. Short values
 //! copy their packed header word; long values copy the hashed data area through a counted loop.
 //! Allocation keeps Solidity's checked, rounded, uninitialized policy. The builtin pass supplies
 //! source context and repairs the continuation edge, and revert outlining shares failure payloads.
+//! Clearing carries both the word index and storage address through the loop. The index controls
+//! termination independently of wrapping storage addresses. Address hashing stays abstract until
+//! memory lowering, as it does for ordinary array accesses.
 
 use crate::mir::{AllocationSemantics, FunctionBuilder, PanicCode, ValueId};
 use alloy_primitives::U256;
@@ -70,4 +73,37 @@ pub(super) fn load(builder: &mut FunctionBuilder<'_>, slot: ValueId) -> ValueId 
 
     builder.switch_to_block(merge_block);
     object
+}
+
+pub(super) fn clear_words(
+    builder: &mut FunctionBuilder<'_>,
+    slot: ValueId,
+    first_word: ValueId,
+    words: ValueId,
+) {
+    // data_slot = storage_array_data_slot(slot)
+    // address = data_slot + first_word
+    // for i in first_word..words { sstore(address, 0); address += 1 }
+    let zero = builder.imm(0);
+    let data_slot = builder.storage_array_data_slot(slot);
+    let first_slot = builder.add(data_slot, first_word);
+    let preheader = builder.current_block();
+    let header = builder.create_block();
+    let body = builder.create_block();
+    let exit = builder.create_block();
+    builder.jump(header);
+    builder.switch_to_block(header);
+    let index = builder.phi(vec![(preheader, first_word)]);
+    let element_slot = builder.phi(vec![(preheader, first_slot)]);
+    let condition = builder.lt(index, words);
+    builder.branch(condition, body, exit);
+    builder.switch_to_block(body);
+    builder.sstore(element_slot, zero);
+    let next = builder.add_u64_offset(index, 1);
+    let next_slot = builder.add_u64_offset(element_slot, 1);
+    let backedge = builder.current_block();
+    builder.jump(header);
+    builder.add_phi_incoming(index, backedge, next);
+    builder.add_phi_incoming(element_slot, backedge, next_slot);
+    builder.switch_to_block(exit);
 }

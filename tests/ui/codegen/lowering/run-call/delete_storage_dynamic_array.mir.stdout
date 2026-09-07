@@ -32,52 +32,41 @@ fn @clearAndPush() -> struct0 [selector=0x1698ee0c, abi_params=[], abi_returns=[
     v19 = iszero v18
     v20 = iszero v19
     v21 = add v17, v20
-    v22 = storage_array_data_slot 0
-    jump bb1
-  bb1:
-    v23 = phi [bb0: 0], [bb2: v26]
-    v24 = lt v23, v21
-    jumpi v24, bb2, bb3
-  bb3:
-    v27 = sload 0 !metadata(storage=slot(0))
-    v28 = gt v27, 0xffffffffffffffff
-    panic_if v28, 0x41
-    v29 = add v27, 1
-    v30 = storage_array_data_slot 0
-    v31 = div v27, 10
-    v32 = add v30, v31
-    v33 = mod v27, 10
-    v34 = mul v33, 3
-    v35 = mul v34, 8
-    v36 = shl v35, 0xffffff
-    v37 = sload v32 !metadata(storage=symbolic(v32))
-    v38 = not v36
-    v39 = and v37, v38
-    v40 = and 9, 0xffffff
-    v41 = shl v35, v40
-    v42 = or v39, v41
-    sstore v32, v42 !metadata(storage=symbolic(v32))
-    sstore 0, v29 !metadata(storage=slot(0))
-    v43 = sload 0 !metadata(storage=slot(0))
-    v44 = sload 0 !metadata(storage=slot(0))
-    v45 = lt 0, v44
-    v46 = iszero v45
-    panic_if v46, 0x32
-    v47 = storage_array_data_slot 0
-    v48 = div 0, 10
-    v49 = add v47, v48
-    v50 = mod 0, 10
-    v51 = mul v50, 3
-    v52 = sload v49 !metadata(storage=symbolic(v49))
-    v53 = mul v51, 8
-    v54 = shr v53, v52
-    v55 = and v54, 0xffffff
-    v56 = insert_value struct0, undef struct0, 0, v43
-    v57 = insert_value struct0, v56, 1, v55
-    ret v57
-  bb2:
-    v25 = add v22, v23
-    sstore v25, 0 !metadata(storage=symbolic(v25))
-    v26 = add v23, 1
-    jump bb1
+    clear_storage_words 0, 0, v21
+    v22 = sload 0 !metadata(storage=slot(0))
+    v23 = gt v22, 0xffffffffffffffff
+    panic_if v23, 0x41
+    v24 = add v22, 1
+    v25 = storage_array_data_slot 0
+    v26 = div v22, 10
+    v27 = add v25, v26
+    v28 = mod v22, 10
+    v29 = mul v28, 3
+    v30 = mul v29, 8
+    v31 = shl v30, 0xffffff
+    v32 = sload v27 !metadata(storage=symbolic(v27))
+    v33 = not v31
+    v34 = and v32, v33
+    v35 = and 9, 0xffffff
+    v36 = shl v30, v35
+    v37 = or v34, v36
+    sstore v27, v37 !metadata(storage=symbolic(v27))
+    sstore 0, v24 !metadata(storage=slot(0))
+    v38 = sload 0 !metadata(storage=slot(0))
+    v39 = sload 0 !metadata(storage=slot(0))
+    v40 = lt 0, v39
+    v41 = iszero v40
+    panic_if v41, 0x32
+    v42 = storage_array_data_slot 0
+    v43 = div 0, 10
+    v44 = add v42, v43
+    v45 = mod 0, 10
+    v46 = mul v45, 3
+    v47 = sload v44 !metadata(storage=symbolic(v44))
+    v48 = mul v46, 8
+    v49 = shr v48, v47
+    v50 = and v49, 0xffffff
+    v51 = insert_value struct0, undef struct0, 0, v38
+    v52 = insert_value struct0, v51, 1, v50
+    ret v52
 }
