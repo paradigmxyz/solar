@@ -1,0 +1,50 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_entry_cycle.sol:AcyclicClosureBridge ===
+@module AcyclicClosureBridge
+fn @enter(arg0: u256) [selector=0xa59f3e0c, pure, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    icall @finish, 0, arg0
+    revert 0, 0
+}
+
+fn @finish(arg0: u256) [pure] {
+  bb0:
+    v0 = eq arg0, 0
+    v1 = iszero v0
+    jumpi v1, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    mstore 0, arg0 !metadata(memory=scratch)
+    jump bb3
+  bb3:
+    mstore 0, arg0 !metadata(memory=scratch)
+    revert 0, 32
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_entry_cycle.sol:CyclicClosureBridge ===
+@module CyclicClosureBridge
+fn @enter(arg0: u256) [selector=0xa59f3e0c, pure, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    icall @finish, 0, arg0
+    revert 0, 0
+}
+
+fn @finish(arg0: u256) [pure] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb5: v0]
+    v1 = eq v0, 0
+    v2 = iszero v1
+    jumpi v2, bb3, bb4
+  bb4:
+    jump bb2
+  bb2:
+    mstore 0, v0 !metadata(memory=scratch)
+    revert 0, 32
+  bb3:
+    mstore 0, v0 !metadata(memory=scratch)
+    jump bb5
+  bb5:
+    jump bb1
+}

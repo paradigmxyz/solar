@@ -1,0 +1,552 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_entry_budget.sol:NearTerminalBudget (runtime) ===
+@module NearTerminalBudget_runtime
+bb0 [cold]:
+  callvalue
+  jumpi bb3, bb16
+bb16 [cold]:
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x9bbc59f9
+  eq
+  jumpi bb22, bb21
+bb21 [cold]:
+  push 0xe673ea3a
+  sub
+  jumpi bb3, bb1
+bb1 [cold]:
+  calldatasize
+  push 36
+  gt
+  jumpi bb3, bb2
+bb2 [cold]:
+  push 4
+  calldataload
+  push 1
+  add
+  push 2
+  add
+  push 3
+  add
+  push 4
+  add
+  push 5
+  add
+  push 6
+  add
+  push 7
+  add
+  push 8
+  add
+  push 9
+  add
+  push 10
+  add
+  push 11
+  add
+  push 12
+  add
+  push 13
+  add
+  push 14
+  add
+  push 15
+  add
+  push 16
+  add
+  push 17
+  add
+  push 18
+  add
+  push 19
+  add
+  push 20
+  add
+  push 21
+  add
+  push 22
+  add
+  push 23
+  add
+  push 24
+  add
+  push 25
+  add
+  push 26
+  add
+  push 27
+  add
+  push 28
+  add
+  push 29
+  add
+  push 30
+  add
+  push 31
+  add
+  push 32
+  add
+  push 33
+  add
+  push 34
+  add
+  push 35
+  add
+  push 36
+  add
+  push 37
+  add
+  push 38
+  add
+  push 39
+  add
+  push 40
+  add
+  push 41
+  add
+  push 42
+  add
+  push 43
+  add
+  push 44
+  add
+  push 45
+  add
+  push 46
+  add
+  push 47
+  add
+  push 48
+  add
+  push 49
+  add
+  push 50
+  add
+  push 51
+  add
+  push 52
+  add
+  push 53
+  add
+  push 54
+  add
+  push 55
+  add
+  push 56
+  add
+  push 57
+  add
+  push 58
+  add
+  push 59
+  add
+  push 60
+  add
+  push 61
+  add
+  push 62
+  add
+  push 63
+  add
+  push 64
+  add
+  push 65
+  add
+  push 66
+  add
+  push 67
+  add
+  push 68
+  add
+  push 69
+  add
+  push 70
+  add
+  push 71
+  add
+  push 72
+  add
+  push 73
+  add
+  push 74
+  add
+  push 75
+  add
+  push 76
+  add
+  push 77
+  add
+  push 78
+  add
+  push 79
+  add
+  push 80
+  add
+  push 81
+  add
+  push 82
+  add
+  push 83
+  add
+  push 84
+  add
+  push 85
+  add
+  push 86
+  add
+  push 87
+  add
+  push 88
+  add
+  push 89
+  add
+  push 90
+  add
+  push 91
+  add
+  push 92
+  add
+  push 93
+  add
+  push 94
+  add
+  push 95
+  add
+  push 96
+  add
+  push 97
+  add
+  push 98
+  add
+  push 99
+  add
+  push 100
+  add
+  push 101
+  add
+  push 102
+  add
+  push 103
+  add
+  push 104
+  add
+  push 105
+  add
+  push 106
+  add
+  push 107
+  add
+  push 108
+  add
+  push 109
+  add
+  push 110
+  add
+  push 111
+  add
+  push 112
+  add
+  push 113
+  add
+  push 114
+  add
+  push 115
+  add
+  push 116
+  add
+  push 117
+  add
+  push 118
+  add
+  push 119
+  add
+  push 120
+  add
+  push 121
+  add
+  push 122
+  add
+  push 123
+  add
+  push 124
+  add
+  push 125
+  add
+  push 126
+  add
+  push 127
+  add
+  push 128
+  add
+  push 129
+  add
+  push 130
+  add
+  push 131
+  add
+  push 132
+  add
+  push 133
+  add
+  push 134
+  add
+  push 135
+  add
+  push 136
+  add
+  push 137
+  add
+  push 138
+  add
+  push 139
+  add
+  push 140
+  add
+  push 141
+  add
+  push 142
+  add
+  push 143
+  add
+  push 144
+  add
+  push 145
+  add
+  push 146
+  add
+  push 147
+  add
+  push 148
+  add
+  push 149
+  add
+  push 150
+  add
+  push 151
+  add
+  push 152
+  add
+  push 153
+  add
+  push 154
+  add
+  push 155
+  add
+  push 156
+  add
+  push 157
+  add
+  push 158
+  add
+  push 159
+  add
+  push 160
+  add
+  push 161
+  add
+  push 162
+  add
+  push 163
+  add
+  push 164
+  add
+  push 165
+  add
+  push 166
+  add
+  push 167
+  add
+  push 168
+  add
+  push 169
+  add
+  push 170
+  add
+  push 171
+  add
+  push 172
+  add
+  push 173
+  add
+  push 174
+  add
+  push 175
+  add
+  push 176
+  add
+  push 177
+  add
+  push 178
+  add
+  push 179
+  add
+  push 180
+  add
+  push 181
+  add
+  push 182
+  add
+  push 183
+  add
+  push 184
+  add
+  push 185
+  add
+  push 186
+  add
+  push 187
+  add
+  push 188
+  add
+  push 189
+  add
+  push 190
+  add
+  push 191
+  add
+  push 192
+  add
+  push 193
+  add
+  push 194
+  add
+  push 195
+  add
+  push 196
+  add
+  push 197
+  add
+  push 198
+  add
+  push 199
+  add
+  push 200
+  add
+  push 201
+  add
+  push 202
+  add
+  push 203
+  add
+  push 204
+  add
+  push 205
+  add
+  push 206
+  add
+  push 207
+  add
+  push 208
+  add
+  push 209
+  add
+  push 210
+  add
+  push 211
+  add
+  push 212
+  add
+  push 213
+  add
+  push 214
+  add
+  push 215
+  add
+  push 216
+  add
+  push 217
+  add
+  push 218
+  add
+  push 219
+  add
+  push 220
+  add
+  push 221
+  add
+  push 222
+  add
+  push 223
+  add
+  push 224
+  add
+  push 225
+  add
+  push 226
+  add
+  push 227
+  add
+  push 228
+  add
+  push 229
+  add
+  push 230
+  add
+  push 231
+  add
+  push 232
+  add
+  push 233
+  add
+  push 234
+  add
+  push 235
+  add
+  push 236
+  add
+  push 237
+  add
+  push 238
+  add
+  push 239
+  add
+  push 240
+  add
+  push 241
+  add
+  push 242
+  add
+  push 243
+  add
+  push 244
+  add
+  push 245
+  add
+  push 246
+  add
+  push 247
+  add
+  push 248
+  add
+  push 249
+  add
+  push 250
+  add
+  push 251
+  add
+  push 252
+  add
+  push 253
+  add
+  jump bb13
+bb13 [cold]:
+  push 0
+  mstore
+  push 32
+  push 0
+  revert
+bb3 [cold]:
+  push 0
+  push 0
+  revert
+bb22 [cold]:
+  calldatasize
+  push 36
+  gt
+  jumpi bb3, bb7
+bb7 [cold]:
+  push 4
+  calldataload
+  jump bb13
