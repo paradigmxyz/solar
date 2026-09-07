@@ -1459,3 +1459,100 @@ and `adjacent-call-boolean-independent-20260907/` beneath the candidate
 evidence directory. A separate artifact-only pure-consumer scheduling draft
 was withheld after review found a two-run instruction-order instability;
 see `writer-observer-scheduling-design-20260907/ADVERSARIAL_REVIEW.md`.
+
+
+### Existing empty-revert owners
+
+Commit `c511964c` extends physical CFG terminal redirection to canonical empty
+reverts around GAS observations, subject to an already-taken, unpushed owner,
+a nonempty retained entry and no indexed control. Transfer and destination
+costs stay unchanged; every retained label stays nonzero. No assembler or MIR
+logic changed. Production adds 28 physical lines; the backend now has 16,444
+lines in 45 files versus 34,638 in the deletion census, a reduction of 18,194
+(52.53%). These are physical lines including comments and inline tests, not a
+strict production-SLOC comparison.
+
+The frozen `775676aa` candidate versus accepted `b4a1695e` has 316 shrinking
+UI objects and no growth among 4,940 matched objects. Gas creation/runtime
+totals fall 618/618 bytes and Size 897/895. The corpus retains 814 IDs per mode,
+805 successes and nine diagnostic outcomes, and 1,235 contracts per mode.
+One diagnostic differs only in ordering of its complete warning blocks.
+After the call-test matrix migration, matched captures and source-body checks
+bridge every affected object to the full capture; compiler inputs match
+between the baseline and candidate legs.
+
+All 24 full-workflow and 15 Size-workflow IDs retain 175 ordered gas labels
+and 139 observations per compiler. Runtime and deployment gas are unchanged.
+The Size Aave L2 encoder shrinks 44 bytes in both creation and runtime;
+other runtime objects are exact. Four changed project outputs were recaptured,
+and five unchanged fingerprints bridge retained outputs. Across all 1,672
+project contracts and 3,344 objects, 66 objects shrink by 3,075 creation and
+3,075 runtime bytes, with no growth. Immutable/link identities, widths and
+contents remain valid. Seventeen source-map changes were reviewed against
+retained instructions, operand relocation and metadata merge rules.
+
+Original sealed debt remains substantial: 1,059 project objects are still
+larger, down from 1,061. Their positive size deltas total 33,272,046 bytes;
+that is a sum of regressions, not a net corpus delta. Existing mutable-bank,
+calldata-alias and mixed-tail debt also remains. The low-level forwarding
+fixture now has 295/277 Gas creation/runtime bytes versus sealed 309/291,
+and 280/262 Size bytes versus sealed 309/291. All 24 valid forwarding labels
+per mode retain preceding-candidate execution gas, saving 43/54 gas for
+Call/Delegate in Gas and six in Size against sealed. Raw malformed-caller
+traces preserve empty reverts and execute no external call, but retain sealed
+debts of 15 gas for selector rejection, 18 for call value and two for the
+Delegate head/address checks. These are not hidden by the hot-path savings.
+
+Eight new EVM IR revisions cover positive cases and conservative refusals.
+Nine existing snapshots changed only after their original FileChecks passed
+and all retained instructions were audited. Commit `09d6f173` explicitly
+replaces the old forwarding fixture's shared-return layout policy with complete
+per-wrapper copy/call/Boolean-return and shared-decoder checks. The executable
+source is unchanged; 15 check mutants fail. Four precompile controls and 29
+exact rejection directives run across five revisions, replacing the default
+revision with a named IR revision plus the standard matrix. The 165 directive
+executions are established by all five passing revisions; the UI log does
+not contain 165 separate receipts. This is a documented test-policy/revision
+migration, not a claim that original revision IDs remained identical.
+
+Final pinned UI results are 11,645 passes, three original failures and 851
+filtered revisions. The remaining failures are `cold_call_fallthrough` Size,
+`global_stack_calldata_alias` and `tuple_assignment`. The workspace unit run
+has 1,395 passes, one failing UI aggregate and two skips. All 36 Foundry
+projects pass with 772/765 compiler/solc tests and unchanged exclusions. Two
+TupleTernary tests save 875 gas each; two Unifap router size reports shrink
+four bytes each. All other reported gas and sizes are exact. Clippy, formatting
+and typos pass. No full-suite or final rewrite acceptance is claimed.
+
+A final binary guard found Cargo had selected a different executable despite
+identical current source and lockfile hashes. Both executables and their stale
+embedded Git metadata were preserved; the cache-selection cause is unproved.
+The frozen measured binary was installed atomically, then the existing UI and
+Foundry runners were executed directly without Cargo. Its hash matched before
+and after, with the final results above. Prior logs remain preserved.
+
+Primary compiler-time geomean improves 7.8905%, RSS 0.1129%, against a baseline
+with recorded outliers; this is not a broad compiler-speed claim. Fractional
+slows 9.3186% in that run. A candidate-first, five-sample repeat of Fractional
+and PRB improves 2.8421% and 2.4916% respectively, with combined time down
+2.6670% and RSS up 0.4822%. Both primary and repeat evidence are retained.
+The Size lane has one sample and no controlled timing claim.
+
+The matched symbolic probe terminates with exit 2 on both legs because GAS is
+not modeled; it establishes no symbolic agreement. Concrete cold-call traces
+cover all removed exit families. Previous symbolic timeouts, arbitrary-memory
+correctness, retry-boundary coverage and sealed performance gates remain open.
+
+Evidence is under `empty-revert-redirection-workflow-20260907/`,
+`empty-revert-runtime-20260907/`, `empty-revert-lowlevel-rejections-20260907/`,
+`empty-revert-redirect-tests-20260907/`,
+`empty-revert-original-expectations-20260907/` and
+`empty-revert-lowlevel-migration-20260907/` beneath the candidate directory.
+An unapplied FMP-placement draft and a separately labeled bytecode-relocation
+witness are in `fmp-common-frontier-study-20260907/`. The draft is held because
+190 added lines of narrowly constrained interprocedural analysis do not yet
+justify its demonstrated local benefit. The independent physical witness has
+48 unchanged hot pairs, 26 early-rejection pairs saving 18 gas and 32 unchanged
+decoder-failure pairs; it does not validate the Rust query or later optimization.
+Neither artifact is an accepted compiler optimization. The refreshed
+solx/Venom/Sonatina memory audit is recorded in the scheduling research document.

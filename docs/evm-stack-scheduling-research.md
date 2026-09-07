@@ -145,3 +145,49 @@ retaining these costs is necessary when comparing future proposals. Existing
 sealed-baseline performance debt and arbitrary-memory correctness defects are
 not resolved by fewer homes. Detailed measurements and rejected drafts are in
 `target/codegen-bench/evm-rewrite-candidate/failure-directed-homes-workflow-20260907/`.
+
+
+## Spill memory ownership
+
+The September 7 audit checked the same three backend pins and separately pinned
+solx frontend documentation at `c1f170e9c1d557058497a3b75c36e773cba7c8e2`.
+That frontend pairs with a different LLVM revision from the scheduler study;
+the two revisions are not treated as one tested toolchain.
+
+Solx's LLVM backend requires an explicitly reserved spill region and rejects
+frames that exceed it. Its frontend documents rejecting required spills around
+memory-unsafe assembly, and separately excludes functional dependence on exact
+MSIZE or gas. These are source contracts, not transparent preservation of
+arbitrary memory. See the pinned [frame finalizer](https://github.com/NomicFoundation/solx-llvm/blob/9cf8cfdbfcdc3e74dd81f7cc0e7258ef81e8810a/llvm/lib/Target/EVM/EVMFinalizeStackFrames.cpp#L172)
+and [frontend limitations](https://github.com/NomicFoundation/solx/blob/c1f170e9c1d557058497a3b75c36e773cba7c8e2/docs/src/user-guide/04-limitations.md#L32).
+
+Venom places each function's spills beyond all static frames and initializes
+dynamic allocation above those regions. Vyper excludes inline assembly.
+Together these support disjointness for compiler-generated accesses; they do
+not establish safety for arbitrary hand-written addresses. See the pinned
+[spiller](https://github.com/vyperlang/vyper/blob/6dd5fef7ce71bb9b363ceb94df94080d451f4236/vyper/venom/stack_spiller.py#L28),
+[FMP setup](https://github.com/vyperlang/vyper/blob/6dd5fef7ce71bb9b363ceb94df94080d451f4236/vyper/venom/venom_to_assembly.py#L280),
+and [language restriction](https://github.com/vyperlang/vyper/blob/6dd5fef7ce71bb9b363ceb94df94080d451f4236/docs/solidity-differences.rst#L104).
+
+Sonatina reserves known raw read and write ranges, but unknown ranges impose
+a conservative allocation floor rather than proving isolation. Its later fixed
+write collector omits dynamic ranges, and the inspected emitter uses physical
+MSIZE. This establishes a limit of the inspected backend analysis, not a
+confirmed Fe or Sonatina miscompile or a complete frontend contract. See the
+pinned [memory preparation](https://github.com/fe-lang/sonatina/blob/8e6c99f67cf3f20b9672cab61d8655c2ff33a6a7/crates/codegen/src/isa/evm/prepare.rs#L280)
+and [MSIZE emission](https://github.com/fe-lang/sonatina/blob/8e6c99f67cf3f20b9672cab61d8655c2ff33a6a7/crates/codegen/src/isa/evm/emit/insn.rs#L352).
+
+The resulting design direction is explicit, proved spill permission at the
+MIR-to-stack boundary. Without a disjoint region, use checked stack scheduling,
+last-use consumption and rematerialization. Reads, both MCOPY ranges, return
+data, hashes, logs, external-call buffers and internal callees all matter;
+preserving only source writers cannot establish safety. MSIZE needs a separate
+proof because disjoint spills can still expand physical memory. This is a
+proposed interface, not an implemented fix. Rejecting previously compiled
+inputs when stack scheduling fails would not satisfy the coverage goal.
+
+Source hashes, copies and qualifications are in
+`target/codegen-bench/evm-rewrite-candidate/arbitrary-memory-prior-art-20260907/`.
+The home-192 counterexample is in `arbitrary-memory-spill-correctness-20260907/`
+beneath the same candidate directory. No upstream implementation was copied,
+and none of these source memory contracts is assumed to apply here.
