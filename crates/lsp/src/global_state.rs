@@ -267,6 +267,14 @@ struct CachedAnalysisOutput {
     vfs_content_revision: u64,
     config: Arc<Config>,
     output: AnalysisOutput<Arc<SymbolTables>>,
+    inputs: Vec<AnalysisBatchInputs>,
+}
+
+/// Exact analysis roots and overlays, excluding client document versions.
+#[derive(Clone)]
+struct AnalysisBatchInputs {
+    files: Vec<(PathBuf, Arc<String>)>,
+    preloaded_files: Vec<(PathBuf, Arc<String>)>,
 }
 
 impl AnalysisCommitState {
@@ -1630,6 +1638,44 @@ fn run_analysis(
         return AnalysisTaskOutcome::Superseded;
     }
 
+    if !has_disk_paths && source_files_complete {
+        let cached = {
+            let mut commit = snapshot.analysis_commit.lock();
+            if !commit.cache_invalidated
+                && let Some(cached) = &mut commit.cached_output
+                && Arc::ptr_eq(&cached.config, &config)
+                && cached.inputs.len() == batches.len()
+                && cached.inputs.iter().zip(&batches).all(|(inputs, batch)| {
+                    inputs.files == batch.files && inputs.preloaded_files == batch.preloaded_files
+                })
+            {
+                cached.vfs_content_revision = vfs_content_revision;
+                Some(cached.output.clone())
+            } else {
+                None
+            }
+        };
+        if let Some(output) = cached {
+            progress.report("Reusing workspace index");
+            return if snapshot.publish_analysis_output(version, output) {
+                AnalysisTaskOutcome::Published
+            } else {
+                AnalysisTaskOutcome::Superseded
+            };
+        }
+    }
+
+    let inputs = if has_disk_paths {
+        Vec::new()
+    } else {
+        batches
+            .iter()
+            .map(|batch| AnalysisBatchInputs {
+                files: batch.files.clone(),
+                preloaded_files: batch.preloaded_files.clone(),
+            })
+            .collect::<Vec<_>>()
+    };
     let mut results = AnalysisOutputAccumulator::default();
 
     for batch in batches {
@@ -1653,8 +1699,12 @@ fn run_analysis(
 
     let output = results.finish().into_shared();
     if !has_disk_paths {
-        snapshot.analysis_commit.lock().cached_output =
-            Some(CachedAnalysisOutput { vfs_content_revision, config, output: output.clone() });
+        snapshot.analysis_commit.lock().cached_output = Some(CachedAnalysisOutput {
+            vfs_content_revision,
+            config,
+            output: output.clone(),
+            inputs,
+        });
     }
     progress.report("Publishing workspace index");
     if snapshot.publish_analysis_output(version, output) {

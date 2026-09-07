@@ -11,7 +11,7 @@ use solar_lsp::{
     BenchmarkOpenDocuments, BenchmarkProject, BenchmarkRepeatedAnalysis, BenchmarkRequest,
     BenchmarkResponse, BenchmarkSelectionRangeRequests, BenchmarkWorkspaceDiscovery,
     BenchmarkWorkspacePathQueries, BenchmarkWorkspaceReports, benchmark_folding_ranges,
-    benchmark_folding_ranges_from_rope, benchmark_selection_ranges,
+    benchmark_folding_ranges_from_rope, benchmark_import_path_at, benchmark_selection_ranges,
 };
 use std::{fmt::Write as _, fs, hint::black_box, path::PathBuf};
 
@@ -158,6 +158,18 @@ fn code_lens_queries(c: &mut Criterion) {
     let mut group = c.benchmark_group("lsp/code-lens");
     group.bench_function(BenchmarkId::from_parameter("256-functions"), |b| {
         b.iter(|| black_box(analysis.code_lenses(black_box(&uri))));
+    });
+    group.finish();
+}
+
+fn import_path_queries(c: &mut Criterion) {
+    let mut group = c.benchmark_group("lsp/import-path");
+    let cursor = OPTIMISM_SOURCE.rfind('}').unwrap();
+    assert!(!benchmark_import_path_at(OPTIMISM_SOURCE, cursor));
+    group.bench_function(BenchmarkId::from_parameter("optimism-code"), |b| {
+        b.iter(|| {
+            black_box(benchmark_import_path_at(black_box(OPTIMISM_SOURCE), black_box(cursor)))
+        });
     });
     group.finish();
 }
@@ -515,6 +527,12 @@ fn repeated_analysis(c: &mut Criterion) {
     cached.bench_function(BenchmarkId::from_parameter("unchanged"), |b| {
         b.iter(|| black_box(analysis.run()))
     });
+    cached.bench_function(BenchmarkId::from_parameter("reverted-edit"), |b| {
+        b.iter(|| {
+            analysis.edit_and_revert();
+            black_box(analysis.run())
+        });
+    });
     cached.finish();
 }
 
@@ -721,6 +739,7 @@ criterion_group!(
     completion_queries,
     code_lens_queries,
     type_hierarchy_queries,
+    import_path_queries,
     bounded_workspace_discovery,
     symbol_table_aggregation,
     burst_hover,

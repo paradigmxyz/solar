@@ -530,6 +530,17 @@ impl BenchmarkRepeatedAnalysis {
         Self { state, version }
     }
 
+    /// Advance the VFS revision through an edit and undo before analysis begins.
+    pub fn edit_and_revert(&mut self) {
+        let mut vfs = self.state.vfs.write();
+        let (path, source) =
+            vfs.iter().next().map(|(path, source)| (path.clone(), source.clone())).unwrap();
+        let mut edited = source.clone();
+        edited.insert(0, " ");
+        vfs.set_file_contents(path.clone(), Some(edited));
+        vfs.set_file_contents(path, Some(source));
+    }
+
     /// Run one production analysis epoch, returning whether it published successfully.
     #[inline(never)]
     pub fn run(&mut self) -> bool {
