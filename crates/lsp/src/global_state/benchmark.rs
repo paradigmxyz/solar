@@ -21,8 +21,8 @@ use crate::{
 use async_lsp::ClientSocket;
 use crop::Rope;
 use lsp_types::{
-    CodeLens, CompletionItem, Diagnostic, DidChangeTextDocumentParams, GotoDefinitionResponse,
-    Hover, HoverContents, Location, Position, PreviousResultId, Range,
+    CallHierarchyIncomingCall, CodeLens, CompletionItem, Diagnostic, DidChangeTextDocumentParams,
+    GotoDefinitionResponse, Hover, HoverContents, Location, Position, PreviousResultId, Range,
     TextDocumentContentChangeEvent, TypeHierarchyItem, Url, VersionedTextDocumentIdentifier,
     WorkspaceFolder, WorkspaceSymbol,
 };
@@ -876,6 +876,13 @@ impl BenchmarkAnalysis {
                 BenchmarkResponse::WorkspaceSymbols(self.symbol_tables.workspace_symbols(query))
             }
         }
+    }
+
+    /// Prepare a callable and query its incoming calls.
+    #[inline(never)]
+    pub fn incoming_calls(&self, uri: &Url, position: Position) -> Vec<CallHierarchyIncomingCall> {
+        let items = self.symbol_tables.prepare_call_hierarchy(uri, position).unwrap();
+        self.symbol_tables.call_hierarchy_incoming(&items[0]).unwrap()
     }
 
     /// Prepare a hierarchy item and query its direct subtypes.

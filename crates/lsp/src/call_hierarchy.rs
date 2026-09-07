@@ -21,7 +21,11 @@ use solar_sema::{
     hir::{self, ItemId, Visit},
     ty::TyKind,
 };
-use std::{cmp::Ordering, ops::ControlFlow, sync::OnceLock};
+use std::{
+    cmp::Ordering,
+    ops::ControlFlow,
+    sync::{Arc, OnceLock},
+};
 
 const DATA_VERSION: u8 = 1;
 
@@ -87,7 +91,7 @@ struct CallableBody {
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 struct CallableKey {
-    uri: Url,
+    uri: Arc<Url>,
     selection_range: Range,
 }
 
@@ -218,15 +222,19 @@ impl QueryIndex {
         conflicting_contents: &FxHashSet<Url>,
     ) -> Self {
         let mut index = Self::default();
+        let mut uris = FxHashMap::default();
         for fact in &facts.callables {
             let declaration = &declarations[fact.symbol];
             let key = CallableKey {
-                uri: declaration.location.uri.clone(),
+                uri: uris
+                    .entry(&declaration.location.uri)
+                    .or_insert_with(|| Arc::new(declaration.location.uri.clone()))
+                    .clone(),
                 selection_range: declaration.name_range,
             };
             let data = CallHierarchyData {
                 version: DATA_VERSION,
-                uri: key.uri.clone(),
+                uri: key.uri.as_ref().clone(),
                 selection_range: key.selection_range,
             };
             let detail = declaration.parent.map(|parent| declarations[parent].name.clone());
@@ -237,7 +245,7 @@ impl QueryIndex {
                     kind: declaration.kind,
                     tags: None,
                     detail,
-                    uri: key.uri.clone(),
+                    uri: key.uri.as_ref().clone(),
                     range: declaration.location.range,
                     selection_range: key.selection_range,
                     data: Some(
@@ -273,7 +281,7 @@ impl QueryIndex {
 
         let mut incompatible_keys = FxHashSet::default();
         for (&symbol, key) in &self.candidate_key_by_symbol {
-            if conflicting_contents.contains(&key.uri) || incompatible_keys.contains(key) {
+            if conflicting_contents.contains(key.uri.as_ref()) || incompatible_keys.contains(key) {
                 continue;
             }
             if let Some(&existing) = self.canonical_symbol_by_key.get(key) {
@@ -307,7 +315,7 @@ impl QueryIndex {
             let callee = self.key_by_symbol.get(&call.callee);
             if let Some(caller) = caller {
                 self.call_sites_by_uri
-                    .entry(caller.uri.clone())
+                    .entry(caller.uri.as_ref().clone())
                     .or_default()
                     .push(CallSite { range: call.from_range, callee: callee.cloned() });
             }
@@ -345,7 +353,7 @@ impl QueryIndex {
         for (key, &symbol) in &self.canonical_symbol_by_key {
             if let Some(&range) = self.body_range_by_symbol.get(&symbol) {
                 self.bodies_by_uri
-                    .entry(key.uri.clone())
+                    .entry(key.uri.as_ref().clone())
                     .or_default()
                     .push(CallableBody { range, callable: key.clone() });
             }
@@ -449,7 +457,7 @@ impl QueryIndex {
         if data.version != DATA_VERSION {
             return None;
         }
-        let key = CallableKey { uri: data.uri, selection_range: data.selection_range };
+        let key = CallableKey { uri: Arc::new(data.uri), selection_range: data.selection_range };
         let current = self.item(&key)?;
         // Name and kind distinguish a declaration replacement at the same source position. The
         // full range and detail are presentation data that may change while the callable remains.

@@ -130,6 +130,24 @@ fn analysis_build(c: &mut Criterion) {
     group.finish();
 }
 
+fn call_hierarchy_queries(c: &mut Criterion) {
+    let mut source = String::from("contract Root { function target() internal {}\n");
+    for index in 0..128 {
+        writeln!(source, "function caller{index}() public {{ target(); }}").unwrap();
+    }
+    source.push_str("}\n");
+    let project = BenchmarkProject::from_source(source);
+    let (uri, position) = project.unique_anchor("benchmark.sol", "target() internal").unwrap();
+    let analysis = project.analyze();
+    assert_clean(&analysis);
+    assert_eq!(analysis.incoming_calls(&uri, position).len(), 128);
+    let mut group = c.benchmark_group("lsp/call-hierarchy");
+    group.bench_function(BenchmarkId::from_parameter("128-callers"), |b| {
+        b.iter(|| black_box(analysis.incoming_calls(black_box(&uri), black_box(position))));
+    });
+    group.finish();
+}
+
 fn type_hierarchy_queries(c: &mut Criterion) {
     let mut source = String::from("contract Root {}\n");
     for index in 0..128 {
@@ -739,6 +757,7 @@ criterion_group!(
     completion_queries,
     code_lens_queries,
     type_hierarchy_queries,
+    call_hierarchy_queries,
     import_path_queries,
     bounded_workspace_discovery,
     symbol_table_aggregation,
