@@ -1298,3 +1298,23 @@ aggregate: 11,623 revisions pass, four original failures remain, 851 are
 filtered. Clippy, nightly formatting and typos pass. No existing test or
 expectation was changed. Evidence is under
 `target/codegen-bench/evm-rewrite-candidate/main-6059f0c0-merge-20260907/`.
+
+
+### Prior-art refresh and rejected argument cache
+
+Solx, Venom and Sonatina were refreshed at the same documented pins. Their
+selective spill and rematerialization policies continue to motivate bounded
+home selection at the scheduling boundary. The independent review identifies
+mandatory Phi inputs/results and existing writer/call floors that a first
+failure-directed proposal must retain; it makes no measured performance claim.
+
+The local external-argument cache trial is removed. The original calldata-alias
+fixture reached its replay with equal input/net/peak stack usage, but normalized
+cost was 27 gas versus 24, with both sequences 11 bytes. None/Gas/Size focused
+outputs therefore remained exact. Raw shuffle cleanup cannot overcome that
+measured lower bound. No new test was installed and no existing expectation was
+changed. Reverse patches and source-hash checks establish exact restoration of
+the accepted scheduler. The unaccepted binaries and diagnostics remain under
+`argument-residence-workflow-20260907/`; the debug build must be rebuilt before
+it is used as the accepted compiler. A narrow MIR carry-comparison experiment
+and the broader spill-floor investigation remain work in progress.

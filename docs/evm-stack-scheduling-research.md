@@ -54,9 +54,10 @@ are separate responsibilities, including simultaneous phi interference.
 Our existing scheduler already carries SSA identities privately, consumes last
 uses, protects caller prefixes and emits checked physical DUP/SWAP/POP. It also
 tries selected entry and operand orders. Reimplementing these features would
-add little. The larger limitation is its whole-function spill decision after
-one pressure failure, bounded resident exemptions and mandatory phi homes.
-Those homes generate both memory traffic and protection against source writers.
+add little. The larger limitation is its broad spill decision after one pressure failure
+and bounded resident exemptions. Selected Phi homes can now be retired through
+the checked mixed-edge emitter; other homes still generate memory traffic and
+protection against source writers.
 
 The first bounded experiment defers exactly one additional entry word to the
 existing pressure simulation. A 17-value top-down reduction needs no DUP17;
@@ -83,3 +84,34 @@ Pinned file hashes and detailed independent reviews are retained under
 and `sonatina-stack-study-20260906/`. No upstream implementation was copied into
 production. The optional historical EVM-LLVM paper could not be fetched; no
 conclusion depends on its unavailable contents.
+
+
+## September 7 follow-up
+
+Refreshing all three repositories retained the same pinned revisions above.
+Solx weights candidates from failed access windows; Venom preserves live operand
+copies and prefers accessible non-operand spills; Sonatina distinguishes
+rematerializable values from values worth caching and discovers spills through
+monotone retries. These mechanisms support a bounded failure-directed allocation
+experiment. Preserve mandatory Phi inputs/results, call and writer floors, and
+existing home addresses initially; retrying a fixed number of pressure scans
+still has a compiler-time cost that must be measured.
+
+A smaller argument-cache trial has been rejected. It reused the existing local
+operand replay, retaining repeated external arguments and restoring the exact
+original exit stack. In the original calldata-alias fixture it activated the
+replay but failed profitability: normalized cost rose from 24 to 27 gas while
+remaining 11 bytes. Input, net and peak stack usage were equal; the rejection
+was not a conservative pressure check. Focused None/Gas/Size outputs were
+byte-identical to the baseline because the trial was never selected. Removing
+raw redundant SWAPs cannot improve the already-normalized comparison. Both the
+policy and diagnostic patches were removed using their retained reverse patches,
+and the two source hashes match the pretrial baseline exactly.
+
+This result motivates examining unsigned carry comparisons in MIR before adding
+another scheduler policy: for wrapping `s = x + k`, `s < x` equals `s < k`.
+Choosing a cheap constant can shorten the live range of `x`; whether it improves
+emitted code remains an experiment. It does not solve broad homing or arbitrary
+source-memory readback. Detailed refreshed sources, rejected patches and
+measurements are retained in `stack-residency-prior-art-20260907/` and
+`argument-residence-workflow-20260907/` beneath the candidate evidence directory.
