@@ -1,0 +1,97 @@
+//@ revisions: gas size legacy
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=terminal-prefixes
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=terminal-prefixes
+//@[legacy] compile-flags: -Ogas --evm-version homestead -Zevm-ir-pipeline=terminal-prefixes
+//@ filecheck:
+@module terminal_pair_stack
+
+// Pure physical value production and redundant verified effects retain their exact order.
+// Arithmetic between the stores produces the second value.
+// CHECK-LABEL: {{^[ +] *}}bb0:
+// CHECK: + {{ *}}push 0{{$}}
+// CHECK-NEXT: {{^[ +] *}}mstore
+// CHECK: + {{ *}}push 32{{$}}
+// CHECK-NEXT: {{^[ +] *}}mstore
+// CHECK: {{^[ +] *}}push 64
+// CHECK-NOT: {{^[ +]}}
+// CHECK: + {{ *}}push 0
+// CHECK-NEXT: {{^[ +] *}}return
+bb0:
+  push 11
+  push 128
+  mstore
+  push 20
+  push 2
+  add
+  push 160
+  mstore
+  push 64
+  push 128
+  return
+
+// Calldata and stack-only operations cannot observe remapped memory.
+// CHECK-LABEL: {{^[ +] *}}bb1:
+// CHECK: + {{ *}}push 0{{$}}
+// CHECK-NEXT: {{^[ +] *}}mstore
+// CHECK: + {{ *}}push 32{{$}}
+// CHECK-NEXT: {{^[ +] *}}mstore
+// CHECK: {{^[ +] *}}push 64
+// CHECK-NOT: {{^[ +]}}
+// CHECK: + {{ *}}push 0
+// CHECK-NEXT: {{^[ +] *}}return
+bb1:
+  push 11
+  push 128
+  mstore
+  push 0
+  calldataload
+  dup 1
+  swap 1
+  pop
+  push 160
+  mstore
+  push 64
+  push 128
+  return
+
+// An immutable value is preserved without changing its width.
+// CHECK-LABEL: {{^[ +] *}}bb2:
+// CHECK: + {{ *}}push 0{{$}}
+// CHECK-NEXT: {{^[ +] *}}mstore
+// CHECK: + {{ *}}push 32{{$}}
+// CHECK-NEXT: {{^[ +] *}}mstore
+// CHECK: {{^[ +] *}}push 64
+// CHECK-NOT: {{^[ +]}}
+// CHECK: + {{ *}}push 0
+// CHECK-NEXT: {{^[ +] *}}return
+bb2:
+  push 11
+  push 128
+  mstore
+  push_immutable 0, 20
+  push 160
+  mstore
+  push 64
+  push 128
+  return
+
+// Canonical redundant stack declarations remain eligible.
+// CHECK-LABEL: {{^[ +] *}}bb3:
+// CHECK: + {{ *}}push 0{{$}}
+// CHECK-NEXT: {{^[ +] *}}mstore
+// CHECK: + {{ *}}push 32{{$}}
+// CHECK-NEXT: {{^[ +] *}}mstore
+// CHECK: {{^[ +] *}}push 64
+// CHECK-NOT: {{^[ +]}}
+// CHECK: + {{ *}}push 0
+// CHECK-NEXT: {{^[ +] *}}return
+bb3:
+  push 11
+  push 128 !meta(stack=0->1)
+  mstore !meta(stack=2->0)
+  push 22
+  push 160
+  mstore
+  push 64
+  push 128
+  return !meta(stack=2->0)

@@ -1,0 +1,126 @@
+//@ revisions: gas size legacy
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=terminal-prefixes
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=terminal-prefixes
+//@[legacy] compile-flags: -Ogas --evm-version homestead -Zevm-ir-pipeline=terminal-prefixes
+//@ filecheck:
+@module terminal_pair_offsets
+
+// The bounded base range is 1 through 128; base zero and larger intervals stay unchanged.
+// Return base 1.
+// CHECK-LABEL: {{^[ +] *}}bb0:
+// CHECK: + {{ *}}push 0{{$}}
+// CHECK-NEXT: {{^[ +] *}}mstore
+// CHECK: + {{ *}}push 32{{$}}
+// CHECK-NEXT: {{^[ +] *}}mstore
+// CHECK: {{^[ +] *}}push 64
+// CHECK-NOT: {{^[ +]}}
+// CHECK: + {{ *}}push 0
+// CHECK-NEXT: {{^[ +] *}}return
+bb0:
+  push 11
+  push 1
+  mstore
+  push 22
+  push 33
+  mstore
+  push 64
+  push 1
+  return
+
+// Return base 127.
+// CHECK-LABEL: {{^[ +] *}}bb1:
+// CHECK: + {{ *}}push 0{{$}}
+// CHECK-NEXT: {{^[ +] *}}mstore
+// CHECK: + {{ *}}push 32{{$}}
+// CHECK-NEXT: {{^[ +] *}}mstore
+// CHECK: {{^[ +] *}}push 64
+// CHECK-NOT: {{^[ +]}}
+// CHECK: + {{ *}}push 0
+// CHECK-NEXT: {{^[ +] *}}return
+bb1:
+  push 11
+  push 127
+  mstore
+  push 22
+  push 159
+  mstore
+  push 64
+  push 127
+  return
+
+// Return base 128.
+// CHECK-LABEL: {{^[ +] *}}bb2:
+// CHECK: + {{ *}}push 0{{$}}
+// CHECK-NEXT: {{^[ +] *}}mstore
+// CHECK: + {{ *}}push 32{{$}}
+// CHECK-NEXT: {{^[ +] *}}mstore
+// CHECK: {{^[ +] *}}push 64
+// CHECK-NOT: {{^[ +]}}
+// CHECK: + {{ *}}push 0
+// CHECK-NEXT: {{^[ +] *}}return
+bb2:
+  push 11
+  push 128
+  mstore
+  push 22
+  push 160
+  mstore
+  push 64
+  push 128
+  return
+
+// Return base 0.
+// CHECK-LABEL: {{^[ +] *}}bb3:
+// CHECK-NOT: {{^[+-]}}
+bb3:
+  push 11
+  push 0
+  mstore
+  push 22
+  push 32
+  mstore
+  push 64
+  push 0
+  return
+
+// Return base 129.
+// CHECK-LABEL: {{^[ +] *}}bb4:
+// CHECK-NOT: {{^[+-]}}
+bb4:
+  push 11
+  push 129
+  mstore
+  push 22
+  push 161
+  mstore
+  push 64
+  push 129
+  return
+
+// Return base 4294967296.
+// CHECK-LABEL: {{^[ +] *}}bb5:
+// CHECK-NOT: {{^[+-]}}
+bb5:
+  push 11
+  push 4294967296
+  mstore
+  push 22
+  push 4294967328
+  mstore
+  push 64
+  push 4294967296
+  return
+
+// A wrapping interval cannot become scratch memory.
+// CHECK-LABEL: {{^[ +] *}}bb6:
+// CHECK-NOT: {{^[+-]}}
+bb6:
+  push 11
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+  mstore
+  push 22
+  push 0
+  mstore
+  push 64
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+  return

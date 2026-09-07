@@ -1,0 +1,213 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_pair_memory.sol:TerminalPairMemory (runtime) ===
+@module TerminalPairMemory_runtime
+bb0:
+  jump bb35
+bb1:
+  calldatasize
+  push 68
+  swap 1
+  lt
+  jumpi bb2, bb3
+bb2:
+  push 0
+  dup 1
+  revert
+bb3:
+  push 4
+  calldataload
+  push 0
+  mstore
+  push 36
+  calldataload
+  push 32
+  mstore
+  push 64
+  push 0
+  return
+bb4:
+  jump bb1
+bb5:
+  calldatasize
+  push 68
+  swap 1
+  lt
+  jumpi bb6, bb7
+bb6:
+  push 0
+  dup 1
+  revert
+bb7:
+  push 36
+  calldataload
+  push 32
+  mstore
+  push 4
+  calldataload
+  push 0
+  mstore
+  push 64
+  push 0
+  return
+bb8:
+  jump bb5
+bb9:
+  calldatasize
+  push 68
+  swap 1
+  lt
+  jumpi bb10, bb11
+bb10:
+  push 0
+  dup 1
+  revert
+bb11:
+  push 4
+  calldataload
+  push 0
+  mstore
+  push 36
+  calldataload
+  push 32
+  mstore
+  push 64
+  push 0
+  return
+bb12:
+  jump bb9
+bb13:
+  calldatasize
+  push 36
+  swap 1
+  lt
+  jumpi bb14, bb15
+bb14:
+  push 0
+  dup 1
+  revert
+bb15:
+  push 4
+  calldataload
+  push 128
+  mstore
+  msize
+  push 160
+  mstore
+  push 64
+  push 128
+  return
+bb16:
+  push 192
+  push 64
+  mstore
+  jump bb13
+bb17:
+  calldatasize
+  push 36
+  swap 1
+  lt
+  jumpi bb18, bb19
+bb18:
+  push 0
+  dup 1
+  revert
+bb19:
+  push 4
+  calldataload
+  push 0
+  mstore
+  push 4
+  calldataload
+  push 32
+  mstore
+  push 64
+  push 0
+  return
+bb20:
+  jump bb17
+bb21:
+  push 22
+  push 128
+  mstore
+  push 64
+  push 128
+  return
+bb22:
+  jump bb21
+bb23:
+  push 11
+  push 0x100000000
+  mstore
+  push 22
+  push 0x100000020
+  mstore
+  push 64
+  push 0x100000000
+  return
+bb24:
+  jump bb23
+bb25:
+  callvalue
+  jumpi bb34, bb26
+bb26:
+  push 0
+  calldataload
+  push 224
+  shr
+  jump bb44
+bb27:
+  jump bb4
+bb28:
+  jump bb22
+bb29:
+  jump bb20
+bb30:
+  jump bb16
+bb31:
+  jump bb24
+bb32:
+  jump bb12
+bb33:
+  jump bb8
+bb34:
+  push 0
+  dup 1
+  revert
+bb35:
+  jump bb25
+bb36:
+  push 0xe0bec8c6
+  sub
+  jumpi bb34, bb32
+bb37:
+  jump bb34
+bb38:
+  push 0xebff754e
+  sub
+  jumpi bb34, bb33
+bb39:
+  push 0x2eb325f6
+  sub
+  jumpi bb34, bb29
+bb40:
+  push 0x124f5201
+  sub
+  jumpi bb34, bb27
+bb41:
+  push 0xb76fec30
+  sub
+  jumpi bb34, bb31
+bb42:
+  push 0x3a5fe8af
+  sub
+  jumpi bb34, bb30
+bb43:
+  push 0x1f922d06
+  sub
+  jumpi bb34, bb28
+bb44:
+  dup 1
+  push 26
+  shr
+  push 7
+  and
+  indexed_jump bb36, bb37, bb38, bb39, bb40, bb41, bb42, bb43

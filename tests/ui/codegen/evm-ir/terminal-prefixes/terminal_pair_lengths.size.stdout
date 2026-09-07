@@ -1,0 +1,84 @@
+- // === ROOT/tests/ui/codegen/evm-ir/terminal-prefixes/terminal_pair_lengths.evmir (before terminal-prefixes) ===
++ // === ROOT/tests/ui/codegen/evm-ir/terminal-prefixes/terminal_pair_lengths.evmir (after terminal-prefixes) ===
+  @module terminal_pair_lengths
+  bb0:
+    push 11
+    push 128
+    mstore
+    push 22
+    push 160
+    mstore
+    push 0
+    push 128
+    return
+  bb1:
+    push 11
+    push 128
+    mstore
+    push 22
+    push 160
+    mstore
+    push 31
+    push 128
+    return
+  bb2:
+    push 11
+    push 128
+    mstore
+    push 22
+    push 160
+    mstore
+    push 32
+    push 128
+    return
+  bb3:
+    push 11
+    push 128
+    mstore
+    push 22
+    push 160
+    mstore
+    push 33
+    push 128
+    return
+  bb4:
+    push 11
+    push 128
+    mstore
+    push 22
+    push 160
+    mstore
+    push 63
+    push 128
+    return
+  bb5:
+    push 11
+    push 128
+    mstore
+    push 22
+    push 160
+    mstore
+    push 65
+    push 128
+    return
+  bb6:
+    push 11
+    push 128
+    mstore
+    push 22
+    push 160
+    mstore
+    push 96
+    push 128
+    return
+  bb7:
+    push 11
+    push 128
+    mstore
+    push 22
+    push 160
+    mstore
+    push 64
+    push 128
+    revert
+  

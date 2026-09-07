@@ -21,10 +21,22 @@
 //! remain unchanged because the rewritten tail exits immediately. Literal metadata
 //! is retained. This runs before placement and can expose identical terminal tails;
 //! downstream sharing and layout profitability still need whole-pipeline checks.
+//!
+//! Two-word returns additionally scan backward within the same block until both
+//! distinct final word stores at A and A+32 are found. Only canonical stack
+//! operations, pure arithmetic and calldata reads may occur between those stores
+//! and RETURN. Any other write, memory/storage read, gas observation or call stops
+//! the proof. The stores can occur in either order; their literal addresses become
+//! zero and 32, preserving stored values, stack heights and metadata.
+//! Earlier effects are not crossed after full coverage is found. One-word returns
+//! retain the original exact-adjacency rule. The scan is linear, uses two optional
+//! instruction positions, and adds no range, CFG or stack-height analysis.
 
 use super::{
-    super::{BlockId, EvmPass, InstKind, Module, TerminatorKind, cfg, split_allowed, verify},
-    canonical, stack_usage,
+    super::{
+        Block, BlockId, EvmPass, InstKind, Module, TerminatorKind, cfg, split_allowed, verify,
+    },
+    canonical, pure, stack_usage,
 };
 use crate::backend::evm::op;
 use alloy_primitives::U256;
@@ -54,39 +66,98 @@ impl EvmPass for TerminalPrefixes {
 fn compact_return_words(module: &mut Module) -> bool {
     let candidates = module
         .block_ids()
-        .filter(|&id| {
-            let block = &module.blocks[id];
-            if let [.., address, store, size, offset] = block.insts.as_slice()
-                && block.terminator.kind == TerminatorKind::Return
-                && !block.terminator.keep_with_next
-                && block.terminator.stack_effect.is_none_or(|effect| effect == (2, 0))
-                && let InstKind::Push(value) = address.kind
-                && value > U256::ZERO
-                && value <= U256::from(128)
-                && store.kind == InstKind::Op(op::MSTORE)
-                && size.kind == InstKind::Push(U256::from(32))
-                && offset.kind == address.kind
-                && [address, store, size, offset].into_iter().all(canonical)
-                && split_allowed(&block.insts, block.insts.len() - 4)
-            {
-                true
-            } else {
-                false
-            }
-        })
+        .filter_map(|id| return_word_addresses(&module.blocks[id]).map(|addresses| (id, addresses)))
         .collect::<Vec<_>>();
     if candidates.is_empty() || cfg::sharing_observes_code(module) {
         return false;
     }
-    for id in candidates {
+    for (id, addresses) in candidates {
         let insts = &mut module.blocks[id].insts;
-        let len = insts.len();
-        // push A; mstore; push 32; push A; return
-        // -> push 0; mstore; push 32; push 0; return
-        insts[len - 4].kind = InstKind::Push(U256::ZERO);
-        insts[len - 1].kind = InstKind::Push(U256::ZERO);
+        // push A; mstore; <pure stack operations>; push A+32; mstore
+        // push 64; push A; return
+        // -> same values and order, storing/returning at offsets 0 and 32
+        // The one-word case retains its adjacent store/return sequence.
+        for (word, address) in addresses.into_iter().enumerate() {
+            if let Some(index) = address {
+                insts[index].kind = InstKind::Push(U256::from(word * 32));
+            }
+        }
+        insts.last_mut().unwrap().kind = InstKind::Push(U256::ZERO);
     }
     true
+}
+
+/// Finds the final covering stores without crossing an observable memory effect.
+fn return_word_addresses(block: &Block) -> Option<[Option<usize>; 2]> {
+    let insts = &block.insts;
+    if let [.., size, offset] = insts.as_slice()
+        && block.terminator.kind == TerminatorKind::Return
+        && !block.terminator.keep_with_next
+        && block.terminator.stack_effect.is_none_or(|effect| effect == (2, 0))
+        && let InstKind::Push(base) = offset.kind
+        && base > U256::ZERO
+        && base <= U256::from(128)
+        && let InstKind::Push(bytes) = size.kind
+        && (bytes == U256::from(32) || bytes == U256::from(64))
+        && canonical(size)
+        && canonical(offset)
+    {
+        let words = if bytes == U256::from(32) { 1 } else { 2 };
+        let mut addresses = [None; 2];
+        let mut cursor = insts.len() - 2;
+        while cursor > 0 {
+            let index = cursor - 1;
+            let inst = &insts[index];
+            if !canonical(inst) {
+                return None;
+            }
+            if inst.kind == InstKind::Op(op::MSTORE) {
+                if let Some(address) = insts[..index].last()
+                    && canonical(address)
+                    && split_allowed(insts, index - 1)
+                    && let InstKind::Push(value) = address.kind
+                {
+                    let word = if value == base {
+                        0
+                    } else if words == 2 && value == base + U256::from(32) {
+                        1
+                    } else {
+                        return None;
+                    };
+                    if addresses[word].replace(index - 1).is_some() {
+                        return None;
+                    }
+                    if addresses[..words].iter().all(Option::is_some) {
+                        return Some(addresses);
+                    }
+                    cursor = index - 1;
+                    continue;
+                }
+                return None;
+            }
+            if words == 1
+                || !match inst.kind {
+                    InstKind::Push(_)
+                    | InstKind::PushImmutable { .. }
+                    | InstKind::Dup(_)
+                    | InstKind::Swap(_)
+                    | InstKind::Exchange(_, _) => true,
+                    InstKind::Op(code) => {
+                        pure(code)
+                            || matches!(
+                                code,
+                                op::POP | op::PUSH0 | op::CALLDATALOAD | op::CALLDATASIZE
+                            )
+                    }
+                    _ => false,
+                }
+            {
+                return None;
+            }
+            cursor = index;
+        }
+    }
+    None
 }
 
 fn eliminate(module: &mut Module, heights: &verify::StackHeights, native_shifts: bool) -> bool {

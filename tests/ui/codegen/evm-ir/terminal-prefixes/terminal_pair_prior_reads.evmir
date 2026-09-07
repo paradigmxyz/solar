@@ -1,0 +1,95 @@
+//@ revisions: gas size legacy
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=terminal-prefixes
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=terminal-prefixes
+//@[legacy] compile-flags: -Ogas --evm-version homestead -Zevm-ir-pipeline=terminal-prefixes
+//@ filecheck:
+@module terminal_pair_prior_reads
+
+// Scanning stops when both final words are covered; earlier observations are unchanged.
+// MLOAD supplies the first word before the first rewritten store.
+// CHECK-LABEL: {{^[ +] *}}bb0:
+// CHECK: {{^[ +] *}}mload
+// CHECK: + {{ *}}push 0{{$}}
+// CHECK-NEXT: {{^[ +] *}}mstore
+// CHECK: + {{ *}}push 32{{$}}
+// CHECK-NEXT: {{^[ +] *}}mstore
+// CHECK: {{^[ +] *}}push 64
+// CHECK-NOT: {{^[ +]}}
+// CHECK: + {{ *}}push 0
+// CHECK-NEXT: {{^[ +] *}}return
+bb0:
+  push 7
+  push 0
+  mstore
+  push 0
+  mload
+  push 128
+  mstore
+  push 22
+  push 160
+  mstore
+  push 64
+  push 128
+  return
+
+// An earlier overwritten store precedes complete final coverage.
+// CHECK-LABEL: {{^[ +] *}}bb1:
+// CHECK: {{^[ +] *}}push 99
+// CHECK-NEXT: {{^[ +] *}}push 128
+// CHECK-NEXT: {{^[ +] *}}mstore
+// CHECK: + {{ *}}push 0{{$}}
+// CHECK-NEXT: {{^[ +] *}}mstore
+// CHECK: + {{ *}}push 32{{$}}
+// CHECK-NEXT: {{^[ +] *}}mstore
+// CHECK: {{^[ +] *}}push 64
+// CHECK-NOT: {{^[ +]}}
+// CHECK: + {{ *}}push 0
+// CHECK-NEXT: {{^[ +] *}}return
+bb1:
+  push 99
+  push 128
+  mstore
+  push 11
+  push 128
+  mstore
+  push 22
+  push 160
+  mstore
+  push 64
+  push 128
+  return
+
+// The earlier GAS/SUB/CALL reserve remains adjacent.
+// CHECK-LABEL: {{^[ +] *}}bb2:
+// CHECK: {{^[ +] *}}gas !metadata(keep_with_next)
+// CHECK-NEXT: {{^[ +] *}}sub !metadata(keep_with_next)
+// CHECK-NEXT: {{^[ +] *}}call
+// CHECK: + {{ *}}push 0{{$}}
+// CHECK-NEXT: {{^[ +] *}}mstore
+// CHECK: + {{ *}}push 32{{$}}
+// CHECK-NEXT: {{^[ +] *}}mstore
+// CHECK: {{^[ +] *}}push 64
+// CHECK-NOT: {{^[ +]}}
+// CHECK: + {{ *}}push 0
+// CHECK-NEXT: {{^[ +] *}}return
+bb2:
+  push 0
+  push 0
+  push 0
+  push 0
+  push 0
+  push 1
+  push 50
+  gas !meta(keep_with_next)
+  sub !meta(keep_with_next)
+  call
+  pop
+  push 11
+  push 128
+  mstore
+  push 22
+  push 160
+  mstore
+  push 64
+  push 128
+  return

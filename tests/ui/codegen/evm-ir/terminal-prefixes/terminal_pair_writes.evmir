@@ -1,0 +1,83 @@
+//@ revisions: gas size legacy
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=terminal-prefixes
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=terminal-prefixes
+//@[legacy] compile-flags: -Ogas --evm-version homestead -Zevm-ir-pipeline=terminal-prefixes
+//@ filecheck:
+@module terminal_pair_writes
+
+// Every encountered write before full coverage must uniquely initialize one returned word.
+// Duplicate stores do not cover the upper word.
+// CHECK-LABEL: {{^[ +] *}}bb0:
+// CHECK-NOT: {{^[+-]}}
+bb0:
+  push 11
+  push 128
+  mstore
+  push 22
+  push 128
+  mstore
+  push 64
+  push 128
+  return
+
+// An unrelated store does not cover the upper word.
+// CHECK-LABEL: {{^[ +] *}}bb1:
+// CHECK-NOT: {{^[+-]}}
+bb1:
+  push 11
+  push 128
+  mstore
+  push 22
+  push 192
+  mstore
+  push 64
+  push 128
+  return
+
+// An intervening unrelated write blocks the scan.
+// CHECK-LABEL: {{^[ +] *}}bb2:
+// CHECK-NOT: {{^[+-]}}
+bb2:
+  push 11
+  push 128
+  mstore
+  push 99
+  push 192
+  mstore
+  push 22
+  push 160
+  mstore
+  push 64
+  push 128
+  return
+
+// An intervening duplicate write blocks the scan.
+// CHECK-LABEL: {{^[ +] *}}bb3:
+// CHECK-NOT: {{^[+-]}}
+bb3:
+  push 11
+  push 128
+  mstore
+  push 99
+  push 160
+  mstore
+  push 22
+  push 160
+  mstore
+  push 64
+  push 128
+  return
+
+// A different returned base is not full coverage.
+// CHECK-LABEL: {{^[ +] *}}bb4:
+// CHECK-NOT: {{^[+-]}}
+bb4:
+  push 11
+  push 128
+  mstore
+  push 22
+  push 160
+  mstore
+  push 64
+  push 96
+  return

@@ -1,0 +1,18 @@
+- // === ROOT/tests/ui/codegen/evm-ir/terminal-prefixes/terminal_pair_code_observer.evmir (before terminal-prefixes) ===
++ // === ROOT/tests/ui/codegen/evm-ir/terminal-prefixes/terminal_pair_code_observer.evmir (after terminal-prefixes) ===
+  @module terminal_pair_code_observer
+  bb0:
+    push 11
+    push 128
+    mstore
+    push 22
+    push 160
+    mstore
+    push 64
+    push 128
+    return
+  bb1:
+    pc
+    pop
+    stop
+  

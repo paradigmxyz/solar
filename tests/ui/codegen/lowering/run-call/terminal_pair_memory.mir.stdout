@@ -1,0 +1,54 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_pair_memory.sol:TerminalPairMemory ===
+@module TerminalPairMemory
+fn @forward(arg0: u256, arg1: u256) [selector=0x124f5201, pure, abi_params=[u256, u256], abi_returns=[word, word]] {
+  bb0:
+    mstore 128, arg0
+    mstore 160, arg1
+    returndata 128, 64
+}
+
+fn @reverse(arg0: u256, arg1: u256) [selector=0xebff754e, pure, abi_params=[u256, u256], abi_returns=[word, word]] {
+  bb0:
+    mstore 160, arg1
+    mstore 128, arg0
+    returndata 128, 64
+}
+
+fn @priorRead(arg0: u256, arg1: u256) [selector=0xe0bec8c6, pure, abi_params=[u256, u256], abi_returns=[word, word]] {
+  bb0:
+    mstore 0, arg0 !metadata(memory=scratch)
+    v0 = mload 0 !metadata(memory=scratch)
+    mstore 128, v0
+    mstore 160, arg1
+    returndata 128, 64
+}
+
+fn @observed(arg0: u256) [selector=0x3a5fe8af, pure, abi_params=[u256], abi_returns=[word, word]] {
+  bb0:
+    mstore 128, arg0
+    v0 = msize
+    mstore 160, v0
+    returndata 128, 64
+}
+
+fn @aliased(arg0: u256) [selector=0x2eb325f6, pure, abi_params=[u256], abi_returns=[word, word]] {
+  bb0:
+    mstore 128, arg0
+    v0 = mload 128
+    mstore 160, v0
+    returndata 128, 64
+}
+
+fn @duplicate() [selector=0x1f922d06, pure, abi_params=[], abi_returns=[word, word]] {
+  bb0:
+    mstore 128, 11
+    mstore 128, 22
+    returndata 128, 64
+}
+
+fn @hugeAddress() [selector=0xb76fec30, pure, abi_params=[], abi_returns=[]] {
+  bb0:
+    mstore 0x100000000, 11
+    mstore 0x100000020, 22
+    returndata 0x100000000, 64
+}

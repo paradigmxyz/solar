@@ -1,0 +1,49 @@
+//@ revisions: gas size legacy
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=terminal-prefixes
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=terminal-prefixes
+//@[legacy] compile-flags: -Ogas --evm-version homestead -Zevm-ir-pipeline=terminal-prefixes
+//@ filecheck:
+@module terminal_pair_orders
+
+// Both original write orders preserve the ordered, complete two-word return.
+// Ascending stores retain first=11, second=22.
+// CHECK-LABEL: {{^[ +] *}}bb0:
+// CHECK: + {{ *}}push 0{{$}}
+// CHECK-NEXT: {{^[ +] *}}mstore
+// CHECK: + {{ *}}push 32{{$}}
+// CHECK-NEXT: {{^[ +] *}}mstore
+// CHECK: {{^[ +] *}}push 64
+// CHECK-NOT: {{^[ +]}}
+// CHECK: + {{ *}}push 0
+// CHECK-NEXT: {{^[ +] *}}return
+bb0:
+  push 11
+  push 32
+  mstore
+  push 22
+  push 64
+  mstore
+  push 64
+  push 32
+  return
+
+// Descending stores retain first=0, second=max-word.
+// CHECK-LABEL: {{^[ +] *}}bb1:
+// CHECK: + {{ *}}push 32{{$}}
+// CHECK-NEXT: {{^[ +] *}}mstore
+// CHECK: + {{ *}}push 0{{$}}
+// CHECK-NEXT: {{^[ +] *}}mstore
+// CHECK: {{^[ +] *}}push 64
+// CHECK-NOT: {{^[ +]}}
+// CHECK: + {{ *}}push 0
+// CHECK-NEXT: {{^[ +] *}}return
+bb1:
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  push 160
+  mstore
+  push 0
+  push 128
+  mstore
+  push 64
+  push 128
+  return

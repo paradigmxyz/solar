@@ -1,0 +1,30 @@
+- // === ROOT/tests/ui/codegen/evm-ir/terminal-prefixes/terminal_pair_orders.evmir (before terminal-prefixes) ===
++ // === ROOT/tests/ui/codegen/evm-ir/terminal-prefixes/terminal_pair_orders.evmir (after terminal-prefixes) ===
+  @module terminal_pair_orders
+  bb0:
+    push 11
+-   push 32
++   push 0
+    mstore
+    push 22
+-   push 64
++   push 32
+    mstore
+    push 64
+-   push 32
++   push 0
+    return
+  bb1:
+    push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-   push 160
++   push 32
+    mstore
+    push 0
+-   push 128
++   push 0
+    mstore
+    push 64
+-   push 128
++   push 0
+    return
+  

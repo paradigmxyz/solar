@@ -1,0 +1,29 @@
+//@ revisions: gas size legacy
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=terminal-prefixes
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=terminal-prefixes
+//@[legacy] compile-flags: -Ogas --evm-version homestead -Zevm-ir-pipeline=terminal-prefixes
+//@ filecheck:
+@module terminal_pair_code_observer
+
+// Code-relative observations anywhere in the module prevent changing encoded offsets.
+// The terminal pair remains unchanged.
+// CHECK-LABEL: {{^[ +] *}}bb0:
+// CHECK-NOT: {{^[+-]}}
+bb0:
+  push 11
+  push 128
+  mstore
+  push 22
+  push 160
+  mstore
+  push 64
+  push 128
+  return
+
+// Even a separate unreachable PC observer keeps the module unchanged.
+// CHECK-LABEL: {{^[ +] *}}bb1:
+// CHECK-NOT: {{^[+-]}}
+bb1:
+  pc
+  pop
+  stop

@@ -1,0 +1,119 @@
+//@ revisions: gas size legacy
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=terminal-prefixes
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=terminal-prefixes
+//@[legacy] compile-flags: -Ogas --evm-version homestead -Zevm-ir-pipeline=terminal-prefixes
+//@ filecheck:
+@module terminal_pair_lengths
+
+// Only RETURN of exactly 64 bytes can use the two-word rewrite.
+// Return length 0 is outside the exact two-word shape.
+// CHECK-LABEL: {{^[ +] *}}bb0:
+// CHECK-NOT: {{^[+-]}}
+bb0:
+  push 11
+  push 128
+  mstore
+  push 22
+  push 160
+  mstore
+  push 0
+  push 128
+  return
+
+// Return length 31 is outside the exact two-word shape.
+// CHECK-LABEL: {{^[ +] *}}bb1:
+// CHECK-NOT: {{^[+-]}}
+bb1:
+  push 11
+  push 128
+  mstore
+  push 22
+  push 160
+  mstore
+  push 31
+  push 128
+  return
+
+// Return length 32 is outside the exact two-word shape.
+// CHECK-LABEL: {{^[ +] *}}bb2:
+// CHECK-NOT: {{^[+-]}}
+bb2:
+  push 11
+  push 128
+  mstore
+  push 22
+  push 160
+  mstore
+  push 32
+  push 128
+  return
+
+// Return length 33 is outside the exact two-word shape.
+// CHECK-LABEL: {{^[ +] *}}bb3:
+// CHECK-NOT: {{^[+-]}}
+bb3:
+  push 11
+  push 128
+  mstore
+  push 22
+  push 160
+  mstore
+  push 33
+  push 128
+  return
+
+// Return length 63 is outside the exact two-word shape.
+// CHECK-LABEL: {{^[ +] *}}bb4:
+// CHECK-NOT: {{^[+-]}}
+bb4:
+  push 11
+  push 128
+  mstore
+  push 22
+  push 160
+  mstore
+  push 63
+  push 128
+  return
+
+// Return length 65 is outside the exact two-word shape.
+// CHECK-LABEL: {{^[ +] *}}bb5:
+// CHECK-NOT: {{^[+-]}}
+bb5:
+  push 11
+  push 128
+  mstore
+  push 22
+  push 160
+  mstore
+  push 65
+  push 128
+  return
+
+// Return length 96 is outside the exact two-word shape.
+// CHECK-LABEL: {{^[ +] *}}bb6:
+// CHECK-NOT: {{^[+-]}}
+bb6:
+  push 11
+  push 128
+  mstore
+  push 22
+  push 160
+  mstore
+  push 96
+  push 128
+  return
+
+// REVERT is outside return compaction.
+// CHECK-LABEL: {{^[ +] *}}bb7:
+// CHECK-NOT: {{^[+-]}}
+bb7:
+  push 11
+  push 128
+  mstore
+  push 22
+  push 160
+  mstore
+  push 64
+  push 128
+  revert
