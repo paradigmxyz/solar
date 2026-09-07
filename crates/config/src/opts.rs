@@ -126,7 +126,10 @@ pub struct CompileOpts {
     /// Comma separated list of types of output for the compiler to emit.
     ///
     /// Outputs are collected in JSON on stdout, or `combined.json` in `--out-dir`.
-    #[cfg_attr(feature = "clap", arg(long, value_delimiter = ','))]
+    #[cfg_attr(
+        feature = "clap",
+        arg(long, value_delimiter = ',', conflicts_with = "standard_json")
+    )]
     pub emit: Vec<CompilerOutput>,
 
     /// Switch to Standard JSON input/output mode.

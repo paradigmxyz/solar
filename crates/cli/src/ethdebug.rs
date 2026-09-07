@@ -6,7 +6,7 @@ use solar_codegen::{
     ContractArtifact,
     backend::evm::{DebugFunction, DebugFunctionExit, DebugInstruction},
 };
-use solar_data_structures::map::FxHashMap;
+use solar_data_structures::map::{FxHashMap, FxHashSet};
 use solar_sema::{Gcx, hir::ContractId};
 
 #[derive(Clone, Debug, Serialize)]
@@ -40,8 +40,7 @@ struct EthdebugFunctionInvoke {
     identifier: Option<String>,
     declaration: EthdebugSourceRange,
     jump: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    target: Option<EthdebugInvocationTarget>,
+    target: EthdebugInvocationTarget,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -152,7 +151,10 @@ impl EthdebugCompilation {
     }
 }
 
-pub(crate) fn make_ethdebug_compilation(gcx: Gcx<'_>) -> EthdebugCompilation {
+pub(crate) fn make_ethdebug_compilation(
+    gcx: Gcx<'_>,
+    metadata_identity: Option<alloy_primitives::B256>,
+) -> EthdebugCompilation {
     let language = if gcx.sess.opts.language.is_yul() { "Yul" } else { "Solidity" };
     let sources = gcx
         .hir
@@ -178,22 +180,21 @@ pub(crate) fn make_ethdebug_compilation(gcx: Gcx<'_>) -> EthdebugCompilation {
     append_length_prefixed(&mut identity, &format!("{:?}", gcx.sess.opts.language));
     append_length_prefixed(&mut identity, &format!("{:?}", gcx.sess.opts.evm_version));
     append_length_prefixed(&mut identity, &format!("{:?}", gcx.sess.opts.optimization));
+    append_length_prefixed(&mut identity, &gcx.sess.opts.revert_strings.to_string());
+    append_length_prefixed(&mut identity, &format!("{metadata_identity:?}"));
     append_length_prefixed(
         &mut identity,
         &gcx.sess.opts.optimizer_runs.map_or_else(|| "none".to_owned(), |runs| runs.to_string()),
     );
-    let mut remappings =
-        gcx.sess.opts.import_remappings.iter().map(ToString::to_string).collect::<Vec<_>>();
-    remappings.sort_unstable();
-    append_length_prefixed(&mut identity, &remappings.len().to_string());
-    for remapping in remappings {
-        append_length_prefixed(&mut identity, &remapping);
+    // Lookup precedence is order-sensitive, including duplicate library names.
+    // Sorting these inputs would alias compilations that link different code.
+    append_length_prefixed(&mut identity, &gcx.sess.opts.import_remappings.len().to_string());
+    for remapping in &gcx.sess.opts.import_remappings {
+        append_length_prefixed(&mut identity, &remapping.to_string());
     }
-    let mut libraries = gcx.sess.opts.libraries.iter().map(ToString::to_string).collect::<Vec<_>>();
-    libraries.sort_unstable();
-    append_length_prefixed(&mut identity, &libraries.len().to_string());
-    for library in libraries {
-        append_length_prefixed(&mut identity, &library);
+    append_length_prefixed(&mut identity, &gcx.sess.opts.libraries.len().to_string());
+    for library in &gcx.sess.opts.libraries {
+        append_length_prefixed(&mut identity, &library.to_string());
     }
     append_length_prefixed(&mut identity, &format!("{:?}", gcx.sess.opts.unstable.mir_pipeline));
     append_length_prefixed(&mut identity, &format!("{:?}", gcx.sess.opts.unstable.evm_ir_pipeline));
@@ -245,6 +246,13 @@ pub(crate) fn make_ethdebug_program(
         artifact.deployment_debug_info.as_ref()?
     };
     let bytecode = if deployed { artifact.runtime.as_ref() } else { artifact.deployment.as_ref() };
+    let link_references = if deployed {
+        &artifact.runtime_link_references
+    } else {
+        &artifact.deployment_link_references
+    };
+    let unlinked_arguments =
+        link_references.iter().map(|link| link.start).collect::<FxHashSet<_>>();
     let contract = gcx.hir.contract(contract_id);
     let source_ids = gcx
         .hir
@@ -266,6 +274,10 @@ pub(crate) fn make_ethdebug_program(
                 .expect("assembled opcode should have a mnemonic")
                 .to_ascii_uppercase();
             let arguments = push_argument(bytecode, instruction)
+                // NOTE: A library relocation is not a concrete operand. Omit it
+                // until linking, instead of exposing the backend's placeholder
+                // bytes as an address that can become stale after linking.
+                .filter(|_| !unlinked_arguments.contains(&(instruction.offset as usize + 1)))
                 .map(|argument| format!("0x{}", alloy_primitives::hex::encode(argument)))
                 .into_iter()
                 .collect();
@@ -336,10 +348,12 @@ fn make_ethdebug_context(
     let invoke = instruction.function_invoke.and_then(|function| {
         make_ethdebug_function_invoke(gcx, source_ids, bytecode, previous, function, instruction)
     });
-    let (r#return, revert) = match instruction.function_exit {
-        Some(DebugFunctionExit::Return) => (Some(EthdebugFunctionExit {}), None),
-        Some(DebugFunctionExit::Revert) => (None, Some(EthdebugFunctionExit {})),
-        None => (None, None),
+    let (r#return, revert) = match (instruction.function_exit, instruction.opcode) {
+        (Some(DebugFunctionExit::Return), 0x00 | 0x56 | 0x57 | 0xf3) => {
+            (Some(EthdebugFunctionExit {}), None)
+        }
+        (Some(DebugFunctionExit::Revert), 0xfd) => (None, Some(EthdebugFunctionExit {})),
+        _ => (None, None),
     };
     if code.is_none()
         && pick.is_empty()
@@ -361,11 +375,13 @@ fn make_ethdebug_function_invoke(
     function: DebugFunction,
     instruction: &DebugInstruction,
 ) -> Option<EthdebugFunctionInvoke> {
-    let target = crate::source_map::static_jump_target(bytecode, previous, instruction)
-        .or_else(|| (instruction.opcode == 0x5b).then_some(instruction.offset as usize))
-        .map(|target| EthdebugInvocationTarget {
-            pointer: EthdebugCodePointer { location: "code", offset: target, length: 1 },
-        });
+    // NOTE: Constructors, entry labels, dynamic jumps, and optimized fallthroughs
+    // are not statically identified internal calls. Leave their invocation
+    // unknown rather than inventing a jump target or changing executable code.
+    let target = crate::source_map::static_jump_target(bytecode, previous, instruction)?;
+    let target = EthdebugInvocationTarget {
+        pointer: EthdebugCodePointer { location: "code", offset: target, length: 1 },
+    };
     Some(EthdebugFunctionInvoke {
         identifier: (function.identifier != solar_interface::sym::_anonymous)
             .then(|| function.identifier.to_string()),

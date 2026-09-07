@@ -26,7 +26,7 @@
           },
           "deployedBytecode": {
             "object": "34601d575f3560e01c8063b3de648b146021578063e420264a146040575b5f5ffd5b60243610601d5760015b600435016004358110604d5760805260206080f35b60243610601d576002602b565b634e487b7160e01b5f52601160045260245ffd",
-            "sourceMap": ":::-:0;;;;;;;;;;;:::i;:::-;;;;:::i;:::-;;;;;;;;;;76:5:0;-1:-1:-1;;;;;;;;:::o;:::-;;;;;:::o;:::-;;;;;;148:5:0;;;-1:-1:-1;;;;;;;;;;;"
+            "sourceMap": ":::-:0;;;;;;;;;;;:::i;:::-;;;;:::i;:::-;;;;;;;;;;76:5:0;-1:-1:-1;;;;;;;;;;;;;;;;;;;;;148:5:0;;;-1:-1:-1;;;;;;;;;;;"
           }
         }
       },
@@ -319,28 +319,6 @@
                   "offset": 33,
                   "operation": {
                     "mnemonic": "JUMPDEST"
-                  },
-                  "context": {
-                    "invoke": {
-                      "identifier": "f",
-                      "declaration": {
-                        "source": {
-                          "id": 0
-                        },
-                        "range": {
-                          "offset": 172,
-                          "length": 71
-                        }
-                      },
-                      "jump": true,
-                      "target": {
-                        "pointer": {
-                          "location": "code",
-                          "offset": 33,
-                          "length": 1
-                        }
-                      }
-                    }
                   }
                 },
                 {
@@ -667,8 +645,7 @@
                           }
                         }
                       }
-                    ],
-                    "return": {}
+                    ]
                   }
                 },
                 {
@@ -877,28 +854,6 @@
                   "offset": 64,
                   "operation": {
                     "mnemonic": "JUMPDEST"
-                  },
-                  "context": {
-                    "invoke": {
-                      "identifier": "g",
-                      "declaration": {
-                        "source": {
-                          "id": 0
-                        },
-                        "range": {
-                          "offset": 244,
-                          "length": 71
-                        }
-                      },
-                      "jump": true,
-                      "target": {
-                        "pointer": {
-                          "location": "code",
-                          "offset": 64,
-                          "length": 1
-                        }
-                      }
-                    }
                   }
                 },
                 {

@@ -285,7 +285,7 @@ fn emit_combined_json(
     artifacts: Option<&FxHashMap<ContractId, ContractArtifact>>,
 ) -> Result {
     let sess = gcx.sess;
-    if sess.opts.emit.is_empty() {
+    if sess.opts.standard_json || sess.opts.emit.is_empty() {
         return Ok(());
     }
 
@@ -299,7 +299,7 @@ fn emit_combined_json(
     let emit_srcmap_runtime = sess.do_emit(CompilerOutput::SrcmapRuntime);
     let compilation =
         (emit_ethdebug || emit_ethdebug_runtime || sess.do_emit(CompilerOutput::EthdebugResources))
-            .then(|| make_ethdebug_compilation(gcx));
+            .then(|| make_ethdebug_compilation(gcx, None));
     let source_map_encoder =
         (emit_srcmap || emit_srcmap_runtime).then(|| SourceMapEncoder::new(gcx));
     let mut output = CombinedJson {

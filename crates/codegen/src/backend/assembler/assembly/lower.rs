@@ -216,15 +216,15 @@ fn lower_evm_ir_once(
             program.set_modifier_depth(inst.metadata.modifier_depth());
             let first = program.instructions.len();
             lower_instruction(assembler, &mut program, inst, module, labels);
-            if first < program.instructions.len()
-                && let Some(function) = pending_block_invoke.take()
-            {
-                program.set_function_invoke(first, Some(function));
+            if first < program.instructions.len() {
+                if let Some(function) = pending_block_invoke.take() {
+                    program.set_function_invoke(first, Some(function));
+                }
+                if let Some(function) = inst.metadata.function_invoke() {
+                    program.mark_last_function_invoke(Some(function));
+                }
+                program.mark_last_function_exit(inst.metadata.function_exit());
             }
-            if let Some(function) = inst.metadata.function_invoke() {
-                program.mark_last_function_invoke(Some(function));
-            }
-            program.mark_last_function_exit(inst.metadata.function_exit());
         }
 
         if let Some(terminator) = &block.terminator {
@@ -240,15 +240,18 @@ fn lower_evm_ir_once(
                 labels,
                 indexed_jump_lowerings[block_id],
             );
-            if first < program.instructions.len()
-                && let Some(function) = pending_block_invoke.take()
-            {
-                program.set_function_invoke(first, Some(function));
+            // NOTE: A fallthrough emits no instruction. Its activation event is
+            // unknown, not an event on the preceding instruction. Do not retain
+            // a jump or change layout just to preserve this debug information.
+            if first < program.instructions.len() {
+                if let Some(function) = pending_block_invoke.take() {
+                    program.set_function_invoke(first, Some(function));
+                }
+                if let Some(function) = terminator.metadata.function_invoke() {
+                    program.mark_last_function_invoke(Some(function));
+                }
+                program.mark_last_function_exit(terminator.metadata.function_exit());
             }
-            if let Some(function) = terminator.metadata.function_invoke() {
-                program.mark_last_function_invoke(Some(function));
-            }
-            program.mark_last_function_exit(terminator.metadata.function_exit());
         }
     }
     // Keep opaque data unreachable from physical fallthrough, including malformed internal IR.

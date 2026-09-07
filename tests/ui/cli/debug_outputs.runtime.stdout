@@ -118,19 +118,6 @@
                   "length": 24
                 }
               },
-              "invoke": {
-                "identifier": "f",
-                "declaration": {
-                  "source": {
-                    "id": 0
-                  },
-                  "range": {
-                    "offset": 392,
-                    "length": 24
-                  }
-                },
-                "jump": true
-              },
               "return": {}
             }
           },

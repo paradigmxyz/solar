@@ -43,6 +43,10 @@ pub fn compile_standard_json(
     read_callback: Option<Arc<dyn StandardJsonReadCallback>>,
     out: &mut (dyn Write + Send),
 ) -> io::Result<()> {
+    // Library callers bypass CLI argument conflicts. Only outputSelection may
+    // select Standard JSON artifacts; never leak a second CLI-shaped document.
+    opts.standard_json = true;
+    opts.emit.clear();
     let source_map = Arc::new(SourceMap::empty());
     source_map.set_file_loader(StandardJsonFileLoader { read_callback });
     let (emitter, diagnostics) = InMemoryEmitter::new();
@@ -351,7 +355,12 @@ fn compile(
                     | OutputSelectionFlags::DEPLOYED_BYTECODE_ETHDEBUG;
                 let compilation_requested = !global_ethdebug.is_empty()
                     || contract_output_requested(gcx, output_selection, ethdebug_outputs);
-                let compilation = compilation_requested.then(|| make_ethdebug_compilation(gcx));
+                let compilation = compilation_requested.then(|| {
+                    // Metadata settings affect the CBOR trailer independently of
+                    // the code-generation options stored in the session.
+                    let metadata_identity = alloy_primitives::keccak256(format!("{metadata:?}"));
+                    make_ethdebug_compilation(gcx, Some(metadata_identity))
+                });
                 let compilation_id = compilation.as_ref().map(EthdebugCompilation::id);
 
                 for (contract_id, contract) in gcx.hir.contracts_enumerated() {

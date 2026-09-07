@@ -221,28 +221,6 @@
                   "offset": 33,
                   "operation": {
                     "mnemonic": "JUMPDEST"
-                  },
-                  "context": {
-                    "invoke": {
-                      "identifier": "checked",
-                      "declaration": {
-                        "source": {
-                          "id": 0
-                        },
-                        "range": {
-                          "offset": 19,
-                          "length": 84
-                        }
-                      },
-                      "jump": true,
-                      "target": {
-                        "pointer": {
-                          "location": "code",
-                          "offset": 33,
-                          "length": 1
-                        }
-                      }
-                    }
                   }
                 },
                 {
@@ -589,28 +567,6 @@
                   "offset": 60,
                   "operation": {
                     "mnemonic": "JUMPDEST"
-                  },
-                  "context": {
-                    "invoke": {
-                      "identifier": "length",
-                      "declaration": {
-                        "source": {
-                          "id": 0
-                        },
-                        "range": {
-                          "offset": 104,
-                          "length": 89
-                        }
-                      },
-                      "jump": true,
-                      "target": {
-                        "pointer": {
-                          "location": "code",
-                          "offset": 60,
-                          "length": 1
-                        }
-                      }
-                    }
                   }
                 },
                 {
@@ -871,7 +827,7 @@
                 }
               ]
             },
-            "sourceMap": ":::-:0;;;;;;;;;;;:::i;:::-;;;;:::i;:::-;75:15:0;;;-1:-1:-1;;;;;;75:15:0;;;;;92:9;;-1:-1:-1;;;;;:::o;:::-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;172:19:0;"
+            "sourceMap": ":::-:0;;;;;;;;;;;:::i;:::-;;;;:::i;:::-;75:15:0;;;-1:-1:-1;;;;;;75:15:0;;;;;92:9;;-1:-1:-1;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;172:19:0;"
           }
         }
       }
