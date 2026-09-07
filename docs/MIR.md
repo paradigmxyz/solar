@@ -335,10 +335,11 @@ The stored CFG and cached analyses are distinct. Updating phis and predecessor
 lists does not update dominance, reachability, alias analysis, or loop facts.
 The pass machinery invalidates analyses after relevant changes; a pass that
 continues querying them after an edit must recompute or update them first.
-CSE, DCE, and allocation placement share module call summaries until any pass
-changes IR. Function-local preservation of CFG or alias facts never preserves
-those summaries. Consecutive passes in custom pipelines use the same cache and
-invalidation rules as the canonical pipeline.
+CSE, DCE, and allocation placement share module call summaries. Changes drop
+them unless the pass proves they remain conservative; CSE preserves them when
+removing equivalent reads and computations. Preserving function-local CFG or
+alias facts alone never preserves call summaries. Consecutive passes in custom
+pipelines use the same cache and invalidation rules as the canonical pipeline.
 The verifier checks IR at pass boundaries in debug builds and with
 `-Zvalidate-ir`. It should report broken invariants rather than repair them.
 

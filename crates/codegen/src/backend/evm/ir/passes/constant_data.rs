@@ -12,7 +12,7 @@ use crate::{
         ir::{BlockId, Data, DataRef, Instruction, Metadata, Module},
         op::{self, WORD_BYTES},
     },
-    lower::data_copy_cost,
+    mir::lower::data_copy_cost,
 };
 use alloy_primitives::{Bytes, U256};
 use solar_interface::sym;

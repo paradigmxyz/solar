@@ -836,9 +836,9 @@ impl RenameIndex {
             .iter()
             .filter_map(|&index| {
                 let occurrence = &self.occurrences[index];
-                range_contains(occurrence.location.range, position).then_some(occurrence)
+                proto::range_contains(occurrence.location.range, position).then_some(occurrence)
             })
-            .min_by_key(|occurrence| range_size_key(occurrence.location.range))
+            .min_by_key(|occurrence| proto::range_size_key(occurrence.location.range))
     }
 
     fn normalize_occurrences(&mut self) {
@@ -969,20 +969,6 @@ fn remap_alias_id(alias_id: ImportAliasId, offset: usize) -> ImportAliasId {
 
 fn remap_mapping_name_id(name_id: MappingNameId, offset: usize) -> MappingNameId {
     MappingNameId::from_usize(name_id.index() + offset)
-}
-
-fn range_contains(range: Range, position: Position) -> bool {
-    if range.start == range.end {
-        return position == range.start;
-    }
-    position >= range.start && position < range.end
-}
-
-fn range_size_key(range: Range) -> (u32, u32) {
-    (
-        range.end.line.saturating_sub(range.start.line),
-        range.end.character.saturating_sub(range.start.character),
-    )
 }
 
 fn compare_locations(a: &Location, b: &Location) -> std::cmp::Ordering {

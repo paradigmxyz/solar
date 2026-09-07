@@ -218,7 +218,7 @@ impl Module {
         phase: MirPhase,
     ) -> solar_interface::Result<()> {
         assert!(phase >= self.phase, "MIR phase cannot regress");
-        crate::analysis::validate_phase(dcx, self, phase)?;
+        crate::mir::analysis::validate_phase(dcx, self, phase)?;
         self.phase = phase;
         Ok(())
     }
@@ -237,7 +237,7 @@ impl Module {
                 .span(self.name.span)
                 .emit());
         }
-        crate::analysis::validate_phase(dcx, self, MirPhase::Lowered)?;
+        crate::mir::analysis::validate_phase(dcx, self, MirPhase::Lowered)?;
         Ok(LoweredModule(self))
     }
 

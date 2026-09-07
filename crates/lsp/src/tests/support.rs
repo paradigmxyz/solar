@@ -168,23 +168,12 @@ impl RequestFixture {
         changed_contents: &str,
         expected: impl IntoData,
     ) {
-        let mut state = self.state_with_completion_snippets(true);
-        let path = self.marked.project().path(path);
-        state.mark_source_analysis_pending_for_test(path.clone());
-        let uri = Url::from_file_path(&path).unwrap();
-        state.vfs.write().set_file_contents(
-            crate::vfs::VfsPath::from(path),
-            Some(crop::Rope::from(changed_contents)),
+        self.check_completion_details_after_changes(
+            marker,
+            path,
+            &[(path, changed_contents)],
+            expected,
         );
-        let position = self.marked.marker(marker).position();
-        let response =
-            expect_ready(crate::handlers::completion(&mut state, completion_params(uri, position)))
-                .unwrap()
-                .unwrap();
-        let CompletionResponse::Array(items) = response else {
-            panic!("expected completion array");
-        };
-        assert_data_eq!(completion_details_output(&items), expected);
     }
 
     pub(super) fn check_completion_details_after_changes(
@@ -528,8 +517,9 @@ impl RequestFixture {
 
     pub(super) fn check_selection_ranges(&self, markers: &[&str], expected: impl IntoData) {
         let mut state = self.state();
-        let (_, positions) = self.selection_range_request(markers);
-        let response = self.selection_range_response_in_state(&mut state, markers);
+        let (params, positions) = self.selection_range_request(markers);
+        let response =
+            block_on(crate::handlers::selection_range(&mut state, params)).unwrap().unwrap();
         check_selection_range_response(response, &positions, expected);
     }
 
@@ -563,11 +553,7 @@ impl RequestFixture {
         markers: &[&str],
         expected: impl IntoData,
     ) {
-        let mut state = self.state();
-        let (params, positions) = self.selection_range_request(markers);
-        let response =
-            block_on(crate::handlers::selection_range(&mut state, params)).unwrap().unwrap();
-        check_selection_range_response(response, &positions, expected);
+        self.check_selection_ranges(markers, expected);
     }
 
     pub(super) fn check_selection_ranges_while_analysis_pending(

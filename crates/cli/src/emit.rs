@@ -5,8 +5,7 @@ use solar_codegen::{
     ContractArtifact, ContractSelection, RuntimeDataFn,
     backend::evm::{self, ir},
     generate_contract_bytecodes,
-    mir::{Module, validate},
-    pass,
+    mir::{Module, pass, validate},
 };
 use solar_config::{CompilerOutput, Dump, DumpKind};
 use solar_data_structures::map::FxHashMap;

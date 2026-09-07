@@ -275,7 +275,7 @@ impl<T: Copy> PositionIndex<T> {
             .zip(self.prefix_max_end[..end].iter().copied())
             .rev()
             .take_while(move |(_, prefix_max_end)| *prefix_max_end >= position)
-            .filter(move |&(entry, _)| range_contains(range(entry), position))
+            .filter(move |&(entry, _)| proto::range_contains(range(entry), position))
             .map(|(entry, _)| entry)
     }
 }
@@ -1488,7 +1488,7 @@ impl SymbolTables {
             .min_by_key(|&index| {
                 let reference = &self.references[index];
                 let range = reference.location.range;
-                (range_size_key(range), range.start, range.end, index)
+                (proto::range_size_key(range), range.start, range.end, index)
             })
             .map(|index| &self.references[index])
     }
@@ -1500,7 +1500,7 @@ impl SymbolTables {
             .min_by_key(|&symbol_id| {
                 let declaration = &self.declarations[symbol_id];
                 (
-                    range_size_key(declaration.name_range),
+                    proto::range_size_key(declaration.name_range),
                     declaration.location.range.start,
                     symbol_id.index(),
                 )
@@ -1512,9 +1512,9 @@ impl SymbolTables {
             .get(uri)?
             .iter()
             .copied()
-            .filter(|&scope_id| range_contains(self.scopes[scope_id].range, position))
+            .filter(|&scope_id| proto::range_contains(self.scopes[scope_id].range, position))
             .min_by_key(|&scope_id| {
-                let (lines, chars) = range_size_key(self.scopes[scope_id].range);
+                let (lines, chars) = proto::range_size_key(self.scopes[scope_id].range);
                 (lines, chars, u32::MAX - self.scope_depth(scope_id))
             })
     }
@@ -1566,7 +1566,7 @@ impl SymbolTables {
                 let completion = &self.member_completions[index];
                 completion_range_contains(completion.range, position).then_some(completion)
             })
-            .min_by_key(|completion| range_size_key(completion.range))?;
+            .min_by_key(|completion| proto::range_size_key(completion.range))?;
         Some(&completion.items)
     }
 
@@ -2395,28 +2395,7 @@ impl<'gcx> hir::Visit<'gcx> for ReferenceCollector<'_, 'gcx> {
 
     fn visit_ty(&mut self, ty: &'gcx hir::Type<'gcx>) -> ControlFlow<Self::BreakValue> {
         self.push_type_reference(ty);
-        match ty.kind {
-            TypeKind::Elementary(_) | TypeKind::Custom(_) | TypeKind::Err(_) => {}
-            TypeKind::Array(array) => {
-                self.visit_ty(&array.element)?;
-                if let Some(size) = array.size {
-                    self.visit_expr(size)?;
-                }
-            }
-            TypeKind::Function(function) => {
-                for &param in function.parameters {
-                    self.visit_nested_var(param)?;
-                }
-                for &ret in function.returns {
-                    self.visit_nested_var(ret)?;
-                }
-            }
-            TypeKind::Mapping(mapping) => {
-                self.visit_ty(&mapping.key)?;
-                self.visit_ty(&mapping.value)?;
-            }
-        }
-        ControlFlow::Continue(())
+        hir::Visit::walk_ty(self, ty)
     }
 
     fn visit_stmt(&mut self, stmt: &'gcx hir::Stmt<'gcx>) -> ControlFlow<Self::BreakValue> {
@@ -2521,25 +2500,11 @@ fn sort_completion_items(items: &mut [CompletionItem]) {
     items.sort_by(|a, b| a.label.cmp(&b.label));
 }
 
-fn range_contains(range: Range, position: Position) -> bool {
-    if range.start == range.end {
-        return position == range.start;
-    }
-    position >= range.start && position < range.end
-}
-
 fn completion_range_contains(range: Range, position: Position) -> bool {
     if range.start == range.end {
         return position == range.start;
     }
     position >= range.start && position <= range.end
-}
-
-fn range_size_key(range: Range) -> (u32, u32) {
-    (
-        range.end.line.saturating_sub(range.start.line),
-        range.end.character.saturating_sub(range.start.character),
-    )
 }
 
 fn member_completion_item_kind(gcx: Gcx<'_>, member: Member<'_>) -> CompletionItemKind {

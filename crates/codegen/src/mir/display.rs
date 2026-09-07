@@ -7,7 +7,7 @@ use super::{
     InstId, InstKind, InstructionMetadata, MemoryRegion, MirType, Module, StorageAlias, Terminator,
     Value, ValueId,
 };
-use crate::analysis::CfgInfo;
+use crate::mir::analysis::CfgInfo;
 use arrayvec::ArrayVec;
 use solar_data_structures::{
     fmt::{self, FmtIteratorExt},
