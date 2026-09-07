@@ -671,3 +671,44 @@ final compiler timing after passing corpus size and actual runtime checks.
 The original rewrite performance debts and computed-memory interference bug
 remain open. Publishing local commits is still blocked by automatic approval
 review despite the earlier user authorization.
+
+
+### Main CI repair: terminal words and reviewed snapshots
+
+Terminal single-word returns now use scratch offset zero when the immediately
+preceding full-word store proves the exact returned value. Canonical effects,
+glue, bounded offsets and code-observer exclusions remain checked. This adds
+51 net raw production lines. All original 1,582 UI rows and 4,780 objects keep
+their success inventory: gas creation/runtime shrink 3,305/3,261 bytes, size
+shrinks 2,008/1,976 bytes, and no object grows. Across nine heavy projects,
+214 objects shrink and 323 change at equal size; creation/runtime totals fall
+1,538/1,520 bytes. ABI, source maps and all 541 logical reference sites per
+leg remain valid. Both hot modes retain fifteen cases and 175 ordered labels,
+with 94 less gas and no individual increase. The 103-call focused suite has
+no gas increases; four bounded symbolic comparisons agree on an extracted
+pure subset. The full symbolic fixture is explicitly incomplete because solc
+rejects its unrelated MSIZE function under Yul optimization.
+
+The final lint correction preserves selection exactly; four final-compiler
+Seaport outputs reproduce the separately audited captures. Reversed timing
+pairs are 3.05% faster and 1.90% slower, so there is no reliable speedup claim.
+Sampled RSS falls 0.99% and 1.51%; these are 100ms samples, not true peaks.
+All 32 new regression revisions pass, as do lint, formatting and typo checks.
+Evidence is retained in `terminal-word-{ui-independent,heavy-review,timing,
+tests}-20260906/` and `main-ci-terminal-word-{final,symbolic}-20260906/`.
+
+Snapshot commits separately account for terminal offsets, structural jump and
+table relocations, deployment lengths and debug instruction offsets. Existing
+assertions and executable sources remain intact. A separate array-copy check
+migration binds each original selector to its actual decoder, allocation and
+copy path, while allowing the getter's direct return. Old/current/solc agree
+on 58 calls plus 58 persistent getter reads per leg; 25 negative mutations
+reject incorrect paths and memory operations. The frozen final UI run now has
+nine failures, 3,578 passes and 113 filtered cases. The earlier full workspace
+run passed 1,389 tests; its UI aggregate failed before these reviewed snapshot
+updates. CI is still not green and local commits remain unpublished.
+
+A two-word compaction is an uncommitted trial. Unconditional late MemoryDse
+was not enabled: its tuple improvement exposes broader gas-observation and
+pipeline-cost questions. The original sealed performance debts and computed
+memory interference bug remain open.
