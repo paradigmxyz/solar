@@ -830,3 +830,66 @@ physical lines versus the recorded 34,638 deleted lines: 19,422 fewer
 performance debts and computed-memory interference witness remain open.
 Main `933bc1e2` is merged; local commits remain unpublished after the earlier
 automatic push rejection.
+
+
+### Terminal exchanges and storage expectation migration
+
+Commits `80f702b5` and `281441ee` let terminal two-word return compaction
+recognize literal addresses beneath canonical non-top stack exchanges.
+The bounded backward scan adds twelve net raw production lines and keeps
+instruction order and stack effects intact. Six new EVM IR revisions retain
+positive and guard snapshots; eleven negative controls reject. Sixty valid
+stack executions preserve complete results, while twelve overflow cases
+preserve the failure point. Forty-six paired runtime labels have no gas
+increase. No original test is removed or ignored.
+
+The final compiler passes Clippy and the full benchmark workflow from main:
+24 identical case IDs, fifteen runtime cases, 175 gas labels and 139
+observations per compiler. Gas and Size runtime corpus outputs and gas are
+exact. UI Gas totals shrink 26 creation/runtime bytes; Size shrinks 22 each,
+with 22 objects smaller per mode and none larger. The nine-project heavy
+capture retains 1,672 contracts, 3,344 objects and all 541 reference sites;
+six objects shrink two bytes each, four change at equal size, and the rest
+are exact. Physical artifacts are compared, including explicit generated
+helper-name mappings where needed. Solc records are fingerprint-checked
+reuse, not fresh solc timing measurements.
+
+Compiler-time geometric mean is nearly flat (-0.11%), but Seaport remains
+0.83% and 1.00% slower in opposite run orders. Fractional is also slightly
+slower in both. Those are observed tradeoffs, not an unqualified compile
+speed win; their cause is not established. RSS changes do not consistently
+repeat. Seaport has one sample per leg because of the ten-second cutoff.
+The reversed four-case run measures time only and reuses no solc records.
+All samples, artifacts and independent reviews remain under
+`legacy-call-boolean-workflow-20260907/`,
+`terminal-exchange-reversed-timing-20260907/` and adjacent review directories.
+
+A separate trial classified four legacy CALL results as Boolean in MIR.
+Although the facts are sound, a new four-word GAS-observer case increased
+total execution gas by six in Gas and fifteen in Size after an initial
+return-address issue was fixed. The MIR trial was rejected and restored
+from the retained current file; no Boolean facts or expectation changes
+from it were committed. Drafts, binaries, runtime traces and negative
+controls are retained. The terminal exchange fix above stands independently.
+
+Commit `1fa2328b` refreshes only the original storage-bytes test's comments
+and full golden. It explicitly accepts compact inline getter returns in
+place of the historical shared len/at return. Solidity tokens and flags are
+unchanged; full before/after ABI, bytecode and EVM IR are exact. All 528
+stateful calls agree, 224 neighboring-slot checks preserve storage, and 21
+negative controls reject. All 74 successful getter labels beat the sealed
+gas baseline. Six existing Size malformed-header gas debts remain explicit.
+A bounded symbolic getter probe agrees after fixed state preparation; it
+does not establish arbitrary-state equivalence. Installation evidence is in
+`storage-bytes-installed-20260907/` and its independent review directory.
+
+The latest full workspace run has 1,395 passing tests and one failing UI
+aggregate: 11,569 UI cases pass, five original cases fail, and 851 are
+filtered. The failures are cold-call fallthrough (Size), global calldata
+alias, low-level calldata calls, unloaded spill stores and tuple assignment.
+Current backend Rust files total 15,228 raw lines, 19,410 fewer than the
+recorded deleted 34,638 (56.0%); this includes comments and inline tests.
+The sealed performance debts and computed-memory interference remain open.
+A fresh fetch confirms main `933bc1e2`; merging reports already up to date.
+Future comparisons use main's full benchmark and artifact workflow. Local
+commits remain unpublished after automatic approval review rejected push.
