@@ -5,7 +5,7 @@ bb0:
   callvalue
   push bb1
   jumpi
-  push 772
+  push 777
   dup 1
   push 18
   push 0
@@ -351,98 +351,65 @@ bb4:
   swap 7
   dup 8
   lt
-  swap 7
-  pop
-  swap 2
+  push bb26
+  jumpi
   swap 4
+  dup 7
+  add
+  dup 1
+  push 0x5c0
+  mstore
   swap 6
-  swap 1
-  swap 3
+  dup 7
+  lt
+  push bb26
+  jumpi
+  swap 2
+  dup 6
+  add
+  dup 1
+  push 0x5a0
+  mstore
   swap 5
-  swap 1
+  dup 6
+  lt
   push bb26
   jumpi
-  swap 5
-  push 0x5a0
-  mload
+  dup 5
   add
   dup 1
   push 0x5c0
   mstore
-  push 0x5a0
-  mload
-  gt
-  swap 1
-  swap 2
-  swap 3
   swap 4
-  swap 5
-  swap 1
+  dup 5
+  lt
   push bb26
   jumpi
-  swap 4
-  push 0x5c0
-  mload
+  dup 4
   add
   dup 1
   push 0x5a0
   mstore
-  push 0x5c0
-  mload
-  gt
-  swap 1
-  swap 2
   swap 3
-  swap 4
-  swap 1
+  dup 4
+  lt
   push bb26
   jumpi
-  swap 3
-  push 0x5a0
-  mload
+  dup 3
   add
   dup 1
   push 0x5c0
   mstore
-  push 0x5a0
-  mload
-  gt
-  swap 1
   swap 2
-  swap 3
-  swap 1
+  dup 3
+  lt
   push bb26
   jumpi
-  swap 2
-  push 0x5c0
-  mload
-  add
-  dup 1
-  push 0x5a0
-  mstore
-  push 0x5c0
-  mload
-  gt
-  exchange 1, 2
-  push bb26
-  jumpi
-  swap 1
-  push 0x5a0
-  mload
-  add
-  dup 1
-  push 0x5c0
-  mstore
-  push 0x5a0
-  mload
-  gt
-  push bb26
-  jumpi
-  push 0x5c0
-  mload
-  swap 1
   dup 2
   add
+  dup 1
+  push 0x5a0
+  mstore
   swap 1
   dup 2
   lt
@@ -452,6 +419,9 @@ bb4:
   mload
   dup 2
   add
+  dup 1
+  push 0x5c0
+  mstore
   swap 1
   dup 2
   lt
@@ -461,6 +431,9 @@ bb4:
   mload
   dup 2
   add
+  dup 1
+  push 0x5a0
+  mstore
   swap 1
   dup 2
   lt
@@ -470,6 +443,9 @@ bb4:
   mload
   dup 2
   add
+  dup 1
+  push 0x5c0
+  mstore
   swap 1
   dup 2
   lt
@@ -479,6 +455,9 @@ bb4:
   mload
   dup 2
   add
+  dup 1
+  push 0x5a0
+  mstore
   swap 1
   dup 2
   lt
@@ -488,6 +467,9 @@ bb4:
   mload
   dup 2
   add
+  dup 1
+  push 0x5c0
+  mstore
   swap 1
   dup 2
   lt
@@ -497,6 +479,9 @@ bb4:
   mload
   dup 2
   add
+  dup 1
+  push 0x5a0
+  mstore
   swap 1
   dup 2
   lt
@@ -506,6 +491,9 @@ bb4:
   mload
   dup 2
   add
+  dup 1
+  push 0x5c0
+  mstore
   swap 1
   dup 2
   lt
@@ -515,6 +503,9 @@ bb4:
   mload
   dup 2
   add
+  dup 1
+  push 0x5a0
+  mstore
   swap 1
   dup 2
   lt
@@ -524,6 +515,9 @@ bb4:
   mload
   dup 2
   add
+  dup 1
+  push 0x5c0
+  mstore
   swap 1
   dup 2
   lt
@@ -533,6 +527,9 @@ bb4:
   mload
   dup 2
   add
+  dup 1
+  push 0x5a0
+  mstore
   swap 1
   dup 2
   lt
@@ -542,6 +539,9 @@ bb4:
   mload
   dup 2
   add
+  dup 1
+  push 0x5c0
+  mstore
   swap 1
   dup 2
   lt
@@ -551,6 +551,9 @@ bb4:
   mload
   dup 2
   add
+  dup 1
+  push 0x5a0
+  mstore
   swap 1
   dup 2
   lt

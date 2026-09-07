@@ -18,12 +18,26 @@ contract ResidentStaticArgs {
 
     // The call pushes its return label and both calldata arguments directly;
     // the branch join reuses `value` from the resident stack without a frame load.
-    // CHECK: push [[RET:bb[0-9]+]]
+    // CHECK-LABEL: @module ResidentStaticArgs_runtime
+    // CHECK: push 0xa3395f5
+    // CHECK-NEXT: eq
+    // CHECK-NEXT: push [[ENTRY:bb[0-9]+]]
+    // CHECK: [[ENTRY]]:
+    // CHECK: push 36
+    // CHECK-NEXT: calldataload
+    // CHECK: iszero
+    // CHECK-NEXT: push {{bb[0-9]+}}
+    // CHECK-NEXT: jumpi
+    // CHECK-NEXT: push [[RET:bb[0-9]+]]
     // CHECK-NEXT: push 4
     // CHECK-NEXT: calldataload
     // CHECK-NEXT: push 36
     // CHECK-NEXT: calldataload
-    // CHECK: [[JOIN:bb[0-9]+]]:
+    // CHECK-NEXT: jump [[CHOOSE:bb[0-9]+]]
+    // CHECK-NEXT: [[CHOOSE]]:
+    // CHECK: push 1{{$}}
+    // CHECK-NEXT: jump [[JOIN:bb[0-9]+]]
+    // CHECK-NEXT: [[JOIN]]:
     // CHECK-NEXT: dup 2
     // CHECK-NEXT: add
     function run(uint256 value, bool first) external pure returns (uint256) {

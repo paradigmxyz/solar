@@ -479,3 +479,14 @@ solely to eliminate a cheap reload. They can reuse a value already live across
 the edge, and load PRE prefers an equivalent constant or already-live value.
 The EVM revert pass removes an existing branch inversion around a cold payload
 when success can fall through after layout; it preserves the payload's target.
+
+Private branch successors can retain their live stack before the backend imposes
+an argument-only layout. A condition that remains live keeps the global plan,
+which avoids disturbing loop-entry layouts. Cold terminal siblings may keep
+unused stack words, but their payloads and required live-ins stay explicit.
+
+EVM layout packs small shared terminal traces below the PUSH1 address limit.
+It moves the whole fallthrough trace, so moving a shared exit does not insert
+jumps between its predecessor blocks. Multi-block traces must end at an exit
+with at least four references beyond the low-address range; the stricter limit
+avoids moving hot code for weak size gains.

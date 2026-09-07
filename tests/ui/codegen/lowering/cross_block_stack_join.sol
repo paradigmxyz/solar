@@ -8,19 +8,17 @@
 //@ run-call: carryAcrossUnevenEdges 15 => 21
 
 contract CrossBlockStackJoin {
-    // `kept` is defined before the diamond and reused after its join. Reserve its ordinary spill
-    // slot as fallback, but carry the live copy through both predecessors without storing it.
+    // Both predecessors carry `kept` and the selected phi through the join without reloading.
     // CHECK-LABEL: @module CrossBlockStackJoin_runtime
     // CHECK: div
     // CHECK-NEXT: push 1
+    // CHECK-NOT: mstore
     // CHECK: jump [[JOIN:bb[0-9]+]]
-    // CHECK: jump [[JOIN]]
-    // CHECK: [[JOIN]]:
-    // The selected phi reloads, but `kept` remains immediately below it instead of loading its
-    // own spill slot.
-    // CHECK-NEXT: push {{[0-9]+}}
-    // CHECK-NEXT: mload
+    // CHECK-NEXT: [[JOIN]]:
     // CHECK-NEXT: dup 2
+    // CHECK-NEXT: dup 1
+    // CHECK-NEXT: add
+    // CHECK: jump [[JOIN]]
     function carry(uint256 x) external pure returns (uint256 result) {
         uint256 kept;
         assembly {

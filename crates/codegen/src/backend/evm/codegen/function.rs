@@ -747,10 +747,15 @@ impl<'gcx> EvmCodegen<'gcx> {
                 .flatten()
                 .filter(|target| block_pos.get(target).copied() > Some(pos));
 
-            // A conditional branch whose other arm is a cold revert can carry
-            // its single freshly-computed live-out on the stack into the hot
-            // arm, which restores it as its recorded entry layout.
-            let preserve_branch_targets = if !has_edge_specific_global
+            // A private successor restores its recorded entry stack, so keep live values there
+            // before imposing a global argument layout that would spill them. A cold terminal
+            // sibling can receive the same stack when it does not need the carried values.
+            // Leave a condition that must survive its branch to the global planner.
+            let preserve_branch_targets = if (!has_edge_specific_global
+                || block.terminator.as_ref().is_some_and(|term| {
+                    matches!(term, Terminator::Branch { condition, .. }
+                        if !liveness.live_out(block_id).contains(*condition))
+                }))
                 && !preserve_stack_to_fallthrough
                 && preserve_jump_target.is_none()
                 && !stack_phi_branch_preserved
@@ -779,6 +784,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
             let global_branch_preserved = if !stack_phi_preserved
                 && !stack_phi_branch_preserved
+                && preserve_branch_targets.is_empty()
                 && let Some((then_layout, else_layout)) = &global_branch_layouts
                 && let Some(Terminator::Branch { condition, .. }) = block.terminator.as_ref()
             {

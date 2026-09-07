@@ -72,13 +72,13 @@ bb6:
   push 1
   dup 2
   add
-  dup 1
-  push 448
-  mstore
   dup 2
-  gt
+  dup 2
+  lt
   push bb16
   jumpi
+  push 448
+  mstore
   push bb20
   push 448
   mload
@@ -94,14 +94,11 @@ bb6:
   push 1
   dup 2
   add
-  dup 1
-  push 800
-  mstore
+  swap 1
+  dup 2
   lt
   push bb16
   jumpi
-  push 800
-  mload
   push 0
   sstore
   push 3
@@ -110,19 +107,18 @@ bb6:
   push 1
   dup 2
   add
-  dup 1
-  push 800
-  mstore
+  swap 1
+  dup 2
   lt
   push bb16
   jumpi
   push 5
   swap 1
+  swap 2
   mod
   push 2
   add
-  push 800
-  mload
+  swap 1
   swap 2
   jump
 bb9:

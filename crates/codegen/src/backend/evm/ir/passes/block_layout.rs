@@ -6,7 +6,9 @@
 //! final lowering can then omit jumps whose target is the next emitted block
 //! without encoding physical layout assumptions in the IR. Independent hot
 //! traces are placed before cold terminal traces so unlikely exit paths do not
-//! interrupt hot code.
+//! interrupt hot code. Small, independently movable traces ending in a terminal are packed
+//! below the PUSH1 address limit by reference density. Moving the entire trace preserves its
+//! fallthrough edges, including a call followed by a shared failure block.
 
 use super::{
     EvmPass,
@@ -62,7 +64,7 @@ fn layout_blocks(gcx: Gcx<'_>, module: &mut Module) -> bool {
         }
     }
 
-    pack_hot_terminal_blocks(gcx, module, &mut state);
+    pack_terminal_traces(gcx, module, &mut state);
     for cold in [false, true] {
         for block in module.blocks.indices() {
             if is_cold_terminal_block(&module.blocks[block]) == cold {
@@ -120,13 +122,13 @@ impl RunState {
 }
 
 struct Candidate {
-    block: BlockId,
     position: usize,
+    end: usize,
     size: usize,
     references: usize,
 }
 
-fn pack_hot_terminal_blocks(gcx: Gcx<'_>, module: &Module, state: &mut RunState) {
+fn pack_terminal_traces(gcx: Gcx<'_>, module: &Module, state: &mut RunState) {
     let Some(first_terminal) = state.order.iter().enumerate().position(|(position, &block)| {
         is_physical_terminal_boundary(&module.blocks[block], state.order.get(position + 1).copied())
     }) else {
@@ -150,27 +152,45 @@ fn pack_hot_terminal_blocks(gcx: Gcx<'_>, module: &Module, state: &mut RunState)
         return;
     }
 
-    for position in insert_at..state.order.len() {
-        let block = state.order[position];
-        if position == 0
-            || !is_physical_terminal_boundary(
-                &module.blocks[state.order[position - 1]],
-                Some(block),
-            )
-            || !is_terminal_block(&module.blocks[block])
-        {
-            continue;
+    let mut position = insert_at;
+    let mut offset = insert_offset;
+    while position < state.order.len() {
+        let start = position;
+        let mut size = 0;
+        let mut references = 0;
+        loop {
+            let block = state.order[position];
+            let next = state.order.get(position + 1).copied();
+            let block_offset = offset + size;
+            size += estimated_block_size(
+                gcx,
+                &module.blocks[block],
+                next,
+                state.references[block] != 0,
+            );
+            references += state.references[block];
+            position += 1;
+            if is_physical_terminal_boundary(&module.blocks[block], next) {
+                if is_terminal_block(&module.blocks[block])
+                    && size <= 32
+                    && references >= 2
+                    && (position == start + 1
+                        || (block_offset > 0xff && state.references[block] >= 4))
+                {
+                    state.candidates.push(Candidate {
+                        position: start,
+                        end: position,
+                        size,
+                        references,
+                    });
+                }
+                break;
+            }
+            if position == state.order.len() {
+                break;
+            }
         }
-        let size = estimated_block_size(
-            gcx,
-            &module.blocks[block],
-            state.order.get(position + 1).copied(),
-            state.references[block] != 0,
-        );
-        let count = state.references[block];
-        if size <= 32 && count >= 2 {
-            state.candidates.push(Candidate { block, position, size, references: count });
-        }
+        offset += size;
     }
     state.candidates.sort_unstable_by(|a, b| {
         (b.references * a.size)
@@ -182,13 +202,17 @@ fn pack_hot_terminal_blocks(gcx: Gcx<'_>, module: &Module, state: &mut RunState)
     for candidate in &state.candidates {
         if candidate.size <= budget {
             budget -= candidate.size;
-            state.picked.insert(candidate.block);
-            state.picked_order.push(candidate.block);
+            // trace_head; ...; terminal
+            for &block in &state.order[candidate.position..candidate.end] {
+                state.picked.insert(block);
+                state.picked_order.push(block);
+            }
         }
     }
     if state.picked_order.is_empty() {
         return;
     }
+    // entry_trace; selected_traces; other_traces
     state.order.retain(|block| !state.picked.contains(*block));
     state.order.splice(insert_at..insert_at, state.picked_order.drain(..));
 }
