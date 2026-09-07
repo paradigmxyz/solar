@@ -119,3 +119,14 @@ interpret the shared-host dev measurements as precise release-speed changes.
   tests successfully (one skipped); formatting and scoped Clippy/typecheck
   passed. Python checks ran 101 tests (95 passed, six Node-dependent skips),
   and Ruff formatting/lint passed.
+
+## Analysis, rendering, and benchmark support
+
+- Reused the HIR type visitor and derived analysis-path clone instead of
+  maintaining copies of those implementations.
+- Shared plain-text and Markdown NatSpec traversal, preserving snapshots and
+  allocation behavior.
+- Shared benchmark path-query execution and edit-source lookup. Index building
+  and document conversion remain on their original sides of timing boundaries.
+- Covered by the final Rust suite, lint/typecheck, and recorded main/candidate
+  measurements above.

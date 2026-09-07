@@ -2390,28 +2390,7 @@ impl<'gcx> hir::Visit<'gcx> for ReferenceCollector<'_, 'gcx> {
 
     fn visit_ty(&mut self, ty: &'gcx hir::Type<'gcx>) -> ControlFlow<Self::BreakValue> {
         self.push_type_reference(ty);
-        match ty.kind {
-            TypeKind::Elementary(_) | TypeKind::Custom(_) | TypeKind::Err(_) => {}
-            TypeKind::Array(array) => {
-                self.visit_ty(&array.element)?;
-                if let Some(size) = array.size {
-                    self.visit_expr(size)?;
-                }
-            }
-            TypeKind::Function(function) => {
-                for &param in function.parameters {
-                    self.visit_nested_var(param)?;
-                }
-                for &ret in function.returns {
-                    self.visit_nested_var(ret)?;
-                }
-            }
-            TypeKind::Mapping(mapping) => {
-                self.visit_ty(&mapping.key)?;
-                self.visit_ty(&mapping.value)?;
-            }
-        }
-        ControlFlow::Continue(())
+        hir::Visit::walk_ty(self, ty)
     }
 
     fn visit_stmt(&mut self, stmt: &'gcx hir::Stmt<'gcx>) -> ControlFlow<Self::BreakValue> {

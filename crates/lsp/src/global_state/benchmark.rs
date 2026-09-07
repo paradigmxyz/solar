@@ -135,25 +135,23 @@ impl BenchmarkWorkspacePathQueries {
 
     /// Execute ownership and overlay-recipient queries for every prepared path.
     pub fn run(&self) -> usize {
+        self.run_paths(&self.paths)
+    }
+
+    /// Construct the index and execute one ownership and overlay-recipient query.
+    pub fn run_one(&self) -> usize {
+        self.run_paths(&self.paths[..1])
+    }
+
+    fn run_paths(&self, paths: &[PathBuf]) -> usize {
         let index = WorkspacePathIndex::new(&self.workspaces);
-        self.paths.iter().fold(0, |fingerprint, path| {
+        paths.iter().fold(0, |fingerprint, path| {
             let query = index.query(path);
             let primary = query.workspace_idx_for_path();
             let owner = query.workspace_idx_for_import_path().unwrap_or_default();
             let overlays = query.workspace_idxs_for_import_path().fold(0, usize::wrapping_add);
             fingerprint.wrapping_add(primary).wrapping_add(owner).wrapping_add(overlays)
         })
-    }
-
-    /// Construct the index and execute one ownership and overlay-recipient query.
-    pub fn run_one(&self) -> usize {
-        let index = WorkspacePathIndex::new(&self.workspaces);
-        let path = &self.paths[0];
-        let query = index.query(path);
-        let primary = query.workspace_idx_for_path();
-        let owner = query.workspace_idx_for_import_path().unwrap_or_default();
-        let overlays = query.workspace_idxs_for_import_path().fold(0, usize::wrapping_add);
-        primary.wrapping_add(owner).wrapping_add(overlays)
     }
 
     /// Construct the index and execute one base-path containment query.
@@ -384,13 +382,7 @@ impl BenchmarkProject {
 
     /// Apply an edit with the same UTF-16 range logic used by document-change notifications.
     pub fn apply_edit(&mut self, edit: &BenchmarkEdit) -> Result<(), BenchmarkError> {
-        let index =
-            self.files.binary_search_by(|(path, _)| path.cmp(&edit.path)).map_err(|_| {
-                BenchmarkError::new(format!(
-                    "benchmark edit targets unknown source `{}`",
-                    edit.path.display()
-                ))
-            })?;
+        let index = self.edit_source_index(edit)?;
         let source = &mut self.files[index].1;
         let updated =
             apply_document_changes(&Rope::from(source.as_str()), vec![edit.change.clone()])
@@ -405,16 +397,19 @@ impl BenchmarkProject {
         &self,
         edit: &BenchmarkEdit,
     ) -> Result<BenchmarkDocumentChange, BenchmarkError> {
-        let index =
-            self.files.binary_search_by(|(path, _)| path.cmp(&edit.path)).map_err(|_| {
-                BenchmarkError::new(format!(
-                    "benchmark edit targets unknown source `{}`",
-                    edit.path.display()
-                ))
-            })?;
+        let index = self.edit_source_index(edit)?;
         Ok(BenchmarkDocumentChange {
             contents: Rope::from(self.files[index].1.as_str()),
             changes: vec![edit.change.clone()],
+        })
+    }
+
+    fn edit_source_index(&self, edit: &BenchmarkEdit) -> Result<usize, BenchmarkError> {
+        self.files.binary_search_by(|(path, _)| path.cmp(&edit.path)).map_err(|_| {
+            BenchmarkError::new(format!(
+                "benchmark edit targets unknown source `{}`",
+                edit.path.display()
+            ))
         })
     }
 
