@@ -6,6 +6,7 @@ Unsupported operations raise: they are never unconstrained functions.
 """
 
 from dataclasses import dataclass
+import time
 
 import z3
 
@@ -206,3 +207,54 @@ def check(lhs, rhs, assumptions=(), timeout_ms=5000, model=None):
         raise RuntimeError("SMT/concrete semantics disagree on a counterexample")
     return {"status": "counterexample", "inputs": {k: hex(v) for k, v in values.items()},
             "lhs_value": hex(actual[0]), "rhs_value": hex(actual[1]), "replayed": True}, query
+
+
+def partition_shift(lhs, rhs, assumptions, timeout_ms, model):
+    """Exhaust a single symbolic shift count: 0..255 and the saturating range.
+
+    Called only after applicability was SAT and the unsplit equality timed out.
+    Every saved subquery is a counterexample query. Coverage is checked too;
+    sampled counts or a partially completed partition can never prove a rule.
+    """
+    shifts = set()
+
+    def visit(expr):
+        if expr.op in ("var", "const"):
+            return
+        if expr.op in ("shl", "shr", "sar") and expr.args[0].op == "var":
+            shifts.add(expr.args[0])
+        for child in expr.args:
+            visit(child)
+
+    visit(lhs)
+    visit(rhs)
+    if len(shifts) != 1:
+        return {"status": "unknown", "reason": "no single symbolic shift partition"}, []
+    shift = model.eval(next(iter(shifts)))
+    conditions = [shift == word(i) for i in range(WIDTH)] + [z3.UGE(shift, word(WIDTH))]
+    deadline = time.monotonic() + timeout_ms / 1000
+    queries = []
+    for index in range(-1, len(conditions)):
+        remaining = int((deadline - time.monotonic()) * 1000)
+        if remaining <= 0:
+            return {"status": "unknown", "reason": "shift partition budget exhausted"}, queries
+        solver = z3.SolverFor("QF_BV")
+        solver.set(timeout=remaining)
+        if index == -1:
+            solver.add(z3.Not(z3.Or(conditions)))
+        else:
+            obligation = z3.And(*assumptions, conditions[index], model.eval(lhs) != model.eval(rhs))
+            if index < WIDTH:
+                obligation = z3.substitute(obligation, (shift, word(index)))
+            solver.add(z3.simplify(obligation))
+        query = solver.to_smt2()
+        result = solver.check()
+        queries.append((f"case-{index + 1}", query))
+        if result == z3.sat:
+            if index == -1:
+                raise RuntimeError("shift partition does not cover all words")
+            replay, _ = check(lhs, rhs, [*assumptions, conditions[index]], remaining, model)
+            return replay, queries
+        if result != z3.unsat:
+            return {"status": "unknown", "reason": solver.reason_unknown()}, queries
+    return {"status": "proved", "proof_method": "exhaustive-shift-partition", "cases": len(conditions)}, queries

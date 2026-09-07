@@ -50,6 +50,7 @@ pub static ALL_PASSES: &[&dyn MirPass] = &[
     &cse::Cse,
     &pre::Pre,
     &egraph::Egraph,
+    &word_sequence::WordSequence,
     &storage_load_cse::StorageLoadCse,
     &storage_dse::StorageDse,
     &load_pre::LoadPre,
@@ -168,6 +169,7 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &sccp::Sccp,
     &pure_eval::PureEval,
     &egraph::Egraph,
+    &word_sequence::WordSequence,
     &pre::Pre,
     &storage_load_cse::StorageLoadCse,
     &storage_dse::StorageDse,
@@ -203,6 +205,7 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &cfg_simplify::FunctionDce,
     &sccp::Sccp,
     &egraph::Egraph,
+    &word_sequence::WordSequence,
     &check_elim::CheckElim,
     &jump_threading::JumpThreading,
     &cfg_simplify::CfgSimplify,
@@ -232,6 +235,7 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &storage_load_cse::StorageLoadCse,
     &storage_dse::StorageDse,
     &egraph::Egraph,
+    &word_sequence::WordSequence,
     &cfg_simplify::CfgSimplify,
     &memory_dse::MemoryDse,
     // Late CSE reduces runtime gas after aggregate lowering, but can grow
@@ -263,6 +267,7 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     // once more before the physical shape is fixed. The stack-aware cost keeps
     // rewrites from reaching for values the scheduler would have to keep alive.
     &egraph::Egraph,
+    &word_sequence::WordSequence,
     &lower_evm_shaped::LowerEvmShaped,
     // Late lowering can leave pure address and length calculations unused.
     // Remove their complete dependency chains before selecting physical stack order.

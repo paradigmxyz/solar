@@ -752,7 +752,7 @@ fn canonical_leaves(
 }
 
 /// Counts the uses of every value in instructions and terminators.
-fn use_counts(func: &Function) -> FxHashMap<ValueId, u32> {
+pub(super) fn use_counts(func: &Function) -> FxHashMap<ValueId, u32> {
     let mut uses = FxHashMap::<ValueId, u32>::default();
     for inst_id in func.instructions() {
         for operand in func.inst(inst_id).operands() {

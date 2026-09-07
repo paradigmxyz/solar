@@ -1,0 +1,9 @@
+// === ROOT/tests/ui/codegen/lowering/byte_return_cleanup.sol:ByteReturnCleanup ===
+@module ByteReturnCleanup
+fn @extract(arg0: u256) -> (bytes1, u256) [selector=0x85b39782, pure, abi_params=[u256], abi_returns=[word<bytes1>, word]] {
+  bb0:
+    v0 = shr 240, arg0
+    v1 = and v0, 255
+    v2 = shl 248, v1
+    ret v2, 0
+}

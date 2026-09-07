@@ -1,7 +1,7 @@
 # Verified EVM word rewrites
 
 This is an offline search and SMT verification lane for the **actual ISLE source
-compiled into the optimizer**. It currently gates `word.isle` and
+compiled into the optimizer**. It currently gates `word.isle`, `word_sequence.isle` and
 `stack_select.isle`. The compiler itself has no solver dependency.
 
 ```sh
@@ -13,16 +13,19 @@ uv run scripts/verify_evm_rules.py verify \
 The script pins Z3 through its inline dependency metadata. Each result records
 the source and rule hashes, solver version, instruction-selection and extractor
 hashes, verifier implementation hash, trusted Rust source hashes, and any
-trusted extractor contracts. The
-optional artifacts are standalone SMT-LIB counterexample queries. An equivalent
-rule produces `unsat`; replay one with `z3 path/to/rule.smt2` or
+trusted extractor contracts. The optional artifacts are standalone SMT-LIB counterexample queries. An equivalent
+rule produces `unsat`. Difficult single-count shift queries can be split into
+257 exhaustive cases: each count from 0 through 255 and the entire saturating
+range. The checker also verifies partition coverage. Every case must finish
+with UNSAT within the partition budget; partial coverage never proves a rule.
+The report lists every saved query; replay one with `z3 path/to/rule.smt2` or
 `cvc5 --lang smt2 path/to/rule.smt2`.
 
 Only UNSAT establishes equivalence. SAT must replay as different outputs in a
 separate Python integer evaluator. Timeouts, unsupported terms and unsatisfiable
 preconditions are distinct failures, never proofs. Verification exits nonzero
 unless every selected rule is proved. Empty rule files fail too. CI runs the
-checker's regression tests and verifies every rule in the two gated files.
+checker's regression tests and verifies every rule in all three gated files.
 
 ## Semantics and trusted boundary
 
@@ -72,7 +75,8 @@ the mandatory proof lane; do not ignore unknown or unsupported results.
 
 ```sh
 uv run scripts/verify_evm_rules.py discover \
-  --ops and or xor not --max-ops 3 --max-expressions 10000 --max-rules 256 \
+  --ops and or xor not --variables x y m --max-ops 3 --max-rhs-ops 2 \
+  --max-expressions 10000 --max-rules 256 \
   --evm-version osaka --objective gas \
   --output target/evm-rules/discovery.json \
   --emit-isle target/evm-rules/candidates.isle
@@ -87,20 +91,56 @@ them. This is bounded enumerative search inspired by cvec-based discovery, not
 a port of Ruler or unrestricted equality saturation.
 
 The default frontier uses variables. Zero, one and MAX remain possible results;
-`--include-constants` also enumerates literal inputs. Search bounds and expression
-budget exhaustion are recorded. The emitter expands commutative spellings and
-alpha-renames them, then verifies the **emitted ISLE** again. It emits one-node or
-leaf replacements so integration needs no newly allocated MIR instructions.
+`--include-constants` also enumerates literal inputs. `--constants` selects a
+specialized input domain from the exported Target table. Zero, one and MAX
+always remain available as results, even when excluded from that input domain.
+The table covers byte indexes, common shift counts, powers of two and field masks.
+For example, search packed-byte patterns with:
+
+```sh
+uv run scripts/verify_evm_rules.py discover \
+  --ops and shr byte --result-ops byte --variables x --include-constants \
+  --constants 0 1 8 30 31 255 256 --max-ops 2 --max-rhs-ops 2 \
+  --output target/evm-rules/packed.json \
+  --emit-isle target/evm-rules/packed.isle
+```
+
+`--result-ops` focuses the emitted candidates on useful replacement
+roots without changing the equivalence checks. Literal matching emits explicit
+equality guards, including full-word constants assembled from four checked u64
+limbs. Search bounds and expression budget exhaustion are recorded. The emitter expands commutative spellings and
+alpha-renames them, then verifies the **emitted ISLE** again. Single-operation
+or leaf replacements use `rewrite`. Larger replacements use `sequence_rewrite`,
+with fallible `make` and `imm` constructors bound by `if-let` clauses. `--max-rhs-ops` bounds the replacement tree (default two). Place accepted
+ordinary rules in `word.isle` and recipes in `word_sequence.isle`; a mixed
+candidate file is a proposal, not an automatically registered compiler rule set.
+Failed emitted-source checks retain the discovery report and cause a nonzero exit.
 No candidates produces an empty candidate file and an explicit `no_candidates`
 result. Discovery never changes the compiler's rule files automatically.
 
-The 36 mixed-bitwise rules in `word.isle` are the subset of this recipe with two
-different binary bitwise children. Six arithmetic rules were proposed manually
-and pass the same source-based verification. Arithmetic and bitwise rewrites
-become competing e-class alternatives. Bounded operand matching can inspect up
+The initial 36 mixed-bitwise spellings cover nine families with two different
+binary bitwise children. Six arithmetic spellings were proposed manually. A
+second mixed arithmetic/bitwise search supplied 35 additional spellings across
+ten families. Byte extraction and repeated sign extension add three rules.
+All 80 word rules pass the same source-based verification. Arithmetic and
+bitwise rewrites become competing e-class alternatives. Bounded operand matching can inspect up
 to four retained child spellings, one at a time, exposing nested opportunities
 within one pass. It preserves instruction placement and dominance; it does not
 form the Cartesian product of child classes or perform unrestricted saturation.
+
+The `word-sequence` pass follows e-graph extraction. Its 33 rules cover De Morgan
+identities, boolean tests, common masks, common shifts and size-oriented power-of-two
+comparisons. A recipe has a private namespace; only a winning recipe allocates MIR
+instructions. Matching is restricted to earlier producers in the same pure segment.
+Dead-code credit requires single-use producers, excludes ABI validation, and stops
+at shared values and a bounded cone. The root retains its value identity and semantic
+metadata; new children inherit only source context. Unsupported fork opcodes reject
+the candidate. This adds local multi-instruction construction, not global placement
+search or equality saturation.
+
+The physical selector now checks 15 identities, including reuse of resident
+bitwise components. Actual operand preparation, cleanup and residual layouts are
+compared before selection. This is separate from the recipe pass's tree estimate.
 
 ## Economics and acceptance
 

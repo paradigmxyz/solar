@@ -7,6 +7,10 @@ const RULE_SETS: &[(&str, &[&str])] = &[
     ("select", &["prelude.isle", "evm_prelude.isle", "select.isle"]),
     ("stack_select", &["prelude.isle", "extractors.isle", "stack_select.isle"]),
     ("egraph", &["prelude.isle", "extractors.isle", "egraph.isle", "word.isle"]),
+    (
+        "word_sequence",
+        &["prelude.isle", "extractors.isle", "word_sequence_prelude.isle", "word_sequence.isle"],
+    ),
     ("peephole", &["evm_prelude.isle", "peephole.isle"]),
 ];
 

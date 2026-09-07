@@ -12,7 +12,7 @@ import re
 
 import z3
 
-from .semantics import Expr, MASK, Model, Unsupported, check, word
+from .semantics import Expr, MASK, Model, Unsupported, check, partition_shift, word
 
 ROOT = Path(__file__).resolve().parents[2]
 ISLE = ROOT / "crates/codegen/isle"
@@ -165,7 +165,7 @@ class Context:
         if name.startswith("Op."):
             return self.operation(name, [self.constructor(a) for a in args])
         values = [self.constructor(a) for a in args]
-        if name in ("imm", "u256", "resident") and len(values) == 1:
+        if name in ("imm", "u256", "resident", "make", "sequence") and len(values) == 1:
             if name == "resident":
                 self.contracts.add("resident: available value has the matched expression's word semantics")
             return values[0]
@@ -177,6 +177,10 @@ class Context:
             return symbol
         if name == "u256_max" and not values:
             return Expr.const(MASK)
+        if name == "u256_from_limbs" and len(values) == 4:
+            if any(v.op != "const" or v.args[0] >= 1 << 64 for v in values):
+                raise Unsupported("constant limbs must be literal u64 values")
+            return Expr.const(sum(v.args[0] << (64 * i) for i, v in enumerate(values)))
         unary = {"u256_not": "not", "u256_neg": "sub"}
         if name in unary and len(values) == 1:
             return Expr(unary[name], tuple(([Expr.const(0)] if name == "u256_neg" else []) + values))
@@ -186,7 +190,7 @@ class Context:
         smt = [self.model.eval(v) for v in values]
         if name in ("u256_is_zero", "u256_is_one", "u256_is_all_ones") and len(smt) == 1:
             return smt[0] == {"u256_is_zero": 0, "u256_is_one": 1, "u256_is_all_ones": MASK}[name]
-        predicates = {"u256_gt": z3.UGT, "u256_ge": z3.UGE, "u256_lt": z3.ULT,
+        predicates = {"u256_gt": z3.UGT, "u256_ge": z3.UGE, "u256_lt": z3.ULT, "u256_same": lambda a, b: a == b,
                       "u256_le": z3.ULE, "u256_eq": lambda a, b: a == b}
         if name in predicates and len(smt) == 2:
             return predicates[name](*smt)
@@ -238,7 +242,7 @@ class Context:
         if len(parts) < 2:
             raise Unsupported("rule lacks a left or right side")
         root, *inputs = parts[0]
-        if root not in ("rewrite", "simplify", "stack_rewrite") or len(inputs) != 1:
+        if root not in ("rewrite", "simplify", "stack_rewrite", "sequence_rewrite") or len(inputs) != 1:
             raise Unsupported(f"unmodeled root: {root}")
         lhs = self.pattern(inputs[0])
         for clause in parts[1:-1]:
@@ -264,16 +268,24 @@ def verify_file(path, timeout_ms, artifacts=None):
     for rule in rules:
         context = Context()
         query = ""
+        partitions = []
         try:
             lhs, rhs = context.obligation(rule)
             result, query = check(lhs, rhs, context.assumptions, timeout_ms, context.model)
+            if result["status"] == "unknown" and query:
+                partitioned, partitions = partition_shift(lhs, rhs, context.assumptions, timeout_ms, context.model)
+                if partitions:
+                    result = partitioned
         except Unsupported as error:
             result = {"status": "unsupported", "reason": str(error)}
         result.update(line=rule.line, rule_sha256=rule.digest, contracts=sorted(context.contracts))
         if query and artifacts is not None:
             artifacts.mkdir(parents=True, exist_ok=True)
-            query_path = artifacts / f"{path.stem}-{rule.line}-{rule.digest[:12]}.smt2"
-            query_path.write_text(query)
-            result["smt2"] = str(query_path)
+            paths = []
+            for suffix, text in partitions or [("word", query)]:
+                query_path = artifacts / f"{path.stem}-{rule.line}-{rule.digest[:12]}-{suffix}.smt2"
+                query_path.write_text(text)
+                paths.append(str(query_path))
+            result["smt2"] = paths
         results.append(result)
     return {"source": str(path), "source_sha256": hashlib.sha256(source.encode()).hexdigest(), "rules": results}

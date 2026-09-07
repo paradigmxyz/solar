@@ -537,9 +537,18 @@ mod tests {
             let target =
                 Target::with(version, OptimizationMode::Gas, Target::DEFAULT_EXPECTED_EXECUTIONS);
             writeln!(table, "fork {version}").unwrap();
-            for (name, value) in [("0", U256::ZERO), ("1", U256::ONE), ("max", U256::MAX)] {
+            let mut constants = vec![U256::ZERO, U256::ONE, U256::MAX];
+            constants.extend((0..32).map(U256::from));
+            constants
+                .extend([2, 7, 8, 16, 31, 32, 64, 128, 160, 224, 248, 255, 256].map(U256::from));
+            for bits in [8, 16, 32, 64, 128, 160, 224, 248, 255] {
+                constants.extend([U256::ONE << bits, (U256::ONE << bits) - U256::ONE]);
+            }
+            constants.sort_unstable();
+            constants.dedup();
+            for value in constants {
                 let cost = target.push(value);
-                writeln!(table, "constant {name} {} {}", cost.gas, cost.bytes).unwrap();
+                writeln!(table, "constant {value} {} {}", cost.gas, cost.bytes).unwrap();
             }
             let duplicate = target.dup();
             writeln!(table, "variable {} {}", duplicate.gas, duplicate.bytes).unwrap();

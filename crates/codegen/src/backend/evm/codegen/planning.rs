@@ -1,7 +1,8 @@
 //! Bounded physical planning and equivalent-expression selection.
 //!
 //! ISLE proposes word-equivalent expressions, such as equality versus an
-//! available subtraction/XOR tested for zero. Each candidate is planned with
+//! available subtraction/XOR tested for zero, or arithmetic and bitwise
+//! combinations of resident intersections, unions and differences. Each candidate is planned with
 //! the real scheduler, including argument/spill reloads, opcode cost and dead
 //! word cleanup. Accept only a target-cost improvement that leaves the same
 //! residual stack and does not increase its high-water mark. Definitions from

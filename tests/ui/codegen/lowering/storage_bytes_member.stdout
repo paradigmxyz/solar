@@ -180,12 +180,9 @@ bb22:
   eq
   push bb78
   jumpi
-  push 1
+  dup 1
   push 64
-  shl
-  dup 2
-  lt
-  iszero
+  shr
   push bb79
   jumpi
   push 31

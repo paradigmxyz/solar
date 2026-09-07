@@ -1,0 +1,82 @@
+;; Proved multi-operation recipes; materialize only after target cost selection.
+
+;; (and (not x) (not y)) => (not (or x y))
+(rule (sequence_rewrite (Op.And (bnot v0) (bnot v1))) (if-let r0 (make (Op.Or v0 v1))) (sequence (Op.Not r0)))
+
+;; (or (not x) (not y)) => (not (and x y))
+(rule (sequence_rewrite (Op.Or (bnot v0) (bnot v1))) (if-let r0 (make (Op.And v0 v1))) (sequence (Op.Not r0)))
+
+;; (and (iszero x) (iszero y)) => (iszero (or x y))
+(rule (sequence_rewrite (Op.And (iszero v0) (iszero v1))) (if-let r0 (make (Op.Or v0 v1))) (sequence (Op.IsZero r0)))
+
+;; (or (and x m) (and y m)) => (and (or x y) m)
+(rule (sequence_rewrite (Op.Or (band v0 v1) (band v0 v2))) (if-let r0 (make (Op.Or v1 v2))) (sequence (Op.And r0 v0)))
+(rule (sequence_rewrite (Op.Or (band v0 v1) (band v1 v2))) (if-let r0 (make (Op.Or v0 v2))) (sequence (Op.And r0 v1)))
+(rule (sequence_rewrite (Op.Or (band v0 v1) (band v2 v0))) (if-let r0 (make (Op.Or v1 v2))) (sequence (Op.And r0 v0)))
+(rule (sequence_rewrite (Op.Or (band v0 v1) (band v2 v1))) (if-let r0 (make (Op.Or v0 v2))) (sequence (Op.And r0 v1)))
+
+;; (xor (and x m) (and y m)) => (and (xor x y) m)
+(rule (sequence_rewrite (Op.Xor (band v0 v1) (band v0 v2))) (if-let r0 (make (Op.Xor v1 v2))) (sequence (Op.And r0 v0)))
+(rule (sequence_rewrite (Op.Xor (band v0 v1) (band v1 v2))) (if-let r0 (make (Op.Xor v0 v2))) (sequence (Op.And r0 v1)))
+(rule (sequence_rewrite (Op.Xor (band v0 v1) (band v2 v0))) (if-let r0 (make (Op.Xor v1 v2))) (sequence (Op.And r0 v0)))
+(rule (sequence_rewrite (Op.Xor (band v0 v1) (band v2 v1))) (if-let r0 (make (Op.Xor v0 v2))) (sequence (Op.And r0 v1)))
+
+;; (and (or x m) (or y m)) => (or (and x y) m)
+(rule (sequence_rewrite (Op.And (bor v0 v1) (bor v0 v2))) (if-let r0 (make (Op.And v1 v2))) (sequence (Op.Or r0 v0)))
+(rule (sequence_rewrite (Op.And (bor v0 v1) (bor v1 v2))) (if-let r0 (make (Op.And v0 v2))) (sequence (Op.Or r0 v1)))
+(rule (sequence_rewrite (Op.And (bor v0 v1) (bor v2 v0))) (if-let r0 (make (Op.And v1 v2))) (sequence (Op.Or r0 v0)))
+(rule (sequence_rewrite (Op.And (bor v0 v1) (bor v2 v1))) (if-let r0 (make (Op.And v0 v2))) (sequence (Op.Or r0 v1)))
+
+;; (and (shl m x) (shl m y)) => (shl m (and x y))
+(rule (sequence_rewrite (Op.And (shl v0 v1) (shl v0 v2))) (if-let r0 (make (Op.And v1 v2))) (sequence (Op.Shl v0 r0)))
+
+;; (or (shl m x) (shl m y)) => (shl m (or x y))
+(rule (sequence_rewrite (Op.Or (shl v0 v1) (shl v0 v2))) (if-let r0 (make (Op.Or v1 v2))) (sequence (Op.Shl v0 r0)))
+
+;; (xor (shl m x) (shl m y)) => (shl m (xor x y))
+(rule (sequence_rewrite (Op.Xor (shl v0 v1) (shl v0 v2))) (if-let r0 (make (Op.Xor v1 v2))) (sequence (Op.Shl v0 r0)))
+
+;; (and (shr m x) (shr m y)) => (shr m (and x y))
+(rule (sequence_rewrite (Op.And (shr v0 v1) (shr v0 v2))) (if-let r0 (make (Op.And v1 v2))) (sequence (Op.Shr v0 r0)))
+
+;; (or (shr m x) (shr m y)) => (shr m (or x y))
+(rule (sequence_rewrite (Op.Or (shr v0 v1) (shr v0 v2))) (if-let r0 (make (Op.Or v1 v2))) (sequence (Op.Shr v0 r0)))
+
+;; (xor (shr m x) (shr m y)) => (shr m (xor x y))
+(rule (sequence_rewrite (Op.Xor (shr v0 v1) (shr v0 v2))) (if-let r0 (make (Op.Xor v1 v2))) (sequence (Op.Shr v0 r0)))
+
+;; (and (sar m x) (sar m y)) => (sar m (and x y))
+(rule (sequence_rewrite (Op.And (sar v0 v1) (sar v0 v2))) (if-let r0 (make (Op.And v1 v2))) (sequence (Op.Sar v0 r0)))
+
+;; (or (sar m x) (sar m y)) => (sar m (or x y))
+(rule (sequence_rewrite (Op.Or (sar v0 v1) (sar v0 v2))) (if-let r0 (make (Op.Or v1 v2))) (sequence (Op.Sar v0 r0)))
+
+;; (xor (sar m x) (sar m y)) => (sar m (xor x y))
+(rule (sequence_rewrite (Op.Xor (sar v0 v1) (sar v0 v2))) (if-let r0 (make (Op.Xor v1 v2))) (sequence (Op.Sar v0 r0)))
+
+;; (add (shl m x) (shl m y)) => (shl m (add x y))
+(rule (sequence_rewrite (Op.Add (shl v0 v1) (shl v0 v2))) (if-let r0 (make (Op.Add v1 v2))) (sequence (Op.Shl v0 r0)))
+
+;; (lt x 0x100) => (iszero (shr 0x8 x))
+(rule (sequence_rewrite (Op.Lt v0 (iconst c0))) (if-let true (u256_same c0 (u256 256))) (if-let r0 (imm (u256 8))) (if-let r1 (make (Op.Shr r0 v0))) (sequence (Op.IsZero r1)))
+
+;; (lt x 0x10000) => (iszero (shr 0x10 x))
+(rule (sequence_rewrite (Op.Lt v0 (iconst c0))) (if-let true (u256_same c0 (u256 65536))) (if-let r0 (imm (u256 16))) (if-let r1 (make (Op.Shr r0 v0))) (sequence (Op.IsZero r1)))
+
+;; (lt x 0x100000000) => (iszero (shr 0x20 x))
+(rule (sequence_rewrite (Op.Lt v0 (iconst c0))) (if-let true (u256_same c0 (u256 4294967296))) (if-let r0 (imm (u256 32))) (if-let r1 (make (Op.Shr r0 v0))) (sequence (Op.IsZero r1)))
+
+;; (lt x 0x10000000000000000) => (iszero (shr 0x40 x))
+(rule (sequence_rewrite (Op.Lt v0 (iconst c0))) (if-let true (u256_same c0 (u256_from_limbs 0 1 0 0))) (if-let r0 (imm (u256 64))) (if-let r1 (make (Op.Shr r0 v0))) (sequence (Op.IsZero r1)))
+
+;; (lt x 0x100000000000000000000000000000000) => (iszero (shr 0x80 x))
+(rule (sequence_rewrite (Op.Lt v0 (iconst c0))) (if-let true (u256_same c0 (u256_from_limbs 0 0 1 0))) (if-let r0 (imm (u256 128))) (if-let r1 (make (Op.Shr r0 v0))) (sequence (Op.IsZero r1)))
+
+;; (lt x 0x10000000000000000000000000000000000000000) => (iszero (shr 0xa0 x))
+(rule (sequence_rewrite (Op.Lt v0 (iconst c0))) (if-let true (u256_same c0 (u256_from_limbs 0 0 4294967296 0))) (if-let r0 (imm (u256 160))) (if-let r1 (make (Op.Shr r0 v0))) (sequence (Op.IsZero r1)))
+
+;; (lt x 0x100000000000000000000000000000000000000000000000000000000) => (iszero (shr 0xe0 x))
+(rule (sequence_rewrite (Op.Lt v0 (iconst c0))) (if-let true (u256_same c0 (u256_from_limbs 0 0 0 4294967296))) (if-let r0 (imm (u256 224))) (if-let r1 (make (Op.Shr r0 v0))) (sequence (Op.IsZero r1)))
+
+;; (lt x 0x100000000000000000000000000000000000000000000000000000000000000) => (iszero (shr 0xf8 x))
+(rule (sequence_rewrite (Op.Lt v0 (iconst c0))) (if-let true (u256_same c0 (u256_from_limbs 0 0 0 72057594037927936))) (if-let r0 (imm (u256 248))) (if-let r1 (make (Op.Shr r0 v0))) (sequence (Op.IsZero r1)))

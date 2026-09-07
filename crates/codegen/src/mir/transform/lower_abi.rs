@@ -3365,6 +3365,10 @@ fn is_canonical_low_bits(func: &Function, value: ValueId, bits: u64) -> bool {
         return true;
     }
     let Value::Inst(inst) = func.value(value) else { return false };
+    // BYTE produces at most eight bits, including out-of-range indexes.
+    if bits >= 8 && matches!(func.inst(*inst).kind, InstKind::Byte(..)) {
+        return true;
+    }
     let InstKind::And(lhs, rhs) = func.inst(*inst).kind else { return false };
     func.value_u256(lhs).is_some_and(|value| value == mask)
         || func.value_u256(rhs).is_some_and(|value| value == mask)
