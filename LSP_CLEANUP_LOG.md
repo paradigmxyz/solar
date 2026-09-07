@@ -168,3 +168,16 @@ interpret the shared-host dev measurements as precise release-speed changes.
   escaped Markdown row fields are now formatted once per group.
 - The scoped Rust tests, Clippy/typecheck, formatting, and benchmark preflights
   above cover this change, including a worker result/panic test.
+
+## Benchmark construction and Python runner cleanup
+
+- Removed the single-use source builder and stored constant analysis epoch.
+  Generated source strings, anchor order, and query positions remain the same.
+- Shared open-document preparation across four benchmark constructors.
+- Shared config/result artifact reads and validation while retaining validation
+  stages and error order. Removed derived verdict state and unreachable checks.
+- Shared workflow job, step, and script extraction between existing test suites.
+  Kept distinct subprocess mocks explicit to keep their trust inputs visible.
+- Python discovery ran 101 tests: 95 passed, six Node-dependent cases skipped.
+  Ruff lint passed; changed regions were formatted without unrelated test churn.
+  Rust checks and all 37 benchmark preflights passed as recorded above.

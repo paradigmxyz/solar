@@ -1024,7 +1024,7 @@ def _validate_results(
         if len(rows) != len(server_order):
             raise ValidationError(f"benchmark {method} has the wrong number of roles")
         method_samples: dict[str, list[float]] = {}
-        for row_index, (row, role) in enumerate(zip(rows, server_order)):
+        for row, role in zip(rows, server_order):
             row_path = f"benchmark {method} role {role}"
             row = _mapping(row, row_path)
             required_row_fields = {
@@ -1046,8 +1046,6 @@ def _validate_results(
                 _positive_number(row.get(metric), f"{row_path}.{metric}")
             if "rss_kb" in row:
                 _nonnegative_integer(row["rss_kb"], f"{row_path}.rss_kb")
-            if "response" not in row:
-                raise ValidationError(f"{row_path} has no canonical response")
             _validate_response(method, row["response"], f"{row_path}.response", config)
 
             iterations = _array(row.get("iterations"), f"{row_path}.iterations")
@@ -1062,8 +1060,6 @@ def _validate_results(
                 samples.append(
                     _positive_number(iteration.get("ms"), f"{iteration_path}.ms")
                 )
-                if "response" not in iteration:
-                    raise ValidationError(f"{iteration_path} has no response")
                 _validate_response(
                     method,
                     iteration["response"],
@@ -1283,6 +1279,38 @@ def _validate_artifact_layout(root: Path) -> None:
         raise ValidationError("raw artifact layout is incomplete")
 
 
+def _read_pass_files(
+    root: Path, entry: dict[str, Any], index: int, pass_name: str, session: int
+) -> tuple[bytes, bytes]:
+    metadata = {
+        name: _mapping(entry.get(name), f"manifest.passes[{index}].{name}")
+        for name in ("config", "results")
+    }
+    paths = {name: f"passes/{pass_name}/{session}/{name}.json" for name in metadata}
+    for name, item in metadata.items():
+        if item.get("path") != paths[name] or set(item) != {"path", "sha256"}:
+            raise ValidationError(f"manifest.passes[{index}].{name} is invalid")
+    digests = {
+        name: _require_sha256(
+            item.get("sha256"), f"manifest.passes[{index}].{name}.sha256"
+        )
+        for name, item in metadata.items()
+    }
+    contents = {
+        name: _read_regular_file(root / paths[name], limit, f"{pass_name} {name}")
+        for name, limit in (
+            ("config", MAX_CONFIG_BYTES),
+            ("results", MAX_RESULTS_BYTES),
+        )
+    }
+    for name, data in contents.items():
+        if hashlib.sha256(data).hexdigest() != digests[name]:
+            raise ValidationError(
+                f"{pass_name} {name} digest does not match the manifest"
+            )
+    return contents["config"], contents["results"]
+
+
 def validate_artifact(
     input_directory: Path, expected: Context
 ) -> list[BenchmarkSession]:
@@ -1313,51 +1341,9 @@ def validate_artifact(
         ):
             raise ValidationError(f"manifest.passes[{index}] has the wrong pass order")
 
-        config_metadata = _mapping(
-            entry.get("config"), f"manifest.passes[{index}].config"
+        config_bytes, results_bytes = _read_pass_files(
+            root, entry, index, pass_name, session
         )
-        results_metadata = _mapping(
-            entry.get("results"), f"manifest.passes[{index}].results"
-        )
-        expected_config_path = f"passes/{pass_name}/{session}/config.json"
-        expected_results_path = f"passes/{pass_name}/{session}/results.json"
-        if config_metadata.get("path") != expected_config_path or set(
-            config_metadata
-        ) != {
-            "path",
-            "sha256",
-        }:
-            raise ValidationError(f"manifest.passes[{index}].config is invalid")
-        if results_metadata.get("path") != expected_results_path or set(
-            results_metadata
-        ) != {
-            "path",
-            "sha256",
-        }:
-            raise ValidationError(f"manifest.passes[{index}].results is invalid")
-
-        config_path = root / expected_config_path
-        results_path = root / expected_results_path
-        expected_config_digest = _require_sha256(
-            config_metadata.get("sha256"), f"manifest.passes[{index}].config.sha256"
-        )
-        expected_results_digest = _require_sha256(
-            results_metadata.get("sha256"), f"manifest.passes[{index}].results.sha256"
-        )
-        config_bytes = _read_regular_file(
-            config_path, MAX_CONFIG_BYTES, f"{pass_name} config"
-        )
-        results_bytes = _read_regular_file(
-            results_path, MAX_RESULTS_BYTES, f"{pass_name} results"
-        )
-        if hashlib.sha256(config_bytes).hexdigest() != expected_config_digest:
-            raise ValidationError(
-                f"{pass_name} config digest does not match the manifest"
-            )
-        if hashlib.sha256(results_bytes).hexdigest() != expected_results_digest:
-            raise ValidationError(
-                f"{pass_name} results digest does not match the manifest"
-            )
 
         config = _validate_generated_config(
             _loads_json(config_bytes, f"{pass_name} config"), server_order
@@ -1709,14 +1695,12 @@ def build_comparison(
             raise ValidationError(f"{pass_name} sessions are incomplete")
 
     methods: list[dict[str, Any]] = []
-    verdicts: list[str] = []
     for method in METHODS:
         stratum_statistics = [
             _statistics_for_sessions(pass_sessions, method, with_interval=True)
             for pass_sessions in grouped_sessions.values()
         ]
         verdict = method_verdict(stratum_statistics)
-        verdicts.append(verdict)
         overall_statistics = _statistics_for_sessions(
             sessions, method, with_interval=False
         )
@@ -1741,6 +1725,7 @@ def build_comparison(
             )
         methods.append(method_comparison)
 
+    verdicts = {method["verdict"] for method in methods}
     if "regression" in verdicts:
         overall = "regression"
     elif "improvement" in verdicts:

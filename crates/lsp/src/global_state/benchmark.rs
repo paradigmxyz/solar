@@ -505,23 +505,16 @@ pub struct BenchmarkDocumentUpdate {
 #[doc(hidden)]
 pub struct BenchmarkRepeatedAnalysis {
     state: super::GlobalState,
-    version: usize,
 }
 
 impl BenchmarkRepeatedAnalysis {
     /// Prepare one open document and reserve a stable analysis epoch.
     pub fn new(source: String) -> Self {
-        let state = super::GlobalState::new(ClientSocket::new_closed());
-        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("benches/repeated-analysis.sol");
-        state.vfs.write().set_file_contents_with_version(
-            VfsPath::from(path),
-            Some(Rope::from(source.as_str())),
-            Some(1),
-        );
+        let (state, _) = open_benchmark_document(&source, "repeated-analysis.sol", 1);
         let version = 1;
         state.analysis_version.store(version, std::sync::atomic::Ordering::Release);
         state.analysis_commit.lock().vfs_content_revision = state.vfs.read().content_revision();
-        Self { state, version }
+        Self { state }
     }
 
     /// Advance the VFS revision through an edit and undo before analysis begins.
@@ -539,15 +532,9 @@ impl BenchmarkRepeatedAnalysis {
     #[inline(never)]
     pub fn run(&mut self) -> bool {
         let mut snapshot = self.state.snapshot();
-        let progress = self.state.analysis_progress.reserve(self.version);
+        let progress = self.state.analysis_progress.reserve(1);
         matches!(
-            run_analysis(
-                &mut snapshot,
-                self.version,
-                Vec::new(),
-                &progress,
-                &IndexingCancellation::default(),
-            ),
+            run_analysis(&mut snapshot, 1, Vec::new(), &progress, &IndexingCancellation::default()),
             AnalysisTaskOutcome::Published
         )
     }
@@ -556,14 +543,9 @@ impl BenchmarkRepeatedAnalysis {
 impl BenchmarkDocumentUpdate {
     /// Prepare one open document and a full-content update with the same source text.
     pub fn from_source(source: String) -> Self {
-        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("benches/benchmark.sol");
-        let uri = Url::from_file_path(&path).expect("benchmark path should be a file URL");
-        let state = super::GlobalState::new(ClientSocket::new_closed());
-        state.vfs.write().set_file_contents_with_version(
-            VfsPath::from(path),
-            Some(Rope::from(source.as_str())),
-            Some(0),
-        );
+        let (state, path) = open_benchmark_document(&source, "benchmark.sol", 0);
+        let uri = Url::from_file_path(path.as_path().unwrap())
+            .expect("benchmark path should be a file URL");
         let params = DidChangeTextDocumentParams {
             text_document: VersionedTextDocumentIdentifier::new(uri, 1),
             content_changes: vec![TextDocumentContentChangeEvent {
@@ -605,18 +587,25 @@ pub struct BenchmarkFoldingRangeRequests {
     path: VfsPath,
 }
 
+fn open_benchmark_document(
+    source: &str,
+    name: &str,
+    version: i32,
+) -> (super::GlobalState, VfsPath) {
+    let state = super::GlobalState::new(ClientSocket::new_closed());
+    let path = VfsPath::from(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("benches").join(name));
+    state.vfs.write().set_file_contents_with_version(
+        path.clone(),
+        Some(Rope::from(source)),
+        Some(version),
+    );
+    (state, path)
+}
+
 impl BenchmarkFoldingRangeRequests {
     /// Prepare one immutable open document for repeated folding-range requests.
     pub fn new(source: String) -> Self {
-        let state = super::GlobalState::new(ClientSocket::new_closed());
-        let path = VfsPath::from(
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("benches/open-folding-range.sol"),
-        );
-        state.vfs.write().set_file_contents_with_version(
-            path.clone(),
-            Some(Rope::from(source.as_str())),
-            Some(1),
-        );
+        let (state, path) = open_benchmark_document(&source, "open-folding-range.sol", 1);
         Self { state, path }
     }
 
@@ -635,15 +624,7 @@ impl BenchmarkFoldingRangeRequests {
 impl BenchmarkSelectionRangeRequests {
     /// Prepare one immutable open document and the positions queried on every request.
     pub fn new(source: String, positions: impl IntoIterator<Item = Position>) -> Self {
-        let state = super::GlobalState::new(ClientSocket::new_closed());
-        let path = VfsPath::from(
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("benches/open-selection-range.sol"),
-        );
-        state.vfs.write().set_file_contents_with_version(
-            path.clone(),
-            Some(Rope::from(source.as_str())),
-            Some(1),
-        );
+        let (state, path) = open_benchmark_document(&source, "open-selection-range.sol", 1);
         let positions = positions.into_iter().collect();
         Self { state, path, positions }
     }
