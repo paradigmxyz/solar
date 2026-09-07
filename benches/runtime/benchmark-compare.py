@@ -1379,10 +1379,15 @@ def branch_is_behind(base_ref: str = "main") -> bool:
 
 
 def format_report(
-    markdown: str, has_changes: bool, behind_base: bool, base_ref: str = "main"
+    markdown: str,
+    has_changes: bool,
+    behind_base: bool,
+    base_ref: str = "main",
+    comparison: str = "",
 ) -> str:
+    summary = comparison + "\n\n" if comparison else ""
     if has_changes and not behind_base:
-        return markdown
+        return summary + markdown
     notices = ""
     if behind_base:
         notices += (
@@ -1399,7 +1404,7 @@ def format_report(
         f"{markdown}\n\n"
         "</details>\n"
     )
-    return notices + details
+    return notices + summary + details
 
 
 def metric(value: float, unit: str, statistic: str) -> dict[str, Any]:
@@ -1669,10 +1674,12 @@ def main(argv: list[str] | None = None) -> int:
         comparison, args.ignore_compile_time_changes
     )
     markdown = format_report(
-        report, should_comment, branch_is_behind(base_ref), base_ref
+        report,
+        should_comment,
+        branch_is_behind(base_ref),
+        base_ref,
+        comparison_report(comparison) if args.baseline is not None else "",
     )
-    if args.baseline is not None:
-        markdown = comparison_report(comparison) + "\n\n" + markdown
     print(markdown)
     append_github_output("report", markdown)
     append_github_output("should_comment", "true" if should_comment else "false")

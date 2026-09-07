@@ -84,6 +84,19 @@ class ReportFormattingTests(unittest.TestCase):
             benchmark.format_report("## Results", True, False), "## Results"
         )
 
+    def test_notices_precede_comparison_and_details(self):
+        self.assertEqual(
+            benchmark.format_report(
+                "## Results", False, True, "main", "### Run comparison"
+            ),
+            "> [!WARNING]\n"
+            "> This branch is behind `main`, so these benchmark results may be incorrect.\n\n"
+            "> [!NOTE]\n> Codegen benchmark output is unchanged from `main`.\n\n"
+            "### Run comparison\n\n"
+            "<details>\n<summary>Codegen benchmark output</summary>\n\n"
+            "## Results\n\n</details>\n",
+        )
+
     def test_unchanged_report_uses_base_branch(self):
         report = benchmark.format_report("## Results", False, False, "feat/base")
         self.assertEqual(
