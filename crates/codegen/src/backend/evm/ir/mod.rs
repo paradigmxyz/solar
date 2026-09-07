@@ -19,6 +19,7 @@ mod blocks;
 mod cfg;
 mod cold;
 mod data;
+mod diamond;
 mod immediate;
 mod legalize;
 mod local;

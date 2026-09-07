@@ -7,7 +7,10 @@
 //! requires ordinary metadata and unchanged stack peak, and must reduce primitive
 //! bytes without increasing either path's gas. Code/gas/forwarded-gas observations
 //! disable this new rule; the existing simplifications retain their own policy. It
-//! retains the closure of all explicit and
+//! also folds exclusive direct literal arms in the default Gas pipeline through a
+//! bounded shared suffix. The direct rule proves hot false-return fallthrough with
+//! fresh terminal IDs and reserves two later marker costs; `diamond` documents its
+//! stronger guards. Simplification retains the closure of all explicit and
 //! address-taken targets. Unknown computed jumps preserve the module, including
 //! the instructions whose references require those targets to have JUMPDESTs.
 //! Stable block IDs survive all removals and layout changes. Terminal sharing
@@ -54,7 +57,6 @@ use super::{
     Block, BlockId, EvmPass, InstKind, Module, Terminator, TerminatorKind, verify::successors,
 };
 use crate::{backend::evm::op, timing::PassTimer};
-use alloy_primitives::U256;
 use solar_config::EvmVersion;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
 use solar_sema::Gcx;
@@ -71,7 +73,7 @@ impl EvmPass for CfgSimplify {
         "cfg-simplify"
     }
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        simplify(module, gcx.sess.opts.evm_version)
+        simplify(module, gcx.sess.opts.evm_version, gcx.sess.opts.optimization.is_gas())
     }
 }
 impl EvmPass for BlockLayout {
@@ -189,7 +191,7 @@ pub(super) fn merge_block_debug(module: &mut Module, owner: BlockId, other: Bloc
 }
 
 /// Moves an eliminated block's entry event onto its first surviving instruction.
-fn inline_debug_entry(block: &mut Block) {
+pub(super) fn inline_debug_entry(block: &mut Block) {
     if let Some(invoke) = block.function_invoke.take() {
         let debug = if let Some(inst) = block.insts.first_mut() {
             &mut inst.debug
@@ -205,7 +207,7 @@ fn inline_debug_entry(block: &mut Block) {
     }
 }
 
-fn simplify(module: &mut Module, version: EvmVersion) -> bool {
+fn simplify(module: &mut Module, version: EvmVersion, gas: bool) -> bool {
     if module.block_ids().any(|id| {
         module.blocks[id].terminator.kind == TerminatorKind::DynamicJump
             || module.blocks[id].insts.iter().any(|inst| inst.kind == InstKind::Op(op::JUMPI))
@@ -217,6 +219,7 @@ fn simplify(module: &mut Module, version: EvmVersion) -> bool {
         return true;
     }
     let mut allow_literal_selection = None;
+    let mut allow_direct_arms = None;
     let mut changed = false;
     loop {
         let ids = module.block_ids().collect::<Vec<_>>();
@@ -326,6 +329,7 @@ fn simplify(module: &mut Module, version: EvmVersion) -> bool {
             }
         }
         let mut removed = DenseBitSet::new_empty(module.blocks.len());
+        let mut added = Vec::new();
         if version.has_bitwise_shifting() && allow_literal_selection != Some(false) {
             for &id in &ids {
                 if let Some((selection, [yes, no, join])) =
@@ -363,6 +367,33 @@ fn simplify(module: &mut Module, version: EvmVersion) -> bool {
                 }
             }
         }
+        if gas
+            && version.has_bitwise_shifting()
+            && allow_literal_selection != Some(false)
+            && allow_direct_arms != Some(false)
+        {
+            for &id in &ids {
+                if let Some(fold) =
+                    super::diamond::direct(module, id, &incoming, &exposed, &removed, version)
+                    && *allow_literal_selection.get_or_insert_with(|| {
+                        !sharing_observes_code(module)
+                            && !module
+                                .block_ids()
+                                .any(|id| module.blocks[id].insts.iter().any(observes_gas))
+                    })
+                    && *allow_direct_arms
+                        .get_or_insert_with(|| super::diamond::cold_paths_allowed(module))
+                {
+                    let [yes, no] = fold.arms;
+                    if let Some(fresh) = super::diamond::apply(module, id, fold) {
+                        added.push(fresh);
+                    }
+                    removed.insert(yes);
+                    removed.insert(no);
+                    progress = true;
+                }
+            }
+        }
         for &id in &ids {
             if !removed.contains(id)
                 && let TerminatorKind::Jump(target) = module.blocks[id].terminator.kind
@@ -394,6 +425,8 @@ fn simplify(module: &mut Module, version: EvmVersion) -> bool {
             .iter()
             .copied()
             .filter(|&id| !removed.contains(id) && reachable.contains(id))
+            // Fresh terminal IDs are outside the old fixed-domain removal set.
+            .chain(added.into_iter().filter(|&id| reachable.contains(id)))
             .collect::<Vec<_>>();
         progress |= active.len() != ids.len();
         module.layout = Some(active);
@@ -450,22 +483,7 @@ fn literal_diamond(
     if yes_push.stack_effect.is_some() || no_push.stack_effect.is_some() || yes_value == no_value {
         return None;
     }
-    let difference =
-        if no_value > yes_value { *no_value - *yes_value } else { *yes_value - *no_value };
-    if !(difference & (difference - U256::ONE)).is_zero() {
-        return None;
-    }
-    // condition -> !condition -> (!condition << log2(difference))
-    // yes + delta, or yes - delta
-    let mut selection = vec![InstKind::Op(op::ISZERO).into()];
-    let shift = difference.trailing_zeros();
-    if shift != 0 {
-        selection.extend([InstKind::Push(U256::from(shift)).into(), InstKind::Op(op::SHL).into()]);
-    }
-    selection.extend([
-        InstKind::Push(*yes_value).into(),
-        InstKind::Op(if no_value > yes_value { op::ADD } else { op::SUB }).into(),
-    ]);
+    let selection = super::diamond::select(*yes_value, *no_value, false)?;
     let cost = super::immediate::cost(version, &selection);
     let a_cost = super::immediate::cost(version, &a.insts);
     let b_cost = super::immediate::cost(version, &b.insts);
