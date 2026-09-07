@@ -1,13 +1,13 @@
 //! Pure in-memory project fixtures shared by tests and benchmarks.
 
 use lsp_types::Position;
-use std::collections::BTreeMap;
+use solar_interface::data_structures::map::FxHashMap;
 
-/// An ordered collection of in-memory fixture files and source markers.
+/// Ordered in-memory fixture files with named source markers.
 #[derive(Clone, Debug)]
 pub(crate) struct ProjectFixture {
     files: Vec<FixtureFile>,
-    markers: BTreeMap<String, Vec<FixtureMarker>>,
+    markers: FxHashMap<String, Vec<FixtureMarker>>,
 }
 
 /// A file declared by a [`ProjectFixture`].
@@ -55,7 +55,7 @@ impl ProjectFixture {
     fn parse_inner(fixture: &str, extract_markers: bool) -> Result<Self, FixtureError> {
         let fixture = trim_indent(fixture);
         let mut files = Vec::new();
-        let mut markers = BTreeMap::<String, Vec<FixtureMarker>>::new();
+        let mut markers = FxHashMap::<String, Vec<FixtureMarker>>::default();
         let mut current = Option::<FixtureFile>::None;
 
         for line in fixture.split_inclusive('\n') {
@@ -84,7 +84,7 @@ impl ProjectFixture {
         &self.files
     }
 
-    pub(crate) fn markers(&self) -> &BTreeMap<String, Vec<FixtureMarker>> {
+    pub(crate) fn markers(&self) -> &FxHashMap<String, Vec<FixtureMarker>> {
         &self.markers
     }
 
@@ -123,7 +123,7 @@ impl FixtureMarker {
 fn finish_file(
     mut file: FixtureFile,
     extract_markers: bool,
-    markers: &mut BTreeMap<String, Vec<FixtureMarker>>,
+    markers: &mut FxHashMap<String, Vec<FixtureMarker>>,
 ) -> FixtureFile {
     if file.text.ends_with('\n') {
         file.text.pop();
