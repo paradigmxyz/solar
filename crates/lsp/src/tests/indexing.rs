@@ -63,12 +63,32 @@ async fn dependency_references_include_unopened_tests_and_scripts() {
         },
     );
     tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
-    let tables = state.symbol_tables.load();
-    assert_eq!(tables.references(&uri, marked.marker("$1").position(), false).unwrap(), expected);
-    assert_eq!(
-        tables.references(&test_uri, marked.marker("$2").position(), false).unwrap(),
-        expected
-    );
+    {
+        let tables = state.symbol_tables.load();
+        assert_eq!(
+            tables.references(&uri, marked.marker("$1").position(), false).unwrap(),
+            expected
+        );
+        assert_eq!(
+            tables.references(&test_uri, marked.marker("$2").position(), false).unwrap(),
+            expected
+        );
+    }
+    for closed_uri in [test_uri, uri.clone()] {
+        let _ = handlers::did_close_text_document(
+            &mut state,
+            DidCloseTextDocumentParams { text_document: TextDocumentIdentifier::new(closed_uri) },
+        );
+        tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+        assert_eq!(
+            state
+                .symbol_tables
+                .load()
+                .references(&uri, marked.marker("$1").position(), false)
+                .unwrap(),
+            expected
+        );
+    }
 }
 
 #[tokio::test(flavor = "current_thread")]
