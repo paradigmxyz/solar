@@ -36,7 +36,7 @@ impl MirPass for LowerChecks {
         gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         _analyses: &mut crate::pass::ModuleAnalyses,
-    ) -> bool {
+    ) -> solar_interface::Result<bool> {
         let mut helper_context = InstructionMetadata::EMPTY;
         let mut needs_helper = false;
         for function in &module.functions {
@@ -55,7 +55,7 @@ impl MirPass for LowerChecks {
         for function in &mut module.functions {
             changed |= lower_function(function, helper, gcx.sess.opts.revert_strings);
         }
-        changed
+        Ok(changed)
     }
 }
 

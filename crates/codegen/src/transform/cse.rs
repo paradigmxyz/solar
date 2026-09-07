@@ -67,7 +67,7 @@ impl MirPass for Cse {
         _gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         analyses: &mut crate::pass::ModuleAnalyses,
-    ) -> bool {
+    ) -> solar_interface::Result<bool> {
         analyses.set_call_summaries(Arc::new(MemoryCallSummaries::new(module)));
         let changed = run_function_pass(module, analyses, |func, analyses| {
             if func
@@ -89,7 +89,7 @@ impl MirPass for Cse {
         });
         // CSE removes only side-effect-free instructions, so these summaries remain valid for
         // the following allocation pass and avoid recomputing the module call graph.
-        changed
+        Ok(changed)
     }
 }
 

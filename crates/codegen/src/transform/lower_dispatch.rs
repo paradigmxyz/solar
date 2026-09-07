@@ -45,11 +45,11 @@ use solar_interface::{Ident, sym};
 pub(crate) struct LowerDispatch;
 
 impl MirPass for LowerDispatch {
-    fn try_run_pass(
+    fn run_pass(
         &self,
         gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
-        analyses: &mut crate::pass::ModuleAnalyses,
+        _analyses: &mut crate::pass::ModuleAnalyses,
     ) -> solar_interface::Result<bool> {
         if !module.has_explicit_abi() {
             return Err(gcx
@@ -57,7 +57,11 @@ impl MirPass for LowerDispatch {
                 .err("`lower-dispatch` requires explicit ABI entries; run `lower-abi` first")
                 .emit());
         }
-        let changed = self.run_pass(gcx, module, analyses);
+        let changed = lower_dispatch(
+            module,
+            gcx.sess.opts.evm_version.has_bitwise_shifting(),
+            gcx.sess.opts.revert_strings,
+        );
         if module.dispatch_entry().is_none() {
             return Err(gcx.dcx().err("`lower-dispatch` cannot route this entry signature").emit());
         }
@@ -74,19 +78,6 @@ impl MirPass for LowerDispatch {
 
     fn is_required(&self) -> bool {
         true
-    }
-
-    fn run_pass(
-        &self,
-        gcx: solar_sema::Gcx<'_>,
-        module: &mut Module,
-        _analyses: &mut crate::pass::ModuleAnalyses,
-    ) -> bool {
-        lower_dispatch(
-            module,
-            gcx.sess.opts.evm_version.has_bitwise_shifting(),
-            gcx.sess.opts.revert_strings,
-        )
     }
 }
 

@@ -45,9 +45,9 @@ impl MirPass for DeadArgElim {
         gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         _analyses: &mut ModuleAnalyses,
-    ) -> bool {
+    ) -> solar_interface::Result<bool> {
         if !gcx.sess.opts.optimization.is_size() {
-            return prune_unused_args(module) != 0;
+            return Ok(prune_unused_args(module) != 0);
         }
         let mut changed = false;
         loop {
@@ -57,7 +57,7 @@ impl MirPass for DeadArgElim {
             }
             changed = true;
         }
-        changed
+        Ok(changed)
     }
 }
 
@@ -74,8 +74,8 @@ impl MirPass for MergeEquivalentFunctions {
         _gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         _analyses: &mut ModuleAnalyses,
-    ) -> bool {
-        merge_equivalent_functions(module) != 0
+    ) -> solar_interface::Result<bool> {
+        Ok(merge_equivalent_functions(module) != 0)
     }
 }
 

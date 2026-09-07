@@ -29,12 +29,12 @@ impl MirPass for StorageDse {
         _gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         analyses: &mut crate::pass::ModuleAnalyses,
-    ) -> bool {
-        run_function_pass(module, analyses, |func, analyses| {
+    ) -> solar_interface::Result<bool> {
+        Ok(run_function_pass(module, analyses, |func, analyses| {
             let mut eliminator = StorageStoreEliminator::new();
             eliminator.alias = Some(Rc::clone(&analyses.alias));
             eliminator.run_to_fixpoint(func) != 0
-        })
+        }))
     }
 }
 

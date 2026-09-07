@@ -46,14 +46,14 @@ impl MirPass for CoalesceAllocs {
         _gcx: Gcx<'_>,
         module: &mut Module,
         _analyses: &mut crate::pass::ModuleAnalyses,
-    ) -> bool {
+    ) -> solar_interface::Result<bool> {
         let mut changed = false;
         for func in module.functions.iter_mut() {
             if !func.blocks.is_empty() {
                 changed |= coalesce_function(func);
             }
         }
-        changed
+        Ok(changed)
     }
 }
 

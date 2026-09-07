@@ -106,19 +106,13 @@ pub trait MirPass: Sync {
         false
     }
 
-    /// Runs a transform, reporting a failed required conversion separately from a no-op.
-    fn try_run_pass(
+    /// Runs the pass, reporting a failed conversion separately from an unchanged module.
+    fn run_pass(
         &self,
         gcx: Gcx<'_>,
         module: &mut Module,
         analyses: &mut ModuleAnalyses,
-    ) -> Result<bool> {
-        Ok(self.run_pass(gcx, module, analyses))
-    }
-
-    /// Runs the pass and returns whether it changed MIR.
-    #[must_use]
-    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool;
+    ) -> Result<bool>;
 }
 
 /// Runs a sequence of MIR passes without validating after each pass.
@@ -166,7 +160,7 @@ fn run_passes_inner(
             assert_debug_info_handled(module, pass_name, "before");
             analyses.begin_pass();
             let timer = PassTimer::new(gcx.sess.opts.unstable.time_passes);
-            let Ok(pass_changed) = pass.try_run_pass(gcx, module, &mut analyses) else {
+            let Ok(pass_changed) = pass.run_pass(gcx, module, &mut analyses) else {
                 return changed;
             };
             timer.finish("MIR", module.name, pass_name, pass_changed);

@@ -28,11 +28,11 @@ use solar_sema::Gcx;
 pub(crate) struct LowerMemoryObjects;
 
 impl MirPass for LowerMemoryObjects {
-    fn try_run_pass(
+    fn run_pass(
         &self,
         gcx: Gcx<'_>,
         module: &mut Module,
-        analyses: &mut crate::pass::ModuleAnalyses,
+        _analyses: &mut crate::pass::ModuleAnalyses,
     ) -> solar_interface::Result<bool> {
         if module.has_struct_values() {
             return Err(gcx
@@ -40,7 +40,14 @@ impl MirPass for LowerMemoryObjects {
                 .err("`lower-memory-objects` requires scalar structs; run `lower-structs` first")
                 .emit());
         }
-        Ok(self.run_pass(gcx, module, analyses))
+        if module.phase() == MirPhase::Lowered {
+            return Ok(false);
+        }
+        let mut changed = false;
+        for func in module.functions.iter_mut() {
+            changed |= lower_function::<EvmMemoryLayout>(func);
+        }
+        Ok(changed)
     }
 
     fn name(&self) -> &'static str {
@@ -49,22 +56,6 @@ impl MirPass for LowerMemoryObjects {
 
     fn is_required(&self) -> bool {
         true
-    }
-
-    fn run_pass(
-        &self,
-        _gcx: Gcx<'_>,
-        module: &mut Module,
-        _analyses: &mut crate::pass::ModuleAnalyses,
-    ) -> bool {
-        if module.phase() == MirPhase::Lowered || module.has_struct_values() {
-            return false;
-        }
-        let mut changed = false;
-        for func in module.functions.iter_mut() {
-            changed |= lower_function::<EvmMemoryLayout>(func);
-        }
-        changed
     }
 }
 

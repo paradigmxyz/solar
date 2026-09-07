@@ -32,13 +32,13 @@ impl MirPass for Inline {
         gcx: Gcx<'_>,
         module: &mut Module,
         _analyses: &mut crate::pass::ModuleAnalyses,
-    ) -> bool {
+    ) -> solar_interface::Result<bool> {
         let mut inliner = if gcx.sess.opts.optimization == solar_config::OptimizationMode::Size {
             MirInliner::for_size()
         } else {
             MirInliner::default()
         };
-        inliner.run(gcx, module).inlined != 0
+        Ok(inliner.run(gcx, module).inlined != 0)
     }
 }
 
@@ -55,9 +55,9 @@ impl MirPass for InlineTinyLeaves {
         gcx: Gcx<'_>,
         module: &mut Module,
         _analyses: &mut crate::pass::ModuleAnalyses,
-    ) -> bool {
+    ) -> solar_interface::Result<bool> {
         let mut inliner = MirInliner::for_tiny_leaves();
-        inliner.run(gcx, module).inlined != 0
+        Ok(inliner.run(gcx, module).inlined != 0)
     }
 }
 
@@ -74,9 +74,9 @@ impl MirPass for InlineConstantLeaves {
         gcx: Gcx<'_>,
         module: &mut Module,
         _analyses: &mut crate::pass::ModuleAnalyses,
-    ) -> bool {
+    ) -> solar_interface::Result<bool> {
         let mut inliner = MirInliner::for_constant_leaves();
-        inliner.run(gcx, module).inlined != 0
+        Ok(inliner.run(gcx, module).inlined != 0)
     }
 }
 
@@ -93,8 +93,8 @@ impl MirPass for SpecializeFunctionPointers {
         _gcx: Gcx<'_>,
         module: &mut Module,
         _analyses: &mut crate::pass::ModuleAnalyses,
-    ) -> bool {
-        specialize_function_pointers(module) != 0
+    ) -> solar_interface::Result<bool> {
+        Ok(specialize_function_pointers(module) != 0)
     }
 }
 

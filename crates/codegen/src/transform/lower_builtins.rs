@@ -34,8 +34,8 @@ impl MirPass for LowerBuiltins {
         gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         analyses: &mut crate::pass::ModuleAnalyses,
-    ) -> bool {
-        run_function_pass(module, analyses, |func, _| {
+    ) -> solar_interface::Result<bool> {
+        Ok(run_function_pass(module, analyses, |func, _| {
             if !func.instructions().any(|id| is_builtin(&func.inst(id).kind)) {
                 return false;
             }
@@ -112,7 +112,7 @@ impl MirPass for LowerBuiltins {
             }
             func.replace_uses_canonicalized(&replacements);
             true
-        })
+        }))
     }
 }
 

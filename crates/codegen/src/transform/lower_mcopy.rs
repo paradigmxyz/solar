@@ -34,9 +34,9 @@ impl MirPass for LowerMCopy {
         gcx: Gcx<'_>,
         module: &mut Module,
         _analyses: &mut crate::pass::ModuleAnalyses,
-    ) -> bool {
+    ) -> solar_interface::Result<bool> {
         if gcx.sess.opts.evm_version.has_mcopy() {
-            return false;
+            return Ok(false);
         }
 
         let mut changed = false;
@@ -45,7 +45,7 @@ impl MirPass for LowerMCopy {
                 changed |= lower_function(func);
             }
         }
-        changed
+        Ok(changed)
     }
 }
 

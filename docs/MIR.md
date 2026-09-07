@@ -139,8 +139,9 @@ APIs and HIR-to-MIR fixtures as well as the phase checks.
 
 ### Make phase transitions checked boundaries
 
-Required conversions use `MirPass::try_run_pass` to report failure separately
-from their changed flag. The pass manager and custom pipelines stop on errors.
+Every pass uses one `MirPass::run_pass` entry point returning `Result<bool>`.
+Errors stop the pass manager and custom pipelines; the boolean reports whether
+the pass changed the module. Wrappers preserve both outcomes.
 `abi_wrapper` marks an explicit entry ABI; it is verified independently of the
 module phase. The final phase uses a shared legality check, and runtime codegen
 requires an immutable `LoweredModule` view.

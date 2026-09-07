@@ -39,12 +39,12 @@ impl MirPass for Licm {
         _gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         analyses: &mut crate::pass::ModuleAnalyses,
-    ) -> bool {
-        run_function_pass(module, analyses, |func, analyses| {
+    ) -> solar_interface::Result<bool> {
+        Ok(run_function_pass(module, analyses, |func, analyses| {
             let mut optimizer = LoopOptimizer::with_limits(3, 8);
             optimizer.alias = Some(Rc::clone(&analyses.alias));
             optimizer.optimize(func).instructions_hoisted != 0
-        })
+        }))
     }
 }
 

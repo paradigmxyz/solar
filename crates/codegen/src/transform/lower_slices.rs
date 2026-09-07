@@ -37,8 +37,8 @@ impl MirPass for LowerSlices {
         _gcx: Gcx<'_>,
         module: &mut Module,
         _analyses: &mut crate::pass::ModuleAnalyses,
-    ) -> bool {
-        Self::run(module)
+    ) -> solar_interface::Result<bool> {
+        Ok(Self::run(module))
     }
 }
 

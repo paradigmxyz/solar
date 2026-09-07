@@ -29,16 +29,16 @@ impl MirPass for Dce {
         _gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         analyses: &mut crate::pass::ModuleAnalyses,
-    ) -> bool {
+    ) -> solar_interface::Result<bool> {
         let summaries = Arc::new(MemoryCallSummaries::new(module));
-        run_function_pass(module, analyses, |func, _| {
+        Ok(run_function_pass(module, analyses, |func, _| {
             DeadCodeEliminator {
                 call_summaries: Some(Arc::clone(&summaries)),
                 ..Default::default()
             }
             .run_to_fixpoint(func)
                 != 0
-        })
+        }))
     }
 }
 

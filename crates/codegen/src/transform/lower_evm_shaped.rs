@@ -45,28 +45,19 @@ impl MirPass for LowerEvmShaped {
         module.phase() == MirPhase::Semantic
     }
 
-    fn try_run_pass(
+    fn run_pass(
         &self,
         gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
-        analyses: &mut crate::pass::ModuleAnalyses,
+        _analyses: &mut crate::pass::ModuleAnalyses,
     ) -> solar_interface::Result<bool> {
-        let changed = self.run_pass(gcx, module, analyses);
+        let changed = lower_evm_shaped(module);
         module.advance_phase(gcx.dcx(), MirPhase::Lowered)?;
         Ok(changed)
     }
 
     fn is_required(&self) -> bool {
         true
-    }
-
-    fn run_pass(
-        &self,
-        _gcx: solar_sema::Gcx<'_>,
-        module: &mut Module,
-        _analyses: &mut crate::pass::ModuleAnalyses,
-    ) -> bool {
-        lower_evm_shaped(module)
     }
 }
 

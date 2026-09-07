@@ -58,13 +58,18 @@ use solar_interface::{Ident, Span, Symbol, sym};
 pub(crate) struct LowerAbi;
 
 impl MirPass for LowerAbi {
-    fn try_run_pass(
+    fn run_pass(
         &self,
         gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
-        analyses: &mut crate::pass::ModuleAnalyses,
+        _analyses: &mut crate::pass::ModuleAnalyses,
     ) -> solar_interface::Result<bool> {
-        let changed = self.run_pass(gcx, module, analyses);
+        let changed =
+            LowerAbiCx { revert_strings: gcx.sess.opts.revert_strings, ..Default::default() }.run(
+                module,
+                gcx.sess.opts.evm_version,
+                gcx.sess.opts.optimization.is_gas(),
+            );
         if !module.has_explicit_abi()
             || module.functions.iter().any(|func| {
                 func.instructions()
@@ -86,19 +91,6 @@ impl MirPass for LowerAbi {
 
     fn is_required(&self) -> bool {
         true
-    }
-
-    fn run_pass(
-        &self,
-        gcx: solar_sema::Gcx<'_>,
-        module: &mut Module,
-        _analyses: &mut crate::pass::ModuleAnalyses,
-    ) -> bool {
-        LowerAbiCx { revert_strings: gcx.sess.opts.revert_strings, ..Default::default() }.run(
-            module,
-            gcx.sess.opts.evm_version,
-            gcx.sess.opts.optimization.is_gas(),
-        )
     }
 }
 

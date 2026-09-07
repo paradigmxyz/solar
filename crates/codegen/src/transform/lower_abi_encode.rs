@@ -39,14 +39,14 @@ impl MirPass for LowerAbiEncode {
         gcx: Gcx<'_>,
         module: &mut Module,
         _analyses: &mut crate::pass::ModuleAnalyses,
-    ) -> bool {
+    ) -> solar_interface::Result<bool> {
         let revert_strings = gcx.sess.opts.revert_strings;
         let helpers = synthesize_array_helpers(module, revert_strings);
         let mut changed = !helpers.arrays.is_empty();
         for func in module.functions.iter_mut() {
             changed |= lower_function(func, &helpers, revert_strings);
         }
-        changed
+        Ok(changed)
     }
 }
 

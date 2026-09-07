@@ -120,7 +120,7 @@ impl<P: MirPass> MirPass for SizeOnly<P> {
         gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         analyses: &mut ModuleAnalyses,
-    ) -> bool {
+    ) -> solar_interface::Result<bool> {
         self.0.run_pass(gcx, module, analyses)
     }
 }
@@ -151,7 +151,7 @@ impl<P: MirPass> MirPass for GasOnly<P> {
         gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         analyses: &mut ModuleAnalyses,
-    ) -> bool {
+    ) -> solar_interface::Result<bool> {
         self.0.run_pass(gcx, module, analyses)
     }
 }

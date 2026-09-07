@@ -31,7 +31,7 @@ impl MirPass for LowerImmutables {
         _gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         _analyses: &mut crate::pass::ModuleAnalyses,
-    ) -> bool {
+    ) -> solar_interface::Result<bool> {
         let staging_base = immutable_staging_base(module);
         let runtime_reachable = runtime_reachable_functions(module);
         let mut changed = false;
@@ -58,7 +58,7 @@ impl MirPass for LowerImmutables {
             }
             changed |= !stores.is_empty();
         }
-        changed
+        Ok(changed)
     }
 }
 

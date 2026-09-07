@@ -34,12 +34,12 @@ impl MirPass for LowerAggregates {
         _gcx: Gcx<'_>,
         module: &mut Module,
         _analyses: &mut crate::pass::ModuleAnalyses,
-    ) -> bool {
+    ) -> solar_interface::Result<bool> {
         let mut changed = false;
         for func in module.functions.iter_mut() {
             changed |= lower_function(func);
         }
-        changed
+        Ok(changed)
     }
 }
 

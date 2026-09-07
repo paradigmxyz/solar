@@ -38,8 +38,13 @@ impl MirPass for LowerStructs {
         true
     }
 
-    fn run_pass(&self, _gcx: Gcx<'_>, module: &mut Module, _analyses: &mut ModuleAnalyses) -> bool {
-        lower_structs(module)
+    fn run_pass(
+        &self,
+        _gcx: Gcx<'_>,
+        module: &mut Module,
+        _analyses: &mut ModuleAnalyses,
+    ) -> solar_interface::Result<bool> {
+        Ok(lower_structs(module))
     }
 }
 
