@@ -1860,3 +1860,24 @@ fallthrough artifact reaches 171 bytes with lower gas, but needs a checked capac
 guard for a path whose peak rises 3->4 and a production metadata proof. It is
 retained in `cold-success-carry-model-20260907/`, not installed. The goal remains
 incomplete.
+
+
+### Cold-success carry rejected after native corpus screen
+
+The after-layout experiment reproduced the measured 176->171-byte Size runtime
+and both success fallthroughs, but needed 320 helper lines plus five wiring lines.
+The fresh 1,642-case corpus screen preserves every input, status and contract ID:
+only ColdCall changes, saving five creation and five runtime bytes; all Gas
+objects are exact. This benefit does not justify a dedicated layout-sensitive
+matcher. The exact patch was reverted, with the frozen candidate and all evidence
+retained under `cold-success-carry-workflow-20260907/` and the corresponding
+proposal/tests directories. No original test or expectation changed.
+
+Twenty native structural captures pass, including sixteen refusal controls.
+Eight creation/runtime objects are unchanged by requesting debug output. Full
+metadata and fresh runtime acceptance were deliberately not completed for this
+rejected implementation; the earlier artifact traces remain separately identified.
+The new official full/Size baseline is retained, with all 24/15 IDs and 175 gas
+labels exact against the accepted milestone. Further work targets repeated
+operand materialization in the existing scheduler, informed by the pinned solx,
+Venom and Sonatina studies, rather than extending the rejected matcher.
