@@ -774,3 +774,59 @@ Main `933bc1e2` remains merged. The latest complete workspace run passes
 original test was removed or ignored. Local commits remain unpublished
 because automatic approval review rejected the earlier push. The sealed
 performance debts and computed-memory interference witness remain open.
+
+
+### Terminal arguments and final benchmark workflow
+
+Committed `1b41b7dc`: eligible fixed-range revert arguments now stay on the
+physical stack and enter the body's canonical layout directly. Frame
+reservations remain fixed. Returning activations, spills, dynamic frames and
+code observers decline. The change adds 193 net raw production lines. Four
+separate test commits retain ten fixture families: 58 revisions, 216 runtime
+executions, 18 FileChecks and 28 negative controls. A further 111-call replay
+and the original 43 calls per mode preserve exact observations. Eight short
+revert calls save 39 gas each; their runtime shrinks 35 bytes.
+
+An earlier broader candidate was rejected: three expanded literals made
+TestERC20 eight bytes larger and propagated into 72 growing objects. The
+existing returning-activation fact excludes that case without new analysis;
+all 72 objects are restored byte-for-byte. Final Gas UI totals shrink 438
+creation and 376 runtime bytes across 35 objects. Sixty-six heavy objects
+shrink 914 bytes in each total. No object grows; Size outputs remain exact.
+All nine heavy projects retain 1,672 contracts, 3,344 objects and 541 library
+or immutable reference tables. The eleven changed source maps preserve all
+3,412 known source/event records, with 52 checked label relocations.
+
+The first implementation enlarged the debug compiler's main lowering
+function and repeated timings remained slower. Extracting terminal setup
+into the call-entry module reduces that function below its original code
+and frame sizes. Final full-workflow medians improve across all 24 cases,
+with a 4.11% equal-weight geometric mean; last-process peak RSS is 0.38%
+higher. A fresh
+three-case reversed repeat measures 1.77–4.52% faster with retained RSS costs.
+These measurements do not establish a universal speedup. Total workflow
+wall time rises because the ten-second cutoff changes actual sample counts.
+Both modes retain fifteen hot cases, 175 labels and 139 observations per
+compiler, with unchanged gas and deployed bytes. Fingerprint-checked solc
+records are reused; they are not new solc timings. All final physical
+artifacts bridge exactly through the helper extraction. Raw runs, initial
+failures, timing repeats and independent audits remain under
+`tail-entry-workflow-20260907/` and the adjacent review directories.
+
+Two original CHECK migrations explicitly replace older sharing policies:
+short errors keep one fixed encoder while shifts become local; packed
+calldata keeps inline Gas hash/return tails. Runtime bodies and directives
+remain exact, with full goldens and 15/27 negative controls retained.
+Seven existing packed control-path gas debts per mode remain open. Original
+R's two sealed library-value disagreements are independently confirmed
+against solc and retained outside comparable gas improvements.
+
+The final workspace run passes 1,395 tests; its UI aggregate has six original
+failures, 11,562 passes and 851 filtered cases. Three redundant EOF newlines
+in new fixtures have a recorded hash mapping and pass that full rerun. No
+retained UI test was deleted or ignored. Current backend files total 15,216
+physical lines versus the recorded 34,638 deleted lines: 19,422 fewer
+(56.1%). This raw file count includes comments and inline tests. The sealed
+performance debts and computed-memory interference witness remain open.
+Main `933bc1e2` is merged; local commits remain unpublished after the earlier
+automatic push rejection.
