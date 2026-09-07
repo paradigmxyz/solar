@@ -12,11 +12,6 @@ extern crate tracing as _;
 
 pub mod mir;
 
-pub(crate) mod memory;
-
-mod analysis;
-mod immutable;
-
 pub mod backend;
 pub use backend::{Backend, evm::EvmCodegen};
 
@@ -29,10 +24,5 @@ pub use contract::{
 mod ir_parse;
 mod source_info;
 
-pub mod lower;
-
-pub mod pass;
-mod pass_manager;
 mod timing;
-mod transform;
 pub(crate) mod utils;

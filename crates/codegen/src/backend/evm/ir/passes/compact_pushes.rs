@@ -77,14 +77,14 @@ fn push(value: U256) -> Instruction {
 
 /// One instruction in a selected immediate materialization.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(in crate::backend::evm) enum ImmediateMaterializationOp {
+pub(in crate::backend) enum ImmediateMaterializationOp {
     Push(U256),
     Opcode(u8),
 }
 
 /// The shortest selected materialization for one concrete immediate.
 #[derive(Clone, Copy)]
-pub(in crate::backend::evm) struct ImmediateMaterialization {
+pub(in crate::backend) struct ImmediateMaterialization {
     evm_version: EvmVersion,
     value: U256,
     recipe: CompactPush,
@@ -92,17 +92,17 @@ pub(in crate::backend::evm) struct ImmediateMaterialization {
 
 impl ImmediateMaterialization {
     /// Returns the materialization selected for `value` on `evm_version`.
-    pub(in crate::backend::evm) fn new(evm_version: EvmVersion, value: U256) -> Self {
+    pub(in crate::backend) fn new(evm_version: EvmVersion, value: U256) -> Self {
         Self { evm_version, value, recipe: select(evm_version, value) }
     }
 
     /// Returns the materialization's maximum relative stack height.
-    pub(in crate::backend::evm) fn stack_peak(self) -> usize {
+    pub(in crate::backend) fn stack_peak(self) -> usize {
         self.metrics().stack_peak
     }
 
     /// Visits each concrete instruction in execution order.
-    pub(in crate::backend::evm) fn for_each(self, mut f: impl FnMut(ImmediateMaterializationOp)) {
+    pub(in crate::backend) fn for_each(self, mut f: impl FnMut(ImmediateMaterializationOp)) {
         self.for_each_inner(&mut f);
     }
 
@@ -203,7 +203,7 @@ pub(super) fn selected_len(gcx: Gcx<'_>, value: U256) -> usize {
     immediate_materialization_len(gcx.sess.opts.evm_version, value)
 }
 
-pub(in crate::backend::evm) fn immediate_materialization_len(
+pub(in crate::backend) fn immediate_materialization_len(
     evm_version: EvmVersion,
     value: U256,
 ) -> usize {

@@ -22,11 +22,11 @@ use super::{
 };
 use crate::{
     backend::evm::{
+        codegen::StackOp as PhysicalStackOp,
         ir::{Instruction, Module, PushValue},
         op,
-        stack::StackOp as PhysicalStackOp,
     },
-    utils::eval,
+    mir::utils::eval,
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
