@@ -76,10 +76,6 @@ impl FoundryProfile {
     }
 
     pub(crate) fn source_roots(&self, root: &Path) -> Vec<PathBuf> {
-        vec![root.join(self.src.as_deref().unwrap_or_else(|| Path::new("src"))).normalize()]
-    }
-
-    pub(crate) fn flycheck_source_roots(&self, root: &Path) -> Vec<PathBuf> {
         [
             self.src.as_deref().unwrap_or_else(|| Path::new("src")),
             self.test.as_deref().unwrap_or_else(|| Path::new("test")),
@@ -203,10 +199,6 @@ mod tests {
         let profile = document.profile_for(Some("custom"));
         assert_eq!(
             profile.source_roots(Path::new("workspace")),
-            [PathBuf::from("workspace/custom-src")]
-        );
-        assert_eq!(
-            profile.flycheck_source_roots(Path::new("workspace")),
             [
                 PathBuf::from("workspace/custom-src"),
                 PathBuf::from("workspace/default-test"),
@@ -257,11 +249,19 @@ mod tests {
 
         assert_eq!(
             document.profile_for(None).source_roots(Path::new("workspace")),
-            [PathBuf::from("workspace/legacy-src")]
+            [
+                PathBuf::from("workspace/legacy-src"),
+                PathBuf::from("workspace/test"),
+                PathBuf::from("workspace/script")
+            ]
         );
         assert_eq!(
             document.profile_for(Some("missing")).source_roots(Path::new("workspace")),
-            [PathBuf::from("workspace/legacy-src")]
+            [
+                PathBuf::from("workspace/legacy-src"),
+                PathBuf::from("workspace/test"),
+                PathBuf::from("workspace/script")
+            ]
         );
     }
 
@@ -280,7 +280,11 @@ mod tests {
 
         assert_eq!(
             document.profile_for(None).source_roots(Path::new("workspace")),
-            [PathBuf::from("workspace/default-src")]
+            [
+                PathBuf::from("workspace/default-src"),
+                PathBuf::from("workspace/test"),
+                PathBuf::from("workspace/script")
+            ]
         );
     }
 

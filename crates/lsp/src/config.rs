@@ -2226,7 +2226,14 @@ mod tests {
         assert!(
             config.workspaces().iter().all(|workspace| workspace.kind() == WorkspaceKind::Foundry)
         );
-        assert_eq!(nested.source_roots(), &[project.path("/packages/token/contracts")]);
+        assert_eq!(
+            nested.source_roots(),
+            &[
+                project.path("/packages/token/contracts"),
+                project.path("/packages/token/test"),
+                project.path("/packages/token/script")
+            ]
+        );
     }
 
     #[test]
@@ -2510,14 +2517,22 @@ mod tests {
             ));
             expected.push(WatchedFileSpec::new(root, "**/foundry.toml"));
         }
-        let nested_source_root = project.path("/repo/workspace/nested/src");
-        expected.push(WatchedFileSpec::new(nested_source_root.clone(), "**/*.sol"));
-        expected.push(WatchedFileSpec::with_kind(
-            nested_source_root.clone(),
-            "**/.git",
-            WatchKind::Create | WatchKind::Delete,
-        ));
-        expected.push(WatchedFileSpec::new(nested_source_root, "**/foundry.toml"));
+        for path in [
+            "/repo/test",
+            "/repo/script",
+            "/repo/workspace/nested/src",
+            "/repo/workspace/nested/test",
+            "/repo/workspace/nested/script",
+        ] {
+            let root = project.path(path);
+            expected.push(WatchedFileSpec::new(root.clone(), "**/*.sol"));
+            expected.push(WatchedFileSpec::with_kind(
+                root.clone(),
+                "**/.git",
+                WatchKind::Create | WatchKind::Delete,
+            ));
+            expected.push(WatchedFileSpec::new(root, "**/foundry.toml"));
+        }
         expected.extend(
             explicit_root
                 .ancestors()
@@ -2669,7 +2684,14 @@ mod tests {
             .iter()
             .find(|workspace| workspace.kind() == WorkspaceKind::Foundry)
             .unwrap();
-        assert_eq!(foundry.source_roots(), &[project.path("/configured/contracts")]);
+        assert_eq!(
+            foundry.source_roots(),
+            &[
+                project.path("/configured/contracts"),
+                project.path("/configured/test"),
+                project.path("/configured/script")
+            ]
+        );
 
         project.remove_file("/configured/foundry.toml");
         config.rediscover_workspaces();
@@ -2702,7 +2724,12 @@ mod tests {
         }));
         assert!(config.workspaces().iter().any(|workspace| {
             workspace.kind() == WorkspaceKind::Foundry
-                && workspace.source_roots() == [project.path("/configured/contracts")]
+                && workspace.source_roots()
+                    == [
+                        project.path("/configured/contracts"),
+                        project.path("/configured/test"),
+                        project.path("/configured/script"),
+                    ]
         }));
     }
 }

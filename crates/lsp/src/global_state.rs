@@ -2809,7 +2809,11 @@ mod analysis_batch_tests {
         config.rediscover_workspaces();
         assert_eq!(
             config.workspaces()[0].source_files(),
-            &[project.path("/workspace/contracts/Tracked.sol")]
+            &[
+                project.path("/checks/Tracked.t.sol"),
+                project.path("/workspace/contracts/Tracked.sol"),
+                project.path("/workspace/deployments/Tracked.s.sol")
+            ]
         );
         let saved_path = project.path("/checks/SavedAfterDiscovery.t.sol");
         project

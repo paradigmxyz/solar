@@ -249,7 +249,7 @@ fn will_delete_refuses_closed_default_named_source_importers() {
 }
 
 #[test]
-fn will_delete_refuses_closed_flycheck_source_importers() {
+fn will_delete_updates_closed_foundry_test_importers() {
     let project = TestProject::from_fixture(
         r#"
         //- /foundry.toml
@@ -278,7 +278,11 @@ fn will_delete_refuses_closed_flycheck_source_importers() {
     ))
     .unwrap();
 
-    assert!(edit.is_none());
+    let changes = edit.unwrap().changes.unwrap();
+    assert_eq!(changes.len(), 2);
+    for path in ["/src/Main.sol", "/test/Importer.t.sol"] {
+        assert_eq!(changes[&Url::from_file_path(project.path(path)).unwrap()].len(), 1);
+    }
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -570,7 +574,7 @@ fn will_rename_refuses_closed_default_named_source_importers() {
 }
 
 #[test]
-fn will_rename_refuses_closed_flycheck_source_importers() {
+fn will_rename_updates_closed_foundry_script_importers() {
     let project = TestProject::from_fixture(
         r#"
         //- /foundry.toml
@@ -600,7 +604,11 @@ fn will_rename_refuses_closed_flycheck_source_importers() {
     ))
     .unwrap();
 
-    assert!(edit.is_none());
+    let changes = edit.unwrap().changes.unwrap();
+    assert_eq!(changes.len(), 2);
+    for path in ["/src/Main.sol", "/script/Importer.s.sol"] {
+        assert_eq!(changes[&Url::from_file_path(project.path(path)).unwrap()].len(), 1);
+    }
 }
 
 #[test]

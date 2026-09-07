@@ -637,7 +637,7 @@ mod tests {
                 &mut FoundryConfigContext::new(Some("custom"), &[]),
             )
             .0,
-            [project.path("/.hidden/custom-src")]
+            [project.path("/.hidden/custom-src"), project.path("/test"), project.path("/script")]
         );
 
         let nested_custom_manifest =

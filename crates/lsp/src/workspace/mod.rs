@@ -456,15 +456,6 @@ impl Workspace {
             if self.source_roots.contains(root) {
                 continue;
             }
-            if matches!(std::fs::symlink_metadata(root), Err(error) if error.kind() == io::ErrorKind::NotFound)
-            {
-                if let Some(ancestor) = root.ancestors().skip(1).find(|ancestor| {
-                    std::fs::symlink_metadata(ancestor).is_ok_and(|metadata| metadata.is_dir())
-                }) {
-                    watch_roots.push(SourceWatchRoot::missing_ancestor(ancestor));
-                }
-                continue;
-            }
             let workspace_root = self.compile_opts.base_path.as_deref().unwrap_or(root);
             let mut metrics = WorkspaceIndexMetrics::default();
             let watch_root_start = watch_roots.len();
@@ -608,9 +599,10 @@ impl Workspace {
                     .collect::<Vec<_>>();
                 let import_remappings =
                     profile.remappings_with_include_paths(&root, &include_paths);
+                let source_roots = profile.source_roots(&root);
                 (
-                    profile.source_roots(&root),
-                    profile.flycheck_source_roots(&root),
+                    source_roots.clone(),
+                    source_roots,
                     include_paths,
                     import_remappings,
                     profile.evm_version(),
@@ -968,9 +960,23 @@ impl SourceFileCollector<'_, '_, '_> {
             self.source_files_complete = false;
             return SourceTreeState::Pruned;
         }
-        let Ok(metadata) = std::fs::symlink_metadata(path) else {
-            self.source_files_complete = false;
-            return SourceTreeState::Partitioned;
+        let metadata = match std::fs::symlink_metadata(path) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == io::ErrorKind::NotFound && path == self.source_root => {
+                // Keep recursive watches for files created with the root, and watch its parent
+                // for creation of the root itself. Missing roots are known to contain no sources.
+                self.watch_roots.push(SourceWatchRoot::recursive(path));
+                if let Some(ancestor) = path.ancestors().skip(1).find(|ancestor| {
+                    std::fs::symlink_metadata(ancestor).is_ok_and(|metadata| metadata.is_dir())
+                }) {
+                    self.watch_roots.push(SourceWatchRoot::missing_ancestor(ancestor));
+                }
+                return SourceTreeState::Clean;
+            }
+            Err(_) => {
+                self.source_files_complete = false;
+                return SourceTreeState::Partitioned;
+            }
         };
         if metadata.is_file() {
             if !is_solidity_file(path) {
@@ -1157,7 +1163,10 @@ mod tests {
                 "ds-test=lib/ds-test/src/",
             ]
         );
-        assert_eq!(workspace.source_roots(), &[project.path("/contracts")]);
+        assert_eq!(
+            workspace.source_roots(),
+            &[project.path("/contracts"), project.path("/test"), project.path("/script")]
+        );
     }
 
     #[test]
@@ -1198,7 +1207,14 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(workspace.source_roots(), &[project.path("/custom-src")]);
+        assert_eq!(
+            workspace.source_roots(),
+            &[
+                project.path("/custom-src"),
+                project.path("/default-test"),
+                project.path("/default-script")
+            ]
+        );
         assert_eq!(
             workspace.import_source_roots(),
             &[
@@ -1230,7 +1246,6 @@ mod tests {
             &project.path("/outer/./nested/../nested"),
             &project.path("/outer/nested")
         ));
-        drop(root_matches);
         assert!(foundry_config.workspace_config(&project.path("/outer/other")).unwrap().is_none());
     }
 
@@ -1416,7 +1431,7 @@ mod tests {
             &mut metrics,
         ));
 
-        assert_eq!(workspace.source_files(), &[project.path("/src/Main.sol")]);
+        assert_eq!(workspace.source_files(), workspace.flycheck_source_files());
         assert_eq!(
             workspace.flycheck_source_files(),
             &[
@@ -1428,11 +1443,11 @@ mod tests {
         assert!(workspace.tracks_flycheck_file(&policy, &project.path("/test/Tracked.t.sol")));
         assert!(!workspace.tracks_flycheck_file(&policy, &project.path("/lib/Dependency.sol")));
         assert!(!workspace.tracks_flycheck_file(&policy, &project.path("/custom/Excluded.sol")));
-        assert_eq!(metrics.eager, 1);
+        assert_eq!(metrics.eager, 5);
     }
 
     #[test]
-    fn missing_foundry_flycheck_roots_are_complete_and_watch_their_parent() {
+    fn missing_foundry_source_roots_are_complete_and_watch_their_parent() {
         let project = TestProject::from_fixture(
             r#"
             //- /foundry.toml
@@ -1448,10 +1463,10 @@ mod tests {
         refresh_source_files(&mut workspace);
 
         assert!(workspace.source_files_complete());
-        assert_eq!(workspace.source_files(), &[project.path("/src/Main.sol")]);
+        assert_eq!(workspace.source_files(), workspace.flycheck_source_files());
         assert!(
             workspace
-                .flycheck_watch_roots()
+                .source_watch_roots()
                 .contains(&SourceWatchRoot::missing_ancestor(&project.path("/")))
         );
     }

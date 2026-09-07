@@ -2,6 +2,12 @@
 
 Solar LSP definitions and implementation.
 
+## Workspace indexing
+
+Foundry workspaces index the selected profile's `src`, `test`, and `script` roots, so
+references include unopened tests and scripts. Dependencies under `lib` are loaded through
+imports rather than scanned as workspace sources. Indexing exclusions still apply.
+
 ## Embedding
 
 Use the public `solar_lsp::launch` entry point to run the same language server implementation
