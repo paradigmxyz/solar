@@ -65,3 +65,72 @@
 (rule (rewrite (Op.Sub (bnot x) (bnot y))) (Op.Sub y x))
 (rule (rewrite (Op.Add x (bnot x))) (Op.Add (imm (u256_max)) (imm (u256 0))))
 (rule (rewrite (Op.Add (bnot x) x)) (Op.Add (imm (u256_max)) (imm (u256 0))))
+
+;; Additional families from mixed arithmetic/bitwise enumeration.
+;; (add (and x y) (or x y)) => (add x y)
+(rule (rewrite (Op.Add (band v0 v1) (bor v0 v1))) (Op.Add v0 v1))
+(rule (rewrite (Op.Add (band v0 v1) (bor v1 v0))) (Op.Add v0 v1))
+(rule (rewrite (Op.Add (bor v0 v1) (band v0 v1))) (Op.Add v0 v1))
+(rule (rewrite (Op.Add (bor v0 v1) (band v1 v0))) (Op.Add v0 v1))
+
+;; (add (and x y) (xor x y)) => (or x y)
+(rule (rewrite (Op.Add (band v0 v1) (bxor v0 v1))) (Op.Or v0 v1))
+(rule (rewrite (Op.Add (band v0 v1) (bxor v1 v0))) (Op.Or v0 v1))
+(rule (rewrite (Op.Add (bxor v0 v1) (band v0 v1))) (Op.Or v0 v1))
+(rule (rewrite (Op.Add (bxor v0 v1) (band v1 v0))) (Op.Or v0 v1))
+
+;; (add (not (add x y)) x) => (not y)
+(rule (rewrite (Op.Add (bnot (add v0 v1)) v0)) (Op.Not v1))
+(rule (rewrite (Op.Add (bnot (add v0 v1)) v1)) (Op.Not v0))
+(rule (rewrite (Op.Add v0 (bnot (add v0 v1)))) (Op.Not v1))
+(rule (rewrite (Op.Add v0 (bnot (add v1 v0)))) (Op.Not v1))
+
+;; (add (not x) (sub x y)) => (not y)
+(rule (rewrite (Op.Add (bnot v0) (sub v0 v1))) (Op.Not v1))
+(rule (rewrite (Op.Add (sub v0 v1) (bnot v0))) (Op.Not v1))
+
+;; (add (sub x y) (sub y x)) => 0x0
+(rule (rewrite (Op.Add (sub v0 v1) (sub v1 v0))) (Op.Add (imm (u256 0)) (imm (u256 0))))
+
+;; (add (add x y) (sub x y)) => (add x x)
+(rule (rewrite (Op.Add (add v0 v1) (sub v0 v1))) (Op.Add v0 v0))
+(rule (rewrite (Op.Add (add v0 v1) (sub v1 v0))) (Op.Add v1 v1))
+(rule (rewrite (Op.Add (sub v0 v1) (add v0 v1))) (Op.Add v0 v0))
+(rule (rewrite (Op.Add (sub v0 v1) (add v1 v0))) (Op.Add v0 v0))
+
+;; (and (sub (or x y) x) x) => 0x0
+(rule (rewrite (Op.And (sub (bor v0 v1) v0) v0)) (Op.Add (imm (u256 0)) (imm (u256 0))))
+(rule (rewrite (Op.And (sub (bor v0 v1) v1) v1)) (Op.Add (imm (u256 0)) (imm (u256 0))))
+(rule (rewrite (Op.And v0 (sub (bor v0 v1) v0))) (Op.Add (imm (u256 0)) (imm (u256 0))))
+(rule (rewrite (Op.And v0 (sub (bor v1 v0) v0))) (Op.Add (imm (u256 0)) (imm (u256 0))))
+
+;; (or (sub x (and x y)) x) => x
+(rule (rewrite (Op.Or (sub v0 (band v0 v1)) v0)) (Op.Add v0 (imm (u256 0))))
+(rule (rewrite (Op.Or (sub v0 (band v1 v0)) v0)) (Op.Add v0 (imm (u256 0))))
+(rule (rewrite (Op.Or v0 (sub v0 (band v0 v1)))) (Op.Add v0 (imm (u256 0))))
+(rule (rewrite (Op.Or v0 (sub v0 (band v1 v0)))) (Op.Add v0 (imm (u256 0))))
+
+;; (and (not (or x y)) x) => 0x0
+(rule (rewrite (Op.And (bnot (bor v0 v1)) v0)) (Op.Add (imm (u256 0)) (imm (u256 0))))
+(rule (rewrite (Op.And (bnot (bor v0 v1)) v1)) (Op.Add (imm (u256 0)) (imm (u256 0))))
+(rule (rewrite (Op.And v0 (bnot (bor v0 v1)))) (Op.Add (imm (u256 0)) (imm (u256 0))))
+(rule (rewrite (Op.And v0 (bnot (bor v1 v0)))) (Op.Add (imm (u256 0)) (imm (u256 0))))
+
+;; (or (not (and x y)) x) => 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+(rule (rewrite (Op.Or (bnot (band v0 v1)) v0)) (Op.Add (imm (u256_max)) (imm (u256 0))))
+(rule (rewrite (Op.Or (bnot (band v0 v1)) v1)) (Op.Add (imm (u256_max)) (imm (u256 0))))
+(rule (rewrite (Op.Or v0 (bnot (band v0 v1)))) (Op.Add (imm (u256_max)) (imm (u256 0))))
+(rule (rewrite (Op.Or v0 (bnot (band v1 v0)))) (Op.Add (imm (u256_max)) (imm (u256 0))))
+
+;; Extract one byte from a word, including both constant-mask orientations.
+(rule (rewrite (Op.And (shr (iconst shift) x) (iconst mask)))
+  (if-let true (u256_eq mask 255))
+  (if-let index (sign_byte shift))
+  (Op.Byte (imm index) x))
+(rule (rewrite (Op.And (iconst mask) (shr (iconst shift) x)))
+  (if-let true (u256_eq mask 255))
+  (if-let index (sign_byte shift))
+  (Op.Byte (imm index) x))
+
+;; Applying the same sign extension twice has no further effect.
+(rule (rewrite (Op.SignExtend index (signextend index x))) (Op.SignExtend index x))

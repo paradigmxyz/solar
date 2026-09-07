@@ -54,6 +54,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &cse::FmpCse,
     &pre::Pre,
     &egraph::Egraph,
+    &word_sequence::WordSequence,
     &storage_load_cse::StorageLoadCse,
     &storage_dse::StorageDse,
     &load_pre::LoadPre::All,
@@ -178,6 +179,7 @@ static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     &sccp::Sccp,
     &pure_eval::PureEval,
     &egraph::Egraph,
+    &word_sequence::WordSequence,
     &pre::Pre,
     &storage_load_cse::StorageLoadCse,
     &storage_dse::StorageDse,
@@ -222,6 +224,7 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // Expansion exposes scalar checks and object copies to this bounded cleanup group.
     &sccp::Sccp,
     &egraph::Egraph,
+    &word_sequence::WordSequence,
     &check_elim::CheckElim,
     &jump_threading::JumpThreading,
     &cfg_simplify::CfgSimplify,
@@ -247,6 +250,7 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &storage_load_cse::StorageLoadCse,
     &storage_dse::StorageDse,
     &egraph::Egraph,
+    &word_sequence::WordSequence,
     &cfg_simplify::CfgSimplify,
     &memory_dse::MemoryDse,
     // Late CSE reduces runtime gas after aggregate lowering, but can grow
@@ -283,6 +287,7 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // once more before the physical shape is fixed. The stack-aware cost keeps
     // rewrites from reaching for values the scheduler would have to keep alive.
     &egraph::Egraph,
+    &word_sequence::WordSequence,
     &lower_evm_shaped::LowerEvmShaped,
 ];
 

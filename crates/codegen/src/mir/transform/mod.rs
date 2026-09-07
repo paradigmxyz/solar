@@ -51,3 +51,4 @@ pub(crate) mod storage_promotion;
 mod utils;
 
 pub(super) mod inst_simplify;
+pub(crate) mod word_sequence;
