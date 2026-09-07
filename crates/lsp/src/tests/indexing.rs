@@ -9,7 +9,7 @@ async fn opening_identical_source_and_reverted_edits_reuse_analysis() {
     let project = TestProject::from_fixture("//- /Main.sol\ncontract Main {}\n");
     let path = project.path("/Main.sol");
     let uri = Url::from_file_path(&path).unwrap();
-    let source = std::fs::read_to_string(&path).unwrap();
+    let source = project.read_file("/Main.sol");
     let mut state = GlobalState::new(ClientSocket::new_closed());
     state.config = Arc::new(project.config());
     state.recompute_after_opening_source(Vec::new());
@@ -83,7 +83,7 @@ async fn identical_inputs_do_not_hide_disk_dependency_changes() {
     let published = state.symbol_tables.load_full();
     state.vfs.write().set_file_contents_with_version(
         VfsPath::from(main.clone()),
-        Some(Rope::from(std::fs::read_to_string(&main).unwrap().as_str())),
+        Some(Rope::from(project.read_file("/Main.sol").as_str())),
         Some(1),
     );
     std::fs::write(&dep, "contract Dep { uint public changed; }").unwrap();
@@ -121,7 +121,14 @@ async fn cached_and_published_symbol_tables_share_storage() {
     let old = Arc::downgrade(&published);
     drop(published);
     state.clear_analysis_cache();
-    assert!(old.upgrade().is_none());
+    // Publication wakes readers before the worker drops its previous snapshot.
+    tokio::time::timeout(ASYNC_TEST_TIMEOUT, async {
+        while old.upgrade().is_some() {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .unwrap();
 }
 
 #[tokio::test(flavor = "current_thread")]
