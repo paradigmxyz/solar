@@ -37,75 +37,53 @@ struct BenchmarkSource {
     hover_positions: Vec<(u32, u32)>,
 }
 
-struct SourceBuilder {
-    source: String,
-    hover_anchors: Vec<String>,
-}
-
-impl SourceBuilder {
-    fn new(function_count: usize) -> Self {
-        Self { source: String::new(), hover_anchors: Vec::with_capacity(function_count * 2) }
-    }
-
-    fn push_line(&mut self, line: &str) {
-        self.source.push_str(line);
-        self.source.push('\n');
-    }
-
-    fn push_hover_anchor(&mut self, anchor: String) {
-        self.hover_anchors.push(anchor);
-    }
-
-    fn finish(self) -> BenchmarkSource {
-        let project = BenchmarkProject::from_source(self.source.clone());
-        let hover_positions = self
-            .hover_anchors
-            .into_iter()
-            .map(|anchor| {
-                let (_, position) = project
-                    .unique_anchor("benchmark.sol", &anchor)
-                    .expect("generated hover anchors should be unique");
-                (position.line, position.character)
-            })
-            .collect();
-        BenchmarkSource { source: self.source, project, hover_positions }
-    }
-}
-
 fn benchmark_source(function_count: usize) -> BenchmarkSource {
-    let mut builder = SourceBuilder::new(function_count);
-    builder.push_line("contract Benchmark {");
+    let mut source = String::new();
+    let mut hover_anchors = Vec::with_capacity(function_count * 2);
+    let mut push_line = |line: &str| {
+        source.push_str(line);
+        source.push('\n');
+    };
+    push_line("contract Benchmark {");
     for index in 0..function_count {
         let name = format!("function_{index:04}");
-        builder.push_line(&format!(
-            "    /// @notice Processes values for benchmark function {index}."
-        ));
-        builder.push_line("    /// @dev Used to measure resolved NatSpec rendering.");
-        builder.push_line("    /// @param first The first input value.");
-        builder.push_line("    /// @param second The second input value.");
-        builder.push_line("    /// @param account The account returned by the function.");
-        builder.push_line("    /// @return total The sum of both input values.");
-        builder.push_line("    /// @return owner The supplied account.");
+        push_line(&format!("    /// @notice Processes values for benchmark function {index}."));
+        push_line("    /// @dev Used to measure resolved NatSpec rendering.");
+        push_line("    /// @param first The first input value.");
+        push_line("    /// @param second The second input value.");
+        push_line("    /// @param account The account returned by the function.");
+        push_line("    /// @return total The sum of both input values.");
+        push_line("    /// @return owner The supplied account.");
         let declaration = format!(
             "    function {name}(uint256 first, uint256 second, address account) public pure returns (uint256 total, address owner) {{"
         );
-        builder.push_line(&declaration);
-        builder.push_hover_anchor(format!("{name}(uint256 first"));
-        builder.push_line("        total = first + second;");
-        builder.push_line("        owner = account;");
-        builder.push_line("    }");
+        push_line(&declaration);
+        hover_anchors.push(format!("{name}(uint256 first"));
+        push_line("        total = first + second;");
+        push_line("        owner = account;");
+        push_line("    }");
     }
 
-    builder.push_line("    function exercise() public pure {");
+    push_line("    function exercise() public pure {");
     for index in 0..function_count {
         let name = format!("function_{index:04}");
         let call = format!("        {name}(1, 2, address(0));");
-        builder.push_line(&call);
-        builder.push_hover_anchor(format!("{name}(1, 2, address(0))"));
+        push_line(&call);
+        hover_anchors.push(format!("{name}(1, 2, address(0))"));
     }
-    builder.push_line("    }");
-    builder.push_line("}");
-    builder.finish()
+    push_line("    }");
+    push_line("}");
+    let project = BenchmarkProject::from_source(source.clone());
+    let hover_positions = hover_anchors
+        .into_iter()
+        .map(|anchor| {
+            let (_, position) = project
+                .unique_anchor("benchmark.sol", &anchor)
+                .expect("generated hover anchors should be unique");
+            (position.line, position.character)
+        })
+        .collect();
+    BenchmarkSource { source, project, hover_positions }
 }
 
 fn analysis_build(c: &mut Criterion) {

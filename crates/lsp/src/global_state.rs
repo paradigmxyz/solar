@@ -688,17 +688,7 @@ impl GlobalState {
         if !self.config.supports_watched_file_dynamic_registration() {
             return;
         }
-        let analysis_paths = {
-            let commit = self.analysis_commit.lock();
-            AnalysisPathIndex {
-                resolved_dependencies: commit.analysis_paths.resolved_dependencies.clone(),
-                existing_unresolved_candidates: commit
-                    .analysis_paths
-                    .existing_unresolved_candidates
-                    .clone(),
-                missing_candidates: commit.analysis_paths.missing_candidates.clone(),
-            }
-        };
+        let analysis_paths = self.analysis_commit.lock().analysis_paths.clone();
         let specs = watched_file_specs(&self.config, &analysis_paths);
         let update = prepare_watched_file_registration_update(
             &self.config,

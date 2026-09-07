@@ -318,7 +318,7 @@ pub(crate) fn target(contents: &Rope, position: Position) -> NatSpecCompletionRe
     if !has_natspec_prefix(contents, cursor) {
         return NatSpecCompletionResult::NotApplicable;
     }
-    let source = rope_to_string(contents);
+    let source = crate::utils::rope_to_string(contents);
     let candidate = match comment_candidate(&source, cursor) {
         CandidateResult::NotApplicable => return NatSpecCompletionResult::NotApplicable,
         CandidateResult::Invalid => return NatSpecCompletionResult::Claimed(None),
@@ -338,7 +338,7 @@ pub(crate) fn target(contents: &Rope, position: Position) -> NatSpecCompletionRe
         candidate.style,
     ) {
         Some(mut target) => {
-            let Some(edit_range) = byte_range_to_lsp(contents, candidate.edit_range) else {
+            let Some(edit_range) = proto::byte_range_to_lsp(contents, candidate.edit_range) else {
                 return NatSpecCompletionResult::Claimed(None);
             };
             target.edit_range = edit_range;
@@ -346,7 +346,7 @@ pub(crate) fn target(contents: &Rope, position: Position) -> NatSpecCompletionRe
             target.source_fingerprint = source_fingerprint;
             target.additional_text_edits = candidate
                 .additional_edit_range
-                .and_then(|range| byte_range_to_lsp(contents, range))
+                .and_then(|range| proto::byte_range_to_lsp(contents, range))
                 .map(|range| vec![TextEdit { range, new_text: String::new() }]);
             NatSpecCompletionResult::Claimed(Some(Box::new(target)))
         }
@@ -474,13 +474,6 @@ fn source_eol(source: &str, line_end: usize) -> &str {
     } else {
         "\n"
     }
-}
-
-fn byte_range_to_lsp(contents: &Rope, range: ByteRange<usize>) -> Option<Range> {
-    Some(Range::new(
-        proto::position_at_byte(contents, range.start)?,
-        proto::position_at_byte(contents, range.end)?,
-    ))
 }
 
 fn parse_target(
@@ -663,14 +656,6 @@ fn is_adjacent_doc_comment(gap: &str, style: CommentStyle) -> bool {
     gap.strip_prefix("\r\n")
         .or_else(|| gap.strip_prefix('\n'))
         .is_some_and(|rest| rest.bytes().all(|byte| matches!(byte, b' ' | b'\t')))
-}
-
-fn rope_to_string(contents: &Rope) -> String {
-    let mut source = String::with_capacity(contents.byte_len());
-    for chunk in contents.chunks() {
-        source.push_str(chunk);
-    }
-    source
 }
 
 #[cfg(test)]
