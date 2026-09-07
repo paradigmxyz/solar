@@ -83,8 +83,8 @@ impl<'a> FoundryConfigContext<'a> {
                 Ok(configs.iter().find(|config| config.workspace_root() == root))
             }
             FoundryConfigSourceRef::Loader(loader) => {
-                if !self.loaded.contains_key(&root) {
-                    let loaded = loader.load(&root).and_then(|config| {
+                let loaded = self.loaded.entry(root).or_insert_with_key(|root| {
+                    loader.load(root).and_then(|config| {
                         let config = config.try_into_normalized()?;
                         if config.workspace_root() == root {
                             Ok(config)
@@ -95,10 +95,9 @@ impl<'a> FoundryConfigContext<'a> {
                                 root.display()
                             ))
                         }
-                    });
-                    self.loaded.insert(root.clone(), loaded);
-                }
-                match self.loaded.get(&root).expect("loaded Foundry configuration is cached") {
+                    })
+                });
+                match loaded {
                     Ok(config) => Ok(Some(config)),
                     Err(error) => Err(error.clone()),
                 }
@@ -142,6 +141,15 @@ pub(crate) struct SourceWatchRoot {
 }
 
 type CollectedSourceFiles = (Vec<PathBuf>, Vec<SourceWatchRoot>, Vec<PathBuf>, bool);
+
+struct CollectedWorkspaceFiles {
+    source_files: Vec<PathBuf>,
+    source_watch_roots: Vec<SourceWatchRoot>,
+    source_files_complete: bool,
+    flycheck_source_files: Vec<PathBuf>,
+    flycheck_watch_roots: Vec<SourceWatchRoot>,
+    git_marker_watch_roots: Vec<PathBuf>,
+}
 
 impl SourceWatchRoot {
     fn shallow(path: &Path) -> Self {
@@ -273,33 +281,10 @@ impl Workspace {
         cancellation: &IndexingCancellation,
         metrics: &mut WorkspaceIndexMetrics,
     ) -> bool {
-        let Some((
-            source_files,
-            source_watch_roots,
-            mut git_marker_watch_roots,
-            source_files_complete,
-        )) = self.collect_source_files(policy, cancellation, metrics, None)
-        else {
+        let Some(files) = self.collect_workspace_files(policy, cancellation, metrics, None) else {
             return false;
         };
-        let Some((
-            flycheck_source_files,
-            flycheck_watch_roots,
-            flycheck_marker_watch_roots,
-            flycheck_source_files_complete,
-        )) = self.collect_flycheck_source_files(&source_files, policy, cancellation, None)
-        else {
-            return false;
-        };
-        git_marker_watch_roots.extend(flycheck_marker_watch_roots);
-        git_marker_watch_roots.sort_unstable();
-        git_marker_watch_roots.dedup();
-        self.source_files = source_files;
-        self.source_watch_roots = source_watch_roots;
-        self.flycheck_watch_roots = flycheck_watch_roots;
-        self.git_marker_watch_roots = git_marker_watch_roots;
-        self.flycheck_source_files = flycheck_source_files;
-        self.source_files_complete = source_files_complete && flycheck_source_files_complete;
+        self.apply_collected_files(files);
         true
     }
 
@@ -317,67 +302,58 @@ impl Workspace {
         {
             let index = WorkspacePathIndex::new(&*workspaces);
             for (idx, workspace) in workspaces.iter().enumerate() {
-                let Some((
-                    source_files,
-                    source_watch_roots,
-                    mut git_marker_watch_roots,
-                    source_files_complete,
-                )) = workspace.collect_source_files(
+                let Some(files) = workspace.collect_workspace_files(
                     policy,
                     cancellation,
                     metrics,
                     Some((&index, idx)),
-                )
-                else {
+                ) else {
                     return false;
                 };
-                let Some((
-                    flycheck_source_files,
-                    flycheck_watch_roots,
-                    flycheck_marker_watch_roots,
-                    flycheck_source_files_complete,
-                )) = workspace.collect_flycheck_source_files(
-                    &source_files,
-                    policy,
-                    cancellation,
-                    Some((&index, idx)),
-                )
-                else {
-                    return false;
-                };
-                git_marker_watch_roots.extend(flycheck_marker_watch_roots);
-                git_marker_watch_roots.sort_unstable();
-                git_marker_watch_roots.dedup();
-                collected.push((
-                    source_files,
-                    source_watch_roots,
-                    source_files_complete && flycheck_source_files_complete,
-                    flycheck_source_files,
-                    flycheck_watch_roots,
-                    git_marker_watch_roots,
-                ));
+                collected.push(files);
             }
         }
-        for (
-            workspace,
-            (
-                source_files,
-                source_watch_roots,
-                source_files_complete,
-                flycheck_source_files,
-                flycheck_watch_roots,
-                git_marker_watch_roots,
-            ),
-        ) in workspaces.iter_mut().zip(collected)
-        {
-            workspace.source_files = source_files;
-            workspace.source_watch_roots = source_watch_roots;
-            workspace.flycheck_watch_roots = flycheck_watch_roots;
-            workspace.git_marker_watch_roots = git_marker_watch_roots;
-            workspace.source_files_complete = source_files_complete;
-            workspace.flycheck_source_files = flycheck_source_files;
+        for (workspace, files) in workspaces.iter_mut().zip(collected) {
+            workspace.apply_collected_files(files);
         }
         true
+    }
+
+    fn collect_workspace_files(
+        &self,
+        policy: &WorkspaceIndexPolicy,
+        cancellation: &IndexingCancellation,
+        metrics: &mut WorkspaceIndexMetrics,
+        ownership: Option<(&WorkspacePathIndex<'_>, usize)>,
+    ) -> Option<CollectedWorkspaceFiles> {
+        let (source_files, source_watch_roots, mut git_marker_watch_roots, source_files_complete) =
+            self.collect_source_files(policy, cancellation, metrics, ownership)?;
+        let (
+            flycheck_source_files,
+            flycheck_watch_roots,
+            flycheck_marker_watch_roots,
+            flycheck_source_files_complete,
+        ) = self.collect_flycheck_source_files(&source_files, policy, cancellation, ownership)?;
+        git_marker_watch_roots.extend(flycheck_marker_watch_roots);
+        git_marker_watch_roots.sort_unstable();
+        git_marker_watch_roots.dedup();
+        Some(CollectedWorkspaceFiles {
+            source_files,
+            source_watch_roots,
+            source_files_complete: source_files_complete && flycheck_source_files_complete,
+            flycheck_source_files,
+            flycheck_watch_roots,
+            git_marker_watch_roots,
+        })
+    }
+
+    fn apply_collected_files(&mut self, files: CollectedWorkspaceFiles) {
+        self.source_files = files.source_files;
+        self.source_watch_roots = files.source_watch_roots;
+        self.source_files_complete = files.source_files_complete;
+        self.flycheck_source_files = files.flycheck_source_files;
+        self.flycheck_watch_roots = files.flycheck_watch_roots;
+        self.git_marker_watch_roots = files.git_marker_watch_roots;
     }
 
     fn collect_source_files<'index, 'workspaces>(
@@ -1230,7 +1206,6 @@ mod tests {
             &project.path("/outer/./nested/../nested"),
             &project.path("/outer/nested")
         ));
-        drop(root_matches);
         assert!(foundry_config.workspace_config(&project.path("/outer/other")).unwrap().is_none());
     }
 

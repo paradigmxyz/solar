@@ -39,8 +39,8 @@ protocol behavior, benchmark IDs, workloads, and timing boundaries stable.
 - Reused the cross-server runner's YAML/schema helpers, merged identical
   path-validation arms, and looked up each workload's fixture once.
 - Reused the existing fixture test builder in three tests.
-- The Python suite passed 101 tests with six Node-dependent skips; Node is
-  absent. Ruff format and lint passed. Both Rust packages passed 1,200 tests
+- The Python suite ran 101 tests: 95 passed and six Node-dependent tests
+  were skipped because Node is absent. Ruff format and lint passed. Both Rust packages passed 1,200 tests
   with one skip, and scoped Clippy/typecheck passed with the existing warning.
 
 ## Benchmark process handling
@@ -51,3 +51,71 @@ protocol behavior, benchmark IDs, workloads, and timing boundaries stable.
   traces, and borrowed configuration request items instead of cloning JSON.
 - All 135 benchmark harness tests passed after the final ownership changes.
   Review confirmed process cleanup never reads the moved observations.
+
+## Review coverage and measurement follow-up
+
+- Completed full-file reads across LSP production modules, tests and client
+  fixtures, Criterion support, both benchmark runners and their fixtures,
+  manifests, schemas, adapter patch, and LSP benchmark workflows. Also checked
+  the CLI/configuration entrypoints and compiler integration tests.
+- Kept parser recovery paths, hierarchy compatibility rules, and workflow
+  validation boundaries separate where they have different semantics.
+- The first full Criterion comparison retained all 37 benchmark IDs. Some
+  results moved in both directions, including unchanged kernels. Retained
+  per-case results in `target/lsp-cleanup/first-comparison.json`.
+- Built retained main/candidate binaries in this checkout for alternating
+  measurements; restored candidate sources from byte-for-byte backups after
+  building main. Used the exact starting SHA to avoid an unrelated local
+  branch named `origin/main`.
+- Other compiler work runs on this host. Follow-up measurements alternate
+  binaries, then pin them to one CPU; no project builds run during the final
+  pinned comparison.
+
+## Pinned performance check
+
+Used the dev profile, CPU 0, main/candidate/candidate/main order, 20 samples
+per run, and one-second warmup and measurement targets. Values below average
+the two per-run means; they are local checks, not release-performance claims.
+
+| Benchmark | Main (ns) | Candidate (ns) | Change |
+| --- | ---: | ---: | ---: |
+| `lsp_analysis-build/256` | 63829796.0 | 63287936.0 | -0.85% |
+| `lsp_analysis-build/64` | 16869015.7 | 16809159.3 | -0.35% |
+| `lsp_analysis-build/repeated-calls` | 9511651.7 | 9344020.8 | -1.76% |
+| `lsp_incremental-analysis/cold` | 64754082.6 | 65196280.1 | +0.68% |
+| `lsp_incremental-analysis/reverted-edit` | 47136.6 | 47625.2 | +1.04% |
+| `lsp_incremental-analysis/unchanged` | 3976.9 | 3964.0 | -0.32% |
+| `lsp_symbol-table-aggregation/1` | 559.2 | 646.3 | +15.56% |
+| `lsp_symbol-table-aggregation/4` | 7091775.7 | 7182902.4 | +1.28% |
+| `lsp_workspace-discovery/foundry-10k-import-only` | 6193974.2 | 5746037.3 | -7.23% |
+| `lsp_workspace-path-containment-query/16-workspaces-containment-query` | 8438.2 | 8840.1 | +4.76% |
+| `lsp_workspace-path-queries/16-workspaces-1024-queries` | 11452468.9 | 11532152.0 | +0.70% |
+| `lsp_workspace-path-single-query/16-workspaces-single-query` | 40241.2 | 39276.5 | -2.40% |
+
+The unchanged single-batch aggregation control had one noisy candidate run
+(765.7 ns versus 526.8 ns in the other candidate run). The unchanged containment
+control also shifted. Retained both results and ran a focused control recheck.
+Full raw samples and estimates remain under `target/criterion`; comparison
+JSON and run logs are under `target/lsp-cleanup`.
+
+The 30-sample control recheck used two-second measurement targets on CPU 0:
+- `lsp_symbol-table-aggregation/1`: 656.6 ns main, 622.3 ns candidate (-5.24%).
+- `lsp_workspace-path-containment-query/16-workspaces-containment-query`: 8622.0 ns main, 8761.6 ns candidate (+1.62%).
+
+The affected analysis, query, and collection workloads show no material
+slowdown in these local checks. Unchanged microbenchmarks still vary; do not
+interpret the shared-host dev measurements as precise release-speed changes.
+
+## Workspace collection and unused path operations
+
+- Shared eager/flycheck collection and publication between single-workspace
+  and multi-workspace refresh. Cancellation still leaves prior state intact,
+  and multi-workspace refresh still collects every result before publishing.
+- Used map-entry loading for cached Foundry configuration, preserving cached
+  errors while removing repeated lookups and a path clone.
+- Removed unused VFS path-manipulation methods and their private helper chain.
+  Kept path representation, normalization, formatting, ordering, and equality.
+- Removed an unnecessary test closure drop. Final validation ran 1,200 Rust
+  tests successfully (one skipped); formatting and scoped Clippy/typecheck
+  passed. Python checks ran 101 tests (95 passed, six Node-dependent skips),
+  and Ruff formatting/lint passed.
