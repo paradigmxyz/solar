@@ -58,6 +58,21 @@ pub(crate) struct Check {
     pub(crate) detail: String,
 }
 
+impl Check {
+    fn from_result(
+        kind: impl Into<String>,
+        id: &str,
+        result: Result<String>,
+        failure_status: CheckStatus,
+    ) -> Self {
+        let (status, detail) = match result {
+            Ok(detail) => (CheckStatus::Pass, detail),
+            Err(error) => (failure_status, format!("{error:#}")),
+        };
+        Self { kind: kind.into(), id: id.into(), status, detail }
+    }
+}
+
 #[derive(Clone, Debug, Serialize)]
 pub(crate) struct DoctorReport {
     pub(crate) publish: bool,
@@ -302,68 +317,32 @@ fn check_server(server: &ServerSpec) -> Vec<Check> {
         && server.source.as_ref().is_some_and(|source| is_full_git_revision(&source.revision))
         && artifact.path.exists()
     {
-        match sha256_path(&artifact.path) {
-            Ok(actual) => Check {
-                kind: "server-source-build".into(),
-                id: server.id.clone(),
-                status: CheckStatus::Pass,
-                detail: format!("executed artifact {actual}"),
-            },
-            Err(error) => Check {
-                kind: "server-source-build".into(),
-                id: server.id.clone(),
-                status: CheckStatus::Unavailable,
-                detail: format!("{error:#}"),
-            },
-        }
+        Check::from_result(
+            "server-source-build",
+            &server.id,
+            sha256_path(&artifact.path).map(|actual| format!("executed artifact {actual}")),
+            CheckStatus::Unavailable,
+        )
     } else {
         check_artifact("server-artifact", &server.id, artifact)
     };
     if !matches!(artifact_check.status, CheckStatus::Pass) {
         return vec![artifact_check];
     }
-    let executable_check = match sha256_path(&executable) {
-        Ok(actual) => Check {
-            kind: "server-executable".into(),
-            id: server.id.clone(),
-            status: CheckStatus::Pass,
-            detail: actual,
-        },
-        Err(error) => Check {
-            kind: "server-executable".into(),
-            id: server.id.clone(),
-            status: CheckStatus::Unavailable,
-            detail: format!("{error:#}"),
-        },
-    };
+    let executable_check = Check::from_result(
+        "server-executable",
+        &server.id,
+        sha256_path(&executable),
+        CheckStatus::Unavailable,
+    );
     let version = inspect_version(&executable, server, VERSION_PROBE_TIMEOUT).and_then(|version| {
         verify_server_version_output(server, &version)?;
         Ok(version)
     });
-    let version = match version {
-        Ok(version) => version,
-        Err(error) => {
-            return vec![
-                artifact_check,
-                executable_check,
-                Check {
-                    kind: "server-version".into(),
-                    id: server.id.clone(),
-                    status: CheckStatus::Mismatch,
-                    detail: format!("{error:#}"),
-                },
-            ];
-        }
-    };
     vec![
         artifact_check,
         executable_check,
-        Check {
-            kind: "server-version".into(),
-            id: server.id.clone(),
-            status: CheckStatus::Pass,
-            detail: version,
-        },
+        Check::from_result("server-version", &server.id, version, CheckStatus::Mismatch),
     ]
 }
 
@@ -849,34 +828,19 @@ fn publish_environment_checks(config_path: &Path) -> Vec<Check> {
         },
         detail: format!("{}-{}", std::env::consts::ARCH, std::env::consts::OS),
     }];
-    checks.push(match cgroup_v2_process_tree_available() {
-        Ok(path) => Check {
-            kind: "environment".into(),
-            id: "cgroup-v2-process-tree".into(),
-            status: CheckStatus::Pass,
-            detail: format!("delegated under `{}`", path.parent().unwrap_or(&path).display()),
-        },
-        Err(error) => Check {
-            kind: "environment".into(),
-            id: "cgroup-v2-process-tree".into(),
-            status: CheckStatus::Unavailable,
-            detail: format!("{error:#}"),
-        },
-    });
-    checks.push(match network_isolation_available() {
-        Ok(()) => Check {
-            kind: "environment".into(),
-            id: "network-namespace".into(),
-            status: CheckStatus::Pass,
-            detail: "unprivileged network namespace available".into(),
-        },
-        Err(error) => Check {
-            kind: "environment".into(),
-            id: "network-namespace".into(),
-            status: CheckStatus::Unavailable,
-            detail: format!("{error:#}"),
-        },
-    });
+    checks.push(Check::from_result(
+        "environment",
+        "cgroup-v2-process-tree",
+        cgroup_v2_process_tree_available()
+            .map(|path| format!("delegated under `{}`", path.parent().unwrap_or(&path).display())),
+        CheckStatus::Unavailable,
+    ));
+    checks.push(Check::from_result(
+        "environment",
+        "network-namespace",
+        network_isolation_available().map(|()| "unprivileged network namespace available".into()),
+        CheckStatus::Unavailable,
+    ));
     let root = repository_root(config_path).unwrap_or_else(|| PathBuf::from("."));
     let clean = git_output(&root, &["status", "--porcelain", "--untracked-files=normal"])
         .is_ok_and(|status| status.is_empty());

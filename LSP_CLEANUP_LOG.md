@@ -156,3 +156,15 @@ interpret the shared-host dev measurements as precise release-speed changes.
 - Reuse, simplification, efficiency, and altitude reviews cover this pass.
   Cargo Crap remains unavailable, so the complexity-only scan was skipped.
   No new timing comparison was run; preflights verify workloads, not speed.
+
+## Process ownership and report cleanup
+
+- Workers return bounded output buffers through their join handles, removing
+  shared mutex buffers and a final stderr copy. All workers still share the
+  original drain deadline; timeout and panic paths remain failures.
+- Shared process-group/cgroup setup and descendant termination. Removed an
+  unnecessary boxed stdout reader.
+- Shared lifecycle result-to-check conversion and report metric insertion;
+  escaped Markdown row fields are now formatted once per group.
+- The scoped Rust tests, Clippy/typecheck, formatting, and benchmark preflights
+  above cover this change, including a worker result/panic test.

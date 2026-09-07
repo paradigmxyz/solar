@@ -15,7 +15,7 @@ use std::{
     io::{BufReader, Read, Write},
     path::{Path, PathBuf},
     process::{Child, Command, ExitStatus, Stdio},
-    sync::{Arc, Mutex, mpsc},
+    sync::{Arc, mpsc},
     thread,
     time::{Duration, Instant},
 };
@@ -412,9 +412,8 @@ pub(crate) struct LspProcess {
     child: Option<Child>,
     writer: Option<LspWriter>,
     messages: Option<mpsc::Receiver<Result<Value>>>,
-    stdout_thread: Option<WorkerThread>,
-    stderr_thread: Option<WorkerThread>,
-    stderr: Arc<Mutex<Vec<u8>>>,
+    stdout_thread: Option<WorkerThread<()>>,
+    stderr_thread: Option<WorkerThread<Vec<u8>>>,
     trace_bytes: usize,
     next_id: i64,
     timeout: Duration,
@@ -458,27 +457,38 @@ pub(crate) fn restricted_command(program: impl AsRef<OsStr>) -> Command {
     command
 }
 
-struct WorkerThread {
-    handle: thread::JoinHandle<()>,
+struct WorkerThread<T> {
+    handle: thread::JoinHandle<T>,
     finished: mpsc::Receiver<()>,
 }
 
-impl WorkerThread {
-    fn spawn(work: impl FnOnce() + Send + 'static) -> Self {
+impl<T: Send + 'static> WorkerThread<T> {
+    fn spawn(work: impl FnOnce() -> T + Send + 'static) -> Self {
         let (finished, receiver) = mpsc::channel();
         let handle = thread::spawn(move || {
-            work();
+            let result = work();
             let _ = finished.send(());
+            result
         });
         Self { handle, finished: receiver }
     }
 
-    fn join_until(self, deadline: Instant) -> bool {
+    fn join_until(self, deadline: Instant) -> Option<T> {
         let remaining = deadline.saturating_duration_since(Instant::now());
         match self.finished.recv_timeout(remaining) {
-            Ok(()) | Err(mpsc::RecvTimeoutError::Disconnected) => self.handle.join().is_ok(),
-            Err(mpsc::RecvTimeoutError::Timeout) => false,
+            Ok(()) | Err(mpsc::RecvTimeoutError::Disconnected) => self.handle.join().ok(),
+            Err(mpsc::RecvTimeoutError::Timeout) => None,
         }
+    }
+}
+
+impl WorkerThread<Vec<u8>> {
+    fn capture(reader: impl Read + Send + 'static, marker: &'static [u8]) -> Self {
+        Self::spawn(move || {
+            let mut buffer = Vec::new();
+            capture_bounded(&mut BufReader::new(reader), &mut buffer, MAX_STDERR_BYTES, marker);
+            buffer
+        })
     }
 }
 
@@ -489,7 +499,7 @@ struct WriteRequest {
 
 struct LspWriter {
     sender: Option<mpsc::SyncSender<WriteRequest>>,
-    thread: WorkerThread,
+    thread: WorkerThread<()>,
     poisoned: bool,
 }
 
@@ -571,31 +581,27 @@ impl LspWriter {
 
     fn finish(mut self, deadline: Instant) -> bool {
         self.close();
-        self.thread.join_until(deadline)
+        self.thread.join_until(deadline).is_some()
     }
 }
 
-pub(crate) fn run_command_with_bounded_output(
-    mut command: Command,
-    display_name: &Path,
-    timeout: Duration,
-) -> Result<BoundedCommandOutput> {
+fn configure_process_tree(_command: &mut Command) -> Option<CgroupHandle> {
     #[cfg(target_os = "linux")]
     let (cgroup, cgroup_procs) = match CgroupHandle::create_linux() {
         Ok((cgroup, procs)) => (Some(cgroup), Some(procs)),
         Err(_) => (None, None),
     };
     #[cfg(not(target_os = "linux"))]
-    let cgroup: Option<CgroupHandle> = None;
+    let cgroup = None;
 
     #[cfg(unix)]
     {
         use std::os::unix::process::CommandExt;
-        command.process_group(0);
+        _command.process_group(0);
         #[cfg(target_os = "linux")]
         if let Some(cgroup_procs) = cgroup_procs {
             unsafe {
-                command.pre_exec(move || {
+                _command.pre_exec(move || {
                     let bytes = b"0\n";
                     let written =
                         libc::write(cgroup_procs.as_raw_fd(), bytes.as_ptr().cast(), bytes.len());
@@ -608,6 +614,15 @@ pub(crate) fn run_command_with_bounded_output(
             }
         }
     }
+    cgroup
+}
+
+pub(crate) fn run_command_with_bounded_output(
+    mut command: Command,
+    display_name: &Path,
+    timeout: Duration,
+) -> Result<BoundedCommandOutput> {
+    let cgroup = configure_process_tree(&mut command);
 
     let mut child = command
         .stdin(Stdio::null())
@@ -615,24 +630,14 @@ pub(crate) fn run_command_with_bounded_output(
         .stderr(Stdio::piped())
         .spawn()
         .with_context(|| format!("failed to run `{}`", display_name.display()))?;
-    let stdout = Arc::new(Mutex::new(Vec::new()));
-    let stderr = Arc::new(Mutex::new(Vec::new()));
-    let stdout_buffer = stdout.clone();
-    let stderr_buffer = stderr.clone();
-    let stdout_pipe = child.stdout.take().context("command stdout is unavailable")?;
-    let stderr_pipe = child.stderr.take().context("command stderr is unavailable")?;
-    let stdout_thread = WorkerThread::spawn(move || {
-        let mut reader = BufReader::new(stdout_pipe);
-        let mut captured = Vec::new();
-        capture_bounded(&mut reader, &mut captured, MAX_STDERR_BYTES, b"\n[stdout truncated]\n");
-        *stdout_buffer.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) = captured;
-    });
-    let stderr_thread = WorkerThread::spawn(move || {
-        let mut reader = BufReader::new(stderr_pipe);
-        let mut captured = Vec::new();
-        capture_stderr(&mut reader, &mut captured);
-        *stderr_buffer.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) = captured;
-    });
+    let stdout_thread = WorkerThread::capture(
+        child.stdout.take().context("command stdout is unavailable")?,
+        b"\n[stdout truncated]\n",
+    );
+    let stderr_thread = WorkerThread::capture(
+        child.stderr.take().context("command stderr is unavailable")?,
+        STDERR_TRUNCATION_MARKER,
+    );
 
     let (status, _, mut forced_kill, timed_out) = wait_with_usage(child, timeout, cfg!(unix))
         .with_context(|| format!("failed waiting for `{}`", display_name.display()))?;
@@ -640,19 +645,11 @@ pub(crate) fn run_command_with_bounded_output(
         forced_kill |= cgroup.kill_and_wait(timeout)?;
     }
     let drain_deadline = Instant::now() + TRANSPORT_DRAIN_TIMEOUT;
-    let stdout_finished = stdout_thread.join_until(drain_deadline);
-    let stderr_finished = stderr_thread.join_until(drain_deadline);
-    if !(stdout_finished && stderr_finished) {
+    let stdout = stdout_thread.join_until(drain_deadline);
+    let stderr = stderr_thread.join_until(drain_deadline);
+    let (Some(stdout), Some(stderr)) = (stdout, stderr) else {
         bail!("timed out draining `{}` output", display_name.display())
-    }
-    let stdout = Arc::try_unwrap(stdout)
-        .map_err(|_| anyhow!("command stdout buffer is still in use"))?
-        .into_inner()
-        .unwrap_or_else(|poisoned| poisoned.into_inner());
-    let stderr = Arc::try_unwrap(stderr)
-        .map_err(|_| anyhow!("command stderr buffer is still in use"))?
-        .into_inner()
-        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    };
     Ok(BoundedCommandOutput { status, stdout, stderr, forced_kill, timed_out })
 }
 
@@ -668,13 +665,6 @@ impl LspProcess {
         let cache = environment.path().join("cache");
         let config = environment.path().join("config");
         let data = environment.path().join("data");
-        #[cfg(target_os = "linux")]
-        let (cgroup, cgroup_procs) = match CgroupHandle::create_linux() {
-            Ok((cgroup, procs)) => (Some(cgroup), Some(procs)),
-            Err(_) => (None, None),
-        };
-        #[cfg(not(target_os = "linux"))]
-        let cgroup = None;
         let mut command = server_command(spec);
         for (key, value) in &spec.env {
             command.env(key, value);
@@ -692,29 +682,7 @@ impl LspProcess {
             .env("npm_config_cache", cache.join("npm"))
             .env("PIP_CACHE_DIR", cache.join("pip"))
             .envs(environment.variables());
-        #[cfg(unix)]
-        {
-            use std::os::unix::process::CommandExt;
-            command.process_group(0);
-            #[cfg(target_os = "linux")]
-            if let Some(cgroup_procs) = cgroup_procs {
-                unsafe {
-                    command.pre_exec(move || {
-                        let bytes = b"0\n";
-                        let written = libc::write(
-                            cgroup_procs.as_raw_fd(),
-                            bytes.as_ptr().cast(),
-                            bytes.len(),
-                        );
-                        if written == bytes.len() as isize {
-                            Ok(())
-                        } else {
-                            Err(std::io::Error::last_os_error())
-                        }
-                    });
-                }
-            }
-        }
+        let cgroup = configure_process_tree(&mut command);
         let mut child = command
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -727,19 +695,13 @@ impl LspProcess {
                     display_command(spec)
                 )
             })?;
-        let stderr_pipe = child.stderr.take().context("LSP stderr is unavailable")?;
-        let stderr = Arc::new(Mutex::new(Vec::new()));
-        let stderr_buffer = stderr.clone();
-        let stderr_thread = WorkerThread::spawn(move || {
-            let mut reader = BufReader::new(stderr_pipe);
-            let mut captured = Vec::new();
-            capture_stderr(&mut reader, &mut captured);
-            *stderr_buffer.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) = captured;
-        });
+        let stderr_thread = WorkerThread::capture(
+            child.stderr.take().context("LSP stderr is unavailable")?,
+            STDERR_TRUNCATION_MARKER,
+        );
 
         let writer = LspWriter::spawn(child.stdin.take().context("LSP stdin is unavailable")?);
-        let reader: Box<dyn Read + Send> =
-            Box::new(child.stdout.take().context("LSP stdout is unavailable")?);
+        let reader = child.stdout.take().context("LSP stdout is unavailable")?;
         let (sender, messages) = server_message_channel();
         let stdout_thread = WorkerThread::spawn(move || {
             let mut reader = BufReader::new(reader);
@@ -767,7 +729,6 @@ impl LspProcess {
             messages: Some(messages),
             stdout_thread: Some(stdout_thread),
             stderr_thread: Some(stderr_thread),
-            stderr,
             trace_bytes: 0,
             next_id: 1,
             timeout,
@@ -1266,18 +1227,22 @@ impl LspProcess {
         let peak_process_tree_rss_mib = None;
         let drain_deadline = Instant::now() + TRANSPORT_DRAIN_TIMEOUT;
         let writer_finished = writer.is_none_or(|writer| writer.finish(drain_deadline));
-        let stdout_finished =
-            self.stdout_thread.take().is_none_or(|thread| thread.join_until(drain_deadline));
-        let stderr_finished =
-            self.stderr_thread.take().is_none_or(|thread| thread.join_until(drain_deadline));
-        if !(writer_finished && stdout_finished && stderr_finished) {
+        let stdout_finished = self
+            .stdout_thread
+            .take()
+            .is_none_or(|thread| thread.join_until(drain_deadline).is_some());
+        let stderr = self
+            .stderr_thread
+            .take()
+            .map_or_else(|| Some(Vec::new()), |thread| thread.join_until(drain_deadline));
+        if !(writer_finished && stdout_finished && stderr.is_some()) {
             let drain_error = anyhow!("timed out draining LSP transport after process cleanup");
             shutdown_error = Some(match shutdown_error.take() {
                 Some(error) => error.context(drain_error),
                 None => drain_error,
             });
         }
-        let stderr = String::from_utf8_lossy(&snapshot_bytes(&self.stderr)).into_owned();
+        let stderr = String::from_utf8_lossy(&stderr.unwrap_or_default()).into_owned();
         let shutdown_error = shutdown_error
             .map(|error| error.context(format!("failed to stop LSP; stderr: {stderr}")));
         let cgroup_path = self.cgroup.as_ref().map(CgroupHandle::path).cloned();
@@ -1841,10 +1806,6 @@ fn text_sync_open_close(capabilities: &Value) -> bool {
         || value.get("openClose").and_then(Value::as_bool).unwrap_or(false)
 }
 
-fn capture_stderr(reader: &mut impl Read, buffer: &mut Vec<u8>) {
-    capture_bounded(reader, buffer, MAX_STDERR_BYTES, STDERR_TRUNCATION_MARKER);
-}
-
 fn capture_bounded(
     reader: &mut impl Read,
     buffer: &mut Vec<u8>,
@@ -1870,10 +1831,6 @@ fn capture_bounded(
         buffer.truncate(content_limit);
         buffer.extend_from_slice(truncation_marker);
     }
-}
-
-fn snapshot_bytes(buffer: &Arc<Mutex<Vec<u8>>>) -> Vec<u8> {
-    buffer.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).clone()
 }
 
 fn bounded_trace_message(message: &Value) -> (Value, usize, bool) {
@@ -2209,24 +2166,7 @@ fn kill_process_tree(
     process_group: bool,
     _known_descendants: &BTreeSet<libc::pid_t>,
 ) {
-    #[cfg(target_os = "linux")]
-    for descendant in _known_descendants
-        .iter()
-        .copied()
-        .chain(process_descendants(pid))
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .rev()
-    {
-        unsafe {
-            let _ = libc::kill(descendant, libc::SIGKILL);
-        }
-    }
-    if process_group {
-        unsafe {
-            let _ = libc::kill(-pid, libc::SIGKILL);
-        }
-    }
+    kill_remaining_process_tree(pid, process_group, _known_descendants);
     unsafe {
         let _ = libc::kill(pid, libc::SIGKILL);
     }
@@ -2491,10 +2431,25 @@ mod tests {
     }
 
     #[test]
+    fn worker_threads_return_output_and_report_panics() {
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let worker =
+            WorkerThread::capture(Cursor::new(b"captured output"), STDERR_TRUNCATION_MARKER);
+        assert_eq!(worker.join_until(deadline), Some(b"captured output".to_vec()));
+        let worker = WorkerThread::spawn(|| panic!("test worker failure"));
+        assert_eq!(worker.join_until(deadline), None::<()>);
+    }
+
+    #[test]
     fn stderr_capture_drains_and_bounds_output() {
         let mut buffer = Vec::new();
         let input = vec![b'x'; MAX_STDERR_BYTES + 17];
-        capture_stderr(&mut Cursor::new(input), &mut buffer);
+        capture_bounded(
+            &mut Cursor::new(input),
+            &mut buffer,
+            MAX_STDERR_BYTES,
+            STDERR_TRUNCATION_MARKER,
+        );
         assert_eq!(buffer.len(), MAX_STDERR_BYTES);
         assert!(buffer.ends_with(STDERR_TRUNCATION_MARKER));
     }
