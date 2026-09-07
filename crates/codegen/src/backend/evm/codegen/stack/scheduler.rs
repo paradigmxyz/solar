@@ -101,10 +101,11 @@ use super::{
 };
 use crate::{
     backend::evm::{
+        codegen::select::{OpcodeLowering, opcode_lowering},
         ir::{ImmediateMaterialization, immediate_materialization_cost},
         op::StackOp,
     },
-    mir::{ArgIdx, BlockId, Function, InstKind, Value, ValueId, analysis::Liveness},
+    mir::{ArgIdx, BlockId, Function, InstKind, OpTraits, Value, ValueId, analysis::Liveness},
     target::{Cost, GasTier, Target},
 };
 use smallvec::SmallVec;
@@ -122,27 +123,11 @@ pub(crate) const fn is_rematerializable_leaf(value: &Value) -> bool {
 }
 
 /// Returns the opcode for a stable nullary read that is cheaper to re-emit than preserve.
-pub(crate) const fn rematerializable_nullary_opcode(kind: &InstKind) -> Option<u8> {
-    if matches!(
-        kind,
-        InstKind::CalldataSize
-            | InstKind::CodeSize
-            | InstKind::Caller
-            | InstKind::CallValue
-            | InstKind::Address
-            | InstKind::Origin
-            | InstKind::GasPrice
-            | InstKind::Coinbase
-            | InstKind::Timestamp
-            | InstKind::BlockNumber
-            | InstKind::PrevRandao
-            | InstKind::GasLimit
-            | InstKind::SlotNum
-            | InstKind::ChainId
-            | InstKind::BaseFee
-            | InstKind::BlobBaseFee
-    ) {
-        kind.evm_opcode()
+pub(crate) fn rematerializable_nullary_opcode(kind: &InstKind) -> Option<u8> {
+    if kind.op_def().traits.contains(OpTraits::REMATERIALIZABLE)
+        && let Some(OpcodeLowering::Nullary { opcode }) = opcode_lowering(&kind.op())
+    {
+        Some(opcode)
     } else {
         None
     }
@@ -154,27 +139,9 @@ pub(crate) fn rematerializable_nullary_value(func: &Function, value: ValueId) ->
     rematerializable_nullary_opcode(&func.inst(*inst_id).kind)
 }
 
-/// Returns whether an instruction result can be cheaply rebuilt from stable operands.
-const fn is_cheap_recomputable_kind(kind: &InstKind) -> bool {
-    matches!(
-        kind,
-        InstKind::Add(_, _)
-            | InstKind::Sub(_, _)
-            | InstKind::Mul(_, _)
-            | InstKind::And(_, _)
-            | InstKind::Or(_, _)
-            | InstKind::Xor(_, _)
-            | InstKind::Shl(_, _)
-            | InstKind::Shr(_, _)
-            | InstKind::Sar(_, _)
-            | InstKind::ConstructorArgsBase
-    )
-}
-
 /// Returns whether an instruction result can be rebuilt across basic blocks.
 pub(crate) const fn is_cross_block_recomputable_kind(kind: &InstKind) -> bool {
-    is_cheap_recomputable_kind(kind)
-        || rematerializable_nullary_opcode(kind).is_some()
+    kind.op_def().traits.contains(OpTraits::REMATERIALIZABLE)
         || matches!(kind, InstKind::CalldataLoad(_) | InstKind::InternalFrameAddr(_))
 }
 
@@ -2564,6 +2531,11 @@ mod tests {
         assert_eq!(rematerializable_nullary_opcode(&InstKind::SlotNum), Some(op::SLOTNUM));
         assert_eq!(rematerializable_nullary_opcode(&InstKind::BlockNumber), Some(op::NUMBER));
         assert_eq!(rematerializable_nullary_opcode(&InstKind::ReturnDataSize), None);
+        assert_eq!(rematerializable_nullary_opcode(&InstKind::Gas), None);
+        assert_eq!(rematerializable_nullary_opcode(&InstKind::MSize), None);
+        let add = InstKind::Add(ValueId::new(0), ValueId::new(1));
+        assert!(is_cross_block_recomputable_kind(&add));
+        assert_eq!(rematerializable_nullary_opcode(&add), None);
     }
 
     #[test]

@@ -2,10 +2,6 @@
 ;; `cargo nextest run -p solar-codegen evm_isle_prelude` checks this file and
 ;; `SNAPSHOTS=overwrite` refreshes it.
 
-(type U256 (primitive U256))
-(type StackOp (primitive StackOp))
-(type OptionStackOp (primitive OptionStackOp))
-
 ;; Opcode bytes, named as the constants in `backend::evm::op`.
 (extern const $STOP u8)
 (extern const $ADD u8)

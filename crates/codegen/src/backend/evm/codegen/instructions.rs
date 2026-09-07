@@ -465,11 +465,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         // Operands that the opcode consumes in operand order are pushed last to first.
         let push_order = || operands.iter().rev().copied().collect::<SmallVec<[ValueId; 8]>>();
         match lowering {
-            OpcodeLowering::Nullary(opcode) => {
+            OpcodeLowering::Nullary { opcode } => {
                 self.asm.emit_op(opcode);
                 self.scheduler.instruction_executed(0, result_value);
             }
-            OpcodeLowering::Unary(opcode) => self.emit_unary_op_with_result(
+            OpcodeLowering::Unary { opcode } => self.emit_unary_op_with_result(
                 func,
                 operands[0],
                 opcode,
@@ -478,7 +478,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 block,
                 inst_idx,
             ),
-            OpcodeLowering::Binary(opcode) => self.emit_binary_op_with_result(
+            OpcodeLowering::Binary { opcode } => self.emit_binary_op_with_result(
                 func,
                 operands[0],
                 operands[1],
@@ -488,7 +488,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 block,
                 inst_idx,
             ),
-            OpcodeLowering::Store(opcode) => self.emit_store_op_live_aware(
+            OpcodeLowering::Store { opcode } => self.emit_store_op_live_aware(
                 func,
                 operands[0],
                 operands[1],
@@ -497,7 +497,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 block,
                 inst_idx,
             ),
-            OpcodeLowering::Nary(opcode) => self.emit_nary_op(
+            OpcodeLowering::Nary { opcode } => self.emit_nary_op(
                 func,
                 &push_order(),
                 opcode,
@@ -506,10 +506,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                 block,
                 inst_idx,
             ),
-            OpcodeLowering::MemoryCopy(opcode) => {
+            OpcodeLowering::MemoryCopy { opcode } => {
                 self.emit_copy_op_live_aware(func, &push_order(), opcode, liveness, block, inst_idx)
             }
-            OpcodeLowering::Log(opcode) => {
+            OpcodeLowering::Log { opcode } => {
                 self.emit_log(func, opcode, &push_order(), liveness, block, inst_idx);
             }
         }

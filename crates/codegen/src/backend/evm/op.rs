@@ -1,6 +1,6 @@
 //! EVM opcode definitions and metadata.
 
-use crate::{mir::InstKind, target::GasTier};
+use crate::target::GasTier;
 use alloy_primitives::U256;
 use solar_config::EvmVersion;
 use solar_interface::Symbol;
@@ -475,77 +475,6 @@ pub(crate) fn push_len(evm_version: EvmVersion, value: U256) -> usize {
     if value.is_zero() && evm_version.has_push0() { 1 } else { value.byte_len().max(1) + 1 }
 }
 
-impl InstKind {
-    /// Returns the EVM opcode that directly implements this instruction.
-    pub(crate) const fn evm_opcode(&self) -> Option<u8> {
-        Some(match self {
-            Self::Add(..) => ADD,
-            Self::Sub(..) => SUB,
-            Self::Mul(..) => MUL,
-            Self::Div(..) => DIV,
-            Self::SDiv(..) => SDIV,
-            Self::Mod(..) => MOD,
-            Self::SMod(..) => SMOD,
-            Self::Exp(..) => EXP,
-            Self::AddMod(..) => ADDMOD,
-            Self::MulMod(..) => MULMOD,
-            Self::And(..) => AND,
-            Self::Or(..) => OR,
-            Self::Xor(..) => XOR,
-            Self::Not(..) => NOT,
-            Self::Clz(..) => CLZ,
-            Self::Shl(..) => SHL,
-            Self::Shr(..) => SHR,
-            Self::Sar(..) => SAR,
-            Self::Byte(..) => BYTE,
-            Self::Lt(..) => LT,
-            Self::Gt(..) => GT,
-            Self::SLt(..) => SLT,
-            Self::SGt(..) => SGT,
-            Self::Eq(..) => EQ,
-            Self::IsZero(..) => ISZERO,
-            Self::MLoad(..) => MLOAD,
-            Self::MStore(..) => MSTORE,
-            Self::MStore8(..) => MSTORE8,
-            Self::MSize => MSIZE,
-            Self::SLoad(..) => SLOAD,
-            Self::SStore(..) => SSTORE,
-            Self::TLoad(..) => TLOAD,
-            Self::TStore(..) => TSTORE,
-            Self::CalldataLoad(..) => CALLDATALOAD,
-            Self::CalldataSize => CALLDATASIZE,
-            Self::Keccak256(..) => KECCAK256,
-            Self::Caller => CALLER,
-            Self::CallValue => CALLVALUE,
-            Self::Address => ADDRESS,
-            Self::Origin => ORIGIN,
-            Self::GasPrice => GASPRICE,
-            Self::Gas => GAS,
-            Self::Timestamp => TIMESTAMP,
-            Self::BlockNumber => NUMBER,
-            Self::Coinbase => COINBASE,
-            Self::ChainId => CHAINID,
-            Self::SelfBalance => SELFBALANCE,
-            Self::BaseFee => BASEFEE,
-            Self::BlobBaseFee => BLOBBASEFEE,
-            Self::GasLimit => GASLIMIT,
-            Self::SlotNum => SLOTNUM,
-            Self::PrevRandao => PREVRANDAO,
-            Self::Balance(..) => BALANCE,
-            Self::BlockHash(..) => BLOCKHASH,
-            Self::BlobHash(..) => BLOBHASH,
-            Self::ExtCodeSize(..) => EXTCODESIZE,
-            Self::ExtCodeHash(..) => EXTCODEHASH,
-            Self::CodeSize => CODESIZE,
-            Self::ReturnDataSize => RETURNDATASIZE,
-            Self::SignExtend(..) => SIGNEXTEND,
-            Self::Create(..) => CREATE,
-            Self::Create2(..) => CREATE2,
-            _ => return None,
-        })
-    }
-}
-
 /// Returns the PUSH opcode for the given width (1-32).
 #[must_use]
 pub(crate) const fn push(width: u8) -> u8 {
@@ -608,9 +537,6 @@ pub(crate) fn isle_prelude() -> String {
         ";; Generated from the EVM opcode table by `op::isle_prelude`; do not edit.\n\
          ;; `cargo nextest run -p solar-codegen evm_isle_prelude` checks this file and\n\
          ;; `SNAPSHOTS=overwrite` refreshes it.\n\n\
-         (type U256 (primitive U256))\n\
-         (type StackOp (primitive StackOp))\n\
-         (type OptionStackOp (primitive OptionStackOp))\n\n\
          ;; Opcode bytes, named as the constants in `backend::evm::op`.\n",
     );
     for opcode in u8::MIN..=u8::MAX {
