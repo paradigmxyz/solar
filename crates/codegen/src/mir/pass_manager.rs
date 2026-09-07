@@ -184,6 +184,9 @@ fn run_passes_inner(
 }
 
 fn assert_debug_info_handled(module: &Module, pass_name: &str, when: &str) {
+    // NOTE: Keep these development-only assertions: an unclassified origin is
+    // a compiler invariant violation, not a reason to reject debug outputs in
+    // release builds. Unavailable metadata must remain unknown there.
     if !module.debug_info_is_tracked() {
         return;
     }

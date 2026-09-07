@@ -1,0 +1,8 @@
+//@ revisions: abi ethdebug resources srcmap
+//@[abi] compile-flags: --emit=abi
+//@[ethdebug] compile-flags: --emit=ethdebug
+//@[resources] compile-flags: --emit=ethdebug-resources
+//@[srcmap] compile-flags: --emit=srcmap
+//@ failure-status: 2
+// Clap rejects conflicting modes before compiler diagnostics are initialized.
+{}
