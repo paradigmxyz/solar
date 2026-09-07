@@ -1,0 +1,60 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_entry_mixed.sol:TerminalTailEntryMixed ===
+@module TerminalTailEntryMixed
+fn @fast(arg0: u256) [selector=0xaf5dbb36, pure, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    icall @fail, 0, arg0
+    stop
+}
+
+fn @blocked(arg0: u256) [selector=0xd5182b70, view, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    v0 = gas
+    v1 = gas
+    v2 = gas
+    v3 = gas
+    v4 = gas
+    v5 = gas
+    v6 = gas
+    v7 = gas
+    v8 = gas
+    v9 = gas
+    v10 = gas
+    v11 = gas
+    v12 = gas
+    v13 = gas
+    v14 = gas
+    v15 = gas
+    v16 = gas
+    v17 = gas
+    v18 = gas
+    v19 = gas
+    v20 = add v0, v1
+    v21 = add v20, v2
+    v22 = add v21, v3
+    v23 = add v22, v4
+    v24 = add v23, v5
+    v25 = add v24, v6
+    v26 = add v25, v7
+    v27 = add v26, v8
+    v28 = add v27, v9
+    v29 = add v28, v10
+    v30 = add v29, v11
+    v31 = add v30, v12
+    v32 = add v31, v13
+    v33 = add v32, v14
+    v34 = add v33, v15
+    v35 = add v34, v16
+    v36 = add v35, v17
+    v37 = add v36, v18
+    v38 = add v37, v19
+    v39 = gt v38, 0
+    v40 = add arg0, v39
+    icall @fail, 0, v40
+    stop
+}
+
+fn @fail(arg0: u256) [pure] {
+  bb0:
+    mstore 0, arg0 !metadata(memory=scratch)
+    revert 0, 32
+}

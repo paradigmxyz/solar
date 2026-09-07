@@ -1,0 +1,190 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_entry_mixed.sol:TerminalTailEntryMixed (runtime) ===
+@module TerminalTailEntryMixed_runtime
+bb0 [cold]:
+  callvalue
+  jumpi bb15, bb12
+bb12 [cold]:
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0xaf5dbb36
+  eq
+  jumpi bb18, bb17
+bb17 [cold]:
+  push 0xd5182b70
+  sub
+  jumpi bb15, bb5
+bb5 [cold]:
+  calldatasize
+  push 36
+  gt
+  jumpi bb6, bb7
+bb7 [cold]:
+  gas
+  push 128
+  mstore
+  gas
+  gas
+  gas
+  gas
+  gas
+  gas
+  gas
+  gas
+  gas
+  push 160
+  mstore
+  gas
+  push 192
+  mstore
+  gas
+  push 224
+  mstore
+  gas
+  push 256
+  mstore
+  gas
+  push 288
+  mstore
+  gas
+  push 320
+  mstore
+  gas
+  push 352
+  mstore
+  gas
+  push 384
+  mstore
+  gas
+  push 416
+  mstore
+  gas
+  push 448
+  mstore
+  gas
+  push 480
+  mstore
+  push 128
+  mload
+  swap 8
+  swap 1
+  swap 2
+  swap 3
+  swap 4
+  swap 5
+  swap 6
+  swap 7
+  swap 8
+  add
+  swap 7
+  swap 1
+  swap 2
+  swap 3
+  swap 4
+  swap 5
+  swap 6
+  swap 7
+  add
+  swap 6
+  swap 1
+  swap 2
+  swap 3
+  swap 4
+  swap 5
+  swap 6
+  add
+  swap 5
+  swap 1
+  swap 2
+  swap 3
+  swap 4
+  swap 5
+  add
+  swap 4
+  swap 1
+  swap 2
+  swap 3
+  swap 4
+  add
+  swap 2
+  swap 3
+  swap 1
+  swap 2
+  add
+  exchange 1, 2
+  add
+  add
+  push 160
+  mload
+  add
+  push 192
+  mload
+  add
+  push 224
+  mload
+  add
+  push 256
+  mload
+  add
+  push 288
+  mload
+  add
+  push 320
+  mload
+  add
+  push 352
+  mload
+  add
+  push 384
+  mload
+  add
+  push 416
+  mload
+  add
+  push 448
+  mload
+  add
+  push 480
+  mload
+  add
+  push 0
+  lt
+  push 4
+  calldataload
+  add
+  dup 1
+  push 128
+  mstore
+  dup 1
+  push 576
+  mstore
+  jump bb9
+bb2 [cold]:
+  push 0
+  push 0
+  revert
+bb6 [cold]:
+  push 0
+  push 0
+  revert
+bb15 [cold]:
+  push 0
+  push 0
+  revert
+bb18 [cold]:
+  calldatasize
+  push 36
+  gt
+  jumpi bb2, bb3
+bb3 [cold]:
+  push 4
+  calldataload
+  jump bb9
+bb9 [cold]:
+  push 0
+  mstore
+  push 32
+  push 0
+  revert
