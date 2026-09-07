@@ -25,6 +25,9 @@
 //! The pass performs dominator-tree CSE with path-local invalidation for
 //! alias-sensitive memory/storage reads, then runs a local cleanup pass.
 //!
+//! Loads at allocation bases stay local unless the cached value already crosses the block edge.
+//! Extending their lifetimes can add a spill whose store and reload cost more than the load.
+//!
 //! Safety contract:
 //! - cache only pure expressions, classified memory reads, and exact storage or transient-storage
 //!   reads
@@ -40,8 +43,8 @@ use crate::mir::{
     Instruction, MemoryObjectKind, MemoryObjectLayout, MirType, Module, SliceLocation,
     StorageAlias, Value, ValueId,
     analysis::{
-        Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, Location, LocationSize,
-        MemoryCallSummaries, MemoryLocation,
+        Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, Liveness, Location,
+        LocationSize, MemoryCallSummaries, MemoryLocation,
     },
     pass::{MirPass, run_function_pass},
     utils as mir_utils,
@@ -51,7 +54,7 @@ use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
     map::FxHashMap,
 };
-use std::{cmp::Ordering, rc::Rc, sync::Arc};
+use std::{cell::OnceCell, cmp::Ordering, rc::Rc, sync::Arc};
 
 /// Function pass for local common subexpression elimination.
 pub(crate) struct Cse;
@@ -167,6 +170,7 @@ enum OperandKey {
 type MemRangeKey = MemoryLocation;
 
 struct GlobalCseContext<'a> {
+    liveness: OnceCell<Liveness>,
     dom_tree: &'a DominatorTree,
     block_clobbers: &'a [(BlockId, Vec<Clobber>)],
     reachability: &'a FxHashMap<BlockId, DenseBitSet<BlockId>>,
@@ -218,8 +222,12 @@ impl ExprCache {
 
     /// Retains the state-dependent entries matching `keep`. The pure entries are
     /// untouched, which is why no clobber has to walk them.
-    fn retain_stateful(&mut self, keep: impl FnMut(&ExprKey, &mut ValueId) -> bool) {
-        Rc::make_mut(&mut self.stateful).retain(keep);
+    fn retain_stateful(&mut self, keep: impl Fn(&ExprKey, &ValueId) -> bool) {
+        if Rc::strong_count(&self.stateful) == 1
+            || self.stateful.iter().any(|(key, value)| !keep(key, value))
+        {
+            Rc::make_mut(&mut self.stateful).retain(|key, value| keep(key, value));
+        }
     }
 }
 
@@ -339,6 +347,7 @@ impl CommonSubexprEliminator {
         let mut replacements = FxHashMap::default();
         let mut dead = DenseBitSet::new_empty(func.num_insts());
         let mut ctx = GlobalCseContext {
+            liveness: OnceCell::new(),
             dom_tree,
             block_clobbers: &block_clobbers,
             reachability,
@@ -523,10 +532,10 @@ impl CommonSubexprEliminator {
             };
             for &child in remaining_children.iter().rev() {
                 let mut child_cache = cache.clone();
-                self.filter_inherited_cache(block_id, child, &mut child_cache, ctx);
+                self.filter_inherited_cache(func, block_id, child, &mut child_cache, ctx);
                 worklist.push((child, child_cache));
             }
-            self.filter_inherited_cache(block_id, first_child, &mut cache, ctx);
+            self.filter_inherited_cache(func, block_id, first_child, &mut cache, ctx);
             worklist.push((first_child, cache));
         }
     }
@@ -541,11 +550,21 @@ impl CommonSubexprEliminator {
     /// it lies on a cycle (clobbers wrap around the backedge to the child's entry).
     fn filter_inherited_cache(
         &self,
+        func: &Function,
         parent: BlockId,
         child: BlockId,
         cache: &mut ExprCache,
         ctx: &GlobalCseContext<'_>,
     ) {
+        cache.retain_stateful(|key, value| {
+            !matches!(key, ExprKey::MLoad(location)
+                if location.address.is_allocation_base())
+                || ctx
+                    .liveness
+                    .get_or_init(|| Liveness::compute(func))
+                    .live_in(child)
+                    .contains(*value)
+        });
         if ctx.block_clobbers.is_empty() || !cache.has_stateful() {
             return;
         }

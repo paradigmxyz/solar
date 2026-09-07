@@ -113,6 +113,11 @@ impl MemoryAddress {
         }
     }
 
+    /// Returns whether this address is the base of a fresh allocation.
+    pub(crate) fn is_allocation_base(self) -> bool {
+        self.offset == 0 && matches!(self.base, MemoryBase::Allocation(_))
+    }
+
     /// Returns this address advanced by `offset`, if it fits.
     #[must_use]
     pub(crate) fn checked_add(self, offset: u64) -> Option<Self> {
@@ -660,8 +665,12 @@ impl AliasAnalysis {
                         .is_some_and(|(end, bound)| end <= bound)
             });
             if !within_bounds {
+                // A fresh allocation's nonnegative offsets can reach other heap objects while
+                // staying outside reserved memory. Loop allocations may follow an FMP reset.
+                if matches!(address.base, MemoryBase::DynamicAllocation(_)) {
+                    address.region = MemoryRegion::Unknown;
+                }
                 address.base = MemoryBase::Value(func.inst_result_value(inst)?);
-                address.region = MemoryRegion::Unknown;
             }
         }
         Some(MemoryLocation::new(address, size))

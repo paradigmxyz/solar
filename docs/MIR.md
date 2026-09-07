@@ -219,7 +219,9 @@ accesses must conservatively alias unless a disjointness proof exists. Allocatio
 provenance uses shared CFG cycle facts to distinguish joins from loops. Data
 pointers retain a proven lower bound from their object, so writes to allocation
 contents do not appear to reset the free-memory pointer. Raw pointer conversions
-still need a proof that they avoid reserved memory. Do not
+still need a proof that they avoid reserved memory. An access beyond a proven
+fresh allocation can overlap other heap objects while retaining its heap region;
+loop allocations lack this guarantee after an explicit pointer reset. Do not
 attach heap-allocated effect records to every instruction. Unknown calls remain
 conservative; known intrinsics expose their summaries without expanding their
 implementation.
@@ -466,8 +468,14 @@ not only total size. CFG maintenance changes must retain behavior; fewer repair
 scans alone are not evidence of better generated code. Debug metadata must stay
 bytecode-neutral throughout these rewrites.
 
-Static allocation also needs a gas cost model. Raising a shared frame region can
-increase memory expansion in other entry points, even when every address keeps
-the same PUSH width. Deferring individual allocations can also prevent their
-coalescing into one dynamic bump. The current layout checks PUSH widths; these
-remaining costs need per-entry runtime measurements before broadening placement.
+Static allocation keeps shared frames fixed so one entry's local objects cannot
+raise another entry's heap floor. Locals go before spills when their PUSH widths
+stay unchanged, after spills when they fit below shared frames, or after the
+entry's reachable frames. A reserved heap prefix stays between these locals and
+the initial free-memory pointer.
+
+CSE and load PRE avoid extending a load from an allocation base across blocks
+solely to eliminate a cheap reload. They can reuse a value already live across
+the edge, and load PRE prefers an equivalent constant or already-live value.
+The EVM revert pass removes an existing branch inversion around a cold payload
+when success can fall through after layout; it preserves the payload's target.

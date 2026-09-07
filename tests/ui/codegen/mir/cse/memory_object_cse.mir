@@ -35,3 +35,53 @@ fn @invalidate_length(arg0: memorybytes) -> u256 {
     v5 = add v4, v3
     ret v5
 }
+
+// CHECK-LABEL: {{^[ +].*}}fn @keep_local_length{{[( ]}}
+// CHECK:       bb1:
+// CHECK-NEXT:       [[LOCAL:v[0-9]+]] = memory_object_len memorybytes,
+// CHECK-NEXT:       ret [[LOCAL]]
+fn @keep_local_length() -> u256 {
+  bb0:
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 32
+    v1 = memory_object_len memorybytes, v0
+    jumpi v1, bb1, bb2
+  bb1:
+    v2 = memory_object_len memorybytes, v0
+    ret v2
+  bb2:
+    ret 0
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @reuse_live_length{{[( ]}}
+// CHECK: -     {{v[0-9]+}} = memory_object_len memorybytes,
+// CHECK: +     {{v[0-9]+}} = add [[LIVE:v[0-9]+]], [[LIVE]]
+fn @reuse_live_length() -> u256 {
+  bb0:
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 32
+    v1 = memory_object_len memorybytes, v0
+    jumpi v1, bb1, bb2
+  bb1:
+    v2 = memory_object_len memorybytes, v0
+    v3 = add v1, v2
+    ret v3
+  bb2:
+    ret 0
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @reuse_struct_field{{[( ]}}
+// CHECK:       [[FIELD:v[0-9]+]] = mload
+// CHECK: -     {{v[0-9]+}} = mload
+// CHECK: +     {{v[0-9]+}} = add [[FIELD]], [[FIELD]]
+fn @reuse_struct_field() -> u256 {
+  bb0:
+    v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    v1 = memory_object_field_addr memorystruct<1>, v0, 0
+    v2 = mload v1
+    jumpi v2, bb1, bb2
+  bb1:
+    v3 = mload v1
+    v4 = add v2, v3
+    ret v4
+  bb2:
+    ret 0
+}

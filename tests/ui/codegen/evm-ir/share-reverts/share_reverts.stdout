@@ -15,4 +15,35 @@
     revert
   bb2:
     stop
+  bb3:
+    calldatasize
+-   iszero
+-   push bb5
++   push bb4
+    jumpi
+-   jump bb4
++   jump bb5
+  bb4 [cold]:
+    push 17
+    push 0
+    mstore
+    push 32
+    push 0
+    revert
+  bb5:
+    stop
+  bb6:
+    calldatasize
+    push bb8
+    jumpi
+    jump bb7
+  bb7 [cold]:
+    push 18
+    push 0
+    mstore
+    push 32
+    push 0
+    revert
+  bb8:
+    stop
   

@@ -27,3 +27,53 @@ bb1 [cold]:
   revert
 bb2:
   stop
+
+// CHECK-LABEL: {{^[ +].*}}bb3:
+// CHECK: - iszero
+// CHECK: - push bb5
+// CHECK: + push bb4
+// CHECK: - jump bb4
+// CHECK: + jump bb5
+bb3:
+  calldatasize
+  iszero
+  push bb5
+  jumpi
+  jump bb4
+
+// CHECK-LABEL: {{^[ +].*}}bb4 [cold]:
+// CHECK-NEXT: {{^[ +].*}}push 17
+// CHECK-NEXT: {{^[ +].*}}push 0
+// CHECK-NEXT: {{^[ +].*}}mstore
+// CHECK-NEXT: {{^[ +].*}}push 32
+// CHECK-NEXT: {{^[ +].*}}push 0
+// CHECK-NEXT: {{^[ +].*}}revert
+bb4 [cold]:
+  push 17
+  push 0
+  mstore
+  push 32
+  push 0
+  revert
+bb5:
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb6:
+// CHECK-NEXT: {{^[ +].*}}calldatasize
+// CHECK-NEXT: {{^[ +].*}}push bb8
+// CHECK-NEXT: {{^[ +].*}}jumpi
+// CHECK-NEXT: {{^[ +].*}}jump bb7
+bb6:
+  calldatasize
+  push bb8
+  jumpi
+  jump bb7
+bb7 [cold]:
+  push 18
+  push 0
+  mstore
+  push 32
+  push 0
+  revert
+bb8:
+  stop

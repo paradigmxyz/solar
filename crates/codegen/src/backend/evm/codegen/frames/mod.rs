@@ -483,7 +483,6 @@ impl<'gcx> EvmCodegen<'gcx> {
             recursive_span += self.emitted_frame_size(module, func_id);
         }
 
-        let mut static_span = recursive_span;
         for &func_id in &placed {
             let frame_size = self.emitted_frame_size(module, func_id);
             assert!(
@@ -496,20 +495,12 @@ impl<'gcx> EvmCodegen<'gcx> {
                 "static frame reference exceeds emitted frame size for `{}`",
                 module.functions[func_id].name
             );
-            let relative = *frame_relative
+            frame_relative
                 .entry(func_id)
                 .or_insert_with(|| recursive_span + depth.get(&func_id).copied().unwrap_or(0));
-            static_span = static_span.max(relative + frame_size);
         }
 
-        let layout = |max_entry_end: u64| {
-            if placed.is_empty() {
-                (max_entry_end, max_entry_end)
-            } else {
-                let start = max_entry_end.max(low_memory_end);
-                (start, start + static_span)
-            }
-        };
+        let region_start = entry_ends.values().copied().max().unwrap_or(0).max(low_memory_end);
         let reachable_static_spans: FxHashMap<FunctionId, u64> = self
             .runtime_entry_reachability
             .iter()
@@ -555,14 +546,13 @@ impl<'gcx> EvmCodegen<'gcx> {
                 floor.max(low_memory_end)
             };
 
-        // Prefer eligible allocations before each entry's exact spill area,
-        // then fall back to appending them after spills when only spill pushes
-        // prevent the lower placement.
+        // Keep shared frames fixed so one entry's local allocations cannot raise another
+        // entry's heap floor. Place locals before spills if that preserves their PUSH widths,
+        // then after spills if they fit below shared frames, otherwise after reachable frames.
         // Entries overlay because only one runtime entry executes per call.
-        // Reject any proposal that widens a shared heap/static-frame or
-        // ranked-spill push.
         let mut static_alloc_sizes: FxHashMap<FunctionId, u64> = FxHashMap::default();
         let mut post_spill_entries = FxHashSet::default();
+        let mut heap_alloc_ends = FxHashMap::<FunctionId, u64>::default();
         for func_id in runtime_entries {
             let Some(allocations) = self.pending_static_allocs.remove(&func_id) else { continue };
             for (alloc, size) in allocations {
@@ -570,34 +560,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                 let proposed_static_size = current_static_size + size;
                 let current_end = entry_ends[&func_id];
                 let proposed_end = current_end + size;
-                let before_max = entry_ends.values().copied().max().unwrap_or(0);
-                let after_max = entry_ends
-                    .iter()
-                    .map(|(&entry, &end)| if entry == func_id { proposed_end } else { end })
-                    .max()
-                    .unwrap_or(proposed_end);
-                let (before_start, _) = layout(before_max);
-                let (after_start, _) = layout(after_max);
-
-                let mut addresses = Vec::with_capacity(self.static_frame_addr_consts.len() + 1);
-                for &entry in self.runtime_free_memory_consts.keys() {
-                    addresses.push(RelayoutAddress {
-                        before: free_memory_floor(entry, &entry_ends, before_start),
-                        after: free_memory_floor(entry, &entry_ends, after_start),
-                        references: 1,
-                    });
-                }
-                addresses.extend(self.static_frame_addr_consts.iter().map(
-                    |(&(static_func, offset), &(_, references))| {
-                        let relative = frame_relative[&static_func] + offset;
-                        RelayoutAddress {
-                            before: before_start + relative,
-                            after: after_start + relative,
-                            references,
-                        }
-                    },
-                ));
-                let global_width_neutral = preserves_push_width(addresses.iter().copied());
+                let prefix_fits = !heap_alloc_ends.contains_key(&func_id)
+                    && (placed.is_empty() || proposed_end <= region_start);
                 let spills_width_neutral =
                     self.external_spill_addr_consts.get(&func_id).is_none_or(|spills| {
                         let base = entry_bases[&func_id];
@@ -613,15 +577,12 @@ impl<'gcx> EvmCodegen<'gcx> {
                         ))
                     });
 
-                if global_width_neutral
-                    && spills_width_neutral
-                    && !post_spill_entries.contains(&func_id)
-                {
+                if prefix_fits && spills_width_neutral && !post_spill_entries.contains(&func_id) {
                     let static_address = entry_bases[&func_id] + current_static_size;
                     self.asm.set_deferred_alloc_static(alloc, U256::from(static_address));
                     entry_ends.insert(func_id, proposed_end);
                     static_alloc_sizes.insert(func_id, proposed_static_size);
-                } else if global_width_neutral {
+                } else if prefix_fits {
                     // If inserting before spills would widen one of their
                     // pushes, append after the exact spill area instead. Once
                     // an entry uses this suffix, later allocations must stay
@@ -630,7 +591,14 @@ impl<'gcx> EvmCodegen<'gcx> {
                     entry_ends.insert(func_id, proposed_end);
                     post_spill_entries.insert(func_id);
                 } else {
-                    self.asm.set_deferred_alloc_dynamic(alloc, U256::from(size));
+                    // alloc = reachable_frame_end + preceding_local_allocations
+                    // fmp = alloc + size + heap_prefix_guard
+                    let address = heap_alloc_ends.get(&func_id).copied().unwrap_or_else(|| {
+                        free_memory_floor(func_id, &entry_ends, region_start)
+                            - reachable_heap_prefix_guards.get(&func_id).copied().unwrap_or(0)
+                    });
+                    self.asm.set_deferred_alloc_static(alloc, U256::from(address));
+                    heap_alloc_ends.insert(func_id, address + size);
                 }
             }
         }
@@ -652,8 +620,6 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
 
-        let max_entry_end = entry_ends.values().copied().max().unwrap_or(0);
-        let (region_start, _) = layout(max_entry_end);
         for (&(func_id, offset), &(id, _)) in &self.static_frame_addr_consts {
             let relative = frame_relative[&func_id] + offset;
             self.asm.set_deferred_const(id, U256::from(region_start + relative));
@@ -662,7 +628,15 @@ impl<'gcx> EvmCodegen<'gcx> {
             .runtime_free_memory_consts
             .keys()
             .copied()
-            .map(|entry| (entry, free_memory_floor(entry, &entry_ends, region_start)))
+            .map(|entry| {
+                let floor = free_memory_floor(entry, &entry_ends, region_start);
+                let local_end = heap_alloc_ends.get(&entry).copied().unwrap_or(0);
+                let guard = reachable_heap_prefix_guards.get(&entry).copied().unwrap_or(0);
+                (
+                    entry,
+                    floor.max(local_end.checked_add(guard).expect("runtime heap prefix overflow")),
+                )
+            })
             .collect();
         for (entry, id) in self.runtime_free_memory_consts.drain() {
             let floor = free_memory_floors[&entry];

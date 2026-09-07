@@ -49,6 +49,10 @@
 //! predecessor). If no concrete value can be located (the value only exists as a
 //! cross-path merge), the predecessor is treated as unavailable.
 //!
+//! For words at allocation bases, prefer an equivalent constant or a value already live at the
+//! predecessor's exit. A fully redundant reload stays in place if forwarding would extend a
+//! value's lifetime across the join solely to save this cheap load.
+//!
 //! # Safety of rewrites
 //!
 //! A join load is a candidate only if no kill of its key precedes it in the join block.
@@ -76,8 +80,8 @@ use crate::mir::{
     BlockId, Function, InstId, InstKind, Instruction, InstructionMetadata, MemoryObjectKind,
     MemoryRegion, MirType, Module, StorageAlias, Terminator, Value, ValueId,
     analysis::{
-        Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, Location, LocationSize,
-        MemoryAddress, MemoryLocation, ModRef,
+        Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, Liveness, Location,
+        LocationSize, MemoryAddress, MemoryLocation, ModRef,
     },
     pass::{MirPass, run_function_pass},
     utils as mir_utils,
@@ -87,7 +91,7 @@ use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
     map::{FxHashMap, FxHashSet},
 };
-use std::{collections::BTreeMap, rc::Rc};
+use std::{cell::OnceCell, collections::BTreeMap, rc::Rc};
 
 /// Function pass for load PRE.
 pub(crate) struct LoadPre;
@@ -131,6 +135,7 @@ impl LoadPreStats {
 /// Dataflow-based redundancy eliminator for memory-dependent reads.
 #[derive(Debug, Default)]
 struct LoadRedundancyEliminator {
+    liveness: OnceCell<Liveness>,
     /// Shared CFG snapshot for the availability dataflow.
     cfg: Option<Rc<CfgInfo>>,
     stats: LoadPreStats,
@@ -436,6 +441,7 @@ impl LoadRedundancyEliminator {
         let mut inserted_insts = GrowableBitSet::with_capacity(func.num_insts());
 
         while rewrites < rewrite_limit {
+            self.liveness.take();
             let Some(analysis) = self.compute_analysis(func) else { break };
             let mut cx = CandidateCx {
                 analysis: &analysis,
@@ -816,6 +822,20 @@ impl LoadRedundancyEliminator {
             || incoming.first().is_none_or(|&(_, first)| {
                 first == result || incoming.iter().any(|&(_, value)| value != first)
             });
+        if !needs_phi
+            && matches!(key, LoadKey::Memory(address)
+                if address.is_allocation_base())
+            && incoming.first().is_some_and(|&(_, value)| {
+                !matches!(func.value(value), Value::Immediate(_))
+                    && !self
+                        .liveness
+                        .get_or_init(|| Liveness::compute(func))
+                        .live_in(target)
+                        .contains(value)
+            })
+        {
+            return None;
+        }
         let model = LoadPreCostModel;
         let cost = model.estimate(LoadPreCostInput {
             func,
@@ -915,20 +935,37 @@ impl LoadRedundancyEliminator {
         key_idx: usize,
     ) -> Option<ValueId> {
         let key = cx.analysis.keys[key_idx];
+        let prefer_live = matches!(key, LoadKey::Memory(address)
+            if address.is_allocation_base());
+        let mut found = None;
         for &inst_id in func.blocks[block].instructions.iter().rev() {
             if let Some((gen_key, source)) = self.gen_key_value(func, inst_id)
                 && gen_key == key
             {
                 // A store's exact-key gen wins over its own kill: the slot
                 // holds the stored value from this point on.
-                return match source {
-                    GenSource::LoadResult => func.inst_result_value(inst_id),
-                    GenSource::Stored(value) => Some(value),
+                let value = match source {
+                    GenSource::LoadResult => func.inst_result_value(inst_id)?,
+                    GenSource::Stored(value) => value,
                 };
+                if !prefer_live
+                    || matches!(func.value(value), Value::Immediate(_))
+                    || self
+                        .liveness
+                        .get_or_init(|| Liveness::compute(func))
+                        .live_out(block)
+                        .contains(value)
+                {
+                    return Some(value);
+                }
+                found.get_or_insert(value);
             }
             if self.inst_kills_key(func, inst_id, key) {
-                return None;
+                return found;
             }
+        }
+        if found.is_some() {
+            return found;
         }
 
         // The block is transparent for the key: the value at its end is the
