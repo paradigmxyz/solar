@@ -13,6 +13,7 @@ use lsp_types::{
 use solar_config::{CompileOpts, ImportRemapping};
 use std::{
     future::Future,
+    sync::Arc,
     task::{Context, Poll, Waker},
 };
 use tower::Service;
@@ -168,7 +169,7 @@ async fn returns_stale_completion_item_unchanged_when_symbol_is_deleted() {
         )],
     ));
     assert!(replacement.diagnostics.is_empty());
-    *symbol_tables.write() = replacement.symbol_tables;
+    symbol_tables.store(Arc::new(replacement.symbol_tables));
 
     let resolved = request_resolve_item(&mut router, item.clone()).await;
 
@@ -229,7 +230,7 @@ async fn validates_completion_data_before_waiting_and_uses_latest_analysis() {
     assert!(request.as_mut().poll(&mut context).is_pending());
 
     let mut snapshot = state.snapshot();
-    assert!(snapshot.publish_symbol_tables(1, replacement.symbol_tables));
+    assert!(snapshot.publish_symbol_tables(1, Arc::new(replacement.symbol_tables)));
     let Poll::Ready(response) = request.as_mut().poll(&mut context) else {
         panic!("resolve should complete after analysis is published");
     };
@@ -345,7 +346,7 @@ async fn resolves_only_compatible_completion_items_across_analysis_batches() {
     let state = GlobalState::new(ClientSocket::new_closed());
     *state.vfs.write() = project.vfs();
     let symbol_tables = state.symbol_tables.clone();
-    *symbol_tables.write() = left.symbol_tables.clone();
+    symbol_tables.store(Arc::new(left.symbol_tables.clone()));
     let mut router = crate::new_router_with_state(state);
     let item = request_completion_item_at(
         &mut router,
@@ -360,7 +361,7 @@ async fn resolves_only_compatible_completion_items_across_analysis_batches() {
     let mut results = AnalysisResultAccumulator::default();
     results.push(left);
     results.push(equivalent);
-    *symbol_tables.write() = results.finish().symbol_tables;
+    symbol_tables.store(Arc::new(results.finish().symbol_tables));
 
     let resolved = request_resolve_item(&mut router, item.clone()).await;
     assert!(resolved.documentation.is_some());
@@ -380,7 +381,7 @@ async fn resolves_only_compatible_completion_items_across_analysis_batches() {
     let mut results = AnalysisResultAccumulator::default();
     results.push(left);
     results.push(right);
-    *symbol_tables.write() = results.finish().symbol_tables;
+    symbol_tables.store(Arc::new(results.finish().symbol_tables));
 
     let resolved = request_resolve_item(&mut router, item.clone()).await;
 
@@ -409,7 +410,7 @@ async fn returns_completion_item_unchanged_for_conflicting_source_snapshots() {
     let mut results = AnalysisResultAccumulator::default();
     results.push(current);
     results.push(shifted);
-    *symbol_tables.write() = results.finish().symbol_tables;
+    symbol_tables.store(Arc::new(results.finish().symbol_tables));
 
     let resolved = request_resolve_item(&mut router, item.clone()).await;
 

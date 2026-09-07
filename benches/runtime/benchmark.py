@@ -1754,7 +1754,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         description="Benchmark solc vs Solar codegen on inline and repository contracts"
     )
     parser.add_argument(
-        "--solc", default="solc", help="Path to solc binary (default: solc)"
+        "--solc",
+        help="Path to solc binary; enables solc comparison unless --solar-only is set",
     )
     parser.add_argument(
         "--solar",
@@ -1791,7 +1792,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--solar-only",
         action="store_true",
-        help="Benchmark Solar without compiling each case with solc",
+        help="Skip solc benchmark compilation even when --solc is supplied",
     )
     parser.add_argument(
         "--reference-results",
@@ -1849,9 +1850,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="Exit successfully even if a compiler fails for one or more tests",
     )
     args = parser.parse_args(argv)
+    args.solar_only = args.solar_only or args.solc is None
 
     if args.reference_results and not args.solar_only:
-        parser.error("--reference-results requires --solar-only")
+        parser.error("--reference-results with --solc requires --solar-only")
     try:
         reference_results = (
             load_reference_results(args.reference_results)
