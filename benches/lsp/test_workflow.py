@@ -1177,8 +1177,7 @@ class ExecutionAndRemovalTests(unittest.TestCase):
                 1,
             )
             self.assertIn('mkdir -p "$RUNNER_TEMP/lsp-bench-bin"', job)
-            self.assertIn("runs-on: ubuntu-latest", job)
-            self.assertNotIn("depot-ubuntu-latest", job)
+            self.assertIn("runs-on: depot-ubuntu-latest", job)
         self.assertEqual(
             WORKFLOW.count(
                 "cargo build --locked --release -p solar-compiler --bin solar"
@@ -1219,8 +1218,7 @@ class ExecutionAndRemovalTests(unittest.TestCase):
         self.assertIn('patch --batch --forward --directory="$source_dir"', compute)
         self.assertIn('--lsp-bench "$RUNNER_TEMP/lsp-bench-tool/lsp-bench"', compute)
         self.assertNotIn("lsp_filter.py", WORKFLOW)
-        self.assertIn("runs-on: ubuntu-latest", compute)
-        self.assertNotIn("depot-ubuntu-latest", compute)
+        self.assertIn("runs-on: depot-ubuntu-latest", compute)
 
     def test_existing_benchmark_workflow_tracks_tested_merge_base(self) -> None:
         trigger = BENCH_WORKFLOW.split("\nenv:", 1)[0]

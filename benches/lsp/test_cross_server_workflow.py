@@ -281,14 +281,14 @@ class CrossServerWorkflowTests(unittest.TestCase):
 
         self.assertIn("if: github.event_name == 'pull_request'", pr)
         self.assertIn("continue-on-error: true", pr)
-        self.assertIn("runs-on: ubuntu-24.04", pr)
+        self.assertIn("runs-on: depot-ubuntu-latest", pr)
         self.assertIn("contents: read", pr)
         self.assertIn("cancel-in-progress: true", pr)
         self.assertIn(
             "if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'",
             full,
         )
-        self.assertIn("runs-on: ubuntu-24.04", full)
+        self.assertIn("runs-on: depot-ubuntu-latest", full)
         self.assertIn("timeout-minutes: 360", full)
         self.assertIn("contents: read", full)
         self.assertIn("cancel-in-progress: false", full)

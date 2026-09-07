@@ -13,7 +13,7 @@ jobs:
   pr-smoke:
     name: cross-server PR smoke
     if: github.event_name == 'pull_request'
-    runs-on: ubuntu-24.04
+    runs-on: depot-ubuntu-latest
     timeout-minutes: 30
     continue-on-error: true
     env:
@@ -225,7 +225,7 @@ jobs:
   full:
     name: full cross-server comparison
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-24.04
+    runs-on: depot-ubuntu-latest
     timeout-minutes: 360
     permissions:
       contents: read
