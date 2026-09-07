@@ -130,3 +130,13 @@ interpret the shared-host dev measurements as precise release-speed changes.
   and document conversion remain on their original sides of timing boundaries.
 - Covered by the final Rust suite, lint/typecheck, and recorded main/candidate
   measurements above.
+
+## Shared test transport and request setup
+
+- Shared nineteen identical paired LSP transports through `spawn_lsp_pair`.
+  Buffer capacity, server/client spawn order, routers, task ownership, and
+  shutdown behavior remain unchanged. Raw one-sided protocol tests stay local.
+- Reused completion-change and selection-range setup in request fixtures.
+- Kept the existing manual file-read helper because the repository disallows
+  `fs::read_to_string`; the shorter replacement introduced a lint warning.
+- The final Rust tests and warning-free scoped Clippy run cover these changes.
