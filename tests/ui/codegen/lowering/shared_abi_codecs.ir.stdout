@@ -291,9 +291,7 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
     mstore 128, v94
     returndata 128, 32
   bb25:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    tail_call @revert_stub
   bb37:
     v141 = mload v138
     v142 = add v113, v141
@@ -407,6 +405,13 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
     revert 0, 36
   bb10:
     revert 0, 0
+}
+
+fn @revert_stub() {
+  bb0:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @decode_calldata_type(arg0: u256) -> memptr {

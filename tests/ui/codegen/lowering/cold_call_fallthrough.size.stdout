@@ -52,21 +52,12 @@ bb8 [cold]:
   jump bb15
 bb15 [cold]:
   dup 1
-  iszero
-  push bb18
+  push bb17
   jumpi
-  push 1
-  dup 2
-  eq
-  push bb19
-  jumpi
-  push 2
-  eq
-  push bb20
-  jumpi
-  push 5
-  push 0x6f74686572
-  push 216
+  pop
+  push 4
+  push 0x7a65726f
+  push 224
   shl
   jump bb22
 bb22 [cold]:
@@ -107,16 +98,23 @@ bb13 [cold]:
   push 4
   calldataload
   jump bb15
-bb18 [cold]:
-  pop
-  push 4
-  push 0x7a65726f
-  push 224
+bb17 [cold]:
+  push 1
+  dup 2
+  eq
+  push bb21
+  jumpi
+  push 2
+  eq
+  push bb20
+  jumpi
+  push 5
+  push 0x6f74686572
+  push 216
   shl
   jump bb22
-bb19 [cold]:
-  pop
-  push 0x6f6e65
+bb20 [cold]:
+  push 0x74776f
   jump bb24
 bb24 [cold]:
   push 232
@@ -124,6 +122,7 @@ bb24 [cold]:
   push 3
   swap 1
   jump bb22
-bb20 [cold]:
-  push 0x74776f
+bb21 [cold]:
+  pop
+  push 0x6f6e65
   jump bb24

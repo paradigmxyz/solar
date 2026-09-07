@@ -256,3 +256,16 @@ fn @checked_modular_zero(arg0: u256) {
     v1 = checked_mulmod 0, arg0, 0
     ret
 }
+
+// CHECK-LABEL: fn @check_polarity
+// CHECK: + panic_if_zero arg0, 0x1
+// CHECK: + panic_if arg0, 0x11
+// CHECK: + revert_if_zero arg0, tuple_data_too_short
+fn @check_polarity(arg0: u256) {
+  bb0:
+    v0 = iszero arg0
+    panic_if v0, 0x1
+    panic_if_zero v0, 0x11
+    revert_if v0, tuple_data_too_short
+    ret
+}

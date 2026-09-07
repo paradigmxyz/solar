@@ -202,18 +202,10 @@ bb35:
   calldataload
   dup 3
   lt
-  push bb38
+  push bb39
   jumpi
   jump bb52
-bb37:
-  push 1
-  push 224
-  mload
-  add
-  push 192
-  mload
-  jump bb35
-bb38:
+bb39:
   push 192
   mstore
   push 0
@@ -221,22 +213,32 @@ bb38:
   mstore
   push 224
   mstore
-  jump bb39
-bb39:
+  jump bb37
+bb37:
   push 36
   calldataload
   push 160
   mload
   lt
-  iszero
-  push bb37
+  push bb40
   jumpi
+  push 1
+  push 224
+  mload
+  add
+  push 192
+  mload
+  jump bb35
+bb40:
   push 224
   mload
   push 160
   mload
   dup 2
   add
+  dup 2
+  push 224
+  mstore
   dup 2
   dup 2
   lt
@@ -273,7 +275,7 @@ bb39:
   mstore
   pop
   pop
-  jump bb39
+  jump bb37
 bb46:
   push 100
   calldatasize

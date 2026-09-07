@@ -184,7 +184,6 @@ pub static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     &jump_threading::JumpThreading,
     &cfg_simplify::CfgSimplify,
     &sroa::Sroa,
-    &copy_elision::CopyElision,
     &memory_dse::MemoryDse,
     &adce::Adce,
     &dce::Dce,
@@ -207,9 +206,11 @@ pub static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
 pub static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &lower_checks::LowerChecks,
     &lower_builtins::LowerBuiltins,
-    // Share source and builtin checks before expanding arithmetic checks.
-    &outline_reverts::OutlineReverts,
+    // Gas mode keeps arithmetic failure edges local for stack scheduling.
+    &GasOnly::new(outline_reverts::OutlineReverts),
     &lower_arithmetic::LowerArithmetic,
+    // Size mode shares arithmetic payloads too, before selecting stack layouts.
+    &SizeOnly::new(outline_reverts::OutlineReverts),
     // Expansion exposes scalar checks and object copies to this bounded cleanup group.
     &sccp::Sccp,
     &inst_simplify::InstSimplify,
@@ -218,6 +219,7 @@ pub static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &jump_threading::JumpThreading,
     &cfg_simplify::CfgSimplify,
     &frame_promotion::FrameSlotPromotion,
+    &copy_elision::CopyElision,
     &memory_dse::MemoryDse,
     &adce::Adce,
     &lower_abi::LowerAbi,

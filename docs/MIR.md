@@ -490,3 +490,20 @@ It moves the whole fallthrough trace, so moving a shared exit does not insert
 jumps between its predecessor blocks. Multi-block traces must end at an exit
 with at least four references beyond the low-address range; the stricter limit
 avoids moving hot code for weak size gains.
+
+Semantic checks fold a negated condition into their failure polarity. This lets
+ordinary dead-code cleanup remove the predicate before conversion and exposes
+phi-only short-circuit joins to jump threading. Builtin expansion also runs
+copy elision for buffers whose writes become visible at that boundary; their
+allocation and failure behavior remain intact.
+
+Revert outlining runs once per optimization mode. Gas mode shares source and
+builtin payloads before arithmetic expansion, preserving local overflow edges
+for stack scheduling. Size mode includes arithmetic payloads in the shared
+helpers to avoid duplicated stack and exit code.
+
+The scheduler emits each private predecessor chain before its continuation,
+including blocks appended during conversion. Gas mode keeps the surrounding
+order because shared call tails in loops depend on fallthrough placement.
+Size mode uses reverse postorder for the remaining chains. Layout and spill
+availability share one CFG snapshot.

@@ -213,3 +213,15 @@
       ret
   }
   
+  fn @check_polarity(arg0: u256) {
+    bb0:
+      v0 = iszero arg0
+-     panic_if v0, 0x1
+-     panic_if_zero v0, 0x11
+-     revert_if v0, tuple_data_too_short
++     panic_if_zero arg0, 0x1
++     panic_if arg0, 0x11
++     revert_if_zero arg0, tuple_data_too_short
+      ret
+  }
+  

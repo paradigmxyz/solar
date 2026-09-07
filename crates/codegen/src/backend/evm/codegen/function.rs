@@ -6,6 +6,7 @@ use super::{
     OnceCell, OptimizationMode, PhiEliminator, STACK_PHI_LAYOUT_LIMIT, StackModel, StackPhiPlan,
     Terminator, Value, ValueId, cross_block_values, planned_entry_carries,
 };
+use either::Either;
 use std::rc::Rc;
 
 impl<'gcx> EvmCodegen<'gcx> {
@@ -329,7 +330,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
 
         // Generate each block.
-        let block_order = self.block_layout_order(func);
+        let store_cfg = CfgInfo::new(func);
+        let block_order = self.block_layout_order(func, &store_cfg);
         let block_pos: FxHashMap<BlockId, usize> =
             block_order.iter().enumerate().map(|(pos, &b)| (b, pos)).collect();
         // Stack layout a block must start with when it is reached by a stack-
@@ -343,7 +345,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         // at a block only when every forward predecessor makes it available —
         // and drop the scheduler's stored guarantee where a live value is not
         // available, so that path stores again before any reload.
-        let store_cfg = CfgInfo::new(func);
         let mut spill_avail_out: FxHashMap<BlockId, FxHashSet<ValueId>> = FxHashMap::default();
         for (pos, &block_id) in block_order.iter().enumerate() {
             let block = &func.blocks[block_id];
@@ -1209,17 +1210,40 @@ impl<'gcx> EvmCodegen<'gcx> {
         label
     }
 
-    fn block_layout_order(&self, func: &Function) -> Vec<BlockId> {
-        // Layout only initializes reachability; RPO, dominators, and
-        // transitive reachability remain unevaluated.
-        let cfg = CfgInfo::new(func);
+    fn block_layout_order(&self, func: &Function, cfg: &CfgInfo) -> Vec<BlockId> {
+        // Visit predecessors before private continuations, including blocks appended by lowering.
         let reachable = cfg.reachable();
         let mut order = Vec::with_capacity(func.blocks.len());
         let mut placed = DenseBitSet::new_empty(func.blocks.len());
+        let mut predecessors = Vec::new();
 
         self.append_layout_chain(func, BlockId::ENTRY, reachable, &mut placed, &mut order);
-        for block_id in func.blocks.indices() {
-            if reachable.contains(block_id) {
+        let blocks = if self.gcx.sess.opts.optimization.is_size() {
+            Either::Left(cfg.rpo().iter().copied())
+        } else {
+            Either::Right(func.blocks.indices())
+        };
+        for block_id in blocks {
+            if reachable.contains(block_id) && !placed.contains(block_id) {
+                if self.gcx.sess.opts.optimization.is_gas() && !self.block_is_cold(block_id) {
+                    // predecessor; private continuation
+                    let mut predecessor = block_id;
+                    while let [parent] = func.blocks[predecessor].predecessors.as_slice()
+                        && !placed.contains(*parent)
+                    {
+                        predecessors.push(*parent);
+                        predecessor = *parent;
+                    }
+                    for predecessor in predecessors.drain(..).rev() {
+                        self.append_layout_chain(
+                            func,
+                            predecessor,
+                            reachable,
+                            &mut placed,
+                            &mut order,
+                        );
+                    }
+                }
                 self.append_layout_chain(func, block_id, reachable, &mut placed, &mut order);
             }
         }

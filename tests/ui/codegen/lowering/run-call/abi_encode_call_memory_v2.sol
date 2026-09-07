@@ -11,6 +11,9 @@ contract AbiEncodeCallMemoryTarget {
 contract AbiEncodeCallMemory {
     function something() external pure {}
 
+    // CHECK-LABEL: fn @test
+    // CHECK-NOT: phi
+    // CHECK: returndata
     function test() external returns (bytes4) {
         function() external[2] memory pointers;
         pointers[0] = this.something;

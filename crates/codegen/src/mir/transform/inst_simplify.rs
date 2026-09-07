@@ -187,6 +187,11 @@ impl InstSimplifier {
         let resolve = |value| mir_utils::resolve_replacement(value, replacements);
 
         match kind {
+            // check iszero(condition), polarity -> check condition, !polarity
+            InstKind::Check { condition, is_zero, failure } => {
+                let condition = Self::iszero_operand(func, resolve(*condition))?;
+                Some(InstKind::Check { condition, is_zero: !is_zero, failure: *failure })
+            }
             InstKind::Add(a, b) => {
                 let (a, b) = (resolve(*a), resolve(*b));
                 self.rewrite_add(func, a, b)
