@@ -1,0 +1,74 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_entry_unused.sol:TerminalTailEntryUnused (runtime) ===
+@module TerminalTailEntryUnused_runtime
+bb0 [cold]:
+  callvalue
+  jumpi bb2, bb16
+bb16 [cold]:
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0xabef8a2
+  eq
+  jumpi bb25, bb24
+bb24 [cold]:
+  dup 1
+  push 0x124f5201
+  eq
+  jumpi bb23, bb22
+bb22 [cold]:
+  push 0x8df95da0
+  sub
+  jumpi bb2, bb5
+bb5 [cold]:
+  calldatasize
+  push 68
+  gt
+  jumpi bb2, bb7
+bb7 [cold]:
+  push 4
+  calldataload
+  push 36
+  calldataload
+  swap 1
+  jump bb13
+bb2 [cold]:
+  push 0
+  push 0
+  revert
+bb23 [cold]:
+  calldatasize
+  push 68
+  gt
+  jumpi bb2, bb3
+bb3 [cold]:
+  push 36
+  calldataload
+  push 4
+  calldataload
+  swap 1
+  jump bb13
+bb13 [cold]:
+  dup 2
+  push 0
+  mstore
+  dup 1
+  push 32
+  mstore
+  add
+  push 64
+  mstore
+  push 96
+  push 0
+  revert
+bb25 [cold]:
+  calldatasize
+  push 36
+  gt
+  jumpi bb2, bb11
+bb11 [cold]:
+  push 4
+  calldataload
+  dup 1
+  jump bb13

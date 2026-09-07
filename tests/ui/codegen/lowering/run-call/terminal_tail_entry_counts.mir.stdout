@@ -1,0 +1,101 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_entry_counts.sol:TailEntryCount0 ===
+@module TailEntryCount0
+fn @run() [selector=0xc0406226, pure, abi_params=[], abi_returns=[]] {
+  bb0:
+    icall @fail, 0
+    stop
+}
+
+fn @other() [selector=0x85295877, pure, abi_params=[], abi_returns=[]] {
+  bb0:
+    icall @fail, 0
+    stop
+}
+
+fn @fail() [pure] {
+  bb0:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_entry_counts.sol:TailEntryCount1 ===
+@module TailEntryCount1
+fn @run(arg0: u256) [selector=0xa444f5e9, pure, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    icall @fail, 0, arg0
+    stop
+}
+
+fn @other(arg0: u256) [selector=0x369984d6, pure, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    icall @fail, 0, arg0
+    stop
+}
+
+fn @fail(arg0: u256) [pure] {
+  bb0:
+    mstore 0, arg0 !metadata(memory=scratch)
+    revert 0, 32
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_entry_counts.sol:TailEntryCount12 ===
+@module TailEntryCount12
+fn @run(arg0: u256, arg1: u256, arg2: u256, arg3: u256, arg4: u256, arg5: u256, arg6: u256, arg7: u256, arg8: u256, arg9: u256, arg10: u256, arg11: u256) [selector=0xeb77f757, pure, abi_params=[u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256], abi_returns=[]] {
+  bb0:
+    icall @fail, 0, arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11
+    stop
+}
+
+fn @other(arg0: u256, arg1: u256, arg2: u256, arg3: u256, arg4: u256, arg5: u256, arg6: u256, arg7: u256, arg8: u256, arg9: u256, arg10: u256, arg11: u256) [selector=0x5832db96, pure, abi_params=[u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256], abi_returns=[]] {
+  bb0:
+    icall @fail, 0, arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11
+    stop
+}
+
+fn @fail(arg0: u256, arg1: u256, arg2: u256, arg3: u256, arg4: u256, arg5: u256, arg6: u256, arg7: u256, arg8: u256, arg9: u256, arg10: u256, arg11: u256) [pure] {
+  bb0:
+    mstore 0x400, arg0
+    mstore 0x420, arg1
+    mstore 0x440, arg2
+    mstore 0x460, arg3
+    mstore 0x480, arg4
+    mstore 0x4a0, arg5
+    mstore 0x4c0, arg6
+    mstore 0x4e0, arg7
+    mstore 0x500, arg8
+    mstore 0x520, arg9
+    mstore 0x540, arg10
+    mstore 0x560, arg11
+    revert 0x400, 384
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_entry_counts.sol:TailEntryCount13 ===
+@module TailEntryCount13
+fn @run(arg0: u256, arg1: u256, arg2: u256, arg3: u256, arg4: u256, arg5: u256, arg6: u256, arg7: u256, arg8: u256, arg9: u256, arg10: u256, arg11: u256, arg12: u256) [selector=0x0acb9b70, pure, abi_params=[u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256], abi_returns=[]] {
+  bb0:
+    icall @fail, 0, arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12
+    stop
+}
+
+fn @other(arg0: u256, arg1: u256, arg2: u256, arg3: u256, arg4: u256, arg5: u256, arg6: u256, arg7: u256, arg8: u256, arg9: u256, arg10: u256, arg11: u256, arg12: u256) [selector=0xded4ef63, pure, abi_params=[u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256], abi_returns=[]] {
+  bb0:
+    icall @fail, 0, arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12
+    stop
+}
+
+fn @fail(arg0: u256, arg1: u256, arg2: u256, arg3: u256, arg4: u256, arg5: u256, arg6: u256, arg7: u256, arg8: u256, arg9: u256, arg10: u256, arg11: u256, arg12: u256) [pure] {
+  bb0:
+    mstore 0x400, arg0
+    mstore 0x420, arg1
+    mstore 0x440, arg2
+    mstore 0x460, arg3
+    mstore 0x480, arg4
+    mstore 0x4a0, arg5
+    mstore 0x4c0, arg6
+    mstore 0x4e0, arg7
+    mstore 0x500, arg8
+    mstore 0x520, arg9
+    mstore 0x540, arg10
+    mstore 0x560, arg11
+    mstore 0x580, arg12
+    revert 0x400, 416
+}

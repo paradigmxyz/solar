@@ -1,0 +1,28 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_entry_unused.sol:TerminalTailEntryUnused ===
+@module TerminalTailEntryUnused
+fn @forward(arg0: u256, arg1: u256) [selector=0x124f5201, pure, abi_params=[u256, u256], abi_returns=[]] {
+  bb0:
+    icall @fail, 0, arg0, 777, arg1
+    stop
+}
+
+fn @backward(arg0: u256, arg1: u256) [selector=0x8df95da0, pure, abi_params=[u256, u256], abi_returns=[]] {
+  bb0:
+    icall @fail, 0, arg1, 777, arg0
+    stop
+}
+
+fn @repeated(arg0: u256) [selector=0x0abef8a2, pure, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    icall @fail, 0, arg0, 777, arg0
+    stop
+}
+
+fn @fail(arg0: u256, arg1: u256, arg2: u256) [pure] {
+  bb0:
+    mstore 0, arg0 !metadata(memory=scratch)
+    mstore 32, arg2 !metadata(memory=scratch)
+    v0 = add arg0, arg2
+    mstore 64, v0 !metadata(memory=scratch)
+    revert 0, 96
+}

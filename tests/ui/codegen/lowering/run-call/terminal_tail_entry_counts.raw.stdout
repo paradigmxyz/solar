@@ -1,0 +1,532 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_entry_counts.sol:TailEntryCount0 (runtime) ===
+@module TailEntryCount0_runtime
+bb0 [cold]:
+  push 0
+  push 0
+  revert
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_entry_counts.sol:TailEntryCount1 (runtime) ===
+@module TailEntryCount1_runtime
+bb0 [cold]:
+  callvalue
+  jumpi bb3, bb14
+bb14 [cold]:
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x369984d6
+  eq
+  jumpi bb20, bb19
+bb19 [cold]:
+  push 0xa444f5e9
+  sub
+  jumpi bb3, bb1
+bb1 [cold]:
+  calldatasize
+  push 36
+  gt
+  jumpi bb3, bb2
+bb2 [cold]:
+  push 4
+  calldataload
+  jump bb11
+bb11 [cold]:
+  push 0
+  mstore
+  push 32
+  push 0
+  revert
+bb3 [cold]:
+  push 0
+  push 0
+  revert
+bb20 [cold]:
+  calldatasize
+  push 36
+  gt
+  jumpi bb3, bb7
+bb7 [cold]:
+  push 4
+  calldataload
+  jump bb11
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_entry_counts.sol:TailEntryCount12 (runtime) ===
+@module TailEntryCount12_runtime
+bb0 [cold]:
+  callvalue
+  jumpi bb3, bb14
+bb14 [cold]:
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x5832db96
+  eq
+  jumpi bb20, bb19
+bb19 [cold]:
+  push 0xeb77f757
+  sub
+  jumpi bb3, bb1
+bb1 [cold]:
+  calldatasize
+  push 388
+  gt
+  jumpi bb3, bb2
+bb2 [cold]:
+  push 356
+  calldataload
+  push 324
+  calldataload
+  push 292
+  calldataload
+  push 260
+  calldataload
+  push 228
+  calldataload
+  push 196
+  calldataload
+  push 164
+  calldataload
+  push 132
+  calldataload
+  push 100
+  calldataload
+  push 68
+  calldataload
+  push 36
+  calldataload
+  push 4
+  calldataload
+  swap 11
+  swap 1
+  swap 10
+  swap 2
+  swap 9
+  swap 3
+  swap 8
+  swap 4
+  swap 7
+  exchange 5, 6
+  swap 4
+  swap 3
+  swap 2
+  swap 1
+  jump bb11
+bb11 [cold]:
+  swap 1
+  swap 2
+  swap 3
+  swap 4
+  swap 5
+  swap 6
+  swap 7
+  swap 8
+  swap 9
+  swap 10
+  swap 11
+  push 0x400
+  mstore
+  swap 1
+  swap 2
+  swap 3
+  swap 4
+  swap 5
+  swap 6
+  swap 7
+  swap 8
+  swap 9
+  swap 10
+  push 0x420
+  mstore
+  swap 1
+  swap 2
+  swap 3
+  swap 4
+  swap 5
+  swap 6
+  swap 7
+  swap 8
+  swap 9
+  push 0x440
+  mstore
+  swap 1
+  swap 2
+  swap 3
+  swap 4
+  swap 5
+  swap 6
+  swap 7
+  swap 8
+  push 0x460
+  mstore
+  swap 1
+  swap 2
+  swap 3
+  swap 4
+  swap 5
+  swap 6
+  swap 7
+  push 0x480
+  mstore
+  swap 1
+  swap 2
+  swap 3
+  swap 4
+  swap 5
+  swap 6
+  push 0x4a0
+  mstore
+  swap 1
+  swap 2
+  swap 3
+  swap 4
+  swap 5
+  push 0x4c0
+  mstore
+  swap 1
+  swap 2
+  swap 3
+  swap 4
+  push 0x4e0
+  mstore
+  swap 1
+  swap 2
+  swap 3
+  push 0x500
+  mstore
+  swap 1
+  swap 2
+  push 0x520
+  mstore
+  swap 1
+  push 0x540
+  mstore
+  push 0x560
+  mstore
+  push 384
+  push 0x400
+  revert
+bb3 [cold]:
+  push 0
+  push 0
+  revert
+bb20 [cold]:
+  calldatasize
+  push 388
+  gt
+  jumpi bb3, bb7
+bb7 [cold]:
+  push 356
+  calldataload
+  push 324
+  calldataload
+  push 292
+  calldataload
+  push 260
+  calldataload
+  push 228
+  calldataload
+  push 196
+  calldataload
+  push 164
+  calldataload
+  push 132
+  calldataload
+  push 100
+  calldataload
+  push 68
+  calldataload
+  push 36
+  calldataload
+  push 4
+  calldataload
+  swap 11
+  swap 1
+  swap 10
+  swap 2
+  swap 9
+  swap 3
+  swap 8
+  swap 4
+  swap 7
+  exchange 5, 6
+  swap 4
+  swap 3
+  swap 2
+  swap 1
+  jump bb11
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_entry_counts.sol:TailEntryCount13 (runtime) ===
+@module TailEntryCount13_runtime
+bb0 [cold]:
+  callvalue
+  jumpi bb3, bb14
+bb14 [cold]:
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0xacb9b70
+  eq
+  jumpi bb20, bb19
+bb19 [cold]:
+  push 0xded4ef63
+  sub
+  jumpi bb3, bb6
+bb6 [cold]:
+  calldatasize
+  push 420
+  gt
+  jumpi bb3, bb7
+bb7 [cold]:
+  push 388
+  calldataload
+  push 356
+  calldataload
+  push 324
+  calldataload
+  push 292
+  calldataload
+  push 260
+  calldataload
+  push 228
+  calldataload
+  push 196
+  calldataload
+  push 164
+  calldataload
+  push 132
+  calldataload
+  push 100
+  calldataload
+  push 68
+  calldataload
+  push 36
+  calldataload
+  push 4
+  calldataload
+  push 192
+  mstore
+  push 224
+  mstore
+  push 256
+  mstore
+  push 288
+  mstore
+  push 320
+  mstore
+  push 352
+  mstore
+  push 384
+  mstore
+  push 416
+  mstore
+  push 448
+  mstore
+  push 480
+  mstore
+  push 512
+  mstore
+  push 544
+  mstore
+  push 576
+  mstore
+  jump bb12
+bb3 [cold]:
+  push 0
+  push 0
+  revert
+bb20 [cold]:
+  calldatasize
+  push 420
+  gt
+  jumpi bb3, bb2
+bb2 [cold]:
+  push 388
+  calldataload
+  push 356
+  calldataload
+  push 324
+  calldataload
+  push 292
+  calldataload
+  push 260
+  calldataload
+  push 228
+  calldataload
+  push 196
+  calldataload
+  push 164
+  calldataload
+  push 132
+  calldataload
+  push 100
+  calldataload
+  push 68
+  calldataload
+  push 36
+  calldataload
+  push 4
+  calldataload
+  push 192
+  mstore
+  push 224
+  mstore
+  push 256
+  mstore
+  push 288
+  mstore
+  push 320
+  mstore
+  push 352
+  mstore
+  push 384
+  mstore
+  push 416
+  mstore
+  push 448
+  mstore
+  push 480
+  mstore
+  push 512
+  mstore
+  push 544
+  mstore
+  push 576
+  mstore
+  jump bb12
+bb12 [cold]:
+  push 192
+  mload
+  push 224
+  mload
+  push 256
+  mload
+  push 288
+  mload
+  push 320
+  mload
+  push 352
+  mload
+  push 384
+  mload
+  push 416
+  mload
+  push 448
+  mload
+  push 480
+  mload
+  push 512
+  mload
+  push 544
+  mload
+  push 576
+  mload
+  swap 1
+  swap 2
+  swap 3
+  swap 4
+  swap 5
+  swap 6
+  swap 7
+  swap 8
+  swap 9
+  swap 10
+  swap 11
+  swap 12
+  push 0x400
+  mstore
+  swap 1
+  swap 2
+  swap 3
+  swap 4
+  swap 5
+  swap 6
+  swap 7
+  swap 8
+  swap 9
+  swap 10
+  swap 11
+  push 0x420
+  mstore
+  swap 1
+  swap 2
+  swap 3
+  swap 4
+  swap 5
+  swap 6
+  swap 7
+  swap 8
+  swap 9
+  swap 10
+  push 0x440
+  mstore
+  swap 1
+  swap 2
+  swap 3
+  swap 4
+  swap 5
+  swap 6
+  swap 7
+  swap 8
+  swap 9
+  push 0x460
+  mstore
+  swap 1
+  swap 2
+  swap 3
+  swap 4
+  swap 5
+  swap 6
+  swap 7
+  swap 8
+  push 0x480
+  mstore
+  swap 1
+  swap 2
+  swap 3
+  swap 4
+  swap 5
+  swap 6
+  swap 7
+  push 0x4a0
+  mstore
+  swap 1
+  swap 2
+  swap 3
+  swap 4
+  swap 5
+  swap 6
+  push 0x4c0
+  mstore
+  swap 1
+  swap 2
+  swap 3
+  swap 4
+  swap 5
+  push 0x4e0
+  mstore
+  swap 1
+  swap 2
+  swap 3
+  swap 4
+  push 0x500
+  mstore
+  swap 1
+  swap 2
+  swap 3
+  push 0x520
+  mstore
+  swap 1
+  swap 2
+  push 0x540
+  mstore
+  swap 1
+  push 0x560
+  mstore
+  push 0x580
+  mstore
+  push 416
+  push 0x400
+  revert
