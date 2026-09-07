@@ -1,8 +1,9 @@
 //! Immutable recipes at the physical stack boundary.
 //!
 //! For calldata recipes, ordinary stack-pressure planning runs first, including any protocol
-//! recheck. Only its actual memory-home candidates are considered here. Gas optimization requires exclusively eligible
-//! homes, so selection cannot fragment a mixed bank and disable its compact writer protection.
+//! recheck. Only its actual memory-home candidates are considered here. Gas optimization requires
+//! exclusively eligible homes, so selection cannot fragment a mixed bank and disable its compact
+//! writer protection.
 //! Other modes do not use that protection and select individual homes. Stack-resident calldata
 //! reads keep their existing definitions and schedules. Selected homes become cached literal-offset
 //! CALLDATALOAD recipes. Reserved words, Phi scratch and spill-protocol decisions remain unchanged,
@@ -13,8 +14,9 @@
 //! or XOR over a fixed-offset calldata read and a literal. Each computed result has exactly one
 //! ordinary same-block use. Canonical ADDs of two immediate words may complete such a bank
 //! (for example, a static ABI output cursor); their cached literals may have multiple ordinary
-//! same-block uses. A bank must still contain a computed calldata recipe. One bounded use scan suppresses the original definitions and only
-//! those calldata/constant-offset dependencies whose uses all remain inside the same-block
+//! same-block uses. A bank must still contain a computed calldata recipe. One bounded use scan
+//! suppresses the original definitions and only those calldata/constant-offset dependencies whose
+//! uses all remain inside the same-block
 //! suppressed closure. Shared producers keep their definitions. This avoids charging profitability
 //! to a particular writer or leaving compute-and-discard work. Failed admission retains exactly
 //! the existing calldata selection policy.
@@ -22,15 +24,20 @@
 //! The caller excludes construction, internal-call artifacts, returning owners and dynamic frames:
 //! a callee's tracked stack omits suspended ancestor words. This helper admits only native opcodes
 //! with at most three operands, no outgoing tail call, at most 256 value IDs and 512 instruction IDs.
-//! These bounds keep analysis small and two-word recipe peaks far below 1024; ordinary scheduling
-//! still checks reachability. Original reservations and protocol choices stay fixed. Local
+//! The ID bounds keep analysis small. A nonempty home bank comes from the spill-planning path,
+//! which retains at most eight overlapping resident values. After clearing that bank, at most
+//! three prepared operands and one binary-recipe temporary bring the stack peak to twelve words,
+//! with no suspended caller prefix. Cleanup at suppressed definitions removes dead dependencies;
+//! ordinary scheduling still checks reachability. Original reservations and protocol choices stay
+//! fixed. Local
 //! expression equivalence does not prove final gas/size profitability: literal sharing, cleanup,
 //! memory expansion and later target passes remain measured admission gates.
 //!
 //! Offsets are immediate words or one ADD of two immediate words, evaluated with full EVM wrapping.
 //! Noncanonical effects, Phi values, arguments and other reads decline. Selection follows at most
-//! one arithmetic producer for an offset and performs no MIR rewrite. Calldata is immutable within the EVM activation, including across returning calls. Constructor argument
-//! memory/code reads are not recipes. Other values and activation protocol storage still require
+//! one arithmetic producer for an offset and performs no MIR rewrite. Calldata is immutable within
+//! the EVM activation, including across returning calls. Constructor argument memory/code reads are
+//! not recipes. Other values and activation protocol storage still require
 //! their existing protection; this is not a general source-memory interference solution.
 //!
 //! In unoptimized mode, fourteen stable two-gas nullary reads need neither a resident value nor
@@ -40,7 +47,7 @@
 //! its evaluated value for instrumented EVMs; mutable or more expensive reads also remain stored.
 
 use crate::{
-    backend::evm::op,
+    backend::evm::{ir, op},
     mir::{self, EffectKind},
     utils::eval,
 };
@@ -54,6 +61,37 @@ pub(super) enum Recipe {
     Calldata(U256),
     Literal(U256),
     Binary { offset: U256, literal: U256, opcode: u8, calldata_first: bool },
+}
+
+/// Emits one cached immutable recipe with its original operand order.
+pub(super) fn emit(recipe: &Recipe, output: &mut Vec<ir::Instruction>) {
+    match *recipe {
+        Recipe::Literal(value) => {
+            // push <folded constant word>
+            output.push(ir::InstKind::Push(value).into());
+        }
+        Recipe::Calldata(offset) => {
+            // push <constant calldata offset>
+            // calldataload
+            output.push(ir::InstKind::Push(offset).into());
+            output.push(ir::InstKind::Op(op::CALLDATALOAD).into());
+        }
+        Recipe::Binary { offset, literal, opcode, calldata_first } => {
+            // push <literal> when it is the second operand
+            // push <constant calldata offset>; calldataload
+            // push <literal> when it is the first operand
+            // opcode
+            if calldata_first {
+                output.push(ir::InstKind::Push(literal).into());
+            }
+            output.push(ir::InstKind::Push(offset).into());
+            output.push(ir::InstKind::Op(op::CALLDATALOAD).into());
+            if !calldata_first {
+                output.push(ir::InstKind::Push(literal).into());
+            }
+            output.push(ir::InstKind::Op(opcode).into());
+        }
+    }
 }
 
 /// Keeps unchanged functions free of an instruction-domain suppression allocation.

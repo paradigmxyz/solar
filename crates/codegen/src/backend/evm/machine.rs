@@ -468,14 +468,6 @@ fn lower_function(
             if position < emitted_until {
                 continue;
             }
-            if layout.suppressed.as_ref().is_some_and(|suppressed| suppressed.contains(inst_id)) {
-                // <retained live values>; pop any dependency whose last use was suppressed
-                // The recipe emits the omitted computation at its surviving consumer.
-                prepare(context, &mut stack, &mut insts, &[], |value| {
-                    layout.live.is_used_at_or_after(value, block_id, position + 1)
-                })?;
-                continue;
-            }
             let instruction = function.inst(inst_id);
             if matches!(instruction.kind, mir::InstKind::Phi(_)) {
                 continue;
@@ -1119,6 +1111,12 @@ fn lower_opcode(
     let function = context.function;
     let instruction = function.inst(inst_id);
     let live = |value| context.layout.live.is_used_at_or_after(value, block_id, position + 1);
+    if context.layout.suppressed.as_ref().is_some_and(|suppressed| suppressed.contains(inst_id)) {
+        // <retained live values>; pop any dependency whose last use was suppressed
+        // The recipe emits the omitted computation at its surviving consumer.
+        prepare(context, stack, insts, &[], live)?;
+        return Ok(());
+    }
     if (opcode == op::CALLDATALOAD || matches!(context.optimization, OptimizationMode::None))
         && let Some(value) = function.inst_result_value(inst_id)
         && ((opcode == op::CALLDATALOAD && context.layout.rematerialized.contains_key(&value))
@@ -1352,33 +1350,7 @@ fn load_value(
 ) -> Result<(), String> {
     if let Some(recipe) = context.layout.rematerialized.get(&value) {
         debug_assert!(!context.layout.spills.homes.contains_key(&value));
-        match *recipe {
-            rematerialize::Recipe::Literal(value) => {
-                // push <folded constant word>
-                output.push(ir::InstKind::Push(value).into());
-            }
-            rematerialize::Recipe::Calldata(offset) => {
-                // push <constant calldata offset>
-                // calldataload
-                output.push(ir::InstKind::Push(offset).into());
-                output.push(ir::InstKind::Op(op::CALLDATALOAD).into());
-            }
-            rematerialize::Recipe::Binary { offset, literal, opcode, calldata_first } => {
-                // push <literal> when it is the second operand
-                // push <constant calldata offset>; calldataload
-                // push <literal> when it is the first operand
-                // opcode
-                if calldata_first {
-                    output.push(ir::InstKind::Push(literal).into());
-                }
-                output.push(ir::InstKind::Push(offset).into());
-                output.push(ir::InstKind::Op(op::CALLDATALOAD).into());
-                if !calldata_first {
-                    output.push(ir::InstKind::Push(literal).into());
-                }
-                output.push(ir::InstKind::Op(opcode).into());
-            }
-        }
+        rematerialize::emit(recipe, output);
         return Ok(());
     }
     if matches!(context.optimization, OptimizationMode::None)
