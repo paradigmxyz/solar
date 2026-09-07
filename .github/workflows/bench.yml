@@ -244,22 +244,23 @@ jobs:
             --results target/codegen-bench/results.json
             --common-output target/codegen-bench/common.json
             --report-output target/codegen-bench/report.md
+            --comment-output target/codegen-bench/should-comment
             --ignore-compile-time-changes
           )
           if [[ -f target/codegen-bench/baseline/results.json ]]; then
-            args+=(--baseline target/codegen-bench/baseline/results.json)
+            args+=(
+              --baseline target/codegen-bench/baseline/results.json
+              --json-output target/codegen-bench/comparison.json
+            )
           fi
-          python3 benches/runtime/report.py "${args[@]}"
-
-      - name: Add report to job summary
-        if: always()
-        run: |
-          if [[ -f target/codegen-bench/report.md ]]; then
-            cat target/codegen-bench/report.md >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo '## Codegen benchmark' >> "$GITHUB_STEP_SUMMARY"
-            echo >> "$GITHUB_STEP_SUMMARY"
-            echo 'The benchmark did not produce a report.' >> "$GITHUB_STEP_SUMMARY"
+          python3 benches/runtime/benchmark-compare.py "${args[@]}"
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            changed="$(git diff --name-only "$BENCHMARK_BASE_SHA...$BENCHMARK_PR_HEAD_SHA" -- \
+              benches/runtime/benchmark.py benches/runtime/benchmark-compare.py benches/runtime/report.py)"
+            if [[ -n "$changed" ]]; then
+              echo 'should_comment=true' >> "$GITHUB_OUTPUT"
+              echo true > target/codegen-bench/should-comment
+            fi
           fi
 
       - name: Comment on PR
@@ -271,12 +272,6 @@ jobs:
           header: codegen-runtime-bench
           message: ${{ steps.runtime-report.outputs.report }}
           only_update: ${{ steps.runtime-report.outputs.should_comment != 'true' }}
-
-      - name: Save comment metadata
-        if: always() && github.event_name == 'pull_request'
-        env:
-          SHOULD_COMMENT: ${{ steps.runtime-report.outputs.should_comment }}
-        run: echo "$SHOULD_COMMENT" > target/codegen-bench/should-comment
 
       - name: Upload results as artifact
         if: always()
