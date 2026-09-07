@@ -109,7 +109,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         // This ensures cross-block values are preserved in memory.
         self.spill_live_out_operands(func, liveness, block, &operands);
 
-        if let Some(lowering) = select::opcode_lowering(&kind.op()) {
+        if self.emit_stack_expression(func, liveness, block, inst_idx) {
+            // The selected expression already produced the original result.
+        } else if let Some(lowering) = select::opcode_lowering(&kind.op()) {
             self.emit_opcode_lowering(
                 func,
                 lowering,
@@ -575,11 +577,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         let mut selected =
             self.plan_operands(func, &[b, a], liveness, block, inst_idx).map(|plan| (opcode, plan));
         if a != b
-            && selected.as_ref().is_none_or(|(_, plan)| !plan.is_free())
             && let Some(swapped_opcode) = op::swapped_binary_opcode(opcode)
             && let Some(swapped) = self.plan_operands(func, &[a, b], liveness, block, inst_idx)
             && selected.as_ref().is_none_or(|(_, current)| {
-                swapped.cost().cmp_for(current.cost(), self.gcx.sess.opts.optimization).is_lt()
+                self.prefer_binary_plan(func, current, &swapped, result, liveness, block, inst_idx)
             })
         {
             selected = Some((swapped_opcode, swapped));

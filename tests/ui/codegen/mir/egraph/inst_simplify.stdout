@@ -16,11 +16,11 @@
 +     v5 = add arg0, 32
       v6 = and arg0, 255
 -     v7 = and v6, 15
-+     v7 = and arg0, 15
       v8 = add v1, v2
       v9 = add v3, v5
       v10 = add v8, v9
-      v11 = add v10, v7
+-     v11 = add v10, v7
++     v11 = add v10, v2
       ret v11
   }
   

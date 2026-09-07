@@ -20,8 +20,8 @@
 +     v1 = eq arg0, arg1
       v2 = xor arg0, arg1
 -     v3 = iszero v2
-+     v3 = eq arg0, arg1
-      ret v1, v3
+-     ret v1, v3
++     ret v1, v1
   }
   
   fn @shared_difference(arg0: u256, arg1: u256) -> (u256, bool) {
@@ -78,8 +78,7 @@
 -     v0 = sub arg0, arg1
       v1 = eq arg0, arg1
 -     v2 = xor arg0, arg1
-      v3 = eq arg0, arg1
-      ret v1, v3
+      ret v1, v1
   }
   
   fn @shared_difference(arg0: u256, arg1: u256) -> (u256, bool) {

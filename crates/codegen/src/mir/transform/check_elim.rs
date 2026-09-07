@@ -22,6 +22,14 @@
 //! provably constant folds the branch to an unconditional jump, and the dead
 //! panic block is cleaned up by the existing CFG passes. Anything that is
 //! not provable is left untouched.
+//!
+//! Before the dominator walk, a bounded forward analysis carries the intersection
+//! of relational facts and the union of ranges across predecessor edges. Phi
+//! ranges are evaluated in their incoming edge contexts. All states start at
+//! unknown; every round is sound even if the iteration budget expires. Facts
+//! about definitions executed again in a loop are killed at block entry. This
+//! discovers bounded induction ranges without assuming a loop executes or
+//! converges, and preserves the existing dominator-scoped reasoning.
 
 use crate::mir::{
     BlockId, Function, InstKind, Module, Terminator, Value, ValueId,
@@ -117,6 +125,20 @@ enum Relation {
     Ne(ValueId, ValueId),
 }
 
+impl Relation {
+    fn operands(self) -> (ValueId, ValueId) {
+        match self {
+            Self::Lt(a, b) | Self::Le(a, b) | Self::Eq(a, b) | Self::Ne(a, b) => (a, b),
+        }
+    }
+}
+
+#[derive(Clone, Default, PartialEq, Eq)]
+struct Facts {
+    ranges: FxHashMap<ValueId, Range>,
+    relations: FxHashSet<Relation>,
+}
+
 fn ordered(a: ValueId, b: ValueId) -> (ValueId, ValueId) {
     if a.index() <= b.index() { (a, b) } else { (b, a) }
 }
@@ -156,7 +178,8 @@ impl CheckEliminator {
             }
         }
 
-        let folds = self.collect_folds(func, &cfg, &preds);
+        let facts = Self::join_facts(func, &cfg, &preds);
+        let folds = self.collect_folds(func, &cfg, &preds, &facts);
         self.ranges.clear();
         self.relations.clear();
         self.range_undo.clear();
@@ -165,6 +188,7 @@ impl CheckEliminator {
         if folds.is_empty() {
             return 0;
         }
+        // branch proven_condition, keep, discard => jump keep
         for &(block, keep) in &folds {
             func.blocks[block].terminator = Some(Terminator::Jump(keep));
         }
@@ -179,6 +203,7 @@ impl CheckEliminator {
         func: &Function,
         cfg: &CfgInfo,
         preds: &IndexVec<BlockId, Vec<BlockId>>,
+        facts: &IndexVec<BlockId, Facts>,
     ) -> Vec<(BlockId, BlockId)> {
         enum Walk {
             Enter(BlockId),
@@ -208,6 +233,12 @@ impl CheckEliminator {
                         relation_mark: self.relation_undo.len(),
                     });
 
+                    for (&value, &range) in &facts[block].ranges {
+                        self.narrow(value, range);
+                    }
+                    for &relation in &facts[block].relations {
+                        self.add_relation(relation);
+                    }
                     if let Some((condition, is_true)) = dominating_edge_fact(func, preds, block) {
                         self.assume(func, condition, is_true, MAX_DEPTH);
                     }
@@ -227,6 +258,107 @@ impl CheckEliminator {
             }
         }
         folds
+    }
+
+    /// Transfers edge facts from unknown, retaining only definitions available
+    /// at the join and evaluating every phi in its predecessor's context.
+    fn join_facts(
+        func: &Function,
+        cfg: &CfgInfo,
+        preds: &IndexVec<BlockId, Vec<BlockId>>,
+    ) -> IndexVec<BlockId, Facts> {
+        const MAX_ROUNDS: usize = 8;
+        let definitions = func.inst_blocks();
+        let mut entries = index_vec![Facts::default(); func.blocks.len()];
+        let mut exits = entries.clone();
+        let mut cx = Self::new();
+        for _ in 0..MAX_ROUNDS {
+            let mut changed = false;
+            for &block in cfg.rpo() {
+                let mut merged: Option<Facts> = None;
+                if block != BlockId::ENTRY {
+                    for &pred in &preds[block] {
+                        cx.ranges.clone_from(&exits[pred].ranges);
+                        cx.relations.clone_from(&exits[pred].relations);
+                        cx.range_undo.clear();
+                        cx.relation_undo.clear();
+                        if let Some(Terminator::Branch { condition, then_block, else_block }) =
+                            func.blocks[pred].terminator
+                            && then_block != else_block
+                        {
+                            cx.assume(func, condition, then_block == block, MAX_DEPTH);
+                        }
+                        // Evaluate all inputs before assigning any phi: loop
+                        // phis describe a simultaneous parallel assignment.
+                        let phi_ranges: Vec<_> = func.blocks[block]
+                            .instructions
+                            .iter()
+                            .filter_map(|&inst| {
+                                let InstKind::Phi(incoming) = &func.inst(inst).kind else {
+                                    return None;
+                                };
+                                let value = func.inst_result_value(inst)?;
+                                let &(_, input) =
+                                    incoming.iter().find(|&&(from, _)| from == pred)?;
+                                Some((value, cx.range_of(func, input, MAX_DEPTH)))
+                            })
+                            .collect();
+                        let available = |value| match func.value(value) {
+                            Value::Inst(inst) => definitions.get(inst).is_some_and(|&home| {
+                                home != block && cfg.dominators().dominates(home, block)
+                            }),
+                            _ => true,
+                        };
+                        cx.ranges.retain(|&value, _| available(value));
+                        cx.relations.retain(|relation| {
+                            let (a, b) = relation.operands();
+                            available(a) && available(b)
+                        });
+                        for (value, range) in phi_ranges {
+                            if range != Range::FULL {
+                                cx.ranges.insert(value, range);
+                            }
+                        }
+                        let edge =
+                            Facts { ranges: cx.ranges.clone(), relations: cx.relations.clone() };
+                        if let Some(merged) = &mut merged {
+                            merged.ranges.retain(|value, range| {
+                                if let Some(other) = edge.ranges.get(value) {
+                                    *range = range.union(*other);
+                                    *range != Range::FULL
+                                } else {
+                                    false
+                                }
+                            });
+                            merged.relations.retain(|relation| edge.relations.contains(relation));
+                        } else {
+                            merged = Some(edge);
+                        }
+                    }
+                }
+                let entry = merged.unwrap_or_default();
+                cx.ranges.clone_from(&entry.ranges);
+                cx.relations.clone_from(&entry.relations);
+                cx.range_undo.clear();
+                cx.relation_undo.clear();
+                for &inst in &func.blocks[block].instructions {
+                    if let Some(value) = func.inst_result_value(inst) {
+                        let range = cx.range_of(func, value, MAX_DEPTH);
+                        if range != Range::FULL {
+                            cx.ranges.insert(value, range);
+                        }
+                    }
+                }
+                let exit = Facts { ranges: cx.ranges.clone(), relations: cx.relations.clone() };
+                changed |= entries[block] != entry || exits[block] != exit;
+                entries[block] = entry;
+                exits[block] = exit;
+            }
+            if !changed {
+                break;
+            }
+        }
+        entries
     }
 
     // === Fact recording ===
@@ -342,7 +474,45 @@ impl CheckEliminator {
     }
 
     fn has_relation(&self, relation: Relation) -> bool {
-        self.relations.contains(&relation)
+        if self.relations.contains(&relation) {
+            return true;
+        }
+        let (start, end, needs_strict, equality_only) = match relation {
+            Relation::Lt(a, b) => (a, b, true, false),
+            Relation::Le(a, b) => (a, b, false, false),
+            Relation::Eq(a, b) => (a, b, false, true),
+            Relation::Ne(..) => return false,
+        };
+        // A bounded implication search: equality is bidirectional, <= carries
+        // order, and one strict edge makes the complete path strict. Disequality
+        // is not transitive. Exhausting the budget only misses an optimization.
+        const MAX_RELATION_STATES: usize = 64;
+        let mut pending = vec![(start, false)];
+        let mut seen = FxHashSet::default();
+        while let Some((value, strict)) = pending.pop() {
+            if value == end && (!needs_strict || strict) {
+                return true;
+            }
+            if !seen.insert((value, strict)) {
+                continue;
+            }
+            if seen.len() >= MAX_RELATION_STATES {
+                return false;
+            }
+            for &fact in &self.relations {
+                let next = match fact {
+                    Relation::Eq(a, b) if a == value => Some((b, strict)),
+                    Relation::Eq(a, b) if b == value => Some((a, strict)),
+                    Relation::Le(a, b) if a == value && !equality_only => Some((b, strict)),
+                    Relation::Lt(a, b) if a == value && !equality_only => Some((b, true)),
+                    _ => None,
+                };
+                if let Some(next) = next {
+                    pending.push(next);
+                }
+            }
+        }
+        false
     }
 
     // === Evaluation ===
