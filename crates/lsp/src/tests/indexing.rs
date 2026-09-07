@@ -27,6 +27,13 @@ async fn cached_and_published_symbol_tables_share_storage() {
     tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
     assert!(Arc::ptr_eq(&published, &state.symbol_tables.load()));
 
+    // Publication wakes readers before the worker releases its previous snapshot.
+    let idle = tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.analysis_scheduler.gate.acquire())
+        .await
+        .unwrap()
+        .unwrap();
+    drop(idle);
+
     let old = Arc::downgrade(&published);
     drop(published);
     state.clear_analysis_cache();
