@@ -956,3 +956,34 @@ Solc modes; no separate rerun is claimed. Current backend Rust files total
 comments and inline tests. Full functionality, sealed performance parity
 and CI remain unfinished. Main `933bc1e2` is merged; publication remains
 blocked by the earlier automatic push rejection.
+
+
+### Empty suppression check and explicit Foundry run
+
+Commit `49d5e21b` replaces two debug-build helper calls per opcode with a
+direct borrowed optional-set check. Selection and emitted instructions are
+unchanged. The full new workflow measures 0.85% lower compiler time than
+`74381ecf`, with 0.07% higher final-process peak RSS. Solarray improves 2.24%
+and matches the pre-fix median. Two reversed microchecks retain overlapping
+positive gaps of 0.24 ms and 0.30 ms; no universal speedup is claimed.
+Both hot modes retain exact fifteen-case, 175-label, 139-observation joins,
+and all 4,908 UI/3,344 heavy objects remain exact. Raw evidence and all
+repeats are under `computed-rematerialization-workflow-20260907/guard-trial/`.
+
+The explicit Foundry run executes all 36 projects: 772 compiler tests and
+765 solc tests pass, with identical ordered IDs in all 35 paired projects.
+The existing stack-depth project supplies seven compiler-only tests.
+Reports pin the source-equivalent workspace rebuild separately from the
+frozen benchmark binary; no launch-time binary hash was captured. Foundry
+uses each project's solc selection, including two 0.8.12 projects, rather
+than the runtime benchmark's universal 0.8.36 pin. The full workspace still
+has the same five UI failures. Clippy and typos pass; `ef17e019` fixes the
+only nightly-format failure by rewrapping two documentation lines.
+
+A broad terminal-dedup/tail-merge pipeline probe is rejected despite smaller
+objects: seventeen original calldata-alias calls increase opcode gas by
+1–24. All 360 focused calls and actual transaction receipts are retained;
+calldata floors conceal some opcode differences. The unloaded-spill case
+has a promising branch-local alternative, with explicit layout and stack
+proofs required before implementation can be accepted. Original fixture
+bodies and expectations remain unchanged during this investigation.
