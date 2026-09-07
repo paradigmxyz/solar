@@ -254,3 +254,21 @@ without another search or pressure-analysis pass. Production source provenance,
 acceptance lanes are retained in `writer-operand-cache-workflow-20260907/`.
 The current 182-byte Router reduction is an intermediate result, not whole-
 rewrite or runtime-performance acceptance.
+
+
+The retained-address experiment is now committed as `8c52191f`, with final
+full/Size runtime gas unchanged and strict whole-project size improvements.
+The final benchmark records a 0.99% compiler-time increase, not a speedup.
+Detailed source/metadata, runtime and repeated timing receipts are in the
+progress record and the retained workflow directory.
+
+A following caller-prefix investigation found no immediate reusable homed copy
+at an ICall. Exact substitution into an existing opaque save prefix would
+preserve the callee peak even through recursion; absent transitive peak analysis
+is not the rejection reason. Current lowering consumes or excludes those copies
+before a spilled call. Of Router's eight calls, four begin their block, three
+follow source writers, and one follows a dying CALLER argument with no backup.
+Crossing those writers needs a separate proof. No call policy was changed.
+The exact continuation count is 27 restored caller homes plus one returned-
+result store, not 28 caller backups. The source pins and negative census are
+retained in `caller-prefix-static-study-20260907/`.

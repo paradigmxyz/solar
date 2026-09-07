@@ -1723,3 +1723,61 @@ totals each down twelve bytes, no growth and all Size objects exact. Runtime,
 heavy size and quiet compiler-time gates remain pending. No original expectation
 has changed. Evidence remains under `writer-operand-cache-workflow-20260907/`;
 this candidate is uncommitted and the broader rewrite remains incomplete.
+
+
+### Retained writer addresses accepted as a bounded milestone
+
+Commit `8c52191f` retains an immediately produced, homed MSTORE address above
+an already frozen stack prefix. The existing writer template must cover every
+backup, preparation must emit no code, and the producer store must remain a
+canonical absolute store. DUP1 plus SWAP1 replaces its later PUSH/MLOAD without
+changing homes, protection, memory writes or local gas. The insertion preserves
+the producer's source origin. The writer helper owns the check; lowering only
+coordinates the existing preparation boundary. There is no new pass or search.
+
+Final debug binary `db2fee52` has the same complete outputs as measured draft
+`5a32ced0`; its only source refinement is Clippy's exact Boolean complement.
+The final official workflow repeats both full/Size lanes from that final source.
+All 24/15 ordered IDs, 175 ordered gas labels and 139 observations per compiler
+match; call gas is unchanged in both modes. Nitro creation/runtime each shrink
+65 bytes and deployment saves 14,061 gas. The Size runtime corpus is exact.
+The identical-input UI screen has ten smaller Gas objects, creation/runtime
+totals each down twelve bytes, no growth and all 2,470 Size objects exact.
+
+The nine heavy projects preserve all 1,672 contracts and 3,344 objects: 271
+objects shrink, none grow, creation decreases 91,549 bytes and runtime 71,304.
+All 91 changed source maps, 26 links and 515 immutable sites are reviewed,
+including packed control tables, embedded creation objects and the changed
+padding/allocation bookkeeping in NavigatorDeployer. The review explicitly
+accounts for generated unknown origins rather than discarding those records.
+The original positive sealed debt remains 18,126,242 creation bytes across 526
+objects and 14,982,693 runtime bytes across 533 objects. Router is 23,795 versus
+sealed 9,822 runtime bytes; the 182-byte gain does not resolve its 13,973-byte debt.
+
+Primary final compiler time is +0.993516%, peak RSS -0.087879%. Nonoverlapping
+Solmate/Solarray slowdowns prompted a quiet reversed five-case repeat: time
+-0.406457%, RSS +0.599691%, with Solarray still +1.485% in that repeat. Both runs
+remain recorded; no speedup or blanket noise claim is made. The supplemental
+run has identical compiler inputs but no reusable solc smoke-profile record,
+so it establishes neither runtime comparison nor solc agreement. Its initial
+mode-selection preflight failed before compiler execution and is preserved.
+
+The milestone adds 77 physical lines in production files. The backend now has
+45 files/16,521 physical lines versus 34,638 in the deleted scope: -18,117.
+These counts include comments and inline tests; a strict production-SLOC
+baseline is unavailable. Five new test files cover ordinary and frozen-prefix
+activation, refusal controls, ordered surviving values and debug origins.
+All 49 fresh focused calls pass, 21 paired gas comparisons are exact and 18
+negative FileCheck mutations fail. The symbolic attempt is exit 2/incomplete
+after its Forge timeout, not agreement. Three initial fixture integration
+failures were corrected only in new files: ten ROOT header prefixes and a
+redundant pretty-JSON flag. Original expectations were unchanged.
+
+Workspace tests report 1,395 passes plus the failing UI aggregate. The final
+pinned UI run has 11,658 passes, two original failures and 853 filtered revisions;
+all six new revisions/tests pass. All 36 Foundry projects pass (772/765 tests),
+matching gas and two reported sizes down 94 bytes. Clippy, formatting and typos
+pass. Evidence is retained in `writer-operand-cache-workflow-20260907/` and
+`writer-address-regression-proposal-20260907/`. The existing cold-fallthrough
+and calldata-alias failures, original memory-contract defects and sealed
+performance debt remain open. This is not whole-rewrite completion.
