@@ -8,7 +8,7 @@ mod block_cse;
 mod block_layout;
 mod cfg_simplify;
 mod coalesce_copies;
-pub(in crate::backend::evm) mod compact_pushes;
+pub(in crate::backend) mod compact_pushes;
 mod constant_data;
 pub(super) mod data;
 mod dce;
@@ -22,11 +22,11 @@ mod tail_merge;
 mod terminal_dedup;
 pub(super) mod utils;
 
-pub(in crate::backend::evm) use legalize_shifts::legalize_shifts;
+pub(in crate::backend) use legalize_shifts::legalize_shifts;
 
 use super::Module;
 use crate::{
-    pass_manager::{
+    mir::pass_manager::{
         parse_pass_pipeline, pipeline_output_name, print_pass_diff, should_validate_ir,
     },
     timing::PassTimer,
@@ -35,7 +35,7 @@ use solar_config::{EvmVersion, OptimizationMode};
 use solar_interface::diagnostics::DiagCtxt;
 use solar_sema::Gcx;
 
-pub use crate::pass_manager::pipeline_label;
+pub use crate::mir::pass_manager::pipeline_label;
 
 /// A streamlined trait for an EVM IR transformation pass.
 pub trait EvmPass: Sync {

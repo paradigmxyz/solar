@@ -16,7 +16,7 @@ use crate::{
         },
         op::{self, WORD_BYTES},
     },
-    lower::{data_copy_cost, data_copy_gas, data_copy_is_profitable},
+    mir::lower::{data_copy_cost, data_copy_gas, data_copy_is_profitable},
 };
 use alloy_primitives::{Bytes, U256};
 use memchr::memmem;

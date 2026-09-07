@@ -55,7 +55,7 @@
 //! once per block and message rather than once per entry depth.
 
 use super::*;
-use crate::backend::evm::{op, stack::MAX_STACK_DEPTH};
+use crate::backend::evm::{codegen::MAX_STACK_DEPTH, op};
 use solar_config::EvmVersion;
 use solar_data_structures::{
     index::IndexVec,
@@ -69,13 +69,13 @@ use std::{collections::hash_map::Entry, fmt};
 type ReportedErrors = FxHashMap<(BlockId, String), ErrorGuaranteed>;
 
 /// EVM IR verifier.
-pub(super) struct Verifier<'a> {
+pub(in crate::backend) struct Verifier<'a> {
     dcx: &'a DiagCtxt,
     evm_version: EvmVersion,
 }
 
 impl<'a> Verifier<'a> {
-    pub(super) fn new(gcx: Gcx<'a>) -> Self {
+    pub(in crate::backend) fn new(gcx: Gcx<'a>) -> Self {
         Self { dcx: gcx.dcx(), evm_version: gcx.sess.opts.evm_version }
     }
 
@@ -93,7 +93,7 @@ impl<'a> Verifier<'a> {
     /// This is the only stack-operation check that reports in release builds, so it runs for
     /// every EVM version: which module the check sees must not depend on whether legalization
     /// had shifts to rewrite.
-    pub(super) fn verify_after_legalization(&self, module: &Module) {
+    pub(in crate::backend) fn verify_after_legalization(&self, module: &Module) {
         self.verify_module(module);
         self.verify_target_support(module);
     }
@@ -645,7 +645,7 @@ impl<'a> Verifier<'a> {
         block.index() < module.blocks.len()
     }
 
-    pub(super) fn is_valid(module: &Module) -> bool {
+    pub(in crate::backend) fn is_valid(module: &Module) -> bool {
         let dcx = DiagCtxt::with_silent_emitter(None);
         Verifier::for_evm_version(&dcx, EvmVersion::Osaka).verify_module(module);
         dcx.has_errors().is_ok()

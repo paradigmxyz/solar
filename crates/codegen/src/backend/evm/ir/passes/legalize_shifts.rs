@@ -29,7 +29,7 @@ impl EvmPass for LegalizeShifts {
     }
 }
 
-pub(in crate::backend::evm) fn legalize_shifts(gcx: Gcx<'_>, module: &mut Module) -> bool {
+pub(in crate::backend) fn legalize_shifts(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let evm_version = gcx.sess.opts.evm_version;
     let legalize_shifts = !evm_version.has_bitwise_shifting();
     let legalize_revert = !evm_version.supports_returndata();

@@ -15,26 +15,30 @@ use super::{
     DebugFunction, DebugFunctionExit, DebugSpans, MAX_DEBUG_SPANS,
     op::{self, StackOp},
 };
-use crate::mir::{ImmutableId, TypeSize};
+use crate::{
+    backend::assembler::{self, assembly},
+    mir::{ImmutableId, TypeSize},
+};
 use alloy_primitives::{Bytes, U256};
 use solar_data_structures::{fmt, index::IndexVec, newtype_index};
 use solar_interface::{Span, Symbol};
 
-pub(in crate::backend::evm) mod builder;
+pub(in crate::backend) mod builder;
 mod display;
 mod parse;
 mod passes;
-pub(in crate::backend::evm) mod verify;
-
-pub(in crate::backend::evm) mod assembly;
+pub(in crate::backend) mod verify;
 
 pub(crate) use passes::compact_pushes::immediate_materialization_cost;
 pub use passes::{
     ALL_PASSES, EvmPass, lookup_pass, pipeline_label, run_passes, run_passes_no_validate,
     run_pipeline,
 };
-pub(in crate::backend::evm) use passes::{
-    compact_pushes::ImmediateMaterialization, legalize_shifts,
+pub(in crate::backend) use passes::{
+    compact_pushes::{
+        ImmediateMaterialization, ImmediateMaterializationOp, immediate_materialization_len,
+    },
+    legalize_shifts,
 };
 
 /// Validates the target-independent invariants of an EVM IR module.
@@ -94,7 +98,7 @@ pub struct Module {
 impl Module {
     /// Lowers this EVM IR module to bytecode.
     pub fn into_bytecode(self, gcx: solar_sema::Gcx<'_>) -> solar_interface::Result<Vec<u8>> {
-        let mut assembler = super::assembler::Assembler::from_evm_ir(gcx, self)?;
+        let mut assembler = assembler::Assembler::from_evm_ir(gcx, self)?;
         let result = assembler.assemble_with_evm_ir(true);
         gcx.dcx().has_errors()?;
         Ok(result.bytecode)
@@ -121,7 +125,7 @@ impl Module {
     }
 
     /// Clears the module while retaining its outer allocations.
-    pub(in crate::backend::evm) fn clear(&mut self) {
+    pub(in crate::backend) fn clear(&mut self) {
         self.blocks.clear();
         self.data.clear();
         self.enable_size_outlining = false;
@@ -140,7 +144,7 @@ impl Module {
     }
 
     /// Changes the program name without clearing emitted IR.
-    pub(in crate::backend::evm) fn set_name(&mut self, name: Symbol) {
+    pub(in crate::backend) fn set_name(&mut self, name: Symbol) {
         self.name = name;
     }
 
@@ -151,7 +155,7 @@ impl Module {
     }
 
     /// Returns whether data references can observe entry boundaries or order.
-    pub(in crate::backend::evm) fn data_layout_is_observable(&self) -> bool {
+    pub(in crate::backend) fn data_layout_is_observable(&self) -> bool {
         passes::data::data_layout_is_observable(self)
     }
 
@@ -324,7 +328,7 @@ impl Instruction {
     /// Creates an encoded push whose operand will be supplied by an assembler
     /// relocation before EVM IR validation.
     #[must_use]
-    pub(in crate::backend::evm) fn push_relocation() -> Self {
+    pub(in crate::backend) fn push_relocation() -> Self {
         Self {
             opcode: op::PUSH32,
             encoding: Self::ENCODED_PUSH,
@@ -336,7 +340,7 @@ impl Instruction {
 
     /// Creates an encoded deferred push instruction.
     #[must_use]
-    pub(in crate::backend::evm) fn push_deferred(id: assembly::DeferredConst) -> Self {
+    pub(in crate::backend) fn push_deferred(id: assembly::DeferredConst) -> Self {
         assert!(
             id.index() <= assembly::AsmInst::PAYLOAD_MASK as usize,
             "deferred constant ID overflow"
@@ -349,7 +353,7 @@ impl Instruction {
 
     /// Creates an encoded immutable push instruction with a fixed immediate width.
     #[must_use]
-    pub(in crate::backend::evm) fn push_immutable(id: ImmutableId, type_size: TypeSize) -> Self {
+    pub(in crate::backend) fn push_immutable(id: ImmutableId, type_size: TypeSize) -> Self {
         let mut inst = Self::encoded_push(
             PushValue::Immediate(U256::from(id.index())),
             Self::ENCODED_PUSH | Self::IMMUTABLE,
@@ -377,7 +381,7 @@ impl Instruction {
 
     /// Returns the immediate carried by this push instruction, if any.
     #[must_use]
-    pub(in crate::backend::evm) const fn pushed_value(&self) -> Option<U256> {
+    pub(in crate::backend) const fn pushed_value(&self) -> Option<U256> {
         match self.value {
             Some(PushValue::Immediate(value)) => Some(value),
             _ => None,
@@ -389,7 +393,7 @@ impl Instruction {
     /// Deferred and immutable pushes encode internal IDs in the same payload variant, but their
     /// runtime values are supplied later and must not participate in constant-value reasoning.
     #[must_use]
-    pub(in crate::backend::evm) const fn concrete_immediate(&self) -> Option<U256> {
+    pub(in crate::backend) const fn concrete_immediate(&self) -> Option<U256> {
         if self.encoding != Self::ENCODED_PUSH {
             return None;
         }
@@ -398,7 +402,7 @@ impl Instruction {
 
     /// Returns the block carried by this push instruction, if any.
     #[must_use]
-    pub(in crate::backend::evm) const fn pushed_block(&self) -> Option<BlockId> {
+    pub(in crate::backend) const fn pushed_block(&self) -> Option<BlockId> {
         match self.value {
             Some(PushValue::Block(block)) => Some(block),
             _ => None,
@@ -407,7 +411,7 @@ impl Instruction {
 
     /// Returns the program data carried by this push instruction, if any.
     #[must_use]
-    pub(in crate::backend::evm) const fn pushed_data(&self) -> Option<DataRef> {
+    pub(in crate::backend) const fn pushed_data(&self) -> Option<DataRef> {
         match self.value {
             Some(PushValue::Data(data)) => Some(data),
             _ => None,
@@ -472,7 +476,7 @@ impl Instruction {
 
     /// Returns the deferred constant referenced by this push instruction, if any.
     #[must_use]
-    pub(in crate::backend::evm) fn deferred_push(&self) -> Option<assembly::DeferredConst> {
+    pub(in crate::backend) fn deferred_push(&self) -> Option<assembly::DeferredConst> {
         if self.encoding & Self::DEFERRED == 0 {
             return None;
         }
@@ -484,7 +488,7 @@ impl Instruction {
 
     /// Returns the immutable identifier carried by this push instruction, if any.
     #[must_use]
-    pub(in crate::backend::evm) fn immutable_push(&self) -> Option<ImmutableId> {
+    pub(in crate::backend) fn immutable_push(&self) -> Option<ImmutableId> {
         if self.encoding & Self::IMMUTABLE == 0 {
             return None;
         }
@@ -496,7 +500,7 @@ impl Instruction {
 
     /// Returns the immutable placeholder's type size, if this is an immutable push.
     #[must_use]
-    pub(in crate::backend::evm) fn immutable_type_size(&self) -> Option<TypeSize> {
+    pub(in crate::backend) fn immutable_type_size(&self) -> Option<TypeSize> {
         if self.encoding & Self::IMMUTABLE == 0 {
             return None;
         }
@@ -520,7 +524,7 @@ impl Instruction {
     }
 
     /// Requires this instruction to stay immediately before the next one in its block.
-    pub(in crate::backend::evm) const fn keep_with_next(&mut self) {
+    pub(in crate::backend) const fn keep_with_next(&mut self) {
         self.metadata.keep_with_next = true;
     }
 }
@@ -545,7 +549,7 @@ impl Terminator {
 
     /// Creates the artificial `STOP` that closes a raw assembler fragment.
     #[must_use]
-    pub(in crate::backend::evm) fn implicit_stop() -> Self {
+    pub(in crate::backend) fn implicit_stop() -> Self {
         Self {
             kind: TerminatorKind::Op(op::STOP),
             metadata: Metadata::default(),

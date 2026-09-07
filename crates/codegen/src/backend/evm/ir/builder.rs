@@ -2,14 +2,19 @@
 
 use super::{self as ir};
 use crate::{
-    backend::evm::{
-        DebugFunction, DebugFunctionExit,
-        assembler::{ArtifactKind, Assembler, DeferredAllocResolution, DeferredConst, Label},
-        ir::assembly::DeferredAlloc,
-        op::{self, push_len},
+    backend::{
+        assembler::{
+            ArtifactKind, Assembler, DeferredAllocResolution, DeferredConst, Label,
+            assembly::DeferredAlloc,
+        },
+        evm::{
+            DebugFunction, DebugFunctionExit,
+            op::{self, push_len},
+        },
     },
-    memory::EvmMemoryLayout,
-    mir::{DataRef as MirDataRef, ImmutableId, Module as MirModule, TypeSize},
+    mir::{
+        DataRef as MirDataRef, ImmutableId, Module as MirModule, TypeSize, memory::EvmMemoryLayout,
+    },
 };
 use alloy_primitives::U256;
 use solar_data_structures::{index::index_vec, map::FxHashMap};
@@ -17,7 +22,7 @@ use solar_sema::Gcx;
 
 impl<'gcx> Assembler<'gcx> {
     /// Creates an assembler with finalized EVM IR loaded into the ordinary backend pipeline.
-    pub(in crate::backend::evm) fn from_evm_ir(
+    pub(in crate::backend) fn from_evm_ir(
         gcx: Gcx<'gcx>,
         mut module: ir::Module,
     ) -> solar_interface::Result<Self> {
@@ -395,7 +400,7 @@ impl<'gcx> Assembler<'gcx> {
 
     /// Emits an allocation whose static or dynamic placement is chosen after
     /// exact backend frame layout is known.
-    pub(in crate::backend::evm) fn emit_deferred_alloc(&mut self) -> DeferredAlloc {
+    pub(in crate::backend) fn emit_deferred_alloc(&mut self) -> DeferredAlloc {
         let id = self.next_deferred_alloc.next();
         let (block, instruction) = self.push_ir_instruction(ir::Instruction::push_relocation());
         self.alloc_relocations.push((block, instruction, id));
@@ -403,7 +408,7 @@ impl<'gcx> Assembler<'gcx> {
     }
 
     /// Resolves an allocation to a compile-time address.
-    pub(in crate::backend::evm) fn set_deferred_alloc_static(
+    pub(in crate::backend) fn set_deferred_alloc_static(
         &mut self,
         id: DeferredAlloc,
         address: U256,
@@ -412,11 +417,7 @@ impl<'gcx> Assembler<'gcx> {
     }
 
     /// Resolves an allocation to the ordinary free-memory-pointer bump.
-    pub(in crate::backend::evm) fn set_deferred_alloc_dynamic(
-        &mut self,
-        id: DeferredAlloc,
-        size: U256,
-    ) {
+    pub(in crate::backend) fn set_deferred_alloc_dynamic(&mut self, id: DeferredAlloc, size: U256) {
         self.deferred_allocations.insert(id, DeferredAllocResolution::Dynamic(size));
     }
 
@@ -441,7 +442,7 @@ impl<'gcx> Assembler<'gcx> {
     }
 
     /// Marks a label-started block as cold for EVM IR layout passes.
-    pub(in crate::backend::evm) fn mark_label_cold(&mut self, label: Label) {
+    pub(in crate::backend) fn mark_label_cold(&mut self, label: Label) {
         self.cold_labels.insert(label);
         if let Some(&block) = self.label_blocks.get(&label) {
             self.program.blocks[block].metadata.hotness = ir::Hotness::Cold;
@@ -513,9 +514,7 @@ impl<'gcx> Assembler<'gcx> {
         }
     }
 
-    pub(in crate::backend::evm) fn finish_evm_ir(
-        &mut self,
-    ) -> Option<(ir::Module, Vec<Option<Label>>)> {
+    pub(in crate::backend) fn finish_evm_ir(&mut self) -> Option<(ir::Module, Vec<Option<Label>>)> {
         let mut module = std::mem::take(&mut self.program);
         self.current_block = None;
         if module.blocks.is_empty() {
@@ -657,7 +656,7 @@ impl<'gcx> Assembler<'gcx> {
     }
 }
 
-pub(in crate::backend::evm) fn resolve_known_deferred_constants(
+pub(in crate::backend) fn resolve_known_deferred_constants(
     module: &mut ir::Module,
     values: &FxHashMap<DeferredConst, U256>,
 ) {

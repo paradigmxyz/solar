@@ -2,10 +2,11 @@
 
 use crate::{
     Backend, EvmCodegen,
-    backend::evm::{self, DebugInstruction, ir},
-    lower,
-    mir::{LibraryLink, Module},
-    pass::run_pipeline,
+    backend::{
+        evm,
+        evm::{DebugInstruction, ir},
+    },
+    mir::{LibraryLink, Module, lower, pass::run_pipeline},
 };
 use alloy_primitives::Bytes;
 use either::Either;
