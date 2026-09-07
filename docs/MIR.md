@@ -342,6 +342,11 @@ invalidation rules as the canonical pipeline.
 The verifier checks IR at pass boundaries in debug builds and with
 `-Zvalidate-ir`. It should report broken invariants rather than repair them.
 
+Terminal-block and function equivalence compare the full instruction with
+normalized SSA operands. Literal contents, element widths, enum bounds, and
+other semantic fields participate in equality; instruction names alone do not
+establish equivalence.
+
 ### LLVM comparison
 
 LLVM's predecessor iterator follows basic-block uses in terminator operands,

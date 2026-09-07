@@ -14,7 +14,9 @@
 //! Remove functions that are never called, starting from entry points
 //! (public/external functions, constructor, fallback, receive).
 //!
-//! Terminal-block equivalence ignores source context. Shared instructions and
+//! Terminal-block equivalence compares every non-operand instruction field, including semantic
+//! layouts and literal payloads, while comparing SSA operands by definition position. It ignores
+//! source context. Shared instructions and
 //! terminators retain the bounded union of their original locations instead.
 
 use crate::{
@@ -83,19 +85,10 @@ struct CanonBlock {
 /// Alpha-equivalence key for one instruction of a terminal block.
 #[derive(Debug, PartialEq, Eq, Hash)]
 struct CanonInst {
-    mnemonic: &'static str,
-    payload: CanonPayload,
+    kind: InstKind,
     operands: Vec<CanonOperand>,
     result_ty: Option<MirType>,
     metadata: InstructionMetadata,
-}
-
-/// Non-operand payload carried by an instruction kind.
-#[derive(Debug, PartialEq, Eq, Hash)]
-enum CanonPayload {
-    None,
-    FrameAddr(u64),
-    Call(FunctionId),
 }
 
 /// A canonicalized operand: block-local results compare by definition
@@ -275,11 +268,9 @@ impl CfgSimplifier {
         let mut insts = Vec::with_capacity(block.instructions.len());
         for &inst_id in &block.instructions {
             let inst = func.inst(inst_id);
-            let extra = match &inst.kind {
-                InstKind::Phi(_) => return None,
-                InstKind::InternalFrameAddr(offset) => CanonPayload::FrameAddr(*offset),
-                InstKind::ICall { function, .. } => CanonPayload::Call(*function),
-                InstKind::Alloc { .. }
+            match &inst.kind {
+                InstKind::Phi(_)
+                | InstKind::Alloc { .. }
                 | InstKind::MemoryObjectLen(_, _)
                 | InstKind::SetMemoryObjectLen(_, _, _)
                 | InstKind::MemoryObjectData(_, _)
@@ -307,15 +298,14 @@ impl CfgSimplifier {
                 | InstKind::StoreImmutable(_, _)
                 | InstKind::LoadImmutable(_)
                 | InstKind::StorageArrayElementSlot { .. } => return None,
-                _ => CanonPayload::None,
-            };
+                _ => {}
+            }
             let mut metadata = inst.metadata.clone();
             metadata.set_hir_expr(None);
             metadata.mark_debug_info_dropped();
             metadata.loop_depth = 0;
             insts.push(CanonInst {
-                mnemonic: inst.kind.mnemonic(),
-                payload: extra,
+                kind: inst.kind.clone_without_operands(),
                 operands: inst.kind.operands().into_iter().map(canon_operand).collect(),
                 result_ty: inst.result_ty,
                 metadata,

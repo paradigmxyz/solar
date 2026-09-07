@@ -105,3 +105,36 @@
       revert 0, 32
   }
   
+  fn @keep_distinct_packed_literals(arg0: bool) -> bytes32 {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb2:
+      v1 = keccak256_packed (data hex"62")
+      ret v1
+    bb1:
+      v0 = keccak256_packed (data hex"61")
+      ret v0
+  }
+  
+  fn @keep_distinct_enum_bounds(arg0: bool, arg1: u256) -> memoryarray {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb2:
+      v1 = load_storage_array enum<3>, arg1
+      ret v1
+    bb1:
+      v0 = load_storage_array enum<2>, arg1
+      ret v0
+  }
+  
+  fn @merge_equal_packed_literals(arg0: bool) -> bytes32 {
+    bb0:
+-     jumpi arg0, bb1, bb2
+-   bb2:
+-     v1 = keccak256_packed (data hex"61")
+-     ret v1
+-   bb1:
+      v0 = keccak256_packed (data hex"61")
+      ret v0
+  }
+  

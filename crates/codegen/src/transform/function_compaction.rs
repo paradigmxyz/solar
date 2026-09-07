@@ -881,11 +881,8 @@ fn equivalent_inst_payload(
     rhs_id: FunctionId,
     rhs: &InstKind,
 ) -> bool {
-    let mut lhs = lhs.clone();
-    let mut rhs = rhs.clone();
-    let zero = ValueId::from_usize(0);
-    lhs.visit_operands_mut(|value| *value = zero);
-    rhs.visit_operands_mut(|value| *value = zero);
+    let lhs = lhs.clone_without_operands();
+    let mut rhs = rhs.clone_without_operands();
     if let (
         InstKind::ICall { function: lhs_target, .. },
         InstKind::ICall { function: rhs_target, .. },

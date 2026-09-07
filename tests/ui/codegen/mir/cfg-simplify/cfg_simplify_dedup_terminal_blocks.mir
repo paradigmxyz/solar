@@ -125,3 +125,50 @@ fn @keep_distinct_memory_fields(arg0: u256, arg1: u256, arg2: memorystruct) {
   bb4:
     stop
 }
+
+// Packed literals are part of the operation, even though they are not SSA operands.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_distinct_packed_literals{{[( ]}}
+// CHECK: {{^[ +].*}}jumpi arg0, bb1, bb2
+// CHECK-DAG: {{^[ +].*}}keccak256_packed (data hex"61")
+// CHECK-DAG: {{^[ +].*}}keccak256_packed (data hex"62")
+fn @keep_distinct_packed_literals(arg0: bool) -> bytes32 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    v0 = keccak256_packed (data hex"61")
+    ret v0
+  bb2:
+    v1 = keccak256_packed (data hex"62")
+    ret v1
+}
+
+// Enum bounds remain distinct even when the array type and slot are identical.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_distinct_enum_bounds{{[( ]}}
+// CHECK: {{^[ +].*}}jumpi arg0, bb1, bb2
+// CHECK: {{^[ +].*}}load_storage_array enum<3>, arg1
+// CHECK: {{^[ +].*}}load_storage_array enum<2>, arg1
+fn @keep_distinct_enum_bounds(arg0: bool, arg1: u256) -> memoryarray {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    v0 = load_storage_array enum<2>, arg1
+    ret v0
+  bb2:
+    v1 = load_storage_array enum<3>, arg1
+    ret v1
+}
+
+// Identical payloads still allow alpha-equivalent terminal blocks to merge.
+// CHECK-LABEL: {{^[ +].*}}fn @merge_equal_packed_literals{{[( ]}}
+// CHECK: - jumpi arg0, bb1, bb2
+// CHECK: {{^[ +].*}}keccak256_packed (data hex"61")
+fn @merge_equal_packed_literals(arg0: bool) -> bytes32 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    v0 = keccak256_packed (data hex"61")
+    ret v0
+  bb2:
+    v1 = keccak256_packed (data hex"61")
+    ret v1
+}

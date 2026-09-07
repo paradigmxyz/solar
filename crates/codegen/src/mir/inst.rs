@@ -870,7 +870,7 @@ impl Instruction {
 /// TODO(codegen): Consider separating opcode and operands once the MIR shape stabilizes, e.g.
 /// `Instruction { opcode: Opcode, operands: SmallVec<[ValueId; 4]>, ... }`. That would make generic
 /// operand visitors and rewrites less variant-heavy.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum InstKind {
     /// Replaces one field of an SSA struct, leaving the other fields unchanged.
     InsertValue { ty: StructId, aggregate: ValueId, index: u32, value: ValueId },
@@ -1438,6 +1438,13 @@ pub(crate) enum InstKind {
 }
 
 impl InstKind {
+    /// Clones the instruction with zeroed value operands to compare its remaining fields.
+    pub(crate) fn clone_without_operands(&self) -> Self {
+        let mut kind = self.clone();
+        kind.visit_operands_mut(|value| *value = ValueId::from_usize(0));
+        kind
+    }
+
     /// Returns binary operands whose evaluation order may be exchanged during EVM lowering.
     ///
     /// This includes commutative instructions and comparisons whose opcode can be reversed with
