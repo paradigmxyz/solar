@@ -97,6 +97,12 @@ struct AnalysisPathIndex {
 }
 
 impl AnalysisPathIndex {
+    fn is_empty(&self) -> bool {
+        self.resolved_dependencies.is_empty()
+            && self.existing_unresolved_candidates.is_empty()
+            && self.missing_candidates.is_empty()
+    }
+
     fn merge(&mut self, other: Self) {
         self.resolved_dependencies.extend(other.resolved_dependencies);
         self.existing_unresolved_candidates.extend(other.existing_unresolved_candidates);
@@ -1205,6 +1211,8 @@ impl GlobalState {
             let progress = self.analysis_progress.reserve(version);
             if refresh_pull_results {
                 commit.begin_external_refresh();
+                // Keep invalidation even if a later request cancels the debounced worker.
+                commit.cached_output = None;
             }
             self.commit_analysis_epoch(&mut commit, version, changed_paths, rediscover);
             let update =
@@ -1644,6 +1652,8 @@ fn run_analysis(
             if !commit.cache_invalidated
                 && let Some(cached) = &mut commit.cached_output
                 && Arc::ptr_eq(&cached.config, &config)
+                // The compared batches do not include disk-only imports or resolver probes.
+                && cached.output.analysis_paths.is_empty()
                 && cached.inputs.len() == batches.len()
                 && cached.inputs.iter().zip(&batches).all(|(inputs, batch)| {
                     inputs.files == batch.files && inputs.preloaded_files == batch.preloaded_files
@@ -1699,12 +1709,15 @@ fn run_analysis(
 
     let output = results.finish().into_shared();
     if !has_disk_paths {
-        snapshot.analysis_commit.lock().cached_output = Some(CachedAnalysisOutput {
-            vfs_content_revision,
-            config,
-            output: output.clone(),
-            inputs,
-        });
+        let mut commit = snapshot.analysis_commit.lock();
+        if snapshot.is_current(version) && !commit.cache_invalidated {
+            commit.cached_output = Some(CachedAnalysisOutput {
+                vfs_content_revision,
+                config,
+                output: output.clone(),
+                inputs: if output.analysis_paths.is_empty() { inputs } else { Vec::new() },
+            });
+        }
     }
     progress.report("Publishing workspace index");
     if snapshot.publish_analysis_output(version, output) {
