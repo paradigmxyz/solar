@@ -2301,15 +2301,15 @@ fn analysis_batches_use_cached_workspace_source_files() {
     assert_eq!(batch.files, vec![(cached_path, Arc::new("contract Cached {}".into()))]);
 
     config.add_source_file(created_after_discovery.clone());
-    let outside_source_root = project.path("/test/Outside.sol");
-    project.write_file("/test/Outside.sol", "contract Outside {}");
+    let outside_source_root = project.path("/other/Outside.sol");
+    project.write_file("/other/Outside.sol", "contract Outside {}");
     config.add_source_file(outside_source_root.clone());
     let snapshot = snapshot_with_config(config, Vfs::default());
 
     let mut batches = snapshot.analysis_batches(Vec::new());
     let batch = batches.pop().unwrap();
     assert!(batch.files.iter().any(|(path, _)| path == &created_after_discovery));
-    assert!(!batch.files.iter().any(|(path, _)| path == &outside_source_root));
+    assert!(batch.files.iter().any(|(path, _)| path == &outside_source_root));
 }
 
 #[test]

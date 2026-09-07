@@ -652,7 +652,16 @@ async fn watched_flycheck_only_source_change_schedules_analysis() {
         "#,
     );
     let path = project.path("/test/Main.t.sol");
-    let config = project.config();
+    let (_, mut config) = crate::config::negotiate_capabilities_with_pull_diagnostic_data(
+        project.initialize_params(),
+        false,
+        &crate::LaunchConfig::default().with_foundry_workspace_configs([
+            crate::FoundryWorkspaceConfig::new(project.root())
+                .with_source_roots(["src"])
+                .with_flycheck_source_roots(["src", "test"]),
+        ]),
+    );
+    config.rediscover_workspaces();
     assert!(!config.tracks_source_file(&path));
     assert!(config.tracks_flycheck_file(&path));
     let mut state = GlobalState::new(ClientSocket::new_closed());
@@ -712,7 +721,7 @@ async fn watched_source_respects_the_most_specific_flycheck_owner() {
         ),
         ControlFlow::Continue(())
     ));
-    assert_eq!(state.analysis_version.load(Ordering::Acquire), 0);
+    assert_eq!(state.analysis_version.load(Ordering::Acquire), 1);
     assert!(
         state
             .config

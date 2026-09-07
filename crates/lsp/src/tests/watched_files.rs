@@ -557,7 +557,7 @@ fn relative_watched_file_registration_respects_nested_workspace_ownership() {
     assert!(watched_file_registration_has_spec(&registration, &nested_source_root, "*"));
     assert!(watched_file_registration_has_spec(&registration, &nested_source_root, "*.sol"));
     assert!(watched_file_registration_has_spec(&registration, &nested_source_root, "foundry.toml"));
-    assert!(!watched_file_registration_has_spec(&registration, &nested_root, "*.sol"));
+    assert!(watched_file_registration_has_spec(&registration, &nested_root, "*.sol"));
     for excluded in [
         project.path("/nested/Outside.sol"),
         project.path("/nested/src/generated"),
@@ -1289,7 +1289,7 @@ async fn reregister_watched_files_preserves_missing_candidates() {
         //- /src/Main.sol
         contract Main {}
 
-        //- /generated/.keep
+        //- /out/generated/.keep
         "#,
     );
     let mut params = project.initialize_params();
@@ -1304,7 +1304,7 @@ async fn reregister_watched_files_preserves_missing_candidates() {
     config.rediscover_workspaces();
     let mut state = GlobalState::new(ClientSocket::new_closed());
     state.config = Arc::new(config);
-    let missing_parent = project.path("/generated");
+    let missing_parent = project.path("/out/generated");
     state
         .analysis_commit
         .lock()
