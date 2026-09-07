@@ -15,7 +15,7 @@
 //! that keeps that value alive, unless the operand it displaces dies here.
 //! Instructions are rewritten in place at their original position; merged
 //! instructions are deleted and their uses redirected. Placement never
-//! changes, so the pass cannot hoist or sink and never grows code.
+//! changes, and local rules cannot increase the MIR instruction count.
 //!
 //! Instructions with effects, phis, and terminators form the skeleton. They
 //! stay in place and see their operands canonicalized; `rewrite` rules still
@@ -27,7 +27,7 @@
 //! Safety contract:
 //! - do not remove or reorder side effects
 //! - replace an instruction with a value only when the equality is exact for all 256-bit EVM words
-//! - preserve boolean-only rewrites behind explicit MIR boolean type checks
+//! - prove boolean-only rewrites from value definitions, never from narrow Solidity types alone
 
 use crate::target::{Cost, Target};
 use crate::mir::{
