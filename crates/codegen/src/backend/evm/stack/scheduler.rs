@@ -20,12 +20,12 @@
 //! the cheapest common case. Linear proofs cover distinct operands that all
 //! require materialization, one resident last use among otherwise materialized
 //! operands, and a binary operation whose only resident operand must survive.
-//! Gas mode also uses verified one-action and unary plans before a
-//! lower-bound-certified deterministic walk. Bounded A* is reserved for
-//! layouts where those proofs do not succeed. Size mode uses the linear proofs
-//! too, but skips the local one-action and unary fast paths because byte-cost
-//! ties can leave different residual layouts that cost more to clean up after
-//! the instruction. The available actions are:
+//! Gas mode also lifts a preserved resident at the DUP boundary before materializing the other
+//! operand, unless a cheaper pop or reload needs search. Verified one-action and unary plans
+//! precede a lower-bound-certified deterministic walk. Bounded A* is reserved for layouts where
+//! those proofs do not succeed. Size mode skips boundary lifting and the one-action and unary
+//! fast paths because byte-cost ties can leave different residual layouts that cost more to clean
+//! up after the instruction. The available actions are:
 //!
 //! - use `SWAP` to consume target-accessible last uses in place;
 //! - use `DUP` when another target-accessible copy must survive or an operand repeats;
@@ -1564,7 +1564,7 @@ impl StackScheduler {
         };
         let stack = self.stack.as_slice();
         let resident_depth = stack.iter().position(|&slot| slot == Some(resident))?;
-        if resident_depth >= self.max_stack_access()
+        if resident_depth > self.max_stack_access()
             || stack.iter().filter(|&&slot| slot == Some(resident)).count() != 1
         {
             return None;
@@ -1584,13 +1584,45 @@ impl StackScheduler {
         let mut ops = SmallVec::<[(ScheduledOp, Option<ValueId>); 3]>::new();
         if !stack.contains(&Some(other)) {
             let materialize_other = self.materialize_operand(other, func)?;
-            if first == resident {
+            if resident_depth + usize::from(second == resident) >= self.max_stack_access() {
+                // SWAPn; materialize other; DUP2
+                // Lifting the sole resident copy reaches the three-action lower bound when
+                // materialization would bury it beyond DUP's reach. Keep size-mode ties in search.
+                if first == resident
+                    || !matches!(optimization, OptimizationMode::Gas)
+                    || stack.first().is_some_and(|top| {
+                        top.is_some()
+                            && stack[1..]
+                                .iter()
+                                .take(self.max_stack_access())
+                                .any(|slot| slot == top)
+                    })
+                {
+                    return None;
+                }
+                let swap = ScheduledOp::Stack(StackOp::Swap(resident_depth as u8));
+                let copy = ScheduledOp::Stack(StackOp::Dup(2));
+                let lift_cost = ScheduleCost::of_op(&swap, evm_version, cost_model).with_op(
+                    &copy,
+                    evm_version,
+                    cost_model,
+                );
+                if self.materialize_operand(resident, func).is_some_and(|op| {
+                    ScheduleCost::of_op(&op, evm_version, cost_model)
+                        .cmp_for(lift_cost, optimization)
+                        .is_lt()
+                }) {
+                    return None;
+                }
+                ops.push((swap, None));
+                ops.push((materialize_other, Some(other)));
+                ops.push((copy, Some(resident)));
+            } else if first == resident {
+                // DUPn; materialize other
                 ops.push((copy_resident(resident_depth), Some(resident)));
                 ops.push((materialize_other, Some(other)));
             } else {
-                if resident_depth.checked_add(1)? >= self.max_stack_access() {
-                    return None;
-                }
+                // materialize other; DUPn
                 ops.push((materialize_other, Some(other)));
                 ops.push((copy_resident(resident_depth + 1), Some(resident)));
             }
@@ -4475,21 +4507,59 @@ mod tests {
     }
 
     #[test]
-    fn preserved_binary_plan_rejects_resident_buried_past_dup16() {
+    fn preserved_binary_plan_lifts_resident_at_dup_boundary() {
+        for evm_version in [EvmVersion::Shanghai, EvmVersion::Amsterdam] {
+            for depth in
+                [evm_version.reachable_stack_depth() - 1, evm_version.reachable_stack_depth()]
+            {
+                for immediate in [0, 17] {
+                    let mut func = Function::new(Ident::DUMMY);
+                    let resident = func.alloc_param(MirType::uint256());
+                    let other = func.alloc_value(Value::Immediate(Immediate::uint256(
+                        alloy_primitives::U256::from(immediate),
+                    )));
+                    let mut scheduler = StackScheduler::for_evm_version(evm_version);
+                    scheduler.stack.push(resident);
+                    for _ in 0..depth {
+                        let filler = func.alloc_param(MirType::uint256());
+                        scheduler.stack.push(filler);
+                    }
+                    let original = scheduler.stack.clone();
+                    let plan = scheduler
+                        .plan_operands(
+                            &[other, resident],
+                            &[resident],
+                            &func,
+                            OptimizationMode::Gas,
+                            OperandCostModel::DIRECT,
+                        )
+                        .unwrap();
+                    assert_eq!(scheduler.operand_search_stats.get().created, 0);
+                    assert_eq!(plan.actions[0].op, ScheduledOp::Stack(StackOp::Swap(depth as u8)));
+                    assert_eq!(plan.actions.len(), 3);
+                    scheduler.apply_operand_plan(plan);
+                    assert_eq!(&scheduler.stack.as_slice()[..2], &[Some(resident), Some(other)]);
+                    scheduler.instruction_executed(2, None);
+                    let mut expected = original.as_slice().to_vec();
+                    expected.swap(0, depth);
+                    assert_eq!(scheduler.stack.as_slice(), expected);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn preserved_binary_boundary_keeps_cheaper_pop_in_search() {
         let mut func = Function::new(Ident::DUMMY);
         let resident = func.alloc_param(MirType::uint256());
-        let other = func
-            .alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(17))));
+        let other =
+            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::ONE)));
+        let filler = func.alloc_param(MirType::uint256());
         let mut scheduler = StackScheduler::new();
         scheduler.stack.push(resident);
-        for value in 0..MAX_STACK_ACCESS - 1 {
-            let filler = func.alloc_value(Value::Immediate(Immediate::uint256(
-                alloy_primitives::U256::from(value),
-            )));
+        for _ in 0..MAX_STACK_ACCESS - 1 {
             scheduler.stack.push(filler);
         }
-        assert_eq!(scheduler.stack.find(resident), Some(MAX_STACK_ACCESS - 1));
-
         assert!(
             scheduler
                 .try_preserved_resident_binary_plan(
@@ -4502,6 +4572,17 @@ mod tests {
                 )
                 .is_none()
         );
+        let plan = scheduler
+            .plan_operands(
+                &[other, resident],
+                &[resident],
+                &func,
+                OptimizationMode::Gas,
+                OperandCostModel::DIRECT,
+            )
+            .unwrap();
+        assert_eq!(plan.actions[0].op, ScheduledOp::Stack(StackOp::Pop));
+        assert_eq!(plan.cost.static_gas, 8);
     }
 
     #[test]
