@@ -33,7 +33,6 @@ use solar_interface::{
     source_map::{FileLoader, SourceMap},
 };
 use std::{
-    collections::BTreeMap,
     io,
     path::{Component, Path, PathBuf},
     sync::Arc,
@@ -171,7 +170,7 @@ pub struct BenchmarkProject {
     opts: CompileOpts,
     files: Vec<(PathBuf, String)>,
     loader: InMemoryFileLoader,
-    markers: BTreeMap<String, Vec<(PathBuf, Position)>>,
+    markers: FxHashMap<String, Vec<(PathBuf, Position)>>,
 }
 
 impl BenchmarkProject {
@@ -220,7 +219,7 @@ impl BenchmarkProject {
 
         let loader_sources = files.iter().cloned().collect();
         let loader = InMemoryFileLoader::new(root.clone(), loader_sources);
-        Ok(Self { root, opts, files, loader, markers: BTreeMap::new() })
+        Ok(Self { root, opts, files, loader, markers: FxHashMap::default() })
     }
 
     /// Prepare a stable multi-file project from the fixture format shared with LSP tests.
@@ -318,7 +317,7 @@ impl BenchmarkProject {
 
         let root = root.normalize();
         let loader = InMemoryFileLoader::new(root.clone(), loader_sources);
-        Ok(Self { root, opts, files, loader, markers: BTreeMap::new() })
+        Ok(Self { root, opts, files, loader, markers: FxHashMap::default() })
     }
 
     /// The number of primary Solidity source files in this project.

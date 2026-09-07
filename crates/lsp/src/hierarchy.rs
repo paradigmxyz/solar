@@ -1,10 +1,10 @@
 //! Shared hierarchy storage, converted to owned LSP items only at the response boundary.
 
-use lsp_types::{CallHierarchyItem, Range, SymbolKind, TypeHierarchyItem, Url};
+use lsp_types::{CallHierarchyItem, Position, Range, SymbolKind, TypeHierarchyItem, Url};
 use serde::Deserialize;
 use std::{cmp::Ordering, sync::Arc};
 
-const DATA_VERSION: u8 = 1;
+const DATA_VERSION: u8 = 2;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(crate) struct HierarchyKey {
@@ -14,9 +14,15 @@ pub(crate) struct HierarchyKey {
 
 impl HierarchyKey {
     pub(crate) fn from_data(data: &serde_json::Value) -> Option<Self> {
-        let data = HierarchyData::deserialize(data).ok()?;
-        (data.version == DATA_VERSION)
-            .then(|| Self { uri: Arc::new(data.uri), selection_range: data.selection_range })
+        let (version, uri, start_line, start_column, end_line, end_column) =
+            <(u8, Url, u32, u32, u32, u32)>::deserialize(data).ok()?;
+        (version == DATA_VERSION).then(|| Self {
+            uri: Arc::new(uri),
+            selection_range: Range::new(
+                Position::new(start_line, start_column),
+                Position::new(end_line, end_column),
+            ),
+        })
     }
 }
 
@@ -38,14 +44,6 @@ impl PartialOrd for HierarchyKey {
     }
 }
 
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct HierarchyData {
-    version: u8,
-    uri: Url,
-    selection_range: Range,
-}
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct HierarchyItem {
     pub(crate) key: HierarchyKey,
@@ -56,12 +54,17 @@ pub(crate) struct HierarchyItem {
 }
 
 impl HierarchyItem {
+    /// Encode opaque data as a flat array, avoiding JSON object maps and nested allocations.
     fn data(&self) -> serde_json::Value {
-        serde_json::json!({
-            "version": DATA_VERSION,
-            "uri": self.key.uri.as_str(),
-            "selectionRange": self.key.selection_range,
-        })
+        let range = self.key.selection_range;
+        serde_json::json!([
+            DATA_VERSION,
+            self.key.uri.as_str(),
+            range.start.line,
+            range.start.character,
+            range.end.line,
+            range.end.character,
+        ])
     }
 
     pub(crate) fn matches_type_item(&self, item: &TypeHierarchyItem) -> bool {
