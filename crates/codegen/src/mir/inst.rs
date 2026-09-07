@@ -1542,13 +1542,11 @@ impl InstKind {
             | Self::StorageArrayElementSlot { slot: a, index: b, .. }
             | Self::Log0(a, b)
             | Self::SignExtend(a, b) => {
-                out.push(*a);
-                out.push(*b);
+                out.extend_from_slice(&[*a, *b]);
             }
 
             Self::MakeSlice { ptr, len, .. } => {
-                out.push(*ptr);
-                out.push(*len);
+                out.extend_from_slice(&[*ptr, *len]);
             }
 
             Self::FrameStore { value, .. } => out.push(*value),
@@ -1557,64 +1555,48 @@ impl InstKind {
             | Self::MemoryObjectElementAddr { object, index: len, .. }
             | Self::MemoryObjectLoadElement { object, index: len, .. }
             | Self::MemoryObjectLoadByte { object, index: len } => {
-                out.push(*object);
-                out.push(*len);
+                out.extend_from_slice(&[*object, *len]);
             }
 
             Self::MemoryObjectStoreField { object, value, .. } => {
-                out.push(*object);
-                out.push(*value);
+                out.extend_from_slice(&[*object, *value]);
             }
 
             Self::MemoryObjectStoreElement { object, index, value, .. } => {
-                out.push(*object);
-                out.push(*index);
-                out.push(*value);
+                out.extend_from_slice(&[*object, *index, *value]);
             }
 
             Self::MemoryObjectStoreByte { object, index, value } => {
-                out.push(*object);
-                out.push(*index);
-                out.push(*value);
+                out.extend_from_slice(&[*object, *index, *value]);
             }
 
             Self::MemoryObjectStoreWord { object, offset, value } => {
-                out.push(*object);
-                out.push(*offset);
-                out.push(*value);
+                out.extend_from_slice(&[*object, *offset, *value]);
             }
 
             Self::MemorySliceLoadWord { slice, offset } => {
-                out.push(*slice);
-                out.push(*offset);
+                out.extend_from_slice(&[*slice, *offset]);
             }
 
             Self::CalldataSliceLoadWord { slice, offset } => {
-                out.push(*slice);
-                out.push(*offset);
+                out.extend_from_slice(&[*slice, *offset]);
             }
 
             Self::MemoryObjectCopyFromSlice { object, source, .. } => {
-                out.push(*object);
-                out.push(*source);
+                out.extend_from_slice(&[*object, *source]);
             }
 
             Self::MemoryObjectCopyFromSliceAt { object, offset, source, .. } => {
-                out.push(*object);
-                out.push(*offset);
-                out.push(*source);
+                out.extend_from_slice(&[*object, *offset, *source]);
             }
 
             Self::MemoryObjectCopy { destination, source, length, .. } => {
-                out.push(*destination);
-                out.push(*source);
-                out.push(*length);
+                out.extend_from_slice(&[*destination, *source, *length]);
             }
 
             Self::StorageToMemory { storage, memory, .. }
             | Self::MemoryToStorage { memory, storage, .. } => {
-                out.push(*storage);
-                out.push(*memory);
+                out.extend_from_slice(&[*storage, *memory]);
             }
 
             Self::Require { condition, payload } => {
@@ -1687,9 +1669,7 @@ impl InstKind {
             | Self::Create(a, b, c)
             | Self::Log1(a, b, c)
             | Self::Select(a, b, c) => {
-                out.push(*a);
-                out.push(*b);
-                out.push(*c);
+                out.extend_from_slice(&[*a, *b, *c]);
             }
 
             // 4-operand operations
@@ -1697,74 +1677,62 @@ impl InstKind {
             | Self::ExtCodeCopy(a, b, c, d)
             | Self::Create2(a, b, c, d)
             | Self::Log2(a, b, c, d) => {
-                out.push(*a);
-                out.push(*b);
-                out.push(*c);
-                out.push(*d);
+                out.extend_from_slice(&[*a, *b, *c, *d]);
             }
 
             // 5-operand operations
             Self::Log3(a, b, c, d, e) => {
-                out.push(*a);
-                out.push(*b);
-                out.push(*c);
-                out.push(*d);
-                out.push(*e);
+                out.extend_from_slice(&[*a, *b, *c, *d, *e]);
             }
 
             // 6-operand operations
             Self::Log4(a, b, c, d, e, f) => {
-                out.push(*a);
-                out.push(*b);
-                out.push(*c);
-                out.push(*d);
-                out.push(*e);
-                out.push(*f);
+                out.extend_from_slice(&[*a, *b, *c, *d, *e, *f]);
             }
 
             // Call operations
             Self::AddressCall { address, input, gas, value, .. } => {
-                out.push(*address);
-                out.push(*input);
+                out.extend_from_slice(&[*address, *input]);
                 out.extend(gas.iter().chain(value).copied());
             }
             Self::Call { gas, addr, value, args_offset, args_size, ret_offset, ret_size }
             | Self::CallCode { gas, addr, value, args_offset, args_size, ret_offset, ret_size } => {
-                out.push(*gas);
-                out.push(*addr);
-                out.push(*value);
-                out.push(*args_offset);
-                out.push(*args_size);
-                out.push(*ret_offset);
-                out.push(*ret_size);
+                out.extend_from_slice(&[
+                    *gas,
+                    *addr,
+                    *value,
+                    *args_offset,
+                    *args_size,
+                    *ret_offset,
+                    *ret_size,
+                ]);
             }
             Self::StaticCall { gas, addr, args_offset, args_size, ret_offset, ret_size } => {
-                out.push(*gas);
-                out.push(*addr);
-                out.push(*args_offset);
-                out.push(*args_size);
-                out.push(*ret_offset);
-                out.push(*ret_size);
+                out.extend_from_slice(&[
+                    *gas,
+                    *addr,
+                    *args_offset,
+                    *args_size,
+                    *ret_offset,
+                    *ret_size,
+                ]);
             }
             Self::DelegateCall { gas, addr, args_offset, args_size, ret_offset, ret_size } => {
-                out.push(*gas);
-                out.push(*addr);
-                out.push(*args_offset);
-                out.push(*args_size);
-                out.push(*ret_offset);
-                out.push(*ret_size);
+                out.extend_from_slice(&[
+                    *gas,
+                    *addr,
+                    *args_offset,
+                    *args_size,
+                    *ret_offset,
+                    *ret_size,
+                ]);
             }
             Self::ExtCall { addr, args_offset, args_size, value } => {
-                out.push(*addr);
-                out.push(*args_offset);
-                out.push(*args_size);
-                out.push(*value);
+                out.extend_from_slice(&[*addr, *args_offset, *args_size, *value]);
             }
             Self::ExtDelegateCall { addr, args_offset, args_size }
             | Self::ExtStaticCall { addr, args_offset, args_size } => {
-                out.push(*addr);
-                out.push(*args_offset);
-                out.push(*args_size);
+                out.extend_from_slice(&[*addr, *args_offset, *args_size]);
             }
             Self::ICall { args, .. } => {
                 out.extend(args.iter().copied());

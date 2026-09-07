@@ -2,8 +2,9 @@
 //!
 //! The pass groups blocks by their machine terminator and indexes representative
 //! tails in reverse. This finds each block's longest shared suffix without
-//! comparing it with every earlier block. It then splits profitable suffixes
-//! into shared tail blocks until no new merges remain. Each candidate includes
+//! comparing it with every earlier block. A single edge map indexes `(node, instruction)` pairs,
+//! so linear tails do not allocate a hash table for each instruction. It then splits profitable
+//! suffixes into shared tail blocks until no new merges remain. Each candidate includes
 //! the cost of its new jumps and labels, and the pass keeps address-taken or
 //! otherwise incompatible entries separate. Debug metadata never participates
 //! in equivalence: path-specific function activations stay on the original
@@ -69,16 +70,16 @@ struct RunState {
     commons: Vec<usize>,
     tails: Vec<(usize, BlockId)>,
     tail_roots: FxHashMap<TerminatorKind, usize>,
-    tail_nodes: Vec<TailNode>,
-    tail_node_pool: Vec<TailNode>,
+    tail_edges: FxHashMap<(usize, MachineInstKey), usize>,
+    tail_representatives: Vec<Option<BlockId>>,
 }
 
 impl RunState {
     fn plan_merges(&mut self, gcx: Gcx<'_>, module: &Module) {
         self.merges.clear();
         self.tail_roots.clear();
-        self.tail_node_pool.append(&mut self.tail_nodes);
-        self.tail_node_pool.iter_mut().for_each(TailNode::clear);
+        self.tail_edges.clear();
+        self.tail_representatives.clear();
         for (block_id, block) in module.blocks.iter_enumerated() {
             if !is_candidate(block) {
                 continue;
@@ -114,8 +115,7 @@ impl RunState {
         let mut matched = None;
         let len = block.instructions.len();
         for (common, inst) in block.instructions.iter().rev().enumerate() {
-            let Some(&child) = self.tail_nodes[node].children.get(&MachineInstKey::new(inst))
-            else {
+            let Some(&child) = self.tail_edges.get(&(node, MachineInstKey::new(inst))) else {
                 break;
             };
             node = child;
@@ -124,7 +124,7 @@ impl RunState {
             if !is_split_point(&block.instructions, len - common - 1) {
                 continue;
             }
-            if let Some(representative) = self.tail_nodes[node].representative {
+            if let Some(representative) = self.tail_representatives[node] {
                 matched = Some((representative, common + 1));
             }
         }
@@ -143,7 +143,7 @@ impl RunState {
                     self.tail_child(node, MachineInstKey::new(&block.instructions[len - common]));
             }
             if is_split_point(&block.instructions, len - common) {
-                self.tail_nodes[node].representative.get_or_insert(block_id);
+                self.tail_representatives[node].get_or_insert(block_id);
             }
         }
     }
@@ -158,17 +158,16 @@ impl RunState {
     }
 
     fn tail_child(&mut self, node: usize, key: MachineInstKey) -> usize {
-        if let Some(&child) = self.tail_nodes[node].children.get(&key) {
-            return child;
-        }
-        let child = self.new_tail_node();
-        self.tail_nodes[node].children.insert(key, child);
-        child
+        *self.tail_edges.entry((node, key)).or_insert_with(|| {
+            let child = self.tail_representatives.len();
+            self.tail_representatives.push(None);
+            child
+        })
     }
 
     fn new_tail_node(&mut self) -> usize {
-        let node = self.tail_nodes.len();
-        self.tail_nodes.push(self.tail_node_pool.pop().unwrap_or_default());
+        let node = self.tail_representatives.len();
+        self.tail_representatives.push(None);
         node
     }
 
@@ -385,17 +384,4 @@ struct Merge {
 struct MergeGroup {
     representative: BlockId,
     sites: Vec<(BlockId, usize)>,
-}
-
-#[derive(Default)]
-struct TailNode {
-    children: FxHashMap<MachineInstKey, usize>,
-    representative: Option<BlockId>,
-}
-
-impl TailNode {
-    fn clear(&mut self) {
-        self.children.clear();
-        self.representative = None;
-    }
 }
