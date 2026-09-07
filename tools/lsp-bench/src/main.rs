@@ -91,6 +91,12 @@ enum Command {
         /// Markdown report destination.
         #[arg(long, default_value = "target/lsp-bench/latest/summary.md")]
         output: PathBuf,
+        /// Base-revision summary for deciding whether an automatic comment is useful.
+        #[arg(long, requires = "comment_output")]
+        baseline: Option<PathBuf>,
+        /// Write whether results changed enough to post a comment.
+        #[arg(long, requires = "baseline")]
+        comment_output: Option<PathBuf>,
         /// Refuse to generate a report from a non-authoritative run.
         #[arg(long)]
         require_authoritative: bool,
@@ -175,6 +181,8 @@ fn main() -> Result<()> {
         Command::Report {
             input,
             output,
+            baseline,
+            comment_output,
             require_authoritative,
             expected_harness_revision,
             expected_harness_sha256,
@@ -187,6 +195,7 @@ fn main() -> Result<()> {
                 expected_harness_revision.as_deref(),
                 expected_harness_sha256.as_deref(),
                 expected_profile.as_deref(),
+                baseline.as_deref().zip(comment_output.as_deref()),
             )?;
             println!("Report: {}", output.display());
         }
