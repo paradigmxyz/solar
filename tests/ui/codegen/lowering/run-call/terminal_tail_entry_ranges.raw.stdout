@@ -1,0 +1,308 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_entry_ranges.sol:TailEntryRangeBefore (runtime) ===
+@module TailEntryRangeBefore_runtime
+bb0 [cold]:
+  callvalue
+  jumpi bb3, bb14
+bb14 [cold]:
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x369984d6
+  eq
+  jumpi bb20, bb19
+bb19 [cold]:
+  push 0xa444f5e9
+  sub
+  jumpi bb3, bb1
+bb1 [cold]:
+  calldatasize
+  push 36
+  gt
+  jumpi bb3, bb2
+bb2 [cold]:
+  push 4
+  calldataload
+  jump bb11
+bb11 [cold]:
+  push 191
+  mstore
+  push 1
+  push 191
+  revert
+bb3 [cold]:
+  push 0
+  push 0
+  revert
+bb20 [cold]:
+  calldatasize
+  push 36
+  gt
+  jumpi bb3, bb7
+bb7 [cold]:
+  push 4
+  calldataload
+  jump bb11
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_entry_ranges.sol:TailEntryRangeWord (runtime) ===
+@module TailEntryRangeWord_runtime
+bb0 [cold]:
+  callvalue
+  jumpi bb3, bb14
+bb14 [cold]:
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x369984d6
+  eq
+  jumpi bb20, bb19
+bb19 [cold]:
+  push 0xa444f5e9
+  sub
+  jumpi bb3, bb1
+bb1 [cold]:
+  calldatasize
+  push 36
+  gt
+  jumpi bb3, bb2
+bb2 [cold]:
+  push 4
+  calldataload
+  push 192
+  mstore
+  jump bb12
+bb12 [cold]:
+  push 192
+  mload
+  push 192
+  mstore
+  push 32
+  push 192
+  revert
+bb3 [cold]:
+  push 0
+  push 0
+  revert
+bb20 [cold]:
+  calldatasize
+  push 36
+  gt
+  jumpi bb3, bb7
+bb7 [cold]:
+  push 4
+  calldataload
+  push 192
+  mstore
+  jump bb12
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_entry_ranges.sol:TailEntryRangePartial (runtime) ===
+@module TailEntryRangePartial_runtime
+bb0 [cold]:
+  callvalue
+  jumpi bb3, bb14
+bb14 [cold]:
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x369984d6
+  eq
+  jumpi bb20, bb19
+bb19 [cold]:
+  push 0xa444f5e9
+  sub
+  jumpi bb3, bb1
+bb1 [cold]:
+  calldatasize
+  push 36
+  gt
+  jumpi bb3, bb2
+bb2 [cold]:
+  push 4
+  calldataload
+  push 192
+  mstore
+  jump bb12
+bb12 [cold]:
+  push 192
+  mload
+  push 223
+  mstore
+  push 2
+  push 223
+  revert
+bb3 [cold]:
+  push 0
+  push 0
+  revert
+bb20 [cold]:
+  calldatasize
+  push 36
+  gt
+  jumpi bb3, bb7
+bb7 [cold]:
+  push 4
+  calldataload
+  push 192
+  mstore
+  jump bb12
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_entry_ranges.sol:TailEntryRangeAfter (runtime) ===
+@module TailEntryRangeAfter_runtime
+bb0 [cold]:
+  callvalue
+  jumpi bb3, bb14
+bb14 [cold]:
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x369984d6
+  eq
+  jumpi bb20, bb19
+bb19 [cold]:
+  push 0xa444f5e9
+  sub
+  jumpi bb3, bb1
+bb1 [cold]:
+  calldatasize
+  push 36
+  gt
+  jumpi bb3, bb2
+bb2 [cold]:
+  push 4
+  calldataload
+  jump bb11
+bb11 [cold]:
+  push 224
+  mstore
+  push 1
+  push 224
+  revert
+bb3 [cold]:
+  push 0
+  push 0
+  revert
+bb20 [cold]:
+  calldatasize
+  push 36
+  gt
+  jumpi bb3, bb7
+bb7 [cold]:
+  push 4
+  calldataload
+  jump bb11
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_entry_ranges.sol:TailEntryRangeWrapping (runtime) ===
+@module TailEntryRangeWrapping_runtime
+bb0 [cold]:
+  push 224
+  push 64
+  mstore
+  callvalue
+  jumpi bb3, bb14
+bb14 [cold]:
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x369984d6
+  eq
+  jumpi bb20, bb19
+bb19 [cold]:
+  push 0xa444f5e9
+  sub
+  jumpi bb3, bb1
+bb1 [cold]:
+  calldatasize
+  push 36
+  gt
+  jumpi bb3, bb2
+bb2 [cold]:
+  push 4
+  calldataload
+  push 192
+  mstore
+  jump bb12
+bb12 [cold]:
+  push 192
+  mload
+  push 0
+  mstore
+  push 2
+  push 0
+  not
+  revert
+bb3 [cold]:
+  push 0
+  push 0
+  revert
+bb20 [cold]:
+  calldatasize
+  push 36
+  gt
+  jumpi bb3, bb7
+bb7 [cold]:
+  push 4
+  calldataload
+  push 192
+  mstore
+  jump bb12
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_entry_ranges.sol:TailEntryRangeVariable (runtime) ===
+@module TailEntryRangeVariable_runtime
+bb0 [cold]:
+  push 224
+  push 64
+  mstore
+  callvalue
+  jumpi bb3, bb14
+bb14 [cold]:
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x369984d6
+  eq
+  jumpi bb20, bb19
+bb19 [cold]:
+  push 0xa444f5e9
+  sub
+  jumpi bb3, bb1
+bb1 [cold]:
+  calldatasize
+  push 36
+  gt
+  jumpi bb3, bb2
+bb2 [cold]:
+  push 4
+  calldataload
+  push 192
+  mstore
+  jump bb12
+bb12 [cold]:
+  push 192
+  mload
+  dup 1
+  dup 1
+  mstore
+  push 32
+  swap 1
+  revert
+bb3 [cold]:
+  push 0
+  push 0
+  revert
+bb20 [cold]:
+  calldatasize
+  push 36
+  gt
+  jumpi bb3, bb7
+bb7 [cold]:
+  push 4
+  calldataload
+  push 192
+  mstore
+  jump bb12

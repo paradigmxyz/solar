@@ -1,0 +1,377 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_entry_observers.sol:TailEntryObserverLoad (runtime) ===
+@module TailEntryObserverLoad_runtime
+bb0 [cold]:
+  callvalue
+  jumpi bb2, bb12
+bb12 [cold]:
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x369984d6
+  eq
+  jumpi bb18, bb17
+bb17 [cold]:
+  push 0xa444f5e9
+  sub
+  jumpi bb2, bb1
+bb1 [cold]:
+  calldatasize
+  push 36
+  gt
+  jumpi bb2, bb3
+bb3 [cold]:
+  push 4
+  calldataload
+  push 192
+  mstore
+  jump bb10
+bb10 [cold]:
+  push 192
+  mload
+  push 32
+  mload
+  swap 1
+  push 0
+  mstore
+  push 32
+  mstore
+  push 64
+  push 0
+  revert
+bb2 [cold]:
+  push 0
+  push 0
+  revert
+bb18 [cold]:
+  calldatasize
+  push 36
+  gt
+  jumpi bb2, bb7
+bb7 [cold]:
+  push 4
+  calldataload
+  push 192
+  mstore
+  jump bb10
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_entry_observers.sol:TailEntryObserverSize (runtime) ===
+@module TailEntryObserverSize_runtime
+bb0 [cold]:
+  push 224
+  push 64
+  mstore
+  callvalue
+  jumpi bb2, bb12
+bb12 [cold]:
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x369984d6
+  eq
+  jumpi bb18, bb17
+bb17 [cold]:
+  push 0xa444f5e9
+  sub
+  jumpi bb2, bb1
+bb1 [cold]:
+  calldatasize
+  push 36
+  gt
+  jumpi bb2, bb3
+bb3 [cold]:
+  push 4
+  calldataload
+  push 192
+  mstore
+  jump bb10
+bb10 [cold]:
+  push 192
+  mload
+  msize
+  swap 1
+  push 0
+  mstore
+  push 0
+  lt
+  push 32
+  mstore
+  push 64
+  push 0
+  revert
+bb2 [cold]:
+  push 0
+  push 0
+  revert
+bb18 [cold]:
+  calldatasize
+  push 36
+  gt
+  jumpi bb2, bb7
+bb7 [cold]:
+  push 4
+  calldataload
+  push 192
+  mstore
+  jump bb10
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_entry_observers.sol:TailEntryObserverGas (runtime) ===
+@module TailEntryObserverGas_runtime
+bb0 [cold]:
+  callvalue
+  jumpi bb15, bb12
+bb12 [cold]:
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x369984d6
+  eq
+  jumpi bb18, bb17
+bb17 [cold]:
+  push 0xa444f5e9
+  sub
+  jumpi bb15, bb1
+bb1 [cold]:
+  calldatasize
+  push 36
+  gt
+  jumpi bb2, bb3
+bb3 [cold]:
+  push 4
+  calldataload
+  push 192
+  mstore
+  jump bb10
+bb10 [cold]:
+  push 192
+  mload
+  gas
+  push 0
+  exchange 1, 2
+  mstore
+  push 0
+  lt
+  push 32
+  mstore
+  push 64
+  push 0
+  revert
+bb2 [cold]:
+  push 0
+  push 0
+  revert
+bb6 [cold]:
+  push 0
+  push 0
+  revert
+bb15 [cold]:
+  push 0
+  push 0
+  revert
+bb18 [cold]:
+  pop
+  calldatasize
+  push 36
+  gt
+  jumpi bb6, bb7
+bb7 [cold]:
+  push 4
+  calldataload
+  push 192
+  mstore
+  jump bb10
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_entry_observers.sol:TailEntryObserverCopy (runtime) ===
+@module TailEntryObserverCopy_runtime
+bb0 [cold]:
+  callvalue
+  jumpi bb2, bb12
+bb12 [cold]:
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x369984d6
+  eq
+  jumpi bb18, bb17
+bb17 [cold]:
+  push 0xa444f5e9
+  sub
+  jumpi bb2, bb1
+bb1 [cold]:
+  calldatasize
+  push 36
+  gt
+  jumpi bb2, bb3
+bb3 [cold]:
+  push 4
+  calldataload
+  push 192
+  mstore
+  jump bb10
+bb10 [cold]:
+  push 192
+  mload
+  push 32
+  push 4
+  dup 2
+  calldatacopy
+  push 0
+  mstore
+  push 32
+  mload
+  push 32
+  mstore
+  push 64
+  push 0
+  revert
+bb2 [cold]:
+  push 0
+  push 0
+  revert
+bb18 [cold]:
+  calldatasize
+  push 36
+  gt
+  jumpi bb2, bb7
+bb7 [cold]:
+  push 4
+  calldataload
+  push 192
+  mstore
+  jump bb10
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_entry_observers.sol:TailEntryObserverStorage (runtime) ===
+@module TailEntryObserverStorage_runtime
+bb0 [cold]:
+  callvalue
+  jumpi bb2, bb12
+bb12 [cold]:
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x369984d6
+  eq
+  jumpi bb18, bb17
+bb17 [cold]:
+  push 0xa444f5e9
+  sub
+  jumpi bb2, bb1
+bb1 [cold]:
+  calldatasize
+  push 36
+  gt
+  jumpi bb2, bb3
+bb3 [cold]:
+  push 4
+  calldataload
+  push 192
+  mstore
+  jump bb10
+bb10 [cold]:
+  push 192
+  mload
+  push 0
+  sload
+  swap 1
+  push 0
+  mstore
+  push 32
+  mstore
+  push 64
+  push 0
+  revert
+bb2 [cold]:
+  push 0
+  push 0
+  revert
+bb18 [cold]:
+  calldatasize
+  push 36
+  gt
+  jumpi bb2, bb7
+bb7 [cold]:
+  push 4
+  calldataload
+  push 192
+  mstore
+  jump bb10
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_entry_observers.sol:TailEntryObserverCall (runtime) ===
+@module TailEntryObserverCall_runtime
+bb0 [cold]:
+  callvalue
+  jumpi bb15, bb12
+bb12 [cold]:
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x369984d6
+  eq
+  jumpi bb18, bb17
+bb17 [cold]:
+  push 0xa444f5e9
+  sub
+  jumpi bb15, bb1
+bb1 [cold]:
+  calldatasize
+  push 36
+  gt
+  jumpi bb2, bb3
+bb3 [cold]:
+  push 4
+  calldataload
+  push 192
+  mstore
+  jump bb10
+bb10 [cold]:
+  push 192
+  mload
+  gas
+  push 0
+  push 32
+  push 0
+  push 4
+  push 0
+  swap 2
+  swap 3
+  swap 4
+  swap 5
+  staticcall
+  push 0
+  exchange 1, 2
+  mstore
+  push 32
+  mstore
+  push 64
+  push 0
+  revert
+bb2 [cold]:
+  push 0
+  push 0
+  revert
+bb6 [cold]:
+  push 0
+  push 0
+  revert
+bb15 [cold]:
+  push 0
+  push 0
+  revert
+bb18 [cold]:
+  pop
+  calldatasize
+  push 36
+  gt
+  jumpi bb6, bb7
+bb7 [cold]:
+  push 4
+  calldataload
+  push 192
+  mstore
+  jump bb10

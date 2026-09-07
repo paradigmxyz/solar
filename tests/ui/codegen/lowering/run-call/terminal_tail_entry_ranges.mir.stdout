@@ -1,0 +1,119 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_entry_ranges.sol:TailEntryRangeBefore ===
+@module TailEntryRangeBefore
+fn @run(arg0: u256) [selector=0xa444f5e9, pure, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    icall @fail, 0, arg0
+    stop
+}
+
+fn @other(arg0: u256) [selector=0x369984d6, pure, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    icall @fail, 0, arg0
+    stop
+}
+
+fn @fail(arg0: u256) [pure] {
+  bb0:
+    mstore 191, arg0
+    revert 191, 1
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_entry_ranges.sol:TailEntryRangeWord ===
+@module TailEntryRangeWord
+fn @run(arg0: u256) [selector=0xa444f5e9, pure, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    icall @fail, 0, arg0
+    stop
+}
+
+fn @other(arg0: u256) [selector=0x369984d6, pure, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    icall @fail, 0, arg0
+    stop
+}
+
+fn @fail(arg0: u256) [pure] {
+  bb0:
+    mstore 192, arg0
+    revert 192, 32
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_entry_ranges.sol:TailEntryRangePartial ===
+@module TailEntryRangePartial
+fn @run(arg0: u256) [selector=0xa444f5e9, pure, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    icall @fail, 0, arg0
+    stop
+}
+
+fn @other(arg0: u256) [selector=0x369984d6, pure, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    icall @fail, 0, arg0
+    stop
+}
+
+fn @fail(arg0: u256) [pure] {
+  bb0:
+    mstore 223, arg0
+    revert 223, 2
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_entry_ranges.sol:TailEntryRangeAfter ===
+@module TailEntryRangeAfter
+fn @run(arg0: u256) [selector=0xa444f5e9, pure, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    icall @fail, 0, arg0
+    stop
+}
+
+fn @other(arg0: u256) [selector=0x369984d6, pure, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    icall @fail, 0, arg0
+    stop
+}
+
+fn @fail(arg0: u256) [pure] {
+  bb0:
+    mstore 224, arg0
+    revert 224, 1
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_entry_ranges.sol:TailEntryRangeWrapping ===
+@module TailEntryRangeWrapping
+fn @run(arg0: u256) [selector=0xa444f5e9, pure, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    icall @fail, 0, arg0
+    stop
+}
+
+fn @other(arg0: u256) [selector=0x369984d6, pure, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    icall @fail, 0, arg0
+    stop
+}
+
+fn @fail(arg0: u256) [pure] {
+  bb0:
+    mstore 0, arg0 !metadata(memory=scratch)
+    revert 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_entry_ranges.sol:TailEntryRangeVariable ===
+@module TailEntryRangeVariable
+fn @run(arg0: u256) [selector=0xa444f5e9, pure, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    icall @fail, 0, arg0
+    stop
+}
+
+fn @other(arg0: u256) [selector=0x369984d6, pure, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    icall @fail, 0, arg0
+    stop
+}
+
+fn @fail(arg0: u256) [pure] {
+  bb0:
+    mstore arg0, arg0
+    revert arg0, 32
+}

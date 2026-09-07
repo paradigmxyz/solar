@@ -1,0 +1,135 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_entry_observers.sol:TailEntryObserverLoad ===
+@module TailEntryObserverLoad
+fn @run(arg0: u256) [selector=0xa444f5e9, pure, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    icall @fail, 0, arg0
+    stop
+}
+
+fn @other(arg0: u256) [selector=0x369984d6, pure, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    icall @fail, 0, arg0
+    stop
+}
+
+fn @fail(arg0: u256) [pure] {
+  bb0:
+    v0 = mload 32 !metadata(memory=scratch)
+    mstore 0, arg0 !metadata(memory=scratch)
+    mstore 32, v0 !metadata(memory=scratch)
+    revert 0, 64
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_entry_observers.sol:TailEntryObserverSize ===
+@module TailEntryObserverSize
+fn @run(arg0: u256) [selector=0xa444f5e9, pure, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    icall @fail, 0, arg0
+    stop
+}
+
+fn @other(arg0: u256) [selector=0x369984d6, pure, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    icall @fail, 0, arg0
+    stop
+}
+
+fn @fail(arg0: u256) [pure] {
+  bb0:
+    v0 = msize
+    mstore 0, arg0 !metadata(memory=scratch)
+    v1 = gt v0, 0
+    mstore 32, v1 !metadata(memory=scratch)
+    revert 0, 64
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_entry_observers.sol:TailEntryObserverGas ===
+@module TailEntryObserverGas
+fn @run(arg0: u256) [selector=0xa444f5e9, view, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    icall @fail, 0, arg0
+    stop
+}
+
+fn @other(arg0: u256) [selector=0x369984d6, view, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    icall @fail, 0, arg0
+    stop
+}
+
+fn @fail(arg0: u256) [view] {
+  bb0:
+    v0 = gas
+    mstore 0, arg0 !metadata(memory=scratch)
+    v1 = gt v0, 0
+    mstore 32, v1 !metadata(memory=scratch)
+    revert 0, 64
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_entry_observers.sol:TailEntryObserverCopy ===
+@module TailEntryObserverCopy
+fn @run(arg0: u256) [selector=0xa444f5e9, pure, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    icall @fail, 0, arg0
+    stop
+}
+
+fn @other(arg0: u256) [selector=0x369984d6, pure, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    icall @fail, 0, arg0
+    stop
+}
+
+fn @fail(arg0: u256) [pure] {
+  bb0:
+    calldatacopy 32, 4, 32 !metadata(memory=scratch)
+    mstore 0, arg0 !metadata(memory=scratch)
+    v0 = mload 32 !metadata(memory=scratch)
+    mstore 32, v0 !metadata(memory=scratch)
+    revert 0, 64
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_entry_observers.sol:TailEntryObserverStorage ===
+@module TailEntryObserverStorage
+fn @run(arg0: u256) [selector=0xa444f5e9, view, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    icall @fail, 0, arg0
+    stop
+}
+
+fn @other(arg0: u256) [selector=0x369984d6, view, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    icall @fail, 0, arg0
+    stop
+}
+
+fn @fail(arg0: u256) [view] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    mstore 0, arg0 !metadata(memory=scratch)
+    mstore 32, v0 !metadata(memory=scratch)
+    revert 0, 64
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_entry_observers.sol:TailEntryObserverCall ===
+@module TailEntryObserverCall
+fn @run(arg0: u256) [selector=0xa444f5e9, view, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    icall @fail, 0, arg0
+    stop
+}
+
+fn @other(arg0: u256) [selector=0x369984d6, view, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    icall @fail, 0, arg0
+    stop
+}
+
+fn @fail(arg0: u256) [view] {
+  bb0:
+    v0 = gas
+    v1 = staticcall v0, 4, 0, 0, 32, 0
+    mstore 0, arg0 !metadata(memory=scratch)
+    mstore 32, v1 !metadata(memory=scratch)
+    revert 0, 64
+}
