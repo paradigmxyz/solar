@@ -1,0 +1,91 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/ordered_storage_writer.sol:OrderedStorageWriter ===
+@module OrderedStorageWriter
+fn @constructor() [constructor] {
+  bb0:
+    sstore 0, 1 !metadata(storage=slot(0))
+    sstore 1, 2 !metadata(storage=slot(1))
+    sstore 2, 3 !metadata(storage=slot(2))
+    sstore 3, 4 !metadata(storage=slot(3))
+    sstore 4, 5 !metadata(storage=slot(4))
+    sstore 5, 6 !metadata(storage=slot(5))
+    sstore 6, 7 !metadata(storage=slot(6))
+    sstore 7, 8 !metadata(storage=slot(7))
+    sstore 8, 9 !metadata(storage=slot(8))
+    sstore 9, 10 !metadata(storage=slot(9))
+    sstore 10, 11 !metadata(storage=slot(10))
+    sstore 11, 12 !metadata(storage=slot(11))
+    sstore 12, 13 !metadata(storage=slot(12))
+    sstore 13, 14 !metadata(storage=slot(13))
+    sstore 14, 15 !metadata(storage=slot(14))
+    sstore 15, 16 !metadata(storage=slot(15))
+    sstore 16, 17 !metadata(storage=slot(16))
+    sstore 17, 18 !metadata(storage=slot(17))
+    sstore 18, 19 !metadata(storage=slot(18))
+    sstore 19, 20 !metadata(storage=slot(19))
+    stop
+}
+
+fn @run(arg0: u256, arg1: u256, arg2: u256) -> (u256, u256) [selector=0x24b912e5, view, abi_params=[u256, u256, u256], abi_returns=[word, word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = sload 1 !metadata(storage=slot(1))
+    v2 = sload 2 !metadata(storage=slot(2))
+    v3 = sload 3 !metadata(storage=slot(3))
+    v4 = sload 4 !metadata(storage=slot(4))
+    v5 = sload 5 !metadata(storage=slot(5))
+    v6 = sload 6 !metadata(storage=slot(6))
+    v7 = sload 7 !metadata(storage=slot(7))
+    v8 = sload 8 !metadata(storage=slot(8))
+    v9 = sload 9 !metadata(storage=slot(9))
+    v10 = sload 10 !metadata(storage=slot(10))
+    v11 = sload 11 !metadata(storage=slot(11))
+    v12 = sload 12 !metadata(storage=slot(12))
+    v13 = sload 13 !metadata(storage=slot(13))
+    v14 = sload 14 !metadata(storage=slot(14))
+    v15 = sload 15 !metadata(storage=slot(15))
+    v16 = sload 16 !metadata(storage=slot(16))
+    v17 = sload 17 !metadata(storage=slot(17))
+    v18 = sload 18 !metadata(storage=slot(18))
+    v19 = sload 19 !metadata(storage=slot(19))
+    mstore arg0, arg2
+    v20 = shl 8, v0
+    v21 = or v20, v1
+    v22 = shl 8, v21
+    v23 = or v22, v2
+    v24 = shl 8, v23
+    v25 = or v24, v3
+    v26 = shl 8, v25
+    v27 = or v26, v4
+    v28 = shl 8, v27
+    v29 = or v28, v5
+    v30 = shl 8, v29
+    v31 = or v30, v6
+    v32 = shl 8, v31
+    v33 = or v32, v7
+    v34 = shl 8, v33
+    v35 = or v34, v8
+    v36 = shl 8, v35
+    v37 = or v36, v9
+    v38 = shl 8, v37
+    v39 = or v38, v10
+    v40 = shl 8, v39
+    v41 = or v40, v11
+    v42 = shl 8, v41
+    v43 = or v42, v12
+    v44 = shl 8, v43
+    v45 = or v44, v13
+    v46 = shl 8, v45
+    v47 = or v46, v14
+    v48 = shl 8, v47
+    v49 = or v48, v15
+    v50 = shl 8, v49
+    v51 = or v50, v16
+    v52 = shl 8, v51
+    v53 = or v52, v17
+    v54 = shl 8, v53
+    v55 = or v54, v18
+    v56 = shl 8, v55
+    v57 = or v56, v19
+    v58 = mload arg1
+    ret v58, v57
+}
