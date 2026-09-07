@@ -35,13 +35,8 @@ fn @safeTransfer(arg0: address, arg1: address, arg2: u256) [selector=0xd1660f99,
     jump bb3
   bb3:
     v17 = phi [bb6: v16], [bb2: false]
-    v18 = iszero v17
-    jumpi v18, bb7, bb8
-  bb8:
+    require v17, short_string 2, 0x5446000000000000000000000000000000000000000000000000000000000000
     stop
-  bb7:
-    icall @revert_error, 2, 0x5446000000000000000000000000000000000000000000000000000000000000
-    invalid
 }
 
 fn @balanceOf(arg0: address) -> u256 [selector=0x70a08231, view, abi_params=[address], abi_returns=[word]] {
@@ -88,13 +83,4 @@ fn @forward(arg0: address, arg1: memorybytes) -> memorybytes [selector=0x6fadcf7
     v11 = iszero v3
     revert_if v11, empty
     ret v9
-}
-
-fn @revert_error(arg0: u256, arg1: u256) {
-  bb0:
-    mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 32 !metadata(memory=scratch)
-    mstore 36, arg0 !metadata(memory=scratch)
-    mstore 68, arg1 !metadata(memory=scratch)
-    revert 0, 100
 }

@@ -54,165 +54,111 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v18 = and v17, 0xffffffffffffffffffffffffffffffffffffffff
     v19 = address
     v20 = eq v18, v19
-    v21 = iszero v20
-    jumpi v21, bb3, bb4
-  bb4:
-    v22 = and v16, 0xffffffff
-    v23 = shl 224, v22
-    v24 = eq v23, 0x9811c7c100000000000000000000000000000000000000000000000000000000
-    v25 = iszero v24
-    jumpi v25, bb5, bb6
-  bb6:
-    v26 = abi_encode [function], object, args v2
-    v27 = add v26, 32
-    v28 = mload v27
-    v29 = and v28, 0xffffffffffffffff
-    v30 = eq v29, 0
-    v31 = iszero v30
-    jumpi v31, bb7, bb8
-  bb8:
-    v32 = abi_encode [function], object, selector 0x90898ee400000000000000000000000000000000000000000000000000000000, args v2
-    v33 = add v32, 67
-    mstore8 v33, 1
-    v34 = address
-    v35 = gas
-    v36 = memory_object_data memorybytes, v32
-    v37 = memory_object_len memorybytes, v32
-    v38 = call v35, v34, 0, v36, v37, 0, 0
-    v39 = iszero v38
-    v40 = iszero v39
-    jumpi v40, bb9, bb10
-  bb10:
-    v41 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    v42 = shl 64, v2
-    memory_object_store_field memorystruct<2>, v41, 0, v42
-    memory_object_store_field memorystruct<2>, v41, 1, 7
-    v43 = address
-    v44 = gas
-    v45 = abi_encode [tuple<function, word>], selector 0x30fb1b200000000000000000000000000000000000000000000000000000000, args v41
-    v46 = slice_ptr v45
-    v47 = slice_len v45
-    v48 = alloc raw, exact, uninitialized, infallible, 64
-    v49 = staticcall v44, v43, v46, v47, v48, 64
-    jumpi v49, bb12, bb11
-  bb11:
-    revert_returndata
-  bb12:
-    v50 = returndatasize
-    v51 = lt v50, 64
-    revert_if v51, tuple_data_too_short
-    v52 = abi_decode [tuple<function, u256>], v48
-    v53 = memory_object_load_field memorystruct<2>, v52, 0
-    v54 = shr 64, v53
-    v55 = shr 32, v54
-    v56 = and v55, 0xffffffffffffffffffffffffffffffffffffffff
-    v57 = address
-    v58 = eq v56, v57
-    v59 = iszero v58
-    jumpi v59, bb13, bb14
-  bb14:
-    v60 = memory_object_load_field memorystruct<2>, v52, 0
-    v61 = shr 64, v60
-    v62 = and v61, 0xffffffff
-    v63 = shl 224, v62
-    v64 = eq v63, 0x9811c7c100000000000000000000000000000000000000000000000000000000
-    v65 = iszero v64
-    jumpi v65, bb15, bb16
-  bb16:
-    v66 = memory_object_load_field memorystruct<2>, v52, 1
-    v67 = eq v66, 7
-    v68 = iszero v67
-    jumpi v68, bb17, bb18
-  bb18:
-    v69 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    set_memory_object_len memoryarray, v69, 1
-    v70 = memory_object_len memoryarray, v69
-    v71 = lt 0, v70
-    v72 = iszero v71
-    panic_if v72, 0x32
-    v73 = shl 64, v2
-    memory_object_store_element memoryarray<1>, v69, 0, v73
-    v74 = address
-    v75 = gas
-    v76 = abi_encode [memory_array<function>], selector 0xb4b1645600000000000000000000000000000000000000000000000000000000, args v69
-    v77 = slice_ptr v76
-    v78 = slice_len v76
-    v79 = staticcall v75, v74, v77, v78, 0, 0
-    jumpi v79, bb20, bb19
-  bb19:
-    revert_returndata
-  bb20:
-    v80 = returndatasize
-    v81 = add v80, 63
-    v82 = lt v81, v80
-    panic_if v82, 0x41
-    v83 = not 31
-    v84 = and v81, v83
-    v85 = alloc memorybytes, exact, uninitialized, infallible, v84
-    set_memory_object_len memorybytes, v85, v80
-    v86 = make_returndata_slice 0, v80
-    memory_object_copy_from_slice memorybytes, v85, v86
-    v87 = abi_decode [array<_, function>], v85
-    v88 = memory_object_len memoryarray, v87
-    v89 = lt 0, v88
-    v90 = iszero v89
-    panic_if v90, 0x32
-    v91 = memory_object_load_element memoryarray<1>, v87, 0
-    v92 = shr 64, v91
-    v93 = shr 32, v92
-    v94 = and v93, 0xffffffffffffffffffffffffffffffffffffffff
-    v95 = address
-    v96 = eq v94, v95
-    v97 = iszero v96
-    jumpi v97, bb21, bb22
-  bb22:
-    v98 = memory_object_len memoryarray, v87
-    v99 = lt 0, v98
-    v100 = iszero v99
-    panic_if v100, 0x32
-    v101 = memory_object_load_element memoryarray<1>, v87, 0
-    v102 = shr 64, v101
-    v103 = and v102, 0xffffffff
-    v104 = shl 224, v103
-    v105 = eq v104, 0x9811c7c100000000000000000000000000000000000000000000000000000000
-    v106 = iszero v105
-    jumpi v106, bb23, bb24
-  bb24:
-    ret 1
-  bb23:
-    icall @revert_error, 14, 0x61727261792073656c6563746f72000000000000000000000000000000000000
-    invalid
-  bb21:
-    icall @revert_error, 13, 0x6172726179206164647265737300000000000000000000000000000000000000
-    invalid
-  bb17:
-    icall @revert_error, 10, 0x686f6c6465722074616700000000000000000000000000000000000000000000
-    invalid
-  bb15:
-    icall @revert_error, 15, 0x686f6c6465722073656c6563746f720000000000000000000000000000000000
-    invalid
-  bb13:
-    icall @revert_error, 14, 0x686f6c6465722061646472657373000000000000000000000000000000000000
-    invalid
-  bb9:
-    icall @revert_error, 13, 0x64697274792070616464696e6700000000000000000000000000000000000000
-    invalid
-  bb7:
-    icall @revert_error, 7, 0x70616464696e6700000000000000000000000000000000000000000000000000
-    invalid
-  bb5:
-    icall @revert_error, 8, 0x73656c6563746f72000000000000000000000000000000000000000000000000
-    invalid
+    require v20, short_string 7, 0x6164647265737300000000000000000000000000000000000000000000000000
+    v21 = and v16, 0xffffffff
+    v22 = shl 224, v21
+    v23 = eq v22, 0x9811c7c100000000000000000000000000000000000000000000000000000000
+    require v23, short_string 8, 0x73656c6563746f72000000000000000000000000000000000000000000000000
+    v24 = abi_encode [function], object, args v2
+    v25 = add v24, 32
+    v26 = mload v25
+    v27 = and v26, 0xffffffffffffffff
+    v28 = eq v27, 0
+    require v28, short_string 7, 0x70616464696e6700000000000000000000000000000000000000000000000000
+    v29 = abi_encode [function], object, selector 0x90898ee400000000000000000000000000000000000000000000000000000000, args v2
+    v30 = add v29, 67
+    mstore8 v30, 1
+    v31 = address
+    v32 = gas
+    v33 = memory_object_data memorybytes, v29
+    v34 = memory_object_len memorybytes, v29
+    v35 = call v32, v31, 0, v33, v34, 0, 0
+    v36 = iszero v35
+    require v36, short_string 13, 0x64697274792070616464696e6700000000000000000000000000000000000000
+    v37 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v38 = shl 64, v2
+    memory_object_store_field memorystruct<2>, v37, 0, v38
+    memory_object_store_field memorystruct<2>, v37, 1, 7
+    v39 = address
+    v40 = gas
+    v41 = abi_encode [tuple<function, word>], selector 0x30fb1b200000000000000000000000000000000000000000000000000000000, args v37
+    v42 = slice_ptr v41
+    v43 = slice_len v41
+    v44 = alloc raw, exact, uninitialized, infallible, 64
+    v45 = staticcall v40, v39, v42, v43, v44, 64
+    jumpi v45, bb4, bb3
   bb3:
-    icall @revert_error, 7, 0x6164647265737300000000000000000000000000000000000000000000000000
-    invalid
-}
-
-fn @revert_error(arg0: u256, arg1: u256) {
-  bb0:
-    mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 32 !metadata(memory=scratch)
-    mstore 36, arg0 !metadata(memory=scratch)
-    mstore 68, arg1 !metadata(memory=scratch)
-    revert 0, 100
+    revert_returndata
+  bb4:
+    v46 = returndatasize
+    v47 = lt v46, 64
+    revert_if v47, tuple_data_too_short
+    v48 = abi_decode [tuple<function, u256>], v44
+    v49 = memory_object_load_field memorystruct<2>, v48, 0
+    v50 = shr 64, v49
+    v51 = shr 32, v50
+    v52 = and v51, 0xffffffffffffffffffffffffffffffffffffffff
+    v53 = address
+    v54 = eq v52, v53
+    require v54, short_string 14, 0x686f6c6465722061646472657373000000000000000000000000000000000000
+    v55 = memory_object_load_field memorystruct<2>, v48, 0
+    v56 = shr 64, v55
+    v57 = and v56, 0xffffffff
+    v58 = shl 224, v57
+    v59 = eq v58, 0x9811c7c100000000000000000000000000000000000000000000000000000000
+    require v59, short_string 15, 0x686f6c6465722073656c6563746f720000000000000000000000000000000000
+    v60 = memory_object_load_field memorystruct<2>, v48, 1
+    v61 = eq v60, 7
+    require v61, short_string 10, 0x686f6c6465722074616700000000000000000000000000000000000000000000
+    v62 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    set_memory_object_len memoryarray, v62, 1
+    v63 = memory_object_len memoryarray, v62
+    v64 = lt 0, v63
+    v65 = iszero v64
+    panic_if v65, 0x32
+    v66 = shl 64, v2
+    memory_object_store_element memoryarray<1>, v62, 0, v66
+    v67 = address
+    v68 = gas
+    v69 = abi_encode [memory_array<function>], selector 0xb4b1645600000000000000000000000000000000000000000000000000000000, args v62
+    v70 = slice_ptr v69
+    v71 = slice_len v69
+    v72 = staticcall v68, v67, v70, v71, 0, 0
+    jumpi v72, bb6, bb5
+  bb5:
+    revert_returndata
+  bb6:
+    v73 = returndatasize
+    v74 = add v73, 63
+    v75 = lt v74, v73
+    panic_if v75, 0x41
+    v76 = not 31
+    v77 = and v74, v76
+    v78 = alloc memorybytes, exact, uninitialized, infallible, v77
+    set_memory_object_len memorybytes, v78, v73
+    v79 = make_returndata_slice 0, v73
+    memory_object_copy_from_slice memorybytes, v78, v79
+    v80 = abi_decode [array<_, function>], v78
+    v81 = memory_object_len memoryarray, v80
+    v82 = lt 0, v81
+    v83 = iszero v82
+    panic_if v83, 0x32
+    v84 = memory_object_load_element memoryarray<1>, v80, 0
+    v85 = shr 64, v84
+    v86 = shr 32, v85
+    v87 = and v86, 0xffffffffffffffffffffffffffffffffffffffff
+    v88 = address
+    v89 = eq v87, v88
+    require v89, short_string 13, 0x6172726179206164647265737300000000000000000000000000000000000000
+    v90 = memory_object_len memoryarray, v80
+    v91 = lt 0, v90
+    v92 = iszero v91
+    panic_if v92, 0x32
+    v93 = memory_object_load_element memoryarray<1>, v80, 0
+    v94 = shr 64, v93
+    v95 = and v94, 0xffffffff
+    v96 = shl 224, v95
+    v97 = eq v96, 0x9811c7c100000000000000000000000000000000000000000000000000000000
+    require v97, short_string 14, 0x61727261792073656c6563746f72000000000000000000000000000000000000
+    ret 1
 }

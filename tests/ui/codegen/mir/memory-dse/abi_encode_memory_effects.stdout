@@ -8,3 +8,20 @@
       ret v0
   }
   
+  fn @require_reads_message(arg0: bool, arg1: memptr) {
+    bb0:
+      mstore arg1, 1
+      require arg0, error_string arg1
+      ret
+  }
+  
+  fn @require_reads_children(arg0: bool) {
+    bb0:
+      v0 = alloc raw, exact, uninitialized, infallible, 32
+      v1 = alloc raw, exact, uninitialized, infallible, 32
+      mstore v0, 7
+      mstore v1, v0
+      require arg0, custom_error [array<1, memory_bytes>], 0, (v1)
+      ret
+  }
+  

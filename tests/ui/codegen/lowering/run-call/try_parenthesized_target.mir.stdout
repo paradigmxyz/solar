@@ -7,35 +7,26 @@ fn @ok() -> u256 [selector=0xd909b403, pure, abi_params=[], abi_returns=[word]] 
 
 fn @bad() [selector=0x9c3674fc, pure, abi_params=[], abi_returns=[word]] {
   bb0:
-    icall @revert_error, 2, 0x6e6f000000000000000000000000000000000000000000000000000000000000
+    require false, short_string 2, 0x6e6f000000000000000000000000000000000000000000000000000000000000
     invalid
-}
-
-fn @revert_error(arg0: u256, arg1: u256) {
-  bb0:
-    mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 32 !metadata(memory=scratch)
-    mstore 36, arg0 !metadata(memory=scratch)
-    mstore 68, arg1 !metadata(memory=scratch)
-    revert 0, 100
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/try_parenthesized_target.sol:Caller ===
 @module Caller
 data:
-  Target_initcode_0: hex"34600d5760a58060115f395ff35b5f5ffd346028575f3560e01c80639c3674fc146020578063d909b403146024576028565b603e565b602c565b5f5ffd5b60056080526020608001608090036080f35b60e0604052600260a0527f6e6f00000000000000000000000000000000000000000000000000000000000060c0527f08c379a0000000000000000000000000000000000000000000000000000000005f52602060045260a05160245260c05160445260645ffd"
+  Target_initcode_0: hex"34600d5760af8060115f395ff35b5f5ffd346028575f3560e01c80639c3674fc146020578063d909b403146024576028565b603e565b602c565b5f5ffd5b60056080526020608001608090036080f35b60e06040525f607457600260a0527f6e6f00000000000000000000000000000000000000000000000000000000000060c0526076565bfe5b7f08c379a0000000000000000000000000000000000000000000000000000000005f52602060045260a05160245260c05160445260645ffd"
 
 fn @constructor() [constructor] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 213, v1
+    v2 = and 223, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy Target_initcode_0, v3, 182
+    data_copy Target_initcode_0, v3, 192
     v4 = slice_ptr v0
-    v5 = add v3, 182
+    v5 = add v3, 192
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 182
+    v6 = create 0, v3, 192
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata

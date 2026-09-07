@@ -33,7 +33,7 @@ mod arithmetic;
 pub(crate) use arithmetic::{ArithmeticKind, CheckedOp};
 
 mod checks;
-pub(crate) use checks::{PanicCode, RevertKind, RevertReason};
+pub(crate) use checks::{PanicCode, RevertKind, RevertPayload, RevertReason};
 
 mod effects;
 pub(crate) use effects::ControlEffects;

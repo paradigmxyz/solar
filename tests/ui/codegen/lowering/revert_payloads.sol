@@ -10,22 +10,20 @@ contract RevertPayloads {
     }
 
     // CHECK-LABEL: fn @require_message{{[( ]}}
-    // CHECK: {{v[0-9]+}} = iszero arg0
-    // CHECK: icall @revert_error{{.*}}
-    // CHECK: invalid
+    // CHECK: require arg0, short_string 3, 0x626164{{0+}}
     function require_message(bool ok) public pure {
         require(ok, "bad");
     }
 
     // CHECK-LABEL: fn @revert_message{{[( ]}}
-    // CHECK: icall @revert_error{{.*}}
+    // CHECK: require false, short_string 3, 0x626164{{0+}}
     // CHECK: invalid
     function revert_message() public pure {
         revert("bad");
     }
 
     // CHECK-LABEL: fn @revert_hex_message{{[( ]}}
-    // CHECK: icall @revert_error{{.*}}
+    // CHECK: require false, short_string 3, 0x626164{{0+}}
     // CHECK: invalid
     function revert_hex_message() public pure {
         revert(hex"626164");

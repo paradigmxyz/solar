@@ -38,3 +38,47 @@
       ret v2
   }
   
+  fn @payloads(arg0: bool, arg1: memorybytes, arg2: u256) {
+    bb0:
+-     require arg0, short_string 3, 0x6261640000000000000000000000000000000000000000000000000000000000
+-     require arg0, empty_string
+-     require arg0, error_string arg1
+-     require arg0, custom_error [word, memory_bytes], 0, (arg2, arg1)
++     jumpi arg0, bb2, bb1
++   bb1:
++     icall @revert_error, 3, 0x6261640000000000000000000000000000000000000000000000000000000000
++     invalid
++   bb2:
++     jumpi arg0, bb4, bb3
++   bb3:
++     mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
++     mstore 4, 32 !metadata(memory=scratch)
++     mstore 36, 0 !metadata(memory=scratch)
++     revert 0, 68
++   bb4:
++     jumpi arg0, bb6, bb5
++   bb5:
++     v0 = abi_encode [memory_bytes], selector 0x8c379a000000000000000000000000000000000000000000000000000000000, args arg1
++     v1 = slice_ptr v0
++     v2 = slice_len v0
++     revert v1, v2
++   bb6:
++     jumpi arg0, bb8, bb7
++   bb7:
++     v3 = abi_encode [word, memory_bytes], selector 0, args arg2, arg1
++     v4 = slice_ptr v3
++     v5 = slice_len v3
++     revert v4, v5
++   bb8:
+      ret
++ }
++ 
++ fn @revert_error(arg0: u256, arg1: u256) {
++   bb0:
++     mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
++     mstore 4, 32 !metadata(memory=scratch)
++     mstore 36, arg0 !metadata(memory=scratch)
++     mstore 68, arg1 !metadata(memory=scratch)
++     revert 0, 100
+  }
+  

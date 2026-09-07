@@ -797,6 +797,44 @@ impl<'a> Validator<'a> {
     fn validate_memory_object_types(&mut self, func: &Function) {
         for (block, body) in func.blocks.iter_enumerated() {
             for &id in &body.instructions {
+                if let InstKind::Require { condition, payload } = &func.inst(id).kind {
+                    let word = |value| {
+                        func.value_ty(value).is_some_and(|ty| {
+                            ty.is_word() && !matches!(ty, MirType::MemoryObject(_))
+                        })
+                    };
+                    if !word(*condition) || func.inst(id).result_ty.is_some() {
+                        self.emit_at_inst(
+                            "require needs a word condition and no result",
+                            block,
+                            id,
+                        );
+                    }
+                    let valid = match payload.as_ref() {
+                        crate::mir::RevertPayload::ShortString { length, data } => {
+                            word(*length)
+                                && word(*data)
+                                && func
+                                    .value_u64(*length)
+                                    .is_some_and(|length| (1..=32).contains(&length))
+                        }
+                        crate::mir::RevertPayload::EmptyString => true,
+                        crate::mir::RevertPayload::ErrorString(value) => matches!(
+                            func.value_ty(*value),
+                            Some(
+                                MirType::MemoryObject(MemoryObjectKind::Bytes)
+                                    | MirType::MemPtr
+                                    | MirType::UInt(_)
+                            )
+                        ),
+                        crate::mir::RevertPayload::CustomError { selector, layout, values } => {
+                            word(*selector) && values.len() == layout.types.len()
+                        }
+                    };
+                    if !valid {
+                        self.emit_at_inst("require payload has incompatible arguments", block, id);
+                    }
+                }
                 if let InstKind::Concat(parts) = &func.inst(id).kind {
                     for part in parts {
                         let valid = match part {

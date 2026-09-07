@@ -190,3 +190,10 @@
       ret
   }
   
+  fn @constant_require(arg0: memorybytes) {
+    bb0:
+-     require true, error_string arg0
+      require false, empty_string
+      ret
+  }
+  

@@ -9,10 +9,10 @@ use crate::{
     memory::EvmMemoryLayout,
     mir::{
         AbiLayout, AbiParamLayout, AbiParamLocation, AbiParamType, AbiType, AbiWordValidator,
-        AllocationSemantics, ArithmeticKind, BlockId, CheckedOp, ConcatPart, ERROR_SELECTOR,
-        Function, FunctionBuilder, FunctionId, ImmutableId, InstKind, LibraryLink,
-        MemoryObjectKind, MemoryObjectLayout, MirType, Module, PanicCode, RevertReason,
-        SliceLocation, Value, ValueId,
+        AllocationSemantics, ArithmeticKind, BlockId, CheckedOp, ConcatPart, Function,
+        FunctionBuilder, FunctionId, ImmutableId, InstKind, LibraryLink, MemoryObjectKind,
+        MemoryObjectLayout, MirType, Module, PanicCode, RevertPayload, RevertReason, SliceLocation,
+        Value, ValueId,
     },
 };
 use alloy_primitives::{U256, keccak256};
@@ -330,13 +330,6 @@ struct ModifierContext<'gcx> {
 struct ReturnTarget {
     block: BlockId,
     states: Vec<LoopState>,
-}
-
-enum PreparedRevertPayload {
-    ShortString { length: ValueId, data: ValueId },
-    EmptyString,
-    ErrorString(ValueId),
-    CustomError { selector: ValueId, layout: Arc<AbiLayout>, values: Box<[ValueId]> },
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]

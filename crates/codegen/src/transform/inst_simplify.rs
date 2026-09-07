@@ -716,6 +716,10 @@ impl InstSimplifier {
     ) -> bool {
         let resolve = |value| mir_utils::resolve_replacement(value, replacements);
         match kind {
+            // require a known passing condition, payload -> nothing
+            InstKind::Require { condition, .. } => {
+                func.value_u256(resolve(*condition)).is_some_and(|condition| !condition.is_zero())
+            }
             // check a known passing condition -> nothing
             InstKind::Check { condition, is_zero, .. } => func
                 .value_u256(resolve(*condition))

@@ -698,7 +698,7 @@ impl Instruction {
             | InstKind::Ripemd160(..)
             | InstKind::EcRecover(..) => Some("builtin"),
             InstKind::ValidateAbi(..) => Some("ABI validation"),
-            InstKind::Check { .. } => Some("conditional check"),
+            InstKind::Check { .. } | InstKind::Require { .. } => Some("conditional check"),
             InstKind::AbiEncode { .. } => Some("ABI encoding"),
             InstKind::AbiDecode { .. } => Some("ABI decoding"),
             InstKind::StorageToMemory { .. }
@@ -1296,6 +1296,8 @@ pub(crate) enum InstKind {
     ValidateAbi(ValueId),
     /// Revert with a typed failure if the condition has the selected truth value.
     Check { condition: ValueId, is_zero: bool, failure: super::RevertKind },
+    /// Revert with evaluated payload arguments when the condition is zero.
+    Require { condition: ValueId, payload: Box<super::RevertPayload> },
     /// SHA-256 of a bytes object, including precompile output allocation and returndata effects.
     Sha256(ValueId),
     /// Concatenate bytes objects and left-aligned fixed words into a fresh bytes object.
@@ -1546,6 +1548,10 @@ impl InstKind {
                 out.push(*memory);
             }
 
+            Self::Require { condition, payload } => {
+                out.push(*condition);
+                payload.for_each_operand(|value| out.push(value));
+            }
             Self::Concat(parts) => out.extend(parts.iter().map(ConcatPart::value)),
 
             Self::AbiEncode { selector, args, .. } => {
@@ -1837,6 +1843,10 @@ impl InstKind {
                 f(memory);
             }
 
+            Self::Require { condition, payload } => {
+                f(condition);
+                payload.for_each_operand_mut(&mut f);
+            }
             Self::Concat(parts) => {
                 for part in parts {
                     f(part.value_mut());
@@ -2115,6 +2125,7 @@ impl InstKind {
             Self::Keccak256Bytes(_) => "keccak256_bytes",
             Self::CheckedBinary { op, .. } => op.name(),
             Self::ValidateAbi(_) => "validate_abi",
+            Self::Require { .. } => "require",
             Self::Check { is_zero, failure, .. } => match (failure, is_zero) {
                 (super::RevertKind::Panic(_), false) => "panic_if",
                 (super::RevertKind::Panic(_), true) => "panic_if_zero",
@@ -2225,7 +2236,8 @@ impl InstKind {
             | Self::ExtCodeCopy(_, _, _, _)
             | Self::ReturnDataCopy(_, _, _) => EffectKind::MemoryWrite,
             Self::StoreImmutable(..) => EffectKind::ImmutableWrite,
-            Self::MLoad(_)
+            Self::Require { .. }
+            | Self::MLoad(_)
             | Self::MemorySliceLoadWord { .. }
             | Self::FrameLoad { .. }
             | Self::MemoryObjectLen(_, _)

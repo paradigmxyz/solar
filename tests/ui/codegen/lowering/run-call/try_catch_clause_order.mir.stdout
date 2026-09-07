@@ -25,7 +25,7 @@ fn @boom(arg0: u256) -> u256 [selector=0xb443a085, pure, abi_params=[u256], abi_
     v2 = checked_div u256, 1, 0
     ret v2
   bb1:
-    icall @revert_error, 4, 0x6e6f706500000000000000000000000000000000000000000000000000000000
+    require false, short_string 4, 0x6e6f706500000000000000000000000000000000000000000000000000000000
     invalid
 }
 
@@ -268,15 +268,6 @@ fn @bareFirst(arg0: u256) -> u256 [selector=0x2f2a2d09, view, abi_params=[u256],
     ret v13
   bb3:
     ret 0
-}
-
-fn @revert_error(arg0: u256, arg1: u256) {
-  bb0:
-    mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 32 !metadata(memory=scratch)
-    mstore 36, arg0 !metadata(memory=scratch)
-    mstore 68, arg1 !metadata(memory=scratch)
-    revert 0, 100
 }
 
 fn @try_decode_error_message(arg0: memptr, arg1: u256) -> bool {

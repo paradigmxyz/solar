@@ -573,6 +573,27 @@ fn display_inst_kind<'a>(
         InstKind::MemoryObjectData(object, kind) => {
             write!(f, "memory_object_data {kind}, {}", display_val(*object, func))
         }
+        InstKind::Require { condition, payload } => {
+            write!(f, "require {}, ", display_val(*condition, func))?;
+            match payload.as_ref() {
+                super::RevertPayload::ShortString { length, data } => write!(
+                    f,
+                    "short_string {}, {}",
+                    display_val(*length, func),
+                    display_val(*data, func)
+                ),
+                super::RevertPayload::EmptyString => write!(f, "empty_string"),
+                super::RevertPayload::ErrorString(value) => {
+                    write!(f, "error_string {}", display_val(*value, func))
+                }
+                super::RevertPayload::CustomError { selector, layout, values } => write!(
+                    f,
+                    "custom_error {layout}, {}, ({})",
+                    display_val(*selector, func),
+                    values.iter().map(|&v| display_val(v, func)).format(", ")
+                ),
+            }
+        }
         InstKind::Check { condition, failure, .. } => {
             write!(f, "{} {}, ", kind.mnemonic(), display_val(*condition, func))?;
             match failure {

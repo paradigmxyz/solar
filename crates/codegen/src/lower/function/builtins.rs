@@ -597,17 +597,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     Some(message) => Some(self.prepare_revert_payload(message)?),
                     None => None,
                 };
-                let is_false = self.builder.iszero(condition);
                 let Some(message) = message else {
+                    let is_false = self.builder.iszero(condition);
                     self.builder.revert_if(is_false, RevertReason::Empty);
                     return Some(());
                 };
-                let revert_block = self.builder.create_block();
-                let continue_block = self.builder.create_block();
-                self.builder.branch(is_false, revert_block, continue_block);
-                self.builder.switch_to_block(revert_block);
-                self.emit_revert_payload(message);
-                self.builder.switch_to_block(continue_block);
+                // require condition, evaluated_payload
+                self.builder.require(condition, message);
             }
             Builtin::Revert => {
                 let _ = self.builtin_args::<0>(builtin, &args)?;

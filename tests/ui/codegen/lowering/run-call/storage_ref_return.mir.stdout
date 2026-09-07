@@ -31,30 +31,16 @@ fn @run() -> struct0 [selector=0xc0406226, abi_params=[], abi_returns=[word, wor
     v15 = sload v14 !metadata(storage=symbolic(v14))
     v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffff
     v17 = eq v16, 96
-    v18 = iszero v17
-    jumpi v18, bb1, bb2
-  bb2:
-    v19 = add v14, 1
-    sstore v19, 7 !metadata(storage=offset(v14, 1))
-    v20 = icall @_getPool, 0xe35b2940ca10a9581573918a0d9ed2422f97cc9196f63510c77f5a0ed5393cfd
-    v21 = sload v20 !metadata(storage=symbolic(v20))
-    v22 = and v21, 0xffffffffffffffffffffffffffffffffffffffff
-    v23 = mapping_slot 0xe35b2940ca10a9581573918a0d9ed2422f97cc9196f63510c77f5a0ed5393cfd, 0
-    v24 = add v23, 1
-    v25 = sload v24 !metadata(storage=offset(v23, 1))
-    v26 = insert_value struct0, undef struct0, 0, v22
-    v27 = insert_value struct0, v26, 1, v25
-    ret v27
-  bb1:
-    icall @revert_error, 16, 0x72656164207468726f7567682072656600000000000000000000000000000000
-    invalid
-}
-
-fn @revert_error(arg0: u256, arg1: u256) {
-  bb0:
-    mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 32 !metadata(memory=scratch)
-    mstore 36, arg0 !metadata(memory=scratch)
-    mstore 68, arg1 !metadata(memory=scratch)
-    revert 0, 100
+    require v17, short_string 16, 0x72656164207468726f7567682072656600000000000000000000000000000000
+    v18 = add v14, 1
+    sstore v18, 7 !metadata(storage=offset(v14, 1))
+    v19 = icall @_getPool, 0xe35b2940ca10a9581573918a0d9ed2422f97cc9196f63510c77f5a0ed5393cfd
+    v20 = sload v19 !metadata(storage=symbolic(v19))
+    v21 = and v20, 0xffffffffffffffffffffffffffffffffffffffff
+    v22 = mapping_slot 0xe35b2940ca10a9581573918a0d9ed2422f97cc9196f63510c77f5a0ed5393cfd, 0
+    v23 = add v22, 1
+    v24 = sload v23 !metadata(storage=offset(v22, 1))
+    v25 = insert_value struct0, undef struct0, 0, v21
+    v26 = insert_value struct0, v25, 1, v24
+    ret v26
 }

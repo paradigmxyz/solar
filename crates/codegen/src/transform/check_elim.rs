@@ -227,11 +227,18 @@ impl CheckEliminator {
                     }
 
                     for &id in &func.blocks[block].instructions {
-                        if let InstKind::Check { condition, is_zero, .. } = func.inst(id).kind {
-                            if self.eval_truth(func, condition, MAX_DEPTH) == Some(is_zero) {
+                        let fact = match func.inst(id).kind {
+                            InstKind::Check { condition, is_zero, .. } => {
+                                Some((condition, is_zero))
+                            }
+                            InstKind::Require { condition, .. } => Some((condition, true)),
+                            _ => None,
+                        };
+                        if let Some((condition, passing)) = fact {
+                            if self.eval_truth(func, condition, MAX_DEPTH) == Some(passing) {
                                 checks.insert(id);
                             }
-                            self.assume(func, condition, is_zero, MAX_DEPTH);
+                            self.assume(func, condition, passing, MAX_DEPTH);
                         }
                     }
 

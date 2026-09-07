@@ -156,20 +156,6 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v42 = add 0, 0
     v43 = mload v42
     v44 = eq v43, 76
-    v45 = iszero v44
-    jumpi v45, bb9, bb10
-  bb10:
+    require v44, short_string 7, 0x666f727761726400000000000000000000000000000000000000000000000000
     ret 1
-  bb9:
-    icall @revert_error, 7, 0x666f727761726400000000000000000000000000000000000000000000000000
-    invalid
-}
-
-fn @revert_error(arg0: u256, arg1: u256) {
-  bb0:
-    mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 32 !metadata(memory=scratch)
-    mstore 36, arg0 !metadata(memory=scratch)
-    mstore 68, arg1 !metadata(memory=scratch)
-    revert 0, 100
 }

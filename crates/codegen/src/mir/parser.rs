@@ -1932,6 +1932,51 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     Some(mode.result_type()),
                 )
             }
+            sym::require => {
+                let condition = self.parse_value(builder)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let payload = match self.parser.parse_ident()? {
+                    sym::short_string => {
+                        let length = self.parse_value(builder)?;
+                        self.parser.expect(TokenKind::Comma)?;
+                        let data = self.parse_value(builder)?;
+                        super::RevertPayload::ShortString { length, data }
+                    }
+                    sym::empty_string => super::RevertPayload::EmptyString,
+                    sym::error_string => {
+                        super::RevertPayload::ErrorString(self.parse_value(builder)?)
+                    }
+                    sym::custom_error => {
+                        let layout = self.parse_abi_layout()?;
+                        self.parser.expect(TokenKind::Comma)?;
+                        let selector = self.parse_value(builder)?;
+                        self.parser.expect(TokenKind::Comma)?;
+                        self.parser.expect(TokenKind::OpenDelim(Delimiter::Parenthesis))?;
+                        let mut values = Vec::new();
+                        if !self.parser.eat(TokenKind::CloseDelim(Delimiter::Parenthesis)) {
+                            loop {
+                                values.push(self.parse_value(builder)?);
+                                if self.parser.eat(TokenKind::CloseDelim(Delimiter::Parenthesis)) {
+                                    break;
+                                }
+                                self.parser.expect(TokenKind::Comma)?;
+                            }
+                        }
+                        if values.len() != layout.types.len() {
+                            return Err(self
+                                .parser
+                                .error("custom error arguments do not match the ABI layout"));
+                        }
+                        super::RevertPayload::CustomError {
+                            selector,
+                            layout,
+                            values: values.into_boxed_slice(),
+                        }
+                    }
+                    _ => return Err(self.parser.error("invalid revert payload kind")),
+                };
+                (InstKind::Require { condition, payload: Box::new(payload) }, None)
+            }
             sym::panic_if | sym::panic_if_zero | sym::revert_if | sym::revert_if_zero => {
                 let condition = self.parse_value(builder)?;
                 self.parser.expect(TokenKind::Comma)?;

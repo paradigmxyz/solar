@@ -9,7 +9,8 @@ is a late lowering decision.
 ## Phase model
 
 The two representation phases and checked backend boundary are implemented.
-Shared instruction effects, checked arithmetic, conditional checks, precompiles, and concatenation
+Shared instruction effects, checked arithmetic, conditional checks, revert payloads,
+precompiles, and concatenation
 now use the phase boundary. The remaining builtin families are described below.
 The CFG and aggregate contracts below also describe implemented behavior.
 
@@ -76,11 +77,16 @@ approach. `lower-arithmetic` expands checked word operations and exponentiation
 loops. `lower-builtins` expands precompile buffers/calls and concatenation copies.
 `lower-checks` expands typed panic and revert checks into branches and shared
 payloads, preserving source origins and the selected debug revert strings.
+Require keeps evaluated payload arguments in MIR and encodes them only on failure.
+Payload reads retain prior memory stores, including stores to nested child objects.
 Range-based check elimination learns facts from these operations before expansion;
 constant checks fold only when they pass. Revert outlining runs after expansion.
+Jump threading collapses a phi-only branch when a single unconditional predecessor
+remains and the phi has no outside uses, exposing nested short-circuit checks
+without another pipeline iteration.
 The final scalar/check cleanup group runs after these conversions; the semantic
 operation still counts as control flow when inlining estimates its expansion.
-Require/revert payloads, array push/pop, and Solidity-level call preparation remain to migrate.
+Array push/pop and Solidity-level call preparation remain to migrate.
 Yul word operations already express their complete semantics and need no extra
 opaque wrapper. Type-only builtins can disappear, and genuine constant results
 can fold without constructing a runtime implementation.

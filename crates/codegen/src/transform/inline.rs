@@ -628,7 +628,8 @@ fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInli
                 // emits copy loops and padding branches, so neither operation is a tiny leaf.
                 InstKind::AbiDecode { .. }
                 | InstKind::CheckedBinary { .. }
-                | InstKind::Check { .. } => {
+                | InstKind::Check { .. }
+                | InstKind::Require { .. } => {
                     summary.has_control_flow = true;
                 }
                 InstKind::AbiEncode { layout, .. } if abi_layout_has_loops(layout) => {
@@ -932,6 +933,7 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (MirCos
         InstKind::Sha256(_) | InstKind::Ripemd160(_) => (800, 64),
         InstKind::EcRecover(..) => (900, 100),
         InstKind::Check { .. } => (24, 8),
+        InstKind::Require { .. } => (40, 24),
         InstKind::ValidateAbi(_) => (0, 0),
         InstKind::CheckedBinary { op: crate::mir::CheckedOp::Pow, .. } => (300, 128),
         InstKind::CheckedBinary { .. } => (30, 20),

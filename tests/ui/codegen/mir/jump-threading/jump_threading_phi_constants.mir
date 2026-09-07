@@ -80,3 +80,41 @@ fn @keep_phi_used_in_successor(arg0: bool) -> u256 {
   bb5:
     ret 22
 }
+
+// CHECK-LABEL: fn @nested_short_circuit
+// CHECK: + jumpi arg1, bb5, bb2
+// CHECK: + jumpi arg2, bb5, bb6
+// CHECK-NOT: {{^[ +].*}}phi
+fn @nested_short_circuit(arg0: bool, arg1: bool, arg2: bool) -> u256 {
+  bb0:
+    jumpi arg0, bb1, bb5
+  bb1:
+    jumpi arg1, bb3, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v0 = phi [bb1: true], [bb2: arg2]
+    jump bb5
+  bb5:
+    v1 = phi [bb0: false], [bb3: v0]
+    jumpi v1, bb6, bb7
+  bb6:
+    ret 1
+  bb7:
+    ret 0
+}
+
+// CHECK-LABEL: fn @keep_single_phi_used_in_successor
+// CHECK: {{^[ +].*}}[[PHI:v[0-9]+]] = phi
+// CHECK: {{^[ +].*}}ret [[PHI]]
+fn @keep_single_phi_used_in_successor(arg0: bool) -> bool {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0]
+    jumpi v0, bb2, bb3
+  bb2:
+    ret v0
+  bb3:
+    ret false
+}

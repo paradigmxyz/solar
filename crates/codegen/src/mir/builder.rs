@@ -3,8 +3,8 @@
 use super::{
     AbiEncodeMode, AllocationSemantics, BlockId, FrameMode, FrameSlotKind, Function, FunctionId,
     Immediate, ImmutableId, InstId, InstKind, Instruction, InstructionMetadata, MemoryObjectKind,
-    MemoryObjectLayout, MemoryRegion, MirType, PanicCode, RevertKind, RevertReason, SliceLocation,
-    StorageAlias, StructId, Terminator, Value, ValueId,
+    MemoryObjectLayout, MemoryRegion, MirType, PanicCode, RevertKind, RevertPayload, RevertReason,
+    SliceLocation, StorageAlias, StructId, Terminator, Value, ValueId,
 };
 use crate::memory::EvmMemoryLayout;
 use alloy_primitives::U256;
@@ -256,6 +256,12 @@ impl<'a> FunctionBuilder<'a> {
         self.mstore(four, code);
         let size = self.imm(36);
         self.revert(zero, size);
+    }
+
+    /// Retains evaluated error arguments until conditional payload encoding.
+    pub(crate) fn require(&mut self, condition: ValueId, payload: RevertPayload) {
+        // require condition, payload
+        self.emit_void_inst(InstKind::Require { condition, payload: Box::new(payload) });
     }
 
     /// Reverts with Solidity's `Panic(uint256)` payload when `condition` is true.

@@ -51,41 +51,26 @@ fn @dynField() -> u256 [selector=0x3938b4c8, abi_params=[], abi_returns=[word]] 
     v38 = memory_object_load_field memorystruct<2>, v34, 1, memoryarray
     v39 = memory_object_len memoryarray, v38
     v40 = eq v39, 2
-    v41 = iszero v40
-    jumpi v41, bb1, bb2
-  bb2:
-    v42 = memory_object_load_field memorystruct<2>, v34, 1, memoryarray
-    v43 = memory_object_len memoryarray, v42
-    v44 = lt 0, v43
-    v45 = iszero v44
-    panic_if v45, 0x32
-    v46 = memory_object_load_element memoryarray<1>, v42, 0
-    v47 = and v46, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v48 = eq v47, 0x3938b4c800000000000000000000000000000000000000000000000000000000
-    v49 = iszero v48
-    jumpi v49, bb3, bb4
-  bb4:
-    v50 = memory_object_load_field memorystruct<2>, v34, 1, memoryarray
-    v51 = memory_object_len memoryarray, v50
-    v52 = lt 1, v51
-    v53 = iszero v52
-    panic_if v53, 0x32
-    v54 = memory_object_load_element memoryarray<1>, v50, 1
-    v55 = and v54, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v56 = eq v55, 0x3442156e00000000000000000000000000000000000000000000000000000000
-    v57 = iszero v56
-    jumpi v57, bb5, bb6
-  bb6:
+    require v40, short_string 3, 0x6c656e0000000000000000000000000000000000000000000000000000000000
+    v41 = memory_object_load_field memorystruct<2>, v34, 1, memoryarray
+    v42 = memory_object_len memoryarray, v41
+    v43 = lt 0, v42
+    v44 = iszero v43
+    panic_if v44, 0x32
+    v45 = memory_object_load_element memoryarray<1>, v41, 0
+    v46 = and v45, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v47 = eq v46, 0x3938b4c800000000000000000000000000000000000000000000000000000000
+    require v47, short_string 2, 0x6530000000000000000000000000000000000000000000000000000000000000
+    v48 = memory_object_load_field memorystruct<2>, v34, 1, memoryarray
+    v49 = memory_object_len memoryarray, v48
+    v50 = lt 1, v49
+    v51 = iszero v50
+    panic_if v51, 0x32
+    v52 = memory_object_load_element memoryarray<1>, v48, 1
+    v53 = and v52, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v54 = eq v53, 0x3442156e00000000000000000000000000000000000000000000000000000000
+    require v54, short_string 2, 0x6531000000000000000000000000000000000000000000000000000000000000
     ret 1
-  bb5:
-    icall @revert_error, 2, 0x6531000000000000000000000000000000000000000000000000000000000000
-    invalid
-  bb3:
-    icall @revert_error, 2, 0x6530000000000000000000000000000000000000000000000000000000000000
-    invalid
-  bb1:
-    icall @revert_error, 3, 0x6c656e0000000000000000000000000000000000000000000000000000000000
-    invalid
 }
 
 fn @structField() -> u256 [selector=0x3442156e, abi_params=[], abi_returns=[word]] {
@@ -132,29 +117,19 @@ fn @structField() -> u256 [selector=0x3442156e, abi_params=[], abi_returns=[word
     jump bb3
   bb3:
     v29 = phi [bb1: v28], [bb2: false]
-    v30 = iszero v29
-    jumpi v30, bb4, bb5
-  bb5:
-    v31 = sload 4 !metadata(storage=slot(4))
-    v32 = not 0xffffffffffffffff
-    v33 = and v31, v32
-    v34 = and 100, 0xffffffffffffffff
-    v35 = or v33, v34
-    sstore 4, v35 !metadata(storage=slot(4))
-    v36 = memory_object_load_field memorystruct<2>, v12, 1, memorystruct
-    v37 = memory_object_load_field memorystruct<2>, v36, 0
-    v38 = and v37, 0xffffffffffffffff
-    v39 = eq v38, 7
-    v40 = iszero v39
-    jumpi v40, bb6, bb7
-  bb7:
+    require v29, short_string 5, 0x696e6e6572000000000000000000000000000000000000000000000000000000
+    v30 = sload 4 !metadata(storage=slot(4))
+    v31 = not 0xffffffffffffffff
+    v32 = and v30, v31
+    v33 = and 100, 0xffffffffffffffff
+    v34 = or v32, v33
+    sstore 4, v34 !metadata(storage=slot(4))
+    v35 = memory_object_load_field memorystruct<2>, v12, 1, memorystruct
+    v36 = memory_object_load_field memorystruct<2>, v35, 0
+    v37 = and v36, 0xffffffffffffffff
+    v38 = eq v37, 7
+    require v38, short_string 4, 0x636f707900000000000000000000000000000000000000000000000000000000
     ret 1
-  bb6:
-    icall @revert_error, 4, 0x636f707900000000000000000000000000000000000000000000000000000000
-    invalid
-  bb4:
-    icall @revert_error, 5, 0x696e6e6572000000000000000000000000000000000000000000000000000000
-    invalid
 }
 
 fn @fixedField() -> u256 [selector=0x0dfda72b, abi_params=[], abi_returns=[word]] {
@@ -216,13 +191,8 @@ fn @fixedField() -> u256 [selector=0x0dfda72b, abi_params=[], abi_returns=[word]
     jump bb9
   bb9:
     v32 = phi [bb7: v31], [bb8: false]
-    v33 = iszero v32
-    jumpi v33, bb10, bb11
-  bb11:
+    require v32, short_string 4, 0x76616c7300000000000000000000000000000000000000000000000000000000
     ret 1
-  bb10:
-    icall @revert_error, 4, 0x76616c7300000000000000000000000000000000000000000000000000000000
-    invalid
   bb2:
     v13 = add 1, v11
     v14 = sload v13 !metadata(storage=offset(v11, 1))
@@ -266,13 +236,4 @@ fn @load_storage_packed_array_4_2(arg0: u256) -> memoryarray {
     memory_object_store_element memoryarray<1>, v9, v11, v20
     v21 = add v11, 1
     jump bb1
-}
-
-fn @revert_error(arg0: u256, arg1: u256) {
-  bb0:
-    mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 32 !metadata(memory=scratch)
-    mstore 36, arg0 !metadata(memory=scratch)
-    mstore 68, arg1 !metadata(memory=scratch)
-    revert 0, 100
 }

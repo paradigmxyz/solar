@@ -9,13 +9,8 @@ fn @direct(arg0: u256, arg1: bool) -> u256 [selector=0x52db6885, pure, abi_param
     v0 = eq arg1, 0
     v1 = iszero v0
     v2 = iszero v1
-    v3 = iszero v2
-    jumpi v3, bb1, bb2
-  bb2:
+    require v2, short_string 6, 0x6661696c65640000000000000000000000000000000000000000000000000000
     ret arg0
-  bb1:
-    icall @revert_error, 6, 0x6661696c65640000000000000000000000000000000000000000000000000000
-    invalid
 }
 
 fn @attached(arg0: storageptr, arg1: u256, arg2: bool) -> u256 [selector=0x280ac7e9, abi_params=[storageptr, u256, bool], abi_returns=[word]] {
@@ -23,15 +18,10 @@ fn @attached(arg0: storageptr, arg1: u256, arg2: bool) -> u256 [selector=0x280ac
     v0 = eq arg2, 0
     v1 = iszero v0
     v2 = iszero v1
-    v3 = iszero v2
-    jumpi v3, bb1, bb2
-  bb2:
+    require v2, short_string 6, 0x6661696c65640000000000000000000000000000000000000000000000000000
     sstore arg0, arg1 !metadata(storage=symbolic(arg0))
-    v4 = sload arg0 !metadata(storage=symbolic(arg0))
-    ret v4
-  bb1:
-    icall @revert_error, 6, 0x6661696c65640000000000000000000000000000000000000000000000000000
-    invalid
+    v3 = sload arg0 !metadata(storage=symbolic(arg0))
+    ret v3
 }
 
 fn @add(arg0: u256, arg1: u256, arg2: bool) -> u256 [selector=0x07f6a6c2, pure, abi_params=[u256, u256, bool], abi_returns=[word]] {
@@ -39,28 +29,14 @@ fn @add(arg0: u256, arg1: u256, arg2: bool) -> u256 [selector=0x07f6a6c2, pure, 
     v0 = eq arg2, 0
     v1 = iszero v0
     v2 = iszero v1
-    v3 = iszero v2
-    jumpi v3, bb1, bb2
-  bb2:
-    v4 = checked_add u256, arg0, arg1
-    ret v4
-  bb1:
-    icall @revert_error, 6, 0x6661696c65640000000000000000000000000000000000000000000000000000
-    invalid
+    require v2, short_string 6, 0x6661696c65640000000000000000000000000000000000000000000000000000
+    v3 = checked_add u256, arg0, arg1
+    ret v3
 }
 
 fn @empty() [selector=0xf2a75fe4, pure, abi_params=[], abi_returns=[]] {
   bb0:
     stop
-}
-
-fn @revert_error(arg0: u256, arg1: u256) {
-  bb0:
-    mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 32 !metadata(memory=scratch)
-    mstore 36, arg0 !metadata(memory=scratch)
-    mstore 68, arg1 !metadata(memory=scratch)
-    revert 0, 100
 }
 
 fn @constructor() [constructor] {
@@ -345,7 +321,7 @@ fn @emptyCode() [selector=0xddb3636e, pure, abi_params=[], abi_returns=[]] {
   bb5:
     revert v14, v15
   bb4:
-    icall @revert_error, 6, 0x6361756768740000000000000000000000000000000000000000000000000000
+    require false, short_string 6, 0x6361756768740000000000000000000000000000000000000000000000000000
     invalid
   bb1:
     jump bb3
@@ -377,13 +353,4 @@ fn @try_decode_error_message(arg0: memptr, arg1: u256) -> bool {
     ret v14
   bb3:
     ret false
-}
-
-fn @revert_error(arg0: u256, arg1: u256) {
-  bb0:
-    mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 32 !metadata(memory=scratch)
-    mstore 36, arg0 !metadata(memory=scratch)
-    mstore 68, arg1 !metadata(memory=scratch)
-    revert 0, 100
 }

@@ -897,6 +897,19 @@ impl AliasAnalysis {
             InstKind::Create(_, offset, _) | InstKind::Create2(_, offset, _, _) => {
                 operand != *offset
             }
+            InstKind::Require { condition, payload } => {
+                *condition == operand
+                    || match payload.as_ref() {
+                        crate::mir::RevertPayload::ErrorString(value) => *value != operand,
+                        crate::mir::RevertPayload::CustomError { selector, values, layout } => {
+                            *selector == operand
+                                || values.iter().zip(layout.types.iter()).any(|(&value, ty)| {
+                                    value == operand && !Self::abi_type_reads_memory(ty)
+                                })
+                        }
+                        _ => true,
+                    }
+            }
             InstKind::AbiEncode { args, layout, .. } => args
                 .iter()
                 .zip(layout.types.iter())
@@ -1146,6 +1159,21 @@ impl AliasAnalysis {
             | InstKind::EcRecover(..) => {
                 effects.read_any(AddressSpace::Memory);
                 effects.write_any(AddressSpace::Memory);
+            }
+            InstKind::Require { .. } => {
+                let InstKind::Require { payload, .. } = kind else { unreachable!() };
+                match payload.as_ref() {
+                    crate::mir::RevertPayload::ErrorString(value) => {
+                        read_memory(&mut effects, *value, SizeOperand::Unknown)
+                    }
+                    crate::mir::RevertPayload::CustomError { layout, .. }
+                        if layout.types.iter().any(Self::abi_type_reads_memory) =>
+                    {
+                        // Aggregate payloads can follow references into distinct child objects.
+                        effects.read_any(AddressSpace::Memory);
+                    }
+                    _ => {}
+                }
             }
             InstKind::AbiEncode { .. } => {
                 let InstKind::AbiEncode { args, layout, .. } = kind else { unreachable!() };

@@ -7,10 +7,8 @@ fn @mappingShort() [selector=0x9b5bf7ac, abi_params=[], abi_returns=[]] {
     icall @store_storage_bytes, v1, v0
     v2 = mapping_slot 0, 0
     v3 = icall @load_storage_bytes, v2
-    v4 = abi_encode [memory_bytes], selector 0x8c379a000000000000000000000000000000000000000000000000000000000, args v3
-    v5 = slice_ptr v4
-    v6 = slice_len v4
-    revert v5, v6
+    require false, error_string v3
+    invalid
 }
 
 fn @mappingLong() [selector=0xaf8ee9a6, abi_params=[], abi_returns=[]] {
@@ -25,10 +23,8 @@ fn @mappingLong() [selector=0xaf8ee9a6, abi_params=[], abi_returns=[]] {
     icall @store_storage_bytes, v3, v0
     v4 = mapping_slot 1, 0
     v5 = icall @load_storage_bytes, v4
-    v6 = abi_encode [memory_bytes], selector 0x8c379a000000000000000000000000000000000000000000000000000000000, args v5
-    v7 = slice_ptr v6
-    v8 = slice_len v6
-    revert v7, v8
+    require false, error_string v5
+    invalid
 }
 
 fn @mappingReference() [selector=0x49b1855e, abi_params=[], abi_returns=[]] {
@@ -38,10 +34,8 @@ fn @mappingReference() [selector=0x49b1855e, abi_params=[], abi_returns=[]] {
     icall @store_storage_bytes, v1, v0
     v2 = mapping_slot 2, 0
     v3 = icall @load_storage_bytes, v2
-    v4 = abi_encode [memory_bytes], selector 0x8c379a000000000000000000000000000000000000000000000000000000000, args v3
-    v5 = slice_ptr v4
-    v6 = slice_len v4
-    revert v5, v6
+    require false, error_string v3
+    invalid
 }
 
 fn @nestedMapping() [selector=0x041c73d0, abi_params=[], abi_returns=[]] {
@@ -53,10 +47,8 @@ fn @nestedMapping() [selector=0x041c73d0, abi_params=[], abi_returns=[]] {
     v3 = mapping_slot 0, 1
     v4 = mapping_slot 1, v3
     v5 = icall @load_storage_bytes, v4
-    v6 = abi_encode [memory_bytes], selector 0x8c379a000000000000000000000000000000000000000000000000000000000, args v5
-    v7 = slice_ptr v6
-    v8 = slice_len v6
-    revert v7, v8
+    require false, error_string v5
+    invalid
 }
 
 fn @structRequire() [selector=0x8bb9ced2, abi_params=[], abi_returns=[]] {
@@ -64,15 +56,8 @@ fn @structRequire() [selector=0x8bb9ced2, abi_params=[], abi_returns=[]] {
     v0 = icall @literal_bytes_word, 0x7800000000000000000000000000000000000000000000000000000000000000, 1
     icall @store_storage_bytes, 2, v0
     v1 = icall @load_storage_bytes, 2
-    v2 = iszero false
-    jumpi v2, bb1, bb2
-  bb2:
+    require false, error_string v1
     stop
-  bb1:
-    v3 = abi_encode [memory_bytes], selector 0x8c379a000000000000000000000000000000000000000000000000000000000, args v1
-    v4 = slice_ptr v3
-    v5 = slice_len v3
-    revert v4, v5
 }
 
 fn @calldataReason(arg0: calldataslice) [selector=0x3f2c0e1e, pure, abi_params=[bytes], abi_returns=[]] {
@@ -94,10 +79,8 @@ fn @calldataReason(arg0: calldataslice) [selector=0x3f2c0e1e, pure, abi_params=[
     v11 = alloc memorybytes, exact, uninitialized, infallible, v10
     set_memory_object_len memorybytes, v11, v6
     memory_object_copy_from_slice memorybytes, v11, arg0
-    v12 = abi_encode [memory_bytes], selector 0x8c379a000000000000000000000000000000000000000000000000000000000, args v11
-    v13 = slice_ptr v12
-    v14 = slice_len v12
-    revert v13, v14
+    require false, error_string v11
+    invalid
 }
 
 fn @literal_bytes_word(arg0: bytes32, arg1: u256) -> memorybytes {

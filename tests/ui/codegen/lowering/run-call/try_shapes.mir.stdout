@@ -56,7 +56,7 @@ fn @ok() -> u256 [selector=0xd909b403, pure, abi_params=[], abi_returns=[word]] 
 
 fn @bad() [selector=0x9c3674fc, pure, abi_params=[], abi_returns=[word]] {
   bb0:
-    icall @revert_error, 4, 0x626f6f6d00000000000000000000000000000000000000000000000000000000
+    require false, short_string 4, 0x626f6f6d00000000000000000000000000000000000000000000000000000000
     invalid
 }
 
@@ -498,15 +498,6 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word]] 
   bb43:
     v297 = phi [bb41: v275], [bb44: v296]
     ret v297
-}
-
-fn @revert_error(arg0: u256, arg1: u256) {
-  bb0:
-    mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 32 !metadata(memory=scratch)
-    mstore 36, arg0 !metadata(memory=scratch)
-    mstore 68, arg1 !metadata(memory=scratch)
-    revert 0, 100
 }
 
 fn @try_decode_error_message(arg0: memptr, arg1: u256) -> bool {

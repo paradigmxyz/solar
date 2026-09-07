@@ -196,13 +196,8 @@ fn @fixedRange() -> u256 [selector=0x5d040bd2, abi_params=[], abi_returns=[word]
     v43 = add 0, 0
     v44 = mload v43
     v45 = eq v44, 166
-    v46 = iszero v45
-    jumpi v46, bb9, bb10
-  bb10:
+    require v45, short_string 5, 0x6669786564000000000000000000000000000000000000000000000000000000
     ret 1
-  bb9:
-    icall @revert_error, 5, 0x6669786564000000000000000000000000000000000000000000000000000000
-    invalid
 }
 
 fn @crossBlock() -> u256 [selector=0xb0694ed5, abi_params=[], abi_returns=[word]] {
@@ -285,13 +280,8 @@ fn @crossBlock() -> u256 [selector=0xb0694ed5, abi_params=[], abi_returns=[word]
     v43 = add 0, 0
     v44 = mload v43
     v45 = eq v44, 175
-    v46 = iszero v45
-    jumpi v46, bb9, bb10
-  bb10:
+    require v45, short_string 11, 0x63726f737320626c6f636b000000000000000000000000000000000000000000
     ret 1
-  bb9:
-    icall @revert_error, 11, 0x63726f737320626c6f636b000000000000000000000000000000000000000000
-    invalid
 }
 
 fn @dynamicRevert() -> u256 [selector=0x5dbb0715, abi_params=[], abi_returns=[word]] {
@@ -339,40 +329,16 @@ fn @dynamicRevert() -> u256 [selector=0x5dbb0715, abi_params=[], abi_returns=[wo
     v26 = make_returndata_slice 0, v20
     memory_object_copy_from_slice memorybytes, v25, v26
     v27 = iszero v19
-    v28 = iszero v27
-    jumpi v28, bb5, bb6
-  bb6:
-    v29 = memory_object_len memorybytes, v25
-    v30 = eq v29, 228
-    v31 = iszero v30
-    jumpi v31, bb7, bb8
-  bb8:
-    v32 = add v25, 32
-    v33 = mload v32
-    v34 = shl 0, 0x1234
-    v35 = eq v33, v34
-    v36 = iszero v35
-    jumpi v36, bb9, bb10
-  bb10:
+    require v27, short_string 7, 0x7375636365737300000000000000000000000000000000000000000000000000
+    v28 = memory_object_len memorybytes, v25
+    v29 = eq v28, 228
+    require v29, short_string 6, 0x6c656e6774680000000000000000000000000000000000000000000000000000
+    v30 = add v25, 32
+    v31 = mload v30
+    v32 = shl 0, 0x1234
+    v33 = eq v31, v32
+    require v33, short_string 7, 0x7061796c6f616400000000000000000000000000000000000000000000000000
     ret 1
-  bb9:
-    icall @revert_error, 7, 0x7061796c6f616400000000000000000000000000000000000000000000000000
-    invalid
-  bb7:
-    icall @revert_error, 6, 0x6c656e6774680000000000000000000000000000000000000000000000000000
-    invalid
-  bb5:
-    icall @revert_error, 7, 0x7375636365737300000000000000000000000000000000000000000000000000
-    invalid
-}
-
-fn @revert_error(arg0: u256, arg1: u256) {
-  bb0:
-    mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 32 !metadata(memory=scratch)
-    mstore 36, arg0 !metadata(memory=scratch)
-    mstore 68, arg1 !metadata(memory=scratch)
-    revert 0, 100
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:RevertingProducer ===

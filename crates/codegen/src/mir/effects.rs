@@ -63,9 +63,10 @@ impl InstKind {
     /// Returns context-free effects; use alias and call summaries for resource footprints.
     pub(crate) const fn effects(&self) -> InstructionEffects {
         let control = match self {
-            Self::ValidateAbi(..) | Self::CheckedBinary { .. } | Self::Check { .. } => {
-                ControlEffects { may_revert: true, ..ControlEffects::NONE }
-            }
+            Self::ValidateAbi(..)
+            | Self::CheckedBinary { .. }
+            | Self::Check { .. }
+            | Self::Require { .. } => ControlEffects { may_revert: true, ..ControlEffects::NONE },
             Self::ICall { .. } => ControlEffects::UNKNOWN,
             Self::Alloc { semantics, .. } => ControlEffects {
                 may_revert: matches!(semantics.failure, super::AllocationFailure::Panic),

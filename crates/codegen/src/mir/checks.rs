@@ -1,5 +1,6 @@
 //! Semantic failures retained until conditional checks are expanded.
 
+use super::{AbiLayoutRef, ValueId};
 use solar_interface::{Symbol, sym};
 
 /// Solidity's built-in `Panic(uint256)` error codes.
@@ -190,4 +191,49 @@ impl RevertReason {
 pub(crate) enum RevertKind {
     Panic(PanicCode),
     Reason(RevertReason),
+}
+
+/// Evaluated arguments of a Solidity revert payload; encoding occurs only on failure.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub(crate) enum RevertPayload {
+    ShortString { length: ValueId, data: ValueId },
+    EmptyString,
+    ErrorString(ValueId),
+    CustomError { selector: ValueId, layout: AbiLayoutRef, values: Box<[ValueId]> },
+}
+
+impl RevertPayload {
+    pub(crate) fn for_each_operand(&self, mut f: impl FnMut(ValueId)) {
+        match self {
+            Self::ShortString { length, data } => {
+                f(*length);
+                f(*data);
+            }
+            Self::EmptyString => {}
+            Self::ErrorString(value) => f(*value),
+            Self::CustomError { selector, values, .. } => {
+                f(*selector);
+                for &value in values {
+                    f(value);
+                }
+            }
+        }
+    }
+
+    pub(crate) fn for_each_operand_mut(&mut self, mut f: impl FnMut(&mut ValueId)) {
+        match self {
+            Self::ShortString { length, data } => {
+                f(length);
+                f(data);
+            }
+            Self::EmptyString => {}
+            Self::ErrorString(value) => f(value),
+            Self::CustomError { selector, values, .. } => {
+                f(selector);
+                for value in values {
+                    f(value);
+                }
+            }
+        }
+    }
 }

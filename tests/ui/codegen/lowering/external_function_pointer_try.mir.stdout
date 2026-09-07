@@ -63,7 +63,7 @@ fn @succeed(arg0: memorystruct) [selector=0x93edcd0d, abi_params=[tuple<u256>], 
 
 fn @fail(arg0: memorystruct) [selector=0xe8be0a6f, pure, abi_params=[tuple<u256>], abi_returns=[]] {
   bb0:
-    icall @revert_error, 2, 0x6e6f000000000000000000000000000000000000000000000000000000000000
+    require false, short_string 2, 0x6e6f000000000000000000000000000000000000000000000000000000000000
     invalid
 }
 
@@ -185,13 +185,4 @@ fn @tryPair() -> struct0 [selector=0xf8a3207b, abi_params=[], abi_returns=[word,
     v7 = insert_value struct0, undef struct0, 0, v5
     v8 = insert_value struct0, v7, 1, v6
     ret v8
-}
-
-fn @revert_error(arg0: u256, arg1: u256) {
-  bb0:
-    mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 32 !metadata(memory=scratch)
-    mstore 36, arg0 !metadata(memory=scratch)
-    mstore 68, arg1 !metadata(memory=scratch)
-    revert 0, 100
 }
