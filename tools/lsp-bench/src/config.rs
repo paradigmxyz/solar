@@ -360,18 +360,8 @@ struct FixturesLock {
 
 impl Config {
     pub(crate) fn load(path: &Path) -> Result<Self> {
-        let bytes = fs::read(path)
-            .with_context(|| format!("failed to read benchmark config `{}`", path.display()))?;
-        let config_sha256 = sha256_bytes(&bytes);
-        let document = serde_yaml_ng::from_slice::<BenchmarkDocument>(&bytes)
-            .with_context(|| format!("failed to parse benchmark config `{}`", path.display()))?;
-        if document.version != SCHEMA_VERSION {
-            bail!(
-                "unsupported benchmark config schema {}; expected {}",
-                document.version,
-                SCHEMA_VERSION
-            )
-        }
+        let (document, config_sha256) = load_yaml::<BenchmarkDocument>(path, "benchmark config")?;
+        validate_schema(document.version, "benchmark config")?;
         let manifest_dir = path.parent().unwrap_or_else(|| Path::new("."));
         let base = if manifest_dir.is_absolute() {
             manifest_dir.to_path_buf()
@@ -559,14 +549,14 @@ impl Config {
             config.workloads.iter().map(|workload| workload.id.as_str()),
             "workload",
         )?;
-        let fixtures =
-            config.fixtures.iter().map(|fixture| fixture.id.as_str()).collect::<BTreeSet<_>>();
         let workloads =
             config.workloads.iter().map(|workload| workload.id.as_str()).collect::<BTreeSet<_>>();
         for workload in &config.workloads {
-            if !fixtures.contains(workload.fixture.as_str()) {
+            let Some(fixture) =
+                config.fixtures.iter().find(|fixture| fixture.id == workload.fixture)
+            else {
                 bail!("workload `{}` refers to unknown fixture `{}`", workload.id, workload.fixture)
-            }
+            };
             if workload.steps.is_empty() {
                 bail!("workload `{}` has no steps", workload.id)
             }
@@ -621,11 +611,6 @@ impl Config {
                     bail!("workload `{}` warm sample count must be greater than zero", workload.id)
                 }
                 validate_step_paths(step)?;
-                let fixture = config
-                    .fixtures
-                    .iter()
-                    .find(|fixture| fixture.id == workload.fixture)
-                    .expect("workload fixture was validated above");
                 validate_step_anchors(step, fixture, &workload.id)?;
             }
         }
@@ -816,32 +801,20 @@ fn validate_relative_path(path: &Path, kind: &str) -> Result<()> {
 fn validate_step_paths(step: &StepSpec) -> Result<()> {
     match step {
         StepSpec::Open { path } => validate_relative_path(path, "scenario path"),
-        StepSpec::Save { path, probe } => {
+        StepSpec::Save { path, probe }
+        | StepSpec::Replace { path, probe, .. }
+        | StepSpec::CreateFile { path, probe, .. }
+        | StepSpec::DeleteFile { path, probe } => {
             validate_relative_path(path, "scenario path")?;
             if let Some(probe) = probe {
                 validate_probe_path(probe)?;
             }
             Ok(())
         }
-        StepSpec::Replace { path, probe, .. } => {
-            validate_relative_path(path, "scenario path")?;
-            if let Some(probe) = probe {
-                validate_probe_path(probe)?;
-            }
-            Ok(())
-        }
-        StepSpec::Probe { probe, .. } => validate_probe_path(probe),
-        StepSpec::Warm { probe, .. } => validate_probe_path(probe),
+        StepSpec::Probe { probe, .. } | StepSpec::Warm { probe, .. } => validate_probe_path(probe),
         StepSpec::Rename { path, expected_edits, probe, .. } => {
             validate_relative_path(path, "scenario path")?;
             validate_rename_edits(expected_edits)?;
-            if let Some(probe) = probe {
-                validate_probe_path(probe)?;
-            }
-            Ok(())
-        }
-        StepSpec::CreateFile { path, probe, .. } | StepSpec::DeleteFile { path, probe } => {
-            validate_relative_path(path, "scenario path")?;
             if let Some(probe) = probe {
                 validate_probe_path(probe)?;
             }

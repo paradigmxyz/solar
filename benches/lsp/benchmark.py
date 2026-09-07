@@ -18,7 +18,7 @@ import subprocess
 import sys
 import tempfile
 from collections.abc import Iterable, Sequence
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal, getcontext
 from enum import Enum
 from functools import cache
@@ -1146,6 +1146,21 @@ def _run_pass(
     }
 
 
+def benchmark_protocol() -> dict[str, Any]:
+    return {
+        "warmup_iterations": WARMUP_ITERATIONS,
+        "measured_iterations_per_session": MEASURED_ITERATIONS,
+        "sessions_per_order": SESSIONS_PER_ORDER,
+        "passes": [name for name, _ in PASSES],
+        "methods": list(METHODS),
+        "sample_unit": SAMPLE_UNIT,
+        "sample_precision": SAMPLE_PRECISION,
+        "threshold_percent": THRESHOLD_PERCENT,
+        "threshold_absolute_ms": THRESHOLD_ABSOLUTE_MS,
+        "confidence_level": CONFIDENCE_LEVEL,
+    }
+
+
 def run_benchmark(
     lsp_bench: Path,
     base_binary: Path,
@@ -1170,31 +1185,8 @@ def run_benchmark(
     manifest = {
         "schema_version": RAW_SCHEMA_VERSION,
         "kind": RAW_KIND,
-        "context": {
-            "comparison_mode": context.comparison_mode,
-            "repository": context.repository,
-            "pr_head_repository": context.pr_head_repository,
-            "workflow_repository": context.workflow_repository,
-            "pr_number": context.pr_number,
-            "base_sha": context.base_sha,
-            "head_sha": context.head_sha,
-            "main_sha": context.main_sha,
-            "pr_head_sha": context.pr_head_sha,
-            "merge_candidate_sha": context.merge_candidate_sha,
-            "run_url": context.run_url,
-        },
-        "protocol": {
-            "warmup_iterations": WARMUP_ITERATIONS,
-            "measured_iterations_per_session": MEASURED_ITERATIONS,
-            "sessions_per_order": SESSIONS_PER_ORDER,
-            "passes": [name for name, _ in PASSES],
-            "methods": list(METHODS),
-            "sample_unit": SAMPLE_UNIT,
-            "sample_precision": SAMPLE_PRECISION,
-            "threshold_percent": THRESHOLD_PERCENT,
-            "threshold_absolute_ms": THRESHOLD_ABSOLUTE_MS,
-            "confidence_level": CONFIDENCE_LEVEL,
-        },
+        "context": asdict(context),
+        "protocol": benchmark_protocol(),
         "upstream": pinned_upstream(),
         "fixture": {"sha256": fixture_sha256()},
         "binaries": {
@@ -1228,38 +1220,13 @@ def _validate_manifest(value: Any, expected: Context) -> dict[str, Any]:
         raise ValidationError("manifest schema is unsupported")
 
     context = _mapping(manifest.get("context"), "manifest.context")
-    expected_context = {
-        "comparison_mode": expected.comparison_mode,
-        "repository": expected.repository,
-        "pr_head_repository": expected.pr_head_repository,
-        "workflow_repository": expected.workflow_repository,
-        "pr_number": expected.pr_number,
-        "base_sha": expected.base_sha,
-        "head_sha": expected.head_sha,
-        "main_sha": expected.main_sha,
-        "pr_head_sha": expected.pr_head_sha,
-        "merge_candidate_sha": expected.merge_candidate_sha,
-        "run_url": expected.run_url,
-    }
-    if context != expected_context:
+    if context != asdict(expected):
         raise ValidationError(
             "manifest context does not match the trusted workflow context"
         )
 
     protocol = _mapping(manifest.get("protocol"), "manifest.protocol")
-    expected_protocol = {
-        "warmup_iterations": WARMUP_ITERATIONS,
-        "measured_iterations_per_session": MEASURED_ITERATIONS,
-        "sessions_per_order": SESSIONS_PER_ORDER,
-        "passes": [name for name, _ in PASSES],
-        "methods": list(METHODS),
-        "sample_unit": SAMPLE_UNIT,
-        "sample_precision": SAMPLE_PRECISION,
-        "threshold_percent": THRESHOLD_PERCENT,
-        "threshold_absolute_ms": THRESHOLD_ABSOLUTE_MS,
-        "confidence_level": CONFIDENCE_LEVEL,
-    }
-    if protocol != expected_protocol:
+    if protocol != benchmark_protocol():
         raise ValidationError("manifest protocol does not match the trusted adapter")
     if manifest.get("upstream") != pinned_upstream():
         raise ValidationError(
@@ -1441,9 +1408,7 @@ def _decimal_percentile(samples: Iterable[Decimal], percent: float) -> Decimal:
     return ordered[index]
 
 
-def _can_group_bootstrap(
-    base: Sequence[Decimal], head: Sequence[Decimal]
-) -> bool:
+def _can_group_bootstrap(base: Sequence[Decimal], head: Sequence[Decimal]) -> bool:
     """Return whether grouped sums stay exact under the active Decimal context."""
     values = tuple(itertools.chain(base, head))
     if any(not value.is_finite() for value in values):
@@ -1452,9 +1417,7 @@ def _can_group_bootstrap(
     if not nonzero_values:
         return False
 
-    minimum_exponent = min(
-        value.as_tuple().exponent for value in nonzero_values
-    )
+    minimum_exponent = min(value.as_tuple().exponent for value in nonzero_values)
     maximum_adjusted = max(value.adjusted() for value in nonzero_values)
     carry_digits = len(str(len(base)))
     context = getcontext()
@@ -1481,9 +1444,7 @@ def _bootstrap_count_vectors(
         counts = [0] * sample_count
         for index in selected:
             counts[index] += 1
-        multiplicity = factorial // math.prod(
-            math.factorial(count) for count in counts
-        )
+        multiplicity = factorial // math.prod(math.factorial(count) for count in counts)
         vectors.append((tuple(counts), multiplicity))
     return tuple(vectors)
 
@@ -1547,12 +1508,20 @@ def _paired_bootstrap_interval(
     absolute_deltas: list[tuple[Decimal, int]] = []
     percent_deltas: list[tuple[Decimal, int]] = []
     for counts, multiplicity in _bootstrap_count_vectors(sample_count):
-        base_estimate = sum(
-            (value * count for value, count in zip(base, counts) if count), Decimal()
-        ) / sample_count_decimal
-        head_estimate = sum(
-            (value * count for value, count in zip(head, counts) if count), Decimal()
-        ) / sample_count_decimal
+        base_estimate = (
+            sum(
+                (value * count for value, count in zip(base, counts) if count),
+                Decimal(),
+            )
+            / sample_count_decimal
+        )
+        head_estimate = (
+            sum(
+                (value * count for value, count in zip(head, counts) if count),
+                Decimal(),
+            )
+            / sample_count_decimal
+        )
         absolute_delta = head_estimate - base_estimate
         absolute_deltas.append((absolute_delta, multiplicity))
         percent_deltas.append(
@@ -1781,17 +1750,7 @@ def build_comparison(
     return {
         "schema_version": COMPARISON_SCHEMA_VERSION,
         "kind": COMPARISON_KIND,
-        "repository": context.repository,
-        "pr_head_repository": context.pr_head_repository,
-        "workflow_repository": context.workflow_repository,
-        "pr_number": context.pr_number,
-        "comparison_mode": context.comparison_mode,
-        "base_sha": context.base_sha,
-        "head_sha": context.head_sha,
-        "main_sha": context.main_sha,
-        "pr_head_sha": context.pr_head_sha,
-        "merge_candidate_sha": context.merge_candidate_sha,
-        "run_url": context.run_url,
+        **asdict(context),
         "threshold_percent": THRESHOLD_PERCENT,
         "threshold_absolute_ms": THRESHOLD_ABSOLUTE_MS,
         "confidence_level": CONFIDENCE_LEVEL,
@@ -1807,17 +1766,7 @@ def inconclusive_comparison(
     return {
         "schema_version": COMPARISON_SCHEMA_VERSION,
         "kind": COMPARISON_KIND,
-        "repository": context.repository,
-        "pr_head_repository": context.pr_head_repository,
-        "workflow_repository": context.workflow_repository,
-        "pr_number": context.pr_number,
-        "comparison_mode": context.comparison_mode,
-        "base_sha": context.base_sha,
-        "head_sha": context.head_sha,
-        "main_sha": context.main_sha,
-        "pr_head_sha": context.pr_head_sha,
-        "merge_candidate_sha": context.merge_candidate_sha,
-        "run_url": context.run_url,
+        **asdict(context),
         "threshold_percent": THRESHOLD_PERCENT,
         "threshold_absolute_ms": THRESHOLD_ABSOLUTE_MS,
         "confidence_level": CONFIDENCE_LEVEL,

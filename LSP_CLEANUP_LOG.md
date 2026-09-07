@@ -31,3 +31,14 @@ protocol behavior, benchmark IDs, workloads, and timing boundaries stable.
   with the configured toolchain; its stable rustfmt ignores nightly options.
 - Cargo repaired a stale indexmap reference in Cargo.lock during the baseline
   build. This incidental resolution change is excluded from cleanup commits.
+
+## Benchmark configuration and report construction
+
+- Reused dataclass context serialization and one protocol builder in the
+  Python adapter. Kept artifact validation and statistical rules intact.
+- Reused the cross-server runner's YAML/schema helpers, merged identical
+  path-validation arms, and looked up each workload's fixture once.
+- Reused the existing fixture test builder in three tests.
+- The Python suite passed 101 tests with six Node-dependent skips; Node is
+  absent. Ruff format and lint passed. Both Rust packages passed 1,200 tests
+  with one skip, and scoped Clippy/typecheck passed with the existing warning.
