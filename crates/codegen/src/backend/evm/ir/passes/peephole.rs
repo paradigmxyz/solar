@@ -103,6 +103,9 @@ fn optimize(
 }
 
 fn try_peephole(gcx: Gcx<'_>, instructions: &mut Vec<Instruction>, block: u32) -> bool {
+    if instructions.last().is_none_or(Instruction::is_encoded_push) {
+        return false;
+    }
     macro_rules! rewrite {
         ($skip:expr, $edit:expr) => {
             rewrite(instructions, $skip, $edit, block)

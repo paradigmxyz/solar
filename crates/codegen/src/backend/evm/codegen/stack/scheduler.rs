@@ -808,7 +808,7 @@ impl StackScheduler {
         if Self::operand_goal_reached_direct(self.stack.as_slice(), &goal, preserved) {
             let plan =
                 OperandPlan { actions: PlannedActions::new(), cost: ScheduleCost::default() };
-            return validate(Some(plan));
+            return Some(plan);
         }
         if let Some(plan) = validate(self.try_single_resident_operand_plan(
             operands,

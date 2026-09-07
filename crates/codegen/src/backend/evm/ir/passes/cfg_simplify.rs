@@ -103,11 +103,8 @@ fn truncate_after_terminal(module: &mut Module) -> bool {
     for block in &mut module.blocks {
         let Some((at, opcode, metadata)) =
             block.instructions.iter().enumerate().find_map(|(at, inst)| {
-                (!inst.is_encoded_push() && op::is_terminal(inst.opcode)).then_some((
-                    at,
-                    inst.opcode,
-                    inst.metadata.clone(),
-                ))
+                (!inst.is_encoded_push() && op::is_terminal(inst.opcode))
+                    .then(|| (at, inst.opcode, inst.metadata.clone()))
             })
         else {
             continue;
