@@ -1173,3 +1173,32 @@ symbolic projects and traces remain under `target/selective-spills-tests-2026090
 A read-only follow-up design identifies one existing late MemoryDse invocation
 as a possible tuple transport fix; no pipeline change has yet been made, and
 shared-return obligations remain separate.
+
+
+### Late memory cleanup: rejected isolated experiment
+
+A two-line trial added the existing MemoryDse after LowerEvmShaped and before
+final Dce. Frozen `5e6b5a71` improves tuple creation/runtime by 13 bytes and
+multi execution from 125 to 89 gas. Fresh before, candidate and solc lanes each
+pass all 103 focused calls; sealed traces are reused only after exact artifact
+and program/directive checks. The other 102 gas labels and all 36 external-call
+contexts are unchanged. Three swap labels remain seven gas below sealed;
+twelve viaNamed labels still cost sixteen more than sealed.
+
+The complete size screen rejects this broad invocation. Identical 811 UI IDs
+per mode and 1,232 contracts retain all statuses, but 445 contract/mode entries
+grow. Gas creation/runtime increase 34,408/30,990 bytes; Size increases
+22,140/20,080. Nine full projects retain all IDs and have 516 individual object
+increases. The workspace shows 25 unchanged-expectation failures (21 additional
+to the four original failures); none were blessed. No full hot-gas or controlled
+timing acceptance run is warranted for this rejected screen.
+
+Independent review also reproduces an existing constant-store-map bug:
+`mstore 128,1; log0 128,32; mstore 129,0; mstore 128,1` can lose its required
+last store. A semantic frame-store control preserves that store before frame
+lowering, then loses it with the new late invocation. Both frozen compilers
+reproduce the explicit-pass defect. The two trial lines were removed and the
+accepted pipeline's exact hash restored. The correctness repair is a separate
+next change; no rejected pipeline or expectation update remains in production.
+Evidence is retained in `late-memory-dse-workflow-20260907/` and
+`target/late-memory-dse-tests-20260907/`.
