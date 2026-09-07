@@ -1,0 +1,61 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/direct_literal_arms.sol:DirectLiteralArms ===
+@module DirectLiteralArms
+fn @pick(arg0: u256, arg1: u256) -> u256 [selector=0xa62f4550, pure, abi_params=[u256, u256], abi_returns=[word]] {
+  bb0:
+    v0 = mul arg0, arg1
+    v1 = iszero arg1
+    v2 = div v0, arg1
+    v3 = eq v2, arg0
+    v4 = or v1, v3
+    v5 = iszero v4
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = gt arg0, arg1
+    jumpi v6, bb3, bb4
+  bb4:
+    jump bb5
+  bb5:
+    v9 = add v0, arg1
+    v10 = lt v9, v0
+    jumpi v10, bb1, bb7
+  bb7:
+    ret v9
+  bb3:
+    v7 = add v0, arg0
+    v8 = lt v7, v0
+    jumpi v8, bb1, bb6
+  bb6:
+    ret v7
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @truthy(arg0: u256) -> u256 [selector=0xe45ba061, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = eq arg0, 0
+    v1 = iszero v0
+    jumpi v1, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    jump bb3
+  bb3:
+    v2 = phi [bb1: 0], [bb2: 1]
+    ret v2
+}
+
+fn @descending(arg0: u256) -> u256 [selector=0x0bf81e7d, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = eq arg0, 0
+    v1 = iszero v0
+    jumpi v1, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    jump bb3
+  bb3:
+    v2 = phi [bb1: 36], [bb2: 4]
+    ret v2
+}

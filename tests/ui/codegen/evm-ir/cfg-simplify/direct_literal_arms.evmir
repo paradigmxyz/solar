@@ -1,0 +1,305 @@
+//@ revisions: gas size
+//@ compile-flags: --evm-version=osaka -Zevm-ir-pipeline=cfg-simplify
+//@[gas] compile-flags: -Ogas
+//@[size] compile-flags: -Osize
+//@[gas] filecheck: --check-prefix=FOLD
+//@[size] filecheck: --check-prefix=KEEP
+@module DirectLiteralArms
+
+bb0:
+  push 0
+  calldataload
+  push 0
+  eq
+  jumpi bb100, bb1
+bb1:
+  push 0
+  calldataload
+  push 1
+  eq
+  jumpi bb110, bb2
+bb2:
+  push 0
+  calldataload
+  push 2
+  eq
+  jumpi bb120, bb3
+bb3:
+  push 0
+  calldataload
+  push 3
+  eq
+  jumpi bb130, bb4
+bb4:
+  push 0
+  calldataload
+  push 4
+  eq
+  jumpi bb140, bb5
+bb5:
+  push 0
+  calldataload
+  push 5
+  eq
+  jumpi bb150, bb6
+bb6:
+  push 0
+  calldataload
+  push 6
+  eq
+  jumpi bb160, bb999
+bb999:
+  stop
+
+// Arbitrary truthiness: condition 0 selects 1; every nonzero condition selects 0.
+// KEEP-LABEL: {{^[ +] *}}bb100:
+// KEEP: {{^[ +] *}}jumpi bb101, bb102
+// FOLD-LABEL: {{^[ +] *}}bb100:
+// FOLD-NOT: {{^[ +] *}}jumpi bb101, bb102
+// FOLD: {{^[ +] *}}iszero
+// FOLD: {{^[ +] *}}push 0
+// FOLD: {{^[ +] *}}add
+// FOLD: {{^[ +] *}}push 0
+// FOLD: {{^[ +] *}}mstore
+// FOLD: {{^[ +] *}}push 32
+// FOLD: {{^[ +] *}}push 0
+// FOLD: {{^[ +] *}}return
+bb100:
+  push 32
+  calldataload
+  jumpi bb101, bb102
+bb101:
+  push 0
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb102:
+  push 1
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+
+// Canonical EQ keeps its Boolean word; no second normalization.
+// KEEP-LABEL: {{^[ +] *}}bb110:
+// KEEP: {{^[ +] *}}jumpi bb111, bb112
+// FOLD-LABEL: {{^[ +] *}}bb110:
+// FOLD-NOT: {{^[ +] *}}jumpi bb111, bb112
+// FOLD: {{^[ +] *}}eq
+// FOLD-NOT: {{^[ +] *}}iszero
+// FOLD: {{^[ +] *}}push 5
+// FOLD: {{^[ +] *}}shl
+// FOLD: {{^[ +] *}}push 36
+// FOLD: {{^[ +] *}}sub
+// FOLD: {{^[ +] *}}push 0
+// FOLD: {{^[ +] *}}mstore
+// FOLD: {{^[ +] *}}push 32
+// FOLD: {{^[ +] *}}push 0
+// FOLD: {{^[ +] *}}return
+bb110:
+  push 32
+  calldataload
+  push 7
+  eq
+  jumpi bb111, bb112
+bb111:
+  push 4
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb112:
+  push 36
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+
+// Canonical LT keeps its Boolean word; no second normalization.
+// KEEP-LABEL: {{^[ +] *}}bb120:
+// KEEP: {{^[ +] *}}jumpi bb121, bb122
+// FOLD-LABEL: {{^[ +] *}}bb120:
+// FOLD-NOT: {{^[ +] *}}jumpi bb121, bb122
+// FOLD: {{^[ +] *}}lt
+// FOLD-NOT: {{^[ +] *}}iszero
+// FOLD: {{^[ +] *}}push 5
+// FOLD: {{^[ +] *}}shl
+// FOLD: {{^[ +] *}}push 4
+// FOLD: {{^[ +] *}}add
+// FOLD: {{^[ +] *}}push 0
+// FOLD: {{^[ +] *}}mstore
+// FOLD: {{^[ +] *}}push 32
+// FOLD: {{^[ +] *}}push 0
+// FOLD: {{^[ +] *}}return
+bb120:
+  push 32
+  calldataload
+  push 7
+  lt
+  jumpi bb121, bb122
+bb121:
+  push 36
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb122:
+  push 4
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+
+// Canonical GT keeps its Boolean word; no second normalization.
+// KEEP-LABEL: {{^[ +] *}}bb130:
+// KEEP: {{^[ +] *}}jumpi bb131, bb132
+// FOLD-LABEL: {{^[ +] *}}bb130:
+// FOLD-NOT: {{^[ +] *}}jumpi bb131, bb132
+// FOLD: {{^[ +] *}}gt
+// FOLD-NOT: {{^[ +] *}}iszero
+// FOLD: {{^[ +] *}}push 5
+// FOLD: {{^[ +] *}}shl
+// FOLD: {{^[ +] *}}push 32
+// FOLD: {{^[ +] *}}sub
+// FOLD: {{^[ +] *}}push 0
+// FOLD: {{^[ +] *}}mstore
+// FOLD: {{^[ +] *}}push 32
+// FOLD: {{^[ +] *}}push 0
+// FOLD: {{^[ +] *}}return
+bb130:
+  push 32
+  calldataload
+  push 7
+  gt
+  jumpi bb131, bb132
+bb131:
+  push 0
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb132:
+  push 32
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+
+// Canonical SLT keeps its Boolean word; no second normalization.
+// KEEP-LABEL: {{^[ +] *}}bb140:
+// KEEP: {{^[ +] *}}jumpi bb141, bb142
+// FOLD-LABEL: {{^[ +] *}}bb140:
+// FOLD-NOT: {{^[ +] *}}jumpi bb141, bb142
+// FOLD: {{^[ +] *}}slt
+// FOLD-NOT: {{^[ +] *}}iszero
+// FOLD: {{^[ +] *}}push 255
+// FOLD: {{^[ +] *}}shl
+// FOLD: {{^[ +] *}}push 0
+// FOLD: {{^[ +] *}}add
+// FOLD: {{^[ +] *}}push 0
+// FOLD: {{^[ +] *}}mstore
+// FOLD: {{^[ +] *}}push 32
+// FOLD: {{^[ +] *}}push 0
+// FOLD: {{^[ +] *}}return
+bb140:
+  push 32
+  calldataload
+  push 7
+  slt
+  jumpi bb141, bb142
+bb141:
+  push 57896044618658097711785492504343953926634992332820282019728792003956564819968
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb142:
+  push 0
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+
+// Canonical SGT keeps its Boolean word; no second normalization.
+// KEEP-LABEL: {{^[ +] *}}bb150:
+// KEEP: {{^[ +] *}}jumpi bb151, bb152
+// FOLD-LABEL: {{^[ +] *}}bb150:
+// FOLD-NOT: {{^[ +] *}}jumpi bb151, bb152
+// FOLD: {{^[ +] *}}sgt
+// FOLD-NOT: {{^[ +] *}}iszero
+// FOLD: {{^[ +] *}}push 8
+// FOLD: {{^[ +] *}}shl
+// FOLD: {{^[ +] *}}push 256
+// FOLD: {{^[ +] *}}add
+// FOLD: {{^[ +] *}}push 0
+// FOLD: {{^[ +] *}}mstore
+// FOLD: {{^[ +] *}}push 32
+// FOLD: {{^[ +] *}}push 0
+// FOLD: {{^[ +] *}}return
+bb150:
+  push 32
+  calldataload
+  push 7
+  sgt
+  jumpi bb151, bb152
+bb151:
+  push 512
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb152:
+  push 256
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+
+// Canonical ISZERO keeps its Boolean word; no second normalization.
+// KEEP-LABEL: {{^[ +] *}}bb160:
+// KEEP: {{^[ +] *}}jumpi bb161, bb162
+// FOLD-LABEL: {{^[ +] *}}bb160:
+// FOLD-NOT: {{^[ +] *}}jumpi bb161, bb162
+// FOLD: {{^[ +] *}}iszero
+// FOLD-NOT: {{^[ +] *}}iszero
+// FOLD: {{^[ +] *}}push 5
+// FOLD: {{^[ +] *}}shl
+// FOLD: {{^[ +] *}}push 36
+// FOLD: {{^[ +] *}}sub
+// FOLD: {{^[ +] *}}push 0
+// FOLD: {{^[ +] *}}mstore
+// FOLD: {{^[ +] *}}push 32
+// FOLD: {{^[ +] *}}push 0
+// FOLD: {{^[ +] *}}return
+bb160:
+  push 32
+  calldataload
+  iszero
+  jumpi bb161, bb162
+bb161:
+  push 4
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb162:
+  push 36
+  push 0
+  mstore
+  push 32
+  push 0
+  return

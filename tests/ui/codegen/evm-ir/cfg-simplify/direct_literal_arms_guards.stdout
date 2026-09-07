@@ -1,0 +1,80 @@
+- // === ROOT/tests/ui/codegen/evm-ir/cfg-simplify/direct_literal_arms_guards.evmir (before cfg-simplify) ===
++ // === ROOT/tests/ui/codegen/evm-ir/cfg-simplify/direct_literal_arms_guards.evmir (after cfg-simplify) ===
+  @module DirectLiteralArmsGuards
+  bb0:
+    push 0
+    calldataload
+    push 0
+    eq
+    jumpi bb100, bb1
+  bb1:
+    push 0
+    calldataload
+    push 1
+    eq
+    jumpi bb110, bb2
+  bb2:
+    push 0
+    calldataload
+    push 2
+    eq
+    jumpi bb120, bb999
+  bb999:
+    stop
+  bb100:
+    push 32
+    calldataload
+    jumpi bb101, bb102
+  bb101:
+    push 4
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  bb102:
+    push 36
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  bb110:
+    push 32
+    calldataload
+    iszero
+    jumpi bb111, bb112
+  bb111:
+    push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  bb112:
+    push 0
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  bb120:
+    push 32
+    calldataload
+    iszero
+    jumpi bb121, bb122
+  bb121:
+    push 4
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  bb122:
+    push 36
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  

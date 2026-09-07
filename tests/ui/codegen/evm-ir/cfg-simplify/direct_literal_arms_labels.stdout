@@ -1,0 +1,96 @@
+- // === ROOT/tests/ui/codegen/evm-ir/cfg-simplify/direct_literal_arms_labels.evmir (before cfg-simplify) ===
++ // === ROOT/tests/ui/codegen/evm-ir/cfg-simplify/direct_literal_arms_labels.evmir (after cfg-simplify) ===
+  @module DirectLiteralLayout
+  bb0:
+    calldatasize
+    jumpi bb9, bb10
+- bb4:
++ bb6:
+    push 0
+-   mstore
+-   push 32
+    push 0
+-   return
+- bb5:
+-   push 0
+-   mstore
++   revert
++ bb9:
++   push 99
++   pop
+    push 32
+-   push 0
+-   return
+- bb3:
+-   push 32
+    calldataload
+    iszero
+-   jumpi bb1, bb2
+- bb1:
+-   push 4
+-   calldataload
+-   dup1
+-   iszero
+-   jumpi bb6, bb4
+- bb2:
++   push 5
++   shl
+    push 36
++   sub
+    calldataload
+    dup1
+    iszero
+-   jumpi bb6, bb5
+- bb6:
+-   push 0
+-   push 0
+-   revert
+- bb9:
+-   push 99
+-   pop
+-   jump bb3
++   jumpi bb6, bb11
+  bb10:
+    stop
++ bb11:
++   push 0
++   mstore
++   push 32
++   push 0
++   return
+  
+- // === ROOT/tests/ui/codegen/evm-ir/cfg-simplify/direct_literal_arms_labels.evmir (before block-layout) ===
++ // === ROOT/tests/ui/codegen/evm-ir/cfg-simplify/direct_literal_arms_labels.evmir (after block-layout) ===
+  @module DirectLiteralLayout
+  bb0:
+    calldatasize
+    jumpi bb9, bb10
++ bb10:
++   stop
+  bb6:
+    push 0
+    push 0
+    revert
+  bb9:
+    push 99
+    pop
+    push 32
+    calldataload
+    iszero
+    push 5
+    shl
+    push 36
+    sub
+    calldataload
+    dup1
+    iszero
+    jumpi bb6, bb11
+- bb10:
+-   stop
+  bb11:
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  
