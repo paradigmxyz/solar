@@ -178,6 +178,9 @@ def compare_runs(
                 "suite": key[0],
                 "test_id": key[1],
                 "compiler": compiler,
+                "compile_only": before.get("contract_name")
+                == after.get("contract_name")
+                == "*",
                 "status_before": old.get("status"),
                 "status_after": new.get("status"),
                 "input_fingerprint_before": old.get("input_fingerprint"),
@@ -212,7 +215,39 @@ def compare_runs(
                 else None,
             ),
         }
-    return {"format_version": 1, "compiler": compiler, "rows": rows, "totals": totals}
+    summary = {}
+    for name in METRICS:
+        paired = [
+            row["metrics"][name]
+            for row in rows
+            if row["metrics"][name]["delta"] is not None
+        ]
+        positive = [
+            value for value in paired if value["before"] > 0 and value["after"] > 0
+        ]
+        summary[name] = {
+            "paired": len(paired),
+            "ratio_pairs": len(positive),
+            "percent": math.expm1(
+                math.fsum(
+                    math.log(value["after"] / value["before"]) for value in positive
+                )
+                / len(positive)
+            )
+            * 100
+            if positive
+            else None,
+            "improved": sum(value["delta"] < 0 for value in paired),
+            "regressed": sum(value["delta"] > 0 for value in paired),
+            "unchanged": sum(value["delta"] == 0 for value in paired),
+        }
+    return {
+        "format_version": 1,
+        "compiler": compiler,
+        "rows": rows,
+        "totals": totals,
+        "summary": summary,
+    }
 
 
 def artifact_files(root: Path | None, test_id: str, compiler: str) -> dict[str, Path]:
@@ -303,14 +338,27 @@ def comparison_report(comparison: dict[str, Any]) -> str:
         "### Run comparison",
         "",
         f"Compiler: `{comparison['compiler']}`. Deltas are candidate minus baseline; lower is better.",
-        "Totals use only comparable pairs; peak RSS totals sum per-case peaks, not concurrent memory use.",
+        "Change is the geometric mean of candidate/baseline ratios, with equal weight per benchmark. Only positive, comparable pairs enter the mean.",
+        "Runtime gas is the sum of measured calls within each benchmark. Timing and RSS are noisy.",
         "",
-        "| Metric | Paired cases | Baseline | Candidate | Delta | Change |",
-        "| --- | ---: | ---: | ---: | ---: | ---: |",
+        "| Metric | Change | Pairs in mean | Improved | Regressed | Unchanged | Excluded from mean |",
+        "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
-    for name, values in comparison["totals"].items():
+    for name, values in comparison["summary"].items():
+        change = (
+            fmt_pct(values["percent"], positive_is_good=False)
+            if values["percent"] is not None
+            else "n/a"
+        )
         lines.append(
-            f"| {METRICS[name]} | {len(values['tests'])} | {comparison_cells(values)} |"
+            f"| {METRICS[name]} | {change} | {values['ratio_pairs']} | {values['improved']} | {values['regressed']} | {values['unchanged']} | {len(rows) - values['ratio_pairs']} |"
+        )
+    if compile_only := sum(bool(row.get("compile_only")) for row in rows):
+        lines.extend(
+            [
+                "",
+                f"{compile_only} compilation-only benchmarks do not measure gas, per-contract size, or artifacts.",
+            ]
         )
     if comparison.get("artifact_warning"):
         lines.extend(["", f"> {comparison['artifact_warning']}"])
@@ -324,48 +372,52 @@ def comparison_report(comparison: dict[str, Any]) -> str:
         lines.extend(["", "#### Incomplete or incompatible comparisons", "", *issues])
     changed = []
     for name, metric_label in METRICS.items():
+        if comparison["compiler"] == "solar":
+            continue
         for row in sorted(
-            rows, key=lambda row: row["metrics"][name]["delta"] or 0, reverse=True
+            rows, key=lambda row: row["metrics"][name]["percent"] or 0, reverse=True
         ):
             values = row["metrics"][name]
             if values["delta"] not in (None, 0):
                 changed.append(
-                    f"| {markdown_cell(row['test_id'])} | {metric_label} | {comparison_cells(values)} |"
+                    f"| {markdown_cell(row['test_id'])} | {metric_label} | {comparison_cells(values, name)} |"
                 )
-    lines.extend(
-        [
-            "",
-            "<details>",
-            "<summary>Per-case metric changes (regressions first)</summary>",
-            "",
-            "| Case | Metric | Baseline | Candidate | Delta | Change |",
-            "| --- | --- | ---: | ---: | ---: | ---: |",
-            *changed,
-            "",
-            "</details>",
-        ]
-    )
+    if changed:
+        lines.extend(
+            [
+                "",
+                "<details>",
+                "<summary>Per-case metric changes (regressions first)</summary>",
+                "",
+                "| Case | Metric | Baseline | Candidate | Delta | Change |",
+                "| --- | --- | ---: | ---: | ---: | ---: |",
+                *changed,
+                "",
+                "</details>",
+            ]
+        )
     calls = [
         f"| {markdown_cell(row['test_id'])} | {markdown_cell(call['label'])} | {comparison_cells(call)} |"
         for row in rows
         for call in sorted(
-            row["gas_calls"], key=lambda call: call["delta"] or 0, reverse=True
+            row["gas_calls"], key=lambda call: call["percent"] or 0, reverse=True
         )
         if call["delta"] not in (None, 0)
     ]
-    lines.extend(
-        [
-            "",
-            "<details>",
-            "<summary>Per-call gas changes</summary>",
-            "",
-            "| Case | Call | Baseline | Candidate | Delta | Change |",
-            "| --- | --- | ---: | ---: | ---: | ---: |",
-            *calls,
-            "",
-            "</details>",
-        ]
-    )
+    if calls:
+        lines.extend(
+            [
+                "",
+                "<details>",
+                "<summary>Per-call gas changes</summary>",
+                "",
+                "| Case | Call | Baseline | Candidate | Delta | Change |",
+                "| --- | --- | ---: | ---: | ---: | ---: |",
+                *calls,
+                "",
+                "</details>",
+            ]
+        )
     artifacts = []
     for row in rows:
         files = row.get("artifacts", [])
@@ -375,7 +427,9 @@ def comparison_report(comparison: dict[str, Any]) -> str:
             if item["status"] != "unchanged"
         ]
         available = row.get("artifacts_available", {})
-        if not available.get("before") or not available.get("after"):
+        if not row.get("compile_only") and (
+            not available.get("before") or not available.get("after")
+        ):
             changes.append(
                 "artifacts unavailable on "
                 + (
@@ -392,28 +446,30 @@ def comparison_report(comparison: dict[str, Any]) -> str:
             artifacts.append(
                 f"| {markdown_cell(row['test_id'])} | {markdown_cell(', '.join(changes))} |"
             )
-    lines.extend(
-        [
-            "",
-            "<details>",
-            "<summary>Artifact changes and availability</summary>",
-            "",
-            "| Case | Artifacts |",
-            "| --- | --- |",
-            *artifacts,
-            "",
-            "</details>",
-            "",
-        ]
-    )
-    lines.append(
-        "Compile times are noisy; inspect sample arrays in the comparison JSON and repeat suspected regressions.\n"
-    )
+    if artifacts:
+        lines.extend(
+            [
+                "",
+                "<details>",
+                "<summary>Artifact changes and availability</summary>",
+                "",
+                "| Case | Artifacts |",
+                "| --- | --- |",
+                *artifacts,
+                "",
+                "</details>",
+                "",
+            ]
+        )
     return "\n".join(lines)
 
 
-def comparison_cells(values: dict[str, Any]) -> str:
+def comparison_cells(values: dict[str, Any], metric_name: str | None = None) -> str:
     def fmt(value: Any) -> str:
+        if numeric(value) and metric_name == "peak_rss_bytes":
+            return ("-" if value < 0 else "") + fmt_bytes(abs(value))
+        if numeric(value) and metric_name == "compile_time_seconds":
+            return ("-" if value < 0 else "") + fmt_duration(abs(value))
         if type(value) is int:
             return f"{value:,}"
         return f"{value:,.6g}" if numeric(value) else "n/a"
@@ -1091,7 +1147,9 @@ def memory_summary_rows(results: list[dict[str, Any]]) -> list[str]:
     return rows
 
 
-def memory_benchmark_rows(results: list[dict[str, Any]]) -> list[str]:
+def memory_benchmark_rows(
+    results: list[dict[str, Any]], compared: dict | None = None
+) -> list[str]:
     ids = compiler_ids(results)
     rows = []
     for result in results:
@@ -1105,11 +1163,20 @@ def memory_benchmark_rows(results: list[dict[str, Any]]) -> list[str]:
             cells.append(
                 fmt_pct_change_lower_is_better(values["solar"], values["solc"])
             )
+        if compared is not None:
+            measurement = compared[suite_key(result)]["metrics"]["peak_rss_bytes"]
+            cells.append(
+                fmt_pct(measurement["percent"], positive_is_good=False)
+                if measurement["percent"] is not None
+                else "n/a"
+            )
         rows.append("| " + " | ".join(cells) + " |")
     return rows
 
 
-def memory_report(results: list[dict[str, Any]]) -> list[str]:
+def memory_report(
+    results: list[dict[str, Any]], compared: dict | None = None
+) -> list[str]:
     ids = compiler_ids(results)
     summary_rows = memory_summary_rows(results)
     if not summary_rows:
@@ -1118,6 +1185,8 @@ def memory_report(results: list[dict[str, Any]]) -> list[str]:
     headers = ["bench", *(f"{compiler_id} peak" for compiler_id in ids)]
     if "solar" in ids and "solc" in ids:
         headers.append("Solar vs solc")
+    if compared is not None:
+        headers.append("Solar vs baseline")
 
     return [
         "<details>",
@@ -1131,7 +1200,7 @@ def memory_report(results: list[dict[str, Any]]) -> list[str]:
         "",
         "| " + " | ".join(headers) + " |",
         "| " + " | ".join("---" for _ in headers) + " |",
-        *memory_benchmark_rows(results),
+        *memory_benchmark_rows(results, compared),
         "",
         "</details>",
         "",
@@ -1186,7 +1255,7 @@ def compile_time_report(
         for solc, solar in paired
         if solc is not None and solar is not None
     ]
-    if not paired:
+    if not any(compile_time(result, "solar") is not None for result in results):
         return []
 
     solc_sum = sum(solc for solc, _ in paired)
@@ -1199,9 +1268,15 @@ def compile_time_report(
         f"| bench | time (vs {baseline_label}) | solc |",
         "| ----- | --------------------- | ---- |",
         *compile_time_rows(results, baseline, compared),
-        (
-            f"| **sum of medians** | **{fmt_duration(solar_sum)}** | "
-            f"**{fmt_duration(solc_sum)} ({fmt_pct_vs_current(solar_sum, solc_sum)})** |"
+        *(
+            [
+                (
+                    f"| **sum of medians** | **{fmt_duration(solar_sum)}** | "
+                    f"**{fmt_duration(solc_sum)} ({fmt_pct_vs_current(solar_sum, solc_sum)})** |"
+                )
+            ]
+            if paired
+            else []
         ),
         "",
         "</details>",
@@ -1252,7 +1327,7 @@ def report_section(
             ]
         )
     lines.extend(compile_time_report(results, baseline, baseline_label, compared))
-    lines.extend(memory_report(results))
+    lines.extend(memory_report(results, compared))
     return "\n".join(lines)
 
 
@@ -1590,15 +1665,14 @@ def main(argv: list[str] | None = None) -> int:
         if args.compiler == "solar"
         else "## Codegen benchmark\n"
     )
-    if args.baseline is not None:
-        report += "\n" + comparison_report(comparison)
-
     should_comment = not baseline_results or comparison_has_changes(
         comparison, args.ignore_compile_time_changes
     )
     markdown = format_report(
         report, should_comment, branch_is_behind(base_ref), base_ref
     )
+    if args.baseline is not None:
+        markdown = comparison_report(comparison) + "\n\n" + markdown
     print(markdown)
     append_github_output("report", markdown)
     append_github_output("should_comment", "true" if should_comment else "false")

@@ -459,6 +459,8 @@ uv run benches/runtime/benchmark-compare.py \
 
 The comparison prints agent-readable Markdown to stdout by default; no output
 flag is needed. `--report-output` also saves the same report for later review.
+The summary weights each benchmark equally using geometric-mean ratios, separately
+for gas, size, time, and RSS; it does not weight large contracts more heavily.
 Read the report's failures, missing cases, and excluded comparisons first.
 Compare per-case bytecode sizes and gas, including per-call gas deltas; aggregate
 wins must not hide regressions or missing results. Investigate changes by

@@ -640,7 +640,7 @@ class CompileTimeReportTests(unittest.TestCase):
 
 
 class RunComparisonTests(unittest.TestCase):
-    def test_main_report_tables_are_preserved(self):
+    def test_main_report_tables_with_baseline_rss(self):
         before = self.fixture()
         before["compilers"]["solc"] = copy.deepcopy(before["compilers"]["solar"])
         after = copy.deepcopy(before)
@@ -680,9 +680,9 @@ class RunComparisonTests(unittest.TestCase):
 
 #### Per-benchmark peak RSS
 
-| bench | solar peak | solc peak | Solar vs solc |
-| --- | --- | --- | --- |
-| test | 0.0 MiB | 0.0 MiB | ~0% |
+| bench | solar peak | solc peak | Solar vs solc | Solar vs baseline |
+| --- | --- | --- | --- | --- |
+| test | 0.0 MiB | 0.0 MiB | ~0% | ~0% |
 
 </details>
 """
@@ -771,10 +771,8 @@ class RunComparisonTests(unittest.TestCase):
                 0,
             )
             self.assertEqual(
-                output.read_text().splitlines()[:5],
+                output.read_text().splitlines()[:3],
                 [
-                    "## Codegen benchmark",
-                    "",
                     "### Run comparison",
                     "",
                     "Compiler: `solc`. Deltas are candidate minus baseline; lower is better.",
@@ -841,6 +839,81 @@ class RunComparisonTests(unittest.TestCase):
             [row["test_id"] for row in comparison["rows"]],
             ["failed", "input", "paired", "removed"],
         )
+
+    def test_summary_weights_contract_ratios_equally(self):
+        before = [
+            self.fixture("small", runtime_size=100),
+            self.fixture("large", runtime_size=10000),
+        ]
+        after = [
+            self.fixture("small", runtime_size=101),
+            self.fixture("large", runtime_size=10001),
+        ]
+        summary = benchmark.compare_runs(after, before)["summary"]["runtime_size"]
+        self.assertAlmostEqual(summary["percent"], ((1.01 * 1.0001) ** 0.5 - 1) * 100)
+        self.assertEqual(
+            (
+                summary["ratio_pairs"],
+                summary["improved"],
+                summary["regressed"],
+                summary["unchanged"],
+            ),
+            (2, 0, 2, 0),
+        )
+        reverse = benchmark.compare_runs(before, after)["summary"]["runtime_size"]
+        self.assertAlmostEqual(
+            (1 + summary["percent"] / 100) * (1 + reverse["percent"] / 100), 1
+        )
+
+    def test_summary_excludes_zero_and_incompatible_ratios(self):
+        before = [
+            self.fixture("zero", runtime_size=0),
+            self.fixture("failed"),
+            self.fixture("ok"),
+        ]
+        after = [
+            self.fixture("zero", runtime_size=1),
+            self.fixture("failed", status="failed"),
+            self.fixture("ok"),
+        ]
+        summary = benchmark.compare_runs(after, before)["summary"]["runtime_size"]
+        self.assertEqual(
+            summary,
+            {
+                "paired": 2,
+                "ratio_pairs": 1,
+                "percent": 0.0,
+                "improved": 0,
+                "regressed": 1,
+                "unchanged": 1,
+            },
+        )
+
+    def test_summary_omits_empty_and_duplicate_details(self):
+        comparison = benchmark.compare_runs([self.fixture()], [self.fixture()])
+        markdown = benchmark.comparison_report(comparison)
+        self.assertNotIn("Per-call gas changes", markdown)
+        self.assertNotIn("Per-case metric changes", markdown)
+        self.assertNotIn("inspect sample", markdown)
+        self.assertEqual(markdown.count("| runtime bytes |"), 1)
+
+    def test_solar_only_report_keeps_compile_times(self):
+        before = self.fixture()
+        after = self.fixture(compile_time_seconds=2)
+        comparison = benchmark.compare_runs([after], [before])
+        rows = {(row["suite"], row["test_id"]): row for row in comparison["rows"]}
+        markdown = benchmark.codegen_report([after], [before], "baseline", rows)
+        self.assertIn("<summary>Compilation time</summary>", markdown)
+        self.assertIn("2.000 s", markdown)
+        self.assertNotIn("sum of medians", markdown)
+
+    def test_compile_only_does_not_report_missing_artifacts(self):
+        case = self.fixture()
+        case["contract_name"] = "*"
+        comparison = benchmark.compare_runs([case], [case])
+        markdown = benchmark.comparison_report(comparison)
+        self.assertIn("1 compilation-only benchmarks", markdown)
+        self.assertNotIn("artifacts unavailable", markdown)
 
     def test_call_deltas_survive_equal_total_gas(self):
         before = self.fixture()

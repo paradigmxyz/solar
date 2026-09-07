@@ -57,7 +57,10 @@ requires a complete, unfiltered run. `--compiler solc` requires two runs and sho
 the solc comparison without the compiler-primary CI tables.
 
 The comparison reports missing/failed cases and excludes incompatible inputs or runtime
-workloads from deltas. Totals use only comparable pairs. It includes per-call gas changes,
+workloads from deltas. The summary uses the geometric mean of candidate/baseline ratios,
+with equal weight per benchmark, separately for each metric. Zero-valued pairs stay in
+the per-case results and change counts but do not enter the mean. Runtime gas sums the
+measured transactions within each benchmark, not across benchmarks. It includes per-call gas changes,
 compile samples in JSON, artifact hashes, and file additions/removals, so equal bytecode sizes
 do not hide changed bytecode. Missing artifacts are reported as unavailable, including the
 whole-project cases that do not capture them. Compile time and RSS comparisons require matching
