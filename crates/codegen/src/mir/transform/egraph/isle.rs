@@ -347,6 +347,14 @@ impl generated::Context for RuleContext<'_> {
         a & b
     }
 
+    fn u256_same(&mut self, a: U256, b: U256) -> bool {
+        a == b
+    }
+
+    fn u256_from_limbs(&mut self, a: u64, b: u64, c: u64, d: u64) -> U256 {
+        U256::from_limbs([a, b, c, d])
+    }
+
     fn shift_sum(&mut self, a: U256, b: U256) -> U256 {
         let width = U256::from(256);
         (a.min(width) + b.min(width)).min(width)
