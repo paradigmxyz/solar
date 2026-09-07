@@ -75,7 +75,9 @@ impl InstKind {
             Self::Concat(..) | Self::Sha256(..) | Self::Ripemd160(..) | Self::EcRecover(..) => {
                 ControlEffects { may_revert: true, ..ControlEffects::NONE }
             }
-            Self::AbiEncode { .. } => ControlEffects { may_revert: true, ..ControlEffects::NONE },
+            Self::AbiEncode { .. } | Self::AbiEncodePacked { .. } => {
+                ControlEffects { may_revert: true, ..ControlEffects::NONE }
+            }
             Self::AbiDecode { .. } => ControlEffects { may_revert: true, ..ControlEffects::NONE },
             Self::ReturnDataCopy(..) => ControlEffects { may_revert: true, ..ControlEffects::NONE },
             Self::InsertValue { .. }
@@ -230,6 +232,7 @@ impl InstKind {
                 self,
                 Self::Alloc { .. }
                     | Self::AbiEncode { .. }
+                    | Self::AbiEncodePacked { .. }
                     | Self::StorageToMemory { .. }
                     | Self::Concat(..)
             ),

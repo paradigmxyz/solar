@@ -206,10 +206,10 @@ pub static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
 /// Expands semantic operations and makes the backend representation explicit.
 pub static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &lower_checks::LowerChecks,
-    // Share source check payloads before expanding arithmetic checks and builtin buffers.
+    &lower_builtins::LowerBuiltins,
+    // Share source and builtin checks before expanding arithmetic checks.
     &outline_reverts::OutlineReverts,
     &lower_arithmetic::LowerArithmetic,
-    &lower_builtins::LowerBuiltins,
     // Expansion exposes scalar checks and object copies to this bounded cleanup group.
     &sccp::Sccp,
     &inst_simplify::InstSimplify,

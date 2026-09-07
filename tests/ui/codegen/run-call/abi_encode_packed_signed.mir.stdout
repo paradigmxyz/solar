@@ -4,69 +4,42 @@ fn @firstByteInt8(arg0: u8, arg1: i8) -> bytes1 [selector=0xdf400c36, pure, abi_
   bb0:
     v0 = and arg0, 255
     v1 = signextend 0, arg1
-    v2 = not 31
-    v3 = and 65, v2
-    v4 = alloc memorybytes, exact, uninitialized, infallible, v3
-    set_memory_object_len memorybytes, v4, 2
-    v5 = shl 248, v0
-    v6 = or 0, v5
-    v7 = and v1, 255
-    v8 = shl 240, v7
-    v9 = or v6, v8
-    memory_object_store_word memorybytes, v4, 0, v9
-    v10 = memory_object_len memorybytes, v4
-    v11 = lt 0, v10
-    v12 = iszero v11
-    panic_if v12, 0x32
-    v13 = memory_object_load_byte memorybytes, v4, 0
-    v14 = shl 248, v13
-    ret v14
+    v2 = abi_encode_packed (u8 v0, i8 v1)
+    v3 = memory_object_len memorybytes, v2
+    v4 = lt 0, v3
+    v5 = iszero v4
+    panic_if v5, 0x32
+    v6 = memory_object_load_byte memorybytes, v2, 0
+    v7 = shl 248, v6
+    ret v7
 }
 
 fn @firstByteInt16(arg0: u8, arg1: i16) -> bytes1 [selector=0x3ed4619b, pure, abi_params=[u8, i16], abi_returns=[word<bytes1>]] {
   bb0:
     v0 = and arg0, 255
     v1 = signextend 1, arg1
-    v2 = not 31
-    v3 = and 66, v2
-    v4 = alloc memorybytes, exact, uninitialized, infallible, v3
-    set_memory_object_len memorybytes, v4, 3
-    v5 = shl 248, v0
-    v6 = or 0, v5
-    v7 = and v1, 0xffff
-    v8 = shl 232, v7
-    v9 = or v6, v8
-    memory_object_store_word memorybytes, v4, 0, v9
-    v10 = memory_object_len memorybytes, v4
-    v11 = lt 0, v10
-    v12 = iszero v11
-    panic_if v12, 0x32
-    v13 = memory_object_load_byte memorybytes, v4, 0
-    v14 = shl 248, v13
-    ret v14
+    v2 = abi_encode_packed (u8 v0, i16 v1)
+    v3 = memory_object_len memorybytes, v2
+    v4 = lt 0, v3
+    v5 = iszero v4
+    panic_if v5, 0x32
+    v6 = memory_object_load_byte memorybytes, v2, 0
+    v7 = shl 248, v6
+    ret v7
 }
 
 fn @firstByteInt32(arg0: u8, arg1: i32) -> bytes1 [selector=0x538ea5fe, pure, abi_params=[u8, i32], abi_returns=[word<bytes1>]] {
   bb0:
     v0 = and arg0, 255
     v1 = signextend 3, arg1
-    v2 = not 31
-    v3 = and 68, v2
-    v4 = alloc memorybytes, exact, uninitialized, infallible, v3
-    set_memory_object_len memorybytes, v4, 5
-    v5 = shl 248, v0
-    v6 = or 0, v5
-    v7 = and v1, 0xffffffff
-    v8 = shl 216, v7
-    v9 = or v6, v8
-    memory_object_store_word memorybytes, v4, 0, v9
-    v10 = memory_object_len memorybytes, v4
-    v11 = lt 0, v10
-    v12 = iszero v11
-    panic_if v12, 0x32
-    v13 = memory_object_load_byte memorybytes, v4, 0
-    v14 = shl 248, v13
-    ret v14
+    v2 = abi_encode_packed (u8 v0, i32 v1)
+    v3 = memory_object_len memorybytes, v2
+    v4 = lt 0, v3
+    v5 = iszero v4
+    panic_if v5, 0x32
+    v6 = memory_object_load_byte memorybytes, v2, 0
+    v7 = shl 248, v6
+    ret v7
 }
 
 fn @firstByteSigned16() -> bytes1 [selector=0x951569ca, pure, abi_params=[], abi_returns=[word<bytes1>]] {
@@ -74,23 +47,14 @@ fn @firstByteSigned16() -> bytes1 [selector=0x951569ca, pure, abi_params=[], abi
     v0 = and 0, 255
     v1 = sub 0, 1
     v2 = signextend 1, v1
-    v3 = not 31
-    v4 = and 66, v3
-    v5 = alloc memorybytes, exact, uninitialized, infallible, v4
-    set_memory_object_len memorybytes, v5, 3
-    v6 = shl 248, v0
-    v7 = or 0, v6
-    v8 = and v2, 0xffff
-    v9 = shl 232, v8
-    v10 = or v7, v9
-    memory_object_store_word memorybytes, v5, 0, v10
-    v11 = memory_object_len memorybytes, v5
-    v12 = lt 0, v11
-    v13 = iszero v12
-    panic_if v13, 0x32
-    v14 = memory_object_load_byte memorybytes, v5, 0
-    v15 = shl 248, v14
-    ret v15
+    v3 = abi_encode_packed (u8 v0, i16 v2)
+    v4 = memory_object_len memorybytes, v3
+    v5 = lt 0, v4
+    v6 = iszero v5
+    panic_if v6, 0x32
+    v7 = memory_object_load_byte memorybytes, v3, 0
+    v8 = shl 248, v7
+    ret v8
 }
 
 fn @packedHash(arg0: u8, arg1: i16, arg2: bytes3) -> bytes32 [selector=0x4ef47d0a, pure, abi_params=[u8, i16, bytes3], abi_returns=[word]] {
@@ -98,15 +62,8 @@ fn @packedHash(arg0: u8, arg1: i16, arg2: bytes3) -> bytes32 [selector=0x4ef47d0
     v0 = and arg0, 255
     v1 = signextend 1, arg1
     v2 = and arg2, 0xffffff0000000000000000000000000000000000000000000000000000000000
-    v3 = shl 248, v0
-    v4 = or 0, v3
-    v5 = and v1, 0xffff
-    v6 = shl 232, v5
-    v7 = or v4, v6
-    mstore 0, v7 !metadata(memory=scratch)
-    mstore 3, v2 !metadata(memory=scratch)
-    v8 = keccak256 0, 6 !metadata(memory=scratch)
-    ret v8
+    v3 = keccak256_packed (u8 v0, i16 v1, bytes3 v2)
+    ret v3
 }
 
 fn @packedHashLocal(arg0: u8, arg1: i16, arg2: bytes3) -> bytes32 [selector=0x63ba958c, pure, abi_params=[u8, i16, bytes3], abi_returns=[word]] {
@@ -114,59 +71,45 @@ fn @packedHashLocal(arg0: u8, arg1: i16, arg2: bytes3) -> bytes32 [selector=0x63
     v0 = and arg0, 255
     v1 = signextend 1, arg1
     v2 = and arg2, 0xffffff0000000000000000000000000000000000000000000000000000000000
-    v3 = shl 248, v0
-    v4 = or 0, v3
-    v5 = and v1, 0xffff
-    v6 = shl 232, v5
-    v7 = or v4, v6
-    mstore 0, v7 !metadata(memory=scratch)
-    mstore 3, v2 !metadata(memory=scratch)
-    v8 = keccak256 0, 6 !metadata(memory=scratch)
-    ret v8
+    v3 = keccak256_packed (u8 v0, i16 v1, bytes3 v2)
+    ret v3
 }
 
 fn @packedDynamicHashLocal(arg0: bytes32, arg1: calldataslice) -> bytes32 [selector=0xd119ea87, pure, abi_params=[bytes32, bytes], abi_returns=[word]] {
   bb0:
-    v0 = slice_len arg1
-    v1 = add 32, v0
-    v2 = fmp
-    mstore v2, arg0
-    v3 = add v2, 32
-    v4 = slice_len arg1
-    v5 = slice_ptr arg1
-    calldatacopy v3, v5, v4 !metadata(memory=heap)
-    v6 = add v3, v0
-    v7 = sub v6, v2
-    v8 = keccak256 v2, v7
-    ret v8
+    v0 = keccak256_packed (bytes32 arg0, bytes arg1)
+    ret v0
 }
 
 fn @packedDynamicHashModified(arg0: bytes32, arg1: calldataslice) -> bytes32 [selector=0x31a86e65, pure, abi_params=[bytes32, bytes], abi_returns=[word]] {
   bb0:
-    v0 = slice_len arg1
-    v1 = add 32, v0
-    v2 = lt v1, 32
-    panic_if v2, 0x41
-    v3 = add v1, 63
-    v4 = lt v3, v1
-    panic_if v4, 0x41
-    v5 = not 31
-    v6 = and v3, v5
-    v7 = alloc memorybytes, exact, uninitialized, infallible, v6
-    set_memory_object_len memorybytes, v7, v1
-    memory_object_store_word memorybytes, v7, 0, arg0
-    memory_object_copy_from_slice_at memorybytes, v7, 32, arg1
-    v8 = add 32, v0
-    v9 = lt v8, 32
-    panic_if v9, 0x41
-    v10 = keccak256_bytes v7
+    v0 = abi_encode_packed (bytes32 arg0, bytes arg1)
+    v1 = keccak256_bytes v0
     jump bb2
   bb2:
-    v11 = mload 64 !metadata(memory=scratch)
-    v12 = gt v11, 128
-    v13 = iszero v12
-    revert_if v13, empty
+    v2 = mload 64 !metadata(memory=scratch)
+    v3 = gt v2, 128
+    v4 = iszero v3
+    revert_if v4, empty
     jump bb1
   bb1:
-    ret v10
+    ret v1
+}
+
+fn @mutatedInput() -> memorybytes [selector=0x7d98764f, pure, abi_params=[], abi_returns=[memory_bytes]] {
+  bb0:
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v0, 3
+    v1 = memory_object_data memorybytes, v0
+    mstore v1, 0x102030000000000000000000000000000000000000000000000000000000000
+    v2 = icall @shorten, v0
+    v3 = and v2, 255
+    v4 = abi_encode_packed (bytes v0, u8 v3)
+    ret v4
+}
+
+fn @shorten(arg0: memorybytes) -> u8 [pure] {
+  bb0:
+    mstore arg0, 1
+    ret 9
 }

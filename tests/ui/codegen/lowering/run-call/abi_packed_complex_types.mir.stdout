@@ -86,92 +86,16 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[word, word,
     v63 = lt v62, 3
     jumpi v63, bb2, bb3
   bb3:
-    v74 = not 31
-    v75 = and 159, v74
-    v76 = alloc memorybytes, exact, uninitialized, infallible, v75
-    set_memory_object_len memorybytes, v76, 96
-    jump bb4
-  bb4:
-    v77 = phi [bb3: 0], [bb5: v89]
-    v78 = lt v77, 3
-    jumpi v78, bb5, bb6
-  bb6:
-    v90 = keccak256_bytes v76
-    v91 = memory_object_len memoryarray, v0
-    v92 = mul v91, 32
-    v93 = iszero 32
-    v94 = div v92, 32
-    v95 = eq v94, v91
-    v96 = or v93, v95
-    v97 = iszero v96
-    panic_if v97, 0x41
-    v98 = add 0, v92
-    v99 = lt v98, 0
-    panic_if v99, 0x41
-    v100 = add v98, 63
-    v101 = lt v100, v98
-    panic_if v101, 0x41
-    v102 = not 31
-    v103 = and v100, v102
-    v104 = alloc memorybytes, exact, uninitialized, infallible, v103
-    set_memory_object_len memorybytes, v104, v98
-    v105 = mul v91, 32
-    v106 = iszero 32
-    v107 = div v105, 32
-    v108 = eq v107, v91
-    v109 = or v106, v108
-    v110 = iszero v109
-    panic_if v110, 0x41
-    v111 = add 0, v105
-    v112 = lt v111, 0
-    panic_if v112, 0x41
-    jump bb7
-  bb7:
-    v113 = phi [bb6: 0], [bb8: v125]
-    v114 = lt v113, v91
-    jumpi v114, bb8, bb9
-  bb9:
-    v126 = keccak256_bytes v104
-    v127 = and 0x1234, 0xffffffffffffffffffffffffffffffffffffffff
-    v128 = shl 96, v127
-    mstore 0, v128 !metadata(memory=scratch)
-    v129 = keccak256 0, 20 !metadata(memory=scratch)
-    v130 = insert_value struct0, undef struct0, 0, v90
-    v131 = insert_value struct0, v130, 1, v126
-    v132 = insert_value struct0, v131, 2, v129
-    ret v132
-  bb8:
-    v115 = mul v113, 32
-    v116 = iszero 32
-    v117 = div v115, 32
-    v118 = eq v117, v113
-    v119 = or v116, v118
-    v120 = iszero v119
-    panic_if v120, 0x41
-    v121 = add 0, v115
-    v122 = lt v121, 0
-    panic_if v122, 0x41
-    v123 = memory_object_load_element memoryarray<1>, v0, v113
-    v124 = and v123, 0xffffffffffffffffffffffffffffff
-    memory_object_store_word memorybytes, v104, v121, v124
-    v125 = add v113, 1
-    jump bb7
-  bb5:
-    v79 = mul v77, 32
-    v80 = iszero 32
-    v81 = div v79, 32
-    v82 = eq v81, v77
-    v83 = or v80, v82
-    v84 = iszero v83
-    panic_if v84, 0x41
-    v85 = add 0, v79
-    v86 = lt v85, 0
-    panic_if v86, 0x41
-    v87 = memory_object_load_element memoryfixedarray<3, 1>, v61, v77
-    v88 = and v87, 0xffffffffffffffffffffffffffffff
-    memory_object_store_word memorybytes, v76, v85, v88
-    v89 = add v77, 1
-    jump bb4
+    v74 = abi_encode_packed (array<word<u120>> memoryfixedarray<3, 1> v61)
+    v75 = keccak256_bytes v74
+    v76 = abi_encode_packed (array<word<u120>> memoryarray<1> v0)
+    v77 = keccak256_bytes v76
+    v78 = and 0x1234, 0xffffffffffffffffffffffffffffffffffffffff
+    v79 = keccak256_packed (u160 v78)
+    v80 = insert_value struct0, undef struct0, 0, v75
+    v81 = insert_value struct0, v80, 1, v77
+    v82 = insert_value struct0, v81, 2, v79
+    ret v82
   bb2:
     v64 = div v62, 2
     v65 = add 0, v64

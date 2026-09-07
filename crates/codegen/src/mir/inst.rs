@@ -693,7 +693,8 @@ impl Instruction {
             InstKind::Fmp | InstKind::SetFmp(..) => Some("abstract allocation"),
             InstKind::MemoryZero(..) => Some("memory zero"),
             InstKind::CheckedBinary { .. } => Some("checked arithmetic"),
-            InstKind::Concat(..)
+            InstKind::AbiEncodePacked { .. }
+            | InstKind::Concat(..)
             | InstKind::Sha256(..)
             | InstKind::Ripemd160(..)
             | InstKind::EcRecover(..) => Some("builtin"),
@@ -1302,6 +1303,8 @@ pub(crate) enum InstKind {
     Sha256(ValueId),
     /// Concatenate bytes objects and left-aligned fixed words into a fresh bytes object.
     Concat(Vec<ConcatPart>),
+    /// Encode packed arguments, optionally hashing the temporary result.
+    AbiEncodePacked { parts: Box<[super::PackedPart]>, hash: bool },
     /// Left-aligned RIPEMD-160 of a bytes object, with the same effects as `sha256`.
     Ripemd160(ValueId),
     /// Recover an address from hash, recovery ID, and signature words.
@@ -1551,6 +1554,9 @@ impl InstKind {
             Self::Require { condition, payload } => {
                 out.push(*condition);
                 payload.for_each_operand(|value| out.push(value));
+            }
+            Self::AbiEncodePacked { parts, .. } => {
+                out.extend(parts.iter().filter_map(super::PackedPart::value))
             }
             Self::Concat(parts) => out.extend(parts.iter().map(ConcatPart::value)),
 
@@ -1847,6 +1853,11 @@ impl InstKind {
                 f(condition);
                 payload.for_each_operand_mut(&mut f);
             }
+            Self::AbiEncodePacked { parts, .. } => {
+                for value in parts.iter_mut().filter_map(super::PackedPart::value_mut) {
+                    f(value);
+                }
+            }
             Self::Concat(parts) => {
                 for part in parts {
                     f(part.value_mut());
@@ -2132,6 +2143,13 @@ impl InstKind {
                 (super::RevertKind::Reason(_), false) => "revert_if",
                 (super::RevertKind::Reason(_), true) => "revert_if_zero",
             },
+            Self::AbiEncodePacked { hash, .. } => {
+                if *hash {
+                    "keccak256_packed"
+                } else {
+                    "abi_encode_packed"
+                }
+            }
             Self::Concat(_) => "concat",
             Self::Sha256(_) => "sha256",
             Self::Ripemd160(_) => "ripemd160",
@@ -2208,7 +2226,8 @@ impl InstKind {
             | Self::ExtractValue { .. }
             | Self::MemoryObjectFromPtr { .. }
             | Self::WordCast(_) => EffectKind::Pure,
-            Self::Concat(..)
+            Self::AbiEncodePacked { .. }
+            | Self::Concat(..)
             | Self::Sha256(..)
             | Self::Ripemd160(..)
             | Self::EcRecover(..)

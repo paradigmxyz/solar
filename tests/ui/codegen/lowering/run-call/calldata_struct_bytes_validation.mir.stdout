@@ -132,29 +132,15 @@ fn @encodePackedField(arg0: calldataslice) -> u256 [selector=0xed098724, pure, a
     v25 = sub v24, v22
     v26 = sgt v21, v25
     revert_if v26, calldata_tail_too_short
-    v27 = slice_len v20
-    v28 = add 0, v27
-    v29 = lt v28, 0
-    panic_if v29, 0x41
-    v30 = add v28, 63
-    v31 = lt v30, v28
-    panic_if v31, 0x41
-    v32 = not 31
-    v33 = and v30, v32
-    v34 = alloc memorybytes, exact, uninitialized, infallible, v33
-    set_memory_object_len memorybytes, v34, v28
-    memory_object_copy_from_slice_at memorybytes, v34, 0, v20
-    v35 = add 0, v27
-    v36 = lt v35, 0
-    panic_if v36, 0x41
-    v37 = memory_object_len memorybytes, v34
-    v38 = lt 0, v37
-    v39 = iszero v38
-    panic_if v39, 0x32
-    v40 = memory_object_load_byte memorybytes, v34, 0
-    v41 = shl 248, v40
-    v42 = shr 248, v41
-    ret v42
+    v27 = abi_encode_packed (bytes v20)
+    v28 = memory_object_len memorybytes, v27
+    v29 = lt 0, v28
+    v30 = iszero v29
+    panic_if v30, 0x32
+    v31 = memory_object_load_byte memorybytes, v27, 0
+    v32 = shl 248, v31
+    v33 = shr 248, v32
+    ret v33
 }
 
 fn @hashField(arg0: calldataslice) -> bytes32 [selector=0xdd0f255f, pure, abi_params=[tuple<bytes, u256>], abi_returns=[word]] {

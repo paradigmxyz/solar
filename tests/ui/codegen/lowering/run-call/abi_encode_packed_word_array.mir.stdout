@@ -19,60 +19,12 @@ fn @pack() -> struct0 [selector=0xef082838, pure, abi_params=[], abi_returns=[wo
     v8 = iszero v7
     panic_if v8, 0x32
     memory_object_store_element memoryarray<1>, v0, 1, v5
-    v9 = memory_object_len memoryarray, v0
-    v10 = mul v9, 32
-    v11 = iszero 32
-    v12 = div v10, 32
-    v13 = eq v12, v9
-    v14 = or v11, v13
-    v15 = iszero v14
-    panic_if v15, 0x41
-    v16 = add 0, v10
-    v17 = lt v16, 0
-    panic_if v17, 0x41
-    v18 = add v16, 63
-    v19 = lt v18, v16
-    panic_if v19, 0x41
-    v20 = not 31
-    v21 = and v18, v20
-    v22 = alloc memorybytes, exact, uninitialized, infallible, v21
-    set_memory_object_len memorybytes, v22, v16
-    v23 = mul v9, 32
-    v24 = iszero 32
-    v25 = div v23, 32
-    v26 = eq v25, v9
-    v27 = or v24, v26
-    v28 = iszero v27
-    panic_if v28, 0x41
-    v29 = add 0, v23
-    v30 = lt v29, 0
-    panic_if v30, 0x41
-    jump bb1
-  bb1:
-    v31 = phi [bb0: 0], [bb2: v42]
-    v32 = lt v31, v9
-    jumpi v32, bb2, bb3
-  bb3:
-    v43 = keccak256_bytes v22
-    v44 = memory_object_len memorybytes, v22
-    v45 = insert_value struct0, undef struct0, 0, v43
-    v46 = insert_value struct0, v45, 1, v44
-    ret v46
-  bb2:
-    v33 = mul v31, 32
-    v34 = iszero 32
-    v35 = div v33, 32
-    v36 = eq v35, v31
-    v37 = or v34, v36
-    v38 = iszero v37
-    panic_if v38, 0x41
-    v39 = add 0, v33
-    v40 = lt v39, 0
-    panic_if v40, 0x41
-    v41 = memory_object_load_element memoryarray<1>, v0, v31
-    memory_object_store_word memorybytes, v22, v39, v41
-    v42 = add v31, 1
-    jump bb1
+    v9 = abi_encode_packed (array<word> memoryarray<1> v0)
+    v10 = keccak256_bytes v9
+    v11 = memory_object_len memorybytes, v9
+    v12 = insert_value struct0, undef struct0, 0, v10
+    v13 = insert_value struct0, v12, 1, v11
+    ret v13
 }
 
 fn @cleanDirtyMemory() -> u256 [selector=0x4585502b, pure, abi_params=[], abi_returns=[word]] {
@@ -83,80 +35,31 @@ fn @cleanDirtyMemory() -> u256 [selector=0x4585502b, pure, abi_params=[], abi_re
     mstore v1, 257
     v2 = add v0, 64
     mstore v2, 514
-    v3 = memory_object_len memoryarray, v0
-    v4 = mul v3, 32
-    v5 = iszero 32
-    v6 = div v4, 32
-    v7 = eq v6, v3
-    v8 = or v5, v7
-    v9 = iszero v8
-    panic_if v9, 0x41
-    v10 = add 0, v4
-    v11 = lt v10, 0
-    panic_if v11, 0x41
-    v12 = add v10, 63
-    v13 = lt v12, v10
-    panic_if v13, 0x41
-    v14 = not 31
-    v15 = and v12, v14
-    v16 = alloc memorybytes, exact, uninitialized, infallible, v15
-    set_memory_object_len memorybytes, v16, v10
-    v17 = mul v3, 32
-    v18 = iszero 32
-    v19 = div v17, 32
-    v20 = eq v19, v3
-    v21 = or v18, v20
-    v22 = iszero v21
-    panic_if v22, 0x41
-    v23 = add 0, v17
-    v24 = lt v23, 0
-    panic_if v24, 0x41
-    jump bb1
+    v3 = abi_encode_packed (array<word<u8>> memoryarray<1> v0)
+    v4 = add v3, 32
+    v5 = mload v4
+    v6 = add v3, 64
+    v7 = mload v6
+    v8 = memory_object_len memorybytes, v3
+    v9 = eq v8, 64
+    jumpi v9, bb1, bb2
+  bb2:
+    jump bb3
   bb1:
-    v25 = phi [bb0: 0], [bb2: v37]
-    v26 = lt v25, v3
-    jumpi v26, bb2, bb3
+    v10 = eq v5, 1
+    jump bb3
   bb3:
-    v38 = add v16, 32
-    v39 = mload v38
-    v40 = add v16, 64
-    v41 = mload v40
-    v42 = memory_object_len memorybytes, v16
-    v43 = eq v42, 64
-    jumpi v43, bb4, bb5
+    v11 = phi [bb1: v10], [bb2: false]
+    jumpi v11, bb4, bb5
   bb5:
     jump bb6
   bb4:
-    v44 = eq v39, 1
+    v12 = eq v7, 2
     jump bb6
   bb6:
-    v45 = phi [bb4: v44], [bb5: false]
-    jumpi v45, bb7, bb8
-  bb8:
-    jump bb9
-  bb7:
-    v46 = eq v41, 2
-    jump bb9
-  bb9:
-    v47 = phi [bb7: v46], [bb8: false]
-    require v47, short_string 12, 0x6469727479206d656d6f72790000000000000000000000000000000000000000
+    v13 = phi [bb4: v12], [bb5: false]
+    require v13, short_string 12, 0x6469727479206d656d6f72790000000000000000000000000000000000000000
     ret 1
-  bb2:
-    v27 = mul v25, 32
-    v28 = iszero 32
-    v29 = div v27, 32
-    v30 = eq v29, v25
-    v31 = or v28, v30
-    v32 = iszero v31
-    panic_if v32, 0x41
-    v33 = add 0, v27
-    v34 = lt v33, 0
-    panic_if v34, 0x41
-    v35 = memory_object_load_element memoryarray<1>, v0, v25
-    v36 = and v35, 255
-    memory_object_store_word memorybytes, v16, v33, v36
-    v37 = add v25, 1
-    jump bb1
 }
 
 fn @packCalldata(arg0: calldataslice) -> bytes32 [selector=0x38651f67, pure, abi_params=[array<_, u8>], abi_returns=[word]] {
@@ -192,58 +95,9 @@ fn @packCalldata(arg0: calldataslice) -> bytes32 [selector=0x38651f67, pure, abi
     v21 = lt v20, v0
     jumpi v21, bb2, bb3
   bb3:
-    v35 = memory_object_len memoryarray, v19
-    v36 = mul v35, 32
-    v37 = iszero 32
-    v38 = div v36, 32
-    v39 = eq v38, v35
-    v40 = or v37, v39
-    v41 = iszero v40
-    panic_if v41, 0x41
-    v42 = add 0, v36
-    v43 = lt v42, 0
-    panic_if v43, 0x41
-    v44 = add v42, 63
-    v45 = lt v44, v42
-    panic_if v45, 0x41
-    v46 = not 31
-    v47 = and v44, v46
-    v48 = alloc memorybytes, exact, uninitialized, infallible, v47
-    set_memory_object_len memorybytes, v48, v42
-    v49 = mul v35, 32
-    v50 = iszero 32
-    v51 = div v49, 32
-    v52 = eq v51, v35
-    v53 = or v50, v52
-    v54 = iszero v53
-    panic_if v54, 0x41
-    v55 = add 0, v49
-    v56 = lt v55, 0
-    panic_if v56, 0x41
-    jump bb4
-  bb4:
-    v57 = phi [bb3: 0], [bb5: v69]
-    v58 = lt v57, v35
-    jumpi v58, bb5, bb6
-  bb6:
-    v70 = keccak256_bytes v48
-    ret v70
-  bb5:
-    v59 = mul v57, 32
-    v60 = iszero 32
-    v61 = div v59, 32
-    v62 = eq v61, v57
-    v63 = or v60, v62
-    v64 = iszero v63
-    panic_if v64, 0x41
-    v65 = add 0, v59
-    v66 = lt v65, 0
-    panic_if v66, 0x41
-    v67 = memory_object_load_element memoryarray<1>, v19, v57
-    v68 = and v67, 255
-    memory_object_store_word memorybytes, v48, v65, v68
-    v69 = add v57, 1
-    jump bb4
+    v35 = abi_encode_packed (array<word<u8>> memoryarray<1> v19)
+    v36 = keccak256_bytes v35
+    ret v36
   bb2:
     v22 = mul v20, 32
     v23 = iszero 32

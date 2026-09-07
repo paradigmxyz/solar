@@ -19,167 +19,123 @@ fn @mappingEmpty() -> bool [selector=0x20f98002, abi_params=[], abi_returns=[wor
 fn @mappingLong(arg0: bytes32, arg1: bytes1) -> bool [selector=0xa4972bce, abi_params=[bytes32, bytes1], abi_returns=[word<bool>]] {
   bb0:
     v0 = and arg1, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v1 = not 31
-    v2 = and 96, v1
-    v3 = alloc memorybytes, exact, uninitialized, infallible, v2
-    set_memory_object_len memorybytes, v3, 33
-    memory_object_store_word memorybytes, v3, 0, arg0
-    memory_object_store_word memorybytes, v3, 32, v0
-    v4 = mapping_slot 0, 0
-    icall @store_storage_bytes, v4, v3
-    v5 = mapping_slot 0, 0
-    v6 = icall @load_storage_bytes, v5
-    v7 = keccak256_bytes v6
-    v8 = keccak256_bytes v3
-    v9 = eq v7, v8
-    ret v9
+    v1 = abi_encode_packed (bytes32 arg0, bytes1 v0)
+    v2 = mapping_slot 0, 0
+    icall @store_storage_bytes, v2, v1
+    v3 = mapping_slot 0, 0
+    v4 = icall @load_storage_bytes, v3
+    v5 = keccak256_bytes v4
+    v6 = keccak256_bytes v1
+    v7 = eq v5, v6
+    ret v7
 }
 
 fn @mappingShort(arg0: bytes31) -> bool [selector=0xd17dedff, abi_params=[bytes31], abi_returns=[word<bool>]] {
   bb0:
     v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    v1 = not 31
-    v2 = and 94, v1
-    v3 = alloc memorybytes, exact, uninitialized, infallible, v2
-    set_memory_object_len memorybytes, v3, 31
-    memory_object_store_word memorybytes, v3, 0, v0
-    v4 = mapping_slot 1, 0
-    icall @store_storage_bytes, v4, v3
-    v5 = mapping_slot 1, 0
-    v6 = icall @load_storage_bytes, v5
-    v7 = keccak256_bytes v6
-    v8 = keccak256_bytes v3
-    v9 = eq v7, v8
-    ret v9
+    v1 = abi_encode_packed (bytes31 v0)
+    v2 = mapping_slot 1, 0
+    icall @store_storage_bytes, v2, v1
+    v3 = mapping_slot 1, 0
+    v4 = icall @load_storage_bytes, v3
+    v5 = keccak256_bytes v4
+    v6 = keccak256_bytes v1
+    v7 = eq v5, v6
+    ret v7
 }
 
 fn @mappingWord(arg0: bytes32) -> bool [selector=0x95027de5, abi_params=[bytes32], abi_returns=[word<bool>]] {
   bb0:
-    v0 = not 31
-    v1 = and 95, v0
-    v2 = alloc memorybytes, exact, uninitialized, infallible, v1
-    set_memory_object_len memorybytes, v2, 32
-    memory_object_store_word memorybytes, v2, 0, arg0
-    v3 = mapping_slot 2, 0
-    icall @store_storage_bytes, v3, v2
-    v4 = mapping_slot 2, 0
-    v5 = icall @load_storage_bytes, v4
-    v6 = keccak256_bytes v5
-    v7 = keccak256_bytes v2
-    v8 = eq v6, v7
-    ret v8
+    v0 = abi_encode_packed (bytes32 arg0)
+    v1 = mapping_slot 2, 0
+    icall @store_storage_bytes, v1, v0
+    v2 = mapping_slot 2, 0
+    v3 = icall @load_storage_bytes, v2
+    v4 = keccak256_bytes v3
+    v5 = keccak256_bytes v0
+    v6 = eq v4, v5
+    ret v6
 }
 
 fn @mappingTwoWords(arg0: bytes32, arg1: bytes32, arg2: bytes1) -> bool [selector=0xb0efa5db, abi_params=[bytes32, bytes32, bytes1], abi_returns=[word<bool>]] {
   bb0:
     v0 = and arg2, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v1 = not 31
-    v2 = and 128, v1
-    v3 = alloc memorybytes, exact, uninitialized, infallible, v2
-    set_memory_object_len memorybytes, v3, 65
-    memory_object_store_word memorybytes, v3, 0, arg0
-    memory_object_store_word memorybytes, v3, 32, arg1
-    memory_object_store_word memorybytes, v3, 64, v0
-    v4 = mapping_slot 3, 0
-    icall @store_storage_bytes, v4, v3
-    v5 = mapping_slot 3, 0
-    v6 = icall @load_storage_bytes, v5
-    v7 = keccak256_bytes v6
-    v8 = keccak256_bytes v3
-    v9 = eq v7, v8
-    ret v9
+    v1 = abi_encode_packed (bytes32 arg0, bytes32 arg1, bytes1 v0)
+    v2 = mapping_slot 3, 0
+    icall @store_storage_bytes, v2, v1
+    v3 = mapping_slot 3, 0
+    v4 = icall @load_storage_bytes, v3
+    v5 = keccak256_bytes v4
+    v6 = keccak256_bytes v1
+    v7 = eq v5, v6
+    ret v7
 }
 
 fn @mappingReference(arg0: bytes32, arg1: bytes1) -> bool [selector=0xe1bd71bc, abi_params=[bytes32, bytes1], abi_returns=[word<bool>]] {
   bb0:
     v0 = and arg1, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v1 = not 31
-    v2 = and 96, v1
-    v3 = alloc memorybytes, exact, uninitialized, infallible, v2
-    set_memory_object_len memorybytes, v3, 33
-    memory_object_store_word memorybytes, v3, 0, arg0
-    memory_object_store_word memorybytes, v3, 32, v0
-    v4 = mapping_slot 4, 0
-    icall @store_storage_bytes, v4, v3
-    v5 = mapping_slot 4, 0
-    v6 = icall @load_storage_bytes, v5
-    v7 = keccak256_bytes v6
-    v8 = keccak256_bytes v3
-    v9 = eq v7, v8
-    ret v9
+    v1 = abi_encode_packed (bytes32 arg0, bytes1 v0)
+    v2 = mapping_slot 4, 0
+    icall @store_storage_bytes, v2, v1
+    v3 = mapping_slot 4, 0
+    v4 = icall @load_storage_bytes, v3
+    v5 = keccak256_bytes v4
+    v6 = keccak256_bytes v1
+    v7 = eq v5, v6
+    ret v7
 }
 
 fn @nestedMapping(arg0: bytes32, arg1: bytes1) -> bool [selector=0x9670c676, abi_params=[bytes32, bytes1], abi_returns=[word<bool>]] {
   bb0:
     v0 = and arg1, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v1 = not 31
-    v2 = and 96, v1
-    v3 = alloc memorybytes, exact, uninitialized, infallible, v2
-    set_memory_object_len memorybytes, v3, 33
-    memory_object_store_word memorybytes, v3, 0, arg0
-    memory_object_store_word memorybytes, v3, 32, v0
+    v1 = abi_encode_packed (bytes32 arg0, bytes1 v0)
+    v2 = mapping_slot 0, 1
+    v3 = mapping_slot 1, v2
+    icall @store_storage_bytes, v3, v1
     v4 = mapping_slot 0, 1
     v5 = mapping_slot 1, v4
-    icall @store_storage_bytes, v5, v3
-    v6 = mapping_slot 0, 1
-    v7 = mapping_slot 1, v6
-    v8 = icall @load_storage_bytes, v7
-    v9 = keccak256_bytes v8
-    v10 = keccak256_bytes v3
-    v11 = eq v9, v10
-    ret v11
+    v6 = icall @load_storage_bytes, v5
+    v7 = keccak256_bytes v6
+    v8 = keccak256_bytes v1
+    v9 = eq v7, v8
+    ret v9
 }
 
 fn @structField(arg0: bytes32, arg1: bytes1) -> bool [selector=0xc85878d4, abi_params=[bytes32, bytes1], abi_returns=[word<bool>]] {
   bb0:
     v0 = and arg1, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v1 = not 31
-    v2 = and 96, v1
-    v3 = alloc memorybytes, exact, uninitialized, infallible, v2
-    set_memory_object_len memorybytes, v3, 33
-    memory_object_store_word memorybytes, v3, 0, arg0
-    memory_object_store_word memorybytes, v3, 32, v0
-    icall @store_storage_bytes, 3, v3
-    v4 = icall @load_storage_bytes, 3
-    v5 = keccak256_bytes v4
-    v6 = keccak256_bytes v3
-    v7 = eq v5, v6
-    ret v7
+    v1 = abi_encode_packed (bytes32 arg0, bytes1 v0)
+    icall @store_storage_bytes, 3, v1
+    v2 = icall @load_storage_bytes, 3
+    v3 = keccak256_bytes v2
+    v4 = keccak256_bytes v1
+    v5 = eq v3, v4
+    ret v5
 }
 
 fn @directValue(arg0: bytes32, arg1: bytes1) -> bool [selector=0xdb5536af, abi_params=[bytes32, bytes1], abi_returns=[word<bool>]] {
   bb0:
     v0 = and arg1, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v1 = not 31
-    v2 = and 96, v1
-    v3 = alloc memorybytes, exact, uninitialized, infallible, v2
-    set_memory_object_len memorybytes, v3, 33
-    memory_object_store_word memorybytes, v3, 0, arg0
-    memory_object_store_word memorybytes, v3, 32, v0
-    icall @store_storage_bytes, 4, v3
-    v4 = icall @load_storage_bytes, 4
-    v5 = keccak256_bytes v4
-    v6 = keccak256_bytes v3
-    v7 = eq v5, v6
-    ret v7
+    v1 = abi_encode_packed (bytes32 arg0, bytes1 v0)
+    icall @store_storage_bytes, 4, v1
+    v2 = icall @load_storage_bytes, 4
+    v3 = keccak256_bytes v2
+    v4 = keccak256_bytes v1
+    v5 = eq v3, v4
+    ret v5
 }
 
 fn @internalReference(arg0: bytes32, arg1: bytes1) -> bool [selector=0xd14b1bf5, abi_params=[bytes32, bytes1], abi_returns=[word<bool>]] {
   bb0:
     v0 = and arg1, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v1 = not 31
-    v2 = and 96, v1
-    v3 = alloc memorybytes, exact, uninitialized, infallible, v2
-    set_memory_object_len memorybytes, v3, 33
-    memory_object_store_word memorybytes, v3, 0, arg0
-    memory_object_store_word memorybytes, v3, 32, v0
-    v4 = mapping_slot 5, 0
-    icall @store_storage_bytes, v4, v3
-    v5 = mapping_slot 5, 0
-    v6 = icall @hashStorageBytes, v5
-    v7 = keccak256_bytes v3
-    v8 = eq v6, v7
-    ret v8
+    v1 = abi_encode_packed (bytes32 arg0, bytes1 v0)
+    v2 = mapping_slot 5, 0
+    icall @store_storage_bytes, v2, v1
+    v3 = mapping_slot 5, 0
+    v4 = icall @hashStorageBytes, v3
+    v5 = keccak256_bytes v1
+    v6 = eq v4, v5
+    ret v6
 }
 
 fn @hashStorageBytes(arg0: storageptr) -> bytes32 [pure] {
@@ -192,53 +148,43 @@ fn @hashStorageBytes(arg0: storageptr) -> bytes32 [pure] {
 fn @mappingString(arg0: bytes32, arg1: bytes1) -> bool [selector=0x4cbcb134, abi_params=[bytes32, bytes1], abi_returns=[word<bool>]] {
   bb0:
     v0 = and arg1, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v1 = not 31
-    v2 = and 96, v1
-    v3 = alloc memorybytes, exact, uninitialized, infallible, v2
-    set_memory_object_len memorybytes, v3, 33
-    memory_object_store_word memorybytes, v3, 0, arg0
-    memory_object_store_word memorybytes, v3, 32, v0
-    v4 = mapping_slot 0, 2
-    icall @store_storage_bytes, v4, v3
-    v5 = mapping_slot 0, 2
-    v6 = icall @load_storage_bytes, v5
-    v7 = keccak256_bytes v6
-    v8 = keccak256_bytes v3
-    v9 = eq v7, v8
-    ret v9
+    v1 = abi_encode_packed (bytes32 arg0, bytes1 v0)
+    v2 = mapping_slot 0, 2
+    icall @store_storage_bytes, v2, v1
+    v3 = mapping_slot 0, 2
+    v4 = icall @load_storage_bytes, v3
+    v5 = keccak256_bytes v4
+    v6 = keccak256_bytes v1
+    v7 = eq v5, v6
+    ret v7
 }
 
 fn @mappingStringErc7201(arg0: bytes32, arg1: bytes1) -> bool [selector=0x55edb0fc, abi_params=[bytes32, bytes1], abi_returns=[word<bool>]] {
   bb0:
     v0 = and arg1, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v1 = not 31
-    v2 = and 96, v1
-    v3 = alloc memorybytes, exact, uninitialized, infallible, v2
-    set_memory_object_len memorybytes, v3, 33
-    memory_object_store_word memorybytes, v3, 0, arg0
-    memory_object_store_word memorybytes, v3, 32, v0
-    v4 = mapping_slot 1, 2
-    icall @store_storage_bytes, v4, v3
-    v5 = mapping_slot 1, 2
-    v6 = icall @load_storage_bytes, v5
-    v7 = keccak256_bytes v6
-    v8 = sub v7, 1
-    v9 = alloc memorybytes, exact, uninitialized, infallible, 64
-    set_memory_object_len memorybytes, v9, 32
-    memory_object_store_word memorybytes, v9, 0, v8
-    v10 = memory_object_data memorybytes, v9
-    v11 = keccak256 v10, 32
-    v12 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    v13 = keccak256_bytes v3
-    v14 = sub v13, 1
-    v15 = alloc memorybytes, exact, uninitialized, infallible, 64
-    set_memory_object_len memorybytes, v15, 32
-    memory_object_store_word memorybytes, v15, 0, v14
-    v16 = memory_object_data memorybytes, v15
-    v17 = keccak256 v16, 32
-    v18 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    v19 = eq v12, v18
-    ret v19
+    v1 = abi_encode_packed (bytes32 arg0, bytes1 v0)
+    v2 = mapping_slot 1, 2
+    icall @store_storage_bytes, v2, v1
+    v3 = mapping_slot 1, 2
+    v4 = icall @load_storage_bytes, v3
+    v5 = keccak256_bytes v4
+    v6 = sub v5, 1
+    v7 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v7, 32
+    memory_object_store_word memorybytes, v7, 0, v6
+    v8 = memory_object_data memorybytes, v7
+    v9 = keccak256 v8, 32
+    v10 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v11 = keccak256_bytes v1
+    v12 = sub v11, 1
+    v13 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v13, 32
+    memory_object_store_word memorybytes, v13, 0, v12
+    v14 = memory_object_data memorybytes, v13
+    v15 = keccak256 v14, 32
+    v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v17 = eq v10, v16
+    ret v17
 }
 
 fn @clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {

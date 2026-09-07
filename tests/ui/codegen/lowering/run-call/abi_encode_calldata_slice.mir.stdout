@@ -11,22 +11,8 @@ fn @encPackedBytes(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [
     v5 = sub arg2, arg1
     v6 = add v0, arg1
     v7 = make_calldata_slice v6, v5
-    v8 = slice_len v7
-    v9 = add 0, v8
-    v10 = lt v9, 0
-    panic_if v10, 0x41
-    v11 = add v9, 63
-    v12 = lt v11, v9
-    panic_if v12, 0x41
-    v13 = not 31
-    v14 = and v11, v13
-    v15 = alloc memorybytes, exact, uninitialized, infallible, v14
-    set_memory_object_len memorybytes, v15, v9
-    memory_object_copy_from_slice_at memorybytes, v15, 0, v7
-    v16 = add 0, v8
-    v17 = lt v16, 0
-    panic_if v17, 0x41
-    ret v15
+    v8 = abi_encode_packed (bytes v7)
+    ret v8
 }
 
 fn @encPackedBytesReference(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [selector=0x31b229fc, pure, abi_params=[bytes, u256, u256], abi_returns=[memory_bytes]] {
@@ -48,22 +34,8 @@ fn @encPackedBytesReference(arg0: calldataslice, arg1: u256, arg2: u256) -> memo
     v12 = sub v11, v9
     v13 = sgt v8, v12
     revert_if v13, calldata_tail_too_short
-    v14 = slice_len v7
-    v15 = add 0, v14
-    v16 = lt v15, 0
-    panic_if v16, 0x41
-    v17 = add v15, 63
-    v18 = lt v17, v15
-    panic_if v18, 0x41
-    v19 = not 31
-    v20 = and v17, v19
-    v21 = alloc memorybytes, exact, uninitialized, infallible, v20
-    set_memory_object_len memorybytes, v21, v15
-    memory_object_copy_from_slice_at memorybytes, v21, 0, v7
-    v22 = add 0, v14
-    v23 = lt v22, 0
-    panic_if v23, 0x41
-    ret v21
+    v14 = abi_encode_packed (bytes v7)
+    ret v14
 }
 
 fn @encBytes(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [selector=0x676eb8e5, pure, abi_params=[bytes, u256, u256], abi_returns=[memory_bytes]] {
@@ -174,57 +146,8 @@ fn @encPackedUint256(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes
     panic_if v11, 0x41
     v12 = add v0, v6
     v13 = make_calldata_slice v12, v5
-    v14 = slice_len v13
-    v15 = mul v14, 32
-    v16 = iszero 32
-    v17 = div v15, 32
-    v18 = eq v17, v14
-    v19 = or v16, v18
-    v20 = iszero v19
-    panic_if v20, 0x41
-    v21 = add 0, v15
-    v22 = lt v21, 0
-    panic_if v22, 0x41
-    v23 = add v21, 63
-    v24 = lt v23, v21
-    panic_if v24, 0x41
-    v25 = not 31
-    v26 = and v23, v25
-    v27 = alloc memorybytes, exact, uninitialized, infallible, v26
-    set_memory_object_len memorybytes, v27, v21
-    v28 = mul v14, 32
-    v29 = iszero 32
-    v30 = div v28, 32
-    v31 = eq v30, v14
-    v32 = or v29, v31
-    v33 = iszero v32
-    panic_if v33, 0x41
-    v34 = add 0, v28
-    v35 = lt v34, 0
-    panic_if v35, 0x41
-    v36 = slice_ptr v13
-    jump bb1
-  bb1:
-    v37 = phi [bb0: 0], [bb2: v48]
-    v38 = lt v37, v14
-    jumpi v38, bb2, bb3
-  bb3:
-    ret v27
-  bb2:
-    v39 = mul v37, 32
-    v40 = iszero 32
-    v41 = div v39, 32
-    v42 = eq v41, v37
-    v43 = or v40, v42
-    v44 = iszero v43
-    panic_if v44, 0x41
-    v45 = add 0, v39
-    v46 = lt v45, 0
-    panic_if v46, 0x41
-    v47 = calldata_slice_load_word calldata, v13, v39
-    memory_object_store_word memorybytes, v27, v45, v47
-    v48 = add v37, 1
-    jump bb1
+    v14 = abi_encode_packed (array<word> calldata v13)
+    ret v14
 }
 
 fn @encPackedUint256Reference(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [selector=0xf98ab314, pure, abi_params=[array<_, u256>, u256, u256], abi_returns=[memory_bytes]] {
@@ -245,57 +168,8 @@ fn @encPackedUint256Reference(arg0: calldataslice, arg1: u256, arg2: u256) -> me
     panic_if v11, 0x41
     v12 = add v0, v6
     v13 = make_calldata_slice v12, v5
-    v14 = slice_len v13
-    v15 = mul v14, 32
-    v16 = iszero 32
-    v17 = div v15, 32
-    v18 = eq v17, v14
-    v19 = or v16, v18
-    v20 = iszero v19
-    panic_if v20, 0x41
-    v21 = add 0, v15
-    v22 = lt v21, 0
-    panic_if v22, 0x41
-    v23 = add v21, 63
-    v24 = lt v23, v21
-    panic_if v24, 0x41
-    v25 = not 31
-    v26 = and v23, v25
-    v27 = alloc memorybytes, exact, uninitialized, infallible, v26
-    set_memory_object_len memorybytes, v27, v21
-    v28 = mul v14, 32
-    v29 = iszero 32
-    v30 = div v28, 32
-    v31 = eq v30, v14
-    v32 = or v29, v31
-    v33 = iszero v32
-    panic_if v33, 0x41
-    v34 = add 0, v28
-    v35 = lt v34, 0
-    panic_if v35, 0x41
-    v36 = slice_ptr v13
-    jump bb1
-  bb1:
-    v37 = phi [bb0: 0], [bb2: v48]
-    v38 = lt v37, v14
-    jumpi v38, bb2, bb3
-  bb3:
-    ret v27
-  bb2:
-    v39 = mul v37, 32
-    v40 = iszero 32
-    v41 = div v39, 32
-    v42 = eq v41, v37
-    v43 = or v40, v42
-    v44 = iszero v43
-    panic_if v44, 0x41
-    v45 = add 0, v39
-    v46 = lt v45, 0
-    panic_if v46, 0x41
-    v47 = calldata_slice_load_word calldata, v13, v39
-    memory_object_store_word memorybytes, v27, v45, v47
-    v48 = add v37, 1
-    jump bb1
+    v14 = abi_encode_packed (array<word> calldata v13)
+    ret v14
 }
 
 fn @encPackedUint8(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [selector=0x7ae711bd, pure, abi_params=[array<_, u8>, u256, u256], abi_returns=[memory_bytes]] {
@@ -347,57 +221,8 @@ fn @encPackedUint8(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [
     v35 = lt v34, v14
     jumpi v35, bb2, bb3
   bb3:
-    v49 = memory_object_len memoryarray, v33
-    v50 = mul v49, 32
-    v51 = iszero 32
-    v52 = div v50, 32
-    v53 = eq v52, v49
-    v54 = or v51, v53
-    v55 = iszero v54
-    panic_if v55, 0x41
-    v56 = add 0, v50
-    v57 = lt v56, 0
-    panic_if v57, 0x41
-    v58 = add v56, 63
-    v59 = lt v58, v56
-    panic_if v59, 0x41
-    v60 = not 31
-    v61 = and v58, v60
-    v62 = alloc memorybytes, exact, uninitialized, infallible, v61
-    set_memory_object_len memorybytes, v62, v56
-    v63 = mul v49, 32
-    v64 = iszero 32
-    v65 = div v63, 32
-    v66 = eq v65, v49
-    v67 = or v64, v66
-    v68 = iszero v67
-    panic_if v68, 0x41
-    v69 = add 0, v63
-    v70 = lt v69, 0
-    panic_if v70, 0x41
-    jump bb4
-  bb4:
-    v71 = phi [bb3: 0], [bb5: v83]
-    v72 = lt v71, v49
-    jumpi v72, bb5, bb6
-  bb6:
-    ret v62
-  bb5:
-    v73 = mul v71, 32
-    v74 = iszero 32
-    v75 = div v73, 32
-    v76 = eq v75, v71
-    v77 = or v74, v76
-    v78 = iszero v77
-    panic_if v78, 0x41
-    v79 = add 0, v73
-    v80 = lt v79, 0
-    panic_if v80, 0x41
-    v81 = memory_object_load_element memoryarray<1>, v33, v71
-    v82 = and v81, 255
-    memory_object_store_word memorybytes, v62, v79, v82
-    v83 = add v71, 1
-    jump bb4
+    v49 = abi_encode_packed (array<word<u8>> memoryarray<1> v33)
+    ret v49
   bb2:
     v36 = mul v34, 32
     v37 = iszero 32

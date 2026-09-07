@@ -609,6 +609,34 @@ fn display_inst_kind<'a>(
             display_val(*lhs, func),
             display_val(*rhs, func)
         ),
+        InstKind::AbiEncodePacked { parts, .. } => {
+            write!(f, "{} (", kind.mnemonic())?;
+            for (index, part) in parts.iter().enumerate() {
+                if index != 0 {
+                    write!(f, ", ")?;
+                }
+                match part {
+                    super::PackedPart::Literal(bytes) => {
+                        write!(f, "data hex\"{}\"", alloy_primitives::hex::encode(bytes))?
+                    }
+                    super::PackedPart::Scalar { value, ty } => {
+                        write!(f, "{ty} {}", display_val(*value, func))?
+                    }
+                    super::PackedPart::Bytes(value) => {
+                        write!(f, "bytes {}", display_val(*value, func))?
+                    }
+                    super::PackedPart::Array { value, element, source } => {
+                        write!(f, "array<{element}> ")?;
+                        match source {
+                            super::PackedArraySource::Memory { layout } => write!(f, "{layout}")?,
+                            super::PackedArraySource::Slice(location) => write!(f, "{location}")?,
+                        }
+                        write!(f, " {}", display_val(*value, func))?;
+                    }
+                }
+            }
+            write!(f, ")")
+        }
         InstKind::Concat(parts) => {
             write!(f, "concat (")?;
             for (index, part) in parts.iter().enumerate() {

@@ -5,59 +5,53 @@ types:
 
 fn @roundTrip() -> struct0 [selector=0x6643a628, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
-    v0 = not 31
-    v1 = and 159, v0
-    v2 = alloc memorybytes, exact, uninitialized, infallible, v1
-    set_memory_object_len memorybytes, v2, 96
-    memory_object_store_word memorybytes, v2, 0, 9
-    memory_object_store_word memorybytes, v2, 32, 5
-    memory_object_store_word memorybytes, v2, 64, 1
-    icall @store_storage_bytes, 0, v2
-    v3 = sload 0 !metadata(storage=slot(0))
-    v4 = and v3, 1
-    v5 = eq v4, 1
-    v6 = shr 1, v3
-    v7 = and v6, 127
-    v8 = select v5, v6, v7
-    v9 = lt v8, 32
-    v10 = eq v5, v9
-    panic_if v10, 0x22
-    v11 = add v8, 31
-    v12 = div v11, 32
-    v13 = add v8, 63
-    v14 = lt v13, v8
-    panic_if v14, 0x41
-    v15 = not 31
-    v16 = and v13, v15
-    v17 = alloc memorybytes, exact, uninitialized, panic, v16
-    set_memory_object_len memorybytes, v17, v8
-    jumpi v5, bb2, bb1
+    v0 = abi_encode_packed (u256 9, u256 5, u256 1)
+    icall @store_storage_bytes, 0, v0
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = and v1, 1
+    v3 = eq v2, 1
+    v4 = shr 1, v1
+    v5 = and v4, 127
+    v6 = select v3, v4, v5
+    v7 = lt v6, 32
+    v8 = eq v3, v7
+    panic_if v8, 0x22
+    v9 = add v6, 31
+    v10 = div v9, 32
+    v11 = add v6, 63
+    v12 = lt v11, v6
+    panic_if v12, 0x41
+    v13 = not 31
+    v14 = and v11, v13
+    v15 = alloc memorybytes, exact, uninitialized, panic, v14
+    set_memory_object_len memorybytes, v15, v6
+    jumpi v3, bb2, bb1
   bb1:
-    v18 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    memory_object_store_word memorybytes, v17, 0, v18
+    v16 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    memory_object_store_word memorybytes, v15, 0, v16
     jump bb3
   bb2:
-    v19 = storage_array_data_slot 0
+    v17 = storage_array_data_slot 0
     jump bb4
   bb4:
-    v20 = phi [bb2: 0], [bb5: v25]
-    v21 = lt v20, v12
-    jumpi v21, bb5, bb6
+    v18 = phi [bb2: 0], [bb5: v23]
+    v19 = lt v18, v10
+    jumpi v19, bb5, bb6
   bb6:
     jump bb3
   bb3:
-    v26 = add v17, 32
-    v27 = mload v26
-    v28 = memory_object_len memorybytes, v17
-    v29 = insert_value struct0, undef struct0, 0, v27
-    v30 = insert_value struct0, v29, 1, v28
-    ret v30
+    v24 = add v15, 32
+    v25 = mload v24
+    v26 = memory_object_len memorybytes, v15
+    v27 = insert_value struct0, undef struct0, 0, v25
+    v28 = insert_value struct0, v27, 1, v26
+    ret v28
   bb5:
-    v22 = add v19, v20
-    v23 = sload v22 !metadata(storage=symbolic(v22))
-    v24 = mul v20, 32
-    memory_object_store_word memorybytes, v17, v24, v23
-    v25 = add v20, 1
+    v20 = add v17, v18
+    v21 = sload v20 !metadata(storage=symbolic(v20))
+    v22 = mul v18, 32
+    memory_object_store_word memorybytes, v15, v22, v21
+    v23 = add v18, 1
     jump bb4
 }
 

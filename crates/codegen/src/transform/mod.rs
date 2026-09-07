@@ -33,6 +33,7 @@ pub(crate) mod lower_mapping_slots;
 pub(crate) mod lower_mcopy;
 pub(crate) mod lower_memory_objects;
 pub(crate) mod lower_memory_zero;
+mod lower_packed;
 pub(crate) mod lower_slices;
 pub(crate) mod lower_structs;
 pub(crate) mod memory_dse;

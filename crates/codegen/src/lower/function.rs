@@ -11,8 +11,8 @@ use crate::{
         AbiLayout, AbiParamLayout, AbiParamLocation, AbiParamType, AbiType, AbiWordValidator,
         AllocationSemantics, ArithmeticKind, BlockId, CheckedOp, ConcatPart, Function,
         FunctionBuilder, FunctionId, ImmutableId, InstKind, LibraryLink, MemoryObjectKind,
-        MemoryObjectLayout, MirType, Module, PanicCode, RevertPayload, RevertReason, SliceLocation,
-        Value, ValueId,
+        MemoryObjectLayout, MirType, Module, PackedArraySource, PackedPart, PanicCode,
+        RevertPayload, RevertReason, SliceLocation, Value, ValueId,
     },
 };
 use alloy_primitives::{U256, keccak256};

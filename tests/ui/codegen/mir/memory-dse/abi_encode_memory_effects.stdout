@@ -25,3 +25,13 @@
       ret
   }
   
+  fn @packed_reads_children() -> memorybytes {
+    bb0:
+      v0 = alloc raw, exact, uninitialized, infallible, 32
+      v1 = alloc raw, exact, uninitialized, infallible, 32
+      mstore v0, 7
+      mstore v1, v0
+      v2 = abi_encode_packed (array<array<1, word>> memoryfixedarray<1, 1> v1)
+      ret v2
+  }
+  

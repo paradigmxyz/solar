@@ -158,57 +158,8 @@ fn @packedArray(arg0: u256) -> memorybytes [selector=0xc341d66f, pure, abi_param
     set_memory_object_len memoryarray, v0, 1
     v1 = add v0, 32
     mstore v1, arg0
-    v2 = memory_object_len memoryarray, v0
-    v3 = mul v2, 32
-    v4 = iszero 32
-    v5 = div v3, 32
-    v6 = eq v5, v2
-    v7 = or v4, v6
-    v8 = iszero v7
-    panic_if v8, 0x41
-    v9 = add 0, v3
-    v10 = lt v9, 0
-    panic_if v10, 0x41
-    v11 = add v9, 63
-    v12 = lt v11, v9
-    panic_if v12, 0x41
-    v13 = not 31
-    v14 = and v11, v13
-    v15 = alloc memorybytes, exact, uninitialized, infallible, v14
-    set_memory_object_len memorybytes, v15, v9
-    v16 = mul v2, 32
-    v17 = iszero 32
-    v18 = div v16, 32
-    v19 = eq v18, v2
-    v20 = or v17, v19
-    v21 = iszero v20
-    panic_if v21, 0x41
-    v22 = add 0, v16
-    v23 = lt v22, 0
-    panic_if v23, 0x41
-    jump bb1
-  bb1:
-    v24 = phi [bb0: 0], [bb2: v36]
-    v25 = lt v24, v2
-    jumpi v25, bb2, bb3
-  bb3:
-    ret v15
-  bb2:
-    v26 = mul v24, 32
-    v27 = iszero 32
-    v28 = div v26, 32
-    v29 = eq v28, v24
-    v30 = or v27, v29
-    v31 = iszero v30
-    panic_if v31, 0x41
-    v32 = add 0, v26
-    v33 = lt v32, 0
-    panic_if v33, 0x41
-    v34 = memory_object_load_element memoryarray<1>, v0, v24
-    v35 = and v34, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
-    memory_object_store_word memorybytes, v15, v32, v35
-    v36 = add v24, 1
-    jump bb1
+    v2 = abi_encode_packed (array<function> memoryarray<1> v0)
+    ret v2
 }
 
 fn @memoryStructToStorage(arg0: u256) -> u256 [selector=0xb4caea8f, abi_params=[u256], abi_returns=[word]] {

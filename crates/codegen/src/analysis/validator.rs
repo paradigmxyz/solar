@@ -42,8 +42,8 @@
 use crate::{
     analysis::CfgInfo,
     mir::{
-        BlockId, Function, FunctionId, InstId, InstKind, MemoryObjectKind, MirPhase, MirType,
-        Module, Value, ValueId,
+        BlockId, Function, FunctionId, InstId, InstKind, MemoryObjectKind, MemoryObjectLayout,
+        MirPhase, MirType, Module, SliceLocation, Value, ValueId,
     },
 };
 use alloy_primitives::U256;
@@ -835,6 +835,83 @@ impl<'a> Validator<'a> {
                         self.emit_at_inst("require payload has incompatible arguments", block, id);
                     }
                 }
+                if let InstKind::AbiEncodePacked { parts, hash } = &func.inst(id).kind {
+                    for part in parts {
+                        let valid = match part {
+                            crate::mir::PackedPart::Literal(_) => true,
+                            crate::mir::PackedPart::Scalar { value, ty } => {
+                                matches!(
+                                    ty,
+                                    MirType::UInt(_)
+                                        | MirType::Int(_)
+                                        | MirType::FixedBytes(_)
+                                        | MirType::Address
+                                        | MirType::Bool
+                                        | MirType::Function
+                                ) && ty.type_size().is_some_and(|size| size.bytes() != 0)
+                                    && func.value_ty(*value).is_some_and(|ty| {
+                                        ty.is_word() && !matches!(ty, MirType::MemoryObject(_))
+                                    })
+                            }
+                            crate::mir::PackedPart::Bytes(value) => matches!(
+                                func.value_ty(*value),
+                                Some(
+                                    MirType::MemoryObject(MemoryObjectKind::Bytes)
+                                        | MirType::MemPtr
+                                        | MirType::UInt(_)
+                                        | MirType::Slice(
+                                            SliceLocation::Memory | SliceLocation::Calldata
+                                        )
+                                )
+                            ),
+                            crate::mir::PackedPart::Array { value, element, source } => {
+                                !hash
+                                    && crate::mir::packed_element_bytes(element).is_some()
+                                    && match source {
+                                        crate::mir::PackedArraySource::Memory { layout } => {
+                                            matches!(
+                                                layout,
+                                                MemoryObjectLayout::DynamicArray { .. }
+                                                    | MemoryObjectLayout::FixedArray { .. }
+                                            ) && match func.value_ty(*value) {
+                                                Some(MirType::MemoryObject(kind)) => {
+                                                    kind == layout.kind()
+                                                }
+                                                Some(MirType::MemPtr | MirType::UInt(_)) => true,
+                                                _ => false,
+                                            }
+                                        }
+                                        crate::mir::PackedArraySource::Slice(location) => {
+                                            matches!(
+                                                location,
+                                                SliceLocation::Memory | SliceLocation::Calldata
+                                            ) && func.value_ty(*value)
+                                                == Some(MirType::Slice(*location))
+                                        }
+                                    }
+                            }
+                        };
+                        if !valid {
+                            self.emit_at_inst(
+                                "packed encoding input has an incompatible shape",
+                                block,
+                                id,
+                            );
+                        }
+                    }
+                    let result = if *hash {
+                        MirType::bytes32()
+                    } else {
+                        MirType::MemoryObject(MemoryObjectKind::Bytes)
+                    };
+                    if func.inst(id).result_ty != Some(result) {
+                        self.emit_at_inst(
+                            "packed encoding has an incompatible result type",
+                            block,
+                            id,
+                        );
+                    }
+                }
                 if let InstKind::Concat(parts) = &func.inst(id).kind {
                     for part in parts {
                         let valid = match part {
@@ -1119,7 +1196,7 @@ impl<'a> Validator<'a> {
     }
 
     /// Checks that the module's content satisfies its declared
-    /// [`MirPhase`](crate::mir::MirPhase), so
+    /// [`MirPhase`], so
     /// the phase is a real contract rather than a label.
     fn validate_module_phase(&mut self, module: &Module, phase: MirPhase) {
         // From the `dispatch` phase on, routing is materialized: a module with

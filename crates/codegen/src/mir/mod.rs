@@ -16,6 +16,9 @@ pub(crate) use abi::{
     AbiType, AbiWordValidator,
 };
 
+mod packed;
+pub(crate) use packed::{PackedArraySource, PackedPart, packed_element_bytes};
+
 mod storage;
 pub use storage::{StorageField, StorageLayout, StorageLayoutRef};
 

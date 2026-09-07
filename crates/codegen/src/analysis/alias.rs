@@ -910,6 +910,9 @@ impl AliasAnalysis {
                         _ => true,
                     }
             }
+            InstKind::AbiEncodePacked { parts, .. } => parts.iter().any(|part| {
+                matches!(part, crate::mir::PackedPart::Scalar { value, .. } if *value == operand)
+            }),
             InstKind::AbiEncode { args, layout, .. } => args
                 .iter()
                 .zip(layout.types.iter())
@@ -1153,7 +1156,8 @@ impl AliasAnalysis {
                     write_memory(&mut effects, ptr, size);
                 }
             }
-            InstKind::Concat(..)
+            InstKind::AbiEncodePacked { .. }
+            | InstKind::Concat(..)
             | InstKind::Sha256(..)
             | InstKind::Ripemd160(..)
             | InstKind::EcRecover(..) => {

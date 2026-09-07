@@ -444,13 +444,8 @@ fn @dirtyEnumPacked() -> memorybytes [selector=0x1193687a, pure, abi_params=[], 
     v0 = lt 2, 2
     v1 = iszero v0
     panic_if v1, 0x21
-    v2 = not 31
-    v3 = and 64, v2
-    v4 = alloc memorybytes, exact, uninitialized, infallible, v3
-    set_memory_object_len memorybytes, v4, 1
-    v5 = shl 248, 2
-    memory_object_store_word memorybytes, v4, 0, v5
-    ret v4
+    v2 = abi_encode_packed (u8 2)
+    ret v2
 }
 
 fn @dirtyEnumPackedArray() -> memorybytes [selector=0x4cd1ded8, pure, abi_params=[], abi_returns=[memory_bytes]] {
@@ -458,35 +453,8 @@ fn @dirtyEnumPackedArray() -> memorybytes [selector=0x4cd1ded8, pure, abi_params
     v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
     memory_zero v0, 32
     mstore v0, 2
-    v1 = not 31
-    v2 = and 95, v1
-    v3 = alloc memorybytes, exact, uninitialized, infallible, v2
-    set_memory_object_len memorybytes, v3, 32
-    jump bb1
-  bb1:
-    v4 = phi [bb0: 0], [bb2: v17]
-    v5 = lt v4, 1
-    jumpi v5, bb2, bb3
-  bb3:
-    ret v3
-  bb2:
-    v6 = mul v4, 32
-    v7 = iszero 32
-    v8 = div v6, 32
-    v9 = eq v8, v4
-    v10 = or v7, v9
-    v11 = iszero v10
-    panic_if v11, 0x41
-    v12 = add 0, v6
-    v13 = lt v12, 0
-    panic_if v13, 0x41
-    v14 = memory_object_load_element memoryfixedarray<1, 1>, v0, v4
-    v15 = lt v14, 2
-    v16 = iszero v15
-    panic_if v16, 0x21
-    memory_object_store_word memorybytes, v3, v12, v14
-    v17 = add v4, 1
-    jump bb1
+    v1 = abi_encode_packed (array<word<enum 2>> memoryfixedarray<1, 1> v0)
+    ret v1
 }
 
 fn @dirtyEnumNested() -> memorybytes [selector=0xb5dac01b, pure, abi_params=[], abi_returns=[memory_bytes]] {
@@ -514,13 +482,8 @@ fn @dirtyBoolPacked() -> memorybytes [selector=0x09c9026f, pure, abi_params=[], 
   bb0:
     v0 = eq 2, 0
     v1 = iszero v0
-    v2 = not 31
-    v3 = and 64, v2
-    v4 = alloc memorybytes, exact, uninitialized, infallible, v3
-    set_memory_object_len memorybytes, v4, 1
-    v5 = shl 248, v1
-    memory_object_store_word memorybytes, v4, 0, v5
-    ret v4
+    v2 = abi_encode_packed (u8 v1)
+    ret v2
 }
 
 fn @dynamicShort(arg0: u256) -> bool [selector=0x73932459, view, abi_params=[u256], abi_returns=[word<bool>]] {

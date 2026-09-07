@@ -72,15 +72,19 @@ Keep source functions and compiler intrinsics distinct, and retain callee-derive
 return signatures for ordinary calls.
 
 ABI encoding/decoding, aggregate copies, memory-object accesses, abstract
-allocations, checked arithmetic, concatenation, and precompiles follow this
+allocations, checked arithmetic, packed encoding, concatenation, and precompiles follow this
 approach. `lower-arithmetic` expands checked word operations and exponentiation
-loops. `lower-builtins` expands precompile buffers/calls and concatenation copies.
+loops. `lower-builtins` expands precompile buffers/calls, concatenation copies, and packed
+encoding. Packed arguments retain scalar widths and owned array layouts; length
+reads and packing loops run after argument evaluation. Both bytes results and
+scratch hashes share the encoder.
 `lower-checks` expands typed panic and revert checks into branches and shared
 payloads, preserving source origins and the selected debug revert strings.
 Require keeps evaluated payload arguments in MIR and encodes them only on failure.
 Payload reads retain prior memory stores, including stores to nested child objects.
 Range-based check elimination learns facts from these operations before expansion;
-constant checks fold only when they pass. Revert outlining runs after expansion.
+constant checks fold only when they pass. Revert outlining runs after check and
+builtin expansion, before checked arithmetic expands.
 Jump threading collapses a phi-only branch when a single unconditional predecessor
 remains and the phi has no outside uses, exposing nested short-circuit checks
 without another pipeline iteration.

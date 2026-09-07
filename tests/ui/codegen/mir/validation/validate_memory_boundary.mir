@@ -118,3 +118,10 @@ fn @unlowered_payload(arg0: u256) {
     require arg0, empty_string
     ret
 }
+
+//~? ERROR: [fn15] [bb0, inst0] builtin instruction `keccak256_packed` survives the `lowered` phase boundary
+fn @unlowered_packed() -> bytes32 {
+  bb0:
+    v0 = keccak256_packed (data hex"abcd")
+    ret v0
+}

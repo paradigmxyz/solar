@@ -2166,6 +2166,57 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let rhs = self.parse_value(builder)?;
                 (InstKind::CheckedBinary { op, arithmetic, lhs, rhs }, Some(MirType::uint256()))
             }
+            sym::abi_encode_packed | sym::keccak256_packed => {
+                self.parser.expect(TokenKind::OpenDelim(Delimiter::Parenthesis))?;
+                let mut parts = Vec::new();
+                while !self.parser.check(TokenKind::CloseDelim(Delimiter::Parenthesis)) {
+                    let name = self.parser.parse_ident()?;
+                    let part = match name {
+                        sym::data => super::PackedPart::Literal(self.parser.parse_data_bytes()?),
+                        kw::Bytes => super::PackedPart::Bytes(self.parse_value(builder)?),
+                        sym::array => {
+                            self.parser.expect(TokenKind::Lt)?;
+                            let element = self.parse_abi_type()?;
+                            self.expect_gt()?;
+                            let source_name = self.parser.parse_ident()?;
+                            let source = match source_name {
+                                kw::Memory => {
+                                    super::PackedArraySource::Slice(SliceLocation::Memory)
+                                }
+                                kw::Calldata => {
+                                    super::PackedArraySource::Slice(SliceLocation::Calldata)
+                                }
+                                _ => super::PackedArraySource::Memory {
+                                    layout: self.parse_memory_object_layout(source_name)?,
+                                },
+                            };
+                            super::PackedPart::Array {
+                                value: self.parse_value(builder)?,
+                                element,
+                                source,
+                            }
+                        }
+                        _ => super::PackedPart::Scalar {
+                            ty: self.parse_type_from_ident(name)?,
+                            value: self.parse_value(builder)?,
+                        },
+                    };
+                    parts.push(part);
+                    if !self.parser.eat(TokenKind::Comma) {
+                        break;
+                    }
+                }
+                self.parser.expect(TokenKind::CloseDelim(Delimiter::Parenthesis))?;
+                let hash = mnemonic == sym::keccak256_packed;
+                (
+                    InstKind::AbiEncodePacked { parts: parts.into_boxed_slice(), hash },
+                    Some(if hash {
+                        MirType::bytes32()
+                    } else {
+                        MirType::MemoryObject(MemoryObjectKind::Bytes)
+                    }),
+                )
+            }
             sym::concat => {
                 self.parser.expect(TokenKind::OpenDelim(Delimiter::Parenthesis))?;
                 let mut parts = Vec::new();

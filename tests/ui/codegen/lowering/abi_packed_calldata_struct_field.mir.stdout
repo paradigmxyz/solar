@@ -35,38 +35,16 @@ fn @pack(arg0: calldataslice) -> memorybytes [selector=0xc917a597, pure, abi_par
     v25 = sub v24, v22
     v26 = sgt v21, v25
     revert_if v26, calldata_tail_too_short
-    v27 = slice_len v20
-    v28 = add 0, v27
-    v29 = lt v28, 0
-    panic_if v29, 0x41
-    v30 = slice_ptr arg0
-    v31 = add v30, 0
-    v32 = calldataload v31
-    v33 = and v32, 0xffffffffffffffffffffffffffffffffffffffff
-    v34 = eq v32, v33
-    v35 = iszero v34
-    revert_if v35, empty
-    v36 = and v32, 0xffffffffffffffffffffffffffffffffffffffff
-    v37 = add v28, 20
-    v38 = lt v37, v28
-    panic_if v38, 0x41
-    v39 = add v37, 63
-    v40 = lt v39, v37
-    panic_if v40, 0x41
-    v41 = not 31
-    v42 = and v39, v41
-    v43 = alloc memorybytes, exact, uninitialized, infallible, v42
-    set_memory_object_len memorybytes, v43, v37
-    memory_object_copy_from_slice_at memorybytes, v43, 0, v20
-    v44 = add 0, v27
-    v45 = lt v44, 0
-    panic_if v45, 0x41
-    v46 = shl 96, v36
-    memory_object_store_word memorybytes, v43, v44, v46
-    v47 = add v44, 20
-    v48 = lt v47, v44
-    panic_if v48, 0x41
-    ret v43
+    v27 = slice_ptr arg0
+    v28 = add v27, 0
+    v29 = calldataload v28
+    v30 = and v29, 0xffffffffffffffffffffffffffffffffffffffff
+    v31 = eq v29, v30
+    v32 = iszero v31
+    revert_if v32, empty
+    v33 = and v29, 0xffffffffffffffffffffffffffffffffffffffff
+    v34 = abi_encode_packed (bytes v20, u160 v33)
+    ret v34
 }
 
 fn @packHash(arg0: calldataslice) -> bytes32 [selector=0x26915e91, pure, abi_params=[tuple<address, address, u256, u256, u48, bytes, bytes>], abi_returns=[word]] {
@@ -104,26 +82,14 @@ fn @packHash(arg0: calldataslice) -> bytes32 [selector=0x26915e91, pure, abi_par
     v25 = sub v24, v22
     v26 = sgt v21, v25
     revert_if v26, calldata_tail_too_short
-    v27 = slice_len v20
-    v28 = add 0, v27
-    v29 = slice_ptr arg0
-    v30 = add v29, 0
-    v31 = calldataload v30
-    v32 = and v31, 0xffffffffffffffffffffffffffffffffffffffff
-    v33 = eq v31, v32
-    v34 = iszero v33
-    revert_if v34, empty
-    v35 = and v31, 0xffffffffffffffffffffffffffffffffffffffff
-    v36 = add v28, 20
-    v37 = fmp
-    v38 = slice_len v20
-    v39 = slice_ptr v20
-    calldatacopy v37, v39, v38 !metadata(memory=heap)
-    v40 = add v37, v27
-    v41 = shl 96, v35
-    mstore v40, v41
-    v42 = add v40, 20
-    v43 = sub v42, v37
-    v44 = keccak256 v37, v43
-    ret v44
+    v27 = slice_ptr arg0
+    v28 = add v27, 0
+    v29 = calldataload v28
+    v30 = and v29, 0xffffffffffffffffffffffffffffffffffffffff
+    v31 = eq v29, v30
+    v32 = iszero v31
+    revert_if v32, empty
+    v33 = and v29, 0xffffffffffffffffffffffffffffffffffffffff
+    v34 = keccak256_packed (bytes v20, u160 v33)
+    ret v34
 }

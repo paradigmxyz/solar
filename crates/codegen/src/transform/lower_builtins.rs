@@ -1,8 +1,10 @@
-//! Expand semantic precompile builtins after optimization and before ABI and memory lowering.
+//! Expand semantic builtins after optimization and before revert outlining and ABI lowering.
 //!
 //! The frontend evaluates arguments and retains typed builtin identities. This pass materializes
 //! the precompile input/output buffers and target-version-specific call sequence. Allocation and
-//! memory operations remain semantic for the later layout and placement passes. Precompile calls
+//! memory operations remain semantic for the later layout and placement passes. Packed encoding
+//! emits array loops and overflow checks, repairing successor phi labels when it splits blocks.
+//! Revert outlining can then share builtin failure payloads. Precompile calls
 //! retain their returndata and memory observations even when their scalar result is unused.
 
 use crate::{
@@ -33,37 +35,35 @@ impl MirPass for LowerBuiltins {
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
         run_function_pass(module, analyses, |func, _| {
-            if !func.instructions().any(|id| {
-                matches!(
-                    func.inst(id).kind,
-                    InstKind::Concat(..)
-                        | InstKind::Sha256(..)
-                        | InstKind::Ripemd160(..)
-                        | InstKind::EcRecover(..)
-                )
-            }) {
+            if !func.instructions().any(|id| is_builtin(&func.inst(id).kind)) {
                 return false;
             }
             let mut replacements = FxHashMap::default();
             for block in func.blocks.indices() {
+                if !func.blocks[block]
+                    .instructions
+                    .iter()
+                    .any(|&id| is_builtin(&func.inst(id).kind))
+                {
+                    continue;
+                }
                 let instructions = std::mem::take(&mut func.blocks[block].instructions);
+                let (terminator, metadata) = func.blocks[block].take_terminator();
                 let mut builder = FunctionBuilder::new(func);
                 builder.switch_to_block(block);
                 for id in instructions {
-                    if !matches!(
-                        builder.func().inst(id).kind,
-                        InstKind::Concat(..)
-                            | InstKind::Sha256(..)
-                            | InstKind::Ripemd160(..)
-                            | InstKind::EcRecover(..)
-                    ) {
-                        builder.func_mut().blocks[block].instructions.push(id);
+                    if !is_builtin(&builder.func().inst(id).kind) {
+                        let current = builder.current_block();
+                        builder.func_mut().blocks[current].instructions.push(id);
                         continue;
                     }
                     let inst = builder.func().inst(id).clone();
                     builder.set_debug_context(&inst.metadata);
-                    // builtin(args) -> buffer setup; precompile call; result load
+                    // builtin(args) -> buffer setup; copies or precompile call; result
                     let result = match inst.kind {
+                        InstKind::AbiEncodePacked { parts, hash } => {
+                            super::lower_packed::lower_packed(&mut builder, parts, hash)
+                        }
                         InstKind::Concat(parts) => lower_concat(&mut builder, parts),
                         InstKind::Sha256(input) => {
                             lower_hash(&mut builder, gcx.sess.opts.evm_version, input, false)
@@ -80,11 +80,30 @@ impl MirPass for LowerBuiltins {
                         builder.func().inst_result_value(id).expect("builtin must produce a value");
                     replacements.insert(old, result);
                 }
+                // continuation: remaining instructions; original terminator
+                let end = builder.current_block();
+                if let Some(terminator) = terminator {
+                    builder.func_mut().blocks[end].set_terminator(terminator, metadata);
+                }
+                if end != block {
+                    super::utils::redirect_successor_predecessors(builder.func_mut(), block, end);
+                }
             }
             func.replace_uses_canonicalized(&replacements);
             true
         })
     }
+}
+
+fn is_builtin(kind: &InstKind) -> bool {
+    matches!(
+        kind,
+        InstKind::AbiEncodePacked { .. }
+            | InstKind::Concat(..)
+            | InstKind::Sha256(..)
+            | InstKind::Ripemd160(..)
+            | InstKind::EcRecover(..)
+    )
 }
 
 fn lower_hash(

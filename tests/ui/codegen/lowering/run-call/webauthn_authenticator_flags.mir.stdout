@@ -48,13 +48,8 @@ fn @auth() -> memorystruct [pure] {
     memory_object_store_field memorystruct<6>, v2, 0, memorybytes 96
     memory_object_store_field memorystruct<6>, v2, 1, memorybytes 96
     memory_object_store_field memorystruct<6>, v2, 0, v0
-    v3 = not 31
-    v4 = and 109, v3
-    v5 = alloc memorybytes, exact, uninitialized, infallible, v4
-    set_memory_object_len memorybytes, v5, 46
-    memory_object_store_word memorybytes, v5, 0, 0x7b252274797065223a22776562617574686e2e676574220ff9062c226368616c
-    memory_object_store_word memorybytes, v5, 32, 0x6c656e6765223a22466722d2df7d000000000000000000000000000000000000
-    memory_object_store_field memorystruct<6>, v2, 1, v5
+    v3 = abi_encode_packed (data hex"7b252274797065223a22776562617574686e2e676574220ff9062c226368616c6c656e6765223a22466722d2df7d")
+    memory_object_store_field memorystruct<6>, v2, 1, v3
     memory_object_store_field memorystruct<6>, v2, 2, 27
     memory_object_store_field memorystruct<6>, v2, 3, 2
     ret v2

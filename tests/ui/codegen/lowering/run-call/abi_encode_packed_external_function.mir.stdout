@@ -10,16 +10,11 @@ fn @matches() -> bool [selector=0x55590d58, view, abi_params=[], abi_returns=[wo
     v0 = address
     v1 = shl 32, v0
     v2 = or v1, 0xd4b83992
-    v3 = shl 64, v2
-    mstore 0, v3 !metadata(memory=scratch)
-    v4 = keccak256 0, 24 !metadata(memory=scratch)
-    v5 = address
-    v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffff
-    v7 = and 0xd4b8399200000000000000000000000000000000000000000000000000000000, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v8 = shl 96, v6
-    mstore 0, v8 !metadata(memory=scratch)
-    mstore 20, v7 !metadata(memory=scratch)
-    v9 = keccak256 0, 24 !metadata(memory=scratch)
-    v10 = eq v4, v9
-    ret v10
+    v3 = keccak256_packed (u192 v2)
+    v4 = address
+    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffff
+    v6 = and 0xd4b8399200000000000000000000000000000000000000000000000000000000, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v7 = keccak256_packed (u160 v5, bytes4 v6)
+    v8 = eq v3, v7
+    ret v8
 }

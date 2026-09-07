@@ -50,5 +50,7 @@ error: [fn13] [bb0, inst0] conditional check instruction `panic_if_zero` survive
 
 error: [fn14] [bb0, inst0] conditional check instruction `require` survives the `lowered` phase boundary
 
-error: aborting due to 26 previous errors
+error: [fn15] [bb0, inst0] builtin instruction `keccak256_packed` survives the `lowered` phase boundary
+
+error: aborting due to 27 previous errors
 

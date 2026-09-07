@@ -11,29 +11,8 @@ fn @slice(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [selector=
     v5 = sub arg2, arg1
     v6 = add v0, arg1
     v7 = make_calldata_slice v6, v5
-    v8 = slice_len v7
-    v9 = add 0, v8
-    v10 = lt v9, 0
-    panic_if v10, 0x41
-    v11 = add v9, 1
-    v12 = lt v11, v9
-    panic_if v12, 0x41
-    v13 = add v11, 63
-    v14 = lt v13, v11
-    panic_if v14, 0x41
-    v15 = not 31
-    v16 = and v13, v15
-    v17 = alloc memorybytes, exact, uninitialized, infallible, v16
-    set_memory_object_len memorybytes, v17, v11
-    memory_object_copy_from_slice_at memorybytes, v17, 0, v7
-    v18 = add 0, v8
-    v19 = lt v18, 0
-    panic_if v19, 0x41
-    memory_object_store_word memorybytes, v17, v18, 0x2100000000000000000000000000000000000000000000000000000000000000
-    v20 = add v18, 1
-    v21 = lt v20, v18
-    panic_if v21, 0x41
-    ret v17
+    v8 = abi_encode_packed (bytes v7, data hex"21")
+    ret v8
 }
 
 fn @all() -> memorybytes [selector=0x10c4e8b0, pure, abi_params=[], abi_returns=[memory_bytes]] {
@@ -48,20 +27,6 @@ fn @all() -> memorybytes [selector=0x10c4e8b0, pure, abi_params=[], abi_returns=
     v6 = sub v5, v3
     v7 = sgt v2, v6
     revert_if v7, calldata_tail_too_short
-    v8 = slice_len v1
-    v9 = add 0, v8
-    v10 = lt v9, 0
-    panic_if v10, 0x41
-    v11 = add v9, 63
-    v12 = lt v11, v9
-    panic_if v12, 0x41
-    v13 = not 31
-    v14 = and v11, v13
-    v15 = alloc memorybytes, exact, uninitialized, infallible, v14
-    set_memory_object_len memorybytes, v15, v9
-    memory_object_copy_from_slice_at memorybytes, v15, 0, v1
-    v16 = add 0, v8
-    v17 = lt v16, 0
-    panic_if v17, 0x41
-    ret v15
+    v8 = abi_encode_packed (bytes v1)
+    ret v8
 }

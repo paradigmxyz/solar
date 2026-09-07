@@ -17,57 +17,8 @@ fn @memoryEncode() -> memorybytes [selector=0xe39243fb, pure, abi_params=[], abi
     panic_if v5, 0x32
     v6 = shl 64, v2
     memory_object_store_element memoryarray<1>, v0, 0, v6
-    v7 = memory_object_len memoryarray, v0
-    v8 = mul v7, 32
-    v9 = iszero 32
-    v10 = div v8, 32
-    v11 = eq v10, v7
-    v12 = or v9, v11
-    v13 = iszero v12
-    panic_if v13, 0x41
-    v14 = add 0, v8
-    v15 = lt v14, 0
-    panic_if v15, 0x41
-    v16 = add v14, 63
-    v17 = lt v16, v14
-    panic_if v17, 0x41
-    v18 = not 31
-    v19 = and v16, v18
-    v20 = alloc memorybytes, exact, uninitialized, infallible, v19
-    set_memory_object_len memorybytes, v20, v14
-    v21 = mul v7, 32
-    v22 = iszero 32
-    v23 = div v21, 32
-    v24 = eq v23, v7
-    v25 = or v22, v24
-    v26 = iszero v25
-    panic_if v26, 0x41
-    v27 = add 0, v21
-    v28 = lt v27, 0
-    panic_if v28, 0x41
-    jump bb1
-  bb1:
-    v29 = phi [bb0: 0], [bb2: v41]
-    v30 = lt v29, v7
-    jumpi v30, bb2, bb3
-  bb3:
-    ret v20
-  bb2:
-    v31 = mul v29, 32
-    v32 = iszero 32
-    v33 = div v31, 32
-    v34 = eq v33, v29
-    v35 = or v32, v34
-    v36 = iszero v35
-    panic_if v36, 0x41
-    v37 = add 0, v31
-    v38 = lt v37, 0
-    panic_if v38, 0x41
-    v39 = memory_object_load_element memoryarray<1>, v0, v29
-    v40 = and v39, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
-    memory_object_store_word memorybytes, v20, v37, v40
-    v41 = add v29, 1
-    jump bb1
+    v7 = abi_encode_packed (array<function> memoryarray<1> v0)
+    ret v7
 }
 
 fn @encode(arg0: calldataslice) -> memorybytes [selector=0xea460cbb, pure, abi_params=[array<_, function>], abi_returns=[memory_bytes]] {
@@ -103,57 +54,8 @@ fn @encode(arg0: calldataslice) -> memorybytes [selector=0xea460cbb, pure, abi_p
     v21 = lt v20, v0
     jumpi v21, bb2, bb3
   bb3:
-    v36 = memory_object_len memoryarray, v19
-    v37 = mul v36, 32
-    v38 = iszero 32
-    v39 = div v37, 32
-    v40 = eq v39, v36
-    v41 = or v38, v40
-    v42 = iszero v41
-    panic_if v42, 0x41
-    v43 = add 0, v37
-    v44 = lt v43, 0
-    panic_if v44, 0x41
-    v45 = add v43, 63
-    v46 = lt v45, v43
-    panic_if v46, 0x41
-    v47 = not 31
-    v48 = and v45, v47
-    v49 = alloc memorybytes, exact, uninitialized, infallible, v48
-    set_memory_object_len memorybytes, v49, v43
-    v50 = mul v36, 32
-    v51 = iszero 32
-    v52 = div v50, 32
-    v53 = eq v52, v36
-    v54 = or v51, v53
-    v55 = iszero v54
-    panic_if v55, 0x41
-    v56 = add 0, v50
-    v57 = lt v56, 0
-    panic_if v57, 0x41
-    jump bb4
-  bb4:
-    v58 = phi [bb3: 0], [bb5: v70]
-    v59 = lt v58, v36
-    jumpi v59, bb5, bb6
-  bb6:
-    ret v49
-  bb5:
-    v60 = mul v58, 32
-    v61 = iszero 32
-    v62 = div v60, 32
-    v63 = eq v62, v58
-    v64 = or v61, v63
-    v65 = iszero v64
-    panic_if v65, 0x41
-    v66 = add 0, v60
-    v67 = lt v66, 0
-    panic_if v67, 0x41
-    v68 = memory_object_load_element memoryarray<1>, v19, v58
-    v69 = and v68, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
-    memory_object_store_word memorybytes, v49, v66, v69
-    v70 = add v58, 1
-    jump bb4
+    v36 = abi_encode_packed (array<function> memoryarray<1> v19)
+    ret v36
   bb2:
     v22 = mul v20, 32
     v23 = iszero 32
