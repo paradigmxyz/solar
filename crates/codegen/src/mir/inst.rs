@@ -695,6 +695,7 @@ impl Instruction {
             InstKind::CheckedBinary { .. } => Some("checked arithmetic"),
             InstKind::ValidateStorageBytes(..)
             | InstKind::StorageBytesLoad(..)
+            | InstKind::StorageArrayLoad { .. }
             | InstKind::StorageBytesStore(..)
             | InstKind::StorageClearWords(..)
             | InstKind::Erc7201(..)
@@ -1161,6 +1162,8 @@ pub(crate) enum InstKind {
     ValidateStorageBytes(ValueId),
     /// Materialize a Solidity storage bytes value as a fresh memory bytes object.
     StorageBytesLoad(ValueId),
+    /// Materialize a dynamic storage array of scalar words or bytes objects.
+    StorageArrayLoad { slot: ValueId, element: MirType, enum_variants: Option<u64> },
     /// Store a memory bytes object in Solidity storage, clearing unused old data words.
     StorageBytesStore(ValueId, ValueId),
     /// Clears hashed storage data words in the half-open range `first..end`.
@@ -1601,6 +1604,7 @@ impl InstKind {
             | Self::SetFmp(a)
             | Self::ValidateStorageBytes(a)
             | Self::StorageBytesLoad(a)
+            | Self::StorageArrayLoad { slot: a, .. }
             | Self::SLoad(a)
             | Self::TLoad(a)
             | Self::CalldataLoad(a)
@@ -1916,6 +1920,7 @@ impl InstKind {
             | Self::SetFmp(a)
             | Self::ValidateStorageBytes(a)
             | Self::StorageBytesLoad(a)
+            | Self::StorageArrayLoad { slot: a, .. }
             | Self::SLoad(a)
             | Self::TLoad(a)
             | Self::CalldataLoad(a)
@@ -2126,6 +2131,7 @@ impl InstKind {
             Self::MCopy(_, _, _) => "mcopy",
             Self::ValidateStorageBytes(_) => "validate_storage_bytes",
             Self::StorageBytesLoad(_) => "load_storage_bytes",
+            Self::StorageArrayLoad { .. } => "load_storage_array",
             Self::StorageBytesStore(..) => "store_storage_bytes",
             Self::StorageClearWords(..) => "clear_storage_words",
             Self::SLoad(_) => "sload",
@@ -2272,6 +2278,7 @@ impl InstKind {
             | Self::MemoryObjectFromPtr { .. }
             | Self::WordCast(_) => EffectKind::Pure,
             Self::StorageBytesLoad(..)
+            | Self::StorageArrayLoad { .. }
             | Self::Erc7201(..)
             | Self::AbiEncodePacked { .. }
             | Self::Concat(..)

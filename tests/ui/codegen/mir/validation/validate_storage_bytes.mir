@@ -35,3 +35,24 @@ fn @store_object(arg0: memoryarray) {
     store_storage_bytes 0, arg0
     ret
 }
+
+//~? ERROR: [fn5] [bb0, inst0] invalid storage array element type
+fn @array_element(arg0: u256) -> memoryarray {
+  bb0:
+    v0 = load_storage_array memoryarray, arg0
+    ret v0
+}
+
+//~? ERROR: [fn6] [bb0, inst0] invalid storage array enum type
+fn @array_enum(arg0: u256) -> memoryarray {
+  bb0:
+    v0 = load_storage_array enum<0>, arg0
+    ret v0
+}
+
+//~? ERROR: [fn7] [bb0, inst0] storage array load requires a word slot
+fn @array_slot(arg0: memorybytes) -> memoryarray {
+  bb0:
+    v0 = load_storage_array u256, arg0
+    ret v0
+}

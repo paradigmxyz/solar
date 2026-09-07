@@ -2242,6 +2242,25 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 (InstKind::Concat(parts), Some(MirType::MemoryObject(MemoryObjectKind::Bytes)))
             }
             sym::validate_storage_bytes => inst!(ValidateStorageBytes(a)),
+            sym::load_storage_array => {
+                let name = self.parser.parse_ident()?;
+                let (element, enum_variants) = if name == kw::Enum {
+                    self.parser.expect(TokenKind::Lt)?;
+                    let variants = self.parser.parse_uint()?.try_into().map_err(|_| {
+                        self.parser.error("storage enum variant count does not fit in u64")
+                    })?;
+                    self.expect_gt()?;
+                    (MirType::UInt(TypeSize::new_int_bits(8)), Some(variants))
+                } else {
+                    (self.parse_type_from_ident(name)?, None)
+                };
+                self.parser.expect(TokenKind::Comma)?;
+                let slot = self.parse_value(builder)?;
+                (
+                    InstKind::StorageArrayLoad { slot, element, enum_variants },
+                    Some(MirType::MemoryObject(MemoryObjectKind::DynamicArray)),
+                )
+            }
             sym::store_storage_bytes => inst!(StorageBytesStore(a, b)),
             sym::clear_storage_words => inst!(StorageClearWords(a, b, c)),
             sym::load_storage_bytes => {

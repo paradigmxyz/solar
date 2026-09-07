@@ -1132,6 +1132,7 @@ symbols! {
         literal,
         literal_bytes,
         literal_bytes_word,
+        load_storage_array,
         load_storage_bytes,
         load_storage_bytes_array,
         load_storage_packed_array,

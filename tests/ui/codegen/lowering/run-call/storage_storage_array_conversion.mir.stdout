@@ -553,36 +553,6 @@ fn @fixedToDynamic() -> u256 [selector=0xf12520ec, abi_params=[], abi_returns=[w
 
 fn @load_storage_packed_array_8_0(arg0: u256) -> memoryarray {
   bb0:
-    v0 = sload arg0 !metadata(storage=symbolic(arg0))
-    v1 = add v0, 1
-    v2 = lt v1, v0
-    panic_if v2, 0x41
-    v3 = mul v1, 32
-    v4 = iszero 32
-    v5 = div v3, 32
-    v6 = eq v5, v1
-    v7 = or v4, v6
-    v8 = iszero v7
-    panic_if v8, 0x41
-    v9 = alloc memoryarray<1>, exact, uninitialized, panic, v3
-    set_memory_object_len memoryarray, v9, v0
-    v10 = storage_array_data_slot arg0
-    jump bb1
-  bb1:
-    v11 = phi [bb0: 0], [bb2: v20]
-    v12 = lt v11, v0
-    jumpi v12, bb2, bb3
-  bb3:
-    ret v9
-  bb2:
-    v13 = shr 2, v11
-    v14 = and v11, 3
-    v15 = add v10, v13
-    v16 = sload v15 !metadata(storage=symbolic(v15))
-    v17 = shl 6, v14
-    v18 = shr v17, v16
-    v19 = and v18, 0xffffffffffffffff
-    memory_object_store_element memoryarray<1>, v9, v11, v19
-    v20 = add v11, 1
-    jump bb1
+    v0 = load_storage_array u64, arg0
+    ret v0
 }

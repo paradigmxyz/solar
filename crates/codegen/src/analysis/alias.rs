@@ -1156,7 +1156,7 @@ impl AliasAnalysis {
                     write_memory(&mut effects, ptr, size);
                 }
             }
-            InstKind::StorageBytesLoad(..) => {
+            InstKind::StorageBytesLoad(..) | InstKind::StorageArrayLoad { .. } => {
                 effects.read_any(AddressSpace::Storage);
                 effects.read_any(AddressSpace::Memory);
                 effects.write_any(AddressSpace::Memory);

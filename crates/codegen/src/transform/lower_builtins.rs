@@ -10,7 +10,7 @@
 use crate::{
     mir::{
         AllocationSemantics, ConcatPart, FunctionBuilder, InstKind, MemoryObjectKind,
-        MemoryObjectLayout, Module, PanicCode, SliceLocation, ValueId,
+        MemoryObjectLayout, MirType, Module, PanicCode, SliceLocation, ValueId,
     },
     pass::{MirPass, run_function_pass},
 };
@@ -35,15 +35,25 @@ impl MirPass for LowerBuiltins {
         module: &mut Module,
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> solar_interface::Result<bool> {
+        let mut needs_clear = false;
+        let mut needs_bytes = false;
+        for func in &module.functions {
+            for id in func.instructions() {
+                match func.inst(id).kind {
+                    InstKind::StorageBytesStore(..) => needs_clear = true,
+                    InstKind::StorageArrayLoad {
+                        element: MirType::MemoryObject(MemoryObjectKind::Bytes),
+                        ..
+                    } => needs_bytes = true,
+                    _ => {}
+                }
+            }
+        }
         // fn clear_storage_words(slot, first, end) { clear_storage_words slot, first, end; ret }
-        let clear_helper = module
-            .functions
-            .iter()
-            .any(|func| {
-                func.instructions()
-                    .any(|id| matches!(func.inst(id).kind, InstKind::StorageBytesStore(..)))
-            })
-            .then(|| super::lower_storage_bytes::add_clear_helper(module));
+        let clear_helper =
+            needs_clear.then(|| super::lower_storage_bytes::add_clear_helper(module));
+        // fn load_storage_bytes(slot) { object = load_storage_bytes slot; ret object }
+        let bytes_helper = needs_bytes.then(|| super::lower_storage_bytes::add_load_helper(module));
         Ok(run_function_pass(module, analyses, |func, _| {
             if !func.instructions().any(|id| is_builtin(&func.inst(id).kind)) {
                 return false;
@@ -110,6 +120,15 @@ impl MirPass for LowerBuiltins {
                                 builder.mulmod(a, b, modulus)
                             }
                         }
+                        InstKind::StorageArrayLoad { slot, element, enum_variants } => {
+                            super::lower_storage_arrays::load(
+                                &mut builder,
+                                slot,
+                                element,
+                                enum_variants,
+                                bytes_helper,
+                            )
+                        }
                         InstKind::StorageBytesLoad(slot) => {
                             super::lower_storage_bytes::load(&mut builder, slot)
                         }
@@ -150,6 +169,7 @@ fn is_builtin(kind: &InstKind) -> bool {
         kind,
         InstKind::ValidateStorageBytes(..)
             | InstKind::StorageBytesLoad(..)
+            | InstKind::StorageArrayLoad { .. }
             | InstKind::StorageBytesStore(..)
             | InstKind::StorageClearWords(..)
             | InstKind::Erc7201(..)

@@ -555,6 +555,15 @@ fn display_inst_kind<'a>(
             display_val(*source, func),
             display_val(*length, func)
         ),
+        InstKind::StorageArrayLoad { slot, element, enum_variants } => {
+            write!(f, "load_storage_array ")?;
+            if let Some(variants) = enum_variants {
+                write!(f, "enum<{variants}>")?;
+            } else {
+                write!(f, "{element}")?;
+            }
+            write!(f, ", {}", display_val(*slot, func))
+        }
         InstKind::StorageArrayElementSlot { slot, index, element_slots } => write!(
             f,
             "storage_array_element_slot {}, {}, {element_slots}",

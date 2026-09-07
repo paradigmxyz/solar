@@ -90,6 +90,10 @@ memory bytes objects retain header validation, tail clearing, and copying as
 one storage-writing operation that reads the source object. Expansion shares
 one clear helper; the later function merge pass also combines it with an
 existing clear helper from constant assignments when their bodies match.
+Dynamic storage-array loads retain scalar element widths, signed/fixed-bytes
+encoding, enum bounds, and bytes-element identity. Conversion allocates and
+copies the array, sharing the bytes loader across bytes elements and direct
+loads. Nested array and struct layouts still use their existing lowering paths.
 Storage promotion uses shared read/write effects to reject opaque accesses
 it cannot redirect through promoted values.
 `lower-checks` expands typed panic and revert checks into branches and shared

@@ -138,3 +138,11 @@ fn @storage_clear(arg0: u256, arg1: u256) {
     clear_storage_words arg0, 1, arg1
     ret
 }
+
+// CHECK-LABEL: fn @unused_storage_array
+// CHECK: {{^[ +].*}}load_storage_array enum<3>, arg0
+fn @unused_storage_array(arg0: u256) {
+  bb0:
+    v0 = load_storage_array enum<3>, arg0
+    ret
+}

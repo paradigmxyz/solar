@@ -8,5 +8,11 @@ error: [fn3] [bb0, inst0] storage bytes store requires a word slot
 
 error: [fn4] [bb0, inst0] storage bytes store requires a bytes object
 
-error: aborting due to 5 previous errors
+error: [fn5] [bb0, inst0] invalid storage array element type
+
+error: [fn6] [bb0, inst0] invalid storage array enum type
+
+error: [fn7] [bb0, inst0] storage array load requires a word slot
+
+error: aborting due to 8 previous errors
 

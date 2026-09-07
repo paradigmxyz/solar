@@ -43,7 +43,7 @@ use crate::{
     analysis::CfgInfo,
     mir::{
         BlockId, Function, FunctionId, InstId, InstKind, MemoryObjectKind, MemoryObjectLayout,
-        MirPhase, MirType, Module, SliceLocation, Value, ValueId,
+        MirPhase, MirType, Module, SliceLocation, TypeSize, Value, ValueId,
     },
 };
 use alloy_primitives::U256;
@@ -1020,6 +1020,37 @@ impl<'a> Validator<'a> {
                         if func.inst(id).result_ty != Some(MirType::uint256()) {
                             self.emit_at_inst(
                                 "checked arithmetic requires a u256 result",
+                                block,
+                                id,
+                            );
+                        }
+                    }
+                    InstKind::StorageArrayLoad { slot, element, enum_variants } => {
+                        if func.value_ty(slot).is_none_or(|ty| {
+                            !ty.is_word() || matches!(ty, MirType::MemoryObject(_))
+                        }) {
+                            self.emit_at_inst("storage array load requires a word slot", block, id);
+                        }
+                        if !matches!(
+                            element,
+                            MirType::UInt(_)
+                                | MirType::Int(_)
+                                | MirType::FixedBytes(_)
+                                | MirType::MemoryObject(MemoryObjectKind::Bytes)
+                        ) {
+                            self.emit_at_inst("invalid storage array element type", block, id);
+                        }
+                        if let Some(variants) = enum_variants
+                            && (!(1..=256).contains(&variants)
+                                || element != MirType::UInt(TypeSize::new_int_bits(8)))
+                        {
+                            self.emit_at_inst("invalid storage array enum type", block, id);
+                        }
+                        if func.inst(id).result_ty
+                            != Some(MirType::MemoryObject(MemoryObjectKind::DynamicArray))
+                        {
+                            self.emit_at_inst(
+                                "storage array load requires an array result",
                                 block,
                                 id,
                             );

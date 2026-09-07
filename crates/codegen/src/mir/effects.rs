@@ -65,6 +65,7 @@ impl InstKind {
         let control = match self {
             Self::ValidateStorageBytes(..)
             | Self::StorageBytesLoad(..)
+            | Self::StorageArrayLoad { .. }
             | Self::StorageBytesStore(..)
             | Self::ValidateAbi(..)
             | Self::CheckedAddMod(..)
@@ -243,6 +244,7 @@ impl InstKind {
                     | Self::AbiEncodePacked { .. }
                     | Self::StorageToMemory { .. }
                     | Self::StorageBytesLoad(..)
+                    | Self::StorageArrayLoad { .. }
                     | Self::Concat(..)
             ),
         }

@@ -11,8 +11,8 @@
 //! leave allocation and memory layout decisions to the later conversion passes.
 
 use crate::mir::{
-    AllocationSemantics, Function, FunctionBuilder, FunctionId, MemoryObjectKind, MirType, Module,
-    PanicCode, SliceLocation, ValueId,
+    AllocationSemantics, Function, FunctionBuilder, FunctionId, InstKind, MemoryObjectKind,
+    MirType, Module, PanicCode, SliceLocation, ValueId,
 };
 use alloy_primitives::U256;
 use solar_interface::{Ident, sym};
@@ -112,6 +112,18 @@ pub(super) fn clear_words(
     builder.add_phi_incoming(index, backedge, next);
     builder.add_phi_incoming(element_slot, backedge, next_slot);
     builder.switch_to_block(exit);
+}
+
+pub(super) fn add_load_helper(module: &mut Module) -> FunctionId {
+    // fn load_storage_bytes(slot) { object = load_storage_bytes slot; ret object }
+    let mut function = Function::new(Ident::with_dummy_span(sym::load_storage_bytes));
+    let mut builder = FunctionBuilder::new_semantic(&mut function);
+    let slot = builder.add_param(MirType::uint256());
+    let ty = MirType::MemoryObject(MemoryObjectKind::Bytes);
+    builder.add_return(ty);
+    let object = builder.emit_inst(InstKind::StorageBytesLoad(slot), Some(ty));
+    builder.ret([object]);
+    module.add_function(function)
 }
 
 pub(super) fn add_clear_helper(module: &mut Module) -> FunctionId {

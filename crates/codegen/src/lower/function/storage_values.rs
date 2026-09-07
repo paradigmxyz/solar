@@ -2,13 +2,6 @@
 
 use super::*;
 
-#[derive(Clone, Copy)]
-enum StorageArrayElement {
-    Bytes(FunctionId),
-    Word,
-    Packed { bytes: u8, encoding: StorageEncoding, enum_variants: Option<u64> },
-}
-
 /// Builds the helper for decoding one storage `bytes`/`string` slot.
 fn build_storage_bytes_helper(function: &mut Function) {
     // load_storage_bytes(slot) -> bytes_object
@@ -22,72 +15,19 @@ fn build_storage_bytes_helper(function: &mut Function) {
     builder.ret([object]);
 }
 
-fn build_storage_array_helper(function: &mut Function, element: StorageArrayElement) {
-    // length = sload(slot)
-    // array = alloc_dynamic_array(length); set_length(array, length)
-    // data_slot = storage_array_data_slot(slot)
-    // for i < length { array[i] = load/unpack(data_slot, i) }
+fn build_storage_array_helper(
+    function: &mut Function,
+    element: MirType,
+    enum_variants: Option<u64>,
+) {
+    // object = load_storage_array element, slot; ret object
     let mut builder = FunctionBuilder::new_semantic(function);
     let slot = builder.add_param(MirType::uint256());
-    builder.add_return(MirType::MemoryObject(MemoryObjectKind::DynamicArray));
-
-    let length = builder.sload(slot);
-    let (object, layout) =
-        builder.alloc_dynamic_word_array(length, AllocationSemantics::SOLIDITY_UNINITIALIZED);
-
-    let data_slot = builder.storage_array_data_slot(slot);
-    builder.counted_loop(length, |builder, index| {
-        let value = match element {
-            StorageArrayElement::Bytes(helper) => {
-                let element_slot = builder.add(data_slot, index);
-                builder.icall(
-                    helper,
-                    vec![element_slot],
-                    MirType::MemoryObject(MemoryObjectKind::Bytes),
-                )
-            }
-            StorageArrayElement::Word => {
-                let element_slot = builder.add(data_slot, index);
-                builder.sload(element_slot)
-            }
-            StorageArrayElement::Packed { bytes, encoding, enum_variants } => {
-                let value =
-                    load_packed_storage_array_element(builder, data_slot, index, bytes, encoding);
-                if let Some(variants) = enum_variants {
-                    builder.validate_enum_value(variants, value);
-                }
-                value
-            }
-        };
-        builder.memory_object_store_element(object, layout, index, value);
-    });
+    let ty = MirType::MemoryObject(MemoryObjectKind::DynamicArray);
+    builder.add_return(ty);
+    let object =
+        builder.emit_inst(InstKind::StorageArrayLoad { slot, element, enum_variants }, Some(ty));
     builder.ret([object]);
-}
-
-fn load_packed_storage_array_element(
-    builder: &mut FunctionBuilder<'_>,
-    data_slot: ValueId,
-    index: ValueId,
-    bytes: u8,
-    encoding: StorageEncoding,
-) -> ValueId {
-    // per_slot = 32 / bytes
-    // storage_slot = data_slot + index / per_slot
-    // shift = (index % per_slot) * bytes * 8
-    // value = decode(sload(storage_slot), shift, encoding)
-    let (slot_index, index_in_slot) = packed_storage_array_position(builder, index, bytes);
-    let storage_slot = builder.add(data_slot, slot_index);
-    let word = builder.sload(storage_slot);
-    let byte_shift = u64::from(bytes) * 8;
-    let shift = if byte_shift.is_power_of_two() {
-        let shift = builder.imm(u64::from(byte_shift.trailing_zeros()));
-        builder.shl(shift, index_in_slot)
-    } else {
-        let byte_shift = builder.imm(byte_shift);
-        builder.mul(index_in_slot, byte_shift)
-    };
-    let size = TypeSize::new_int_bits(u16::from(bytes) * 8);
-    StorageLocation::packed_word(size, encoding).load_word(builder, word, Some(shift))
 }
 
 fn packed_storage_array_position(
@@ -1065,9 +1005,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             )
         ) {
             let helper = self
-                .lazy_helper(sym::load_storage_bytes_array, |this, function| {
-                    let bytes_helper = this.ensure_storage_bytes_helper();
-                    build_storage_array_helper(function, StorageArrayElement::Bytes(bytes_helper));
+                .lazy_helper(sym::load_storage_bytes_array, |_, function| {
+                    build_storage_array_helper(
+                        function,
+                        MirType::MemoryObject(MemoryObjectKind::Bytes),
+                        None,
+                    );
                     Some(())
                 })
                 .expect("storage bytes array helper construction cannot fail");
@@ -1102,7 +1045,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 .lazy_helper(name, |_, function| {
                     build_storage_array_helper(
                         function,
-                        StorageArrayElement::Packed { bytes, encoding, enum_variants },
+                        match encoding {
+                            StorageEncoding::Unsigned => MirType::UInt(size),
+                            StorageEncoding::Signed => MirType::Int(size),
+                            StorageEncoding::FixedBytes => MirType::FixedBytes(size),
+                        },
+                        enum_variants,
                     );
                     Some(())
                 })
@@ -1115,7 +1063,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         {
             let helper = self
                 .lazy_helper(sym::load_storage_word_array, |_, function| {
-                    build_storage_array_helper(function, StorageArrayElement::Word);
+                    build_storage_array_helper(function, MirType::uint256(), None);
                     Some(())
                 })
                 .expect("storage word array helper construction cannot fail");
