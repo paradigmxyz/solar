@@ -1,0 +1,72 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_entry_prefix.sol:TerminalTailEntryPrefix (runtime) ===
+@module TerminalTailEntryPrefix_runtime
+bb0 [cold]:
+  push 256
+  push 64
+  mstore
+  callvalue
+  jumpi bb15, bb12
+bb12 [cold]:
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x31c6612a
+  eq
+  jumpi bb18, bb17
+bb17 [cold]:
+  push 0xc883d211
+  sub
+  jumpi bb15, bb5
+bb5 [cold]:
+  calldatasize
+  push 36
+  gt
+  jumpi bb6, bb7
+bb7 [cold]:
+  push 5
+  push 0
+  mstore
+  msize
+  push 0
+  lt
+  push 4
+  calldataload
+  swap 1
+  jump bb9
+bb2 [cold]:
+  push 0
+  push 0
+  revert
+bb6 [cold]:
+  push 0
+  push 0
+  revert
+bb15 [cold]:
+  push 0
+  push 0
+  revert
+bb18 [cold]:
+  pop
+  calldatasize
+  push 36
+  gt
+  jumpi bb2, bb3
+bb3 [cold]:
+  gas
+  push 0
+  lt
+  push 4
+  calldataload
+  swap 1
+  jump bb9
+bb9 [cold]:
+  push 0
+  exchange 1, 2
+  mstore
+  push 32
+  mstore
+  push 64
+  push 0
+  revert

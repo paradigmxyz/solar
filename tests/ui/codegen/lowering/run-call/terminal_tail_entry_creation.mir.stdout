@@ -1,0 +1,36 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_entry_creation.sol:TerminalTailEntryCreation ===
+@module TerminalTailEntryCreation
+fn @constructor(arg0: bool, arg1: u256) [constructor, abi_params=[bool, u256]] {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    icall @fail, 0, arg1
+    jump bb3
+  bb3:
+    stop
+}
+
+fn @ping() -> u256 [selector=0x5c36b186, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    ret 7
+}
+
+fn @run(arg0: u256) [selector=0xa444f5e9, pure, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    icall @fail, 0, arg0
+    stop
+}
+
+fn @other(arg0: u256) [selector=0x369984d6, pure, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    icall @fail, 0, arg0
+    stop
+}
+
+fn @fail(arg0: u256) [pure] {
+  bb0:
+    mstore 0, arg0 !metadata(memory=scratch)
+    revert 0, 32
+}
