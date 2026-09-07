@@ -6,7 +6,7 @@ use std::sync::atomic::AtomicBool;
 
 #[tokio::test(flavor = "current_thread")]
 async fn dependency_references_survive_closing_arbitrary_project_sources() {
-    for foundry in [false, true] {
+    for (foundry, created_later) in [(false, false), (true, false), (false, true), (true, true)] {
         let marked = MarkedProject::from_fixture(
             r#"
         //- /foundry.toml
@@ -27,9 +27,18 @@ async fn dependency_references_survive_closing_arbitrary_project_sources() {
         if !foundry {
             project.remove_file("/foundry.toml");
         }
+        let caller_source = project.read_file("/checks/Main.sol");
+        if created_later {
+            project.remove_file("/checks/Main.sol");
+            std::fs::remove_dir(project.path("/checks")).unwrap();
+        }
         let uri = Url::from_file_path(project.path("/lib/forge-std/src/Base.sol")).unwrap();
         let mut state = GlobalState::new(ClientSocket::new_closed());
         state.config = Arc::new(project.config());
+        if created_later {
+            // No watcher notification: the editor is how we discover this new file.
+            project.write_file("/checks/Main.sol", &caller_source);
+        }
         let _ = handlers::did_open_text_document(
             &mut state,
             DidOpenTextDocumentParams {
@@ -55,7 +64,7 @@ async fn dependency_references_survive_closing_arbitrary_project_sources() {
                 Range::new(position, Position::new(position.line, position.character + 2)),
             )
         });
-        assert_eq!(references, expected);
+        assert_eq!(references, if created_later { &expected[1..] } else { &expected[..] });
 
         let test_uri = Url::from_file_path(project.path("/checks/Main.sol")).unwrap();
         let _ = handlers::did_open_text_document(
@@ -122,6 +131,13 @@ async fn dependency_references_survive_closing_arbitrary_project_sources() {
                 expected
             );
         }
+        assert!(
+            state
+                .config
+                .watched_file_specs()
+                .iter()
+                .any(|spec| { spec.base == project.path("/checks") && spec.pattern == "**/*.sol" })
+        );
     }
 }
 

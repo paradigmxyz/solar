@@ -182,6 +182,44 @@ fn will_delete_returns_import_edits_without_default_foundry_flycheck_roots() {
 }
 
 #[test]
+fn file_import_edits_ignore_project_metadata_and_dependency_roots() {
+    for ignored in [".git/config", "lib/Unused.sol", "out/Generated.sol"] {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /foundry.toml
+            [profile.default]
+            //- /checks/Importer.sol
+            import "../src/Target.sol";
+            //- /src/Target.sol
+            contract Target {}
+            "#,
+        );
+        project.write_file(&format!("/{ignored}"), "contract Ignored {}");
+        let mut state = state(&project);
+        let uri = Url::from_file_path(project.path("/src/Target.sol")).unwrap();
+        let deleted = block_on(crate::handlers::will_delete_files(
+            &mut state,
+            DeleteFilesParams { files: vec![FileDelete { uri: uri.to_string() }] },
+        ))
+        .unwrap();
+        assert!(deleted.is_some(), "{ignored} must not suppress project import edits");
+        let renamed = block_on(crate::handlers::will_rename_files(
+            &mut state,
+            RenameFilesParams {
+                files: vec![FileRename {
+                    old_uri: uri.to_string(),
+                    new_uri: Url::from_file_path(project.path("/src/Renamed.sol"))
+                        .unwrap()
+                        .to_string(),
+                }],
+            },
+        ))
+        .unwrap();
+        assert!(renamed.is_some(), "{ignored} must not suppress project import edits");
+    }
+}
+
+#[test]
 fn will_delete_refuses_partial_import_edits() {
     let project = TestProject::from_fixture(
         r#"

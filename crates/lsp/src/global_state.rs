@@ -540,7 +540,7 @@ impl GlobalState {
         }
     }
 
-    fn reconcile_deferred_source_file(&mut self, path: &Path, typ: FileChangeType) -> bool {
+    fn reconcile_source_file(&mut self, path: &Path, typ: FileChangeType) -> bool {
         let present = match std::fs::symlink_metadata(path) {
             Ok(metadata) => Some(metadata.is_file()),
             Err(error) if error.kind() == io::ErrorKind::NotFound => Some(false),
@@ -723,10 +723,28 @@ impl GlobalState {
     ///
     /// [`salsa`]: https://docs.rs/salsa/latest/salsa/
     pub(crate) fn recompute_with_disk_files(&mut self, disk_paths: Vec<PathBuf>) {
+        // New project files also need discovery to establish watches for their directories.
+        let rediscover = disk_paths.iter().any(|path| {
+            !self
+                .config
+                .workspaces()
+                .iter()
+                .any(|workspace| workspace.source_files().binary_search(path).is_ok())
+                && self.config.tracks_source_file(path)
+                && std::fs::symlink_metadata(path).is_ok_and(|metadata| metadata.is_file())
+        });
+        let mode = if rediscover {
+            AnalysisMode::Rediscover
+        } else {
+            for path in &disk_paths {
+                self.reconcile_source_file(path, FileChangeType::CHANGED);
+            }
+            AnalysisMode::Recompute
+        };
         let changed_paths = disk_paths.clone();
         let delay = self.config.source_change_debounce();
         self.request_analysis(
-            AnalysisMode::Recompute,
+            mode,
             AnalysisRequest { disk_paths, changed_paths, ..Default::default() },
             AnalysisTrigger::Document,
             delay,
@@ -1014,7 +1032,7 @@ impl GlobalState {
                 still_deferred.insert(path, typ);
                 continue;
             }
-            self.reconcile_deferred_source_file(&path, typ);
+            self.reconcile_source_file(&path, typ);
             deferred_paths.push(path);
         }
         if !still_deferred.is_empty() {
@@ -1063,7 +1081,7 @@ impl GlobalState {
         let mut disk_paths = Vec::with_capacity(event.events.len());
         let mut removed_paths = Vec::new();
         for (path, typ) in event.events {
-            if self.reconcile_deferred_source_file(&path, typ) {
+            if self.reconcile_source_file(&path, typ) {
                 removed_paths.push(path.clone());
             }
             disk_paths.push(path);

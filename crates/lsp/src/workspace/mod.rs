@@ -123,6 +123,8 @@ pub(crate) struct Workspace {
     /// the indexing boundary.
     index_import_only_roots: Vec<PathBuf>,
     source_roots: Vec<PathBuf>,
+    /// Whether the project root supplements explicitly configured source roots.
+    implicit_project_root: bool,
     source_watch_roots: Vec<SourceWatchRoot>,
     flycheck_watch_roots: Vec<SourceWatchRoot>,
     git_marker_watch_roots: Vec<PathBuf>,
@@ -180,6 +182,7 @@ impl Workspace {
         let source_roots = vec![root.clone()];
         Self {
             kind: WorkspaceKind::Naked,
+            implicit_project_root: false,
             compile_opts: CompileOpts { base_path: Some(root), ..Default::default() },
             index_import_only_roots: Vec::new(),
             flycheck_source_roots: source_roots.clone(),
@@ -196,6 +199,7 @@ impl Workspace {
     pub(crate) fn unconfigured() -> Self {
         Self {
             kind: WorkspaceKind::Naked,
+            implicit_project_root: false,
             compile_opts: CompileOpts::default(),
             index_import_only_roots: Vec::new(),
             source_roots: Vec::new(),
@@ -364,6 +368,7 @@ impl Workspace {
             let mut collector = SourceFileCollector {
                 workspace_root,
                 source_root: root,
+                implicit_project_root: self.implicit_project_root && root == workspace_root,
                 source_roots: &self.source_roots,
                 import_only_roots: self.index_import_only_roots(),
                 policy,
@@ -432,6 +437,7 @@ impl Workspace {
             let mut collector = SourceFileCollector {
                 workspace_root,
                 source_root: root,
+                implicit_project_root: false,
                 source_roots: &self.flycheck_source_roots,
                 import_only_roots: self.index_import_only_roots(),
                 policy,
@@ -550,6 +556,7 @@ impl Workspace {
         let host_config = foundry_config
             .workspace_config(&root)
             .map_err(|error| WorkspaceError::HostConfig { root: root.clone(), error })?;
+        let implicit_project_root = host_config.is_none();
         let (source_roots, flycheck_source_roots, include_paths, import_remappings, evm_version) =
             if let Some(config) = host_config {
                 (
@@ -583,6 +590,7 @@ impl Workspace {
                     profile.evm_version(),
                 )
             };
+        let implicit_project_root = implicit_project_root && !flycheck_source_roots.contains(&root);
         let source_roots = source_roots.into_iter().filter(|path| approved(path)).collect();
         let flycheck_source_roots =
             flycheck_source_roots.into_iter().filter(|path| approved(path)).collect();
@@ -593,6 +601,7 @@ impl Workspace {
 
         Ok(Self {
             kind: WorkspaceKind::Foundry,
+            implicit_project_root,
             index_import_only_roots,
             source_roots,
             flycheck_source_roots,
@@ -890,6 +899,7 @@ impl WorkspaceImportRoot {
 struct SourceFileCollector<'a, 'index, 'workspaces> {
     workspace_root: &'a Path,
     source_root: &'a Path,
+    implicit_project_root: bool,
     source_roots: &'a [PathBuf],
     import_only_roots: &'a [PathBuf],
     policy: &'a WorkspaceIndexPolicy,
@@ -936,7 +946,9 @@ impl SourceFileCollector<'_, '_, '_> {
         }
         if is_import_only_path(self.source_roots, self.import_only_roots, path) {
             self.metrics.pruned += 1;
-            self.source_files_complete = false;
+            // Dependency trees are outside whole-project discovery. Pruning inside an
+            // explicit source root can still omit project importers.
+            self.source_files_complete &= self.implicit_project_root;
             return SourceTreeState::Pruned;
         }
         let metadata = match std::fs::symlink_metadata(path) {
@@ -979,7 +991,10 @@ impl SourceFileCollector<'_, '_, '_> {
                 self.marker_watch_roots.push(root);
             }
             self.metrics.pruned += 1;
-            self.source_files_complete = false;
+            // Built-in exclusions define whole-project indexing boundaries. Custom
+            // exclusions and pruning inside explicit source roots may hide importers.
+            self.source_files_complete &= self.implicit_project_root
+                && !self.policy.excludes_relative_path(self.workspace_root, path, true);
             return SourceTreeState::Pruned;
         }
 

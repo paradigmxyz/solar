@@ -183,7 +183,12 @@ impl WorkspaceIndexPolicy {
             || self.options.use_default_excludes && DEFAULT_EXCLUDED_DIRECTORIES.contains(&name)
     }
 
-    fn excludes_relative_path(&self, workspace_root: &Path, path: &Path, directory: bool) -> bool {
+    pub(crate) fn excludes_relative_path(
+        &self,
+        workspace_root: &Path,
+        path: &Path,
+        directory: bool,
+    ) -> bool {
         if self.excludes.is_empty() {
             return false;
         }
