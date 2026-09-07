@@ -336,6 +336,27 @@ impl generated::Context for RuleContext<'_> {
         a & b
     }
 
+    fn shift_sum(&mut self, a: U256, b: U256) -> U256 {
+        let width = U256::from(256);
+        (a.min(width) + b.min(width)).min(width)
+    }
+
+    fn sign_byte(&mut self, shift: U256) -> Option<U256> {
+        if shift < U256::from(256) && shift.byte(0).is_multiple_of(8) {
+            Some(U256::from(31 - shift.to::<u32>() / 8))
+        } else {
+            None
+        }
+    }
+
+    fn u256_min(&mut self, a: U256, b: U256) -> U256 {
+        a.min(b)
+    }
+
+    fn u256_le(&mut self, a: U256, b: U256) -> bool {
+        a <= b
+    }
+
     fn power_of_two_shift(&mut self, value: U256) -> Option<U256> {
         if value.is_zero() || (value & (value - U256::from(1))) != U256::ZERO {
             return None;
