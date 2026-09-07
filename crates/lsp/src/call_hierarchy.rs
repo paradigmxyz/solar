@@ -1,13 +1,13 @@
 //! Call hierarchy indexing.
 
 use crate::{
+    hierarchy::{HierarchyItem, HierarchyKey as CallableKey},
     proto,
     symbols::{DeclarationSymbol, SymbolId},
 };
 use lsp_types::{
     CallHierarchyIncomingCall, CallHierarchyItem, CallHierarchyOutgoingCall, Position, Range, Url,
 };
-use serde::{Deserialize, Serialize};
 use solar_interface::{
     Span,
     data_structures::{
@@ -22,12 +22,9 @@ use solar_sema::{
     ty::TyKind,
 };
 use std::{
-    cmp::Ordering,
     ops::ControlFlow,
     sync::{Arc, OnceLock},
 };
-
-const DATA_VERSION: u8 = 1;
 
 #[derive(Debug, Default)]
 pub(crate) struct CallHierarchyIndex {
@@ -55,7 +52,7 @@ struct CallableFact {
 
 #[derive(Debug, Default)]
 struct QueryIndex {
-    items_by_symbol: FxHashMap<SymbolId, CallHierarchyItem>,
+    items_by_symbol: FxHashMap<SymbolId, HierarchyItem>,
     candidate_key_by_symbol: FxHashMap<SymbolId, CallableKey>,
     body_range_by_symbol: FxHashMap<SymbolId, Range>,
     canonical_symbol_by_key: FxHashMap<CallableKey, SymbolId>,
@@ -64,8 +61,8 @@ struct QueryIndex {
     incoming_by_key: CallRelations,
     incomplete_outgoing: FxHashSet<CallableKey>,
     incomplete_incoming: FxHashSet<CallableKey>,
-    call_sites_by_uri: FxHashMap<Url, Vec<CallSite>>,
-    bodies_by_uri: FxHashMap<Url, Vec<CallableBody>>,
+    call_sites_by_uri: FxHashMap<Arc<Url>, Vec<CallSite>>,
+    bodies_by_uri: FxHashMap<Arc<Url>, Vec<CallableBody>>,
 }
 
 type CallRelations = FxHashMap<CallableKey, FxHashMap<CallableKey, Vec<Range>>>;
@@ -87,35 +84,6 @@ struct CallSite {
 struct CallableBody {
     range: Range,
     callable: CallableKey,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-struct CallableKey {
-    uri: Arc<Url>,
-    selection_range: Range,
-}
-
-impl Ord for CallableKey {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.uri
-            .as_str()
-            .cmp(other.uri.as_str())
-            .then_with(|| range_key(self.selection_range).cmp(&range_key(other.selection_range)))
-    }
-}
-
-impl PartialOrd for CallableKey {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-#[derive(Deserialize, Serialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct CallHierarchyData {
-    version: u8,
-    uri: Url,
-    selection_range: Range,
 }
 
 impl CallHierarchyIndex {
@@ -232,26 +200,15 @@ impl QueryIndex {
                     .clone(),
                 selection_range: declaration.name_range,
             };
-            let data = CallHierarchyData {
-                version: DATA_VERSION,
-                uri: key.uri.as_ref().clone(),
-                selection_range: key.selection_range,
-            };
             let detail = declaration.parent.map(|parent| declarations[parent].name.clone());
             index.items_by_symbol.insert(
                 fact.symbol,
-                CallHierarchyItem {
+                HierarchyItem {
+                    key: key.clone(),
                     name: declaration.name.clone(),
                     kind: declaration.kind,
-                    tags: None,
                     detail,
-                    uri: key.uri.as_ref().clone(),
                     range: declaration.location.range,
-                    selection_range: key.selection_range,
-                    data: Some(
-                        serde_json::to_value(data)
-                            .expect("call hierarchy data should be serializable"),
-                    ),
                 },
             );
             index.candidate_key_by_symbol.insert(fact.symbol, key);
@@ -315,7 +272,7 @@ impl QueryIndex {
             let callee = self.key_by_symbol.get(&call.callee);
             if let Some(caller) = caller {
                 self.call_sites_by_uri
-                    .entry(caller.uri.as_ref().clone())
+                    .entry(caller.uri.clone())
                     .or_default()
                     .push(CallSite { range: call.from_range, callee: callee.cloned() });
             }
@@ -353,7 +310,7 @@ impl QueryIndex {
         for (key, &symbol) in &self.canonical_symbol_by_key {
             if let Some(&range) = self.body_range_by_symbol.get(&symbol) {
                 self.bodies_by_uri
-                    .entry(key.uri.as_ref().clone())
+                    .entry(key.uri.clone())
                     .or_default()
                     .push(CallableBody { range, callable: key.clone() });
             }
@@ -376,13 +333,13 @@ impl QueryIndex {
     ) -> Option<Vec<CallHierarchyItem>> {
         if let Some(site) = self.call_site(uri, position) {
             let key = site.callee.as_ref()?;
-            return Some(vec![self.item(key)?.clone()]);
+            return Some(vec![self.item(key)?.to_call_item()]);
         }
         if let Some(key) = declaration.and_then(|symbol| self.key_by_symbol.get(&symbol)) {
-            return Some(vec![self.item(key)?.clone()]);
+            return Some(vec![self.item(key)?.to_call_item()]);
         }
         let key = self.enclosing_body_key(uri, position)?;
-        Some(vec![self.item(key)?.clone()])
+        Some(vec![self.item(key)?.to_call_item()])
     }
 
     pub(crate) fn incoming(
@@ -400,7 +357,7 @@ impl QueryIndex {
                 .into_iter()
                 .filter_map(|(caller, ranges)| {
                     Some(CallHierarchyIncomingCall {
-                        from: self.item(caller)?.clone(),
+                        from: self.item(caller)?.to_call_item(),
                         from_ranges: ranges.clone(),
                     })
                 })
@@ -423,7 +380,7 @@ impl QueryIndex {
                 .into_iter()
                 .filter_map(|(callee, ranges)| {
                     Some(CallHierarchyOutgoingCall {
-                        to: self.item(callee)?.clone(),
+                        to: self.item(callee)?.to_call_item(),
                         from_ranges: ranges.clone(),
                     })
                 })
@@ -448,21 +405,17 @@ impl QueryIndex {
             .map(|body| &body.callable)
     }
 
-    fn item(&self, key: &CallableKey) -> Option<&CallHierarchyItem> {
+    fn item(&self, key: &CallableKey) -> Option<&HierarchyItem> {
         self.items_by_symbol.get(self.canonical_symbol_by_key.get(key)?)
     }
 
     fn resolve_item(&self, item: &CallHierarchyItem) -> Option<CallableKey> {
-        let data = CallHierarchyData::deserialize(item.data.as_ref()?).ok()?;
-        if data.version != DATA_VERSION {
-            return None;
-        }
-        let key = CallableKey { uri: Arc::new(data.uri), selection_range: data.selection_range };
+        let key = CallableKey::from_data(item.data.as_ref()?)?;
         let current = self.item(&key)?;
         // Name and kind distinguish a declaration replacement at the same source position. The
         // full range and detail are presentation data that may change while the callable remains.
-        (item.uri == current.uri
-            && item.selection_range == current.selection_range
+        (item.uri == *current.key.uri
+            && item.selection_range == current.key.selection_range
             && item.name == current.name
             && item.kind == current.kind)
             .then_some(key)

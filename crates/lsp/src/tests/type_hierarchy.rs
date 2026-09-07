@@ -340,6 +340,10 @@ fn validates_the_full_echoed_item_and_opaque_data() {
         tampered.push(changed);
     }
 
+    let mut changed = item.clone();
+    changed.data.as_mut().unwrap()["selectionRange"]["start"]["extra"] = json!(true);
+    tampered.push(changed);
+
     for changed in tampered {
         assert_eq!(fixture.type_hierarchy_supertypes(changed.clone()), None);
         assert_eq!(fixture.type_hierarchy_subtypes(changed), None);
