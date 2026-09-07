@@ -150,27 +150,18 @@ fn @pushAndReadContracts() -> struct0 [selector=0x4a1b3b99, abi_params=[], abi_r
   bb1:
     revert_returndata
   bb2:
-    v7 = returndatasize
-    v8 = add v7, 63
-    v9 = lt v8, v7
-    panic_if v9, 0x41
-    v10 = not 31
-    v11 = and v8, v10
-    v12 = alloc memorybytes, exact, uninitialized, infallible, v11
-    set_memory_object_len memorybytes, v12, v7
-    v13 = make_returndata_slice 0, v7
-    memory_object_copy_from_slice memorybytes, v12, v13
-    v14 = abi_decode [array<_, address>], v12
-    v15 = memory_object_len memoryarray, v14
-    v16 = memory_object_len memoryarray, v14
-    v17 = lt 0, v16
-    v18 = iszero v17
-    panic_if v18, 0x32
-    v19 = memory_object_load_element memoryarray<1>, v14, 0
-    v20 = and v19, 0xffffffffffffffffffffffffffffffffffffffff
-    v21 = insert_value struct0, undef struct0, 0, v15
-    v22 = insert_value struct0, v21, 1, v20
-    ret v22
+    v7 = returndata_bytes
+    v8 = abi_decode [array<_, address>], v7
+    v9 = memory_object_len memoryarray, v8
+    v10 = memory_object_len memoryarray, v8
+    v11 = lt 0, v10
+    v12 = iszero v11
+    panic_if v12, 0x32
+    v13 = memory_object_load_element memoryarray<1>, v8, 0
+    v14 = and v13, 0xffffffffffffffffffffffffffffffffffffffff
+    v15 = insert_value struct0, undef struct0, 0, v9
+    v16 = insert_value struct0, v15, 1, v14
+    ret v16
 }
 
 fn @pushAndReadSelectors() -> struct1 [selector=0x5c0d845c, abi_params=[], abi_returns=[word, word, word<bytes4>], abi_return_params=[u256, u256, bytes4]] {
@@ -207,67 +198,58 @@ fn @pushAndReadSelectors() -> struct1 [selector=0x5c0d845c, abi_params=[], abi_r
   bb1:
     revert_returndata
   bb2:
-    v20 = returndatasize
-    v21 = add v20, 63
-    v22 = lt v21, v20
-    panic_if v22, 0x41
-    v23 = not 31
-    v24 = and v21, v23
-    v25 = alloc memorybytes, exact, uninitialized, infallible, v24
-    set_memory_object_len memorybytes, v25, v20
-    v26 = make_returndata_slice 0, v20
-    memory_object_copy_from_slice memorybytes, v25, v26
-    v27 = abi_decode [array<_, tuple<address, array<_, bytes4>>>], v25
-    v28 = memory_object_len memoryarray, v27
-    v29 = memory_object_len memoryarray, v27
-    v30 = lt 0, v29
-    v31 = iszero v30
-    panic_if v31, 0x32
-    v32 = memory_object_load_element memoryarray<1>, v27, 0
-    v33 = memory_object_from_ptr memorystruct, v32
-    v34 = eq v33, 0
-    jumpi v34, bb3, bb4
+    v20 = returndata_bytes
+    v21 = abi_decode [array<_, tuple<address, array<_, bytes4>>>], v20
+    v22 = memory_object_len memoryarray, v21
+    v23 = memory_object_len memoryarray, v21
+    v24 = lt 0, v23
+    v25 = iszero v24
+    panic_if v25, 0x32
+    v26 = memory_object_load_element memoryarray<1>, v21, 0
+    v27 = memory_object_from_ptr memorystruct, v26
+    v28 = eq v27, 0
+    jumpi v28, bb3, bb4
   bb3:
-    v35 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    memory_object_store_field memorystruct<2>, v35, 0, 0
-    v36 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v36, 0
-    memory_object_store_field memorystruct<2>, v35, 1, v36
-    memory_object_store_element memoryarray<1>, v27, 0, v35
+    v29 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    memory_object_store_field memorystruct<2>, v29, 0, 0
+    v30 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v30, 0
+    memory_object_store_field memorystruct<2>, v29, 1, v30
+    memory_object_store_element memoryarray<1>, v21, 0, v29
     jump bb4
   bb4:
-    v37 = phi [bb2: v33], [bb3: v35]
-    v38 = memory_object_load_field memorystruct<2>, v37, 1, memoryarray
-    v39 = memory_object_len memoryarray, v38
-    v40 = memory_object_len memoryarray, v27
-    v41 = lt 0, v40
-    v42 = iszero v41
-    panic_if v42, 0x32
-    v43 = memory_object_load_element memoryarray<1>, v27, 0
-    v44 = memory_object_from_ptr memorystruct, v43
-    v45 = eq v44, 0
-    jumpi v45, bb5, bb6
+    v31 = phi [bb2: v27], [bb3: v29]
+    v32 = memory_object_load_field memorystruct<2>, v31, 1, memoryarray
+    v33 = memory_object_len memoryarray, v32
+    v34 = memory_object_len memoryarray, v21
+    v35 = lt 0, v34
+    v36 = iszero v35
+    panic_if v36, 0x32
+    v37 = memory_object_load_element memoryarray<1>, v21, 0
+    v38 = memory_object_from_ptr memorystruct, v37
+    v39 = eq v38, 0
+    jumpi v39, bb5, bb6
   bb5:
-    v46 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    memory_object_store_field memorystruct<2>, v46, 0, 0
-    v47 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v47, 0
-    memory_object_store_field memorystruct<2>, v46, 1, v47
-    memory_object_store_element memoryarray<1>, v27, 0, v46
+    v40 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    memory_object_store_field memorystruct<2>, v40, 0, 0
+    v41 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v41, 0
+    memory_object_store_field memorystruct<2>, v40, 1, v41
+    memory_object_store_element memoryarray<1>, v21, 0, v40
     jump bb6
   bb6:
-    v48 = phi [bb4: v44], [bb5: v46]
-    v49 = memory_object_load_field memorystruct<2>, v48, 1, memoryarray
-    v50 = memory_object_len memoryarray, v49
-    v51 = lt 0, v50
-    v52 = iszero v51
-    panic_if v52, 0x32
-    v53 = memory_object_load_element memoryarray<1>, v49, 0
-    v54 = and v53, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v55 = insert_value struct1, undef struct1, 0, v28
-    v56 = insert_value struct1, v55, 1, v39
-    v57 = insert_value struct1, v56, 2, v54
-    ret v57
+    v42 = phi [bb4: v38], [bb5: v40]
+    v43 = memory_object_load_field memorystruct<2>, v42, 1, memoryarray
+    v44 = memory_object_len memoryarray, v43
+    v45 = lt 0, v44
+    v46 = iszero v45
+    panic_if v46, 0x32
+    v47 = memory_object_load_element memoryarray<1>, v43, 0
+    v48 = and v47, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v49 = insert_value struct1, undef struct1, 0, v22
+    v50 = insert_value struct1, v49, 1, v33
+    v51 = insert_value struct1, v50, 2, v48
+    ret v51
 }
 
 fn @load_storage_packed_array_20_0(arg0: u256) -> memoryarray {

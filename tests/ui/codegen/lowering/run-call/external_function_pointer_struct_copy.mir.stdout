@@ -131,61 +131,52 @@ fn @test() -> bool [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<
   bb1:
     revert_returndata
   bb2:
-    v29 = returndatasize
-    v30 = add v29, 63
-    v31 = lt v30, v29
-    panic_if v31, 0x41
-    v32 = not 31
-    v33 = and v30, v32
-    v34 = alloc memorybytes, exact, uninitialized, infallible, v33
-    set_memory_object_len memorybytes, v34, v29
-    v35 = make_returndata_slice 0, v29
-    memory_object_copy_from_slice memorybytes, v34, v35
-    v36 = abi_decode [tuple<array<_, function>>], v34
-    v37 = memory_object_load_field memorystruct<1>, v36, 0, memoryarray
-    v38 = memory_object_len memoryarray, v37
-    v39 = eq v38, 3
-    v40 = iszero v39
-    revert_if v40, empty
-    v41 = memory_object_load_field memorystruct<1>, v36, 0, memoryarray
-    v42 = memory_object_len memoryarray, v41
-    v43 = lt 0, v42
-    v44 = iszero v43
-    panic_if v44, 0x32
-    v45 = memory_object_load_element memoryarray<1>, v41, 0
-    v46 = shr 64, v45
-    v47 = address
-    v48 = shl 32, v47
-    v49 = or v48, 0xd24c5a36
-    v50 = eq v46, v49
-    v51 = iszero v50
-    revert_if v51, empty
-    v52 = memory_object_load_field memorystruct<1>, v36, 0, memoryarray
-    v53 = memory_object_len memoryarray, v52
-    v54 = lt 1, v53
-    v55 = iszero v54
-    panic_if v55, 0x32
-    v56 = memory_object_load_element memoryarray<1>, v52, 1
-    v57 = shr 64, v56
-    v58 = address
-    v59 = shl 32, v58
-    v60 = or v59, 0xc5337ed4
-    v61 = eq v57, v60
-    v62 = iszero v61
-    revert_if v62, empty
-    v63 = memory_object_load_field memorystruct<1>, v36, 0, memoryarray
-    v64 = memory_object_len memoryarray, v63
-    v65 = lt 2, v64
-    v66 = iszero v65
-    panic_if v66, 0x32
-    v67 = memory_object_load_element memoryarray<1>, v63, 2
-    v68 = shr 64, v67
-    v69 = address
-    v70 = shl 32, v69
-    v71 = or v70, 0xafb0db5f
-    v72 = eq v68, v71
-    v73 = iszero v72
-    revert_if v73, empty
+    v29 = returndata_bytes
+    v30 = abi_decode [tuple<array<_, function>>], v29
+    v31 = memory_object_load_field memorystruct<1>, v30, 0, memoryarray
+    v32 = memory_object_len memoryarray, v31
+    v33 = eq v32, 3
+    v34 = iszero v33
+    revert_if v34, empty
+    v35 = memory_object_load_field memorystruct<1>, v30, 0, memoryarray
+    v36 = memory_object_len memoryarray, v35
+    v37 = lt 0, v36
+    v38 = iszero v37
+    panic_if v38, 0x32
+    v39 = memory_object_load_element memoryarray<1>, v35, 0
+    v40 = shr 64, v39
+    v41 = address
+    v42 = shl 32, v41
+    v43 = or v42, 0xd24c5a36
+    v44 = eq v40, v43
+    v45 = iszero v44
+    revert_if v45, empty
+    v46 = memory_object_load_field memorystruct<1>, v30, 0, memoryarray
+    v47 = memory_object_len memoryarray, v46
+    v48 = lt 1, v47
+    v49 = iszero v48
+    panic_if v49, 0x32
+    v50 = memory_object_load_element memoryarray<1>, v46, 1
+    v51 = shr 64, v50
+    v52 = address
+    v53 = shl 32, v52
+    v54 = or v53, 0xc5337ed4
+    v55 = eq v51, v54
+    v56 = iszero v55
+    revert_if v56, empty
+    v57 = memory_object_load_field memorystruct<1>, v30, 0, memoryarray
+    v58 = memory_object_len memoryarray, v57
+    v59 = lt 2, v58
+    v60 = iszero v59
+    panic_if v60, 0x32
+    v61 = memory_object_load_element memoryarray<1>, v57, 2
+    v62 = shr 64, v61
+    v63 = address
+    v64 = shl 32, v63
+    v65 = or v64, 0xafb0db5f
+    v66 = eq v62, v65
+    v67 = iszero v66
+    revert_if v67, empty
     ret true
 }
 

@@ -35,12 +35,12 @@
 
 use super::{
     AbiEncodeMode, AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamLayoutRef, AbiParamType,
-    AbiType, AllocationAlignment, AllocationFailure, AllocationInitialization, AllocationKind,
-    AllocationSemantics, BlockId, DataId, DataRef, Disambiguator, EffectKind, FrameMode,
-    FrameSlotKind, Function, FunctionBuilder, FunctionId, Immediate, ImmutableId, InstId, InstKind,
-    Instruction, InstructionMetadata, MangledSymbol, MemoryObjectKind, MemoryObjectLayout,
-    MemoryRegion, Module, StorageAlias, StorageField, StorageLayout, StorageLayoutRef, StructId,
-    StructType, Terminator, Value, ValueId,
+    AbiType, AddressCallKind, AllocationAlignment, AllocationFailure, AllocationInitialization,
+    AllocationKind, AllocationSemantics, BlockId, DataId, DataRef, Disambiguator, EffectKind,
+    FrameMode, FrameSlotKind, Function, FunctionBuilder, FunctionId, Immediate, ImmutableId,
+    InstId, InstKind, Instruction, InstructionMetadata, MangledSymbol, MemoryObjectKind,
+    MemoryObjectLayout, MemoryRegion, Module, StorageAlias, StorageField, StorageLayout,
+    StorageLayoutRef, StructId, StructType, Terminator, Value, ValueId,
 };
 use crate::mir::{AbiWordValidator, MirType, SliceLocation, TypeSize};
 use alloy_primitives::U256;
@@ -2278,6 +2278,36 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             sym::sha256 => inst!(Sha256(a) => MirType::uint256()),
             sym::ripemd160 => inst!(Ripemd160(a) => MirType::uint256()),
             sym::ecrecover => inst!(EcRecover(a, b, c, d) => MirType::uint256()),
+            sym::address_call | sym::address_staticcall | sym::address_delegatecall => {
+                operands!(address, input);
+                let kind = match mnemonic {
+                    sym::address_call => AddressCallKind::Call,
+                    sym::address_staticcall => AddressCallKind::Static,
+                    _ => AddressCallKind::Delegate,
+                };
+                let mut gas = None;
+                let mut value = None;
+                while self.parser.eat(TokenKind::Comma) {
+                    let option = self.parser.parse_ident()?;
+                    let operand = self.parse_value(builder)?;
+                    match option {
+                        kw::Gas if gas.is_none() => gas = Some(operand),
+                        sym::value if value.is_none() => value = Some(operand),
+                        _ => {
+                            return Err(self
+                                .parser
+                                .error("invalid or duplicate address call option"));
+                        }
+                    }
+                }
+                (
+                    InstKind::AddressCall { kind, address, input, gas, value },
+                    Some(MirType::uint256()),
+                )
+            }
+            sym::returndata_bytes => {
+                unit!(ReturndataBytes => MirType::MemoryObject(MemoryObjectKind::Bytes))
+            }
             sym::send => inst!(Send(a, b) => MirType::uint256()),
             sym::transfer => inst!(Transfer(a, b)),
             sym::keccak256_bytes => inst!(Keccak256Bytes(a) => MirType::bytes32()),

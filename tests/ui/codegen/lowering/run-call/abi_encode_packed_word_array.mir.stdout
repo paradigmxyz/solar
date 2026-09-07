@@ -133,10 +133,8 @@ fn @rejectDirtyCalldata() -> u256 [selector=0xe0d4a2a5, abi_params=[], abi_retur
     mstore v6, 257
     v7 = address
     v8 = gas
-    v9 = memory_object_data memorybytes, v5
-    v10 = memory_object_len memorybytes, v5
-    v11 = call v8, v7, 0, v9, v10, 0, 0
-    v12 = iszero v11
-    require v12, short_string 14, 0x64697274792063616c6c64617461000000000000000000000000000000000000
+    v9 = address_call v7, v5, gas v8
+    v10 = iszero v9
+    require v10, short_string 14, 0x64697274792063616c6c64617461000000000000000000000000000000000000
     ret 1
 }

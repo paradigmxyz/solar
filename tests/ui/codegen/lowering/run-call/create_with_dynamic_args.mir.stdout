@@ -76,39 +76,30 @@ fn @makeAndRead() -> struct0 [selector=0x42c589ac, abi_params=[], abi_returns=[w
   bb3:
     revert_returndata
   bb4:
-    v20 = returndatasize
-    v21 = add v20, 63
-    v22 = lt v21, v20
-    panic_if v22, 0x41
-    v23 = not 31
-    v24 = and v21, v23
-    v25 = alloc memorybytes, exact, uninitialized, infallible, v24
-    set_memory_object_len memorybytes, v25, v20
-    v26 = make_returndata_slice 0, v20
-    memory_object_copy_from_slice memorybytes, v25, v26
-    v27 = abi_decode [bytes], v25
-    v28 = memory_object_len memorybytes, v27
-    v29 = gas
-    v30 = abi_encode [], selector 0x313ce56700000000000000000000000000000000000000000000000000000000
-    v31 = slice_ptr v30
-    v32 = slice_len v30
-    v33 = staticcall v29, v14, v31, v32, 0, 32
-    jumpi v33, bb6, bb5
+    v20 = returndata_bytes
+    v21 = abi_decode [bytes], v20
+    v22 = memory_object_len memorybytes, v21
+    v23 = gas
+    v24 = abi_encode [], selector 0x313ce56700000000000000000000000000000000000000000000000000000000
+    v25 = slice_ptr v24
+    v26 = slice_len v24
+    v27 = staticcall v23, v14, v25, v26, 0, 32
+    jumpi v27, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v34 = returndatasize
-    v35 = lt v34, 32
-    revert_if v35, tuple_data_too_short
-    v36 = add 0, 0
-    v37 = mload v36
-    v38 = and v37, 255
-    v39 = eq v37, v38
-    v40 = iszero v39
-    revert_if v40, empty
-    v41 = add 0, 0
-    v42 = mload v41
-    v43 = insert_value struct0, undef struct0, 0, v28
-    v44 = insert_value struct0, v43, 1, v42
-    ret v44
+    v28 = returndatasize
+    v29 = lt v28, 32
+    revert_if v29, tuple_data_too_short
+    v30 = add 0, 0
+    v31 = mload v30
+    v32 = and v31, 255
+    v33 = eq v31, v32
+    v34 = iszero v33
+    revert_if v34, empty
+    v35 = add 0, 0
+    v36 = mload v35
+    v37 = insert_value struct0, undef struct0, 0, v22
+    v38 = insert_value struct0, v37, 1, v36
+    ret v38
 }

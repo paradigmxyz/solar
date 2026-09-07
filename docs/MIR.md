@@ -108,6 +108,11 @@ Payable `send` and `transfer` retain their address and amount until builtin
 conversion emits the stipend calculation and call. A failed transfer reverts
 with returndata; a send returns success. Their external-call effects invalidate
 account observations and storage reads even while the call remains opaque.
+Low-level address calls retain a bytes input and evaluated gas/value options.
+Conversion exposes the input buffer and computes any pre-EIP-150 gas reserve.
+A separate returndata capture operation allocates a fresh bytes object at its
+original position, before another call can replace the returndata. Static calls
+read storage; call and delegatecall may also write it.
 Jump threading collapses a phi-only branch when a single unconditional predecessor
 remains and the phi has no outside uses, exposing nested short-circuit checks
 without another pipeline iteration.
@@ -210,7 +215,8 @@ would still fail to describe operations that both read and write several resourc
 Use small derived properties for context-free behavior, backed by the existing
 alias and call-summary analyses for footprints. Before layout lowering, use
 object identity and field/element accesses where proven; raw pointer or assembly
-accesses must conservatively alias unless a disjointness proof exists. Do not
+accesses must conservatively alias unless a disjointness proof exists. Allocation
+provenance uses shared CFG cycle facts to distinguish joins from loops. Do not
 attach heap-allocated effect records to every instruction. Unknown calls remain
 conservative; known intrinsics expose their summaries without expanding their
 implementation.

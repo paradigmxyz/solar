@@ -1,5 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/low_level_call_evaluation_order.sol:LowLevelCallEvaluationOrder ===
 @module LowLevelCallEvaluationOrder
+types:
+  struct0: {memorybytes, memorybytes}
+  struct1: {u256, memorybytes}
+
 fn @receiver() -> address {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -53,11 +57,131 @@ fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
     v2 = icall @gasOpt
     v3 = icall @valueOpt
     v4 = icall @data
-    v5 = memory_object_data memorybytes, v4
-    v6 = memory_object_len memorybytes, v4
-    v7 = call v2, v0, v3, v5, v6, 0, 0
-    v8 = iszero v7
-    revert_if v8, empty
-    v9 = sload 0 !metadata(storage=slot(0))
-    ret v9
+    v5 = address_call v0, v4, gas v2, value v3
+    v6 = iszero v5
+    revert_if v6, empty
+    v7 = sload 0 !metadata(storage=slot(0))
+    ret v7
+}
+
+fn @echo(arg0: memorybytes) -> memorybytes [selector=0x624fbfdc, pure, abi_params=[bytes], abi_returns=[memory_bytes]] {
+  bb0:
+    ret arg0
+}
+
+fn @number() -> u256 [selector=0x8381f58a, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    ret 7
+}
+
+fn @write() [selector=0xbcb4ab0e, abi_params=[], abi_returns=[]] {
+  bb0:
+    sstore 0, 9 !metadata(storage=slot(0))
+    ret
+}
+
+fn @fail() [selector=0xa9cc4718, pure, abi_params=[], abi_returns=[]] {
+  bb0:
+    v0 = shl 224, 0xdeadbeef
+    mstore 0, v0 !metadata(memory=scratch)
+    revert 0, 4
+}
+
+fn @captureAcrossCalls() -> struct0 [selector=0x23d1e290, abi_params=[], abi_returns=[memory_bytes, memory_bytes], abi_return_params=[bytes, bytes]] {
+  bb0:
+    v0 = address
+    v1 = gas
+    v2 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v2, 3
+    v3 = memory_object_data memorybytes, v2
+    mstore v3, 0x102030000000000000000000000000000000000000000000000000000000000
+    v4 = abi_encode [memory_bytes], object, selector 0x624fbfdc00000000000000000000000000000000000000000000000000000000, args v2
+    v5 = address_call v0, v4, gas v1
+    v6 = returndata_bytes
+    v7 = address
+    v8 = gas
+    v9 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v9, 1
+    v10 = memory_object_data memorybytes, v9
+    mstore v10, 0xab00000000000000000000000000000000000000000000000000000000000000
+    v11 = abi_encode [memory_bytes], object, selector 0x624fbfdc00000000000000000000000000000000000000000000000000000000, args v9
+    v12 = address_call v7, v11, gas v8
+    v13 = returndata_bytes
+    jumpi v5, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    jump bb3
+  bb3:
+    v14 = phi [bb1: v12], [bb2: false]
+    v15 = iszero v14
+    revert_if v15, empty
+    v16 = abi_decode [bytes], v6
+    v17 = abi_decode [bytes], v13
+    v18 = insert_value struct0, undef struct0, 0, v16
+    v19 = insert_value struct0, v18, 1, v17
+    ret v19
+}
+
+fn @staticRead() -> struct1 [selector=0xf511364b, view, abi_params=[], abi_returns=[word<bool>, memory_bytes], abi_return_params=[bool, bytes]] {
+  bb0:
+    v0 = address
+    v1 = gas
+    v2 = abi_encode [], object, selector 0x8381f58a00000000000000000000000000000000000000000000000000000000
+    v3 = address_staticcall v0, v2, gas v1
+    v4 = returndata_bytes
+    v5 = insert_value struct1, undef struct1, 0, v3
+    v6 = insert_value struct1, v5, 1, v4
+    ret v6
+}
+
+fn @delegateWrite() -> u256 [selector=0xeedb6db6, abi_params=[], abi_returns=[word]] {
+  bb0:
+    sstore 0, 1 !metadata(storage=slot(0))
+    v0 = address
+    v1 = gas
+    v2 = abi_encode [], object, selector 0xbcb4ab0e00000000000000000000000000000000000000000000000000000000
+    v3 = address_delegatecall v0, v2, gas v1
+    v4 = iszero v3
+    revert_if v4, empty
+    v5 = sload 0 !metadata(storage=slot(0))
+    ret v5
+}
+
+fn @preserveInput() -> struct0 [selector=0xd24f7044, abi_params=[], abi_returns=[memory_bytes, memory_bytes], abi_return_params=[bytes, bytes]] {
+  bb0:
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v0, 3
+    v1 = memory_object_data memorybytes, v0
+    mstore v1, 0x102030000000000000000000000000000000000000000000000000000000000
+    v2 = address
+    v3 = gas
+    v4 = abi_encode [memory_bytes], object, selector 0x624fbfdc00000000000000000000000000000000000000000000000000000000, args v0
+    v5 = address_call v2, v4, gas v3
+    v6 = returndata_bytes
+    v7 = iszero v5
+    revert_if v7, empty
+    v8 = shl 248, 153
+    v9 = memory_object_len memorybytes, v0
+    v10 = lt 0, v9
+    v11 = iszero v10
+    panic_if v11, 0x32
+    v12 = byte 0, v8
+    memory_object_store_byte memorybytes, v0, 0, v12
+    v13 = abi_decode [bytes], v6
+    v14 = insert_value struct0, undef struct0, 0, v13
+    v15 = insert_value struct0, v14, 1, v0
+    ret v15
+}
+
+fn @failedCapture() -> struct1 [selector=0x5ee5463d, abi_params=[], abi_returns=[word<bool>, memory_bytes], abi_return_params=[bool, bytes]] {
+  bb0:
+    v0 = address
+    v1 = gas
+    v2 = abi_encode [], object, selector 0xa9cc471800000000000000000000000000000000000000000000000000000000
+    v3 = address_call v0, v2, gas v1
+    v4 = returndata_bytes
+    v5 = insert_value struct1, undef struct1, 0, v3
+    v6 = insert_value struct1, v5, 1, v4
+    ret v6
 }

@@ -252,45 +252,36 @@ fn @arrLenAndSum() -> struct0 [selector=0x3dc68ceb, abi_params=[], abi_returns=[
   bb3:
     revert_returndata
   bb4:
-    v12 = returndatasize
-    v13 = add v12, 63
-    v14 = lt v13, v12
-    panic_if v14, 0x41
-    v15 = not 31
-    v16 = and v13, v15
-    v17 = alloc memorybytes, exact, uninitialized, infallible, v16
-    set_memory_object_len memorybytes, v17, v12
-    v18 = make_returndata_slice 0, v12
-    memory_object_copy_from_slice memorybytes, v17, v18
-    v19 = abi_decode [array<_, u256>], v17
-    v20 = memory_object_len memoryarray, v19
+    v12 = returndata_bytes
+    v13 = abi_decode [array<_, u256>], v12
+    v14 = memory_object_len memoryarray, v13
     jump bb5
   bb5:
-    v21 = phi [bb4: 0], [bb7: v32]
-    v22 = phi [bb4: v20], [bb7: v22]
-    v23 = phi [bb4: v19], [bb7: v23]
-    v24 = phi [bb4: 0], [bb7: v31]
-    v25 = memory_object_len memoryarray, v23
-    v26 = lt v21, v25
-    jumpi v26, bb8, bb9
+    v15 = phi [bb4: 0], [bb7: v26]
+    v16 = phi [bb4: v14], [bb7: v16]
+    v17 = phi [bb4: v13], [bb7: v17]
+    v18 = phi [bb4: 0], [bb7: v25]
+    v19 = memory_object_len memoryarray, v17
+    v20 = lt v15, v19
+    jumpi v20, bb8, bb9
   bb9:
     jump bb6
   bb6:
-    v33 = insert_value struct0, undef struct0, 0, v22
-    v34 = insert_value struct0, v33, 1, v24
-    ret v34
+    v27 = insert_value struct0, undef struct0, 0, v16
+    v28 = insert_value struct0, v27, 1, v18
+    ret v28
   bb8:
-    v27 = memory_object_len memoryarray, v23
-    v28 = lt v21, v27
-    v29 = iszero v28
-    panic_if v29, 0x32
-    v30 = memory_object_load_element memoryarray<1>, v23, v21
-    v31 = checked_add u256, v24, v30
+    v21 = memory_object_len memoryarray, v17
+    v22 = lt v15, v21
+    v23 = iszero v22
+    panic_if v23, 0x32
+    v24 = memory_object_load_element memoryarray<1>, v17, v15
+    v25 = checked_add u256, v18, v24
     jump bb10
   bb10:
     jump bb7
   bb7:
-    v32 = checked_add u256, v21, 1
+    v26 = checked_add u256, v15, 1
     jump bb5
 }
 
@@ -326,27 +317,18 @@ fn @strFirstAndLen() -> struct0 [selector=0x2b10ead6, abi_params=[], abi_returns
   bb3:
     revert_returndata
   bb4:
-    v12 = returndatasize
-    v13 = add v12, 63
-    v14 = lt v13, v12
-    panic_if v14, 0x41
-    v15 = not 31
-    v16 = and v13, v15
-    v17 = alloc memorybytes, exact, uninitialized, infallible, v16
-    set_memory_object_len memorybytes, v17, v12
-    v18 = make_returndata_slice 0, v12
-    memory_object_copy_from_slice memorybytes, v17, v18
-    v19 = abi_decode [bytes], v17
-    v20 = memory_object_len memorybytes, v19
-    v21 = lt 0, v20
-    v22 = iszero v21
-    panic_if v22, 0x32
-    v23 = memory_object_load_byte memorybytes, v19, 0
-    v24 = shl 248, v23
-    v25 = memory_object_len memorybytes, v19
-    v26 = insert_value struct0, undef struct0, 0, v24
-    v27 = insert_value struct0, v26, 1, v25
-    ret v27
+    v12 = returndata_bytes
+    v13 = abi_decode [bytes], v12
+    v14 = memory_object_len memorybytes, v13
+    v15 = lt 0, v14
+    v16 = iszero v15
+    panic_if v16, 0x32
+    v17 = memory_object_load_byte memorybytes, v13, 0
+    v18 = shl 248, v17
+    v19 = memory_object_len memorybytes, v13
+    v20 = insert_value struct0, undef struct0, 0, v18
+    v21 = insert_value struct0, v20, 1, v19
+    ret v21
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_decode.sol:BytesCaller ===
@@ -378,19 +360,10 @@ fn @bytesRoundTrip() -> u256 [selector=0x9700a482, abi_params=[], abi_returns=[w
   bb3:
     revert_returndata
   bb4:
-    v12 = returndatasize
-    v13 = add v12, 63
-    v14 = lt v13, v12
-    panic_if v14, 0x41
-    v15 = not 31
-    v16 = and v13, v15
-    v17 = alloc memorybytes, exact, uninitialized, infallible, v16
-    set_memory_object_len memorybytes, v17, v12
-    v18 = make_returndata_slice 0, v12
-    memory_object_copy_from_slice memorybytes, v17, v18
-    v19 = abi_decode [bytes], v17
-    v20 = memory_object_len memorybytes, v19
-    ret v20
+    v12 = returndata_bytes
+    v13 = abi_decode [bytes], v12
+    v14 = memory_object_len memorybytes, v13
+    ret v14
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_decode.sol:FixedCaller ===
@@ -473,19 +446,10 @@ fn @stringElem() -> u256 [selector=0x8eb2047c, abi_params=[], abi_returns=[word]
   bb3:
     revert_returndata
   bb4:
-    v12 = returndatasize
-    v13 = add v12, 63
-    v14 = lt v13, v12
-    panic_if v14, 0x41
-    v15 = not 31
-    v16 = and v13, v15
-    v17 = alloc memorybytes, exact, uninitialized, infallible, v16
-    set_memory_object_len memorybytes, v17, v12
-    v18 = make_returndata_slice 0, v12
-    memory_object_copy_from_slice memorybytes, v17, v18
-    v19 = abi_decode [bytes], v17
-    v20 = memory_object_len memorybytes, v19
-    ret v20
+    v12 = returndata_bytes
+    v13 = abi_decode [bytes], v12
+    v14 = memory_object_len memorybytes, v13
+    ret v14
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_decode.sol:NestedCaller ===
@@ -517,36 +481,27 @@ fn @nestedSum() -> u256 [selector=0x002c8096, abi_params=[], abi_returns=[word]]
   bb3:
     revert_returndata
   bb4:
-    v12 = returndatasize
-    v13 = add v12, 63
-    v14 = lt v13, v12
-    panic_if v14, 0x41
-    v15 = not 31
-    v16 = and v13, v15
-    v17 = alloc memorybytes, exact, uninitialized, infallible, v16
-    set_memory_object_len memorybytes, v17, v12
-    v18 = make_returndata_slice 0, v12
-    memory_object_copy_from_slice memorybytes, v17, v18
-    v19 = abi_decode [array<_, array<_, u256>>], v17
-    v20 = memory_object_len memoryarray, v19
-    v21 = lt 0, v20
-    v22 = iszero v21
-    panic_if v22, 0x32
-    v23 = memory_object_load_element memoryarray<1>, v19, 0
-    v24 = memory_object_from_ptr memoryarray, v23
-    v25 = eq v24, 0
-    jumpi v25, bb5, bb6
+    v12 = returndata_bytes
+    v13 = abi_decode [array<_, array<_, u256>>], v12
+    v14 = memory_object_len memoryarray, v13
+    v15 = lt 0, v14
+    v16 = iszero v15
+    panic_if v16, 0x32
+    v17 = memory_object_load_element memoryarray<1>, v13, 0
+    v18 = memory_object_from_ptr memoryarray, v17
+    v19 = eq v18, 0
+    jumpi v19, bb5, bb6
   bb5:
-    v26 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v26, 0
-    memory_object_store_element memoryarray<1>, v19, 0, v26
+    v20 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v20, 0
+    memory_object_store_element memoryarray<1>, v13, 0, v20
     jump bb6
   bb6:
-    v27 = phi [bb4: v24], [bb5: v26]
-    v28 = memory_object_len memoryarray, v27
-    v29 = lt 0, v28
-    v30 = iszero v29
-    panic_if v30, 0x32
-    v31 = memory_object_load_element memoryarray<1>, v27, 0
-    ret v31
+    v21 = phi [bb4: v18], [bb5: v20]
+    v22 = memory_object_len memoryarray, v21
+    v23 = lt 0, v22
+    v24 = iszero v23
+    panic_if v24, 0x32
+    v25 = memory_object_load_element memoryarray<1>, v21, 0
+    ret v25
 }

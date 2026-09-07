@@ -1,0 +1,61 @@
+- // === ROOT/tests/ui/codegen/mir/lowering/lower_address_calls.mir (before lower-builtins) ===
++ // === ROOT/tests/ui/codegen/mir/lowering/lower_address_calls.mir (after lower-builtins) ===
+  @module AddressCalls
+  fn @default_call(arg0: address, arg1: memorybytes) -> u256 {
+    bb0:
+-     v0 = address_call arg0, arg1 !metadata(span=10..20, modifier_depth=2)
+-     ret v0
++     v1 = memory_object_data memorybytes, arg1 !metadata(span=10..20, modifier_depth=2)
++     v2 = memory_object_len memorybytes, arg1 !metadata(span=10..20, modifier_depth=2)
++     v3 = gas !metadata(span=10..20, modifier_depth=2)
++     v4 = call v3, arg0, 0, v1, v2, 0, 0 !metadata(span=10..20, modifier_depth=2)
++     ret v4
+  }
+  
+  fn @explicit_zero(arg0: address, arg1: memorybytes, arg2: u256) -> memorybytes {
+    bb0:
+-     v0 = address_call arg0, arg1, gas arg2, value 0
+-     v1 = returndata_bytes !metadata(span=30..40, modifier_depth=3)
+-     ret v1
++     v2 = memory_object_data memorybytes, arg1
++     v3 = memory_object_len memorybytes, arg1
++     v4 = call arg2, arg0, 0, v2, v3, 0, 0
++     v5 = returndatasize !metadata(span=30..40, modifier_depth=3)
++     v6 = add v5, 63 !metadata(span=30..40, modifier_depth=3)
++     v7 = lt v6, v5 !metadata(span=30..40, modifier_depth=3)
++     jumpi v7, bb1, bb2 !metadata(span=30..40, modifier_depth=3)
++   bb2:
++     v8 = not 31 !metadata(span=30..40, modifier_depth=3)
++     v9 = and v6, v8 !metadata(span=30..40, modifier_depth=3)
++     v10 = alloc memorybytes, exact, uninitialized, infallible, v9 !metadata(span=30..40, modifier_depth=3)
++     set_memory_object_len memorybytes, v10, v5 !metadata(span=30..40, modifier_depth=3)
++     v11 = make_returndata_slice 0, v5 !metadata(span=30..40, modifier_depth=3)
++     memory_object_copy_from_slice memorybytes, v10, v11 !metadata(span=30..40, modifier_depth=3)
++     ret v10
++   bb1:
++     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch, span=30..40, modifier_depth=3)
++     mstore 4, 65 !metadata(memory=scratch, span=30..40, modifier_depth=3)
++     revert 0, 36 !metadata(span=30..40, modifier_depth=3)
+  }
+  
+  fn @delegate(arg0: address, arg1: memorybytes) -> u256 {
+    bb0:
+-     v0 = address_delegatecall arg0, arg1, gas 0x186a0
+-     ret v0
++     v1 = memory_object_data memorybytes, arg1
++     v2 = memory_object_len memorybytes, arg1
++     v3 = delegatecall 0x186a0, arg0, v1, v2, 0, 0
++     ret v3
+  }
+  
+  fn @zero_value(arg0: address, arg1: memorybytes) -> u256 {
+    bb0:
+-     v0 = address_call arg0, arg1, value 0
+-     ret v0
++     v1 = memory_object_data memorybytes, arg1
++     v2 = memory_object_len memorybytes, arg1
++     v3 = gas
++     v4 = call v3, arg0, 0, v1, v2, 0, 0
++     ret v4
+  }
+  

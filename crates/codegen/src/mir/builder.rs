@@ -1,10 +1,11 @@
 //! MIR function builder.
 
 use super::{
-    AbiEncodeMode, AllocationSemantics, BlockId, FrameMode, FrameSlotKind, Function, FunctionId,
-    Immediate, ImmutableId, InstId, InstKind, Instruction, InstructionMetadata, MemoryObjectKind,
-    MemoryObjectLayout, MemoryRegion, MirType, PanicCode, RevertKind, RevertPayload, RevertReason,
-    SliceLocation, StorageAlias, StructId, Terminator, Value, ValueId,
+    AbiEncodeMode, AddressCallKind, AllocationSemantics, BlockId, FrameMode, FrameSlotKind,
+    Function, FunctionId, Immediate, ImmutableId, InstId, InstKind, Instruction,
+    InstructionMetadata, MemoryObjectKind, MemoryObjectLayout, MemoryRegion, MirType, PanicCode,
+    RevertKind, RevertPayload, RevertReason, SliceLocation, StorageAlias, StructId, Terminator,
+    Value, ValueId,
 };
 use crate::mir::memory::EvmMemoryLayout;
 use alloy_primitives::{Bytes, U256};
@@ -1537,6 +1538,31 @@ impl<'a> FunctionBuilder<'a> {
     /// Emits a blobhash instruction.
     pub(crate) fn blobhash(&mut self, index: ValueId) -> ValueId {
         self.emit_inst(InstKind::BlobHash(index), Some(MirType::bytes32()))
+    }
+
+    /// Emits a low-level address call over a bytes object.
+    pub(crate) fn address_call(
+        &mut self,
+        kind: AddressCallKind,
+        address: ValueId,
+        input: ValueId,
+        gas: Option<ValueId>,
+        value: Option<ValueId>,
+    ) -> ValueId {
+        // success = address_call(address, input, gas?, value?)
+        self.emit_inst(
+            InstKind::AddressCall { kind, address, input, gas, value },
+            Some(MirType::uint256()),
+        )
+    }
+
+    /// Copies the current returndata into a fresh bytes object.
+    pub(crate) fn returndata_bytes(&mut self) -> ValueId {
+        // object = returndata_bytes
+        self.emit_inst(
+            InstKind::ReturndataBytes,
+            Some(MirType::MemoryObject(MemoryObjectKind::Bytes)),
+        )
     }
 
     /// Sends value with the Solidity stipend, returning success.

@@ -62,5 +62,11 @@ error: [fn19] [bb0, inst0] builtin instruction `send` survives the `lowered` pha
 
 error: [fn19] [bb0, inst1] builtin instruction `transfer` survives the `lowered` phase boundary
 
-error: aborting due to 32 previous errors
+error: [fn20] non-word type `memorybytes` survives the `lowered` phase boundary
+
+error: [fn20] [bb0, inst0] builtin instruction `returndata_bytes` survives the `lowered` phase boundary
+
+error: [fn20] [bb0, inst1] builtin instruction `address_call` survives the `lowered` phase boundary
+
+error: aborting due to 35 previous errors
 

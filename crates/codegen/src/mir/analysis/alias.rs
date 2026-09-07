@@ -7,17 +7,17 @@
 //! and exposes the memory, storage, and transient-storage effects of each
 //! instruction.
 
-use super::MemoryCallSummaries;
+use super::{CfgInfo, MemoryCallSummaries};
 use crate::mir::{
-    AbiType, ArgIdx, BlockId, FrameMode, FrameSlotKind, Function, ImmutableId, InstId, InstKind,
-    MemoryObjectKind, MemoryObjectLayout, MemoryRegion, SliceLocation, StorageAlias, Terminator,
-    Value, ValueId,
+    AbiType, AddressCallKind, ArgIdx, BlockId, FrameMode, FrameSlotKind, Function, ImmutableId,
+    InstId, InstKind, MemoryObjectKind, MemoryObjectLayout, MemoryRegion, SliceLocation,
+    StorageAlias, Terminator, Value, ValueId,
     memory::{EvmMemoryLayout, MemoryLayoutPolicy},
 };
 use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
-    index::{IndexVec, index_vec},
+    index::IndexVec,
     map::{FxHashMap, FxHashSet},
 };
 use std::{
@@ -403,7 +403,8 @@ impl PointerProvenance {
         if !has_allocations {
             return Self::default();
         }
-        let cyclic = cyclic_blocks(func);
+        let cfg = CfgInfo::new(func);
+        let cyclic = cfg.cyclic_blocks();
         let block_resets = func
             .blocks
             .iter()
@@ -883,6 +884,7 @@ impl AliasAnalysis {
             | InstKind::Log2(address, _, _, _)
             | InstKind::Log3(address, _, _, _, _)
             | InstKind::Log4(address, _, _, _, _, _) => operand != *address,
+            InstKind::AddressCall { input, .. } => operand != *input,
             InstKind::Call { args_offset, ret_offset, .. }
             | InstKind::CallCode { args_offset, ret_offset, .. }
             | InstKind::StaticCall { args_offset, ret_offset, .. }
@@ -1164,7 +1166,8 @@ impl AliasAnalysis {
             | InstKind::Concat(..)
             | InstKind::Sha256(..)
             | InstKind::Ripemd160(..)
-            | InstKind::EcRecover(..) => {
+            | InstKind::EcRecover(..)
+            | InstKind::ReturndataBytes => {
                 effects.read_any(AddressSpace::Memory);
                 effects.write_any(AddressSpace::Memory);
             }
@@ -1291,6 +1294,15 @@ impl AliasAnalysis {
             }
             InstKind::StoreImmutable(id, _) => {
                 effects.write(Access::Location(Location::Immutable(id)));
+            }
+            InstKind::AddressCall { kind, .. } => {
+                effects.read_any(AddressSpace::Memory);
+                effects.read_any(AddressSpace::Storage);
+                effects.read_any(AddressSpace::Transient);
+                if kind != AddressCallKind::Static {
+                    effects.write_any(AddressSpace::Storage);
+                    effects.write_any(AddressSpace::Transient);
+                }
             }
             InstKind::Send(..) | InstKind::Transfer(..) => {
                 effects.read_any(AddressSpace::Storage);
@@ -1962,69 +1974,6 @@ impl AliasAnalysis {
             | AbiType::Tuple(_) => true,
         }
     }
-}
-
-fn cyclic_blocks(func: &Function) -> DenseBitSet<BlockId> {
-    let successors = func
-        .blocks
-        .iter()
-        .map(|block| block.terminator.as_ref().map_or_else(SmallVec::new, |t| t.successors()))
-        .collect::<IndexVec<BlockId, _>>();
-    let mut predecessors = index_vec![Vec::new(); func.blocks.len()];
-    for (block, block_successors) in successors.iter_enumerated() {
-        for &successor in block_successors {
-            predecessors[successor].push(block);
-        }
-    }
-
-    // Kosaraju's two linear scans classify all strongly connected components.
-    // Doing one reachability search per block made constructing this analysis
-    // quadratic on functions with many basic blocks.
-    let mut visited = DenseBitSet::new_empty(func.blocks.len());
-    let mut finish_order = Vec::with_capacity(func.blocks.len());
-    for start in func.blocks.indices() {
-        if !visited.insert(start) {
-            continue;
-        }
-        let mut stack = vec![(start, false)];
-        while let Some((block, expanded)) = stack.pop() {
-            if expanded {
-                finish_order.push(block);
-                continue;
-            }
-            stack.push((block, true));
-            for &successor in &successors[block] {
-                if visited.insert(successor) {
-                    stack.push((successor, false));
-                }
-            }
-        }
-    }
-
-    let mut cyclic = DenseBitSet::new_empty(func.blocks.len());
-    visited.clear();
-    for start in finish_order.into_iter().rev() {
-        if !visited.insert(start) {
-            continue;
-        }
-        let mut component = Vec::new();
-        let mut stack = vec![start];
-        while let Some(block) = stack.pop() {
-            component.push(block);
-            for &predecessor in &predecessors[block] {
-                if visited.insert(predecessor) {
-                    stack.push(predecessor);
-                }
-            }
-        }
-        let is_cycle = component.len() > 1 || successors[start].contains(&start);
-        if is_cycle {
-            for block in component {
-                cyclic.insert(block);
-            }
-        }
-    }
-    cyclic
 }
 
 #[derive(Clone, Copy)]

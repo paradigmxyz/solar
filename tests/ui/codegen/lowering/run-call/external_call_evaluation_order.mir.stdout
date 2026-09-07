@@ -113,10 +113,8 @@ fn @dirtyGasOption() -> bool [selector=0x494be41f, abi_params=[], abi_returns=[w
     v2 = icall @dirtyUint8, 0x10000
     v3 = and v2, 255
     v4 = abi_encode [word], object, selector 0xa4ba067e00000000000000000000000000000000000000000000000000000000, args 0
-    v5 = memory_object_data memorybytes, v4
-    v6 = memory_object_len memorybytes, v4
-    v7 = call v3, v0, 0, v5, v6, 0, 0
-    ret v7
+    v5 = address_call v0, v4, gas v3
+    ret v5
 }
 
 fn @dirtySend() -> bool [selector=0x82ec93de, payable, abi_params=[], abi_returns=[word<bool>]] {

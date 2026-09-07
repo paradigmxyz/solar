@@ -35,9 +35,9 @@ pub(crate) use value::{Immediate, Value};
 
 mod inst;
 pub(crate) use inst::{
-    AbiEncodeMode, AllocationAlignment, AllocationFailure, AllocationInitialization,
-    AllocationKind, AllocationSemantics, ConcatPart, EffectKind, InstKind, Instruction,
-    InstructionMetadata, MemoryRegion, StorageAlias,
+    AbiEncodeMode, AddressCallKind, AllocationAlignment, AllocationFailure,
+    AllocationInitialization, AllocationKind, AllocationSemantics, ConcatPart, EffectKind,
+    InstKind, Instruction, InstructionMetadata, MemoryRegion, StorageAlias,
 };
 
 mod arithmetic;

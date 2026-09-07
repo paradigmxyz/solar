@@ -5,10 +5,8 @@ fn @callCond(arg0: address, arg1: bool, arg2: u256) -> bool [selector=0x407a1bfe
     v0 = gas
     v1 = select arg1, 0x2b8fbce800000000000000000000000000000000000000000000000000000000, 0xe74800c00000000000000000000000000000000000000000000000000000000
     v2 = abi_encode [word], object, selector v1, args arg2
-    v3 = memory_object_data memorybytes, v2
-    v4 = memory_object_len memorybytes, v2
-    v5 = call v0, arg0, 0, v3, v4, 0, 0
-    ret v5
+    v3 = address_call arg0, v2, gas v0
+    ret v3
 }
 
 fn @encodeCond(arg0: bool, arg1: u256) -> memorybytes [selector=0x3e8cea54, pure, abi_params=[bool, u256], abi_returns=[memory_bytes]] {

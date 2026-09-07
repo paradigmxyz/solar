@@ -141,27 +141,16 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     set_memory_object_len memorybytes, v8, 4
     v9 = memory_object_data memorybytes, v8
     mstore v9, 0xff80ff8000000000000000000000000000000000000000000000000000000000
-    v10 = memory_object_data memorybytes, v8
-    v11 = memory_object_len memorybytes, v8
-    v12 = call v7, v6, 0, v10, v11, 0, 0
-    v13 = returndatasize
-    v14 = add v13, 63
-    v15 = lt v14, v13
-    panic_if v15, 0x41
-    v16 = not 31
-    v17 = and v14, v16
-    v18 = alloc memorybytes, exact, uninitialized, infallible, v17
-    set_memory_object_len memorybytes, v18, v13
-    v19 = make_returndata_slice 0, v13
-    memory_object_copy_from_slice memorybytes, v18, v19
-    require v12, short_string 4, 0x63616c6c00000000000000000000000000000000000000000000000000000000
-    v20 = abi_decode [bytes32], v18
-    v21 = not 31
-    v22 = and 319, v21
-    v23 = alloc memorybytes, exact, zeroed, panic, v22
-    set_memory_object_len memorybytes, v23, 256
-    v24 = keccak256_bytes v23
-    v25 = eq v20, v24
-    require v25, short_string 6, 0x6f75747075740000000000000000000000000000000000000000000000000000
+    v10 = address_call v6, v8, gas v7
+    v11 = returndata_bytes
+    require v10, short_string 4, 0x63616c6c00000000000000000000000000000000000000000000000000000000
+    v12 = abi_decode [bytes32], v11
+    v13 = not 31
+    v14 = and 319, v13
+    v15 = alloc memorybytes, exact, zeroed, panic, v14
+    set_memory_object_len memorybytes, v15, 256
+    v16 = keccak256_bytes v15
+    v17 = eq v12, v16
+    require v17, short_string 6, 0x6f75747075740000000000000000000000000000000000000000000000000000
     ret 1
 }

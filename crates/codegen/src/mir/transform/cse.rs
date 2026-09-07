@@ -36,8 +36,9 @@
 //!   (diamond arms, loop bodies), including the child itself when it sits on a cycle
 
 use crate::mir::{
-    BlockId, Function, Immediate, ImmutableId, InstId, InstKind, Instruction, MemoryObjectKind,
-    MemoryObjectLayout, MirType, Module, SliceLocation, StorageAlias, Value, ValueId,
+    AddressCallKind, BlockId, EffectKind, Function, Immediate, ImmutableId, InstId, InstKind,
+    Instruction, MemoryObjectKind, MemoryObjectLayout, MirType, Module, SliceLocation,
+    StorageAlias, Value, ValueId,
     analysis::{
         Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, Location, LocationSize,
         MemoryCallSummaries, MemoryLocation,
@@ -976,17 +977,13 @@ impl CommonSubexprEliminator {
     /// clobber (the return buffer write) is represented precisely by ModRef analysis.
     fn may_change_account_environment(kind: &InstKind) -> bool {
         matches!(
+            kind.effect_kind(),
+            EffectKind::ExternalCall | EffectKind::ICall | EffectKind::Create
+        ) && !matches!(
             kind,
-            InstKind::Send(..)
-                | InstKind::Transfer(..)
-                | InstKind::Call { .. }
-                | InstKind::CallCode { .. }
-                | InstKind::DelegateCall { .. }
-                | InstKind::ExtCall { .. }
-                | InstKind::ExtDelegateCall { .. }
-                | InstKind::ICall { .. }
-                | InstKind::Create(_, _, _)
-                | InstKind::Create2(_, _, _, _)
+            InstKind::StaticCall { .. }
+                | InstKind::ExtStaticCall { .. }
+                | InstKind::AddressCall { kind: AddressCallKind::Static, .. }
         )
     }
 

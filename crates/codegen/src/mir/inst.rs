@@ -708,7 +708,9 @@ impl Instruction {
             | InstKind::Ripemd160(..)
             | InstKind::EcRecover(..)
             | InstKind::Send(..)
-            | InstKind::Transfer(..) => Some("builtin"),
+            | InstKind::Transfer(..)
+            | InstKind::AddressCall { .. }
+            | InstKind::ReturndataBytes => Some("builtin"),
             InstKind::ValidateAbi(..) => Some("ABI validation"),
             InstKind::Check { .. } | InstKind::Require { .. } => Some("conditional check"),
             InstKind::AbiEncode { .. } => Some("ABI encoding"),
@@ -866,6 +868,14 @@ impl Instruction {
     pub(crate) fn operands(&self) -> SmallVec<[ValueId; 8]> {
         self.kind.operands()
     }
+}
+
+/// Solidity low-level address-call behavior.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(crate) enum AddressCallKind {
+    Call,
+    Static,
+    Delegate,
 }
 
 /// The kind of an instruction.
@@ -1336,6 +1346,19 @@ pub(crate) enum InstKind {
     AbiEncodePacked { parts: Box<[super::PackedPart]>, hash: bool },
     /// Left-aligned RIPEMD-160 of a bytes object, with the same effects as `sha256`.
     Ripemd160(ValueId),
+    /// Low-level address call over a bytes object, returning success.
+    ///
+    /// A missing gas operand computes the target's default gas at conversion. A present value
+    /// option, including zero, retains the pre-EIP-150 value-transfer reserve.
+    AddressCall {
+        kind: AddressCallKind,
+        address: ValueId,
+        input: ValueId,
+        gas: Option<ValueId>,
+        value: Option<ValueId>,
+    },
+    /// Copy the current returndata into a fresh bytes object (empty before Byzantium).
+    ReturndataBytes,
     /// Send value to an address with a 2300 gas stipend, returning success.
     Send(ValueId, ValueId),
     /// Transfer value with a 2300 gas stipend, reverting with returndata on failure.
@@ -1700,6 +1723,11 @@ impl InstKind {
             }
 
             // Call operations
+            Self::AddressCall { address, input, gas, value, .. } => {
+                out.push(*address);
+                out.push(*input);
+                out.extend(gas.iter().chain(value).copied());
+            }
             Self::Call { gas, addr, value, args_offset, args_size, ret_offset, ret_size }
             | Self::CallCode { gas, addr, value, args_offset, args_size, ret_offset, ret_size } => {
                 out.push(*gas);
@@ -1760,6 +1788,7 @@ impl InstKind {
             | Self::CodeSize
             | Self::LoadImmutable(_)
             | Self::ReturnDataSize
+            | Self::ReturndataBytes
             | Self::Caller
             | Self::CallValue
             | Self::Origin
@@ -2012,6 +2041,13 @@ impl InstKind {
                 f(g);
             }
 
+            Self::AddressCall { address, input, gas, value, .. } => {
+                f(address);
+                f(input);
+                for operand in gas.iter_mut().chain(value) {
+                    f(operand);
+                }
+            }
             Self::Call { gas, addr, value, args_offset, args_size, ret_offset, ret_size }
             | Self::CallCode { gas, addr, value, args_offset, args_size, ret_offset, ret_size } => {
                 f(gas);
@@ -2065,6 +2101,7 @@ impl InstKind {
             | Self::CodeSize
             | Self::LoadImmutable(_)
             | Self::ReturnDataSize
+            | Self::ReturndataBytes
             | Self::Caller
             | Self::CallValue
             | Self::Origin
@@ -2225,6 +2262,10 @@ impl InstKind {
             Self::Sha256(_) => "sha256",
             Self::Ripemd160(_) => "ripemd160",
             Self::EcRecover(..) => "ecrecover",
+            Self::AddressCall { kind: AddressCallKind::Call, .. } => "address_call",
+            Self::AddressCall { kind: AddressCallKind::Static, .. } => "address_staticcall",
+            Self::AddressCall { kind: AddressCallKind::Delegate, .. } => "address_delegatecall",
+            Self::ReturndataBytes => "returndata_bytes",
             Self::Send(..) => "send",
             Self::Transfer(..) => "transfer",
             Self::MappingSlot(_, _) => "mapping_slot",
@@ -2310,6 +2351,7 @@ impl InstKind {
             | Self::Sha256(..)
             | Self::Ripemd160(..)
             | Self::EcRecover(..)
+            | Self::ReturndataBytes
             | Self::MStore(_, _)
             | Self::MStore8(_, _)
             | Self::MemoryZero(_, _)
@@ -2357,7 +2399,8 @@ impl InstKind {
             | Self::StorageBytesStoreLiteral { .. } => EffectKind::StorageWrite,
             Self::TLoad(_) => EffectKind::TransientRead,
             Self::TStore(_, _) => EffectKind::TransientWrite,
-            Self::Send(..)
+            Self::AddressCall { .. }
+            | Self::Send(..)
             | Self::Transfer(..)
             | Self::Call { .. }
             | Self::CallCode { .. }

@@ -40,8 +40,9 @@
 //! ```
 
 use crate::mir::{
-    BlockId, Function, FunctionId, InstId, InstKind, MemoryObjectKind, MemoryObjectLayout,
-    MirPhase, MirType, Module, SliceLocation, TypeSize, Value, ValueId, analysis::CfgInfo,
+    AddressCallKind, BlockId, Function, FunctionId, InstId, InstKind, MemoryObjectKind,
+    MemoryObjectLayout, MirPhase, MirType, Module, SliceLocation, TypeSize, Value, ValueId,
+    analysis::CfgInfo,
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
@@ -1137,6 +1138,41 @@ impl<'a> Validator<'a> {
                         }
                         if func.inst(id).result_ty != Some(MirType::uint256()) {
                             self.emit_at_inst("hash builtin requires a u256 result", block, id);
+                        }
+                    }
+                    InstKind::AddressCall { kind, address, input, gas, value } => {
+                        check(input, MemoryObjectKind::Bytes);
+                        if std::iter::once(address).chain(gas).chain(value).any(|operand| {
+                            func.value_ty(operand).is_none_or(|ty| {
+                                !ty.is_word() || matches!(ty, MirType::MemoryObject(_))
+                            })
+                        }) {
+                            self.emit_at_inst(
+                                "address call options require word operands",
+                                block,
+                                id,
+                            );
+                        }
+                        if kind != AddressCallKind::Call && value.is_some() {
+                            self.emit_at_inst(
+                                "only address_call accepts a value option",
+                                block,
+                                id,
+                            );
+                        }
+                        if func.inst(id).result_ty != Some(MirType::uint256()) {
+                            self.emit_at_inst("address call requires a u256 result", block, id);
+                        }
+                    }
+                    InstKind::ReturndataBytes => {
+                        if func.inst(id).result_ty
+                            != Some(MirType::MemoryObject(MemoryObjectKind::Bytes))
+                        {
+                            self.emit_at_inst(
+                                "returndata_bytes requires a bytes object result",
+                                block,
+                                id,
+                            );
                         }
                     }
                     InstKind::Send(address, amount) | InstKind::Transfer(address, amount) => {

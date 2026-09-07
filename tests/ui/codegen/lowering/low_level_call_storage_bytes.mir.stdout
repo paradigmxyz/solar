@@ -52,22 +52,11 @@ fn @fire() -> struct0 [selector=0x457094cc, abi_params=[], abi_returns=[word<boo
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
     v2 = gas
     v3 = load_storage_bytes 0
-    v4 = memory_object_data memorybytes, v3
-    v5 = memory_object_len memorybytes, v3
-    v6 = call v2, v1, 0, v4, v5, 0, 0
-    v7 = returndatasize
-    v8 = add v7, 63
-    v9 = lt v8, v7
-    panic_if v9, 0x41
-    v10 = not 31
-    v11 = and v8, v10
-    v12 = alloc memorybytes, exact, uninitialized, infallible, v11
-    set_memory_object_len memorybytes, v12, v7
-    v13 = make_returndata_slice 0, v7
-    memory_object_copy_from_slice memorybytes, v12, v13
-    v14 = insert_value struct0, undef struct0, 0, v6
-    v15 = insert_value struct0, v14, 1, v12
-    ret v15
+    v4 = address_call v1, v3, gas v2
+    v5 = returndata_bytes
+    v6 = insert_value struct0, undef struct0, 0, v4
+    v7 = insert_value struct0, v6, 1, v5
+    ret v7
 }
 
 fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {

@@ -375,19 +375,15 @@ fn @bare() -> u256 [selector=0x8095dd0b, abi_params=[], abi_returns=[word]] {
     revert_returndata
   bb2:
     v7 = abi_encode [], object, selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
-    v8 = memory_object_data memorybytes, v7
-    v9 = memory_object_len memorybytes, v7
-    v10 = gas
-    v11 = sub v10, 0x61da
-    v12 = call v11, v6, 0, v8, v9, 0, 0
-    jumpi v12, bb3, bb4
+    v8 = address_call v6, v7
+    jumpi v8, bb3, bb4
   bb4:
     jump bb5
   bb3:
     jump bb5
   bb5:
-    v13 = phi [bb3: 1], [bb4: 0]
-    ret v13
+    v9 = phi [bb3: 1], [bb4: 0]
+    ret v9
 }
 
 fn @sendZero() -> u256 [selector=0xe857d88b, abi_params=[], abi_returns=[word]] {

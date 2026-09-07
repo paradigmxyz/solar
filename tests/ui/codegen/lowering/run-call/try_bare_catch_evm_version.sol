@@ -60,7 +60,7 @@ contract TryBareCatch {
     // OSAKA-LABEL: fn @live
     // OSAKA: [[OK:v[0-9]+]] = call {{v[0-9]+}}, {{v[0-9]+}}, 0, {{v[0-9]+}}, {{v[0-9]+}}, 0, 0
     // OSAKA: jumpi [[OK]]
-    // OSAKA: returndatasize
+    // OSAKA: returndata_bytes
     function live() external returns (uint256 r) {
         try TryTarget(address(new TryCallee())).value() returns (uint256 v) {
             r = v;

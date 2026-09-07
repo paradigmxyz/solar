@@ -27,24 +27,15 @@ fn @pair() -> struct0 [selector=0xa8aa1b31, pure, abi_params=[], abi_returns=[wo
   bb1:
     revert_returndata
   bb2:
-    v5 = returndatasize
-    v6 = add v5, 63
-    v7 = lt v6, v5
-    panic_if v7, 0x41
-    v8 = not 31
-    v9 = and v6, v8
-    v10 = alloc memorybytes, exact, uninitialized, infallible, v9
-    set_memory_object_len memorybytes, v10, v5
-    v11 = make_returndata_slice 0, v5
-    memory_object_copy_from_slice memorybytes, v10, v11
-    v12 = abi_decode [u256, u256], v10
-    v13 = extract_value struct0, v12, 0
-    v14 = extract_value struct0, v12, 1
-    v15 = insert_value struct0, undef struct0, 0, v13
-    v16 = insert_value struct0, v15, 1, v14
-    v17 = extract_value struct0, v16, 0
-    v18 = extract_value struct0, v16, 1
-    v19 = insert_value struct0, undef struct0, 0, v17
-    v20 = insert_value struct0, v19, 1, v18
-    ret v20
+    v5 = returndata_bytes
+    v6 = abi_decode [u256, u256], v5
+    v7 = extract_value struct0, v6, 0
+    v8 = extract_value struct0, v6, 1
+    v9 = insert_value struct0, undef struct0, 0, v7
+    v10 = insert_value struct0, v9, 1, v8
+    v11 = extract_value struct0, v10, 0
+    v12 = extract_value struct0, v10, 1
+    v13 = insert_value struct0, undef struct0, 0, v11
+    v14 = insert_value struct0, v13, 1, v12
+    ret v14
 }

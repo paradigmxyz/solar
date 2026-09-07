@@ -86,49 +86,31 @@ fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
     v8 = call v2, v0, v3, v6, v7, 0, 0
     jumpi v8, bb1, bb2
   bb2:
-    v18 = returndatasize
-    v19 = add v18, 63
-    v20 = lt v19, v18
-    panic_if v20, 0x41
-    v21 = not 31
-    v22 = and v19, v21
-    v23 = alloc memorybytes, exact, uninitialized, infallible, v22
-    set_memory_object_len memorybytes, v23, v18
-    v24 = make_returndata_slice 0, v18
-    memory_object_copy_from_slice memorybytes, v23, v24
-    v25 = memory_object_data memorybytes, v23
-    v26 = memory_object_len memorybytes, v23
-    v27 = make_memory_slice v25, v26
-    v28 = memory_slice_load_word memory, v27, 0
-    v29 = lt v26, 4
-    v30 = iszero v29
-    v31 = shr 224, v28
-    v32 = eq v31, 0x8c379a0
-    v33 = and v30, v32
-    v34 = lt v26, 36
-    v35 = iszero v34
-    v36 = eq v31, 0x4e487b71
-    v37 = and v35, v36
+    v12 = returndata_bytes
+    v13 = memory_object_data memorybytes, v12
+    v14 = memory_object_len memorybytes, v12
+    v15 = make_memory_slice v13, v14
+    v16 = memory_slice_load_word memory, v15, 0
+    v17 = lt v14, 4
+    v18 = iszero v17
+    v19 = shr 224, v16
+    v20 = eq v19, 0x8c379a0
+    v21 = and v18, v20
+    v22 = lt v14, 36
+    v23 = iszero v22
+    v24 = eq v19, 0x4e487b71
+    v25 = and v23, v24
     jumpi true, bb4, bb5
   bb5:
-    revert v25, v26
+    revert v13, v14
   bb4:
-    v38 = sload 0 !metadata(storage=slot(0))
-    ret v38
+    v26 = sload 0 !metadata(storage=slot(0))
+    ret v26
   bb1:
-    v9 = returndatasize
-    v10 = add v9, 63
-    v11 = lt v10, v9
-    panic_if v11, 0x41
-    v12 = not 31
-    v13 = and v10, v12
-    v14 = alloc memorybytes, exact, uninitialized, infallible, v13
-    set_memory_object_len memorybytes, v14, v9
-    v15 = make_returndata_slice 0, v9
-    memory_object_copy_from_slice memorybytes, v14, v15
-    v16 = abi_decode [u256], v14
-    v17 = sload 0 !metadata(storage=slot(0))
-    ret v17
+    v9 = returndata_bytes
+    v10 = abi_decode [u256], v9
+    v11 = sload 0 !metadata(storage=slot(0))
+    ret v11
   bb3:
     ret 0
 }

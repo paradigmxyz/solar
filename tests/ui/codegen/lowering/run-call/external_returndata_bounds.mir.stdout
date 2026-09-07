@@ -240,17 +240,8 @@ fn @truncated() -> u256 [selector=0xfc1dad0b, abi_params=[], abi_returns=[word]]
   bb3:
     revert_returndata
   bb4:
-    v12 = returndatasize
-    v13 = add v12, 63
-    v14 = lt v13, v12
-    panic_if v14, 0x41
-    v15 = not 31
-    v16 = and v13, v15
-    v17 = alloc memorybytes, exact, uninitialized, infallible, v16
-    set_memory_object_len memorybytes, v17, v12
-    v18 = make_returndata_slice 0, v12
-    memory_object_copy_from_slice memorybytes, v17, v18
-    v19 = abi_decode [bytes], v17
-    v20 = memory_object_len memorybytes, v19
-    ret v20
+    v12 = returndata_bytes
+    v13 = abi_decode [bytes], v12
+    v14 = memory_object_len memorybytes, v13
+    ret v14
 }

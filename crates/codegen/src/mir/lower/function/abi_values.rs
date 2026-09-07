@@ -306,14 +306,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn materialize_returndata_bytes(&mut self) -> ValueId {
-        // object = bytes(returndatasize)
-        // copy(returndata(0), object.data, returndatasize)
-        let length = self.current_returndata_size();
-        let object = self.builder.alloc_bytes_object(length, AllocationSemantics::INTERNAL);
-        let zero = self.builder.imm(U256::ZERO);
-        let source = self.builder.make_slice(zero, length, SliceLocation::Returndata);
-        self.builder.memory_object_copy_from_slice(object, MemoryObjectKind::Bytes, source);
-        object
+        // object = returndata_bytes
+        self.builder.returndata_bytes()
     }
 
     /// Returns the current call's returndata size, or zero before Byzantium.

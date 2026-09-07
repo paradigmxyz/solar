@@ -61,57 +61,48 @@ fn @success() -> u256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     v8 = staticcall v2, v1, v4, v5, 0, 0
     jumpi v8, bb1, bb2
   bb2:
-    v9 = returndatasize
-    v10 = add v9, 63
-    v11 = lt v10, v9
-    panic_if v11, 0x41
-    v12 = not 31
-    v13 = and v10, v12
-    v14 = alloc memorybytes, exact, uninitialized, infallible, v13
-    set_memory_object_len memorybytes, v14, v9
-    v15 = make_returndata_slice 0, v9
-    memory_object_copy_from_slice memorybytes, v14, v15
-    v16 = memory_object_data memorybytes, v14
-    v17 = memory_object_len memorybytes, v14
-    v18 = make_memory_slice v16, v17
-    v19 = memory_slice_load_word memory, v18, 0
-    v20 = lt v17, 4
-    v21 = iszero v20
-    v22 = shr 224, v19
-    v23 = eq v22, 0x8c379a0
-    jumpi v23, bb4, bb5
+    v9 = returndata_bytes
+    v10 = memory_object_data memorybytes, v9
+    v11 = memory_object_len memorybytes, v9
+    v12 = make_memory_slice v10, v11
+    v13 = memory_slice_load_word memory, v12, 0
+    v14 = lt v11, 4
+    v15 = iszero v14
+    v16 = shr 224, v13
+    v17 = eq v16, 0x8c379a0
+    jumpi v17, bb4, bb5
   bb5:
     jump bb6
   bb4:
-    v24 = icall @try_decode_error_message, v16, v17
+    v18 = icall @try_decode_error_message, v10, v11
     jump bb6
   bb6:
-    v25 = phi [bb4: v24], [bb5: false]
-    v26 = lt v17, 36
-    v27 = iszero v26
-    v28 = eq v22, 0x4e487b71
-    v29 = and v27, v28
-    jumpi v25, bb7, bb8
+    v19 = phi [bb4: v18], [bb5: false]
+    v20 = lt v11, 36
+    v21 = iszero v20
+    v22 = eq v16, 0x4e487b71
+    v23 = and v21, v22
+    jumpi v19, bb7, bb8
   bb8:
-    revert v16, v17
+    revert v10, v11
   bb7:
-    v30 = memory_object_data memorybytes, v14
-    v31 = memory_object_len memorybytes, v14
-    v32 = add v30, 4
-    v33 = sub v31, 4
-    v34 = make_memory_slice v32, v33
-    v35 = slice_len v34
-    v36 = add v35, 63
-    v37 = lt v36, v35
-    panic_if v37, 0x41
-    v38 = not 31
-    v39 = and v36, v38
-    v40 = alloc memorybytes, exact, uninitialized, infallible, v39
-    set_memory_object_len memorybytes, v40, v35
-    memory_object_copy_from_slice memorybytes, v40, v34
-    v41 = abi_decode [bytes], v40
-    v42 = memory_object_len memorybytes, v41
-    ret v42
+    v24 = memory_object_data memorybytes, v9
+    v25 = memory_object_len memorybytes, v9
+    v26 = add v24, 4
+    v27 = sub v25, 4
+    v28 = make_memory_slice v26, v27
+    v29 = slice_len v28
+    v30 = add v29, 63
+    v31 = lt v30, v29
+    panic_if v31, 0x41
+    v32 = not 31
+    v33 = and v30, v32
+    v34 = alloc memorybytes, exact, uninitialized, infallible, v33
+    set_memory_object_len memorybytes, v34, v29
+    memory_object_copy_from_slice memorybytes, v34, v28
+    v35 = abi_decode [bytes], v34
+    v36 = memory_object_len memorybytes, v35
+    ret v36
   bb1:
     jump bb3
   bb3:
@@ -132,57 +123,48 @@ fn @failure() -> u256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
     v8 = staticcall v2, v1, v4, v5, 0, 0
     jumpi v8, bb1, bb2
   bb2:
-    v9 = returndatasize
-    v10 = add v9, 63
-    v11 = lt v10, v9
-    panic_if v11, 0x41
-    v12 = not 31
-    v13 = and v10, v12
-    v14 = alloc memorybytes, exact, uninitialized, infallible, v13
-    set_memory_object_len memorybytes, v14, v9
-    v15 = make_returndata_slice 0, v9
-    memory_object_copy_from_slice memorybytes, v14, v15
-    v16 = memory_object_data memorybytes, v14
-    v17 = memory_object_len memorybytes, v14
-    v18 = make_memory_slice v16, v17
-    v19 = memory_slice_load_word memory, v18, 0
-    v20 = lt v17, 4
-    v21 = iszero v20
-    v22 = shr 224, v19
-    v23 = eq v22, 0x8c379a0
-    jumpi v23, bb4, bb5
+    v9 = returndata_bytes
+    v10 = memory_object_data memorybytes, v9
+    v11 = memory_object_len memorybytes, v9
+    v12 = make_memory_slice v10, v11
+    v13 = memory_slice_load_word memory, v12, 0
+    v14 = lt v11, 4
+    v15 = iszero v14
+    v16 = shr 224, v13
+    v17 = eq v16, 0x8c379a0
+    jumpi v17, bb4, bb5
   bb5:
     jump bb6
   bb4:
-    v24 = icall @try_decode_error_message, v16, v17
+    v18 = icall @try_decode_error_message, v10, v11
     jump bb6
   bb6:
-    v25 = phi [bb4: v24], [bb5: false]
-    v26 = lt v17, 36
-    v27 = iszero v26
-    v28 = eq v22, 0x4e487b71
-    v29 = and v27, v28
-    jumpi v25, bb7, bb8
+    v19 = phi [bb4: v18], [bb5: false]
+    v20 = lt v11, 36
+    v21 = iszero v20
+    v22 = eq v16, 0x4e487b71
+    v23 = and v21, v22
+    jumpi v19, bb7, bb8
   bb8:
-    revert v16, v17
+    revert v10, v11
   bb7:
-    v30 = memory_object_data memorybytes, v14
-    v31 = memory_object_len memorybytes, v14
-    v32 = add v30, 4
-    v33 = sub v31, 4
-    v34 = make_memory_slice v32, v33
-    v35 = slice_len v34
-    v36 = add v35, 63
-    v37 = lt v36, v35
-    panic_if v37, 0x41
-    v38 = not 31
-    v39 = and v36, v38
-    v40 = alloc memorybytes, exact, uninitialized, infallible, v39
-    set_memory_object_len memorybytes, v40, v35
-    memory_object_copy_from_slice memorybytes, v40, v34
-    v41 = abi_decode [bytes], v40
-    v42 = memory_object_len memorybytes, v41
-    ret v42
+    v24 = memory_object_data memorybytes, v9
+    v25 = memory_object_len memorybytes, v9
+    v26 = add v24, 4
+    v27 = sub v25, 4
+    v28 = make_memory_slice v26, v27
+    v29 = slice_len v28
+    v30 = add v29, 63
+    v31 = lt v30, v29
+    panic_if v31, 0x41
+    v32 = not 31
+    v33 = and v30, v32
+    v34 = alloc memorybytes, exact, uninitialized, infallible, v33
+    set_memory_object_len memorybytes, v34, v29
+    memory_object_copy_from_slice memorybytes, v34, v28
+    v35 = abi_decode [bytes], v34
+    v36 = memory_object_len memorybytes, v35
+    ret v36
   bb1:
     jump bb3
   bb3:

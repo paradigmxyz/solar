@@ -155,3 +155,13 @@ fn @payable(arg0: u256) {
     transfer arg0, 0
     ret
 }
+
+//~? ERROR: [fn20] non-word type `memorybytes` survives the `lowered` phase boundary
+//~? ERROR: [fn20] [bb0, inst0] builtin instruction `returndata_bytes` survives the `lowered` phase boundary
+//~? ERROR: [fn20] [bb0, inst1] builtin instruction `address_call` survives the `lowered` phase boundary
+fn @unlowered_address_call(arg0: u256) {
+  bb0:
+    v0 = returndata_bytes
+    v1 = address_call arg0, v0
+    ret
+}

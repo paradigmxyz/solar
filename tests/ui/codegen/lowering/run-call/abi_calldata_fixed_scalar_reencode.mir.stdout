@@ -32,18 +32,9 @@ fn @g(arg0: calldataslice, arg1: u256) -> memorybytes [selector=0x1fd55338, view
   bb1:
     revert_returndata
   bb2:
-    v18 = returndatasize
-    v19 = add v18, 63
-    v20 = lt v19, v18
-    panic_if v20, 0x41
-    v21 = not 31
-    v22 = and v19, v21
-    v23 = alloc memorybytes, exact, uninitialized, infallible, v22
-    set_memory_object_len memorybytes, v23, v18
-    v24 = make_returndata_slice 0, v18
-    memory_object_copy_from_slice memorybytes, v23, v24
-    v25 = abi_decode [bytes], v23
-    ret v25
+    v18 = returndata_bytes
+    v19 = abi_decode [bytes], v18
+    ret v19
 }
 
 fn @h(arg0: calldataslice) -> memorybytes [selector=0x94e17704, pure, abi_params=[array<3, u8>], abi_returns=[memory_bytes]] {
@@ -113,18 +104,9 @@ fn @i(arg0: calldataslice, arg1: u256) -> memorybytes [selector=0x18e849a4, view
   bb4:
     revert_returndata
   bb5:
-    v31 = returndatasize
-    v32 = add v31, 63
-    v33 = lt v32, v31
-    panic_if v33, 0x41
-    v34 = not 31
-    v35 = and v32, v34
-    v36 = alloc memorybytes, exact, uninitialized, infallible, v35
-    set_memory_object_len memorybytes, v36, v31
-    v37 = make_returndata_slice 0, v31
-    memory_object_copy_from_slice memorybytes, v36, v37
-    v38 = abi_decode [bytes], v36
-    ret v38
+    v31 = returndata_bytes
+    v32 = abi_decode [bytes], v31
+    ret v32
   bb2:
     v20 = mul v18, 32
     v21 = add v14, v20

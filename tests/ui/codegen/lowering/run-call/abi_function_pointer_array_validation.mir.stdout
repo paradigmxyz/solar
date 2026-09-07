@@ -75,24 +75,13 @@ fn @invoke(arg0: bytes4, arg1: bool, arg2: u256) -> u256 [view] {
   bb3:
     v11 = address
     v12 = gas
-    v13 = memory_object_data memorybytes, v8
-    v14 = memory_object_len memorybytes, v8
-    v15 = staticcall v12, v11, v13, v14, 0, 0
-    v16 = returndatasize
-    v17 = add v16, 63
-    v18 = lt v17, v16
-    panic_if v18, 0x41
-    v19 = not 31
-    v20 = and v17, v19
-    v21 = alloc memorybytes, exact, uninitialized, infallible, v20
-    set_memory_object_len memorybytes, v21, v16
-    v22 = make_returndata_slice 0, v16
-    memory_object_copy_from_slice memorybytes, v21, v22
-    v23 = iszero v15
-    revert_if v23, empty
-    v24 = abi_decode [u256], v21
-    v25 = eq v24, arg2
-    v26 = iszero v25
-    revert_if v26, empty
-    ret v24
+    v13 = address_staticcall v11, v8, gas v12
+    v14 = returndata_bytes
+    v15 = iszero v13
+    revert_if v15, empty
+    v16 = abi_decode [u256], v14
+    v17 = eq v16, arg2
+    v18 = iszero v17
+    revert_if v18, empty
+    ret v16
 }

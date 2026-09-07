@@ -104,18 +104,9 @@ fn @g() -> memorybytes [selector=0xe2179b8e, view, abi_params=[], abi_returns=[m
   bb8:
     revert_returndata
   bb9:
-    v30 = returndatasize
-    v31 = add v30, 63
-    v32 = lt v31, v30
-    panic_if v32, 0x41
-    v33 = not 31
-    v34 = and v31, v33
-    v35 = alloc memorybytes, exact, uninitialized, infallible, v34
-    set_memory_object_len memorybytes, v35, v30
-    v36 = make_returndata_slice 0, v30
-    memory_object_copy_from_slice memorybytes, v35, v36
-    v37 = abi_decode [bytes], v35
-    ret v37
+    v30 = returndata_bytes
+    v31 = abi_decode [bytes], v30
+    ret v31
   bb2:
     v4 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
     memory_zero v4, 32
@@ -287,18 +278,9 @@ fn @i() -> memorybytes [selector=0xe5aa3d58, view, abi_params=[], abi_returns=[m
   bb23:
     revert_returndata
   bb24:
-    v85 = returndatasize
-    v86 = add v85, 63
-    v87 = lt v86, v85
-    panic_if v87, 0x41
-    v88 = not 31
-    v89 = and v86, v88
-    v90 = alloc memorybytes, exact, uninitialized, infallible, v89
-    set_memory_object_len memorybytes, v90, v85
-    v91 = make_returndata_slice 0, v85
-    memory_object_copy_from_slice memorybytes, v90, v91
-    v92 = abi_decode [bytes], v90
-    ret v92
+    v85 = returndata_bytes
+    v86 = abi_decode [bytes], v85
+    ret v86
   bb5:
     v9 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     memory_zero v9, 64

@@ -7,10 +7,12 @@
 //! Revert outlining can then share builtin failure payloads. Precompile calls
 //! retain their returndata and memory observations even when their scalar result is unused.
 //! Payable sends and transfers expand to stipend-limited calls; transfers branch to a semantic
-//! returndata revert on failure, leaving payload expansion to revert lowering.
+//! returndata revert on failure, leaving payload expansion to revert lowering. Low-level address
+//! calls expose their bytes input only here and retain explicit gas/value options. Return-data
+//! capture allocates and copies after the call, before any later call can replace the data.
 
 use crate::mir::{
-    AllocationSemantics, ConcatPart, FunctionBuilder, InstKind, MemoryObjectKind,
+    AddressCallKind, AllocationSemantics, ConcatPart, FunctionBuilder, InstKind, MemoryObjectKind,
     MemoryObjectLayout, MirType, Module, PanicCode, SliceLocation, ValueId,
     pass::{MirPass, run_function_pass},
 };
@@ -157,6 +159,20 @@ impl MirPass for LowerBuiltins {
                         InstKind::StorageBytesLoad(slot) => {
                             super::lower_storage_bytes::load(&mut builder, slot)
                         }
+                        InstKind::AddressCall { kind, address, input, gas, value } => {
+                            lower_address_call(
+                                &mut builder,
+                                gcx.sess.opts.evm_version,
+                                kind,
+                                address,
+                                input,
+                                gas,
+                                value,
+                            )
+                        }
+                        InstKind::ReturndataBytes => {
+                            lower_returndata(&mut builder, gcx.sess.opts.evm_version)
+                        }
                         InstKind::Send(address, amount) => {
                             lower_send(&mut builder, address, amount)
                         }
@@ -211,7 +227,55 @@ fn is_builtin(kind: &InstKind) -> bool {
             | InstKind::EcRecover(..)
             | InstKind::Send(..)
             | InstKind::Transfer(..)
+            | InstKind::AddressCall { .. }
+            | InstKind::ReturndataBytes
     )
+}
+
+fn lower_address_call(
+    builder: &mut FunctionBuilder<'_>,
+    evm: EvmVersion,
+    kind: AddressCallKind,
+    address: ValueId,
+    input: ValueId,
+    gas: Option<ValueId>,
+    value: Option<ValueId>,
+) -> ValueId {
+    // offset = memory_object_data input
+    // size = memory_object_len input
+    // gas = explicit_gas | gas() - pre_tangerine_reserve
+    // success = call/staticcall/delegatecall(gas, address, value?, offset, size, 0, 0)
+    let offset = builder.memory_object_data(input, MemoryObjectKind::Bytes);
+    let size = builder.memory_object_len(input, MemoryObjectKind::Bytes);
+    let zero = builder.imm(0);
+    // A bare call has no code guard. Like solc, reserve possible account creation even for
+    // delegatecall on pre-EIP-150 targets; an explicit zero value option still reserves value gas.
+    let gas = gas.unwrap_or_else(|| {
+        if evm.can_overcharge_gas_for_call() {
+            builder.gas()
+        } else {
+            crate::mir::utils::pre_tangerine_call_gas(builder, value.is_some(), true)
+        }
+    });
+    match kind {
+        AddressCallKind::Call => {
+            builder.call(gas, address, value.unwrap_or(zero), offset, size, zero, zero)
+        }
+        AddressCallKind::Static => builder.staticcall(gas, address, offset, size, zero, zero),
+        AddressCallKind::Delegate => builder.delegatecall(gas, address, offset, size, zero, zero),
+    }
+}
+
+fn lower_returndata(builder: &mut FunctionBuilder<'_>, evm: EvmVersion) -> ValueId {
+    // length = supports_returndata ? returndatasize : 0
+    // object = bytes(length)
+    // copy(returndata(0, length), object.data)
+    let length = if evm.supports_returndata() { builder.returndatasize() } else { builder.imm(0) };
+    let object = builder.alloc_bytes_object(length, AllocationSemantics::INTERNAL);
+    let zero = builder.imm(0);
+    let source = builder.make_slice(zero, length, SliceLocation::Returndata);
+    builder.memory_object_copy_from_slice(object, MemoryObjectKind::Bytes, source);
+    object
 }
 
 fn lower_send(builder: &mut FunctionBuilder<'_>, address: ValueId, amount: ValueId) -> ValueId {

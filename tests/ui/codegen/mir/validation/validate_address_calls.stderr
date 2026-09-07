@@ -1,0 +1,6 @@
+error: [fn0] [bb0, inst0] only address_call accepts a value option
+
+error: [fn1] [bb0, inst0] address call options require word operands
+
+error: aborting due to 2 previous errors
+

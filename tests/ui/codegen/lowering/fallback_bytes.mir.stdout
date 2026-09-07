@@ -7,26 +7,15 @@ fn @invoke(arg0: memorybytes) -> struct0 [selector=0xa6514259, abi_params=[bytes
   bb0:
     v0 = address
     v1 = gas
-    v2 = memory_object_data memorybytes, arg0
-    v3 = memory_object_len memorybytes, arg0
-    v4 = call v1, v0, 0, v2, v3, 0, 0
-    v5 = returndatasize
-    v6 = add v5, 63
-    v7 = lt v6, v5
-    panic_if v7, 0x41
-    v8 = not 31
-    v9 = and v6, v8
-    v10 = alloc memorybytes, exact, uninitialized, infallible, v9
-    set_memory_object_len memorybytes, v10, v5
-    v11 = make_returndata_slice 0, v5
-    memory_object_copy_from_slice memorybytes, v10, v11
-    v12 = iszero v4
-    revert_if v12, empty
-    v13 = memory_object_len memorybytes, v10
-    v14 = keccak256_bytes v10
-    v15 = insert_value struct0, undef struct0, 0, v13
-    v16 = insert_value struct0, v15, 1, v14
-    ret v16
+    v2 = address_call v0, arg0, gas v1
+    v3 = returndata_bytes
+    v4 = iszero v2
+    revert_if v4, empty
+    v5 = memory_object_len memorybytes, v3
+    v6 = keccak256_bytes v3
+    v7 = insert_value struct0, undef struct0, 0, v5
+    v8 = insert_value struct0, v7, 1, v6
+    ret v8
 }
 
 fn @fallback(arg0: calldataslice) -> memorybytes [fallback] {

@@ -56,34 +56,34 @@ fn @asValue() [selector=0x440a9300, abi_wrapper, pure] {
 
 fn @viaCall() [selector=0x23d014a1, abi_wrapper] {
   bb0:
-    v6 = calldatasize
-    v7 = lt v6, 100
-    jumpi v7, bb1, bb2
+    v7 = calldatasize
+    v8 = lt v7, 100
+    jumpi v8, bb1, bb2
   bb2:
-    v8 = calldataload 4
-    v9 = shr 160, v8
-    jumpi v9, bb1, bb3
+    v9 = calldataload 4
+    v10 = shr 160, v9
+    jumpi v10, bb1, bb3
   bb3:
-    v11 = calldataload 36
-    v12 = shr 160, v11
-    jumpi v12, bb1, bb4
+    v12 = calldataload 36
+    v13 = shr 160, v12
+    jumpi v13, bb1, bb4
   bb4:
     v0 = gas
     v1 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
-    v18 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v22 = add v18, 128
-    mstore 64, v22 !metadata(memory=scratch)
-    mstore v18, 68
-    v19 = add v18, 32
-    mstore v19, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
-    v20 = add v19, 4
-    mstore v20, v1
-    v21 = add v19, 36
-    mstore v21, arg2
-    v5 = call v0, arg0, 0, v19, 68, 0, 0
-    v14 = iszero v5
-    v15 = iszero v14
-    mstore 128, v15
+    v19 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v23 = add v19, 128
+    mstore 64, v23 !metadata(memory=scratch)
+    mstore v19, 68
+    v20 = add v19, 32
+    mstore v20, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+    v21 = add v20, 4
+    mstore v21, v1
+    v22 = add v20, 36
+    mstore v22, arg2
+    v6 = call v0, arg0, 0, v20, 68, 0, 0
+    v15 = iszero v6
+    v16 = iszero v15
+    mstore 128, v16
     returndata 128, 32
   bb1:
     revert 0, 0

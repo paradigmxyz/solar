@@ -39,81 +39,63 @@ fn @lowLevelFirst(arg0: u256) -> u256 [selector=0x7bb76e97, view, abi_params=[u2
     v5 = staticcall v1, v0, v3, v4, 0, 0
     jumpi v5, bb1, bb2
   bb2:
-    v14 = returndatasize
-    v15 = add v14, 63
-    v16 = lt v15, v14
-    panic_if v16, 0x41
-    v17 = not 31
-    v18 = and v15, v17
-    v19 = alloc memorybytes, exact, uninitialized, infallible, v18
-    set_memory_object_len memorybytes, v19, v14
-    v20 = make_returndata_slice 0, v14
-    memory_object_copy_from_slice memorybytes, v19, v20
-    v21 = memory_object_data memorybytes, v19
-    v22 = memory_object_len memorybytes, v19
-    v23 = make_memory_slice v21, v22
-    v24 = memory_slice_load_word memory, v23, 0
-    v25 = lt v22, 4
-    v26 = iszero v25
-    v27 = shr 224, v24
-    v28 = eq v27, 0x8c379a0
-    jumpi v28, bb4, bb5
+    v8 = returndata_bytes
+    v9 = memory_object_data memorybytes, v8
+    v10 = memory_object_len memorybytes, v8
+    v11 = make_memory_slice v9, v10
+    v12 = memory_slice_load_word memory, v11, 0
+    v13 = lt v10, 4
+    v14 = iszero v13
+    v15 = shr 224, v12
+    v16 = eq v15, 0x8c379a0
+    jumpi v16, bb4, bb5
   bb5:
     jump bb6
   bb4:
-    v29 = icall @try_decode_error_message, v21, v22
+    v17 = icall @try_decode_error_message, v9, v10
     jump bb6
   bb6:
-    v30 = phi [bb4: v29], [bb5: false]
-    v31 = lt v22, 36
-    v32 = iszero v31
-    v33 = eq v27, 0x4e487b71
-    v34 = and v32, v33
-    jumpi v30, bb7, bb8
+    v18 = phi [bb4: v17], [bb5: false]
+    v19 = lt v10, 36
+    v20 = iszero v19
+    v21 = eq v15, 0x4e487b71
+    v22 = and v20, v21
+    jumpi v18, bb7, bb8
   bb8:
-    jumpi v34, bb9, bb10
+    jumpi v22, bb9, bb10
   bb10:
     jumpi true, bb11, bb12
   bb12:
-    revert v21, v22
+    revert v9, v10
   bb11:
     ret 100
   bb9:
-    v47 = memory_object_data memorybytes, v19
-    v48 = add v47, 4
-    v49 = make_memory_slice v48, 32
-    v50 = memory_slice_load_word memory, v49, 0
+    v35 = memory_object_data memorybytes, v8
+    v36 = add v35, 4
+    v37 = make_memory_slice v36, 32
+    v38 = memory_slice_load_word memory, v37, 0
     ret 300
   bb7:
-    v35 = memory_object_data memorybytes, v19
-    v36 = memory_object_len memorybytes, v19
-    v37 = add v35, 4
-    v38 = sub v36, 4
-    v39 = make_memory_slice v37, v38
-    v40 = slice_len v39
-    v41 = add v40, 63
-    v42 = lt v41, v40
-    panic_if v42, 0x41
-    v43 = not 31
-    v44 = and v41, v43
-    v45 = alloc memorybytes, exact, uninitialized, infallible, v44
-    set_memory_object_len memorybytes, v45, v40
-    memory_object_copy_from_slice memorybytes, v45, v39
-    v46 = abi_decode [bytes], v45
+    v23 = memory_object_data memorybytes, v8
+    v24 = memory_object_len memorybytes, v8
+    v25 = add v23, 4
+    v26 = sub v24, 4
+    v27 = make_memory_slice v25, v26
+    v28 = slice_len v27
+    v29 = add v28, 63
+    v30 = lt v29, v28
+    panic_if v30, 0x41
+    v31 = not 31
+    v32 = and v29, v31
+    v33 = alloc memorybytes, exact, uninitialized, infallible, v32
+    set_memory_object_len memorybytes, v33, v28
+    memory_object_copy_from_slice memorybytes, v33, v27
+    v34 = abi_decode [bytes], v33
     ret 200
   bb1:
-    v6 = returndatasize
-    v7 = add v6, 63
-    v8 = lt v7, v6
-    panic_if v8, 0x41
-    v9 = not 31
-    v10 = and v7, v9
-    v11 = alloc memorybytes, exact, uninitialized, infallible, v10
-    set_memory_object_len memorybytes, v11, v6
-    v12 = make_returndata_slice 0, v6
-    memory_object_copy_from_slice memorybytes, v11, v12
-    v13 = abi_decode [u256], v11
-    ret v13
+    v6 = returndata_bytes
+    v7 = abi_decode [u256], v6
+    ret v7
   bb3:
     ret 0
 }
@@ -128,81 +110,63 @@ fn @typedFirst(arg0: u256) -> u256 [selector=0x90ba0c06, view, abi_params=[u256]
     v5 = staticcall v1, v0, v3, v4, 0, 0
     jumpi v5, bb1, bb2
   bb2:
-    v14 = returndatasize
-    v15 = add v14, 63
-    v16 = lt v15, v14
-    panic_if v16, 0x41
-    v17 = not 31
-    v18 = and v15, v17
-    v19 = alloc memorybytes, exact, uninitialized, infallible, v18
-    set_memory_object_len memorybytes, v19, v14
-    v20 = make_returndata_slice 0, v14
-    memory_object_copy_from_slice memorybytes, v19, v20
-    v21 = memory_object_data memorybytes, v19
-    v22 = memory_object_len memorybytes, v19
-    v23 = make_memory_slice v21, v22
-    v24 = memory_slice_load_word memory, v23, 0
-    v25 = lt v22, 4
-    v26 = iszero v25
-    v27 = shr 224, v24
-    v28 = eq v27, 0x8c379a0
-    jumpi v28, bb4, bb5
+    v8 = returndata_bytes
+    v9 = memory_object_data memorybytes, v8
+    v10 = memory_object_len memorybytes, v8
+    v11 = make_memory_slice v9, v10
+    v12 = memory_slice_load_word memory, v11, 0
+    v13 = lt v10, 4
+    v14 = iszero v13
+    v15 = shr 224, v12
+    v16 = eq v15, 0x8c379a0
+    jumpi v16, bb4, bb5
   bb5:
     jump bb6
   bb4:
-    v29 = icall @try_decode_error_message, v21, v22
+    v17 = icall @try_decode_error_message, v9, v10
     jump bb6
   bb6:
-    v30 = phi [bb4: v29], [bb5: false]
-    v31 = lt v22, 36
-    v32 = iszero v31
-    v33 = eq v27, 0x4e487b71
-    v34 = and v32, v33
-    jumpi v30, bb7, bb8
+    v18 = phi [bb4: v17], [bb5: false]
+    v19 = lt v10, 36
+    v20 = iszero v19
+    v21 = eq v15, 0x4e487b71
+    v22 = and v20, v21
+    jumpi v18, bb7, bb8
   bb8:
-    jumpi v34, bb9, bb10
+    jumpi v22, bb9, bb10
   bb10:
     jumpi true, bb11, bb12
   bb12:
-    revert v21, v22
+    revert v9, v10
   bb11:
     ret 100
   bb9:
-    v47 = memory_object_data memorybytes, v19
-    v48 = add v47, 4
-    v49 = make_memory_slice v48, 32
-    v50 = memory_slice_load_word memory, v49, 0
+    v35 = memory_object_data memorybytes, v8
+    v36 = add v35, 4
+    v37 = make_memory_slice v36, 32
+    v38 = memory_slice_load_word memory, v37, 0
     ret 300
   bb7:
-    v35 = memory_object_data memorybytes, v19
-    v36 = memory_object_len memorybytes, v19
-    v37 = add v35, 4
-    v38 = sub v36, 4
-    v39 = make_memory_slice v37, v38
-    v40 = slice_len v39
-    v41 = add v40, 63
-    v42 = lt v41, v40
-    panic_if v42, 0x41
-    v43 = not 31
-    v44 = and v41, v43
-    v45 = alloc memorybytes, exact, uninitialized, infallible, v44
-    set_memory_object_len memorybytes, v45, v40
-    memory_object_copy_from_slice memorybytes, v45, v39
-    v46 = abi_decode [bytes], v45
+    v23 = memory_object_data memorybytes, v8
+    v24 = memory_object_len memorybytes, v8
+    v25 = add v23, 4
+    v26 = sub v24, 4
+    v27 = make_memory_slice v25, v26
+    v28 = slice_len v27
+    v29 = add v28, 63
+    v30 = lt v29, v28
+    panic_if v30, 0x41
+    v31 = not 31
+    v32 = and v29, v31
+    v33 = alloc memorybytes, exact, uninitialized, infallible, v32
+    set_memory_object_len memorybytes, v33, v28
+    memory_object_copy_from_slice memorybytes, v33, v27
+    v34 = abi_decode [bytes], v33
     ret 200
   bb1:
-    v6 = returndatasize
-    v7 = add v6, 63
-    v8 = lt v7, v6
-    panic_if v8, 0x41
-    v9 = not 31
-    v10 = and v7, v9
-    v11 = alloc memorybytes, exact, uninitialized, infallible, v10
-    set_memory_object_len memorybytes, v11, v6
-    v12 = make_returndata_slice 0, v6
-    memory_object_copy_from_slice memorybytes, v11, v12
-    v13 = abi_decode [u256], v11
-    ret v13
+    v6 = returndata_bytes
+    v7 = abi_decode [u256], v6
+    ret v7
   bb3:
     ret 0
 }
@@ -217,55 +181,37 @@ fn @bareFirst(arg0: u256) -> u256 [selector=0x2f2a2d09, view, abi_params=[u256],
     v5 = staticcall v1, v0, v3, v4, 0, 0
     jumpi v5, bb1, bb2
   bb2:
-    v14 = returndatasize
-    v15 = add v14, 63
-    v16 = lt v15, v14
-    panic_if v16, 0x41
-    v17 = not 31
-    v18 = and v15, v17
-    v19 = alloc memorybytes, exact, uninitialized, infallible, v18
-    set_memory_object_len memorybytes, v19, v14
-    v20 = make_returndata_slice 0, v14
-    memory_object_copy_from_slice memorybytes, v19, v20
-    v21 = memory_object_data memorybytes, v19
-    v22 = memory_object_len memorybytes, v19
-    v23 = make_memory_slice v21, v22
-    v24 = memory_slice_load_word memory, v23, 0
-    v25 = lt v22, 4
-    v26 = iszero v25
-    v27 = shr 224, v24
-    v28 = eq v27, 0x8c379a0
-    v29 = and v26, v28
-    v30 = lt v22, 36
-    v31 = iszero v30
-    v32 = eq v27, 0x4e487b71
-    v33 = and v31, v32
-    jumpi v33, bb4, bb5
+    v8 = returndata_bytes
+    v9 = memory_object_data memorybytes, v8
+    v10 = memory_object_len memorybytes, v8
+    v11 = make_memory_slice v9, v10
+    v12 = memory_slice_load_word memory, v11, 0
+    v13 = lt v10, 4
+    v14 = iszero v13
+    v15 = shr 224, v12
+    v16 = eq v15, 0x8c379a0
+    v17 = and v14, v16
+    v18 = lt v10, 36
+    v19 = iszero v18
+    v20 = eq v15, 0x4e487b71
+    v21 = and v19, v20
+    jumpi v21, bb4, bb5
   bb5:
     jumpi true, bb6, bb7
   bb7:
-    revert v21, v22
+    revert v9, v10
   bb6:
     ret 100
   bb4:
-    v34 = memory_object_data memorybytes, v19
-    v35 = add v34, 4
-    v36 = make_memory_slice v35, 32
-    v37 = memory_slice_load_word memory, v36, 0
+    v22 = memory_object_data memorybytes, v8
+    v23 = add v22, 4
+    v24 = make_memory_slice v23, 32
+    v25 = memory_slice_load_word memory, v24, 0
     ret 300
   bb1:
-    v6 = returndatasize
-    v7 = add v6, 63
-    v8 = lt v7, v6
-    panic_if v8, 0x41
-    v9 = not 31
-    v10 = and v7, v9
-    v11 = alloc memorybytes, exact, uninitialized, infallible, v10
-    set_memory_object_len memorybytes, v11, v6
-    v12 = make_returndata_slice 0, v6
-    memory_object_copy_from_slice memorybytes, v11, v12
-    v13 = abi_decode [u256], v11
-    ret v13
+    v6 = returndata_bytes
+    v7 = abi_decode [u256], v6
+    ret v7
   bb3:
     ret 0
 }

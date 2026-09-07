@@ -18,35 +18,26 @@ fn @invoke(arg0: function, arg1: memorystruct) {
     v9 = call v3, v2, 0, v5, v6, 0, 0
     jumpi v9, bb1, bb2
   bb2:
-    v10 = returndatasize
-    v11 = add v10, 63
-    v12 = lt v11, v10
-    panic_if v12, 0x41
-    v13 = not 31
-    v14 = and v11, v13
-    v15 = alloc memorybytes, exact, uninitialized, infallible, v14
-    set_memory_object_len memorybytes, v15, v10
-    v16 = make_returndata_slice 0, v10
-    memory_object_copy_from_slice memorybytes, v15, v16
-    v17 = memory_object_data memorybytes, v15
-    v18 = memory_object_len memorybytes, v15
-    v19 = make_memory_slice v17, v18
-    v20 = memory_slice_load_word memory, v19, 0
-    v21 = lt v18, 4
-    v22 = iszero v21
-    v23 = shr 224, v20
-    v24 = eq v23, 0x8c379a0
-    v25 = and v22, v24
-    v26 = lt v18, 36
-    v27 = iszero v26
-    v28 = eq v23, 0x4e487b71
-    v29 = and v27, v28
+    v10 = returndata_bytes
+    v11 = memory_object_data memorybytes, v10
+    v12 = memory_object_len memorybytes, v10
+    v13 = make_memory_slice v11, v12
+    v14 = memory_slice_load_word memory, v13, 0
+    v15 = lt v12, 4
+    v16 = iszero v15
+    v17 = shr 224, v14
+    v18 = eq v17, 0x8c379a0
+    v19 = and v16, v18
+    v20 = lt v12, 36
+    v21 = iszero v20
+    v22 = eq v17, 0x4e487b71
+    v23 = and v21, v22
     jumpi true, bb4, bb5
   bb5:
-    revert v17, v18
+    revert v11, v12
   bb4:
-    v30 = memory_object_len memorybytes, v15
-    sstore 0, v30 !metadata(storage=slot(0))
+    v24 = memory_object_len memorybytes, v10
+    sstore 0, v24 !metadata(storage=slot(0))
     jump bb3
   bb1:
     jump bb3
@@ -91,61 +82,43 @@ fn @invokePair(arg0: function, arg1: memorystruct) -> struct0 {
     v7 = call v3, v2, 0, v5, v6, 0, 0
     jumpi v7, bb1, bb2
   bb2:
-    v20 = returndatasize
-    v21 = add v20, 63
-    v22 = lt v21, v20
-    panic_if v22, 0x41
-    v23 = not 31
-    v24 = and v21, v23
-    v25 = alloc memorybytes, exact, uninitialized, infallible, v24
-    set_memory_object_len memorybytes, v25, v20
-    v26 = make_returndata_slice 0, v20
-    memory_object_copy_from_slice memorybytes, v25, v26
-    v27 = memory_object_data memorybytes, v25
-    v28 = memory_object_len memorybytes, v25
-    v29 = make_memory_slice v27, v28
-    v30 = memory_slice_load_word memory, v29, 0
-    v31 = lt v28, 4
-    v32 = iszero v31
-    v33 = shr 224, v30
-    v34 = eq v33, 0x8c379a0
-    v35 = and v32, v34
-    v36 = lt v28, 36
-    v37 = iszero v36
-    v38 = eq v33, 0x4e487b71
-    v39 = and v37, v38
+    v14 = returndata_bytes
+    v15 = memory_object_data memorybytes, v14
+    v16 = memory_object_len memorybytes, v14
+    v17 = make_memory_slice v15, v16
+    v18 = memory_slice_load_word memory, v17, 0
+    v19 = lt v16, 4
+    v20 = iszero v19
+    v21 = shr 224, v18
+    v22 = eq v21, 0x8c379a0
+    v23 = and v20, v22
+    v24 = lt v16, 36
+    v25 = iszero v24
+    v26 = eq v21, 0x4e487b71
+    v27 = and v25, v26
     jumpi true, bb4, bb5
   bb5:
-    revert v27, v28
+    revert v15, v16
   bb4:
-    v40 = alloc memorybytes, exact, uninitialized, infallible, 64
-    set_memory_object_len memorybytes, v40, 6
-    v41 = memory_object_data memorybytes, v40
-    mstore v41, 0x6661696c65640000000000000000000000000000000000000000000000000000
-    v42 = insert_value struct0, undef struct0, 0, 0
-    v43 = insert_value struct0, v42, 1, v40
-    ret v43
+    v28 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v28, 6
+    v29 = memory_object_data memorybytes, v28
+    mstore v29, 0x6661696c65640000000000000000000000000000000000000000000000000000
+    v30 = insert_value struct0, undef struct0, 0, 0
+    v31 = insert_value struct0, v30, 1, v28
+    ret v31
   bb1:
-    v8 = returndatasize
-    v9 = add v8, 63
-    v10 = lt v9, v8
-    panic_if v10, 0x41
-    v11 = not 31
-    v12 = and v9, v11
-    v13 = alloc memorybytes, exact, uninitialized, infallible, v12
-    set_memory_object_len memorybytes, v13, v8
-    v14 = make_returndata_slice 0, v8
-    memory_object_copy_from_slice memorybytes, v13, v14
-    v15 = abi_decode [u256, bytes], v13
-    v16 = extract_value struct0, v15, 0
-    v17 = extract_value struct0, v15, 1
-    v18 = insert_value struct0, undef struct0, 0, v16
-    v19 = insert_value struct0, v18, 1, v17
-    ret v19
+    v8 = returndata_bytes
+    v9 = abi_decode [u256, bytes], v8
+    v10 = extract_value struct0, v9, 0
+    v11 = extract_value struct0, v9, 1
+    v12 = insert_value struct0, undef struct0, 0, v10
+    v13 = insert_value struct0, v12, 1, v11
+    ret v13
   bb3:
-    v44 = insert_value struct0, undef struct0, 0, 0
-    v45 = insert_value struct0, v44, 1, memorybytes 96
-    ret v45
+    v32 = insert_value struct0, undef struct0, 0, 0
+    v33 = insert_value struct0, v32, 1, memorybytes 96
+    ret v33
 }
 
 fn @trySuccess() -> u256 [selector=0x3984eec7, abi_params=[], abi_returns=[word]] {

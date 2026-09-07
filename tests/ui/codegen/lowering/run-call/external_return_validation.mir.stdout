@@ -174,36 +174,27 @@ fn @distinctDynamicReturns() -> u256 [selector=0x56c7de2c, abi_params=[], abi_re
   bb1:
     revert_returndata
   bb2:
-    v6 = returndatasize
-    v7 = add v6, 63
-    v8 = lt v7, v6
-    panic_if v8, 0x41
-    v9 = not 31
-    v10 = and v7, v9
-    v11 = alloc memorybytes, exact, uninitialized, infallible, v10
-    set_memory_object_len memorybytes, v11, v6
-    v12 = make_returndata_slice 0, v6
-    memory_object_copy_from_slice memorybytes, v11, v12
-    v13 = abi_decode [tuple<array<_, u256>>, tuple<array<_, u256>>], v11
-    v14 = extract_value struct0, v13, 0
-    v15 = extract_value struct0, v13, 1
-    v16 = insert_value struct0, undef struct0, 0, v14
-    v17 = insert_value struct0, v16, 1, v15
-    v18 = extract_value struct0, v17, 0
-    v19 = extract_value struct0, v17, 1
-    v20 = memory_object_load_field memorystruct<1>, v18, 0, memoryarray
-    v21 = memory_object_len memoryarray, v20
-    v22 = lt 0, v21
-    v23 = iszero v22
-    panic_if v23, 0x32
-    memory_object_store_element memoryarray<1>, v20, 0, 9
-    v24 = memory_object_load_field memorystruct<1>, v19, 0, memoryarray
-    v25 = memory_object_len memoryarray, v24
-    v26 = lt 0, v25
-    v27 = iszero v26
-    panic_if v27, 0x32
-    v28 = memory_object_load_element memoryarray<1>, v24, 0
-    ret v28
+    v6 = returndata_bytes
+    v7 = abi_decode [tuple<array<_, u256>>, tuple<array<_, u256>>], v6
+    v8 = extract_value struct0, v7, 0
+    v9 = extract_value struct0, v7, 1
+    v10 = insert_value struct0, undef struct0, 0, v8
+    v11 = insert_value struct0, v10, 1, v9
+    v12 = extract_value struct0, v11, 0
+    v13 = extract_value struct0, v11, 1
+    v14 = memory_object_load_field memorystruct<1>, v12, 0, memoryarray
+    v15 = memory_object_len memoryarray, v14
+    v16 = lt 0, v15
+    v17 = iszero v16
+    panic_if v17, 0x32
+    memory_object_store_element memoryarray<1>, v14, 0, 9
+    v18 = memory_object_load_field memorystruct<1>, v13, 0, memoryarray
+    v19 = memory_object_len memoryarray, v18
+    v20 = lt 0, v19
+    v21 = iszero v20
+    panic_if v21, 0x32
+    v22 = memory_object_load_element memoryarray<1>, v18, 0
+    ret v22
 }
 
 fn @fallback() [fallback] {
@@ -498,17 +489,8 @@ fn @dynamicShort(arg0: u256) -> bool [selector=0x73932459, view, abi_params=[u25
   bb1:
     revert_returndata
   bb2:
-    v6 = returndatasize
-    v7 = add v6, 63
-    v8 = lt v7, v6
-    panic_if v8, 0x41
-    v9 = not 31
-    v10 = and v7, v9
-    v11 = alloc memorybytes, exact, uninitialized, infallible, v10
-    set_memory_object_len memorybytes, v11, v6
-    v12 = make_returndata_slice 0, v6
-    memory_object_copy_from_slice memorybytes, v11, v12
-    v13 = abi_decode [bytes], v11
+    v6 = returndata_bytes
+    v7 = abi_decode [bytes], v6
     ret true
 }
 
@@ -531,19 +513,10 @@ fn @dynamicLengthOverflow() -> u256 [selector=0x5e963174, view, abi_params=[], a
   bb1:
     revert_returndata
   bb2:
-    v6 = returndatasize
-    v7 = add v6, 63
-    v8 = lt v7, v6
-    panic_if v8, 0x41
-    v9 = not 31
-    v10 = and v7, v9
-    v11 = alloc memorybytes, exact, uninitialized, infallible, v10
-    set_memory_object_len memorybytes, v11, v6
-    v12 = make_returndata_slice 0, v6
-    memory_object_copy_from_slice memorybytes, v11, v12
-    v13 = abi_decode [bytes], v11
-    v14 = memory_object_len memorybytes, v13
-    ret v14
+    v6 = returndata_bytes
+    v7 = abi_decode [bytes], v6
+    v8 = memory_object_len memorybytes, v7
+    ret v8
 }
 
 fn @dynamicLengthOverflowTarget() [selector=0xe1365904, pure, abi_params=[], abi_returns=[memory_bytes]] {
@@ -565,19 +538,10 @@ fn @dynamicArrayLengthOverflow() -> u256 [selector=0xbd5e58ee, view, abi_params=
   bb1:
     revert_returndata
   bb2:
-    v6 = returndatasize
-    v7 = add v6, 63
-    v8 = lt v7, v6
-    panic_if v8, 0x41
-    v9 = not 31
-    v10 = and v7, v9
-    v11 = alloc memorybytes, exact, uninitialized, infallible, v10
-    set_memory_object_len memorybytes, v11, v6
-    v12 = make_returndata_slice 0, v6
-    memory_object_copy_from_slice memorybytes, v11, v12
-    v13 = abi_decode [array<_, u256>], v11
-    v14 = memory_object_len memoryarray, v13
-    ret v14
+    v6 = returndata_bytes
+    v7 = abi_decode [array<_, u256>], v6
+    v8 = memory_object_len memoryarray, v7
+    ret v8
 }
 
 fn @dynamicArrayLengthOverflowTarget() [selector=0x839ae554, pure, abi_params=[], abi_returns=[memory_array<word>]] {

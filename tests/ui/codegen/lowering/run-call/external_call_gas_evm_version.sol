@@ -161,12 +161,11 @@ contract CallGasCalls {
     // A bare call has no `extcodesize` guard, so it also withholds the account-creation cost,
     // 50 + 25000.
     // HOMESTEAD-LABEL: fn @bare
-    // HOMESTEAD: [[GAS:v[0-9]+]] = gas
-    // HOMESTEAD: [[FWD:v[0-9]+]] = sub [[GAS]], 0x61da
-    // HOMESTEAD: call [[FWD]],
+    // HOMESTEAD-NOT: = gas
+    // HOMESTEAD: address_call
     // TANGERINE-LABEL: fn @bare
     // TANGERINE: [[GAS:v[0-9]+]] = gas
-    // TANGERINE: call [[GAS]],
+    // TANGERINE: address_call {{.*}}, gas [[GAS]]
     function bare() external returns (uint256) {
         (bool ok,) = address(new CallGasCallee()).call(abi.encodeWithSignature("noop()"));
         return ok ? 1 : 0;

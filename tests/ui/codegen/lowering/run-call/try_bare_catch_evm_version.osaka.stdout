@@ -71,50 +71,32 @@ fn @live() -> u256 [selector=0x957aa58c, abi_params=[], abi_returns=[word]] {
     v11 = call v7, v6, 0, v9, v10, 0, 0
     jumpi v11, bb3, bb4
   bb4:
-    v20 = returndatasize
-    v21 = add v20, 63
-    v22 = lt v21, v20
-    panic_if v22, 0x41
-    v23 = not 31
-    v24 = and v21, v23
-    v25 = alloc memorybytes, exact, uninitialized, infallible, v24
-    set_memory_object_len memorybytes, v25, v20
-    v26 = make_returndata_slice 0, v20
-    memory_object_copy_from_slice memorybytes, v25, v26
-    v27 = memory_object_data memorybytes, v25
-    v28 = memory_object_len memorybytes, v25
-    v29 = make_memory_slice v27, v28
-    v30 = memory_slice_load_word memory, v29, 0
-    v31 = lt v28, 4
-    v32 = iszero v31
-    v33 = shr 224, v30
-    v34 = eq v33, 0x8c379a0
-    v35 = and v32, v34
-    v36 = lt v28, 36
-    v37 = iszero v36
-    v38 = eq v33, 0x4e487b71
-    v39 = and v37, v38
+    v14 = returndata_bytes
+    v15 = memory_object_data memorybytes, v14
+    v16 = memory_object_len memorybytes, v14
+    v17 = make_memory_slice v15, v16
+    v18 = memory_slice_load_word memory, v17, 0
+    v19 = lt v16, 4
+    v20 = iszero v19
+    v21 = shr 224, v18
+    v22 = eq v21, 0x8c379a0
+    v23 = and v20, v22
+    v24 = lt v16, 36
+    v25 = iszero v24
+    v26 = eq v21, 0x4e487b71
+    v27 = and v25, v26
     jumpi true, bb6, bb7
   bb7:
-    revert v27, v28
+    revert v15, v16
   bb6:
     jump bb5
   bb3:
-    v12 = returndatasize
-    v13 = add v12, 63
-    v14 = lt v13, v12
-    panic_if v14, 0x41
-    v15 = not 31
-    v16 = and v13, v15
-    v17 = alloc memorybytes, exact, uninitialized, infallible, v16
-    set_memory_object_len memorybytes, v17, v12
-    v18 = make_returndata_slice 0, v12
-    memory_object_copy_from_slice memorybytes, v17, v18
-    v19 = abi_decode [u256], v17
+    v12 = returndata_bytes
+    v13 = abi_decode [u256], v12
     jump bb5
   bb5:
-    v40 = phi [bb3: v19], [bb6: 7]
-    ret v40
+    v28 = phi [bb3: v13], [bb6: 7]
+    ret v28
 }
 
 fn @liveTwo() -> u256 [selector=0xa9b44a2a, abi_params=[], abi_returns=[word]] {
@@ -139,53 +121,35 @@ fn @liveTwo() -> u256 [selector=0xa9b44a2a, abi_params=[], abi_returns=[word]] {
     v11 = call v7, v6, 0, v9, v10, 0, 0
     jumpi v11, bb3, bb4
   bb4:
-    v23 = returndatasize
-    v24 = add v23, 63
-    v25 = lt v24, v23
-    panic_if v25, 0x41
-    v26 = not 31
-    v27 = and v24, v26
-    v28 = alloc memorybytes, exact, uninitialized, infallible, v27
-    set_memory_object_len memorybytes, v28, v23
-    v29 = make_returndata_slice 0, v23
-    memory_object_copy_from_slice memorybytes, v28, v29
-    v30 = memory_object_data memorybytes, v28
-    v31 = memory_object_len memorybytes, v28
-    v32 = make_memory_slice v30, v31
-    v33 = memory_slice_load_word memory, v32, 0
-    v34 = lt v31, 4
-    v35 = iszero v34
-    v36 = shr 224, v33
-    v37 = eq v36, 0x8c379a0
-    v38 = and v35, v37
-    v39 = lt v31, 36
-    v40 = iszero v39
-    v41 = eq v36, 0x4e487b71
-    v42 = and v40, v41
+    v17 = returndata_bytes
+    v18 = memory_object_data memorybytes, v17
+    v19 = memory_object_len memorybytes, v17
+    v20 = make_memory_slice v18, v19
+    v21 = memory_slice_load_word memory, v20, 0
+    v22 = lt v19, 4
+    v23 = iszero v22
+    v24 = shr 224, v21
+    v25 = eq v24, 0x8c379a0
+    v26 = and v23, v25
+    v27 = lt v19, 36
+    v28 = iszero v27
+    v29 = eq v24, 0x4e487b71
+    v30 = and v28, v29
     jumpi true, bb6, bb7
   bb7:
-    revert v30, v31
+    revert v18, v19
   bb6:
     jump bb5
   bb3:
-    v12 = returndatasize
-    v13 = add v12, 63
-    v14 = lt v13, v12
-    panic_if v14, 0x41
-    v15 = not 31
-    v16 = and v13, v15
-    v17 = alloc memorybytes, exact, uninitialized, infallible, v16
-    set_memory_object_len memorybytes, v17, v12
-    v18 = make_returndata_slice 0, v12
-    memory_object_copy_from_slice memorybytes, v17, v18
-    v19 = abi_decode [u256, u256], v17
-    v20 = extract_value struct0, v19, 0
-    v21 = extract_value struct0, v19, 1
-    v22 = checked_add u256, v20, v21
+    v12 = returndata_bytes
+    v13 = abi_decode [u256, u256], v12
+    v14 = extract_value struct0, v13, 0
+    v15 = extract_value struct0, v13, 1
+    v16 = checked_add u256, v14, v15
     jump bb5
   bb5:
-    v43 = phi [bb3: v22], [bb6: 7]
-    ret v43
+    v31 = phi [bb3: v16], [bb6: 7]
+    ret v31
 }
 
 fn @liveAggregate() -> u256 [selector=0xc64a4ee9, abi_params=[], abi_returns=[word]] {
@@ -210,59 +174,41 @@ fn @liveAggregate() -> u256 [selector=0xc64a4ee9, abi_params=[], abi_returns=[wo
     v11 = call v7, v6, 0, v9, v10, 0, 0
     jumpi v11, bb3, bb4
   bb4:
-    v27 = returndatasize
-    v28 = add v27, 63
-    v29 = lt v28, v27
-    panic_if v29, 0x41
-    v30 = not 31
-    v31 = and v28, v30
-    v32 = alloc memorybytes, exact, uninitialized, infallible, v31
-    set_memory_object_len memorybytes, v32, v27
-    v33 = make_returndata_slice 0, v27
-    memory_object_copy_from_slice memorybytes, v32, v33
-    v34 = memory_object_data memorybytes, v32
-    v35 = memory_object_len memorybytes, v32
-    v36 = make_memory_slice v34, v35
-    v37 = memory_slice_load_word memory, v36, 0
-    v38 = lt v35, 4
-    v39 = iszero v38
-    v40 = shr 224, v37
-    v41 = eq v40, 0x8c379a0
-    v42 = and v39, v41
-    v43 = lt v35, 36
-    v44 = iszero v43
-    v45 = eq v40, 0x4e487b71
-    v46 = and v44, v45
+    v21 = returndata_bytes
+    v22 = memory_object_data memorybytes, v21
+    v23 = memory_object_len memorybytes, v21
+    v24 = make_memory_slice v22, v23
+    v25 = memory_slice_load_word memory, v24, 0
+    v26 = lt v23, 4
+    v27 = iszero v26
+    v28 = shr 224, v25
+    v29 = eq v28, 0x8c379a0
+    v30 = and v27, v29
+    v31 = lt v23, 36
+    v32 = iszero v31
+    v33 = eq v28, 0x4e487b71
+    v34 = and v32, v33
     jumpi true, bb6, bb7
   bb7:
-    revert v34, v35
+    revert v22, v23
   bb6:
     jump bb5
   bb3:
-    v12 = returndatasize
-    v13 = add v12, 63
-    v14 = lt v13, v12
-    panic_if v14, 0x41
-    v15 = not 31
-    v16 = and v13, v15
-    v17 = alloc memorybytes, exact, uninitialized, infallible, v16
-    set_memory_object_len memorybytes, v17, v12
-    v18 = make_returndata_slice 0, v12
-    memory_object_copy_from_slice memorybytes, v17, v18
-    v19 = abi_decode [array<2, u256>], v17
-    v20 = lt 0, 2
-    v21 = iszero v20
-    panic_if v21, 0x32
-    v22 = memory_object_load_element memoryfixedarray<2, 1>, v19, 0
-    v23 = lt 1, 2
-    v24 = iszero v23
-    panic_if v24, 0x32
-    v25 = memory_object_load_element memoryfixedarray<2, 1>, v19, 1
-    v26 = checked_add u256, v22, v25
+    v12 = returndata_bytes
+    v13 = abi_decode [array<2, u256>], v12
+    v14 = lt 0, 2
+    v15 = iszero v14
+    panic_if v15, 0x32
+    v16 = memory_object_load_element memoryfixedarray<2, 1>, v13, 0
+    v17 = lt 1, 2
+    v18 = iszero v17
+    panic_if v18, 0x32
+    v19 = memory_object_load_element memoryfixedarray<2, 1>, v13, 1
+    v20 = checked_add u256, v16, v19
     jump bb5
   bb5:
-    v47 = phi [bb3: v26], [bb6: 7]
-    ret v47
+    v35 = phi [bb3: v20], [bb6: 7]
+    ret v35
 }
 
 fn @liveNoReturn() -> u256 [selector=0x0f81fb69, abi_params=[], abi_returns=[word]] {
@@ -290,39 +236,30 @@ fn @liveNoReturn() -> u256 [selector=0x0f81fb69, abi_params=[], abi_returns=[wor
     v13 = call v7, v6, 0, v9, v10, 0, 0
     jumpi v13, bb3, bb4
   bb4:
-    v14 = returndatasize
-    v15 = add v14, 63
-    v16 = lt v15, v14
-    panic_if v16, 0x41
-    v17 = not 31
-    v18 = and v15, v17
-    v19 = alloc memorybytes, exact, uninitialized, infallible, v18
-    set_memory_object_len memorybytes, v19, v14
-    v20 = make_returndata_slice 0, v14
-    memory_object_copy_from_slice memorybytes, v19, v20
-    v21 = memory_object_data memorybytes, v19
-    v22 = memory_object_len memorybytes, v19
-    v23 = make_memory_slice v21, v22
-    v24 = memory_slice_load_word memory, v23, 0
-    v25 = lt v22, 4
-    v26 = iszero v25
-    v27 = shr 224, v24
-    v28 = eq v27, 0x8c379a0
-    v29 = and v26, v28
-    v30 = lt v22, 36
-    v31 = iszero v30
-    v32 = eq v27, 0x4e487b71
-    v33 = and v31, v32
+    v14 = returndata_bytes
+    v15 = memory_object_data memorybytes, v14
+    v16 = memory_object_len memorybytes, v14
+    v17 = make_memory_slice v15, v16
+    v18 = memory_slice_load_word memory, v17, 0
+    v19 = lt v16, 4
+    v20 = iszero v19
+    v21 = shr 224, v18
+    v22 = eq v21, 0x8c379a0
+    v23 = and v20, v22
+    v24 = lt v16, 36
+    v25 = iszero v24
+    v26 = eq v21, 0x4e487b71
+    v27 = and v25, v26
     jumpi true, bb6, bb7
   bb7:
-    revert v21, v22
+    revert v15, v16
   bb6:
     jump bb5
   bb3:
     jump bb5
   bb5:
-    v34 = phi [bb3: 1], [bb6: 7]
-    ret v34
+    v28 = phi [bb3: 1], [bb6: 7]
+    ret v28
 }
 
 fn @liveCatch() -> u256 [selector=0x852bf1e6, abi_params=[], abi_returns=[word]] {
@@ -347,50 +284,32 @@ fn @liveCatch() -> u256 [selector=0x852bf1e6, abi_params=[], abi_returns=[word]]
     v11 = call v7, v6, 1, v9, v10, 0, 0
     jumpi v11, bb3, bb4
   bb4:
-    v20 = returndatasize
-    v21 = add v20, 63
-    v22 = lt v21, v20
-    panic_if v22, 0x41
-    v23 = not 31
-    v24 = and v21, v23
-    v25 = alloc memorybytes, exact, uninitialized, infallible, v24
-    set_memory_object_len memorybytes, v25, v20
-    v26 = make_returndata_slice 0, v20
-    memory_object_copy_from_slice memorybytes, v25, v26
-    v27 = memory_object_data memorybytes, v25
-    v28 = memory_object_len memorybytes, v25
-    v29 = make_memory_slice v27, v28
-    v30 = memory_slice_load_word memory, v29, 0
-    v31 = lt v28, 4
-    v32 = iszero v31
-    v33 = shr 224, v30
-    v34 = eq v33, 0x8c379a0
-    v35 = and v32, v34
-    v36 = lt v28, 36
-    v37 = iszero v36
-    v38 = eq v33, 0x4e487b71
-    v39 = and v37, v38
+    v14 = returndata_bytes
+    v15 = memory_object_data memorybytes, v14
+    v16 = memory_object_len memorybytes, v14
+    v17 = make_memory_slice v15, v16
+    v18 = memory_slice_load_word memory, v17, 0
+    v19 = lt v16, 4
+    v20 = iszero v19
+    v21 = shr 224, v18
+    v22 = eq v21, 0x8c379a0
+    v23 = and v20, v22
+    v24 = lt v16, 36
+    v25 = iszero v24
+    v26 = eq v21, 0x4e487b71
+    v27 = and v25, v26
     jumpi true, bb6, bb7
   bb7:
-    revert v27, v28
+    revert v15, v16
   bb6:
     jump bb5
   bb3:
-    v12 = returndatasize
-    v13 = add v12, 63
-    v14 = lt v13, v12
-    panic_if v14, 0x41
-    v15 = not 31
-    v16 = and v13, v15
-    v17 = alloc memorybytes, exact, uninitialized, infallible, v16
-    set_memory_object_len memorybytes, v17, v12
-    v18 = make_returndata_slice 0, v12
-    memory_object_copy_from_slice memorybytes, v17, v18
-    v19 = abi_decode [u256], v17
+    v12 = returndata_bytes
+    v13 = abi_decode [u256], v12
     jump bb5
   bb5:
-    v40 = phi [bb3: v19], [bb6: 7]
-    ret v40
+    v28 = phi [bb3: v13], [bb6: 7]
+    ret v28
 }
 
 fn @livePointer() -> u256 [selector=0x6347cf88, abi_params=[], abi_returns=[word]] {
@@ -420,50 +339,32 @@ fn @livePointer() -> u256 [selector=0x6347cf88, abi_params=[], abi_returns=[word
     v16 = call v12, v11, 0, v14, v15, 0, 0
     jumpi v16, bb3, bb4
   bb4:
-    v25 = returndatasize
-    v26 = add v25, 63
-    v27 = lt v26, v25
-    panic_if v27, 0x41
-    v28 = not 31
-    v29 = and v26, v28
-    v30 = alloc memorybytes, exact, uninitialized, infallible, v29
-    set_memory_object_len memorybytes, v30, v25
-    v31 = make_returndata_slice 0, v25
-    memory_object_copy_from_slice memorybytes, v30, v31
-    v32 = memory_object_data memorybytes, v30
-    v33 = memory_object_len memorybytes, v30
-    v34 = make_memory_slice v32, v33
-    v35 = memory_slice_load_word memory, v34, 0
-    v36 = lt v33, 4
-    v37 = iszero v36
-    v38 = shr 224, v35
-    v39 = eq v38, 0x8c379a0
-    v40 = and v37, v39
-    v41 = lt v33, 36
-    v42 = iszero v41
-    v43 = eq v38, 0x4e487b71
-    v44 = and v42, v43
+    v19 = returndata_bytes
+    v20 = memory_object_data memorybytes, v19
+    v21 = memory_object_len memorybytes, v19
+    v22 = make_memory_slice v20, v21
+    v23 = memory_slice_load_word memory, v22, 0
+    v24 = lt v21, 4
+    v25 = iszero v24
+    v26 = shr 224, v23
+    v27 = eq v26, 0x8c379a0
+    v28 = and v25, v27
+    v29 = lt v21, 36
+    v30 = iszero v29
+    v31 = eq v26, 0x4e487b71
+    v32 = and v30, v31
     jumpi true, bb6, bb7
   bb7:
-    revert v32, v33
+    revert v20, v21
   bb6:
     jump bb5
   bb3:
-    v17 = returndatasize
-    v18 = add v17, 63
-    v19 = lt v18, v17
-    panic_if v19, 0x41
-    v20 = not 31
-    v21 = and v18, v20
-    v22 = alloc memorybytes, exact, uninitialized, infallible, v21
-    set_memory_object_len memorybytes, v22, v17
-    v23 = make_returndata_slice 0, v17
-    memory_object_copy_from_slice memorybytes, v22, v23
-    v24 = abi_decode [u256], v22
+    v17 = returndata_bytes
+    v18 = abi_decode [u256], v17
     jump bb5
   bb5:
-    v45 = phi [bb3: v24], [bb6: 7]
-    ret v45
+    v33 = phi [bb3: v18], [bb6: 7]
+    ret v33
 }
 
 fn @liveCreation() -> u256 [selector=0xb217934d, abi_params=[], abi_returns=[word]] {
@@ -481,39 +382,30 @@ fn @liveCreation() -> u256 [selector=0xb217934d, abi_params=[], abi_returns=[wor
     v8 = iszero v7
     jumpi v8, bb1, bb2
   bb2:
-    v9 = returndatasize
-    v10 = add v9, 63
-    v11 = lt v10, v9
-    panic_if v11, 0x41
-    v12 = not 31
-    v13 = and v10, v12
-    v14 = alloc memorybytes, exact, uninitialized, infallible, v13
-    set_memory_object_len memorybytes, v14, v9
-    v15 = make_returndata_slice 0, v9
-    memory_object_copy_from_slice memorybytes, v14, v15
-    v16 = memory_object_data memorybytes, v14
-    v17 = memory_object_len memorybytes, v14
-    v18 = make_memory_slice v16, v17
-    v19 = memory_slice_load_word memory, v18, 0
-    v20 = lt v17, 4
-    v21 = iszero v20
-    v22 = shr 224, v19
-    v23 = eq v22, 0x8c379a0
-    v24 = and v21, v23
-    v25 = lt v17, 36
-    v26 = iszero v25
-    v27 = eq v22, 0x4e487b71
-    v28 = and v26, v27
+    v9 = returndata_bytes
+    v10 = memory_object_data memorybytes, v9
+    v11 = memory_object_len memorybytes, v9
+    v12 = make_memory_slice v10, v11
+    v13 = memory_slice_load_word memory, v12, 0
+    v14 = lt v11, 4
+    v15 = iszero v14
+    v16 = shr 224, v13
+    v17 = eq v16, 0x8c379a0
+    v18 = and v15, v17
+    v19 = lt v11, 36
+    v20 = iszero v19
+    v21 = eq v16, 0x4e487b71
+    v22 = and v20, v21
     jumpi true, bb4, bb5
   bb5:
-    revert v16, v17
+    revert v10, v11
   bb4:
     jump bb3
   bb1:
     jump bb3
   bb3:
-    v29 = phi [bb1: 1], [bb4: 7]
-    ret v29
+    v23 = phi [bb1: 1], [bb4: 7]
+    ret v23
 }
 
 fn @noCode() -> u256 [selector=0x96c56dce, abi_params=[], abi_returns=[word]] {
@@ -525,50 +417,32 @@ fn @noCode() -> u256 [selector=0x96c56dce, abi_params=[], abi_returns=[word]] {
     v4 = call v0, 0, 0, v2, v3, 0, 0
     jumpi v4, bb1, bb2
   bb2:
-    v13 = returndatasize
-    v14 = add v13, 63
-    v15 = lt v14, v13
-    panic_if v15, 0x41
-    v16 = not 31
-    v17 = and v14, v16
-    v18 = alloc memorybytes, exact, uninitialized, infallible, v17
-    set_memory_object_len memorybytes, v18, v13
-    v19 = make_returndata_slice 0, v13
-    memory_object_copy_from_slice memorybytes, v18, v19
-    v20 = memory_object_data memorybytes, v18
-    v21 = memory_object_len memorybytes, v18
-    v22 = make_memory_slice v20, v21
-    v23 = memory_slice_load_word memory, v22, 0
-    v24 = lt v21, 4
-    v25 = iszero v24
-    v26 = shr 224, v23
-    v27 = eq v26, 0x8c379a0
-    v28 = and v25, v27
-    v29 = lt v21, 36
-    v30 = iszero v29
-    v31 = eq v26, 0x4e487b71
-    v32 = and v30, v31
+    v7 = returndata_bytes
+    v8 = memory_object_data memorybytes, v7
+    v9 = memory_object_len memorybytes, v7
+    v10 = make_memory_slice v8, v9
+    v11 = memory_slice_load_word memory, v10, 0
+    v12 = lt v9, 4
+    v13 = iszero v12
+    v14 = shr 224, v11
+    v15 = eq v14, 0x8c379a0
+    v16 = and v13, v15
+    v17 = lt v9, 36
+    v18 = iszero v17
+    v19 = eq v14, 0x4e487b71
+    v20 = and v18, v19
     jumpi true, bb4, bb5
   bb5:
-    revert v20, v21
+    revert v8, v9
   bb4:
     jump bb3
   bb1:
-    v5 = returndatasize
-    v6 = add v5, 63
-    v7 = lt v6, v5
-    panic_if v7, 0x41
-    v8 = not 31
-    v9 = and v6, v8
-    v10 = alloc memorybytes, exact, uninitialized, infallible, v9
-    set_memory_object_len memorybytes, v10, v5
-    v11 = make_returndata_slice 0, v5
-    memory_object_copy_from_slice memorybytes, v10, v11
-    v12 = abi_decode [u256], v10
+    v5 = returndata_bytes
+    v6 = abi_decode [u256], v5
     jump bb3
   bb3:
-    v33 = phi [bb1: v12], [bb4: 7]
-    ret v33
+    v21 = phi [bb1: v6], [bb4: 7]
+    ret v21
 }
 
 fn @noCodeNoReturn() -> u256 [selector=0xac1b26c4, abi_params=[], abi_returns=[word]] {
@@ -583,37 +457,28 @@ fn @noCodeNoReturn() -> u256 [selector=0xac1b26c4, abi_params=[], abi_returns=[w
     v6 = call v0, 0, 0, v2, v3, 0, 0
     jumpi v6, bb1, bb2
   bb2:
-    v7 = returndatasize
-    v8 = add v7, 63
-    v9 = lt v8, v7
-    panic_if v9, 0x41
-    v10 = not 31
-    v11 = and v8, v10
-    v12 = alloc memorybytes, exact, uninitialized, infallible, v11
-    set_memory_object_len memorybytes, v12, v7
-    v13 = make_returndata_slice 0, v7
-    memory_object_copy_from_slice memorybytes, v12, v13
-    v14 = memory_object_data memorybytes, v12
-    v15 = memory_object_len memorybytes, v12
-    v16 = make_memory_slice v14, v15
-    v17 = memory_slice_load_word memory, v16, 0
-    v18 = lt v15, 4
-    v19 = iszero v18
-    v20 = shr 224, v17
-    v21 = eq v20, 0x8c379a0
-    v22 = and v19, v21
-    v23 = lt v15, 36
-    v24 = iszero v23
-    v25 = eq v20, 0x4e487b71
-    v26 = and v24, v25
+    v7 = returndata_bytes
+    v8 = memory_object_data memorybytes, v7
+    v9 = memory_object_len memorybytes, v7
+    v10 = make_memory_slice v8, v9
+    v11 = memory_slice_load_word memory, v10, 0
+    v12 = lt v9, 4
+    v13 = iszero v12
+    v14 = shr 224, v11
+    v15 = eq v14, 0x8c379a0
+    v16 = and v13, v15
+    v17 = lt v9, 36
+    v18 = iszero v17
+    v19 = eq v14, 0x4e487b71
+    v20 = and v18, v19
     jumpi true, bb4, bb5
   bb5:
-    revert v14, v15
+    revert v8, v9
   bb4:
     jump bb3
   bb1:
     jump bb3
   bb3:
-    v27 = phi [bb1: 1], [bb4: 7]
-    ret v27
+    v21 = phi [bb1: 1], [bb4: 7]
+    ret v21
 }

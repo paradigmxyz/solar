@@ -315,29 +315,18 @@ fn @dynamicRevert() -> u256 [selector=0x5dbb0715, abi_params=[], abi_returns=[wo
   bb4:
     v15 = gas
     v16 = abi_encode [], object, selector 0x4ce637d600000000000000000000000000000000000000000000000000000000
-    v17 = memory_object_data memorybytes, v16
-    v18 = memory_object_len memorybytes, v16
-    v19 = call v15, v14, 0, v17, v18, 0, 0
-    v20 = returndatasize
-    v21 = add v20, 63
-    v22 = lt v21, v20
-    panic_if v22, 0x41
-    v23 = not 31
-    v24 = and v21, v23
-    v25 = alloc memorybytes, exact, uninitialized, infallible, v24
-    set_memory_object_len memorybytes, v25, v20
-    v26 = make_returndata_slice 0, v20
-    memory_object_copy_from_slice memorybytes, v25, v26
-    v27 = iszero v19
-    require v27, short_string 7, 0x7375636365737300000000000000000000000000000000000000000000000000
-    v28 = memory_object_len memorybytes, v25
-    v29 = eq v28, 228
-    require v29, short_string 6, 0x6c656e6774680000000000000000000000000000000000000000000000000000
-    v30 = add v25, 32
-    v31 = mload v30
-    v32 = shl 0, 0x1234
-    v33 = eq v31, v32
-    require v33, short_string 7, 0x7061796c6f616400000000000000000000000000000000000000000000000000
+    v17 = address_call v14, v16, gas v15
+    v18 = returndata_bytes
+    v19 = iszero v17
+    require v19, short_string 7, 0x7375636365737300000000000000000000000000000000000000000000000000
+    v20 = memory_object_len memorybytes, v18
+    v21 = eq v20, 228
+    require v21, short_string 6, 0x6c656e6774680000000000000000000000000000000000000000000000000000
+    v22 = add v18, 32
+    v23 = mload v22
+    v24 = shl 0, 0x1234
+    v25 = eq v23, v24
+    require v25, short_string 7, 0x7061796c6f616400000000000000000000000000000000000000000000000000
     ret 1
 }
 
@@ -372,18 +361,9 @@ fn @bubble() -> memorybytes [selector=0x4ce637d6, view, abi_params=[], abi_retur
   bb1:
     revert_returndata
   bb2:
-    v6 = returndatasize
-    v7 = add v6, 63
-    v8 = lt v7, v6
-    panic_if v8, 0x41
-    v9 = not 31
-    v10 = and v7, v9
-    v11 = alloc memorybytes, exact, uninitialized, infallible, v10
-    set_memory_object_len memorybytes, v11, v6
-    v12 = make_returndata_slice 0, v6
-    memory_object_copy_from_slice memorybytes, v11, v12
-    v13 = abi_decode [bytes], v11
-    ret v13
+    v6 = returndata_bytes
+    v7 = abi_decode [bytes], v6
+    ret v7
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:SharedPublicFrame ===

@@ -63,7 +63,8 @@ impl InstKind {
     /// Returns context-free effects; use alias and call summaries for resource footprints.
     pub(crate) const fn effects(&self) -> InstructionEffects {
         let control = match self {
-            Self::Transfer(..)
+            Self::ReturndataBytes
+            | Self::Transfer(..)
             | Self::ValidateStorageBytes(..)
             | Self::StorageBytesLoad(..)
             | Self::StorageArrayLoad { .. }
@@ -199,6 +200,7 @@ impl InstKind {
             | Self::StorageClearWords(..)
             | Self::StorageArrayElementSlot { .. }
             | Self::Send(..)
+            | Self::AddressCall { .. }
             | Self::Call { .. }
             | Self::CallCode { .. }
             | Self::StaticCall { .. }
@@ -249,6 +251,7 @@ impl InstKind {
                     | Self::StorageBytesLoad(..)
                     | Self::StorageArrayLoad { .. }
                     | Self::Concat(..)
+                    | Self::ReturndataBytes
             ),
         }
     }

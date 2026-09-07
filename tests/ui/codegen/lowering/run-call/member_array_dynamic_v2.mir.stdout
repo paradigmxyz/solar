@@ -96,16 +96,7 @@ fn @g(arg0: calldataslice) -> memorybytes [selector=0x397cf2ca, abi_params=[tupl
   bb1:
     revert_returndata
   bb2:
-    v36 = returndatasize
-    v37 = add v36, 63
-    v38 = lt v37, v36
-    panic_if v38, 0x41
-    v39 = not 31
-    v40 = and v37, v39
-    v41 = alloc memorybytes, exact, uninitialized, infallible, v40
-    set_memory_object_len memorybytes, v41, v36
-    v42 = make_returndata_slice 0, v36
-    memory_object_copy_from_slice memorybytes, v41, v42
-    v43 = abi_decode [bytes], v41
-    ret v43
+    v36 = returndata_bytes
+    v37 = abi_decode [bytes], v36
+    ret v37
 }

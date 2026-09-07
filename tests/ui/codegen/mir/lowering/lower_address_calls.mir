@@ -1,0 +1,30 @@
+//@ revisions: semantic expanded homestead
+//@[semantic] compile-flags: -Zmir-pipeline=none
+//@[expanded] compile-flags: -Zmir-pipeline=lower-builtins
+//@[homestead] compile-flags: --evm-version homestead -Zmir-pipeline=lower-builtins
+@module AddressCalls
+
+fn @default_call(arg0: address, arg1: memorybytes) -> u256 {
+  bb0:
+    v0 = address_call arg0, arg1 !metadata(span=10..20, modifier_depth=2)
+    ret v0
+}
+
+fn @explicit_zero(arg0: address, arg1: memorybytes, arg2: u256) -> memorybytes {
+  bb0:
+    v0 = address_call arg0, arg1, gas arg2, value 0
+    v1 = returndata_bytes !metadata(span=30..40, modifier_depth=3)
+    ret v1
+}
+
+fn @delegate(arg0: address, arg1: memorybytes) -> u256 {
+  bb0:
+    v0 = address_delegatecall arg0, arg1, gas 100000
+    ret v0
+}
+
+fn @zero_value(arg0: address, arg1: memorybytes) -> u256 {
+  bb0:
+    v0 = address_call arg0, arg1, value 0
+    ret v0
+}

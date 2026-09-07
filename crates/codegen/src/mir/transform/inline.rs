@@ -655,7 +655,8 @@ fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInli
                     summary.has_control_flow = true;
                     summary.has_external_call = true;
                 }
-                InstKind::Send(..)
+                InstKind::AddressCall { .. }
+                | InstKind::Send(..)
                 | InstKind::Call { .. }
                 | InstKind::CallCode { .. }
                 | InstKind::StaticCall { .. }
@@ -971,6 +972,8 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (MirCos
         InstKind::StorageArrayElementSlot { element_slots, .. } => {
             (36 + u64::from(*element_slots > 1) * 5, 4)
         }
+        InstKind::AddressCall { .. } => (720, 12),
+        InstKind::ReturndataBytes => (60, 24),
         InstKind::Send(..) => (720, 12),
         InstKind::Transfer(..) => (740, 20),
         InstKind::Call { .. }

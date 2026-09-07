@@ -26,7 +26,7 @@ contract TryLibraryCall {
     // HOMESTEAD: delegatecall [[FWD]], {{.*}}, [[IN]], {{.*}}, [[IN]], 32
     // BYZANTIUM-LABEL: fn @libCall
     // BYZANTIUM: delegatecall {{.*}}, 0, 0
-    // BYZANTIUM: returndatasize
+    // BYZANTIUM: returndata_bytes
     function libCall(uint256 x) external returns (uint256 r) {
         try TryLib.double(x) returns (uint256 v) {
             seen = v;

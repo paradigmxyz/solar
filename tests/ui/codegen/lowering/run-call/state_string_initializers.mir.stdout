@@ -105,59 +105,41 @@ fn @deploy() -> struct0 [selector=0x775c300c, abi_params=[], abi_returns=[memory
   bb3:
     revert_returndata
   bb4:
-    v12 = returndatasize
-    v13 = add v12, 63
-    v14 = lt v13, v12
-    panic_if v14, 0x41
-    v15 = not 31
-    v16 = and v13, v15
-    v17 = alloc memorybytes, exact, uninitialized, infallible, v16
-    set_memory_object_len memorybytes, v17, v12
-    v18 = make_returndata_slice 0, v12
-    memory_object_copy_from_slice memorybytes, v17, v18
-    v19 = abi_decode [bytes], v17
-    v20 = gas
-    v21 = abi_encode [], selector 0x95d89b4100000000000000000000000000000000000000000000000000000000
-    v22 = slice_ptr v21
-    v23 = slice_len v21
-    v24 = staticcall v20, v6, v22, v23, 0, 0
-    jumpi v24, bb6, bb5
+    v12 = returndata_bytes
+    v13 = abi_decode [bytes], v12
+    v14 = gas
+    v15 = abi_encode [], selector 0x95d89b4100000000000000000000000000000000000000000000000000000000
+    v16 = slice_ptr v15
+    v17 = slice_len v15
+    v18 = staticcall v14, v6, v16, v17, 0, 0
+    jumpi v18, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v25 = returndatasize
-    v26 = add v25, 63
-    v27 = lt v26, v25
-    panic_if v27, 0x41
-    v28 = not 31
-    v29 = and v26, v28
-    v30 = alloc memorybytes, exact, uninitialized, infallible, v29
-    set_memory_object_len memorybytes, v30, v25
-    v31 = make_returndata_slice 0, v25
-    memory_object_copy_from_slice memorybytes, v30, v31
-    v32 = abi_decode [bytes], v30
-    v33 = gas
-    v34 = abi_encode [], selector 0x313ce56700000000000000000000000000000000000000000000000000000000
-    v35 = slice_ptr v34
-    v36 = slice_len v34
-    v37 = staticcall v33, v6, v35, v36, 0, 32
-    jumpi v37, bb8, bb7
+    v19 = returndata_bytes
+    v20 = abi_decode [bytes], v19
+    v21 = gas
+    v22 = abi_encode [], selector 0x313ce56700000000000000000000000000000000000000000000000000000000
+    v23 = slice_ptr v22
+    v24 = slice_len v22
+    v25 = staticcall v21, v6, v23, v24, 0, 32
+    jumpi v25, bb8, bb7
   bb7:
     revert_returndata
   bb8:
-    v38 = returndatasize
-    v39 = lt v38, 32
-    revert_if v39, tuple_data_too_short
-    v40 = add 0, 0
-    v41 = mload v40
-    v42 = and v41, 255
-    v43 = eq v41, v42
-    v44 = iszero v43
-    revert_if v44, empty
-    v45 = add 0, 0
-    v46 = mload v45
-    v47 = insert_value struct0, undef struct0, 0, v19
-    v48 = insert_value struct0, v47, 1, v32
-    v49 = insert_value struct0, v48, 2, v46
-    ret v49
+    v26 = returndatasize
+    v27 = lt v26, 32
+    revert_if v27, tuple_data_too_short
+    v28 = add 0, 0
+    v29 = mload v28
+    v30 = and v29, 255
+    v31 = eq v29, v30
+    v32 = iszero v31
+    revert_if v32, empty
+    v33 = add 0, 0
+    v34 = mload v33
+    v35 = insert_value struct0, undef struct0, 0, v13
+    v36 = insert_value struct0, v35, 1, v20
+    v37 = insert_value struct0, v36, 2, v34
+    ret v37
 }

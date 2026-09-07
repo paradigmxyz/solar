@@ -54,30 +54,19 @@ fn @oversized(arg0: bytes4) -> bool {
     v1 = abi_encode_packed (bytes4 v0, u256 32, u256 0xffffffffffffffff)
     v2 = address
     v3 = gas
-    v4 = memory_object_data memorybytes, v1
-    v5 = memory_object_len memorybytes, v1
-    v6 = call v3, v2, 0, v4, v5, 0, 0
-    v7 = returndatasize
-    v8 = add v7, 63
-    v9 = lt v8, v7
-    panic_if v9, 0x41
-    v10 = not 31
-    v11 = and v8, v10
-    v12 = alloc memorybytes, exact, uninitialized, infallible, v11
-    set_memory_object_len memorybytes, v12, v7
-    v13 = make_returndata_slice 0, v7
-    memory_object_copy_from_slice memorybytes, v12, v13
-    v14 = iszero v6
-    jumpi v14, bb1, bb2
+    v4 = address_call v2, v1, gas v3
+    v5 = returndata_bytes
+    v6 = iszero v4
+    jumpi v6, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v15 = keccak256_bytes v12
-    v16 = abi_encode [word], object, selector 0x4e487b7100000000000000000000000000000000000000000000000000000000, args 65
-    v17 = keccak256_bytes v16
-    v18 = eq v15, v17
+    v7 = keccak256_bytes v5
+    v8 = abi_encode [word], object, selector 0x4e487b7100000000000000000000000000000000000000000000000000000000, args 65
+    v9 = keccak256_bytes v8
+    v10 = eq v7, v9
     jump bb3
   bb3:
-    v19 = phi [bb1: v18], [bb2: false]
-    ret v19
+    v11 = phi [bb1: v10], [bb2: false]
+    ret v11
 }

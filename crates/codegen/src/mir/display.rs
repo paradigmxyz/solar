@@ -391,6 +391,22 @@ fn display_inst_kind<'a>(
     }
 
     fmt::from_fn(move |f| match kind {
+        InstKind::AddressCall { address, input, gas, value, .. } => {
+            write!(
+                f,
+                "{} {}, {}",
+                kind.mnemonic(),
+                display_val(*address, func),
+                display_val(*input, func)
+            )?;
+            if let Some(gas) = gas {
+                write!(f, ", gas {}", display_val(*gas, func))?;
+            }
+            if let Some(value) = value {
+                write!(f, ", value {}", display_val(*value, func))?;
+            }
+            Ok(())
+        }
         InstKind::InsertValue { ty, aggregate, index, value } => write!(
             f,
             "insert_value struct{}, {}, {index}, {}",

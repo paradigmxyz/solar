@@ -69,51 +69,33 @@ fn @success() -> u256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     v8 = staticcall v2, v1, v6, v7, 0, 0
     jumpi v8, bb1, bb2
   bb2:
-    v21 = returndatasize
-    v22 = add v21, 63
-    v23 = lt v22, v21
-    panic_if v23, 0x41
-    v24 = not 31
-    v25 = and v22, v24
-    v26 = alloc memorybytes, exact, uninitialized, infallible, v25
-    set_memory_object_len memorybytes, v26, v21
-    v27 = make_returndata_slice 0, v21
-    memory_object_copy_from_slice memorybytes, v26, v27
-    v28 = memory_object_data memorybytes, v26
-    v29 = memory_object_len memorybytes, v26
-    v30 = make_memory_slice v28, v29
-    v31 = memory_slice_load_word memory, v30, 0
-    v32 = lt v29, 4
-    v33 = iszero v32
-    v34 = shr 224, v31
-    v35 = eq v34, 0x8c379a0
-    v36 = and v33, v35
-    v37 = lt v29, 36
-    v38 = iszero v37
-    v39 = eq v34, 0x4e487b71
-    v40 = and v38, v39
+    v15 = returndata_bytes
+    v16 = memory_object_data memorybytes, v15
+    v17 = memory_object_len memorybytes, v15
+    v18 = make_memory_slice v16, v17
+    v19 = memory_slice_load_word memory, v18, 0
+    v20 = lt v17, 4
+    v21 = iszero v20
+    v22 = shr 224, v19
+    v23 = eq v22, 0x8c379a0
+    v24 = and v21, v23
+    v25 = lt v17, 36
+    v26 = iszero v25
+    v27 = eq v22, 0x4e487b71
+    v28 = and v26, v27
     jumpi true, bb4, bb5
   bb5:
-    revert v28, v29
+    revert v16, v17
   bb4:
     ret 0
   bb1:
-    v9 = returndatasize
-    v10 = add v9, 63
-    v11 = lt v10, v9
-    panic_if v11, 0x41
-    v12 = not 31
-    v13 = and v10, v12
-    v14 = alloc memorybytes, exact, uninitialized, infallible, v13
-    set_memory_object_len memorybytes, v14, v9
-    v15 = make_returndata_slice 0, v9
-    memory_object_copy_from_slice memorybytes, v14, v15
-    v16 = abi_decode [u256, bytes], v14
-    v17 = extract_value struct0, v16, 0
-    v18 = extract_value struct0, v16, 1
-    v19 = memory_object_len memorybytes, v18
-    v20 = checked_add u256, v17, v19
-    ret v20
+    v9 = returndata_bytes
+    v10 = abi_decode [u256, bytes], v9
+    v11 = extract_value struct0, v10, 0
+    v12 = extract_value struct0, v10, 1
+    v13 = memory_object_len memorybytes, v12
+    v14 = checked_add u256, v11, v13
+    ret v14
   bb3:
     ret 0
 }
@@ -131,48 +113,30 @@ fn @failure() -> u256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
     v8 = staticcall v2, v1, v6, v7, 0, 0
     jumpi v8, bb1, bb2
   bb2:
-    v19 = returndatasize
-    v20 = add v19, 63
-    v21 = lt v20, v19
-    panic_if v21, 0x41
-    v22 = not 31
-    v23 = and v20, v22
-    v24 = alloc memorybytes, exact, uninitialized, infallible, v23
-    set_memory_object_len memorybytes, v24, v19
-    v25 = make_returndata_slice 0, v19
-    memory_object_copy_from_slice memorybytes, v24, v25
-    v26 = memory_object_data memorybytes, v24
-    v27 = memory_object_len memorybytes, v24
-    v28 = make_memory_slice v26, v27
-    v29 = memory_slice_load_word memory, v28, 0
-    v30 = lt v27, 4
-    v31 = iszero v30
-    v32 = shr 224, v29
-    v33 = eq v32, 0x8c379a0
-    v34 = and v31, v33
-    v35 = lt v27, 36
-    v36 = iszero v35
-    v37 = eq v32, 0x4e487b71
-    v38 = and v36, v37
+    v13 = returndata_bytes
+    v14 = memory_object_data memorybytes, v13
+    v15 = memory_object_len memorybytes, v13
+    v16 = make_memory_slice v14, v15
+    v17 = memory_slice_load_word memory, v16, 0
+    v18 = lt v15, 4
+    v19 = iszero v18
+    v20 = shr 224, v17
+    v21 = eq v20, 0x8c379a0
+    v22 = and v19, v21
+    v23 = lt v15, 36
+    v24 = iszero v23
+    v25 = eq v20, 0x4e487b71
+    v26 = and v24, v25
     jumpi true, bb4, bb5
   bb5:
-    revert v26, v27
+    revert v14, v15
   bb4:
     ret 9
   bb1:
-    v9 = returndatasize
-    v10 = add v9, 63
-    v11 = lt v10, v9
-    panic_if v11, 0x41
-    v12 = not 31
-    v13 = and v10, v12
-    v14 = alloc memorybytes, exact, uninitialized, infallible, v13
-    set_memory_object_len memorybytes, v14, v9
-    v15 = make_returndata_slice 0, v9
-    memory_object_copy_from_slice memorybytes, v14, v15
-    v16 = abi_decode [u256, bytes], v14
-    v17 = extract_value struct0, v16, 0
-    v18 = extract_value struct0, v16, 1
+    v9 = returndata_bytes
+    v10 = abi_decode [u256, bytes], v9
+    v11 = extract_value struct0, v10, 0
+    v12 = extract_value struct0, v10, 1
     ret 0
   bb3:
     ret 0

@@ -67,20 +67,9 @@ fn @probe(arg0: u256) -> u256 [selector=0xdb082440, view, abi_params=[u256], abi
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
     v2 = gas
     v3 = abi_encode [word], object, selector 0x84b8ba0800000000000000000000000000000000000000000000000000000000, args arg0
-    v4 = memory_object_data memorybytes, v3
-    v5 = memory_object_len memorybytes, v3
-    v6 = staticcall v2, v1, v4, v5, 0, 0
-    v7 = returndatasize
-    v8 = add v7, 63
-    v9 = lt v8, v7
-    panic_if v9, 0x41
-    v10 = not 31
-    v11 = and v8, v10
-    v12 = alloc memorybytes, exact, uninitialized, infallible, v11
-    set_memory_object_len memorybytes, v12, v7
-    v13 = make_returndata_slice 0, v7
-    memory_object_copy_from_slice memorybytes, v12, v13
-    icall @check, v6
-    v14 = abi_decode [u256], v12
-    ret v14
+    v4 = address_staticcall v1, v3, gas v2
+    v5 = returndata_bytes
+    icall @check, v4
+    v6 = abi_decode [u256], v5
+    ret v6
 }
