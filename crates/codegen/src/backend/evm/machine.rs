@@ -1111,7 +1111,9 @@ fn lower_opcode(
     let function = context.function;
     let instruction = function.inst(inst_id);
     let live = |value| context.layout.live.is_used_at_or_after(value, block_id, position + 1);
-    if context.layout.suppressed.as_ref().is_some_and(|suppressed| suppressed.contains(inst_id)) {
+    if let Some(suppressed) = &context.layout.suppressed
+        && suppressed.contains(inst_id)
+    {
         // <retained live values>; pop any dependency whose last use was suppressed
         // The recipe emits the omitted computation at its surviving consumer.
         prepare(context, stack, insts, &[], live)?;
