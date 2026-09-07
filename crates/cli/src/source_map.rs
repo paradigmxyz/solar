@@ -25,7 +25,7 @@ pub(crate) struct SourceMapEncoder {
 }
 
 impl SourceMapEncoder {
-    /// Creates an encoder for the compilation's Standard JSON source IDs.
+    /// Creates an encoder for the compilation's source IDs.
     pub(crate) fn new(gcx: Gcx<'_>) -> Self {
         let source_ids = gcx
             .hir

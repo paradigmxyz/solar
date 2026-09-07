@@ -125,6 +125,9 @@ EOF
 solar $(forge re) src/Contract.sol
 ```
 
+Debug artifacts are available through `--emit=ethdebug,ethdebug-runtime` or
+`--emit=srcmap,srcmap-runtime`.
+
 ### Editor integrations
 
 Editor integrations for VS Code and Zed live in [`editors/`](/editors). They

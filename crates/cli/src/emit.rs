@@ -1,4 +1,10 @@
-use crate::bytecode::MaybeHexBytecode;
+use crate::{
+    bytecode::MaybeHexBytecode,
+    ethdebug::{
+        EthdebugProgram, EthdebugResources, make_ethdebug_compilation, make_ethdebug_program,
+    },
+    source_map::SourceMapEncoder,
+};
 use alloy_json_abi::AbiItem;
 use anstyle::{AnsiColor, Color, Style};
 use solar_codegen::{
@@ -24,6 +30,10 @@ type Hashes = BTreeMap<String, String>;
 struct CombinedJson<'a> {
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     contracts: BTreeMap<String, CombinedJsonContract<'a>>,
+    #[serde(rename = "sourceList", skip_serializing_if = "Option::is_none")]
+    source_list: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    ethdebug: Option<EthdebugResources>,
     version: &'static str,
 }
 
@@ -39,6 +49,14 @@ struct CombinedJsonContract<'a> {
     bin_runtime: Option<MaybeHexBytecode>,
     #[serde(skip_serializing_if = "Option::is_none")]
     hashes: Option<Hashes>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    ethdebug: Option<EthdebugProgram>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    ethdebug_runtime: Option<EthdebugProgram>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    srcmap: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    srcmap_runtime: Option<String>,
 }
 
 pub(crate) fn emit_requested(
@@ -267,28 +285,37 @@ fn emit_combined_json(
     artifacts: Option<&FxHashMap<ContractId, ContractArtifact>>,
 ) -> Result {
     let sess = gcx.sess;
-    let (mut emit_abi, mut emit_hashes, mut emit_bin, mut emit_bin_runtime) =
-        (false, false, false, false);
-    for output in &sess.opts.emit {
-        match output {
-            CompilerOutput::Abi => emit_abi = true,
-            CompilerOutput::Hashes => emit_hashes = true,
-            CompilerOutput::Bin => emit_bin = true,
-            CompilerOutput::BinRuntime => emit_bin_runtime = true,
-            _ => {}
-        }
-    }
-
-    if !emit_abi && !emit_hashes && !emit_bin && !emit_bin_runtime {
+    if sess.opts.emit.is_empty() {
         return Ok(());
     }
 
+    let emit_abi = sess.do_emit(CompilerOutput::Abi);
+    let emit_hashes = sess.do_emit(CompilerOutput::Hashes);
+    let emit_bin = sess.do_emit(CompilerOutput::Bin);
+    let emit_bin_runtime = sess.do_emit(CompilerOutput::BinRuntime);
+    let emit_ethdebug = sess.do_emit(CompilerOutput::Ethdebug);
+    let emit_ethdebug_runtime = sess.do_emit(CompilerOutput::EthdebugRuntime);
+    let emit_srcmap = sess.do_emit(CompilerOutput::Srcmap);
+    let emit_srcmap_runtime = sess.do_emit(CompilerOutput::SrcmapRuntime);
+    let compilation =
+        (emit_ethdebug || emit_ethdebug_runtime || sess.do_emit(CompilerOutput::EthdebugResources))
+            .then(|| make_ethdebug_compilation(gcx));
+    let source_map_encoder =
+        (emit_srcmap || emit_srcmap_runtime).then(|| SourceMapEncoder::new(gcx));
     let mut output = CombinedJson {
-        contracts: BTreeMap::default(),
+        source_list: source_map_encoder.as_ref().map(|_| {
+            gcx.hir
+                .source_ids()
+                .map(|id| gcx.hir.source(id).file.name.display().to_string().replace('\\', "/"))
+                .collect()
+        }),
         version: solar_config::version::SEMVER_VERSION,
+        ..Default::default()
     };
 
-    for id in gcx.hir.contract_ids() {
+    let codegen_requested = sess.opts.emit.iter().any(|output| output.is_codegen());
+    let emit_contracts = emit_abi || emit_hashes || codegen_requested;
+    for id in gcx.hir.contract_ids().filter(|_| emit_contracts) {
         let name = contract_output_name(gcx, id);
         let contract_output = output.contracts.entry(name).or_default();
 
@@ -312,10 +339,32 @@ fn emit_combined_json(
                     &artifact.runtime_link_references,
                 ));
             }
+            if let Some(compilation) = &compilation {
+                if emit_ethdebug {
+                    contract_output.ethdebug =
+                        make_ethdebug_program(gcx, id, artifact, compilation.id(), false);
+                }
+                if emit_ethdebug_runtime {
+                    contract_output.ethdebug_runtime =
+                        make_ethdebug_program(gcx, id, artifact, compilation.id(), true);
+                }
+            }
+            if let Some(encoder) = &source_map_encoder {
+                if emit_srcmap && let Some(instructions) = &artifact.deployment_debug_info {
+                    contract_output.srcmap =
+                        Some(encoder.encode(gcx, &artifact.deployment, instructions));
+                }
+                if emit_srcmap_runtime && let Some(instructions) = &artifact.runtime_debug_info {
+                    contract_output.srcmap_runtime =
+                        Some(encoder.encode(gcx, &artifact.runtime, instructions));
+                }
+            }
         }
     }
 
-    write_output_json(gcx, &output, emit_bin || emit_bin_runtime)
+    // Every emitted program references this resource, including its source contents.
+    output.ethdebug = compilation.map(|compilation| compilation.into_resources());
+    write_output_json(gcx, &output, codegen_requested || output.ethdebug.is_some())
 }
 
 fn write_output_json<T: serde::Serialize>(

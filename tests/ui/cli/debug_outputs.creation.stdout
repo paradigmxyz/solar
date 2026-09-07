@@ -1,0 +1,139 @@
+{
+  "contracts": {
+    "ROOT/tests/ui/cli/debug_outputs.sol:C": {
+      "ethdebug": {
+        "compilation": {
+          "id": "solar-COMPILATION_ID"
+        },
+        "contract": {
+          "name": "C",
+          "definition": {
+            "source": {
+              "id": 0
+            },
+            "range": {
+              "offset": 375,
+              "length": 43
+            }
+          }
+        },
+        "environment": "create",
+        "instructions": [
+          {
+            "offset": 0,
+            "operation": {
+              "mnemonic": "CALLVALUE"
+            }
+          },
+          {
+            "offset": 1,
+            "operation": {
+              "mnemonic": "PUSH1",
+              "arguments": [
+                "0x0d"
+              ]
+            }
+          },
+          {
+            "offset": 3,
+            "operation": {
+              "mnemonic": "JUMPI"
+            }
+          },
+          {
+            "offset": 4,
+            "operation": {
+              "mnemonic": "PUSH1",
+              "arguments": [
+                "0x18"
+              ]
+            }
+          },
+          {
+            "offset": 6,
+            "operation": {
+              "mnemonic": "DUP1"
+            }
+          },
+          {
+            "offset": 7,
+            "operation": {
+              "mnemonic": "PUSH1",
+              "arguments": [
+                "0x11"
+              ]
+            }
+          },
+          {
+            "offset": 9,
+            "operation": {
+              "mnemonic": "PUSH0"
+            }
+          },
+          {
+            "offset": 10,
+            "operation": {
+              "mnemonic": "CODECOPY"
+            }
+          },
+          {
+            "offset": 11,
+            "operation": {
+              "mnemonic": "PUSH0"
+            }
+          },
+          {
+            "offset": 12,
+            "operation": {
+              "mnemonic": "RETURN"
+            }
+          },
+          {
+            "offset": 13,
+            "operation": {
+              "mnemonic": "JUMPDEST"
+            }
+          },
+          {
+            "offset": 14,
+            "operation": {
+              "mnemonic": "PUSH0"
+            }
+          },
+          {
+            "offset": 15,
+            "operation": {
+              "mnemonic": "PUSH0"
+            }
+          },
+          {
+            "offset": 16,
+            "operation": {
+              "mnemonic": "REVERT"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "ethdebug": {
+    "compilation": {
+      "id": "solar-COMPILATION_ID",
+      "compiler": {
+        "name": "solar",
+        "version": "VERSION"
+      },
+      "sources": [
+        {
+          "id": 0,
+          "path": "ROOT/tests/ui/cli/debug_outputs.sol",
+          "contents": "//@ revisions: creation runtime maps resources\n//@ compile-flags: --pretty-json --allow 2264\n//@[creation] compile-flags: --emit=ethdebug\n//@[runtime] compile-flags: --emit=ethdebug-runtime\n//@[maps] compile-flags: --emit=srcmap,srcmap-runtime\n//@[resources] compile-flags: --emit=ethdebug-resources\n//@ normalize-stdout-test: \"solar-[0-9a-f]{64}\" -> \"solar-COMPILATION_ID\"\n\ncontract C {\n    function f() external {}\n}\n",
+          "language": "Solidity"
+        }
+      ]
+    },
+    "types": {},
+    "pointers": {}
+  },
+  "version": "VERSION"
+}

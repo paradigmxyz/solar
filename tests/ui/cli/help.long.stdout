@@ -57,9 +57,11 @@ Options:
           Directory to write output files
 
       --emit <EMIT>
-          Comma separated list of types of output for the compiler to emit
+          Comma separated list of types of output for the compiler to emit.
           
-          [possible values: abi, bin, bin-runtime, hashes]
+          Outputs are collected in JSON on stdout, or `combined.json` in `--out-dir`. ETHDebug programs include source resources; legacy source maps include `sourceList`.
+          
+          [possible values: abi, bin, bin-runtime, hashes, ethdebug, ethdebug-runtime, ethdebug-resources, srcmap, srcmap-runtime]
 
       --standard-json
           Switch to Standard JSON input/output mode

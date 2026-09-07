@@ -124,6 +124,9 @@ pub struct CompileOpts {
     #[cfg_attr(feature = "clap", arg(long, value_hint = ValueHint::DirPath))]
     pub out_dir: Option<PathBuf>,
     /// Comma separated list of types of output for the compiler to emit.
+    ///
+    /// Outputs are collected in JSON on stdout, or `combined.json` in `--out-dir`.
+    /// ETHDebug programs include source resources; legacy source maps include `sourceList`.
     #[cfg_attr(feature = "clap", arg(long, value_delimiter = ','))]
     pub emit: Vec<CompilerOutput>,
 
