@@ -18,7 +18,7 @@ fn @setS(arg0: u256, arg1: u256, arg2: u256) [selector=0x200618df, abi_params=[u
     v7 = add 0, v6
     v8 = add v7, 1
     sstore v8, arg2 !metadata(storage=offset(v6, 1))
-    stop
+    ret
 }
 
 fn @getS(arg0: u256) -> struct0 [selector=0xd40d7b60, view, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {

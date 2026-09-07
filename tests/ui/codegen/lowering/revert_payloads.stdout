@@ -4,13 +4,13 @@ fn @assert_panic(arg0: bool) [selector=0x727ee374, pure, abi_params=[bool], abi_
   bb0:
     v0 = iszero arg0
     panic_if v0, 0x1
-    stop
+    ret
 }
 
 fn @require_message(arg0: bool) [selector=0x79cfb63f, pure, abi_params=[bool], abi_returns=[]] {
   bb0:
     require arg0, short_string 3, 0x6261640000000000000000000000000000000000000000000000000000000000
-    stop
+    ret
 }
 
 fn @revert_message() [selector=0x0900437f, pure, abi_params=[], abi_returns=[]] {

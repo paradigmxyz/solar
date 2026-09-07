@@ -32,7 +32,7 @@ fn @constructor() [constructor] {
     v22 = or v18, v21
     sstore v11, v22 !metadata(storage=symbolic(v11))
     sstore v5, v8 !metadata(storage=slot(1))
-    stop
+    ret
 }
 
 fn @readCopy() -> struct0 [selector=0x3af23521, view, abi_params=[], abi_returns=[word<u160>, word<bytes4>], abi_return_params=[address, bytes4]] {

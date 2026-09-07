@@ -7360,9 +7360,6 @@ impl<'gcx> EvmCodegen<'gcx> {
                     has_return = true;
                     values.len() == arity
                 }
-                // The backend treats `stop` in an internal function as a void return, which is
-                // incompatible with a non-empty stack-return convention.
-                Some(Terminator::Stop) => false,
                 _ => true,
             });
             if self.static_frame_functions.contains(func_id)
@@ -12369,11 +12366,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
 
             Terminator::Stop => {
-                if self.in_internal_function {
-                    self.emit_internal_return(func, &[]);
-                } else {
-                    self.emit_external_stop(func);
-                }
+                // STOP
+                self.asm.emit_op(op::STOP);
+                self.mark_debug_function_exit(func, DebugFunctionExit::Return);
             }
 
             Terminator::SelfDestruct { recipient } => {

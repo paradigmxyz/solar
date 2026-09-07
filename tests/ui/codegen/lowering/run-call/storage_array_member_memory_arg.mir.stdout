@@ -29,7 +29,7 @@ fn @constructor() [constructor] {
     v14 = add v13, v10
     sstore v14, 30 !metadata(storage=symbolic(v14))
     sstore 0, v12 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 fn @test() -> struct0 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {

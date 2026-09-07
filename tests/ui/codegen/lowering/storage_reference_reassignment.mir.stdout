@@ -228,5 +228,5 @@ fn @rebindParameterInner(arg0: storageptr, arg1: u256, arg2: u256) {
   bb0:
     v0 = mapping_slot arg1, 0
     sstore v0, arg2 !metadata(storage=symbolic(v0))
-    stop
+    ret
 }

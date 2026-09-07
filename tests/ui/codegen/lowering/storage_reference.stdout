@@ -4,7 +4,7 @@ fn @setDirect(arg0: u256, arg1: u256) [selector=0xa8972d9c, abi_params=[u256, u2
   bb0:
     v0 = mapping_slot arg0, 0
     sstore v0, arg1 !metadata(storage=symbolic(v0))
-    stop
+    ret
 }
 
 fn @getViaRef(arg0: u256) -> u256 [selector=0x292eaae6, view, abi_params=[u256], abi_returns=[word]] {
@@ -22,5 +22,5 @@ fn @bump(arg0: u256) [selector=0xb20eb4c4, abi_params=[u256], abi_returns=[]] {
     v3 = checked_add u256, v2, 1
     v4 = add v0, 1
     sstore v4, v3 !metadata(storage=offset(v0, 1))
-    stop
+    ret
 }

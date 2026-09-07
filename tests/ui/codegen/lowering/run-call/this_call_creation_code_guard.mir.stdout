@@ -9,7 +9,7 @@ fn @seen() -> u256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word]
 fn @constructor() [constructor] {
   bb0:
     icall @helper
-    stop
+    ret
 }
 
 fn @helper() {
@@ -27,7 +27,7 @@ fn @helper() {
   bb1:
     revert_returndata
   bb2:
-    stop
+    ret
 }
 
 fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[]] {
@@ -35,7 +35,7 @@ fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[]] {
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_add u256, v0, 1
     sstore 0, v1 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol:CreationDirect ===
@@ -61,7 +61,7 @@ fn @constructor() [constructor] {
   bb1:
     revert_returndata
   bb2:
-    stop
+    ret
 }
 
 fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[]] {
@@ -69,7 +69,7 @@ fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[]] {
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_add u256, v0, 1
     sstore 0, v1 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol:CreationModifier ===
@@ -99,7 +99,7 @@ fn @constructor() [constructor] {
   bb4:
     jump bb1
   bb1:
-    stop
+    ret
 }
 
 fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[]] {
@@ -107,7 +107,7 @@ fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[]] {
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_add u256, v0, 1
     sstore 0, v1 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol:CreationBase ===
@@ -133,7 +133,7 @@ fn @constructor() [constructor] {
   bb1:
     revert_returndata
   bb2:
-    stop
+    ret
 }
 
 fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[]] {
@@ -141,7 +141,7 @@ fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[]] {
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_add u256, v0, 1
     sstore 0, v1 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol:CreationDerived ===
@@ -165,7 +165,7 @@ fn @constructor() [constructor] {
   bb1:
     jump bb4
   bb4:
-    stop
+    ret
 }
 
 fn @seen() -> u256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word]] {
@@ -179,7 +179,7 @@ fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[]] {
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_add u256, v0, 1
     sstore 0, v1 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol:CreationInitializer ===
@@ -219,14 +219,14 @@ fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[]] {
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_add u256, v0, 1
     sstore 0, v1 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 fn @constructor() [constructor] {
   bb0:
     v0 = icall @init
     sstore 1, v0 !metadata(storage=slot(1))
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol:CreationTry ===
@@ -281,7 +281,7 @@ fn @constructor() [constructor] {
   bb1:
     jump bb3
   bb3:
-    stop
+    ret
 }
 
 fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[]] {
@@ -289,7 +289,7 @@ fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[]] {
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_add u256, v0, 1
     sstore 0, v1 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol:Runtime ===
@@ -315,7 +315,7 @@ fn @helper() {
   bb1:
     revert_returndata
   bb2:
-    stop
+    ret
 }
 
 fn @viaHelper() -> u256 [selector=0x9c6f4ff5, abi_params=[], abi_returns=[word]] {
@@ -330,7 +330,7 @@ fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[]] {
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_add u256, v0, 1
     sstore 0, v1 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol:SharedHelper ===
@@ -350,7 +350,7 @@ fn @constructor(arg0: bool) [constructor, abi_params=[bool]] {
     icall @helper
     jump bb3
   bb3:
-    stop
+    ret
 }
 
 fn @helper() {
@@ -368,7 +368,7 @@ fn @helper() {
   bb1:
     revert_returndata
   bb2:
-    stop
+    ret
 }
 
 fn @viaHelper() -> u256 [selector=0x9c6f4ff5, abi_params=[], abi_returns=[word]] {
@@ -383,7 +383,7 @@ fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[]] {
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_add u256, v0, 1
     sstore 0, v1 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol:Deployer ===
@@ -411,7 +411,7 @@ fn @viaHelper() [selector=0x9c6f4ff5, abi_params=[], abi_returns=[]] {
   bb1:
     revert_returndata
   bb2:
-    stop
+    ret
 }
 
 fn @direct() [selector=0x222b1407, abi_params=[], abi_returns=[]] {
@@ -429,7 +429,7 @@ fn @direct() [selector=0x222b1407, abi_params=[], abi_returns=[]] {
   bb1:
     revert_returndata
   bb2:
-    stop
+    ret
 }
 
 fn @viaModifier() [selector=0xb93fa0d6, abi_params=[], abi_returns=[]] {
@@ -447,7 +447,7 @@ fn @viaModifier() [selector=0xb93fa0d6, abi_params=[], abi_returns=[]] {
   bb1:
     revert_returndata
   bb2:
-    stop
+    ret
 }
 
 fn @viaBase() [selector=0x0f982f84, abi_params=[], abi_returns=[]] {
@@ -465,7 +465,7 @@ fn @viaBase() [selector=0x0f982f84, abi_params=[], abi_returns=[]] {
   bb1:
     revert_returndata
   bb2:
-    stop
+    ret
 }
 
 fn @viaInitializer() [selector=0x7c61d018, abi_params=[], abi_returns=[]] {
@@ -483,7 +483,7 @@ fn @viaInitializer() [selector=0x7c61d018, abi_params=[], abi_returns=[]] {
   bb1:
     revert_returndata
   bb2:
-    stop
+    ret
 }
 
 fn @viaTry() [selector=0x9369e272, abi_params=[], abi_returns=[]] {
@@ -501,7 +501,7 @@ fn @viaTry() [selector=0x9369e272, abi_params=[], abi_returns=[]] {
   bb1:
     revert_returndata
   bb2:
-    stop
+    ret
 }
 
 fn @viaShared() [selector=0x86375232, abi_params=[], abi_returns=[]] {
@@ -521,5 +521,5 @@ fn @viaShared() [selector=0x86375232, abi_params=[], abi_returns=[]] {
   bb1:
     revert_returndata
   bb2:
-    stop
+    ret
 }

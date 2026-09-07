@@ -356,10 +356,14 @@ unchanged addresses.
 
 The verifier checks nominal object kinds against semantic accesses, while
 retaining compatibility with raw pointer carriers during lowering. It also
-checks ordinary return counts and void signatures. A shared returnability
-analysis follows tail-call chains, including cycles, so forwarding a call
+checks ordinary return counts and void signatures. `ret` returns to a MIR
+caller, including for void functions; `stop` ends EVM execution even inside
+a helper. ABI lowering converts empty external returns into `stop`. A shared
+returnability analysis follows tail-call chains, including cycles, so forwarding a call
 cannot hide an incompatible return signature. Proven nonreturning chains stay
-exempt. Slices as well as structs must be gone at the EVM-shaped boundary.
+exempt. Call-to-tail-call conversion uses the same returnability facts, so it
+cannot discard a continuation after a returning tail-call chain. Slices as well
+as structs must be gone at the EVM-shaped boundary.
 
 LLVM calls the matching aggregate operations `insertvalue` and `extractvalue`.
 Its `insertelement` and `extractelement` operate on vectors, can take dynamic

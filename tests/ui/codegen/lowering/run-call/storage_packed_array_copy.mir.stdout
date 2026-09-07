@@ -49,7 +49,7 @@ fn @constructor() [constructor] {
     v50 = shl v43, v49
     v51 = or v47, v50
     sstore v40, v51 !metadata(storage=offset(v39, 3))
-    stop
+    ret
   bb4:
     v2 = and v0, 0xffffffffffffffff
     v3 = shl 192, v2

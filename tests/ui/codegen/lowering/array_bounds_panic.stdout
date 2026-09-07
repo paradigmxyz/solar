@@ -91,7 +91,7 @@ fn @stDynWrite(arg0: u256, arg1: u256) [selector=0xb55fdd93, abi_params=[u256, u
     v3 = storage_array_data_slot 0
     v4 = add v3, arg0
     sstore v4, arg1 !metadata(storage=symbolic(v4))
-    stop
+    ret
 }
 
 fn @stFix(arg0: u256) -> u256 [selector=0xd0c9a47e, view, abi_params=[u256], abi_returns=[word]] {

@@ -29,5 +29,5 @@ fn @f() -> bool [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>]] {
 
 fn @constructor() [constructor] {
   bb0:
-    stop
+    ret
 }

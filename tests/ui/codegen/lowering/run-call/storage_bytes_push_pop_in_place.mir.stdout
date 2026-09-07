@@ -17,7 +17,7 @@ fn @_push(arg0: u256) {
   bb5:
     jump bb2
   bb2:
-    stop
+    ret
   bb4:
     v3 = checked_add u256, v1, 1
     v4 = and v3, 255
@@ -149,7 +149,7 @@ fn @pushOne(arg0: bytes1) [selector=0x5da02415, abi_params=[bytes1], abi_returns
     sstore v14, v26 !metadata(storage=symbolic(v14))
     jump bb5
   bb5:
-    stop
+    ret
 }
 
 fn @popOne() [selector=0x53b8a6c6, abi_params=[], abi_returns=[]] {
@@ -217,7 +217,7 @@ fn @popOne() [selector=0x53b8a6c6, abi_params=[], abi_returns=[]] {
     sstore v10, 0 !metadata(storage=symbolic(v10))
     jump bb5
   bb5:
-    stop
+    ret
 }
 
 fn @pushRange(arg0: u256) -> memorybytes [selector=0xcac9de04, abi_params=[u256], abi_returns=[memory_bytes]] {
@@ -921,7 +921,7 @@ fn @popEmptyAfter(arg0: u256) [selector=0x7b110cfa, abi_params=[u256], abi_retur
     sstore v69, 0 !metadata(storage=symbolic(v69))
     jump bb16
   bb16:
-    stop
+    ret
   bb4:
     v3 = sload 0 !metadata(storage=slot(0))
     v4 = and v3, 1
@@ -1057,7 +1057,7 @@ fn @popUntouched() [selector=0xbf1e345b, abi_params=[], abi_returns=[]] {
     sstore v10, 0 !metadata(storage=symbolic(v10))
     jump bb5
   bb5:
-    stop
+    ret
 }
 
 fn @structPushPop(arg0: u256) -> struct0 [selector=0x9c0e8d6f, abi_params=[u256], abi_returns=[memory_bytes, word], abi_return_params=[bytes, u256]] {

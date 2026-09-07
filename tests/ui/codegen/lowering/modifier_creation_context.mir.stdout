@@ -8,7 +8,7 @@ fn @constructor() [constructor] {
   bb2:
     jump bb1
   bb1:
-    stop
+    ret
 }
 
 fn @f1() [selector=0xc27fc305, abi_params=[], abi_returns=[]] {
@@ -27,7 +27,7 @@ fn @f1() [selector=0xc27fc305, abi_params=[], abi_returns=[]] {
   bb4:
     jump bb1
   bb1:
-    stop
+    ret
 }
 
 fn @f2() [selector=0x9942ec6f, abi_params=[], abi_returns=[]] {
@@ -35,12 +35,12 @@ fn @f2() [selector=0x9942ec6f, abi_params=[], abi_returns=[]] {
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = or v0, 32
     sstore 0, v1 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 fn @f3() [selector=0xaaf05f3d, abi_params=[], abi_returns=[]] {
   bb0:
-    stop
+    ret
 }
 
 fn @getData() -> u256 [selector=0x3bc5de30, view, abi_params=[], abi_returns=[word]] {
@@ -56,7 +56,7 @@ fn @f3() [selector=0xaaf05f3d, abi_params=[], abi_returns=[]] {
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = or v0, 768
     sstore 0, v1 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 fn @f4() [selector=0xc3f90202, abi_params=[], abi_returns=[]] {
@@ -64,7 +64,7 @@ fn @f4() [selector=0xc3f90202, abi_params=[], abi_returns=[]] {
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = or v0, 0x4000
     sstore 0, v1 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 fn @f1() [selector=0xc27fc305, abi_params=[], abi_returns=[]] {
@@ -83,7 +83,7 @@ fn @f1() [selector=0xc27fc305, abi_params=[], abi_returns=[]] {
   bb4:
     jump bb1
   bb1:
-    stop
+    ret
 }
 
 fn @f2() [selector=0x9942ec6f, abi_params=[], abi_returns=[]] {
@@ -91,7 +91,7 @@ fn @f2() [selector=0x9942ec6f, abi_params=[], abi_returns=[]] {
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = or v0, 32
     sstore 0, v1 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 fn @getData() -> u256 [selector=0x3bc5de30, view, abi_params=[], abi_returns=[word]] {
@@ -110,5 +110,5 @@ fn @constructor() [constructor] {
   bb2:
     jump bb1
   bb1:
-    stop
+    ret
 }

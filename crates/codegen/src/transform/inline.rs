@@ -685,12 +685,6 @@ fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInli
                 summary.estimated_code_size += term_cost.code_size;
                 summary.estimated_runtime_gas += term_cost.runtime_gas;
             }
-            // A void internal function returns via `Stop` (the backend lowers it
-            // to an internal return). Treat it as a return point so void callees
-            // can be inlined.
-            Some(Terminator::Stop) if func.returns.is_empty() => {
-                summary.return_count += 1;
-            }
             Some(Terminator::Jump(_))
             | Some(Terminator::Branch { .. })
             | Some(Terminator::Switch { .. }) => {
@@ -1470,11 +1464,6 @@ impl<'a> InlineCloner<'a> {
                     .map(|value| self.clone_value(*value))
                     .collect::<Option<SmallVec<[ValueId; 2]>>>()?;
                 self.return_edges.push((cloned_block, mapped));
-                Terminator::Jump(continuation)
-            }
-            // A void callee's `Stop` is an internal return with no values.
-            Terminator::Stop if self.callee.returns.is_empty() => {
-                self.return_edges.push((cloned_block, SmallVec::new()));
                 Terminator::Jump(continuation)
             }
             Terminator::Revert { offset, size } => Terminator::Revert {

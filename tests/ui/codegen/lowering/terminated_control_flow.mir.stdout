@@ -1,0 +1,227 @@
+// === ROOT/tests/ui/codegen/lowering/terminated_control_flow.sol:TryTarget ===
+@module TryTarget
+fn @invoke(arg0: bool) [selector=0x2605fe98, pure, abi_params=[bool], abi_returns=[]] {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    ret
+  bb1:
+    revert_if true, empty
+    invalid
+}
+
+// === ROOT/tests/ui/codegen/lowering/terminated_control_flow.sol:TerminatedControlFlow ===
+@module TerminatedControlFlow
+data:
+  TryTarget_initcode_0: hex"34600d5760558060115f395ff35b5f5ffd34601a575f3560e01c80632605fe9814601657601a565b601e565b5f5ffd5b60243610156046576042565b60043515603a576001603c576040565b005b5f5ffd5bfe5b5f5ffd5b6004356002901015604257602a56"
+  StopsInConstructor_initcode_1: hex"60c060405234600a57005b5f5ffd60308060175f395ff334601a575f3560e01c8063e735afb214601657601a565b601e565b5f5ffd5b60016080526020608001608090036080f3"
+
+fn @constructor() [constructor] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 133, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy TryTarget_initcode_0, v3, 102
+    v4 = slice_ptr v0
+    v5 = add v3, 102
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 102
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = sload 0 !metadata(storage=slot(0))
+    v8 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v9 = and v7, v8
+    v10 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
+    v11 = or v9, v10
+    sstore 0, v11 !metadata(storage=slot(0))
+    ret
+}
+
+fn @trySuccess() -> u256 [selector=0x3984eec7, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
+    v2 = gas
+    v3 = eq false, 0
+    v4 = iszero v3
+    v5 = abi_encode [word<bool>], selector 0x2605fe9800000000000000000000000000000000000000000000000000000000, args v4
+    v6 = slice_ptr v5
+    v7 = slice_len v5
+    v8 = extcodesize v1
+    v9 = iszero v8
+    revert_if v9, target_contract_has_no_code
+    v10 = staticcall v2, v1, v6, v7, 0, 0
+    jumpi v10, bb1, bb2
+  bb2:
+    v11 = returndatasize
+    v12 = add v11, 63
+    v13 = lt v12, v11
+    panic_if v13, 0x41
+    v14 = not 31
+    v15 = and v12, v14
+    v16 = alloc memorybytes, exact, uninitialized, infallible, v15
+    set_memory_object_len memorybytes, v16, v11
+    v17 = make_returndata_slice 0, v11
+    memory_object_copy_from_slice memorybytes, v16, v17
+    v18 = memory_object_data memorybytes, v16
+    v19 = memory_object_len memorybytes, v16
+    v20 = make_memory_slice v18, v19
+    v21 = memory_slice_load_word memory, v20, 0
+    v22 = lt v19, 4
+    v23 = iszero v22
+    v24 = shr 224, v21
+    v25 = eq v24, 0x8c379a0
+    v26 = and v23, v25
+    v27 = lt v19, 36
+    v28 = iszero v27
+    v29 = eq v24, 0x4e487b71
+    v30 = and v28, v29
+    jumpi true, bb4, bb5
+  bb5:
+    revert v18, v19
+  bb4:
+    ret 9
+  bb1:
+    ret 7
+  bb3:
+    ret 0
+}
+
+fn @tryFailure() -> u256 [selector=0x86763122, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
+    v2 = gas
+    v3 = eq true, 0
+    v4 = iszero v3
+    v5 = abi_encode [word<bool>], selector 0x2605fe9800000000000000000000000000000000000000000000000000000000, args v4
+    v6 = slice_ptr v5
+    v7 = slice_len v5
+    v8 = extcodesize v1
+    v9 = iszero v8
+    revert_if v9, target_contract_has_no_code
+    v10 = staticcall v2, v1, v6, v7, 0, 0
+    jumpi v10, bb1, bb2
+  bb2:
+    v11 = returndatasize
+    v12 = add v11, 63
+    v13 = lt v12, v11
+    panic_if v13, 0x41
+    v14 = not 31
+    v15 = and v12, v14
+    v16 = alloc memorybytes, exact, uninitialized, infallible, v15
+    set_memory_object_len memorybytes, v16, v11
+    v17 = make_returndata_slice 0, v11
+    memory_object_copy_from_slice memorybytes, v16, v17
+    v18 = memory_object_data memorybytes, v16
+    v19 = memory_object_len memorybytes, v16
+    v20 = make_memory_slice v18, v19
+    v21 = memory_slice_load_word memory, v20, 0
+    v22 = lt v19, 4
+    v23 = iszero v22
+    v24 = shr 224, v21
+    v25 = eq v24, 0x8c379a0
+    v26 = and v23, v25
+    v27 = lt v19, 36
+    v28 = iszero v27
+    v29 = eq v24, 0x4e487b71
+    v30 = and v28, v29
+    jumpi true, bb4, bb5
+  bb5:
+    revert v18, v19
+  bb4:
+    ret 9
+  bb1:
+    ret 7
+  bb3:
+    ret 0
+}
+
+fn @constructorStop() -> u256 [selector=0x2114ee15, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 102, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy StopsInConstructor_initcode_1, v3, 71
+    v4 = slice_ptr v0
+    v5 = add v3, 71
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 71
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = extcodesize v6
+    ret v7
+}
+
+fn @stopInHelper() [selector=0xd738ac61, pure, abi_params=[], abi_returns=[]] {
+  bb0:
+    icall @stopHelper
+    revert_if true, empty
+    invalid
+}
+
+fn @stopHelper() [pure] {
+  bb0:
+    stop
+}
+
+fn @breakSkipsTail() -> u256 [selector=0xa299c6cb, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0]
+    v1 = phi [bb0: 0]
+    v2 = lt v0, 1
+    jumpi v2, bb4, bb5
+  bb5:
+    jump bb2
+  bb4:
+    jump bb2
+  bb2:
+    ret v1
+  bb3:
+    invalid
+  bb6:
+    invalid
+}
+
+fn @continueSkipsTail() -> u256 [selector=0xc45ef923, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb3: v0]
+    v1 = phi [bb0: 0], [bb3: v3]
+    v2 = lt v1, 1
+    jumpi v2, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v0
+  bb4:
+    jump bb3
+  bb3:
+    v3 = checked_add u256, v1, 1
+    jump bb1
+  bb6:
+    invalid
+}
+
+// === ROOT/tests/ui/codegen/lowering/terminated_control_flow.sol:StopsInConstructor ===
+@module StopsInConstructor
+fn @constructor() [constructor] {
+  bb0:
+    stop
+}
+
+fn @present() -> u256 [selector=0xe735afb2, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    ret 1
+}

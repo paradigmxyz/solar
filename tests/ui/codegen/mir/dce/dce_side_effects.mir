@@ -19,6 +19,7 @@ fn @effects(arg0: u256, arg1: u256) {
 // CHECK-LABEL: fn @calls
 // CHECK: - icall @empty
 // CHECK: - {{v[0-9]+}} = icall @identity, arg0
+// CHECK: icall @stops
 // CHECK: icall @fails
 // CHECK: icall @logs
 // CHECK: icall @recursive
@@ -27,6 +28,7 @@ fn @calls(arg0: u256) {
   bb0:
     icall @empty
     v0 = icall @identity, arg0
+    icall @stops
     icall @fails
     icall @logs
     icall @recursive
@@ -111,4 +113,9 @@ fn @abi_dependency(arg0: memorystruct) {
     v0 = memory_object_load_field memorystruct<1>, arg0, 0
     validate_abi v0
     ret
+}
+
+fn @stops() {
+  bb0:
+    stop
 }

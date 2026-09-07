@@ -2,7 +2,7 @@
 @module CreationCodeChild
 fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
   bb0:
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/creation_code.sol:CreationCodeFactory ===

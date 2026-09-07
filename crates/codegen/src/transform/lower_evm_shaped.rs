@@ -7,7 +7,7 @@
 //! dispatch phase removed from its own case blocks.
 //!
 //! This pass rewrites a resultless `icall` to a callee that cannot
-//! return (no reachable `ret` or `stop` terminator) into a
+//! return, directly or through tail calls, into a
 //! [`Terminator::TailCall`], dropping the dead remainder of the block. The
 //! module comes out in the `lowered` phase: every call edge either returns
 //! or is an explicit tail call, which is the control-flow shape the backend
@@ -23,7 +23,7 @@
 //! selects the phi successor. This pass isolates only those copies in a single-successor block.
 
 use crate::{
-    analysis::{CallGraphInfo, CfgInfo, Liveness},
+    analysis::{CallGraphInfo, Liveness},
     mir::{
         Function, InstKind, MirPhase, Module, Terminator,
         utils::{replace_terminator, split_edge},
@@ -86,9 +86,11 @@ fn lower_evm_shaped(module: &mut Module) -> bool {
     });
     if has_candidate {
         let call_graph = CallGraphInfo::new(module);
+        let returning = module.returning_functions();
         let mut tail_callable = DenseBitSet::new_empty(module.functions.len());
         for (func_id, func) in module.functions.iter_enumerated() {
-            if function_cannot_return(func)
+            if !func.blocks.is_empty()
+                && !returning.contains(func_id)
                 && func.selector.is_none()
                 && !func.attributes.is_receive
                 && !func.attributes.is_fallback
@@ -201,17 +203,4 @@ fn split_clobbering_phi_edges(func: &mut Function) {
     for (predecessor, successor) in edges {
         split_edge(func, predecessor, successor);
     }
-}
-
-/// Whether a function can never return to an internal caller: its reachable CFG
-/// has no `ret` or `stop` terminator (`stop` is the internal return of a void
-/// function).
-fn function_cannot_return(func: &Function) -> bool {
-    if func.blocks.is_empty() {
-        return false;
-    }
-    let cfg = CfgInfo::new(func);
-    !cfg.reachable().iter().any(|block| {
-        matches!(func.blocks[block].terminator, Some(Terminator::Return { .. } | Terminator::Stop))
-    })
 }

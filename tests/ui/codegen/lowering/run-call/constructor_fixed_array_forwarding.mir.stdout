@@ -24,7 +24,7 @@ fn @constructor(arg0: u256, arg1: memoryfixedarray) [constructor, abi_params=[u2
     v1 = lt v0, 3
     jumpi v1, bb2, bb3
   bb3:
-    stop
+    ret
   bb2:
     v2 = add 1, v0
     v3 = lt v0, 3

@@ -8,7 +8,7 @@ fn @setFlag() {
     v3 = and true, 255
     v4 = or v2, v3
     sstore 0, v4 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 fn @f() -> bool [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>]] {

@@ -118,7 +118,7 @@ fn @invalidShortDelete() [selector=0x1cba07c2, abi_params=[], abi_returns=[]] {
     jump bb2
   bb2:
     sstore 0, 0 !metadata(storage=slot(0))
-    stop
+    ret
   bb4:
     v13 = add v10, v11
     sstore v13, 0 !metadata(storage=symbolic(v13))
@@ -152,7 +152,7 @@ fn @invalidLongDelete() [selector=0x7dd42e48, abi_params=[], abi_returns=[]] {
     jump bb2
   bb2:
     sstore 0, 0 !metadata(storage=slot(0))
-    stop
+    ret
   bb4:
     v13 = add v10, v11
     sstore v13, 0 !metadata(storage=symbolic(v13))
@@ -298,7 +298,7 @@ fn @invalidShortIndexWrite() [selector=0x9cb6505e, abi_params=[], abi_returns=[]
     v24 = shl v17, v23
     v25 = or v21, v24
     sstore v14, v25 !metadata(storage=symbolic(v14))
-    stop
+    ret
 }
 
 fn @invalidLongIndexWrite() [selector=0x31e8b582, abi_params=[], abi_returns=[]] {
@@ -339,7 +339,7 @@ fn @invalidLongIndexWrite() [selector=0x31e8b582, abi_params=[], abi_returns=[]]
     v24 = shl v17, v23
     v25 = or v21, v24
     sstore v14, v25 !metadata(storage=symbolic(v14))
-    stop
+    ret
 }
 
 fn @invalidShortIndexDelete() [selector=0x5a79d84c, abi_params=[], abi_returns=[]] {
@@ -379,7 +379,7 @@ fn @invalidShortIndexDelete() [selector=0x5a79d84c, abi_params=[], abi_returns=[
     v23 = shl v16, v22
     v24 = or v20, v23
     sstore v13, v24 !metadata(storage=symbolic(v13))
-    stop
+    ret
 }
 
 fn @invalidLongIndexDelete() [selector=0x3cb34688, abi_params=[], abi_returns=[]] {
@@ -419,7 +419,7 @@ fn @invalidLongIndexDelete() [selector=0x3cb34688, abi_params=[], abi_returns=[]
     v23 = shl v16, v22
     v24 = or v20, v23
     sstore v13, v24 !metadata(storage=symbolic(v13))
-    stop
+    ret
 }
 
 fn @encodingCheckedBeforeBounds() -> bytes1 [selector=0x4f384528, abi_params=[], abi_returns=[word<bytes1>]] {
@@ -495,7 +495,7 @@ fn @encodingCheckedBeforeBoundsWrite() [selector=0xc6da2038, abi_params=[], abi_
     v24 = shl v17, v23
     v25 = or v21, v24
     sstore v14, v25 !metadata(storage=symbolic(v14))
-    stop
+    ret
 }
 
 fn @invalidShortPush() [selector=0x6753fa56, abi_params=[], abi_returns=[]] {
@@ -559,7 +559,7 @@ fn @invalidShortPush() [selector=0x6753fa56, abi_params=[], abi_returns=[]] {
     sstore v14, v25 !metadata(storage=symbolic(v14))
     jump bb5
   bb5:
-    stop
+    ret
 }
 
 fn @invalidLongPush() [selector=0xefd41847, abi_params=[], abi_returns=[]] {
@@ -623,7 +623,7 @@ fn @invalidLongPush() [selector=0xefd41847, abi_params=[], abi_returns=[]] {
     sstore v14, v25 !metadata(storage=symbolic(v14))
     jump bb5
   bb5:
-    stop
+    ret
 }
 
 fn @invalidShortPushZero() [selector=0xcba0ded0, abi_params=[], abi_returns=[]] {
@@ -683,7 +683,7 @@ fn @invalidShortPushZero() [selector=0xcba0ded0, abi_params=[], abi_returns=[]] 
     v35 = shr v34, v33
     v36 = and v35, 255
     v37 = shl 248, v36
-    stop
+    ret
 }
 
 fn @invalidLongPushZero() [selector=0xe8ec99d3, abi_params=[], abi_returns=[]] {
@@ -743,7 +743,7 @@ fn @invalidLongPushZero() [selector=0xe8ec99d3, abi_params=[], abi_returns=[]] {
     v35 = shr v34, v33
     v36 = and v35, 255
     v37 = shl 248, v36
-    stop
+    ret
 }
 
 fn @invalidShortPushAssign() [selector=0xa1663e71, abi_params=[], abi_returns=[]] {
@@ -809,7 +809,7 @@ fn @invalidShortPushAssign() [selector=0xa1663e71, abi_params=[], abi_returns=[]
     v41 = shl v34, v40
     v42 = or v38, v41
     sstore v31, v42 !metadata(storage=symbolic(v31))
-    stop
+    ret
 }
 
 fn @invalidLongPushAssign() [selector=0x666fac34, abi_params=[], abi_returns=[]] {
@@ -875,7 +875,7 @@ fn @invalidLongPushAssign() [selector=0x666fac34, abi_params=[], abi_returns=[]]
     v41 = shl v34, v40
     v42 = or v38, v41
     sstore v31, v42 !metadata(storage=symbolic(v31))
-    stop
+    ret
 }
 
 fn @invalidShortPop() [selector=0xeaec3c61, abi_params=[], abi_returns=[]] {
@@ -943,7 +943,7 @@ fn @invalidShortPop() [selector=0xeaec3c61, abi_params=[], abi_returns=[]] {
     sstore v10, 0 !metadata(storage=symbolic(v10))
     jump bb5
   bb5:
-    stop
+    ret
 }
 
 fn @invalidLongPop() [selector=0x66075ed1, abi_params=[], abi_returns=[]] {
@@ -1011,7 +1011,7 @@ fn @invalidLongPop() [selector=0x66075ed1, abi_params=[], abi_returns=[]] {
     sstore v10, 0 !metadata(storage=symbolic(v10))
     jump bb5
   bb5:
-    stop
+    ret
 }
 
 fn @pushAtMaxLength() -> u256 [selector=0x35078c3f, abi_params=[], abi_returns=[word]] {
@@ -1147,7 +1147,7 @@ fn @pushPastMaxLength() [selector=0xd9fa2828, abi_params=[], abi_returns=[]] {
     sstore v17, v28 !metadata(storage=symbolic(v17))
     jump bb5
   bb5:
-    stop
+    ret
 }
 
 fn @pushZeroPastMaxLength() [selector=0x65c6159f, abi_params=[], abi_returns=[]] {
@@ -1210,5 +1210,5 @@ fn @pushZeroPastMaxLength() [selector=0x65c6159f, abi_params=[], abi_returns=[]]
     v38 = shr v37, v36
     v39 = and v38, 255
     v40 = shl 248, v39
-    stop
+    ret
 }

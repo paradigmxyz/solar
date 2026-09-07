@@ -258,7 +258,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn finish(&mut self, returns: &[VariableId]) -> Option<()> {
         if returns.is_empty() {
-            self.builder.stop();
+            // ret
+            self.builder.ret([]);
         } else {
             let mut values = Vec::with_capacity(returns.len());
             for &id in returns {

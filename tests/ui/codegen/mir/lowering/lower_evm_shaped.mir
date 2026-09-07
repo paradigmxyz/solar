@@ -1,7 +1,7 @@
 //@compile-flags: -Zmir-pipeline=lower-evm-shaped
 //@filecheck:
-// A resultless internal call to a callee that never returns (no `ret`, no
-// `stop` — it ends in `returndata`) models a returning edge that does not
+// A resultless internal call to a callee that never returns (no `ret`;
+// it ends in `returndata`) models a returning edge that does not
 // exist. The evm-shaped phase rewrites it into a `tail_call` — arguments
 // included — and drops the dead remainder of the block. The rewrite only
 // applies to callees the backend statically frames: `@spin` cannot return
@@ -109,4 +109,47 @@ fn @dead_on_sibling(arg0: bool) -> u256 {
     jumpi arg0, bb1, bb3
   bb3:
     ret 7
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @stop_caller{{[( ]}}
+// CHECK: - icall @stop_helper
+// CHECK: + tail_call @stop_helper
+fn @stop_caller() {
+  bb0:
+    icall @stop_helper
+    ret
+}
+
+fn @stop_helper() {
+  bb0:
+    stop
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @void_caller{{[( ]}}
+// CHECK: {{^[ +].*}}icall @void_helper
+// CHECK: {{^[ +].*}}ret
+fn @void_caller() {
+  bb0:
+    icall @void_helper
+    ret
+}
+
+fn @void_helper() {
+  bb0:
+    ret
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @tail_return_caller{{[( ]}}
+// CHECK: {{^[ +].*}}icall @tail_return_helper
+// CHECK: {{^[ +].*}}sstore 0, 7
+fn @tail_return_caller() {
+  bb0:
+    icall @tail_return_helper
+    sstore 0, 7
+    ret
+}
+
+fn @tail_return_helper() {
+  bb0:
+    tail_call @void_helper
 }

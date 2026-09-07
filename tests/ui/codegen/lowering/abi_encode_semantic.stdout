@@ -14,7 +14,7 @@ fn @forward(arg0: address, arg1: u256, arg2: calldataslice) [selector=0xd7f31eb9
   bb1:
     revert_returndata
   bb2:
-    stop
+    ret
 }
 
 fn @forwardNarrow(arg0: address, arg1: calldataslice) [selector=0x251c2c33, abi_params=[address, array<_, u8>], abi_returns=[]] {
@@ -31,5 +31,5 @@ fn @forwardNarrow(arg0: address, arg1: calldataslice) [selector=0x251c2c33, abi_
   bb1:
     revert_returndata
   bb2:
-    stop
+    ret
 }

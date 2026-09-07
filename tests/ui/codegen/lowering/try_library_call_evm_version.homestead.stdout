@@ -9,7 +9,7 @@ fn @double(arg0: u256) -> u256 [selector=0xeee97206, pure, abi_params=[u256], ab
 
 fn @noop(arg0: u256) [selector=0x67190395, pure, abi_params=[u256], abi_returns=[]] {
   bb0:
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/try_library_call_evm_version.sol:TryLibraryCall ===

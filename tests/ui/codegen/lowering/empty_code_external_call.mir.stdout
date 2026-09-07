@@ -2,7 +2,7 @@
 @module EmptyCodeTarget
 fn @noop() [selector=0x5dfc2e4a, abi_params=[], abi_returns=[]] {
   bb0:
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/empty_code_external_call.sol:EmptyCodeLibrary ===
@@ -13,7 +13,7 @@ immutables:
 
 fn @noop() [selector=0x5dfc2e4a, abi_params=[], abi_returns=[]] {
   bb0:
-    stop
+    ret
 }
 
 fn @constructor() [constructor] {
@@ -39,7 +39,7 @@ fn @direct() [selector=0x222b1407, abi_params=[], abi_returns=[]] {
   bb1:
     revert_returndata
   bb2:
-    stop
+    ret
 }
 
 fn @pointer() [selector=0x2f5f3b3c, abi_params=[], abi_returns=[]] {
@@ -61,7 +61,7 @@ fn @pointer() [selector=0x2f5f3b3c, abi_params=[], abi_returns=[]] {
   bb1:
     revert_returndata
   bb2:
-    stop
+    ret
 }
 
 fn @libraryCall() [selector=0x239b86e9, abi_params=[], abi_returns=[]] {
@@ -78,7 +78,7 @@ fn @libraryCall() [selector=0x239b86e9, abi_params=[], abi_returns=[]] {
   bb1:
     revert_returndata
   bb2:
-    stop
+    ret
 }
 
 fn @tryDirect() [selector=0x45eca8af, abi_params=[], abi_returns=[]] {
@@ -124,7 +124,7 @@ fn @tryDirect() [selector=0x45eca8af, abi_params=[], abi_returns=[]] {
   bb1:
     jump bb3
   bb3:
-    stop
+    ret
 }
 
 fn @tryPointer() [selector=0xce20ef7a, abi_params=[], abi_returns=[]] {
@@ -175,7 +175,7 @@ fn @tryPointer() [selector=0xce20ef7a, abi_params=[], abi_returns=[]] {
   bb1:
     jump bb3
   bb3:
-    stop
+    ret
 }
 
 fn @tryStatic() [selector=0x54f223e3, view, abi_params=[], abi_returns=[]] {
@@ -221,7 +221,7 @@ fn @tryStatic() [selector=0x54f223e3, view, abi_params=[], abi_returns=[]] {
   bb1:
     jump bb3
   bb3:
-    stop
+    ret
 }
 
 fn @trySelf() -> bool [selector=0xf948cf5e, abi_params=[], abi_returns=[word<bool>]] {
@@ -303,7 +303,7 @@ fn @selfCall() -> bool [selector=0x8dae0159, abi_params=[], abi_returns=[word<bo
 
 fn @noop() [selector=0x5dfc2e4a, abi_params=[], abi_returns=[]] {
   bb0:
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/empty_code_external_call.sol:EmptyCodeTryFactory ===
@@ -326,7 +326,7 @@ fn @deploy() [selector=0x775c300c, abi_params=[], abi_returns=[]] {
   bb1:
     revert_returndata
   bb2:
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/empty_code_external_call.sol:EmptyCodeTryConstructor ===
@@ -375,10 +375,10 @@ fn @constructor() [constructor] {
   bb1:
     jump bb3
   bb3:
-    stop
+    ret
 }
 
 fn @noop() [selector=0x5dfc2e4a, abi_params=[], abi_returns=[]] {
   bb0:
-    stop
+    ret
 }

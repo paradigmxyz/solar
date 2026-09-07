@@ -9,7 +9,7 @@ fn @x() -> u256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word]] {
 fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
   bb0:
     sstore 0, 2 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_multiple_base_argument_initialization_viair.sol:ConstructorArgumentInitializationB ===
@@ -23,7 +23,7 @@ fn @y() -> u256 [selector=0xa56dfe4a, view, abi_params=[], abi_returns=[word]] {
 fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
   bb0:
     sstore 0, 3 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_multiple_base_argument_initialization_viair.sol:ConstructorMultipleBaseArgumentInitialization ===
@@ -43,7 +43,7 @@ fn @constructor() [constructor] {
   bb2:
     jump bb3
   bb3:
-    stop
+    ret
 }
 
 fn @state() -> struct0 [selector=0xc19d93fb, view, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {

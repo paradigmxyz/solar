@@ -84,5 +84,5 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
 fn @constructor() [constructor] {
   bb0:
     sstore 0, 42 !metadata(storage=slot(0))
-    stop
+    ret
 }

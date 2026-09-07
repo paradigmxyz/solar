@@ -167,7 +167,7 @@ fn @initialize() {
     panic_if v4, 0x32
     v5 = add 0, 1
     sstore v5, 20 !metadata(storage=slot(1))
-    stop
+    ret
 }
 
 fn @pair() -> struct1 [view] {

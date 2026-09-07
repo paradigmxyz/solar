@@ -24,5 +24,5 @@ fn @libFun(arg0: storageptr) {
   bb2:
     jump bb1
   bb1:
-    stop
+    ret
 }

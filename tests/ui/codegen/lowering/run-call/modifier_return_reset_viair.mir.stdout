@@ -43,5 +43,5 @@ fn @constructor() [constructor] {
     v3 = and true, 255
     v4 = or v2, v3
     sstore 0, v4 !metadata(storage=slot(0))
-    stop
+    ret
 }

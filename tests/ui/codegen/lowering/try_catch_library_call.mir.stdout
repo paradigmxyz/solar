@@ -36,7 +36,7 @@ fn @add(arg0: u256, arg1: u256, arg2: bool) -> u256 [selector=0x07f6a6c2, pure, 
 
 fn @empty() [selector=0xf2a75fe4, pure, abi_params=[], abi_returns=[]] {
   bb0:
-    stop
+    ret
 }
 
 fn @constructor() [constructor] {
@@ -326,7 +326,7 @@ fn @emptyCode() [selector=0xddb3636e, pure, abi_params=[], abi_returns=[]] {
   bb1:
     jump bb3
   bb3:
-    stop
+    ret
 }
 
 fn @try_decode_error_message(arg0: memptr, arg1: u256) -> bool {

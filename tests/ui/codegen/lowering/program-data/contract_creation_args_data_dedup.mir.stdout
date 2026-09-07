@@ -15,7 +15,7 @@ fn @value() -> u256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word
 fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
   bb0:
     storeimmutable value, arg0
-    stop
+    ret
 }
 
 fn @payload() -> memorybytes [selector=0xa878f858, pure, abi_params=[], abi_returns=[memory_bytes]] {

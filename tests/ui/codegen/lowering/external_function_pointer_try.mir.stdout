@@ -51,14 +51,14 @@ fn @invoke(arg0: function, arg1: memorystruct) {
   bb1:
     jump bb3
   bb3:
-    stop
+    ret
 }
 
 fn @succeed(arg0: memorystruct) [selector=0x93edcd0d, abi_params=[tuple<u256>], abi_returns=[]] {
   bb0:
     v0 = memory_object_load_field memorystruct<1>, arg0, 0
     sstore 0, v0 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 fn @fail(arg0: memorystruct) [selector=0xe8be0a6f, pure, abi_params=[tuple<u256>], abi_returns=[]] {

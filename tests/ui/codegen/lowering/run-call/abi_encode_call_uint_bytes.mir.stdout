@@ -2,12 +2,12 @@
 @module AbiEncodeCallUintBytes
 fn @g(arg0: bytes2, arg1: bytes2, arg2: bytes2) [selector=0x6dddb956, pure, abi_params=[bytes2, bytes2, bytes2], abi_returns=[]] {
   bb0:
-    stop
+    ret
 }
 
 fn @h(arg0: u16, arg1: u16) [selector=0x2a62baf5, pure, abi_params=[u16, u16], abi_returns=[]] {
   bb0:
-    stop
+    ret
 }
 
 fn @f() -> memorybytes [selector=0x26121ff0, view, abi_params=[], abi_returns=[memory_bytes]] {

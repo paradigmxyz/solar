@@ -68,11 +68,11 @@ fn @atCap() [selector=0xdb9a763c, abi_params=[], abi_returns=[]] {
     v4 = add v3, v0
     sstore v4, 7 !metadata(storage=symbolic(v4))
     sstore 1, v2 !metadata(storage=slot(1))
-    stop
+    ret
 }
 
 fn @constructor() [constructor] {
   bb0:
     sstore 0, 0xbeef !metadata(storage=slot(0))
-    stop
+    ret
 }

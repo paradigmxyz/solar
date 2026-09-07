@@ -13,7 +13,7 @@ fn @set(arg0: u256, arg1: u256, arg2: u256, arg3: calldataslice) [selector=0x526
     v2 = slice_len arg3
     v3 = checked_add u256, v1, v2
     sstore 1, v3 !metadata(storage=slot(1))
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:FixedRangeProxy ===
@@ -27,7 +27,7 @@ fn @constructor(arg0: address) [constructor, abi_params=[address]] {
     v4 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
     v5 = or v3, v4
     sstore 0, v5 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 fn @fallback() [fallback] {
@@ -67,7 +67,7 @@ fn @constructor(arg0: address) [constructor, abi_params=[address]] {
     v4 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
     v5 = or v3, v4
     sstore 0, v5 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 fn @fallback() [fallback] {
@@ -357,7 +357,7 @@ immutables:
 fn @constructor(arg0: address) [constructor, abi_params=[address]] {
   bb0:
     storeimmutable producer, arg0
-    stop
+    ret
 }
 
 fn @bubble() -> memorybytes [selector=0x4ce637d6, view, abi_params=[], abi_returns=[memory_bytes]] {

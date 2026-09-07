@@ -229,5 +229,5 @@ fn @pushPacked() -> struct0 [selector=0x686690bf, abi_params=[], abi_returns=[wo
 fn @constructor() [constructor] {
   bb0:
     sstore 5, 0xdead !metadata(storage=slot(5))
-    stop
+    ret
 }

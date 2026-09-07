@@ -161,7 +161,7 @@ fn @constructor() [constructor] {
     v132 = shl v126, v131
     v133 = or v130, v132
     sstore v123, v133 !metadata(storage=offset(v122, 6))
-    stop
+    ret
 }
 
 fn @read() -> struct0 [selector=0x57de26a4, view, abi_params=[], abi_returns=[word<u8>, word<u8>, word], abi_return_params=[u8, u8, u256]] {

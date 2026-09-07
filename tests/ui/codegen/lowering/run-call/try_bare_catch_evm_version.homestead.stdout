@@ -32,7 +32,7 @@ fn @agg() -> memoryfixedarray [selector=0xf5e34bfa, pure, abi_params=[], abi_ret
 
 fn @noop() [selector=0x5dfc2e4a, abi_params=[], abi_returns=[]] {
   bb0:
-    stop
+    ret
 }
 
 fn @fail() [selector=0xa9cc4718, payable, abi_params=[], abi_returns=[word]] {

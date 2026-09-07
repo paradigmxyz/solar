@@ -11,7 +11,7 @@ fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
     v0 = and arg0, 7
     v1 = icall @helper, v0
     sstore 0, v1 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 fn @helper(arg0: u256) -> u256 [pure] {

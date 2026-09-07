@@ -2,7 +2,7 @@
 @module IndexedEventFunctionBytes
 fn @target() [selector=0xd4b83992, abi_params=[], abi_returns=[]] {
   bb0:
-    stop
+    ret
 }
 
 fn @emitEvent() [selector=0x7b0cb839, abi_params=[], abi_returns=[]] {
@@ -74,5 +74,5 @@ fn @emitEvent() [selector=0x7b0cb839, abi_params=[], abi_returns=[]] {
     v45 = add 32, v39
     v46 = keccak256_bytes v28
     log2 0, 0, 0x2a66ae4432794c7fc0bfc59df26473a06d65994d91dd1e3eecd6ff7df5305336, v46
-    stop
+    ret
 }

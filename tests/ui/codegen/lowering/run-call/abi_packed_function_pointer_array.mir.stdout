@@ -2,7 +2,7 @@
 @module AbiPackedFunctionPointerArray
 fn @target() [selector=0xd4b83992, pure, abi_params=[], abi_returns=[]] {
   bb0:
-    stop
+    ret
 }
 
 fn @memoryEncode() -> memorybytes [selector=0xe39243fb, pure, abi_params=[], abi_returns=[memory_bytes]] {

@@ -21,7 +21,7 @@ fn @constructor() [constructor] {
     v9 = add v8, v5
     sstore v9, 20 !metadata(storage=symbolic(v9))
     sstore 0, v7 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 fn @compound() -> struct0 [selector=0xf69e2046, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {

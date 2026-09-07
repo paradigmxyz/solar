@@ -470,7 +470,7 @@ fn @constructor() [constructor] {
     v36 = lt v35, 16
     jumpi v36, bb7, bb8
   bb8:
-    stop
+    ret
   bb7:
     v37 = memory_object_load_element memoryfixedarray<16, 1>, v0, v35
     v38 = storage_array_data_slot 0

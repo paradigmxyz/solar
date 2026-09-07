@@ -61,7 +61,7 @@ fn @constructor() [constructor] {
     v10 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
     v11 = or v9, v10
     sstore 0, v11 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 fn @read() -> struct0 [selector=0x57de26a4, view, abi_params=[], abi_returns=[word, memory_bytes], abi_return_params=[u256, bytes]] {

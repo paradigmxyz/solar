@@ -6,7 +6,7 @@ types:
 fn @constructor() [constructor] {
   bb0:
     sstore 0, 40 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 fn @add(arg0: u256) -> u256 [selector=0x1003e2d2, view, abi_params=[u256], abi_returns=[word]] {
@@ -87,7 +87,7 @@ fn @testInline() [selector=0x2bb29eb9, view, abi_params=[], abi_returns=[]] {
     v1 = eq v0, 40
     v2 = iszero v1
     panic_if v2, 0x1
-    stop
+    ret
 }
 
 fn @fullyInitializedNamedStruct() -> memorystruct [selector=0x03e8d290, pure, abi_params=[], abi_returns=[tuple<memory_array<word>, memory_bytes>]] {

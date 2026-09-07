@@ -6,7 +6,7 @@ types:
 
 fn @noop() [selector=0x5dfc2e4a, abi_params=[], abi_returns=[]] {
   bb0:
-    stop
+    ret
 }
 
 fn @value() -> u256 [selector=0x3fa4f245, pure, abi_params=[], abi_returns=[word]] {
@@ -56,7 +56,7 @@ fn @agg() -> memoryfixedarray [selector=0xf5e34bfa, pure, abi_params=[], abi_ret
 
 fn @receive() [receive, payable] {
   bb0:
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/external_call_gas_evm_version.sol:CallGasCalls ===

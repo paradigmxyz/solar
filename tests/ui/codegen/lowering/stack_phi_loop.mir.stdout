@@ -146,7 +146,7 @@ fn @storeAfterLoop(arg0: u256, arg1: u256, arg2: u256) [selector=0xd8c2ef0a, abi
     jump bb2
   bb2:
     sstore 0, v1 !metadata(storage=slot(0))
-    stop
+    ret
   bb4:
     v6 = checked_mul u256, v1, v0
     v7 = checked_add u256, v6, v2

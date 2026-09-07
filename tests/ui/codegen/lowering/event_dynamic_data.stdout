@@ -6,7 +6,7 @@ fn @text(arg0: memorybytes) [selector=0x174e6c98, abi_params=[bytes], abi_return
     v1 = slice_ptr v0
     v2 = slice_len v0
     log2 v1, v2, 0x1ec47f6be8a8bf4aa7aa1659aceb7cef3b607892101a00e4afd57e2ae4fbf3c4, 1
-    stop
+    ret
 }
 
 fn @literal() [selector=0x1373185e, abi_params=[], abi_returns=[]] {
@@ -19,7 +19,7 @@ fn @literal() [selector=0x1373185e, abi_params=[], abi_returns=[]] {
     v3 = slice_ptr v2
     v4 = slice_len v2
     log2 v3, v4, 0x1ec47f6be8a8bf4aa7aa1659aceb7cef3b607892101a00e4afd57e2ae4fbf3c4, 2
-    stop
+    ret
 }
 
 fn @blob(arg0: memorybytes) [selector=0x03cd5167, abi_params=[bytes], abi_returns=[]] {
@@ -28,5 +28,5 @@ fn @blob(arg0: memorybytes) [selector=0x03cd5167, abi_params=[bytes], abi_return
     v1 = slice_ptr v0
     v2 = slice_len v0
     log1 v1, v2, 0xd05ce3dc4caf4a4b252e3323bde615dc3b9d54623e1859c892f0b4ecf5e45164
-    stop
+    ret
 }

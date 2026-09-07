@@ -28,5 +28,5 @@ fn @unused(arg0: u256) [selector=0xbef217cc, pure, abi_params=[u256], abi_return
   bb0:
     v0 = checked_addmod 0, 0, arg0
     v1 = checked_mulmod 0, 0, arg0
-    stop
+    ret
 }

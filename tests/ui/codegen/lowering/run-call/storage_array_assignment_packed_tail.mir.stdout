@@ -22,7 +22,7 @@ fn @constructor() [constructor] {
     v14 = mod v8, 8
     v15 = mul v14, 4
     sstore 0, v10 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 fn @fixedLength() -> u256 [selector=0x47f1a57f, abi_params=[], abi_returns=[word]] {

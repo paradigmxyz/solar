@@ -106,6 +106,14 @@ fn mark_abi_wrappers(module: &mut Module) -> bool {
     let mut changed = false;
     for func in &mut module.functions {
         if func.is_external_entry() && !func.attributes.is_abi_wrapper {
+            // ret -> stop at the external ABI boundary
+            for block in &mut func.blocks {
+                if !func.attributes.is_constructor
+                    && matches!(&block.terminator, Some(Terminator::Return { values }) if values.is_empty())
+                {
+                    block.terminator = Some(Terminator::Stop);
+                }
+            }
             func.attributes.is_abi_wrapper = true;
             changed = true;
         }

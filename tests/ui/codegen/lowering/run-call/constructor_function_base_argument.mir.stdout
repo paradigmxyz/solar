@@ -3,7 +3,7 @@
 fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
   bb0:
     sstore 0, arg0 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 fn @two() -> u256 [selector=0x5fdf05d7, pure, abi_params=[], abi_returns=[word]] {
@@ -24,7 +24,7 @@ fn @constructor() [constructor] {
     sstore 0, v0 !metadata(storage=slot(0))
     jump bb1
   bb1:
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_function_base_argument.sol:ConstructorFunctionBaseDerived ===
@@ -46,5 +46,5 @@ fn @constructor() [constructor] {
     sstore 0, v0 !metadata(storage=slot(0))
     jump bb1
   bb1:
-    stop
+    ret
 }

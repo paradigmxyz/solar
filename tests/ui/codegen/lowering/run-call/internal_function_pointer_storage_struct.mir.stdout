@@ -83,7 +83,7 @@ fn @constructor() [constructor] {
     v54 = shl 16, v53
     v55 = or v52, v54
     sstore v48, v55 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 fn @read() -> struct0 [selector=0x57de26a4, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {

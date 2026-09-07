@@ -18,7 +18,7 @@ fn @constructor() [constructor] {
     v8 = or v6, v7
     sstore v3, v8 !metadata(storage=symbolic(v3))
     sstore 2, 1 !metadata(storage=slot(2))
-    stop
+    ret
 }
 
 fn @getMinDelay() -> u256 [selector=0xf27a0c92, view, abi_params=[], abi_returns=[word]] {
@@ -227,7 +227,7 @@ fn @_schedule(arg0: bytes32, arg1: u256) {
     v5 = checked_add u256, v4, arg1
     v6 = mapping_slot arg0, 1
     sstore v6, v5 !metadata(storage=symbolic(v6))
-    stop
+    ret
   bb4:
     require false, custom_error [word, word], 0x48b6d3db00000000000000000000000000000000000000000000000000000000, (arg1, v2)
     invalid

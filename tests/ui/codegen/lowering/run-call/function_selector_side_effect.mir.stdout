@@ -2,7 +2,7 @@
 @module FunctionSelectorSideEffect
 fn @f() [selector=0x26121ff0, view, abi_params=[], abi_returns=[]] {
   bb0:
-    stop
+    ret
 }
 
 fn @h() -> address [selector=0xb8c9d365, abi_params=[], abi_returns=[word<u160>]] {

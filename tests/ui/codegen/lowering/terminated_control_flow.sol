@@ -1,3 +1,6 @@
+//@ codegen-matrix: standard
+//@ run-call: TerminatedControlFlow::constructorStop => 0
+//@ run-call: TerminatedControlFlow::stopInHelper
 //@ run-call: TerminatedControlFlow::trySuccess => 7
 //@ run-call: TerminatedControlFlow::tryFailure => 9
 //@ run-call: TerminatedControlFlow::breakSkipsTail => 0
@@ -32,6 +35,19 @@ contract TerminatedControlFlow {
         }
     }
 
+    function constructorStop() external returns (uint256) {
+        return address(new StopsInConstructor()).code.length;
+    }
+
+    function stopInHelper() external pure {
+        stopHelper();
+        revert();
+    }
+
+    function stopHelper() internal pure {
+        assembly { stop() }
+    }
+
     function breakSkipsTail() external pure returns (uint256 result) {
         for (uint256 i = 0; i < 1; ++i) {
             break;
@@ -44,5 +60,15 @@ contract TerminatedControlFlow {
             continue;
             result = 1;
         }
+    }
+}
+
+contract StopsInConstructor {
+    constructor() {
+        assembly { stop() }
+    }
+
+    function present() external pure returns (uint256) {
+        return 1;
     }
 }

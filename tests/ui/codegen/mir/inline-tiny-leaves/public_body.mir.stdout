@@ -16,7 +16,7 @@ fn @constructor(arg0: u256) [abi_wrapper, constructor] {
     jumpi v3, bb2, bb3
   bb3:
     mstore 192, arg0
-    stop
+    ret
   bb2:
     revert 0, 0
 }

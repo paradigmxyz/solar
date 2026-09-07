@@ -37,7 +37,7 @@ fn @constructor() [constructor] {
     v14 = and v10, 0xffffffffffffffffffffffffffffffffffffffff
     v15 = or v13, v14
     sstore 0, v15 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 fn @reasonLength() -> u256 [selector=0xa4bc2ef1, view, abi_params=[], abi_returns=[word]] {

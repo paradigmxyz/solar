@@ -92,7 +92,7 @@ fn @bump(arg0: storageptr) {
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = checked_add u256, v0, 1
     sstore arg0, v1 !metadata(storage=symbolic(arg0))
-    stop
+    ret
 }
 
 fn @pick(arg0: memoryarray) -> struct0 [pure] {

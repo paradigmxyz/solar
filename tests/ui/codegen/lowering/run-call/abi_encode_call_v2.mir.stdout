@@ -250,7 +250,7 @@ fn @callMeMaybe(arg0: calldataslice, arg1: i256, arg2: memorybytes) [selector=0x
     v198 = eq v197, 0x746c32bd76400aea458889122fc934ee4dbd66d1fce294f5a05a66cf3d2a6d53
     v199 = iszero v198
     panic_if v199, 0x1
-    stop
+    ret
 }
 
 fn @callExternal() -> bool [selector=0x5f431992, abi_params=[], abi_returns=[word<bool>]] {

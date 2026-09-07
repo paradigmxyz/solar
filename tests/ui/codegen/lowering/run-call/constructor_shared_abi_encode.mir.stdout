@@ -11,7 +11,7 @@ fn @record(arg0: address, arg1: calldataslice) [selector=0x01b2c698, abi_params=
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = checked_add u256, v0, 1
     sstore 0, v1 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_shared_abi_encode.sol:DynamicCaller ===
@@ -20,7 +20,7 @@ fn @constructor(arg0: address) [constructor, abi_params=[address]] {
   bb0:
     icall @recordFirst, arg0
     icall @recordSecond, arg0
-    stop
+    ret
 }
 
 fn @recordFirst(arg0: address) {
@@ -42,7 +42,7 @@ fn @recordFirst(arg0: address) {
   bb1:
     revert_returndata
   bb2:
-    stop
+    ret
 }
 
 fn @recordSecond(arg0: address) {
@@ -64,7 +64,7 @@ fn @recordSecond(arg0: address) {
   bb1:
     revert_returndata
   bb2:
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_shared_abi_encode.sol:ConstructorSharedAbiEncode ===

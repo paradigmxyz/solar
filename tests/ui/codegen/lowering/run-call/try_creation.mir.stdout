@@ -6,7 +6,7 @@ fn @constructor(arg0: bool) [constructor, abi_params=[bool]] {
     v1 = iszero v0
     v2 = iszero v1
     require v2, short_string 1, 0x7800000000000000000000000000000000000000000000000000000000000000
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/try_creation.sol:TryCreation ===

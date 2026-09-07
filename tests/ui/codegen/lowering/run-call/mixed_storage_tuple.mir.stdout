@@ -28,7 +28,7 @@ fn @setUp() [selector=0x0a9254e4, abi_params=[], abi_returns=[]] {
     v13 = memory_object_load_field memorystruct<1>, v7, 0
     sstore v12, v13 !metadata(storage=symbolic(v12))
     sstore 0, v10 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 fn @f() -> struct0 [view] {

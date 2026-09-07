@@ -35,7 +35,7 @@ contract InternalVoidCall {
 
     // CHECK-LABEL: fn @returnVoidCall{{[( ]}}
     // CHECK: icall @writeIfNonZero, arg0
-    // CHECK: stop
+    // CHECK: ret
     function returnVoidCall(uint256 newValue) public {
         return writeIfNonZero(newValue);
     }

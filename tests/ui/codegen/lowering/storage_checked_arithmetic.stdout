@@ -10,7 +10,7 @@ fn @storage_sub(arg0: address, arg1: u256) [selector=0x8af2db43, abi_params=[add
     jumpi v5, bb1, bb2
   bb2:
     sstore v1, v4 !metadata(storage=symbolic(v1))
-    stop
+    ret
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -29,7 +29,7 @@ fn @storage_binary_sub(arg0: address, arg1: u256) [selector=0x816bb6a5, abi_para
     v4 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
     v5 = mapping_slot v4, 0
     sstore v5, v6 !metadata(storage=symbolic(v5))
-    stop
+    ret
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -53,7 +53,7 @@ fn @storage_struct_add(arg0: address, arg1: u128) [selector=0xb11dd1b8, abi_para
     v9 = and v11, 0xffffffffffffffffffffffffffffffff
     v10 = or v8, v9
     sstore v1, v10 !metadata(storage=symbolic(v1))
-    stop
+    ret
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -90,7 +90,7 @@ fn @storage_struct_signed_sub(arg0: address, arg1: i8) [selector=0x14ebfa30, abi
     v13 = shl 128, v12
     v14 = or v11, v13
     sstore v1, v14 !metadata(storage=symbolic(v1))
-    stop
+    ret
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)

@@ -68,5 +68,5 @@ fn @positional() -> u256 [selector=0x8a0495cd, abi_params=[], abi_returns=[word]
 
 fn @constructor() [constructor] {
   bb0:
-    stop
+    ret
 }

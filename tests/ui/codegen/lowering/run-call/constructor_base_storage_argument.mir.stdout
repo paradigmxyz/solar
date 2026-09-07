@@ -9,7 +9,7 @@ fn @constructor() [constructor] {
   bb1:
     jump bb2
   bb2:
-    stop
+    ret
 }
 
 fn @getM(arg0: u256, arg1: u256) -> u256 [selector=0x1136c6ce, view, abi_params=[u256, u256], abi_returns=[word]] {
@@ -57,7 +57,7 @@ fn @constructor() [constructor] {
   bb1:
     jump bb2
   bb2:
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_storage_argument.sol:ArrayParam ===
@@ -95,7 +95,7 @@ fn @constructor() [constructor] {
   bb1:
     jump bb2
   bb2:
-    stop
+    ret
 }
 
 fn @len() -> u256 [selector=0x56d88e27, view, abi_params=[], abi_returns=[word]] {
@@ -228,7 +228,7 @@ fn @constructor() [constructor] {
   bb1:
     jump bb12
   bb12:
-    stop
+    ret
 }
 
 fn @len() -> u256 [selector=0x56d88e27, view, abi_params=[], abi_returns=[word]] {
@@ -297,7 +297,7 @@ fn @constructor() [constructor] {
   bb2:
     jump bb4
   bb4:
-    stop
+    ret
 }
 
 fn @getM(arg0: u256, arg1: u256) -> u256 [selector=0x1136c6ce, view, abi_params=[u256, u256], abi_returns=[word]] {
@@ -327,7 +327,7 @@ fn @constructor(arg0: bool) [constructor, abi_params=[bool]] {
   bb4:
     jump bb5
   bb5:
-    stop
+    ret
 }
 
 fn @getM(arg0: u256, arg1: u256) -> u256 [selector=0x1136c6ce, view, abi_params=[u256, u256], abi_returns=[word]] {

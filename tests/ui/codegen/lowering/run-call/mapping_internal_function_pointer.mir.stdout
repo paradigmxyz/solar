@@ -10,7 +10,7 @@ fn @constructor() [constructor] {
     v5 = and 2, 0xffffffffffffffff
     v6 = or v4, v5
     sstore v1, v6 !metadata(storage=symbolic(v1))
-    stop
+    ret
 }
 
 fn @stage0() {
@@ -23,7 +23,7 @@ fn @stage0() {
     v5 = and 3, 0xffffffffffffffff
     v6 = or v4, v5
     sstore v1, v6 !metadata(storage=symbolic(v1))
-    stop
+    ret
 }
 
 fn @stage1() {
@@ -36,7 +36,7 @@ fn @stage1() {
     v5 = and 4, 0xffffffffffffffff
     v6 = or v4, v5
     sstore v1, v6 !metadata(storage=symbolic(v1))
-    stop
+    ret
 }
 
 fn @stage2() {
@@ -47,7 +47,7 @@ fn @stage2() {
     v3 = and true, 255
     v4 = or v2, v3
     sstore 0, v4 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 fn @run() -> bool [selector=0xc0406226, abi_params=[], abi_returns=[word<bool>]] {

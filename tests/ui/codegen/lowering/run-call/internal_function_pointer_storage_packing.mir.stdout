@@ -80,27 +80,27 @@ fn @constructor() [constructor] {
     v66 = shl v60, v65
     v67 = or v64, v66
     sstore v57, v67 !metadata(storage=offset(v56, 1))
-    stop
+    ret
 }
 
 fn @a() {
   bb0:
-    stop
+    ret
 }
 
 fn @b() {
   bb0:
-    stop
+    ret
 }
 
 fn @c() {
   bb0:
-    stop
+    ret
 }
 
 fn @d() {
   bb0:
-    stop
+    ret
 }
 
 fn @high() -> u64 [selector=0x713658f3, view, abi_params=[], abi_returns=[word<u64>]] {

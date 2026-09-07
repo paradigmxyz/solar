@@ -14,7 +14,7 @@ fn @constructor() [constructor] {
   bb2:
     jump bb1
   bb1:
-    stop
+    ret
 }
 
 fn @value() -> u256 {
@@ -53,5 +53,5 @@ fn @constructor() [constructor] {
     jump bb1
   bb1:
     sstore 1, 42 !metadata(storage=slot(1))
-    stop
+    ret
 }

@@ -21,7 +21,7 @@ fn @store(arg0: function) [selector=0xf018a0a7, abi_params=[function], abi_retur
     v5 = shl 64, v4
     v6 = or v3, v5
     sstore 0, v6 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 fn @eval(arg0: function) -> u256 [selector=0xd54e4ce7, abi_params=[function], abi_returns=[word]] {

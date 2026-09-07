@@ -27,5 +27,5 @@ fn @peel(arg0: calldataslice) -> calldataslice [pure] {
 fn @use(arg0: calldataslice) [selector=0x01bd03f7, pure, abi_params=[bytes], abi_returns=[]] {
   bb0:
     v0 = icall @peel, arg0
-    stop
+    ret
 }

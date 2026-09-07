@@ -43,7 +43,7 @@ fn @data() -> memorybytes {
 
 fn @receive() [receive, payable] {
   bb0:
-    stop
+    ret
 }
 
 fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {

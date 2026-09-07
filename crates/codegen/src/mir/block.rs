@@ -109,7 +109,7 @@ pub(crate) enum Terminator {
         /// Size of the return data in bytes.
         size: ValueId,
     },
-    /// Stop execution.
+    /// Stop EVM execution, including from an internal function or constructor.
     Stop,
     /// Self-destruct the contract.
     SelfDestruct {

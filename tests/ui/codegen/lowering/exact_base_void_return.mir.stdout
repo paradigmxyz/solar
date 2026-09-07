@@ -18,12 +18,12 @@ fn @gate(arg0: bool) {
     jump bb3
   bb3:
     sstore 0, 1 !metadata(storage=slot(0))
-    stop
+    ret
   bb1:
-    stop
+    ret
 }
 
 fn @constructor() [constructor] {
   bb0:
-    stop
+    ret
 }

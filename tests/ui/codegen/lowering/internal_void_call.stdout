@@ -9,7 +9,7 @@ fn @value() -> u256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word
 fn @set(arg0: u256) [selector=0x60fe47b1, abi_params=[u256], abi_returns=[]] {
   bb0:
     icall @writeIfNonZero, arg0
-    stop
+    ret
 }
 
 fn @writeIfNonZero(arg0: u256) {
@@ -23,7 +23,7 @@ fn @writeIfNonZero(arg0: u256) {
     sstore 0, arg0 !metadata(storage=slot(0))
     jump bb3
   bb3:
-    stop
+    ret
 }
 
 fn @setUnlessZero(arg0: u256) [selector=0x305f34c8, abi_params=[u256], abi_returns=[]] {
@@ -34,15 +34,15 @@ fn @setUnlessZero(arg0: u256) [selector=0x305f34c8, abi_params=[u256], abi_retur
     jump bb3
   bb3:
     sstore 0, arg0 !metadata(storage=slot(0))
-    stop
+    ret
   bb1:
-    stop
+    ret
 }
 
 fn @returnVoidCall(arg0: u256) [selector=0x6659499b, abi_params=[u256], abi_returns=[]] {
   bb0:
     icall @writeIfNonZero, arg0
-    stop
+    ret
 }
 
 fn @returnRevert() [selector=0xdcdb78bc, pure, abi_params=[], abi_returns=[]] {
@@ -61,11 +61,11 @@ fn @unitTernary(arg0: bool, arg1: u256) [selector=0xeb6f9827, abi_params=[bool, 
     icall @writeIfNonZero, arg1
     jump bb3
   bb3:
-    stop
+    ret
 }
 
 fn @clear() {
   bb0:
     sstore 0, 0 !metadata(storage=slot(0))
-    stop
+    ret
 }

@@ -13,7 +13,7 @@ fn @setBig(arg0: u256, arg1: u256, arg2: u256, arg3: calldataslice) [selector=0x
     v2 = slice_len arg3
     v3 = checked_add u256, v1, v2
     sstore 0, v3 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_spill.sol:Proxy ===
@@ -26,7 +26,7 @@ fn @constructor(arg0: address) [constructor, abi_params=[address]] {
     v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
     v1 = shl 0, v0
     storeimmutable _defaultImplementation, v1
-    stop
+    ret
 }
 
 fn @fallback() [fallback, payable] {

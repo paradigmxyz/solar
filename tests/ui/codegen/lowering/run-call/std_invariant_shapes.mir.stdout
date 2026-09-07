@@ -26,7 +26,7 @@ fn @targetContract(arg0: address) {
     v16 = or v13, v15
     sstore v5, v16 !metadata(storage=symbolic(v5))
     sstore 0, v2 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 fn @targetSelector(arg0: memorystruct) {
@@ -83,7 +83,7 @@ fn @targetSelector(arg0: memorystruct) {
     jump bb10
   bb10:
     sstore 1, v2 !metadata(storage=slot(1))
-    stop
+    ret
   bb7:
     v36 = memory_object_load_element memoryarray<1>, v13, v34
     v37 = storage_array_data_slot v12

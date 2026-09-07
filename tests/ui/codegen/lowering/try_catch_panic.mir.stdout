@@ -2,14 +2,14 @@
 @module TryCatchPanicTarget
 fn @ok() [selector=0xd909b403, pure, abi_params=[], abi_returns=[]] {
   bb0:
-    stop
+    ret
 }
 
 fn @fail() [selector=0xa9cc4718, pure, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = iszero false
     panic_if v0, 0x1
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/try_catch_panic.sol:TryCatchPanic ===
@@ -41,7 +41,7 @@ fn @constructor() [constructor] {
     v13 = and v9, 0xffffffffffffffffffffffffffffffffffffffff
     v14 = or v12, v13
     sstore 0, v14 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 fn @success() -> u256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[word]] {

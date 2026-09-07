@@ -274,7 +274,7 @@ fn @constructor() [constructor] {
     v319 = or v316, v318
     sstore v309, v319 !metadata(storage=symbolic(v309))
     sstore 2, v306 !metadata(storage=slot(2))
-    stop
+    ret
   bb43:
     v200 = memory_object_load_element memoryarray<1>, v173, v198
     v201 = storage_array_data_slot v178

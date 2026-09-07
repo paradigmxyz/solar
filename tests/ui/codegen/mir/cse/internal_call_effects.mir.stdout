@@ -63,7 +63,7 @@ fn @observedRevert() [selector=0xcc19b047, pure, abi_params=[], abi_returns=[]] 
     mstore 128, 7
     icall @revertMemory
     mstore 128, 9
-    stop
+    ret
 }
 
 fn @memoryDisjoint() -> u256 [selector=0xc1ce920c, pure, abi_params=[], abi_returns=[word]] {
@@ -146,7 +146,7 @@ fn @memoryRecursive() -> u256 [selector=0xff857f19, pure, abi_params=[], abi_ret
 fn @writeMemory(arg0: u256) [pure] {
   bb0:
     mstore arg0, 7
-    stop
+    ret
 }
 
 fn @writeMemoryRecursive(arg0: u256, arg1: u256) [pure] {
@@ -163,19 +163,19 @@ fn @writeMemoryRecursive(arg0: u256, arg1: u256) [pure] {
     icall @writeMemoryRecursive, v2, v3
     jump bb3
   bb3:
-    stop
+    ret
 }
 
 fn @writeOne() {
   bb0:
     sstore 1, 7 !metadata(storage=slot(1))
-    stop
+    ret
 }
 
 fn @writeSlot(arg0: u256) {
   bb0:
     sstore arg0, 7 !metadata(storage=symbolic(arg0))
-    stop
+    ret
 }
 
 fn @recurse(arg0: u256) {
@@ -191,13 +191,13 @@ fn @recurse(arg0: u256) {
     icall @recurse, v2
     jump bb3
   bb3:
-    stop
+    ret
 }
 
 fn @writeTransientOne() {
   bb0:
     tstore 1, 7
-    stop
+    ret
 }
 
 fn @returnMemory() [pure] {

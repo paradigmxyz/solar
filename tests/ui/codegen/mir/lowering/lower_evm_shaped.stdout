@@ -98,3 +98,38 @@
       ret 7
   }
   
+  fn @stop_caller() {
+    bb0:
+-     icall @stop_helper
+-     ret
++     tail_call @stop_helper
+  }
+  
+  fn @stop_helper() {
+    bb0:
+      stop
+  }
+  
+  fn @void_caller() {
+    bb0:
+      icall @void_helper
+      ret
+  }
+  
+  fn @void_helper() {
+    bb0:
+      ret
+  }
+  
+  fn @tail_return_caller() {
+    bb0:
+      icall @tail_return_helper
+      sstore 0, 7
+      ret
+  }
+  
+  fn @tail_return_helper() {
+    bb0:
+      tail_call @void_helper
+  }
+  

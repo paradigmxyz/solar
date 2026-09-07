@@ -5,7 +5,7 @@ types:
 
 fn @dummy() [selector=0x32e43a11, abi_params=[], abi_returns=[]] {
   bb0:
-    stop
+    ret
 }
 
 fn @raw(arg0: function) -> u256 [selector=0xbd2d517e, pure, abi_params=[function], abi_returns=[word]] {

@@ -20,7 +20,7 @@ fn @constructor(arg0: bytes3, arg1: bool) [constructor, abi_params=[bytes3, bool
     v14 = shl 24, v13
     v15 = or v12, v14
     sstore 0, v15 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 fn @getName() -> bytes3 [selector=0x17d7de7c, view, abi_params=[], abi_returns=[word<bytes3>]] {
@@ -68,7 +68,7 @@ fn @constructor() [constructor] {
     v13 = and v9, 0xffffffffffffffffffffffffffffffffffffffff
     v14 = or v12, v13
     sstore 0, v14 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 fn @getFlag() -> bool [selector=0xf9633930, view, abi_params=[], abi_returns=[word<bool>]] {

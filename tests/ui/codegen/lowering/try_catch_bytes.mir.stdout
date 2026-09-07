@@ -2,7 +2,7 @@
 @module TryCatchBytesTarget
 fn @ok() [selector=0xd909b403, pure, abi_params=[], abi_returns=[]] {
   bb0:
-    stop
+    ret
 }
 
 fn @fail() [selector=0xa9cc4718, pure, abi_params=[], abi_returns=[]] {
@@ -44,7 +44,7 @@ fn @constructor() [constructor] {
     v15 = and v11, 0xffffffffffffffffffffffffffffffffffffffff
     v16 = or v14, v15
     sstore 0, v16 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 fn @success() -> u256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[word]] {

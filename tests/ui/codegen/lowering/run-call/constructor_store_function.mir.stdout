@@ -16,7 +16,7 @@ fn @constructor() [constructor] {
     sstore 1, v4 !metadata(storage=slot(1))
     v5 = icall @use, 2
     sstore 0, v5 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 fn @double(arg0: u256) -> u256 [selector=0xeee97206, pure, abi_params=[u256], abi_returns=[word]] {

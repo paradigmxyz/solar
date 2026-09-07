@@ -59,7 +59,7 @@ fn @total(arg0: storageptr) -> u256 [selector=0xa2fc82bf, view, abi_params=[stor
 
 fn @noret(arg0: u256) [selector=0x089b9644, pure, abi_params=[u256], abi_returns=[]] {
   bb0:
-    stop
+    ret
 }
 
 fn @six(arg0: memorybytes) -> struct1 [selector=0xb84d18fb, pure, abi_params=[bytes], abi_returns=[word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256]] {
@@ -302,5 +302,5 @@ fn @none(arg0: u256) [selector=0x2758da14, pure, abi_params=[u256], abi_returns=
   bb1:
     revert_returndata
   bb2:
-    stop
+    ret
 }

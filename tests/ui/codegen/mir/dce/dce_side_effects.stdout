@@ -13,6 +13,7 @@
     bb0:
 -     icall @empty
 -     v0 = icall @identity, arg0
+      icall @stops
       icall @fails
       icall @logs
       icall @recursive
@@ -89,5 +90,10 @@
       v0 = memory_object_load_field memorystruct<1>, arg0, 0
       validate_abi v0
       ret
+  }
+  
+  fn @stops() {
+    bb0:
+      stop
   }
   

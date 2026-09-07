@@ -2,7 +2,7 @@
 @module AbiFunctionPointerArrayValidation
 fn @target() [selector=0xd4b83992, pure, abi_params=[], abi_returns=[]] {
   bb0:
-    stop
+    ret
 }
 
 fn @g(arg0: calldataslice) -> u256 [selector=0xc16ea9d4, pure, abi_params=[array<_, function>], abi_returns=[word]] {

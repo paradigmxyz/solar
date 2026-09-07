@@ -39,5 +39,5 @@ fn @checkField(arg0: calldataslice) [pure] {
     v5 = iszero v4
     revert_if v5, empty
     v6 = shr 64, v2
-    stop
+    ret
 }

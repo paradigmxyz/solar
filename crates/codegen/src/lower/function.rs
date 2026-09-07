@@ -216,7 +216,7 @@ pub(super) fn lower_synthetic_constructor(
     lowerer.lower_implicit_base_constructors(contract_id)?;
     lowerer.lower_state_initializers(contract_id)?;
     if !lowerer.is_terminated() {
-        // stop !metadata(contract definition)
+        // ret !metadata(contract definition)
         lowerer.builder.replace_source_span(span);
         lowerer.finish(&[])?;
     }

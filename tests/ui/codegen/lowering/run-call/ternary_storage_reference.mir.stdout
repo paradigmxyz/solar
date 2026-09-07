@@ -21,7 +21,7 @@ fn @constructor() [constructor] {
     v9 = add v8, v5
     sstore v9, 22 !metadata(storage=symbolic(v9))
     sstore 3, v7 !metadata(storage=slot(3))
-    stop
+    ret
 }
 
 fn @choose(arg0: bool) -> struct0 [selector=0xf6e00e0f, abi_params=[bool], abi_returns=[word, word], abi_return_params=[u256, u256]] {

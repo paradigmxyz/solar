@@ -14,7 +14,7 @@ fn @constructor(arg0: bytes2) [constructor, abi_params=[bytes2]] {
     v5 = and v4, 0xffff
     v6 = or v3, v5
     sstore 0, v6 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_literal_contexts.sol:FixedBytesLiteralContexts ===
@@ -254,5 +254,5 @@ fn @constructor() [constructor] {
     v12 = shl 16, v11
     v13 = or v9, v12
     sstore 0, v13 !metadata(storage=slot(0))
-    stop
+    ret
 }

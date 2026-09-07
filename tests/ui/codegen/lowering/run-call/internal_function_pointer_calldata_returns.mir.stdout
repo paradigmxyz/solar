@@ -12,7 +12,7 @@ fn @constructor() [constructor] {
     v3 = and 4, 0xffffffffffffffff
     v4 = or v2, v3
     sstore 0, v4 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 fn @dynamic(arg0: calldataslice) -> struct0 [selector=0xd543852a, abi_params=[bytes], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {

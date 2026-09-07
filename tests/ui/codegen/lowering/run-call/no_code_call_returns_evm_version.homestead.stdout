@@ -151,7 +151,7 @@ fn @directNoReturn() [selector=0xda4f8e3a, abi_params=[], abi_returns=[]] {
   bb1:
     revert_returndata
   bb2:
-    stop
+    ret
 }
 
 fn @pointerNoReturn() [selector=0xcf820bfc, abi_params=[], abi_returns=[]] {
@@ -172,7 +172,7 @@ fn @pointerNoReturn() [selector=0xcf820bfc, abi_params=[], abi_returns=[]] {
   bb1:
     revert_returndata
   bb2:
-    stop
+    ret
 }
 
 fn @live() -> u256 [selector=0x957aa58c, abi_params=[], abi_returns=[word]] {

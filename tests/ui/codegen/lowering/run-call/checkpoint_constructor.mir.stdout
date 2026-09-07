@@ -25,7 +25,7 @@ fn @constructor(arg0: memoryarray, arg1: address, arg2: u96) [constructor, abi_p
   bb5:
     jump bb2
   bb2:
-    stop
+    ret
   bb4:
     v6 = memory_object_len memoryarray, v1
     v7 = lt v0, v6
@@ -105,7 +105,7 @@ fn @push(arg0: storageptr, arg1: u96, arg2: u160) {
     v32 = or v29, v31
     sstore v18, v32 !metadata(storage=symbolic(v18))
     sstore arg0, v16 !metadata(storage=symbolic(arg0))
-    stop
+    ret
 }
 
 fn @latest(arg0: storageptr) -> struct0 [view] {
@@ -303,7 +303,7 @@ fn @constructor() [constructor] {
     v1 = extract_value struct0, v0, 0
     v2 = extract_value struct0, v0, 1
     storeimmutable value, v2
-    stop
+    ret
 }
 
 fn @pair() -> struct0 [pure] {

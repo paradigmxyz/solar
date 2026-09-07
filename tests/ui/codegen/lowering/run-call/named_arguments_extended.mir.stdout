@@ -12,7 +12,7 @@ fn @constructor(arg0: u8, arg1: u256) [constructor, abi_params=[u8, u256]] {
     v1 = checked_mul u256, v0, 0x3e8
     v2 = checked_add u256, v1, arg1
     sstore 0, v2 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/named_arguments_extended.sol:Derived ===
@@ -56,5 +56,5 @@ fn @constructor() [constructor] {
     sstore 0, v1 !metadata(storage=slot(0))
     jump bb1
   bb1:
-    stop
+    ret
 }

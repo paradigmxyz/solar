@@ -51,5 +51,5 @@ fn @internal_dispatcher_p_none_r_u256(arg0: function) -> u256 [function_pointer_
 
 fn @constructor() [constructor] {
   bb0:
-    stop
+    ret
 }

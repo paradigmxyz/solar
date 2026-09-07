@@ -39,7 +39,7 @@ fn @constructor(arg0: memoryarray) [constructor, abi_params=[array<_, address>]]
     v20 = lt v19, v0
     jumpi v20, bb7, bb8
   bb8:
-    stop
+    ret
   bb7:
     v21 = memory_object_load_element memoryarray<1>, arg0, v19
     v22 = storage_array_data_slot 0

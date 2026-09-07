@@ -89,7 +89,7 @@ fn @constructor(arg0: memoryarray) [constructor, abi_params=[array<_, bytes>]] {
     v36 = memory_object_len memorybytes, v35
     v37 = or v27, v36
     sstore 2, v37 !metadata(storage=slot(2))
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_nested_abi_bounds.sol:ConstructorNestedAbiBounds ===

@@ -42,7 +42,7 @@ fn @dirtyFreeMemory() [view] {
     v4 = not 0
     v5 = add v0, 32
     mstore v5, v4
-    stop
+    ret
 }
 
 fn @defaultLocal() -> bool [selector=0x2f73c827, view, abi_params=[], abi_returns=[word<bool>]] {
@@ -156,7 +156,7 @@ fn @updateTail(arg0: memorystruct, arg1: memorystruct) [pure] {
     v8 = mload v4
     v9 = or v8, arg1
     mstore v4, v9
-    stop
+    ret
 }
 
 fn @encode(arg0: u256, arg1: u256) -> u256 {

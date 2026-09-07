@@ -28,7 +28,7 @@ fn @constructor(arg0: function) [constructor, abi_params=[function]] {
     v12 = add 0, 0
     v13 = mload v12
     sstore 0, v13 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_function_pointer.sol:ArrayTarget ===
@@ -43,7 +43,7 @@ fn @constructor(arg0: memoryfixedarray) [constructor, abi_params=[array<1, funct
   bb0:
     v0 = mload arg0
     sstore 0, v0 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_function_pointer.sol:Caller ===

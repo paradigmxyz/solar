@@ -2,7 +2,7 @@
 @module ExternalFunctionPointerDelete
 fn @value() [selector=0x3fa4f245, abi_params=[], abi_returns=[]] {
   bb0:
-    stop
+    ret
 }
 
 fn @clear() -> bool [selector=0x52efea6e, abi_params=[], abi_returns=[word<bool>]] {

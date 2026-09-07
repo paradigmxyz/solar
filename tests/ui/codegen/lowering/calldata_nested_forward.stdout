@@ -14,7 +14,7 @@ fn @forward(arg0: calldataslice, arg1: address) [selector=0x2fc1914a, abi_params
   bb1:
     revert_returndata
   bb2:
-    stop
+    ret
 }
 
 fn @forwardStructs(arg0: calldataslice, arg1: address) [selector=0x87c604a5, abi_params=[array<_, tuple<u256, bytes>>, address], abi_returns=[]] {
@@ -62,7 +62,7 @@ fn @forwardStructs(arg0: calldataslice, arg1: address) [selector=0x87c604a5, abi
   bb4:
     revert_returndata
   bb5:
-    stop
+    ret
   bb2:
     v23 = mul v21, 32
     v24 = iszero 32

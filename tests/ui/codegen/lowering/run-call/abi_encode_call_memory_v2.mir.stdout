@@ -2,7 +2,7 @@
 @module AbiEncodeCallMemoryTarget
 fn @something() [selector=0xa7a0d537, pure, abi_params=[], abi_returns=[]] {
   bb0:
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_call_memory_v2.sol:AbiEncodeCallMemory ===
@@ -12,7 +12,7 @@ data:
 
 fn @something() [selector=0xa7a0d537, pure, abi_params=[], abi_returns=[]] {
   bb0:
-    stop
+    ret
 }
 
 fn @test() -> bytes4 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bytes4>]] {

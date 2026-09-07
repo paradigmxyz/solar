@@ -30,7 +30,7 @@ fn @customFailure() [selector=0x8fca80a3, abi_params=[], abi_returns=[]] {
     sstore 0, 0 !metadata(storage=slot(0))
     v0 = icall @increment
     require false, custom_error [word], 0x2ff06700000000000000000000000000000000000000000000000000000000, (v0)
-    stop
+    ret
 }
 
 fn @stringFailure() [selector=0x6bf37af5, abi_params=[], abi_returns=[]] {
@@ -38,7 +38,7 @@ fn @stringFailure() [selector=0x6bf37af5, abi_params=[], abi_returns=[]] {
     sstore 0, 0 !metadata(storage=slot(0))
     v0 = icall @reason
     require false, error_string v0
-    stop
+    ret
 }
 
 fn @nestedFailure() [selector=0x3e70e061, pure, abi_params=[], abi_returns=[]] {
@@ -61,7 +61,7 @@ fn @nestedFailure() [selector=0x3e70e061, pure, abi_params=[], abi_returns=[]] {
     panic_if v8, 0x32
     memory_object_store_element memoryarray<1>, v0, 0, v4
     require false, custom_error [memory_array<memory_bytes>], 0xae7687df00000000000000000000000000000000000000000000000000000000, (v0)
-    stop
+    ret
   bb2:
     memory_object_store_element memoryarray<1>, v0, v1, memorybytes 96
     v3 = add v1, 1

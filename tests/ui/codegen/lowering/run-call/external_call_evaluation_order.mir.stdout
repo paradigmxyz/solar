@@ -56,7 +56,7 @@ fn @valueOpt() -> u256 {
 
 fn @sink(arg0: u256) [selector=0xa4ba067e, payable, abi_params=[u256], abi_returns=[]] {
   bb0:
-    stop
+    ret
 }
 
 fn @externalReceiver() -> u256 [selector=0x7b42c356, abi_params=[], abi_returns=[word]] {
@@ -195,5 +195,5 @@ fn @constructor() [constructor] {
     revert_returndata
   bb2:
     storeimmutable target, v6
-    stop
+    ret
 }

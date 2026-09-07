@@ -157,7 +157,7 @@ fn @clear_recursive_storage_0(arg0: u256) {
     v3 = lt v2, v1
     jumpi v3, bb2, bb3
   bb3:
-    stop
+    ret
   bb2:
     v4 = storage_array_data_slot v0
     v5 = mul v2, 2
@@ -179,7 +179,7 @@ fn @clear_recursive_storage_1(arg0: u256) {
     v3 = lt v2, v1
     jumpi v3, bb2, bb3
   bb3:
-    stop
+    ret
   bb2:
     v4 = storage_array_data_slot v0
     v5 = mul v2, 2
@@ -201,7 +201,7 @@ fn @clear_recursive_storage_2(arg0: u256) {
     v3 = lt v2, v1
     jumpi v3, bb2, bb3
   bb3:
-    stop
+    ret
   bb2:
     v4 = storage_array_data_slot v0
     v5 = mul v2, 2

@@ -66,7 +66,7 @@ fn @constructor() [constructor] {
     v38 = storage_array_data_slot 0
     v39 = add v38, v37
     sstore v39, 0 !metadata(storage=symbolic(v39))
-    stop
+    ret
   bb7:
     v31 = memory_object_load_element memoryarray<1>, v15, v29
     v32 = storage_array_data_slot v20

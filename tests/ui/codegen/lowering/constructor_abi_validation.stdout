@@ -39,5 +39,5 @@ fn @constructor(arg0: bool, arg1: memoryfixedarray) [constructor, abi_params=[bo
     v17 = shl 8, v16
     v18 = or v15, v17
     sstore 0, v18 !metadata(storage=slot(0))
-    stop
+    ret
 }

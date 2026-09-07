@@ -9,7 +9,7 @@ fn @x() -> u256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word]] {
 fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
   bb0:
     sstore 0, arg0 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 fn @two() -> u256 [selector=0x5fdf05d7, pure, abi_params=[], abi_returns=[word]] {
@@ -28,7 +28,7 @@ fn @y() -> i256 [selector=0xa56dfe4a, view, abi_params=[], abi_returns=[word]] {
 fn @constructor(arg0: i256) [constructor, abi_params=[i256]] {
   bb0:
     sstore 0, arg0 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_argument_checked.sol:CheckedBaseArgAdd ===
@@ -41,7 +41,7 @@ fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
   bb1:
     jump bb2
   bb2:
-    stop
+    ret
 }
 
 fn @x() -> u256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word]] {
@@ -65,7 +65,7 @@ fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
   bb1:
     jump bb2
   bb2:
-    stop
+    ret
 }
 
 fn @x() -> u256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word]] {
@@ -99,7 +99,7 @@ fn @constructor() [constructor] {
     sstore 0, v1 !metadata(storage=slot(0))
     jump bb1
   bb1:
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_argument_checked.sol:CheckedBaseArgNegate ===
@@ -112,7 +112,7 @@ fn @constructor(arg0: i256) [constructor, abi_params=[i256]] {
   bb1:
     jump bb2
   bb2:
-    stop
+    ret
 }
 
 fn @y() -> i256 [selector=0xa56dfe4a, view, abi_params=[], abi_returns=[word]] {
@@ -131,7 +131,7 @@ fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
   bb1:
     jump bb2
   bb2:
-    stop
+    ret
 }
 
 fn @x() -> u256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word]] {
@@ -155,7 +155,7 @@ fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
   bb1:
     jump bb2
   bb2:
-    stop
+    ret
 }
 
 fn @x() -> u256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word]] {
@@ -179,7 +179,7 @@ fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
   bb1:
     jump bb2
   bb2:
-    stop
+    ret
 }
 
 fn @x() -> u256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word]] {
@@ -207,7 +207,7 @@ fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
   bb1:
     jump bb2
   bb2:
-    stop
+    ret
 }
 
 fn @table() -> memoryfixedarray [pure] {

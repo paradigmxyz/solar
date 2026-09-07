@@ -37,7 +37,7 @@ fn @localVarInConditional() [selector=0xf2ca9be5, abi_params=[], abi_returns=[]]
     sstore 0, v3 !metadata(storage=slot(0))
     jump bb3
   bb3:
-    stop
+    ret
 }
 
 fn @directStorageInConditional() [selector=0xf5a03547, abi_params=[], abi_returns=[]] {
@@ -54,7 +54,7 @@ fn @directStorageInConditional() [selector=0xf5a03547, abi_params=[], abi_return
     sstore 0, v4 !metadata(storage=slot(0))
     jump bb3
   bb3:
-    stop
+    ret
 }
 
 fn @phiAfterBranch() -> u256 [selector=0x3c96aa28, abi_params=[], abi_returns=[word]] {
