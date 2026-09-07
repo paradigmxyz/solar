@@ -35,6 +35,15 @@ impl MirPass for LowerBuiltins {
         module: &mut Module,
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> solar_interface::Result<bool> {
+        // fn clear_storage_words(slot, first, end) { clear_storage_words slot, first, end; ret }
+        let clear_helper = module
+            .functions
+            .iter()
+            .any(|func| {
+                func.instructions()
+                    .any(|id| matches!(func.inst(id).kind, InstKind::StorageBytesStore(..)))
+            })
+            .then(|| super::lower_storage_bytes::add_clear_helper(module));
         Ok(run_function_pass(module, analyses, |func, _| {
             if !func.instructions().any(|id| is_builtin(&func.inst(id).kind)) {
                 return false;
@@ -65,6 +74,16 @@ impl MirPass for LowerBuiltins {
                             // validate_storage_bytes(header) -> encoding predicate; panic if
                             // invalid
                             super::lower_storage_bytes::validate(&mut builder, header);
+                            continue;
+                        }
+                        InstKind::StorageBytesStore(slot, object) => {
+                            // validate header; clear old tail; write header and data
+                            super::lower_storage_bytes::store(
+                                &mut builder,
+                                slot,
+                                object,
+                                clear_helper.expect("storage store requires a clear helper"),
+                            );
                             continue;
                         }
                         InstKind::StorageClearWords(slot, first, end) => {
@@ -131,6 +150,7 @@ fn is_builtin(kind: &InstKind) -> bool {
         kind,
         InstKind::ValidateStorageBytes(..)
             | InstKind::StorageBytesLoad(..)
+            | InstKind::StorageBytesStore(..)
             | InstKind::StorageClearWords(..)
             | InstKind::Erc7201(..)
             | InstKind::CheckedAddMod(..)

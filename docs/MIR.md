@@ -85,7 +85,11 @@ header validation, allocation and copying as one operation. Header reads keep
 `sload` visible to storage and loop passes; a separate validation operation
 retains its encoding check when the word is unused. Hashed storage-data clearing
 retains its slot and half-open word range as one storage-writing operation;
-builtin conversion emits the loop before physical address hashing.
+builtin conversion emits the loop before physical address hashing. Stores from
+memory bytes objects retain header validation, tail clearing, and copying as
+one storage-writing operation that reads the source object. Expansion shares
+one clear helper; the later function merge pass also combines it with an
+existing clear helper from constant assignments when their bodies match.
 Storage promotion uses shared read/write effects to reject opaque accesses
 it cannot redirect through promoted values.
 `lower-checks` expands typed panic and revert checks into branches and shared

@@ -24,86 +24,8 @@ fn @decode(arg0: memorybytes) -> struct0 [selector=0xe5c5e9a3, abi_params=[bytes
     ret v12
 }
 
-fn @clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
-  bb0:
-    clear_storage_words arg0, arg1, arg2
-    ret
-}
-
 fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
   bb0:
-    v0 = sload arg0 !metadata(storage=symbolic(arg0))
-    validate_storage_bytes v0
-    v1 = and v0, 1
-    v2 = eq v1, 1
-    v3 = shr 1, v0
-    v4 = and v3, 127
-    v5 = select v2, v3, v4
-    v6 = memory_object_len memorybytes, arg1
-    v7 = memory_object_data memorybytes, arg1
-    v8 = make_memory_slice v7, v6
-    v9 = add v5, 31
-    v10 = div v9, 32
-    v11 = add v6, 31
-    v12 = lt v11, v6
-    panic_if v12, 0x41
-    v13 = div v11, 32
-    v14 = lt v6, 32
-    v15 = select v14, 0, v13
-    v16 = gt v5, v6
-    v17 = and v2, v16
-    jumpi v17, bb1, bb2
-  bb1:
-    icall @clear_storage_words, arg0, v15, v10
-    jump bb2
-  bb2:
-    jumpi v14, bb3, bb4
-  bb4:
-    v27 = shl 1, v6
-    v28 = or v27, 1
-    sstore arg0, v28 !metadata(storage=symbolic(arg0))
-    v29 = storage_array_data_slot arg0
-    v30 = div v6, 32
-    jump bb6
-  bb6:
-    v31 = phi [bb4: 0], [bb7: v36]
-    v32 = lt v31, v30
-    jumpi v32, bb7, bb8
-  bb8:
-    v37 = and v6, 31
-    v38 = iszero v37
-    jumpi v38, bb5, bb9
-  bb9:
-    v39 = mul v30, 32
-    v40 = memory_slice_load_word memory, v8, v39
-    v41 = sub 32, v37
-    v42 = mul v41, 8
-    v43 = shl v42, 1
-    v44 = sub v43, 1
-    v45 = not v44
-    v46 = and v40, v45
-    v47 = add v29, v30
-    sstore v47, v46 !metadata(storage=symbolic(v47))
-    jump bb5
-  bb7:
-    v33 = mul v31, 32
-    v34 = memory_slice_load_word memory, v8, v33
-    v35 = add v29, v31
-    sstore v35, v34 !metadata(storage=symbolic(v35))
-    v36 = add v31, 1
-    jump bb6
-  bb3:
-    v18 = memory_slice_load_word memory, v8, 0
-    v19 = sub 32, v6
-    v20 = mul v19, 8
-    v21 = shl v20, 1
-    v22 = sub v21, 1
-    v23 = not v22
-    v24 = and v18, v23
-    v25 = mul v6, 2
-    v26 = or v24, v25
-    sstore arg0, v26 !metadata(storage=symbolic(arg0))
-    jump bb5
-  bb5:
+    store_storage_bytes arg0, arg1
     ret
 }

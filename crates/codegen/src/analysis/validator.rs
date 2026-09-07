@@ -1025,6 +1025,33 @@ impl<'a> Validator<'a> {
                             );
                         }
                     }
+                    InstKind::StorageBytesStore(slot, object) => {
+                        if func.value_ty(slot).is_none_or(|ty| {
+                            !ty.is_word() || matches!(ty, MirType::MemoryObject(_))
+                        }) {
+                            self.emit_at_inst(
+                                "storage bytes store requires a word slot",
+                                block,
+                                id,
+                            );
+                        }
+                        if func.value_ty(object)
+                            != Some(MirType::MemoryObject(MemoryObjectKind::Bytes))
+                        {
+                            self.emit_at_inst(
+                                "storage bytes store requires a bytes object",
+                                block,
+                                id,
+                            );
+                        }
+                        if func.inst(id).result_ty.is_some() {
+                            self.emit_at_inst(
+                                "storage bytes store cannot produce a result",
+                                block,
+                                id,
+                            );
+                        }
+                    }
                     InstKind::StorageClearWords(slot, first, end) => {
                         if [slot, first, end].iter().any(|&value| {
                             func.value_ty(value).is_none_or(|ty| {

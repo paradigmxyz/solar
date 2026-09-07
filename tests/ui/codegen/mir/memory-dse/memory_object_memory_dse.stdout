@@ -17,6 +17,14 @@
       ret v0
   }
   
+  fn @store_bytes_reads_memory(arg0: u256, arg1: memorybytes) {
+    bb0:
+      set_memory_object_len memorybytes, arg1, 32
+      memory_object_store_word memorybytes, arg1, 0, 7
+      store_storage_bytes arg0, arg1
+      ret
+  }
+  
 - // === ROOT/tests/ui/codegen/mir/memory-dse/memory_object_memory_dse.mir (before dce) ===
 + // === ROOT/tests/ui/codegen/mir/memory-dse/memory_object_memory_dse.mir (after dce) ===
   @module MemoryObjectMemoryDse
@@ -32,5 +40,13 @@
       mstore arg1, 7
       v0 = memory_object_len memorybytes, arg0
       ret v0
+  }
+  
+  fn @store_bytes_reads_memory(arg0: u256, arg1: memorybytes) {
+    bb0:
+      set_memory_object_len memorybytes, arg1, 32
+      memory_object_store_word memorybytes, arg1, 0, 7
+      store_storage_bytes arg0, arg1
+      ret
   }
   

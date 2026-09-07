@@ -21,3 +21,17 @@ fn @clear(arg0: memorybytes) {
     clear_storage_words 0, arg0, 1
     ret
 }
+
+//~? ERROR: [fn3] [bb0, inst0] storage bytes store requires a word slot
+fn @store_slot(arg0: memorybytes) {
+  bb0:
+    store_storage_bytes arg0, arg0
+    ret
+}
+
+//~? ERROR: [fn4] [bb0, inst0] storage bytes store requires a bytes object
+fn @store_object(arg0: memoryarray) {
+  bb0:
+    store_storage_bytes 0, arg0
+    ret
+}

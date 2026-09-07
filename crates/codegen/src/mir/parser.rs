@@ -2242,6 +2242,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 (InstKind::Concat(parts), Some(MirType::MemoryObject(MemoryObjectKind::Bytes)))
             }
             sym::validate_storage_bytes => inst!(ValidateStorageBytes(a)),
+            sym::store_storage_bytes => inst!(StorageBytesStore(a, b)),
             sym::clear_storage_words => inst!(StorageClearWords(a, b, c)),
             sym::load_storage_bytes => {
                 inst!(StorageBytesLoad(a) => MirType::MemoryObject(MemoryObjectKind::Bytes))

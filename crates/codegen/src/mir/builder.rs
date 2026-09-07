@@ -1122,6 +1122,12 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_void_inst(InstKind::ValidateAbi(value));
     }
 
+    /// Stores a bytes object in storage, clearing any unused old data words.
+    pub(crate) fn store_storage_bytes(&mut self, slot: ValueId, object: ValueId) {
+        // store_storage_bytes slot, object
+        self.emit_void_inst(InstKind::StorageBytesStore(slot, object));
+    }
+
     /// Clears the hashed data words of a storage array in `first..end`.
     pub(crate) fn clear_storage_words(&mut self, slot: ValueId, first: ValueId, end: ValueId) {
         // clear_storage_words slot, first, end

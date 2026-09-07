@@ -629,6 +629,7 @@ fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInli
                 InstKind::AbiDecode { .. }
                 | InstKind::ValidateStorageBytes(..)
                 | InstKind::StorageBytesLoad(..)
+                | InstKind::StorageBytesStore(..)
                 | InstKind::StorageClearWords(..)
                 | InstKind::CheckedAddMod(..)
                 | InstKind::CheckedMulMod(..)
@@ -941,6 +942,7 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (MirCos
         // Includes allocation, argument packing, the precompile call, and result extraction.
         InstKind::ValidateStorageBytes(_) => (80, 40),
         InstKind::StorageBytesLoad(_) => (400, 150),
+        InstKind::StorageBytesStore(..) => (500, 180),
         InstKind::StorageClearWords(..) => (120, 32),
         InstKind::Erc7201(_) => (90, 30),
         InstKind::CheckedAddMod(..) | InstKind::CheckedMulMod(..) => (32, 9),

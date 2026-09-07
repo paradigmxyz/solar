@@ -695,6 +695,7 @@ impl Instruction {
             InstKind::CheckedBinary { .. } => Some("checked arithmetic"),
             InstKind::ValidateStorageBytes(..)
             | InstKind::StorageBytesLoad(..)
+            | InstKind::StorageBytesStore(..)
             | InstKind::StorageClearWords(..)
             | InstKind::Erc7201(..)
             | InstKind::CheckedAddMod(..)
@@ -1160,6 +1161,8 @@ pub(crate) enum InstKind {
     ValidateStorageBytes(ValueId),
     /// Materialize a Solidity storage bytes value as a fresh memory bytes object.
     StorageBytesLoad(ValueId),
+    /// Store a memory bytes object in Solidity storage, clearing unused old data words.
+    StorageBytesStore(ValueId, ValueId),
     /// Clears hashed storage data words in the half-open range `first..end`.
     StorageClearWords(ValueId, ValueId, ValueId),
     /// Load from storage: `sload(slot)`
@@ -1486,6 +1489,7 @@ impl InstKind {
             | Self::MStore8(a, b)
             | Self::MemoryZero(a, b)
             | Self::SStore(a, b)
+            | Self::StorageBytesStore(a, b)
             | Self::TStore(a, b)
             | Self::Keccak256(a, b)
             | Self::MappingSlot(a, b)
@@ -1790,6 +1794,7 @@ impl InstKind {
             | Self::MStore8(a, b)
             | Self::MemoryZero(a, b)
             | Self::SStore(a, b)
+            | Self::StorageBytesStore(a, b)
             | Self::TStore(a, b)
             | Self::Keccak256(a, b)
             | Self::MappingSlot(a, b)
@@ -2121,6 +2126,7 @@ impl InstKind {
             Self::MCopy(_, _, _) => "mcopy",
             Self::ValidateStorageBytes(_) => "validate_storage_bytes",
             Self::StorageBytesLoad(_) => "load_storage_bytes",
+            Self::StorageBytesStore(..) => "store_storage_bytes",
             Self::StorageClearWords(..) => "clear_storage_words",
             Self::SLoad(_) => "sload",
             Self::SStore(_, _) => "sstore",
@@ -2314,7 +2320,8 @@ impl InstKind {
             Self::SStore(_, _)
             | Self::MemoryToStorage { .. }
             | Self::ClearStorage { .. }
-            | Self::StorageClearWords(..) => EffectKind::StorageWrite,
+            | Self::StorageClearWords(..)
+            | Self::StorageBytesStore(..) => EffectKind::StorageWrite,
             Self::TLoad(_) => EffectKind::TransientRead,
             Self::TStore(_, _) => EffectKind::TransientWrite,
             Self::Call { .. }

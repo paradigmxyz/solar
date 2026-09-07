@@ -125,108 +125,12 @@ fn build_storage_clear_helper(function: &mut Function) {
 /// Builds `store_storage_bytes(slot, object)`, shared by every `bytes`/`string` store into
 /// storage like solc's `copy_byte_array_to_storage`: one body per contract instead of one per
 /// assignment site.
-fn build_storage_bytes_store_helper(function: &mut Function, clear_helper: FunctionId) {
+fn build_storage_bytes_store_helper(function: &mut Function) {
+    // store_storage_bytes(slot, object); ret
     let mut builder = FunctionBuilder::new_semantic(function);
     let slot = builder.add_param(MirType::uint256());
     let object = builder.add_param(MirType::MemoryObject(MemoryObjectKind::Bytes));
-
-    // old_is_long, old_length = decode_storage_bytes_header(slot)
-    // length, data = bytes(object)
-    let (_, old_is_long, old_length) = decode_storage_bytes_header(&mut builder, slot);
-    let length = builder.memory_object_len(object, MemoryObjectKind::Bytes);
-    let data_ptr = builder.memory_object_data(object, MemoryObjectKind::Bytes);
-    let data = builder.make_slice(data_ptr, length, SliceLocation::Memory);
-    let word_size = builder.imm(32);
-    let thirty_one = builder.imm(31);
-    let old_rounded = builder.add(old_length, thirty_one);
-    let old_words = builder.div(old_rounded, word_size);
-    let rounded = builder.checked_add(length, thirty_one);
-    let words = builder.div(rounded, word_size);
-    let zero = builder.imm(0);
-    let short = builder.lt(length, word_size);
-    let new_words = builder.select(short, zero, words);
-    let shrunk = builder.gt(old_length, length);
-    let needs_cleanup = builder.and(old_is_long, shrunk);
-    let cleanup_block = builder.create_block();
-    let write_block = builder.create_block();
-    builder.branch(needs_cleanup, cleanup_block, write_block);
-
-    // if old_is_long && old_length > length {
-    //     clear_storage_words(slot, new_words, old_words)
-    // }
-    builder.switch_to_block(cleanup_block);
-    builder.icall_void(clear_helper, vec![slot, new_words, old_words]);
-    builder.jump(write_block);
-
-    builder.switch_to_block(write_block);
-    let short_block = builder.create_block();
-    let long_block = builder.create_block();
-    let merge_block = builder.create_block();
-    builder.branch(short, short_block, long_block);
-
-    // header = mask(mload(data), length) | length * 2
-    // sstore(slot, header)
-    builder.switch_to_block(short_block);
-    let data_word = builder.memory_slice_load_word(data, zero);
-    let unused_bytes = builder.sub(word_size, length);
-    let bits = builder.imm(8);
-    let shift = builder.mul(unused_bytes, bits);
-    let one = builder.imm(1);
-    let high_bit = builder.shl(shift, one);
-    let low_mask = builder.sub(high_bit, one);
-    let data_mask = builder.not(low_mask);
-    let data_word = builder.and(data_word, data_mask);
-    let two = builder.imm(2);
-    let tag = builder.mul(length, two);
-    let header = builder.or(data_word, tag);
-    builder.sstore(slot, header);
-    builder.jump(merge_block);
-
-    // sstore(slot, length << 1 | 1)
-    // data_slot = storage_array_data_slot(slot)
-    builder.switch_to_block(long_block);
-    let one = builder.imm(1);
-    let shifted = builder.shl(one, length);
-    let tag = builder.or(shifted, one);
-    builder.sstore(slot, tag);
-    let data_slot = builder.storage_array_data_slot(slot);
-
-    // for i in 0..length / 32 {
-    //     sstore(data_slot + i, mload(data + i * 32))
-    // }
-    let full_words = builder.div(length, word_size);
-    builder.counted_loop(full_words, |builder, index| {
-        let byte_offset = builder.mul(index, word_size);
-        let value = builder.memory_slice_load_word(data, byte_offset);
-        let element_slot = builder.add(data_slot, index);
-        builder.sstore(element_slot, value);
-    });
-    // The final memory word can contain dirty padding bytes, so mask it before storage,
-    // matching solc's `copy_byte_array_to_storage`.
-    let partial_block = builder.create_block();
-    let remainder = builder.and(length, thirty_one);
-    let has_partial = builder.iszero(remainder);
-    builder.branch(has_partial, merge_block, partial_block);
-
-    // if length % 32 != 0 {
-    //     sstore(data_slot + full_words, mask(mload(data + full_words * 32), remainder))
-    // }
-    builder.switch_to_block(partial_block);
-    let partial_offset = builder.mul(full_words, word_size);
-    let partial_word = builder.memory_slice_load_word(data, partial_offset);
-    let unused_bytes = builder.sub(word_size, remainder);
-    let bits = builder.imm(8);
-    let shift = builder.mul(unused_bytes, bits);
-    let high_bit = builder.shl(shift, one);
-    let low_mask = builder.sub(high_bit, one);
-    let data_mask = builder.not(low_mask);
-    let partial_word = builder.and(partial_word, data_mask);
-    let partial_slot = builder.add(data_slot, full_words);
-    builder.sstore(partial_slot, partial_word);
-    builder.jump(merge_block);
-
-    builder.switch_to_block(merge_block);
-    // ret
+    builder.store_storage_bytes(slot, object);
     builder.ret([]);
 }
 
@@ -1474,9 +1378,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn store_storage_bytes(&mut self, slot: ValueId, object: ValueId) -> Option<()> {
         // store_storage_bytes(slot, object)
-        let clear_helper = self.storage_clear_helper();
         let helper = self.lazy_helper(sym::store_storage_bytes, |_, function| {
-            build_storage_bytes_store_helper(function, clear_helper);
+            build_storage_bytes_store_helper(function);
             Some(())
         })?;
         self.builder.icall_void(helper, vec![slot, object]);

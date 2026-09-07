@@ -65,6 +65,7 @@ impl InstKind {
         let control = match self {
             Self::ValidateStorageBytes(..)
             | Self::StorageBytesLoad(..)
+            | Self::StorageBytesStore(..)
             | Self::ValidateAbi(..)
             | Self::CheckedAddMod(..)
             | Self::CheckedMulMod(..)
@@ -233,7 +234,7 @@ impl InstKind {
                     | EffectKind::ExternalCall
                     | EffectKind::Create
                     | EffectKind::Log
-            ),
+            ) || matches!(self, Self::StorageBytesStore(..)),
             observes_execution: matches!(self, Self::Gas | Self::MSize),
             has_identity: matches!(
                 self,

@@ -4,5 +4,9 @@ error: [fn1] [bb0, inst0] storage bytes operation requires a word operand
 
 error: [fn2] [bb0, inst0] storage clear requires word operands
 
-error: aborting due to 3 previous errors
+error: [fn3] [bb0, inst0] storage bytes store requires a word slot
+
+error: [fn4] [bb0, inst0] storage bytes store requires a bytes object
+
+error: aborting due to 5 previous errors
 
