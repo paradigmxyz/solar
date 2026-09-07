@@ -12,7 +12,7 @@ use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     fmt::Write as _,
     fs,
     path::{Path, PathBuf},
@@ -586,11 +586,7 @@ fn solar_changes(base: &SummaryReport, candidate: &SummaryReport) -> Result<Stri
             continue;
         }
         for (name, metric) in &group.metrics {
-            if !(name.starts_with("textDocument/") && !name.ends_with("_cpu_ms")
-                || name == "cold_ready_ms"
-                || name.starts_with("edit_to_")
-                || name.starts_with("save_to_"))
-            {
+            if !is_latency_metric(name) {
                 continue;
             }
             if let Some(previous) = old.metrics.get(name)
@@ -676,6 +672,68 @@ pub(crate) fn terminal(summary: &SummaryReport) -> String {
     output
 }
 
+fn is_latency_metric(name: &str) -> bool {
+    name.starts_with("textDocument/") && !name.ends_with("_cpu_ms")
+        || name == "cold_ready_ms"
+        || name.starts_with("edit_to_")
+        || name.starts_with("save_to_")
+}
+
+fn latency_table(summary: &SummaryReport) -> String {
+    let mut servers =
+        summary.summaries.iter().map(|group| group.server.as_str()).collect::<Vec<_>>();
+    servers.sort_unstable_by_key(|&server| (server != "solar", server));
+    servers.dedup();
+    let mut workloads = BTreeMap::<_, BTreeMap<_, _>>::new();
+    for group in &summary.summaries {
+        workloads
+            .entry((group.fixture.as_str(), group.workload.as_str()))
+            .or_default()
+            .insert(group.server.as_str(), group);
+    }
+    let mut output = String::from("| Benchmark | Metric |");
+    for server in &servers {
+        let _ = write!(output, " {} |", markdown_cell(server));
+    }
+    output.push_str("\n|---|---|");
+    for _ in &servers {
+        output.push_str("---:|");
+    }
+    output.push('\n');
+    for ((fixture, workload), groups) in workloads {
+        let mut metrics = groups
+            .values()
+            .flat_map(|group| group.metrics.keys())
+            .map(String::as_str)
+            .filter(|name| is_latency_metric(name))
+            .collect::<BTreeSet<_>>();
+        if metrics.is_empty() {
+            metrics.insert("");
+        }
+        for metric in metrics {
+            let _ = write!(
+                output,
+                "| {} | {} |",
+                markdown_cell(&format!("{fixture}/{workload}")),
+                markdown_cell(if metric.is_empty() { "—" } else { metric })
+            );
+            for server in &servers {
+                let value = match groups.get(server) {
+                    Some(group) if group.status == SummaryStatus::Pass => group
+                        .metrics
+                        .get(metric)
+                        .map_or_else(|| "—".into(), |stats| format!("{:.2}", stats.p50)),
+                    Some(group) => markdown_result(group).into(),
+                    None => "—".into(),
+                };
+                let _ = write!(output, " {value} |");
+            }
+            output.push('\n');
+        }
+    }
+    output
+}
+
 fn markdown(summary: &SummaryReport) -> String {
     let mut output = String::from("# Cross-server Solidity LSP benchmark\n\n");
     if !summary.environment.authoritative {
@@ -683,25 +741,8 @@ fn markdown(summary: &SummaryReport) -> String {
             "> [!WARNING]\n> This run is not an authoritative performance measurement.\n\n",
         );
     }
-    let mut servers = BTreeMap::<&str, [usize; 5]>::new();
-    for group in &summary.summaries {
-        let index = match group.status {
-            SummaryStatus::Pass => 0,
-            SummaryStatus::Partial => 1,
-            SummaryStatus::Unsupported => 2,
-            SummaryStatus::Unavailable => 3,
-            SummaryStatus::Failed => 4,
-        };
-        servers.entry(&group.server).or_default()[index] += 1;
-    }
-    output.push_str("Workload results by server. Latencies are in milliseconds.\n\n| Server | Passed | Partial | Unsupported | Unavailable | Failed |\n|---|---:|---:|---:|---:|---:|\n");
-    for (server, [passed, partial, unsupported, unavailable, failed]) in servers {
-        let _ = writeln!(
-            output,
-            "| {} | {passed} | {partial} | {unsupported} | {unavailable} | {failed} |",
-            markdown_cell(server)
-        );
-    }
+    output.push_str("Median latency (p50), in milliseconds; lower is better. Only correct responses contribute timings.\n\n");
+    output.push_str(&latency_table(summary));
     output.push_str("\n<details>\n<summary>Run metadata and provenance</summary>\n\n## Run metadata\n\n| Field | Value |\n|---|---|\n");
     let metadata = [
         ("Result schema", summary.schema_version.to_string()),
@@ -1268,6 +1309,38 @@ mod tests {
     }
 
     #[test]
+    fn latency_table_compares_servers_without_timing_failed_responses() {
+        let group = SummaryGroup {
+            server: "solar".into(),
+            fixture: "synthetic".into(),
+            workload: "hover".into(),
+            successful_runs: 4,
+            status_counts: BTreeMap::from([("pass".into(), 4)]),
+            status: SummaryStatus::Pass,
+            metrics: BTreeMap::from([
+                ("textDocument/hover".into(), metric_stats(4, 1.0, 1.0, 1.2)),
+                ("session_wall_ms".into(), metric_stats(4, 99.0, 99.0, 99.0)),
+            ]),
+        };
+        let mut other = group.clone();
+        other.server = "asyncswap".into();
+        other.metrics.insert("textDocument/hover".into(), metric_stats(4, 2.0, 2.0, 2.1));
+        let mut failed = group.clone();
+        failed.server = "failed".into();
+        failed.status = SummaryStatus::Failed;
+        let summary = summary_with_groups(vec![other, failed, group]);
+        assert_data_eq!(
+            latency_table(&summary),
+            str![[r#"
+| Benchmark | Metric | ` solar ` | ` asyncswap ` | ` failed ` |
+|---|---|---:|---:|---:|
+| ` synthetic/hover ` | ` textDocument/hover ` | 1.00 | 2.00 | :red_circle: **FAILED** |
+
+"#]]
+        );
+    }
+
+    #[test]
     fn markdown_keeps_failed_groups_visible_without_metrics() {
         let group = SummaryGroup {
             server: "external".into(),
@@ -1292,11 +1365,11 @@ mod tests {
             str![[r#"
 # Cross-server Solidity LSP benchmark
 
-Workload results by server. Latencies are in milliseconds.
+Median latency (p50), in milliseconds; lower is better. Only correct responses contribute timings.
 
-| Server | Passed | Partial | Unsupported | Unavailable | Failed |
-|---|---:|---:|---:|---:|---:|
-| ` external ` | 0 | 0 | 0 | 0 | 1 |
+| Benchmark | Metric | ` external ` |
+|---|---|---:|
+| ` synthetic/correctness ` | ` — ` | :red_circle: **FAILED** |
 
 <details>
 <summary>Run metadata and provenance</summary>

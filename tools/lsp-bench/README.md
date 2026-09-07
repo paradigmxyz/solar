@@ -124,8 +124,11 @@ or unresponsive external servers do not consume repeated 30-second waits.
 Automatic smoke steps have ten-minute limits; the full profile keeps its original
 timeout and sampling settings.
 
-Reports show workload status counts by server, with full metrics and provenance
-in collapsed details sections.
+Reports compare per-workload median latency across servers side by side, in
+milliseconds (lower is better). Failed or unsupported workloads show their status
+instead of a latency. Full metrics and provenance stay in collapsed details
+sections. The separate comparison with the PR base controls automatic publication;
+it does not replace the cross-server timing table.
 
 ## Accounting
 
