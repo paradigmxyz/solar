@@ -15,6 +15,8 @@
 //! the original spelling without mutating definitions during search. It is not
 //! a Cartesian product of child classes or unrestricted equality saturation;
 //! placement, dominance and the existing extraction cost remain unchanged.
+//! Byte/shift fusion additionally requires the producer in the root block, since
+//! replacing a cross-block temporary can introduce costly loop-carried spills.
 //!
 //! After the walk, every surviving class keeps its cheapest node. The cost
 //! model is static gas plus the stack traffic a node implies: an operand's
@@ -248,6 +250,7 @@ impl<'a> Builder<'a> {
             let views = self.operand_views(&current);
             for view in std::iter::once(None).chain(views.into_iter().map(Some)) {
                 isle::RuleContext::new(self.func, self.target.evm_version())
+                    .with_block(block)
                     .with_view(view)
                     .rewrite(&current, &mut alternatives);
             }

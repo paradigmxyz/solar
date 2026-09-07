@@ -6,10 +6,14 @@
 //! and constructors the rules call.
 
 use super::same_value;
-use crate::mir::{
-    Function, Immediate, InstKind, MemoryObjectKind, MemoryObjectLayout, Op, Value as MirValue,
-    ValueId,
-    memory::{EvmMemoryLayout, MemoryLayoutPolicy},
+use crate::{
+    backend::evm::op,
+    mir::{
+        BlockId, Function, Immediate, InstKind, MemoryObjectKind, MemoryObjectLayout, Op,
+        Value as MirValue, ValueId,
+        memory::{EvmMemoryLayout, MemoryLayoutPolicy},
+        utils::eval::eval_opcode,
+    },
 };
 use alloy_primitives::U256;
 use solar_config::EvmVersion;
@@ -30,6 +34,7 @@ const MAX_ISLE_RETURNS: usize = 8;
     rust_2018_idioms,
     unnameable_types,
     unreachable_code,
+    unreachable_patterns,
     unreachable_pub,
     unused_imports,
     unused_mut,
@@ -43,6 +48,8 @@ mod generated {
 pub(super) struct RuleContext<'a> {
     func: &'a mut Function,
     evm_version: EvmVersion,
+    /// Original block of the root, for rules that must not extend cross-block dependencies.
+    block: Option<BlockId>,
     /// One retained equivalent definition exposed during bounded matching.
     view: Option<(ValueId, Op)>,
 }
@@ -50,7 +57,13 @@ pub(super) struct RuleContext<'a> {
 impl<'a> RuleContext<'a> {
     /// Creates a context over `func`.
     pub(super) fn new(func: &'a mut Function, evm_version: EvmVersion) -> Self {
-        Self { func, evm_version, view: None }
+        Self { func, evm_version, block: None, view: None }
+    }
+
+    /// Restricts placement-sensitive matching to producers in this block.
+    pub(super) fn with_block(mut self, block: BlockId) -> Self {
+        self.block = Some(block);
+        self
     }
 
     /// Exposes an existing operand class alternative without rewriting its definition.
@@ -345,6 +358,25 @@ impl generated::Context for RuleContext<'_> {
 
     fn u256_and(&mut self, a: U256, b: U256) -> U256 {
         a & b
+    }
+
+    fn u256_shl(&mut self, shift: U256, value: U256) -> U256 {
+        eval_opcode(op::SHL, &[shift, value]).expect("SHL has word semantics")
+    }
+
+    fn u256_shr(&mut self, shift: U256, value: U256) -> U256 {
+        eval_opcode(op::SHR, &[shift, value]).expect("SHR has word semantics")
+    }
+
+    fn u256_byte(&mut self, index: U256, value: U256) -> U256 {
+        eval_opcode(op::BYTE, &[index, value]).expect("BYTE has word semantics")
+    }
+
+    fn in_current_block(&mut self, value: Value) -> bool {
+        self.block.is_some_and(|block| {
+            matches!(self.func.value(value), MirValue::Inst(inst)
+                if self.func.blocks[block].instructions.contains(inst))
+        })
     }
 
     fn u256_same(&mut self, a: U256, b: U256) -> bool {

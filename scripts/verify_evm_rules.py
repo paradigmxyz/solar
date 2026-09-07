@@ -64,6 +64,7 @@ def main():
             "crates/codegen/src/mir/op_schema.rs",
             "crates/codegen/src/transform/egraph/isle.rs",
             "crates/codegen/src/transform/egraph.rs",
+            "crates/codegen/src/utils/eval.rs",
             "crates/codegen/src/transform/word_sequence.rs",
             "crates/codegen/src/transform/word_sequence/isle.rs",
             "crates/codegen/src/backend/evm/codegen/select.rs",

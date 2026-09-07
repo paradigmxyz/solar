@@ -184,7 +184,8 @@ class Context:
         unary = {"u256_not": "not", "u256_neg": "sub"}
         if name in unary and len(values) == 1:
             return Expr(unary[name], tuple(([Expr.const(0)] if name == "u256_neg" else []) + values))
-        binary = {"u256_add": "add", "u256_sub": "sub", "u256_and": "and"}
+        binary = {"u256_add": "add", "u256_sub": "sub", "u256_and": "and",
+                  "u256_shl": "shl", "u256_shr": "shr", "u256_byte": "byte"}
         if name in binary and len(values) == 2:
             return Expr(binary[name], tuple(values))
         smt = [self.model.eval(v) for v in values]
@@ -212,7 +213,7 @@ class Context:
                                      z3.ULT(self.model.eval(shift), word(256)),
                                      smt[0] == word(1) << self.model.eval(shift)])
             return shift
-        if name in ("is_const", "differ", "has_bitwise_shifting", "has_self_balance"):
+        if name in ("is_const", "differ", "has_bitwise_shifting", "has_self_balance", "in_current_block"):
             # In particular, different ValueIds must NOT imply different word values.
             self.contracts.add(f"{name}: structural/fork condition is overapproximated")
             return z3.Bool(f"structural_{name}_{repr(node)}")

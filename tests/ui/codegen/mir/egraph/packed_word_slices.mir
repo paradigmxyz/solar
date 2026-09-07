@@ -1,0 +1,195 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zmir-pipeline=egraph,dce
+//@[size] compile-flags: -Osize -Zmir-pipeline=egraph,dce
+@module BitSlices
+
+fn @shl_discard_mask_0(arg0: u256) -> u256 {
+  bb0:
+    v0 = and arg0, 255
+    v1 = shl 248, v0
+    ret v1
+}
+
+fn @shl_discard_mask_1(arg0: u256) -> u256 {
+  bb0:
+    v0 = and 255, arg0
+    v1 = shl 248, v0
+    ret v1
+}
+
+fn @shr_discard_mask_0(arg0: u256) -> u256 {
+  bb0:
+    v0 = and arg0, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v1 = shr 248, v0
+    ret v1
+}
+
+fn @shr_discard_mask_1(arg0: u256) -> u256 {
+  bb0:
+    v0 = and 0xff00000000000000000000000000000000000000000000000000000000000000, arg0
+    v1 = shr 248, v0
+    ret v1
+}
+
+fn @shl_partial_mask(arg0: u256) -> u256 {
+  bb0:
+    v0 = and arg0, 127
+    v1 = shl 248, v0
+    ret v1
+}
+
+fn @shl_dynamic_mask(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    v0 = and arg0, arg1
+    v1 = shl 248, v0
+    ret v1
+}
+
+fn @shl_shared_mask(arg0: u256) -> u256 {
+  bb0:
+    v0 = and arg0, 255
+    v1 = shl 248, v0
+    v2 = xor v1, v0
+    ret v2
+}
+
+fn @byte_high_mask_0(arg0: u256) -> u256 {
+  bb0:
+    v0 = and arg0, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v1 = byte 0, v0
+    ret v1
+}
+
+fn @byte_high_mask_1(arg0: u256) -> u256 {
+  bb0:
+    v0 = and 0xff00000000000000000000000000000000000000000000000000000000000000, arg0
+    v1 = byte 0, v0
+    ret v1
+}
+
+fn @byte_low_mask_0(arg0: u256) -> u256 {
+  bb0:
+    v0 = and arg0, 255
+    v1 = byte 31, v0
+    ret v1
+}
+
+fn @byte_low_mask_1(arg0: u256) -> u256 {
+  bb0:
+    v0 = and 255, arg0
+    v1 = byte 31, v0
+    ret v1
+}
+
+fn @byte_partial_mask_0(arg0: u256) -> u256 {
+  bb0:
+    v0 = and arg0, 127
+    v1 = byte 31, v0
+    ret v1
+}
+
+fn @byte_partial_mask_1(arg0: u256) -> u256 {
+  bb0:
+    v0 = and 127, arg0
+    v1 = byte 31, v0
+    ret v1
+}
+
+fn @byte_out_of_range_mask_0(arg0: u256) -> u256 {
+  bb0:
+    v0 = and arg0, 255
+    v1 = byte 32, v0
+    ret v1
+}
+
+fn @byte_out_of_range_mask_1(arg0: u256) -> u256 {
+  bb0:
+    v0 = and 255, arg0
+    v1 = byte 32, v0
+    ret v1
+}
+
+fn @byte_shl_0_248(arg0: u256) -> u256 {
+  bb0:
+    v0 = shl 248, arg0
+    v1 = byte 0, v0
+    ret v1
+}
+
+fn @byte_shl_31_8(arg0: u256) -> u256 {
+  bb0:
+    v0 = shl 8, arg0
+    v1 = byte 31, v0
+    ret v1
+}
+
+fn @byte_shl_0_1(arg0: u256) -> u256 {
+  bb0:
+    v0 = shl 1, arg0
+    v1 = byte 0, v0
+    ret v1
+}
+
+fn @byte_shr_31_248(arg0: u256) -> u256 {
+  bb0:
+    v0 = shr 248, arg0
+    v1 = byte 31, v0
+    ret v1
+}
+
+fn @byte_shr_1_8(arg0: u256) -> u256 {
+  bb0:
+    v0 = shr 8, arg0
+    v1 = byte 1, v0
+    ret v1
+}
+
+fn @byte_shr_0_8(arg0: u256) -> u256 {
+  bb0:
+    v0 = shr 8, arg0
+    v1 = byte 0, v0
+    ret v1
+}
+
+fn @byte_shr_32_8(arg0: u256) -> u256 {
+  bb0:
+    v0 = shr 8, arg0
+    v1 = byte 32, v0
+    ret v1
+}
+
+fn @byte_shr_0_256(arg0: u256) -> u256 {
+  bb0:
+    v0 = shr 256, arg0
+    v1 = byte 0, v0
+    ret v1
+}
+
+// An out-of-range byte index must not wrap back into range during adjustment.
+fn @byte_shl_max(arg0: u256) -> u256 {
+  bb0:
+    v0 = shl 8, arg0
+    v1 = byte 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v0
+    ret v1
+}
+
+// A full-width shift always returns zero, regardless of the mask.
+fn @shift_mask_out_of_range(arg0: u256) -> (u256, u256) {
+  bb0:
+    v0 = and arg0, 127
+    v1 = shl 256, v0
+    v2 = shr 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v0
+    ret v1, v2
+}
+
+// Preserve the shifted temporary across the branch instead of extending the input's live range.
+fn @byte_cross_block(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    v0 = shl 248, arg0
+    jumpi arg1, bb1, bb2
+  bb1:
+    v1 = byte 0, v0
+    ret v1
+  bb2:
+    ret 0
+}
