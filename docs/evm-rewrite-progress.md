@@ -1808,3 +1808,55 @@ checks: official hot-gas, heavy output, compiler-time, metadata, symbolic and
 full test gates remain open. Original expectations have not changed. Evidence
 is under `terminal-tail-entry-workflow-20260907/`,
 `terminal-tail-closure-tests-20260907/` and `terminal-tail-budget-tests-20260907/`.
+
+
+### Terminal tail-call transport accepted as a bounded milestone
+
+Commits `3d6dc3c4` and `5661a94c` land the closure transport and its budget/cycle
+regressions. The scheduler reuses its existing checked entry reconciliation;
+a sparse per-artifact cache certifies descendant effects and fixed revert ranges.
+Nonleaf expansion is bounded, terminal leaves are scanned once without consuming
+that budget, and every omitted ancestor interval is checked independently.
+The assembler, MIR, ordinary entries and frame reservations are unchanged.
+This adds 89 physical production-file lines. The backend is now 45 files and
+16,610 physical lines, versus 34,638 in the deleted scope: -18,028. Counts include
+comments and inline tests; a strict production-SLOC baseline is unavailable.
+
+Frozen `4d6e5953` is the measured candidate; the committed source differs only
+in one verified rustfmt whitespace wrap. Both official lanes pass: all 24/15
+ordered IDs, 175 gas labels and 139 observations per compiler agree, with exact
+call gas, deployment gas and complete outputs. Four MIR helper-name bijections
+account for the only changed text artifacts. Fresh complete fingerprints bridge
+all nine heavy projects to their accepted raw outputs: all 1,672 contracts,
+3,344 objects and metadata are exact, preserving original producer provenance.
+The 1,630-case UI screen has 57 changed objects and no growth: Gas creation and
+runtime each decrease nine bytes, Size decreases 500/442 bytes respectively.
+
+ColdCall runtime improves 186->177 bytes in Gas and 200->176 in Size. Six abort
+labels save 24 gas each in Gas and 31-55 in Size; nine other labels are unchanged.
+All fifteen labels remain at or below sealed gas in both modes. Across 270 focused
+calls, exact payload/status and measured peaks pass. Thirty-two paired debug
+captures and six changed maps preserve known origins and function markers;
+requesting metadata leaves bytecode unchanged. One symbolic attempt reports
+bounded agreement for ordered arguments (64 paths/queries, depth 1024,
+96 return bytes). Its actual candidate prefix is independently verified;
+this is bounded evidence, not an unrestricted equivalence proof.
+
+All 33 new UI revisions pass. Independent fixture checks reject 66 negative
+FileCheck mutations. Final UI is 11,691 passed, two original failures,
+853 filtered; no original test or expectation changed. Workspace has 1,395 other
+passes and two skips. All 36 Foundry projects pass with exact IDs, gas and reported
+sizes (772/765 tests). Clippy, formatting, typos and whitespace checks pass.
+Primary compiler-time geometric mean is -4.894385%, RSS +0.830953%; factorial's median is
+13.615->14.382 ms (+5.629%) with overlapping sample ranges. These measurements
+establish neither causation nor per-case compiler-time dominance.
+
+Evidence and final independent approval are under
+`terminal-tail-entry-workflow-20260907/`, `terminal-tail-closure-tests-20260907/`
+and `terminal-tail-budget-tests-20260907/`. The original cold-fallthrough and
+calldata-alias failures remain, as do the memory-contract defects and unchanged
+33,108,935 positive sealed size-debt bytes across 1,059 objects. The next isolated
+fallthrough artifact reaches 171 bytes with lower gas, but needs a checked capacity
+guard for a path whose peak rises 3->4 and a production metadata proof. It is
+retained in `cold-success-carry-model-20260907/`, not installed. The goal remains
+incomplete.

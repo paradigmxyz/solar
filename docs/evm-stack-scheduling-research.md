@@ -272,3 +272,21 @@ Crossing those writers needs a separate proof. No call policy was changed.
 The exact continuation count is 27 restored caller homes plus one returned-
 result store, not 28 caller backups. The source pins and negative census are
 retained in `caller-prefix-static-study-20260907/`.
+
+
+## Terminal transport follow-up
+
+The terminal-tail experiment applies the shared prior-art direction of preserving
+SSA values through private stack interfaces. Our MIR already carries the arguments;
+the removable stores are introduced at the scheduling boundary. The existing entry
+reconciliation now handles a bounded tail-call closure, with a cached certificate
+that every descendant observation misses each omitted ancestor frame interval.
+This is a local design within our memory contract, informed by the pinned solx,
+Venom and Sonatina studies above.
+
+The accepted implementation adds no pass or permutation search. Cache admission
+needed its own performance regression test: a nearly exhausted parent initially
+poisoned a later terminal-leaf request. Exempting terminal leaves from expansion
+budget preserves old admission and bounds recursive work separately from their
+once-per-function source scan. `3d6dc3c4` and `5661a94c` retain the implementation,
+measured output gains, ancestor/observer controls, and the rejected-draft witness.
