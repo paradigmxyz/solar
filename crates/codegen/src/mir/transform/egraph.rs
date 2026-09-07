@@ -7,6 +7,9 @@
 //! on every new node: `simplify` merges the node's class into an existing
 //! value and `rewrite` adds an equivalent node to the class. New nodes only
 //! reference classes that already exist, so no rebuild or fixpoint is needed.
+//! Every alternative is numbered immediately. Reuse through a newly discovered
+//! shape requires an already-live representative, avoiding longer live ranges
+//! that can cost more stack traffic than the redundant computation.
 //!
 //! After the walk, every surviving class keeps its cheapest node. The cost
 //! model is static gas plus the stack traffic a node implies: an operand's
@@ -33,7 +36,7 @@ use crate::target::{Cost, Target};
 use crate::mir::{
     ArgIdx, BlockId, EffectKind, Function, Immediate, InstId, InstKind, MirType, Module, Op,
     Terminator, Value, ValueId, utils as mir_utils,
-    analysis::CfgInfo,
+    analysis::{CfgInfo, Liveness},
 
     pass::{MirPass, run_function_pass},
     utils::eval,
@@ -112,6 +115,8 @@ struct Builder<'a> {
     phis: FxHashMap<PhiKey, ValueId>,
     /// Number of uses of every value before the pass.
     uses: FxHashMap<ValueId, u32>,
+    /// Computed lazily when a newly numbered alternative proposes reuse.
+    liveness: Option<Liveness>,
     /// Instructions merged into another class or deleted as no-ops.
     dead: DenseBitSet<InstId>,
     changed: usize,
@@ -136,6 +141,7 @@ impl<'a> Builder<'a> {
             undo: Vec::new(),
             phis: FxHashMap::default(),
             uses,
+            liveness: None,
             dead,
             changed: 0,
         }
@@ -179,7 +185,7 @@ impl<'a> Builder<'a> {
         self.phis.clear();
         for index in 0..self.func.blocks[block].instructions.len() {
             let inst_id = self.func.blocks[block].instructions[index];
-            self.visit_inst(inst_id);
+            self.visit_inst(inst_id, block, index);
         }
         let children = self.cfg.dominators().children(block).to_vec();
         for child in children {
@@ -194,7 +200,7 @@ impl<'a> Builder<'a> {
         }
     }
 
-    fn visit_inst(&mut self, inst_id: InstId) {
+    fn visit_inst(&mut self, inst_id: InstId, block: BlockId, index: usize) {
         if self.is_dead_noop(inst_id) {
             self.dead.insert(inst_id);
             self.changed += 1;
@@ -217,12 +223,10 @@ impl<'a> Builder<'a> {
 
         // An equal expression with a dominating definition: reuse it.
         let key = (canonical(op), ty);
-        if let Some(&leader) = self.memo.get(&key) {
+        if let Some(leader) = self.memo_leader(key, key, block, index) {
             self.merge(result, leader, inst_id);
             return;
         }
-        let previous = self.memo.insert(key, result);
-        self.undo.push((key, previous));
 
         // Grow the class with every equivalent node the rules reach, breadth
         // first, then look for a value it already equals.
@@ -242,7 +246,16 @@ impl<'a> Builder<'a> {
                 }
             }
         }
+        // %result = any equivalent node => the dominating class leader
+        // Number every alternative, so later instructions can reuse a rewrite
+        // immediately. Scope every insertion, including simplified classes,
+        // to the same dominator subtree as the original expression.
+        let mut leader = None;
         for node in &nodes {
+            if let Some(equal) = self.memo_leader((canonical(*node), ty), key, block, index) {
+                leader = Some(equal);
+                break;
+            }
             let kind = node.into_kind().expect("nodes are complete instructions");
             let equal = const_fold(self.func, &kind).or_else(|| {
                 isle::RuleContext::new(self.func, self.target.evm_version()).simplify(node)
@@ -250,14 +263,46 @@ impl<'a> Builder<'a> {
             if let Some(equal) = equal {
                 let equal = self.resolve(equal);
                 if equal != result {
-                    self.memo.insert(key, equal);
-                    self.merge(result, equal, inst_id);
-                    return;
+                    leader = Some(equal);
+                    break;
                 }
             }
         }
 
-        self.classes.insert(result, Class { nodes, home: inst_id });
+        for &node in &nodes {
+            let key = (canonical(node), ty);
+            let previous = self.memo.insert(key, leader.unwrap_or(result));
+            self.undo.push((key, previous));
+        }
+        if let Some(leader) = leader {
+            // %result => %leader
+            self.merge(result, leader, inst_id);
+        } else {
+            self.classes.insert(result, Class { nodes, home: inst_id });
+        }
+    }
+
+    /// Reuse through an alternative must not extend the representative's live
+    /// range. Ordinary hash-consing retains its existing behavior; a new shape
+    /// gets numbered even when this particular reuse is unprofitable.
+    fn memo_leader(
+        &mut self,
+        key: NodeKey,
+        original: NodeKey,
+        block: BlockId,
+        index: usize,
+    ) -> Option<ValueId> {
+        let leader = self.resolve(*self.memo.get(&key)?);
+        if let Some(class) = self.classes.get(&leader)
+            && (key != original || canonical(class.nodes[0]) != key.0)
+            && !self
+                .liveness
+                .get_or_insert_with(|| Liveness::compute(self.func))
+                .is_used_at_or_after(leader, block, index + 1)
+        {
+            return None;
+        }
+        Some(leader)
     }
 
     /// Merges a phi over one value into that value, and phis of one block with

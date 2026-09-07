@@ -42,6 +42,7 @@ pub(crate) mod outline_reverts;
 pub(crate) mod pre;
 pub(crate) mod pure_eval;
 pub(crate) mod sccp;
+pub(crate) mod specialize;
 pub(crate) mod sroa;
 pub(crate) mod static_alloc;
 pub(crate) mod storage_dse;

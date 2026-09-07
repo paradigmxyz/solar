@@ -43,6 +43,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &inline::InlineConstantLeaves,
     &inline::InlineTinyLeaves,
     &inline::SpecializeFunctionPointers,
+    &specialize::Specialize,
     &outline_reverts::OutlineReverts,
     &cfg_simplify::FunctionDce,
     &sccp::Sccp,
@@ -201,6 +202,7 @@ static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     // Keep this separate from general inlining, whose larger candidates regress measured gas.
     &GasOnly::new(inline::InlineTinyLeaves),
     &inline::SpecializeFunctionPointers,
+    &specialize::Specialize,
     &function_compaction::DeadArgElim,
     &cfg_simplify::FunctionDce,
     &function_compaction::MergeEquivalentFunctions,
@@ -239,6 +241,10 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &static_alloc::DeferAlloc,
     &lower_abi_encode::LowerAbiEncode,
     &lower_aggregates::LowerAggregates,
+    // Aggregate lowering exposes packed read-modify-write sequences. Forward
+    // whole words before deleting the overwritten stores, then simplify masks.
+    &storage_load_cse::StorageLoadCse,
+    &storage_dse::StorageDse,
     &egraph::Egraph,
     &cfg_simplify::CfgSimplify,
     &memory_dse::MemoryDse,

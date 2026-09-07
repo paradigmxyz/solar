@@ -1,0 +1,27 @@
+//@compile-flags: -Zmir-pipeline=egraph
+@module AlternativeNumbering
+
+fn @rewrite_then_original(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    v0 = sub arg0, arg1
+    v1 = iszero v0
+    v2 = eq arg0, arg1
+    v3 = add v1, v2
+    ret v3
+}
+
+fn @sibling_scope(arg0: bool, arg1: u256, arg2: u256) -> u256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    v0 = sub arg1, arg2
+    v1 = iszero v0
+    jump bb3
+  bb2:
+    v2 = xor arg1, arg2
+    v3 = iszero v2
+    jump bb3
+  bb3:
+    v4 = phi [bb1: v1], [bb2: v3]
+    ret v4
+}

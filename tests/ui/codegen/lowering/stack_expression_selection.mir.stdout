@@ -1,0 +1,92 @@
+// === ROOT/tests/ui/codegen/lowering/stack_expression_selection.sol:StackExpressionSelection ===
+@module StackExpressionSelection
+fn @sharedXor(arg0: u256, arg1: u256) -> (u256, u256, bool) [selector=0x1a49b55c, pure, abi_params=[u256, u256], abi_returns=[word, word, word<bool>]] {
+  bb0:
+    v0 = xor arg0, arg1
+    v1 = add v0, 1
+    v2 = eq arg0, arg1
+    ret v0, v1, v2
+}
+
+fn @sharedReverse(arg0: u256, arg1: u256) -> (u256, u256, bool) [selector=0x8552b9c1, pure, abi_params=[u256, u256], abi_returns=[word, word, word<bool>]] {
+  bb0:
+    v0 = sub arg1, arg0
+    v1 = add v0, 1
+    v2 = eq arg0, arg1
+    ret v0, v1, v2
+}
+
+fn @sharedDifference(arg0: u256, arg1: u256) -> (u256, u256, bool) [selector=0x10fe2b84, pure, abi_params=[u256, u256], abi_returns=[word, word, word<bool>]] {
+  bb0:
+    v0 = sub arg0, arg1
+    v1 = add v0, 1
+    v2 = eq arg0, arg1
+    ret v0, v1, v2
+}
+
+fn @difference(arg0: u256, arg1: u256) -> (u256, bool) [selector=0xa95cb7f7, pure, abi_params=[u256, u256], abi_returns=[word, word<bool>]] {
+  bb0:
+    v0 = sub arg0, arg1
+    v1 = eq arg0, arg1
+    ret v0, v1
+}
+
+fn @reverseDifference(arg0: u256, arg1: u256) -> (u256, bool) [selector=0x132a45fc, pure, abi_params=[u256, u256], abi_returns=[word, word<bool>]] {
+  bb0:
+    v0 = sub arg1, arg0
+    v1 = eq arg0, arg1
+    ret v0, v1
+}
+
+fn @xorDifference(arg0: u256, arg1: u256) -> (u256, bool) [selector=0x30ca6808, pure, abi_params=[u256, u256], abi_returns=[word, word<bool>]] {
+  bb0:
+    v0 = xor arg0, arg1
+    v1 = eq arg0, arg1
+    ret v0, v1
+}
+
+fn @loop(arg0: u256) -> u256 [selector=0x0b7d796e, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb13: v0]
+    v1 = phi [bb0: 0], [bb13: v9]
+    v2 = phi [bb0: 0], [bb13: v8]
+    v3 = phi [bb0: 0], [bb13: v11]
+    v4 = lt v3, v0
+    jumpi v4, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v2
+  bb4:
+    v5 = eq v3, v1
+    jumpi v5, bb7, bb8
+  bb8:
+    jump bb9
+  bb7:
+    v6 = add v2, 1
+    v7 = lt v6, v2
+    jumpi v7, bb10, bb11
+  bb11:
+    jump bb9
+  bb9:
+    v8 = phi [bb11: v6], [bb8: v2]
+    v9 = add v3, 1
+    v10 = lt v9, v3
+    jumpi v10, bb10, bb12
+  bb12:
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v11 = add v3, 1
+    v12 = lt v11, v3
+    jumpi v12, bb10, bb13
+  bb13:
+    jump bb1
+  bb10:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}

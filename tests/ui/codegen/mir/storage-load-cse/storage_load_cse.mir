@@ -13,11 +13,11 @@ fn @reuse_across_disjoint_constant_store() -> u256 {
     ret v3
 }
 
-// CHECK-LABEL: {{^[ +].*}}fn @keep_after_same_slot_store{{[( ]}}
-// CHECK: + {{v[0-9]+}} = sload 0
+// CHECK-LABEL: {{^[ +].*}}fn @forward_after_same_slot_store{{[( ]}}
+// CHECK: - {{v[0-9]+}} = sload 0
 // CHECK: + sstore 0, 9
-// CHECK: + {{v[0-9]+}} = sload 0
-fn @keep_after_same_slot_store() -> u256 {
+// CHECK: + {{v[0-9]+}} = add {{v[0-9]+}}, 9
+fn @forward_after_same_slot_store() -> u256 {
   bb0:
     v1 = sload 0
     sstore 0, 9
