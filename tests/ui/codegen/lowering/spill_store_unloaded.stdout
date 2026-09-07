@@ -2,23 +2,39 @@
 @module SpillStoreUnloaded_runtime
 bb0:
   callvalue
-  push bb3
-  jumpi
+  jumpi bb8, bb12
+bb12:
   push 0
   calldataload
   push 224
   shr
-  dup 1
   push 0xa62f4550
+  sub
+  jumpi bb8, bb1
+bb1:
+  calldatasize
+  push 68
+  gt
+  jumpi bb8, bb9
+bb9:
+  push 36
+  calldataload
+  push 4
+  calldataload
+  mul
+  push 36
+  calldataload
+  iszero
+  push 36
+  calldataload
+  dup 3
+  div
+  push 4
+  calldataload
   eq
-  push bb4
-  jumpi
-  jump bb3
-bb3 [cold]:
-  push 0
-  push 0
-  revert
-bb7 [cold]:
+  or
+  jumpi bb3, bb2
+bb2 [cold]:
   push 0x4e487b71
   push 224
   shl
@@ -30,57 +46,30 @@ bb7 [cold]:
   push 36
   push 0
   revert
-bb4:
-  push 68
-  calldatasize
-  lt
-  push 4
-  calldataload
+bb3:
   push 36
   calldataload
-  swap 2
-  push bb3
-  jumpi
-  dup 2
-  dup 2
-  mul
-  dup 1
-  push 160
-  mstore
-  dup 3
-  iszero
-  dup 4
-  dup 3
-  div
-  dup 4
-  eq
-  or
-  swap 1
-  pop
-  iszero
-  push bb7
-  jumpi
-  dup 2
-  dup 2
+  push 4
+  calldataload
   gt
-  push bb9
-  jumpi
-  swap 1
-  jump bb9
-bb9:
-  push 160
-  mload
-  add
-  swap 1
-  pop
-  push 160
-  mload
+  push 5
+  shl
+  push 36
+  sub
+  calldataload
   dup 2
-  lt
-  push bb7
-  jumpi
-  push 128
+  add
+  dup 1
+  swap 2
+  gt
+  jumpi bb2, bb20
+bb20:
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
+bb8 [cold]:
+  push 0
+  push 0
+  revert
