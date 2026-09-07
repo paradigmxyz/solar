@@ -2,6 +2,11 @@
 slow-timeout = { period = "60s", terminate-after = 2 }
 status-level = "leak"
 
+# The UI harness runs thousands of compiler invocations in parallel itself.
+[[profile.default.overrides]]
+filter = 'package(solar-compiler) & test(=ui_test)'
+threads-required = "num-test-threads"
+
 # The external Foundry suite compiles and tests whole real-world projects;
 # warn instead of terminating (no `terminate-after`).
 [[profile.default.overrides]]
