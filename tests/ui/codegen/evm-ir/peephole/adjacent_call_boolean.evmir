@@ -1,0 +1,273 @@
+//@ revisions: none gas size byzantium
+//@ compile-flags: -Zevm-ir-pipeline=peephole
+//@[none] compile-flags: -Onone
+//@[gas] compile-flags: -Ogas
+//@[size] compile-flags: -Osize
+//@[byzantium] compile-flags: -Ogas --evm-version byzantium
+//@[gas] filecheck:
+//@[size] filecheck:
+//@[byzantium] filecheck:
+
+@module AdjacentCallBoolean
+
+// CALL keeps each distinct operand, the prefix and exactly one call; only both normalizations disappear.
+// CHECK-LABEL: {{^[ +] *}}bb0:
+// CHECK: {{^[ +] *}}call{{$}}
+// CHECK-NEXT: {{^- *}}iszero{{$}}
+// CHECK-NEXT: {{^- *}}iszero{{$}}
+// CHECK-NEXT: {{^[ +] *}}push 0{{$}}
+// CHECK-NEXT: {{^[ +] *}}mstore{{$}}
+bb0:
+  push 99
+  push 1
+  push 2
+  push 3
+  push 4
+  push 5
+  push 6
+  push 7
+  call
+  iszero
+  iszero
+  push 0
+  mstore
+  push 32
+  mstore
+  push 64
+  push 0
+  return
+
+// CALLCODE keeps each distinct operand, the prefix and exactly one call; only both normalizations disappear.
+// CHECK-LABEL: {{^[ +] *}}bb1:
+// CHECK: {{^[ +] *}}callcode{{$}}
+// CHECK-NEXT: {{^- *}}iszero{{$}}
+// CHECK-NEXT: {{^- *}}iszero{{$}}
+// CHECK-NEXT: {{^[ +] *}}push 0{{$}}
+// CHECK-NEXT: {{^[ +] *}}mstore{{$}}
+bb1:
+  push 99
+  push 8
+  push 9
+  push 10
+  push 11
+  push 12
+  push 13
+  push 14
+  callcode
+  iszero
+  iszero
+  push 0
+  mstore
+  push 32
+  mstore
+  push 64
+  push 0
+  return
+
+// STATICCALL keeps each distinct operand, the prefix and exactly one call; only both normalizations disappear.
+// CHECK-LABEL: {{^[ +] *}}bb2:
+// CHECK: {{^[ +] *}}staticcall{{$}}
+// CHECK-NEXT: {{^- *}}iszero{{$}}
+// CHECK-NEXT: {{^- *}}iszero{{$}}
+// CHECK-NEXT: {{^[ +] *}}push 0{{$}}
+// CHECK-NEXT: {{^[ +] *}}mstore{{$}}
+bb2:
+  push 99
+  push 15
+  push 16
+  push 17
+  push 18
+  push 19
+  push 20
+  staticcall
+  iszero
+  iszero
+  push 0
+  mstore
+  push 32
+  mstore
+  push 64
+  push 0
+  return
+
+// DELEGATECALL keeps each distinct operand, the prefix and exactly one call; only both normalizations disappear.
+// CHECK-LABEL: {{^[ +] *}}bb3:
+// CHECK: {{^[ +] *}}delegatecall{{$}}
+// CHECK-NEXT: {{^- *}}iszero{{$}}
+// CHECK-NEXT: {{^- *}}iszero{{$}}
+// CHECK-NEXT: {{^[ +] *}}push 0{{$}}
+// CHECK-NEXT: {{^[ +] *}}mstore{{$}}
+bb3:
+  push 99
+  push 21
+  push 22
+  push 23
+  push 24
+  push 25
+  push 26
+  delegatecall
+  iszero
+  iszero
+  push 0
+  mstore
+  push 32
+  mstore
+  push 64
+  push 0
+  return
+
+// The duplicated inverse remains live; the call and two negations are not an adjacent triple.
+// CHECK-LABEL: {{^[ +] *}}bb4:
+// CHECK: {{^[ +] *}}call{{$}}
+// CHECK-NEXT: {{^[ +] *}}iszero{{$}}
+// CHECK-NEXT: {{^[ +] *}}dup 1{{$}}
+// CHECK-NEXT: {{^[ +] *}}iszero{{$}}
+bb4:
+  push 1
+  push 2
+  push 3
+  push 4
+  push 5
+  push 6
+  push 7
+  call
+  iszero
+  dup 1
+  iszero
+  push 0
+  mstore
+  push 32
+  mstore
+  push 64
+  push 0
+  return
+
+// CREATE returns a raw address, so its double negation must remain.
+// CHECK-LABEL: {{^[ +] *}}bb5:
+// CHECK: {{^[ +] *}}create{{$}}
+// CHECK-NEXT: {{^[ +] *}}iszero{{$}}
+// CHECK-NEXT: {{^[ +] *}}iszero{{$}}
+bb5:
+  push 1
+  push 2
+  push 3
+  create
+  iszero
+  iszero
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+
+// An arbitrary calldata word is not a canonical Boolean.
+// CHECK-LABEL: {{^[ +] *}}bb6:
+// CHECK: {{^[ +] *}}calldataload{{$}}
+// CHECK-NEXT: {{^[ +] *}}iszero{{$}}
+// CHECK-NEXT: {{^[ +] *}}iszero{{$}}
+bb6:
+  push 0
+  calldataload
+  iszero
+  iszero
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+
+// Keep the existing triple-ISZERO rewrite: the first negation remains.
+// CHECK-LABEL: {{^[ +] *}}bb7:
+// CHECK: {{^[ +] *}}calldataload{{$}}
+// CHECK-NEXT: {{^[ +] *}}iszero{{$}}
+// CHECK-NEXT: {{^- *}}iszero{{$}}
+// CHECK-NEXT: {{^- *}}iszero{{$}}
+bb7:
+  push 0
+  calldataload
+  iszero
+  iszero
+  iszero
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+
+// Redundant exact stack effects are canonical and do not disable the rewrite.
+// CHECK-LABEL: {{^[ +] *}}bb8:
+// CHECK: {{^[ +] *}}call{{$}}
+// CHECK-NEXT: {{^- *}}iszero{{$}}
+// CHECK-NEXT: {{^- *}}iszero{{$}}
+// CHECK-NEXT: {{^[ +] *}}push 0{{$}}
+// CHECK-NEXT: {{^[ +] *}}mstore{{$}}
+bb8:
+  push 1
+  push 2
+  push 3
+  push 4
+  push 5
+  push 6
+  push 7
+  call !meta(stack=7->1)
+  iszero !meta(stack=1->1)
+  iszero !meta(stack=1->1)
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+
+// A verifier-valid GAS/SUB reserve prefix keeps SUB with CALL; the rewrite cannot split that incoming boundary.
+// CHECK-LABEL: {{^[ +] *}}bb9:
+// CHECK: {{^[ +] *}}gas !metadata(keep_with_next){{$}}
+// CHECK-NEXT: {{^[ +] *}}sub !metadata(keep_with_next){{$}}
+// CHECK-NEXT: {{^[ +] *}}call{{$}}
+// CHECK-NEXT: {{^[ +] *}}iszero{{$}}
+// CHECK-NEXT: {{^[ +] *}}iszero{{$}}
+bb9:
+  push 1
+  push 2
+  push 3
+  push 4
+  push 5
+  push 6
+  push 7
+  gas !meta(keep_with_next)
+  sub !meta(keep_with_next)
+  call
+  iszero
+  iszero
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+
+// An intervening GAS and physical swap prevent the adjacent match; both observed words remain.
+// CHECK-LABEL: {{^[ +] *}}bb10:
+// CHECK: {{^[ +] *}}call{{$}}
+// CHECK-NEXT: {{^[ +] *}}gas{{$}}
+// CHECK-NEXT: {{^[ +] *}}swap 1{{$}}
+// CHECK-NEXT: {{^[ +] *}}iszero{{$}}
+// CHECK-NEXT: {{^[ +] *}}iszero{{$}}
+bb10:
+  push 1
+  push 2
+  push 3
+  push 4
+  push 5
+  push 6
+  push 7
+  call
+  gas
+  swap 1
+  iszero
+  iszero
+  push 0
+  mstore
+  push 32
+  mstore
+  push 64
+  push 0
+  return

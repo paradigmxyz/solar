@@ -1,0 +1,184 @@
+- // === ROOT/tests/ui/codegen/evm-ir/peephole/adjacent_call_boolean.evmir (before peephole) ===
++ // === ROOT/tests/ui/codegen/evm-ir/peephole/adjacent_call_boolean.evmir (after peephole) ===
+  @module AdjacentCallBoolean
+  bb0:
+    push 99
+    push 1
+    push 2
+    push 3
+    push 4
+    push 5
+    push 6
+    push 7
+    call
+    iszero
+    iszero
+    push 0
+    mstore
+    push 32
+    mstore
+    push 64
+    push 0
+    return
+  bb1:
+    push 99
+    push 8
+    push 9
+    push 10
+    push 11
+    push 12
+    push 13
+    push 14
+    callcode
+    iszero
+    iszero
+    push 0
+    mstore
+    push 32
+    mstore
+    push 64
+    push 0
+    return
+  bb2:
+    push 99
+    push 15
+    push 16
+    push 17
+    push 18
+    push 19
+    push 20
+    staticcall
+    iszero
+    iszero
+    push 0
+    mstore
+    push 32
+    mstore
+    push 64
+    push 0
+    return
+  bb3:
+    push 99
+    push 21
+    push 22
+    push 23
+    push 24
+    push 25
+    push 26
+    delegatecall
+    iszero
+    iszero
+    push 0
+    mstore
+    push 32
+    mstore
+    push 64
+    push 0
+    return
+  bb4:
+    push 1
+    push 2
+    push 3
+    push 4
+    push 5
+    push 6
+    push 7
+    call
+    iszero
+    dup 1
+    iszero
+    push 0
+    mstore
+    push 32
+    mstore
+    push 64
+    push 0
+    return
+  bb5:
+    push 1
+    push 2
+    push 3
+    create
+    iszero
+    iszero
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  bb6:
+    push 0
+    calldataload
+    iszero
+    iszero
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  bb7:
+    push 0
+    calldataload
+    iszero
+    iszero
+    iszero
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  bb8:
+    push 1
+    push 2
+    push 3
+    push 4
+    push 5
+    push 6
+    push 7
+    call
+    iszero
+    iszero
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  bb9:
+    push 1
+    push 2
+    push 3
+    push 4
+    push 5
+    push 6
+    push 7
+    gas !metadata(keep_with_next)
+    sub !metadata(keep_with_next)
+    call
+    iszero
+    iszero
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  bb10:
+    push 1
+    push 2
+    push 3
+    push 4
+    push 5
+    push 6
+    push 7
+    call
+    gas
+    swap 1
+    iszero
+    iszero
+    push 0
+    mstore
+    push 32
+    mstore
+    push 64
+    push 0
+    return
+  

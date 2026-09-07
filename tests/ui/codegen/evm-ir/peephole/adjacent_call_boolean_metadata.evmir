@@ -1,0 +1,22 @@
+//@ compile-flags: -Ogas -Zevm-ir-pipeline=peephole
+//~? ERROR: EVM IR verification failed: block 0: `call` has stack effect 7->0, expected 7->1
+
+// Invalid effects must be diagnosed before the adjacent match can erase metadata.
+// This is a verifier refusal, not an optimizer-reachable opaque annotation.
+@module AdjacentCallBooleanMetadata
+bb0:
+  push 1
+  push 2
+  push 3
+  push 4
+  push 5
+  push 6
+  push 7
+  call !meta(stack=7->0)
+  iszero
+  iszero
+  push 0
+  mstore
+  push 32
+  push 0
+  return

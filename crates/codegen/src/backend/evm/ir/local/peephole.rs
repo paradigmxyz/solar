@@ -214,10 +214,14 @@ pub(super) fn peephole(
                     replacement =
                         Some((3, vec![InstKind::Exchange((*a).min(*b), (*a).max(*b)).into()]));
                 }
-                // iszero; iszero; iszero -> iszero
-                (InstKind::Op(op::ISZERO), InstKind::Op(op::ISZERO), InstKind::Op(op::ISZERO)) => {
-                    replacement = Some((3, vec![tail[0].clone()]))
-                }
+                // <canonical boolean producer>; iszero; iszero -> <same producer>
+                (
+                    InstKind::Op(
+                        op::ISZERO | op::CALL | op::CALLCODE | op::DELEGATECALL | op::STATICCALL,
+                    ),
+                    InstKind::Op(op::ISZERO),
+                    InstKind::Op(op::ISZERO),
+                ) => replacement = Some((3, vec![tail[0].clone()])),
                 // dup2; sink; pop -> swap1; sink
                 (InstKind::Dup(2), InstKind::Op(code), InstKind::Op(op::POP))
                     if op::stack_io(*code) == Some((2, 0)) =>
@@ -288,8 +292,10 @@ pub(super) fn peephole(
                 _ => {}
             }
         }
-        if let Some((len, replacement)) = replacement {
-            changed |= rewrite(insts, index, len, replacement);
+        if let Some((len, replacement)) = replacement
+            && rewrite(insts, index, len, replacement)
+        {
+            changed = true;
             index = index.saturating_sub(4);
             continue;
         }
