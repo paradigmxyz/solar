@@ -3,8 +3,8 @@
   @module RewriteMetadata
   fn @arithmetic(arg0: u256) -> u256 {
     bb0:
--     v0 = mul arg0, 8 !metadata(hir=42, span=1..5, unchecked, loop_depth=2, effect=memory_read)
-+     v0 = shl 3, arg0 !metadata(hir=42, span=1..5, unchecked, loop_depth=2)
+-     v0 = mul arg0, 8 !metadata(hir=42, span=1..5, modifier_depth=3, unchecked, loop_depth=2, effect=memory_read)
++     v0 = shl 3, arg0 !metadata(hir=42, span=1..5, modifier_depth=3, unchecked, loop_depth=2)
       ret v0
   }
   
