@@ -5,9 +5,11 @@
 //! query indexes that are published to request handlers. Adjacency lists use canonical symbol
 //! IDs; URI/range keys are retained only for node identity across batches and protocol requests.
 
-use crate::symbols::{DeclarationSymbol, SymbolId};
-use lsp_types::{Range, TypeHierarchyItem, Url};
-use serde::{Deserialize, Serialize};
+use crate::{
+    hierarchy::{HierarchyItem, HierarchyKey as NodeKey},
+    symbols::{DeclarationSymbol, SymbolId},
+};
+use lsp_types::{TypeHierarchyItem, Url};
 use solar_interface::data_structures::{
     index::IndexVec,
     map::{FxHashMap, FxHashSet},
@@ -16,13 +18,11 @@ use solar_sema::{
     Gcx,
     hir::{FunctionKind, ItemId},
 };
-use std::{cmp::Ordering, fmt::Write as _};
-
-const DATA_VERSION: u8 = 1;
+use std::{fmt::Write as _, sync::Arc};
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct TypeHierarchyIndex {
-    items_by_symbol: FxHashMap<SymbolId, TypeHierarchyItem>,
+    items_by_symbol: FxHashMap<SymbolId, HierarchyItem>,
     candidate_key_by_symbol: FxHashMap<SymbolId, NodeKey>,
     direct_edges: Vec<HierarchyEdge>,
     canonical_symbol_by_key: FxHashMap<NodeKey, SymbolId>,
@@ -37,35 +37,6 @@ struct HierarchyEdge {
     base: SymbolId,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-struct NodeKey {
-    uri: Url,
-    selection_range: Range,
-}
-
-impl Ord for NodeKey {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.uri.as_str().cmp(other.uri.as_str()).then_with(|| {
-            crate::proto::range_key(self.selection_range)
-                .cmp(&crate::proto::range_key(other.selection_range))
-        })
-    }
-}
-
-impl PartialOrd for NodeKey {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-#[derive(Deserialize, Serialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct TypeHierarchyData {
-    version: u8,
-    uri: Url,
-    selection_range: Range,
-}
-
 impl TypeHierarchyIndex {
     pub(crate) fn build(
         gcx: Gcx<'_>,
@@ -73,29 +44,26 @@ impl TypeHierarchyIndex {
         declarations: &IndexVec<SymbolId, DeclarationSymbol>,
     ) -> Self {
         let mut index = Self::default();
+        let mut uris = FxHashMap::default();
 
         for item_id in gcx.hir.item_ids() {
             let Some(&symbol_id) = item_symbols.get(&item_id) else { continue };
             let declaration = &declarations[symbol_id];
-            let uri = declaration.location.uri.clone();
+            let uri = uris
+                .entry(&declaration.location.uri)
+                .or_insert_with(|| Arc::new(declaration.location.uri.clone()))
+                .clone();
             let selection_range = declaration.name_range;
             index
                 .candidate_key_by_symbol
                 .insert(symbol_id, NodeKey { uri: uri.clone(), selection_range });
             let Some(name) = node_name(gcx, item_id) else { continue };
-            let data =
-                TypeHierarchyData { version: DATA_VERSION, uri: uri.clone(), selection_range };
-            let item = TypeHierarchyItem {
+            let item = HierarchyItem {
+                key: NodeKey { uri, selection_range },
                 name,
                 kind: declaration.kind,
-                tags: None,
                 detail: None,
-                uri,
                 range: declaration.location.range,
-                selection_range,
-                data: Some(
-                    serde_json::to_value(data).expect("type hierarchy data is serializable"),
-                ),
             };
             index.items_by_symbol.insert(symbol_id, item);
 
@@ -162,7 +130,7 @@ impl TypeHierarchyIndex {
         // agree. Otherwise, exclude the node and let endpoint filtering drop its incident edges.
         let mut incompatible_keys = FxHashSet::default();
         for (&symbol_id, key) in &self.candidate_key_by_symbol {
-            if conflicting_contents.contains(&key.uri) {
+            if conflicting_contents.contains(key.uri.as_ref()) {
                 continue;
             }
             if incompatible_keys.contains(key) {
@@ -224,7 +192,12 @@ impl TypeHierarchyIndex {
             return None;
         }
         sort_and_dedup_symbols(&mut symbols, &self.items_by_symbol);
-        Some(symbols.into_iter().map(|symbol| self.items_by_symbol[&symbol].clone()).collect())
+        Some(
+            symbols
+                .into_iter()
+                .map(|symbol| self.items_by_symbol[&symbol].to_type_item())
+                .collect(),
+        )
     }
 
     pub(crate) fn supertypes(&self, item: &TypeHierarchyItem) -> Option<Vec<TypeHierarchyItem>> {
@@ -261,20 +234,16 @@ impl TypeHierarchyIndex {
                 .get(&symbol)
                 .into_iter()
                 .flatten()
-                .map(|neighbor| self.items_by_symbol[neighbor].clone())
+                .map(|neighbor| self.items_by_symbol[neighbor].to_type_item())
                 .collect(),
         )
     }
 
     fn resolve_item(&self, item: &TypeHierarchyItem) -> Option<SymbolId> {
-        let data = TypeHierarchyData::deserialize(item.data.as_ref()?).ok()?;
-        if data.version != DATA_VERSION {
-            return None;
-        }
-        let key = NodeKey { uri: data.uri, selection_range: data.selection_range };
+        let key = NodeKey::from_data(item.data.as_ref()?)?;
         let symbol_id = self.canonical_symbol_by_key.get(&key)?;
         let canonical_item = self.items_by_symbol.get(symbol_id)?;
-        (canonical_item == item).then_some(*symbol_id)
+        (canonical_item.matches_type_item(item)).then_some(*symbol_id)
     }
 
     fn invalidate_query_indexes(&mut self) {
@@ -334,14 +303,8 @@ fn node_name(gcx: Gcx<'_>, item_id: ItemId) -> Option<String> {
     })
 }
 
-fn sort_and_dedup_symbols(
-    symbols: &mut Vec<SymbolId>,
-    items: &FxHashMap<SymbolId, TypeHierarchyItem>,
-) {
-    symbols.sort_unstable_by_key(|symbol| {
-        let item = &items[symbol];
-        (item.uri.as_str(), crate::proto::range_key(item.selection_range))
-    });
+fn sort_and_dedup_symbols(symbols: &mut Vec<SymbolId>, items: &FxHashMap<SymbolId, HierarchyItem>) {
+    symbols.sort_unstable_by_key(|symbol| &items[symbol].key);
     symbols.dedup();
 }
 
