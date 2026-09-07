@@ -919,7 +919,7 @@ fn display_metadata<'a>(
     }
 
     fmt::from_fn(move |f| {
-        let mut fields = ArrayVec::<MetadataField<'_>, 9>::new();
+        let mut fields = ArrayVec::<MetadataField<'_>, 10>::new();
 
         if let Some(storage) = metadata.storage_alias() {
             fields.push(MetadataField::Storage(storage, func));

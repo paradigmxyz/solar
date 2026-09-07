@@ -1,0 +1,67 @@
+;; Pure 256-bit word reductions, checked from this source by verify_evm_rules.py.
+;;
+;; Mixed bitwise families were discovered by bounded enumeration; arithmetic
+;; candidates were supplied explicitly. See scripts/evm_rules/README.md for the
+;; search recipe, proof boundary and counterexample replay. These alternatives
+;; stay at the original instruction and compete under Target plus stack traffic.
+;; Add(value, 0) lets a leaf replacement use the multi-result rewrite interface;
+;; ordinary simplification removes it without allocating an instruction.
+
+;; (x & y) & (x ^ y) => 0
+;; (x & y) & (x | y) => x & y
+;; (x | y) & (x ^ y) => x ^ y
+;; (x & y) | (x | y) => x | y
+;; (x & y) | (x ^ y) => x | y
+;; (x | y) | (x ^ y) => x | y
+;; (x & y) ^ (x | y) => x ^ y
+;; (x & y) ^ (x ^ y) => x | y
+;; (x | y) ^ (x ^ y) => x & y
+(rule (rewrite (Op.And (band v0 v1) (bxor v0 v1))) (Op.Add (imm (u256 0)) (imm (u256 0))))
+(rule (rewrite (Op.And (band v0 v1) (bxor v1 v0))) (Op.Add (imm (u256 0)) (imm (u256 0))))
+(rule (rewrite (Op.And (bxor v0 v1) (band v0 v1))) (Op.Add (imm (u256 0)) (imm (u256 0))))
+(rule (rewrite (Op.And (bxor v0 v1) (band v1 v0))) (Op.Add (imm (u256 0)) (imm (u256 0))))
+(rule (rewrite (Op.And (band v0 v1) (bor v0 v1))) (Op.And v0 v1))
+(rule (rewrite (Op.And (band v0 v1) (bor v1 v0))) (Op.And v0 v1))
+(rule (rewrite (Op.And (bor v0 v1) (band v0 v1))) (Op.And v0 v1))
+(rule (rewrite (Op.And (bor v0 v1) (band v1 v0))) (Op.And v0 v1))
+(rule (rewrite (Op.And (bor v0 v1) (bxor v0 v1))) (Op.Xor v0 v1))
+(rule (rewrite (Op.And (bor v0 v1) (bxor v1 v0))) (Op.Xor v0 v1))
+(rule (rewrite (Op.And (bxor v0 v1) (bor v0 v1))) (Op.Xor v0 v1))
+(rule (rewrite (Op.And (bxor v0 v1) (bor v1 v0))) (Op.Xor v0 v1))
+(rule (rewrite (Op.Or (band v0 v1) (bor v0 v1))) (Op.Or v0 v1))
+(rule (rewrite (Op.Or (band v0 v1) (bor v1 v0))) (Op.Or v0 v1))
+(rule (rewrite (Op.Or (bor v0 v1) (band v0 v1))) (Op.Or v0 v1))
+(rule (rewrite (Op.Or (bor v0 v1) (band v1 v0))) (Op.Or v0 v1))
+(rule (rewrite (Op.Or (band v0 v1) (bxor v0 v1))) (Op.Or v0 v1))
+(rule (rewrite (Op.Or (band v0 v1) (bxor v1 v0))) (Op.Or v0 v1))
+(rule (rewrite (Op.Or (bxor v0 v1) (band v0 v1))) (Op.Or v0 v1))
+(rule (rewrite (Op.Or (bxor v0 v1) (band v1 v0))) (Op.Or v0 v1))
+(rule (rewrite (Op.Or (bor v0 v1) (bxor v0 v1))) (Op.Or v0 v1))
+(rule (rewrite (Op.Or (bor v0 v1) (bxor v1 v0))) (Op.Or v0 v1))
+(rule (rewrite (Op.Or (bxor v0 v1) (bor v0 v1))) (Op.Or v0 v1))
+(rule (rewrite (Op.Or (bxor v0 v1) (bor v1 v0))) (Op.Or v0 v1))
+(rule (rewrite (Op.Xor (band v0 v1) (bor v0 v1))) (Op.Xor v0 v1))
+(rule (rewrite (Op.Xor (band v0 v1) (bor v1 v0))) (Op.Xor v0 v1))
+(rule (rewrite (Op.Xor (bor v0 v1) (band v0 v1))) (Op.Xor v0 v1))
+(rule (rewrite (Op.Xor (bor v0 v1) (band v1 v0))) (Op.Xor v0 v1))
+(rule (rewrite (Op.Xor (band v0 v1) (bxor v0 v1))) (Op.Or v0 v1))
+(rule (rewrite (Op.Xor (band v0 v1) (bxor v1 v0))) (Op.Or v0 v1))
+(rule (rewrite (Op.Xor (bxor v0 v1) (band v0 v1))) (Op.Or v0 v1))
+(rule (rewrite (Op.Xor (bxor v0 v1) (band v1 v0))) (Op.Or v0 v1))
+(rule (rewrite (Op.Xor (bor v0 v1) (bxor v0 v1))) (Op.And v0 v1))
+(rule (rewrite (Op.Xor (bor v0 v1) (bxor v1 v0))) (Op.And v0 v1))
+(rule (rewrite (Op.Xor (bxor v0 v1) (bor v0 v1))) (Op.And v0 v1))
+(rule (rewrite (Op.Xor (bxor v0 v1) (bor v1 v0))) (Op.And v0 v1))
+
+;; x * MAX => 0 - x
+;; sdiv(x, MAX) => 0 - x
+;; Includes the EVM minimum-signed-word / -1 wraparound case.
+(rule (rewrite (Op.Mul x (all_ones))) (Op.Sub (imm (u256 0)) x))
+(rule (rewrite (Op.Mul (all_ones) x)) (Op.Sub (imm (u256 0)) x))
+(rule (rewrite (Op.SDiv x (all_ones))) (Op.Sub (imm (u256 0)) x))
+
+;; ~x - ~y => y - x
+;; x + ~x => MAX
+(rule (rewrite (Op.Sub (bnot x) (bnot y))) (Op.Sub y x))
+(rule (rewrite (Op.Add x (bnot x))) (Op.Add (imm (u256_max)) (imm (u256 0))))
+(rule (rewrite (Op.Add (bnot x) x)) (Op.Add (imm (u256_max)) (imm (u256 0))))

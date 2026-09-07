@@ -72,6 +72,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &memory_dse::MemoryDse,
     &coalesce_allocs::CoalesceAllocs,
     &static_alloc::StaticAlloc,
+    &static_alloc::DeferAlloc,
     &sroa::Sroa,
     &copy_elision::CopyElision,
     &dce::Dce,

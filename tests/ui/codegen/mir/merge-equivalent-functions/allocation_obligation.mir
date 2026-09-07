@@ -1,0 +1,32 @@
+//@ compile-flags: -Zmir-pipeline=merge-equivalent-functions
+//@ filecheck:
+@module AllocationObligation
+
+// The same allocation operation can have different placement obligations.
+// CHECK-LABEL: fn @movable
+// CHECK: alloc raw, exact, uninitialized, infallible, 64{{$}}
+fn @movable() -> memptr {
+  bb0:
+    v0 = alloc raw, exact, uninitialized, infallible, 64
+    ret v0
+}
+
+// CHECK-LABEL: fn @reserved
+// CHECK: alloc raw, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+fn @reserved() -> memptr {
+  bb0:
+    v0 = alloc raw, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    ret v0
+}
+
+// CHECK-LABEL: fn @entry
+// CHECK: icall @movable, 1
+// CHECK: icall @reserved, 1
+fn @entry() [selector=0x01020304] {
+  bb0:
+    v0 = icall @movable, 1
+    v1 = icall @reserved, 1
+    mstore v0, 42
+    mstore v1, 7
+    returndata v1, 32
+}
