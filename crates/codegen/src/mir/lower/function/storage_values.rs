@@ -50,18 +50,6 @@ fn packed_storage_array_position(
     }
 }
 
-/// Builds the helper for clearing the data words of a storage bytes value.
-fn build_storage_clear_helper(function: &mut Function) {
-    // clear_storage_words(slot, first_word, words)
-    let mut builder = FunctionBuilder::new_semantic(function);
-    let slot = builder.add_param(MirType::uint256());
-    let first_word = builder.add_param(MirType::uint256());
-    let words = builder.add_param(MirType::uint256());
-    builder.clear_storage_words(slot, first_word, words);
-    // ret
-    builder.ret([]);
-}
-
 /// Builds `store_storage_bytes(slot, object)`, shared by every `bytes`/`string` store into
 /// storage like solc's `copy_byte_array_to_storage`: one body per contract instead of one per
 /// assignment site.
@@ -1334,75 +1322,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(())
     }
 
-    fn storage_clear_helper(&mut self) -> FunctionId {
-        self.lazy_helper(sym::clear_storage_words, |_, function| {
-            build_storage_clear_helper(function);
-            Some(())
-        })
-        .expect("storage clear helper construction cannot fail")
-    }
-
-    fn clear_storage_words_with_helper(
-        &mut self,
-        slot: ValueId,
-        first_word: ValueId,
-        words: ValueId,
-    ) {
-        let helper = self.storage_clear_helper();
-        self.builder.icall_void(helper, vec![slot, first_word, words]);
-    }
-
     fn store_constant_storage_bytes(&mut self, slot: ValueId, bytes: &[u8]) {
-        let (_, old_is_long, old_length) = decode_storage_bytes_header(&mut self.builder, slot);
-        let length = self.builder.imm(bytes.len() as u64);
-        let shrunk = self.builder.gt(old_length, length);
-        let needs_cleanup = self.builder.and(old_is_long, shrunk);
-        let cleanup_block = self.builder.create_block();
-        let write_block = self.builder.create_block();
-        self.builder.branch(needs_cleanup, cleanup_block, write_block);
-
-        // if old_is_long && old_length > length {
-        //     clear_storage_words(slot, new_words, old_words)
-        // }
-        self.builder.switch_to_block(cleanup_block);
-        let word_size = self.builder.imm(32);
-        let thirty_one = self.builder.imm(31);
-        let old_rounded = self.builder.add(old_length, thirty_one);
-        let old_words = self.builder.div(old_rounded, word_size);
-        let new_words = if bytes.len() < 32 {
-            self.builder.imm(0)
-        } else {
-            self.builder.imm(bytes.len().div_ceil(32) as u64)
-        };
-        self.clear_storage_words_with_helper(slot, new_words, old_words);
-        self.builder.jump(write_block);
-
-        self.builder.switch_to_block(write_block);
-        if bytes.len() < 32 {
-            // sstore(slot, bytes_word | length * 2)
-            let word = if bytes.is_empty() {
-                U256::ZERO
-            } else {
-                U256::from_be_slice(bytes) << ((32 - bytes.len()) * 8)
-            };
-            let tag = U256::from((bytes.len() as u64) * 2);
-            let value = self.builder.imm(word | tag);
-            self.builder.sstore(slot, value);
-        } else {
-            // sstore(slot, length * 2 + 1)
-            // for chunk, i { sstore(storage_array_data_slot(slot) + i, chunk) }
-            let tag = U256::from((bytes.len() as u64) * 2 + 1);
-            let value = self.builder.imm(tag);
-            self.builder.sstore(slot, value);
-            let data_slot = self.builder.storage_array_data_slot(slot);
-            for (index, chunk) in bytes.chunks(32).enumerate() {
-                let word = U256::from_be_slice(chunk) << ((32 - chunk.len()) * 8);
-                let index = self.builder.imm(index as u64);
-                let element_slot = self.builder.add(data_slot, index);
-                let value = self.builder.imm(word);
-                self.builder.sstore(element_slot, value);
-            }
-        }
+        // store_storage_bytes_literal slot, bytes
+        self.builder.store_storage_bytes_literal(slot, bytes);
     }
 
     fn store_dynamic_storage_object(

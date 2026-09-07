@@ -7,7 +7,7 @@ use super::{
     SliceLocation, StorageAlias, StructId, Terminator, Value, ValueId,
 };
 use crate::mir::memory::EvmMemoryLayout;
-use alloy_primitives::U256;
+use alloy_primitives::{Bytes, U256};
 use smallvec::SmallVec;
 use solar_config::RevertStrings;
 use solar_data_structures::map::FxHashMap;
@@ -1126,6 +1126,15 @@ impl<'a> FunctionBuilder<'a> {
     pub(crate) fn store_storage_bytes(&mut self, slot: ValueId, object: ValueId) {
         // store_storage_bytes slot, object
         self.emit_void_inst(InstKind::StorageBytesStore(slot, object));
+    }
+
+    /// Stores literal bytes in storage, clearing any unused old data words.
+    pub(crate) fn store_storage_bytes_literal(&mut self, slot: ValueId, bytes: &[u8]) {
+        // store_storage_bytes_literal slot, bytes
+        self.emit_void_inst(InstKind::StorageBytesStoreLiteral {
+            slot,
+            bytes: Bytes::copy_from_slice(bytes),
+        });
     }
 
     /// Clears the hashed data words of a storage array in `first..end`.

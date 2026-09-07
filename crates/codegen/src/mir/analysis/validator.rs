@@ -1093,7 +1093,8 @@ impl<'a> Validator<'a> {
                         }
                     }
                     InstKind::ValidateStorageBytes(operand)
-                    | InstKind::StorageBytesLoad(operand) => {
+                    | InstKind::StorageBytesLoad(operand)
+                    | InstKind::StorageBytesStoreLiteral { slot: operand, .. } => {
                         if func.value_ty(operand).is_none_or(|ty| {
                             !ty.is_word() || matches!(ty, MirType::MemoryObject(_))
                         }) {

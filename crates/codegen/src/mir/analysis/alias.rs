@@ -1233,6 +1233,10 @@ impl AliasAnalysis {
                 effects.write_any(AddressSpace::Storage);
                 read_memory(&mut effects, object, SizeOperand::Unknown);
             }
+            InstKind::StorageBytesStoreLiteral { .. } => {
+                effects.read_any(AddressSpace::Storage);
+                effects.write_any(AddressSpace::Storage);
+            }
             InstKind::StorageClearWords(..) => effects.write_any(AddressSpace::Storage),
             InstKind::ClearStorage { .. } => {
                 let InstKind::ClearStorage { storage, layout } = kind else { unreachable!() };

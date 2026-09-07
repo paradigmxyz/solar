@@ -38,7 +38,9 @@ impl MirPass for LowerBuiltins {
         for func in &module.functions {
             for id in func.instructions() {
                 match func.inst(id).kind {
-                    InstKind::StorageBytesStore(..) => needs_clear = true,
+                    InstKind::StorageBytesStore(..) | InstKind::StorageBytesStoreLiteral { .. } => {
+                        needs_clear = true
+                    }
                     InstKind::StorageArrayLoad {
                         element: MirType::MemoryObject(MemoryObjectKind::Bytes),
                         ..
@@ -91,6 +93,17 @@ impl MirPass for LowerBuiltins {
                                 slot,
                                 object,
                                 clear_helper.expect("storage store requires a clear helper"),
+                            );
+                            continue;
+                        }
+                        InstKind::StorageBytesStoreLiteral { slot, bytes } => {
+                            // validate header; clear old tail; store literal header and data
+                            super::lower_storage_bytes::store_literal(
+                                &mut builder,
+                                slot,
+                                &bytes,
+                                clear_helper
+                                    .expect("literal storage store requires a clear helper"),
                             );
                             continue;
                         }
@@ -169,6 +182,7 @@ fn is_builtin(kind: &InstKind) -> bool {
             | InstKind::StorageBytesLoad(..)
             | InstKind::StorageArrayLoad { .. }
             | InstKind::StorageBytesStore(..)
+            | InstKind::StorageBytesStoreLiteral { .. }
             | InstKind::StorageClearWords(..)
             | InstKind::Erc7201(..)
             | InstKind::CheckedAddMod(..)

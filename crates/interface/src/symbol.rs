@@ -1246,6 +1246,7 @@ symbols! {
         storageptr,
         store_recursive_storage,
         store_storage_bytes,
+        store_storage_bytes_literal,
         storeimmutable,
         struct_calldata_too_short,
         struct_data_too_short,

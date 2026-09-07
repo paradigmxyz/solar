@@ -56,3 +56,10 @@ fn @array_slot(arg0: memorybytes) -> memoryarray {
     v0 = load_storage_array u256, arg0
     ret v0
 }
+
+//~? ERROR: [fn8] [bb0, inst0] storage bytes operation requires a word operand
+fn @literal_slot(arg0: memorybytes) {
+  bb0:
+    store_storage_bytes_literal arg0, hex"61"
+    ret
+}

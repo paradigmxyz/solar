@@ -5,7 +5,7 @@ use super::{
     FunctionId, ImmutableId, MemoryObjectKind, MemoryObjectLayout, MirType, SliceLocation,
     StorageLayoutRef, StructId, Value, ValueId,
 };
-use alloy_primitives::U256;
+use alloy_primitives::{Bytes, U256};
 use smallvec::{Array, SmallVec};
 use solar_interface::Span;
 use solar_sema::hir;
@@ -697,6 +697,7 @@ impl Instruction {
             | InstKind::StorageBytesLoad(..)
             | InstKind::StorageArrayLoad { .. }
             | InstKind::StorageBytesStore(..)
+            | InstKind::StorageBytesStoreLiteral { .. }
             | InstKind::StorageClearWords(..)
             | InstKind::Erc7201(..)
             | InstKind::CheckedAddMod(..)
@@ -1166,6 +1167,8 @@ pub(crate) enum InstKind {
     StorageArrayLoad { slot: ValueId, element: MirType, enum_variants: Option<u64> },
     /// Store a memory bytes object in Solidity storage, clearing unused old data words.
     StorageBytesStore(ValueId, ValueId),
+    /// Store literal bytes in Solidity storage, clearing unused old data words.
+    StorageBytesStoreLiteral { slot: ValueId, bytes: Bytes },
     /// Clears hashed storage data words in the half-open range `first..end`.
     StorageClearWords(ValueId, ValueId, ValueId),
     /// Load from storage: `sload(slot)`
@@ -1612,6 +1615,7 @@ impl InstKind {
             | Self::ValidateStorageBytes(a)
             | Self::StorageBytesLoad(a)
             | Self::StorageArrayLoad { slot: a, .. }
+            | Self::StorageBytesStoreLiteral { slot: a, .. }
             | Self::SLoad(a)
             | Self::TLoad(a)
             | Self::CalldataLoad(a)
@@ -1928,6 +1932,7 @@ impl InstKind {
             | Self::ValidateStorageBytes(a)
             | Self::StorageBytesLoad(a)
             | Self::StorageArrayLoad { slot: a, .. }
+            | Self::StorageBytesStoreLiteral { slot: a, .. }
             | Self::SLoad(a)
             | Self::TLoad(a)
             | Self::CalldataLoad(a)
@@ -2140,6 +2145,7 @@ impl InstKind {
             Self::StorageBytesLoad(_) => "load_storage_bytes",
             Self::StorageArrayLoad { .. } => "load_storage_array",
             Self::StorageBytesStore(..) => "store_storage_bytes",
+            Self::StorageBytesStoreLiteral { .. } => "store_storage_bytes_literal",
             Self::StorageClearWords(..) => "clear_storage_words",
             Self::SLoad(_) => "sload",
             Self::SStore(_, _) => "sstore",
@@ -2335,7 +2341,8 @@ impl InstKind {
             | Self::MemoryToStorage { .. }
             | Self::ClearStorage { .. }
             | Self::StorageClearWords(..)
-            | Self::StorageBytesStore(..) => EffectKind::StorageWrite,
+            | Self::StorageBytesStore(..)
+            | Self::StorageBytesStoreLiteral { .. } => EffectKind::StorageWrite,
             Self::TLoad(_) => EffectKind::TransientRead,
             Self::TStore(_, _) => EffectKind::TransientWrite,
             Self::Call { .. }

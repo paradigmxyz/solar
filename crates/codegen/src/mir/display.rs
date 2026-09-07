@@ -555,6 +555,12 @@ fn display_inst_kind<'a>(
             display_val(*source, func),
             display_val(*length, func)
         ),
+        InstKind::StorageBytesStoreLiteral { slot, bytes } => write!(
+            f,
+            "store_storage_bytes_literal {}, hex\"{}\"",
+            display_val(*slot, func),
+            alloy_primitives::hex::encode(bytes)
+        ),
         InstKind::StorageArrayLoad { slot, element, enum_variants } => {
             write!(f, "load_storage_array ")?;
             if let Some(variants) = enum_variants {

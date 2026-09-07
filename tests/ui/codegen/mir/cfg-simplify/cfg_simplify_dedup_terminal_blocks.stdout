@@ -138,3 +138,14 @@
       ret v0
   }
   
+  fn @keep_distinct_storage_literals(arg0: bool, arg1: u256) {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb2:
+      store_storage_bytes_literal arg1, hex"62"
+      ret
+    bb1:
+      store_storage_bytes_literal arg1, hex"61"
+      ret
+  }
+  

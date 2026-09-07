@@ -172,3 +172,18 @@ fn @merge_equal_packed_literals(arg0: bool) -> bytes32 {
     v1 = keccak256_packed (data hex"61")
     ret v1
 }
+
+// CHECK-LABEL: {{^[ +].*}}fn @keep_distinct_storage_literals{{[( ]}}
+// CHECK: {{^[ +].*}}jumpi arg0, bb1, bb2
+// CHECK-DAG: {{^[ +].*}}store_storage_bytes_literal arg1, hex"61"
+// CHECK-DAG: {{^[ +].*}}store_storage_bytes_literal arg1, hex"62"
+fn @keep_distinct_storage_literals(arg0: bool, arg1: u256) {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    store_storage_bytes_literal arg1, hex"61"
+    ret
+  bb2:
+    store_storage_bytes_literal arg1, hex"62"
+    ret
+}

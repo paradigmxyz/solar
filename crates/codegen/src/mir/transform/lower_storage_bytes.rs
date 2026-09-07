@@ -8,7 +8,8 @@
 //! termination independently of wrapping storage addresses. Address hashing stays abstract until
 //! memory lowering, as it does for ordinary array accesses. Writes share a clear helper, validate
 //! the old header, clear truncated words, and mask partial words before storing new data. They
-//! leave allocation and memory layout decisions to the later conversion passes.
+//! leave allocation and memory layout decisions to the later conversion passes. Literal stores
+//! write known headers and padded words directly, without creating a memory bytes object.
 
 use crate::mir::{
     AllocationSemantics, Function, FunctionBuilder, FunctionId, InstKind, MemoryObjectKind,
@@ -241,4 +242,66 @@ pub(super) fn store(
     builder.jump(merge_block);
 
     builder.switch_to_block(merge_block);
+}
+
+pub(super) fn store_literal(
+    builder: &mut FunctionBuilder<'_>,
+    slot: ValueId,
+    bytes: &[u8],
+    clear_helper: FunctionId,
+) {
+    // header = sload(slot)
+    // old_is_long, old_length = validate_storage_bytes(header)
+    // branch old_is_long && old_length > length, cleanup, write
+    let header = builder.sload(slot);
+    let (old_is_long, old_length) = validate(builder, header);
+    let length = builder.imm(bytes.len() as u64);
+    let shrunk = builder.gt(old_length, length);
+    let needs_cleanup = builder.and(old_is_long, shrunk);
+    let cleanup_block = builder.create_block();
+    let write_block = builder.create_block();
+    builder.branch(needs_cleanup, cleanup_block, write_block);
+
+    // if old_is_long && old_length > length {
+    //     clear_storage_words(slot, new_words, old_words)
+    // }
+    builder.switch_to_block(cleanup_block);
+    let word_size = builder.imm(32);
+    let thirty_one = builder.imm(31);
+    let old_rounded = builder.add(old_length, thirty_one);
+    let old_words = builder.div(old_rounded, word_size);
+    let new_words = if bytes.len() < 32 {
+        builder.imm(0)
+    } else {
+        builder.imm(bytes.len().div_ceil(32) as u64)
+    };
+    builder.icall_void(clear_helper, vec![slot, new_words, old_words]);
+    builder.jump(write_block);
+
+    builder.switch_to_block(write_block);
+    if bytes.len() < 32 {
+        // sstore(slot, bytes_word | length * 2)
+        let word = if bytes.is_empty() {
+            U256::ZERO
+        } else {
+            U256::from_be_slice(bytes) << ((32 - bytes.len()) * 8)
+        };
+        let tag = U256::from((bytes.len() as u64) * 2);
+        let value = builder.imm(word | tag);
+        builder.sstore(slot, value);
+    } else {
+        // sstore(slot, length * 2 + 1)
+        // for chunk, i { sstore(storage_array_data_slot(slot) + i, chunk) }
+        let tag = U256::from((bytes.len() as u64) * 2 + 1);
+        let value = builder.imm(tag);
+        builder.sstore(slot, value);
+        let data_slot = builder.storage_array_data_slot(slot);
+        for (index, chunk) in bytes.chunks(32).enumerate() {
+            let word = U256::from_be_slice(chunk) << ((32 - chunk.len()) * 8);
+            let index = builder.imm(index as u64);
+            let element_slot = builder.add(data_slot, index);
+            let value = builder.imm(word);
+            builder.sstore(element_slot, value);
+        }
+    }
 }

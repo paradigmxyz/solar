@@ -629,6 +629,7 @@ fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInli
                 | InstKind::StorageBytesLoad(..)
                 | InstKind::StorageArrayLoad { .. }
                 | InstKind::StorageBytesStore(..)
+                | InstKind::StorageBytesStoreLiteral { .. }
                 | InstKind::StorageClearWords(..)
                 | InstKind::CheckedAddMod(..)
                 | InstKind::CheckedMulMod(..)
@@ -943,6 +944,7 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (MirCos
         InstKind::StorageBytesLoad(_) => (400, 150),
         InstKind::StorageArrayLoad { .. } => (400, 150),
         InstKind::StorageBytesStore(..) => (500, 180),
+        InstKind::StorageBytesStoreLiteral { bytes, .. } => (500, 180 + bytes.len()),
         InstKind::StorageClearWords(..) => (120, 32),
         InstKind::Erc7201(_) => (90, 30),
         InstKind::CheckedAddMod(..) | InstKind::CheckedMulMod(..) => (32, 9),

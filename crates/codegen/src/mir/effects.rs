@@ -67,6 +67,7 @@ impl InstKind {
             | Self::StorageBytesLoad(..)
             | Self::StorageArrayLoad { .. }
             | Self::StorageBytesStore(..)
+            | Self::StorageBytesStoreLiteral { .. }
             | Self::ValidateAbi(..)
             | Self::CheckedAddMod(..)
             | Self::CheckedMulMod(..)

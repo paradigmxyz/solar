@@ -2261,6 +2261,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     Some(MirType::MemoryObject(MemoryObjectKind::DynamicArray)),
                 )
             }
+            sym::store_storage_bytes_literal => {
+                let slot = self.parse_value(builder)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let bytes = self.parser.parse_data_bytes()?;
+                (InstKind::StorageBytesStoreLiteral { slot, bytes }, None)
+            }
             sym::store_storage_bytes => inst!(StorageBytesStore(a, b)),
             sym::clear_storage_words => inst!(StorageClearWords(a, b, c)),
             sym::load_storage_bytes => {

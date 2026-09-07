@@ -87,9 +87,10 @@ retains its encoding check when the word is unused. Hashed storage-data clearing
 retains its slot and half-open word range as one storage-writing operation;
 builtin conversion emits the loop before physical address hashing. Stores from
 memory bytes objects retain header validation, tail clearing, and copying as
-one storage-writing operation that reads the source object. Expansion shares
-one clear helper; the later function merge pass also combines it with an
-existing clear helper from constant assignments when their bodies match.
+one storage-writing operation that reads the source object. Literal stores
+retain their bytes as an owned payload and need no source-memory reads. Both
+forms share the clear helper created during builtin conversion; literal
+expansion writes known headers and padded words without allocating memory.
 Dynamic storage-array loads retain scalar element widths, signed/fixed-bytes
 encoding, enum bounds, and bytes-element identity. Conversion allocates and
 copies the array, sharing the bytes loader across bytes elements and direct

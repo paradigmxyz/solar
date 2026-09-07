@@ -2,6 +2,7 @@
 @module StorageStructBytesAssignment
 types:
   struct0: {u256, u256}
+  struct1: {u256, u256, u256}
 
 fn @roundTrip() -> struct0 [selector=0x6643a628, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
@@ -14,6 +15,65 @@ fn @roundTrip() -> struct0 [selector=0x6643a628, abi_params=[], abi_returns=[wor
     v5 = insert_value struct0, undef struct0, 0, v3
     v6 = insert_value struct0, v5, 1, v4
     ret v6
+}
+
+fn @cleanupEmpty() -> struct1 [selector=0x1312e7ef, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+  bb0:
+    store_storage_bytes_literal 0, hex"61616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161"
+    store_storage_bytes_literal 0, hex""
+    v0 = sload 0 !metadata(storage=slot(0))
+    mstore 0, 0 !metadata(memory=scratch)
+    v1 = keccak256 0, 32 !metadata(memory=scratch)
+    v2 = sload v1 !metadata(storage=symbolic(v1))
+    v3 = add v1, 1
+    v4 = sload v3 !metadata(storage=offset(v1, 1))
+    v5 = insert_value struct1, undef struct1, 0, v0
+    v6 = insert_value struct1, v5, 1, v2
+    v7 = insert_value struct1, v6, 2, v4
+    ret v7
+}
+
+fn @cleanupShort() -> struct1 [selector=0x14d48529, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+  bb0:
+    store_storage_bytes_literal 0, hex"61616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161"
+    store_storage_bytes_literal 0, hex"61"
+    mstore 0, 0 !metadata(memory=scratch)
+    v0 = keccak256 0, 32 !metadata(memory=scratch)
+    v1 = sload v0 !metadata(storage=symbolic(v0))
+    v2 = add v0, 1
+    v3 = sload v2 !metadata(storage=offset(v0, 1))
+    v4 = sload 0 !metadata(storage=slot(0))
+    validate_storage_bytes v4
+    v5 = and v4, 1
+    v6 = eq v5, 1
+    v7 = shr 1, v4
+    v8 = and v7, 127
+    v9 = select v6, v7, v8
+    v10 = insert_value struct1, undef struct1, 0, v9
+    v11 = insert_value struct1, v10, 1, v1
+    v12 = insert_value struct1, v11, 2, v3
+    ret v12
+}
+
+fn @choose(arg0: bool) -> memorybytes [selector=0xf6e00e0f, abi_params=[bool], abi_returns=[memory_bytes]] {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb2:
+    store_storage_bytes_literal 0, hex"62"
+    jump bb3
+  bb1:
+    store_storage_bytes_literal 0, hex"61"
+    jump bb3
+  bb3:
+    v0 = load_storage_bytes 0
+    ret v0
+}
+
+fn @malformed(arg0: u256) [selector=0xaf240adf, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    sstore 0, arg0 !metadata(storage=slot(0))
+    store_storage_bytes_literal 0, hex"61"
+    ret
 }
 
 fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
