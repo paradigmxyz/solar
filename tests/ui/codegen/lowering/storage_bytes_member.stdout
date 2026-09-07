@@ -148,8 +148,6 @@ bb22:
   push 128
   mload
   add
-  push 255
-  and
   push 248
   shl
   dup 2
@@ -556,8 +554,6 @@ bb52:
   push 3
   shl
   shr
-  push 255
-  and
   push 248
   shl
   jump bb83
@@ -633,12 +629,6 @@ bb54:
   jumpi
   jump bb62
 bb62:
-  push 255
-  push 248
-  shl
-  push 36
-  calldataload
-  and
   push 31
   push 4
   calldataload
@@ -650,15 +640,17 @@ bb62:
   push 255
   dup 2
   shl
-  dup 4
+  dup 3
   sload
   swap 1
   not
   and
-  swap 2
+  push 36
+  calldataload
   push 248
   shr
   swap 1
+  swap 2
   shl
   or
   swap 1
