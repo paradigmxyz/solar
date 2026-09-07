@@ -216,7 +216,10 @@ Use small derived properties for context-free behavior, backed by the existing
 alias and call-summary analyses for footprints. Before layout lowering, use
 object identity and field/element accesses where proven; raw pointer or assembly
 accesses must conservatively alias unless a disjointness proof exists. Allocation
-provenance uses shared CFG cycle facts to distinguish joins from loops. Do not
+provenance uses shared CFG cycle facts to distinguish joins from loops. Data
+pointers retain a proven lower bound from their object, so writes to allocation
+contents do not appear to reset the free-memory pointer. Raw pointer conversions
+still need a proof that they avoid reserved memory. Do not
 attach heap-allocated effect records to every instruction. Unknown calls remain
 conservative; known intrinsics expose their summaries without expanding their
 implementation.
@@ -462,3 +465,9 @@ as a tie-breaker. Check the same successful corpus cases and serialized bytecode
 not only total size. CFG maintenance changes must retain behavior; fewer repair
 scans alone are not evidence of better generated code. Debug metadata must stay
 bytecode-neutral throughout these rewrites.
+
+Static allocation also needs a gas cost model. Raising a shared frame region can
+increase memory expansion in other entry points, even when every address keeps
+the same PUSH width. Deferring individual allocations can also prevent their
+coalescing into one dynamic bump. The current layout checks PUSH widths; these
+remaining costs need per-entry runtime measurements before broadening placement.

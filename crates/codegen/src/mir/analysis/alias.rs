@@ -1905,6 +1905,10 @@ impl AliasAnalysis {
                 Some(EvmMemoryLayout::HEAP_START)
             }
             InstKind::InternalFrameAddr(offset) => EvmMemoryLayout::HEAP_START.checked_add(*offset),
+            InstKind::MemoryObjectData(object, kind) => {
+                Self::pointer_lower_bound(func, *object, depth + 1)?
+                    .checked_add(EvmMemoryLayout::object_data_offset(*kind))
+            }
             InstKind::Add(first, second) => Self::pointer_lower_bound(func, *first, depth + 1)
                 .and_then(|base| base.checked_add(func.value_u64(*second)?))
                 .or_else(|| {

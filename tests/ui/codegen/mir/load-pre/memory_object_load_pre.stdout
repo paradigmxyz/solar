@@ -16,3 +16,39 @@
 +     ret arg2
   }
   
+  fn @data_write_preserves_allocation_provenance(arg0: bool) -> u256 {
+    bb0:
+      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+      set_memory_object_len memorybytes, v0, 7
+      v1 = memory_object_data memorybytes, v0
+      mstore v1, 99
+      v2 = memory_object_len memorybytes, v0
+      jumpi arg0, bb1, bb2
+    bb1:
+      v3 = alloc memorybytes, exact, uninitialized, infallible, 32
+      set_memory_object_len memorybytes, v3, 0
+      jump bb2
+    bb2:
+-     v4 = memory_object_len memorybytes, v0
+-     ret v4
++     ret v2
+  }
+  
+  fn @unknown_data_write_can_reset_fmp(arg0: bool, arg1: u256) -> u256 {
+    bb0:
+      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+      set_memory_object_len memorybytes, v0, 7
+      v1 = memory_object_from_ptr memorybytes, arg1
+      v2 = memory_object_data memorybytes, v1
+      mstore v2, v0
+      v3 = memory_object_len memorybytes, v0
+      jumpi arg0, bb1, bb2
+    bb1:
+      v4 = alloc memorybytes, exact, uninitialized, infallible, 32
+      set_memory_object_len memorybytes, v4, 0
+      jump bb2
+    bb2:
+      v5 = memory_object_len memorybytes, v0
+      ret v5
+  }
+  
