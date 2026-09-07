@@ -303,7 +303,7 @@ pub(super) fn lower(
 fn shared_string_literals(
     gcx: Gcx<'_>,
     function_ids: &[(hir::FunctionId, bool)],
-) -> (FxHashSet<ByteSymbol>, FxHashSet<ByteSymbol>) {
+) -> (FxHashMap<ByteSymbol, usize>, FxHashSet<ByteSymbol>) {
     struct Counter<'hir> {
         hir: &'hir hir::Hir<'hir>,
         counts: FxHashMap<ByteSymbol, usize>,
@@ -338,17 +338,20 @@ fn shared_string_literals(
     for &(function_id, _) in function_ids {
         let _ = counter.visit_function(gcx.hir.function(function_id));
     }
-    let mut shared = FxHashSet::default();
+    let mut shared = Vec::new();
     let mut shared_word = FxHashSet::default();
     for (bytes, count) in counter.counts {
         if count < 3 || bytes.as_byte_str().is_empty() {
             continue;
         }
         if count >= 4 {
-            shared.insert(bytes);
+            shared.push(bytes);
         }
         shared_word.insert(bytes);
     }
+    // Name helpers by literal bytes, independent of parallel symbol interning.
+    shared.sort_unstable_by(|a, b| a.as_byte_str().cmp(b.as_byte_str()));
+    let shared = shared.into_iter().enumerate().map(|(index, symbol)| (symbol, index)).collect();
     (shared, shared_word)
 }
 

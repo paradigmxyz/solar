@@ -172,8 +172,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 vec![word, length],
                 MirType::MemoryObject(MemoryObjectKind::Bytes),
             )
-        } else if self.cx.shared_literals.contains(&symbol) {
-            let helper = self.ensure_bytes_literal_helper(symbol);
+        } else if let Some(&index) = self.cx.shared_literals.get(&symbol) {
+            let helper = self.ensure_bytes_literal_helper(symbol, index);
             self.builder.icall(helper, Vec::new(), MirType::MemoryObject(MemoryObjectKind::Bytes))
         } else {
             self.lower_bytes_literal(bytes)?
@@ -232,9 +232,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(object)
     }
 
-    fn ensure_bytes_literal_helper(&mut self, symbol: ByteSymbol) -> FunctionId {
+    fn ensure_bytes_literal_helper(&mut self, symbol: ByteSymbol, index: usize) -> FunctionId {
         // literal_bytes() -> bytes
-        self.lazy_helper(helper_name(sym::literal_bytes, symbol.as_u32()), |this, function| {
+        self.lazy_helper(helper_name(sym::literal_bytes, index), |this, function| {
             let mut builder = FunctionBuilder::new_semantic(function);
             builder.add_return(MirType::MemoryObject(MemoryObjectKind::Bytes));
             let object = Self::build_bytes_literal(
