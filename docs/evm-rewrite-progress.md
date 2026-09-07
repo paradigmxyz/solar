@@ -1781,3 +1781,30 @@ pass. Evidence is retained in `writer-operand-cache-workflow-20260907/` and
 `writer-address-regression-proposal-20260907/`. The existing cold-fallthrough
 and calldata-alias failures, original memory-contract defects and sealed
 performance debt remain open. This is not whole-rewrite completion.
+
+
+### Terminal tail-call transport candidate
+
+The next candidate extends the existing scheduler entry bypass to bounded,
+read-free tail-call closures ending in fixed-range reverts, including Size mode.
+SSA arguments already exist in MIR; their static-frame stores arise at the
+backend boundary. Each omitted ancestor interval must miss every descendant
+revert range. Ordinary entries and reservations stay intact. This follows the
+prior-art direction of preserving accessible values through stackification;
+it introduces neither source-memory promotion nor an assembly-stream pass.
+
+Frozen draft `4d6e5953` builds. The first compiled draft exposed a budget-cache
+regression: a nearly exhausted parent poisoned a later leaf request, growing
+its runtime by twelve bytes. Terminal leaves now spend no expansion budget;
+their source-linear scans remain cached once, and the corrected example shrinks
+four bytes. A 261-instruction leaf preserves its old bytecode exactly.
+
+The 1,630-case UI size screen retains identical inputs, IDs and statuses, with
+57 changed objects and no growth. Gas creation/runtime each shrink nine bytes;
+Size creation/runtime shrink 500/442 bytes. All 222 focused calls match exact
+status and payloads, with no measured gas or peak increase. Ancestor-overlap
+stores remain, and eight observer controls are byteexact. These are provisional
+checks: official hot-gas, heavy output, compiler-time, metadata, symbolic and
+full test gates remain open. Original expectations have not changed. Evidence
+is under `terminal-tail-entry-workflow-20260907/`,
+`terminal-tail-closure-tests-20260907/` and `terminal-tail-budget-tests-20260907/`.
