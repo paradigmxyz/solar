@@ -9,6 +9,7 @@ use crate::{
     diagnostics::{AnalyzedDocuments, DiagnosticStore, PullReport},
     handlers,
     project_fixture::ProjectFixture,
+    symbols::CompletionContext,
     utils::apply_document_changes,
     vfs::VfsPath,
     workspace::{
@@ -20,9 +21,9 @@ use crate::{
 use async_lsp::ClientSocket;
 use crop::Rope;
 use lsp_types::{
-    Diagnostic, DidChangeTextDocumentParams, GotoDefinitionResponse, Hover, HoverContents,
-    Location, Position, PreviousResultId, Range, TextDocumentContentChangeEvent, Url,
-    VersionedTextDocumentIdentifier, WorkspaceFolder, WorkspaceSymbol,
+    CompletionItem, Diagnostic, DidChangeTextDocumentParams, GotoDefinitionResponse, Hover,
+    HoverContents, Location, Position, PreviousResultId, Range, TextDocumentContentChangeEvent,
+    Url, VersionedTextDocumentIdentifier, WorkspaceFolder, WorkspaceSymbol,
 };
 use normalize_path::NormalizePath;
 use solar_config::{CompileOpts, Threads};
@@ -528,6 +529,17 @@ impl BenchmarkRepeatedAnalysis {
         Self { state, version }
     }
 
+    /// Advance the VFS revision through an edit and undo before analysis begins.
+    pub fn edit_and_revert(&mut self) {
+        let mut vfs = self.state.vfs.write();
+        let (path, source) =
+            vfs.iter().next().map(|(path, source)| (path.clone(), source.clone())).unwrap();
+        let mut edited = source.clone();
+        edited.insert(0, " ");
+        vfs.set_file_contents(path.clone(), Some(edited));
+        vfs.set_file_contents(path, Some(source));
+    }
+
     /// Run one production analysis epoch, returning whether it published successfully.
     #[inline(never)]
     pub fn run(&mut self) -> bool {
@@ -863,6 +875,12 @@ impl BenchmarkAnalysis {
                 BenchmarkResponse::WorkspaceSymbols(self.symbol_tables.workspace_symbols(query))
             }
         }
+    }
+
+    /// Complete names at a source position without protocol transport or parsing.
+    #[inline(never)]
+    pub fn completions(&self, uri: &Url, position: Position, prefix: &str) -> Vec<CompletionItem> {
+        self.symbol_tables.completion_items(uri, position, CompletionContext::new(prefix, None))
     }
 
     /// Resolve one declaration or reference position synchronously.

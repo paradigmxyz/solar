@@ -981,6 +981,9 @@ impl SymbolTables {
             return Vec::new();
         };
 
+        let prefix = completion_filter_prefix(context.prefix);
+        let matches_prefix =
+            |name: &str| prefix.as_ref().is_none_or(|prefix| fuzzy_completion_match(prefix, name));
         let mut seen = FxHashMap::<&str, SymbolId>::default();
         let mut scope = Some(scope_id);
         while let Some(scope_id) = scope {
@@ -993,17 +996,21 @@ impl SymbolTables {
                     continue;
                 }
                 let symbol = &self.declarations[declaration.symbol_id];
-                seen.entry(symbol.name.as_str()).or_insert(declaration.symbol_id);
+                if matches_prefix(&symbol.name) {
+                    seen.entry(symbol.name.as_str()).or_insert(declaration.symbol_id);
+                }
             }
             scope = current.parent;
         }
 
         let mut items =
             seen.into_values().map(|symbol_id| self.completion_item(symbol_id)).collect::<Vec<_>>();
-        items.extend(self.global_completions.iter().cloned());
+        items.extend(
+            self.global_completions.iter().filter(|item| matches_prefix(&item.label)).cloned(),
+        );
         items.sort_by(|a, b| a.label.cmp(&b.label));
         items.dedup_by(|a, b| a.label == b.label);
-        filter_completion_items(items, context.prefix)
+        items
     }
 
     pub(crate) fn resolve_completion_item(
@@ -2589,12 +2596,6 @@ fn completion_item_for_builtin(builtin: Builtin) -> CompletionItem {
         }),
         ..Default::default()
     }
-}
-
-fn filter_completion_items(mut items: Vec<CompletionItem>, prefix: &str) -> Vec<CompletionItem> {
-    let Some(prefix) = completion_filter_prefix(prefix) else { return items };
-    items.retain(|item| fuzzy_completion_match(&prefix, &item.label));
-    items
 }
 
 fn filtered_completion_items(items: &[CompletionItem], prefix: &str) -> Vec<CompletionItem> {

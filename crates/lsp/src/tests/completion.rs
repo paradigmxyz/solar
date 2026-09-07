@@ -1731,3 +1731,34 @@ second Method
     fixture.check_completion("$4", str![[""]]);
     fixture.check_completion("$5", str![[""]]);
 }
+
+#[test]
+fn filters_visible_names_before_building_items() {
+    let fixture = RequestFixture::new_allowing_diagnostics(
+        r#"
+        //- /Completion.sol open
+        contract C {
+            uint256 needleValue;
+            function f() public {
+                uint256 needleValue = 1;
+                nDV$1;
+                noMatchingName$2;
+            }
+        }
+        "#,
+        "/Completion.sol",
+    );
+    fixture.check_completion(
+        "$1",
+        str![[r#"
+needleValue Variable
+
+"#]],
+    );
+    fixture.check_completion(
+        "$2",
+        str![[r#"
+
+"#]],
+    );
+}

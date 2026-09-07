@@ -2,7 +2,8 @@
 //!
 //! The index retains declaration items and direct hierarchy edges as facts that can be merged
 //! across analysis batches. After merging, [`TypeHierarchyIndex::rebuild`] derives the canonical
-//! query indexes that are published to request handlers.
+//! query indexes that are published to request handlers. Adjacency lists use canonical symbol
+//! IDs; URI/range keys are retained only for node identity across batches and protocol requests.
 
 use crate::symbols::{DeclarationSymbol, SymbolId};
 use lsp_types::{Range, TypeHierarchyItem, Url};
@@ -25,9 +26,9 @@ pub(crate) struct TypeHierarchyIndex {
     candidate_key_by_symbol: FxHashMap<SymbolId, NodeKey>,
     direct_edges: Vec<HierarchyEdge>,
     canonical_symbol_by_key: FxHashMap<NodeKey, SymbolId>,
-    key_by_symbol: FxHashMap<SymbolId, NodeKey>,
-    bases_by_key: FxHashMap<NodeKey, Vec<NodeKey>>,
-    children_by_key: FxHashMap<NodeKey, Vec<NodeKey>>,
+    canonical_symbol_by_symbol: FxHashMap<SymbolId, SymbolId>,
+    bases_by_symbol: FxHashMap<SymbolId, Vec<SymbolId>>,
+    children_by_symbol: FxHashMap<SymbolId, Vec<SymbolId>>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -190,89 +191,82 @@ impl TypeHierarchyIndex {
             .retain(|_, symbol_id| self.items_by_symbol.contains_key(symbol_id));
         for (&symbol_id, key) in &self.candidate_key_by_symbol {
             if self.items_by_symbol.contains_key(&symbol_id)
-                && self.canonical_symbol_by_key.contains_key(key)
+                && let Some(&canonical) = self.canonical_symbol_by_key.get(key)
             {
-                self.key_by_symbol.insert(symbol_id, key.clone());
+                self.canonical_symbol_by_symbol.insert(symbol_id, canonical);
             }
         }
 
         for edge in &self.direct_edges {
-            let (Some(derived), Some(base)) =
-                (self.key_by_symbol.get(&edge.derived), self.key_by_symbol.get(&edge.base))
-            else {
-                continue;
-            };
-            if derived == base {
-                continue;
+            if let (Some(&derived), Some(&base)) = (
+                self.canonical_symbol_by_symbol.get(&edge.derived),
+                self.canonical_symbol_by_symbol.get(&edge.base),
+            ) && derived != base
+            {
+                self.bases_by_symbol.entry(derived).or_default().push(base);
+                self.children_by_symbol.entry(base).or_default().push(derived);
             }
-            self.bases_by_key.entry(derived.clone()).or_default().push(base.clone());
-            self.children_by_key.entry(base.clone()).or_default().push(derived.clone());
         }
 
-        for bases in self.bases_by_key.values_mut() {
-            sort_and_dedup_keys(bases);
-        }
-        for children in self.children_by_key.values_mut() {
-            sort_and_dedup_keys(children);
+        for neighbors in
+            self.bases_by_symbol.values_mut().chain(self.children_by_symbol.values_mut())
+        {
+            sort_and_dedup_symbols(neighbors, &self.items_by_symbol);
         }
     }
 
     pub(crate) fn prepare(&self, symbol_ids: &[SymbolId]) -> Option<Vec<TypeHierarchyItem>> {
-        let mut keys = symbol_ids
+        let mut symbols = symbol_ids
             .iter()
-            .filter_map(|symbol_id| self.key_by_symbol.get(symbol_id))
+            .filter_map(|symbol_id| self.canonical_symbol_by_symbol.get(symbol_id).copied())
             .collect::<Vec<_>>();
-        if keys.is_empty() {
+        if symbols.is_empty() {
             return None;
         }
-        sort_and_dedup_keys(&mut keys);
-        Some(
-            keys.into_iter()
-                .map(|key| self.items_by_symbol[&self.canonical_symbol_by_key[key]].clone())
-                .collect(),
-        )
+        sort_and_dedup_symbols(&mut symbols, &self.items_by_symbol);
+        Some(symbols.into_iter().map(|symbol| self.items_by_symbol[&symbol].clone()).collect())
     }
 
     pub(crate) fn supertypes(&self, item: &TypeHierarchyItem) -> Option<Vec<TypeHierarchyItem>> {
-        self.neighbors(item, &self.bases_by_key)
+        self.neighbors(item, &self.bases_by_symbol)
     }
 
     pub(crate) fn subtypes(&self, item: &TypeHierarchyItem) -> Option<Vec<TypeHierarchyItem>> {
-        self.neighbors(item, &self.children_by_key)
+        self.neighbors(item, &self.children_by_symbol)
     }
 
     pub(crate) fn direct_counts(&self, symbol_ids: &[SymbolId]) -> Option<(usize, usize)> {
-        let key = symbol_ids.iter().find_map(|symbol_id| self.key_by_symbol.get(symbol_id))?;
+        let symbol = symbol_ids
+            .iter()
+            .find_map(|symbol_id| self.canonical_symbol_by_symbol.get(symbol_id))?;
         debug_assert!(
             symbol_ids
                 .iter()
-                .filter_map(|symbol_id| self.key_by_symbol.get(symbol_id))
-                .all(|candidate| candidate == key)
+                .filter_map(|symbol_id| self.canonical_symbol_by_symbol.get(symbol_id))
+                .all(|candidate| candidate == symbol)
         );
-        let bases = self.bases_by_key.get(key).map_or(0, Vec::len);
-        let derived = self.children_by_key.get(key).map_or(0, Vec::len);
+        let bases = self.bases_by_symbol.get(symbol).map_or(0, Vec::len);
+        let derived = self.children_by_symbol.get(symbol).map_or(0, Vec::len);
         Some((bases, derived))
     }
 
     fn neighbors(
         &self,
         item: &TypeHierarchyItem,
-        adjacency: &FxHashMap<NodeKey, Vec<NodeKey>>,
+        adjacency: &FxHashMap<SymbolId, Vec<SymbolId>>,
     ) -> Option<Vec<TypeHierarchyItem>> {
-        let key = self.resolve_item(item)?;
+        let symbol = self.resolve_item(item)?;
         Some(
             adjacency
-                .get(&key)
+                .get(&symbol)
                 .into_iter()
                 .flatten()
-                .map(|neighbor| {
-                    self.items_by_symbol[&self.canonical_symbol_by_key[neighbor]].clone()
-                })
+                .map(|neighbor| self.items_by_symbol[neighbor].clone())
                 .collect(),
         )
     }
 
-    fn resolve_item(&self, item: &TypeHierarchyItem) -> Option<NodeKey> {
+    fn resolve_item(&self, item: &TypeHierarchyItem) -> Option<SymbolId> {
         let data = TypeHierarchyData::deserialize(item.data.as_ref()?).ok()?;
         if data.version != DATA_VERSION {
             return None;
@@ -280,14 +274,14 @@ impl TypeHierarchyIndex {
         let key = NodeKey { uri: data.uri, selection_range: data.selection_range };
         let symbol_id = self.canonical_symbol_by_key.get(&key)?;
         let canonical_item = self.items_by_symbol.get(symbol_id)?;
-        (canonical_item == item).then_some(key)
+        (canonical_item == item).then_some(*symbol_id)
     }
 
     fn invalidate_query_indexes(&mut self) {
         self.canonical_symbol_by_key.clear();
-        self.key_by_symbol.clear();
-        self.bases_by_key.clear();
-        self.children_by_key.clear();
+        self.canonical_symbol_by_symbol.clear();
+        self.bases_by_symbol.clear();
+        self.children_by_symbol.clear();
     }
 }
 
@@ -338,6 +332,17 @@ fn node_name(gcx: Gcx<'_>, item_id: ItemId) -> Option<String> {
         | ItemId::Error(_)
         | ItemId::Event(_) => return None,
     })
+}
+
+fn sort_and_dedup_symbols(
+    symbols: &mut Vec<SymbolId>,
+    items: &FxHashMap<SymbolId, TypeHierarchyItem>,
+) {
+    symbols.sort_unstable_by_key(|symbol| {
+        let item = &items[symbol];
+        (item.uri.as_str(), range_key(item.selection_range))
+    });
+    symbols.dedup();
 }
 
 fn sort_and_dedup_keys<T: Ord>(keys: &mut Vec<T>) {
