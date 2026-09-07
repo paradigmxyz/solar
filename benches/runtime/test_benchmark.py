@@ -222,6 +222,9 @@ class FailureHandlingTests(unittest.TestCase):
             (["--solar-only"], {"solar"}),
             (["--solc", "solc"], {"solar", "solc"}),
             (["--solc", "solc", "--solar-only"], {"solar"}),
+            (["--solx", "solx"], {"solar", "solx"}),
+            (["--solc", "solc", "--solx", "solx"], {"solar", "solc", "solx"}),
+            (["--solx", "solx", "--solar-only"], {"solar"}),
         ):
             with self.subTest(flags=flags):
                 self.check_unexpected_test_error(flags, compilers)
@@ -347,6 +350,17 @@ class RuntimeComparisonTests(unittest.TestCase):
         self.assertTrue(merged)
         self.assertEqual(entry["runtime_status"], "ok")
         self.assertEqual(list(entry["compilers"]), ["solc", "solar"])
+
+        references[("runtime", "test")]["compilers"]["solx"] = references[
+            ("runtime", "test")
+        ]["compilers"]["solc"]
+        self.assertTrue(benchmark.merge_reference_compiler(entry, references, "solx"))
+        benchmark.compare_runtime_results(
+            entry,
+            (*specs, benchmark.CompilerSpec("solx", "solx", Path("solx"), "solx")),
+        )
+        self.assertEqual(entry["runtime_status"], "ok")
+        self.assertEqual(set(entry["compilers"]), {"solar", "solc", "solx"})
 
 
 class ArtifactTests(unittest.TestCase):

@@ -1088,13 +1088,22 @@ def metric_rows(
         test_id = str(result.get("test_id", "<unknown>"))
         base = baseline.get(suite_key(result), {})
         solar_gas = compiler_metric(result, "solar", gas_metric)
-        solc_gas = compiler_metric(result, "solc", gas_metric)
+        reference_gas = [
+            compiler_metric(result, name, gas_metric)
+            for name in reference_compiler_ids(results)
+        ]
         base_solar_gas = compared_baseline(result, base, gas_metric, compared)
         solar_size = compiler_metric(result, "solar", size_metric)
-        solc_size = compiler_metric(result, "solc", size_metric)
+        reference_size = [
+            compiler_metric(result, name, size_metric)
+            for name in reference_compiler_ids(results)
+        ]
         base_solar_size = compared_baseline(result, base, size_metric, compared)
 
-        if all(value is None for value in (solar_gas, solc_gas, solar_size, solc_size)):
+        if all(
+            value is None
+            for value in (solar_gas, *reference_gas, solar_size, *reference_size)
+        ):
             continue
 
         rows.append(
@@ -1105,12 +1114,16 @@ def metric_rows(
                     fmt_value_with_lower_is_better_delta(
                         solar_gas, solar_gas, base_solar_gas
                     ),
-                    fmt_value_with_delta_vs_current(solc_gas, solar_gas, solc_gas),
+                    *(
+                        fmt_value_with_delta_vs_current(value, solar_gas, value)
+                        for value in reference_gas
+                    ),
                     fmt_value_with_lower_is_better_delta(
                         solar_size, solar_size, base_solar_size, "B"
                     ),
-                    fmt_value_with_delta_vs_current(
-                        solc_size, solar_size, solc_size, "B"
+                    *(
+                        fmt_value_with_delta_vs_current(value, solar_size, value, "B")
+                        for value in reference_size
                     ),
                 ]
             )
@@ -1126,6 +1139,13 @@ def compiler_ids(results: list[dict[str, Any]]) -> list[str]:
             if compiler_id not in ids:
                 ids.append(compiler_id)
     return ids
+
+
+def reference_compiler_ids(results: list[dict[str, Any]]) -> list[str]:
+    return [
+        "solc",
+        *(name for name in compiler_ids(results) if name not in ("solar", "solc")),
+    ]
 
 
 def memory_summary_rows(results: list[dict[str, Any]]) -> list[str]:
@@ -1215,7 +1235,6 @@ def compile_time_rows(
     rows = []
     for result in results:
         test_id = str(result.get("test_id", "<unknown>"))
-        solc_time = compile_time(result, "solc")
         solar_time = compile_time(result, "solar")
         base = baseline.get(suite_key(result), {})
         base_solar_time = compared_baseline(
@@ -1230,7 +1249,11 @@ def compile_time_rows(
                         f"{fmt_duration(solar_time)} "
                         f"({fmt_pct_change_lower_is_better(solar_time, base_solar_time)})"
                     ),
-                    f"{fmt_duration(solc_time)} ({fmt_pct_vs_current(solar_time, solc_time)})",
+                    *(
+                        f"{fmt_duration(value)} ({fmt_pct_vs_current(solar_time, value)})"
+                        for name in reference_compiler_ids(results)
+                        for value in [compile_time(result, name)]
+                    ),
                 ]
             )
             + " |"
@@ -1244,35 +1267,34 @@ def compile_time_report(
     baseline_label: str,
     compared: dict | None = None,
 ) -> list[str]:
-    # Aggregate only tests where both compilers succeeded, so a new failure
+    # Aggregate only tests where all compilers succeeded, so a new failure
     # cannot make the Solar total look faster.
-    paired = [
-        (compile_time(result, "solc"), compile_time(result, "solar"))
-        for result in results
-    ]
-    paired = [
-        (solc, solar)
-        for solc, solar in paired
-        if solc is not None and solar is not None
-    ]
+    ids = ["solar", *reference_compiler_ids(results)]
+    paired = [[compile_time(result, name) for name in ids] for result in results]
+    paired = [values for values in paired if all(value is not None for value in values)]
     if not any(compile_time(result, "solar") is not None for result in results):
         return []
 
-    solc_sum = sum(solc for solc, _ in paired)
-    solar_sum = sum(solar for _, solar in paired)
+    sums = [sum(values[index] for values in paired) for index in range(len(ids))]
+    solar_sum = sums[0]
+    reference_headers = " | ".join(ids[1:])
 
     return [
         "<details>",
         "<summary>Compilation time</summary>",
         "",
-        f"| bench | time (vs {baseline_label}) | solc |",
-        "| ----- | --------------------- | ---- |",
+        f"| bench | time (vs {baseline_label}) | {reference_headers} |",
+        "| ----- | --------------------- |" + " ---- |" * (len(ids) - 1),
         *compile_time_rows(results, baseline, compared),
         *(
             [
                 (
                     f"| **sum of medians** | **{fmt_duration(solar_sum)}** | "
-                    f"**{fmt_duration(solc_sum)} ({fmt_pct_vs_current(solar_sum, solc_sum)})** |"
+                    + " | ".join(
+                        f"**{fmt_duration(value)} ({fmt_pct_vs_current(solar_sum, value)})**"
+                        for value in sums[1:]
+                    )
+                    + " |"
                 )
             ]
             if paired
@@ -1303,13 +1325,22 @@ def report_section(
             [f"No `{baseline_ref}` baseline artifact was available for comparison.", ""]
         )
     lines.extend(compilation_failure_report(results, baseline_results, baseline_ref))
+    references = reference_compiler_ids(results)
+    reference_headers = " | ".join(references)
+    metric_header = f"| bench | gas (vs {baseline_label}) | {reference_headers} | size (vs {baseline_label}) | {reference_headers} |"
+    metric_separator = (
+        "| ----- | ------------- |"
+        + " ---- |" * len(references)
+        + " -------------- |"
+        + " ---- |" * len(references)
+    )
 
     rows = benchmark_rows(results, baseline, compared)
     if rows:
         lines.extend(
             [
-                f"| bench | gas (vs {baseline_label}) | solc | size (vs {baseline_label}) | solc |",
-                "| ----- | ------------- | ---- | -------------- | ---- |",
+                metric_header,
+                metric_separator,
                 *rows,
                 "",
             ]
@@ -1320,8 +1351,8 @@ def report_section(
             [
                 f"### {perf_link('Deployment')}",
                 "",
-                f"| bench | gas (vs {baseline_label}) | solc | size (vs {baseline_label}) | solc |",
-                "| ----- | ------------- | ---- | -------------- | ---- |",
+                metric_header,
+                metric_separator,
                 *deployment,
                 "",
             ]
@@ -1564,7 +1595,9 @@ def main(argv: list[str] | None = None) -> int:
         help="Artifact kinds to inspect or diff",
     )
     parser.add_argument("--tests", nargs="+", help="Select test IDs from either run")
-    parser.add_argument("--compiler", choices=("solar", "solc"), default="solar")
+    parser.add_argument(
+        "--compiler", choices=("solar", "solc", "solx"), default="solar"
+    )
     parser.add_argument(
         "--comment-output", type=Path, help="Write CI should-comment metadata"
     )
@@ -1579,7 +1612,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.common_output and (args.tests or args.compiler != "solar"):
         parser.error("--common-output requires the complete run and --compiler solar")
     if args.compiler != "solar" and args.baseline is None:
-        parser.error("--compiler solc requires a baseline comparison")
+        parser.error(f"--compiler {args.compiler} requires a baseline comparison")
     for name in ("baseline", "results"):
         path = getattr(args, name)
         if path is not None and path.is_dir():
