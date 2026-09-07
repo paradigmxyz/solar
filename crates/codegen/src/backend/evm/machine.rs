@@ -64,7 +64,8 @@ struct FunctionLayout {
     cfg: CfgInfo,
     alias: AliasAnalysis,
     spills: SpillPlan,
-    rematerialized: FxHashMap<mir::ValueId, U256>,
+    rematerialized: FxHashMap<mir::ValueId, rematerialize::Recipe>,
+    suppressed: Option<DenseBitSet<mir::InstId>>,
     // Definition boundaries: Phi values are available at entry, other results after their opcode.
     home_definitions: FxHashMap<mir::ValueId, (mir::BlockId, usize)>,
 }
@@ -125,6 +126,7 @@ pub(crate) fn lower(
         }
     }
     let mut returning = DenseBitSet::new_empty(module.functions.len());
+    let mut has_internal_calls = false;
     for id in reachable.iter() {
         let function = module.function(id);
         let cfg = CfgInfo::new(function);
@@ -133,10 +135,11 @@ pub(crate) fn lower(
                 continue;
             }
             for &inst in &block.instructions {
-                if let mir::InstKind::ICall { function: callee, .. } = function.inst(inst).kind
-                    && returnable.contains(callee)
-                {
-                    returning.insert(callee);
+                if let mir::InstKind::ICall { function: callee, .. } = function.inst(inst).kind {
+                    has_internal_calls = true;
+                    if returnable.contains(callee) {
+                        returning.insert(callee);
+                    }
                 }
             }
         }
@@ -228,6 +231,7 @@ pub(crate) fn lower(
                 alias,
                 spills,
                 rematerialized: FxHashMap::default(),
+                suppressed: None,
                 home_definitions,
             },
         );
@@ -258,15 +262,24 @@ pub(crate) fn lower(
         }
         plan.finalize().map_err(str::to_owned)?;
     }
-    // <selected calldata homes> -> <cached immutable recipes at their consumers>
+    // <selected immutable homes> -> <cached recipes at their consumers>
     // Keep the ordinary reserved words, Phi scratch and protocol fixed point unchanged.
     for id in reachable.iter() {
         let layout = layouts.get_mut(&id).unwrap();
-        layout.rematerialized = rematerialize::select(
+        // Incoming internal calls can hide caller words below the tracked stack.
+        // Computed recipes initially require a complete, bounded activation stack.
+        let allow_computed = !deployment
+            && !has_internal_calls
+            && plan.max_dynamic_frame_size == 0
+            && !layout.returning;
+        let selected = rematerialize::select(
             module.function(id),
             &mut layout.spills.homes,
             optimization.is_gas(),
+            allow_computed,
         );
+        layout.rematerialized = selected.recipes;
+        layout.suppressed = selected.suppressed;
         for value in layout.rematerialized.keys() {
             layout.home_definitions.remove(value);
         }
@@ -453,6 +466,14 @@ fn lower_function(
         let mut emitted_until = 0;
         for (position, &inst_id) in block.instructions.iter().enumerate() {
             if position < emitted_until {
+                continue;
+            }
+            if layout.suppressed.as_ref().is_some_and(|suppressed| suppressed.contains(inst_id)) {
+                // <retained live values>; pop any dependency whose last use was suppressed
+                // The recipe emits the omitted computation at its surviving consumer.
+                prepare(context, &mut stack, &mut insts, &[], |value| {
+                    layout.live.is_used_at_or_after(value, block_id, position + 1)
+                })?;
                 continue;
             }
             let instruction = function.inst(inst_id);
@@ -1329,12 +1350,35 @@ fn load_value(
     value: mir::ValueId,
     output: &mut Vec<ir::Instruction>,
 ) -> Result<(), String> {
-    if let Some(&offset) = context.layout.rematerialized.get(&value) {
+    if let Some(recipe) = context.layout.rematerialized.get(&value) {
         debug_assert!(!context.layout.spills.homes.contains_key(&value));
-        // push <constant calldata offset>
-        // calldataload
-        output.push(ir::InstKind::Push(offset).into());
-        output.push(ir::InstKind::Op(op::CALLDATALOAD).into());
+        match *recipe {
+            rematerialize::Recipe::Literal(value) => {
+                // push <folded constant word>
+                output.push(ir::InstKind::Push(value).into());
+            }
+            rematerialize::Recipe::Calldata(offset) => {
+                // push <constant calldata offset>
+                // calldataload
+                output.push(ir::InstKind::Push(offset).into());
+                output.push(ir::InstKind::Op(op::CALLDATALOAD).into());
+            }
+            rematerialize::Recipe::Binary { offset, literal, opcode, calldata_first } => {
+                // push <literal> when it is the second operand
+                // push <constant calldata offset>; calldataload
+                // push <literal> when it is the first operand
+                // opcode
+                if calldata_first {
+                    output.push(ir::InstKind::Push(literal).into());
+                }
+                output.push(ir::InstKind::Push(offset).into());
+                output.push(ir::InstKind::Op(op::CALLDATALOAD).into());
+                if !calldata_first {
+                    output.push(ir::InstKind::Push(literal).into());
+                }
+                output.push(ir::InstKind::Op(opcode).into());
+            }
+        }
         return Ok(());
     }
     if matches!(context.optimization, OptimizationMode::None)
