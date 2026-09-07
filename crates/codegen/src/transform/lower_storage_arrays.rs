@@ -58,7 +58,7 @@ fn load_scalar(
     // slot = data_slot + index / (32 / bytes)
     // word = sload(slot)
     // value = (word >> (index % (32 / bytes)) * bytes * 8) & mask
-    let bytes = u64::from(element.type_size().expect("validated scalar array element").bytes());
+    let bytes = u32::from(element.type_size().expect("validated scalar array element").bytes());
     let per_slot = builder.imm(32 / bytes);
     let slot_index = builder.div(index, per_slot);
     let slot = builder.add(data_slot, slot_index);
