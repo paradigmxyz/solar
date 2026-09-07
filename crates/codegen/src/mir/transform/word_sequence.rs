@@ -19,8 +19,8 @@ use crate::{
     backend::evm::{op, select},
     mir::{
         EffectKind, Function, Immediate, InstId, Instruction, MirType, Module, Op, Value, ValueId,
+        pass::{MirPass, run_function_pass},
     },
-    mir::pass::{MirPass, run_function_pass},
     target::{Cost, Target},
 };
 use alloy_primitives::U256;
