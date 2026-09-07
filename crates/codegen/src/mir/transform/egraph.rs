@@ -10,6 +10,11 @@
 //! Every alternative is numbered immediately. Reuse through a newly discovered
 //! shape requires an already-live representative, avoiding longer live ranges
 //! that can cost more stack traffic than the redundant computation.
+//! Matching also tries a bounded number of retained operand definitions, one
+//! operand alternative at a time. This exposes nested simplifications hidden by
+//! the original spelling without mutating definitions during search. It is not
+//! a Cartesian product of child classes or unrestricted equality saturation;
+//! placement, dominance and the existing extraction cost remain unchanged.
 //!
 //! After the walk, every surviving class keeps its cheapest node. The cost
 //! model is static gas plus the stack traffic a node implies: an operand's
@@ -75,6 +80,9 @@ impl MirPass for Egraph {
 
 /// Bound on the nodes of one class, counting the instruction as written.
 const MAX_NODES: usize = 12;
+
+/// Maximum alternate operand definitions tried while matching one node.
+const MAX_OPERAND_VIEWS: usize = 4;
 
 /// A hash-consing key: a node over canonical operands and its result type.
 type NodeKey = (Op, Option<MirType>);
@@ -237,8 +245,12 @@ impl<'a> Builder<'a> {
             let current = nodes[frontier];
             frontier += 1;
             alternatives.clear();
-            isle::RuleContext::new(self.func, self.target.evm_version())
-                .rewrite(&current, &mut alternatives);
+            let views = self.operand_views(&current);
+            for view in std::iter::once(None).chain(views.into_iter().map(Some)) {
+                isle::RuleContext::new(self.func, self.target.evm_version())
+                    .with_view(view)
+                    .rewrite(&current, &mut alternatives);
+            }
             for next in alternatives.drain(..) {
                 let next = next.map_values(|value| self.resolve(value));
                 if !nodes.contains(&next) && nodes.len() < MAX_NODES {
@@ -258,7 +270,12 @@ impl<'a> Builder<'a> {
             }
             let kind = node.into_kind().expect("nodes are complete instructions");
             let equal = const_fold(self.func, &kind).or_else(|| {
-                isle::RuleContext::new(self.func, self.target.evm_version()).simplify(node)
+                let views = self.operand_views(node);
+                std::iter::once(None).chain(views.into_iter().map(Some)).find_map(|view| {
+                    isle::RuleContext::new(self.func, self.target.evm_version())
+                        .with_view(view)
+                        .simplify(node)
+                })
             });
             if let Some(equal) = equal {
                 let equal = self.resolve(equal);
@@ -280,6 +297,26 @@ impl<'a> Builder<'a> {
         } else {
             self.classes.insert(result, Class { nodes, home: inst_id });
         }
+    }
+
+    /// Only existing equivalent nodes are exposed; no new SSA values or code
+    /// motion are needed to match through an operand's alternative spelling.
+    fn operand_views(&self, node: &Op) -> SmallVec<[(ValueId, Op); MAX_OPERAND_VIEWS]> {
+        let mut views = SmallVec::new();
+        for operand in operands_of(node) {
+            if let Some(class) = self.classes.get(&operand) {
+                for &alternative in class.nodes.iter().skip(1) {
+                    let view = (operand, alternative);
+                    if !views.contains(&view) {
+                        views.push(view);
+                        if views.len() == MAX_OPERAND_VIEWS {
+                            return views;
+                        }
+                    }
+                }
+            }
+        }
+        views
     }
 
     /// Reuse through an alternative must not extend the representative's live

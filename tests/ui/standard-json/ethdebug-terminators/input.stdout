@@ -646,14 +646,14 @@
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
-                      "0x24"
+                      "0x20"
                     ]
                   }
                 },
                 {
                   "offset": 77,
                   "operation": {
-                    "mnemonic": "DUP3"
+                    "mnemonic": "DUP2"
                   }
                 },
                 {
