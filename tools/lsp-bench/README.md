@@ -111,6 +111,22 @@ record provenance, and upload the run's summary and raw samples. The generated
 `summary.md` is appended directly to the GitHub job summary; no second
 validation or rendering phase is required.
 
+Automatic PR comments compare our compiler against the tested merge's first
+parent, using the same harness and fixtures. They post only when workload status
+changes, a workload is added or removed, or latency p50 moves by more than both
+10% and 0.1 ms with non-overlapping p50–p95 intervals. This is a noise filter for
+shared runners, not a statistical significance claim. External-server timing
+changes and provenance-only changes do not trigger comments. Missing or mismatched
+base evidence prevents publication; full reports remain in workflow artifacts.
+Manual `/bench cross-server` requests still produce a report on demand.
+The synthetic PR-smoke profile limits operations to five seconds so unsupported
+or unresponsive external servers do not consume repeated 30-second waits.
+Automatic smoke steps have ten-minute limits; the full profile keeps its original
+timeout and sampling settings.
+
+Reports show workload status counts by server, with full metrics and provenance
+in collapsed details sections.
+
 ## Accounting
 
 Every run is portable by default. Process reports include wall time, CPU, and

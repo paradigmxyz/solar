@@ -524,6 +524,7 @@ pub(crate) fn regenerate_markdown(
     expected_harness_revision: Option<&str>,
     expected_harness_sha256: Option<&str>,
     expected_profile: Option<&str>,
+    comparison: Option<(&Path, &Path)>,
 ) -> Result<()> {
     let summary = read_summary(input)?;
     if require_authoritative && !summary.environment.authoritative {
@@ -545,8 +546,94 @@ pub(crate) fn regenerate_markdown(
     {
         fs::create_dir_all(parent)?;
     }
-    fs::write(output, markdown(&summary))?;
+    let mut rendered = markdown(&summary);
+    if let Some((baseline, decision)) = comparison {
+        let changes = solar_changes(&read_summary(baseline)?, &summary)?;
+        fs::write(decision, if changes.is_empty() { "false\n" } else { "true\n" })?;
+        if !changes.is_empty() {
+            rendered.push_str("\n<details>\n<summary>Changes against the PR base</summary>\n\n| Fixture / workload | Change |\n|---|---|\n");
+            rendered.push_str(&changes);
+            rendered.push_str("\n</details>\n");
+        }
+    }
+    fs::write(output, rendered)?;
     Ok(())
+}
+
+/// Ignore provenance churn and small or overlapping latency distributions on shared runners.
+fn solar_changes(base: &SummaryReport, candidate: &SummaryReport) -> Result<String> {
+    if base.profile != candidate.profile
+        || base.config_sha256 != candidate.config_sha256
+        || base.harness_executable_sha256 != candidate.harness_executable_sha256
+        || base.fixtures.iter().map(|f| (&f.id, &f.content_sha256)).collect::<BTreeMap<_, _>>()
+            != candidate.fixtures.iter().map(|f| (&f.id, &f.content_sha256)).collect()
+    {
+        bail!("baseline and candidate must use the same harness, configuration, and fixtures");
+    }
+    let [mut before, after] = [base, candidate].map(|summary| {
+        summary
+            .summaries
+            .iter()
+            .filter(|group| group.server == "solar")
+            .map(|group| ((group.fixture.as_str(), group.workload.as_str()), group))
+            .collect::<BTreeMap<_, _>>()
+    });
+    if before.is_empty() || after.is_empty() {
+        bail!("baseline and candidate must include solar results");
+    }
+    let mut changes = String::new();
+    for ((fixture, workload), group) in after {
+        let key = markdown_cell(&format!("{fixture}/{workload}"));
+        let Some(old) = before.remove(&(fixture, workload)) else {
+            let _ = writeln!(changes, "| {key} | Added workload |");
+            continue;
+        };
+        if old.status != group.status || old.status_counts != group.status_counts {
+            let counts = |group: &SummaryGroup| {
+                markdown_cell(
+                    &group
+                        .status_counts
+                        .iter()
+                        .map(|(status, count)| format!("{status}:{count}"))
+                        .collect::<Vec<_>>()
+                        .join(", "),
+                )
+            };
+            let _ = writeln!(changes, "| {key} | {} → {} |", counts(old), counts(group));
+        }
+        if old.status != SummaryStatus::Pass || group.status != SummaryStatus::Pass {
+            continue;
+        }
+        for (name, metric) in &group.metrics {
+            if !(name.starts_with("textDocument/") && !name.ends_with("_cpu_ms")
+                || name == "cold_ready_ms"
+                || name.starts_with("edit_to_")
+                || name.starts_with("save_to_"))
+            {
+                continue;
+            }
+            if let Some(previous) = old.metrics.get(name)
+                && (metric.p50 - previous.p50).abs() > (previous.p50 * 0.1).max(0.1)
+                && (metric.p50 > previous.p95 || previous.p50 > metric.p95)
+            {
+                let _ = writeln!(
+                    changes,
+                    "| {key} | {} p50: {:.2} → {:.2} ms |",
+                    markdown_cell(name),
+                    previous.p50,
+                    metric.p50
+                );
+            }
+        }
+    }
+    for ((fixture, workload), _) in before {
+        let _ = writeln!(
+            changes,
+            "| {} | Removed workload |",
+            markdown_cell(&format!("{fixture}/{workload}"))
+        );
+    }
+    Ok(changes)
 }
 
 fn validate_expected(label: &str, actual: Option<&str>, expected: Option<&str>) -> Result<()> {
@@ -615,7 +702,26 @@ fn markdown(summary: &SummaryReport) -> String {
             "> [!WARNING]\n> This run is not an authoritative performance measurement.\n\n",
         );
     }
-    output.push_str("## Run metadata\n\n| Field | Value |\n|---|---|\n");
+    let mut servers = BTreeMap::<&str, [usize; 5]>::new();
+    for group in &summary.summaries {
+        let index = match group.status {
+            SummaryStatus::Pass => 0,
+            SummaryStatus::Partial => 1,
+            SummaryStatus::Unsupported => 2,
+            SummaryStatus::Unavailable => 3,
+            SummaryStatus::Failed => 4,
+        };
+        servers.entry(&group.server).or_default()[index] += 1;
+    }
+    output.push_str("Workload results by server. Latencies are in milliseconds.\n\n| Server | Passed | Partial | Unsupported | Unavailable | Failed |\n|---|---:|---:|---:|---:|---:|\n");
+    for (server, [passed, partial, unsupported, unavailable, failed]) in servers {
+        let _ = writeln!(
+            output,
+            "| {} | {passed} | {partial} | {unsupported} | {unavailable} | {failed} |",
+            markdown_cell(server)
+        );
+    }
+    output.push_str("\n<details>\n<summary>Run metadata and provenance</summary>\n\n## Run metadata\n\n| Field | Value |\n|---|---|\n");
     let metadata = [
         ("Result schema", summary.schema_version.to_string()),
         ("Config schema", summary.config_schema_version.to_string()),
@@ -714,6 +820,7 @@ fn markdown(summary: &SummaryReport) -> String {
             let _ = writeln!(output, "| {} |", values.join(" | "));
         }
     }
+    output.push_str("\n</details>\n\n<details>\n<summary>Detailed results</summary>\n\n");
     let capabilities = summary
         .workloads
         .iter()
@@ -770,6 +877,7 @@ fn markdown(summary: &SummaryReport) -> String {
             );
         }
     }
+    output.push_str("\n</details>\n");
     output
 }
 
@@ -983,6 +1091,7 @@ mod tests {
             Some(&"1".repeat(40)),
             Some(&"2".repeat(64)),
             Some("pr-smoke"),
+            None,
         )
         .unwrap();
         assert!(output.is_file());
@@ -1000,6 +1109,7 @@ mod tests {
                     revision.as_deref(),
                     digest.as_deref(),
                     profile,
+                    None,
                 )
                 .is_err()
             );
@@ -1031,6 +1141,67 @@ mod tests {
             command_output_with_timeout("sh", &["-c", "exec sleep 30"], Duration::from_millis(50));
         assert!(value.is_none(), "timed-out metadata must be unavailable");
         assert!(started.elapsed() < Duration::from_secs(3));
+    }
+
+    #[test]
+    fn comment_gate_ignores_noise_and_provenance_but_reports_result_changes() {
+        let base = summary_with_groups(vec![SummaryGroup {
+            server: "solar".into(),
+            fixture: "synthetic".into(),
+            workload: "hover".into(),
+            successful_runs: 4,
+            status_counts: BTreeMap::from([("pass".into(), 4)]),
+            status: SummaryStatus::Pass,
+            metrics: BTreeMap::from([(
+                "textDocument/hover".into(),
+                metric_stats(4, 1.0, 1.0, 1.2),
+            )]),
+        }]);
+        let mut candidate = base.clone();
+        candidate.harness_git_revision = Some("different revision".into());
+        candidate.summaries[0].metrics.get_mut("textDocument/hover").unwrap().p50 = 1.05;
+        assert_eq!(solar_changes(&base, &candidate).unwrap(), "");
+        candidate.summaries[0].metrics.get_mut("textDocument/hover").unwrap().p50 = 1.15;
+        assert_eq!(solar_changes(&base, &candidate).unwrap(), "");
+        candidate.summaries[0]
+            .metrics
+            .insert("textDocument/hover".into(), metric_stats(4, 2.0, 2.0, 2.2));
+        assert_data_eq!(
+            solar_changes(&base, &candidate).unwrap(),
+            str![[r#"
+| ` synthetic/hover ` | ` textDocument/hover ` p50: 1.00 → 2.00 ms |
+
+"#]]
+        );
+        assert_data_eq!(
+            solar_changes(&candidate, &base).unwrap(),
+            str![[r#"
+| ` synthetic/hover ` | ` textDocument/hover ` p50: 2.00 → 1.00 ms |
+
+"#]]
+        );
+        candidate.summaries[0].status = SummaryStatus::Failed;
+        candidate.summaries[0].status_counts = BTreeMap::from([("incorrect".into(), 4)]);
+        candidate.summaries[0].metrics.clear();
+        assert_data_eq!(
+            solar_changes(&base, &candidate).unwrap(),
+            str![[r#"
+| ` synthetic/hover ` | ` pass:4 ` → ` incorrect:4 ` |
+
+"#]]
+        );
+        let mut different_failure = candidate.clone();
+        different_failure.summaries[0].status_counts = BTreeMap::from([("crash".into(), 4)]);
+        assert_data_eq!(
+            solar_changes(&candidate, &different_failure).unwrap(),
+            str![[r#"
+| ` synthetic/hover ` | ` incorrect:4 ` → ` crash:4 ` |
+
+"#]]
+        );
+        candidate.config_sha256 = "mismatched config".into();
+        assert!(solar_changes(&base, &candidate).is_err());
+        assert!(solar_changes(&summary_with_groups(Vec::new()), &base).is_err());
     }
 
     #[test]
@@ -1147,10 +1318,20 @@ mod tests {
             output,
             str![[r#"
 # Cross-server Solidity LSP benchmark
+
+Workload results by server. Latencies are in milliseconds.
+
+| Server | Passed | Partial | Unsupported | Unavailable | Failed |
+|---|---:|---:|---:|---:|---:|
+| ` external ` | 0 | 0 | 0 | 0 | 1 |
+
+<details>
+<summary>Run metadata and provenance</summary>
 ...
-## Run metadata
-...
-## Results
+</details>
+
+<details>
+<summary>Detailed results</summary>
 ...
 | ` external ` | ` synthetic ` | ` correctness ` | ` textDocument/didChange, textDocument/didSave ` | 0 | ` incorrect:1 ` | :red_circle: **FAILED** | - | - | - | - | - |
 ...

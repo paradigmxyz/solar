@@ -14,7 +14,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_PATH = ROOT / ".github/workflows/lsp-bench.yml"
 COMMENT_WORKFLOW_PATH = ROOT / ".github/workflows/lsp-bench-comment.yml"
@@ -27,7 +26,9 @@ UPLOAD_ACTION = "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0
 STICKY_COMMENT_ACTION = (
     "marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88"
 )
-SERVER_ARGS = "--server solar --server asyncswap --server nomic-foundation --server solc"
+SERVER_ARGS = (
+    "--server solar --server asyncswap --server nomic-foundation --server solc"
+)
 
 
 def workflow() -> str:
@@ -171,6 +172,15 @@ const context = {{
     return completed.stderr
 
 
+BASELINE_SUMMARY = json.dumps(
+    {
+        "harness_git_revision": "c" * 40,
+        "harness_executable_sha256": "d" * 64,
+        "servers": [{"id": "solar", "source_revision_override": "a" * 40}],
+    }
+).encode()
+
+
 def run_workflow_comment_validation(
     provenance: dict[str, object],
     summary: bytes,
@@ -179,6 +189,7 @@ def run_workflow_comment_validation(
     merge: dict[str, object],
     *,
     expect_success: bool,
+    baseline: bytes = BASELINE_SUMMARY,
 ) -> str:
     step = step_block(
         comment_job_block("comment"),
@@ -219,6 +230,8 @@ const github = {{
         root = Path(directory)
         summary_path = root / "summary.json"
         provenance_path = root / "provenance.json"
+        baseline_path = root / "baseline.json"
+        baseline_path.write_bytes(baseline)
         summary_path.write_bytes(summary)
         provenance_path.write_text(json.dumps(provenance), encoding="utf-8")
         environment = os.environ.copy()
@@ -230,6 +243,7 @@ const github = {{
                 "EXPECTED_PR_NUMBER": "12",
                 "PROVENANCE_PATH": str(provenance_path),
                 "SUMMARY_PATH": str(summary_path),
+                "BASELINE_PATH": str(baseline_path),
             }
         )
         completed = subprocess.run(
@@ -245,7 +259,9 @@ const github = {{
         completed.check_returncode()
         return completed.stdout
     if completed.returncode == 0:
-        raise AssertionError("workflow comment validation unexpectedly accepted provenance")
+        raise AssertionError(
+            "workflow comment validation unexpectedly accepted provenance"
+        )
     return completed.stderr
 
 
@@ -307,6 +323,33 @@ class CrossServerWorkflowTests(unittest.TestCase):
         self.assertIn('--solar-revision "$TESTED_MERGE_SHA"', run)
         self.assertIn('TESTED_MERGE_SHA: ${{ github.sha }}', run)
         self.assertNotIn("--require-authoritative", pr)
+
+    def test_automatic_comments_require_base_result_changes(self) -> None:
+        pr = job_block("pr-smoke")
+        self.assertIn("git rev-parse HEAD^1", step_block(pr, "Build PR base"))
+        self.assertIn(
+            "--server solar",
+            step_block(pr, "Run PR base with the same harness and fixtures"),
+        )
+        self.assertIn("timeout-minutes: 30", pr)
+        self.assertIn("timeout-minutes: 10", step_block(pr, "Run PR smoke comparison"))
+        self.assertIn("RUSTC_WRAPPER: sccache", pr)
+        self.assertIn('SCCACHE_GHA_ENABLED: "true"', pr)
+        manifest = (ROOT / "tools/lsp-bench/benchmark.yaml").read_text()
+        self.assertIn(
+            "timeout_ms: 5000",
+            manifest.split("  pr-smoke:", 1)[1].split("  full:", 1)[0],
+        )
+        self.assertIn("baseline_sha256:", step_block(pr, "Stage PR smoke comment data"))
+        job = comment_job_block("comment")
+        self.assertIn(
+            '--baseline "$BASELINE_PATH" --comment-output',
+            step_block(job, "Render comment from validated data"),
+        )
+        self.assertIn(
+            "steps.report.outputs.changed == 'true'",
+            step_block(job, "Publish sticky benchmark comment"),
+        )
 
     def test_pr_smoke_uploads_only_validated_comment_data(self) -> None:
         pr = job_block("pr-smoke")
@@ -619,7 +662,7 @@ class CrossServerWorkflowTests(unittest.TestCase):
     ) -> None:
         summary = b'{"schema_version":7}\n'
         provenance: dict[str, object] = {
-            "schema_version": 1,
+            "schema_version": 2,
             "kind": "solar-cross-lsp-comment-data",
             "repository": "target/solar",
             "pr_number": 12,
@@ -633,6 +676,7 @@ class CrossServerWorkflowTests(unittest.TestCase):
             "merge_sha": "c" * 40,
             "harness_sha256": "d" * 64,
             "summary_sha256": hashlib.sha256(summary).hexdigest(),
+            "baseline_sha256": hashlib.sha256(BASELINE_SUMMARY).hexdigest(),
         }
         pull: dict[str, object] = {
             "state": "open",
@@ -662,6 +706,31 @@ class CrossServerWorkflowTests(unittest.TestCase):
         )
         self.assertEqual(outputs["base_sha"], "a" * 40)
         self.assertEqual(outputs["merge_sha"], "c" * 40)
+
+        error = run_workflow_comment_validation(
+            provenance,
+            summary,
+            pull,
+            base,
+            merge,
+            expect_success=False,
+            baseline=BASELINE_SUMMARY + b" ",
+        )
+        self.assertIn("Baseline digest does not match", error)
+
+        wrong_baseline = BASELINE_SUMMARY.replace(b"a" * 40, b"f" * 40)
+        error = run_workflow_comment_validation(
+            dict(
+                provenance, baseline_sha256=hashlib.sha256(wrong_baseline).hexdigest()
+            ),
+            summary,
+            pull,
+            base,
+            merge,
+            expect_success=False,
+            baseline=wrong_baseline,
+        )
+        self.assertIn("Baseline does not match the tested base", error)
 
         stale_base = {"commit": {"sha": "f" * 40}}
         error = run_workflow_comment_validation(
