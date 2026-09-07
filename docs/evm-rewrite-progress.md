@@ -1202,3 +1202,67 @@ accepted pipeline's exact hash restored. The correctness repair is a separate
 next change; no rejected pipeline or expectation update remains in production.
 Evidence is retained in `late-memory-dse-workflow-20260907/` and
 `target/late-memory-dse-tests-20260907/`.
+
+
+### Overlapping constant words: correctness repair
+
+The constant-store cache now invalidates every overlapping 32-byte word,
+including writes with unknown values at known addresses. The old exact-key
+update could delete a required repair after an unaligned store; concrete
+execution and replay-confirmed differentials reproduced the wrong returned
+word or hash. No extra late MemoryDse invocation was retained.
+
+A bounded local proof preserves repeated mapping-seed elimination: the next
+instruction must overwrite the dirty intersection, and a still-live equal
+seed within eight preceding instruction positions must establish the residual
+bytes. Existing alias analysis must prove intervening writes disjoint from
+that residual. Its region is explicitly Unknown, including intervals crossing
+the scratch/heap boundary. The proof adds no persistent byte-range state,
+never treats a deleted seed as live, and leaves whole-word cache facts
+unchanged when deleting a partially redundant store. Production-file delta
+is +71 lines in one MIR pass; the backend and pipeline are unchanged.
+
+Committed as `0e5ab53b`, frozen `1913b139` retains all 4,928 prior UI bytecode
+objects exactly. Across nine archived projects and 1,672 complete contract outputs, the voting
+contracts recover all bytes and metadata lost by the overlap-only trial.
+Only ERC721Test grows: 15 creation and 15 runtime bytes restore the required
+seed store. The reduced returned-hash contract demonstrates the old wrong
+result and now agrees with solc, at 15 additional opcode gas in Gas and Size.
+All surviving source-map entries remain exact; five restored instructions
+point to the seed store and references relocate correctly. The earlier
+18-static-gas attribution was an arithmetic error, preserved and corrected
+in the evidence. Strict size-debt checks still flag this required restoration;
+this is not a claim that the rewrite's performance gates are complete.
+
+The new official workflow retains 24 full-run IDs and 15 Size-run IDs, with
+175 ordered gas labels and 139 observations per compiler in each runtime
+lane. Gas, deployment gas, runtime bytecode and all physical artifacts match
+the prior candidate; solc reuse is exact. Two MIR helper-name changes are
+proved bijective renames. Full compiler-time geomean is -0.2349%, RSS -0.1401%;
+22 cases have five samples, Seaport and Solady one due the ten-second cutoff.
+The one-sample Size supplement makes no compiler-time claim.
+A candidate-first repeat reduces Solarray/OpenZeppelin slowdowns from
+2.606%/1.158% to 0.616%/0.226%, with overlapping five-sample ranges. Its
+two-case geomean is +0.421%; the primary full result remains unchanged.
+This compiler-only repeat has no gas measurements or reused solc records.
+
+Six new fixtures and ten reviewed snapshots retain the word-boundary,
+semantic/physical phase, partial-overwrite, observer, alias-region, window,
+dead-seed and overflow obligations. All 16 new UI revisions pass, executing
+28 run-call assertions per run. An initial two-output directive parser error
+was corrected without changing any expected bytes; failed captures remain.
+The artifact-only harness also passes 16 MIR revisions and 21 concrete calls;
+three symbolic projects report bounded agreement with unchanged inputs,
+settings and bounds. No general equivalence proof is claimed.
+
+The final workspace has 1,395 passing tests, one failing UI aggregate and
+two skipped tests. UI revisions: 11,623 pass, the same four originals fail,
+and 851 are filtered. All 36 Foundry projects pass; their ordered 772/765
+compiler/solc tests, gas and reported bytecode sizes are unchanged.
+Clippy, nightly formatting and typos pass. No existing test or expectation was changed.
+Broader arbitrary-memory defects and the
+rewrite's sealed performance debts remain unresolved.
+
+Evidence is retained under `memory-dse-word-overlap-workflow-20260907/`,
+`memory-dse-residual-candidate-independent-20260907/`, and
+`target/memory-dse-partial-overwrite-tests-20260907/`.
