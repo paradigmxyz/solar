@@ -1266,3 +1266,35 @@ rewrite's sealed performance debts remain unresolved.
 Evidence is retained under `memory-dse-word-overlap-workflow-20260907/`,
 `memory-dse-residual-candidate-independent-20260907/`, and
 `target/memory-dse-partial-overwrite-tests-20260907/`.
+
+
+### Main refresh and merged dependency verification
+
+A final HTTPS fetch advanced main from `933bc1e2` to `6059f0c0`. Merge
+`53075d0e` includes the dependency, CI-action, npm and LSP-test updates without
+conflicts. The merged compiler is frozen as `eb7d8a74`; all 145 codegen source
+hashes are unchanged, and the new lockfile is pinned separately. The prior
+binaries and benchmark evidence remain intact.
+
+The new official full and Size workflows both pass. All 24 full-run output
+fingerprints match `1913b139`, with exact physical runtime artifacts, 175 gas
+labels and 139 observations per compiler. Solc reuse is exact; two MIR helper
+name changes are complete bijections. Both UI corpus legs use the same final
+814 source hashes, 813 IDs per mode and 1,234 contracts per mode. All 4,936
+objects are byte-identical. One warning stream differs only in the order of
+ten complete diagnostic blocks, with identical contents and multiplicity.
+
+Merged compiler-time geomean is +0.7063%, RSS -0.5015%. Seaport and Solady have
+one sample per leg due the ten-second cutoff; the other 22 have five.
+Nitro's +1.5621% becomes +1.3048% in a five-sample candidate-first repeat,
+whose ranges overlap; this remains a measured slowdown. Forge-std's +0.9647%
+has disjoint sample ranges and is not repeated. No speed or noise claim is
+made. The one-sample Size run remains a runtime supplement, and the Nitro
+repeat measures no gas. These merge costs do not replace the repair's prior
+measurement or establish final rewrite acceptance.
+
+The merged workspace retains 1,395 passing tests and the same failing UI
+aggregate: 11,623 revisions pass, four original failures remain, 851 are
+filtered. Clippy, nightly formatting and typos pass. No existing test or
+expectation was changed. Evidence is under
+`target/codegen-bench/evm-rewrite-candidate/main-6059f0c0-merge-20260907/`.
