@@ -712,3 +712,28 @@ A two-word compaction is an uncommitted trial. Unconditional late MemoryDse
 was not enabled: its tuple improvement exposes broader gas-observation and
 pipeline-cost questions. The original sealed performance debts and computed
 memory interference bug remain open.
+
+
+### Main refresh and benchmark workflow
+
+Fetched and merged main `933bc1e2` as `2c29596e`; no conflicts or incoming
+backend implementation changes. All 36 in-progress pair candidate files retain
+their hashes. The merged compiler builds, all 76 benchmark-tool tests pass,
+formatting and warnings-denied Clippy pass, and the workspace passes 1,395
+tests. Its UI aggregate has eight failures, 11,502 passes and 851 filtered
+cases. The assembler fixture now retains exact shared body identities and
+complete scratch returns: creation/runtime are 110/93 bytes versus sealed
+111/94, and all thirteen measured calls use no more gas. This explicitly
+replaces the historical cross-value return-tail policy; dedicated tail-merge
+tests and executable source remain intact.
+
+The prior pair timing run was interrupted for this requested merge and is not
+acceptance evidence. Further benchmarks use the new runtime/compile-time loop
+and official `benchmark-compare.py`, retaining samples, artifacts and per-case
+comparisons. The first new-workflow pair run uses the retained before/after
+debug executables built in this checkout before the merge, isolating the pair
+change from main's LSP changes. Compiler hashes and build records certify the
+named hard links under the existing `target/debug`; no source implementation
+was retrieved to reconstruct the baseline. That comparison is still pending.
+The pair candidate remains uncommitted, and full rewrite completion remains
+open.
