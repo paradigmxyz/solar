@@ -27,6 +27,7 @@ use crate::{
 use alloy_primitives::U256;
 use solar_config::{EvmVersion, OptimizationMode};
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
+use std::cell::Cell;
 
 mod call_entry;
 mod call_reserve;
@@ -85,6 +86,7 @@ struct Context<'a> {
     optimization: OptimizationMode,
     deployment: bool,
     data_map: &'a FxHashMap<mir::DataId, ir::DataId>,
+    tail_entry_scope: &'a Cell<Option<bool>>,
 }
 
 /// Generates one artifact rooted at a runtime dispatcher or constructor.
@@ -317,6 +319,9 @@ pub(crate) fn lower(
             output.appendix.extend_from_slice(data);
         }
     }
+    // Returning activations can leave physical stack heights unknown. Retain
+    // their argument stores so compact literal materialization keeps its budget.
+    let tail_entry_scope = Cell::new((!returning.is_empty()).then_some(false));
     for id in reachable.iter() {
         let function = module.function(id);
         let context = Context {
@@ -329,6 +334,7 @@ pub(crate) fn lower(
             optimization,
             deployment,
             data_map: &data_map,
+            tail_entry_scope: &tail_entry_scope,
         };
         let mut entry = Vec::new();
         if fmp_entry == Some(id) {
@@ -749,13 +755,13 @@ fn lower_function(
                         function.name
                     ));
                 }
-                enter_call(
+                call_entry::lower_tail(
                     context,
-                    &context.plan.functions[*callee],
-                    args.len(),
-                    current,
-                    &mut insts,
-                    layouts[callee].entry,
+                    *callee,
+                    &layouts[callee],
+                    args,
+                    &stack,
+                    (current, &mut insts),
                     output,
                 )?;
                 continue;
@@ -790,8 +796,19 @@ fn enter_call(
         context.plan.max_dynamic_frame_size,
         context.version,
     )?;
+    emit_call_setup(setup, current, insts, target, output);
+    Ok(())
+}
+
+fn emit_call_setup(
+    setup: calls::CallSetup,
+    current: ir::BlockId,
+    insts: &mut Vec<ir::Instruction>,
+    target: ir::BlockId,
+    output: &mut ir::Module,
+) {
     if setup.guard.is_empty() {
-        // <frame argument stores>
+        // <frame argument stores or checked canonical entry schedule>
         // jump <callee>
         insts.extend(setup.setup);
         output.blocks[current].insts = std::mem::take(insts);
@@ -809,7 +826,6 @@ fn enter_call(
         output.blocks[current].insts = std::mem::take(insts);
         output.blocks[current].terminator = ir::TerminatorKind::JumpI(panic, success).into();
     }
-    Ok(())
 }
 
 fn return_values(

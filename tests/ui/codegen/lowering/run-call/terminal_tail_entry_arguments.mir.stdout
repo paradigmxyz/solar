@@ -1,0 +1,32 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_entry_arguments.sol:TerminalTailEntryArguments ===
+@module TerminalTailEntryArguments
+fn @ordered(arg0: u256, arg1: u256) [selector=0xfe67ba36, pure, abi_params=[u256, u256], abi_returns=[]] {
+  bb0:
+    icall @fail, 0, arg0, arg1, 999
+    stop
+}
+
+fn @reversed(arg0: u256, arg1: u256) [selector=0x4410d3bb, pure, abi_params=[u256, u256], abi_returns=[]] {
+  bb0:
+    icall @fail, 0, arg1, arg0, 999
+    stop
+}
+
+fn @duplicated(arg0: u256) [selector=0xe77aaaab, pure, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    icall @fail, 0, arg0, arg0, 999
+    stop
+}
+
+fn @fail(arg0: u256, arg1: u256, arg2: u256) [pure] {
+  bb0:
+    mstore 0, arg0 !metadata(memory=scratch)
+    mstore 32, arg1 !metadata(memory=scratch)
+    v0 = xor arg0, arg1
+    mstore 64, v0 !metadata(memory=scratch)
+    v1 = add arg0, arg1
+    mstore 96, v1 !metadata(memory=scratch)
+    v2 = sub arg0, arg1
+    mstore 128, v2
+    revert 0, 64
+}

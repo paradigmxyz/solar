@@ -1,0 +1,62 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_entry_returning_module.sol:TerminalTailEntryReturningModule ===
+@module TerminalTailEntryReturningModule
+fn @checked(arg0: u256) -> u256 [selector=0x2e53fee2, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = gt arg0, 5
+    v1 = iszero v0
+    jumpi v1, bb1, bb2
+  bb2:
+    ret arg0
+  bb1:
+    icall @revert_error, 0, 11, 0x6c69746572616c206d7367000000000000000000000000000000000000000000
+    invalid
+}
+
+fn @other(arg0: u256) -> u256 [selector=0x369984d6, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = gt arg0, 5
+    v1 = iszero v0
+    jumpi v1, bb1, bb2
+  bb2:
+    ret arg0
+  bb1:
+    icall @revert_error, 0, 29, 0x45524332303a20696e73756666696369656e7420616c6c6f77616e6365000000
+    invalid
+}
+
+fn @sum(arg0: u256) -> u256 [selector=0x188b85b4, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = and arg0, 7
+    v1 = icall @folded, 1, v0
+    ret v1
+}
+
+fn @folded(arg0: u256) -> u256 [pure] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb5: v5]
+    v1 = phi [bb0: 0], [bb5: v4]
+    v2 = eq v0, 0
+    v3 = iszero v2
+    jumpi v3, bb3, bb4
+  bb4:
+    jump bb2
+  bb2:
+    ret v1
+  bb3:
+    v4 = add v1, v0
+    v5 = sub v0, 1
+    jump bb5
+  bb5:
+    jump bb1
+}
+
+fn @revert_error(arg0: u256, arg1: u256) {
+  bb0:
+    mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 32 !metadata(memory=scratch)
+    mstore 36, arg0 !metadata(memory=scratch)
+    mstore 68, arg1 !metadata(memory=scratch)
+    revert 0, 100
+}

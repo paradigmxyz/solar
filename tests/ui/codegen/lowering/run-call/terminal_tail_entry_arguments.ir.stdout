@@ -1,0 +1,70 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_entry_arguments.sol:TerminalTailEntryArguments (runtime) ===
+@module TerminalTailEntryArguments_runtime
+bb0 [cold]:
+  callvalue
+  jumpi bb2, bb16
+bb16 [cold]:
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x4410d3bb
+  eq
+  jumpi bb25, bb24
+bb24 [cold]:
+  dup 1
+  push 0xe77aaaab
+  eq
+  jumpi bb23, bb22
+bb22 [cold]:
+  push 0xfe67ba36
+  sub
+  jumpi bb2, bb1
+bb1 [cold]:
+  calldatasize
+  push 68
+  gt
+  jumpi bb2, bb3
+bb3 [cold]:
+  push 36
+  calldataload
+  push 4
+  calldataload
+  swap 1
+  jump bb13
+bb13 [cold]:
+  swap 1
+  push 0
+  mstore
+  push 32
+  mstore
+  push 64
+  push 0
+  revert
+bb2 [cold]:
+  push 0
+  push 0
+  revert
+bb23 [cold]:
+  calldatasize
+  push 36
+  gt
+  jumpi bb2, bb11
+bb11 [cold]:
+  push 4
+  calldataload
+  dup 1
+  jump bb13
+bb25 [cold]:
+  calldatasize
+  push 68
+  gt
+  jumpi bb2, bb7
+bb7 [cold]:
+  push 4
+  calldataload
+  push 36
+  calldataload
+  swap 1
+  jump bb13
