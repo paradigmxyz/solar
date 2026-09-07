@@ -1,0 +1,504 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/computed_writer_controls.sol:ComputedSharedRoot ===
+@module ComputedSharedRoot
+fn @run(arg0: calldataslice, arg1: u256, arg2: u256) -> (u256, u256, u256) [selector=0xec8a0fc0, pure, abi_params=[array<18, u256>, u256, u256], abi_returns=[word, word, word]] {
+  bb0:
+    v0 = slice_ptr arg0
+    v1 = calldataload v0
+    v2 = xor v1, 999
+    v3 = xor v1, 256
+    v4 = xor v1, 512
+    v5 = slice_ptr arg0
+    v6 = add v5, 64
+    v7 = calldataload v6
+    v8 = xor v7, 256
+    v9 = slice_ptr arg0
+    v10 = add v9, 96
+    v11 = calldataload v10
+    v12 = xor v11, 256
+    v13 = slice_ptr arg0
+    v14 = add v13, 128
+    v15 = calldataload v14
+    v16 = xor v15, 256
+    v17 = slice_ptr arg0
+    v18 = add v17, 160
+    v19 = calldataload v18
+    v20 = xor v19, 256
+    v21 = slice_ptr arg0
+    v22 = add v21, 192
+    v23 = calldataload v22
+    v24 = xor v23, 256
+    v25 = slice_ptr arg0
+    v26 = add v25, 224
+    v27 = calldataload v26
+    v28 = xor v27, 256
+    v29 = slice_ptr arg0
+    v30 = add v29, 256
+    v31 = calldataload v30
+    v32 = xor v31, 256
+    v33 = slice_ptr arg0
+    v34 = add v33, 288
+    v35 = calldataload v34
+    v36 = xor v35, 256
+    v37 = slice_ptr arg0
+    v38 = add v37, 320
+    v39 = calldataload v38
+    v40 = xor v39, 256
+    v41 = slice_ptr arg0
+    v42 = add v41, 352
+    v43 = calldataload v42
+    v44 = xor v43, 256
+    v45 = slice_ptr arg0
+    v46 = add v45, 384
+    v47 = calldataload v46
+    v48 = xor v47, 256
+    v49 = slice_ptr arg0
+    v50 = add v49, 416
+    v51 = calldataload v50
+    v52 = xor v51, 256
+    v53 = slice_ptr arg0
+    v54 = add v53, 448
+    v55 = calldataload v54
+    v56 = xor v55, 256
+    v57 = slice_ptr arg0
+    v58 = add v57, 480
+    v59 = calldataload v58
+    v60 = xor v59, 256
+    v61 = slice_ptr arg0
+    v62 = add v61, 512
+    v63 = calldataload v62
+    v64 = xor v63, 256
+    v65 = slice_ptr arg0
+    v66 = add v65, 544
+    v67 = calldataload v66
+    v68 = xor v67, 256
+    mstore arg1, 0xdeadbeef
+    v69 = mload arg2
+    v70 = add v3, v4
+    v71 = add v70, v8
+    v72 = add v71, v12
+    v73 = add v72, v16
+    v74 = add v73, v20
+    v75 = add v74, v24
+    v76 = add v75, v28
+    v77 = add v76, v32
+    v78 = add v77, v36
+    v79 = add v78, v40
+    v80 = add v79, v44
+    v81 = add v80, v48
+    v82 = add v81, v52
+    v83 = add v82, v56
+    v84 = add v83, v60
+    v85 = add v84, v64
+    v86 = add v85, v68
+    ret v69, v86, v1
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/computed_writer_controls.sol:ComputedWideLiteral ===
+@module ComputedWideLiteral
+fn @run(arg0: calldataslice, arg1: u256, arg2: u256) -> (u256, u256) [selector=0xec8a0fc0, pure, abi_params=[array<18, u256>, u256, u256], abi_returns=[word, word]] {
+  bb0:
+    v0 = slice_ptr arg0
+    v1 = add v0, 0
+    v2 = calldataload v1
+    v3 = xor v2, 0x100000000000000000000000000000000000000000000000100
+    v4 = slice_ptr arg0
+    v5 = add v4, 32
+    v6 = calldataload v5
+    v7 = xor v6, 0x100000000000000000000000000000000000000000000000100
+    v8 = slice_ptr arg0
+    v9 = add v8, 64
+    v10 = calldataload v9
+    v11 = xor v10, 0x100000000000000000000000000000000000000000000000100
+    v12 = slice_ptr arg0
+    v13 = add v12, 96
+    v14 = calldataload v13
+    v15 = xor v14, 0x100000000000000000000000000000000000000000000000100
+    v16 = slice_ptr arg0
+    v17 = add v16, 128
+    v18 = calldataload v17
+    v19 = xor v18, 0x100000000000000000000000000000000000000000000000100
+    v20 = slice_ptr arg0
+    v21 = add v20, 160
+    v22 = calldataload v21
+    v23 = xor v22, 0x100000000000000000000000000000000000000000000000100
+    v24 = slice_ptr arg0
+    v25 = add v24, 192
+    v26 = calldataload v25
+    v27 = xor v26, 0x100000000000000000000000000000000000000000000000100
+    v28 = slice_ptr arg0
+    v29 = add v28, 224
+    v30 = calldataload v29
+    v31 = xor v30, 0x100000000000000000000000000000000000000000000000100
+    v32 = slice_ptr arg0
+    v33 = add v32, 256
+    v34 = calldataload v33
+    v35 = xor v34, 0x100000000000000000000000000000000000000000000000100
+    v36 = slice_ptr arg0
+    v37 = add v36, 288
+    v38 = calldataload v37
+    v39 = xor v38, 0x100000000000000000000000000000000000000000000000100
+    v40 = slice_ptr arg0
+    v41 = add v40, 320
+    v42 = calldataload v41
+    v43 = xor v42, 0x100000000000000000000000000000000000000000000000100
+    v44 = slice_ptr arg0
+    v45 = add v44, 352
+    v46 = calldataload v45
+    v47 = xor v46, 0x100000000000000000000000000000000000000000000000100
+    v48 = slice_ptr arg0
+    v49 = add v48, 384
+    v50 = calldataload v49
+    v51 = xor v50, 0x100000000000000000000000000000000000000000000000100
+    v52 = slice_ptr arg0
+    v53 = add v52, 416
+    v54 = calldataload v53
+    v55 = xor v54, 0x100000000000000000000000000000000000000000000000100
+    v56 = slice_ptr arg0
+    v57 = add v56, 448
+    v58 = calldataload v57
+    v59 = xor v58, 0x100000000000000000000000000000000000000000000000100
+    v60 = slice_ptr arg0
+    v61 = add v60, 480
+    v62 = calldataload v61
+    v63 = xor v62, 0x100000000000000000000000000000000000000000000000100
+    v64 = slice_ptr arg0
+    v65 = add v64, 512
+    v66 = calldataload v65
+    v67 = xor v66, 0x100000000000000000000000000000000000000000000000100
+    v68 = slice_ptr arg0
+    v69 = add v68, 544
+    v70 = calldataload v69
+    v71 = xor v70, 0x100000000000000000000000000000000000000000000000100
+    mstore arg1, 0xdeadbeef
+    v72 = mload arg2
+    v73 = add v3, v7
+    v74 = add v73, v11
+    v75 = add v74, v15
+    v76 = add v75, v19
+    v77 = add v76, v23
+    v78 = add v77, v27
+    v79 = add v78, v31
+    v80 = add v79, v35
+    v81 = add v80, v39
+    v82 = add v81, v43
+    v83 = add v82, v47
+    v84 = add v83, v51
+    v85 = add v84, v55
+    v86 = add v85, v59
+    v87 = add v86, v63
+    v88 = add v87, v67
+    v89 = add v88, v71
+    ret v72, v89
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/computed_writer_controls.sol:ComputedMultipleUse ===
+@module ComputedMultipleUse
+fn @run(arg0: calldataslice, arg1: u256, arg2: u256) -> (u256, u256, u256) [selector=0xec8a0fc0, pure, abi_params=[array<18, u256>, u256, u256], abi_returns=[word, word, word]] {
+  bb0:
+    v0 = slice_ptr arg0
+    v1 = add v0, 0
+    v2 = calldataload v1
+    v3 = xor v2, 256
+    v4 = slice_ptr arg0
+    v5 = add v4, 32
+    v6 = calldataload v5
+    v7 = xor v6, 256
+    v8 = slice_ptr arg0
+    v9 = add v8, 64
+    v10 = calldataload v9
+    v11 = xor v10, 256
+    v12 = slice_ptr arg0
+    v13 = add v12, 96
+    v14 = calldataload v13
+    v15 = xor v14, 256
+    v16 = slice_ptr arg0
+    v17 = add v16, 128
+    v18 = calldataload v17
+    v19 = xor v18, 256
+    v20 = slice_ptr arg0
+    v21 = add v20, 160
+    v22 = calldataload v21
+    v23 = xor v22, 256
+    v24 = slice_ptr arg0
+    v25 = add v24, 192
+    v26 = calldataload v25
+    v27 = xor v26, 256
+    v28 = slice_ptr arg0
+    v29 = add v28, 224
+    v30 = calldataload v29
+    v31 = xor v30, 256
+    v32 = slice_ptr arg0
+    v33 = add v32, 256
+    v34 = calldataload v33
+    v35 = xor v34, 256
+    v36 = slice_ptr arg0
+    v37 = add v36, 288
+    v38 = calldataload v37
+    v39 = xor v38, 256
+    v40 = slice_ptr arg0
+    v41 = add v40, 320
+    v42 = calldataload v41
+    v43 = xor v42, 256
+    v44 = slice_ptr arg0
+    v45 = add v44, 352
+    v46 = calldataload v45
+    v47 = xor v46, 256
+    v48 = slice_ptr arg0
+    v49 = add v48, 384
+    v50 = calldataload v49
+    v51 = xor v50, 256
+    v52 = slice_ptr arg0
+    v53 = add v52, 416
+    v54 = calldataload v53
+    v55 = xor v54, 256
+    v56 = slice_ptr arg0
+    v57 = add v56, 448
+    v58 = calldataload v57
+    v59 = xor v58, 256
+    v60 = slice_ptr arg0
+    v61 = add v60, 480
+    v62 = calldataload v61
+    v63 = xor v62, 256
+    v64 = slice_ptr arg0
+    v65 = add v64, 512
+    v66 = calldataload v65
+    v67 = xor v66, 256
+    v68 = slice_ptr arg0
+    v69 = add v68, 544
+    v70 = calldataload v69
+    v71 = xor v70, 256
+    mstore arg1, 0xdeadbeef
+    v72 = mload arg2
+    v73 = add v3, v7
+    v74 = add v73, v11
+    v75 = add v74, v15
+    v76 = add v75, v19
+    v77 = add v76, v23
+    v78 = add v77, v27
+    v79 = add v78, v31
+    v80 = add v79, v35
+    v81 = add v80, v39
+    v82 = add v81, v43
+    v83 = add v82, v47
+    v84 = add v83, v51
+    v85 = add v84, v55
+    v86 = add v85, v59
+    v87 = add v86, v63
+    v88 = add v87, v67
+    v89 = add v88, v71
+    ret v72, v89, v3
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/computed_writer_controls.sol:ComputedMutableBank ===
+@module ComputedMutableBank
+fn @run(arg0: calldataslice, arg1: u256, arg2: u256) -> (u256, u256) [selector=0xec8a0fc0, view, abi_params=[array<18, u256>, u256, u256], abi_returns=[word, word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = slice_ptr arg0
+    v2 = add v1, 32
+    v3 = calldataload v2
+    v4 = xor v3, 256
+    v5 = slice_ptr arg0
+    v6 = add v5, 64
+    v7 = calldataload v6
+    v8 = xor v7, 256
+    v9 = slice_ptr arg0
+    v10 = add v9, 96
+    v11 = calldataload v10
+    v12 = xor v11, 256
+    v13 = slice_ptr arg0
+    v14 = add v13, 128
+    v15 = calldataload v14
+    v16 = xor v15, 256
+    v17 = slice_ptr arg0
+    v18 = add v17, 160
+    v19 = calldataload v18
+    v20 = xor v19, 256
+    v21 = slice_ptr arg0
+    v22 = add v21, 192
+    v23 = calldataload v22
+    v24 = xor v23, 256
+    v25 = slice_ptr arg0
+    v26 = add v25, 224
+    v27 = calldataload v26
+    v28 = xor v27, 256
+    v29 = slice_ptr arg0
+    v30 = add v29, 256
+    v31 = calldataload v30
+    v32 = xor v31, 256
+    v33 = slice_ptr arg0
+    v34 = add v33, 288
+    v35 = calldataload v34
+    v36 = xor v35, 256
+    v37 = slice_ptr arg0
+    v38 = add v37, 320
+    v39 = calldataload v38
+    v40 = xor v39, 256
+    v41 = slice_ptr arg0
+    v42 = add v41, 352
+    v43 = calldataload v42
+    v44 = xor v43, 256
+    v45 = slice_ptr arg0
+    v46 = add v45, 384
+    v47 = calldataload v46
+    v48 = xor v47, 256
+    v49 = slice_ptr arg0
+    v50 = add v49, 416
+    v51 = calldataload v50
+    v52 = xor v51, 256
+    v53 = slice_ptr arg0
+    v54 = add v53, 448
+    v55 = calldataload v54
+    v56 = xor v55, 256
+    v57 = slice_ptr arg0
+    v58 = add v57, 480
+    v59 = calldataload v58
+    v60 = xor v59, 256
+    v61 = slice_ptr arg0
+    v62 = add v61, 512
+    v63 = calldataload v62
+    v64 = xor v63, 256
+    v65 = slice_ptr arg0
+    v66 = add v65, 544
+    v67 = calldataload v66
+    v68 = xor v67, 256
+    mstore arg1, 0xdeadbeef
+    v69 = mload arg2
+    v70 = add v0, v4
+    v71 = add v70, v8
+    v72 = add v71, v12
+    v73 = add v72, v16
+    v74 = add v73, v20
+    v75 = add v74, v24
+    v76 = add v75, v28
+    v77 = add v76, v32
+    v78 = add v77, v36
+    v79 = add v78, v40
+    v80 = add v79, v44
+    v81 = add v80, v48
+    v82 = add v81, v52
+    v83 = add v82, v56
+    v84 = add v83, v60
+    v85 = add v84, v64
+    v86 = add v85, v68
+    ret v69, v86
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/computed_writer_controls.sol:ComputedReturning ===
+@module ComputedReturning
+fn @run(arg0: calldataslice, arg1: u256, arg2: u256, arg3: u256) -> (u256, u256, u256, bool) [selector=0xa0527983, view, abi_params=[array<18, u256>, u256, u256, u256], abi_returns=[word, word, word, word<bool>]] {
+  bb0:
+    v0 = slice_ptr arg0
+    v1 = add v0, 0
+    v2 = calldataload v1
+    v3 = xor v2, 256
+    v4 = slice_ptr arg0
+    v5 = add v4, 32
+    v6 = calldataload v5
+    v7 = xor v6, 256
+    v8 = slice_ptr arg0
+    v9 = add v8, 64
+    v10 = calldataload v9
+    v11 = xor v10, 256
+    v12 = slice_ptr arg0
+    v13 = add v12, 96
+    v14 = calldataload v13
+    v15 = xor v14, 256
+    v16 = slice_ptr arg0
+    v17 = add v16, 128
+    v18 = calldataload v17
+    v19 = xor v18, 256
+    v20 = slice_ptr arg0
+    v21 = add v20, 160
+    v22 = calldataload v21
+    v23 = xor v22, 256
+    v24 = slice_ptr arg0
+    v25 = add v24, 192
+    v26 = calldataload v25
+    v27 = xor v26, 256
+    v28 = slice_ptr arg0
+    v29 = add v28, 224
+    v30 = calldataload v29
+    v31 = xor v30, 256
+    v32 = slice_ptr arg0
+    v33 = add v32, 256
+    v34 = calldataload v33
+    v35 = xor v34, 256
+    v36 = slice_ptr arg0
+    v37 = add v36, 288
+    v38 = calldataload v37
+    v39 = xor v38, 256
+    v40 = slice_ptr arg0
+    v41 = add v40, 320
+    v42 = calldataload v41
+    v43 = xor v42, 256
+    v44 = slice_ptr arg0
+    v45 = add v44, 352
+    v46 = calldataload v45
+    v47 = xor v46, 256
+    v48 = slice_ptr arg0
+    v49 = add v48, 384
+    v50 = calldataload v49
+    v51 = xor v50, 256
+    v52 = slice_ptr arg0
+    v53 = add v52, 416
+    v54 = calldataload v53
+    v55 = xor v54, 256
+    v56 = slice_ptr arg0
+    v57 = add v56, 448
+    v58 = calldataload v57
+    v59 = xor v58, 256
+    v60 = slice_ptr arg0
+    v61 = add v60, 480
+    v62 = calldataload v61
+    v63 = xor v62, 256
+    v64 = slice_ptr arg0
+    v65 = add v64, 512
+    v66 = calldataload v65
+    v67 = xor v66, 256
+    v68 = slice_ptr arg0
+    v69 = add v68, 544
+    v70 = calldataload v69
+    v71 = xor v70, 256
+    v72 = gas
+    v73 = icall @recurse, 1, arg3
+    mstore arg1, 0xdeadbeef
+    v74 = mload arg2
+    v75 = gas
+    v76 = gt v72, v75
+    v77 = add v3, v7
+    v78 = add v77, v11
+    v79 = add v78, v15
+    v80 = add v79, v19
+    v81 = add v80, v23
+    v82 = add v81, v27
+    v83 = add v82, v31
+    v84 = add v83, v35
+    v85 = add v84, v39
+    v86 = add v85, v43
+    v87 = add v86, v47
+    v88 = add v87, v51
+    v89 = add v88, v55
+    v90 = add v89, v59
+    v91 = add v90, v63
+    v92 = add v91, v67
+    v93 = add v92, v71
+    ret v74, v93, v73, v76
+}
+
+fn @recurse(arg0: u256) -> u256 {
+  bb0:
+    v0 = eq arg0, 0
+    v1 = iszero v0
+    jumpi v1, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v2 = sub arg0, 1
+    v3 = icall @recurse, 1, v2
+    jump bb3
+  bb3:
+    v4 = phi [bb1: v3], [bb2: 0]
+    v5 = add v4, 1
+    ret v5
+}
