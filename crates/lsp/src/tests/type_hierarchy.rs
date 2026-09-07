@@ -12,7 +12,7 @@ use serde_json::json;
 use solar_config::{CompileOpts, ImportRemapping};
 use std::{
     future::Future,
-    sync::atomic::Ordering,
+    sync::{Arc, atomic::Ordering},
     task::{Context, Poll, Waker},
 };
 
@@ -692,7 +692,7 @@ fn requests_read_the_latest_published_analysis() {
     let sub_base =
         old_tables.prepare_type_hierarchy(&uri, Position::new(3, 10)).unwrap().pop().unwrap();
     let mut state = GlobalState::new(ClientSocket::new_closed());
-    *state.symbol_tables.write() = old_tables;
+    state.symbol_tables.store(Arc::new(old_tables));
     state.analysis_version.fetch_add(1, Ordering::AcqRel);
 
     let mut prepare = std::pin::pin!(crate::handlers::prepare_type_hierarchy(
@@ -715,8 +715,8 @@ fn requests_read_the_latest_published_analysis() {
 
     state.analysis_version.fetch_add(1, Ordering::AcqRel);
     let mut snapshot = state.snapshot();
-    assert!(snapshot.publish_symbol_tables(2, new_tables));
-    assert!(!snapshot.publish_symbol_tables(1, SymbolTables::default()));
+    assert!(snapshot.publish_symbol_tables(2, Arc::new(new_tables)));
+    assert!(!snapshot.publish_symbol_tables(1, Default::default()));
 
     assert_eq!(ready_names(prepare.as_mut().poll(&mut context)), ["New"]);
     assert_eq!(ready_names(supertypes.as_mut().poll(&mut context)), ["SuperNew"]);
@@ -738,7 +738,7 @@ fn requests_capture_the_analysis_epoch_when_created() {
     let base = tables.prepare_type_hierarchy(&uri, Position::new(0, 10)).unwrap().pop().unwrap();
     let child = tables.prepare_type_hierarchy(&uri, Position::new(1, 10)).unwrap().pop().unwrap();
     let mut state = GlobalState::new(ClientSocket::new_closed());
-    *state.symbol_tables.write() = tables;
+    state.symbol_tables.store(Arc::new(tables));
 
     let mut prepare = std::pin::pin!(crate::handlers::prepare_type_hierarchy(
         &mut state,

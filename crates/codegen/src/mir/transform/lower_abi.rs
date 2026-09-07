@@ -315,6 +315,7 @@ impl LowerAbiCx {
 
                 let mut builder = FunctionBuilder::new(func);
                 builder.switch_to_block(block);
+                builder.inherit_terminator_debug_context(block);
                 let zero = builder.imm(U256::ZERO);
                 if evm_version.supports_returndata() {
                     // size = returndatasize()
@@ -402,6 +403,9 @@ impl LowerAbiCx {
             };
             let mut builder = FunctionBuilder::new(func).with_revert_strings(revert_strings);
             builder.switch_to_block(block_id);
+            // abi_encode(values) !metadata(return span)
+            // returndata(encoded_ptr, encoded_len) !metadata(return span)
+            builder.inherit_terminator_debug_context(block_id);
             let values = values
                 .into_iter()
                 .enumerate()
@@ -548,7 +552,8 @@ impl LowerAbiCx {
             for block in blocks {
                 let instructions =
                     std::mem::take(&mut builder.func_mut().blocks[block].instructions);
-                let terminator = builder.func_mut().blocks[block].terminator.take();
+                let (terminator, terminator_metadata) =
+                    builder.func_mut().blocks[block].take_terminator();
                 builder.switch_to_block(block);
                 for inst in instructions {
                     let InstKind::AbiDecode { data, layout } = &builder.func().inst(inst).kind
@@ -612,7 +617,12 @@ impl LowerAbiCx {
                         }
                     }
                 }
-                super::lower_abi_encode::move_terminator(&mut builder, block, terminator);
+                super::lower_abi_encode::move_terminator(
+                    &mut builder,
+                    block,
+                    terminator,
+                    terminator_metadata,
+                );
             }
             builder.func_mut().replace_uses_canonicalized(&replacements);
             let _ = crate::mir::utils::repair_reachability_phis(builder.func_mut());
@@ -1047,6 +1057,7 @@ impl LowerAbiCx {
             }
             let mut builder = FunctionBuilder::new(func);
             builder.switch_to_block(block);
+            builder.inherit_terminator_debug_context(block);
             let offset = builder.memory_object_data(value, MemoryObjectKind::Bytes);
             let size = builder.memory_object_len(value, MemoryObjectKind::Bytes);
             builder.ret_data(offset, size);
@@ -3876,6 +3887,7 @@ fn encode_static_bytes_return(
     func.external_static_return_size = return_size;
     let mut builder = FunctionBuilder::new(func);
     builder.switch_to_block(return_block);
+    builder.inherit_terminator_debug_context(return_block);
     // mstore(128, 32)
     // mstore(160, len)
     // mstore(192, word)

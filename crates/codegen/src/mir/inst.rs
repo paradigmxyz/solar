@@ -18,6 +18,8 @@ pub(crate) struct InstructionMetadata {
     storage_alias: Option<Box<StorageAlias>>,
     /// Source span that produced this instruction, when the lowerer can preserve it.
     source_span: Span,
+    /// Additional origins of shared code, allocated only after a debug-origin merge.
+    additional_source_spans: Option<Box<SmallVec<[Span; 2]>>>,
     /// Legacy source-map modifier nesting depth for this instruction.
     modifier_depth: u32,
     /// HIR expression that produced this instruction, when the lowerer can preserve it.
@@ -34,6 +36,7 @@ impl InstructionMetadata {
         storage_alias: None,
         hir_expr: None,
         source_span: Span::DUMMY,
+        additional_source_spans: None,
         modifier_depth: 0,
         loop_depth: 0,
         flags: MetadataFlags::EMPTY,
@@ -67,10 +70,61 @@ impl InstructionMetadata {
         (!self.source_span.is_dummy()).then_some(self.source_span)
     }
 
+    /// Returns every retained origin, in deterministic merge order.
+    pub(crate) fn source_spans(&self) -> impl Iterator<Item = Span> + '_ {
+        self.source_span()
+            .into_iter()
+            .chain(self.additional_source_spans.iter().flat_map(|spans| spans.iter().copied()))
+    }
+
+    /// Sets explicit textual origins, bounding metadata growth in repeated merges.
+    pub(crate) fn set_source_spans(&mut self, spans: impl IntoIterator<Item = Span>) {
+        self.set_source_span(None);
+        for span in spans {
+            self.insert_source_span(span);
+        }
+        self.flags.set_display_source_span(self.source_span().is_some());
+    }
+
+    fn insert_source_span(&mut self, span: Span) {
+        // Keep the same bounded ambiguity representation in both IR layers.
+        if span.is_dummy() || self.source_spans().any(|old| old == span) {
+            return;
+        }
+        if self.source_span.is_dummy() {
+            self.source_span = span;
+        } else if self.source_spans().count() < crate::source_info::MAX_DEBUG_SPANS {
+            self.additional_source_spans.get_or_insert_default().push(span);
+        }
+    }
+
+    /// Unions origins without importing instruction-specific analysis facts.
+    pub(crate) fn merge_debug_context(&mut self, other: &Self) {
+        for span in other.source_spans() {
+            self.insert_source_span(span);
+        }
+        if self.modifier_depth != other.modifier_depth {
+            self.modifier_depth = 0;
+        }
+        self.flags
+            .set_display_source_span(self.displays_source_span() || other.displays_source_span());
+        self.flags.set_debug_info_handled();
+    }
+
+    /// Copies all debug fields without copying semantic or analysis metadata.
+    pub(crate) fn copy_debug_context(&mut self, other: &Self) {
+        self.source_span = other.source_span;
+        self.additional_source_spans = other.additional_source_spans.clone();
+        self.modifier_depth = other.modifier_depth;
+        self.flags.set_display_source_span(other.displays_source_span());
+        self.flags.set_debug_info_handled();
+    }
+
     /// Sets the source span that produced this instruction.
     pub(crate) fn set_source_span(&mut self, span: Option<Span>) {
         let span = span.filter(|span| !span.is_dummy());
         self.source_span = span.unwrap_or(Span::DUMMY);
+        self.additional_source_spans = None;
         self.flags.set_display_source_span(span.is_some());
         self.flags.set_debug_info_handled();
     }
@@ -78,6 +132,8 @@ impl InstructionMetadata {
     /// Sets source debug information without adding it to canonical MIR text.
     pub(crate) fn set_debug_source_span(&mut self, span: Option<Span>) {
         self.source_span = span.filter(|span| !span.is_dummy()).unwrap_or(Span::DUMMY);
+        self.additional_source_spans = None;
+        self.flags.set_display_source_span(false);
         self.flags.set_debug_info_handled();
     }
 
@@ -96,6 +152,7 @@ impl InstructionMetadata {
     /// Marks this instruction as intentionally having no source location.
     pub(crate) fn mark_debug_info_dropped(&mut self) {
         self.set_debug_source_span(None);
+        self.modifier_depth = 0;
     }
 
     /// Returns whether source debug information was preserved or intentionally dropped.
@@ -108,6 +165,13 @@ impl InstructionMetadata {
     #[must_use]
     pub(crate) fn displays_source_span(&self) -> bool {
         self.flags.displays_source_span()
+    }
+
+    /// Copies source context without carrying instruction-specific analysis facts.
+    pub(crate) fn debug_context(&self) -> Self {
+        let mut metadata = Self::EMPTY;
+        metadata.copy_debug_context(self);
+        metadata
     }
 
     /// Returns the proven memory region.
@@ -2146,7 +2210,7 @@ mod tests {
         }
 
         assert_size::<InstKind>(str!["40"]);
-        assert_size::<InstructionMetadata>(str!["32"]);
-        assert_size::<Instruction>(str!["80"]);
+        assert_size::<InstructionMetadata>(str!["40"]);
+        assert_size::<Instruction>(str!["88"]);
     }
 }

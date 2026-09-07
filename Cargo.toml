@@ -174,6 +174,7 @@ strum = "0.28"
 thiserror = ">=1"
 
 # parallel
+arc-swap = "1.9"
 parking_lot = "0.12"
 rayon = "1.8"
 

@@ -211,7 +211,7 @@ async fn external_analysis_refreshes_changed_workspace_membership_once() {
         AnalysisResult {
             analyzed_documents: AnalyzedDocuments::from_iter([(uri.clone(), Some(1))]),
             diagnostics: DiagnosticMap::default(),
-            symbol_tables: SymbolTables::default(),
+            symbol_tables: Default::default(),
         },
     ));
     assert_eq!(harness.next_event().await, RefreshEvent::Diagnostics);
@@ -225,7 +225,7 @@ async fn external_analysis_refreshes_changed_workspace_membership_once() {
         AnalysisResult {
             analyzed_documents: AnalyzedDocuments::from_iter([(uri, Some(2))]),
             diagnostics: DiagnosticMap::default(),
-            symbol_tables: SymbolTables::default(),
+            symbol_tables: Default::default(),
         },
     ));
     harness.expect_no_event().await;
@@ -324,7 +324,7 @@ async fn external_analysis_preserves_early_diagnostic_changes_until_commit() {
         AnalysisResult {
             analyzed_documents: AnalyzedDocuments::default(),
             diagnostics: DiagnosticMap::default(),
-            symbol_tables: SymbolTables::default(),
+            symbol_tables: Default::default(),
         },
     ));
 
@@ -356,7 +356,7 @@ async fn removed_flycheck_diagnostics_coalesce_with_external_analysis_refresh() 
         AnalysisResult {
             analyzed_documents: AnalyzedDocuments::default(),
             diagnostics: DiagnosticMap::default(),
-            symbol_tables: SymbolTables::default(),
+            symbol_tables: Default::default(),
         },
     ));
     assert_eq!(harness.next_event().await, RefreshEvent::Diagnostics);
@@ -409,7 +409,7 @@ async fn external_refresh_intent_survives_superseded_analysis() {
     let unchanged_result = || AnalysisResult {
         analyzed_documents: AnalyzedDocuments::default(),
         diagnostics: DiagnosticMap::default(),
-        symbol_tables: SymbolTables::default(),
+        symbol_tables: Default::default(),
     };
 
     assert!(!stale_snapshot.publish_analysis(stale_version, unchanged_result()));

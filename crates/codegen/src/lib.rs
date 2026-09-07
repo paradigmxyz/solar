@@ -22,6 +22,7 @@ pub use contract::{
 };
 
 mod ir_parse;
+mod source_info;
 
 mod timing;
 pub(crate) mod utils;

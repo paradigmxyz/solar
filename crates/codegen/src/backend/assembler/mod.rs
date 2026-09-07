@@ -8,7 +8,9 @@
 //! - Byte emission.
 
 use crate::{
-    backend::evm::{DebugFunction, DebugFunctionExit, DebugInstruction, ir, op, op::WORD_BYTES},
+    backend::evm::{
+        DebugFunction, DebugFunctionExit, DebugInstruction, DebugSpans, ir, op, op::WORD_BYTES,
+    },
     mir::{ImmutableId, TypeSize},
 };
 use alloy_primitives::U256;
@@ -106,7 +108,7 @@ pub(crate) struct Assembler<'gcx> {
     /// Block currently receiving emitted instructions.
     pub(in crate::backend) current_block: Option<ir::BlockId>,
     /// Source span attached to newly emitted EVM IR operations.
-    pub(in crate::backend) current_source_span: Span,
+    pub(in crate::backend) current_source_spans: DebugSpans,
     /// Legacy source-map modifier nesting depth attached to new EVM IR operations.
     pub(in crate::backend) current_modifier_depth: u32,
     /// Original assembler label attached to each EVM IR block.
@@ -158,7 +160,7 @@ impl<'gcx> Assembler<'gcx> {
             program: ir::Module::new(sym::asm),
             program_is_finalized: false,
             current_block: None,
-            current_source_span: Span::DUMMY,
+            current_source_spans: DebugSpans::new(),
             current_modifier_depth: 0,
             block_labels: Vec::new(),
             label_blocks: FxHashMap::default(),
@@ -184,7 +186,7 @@ impl<'gcx> Assembler<'gcx> {
         self.program.clear();
         self.program_is_finalized = false;
         self.current_block = None;
-        self.current_source_span = Span::DUMMY;
+        self.current_source_spans.clear();
         self.current_modifier_depth = 0;
         self.block_labels.clear();
         self.label_blocks.clear();

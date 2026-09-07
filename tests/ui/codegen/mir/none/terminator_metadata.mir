@@ -1,0 +1,36 @@
+//@ revisions: roundtrip simplify pipeline
+//@[roundtrip] compile-flags: -Zmir-pipeline=none
+//@[simplify] compile-flags: -Zmir-pipeline=inst-simplify,dce
+//@[pipeline] compile-flags: -Zmir-pipeline=default
+//@ filecheck:
+@module TerminatorMetadata
+
+// CHECK-LABEL: {{^[ +]*}}fn @checked{{[( ]}}
+// CHECK: jumpi arg0, bb1, bb2 !metadata(span=10..20)
+// CHECK: revert 0, 0 !metadata(span=10..20)
+// CHECK: ret arg0 !metadata(span=30..40, modifier_depth=1)
+fn @checked(arg0: u256) -> u256 {
+  bb0:
+    jumpi arg0, bb1, bb2 !metadata(span=10..20)
+  bb1:
+    ret arg0 !metadata(span=30..40, modifier_depth=1)
+  bb2:
+    revert 0, 0 !metadata(span=10..20)
+}
+
+// Repeated origins are deduplicated and bounded to eight distinct locations.
+// CHECK-LABEL: {{^[ +]*}}fn @bounded_origins{{[( ]}}
+// CHECK: ret arg0 !metadata(spans=[1..2, 3..4, 5..6, 7..8, 9..10, 11..12, 13..14, 15..16])
+fn @bounded_origins(arg0: u256) -> u256 {
+  bb0:
+    ret arg0 !metadata(spans=[1..2, 1..2, 3..4, 5..6, 7..8, 9..10, 11..12, 13..14, 15..16, 17..18])
+}
+
+// Mixed metadata remains valid when only a terminator has a source origin.
+// CHECK-LABEL: {{^[ +]*}}fn @mixed{{[( ]}}
+// CHECK: ret {{v[0-9]+}} !metadata(spans=[50..60, 70..80])
+fn @mixed(arg0: u256) -> u256 {
+  bb0:
+    v1 = add arg0, 1 !metadata(spans=[90..100, 110..120])
+    ret v1 !metadata(spans=[50..60, 70..80])
+}

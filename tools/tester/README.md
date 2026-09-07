@@ -17,6 +17,13 @@ cargo tq foundry
 
 Set `SOLAR_FOUNDRY_PROJECT` to run one discovered project while debugging.
 
+## Debug-info differential suite
+
+`SOLDB=/path/to/soldb/target/debug/soldb cargo tq debug-diff` compiles and
+executes local debug-info comparisons with solc and between our ETHDebug and
+legacy source-map formats. See [the suite guide](../../tests/debug-diff/README.md)
+for checkpoints, required tools, saved reports, and known compiler gaps.
+
 ## External Foundry suite
 
 `cargo tq foundry-external [name]` runs curated real-world Foundry projects

@@ -25,6 +25,7 @@
 use super::VfsPath;
 use crate::{
     file_operations::{FileMoveBatch, FileMoveError},
+    folding_range,
     selection_range::SelectionRangeIndex,
 };
 use crop::Rope;
@@ -41,11 +42,17 @@ struct VfsFile {
     contents: Rope,
     analysis_source: OnceLock<Arc<String>>,
     selection_range_index: OnceLock<SelectionRangeIndex>,
+    folding_ranges: OnceLock<Vec<lsp_types::FoldingRange>>,
 }
 
 impl VfsFile {
     fn new(contents: Rope) -> Self {
-        Self { contents, analysis_source: OnceLock::new(), selection_range_index: OnceLock::new() }
+        Self {
+            contents,
+            analysis_source: OnceLock::new(),
+            selection_range_index: OnceLock::new(),
+            folding_ranges: OnceLock::new(),
+        }
     }
 
     fn analysis_source(&self) -> Arc<String> {
@@ -74,6 +81,19 @@ impl SelectionRangeSource {
 
     pub(crate) fn selection_ranges(&self, positions: &[Position]) -> Option<Vec<SelectionRange>> {
         self.index().selection_ranges(positions)
+    }
+}
+
+/// An exact-content handle whose folding ranges are parsed at most once.
+#[derive(Clone)]
+pub(crate) struct FoldingRangeSource(Arc<VfsFile>);
+
+impl FoldingRangeSource {
+    pub(crate) fn folding_ranges(&self) -> Vec<lsp_types::FoldingRange> {
+        self.0
+            .folding_ranges
+            .get_or_init(|| folding_range::folding_ranges(self.0.contents.to_string()))
+            .clone()
     }
 }
 
@@ -148,6 +168,13 @@ impl Vfs {
         path: &VfsPath,
     ) -> Option<SelectionRangeSource> {
         self.data.get(path).cloned().map(SelectionRangeSource)
+    }
+
+    pub(crate) fn get_file_folding_range_source(
+        &self,
+        path: &VfsPath,
+    ) -> Option<FoldingRangeSource> {
+        self.data.get(path).cloned().map(FoldingRangeSource)
     }
 
     pub(crate) fn get_file_version(&self, path: &VfsPath) -> Option<i32> {
@@ -381,6 +408,37 @@ mod tests {
         ));
         let changed_source = vfs.get_file_selection_range_source(&file).unwrap();
         let changed = changed_source.index();
+        assert!(!std::ptr::eq(first, changed));
+    }
+
+    #[test]
+    fn folding_ranges_are_cached_until_contents_change() {
+        let mut vfs = Vfs::default();
+        let file = path("/workspace/Test.sol");
+        insert(&mut vfs, "/workspace/Test.sol", "contract Test {\n}\n", 1);
+
+        let first_source = vfs.get_file_folding_range_source(&file).unwrap();
+        let first = first_source
+            .0
+            .folding_ranges
+            .get_or_init(|| folding_range::folding_ranges(first_source.0.contents.to_string()));
+        let cached_source = vfs.get_file_folding_range_source(&file).unwrap();
+        let cached = cached_source
+            .0
+            .folding_ranges
+            .get_or_init(|| folding_range::folding_ranges(cached_source.0.contents.to_string()));
+        assert!(std::ptr::eq(first, cached));
+
+        assert!(vfs.set_file_contents_with_version(
+            file.clone(),
+            Some(Rope::from("contract Changed {\n}\n")),
+            Some(2),
+        ));
+        let changed_source = vfs.get_file_folding_range_source(&file).unwrap();
+        let changed = changed_source
+            .0
+            .folding_ranges
+            .get_or_init(|| folding_range::folding_ranges(changed_source.0.contents.to_string()));
         assert!(!std::ptr::eq(first, changed));
     }
 

@@ -14,12 +14,14 @@ Pass `--evm-version VERSION` to replace every archived Standard JSON target and 
 corpus against one EVM version. Use `--solar-only` when the selected target is not supported by the
 installed solc. When available, solc still provides helper contracts for cold-path runtime checks.
 
-Use `--solar-only` for repeated local runs after recording a two-compiler baseline. This skips the
+The default runs only our compiler. Pass `--solc PATH` to record a two-compiler baseline.
+Use `--solar-only` to skip solc benchmark compilation even when `--solc PATH` supplies a binary
+for reference validation or helper contracts. The default skips the
 reference solc compile for each case while retaining Solar compilation, gas measurements, and
 runtime failure checks. A one-compiler run cannot make differential runtime claims, so successful
 runtime comparisons are marked as skipped unless a matching reference result is supplied.
 
-Pass `--reference-results PATH` with `--solar-only` to reuse matching solc results from a prior
+Pass `--reference-results PATH` to reuse matching solc results from a prior
 run. The benchmark copies solc compile, gas, and runtime data only when the input fingerprint
 matches, then performs the normal cross-compiler runtime checks. PR CI uses the exact-base result
 as the reference, so solc runs on the base revision instead of repeating unchanged work on the PR.
@@ -29,6 +31,41 @@ runs outside the timed samples. Solar emits MIR, creation and runtime EVM IR, di
 and raw Standard JSON input and output. Solc emits optimized Yul IR where available, disassembly,
 bytecode, and raw Standard JSON input and output. When `--reference-results` points to a result next
 to an `artifacts` directory, the matching solc files are copied into the new run.
+
+Compare two runs with `benchmark-compare.py`, which also generates CI's Markdown report,
+common benchmark JSON, job summary, and comment metadata:
+
+```bash
+uv run benches/runtime/benchmark-compare.py \
+  target/codegen-bench/baseline target/codegen-bench/candidate \
+  --report-output target/codegen-bench/comparison.md \
+  --json-output target/codegen-bench/comparison.json \
+  --diff-output target/codegen-bench/changes.patch
+```
+
+The script prints Markdown to stdout by default. `--report-output` also saves the same
+report; omit it when you only need terminal output.
+
+Inputs may be directories containing `results.json` or JSON paths. Artifacts default to
+`artifacts/` beside each JSON. Use `--baseline-artifacts` and `--artifacts` for other paths.
+Add `--tests factorial counter` to select cases, `--artifact mir` for MIR diffs, or
+`--artifact evm-ir disasm bytecode` for backend output. `--compiler solc` inspects solc;
+the default compares our compiler between runs. `--results PATH` without a baseline produces
+a single-run CI report. Numeric regressions do not cause a nonzero exit status;
+missing or invalid result inputs do. The shared CI schema (`--common-output`)
+requires a complete, unfiltered run. `--compiler solc` requires two runs and shows
+the solc comparison without the compiler-primary CI tables.
+
+The comparison reports missing/failed cases and excludes incompatible inputs or runtime
+workloads from deltas. The summary uses the geometric mean of candidate/baseline ratios,
+with equal weight per benchmark, separately for each metric. Zero-valued pairs stay in
+the per-case results and change counts but do not enter the mean. Runtime gas sums the
+measured transactions within each benchmark, not across benchmarks. It includes per-call gas changes,
+compile samples in JSON, artifact hashes, and file additions/removals, so equal bytecode sizes
+do not hide changed bytecode. Missing artifacts are reported as unavailable, including the
+whole-project cases that do not capture them. Compile time and RSS comparisons require matching
+compiler labels and known build profiles; machine differences and timing noise still need review.
+Artifact capture errors and runtime observation changes appear in the comparison's issues.
 
 The workload definitions and helper fixtures were imported from
 [`walnuthq/solidity-compiler-benchmarks`](https://github.com/walnuthq/solidity-compiler-benchmarks)

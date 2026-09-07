@@ -13,6 +13,7 @@ use crate::{
     symbols::{CompletionContext, CompletionItemData, SymbolTables},
     vfs::{Vfs, VfsPath},
 };
+use arc_swap::ArcSwap;
 use async_lsp::{ClientSocket, ErrorCode, ResponseError};
 use crop::Rope;
 use lsp_types::{
@@ -110,17 +111,29 @@ pub(crate) fn folding_range(
 
     async move {
         let Some((vfs_path, path)) = request else { return Ok(None) };
-        let source = match document_contents(&vfs, &vfs_path, &path).await {
-            Ok(source) => source,
-            Err(error) => {
-                warn!(%error, "failed to read document");
-                return Ok(None);
-            }
-        };
-        let ranges =
-            tokio::task::spawn_blocking(move || crate::folding_range::folding_ranges(source))
+        let cached_source = { vfs.read().get_file_folding_range_source(&vfs_path) };
+        let ranges = if let Some(source) = cached_source {
+            tokio::task::spawn_blocking(move || source.folding_ranges())
                 .await
-                .map_err(folding_range_task_failed)?;
+                .map_err(folding_range_task_failed)?
+        } else {
+            let contents = { vfs.read().get_file_contents(&vfs_path).cloned() };
+            let task = if let Some(rope) = contents {
+                tokio::task::spawn_blocking(move || {
+                    crate::folding_range::folding_ranges_from_rope(rope)
+                })
+            } else {
+                let source = match tokio::fs::read_to_string(path).await {
+                    Ok(source) => source,
+                    Err(error) => {
+                        warn!(%error, "failed to read document");
+                        return Ok(None);
+                    }
+                };
+                tokio::task::spawn_blocking(move || crate::folding_range::folding_ranges(source))
+            };
+            task.await.map_err(folding_range_task_failed)?
+        };
         Ok(Some(ranges))
     }
 }
@@ -280,7 +293,7 @@ fn request_failed(message: &'static str) -> ResponseError {
 fn latest_analysis_for_uri(
     state: &GlobalState,
     uri: &Url,
-) -> Option<impl Future<Output = Result<Arc<RwLock<SymbolTables>>, ResponseError>> + use<>> {
+) -> Option<impl Future<Output = Result<Arc<ArcSwap<SymbolTables>>, ResponseError>> + use<>> {
     crate::proto::vfs_path(uri)?;
     Some(state.latest_analysis())
 }
@@ -337,9 +350,9 @@ pub(crate) fn document_symbol(
         };
         let symbol_tables = latest_analysis.await?;
         let response = if hierarchical {
-            DocumentSymbolResponse::Nested(symbol_tables.read().document_symbols(&uri))
+            DocumentSymbolResponse::Nested(symbol_tables.load().document_symbols(&uri))
         } else {
-            DocumentSymbolResponse::Flat(symbol_tables.read().flat_document_symbols(&uri))
+            DocumentSymbolResponse::Flat(symbol_tables.load().flat_document_symbols(&uri))
         };
         Ok(Some(response))
     }
@@ -354,7 +367,7 @@ pub(crate) fn document_links(
     async move {
         let Some((path, latest_analysis)) = request else { return Ok(Some(Vec::new())) };
         let symbol_tables = latest_analysis.await?;
-        let links = symbol_tables.read().document_links(&path);
+        let links = symbol_tables.load().document_links(&path);
         Ok(Some(links))
     }
 }
@@ -497,7 +510,7 @@ pub(crate) fn workspace_symbol(
     state: &mut GlobalState,
     params: WorkspaceSymbolParams,
 ) -> impl Future<Output = Result<Option<WorkspaceSymbolResponse>, ResponseError>> + use<> {
-    let symbols = state.symbol_tables.read().workspace_symbols(&params.query);
+    let symbols = state.symbol_tables.load().workspace_symbols(&params.query);
     ready(Ok(Some(WorkspaceSymbolResponse::Nested(symbols))))
 }
 
@@ -511,7 +524,7 @@ pub(crate) fn prepare_type_hierarchy(
     async move {
         let Some(latest_analysis) = latest_analysis else { return Ok(None) };
         let symbol_tables = latest_analysis.await?;
-        let response = symbol_tables.read().prepare_type_hierarchy(&uri, params.position);
+        let response = symbol_tables.load().prepare_type_hierarchy(&uri, params.position);
         Ok(response)
     }
 }
@@ -524,7 +537,7 @@ pub(crate) fn type_hierarchy_supertypes(
     async move {
         let Some(latest_analysis) = latest_analysis else { return Ok(None) };
         let symbol_tables = latest_analysis.await?;
-        let response = symbol_tables.read().type_hierarchy_supertypes(&params.item);
+        let response = symbol_tables.load().type_hierarchy_supertypes(&params.item);
         Ok(response)
     }
 }
@@ -537,7 +550,7 @@ pub(crate) fn type_hierarchy_subtypes(
     async move {
         let Some(latest_analysis) = latest_analysis else { return Ok(None) };
         let symbol_tables = latest_analysis.await?;
-        let response = symbol_tables.read().type_hierarchy_subtypes(&params.item);
+        let response = symbol_tables.load().type_hierarchy_subtypes(&params.item);
         Ok(response)
     }
 }
@@ -563,7 +576,7 @@ pub(crate) fn goto_definition(
                 return Ok(None);
             };
             if let Some(response) =
-                symbol_tables.read().import_definition(&params.text_document.uri, params.position)
+                symbol_tables.load().import_definition(&params.text_document.uri, params.position)
             {
                 return Ok(Some(response));
             }
@@ -577,7 +590,7 @@ pub(crate) fn goto_definition(
             return Ok(None);
         }
         let response =
-            symbol_tables.read().goto_definition(&params.text_document.uri, params.position);
+            symbol_tables.load().goto_definition(&params.text_document.uri, params.position);
         Ok(response)
     }
 }
@@ -630,7 +643,7 @@ pub(crate) fn goto_type_definition(
         let Some(latest_analysis) = latest_analysis else { return Ok(None) };
         let symbol_tables = latest_analysis.await?;
         let response =
-            symbol_tables.read().goto_type_definition(&params.text_document.uri, params.position);
+            symbol_tables.load().goto_type_definition(&params.text_document.uri, params.position);
         Ok(response)
     }
 }
@@ -645,7 +658,7 @@ pub(crate) fn goto_declaration(
         let Some(latest_analysis) = latest_analysis else { return Ok(None) };
         let symbol_tables = latest_analysis.await?;
         let response =
-            symbol_tables.read().goto_declaration(&params.text_document.uri, params.position);
+            symbol_tables.load().goto_declaration(&params.text_document.uri, params.position);
         Ok(response)
     }
 }
@@ -660,7 +673,7 @@ pub(crate) fn goto_implementation(
         let Some(latest_analysis) = latest_analysis else { return Ok(None) };
         let symbol_tables = latest_analysis.await?;
         let response =
-            symbol_tables.read().goto_implementation(&params.text_document.uri, params.position);
+            symbol_tables.load().goto_implementation(&params.text_document.uri, params.position);
         Ok(response)
     }
 }
@@ -675,7 +688,7 @@ pub(crate) fn prepare_call_hierarchy(
         let Some(latest_analysis) = latest_analysis else { return Ok(None) };
         let symbol_tables = latest_analysis.await?;
         let response =
-            symbol_tables.read().prepare_call_hierarchy(&params.text_document.uri, params.position);
+            symbol_tables.load().prepare_call_hierarchy(&params.text_document.uri, params.position);
         Ok(response)
     }
 }
@@ -689,7 +702,7 @@ pub(crate) fn call_hierarchy_incoming(
     async move {
         let Some(latest_analysis) = latest_analysis else { return Ok(None) };
         let symbol_tables = latest_analysis.await?;
-        let response = symbol_tables.read().call_hierarchy_incoming(&item);
+        let response = symbol_tables.load().call_hierarchy_incoming(&item);
         Ok(response)
     }
 }
@@ -703,7 +716,7 @@ pub(crate) fn call_hierarchy_outgoing(
     async move {
         let Some(latest_analysis) = latest_analysis else { return Ok(None) };
         let symbol_tables = latest_analysis.await?;
-        let response = symbol_tables.read().call_hierarchy_outgoing(&item);
+        let response = symbol_tables.load().call_hierarchy_outgoing(&item);
         Ok(response)
     }
 }
@@ -718,7 +731,7 @@ pub(crate) fn references(
     async move {
         let Some(latest_analysis) = latest_analysis else { return Ok(None) };
         let symbol_tables = latest_analysis.await?;
-        let response = symbol_tables.read().references(
+        let response = symbol_tables.load().references(
             &params.text_document.uri,
             params.position,
             include_declaration,
@@ -738,7 +751,7 @@ pub(crate) fn code_lens(
     async move {
         let Some(latest_analysis) = latest_analysis else { return Ok(Some(Vec::new())) };
         let symbol_tables = latest_analysis.await?;
-        let response = symbol_tables.read().code_lenses(&uri, options);
+        let response = symbol_tables.load().code_lenses(&uri, options);
         Ok(Some(response))
     }
 }
@@ -753,7 +766,7 @@ pub(crate) fn document_highlight(
         let Some(latest_analysis) = latest_analysis else { return Ok(None) };
         let symbol_tables = latest_analysis.await?;
         let response =
-            symbol_tables.read().document_highlights(&params.text_document.uri, params.position);
+            symbol_tables.load().document_highlights(&params.text_document.uri, params.position);
         Ok(response)
     }
 }
@@ -767,7 +780,7 @@ pub(crate) fn hover(
     async move {
         let Some(latest_analysis) = latest_analysis else { return Ok(None) };
         let symbol_tables = latest_analysis.await?;
-        let response = symbol_tables.read().hover(&params.text_document.uri, params.position);
+        let response = symbol_tables.load().hover(&params.text_document.uri, params.position);
         Ok(response)
     }
 }
@@ -781,7 +794,7 @@ pub(crate) fn prepare_rename(
         let Some(latest_analysis) = latest_analysis else { return Ok(None) };
         let symbol_tables = latest_analysis.await?;
         let response = symbol_tables
-            .read()
+            .load()
             .rename_candidate(&params.text_document.uri, params.position)
             .map(|candidate| PrepareRenameResponse::Range(candidate.range));
         Ok(response)
@@ -814,7 +827,7 @@ pub(crate) fn rename(
         let Some(latest_analysis) = latest_analysis else { return Ok(None) };
         let symbol_tables = latest_analysis.await?;
         let candidate = symbol_tables
-            .read()
+            .load()
             .rename_candidate(&params_position.text_document.uri, params_position.position);
         let Some(candidate) = candidate else { return Ok(None) };
         if candidate.requires_yul_validation && invalid_yul_name {
@@ -843,7 +856,7 @@ pub(crate) fn inlay_hints(
     async move {
         let Some(latest_analysis) = latest_analysis else { return Ok(Some(Vec::new())) };
         let symbol_tables = latest_analysis.await?;
-        let response = symbol_tables.read().inlay_hints(&params.text_document.uri, params.range);
+        let response = symbol_tables.load().inlay_hints(&params.text_document.uri, params.range);
         Ok(Some(response))
     }
 }
@@ -855,7 +868,7 @@ pub(crate) fn signature_help(
     let params = params.text_document_position_params;
     let response = crate::proto::vfs_path(&params.text_document.uri).and_then(|path| {
         let contents = state.vfs.read().get_file_contents(&path)?.clone();
-        state.symbol_tables.read().signature_help(
+        state.symbol_tables.load().signature_help(
             &params.text_document.uri,
             params.position,
             &contents,
@@ -883,7 +896,7 @@ pub(crate) fn completion(
                         .then(|| {
                             state
                                 .symbol_tables
-                                .read()
+                                .load()
                                 .natspec_semantics(
                                     &params.text_document.uri,
                                     target.source_fingerprint(),
@@ -910,7 +923,7 @@ pub(crate) fn completion(
     let input = completion_input(state, &params.text_document.uri, params.position);
     let context = input.as_ref().map(CompletionInput::context).unwrap_or_default();
     let options = state.config.completion_options();
-    let symbol_tables = state.symbol_tables.read();
+    let symbol_tables = state.symbol_tables.load();
     let mut items =
         symbol_tables.completion_items(&params.text_document.uri, params.position, context);
     if !options.resolve_documentation {
@@ -1055,7 +1068,7 @@ pub(crate) fn resolve_completion_item(
     async move {
         let Some((data, latest_analysis)) = request else { return Ok(item) };
         let symbol_tables = latest_analysis.await?;
-        let resolved = symbol_tables.read().resolve_completion_item(
+        let resolved = symbol_tables.load().resolve_completion_item(
             item,
             data,
             options.markdown_documentation,

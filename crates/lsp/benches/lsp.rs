@@ -1,17 +1,23 @@
+//! Use parameter IDs within groups so CodSpeed displays the workflow alongside each case.
+
 #![allow(unused_crate_dependencies)]
 
 use criterion::{BatchSize, BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
+use crop::Rope;
 use lsp_types::{GotoDefinitionResponse, HoverContents, OneOf, Position, Url};
 use solar_config::CompileOpts;
 use solar_lsp::{
-    BenchmarkAnalysis, BenchmarkDocumentUpdate, BenchmarkOpenDocuments, BenchmarkProject,
-    BenchmarkRequest, BenchmarkResponse, BenchmarkSelectionRangeRequests,
-    BenchmarkWorkspaceDiscovery, BenchmarkWorkspacePathQueries, BenchmarkWorkspaceReports,
-    benchmark_selection_ranges,
+    BenchmarkAnalysis, BenchmarkDocumentUpdate, BenchmarkFoldingRangeRequests,
+    BenchmarkOpenDocuments, BenchmarkProject, BenchmarkRepeatedAnalysis, BenchmarkRequest,
+    BenchmarkResponse, BenchmarkSelectionRangeRequests, BenchmarkWorkspaceDiscovery,
+    BenchmarkWorkspacePathQueries, BenchmarkWorkspaceReports, benchmark_folding_ranges,
+    benchmark_folding_ranges_from_rope, benchmark_import_path_at, benchmark_selection_ranges,
 };
 use std::{fs, hint::black_box, path::PathBuf};
 
 const ANALYSIS_FUNCTION_COUNTS: [usize; 2] = [64, 256];
+const INCOMPLETE_FOLDING_CONTRACT_COUNT: usize = 256;
+const MINIFIED_FOLDING_FUNCTION_COUNT: usize = 1_024;
 const HOVER_FUNCTION_COUNT: usize = 256;
 const AGGREGATION_BATCH_COUNT: usize = 4;
 const AGGREGATION_FUNCTION_COUNT: usize = 64;
@@ -121,6 +127,61 @@ fn analysis_build(c: &mut Criterion) {
             },
         );
     }
+    let call = "function_0000(1, 2, address(0));";
+    let source = benchmark_source(1).source.replace(call, &call.repeat(256));
+    assert_clean(&BenchmarkAnalysis::from_source(source.clone()));
+    group.throughput(Throughput::Bytes(source.len() as u64));
+    group.bench_function(BenchmarkId::from_parameter("repeated-calls"), |b| {
+        b.iter_batched(
+            || source.clone(),
+            |source| black_box(BenchmarkAnalysis::from_source(black_box(source))),
+            BatchSize::PerIteration,
+        );
+    });
+    group.finish();
+}
+
+fn import_path_queries(c: &mut Criterion) {
+    let mut group = c.benchmark_group("lsp/import-path");
+    let cursor = OPTIMISM_SOURCE.rfind('}').unwrap();
+    assert!(!benchmark_import_path_at(OPTIMISM_SOURCE, cursor));
+    group.bench_function(BenchmarkId::from_parameter("optimism-code"), |b| {
+        b.iter(|| {
+            black_box(benchmark_import_path_at(black_box(OPTIMISM_SOURCE), black_box(cursor)))
+        });
+    });
+    group.finish();
+}
+
+fn completion_queries(c: &mut Criterion) {
+    let fixture = benchmark_source(HOVER_FUNCTION_COUNT);
+    let (uri, position) =
+        fixture.project.unique_anchor("benchmark.sol", "function_0255(1, 2, address(0))").unwrap();
+    let analysis = fixture.project.analyze();
+    assert_clean(&analysis);
+    let mut group = c.benchmark_group("lsp/completion");
+    for (name, prefix) in
+        [("all", ""), ("selective", "function_0255"), ("no-match", "not_a_symbol")]
+    {
+        let items = analysis.completions(&uri, position, prefix);
+        match name {
+            "all" => assert!(items.len() >= HOVER_FUNCTION_COUNT),
+            "selective" => assert_eq!(
+                items.iter().map(|item| item.label.as_str()).collect::<Vec<_>>(),
+                ["function_0255"]
+            ),
+            _ => assert!(items.is_empty()),
+        }
+        group.bench_function(BenchmarkId::from_parameter(name), |b| {
+            b.iter(|| {
+                black_box(analysis.completions(
+                    black_box(&uri),
+                    black_box(position),
+                    black_box(prefix),
+                ))
+            });
+        });
+    }
     group.finish();
 }
 
@@ -145,7 +206,7 @@ fn bounded_workspace_discovery(c: &mut Criterion) {
     assert_eq!(baseline.visited(), 4);
 
     let mut group = c.benchmark_group("lsp/workspace-discovery");
-    group.bench_function("foundry-10k-import-only", |b| {
+    group.bench_function(BenchmarkId::from_parameter("foundry-10k-import-only"), |b| {
         b.iter(|| black_box(BenchmarkWorkspaceDiscovery::run(black_box(temp.path()))));
     });
     group.finish();
@@ -235,7 +296,7 @@ fn burst_hover(c: &mut Criterion) {
 
     let mut group = c.benchmark_group("lsp/burst-hover");
     group.throughput(Throughput::Elements(positions.len() as u64));
-    group.bench_function(HOVER_FUNCTION_COUNT.to_string(), |b| {
+    group.bench_function(BenchmarkId::from_parameter(HOVER_FUNCTION_COUNT), |b| {
         b.iter(|| {
             let analysis = black_box(&analysis);
             for &(line, character) in black_box(&positions) {
@@ -255,7 +316,7 @@ fn selection_range(c: &mut Criterion) {
 
     let mut group = c.benchmark_group("lsp/selection-range");
     group.throughput(Throughput::Bytes(OPTIMISM_SOURCE.len() as u64));
-    group.bench_function("optimism", |b| {
+    group.bench_function(BenchmarkId::from_parameter("optimism"), |b| {
         b.iter_batched(
             || OPTIMISM_SOURCE.to_owned(),
             |source| {
@@ -265,6 +326,96 @@ fn selection_range(c: &mut Criterion) {
         );
     });
     group.finish();
+}
+
+fn incomplete_folding_source(contract_count: usize) -> String {
+    let mut source = String::new();
+    for prefix in ["before", "after"] {
+        if prefix == "after" {
+            source.push_str("@ incomplete edit\n");
+        }
+        for index in 0..contract_count {
+            source.push_str(&format!(
+                "contract {prefix}_{index:04} {{\n    function f() external {{\n        if (true) {{\n        }}\n    }}\n}}\n"
+            ));
+            if prefix == "after" && index % 16 == 15 {
+                source.push_str("@ incomplete edit\n");
+            }
+        }
+    }
+    source
+}
+
+fn minified_folding_source(function_count: usize) -> String {
+    let mut source = String::from("contract Minified{");
+    for index in 0..function_count {
+        source.push_str(&format!("function f{index}() external{{if(true){{}}}}"));
+    }
+    source.push('}');
+    source
+}
+
+fn rope_to_string(rope: &Rope) -> String {
+    let mut source = String::with_capacity(rope.byte_len());
+    for chunk in rope.chunks() {
+        source.push_str(chunk);
+    }
+    source
+}
+
+fn folding_range(c: &mut Criterion) {
+    let clean = OPTIMISM_SOURCE.to_owned();
+    let incomplete = incomplete_folding_source(INCOMPLETE_FOLDING_CONTRACT_COUNT);
+    let minified = minified_folding_source(MINIFIED_FOLDING_FUNCTION_COUNT);
+    let open_rope = Rope::from(clean.as_str());
+
+    let clean_ranges = benchmark_folding_ranges(clean.clone());
+    let incomplete_ranges = benchmark_folding_ranges(incomplete.clone());
+    let minified_ranges = benchmark_folding_ranges(minified.clone());
+    assert!(!clean_ranges.is_empty());
+    assert_eq!(incomplete_ranges.len(), INCOMPLETE_FOLDING_CONTRACT_COUNT * 2 * 3);
+    assert!(minified_ranges.is_empty());
+    assert_eq!(benchmark_folding_ranges_from_rope(open_rope.clone()), clean_ranges);
+
+    let mut group = c.benchmark_group("lsp/folding-range");
+    for (name, source) in [("clean", clean), ("incomplete", incomplete), ("minified", minified)] {
+        group.throughput(Throughput::Bytes(source.len() as u64));
+        group.bench_with_input(BenchmarkId::from_parameter(name), &source, |b, source| {
+            b.iter_batched(
+                || source.clone(),
+                |source| black_box(benchmark_folding_ranges(black_box(source))),
+                BatchSize::PerIteration,
+            );
+        });
+    }
+    group.throughput(Throughput::Bytes(OPTIMISM_SOURCE.len() as u64));
+    group.bench_function(BenchmarkId::from_parameter("open-clean-legacy"), |b| {
+        b.iter_batched(
+            || open_rope.clone(),
+            |rope| {
+                let source = rope_to_string(&rope);
+                black_box(benchmark_folding_ranges(black_box(source)))
+            },
+            BatchSize::PerIteration,
+        );
+    });
+    group.bench_function(BenchmarkId::from_parameter("open-clean-snapshot"), |b| {
+        b.iter_batched(
+            || open_rope.clone(),
+            |rope| black_box(benchmark_folding_ranges_from_rope(black_box(rope))),
+            BatchSize::PerIteration,
+        );
+    });
+    group.finish();
+
+    let requests = BenchmarkFoldingRangeRequests::new(OPTIMISM_SOURCE.to_owned());
+    assert_eq!(requests.run(), clean_ranges);
+    let mut cached = c.benchmark_group("lsp/open-document-folding-range");
+    cached.throughput(Throughput::Bytes(OPTIMISM_SOURCE.len() as u64));
+    cached.bench_function(BenchmarkId::from_parameter("optimism-unchanged"), |b| {
+        b.iter(|| black_box(requests.run()));
+    });
+    cached.finish();
 }
 
 fn open_document_selection_range(c: &mut Criterion) {
@@ -280,7 +431,7 @@ fn open_document_selection_range(c: &mut Criterion) {
 
     let mut group = c.benchmark_group("lsp/open-document-selection-range");
     group.throughput(Throughput::Bytes(OPTIMISM_SOURCE.len() as u64));
-    group.bench_function("optimism", |b| {
+    group.bench_function(BenchmarkId::from_parameter("optimism"), |b| {
         b.iter(|| black_box(black_box(&requests).run()));
     });
     group.finish();
@@ -291,7 +442,7 @@ fn workspace_diagnostic_hot_paths(c: &mut Criterion) {
     assert_eq!(BenchmarkDocumentUpdate::from_source(source.clone()).apply(), 1);
     let mut updates = c.benchmark_group("lsp/unchanged-document-update");
     updates.throughput(Throughput::Bytes(source.len() as u64));
-    updates.bench_function("optimism", |b| {
+    updates.bench_function(BenchmarkId::from_parameter("optimism"), |b| {
         b.iter_batched(
             || BenchmarkDocumentUpdate::from_source(source.clone()),
             |update| black_box(update.apply()),
@@ -329,10 +480,39 @@ fn open_document_analysis_batches(c: &mut Criterion) {
 
     let mut group = c.benchmark_group("lsp/open-document-analysis-batches");
     group.throughput(Throughput::Bytes(documents.source_bytes() as u64));
-    group.bench_function(format!("{OPEN_DOCUMENT_COUNT}x{OPEN_DOCUMENT_BYTES}"), |b| {
-        b.iter(|| black_box(documents.build_analysis_batches()))
-    });
+    group.bench_function(
+        BenchmarkId::from_parameter(format!("{OPEN_DOCUMENT_COUNT}x{OPEN_DOCUMENT_BYTES}")),
+        |b| b.iter(|| black_box(documents.build_analysis_batches())),
+    );
     group.finish();
+}
+
+fn repeated_analysis(c: &mut Criterion) {
+    let fixture = benchmark_source(256);
+
+    let mut cold = c.benchmark_group("lsp/incremental-analysis");
+    cold.bench_function(BenchmarkId::from_parameter("cold"), |b| {
+        b.iter_batched(
+            || BenchmarkRepeatedAnalysis::new(fixture.source.clone()),
+            |mut analysis| black_box(analysis.run()),
+            BatchSize::PerIteration,
+        );
+    });
+    cold.finish();
+
+    let mut analysis = BenchmarkRepeatedAnalysis::new(fixture.source);
+    assert!(analysis.run());
+    let mut cached = c.benchmark_group("lsp/incremental-analysis");
+    cached.bench_function(BenchmarkId::from_parameter("unchanged"), |b| {
+        b.iter(|| black_box(analysis.run()))
+    });
+    cached.bench_function(BenchmarkId::from_parameter("reverted-edit"), |b| {
+        b.iter(|| {
+            analysis.edit_and_revert();
+            black_box(analysis.run())
+        });
+    });
+    cached.finish();
 }
 
 fn workspace_path_queries(c: &mut Criterion) {
@@ -488,7 +668,7 @@ fn unifap_benches(c: &mut Criterion) {
     }
 
     let mut group = c.benchmark_group("lsp/project-analysis");
-    group.bench_function(UNIFAP_PROJECT, |b| {
+    group.bench_function(BenchmarkId::from_parameter(UNIFAP_PROJECT), |b| {
         b.iter_batched(
             || project.clone(),
             |project| black_box(project.analyze()),
@@ -498,7 +678,7 @@ fn unifap_benches(c: &mut Criterion) {
     group.finish();
 
     let mut group = c.benchmark_group("lsp/project-analysis-after-edit");
-    group.bench_function(UNIFAP_PROJECT, |b| {
+    group.bench_function(BenchmarkId::from_parameter(UNIFAP_PROJECT), |b| {
         b.iter_batched(
             || {
                 let mut project = project.clone();
@@ -513,7 +693,7 @@ fn unifap_benches(c: &mut Criterion) {
 
     let mut group = c.benchmark_group("lsp/project-edit-application");
     group.throughput(Throughput::Elements(1));
-    group.bench_function(UNIFAP_PROJECT, |b| {
+    group.bench_function(BenchmarkId::from_parameter(UNIFAP_PROJECT), |b| {
         b.iter_batched(
             || document_change.clone(),
             |change| black_box(change.apply()),
@@ -525,7 +705,7 @@ fn unifap_benches(c: &mut Criterion) {
     let mut group = c.benchmark_group("lsp/symbol-table-queries");
     for (name, request) in &requests {
         let id = format!("{UNIFAP_PROJECT}/{name}");
-        group.bench_with_input(id, request, |b, request| {
+        group.bench_with_input(BenchmarkId::from_parameter(id), request, |b, request| {
             b.iter(|| black_box(analysis.execute(black_box(request))))
         });
     }
@@ -535,13 +715,17 @@ fn unifap_benches(c: &mut Criterion) {
 criterion_group!(
     benches,
     analysis_build,
+    completion_queries,
+    import_path_queries,
     bounded_workspace_discovery,
     symbol_table_aggregation,
     burst_hover,
+    folding_range,
     selection_range,
     open_document_selection_range,
     workspace_diagnostic_hot_paths,
     open_document_analysis_batches,
+    repeated_analysis,
     workspace_path_queries,
     unifap_benches
 );

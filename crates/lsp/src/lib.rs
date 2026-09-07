@@ -351,10 +351,32 @@ mod workspace;
 #[doc(hidden)]
 pub use global_state::benchmark::{
     BenchmarkAnalysis, BenchmarkDocumentChange, BenchmarkDocumentUpdate, BenchmarkEdit,
-    BenchmarkError, BenchmarkOpenDocuments, BenchmarkProject, BenchmarkRequest, BenchmarkResponse,
+    BenchmarkError, BenchmarkFoldingRangeRequests, BenchmarkOpenDocuments, BenchmarkProject,
+    BenchmarkRepeatedAnalysis, BenchmarkRequest, BenchmarkResponse,
     BenchmarkSelectionRangeRequests, BenchmarkWorkspaceDiscovery, BenchmarkWorkspacePathQueries,
     BenchmarkWorkspaceReports,
 };
+
+/// Checks whether a source position belongs to a parsed import path.
+#[cfg(feature = "bench")]
+#[doc(hidden)]
+pub fn benchmark_import_path_at(source: &str, cursor: usize) -> bool {
+    import_resolution::import_path_at(source, cursor).is_some()
+}
+
+/// Runs the folding-range kernel for Criterion benchmarks.
+#[cfg(feature = "bench")]
+#[doc(hidden)]
+pub fn benchmark_folding_ranges(source: String) -> Vec<lsp_types::FoldingRange> {
+    folding_range::folding_ranges(source)
+}
+
+/// Runs the open-document folding-range kernel for Criterion benchmarks.
+#[cfg(feature = "bench")]
+#[doc(hidden)]
+pub fn benchmark_folding_ranges_from_rope(source: crop::Rope) -> Vec<lsp_types::FoldingRange> {
+    folding_range::folding_ranges_from_rope(source)
+}
 
 /// Runs the selection-range kernel for Criterion benchmarks.
 #[cfg(feature = "bench")]

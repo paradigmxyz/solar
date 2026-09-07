@@ -17,6 +17,7 @@ use crate::{
     vfs::Vfs,
     workspace::{WorkspaceError, WorkspacePathIndex, index_policy::IndexingCancellation},
 };
+use arc_swap::ArcSwap;
 use async_lsp::{ClientSocket, LanguageClient, ResponseError};
 use lsp_types::{
     Diagnostic, DidChangeWatchedFilesRegistrationOptions, FileChangeType, FileSystemWatcher,
@@ -88,7 +89,7 @@ enum AnalysisTaskOutcome {
     Superseded,
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 struct AnalysisPathIndex {
     resolved_dependencies: FxHashSet<PathBuf>,
     existing_unresolved_candidates: FxHashSet<PathBuf>,
@@ -96,6 +97,12 @@ struct AnalysisPathIndex {
 }
 
 impl AnalysisPathIndex {
+    fn is_empty(&self) -> bool {
+        self.resolved_dependencies.is_empty()
+            && self.existing_unresolved_candidates.is_empty()
+            && self.missing_candidates.is_empty()
+    }
+
     fn merge(&mut self, other: Self) {
         self.resolved_dependencies.extend(other.resolved_dependencies);
         self.existing_unresolved_candidates.extend(other.existing_unresolved_candidates);
@@ -258,6 +265,22 @@ struct AnalysisCommitState {
     analysis_config: Option<Arc<Config>>,
     natspec_pending_source_changes: FxHashSet<PathBuf>,
     natspec_context_change_version: usize,
+    cached_output: Option<CachedAnalysisOutput>,
+}
+
+#[derive(Clone)]
+struct CachedAnalysisOutput {
+    vfs_content_revision: u64,
+    config: Arc<Config>,
+    output: AnalysisOutput<Arc<SymbolTables>>,
+    inputs: Vec<AnalysisBatchInputs>,
+}
+
+/// Exact analysis roots and overlays, excluding client document versions.
+#[derive(Clone)]
+struct AnalysisBatchInputs {
+    files: Vec<(PathBuf, Arc<String>)>,
+    preloaded_files: Vec<(PathBuf, Arc<String>)>,
 }
 
 impl AnalysisCommitState {
@@ -386,7 +409,7 @@ pub(crate) struct GlobalState {
     protocol_trace: ProtocolTrace,
     flycheck_versions: Arc<RwLock<FxHashMap<DiagnosticOwner, usize>>>,
     flycheck_cancels: FxHashMap<DiagnosticOwner, oneshot::Sender<()>>,
-    pub(crate) symbol_tables: Arc<RwLock<SymbolTables>>,
+    pub(crate) symbol_tables: Arc<ArcSwap<SymbolTables>>,
     diagnostics: Arc<RwLock<DiagnosticStore>>,
 }
 
@@ -552,7 +575,7 @@ impl GlobalState {
             return true;
         }
 
-        if !self.symbol_tables.read().file_operation_paths_under(&[path.to_path_buf()]).is_empty() {
+        if !self.symbol_tables.load().file_operation_paths_under(&[path.to_path_buf()]).is_empty() {
             return true;
         }
 
@@ -811,11 +834,9 @@ impl GlobalState {
             analysis_progress.finish_active_after("Workspace index cleared", || {
                 // Invalidate workers before doing the potentially expensive diagnostic publication.
                 analysis_version.store(version, Ordering::Release);
-                let mut symbol_tables = symbol_tables.write();
+                let old_symbol_tables = symbol_tables.swap(Arc::default());
                 let inlay_hints_changed = compare_inlay_hints
-                    && symbol_tables.inlay_hints_changed(&SymbolTables::default());
-                let old_symbol_tables = mem::take(&mut *symbol_tables);
-                drop(symbol_tables);
+                    && old_symbol_tables.inlay_hints_changed(&SymbolTables::default());
                 let update = diagnostics.write().replace_compiler_snapshot_and_publish_batches(
                     DiagnosticMap::default(),
                     AnalyzedDocuments::default(),
@@ -831,6 +852,7 @@ impl GlobalState {
                 publish_diagnostic_batches(client, update.batches, &config);
 
                 commit.cache_invalidated = true;
+                commit.cached_output = None;
                 commit.discovery_pending = false;
                 commit.workspace_roots_before_change = None;
                 commit.analysis_paths = AnalysisPathIndex::default();
@@ -1189,6 +1211,8 @@ impl GlobalState {
             let progress = self.analysis_progress.reserve(version);
             if refresh_pull_results {
                 commit.begin_external_refresh();
+                // Keep invalidation even if a later request cancels the debounced worker.
+                commit.cached_output = None;
             }
             self.commit_analysis_epoch(&mut commit, version, changed_paths, rediscover);
             let update =
@@ -1276,7 +1300,7 @@ impl GlobalState {
     /// Waits for analysis results at least as new as the latest version requested before this call.
     pub(crate) fn latest_analysis(
         &self,
-    ) -> impl Future<Output = Result<Arc<RwLock<SymbolTables>>, ResponseError>> + use<> {
+    ) -> impl Future<Output = Result<Arc<ArcSwap<SymbolTables>>, ResponseError>> + use<> {
         let mut published = self.published_analysis_version.subscribe();
         let version = self.analysis_version.load(Ordering::Acquire);
         let symbol_tables = self.symbol_tables.clone();
@@ -1291,7 +1315,7 @@ impl GlobalState {
     /// Waits for the latest analysis and returns the config snapshot that produced it.
     pub(crate) fn latest_analysis_with_config(
         &self,
-    ) -> impl Future<Output = Result<(Arc<RwLock<SymbolTables>>, Arc<Config>), ResponseError>> + use<>
+    ) -> impl Future<Output = Result<(Arc<ArcSwap<SymbolTables>>, Arc<Config>), ResponseError>> + use<>
     {
         let latest_analysis = self.latest_analysis();
         let analysis_commit = self.analysis_commit.clone();
@@ -1398,7 +1422,7 @@ impl GlobalState {
             }
             let Ok(uri) = Url::from_file_path(&path) else { return false };
             let analyzed =
-                self.symbol_tables.read().natspec_source_fingerprint(&uri).map(str::to_owned);
+                self.symbol_tables.load().natspec_source_fingerprint(&uri).map(str::to_owned);
             let vfs_path = crate::vfs::VfsPath::from(path.clone());
             let open_contents = self.vfs.read().get_file_contents(&vfs_path).cloned();
             let current = open_contents
@@ -1576,6 +1600,34 @@ fn run_analysis(
     progress: &ProgressTicket,
     cancellation: &IndexingCancellation,
 ) -> AnalysisTaskOutcome {
+    let has_disk_paths = !disk_paths.is_empty();
+    let vfs_content_revision = snapshot.vfs.read().content_revision();
+    let config = snapshot.config.clone();
+    if has_disk_paths {
+        snapshot.analysis_commit.lock().cached_output = None;
+    }
+    if !has_disk_paths && !cancellation.is_cancelled() && snapshot.is_current(version) {
+        let cached = {
+            let commit = snapshot.analysis_commit.lock();
+            if commit.cache_invalidated {
+                None
+            } else {
+                commit.cached_output.as_ref().and_then(|cached| {
+                    (cached.vfs_content_revision == vfs_content_revision
+                        && Arc::ptr_eq(&cached.config, &config))
+                    .then(|| cached.output.clone())
+                })
+            }
+        };
+        if let Some(output) = cached {
+            progress.report("Reusing workspace index");
+            if snapshot.publish_analysis_output(version, output) {
+                return AnalysisTaskOutcome::Published;
+            }
+            return AnalysisTaskOutcome::Superseded;
+        }
+    }
+
     progress.report("Reading workspace sources");
     if cancellation.is_cancelled() || !snapshot.is_current(version) {
         return AnalysisTaskOutcome::Superseded;
@@ -1594,6 +1646,46 @@ fn run_analysis(
         return AnalysisTaskOutcome::Superseded;
     }
 
+    if !has_disk_paths && source_files_complete {
+        let cached = {
+            let mut commit = snapshot.analysis_commit.lock();
+            if !commit.cache_invalidated
+                && let Some(cached) = &mut commit.cached_output
+                && Arc::ptr_eq(&cached.config, &config)
+                // The compared batches do not include disk-only imports or resolver probes.
+                && cached.output.analysis_paths.is_empty()
+                && cached.inputs.len() == batches.len()
+                && cached.inputs.iter().zip(&batches).all(|(inputs, batch)| {
+                    inputs.files == batch.files && inputs.preloaded_files == batch.preloaded_files
+                })
+            {
+                cached.vfs_content_revision = vfs_content_revision;
+                Some(cached.output.clone())
+            } else {
+                None
+            }
+        };
+        if let Some(output) = cached {
+            progress.report("Reusing workspace index");
+            return if snapshot.publish_analysis_output(version, output) {
+                AnalysisTaskOutcome::Published
+            } else {
+                AnalysisTaskOutcome::Superseded
+            };
+        }
+    }
+
+    let inputs = if has_disk_paths {
+        Vec::new()
+    } else {
+        batches
+            .iter()
+            .map(|batch| AnalysisBatchInputs {
+                files: batch.files.clone(),
+                preloaded_files: batch.preloaded_files.clone(),
+            })
+            .collect::<Vec<_>>()
+    };
     let mut results = AnalysisOutputAccumulator::default();
 
     for batch in batches {
@@ -1615,7 +1707,18 @@ fn run_analysis(
         }
     }
 
-    let output = results.finish();
+    let output = results.finish().into_shared();
+    if !has_disk_paths {
+        let mut commit = snapshot.analysis_commit.lock();
+        if snapshot.is_current(version) && !commit.cache_invalidated {
+            commit.cached_output = Some(CachedAnalysisOutput {
+                vfs_content_revision,
+                config,
+                output: output.clone(),
+                inputs: if output.analysis_paths.is_empty() { inputs } else { Vec::new() },
+            });
+        }
+    }
     progress.report("Publishing workspace index");
     if snapshot.publish_analysis_output(version, output) {
         AnalysisTaskOutcome::Published
@@ -1696,21 +1799,40 @@ fn handle_analysis_failure(
     tracing::warn!(%error, version, "workspace indexing task failed");
     let refresh_requests = commit.fail_external_refresh();
     commit.cache_invalidated = true;
+    commit.cached_output = None;
     commit.discovery_pending = false;
     commit.natspec_context_change_version = commit.natspec_context_change_version.max(version);
     published_analysis_version.send_replace(version);
     Some(refresh_requests)
 }
 
-struct AnalysisResult {
+#[derive(Clone)]
+struct AnalysisResult<T = SymbolTables> {
     analyzed_documents: AnalyzedDocuments,
     diagnostics: DiagnosticMap,
-    symbol_tables: SymbolTables,
+    symbol_tables: T,
 }
 
-struct AnalysisOutput {
-    result: AnalysisResult,
+#[derive(Clone)]
+struct AnalysisOutput<T = SymbolTables> {
+    result: AnalysisResult<T>,
     analysis_paths: AnalysisPathIndex,
+}
+
+impl AnalysisOutput {
+    /// Share the completed index between the cache and published snapshot.
+    fn into_shared(self) -> AnalysisOutput<Arc<SymbolTables>> {
+        let Self { result, analysis_paths } = self;
+        let AnalysisResult { analyzed_documents, diagnostics, symbol_tables } = result;
+        AnalysisOutput {
+            result: AnalysisResult {
+                analyzed_documents,
+                diagnostics,
+                symbol_tables: Arc::new(symbol_tables),
+            },
+            analysis_paths,
+        }
+    }
 }
 
 #[derive(Default)]
@@ -2068,7 +2190,7 @@ pub(crate) struct GlobalStateSnapshot {
     analysis_commit: Arc<Mutex<AnalysisCommitState>>,
     watched_file_registration: Arc<WatchedFileRegistrationCoordinator>,
     flycheck_versions: Arc<RwLock<FxHashMap<DiagnosticOwner, usize>>>,
-    symbol_tables: Arc<RwLock<SymbolTables>>,
+    symbol_tables: Arc<ArcSwap<SymbolTables>>,
     diagnostics: Arc<RwLock<DiagnosticStore>>,
 }
 
@@ -2231,11 +2353,15 @@ impl GlobalStateSnapshot {
     fn publish_analysis(&mut self, version: usize, result: AnalysisResult) -> bool {
         self.publish_analysis_output(
             version,
-            AnalysisOutput { result, analysis_paths: AnalysisPathIndex::default() },
+            AnalysisOutput { result, analysis_paths: AnalysisPathIndex::default() }.into_shared(),
         )
     }
 
-    fn publish_analysis_output(&mut self, version: usize, output: AnalysisOutput) -> bool {
+    fn publish_analysis_output(
+        &mut self,
+        version: usize,
+        output: AnalysisOutput<Arc<SymbolTables>>,
+    ) -> bool {
         let refresh_code_lenses =
             self.config.supports_code_lens_refresh() && self.config.code_lens_options().is_active();
         let AnalysisOutput { result, analysis_paths } = output;
@@ -2294,12 +2420,10 @@ impl GlobalStateSnapshot {
                     }
                 }
             }
-            let mut symbol_tables = self.symbol_tables.write();
             let inlay_hints_changed = commit.external_refresh.is_some()
                 && self.config.supports_inlay_hint_refresh()
-                && symbol_tables.inlay_hints_changed(&new_tables);
-            let old_symbol_tables = mem::replace(&mut *symbol_tables, new_tables);
-            drop(symbol_tables);
+                && self.symbol_tables.load().inlay_hints_changed(&new_tables);
+            let old_symbol_tables = self.symbol_tables.swap(new_tables);
             commit.analysis_paths = analysis_paths;
             commit.symbol_tables_version = version;
             commit.analysis_config = Some(self.config.clone());
@@ -2354,13 +2478,16 @@ impl GlobalStateSnapshot {
     }
 
     #[cfg(test)]
-    fn publish_symbol_tables(&mut self, version: usize, symbol_tables: SymbolTables) -> bool {
-        self.publish_analysis(
+    fn publish_symbol_tables(&mut self, version: usize, symbol_tables: Arc<SymbolTables>) -> bool {
+        self.publish_analysis_output(
             version,
-            AnalysisResult {
-                analyzed_documents: AnalyzedDocuments::default(),
-                diagnostics: DiagnosticMap::default(),
-                symbol_tables,
+            AnalysisOutput {
+                result: AnalysisResult {
+                    analyzed_documents: AnalyzedDocuments::default(),
+                    diagnostics: DiagnosticMap::default(),
+                    symbol_tables,
+                },
+                analysis_paths: AnalysisPathIndex::default(),
             },
         )
     }

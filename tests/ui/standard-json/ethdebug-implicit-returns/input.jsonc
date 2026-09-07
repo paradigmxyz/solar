@@ -1,0 +1,35 @@
+//@ normalize-stdout-test: "solar-[0-9a-f]{64}" -> "solar-COMPILATION_ID"
+//@ filecheck:
+// Definition spans cover implicit returns, including the synthetic constructor.
+// CHECK-LABEL: "bytecode": {
+// CHECK: "mnemonic": "JUMP"
+// CHECK: "offset": 0,
+// CHECK-NEXT: "length": 411
+// CHECK: "sourceMap": "{{.*}}0:411:0
+// CHECK-LABEL: "deployedBytecode": {
+// CHECK: "mnemonic": "STOP"
+// CHECK: "offset": 39,
+// CHECK-NEXT: "length": 34
+// CHECK: "mnemonic": "RETURN"
+// CHECK: "offset": 74,
+// CHECK-NEXT: "length": 68
+// CHECK: "mnemonic": "JUMP"
+// CHECK: "offset": 280,
+// CHECK-NEXT: "length": 64
+// CHECK: "mnemonic": "JUMP"
+// CHECK: "offset": 345,
+// CHECK-NEXT: "length": 64
+// CHECK: "sourceMap": "{{.*}}39:34:0{{.*}}74:68:0{{.*}}280:64:0{{.*}}345:64:0
+{
+  "language": "Solidity",
+  "sources": {
+    "Implicit.sol": {
+      "content": "contract Implicit {\nuint public x = 7;\nfunction fallthrough() external {}\nfunction named() external pure returns (uint result) { result = 3; }\nfunction viaPointer(bool choose) external pure returns (uint) { function() internal pure returns(uint) f = choose ? a : b; return f(); }\nfunction a() internal pure returns(uint result) { result = 11; }\nfunction b() internal pure returns(uint result) { result = 13; }\n}"
+    }
+  },
+  "settings": {
+    "outputSelection": {
+      "*": {"*": ["evm.bytecode.ethdebug", "evm.bytecode.sourceMap", "evm.deployedBytecode.ethdebug", "evm.deployedBytecode.sourceMap"]}
+    }
+  }
+}

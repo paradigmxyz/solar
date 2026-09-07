@@ -26,7 +26,7 @@
           },
           "deployedBytecode": {
             "object": "34601d575f3560e01c8063b3de648b146021578063e420264a146040575b5f5ffd5b60243610601d5760015b600435016004358110604d5760805260206080f35b60243610601d576002602b565b634e487b7160e01b5f52601160045260245ffd",
-            "sourceMap": ":::-:0;;;;;;;;;;;:::i;:::-;;;;:::i;:::-;;;;;;;;;;76:5:0;-1:-1:-1;76:5:0;;;;;;;:::o;:::-;-1:-1:-1;;;;:::o;:::-;;;;;;148:5:0;-1:-1:-1;;;;;;;;;;;;;"
+            "sourceMap": ":::-:0;;;;;;;;;;;:::i;:::-;;;;:::i;:::-;;;;;;;;;;76:5:0;-1:-1:-1;;;;;;;;:::o;:::-;;;;;:::o;:::-;;;;;;148:5:0;;;-1:-1:-1;;;;;;;;;;;"
           }
         }
       },
@@ -710,12 +710,64 @@
                     "arguments": [
                       "0x80"
                     ]
+                  },
+                  "context": {
+                    "pick": [
+                      {
+                        "code": {
+                          "source": {
+                            "id": 0
+                          },
+                          "range": {
+                            "offset": 228,
+                            "length": 13
+                          }
+                        }
+                      },
+                      {
+                        "code": {
+                          "source": {
+                            "id": 0
+                          },
+                          "range": {
+                            "offset": 300,
+                            "length": 13
+                          }
+                        }
+                      }
+                    ]
                   }
                 },
                 {
                   "offset": 58,
                   "operation": {
                     "mnemonic": "MSTORE"
+                  },
+                  "context": {
+                    "pick": [
+                      {
+                        "code": {
+                          "source": {
+                            "id": 0
+                          },
+                          "range": {
+                            "offset": 228,
+                            "length": 13
+                          }
+                        }
+                      },
+                      {
+                        "code": {
+                          "source": {
+                            "id": 0
+                          },
+                          "range": {
+                            "offset": 300,
+                            "length": 13
+                          }
+                        }
+                      }
+                    ]
                   }
                 },
                 {
@@ -724,6 +776,32 @@
                     "mnemonic": "PUSH1",
                     "arguments": [
                       "0x20"
+                    ]
+                  },
+                  "context": {
+                    "pick": [
+                      {
+                        "code": {
+                          "source": {
+                            "id": 0
+                          },
+                          "range": {
+                            "offset": 228,
+                            "length": 13
+                          }
+                        }
+                      },
+                      {
+                        "code": {
+                          "source": {
+                            "id": 0
+                          },
+                          "range": {
+                            "offset": 300,
+                            "length": 13
+                          }
+                        }
+                      }
                     ]
                   }
                 },
@@ -734,6 +812,32 @@
                     "arguments": [
                       "0x80"
                     ]
+                  },
+                  "context": {
+                    "pick": [
+                      {
+                        "code": {
+                          "source": {
+                            "id": 0
+                          },
+                          "range": {
+                            "offset": 228,
+                            "length": 13
+                          }
+                        }
+                      },
+                      {
+                        "code": {
+                          "source": {
+                            "id": 0
+                          },
+                          "range": {
+                            "offset": 300,
+                            "length": 13
+                          }
+                        }
+                      }
+                    ]
                   }
                 },
                 {
@@ -742,6 +846,30 @@
                     "mnemonic": "RETURN"
                   },
                   "context": {
+                    "pick": [
+                      {
+                        "code": {
+                          "source": {
+                            "id": 0
+                          },
+                          "range": {
+                            "offset": 228,
+                            "length": 13
+                          }
+                        }
+                      },
+                      {
+                        "code": {
+                          "source": {
+                            "id": 0
+                          },
+                          "range": {
+                            "offset": 300,
+                            "length": 13
+                          }
+                        }
+                      }
+                    ],
                     "return": {}
                   }
                 },
@@ -836,12 +964,34 @@
                     "arguments": [
                       "0x2b"
                     ]
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 307,
+                        "length": 5
+                      }
+                    }
                   }
                 },
                 {
                   "offset": 76,
                   "operation": {
                     "mnemonic": "JUMP"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 307,
+                        "length": 5
+                      }
+                    }
                   }
                 },
                 {

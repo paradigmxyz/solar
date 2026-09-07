@@ -9,6 +9,7 @@ use crate::{
     symbols::SymbolTables,
     vfs::Vfs,
 };
+use arc_swap::ArcSwap;
 use async_lsp::{ErrorCode, ResponseError};
 use lsp_types::{
     CreateFilesParams, DeleteFilesParams, FileChangeType, FileEvent, RenameFilesParams, Url,
@@ -64,7 +65,7 @@ pub(crate) fn will_rename_files(
                 return Ok(None);
             };
             let (symbol_tables, config) = latest_analysis.await?;
-            let plan = symbol_tables.read().import_rename_edits(&moves);
+            let plan = symbol_tables.load().import_rename_edits(&moves);
             if plan.is_empty() || !workspace_source_edits_are_complete(&plan, &config) {
                 return Ok(None);
             }
@@ -88,11 +89,11 @@ pub(crate) fn will_rename_files(
 fn watched_paths_under(
     config: &Config,
     vfs: &RwLock<Vfs>,
-    symbol_tables: &RwLock<SymbolTables>,
+    symbol_tables: &ArcSwap<SymbolTables>,
     roots: &[PathBuf],
 ) -> Vec<PathBuf> {
     let mut paths = config.file_operation_paths_under(roots);
-    paths.extend(symbol_tables.read().file_operation_paths_under(roots));
+    paths.extend(symbol_tables.load().file_operation_paths_under(roots));
     paths.extend(vfs.read().iter().filter_map(|(path, _)| {
         let path = path.as_path()?;
         roots.iter().any(|root| path.starts_with(root)).then(|| path.to_path_buf())
@@ -391,7 +392,7 @@ pub(crate) fn will_delete_files(
             return Ok(None);
         };
         let (symbol_tables, config) = latest_analysis.await?;
-        let plan = symbol_tables.read().import_delete_edits(&deleted_paths);
+        let plan = symbol_tables.load().import_delete_edits(&deleted_paths);
         if plan.is_empty() || !workspace_source_edits_are_complete(&plan, &config) {
             return Ok(None);
         }

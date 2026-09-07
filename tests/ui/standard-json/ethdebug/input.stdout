@@ -478,12 +478,34 @@
                     "arguments": [
                       "0x80"
                     ]
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 72,
+                        "length": 13
+                      }
+                    }
                   }
                 },
                 {
                   "offset": 42,
                   "operation": {
                     "mnemonic": "MSTORE"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 72,
+                        "length": 13
+                      }
+                    }
                   }
                 },
                 {
@@ -493,6 +515,17 @@
                     "arguments": [
                       "0x20"
                     ]
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 72,
+                        "length": 13
+                      }
+                    }
                   }
                 },
                 {
@@ -502,6 +535,17 @@
                     "arguments": [
                       "0x80"
                     ]
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 72,
+                        "length": 13
+                      }
+                    }
                   }
                 },
                 {
@@ -510,6 +554,15 @@
                     "mnemonic": "RETURN"
                   },
                   "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 72,
+                        "length": 13
+                      }
+                    },
                     "return": {}
                   }
                 },
