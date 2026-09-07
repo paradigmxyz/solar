@@ -147,7 +147,7 @@ impl<R: Borrow<Rope>> LspPositionIndex<R> {
         (start <= end).then_some(start..end)
     }
 
-    fn text_range(&self, range: lsp_types::Range) -> std::ops::Range<usize> {
+    pub(crate) fn text_range(&self, range: lsp_types::Range) -> std::ops::Range<usize> {
         let start = self.byte_position_clamped(range.start);
         let end = self.byte_position_clamped(range.end);
         start..end

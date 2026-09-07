@@ -34,6 +34,11 @@ excluded from performance aggregates. Failed samples remain in the raw output
 and determine the run status; `--allow-failures` lets an exploratory run finish
 successfully while retaining those failures.
 
+Signature-help probes use `kind: signature-help`, a fixture `path` and `anchor`,
+an exact `expected_label`, and a zero-based `expected_active_parameter`. They
+check the active signature, including a per-signature active parameter when
+provided, before accepting a request timing.
+
 ## Requirements
 
 Run commands from the repository root. Preparation requires Git, curl, tar,

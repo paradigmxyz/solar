@@ -935,6 +935,7 @@ impl LspProcess {
             "textDocument/definition" => "definitionProvider",
             "textDocument/completion" => "completionProvider",
             "textDocument/hover" => "hoverProvider",
+            "textDocument/signatureHelp" => "signatureHelpProvider",
             "textDocument/references" => "referencesProvider",
             "textDocument/documentSymbol" => "documentSymbolProvider",
             "textDocument/rename" => "renameProvider",

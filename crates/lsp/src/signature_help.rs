@@ -113,14 +113,14 @@ impl SignatureHelpIndex {
         visible_declarations: impl FnOnce(&str) -> Vec<&'a Location>,
         options: SignatureHelpClientOptions,
     ) -> Option<SignatureHelp> {
-        let cursor = proto::text_range(contents, Range::new(position, position)).start;
+        let positions = proto::LspPositionIndex::new(contents);
+        let cursor = positions.text_range(Range::new(position, position)).start;
         let text = contents.byte_slice(..cursor).to_string();
         let context = call_context(&text)?;
         let call = self.calls.get(uri).and_then(|calls| {
             calls.iter().find(|call| {
                 valid_text_position(contents, call.range.start)
-                    && proto::text_range(contents, Range::new(call.range.start, call.range.start))
-                        .start
+                    && positions.text_range(Range::new(call.range.start, call.range.start)).start
                         == context.open
                     && call
                         .callee_tokens
@@ -129,7 +129,7 @@ impl SignatureHelpIndex {
                         .filter(|token| is_identifier(token))
                         == context.callee_name
                     && call.form == context.form
-                    && call.matches_current_callee(contents)
+                    && call.matches_current_callee(&positions)
             })
         });
         let (mut signatures, fallback): (Vec<&CallSignature>, _) = if let Some(call) = call {
@@ -278,13 +278,14 @@ impl SignatureHelpIndex {
 }
 
 impl CallSite {
-    fn matches_current_callee(&self, contents: &Rope) -> bool {
+    fn matches_current_callee(&self, positions: &proto::LspPositionIndex<&Rope>) -> bool {
+        let contents = positions.rope();
         if !valid_text_position(contents, self.callee_range.start)
             || !valid_text_position(contents, self.callee_range.end)
         {
             return false;
         }
-        let range = proto::text_range(contents, self.callee_range);
+        let range = positions.text_range(self.callee_range);
         if range.start > range.end {
             return false;
         }
@@ -1138,7 +1139,7 @@ mod tests {
             signatures: Vec::new(),
         };
 
-        assert!(!call.matches_current_callee(&Rope::from("😀f")));
+        assert!(!call.matches_current_callee(&proto::LspPositionIndex::new(&Rope::from("😀f"))));
     }
 
     #[test]
@@ -1151,6 +1152,6 @@ mod tests {
             signatures: Vec::new(),
         };
 
-        assert!(!call.matches_current_callee(&Rope::from("f")));
+        assert!(!call.matches_current_callee(&proto::LspPositionIndex::new(&Rope::from("f"))));
     }
 }

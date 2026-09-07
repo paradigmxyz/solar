@@ -116,6 +116,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         "textDocumentSync":{"openClose":true,"change":1,"save":{"includeText":true}},
                         "hoverProvider":true,
                         "completionProvider":false,
+                        "signatureHelpProvider":{},
                         "documentSymbolProvider":true,
                         "workspaceSymbolProvider":true,
                         "renameProvider":true,
@@ -406,6 +407,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 write_message(
                     &mut writer,
                     &json!({"jsonrpc":"2.0","id":message["id"],"result":{"isIncomplete":false,"items":[{"label":label,"kind":3}]}}),
+                )?;
+            }
+            Some("textDocument/signatureHelp") => {
+                write_message(
+                    &mut writer,
+                    &json!({
+                        "jsonrpc":"2.0",
+                        "id":message["id"],
+                        "result":{
+                            "signatures":[{
+                                "label":"add(uint256 a, uint256 b)",
+                                "parameters":[{"label":"uint256 a"},{"label":"uint256 b"}]
+                            }],
+                            "activeSignature":0,
+                            "activeParameter":1
+                        }
+                    }),
                 )?;
             }
             Some("textDocument/rename") => {
