@@ -254,6 +254,14 @@ jobs:
             )
           fi
           python3 benches/runtime/benchmark-compare.py "${args[@]}"
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            changed="$(git diff --name-only "$BENCHMARK_BASE_SHA...$BENCHMARK_PR_HEAD_SHA" -- \
+              benches/runtime/benchmark.py benches/runtime/benchmark-compare.py benches/runtime/report.py)"
+            if [[ -n "$changed" ]]; then
+              echo 'should_comment=true' >> "$GITHUB_OUTPUT"
+              echo true > target/codegen-bench/should-comment
+            fi
+          fi
 
       - name: Comment on PR
         if: >-
