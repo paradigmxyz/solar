@@ -33,3 +33,23 @@ fn @clear_storage(arg0: u256) {
     clear_storage struct<word, struct<word, word>, array<2, word>>, arg0
     stop
 }
+
+// CHECK-LABEL: {{^[ +].*}}fn @phi_successor{{[( ]}}
+// CHECK: + jumpi {{v[0-9]+}}, {{bb[0-9]+}}, [[CONTINUATION:bb[0-9]+]]
+// CHECK: + [[CONTINUATION]]:
+// CHECK-NEXT: {{^[ +].*}}jump bb3 !metadata(span=30..40, modifier_depth=1)
+// CHECK: + {{v[0-9]+}} = phi {{\[}}[[CONTINUATION]]: 7], {{\[}}bb2: 9]
+// CHECK: + [[SLOT:v[0-9]+]] = add arg1, {{v[0-9]+}} !metadata(span=10..20, modifier_depth=2)
+// CHECK: + sstore [[SLOT]], 0 !metadata(storage=symbolic([[SLOT]]), span=10..20, modifier_depth=2)
+fn @phi_successor(arg0: bool, arg1: u256) -> u256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    clear_storage array<2, word>, arg1 !metadata(span=10..20, modifier_depth=2)
+    jump bb3 !metadata(span=30..40, modifier_depth=1)
+  bb2:
+    jump bb3
+  bb3:
+    v0 = phi [bb1: 7], [bb2: 9]
+    ret v0
+}
