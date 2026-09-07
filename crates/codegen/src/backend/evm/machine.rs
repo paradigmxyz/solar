@@ -348,9 +348,6 @@ pub(crate) fn lower(
             && !layouts[&id].returning
             && !layouts[&id].spills.homes.is_empty()
             && layouts[&id].rematerialized.is_empty()
-            && function
-                .instructions()
-                .any(|inst| matches!(function.inst(inst).kind, mir::InstKind::Phi(_)))
         {
             // ICall targets and their tail descendants can inherit untracked caller words.
             let inherited = hidden_prefixes.get_or_insert_with(|| {
@@ -511,6 +508,11 @@ fn lower_function(
 ) -> Result<(), String> {
     let function = context.function;
     let layout = context.layout;
+    let operand_order = if let Some(original) = context.original {
+        original.operand_order
+    } else {
+        entry_order::OperandOrder::Canonical
+    };
     for (block_id, block) in function.blocks.iter_enumerated() {
         if !layout.cfg.is_reachable(block_id) {
             continue;
@@ -628,6 +630,7 @@ fn lower_function(
                 continue;
             }
             if let Some(opcode) = instruction.kind.evm_opcode() {
+                // <retained values>; <prepared operands>; opcode
                 lower_opcode(
                     context,
                     (block_id, position),
@@ -635,7 +638,7 @@ fn lower_function(
                     opcode,
                     &mut stack,
                     &mut insts,
-                    entry_order::OperandOrder::Canonical,
+                    operand_order,
                 )?;
                 continue;
             }

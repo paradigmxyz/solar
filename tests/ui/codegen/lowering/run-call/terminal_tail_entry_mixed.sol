@@ -7,12 +7,18 @@
 //@ run-call-fail: fast 7 => 0x0000000000000000000000000000000000000000000000000000000000000007
 //@ run-call-fail: blocked 7 => 0x0000000000000000000000000000000000000000000000000000000000000008
 
+// The pressure path retains spill homes and the ordinary argument store at 576,
+// while the fast path passes its argument directly to their shared revert body.
+// Single-use residence removes the former stores through 480; check the last
+// retained home and forbid further stores before reloading the first value.
+// Both optimized and lowering-only revisions must preserve this protocol.
 // CHECK-LABEL: @module TerminalTailEntryMixed_runtime
 // CHECK: gas
 // CHECK-NEXT: push 128
 // CHECK-NEXT: mstore
-// CHECK: push 480
+// CHECK: push 224
 // CHECK-NEXT: mstore
+// CHECK-NOT: mstore
 // CHECK: push 128
 // CHECK-NEXT: mload
 // CHECK: push 576

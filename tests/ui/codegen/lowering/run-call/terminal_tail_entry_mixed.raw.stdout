@@ -43,32 +43,16 @@ bb7 [cold]:
   push 224
   mstore
   gas
-  push 256
-  mstore
   gas
-  push 288
-  mstore
   gas
-  push 320
-  mstore
   gas
-  push 352
-  mstore
   gas
-  push 384
-  mstore
   gas
-  push 416
-  mstore
   gas
-  push 448
-  mstore
   gas
-  push 480
-  mstore
   push 128
   mload
-  swap 8
+  swap 16
   swap 1
   swap 2
   swap 3
@@ -77,44 +61,28 @@ bb7 [cold]:
   swap 6
   swap 7
   swap 8
+  swap 9
+  swap 10
+  swap 11
+  swap 12
+  swap 13
+  swap 14
+  swap 15
+  swap 16
   add
-  swap 7
-  swap 1
-  swap 2
-  swap 3
-  swap 4
-  swap 5
-  swap 6
-  swap 7
+  exchange 1, 15
   add
-  swap 6
-  swap 1
-  swap 2
-  swap 3
-  swap 4
-  swap 5
-  swap 6
+  exchange 1, 13
   add
-  swap 5
-  swap 1
-  swap 2
-  swap 3
-  swap 4
-  swap 5
+  exchange 1, 11
   add
-  swap 4
-  swap 1
-  swap 2
-  swap 3
-  swap 4
+  exchange 1, 9
   add
-  swap 2
-  swap 3
-  swap 1
-  swap 2
+  exchange 1, 7
   add
-  exchange 1, 2
+  exchange 1, 5
   add
+  exchange 1, 3
   add
   push 160
   mload
@@ -125,29 +93,13 @@ bb7 [cold]:
   push 224
   mload
   add
-  push 256
-  mload
   add
-  push 288
-  mload
   add
-  push 320
-  mload
   add
-  push 352
-  mload
   add
-  push 384
-  mload
   add
-  push 416
-  mload
   add
-  push 448
-  mload
   add
-  push 480
-  mload
   add
   push 0
   lt

@@ -1,6 +1,9 @@
 //! Selective Phi residence and simultaneous mixed stack/home transfers.
 //!
-//! One interval-ranked proposal retires existing homes within the ordinary resident budget.
+//! The existing interval-ranked Phi proposal keeps its ordinary resident budget. If absent,
+//! one bounded failure-directed no-Phi proposal may retire other optional homes instead.
+//! Only that proposal permits existing last-use operand preparation to reorder retained values;
+//! actual stack identities and canonical outgoing edges still account for every permutation.
 //! The caller excludes construction, returning or hidden-prefix owners, dynamic frames and
 //! recipes. Entry materialization, reserved homes and the spill protocol remain unchanged.
 //! Actual function lowering checks the proposal; a checkpoint restores the complete original
@@ -17,8 +20,9 @@
 //! Unchanged all-homed edges retain their existing emission and copy-cost decisions.
 
 use super::{
-    Context, FunctionLayout, Slot, calls, edge_values, home_available, ir, load_value, op,
-    parallel_copy, prefix, resident, schedule_error, store_spill, stored, writer,
+    Context, FunctionLayout, Slot, calls, edge_values, entry_order::OperandOrder, home_available,
+    ir, load_value, op, parallel_copy, prefix, resident, schedule_error, store_spill, stored,
+    writer,
 };
 use crate::{
     analysis::ModRef,
@@ -31,6 +35,7 @@ use std::cell::Cell;
 
 /// The ordinary allocation bindings retained until the real emission trial succeeds.
 pub(super) struct Original {
+    pub(super) operand_order: OperandOrder,
     promoted: DenseBitSet<mir::ValueId>,
     homes: FxHashMap<mir::ValueId, usize>,
     entries: IndexVec<mir::BlockId, Vec<Slot>>,
@@ -92,14 +97,25 @@ pub(super) fn select(
     version: EvmVersion,
     optimization: OptimizationMode,
 ) -> Option<Original> {
-    let promoted = layout.spills.phi_residents(
-        function,
-        &layout.live,
-        &layout.cfg,
-        &layout.alias,
-        version,
-        |value| stored(function, value, version, optimization),
-    )?;
+    let (promoted, operand_order) = layout
+        .spills
+        .phi_residents(function, &layout.live, &layout.cfg, &layout.alias, version, |value| {
+            stored(function, value, version, optimization)
+        })
+        .map(|promoted| (promoted, OperandOrder::Canonical))
+        .or_else(|| {
+            layout
+                .spills
+                .failure_residents(
+                    function,
+                    &layout.live,
+                    &layout.cfg,
+                    &layout.alias,
+                    version,
+                    |value| stored(function, value, version, optimization),
+                )
+                .map(|promoted| (promoted, OperandOrder::DeadOperands))
+        })?;
     let mut entries = layout.entries.clone();
     // <ordinary residents>; <retired live-in and Phi identities in canonical order>
     for (block_id, block) in function.blocks.iter_enumerated() {
@@ -131,6 +147,7 @@ pub(super) fn select(
     let mut home_definitions = layout.home_definitions.clone();
     home_definitions.retain(|value, _| !promoted.contains(*value));
     Some(Original {
+        operand_order,
         promoted,
         homes: std::mem::replace(&mut layout.spills.homes, homes),
         entries: std::mem::replace(&mut layout.entries, entries),

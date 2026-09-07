@@ -28,6 +28,16 @@
 //! sources would only move the stores onto the edge, potentially adding stack permutations without
 //! removing memory traffic or writer backups. Other uses and intervening observations retain the
 //! proposal. It does not change home addresses, reservations or the stack-only fast path.
+//!
+//! When the Phi proposal is absent, a no-Phi owner with at most 256 allocated values can
+//! instead start with each single-use optional home resident. This limits new operand-copy
+//! costs beyond the ordinary eight-word budget; original residents keep their existing policy.
+//! Up to eight physical pressure scans
+//! restore one old home from the first failing site's conservative identity pool, preferring
+//! longer lifetimes. Existing floors and original residents never change.
+//! This only selects one emitted trial; actual writer costs and scheduling remain authoritative.
+//! The value bound limits analysis; it alone proves neither complete activation capacity nor
+//! writer cost. Caller exclusions and checked physical emission remain necessary.
 
 use super::{op, scheduler::Stack};
 use crate::{
@@ -68,6 +78,7 @@ impl SpillPlan {
             (returning, protocol_words[0]),
             version,
             &stored,
+            None,
         ) {
             return Self::default();
         }
@@ -144,6 +155,7 @@ impl SpillPlan {
                 (returning, protocol_words[1]),
                 version,
                 |value| stored(value) && proposed.contains(value),
+                None,
             )
         {
             local = proposed;
@@ -217,6 +229,74 @@ impl SpillPlan {
         proposed.subtract(&resident);
         // Keep the original spill protocol without introducing a dummy home binding.
         (!proposed.is_empty() && proposed.count() < self.homes.len()).then_some(proposed)
+    }
+
+    /// Retires optional homes using at most eight first-failure pressure scans.
+    /// The caller retains the static, nonreturning, no-hidden-prefix transaction.
+    pub(crate) fn failure_residents(
+        &self,
+        function: &mir::Function,
+        live: &Liveness,
+        cfg: &CfgInfo,
+        alias: &AliasAnalysis,
+        version: EvmVersion,
+        stored: impl Fn(mir::ValueId) -> bool,
+    ) -> Option<DenseBitSet<mir::ValueId>> {
+        if self.homes.is_empty()
+            || function.num_values() > 256
+            || function
+                .instructions()
+                .any(|id| matches!(function.inst(id).kind, mir::InstKind::Phi(_)))
+        {
+            return None;
+        }
+        let intervals = live_intervals(function, live, cfg, &stored);
+        let (mandatory, uses) =
+            residence_constraints(function, live, cfg, alias, &intervals, false);
+        let mut original = DenseBitSet::new_empty(function.num_values());
+        let mut proposed = DenseBitSet::new_empty(function.num_values());
+        for &(value, _) in &intervals {
+            if !self.homes.contains_key(&value) {
+                original.insert(value);
+            }
+            if (!mandatory.contains(value) && uses[value] == 1) || original.contains(value) {
+                proposed.insert(value);
+            }
+        }
+        if original.iter().any(|value| mandatory.contains(value)) || proposed == original {
+            return None;
+        }
+        let mut failure = DenseBitSet::new_empty(function.num_values());
+        for _ in 0..8 {
+            failure.clear();
+            // Static, nonreturning owners need no protocol prefix here. Actual emission
+            // separately checks saved home banks and every physical preparation.
+            if !exceeds_stack_window(
+                function,
+                live,
+                cfg,
+                alias,
+                (false, 0),
+                version,
+                |value| stored(value) && proposed.contains(value),
+                Some(&mut failure),
+            ) {
+                proposed.subtract(&original);
+                // Retain the ordinary spill protocol without a dummy home binding.
+                return (!proposed.is_empty() && proposed.count() < self.homes.len())
+                    .then_some(proposed);
+            }
+            let &(value, _) = intervals
+                .iter()
+                .filter(|(value, _)| {
+                    failure.contains(*value)
+                        && proposed.contains(*value)
+                        && self.homes.contains_key(value)
+                })
+                .min_by_key(|&&(value, (start, end))| (Reverse(end - start), value))?;
+            proposed.remove(value);
+        }
+        None
     }
 }
 
@@ -306,16 +386,15 @@ struct PhiCandidates<'a> {
     homes: &'a FxHashMap<mir::ValueId, usize>,
 }
 
-/// Adds whole-lifetime residents without changing the existing local exemptions or call protocol.
-fn resident_candidates(
+/// Shared argument, control-transfer and source-writer residence floors.
+fn residence_constraints(
     function: &mir::Function,
     live: &Liveness,
     cfg: &CfgInfo,
     alias: &AliasAnalysis,
     intervals: &[(mir::ValueId, (usize, usize))],
-    words: usize,
-    (local, phi_candidates): (&DenseBitSet<mir::ValueId>, Option<PhiCandidates<'_>>),
-) -> DenseBitSet<mir::ValueId> {
+    allow_phi: bool,
+) -> (DenseBitSet<mir::ValueId>, IndexVec<mir::ValueId, usize>) {
     let mut mandatory = DenseBitSet::new_empty(function.num_values());
     // Argument entry materialization has a separate cost from instruction result residence.
     for &(value, _) in intervals {
@@ -345,7 +424,7 @@ fn resident_candidates(
             let kind = &function.inst(inst).kind;
             if let Some(value) = function.inst_result_value(inst) {
                 before.remove(value);
-                if phi_candidates.is_none() && matches!(kind, mir::InstKind::Phi(_)) {
+                if !allow_phi && matches!(kind, mir::InstKind::Phi(_)) {
                     mandatory.insert(value);
                 }
             }
@@ -353,7 +432,7 @@ fn resident_candidates(
             for &value in &operands {
                 uses[value] += 1;
                 if matches!(kind, mir::InstKind::Phi(_)) {
-                    if phi_candidates.is_none() {
+                    if !allow_phi {
                         mandatory.insert(value);
                     }
                 } else {
@@ -395,6 +474,21 @@ fn resident_candidates(
             }
         }
     }
+    (mandatory, uses)
+}
+
+/// Adds whole-lifetime residents without changing the existing local exemptions or call protocol.
+fn resident_candidates(
+    function: &mir::Function,
+    live: &Liveness,
+    cfg: &CfgInfo,
+    alias: &AliasAnalysis,
+    intervals: &[(mir::ValueId, (usize, usize))],
+    words: usize,
+    (local, phi_candidates): (&DenseBitSet<mir::ValueId>, Option<PhiCandidates<'_>>),
+) -> DenseBitSet<mir::ValueId> {
+    let (mandatory, uses) =
+        residence_constraints(function, live, cfg, alias, intervals, phi_candidates.is_some());
     if local.iter().any(|value| mandatory.contains(value)) {
         return local.clone();
     }
@@ -519,6 +613,10 @@ enum PressureSlot {
 }
 
 /// Uses the physical scheduler itself to account for dying operands and simultaneous edge copies.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the existing pressure simulation accepts an optional failure pool without a separate context"
+)]
 fn exceeds_stack_window(
     function: &mir::Function,
     live: &Liveness,
@@ -527,7 +625,25 @@ fn exceeds_stack_window(
     (returning, protocol_words): (bool, usize),
     version: EvmVersion,
     stored: impl Fn(mir::ValueId) -> bool,
+    mut failure: Option<&mut DenseBitSet<mir::ValueId>>,
 ) -> bool {
+    // Collect only on failure, including requested operands not yet materialized.
+    // The current stack may include tentative materializations; this is a conservative
+    // site pool, not the precise inaccessible value after scheduler planning.
+    let mut failed =
+        |current: &[PressureSlot], requested: &[PressureSlot], operands: &[mir::ValueId]| {
+            if let Some(values) = failure.as_deref_mut() {
+                for slot in current.iter().chain(requested) {
+                    if let PressureSlot::Value(value) = *slot {
+                        values.insert(value);
+                    }
+                }
+                for &value in operands {
+                    values.insert(value);
+                }
+            }
+            true
+        };
     let prefix = usize::from(returning);
     let entries = function
         .blocks
@@ -554,7 +670,7 @@ fn exceeds_stack_window(
             continue;
         }
         if entries[block_id].len() > version.reachable_stack_depth() + prefix {
-            return true;
+            return failed(&entries[block_id], &[], &[]);
         }
         let mut stack = Stack::new(entries[block_id].clone());
         for (position, &inst) in block.instructions.iter().enumerate() {
@@ -582,7 +698,7 @@ fn exceeds_stack_window(
             if protected != 0 {
                 let headroom = if matches!(kind, mir::InstKind::ICall { .. }) { 8 } else { 3 };
                 if stack.values().len() + protected + operands.len() + headroom > 1024 {
-                    return true;
+                    return failed(stack.values(), &[], &operands);
                 }
                 // <current residents>; <saved protocol words>; <operand preparation follows>
                 for index in 0..protected {
@@ -594,7 +710,7 @@ fn exceeds_stack_window(
                     live.is_used_at_or_after(v, block_id, position + 1)
                 })
             {
-                return true;
+                return failed(stack.values(), &[], &operands);
             }
             if matches!(kind, mir::InstKind::ICall { .. }) {
                 let caller = stack.values()[..stack.values().len() - operands.len()].to_vec();
@@ -603,7 +719,7 @@ fn exceeds_stack_window(
                 desired.extend(operands.iter().rev().copied().map(PressureSlot::Value));
                 stack.push(PressureSlot::Continuation);
                 if stack.reconcile(&desired, prefix, version).is_err() {
-                    return true;
+                    return failed(stack.values(), &desired, &[]);
                 }
                 stack = Stack::new(caller);
             } else if prepares {
@@ -625,7 +741,7 @@ fn exceeds_stack_window(
                     if !prepare_pressure(&mut stack, &[*condition], prefix, version, &stored, |v| {
                         live.live_out(block_id).contains(v)
                     }) {
-                        return true;
+                        return failed(stack.values(), &[], &[*condition]);
                     }
                     stack.truncate(stack.values().len() - 1);
                 }
@@ -633,7 +749,7 @@ fn exceeds_stack_window(
                     if !prepare_pressure(&mut stack, &[*value], prefix, version, &stored, |v| {
                         live.live_out(block_id).contains(v)
                     }) {
-                        return true;
+                        return failed(stack.values(), &[], &[*value]);
                     }
                     stack.truncate(stack.values().len() - 1);
                 }
@@ -642,7 +758,7 @@ fn exceeds_stack_window(
                         if !prepare_pressure(&mut stack, &[value], prefix, version, &stored, |v| {
                             values.contains(&v)
                         }) {
-                            return true;
+                            return failed(stack.values(), &[], &[value]);
                         }
                         stack.truncate(stack.values().len() - 1);
                     }
@@ -656,7 +772,7 @@ fn exceeds_stack_window(
                     if !materialize_pressure(&mut stack, &desired, &stored)
                         || stack.reconcile(&desired, 0, version).is_err()
                     {
-                        return true;
+                        return failed(stack.values(), &desired, &[]);
                     }
                 }
                 mir::Terminator::SelfDestruct { recipient } => {
@@ -668,12 +784,12 @@ fn exceeds_stack_window(
                         &stored,
                         |_| false,
                     ) {
-                        return true;
+                        return failed(stack.values(), &[], &[*recipient]);
                     }
                 }
                 mir::Terminator::TailCall { args, .. } => {
                     if !prepare_pressure(&mut stack, args, prefix, version, &stored, |_| false) {
-                        return true;
+                        return failed(stack.values(), &[], args);
                     }
                 }
                 mir::Terminator::ReturnData { offset, size }
@@ -687,7 +803,7 @@ fn exceeds_stack_window(
                         |_| false,
                     ) =>
                 {
-                    return true;
+                    return failed(stack.values(), &[], &[*offset, *size]);
                 }
                 _ => {}
             }
@@ -701,7 +817,7 @@ fn exceeds_stack_window(
                     {
                         let Some((_, source)) = incoming.iter().find(|(from, _)| *from == block_id)
                         else {
-                            return true;
+                            return failed(stack.values(), &[], &[]);
                         };
                         *value = *source;
                     }
@@ -710,7 +826,7 @@ fn exceeds_stack_window(
                 if !materialize_pressure(&mut edge, &desired, &stored)
                     || edge.reconcile(&desired, prefix, version).is_err()
                 {
-                    return true;
+                    return failed(edge.values(), &desired, &[]);
                 }
             }
         }
