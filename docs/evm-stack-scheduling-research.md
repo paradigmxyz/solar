@@ -215,3 +215,15 @@ speedup. This is a measured transport optimization, not general frame-to-SSA
 promotion, a proof of spill-memory ownership, or closure of sealed size debt.
 See `semantic-frame-forwarding-workflow-20260907/` beneath the candidate evidence
 directory for the rejected variants and identical-input comparisons.
+
+
+A subsequent one-condition trial skipped private SWAPs whose two identities
+were equal. It needed no search and preserved every private stack state, but
+was rejected: later physical normalization starts with distinct incoming
+identities and can choose a longer final permutation after that omission.
+Twenty-nine UI contract/mode outputs each grew one creation/runtime byte,
+despite aggregate savings. The source was restored. This reinforces the
+prior-art distinction between private value-aware scheduling and physical
+stack normalization: a local reduction is not an end-to-end performance proof.
+The bounded models, frozen candidate and counterexamples are retained in
+`top-first-permutation-study-20260907/` beneath the candidate evidence directory.

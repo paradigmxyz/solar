@@ -1623,3 +1623,61 @@ Evidence, rejected drafts, exact commands and independent reviews are in
 `frame-word-forwarding-proposal-20260907/` beneath the candidate directory.
 The preceding empty-revert entry also corrects Aave Size deployment gas using
 its unchanged raw report: 776,314 to 766,790, rather than unchanged deployment.
+
+
+### Rejected equal-identity SWAP trial
+
+A one-condition scheduler trial omitted swaps between equal private identities.
+It preserved every modeled stack state and retained reach checks; ten scheduler
+unit tests passed. The independent model covered 377,980 reconciliation
+settings plus preparation and call controls. No global GAS-equivalence claim
+was made: deleting a swap changes subsequent gas observations.
+
+The compiled `5ccb95d4` trial nevertheless grew 29 contract/mode outputs by one
+creation and one runtime byte each. Across identical 1,628 UI IDs and 4,940
+objects, 168 objects shrank, 58 grew and 206 changed at equal size; aggregate
+creation/runtime savings of 79/71 bytes do not override that growth. In the
+tuple fixture, later normalization replaced three legacy swaps with four.
+Its local analysis starts with distinct incoming identities, losing the equal
+zero relationship available to the scheduler. This is a downstream interaction,
+not an incorrect exchange cost table or a wrong private permutation.
+
+The trial and its experimental helper test were removed using the pretrial
+current-source backup. All 145 codegen source hashes match the accepted
+`04007f97` baseline, whose executable is repinned. Original tests are unchanged.
+No heavy or hot-gas acceptance was attempted after the failed UI size gate.
+Evidence and the independent explanation remain under
+`top-first-permutation-study-20260907/` beneath the candidate directory.
+
+
+### Tuple return test policy and runtime matrix
+
+Commit `25d0fcae` migrates the original tuple fixture from its shared
+second-word-store/return policy to complete compact direct returns. Its
+executable tokens and all four function bodies are unchanged. This deliberately
+retires the `PAIR_RETURN` sharing obligation; it is not printer normalization.
+The measured justification is 239/222 creation/runtime bytes versus sealed
+250/233 in both modes, with swaps at 156 versus 163 gas and `multi` at 98
+versus 139. Named calls still cost ten more gas than sealed Gas and seven
+more than sealed Size; this test change does not resolve that debt.
+
+The former full stdout becomes the named IR revision's full golden, and a full
+MIR golden is added. The standard matrix plus IR revision retains strict
+physical output rather than normalizing it away. Selector/decoder edges,
+swapped full-word order, literals, calldata-copy/CALL data flow and exact return
+base/length are checked. Independent review reran the positive check and 31
+distinct negative mutations. Fourteen runtime directives cover tuples,
+precompile success/failure and malformed/rejected calls across five revisions.
+The artifact runner established 28 fresh calls plus 42 complete-object bridges;
+all five revisions then passed the official UI runner. These are separate
+receipts, not 140 distinct fresh EVM calls.
+
+Final pinned UI has 11,652 passes, two original failures and 851 filtered
+revisions. The remaining failures are `cold_call_fallthrough` Size and
+`global_stack_calldata_alias`. The former has a real successful-fallthrough
+layout defect; the latter still lacks the asserted argument reuse and retains
+size debt. Neither assertion was weakened. The compiler remained frozen at
+`04007f97` throughout the UI run. No production change or new whole-rewrite
+acceptance is claimed. Evidence and installation hashes are in
+`tuple-final6-migration-20260907/` and
+`tuple-final6-migration-independent-20260907/` beneath the candidate directory.
