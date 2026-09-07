@@ -1,0 +1,586 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_closure_observers.sol:DescendantLoad (runtime) ===
+@module DescendantLoad_runtime
+bb0 [cold]:
+  push 320
+  push 64
+  mstore
+  callvalue
+  jumpi bb2, bb16
+bb16 [cold]:
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x369984d6
+  eq
+  jumpi bb23, bb22
+bb22 [cold]:
+  push 0xa444f5e9
+  sub
+  jumpi bb2, bb1
+bb1 [cold]:
+  calldatasize
+  push 36
+  gt
+  jumpi bb2, bb25
+bb25 [cold]:
+  push 4
+  calldataload
+  dup 1
+  push 192
+  mstore
+  dup 1
+  jumpi bb11, bb21
+bb21 [cold]:
+  push 1
+  push 288
+  mstore
+  jump bb14
+bb2 [cold]:
+  push 0
+  push 0
+  revert
+bb11 [cold]:
+  push 288
+  mstore
+  jump bb14
+bb14 [cold]:
+  push 288
+  mload
+  dup 1
+  mload
+  swap 1
+  push 0
+  mstore
+  push 32
+  mstore
+  push 64
+  push 0
+  revert
+bb23 [cold]:
+  calldatasize
+  push 36
+  gt
+  jumpi bb2, bb25
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_closure_observers.sol:DescendantByte (runtime) ===
+@module DescendantByte_runtime
+bb0 [cold]:
+  callvalue
+  jumpi bb2, bb16
+bb16 [cold]:
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x369984d6
+  eq
+  jumpi bb23, bb22
+bb22 [cold]:
+  push 0xa444f5e9
+  sub
+  jumpi bb2, bb1
+bb1 [cold]:
+  calldatasize
+  push 36
+  gt
+  jumpi bb2, bb25
+bb25 [cold]:
+  push 4
+  calldataload
+  dup 1
+  push 192
+  mstore
+  dup 1
+  jumpi bb11, bb21
+bb21 [cold]:
+  push 1
+  push 288
+  mstore
+  jump bb14
+bb2 [cold]:
+  push 0
+  push 0
+  revert
+bb11 [cold]:
+  push 288
+  mstore
+  jump bb14
+bb14 [cold]:
+  push 288
+  mload
+  dup 1
+  push 0
+  mstore8
+  push 32
+  mstore
+  push 64
+  push 0
+  revert
+bb23 [cold]:
+  calldatasize
+  push 36
+  gt
+  jumpi bb2, bb25
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_closure_observers.sol:DescendantCopy (runtime) ===
+@module DescendantCopy_runtime
+bb0 [cold]:
+  callvalue
+  jumpi bb2, bb16
+bb16 [cold]:
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x369984d6
+  eq
+  jumpi bb23, bb22
+bb22 [cold]:
+  push 0xa444f5e9
+  sub
+  jumpi bb2, bb1
+bb1 [cold]:
+  calldatasize
+  push 36
+  gt
+  jumpi bb2, bb25
+bb25 [cold]:
+  push 4
+  calldataload
+  dup 1
+  push 192
+  mstore
+  dup 1
+  jumpi bb11, bb21
+bb21 [cold]:
+  push 1
+  push 288
+  mstore
+  jump bb14
+bb2 [cold]:
+  push 0
+  push 0
+  revert
+bb11 [cold]:
+  push 288
+  mstore
+  jump bb14
+bb14 [cold]:
+  push 288
+  mload
+  push 0
+  mstore
+  push 32
+  push 0
+  dup 2
+  mcopy
+  push 64
+  push 0
+  revert
+bb23 [cold]:
+  calldatasize
+  push 36
+  gt
+  jumpi bb2, bb25
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_closure_observers.sol:DescendantLog (runtime) ===
+@module DescendantLog_runtime
+bb0 [cold]:
+  callvalue
+  jumpi bb2, bb16
+bb16 [cold]:
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x369984d6
+  eq
+  jumpi bb23, bb22
+bb22 [cold]:
+  push 0xa444f5e9
+  sub
+  jumpi bb2, bb1
+bb1 [cold]:
+  calldatasize
+  push 36
+  gt
+  jumpi bb2, bb25
+bb25 [cold]:
+  push 4
+  calldataload
+  dup 1
+  push 192
+  mstore
+  dup 1
+  jumpi bb11, bb21
+bb21 [cold]:
+  push 1
+  push 288
+  mstore
+  jump bb14
+bb2 [cold]:
+  push 0
+  push 0
+  revert
+bb11 [cold]:
+  push 288
+  mstore
+  jump bb14
+bb14 [cold]:
+  push 288
+  mload
+  push 0
+  mstore
+  push 32
+  push 0
+  log0
+  push 32
+  push 0
+  revert
+bb23 [cold]:
+  calldatasize
+  push 36
+  gt
+  jumpi bb2, bb25
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_closure_observers.sol:DescendantMsize (runtime) ===
+@module DescendantMsize_runtime
+bb0 [cold]:
+  push 320
+  push 64
+  mstore
+  callvalue
+  jumpi bb2, bb16
+bb16 [cold]:
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x369984d6
+  eq
+  jumpi bb23, bb22
+bb22 [cold]:
+  push 0xa444f5e9
+  sub
+  jumpi bb2, bb1
+bb1 [cold]:
+  calldatasize
+  push 36
+  gt
+  jumpi bb2, bb25
+bb25 [cold]:
+  push 4
+  calldataload
+  dup 1
+  push 192
+  mstore
+  dup 1
+  jumpi bb11, bb21
+bb21 [cold]:
+  push 1
+  push 288
+  mstore
+  jump bb14
+bb2 [cold]:
+  push 0
+  push 0
+  revert
+bb11 [cold]:
+  push 288
+  mstore
+  jump bb14
+bb14 [cold]:
+  push 288
+  mload
+  push 0
+  mstore
+  msize
+  push 0
+  lt
+  push 32
+  mstore
+  push 64
+  push 0
+  revert
+bb23 [cold]:
+  calldatasize
+  push 36
+  gt
+  jumpi bb2, bb25
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_closure_observers.sol:DescendantCall (runtime) ===
+@module DescendantCall_runtime
+bb0 [cold]:
+  callvalue
+  jumpi bb2, bb16
+bb16 [cold]:
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x369984d6
+  eq
+  jumpi bb23, bb22
+bb22 [cold]:
+  push 0xa444f5e9
+  sub
+  jumpi bb2, bb1
+bb1 [cold]:
+  calldatasize
+  push 36
+  gt
+  jumpi bb2, bb3
+bb3 [cold]:
+  push 4
+  calldataload
+  push 192
+  mstore
+  jump bb12
+bb12 [cold]:
+  push 192
+  mload
+  dup 1
+  jumpi bb11, bb21
+bb21 [cold]:
+  push 1
+  push 288
+  mstore
+  jump bb14
+bb2 [cold]:
+  push 0
+  push 0
+  revert
+bb11 [cold]:
+  push 288
+  mstore
+  jump bb14
+bb14 [cold]:
+  push 288
+  mload
+  push 0
+  mstore
+  push 32
+  dup 1
+  dup 1
+  push 0
+  push 4
+  push 0xc350
+  staticcall
+  push 64
+  mstore
+  push 96
+  push 0
+  revert
+bb23 [cold]:
+  calldatasize
+  push 36
+  gt
+  jumpi bb2, bb7
+bb7 [cold]:
+  push 4
+  calldataload
+  push 192
+  mstore
+  jump bb12
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_closure_observers.sol:TailClosureCycle (runtime) ===
+@module TailClosureCycle_runtime
+bb0:
+  callvalue
+  jumpi bb2, bb17
+bb17:
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x1c4d7083
+  eq
+  jumpi bb25, bb24
+bb24:
+  push 0x7357f5d2
+  sub
+  jumpi bb2, bb1
+bb1:
+  calldatasize
+  push 68
+  gt
+  jumpi bb2, bb27
+bb27:
+  push 36
+  calldataload
+  push 4
+  calldataload
+  push 192
+  mstore
+  push 224
+  mstore
+  push 192
+  mload
+  push 224
+  mload
+  jump bb10
+bb2 [cold]:
+  push 0
+  push 0
+  revert
+bb11:
+  dup 2
+  xor
+  push 1
+  swap 1
+  swap 2
+  sub
+  swap 1
+  jump bb10
+bb10:
+  dup 2
+  jumpi bb11, bb22
+bb22 [cold]:
+  push 0
+  mstore
+  push 32
+  push 0
+  revert
+bb25:
+  pop
+  calldatasize
+  push 68
+  gt
+  jumpi bb2, bb27
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_closure_observers.sol:DescendantHash (runtime) ===
+@module DescendantHash_runtime
+bb0 [cold]:
+  callvalue
+  jumpi bb2, bb16
+bb16 [cold]:
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x369984d6
+  eq
+  jumpi bb23, bb22
+bb22 [cold]:
+  push 0xa444f5e9
+  sub
+  jumpi bb2, bb1
+bb1 [cold]:
+  calldatasize
+  push 36
+  gt
+  jumpi bb2, bb25
+bb25 [cold]:
+  push 4
+  calldataload
+  dup 1
+  push 192
+  mstore
+  dup 1
+  jumpi bb11, bb21
+bb21 [cold]:
+  push 1
+  push 288
+  mstore
+  jump bb14
+bb2 [cold]:
+  push 0
+  push 0
+  revert
+bb11 [cold]:
+  push 288
+  mstore
+  jump bb14
+bb14 [cold]:
+  push 288
+  mload
+  push 0
+  mstore
+  push 32
+  push 0
+  keccak256
+  push 32
+  mstore
+  push 64
+  push 0
+  revert
+bb23 [cold]:
+  calldatasize
+  push 36
+  gt
+  jumpi bb2, bb25
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_closure_observers.sol:DescendantGas (runtime) ===
+@module DescendantGas_runtime
+bb0 [cold]:
+  callvalue
+  jumpi bb2, bb16
+bb16 [cold]:
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x369984d6
+  eq
+  jumpi bb23, bb22
+bb22 [cold]:
+  push 0xa444f5e9
+  sub
+  jumpi bb2, bb1
+bb1 [cold]:
+  calldatasize
+  push 36
+  gt
+  jumpi bb2, bb3
+bb3 [cold]:
+  push 4
+  calldataload
+  push 192
+  mstore
+  jump bb12
+bb12 [cold]:
+  push 192
+  mload
+  dup 1
+  jumpi bb11, bb21
+bb21 [cold]:
+  pop
+  push 1
+  push 288
+  mstore
+  jump bb14
+bb2 [cold]:
+  push 0
+  push 0
+  revert
+bb11 [cold]:
+  push 288
+  mstore
+  jump bb14
+bb14 [cold]:
+  push 288
+  mload
+  push 0
+  mstore
+  gas
+  push 0
+  lt
+  push 32
+  mstore
+  push 64
+  push 0
+  revert
+bb23 [cold]:
+  pop
+  calldatasize
+  push 36
+  gt
+  jumpi bb2, bb7
+bb7 [cold]:
+  push 4
+  calldataload
+  push 192
+  mstore
+  jump bb12

@@ -1,0 +1,112 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_closure_arguments.sol:TailClosureArguments (runtime) ===
+@module TailClosureArguments_runtime
+bb0 [cold]:
+  callvalue
+  jumpi bb3, bb30
+bb30 [cold]:
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x30b82a52
+  eq
+  jumpi bb40, bb39
+bb39 [cold]:
+  dup 1
+  push 0x33e8ec2a
+  eq
+  jumpi bb38, bb37
+bb37 [cold]:
+  push 0x85431b84
+  sub
+  jumpi bb3, bb1
+bb1 [cold]:
+  calldatasize
+  push 100
+  gt
+  jumpi bb3, bb2
+bb2 [cold]:
+  push 68
+  calldataload
+  push 36
+  calldataload
+  push 4
+  calldataload
+  swap 2
+  jump bb16
+bb16 [cold]:
+  push 0
+  dup 4
+  eq
+  jumpi bb17, bb19
+bb19 [cold]:
+  push 1
+  dup 4
+  eq
+  jumpi bb20, bb22
+bb22 [cold]:
+  push 2
+  dup 4
+  eq
+  jumpi bb36, bb25
+bb25 [cold]:
+  swap 1
+  swap 2
+  jump bb27
+bb3 [cold]:
+  push 0
+  push 0
+  revert
+bb17 [cold]:
+  swap 1
+  swap 2
+  jump bb27
+bb27 [cold]:
+  swap 1
+  swap 2
+  push 0
+  mstore
+  swap 1
+  push 32
+  mstore
+  push 64
+  mstore
+  push 96
+  push 0
+  revert
+bb20 [cold]:
+  swap 2
+  jump bb27
+bb36 [cold]:
+  dup 2
+  swap 3
+  pop
+  jump bb27
+bb38 [cold]:
+  calldatasize
+  push 68
+  gt
+  jumpi bb3, bb12
+bb12 [cold]:
+  push 36
+  calldataload
+  push 4
+  calldataload
+  swap 1
+  dup 1
+  jump bb16
+bb40 [cold]:
+  calldatasize
+  push 100
+  gt
+  jumpi bb3, bb7
+bb7 [cold]:
+  push 36
+  calldataload
+  push 68
+  calldataload
+  push 4
+  calldataload
+  swap 2
+  jump bb16

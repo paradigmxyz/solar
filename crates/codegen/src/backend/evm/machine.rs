@@ -27,7 +27,7 @@ use crate::{
 use alloy_primitives::U256;
 use solar_config::{EvmVersion, OptimizationMode};
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 
 mod call_entry;
 mod call_reserve;
@@ -90,6 +90,7 @@ struct Context<'a> {
     deployment: bool,
     data_map: &'a FxHashMap<mir::DataId, ir::DataId>,
     tail_entry_scope: &'a Cell<Option<bool>>,
+    tail_reverts: &'a RefCell<FxHashMap<mir::FunctionId, Option<call_entry::TailReverts>>>,
 }
 
 /// Generates one artifact rooted at a runtime dispatcher or constructor.
@@ -339,6 +340,7 @@ pub(crate) fn lower(
     // Returning activations can leave physical stack heights unknown. Retain
     // their argument stores so compact literal materialization keeps its budget.
     let tail_entry_scope = Cell::new((!returning.is_empty()).then_some(false));
+    let tail_reverts = RefCell::new(FxHashMap::default());
     let mut hidden_prefixes = None;
     for id in reachable.iter() {
         let function = module.function(id);
@@ -375,6 +377,7 @@ pub(crate) fn lower(
             deployment,
             data_map: &data_map,
             tail_entry_scope: &tail_entry_scope,
+            tail_reverts: &tail_reverts,
         };
         let mut entry = Vec::new();
         if fmp_entry == Some(id) {
@@ -464,6 +467,7 @@ pub(crate) fn lower(
                 deployment,
                 data_map: &data_map,
                 tail_entry_scope: &tail_entry_scope,
+                tail_reverts: &tail_reverts,
             };
             // <ordinary owner body>; preserve the exact fallback schedule and metadata
             lower_function(&context, &layouts, &mut output, switches)?;
@@ -829,7 +833,7 @@ fn lower_function(
                 call_entry::lower_tail(
                     context,
                     *callee,
-                    &layouts[callee],
+                    layouts,
                     args,
                     &stack,
                     (current, &mut insts),

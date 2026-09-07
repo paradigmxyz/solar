@@ -21,16 +21,20 @@
 //! Spill-bearing callers retain their existing protocol. Final jump widths, layout and outlining
 //! still require corpus measurement.
 //!
-//! Runtime gas-mode tail edges may also bypass a static memory-argument entry
-//! for a single fixed-range reverting block. Only pure arithmetic and literal
-//! word stores are admitted; the revert range must miss every omitted argument
-//! word. Both activations must have no spill protocol, and dynamic frames and
-//! returning activations and module code observations decline. Returning calls
-//! can leave physical stack heights unknown; retaining their argument stores
-//! preserves the later compact-literal pass's temporary stack budget. This uses
-//! the existing reachability analysis. Frame reservations and other callers stay
-//! unchanged. A checked reconciliation must save caller bytes without adding gas
-//! or stack peak; no saving from the shared entry is credited. Nonempty parameters
+//! Optimized runtime tail edges may also bypass a static memory-argument entry
+//! when every path through a bounded tail-call closure ends in a fixed-range revert.
+//! Only direct arithmetic and literal word stores are admitted; memory reads and
+//! other observations decline. The omitted argument interval must miss the envelope
+//! of all nonempty descendant revert ranges, including ranges in later helpers.
+//! Ordinary entries, frame reservations and other incoming edges remain unchanged.
+//! Both activations and every descendant must be static and free of spill protocols.
+//! Returning activations and module code observations retain the existing global gate.
+//! Cached summaries charge at most 256 uncached nonleaf function/block/instruction units
+//! per request. Terminal single-block leaves retain the previous source-linear scan once,
+//! without spending expansion budget. Cycles use the existing lazy CFG facts. Negative and
+//! in-progress entries share a refusal; budget-dependent refusals stay conservative.
+//! A checked reconciliation must save bytes without adding gas or stack peak.
+//! Size outlining and final layout still require measurement. Nonempty arguments
 //! exclude the zero-parameter entry where FMP initialization can be relocated.
 
 use super::{Context, FunctionLayout, Slot, external_argument, materialize, prefix};
@@ -65,7 +69,7 @@ pub(super) fn entry(
 pub(super) fn lower_tail(
     context: &Context<'_>,
     callee: mir::FunctionId,
-    layout: &FunctionLayout,
+    layouts: &FxHashMap<mir::FunctionId, FunctionLayout>,
     args: &[mir::ValueId],
     incoming: &Stack<Slot>,
     (current, insts): (ir::BlockId, &mut Vec<ir::Instruction>),
@@ -79,13 +83,14 @@ pub(super) fn lower_tail(
         context.plan.max_dynamic_frame_size,
         context.version,
     )?;
+    let layout = &layouts[&callee];
     let mut target = layout.entry;
     if context.tail_entry_scope.get() != Some(false)
         && let Some((candidate, body)) =
-            choose_tail(context, callee, layout, args, incoming, &setup)
+            choose_tail(context, callee, layout, layouts, args, incoming, &setup)
     {
         // <reverse arguments> -> <canonical callee entry>
-        // jump <fixed reverting body>, omitting only unobserved argument stores
+        // jump <terminal tail body>, omitting only unobserved argument stores
         setup.setup = candidate;
         target = body;
     }
@@ -101,26 +106,18 @@ fn choose_tail(
     context: &Context<'_>,
     callee: mir::FunctionId,
     layout: &FunctionLayout,
+    layouts: &FxHashMap<mir::FunctionId, FunctionLayout>,
     args: &[mir::ValueId],
     incoming: &Stack<Slot>,
     setup: &calls::CallSetup,
 ) -> Option<(Vec<ir::Instruction>, ir::BlockId)> {
     let storage = &context.plan.functions[callee];
     let function = context.module.function(callee);
-    if !context.optimization.is_gas()
+    if !matches!(context.optimization, OptimizationMode::Gas | OptimizationMode::Size)
         || context.deployment
         || context.tail_entry_scope.get() == Some(false)
         || context.layout.uses_spill_protocol()
-        || layout.uses_spill_protocol()
         || context.plan.max_dynamic_frame_size != 0
-        || layout.returning
-        || storage.is_entry
-        || storage.stack_arguments
-        || storage.address_exposed
-        || !storage.deferred_allocations.is_empty()
-        || function.attributes.is_constructor
-        || external_argument(function)
-        || function.blocks.len() != 1
         || !(1..=12).contains(&args.len())
         || function.params.len() != args.len()
         || !setup.guard.is_empty()
@@ -130,37 +127,16 @@ fn choose_tail(
     let FrameBase::Static(base) = storage.base else { return None };
     let start = base.checked_add(storage.argument_offset)?;
     let end = base.checked_add(storage.return_offset)?;
-    let mir::Terminator::Revert { offset, size } =
-        function.blocks[mir::BlockId::ENTRY].terminator.as_ref()?
-    else {
+    let mut budget = 256;
+    let reverts = terminal_reverts(
+        context,
+        layouts,
+        callee,
+        &mut context.tail_reverts.borrow_mut(),
+        &mut budget,
+    )?;
+    if reverts.range.is_some_and(|(offset, revert_end)| offset < end && start < revert_end) {
         return None;
-    };
-    let offset = function.value_u64(*offset)?;
-    let size = function.value_u64(*size)?;
-    let revert_end = offset.checked_add(size)?;
-    if size != 0 && offset < end && start < revert_end {
-        return None;
-    }
-    for id in function.instructions() {
-        let instruction = function.inst(id);
-        if instruction
-            .metadata
-            .effect()
-            .is_some_and(|effect| effect != instruction.kind.effect_kind())
-        {
-            return None;
-        }
-        match instruction.kind {
-            mir::InstKind::MStore(address, _) => {
-                function.value_u64(address)?.checked_add(32)?;
-            }
-            _ => {
-                let opcode = instruction.kind.evm_opcode()?;
-                if !matches!(opcode, op::ADD..=op::SIGNEXTEND | op::LT..=op::CLZ) {
-                    return None;
-                }
-            }
-        }
     }
     let mut desired = Vec::new();
     for &slot in &layout.entries[mir::BlockId::ENTRY] {
@@ -203,6 +179,115 @@ fn choose_tail(
         !observes
     });
     eligible.then_some((candidate, layout.blocks[mir::BlockId::ENTRY]))
+}
+
+/// An envelope of every nonempty REVERT range in a certified terminal closure.
+/// `None` denotes only empty reverts, which do not observe memory bytes.
+#[derive(Clone, Copy, Default)]
+pub(super) struct TailReverts {
+    range: Option<(u64, u64)>,
+}
+
+impl TailReverts {
+    fn include(&mut self, other: Self) {
+        if let Some((start, end)) = other.range {
+            self.range = Some(self.range.map_or((start, end), |(a, b)| (a.min(start), b.max(end))));
+        }
+    }
+}
+
+/// Certifies effects and terminal observations without changing MIR or frame ownership.
+/// A positive closure cannot contain the current Phi trial caller: its queried edge would
+/// complete a refused tail cycle. Other spill-free layouts cannot enter a later trial.
+fn terminal_reverts(
+    context: &Context<'_>,
+    layouts: &FxHashMap<mir::FunctionId, FunctionLayout>,
+    id: mir::FunctionId,
+    cache: &mut FxHashMap<mir::FunctionId, Option<TailReverts>>,
+    budget: &mut usize,
+) -> Option<TailReverts> {
+    if let Some(result) = cache.get(&id) {
+        return *result;
+    }
+    // A recursive tail edge sees the in-progress refusal instead of recursing.
+    cache.insert(id, None);
+    let result = (|| {
+        let function = context.module.function(id);
+        let layout = layouts.get(&id)?;
+        let storage = &context.plan.functions[id];
+        if layout.uses_spill_protocol()
+            || layout.returning
+            || storage.is_entry
+            || storage.stack_arguments
+            || storage.address_exposed
+            || !matches!(storage.base, FrameBase::Static(_))
+            || !storage.deferred_allocations.is_empty()
+            || function.attributes.is_constructor
+            || external_argument(function)
+            || function.blocks.is_empty()
+            || function.blocks.len() > 64
+        {
+            return None;
+        }
+        // Preserve the existing single-block leaf eligibility without a second scan.
+        // Cached leaves are source-linear once, including when reached as descendants.
+        let leaf = function.blocks.len() == 1
+            && matches!(
+                function.blocks[mir::BlockId::ENTRY].terminator,
+                Some(mir::Terminator::Revert { .. })
+            );
+        if !leaf {
+            let cost =
+                function.blocks.iter().try_fold(1 + function.blocks.len(), |cost, block| {
+                    cost.checked_add(block.instructions.len())
+                })?;
+            *budget = budget.checked_sub(cost)?;
+        }
+        let mut result = TailReverts::default();
+        for block in &function.blocks {
+            for &id in &block.instructions {
+                let instruction = function.inst(id);
+                if instruction
+                    .metadata
+                    .effect()
+                    .is_some_and(|effect| effect != instruction.kind.effect_kind())
+                {
+                    return None;
+                }
+                match instruction.kind {
+                    mir::InstKind::MStore(address, _) => {
+                        function.value_u64(address)?.checked_add(32)?;
+                    }
+                    _ => {
+                        let opcode = instruction.kind.evm_opcode()?;
+                        if !matches!(opcode, op::ADD..=op::SIGNEXTEND | op::LT..=op::CLZ) {
+                            return None;
+                        }
+                    }
+                }
+            }
+            match block.terminator.as_ref()? {
+                mir::Terminator::Jump(_) | mir::Terminator::Branch { .. } => {}
+                mir::Terminator::Revert { offset, size } => {
+                    let start = function.value_u64(*offset)?;
+                    let size = function.value_u64(*size)?;
+                    let end = start.checked_add(size)?;
+                    result.include(TailReverts { range: (size != 0).then_some((start, end)) });
+                }
+                mir::Terminator::TailCall { function, .. } => {
+                    result.include(terminal_reverts(context, layouts, *function, cache, budget)?);
+                }
+                _ => return None,
+            }
+        }
+        // Refused terminators cannot force a CFG traversal through large Switch tables.
+        if !leaf && !layout.cfg.cyclic_blocks().is_empty() {
+            return None;
+        }
+        Some(result)
+    })();
+    cache.insert(id, result);
+    result
 }
 
 /// Counts the emitted instructions, without simplifying a different trial sequence.

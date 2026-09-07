@@ -1,0 +1,330 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_closure_observers.sol:DescendantLoad ===
+@module DescendantLoad
+fn @run(arg0: u256) [selector=0xa444f5e9, pure, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    icall @route, 0, arg0
+    stop
+}
+
+fn @other(arg0: u256) [selector=0x369984d6, pure, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    icall @route, 0, arg0
+    stop
+}
+
+fn @route(arg0: u256) [pure] {
+  bb0:
+    v0 = eq arg0, 0
+    jumpi v0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    icall @leaf, 0, 1
+    jump bb3
+  bb3:
+    icall @leaf, 0, arg0
+    revert 0, 0
+}
+
+fn @leaf(arg0: u256) [pure] {
+  bb0:
+    v0 = mload arg0
+    mstore 0, arg0 !metadata(memory=scratch)
+    mstore 32, v0 !metadata(memory=scratch)
+    revert 0, 64
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_closure_observers.sol:DescendantByte ===
+@module DescendantByte
+fn @run(arg0: u256) [selector=0xa444f5e9, pure, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    icall @route, 0, arg0
+    stop
+}
+
+fn @other(arg0: u256) [selector=0x369984d6, pure, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    icall @route, 0, arg0
+    stop
+}
+
+fn @route(arg0: u256) [pure] {
+  bb0:
+    v0 = eq arg0, 0
+    jumpi v0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    icall @leaf, 0, 1
+    jump bb3
+  bb3:
+    icall @leaf, 0, arg0
+    revert 0, 0
+}
+
+fn @leaf(arg0: u256) [pure] {
+  bb0:
+    mstore8 0, arg0 !metadata(memory=scratch)
+    mstore 32, arg0 !metadata(memory=scratch)
+    revert 0, 64
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_closure_observers.sol:DescendantCopy ===
+@module DescendantCopy
+fn @run(arg0: u256) [selector=0xa444f5e9, pure, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    icall @route, 0, arg0
+    stop
+}
+
+fn @other(arg0: u256) [selector=0x369984d6, pure, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    icall @route, 0, arg0
+    stop
+}
+
+fn @route(arg0: u256) [pure] {
+  bb0:
+    v0 = eq arg0, 0
+    jumpi v0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    icall @leaf, 0, 1
+    jump bb3
+  bb3:
+    icall @leaf, 0, arg0
+    revert 0, 0
+}
+
+fn @leaf(arg0: u256) [pure] {
+  bb0:
+    mstore 0, arg0 !metadata(memory=scratch)
+    mcopy 32, 0, 32 !metadata(memory=scratch)
+    revert 0, 64
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_closure_observers.sol:DescendantLog ===
+@module DescendantLog
+fn @run(arg0: u256) [selector=0xa444f5e9, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    icall @route, 0, arg0
+    stop
+}
+
+fn @other(arg0: u256) [selector=0x369984d6, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    icall @route, 0, arg0
+    stop
+}
+
+fn @route(arg0: u256) {
+  bb0:
+    v0 = eq arg0, 0
+    jumpi v0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    icall @leaf, 0, 1
+    jump bb3
+  bb3:
+    icall @leaf, 0, arg0
+    revert 0, 0
+}
+
+fn @leaf(arg0: u256) {
+  bb0:
+    mstore 0, arg0 !metadata(memory=scratch)
+    log0 0, 32
+    revert 0, 32
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_closure_observers.sol:DescendantMsize ===
+@module DescendantMsize
+fn @run(arg0: u256) [selector=0xa444f5e9, pure, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    icall @route, 0, arg0
+    stop
+}
+
+fn @other(arg0: u256) [selector=0x369984d6, pure, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    icall @route, 0, arg0
+    stop
+}
+
+fn @route(arg0: u256) [pure] {
+  bb0:
+    v0 = eq arg0, 0
+    jumpi v0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    icall @leaf, 0, 1
+    jump bb3
+  bb3:
+    icall @leaf, 0, arg0
+    revert 0, 0
+}
+
+fn @leaf(arg0: u256) [pure] {
+  bb0:
+    mstore 0, arg0 !metadata(memory=scratch)
+    v0 = msize
+    v1 = gt v0, 0
+    mstore 32, v1 !metadata(memory=scratch)
+    revert 0, 64
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_closure_observers.sol:DescendantCall ===
+@module DescendantCall
+fn @run(arg0: u256) [selector=0xa444f5e9, view, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    icall @route, 0, arg0
+    stop
+}
+
+fn @other(arg0: u256) [selector=0x369984d6, view, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    icall @route, 0, arg0
+    stop
+}
+
+fn @route(arg0: u256) [view] {
+  bb0:
+    v0 = eq arg0, 0
+    jumpi v0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    icall @leaf, 0, 1
+    jump bb3
+  bb3:
+    icall @leaf, 0, arg0
+    revert 0, 0
+}
+
+fn @leaf(arg0: u256) [view] {
+  bb0:
+    mstore 0, arg0 !metadata(memory=scratch)
+    v0 = staticcall 0xc350, 4, 0, 32, 32, 32
+    mstore 64, v0 !metadata(memory=scratch)
+    revert 0, 96
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_closure_observers.sol:TailClosureCycle ===
+@module TailClosureCycle
+fn @run(arg0: u256, arg1: u256) [selector=0x7357f5d2, pure, abi_params=[u256, u256], abi_returns=[]] {
+  bb0:
+    icall @route, 0, arg0, arg1
+    stop
+}
+
+fn @other(arg0: u256, arg1: u256) [selector=0x1c4d7083, pure, abi_params=[u256, u256], abi_returns=[]] {
+  bb0:
+    icall @route, 0, arg0, arg1
+    stop
+}
+
+fn @route(arg0: u256, arg1: u256) [pure] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb3: v5]
+    v1 = phi [bb0: arg1], [bb3: v4]
+    v2 = eq v0, 0
+    v3 = iszero v2
+    jumpi v3, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    icall @leaf, 0, v1
+    revert 0, 0
+  bb4:
+    v4 = xor v1, v0
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v5 = sub v0, 1
+    jump bb1
+}
+
+fn @leaf(arg0: u256) [pure] {
+  bb0:
+    mstore 0, arg0 !metadata(memory=scratch)
+    revert 0, 32
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_closure_observers.sol:DescendantHash ===
+@module DescendantHash
+fn @run(arg0: u256) [selector=0xa444f5e9, pure, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    icall @route, 0, arg0
+    stop
+}
+
+fn @other(arg0: u256) [selector=0x369984d6, pure, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    icall @route, 0, arg0
+    stop
+}
+
+fn @route(arg0: u256) [pure] {
+  bb0:
+    v0 = eq arg0, 0
+    jumpi v0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    icall @leaf, 0, 1
+    jump bb3
+  bb3:
+    icall @leaf, 0, arg0
+    revert 0, 0
+}
+
+fn @leaf(arg0: u256) [pure] {
+  bb0:
+    mstore 0, arg0 !metadata(memory=scratch)
+    v0 = keccak256 0, 32 !metadata(memory=scratch)
+    mstore 32, v0 !metadata(memory=scratch)
+    revert 0, 64
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_tail_closure_observers.sol:DescendantGas ===
+@module DescendantGas
+fn @run(arg0: u256) [selector=0xa444f5e9, view, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    icall @route, 0, arg0
+    stop
+}
+
+fn @other(arg0: u256) [selector=0x369984d6, view, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    icall @route, 0, arg0
+    stop
+}
+
+fn @route(arg0: u256) [view] {
+  bb0:
+    v0 = eq arg0, 0
+    jumpi v0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    icall @leaf, 0, 1
+    jump bb3
+  bb3:
+    icall @leaf, 0, arg0
+    revert 0, 0
+}
+
+fn @leaf(arg0: u256) [view] {
+  bb0:
+    mstore 0, arg0 !metadata(memory=scratch)
+    v0 = gas
+    v1 = gt v0, 0
+    mstore 32, v1 !metadata(memory=scratch)
+    revert 0, 64
+}
