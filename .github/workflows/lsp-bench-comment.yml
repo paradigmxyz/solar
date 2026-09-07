@@ -1,0 +1,365 @@
+name: cross-lsp-benchmark-comment
+
+permissions: {}
+
+on:
+  workflow_run:
+    workflows:
+      - Benchmark/Cross-server Solidity LSP benchmark
+    types: [completed]
+
+concurrency:
+  group: >-
+    ${{ format('{0}-{1}-{2}', github.workflow,
+      github.event.workflow_run.head_repository.full_name,
+      github.event.workflow_run.head_branch) }}
+  cancel-in-progress: true
+
+jobs:
+  comment:
+    name: comment cross-server PR benchmark
+    if: >-
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Find pull request and validate workflow run
+        id: pr
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const SHA_RE = /^[0-9a-f]{40}$/;
+            const run = context.payload.workflow_run;
+            const repository = context.payload.repository?.full_name;
+            const workflowPath = ".github/workflows/lsp-bench.yml";
+            if (
+              run.repository?.full_name !== repository ||
+              !(run.path === workflowPath || run.path?.startsWith(`${workflowPath}@`))
+            ) {
+              throw new Error(`Unexpected source workflow for run ${run.id}`);
+            }
+            if (run.event !== "pull_request") {
+              throw new Error(`Unexpected source event for run ${run.id}`);
+            }
+            const headRepository = run.head_repository?.full_name;
+            const headOwner = run.head_repository?.owner?.login;
+            const headBranch = run.head_branch;
+            if (
+              !headRepository ||
+              !headOwner ||
+              !headBranch ||
+              !SHA_RE.test(run.head_sha || "") ||
+              !Number.isSafeInteger(Number(run.run_attempt)) ||
+              Number(run.run_attempt) <= 0
+            ) {
+              throw new Error(`Workflow run ${run.id} has incomplete pull request provenance`);
+            }
+            const { data: pulls } = await github.rest.pulls.list({
+              ...context.repo,
+              state: "open",
+              head: `${headOwner}:${headBranch}`,
+              per_page: 100,
+            });
+            const matches = pulls.filter(
+              (pull) =>
+                pull.head?.sha === run.head_sha &&
+                pull.head?.repo?.full_name === headRepository &&
+                pull.base?.repo?.full_name === repository,
+            );
+            if (matches.length !== 1) {
+              throw new Error(
+                `Expected one open pull request for ${headRepository}:${headBranch} at ${run.head_sha}`,
+              );
+            }
+            const { data: pull } = await github.rest.pulls.get({
+              ...context.repo,
+              pull_number: matches[0].number,
+            });
+            if (
+              pull.state !== "open" ||
+              pull.head?.sha !== run.head_sha ||
+              pull.head?.ref !== headBranch ||
+              pull.head?.repo?.full_name !== headRepository ||
+              pull.base?.repo?.full_name !== repository ||
+              !pull.base?.ref
+            ) {
+              throw new Error(`Pull request identity changed for workflow run ${run.id}`);
+            }
+            core.setOutput("number", String(pull.number));
+            core.setOutput("head_sha", pull.head.sha);
+            core.setOutput("head_ref", pull.head.ref);
+            core.setOutput("head_repo", pull.head.repo.full_name);
+            core.setOutput("base_ref", pull.base.ref);
+            core.setOutput("base_repo", pull.base.repo.full_name);
+
+      - name: Find exact comment data artifact
+        id: artifact
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const run = context.payload.workflow_run;
+            const expectedName = `cross-lsp-pr-comment-${run.id}-${run.run_attempt}`;
+            const artifacts = await github.paginate(
+              github.rest.actions.listWorkflowRunArtifacts,
+              {
+                ...context.repo,
+                run_id: run.id,
+                per_page: 100,
+              },
+            );
+            const matches = artifacts.filter(
+              (artifact) =>
+                artifact.name === expectedName &&
+                artifact.workflow_run?.id === run.id &&
+                !artifact.expired &&
+                artifact.size_in_bytes > 0,
+            );
+            if (matches.length !== 1) {
+              throw new Error(`Expected one unexpired comment data artifact named ${expectedName}`);
+            }
+            core.setOutput("artifact_id", String(matches[0].id));
+
+      - name: Download exact report artifact
+        id: download
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          artifact-ids: ${{ steps.artifact.outputs.artifact_id }}
+          path: ${{ runner.temp }}/cross-lsp-comment
+          github-token: ${{ github.token }}
+          run-id: ${{ github.event.workflow_run.id }}
+
+      # Artifact contents are data only. The write-permission job validates
+      # their exact schema and renders them with code from the trusted branch.
+      - name: Isolate comment data
+        id: data
+        shell: bash
+        env:
+          REPORT_ROOT: ${{ runner.temp }}/cross-lsp-comment
+        run: |
+          set -euo pipefail
+          summary="$REPORT_ROOT/summary.json"
+          provenance="$REPORT_ROOT/provenance.json"
+          if [[ ! -f "$summary" || ! -f "$provenance" || \
+                -L "$summary" || -L "$provenance" ]]; then
+            echo "Expected regular summary.json and provenance.json at artifact root" >&2
+            exit 1
+          fi
+          mapfile -t extra < <(find -P "$REPORT_ROOT" -mindepth 1 -maxdepth 1 \
+            ! -name summary.json ! -name provenance.json -print)
+          if [[ "${#extra[@]}" -ne 0 ]]; then
+            echo "Comment data artifact contains unexpected files" >&2
+            exit 1
+          fi
+          test -s "$summary"
+          test -s "$provenance"
+          test "$(stat -c %s "$summary")" -le 1048576
+          test "$(stat -c %s "$provenance")" -le 16384
+          echo "summary=$summary" >> "$GITHUB_OUTPUT"
+          echo "provenance=$provenance" >> "$GITHUB_OUTPUT"
+
+      - name: Validate tested revisions and comment data
+        id: provenance
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          EXPECTED_HEAD_REF: ${{ steps.pr.outputs.head_ref }}
+          EXPECTED_HEAD_REPO: ${{ steps.pr.outputs.head_repo }}
+          EXPECTED_HEAD_SHA: ${{ steps.pr.outputs.head_sha }}
+          EXPECTED_PR_NUMBER: ${{ steps.pr.outputs.number }}
+          PROVENANCE_PATH: ${{ steps.data.outputs.provenance }}
+          SUMMARY_PATH: ${{ steps.data.outputs.summary }}
+        with:
+          script: |
+            const crypto = require("crypto");
+            const fs = require("fs");
+            const SHA_RE = /^[0-9a-f]{40}$/;
+            const SHA256_RE = /^[0-9a-f]{64}$/;
+            const expectedKeys = [
+              "base_ref", "base_sha", "harness_sha256", "head_ref",
+              "head_repository", "head_sha", "kind", "merge_sha",
+              "pr_number", "repository", "run_attempt", "run_id",
+              "schema_version", "summary_sha256",
+            ];
+            const provenance = JSON.parse(
+              fs.readFileSync(process.env.PROVENANCE_PATH, "utf8"),
+            );
+            if (
+              provenance === null ||
+              Array.isArray(provenance) ||
+              typeof provenance !== "object" ||
+              JSON.stringify(Object.keys(provenance).sort()) !== JSON.stringify(expectedKeys)
+            ) {
+              throw new Error("Comment provenance does not match the exact schema");
+            }
+            const run = context.payload.workflow_run;
+            const repository = context.payload.repository?.full_name;
+            const prNumber = Number(process.env.EXPECTED_PR_NUMBER);
+            if (
+              provenance.schema_version !== 1 ||
+              provenance.kind !== "solar-cross-lsp-comment-data" ||
+              provenance.repository !== repository ||
+              provenance.pr_number !== prNumber ||
+              provenance.run_id !== Number(run.id) ||
+              provenance.run_attempt !== Number(run.run_attempt) ||
+              provenance.head_repository !== process.env.EXPECTED_HEAD_REPO ||
+              provenance.head_ref !== process.env.EXPECTED_HEAD_REF ||
+              provenance.head_sha !== process.env.EXPECTED_HEAD_SHA ||
+              provenance.head_sha !== run.head_sha ||
+              !SHA_RE.test(provenance.base_sha || "") ||
+              !SHA_RE.test(provenance.merge_sha || "") ||
+              !SHA256_RE.test(provenance.harness_sha256 || "") ||
+              !SHA256_RE.test(provenance.summary_sha256 || "")
+            ) {
+              throw new Error("Comment provenance does not match the workflow run");
+            }
+            const summaryDigest = crypto
+              .createHash("sha256")
+              .update(fs.readFileSync(process.env.SUMMARY_PATH))
+              .digest("hex");
+            if (summaryDigest !== provenance.summary_sha256) {
+              throw new Error("Summary digest does not match comment provenance");
+            }
+            const { data: pull } = await github.rest.pulls.get({
+              ...context.repo,
+              pull_number: prNumber,
+            });
+            const { data: base } = await github.rest.repos.getBranch({
+              ...context.repo,
+              branch: pull.base.ref,
+            });
+            const { data: merge } = await github.rest.repos.getCommit({
+              ...context.repo,
+              ref: provenance.merge_sha,
+            });
+            const parents = Array.isArray(merge.parents)
+              ? merge.parents.map((parent) => parent.sha)
+              : [];
+            if (
+              pull.state !== "open" ||
+              pull.mergeable !== true ||
+              pull.base?.repo?.full_name !== repository ||
+              pull.base?.ref !== provenance.base_ref ||
+              pull.head?.repo?.full_name !== provenance.head_repository ||
+              pull.head?.ref !== provenance.head_ref ||
+              pull.head?.sha !== provenance.head_sha ||
+              pull.merge_commit_sha !== provenance.merge_sha ||
+              base.commit?.sha !== provenance.base_sha ||
+              merge.sha !== provenance.merge_sha ||
+              parents.length !== 2 ||
+              parents[0] !== provenance.base_sha ||
+              parents[1] !== provenance.head_sha
+            ) {
+              throw new Error("Current pull request does not match the tested merge");
+            }
+            core.setOutput("base_ref", provenance.base_ref);
+            core.setOutput("base_sha", provenance.base_sha);
+            core.setOutput("head_ref", provenance.head_ref);
+            core.setOutput("head_repo", provenance.head_repository);
+            core.setOutput("head_sha", provenance.head_sha);
+            core.setOutput("merge_sha", provenance.merge_sha);
+            core.setOutput("harness_sha256", provenance.harness_sha256);
+
+      - name: Checkout trusted report renderer
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ github.sha }}
+          path: trusted-renderer
+          persist-credentials: false
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        with:
+          toolchain: "1.96"
+
+      - name: Render comment from validated data
+        id: report
+        shell: bash
+        env:
+          EXPECTED_HARNESS_SHA256: ${{ steps.provenance.outputs.harness_sha256 }}
+          EXPECTED_MERGE_SHA: ${{ steps.provenance.outputs.merge_sha }}
+          SUMMARY_PATH: ${{ steps.data.outputs.summary }}
+        run: |
+          set -euo pipefail
+          destination="$RUNNER_TEMP/cross-lsp-comment-final/report.md"
+          mkdir -p "$(dirname "$destination")"
+          CARGO_TARGET_DIR="$RUNNER_TEMP/cross-lsp-render-target" cargo run --locked --release \
+            --manifest-path "$GITHUB_WORKSPACE/trusted-renderer/tools/lsp-bench/Cargo.toml" -- \
+            report --input "$SUMMARY_PATH" --output "$destination" \
+            --expected-harness-revision "$EXPECTED_MERGE_SHA" \
+            --expected-harness-sha256 "$EXPECTED_HARNESS_SHA256" \
+            --expected-profile pr-smoke
+          test -s "$destination"
+          test "$(stat -c %s "$destination")" -le 60000
+          echo "path=$destination" >> "$GITHUB_OUTPUT"
+
+      - name: Recheck pull request identity
+        id: recheck
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          BASE_REF: ${{ steps.pr.outputs.base_ref }}
+          BASE_REPO: ${{ steps.pr.outputs.base_repo }}
+          BASE_SHA: ${{ steps.provenance.outputs.base_sha }}
+          HEAD_REF: ${{ steps.provenance.outputs.head_ref }}
+          HEAD_REPO: ${{ steps.provenance.outputs.head_repo }}
+          HEAD_SHA: ${{ steps.provenance.outputs.head_sha }}
+          MERGE_SHA: ${{ steps.provenance.outputs.merge_sha }}
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+        with:
+          script: |
+            const { data: pull } = await github.rest.pulls.get({
+              ...context.repo,
+              pull_number: Number(process.env.PR_NUMBER),
+            });
+            if (
+              pull.state !== "open" ||
+              pull.mergeable !== true ||
+              pull.head?.sha !== process.env.HEAD_SHA ||
+              pull.head?.ref !== process.env.HEAD_REF ||
+              pull.head?.repo?.full_name !== process.env.HEAD_REPO ||
+              pull.base?.ref !== process.env.BASE_REF ||
+              pull.base?.repo?.full_name !== process.env.BASE_REPO ||
+              pull.merge_commit_sha !== process.env.MERGE_SHA
+            ) {
+              throw new Error("Pull request base or head changed before the benchmark comment was posted");
+            }
+            const { data: base } = await github.rest.repos.getBranch({
+              ...context.repo,
+              branch: pull.base.ref,
+            });
+            const { data: merge } = await github.rest.repos.getCommit({
+              ...context.repo,
+              ref: process.env.MERGE_SHA,
+            });
+            const parents = Array.isArray(merge.parents)
+              ? merge.parents.map((parent) => parent.sha)
+              : [];
+            if (
+              base.commit?.sha !== process.env.BASE_SHA ||
+              merge.sha !== process.env.MERGE_SHA ||
+              parents.length !== 2 ||
+              parents[0] !== process.env.BASE_SHA ||
+              parents[1] !== process.env.HEAD_SHA
+            ) {
+              throw new Error("Pull request merge changed before the benchmark comment was posted");
+            }
+
+      - name: Publish sticky benchmark comment
+        if: >-
+          steps.pr.outcome == 'success' &&
+          steps.artifact.outcome == 'success' &&
+          steps.download.outcome == 'success' &&
+          steps.data.outcome == 'success' &&
+          steps.provenance.outcome == 'success' &&
+          steps.report.outcome == 'success' &&
+          steps.recheck.outcome == 'success'
+        uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88 # v3.0.5
+        with:
+          header: cross-lsp-benchmark
+          path: ${{ runner.temp }}/cross-lsp-comment-final/report.md
+          number_force: ${{ steps.pr.outputs.number }}

@@ -217,13 +217,23 @@ class FailureHandlingTests(unittest.TestCase):
         self.assertIn("Argument list too long", result.stderr)
 
     def test_unexpected_test_error_is_written_as_a_failure(self) -> None:
+        for flags, compilers in (
+            ([], {"solar"}),
+            (["--solar-only"], {"solar"}),
+            (["--solc", "solc"], {"solar", "solc"}),
+            (["--solc", "solc", "--solar-only"], {"solar"}),
+        ):
+            with self.subTest(flags=flags):
+                self.check_unexpected_test_error(flags, compilers)
+
+    def check_unexpected_test_error(self, flags, compilers) -> None:
         test_id = benchmark.TEST_CASES[0].test_id
         with (
             tempfile.TemporaryDirectory() as directory,
             mock.patch.object(
                 benchmark,
                 "find_binary",
-                side_effect=lambda value, _fallbacks: Path(value),
+                side_effect=lambda value, _fallbacks: Path(value) if value else None,
             ),
             mock.patch.object(
                 benchmark,
@@ -239,8 +249,7 @@ class FailureHandlingTests(unittest.TestCase):
             output = Path(directory) / "results.json"
             return_code = benchmark.main(
                 [
-                    "--solc",
-                    "solc",
+                    *flags,
                     "--solar",
                     "solar",
                     "--tests",
@@ -255,6 +264,7 @@ class FailureHandlingTests(unittest.TestCase):
         self.assertEqual(return_code, 0)
         self.assertEqual(len(document["results"]), 1)
         failure = document["results"][0]
+        self.assertEqual(set(failure["compilers"]), compilers)
         self.assertIn("RuntimeError: unexpected", failure["benchmark_error"])
         self.assertEqual(
             {compiler["status"] for compiler in failure["compilers"].values()},
