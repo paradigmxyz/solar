@@ -313,6 +313,12 @@ pub(crate) enum ProbeSpec {
         anchor: String,
         expected_text: String,
     },
+    SignatureHelp {
+        path: PathBuf,
+        anchor: String,
+        expected_label: String,
+        expected_active_parameter: u32,
+    },
     References {
         path: PathBuf,
         anchor: String,
@@ -844,9 +850,9 @@ fn validate_probe_path(probe: &ProbeSpec) -> Result<()> {
             validate_relative_path(path, "scenario path")?;
             validate_relative_path(expected_path, "scenario expected path")
         }
-        ProbeSpec::Completion { path, .. } | ProbeSpec::Hover { path, .. } => {
-            validate_relative_path(path, "scenario path")
-        }
+        ProbeSpec::Completion { path, .. }
+        | ProbeSpec::Hover { path, .. }
+        | ProbeSpec::SignatureHelp { path, .. } => validate_relative_path(path, "scenario path"),
         ProbeSpec::References { path, expected_locations, .. } => {
             validate_relative_path(path, "scenario path")?;
             validate_expected_locations(expected_locations)
@@ -892,7 +898,9 @@ fn validate_probe_anchors(probe: &ProbeSpec, require: &impl Fn(&str) -> Result<(
             require(anchor)?;
             require(expected_anchor)
         }
-        ProbeSpec::Completion { anchor, .. } | ProbeSpec::Hover { anchor, .. } => require(anchor),
+        ProbeSpec::Completion { anchor, .. }
+        | ProbeSpec::Hover { anchor, .. }
+        | ProbeSpec::SignatureHelp { anchor, .. } => require(anchor),
         ProbeSpec::References { anchor, expected_locations, .. } => {
             require(anchor)?;
             for expected in expected_locations {
@@ -1174,6 +1182,51 @@ mod tests {
 
         let error = Config::load(&path).unwrap_err().to_string();
         assert!(error.contains("must be relative and stay in its root"), "{error}");
+    }
+
+    #[test]
+    fn signature_help_requires_valid_paths_anchors_and_expectations() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("benchmark.json");
+        let mut config = serde_json::json!({
+            "version": 1,
+            "servers": [{"id": "server", "command": "server"}],
+            "fixtures": [{
+                "id": "fixture",
+                "root": ".",
+                "anchors": {"call": {"path": "Main.sol", "needle": "add(1, 2)", "offset": 7}}
+            }],
+            "scenarios": [{
+                "id": "signature-help",
+                "fixture": "fixture",
+                "steps": [{
+                    "kind": "warm",
+                    "probe": {
+                        "kind": "signature-help",
+                        "path": "Main.sol",
+                        "anchor": "call",
+                        "expected_label": "add(uint256 a, uint256 b)",
+                        "expected_active_parameter": 1
+                    }
+                }]
+            }]
+        });
+        fs::write(&path, serde_json::to_vec(&config).unwrap()).unwrap();
+        assert!(Config::load(&path).is_ok());
+
+        for (field, invalid) in [
+            ("path", serde_json::json!("../escape.sol")),
+            ("anchor", serde_json::json!("missing")),
+            ("expected_active_parameter", serde_json::json!(-1)),
+            ("expected_label", Value::Null),
+        ] {
+            let probe = &mut config["scenarios"][0]["steps"][0]["probe"];
+            let original = probe[field].clone();
+            probe[field] = invalid;
+            fs::write(&path, serde_json::to_vec(&config).unwrap()).unwrap();
+            assert!(Config::load(&path).is_err(), "accepted invalid {field}");
+            config["scenarios"][0]["steps"][0]["probe"][field] = original;
+        }
     }
 
     #[test]

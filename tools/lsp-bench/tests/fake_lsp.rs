@@ -38,6 +38,91 @@ fn assert_hex_digest(value: &Value, digits: usize) {
 }
 
 #[test]
+fn signature_help_records_real_requests_and_validates_the_selected_parameter() {
+    let directory = tempfile::tempdir().unwrap();
+    let fixture = directory.path().join("fixture");
+    fs::create_dir(&fixture).unwrap();
+    let source = "contract Main { function call() external { add(1, 2); } }\n";
+    fs::write(fixture.join("Main.sol"), source).unwrap();
+    let config = directory.path().join("benchmark.json");
+    fs::write(
+        &config,
+        serde_json::to_vec(&serde_json::json!({
+            "version": 1,
+            "profiles": {"smoke": {
+                "warmup": 1,
+                "samples": 2,
+                "cold_samples": 1,
+                "lifecycle_samples": 1,
+                "timeout_ms": 2000,
+                "readiness_quiet_ms": 20
+            }},
+            "servers": [{
+                "id": "fake",
+                "command": env!("CARGO_BIN_EXE_solar-lsp-bench-fake"),
+                "version_args": ["--version"]
+            }],
+            "fixtures": [{
+                "id": "synthetic",
+                "root": fixture,
+                "source_roots": ["."],
+                "anchors": {"call": {"path": "Main.sol", "needle": "add(1, 2)", "offset": 7}}
+            }],
+            "scenarios": [{
+                "id": "signature-help",
+                "fixture": "synthetic",
+                "steps": [
+                    {"kind": "open", "path": "Main.sol"},
+                    {"kind": "probe", "name": "cold-ready", "probe": {
+                        "kind": "hover", "path": "Main.sol", "anchor": "call", "expected_text": "add"
+                    }},
+                    {"kind": "warm", "probe": {
+                        "kind": "signature-help", "path": "Main.sol", "anchor": "call",
+                        "expected_label": "add(uint256 a, uint256 b)", "expected_active_parameter": 1
+                    }}
+                ]
+            }]
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    let output = directory.path().join("results");
+    let status = Command::new(env!("CARGO_BIN_EXE_solar-lsp-bench"))
+        .args(["run", "--config"])
+        .arg(&config)
+        .args(["--profile", "smoke", "--repeat", "1", "--output"])
+        .arg(&output)
+        .status()
+        .unwrap();
+    assert!(status.success());
+
+    let samples = read_json(&output.join("samples.json"));
+    let sample = &samples["samples"][0];
+    assert_eq!(sample["status"], "pass");
+    let requests = sample["observations"]["requests"].as_array().unwrap();
+    assert_eq!(requests.len(), 2);
+    for request in requests {
+        assert_eq!(request["method"], "textDocument/signatureHelp");
+    }
+    let sent = sample["observations"]["events"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|event| {
+            event["direction"] == "send" && event["method"] == "textDocument/signatureHelp"
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(sent.len(), 4);
+    for event in sent {
+        assert_eq!(event["message"]["params"]["position"]["line"], 0);
+        assert_eq!(
+            event["message"]["params"]["position"]["character"],
+            source.find("add(1, 2)").unwrap() + 7
+        );
+    }
+}
+
+#[test]
 fn dispatcher_preserves_out_of_order_messages_and_server_requests() {
     let directory = tempfile::tempdir().unwrap();
     let fixture = directory.path().join("fixture");

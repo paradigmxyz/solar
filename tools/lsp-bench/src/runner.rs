@@ -22,7 +22,8 @@ use crate::{
 use anyhow::{Context, Result, anyhow, bail};
 use lsp_types::{
     CompletionResponse, DocumentSymbol, DocumentSymbolResponse, GotoDefinitionResponse, Hover,
-    HoverContents, Location, MarkedString, OneOf, Range, Url, WorkspaceSymbolResponse,
+    HoverContents, Location, MarkedString, OneOf, Range, SignatureHelp, Url,
+    WorkspaceSymbolResponse,
 };
 use serde_json::{Value, json};
 use std::{
@@ -873,6 +874,14 @@ impl<'a> Session<'a> {
                             "contextSupport": true
                         },
                         "hover": {"contentFormat": ["markdown", "plaintext"]},
+                        "signatureHelp": {
+                            "dynamicRegistration": true,
+                            "signatureInformation": {
+                                "documentationFormat": ["markdown", "plaintext"],
+                                "parameterInformation": {"labelOffsetSupport": true},
+                                "activeParameterSupport": true
+                            }
+                        },
                         "rename": {"prepareSupport": true}
                     },
                     "window": {"workDoneProgress": true},
@@ -1422,6 +1431,36 @@ impl<'a> Session<'a> {
                     measured,
                 )?;
                 validate_hover(value, expected_text)
+            }
+            ProbeSpec::SignatureHelp {
+                path,
+                anchor,
+                expected_label,
+                expected_active_parameter,
+            } => {
+                let encoding = self.position_encoding()?;
+                if !allow_unopened_target {
+                    self.require_open_for_probe(path)?;
+                }
+                let source_anchor =
+                    self.anchor_with_encoding(anchor, encoding).map_err(harness_error)?;
+                let uri = file_uri(&source_anchor.path).map_err(harness_error)?;
+                if !self.process.supports_document(
+                    "textDocument/signatureHelp",
+                    &uri,
+                    SOLIDITY_LANGUAGE_ID,
+                ) {
+                    return Err(WorkloadError::new(
+                        FailureKind::Unsupported,
+                        "server does not advertise signature help",
+                    ));
+                }
+                let value = self.request(
+                    "textDocument/signatureHelp",
+                    json!({"textDocument": {"uri": uri}, "position": source_anchor.position}),
+                    measured,
+                )?;
+                validate_signature_help(value, expected_label, *expected_active_parameter)
             }
             ProbeSpec::References { path, anchor, min_count, expected_locations } => {
                 let (encoding, source_anchor) =
@@ -2197,6 +2236,39 @@ fn validate_hover(value: Value, expected_text: &str) -> std::result::Result<(), 
     }
 }
 
+fn validate_signature_help(
+    value: Value,
+    expected_label: &str,
+    expected_active_parameter: u32,
+) -> std::result::Result<(), WorkloadError> {
+    let help = serde_json::from_value::<SignatureHelp>(value.clone()).map_err(|_| {
+        WorkloadError::new(
+            FailureKind::Incorrect,
+            format!("signature help returned an invalid result: {value}"),
+        )
+    })?;
+    let signature = help.signatures.get(help.active_signature.unwrap_or(0) as usize);
+    if let Some(signature) = signature {
+        let active_parameter = signature.active_parameter.or(help.active_parameter).unwrap_or(0);
+        if !signature.label.is_empty()
+            && signature.label == expected_label
+            && active_parameter == expected_active_parameter
+            && signature
+                .parameters
+                .as_ref()
+                .is_none_or(|parameters| (active_parameter as usize) < parameters.len())
+        {
+            return Ok(());
+        }
+    }
+    Err(WorkloadError::new(
+        FailureKind::Incorrect,
+        format!(
+            "signature help did not select `{expected_label}` parameter {expected_active_parameter}: {value}"
+        ),
+    ))
+}
+
 fn validate_references(
     value: Value,
     min_count: usize,
@@ -2591,6 +2663,59 @@ scenarios:
             )
             .is_ok()
         );
+    }
+
+    #[test]
+    fn signature_help_validator_checks_the_active_signature_and_parameter() {
+        let value = json!({
+            "signatures": [
+                {"label": "other()"},
+                {
+                    "label": "add(uint256 a, uint256 b)",
+                    "parameters": [{"label": "uint256 a"}, {"label": "uint256 b"}]
+                }
+            ],
+            "activeSignature": 1,
+            "activeParameter": 1
+        });
+        assert!(validate_signature_help(value.clone(), "add(uint256 a, uint256 b)", 1).is_ok());
+        assert!(validate_signature_help(value.clone(), "other()", 1).is_err());
+        assert!(validate_signature_help(value, "add(uint256 a, uint256 b)", 0).is_err());
+
+        let value = json!({
+            "signatures": [{"label": "add(uint256)", "activeParameter": 0}],
+            "activeParameter": 1
+        });
+        assert!(validate_signature_help(value, "add(uint256)", 0).is_ok());
+        assert!(
+            validate_signature_help(
+                json!({"signatures": [{"label": "add(uint256)"}]}),
+                "add(uint256)",
+                0
+            )
+            .is_ok()
+        );
+    }
+
+    #[test]
+    fn signature_help_validator_rejects_empty_malformed_and_invalid_results() {
+        for value in [
+            Value::Null,
+            json!({}),
+            json!({"signatures": []}),
+            json!({"signatures": [{"label": ""}]}),
+            json!({"signatures": [{"label": "add(uint256)"}, {"label": 7}]}),
+            json!({"signatures": [{"label": "add(uint256)"}], "activeSignature": 1}),
+            json!({"signatures": [{"label": "add(uint256)"}], "activeParameter": -1}),
+        ] {
+            assert!(validate_signature_help(value.clone(), "add(uint256)", 0).is_err(), "{value}");
+        }
+        let invalid_parameter = json!({
+            "signatures": [{"label": "add(uint256)", "parameters": [{"label": "uint256"}]}],
+            "activeParameter": 1
+        });
+        assert!(validate_signature_help(invalid_parameter, "add(uint256)", 1).is_err());
+        assert!(validate_signature_help(json!({"signatures": [{"label": ""}]}), "", 0).is_err());
     }
 
     #[test]
