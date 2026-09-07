@@ -13,7 +13,7 @@ use solar_lsp::{
     BenchmarkWorkspacePathQueries, BenchmarkWorkspaceReports, benchmark_folding_ranges,
     benchmark_folding_ranges_from_rope, benchmark_selection_ranges,
 };
-use std::{fs, hint::black_box, path::PathBuf};
+use std::{fmt::Write as _, fs, hint::black_box, path::PathBuf};
 
 const ANALYSIS_FUNCTION_COUNTS: [usize; 2] = [64, 256];
 const INCOMPLETE_FOLDING_CONTRACT_COUNT: usize = 256;
@@ -127,6 +127,24 @@ fn analysis_build(c: &mut Criterion) {
             },
         );
     }
+    group.finish();
+}
+
+fn type_hierarchy_queries(c: &mut Criterion) {
+    let mut source = String::from("contract Root {}\n");
+    for index in 0..128 {
+        writeln!(source, "contract Child{index} is Root {{}}").unwrap();
+    }
+    let project = BenchmarkProject::from_source(source);
+    let (uri, position) =
+        project.unique_anchor("benchmark.sol", "Root {}\ncontract Child0").unwrap();
+    let analysis = project.analyze();
+    assert_clean(&analysis);
+    assert_eq!(analysis.type_hierarchy(&uri, position).len(), 128);
+    let mut group = c.benchmark_group("lsp/type-hierarchy");
+    group.bench_function(BenchmarkId::from_parameter("128-subtypes"), |b| {
+        b.iter(|| black_box(analysis.type_hierarchy(black_box(&uri), black_box(position))));
+    });
     group.finish();
 }
 
@@ -702,6 +720,7 @@ criterion_group!(
     analysis_build,
     completion_queries,
     code_lens_queries,
+    type_hierarchy_queries,
     bounded_workspace_discovery,
     symbol_table_aggregation,
     burst_hover,

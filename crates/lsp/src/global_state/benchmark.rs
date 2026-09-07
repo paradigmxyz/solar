@@ -23,8 +23,8 @@ use crop::Rope;
 use lsp_types::{
     CodeLens, CompletionItem, Diagnostic, DidChangeTextDocumentParams, GotoDefinitionResponse,
     Hover, HoverContents, Location, Position, PreviousResultId, Range,
-    TextDocumentContentChangeEvent, Url, VersionedTextDocumentIdentifier, WorkspaceFolder,
-    WorkspaceSymbol,
+    TextDocumentContentChangeEvent, TypeHierarchyItem, Url, VersionedTextDocumentIdentifier,
+    WorkspaceFolder, WorkspaceSymbol,
 };
 use normalize_path::NormalizePath;
 use solar_config::{CompileOpts, Threads};
@@ -865,6 +865,13 @@ impl BenchmarkAnalysis {
                 BenchmarkResponse::WorkspaceSymbols(self.symbol_tables.workspace_symbols(query))
             }
         }
+    }
+
+    /// Prepare a hierarchy item and query its direct subtypes.
+    #[inline(never)]
+    pub fn type_hierarchy(&self, uri: &Url, position: Position) -> Vec<TypeHierarchyItem> {
+        let items = self.symbol_tables.prepare_type_hierarchy(uri, position).unwrap();
+        self.symbol_tables.type_hierarchy_subtypes(&items[0]).unwrap()
     }
 
     /// Render CodeLens annotations with the VS Code client commands enabled.

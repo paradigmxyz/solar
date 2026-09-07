@@ -15,7 +15,7 @@ use solar_sema::{
     Gcx,
     hir::{FunctionKind, ItemId},
 };
-use std::{cmp::Ordering, fmt::Write as _};
+use std::{cmp::Ordering, fmt::Write as _, sync::Arc};
 
 const DATA_VERSION: u8 = 1;
 
@@ -38,7 +38,7 @@ struct HierarchyEdge {
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 struct NodeKey {
-    uri: Url,
+    uri: Arc<Url>,
     selection_range: Range,
 }
 
@@ -72,24 +72,31 @@ impl TypeHierarchyIndex {
         declarations: &IndexVec<SymbolId, DeclarationSymbol>,
     ) -> Self {
         let mut index = Self::default();
+        let mut uris = FxHashMap::default();
 
         for item_id in gcx.hir.item_ids() {
             let Some(&symbol_id) = item_symbols.get(&item_id) else { continue };
             let declaration = &declarations[symbol_id];
-            let uri = declaration.location.uri.clone();
+            let uri = uris
+                .entry(&declaration.location.uri)
+                .or_insert_with(|| Arc::new(declaration.location.uri.clone()))
+                .clone();
             let selection_range = declaration.name_range;
             index
                 .candidate_key_by_symbol
                 .insert(symbol_id, NodeKey { uri: uri.clone(), selection_range });
             let Some(name) = node_name(gcx, item_id) else { continue };
-            let data =
-                TypeHierarchyData { version: DATA_VERSION, uri: uri.clone(), selection_range };
+            let data = TypeHierarchyData {
+                version: DATA_VERSION,
+                uri: uri.as_ref().clone(),
+                selection_range,
+            };
             let item = TypeHierarchyItem {
                 name,
                 kind: declaration.kind,
                 tags: None,
                 detail: None,
-                uri,
+                uri: uri.as_ref().clone(),
                 range: declaration.location.range,
                 selection_range,
                 data: Some(
@@ -161,7 +168,7 @@ impl TypeHierarchyIndex {
         // agree. Otherwise, exclude the node and let endpoint filtering drop its incident edges.
         let mut incompatible_keys = FxHashSet::default();
         for (&symbol_id, key) in &self.candidate_key_by_symbol {
-            if conflicting_contents.contains(&key.uri) {
+            if conflicting_contents.contains(key.uri.as_ref()) {
                 continue;
             }
             if incompatible_keys.contains(key) {
@@ -277,7 +284,7 @@ impl TypeHierarchyIndex {
         if data.version != DATA_VERSION {
             return None;
         }
-        let key = NodeKey { uri: data.uri, selection_range: data.selection_range };
+        let key = NodeKey { uri: Arc::new(data.uri), selection_range: data.selection_range };
         let symbol_id = self.canonical_symbol_by_key.get(&key)?;
         let canonical_item = self.items_by_symbol.get(symbol_id)?;
         (canonical_item == item).then_some(key)
