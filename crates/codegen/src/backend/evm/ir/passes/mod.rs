@@ -222,6 +222,9 @@ fn validate_module_after_pass(module: &Module, pass_name: &str) {
 }
 
 fn assert_debug_info_handled(module: &Module, pass_name: &str, when: &str) {
+    // NOTE: These development-only checks catch missing metadata policy in new
+    // rewrites. Release builds must not abort just because debug output was
+    // requested; unclassified locations remain unknown.
     if !module.debug_info_is_tracked() {
         return;
     }

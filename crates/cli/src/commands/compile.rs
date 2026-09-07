@@ -61,7 +61,12 @@ fn run_default(compiler: &mut CompilerRef<'_>) -> Result {
         } else {
             ContractSelection::empty(compiler.gcx())
         };
-    let capture_debug_info = ContractSelection::empty(compiler.gcx());
+    let capture_debug_info =
+        if compiler.gcx().sess.opts.emit.iter().any(|output| output.needs_debug_info()) {
+            ContractSelection::All
+        } else {
+            ContractSelection::empty(compiler.gcx())
+        };
     crate::emit::emit_requested(compiler, bytecode_contracts, None, capture_debug_info)?;
     Ok(())
 }

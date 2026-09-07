@@ -1,6 +1,9 @@
 //! Standard JSON data structures, serialization, selection parsing, and statistics.
 
-use crate::bytecode::MaybeHexBytecode;
+use crate::{
+    bytecode::MaybeHexBytecode,
+    ethdebug::{EthdebugCompilation, EthdebugProgram, EthdebugResources},
+};
 use alloy_primitives::Address;
 use indexmap::IndexMap;
 use serde::{
@@ -338,134 +341,6 @@ pub(super) struct BytecodeOutput {
     // Not supported.
     // #[serde(skip_serializing_if = "Option::is_none")]
     // generated_sources: Option<CowValue<'a>>,
-}
-
-#[derive(Clone, Debug, Serialize)]
-#[serde(untagged)]
-pub(super) enum EthdebugId {
-    Number(u32),
-    Text(String),
-}
-
-#[derive(Clone, Debug, Serialize)]
-pub(super) struct EthdebugReference {
-    pub(super) id: EthdebugId,
-}
-
-#[derive(Clone, Debug, Serialize)]
-pub(super) struct EthdebugRange {
-    pub(super) offset: usize,
-    pub(super) length: usize,
-}
-
-#[derive(Clone, Debug, Serialize)]
-pub(super) struct EthdebugSourceRange {
-    pub(super) source: EthdebugReference,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(super) range: Option<EthdebugRange>,
-}
-
-#[derive(Clone, Debug, Serialize)]
-pub(super) struct EthdebugFunctionInvoke {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(super) identifier: Option<String>,
-    pub(super) declaration: EthdebugSourceRange,
-    pub(super) jump: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(super) target: Option<EthdebugInvocationTarget>,
-}
-
-#[derive(Clone, Debug, Serialize)]
-pub(super) struct EthdebugInvocationTarget {
-    pub(super) pointer: EthdebugCodePointer,
-}
-
-#[derive(Clone, Debug, Serialize)]
-pub(super) struct EthdebugCodePointer {
-    pub(super) location: &'static str,
-    pub(super) offset: usize,
-    pub(super) length: usize,
-}
-
-#[derive(Clone, Debug, Serialize)]
-pub(super) struct EthdebugFunctionExit {}
-
-#[derive(Clone, Debug, Serialize)]
-pub(super) struct EthdebugContext {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(super) code: Option<EthdebugSourceRange>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub(super) pick: Vec<Self>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(super) invoke: Option<EthdebugFunctionInvoke>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(super) r#return: Option<EthdebugFunctionExit>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(super) revert: Option<EthdebugFunctionExit>,
-}
-
-#[derive(Clone, Debug, Serialize)]
-pub(super) struct EthdebugOperation {
-    pub(super) mnemonic: String,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub(super) arguments: Vec<String>,
-}
-
-#[derive(Clone, Debug, Serialize)]
-pub(super) struct EthdebugInstruction {
-    pub(super) offset: usize,
-    pub(super) operation: EthdebugOperation,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(super) context: Option<EthdebugContext>,
-}
-
-#[derive(Clone, Debug, Serialize)]
-pub(super) struct EthdebugContract {
-    pub(super) name: String,
-    pub(super) definition: EthdebugSourceRange,
-}
-
-#[derive(Clone, Copy, Debug, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub(super) enum EthdebugEnvironment {
-    Call,
-    Create,
-}
-
-#[derive(Clone, Debug, Serialize)]
-pub(crate) struct EthdebugProgram {
-    pub(super) compilation: EthdebugReference,
-    pub(super) contract: EthdebugContract,
-    pub(super) environment: EthdebugEnvironment,
-    pub(super) instructions: Vec<EthdebugInstruction>,
-}
-
-#[derive(Clone, Debug, Serialize)]
-pub(super) struct EthdebugCompiler {
-    pub(super) name: String,
-    pub(super) version: String,
-}
-
-#[derive(Clone, Debug, Serialize)]
-pub(super) struct EthdebugSource {
-    pub(super) id: EthdebugId,
-    pub(super) path: String,
-    pub(super) contents: String,
-    pub(super) language: String,
-}
-
-#[derive(Clone, Debug, Serialize)]
-pub(crate) struct EthdebugCompilation {
-    pub(super) id: EthdebugId,
-    pub(super) compiler: EthdebugCompiler,
-    pub(super) sources: Vec<EthdebugSource>,
-}
-
-#[derive(Clone, Debug, Serialize)]
-pub(crate) struct EthdebugResources {
-    pub(super) compilation: EthdebugCompilation,
-    pub(super) types: Map<String, Value>,
-    pub(super) pointers: Map<String, Value>,
 }
 
 #[derive(Debug, Default, Serialize)]

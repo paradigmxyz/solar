@@ -130,21 +130,6 @@
                     "arguments": [
                       "0x44"
                     ]
-                  },
-                  "context": {
-                    "invoke": {
-                      "identifier": "run",
-                      "declaration": {
-                        "source": {
-                          "id": 0
-                        },
-                        "range": {
-                          "offset": 18,
-                          "length": 133
-                        }
-                      },
-                      "jump": true
-                    }
                   }
                 },
                 {
@@ -532,7 +517,7 @@
                 }
               ]
             },
-            "sourceMap": ":::-:0;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;:::o;:::-;;;"
+            "sourceMap": ":::-:0;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;"
           }
         }
       }

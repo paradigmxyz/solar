@@ -3,23 +3,19 @@
 use super::{
     data::{
         BytecodeOutput, CompilerInput, CompilerOutput, ContractOutput, DebugInfoComponent,
-        DebugSettings, EthdebugCodePointer, EthdebugCompilation, EthdebugCompiler, EthdebugContext,
-        EthdebugContract, EthdebugEnvironment, EthdebugFunctionExit, EthdebugFunctionInvoke,
-        EthdebugId, EthdebugInstruction, EthdebugInvocationTarget, EthdebugOperation,
-        EthdebugOutput, EthdebugProgram, EthdebugRange, EthdebugReference, EthdebugResources,
-        EthdebugSource, EthdebugSourceRange, EvmOutput, FxIndexMap, MetadataHash, OffsetLength,
+        DebugSettings, EthdebugOutput, EvmOutput, FxIndexMap, MetadataHash, OffsetLength,
         OutputSelection, OutputSelectionFlags, ReadCallbackResult, Settings, SourceOutput,
         StandardJsonReadCallback, optimizer_settings, print_standard_json_stats,
         strip_json_comments,
     },
     metadata::Metadata,
 };
-use crate::bytecode::MaybeHexBytecode;
-use serde_json::json;
-use solar_codegen::{
-    ContractArtifact, ContractSelection, ImmutableReference, RuntimeDataFn,
-    backend::evm::{DebugFunction, DebugFunctionExit, DebugInstruction},
+use crate::{
+    bytecode::MaybeHexBytecode,
+    ethdebug::{EthdebugCompilation, make_ethdebug_compilation, make_ethdebug_program},
 };
+use serde_json::json;
+use solar_codegen::{ContractArtifact, ContractSelection, ImmutableReference, RuntimeDataFn};
 use solar_config::{
     CompileOpts, CompilerStage, EvmVersion, ImportRemapping, Language, LibraryAddress,
     OptimizationMode, RevertStrings,
@@ -47,6 +43,10 @@ pub fn compile_standard_json(
     read_callback: Option<Arc<dyn StandardJsonReadCallback>>,
     out: &mut (dyn Write + Send),
 ) -> io::Result<()> {
+    // Library callers bypass CLI argument conflicts. Only outputSelection may
+    // select Standard JSON artifacts; never leak a second CLI-shaped document.
+    opts.standard_json = true;
+    opts.emit.clear();
     let source_map = Arc::new(SourceMap::empty());
     source_map.set_file_loader(StandardJsonFileLoader { read_callback });
     let (emitter, diagnostics) = InMemoryEmitter::new();
@@ -355,8 +355,13 @@ fn compile(
                     | OutputSelectionFlags::DEPLOYED_BYTECODE_ETHDEBUG;
                 let compilation_requested = !global_ethdebug.is_empty()
                     || contract_output_requested(gcx, output_selection, ethdebug_outputs);
-                let compilation = compilation_requested.then(|| make_ethdebug_compilation(gcx));
-                let compilation_id = compilation.as_ref().map(ethdebug_compilation_id);
+                let compilation = compilation_requested.then(|| {
+                    // Metadata settings affect the CBOR trailer independently of
+                    // the code-generation options stored in the session.
+                    let metadata_identity = alloy_primitives::keccak256(format!("{metadata:?}"));
+                    make_ethdebug_compilation(gcx, Some(metadata_identity))
+                });
+                let compilation_id = compilation.as_ref().map(EthdebugCompilation::id);
 
                 for (contract_id, contract) in gcx.hir.contracts_enumerated() {
                     let source = gcx.hir.source(contract.source);
@@ -384,11 +389,7 @@ fn compile(
                 if let Some(compilation) = compilation {
                     let mut ethdebug = EthdebugOutput::default();
                     if global_ethdebug.contains(OutputSelectionFlags::ETHDEBUG_RESOURCES) {
-                        ethdebug.resources = Some(EthdebugResources {
-                            compilation: compilation.clone(),
-                            types: Default::default(),
-                            pointers: Default::default(),
-                        });
+                        ethdebug.resources = Some(compilation.clone().into_resources());
                     }
                     // A program always references its compilation resource. Emit it
                     // even when the caller selected only a per-contract program.
@@ -718,250 +719,6 @@ fn make_bytecode_output(
         output.immutable_references = Some(by_key);
     }
     output
-}
-
-fn make_ethdebug_compilation(gcx: Gcx<'_>) -> EthdebugCompilation {
-    let language = if gcx.sess.opts.language.is_yul() { "Yul" } else { "Solidity" };
-    let sources = gcx
-        .hir
-        .source_ids()
-        .map(|source_id| {
-            let source = gcx.hir.source(source_id);
-            EthdebugSource {
-                id: EthdebugId::Number(source_id.index() as u32),
-                path: standard_json_source_name(&source.file.name),
-                contents: source.file.src.as_ref().clone(),
-                language: language.to_owned(),
-            }
-        })
-        .collect::<Vec<_>>();
-
-    let version = solar_config::version::SEMVER_VERSION.to_owned();
-    let mut identity = String::from("ethdebug-solar-compilation-v1");
-    // A compilation ID names the complete source-to-bytecode context, not only
-    // the source files. Include every code-generation setting that can change
-    // instruction offsets or operations so programs cannot cross-reference a
-    // different artifact accidentally.
-    append_length_prefixed(&mut identity, solar_config::version::SHORT_VERSION);
-    append_length_prefixed(&mut identity, &format!("{:?}", gcx.sess.opts.language));
-    append_length_prefixed(&mut identity, &format!("{:?}", gcx.sess.opts.evm_version));
-    append_length_prefixed(&mut identity, &format!("{:?}", gcx.sess.opts.optimization));
-    append_length_prefixed(
-        &mut identity,
-        &gcx.sess.opts.optimizer_runs.map_or_else(|| "none".to_owned(), |runs| runs.to_string()),
-    );
-    let mut remappings =
-        gcx.sess.opts.import_remappings.iter().map(ToString::to_string).collect::<Vec<_>>();
-    remappings.sort_unstable();
-    append_length_prefixed(&mut identity, &remappings.len().to_string());
-    for remapping in remappings {
-        append_length_prefixed(&mut identity, &remapping);
-    }
-    let mut libraries = gcx.sess.opts.libraries.iter().map(ToString::to_string).collect::<Vec<_>>();
-    libraries.sort_unstable();
-    append_length_prefixed(&mut identity, &libraries.len().to_string());
-    for library in libraries {
-        append_length_prefixed(&mut identity, &library);
-    }
-    append_length_prefixed(&mut identity, &format!("{:?}", gcx.sess.opts.unstable.mir_pipeline));
-    append_length_prefixed(&mut identity, &format!("{:?}", gcx.sess.opts.unstable.evm_ir_pipeline));
-    append_length_prefixed(&mut identity, &format!("{:?}", gcx.sess.opts.unstable.switch_lowering));
-    append_length_prefixed(
-        &mut identity,
-        &format!(
-            "{:?}:{:?}:{:?}",
-            gcx.sess.opts.unstable.switch_max_gas_code_growth,
-            gcx.sess.opts.unstable.switch_max_bit_slice_gas_code_growth,
-            gcx.sess.opts.unstable.codegen_all_functions,
-        ),
-    );
-    append_length_prefixed(&mut identity, &version);
-    append_length_prefixed(&mut identity, &sources.len().to_string());
-    for source in &sources {
-        let EthdebugId::Number(id) = source.id else { unreachable!() };
-        append_length_prefixed(&mut identity, &id.to_string());
-        append_length_prefixed(&mut identity, &source.path);
-        append_length_prefixed(&mut identity, &source.contents);
-        append_length_prefixed(&mut identity, &source.language);
-    }
-    let digest = alloy_primitives::keccak256(identity.as_bytes());
-    let id = format!("solar-{}", alloy_primitives::hex::encode(digest.as_slice()));
-
-    EthdebugCompilation {
-        id: EthdebugId::Text(id),
-        compiler: EthdebugCompiler { name: "solar".to_owned(), version },
-        sources,
-    }
-}
-
-fn append_length_prefixed(output: &mut String, value: &str) {
-    output.push_str(&value.len().to_string());
-    output.push(':');
-    output.push_str(value);
-}
-
-fn ethdebug_compilation_id(compilation: &EthdebugCompilation) -> &str {
-    let EthdebugId::Text(id) = &compilation.id else { unreachable!() };
-    id
-}
-
-fn make_ethdebug_program(
-    gcx: Gcx<'_>,
-    contract_id: ContractId,
-    artifact: &ContractArtifact,
-    compilation_id: &str,
-    deployed: bool,
-) -> Option<EthdebugProgram> {
-    let debug_info = if deployed {
-        artifact.runtime_debug_info.as_ref()?
-    } else {
-        artifact.deployment_debug_info.as_ref()?
-    };
-    let bytecode = if deployed { artifact.runtime.as_ref() } else { artifact.deployment.as_ref() };
-    let contract = gcx.hir.contract(contract_id);
-    let source_ids = gcx
-        .hir
-        .source_ids()
-        .map(|source_id| (gcx.hir.source(source_id).file.start_pos.0, source_id.index() as u32))
-        .collect::<FxHashMap<_, _>>();
-    let definition_range = gcx
-        .sess
-        .source_map()
-        .span_to_range(contract.span)
-        .ok()
-        .map(|range| EthdebugRange { offset: range.start, length: range.end - range.start });
-
-    let instructions = debug_info
-        .iter()
-        .enumerate()
-        .map(|(index, instruction)| {
-            let mnemonic = solar_codegen::backend::evm::opcode_mnemonic(instruction.opcode)
-                .expect("assembled opcode should have a mnemonic")
-                .to_ascii_uppercase();
-            let arguments = push_argument(bytecode, instruction)
-                .map(|argument| format!("0x{}", alloy_primitives::hex::encode(argument)))
-                .into_iter()
-                .collect();
-            EthdebugInstruction {
-                offset: instruction.offset as usize,
-                operation: EthdebugOperation { mnemonic, arguments },
-                context: make_ethdebug_context(
-                    gcx,
-                    &source_ids,
-                    bytecode,
-                    debug_info.get(index.wrapping_sub(1)),
-                    instruction,
-                ),
-            }
-        })
-        .collect();
-
-    Some(EthdebugProgram {
-        compilation: EthdebugReference { id: EthdebugId::Text(compilation_id.to_owned()) },
-        contract: EthdebugContract {
-            name: contract.name.to_string(),
-            definition: EthdebugSourceRange {
-                source: EthdebugReference {
-                    id: EthdebugId::Number(contract.source.index() as u32),
-                },
-                range: definition_range,
-            },
-        },
-        environment: if deployed { EthdebugEnvironment::Call } else { EthdebugEnvironment::Create },
-        instructions,
-    })
-}
-
-fn push_argument<'a>(bytecode: &'a [u8], instruction: &DebugInstruction) -> Option<&'a [u8]> {
-    let width = instruction.opcode.checked_sub(0x5f)? as usize;
-    if !(1..=32).contains(&width) {
-        return None;
-    }
-    let start = instruction.offset as usize + 1;
-    let end = start.checked_add(width)?;
-    bytecode.get(start..end)
-}
-
-fn make_ethdebug_context(
-    gcx: Gcx<'_>,
-    source_ids: &FxHashMap<u32, u32>,
-    bytecode: &[u8],
-    previous: Option<&DebugInstruction>,
-    instruction: &DebugInstruction,
-) -> Option<EthdebugContext> {
-    let mut contexts = instruction
-        .source_spans
-        .iter()
-        .filter_map(|&span| make_ethdebug_source_range(gcx, source_ids, span))
-        .map(|code| EthdebugContext {
-            code: Some(code),
-            pick: Vec::new(),
-            invoke: None,
-            r#return: None,
-            revert: None,
-        })
-        .collect::<Vec<_>>();
-    let (code, pick) = match contexts.len() {
-        0 => (None, Vec::new()),
-        1 => (contexts.pop().and_then(|context| context.code), Vec::new()),
-        _ => (None, contexts),
-    };
-    let invoke = instruction.function_invoke.and_then(|function| {
-        make_ethdebug_function_invoke(gcx, source_ids, bytecode, previous, function, instruction)
-    });
-    let (r#return, revert) = match instruction.function_exit {
-        Some(DebugFunctionExit::Return) => (Some(EthdebugFunctionExit {}), None),
-        Some(DebugFunctionExit::Revert) => (None, Some(EthdebugFunctionExit {})),
-        None => (None, None),
-    };
-    if code.is_none()
-        && pick.is_empty()
-        && invoke.is_none()
-        && r#return.is_none()
-        && revert.is_none()
-    {
-        None
-    } else {
-        Some(EthdebugContext { code, pick, invoke, r#return, revert })
-    }
-}
-
-fn make_ethdebug_function_invoke(
-    gcx: Gcx<'_>,
-    source_ids: &FxHashMap<u32, u32>,
-    bytecode: &[u8],
-    previous: Option<&DebugInstruction>,
-    function: DebugFunction,
-    instruction: &DebugInstruction,
-) -> Option<EthdebugFunctionInvoke> {
-    let target = crate::source_map::static_jump_target(bytecode, previous, instruction)
-        .or_else(|| (instruction.opcode == 0x5b).then_some(instruction.offset as usize))
-        .map(|target| EthdebugInvocationTarget {
-            pointer: EthdebugCodePointer { location: "code", offset: target, length: 1 },
-        });
-    Some(EthdebugFunctionInvoke {
-        identifier: (function.identifier != solar_interface::sym::_anonymous)
-            .then(|| function.identifier.to_string()),
-        declaration: make_ethdebug_source_range(gcx, source_ids, function.declaration)?,
-        jump: true,
-        target,
-    })
-}
-
-fn make_ethdebug_source_range(
-    gcx: Gcx<'_>,
-    source_ids: &FxHashMap<u32, u32>,
-    span: solar_interface::Span,
-) -> Option<EthdebugSourceRange> {
-    let source = gcx.sess.source_map().span_to_source(span).ok()?;
-    let source_id = *source_ids.get(&source.file.start_pos.0)?;
-    Some(EthdebugSourceRange {
-        source: EthdebugReference { id: EthdebugId::Number(source_id) },
-        range: Some(EthdebugRange {
-            offset: source.data.start,
-            length: source.data.end - source.data.start,
-        }),
-    })
 }
 
 fn requested_bytecode_contracts(
