@@ -1,10 +1,8 @@
 use normalize_path::NormalizePath;
 use serde::Deserialize;
 use solar_config::{EvmVersion, ImportRemapping};
-use std::{
-    collections::BTreeMap,
-    path::{Path, PathBuf},
-};
+use solar_interface::data_structures::map::FxHashMap;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Default, Deserialize)]
 pub(crate) struct FoundryDocument {
@@ -38,7 +36,7 @@ impl FoundryDocument {
 struct FoundryProfiles {
     default: Option<FoundryProfile>,
     #[serde(flatten)]
-    profiles: BTreeMap<String, serde_json::Value>,
+    profiles: FxHashMap<String, serde_json::Value>,
 }
 
 impl FoundryProfiles {

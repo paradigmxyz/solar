@@ -21,9 +21,10 @@ use crate::{
 use async_lsp::ClientSocket;
 use crop::Rope;
 use lsp_types::{
-    CompletionItem, Diagnostic, DidChangeTextDocumentParams, GotoDefinitionResponse, Hover,
-    HoverContents, Location, Position, PreviousResultId, Range, TextDocumentContentChangeEvent,
-    Url, VersionedTextDocumentIdentifier, WorkspaceFolder, WorkspaceSymbol,
+    CallHierarchyIncomingCall, CodeLens, CompletionItem, Diagnostic, DidChangeTextDocumentParams,
+    GotoDefinitionResponse, Hover, HoverContents, Location, Position, PreviousResultId, Range,
+    TextDocumentContentChangeEvent, TypeHierarchyItem, Url, VersionedTextDocumentIdentifier,
+    WorkspaceFolder, WorkspaceSymbol,
 };
 use normalize_path::NormalizePath;
 use solar_config::{CompileOpts, Threads};
@@ -32,7 +33,6 @@ use solar_interface::{
     source_map::{FileLoader, SourceMap},
 };
 use std::{
-    collections::BTreeMap,
     io,
     path::{Component, Path, PathBuf},
     sync::Arc,
@@ -170,7 +170,7 @@ pub struct BenchmarkProject {
     opts: CompileOpts,
     files: Vec<(PathBuf, String)>,
     loader: InMemoryFileLoader,
-    markers: BTreeMap<String, Vec<(PathBuf, Position)>>,
+    markers: FxHashMap<String, Vec<(PathBuf, Position)>>,
 }
 
 impl BenchmarkProject {
@@ -219,7 +219,7 @@ impl BenchmarkProject {
 
         let loader_sources = files.iter().cloned().collect();
         let loader = InMemoryFileLoader::new(root.clone(), loader_sources);
-        Ok(Self { root, opts, files, loader, markers: BTreeMap::new() })
+        Ok(Self { root, opts, files, loader, markers: FxHashMap::default() })
     }
 
     /// Prepare a stable multi-file project from the fixture format shared with LSP tests.
@@ -317,7 +317,7 @@ impl BenchmarkProject {
 
         let root = root.normalize();
         let loader = InMemoryFileLoader::new(root.clone(), loader_sources);
-        Ok(Self { root, opts, files, loader, markers: BTreeMap::new() })
+        Ok(Self { root, opts, files, loader, markers: FxHashMap::default() })
     }
 
     /// The number of primary Solidity source files in this project.
@@ -875,6 +875,29 @@ impl BenchmarkAnalysis {
                 BenchmarkResponse::WorkspaceSymbols(self.symbol_tables.workspace_symbols(query))
             }
         }
+    }
+
+    /// Prepare a callable and query its incoming calls.
+    #[inline(never)]
+    pub fn incoming_calls(&self, uri: &Url, position: Position) -> Vec<CallHierarchyIncomingCall> {
+        let items = self.symbol_tables.prepare_call_hierarchy(uri, position).unwrap();
+        self.symbol_tables.call_hierarchy_incoming(&items[0]).unwrap()
+    }
+
+    /// Prepare a hierarchy item and query its direct subtypes.
+    #[inline(never)]
+    pub fn type_hierarchy(&self, uri: &Url, position: Position) -> Vec<TypeHierarchyItem> {
+        let items = self.symbol_tables.prepare_type_hierarchy(uri, position).unwrap();
+        self.symbol_tables.type_hierarchy_subtypes(&items[0]).unwrap()
+    }
+
+    /// Render CodeLens annotations with the VS Code client commands enabled.
+    #[inline(never)]
+    pub fn code_lenses(&self, uri: &Url) -> Vec<CodeLens> {
+        self.symbol_tables.code_lenses(
+            uri,
+            crate::config::CodeLensConfig { client_commands: true, ..Default::default() },
+        )
     }
 
     /// Complete names at a source position without protocol transport or parsing.

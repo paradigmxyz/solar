@@ -324,6 +324,7 @@ mod folding_range;
 mod formatter;
 mod global_state;
 mod handlers;
+mod hierarchy;
 mod import_resolution;
 mod inlay_hints;
 mod lifecycle;
