@@ -71,6 +71,7 @@ mod deployment;
 mod frames;
 mod function;
 mod instructions;
+mod planning;
 mod runtime;
 pub(crate) mod select;
 mod terminator;

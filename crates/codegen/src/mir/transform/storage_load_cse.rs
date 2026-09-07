@@ -1,7 +1,11 @@
 //! Local storage-load forwarding.
 //!
 //! This pass removes redundant `sload` instructions on straight-line paths when
-//! no intervening storage write may alias the loaded slot.
+//! no intervening storage write may alias the loaded slot. Exact stores also
+//! forward their full word to subsequent loads. This exposes packed field
+//! updates as word expressions, allowing storage DSE to remove intermediate
+//! writes while retaining every preserved bit. Calls and possible aliases
+//! invalidate both load and store facts.
 
 use crate::mir::{
     BlockId, Function, InstId, InstKind, Module, StorageAlias, ValueId,
@@ -45,7 +49,7 @@ struct StorageLoadCseCx {
 struct RunState {
     replacements: FxHashMap<ValueId, ValueId>,
     dead: DenseBitSet<InstId>,
-    cached_loads: FxHashMap<StorageAlias, ValueId>,
+    cached_loads: FxHashMap<StorageAlias, (ValueId, bool)>,
 }
 
 impl RunState {
@@ -127,19 +131,20 @@ impl StorageLoadCseCx {
                     let Some(result) = func.inst_result_value(inst_id) else {
                         continue;
                     };
-                    if let Some(&cached) = state.cached_loads.get(&alias) {
-                        if !liveness.is_used_at_or_after(cached, block_id, inst_idx) {
-                            state.cached_loads.insert(alias, result);
+                    if let Some(&(cached, from_store)) = state.cached_loads.get(&alias) {
+                        if !from_store && !liveness.is_used_at_or_after(cached, block_id, inst_idx)
+                        {
+                            state.cached_loads.insert(alias, (result, false));
                             continue;
                         }
                         state.replacements.insert(result, cached);
                         state.dead.insert(inst_id);
                         self.eliminated_count += 1;
                     } else {
-                        state.cached_loads.insert(alias, result);
+                        state.cached_loads.insert(alias, (result, false));
                     }
                 }
-                InstKind::SStore(slot, _) => {
+                InstKind::SStore(slot, value) => {
                     let alias = aa.storage_alias_after_replacements(
                         func,
                         inst_id,
@@ -150,6 +155,9 @@ impl StorageLoadCseCx {
                         !aa.alias(Location::Storage(*cached_alias), Location::Storage(alias))
                             .may_alias()
                     });
+                    // sstore slot, value; result = sload slot => result = value
+                    let value = mir_utils::resolve_replacement(*value, &state.replacements);
+                    state.cached_loads.insert(alias, (value, true));
                 }
                 _ => {
                     let effects = aa.instruction_mod_ref_with_replacements(

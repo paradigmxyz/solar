@@ -1,0 +1,132 @@
+// === ROOT/tests/ui/codegen/mir/sroa/control_flow_runtime.sol:AggregateControlFlow ===
+@module AggregateControlFlow
+fn @branch(arg0: bool, arg1: u256, arg2: u256) -> u256 [selector=0xc4013ae4, pure, abi_params=[bool, u256, u256], abi_returns=[word]] {
+  bb0:
+    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    memory_object_store_field memorystruct<2>, v0, 0, 0
+    memory_object_store_field memorystruct<2>, v0, 1, 0
+    jumpi arg0, bb1, bb2
+  bb2:
+    memory_object_store_field memorystruct<2>, v0, 0, arg2
+    jump bb3
+  bb1:
+    memory_object_store_field memorystruct<2>, v0, 0, arg1
+    jump bb3
+  bb3:
+    v1 = memory_object_load_field memorystruct<2>, v0, 0
+    ret v1
+}
+
+fn @accumulate(arg0: u256) -> u256 [selector=0xb4e7d02a, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    memory_object_store_field memorystruct<2>, v0, 0, 0
+    memory_object_store_field memorystruct<2>, v0, 1, 0
+    jump bb1
+  bb1:
+    v1 = phi [bb0: arg0], [bb10: v1]
+    v2 = phi [bb0: v0], [bb10: v2]
+    v3 = phi [bb0: 0], [bb10: v11]
+    v4 = phi [bb0: 0], [bb10: v4]
+    v5 = lt v3, v1
+    jumpi v5, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    v13 = memory_object_load_field memorystruct<2>, v2, 0
+    ret v13
+  bb4:
+    v6 = add v3, 1
+    v7 = lt v6, v3
+    jumpi v7, bb7, bb8
+  bb8:
+    v8 = memory_object_load_field memorystruct<2>, v2, 0
+    v9 = add v8, v6
+    v10 = lt v9, v8
+    jumpi v10, bb7, bb9
+  bb9:
+    memory_object_store_field memorystruct<2>, v2, 0, v9
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v11 = add v3, 1
+    v12 = lt v11, v3
+    jumpi v12, bb7, bb10
+  bb10:
+    jump bb1
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @fresh(arg0: u256) -> u256 [selector=0x0538087c, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb14: v10]
+    v1 = phi [bb0: 0], [bb14: v8]
+    v2 = phi [bb0: arg0], [bb14: v2]
+    v3 = lt v0, v2
+    jumpi v3, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v1
+  bb4:
+    v4 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    memory_object_store_field memorystruct<2>, v4, 0, 0
+    memory_object_store_field memorystruct<2>, v4, 1, 0
+    jumpi 2, bb8, bb7
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 18 !metadata(memory=scratch)
+    revert 0, 36
+  bb8:
+    v5 = mod v0, 2
+    v6 = eq v5, 0
+    jumpi v6, bb9, bb10
+  bb10:
+    jump bb11
+  bb9:
+    memory_object_store_field memorystruct<2>, v4, 0, 5
+    jump bb11
+  bb11:
+    v7 = memory_object_load_field memorystruct<2>, v4, 0
+    v8 = add v1, v7
+    v9 = lt v8, v1
+    jumpi v9, bb12, bb13
+  bb13:
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v10 = add v0, 1
+    v11 = lt v10, v0
+    jumpi v11, bb12, bb14
+  bb14:
+    jump bb1
+  bb12:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @coupled(arg0: bool, arg1: u256) -> u256 [selector=0x1055d423, pure, abi_params=[bool, u256], abi_returns=[word]] {
+  bb0:
+    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    memory_object_store_field memorystruct<2>, v0, 0, 0
+    memory_object_store_field memorystruct<2>, v0, 1, 0
+    jumpi arg0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    memory_object_store_field memorystruct<2>, v0, 0, arg1
+    v1 = memory_object_load_field memorystruct<2>, v0, 0
+    memory_object_store_field memorystruct<2>, v0, 1, v1
+    jump bb3
+  bb3:
+    v2 = memory_object_load_field memorystruct<2>, v0, 1
+    ret v2
+}

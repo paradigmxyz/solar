@@ -46,12 +46,14 @@ bb1:
   lt
   push bb8
   jumpi
+  dup 1
+  push 160
+  mstore
   push 4
   calldataload
   sstore
-  push 4
-  calldataload
-  sload
+  push 160
+  mload
   push 128
   mstore
   push 32

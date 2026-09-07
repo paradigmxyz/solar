@@ -61,9 +61,11 @@ bb1:
   lt
   push bb10
   jumpi
-  dup 2
+  dup 1
+  push 160
+  mstore
+  swap 1
   sstore
-  sload
   push 4
   calldataload
   sload
@@ -73,13 +75,16 @@ bb1:
   shr
   dup 2
   and
-  dup 3
+  push 160
+  mload
   add
-  swap 2
-  dup 3
+  push 160
+  mload
+  dup 2
   lt
   push bb10
   jumpi
+  swap 1
   push 128
   shr
   dup 2

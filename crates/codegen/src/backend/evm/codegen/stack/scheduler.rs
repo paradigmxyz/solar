@@ -334,6 +334,11 @@ pub(crate) struct ScheduleCost {
 }
 
 impl ScheduleCost {
+    /// Gas and encoded bytes of the complete physical preparation sequence.
+    pub(crate) fn target_cost(self) -> Cost {
+        Cost::new(self.static_gas, self.encoded_bytes)
+    }
+
     fn key(self, optimization: OptimizationMode) -> [u32; 3] {
         match optimization {
             OptimizationMode::Size => [self.encoded_bytes, self.static_gas, self.actions],
