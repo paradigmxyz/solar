@@ -17,13 +17,15 @@
 //! Terminal-block equivalence ignores source context. Shared instructions and
 //! terminators retain the bounded union of their original locations instead.
 
-use crate::target::GasTier;
-use crate::mir::{
-    BlockId, Function, FunctionId, Immediate, InstKind, InstructionMetadata, MirType, Module,
-    Terminator, Value, ValueId,
-    analysis::{CallGraphInfo, CfgInfo},
-    pass::{MirPass, run_function_pass},
-    utils::{repair_reachability_phis, retain_blocks},
+use crate::{
+    mir::{
+        BlockId, Function, FunctionId, Immediate, InstKind, InstructionMetadata, MirType, Module,
+        Terminator, Value, ValueId,
+        analysis::{CallGraphInfo, CfgInfo},
+        pass::{MirPass, run_function_pass},
+        utils::{repair_reachability_phis, retain_blocks},
+    },
+    target::GasTier,
 };
 use solar_data_structures::{
     bit_set::DenseBitSet,

@@ -3,15 +3,18 @@
 //! This module inlines profitable MIR internal calls to remove their call
 //! protocol and expose further optimization opportunities.
 
-use crate::{backend::evm::{op, select}, target::{Cost, Target}};
-use crate::mir::{
-    AbiLayout, AbiType, BlockId, FrameMode, FrameSlotKind, Function, FunctionBuilder,
-    FunctionId as MirFunctionId, Immediate, ImmutableEncoding, InstId, InstKind, Instruction,
-    MirType, Module, Terminator, Value, ValueId,
-    analysis::{CallGraphInfo, LoopAnalyzer},
-    immutable::immutable_push_type_size,
-    memory::{EvmMemoryLayout, MemoryLayoutPolicy},
-    pass::MirPass,
+use crate::{
+    backend::evm::{op, select},
+    mir::{
+        AbiLayout, AbiType, BlockId, FrameMode, FrameSlotKind, Function, FunctionBuilder,
+        FunctionId as MirFunctionId, Immediate, ImmutableEncoding, InstId, InstKind, Instruction,
+        MirType, Module, Terminator, Value, ValueId,
+        analysis::{CallGraphInfo, LoopAnalyzer},
+        immutable::immutable_push_type_size,
+        memory::{EvmMemoryLayout, MemoryLayoutPolicy},
+        pass::MirPass,
+    },
+    target::{Cost, Target},
 };
 use smallvec::SmallVec;
 use solar_ast::StateMutability;

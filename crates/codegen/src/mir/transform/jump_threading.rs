@@ -14,11 +14,13 @@
 //! 3. **Empty block elimination**: Blocks containing only a JUMPDEST and JUMP are eliminated by
 //!    updating all references to point to the final target.
 
-use crate::target::GasTier;
-use crate::mir::{
-    BlockId, Function, InstKind, Module, Terminator, Value, ValueId,
-    pass::{MirPass, run_function_pass},
-    utils::repair_reachability_phis,
+use crate::{
+    mir::{
+        BlockId, Function, InstKind, Module, Terminator, Value, ValueId,
+        pass::{MirPass, run_function_pass},
+        utils::repair_reachability_phis,
+    },
+    target::GasTier,
 };
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 

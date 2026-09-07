@@ -14,12 +14,14 @@
 //! subsequent dead-argument elimination removes the specialized parameters.
 //! Run after function-pointer specialization and before dead-argument elimination.
 
-use crate::target::Target;
-use crate::mir::{
-    ArgIdx, FunctionId, Immediate, InstId, InstKind, Module, Terminator, Value,
-    analysis::CallGraphInfo,
-    pass::{MirPass, ModuleAnalyses},
-    transform::{cfg_simplify, check_elim, dce, egraph, sccp},
+use crate::{
+    mir::{
+        ArgIdx, FunctionId, Immediate, InstId, InstKind, Module, Terminator, Value,
+        analysis::CallGraphInfo,
+        pass::{MirPass, ModuleAnalyses},
+        transform::{cfg_simplify, check_elim, dce, egraph, sccp},
+    },
+    target::Target,
 };
 use solar_data_structures::{
     index::{IndexVec, index_vec},
