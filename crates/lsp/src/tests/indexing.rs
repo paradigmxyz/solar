@@ -27,6 +27,14 @@ async fn cached_and_published_symbol_tables_share_storage() {
     tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
     assert!(Arc::ptr_eq(&published, &state.symbol_tables.load()));
 
+    // Publication precedes worker cleanup; wait until it releases its symbol references.
+    let _permit = tokio::time::timeout(
+        ASYNC_TEST_TIMEOUT,
+        state.analysis_scheduler.gate.clone().acquire_owned(),
+    )
+    .await
+    .unwrap()
+    .unwrap();
     let old = Arc::downgrade(&published);
     drop(published);
     state.clear_analysis_cache();
@@ -47,6 +55,14 @@ async fn retained_symbol_snapshot_does_not_block_publication_or_clear() {
     state.recompute_after_opening_source(vec![project.path("/Main.sol")]);
     tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
 
+    // Publication precedes worker cleanup; wait until it releases its symbol references.
+    let _permit = tokio::time::timeout(
+        ASYNC_TEST_TIMEOUT,
+        state.analysis_scheduler.gate.clone().acquire_owned(),
+    )
+    .await
+    .unwrap()
+    .unwrap();
     let tables = state.symbol_tables.clone();
     let retained = tables.load();
     let old = Arc::downgrade(&retained);
