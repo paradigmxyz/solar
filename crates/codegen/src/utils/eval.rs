@@ -24,6 +24,15 @@ pub(crate) fn eval_inst<E>(
     if let InstKind::CheckedBinary { op, arithmetic, lhs, rhs } = *kind {
         return Ok(eval_checked(op, arithmetic, get(lhs)?, get(rhs)?));
     }
+    if let InstKind::CheckedAddMod(a, b, modulus) | InstKind::CheckedMulMod(a, b, modulus) = *kind {
+        let modulus = get(modulus)?;
+        if modulus.is_zero() {
+            return Ok(None);
+        }
+        let opcode =
+            if matches!(kind, InstKind::CheckedAddMod(..)) { op::ADDMOD } else { op::MULMOD };
+        return Ok(eval_opcode(opcode, &[get(a)?, get(b)?, modulus]));
+    }
     let Some(opcode) = kind.evm_opcode() else { return Ok(None) };
     let Some((inputs, 1)) = op::stack_io(opcode) else { return Ok(None) };
     if inputs > 3 {

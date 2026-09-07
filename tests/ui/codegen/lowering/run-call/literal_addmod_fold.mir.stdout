@@ -4,8 +4,7 @@ fn @test() -> u256 [selector=0xf8a8fd6d, pure, abi_params=[], abi_returns=[word]
   bb0:
     v0 = exp 2, 255
     v1 = exp 2, 255
-    panic_if_zero 7, 0x12
-    v2 = addmod v0, v1, 7
+    v2 = checked_addmod v0, v1, 7
     v3 = eq 2, v2
     v4 = iszero v3
     jumpi v4, bb1, bb2
@@ -14,8 +13,7 @@ fn @test() -> u256 [selector=0xf8a8fd6d, pure, abi_params=[], abi_returns=[word]
   bb3:
     v5 = exp 2, 255
     v6 = exp 2, 255
-    panic_if_zero 7, 0x12
-    v7 = addmod v5, v6, 7
+    v7 = checked_addmod v5, v6, 7
     v8 = eq 2, v7
     v9 = iszero v8
     jumpi v9, bb4, bb5

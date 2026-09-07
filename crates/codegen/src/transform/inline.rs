@@ -627,6 +627,8 @@ fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInli
                 // ABI decoding validates its input through branches, and dynamic encoding
                 // emits copy loops and padding branches, so neither operation is a tiny leaf.
                 InstKind::AbiDecode { .. }
+                | InstKind::CheckedAddMod(..)
+                | InstKind::CheckedMulMod(..)
                 | InstKind::CheckedBinary { .. }
                 | InstKind::Check { .. }
                 | InstKind::Require { .. } => {
@@ -940,6 +942,8 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (MirCos
         // Expands to length load + data pointer + physical keccak.
         InstKind::Keccak256Bytes(_) => (36, 5),
         // Includes allocation, argument packing, the precompile call, and result extraction.
+        InstKind::Erc7201(_) => (90, 30),
+        InstKind::CheckedAddMod(..) | InstKind::CheckedMulMod(..) => (32, 9),
         InstKind::Sha256(_) | InstKind::Ripemd160(_) => (800, 64),
         InstKind::EcRecover(..) => (900, 100),
         InstKind::Check { .. } => (24, 8),

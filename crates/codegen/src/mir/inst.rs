@@ -693,7 +693,10 @@ impl Instruction {
             InstKind::Fmp | InstKind::SetFmp(..) => Some("abstract allocation"),
             InstKind::MemoryZero(..) => Some("memory zero"),
             InstKind::CheckedBinary { .. } => Some("checked arithmetic"),
-            InstKind::AbiEncodePacked { .. }
+            InstKind::Erc7201(..)
+            | InstKind::CheckedAddMod(..)
+            | InstKind::CheckedMulMod(..)
+            | InstKind::AbiEncodePacked { .. }
             | InstKind::Concat(..)
             | InstKind::Sha256(..)
             | InstKind::Ripemd160(..)
@@ -1301,6 +1304,12 @@ pub(crate) enum InstKind {
     Require { condition: ValueId, payload: Box<super::RevertPayload> },
     /// SHA-256 of a bytes object, including precompile output allocation and returndata effects.
     Sha256(ValueId),
+    /// ERC-7201 namespace slot derived from a bytes object.
+    Erc7201(ValueId),
+    /// Solidity modular addition, which panics for a zero modulus.
+    CheckedAddMod(ValueId, ValueId, ValueId),
+    /// Solidity modular multiplication, which panics for a zero modulus.
+    CheckedMulMod(ValueId, ValueId, ValueId),
     /// Concatenate bytes objects and left-aligned fixed words into a fresh bytes object.
     Concat(Vec<ConcatPart>),
     /// Encode packed arguments, optionally hashing the temporary result.
@@ -1587,6 +1596,7 @@ impl InstKind {
             | Self::BlobHash(a)
             | Self::StoreImmutable(_, a)
             | Self::Keccak256Bytes(a)
+            | Self::Erc7201(a)
             | Self::Sha256(a)
             | Self::Ripemd160(a)
             | Self::StorageArrayDataSlot(a)
@@ -1608,6 +1618,8 @@ impl InstKind {
             | Self::CalldataCopy(a, b, c)
             | Self::CodeCopy(a, b, c)
             | Self::ReturnDataCopy(a, b, c)
+            | Self::CheckedAddMod(a, b, c)
+            | Self::CheckedMulMod(a, b, c)
             | Self::AddMod(a, b, c)
             | Self::MulMod(a, b, c)
             | Self::Create(a, b, c)
@@ -1896,6 +1908,7 @@ impl InstKind {
             | Self::StoreImmutable(_, a)
             | Self::SlicePtr(a)
             | Self::Keccak256Bytes(a)
+            | Self::Erc7201(a)
             | Self::Sha256(a)
             | Self::Ripemd160(a)
             | Self::StorageArrayDataSlot(a)
@@ -1913,6 +1926,8 @@ impl InstKind {
             | Self::CalldataCopy(a, b, c)
             | Self::CodeCopy(a, b, c)
             | Self::ReturnDataCopy(a, b, c)
+            | Self::CheckedAddMod(a, b, c)
+            | Self::CheckedMulMod(a, b, c)
             | Self::AddMod(a, b, c)
             | Self::MulMod(a, b, c)
             | Self::Create(a, b, c)
@@ -2038,6 +2053,9 @@ impl InstKind {
             Self::Mod(_, _) => "mod",
             Self::SMod(_, _) => "smod",
             Self::Exp(_, _) => "exp",
+            Self::Erc7201(_) => "erc7201",
+            Self::CheckedAddMod(..) => "checked_addmod",
+            Self::CheckedMulMod(..) => "checked_mulmod",
             Self::AddMod(_, _, _) => "addmod",
             Self::MulMod(_, _, _) => "mulmod",
             Self::And(_, _) => "and",
@@ -2219,14 +2237,17 @@ impl InstKind {
     #[must_use]
     pub(crate) const fn effect_kind(&self) -> EffectKind {
         match self {
-            Self::ValidateAbi(..)
+            Self::CheckedAddMod(..)
+            | Self::CheckedMulMod(..)
+            | Self::ValidateAbi(..)
             | Self::Check { .. }
             | Self::CheckedBinary { .. }
             | Self::InsertValue { .. }
             | Self::ExtractValue { .. }
             | Self::MemoryObjectFromPtr { .. }
             | Self::WordCast(_) => EffectKind::Pure,
-            Self::AbiEncodePacked { .. }
+            Self::Erc7201(..)
+            | Self::AbiEncodePacked { .. }
             | Self::Concat(..)
             | Self::Sha256(..)
             | Self::Ripemd160(..)

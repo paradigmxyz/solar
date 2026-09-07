@@ -64,6 +64,8 @@ impl InstKind {
     pub(crate) const fn effects(&self) -> InstructionEffects {
         let control = match self {
             Self::ValidateAbi(..)
+            | Self::CheckedAddMod(..)
+            | Self::CheckedMulMod(..)
             | Self::CheckedBinary { .. }
             | Self::Check { .. }
             | Self::Require { .. } => ControlEffects { may_revert: true, ..ControlEffects::NONE },
@@ -72,9 +74,11 @@ impl InstKind {
                 may_revert: matches!(semantics.failure, super::AllocationFailure::Panic),
                 ..ControlEffects::NONE
             },
-            Self::Concat(..) | Self::Sha256(..) | Self::Ripemd160(..) | Self::EcRecover(..) => {
-                ControlEffects { may_revert: true, ..ControlEffects::NONE }
-            }
+            Self::Erc7201(..)
+            | Self::Concat(..)
+            | Self::Sha256(..)
+            | Self::Ripemd160(..)
+            | Self::EcRecover(..) => ControlEffects { may_revert: true, ..ControlEffects::NONE },
             Self::AbiEncode { .. } | Self::AbiEncodePacked { .. } => {
                 ControlEffects { may_revert: true, ..ControlEffects::NONE }
             }

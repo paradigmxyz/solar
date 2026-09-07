@@ -1156,7 +1156,8 @@ impl AliasAnalysis {
                     write_memory(&mut effects, ptr, size);
                 }
             }
-            InstKind::AbiEncodePacked { .. }
+            InstKind::Erc7201(..)
+            | InstKind::AbiEncodePacked { .. }
             | InstKind::Concat(..)
             | InstKind::Sha256(..)
             | InstKind::Ripemd160(..)

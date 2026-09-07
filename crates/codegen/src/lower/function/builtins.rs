@@ -697,12 +697,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             Builtin::AddMod | Builtin::MulMod => {
                 let [a, b, modulus] = self.lower_builtin_args(builtin, &args)?;
-                self.builder.panic_if_zero(modulus, PanicCode::DivisionByZero);
-                Some(match builtin {
-                    Builtin::AddMod => self.builder.addmod(a, b, modulus),
-                    Builtin::MulMod => self.builder.mulmod(a, b, modulus),
-                    _ => unreachable!(),
-                })
+                // result = checked_addmod/checked_mulmod(a, b, modulus)
+                let kind = if builtin == Builtin::AddMod {
+                    InstKind::CheckedAddMod(a, b, modulus)
+                } else {
+                    InstKind::CheckedMulMod(a, b, modulus)
+                };
+                Some(self.builder.emit_inst(kind, Some(MirType::uint256())))
             }
             Builtin::Erc7201 => self.lower_erc7201(args),
             Builtin::Sha256 | Builtin::Ripemd160 => self.lower_hash_precompile_call(builtin, args),
@@ -753,43 +754,21 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn lower_erc7201(&mut self, args: hir::CallArgs<'_>) -> Option<ValueId> {
-        // inner = keccak256(bytes(argument)) - 1
-        // outer = keccak256(abi.encode(inner)) & ~0xff
         let argument = &self.builtin_args::<1>(Builtin::Erc7201, &args)?[0];
-        let literal = match &argument.kind {
-            ExprKind::Lit(lit) => match &lit.kind {
-                LitKind::Str(_, bytes, _) => Some(bytes.as_byte_str()),
-                _ => None,
-            },
-            _ => None,
-        };
-        let inner = match literal {
-            Some(bytes) => self.builder.imm(U256::from_be_slice(keccak256(bytes).as_slice())),
-            None => {
-                let argument_ty = self.cx.gcx.type_of_expr(argument.id)?;
-                let memory_ty = argument_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
-                let value = self.lower_typed_expr(argument, memory_ty)?;
-                let value = self.materialize_memory_argument(memory_ty, value, argument.span)?;
-                self.builder.keccak256_bytes(value)
-            }
-        };
-        let one = self.builder.imm(1);
-        let inner = self.builder.sub(inner, one);
-        let zero = self.builder.imm(U256::ZERO);
-        let word_size = self.builder.imm(32);
-        let size =
-            self.builder.imm(EvmMemoryLayout::DYNAMIC_HEADER_SIZE + EvmMemoryLayout::WORD_SIZE);
-        let object = self.builder.alloc_object(
-            size,
-            MemoryObjectLayout::Bytes,
-            AllocationSemantics::INTERNAL,
-        );
-        self.builder.set_memory_object_len(object, word_size, MemoryObjectKind::Bytes);
-        self.builder.memory_object_store_word(object, zero, inner);
-        let data = self.builder.memory_object_data(object, MemoryObjectKind::Bytes);
-        let outer = self.builder.keccak256(data, word_size);
-        let mask = self.builder.imm(!U256::from(0xff));
-        Some(self.builder.and(outer, mask))
+        if let ExprKind::Lit(lit) = self.peel_bytes_conversion(argument).peel_parens().kind
+            && let LitKind::Str(_, bytes, _) = &lit.kind
+        {
+            let inner = U256::from_be_slice(keccak256(bytes.as_byte_str()).as_slice())
+                .wrapping_sub(U256::ONE);
+            let outer = U256::from_be_slice(keccak256(inner.to_be_bytes::<32>()).as_slice());
+            return Some(self.builder.imm(outer & !U256::from(0xff)));
+        }
+        let argument_ty = self.cx.gcx.type_of_expr(argument.id)?;
+        let memory_ty = argument_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
+        let value = self.lower_typed_expr(argument, memory_ty)?;
+        let value = self.materialize_memory_argument(memory_ty, value, argument.span)?;
+        // slot = erc7201(value)
+        Some(self.builder.emit_inst(InstKind::Erc7201(value), Some(MirType::uint256())))
     }
 
     fn lower_concat_builtin_call(

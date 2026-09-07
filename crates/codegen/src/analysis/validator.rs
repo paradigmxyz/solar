@@ -979,6 +979,27 @@ impl<'a> Validator<'a> {
                             );
                         }
                     }
+                    InstKind::CheckedAddMod(a, b, modulus)
+                    | InstKind::CheckedMulMod(a, b, modulus) => {
+                        if [a, b, modulus].iter().any(|value| {
+                            func.value_ty(*value).is_none_or(|ty| {
+                                !ty.is_word() || matches!(ty, MirType::MemoryObject(_))
+                            })
+                        }) {
+                            self.emit_at_inst(
+                                "checked modular arithmetic requires word operands",
+                                block,
+                                id,
+                            );
+                        }
+                        if func.inst(id).result_ty != Some(MirType::uint256()) {
+                            self.emit_at_inst(
+                                "checked modular arithmetic requires a u256 result",
+                                block,
+                                id,
+                            );
+                        }
+                    }
                     InstKind::CheckedBinary { arithmetic, lhs, rhs, .. } => {
                         let (crate::mir::ArithmeticKind::Unsigned(bits)
                         | crate::mir::ArithmeticKind::Signed(bits)) = arithmetic;
@@ -1004,7 +1025,9 @@ impl<'a> Validator<'a> {
                             );
                         }
                     }
-                    InstKind::Sha256(object) | InstKind::Ripemd160(object) => {
+                    InstKind::Erc7201(object)
+                    | InstKind::Sha256(object)
+                    | InstKind::Ripemd160(object) => {
                         if !matches!(
                             func.value_ty(object),
                             Some(

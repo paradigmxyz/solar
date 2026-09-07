@@ -10,10 +10,11 @@
 use crate::{
     mir::{
         AllocationSemantics, ConcatPart, FunctionBuilder, InstKind, MemoryObjectKind,
-        MemoryObjectLayout, Module, SliceLocation, ValueId,
+        MemoryObjectLayout, Module, PanicCode, SliceLocation, ValueId,
     },
     pass::{MirPass, run_function_pass},
 };
+use alloy_primitives::U256;
 use solar_config::EvmVersion;
 use solar_data_structures::map::FxHashMap;
 
@@ -64,6 +65,18 @@ impl MirPass for LowerBuiltins {
                         InstKind::AbiEncodePacked { parts, hash } => {
                             super::lower_packed::lower_packed(&mut builder, parts, hash)
                         }
+                        InstKind::CheckedAddMod(a, b, modulus)
+                        | InstKind::CheckedMulMod(a, b, modulus) => {
+                            // panic_if_zero modulus, division_by_zero
+                            // result = addmod/mulmod(a, b, modulus)
+                            builder.panic_if_zero(modulus, PanicCode::DivisionByZero);
+                            if matches!(inst.kind, InstKind::CheckedAddMod(..)) {
+                                builder.addmod(a, b, modulus)
+                            } else {
+                                builder.mulmod(a, b, modulus)
+                            }
+                        }
+                        InstKind::Erc7201(input) => lower_erc7201(&mut builder, input),
                         InstKind::Concat(parts) => lower_concat(&mut builder, parts),
                         InstKind::Sha256(input) => {
                             lower_hash(&mut builder, gcx.sess.opts.evm_version, input, false)
@@ -98,7 +111,10 @@ impl MirPass for LowerBuiltins {
 fn is_builtin(kind: &InstKind) -> bool {
     matches!(
         kind,
-        InstKind::AbiEncodePacked { .. }
+        InstKind::Erc7201(..)
+            | InstKind::CheckedAddMod(..)
+            | InstKind::CheckedMulMod(..)
+            | InstKind::AbiEncodePacked { .. }
             | InstKind::Concat(..)
             | InstKind::Sha256(..)
             | InstKind::Ripemd160(..)
@@ -252,4 +268,22 @@ fn lower_concat(builder: &mut FunctionBuilder<'_>, parts: Vec<ConcatPart>) -> Va
         offset = builder.add(offset, length);
     }
     output
+}
+
+fn lower_erc7201(builder: &mut FunctionBuilder<'_>, input: ValueId) -> ValueId {
+    // inner = keccak256_bytes(input) - 1
+    // object = bytes(32)
+    // store_word(object, 0, inner)
+    // slot = keccak256(object.data, 32) & ~0xff
+    let hash = builder.keccak256_bytes(input);
+    let one = builder.imm(1);
+    let inner = builder.sub(hash, one);
+    let length = builder.imm(32);
+    let object = builder.alloc_bytes_object(length, AllocationSemantics::INTERNAL);
+    let zero = builder.imm(0);
+    builder.memory_object_store_word(object, zero, inner);
+    let data = builder.memory_object_data(object, MemoryObjectKind::Bytes);
+    let outer = builder.keccak256(data, length);
+    let mask = builder.imm(!U256::from(0xff));
+    builder.and(outer, mask)
 }

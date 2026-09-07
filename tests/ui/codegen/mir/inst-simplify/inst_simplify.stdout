@@ -197,3 +197,19 @@
       ret
   }
   
+  fn @checked_modular() -> u256 {
+    bb0:
+-     v0 = checked_addmod 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2, 3
+-     v1 = checked_mulmod 5, 5, 7
+-     v2 = add v0, v1
+-     ret v2
++     ret 6
+  }
+  
+  fn @checked_modular_zero(arg0: u256) {
+    bb0:
+      v0 = checked_addmod arg0, 0, 0
+      v1 = checked_mulmod 0, arg0, 0
+      ret
+  }
+  
