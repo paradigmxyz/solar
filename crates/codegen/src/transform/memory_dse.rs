@@ -4,7 +4,9 @@
 //! later full-word `mstore` to the same exact address within the same basic
 //! block, before any operation can observe memory or gas. It also forwards
 //! same-block `mload` instructions from the latest exact-address `mstore` when
-//! no intervening operation can mutate memory.
+//! no intervening operation can mutate memory. A bounded repeated-store check
+//! also removes a constant word restaging when an adjacent overlapping store
+//! covers every changed byte and the untouched bytes still match a live seed.
 
 use crate::{
     analysis::{
@@ -1127,24 +1129,41 @@ impl MemoryStoreEliminator {
                 _ => FxHashMap::default(),
             };
 
-            for &inst_id in &func.blocks[block_id].instructions {
+            let instructions = &func.blocks[block_id].instructions;
+            for (index, &inst_id) in instructions.iter().enumerate() {
                 match &func.inst(inst_id).kind {
                     InstKind::MStore(addr, value) => match const_store(func, *addr, *value) {
                         Some((a, v)) => {
-                            if known.get(&a) == Some(&v) {
+                            // mstore A, C; ...; redundant mstore A, C -> mstore A, C; ...
+                            if known.get(&a) == Some(&v)
+                                || self.redundant_before_partial_overwrite(
+                                    func,
+                                    instructions,
+                                    index,
+                                    (a, v),
+                                    &dead,
+                                )
+                            {
+                                // The partial proof preserves only the state after the next
+                                // store, so it must not establish a whole-word cache entry.
                                 dead.insert(inst_id);
                                 self.eliminated_count += 1;
                             } else {
+                                // A full word also overwrites neighboring unaligned words.
+                                known.retain(|&start, _| {
+                                    start.abs_diff(a) >= EvmMemoryLayout::WORD_SIZE
+                                });
                                 known.insert(a, v);
                             }
                         }
                         None => {
                             match self.mem_addr_key(func, *addr).and_then(|key| key.0.as_absolute())
                             {
-                                // A non-constant value written to a constant scratch
-                                // slot makes its contents unknown.
+                                // An unknown word invalidates every overlapping known word.
                                 Some(a) => {
-                                    known.remove(&a);
+                                    known.retain(|&start, _| {
+                                        start.abs_diff(a) >= EvmMemoryLayout::WORD_SIZE
+                                    });
                                 }
                                 // An address we cannot pin could alias anything.
                                 _ => known.clear(),
@@ -1168,6 +1187,58 @@ impl MemoryStoreEliminator {
         for block in func.blocks.iter_mut() {
             block.instructions.retain(|&id| !dead.contains(id));
         }
+    }
+
+    /// Proves a repeated word redundant over an adjacent partial overwrite.
+    /// Reads before the candidate are harmless: only writes to the residual
+    /// bytes matter. A live seed also establishes the original memory extent.
+    fn redundant_before_partial_overwrite(
+        &self,
+        func: &Function,
+        instructions: &[InstId],
+        index: usize,
+        (address, value): (u64, U256),
+        dead: &DenseBitSet<InstId>,
+    ) -> bool {
+        let Some(&next) = instructions.get(index + 1) else { return false };
+        if dead.contains(next) {
+            return false;
+        }
+        let InstKind::MStore(next_address, _) = &func.inst(next).kind else { return false };
+        let Some(next_address) = func.value_u64(*next_address) else { return false };
+        let (Some(end), Some(next_end)) = (
+            address.checked_add(EvmMemoryLayout::WORD_SIZE),
+            next_address.checked_add(EvmMemoryLayout::WORD_SIZE),
+        ) else {
+            return false;
+        };
+        if address == next_address || address >= next_end || next_address >= end {
+            return false;
+        }
+
+        let (start, end) =
+            if next_address < address { (next_end, end) } else { (address, next_address) };
+        // A residual can straddle scratch and heap; its starting byte alone
+        // cannot justify a region-based no-alias result.
+        let residual = Location::Memory(MemoryLocation::new(
+            MemoryAddress { region: MemoryRegion::Unknown, ..MemoryAddress::absolute(start) },
+            LocationSize::Const(end - start),
+        ));
+        for &previous in instructions[..index].iter().rev().take(8) {
+            if dead.contains(previous) {
+                continue;
+            }
+            if let InstKind::MStore(seed_address, seed_value) = &func.inst(previous).kind
+                && func.value_u64(*seed_address) == Some(address)
+                && func.value_u256(*seed_value) == Some(value)
+            {
+                return true;
+            }
+            if self.alias().instruction_mod_ref(func, previous).may_write(self.alias(), residual) {
+                return false;
+            }
+        }
+        false
     }
 
     fn remove_cross_block_overwrites(&mut self, func: &mut Function) {

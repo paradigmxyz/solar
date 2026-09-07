@@ -1,0 +1,87 @@
+//@ revisions: raw optimized
+//@[raw] compile-flags: -Zmir-pipeline=none
+//@[optimized] compile-flags: -Zmir-pipeline=memory-dse
+//@ filecheck:
+@module PartialOverwriteLimits
+
+// The word endpoints overflow the proof's u64 interval representation. This
+// is a proof-domain refusal, not an executable large-memory success claim.
+// CHECK-LABEL: fn @endpoint_overflow
+// CHECK: {{^[ +].*}}keccak256
+// CHECK: {{^[ +].*}}mstore 0xffffffffffffffef, 0xff466c9f
+// CHECK: {{^[ +].*}}mstore 0xffffffffffffffeb, arg1
+fn @endpoint_overflow(arg0: u256, arg1: u256) -> (u256, u256) {
+  bb0:
+    mstore 0xffffffffffffffef, 0xff466c9f
+    mstore 0xffffffffffffffeb, arg0
+    v2 = keccak256 0xffffffffffffffef, 32
+    mstore 0xffffffffffffffef, 0xff466c9f
+    mstore 0xffffffffffffffeb, arg1
+    v3 = keccak256 0xffffffffffffffef, 32
+    ret v2, v3
+}
+
+// The local proof must not use a predecessor's partial seed. The ordinary
+// exact-word cache was invalidated by the first overlapping runtime write.
+// CHECK-LABEL: fn @seed_in_predecessor
+// CHECK: {{^[ +].*}}keccak256 12, 24
+// CHECK: {{^[ +].*}}jump bb1
+// CHECK: {{^[ +].*}}mstore 4, 0xff466c9f
+// CHECK: {{^[ +].*}}mstore 0, arg1
+fn @seed_in_predecessor(arg0: u256, arg1: u256) -> (u256, u256) {
+  bb0:
+    mstore 4, 0xff466c9f
+    mstore 0, arg0
+    v2 = keccak256 12, 24
+    jump bb1
+  bb1:
+    mstore 4, 0xff466c9f
+    mstore 0, arg1
+    v3 = keccak256 12, 24
+    ret v2, v3
+}
+
+// The word beginning below128 includes bytes in the neighboring heap range.
+// CHECK-LABEL: fn @repair_before_return
+// CHECK: {{^[ +].*}}log0 120, 32
+// CHECK: {{^[ +].*}}mstore 128, arg0
+// CHECK: {{^[ +].*}}mstore 120,
+// CHECK: {{^[ +].*}}returndata 120, 32
+fn @repair_before_return(arg0: u256) {
+  bb0:
+    mstore 120, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    log0 120, 32
+    mstore 128, arg0
+    mstore 120, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    returndata 120, 32
+}
+
+// A following store at132 leaves the residual interval120..132 untouched.
+// The earlier heap write at128 changed bytes128..132, requiring their repair.
+// CHECK-LABEL: fn @residual_straddles_region
+// CHECK: {{^[ +].*}}log0 120, 32
+// CHECK: {{^[ +].*}}mstore 128, arg0 !metadata(memory=heap)
+// CHECK: {{^[ +].*}}mstore 120,
+// CHECK: {{^[ +].*}}mstore 132, arg1
+// CHECK: {{^[ +].*}}returndata 120, 44
+fn @residual_straddles_region(arg0: u256, arg1: u256) {
+  bb0:
+    mstore 120, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    log0 120, 32
+    mstore 128, arg0 !metadata(memory=heap)
+    mstore 120, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    mstore 132, arg1
+    returndata 120, 44
+}
+
+// A load of the straddling word must observe the later write at128.
+// CHECK-LABEL: fn @read_after_heap_write
+// CHECK: {{^[ +].*}}mstore 128, arg0
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = mload 120
+fn @read_after_heap_write(arg0: u256) -> u256 {
+  bb0:
+    mstore 120, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    mstore 128, arg0
+    v1 = mload 120
+    ret v1
+}

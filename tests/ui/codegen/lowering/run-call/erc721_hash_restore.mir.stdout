@@ -1,0 +1,14 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/erc721_hash_restore.sol:ERC721HashRestore ===
+@module ERC721HashRestore
+fn @hashes(arg0: u256, arg1: u256) -> (bytes32, bytes32) [selector=0xd13372ca, pure, abi_params=[u256, u256], abi_returns=[word, word]] {
+  bb0:
+    mstore 0, arg0 !metadata(memory=scratch)
+    v0 = shl 192, 0x7d8825530a5a2e7a
+    mstore 28, v0 !metadata(memory=scratch)
+    v1 = keccak256 0, 32 !metadata(memory=scratch)
+    mstore 0, arg1 !metadata(memory=scratch)
+    v2 = shl 192, 0x7d8825530a5a2e7a
+    mstore 28, v2 !metadata(memory=scratch)
+    v3 = keccak256 0, 32 !metadata(memory=scratch)
+    ret v1, v3
+}

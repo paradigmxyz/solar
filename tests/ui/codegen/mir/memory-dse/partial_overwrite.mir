@@ -1,0 +1,215 @@
+//@ revisions: raw optimized
+//@[raw] compile-flags: -Zmir-pipeline=none
+//@[raw] filecheck: --check-prefixes=RAW,CHECK
+//@[optimized] compile-flags: -Zmir-pipeline=memory-dse
+//@[optimized] filecheck: --check-prefixes=OPT,CHECK
+@module PartialOverwrite
+
+// The next account store overwrites every dirty byte of the repeated seed.
+// The surviving seed bytes32..35 never changed.
+// CHECK-LABEL: fn @votes
+// CHECK: {{^[ +].*}}keccak256 12, 24
+// RAW: mstore 4, 0xff466c9f
+// OPT-NOT: {{^[ +].*}}mstore 4,
+// CHECK: {{^[ +].*}}mstore 0, arg1
+// CHECK: {{^[ +].*}}keccak256 12, 24
+fn @votes(arg0: u256, arg1: u256) -> (u256, u256) {
+  bb0:
+    mstore 4, 0xff466c9f
+    mstore 0, arg0
+    v2 = keccak256 12, 24
+    mstore 4, 0xff466c9f
+    mstore 0, arg1
+    v3 = keccak256 12, 24
+    ret v2, v3
+}
+
+// Reversing the addresses leaves the first four seed bytes untouched.
+// CHECK-LABEL: fn @reverse
+// CHECK: {{^[ +].*}}keccak256 0, 36
+// RAW: mstore 0,
+// OPT-NOT: {{^[ +].*}}mstore 0,
+// CHECK: {{^[ +].*}}mstore 4, arg1
+// CHECK: {{^[ +].*}}keccak256 0, 36
+fn @reverse(arg0: u256, arg1: u256) -> (u256, u256) {
+  bb0:
+    mstore 0, 0xff466c9f00000000000000000000000000000000000000000000000000000000
+    mstore 4, arg0
+    v2 = keccak256 0, 36
+    mstore 0, 0xff466c9f00000000000000000000000000000000000000000000000000000000
+    mstore 4, arg1
+    v3 = keccak256 0, 36
+    ret v2, v3
+}
+
+// Reading the repaired seed before its next overwrite observes dirty bytes.
+// CHECK-LABEL: fn @read_before_overwrite
+// CHECK: {{^[ +].*}}keccak256 12, 24
+// CHECK: {{^[ +].*}}mstore 4, 0xff466c9f
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = mload 0
+// CHECK: {{^[ +].*}}mstore 0, arg1
+fn @read_before_overwrite(arg0: u256, arg1: u256) -> (u256, u256) {
+  bb0:
+    mstore 4, 0xff466c9f
+    mstore 0, arg0
+    v2 = keccak256 12, 24
+    mstore 4, 0xff466c9f
+    v3 = mload 0
+    mstore 0, arg1
+    ret v2, v3
+}
+
+// Hashing before the next overwrite is likewise an observable read.
+// CHECK-LABEL: fn @hash_before_overwrite
+// CHECK: {{^[ +].*}}keccak256 12, 24
+// CHECK: {{^[ +].*}}mstore 4, 0xff466c9f
+// CHECK: {{^[ +].*}}keccak256 0, 36
+// CHECK: {{^[ +].*}}mstore 0, arg1
+fn @hash_before_overwrite(arg0: u256, arg1: u256) -> (u256, u256) {
+  bb0:
+    mstore 4, 0xff466c9f
+    mstore 0, arg0
+    v2 = keccak256 12, 24
+    mstore 4, 0xff466c9f
+    v3 = keccak256 0, 36
+    mstore 0, arg1
+    ret v2, v3
+}
+
+// A byte write in the residual seed cannot be hidden by the next account word.
+// CHECK-LABEL: fn @residual_byte_write
+// CHECK: {{^[ +].*}}mstore8 32, arg2
+// CHECK: {{^[ +].*}}mstore 4, 0xff466c9f
+// CHECK: {{^[ +].*}}mstore 0, arg1
+fn @residual_byte_write(arg0: u256, arg1: u256, arg2: u256) -> (u256, u256) {
+  bb0:
+    mstore 4, 0xff466c9f
+    mstore 0, arg0
+    v3 = keccak256 12, 24
+    mstore8 32, arg2
+    mstore 4, 0xff466c9f
+    mstore 0, arg1
+    v4 = keccak256 12, 24
+    ret v3, v4
+}
+
+// An unbounded destination can overwrite the residual seed.
+// CHECK-LABEL: fn @unknown_write
+// CHECK: {{^[ +].*}}mstore arg2, 0
+// CHECK: {{^[ +].*}}mstore 4, 0xff466c9f
+// CHECK: {{^[ +].*}}mstore 0, arg1
+fn @unknown_write(arg0: u256, arg1: u256, arg2: u256) -> (u256, u256) {
+  bb0:
+    mstore 4, 0xff466c9f
+    mstore 0, arg0
+    v3 = keccak256 12, 24
+    mstore arg2, 0
+    mstore 4, 0xff466c9f
+    mstore 0, arg1
+    v4 = keccak256 12, 24
+    ret v3, v4
+}
+
+// A different earlier seed does not establish the desired residual bytes.
+// CHECK-LABEL: fn @different_seed
+// CHECK: {{^[ +].*}}keccak256 12, 24
+// CHECK: {{^[ +].*}}mstore 4, 0xff466c9f
+// CHECK: {{^[ +].*}}mstore 0, arg1
+fn @different_seed(arg0: u256, arg1: u256) -> (u256, u256) {
+  bb0:
+    mstore 4, 0xee466c9f
+    mstore 0, arg0
+    v2 = keccak256 12, 24
+    mstore 4, 0xff466c9f
+    mstore 0, arg1
+    v3 = keccak256 12, 24
+    ret v2, v3
+}
+
+// The following store at36 is disjoint from the repeated word at4.
+// CHECK-LABEL: fn @disjoint_next_store
+// CHECK: {{^[ +].*}}keccak256 12, 24
+// CHECK: {{^[ +].*}}mstore 4, 0xff466c9f
+// CHECK: {{^[ +].*}}mstore 36, arg1
+fn @disjoint_next_store(arg0: u256, arg1: u256) -> (u256, u256) {
+  bb0:
+    mstore 4, 0xff466c9f
+    mstore 0, arg0
+    v2 = keccak256 12, 24
+    mstore 4, 0xff466c9f
+    mstore 36, arg1
+    v3 = keccak256 4, 64
+    ret v2, v3
+}
+
+// The identical seed is exactly8 preceding instruction positions away.
+// CHECK-LABEL: fn @window_8
+// CHECK: {{^[ +].*}}keccak256 12, 24
+// RAW: mstore 4, 0xff466c9f
+// OPT-NOT: {{^[ +].*}}mstore 4,
+// CHECK: {{^[ +].*}}mstore 0, arg1
+fn @window_8(arg0: u256, arg1: u256) -> (u256, u256, u256) {
+  bb0:
+    mstore 4, 0xff466c9f
+    mstore 0, arg0
+    v2 = keccak256 12, 24
+    v3 = xor arg0, 1
+    v4 = xor v3, 2
+    v5 = xor v4, 3
+    v6 = xor v5, 4
+    v7 = xor v6, 5
+    mstore 4, 0xff466c9f
+    mstore 0, arg1
+    v8 = keccak256 12, 24
+    ret v2, v8, v7
+}
+
+// The identical seed is exactly9 preceding instruction positions away.
+// CHECK-LABEL: fn @window_9
+// CHECK: {{^[ +].*}}keccak256 12, 24
+// CHECK: {{^[ +].*}}mstore 4, 0xff466c9f
+// CHECK: {{^[ +].*}}mstore 0, arg1
+fn @window_9(arg0: u256, arg1: u256) -> (u256, u256, u256) {
+  bb0:
+    mstore 4, 0xff466c9f
+    mstore 0, arg0
+    v2 = keccak256 12, 24
+    v3 = xor arg0, 1
+    v4 = xor v3, 2
+    v5 = xor v4, 3
+    v6 = xor v5, 4
+    v7 = xor v6, 5
+    v8 = xor v7, 6
+    mstore 4, 0xff466c9f
+    mstore 0, arg1
+    v9 = keccak256 12, 24
+    ret v2, v9, v8
+}
+
+// The first repetition is deleted; it cannot reset the bounded backward search.
+// The last repetition is ten positions from the remaining live seed.
+// CHECK-LABEL: fn @dead_seed_does_not_extend_window
+// CHECK: {{^[ +].*}}keccak256 12, 24
+// RAW: mstore 4, 0xff466c9f
+// OPT-NOT: {{^[ +].*}}mstore 4,
+// CHECK: {{^[ +].*}}mstore 0, arg1
+// CHECK: {{^[ +].*}}keccak256 12, 24
+// CHECK: {{^[ +].*}}mstore 4, 0xff466c9f
+// CHECK: {{^[ +].*}}mstore 0, arg2
+fn @dead_seed_does_not_extend_window(arg0: u256, arg1: u256, arg2: u256) -> (u256, u256, u256, u256) {
+  bb0:
+    mstore 4, 0xff466c9f
+    mstore 0, arg0
+    v3 = keccak256 12, 24
+    mstore 4, 0xff466c9f
+    mstore 0, arg1
+    v4 = keccak256 12, 24
+    v5 = xor arg0, 1
+    v6 = xor v5, 2
+    v7 = xor v6, 3
+    v8 = xor v7, 4
+    mstore 4, 0xff466c9f
+    mstore 0, arg2
+    v9 = keccak256 12, 24
+    ret v3, v4, v8, v9
+}

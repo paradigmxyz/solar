@@ -1,0 +1,27 @@
+//@ revisions: early late
+//@[early] compile-flags: -Zmir-pipeline=memory-dse,lower-frame-slots
+//@[late] compile-flags: -Zmir-pipeline=memory-dse,lower-frame-slots,memory-dse
+//@ filecheck:
+@module LateScratchPartialOverlap
+@phase dispatch
+fn @entry() [entry] {
+  bb0:
+    stop
+}
+
+// Both semantic scratch writes lower to full words at128. The intervening
+// unaligned write aliases them and makes the final repair necessary.
+// CHECK-LABEL: fn @overlap
+// CHECK: {{^[ +].*}}mstore 128, 1
+// CHECK: {{^[ +].*}}log0 128, 32
+// CHECK: {{^[ +].*}}mstore 129, 0
+// CHECK: {{^[ +].*}}mstore 128, 1
+// CHECK: {{^[ +].*}}returndata 128, 32
+fn @overlap() {
+  bb0:
+    frame_store scratch, word, 0, 1
+    log0 128, 32
+    mstore 129, 0
+    frame_store scratch, word, 0, 1
+    returndata 128, 32
+}

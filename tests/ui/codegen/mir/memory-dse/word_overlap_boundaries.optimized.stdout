@@ -1,0 +1,134 @@
+- // === ROOT/tests/ui/codegen/mir/memory-dse/word_overlap_boundaries.mir (before memory-dse) ===
++ // === ROOT/tests/ui/codegen/mir/memory-dse/word_overlap_boundaries.mir (after memory-dse) ===
+  @module MemoryDseWordOverlap
+  fn @before_32_constant() {
+    bb0:
+      mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      log0 128, 32
+      mstore 96, 0
+      log0 96, 32
+-     mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      returndata 128, 32
+  }
+  
+  fn @before_32_unknown(arg0: u256) {
+    bb0:
+      mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      log0 128, 32
+      mstore 96, arg0
+      log0 96, 32
+-     mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      returndata 128, 32
+  }
+  
+  fn @before_31_constant() {
+    bb0:
+      mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      log0 128, 32
+      mstore 97, 0
+      mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      returndata 128, 32
+  }
+  
+  fn @before_31_unknown(arg0: u256) {
+    bb0:
+      mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      log0 128, 32
+      mstore 97, arg0
+      mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      returndata 128, 32
+  }
+  
+  fn @before_1_constant() {
+    bb0:
+      mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      log0 128, 32
+      mstore 127, 0
+      mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      returndata 128, 32
+  }
+  
+  fn @before_1_unknown(arg0: u256) {
+    bb0:
+      mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      log0 128, 32
+      mstore 127, arg0
+      mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      returndata 128, 32
+  }
+  
+  fn @after_1_constant() {
+    bb0:
+      mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      log0 128, 32
+      mstore 129, 0
+      mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      returndata 128, 32
+  }
+  
+  fn @after_1_unknown(arg0: u256) {
+    bb0:
+      mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      log0 128, 32
+      mstore 129, arg0
+      mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      returndata 128, 32
+  }
+  
+  fn @after_31_constant() {
+    bb0:
+      mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      log0 128, 32
+      mstore 159, 0
+      mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      returndata 128, 32
+  }
+  
+  fn @after_31_unknown(arg0: u256) {
+    bb0:
+      mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      log0 128, 32
+      mstore 159, arg0
+      mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      returndata 128, 32
+  }
+  
+  fn @after_32_constant() {
+    bb0:
+      mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      log0 128, 32
+      mstore 160, 0
+      log0 160, 32
+-     mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      returndata 128, 32
+  }
+  
+  fn @after_32_unknown(arg0: u256) {
+    bb0:
+      mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      log0 128, 32
+      mstore 160, arg0
+      log0 160, 32
+-     mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      returndata 128, 32
+  }
+  
+  fn @equal_store() {
+    bb0:
+      mstore 128, 1
+      log0 128, 32
+-     mstore 128, 1
+      returndata 128, 32
+  }
+  
+  fn @inherited_unknown(arg0: u256) {
+    bb0:
+      mstore 128, 1
+      log0 128, 32
+      jump bb1
+    bb1:
+      mstore 129, arg0
+      mstore 128, 1
+      returndata 128, 32
+  }
+  

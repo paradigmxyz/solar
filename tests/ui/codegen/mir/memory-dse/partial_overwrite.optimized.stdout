@@ -1,0 +1,144 @@
+- // === ROOT/tests/ui/codegen/mir/memory-dse/partial_overwrite.mir (before memory-dse) ===
++ // === ROOT/tests/ui/codegen/mir/memory-dse/partial_overwrite.mir (after memory-dse) ===
+  @module PartialOverwrite
+  fn @votes(arg0: u256, arg1: u256) -> (u256, u256) {
+    bb0:
+      mstore 4, 0xff466c9f
+      mstore 0, arg0
+      v0 = keccak256 12, 24
+-     mstore 4, 0xff466c9f
+      mstore 0, arg1
+      v1 = keccak256 12, 24
+      ret v0, v1
+  }
+  
+  fn @reverse(arg0: u256, arg1: u256) -> (u256, u256) {
+    bb0:
+      mstore 0, 0xff466c9f00000000000000000000000000000000000000000000000000000000
+      mstore 4, arg0
+      v0 = keccak256 0, 36
+-     mstore 0, 0xff466c9f00000000000000000000000000000000000000000000000000000000
+      mstore 4, arg1
+      v1 = keccak256 0, 36
+      ret v0, v1
+  }
+  
+  fn @read_before_overwrite(arg0: u256, arg1: u256) -> (u256, u256) {
+    bb0:
+      mstore 4, 0xff466c9f
+      mstore 0, arg0
+      v0 = keccak256 12, 24
+      mstore 4, 0xff466c9f
+      v1 = mload 0
+      mstore 0, arg1
+      ret v0, v1
+  }
+  
+  fn @hash_before_overwrite(arg0: u256, arg1: u256) -> (u256, u256) {
+    bb0:
+      mstore 4, 0xff466c9f
+      mstore 0, arg0
+      v0 = keccak256 12, 24
+      mstore 4, 0xff466c9f
+      v1 = keccak256 0, 36
+      mstore 0, arg1
+      ret v0, v1
+  }
+  
+  fn @residual_byte_write(arg0: u256, arg1: u256, arg2: u256) -> (u256, u256) {
+    bb0:
+      mstore 4, 0xff466c9f
+      mstore 0, arg0
+      v0 = keccak256 12, 24
+      mstore8 32, arg2
+      mstore 4, 0xff466c9f
+      mstore 0, arg1
+      v1 = keccak256 12, 24
+      ret v0, v1
+  }
+  
+  fn @unknown_write(arg0: u256, arg1: u256, arg2: u256) -> (u256, u256) {
+    bb0:
+      mstore 4, 0xff466c9f
+      mstore 0, arg0
+      v0 = keccak256 12, 24
+      mstore arg2, 0
+      mstore 4, 0xff466c9f
+      mstore 0, arg1
+      v1 = keccak256 12, 24
+      ret v0, v1
+  }
+  
+  fn @different_seed(arg0: u256, arg1: u256) -> (u256, u256) {
+    bb0:
+      mstore 4, 0xee466c9f
+      mstore 0, arg0
+      v0 = keccak256 12, 24
+      mstore 4, 0xff466c9f
+      mstore 0, arg1
+      v1 = keccak256 12, 24
+      ret v0, v1
+  }
+  
+  fn @disjoint_next_store(arg0: u256, arg1: u256) -> (u256, u256) {
+    bb0:
+      mstore 4, 0xff466c9f
+      mstore 0, arg0
+      v0 = keccak256 12, 24
+      mstore 4, 0xff466c9f
+      mstore 36, arg1
+      v1 = keccak256 4, 64
+      ret v0, v1
+  }
+  
+  fn @window_8(arg0: u256, arg1: u256) -> (u256, u256, u256) {
+    bb0:
+      mstore 4, 0xff466c9f
+      mstore 0, arg0
+      v0 = keccak256 12, 24
+      v1 = xor arg0, 1
+      v2 = xor v1, 2
+      v3 = xor v2, 3
+      v4 = xor v3, 4
+      v5 = xor v4, 5
+-     mstore 4, 0xff466c9f
+      mstore 0, arg1
+      v6 = keccak256 12, 24
+      ret v0, v6, v5
+  }
+  
+  fn @window_9(arg0: u256, arg1: u256) -> (u256, u256, u256) {
+    bb0:
+      mstore 4, 0xff466c9f
+      mstore 0, arg0
+      v0 = keccak256 12, 24
+      v1 = xor arg0, 1
+      v2 = xor v1, 2
+      v3 = xor v2, 3
+      v4 = xor v3, 4
+      v5 = xor v4, 5
+      v6 = xor v5, 6
+      mstore 4, 0xff466c9f
+      mstore 0, arg1
+      v7 = keccak256 12, 24
+      ret v0, v7, v6
+  }
+  
+  fn @dead_seed_does_not_extend_window(arg0: u256, arg1: u256, arg2: u256) -> (u256, u256, u256, u256) {
+    bb0:
+      mstore 4, 0xff466c9f
+      mstore 0, arg0
+      v0 = keccak256 12, 24
+-     mstore 4, 0xff466c9f
+      mstore 0, arg1
+      v1 = keccak256 12, 24
+      v2 = xor arg0, 1
+      v3 = xor v2, 2
+      v4 = xor v3, 3
+      v5 = xor v4, 4
+      mstore 4, 0xff466c9f
+      mstore 0, arg2
+      v6 = keccak256 12, 24
+      ret v0, v1, v5, v6
+  }
+  

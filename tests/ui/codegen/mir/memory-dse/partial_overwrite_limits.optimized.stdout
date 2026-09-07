@@ -1,0 +1,54 @@
+- // === ROOT/tests/ui/codegen/mir/memory-dse/partial_overwrite_limits.mir (before memory-dse) ===
++ // === ROOT/tests/ui/codegen/mir/memory-dse/partial_overwrite_limits.mir (after memory-dse) ===
+  @module PartialOverwriteLimits
+  fn @endpoint_overflow(arg0: u256, arg1: u256) -> (u256, u256) {
+    bb0:
+      mstore 0xffffffffffffffef, 0xff466c9f
+      mstore 0xffffffffffffffeb, arg0
+      v0 = keccak256 0xffffffffffffffef, 32
+      mstore 0xffffffffffffffef, 0xff466c9f
+      mstore 0xffffffffffffffeb, arg1
+      v1 = keccak256 0xffffffffffffffef, 32
+      ret v0, v1
+  }
+  
+  fn @seed_in_predecessor(arg0: u256, arg1: u256) -> (u256, u256) {
+    bb0:
+      mstore 4, 0xff466c9f
+      mstore 0, arg0
+      v0 = keccak256 12, 24
+      jump bb1
+    bb1:
+      mstore 4, 0xff466c9f
+      mstore 0, arg1
+      v1 = keccak256 12, 24
+      ret v0, v1
+  }
+  
+  fn @repair_before_return(arg0: u256) {
+    bb0:
+      mstore 120, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      log0 120, 32
+      mstore 128, arg0
+      mstore 120, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      returndata 120, 32
+  }
+  
+  fn @residual_straddles_region(arg0: u256, arg1: u256) {
+    bb0:
+      mstore 120, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      log0 120, 32
+      mstore 128, arg0 !metadata(memory=heap)
+      mstore 120, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      mstore 132, arg1
+      returndata 120, 44
+  }
+  
+  fn @read_after_heap_write(arg0: u256) -> u256 {
+    bb0:
+      mstore 120, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      mstore 128, arg0
+      v0 = mload 120
+      ret v0
+  }
+  

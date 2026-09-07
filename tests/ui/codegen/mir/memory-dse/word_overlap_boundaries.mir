@@ -1,0 +1,231 @@
+//@ revisions: raw optimized
+//@[raw] compile-flags: -Zmir-pipeline=none
+//@[raw] filecheck: --check-prefixes=RAW,CHECK
+//@[optimized] compile-flags: -Zmir-pipeline=memory-dse
+//@[optimized] filecheck: --check-prefixes=OPT,CHECK
+@module MemoryDseWordOverlap
+
+// Disjoint full-word writes at offsets128 and96.
+// CHECK-LABEL: fn @before_32_constant
+// CHECK: {{^[ +].*}}log0 128, 32
+// CHECK: {{^[ +].*}}mstore 96, 0
+// CHECK: {{^[ +].*}}log0 96, 32
+// RAW: mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+// OPT-NOT: {{^[ +].*}}mstore 128,
+// CHECK: {{^[ +].*}}returndata 128, 32
+fn @before_32_constant() {
+  bb0:
+    mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    log0 128, 32
+    mstore 96, 0
+    log0 96, 32
+    mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    returndata 128, 32
+}
+
+// Disjoint full-word writes at offsets128 and96.
+// CHECK-LABEL: fn @before_32_unknown
+// CHECK: {{^[ +].*}}log0 128, 32
+// CHECK: {{^[ +].*}}mstore 96, arg0
+// CHECK: {{^[ +].*}}log0 96, 32
+// RAW: mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+// OPT-NOT: {{^[ +].*}}mstore 128,
+// CHECK: {{^[ +].*}}returndata 128, 32
+fn @before_32_unknown(arg0: u256) {
+  bb0:
+    mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    log0 128, 32
+    mstore 96, arg0
+    log0 96, 32
+    mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    returndata 128, 32
+}
+
+// Overlapping full-word writes at offsets128 and97.
+// CHECK-LABEL: fn @before_31_constant
+// CHECK: {{^[ +].*}}log0 128, 32
+// CHECK: {{^[ +].*}}mstore 97, 0
+// CHECK: {{^[ +].*}}mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+// CHECK: {{^[ +].*}}returndata 128, 32
+fn @before_31_constant() {
+  bb0:
+    mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    log0 128, 32
+    mstore 97, 0
+    mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    returndata 128, 32
+}
+
+// Overlapping full-word writes at offsets128 and97.
+// CHECK-LABEL: fn @before_31_unknown
+// CHECK: {{^[ +].*}}log0 128, 32
+// CHECK: {{^[ +].*}}mstore 97, arg0
+// CHECK: {{^[ +].*}}mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+// CHECK: {{^[ +].*}}returndata 128, 32
+fn @before_31_unknown(arg0: u256) {
+  bb0:
+    mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    log0 128, 32
+    mstore 97, arg0
+    mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    returndata 128, 32
+}
+
+// Overlapping full-word writes at offsets128 and127.
+// CHECK-LABEL: fn @before_1_constant
+// CHECK: {{^[ +].*}}log0 128, 32
+// CHECK: {{^[ +].*}}mstore 127, 0
+// CHECK: {{^[ +].*}}mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+// CHECK: {{^[ +].*}}returndata 128, 32
+fn @before_1_constant() {
+  bb0:
+    mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    log0 128, 32
+    mstore 127, 0
+    mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    returndata 128, 32
+}
+
+// Overlapping full-word writes at offsets128 and127.
+// CHECK-LABEL: fn @before_1_unknown
+// CHECK: {{^[ +].*}}log0 128, 32
+// CHECK: {{^[ +].*}}mstore 127, arg0
+// CHECK: {{^[ +].*}}mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+// CHECK: {{^[ +].*}}returndata 128, 32
+fn @before_1_unknown(arg0: u256) {
+  bb0:
+    mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    log0 128, 32
+    mstore 127, arg0
+    mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    returndata 128, 32
+}
+
+// Overlapping full-word writes at offsets128 and129.
+// CHECK-LABEL: fn @after_1_constant
+// CHECK: {{^[ +].*}}log0 128, 32
+// CHECK: {{^[ +].*}}mstore 129, 0
+// CHECK: {{^[ +].*}}mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+// CHECK: {{^[ +].*}}returndata 128, 32
+fn @after_1_constant() {
+  bb0:
+    mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    log0 128, 32
+    mstore 129, 0
+    mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    returndata 128, 32
+}
+
+// Overlapping full-word writes at offsets128 and129.
+// CHECK-LABEL: fn @after_1_unknown
+// CHECK: {{^[ +].*}}log0 128, 32
+// CHECK: {{^[ +].*}}mstore 129, arg0
+// CHECK: {{^[ +].*}}mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+// CHECK: {{^[ +].*}}returndata 128, 32
+fn @after_1_unknown(arg0: u256) {
+  bb0:
+    mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    log0 128, 32
+    mstore 129, arg0
+    mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    returndata 128, 32
+}
+
+// Overlapping full-word writes at offsets128 and159.
+// CHECK-LABEL: fn @after_31_constant
+// CHECK: {{^[ +].*}}log0 128, 32
+// CHECK: {{^[ +].*}}mstore 159, 0
+// CHECK: {{^[ +].*}}mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+// CHECK: {{^[ +].*}}returndata 128, 32
+fn @after_31_constant() {
+  bb0:
+    mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    log0 128, 32
+    mstore 159, 0
+    mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    returndata 128, 32
+}
+
+// Overlapping full-word writes at offsets128 and159.
+// CHECK-LABEL: fn @after_31_unknown
+// CHECK: {{^[ +].*}}log0 128, 32
+// CHECK: {{^[ +].*}}mstore 159, arg0
+// CHECK: {{^[ +].*}}mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+// CHECK: {{^[ +].*}}returndata 128, 32
+fn @after_31_unknown(arg0: u256) {
+  bb0:
+    mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    log0 128, 32
+    mstore 159, arg0
+    mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    returndata 128, 32
+}
+
+// Disjoint full-word writes at offsets128 and160.
+// CHECK-LABEL: fn @after_32_constant
+// CHECK: {{^[ +].*}}log0 128, 32
+// CHECK: {{^[ +].*}}mstore 160, 0
+// CHECK: {{^[ +].*}}log0 160, 32
+// RAW: mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+// OPT-NOT: {{^[ +].*}}mstore 128,
+// CHECK: {{^[ +].*}}returndata 128, 32
+fn @after_32_constant() {
+  bb0:
+    mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    log0 128, 32
+    mstore 160, 0
+    log0 160, 32
+    mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    returndata 128, 32
+}
+
+// Disjoint full-word writes at offsets128 and160.
+// CHECK-LABEL: fn @after_32_unknown
+// CHECK: {{^[ +].*}}log0 128, 32
+// CHECK: {{^[ +].*}}mstore 160, arg0
+// CHECK: {{^[ +].*}}log0 160, 32
+// RAW: mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+// OPT-NOT: {{^[ +].*}}mstore 128,
+// CHECK: {{^[ +].*}}returndata 128, 32
+fn @after_32_unknown(arg0: u256) {
+  bb0:
+    mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    log0 128, 32
+    mstore 160, arg0
+    log0 160, 32
+    mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    returndata 128, 32
+}
+
+// Equal contents at the exact address still make the repeated store dead.
+// CHECK-LABEL: fn @equal_store
+// CHECK: {{^[ +].*}}mstore 128, 1
+// CHECK: {{^[ +].*}}log0 128, 32
+// RAW: mstore 128, 1
+// OPT-NOT: {{^[ +].*}}mstore 128,
+// CHECK: {{^[ +].*}}returndata 128, 32
+fn @equal_store() {
+  bb0:
+    mstore 128, 1
+    log0 128, 32
+    mstore 128, 1
+    returndata 128, 32
+}
+// A single-predecessor successor inherits the predecessor's known words.
+// Its runtime-valued overlapping write must invalidate the inherited fact.
+// CHECK-LABEL: fn @inherited_unknown
+// CHECK: {{^[ +].*}}log0 128, 32
+// CHECK: {{^[ +].*}}jump bb1
+// CHECK: {{^[ +].*}}mstore 129, arg0
+// CHECK: {{^[ +].*}}mstore 128, 1
+// CHECK: {{^[ +].*}}returndata 128, 32
+fn @inherited_unknown(arg0: u256) {
+  bb0:
+    mstore 128, 1
+    log0 128, 32
+    jump bb1
+  bb1:
+    mstore 129, arg0
+    mstore 128, 1
+    returndata 128, 32
+}

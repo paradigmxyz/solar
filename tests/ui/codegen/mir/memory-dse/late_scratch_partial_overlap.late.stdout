@@ -1,0 +1,56 @@
+- // === ROOT/tests/ui/codegen/mir/memory-dse/late_scratch_partial_overlap.mir (before memory-dse) ===
++ // === ROOT/tests/ui/codegen/mir/memory-dse/late_scratch_partial_overlap.mir (after memory-dse) ===
+  @module LateScratchPartialOverlap
+  @phase dispatch
+  fn @entry() [entry] {
+    bb0:
+      stop
+  }
+  
+  fn @overlap() {
+    bb0:
+      frame_store scratch, word, 0, 1
+      log0 128, 32
+      mstore 129, 0
+      frame_store scratch, word, 0, 1
+      returndata 128, 32
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/memory-dse/late_scratch_partial_overlap.mir (before lower-frame-slots) ===
++ // === ROOT/tests/ui/codegen/mir/memory-dse/late_scratch_partial_overlap.mir (after lower-frame-slots) ===
+  @module LateScratchPartialOverlap
+  @phase dispatch
+  fn @entry() [entry] {
+    bb0:
+      stop
+  }
+  
+  fn @overlap() {
+    bb0:
+-     frame_store scratch, word, 0, 1
++     mstore 128, 1
+      log0 128, 32
+      mstore 129, 0
+-     frame_store scratch, word, 0, 1
++     mstore 128, 1
+      returndata 128, 32
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/memory-dse/late_scratch_partial_overlap.mir (before memory-dse) ===
++ // === ROOT/tests/ui/codegen/mir/memory-dse/late_scratch_partial_overlap.mir (after memory-dse) ===
+  @module LateScratchPartialOverlap
+  @phase dispatch
+  fn @entry() [entry] {
+    bb0:
+      stop
+  }
+  
+  fn @overlap() {
+    bb0:
+      mstore 128, 1
+      log0 128, 32
+      mstore 129, 0
+      mstore 128, 1
+      returndata 128, 32
+  }
+  
