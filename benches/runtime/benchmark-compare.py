@@ -24,7 +24,7 @@ from urllib.parse import urlencode
 
 from benchmark import workload_signature
 
-PERF_SITE_URL = "https://getfoundry.sh/perf/"
+PERF_SITE_URL = "https://getfoundry.sh/perf/solar/"
 
 METRICS = {
     "total_gas": "runtime gas",
@@ -1401,10 +1401,10 @@ def format_report(
     details = (
         "<details>\n"
         "<summary>Codegen benchmark output</summary>\n\n"
-        f"{markdown}\n\n"
+        f"{summary}{markdown}\n\n"
         "</details>\n"
     )
-    return notices + summary + details
+    return notices + details
 
 
 def metric(value: float, unit: str, statistic: str) -> dict[str, Any]:

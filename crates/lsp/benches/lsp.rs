@@ -11,9 +11,9 @@ use solar_lsp::{
     BenchmarkOpenDocuments, BenchmarkProject, BenchmarkRepeatedAnalysis, BenchmarkRequest,
     BenchmarkResponse, BenchmarkSelectionRangeRequests, BenchmarkWorkspaceDiscovery,
     BenchmarkWorkspacePathQueries, BenchmarkWorkspaceReports, benchmark_folding_ranges,
-    benchmark_folding_ranges_from_rope, benchmark_selection_ranges,
+    benchmark_folding_ranges_from_rope, benchmark_import_path_at, benchmark_selection_ranges,
 };
-use std::{fs, hint::black_box, path::PathBuf};
+use std::{fmt::Write as _, fs, hint::black_box, path::PathBuf};
 
 const ANALYSIS_FUNCTION_COUNTS: [usize; 2] = [64, 256];
 const INCOMPLETE_FOLDING_CONTRACT_COUNT: usize = 256;
@@ -126,6 +126,111 @@ fn analysis_build(c: &mut Criterion) {
                 );
             },
         );
+    }
+    let call = "function_0000(1, 2, address(0));";
+    let source = benchmark_source(1).source.replace(call, &call.repeat(256));
+    assert_clean(&BenchmarkAnalysis::from_source(source.clone()));
+    group.throughput(Throughput::Bytes(source.len() as u64));
+    group.bench_function(BenchmarkId::from_parameter("repeated-calls"), |b| {
+        b.iter_batched(
+            || source.clone(),
+            |source| black_box(BenchmarkAnalysis::from_source(black_box(source))),
+            BatchSize::PerIteration,
+        );
+    });
+    group.finish();
+}
+
+fn call_hierarchy_queries(c: &mut Criterion) {
+    let mut source = String::from("contract Root { function target() internal {}\n");
+    for index in 0..128 {
+        writeln!(source, "function caller{index}() public {{ target(); }}").unwrap();
+    }
+    source.push_str("}\n");
+    let project = BenchmarkProject::from_source(source);
+    let (uri, position) = project.unique_anchor("benchmark.sol", "target() internal").unwrap();
+    let analysis = project.analyze();
+    assert_clean(&analysis);
+    assert_eq!(analysis.incoming_calls(&uri, position).len(), 128);
+    let mut group = c.benchmark_group("lsp/call-hierarchy");
+    group.bench_function(BenchmarkId::from_parameter("128-callers"), |b| {
+        b.iter(|| black_box(analysis.incoming_calls(black_box(&uri), black_box(position))));
+    });
+    group.finish();
+}
+
+fn type_hierarchy_queries(c: &mut Criterion) {
+    let mut source = String::from("contract Root {}\n");
+    for index in 0..128 {
+        writeln!(source, "contract Child{index} is Root {{}}").unwrap();
+    }
+    let project = BenchmarkProject::from_source(source);
+    let (uri, position) =
+        project.unique_anchor("benchmark.sol", "Root {}\ncontract Child0").unwrap();
+    let analysis = project.analyze();
+    assert_clean(&analysis);
+    assert_eq!(analysis.type_hierarchy(&uri, position).len(), 128);
+    let mut group = c.benchmark_group("lsp/type-hierarchy");
+    group.bench_function(BenchmarkId::from_parameter("128-subtypes"), |b| {
+        b.iter(|| black_box(analysis.type_hierarchy(black_box(&uri), black_box(position))));
+    });
+    group.finish();
+}
+
+fn code_lens_queries(c: &mut Criterion) {
+    let fixture = benchmark_source(HOVER_FUNCTION_COUNT);
+    let (uri, _) =
+        fixture.project.unique_anchor("benchmark.sol", "function_0255(1, 2, address(0))").unwrap();
+    let analysis = fixture.project.analyze();
+    assert_clean(&analysis);
+    assert!(analysis.code_lenses(&uri).len() >= HOVER_FUNCTION_COUNT);
+    let mut group = c.benchmark_group("lsp/code-lens");
+    group.bench_function(BenchmarkId::from_parameter("256-functions"), |b| {
+        b.iter(|| black_box(analysis.code_lenses(black_box(&uri))));
+    });
+    group.finish();
+}
+
+fn import_path_queries(c: &mut Criterion) {
+    let mut group = c.benchmark_group("lsp/import-path");
+    let cursor = OPTIMISM_SOURCE.rfind('}').unwrap();
+    assert!(!benchmark_import_path_at(OPTIMISM_SOURCE, cursor));
+    group.bench_function(BenchmarkId::from_parameter("optimism-code"), |b| {
+        b.iter(|| {
+            black_box(benchmark_import_path_at(black_box(OPTIMISM_SOURCE), black_box(cursor)))
+        });
+    });
+    group.finish();
+}
+
+fn completion_queries(c: &mut Criterion) {
+    let fixture = benchmark_source(HOVER_FUNCTION_COUNT);
+    let (uri, position) =
+        fixture.project.unique_anchor("benchmark.sol", "function_0255(1, 2, address(0))").unwrap();
+    let analysis = fixture.project.analyze();
+    assert_clean(&analysis);
+    let mut group = c.benchmark_group("lsp/completion");
+    for (name, prefix) in
+        [("all", ""), ("selective", "function_0255"), ("no-match", "not_a_symbol")]
+    {
+        let items = analysis.completions(&uri, position, prefix);
+        match name {
+            "all" => assert!(items.len() >= HOVER_FUNCTION_COUNT),
+            "selective" => assert_eq!(
+                items.iter().map(|item| item.label.as_str()).collect::<Vec<_>>(),
+                ["function_0255"]
+            ),
+            _ => assert!(items.is_empty()),
+        }
+        group.bench_function(BenchmarkId::from_parameter(name), |b| {
+            b.iter(|| {
+                black_box(analysis.completions(
+                    black_box(&uri),
+                    black_box(position),
+                    black_box(prefix),
+                ))
+            });
+        });
     }
     group.finish();
 }
@@ -360,6 +465,13 @@ fn folding_range(c: &mut Criterion) {
     cached.bench_function(BenchmarkId::from_parameter("optimism-unchanged"), |b| {
         b.iter(|| black_box(requests.run()));
     });
+    cached.bench_function(BenchmarkId::from_parameter("optimism-first-request"), |b| {
+        b.iter_batched_ref(
+            || BenchmarkFoldingRangeRequests::new(OPTIMISM_SOURCE.to_owned()),
+            |requests| black_box(requests.run()),
+            BatchSize::PerIteration,
+        );
+    });
     cached.finish();
 }
 
@@ -450,6 +562,12 @@ fn repeated_analysis(c: &mut Criterion) {
     let mut cached = c.benchmark_group("lsp/incremental-analysis");
     cached.bench_function(BenchmarkId::from_parameter("unchanged"), |b| {
         b.iter(|| black_box(analysis.run()))
+    });
+    cached.bench_function(BenchmarkId::from_parameter("reverted-edit"), |b| {
+        b.iter(|| {
+            analysis.edit_and_revert();
+            black_box(analysis.run())
+        });
     });
     cached.finish();
 }
@@ -654,6 +772,11 @@ fn unifap_benches(c: &mut Criterion) {
 criterion_group!(
     benches,
     analysis_build,
+    completion_queries,
+    code_lens_queries,
+    type_hierarchy_queries,
+    call_hierarchy_queries,
+    import_path_queries,
     bounded_workspace_discovery,
     symbol_table_aggregation,
     burst_hover,

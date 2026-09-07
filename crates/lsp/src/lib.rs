@@ -324,6 +324,7 @@ mod folding_range;
 mod formatter;
 mod global_state;
 mod handlers;
+mod hierarchy;
 mod import_resolution;
 mod inlay_hints;
 mod lifecycle;
@@ -356,6 +357,13 @@ pub use global_state::benchmark::{
     BenchmarkSelectionRangeRequests, BenchmarkWorkspaceDiscovery, BenchmarkWorkspacePathQueries,
     BenchmarkWorkspaceReports,
 };
+
+/// Checks whether a source position belongs to a parsed import path.
+#[cfg(feature = "bench")]
+#[doc(hidden)]
+pub fn benchmark_import_path_at(source: &str, cursor: usize) -> bool {
+    import_resolution::import_path_at(source, cursor).is_some()
+}
 
 /// Runs the folding-range kernel for Criterion benchmarks.
 #[cfg(feature = "bench")]

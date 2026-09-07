@@ -897,7 +897,7 @@ fn hides_the_receiver_for_attached_library_functions() {
             using Math for uint256;
 
             function use(uint256 value) public pure returns (uint256) {
-                return value.bump($1 2);
+                return value.bump($1 Math.bump($2 value, 2));
             }
         }
         "#,
@@ -910,6 +910,16 @@ fn hides_the_receiver_for_attached_library_functions() {
 active signature=Some(0) parameter=Some(0)
 function bump(uint256 amount) internal pure returns (uint256)
   14..28
+
+"#]],
+    );
+    fixture.check_signature_help(
+        "$2",
+        str![[r#"
+active signature=Some(0) parameter=Some(0)
+function bump(uint256 self, uint256 amount) internal pure returns (uint256)
+  14..26
+  28..42
 
 "#]],
     );

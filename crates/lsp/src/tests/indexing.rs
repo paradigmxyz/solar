@@ -1,6 +1,148 @@
 use super::*;
+use crate::{handlers, vfs::VfsPath};
 use async_lsp::LanguageServer;
+use crop::Rope;
 use std::sync::atomic::AtomicBool;
+
+#[tokio::test(flavor = "current_thread")]
+async fn opening_identical_source_and_reverted_edits_reuse_analysis() {
+    let project = TestProject::from_fixture("//- /Main.sol\ncontract Main {}\n");
+    let path = project.path("/Main.sol");
+    let uri = Url::from_file_path(&path).unwrap();
+    let source = project.read_file("/Main.sol");
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    state.config = Arc::new(project.config());
+    state.recompute_after_opening_source(Vec::new());
+    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+    let published = state.symbol_tables.load_full();
+
+    let _ = handlers::did_open_text_document(
+        &mut state,
+        DidOpenTextDocumentParams {
+            text_document: TextDocumentItem::new(uri.clone(), "solidity".into(), 7, source.clone()),
+        },
+    );
+    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+    assert!(Arc::ptr_eq(&published, &state.symbol_tables.load()));
+    let reports = state.diagnostics.read().workspace_pull_reports(Vec::new());
+    assert_eq!(reports.iter().find(|report| report.uri == uri).unwrap().version, Some(7));
+
+    {
+        let mut vfs = state.vfs.write();
+        vfs.set_file_contents_with_version(
+            VfsPath::from(path.clone()),
+            Some(Rope::from("contract Edited {}")),
+            Some(8),
+        );
+        vfs.set_file_contents_with_version(
+            VfsPath::from(path.clone()),
+            Some(Rope::from(source.as_str())),
+            Some(9),
+        );
+    }
+    state.recompute_after_opening_source(vec![path.clone()]);
+    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+    assert!(Arc::ptr_eq(&published, &state.symbol_tables.load()));
+    let reports = state.diagnostics.read().workspace_pull_reports(Vec::new());
+    assert_eq!(reports.iter().find(|report| report.uri == uri).unwrap().version, Some(9));
+
+    state.vfs.write().set_file_contents_with_version(
+        VfsPath::from(path.clone()),
+        Some(Rope::from("contract Edited {}")),
+        Some(10),
+    );
+    state.recompute_after_opening_source(vec![path]);
+    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+    assert!(!Arc::ptr_eq(&published, &state.symbol_tables.load()));
+    assert_eq!(state.symbol_tables.load().workspace_symbols("Edited").len(), 1);
+
+    let edited = state.symbol_tables.load_full();
+    state.config = Arc::new((*state.config).clone());
+    state.recompute_after_opening_source(Vec::new());
+    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+    assert!(!Arc::ptr_eq(&edited, &state.symbol_tables.load()));
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn identical_inputs_do_not_hide_disk_dependency_changes() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /Main.sol
+        import "./lib/Dep.sol";
+        contract Main is Dep {}
+        //- /lib/Dep.sol
+        contract Dep {}
+    "#,
+    );
+    let main = project.path("/Main.sol");
+    let dep = project.path("/lib/Dep.sol");
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    state.config = Arc::new(project.config());
+    state.recompute_after_opening_source(Vec::new());
+    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+    let published = state.symbol_tables.load_full();
+    state.vfs.write().set_file_contents_with_version(
+        VfsPath::from(main.clone()),
+        Some(Rope::from(project.read_file("/Main.sol").as_str())),
+        Some(1),
+    );
+    std::fs::write(&dep, "contract Dep { uint public changed; }").unwrap();
+    state.recompute_with_disk_files(vec![dep]);
+    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+    assert!(!Arc::ptr_eq(&published, &state.symbol_tables.load()));
+    assert_eq!(state.symbol_tables.load().workspace_symbols("changed").len(), 1);
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn disk_dependency_changes_survive_cache_reuse_attempts() {
+    for notify_change in [false, true] {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /Main.sol
+            import "./lib/Dep.sol";
+            contract Main is Dep {}
+            //- /lib/Dep.sol
+            contract Dep {}
+        "#,
+        );
+        let main = project.path("/Main.sol");
+        let dep = project.path("/lib/Dep.sol");
+        let source = project.read_file("/Main.sol");
+        let mut state = GlobalState::new(ClientSocket::new_closed());
+        state.config = Arc::new(project.config());
+        state.vfs.write().set_file_contents_with_version(
+            VfsPath::from(main.clone()),
+            Some(Rope::from(source.as_str())),
+            Some(1),
+        );
+        state.recompute_after_opening_source(Vec::new());
+        tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+        let published = state.symbol_tables.load_full();
+
+        std::fs::write(&dep, "contract Dep { uint public changed; }").unwrap();
+        if notify_change {
+            // Supersede the debounced disk request without changing the VFS revision.
+            state.recompute_for_file_changes(vec![dep], Vec::new(), false);
+        } else {
+            // A reverted edit must reload disk imports even without a watcher notification.
+            let mut vfs = state.vfs.write();
+            vfs.set_file_contents_with_version(
+                VfsPath::from(main.clone()),
+                Some(Rope::from("contract Edited {}")),
+                Some(2),
+            );
+            vfs.set_file_contents_with_version(
+                VfsPath::from(main.clone()),
+                Some(Rope::from(source.as_str())),
+                Some(3),
+            );
+        }
+        state.recompute_after_opening_source(vec![main]);
+        tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+        assert!(!Arc::ptr_eq(&published, &state.symbol_tables.load()));
+        assert_eq!(state.symbol_tables.load().workspace_symbols("changed").len(), 1);
+    }
+}
 
 #[tokio::test(flavor = "current_thread")]
 async fn cached_and_published_symbol_tables_share_storage() {
@@ -27,17 +169,25 @@ async fn cached_and_published_symbol_tables_share_storage() {
     tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
     assert!(Arc::ptr_eq(&published, &state.symbol_tables.load()));
 
-    // Publication wakes readers before the worker releases its previous snapshot.
-    let idle = tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.analysis_scheduler.gate.acquire())
-        .await
-        .unwrap()
-        .unwrap();
-    drop(idle);
-
+    // Publication precedes worker cleanup; wait until it releases its symbol references.
+    let _permit = tokio::time::timeout(
+        ASYNC_TEST_TIMEOUT,
+        state.analysis_scheduler.gate.clone().acquire_owned(),
+    )
+    .await
+    .unwrap()
+    .unwrap();
     let old = Arc::downgrade(&published);
     drop(published);
     state.clear_analysis_cache();
-    assert!(old.upgrade().is_none());
+    // Publication wakes readers before the worker drops its previous snapshot.
+    tokio::time::timeout(ASYNC_TEST_TIMEOUT, async {
+        while old.upgrade().is_some() {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .unwrap();
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -54,6 +204,14 @@ async fn retained_symbol_snapshot_does_not_block_publication_or_clear() {
     state.recompute_after_opening_source(vec![project.path("/Main.sol")]);
     tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
 
+    // Publication precedes worker cleanup; wait until it releases its symbol references.
+    let _permit = tokio::time::timeout(
+        ASYNC_TEST_TIMEOUT,
+        state.analysis_scheduler.gate.clone().acquire_owned(),
+    )
+    .await
+    .unwrap()
+    .unwrap();
     let tables = state.symbol_tables.clone();
     let retained = tables.load();
     let old = Arc::downgrade(&retained);
