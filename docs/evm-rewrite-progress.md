@@ -1482,8 +1482,9 @@ bridge every affected object to the full capture; compiler inputs match
 between the baseline and candidate legs.
 
 All 24 full-workflow and 15 Size-workflow IDs retain 175 ordered gas labels
-and 139 observations per compiler. Runtime and deployment gas are unchanged.
-The Size Aave L2 encoder shrinks 44 bytes in both creation and runtime;
+and 139 observations per compiler. Runtime gas is unchanged. The Size Aave
+L2 encoder's deployment gas falls 776,314 to 766,790 (9,524 saved); its
+creation and runtime each shrink 44 bytes;
 other runtime objects are exact. Four changed project outputs were recaptured,
 and five unchanged fingerprints bridge retained outputs. Across all 1,672
 project contracts and 3,344 objects, 66 objects shrink by 3,075 creation and
@@ -1556,3 +1557,69 @@ justify its demonstrated local benefit. The independent physical witness has
 decoder-failure pairs; it does not validate the Rust query or later optimization.
 Neither artifact is an accepted compiler optimization. The refreshed
 solx/Venom/Sonatina memory audit is recorded in the scheduling research document.
+
+
+### Literal frame forwarding
+
+Commit `2a55250a` extends the existing MIR MemoryDse pass to forward known
+literal words through semantic frame slots in acyclic functions. Frame facts
+retain physical base/offset but use the unknown alias region, so raw accesses
+cannot evade invalidation through a frame-region tag. Each word write kills
+old facts before admitting a literal; existing raw-load forwarding remains
+unchanged. Admission is computed once per pass fixpoint, and cycle analysis
+is requested only for functions containing word-frame operations. No extra
+pass, backend representation or assembler logic was added. This adds 81
+physical MIR lines; the backend census remains 16,444 lines in 45 files.
+
+The broader drafts were rejected and retained. Precise frame regions hid raw
+aliases; unrestricted forwarding grew two Size objects by 20 bytes each;
+literal forwarding in loops regressed 31 of 66 focused calls by 3–87 gas.
+The final acyclic restriction restores that loop's complete creation/runtime
+objects to the preceding candidate. The sealed compiler is wrong on 34 of
+those loop inputs, so its gas on those inputs is not a correctness-equivalent
+baseline. A failed edit attempt is separately recorded as an unchanged capture,
+not a new candidate.
+
+Frozen `04007f97` versus `775676aa` preserves all 815 UI source hashes,
+1,628 ordered compilation IDs and 4,940 objects. Fifty-eight objects shrink,
+none grow or change bytes at equal size. Gas creation/runtime totals fall
+315/107 bytes and Size 299/91. The official full 24-ID and Size 15-ID reports
+retain all 175 ordered gas labels and 139 observations per compiler, with
+identical runtime/deployment gas and physical runtime artifacts. Across nine
+archived projects, 1,672 contracts and 3,344 objects, 19 objects shrink by
+132 creation and 126 runtime bytes, with no growth. Complete output hashes
+bridge retained raw captures; eight source-map changes and immutable/link
+relocations passed independent review.
+
+The original tuple fixture shrinks from 247/230 creation/runtime bytes to
+239/222 in both modes, versus sealed 250/233. Its `multi` call falls from
+125 to 98 gas; the other 15 labels retain preceding-candidate gas. All outputs
+match sealed and solc. The named-call paths still cost ten more gas than sealed
+in Gas and seven in Size. Their original shared-return CHECK has not been
+changed in this milestone. A separate matched scalar `solsymdiff` probe reports
+bounded agreement for both compiler legs; its runtime shrinks 83 to 70 bytes.
+This is not a full-memory or all-input equivalence proof.
+
+The installed 20-case MIR fixture has raw and optimized revisions; 25 negative
+FileCheck mutations fail. Final pinned UI has 11,647 passes, the same three
+original failures and 851 filtered revisions. Workspace tests have 1,395
+passes, one failing UI aggregate and two skips. All 36 Foundry projects pass;
+772/765 compiler/solc tests and 123/121 size reports match the preceding
+candidate exactly. Clippy, formatting, typos and diff checks pass. No original
+fixture or expectation changed in this milestone.
+
+Primary compiler-time geomean increases 2.1467%, with RSS down 0.2451%.
+A reversed-order five-sample repeat of four cases gives time down 10.0940%
+and RSS down 0.0131%, but retained Nitro, LibString and Forge outliers make
+that repeat unstable. It does not erase the primary slowdown or establish
+a compiler-speed improvement. The Size lane has one sample and no controlled
+timing claim.
+
+Original acceptance remains open: 1,059 project objects have positive size
+deltas totaling 33,271,788 bytes, the three original UI failures remain, and
+arbitrary-memory ownership and other recorded coverage gaps are unresolved.
+Evidence, rejected drafts, exact commands and independent reviews are in
+`semantic-frame-forwarding-workflow-20260907/` and
+`frame-word-forwarding-proposal-20260907/` beneath the candidate directory.
+The preceding empty-revert entry also corrects Aave Size deployment gas using
+its unchanged raw report: 776,314 to 766,790, rather than unchanged deployment.

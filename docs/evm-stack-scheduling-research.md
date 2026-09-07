@@ -191,3 +191,27 @@ Source hashes, copies and qualifications are in
 The home-192 counterexample is in `arbitrary-memory-spill-correctness-20260907/`
 beneath the same candidate directory. No upstream implementation was copied,
 and none of these source memory contracts is assumed to apply here.
+
+
+## Removing literal frame transport
+
+The memory-contract audit above informed a narrower implemented step: expose
+literal frame words to the existing MIR memory analysis before stack scheduling.
+This removes a transport load while leaving the semantic store available for
+observable raw accesses and subsequent ordinary dead-store analysis. Frame
+facts use unknown-region aliasing with exact physical base/offset; distinct
+semantic region tags alone do not establish disjointness from raw memory.
+No upstream implementation was copied.
+
+Measurements constrain admission to literal values in acyclic functions.
+Dynamic forwarding disrupted shared code and grew two Size objects; allowing
+literal forwarding in loops added repeated stack rotations and regressed hot
+gas despite equal bytecode size. The acyclic version shrinks 58 UI objects
+and 19 archived-project objects without growth against its preceding candidate,
+and preserves all official runtime labels. It adds 81 physical lines to the
+existing MIR pass, with no extra pipeline invocation. Its primary compiler-time
+geomean is 2.1467% slower; a noisy reversed-order repeat does not establish a
+speedup. This is a measured transport optimization, not general frame-to-SSA
+promotion, a proof of spill-memory ownership, or closure of sealed size debt.
+See `semantic-frame-forwarding-workflow-20260907/` beneath the candidate evidence
+directory for the rejected variants and identical-input comparisons.
