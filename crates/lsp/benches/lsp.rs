@@ -454,6 +454,13 @@ fn folding_range(c: &mut Criterion) {
     cached.bench_function(BenchmarkId::from_parameter("optimism-unchanged"), |b| {
         b.iter(|| black_box(requests.run()));
     });
+    cached.bench_function(BenchmarkId::from_parameter("optimism-first-request"), |b| {
+        b.iter_batched_ref(
+            || BenchmarkFoldingRangeRequests::new(OPTIMISM_SOURCE.to_owned()),
+            |requests| black_box(requests.run()),
+            BatchSize::PerIteration,
+        );
+    });
     cached.finish();
 }
 
