@@ -130,6 +130,20 @@ fn analysis_build(c: &mut Criterion) {
     group.finish();
 }
 
+fn code_lens_queries(c: &mut Criterion) {
+    let fixture = benchmark_source(HOVER_FUNCTION_COUNT);
+    let (uri, _) =
+        fixture.project.unique_anchor("benchmark.sol", "function_0255(1, 2, address(0))").unwrap();
+    let analysis = fixture.project.analyze();
+    assert_clean(&analysis);
+    assert!(analysis.code_lenses(&uri).len() >= HOVER_FUNCTION_COUNT);
+    let mut group = c.benchmark_group("lsp/code-lens");
+    group.bench_function(BenchmarkId::from_parameter("256-functions"), |b| {
+        b.iter(|| black_box(analysis.code_lenses(black_box(&uri))));
+    });
+    group.finish();
+}
+
 fn completion_queries(c: &mut Criterion) {
     let fixture = benchmark_source(HOVER_FUNCTION_COUNT);
     let (uri, position) =
@@ -687,6 +701,7 @@ criterion_group!(
     benches,
     analysis_build,
     completion_queries,
+    code_lens_queries,
     bounded_workspace_discovery,
     symbol_table_aggregation,
     burst_hover,

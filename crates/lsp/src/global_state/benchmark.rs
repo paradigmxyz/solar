@@ -21,9 +21,10 @@ use crate::{
 use async_lsp::ClientSocket;
 use crop::Rope;
 use lsp_types::{
-    CompletionItem, Diagnostic, DidChangeTextDocumentParams, GotoDefinitionResponse, Hover,
-    HoverContents, Location, Position, PreviousResultId, Range, TextDocumentContentChangeEvent,
-    Url, VersionedTextDocumentIdentifier, WorkspaceFolder, WorkspaceSymbol,
+    CodeLens, CompletionItem, Diagnostic, DidChangeTextDocumentParams, GotoDefinitionResponse,
+    Hover, HoverContents, Location, Position, PreviousResultId, Range,
+    TextDocumentContentChangeEvent, Url, VersionedTextDocumentIdentifier, WorkspaceFolder,
+    WorkspaceSymbol,
 };
 use normalize_path::NormalizePath;
 use solar_config::{CompileOpts, Threads};
@@ -864,6 +865,15 @@ impl BenchmarkAnalysis {
                 BenchmarkResponse::WorkspaceSymbols(self.symbol_tables.workspace_symbols(query))
             }
         }
+    }
+
+    /// Render CodeLens annotations with the VS Code client commands enabled.
+    #[inline(never)]
+    pub fn code_lenses(&self, uri: &Url) -> Vec<CodeLens> {
+        self.symbol_tables.code_lenses(
+            uri,
+            crate::config::CodeLensConfig { client_commands: true, ..Default::default() },
+        )
     }
 
     /// Complete names at a source position without protocol transport or parsing.

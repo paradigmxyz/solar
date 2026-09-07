@@ -572,8 +572,13 @@ impl SymbolTables {
 
     fn reference_count(&self, targets: &[SymbolId]) -> Option<usize> {
         let mut locations = FxHashSet::default();
-        for index in self.complete_reference_indices_for_targets(targets)? {
+        for &index in
+            targets.iter().filter_map(|target| self.symbol_references.get(target)).flatten()
+        {
             let location = &self.references[index].location;
+            if self.rename.conflicting_contents().contains(&location.uri) {
+                return None;
+            }
             locations.insert((&location.uri, location.range));
         }
         Some(locations.len())
