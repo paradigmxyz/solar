@@ -4,7 +4,12 @@
 //! later full-word `mstore` to the same exact address within the same basic
 //! block, before any operation can observe memory or gas. It also forwards
 //! same-block `mload` instructions from the latest exact-address `mstore` when
-//! no intervening operation can mutate memory. A bounded repeated-store check
+//! no intervening operation can mutate memory. Word frame accesses use their existing
+//! physical alias ranges to forward literal values without extending dynamic pointer
+//! lifetimes. Cyclic functions retain their existing processing: even literal
+//! forwarding can increase repeated stack shuffles. Frame annotations grant no private
+//! memory or escape permission, and frame stores remain for later lowering.
+//! A bounded repeated-store check
 //! also removes a constant word restaging when an adjacent overlapping store
 //! covers every changed byte and the untouched bytes still match a live seed.
 
@@ -15,8 +20,8 @@ use crate::{
     },
     memory::EvmMemoryLayout,
     mir::{
-        BlockId, Function, Immediate, InstId, InstKind, MemoryObjectKind, MemoryRegion, Module,
-        Terminator, Value, ValueId, utils as mir_utils,
+        BlockId, FrameSlotKind, Function, Immediate, InstId, InstKind, MemoryObjectKind,
+        MemoryRegion, Module, Terminator, Value, ValueId, utils as mir_utils,
     },
     pass::{MirPass, run_function_pass},
 };
@@ -63,6 +68,8 @@ struct MemoryStoreEliminator {
     /// Number of memory instructions eliminated.
     eliminated_count: usize,
     alias: Option<Rc<AliasAnalysis>>,
+    /// Whether the current CFG admits literal frame forwarding without loop costs.
+    frame_literals: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -392,7 +399,11 @@ impl MemoryStoreEliminator {
                     | InstKind::StorageToMemory { .. }
                     | InstKind::AbiEncode { .. }
                     | InstKind::AbiDecode { .. }
-            )
+            ) || self.frame_literals
+                && matches!(
+                    func.inst(inst_id).kind,
+                    InstKind::FrameStore { kind: FrameSlotKind::Word, .. }
+                )
         });
         if !has_memory_writes {
             return 0;
@@ -687,6 +698,15 @@ impl MemoryStoreEliminator {
 
     /// Runs local memory optimization until no more instructions can be eliminated.
     fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
+        // Query lazy cycle analysis only for the new frame-word opportunity.
+        self.frame_literals =
+            func.instructions().any(|inst| {
+                matches!(
+                    func.inst(inst).kind,
+                    InstKind::FrameStore { kind: FrameSlotKind::Word, .. }
+                        | InstKind::FrameLoad { kind: FrameSlotKind::Word, .. }
+                )
+            }) && self.cfg.as_ref().is_some_and(|cfg| cfg.cyclic_blocks().is_empty());
         let mut total = 0;
         let mut scratch = BlockScratch::new(func);
         loop {
@@ -836,6 +856,10 @@ impl MemoryStoreEliminator {
                     mstores += 1;
                     memory_writes += 1;
                 }
+                InstKind::FrameStore { kind: FrameSlotKind::Word, .. } if self.frame_literals => {
+                    mstores += 1;
+                    memory_writes += 1;
+                }
                 InstKind::MemoryZero(_, _)
                 | InstKind::CalldataCopy(_, _, _)
                 | InstKind::DataCopy(_, _, _)
@@ -847,6 +871,9 @@ impl MemoryStoreEliminator {
                 | InstKind::AbiEncode { .. }
                 | InstKind::AbiDecode { .. } => memory_writes += 1,
                 InstKind::MLoad(_) | InstKind::MemoryObjectLen(_, _) => has_load = true,
+                InstKind::FrameLoad { kind: FrameSlotKind::Word, .. } if self.frame_literals => {
+                    has_load = true
+                }
                 InstKind::Keccak256(_, _) => has_keccak = true,
                 _ if self
                     .alias()
@@ -1462,7 +1489,19 @@ impl MemoryStoreEliminator {
                     let Some(key) = self.mem_addr_key(func, *addr) else {
                         continue;
                     };
-                    let Some(&stored_value) = scratch.stored_values.get(key) else {
+                    let Some(&stored_value) = scratch.stored_values.get(key).or_else(|| {
+                        if !self.frame_literals {
+                            return None;
+                        }
+                        // Frame stores retain no source-region disjointness assumption.
+                        scratch
+                            .stored_values
+                            .get(MemAddrKey(MemoryAddress {
+                                region: MemoryRegion::Unknown,
+                                ..key.0
+                            }))
+                            .filter(|&&value| func.value_u256(value).is_some())
+                    }) else {
                         continue;
                     };
                     if let Some(loaded_value) = func.inst_result_value(inst_id) {
@@ -1480,6 +1519,43 @@ impl MemoryStoreEliminator {
                     };
                     if let Some(loaded_value) = func.inst_result_value(inst_id) {
                         scratch.replacements.insert(loaded_value, stored_value);
+                        scratch.dead.insert(inst_id);
+                    }
+                }
+                InstKind::FrameStore { kind: FrameSlotKind::Word, value, .. }
+                    if self.frame_literals =>
+                {
+                    let effects = self.alias().instruction_mod_ref(func, inst_id);
+                    let [Access::Location(Location::Memory(location))] = effects.writes() else {
+                        scratch.stored_values.clear();
+                        continue;
+                    };
+                    // Logical frames do not make raw source-memory regions disjoint.
+                    let key = MemAddrKey(MemoryAddress {
+                        region: MemoryRegion::Unknown,
+                        ..location.address
+                    });
+                    scratch.stored_values.invalidate(key, 32);
+                    let value = mir_utils::resolve_replacement(*value, &scratch.replacements);
+                    // Avoid extending dynamic pointer lifetimes and disturbing shared tails.
+                    if func.value_u256(value).is_some() {
+                        scratch.stored_values.insert(key, value);
+                    }
+                }
+                InstKind::FrameLoad { kind: FrameSlotKind::Word, .. } if self.frame_literals => {
+                    let effects = self.alias().instruction_mod_ref(func, inst_id);
+                    if let [Access::Location(Location::Memory(location))] = effects.reads()
+                        && let Some(&stored) =
+                            scratch.stored_values.get(MemAddrKey(MemoryAddress {
+                                region: MemoryRegion::Unknown,
+                                ..location.address
+                            }))
+                        && func.value_u256(stored).is_some()
+                        && let Some(loaded) = func.inst_result_value(inst_id)
+                    {
+                        // frame_store(slot, stored); loaded = frame_load(slot)
+                        // => frame_store(slot, stored); uses(loaded) = stored
+                        scratch.replacements.insert(loaded, stored);
                         scratch.dead.insert(inst_id);
                     }
                 }

@@ -1,0 +1,314 @@
+//@ revisions: raw optimized
+//@[raw] compile-flags: -Zmir-pipeline=none
+//@[raw] filecheck: --check-prefixes=RAW,CHECK
+//@[optimized] compile-flags: -Zmir-pipeline=memory-dse
+//@[optimized] filecheck: --check-prefixes=OPT,CHECK
+@module FrameWordForwarding
+
+// Frame-only gates, complete 256-bit literal forwarding, and replacement of every use.
+// CHECK-LABEL: {{^[ +]*}}fn @wide_multiple_uses{{[( ]}}
+// CHECK: {{^[ +].*}}frame_store scratch, word, 0, 0x100000000000000000000000000000000000000000000000007
+// RAW: {{^[ +].*}}v0 = frame_load scratch, word, 0
+// OPT-NOT: {{^[ +].*}}frame_load
+// OPT: {{^[ +].*}}ret 0x100000000000000000000000000000000000000000000000007, 0x100000000000000000000000000000000000000000000000007
+fn @wide_multiple_uses() -> (u256, u256) {
+  bb0:
+    frame_store scratch, word, 0, 0x100000000000000000000000000000000000000000000000007
+    v0 = frame_load scratch, word, 0
+    ret v0, v0
+}
+
+// Internal mode word equality without private-region assumptions.
+// CHECK-LABEL: {{^[ +]*}}fn @internal_word{{[( ]}}
+// CHECK: {{^[ +].*}}frame_store internal_frame, word, 0, 9
+// RAW: {{^[ +].*}}v0 = frame_load internal_frame, word, 0
+// OPT-NOT: {{^[ +].*}}frame_load
+// OPT: {{^[ +].*}}ret 9
+fn @internal_word() -> u256 {
+  bb0:
+    frame_store internal_frame, word, 0, 9
+    v0 = frame_load internal_frame, word, 0
+    ret v0
+}
+
+// Literal MultiReturn pointer publication and raw MLoad fallback; retain the store because LOG reads scratch.
+// CHECK-LABEL: {{^[ +]*}}fn @tuple_pointer_escape{{[( ]}}
+// CHECK: {{^[ +].*}}frame_store multi_return, word, 0, 128
+// CHECK: {{^[ +].*}}log0 32, 32
+// RAW: {{^[ +].*}}v0 = mload 32
+// OPT-NOT: {{^[ +].*}}mload 32
+// OPT: {{^[ +].*}}ret 128
+fn @tuple_pointer_escape() -> u256 {
+  bb0:
+    frame_store multi_return, word, 0, 128
+    log0 32, 32
+    v0 = mload 32
+    ret v0
+}
+
+// Resolve a prior frame-load replacement before checking the next store literal.
+// CHECK-LABEL: {{^[ +]*}}fn @replacement_chain{{[( ]}}
+// CHECK: {{^[ +].*}}frame_store scratch, word, 0, 7
+// RAW: {{^[ +].*}}v0 = frame_load scratch, word, 0
+// RAW: {{^[ +].*}}v1 = mload 32
+// OPT: {{^[ +].*}}frame_store multi_return, word, 0, 7
+// OPT-NOT: {{^[ +].*}}mload 32
+// OPT: {{^[ +].*}}ret 7
+fn @replacement_chain() -> u256 {
+  bb0:
+    frame_store scratch, word, 0, 7
+    v0 = frame_load scratch, word, 0
+    frame_store multi_return, word, 0, v0
+    v1 = mload 32
+    ret v1
+}
+
+// Raw literal128 Unknown-region seed to external FrameLoad; load gate activation.
+// CHECK-LABEL: {{^[ +]*}}fn @raw_literal_to_frame{{[( ]}}
+// CHECK: {{^[ +].*}}mstore 128, 23
+// RAW: {{^[ +].*}}v0 = frame_load scratch, word, 0
+// OPT-NOT: {{^[ +].*}}frame_load
+// OPT: {{^[ +].*}}ret 23
+fn @raw_literal_to_frame() -> u256 {
+  bb0:
+    mstore 128, 23
+    v0 = frame_load scratch, word, 0
+    ret v0
+}
+
+// Invalidate the full previous word before refusing a dynamic replacement seed; raw fallback must not revive128.
+// CHECK-LABEL: {{^[ +]*}}fn @dynamic_overwrite{{[( ]}}
+// CHECK: {{^[ +].*}}frame_store multi_return, word, 0, 128
+// CHECK: {{^[ +].*}}frame_store multi_return, word, 0, arg0
+// CHECK: {{^[ +].*}}v0 = mload 32
+// CHECK: {{^[ +].*}}ret v0
+fn @dynamic_overwrite(arg0: u256) -> u256 {
+  bb0:
+    frame_store multi_return, word, 0, 128
+    frame_store multi_return, word, 0, arg0
+    v0 = mload 32
+    ret v0
+}
+
+// Nonliteral frame pointer values remain loads at raw fallback.
+// CHECK-LABEL: {{^[ +]*}}fn @dynamic_pointer{{[( ]}}
+// CHECK: {{^[ +].*}}frame_store multi_return, word, 0, arg0
+// CHECK: {{^[ +].*}}v0 = mload 32
+// CHECK: {{^[ +].*}}ret v0
+fn @dynamic_pointer(arg0: u256) -> u256 {
+  bb0:
+    frame_store multi_return, word, 0, arg0
+    v0 = mload 32
+    ret v0
+}
+
+// FrameLoad refuses a raw nonliteral fact while the pre-existing raw exact path still forwards it.
+// CHECK-LABEL: {{^[ +]*}}fn @raw_dynamic_exact{{[( ]}}
+// CHECK: {{^[ +].*}}mstore 128, arg0
+// CHECK: {{^[ +].*}}v0 = frame_load scratch, word, 0
+// RAW: {{^[ +].*}}v1 = mload 128
+// OPT-NOT: {{^[ +].*}}mload 128
+// OPT: {{^[ +].*}}ret v0, arg0
+fn @raw_dynamic_exact(arg0: u256) -> (u256, u256) {
+  bb0:
+    mstore 128, arg0
+    v0 = frame_load scratch, word, 0
+    v1 = mload 128
+    ret v0, v1
+}
+
+// Rejected initial region rule: an FMP-derived Heap pointer can alias the external frame at128.
+// CHECK-LABEL: {{^[ +]*}}fn @heap_tagged_overlap{{[( ]}}
+// CHECK: {{^[ +].*}}frame_store scratch, word, 0, 1
+// CHECK: {{^[ +].*}}mstore 64, 128
+// RAW: {{^[ +].*}}v0 = mload 64
+// RAW: {{^[ +].*}}v1 = frame_load scratch, word, 0
+// OPT: {{^[ +].*}}mstore 128, 2
+// OPT-NOT: {{^[ +].*}}frame_load
+// OPT: {{^[ +].*}}ret 2
+fn @heap_tagged_overlap() -> u256 {
+  bb0:
+    frame_store scratch, word, 0, 1
+    mstore 64, 128
+    v0 = mload 64
+    mstore v0, 2
+    v1 = frame_load scratch, word, 0
+    ret v1
+}
+
+// Rejected initial region rule: a raw Scratch-starting copy may extend into an internal frame.
+// CHECK-LABEL: {{^[ +]*}}fn @reserved_copy_spans_frame{{[( ]}}
+// CHECK: {{^[ +].*}}frame_store internal_frame, word, 0, 53
+// CHECK: {{^[ +].*}}calldatacopy 0, 0, 0x400
+// CHECK: {{^[ +].*}}v0 = frame_load internal_frame, word, 0
+// CHECK: {{^[ +].*}}ret v0
+fn @reserved_copy_spans_frame() -> u256 {
+  bb0:
+    frame_store internal_frame, word, 0, 53
+    calldatacopy 0, 0, 1024
+    v0 = frame_load internal_frame, word, 0
+    ret v0
+}
+
+// A dynamic raw destination invalidates an eligible constant frame fact.
+// CHECK-LABEL: {{^[ +]*}}fn @dynamic_raw_write{{[( ]}}
+// CHECK: {{^[ +].*}}frame_store multi_return, word, 0, 43
+// CHECK: {{^[ +].*}}mstore arg0, 0
+// CHECK: {{^[ +].*}}v0 = frame_load multi_return, word, 0
+// CHECK: {{^[ +].*}}ret v0
+fn @dynamic_raw_write(arg0: u256) -> u256 {
+  bb0:
+    frame_store multi_return, word, 0, 43
+    mstore arg0, 0
+    v0 = frame_load multi_return, word, 0
+    ret v0
+}
+
+// A one-byte overlapping write invalidates the whole eligible pointer word.
+// CHECK-LABEL: {{^[ +]*}}fn @partial_byte{{[( ]}}
+// CHECK: {{^[ +].*}}frame_store multi_return, word, 0, 128
+// CHECK: {{^[ +].*}}mstore8 63, 0
+// CHECK: {{^[ +].*}}v0 = mload 32
+// CHECK: {{^[ +].*}}ret v0
+fn @partial_byte() -> u256 {
+  bb0:
+    frame_store multi_return, word, 0, 128
+    mstore8 63, 0
+    v0 = mload 32
+    ret v0
+}
+
+// A dynamic copy extent invalidates an eligible constant even with a fixed destination.
+// CHECK-LABEL: {{^[ +]*}}fn @dynamic_copy_size{{[( ]}}
+// CHECK: {{^[ +].*}}frame_store multi_return, word, 0, 47
+// CHECK: {{^[ +].*}}calldatacopy 0, 0, arg0
+// CHECK: {{^[ +].*}}v0 = frame_load multi_return, word, 0
+// CHECK: {{^[ +].*}}ret v0
+fn @dynamic_copy_size(arg0: u256) -> u256 {
+  bb0:
+    frame_store multi_return, word, 0, 47
+    calldatacopy 0, 0, arg0
+    v0 = frame_load multi_return, word, 0
+    ret v0
+}
+
+// An ordinary internal memory writer invalidates the constant; no private caller-frame exemption.
+// CHECK-LABEL: {{^[ +]*}}fn @internal_call{{[( ]}}
+// CHECK: {{^[ +].*}}frame_store multi_return, word, 0, 59
+// CHECK: {{^[ +].*}}icall @writer, 0
+// CHECK: {{^[ +].*}}v0 = frame_load multi_return, word, 0
+// CHECK: {{^[ +].*}}ret v0
+fn @internal_call() -> u256 {
+  bb0:
+    frame_store multi_return, word, 0, 59
+    icall @writer, 0
+    v0 = frame_load multi_return, word, 0
+    ret v0
+}
+
+// A pure multi-result callee still publishes a new pointer through scratch32.
+// CHECK-LABEL: {{^[ +]*}}fn @multi_result_call{{[( ]}}
+// CHECK: {{^[ +].*}}frame_store multi_return, word, 0, 61
+// CHECK: {{^[ +].*}}v0 = icall @pair, 2, arg0
+// CHECK: {{^[ +].*}}v1 = frame_load multi_return, word, 0
+// CHECK: {{^[ +].*}}ret v1
+fn @multi_result_call(arg0: u256) -> u256 {
+  bb0:
+    frame_store multi_return, word, 0, 61
+    v0 = icall @pair, 2, arg0
+    v1 = frame_load multi_return, word, 0
+    ret v1
+}
+
+// A STATICCALL output of at most one byte invalidates the constant word; failure may leave its store observable.
+// CHECK-LABEL: {{^[ +]*}}fn @external_partial_output{{[( ]}}
+// CHECK: {{^[ +].*}}frame_store multi_return, word, 0, 128
+// CHECK: {{^[ +].*}}v0 = staticcall 0x3e8, 1, 0, 0, 32, 1
+// CHECK: {{^[ +].*}}v1 = frame_load multi_return, word, 0
+// CHECK: {{^[ +].*}}ret v1
+fn @external_partial_output() -> u256 {
+  bb0:
+    frame_store multi_return, word, 0, 128
+    v0 = staticcall 1000, 1, 0, 0, 32, 1
+    v1 = frame_load multi_return, word, 0
+    ret v1
+}
+
+// A64-byte slice write invalidates the word; slice loads themselves remain unsupported.
+// CHECK-LABEL: {{^[ +]*}}fn @slice_overwrite{{[( ]}}
+// CHECK: {{^[ +].*}}frame_store scratch, word, 0, 7
+// CHECK: {{^[ +].*}}frame_store scratch, calldata, 0, arg0
+// CHECK: {{^[ +].*}}v0 = frame_load scratch, word, 0
+// CHECK: {{^[ +].*}}v1 = frame_load scratch, calldata, 0
+// CHECK: {{^[ +].*}}ret v0, v1
+fn @slice_overwrite(arg0: calldataslice) -> (u256, calldataslice) {
+  bb0:
+    frame_store scratch, word, 0, 7
+    frame_store scratch, calldata, 0, arg0
+    v0 = frame_load scratch, word, 0
+    v1 = frame_load scratch, calldata, 0
+    ret v0, v1
+}
+
+// Do not import older region-separated raw Scratch facts into normalized frame loads, even for literals.
+// CHECK-LABEL: {{^[ +]*}}fn @raw_scratch_refused{{[( ]}}
+// CHECK: {{^[ +].*}}mstore 32, 29
+// CHECK: {{^[ +].*}}v0 = frame_load multi_return, word, 0
+// CHECK: {{^[ +].*}}ret v0
+fn @raw_scratch_refused() -> u256 {
+  bb0:
+    mstore 32, 29
+    v0 = frame_load multi_return, word, 0
+    ret v0
+}
+
+// No local load is needed for published scratch bytes to escape; forwarding must not remove the store.
+// CHECK-LABEL: {{^[ +]*}}fn @scratch_terminal_escape{{[( ]}}
+// CHECK: {{^[ +].*}}frame_store multi_return, word, 0, 128
+// CHECK: {{^[ +].*}}returndata 32, 32
+fn @scratch_terminal_escape() {
+  bb0:
+    frame_store multi_return, word, 0, 128
+    returndata 32, 32
+}
+
+fn @writer() {
+  bb0:
+    mstore 32, 67
+    ret
+}
+
+fn @pair(arg0: u256) -> (u256, u256) {
+  bb0:
+    ret arg0, 71
+}
+
+// New frame facts and both frame/raw lookup paths decline in a cyclic function.
+// The existing raw exact store-to-load optimization remains enabled.
+// CHECK-LABEL: {{^[ +]*}}fn @cyclic_prefix{{[( ]}}
+// CHECK: {{^[ +].*}}frame_store multi_return, word, 0, 128
+// CHECK: {{^[ +].*}}v0 = frame_load multi_return, word, 0
+// CHECK: {{^[ +].*}}v1 = mload 32
+// CHECK: {{^[ +].*}}mstore 128, 7
+// RAW: {{^[ +].*}}v2 = mload 128
+// RAW: {{^[ +].*}}ret v0, v1, v2
+// OPT-NOT: {{^[ +].*}}mload 128
+// OPT: {{^[ +].*}}ret v0, v1, 7
+fn @cyclic_prefix(arg0: u256) -> (u256, u256, u256) {
+  bb0:
+    frame_store multi_return, word, 0, 128
+    v0 = frame_load multi_return, word, 0
+    v1 = mload 32
+    mstore 128, 7
+    v2 = mload 128
+    jump bb1
+  bb1:
+    v3 = phi [bb0: 0], [bb2: v4]
+    v5 = lt v3, arg0
+    jumpi v5, bb2, bb3
+  bb2:
+    v4 = add v3, 1
+    jump bb1
+  bb3:
+    ret v0, v1, v2
+}
