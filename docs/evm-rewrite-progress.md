@@ -737,3 +737,40 @@ named hard links under the existing `target/debug`; no source implementation
 was retrieved to reconstruct the baseline. That comparison is still pending.
 The pair candidate remains uncommitted, and full rewrite completion remains
 open.
+
+
+### Two-word admission under the new workflow
+
+Committed `fad8a4f6`: bounded terminal pair compaction adds 71 net raw
+production lines. The original 1,582 UI rows and 4,780 objects retain their
+success inventory. Gas creation/runtime shrink 316/310 bytes; size shrinks
+246/240 bytes, with no object increases. All nine heavy projects retain
+1,672 contracts and 3,344 objects: 52 shrink and four change at equal size,
+for 108 fewer creation and runtime bytes. ABI, source maps and all 541
+library/immutable reference tables, including offsets, remain exact.
+Both optimization modes keep fifteen hot cases and 175 call labels, with
+four less gas and no increase. The focused 103-call suite agrees with the
+sealed compiler and solc on observations; tuple swap saves eleven gas and
+multi saves two. Thirty new revisions, fifteen mutation controls and four
+bounded symbolic comparisons pass. Eight redundant fixture EOF newlines
+were removed with a hash mapping, then all thirty revisions passed again.
+
+The official runtime/compile-time workflow and independent audit retain all
+24 case IDs, both compiler labels and 240 artifact pairs. The two changed
+Solady MIR files are exact bijective helper renames; executable artifacts
+are identical. The Aave change is exactly the pair addresses plus required
+constructor length and immutable patch relocations. Compiler time measures
+2.84% lower overall, with last-process peak RSS 0.79% higher. PRB Math's
+initial 3.95% slowdown does not reproduce in a reversed five-sample repeat
+(1.99% faster); neither result establishes a stable compiler-speed change.
+Whole-run wall time is not comparable because the long-compile cutoff
+changes the actual number of samples. Evidence remains in
+`terminal-pair-workflow-20260907/`,
+`terminal-pair-official-independent-review-20260907/`, and the retained
+pair UI, heavy, focused-runtime and symbolic directories.
+
+Main `933bc1e2` remains merged. The latest complete workspace run passes
+1,395 tests but its UI aggregate still has eight original failures. No
+original test was removed or ignored. Local commits remain unpublished
+because automatic approval review rejected the earlier push. The sealed
+performance debts and computed-memory interference witness remain open.
