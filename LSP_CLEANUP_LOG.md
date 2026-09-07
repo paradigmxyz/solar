@@ -42,3 +42,12 @@ protocol behavior, benchmark IDs, workloads, and timing boundaries stable.
 - The Python suite passed 101 tests with six Node-dependent skips; Node is
   absent. Ruff format and lint passed. Both Rust packages passed 1,200 tests
   with one skip, and scoped Clippy/typecheck passed with the existing warning.
+
+## Benchmark process handling
+
+- Reused the writer's close operation at each failure path and the existing
+  artifact digest checker, preserving diagnostic text.
+- Moved finished observations out of the process instead of cloning retained
+  traces, and borrowed configuration request items instead of cloning JSON.
+- All 135 benchmark harness tests passed after the final ownership changes.
+  Review confirmed process cleanup never reads the moved observations.

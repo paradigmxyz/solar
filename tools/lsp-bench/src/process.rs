@@ -523,8 +523,7 @@ impl LspWriter {
         }
         let remaining = deadline.saturating_duration_since(Instant::now());
         if remaining.is_zero() {
-            self.poisoned = true;
-            self.sender.take();
+            self.close();
             bail!("timed out writing LSP message")
         }
         let (completion, result) = mpsc::channel();
@@ -534,15 +533,13 @@ impl LspWriter {
             match sender.try_send(request.take().expect("write request is present")) {
                 Ok(()) => break,
                 Err(mpsc::TrySendError::Disconnected(_)) => {
-                    self.poisoned = true;
-                    self.sender.take();
+                    self.close();
                     bail!("LSP stdin closed unexpectedly")
                 }
                 Err(mpsc::TrySendError::Full(returned)) => {
                     request = Some(returned);
                     if Instant::now() >= deadline {
-                        self.poisoned = true;
-                        self.sender.take();
+                        self.close();
                         bail!("timed out writing LSP message")
                     }
                     thread::sleep(Duration::from_millis(1));
@@ -552,19 +549,16 @@ impl LspWriter {
         match result.recv_timeout(deadline.saturating_duration_since(Instant::now())) {
             Ok(result) => {
                 if result.is_err() {
-                    self.poisoned = true;
-                    self.sender.take();
+                    self.close();
                 }
                 result
             }
             Err(mpsc::RecvTimeoutError::Timeout) => {
-                self.poisoned = true;
-                self.sender.take();
+                self.close();
                 bail!("timed out writing LSP message")
             }
             Err(mpsc::RecvTimeoutError::Disconnected) => {
-                self.poisoned = true;
-                self.sender.take();
+                self.close();
                 bail!("LSP stdin closed unexpectedly")
             }
         }
@@ -1334,7 +1328,7 @@ impl LspProcess {
                 forced_kill,
                 stderr,
             },
-            observations: self.observations.clone(),
+            observations: std::mem::take(&mut self.observations),
             shutdown_error,
             wait_timed_out,
         })
@@ -1441,15 +1435,13 @@ impl LspProcess {
         let mut handler_error = None;
         let (result, handled) = match method {
             "workspace/configuration" => {
-                let items = message
+                let values = message
                     .pointer("/params/items")
                     .and_then(Value::as_array)
-                    .cloned()
-                    .unwrap_or_default();
-                let values = items
-                    .iter()
+                    .into_iter()
+                    .flatten()
                     .map(|item| configuration_value(&self.configuration, item))
-                    .collect::<Vec<_>>();
+                    .collect();
                 (Value::Array(values), true)
             }
             "workspace/workspaceFolders" => {

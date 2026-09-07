@@ -456,39 +456,11 @@ fn is_full_git_revision(value: &str) -> bool {
 }
 
 fn check_artifact(kind: &str, id: &str, artifact: &ArtifactSpec) -> Check {
-    if !artifact.path.exists() {
-        return Check {
-            kind: kind.into(),
-            id: id.into(),
-            status: CheckStatus::Unavailable,
-            detail: format!("artifact `{}` was not found", artifact.path.display()),
-        };
+    let mut check = check_file_digest(kind, id, &artifact.path, artifact.sha256.as_deref());
+    if matches!(check.status, CheckStatus::Unpinned) {
+        check.detail = "artifact SHA-256 is not declared".into();
     }
-    let Some(expected) = artifact.sha256.as_deref() else {
-        return Check {
-            kind: kind.into(),
-            id: id.into(),
-            status: CheckStatus::Unpinned,
-            detail: "artifact SHA-256 is not declared".into(),
-        };
-    };
-    match sha256_path(&artifact.path) {
-        Ok(actual) if actual == expected => {
-            Check { kind: kind.into(), id: id.into(), status: CheckStatus::Pass, detail: actual }
-        }
-        Ok(actual) => Check {
-            kind: kind.into(),
-            id: id.into(),
-            status: CheckStatus::Mismatch,
-            detail: format!("expected {expected}, found {actual}"),
-        },
-        Err(error) => Check {
-            kind: kind.into(),
-            id: id.into(),
-            status: CheckStatus::Unavailable,
-            detail: format!("{error:#}"),
-        },
-    }
+    check
 }
 
 fn check_compiler(kind: &str, fixture: &str, compiler: &CompilerSpec) -> Vec<Check> {
