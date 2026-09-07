@@ -4,7 +4,7 @@
 //! observable behavior and terminate normally. Memory reads remain live when `msize` can observe
 //! their expansion. Calls with missing bodies, recursive cycles, checks, or external termination
 //! remain conservative; lowered multi-return buffer writes also prevent removal. Run on either
-//! representation, with a fresh module summary shared across the function-local fixed points.
+//! representation, sharing cached module summaries across the function-local fixed points.
 
 use crate::{
     analysis::{CfgInfo, MemoryCallSummaries, may_observe_msize},
@@ -30,7 +30,7 @@ impl MirPass for Dce {
         module: &mut Module,
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> solar_interface::Result<bool> {
-        let summaries = Arc::new(MemoryCallSummaries::new(module));
+        let summaries = analyses.call_summaries(module);
         Ok(run_function_pass(module, analyses, |func, _| {
             DeadCodeEliminator {
                 call_summaries: Some(Arc::clone(&summaries)),

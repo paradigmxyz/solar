@@ -294,13 +294,16 @@ pub fn run_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module, name: Option<
         if let Some(passes) = pipeline {
             let name = name.map(ToOwned::to_owned).unwrap_or_else(|| mir_output_name(gcx, module));
             let mut changed = false;
-            for pass in passes {
-                if let Some(pass) = pass {
-                    changed |= run_passes(gcx, module, &[pass], Some(&name));
-                    if gcx.dcx().has_errors().is_err() {
-                        return changed;
-                    }
-                } else if gcx.sess.opts.unstable.pass_diff {
+            let mut remaining = passes.as_slice();
+            while !remaining.is_empty() {
+                let end = remaining.iter().position(Option::is_none).unwrap_or(remaining.len());
+                let batch = remaining[..end].iter().copied().flatten().collect::<Vec<_>>();
+                changed |= run_passes(gcx, module, &batch, Some(&name));
+                if gcx.dcx().has_errors().is_err() || end == remaining.len() {
+                    return changed;
+                }
+                remaining = &remaining[end + 1..];
+                if gcx.sess.opts.unstable.pass_diff {
                     let text = module.to_text();
                     print_pass_diff(&name, "none", &text, &text);
                 } else if gcx.sess.opts.unstable.print_after_each {
@@ -373,8 +376,6 @@ pub(crate) struct FunctionAnalyses {
     pub(crate) alias: Rc<AliasAnalysis>,
     /// Shared CFG snapshot; RPO, dominators, and reachability build lazily.
     pub(crate) cfg: Rc<CfgInfo>,
-    /// Module call summaries for passes that consume them.
-    pub(crate) call_summaries: Option<Arc<MemoryCallSummaries>>,
 }
 
 /// Cached per-function analyses shared by every pass in one pipeline run.
@@ -393,8 +394,11 @@ impl ModuleAnalyses {
     }
 
     pub(crate) fn finish_pass(&mut self, changed: bool) {
-        if changed && !self.preserved_by_pass {
-            self.invalidate_all();
+        if changed {
+            self.call_summaries = None;
+            if !self.preserved_by_pass {
+                self.invalidate_all();
+            }
         }
     }
 
@@ -409,16 +413,14 @@ impl ModuleAnalyses {
     }
 
     fn bundle(&mut self, func_id: FunctionId, func: &Function) -> FunctionAnalyses {
-        FunctionAnalyses {
-            alias: self.alias(func_id),
-            cfg: self.cfg(func_id, func),
-            call_summaries: self.call_summaries.clone(),
-        }
+        FunctionAnalyses { alias: self.alias(func_id), cfg: self.cfg(func_id, func) }
     }
 
-    /// Provides module call summaries to subsequent pass runs.
-    pub(crate) fn set_call_summaries(&mut self, summaries: Arc<MemoryCallSummaries>) {
-        self.call_summaries = Some(summaries);
+    /// Returns call summaries shared until a pass changes the module.
+    pub(crate) fn call_summaries(&mut self, module: &Module) -> Arc<MemoryCallSummaries> {
+        Arc::clone(
+            self.call_summaries.get_or_insert_with(|| Arc::new(MemoryCallSummaries::new(module))),
+        )
     }
 
     fn retain(&mut self, func_id: FunctionId, keep_alias: bool, keep_cfg: bool) {
