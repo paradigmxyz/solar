@@ -1681,3 +1681,25 @@ size debt. Neither assertion was weakened. The compiler remained frozen at
 acceptance is claimed. Evidence and installation hashes are in
 `tuple-final6-migration-20260907/` and
 `tuple-final6-migration-independent-20260907/` beneath the candidate directory.
+
+
+### Cold-owner proposal held; large-object priority
+
+The uncompiled directed cold-owner proposal is held. Its 121 added lines have
+an accidental dependency on cold hints that the default pipeline produces later.
+A broader occupancy audit of retained full/Size IR found 35 distinct matching
+pairs per mode, all excluded by the required observer/control guards. Only the
+focused cold-call witness survives. That ten-byte witness does not justify the
+new helper or resolve successful fallthrough and sealed gas debt. No production
+patch or original expectation changed; the proposal, model and limitations are
+retained in `cold-directed-owner-proposal-20260907/`.
+
+The latest SeaportRouter census instead verifies runtime 23,977 versus sealed
+9,822 bytes on the identical 386-source input. Its 137 bitmap writer-protection
+fragments occupy 8,764 bytes, or 8,627 beyond their source stores: 60.95% of the
+14,155-byte debt. All terminal revert blocks together occupy only 357 bytes.
+Ninety-one adjacent spill-store/reload sequences account for 728 encoded bytes;
+that is an investigation target, not removable-byte or gas savings. Current SSA
+eligibility, backup shuffles and later normalization still require proof. The
+exact inputs, objects, disassembly and census are retained in
+`seaport-router-final040-review-20260907/` beneath the candidate directory.
