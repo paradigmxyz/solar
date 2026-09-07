@@ -1052,3 +1052,46 @@ regression. All 48 concrete calls and replay-confirmed fixed-prefix
 `arbitrary-memory-spill-correctness-20260907/`. Neither fewer spill homes nor
 small immutable recipes establish a general repair. Full functionality,
 sealed performance parity and passing CI remain unfinished.
+
+
+### Selective Phi trial: correctness screen, rejected cost
+
+The first selective-residency draft (`2503101c…`) uses one eight-word,
+interval-ranked proposal after ordinary allocation and rematerialization.
+It preserves reservations and entry layouts, excludes dynamic frames and
+incoming internal-call closures, and emits simultaneous mixed stack/home
+Phi transfers. Failed real lowering restores owned blocks, debug metadata,
+appended block IDs, both switch budgets and the original allocation.
+This is an uncommitted trial, not an accepted performance milestone.
+
+All 114 focused candidate calls pass; 29 improve opcode gas and 85 are
+unchanged. Adjacent-edge traces prove old-home snapshots survive writes and
+dying resident-to-home transfers. Same-edge mixed-header coverage and an
+actual failed-emission rollback remain open. Thirty-six independent control
+calls pass with exact paired output/gas, including an internal-call target
+whose tail descendant has nineteen Phis. Symbolic exploration is incomplete;
+it is not evidence of unrestricted agreement.
+
+The unchanged UI inventory has 807 compilation inputs per mode and 4,912
+objects. Gas creation/runtime each shrink by 741 bytes across three
+contracts; Size is byte-identical, with the same eighteen diagnostic rows.
+Nine full projects retain 1,672 contract IDs and 3,344 objects. Aggregate
+creation/runtime shrink by 100,006/59,394 bytes, but fourteen artifacts grow.
+The new workflow's hot runtime screen retains all fifteen IDs, 175 ordered
+gas labels and 139 observations unchanged. Nitro creation/runtime grow by
+43 bytes and deployment costs 9,307 more gas. These regressions reject the
+draft. Concurrent one-sample timing is not an acceptance measurement.
+
+Independent attribution finds compact-writer fragmentation in Nitro and
+Seaport. Retiring one home can turn a twelve-home bitmap into eleven ordinary
+backups, or a contiguous run into a larger bitmap. A proposed repair checks
+the actual initialized/live/overlapping writer bank and declines promotion
+when remaining protection costs more in either bytes or static gas. Global
+scheduling and outlining still require measured acceptance afterward.
+
+The workspace remains at 1,395 passing tests plus the same failing UI
+aggregate: 11,591 UI cases pass and four original cases fail. No tracked
+fixtures or expectations changed. Frozen binaries, source diffs, exact
+input joins and rejected results are in
+`target/codegen-bench/evm-rewrite-candidate/selective-spills-workflow-20260907/`;
+adjacent regression reviews retain binary-matched writer-region evidence.
