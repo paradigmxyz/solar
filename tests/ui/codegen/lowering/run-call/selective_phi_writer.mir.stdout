@@ -1,0 +1,162 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/selective_phi_writer.sol:SelectivePhiWriter ===
+@module SelectivePhiWriter
+fn @run(arg0: calldataslice, arg1: u256, arg2: bool, arg3: u256) -> u256 [selector=0x6dc4c069, pure, abi_params=[array<18, u256>, u256, bool, u256], abi_returns=[word]] {
+  bb0:
+    switch arg2, default bb3, [0 => bb2]
+  bb2:
+    v0 = slice_ptr arg0
+    v1 = calldataload v0
+    v2 = slice_ptr arg0
+    v3 = add v2, 32
+    v4 = calldataload v3
+    v5 = slice_ptr arg0
+    v6 = add v5, 64
+    v7 = calldataload v6
+    jump bb4
+  bb4:
+    v8 = phi [bb2: v1], [bb6: v10]
+    v9 = phi [bb2: arg2], [bb6: v9]
+    v10 = phi [bb2: v4], [bb6: v12]
+    v11 = phi [bb2: arg3], [bb6: v11]
+    v12 = phi [bb2: v7], [bb6: v8]
+    v13 = phi [bb2: arg0], [bb6: v13]
+    v14 = phi [bb2: 0], [bb6: v14]
+    v15 = phi [bb2: 0], [bb6: v20]
+    v16 = phi [bb2: arg1], [bb6: v16]
+    v17 = lt v15, v16
+    v18 = eq v17, 0
+    v19 = iszero v18
+    jumpi v19, bb7, bb8
+  bb8:
+    jump bb5
+  bb5:
+    v21 = mul v12, 7
+    v22 = mul v10, 3
+    v23 = add v8, v22
+    v24 = add v23, v21
+    jump bb1
+  bb7:
+    mstore v11, v8
+    jump bb9
+  bb9:
+    jump bb6
+  bb6:
+    v20 = add v15, 1
+    jump bb4
+  bb3:
+    v25 = slice_ptr arg0
+    v26 = add v25, 0
+    v27 = calldataload v26
+    v28 = mul v27, 3
+    v29 = slice_ptr arg0
+    v30 = add v29, 32
+    v31 = calldataload v30
+    v32 = mul v31, 3
+    v33 = slice_ptr arg0
+    v34 = add v33, 64
+    v35 = calldataload v34
+    v36 = mul v35, 3
+    v37 = slice_ptr arg0
+    v38 = add v37, 96
+    v39 = calldataload v38
+    v40 = mul v39, 3
+    v41 = slice_ptr arg0
+    v42 = add v41, 128
+    v43 = calldataload v42
+    v44 = mul v43, 3
+    v45 = slice_ptr arg0
+    v46 = add v45, 160
+    v47 = calldataload v46
+    v48 = mul v47, 3
+    v49 = slice_ptr arg0
+    v50 = add v49, 192
+    v51 = calldataload v50
+    v52 = mul v51, 3
+    v53 = slice_ptr arg0
+    v54 = add v53, 224
+    v55 = calldataload v54
+    v56 = mul v55, 3
+    v57 = slice_ptr arg0
+    v58 = add v57, 256
+    v59 = calldataload v58
+    v60 = mul v59, 3
+    v61 = slice_ptr arg0
+    v62 = add v61, 288
+    v63 = calldataload v62
+    v64 = mul v63, 3
+    v65 = slice_ptr arg0
+    v66 = add v65, 320
+    v67 = calldataload v66
+    v68 = mul v67, 3
+    v69 = slice_ptr arg0
+    v70 = add v69, 352
+    v71 = calldataload v70
+    v72 = mul v71, 3
+    v73 = slice_ptr arg0
+    v74 = add v73, 384
+    v75 = calldataload v74
+    v76 = mul v75, 3
+    v77 = slice_ptr arg0
+    v78 = add v77, 416
+    v79 = calldataload v78
+    v80 = mul v79, 3
+    v81 = slice_ptr arg0
+    v82 = add v81, 448
+    v83 = calldataload v82
+    v84 = mul v83, 3
+    v85 = slice_ptr arg0
+    v86 = add v85, 480
+    v87 = calldataload v86
+    v88 = mul v87, 3
+    v89 = slice_ptr arg0
+    v90 = add v89, 512
+    v91 = calldataload v90
+    v92 = mul v91, 3
+    v93 = slice_ptr arg0
+    v94 = add v93, 544
+    v95 = calldataload v94
+    v96 = mul v95, 3
+    mstore arg3, 7
+    v97 = mul v96, 18
+    v98 = mul v92, 17
+    v99 = mul v88, 16
+    v100 = mul v84, 15
+    v101 = mul v80, 14
+    v102 = mul v76, 13
+    v103 = mul v72, 12
+    v104 = mul v68, 11
+    v105 = mul v64, 10
+    v106 = mul v60, 9
+    v107 = mul v56, 8
+    v108 = mul v52, 7
+    v109 = mul v48, 6
+    v110 = mul v44, 5
+    v111 = mul v40, 4
+    v112 = mul v36, 3
+    v113 = mul v32, 2
+    v114 = add v28, v113
+    v115 = add v114, v112
+    v116 = add v115, v111
+    v117 = add v116, v110
+    v118 = add v117, v109
+    v119 = add v118, v108
+    v120 = add v119, v107
+    v121 = add v120, v106
+    v122 = add v121, v105
+    v123 = add v122, v104
+    v124 = add v123, v103
+    v125 = add v124, v102
+    v126 = add v125, v101
+    v127 = add v126, v100
+    v128 = add v127, v99
+    v129 = add v128, v98
+    v130 = add v129, v97
+    jump bb1
+  bb1:
+    v131 = phi [bb5: v11], [bb3: arg3]
+    v132 = phi [bb5: v13], [bb3: arg0]
+    v133 = phi [bb5: v9], [bb3: arg2]
+    v134 = phi [bb5: v24], [bb3: v130]
+    v135 = phi [bb5: v16], [bb3: arg1]
+    ret v134
+}

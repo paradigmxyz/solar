@@ -1,0 +1,193 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/selective_phi_call_control.sol:SelectivePhiCallControl ===
+@module SelectivePhiCallControl
+fn @run(arg0: calldataslice, arg1: u256, arg2: u256, arg3: u256) -> (u256, bool) [selector=0xa0527983, view, abi_params=[array<18, u256>, u256, u256, u256], abi_returns=[word, word<bool>]] {
+  bb0:
+    v0 = slice_ptr arg0
+    v1 = add v0, 0
+    v2 = calldataload v1
+    v3 = mul v2, 3
+    v4 = slice_ptr arg0
+    v5 = add v4, 32
+    v6 = calldataload v5
+    v7 = mul v6, 3
+    v8 = slice_ptr arg0
+    v9 = add v8, 64
+    v10 = calldataload v9
+    v11 = mul v10, 3
+    v12 = slice_ptr arg0
+    v13 = add v12, 96
+    v14 = calldataload v13
+    v15 = mul v14, 3
+    v16 = slice_ptr arg0
+    v17 = add v16, 128
+    v18 = calldataload v17
+    v19 = mul v18, 3
+    v20 = slice_ptr arg0
+    v21 = add v20, 160
+    v22 = calldataload v21
+    v23 = mul v22, 3
+    v24 = slice_ptr arg0
+    v25 = add v24, 192
+    v26 = calldataload v25
+    v27 = mul v26, 3
+    v28 = slice_ptr arg0
+    v29 = add v28, 224
+    v30 = calldataload v29
+    v31 = mul v30, 3
+    v32 = slice_ptr arg0
+    v33 = add v32, 256
+    v34 = calldataload v33
+    v35 = mul v34, 3
+    v36 = slice_ptr arg0
+    v37 = add v36, 288
+    v38 = calldataload v37
+    v39 = mul v38, 3
+    v40 = slice_ptr arg0
+    v41 = add v40, 320
+    v42 = calldataload v41
+    v43 = mul v42, 3
+    v44 = slice_ptr arg0
+    v45 = add v44, 352
+    v46 = calldataload v45
+    v47 = mul v46, 3
+    v48 = slice_ptr arg0
+    v49 = add v48, 384
+    v50 = calldataload v49
+    v51 = mul v50, 3
+    v52 = slice_ptr arg0
+    v53 = add v52, 416
+    v54 = calldataload v53
+    v55 = mul v54, 3
+    v56 = slice_ptr arg0
+    v57 = add v56, 448
+    v58 = calldataload v57
+    v59 = mul v58, 3
+    v60 = slice_ptr arg0
+    v61 = add v60, 480
+    v62 = calldataload v61
+    v63 = mul v62, 3
+    v64 = slice_ptr arg0
+    v65 = add v64, 512
+    v66 = calldataload v65
+    v67 = mul v66, 3
+    v68 = slice_ptr arg0
+    v69 = add v68, 544
+    v70 = calldataload v69
+    v71 = mul v70, 3
+    v72 = gas
+    v73 = icall @touch, 1, arg2, arg3
+    v74 = gas
+    v75 = gt v72, v74
+    v76 = mul v71, 18
+    v77 = mul v67, 17
+    v78 = mul v63, 16
+    v79 = mul v59, 15
+    v80 = mul v55, 14
+    v81 = mul v51, 13
+    v82 = mul v47, 12
+    v83 = mul v43, 11
+    v84 = mul v39, 10
+    v85 = mul v35, 9
+    v86 = mul v31, 8
+    v87 = mul v27, 7
+    v88 = mul v23, 6
+    v89 = mul v19, 5
+    v90 = mul v15, 4
+    v91 = mul v11, 3
+    v92 = mul v7, 2
+    v93 = add v3, v92
+    v94 = add v93, v91
+    v95 = add v94, v90
+    v96 = add v95, v89
+    v97 = add v96, v88
+    v98 = add v97, v87
+    v99 = add v98, v86
+    v100 = add v99, v85
+    v101 = add v100, v84
+    v102 = add v101, v83
+    v103 = add v102, v82
+    v104 = add v103, v81
+    v105 = add v104, v80
+    v106 = add v105, v79
+    v107 = add v106, v78
+    v108 = add v107, v77
+    v109 = add v108, v76
+    v110 = slice_ptr arg0
+    v111 = calldataload v110
+    v112 = slice_ptr arg0
+    v113 = add v112, 32
+    v114 = calldataload v113
+    v115 = slice_ptr arg0
+    v116 = add v115, 64
+    v117 = calldataload v116
+    jump bb1
+  bb1:
+    v118 = phi [bb0: v31], [bb3: v118]
+    v119 = phi [bb0: v19], [bb3: v119]
+    v120 = phi [bb0: v7], [bb3: v120]
+    v121 = phi [bb0: v117], [bb3: v132]
+    v122 = phi [bb0: v109], [bb3: v122]
+    v123 = phi [bb0: v71], [bb3: v123]
+    v124 = phi [bb0: 0], [bb3: v124]
+    v125 = phi [bb0: arg1], [bb3: v125]
+    v126 = phi [bb0: v59], [bb3: v126]
+    v127 = phi [bb0: v47], [bb3: v127]
+    v128 = phi [bb0: v35], [bb3: v128]
+    v129 = phi [bb0: v23], [bb3: v129]
+    v130 = phi [bb0: 0], [bb3: v152]
+    v131 = phi [bb0: v11], [bb3: v131]
+    v132 = phi [bb0: v111], [bb3: v141]
+    v133 = phi [bb0: v72], [bb3: v133]
+    v134 = phi [bb0: v75], [bb3: v134]
+    v135 = phi [bb0: v63], [bb3: v135]
+    v136 = phi [bb0: arg2], [bb3: v136]
+    v137 = phi [bb0: v51], [bb3: v137]
+    v138 = phi [bb0: v39], [bb3: v138]
+    v139 = phi [bb0: v27], [bb3: v139]
+    v140 = phi [bb0: v15], [bb3: v140]
+    v141 = phi [bb0: v114], [bb3: v121]
+    v142 = phi [bb0: v3], [bb3: v142]
+    v143 = phi [bb0: v73], [bb3: v143]
+    v144 = phi [bb0: v67], [bb3: v144]
+    v145 = phi [bb0: arg3], [bb3: v145]
+    v146 = phi [bb0: v55], [bb3: v146]
+    v147 = phi [bb0: arg0], [bb3: v147]
+    v148 = phi [bb0: v43], [bb3: v148]
+    v149 = lt v130, v125
+    v150 = eq v149, 0
+    v151 = iszero v150
+    jumpi v151, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    v153 = mul v121, 7
+    v154 = mul v141, 3
+    v155 = add v132, v154
+    v156 = add v155, v153
+    v157 = add v122, v143
+    v158 = add v157, v156
+    ret v158, v134
+  bb4:
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v152 = add v130, 1
+    jump bb1
+}
+
+fn @touch(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    switch arg0, default bb3, [0 => bb2]
+  bb2:
+    mstore arg1, 119
+    jump bb1
+  bb3:
+    v0 = sub arg0, 1
+    v1 = icall @touch, 1, v0, arg1
+    v2 = add v1, 1
+    jump bb1
+  bb1:
+    v3 = phi [bb2: 1], [bb3: v2]
+    ret v3
+}
