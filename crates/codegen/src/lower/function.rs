@@ -54,7 +54,7 @@ pub(super) struct LoweringContext<'gcx, 'ctx> {
     pub(super) immutable_ids: &'ctx FxHashMap<VariableId, ImmutableId>,
     pub(super) child_bytecodes: &'ctx FxHashMap<hir::ContractId, ContractBytecodes>,
     pub(super) state: &'ctx mut LoweringState,
-    pub(super) shared_literals: &'ctx FxHashSet<ByteSymbol>,
+    pub(super) shared_literals: &'ctx FxHashMap<ByteSymbol, usize>,
     pub(super) shared_word_literals: &'ctx FxHashSet<ByteSymbol>,
     pub(super) share_storage_bytes: bool,
     /// Whether the compilation had already failed when the code generation
