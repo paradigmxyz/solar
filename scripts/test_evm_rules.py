@@ -14,7 +14,7 @@ import z3
 
 from evm_rules.discovery import Cost, Prices, discover_rules, emit_rule, enumerate_rules
 from evm_rules.isle import Context, ISLE, Rule, forms, verify_file
-from evm_rules.semantics import Expr, MASK, MODULUS, SIGN, Model, Unsupported, check, concrete
+from evm_rules.semantics import Expr, MASK, MODULUS, SIGN, Model, Unsupported, check, concrete, partition_shift
 
 
 def expression(op, *args):
@@ -80,6 +80,29 @@ class SemanticsTests(unittest.TestCase):
                 Model().eval(expression(op, 0))
         with self.assertRaises(Unsupported):
             Model().eval(expression("add", 0))
+
+    def test_shift_partition_covers_large_counts(self):
+        x, y, n = map(Expr.var, ("x", "y", "n"))
+        lhs = expression("shl", n, expression("or", x, y))
+        rhs = expression("or", expression("shl", n, x), expression("shl", n, y))
+        result, queries = partition_shift(lhs, rhs, [], 5000, Model())
+        self.assertEqual(result["status"], "proved")
+        self.assertEqual(result["cases"], 257)
+        self.assertEqual(len(queries), 258)
+        # Masking the count is wrong precisely in the last, saturating partition.
+        lhs = expression("shr", n, x)
+        rhs = expression("shr", expression("and", n, 255), x)
+        result, _ = partition_shift(lhs, rhs, [], 5000, Model())
+        self.assertEqual(result["status"], "counterexample")
+        self.assertGreaterEqual(int(result["inputs"]["n"], 16), 256)
+        self.assertTrue(result["replayed"])
+
+    def test_incomplete_partition_never_proves(self):
+        x, n = Expr.var("x"), Expr.var("n")
+        lhs = expression("shl", n, x)
+        with patch("evm_rules.semantics.time.monotonic", side_effect=[0, 1]):
+            result, _ = partition_shift(lhs, lhs, [], 500, Model())
+        self.assertEqual(result["status"], "unknown")
 
 
 class RuleTests(unittest.TestCase):
@@ -183,6 +206,37 @@ class DiscoveryTests(unittest.TestCase):
         actual_lhs, actual_rhs = context.obligation(Rule(form, line, "generated"))
         result, _ = check(actual_lhs, actual_rhs, context.assumptions, model=context.model)
         self.assertEqual(result["status"], "proved")
+
+    def test_multi_operation_discovery_and_emission(self):
+        rules, _ = enumerate_rules(Prices("osaka"), ["x", "y"], ["not", "and", "or"],
+                                   3, 500, 5000, max_rhs_ops=2)
+        recipes = [(lhs, rhs) for lhs, rhs, _, _ in rules if rhs.operators() == 2]
+        self.assertTrue(recipes)
+        for lhs, rhs in recipes:
+            form, line = forms(emit_rule(lhs, rhs))[0]
+            self.assertEqual(form[1][0], "sequence_rewrite")
+            context = Context()
+            left, right = context.obligation(Rule(form, line, "generated"))
+            self.assertEqual(check(left, right, context.assumptions, model=context.model)[0]["status"], "proved")
+
+    def test_large_literal_guard_and_recipe_are_verified(self):
+        x = Expr.var("x")
+        lhs = expression("lt", x, 1 << 160)
+        rhs = expression("iszero", expression("shr", 160, x))
+        source = emit_rule(lhs, rhs)
+        for expected, text in (("proved", source), ("counterexample", source.replace("(u256 160)", "(u256 159)"))):
+            form, line = forms(text)[0]
+            context = Context()
+            left, right = context.obligation(Rule(form, line, "generated"))
+            self.assertEqual(check(left, right, context.assumptions, model=context.model)[0]["status"], expected)
+        self.assertIn((1 << 160) - 1, Prices("osaka").constants)
+        with self.assertRaises(ValueError):
+            enumerate_rules(Prices("osaka"), ["x"], ["and"], 2, 20, 5000, constants=[123456789])
+
+    def test_specialized_inputs_keep_canonical_constant_results(self):
+        rules, _ = enumerate_rules(Prices("osaka"), ["x"], ["xor"], 2, 30, 5000,
+                                   include_constants=True, constants=[255])
+        self.assertTrue(any(lhs.variables() and rhs == Expr.const(0) for lhs, rhs, _, _ in rules))
 
 
 if __name__ == "__main__":

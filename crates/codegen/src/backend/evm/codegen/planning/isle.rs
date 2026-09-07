@@ -11,7 +11,7 @@ use crate::{
 };
 
 type Value = ValueId;
-const MAX_ISLE_RETURNS: usize = 5;
+const MAX_ISLE_RETURNS: usize = 16;
 
 #[allow(
     clippy::all,

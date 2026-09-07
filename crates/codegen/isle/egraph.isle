@@ -94,6 +94,10 @@
 (extern constructor u256_neg u256_neg)
 (decl pure u256_and (U256 U256) U256)
 (extern constructor u256_and u256_and)
+(decl pure u256_same (U256 U256) bool)
+(extern constructor u256_same u256_same)
+(decl pure u256_from_limbs (u64 u64 u64 u64) U256)
+(extern constructor u256_from_limbs u256_from_limbs)
 ;; Shift counts saturate at the word width; they must never wrap around.
 (decl pure shift_sum (U256 U256) U256)
 (extern constructor shift_sum shift_sum)
