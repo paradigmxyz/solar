@@ -85,8 +85,7 @@ fn @assign() [selector=0x4bd0273c] {
     v72 = keccak256 0, 32 !metadata(memory=scratch)
     v40 = add v72, v39
     v41 = and v35, 7
-    v42 = shl 2, v41
-    v43 = shl 3, v42
+    v43 = shl 5, v41
     v44 = shl v43, 0xffffffff
     v45 = sload v40 !metadata(storage=symbolic(v40))
     v46 = not v44
@@ -103,8 +102,7 @@ fn @assign() [selector=0x4bd0273c] {
     v71 = keccak256 0, 32 !metadata(memory=scratch)
     v22 = add v71, v21
     v23 = and v18, 7
-    v24 = shl 2, v23
-    v25 = shl 3, v24
+    v25 = shl 5, v23
     v26 = shl v25, 0xffffffff
     v27 = sload v22 !metadata(storage=symbolic(v22))
     v28 = not v26
@@ -215,8 +213,7 @@ fn @push() [selector=0xa60249a3] {
     v79 = keccak256 0, 32 !metadata(memory=scratch)
     v46 = add v79, v45
     v47 = and v41, 7
-    v48 = shl 2, v47
-    v49 = shl 3, v48
+    v49 = shl 5, v47
     v50 = shl v49, 0xffffffff
     v51 = sload v46 !metadata(storage=symbolic(v46))
     v52 = not v50
@@ -233,8 +230,7 @@ fn @push() [selector=0xa60249a3] {
     v78 = keccak256 0, 32 !metadata(memory=scratch)
     v28 = add v78, v27
     v29 = and v24, 7
-    v30 = shl 2, v29
-    v31 = shl 3, v30
+    v31 = shl 5, v29
     v32 = shl v31, 0xffffffff
     v33 = sload v28 !metadata(storage=symbolic(v28))
     v34 = not v32
@@ -379,8 +375,7 @@ fn @assignFixed() [selector=0xb7ffd825] {
     v76 = keccak256 0, 32 !metadata(memory=scratch)
     v44 = add v76, v43
     v45 = and v39, 7
-    v46 = shl 2, v45
-    v47 = shl 3, v46
+    v47 = shl 5, v45
     v48 = shl v47, 0xffffffff
     v49 = sload v44 !metadata(storage=symbolic(v44))
     v50 = not v48
@@ -397,8 +392,7 @@ fn @assignFixed() [selector=0xb7ffd825] {
     v75 = keccak256 0, 32 !metadata(memory=scratch)
     v26 = add v75, v25
     v27 = and v22, 7
-    v28 = shl 2, v27
-    v29 = shl 3, v28
+    v29 = shl 5, v27
     v30 = shl v29, 0xffffffff
     v31 = sload v26 !metadata(storage=symbolic(v26))
     v32 = not v30

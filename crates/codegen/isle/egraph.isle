@@ -94,6 +94,16 @@
 (extern constructor u256_neg u256_neg)
 (decl pure u256_and (U256 U256) U256)
 (extern constructor u256_and u256_and)
+;; Shift counts saturate at the word width; they must never wrap around.
+(decl pure shift_sum (U256 U256) U256)
+(extern constructor shift_sum shift_sum)
+;; A byte-aligned left/right arithmetic shift pair is a sign extension.
+(decl pure partial sign_byte (U256) U256)
+(extern constructor sign_byte sign_byte)
+(decl pure u256_min (U256 U256) U256)
+(extern constructor u256_min u256_min)
+(decl pure u256_le (U256 U256) bool)
+(extern constructor u256_le u256_le)
 ;; The non-zero shift amount of a power of two.
 (decl pure partial power_of_two_shift (U256) U256)
 (extern constructor power_of_two_shift power_of_two_shift)
@@ -180,6 +190,25 @@
 (rule (rewrite (Op.Xor (all_ones) b)) (Op.Not b))
 (rule (rewrite (Op.Xor a (all_ones))) (Op.Not a))
 
+;; Fuse consecutive constant shifts. Saturating the sum also handles counts
+;; above 255 and arithmetic shifts of negative words.
+(rule (rewrite (Op.Shl (iconst outer) (shl (iconst inner) value)))
+      (Op.Shl (imm (shift_sum outer inner)) value))
+(rule (rewrite (Op.Shr (iconst outer) (shr (iconst inner) value)))
+      (Op.Shr (imm (shift_sum outer inner)) value))
+(rule (rewrite (Op.Sar (iconst outer) (sar (iconst inner) value)))
+      (Op.Sar (imm (shift_sum outer inner)) value))
+
+;; Byte-aligned arithmetic shift pairs sign extend the surviving bytes.
+(rule (rewrite (Op.Sar (iconst amount) (shl (iconst amount) value)))
+      (if-let byte (sign_byte amount))
+      (Op.SignExtend (imm byte) value))
+
+;; The narrower sign extension determines the result, including negative
+;; words. Indices above 30 are identity extensions.
+(rule (rewrite (Op.SignExtend (iconst outer) (signextend (iconst inner) value)))
+      (Op.SignExtend (imm (u256_min outer inner)) value))
+
 ;; Comparisons against zero and against the range of `clz`.
 (rule (rewrite (Op.Eq (and a (zero)) b)) (if-let true (differ a b)) (Op.IsZero b))
 (rule (rewrite (Op.Eq a (and b (zero)))) (if-let true (differ a b)) (Op.IsZero a))
@@ -189,6 +218,9 @@
 (rule (rewrite (Op.Eq (iconst c) (clz input))) (if-let true (u256_eq c 256)) (Op.IsZero input))
 
 (rule (rewrite (Op.IsZero (clz input))) (Op.SLt input (imm (u256 0))))
+;; A wrapped difference or XOR is zero exactly when its inputs are equal.
+(rule (rewrite (Op.IsZero (sub a b))) (Op.Eq a b))
+(rule (rewrite (Op.IsZero (bxor a b))) (Op.Eq a b))
 
 ;; `a < 1` is `a == 0` for unsigned comparisons.
 (rule (rewrite (Op.Lt (clz input) (iconst c))) (if-let true (u256_eq c 256)) (Op.Gt input (imm (u256 0))))
@@ -212,9 +244,13 @@
 (decl partial simplify (Op) Value)
 
 ;; Arithmetic.
+(rule 6 (simplify (Op.Add (sub a b) b)) a)
+(rule 5 (simplify (Op.Add b (sub a b))) a)
 (rule 2 (simplify (Op.Add a (zero))) a)
 (rule 1 (simplify (Op.Add (zero) b)) b)
 
+(rule 4 (simplify (Op.Sub (add a b) b)) a)
+(rule 3 (simplify (Op.Sub (add a b) a)) b)
 (rule 2 (simplify (Op.Sub a (zero))) a)
 (rule 1 (simplify (Op.Sub a a)) (imm (u256 0)))
 
@@ -259,6 +295,10 @@
 (rule 1 (simplify (Op.MulMod _ (zero) _)) (imm (u256 0)))
 
 ;; `signextend(byte, value)` keeps `value` when it already fits.
+(rule 6 (simplify (Op.SignExtend byte (and value (signextend byte _)))) value)
+(rule 5 (simplify (Op.SignExtend (iconst outer) (and value (signextend (iconst inner) _))))
+        (if-let true (u256_le inner outer))
+        value)
 (rule 4 (simplify (Op.SignExtend (iconst byte) value)) (if-let true (sign_clear byte value)) value)
 (rule 3 (simplify (Op.SignExtend _ (and value (zero)))) value)
 (rule 2 (simplify (Op.SignExtend (iconst byte) value)) (if-let true (u256_ge byte 31)) value)
@@ -267,6 +307,11 @@
         value)
 
 ;; Bitwise.
+;; Absorption holds bit by bit, even when operands are dirty narrow values.
+(rule 18 (simplify (Op.And a (bor a _))) a)
+(rule 17 (simplify (Op.And a (bor _ a))) a)
+(rule 16 (simplify (Op.And (bor b _) b)) b)
+(rule 15 (simplify (Op.And (bor _ b) b)) b)
 ;; A mask that keeps every bit the other operand can have is a no-op. This
 ;; covers all-ones masks, address masks over clean addresses, and masks over
 ;; comparison results, `byte`, and shifted or masked words.
@@ -281,6 +326,10 @@
 (rule 3 (simplify (Op.And (bnot b) b)) (imm (u256 0)))
 (rule 2 (simplify (Op.And a (bnot a))) (imm (u256 0)))
 
+(rule 11 (simplify (Op.Or a (band a _))) a)
+(rule 10 (simplify (Op.Or a (band _ a))) a)
+(rule 9 (simplify (Op.Or (band b _) b)) b)
+(rule 8 (simplify (Op.Or (band _ b) b)) b)
 (rule 7 (simplify (Op.Or a a)) a)
 (rule 6 (simplify (Op.Or (and a (all_ones)) _)) a)
 (rule 5 (simplify (Op.Or a (zero))) a)
@@ -289,6 +338,10 @@
 (rule 2 (simplify (Op.Or (bnot b) b)) (imm (u256_max)))
 (rule 1 (simplify (Op.Or a (bnot a))) (imm (u256_max)))
 
+(rule 9 (simplify (Op.Xor a (bxor a b))) b)
+(rule 8 (simplify (Op.Xor a (bxor b a))) b)
+(rule 7 (simplify (Op.Xor (bxor a b) a)) b)
+(rule 6 (simplify (Op.Xor (bxor b a) a)) b)
 (rule 5 (simplify (Op.Xor a a)) (imm (u256 0)))
 (rule 4 (simplify (Op.Xor (zero) b)) b)
 (rule 3 (simplify (Op.Xor a (zero))) a)

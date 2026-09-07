@@ -128,8 +128,7 @@ fn @blobAt() [selector=0x8f236983, view] {
     v5 = icall @load_storage_bytes, 1, v4
     v11 = mload 64 !metadata(memory=scratch)
     v12 = add v11, 32
-    v13 = sub v12, v11
-    mstore v11, v13
+    mstore v11, 32
     v15 = iszero v5
     v16 = iszero v15
     v14 = mload v5

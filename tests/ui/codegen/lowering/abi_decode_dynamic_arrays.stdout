@@ -57,8 +57,7 @@ fn @words() [selector=0x5a7641c8, pure] {
     mcopy v58, v9, v24
     v40 = mload 64 !metadata(memory=scratch)
     v41 = add v40, 32
-    v42 = sub v41, v40
-    mstore v40, v42
+    mstore v40, 32
     v44 = iszero v23
     v45 = iszero v44
     v43 = mload v23
@@ -168,8 +167,7 @@ fn @bools() [selector=0xcfb203c5, pure] {
   bb18:
     v64 = mload 64 !metadata(memory=scratch)
     v65 = add v64, 32
-    v66 = sub v65, v64
-    mstore v64, v66
+    mstore v64, 32
     v68 = iszero v54
     v69 = iszero v68
     v67 = mload v54
@@ -300,8 +298,7 @@ fn @strs() [selector=0x68f4ce0b, pure] {
   bb11:
     v62 = mload 64 !metadata(memory=scratch)
     v63 = add v62, 32
-    v64 = sub v63, v62
-    mstore v62, v64
+    mstore v62, 32
     v66 = iszero v23
     v67 = iszero v66
     v65 = mload v23
@@ -508,9 +505,8 @@ fn @mixed() [selector=0x6791505c, pure] {
     v64 = mload 64 !metadata(memory=scratch)
     v65 = add v64, 96
     mstore v64, v10
-    v67 = sub v65, v64
     v66 = add v64, 32
-    mstore v66, v67
+    mstore v66, 96
     v69 = iszero v2
     v70 = iszero v69
     v68 = mload v2

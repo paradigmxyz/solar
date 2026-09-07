@@ -52,9 +52,8 @@ fn @full() [selector=0xd17b272f, view] {
     v148 = mload 64 !metadata(memory=scratch)
     v149 = add v148, 64
     mstore v148, 3
-    v151 = sub v149, v148
     v150 = add v148, 32
-    mstore v150, v151
+    mstore v150, 64
     v153 = iszero v22
     v154 = iszero v153
     v152 = mload v22
@@ -91,9 +90,8 @@ fn @full() [selector=0xd17b272f, view] {
     v124 = mload 64 !metadata(memory=scratch)
     v125 = add v124, 64
     mstore v124, 2
-    v127 = sub v125, v124
     v126 = add v124, 32
-    mstore v126, v127
+    mstore v126, 64
     v129 = iszero v122
     v130 = iszero v129
     v128 = mload v122
@@ -136,9 +134,8 @@ fn @full() [selector=0xd17b272f, view] {
     v98 = mload 64 !metadata(memory=scratch)
     v99 = add v98, 64
     mstore v98, 1
-    v101 = sub v99, v98
     v100 = add v98, 32
-    mstore v100, v101
+    mstore v100, 64
     v103 = iszero v56
     v104 = iszero v103
     v102 = mload v56
@@ -184,9 +181,8 @@ fn @full() [selector=0xd17b272f, view] {
     v74 = mload 64 !metadata(memory=scratch)
     v75 = add v74, 64
     mstore v74, v55
-    v77 = sub v75, v74
     v76 = add v74, 32
-    mstore v76, v77
+    mstore v76, 64
     v79 = iszero v16
     v80 = iszero v79
     v78 = mload v16
