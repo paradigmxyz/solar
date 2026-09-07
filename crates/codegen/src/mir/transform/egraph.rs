@@ -39,14 +39,16 @@
 //! - replace an instruction with a value only when the equality is exact for all 256-bit EVM words
 //! - prove boolean-only rewrites from value definitions, never from narrow Solidity types alone
 
-use crate::target::{Cost, Target};
-use crate::mir::{
-    ArgIdx, BlockId, EffectKind, Function, Immediate, InstId, InstKind, MirType, Module, Op,
-    Terminator, Value, ValueId, utils as mir_utils,
-    analysis::{CfgInfo, Liveness},
-
-    pass::{MirPass, run_function_pass},
-    utils::eval,
+use crate::{
+    mir::{
+        ArgIdx, BlockId, EffectKind, Function, Immediate, InstId, InstKind, MirType, Module, Op,
+        Terminator, Value, ValueId,
+        analysis::{CfgInfo, Liveness},
+        pass::{MirPass, run_function_pass},
+        utils as mir_utils,
+        utils::eval,
+    },
+    target::{Cost, Target},
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;

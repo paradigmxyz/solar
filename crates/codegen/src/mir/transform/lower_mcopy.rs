@@ -3,9 +3,7 @@
 use crate::{
     mir::{
         BlockId, Function, FunctionBuilder, FunctionId, InstId, InstKind, MirType, Module,
-        memory::EvmMemoryLayout,
-        pass::MirPass,
-        transform::utils::redirect_successor_predecessors,
+        memory::EvmMemoryLayout, pass::MirPass, transform::utils::redirect_successor_predecessors,
     },
     target::{Cost, Target},
 };
