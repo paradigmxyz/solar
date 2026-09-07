@@ -2,7 +2,7 @@
 @module MemoryStructAssemblyList
 fn @empty() -> memorystruct [pure] {
   bb0:
-    v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<1>, v0, 0, 0
     ret v0
 }
@@ -10,7 +10,7 @@ fn @empty() -> memorystruct [pure] {
 fn @append.1(arg0: memorystruct, arg1: u256) -> memorystruct [pure] {
   bb0:
     v0 = shl 48, arg1
-    v1 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    v1 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<1>, v1, 0, 0
     memory_object_store_field memorystruct<1>, v1, 0, v0
     icall @updateTail, 0, arg0, v1
@@ -22,7 +22,7 @@ fn @append.2(arg0: memorystruct, arg1: memorystruct) -> memorystruct [pure] {
     v0 = shl 8, arg1
     v1 = or 3, v0
     v2 = shl 40, v1
-    v3 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    v3 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<1>, v3, 0, 0
     mstore v3, v2
     icall @updateTail, 0, arg0, v3
@@ -44,7 +44,7 @@ fn @dirtyFreeMemory() [view] {
 
 fn @defaultLocal() -> bool [selector=0x2f73c827, view, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
-    v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<1>, v0, 0, 0
     icall @dirtyFreeMemory, 0
     v1 = mload v0
@@ -63,7 +63,7 @@ fn @defaultReturn() -> bool [selector=0x099c80fd, view, abi_params=[], abi_retur
 
 fn @firstAppend() -> bool [selector=0x9d2b282b, view, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
-    v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<1>, v0, 0, 0
     icall @dirtyFreeMemory, 0
     v1 = icall @append.1, 1, v0, 7
@@ -83,7 +83,7 @@ fn @firstAppend() -> bool [selector=0x9d2b282b, view, abi_params=[], abi_returns
 
 fn @secondAppend() -> bool [selector=0xdce19125, view, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
-    v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<1>, v0, 0, 0
     icall @dirtyFreeMemory, 0
     v1 = icall @append.1, 1, v0, 7
@@ -112,7 +112,7 @@ fn @recursiveYul(arg0: u256) -> (u256, bytes1) [selector=0x2aa1bcc4, pure, abi_p
 
 fn @nestedListEncoding() -> (u256, bytes32) [selector=0xb61d93a1, pure, abi_params=[], abi_returns=[word, word]] {
   bb0:
-    v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<1>, v0, 0, 0
     v1 = icall @empty, 1
     v2 = icall @append.2, 1, v0, v1

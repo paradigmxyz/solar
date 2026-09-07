@@ -500,7 +500,7 @@ fn @encodedArrayWrite(arg0: u256, arg1: bytes4, arg2: i8) -> (bytes4, i8) [selec
 
 fn @replaceArray() -> (u8, u8, u8, u8) [selector=0x47102f59, abi_params=[], abi_returns=[word<u8>, word<u8>, word<u8>, word<u8>]] {
   bb0:
-    v0 = alloc memoryfixedarray<4, 1>, exact, uninitialized, infallible, 128
+    v0 = alloc memoryfixedarray<4, 1>, exact, uninitialized, infallible, 128 !metadata(preserves_fmp)
     memory_zero v0, 128
     v1 = lt 0, 4
     v2 = iszero v1

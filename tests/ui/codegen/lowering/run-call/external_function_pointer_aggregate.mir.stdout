@@ -305,7 +305,7 @@ fn @pointerReturnRoundtrip() -> u256 [selector=0xd6aa3b50, abi_params=[], abi_re
 
 fn @pointerStructRoundtrip() -> u256 [selector=0xbbd5d6bf, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<1>, v0, 0, 0
     v1 = address
     v2 = shl 32, v1

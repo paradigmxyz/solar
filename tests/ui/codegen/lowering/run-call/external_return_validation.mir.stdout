@@ -78,7 +78,7 @@ fn @dirtyBool() -> bool [selector=0xf17a2b8e, pure, abi_params=[], abi_returns=[
 
 fn @dirtyStruct() -> memorystruct [selector=0xe1193b83, pure, abi_params=[], abi_returns=[tuple<word<u8>, word<bool>>], abi_return_params=[tuple<u8, bool>]] {
   bb0:
-    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<2>, v0, 0, 0
     memory_object_store_field memorystruct<2>, v0, 1, 0
     mstore v0, 256
@@ -122,7 +122,7 @@ fn @dirtyUnusedStructFieldTarget() [selector=0x38a62c01, pure, abi_params=[], ab
 fn @dirtyStructBranch(arg0: bool) -> memorystruct [selector=0x6dd0f9bf, pure, abi_params=[bool], abi_returns=[tuple<word<u8>>], abi_return_params=[tuple<u8>]] {
   bb0:
     v0 = icall @dirtyValueInternal, 1
-    v1 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    v1 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<1>, v1, 0, 0
     v2 = and v0, 255
     memory_object_store_field memorystruct<1>, v1, 0, v2
@@ -151,7 +151,7 @@ fn @dirtyInternalWiden() -> u256 [selector=0xcdec1938, pure, abi_params=[], abi_
 
 fn @dirtyInternalAggregate() -> memorystruct [selector=0x4697f467, pure, abi_params=[], abi_returns=[tuple<word<u8>, word<bool>>], abi_return_params=[tuple<u8, bool>]] {
   bb0:
-    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<2>, v0, 0, 0
     memory_object_store_field memorystruct<2>, v0, 1, 0
     v1 = icall @dirtyAggregate, 1
@@ -160,7 +160,7 @@ fn @dirtyInternalAggregate() -> memorystruct [selector=0x4697f467, pure, abi_par
 
 fn @dirtyAggregate() -> memorystruct [pure] {
   bb0:
-    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<2>, v0, 0, 0
     memory_object_store_field memorystruct<2>, v0, 1, 0
     mstore v0, 257
@@ -250,7 +250,7 @@ fn @dirtyArray() -> memoryarray [selector=0xab113bc3, pure, abi_params=[], abi_r
 
 fn @dirtyMemoryFixedArray() -> bool [selector=0x627cd2cc, pure, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
-    v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
+    v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     memory_zero v0, 32
     mstore v0, 257
     v1 = lt 0, 1
@@ -308,7 +308,7 @@ fn @dirtyMemoryDynamicArray() -> bool [selector=0x85ecd2fd, pure, abi_params=[],
 
 fn @dirtyMemoryStruct() -> bool [selector=0x5c3a703b, pure, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
-    v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<1>, v0, 0, 0
     mstore v0, 257
     v1 = memory_object_load_field memorystruct<1>, v0, 0
@@ -328,7 +328,7 @@ fn @dirtyMemoryStruct() -> bool [selector=0x5c3a703b, pure, abi_params=[], abi_r
 
 fn @dirtyMemoryLvalue() -> bool [selector=0x91f3b994, pure, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
-    v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
+    v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     memory_zero v0, 32
     mstore v0, 257
     v1 = lt 0, 1
@@ -441,7 +441,7 @@ fn @enumTarget(arg0: u8) -> u256 [selector=0x5688f443, pure, abi_params=[enum<2,
 
 fn @dirtyEnumStructExternalArg() -> u256 [selector=0x06fd3c7e, view, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<1>, v0, 0, 0
     mstore v0, 2
     v1 = address
@@ -527,7 +527,7 @@ fn @dirtyEnumPacked() -> memorybytes [selector=0x1193687a, pure, abi_params=[], 
 
 fn @dirtyEnumPackedArray() -> memorybytes [selector=0x4cd1ded8, pure, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
+    v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     memory_zero v0, 32
     mstore v0, 2
     v1 = not 31
@@ -574,7 +574,7 @@ fn @dirtyEnumPackedArray() -> memorybytes [selector=0x4cd1ded8, pure, abi_params
 
 fn @dirtyEnumNested() -> memorybytes [selector=0xb5dac01b, pure, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
+    v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v4]
@@ -586,7 +586,7 @@ fn @dirtyEnumNested() -> memorybytes [selector=0xb5dac01b, pure, abi_params=[], 
     v6 = abi_encode [array<1, array<1, word<enum 2>>>], object, args v0
     ret v6
   bb2:
-    v3 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
+    v3 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     memory_zero v3, 32
     memory_object_store_element memoryfixedarray<1, 1>, v0, v1, v3
     v4 = add v1, 1

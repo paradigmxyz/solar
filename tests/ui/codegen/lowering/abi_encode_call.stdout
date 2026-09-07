@@ -45,7 +45,7 @@ fn @asValue() [selector=0x440a9300, pure] {
     v30 = sub v29, v14
     v32 = add v30, 31
     v34 = and v32, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v35 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v35 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
     v38 = add v35, v34
     mstore 64, v38 !metadata(memory=scratch)
     returndata v35, v30

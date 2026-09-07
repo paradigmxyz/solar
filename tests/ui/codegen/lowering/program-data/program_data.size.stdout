@@ -177,7 +177,7 @@ fn @encode_abi_tuple(arg0: memptr) -> (memptr, u256) {
     v16 = sub v15, v0
     v18 = add v16, 31
     v20 = and v18, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v21 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v21 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
     v25 = add v21, v20
     mstore 64, v25 !metadata(memory=scratch)
     ret v21, v16

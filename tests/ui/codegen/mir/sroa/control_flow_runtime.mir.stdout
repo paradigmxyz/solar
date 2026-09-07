@@ -2,7 +2,7 @@
 @module AggregateControlFlow
 fn @branch(arg0: bool, arg1: u256, arg2: u256) -> u256 [selector=0xc4013ae4, pure, abi_params=[bool, u256, u256], abi_returns=[word]] {
   bb0:
-    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<2>, v0, 0, 0
     memory_object_store_field memorystruct<2>, v0, 1, 0
     jumpi arg0, bb1, bb2
@@ -19,7 +19,7 @@ fn @branch(arg0: bool, arg1: u256, arg2: u256) -> u256 [selector=0xc4013ae4, pur
 
 fn @accumulate(arg0: u256) -> u256 [selector=0xb4e7d02a, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
-    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<2>, v0, 0, 0
     memory_object_store_field memorystruct<2>, v0, 1, 0
     jump bb1
@@ -75,7 +75,7 @@ fn @fresh(arg0: u256) -> u256 [selector=0x0538087c, pure, abi_params=[u256], abi
   bb2:
     ret v1
   bb4:
-    v4 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v4 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<2>, v4, 0, 0
     memory_object_store_field memorystruct<2>, v4, 1, 0
     jumpi 2, bb8, bb7
@@ -115,7 +115,7 @@ fn @fresh(arg0: u256) -> u256 [selector=0x0538087c, pure, abi_params=[u256], abi
 
 fn @coupled(arg0: bool, arg1: u256) -> u256 [selector=0x1055d423, pure, abi_params=[bool, u256], abi_returns=[word]] {
   bb0:
-    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<2>, v0, 0, 0
     memory_object_store_field memorystruct<2>, v0, 1, 0
     jumpi arg0, bb1, bb2

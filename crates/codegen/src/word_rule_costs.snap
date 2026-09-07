@@ -1,0 +1,426 @@
+deposit 200
+fork homestead
+constant 0 3 2
+constant 1 3 2
+constant max 6 3
+variable 3 1
+op add 2 3 1 commutative
+op mul 2 5 1 commutative
+op sub 2 3 1 ordered
+op div 2 5 1 ordered
+op sdiv 2 5 1 ordered
+op mod 2 5 1 ordered
+op smod 2 5 1 ordered
+op addmod 3 8 1 ordered
+op mulmod 3 8 1 ordered
+op signextend 2 5 1 ordered
+op lt 2 3 1 ordered
+op gt 2 3 1 ordered
+op slt 2 3 1 ordered
+op sgt 2 3 1 ordered
+op eq 2 3 1 commutative
+op iszero 1 3 1 ordered
+op and 2 3 1 commutative
+op or 2 3 1 commutative
+op xor 2 3 1 commutative
+op not 1 3 1 ordered
+op byte 2 3 1 ordered
+fork tangerineWhistle
+constant 0 3 2
+constant 1 3 2
+constant max 6 3
+variable 3 1
+op add 2 3 1 commutative
+op mul 2 5 1 commutative
+op sub 2 3 1 ordered
+op div 2 5 1 ordered
+op sdiv 2 5 1 ordered
+op mod 2 5 1 ordered
+op smod 2 5 1 ordered
+op addmod 3 8 1 ordered
+op mulmod 3 8 1 ordered
+op signextend 2 5 1 ordered
+op lt 2 3 1 ordered
+op gt 2 3 1 ordered
+op slt 2 3 1 ordered
+op sgt 2 3 1 ordered
+op eq 2 3 1 commutative
+op iszero 1 3 1 ordered
+op and 2 3 1 commutative
+op or 2 3 1 commutative
+op xor 2 3 1 commutative
+op not 1 3 1 ordered
+op byte 2 3 1 ordered
+fork spuriousDragon
+constant 0 3 2
+constant 1 3 2
+constant max 6 3
+variable 3 1
+op add 2 3 1 commutative
+op mul 2 5 1 commutative
+op sub 2 3 1 ordered
+op div 2 5 1 ordered
+op sdiv 2 5 1 ordered
+op mod 2 5 1 ordered
+op smod 2 5 1 ordered
+op addmod 3 8 1 ordered
+op mulmod 3 8 1 ordered
+op signextend 2 5 1 ordered
+op lt 2 3 1 ordered
+op gt 2 3 1 ordered
+op slt 2 3 1 ordered
+op sgt 2 3 1 ordered
+op eq 2 3 1 commutative
+op iszero 1 3 1 ordered
+op and 2 3 1 commutative
+op or 2 3 1 commutative
+op xor 2 3 1 commutative
+op not 1 3 1 ordered
+op byte 2 3 1 ordered
+fork byzantium
+constant 0 3 2
+constant 1 3 2
+constant max 6 3
+variable 3 1
+op add 2 3 1 commutative
+op mul 2 5 1 commutative
+op sub 2 3 1 ordered
+op div 2 5 1 ordered
+op sdiv 2 5 1 ordered
+op mod 2 5 1 ordered
+op smod 2 5 1 ordered
+op addmod 3 8 1 ordered
+op mulmod 3 8 1 ordered
+op signextend 2 5 1 ordered
+op lt 2 3 1 ordered
+op gt 2 3 1 ordered
+op slt 2 3 1 ordered
+op sgt 2 3 1 ordered
+op eq 2 3 1 commutative
+op iszero 1 3 1 ordered
+op and 2 3 1 commutative
+op or 2 3 1 commutative
+op xor 2 3 1 commutative
+op not 1 3 1 ordered
+op byte 2 3 1 ordered
+fork constantinople
+constant 0 3 2
+constant 1 3 2
+constant max 6 3
+variable 3 1
+op add 2 3 1 commutative
+op mul 2 5 1 commutative
+op sub 2 3 1 ordered
+op div 2 5 1 ordered
+op sdiv 2 5 1 ordered
+op mod 2 5 1 ordered
+op smod 2 5 1 ordered
+op addmod 3 8 1 ordered
+op mulmod 3 8 1 ordered
+op signextend 2 5 1 ordered
+op lt 2 3 1 ordered
+op gt 2 3 1 ordered
+op slt 2 3 1 ordered
+op sgt 2 3 1 ordered
+op eq 2 3 1 commutative
+op iszero 1 3 1 ordered
+op and 2 3 1 commutative
+op or 2 3 1 commutative
+op xor 2 3 1 commutative
+op not 1 3 1 ordered
+op byte 2 3 1 ordered
+op shl 2 3 1 ordered
+op shr 2 3 1 ordered
+op sar 2 3 1 ordered
+fork petersburg
+constant 0 3 2
+constant 1 3 2
+constant max 6 3
+variable 3 1
+op add 2 3 1 commutative
+op mul 2 5 1 commutative
+op sub 2 3 1 ordered
+op div 2 5 1 ordered
+op sdiv 2 5 1 ordered
+op mod 2 5 1 ordered
+op smod 2 5 1 ordered
+op addmod 3 8 1 ordered
+op mulmod 3 8 1 ordered
+op signextend 2 5 1 ordered
+op lt 2 3 1 ordered
+op gt 2 3 1 ordered
+op slt 2 3 1 ordered
+op sgt 2 3 1 ordered
+op eq 2 3 1 commutative
+op iszero 1 3 1 ordered
+op and 2 3 1 commutative
+op or 2 3 1 commutative
+op xor 2 3 1 commutative
+op not 1 3 1 ordered
+op byte 2 3 1 ordered
+op shl 2 3 1 ordered
+op shr 2 3 1 ordered
+op sar 2 3 1 ordered
+fork istanbul
+constant 0 3 2
+constant 1 3 2
+constant max 6 3
+variable 3 1
+op add 2 3 1 commutative
+op mul 2 5 1 commutative
+op sub 2 3 1 ordered
+op div 2 5 1 ordered
+op sdiv 2 5 1 ordered
+op mod 2 5 1 ordered
+op smod 2 5 1 ordered
+op addmod 3 8 1 ordered
+op mulmod 3 8 1 ordered
+op signextend 2 5 1 ordered
+op lt 2 3 1 ordered
+op gt 2 3 1 ordered
+op slt 2 3 1 ordered
+op sgt 2 3 1 ordered
+op eq 2 3 1 commutative
+op iszero 1 3 1 ordered
+op and 2 3 1 commutative
+op or 2 3 1 commutative
+op xor 2 3 1 commutative
+op not 1 3 1 ordered
+op byte 2 3 1 ordered
+op shl 2 3 1 ordered
+op shr 2 3 1 ordered
+op sar 2 3 1 ordered
+fork berlin
+constant 0 3 2
+constant 1 3 2
+constant max 6 3
+variable 3 1
+op add 2 3 1 commutative
+op mul 2 5 1 commutative
+op sub 2 3 1 ordered
+op div 2 5 1 ordered
+op sdiv 2 5 1 ordered
+op mod 2 5 1 ordered
+op smod 2 5 1 ordered
+op addmod 3 8 1 ordered
+op mulmod 3 8 1 ordered
+op signextend 2 5 1 ordered
+op lt 2 3 1 ordered
+op gt 2 3 1 ordered
+op slt 2 3 1 ordered
+op sgt 2 3 1 ordered
+op eq 2 3 1 commutative
+op iszero 1 3 1 ordered
+op and 2 3 1 commutative
+op or 2 3 1 commutative
+op xor 2 3 1 commutative
+op not 1 3 1 ordered
+op byte 2 3 1 ordered
+op shl 2 3 1 ordered
+op shr 2 3 1 ordered
+op sar 2 3 1 ordered
+fork london
+constant 0 3 2
+constant 1 3 2
+constant max 6 3
+variable 3 1
+op add 2 3 1 commutative
+op mul 2 5 1 commutative
+op sub 2 3 1 ordered
+op div 2 5 1 ordered
+op sdiv 2 5 1 ordered
+op mod 2 5 1 ordered
+op smod 2 5 1 ordered
+op addmod 3 8 1 ordered
+op mulmod 3 8 1 ordered
+op signextend 2 5 1 ordered
+op lt 2 3 1 ordered
+op gt 2 3 1 ordered
+op slt 2 3 1 ordered
+op sgt 2 3 1 ordered
+op eq 2 3 1 commutative
+op iszero 1 3 1 ordered
+op and 2 3 1 commutative
+op or 2 3 1 commutative
+op xor 2 3 1 commutative
+op not 1 3 1 ordered
+op byte 2 3 1 ordered
+op shl 2 3 1 ordered
+op shr 2 3 1 ordered
+op sar 2 3 1 ordered
+fork paris
+constant 0 3 2
+constant 1 3 2
+constant max 6 3
+variable 3 1
+op add 2 3 1 commutative
+op mul 2 5 1 commutative
+op sub 2 3 1 ordered
+op div 2 5 1 ordered
+op sdiv 2 5 1 ordered
+op mod 2 5 1 ordered
+op smod 2 5 1 ordered
+op addmod 3 8 1 ordered
+op mulmod 3 8 1 ordered
+op signextend 2 5 1 ordered
+op lt 2 3 1 ordered
+op gt 2 3 1 ordered
+op slt 2 3 1 ordered
+op sgt 2 3 1 ordered
+op eq 2 3 1 commutative
+op iszero 1 3 1 ordered
+op and 2 3 1 commutative
+op or 2 3 1 commutative
+op xor 2 3 1 commutative
+op not 1 3 1 ordered
+op byte 2 3 1 ordered
+op shl 2 3 1 ordered
+op shr 2 3 1 ordered
+op sar 2 3 1 ordered
+fork shanghai
+constant 0 2 1
+constant 1 3 2
+constant max 5 2
+variable 3 1
+op add 2 3 1 commutative
+op mul 2 5 1 commutative
+op sub 2 3 1 ordered
+op div 2 5 1 ordered
+op sdiv 2 5 1 ordered
+op mod 2 5 1 ordered
+op smod 2 5 1 ordered
+op addmod 3 8 1 ordered
+op mulmod 3 8 1 ordered
+op signextend 2 5 1 ordered
+op lt 2 3 1 ordered
+op gt 2 3 1 ordered
+op slt 2 3 1 ordered
+op sgt 2 3 1 ordered
+op eq 2 3 1 commutative
+op iszero 1 3 1 ordered
+op and 2 3 1 commutative
+op or 2 3 1 commutative
+op xor 2 3 1 commutative
+op not 1 3 1 ordered
+op byte 2 3 1 ordered
+op shl 2 3 1 ordered
+op shr 2 3 1 ordered
+op sar 2 3 1 ordered
+fork cancun
+constant 0 2 1
+constant 1 3 2
+constant max 5 2
+variable 3 1
+op add 2 3 1 commutative
+op mul 2 5 1 commutative
+op sub 2 3 1 ordered
+op div 2 5 1 ordered
+op sdiv 2 5 1 ordered
+op mod 2 5 1 ordered
+op smod 2 5 1 ordered
+op addmod 3 8 1 ordered
+op mulmod 3 8 1 ordered
+op signextend 2 5 1 ordered
+op lt 2 3 1 ordered
+op gt 2 3 1 ordered
+op slt 2 3 1 ordered
+op sgt 2 3 1 ordered
+op eq 2 3 1 commutative
+op iszero 1 3 1 ordered
+op and 2 3 1 commutative
+op or 2 3 1 commutative
+op xor 2 3 1 commutative
+op not 1 3 1 ordered
+op byte 2 3 1 ordered
+op shl 2 3 1 ordered
+op shr 2 3 1 ordered
+op sar 2 3 1 ordered
+fork prague
+constant 0 2 1
+constant 1 3 2
+constant max 5 2
+variable 3 1
+op add 2 3 1 commutative
+op mul 2 5 1 commutative
+op sub 2 3 1 ordered
+op div 2 5 1 ordered
+op sdiv 2 5 1 ordered
+op mod 2 5 1 ordered
+op smod 2 5 1 ordered
+op addmod 3 8 1 ordered
+op mulmod 3 8 1 ordered
+op signextend 2 5 1 ordered
+op lt 2 3 1 ordered
+op gt 2 3 1 ordered
+op slt 2 3 1 ordered
+op sgt 2 3 1 ordered
+op eq 2 3 1 commutative
+op iszero 1 3 1 ordered
+op and 2 3 1 commutative
+op or 2 3 1 commutative
+op xor 2 3 1 commutative
+op not 1 3 1 ordered
+op byte 2 3 1 ordered
+op shl 2 3 1 ordered
+op shr 2 3 1 ordered
+op sar 2 3 1 ordered
+fork osaka
+constant 0 2 1
+constant 1 3 2
+constant max 5 2
+variable 3 1
+op add 2 3 1 commutative
+op mul 2 5 1 commutative
+op sub 2 3 1 ordered
+op div 2 5 1 ordered
+op sdiv 2 5 1 ordered
+op mod 2 5 1 ordered
+op smod 2 5 1 ordered
+op addmod 3 8 1 ordered
+op mulmod 3 8 1 ordered
+op signextend 2 5 1 ordered
+op lt 2 3 1 ordered
+op gt 2 3 1 ordered
+op slt 2 3 1 ordered
+op sgt 2 3 1 ordered
+op eq 2 3 1 commutative
+op iszero 1 3 1 ordered
+op and 2 3 1 commutative
+op or 2 3 1 commutative
+op xor 2 3 1 commutative
+op not 1 3 1 ordered
+op byte 2 3 1 ordered
+op shl 2 3 1 ordered
+op shr 2 3 1 ordered
+op sar 2 3 1 ordered
+op clz 1 5 1 ordered
+fork amsterdam
+constant 0 2 1
+constant 1 3 2
+constant max 5 2
+variable 3 1
+op add 2 3 1 commutative
+op mul 2 5 1 commutative
+op sub 2 3 1 ordered
+op div 2 5 1 ordered
+op sdiv 2 5 1 ordered
+op mod 2 5 1 ordered
+op smod 2 5 1 ordered
+op addmod 3 8 1 ordered
+op mulmod 3 8 1 ordered
+op signextend 2 5 1 ordered
+op lt 2 3 1 ordered
+op gt 2 3 1 ordered
+op slt 2 3 1 ordered
+op sgt 2 3 1 ordered
+op eq 2 3 1 commutative
+op iszero 1 3 1 ordered
+op and 2 3 1 commutative
+op or 2 3 1 commutative
+op xor 2 3 1 commutative
+op not 1 3 1 ordered
+op byte 2 3 1 ordered
+op shl 2 3 1 ordered
+op shr 2 3 1 ordered
+op sar 2 3 1 ordered
+op clz 1 5 1 ordered

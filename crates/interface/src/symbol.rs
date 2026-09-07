@@ -1162,6 +1162,7 @@ symbols! {
         panic,
         phase,
         phi,
+        preserves_fmp,
         push,
         push_data,
         push_deferred,

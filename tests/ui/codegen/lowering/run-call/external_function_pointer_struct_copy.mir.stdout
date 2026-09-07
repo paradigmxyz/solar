@@ -2,7 +2,7 @@
 @module ExternalFunctionPointerStructCopyTarget
 fn @copy(arg0: calldataslice) -> memorystruct [selector=0x0bf8d45f, pure, abi_params=[array<_, function>], abi_returns=[tuple<memory_array<function>>], abi_return_params=[tuple<array<_, function>>]] {
   bb0:
-    v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<1>, v0, 0, 96
     v1 = slice_len arg0
     v2 = slice_ptr arg0
@@ -40,7 +40,7 @@ fn @copy(arg0: calldataslice) -> memorystruct [selector=0x0bf8d45f, pure, abi_pa
     jumpi v22, bb8, bb9
   bb9:
     memory_object_store_field memorystruct<1>, v0, 0, v20
-    v37 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    v37 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<1>, v37, 0, 96
     ret v0
   bb8:

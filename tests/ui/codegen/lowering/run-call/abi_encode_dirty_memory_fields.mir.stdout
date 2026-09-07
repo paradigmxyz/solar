@@ -2,7 +2,7 @@
 @module AbiEncodeDirtyMemoryFields
 fn @dirty() -> memorystruct [pure] {
   bb0:
-    v0 = alloc memorystruct<6>, exact, uninitialized, infallible, 192
+    v0 = alloc memorystruct<6>, exact, uninitialized, infallible, 192 !metadata(preserves_fmp)
     memory_zero v0, 192
     v1 = and 1, 255
     memory_object_store_field memorystruct<6>, v0, 0, v1

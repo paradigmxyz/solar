@@ -7,6 +7,10 @@
 //! any block split moves the original terminator and its metadata together.
 //! Constructor-reachable encoders stay inline because their output is not reserved
 //! until encoding finishes, and a dynamic call frame would overlap that output.
+//! Dynamic tuples are written at the current heap frontier before their size is
+//! known. Their final reservation must retain that exact address even if later
+//! simplification makes the size constant; static placement would detach the
+//! result from the stores that already initialized it.
 
 use crate::{
     mir::{
@@ -497,12 +501,15 @@ fn lower_encode(
     let selector_size = builder.imm(selector_size);
     let total = builder.add(encoded_size, selector_size);
     if mode == AbiEncodeMode::Bytes {
+        // object = alloc bytes allocation_size !metadata(preserves_fmp)
+        // memory_object_store_len object, total
         let allocation_size = builder.checked_padded_size(total);
         let object = builder.alloc_object(
             allocation_size,
             MemoryObjectLayout::Bytes,
             crate::mir::AllocationSemantics::INTERNAL,
         );
+        preserve_encoding_address(builder, object);
         builder.set_memory_object_len(object, total, MemoryObjectKind::Bytes);
         return object;
     }
@@ -513,8 +520,20 @@ fn lower_encode(
     let rounded = builder.add(total, thirty_one);
     let mask = builder.not(thirty_one);
     let aligned = builder.and(rounded, mask);
+    // allocated = alloc raw aligned !metadata(preserves_fmp)
+    // make_slice allocated, total
     let allocated = builder.alloc_raw(aligned, crate::mir::AllocationSemantics::INTERNAL);
+    preserve_encoding_address(builder, allocated);
     builder.make_slice(allocated, total, SliceLocation::Memory)
+}
+
+/// The reservation commits bytes already written through a separate FMP read.
+fn preserve_encoding_address(builder: &mut FunctionBuilder<'_>, allocation: ValueId) {
+    let Value::Inst(inst) = *builder.func().value(allocation) else {
+        unreachable!("allocation result must reference its instruction")
+    };
+    // allocation !metadata(preserves_fmp)
+    builder.func_mut().inst_mut(inst).metadata.set_preserves_fmp(true);
 }
 
 /// Encodes a statically shaped tuple into an existing physical return buffer.

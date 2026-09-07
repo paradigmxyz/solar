@@ -150,7 +150,7 @@ fn @blobAt() [selector=0x8f236983, view] {
     v27 = sub v26, v11
     v29 = add v27, 31
     v31 = and v29, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v32 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v32 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
     v35 = add v32, v31
     mstore 64, v35 !metadata(memory=scratch)
     returndata v32, v27

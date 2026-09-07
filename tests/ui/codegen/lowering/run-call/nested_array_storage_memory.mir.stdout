@@ -496,7 +496,7 @@ fn @test1() -> memoryarray [selector=0x6b59084d, view, abi_params=[], abi_return
 
 fn @test2() -> memoryfixedarray [selector=0x66e41cb7, view, abi_params=[], abi_returns=[array<2, memory_array<word>>]] {
   bb0:
-    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v3]
@@ -583,7 +583,7 @@ fn @test3() -> memoryarray [selector=0x0a8e8e01, view, abi_params=[], abi_return
 
 fn @test4() -> memoryfixedarray [selector=0x8f0d282d, view, abi_params=[], abi_returns=[array<2, array<2, word>>]] {
   bb0:
-    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v4]
@@ -618,7 +618,7 @@ fn @test4() -> memoryfixedarray [selector=0x8f0d282d, view, abi_params=[], abi_r
     v15 = add v11, 1
     jump bb7
   bb2:
-    v3 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v3 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_zero v3, 64
     memory_object_store_element memoryfixedarray<2, 1>, v0, v1, v3
     v4 = add v1, 1

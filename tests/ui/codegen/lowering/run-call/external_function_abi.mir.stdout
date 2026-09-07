@@ -20,7 +20,7 @@ fn @echo(arg0: function) -> function [selector=0x90898ee4, pure, abi_params=[fun
 
 fn @echoHolder(arg0: memorystruct) -> memorystruct [selector=0x030fb1b2, pure, abi_params=[tuple<function, u256>], abi_returns=[tuple<function, word>], abi_return_params=[tuple<function, u256>]] {
   bb0:
-    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<2>, v0, 0, 0
     memory_object_store_field memorystruct<2>, v0, 1, 0
     ret arg0

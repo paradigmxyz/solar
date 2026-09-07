@@ -33,7 +33,7 @@ fn @encodeFirst() [selector=0xe9a7b169, pure] {
     v24 = sub v23, v8
     v26 = add v24, 31
     v28 = and v26, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v29 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v29 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
     v31 = add v29, v28
     mstore 64, v31 !metadata(memory=scratch)
     returndata v29, v24
@@ -66,7 +66,7 @@ fn @encodeSecond() [selector=0x108c1ec5, pure] {
     jumpi v22, bb3, bb4
   bb4:
     v24 = and v21, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v25 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v25 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
     v50 = add v25, v24
     mstore 64, v50 !metadata(memory=scratch)
     mstore v25, v19
@@ -94,7 +94,7 @@ fn @encodeSecond() [selector=0x108c1ec5, pure] {
     v42 = sub v41, v26
     v44 = add v42, 31
     v46 = and v44, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v47 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v47 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
     v51 = add v47, v46
     mstore 64, v51 !metadata(memory=scratch)
     returndata v47, v42
@@ -544,7 +544,7 @@ fn @encodeFirst.body(arg0: memptr) -> memptr [pure] {
     jumpi v16, bb1, bb2
   bb2:
     v18 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v19 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v19 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
     v21 = add v19, v18
     mstore 64, v21 !metadata(memory=scratch)
     mstore v19, v13

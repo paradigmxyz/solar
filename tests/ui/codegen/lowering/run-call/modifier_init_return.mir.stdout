@@ -2,7 +2,7 @@
 @module ModifierInitReturn
 fn @f(arg0: u256) -> memoryfixedarray [selector=0xb3de648b, pure, abi_params=[u256], abi_returns=[array<5, word>]] {
   bb0:
-    v0 = alloc memoryfixedarray<5, 1>, exact, uninitialized, infallible, 160
+    v0 = alloc memoryfixedarray<5, 1>, exact, uninitialized, infallible, 160 !metadata(preserves_fmp)
     memory_zero v0, 160
     v1 = lt arg0, 10
     v2 = iszero v1
