@@ -2,7 +2,7 @@
 @module TerminalTailEntryMixed_runtime
 bb0 [cold]:
   callvalue
-  jumpi bb15, bb12
+  jumpi bb2, bb12
 bb12 [cold]:
   push 0
   calldataload
@@ -15,12 +15,12 @@ bb12 [cold]:
 bb17 [cold]:
   push 0xd5182b70
   sub
-  jumpi bb15, bb5
+  jumpi bb2, bb5
 bb5 [cold]:
   calldatasize
   push 36
   gt
-  jumpi bb6, bb7
+  jumpi bb2, bb7
 bb7 [cold]:
   gas
   push 128
@@ -114,14 +114,6 @@ bb7 [cold]:
   mstore
   jump bb9
 bb2 [cold]:
-  push 0
-  push 0
-  revert
-bb6 [cold]:
-  push 0
-  push 0
-  revert
-bb15 [cold]:
   push 0
   push 0
   revert

@@ -1,0 +1,20 @@
+- // === ROOT/tests/ui/codegen/evm-ir/redirect-terminals/empty_revert_entry_owner.evmir (before redirect-terminals) ===
++ // === ROOT/tests/ui/codegen/evm-ir/redirect-terminals/empty_revert_entry_owner.evmir (after redirect-terminals) ===
+  @module EntryOwner
+  bb0:
+    push 0
+    push 0
+    revert
+  bb1:
+    gas
+    jumpi bb0, bb2
+  bb2:
+    callvalue
+    jumpi bb3, bb4
+  bb3:
+    push 0
+    push 0
+    revert
+  bb4:
+    stop
+  

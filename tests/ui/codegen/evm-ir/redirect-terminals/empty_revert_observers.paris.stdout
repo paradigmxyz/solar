@@ -1,0 +1,100 @@
+- // === ROOT/tests/ui/codegen/evm-ir/redirect-terminals/empty_revert_observers.evmir (before redirect-terminals) ===
++ // === ROOT/tests/ui/codegen/evm-ir/redirect-terminals/empty_revert_observers.evmir (after redirect-terminals) ===
+  @module EmptyRevertObserver
+  bb0:
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0x1000
+    push 50
+    gas !metadata(keep_with_next)
+    sub !metadata(keep_with_next)
+    call
+    pop
+    gas
+    push 128
+    mstore
+    callvalue
+    jumpi bb1, bb2
+- bb1 [cold, invoke=first@10..20]:
+-   push 0 !metadata(span=10..11)
+-   push 0 !metadata(span=11..12)
+-   revert !metadata(span=12..13)
++ bb1 [cold]:
++   push 0 !metadata(spans=[10..11, 30..31])
++   push 0 !metadata(spans=[11..12, 31..32])
++   revert !metadata(spans=[12..13, 32..33])
+  bb2:
+    calldatasize
+-   jumpi bb3, bb4
+- bb3 [cold, invoke=second@30..40]:
+-   push 0 !metadata(span=30..31)
+-   push 0 !metadata(span=31..32)
+-   revert !metadata(span=32..33)
++   jumpi bb1, bb4
+  bb4:
+    gas
+    push 160
+    mstore
+    callvalue
+    jumpi bb5, bb6
+  bb5:
+    push 32
+    push 0
+    revert
+  bb6:
+    calldatasize
+    jumpi bb7, bb8
+  bb7:
+    push 32
+    push 0
+    revert
+  bb8:
+    callvalue
+    jumpi bb9, bb10
+  bb9:
+    push 0
+    push 0
+    return
+  bb10:
+    calldatasize
+    jumpi bb11, bb12
+  bb11:
+    push 0
+    push 0
+    return
+  bb12:
+    callvalue
+    jumpi bb13, bb14
+  bb13:
+    push 0
+    push 0
+    revert
+  bb14:
+    calldatasize
+    jumpi bb15, bb16
+  bb15:
+    push 0
+    push 0
+    revert
+  bb16:
+    callvalue
+    jumpi bb17, bb18
+  bb17:
+    push 0
+    push 0
+    revert
+  bb18:
+    calldatasize
+    jumpi bb19, bb20
+  bb19:
+    push 0
+    push 0
+    revert
+  bb20:
+    push 64
+    push 128
+    return
+  

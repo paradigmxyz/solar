@@ -1,0 +1,30 @@
+- // === ROOT/tests/ui/codegen/evm-ir/redirect-terminals/empty_revert_empty_entry.evmir (before redirect-terminals) ===
++ // === ROOT/tests/ui/codegen/evm-ir/redirect-terminals/empty_revert_empty_entry.evmir (after redirect-terminals) ===
+  @module EmptyRevertObserver
+  bb9:
+    jump bb0
+  bb0:
+    gas
+    push 128
+    mstore
+    callvalue
+    jumpi bb1, bb2
+  bb1 [cold]:
+    push 0
+    push 0
+    revert
+  bb2:
+    calldatasize
+    jumpi bb3, bb4
+  bb3 [cold]:
+    push 0
+    push 0
+    revert
+  bb4:
+    gas
+    push 160
+    mstore
+    push 64
+    push 128
+    return
+  

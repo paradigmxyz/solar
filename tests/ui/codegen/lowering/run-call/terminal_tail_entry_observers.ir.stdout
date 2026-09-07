@@ -120,7 +120,7 @@ bb7 [cold]:
 @module TailEntryObserverGas_runtime
 bb0 [cold]:
   callvalue
-  jumpi bb15, bb12
+  jumpi bb2, bb12
 bb12 [cold]:
   push 0
   calldataload
@@ -133,7 +133,7 @@ bb12 [cold]:
 bb17 [cold]:
   push 0xa444f5e9
   sub
-  jumpi bb15, bb1
+  jumpi bb2, bb1
 bb1 [cold]:
   calldatasize
   push 36
@@ -163,20 +163,12 @@ bb2 [cold]:
   push 0
   push 0
   revert
-bb6 [cold]:
-  push 0
-  push 0
-  revert
-bb15 [cold]:
-  push 0
-  push 0
-  revert
 bb18 [cold]:
   pop
   calldatasize
   push 36
   gt
-  jumpi bb6, bb7
+  jumpi bb2, bb7
 bb7 [cold]:
   push 4
   calldataload
@@ -304,7 +296,7 @@ bb7 [cold]:
 @module TailEntryObserverCall_runtime
 bb0 [cold]:
   callvalue
-  jumpi bb15, bb12
+  jumpi bb2, bb12
 bb12 [cold]:
   push 0
   calldataload
@@ -317,7 +309,7 @@ bb12 [cold]:
 bb17 [cold]:
   push 0xa444f5e9
   sub
-  jumpi bb15, bb1
+  jumpi bb2, bb1
 bb1 [cold]:
   calldatasize
   push 36
@@ -355,20 +347,12 @@ bb2 [cold]:
   push 0
   push 0
   revert
-bb6 [cold]:
-  push 0
-  push 0
-  revert
-bb15 [cold]:
-  push 0
-  push 0
-  revert
 bb18 [cold]:
   pop
   calldatasize
   push 36
   gt
-  jumpi bb6, bb7
+  jumpi bb2, bb7
 bb7 [cold]:
   push 4
   calldataload

@@ -42,11 +42,14 @@
 //! earliest identical body remains the owner and may gain a JUMPDEST, except
 //! when the module forwards gas: then the owner must already be addressable. Only
 //! taken-only duplicates can be removed. Private pushed labels require control-only
-//! provenance and their targets stay protected. Modules with indirect control require
-//! already-addressable owners, no forwarded-gas observations, and proved executed
-//! dynamic destinations. Observer and dynamic-target checks run only for actual
-//! matches before mutation. Public labels, unknown control and code observations
-//! block the transform. Placement
+//! provenance and their targets stay protected. Indirect control requires already
+//! addressable owners and proved executed dynamic destinations. GAS and forwarded-gas
+//! refusals admit one exception: canonical empty reverts may share an already-taken,
+//! unpushed owner. The owner is not the entry, the retained entry emits instructions,
+//! and indexed control is absent. Both paths retain their transfer, destination marker
+//! and stack behavior; all remaining labels stay nonzero, so relocation cannot turn
+//! a PUSH1 into the cheaper PUSH0. Observer and dynamic-target checks precede mutation.
+//! Public labels, unknown control and code observations block the transform. Placement
 //! forms unconditional and conditional-false traces, removing their encoded
 //! PUSH/JUMP transfers while keeping cold traces after hot ones. Existing
 //! unconditional trace edges reserve their targets in hotness/reference order,
@@ -704,6 +707,9 @@ fn redirect_terminals(module: &mut Module) -> bool {
     let ids = module.block_ids().collect::<Vec<_>>();
     let mut protected = DenseBitSet::new_empty(module.blocks.len());
     let mut taken = DenseBitSet::new_empty(module.blocks.len());
+    let mut pushed = DenseBitSet::new_empty(module.blocks.len());
+    let mut reads_gas = false;
+    let mut indexed_control = false;
     let mut forwards_gas = None;
     let mut indirect_control = false;
     let mut has_dynamic = false;
@@ -716,9 +722,11 @@ fn redirect_terminals(module: &mut Module) -> bool {
         if block.insts.iter().any(|inst| {
             if let InstKind::PushLabel(target) = inst.kind {
                 indirect_control = true;
+                pushed.insert(target);
                 taken.insert(target);
                 protected.insert(target);
             }
+            reads_gas |= inst.kind == InstKind::Op(op::GAS);
             (matches!(inst.kind, InstKind::PushLabel(_)) && !module.private_control_labels)
                 || matches!(inst.kind, InstKind::PushData { .. } | InstKind::PushDeferred(_))
                 || matches!(inst.kind, InstKind::Op(code) if op::stack_io(code).is_none())
@@ -734,7 +742,6 @@ fn redirect_terminals(module: &mut Module) -> bool {
                             | op::EXTCODECOPY
                             | op::EXTCODESIZE
                             | op::EXTCODEHASH
-                            | op::GAS
                     )
                 )
         }) {
@@ -755,6 +762,7 @@ fn redirect_terminals(module: &mut Module) -> bool {
                 }
             }
             TerminatorKind::IndexedJump(targets) => {
+                indexed_control = true;
                 for &target in targets {
                     taken.insert(target);
                 }
@@ -789,17 +797,37 @@ fn redirect_terminals(module: &mut Module) -> bool {
                 && module.blocks[id].insts == module.blocks[other].insts
                 && module.blocks[id].terminator == module.blocks[other].terminator
             {
-                // Indirect control forbids forwarded-gas changes; an added destination
-                // must not alter a callee's gas. The module is immutable until redirection.
-                if (indirect_control || !taken.contains(id))
-                    && *forwards_gas.get_or_insert_with(|| {
-                        ids.iter().any(|&id| module.blocks[id].insts.iter().any(observes_gas))
-                    })
-                {
-                    if indirect_control {
-                        return false;
+                // Existing taken edges can share a previously taken empty exit without
+                // adding a transfer or destination marker. Pushed owners, table control,
+                // and noncanonical effects keep the ordinary observer refusal.
+                let needs_observer_proof = reads_gas
+                    || ((indirect_control || !taken.contains(id))
+                        && *forwards_gas.get_or_insert_with(|| {
+                            ids.iter().any(|&id| module.blocks[id].insts.iter().any(observes_gas))
+                        }));
+                if needs_observer_proof {
+                    let empty_revert = |block: &Block| {
+                        block.terminator.kind == TerminatorKind::Revert
+                            && block.terminator.stack_effect.is_none()
+                            && !block.terminator.keep_with_next
+                            && block.insts.len() == 2
+                            && block.insts.iter().all(|inst| {
+                                matches!(inst.kind, InstKind::Push(value) if value.is_zero())
+                                    && inst.stack_effect.is_none()
+                                    && !inst.keep_with_next
+                            })
+                    };
+                    // A retained nonempty entry keeps all label addresses nonzero;
+                    // otherwise a redirected PUSH1 could become the cheaper PUSH0.
+                    if id == ids[0]
+                        || module.blocks[ids[0]].insts.is_empty()
+                        || indexed_control
+                        || !taken.contains(id)
+                        || pushed.contains(id)
+                        || !empty_revert(&module.blocks[id])
+                    {
+                        continue;
                     }
-                    break;
                 }
                 targets[other] = id;
                 changed = true;
