@@ -127,6 +127,17 @@ fn analysis_build(c: &mut Criterion) {
             },
         );
     }
+    let call = "function_0000(1, 2, address(0));";
+    let source = benchmark_source(1).source.replace(call, &call.repeat(256));
+    assert_clean(&BenchmarkAnalysis::from_source(source.clone()));
+    group.throughput(Throughput::Bytes(source.len() as u64));
+    group.bench_function(BenchmarkId::from_parameter("repeated-calls"), |b| {
+        b.iter_batched(
+            || source.clone(),
+            |source| black_box(BenchmarkAnalysis::from_source(black_box(source))),
+            BatchSize::PerIteration,
+        );
+    });
     group.finish();
 }
 
