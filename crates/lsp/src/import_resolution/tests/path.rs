@@ -38,3 +38,22 @@ fn completion_does_not_recover_past_an_unescaped_line_break() {
 
     assert!(import_path_at_for_completion(source, cursor).is_none());
 }
+
+#[test]
+fn completion_matches_parser_import_ranges_at_every_boundary() {
+    for source in [
+        r#"import "./Dep.sol"; contract C { string s = "ordinary"; }"#,
+        "import {Dep as Alias} from './Dep.sol'; // import './Fake.sol';",
+        r#"/* import "./Fake.sol"; */ import "./Dep.sol" as Dep;"#,
+        r#"import * as Dep from "./😀.sol";"#,
+        r#"contract C { string s = unicode"./Dep.sol"; bytes s2 = hex"abcd"; }"#,
+    ] {
+        for cursor in (0..=source.len()).filter(|&cursor| source.is_char_boundary(cursor)) {
+            assert_eq!(
+                import_path_at_for_completion(source, cursor),
+                import_path_at(source, cursor),
+                "cursor {cursor} in {source}",
+            );
+        }
+    }
+}

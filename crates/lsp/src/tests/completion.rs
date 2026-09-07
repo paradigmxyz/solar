@@ -1682,3 +1682,52 @@ field Property
 "#]],
     );
 }
+
+#[test]
+fn member_completion_cache_preserves_source_and_contract_context() {
+    let fixture = RequestFixture::new_allowing_diagnostics(
+        r#"
+        //- /Libraries.sol
+        library First {
+            function first(uint256 value) internal pure returns (uint256) { return value; }
+        }
+        library Second {
+            function second(uint256 value) internal pure returns (uint256) { return value; }
+        }
+        //- /Other.sol
+        import {First} from "./Libraries.sol";
+        using First for uint256;
+        function readOther(uint256 value) pure { value.$1; }
+        //- /Completion.sol open
+        import {Second} from "./Libraries.sol";
+        import "./Other.sol";
+        function readGlobal(uint256 value) pure { value.$5; }
+        contract C {
+            using Second for uint256;
+            function read(uint256 value) public pure {
+                value.$2;
+                value.$3;
+            }
+        }
+        contract D {
+            function read(uint256 value) public pure { value.$4; }
+        }
+        "#,
+        "/Completion.sol",
+    );
+    fixture.check_completion(
+        "$1",
+        str![[r#"
+first Method
+
+"#]],
+    );
+    let expected = str![[r#"
+second Method
+
+"#]];
+    fixture.check_completion("$2", expected.clone());
+    fixture.check_completion("$3", expected);
+    fixture.check_completion("$4", str![[""]]);
+    fixture.check_completion("$5", str![[""]]);
+}

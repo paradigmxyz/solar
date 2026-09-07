@@ -17,6 +17,7 @@ use crate::{
     vfs::Vfs,
     workspace::{WorkspaceError, WorkspacePathIndex, index_policy::IndexingCancellation},
 };
+use arc_swap::ArcSwap;
 use async_lsp::{ClientSocket, LanguageClient, ResponseError};
 use lsp_types::{
     Diagnostic, DidChangeWatchedFilesRegistrationOptions, FileChangeType, FileSystemWatcher,
@@ -265,7 +266,7 @@ struct AnalysisCommitState {
 struct CachedAnalysisOutput {
     vfs_content_revision: u64,
     config: Arc<Config>,
-    output: AnalysisOutput,
+    output: AnalysisOutput<Arc<SymbolTables>>,
 }
 
 impl AnalysisCommitState {
@@ -394,7 +395,7 @@ pub(crate) struct GlobalState {
     protocol_trace: ProtocolTrace,
     flycheck_versions: Arc<RwLock<FxHashMap<DiagnosticOwner, usize>>>,
     flycheck_cancels: FxHashMap<DiagnosticOwner, oneshot::Sender<()>>,
-    pub(crate) symbol_tables: Arc<RwLock<SymbolTables>>,
+    pub(crate) symbol_tables: Arc<ArcSwap<SymbolTables>>,
     diagnostics: Arc<RwLock<DiagnosticStore>>,
 }
 
@@ -560,7 +561,7 @@ impl GlobalState {
             return true;
         }
 
-        if !self.symbol_tables.read().file_operation_paths_under(&[path.to_path_buf()]).is_empty() {
+        if !self.symbol_tables.load().file_operation_paths_under(&[path.to_path_buf()]).is_empty() {
             return true;
         }
 
@@ -819,11 +820,9 @@ impl GlobalState {
             analysis_progress.finish_active_after("Workspace index cleared", || {
                 // Invalidate workers before doing the potentially expensive diagnostic publication.
                 analysis_version.store(version, Ordering::Release);
-                let mut symbol_tables = symbol_tables.write();
+                let old_symbol_tables = symbol_tables.swap(Arc::default());
                 let inlay_hints_changed = compare_inlay_hints
-                    && symbol_tables.inlay_hints_changed(&SymbolTables::default());
-                let old_symbol_tables = mem::take(&mut *symbol_tables);
-                drop(symbol_tables);
+                    && old_symbol_tables.inlay_hints_changed(&SymbolTables::default());
                 let update = diagnostics.write().replace_compiler_snapshot_and_publish_batches(
                     DiagnosticMap::default(),
                     AnalyzedDocuments::default(),
@@ -1285,7 +1284,7 @@ impl GlobalState {
     /// Waits for analysis results at least as new as the latest version requested before this call.
     pub(crate) fn latest_analysis(
         &self,
-    ) -> impl Future<Output = Result<Arc<RwLock<SymbolTables>>, ResponseError>> + use<> {
+    ) -> impl Future<Output = Result<Arc<ArcSwap<SymbolTables>>, ResponseError>> + use<> {
         let mut published = self.published_analysis_version.subscribe();
         let version = self.analysis_version.load(Ordering::Acquire);
         let symbol_tables = self.symbol_tables.clone();
@@ -1300,7 +1299,7 @@ impl GlobalState {
     /// Waits for the latest analysis and returns the config snapshot that produced it.
     pub(crate) fn latest_analysis_with_config(
         &self,
-    ) -> impl Future<Output = Result<(Arc<RwLock<SymbolTables>>, Arc<Config>), ResponseError>> + use<>
+    ) -> impl Future<Output = Result<(Arc<ArcSwap<SymbolTables>>, Arc<Config>), ResponseError>> + use<>
     {
         let latest_analysis = self.latest_analysis();
         let analysis_commit = self.analysis_commit.clone();
@@ -1407,7 +1406,7 @@ impl GlobalState {
             }
             let Ok(uri) = Url::from_file_path(&path) else { return false };
             let analyzed =
-                self.symbol_tables.read().natspec_source_fingerprint(&uri).map(str::to_owned);
+                self.symbol_tables.load().natspec_source_fingerprint(&uri).map(str::to_owned);
             let vfs_path = crate::vfs::VfsPath::from(path.clone());
             let open_contents = self.vfs.read().get_file_contents(&vfs_path).cloned();
             let current = open_contents
@@ -1652,7 +1651,7 @@ fn run_analysis(
         }
     }
 
-    let output = results.finish();
+    let output = results.finish().into_shared();
     if !has_disk_paths {
         snapshot.analysis_commit.lock().cached_output =
             Some(CachedAnalysisOutput { vfs_content_revision, config, output: output.clone() });
@@ -1745,16 +1744,32 @@ fn handle_analysis_failure(
 }
 
 #[derive(Clone)]
-struct AnalysisResult {
+struct AnalysisResult<T = SymbolTables> {
     analyzed_documents: AnalyzedDocuments,
     diagnostics: DiagnosticMap,
-    symbol_tables: SymbolTables,
+    symbol_tables: T,
 }
 
 #[derive(Clone)]
-struct AnalysisOutput {
-    result: AnalysisResult,
+struct AnalysisOutput<T = SymbolTables> {
+    result: AnalysisResult<T>,
     analysis_paths: AnalysisPathIndex,
+}
+
+impl AnalysisOutput {
+    /// Share the completed index between the cache and published snapshot.
+    fn into_shared(self) -> AnalysisOutput<Arc<SymbolTables>> {
+        let Self { result, analysis_paths } = self;
+        let AnalysisResult { analyzed_documents, diagnostics, symbol_tables } = result;
+        AnalysisOutput {
+            result: AnalysisResult {
+                analyzed_documents,
+                diagnostics,
+                symbol_tables: Arc::new(symbol_tables),
+            },
+            analysis_paths,
+        }
+    }
 }
 
 #[derive(Default)]
@@ -2112,7 +2127,7 @@ pub(crate) struct GlobalStateSnapshot {
     analysis_commit: Arc<Mutex<AnalysisCommitState>>,
     watched_file_registration: Arc<WatchedFileRegistrationCoordinator>,
     flycheck_versions: Arc<RwLock<FxHashMap<DiagnosticOwner, usize>>>,
-    symbol_tables: Arc<RwLock<SymbolTables>>,
+    symbol_tables: Arc<ArcSwap<SymbolTables>>,
     diagnostics: Arc<RwLock<DiagnosticStore>>,
 }
 
@@ -2275,11 +2290,15 @@ impl GlobalStateSnapshot {
     fn publish_analysis(&mut self, version: usize, result: AnalysisResult) -> bool {
         self.publish_analysis_output(
             version,
-            AnalysisOutput { result, analysis_paths: AnalysisPathIndex::default() },
+            AnalysisOutput { result, analysis_paths: AnalysisPathIndex::default() }.into_shared(),
         )
     }
 
-    fn publish_analysis_output(&mut self, version: usize, output: AnalysisOutput) -> bool {
+    fn publish_analysis_output(
+        &mut self,
+        version: usize,
+        output: AnalysisOutput<Arc<SymbolTables>>,
+    ) -> bool {
         let refresh_code_lenses =
             self.config.supports_code_lens_refresh() && self.config.code_lens_options().is_active();
         let AnalysisOutput { result, analysis_paths } = output;
@@ -2338,12 +2357,10 @@ impl GlobalStateSnapshot {
                     }
                 }
             }
-            let mut symbol_tables = self.symbol_tables.write();
             let inlay_hints_changed = commit.external_refresh.is_some()
                 && self.config.supports_inlay_hint_refresh()
-                && symbol_tables.inlay_hints_changed(&new_tables);
-            let old_symbol_tables = mem::replace(&mut *symbol_tables, new_tables);
-            drop(symbol_tables);
+                && self.symbol_tables.load().inlay_hints_changed(&new_tables);
+            let old_symbol_tables = self.symbol_tables.swap(new_tables);
             commit.analysis_paths = analysis_paths;
             commit.symbol_tables_version = version;
             commit.analysis_config = Some(self.config.clone());
@@ -2398,13 +2415,16 @@ impl GlobalStateSnapshot {
     }
 
     #[cfg(test)]
-    fn publish_symbol_tables(&mut self, version: usize, symbol_tables: SymbolTables) -> bool {
-        self.publish_analysis(
+    fn publish_symbol_tables(&mut self, version: usize, symbol_tables: Arc<SymbolTables>) -> bool {
+        self.publish_analysis_output(
             version,
-            AnalysisResult {
-                analyzed_documents: AnalyzedDocuments::default(),
-                diagnostics: DiagnosticMap::default(),
-                symbol_tables,
+            AnalysisOutput {
+                result: AnalysisResult {
+                    analyzed_documents: AnalyzedDocuments::default(),
+                    diagnostics: DiagnosticMap::default(),
+                    symbol_tables,
+                },
+                analysis_paths: AnalysisPathIndex::default(),
             },
         )
     }

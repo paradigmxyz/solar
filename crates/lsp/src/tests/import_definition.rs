@@ -1,4 +1,4 @@
-use super::{SymbolTables, support::RequestFixture};
+use super::support::RequestFixture;
 use crate::vfs::VfsPath;
 use crop::Rope;
 use lsp_types::{
@@ -107,7 +107,7 @@ fn import_definition_discards_a_stale_vfs_result() {
         "/Main.sol",
     );
     let mut state = fixture.state();
-    let old_tables = state.symbol_tables.read().clone();
+    let old_tables = state.symbol_tables.load_full();
     state.mark_analysis_pending_for_test();
     let (uri, position) = fixture.marker_location("$1");
     let params = goto_params(uri, position);
@@ -159,7 +159,7 @@ fn import_definition_discards_a_fallback_from_an_old_analysis_epoch() {
 
     state.mark_context_analysis_pending_for_test();
     let mut snapshot = state.snapshot();
-    assert!(snapshot.publish_symbol_tables(2, SymbolTables::default()));
+    assert!(snapshot.publish_symbol_tables(2, Default::default()));
 
     let std::task::Poll::Ready(response) = request.as_mut().poll(&mut context) else {
         panic!("definition request should complete after analysis is published");

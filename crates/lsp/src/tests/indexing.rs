@@ -2,6 +2,66 @@ use super::*;
 use async_lsp::LanguageServer;
 use std::sync::atomic::AtomicBool;
 
+#[tokio::test(flavor = "current_thread")]
+async fn cached_and_published_symbol_tables_share_storage() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /Main.sol
+        contract Main {}
+        "#,
+    );
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    state.config = Arc::new(project.config());
+    *state.vfs.write() = project.vfs();
+    state.recompute_after_opening_source(vec![project.path("/Main.sol")]);
+    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+
+    let published = state.symbol_tables.load_full();
+    {
+        let commit = state.analysis_commit.lock();
+        let cached = commit.cached_output.as_ref().unwrap();
+        assert!(Arc::ptr_eq(&published, &cached.output.result.symbol_tables));
+    }
+
+    state.recompute_after_opening_source(Vec::new());
+    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+    assert!(Arc::ptr_eq(&published, &state.symbol_tables.load()));
+
+    let old = Arc::downgrade(&published);
+    drop(published);
+    state.clear_analysis_cache();
+    assert!(old.upgrade().is_none());
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn retained_symbol_snapshot_does_not_block_publication_or_clear() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /Main.sol
+        contract Main {}
+        "#,
+    );
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    state.config = Arc::new(project.config());
+    *state.vfs.write() = project.vfs();
+    state.recompute_after_opening_source(vec![project.path("/Main.sol")]);
+    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+
+    let tables = state.symbol_tables.clone();
+    let retained = tables.load();
+    let old = Arc::downgrade(&retained);
+    let mut snapshot = state.snapshot();
+    let version = state.analysis_version.load(Ordering::Acquire);
+    assert!(snapshot.publish_symbol_tables(version, Arc::default()));
+    assert!(tables.load().workspace_symbols("").is_empty());
+    assert!(!retained.workspace_symbols("Main").is_empty());
+
+    state.clear_analysis_cache();
+    assert!(old.upgrade().is_some());
+    drop(retained);
+    assert!(old.upgrade().is_none());
+}
+
 #[test]
 fn analysis_tracks_excluded_transitive_dependencies_and_normalized_missing_candidates() {
     let project = TestProject::from_fixture(
@@ -54,7 +114,7 @@ fn analysis_output_accumulator_resolved_path_wins_across_batches() {
     let result = || AnalysisResult {
         analyzed_documents: AnalyzedDocuments::default(),
         diagnostics: DiagnosticMap::default(),
-        symbol_tables: SymbolTables::default(),
+        symbol_tables: Default::default(),
     };
     let mut accumulator = AnalysisOutputAccumulator::default();
     accumulator.push(AnalysisOutput {
@@ -87,7 +147,7 @@ fn stale_analysis_does_not_replace_published_path_index() {
         result: AnalysisResult {
             analyzed_documents: AnalyzedDocuments::default(),
             diagnostics: DiagnosticMap::default(),
-            symbol_tables: SymbolTables::default(),
+            symbol_tables: Default::default(),
         },
         analysis_paths: AnalysisPathIndex {
             resolved_dependencies: FxHashSet::from_iter([path]),
@@ -120,7 +180,7 @@ fn deferred_dependency_change_prevents_stale_analysis_publish() {
         result: AnalysisResult {
             analyzed_documents: AnalyzedDocuments::default(),
             diagnostics: DiagnosticMap::default(),
-            symbol_tables: SymbolTables::default(),
+            symbol_tables: Default::default(),
         },
         analysis_paths: AnalysisPathIndex {
             resolved_dependencies: FxHashSet::from_iter([path]),
@@ -128,7 +188,7 @@ fn deferred_dependency_change_prevents_stale_analysis_publish() {
         },
     };
 
-    assert!(!state.snapshot().publish_analysis_output(version, output));
+    assert!(!state.snapshot().publish_analysis_output(version, output.into_shared()));
     assert_eq!(*state.published_analysis_version.borrow(), 0);
     assert!(state.analysis_commit.lock().deferred_source_file_events.is_empty());
 }
@@ -181,7 +241,7 @@ fn deferred_existing_missing_candidate_change_prevents_stale_analysis_publish() 
         result: AnalysisResult {
             analyzed_documents: AnalyzedDocuments::default(),
             diagnostics: DiagnosticMap::default(),
-            symbol_tables: SymbolTables::default(),
+            symbol_tables: Default::default(),
         },
         analysis_paths: AnalysisPathIndex {
             missing_candidates: FxHashSet::from_iter([path]),
@@ -189,7 +249,7 @@ fn deferred_existing_missing_candidate_change_prevents_stale_analysis_publish() 
         },
     };
 
-    assert!(!state.snapshot().publish_analysis_output(version, output));
+    assert!(!state.snapshot().publish_analysis_output(version, output.into_shared()));
     assert_eq!(*state.published_analysis_version.borrow(), 0);
 }
 
@@ -206,12 +266,12 @@ fn deferred_unrelated_change_does_not_block_analysis_publish() {
         result: AnalysisResult {
             analyzed_documents: AnalyzedDocuments::default(),
             diagnostics: DiagnosticMap::default(),
-            symbol_tables: SymbolTables::default(),
+            symbol_tables: Default::default(),
         },
         analysis_paths: AnalysisPathIndex::default(),
     };
 
-    assert!(state.snapshot().publish_analysis_output(version, output));
+    assert!(state.snapshot().publish_analysis_output(version, output.into_shared()));
     assert_eq!(*state.published_analysis_version.borrow(), version);
     assert!(state.analysis_commit.lock().deferred_source_file_events.is_empty());
 }
@@ -326,7 +386,7 @@ async fn unknown_dependency_event_after_cache_clear_starts_recovery() {
         .expect("cache recovery analysis should finish")
         .unwrap();
     assert!(!state.analysis_cache_invalidated());
-    assert!(tables.read().workspace_symbols("Latest").iter().any(|symbol| symbol.name == "Latest"));
+    assert!(tables.load().workspace_symbols("Latest").iter().any(|symbol| symbol.name == "Latest"));
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -486,8 +546,8 @@ async fn workspace_discovery_router_rejects_stale_and_cancelled_ready_events() {
     .await
     .expect("latest workspace discovery should publish analysis");
 
-    assert!(tables.read().workspace_symbols("Stale").is_empty());
-    assert!(tables.read().workspace_symbols("Latest").iter().any(|symbol| symbol.name == "Latest"));
+    assert!(tables.load().workspace_symbols("Stale").is_empty());
+    assert!(tables.load().workspace_symbols("Latest").iter().any(|symbol| symbol.name == "Latest"));
 
     server.request::<request::Shutdown>(()).await.unwrap();
     server.notify::<notification::Exit>(()).unwrap();
@@ -540,7 +600,11 @@ async fn deferred_dependency_change_router_publishes_replacement_analysis() {
 
         let mut router = crate::new_router_with_state(state);
         router.event::<PublishAnalysis>(|state, event| {
-            assert!(!state.snapshot().publish_analysis_output(event.version, event.output));
+            assert!(
+                !state
+                    .snapshot()
+                    .publish_analysis_output(event.version, event.output.into_shared())
+            );
             ControlFlow::Continue(())
         });
         router
@@ -571,7 +635,7 @@ async fn deferred_dependency_change_router_publishes_replacement_analysis() {
     .expect("replacement dependency analysis should publish");
 
     assert_eq!(*published.borrow(), version + 1);
-    assert!(tables.read().workspace_symbols("Latest").iter().any(|symbol| symbol.name == "Latest"));
+    assert!(tables.load().workspace_symbols("Latest").iter().any(|symbol| symbol.name == "Latest"));
 
     server.request::<request::Shutdown>(()).await.unwrap();
     server.notify::<notification::Exit>(()).unwrap();
