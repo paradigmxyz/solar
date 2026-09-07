@@ -14,7 +14,7 @@
 use crate::mir;
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 
-/// A homed word or a rematerializable MIR value.
+/// A homed word or a MIR value supplied by the stack or rematerialization.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Source {
     Home(usize),

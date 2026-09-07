@@ -24,6 +24,7 @@ use alloy_primitives::U256;
 use solar_config::{EvmVersion, OptimizationMode, SwitchLowering};
 use solar_data_structures::map::FxHashMap;
 
+#[derive(Clone)]
 pub(crate) struct Planner {
     mode: SwitchLowering,
     optimization: OptimizationMode,

@@ -71,6 +71,30 @@ pub(super) fn choose(
     }
 }
 
+/// Counts the selected template, all unselected ordinary backups and one source MSTORE.
+///
+/// This local cost excludes surrounding scheduling and later outlining; final artifact and
+/// runtime comparisons are still required. Relative addresses are outside this trial's scope.
+pub(super) fn protection_cost(
+    version: EvmVersion,
+    addresses: &[FrameAddress],
+    protection: Option<&Protection>,
+) -> Option<(usize, usize)> {
+    if addresses.iter().any(|address| !matches!(address, FrameAddress::Absolute(_))) {
+        return None;
+    }
+    let (mut bytes, mut gas) = backup_cost(version, addresses);
+    bytes += 1;
+    gas += 3;
+    if let Some(protection) = protection {
+        let removed = backup_cost(version, addresses.get(protection.range.clone())?);
+        let replacement = cost(version, &protection.instructions);
+        bytes = bytes - removed.0 - 1 + replacement.0;
+        gas = gas - removed.1 - 3 + replacement.1;
+    }
+    Some((bytes, gas))
+}
+
 fn contiguous(
     addresses: &[FrameAddress],
     spill_homes: usize,

@@ -34,6 +34,7 @@ mod call_reserve;
 mod debug;
 mod entry_order;
 mod initialization;
+mod phi;
 mod rematerialize;
 mod writer;
 
@@ -83,6 +84,7 @@ struct Context<'a> {
     storage: &'a FunctionStorage,
     plan: &'a ModulePlan,
     layout: &'a FunctionLayout,
+    original: Option<&'a phi::Original>,
     version: EvmVersion,
     optimization: OptimizationMode,
     deployment: bool,
@@ -127,6 +129,7 @@ pub(crate) fn lower(
     }
     let mut returning = DenseBitSet::new_empty(module.functions.len());
     let mut has_internal_calls = false;
+    let mut internal_targets = DenseBitSet::new_empty(module.functions.len());
     for id in reachable.iter() {
         let function = module.function(id);
         let cfg = CfgInfo::new(function);
@@ -137,6 +140,7 @@ pub(crate) fn lower(
             for &inst in &block.instructions {
                 if let mir::InstKind::ICall { function: callee, .. } = function.inst(inst).kind {
                     has_internal_calls = true;
+                    internal_targets.insert(callee);
                     if returnable.contains(callee) {
                         returning.insert(callee);
                     }
@@ -335,14 +339,40 @@ pub(crate) fn lower(
     // Returning activations can leave physical stack heights unknown. Retain
     // their argument stores so compact literal materialization keeps its budget.
     let tail_entry_scope = Cell::new((!returning.is_empty()).then_some(false));
+    let mut hidden_prefixes = None;
     for id in reachable.iter() {
         let function = module.function(id);
+        let trial = if optimization.is_gas()
+            && !deployment
+            && !possible_dynamic
+            && !layouts[&id].returning
+            && !layouts[&id].spills.homes.is_empty()
+            && layouts[&id].rematerialized.is_empty()
+            && function
+                .instructions()
+                .any(|inst| matches!(function.inst(inst).kind, mir::InstKind::Phi(_)))
+        {
+            // ICall targets and their tail descendants can inherit untracked caller words.
+            let inherited = hidden_prefixes.get_or_insert_with(|| {
+                let mut inherited = call_graph.reachable_callees_from(internal_targets.iter());
+                inherited.union(&internal_targets);
+                inherited
+            });
+            if inherited.contains(id) {
+                None
+            } else {
+                phi::select(function, layouts.get_mut(&id).unwrap(), version, optimization)
+            }
+        } else {
+            None
+        };
         let context = Context {
             module,
             function,
             storage: &plan.functions[id],
             plan: &plan,
             layout: &layouts[&id],
+            original: trial.as_ref(),
             version,
             optimization,
             deployment,
@@ -417,7 +447,32 @@ pub(crate) fn lower(
         };
         output.blocks[context.layout.blocks[mir::BlockId::ENTRY]].function_invoke =
             debug::function(&context);
-        lower_function(&context, &layouts, &mut output, switches)?;
+        let checkpoint = trial.as_ref().map(|_| phi::Checkpoint::new(&context, &output, switches));
+        let lowered = lower_function(&context, &layouts, &mut output, switches);
+        if lowered.is_err()
+            && let Some(original) = trial
+            && let Some(checkpoint) = checkpoint
+        {
+            original.restore(layouts.get_mut(&id).unwrap());
+            checkpoint.restore(&mut output, switches, &tail_entry_scope);
+            let context = Context {
+                module,
+                function,
+                storage: &plan.functions[id],
+                plan: &plan,
+                layout: &layouts[&id],
+                original: None,
+                version,
+                optimization,
+                deployment,
+                data_map: &data_map,
+                tail_entry_scope: &tail_entry_scope,
+            };
+            // <ordinary owner body>; preserve the exact fallback schedule and metadata
+            lower_function(&context, &layouts, &mut output, switches)?;
+        } else {
+            lowered?;
+        }
     }
     call_entry::prune_unused(&mut output, &layouts);
     Ok(MachineOutput { ir: output, plan })
@@ -916,6 +971,19 @@ fn control_live_after(context: &Context<'_>, block: mir::BlockId, position: usiz
     false
 }
 
+/// A future definition may reuse this word, but does not initialize it before this writer.
+fn home_available(
+    context: &Context<'_>,
+    definitions: &FxHashMap<mir::ValueId, (mir::BlockId, usize)>,
+    value: mir::ValueId,
+    (block, position): (mir::BlockId, usize),
+) -> bool {
+    context.layout.live.live_in(block).contains(value)
+        || definitions.get(&value).is_none_or(|&(defined_block, available_at)| {
+            defined_block == block && available_at <= position
+        })
+}
+
 fn save_writer_homes(
     context: &Context<'_>,
     (block, position): (mir::BlockId, usize),
@@ -942,15 +1010,9 @@ fn save_writer_homes(
         .homes
         .iter()
         .filter_map(|(&value, &home)| {
-            // The future-use query requires an already-defined value. A future definition may
-            // reuse this word, but its old contents need no preservation across this writer.
-            let available = context.layout.live.live_in(block).contains(value)
-                || context.layout.home_definitions.get(&value).is_none_or(
-                    |&(defined_block, available_at)| {
-                        defined_block == block && available_at <= position
-                    },
-                );
-            (available && live(value)).then_some(home)
+            (home_available(context, &context.layout.home_definitions, value, (block, position))
+                && live(value))
+            .then_some(home)
         })
         .collect::<Vec<_>>();
     homes.sort_unstable();
@@ -1009,13 +1071,25 @@ fn save_writer_homes(
     }
     if context.optimization.is_gas()
         && matches!(context.function.inst(inst).kind, mir::InstKind::MStore(..))
-        && let Some(protection) = writer::choose(&saved.addresses, spill_homes, context.version)
     {
-        // <unselected saved homes>
-        // <selected homes are protected after operand preparation>
-        saved.addresses.drain(protection.range.clone());
-        saved.tracked = saved.addresses.len();
-        saved.protection = Some(protection);
+        let protection = writer::choose(&saved.addresses, spill_homes, context.version);
+        if let Some(original) = context.original {
+            original.check_writer(
+                context,
+                (block, position),
+                &effects,
+                &saved.addresses,
+                protection.as_ref(),
+                &live,
+            )?;
+        }
+        if let Some(protection) = protection {
+            // <unselected saved homes>
+            // <selected homes are protected after operand preparation>
+            saved.addresses.drain(protection.range.clone());
+            saved.tracked = saved.addresses.len();
+            saved.protection = Some(protection);
+        }
     }
     let writer_operands = mixed.then(|| context.function.inst(inst).kind.operands());
     let resident_operand =
@@ -1428,6 +1502,9 @@ fn edge(
     stack: &Stack<Slot>,
     output: &mut ir::Module,
 ) -> Result<ir::BlockId, String> {
+    if context.original.is_some() && phi::mixed(context, from, to) {
+        return phi::edge(context, from, to, stack, output);
+    }
     if context.layout.uses_spill_protocol() {
         let mut insts = Vec::new();
         let desired = edge_values(context, from, to)?;

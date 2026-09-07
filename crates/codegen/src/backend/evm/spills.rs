@@ -18,8 +18,18 @@
 //! instructions. Pressure checks include the possible saved protocol prefix. The initial bound
 //! describes an unspilled activation; resident validation uses the bound after a spill can disable
 //! stack arguments. Protected words are retained through preparation and removed before results.
+//!
+//! After ordinary planning and frame reservation, an optional Phi-only proposal can retire
+//! existing homes within the same eight-word lifetime budget. It preserves argument, call and
+//! writer floors and all original residents. The machine layer admits this single interval-ranked
+//! proposal through actual mixed-edge and writer emission, falling back to the ordinary plan on
+//! failure. Single-use arithmetic sources immediately feeding a same-home, unpromoted Phi keep
+//! their original stores when the remaining predecessor suffix is pure arithmetic. Retiring those
+//! sources would only move the stores onto the edge, potentially adding stack permutations without
+//! removing memory traffic or writer backups. Other uses and intervening observations retain the
+//! proposal. It does not change home addresses, reservations or the stack-only fast path.
 
-use super::scheduler::Stack;
+use super::{op, scheduler::Stack};
 use crate::{
     analysis::{AddressSpace, AliasAnalysis, CfgInfo, Liveness},
     mir,
@@ -123,7 +133,8 @@ impl SpillPlan {
             }
         }
         let intervals = live_intervals(function, live, cfg, &stored);
-        let proposed = resident_candidates(function, live, cfg, alias, &intervals, window, &local);
+        let proposed =
+            resident_candidates(function, live, cfg, alias, &intervals, window, (&local, None));
         if proposed != local
             && !exceeds_stack_window(
                 function,
@@ -153,6 +164,59 @@ impl SpillPlan {
             .max()
             .unwrap_or(0);
         Self { homes, phi_scratch, words: phi_scratch + scratch_count }
+    }
+
+    /// Proposes retiring only Phi-related homes, leaving the ordinary allocation intact.
+    pub(crate) fn phi_residents(
+        &self,
+        function: &mir::Function,
+        live: &Liveness,
+        cfg: &CfgInfo,
+        alias: &AliasAnalysis,
+        version: EvmVersion,
+        stored: impl Fn(mir::ValueId) -> bool,
+    ) -> Option<DenseBitSet<mir::ValueId>> {
+        if self.homes.is_empty() {
+            return None;
+        }
+        let mut eligible = DenseBitSet::new_empty(function.num_values());
+        for (block_id, block) in function.blocks.iter_enumerated() {
+            if cfg.is_reachable(block_id) {
+                for &inst in &block.instructions {
+                    if let mir::InstKind::Phi(incoming) = &function.inst(inst).kind
+                        && let Some(result) = function.inst_result_value(inst)
+                    {
+                        eligible.insert(result);
+                        for &(_, value) in incoming {
+                            eligible.insert(value);
+                        }
+                    }
+                }
+            }
+        }
+        if eligible.is_empty() {
+            return None;
+        }
+        let intervals = live_intervals(function, live, cfg, stored);
+        let mut resident = DenseBitSet::new_empty(function.num_values());
+        for &(value, _) in &intervals {
+            if !self.homes.contains_key(&value) {
+                resident.insert(value);
+            }
+        }
+        let window = version.reachable_stack_depth().saturating_sub(6).min(8);
+        let mut proposed = resident_candidates(
+            function,
+            live,
+            cfg,
+            alias,
+            &intervals,
+            window,
+            (&resident, Some(PhiCandidates { values: &eligible, homes: &self.homes })),
+        );
+        proposed.subtract(&resident);
+        // Keep the original spill protocol without introducing a dummy home binding.
+        (!proposed.is_empty() && proposed.count() < self.homes.len()).then_some(proposed)
     }
 }
 
@@ -236,6 +300,12 @@ fn assign_homes(
     (homes, words)
 }
 
+/// Optional Phi-related bindings considered after ordinary home allocation.
+struct PhiCandidates<'a> {
+    values: &'a DenseBitSet<mir::ValueId>,
+    homes: &'a FxHashMap<mir::ValueId, usize>,
+}
+
 /// Adds whole-lifetime residents without changing the existing local exemptions or call protocol.
 fn resident_candidates(
     function: &mir::Function,
@@ -244,7 +314,7 @@ fn resident_candidates(
     alias: &AliasAnalysis,
     intervals: &[(mir::ValueId, (usize, usize))],
     words: usize,
-    local: &DenseBitSet<mir::ValueId>,
+    (local, phi_candidates): (&DenseBitSet<mir::ValueId>, Option<PhiCandidates<'_>>),
 ) -> DenseBitSet<mir::ValueId> {
     let mut mandatory = DenseBitSet::new_empty(function.num_values());
     // Argument entry materialization has a separate cost from instruction result residence.
@@ -275,7 +345,7 @@ fn resident_candidates(
             let kind = &function.inst(inst).kind;
             if let Some(value) = function.inst_result_value(inst) {
                 before.remove(value);
-                if matches!(kind, mir::InstKind::Phi(_)) {
+                if phi_candidates.is_none() && matches!(kind, mir::InstKind::Phi(_)) {
                     mandatory.insert(value);
                 }
             }
@@ -283,7 +353,9 @@ fn resident_candidates(
             for &value in &operands {
                 uses[value] += 1;
                 if matches!(kind, mir::InstKind::Phi(_)) {
-                    mandatory.insert(value);
+                    if phi_candidates.is_none() {
+                        mandatory.insert(value);
+                    }
                 } else {
                     before.insert(value);
                 }
@@ -338,7 +410,13 @@ fn resident_candidates(
     let mut candidates = intervals
         .iter()
         .copied()
-        .filter(|(value, _)| !local.contains(*value) && !mandatory.contains(*value))
+        .filter(|(value, _)| {
+            !local.contains(*value)
+                && !mandatory.contains(*value)
+                && phi_candidates
+                    .as_ref()
+                    .is_none_or(|candidates| candidates.values.contains(*value))
+        })
         .collect::<Vec<_>>();
     candidates
         .sort_unstable_by_key(|&(value, (start, end))| (Reverse(uses[value]), end - start, value));
@@ -351,7 +429,71 @@ fn resident_candidates(
             }
         }
     }
+    if let Some(candidates) = phi_candidates {
+        retain_same_home_sources(function, cfg, candidates.homes, &uses, &mut proposed);
+    }
     proposed
+}
+
+/// Keeps stores that residence would merely relocate from a pure suffix onto its outgoing edge.
+fn retain_same_home_sources(
+    function: &mir::Function,
+    cfg: &CfgInfo,
+    homes: &FxHashMap<mir::ValueId, usize>,
+    uses: &IndexVec<mir::ValueId, usize>,
+    proposed: &mut DenseBitSet<mir::ValueId>,
+) {
+    let mut sources = FxHashMap::default();
+    for (predecessor, block) in function.blocks.iter_enumerated() {
+        if cfg.is_reachable(predecessor)
+            && let Some(mir::Terminator::Jump(target)) = block.terminator
+        {
+            for &inst in block.instructions.iter().rev() {
+                let instruction = function.inst(inst);
+                if instruction
+                    .metadata
+                    .effect()
+                    .is_some_and(|effect| effect != mir::EffectKind::Pure)
+                    || !instruction.kind.evm_opcode().is_some_and(
+                        |opcode| matches!(opcode, op::ADD..=op::SIGNEXTEND | op::LT..=op::CLZ),
+                    )
+                {
+                    break;
+                }
+                if let Some(value) = function.inst_result_value(inst)
+                    && proposed.contains(value)
+                    && uses[value] == 1
+                    && homes.contains_key(&value)
+                {
+                    sources.insert(value, (predecessor, target));
+                }
+            }
+        }
+    }
+    if sources.is_empty() {
+        return;
+    }
+    for (target, block) in function.blocks.iter_enumerated() {
+        if cfg.is_reachable(target) {
+            for &inst in &block.instructions {
+                if let mir::InstKind::Phi(incoming) = &function.inst(inst).kind
+                    && let Some(result) = function.inst_result_value(inst)
+                    && !proposed.contains(result)
+                    && let Some(destination) = homes.get(&result)
+                {
+                    for &(predecessor, value) in incoming {
+                        if sources.get(&value) == Some(&(predecessor, target))
+                            && homes.get(&value) == Some(destination)
+                        {
+                            // value = arithmetic; store home, value; jump target
+                            // result = phi [...: value] with the same retained home
+                            proposed.remove(value);
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 /// Zero-result source writers whose operands can load above a frozen activation prefix.
