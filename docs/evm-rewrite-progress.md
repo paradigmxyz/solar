@@ -1703,3 +1703,23 @@ that is an investigation target, not removable-byte or gas savings. Current SSA
 eligibility, backup shuffles and later normalization still require proof. The
 exact inputs, objects, disassembly and census are retained in
 `seaport-router-final040-review-20260907/` beneath the candidate directory.
+
+
+### Writer-address experiment under measurement
+
+An exact current Router MIR/EVM capture ruled out alignment specialization:
+none of 137 protected writers is proved aligned (127 mapped owners have unknown
+alignment, ten remain unmapped), and none of the thirteen reserved-allocation
+writes owns a protection template. The experiment instead
+keeps an immediately produced address on the stack while preserving its home
+and the complete writer protocol. It follows the prior-art distinction between
+having a spill home and needing to reload it.
+
+Frozen draft `5a32ced0` activates 91 Router boundaries in 50 blocks, reducing
+creation/runtime by 182 bytes each. MIR is exact; all retained opcode origins,
+new-copy origins and relocated immutable references are independently checked.
+The identical-input UI screen has ten smaller Gas objects, creation/runtime
+totals each down twelve bytes, no growth and all Size objects exact. Runtime,
+heavy size and quiet compiler-time gates remain pending. No original expectation
+has changed. Evidence remains under `writer-operand-cache-workflow-20260907/`;
+this candidate is uncommitted and the broader rewrite remains incomplete.

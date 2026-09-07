@@ -227,3 +227,30 @@ prior-art distinction between private value-aware scheduling and physical
 stack normalization: a local reduction is not an end-to-end performance proof.
 The bounded models, frozen candidate and counterexamples are retained in
 `top-first-permutation-study-20260907/` beneath the candidate evidence directory.
+
+
+## Retaining a homed writer address
+
+The next experiment applies the distinction between assigning a spill home and
+reloading from it. The pinned solx solver explicitly prices an accessible copy
+of a spilled value as DUP instead of PUSH/MLOAD. Venom's operand preservation
+and Sonatina's separation of cached identities from final spill storage support
+the same direction. These are algorithm references; no implementation was
+copied, and their memory-region assumptions do not establish ours.
+
+A fresh Router capture proves none of the 137 bitmap writer templates eligible
+for one-word specialization under checked literal/arithmetic low-bit analysis.
+The 127 mapped owners have unknown alignment; ten moved owners remain unmapped. The thirteen writes through its sole
+reserved allocation do not own these templates. Assuming alignment from the
+free-memory pointer would therefore invent a missing contract.
+
+The current scheduler experiment instead retains the immediately produced writer
+address above an already frozen stack prefix. It keeps the absolute home store,
+all writer protection and the original storage plan. DUP1 and SWAP1 replace
+PUSH/MLOAD at equal local gas; an existing zero-home PUSH0 reload is excluded.
+The fixed-prefix and unchanged-preparation guards exclude operand interference
+without another search or pressure-analysis pass. Production source provenance,
+91 actual Router sites, source-map relocation checks and the pending full
+acceptance lanes are retained in `writer-operand-cache-workflow-20260907/`.
+The current 182-byte Router reduction is an intermediate result, not whole-
+rewrite or runtime-performance acceptance.
