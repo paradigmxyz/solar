@@ -6,6 +6,8 @@
 //! emits array loops and overflow checks, repairing successor phi labels when it splits blocks.
 //! Revert outlining can then share builtin failure payloads. Precompile calls
 //! retain their returndata and memory observations even when their scalar result is unused.
+//! Payable sends and transfers expand to stipend-limited calls; transfers branch to a semantic
+//! returndata revert on failure, leaving payload expansion to revert lowering.
 
 use crate::mir::{
     AllocationSemantics, ConcatPart, FunctionBuilder, InstKind, MemoryObjectKind,
@@ -80,6 +82,18 @@ impl MirPass for LowerBuiltins {
                     let inst = builder.func().inst(id).clone();
                     builder.set_debug_context(&inst.metadata);
                     match inst.kind {
+                        InstKind::Transfer(address, amount) => {
+                            // success = send(address, amount)
+                            // if !success { revert_returndata }
+                            let success = lower_send(&mut builder, address, amount);
+                            let revert = builder.create_block();
+                            let continuation = builder.create_block();
+                            builder.branch(success, continuation, revert);
+                            builder.switch_to_block(revert);
+                            builder.revert_returndata();
+                            builder.switch_to_block(continuation);
+                            continue;
+                        }
                         InstKind::ValidateStorageBytes(header) => {
                             // validate_storage_bytes(header) -> encoding predicate; panic if
                             // invalid
@@ -143,6 +157,9 @@ impl MirPass for LowerBuiltins {
                         InstKind::StorageBytesLoad(slot) => {
                             super::lower_storage_bytes::load(&mut builder, slot)
                         }
+                        InstKind::Send(address, amount) => {
+                            lower_send(&mut builder, address, amount)
+                        }
                         InstKind::Erc7201(input) => lower_erc7201(&mut builder, input),
                         InstKind::Concat(parts) => lower_concat(&mut builder, parts),
                         InstKind::Sha256(input) => {
@@ -192,7 +209,19 @@ fn is_builtin(kind: &InstKind) -> bool {
             | InstKind::Sha256(..)
             | InstKind::Ripemd160(..)
             | InstKind::EcRecover(..)
+            | InstKind::Send(..)
+            | InstKind::Transfer(..)
     )
+}
+
+fn lower_send(builder: &mut FunctionBuilder<'_>, address: ValueId, amount: ValueId) -> ValueId {
+    // gas = amount == 0 ? 2300 : 0
+    // success = call(gas, address, amount, 0, 0, 0, 0)
+    let zero = builder.imm(0);
+    let stipend = builder.imm(2300);
+    let amount_is_zero = builder.iszero(amount);
+    let gas = builder.select(amount_is_zero, stipend, zero);
+    builder.call(gas, address, amount, zero, zero, zero, zero)
 }
 
 fn lower_hash(

@@ -1539,6 +1539,18 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_inst(InstKind::BlobHash(index), Some(MirType::bytes32()))
     }
 
+    /// Sends value with the Solidity stipend, returning success.
+    pub(crate) fn send(&mut self, address: ValueId, amount: ValueId) -> ValueId {
+        // success = send address, amount
+        self.emit_inst(InstKind::Send(address, amount), Some(MirType::uint256()))
+    }
+
+    /// Transfers value with the Solidity stipend and propagates failure returndata.
+    pub(crate) fn transfer(&mut self, address: ValueId, amount: ValueId) {
+        // transfer address, amount
+        self.emit_void_inst(InstKind::Transfer(address, amount));
+    }
+
     /// Emits a call instruction (external call).
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn call(

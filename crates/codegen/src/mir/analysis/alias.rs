@@ -1292,6 +1292,12 @@ impl AliasAnalysis {
             InstKind::StoreImmutable(id, _) => {
                 effects.write(Access::Location(Location::Immutable(id)));
             }
+            InstKind::Send(..) | InstKind::Transfer(..) => {
+                effects.read_any(AddressSpace::Storage);
+                effects.write_any(AddressSpace::Storage);
+                effects.read_any(AddressSpace::Transient);
+                effects.write_any(AddressSpace::Transient);
+            }
             InstKind::Call { args_offset, args_size, ret_offset, ret_size, .. }
             | InstKind::CallCode { args_offset, args_size, ret_offset, ret_size, .. }
             | InstKind::StaticCall { args_offset, args_size, ret_offset, ret_size, .. }

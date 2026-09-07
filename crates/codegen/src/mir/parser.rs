@@ -2278,6 +2278,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             sym::sha256 => inst!(Sha256(a) => MirType::uint256()),
             sym::ripemd160 => inst!(Ripemd160(a) => MirType::uint256()),
             sym::ecrecover => inst!(EcRecover(a, b, c, d) => MirType::uint256()),
+            sym::send => inst!(Send(a, b) => MirType::uint256()),
+            sym::transfer => inst!(Transfer(a, b)),
             sym::keccak256_bytes => inst!(Keccak256Bytes(a) => MirType::bytes32()),
             sym::mapping_slot => inst!(MappingSlot(key, slot) => MirType::bytes32()),
             sym::mapping_slot_memory => {

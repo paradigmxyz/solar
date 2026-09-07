@@ -11,8 +11,8 @@
 //! - LICM: Avoids recomputing `arr.length` each iteration (MLOAD/SLOAD costs)
 
 use crate::mir::{
-    BlockId, Function, ImmutableId, InstId, InstKind, Module, StorageAlias, Terminator, Value,
-    ValueId,
+    BlockId, EffectKind, Function, ImmutableId, InstId, InstKind, Module, StorageAlias, Terminator,
+    Value, ValueId,
     analysis::{
         AddressSpace, AffineExpr, AliasAnalysis, AliasResult, Location, LocationSize, Loop,
         LoopAnalyzer, ScalarEvolution,
@@ -400,17 +400,8 @@ impl LoopOptimizer {
         loop_data.blocks.iter().any(|block_id| {
             func.blocks[block_id].instructions.iter().any(|&inst_id| {
                 matches!(
-                    func.inst(inst_id).kind,
-                    InstKind::Call { .. }
-                        | InstKind::CallCode { .. }
-                        | InstKind::StaticCall { .. }
-                        | InstKind::DelegateCall { .. }
-                        | InstKind::ExtCall { .. }
-                        | InstKind::ExtDelegateCall { .. }
-                        | InstKind::ExtStaticCall { .. }
-                        | InstKind::ICall { .. }
-                        | InstKind::Create(_, _, _)
-                        | InstKind::Create2(_, _, _, _)
+                    func.inst(inst_id).kind.effect_kind(),
+                    EffectKind::ExternalCall | EffectKind::ICall | EffectKind::Create
                 )
             })
         })

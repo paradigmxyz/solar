@@ -1,0 +1,6 @@
+error: [fn0] [bb0, inst0] payable call requires word operands
+
+error: [fn1] [bb0, inst0] payable call requires word operands
+
+error: aborting due to 2 previous errors
+

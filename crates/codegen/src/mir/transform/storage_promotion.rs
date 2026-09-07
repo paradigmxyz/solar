@@ -16,8 +16,8 @@
 //! - leave loop-variant mapping/array slots in storage
 
 use crate::mir::{
-    BlockId, Function, Immediate, InstId, InstKind, Instruction, MirType, Module, StorageAlias,
-    Terminator, Value, ValueId,
+    BlockId, EffectKind, Function, Immediate, InstId, InstKind, Instruction, MirType, Module,
+    StorageAlias, Terminator, Value, ValueId,
     analysis::{AddressSpace, AliasAnalysis, Loop, LoopAnalyzer},
     memory::EvmMemoryLayout,
     pass::{MirPass, run_function_pass},
@@ -291,20 +291,11 @@ impl StorageScalarPromoter {
     /// other instructions whose results escape the rolled-back frame.
     fn rollback_exit_has_no_observable_effects(&self, func: &Function, exit: BlockId) -> bool {
         func.blocks[exit].instructions.iter().all(|&inst_id| {
+            let kind = &func.inst(inst_id).kind;
             !matches!(
-                &func.inst(inst_id).kind,
-                InstKind::Call { .. }
-                    | InstKind::CallCode { .. }
-                    | InstKind::StaticCall { .. }
-                    | InstKind::DelegateCall { .. }
-                    | InstKind::ExtCall { .. }
-                    | InstKind::ExtDelegateCall { .. }
-                    | InstKind::ExtStaticCall { .. }
-                    | InstKind::ICall { .. }
-                    | InstKind::Create(_, _, _)
-                    | InstKind::Create2(_, _, _, _)
-                    | InstKind::Gas
-            )
+                kind.effect_kind(),
+                EffectKind::ExternalCall | EffectKind::ICall | EffectKind::Create
+            ) && !matches!(kind, InstKind::Gas)
         })
     }
 

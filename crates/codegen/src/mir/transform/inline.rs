@@ -651,7 +651,12 @@ fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInli
                 InstKind::AbiEncode { layout, .. } if abi_layout_has_loops(layout) => {
                     summary.has_control_flow = true;
                 }
-                InstKind::Call { .. }
+                InstKind::Transfer(..) => {
+                    summary.has_control_flow = true;
+                    summary.has_external_call = true;
+                }
+                InstKind::Send(..)
+                | InstKind::Call { .. }
                 | InstKind::CallCode { .. }
                 | InstKind::StaticCall { .. }
                 | InstKind::DelegateCall { .. }
@@ -966,6 +971,8 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (MirCos
         InstKind::StorageArrayElementSlot { element_slots, .. } => {
             (36 + u64::from(*element_slots > 1) * 5, 4)
         }
+        InstKind::Send(..) => (720, 12),
+        InstKind::Transfer(..) => (740, 20),
         InstKind::Call { .. }
         | InstKind::CallCode { .. }
         | InstKind::StaticCall { .. }

@@ -383,15 +383,13 @@ fn @sendZero() -> u256 [selector=0xe857d88b, abi_params=[], abi_returns=[word]] 
   bb1:
     revert_returndata
   bb2:
-    v7 = iszero 0
-    v8 = select v7, 0x8fc, 0
-    v9 = call v8, v6, 0, 0, 0, 0, 0
-    jumpi v9, bb3, bb4
+    v7 = send v6, 0
+    jumpi v7, bb3, bb4
   bb4:
     jump bb5
   bb3:
     jump bb5
   bb5:
-    v10 = phi [bb3: 1], [bb4: 0]
-    ret v10
+    v8 = phi [bb3: 1], [bb4: 0]
+    ret v8
 }

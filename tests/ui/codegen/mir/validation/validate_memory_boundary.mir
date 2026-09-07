@@ -146,3 +146,12 @@ fn @unlowered_storage_header(arg0: u256) -> u256 {
     validate_storage_bytes arg0
     ret arg0
 }
+
+//~? ERROR: [fn19] [bb0, inst0] builtin instruction `send` survives the `lowered` phase boundary
+//~? ERROR: [fn19] [bb0, inst1] builtin instruction `transfer` survives the `lowered` phase boundary
+fn @payable(arg0: u256) {
+  bb0:
+    v0 = send arg0, 0
+    transfer arg0, 0
+    ret
+}

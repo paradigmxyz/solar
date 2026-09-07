@@ -104,6 +104,10 @@ Payload reads retain prior memory stores, including stores to nested child objec
 Range-based check elimination learns facts from these operations before expansion;
 constant checks fold only when they pass. Revert outlining runs after check and
 builtin expansion, before checked arithmetic expands.
+Payable `send` and `transfer` retain their address and amount until builtin
+conversion emits the stipend calculation and call. A failed transfer reverts
+with returndata; a send returns success. Their external-call effects invalidate
+account observations and storage reads even while the call remains opaque.
 Jump threading collapses a phi-only branch when a single unconditional predecessor
 remains and the phi has no outside uses, exposing nested short-circuit checks
 without another pipeline iteration.

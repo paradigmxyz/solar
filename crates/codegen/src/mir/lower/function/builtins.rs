@@ -178,20 +178,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let amount = &self.builtin_args::<1>(builtin, &args)?[0];
         let address = self.lower_expr(receiver)?;
         let amount = self.lower_typed_expr(amount, self.cx.gcx.types.uint(256))?;
-        let zero = self.builder.imm(U256::ZERO);
-        let stipend = self.builder.imm(2300);
-        let amount_is_zero = self.builder.iszero(amount);
-        // gas = amount == 0 ? 2300 : 0
-        let gas = self.builder.select(amount_is_zero, stipend, zero);
-        // ok = call(gas, to, amount, 0, 0, 0, 0)
-        let success = self.builder.call(gas, address, amount, zero, zero, zero, zero);
         match builtin {
             Builtin::AddressPayableTransfer => {
-                // if !ok { revert(0, returndatasize()) }
-                self.revert_external_call(success);
-                Some(zero)
+                // transfer(address, amount)
+                self.builder.transfer(address, amount);
+                Some(self.builder.imm(U256::ZERO))
             }
-            Builtin::AddressPayableSend => Some(success),
+            Builtin::AddressPayableSend => {
+                // success = send(address, amount)
+                Some(self.builder.send(address, amount))
+            }
             _ => unreachable!(),
         }
     }

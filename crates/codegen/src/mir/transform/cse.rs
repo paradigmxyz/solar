@@ -977,7 +977,9 @@ impl CommonSubexprEliminator {
     fn may_change_account_environment(kind: &InstKind) -> bool {
         matches!(
             kind,
-            InstKind::Call { .. }
+            InstKind::Send(..)
+                | InstKind::Transfer(..)
+                | InstKind::Call { .. }
                 | InstKind::CallCode { .. }
                 | InstKind::DelegateCall { .. }
                 | InstKind::ExtCall { .. }

@@ -706,7 +706,9 @@ impl Instruction {
             | InstKind::Concat(..)
             | InstKind::Sha256(..)
             | InstKind::Ripemd160(..)
-            | InstKind::EcRecover(..) => Some("builtin"),
+            | InstKind::EcRecover(..)
+            | InstKind::Send(..)
+            | InstKind::Transfer(..) => Some("builtin"),
             InstKind::ValidateAbi(..) => Some("ABI validation"),
             InstKind::Check { .. } | InstKind::Require { .. } => Some("conditional check"),
             InstKind::AbiEncode { .. } => Some("ABI encoding"),
@@ -1334,6 +1336,10 @@ pub(crate) enum InstKind {
     AbiEncodePacked { parts: Box<[super::PackedPart]>, hash: bool },
     /// Left-aligned RIPEMD-160 of a bytes object, with the same effects as `sha256`.
     Ripemd160(ValueId),
+    /// Send value to an address with a 2300 gas stipend, returning success.
+    Send(ValueId, ValueId),
+    /// Transfer value with a 2300 gas stipend, reverting with returndata on failure.
+    Transfer(ValueId, ValueId),
     /// Recover an address from hash, recovery ID, and signature words.
     EcRecover(ValueId, ValueId, ValueId, ValueId),
     /// Hash a fixed-width mapping key and its parent slot.
@@ -1503,6 +1509,8 @@ impl InstKind {
             | Self::MemoryZero(a, b)
             | Self::SStore(a, b)
             | Self::StorageBytesStore(a, b)
+            | Self::Send(a, b)
+            | Self::Transfer(a, b)
             | Self::TStore(a, b)
             | Self::Keccak256(a, b)
             | Self::MappingSlot(a, b)
@@ -1810,6 +1818,8 @@ impl InstKind {
             | Self::MemoryZero(a, b)
             | Self::SStore(a, b)
             | Self::StorageBytesStore(a, b)
+            | Self::Send(a, b)
+            | Self::Transfer(a, b)
             | Self::TStore(a, b)
             | Self::Keccak256(a, b)
             | Self::MappingSlot(a, b)
@@ -2215,6 +2225,8 @@ impl InstKind {
             Self::Sha256(_) => "sha256",
             Self::Ripemd160(_) => "ripemd160",
             Self::EcRecover(..) => "ecrecover",
+            Self::Send(..) => "send",
+            Self::Transfer(..) => "transfer",
             Self::MappingSlot(_, _) => "mapping_slot",
             Self::MappingSlotMemory(_, _) => "mapping_slot_memory",
             Self::MappingSlotCalldata(_, _) => "mapping_slot_calldata",
@@ -2345,7 +2357,9 @@ impl InstKind {
             | Self::StorageBytesStoreLiteral { .. } => EffectKind::StorageWrite,
             Self::TLoad(_) => EffectKind::TransientRead,
             Self::TStore(_, _) => EffectKind::TransientWrite,
-            Self::Call { .. }
+            Self::Send(..)
+            | Self::Transfer(..)
+            | Self::Call { .. }
             | Self::CallCode { .. }
             | Self::StaticCall { .. }
             | Self::DelegateCall { .. }

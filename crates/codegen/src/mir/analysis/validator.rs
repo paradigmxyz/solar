@@ -1139,6 +1139,20 @@ impl<'a> Validator<'a> {
                             self.emit_at_inst("hash builtin requires a u256 result", block, id);
                         }
                     }
+                    InstKind::Send(address, amount) | InstKind::Transfer(address, amount) => {
+                        if [address, amount].iter().any(|value| {
+                            func.value_ty(*value).is_none_or(|ty| {
+                                !ty.is_word() || matches!(ty, MirType::MemoryObject(_))
+                            })
+                        }) {
+                            self.emit_at_inst("payable call requires word operands", block, id);
+                        }
+                        let expected = matches!(func.inst(id).kind, InstKind::Send(..))
+                            .then_some(MirType::uint256());
+                        if func.inst(id).result_ty != expected {
+                            self.emit_at_inst("payable call has an invalid result type", block, id);
+                        }
+                    }
                     InstKind::EcRecover(a, b, c, d) => {
                         if [a, b, c, d].iter().any(|v| {
                             func.value_ty(*v).is_none_or(|ty| {

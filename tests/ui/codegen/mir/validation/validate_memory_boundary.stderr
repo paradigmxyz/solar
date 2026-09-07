@@ -58,5 +58,9 @@ error: [fn17] [bb0, inst0] builtin instruction `erc7201` survives the `lowered` 
 
 error: [fn18] [bb0, inst0] builtin instruction `validate_storage_bytes` survives the `lowered` phase boundary
 
-error: aborting due to 30 previous errors
+error: [fn19] [bb0, inst0] builtin instruction `send` survives the `lowered` phase boundary
+
+error: [fn19] [bb0, inst1] builtin instruction `transfer` survives the `lowered` phase boundary
+
+error: aborting due to 32 previous errors
 

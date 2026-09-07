@@ -123,10 +123,8 @@ fn @dirtySend() -> bool [selector=0x82ec93de, payable, abi_params=[], abi_return
   bb0:
     v0 = icall @dirtyUint8, 256
     v1 = and v0, 255
-    v2 = iszero v1
-    v3 = select v2, 0x8fc, 0
-    v4 = call v3, 0xbeef, v1, 0, 0, 0, 0
-    ret v4
+    v2 = send 0xbeef, v1
+    ret v2
 }
 
 fn @dirtyIndex() -> u256 [selector=0xe98f4d7c, pure, abi_params=[], abi_returns=[word]] {
