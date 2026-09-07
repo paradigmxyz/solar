@@ -327,10 +327,7 @@ impl<'a> Builder<'a> {
             output = %kind,
             "mir_egraph"
         );
-        inst.kind = kind;
-        if mir_utils::is_memory_inst(&inst.kind) {
-            inst.metadata.set_memory_region(None);
-        }
+        inst.replace_kind(kind);
         self.changed += 1;
     }
 
@@ -408,7 +405,7 @@ impl<'a> Builder<'a> {
                     output = %kind,
                     "mir_egraph"
                 );
-                inst.kind = kind;
+                inst.replace_kind(kind);
                 self.changed += 1;
             }
         }
@@ -424,20 +421,7 @@ impl<'a> Builder<'a> {
         // Skeleton instructions, phis, and terminators see canonical operands.
         let merged = &self.merged;
         self.func.for_each_instruction_mut(|_, inst| {
-            if mir_utils::replace_inst_uses_canonicalized(&mut inst.kind, merged) != 0 {
-                if mir_utils::is_memory_inst(&inst.kind) {
-                    inst.metadata.set_memory_region(None);
-                }
-                if matches!(
-                    inst.kind,
-                    InstKind::SLoad(_)
-                        | InstKind::SStore(_, _)
-                        | InstKind::TLoad(_)
-                        | InstKind::TStore(_, _)
-                ) {
-                    inst.metadata.set_storage_alias(None);
-                }
-            }
+            inst.rewrite_operands(|value| *value = mir_utils::resolve_replacement(*value, merged));
         });
         for block in self.func.blocks.iter_mut() {
             if let Some(term) = &mut block.terminator {
@@ -720,40 +704,7 @@ fn is_node(kind: &InstKind) -> bool {
 /// Orders commutative operands and flips reversed comparisons so equal
 /// expressions share one key. The surviving instruction keeps its own form.
 fn canonical(op: Op) -> Op {
-    let sorted = |a: ValueId, b: ValueId| if b.index() < a.index() { (b, a) } else { (a, b) };
-    match op {
-        Op::Add { a, b } => {
-            let (a, b) = sorted(a, b);
-            Op::Add { a, b }
-        }
-        Op::Mul { a, b } => {
-            let (a, b) = sorted(a, b);
-            Op::Mul { a, b }
-        }
-        Op::And { a, b } => {
-            let (a, b) = sorted(a, b);
-            Op::And { a, b }
-        }
-        Op::Or { a, b } => {
-            let (a, b) = sorted(a, b);
-            Op::Or { a, b }
-        }
-        Op::Xor { a, b } => {
-            let (a, b) = sorted(a, b);
-            Op::Xor { a, b }
-        }
-        Op::Eq { a, b } => {
-            let (a, b) = sorted(a, b);
-            Op::Eq { a, b }
-        }
-        Op::AddMod { a, b, n } => {
-            let (a, b) = sorted(a, b);
-            Op::AddMod { a, b, n }
-        }
-        Op::MulMod { a, b, n } => {
-            let (a, b) = sorted(a, b);
-            Op::MulMod { a, b, n }
-        }
+    match op.canonicalize_commutative() {
         Op::Gt { a, b } => Op::Lt { a: b, b: a },
         Op::SGt { a, b } => Op::SLt { a: b, b: a },
         other => other,

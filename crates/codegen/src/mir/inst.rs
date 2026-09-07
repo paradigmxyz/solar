@@ -730,6 +730,52 @@ impl Instruction {
     pub(crate) fn operands(&self) -> SmallVec<[ValueId; 8]> {
         self.kind.operands()
     }
+
+    /// Replaces an operation with an equivalent one, preserving its result and provenance.
+    ///
+    /// Memory regions, storage aliases, and effect overrides describe the old
+    /// operation and must be recomputed. ABI validation dependencies and
+    /// allocation obligations are semantic, so they survive an equivalent
+    /// rewrite; allocation markers are dropped only when allocation is lowered away.
+    /// The caller must prove equivalence and preserve the result representation.
+    pub(crate) fn replace_kind(&mut self, kind: InstKind) {
+        let result = kind.op_def().result;
+        debug_assert!(
+            (result == super::ResultKind::Custom
+                || result.produces_value() == self.result_ty.is_some())
+                && self.result_ty.is_none_or(|ty| result.admits_type(ty)),
+            "replacement must preserve the result representation"
+        );
+        // %result = old(operands) -> %result = equivalent(new_operands)
+        self.kind = kind;
+        self.invalidate_operand_metadata();
+        if !matches!(self.kind, InstKind::Alloc { .. }) {
+            self.metadata.clear_deferred_alloc();
+            self.metadata.set_preserves_fmp(false);
+        }
+    }
+
+    /// Visits operands during an equivalence-preserving rewrite and invalidates
+    /// operand-dependent facts only if a value actually changes.
+    pub(crate) fn rewrite_operands(&mut self, mut f: impl FnMut(&mut ValueId)) {
+        let mut changed = false;
+        // %result = op(operands) -> %result = op(equivalent_operands)
+        self.kind.visit_operands_mut(|operand| {
+            let old = *operand;
+            f(operand);
+            changed |= *operand != old;
+        });
+        if changed {
+            self.invalidate_operand_metadata();
+        }
+    }
+
+    /// Drops facts whose proof can depend on the previous operation or operands.
+    fn invalidate_operand_metadata(&mut self) {
+        self.metadata.set_memory_region(None);
+        self.metadata.set_storage_alias(None);
+        self.metadata.set_effect(None);
+    }
 }
 
 // Operation-specific analysis helpers remain next to `Instruction`, while the
@@ -806,6 +852,61 @@ mod tests {
     use crate::mir::{BlockId, Function, Immediate, Value};
     use alloy_primitives::U256;
     use solar_interface::Ident;
+
+    #[test]
+    fn rewrites_preserve_provenance_and_invalidate_facts() {
+        let a = ValueId::new(0);
+        let b = ValueId::new(1);
+        let mut inst = Instruction::new(InstKind::MLoad(a), Some(MirType::uint256()));
+        inst.metadata.set_storage_alias(Some(StorageAlias::Slot(U256::from(7))));
+        inst.metadata.set_memory_region(Some(MemoryRegion::Scratch));
+        inst.metadata.set_effect(Some(EffectKind::MemoryRead));
+        inst.metadata.set_modifier_depth(3);
+        inst.metadata.set_abi_validation(true);
+        inst.metadata.set_unchecked(true);
+        inst.metadata.loop_depth = 2;
+        let mut expected = inst.metadata.clone();
+        expected.set_storage_alias(None);
+        expected.set_memory_region(None);
+        expected.set_effect(None);
+
+        // An unchanged operand walk keeps all existing proofs.
+        let original = inst.metadata.clone();
+        inst.rewrite_operands(|_| {});
+        assert_eq!(inst.metadata, original);
+
+        // %value = mload %a -> %value = mload %b
+        inst.rewrite_operands(|operand| *operand = b);
+        assert_eq!(inst.metadata, expected);
+        assert_eq!(inst.kind, InstKind::MLoad(b));
+
+        inst.metadata = original;
+        // %value = mload %b -> %value = add %a, %b
+        inst.replace_kind(InstKind::Add(a, b));
+        assert_eq!(inst.metadata, expected);
+        assert_eq!(inst.kind.effect_kind(), EffectKind::Pure);
+    }
+
+    #[test]
+    fn equivalent_allocations_keep_semantic_obligations() {
+        let size = ValueId::new(0);
+        let kind = InstKind::Alloc {
+            size,
+            kind: AllocationKind::Raw,
+            semantics: AllocationSemantics::INTERNAL,
+        };
+        let mut inst = Instruction::new(kind.clone(), Some(MirType::MemPtr));
+        inst.metadata.set_deferred_alloc();
+        inst.metadata.set_preserves_fmp(true);
+        inst.replace_kind(kind);
+        assert!(inst.metadata.deferred_alloc());
+        assert!(inst.metadata.preserves_fmp());
+
+        // %ptr = alloc ... -> %ptr = add %base, %offset
+        inst.replace_kind(InstKind::Add(size, size));
+        assert!(!inst.metadata.deferred_alloc());
+        assert!(!inst.metadata.preserves_fmp());
+    }
 
     #[test]
     fn phi_operands_include_incoming_values() {

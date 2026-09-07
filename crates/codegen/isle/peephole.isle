@@ -1,3 +1,8 @@
+;; Types used by the EVM IR window extractors.
+(type U256 (primitive U256))
+(type StackOp (primitive StackOp))
+(type OptionStackOp (primitive OptionStackOp))
+
 ;; Local peephole optimization over scheduled EVM IR.
 ;;
 ;; `peep` inspects the tail of a block's instruction list and returns the edit
