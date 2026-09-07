@@ -11,7 +11,7 @@ use solar_lsp::{
     BenchmarkOpenDocuments, BenchmarkProject, BenchmarkRepeatedAnalysis, BenchmarkRequest,
     BenchmarkResponse, BenchmarkSelectionRangeRequests, BenchmarkWorkspaceDiscovery,
     BenchmarkWorkspacePathQueries, BenchmarkWorkspaceReports, benchmark_folding_ranges,
-    benchmark_folding_ranges_from_rope, benchmark_selection_ranges,
+    benchmark_folding_ranges_from_rope, benchmark_import_path_at, benchmark_selection_ranges,
 };
 use std::{fs, hint::black_box, path::PathBuf};
 
@@ -127,6 +127,18 @@ fn analysis_build(c: &mut Criterion) {
             },
         );
     }
+    group.finish();
+}
+
+fn import_path_queries(c: &mut Criterion) {
+    let mut group = c.benchmark_group("lsp/import-path");
+    let cursor = OPTIMISM_SOURCE.rfind('}').unwrap();
+    assert!(!benchmark_import_path_at(OPTIMISM_SOURCE, cursor));
+    group.bench_function(BenchmarkId::from_parameter("optimism-code"), |b| {
+        b.iter(|| {
+            black_box(benchmark_import_path_at(black_box(OPTIMISM_SOURCE), black_box(cursor)))
+        });
+    });
     group.finish();
 }
 
@@ -687,6 +699,7 @@ criterion_group!(
     benches,
     analysis_build,
     completion_queries,
+    import_path_queries,
     bounded_workspace_discovery,
     symbol_table_aggregation,
     burst_hover,
