@@ -495,6 +495,12 @@ fn repeated_analysis(c: &mut Criterion) {
     cached.bench_function(BenchmarkId::from_parameter("unchanged"), |b| {
         b.iter(|| black_box(analysis.run()))
     });
+    cached.bench_function(BenchmarkId::from_parameter("reverted-edit"), |b| {
+        b.iter(|| {
+            analysis.edit_and_revert();
+            black_box(analysis.run())
+        });
+    });
     cached.finish();
 }
 
