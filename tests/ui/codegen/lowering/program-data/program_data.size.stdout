@@ -155,8 +155,7 @@ fn @encode_abi_tuple(arg0: memptr) -> (memptr, u256) {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = add v0, 32
-    v2 = sub v1, v0
-    mstore v0, v2
+    mstore v0, 32
     v4 = iszero arg0
     v5 = iszero v4
     v3 = mload arg0
@@ -322,9 +321,7 @@ bb37:
   push 32
   dup 2
   add
-  dup 2
-  dup 2
-  sub
+  push 32
   dup 3
   mstore
   dup 3

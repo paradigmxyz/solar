@@ -1,0 +1,45 @@
+// === ROOT/tests/ui/codegen/mir/egraph/bit_slices_runtime.sol:BitSlices ===
+@module BitSlices
+fn @repeated(arg0: u256, arg1: u256) -> u256 [selector=0x6196485c, pure, abi_params=[u256, u256], abi_returns=[word]] {
+  bb0:
+    v0 = signextend arg1, arg0
+    v1 = signextend arg1, v0
+    ret v1
+}
+
+fn @chains(arg0: u256) -> (u256, u256, u256) [selector=0x550325b5, pure, abi_params=[u256], abi_returns=[word, word, word]] {
+  bb0:
+    v0 = shl 8, arg0
+    v1 = shl 16, v0
+    v2 = shr 8, arg0
+    v3 = shr 16, v2
+    v4 = sar 8, arg0
+    v5 = sar 16, v4
+    ret v1, v3, v5
+}
+
+fn @overflow(arg0: u256) -> (u256, u256, u256) [selector=0x517550bf, pure, abi_params=[u256], abi_returns=[word, word, word]] {
+  bb0:
+    v0 = shl 1, arg0
+    v1 = not 0
+    v2 = shl v1, v0
+    v3 = shr 255, arg0
+    v4 = shr 1, v3
+    v5 = sar 1, arg0
+    v6 = not 0
+    v7 = sar v6, v5
+    ret v2, v4, v7
+}
+
+fn @slices(arg0: u256) -> (u256, u256, u256, u256) [selector=0xe84df24a, pure, abi_params=[u256], abi_returns=[word, word, word, word]] {
+  bb0:
+    v0 = shl 248, arg0
+    v1 = shr 248, v0
+    v2 = shr 8, arg0
+    v3 = shl 8, v2
+    v4 = shl 248, arg0
+    v5 = sar 248, v4
+    v6 = signextend 2, arg0
+    v7 = signextend 0, v6
+    ret v1, v3, v5, v7
+}

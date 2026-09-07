@@ -32,8 +32,7 @@ fn @endPastLength() [selector=0x8063d43b, pure] {
     mstore v19, v5
     v29 = mload 64 !metadata(memory=scratch)
     v30 = add v29, 32
-    v31 = sub v30, v29
-    mstore v29, v31
+    mstore v29, 32
     mstore v30, v5
     v34 = add v5, 31
     v35 = and v34, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -90,8 +89,7 @@ fn @startAfterEnd() [selector=0x598bfb30, pure] {
     mstore v19, v5
     v29 = mload 64 !metadata(memory=scratch)
     v30 = add v29, 32
-    v31 = sub v30, v29
-    mstore v29, v31
+    mstore v29, 32
     mstore v30, v5
     v34 = add v5, 31
     v35 = and v34, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0

@@ -64,8 +64,7 @@ fn @dNested() [selector=0xfc7ec666, pure] {
   bb2:
     v13 = mload v7
     v14 = add v7, v13
-    v15 = sub v9, v7
-    v16 = gt v13, v15
+    v16 = gt v13, v8
     jumpi v16, bb1, bb3
   bb3:
     v17 = sub v9, v14
@@ -139,9 +138,8 @@ fn @dNested() [selector=0xfc7ec666, pure] {
     v54 = mload 64 !metadata(memory=scratch)
     v55 = add v54, 96
     mstore v54, v2
-    v57 = sub v55, v54
     v56 = add v54, 32
-    mstore v56, v57
+    mstore v56, 96
     v59 = iszero v4
     v60 = iszero v59
     v58 = mload v4
@@ -198,8 +196,7 @@ fn @dFixed() [selector=0xc298c02b, pure] {
   bb4:
     v17 = mload v11
     v18 = add v11, v17
-    v19 = sub v13, v11
-    v20 = gt v17, v19
+    v20 = gt v17, v12
     jumpi v20, bb3, bb5
   bb5:
     v21 = sub v13, v18

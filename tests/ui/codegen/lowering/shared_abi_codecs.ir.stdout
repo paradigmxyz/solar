@@ -11,8 +11,7 @@ fn @encodeFirst() [selector=0xe9a7b169, pure] {
     v4 = icall @encodeFirst.body, 1, v3
     v8 = mload 64 !metadata(memory=scratch)
     v9 = add v8, 32
-    v10 = sub v9, v8
-    mstore v8, v10
+    mstore v8, 32
     v12 = iszero v4
     v13 = iszero v12
     v11 = mload v4
@@ -52,20 +51,16 @@ fn @encodeSecond() [selector=0x108c1ec5, pure] {
     v7 = mload 64 !metadata(memory=scratch)
     v8 = add v7, 32
     v9 = add v8, 32
-    v10 = sub v9, v8
-    mstore v8, v10
-    v11 = mload v3
+    mstore v8, 32
     v49 = add v3, 32
     v12 = mload v49
     v13 = add v9, 64
+    v11 = mload v3
     mstore v9, v11
-    v15 = sub v13, v9
     v14 = add v9, 32
-    mstore v14, v15
+    mstore v14, 64
     v16 = icall @encode_abi_array, 1, v12, v13
-    v17 = sub v16, v9
-    v18 = add v9, v17
-    v19 = sub v18, v8
+    v19 = sub v16, v8
     v21 = add v19, 63
     v22 = lt v21, v19
     jumpi v22, bb3, bb4
@@ -77,8 +72,7 @@ fn @encodeSecond() [selector=0x108c1ec5, pure] {
     mstore v25, v19
     v26 = mload 64 !metadata(memory=scratch)
     v27 = add v26, 32
-    v28 = sub v27, v26
-    mstore v26, v28
+    mstore v26, 32
     v30 = iszero v25
     v31 = iszero v30
     v29 = mload v25
@@ -174,8 +168,7 @@ fn @roundTrip() [selector=0x00746047, pure] {
   bb28:
     v98 = mload v92
     v99 = add v92, v98
-    v100 = sub v94, v92
-    v101 = gt v98, v100
+    v101 = gt v98, v93
     jumpi v101, bb3, bb29
   bb29:
     v102 = sub v94, v99
@@ -536,20 +529,16 @@ fn @encodeFirst.body(arg0: memptr) -> memptr [pure] {
     v1 = mload 64 !metadata(memory=scratch)
     v2 = add v1, 32
     v3 = add v2, 32
-    v4 = sub v3, v2
-    mstore v2, v4
-    v5 = mload arg0
+    mstore v2, 32
     v20 = add arg0, 32
     v6 = mload v20
     v7 = add v3, 64
+    v5 = mload arg0
     mstore v3, v5
-    v9 = sub v7, v3
     v8 = add v3, 32
-    mstore v8, v9
+    mstore v8, 64
     v10 = icall @encode_abi_array, 1, v6, v7
-    v11 = sub v10, v3
-    v12 = add v3, v11
-    v13 = sub v12, v2
+    v13 = sub v10, v2
     v15 = add v13, 63
     v16 = lt v15, v13
     jumpi v16, bb1, bb2

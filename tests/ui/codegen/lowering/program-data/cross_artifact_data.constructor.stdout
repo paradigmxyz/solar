@@ -36,9 +36,7 @@ bb0:
   push 32
   dup 2
   add
-  dup 2
-  dup 2
-  sub
+  push 32
   dup 3
   mstore
   dup 4
@@ -110,9 +108,9 @@ bb4:
   swap 2
   swap 1
   log1
-  push 335
+  push 334
   dup 1
-  push 437
+  push 436
   push 0
   codecopy
   push 0

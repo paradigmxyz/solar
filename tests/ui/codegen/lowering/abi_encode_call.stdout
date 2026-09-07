@@ -24,8 +24,7 @@ fn @asValue() [selector=0x440a9300, pure] {
     mstore v13, arg1
     v14 = mload 64 !metadata(memory=scratch)
     v15 = add v14, 32
-    v16 = sub v15, v14
-    mstore v14, v16
+    mstore v14, 32
     v18 = iszero v10
     v19 = iszero v18
     v17 = mload v10
