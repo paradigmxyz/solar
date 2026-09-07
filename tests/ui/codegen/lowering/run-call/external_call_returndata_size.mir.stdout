@@ -2,7 +2,7 @@
 @module LongReturn
 fn @f() -> memoryfixedarray [selector=0x26121ff0, pure, abi_params=[], abi_returns=[array<20, word>]] {
   bb0:
-    v0 = alloc memoryfixedarray<20, 1>, exact, uninitialized, infallible, 640
+    v0 = alloc memoryfixedarray<20, 1>, exact, uninitialized, infallible, 640 !metadata(preserves_fmp)
     memory_zero v0, 640
     v1 = lt 0, 20
     v2 = iszero v1

@@ -6,7 +6,7 @@ use std::{env, fs, path::PathBuf};
 const RULE_SETS: &[(&str, &[&str])] = &[
     ("select", &["prelude.isle", "evm_prelude.isle", "select.isle"]),
     ("stack_select", &["prelude.isle", "extractors.isle", "stack_select.isle"]),
-    ("egraph", &["prelude.isle", "extractors.isle", "egraph.isle"]),
+    ("egraph", &["prelude.isle", "extractors.isle", "egraph.isle", "word.isle"]),
     ("peephole", &["evm_prelude.isle", "peephole.isle"]),
 ];
 

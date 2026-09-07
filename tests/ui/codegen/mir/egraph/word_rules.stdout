@@ -1,0 +1,408 @@
+- // === ROOT/tests/ui/codegen/mir/egraph/word_rules.mir (before egraph) ===
++ // === ROOT/tests/ui/codegen/mir/egraph/word_rules.mir (after egraph) ===
+  @module WordRules
+  fn @rule_0(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = and arg0, arg1
+      v1 = xor arg0, arg1
+-     v2 = and v0, v1
+-     ret v2
++     ret 0
+  }
+  
+  fn @rule_1(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = and arg0, arg1
+      v1 = xor arg1, arg0
+-     v2 = and v0, v1
+-     ret v2
++     ret 0
+  }
+  
+  fn @rule_2(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = xor arg0, arg1
+      v1 = and arg0, arg1
+-     v2 = and v0, v1
+-     ret v2
++     ret 0
+  }
+  
+  fn @rule_3(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = xor arg0, arg1
+      v1 = and arg1, arg0
+-     v2 = and v0, v1
+-     ret v2
++     ret 0
+  }
+  
+  fn @rule_4(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = and arg0, arg1
+      v1 = or arg0, arg1
+-     v2 = and v0, v1
++     v2 = and arg0, arg1
+      ret v2
+  }
+  
+  fn @rule_5(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = and arg0, arg1
+      v1 = or arg1, arg0
+-     v2 = and v0, v1
++     v2 = and arg0, arg1
+      ret v2
+  }
+  
+  fn @rule_6(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = or arg0, arg1
+      v1 = and arg0, arg1
+-     v2 = and v0, v1
++     v2 = and arg0, arg1
+      ret v2
+  }
+  
+  fn @rule_7(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = or arg0, arg1
+      v1 = and arg1, arg0
+-     v2 = and v0, v1
++     v2 = and arg0, arg1
+      ret v2
+  }
+  
+  fn @rule_8(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = or arg0, arg1
+      v1 = xor arg0, arg1
+-     v2 = and v0, v1
++     v2 = xor arg0, arg1
+      ret v2
+  }
+  
+  fn @rule_9(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = or arg0, arg1
+      v1 = xor arg1, arg0
+-     v2 = and v0, v1
++     v2 = xor arg0, arg1
+      ret v2
+  }
+  
+  fn @rule_10(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = xor arg0, arg1
+      v1 = or arg0, arg1
+-     v2 = and v0, v1
++     v2 = xor arg0, arg1
+      ret v2
+  }
+  
+  fn @rule_11(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = xor arg0, arg1
+      v1 = or arg1, arg0
+-     v2 = and v0, v1
++     v2 = xor arg0, arg1
+      ret v2
+  }
+  
+  fn @rule_12(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = and arg0, arg1
+      v1 = or arg0, arg1
+-     v2 = or v0, v1
++     v2 = or arg0, arg1
+      ret v2
+  }
+  
+  fn @rule_13(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = and arg0, arg1
+      v1 = or arg1, arg0
+-     v2 = or v0, v1
++     v2 = or arg0, arg1
+      ret v2
+  }
+  
+  fn @rule_14(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = or arg0, arg1
+      v1 = and arg0, arg1
+-     v2 = or v0, v1
++     v2 = or arg0, arg1
+      ret v2
+  }
+  
+  fn @rule_15(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = or arg0, arg1
+      v1 = and arg1, arg0
+-     v2 = or v0, v1
++     v2 = or arg0, arg1
+      ret v2
+  }
+  
+  fn @rule_16(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = and arg0, arg1
+      v1 = xor arg0, arg1
+-     v2 = or v0, v1
++     v2 = or arg0, arg1
+      ret v2
+  }
+  
+  fn @rule_17(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = and arg0, arg1
+      v1 = xor arg1, arg0
+-     v2 = or v0, v1
++     v2 = or arg0, arg1
+      ret v2
+  }
+  
+  fn @rule_18(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = xor arg0, arg1
+      v1 = and arg0, arg1
+-     v2 = or v0, v1
++     v2 = or arg0, arg1
+      ret v2
+  }
+  
+  fn @rule_19(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = xor arg0, arg1
+      v1 = and arg1, arg0
+-     v2 = or v0, v1
++     v2 = or arg0, arg1
+      ret v2
+  }
+  
+  fn @rule_20(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = or arg0, arg1
+      v1 = xor arg0, arg1
+-     v2 = or v0, v1
++     v2 = or arg0, arg1
+      ret v2
+  }
+  
+  fn @rule_21(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = or arg0, arg1
+      v1 = xor arg1, arg0
+-     v2 = or v0, v1
++     v2 = or arg0, arg1
+      ret v2
+  }
+  
+  fn @rule_22(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = xor arg0, arg1
+      v1 = or arg0, arg1
+-     v2 = or v0, v1
++     v2 = or arg0, arg1
+      ret v2
+  }
+  
+  fn @rule_23(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = xor arg0, arg1
+      v1 = or arg1, arg0
+-     v2 = or v0, v1
++     v2 = or arg0, arg1
+      ret v2
+  }
+  
+  fn @rule_24(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = and arg0, arg1
+      v1 = or arg0, arg1
+-     v2 = xor v0, v1
++     v2 = xor arg0, arg1
+      ret v2
+  }
+  
+  fn @rule_25(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = and arg0, arg1
+      v1 = or arg1, arg0
+-     v2 = xor v0, v1
++     v2 = xor arg0, arg1
+      ret v2
+  }
+  
+  fn @rule_26(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = or arg0, arg1
+      v1 = and arg0, arg1
+-     v2 = xor v0, v1
++     v2 = xor arg0, arg1
+      ret v2
+  }
+  
+  fn @rule_27(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = or arg0, arg1
+      v1 = and arg1, arg0
+-     v2 = xor v0, v1
++     v2 = xor arg0, arg1
+      ret v2
+  }
+  
+  fn @rule_28(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = and arg0, arg1
+      v1 = xor arg0, arg1
+-     v2 = xor v0, v1
++     v2 = or arg0, arg1
+      ret v2
+  }
+  
+  fn @rule_29(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = and arg0, arg1
+      v1 = xor arg1, arg0
+-     v2 = xor v0, v1
++     v2 = or arg0, arg1
+      ret v2
+  }
+  
+  fn @rule_30(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = xor arg0, arg1
+      v1 = and arg0, arg1
+-     v2 = xor v0, v1
++     v2 = or arg0, arg1
+      ret v2
+  }
+  
+  fn @rule_31(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = xor arg0, arg1
+      v1 = and arg1, arg0
+-     v2 = xor v0, v1
++     v2 = or arg0, arg1
+      ret v2
+  }
+  
+  fn @rule_32(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = or arg0, arg1
+      v1 = xor arg0, arg1
+-     v2 = xor v0, v1
++     v2 = and arg0, arg1
+      ret v2
+  }
+  
+  fn @rule_33(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = or arg0, arg1
+      v1 = xor arg1, arg0
+-     v2 = xor v0, v1
++     v2 = and arg0, arg1
+      ret v2
+  }
+  
+  fn @rule_34(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = xor arg0, arg1
+      v1 = or arg0, arg1
+-     v2 = xor v0, v1
++     v2 = and arg0, arg1
+      ret v2
+  }
+  
+  fn @rule_35(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = xor arg0, arg1
+      v1 = or arg1, arg0
+-     v2 = xor v0, v1
++     v2 = and arg0, arg1
+      ret v2
+  }
+  
+  fn @rule_36(arg0: u256) -> u256 {
+    bb0:
+-     v0 = mul arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
++     v0 = sub 0, arg0
+      ret v0
+  }
+  
+  fn @rule_37(arg0: u256) -> u256 {
+    bb0:
+-     v0 = mul 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg0
++     v0 = sub 0, arg0
+      ret v0
+  }
+  
+  fn @rule_38(arg0: u256) -> u256 {
+    bb0:
+-     v0 = sdiv arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
++     v0 = sub 0, arg0
+      ret v0
+  }
+  
+  fn @rule_39(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = not arg0
+      v1 = not arg1
+-     v2 = sub v0, v1
++     v2 = sub arg1, arg0
+      ret v2
+  }
+  
+  fn @rule_40(arg0: u256) -> u256 {
+    bb0:
+      v0 = not arg0
+-     v1 = add arg0, v0
+-     ret v1
++     ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  }
+  
+  fn @rule_41(arg0: u256) -> u256 {
+    bb0:
+      v0 = not arg0
+-     v1 = add v0, arg0
+-     ret v1
++     ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  }
+  
+  fn @operand_alternative(arg0: u256) -> u256 {
+    bb0:
+-     v0 = mul arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-     v1 = add v0, arg0
+-     ret v1
++     v0 = sub 0, arg0
++     ret 0
+  }
+  
+  fn @sibling_alternatives(arg0: bool, arg1: u256, arg2: u256) -> u256 {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb2:
+      v3 = sub arg1, arg2
+      jump bb3
+    bb1:
+      v0 = and arg1, arg2
+      v1 = xor arg1, arg2
+-     v2 = or v0, v1
++     v2 = or arg1, arg2
+      jump bb3
+    bb3:
+      v4 = phi [bb1: v2], [bb2: v3]
+      ret v4
+  }
+  
+  fn @no_integer_cancellation(arg0: u256) -> u256 {
+    bb0:
+-     v0 = mul arg0, 2
+-     v1 = div v0, 2
++     v0 = shl 1, arg0
++     v1 = shr 1, v0
+      ret v1
+  }
+  

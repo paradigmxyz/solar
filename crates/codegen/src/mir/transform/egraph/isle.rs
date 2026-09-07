@@ -1,6 +1,6 @@
 //! ISLE rewrite rules for the e-graph pass.
 //!
-//! The rules live in `isle/egraph.isle`. The instruction vocabulary they match
+//! The rules live in `isle/egraph.isle` and `isle/word.isle`. The instruction vocabulary they match
 //! on is generated from the MIR operation schema into `isle/prelude.isle`, and
 //! `build.rs` compiles both into Rust. This module implements the extractors
 //! and constructors the rules call.
@@ -43,12 +43,20 @@ mod generated {
 pub(super) struct RuleContext<'a> {
     func: &'a mut Function,
     evm_version: EvmVersion,
+    /// One retained equivalent definition exposed during bounded matching.
+    view: Option<(ValueId, Op)>,
 }
 
 impl<'a> RuleContext<'a> {
     /// Creates a context over `func`.
     pub(super) fn new(func: &'a mut Function, evm_version: EvmVersion) -> Self {
-        Self { func, evm_version }
+        Self { func, evm_version, view: None }
+    }
+
+    /// Exposes an existing operand class alternative without rewriting its definition.
+    pub(super) fn with_view(mut self, view: Option<(ValueId, Op)>) -> Self {
+        self.view = view;
+        self
     }
 
     /// Appends every equivalent instruction the rules can build for `op`.
@@ -188,7 +196,10 @@ const UINT160_MASK: U256 = U256::from_limbs([u64::MAX, u64::MAX, u32::MAX as u64
 
 impl generated::Context for RuleContext<'_> {
     fn inst_data(&mut self, value: Value) -> Option<Op> {
-        defining_kind(self.func, value).map(InstKind::op)
+        self.view
+            .filter(|&(operand, _)| operand == value)
+            .map(|(_, op)| op)
+            .or_else(|| defining_kind(self.func, value).map(InstKind::op))
     }
 
     fn iconst(&mut self, value: Value) -> Option<U256> {

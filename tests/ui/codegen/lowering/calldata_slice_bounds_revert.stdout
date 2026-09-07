@@ -49,7 +49,7 @@ fn @endPastLength() [selector=0x8063d43b, pure] {
     v42 = sub v41, v29
     v44 = add v42, 31
     v46 = and v44, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v47 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v47 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
     v50 = add v47, v46
     mstore 64, v50 !metadata(memory=scratch)
     returndata v47, v42
@@ -106,7 +106,7 @@ fn @startAfterEnd() [selector=0x598bfb30, pure] {
     v42 = sub v41, v29
     v44 = add v42, 31
     v46 = and v44, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v47 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v47 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
     v50 = add v47, v46
     mstore 64, v50 !metadata(memory=scratch)
     returndata v47, v42

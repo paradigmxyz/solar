@@ -70,7 +70,7 @@ fn @words() [selector=0x5a7641c8, pure] {
     v51 = sub v50, v40
     v53 = add v51, 31
     v55 = and v53, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v56 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v56 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
     v65 = add v56, v55
     mstore 64, v65 !metadata(memory=scratch)
     returndata v56, v51
@@ -186,7 +186,7 @@ fn @bools() [selector=0xcfb203c5, pure] {
     v84 = sub v74, v64
     v86 = add v84, 31
     v88 = and v86, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v89 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v89 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
     v105 = add v89, v88
     mstore 64, v105 !metadata(memory=scratch)
     returndata v89, v84
@@ -319,7 +319,7 @@ fn @strs() [selector=0x68f4ce0b, pure] {
     v96 = sub v74, v62
     v98 = add v96, 31
     v100 = and v98, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v101 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v101 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
     v117 = add v101, v100
     mstore 64, v117 !metadata(memory=scratch)
     returndata v101, v96
@@ -541,7 +541,7 @@ fn @mixed() [selector=0x6791505c, pure] {
     v91 = sub v90, v64
     v93 = add v91, 31
     v95 = and v93, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v96 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v96 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
     v118 = add v96, v95
     mstore 64, v118 !metadata(memory=scratch)
     returndata v96, v91

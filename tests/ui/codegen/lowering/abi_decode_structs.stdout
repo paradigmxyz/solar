@@ -163,7 +163,7 @@ fn @dNested() [selector=0xfc7ec666, pure] {
     v72 = sub v70, v54
     v74 = add v72, 31
     v76 = and v74, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v77 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v77 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
     v94 = add v77, v76
     mstore 64, v94 !metadata(memory=scratch)
     returndata v77, v72

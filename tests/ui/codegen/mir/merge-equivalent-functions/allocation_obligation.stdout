@@ -1,0 +1,24 @@
+- // === ROOT/tests/ui/codegen/mir/merge-equivalent-functions/allocation_obligation.mir (before merge-equivalent-functions) ===
++ // === ROOT/tests/ui/codegen/mir/merge-equivalent-functions/allocation_obligation.mir (after merge-equivalent-functions) ===
+  @module AllocationObligation
+  fn @movable() -> memptr {
+    bb0:
+      v0 = alloc raw, exact, uninitialized, infallible, 64
+      ret v0
+  }
+  
+  fn @reserved() -> memptr {
+    bb0:
+      v0 = alloc raw, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+      ret v0
+  }
+  
+  fn @entry() [selector=0x01020304] {
+    bb0:
+      v0 = icall @movable, 1
+      v1 = icall @reserved, 1
+      mstore v0, 42
+      mstore v1, 7
+      returndata v1, 32
+  }
+  

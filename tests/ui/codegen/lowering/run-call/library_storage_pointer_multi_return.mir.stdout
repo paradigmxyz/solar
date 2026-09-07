@@ -118,7 +118,7 @@ fn @forwardBytesPair() -> (u256, memorybytes) [selector=0x244e77d3, view, abi_pa
 
 fn @forwardStructPair() -> (u256, memorystruct) [selector=0x89663e35, view, abi_params=[], abi_returns=[word, tuple<word, memory_array<word>>]] {
   bb0:
-    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<2>, v0, 0, 0
     memory_object_store_field memorystruct<2>, v0, 1, 96
     v1 = icall @structPair, 2, 2

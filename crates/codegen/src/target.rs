@@ -510,6 +510,61 @@ mod tests {
     use super::*;
     use crate::mir::{Function, Immediate, InstKind, Value};
     use solar_interface::Ident;
+    use std::fmt::Write;
+
+    /// Export actual target prices for the offline rule search. The search never
+    /// maintains its own gas schedule or guesses constant materialization costs.
+    #[test]
+    fn word_rule_costs() {
+        let mut table = format!("deposit {}\n", Target::CODE_DEPOSIT_GAS_PER_BYTE);
+        for version in [
+            EvmVersion::Homestead,
+            EvmVersion::TangerineWhistle,
+            EvmVersion::SpuriousDragon,
+            EvmVersion::Byzantium,
+            EvmVersion::Constantinople,
+            EvmVersion::Petersburg,
+            EvmVersion::Istanbul,
+            EvmVersion::Berlin,
+            EvmVersion::London,
+            EvmVersion::Paris,
+            EvmVersion::Shanghai,
+            EvmVersion::Cancun,
+            EvmVersion::Prague,
+            EvmVersion::Osaka,
+            EvmVersion::Amsterdam,
+        ] {
+            let target =
+                Target::with(version, OptimizationMode::Gas, Target::DEFAULT_EXPECTED_EXECUTIONS);
+            writeln!(table, "fork {version}").unwrap();
+            for (name, value) in [("0", U256::ZERO), ("1", U256::ONE), ("max", U256::MAX)] {
+                let cost = target.push(value);
+                writeln!(table, "constant {name} {} {}", cost.gas, cost.bytes).unwrap();
+            }
+            let duplicate = target.dup();
+            writeln!(table, "variable {} {}", duplicate.gas, duplicate.bytes).unwrap();
+            for opcode in u8::MIN..=u8::MAX {
+                if let Some(def) = op::definition(opcode)
+                    && def.is_available(version)
+                    && def.is_pure()
+                    && def.gas.dynamic_gas(version) == 0
+                    && let Some((inputs, 1)) = def.stack_io
+                {
+                    let cost = target.opcode(opcode);
+                    writeln!(
+                        table,
+                        "op {} {inputs} {} {} {}",
+                        def.mnemonic,
+                        cost.gas,
+                        cost.bytes,
+                        if def.is_commutative() { "commutative" } else { "ordered" }
+                    )
+                    .unwrap();
+                }
+            }
+        }
+        snapbox::assert_data_eq!(table, snapbox::file!["word_rule_costs.snap"]);
+    }
 
     #[test]
     fn schedule_is_monotonic_and_fixed_tiers_agree() {

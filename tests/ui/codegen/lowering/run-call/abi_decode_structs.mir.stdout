@@ -216,13 +216,13 @@ fn @typedDynArray(arg0: calldataslice) -> (u256, u256, u256) [selector=0xa00a84d
 
 fn @nestedRoundtrip() -> (u256, memorybytes, u256) [selector=0x07f0bc21, pure, abi_params=[], abi_returns=[word, memory_bytes, word]] {
   bb0:
-    v0 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    v1 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    v0 = alloc memorystruct<3>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
+    v1 = alloc memorystruct<3>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<3>, v1, 0, 0
     memory_object_store_field memorystruct<3>, v1, 1, 0
     memory_object_store_field memorystruct<3>, v1, 2, 0
     memory_object_store_field memorystruct<3>, v0, 0, v1
-    v2 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    v2 = alloc memorystruct<3>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<3>, v2, 0, 0
     memory_object_store_field memorystruct<3>, v2, 1, 96
     memory_object_store_field memorystruct<3>, v2, 2, 96
@@ -292,7 +292,7 @@ fn @dynamicArrayRoundtrip() -> (u256, u256, u256, u256) [selector=0x533c608a, pu
     v2 = lt v1, 2
     jumpi v2, bb2, bb3
   bb3:
-    v5 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    v5 = alloc memorystruct<3>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<3>, v5, 0, 0
     memory_object_store_field memorystruct<3>, v5, 1, 96
     memory_object_store_field memorystruct<3>, v5, 2, 96
@@ -319,7 +319,7 @@ fn @dynamicArrayRoundtrip() -> (u256, u256, u256, u256) [selector=0x533c608a, pu
     jumpi v16, bb4, bb6
   bb6:
     memory_object_store_element memoryarray<1>, v13, 1, 5
-    v17 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    v17 = alloc memorystruct<3>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<3>, v17, 0, 0
     memory_object_store_field memorystruct<3>, v17, 1, 96
     memory_object_store_field memorystruct<3>, v17, 2, 96
@@ -366,7 +366,7 @@ fn @dynamicArrayRoundtrip() -> (u256, u256, u256, u256) [selector=0x533c608a, pu
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v3 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    v3 = alloc memorystruct<3>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<3>, v3, 0, 0
     memory_object_store_field memorystruct<3>, v3, 1, 96
     memory_object_store_field memorystruct<3>, v3, 2, 96
@@ -377,7 +377,7 @@ fn @dynamicArrayRoundtrip() -> (u256, u256, u256, u256) [selector=0x533c608a, pu
 
 fn @fixedDynamicRoundtrip() -> (u256, u256) [selector=0x273ceef0, pure, abi_params=[], abi_returns=[word, word]] {
   bb0:
-    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v3]

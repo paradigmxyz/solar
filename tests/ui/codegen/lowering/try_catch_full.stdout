@@ -74,7 +74,7 @@ fn @full() [selector=0xd17b272f, view] {
     v165 = sub v164, v148
     v167 = add v165, 31
     v169 = and v167, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v170 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v170 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
     v193 = add v170, v169
     mstore 64, v193 !metadata(memory=scratch)
     returndata v170, v165
@@ -112,7 +112,7 @@ fn @full() [selector=0xd17b272f, view] {
     v141 = sub v140, v124
     v143 = add v141, 31
     v145 = and v143, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v146 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v146 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
     v192 = add v146, v145
     mstore 64, v192 !metadata(memory=scratch)
     returndata v146, v141
@@ -157,7 +157,7 @@ fn @full() [selector=0xd17b272f, view] {
     v115 = sub v114, v98
     v117 = add v115, 31
     v119 = and v117, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v120 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v120 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
     v191 = add v120, v119
     mstore 64, v191 !metadata(memory=scratch)
     returndata v120, v115
@@ -204,7 +204,7 @@ fn @full() [selector=0xd17b272f, view] {
     v91 = sub v90, v74
     v93 = add v91, 31
     v95 = and v93, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v96 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v96 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
     v190 = add v96, v95
     mstore 64, v190 !metadata(memory=scratch)
     returndata v96, v91

@@ -53,7 +53,7 @@
 +     v16 = add v15, 31
 +     v17 = not 31
 +     v18 = and v16, v17
-+     v19 = alloc raw, exact, uninitialized, infallible, v18
++     v19 = alloc raw, exact, uninitialized, infallible, v18 !metadata(preserves_fmp)
 +     v20 = make_memory_slice v19, v15
 +     ret v20
   }
@@ -89,7 +89,7 @@
 +     v32 = add v31, 31
 +     v33 = not 31
 +     v34 = and v32, v33
-+     v35 = alloc raw, exact, uninitialized, infallible, v34
++     v35 = alloc raw, exact, uninitialized, infallible, v34 !metadata(preserves_fmp)
 +     v36 = make_memory_slice v35, v31
 +     ret v36
 +   bb2:
@@ -137,7 +137,7 @@
 +     v20 = add v19, 31
 +     v21 = not 31
 +     v22 = and v20, v21
-+     v23 = alloc raw, exact, uninitialized, infallible, v22
++     v23 = alloc raw, exact, uninitialized, infallible, v22 !metadata(preserves_fmp)
 +     v24 = make_memory_slice v23, v19
 +     ret v24
 +   bb2:
@@ -183,7 +183,7 @@
 +     v18 = add v17, 31
 +     v19 = not 31
 +     v20 = and v18, v19
-+     v21 = alloc raw, exact, uninitialized, infallible, v20
++     v21 = alloc raw, exact, uninitialized, infallible, v20 !metadata(preserves_fmp)
 +     v22 = make_memory_slice v21, v17
 +     ret v22
   }
@@ -209,7 +209,7 @@
 +     v12 = add v11, 31
 +     v13 = not 31
 +     v14 = and v12, v13
-+     v15 = alloc raw, exact, uninitialized, infallible, v14
++     v15 = alloc raw, exact, uninitialized, infallible, v14 !metadata(preserves_fmp)
 +     v16 = make_memory_slice v15, v11
 +     ret v16
 + }

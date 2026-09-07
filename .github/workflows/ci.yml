@@ -15,6 +15,26 @@ env:
   FANDANGO_VERSION: 1.1.1
 
 jobs:
+  evm-rules:
+    name: EVM word proofs
+    runs-on: depot-ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      - run: uv run scripts/test_evm_rules.py
+      - name: Verify compiled ISLE word rules
+        run: uv run scripts/verify_evm_rules.py verify --output target/evm-rules/proofs.json --artifacts target/evm-rules/smt
+      - name: Preserve proof queries and coverage
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: evm-word-proofs
+          path: target/evm-rules
+          if-no-files-found: ignore
+
   test:
     name: test ${{ matrix.os }} ${{ matrix.rust }}
     runs-on: depot-${{ matrix.os }}
@@ -286,6 +306,7 @@ jobs:
     if: always()
     permissions: {}
     needs:
+      - evm-rules
       - test
       - feature-checks
       - wasm
