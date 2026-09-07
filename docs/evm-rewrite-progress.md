@@ -1340,3 +1340,72 @@ patch was reversed and its original hash verified. The failed size screen
 precludes an acceptance claim, so no full hot-gas or compiler-time run was made.
 Work continues on bounded retirement of unnecessary homes, using the existing
 emission transaction and preserving the accepted Phi allocation path.
+
+
+### Bounded retirement of single-use homes
+
+Commit `a2014fe5` adds an ordered twenty-value storage/writer regression test;
+`5b64cf34` reuses the existing pressure scheduler and emission checkpoint to
+retire optional single-use homes. At most eight scans restore an old home from
+a failed site's conservative identity pool. The no-Phi, 256-value admission
+bound leaves mandatory homes, original residents, entry layout and reserved
+memory intact. The existing Phi proposal and assembler remain unchanged.
+Production changes add 136 lines across three files; the backend now contains
+16,410 raw Rust lines in 45 files, 18,228 fewer than the recorded deleted scope
+(52.6%). These are physical lines including comments and inline tests, not a
+strict production-SLOC census.
+
+Broader drafts were rejected for real regressions: mutable-bank execution
+increased 132 opcode gas despite fewer bytes, and multi-use checked locals grew
+86 bytes through rotations. Final `a5dffa7b` reuses last-use operand preparation
+and restricts new residents to one static use. Against accepted `eb7d8a74`,
+mutable-bank runtime shrinks 403 to 271 bytes and saves 204 opcode gas;
+ordered-storage shrinks 369 to 293 and saves 169 gas; the mixed tail entry
+shrinks 252 to 184, with fast gas unchanged and blocked gas down 108.
+Dynamic-writer runtime shrinks 349 to 215 and normal receipt gas falls 153.
+At the retained 86,856-gas boundary its GAS-dependent boolean changes from zero
+to one, explained by each leg's twenty recorded GAS words; this is explicitly
+preserved, not reported as exact numerical GAS behavior. Size is unchanged.
+
+Final UI captures use the same 815 source hashes, 814 IDs per mode, 805
+successful and nine diagnostic outcomes, and 1,235 contracts per mode. Eight
+of 4,940 objects shrink, none grow: Gas creation/runtime totals fall 411/410
+bytes, and all 2,470 Size objects are exact. Ten warnings retain their complete
+contents and multiplicity with only ordering changed. The tail-entry check and
+two snapshots were updated after exact-runtime review and eight negative
+mutants; argument store576 and the shared revert protocol remain checked.
+No runtime directive was removed or weakened.
+
+Official full/Size workflows retain 24/15 IDs and 175 gas labels with 139
+observations per compiler. Runtime gas, deployment gas and physical artifacts
+are exact to the preceding candidate; two MIR helper-name changes are proved
+bijections. Complete project-output fingerprints bridge all 1,672 contracts,
+3,344 objects and 541 reference sites to retained raw outputs. All 1,061
+objects larger than the original sealed baseline remain unchanged. Mutable
+Gas still costs three bytes/36 opcode gas more than sealed, and its Size debt
+of 135 bytes/240 opcode gas remains. Mixed-tail Size debt also remains.
+
+Primary compiler-time geomean is +3.4615%, RSS +0.2043%. The four-case reversed
+repeat is +0.5129% time, +0.5213% RSS; two cases improve and two slow down.
+The primary result and unrepeated sum-array slowdown are retained. No noise
+or compiler-speed win is claimed. The one-sample Size lane has no timing claim.
+
+Final workspace results are 1,395 passes, one failing UI aggregate and two
+skips: 11,627 UI revisions pass, the four original failures remain and 851 are
+filtered. All 36 Foundry projects pass with exact ordered 772/765 compiler/solc
+tests, gas and reported sizes against the previous retained reports. Clippy,
+nightly formatting and typos pass. The first symbolic attempt is incomplete
+on both legs at the same 25-second timeout; the guarded mutable-bank source
+still activates all eight retirements. Both longer attempts also
+time out at 180 seconds after compilation; neither establishes agreement. An
+artifact probe with scalar formals is being checked to avoid a possible
+static-array harness cost without changing calldata layout.
+Arbitrary-memory correctness, exact retry-boundary coverage and final sealed
+performance acceptance remain open.
+
+Evidence: `failure-directed-homes-workflow-20260907/`,
+`failure-directed-homes-runtime-20260907/`,
+`failure-directed-homes-tests-20260907/`, and
+`failure-directed-homes-reversed-timing-20260907/` beneath
+`target/codegen-bench/evm-rewrite-candidate/`. The first two production drafts,
+failed checks and sealed comparisons are retained alongside the final results.

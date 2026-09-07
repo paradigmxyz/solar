@@ -115,3 +115,33 @@ emitted code remains an experiment. It does not solve broad homing or arbitrary
 source-memory readback. Detailed refreshed sources, rejected patches and
 measurements are retained in `stack-residency-prior-art-20260907/` and
 `argument-residence-workflow-20260907/` beneath the candidate evidence directory.
+
+
+## Bounded selective retirement
+
+The failure-directed trial now reuses the existing residence constraints,
+physical pressure simulation, last-use operand preparation and emission
+checkpoint. It considers only single-use optional homes in no-Phi owners with
+at most 256 allocated values, restores an old home from the first failed site's
+conservative identity pool, and permits at most eight scans. Mandatory homes,
+original residents, reservations, entry protocols and the accepted Phi path
+remain intact. Actual emission rejects unsupported schedules; the existing
+writer guard rejects increased protection cost. No upstream implementation was
+copied, and no optimization moved into the assembler.
+
+Two broader drafts were rejected: the first saved bytes but increased mutable
+bank execution by 132 gas; allowing multi-use residents grew the checked-locals
+fixture by 86 bytes through extra rotations. Reusing last-use preparation and
+restricting new residents to single-use values removes both observed
+regressions. This restriction is measured policy, not a universal profitability
+proof: mixed live operands, repeated loop execution and canonical edges can
+still cost more. Exact retry-boundary and late-rollback coverage remain open.
+
+The final installed UI corpus has eight smaller Gas objects and no growth;
+all Size objects are exact. The full runtime and archived-project corpus is
+unchanged from the preceding candidate. Compiler-time geomean is 3.4615% slower
+in the primary run and 0.5129% slower across four reversed-order repeats;
+retaining these costs is necessary when comparing future proposals. Existing
+sealed-baseline performance debt and arbitrary-memory correctness defects are
+not resolved by fewer homes. Detailed measurements and rejected drafts are in
+`target/codegen-bench/evm-rewrite-candidate/failure-directed-homes-workflow-20260907/`.
