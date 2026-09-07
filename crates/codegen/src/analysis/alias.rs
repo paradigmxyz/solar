@@ -1156,6 +1156,11 @@ impl AliasAnalysis {
                     write_memory(&mut effects, ptr, size);
                 }
             }
+            InstKind::StorageBytesLoad(..) => {
+                effects.read_any(AddressSpace::Storage);
+                effects.read_any(AddressSpace::Memory);
+                effects.write_any(AddressSpace::Memory);
+            }
             InstKind::Erc7201(..)
             | InstKind::AbiEncodePacked { .. }
             | InstKind::Concat(..)

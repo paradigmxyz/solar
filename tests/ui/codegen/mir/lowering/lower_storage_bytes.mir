@@ -1,0 +1,30 @@
+//@ revisions: semantic expanded
+//@[semantic] compile-flags: -Zmir-pipeline=none
+//@[expanded] compile-flags: -Zmir-pipeline=lower-builtins
+@module StorageBytes
+
+fn @header(arg0: u256) -> u256 {
+  bb0:
+    v0 = sload arg0
+    validate_storage_bytes v0 !metadata(span=10..20, modifier_depth=1)
+    ret v0
+}
+
+fn @load(arg0: u256) -> memorybytes {
+  bb0:
+    v0 = load_storage_bytes arg0 !metadata(span=20..30, modifier_depth=2)
+    ret v0
+}
+
+fn @edge(arg0: bool, arg1: u256, arg2: memorybytes) -> memorybytes {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    v0 = load_storage_bytes arg1
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v1 = phi [bb1: v0], [bb2: arg2]
+    ret v1
+}

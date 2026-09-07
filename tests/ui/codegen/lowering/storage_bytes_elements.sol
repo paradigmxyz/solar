@@ -3,7 +3,7 @@
 
 contract StorageBytesElements {
     // CHECK-LABEL: fn @b{{[( ]}}
-    // CHECK: storage_array_data_slot 0
+    // CHECK: load_storage_bytes 0
     // CHECK: ret {{v[0-9]+}}
     bytes public b;
 
@@ -25,7 +25,7 @@ contract StorageBytesElements {
     }
 
     // CHECK-LABEL: fn @hashB{{[( ]}}
-    // CHECK: storage_array_data_slot 0
+    // CHECK: load_storage_bytes 0
     // CHECK: keccak256_bytes {{v[0-9]+}}
     function hashB() public view returns (bytes32) {
         return keccak256(b);

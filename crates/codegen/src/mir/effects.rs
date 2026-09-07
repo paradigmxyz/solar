@@ -63,7 +63,9 @@ impl InstKind {
     /// Returns context-free effects; use alias and call summaries for resource footprints.
     pub(crate) const fn effects(&self) -> InstructionEffects {
         let control = match self {
-            Self::ValidateAbi(..)
+            Self::ValidateStorageBytes(..)
+            | Self::StorageBytesLoad(..)
+            | Self::ValidateAbi(..)
             | Self::CheckedAddMod(..)
             | Self::CheckedMulMod(..)
             | Self::CheckedBinary { .. }
@@ -238,6 +240,7 @@ impl InstKind {
                     | Self::AbiEncode { .. }
                     | Self::AbiEncodePacked { .. }
                     | Self::StorageToMemory { .. }
+                    | Self::StorageBytesLoad(..)
                     | Self::Concat(..)
             ),
         }

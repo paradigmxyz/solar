@@ -43,7 +43,7 @@ contract MappingDynamicKeyPaths {
     mapping(address => mapping(string => uint256)) public nestedSecond;
 
     // CHECK-LABEL: fn @skey{{[( ]}}
-    // CHECK: storage_array_data_slot 3
+    // CHECK: load_storage_bytes 3
     // CHECK: ret {{v[0-9]+}}
     string public skey;
 
@@ -101,7 +101,7 @@ contract MappingDynamicKeyPaths {
     }
 
     // CHECK-LABEL: fn @setViaStorageKey{{[( ]}}
-    // CHECK: storage_array_data_slot 3
+    // CHECK: load_storage_bytes 3
     // CHECK: [[SLOT:v[0-9]+]] = mapping_slot_memory {{v[0-9]+}}, 0
     // CHECK: sstore [[SLOT]], arg0
     function setViaStorageKey(uint256 v) public {

@@ -1,0 +1,16 @@
+//@ compile-flags: -Zmir-pipeline=none
+@module InvalidStorageBytes
+
+//~? ERROR: [fn0] [bb0, inst0] storage bytes operation requires a word operand
+fn @header(arg0: memorybytes) -> u256 {
+  bb0:
+    validate_storage_bytes arg0
+    ret 0
+}
+
+//~? ERROR: [fn1] [bb0, inst0] storage bytes operation requires a word operand
+fn @load(arg0: memoryarray) -> memorybytes {
+  bb0:
+    v0 = load_storage_bytes arg0
+    ret v0
+}

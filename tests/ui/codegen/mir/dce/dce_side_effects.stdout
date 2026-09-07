@@ -97,3 +97,11 @@
       stop
   }
   
+  fn @unused_storage_reads(arg0: u256) {
+    bb0:
+      v0 = sload arg0
+      validate_storage_bytes v0
+      v1 = load_storage_bytes arg0
+      ret
+  }
+  

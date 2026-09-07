@@ -60,6 +60,11 @@ impl MirPass for LowerBuiltins {
                     }
                     let inst = builder.func().inst(id).clone();
                     builder.set_debug_context(&inst.metadata);
+                    if let InstKind::ValidateStorageBytes(header) = inst.kind {
+                        // validate_storage_bytes(header) -> encoding predicate; panic if invalid
+                        super::lower_storage_bytes::validate(&mut builder, header);
+                        continue;
+                    }
                     // builtin(args) -> buffer setup; copies or precompile call; result
                     let result = match inst.kind {
                         InstKind::AbiEncodePacked { parts, hash } => {
@@ -75,6 +80,9 @@ impl MirPass for LowerBuiltins {
                             } else {
                                 builder.mulmod(a, b, modulus)
                             }
+                        }
+                        InstKind::StorageBytesLoad(slot) => {
+                            super::lower_storage_bytes::load(&mut builder, slot)
                         }
                         InstKind::Erc7201(input) => lower_erc7201(&mut builder, input),
                         InstKind::Concat(parts) => lower_concat(&mut builder, parts),
@@ -111,7 +119,9 @@ impl MirPass for LowerBuiltins {
 fn is_builtin(kind: &InstKind) -> bool {
     matches!(
         kind,
-        InstKind::Erc7201(..)
+        InstKind::ValidateStorageBytes(..)
+            | InstKind::StorageBytesLoad(..)
+            | InstKind::Erc7201(..)
             | InstKind::CheckedAddMod(..)
             | InstKind::CheckedMulMod(..)
             | InstKind::AbiEncodePacked { .. }

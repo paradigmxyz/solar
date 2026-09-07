@@ -693,7 +693,9 @@ impl Instruction {
             InstKind::Fmp | InstKind::SetFmp(..) => Some("abstract allocation"),
             InstKind::MemoryZero(..) => Some("memory zero"),
             InstKind::CheckedBinary { .. } => Some("checked arithmetic"),
-            InstKind::Erc7201(..)
+            InstKind::ValidateStorageBytes(..)
+            | InstKind::StorageBytesLoad(..)
+            | InstKind::Erc7201(..)
             | InstKind::CheckedAddMod(..)
             | InstKind::CheckedMulMod(..)
             | InstKind::AbiEncodePacked { .. }
@@ -1153,6 +1155,10 @@ pub(crate) enum InstKind {
     MCopy(ValueId, ValueId, ValueId),
 
     // Storage operations
+    /// Validate the short/long encoding of a loaded Solidity storage bytes header.
+    ValidateStorageBytes(ValueId),
+    /// Materialize a Solidity storage bytes value as a fresh memory bytes object.
+    StorageBytesLoad(ValueId),
     /// Load from storage: `sload(slot)`
     SLoad(ValueId),
     /// Store to storage: `sstore(slot, value)`
@@ -1586,6 +1592,8 @@ impl InstKind {
             | Self::IsZero(a)
             | Self::MLoad(a)
             | Self::SetFmp(a)
+            | Self::ValidateStorageBytes(a)
+            | Self::StorageBytesLoad(a)
             | Self::SLoad(a)
             | Self::TLoad(a)
             | Self::CalldataLoad(a)
@@ -1897,6 +1905,8 @@ impl InstKind {
             | Self::IsZero(a)
             | Self::MLoad(a)
             | Self::SetFmp(a)
+            | Self::ValidateStorageBytes(a)
+            | Self::StorageBytesLoad(a)
             | Self::SLoad(a)
             | Self::TLoad(a)
             | Self::CalldataLoad(a)
@@ -2104,6 +2114,8 @@ impl InstKind {
             Self::MemoryToStorage { .. } => "memory_to_storage",
             Self::ClearStorage { .. } => "clear_storage",
             Self::MCopy(_, _, _) => "mcopy",
+            Self::ValidateStorageBytes(_) => "validate_storage_bytes",
+            Self::StorageBytesLoad(_) => "load_storage_bytes",
             Self::SLoad(_) => "sload",
             Self::SStore(_, _) => "sstore",
             Self::TLoad(_) => "tload",
@@ -2237,7 +2249,8 @@ impl InstKind {
     #[must_use]
     pub(crate) const fn effect_kind(&self) -> EffectKind {
         match self {
-            Self::CheckedAddMod(..)
+            Self::ValidateStorageBytes(..)
+            | Self::CheckedAddMod(..)
             | Self::CheckedMulMod(..)
             | Self::ValidateAbi(..)
             | Self::Check { .. }
@@ -2246,7 +2259,8 @@ impl InstKind {
             | Self::ExtractValue { .. }
             | Self::MemoryObjectFromPtr { .. }
             | Self::WordCast(_) => EffectKind::Pure,
-            Self::Erc7201(..)
+            Self::StorageBytesLoad(..)
+            | Self::Erc7201(..)
             | Self::AbiEncodePacked { .. }
             | Self::Concat(..)
             | Self::Sha256(..)

@@ -58,47 +58,8 @@ fn @nestedSecond(arg0: address, arg1: calldataslice) -> u256 [selector=0xf7453cb
 
 fn @skey() -> memorybytes [selector=0x8cd2a1c2, view, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = sload 3 !metadata(storage=slot(3))
-    v1 = and v0, 1
-    v2 = eq v1, 1
-    v3 = shr 1, v0
-    v4 = and v3, 127
-    v5 = select v2, v3, v4
-    v6 = lt v5, 32
-    v7 = eq v2, v6
-    panic_if v7, 0x22
-    v8 = add v5, 31
-    v9 = div v8, 32
-    v10 = add v5, 63
-    v11 = lt v10, v5
-    panic_if v11, 0x41
-    v12 = not 31
-    v13 = and v10, v12
-    v14 = alloc memorybytes, exact, uninitialized, panic, v13
-    set_memory_object_len memorybytes, v14, v5
-    jumpi v2, bb2, bb1
-  bb1:
-    v15 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    memory_object_store_word memorybytes, v14, 0, v15
-    jump bb3
-  bb2:
-    v16 = storage_array_data_slot 3
-    jump bb4
-  bb4:
-    v17 = phi [bb2: 0], [bb5: v22]
-    v18 = lt v17, v9
-    jumpi v18, bb5, bb6
-  bb6:
-    jump bb3
-  bb3:
-    ret v14
-  bb5:
-    v19 = add v16, v17
-    v20 = sload v19 !metadata(storage=symbolic(v19))
-    v21 = mul v17, 32
-    memory_object_store_word memorybytes, v14, v21, v20
-    v22 = add v17, 1
-    jump bb4
+    v0 = load_storage_bytes 3
+    ret v0
 }
 
 fn @setLit(arg0: u256) [selector=0x3fffd95e, abi_params=[u256], abi_returns=[]] {
@@ -160,49 +121,10 @@ fn @setSkey(arg0: memorybytes) [selector=0x7be4f4f1, abi_params=[bytes], abi_ret
 
 fn @setViaStorageKey(arg0: u256) [selector=0x2bd4b749, abi_params=[u256], abi_returns=[]] {
   bb0:
-    v0 = sload 3 !metadata(storage=slot(3))
-    v1 = and v0, 1
-    v2 = eq v1, 1
-    v3 = shr 1, v0
-    v4 = and v3, 127
-    v5 = select v2, v3, v4
-    v6 = lt v5, 32
-    v7 = eq v2, v6
-    panic_if v7, 0x22
-    v8 = add v5, 31
-    v9 = div v8, 32
-    v10 = add v5, 63
-    v11 = lt v10, v5
-    panic_if v11, 0x41
-    v12 = not 31
-    v13 = and v10, v12
-    v14 = alloc memorybytes, exact, uninitialized, panic, v13
-    set_memory_object_len memorybytes, v14, v5
-    jumpi v2, bb2, bb1
-  bb1:
-    v15 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    memory_object_store_word memorybytes, v14, 0, v15
-    jump bb3
-  bb2:
-    v16 = storage_array_data_slot 3
-    jump bb4
-  bb4:
-    v17 = phi [bb2: 0], [bb5: v22]
-    v18 = lt v17, v9
-    jumpi v18, bb5, bb6
-  bb6:
-    jump bb3
-  bb3:
-    v23 = mapping_slot_memory v14, 0
-    sstore v23, arg0 !metadata(storage=symbolic(v23))
+    v0 = load_storage_bytes 3
+    v1 = mapping_slot_memory v0, 0
+    sstore v1, arg0 !metadata(storage=symbolic(v1))
     ret
-  bb5:
-    v19 = add v16, v17
-    v20 = sload v19 !metadata(storage=symbolic(v19))
-    v21 = mul v17, 32
-    memory_object_store_word memorybytes, v14, v21, v20
-    v22 = add v17, 1
-    jump bb4
 }
 
 fn @setThenAlloc(arg0: calldataslice, arg1: u256) -> u256 [selector=0x8fc72899, abi_params=[bytes, u256], abi_returns=[word]] {
@@ -237,78 +159,76 @@ fn @clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
 fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
+    validate_storage_bytes v0
     v1 = and v0, 1
     v2 = eq v1, 1
     v3 = shr 1, v0
     v4 = and v3, 127
     v5 = select v2, v3, v4
-    v6 = lt v5, 32
-    v7 = eq v2, v6
-    panic_if v7, 0x22
-    v8 = memory_object_len memorybytes, arg1
-    v9 = memory_object_data memorybytes, arg1
-    v10 = make_memory_slice v9, v8
-    v11 = add v5, 31
-    v12 = div v11, 32
-    v13 = add v8, 31
-    v14 = lt v13, v8
-    panic_if v14, 0x41
-    v15 = div v13, 32
-    v16 = lt v8, 32
-    v17 = select v16, 0, v15
-    v18 = gt v5, v8
-    v19 = and v2, v18
-    jumpi v19, bb1, bb2
+    v6 = memory_object_len memorybytes, arg1
+    v7 = memory_object_data memorybytes, arg1
+    v8 = make_memory_slice v7, v6
+    v9 = add v5, 31
+    v10 = div v9, 32
+    v11 = add v6, 31
+    v12 = lt v11, v6
+    panic_if v12, 0x41
+    v13 = div v11, 32
+    v14 = lt v6, 32
+    v15 = select v14, 0, v13
+    v16 = gt v5, v6
+    v17 = and v2, v16
+    jumpi v17, bb1, bb2
   bb1:
-    icall @clear_storage_words, arg0, v17, v12
+    icall @clear_storage_words, arg0, v15, v10
     jump bb2
   bb2:
-    jumpi v16, bb3, bb4
+    jumpi v14, bb3, bb4
   bb4:
-    v29 = shl 1, v8
-    v30 = or v29, 1
-    sstore arg0, v30 !metadata(storage=symbolic(arg0))
-    v31 = storage_array_data_slot arg0
-    v32 = div v8, 32
+    v27 = shl 1, v6
+    v28 = or v27, 1
+    sstore arg0, v28 !metadata(storage=symbolic(arg0))
+    v29 = storage_array_data_slot arg0
+    v30 = div v6, 32
     jump bb6
   bb6:
-    v33 = phi [bb4: 0], [bb7: v38]
-    v34 = lt v33, v32
-    jumpi v34, bb7, bb8
+    v31 = phi [bb4: 0], [bb7: v36]
+    v32 = lt v31, v30
+    jumpi v32, bb7, bb8
   bb8:
-    v39 = and v8, 31
-    v40 = iszero v39
-    jumpi v40, bb5, bb9
+    v37 = and v6, 31
+    v38 = iszero v37
+    jumpi v38, bb5, bb9
   bb9:
-    v41 = mul v32, 32
-    v42 = memory_slice_load_word memory, v10, v41
-    v43 = sub 32, v39
-    v44 = mul v43, 8
-    v45 = shl v44, 1
-    v46 = sub v45, 1
-    v47 = not v46
-    v48 = and v42, v47
-    v49 = add v31, v32
-    sstore v49, v48 !metadata(storage=symbolic(v49))
+    v39 = mul v30, 32
+    v40 = memory_slice_load_word memory, v8, v39
+    v41 = sub 32, v37
+    v42 = mul v41, 8
+    v43 = shl v42, 1
+    v44 = sub v43, 1
+    v45 = not v44
+    v46 = and v40, v45
+    v47 = add v29, v30
+    sstore v47, v46 !metadata(storage=symbolic(v47))
     jump bb5
   bb7:
-    v35 = mul v33, 32
-    v36 = memory_slice_load_word memory, v10, v35
-    v37 = add v31, v33
-    sstore v37, v36 !metadata(storage=symbolic(v37))
-    v38 = add v33, 1
+    v33 = mul v31, 32
+    v34 = memory_slice_load_word memory, v8, v33
+    v35 = add v29, v31
+    sstore v35, v34 !metadata(storage=symbolic(v35))
+    v36 = add v31, 1
     jump bb6
   bb3:
-    v20 = memory_slice_load_word memory, v10, 0
-    v21 = sub 32, v8
-    v22 = mul v21, 8
-    v23 = shl v22, 1
-    v24 = sub v23, 1
-    v25 = not v24
-    v26 = and v20, v25
-    v27 = mul v8, 2
-    v28 = or v26, v27
-    sstore arg0, v28 !metadata(storage=symbolic(arg0))
+    v18 = memory_slice_load_word memory, v8, 0
+    v19 = sub 32, v6
+    v20 = mul v19, 8
+    v21 = shl v20, 1
+    v22 = sub v21, 1
+    v23 = not v22
+    v24 = and v18, v23
+    v25 = mul v6, 2
+    v26 = or v24, v25
+    sstore arg0, v26 !metadata(storage=symbolic(arg0))
     jump bb5
   bb5:
     ret

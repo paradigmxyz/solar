@@ -2241,6 +2241,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 self.parser.expect(TokenKind::CloseDelim(Delimiter::Parenthesis))?;
                 (InstKind::Concat(parts), Some(MirType::MemoryObject(MemoryObjectKind::Bytes)))
             }
+            sym::validate_storage_bytes => inst!(ValidateStorageBytes(a)),
+            sym::load_storage_bytes => {
+                inst!(StorageBytesLoad(a) => MirType::MemoryObject(MemoryObjectKind::Bytes))
+            }
             sym::erc7201 => inst!(Erc7201(a) => MirType::uint256()),
             sym::checked_addmod => inst!(CheckedAddMod(a, b, c) => MirType::uint256()),
             sym::checked_mulmod => inst!(CheckedMulMod(a, b, c) => MirType::uint256()),

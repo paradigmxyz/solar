@@ -139,3 +139,10 @@ fn @unlowered_namespace(arg0: memptr) -> u256 {
     v0 = erc7201 arg0
     ret v0
 }
+
+//~? ERROR: [fn18] [bb0, inst0] builtin instruction `validate_storage_bytes` survives the `lowered` phase boundary
+fn @unlowered_storage_header(arg0: u256) -> u256 {
+  bb0:
+    validate_storage_bytes arg0
+    ret arg0
+}

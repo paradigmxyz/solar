@@ -56,5 +56,7 @@ error: [fn16] [bb0, inst0] builtin instruction `checked_addmod` survives the `lo
 
 error: [fn17] [bb0, inst0] builtin instruction `erc7201` survives the `lowered` phase boundary
 
-error: aborting due to 29 previous errors
+error: [fn18] [bb0, inst0] builtin instruction `validate_storage_bytes` survives the `lowered` phase boundary
+
+error: aborting due to 30 previous errors
 

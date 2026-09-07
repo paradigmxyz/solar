@@ -1273,6 +1273,7 @@ symbols! {
         unknown_selector,
         unwrap,
         validate_abi,
+        validate_storage_bytes,
         value,
         void,
         word,

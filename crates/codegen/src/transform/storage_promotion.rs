@@ -7,7 +7,8 @@
 //! Safety contract:
 //! - promote only exact storage aliases that are loop-invariant
 //! - promote multiple slots only when they are pairwise provably disjoint
-//! - reject loops with calls, unknown storage writes, or non-isolated exits
+//! - reject loops with calls, storage accesses the rewrite cannot update, or non-isolated exits
+//! - use shared read/write effects to detect storage traffic inside semantic operations
 //! - flush dirty promoted values before any clean observable exit
 //! - skip the flush on revert exits: `revert`/`invalid` roll back every storage write of the frame,
 //!   so the unflushed slot is unobservable there; reads of the promoted slot on those paths are
@@ -15,7 +16,7 @@
 //! - leave loop-variant mapping/array slots in storage
 
 use crate::{
-    analysis::{AliasAnalysis, Loop, LoopAnalyzer},
+    analysis::{AddressSpace, AliasAnalysis, Loop, LoopAnalyzer},
     memory::EvmMemoryLayout,
     mir::{
         BlockId, Function, Immediate, InstId, InstKind, Instruction, MirType, Module, StorageAlias,
@@ -320,6 +321,7 @@ impl StorageScalarPromoter {
     }
 
     fn loop_has_no_unpromotable_side_effects(&self, func: &Function, loop_data: &Loop) -> bool {
+        let alias = AliasAnalysis::empty();
         for block_id in &loop_data.blocks {
             if matches!(
                 func.blocks[block_id].terminator,
@@ -352,7 +354,14 @@ impl StorageScalarPromoter {
                     | InstKind::Create(_, _, _)
                     | InstKind::Create2(_, _, _, _)
                     | InstKind::Gas => return false,
-                    _ => {}
+                    _ => {
+                        let effects = alias.instruction_mod_ref(func, inst_id);
+                        if effects.reads_space(AddressSpace::Storage)
+                            || effects.writes_space(AddressSpace::Storage)
+                        {
+                            return false;
+                        }
+                    }
                 }
             }
         }

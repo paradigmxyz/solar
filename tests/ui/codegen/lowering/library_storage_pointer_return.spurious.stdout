@@ -97,14 +97,12 @@ fn @bytesLen() -> u256 [selector=0x6a4634a6, view, abi_params=[], abi_returns=[w
     v9 = add v1, 0
     v10 = mload v9
     v11 = sload v10 !metadata(storage=symbolic(v10))
+    validate_storage_bytes v11
     v12 = and v11, 1
     v13 = eq v12, 1
     v14 = shr 1, v11
     v15 = and v14, 127
     v16 = select v13, v14, v15
-    v17 = lt v16, 32
-    v18 = eq v13, v17
-    panic_if v18, 0x22
     ret v16
 }
 

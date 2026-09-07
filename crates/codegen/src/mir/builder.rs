@@ -1122,6 +1122,12 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_void_inst(InstKind::ValidateAbi(value));
     }
 
+    /// Validate a loaded Solidity storage bytes header.
+    pub(crate) fn validate_storage_bytes(&mut self, header: ValueId) {
+        // validate_storage_bytes header
+        self.emit_void_inst(InstKind::ValidateStorageBytes(header));
+    }
+
     /// Gives raw pointer bits an object type without checking the object.
     pub(crate) fn memory_object_from_ptr(
         &mut self,

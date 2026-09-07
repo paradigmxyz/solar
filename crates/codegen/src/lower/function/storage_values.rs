@@ -15,7 +15,10 @@ fn build_storage_bytes_helper(function: &mut Function) {
     let mut builder = FunctionBuilder::new_semantic(function);
     let slot = builder.add_param(MirType::uint256());
     builder.add_return(MirType::MemoryObject(MemoryObjectKind::Bytes));
-    let object = lower_storage_bytes_inline(&mut builder, slot);
+    let object = builder.emit_inst(
+        InstKind::StorageBytesLoad(slot),
+        Some(MirType::MemoryObject(MemoryObjectKind::Bytes)),
+    );
     builder.ret([object]);
 }
 
@@ -1447,7 +1450,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn load_storage_bytes(&mut self, slot: ValueId) -> ValueId {
         if !self.cx.share_storage_bytes {
-            return lower_storage_bytes_inline(&mut self.builder, slot);
+            // object = load_storage_bytes(slot)
+            return self.builder.emit_inst(
+                InstKind::StorageBytesLoad(slot),
+                Some(MirType::MemoryObject(MemoryObjectKind::Bytes)),
+            );
         }
         let helper = self.ensure_storage_bytes_helper();
         self.builder.icall(helper, vec![slot], MirType::MemoryObject(MemoryObjectKind::Bytes))
@@ -1949,11 +1956,12 @@ fn decode_storage_bytes_header(
     slot: ValueId,
 ) -> (ValueId, ValueId, ValueId) {
     // header = sload(slot)
+    // validate_storage_bytes(header)
     // flag = header & 1; is_long = (flag == 1)
     // half = header >> 1
     // length = is_long ? half : (half & 0x7f)
-    // if invalid_short_long_encoding { panic(StorageEncoding) }
     let header = builder.sload(slot);
+    builder.validate_storage_bytes(header);
     let one = builder.imm(1);
     let flag = builder.and(header, one);
     let is_long = builder.eq(flag, one);
@@ -1962,10 +1970,6 @@ fn decode_storage_bytes_header(
     let short_mask = builder.imm(0x7f);
     let short_len = builder.and(half, short_mask);
     let length = builder.select(is_long, half, short_len);
-    let thirty_two = builder.imm(32);
-    let short_length = builder.lt(length, thirty_two);
-    let invalid_encoding = builder.eq(is_long, short_length);
-    builder.panic_if(invalid_encoding, PanicCode::StorageEncoding);
     (header, is_long, length)
 }
 
@@ -2040,38 +2044,4 @@ fn storage_bytes_byte_access_at(
     let location =
         StorageLocation::packed_word(TypeSize::new_int_bits(8), StorageEncoding::FixedBytes);
     StorageAccess { slot: word_slot, location, offset: Some(offset) }
-}
-
-fn lower_storage_bytes_inline(builder: &mut FunctionBuilder<'_>, slot: ValueId) -> ValueId {
-    let (header, is_long, length) = decode_storage_bytes_header(builder, slot);
-    let thirty_two = builder.imm(32);
-    let thirty_one = builder.imm(31);
-    let rounded = builder.add(length, thirty_one);
-    let words = builder.div(rounded, thirty_two);
-    let object = builder.alloc_bytes_object(length, AllocationSemantics::SOLIDITY_UNINITIALIZED);
-
-    let short_block = builder.create_block();
-    let long_block = builder.create_block();
-    let merge_block = builder.create_block();
-    builder.branch(is_long, long_block, short_block);
-
-    builder.switch_to_block(short_block);
-    let zero = builder.imm(0);
-    let short_mask = builder.imm(U256::MAX << 8);
-    let short_data = builder.and(header, short_mask);
-    builder.memory_object_store_word(object, zero, short_data);
-    builder.jump(merge_block);
-
-    builder.switch_to_block(long_block);
-    let data_slot = builder.storage_array_data_slot(slot);
-    builder.counted_loop(words, |builder, index| {
-        let element_slot = builder.add(data_slot, index);
-        let value = builder.sload(element_slot);
-        let byte_offset = builder.mul(index, thirty_two);
-        builder.memory_object_store_word(object, byte_offset, value);
-    });
-    builder.jump(merge_block);
-
-    builder.switch_to_block(merge_block);
-    object
 }

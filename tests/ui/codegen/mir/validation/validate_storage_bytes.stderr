@@ -1,0 +1,6 @@
+error: [fn0] [bb0, inst0] storage bytes operation requires a word operand
+
+error: [fn1] [bb0, inst0] storage bytes operation requires a word operand
+
+error: aborting due to 2 previous errors
+

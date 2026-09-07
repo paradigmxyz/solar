@@ -60,7 +60,7 @@ contract StorageBytesPushPop {
     }
 
     // CHECK-LABEL: fn @get{{[( ]}}
-    // CHECK: storage_array_data_slot 0
+    // CHECK: load_storage_bytes 0
     // CHECK: ret {{v[0-9]+}}
     function get() external view returns (bytes memory) {
         return data;

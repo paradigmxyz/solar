@@ -1025,6 +1025,31 @@ impl<'a> Validator<'a> {
                             );
                         }
                     }
+                    InstKind::ValidateStorageBytes(operand)
+                    | InstKind::StorageBytesLoad(operand) => {
+                        if func.value_ty(operand).is_none_or(|ty| {
+                            !ty.is_word() || matches!(ty, MirType::MemoryObject(_))
+                        }) {
+                            self.emit_at_inst(
+                                "storage bytes operation requires a word operand",
+                                block,
+                                id,
+                            );
+                        }
+                        let result_ty =
+                            if matches!(func.inst(id).kind, InstKind::StorageBytesLoad(_)) {
+                                Some(MirType::MemoryObject(MemoryObjectKind::Bytes))
+                            } else {
+                                None
+                            };
+                        if func.inst(id).result_ty != result_ty {
+                            self.emit_at_inst(
+                                "storage bytes operation has an invalid result type",
+                                block,
+                                id,
+                            );
+                        }
+                    }
                     InstKind::Erc7201(object)
                     | InstKind::Sha256(object)
                     | InstKind::Ripemd160(object) => {
