@@ -32,6 +32,8 @@ jobs:
           - os: "ubuntu-latest"
             rust: "nightly"
         exclude:
+          - os: "macos-latest"
+            rust: ${{ github.event_name == 'push' && 'none' || 'stable' }}
           - os: "windows-latest"
             rust: ${{ github.event_name == 'push' && 'none' || 'stable' }}
     steps:

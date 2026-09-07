@@ -407,25 +407,12 @@ fn git_revision(root: &Path) -> Option<String> {
 }
 
 fn collect_solidity_files(root: &Path, directory: &Path, paths: &mut Vec<PathBuf>) -> Result<()> {
-    for entry in fs::read_dir(directory)? {
-        let entry = entry?;
-        let file_type = entry.file_type()?;
-        let path = entry.path();
-        if file_type.is_dir() {
-            if entry.file_name().to_str().is_some_and(|name| IGNORED_DIRECTORIES.contains(&name)) {
-                continue;
-            }
-            collect_solidity_files(root, &path, paths)?;
-        } else if file_type.is_file() && path.extension() == Some(OsStr::new("sol")) {
+    visit_fixture_files(root, directory, &mut |path| {
+        if path.extension() == Some(OsStr::new("sol")) {
             paths.push(path);
-        } else if file_type.is_symlink() {
-            symlink_file_target(root, &path)?;
-            if path.extension() == Some(OsStr::new("sol")) {
-                paths.push(path);
-            }
         }
-    }
-    Ok(())
+        Ok(())
+    })
 }
 
 fn ignored_directory(path: &Path) -> Option<&str> {
@@ -437,7 +424,10 @@ fn ignored_directory(path: &Path) -> Option<&str> {
 
 fn fixture_content_sha256(root: &Path) -> Result<String> {
     let mut files = Vec::new();
-    collect_fixture_files(root, root, &mut files)?;
+    visit_fixture_files(root, root, &mut |path| {
+        files.push(path.strip_prefix(root)?.to_path_buf());
+        Ok(())
+    })?;
     files.sort();
     let mut hasher = Sha256::new();
     for relative in files {
@@ -450,7 +440,11 @@ fn fixture_content_sha256(root: &Path) -> Result<String> {
     Ok(format!("{:x}", hasher.finalize()))
 }
 
-fn collect_fixture_files(root: &Path, directory: &Path, files: &mut Vec<PathBuf>) -> Result<()> {
+fn visit_fixture_files(
+    root: &Path,
+    directory: &Path,
+    visit: &mut impl FnMut(PathBuf) -> Result<()>,
+) -> Result<()> {
     for entry in fs::read_dir(directory)? {
         let entry = entry?;
         let file_type = entry.file_type()?;
@@ -459,12 +453,12 @@ fn collect_fixture_files(root: &Path, directory: &Path, files: &mut Vec<PathBuf>
             if entry.file_name().to_str().is_some_and(|name| IGNORED_DIRECTORIES.contains(&name)) {
                 continue;
             }
-            collect_fixture_files(root, &path, files)?;
+            visit_fixture_files(root, &path, visit)?;
         } else if file_type.is_file() {
-            files.push(path.strip_prefix(root)?.to_path_buf());
+            visit(path)?;
         } else if file_type.is_symlink() {
             symlink_file_target(root, &path)?;
-            files.push(path.strip_prefix(root)?.to_path_buf());
+            visit(path)?;
         }
     }
     Ok(())
@@ -566,21 +560,12 @@ mod tests {
         fs::create_dir_all(root.path().join("src")).unwrap();
         fs::write(root.path().join("src/Main.sol"), "// 😀\ncontract Main { uint x; }\n").unwrap();
         let spec = FixtureSpec {
-            id: "fixture".into(),
-            root: root.path().into(),
-            revision: None,
-            enabled: true,
             source_roots: vec!["src".into()],
             anchors: BTreeMap::from([(
                 "x".into(),
                 AnchorSpec { path: "src/Main.sol".into(), needle: "x".into(), offset: 0 },
             )]),
-            required: false,
-            corpus: None,
-            solc: None,
-            foundry: None,
-            dependencies: BTreeMap::new(),
-            source: None,
+            ..fixture_spec(root.path())
         };
         let source = FixtureSource::open(&spec).unwrap();
         assert_eq!(source.metadata().source_file_count, 1);
@@ -594,21 +579,11 @@ mod tests {
         let root = tempfile::tempdir().unwrap();
         fs::write(root.path().join("Main.sol"), "x x").unwrap();
         let spec = FixtureSpec {
-            id: "fixture".into(),
-            root: root.path().into(),
-            revision: None,
-            enabled: true,
-            source_roots: vec![".".into()],
             anchors: BTreeMap::from([(
                 "x".into(),
                 AnchorSpec { path: "Main.sol".into(), needle: "x".into(), offset: 0 },
             )]),
-            required: false,
-            corpus: None,
-            solc: None,
-            foundry: None,
-            dependencies: BTreeMap::new(),
-            source: None,
+            ..fixture_spec(root.path())
         };
         assert!(FixtureSource::open(&spec).is_err());
     }
@@ -633,14 +608,6 @@ mod tests {
         let compiler = root.path().join("solc");
         fs::write(&compiler, "not the pinned compiler").unwrap();
         let spec = FixtureSpec {
-            id: "fixture".into(),
-            root: root.path().into(),
-            revision: None,
-            enabled: true,
-            source_roots: vec![".".into()],
-            anchors: BTreeMap::new(),
-            required: false,
-            corpus: None,
             solc: Some(CompilerSpec {
                 version: "1.0".into(),
                 native: Some(compiler),
@@ -652,9 +619,7 @@ mod tests {
                 archive_url: None,
                 archive_sha256: None,
             }),
-            foundry: None,
-            dependencies: BTreeMap::new(),
-            source: None,
+            ..fixture_spec(root.path())
         };
 
         let error = FixtureSource::open(&spec).unwrap_err().to_string();

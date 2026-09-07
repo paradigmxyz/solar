@@ -16,6 +16,9 @@ use std::{
     sync::{Arc, OnceLock},
 };
 
+#[cfg(test)]
+mod tests;
+
 pub(crate) fn selection_ranges(
     source: String,
     positions: &[Position],
@@ -33,7 +36,7 @@ pub(crate) fn selection_ranges(
 pub(crate) struct SelectionRangeIndex {
     source: Arc<String>,
     positions: proto::LspPositionIndex<Rope>,
-    candidates: OnceLock<Vec<ByteRange<usize>>>,
+    candidates: OnceLock<CandidateRanges>,
 }
 
 impl SelectionRangeIndex {
@@ -49,10 +52,53 @@ impl SelectionRangeIndex {
             return Some(Vec::new());
         }
 
-        let candidates = self
-            .candidates
-            .get_or_init(|| collect_ranges(SourceCode::Shared(self.source.clone()), index.rope()));
-        selection_ranges_for_cursors(index, candidates, cursors)
+        let candidates = self.candidates.get_or_init(|| {
+            CandidateRanges::new(collect_ranges(
+                SourceCode::Shared(self.source.clone()),
+                index.rope(),
+            ))
+        });
+        cursors
+            .into_iter()
+            .map(|cursor| selection_range_for_cursor(index, candidates.at(cursor), cursor))
+            .collect()
+    }
+}
+
+/// Syntax ranges grouped by traversal order, with a bounding interval for each block.
+///
+/// AST traversal keeps most neighboring ranges close in the source, so point queries can
+/// skip unrelated blocks. Building bounds requires no sorting and stores only two offsets
+/// per block; individual ranges are still checked for exact containment.
+struct CandidateRanges {
+    ranges: Vec<ByteRange<usize>>,
+    bounds: Vec<ByteRange<usize>>,
+}
+
+impl CandidateRanges {
+    const BLOCK_SIZE: usize = 64;
+
+    fn new(ranges: Vec<ByteRange<usize>>) -> Self {
+        let bounds = ranges
+            .chunks(Self::BLOCK_SIZE)
+            .map(|block| {
+                block.iter().fold(block[0].clone(), |bounds, range| {
+                    bounds.start.min(range.start)..bounds.end.max(range.end)
+                })
+            })
+            .collect();
+        Self { ranges, bounds }
+    }
+
+    fn at(&self, cursor: usize) -> Vec<ByteRange<usize>> {
+        self.ranges
+            .chunks(Self::BLOCK_SIZE)
+            .zip(&self.bounds)
+            .filter(|(_, bounds)| bounds.contains(&cursor))
+            .flat_map(|(block, _)| block)
+            .filter(|range| range.contains(&cursor))
+            .cloned()
+            .collect()
     }
 }
 
@@ -113,20 +159,19 @@ fn selection_ranges_for_cursors<R: Borrow<Rope>>(
 ) -> Option<Vec<SelectionRange>> {
     cursors
         .into_iter()
-        .map(|cursor| selection_range_for_cursor(index, candidates, cursor))
+        .map(|cursor| {
+            let candidates =
+                candidates.iter().filter(|range| range.contains(&cursor)).cloned().collect();
+            selection_range_for_cursor(index, candidates, cursor)
+        })
         .collect()
 }
 
 fn selection_range_for_cursor<R: Borrow<Rope>>(
     index: &proto::LspPositionIndex<R>,
-    candidates: &[ByteRange<usize>],
+    mut candidates: Vec<ByteRange<usize>>,
     cursor: usize,
 ) -> Option<SelectionRange> {
-    let mut candidates = candidates
-        .iter()
-        .filter(|range| range.start <= cursor && cursor < range.end)
-        .cloned()
-        .collect::<Vec<_>>();
     candidates
         .sort_unstable_by_key(|range| (range.end - range.start, Reverse(range.start), range.end));
     candidates.dedup();

@@ -225,7 +225,7 @@ async fn document_contents(
 ) -> io::Result<String> {
     let contents = { vfs.read().get_file_contents(vfs_path).cloned() };
     if let Some(contents) = contents {
-        return Ok(rope_to_string(&contents));
+        return Ok(crate::utils::rope_to_string(&contents));
     }
 
     tokio::fs::read_to_string(path).await
@@ -243,14 +243,6 @@ async fn document_is_current(
     }
 
     Ok(tokio::fs::read_to_string(path).await? == source)
-}
-
-fn rope_to_string(contents: &Rope) -> String {
-    let mut string = String::with_capacity(contents.byte_len());
-    for chunk in contents.chunks() {
-        string.push_str(chunk);
-    }
-    string
 }
 
 fn document_read_failed(error: io::Error) -> ResponseError {
@@ -1027,16 +1019,15 @@ fn import_completion_edit_ranges(
     let mut additional = Vec::new();
     for range in [replacement.start..main.start, main.end..replacement.end] {
         if !range.is_empty() {
-            additional.push(TextEdit::new(byte_range_to_lsp(contents, range)?, String::new()));
+            additional.push(TextEdit::new(
+                crate::proto::byte_range_to_lsp(contents, range)?,
+                String::new(),
+            ));
         }
     }
-    Some((byte_range_to_lsp(contents, main)?, (!additional.is_empty()).then_some(additional)))
-}
-
-fn byte_range_to_lsp(contents: &Rope, range: std::ops::Range<usize>) -> Option<lsp_types::Range> {
-    Some(lsp_types::Range::new(
-        crate::proto::position_at_byte(contents, range.start)?,
-        crate::proto::position_at_byte(contents, range.end)?,
+    Some((
+        crate::proto::byte_range_to_lsp(contents, main)?,
+        (!additional.is_empty()).then_some(additional),
     ))
 }
 

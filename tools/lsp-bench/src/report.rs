@@ -330,53 +330,34 @@ pub(crate) fn summarize(input: SummaryInput<'_>) -> SummaryReport {
         .map(|((server, fixture, workload), runs)| {
             let mut status_counts = BTreeMap::new();
             let mut metric_values = BTreeMap::<String, Vec<f64>>::new();
+            let mut record_metric =
+                |name, value| metric_values.entry(name).or_default().push(value);
             for run in &runs {
                 *status_counts.entry(status_name(&run.status).to_owned()).or_insert(0) += 1;
                 if run.succeeded() {
                     if !warm_workloads.contains(workload) {
                         for (name, value) in &run.timings_ms {
-                            metric_values
-                                .entry(summary_metric_name(name))
-                                .or_default()
-                                .push(*value);
+                            record_metric(summary_metric_name(name), *value);
                         }
                         if let Some(process) = &run.process {
                             if let (Some(user), Some(system)) =
                                 (process.user_cpu_ms, process.system_cpu_ms)
                             {
-                                metric_values
-                                    .entry("session_cpu_ms".into())
-                                    .or_default()
-                                    .push(user + system);
+                                record_metric("session_cpu_ms".into(), user + system);
                             }
                             if let Some((name, memory)) = process.peak_memory_metric() {
-                                metric_values
-                                    .entry(format!("session_{name}"))
-                                    .or_default()
-                                    .push(memory);
+                                record_metric(format!("session_{name}"), memory);
                             }
                             if let Some(rss) = process.peak_process_tree_rss_mib {
-                                metric_values
-                                    .entry("session_peak_process_tree_rss_mib".into())
-                                    .or_default()
-                                    .push(rss);
+                                record_metric("session_peak_process_tree_rss_mib".into(), rss);
                             }
-                            metric_values
-                                .entry("session_wall_ms".into())
-                                .or_default()
-                                .push(process.wall_ms);
+                            record_metric("session_wall_ms".into(), process.wall_ms);
                         }
                     }
                     for request in &run.observations.requests {
-                        metric_values
-                            .entry(request.method.clone())
-                            .or_default()
-                            .push(request.elapsed_ms);
+                        record_metric(request.method.clone(), request.elapsed_ms);
                         if let Some(cpu) = request.process_tree_cpu_ms {
-                            metric_values
-                                .entry(format!("{}_cpu_ms", request.method))
-                                .or_default()
-                                .push(cpu);
+                            record_metric(format!("{}_cpu_ms", request.method), cpu);
                         }
                     }
                 }
@@ -844,31 +825,23 @@ fn markdown(summary: &SummaryReport) -> String {
             .map(|(status, count)| format!("{status}:{count}"))
             .collect::<Vec<_>>()
             .join(", ");
-        let result = markdown_result(group);
+        let row = format!(
+            "| {} | {} | {} | {} | {} | {} | {} |",
+            markdown_cell(&group.server),
+            markdown_cell(&group.fixture),
+            markdown_cell(&group.workload),
+            capability,
+            group.successful_runs,
+            markdown_cell(&statuses),
+            markdown_result(group),
+        );
         if group.metrics.is_empty() {
-            let _ = writeln!(
-                output,
-                "| {} | {} | {} | {} | {} | {} | {} | - | - | - | - | - |",
-                markdown_cell(&group.server),
-                markdown_cell(&group.fixture),
-                markdown_cell(&group.workload),
-                capability,
-                group.successful_runs,
-                markdown_cell(&statuses),
-                result,
-            );
+            let _ = writeln!(output, "{row} - | - | - | - | - |");
         }
         for (name, stats) in &group.metrics {
             let _ = writeln!(
                 output,
-                "| {} | {} | {} | {} | {} | {} | {} | {} | {:.2} | {:.2} | {:.2} | {:.2} |",
-                markdown_cell(&group.server),
-                markdown_cell(&group.fixture),
-                markdown_cell(&group.workload),
-                capability,
-                group.successful_runs,
-                markdown_cell(&statuses),
-                result,
+                "{row} {} | {:.2} | {:.2} | {:.2} | {:.2} |",
                 markdown_cell(name),
                 stats.p50,
                 stats.p95,

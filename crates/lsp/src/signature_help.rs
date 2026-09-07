@@ -82,7 +82,7 @@ impl SignatureHelpIndex {
             let _ = collector.visit_nested_source(source_id);
         }
         for calls in index.calls.values_mut() {
-            calls.sort_by_key(|call| range_size_key(call.range));
+            calls.sort_by_key(|call| proto::range_size_key(call.range));
         }
         index
     }
@@ -96,7 +96,7 @@ impl SignatureHelpIndex {
             }
             let destination = self.calls.entry(uri).or_default();
             destination.extend(calls);
-            destination.sort_by_key(|call| range_size_key(call.range));
+            destination.sort_by_key(|call| proto::range_size_key(call.range));
         }
         for (name, entries) in other.callables_by_name {
             for entry in entries {
@@ -1048,13 +1048,6 @@ fn is_identifier(value: &str) -> bool {
     let mut chars = value.chars();
     chars.next().is_some_and(|ch| ch == '_' || ch == '$' || ch.is_ascii_alphabetic())
         && chars.all(|ch| ch == '_' || ch == '$' || ch.is_ascii_alphanumeric())
-}
-
-fn range_size_key(range: Range) -> (u32, u32) {
-    (
-        range.end.line.saturating_sub(range.start.line),
-        range.end.character.saturating_sub(range.start.character),
-    )
 }
 
 #[cfg(test)]

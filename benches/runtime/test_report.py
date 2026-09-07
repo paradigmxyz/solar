@@ -44,11 +44,11 @@ class ReportFormattingTests(unittest.TestCase):
         ):
             self.assertEqual(
                 benchmark.perf_link("Results"),
-                "[Results](https://getfoundry.sh/perf/?base=01234567&head=fedcba98#benchmarks)",
+                "[Results](https://getfoundry.sh/perf/solar/?base=01234567&head=fedcba98#benchmarks)",
             )
             self.assertEqual(
                 benchmark.perf_link("factorial", "factorial"),
-                "[factorial](https://getfoundry.sh/perf/?base=01234567&head=fedcba98&benchmark=factorial#artifacts)",
+                "[factorial](https://getfoundry.sh/perf/solar/?base=01234567&head=fedcba98&benchmark=factorial#artifacts)",
             )
 
     def test_perf_link_targets_artifact(self):
@@ -81,7 +81,10 @@ class ReportFormattingTests(unittest.TestCase):
 
     def test_changed_report_has_no_details(self):
         self.assertEqual(
-            benchmark.format_report("## Results", True, False), "## Results"
+            benchmark.format_report(
+                "## Results", True, False, comparison="### Run comparison"
+            ),
+            "### Run comparison\n\n## Results",
         )
 
     def test_notices_precede_comparison_and_details(self):
@@ -92,8 +95,8 @@ class ReportFormattingTests(unittest.TestCase):
             "> [!WARNING]\n"
             "> This branch is behind `main`, so these benchmark results may be incorrect.\n\n"
             "> [!NOTE]\n> Codegen benchmark output is unchanged from `main`.\n\n"
-            "### Run comparison\n\n"
             "<details>\n<summary>Codegen benchmark output</summary>\n\n"
+            "### Run comparison\n\n"
             "## Results\n\n</details>\n",
         )
 
@@ -110,13 +113,16 @@ class ReportFormattingTests(unittest.TestCase):
         )
 
     def test_behind_main_report_has_warning(self):
-        report = benchmark.format_report("## Results", True, True)
+        report = benchmark.format_report(
+            "## Results", True, True, comparison="### Run comparison"
+        )
         self.assertEqual(
             report,
             "> [!WARNING]\n"
             "> This branch is behind `main`, so these benchmark results may be incorrect.\n\n"
             "<details>\n"
             "<summary>Codegen benchmark output</summary>\n\n"
+            "### Run comparison\n\n"
             "## Results\n\n"
             "</details>\n",
         )

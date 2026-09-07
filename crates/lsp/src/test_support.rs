@@ -3,6 +3,7 @@ use crate::{
     project_fixture::{FixtureMarker, ProjectFixture},
     vfs::{Vfs, VfsPath},
 };
+use async_lsp::{LspService, MainLoop, ResponseError};
 use crop::Rope;
 use lsp_types::{
     InitializeParams, PartialResultParams, Position, TextDocumentIdentifier,
@@ -20,7 +21,31 @@ use std::{
     task::{Context, Waker},
 };
 use tempfile::TempDir;
-use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use tokio::{
+    io::{AsyncBufRead, AsyncBufReadExt, AsyncReadExt, AsyncWrite, AsyncWriteExt},
+    task::JoinHandle,
+};
+use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
+
+pub(crate) fn spawn_lsp_pair<S, C>(
+    server: MainLoop<S>,
+    client: MainLoop<C>,
+) -> (JoinHandle<async_lsp::Result<()>>, JoinHandle<async_lsp::Result<()>>)
+where
+    S: LspService<Response = Value, Error = ResponseError> + Send + 'static,
+    S::Future: Send + 'static,
+    C: LspService<Response = Value, Error = ResponseError> + Send + 'static,
+    C::Future: Send + 'static,
+{
+    let (server_stream, client_stream) = tokio::io::duplex(64 << 10);
+    let (server_rx, server_tx) = tokio::io::split(server_stream);
+    let server_task =
+        tokio::spawn(server.run_buffered(server_rx.compat(), server_tx.compat_write()));
+    let (client_rx, client_tx) = tokio::io::split(client_stream);
+    let client_task =
+        tokio::spawn(client.run_buffered(client_rx.compat(), client_tx.compat_write()));
+    (server_task, client_task)
+}
 
 pub(crate) fn assert_request_cancelled<T>(result: async_lsp::Result<T>) {
     let Err(error) = result else { panic!("expected request cancellation") };

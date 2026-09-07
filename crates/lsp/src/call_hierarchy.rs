@@ -229,7 +229,7 @@ impl QueryIndex {
             outgoing_facts_by_symbol
                 .entry(call.caller)
                 .or_default()
-                .push((callee.clone(), range_key(call.from_range)));
+                .push((callee.clone(), proto::range_key(call.from_range)));
         }
         for facts in outgoing_facts_by_symbol.values_mut() {
             facts.sort_unstable();
@@ -302,7 +302,9 @@ impl QueryIndex {
         normalize_relations(&mut self.incoming_by_key);
         for sites in self.call_sites_by_uri.values_mut() {
             sites.sort_by(|a, b| {
-                range_key(a.range).cmp(&range_key(b.range)).then_with(|| a.callee.cmp(&b.callee))
+                proto::range_key(a.range)
+                    .cmp(&proto::range_key(b.range))
+                    .then_with(|| a.callee.cmp(&b.callee))
             });
             sites.dedup();
         }
@@ -317,8 +319,8 @@ impl QueryIndex {
         }
         for bodies in self.bodies_by_uri.values_mut() {
             bodies.sort_by(|a, b| {
-                range_key(a.range)
-                    .cmp(&range_key(b.range))
+                proto::range_key(a.range)
+                    .cmp(&proto::range_key(b.range))
                     .then_with(|| a.callable.cmp(&b.callable))
             });
             bodies.dedup();
@@ -392,16 +394,16 @@ impl QueryIndex {
         self.call_sites_by_uri
             .get(uri)?
             .iter()
-            .filter(|site| range_contains(site.range, position))
-            .min_by_key(|site| (range_size_key(site.range), range_key(site.range)))
+            .filter(|site| proto::range_contains(site.range, position))
+            .min_by_key(|site| (proto::range_size_key(site.range), proto::range_key(site.range)))
     }
 
     fn enclosing_body_key(&self, uri: &Url, position: Position) -> Option<&CallableKey> {
         self.bodies_by_uri
             .get(uri)?
             .iter()
-            .filter(|body| range_contains(body.range, position))
-            .min_by_key(|body| (range_size_key(body.range), range_key(body.range)))
+            .filter(|body| proto::range_contains(body.range, position))
+            .min_by_key(|body| (proto::range_size_key(body.range), proto::range_key(body.range)))
             .map(|body| &body.callable)
     }
 
@@ -564,27 +566,8 @@ fn resolved_source_call<'gcx>(
 fn normalize_relations(relations: &mut CallRelations) {
     for targets in relations.values_mut() {
         for ranges in targets.values_mut() {
-            ranges.sort_by_key(|&range| range_key(range));
+            ranges.sort_by_key(|&range| proto::range_key(range));
             ranges.dedup();
         }
     }
-}
-
-fn range_contains(range: Range, position: Position) -> bool {
-    if range.start == range.end {
-        position == range.start
-    } else {
-        position >= range.start && position < range.end
-    }
-}
-
-fn range_size_key(range: Range) -> (u32, u32) {
-    (
-        range.end.line.saturating_sub(range.start.line),
-        range.end.character.saturating_sub(range.start.character),
-    )
-}
-
-fn range_key(range: Range) -> (u32, u32, u32, u32) {
-    (range.start.line, range.start.character, range.end.line, range.end.character)
 }

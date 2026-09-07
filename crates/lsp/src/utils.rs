@@ -26,6 +26,14 @@ pub(crate) fn apply_document_changes(
     text
 }
 
+pub(crate) fn rope_to_string(rope: &Rope) -> String {
+    let mut source = String::with_capacity(rope.byte_len());
+    for chunk in rope.chunks() {
+        source.push_str(chunk);
+    }
+    source
+}
+
 #[cfg(test)]
 mod tests {
     use crate::utils::apply_document_changes;
