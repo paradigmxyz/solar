@@ -877,19 +877,24 @@ impl<'gcx> EvmCodegen<'gcx> {
         };
         let successors = [*then_block, *else_block];
         let current_block = self.asm.next_instruction_position().0;
+        // Only stores made in the current block are candidates. Test that first so the
+        // function-wide store list costs one comparison per entry, and collect the block's
+        // reloaded slots once instead of rescanning every load per store.
+        let reloaded_here = self
+            .spill_loads
+            .iter()
+            .filter(|&&(_, block, _)| block == current_block)
+            .map(|&(slot, _, _)| slot)
+            .collect::<FxHashSet<_>>();
+        let block_insts = &func.blocks[block_id].instructions;
         let mut removals = Vec::new();
         self.spill_stores.retain(|store| {
-            let defined_here = matches!(func.value(store.value), Value::Inst(inst)
-                if func.blocks[block_id].instructions.contains(inst));
-            let reloaded_here = self
-                .spill_loads
-                .iter()
-                .any(|&(slot, block, _)| block == store.block && slot == store.slot);
             let remove = store.block == current_block
                 && store.value != *condition
-                && defined_here
-                && !reloaded_here
                 && self.scheduler.stack.contains(store.value)
+                && !reloaded_here.contains(&store.slot)
+                && matches!(func.value(store.value), Value::Inst(inst)
+                    if block_insts.contains(inst))
                 && successors.iter().all(|&successor| {
                     preserved.contains(&successor)
                         || !liveness.live_in(successor).contains(store.value)

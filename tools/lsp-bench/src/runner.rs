@@ -586,169 +586,94 @@ fn run_phase(
 }
 
 fn record_setup_phase(sample: &mut RunSample, outcome: PhaseOutcome) -> bool {
-    let PhaseOutcome { result, process_result, timings, correctness, fallback_observations } =
-        outcome;
-    sample.correctness.extend(correctness.into_iter().map(|mut result| {
-        result.probe = format!("cache-setup/{}", result.probe);
-        result
-    }));
-    for (name, value) in timings {
-        sample.timings_ms.insert(format!("cache_setup_{name}"), value);
-    }
-    match (result, process_result) {
-        (
-            Ok(()),
-            Ok(FinishedProcess { metrics, observations, shutdown_error: None, wait_timed_out }),
-        ) if process_exited_successfully(&metrics, wait_timed_out) => {
-            sample.timings_ms.insert("cache_population_process_ms".into(), metrics.wall_ms);
-            sample.setup_phases.push(ProcessPhase {
-                name: "cache-population".into(),
-                process: metrics,
-                observations,
-            });
-            true
-        }
-        (
-            Err(error),
-            Ok(FinishedProcess { metrics, observations, shutdown_error, wait_timed_out }),
-        ) => {
-            let kind = error
-                .downcast_ref::<WorkloadError>()
-                .map_or(FailureKind::HarnessError, |error| error.kind);
-            let shutdown_failure = shutdown_error.map(classify_request_error);
-            let (status, process_failure) = status_with_process_evidence(
-                kind,
-                shutdown_failure.as_ref(),
-                &metrics,
-                wait_timed_out,
-            );
-            sample.status = status;
-            let mut message = format!("cache setup failed: {error:#}");
-            if let Some(shutdown_failure) = shutdown_failure {
-                message.push_str(&format!("; shutdown failed: {}", shutdown_failure.message));
-            }
-            if let Some(process_failure) = process_failure {
-                message.push_str(&format!("; {process_failure}"));
-            }
-            sample.error = Some(message);
-            sample.setup_phases.push(ProcessPhase {
-                name: "cache-population".into(),
-                process: metrics,
-                observations,
-            });
-            false
-        }
-        (Ok(()), Ok(FinishedProcess { metrics, observations, shutdown_error, wait_timed_out })) => {
-            let shutdown_failure = shutdown_error.map(classify_request_error);
-            let kind =
-                shutdown_failure.as_ref().map_or(FailureKind::Crashed, |failure| failure.kind);
-            let (status, process_failure) = status_with_process_evidence(
-                kind,
-                shutdown_failure.as_ref(),
-                &metrics,
-                wait_timed_out,
-            );
-            sample.status = status;
-            let mut message = shutdown_failure.map_or_else(
-                || format!("cache setup server exited with {:?}", metrics.exit_code),
-                |failure| format!("cache setup shutdown failed: {}", failure.message),
-            );
-            if let Some(process_failure) = process_failure {
-                message.push_str(&format!("; {process_failure}"));
-            }
-            sample.error = Some(message);
-            sample.setup_phases.push(ProcessPhase {
-                name: "cache-population".into(),
-                process: metrics,
-                observations,
-            });
-            false
-        }
-        (result, Err(stop_error)) => {
-            sample.status = RunStatus::HarnessError;
-            sample.error = Some(match result {
-                Ok(()) => format!("failed to stop cache setup server: {stop_error:#}"),
-                Err(error) => {
-                    format!("cache setup failed: {error:#}; failed to stop server: {stop_error:#}")
-                }
-            });
-            sample.observations = fallback_observations;
-            false
-        }
-    }
+    record_phase(sample, outcome, true)
 }
 
 fn record_measured_phase(sample: &mut RunSample, outcome: PhaseOutcome) {
+    record_phase(sample, outcome, false);
+}
+
+fn record_phase(sample: &mut RunSample, outcome: PhaseOutcome, setup: bool) -> bool {
     let PhaseOutcome { result, process_result, timings, correctness, fallback_observations } =
         outcome;
-    sample.correctness.extend(correctness);
-    sample.timings_ms.extend(timings);
-    match (result, process_result) {
-        (
-            Ok(()),
-            Ok(FinishedProcess { metrics, observations, shutdown_error: None, wait_timed_out }),
-        ) if process_exited_successfully(&metrics, wait_timed_out) => {
-            sample.status = RunStatus::Pass;
-            sample.process = Some(metrics);
-            sample.observations = observations;
+    if setup {
+        sample.correctness.extend(correctness.into_iter().map(|mut result| {
+            result.probe = format!("cache-setup/{}", result.probe);
+            result
+        }));
+        for (name, value) in timings {
+            sample.timings_ms.insert(format!("cache_setup_{name}"), value);
         }
-        (
-            Err(error),
-            Ok(FinishedProcess { metrics, observations, shutdown_error, wait_timed_out }),
-        ) => {
-            let kind = error
-                .downcast_ref::<WorkloadError>()
-                .map_or(FailureKind::HarnessError, |error| error.kind);
-            let shutdown_failure = shutdown_error.map(classify_request_error);
-            let (status, process_failure) = status_with_process_evidence(
-                kind,
-                shutdown_failure.as_ref(),
-                &metrics,
-                wait_timed_out,
-            );
-            sample.status = status;
-            let mut message = format!("{error:#}");
-            if let Some(shutdown_failure) = shutdown_failure {
-                message.push_str(&format!("; shutdown failed: {}", shutdown_failure.message));
-            }
-            if let Some(process_failure) = process_failure {
-                message.push_str(&format!("; {process_failure}"));
-            }
-            sample.error = Some(message);
-            sample.process = Some(metrics);
-            sample.observations = observations;
-        }
-        (Ok(()), Ok(FinishedProcess { metrics, observations, shutdown_error, wait_timed_out })) => {
-            let shutdown_failure = shutdown_error.map(classify_request_error);
-            let kind =
-                shutdown_failure.as_ref().map_or(FailureKind::Crashed, |failure| failure.kind);
-            let (status, process_failure) = status_with_process_evidence(
-                kind,
-                shutdown_failure.as_ref(),
-                &metrics,
-                wait_timed_out,
-            );
-            sample.status = status;
-            let mut message = shutdown_failure.map_or_else(
-                || format!("server exited with {:?}", metrics.exit_code),
-                |failure| format!("shutdown failed: {}", failure.message),
-            );
-            if let Some(process_failure) = process_failure {
-                message.push_str(&format!("; {process_failure}"));
-            }
-            sample.error = Some(message);
-            sample.process = Some(metrics);
-            sample.observations = observations;
-        }
-        (result, Err(stop_error)) => {
+    } else {
+        sample.correctness.extend(correctness);
+        sample.timings_ms.extend(timings);
+    }
+    let prefix = if setup { "cache setup " } else { "" };
+    let failure_prefix = if setup { "cache setup failed: " } else { "" };
+    let finished = match process_result {
+        Ok(finished) => finished,
+        Err(stop_error) => {
             sample.status = RunStatus::HarnessError;
             sample.error = Some(match result {
-                Ok(()) => format!("failed to stop server: {stop_error:#}"),
-                Err(error) => format!("{error:#}; failed to stop server: {stop_error:#}"),
+                Ok(()) => format!("failed to stop {prefix}server: {stop_error:#}"),
+                Err(error) => {
+                    format!("{failure_prefix}{error:#}; failed to stop server: {stop_error:#}")
+                }
             });
             sample.observations = fallback_observations;
+            return false;
         }
+    };
+    let FinishedProcess { metrics, observations, shutdown_error, wait_timed_out } = finished;
+    let passed = result.is_ok()
+        && shutdown_error.is_none()
+        && process_exited_successfully(&metrics, wait_timed_out);
+    if passed {
+        if setup {
+            sample.timings_ms.insert("cache_population_process_ms".into(), metrics.wall_ms);
+        } else {
+            sample.status = RunStatus::Pass;
+        }
+    } else {
+        let shutdown_failure = shutdown_error.map(classify_request_error);
+        let (kind, mut message) = match result {
+            Err(error) => {
+                let kind = error
+                    .downcast_ref::<WorkloadError>()
+                    .map_or(FailureKind::HarnessError, |error| error.kind);
+                let mut message = format!("{failure_prefix}{error:#}");
+                if let Some(failure) = &shutdown_failure {
+                    message.push_str(&format!("; shutdown failed: {}", failure.message));
+                }
+                (kind, message)
+            }
+            Ok(()) => (
+                shutdown_failure.as_ref().map_or(FailureKind::Crashed, |failure| failure.kind),
+                shutdown_failure.as_ref().map_or_else(
+                    || format!("{prefix}server exited with {:?}", metrics.exit_code),
+                    |failure| format!("{prefix}shutdown failed: {}", failure.message),
+                ),
+            ),
+        };
+        let (status, process_failure) =
+            status_with_process_evidence(kind, shutdown_failure.as_ref(), &metrics, wait_timed_out);
+        sample.status = status;
+        if let Some(process_failure) = process_failure {
+            message.push_str(&format!("; {process_failure}"));
+        }
+        sample.error = Some(message);
     }
+    if setup {
+        sample.setup_phases.push(ProcessPhase {
+            name: "cache-population".into(),
+            process: metrics,
+            observations,
+        });
+    } else {
+        sample.process = Some(metrics);
+        sample.observations = observations;
+    }
+    passed
 }
 
 fn invalidate_fixture(
@@ -1450,25 +1375,12 @@ impl<'a> Session<'a> {
     ) -> std::result::Result<(), WorkloadError> {
         match probe {
             ProbeSpec::Definition { path, anchor, expected_path, expected_anchor } => {
-                let encoding = self.position_encoding()?;
-                if !allow_unopened_target {
-                    self.require_open_for_probe(path)?;
-                }
-                let source_anchor =
-                    self.anchor_with_encoding(anchor, encoding).map_err(harness_error)?;
+                let (encoding, source_anchor) =
+                    self.probe_anchor(path, anchor, allow_unopened_target)?;
                 let expected =
                     self.anchor_with_encoding(expected_anchor, encoding).map_err(harness_error)?;
                 let uri = file_uri(&source_anchor.path).map_err(harness_error)?;
-                if !self.process.supports_document(
-                    "textDocument/definition",
-                    &uri,
-                    SOLIDITY_LANGUAGE_ID,
-                ) {
-                    return Err(WorkloadError::new(
-                        FailureKind::Unsupported,
-                        "server does not advertise definition",
-                    ));
-                }
+                self.require_document_probe("textDocument/definition", &uri, "definition")?;
                 let expected_uri =
                     file_uri(&self.fixture.path(expected_path).map_err(harness_error)?)
                         .map_err(harness_error)?;
@@ -1480,23 +1392,9 @@ impl<'a> Session<'a> {
                 validate_definition(value, &expected_uri, &expected)
             }
             ProbeSpec::Completion { path, anchor, expected_label } => {
-                let encoding = self.position_encoding()?;
-                if !allow_unopened_target {
-                    self.require_open_for_probe(path)?;
-                }
-                let source_anchor =
-                    self.anchor_with_encoding(anchor, encoding).map_err(harness_error)?;
+                let (_, source_anchor) = self.probe_anchor(path, anchor, allow_unopened_target)?;
                 let uri = file_uri(&source_anchor.path).map_err(harness_error)?;
-                if !self.process.supports_document(
-                    "textDocument/completion",
-                    &uri,
-                    SOLIDITY_LANGUAGE_ID,
-                ) {
-                    return Err(WorkloadError::new(
-                        FailureKind::Unsupported,
-                        "server does not advertise completion",
-                    ));
-                }
+                self.require_document_probe("textDocument/completion", &uri, "completion")?;
                 let context =
                     if self.process.completion_uses_trigger_for(".", &uri, SOLIDITY_LANGUAGE_ID) {
                         json!({"triggerKind": 2, "triggerCharacter": "."})
@@ -1515,20 +1413,9 @@ impl<'a> Session<'a> {
                 validate_completion(value, expected_label)
             }
             ProbeSpec::Hover { path, anchor, expected_text } => {
-                let encoding = self.position_encoding()?;
-                if !allow_unopened_target {
-                    self.require_open_for_probe(path)?;
-                }
-                let source_anchor =
-                    self.anchor_with_encoding(anchor, encoding).map_err(harness_error)?;
+                let (_, source_anchor) = self.probe_anchor(path, anchor, allow_unopened_target)?;
                 let uri = file_uri(&source_anchor.path).map_err(harness_error)?;
-                if !self.process.supports_document("textDocument/hover", &uri, SOLIDITY_LANGUAGE_ID)
-                {
-                    return Err(WorkloadError::new(
-                        FailureKind::Unsupported,
-                        "server does not advertise hover",
-                    ));
-                }
+                self.require_document_probe("textDocument/hover", &uri, "hover")?;
                 let value = self.request(
                     "textDocument/hover",
                     json!({"textDocument": {"uri": uri}, "position": source_anchor.position}),
@@ -1537,23 +1424,10 @@ impl<'a> Session<'a> {
                 validate_hover(value, expected_text)
             }
             ProbeSpec::References { path, anchor, min_count, expected_locations } => {
-                let encoding = self.position_encoding()?;
-                if !allow_unopened_target {
-                    self.require_open_for_probe(path)?;
-                }
-                let source_anchor =
-                    self.anchor_with_encoding(anchor, encoding).map_err(harness_error)?;
+                let (encoding, source_anchor) =
+                    self.probe_anchor(path, anchor, allow_unopened_target)?;
                 let uri = file_uri(&source_anchor.path).map_err(harness_error)?;
-                if !self.process.supports_document(
-                    "textDocument/references",
-                    &uri,
-                    SOLIDITY_LANGUAGE_ID,
-                ) {
-                    return Err(WorkloadError::new(
-                        FailureKind::Unsupported,
-                        "server does not advertise references",
-                    ));
-                }
+                self.require_document_probe("textDocument/references", &uri, "references")?;
                 let value = self.request(
                     "textDocument/references",
                     json!({
@@ -1583,16 +1457,11 @@ impl<'a> Session<'a> {
                 }
                 let uri = file_uri(&self.fixture.path(path).map_err(harness_error)?)
                     .map_err(harness_error)?;
-                if !self.process.supports_document(
+                self.require_document_probe(
                     "textDocument/documentSymbol",
                     &uri,
-                    SOLIDITY_LANGUAGE_ID,
-                ) {
-                    return Err(WorkloadError::new(
-                        FailureKind::Unsupported,
-                        "server does not advertise document symbols",
-                    ));
-                }
+                    "document symbols",
+                )?;
                 let value = self.request(
                     "textDocument/documentSymbol",
                     json!({"textDocument": {"uri": uri}}),
@@ -1613,6 +1482,36 @@ impl<'a> Session<'a> {
                 let value = self.request("workspace/symbol", json!({"query": query}), measured)?;
                 validate_workspace_symbol(value, expected_name, &expected_uri, *present)
             }
+        }
+    }
+
+    fn probe_anchor(
+        &self,
+        path: &Path,
+        anchor: &str,
+        allow_unopened_target: bool,
+    ) -> std::result::Result<(PositionEncoding, Anchor), WorkloadError> {
+        let encoding = self.position_encoding()?;
+        if !allow_unopened_target {
+            self.require_open_for_probe(path)?;
+        }
+        let anchor = self.anchor_with_encoding(anchor, encoding).map_err(harness_error)?;
+        Ok((encoding, anchor))
+    }
+
+    fn require_document_probe(
+        &self,
+        method: &str,
+        uri: &Url,
+        name: &str,
+    ) -> std::result::Result<(), WorkloadError> {
+        if self.process.supports_document(method, uri, SOLIDITY_LANGUAGE_ID) {
+            Ok(())
+        } else {
+            Err(WorkloadError::new(
+                FailureKind::Unsupported,
+                format!("server does not advertise {name}"),
+            ))
         }
     }
 
@@ -2572,6 +2471,24 @@ mod tests {
     #[cfg(unix)]
     use std::os::unix::fs::{PermissionsExt, symlink};
 
+    fn materialize_fixture(root: &Path) -> Fixture {
+        let spec = crate::config::FixtureSpec {
+            id: "fixture".into(),
+            root: root.into(),
+            revision: None,
+            enabled: true,
+            source_roots: vec![".".into()],
+            anchors: BTreeMap::new(),
+            required: false,
+            corpus: None,
+            solc: None,
+            foundry: None,
+            dependencies: BTreeMap::new(),
+            source: None,
+        };
+        FixtureSource::open(&spec).unwrap().materialize().unwrap()
+    }
+
     #[test]
     fn run_rejects_unknown_workload_selection() {
         let root = tempfile::tempdir().unwrap();
@@ -2844,21 +2761,7 @@ scenarios:
     fn empty_workspace_edit_is_a_valid_noop() {
         let source_root = tempfile::tempdir().unwrap();
         fs::write(source_root.path().join("Main.sol"), "contract Main {}\n").unwrap();
-        let spec = crate::config::FixtureSpec {
-            id: "fixture".into(),
-            root: source_root.path().into(),
-            revision: None,
-            enabled: true,
-            source_roots: vec![".".into()],
-            anchors: BTreeMap::new(),
-            required: false,
-            corpus: None,
-            solc: None,
-            foundry: None,
-            dependencies: BTreeMap::new(),
-            source: None,
-        };
-        let fixture = FixtureSource::open(&spec).unwrap().materialize().unwrap();
+        let fixture = materialize_fixture(source_root.path());
 
         assert!(parse_workspace_edit(&fixture, &json!({})).unwrap().is_empty());
     }
@@ -2895,21 +2798,7 @@ scenarios:
     fn failed_workspace_edit_does_not_leave_partial_mutations() {
         let source_root = tempfile::tempdir().unwrap();
         fs::write(source_root.path().join("Main.sol"), "contract Main {}\n").unwrap();
-        let spec = crate::config::FixtureSpec {
-            id: "fixture".into(),
-            root: source_root.path().into(),
-            revision: None,
-            enabled: true,
-            source_roots: vec![".".into()],
-            anchors: BTreeMap::new(),
-            required: false,
-            corpus: None,
-            solc: None,
-            foundry: None,
-            dependencies: BTreeMap::new(),
-            source: None,
-        };
-        let fixture = FixtureSource::open(&spec).unwrap().materialize().unwrap();
+        let fixture = materialize_fixture(source_root.path());
         let main = fixture.path(Path::new("Main.sol")).unwrap();
         let main_uri = file_uri(&main).unwrap();
         let missing_uri = file_uri(&fixture.path(Path::new("Missing.sol")).unwrap()).unwrap();
@@ -2944,21 +2833,7 @@ scenarios:
     fn versioned_workspace_edit_rejects_a_stale_open_document() {
         let source_root = tempfile::tempdir().unwrap();
         fs::write(source_root.path().join("Main.sol"), "contract Main {}\n").unwrap();
-        let spec = crate::config::FixtureSpec {
-            id: "fixture".into(),
-            root: source_root.path().into(),
-            revision: None,
-            enabled: true,
-            source_roots: vec![".".into()],
-            anchors: BTreeMap::new(),
-            required: false,
-            corpus: None,
-            solc: None,
-            foundry: None,
-            dependencies: BTreeMap::new(),
-            source: None,
-        };
-        let fixture = FixtureSource::open(&spec).unwrap().materialize().unwrap();
+        let fixture = materialize_fixture(source_root.path());
         let main = fixture.path(Path::new("Main.sol")).unwrap();
         let main_uri = file_uri(&main).unwrap();
         let mut documents = BTreeMap::new();
@@ -2990,21 +2865,7 @@ scenarios:
         let source_root = tempfile::tempdir().unwrap();
         let original = "alpha beta\n";
         fs::write(source_root.path().join("Main.sol"), original).unwrap();
-        let spec = crate::config::FixtureSpec {
-            id: "fixture".into(),
-            root: source_root.path().into(),
-            revision: None,
-            enabled: true,
-            source_roots: vec![".".into()],
-            anchors: BTreeMap::new(),
-            required: false,
-            corpus: None,
-            solc: None,
-            foundry: None,
-            dependencies: BTreeMap::new(),
-            source: None,
-        };
-        let fixture = FixtureSource::open(&spec).unwrap().materialize().unwrap();
+        let fixture = materialize_fixture(source_root.path());
         let main = fixture.path(Path::new("Main.sol")).unwrap();
         let main_uri = file_uri(&main).unwrap();
         let mut documents = BTreeMap::new();
@@ -3059,21 +2920,7 @@ scenarios:
     fn document_changes_apply_in_declared_order() {
         let source_root = tempfile::tempdir().unwrap();
         fs::write(source_root.path().join("Main.sol"), "contract Main {}\n").unwrap();
-        let spec = crate::config::FixtureSpec {
-            id: "fixture".into(),
-            root: source_root.path().into(),
-            revision: None,
-            enabled: true,
-            source_roots: vec![".".into()],
-            anchors: BTreeMap::new(),
-            required: false,
-            corpus: None,
-            solc: None,
-            foundry: None,
-            dependencies: BTreeMap::new(),
-            source: None,
-        };
-        let fixture = FixtureSource::open(&spec).unwrap().materialize().unwrap();
+        let fixture = materialize_fixture(source_root.path());
         let created = fixture.path(Path::new("Created.sol")).unwrap();
         let renamed = fixture.path(Path::new("Renamed.sol")).unwrap();
         let created_uri = file_uri(&created).unwrap();
@@ -3126,21 +2973,7 @@ scenarios:
     fn document_changes_take_precedence_over_plain_changes() {
         let source_root = tempfile::tempdir().unwrap();
         fs::write(source_root.path().join("Main.sol"), "contract Main {}\n").unwrap();
-        let spec = crate::config::FixtureSpec {
-            id: "fixture".into(),
-            root: source_root.path().into(),
-            revision: None,
-            enabled: true,
-            source_roots: vec![".".into()],
-            anchors: BTreeMap::new(),
-            required: false,
-            corpus: None,
-            solc: None,
-            foundry: None,
-            dependencies: BTreeMap::new(),
-            source: None,
-        };
-        let fixture = FixtureSource::open(&spec).unwrap().materialize().unwrap();
+        let fixture = materialize_fixture(source_root.path());
         let main = fixture.path(Path::new("Main.sol")).unwrap();
         let main_uri = file_uri(&main).unwrap();
         let missing_uri = file_uri(&fixture.path(Path::new("Missing.sol")).unwrap()).unwrap();
@@ -3182,21 +3015,7 @@ scenarios:
     fn rename_workspace_edit_does_not_ignore_a_missing_source() {
         let source_root = tempfile::tempdir().unwrap();
         fs::write(source_root.path().join("Main.sol"), "contract Main {}\n").unwrap();
-        let spec = crate::config::FixtureSpec {
-            id: "fixture".into(),
-            root: source_root.path().into(),
-            revision: None,
-            enabled: true,
-            source_roots: vec![".".into()],
-            anchors: BTreeMap::new(),
-            required: false,
-            corpus: None,
-            solc: None,
-            foundry: None,
-            dependencies: BTreeMap::new(),
-            source: None,
-        };
-        let fixture = FixtureSource::open(&spec).unwrap().materialize().unwrap();
+        let fixture = materialize_fixture(source_root.path());
         let missing_uri = file_uri(&fixture.path(Path::new("Missing.sol")).unwrap()).unwrap();
         let target_uri = file_uri(&fixture.path(Path::new("Target.sol")).unwrap()).unwrap();
         let edit = json!({
@@ -3480,6 +3299,70 @@ scenarios:
         assert!(sample.error.as_deref().is_some_and(|error| {
             error.contains("shutdown failed") && error.contains("method not found")
         }));
+    }
+
+    #[test]
+    fn phase_errors_keep_setup_context_and_process_evidence() {
+        for setup in [false, true] {
+            for execution_failed in [false, true] {
+                for stop_failed in [false, true] {
+                    let mut outcome = clean_phase_outcome_with_unsupported_shutdown();
+                    if execution_failed {
+                        outcome.result = Err(anyhow!("execution failed"));
+                    }
+                    if stop_failed {
+                        outcome.process_result = Err(anyhow!("stop failed"));
+                        outcome.fallback_observations.diagnostic_publications = 7;
+                    } else {
+                        let finished = outcome.process_result.as_mut().unwrap();
+                        finished.shutdown_error = None;
+                        finished.metrics.exit_code = Some(9);
+                        finished.observations.diagnostic_publications = 3;
+                    }
+                    let mut sample = unavailable_sample(
+                        "server",
+                        "fixture",
+                        "workload",
+                        0,
+                        RunStatus::Unavailable,
+                        "not run",
+                    );
+                    assert!(!record_phase(&mut sample, outcome, setup));
+                    let prefix = if setup { "cache setup " } else { "" };
+                    let failure_prefix = if setup { "cache setup failed: " } else { "" };
+                    let expected = match (execution_failed, stop_failed) {
+                        (false, false) => format!(
+                            "{prefix}server exited with Some(9); server exited with Some(9); forced kill: false"
+                        ),
+                        (true, false) => format!(
+                            "{failure_prefix}execution failed; server exited with Some(9); forced kill: false"
+                        ),
+                        (false, true) => format!("failed to stop {prefix}server: stop failed"),
+                        (true, true) => format!(
+                            "{failure_prefix}execution failed; failed to stop server: stop failed"
+                        ),
+                    };
+                    assert_eq!(sample.error.as_deref(), Some(expected.as_str()));
+                    if stop_failed {
+                        assert!(matches!(sample.status, RunStatus::HarnessError));
+                        assert_eq!(sample.observations.diagnostic_publications, 7);
+                        assert!(sample.process.is_none() && sample.setup_phases.is_empty());
+                    } else {
+                        assert!(matches!(sample.status, RunStatus::Crash));
+                        if setup {
+                            assert!(sample.process.is_none());
+                            assert_eq!(
+                                sample.setup_phases[0].observations.diagnostic_publications,
+                                3
+                            );
+                        } else {
+                            assert!(sample.process.is_some());
+                            assert_eq!(sample.observations.diagnostic_publications, 3);
+                        }
+                    }
+                }
+            }
+        }
     }
 
     #[test]

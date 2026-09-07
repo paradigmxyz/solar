@@ -6,8 +6,24 @@ use super::super::super::{
     Liveness, LoopAnalyzer, Module, OnceCell, OperandCostModel, OptimizationMode,
     ResidentSearchContext, ScheduleCost, StackOp, StackPhiPlan, Terminator, Value, ValueId,
 };
+use std::rc::Rc;
 
 impl<'gcx> EvmCodegen<'gcx> {
+    /// Returns the stack-phi plan for a function, computing it on first use.
+    pub(in crate::backend::evm::codegen) fn stack_phi_plan(
+        &mut self,
+        func_id: FunctionId,
+        func: &Function,
+        liveness: &Liveness,
+    ) -> Rc<StackPhiPlan> {
+        let cold_functions = &self.cold_functions;
+        Rc::clone(
+            self.stack_phi_plans
+                .entry(func_id)
+                .or_insert_with(|| Rc::new(StackPhiPlan::analyze(func, liveness, cold_functions))),
+        )
+    }
+
     /// Collects the canonical identity of each used static-callee argument once for the stack
     /// argument analyses below. Gas codegen canonicalizes argument operands before runtime
     /// planning, so every active occurrence of one argument must use the same value identity.
@@ -46,9 +62,8 @@ impl<'gcx> EvmCodegen<'gcx> {
     pub(in crate::backend::evm::codegen) fn resident_search_context(
         &self,
         func: &Function,
-        liveness: &Liveness,
         values: &[ValueId],
-        has_phis: bool,
+        phi_plan: Option<Rc<StackPhiPlan>>,
     ) -> ResidentSearchContext {
         let mut value_uses = FxHashMap::default();
         for block in &func.blocks {
@@ -63,11 +78,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
         }
-        ResidentSearchContext {
-            phi_plan: has_phis.then(|| StackPhiPlan::analyze(func, liveness, &self.cold_functions)),
-            cfg: CfgInfo::new(func),
-            value_uses,
-        }
+        ResidentSearchContext { phi_plan, cfg: CfgInfo::new(func), value_uses }
     }
 
     pub(in crate::backend::evm::codegen) fn analyze_resident_subset(
@@ -193,7 +204,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         liveness: &Liveness,
         values: &[ValueId],
         preserve_across_calls: bool,
-        has_phis: bool,
+        phi_plan: Option<Rc<StackPhiPlan>>,
     ) -> Option<(Vec<ValueId>, GlobalStackPlan)> {
         debug_assert!(values.len() <= GLOBAL_STACK_LAYOUT_LIMIT);
         let mut use_counts = FxHashMap::default();
@@ -232,7 +243,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             .fold(ScheduleCost::default(), |cost, &value| cost.plus(memory_cost(value)));
         let optimization = self.gcx.sess.opts.optimization;
         let expected_executions = self.gcx.sess.opts.optimizer_runs.unwrap_or(200);
-        let context = self.resident_search_context(func, liveness, values, has_phis);
+        let context = self.resident_search_context(func, values, phi_plan);
         let mut best = Option::<(ScheduleCost, Vec<ValueId>, GlobalStackPlan)>::None;
         for bits in 1usize..(1usize << values.len()) {
             let subset = values
@@ -285,7 +296,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         func: &Function,
         liveness: &Liveness,
         cross_block_live: &OnceCell<DenseBitSet<ValueId>>,
-        has_phis: bool,
+        phi_plan: Option<Rc<StackPhiPlan>>,
     ) -> Option<(Vec<ValueId>, GlobalStackPlan)> {
         if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None)
             || !Self::is_external_entry(func)
@@ -360,7 +371,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             .take(GLOBAL_STACK_LAYOUT_LIMIT)
             .map(|(value, _, _)| value)
             .collect::<Vec<_>>();
-        self.select_cross_block_stack_layout(func, liveness, &values, has_phis)
+        self.select_cross_block_stack_layout(func, liveness, &values, phi_plan)
     }
 
     /// Keeps values that survive a low-memory calldata copy in a canonical
@@ -485,7 +496,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         func: &Function,
         liveness: &Liveness,
         values: &[ValueId],
-        has_phis: bool,
+        phi_plan: Option<Rc<StackPhiPlan>>,
     ) -> Option<(Vec<ValueId>, GlobalStackPlan)> {
         if values.is_empty() {
             return None;
@@ -524,7 +535,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             .fold(ScheduleCost::default(), |cost, &value| cost.plus(memory_cost(value)));
         let optimization = self.gcx.sess.opts.optimization;
         let expected_executions = self.gcx.sess.opts.optimizer_runs.unwrap_or(200);
-        let context = self.resident_search_context(func, liveness, values, has_phis);
+        let context = self.resident_search_context(func, values, phi_plan);
         let mut best = Option::<(ScheduleCost, Vec<ValueId>, GlobalStackPlan)>::None;
         for bits in 1usize..(1usize << values.len()) {
             let subset = values

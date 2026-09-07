@@ -6,6 +6,7 @@ use super::{
     OnceCell, OptimizationMode, PhiEliminator, STACK_PHI_LAYOUT_LIMIT, StackModel, StackPhiPlan,
     Terminator, Value, ValueId, cross_block_values, planned_entry_carries,
 };
+use std::rc::Rc;
 
 impl<'gcx> EvmCodegen<'gcx> {
     /// Splits phi-carrying edges out of multi-successor predecessors when a
@@ -106,11 +107,10 @@ impl<'gcx> EvmCodegen<'gcx> {
     pub(super) fn generate_function_body(&mut self, func_id: FunctionId, func: &Function) {
         let stack_only_disabled_at_entry = self.stack_only_function_disabled(func_id);
         let report_missing_spill_home = self.gcx.sess.opts.unstable.assert_planned_edge_spill_home;
-        let liveness = self
-            .emitting_entry
-            .then(|| Liveness::compute_block_local_for_codegen(func))
-            .flatten()
-            .unwrap_or_else(|| Liveness::compute(func));
+        let block_local_liveness =
+            self.emitting_entry.then(|| Liveness::compute_block_local_for_codegen(func)).flatten();
+        let whole_function_liveness = block_local_liveness.is_none();
+        let liveness = block_local_liveness.unwrap_or_else(|| Liveness::compute(func));
         let liveness = &liveness;
         let cross_block_live = OnceCell::new();
 
@@ -128,11 +128,16 @@ impl<'gcx> EvmCodegen<'gcx> {
         // Stack-phi planning starts with loop analysis, but cannot produce a
         // plan without a phi. Avoid that analysis for the overwhelmingly
         // common phi-free function.
-        let mut stack_phi_plan = if has_phis {
-            StackPhiPlan::analyze(func, liveness, &self.cold_functions)
+        // The cached plan is keyed on whole-function liveness; a block-local entry gets its own.
+        let phi_plan = if !has_phis {
+            None
+        } else if whole_function_liveness {
+            Some(self.stack_phi_plan(func_id, func, liveness))
         } else {
-            StackPhiPlan::default()
+            Some(Rc::new(StackPhiPlan::analyze(func, liveness, &self.cold_functions)))
         };
+        let mut stack_phi_plan =
+            phi_plan.as_deref().map_or_else(StackPhiPlan::default, StackPhiPlan::clone);
         let resident_stack_plan = self.resident_stack_plan(func_id).cloned();
         let existing_stack_only_values = self.stack_only_values(func_id, true);
         let hazard_recomputable =
@@ -204,7 +209,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     func,
                     liveness,
                     &cross_block_live,
-                    has_phis,
+                    phi_plan,
                 )
             // Phi layouts own their incoming stack on planned joins. Adopt the layout only when
             // that composition is proven, mirroring the resident arm.

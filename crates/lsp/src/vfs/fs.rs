@@ -57,13 +57,7 @@ impl VfsFile {
 
     fn analysis_source(&self) -> Arc<String> {
         self.analysis_source
-            .get_or_init(|| {
-                let mut source = String::with_capacity(self.contents.byte_len());
-                for chunk in self.contents.chunks() {
-                    source.push_str(chunk);
-                }
-                Arc::new(source)
-            })
+            .get_or_init(|| Arc::new(crate::utils::rope_to_string(&self.contents)))
             .clone()
     }
 }

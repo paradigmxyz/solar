@@ -3,7 +3,7 @@ use super::*;
 use crate::test_support::process_exists;
 use crate::{
     config::negotiate_capabilities,
-    test_support::{MarkedProject, TestProject},
+    test_support::{MarkedProject, TestProject, spawn_lsp_pair},
 };
 use async_lsp::{ClientSocket, ErrorCode, ResponseError, ServerSocket, router::Router};
 use lsp_types::{
@@ -142,13 +142,7 @@ fn work_done_harness() -> WorkDoneHarness {
         router
     });
 
-    let (server_stream, client_stream) = tokio::io::duplex(64 << 10);
-    let (server_rx, server_tx) = tokio::io::split(server_stream);
-    let server_task =
-        tokio::spawn(server_main.run_buffered(server_rx.compat(), server_tx.compat_write()));
-    let (client_rx, client_tx) = tokio::io::split(client_stream);
-    let client_task =
-        tokio::spawn(client_main.run_buffered(client_rx.compat(), client_tx.compat_write()));
+    let (server_task, client_task) = spawn_lsp_pair(server_main, client_main);
 
     WorkDoneHarness {
         client,
@@ -319,13 +313,7 @@ async fn analysis_updates_refresh_code_lenses_only_when_active() {
         });
         router
     });
-    let (server_stream, client_stream) = tokio::io::duplex(64 << 10);
-    let (server_rx, server_tx) = tokio::io::split(server_stream);
-    let server_task =
-        tokio::spawn(server_main.run_buffered(server_rx.compat(), server_tx.compat_write()));
-    let (client_rx, client_tx) = tokio::io::split(client_stream);
-    let client_task =
-        tokio::spawn(client_main.run_buffered(client_rx.compat(), client_tx.compat_write()));
+    let (server_task, client_task) = spawn_lsp_pair(server_main, client_main);
 
     let mut params = InitializeParams::default();
     params.capabilities.workspace = Some(lsp_types::WorkspaceClientCapabilities {
@@ -737,13 +725,7 @@ async fn clearing_analysis_cache_publishes_compiler_diagnostic_removals() {
         router
     });
 
-    let (server_stream, client_stream) = tokio::io::duplex(64 << 10);
-    let (server_rx, server_tx) = tokio::io::split(server_stream);
-    let server_task =
-        tokio::spawn(server_main.run_buffered(server_rx.compat(), server_tx.compat_write()));
-    let (client_rx, client_tx) = tokio::io::split(client_stream);
-    let client_task =
-        tokio::spawn(client_main.run_buffered(client_rx.compat(), client_tx.compat_write()));
+    let (server_task, client_task) = spawn_lsp_pair(server_main, client_main);
 
     let mut state = GlobalState::new(client_socket);
     let compiler_only = Url::parse("file:///workspace/CompilerOnly.sol").unwrap();

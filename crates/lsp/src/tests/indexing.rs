@@ -654,13 +654,7 @@ async fn workspace_discovery_router_rejects_stale_and_cancelled_ready_events() {
     let (stale_version, stale_progress, latest_version, latest_progress, mut published, tables) =
         setup_rx.recv().unwrap();
 
-    let (server_stream, client_stream) = tokio::io::duplex(64 << 10);
-    let (server_rx, server_tx) = tokio::io::split(server_stream);
-    let server_task =
-        tokio::spawn(server_main.run_buffered(server_rx.compat(), server_tx.compat_write()));
-    let (client_rx, client_tx) = tokio::io::split(client_stream);
-    let client_task =
-        tokio::spawn(client_main.run_buffered(client_rx.compat(), client_tx.compat_write()));
+    let (server_task, client_task) = spawn_lsp_pair(server_main, client_main);
 
     internal_client
         .emit(WorkspaceDiscoveryReady {
@@ -782,13 +776,7 @@ async fn deferred_dependency_change_router_publishes_replacement_analysis() {
     });
     let (version, mut published, tables) = setup_rx.recv().unwrap();
 
-    let (server_stream, client_stream) = tokio::io::duplex(64 << 10);
-    let (server_rx, server_tx) = tokio::io::split(server_stream);
-    let server_task =
-        tokio::spawn(server_main.run_buffered(server_rx.compat(), server_tx.compat_write()));
-    let (client_rx, client_tx) = tokio::io::split(client_stream);
-    let client_task =
-        tokio::spawn(client_main.run_buffered(client_rx.compat(), client_tx.compat_write()));
+    let (server_task, client_task) = spawn_lsp_pair(server_main, client_main);
 
     internal_client.emit(PublishAnalysis { version, output: old_output }).unwrap();
     tokio::time::timeout(ASYNC_TEST_TIMEOUT, async {
@@ -1084,13 +1072,7 @@ async fn background_workspace_folder_loader_failure_rolls_back_roots() {
         router
     });
     let mut published = setup_rx.recv().unwrap();
-    let (server_stream, client_stream) = tokio::io::duplex(64 << 10);
-    let (server_rx, server_tx) = tokio::io::split(server_stream);
-    let server_task =
-        tokio::spawn(server_main.run_buffered(server_rx.compat(), server_tx.compat_write()));
-    let (client_rx, client_tx) = tokio::io::split(client_stream);
-    let client_task =
-        tokio::spawn(client_main.run_buffered(client_rx.compat(), client_tx.compat_write()));
+    let (server_task, client_task) = spawn_lsp_pair(server_main, client_main);
 
     server
         .did_change_workspace_folders(replace_workspace_folder(

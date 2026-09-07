@@ -7,13 +7,13 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import re
 import shutil
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 
+from workflow_helpers import extract_job, github_script, step_block
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_PATH = ROOT / ".github/workflows/lsp-bench.yml"
@@ -27,7 +27,9 @@ UPLOAD_ACTION = "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0
 STICKY_COMMENT_ACTION = (
     "marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88"
 )
-SERVER_ARGS = "--server solar --server asyncswap --server nomic-foundation --server solc"
+SERVER_ARGS = (
+    "--server solar --server asyncswap --server nomic-foundation --server solc"
+)
 
 
 def workflow() -> str:
@@ -51,59 +53,15 @@ def manual_command_workflow() -> str:
 
 
 def job_block(name: str) -> str:
-    jobs = workflow().split("\njobs:\n", 1)[1]
-    match = re.search(
-        rf"^  {re.escape(name)}:\n(?P<body>.*?)(?=^  [A-Za-z0-9_-]+:\n|\Z)",
-        jobs,
-        re.MULTILINE | re.DOTALL,
-    )
-    if match is None:
-        raise AssertionError(f"job {name!r} is missing")
-    return match.group(0)
+    return extract_job(workflow(), name)
 
 
 def comment_job_block(name: str) -> str:
-    jobs = comment_workflow().split("\njobs:\n", 1)[1]
-    match = re.search(
-        rf"^  {re.escape(name)}:\n(?P<body>.*?)(?=^  [A-Za-z0-9_-]+:\n|\Z)",
-        jobs,
-        re.MULTILINE | re.DOTALL,
-    )
-    if match is None:
-        raise AssertionError(f"comment job {name!r} is missing")
-    return match.group(0)
+    return extract_job(comment_workflow(), name, "comment job")
 
 
 def manual_command_job_block(name: str) -> str:
-    jobs = manual_command_workflow().split("\njobs:\n", 1)[1]
-    match = re.search(
-        rf"^  {re.escape(name)}:\n(?P<body>.*?)(?=^  [A-Za-z0-9_-]+:\n|\Z)",
-        jobs,
-        re.MULTILINE | re.DOTALL,
-    )
-    if match is None:
-        raise AssertionError(f"manual command job {name!r} is missing")
-    return match.group(0)
-
-
-def step_block(job: str, name: str) -> str:
-    marker = f"      - name: {name}\n"
-    if marker not in job:
-        raise AssertionError(f"step {name!r} is missing")
-    remainder = job.split(marker, 1)[1]
-    next_step = remainder.find("\n      - ")
-    if next_step >= 0:
-        remainder = remainder[:next_step]
-    return marker + remainder
-
-
-def github_script(step: str) -> str:
-    script = step.split("          script: |\n", 1)[1]
-    if not all(
-        not line or line.startswith("            ") for line in script.splitlines()
-    ):
-        raise AssertionError("github-script block has unexpected indentation")
-    return "\n".join(line[12:] for line in script.splitlines())
+    return extract_job(manual_command_workflow(), name, "manual command job")
 
 
 def run_manual_comment_validation(

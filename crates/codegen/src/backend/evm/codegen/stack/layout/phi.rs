@@ -6,7 +6,7 @@ use super::super::super::{
     SmallVec, Terminator, ValueId, index_vec, rematerializable_nullary_opcode,
 };
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub(in crate::backend::evm::codegen) struct StackPhiPlan {
     pub(in crate::backend::evm::codegen) entries: FxHashMap<BlockId, Vec<ValueId>>,
     pub(in crate::backend::evm::codegen) edges: FxHashMap<BlockId, StackPhiEdge>,

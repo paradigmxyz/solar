@@ -44,7 +44,7 @@ impl MirPass for StaticAlloc {
         &self,
         _gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
-        _analyses: &mut ModuleAnalyses,
+        analyses: &mut ModuleAnalyses,
     ) -> bool {
         // Every entry's locals share the same low-memory region — only one
         // entry runs per call — so the tallest entry's frame top is a shadow
@@ -63,7 +63,7 @@ impl MirPass for StaticAlloc {
 
         let mut changed = false;
         let calls = CallGraphInfo::new(module);
-        let summaries = MemoryCallSummaries::new(module);
+        let summaries = analyses.call_summaries(module);
         for (func_id, func) in module.functions.iter_mut_enumerated() {
             if !is_entry(func) {
                 continue;
@@ -86,10 +86,10 @@ impl MirPass for DeferAlloc {
         &self,
         _gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
-        _analyses: &mut ModuleAnalyses,
+        analyses: &mut ModuleAnalyses,
     ) -> bool {
         let calls = CallGraphInfo::new(module);
-        let summaries = MemoryCallSummaries::new(module);
+        let summaries = analyses.call_summaries(module);
         let mut candidates = Vec::new();
         for (func_id, func) in module.functions.iter_enumerated() {
             if !func.instructions().any(|inst_id| {

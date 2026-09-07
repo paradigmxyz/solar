@@ -140,7 +140,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                 func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::Phi(_)));
             let liveness = (func.blocks.len() != 1 || has_phis).then(|| Liveness::compute(func));
             let plan = if let Some(liveness) = &liveness {
-                let context = self.resident_search_context(func, liveness, &values, has_phis);
+                let phi_plan = has_phis.then(|| self.stack_phi_plan(func_id, func, liveness));
+                let context = self.resident_search_context(func, &values, phi_plan.clone());
                 if let Some((plan, _)) = self.analyze_resident_subset(
                     func,
                     liveness,
@@ -158,7 +159,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     liveness,
                     &values,
                     self.preserve_caller_stack,
-                    has_phis,
+                    phi_plan,
                 ) {
                     values = subset;
                     mask.clear();

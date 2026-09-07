@@ -7,8 +7,19 @@ use std::{
     fs,
     io::{self, Read},
     path::Path,
-    process::Command,
+    process::{Command, ExitStatus},
 };
+
+fn run_benchmark(config: &Path, output: &Path, args: &[&str]) -> ExitStatus {
+    Command::new(env!("CARGO_BIN_EXE_solar-lsp-bench"))
+        .args(["run", "--config"])
+        .arg(config)
+        .args(args)
+        .arg("--output")
+        .arg(output)
+        .status()
+        .unwrap()
+}
 
 fn read_json(path: &Path) -> Value {
     serde_json::from_reader(fs::File::open(path).unwrap()).unwrap()
@@ -545,13 +556,11 @@ scenarios:
     )
     .unwrap();
     let output = directory.path().join("results");
-    let status = Command::new(env!("CARGO_BIN_EXE_solar-lsp-bench"))
-        .args(["run", "--config"])
-        .arg(&config)
-        .args(["--profile", "smoke", "--repeat", "1", "--allow-failures", "--output"])
-        .arg(&output)
-        .status()
-        .unwrap();
+    let status = run_benchmark(
+        &config,
+        &output,
+        &["--profile", "smoke", "--repeat", "1", "--allow-failures"],
+    );
     assert!(status.success());
 
     let samples = read_json(&output.join("samples.json"));
@@ -624,13 +633,11 @@ scenarios:
     )
     .unwrap();
     let output = directory.path().join("results");
-    let status = Command::new(env!("CARGO_BIN_EXE_solar-lsp-bench"))
-        .args(["run", "--config"])
-        .arg(&config)
-        .args(["--profile", "smoke", "--repeat", "1", "--allow-failures", "--output"])
-        .arg(&output)
-        .status()
-        .unwrap();
+    let status = run_benchmark(
+        &config,
+        &output,
+        &["--profile", "smoke", "--repeat", "1", "--allow-failures"],
+    );
     assert!(status.success());
 
     let samples = read_json(&output.join("samples.json"));
@@ -710,13 +717,11 @@ scenarios:
     )
     .unwrap();
     let output = directory.path().join("results");
-    let status = Command::new(env!("CARGO_BIN_EXE_solar-lsp-bench"))
-        .args(["run", "--config"])
-        .arg(&config)
-        .args(["--profile", "failure", "--repeat", "1", "--allow-failures", "--output"])
-        .arg(&output)
-        .status()
-        .unwrap();
+    let status = run_benchmark(
+        &config,
+        &output,
+        &["--profile", "failure", "--repeat", "1", "--allow-failures"],
+    );
     assert!(status.success());
 
     let samples = read_json(&output.join("samples.json"));
@@ -773,13 +778,7 @@ scenarios:
     )
     .unwrap();
     let output = directory.path().join("results");
-    let status = Command::new(env!("CARGO_BIN_EXE_solar-lsp-bench"))
-        .args(["run", "--config"])
-        .arg(&config)
-        .args(["--profile", "smoke", "--allow-failures", "--output"])
-        .arg(&output)
-        .status()
-        .unwrap();
+    let status = run_benchmark(&config, &output, &["--profile", "smoke", "--allow-failures"]);
     assert!(status.success());
 
     let samples = read_json(&output.join("samples.json"));
@@ -833,13 +832,7 @@ scenarios:
     )
     .unwrap();
     let output = directory.path().join("results");
-    let status = Command::new(env!("CARGO_BIN_EXE_solar-lsp-bench"))
-        .args(["run", "--config"])
-        .arg(&config)
-        .args(["--profile", "smoke", "--repeat", "1", "--output"])
-        .arg(&output)
-        .status()
-        .unwrap();
+    let status = run_benchmark(&config, &output, &["--profile", "smoke", "--repeat", "1"]);
     assert!(status.success());
 
     let samples = read_json(&output.join("samples.json"));
@@ -907,13 +900,7 @@ scenarios:
     .unwrap();
     let output = directory.path().join("results");
     let started = std::time::Instant::now();
-    let status = Command::new(env!("CARGO_BIN_EXE_solar-lsp-bench"))
-        .args(["run", "--config"])
-        .arg(&config)
-        .args(["--profile", "smoke", "--allow-failures", "--output"])
-        .arg(&output)
-        .status()
-        .unwrap();
+    let status = run_benchmark(&config, &output, &["--profile", "smoke", "--allow-failures"]);
 
     assert!(status.success());
     assert!(started.elapsed() < std::time::Duration::from_secs(5));
@@ -975,13 +962,7 @@ scenarios:
     )
     .unwrap();
     let output = directory.path().join("results");
-    let status = Command::new(env!("CARGO_BIN_EXE_solar-lsp-bench"))
-        .args(["run", "--config"])
-        .arg(&config)
-        .args(["--profile", "smoke", "--allow-failures", "--output"])
-        .arg(&output)
-        .status()
-        .unwrap();
+    let status = run_benchmark(&config, &output, &["--profile", "smoke", "--allow-failures"]);
     assert!(status.success());
 
     let samples = read_json(&output.join("samples.json"));
@@ -1072,13 +1053,11 @@ scenarios:
     )
     .unwrap();
     let output = directory.path().join("results");
-    let status = Command::new(env!("CARGO_BIN_EXE_solar-lsp-bench"))
-        .args(["run", "--config"])
-        .arg(&config)
-        .args(["--profile", "smoke", "--repeat", "1", "--allow-failures", "--output"])
-        .arg(&output)
-        .status()
-        .unwrap();
+    let status = run_benchmark(
+        &config,
+        &output,
+        &["--profile", "smoke", "--repeat", "1", "--allow-failures"],
+    );
     assert!(status.success());
 
     let samples = read_json(&output.join("samples.json"));
@@ -1170,13 +1149,11 @@ scenarios:
     )
     .unwrap();
     let output = directory.path().join("results");
-    let status = Command::new(env!("CARGO_BIN_EXE_solar-lsp-bench"))
-        .args(["run", "--config"])
-        .arg(&config)
-        .args(["--profile", "smoke", "--repeat", "1", "--allow-failures", "--output"])
-        .arg(&output)
-        .status()
-        .unwrap();
+    let status = run_benchmark(
+        &config,
+        &output,
+        &["--profile", "smoke", "--repeat", "1", "--allow-failures"],
+    );
     assert!(status.success());
 
     let samples = read_json(&output.join("samples.json"));
@@ -1240,13 +1217,7 @@ scenarios:
     )
     .unwrap();
     let output = directory.path().join("results");
-    let status = Command::new(env!("CARGO_BIN_EXE_solar-lsp-bench"))
-        .args(["run", "--config"])
-        .arg(&config)
-        .args(["--profile", "smoke", "--repeat", "1", "--output"])
-        .arg(&output)
-        .status()
-        .unwrap();
+    let status = run_benchmark(&config, &output, &["--profile", "smoke", "--repeat", "1"]);
     assert!(status.success());
 
     let samples = read_json(&output.join("samples.json"));
@@ -1353,13 +1324,11 @@ scenarios:
     )
     .unwrap();
     let output = directory.path().join("results");
-    let status = Command::new(env!("CARGO_BIN_EXE_solar-lsp-bench"))
-        .args(["run", "--config"])
-        .arg(&config)
-        .args(["--profile", "smoke", "--repeat", "1", "--allow-failures", "--output"])
-        .arg(&output)
-        .status()
-        .unwrap();
+    let status = run_benchmark(
+        &config,
+        &output,
+        &["--profile", "smoke", "--repeat", "1", "--allow-failures"],
+    );
     assert!(status.success());
 
     let samples = read_json(&output.join("samples.json"));
@@ -1447,13 +1416,11 @@ scenarios:
     )
     .unwrap();
     let output = directory.path().join("results");
-    let status = Command::new(env!("CARGO_BIN_EXE_solar-lsp-bench"))
-        .args(["run", "--config"])
-        .arg(&config)
-        .args(["--profile", "smoke", "--repeat", "1", "--allow-failures", "--output"])
-        .arg(&output)
-        .status()
-        .unwrap();
+    let status = run_benchmark(
+        &config,
+        &output,
+        &["--profile", "smoke", "--repeat", "1", "--allow-failures"],
+    );
     assert!(status.success());
 
     let samples = read_json(&output.join("samples.json"));
@@ -1530,13 +1497,11 @@ scenarios:
     )
     .unwrap();
     let output = directory.path().join("results");
-    let status = Command::new(env!("CARGO_BIN_EXE_solar-lsp-bench"))
-        .args(["run", "--config"])
-        .arg(&config)
-        .args(["--profile", "smoke", "--repeat", "1", "--allow-failures", "--output"])
-        .arg(&output)
-        .status()
-        .unwrap();
+    let status = run_benchmark(
+        &config,
+        &output,
+        &["--profile", "smoke", "--repeat", "1", "--allow-failures"],
+    );
     assert!(status.success());
 
     let samples = read_json(&output.join("samples.json"));
@@ -1593,13 +1558,11 @@ scenarios:
     )
     .unwrap();
     let output = directory.path().join("results");
-    let status = Command::new(env!("CARGO_BIN_EXE_solar-lsp-bench"))
-        .args(["run", "--config"])
-        .arg(&config)
-        .args(["--profile", "smoke", "--repeat", "1", "--allow-failures", "--output"])
-        .arg(&output)
-        .status()
-        .unwrap();
+    let status = run_benchmark(
+        &config,
+        &output,
+        &["--profile", "smoke", "--repeat", "1", "--allow-failures"],
+    );
     assert!(status.success());
 
     let summary = read_json(&output.join("summary.json"));
@@ -1649,13 +1612,7 @@ scenarios:
     )
     .unwrap();
     let output = directory.path().join("results");
-    let status = Command::new(env!("CARGO_BIN_EXE_solar-lsp-bench"))
-        .args(["run", "--config"])
-        .arg(&config)
-        .args(["--profile", "publish", "--allow-failures", "--output"])
-        .arg(&output)
-        .status()
-        .unwrap();
+    let status = run_benchmark(&config, &output, &["--profile", "publish", "--allow-failures"]);
     assert!(!status.success());
 
     let summary = read_json(&output.join("summary.json"));
@@ -1730,13 +1687,11 @@ scenarios:
         )
         .unwrap();
         let output = directory.path().join("results");
-        let status = Command::new(env!("CARGO_BIN_EXE_solar-lsp-bench"))
-            .args(["run", "--config"])
-            .arg(&config)
-            .args(["--profile", "smoke", "--repeat", "1", "--allow-failures", "--output"])
-            .arg(&output)
-            .status()
-            .unwrap();
+        let status = run_benchmark(
+            &config,
+            &output,
+            &["--profile", "smoke", "--repeat", "1", "--allow-failures"],
+        );
         assert!(status.success());
 
         let samples = read_json(&output.join("samples.json"));
@@ -1816,13 +1771,11 @@ scenarios:
     )
     .unwrap();
     let output = directory.path().join("results");
-    let status = Command::new(env!("CARGO_BIN_EXE_solar-lsp-bench"))
-        .args(["run", "--config"])
-        .arg(&config)
-        .args(["--profile", "smoke", "--repeat", "1", "--allow-failures", "--output"])
-        .arg(&output)
-        .status()
-        .unwrap();
+    let status = run_benchmark(
+        &config,
+        &output,
+        &["--profile", "smoke", "--repeat", "1", "--allow-failures"],
+    );
     assert!(status.success());
 
     let samples = read_json(&output.join("samples.json"));
@@ -1885,13 +1838,11 @@ scenarios:
     )
     .unwrap();
     let output = directory.path().join("results");
-    let status = Command::new(env!("CARGO_BIN_EXE_solar-lsp-bench"))
-        .args(["run", "--config"])
-        .arg(&config)
-        .args(["--profile", "smoke", "--repeat", "1", "--allow-failures", "--output"])
-        .arg(&output)
-        .status()
-        .unwrap();
+    let status = run_benchmark(
+        &config,
+        &output,
+        &["--profile", "smoke", "--repeat", "1", "--allow-failures"],
+    );
     assert!(status.success());
 
     let samples = read_json(&output.join("samples.json"));
@@ -1946,13 +1897,11 @@ scenarios:
     )
     .unwrap();
     let output = directory.path().join("results");
-    let status = Command::new(env!("CARGO_BIN_EXE_solar-lsp-bench"))
-        .args(["run", "--config"])
-        .arg(&config)
-        .args(["--profile", "smoke", "--repeat", "1", "--allow-failures", "--output"])
-        .arg(&output)
-        .status()
-        .unwrap();
+    let status = run_benchmark(
+        &config,
+        &output,
+        &["--profile", "smoke", "--repeat", "1", "--allow-failures"],
+    );
     assert!(status.success());
 
     let samples = read_json(&output.join("samples.json"));
@@ -2005,13 +1954,7 @@ scenarios:
     )
     .unwrap();
     let output = directory.path().join("results");
-    let status = Command::new(env!("CARGO_BIN_EXE_solar-lsp-bench"))
-        .args(["run", "--config"])
-        .arg(&config)
-        .args(["--profile", "smoke", "--repeat", "1", "--output"])
-        .arg(&output)
-        .status()
-        .unwrap();
+    let status = run_benchmark(&config, &output, &["--profile", "smoke", "--repeat", "1"]);
     assert!(status.success());
 
     let samples = read_json(&output.join("samples.json"));
@@ -2094,13 +2037,11 @@ scenarios:
     )
     .unwrap();
     let output = directory.path().join("results");
-    let status = Command::new(env!("CARGO_BIN_EXE_solar-lsp-bench"))
-        .args(["run", "--config"])
-        .arg(&config)
-        .args(["--profile", "smoke", "--repeat", "1", "--allow-failures", "--output"])
-        .arg(&output)
-        .status()
-        .unwrap();
+    let status = run_benchmark(
+        &config,
+        &output,
+        &["--profile", "smoke", "--repeat", "1", "--allow-failures"],
+    );
     assert!(status.success());
 
     let samples = read_json(&output.join("samples.json"));

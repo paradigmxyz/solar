@@ -57,7 +57,7 @@ use solar_data_structures::{
     map::{FxHashMap, FxHashSet},
 };
 use solar_sema::Gcx;
-use std::{cell::OnceCell, collections::hash_map::Entry as StdEntry};
+use std::{cell::OnceCell, collections::hash_map::Entry as StdEntry, rc::Rc};
 
 mod stack;
 pub(super) use stack::{
@@ -190,7 +190,7 @@ struct StackResultProjection {
 /// Subset-invariant analyses shared by one resident-layout subset search.
 struct ResidentSearchContext {
     /// Planned stack-phi edges, present when the function has phis.
-    phi_plan: Option<StackPhiPlan>,
+    phi_plan: Option<Rc<StackPhiPlan>>,
     /// CFG facts whose memoized dominators persist across candidates.
     cfg: CfgInfo,
     /// Operand occurrences per candidate value across the whole function.
@@ -348,6 +348,10 @@ pub struct EvmCodegen<'gcx> {
     spill_stores: Vec<SpillStore>,
     spill_loads: Vec<(SpillSlot, ir::BlockId, usize)>,
     early_spill_removals: Vec<(ir::BlockId, std::ops::Range<usize>)>,
+    /// Stack-phi plans by function, shared by the resident-argument search and body emission.
+    /// A plan depends only on the function, its whole-function liveness, and the module's cold
+    /// functions, so one analysis per function serves both.
+    stack_phi_plans: FxHashMap<FunctionId, Rc<StackPhiPlan>>,
     function_ir_block_start: usize,
     /// Whole-calldata-forwarding clobbers (`calldatacopy(0, 0, calldatasize())`
     /// in a proxy) whose write reaches the compiler spill area. Values live
@@ -439,6 +443,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             spill_stores: Vec::new(),
             spill_loads: Vec::new(),
             early_spill_removals: Vec::new(),
+            stack_phi_plans: FxHashMap::default(),
             function_ir_block_start: 0,
             spill_hazard_insts: FxHashSet::default(),
             heap_pointer_return_functions: DenseBitSet::new_empty(0),
@@ -499,6 +504,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.spill_available = None;
         self.elided_insts.clear();
         self.late_gas_operands.clear();
+        self.stack_phi_plans.clear();
         self.spill_hazard_insts.clear();
         self.heap_pointer_return_functions.clear_to(module.functions.len());
         self.global_stack_active = false;
@@ -1138,7 +1144,7 @@ mod tests {
                 builder.ret([acc]);
                 let liveness = Liveness::compute(&function);
                 codegen
-                    .select_resident_layout(&function, &liveness, &[argument], false, false)
+                    .select_resident_layout(&function, &liveness, &[argument], false, None)
                     .map(|(values, _)| values)
             })
         };
