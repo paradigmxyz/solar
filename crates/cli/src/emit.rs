@@ -289,17 +289,35 @@ fn emit_combined_json(
         return Ok(());
     }
 
-    let emit_abi = sess.do_emit(CompilerOutput::Abi);
-    let emit_hashes = sess.do_emit(CompilerOutput::Hashes);
-    let emit_bin = sess.do_emit(CompilerOutput::Bin);
-    let emit_bin_runtime = sess.do_emit(CompilerOutput::BinRuntime);
-    let emit_ethdebug = sess.do_emit(CompilerOutput::Ethdebug);
-    let emit_ethdebug_runtime = sess.do_emit(CompilerOutput::EthdebugRuntime);
-    let emit_srcmap = sess.do_emit(CompilerOutput::Srcmap);
-    let emit_srcmap_runtime = sess.do_emit(CompilerOutput::SrcmapRuntime);
-    let compilation =
-        (emit_ethdebug || emit_ethdebug_runtime || sess.do_emit(CompilerOutput::EthdebugResources))
-            .then(|| make_ethdebug_compilation(gcx, None));
+    let [
+        mut emit_abi,
+        mut emit_hashes,
+        mut emit_bin,
+        mut emit_bin_runtime,
+        mut emit_ethdebug,
+        mut emit_ethdebug_runtime,
+        mut emit_ethdebug_resources,
+        mut emit_srcmap,
+        mut emit_srcmap_runtime,
+        mut codegen_requested,
+    ] = [false; _];
+    for output in &sess.opts.emit {
+        codegen_requested |= output.is_codegen();
+        match output {
+            CompilerOutput::Abi => emit_abi = true,
+            CompilerOutput::Hashes => emit_hashes = true,
+            CompilerOutput::Bin => emit_bin = true,
+            CompilerOutput::BinRuntime => emit_bin_runtime = true,
+            CompilerOutput::Ethdebug => emit_ethdebug = true,
+            CompilerOutput::EthdebugRuntime => emit_ethdebug_runtime = true,
+            CompilerOutput::EthdebugResources => emit_ethdebug_resources = true,
+            CompilerOutput::Srcmap => emit_srcmap = true,
+            CompilerOutput::SrcmapRuntime => emit_srcmap_runtime = true,
+            _ => {}
+        }
+    }
+    let compilation = (emit_ethdebug || emit_ethdebug_runtime || emit_ethdebug_resources)
+        .then(|| make_ethdebug_compilation(gcx, None));
     let source_map_encoder =
         (emit_srcmap || emit_srcmap_runtime).then(|| SourceMapEncoder::new(gcx));
     let mut output = CombinedJson {
@@ -313,7 +331,6 @@ fn emit_combined_json(
         ..Default::default()
     };
 
-    let codegen_requested = sess.opts.emit.iter().any(|output| output.is_codegen());
     let emit_contracts = emit_abi || emit_hashes || codegen_requested;
     for id in gcx.hir.contract_ids().filter(|_| emit_contracts) {
         let name = contract_output_name(gcx, id);
