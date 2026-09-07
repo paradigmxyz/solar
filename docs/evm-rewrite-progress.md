@@ -1318,3 +1318,25 @@ the accepted scheduler. The unaccepted binaries and diagnostics remain under
 `argument-residence-workflow-20260907/`; the debug build must be rebuilt before
 it is used as the accepted compiler. A narrow MIR carry-comparison experiment
 and the broader spill-floor investigation remain work in progress.
+
+
+### Rejected MIR carry canonicalization
+
+The unsigned identity `lt(add(x, k), x) = lt(add(x, k), k)` was trialed for
+one-byte constants in the existing instruction simplifier. Independent review
+confirmed its word semantics and termination guard. The motivating calldata
+fixture shrank from 215 to 208 runtime bytes, but the complete unchanged UI
+corpus rejected it: 1,384 of 4,936 objects changed and 955 grew. Gas creation and
+runtime totals increased 227/190 bytes; Size increased 472/446 bytes. All 813
+IDs per mode and their 804 successful/nine diagnostic outcomes were retained.
+
+Two inspected regressions explain why local arithmetic cost is insufficient.
+The cross-block nullary fixture grows 82 bytes in Size because the new carry
+shapes prevent two literal arms from sharing one arithmetic body. The do-while
+fixture gains 14 jumps and markers after branch reversal, growing 57 bytes in
+Gas and 37 in Size. Exact captures and accounting remain in
+`small-carry-workflow-20260907/`. No expectation changed; the sole production
+patch was reversed and its original hash verified. The failed size screen
+precludes an acceptance claim, so no full hot-gas or compiler-time run was made.
+Work continues on bounded retirement of unnecessary homes, using the existing
+emission transaction and preserving the accepted Phi allocation path.
