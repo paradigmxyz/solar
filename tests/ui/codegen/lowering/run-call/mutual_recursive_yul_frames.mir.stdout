@@ -3,7 +3,7 @@
 fn @encode(arg0: u256) -> (u256, u256, bytes32) [selector=0xdeb21fa2, pure, abi_params=[u256], abi_returns=[word, word, word]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
-    v1 = internal_call @walk, 2, arg0, v0
+    v1 = icall @walk, 2, arg0, v0
     v2 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v3 = add v2, 32
     v4 = mload v3
@@ -21,7 +21,7 @@ fn @walk(arg0: u256, arg1: u256) -> (u256, u256) {
   bb2:
     jump bb3
   bb3:
-    v4 = internal_call @container, 2, arg0, arg1
+    v4 = icall @container, 2, arg0, arg1
     v5 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v6 = add v5, 32
     v7 = mload v6
@@ -36,7 +36,7 @@ fn @container(arg0: u256, arg1: u256) -> (u256, u256) {
   bb0:
     v0 = add arg1, 1
     v1 = sub arg0, 1
-    v2 = internal_call @walk, 2, v1, v0
+    v2 = icall @walk, 2, v1, v0
     v3 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v4 = add v3, 32
     v5 = mload v4

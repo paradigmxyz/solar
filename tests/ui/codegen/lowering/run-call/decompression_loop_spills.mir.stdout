@@ -14,7 +14,7 @@ fn @fallback() [fallback, payable] {
     v8 = and 1, 255
     v9 = or v7, v8
     sstore 0, v9 !metadata(storage=slot(0))
-    internal_call @_decompress, 0
+    icall @_decompress, 0
     stop
   bb1:
     v2 = calldatasize
@@ -170,10 +170,10 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
   bb8:
     ret 1
   bb7:
-    internal_call @revert_error, 0, 6, 0x6f75747075740000000000000000000000000000000000000000000000000000
+    icall @revert_error, 0, 6, 0x6f75747075740000000000000000000000000000000000000000000000000000
     invalid
   bb5:
-    internal_call @revert_error, 0, 4, 0x63616c6c00000000000000000000000000000000000000000000000000000000
+    icall @revert_error, 0, 4, 0x63616c6c00000000000000000000000000000000000000000000000000000000
     invalid
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)

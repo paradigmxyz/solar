@@ -9,7 +9,7 @@
   
   fn @read_entry() [selector=0x01020304] {
     bb0:
-      v0 = internal_call @read, 1
+      v0 = icall @read, 1
       ret
   }
   
@@ -21,7 +21,7 @@
   fn @argument_entry() [selector=0x05060708] {
     bb0:
       v0 = mload 0x10000
-      internal_call @unused, 0, v0
+      icall @unused, 0, v0
       ret
   }
   
@@ -33,7 +33,7 @@
   
   fn @mapping_entry() [selector=0x090a0b0c] {
     bb0:
-      v0 = internal_call @mapping_slot, 1
+      v0 = icall @mapping_slot, 1
       ret
   }
   

@@ -2,10 +2,10 @@
 @module module
 
 bb0:
-  op_0c !meta(stack=0->255)
-  op_0c !meta(stack=0->255)
-  op_0c !meta(stack=0->255)
-  op_0c !meta(stack=0->255)
+  op_0c !metadata(stack=0->255)
+  op_0c !metadata(stack=0->255)
+  op_0c !metadata(stack=0->255)
+  op_0c !metadata(stack=0->255)
   jumpi bb2, bb1
 bb1:
   push 0

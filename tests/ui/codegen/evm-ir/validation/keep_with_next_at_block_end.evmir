@@ -1,0 +1,10 @@
+//~? ERROR: EVM IR verification failed: block 0: `gas` must be followed by the instruction it is kept with
+@module module
+
+// `keep_with_next` glues an instruction to the next one in its own block, so a block that ends
+// with one lost the instruction it was kept with. Rejecting that turns the constraint every
+// transform honors into a checked guarantee.
+bb0:
+  push 50
+  gas !meta(keep_with_next)
+  stop

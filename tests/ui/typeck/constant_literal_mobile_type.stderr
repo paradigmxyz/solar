@@ -1,0 +1,50 @@
+error: failed to evaluate constant: arithmetic overflow
+   ╭▸ ROOT/tests/ui/typeck/constant_literal_mobile_type.sol:LL:CC
+   │
+LL │         uint256[255 + ONE] memory addUint8;
+   ╰╴                ━━━━━━━━━ evaluation of constant value failed here
+
+error: failed to evaluate constant: arithmetic overflow
+   ╭▸ ROOT/tests/ui/typeck/constant_literal_mobile_type.sol:LL:CC
+   │
+LL │         uint256[65535 + ONE] memory addUint16;
+   ╰╴                ━━━━━━━━━━━ evaluation of constant value failed here
+
+error: failed to evaluate constant: arithmetic overflow
+   ╭▸ ROOT/tests/ui/typeck/constant_literal_mobile_type.sol:LL:CC
+   │
+LL │         uint256[200 * ONE] memory mulUint8;
+   ╰╴                ━━━━━━━━━ evaluation of constant value failed here
+
+error: failed to evaluate constant: arithmetic overflow
+   ╭▸ ROOT/tests/ui/typeck/constant_literal_mobile_type.sol:LL:CC
+   │
+LL │         uint256[65535 + U16] memory addTyped;
+   ╰╴                ━━━━━━━━━━━ evaluation of constant value failed here
+
+error: failed to evaluate constant: arithmetic overflow
+   ╭▸ ROOT/tests/ui/typeck/constant_literal_mobile_type.sol:LL:CC
+   │
+LL │         uint256[100 + J16] memory addSigned;
+   ╰╴                ━━━━━━━━━ evaluation of constant value failed here
+
+error: failed to evaluate constant: arithmetic overflow
+   ╭▸ ROOT/tests/ui/typeck/constant_literal_mobile_type.sol:LL:CC
+   │
+LL │         uint256[-32768 * I8] memory mulInt16;
+   ╰╴                ━━━━━━━━━━━ evaluation of constant value failed here
+
+error: failed to evaluate constant: arithmetic overflow
+   ╭▸ ROOT/tests/ui/typeck/constant_literal_mobile_type.sol:LL:CC
+   │
+LL │         uint256[200 << WIDE] memory shl;
+   ╰╴                ━━━━━━━━━━━ evaluation of constant value failed here
+
+error: failed to evaluate constant: arithmetic overflow
+   ╭▸ ROOT/tests/ui/typeck/constant_literal_mobile_type.sol:LL:CC
+   │
+LL │         uint256[3 ** WIDE] memory pow;
+   ╰╴                ━━━━━━━━━ evaluation of constant value failed here
+
+error: aborting due to 8 previous errors
+

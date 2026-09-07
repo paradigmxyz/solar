@@ -371,7 +371,7 @@ fn state_with_symbols(symbol_tables: SymbolTables, params: InitializeParams) -> 
     let (_, config) = negotiate_capabilities(params);
     let mut state = GlobalState::new(ClientSocket::new_closed());
     state.config = Arc::new(config);
-    *state.symbol_tables.write() = symbol_tables;
+    state.symbol_tables.store(Arc::new(symbol_tables));
     state
 }
 

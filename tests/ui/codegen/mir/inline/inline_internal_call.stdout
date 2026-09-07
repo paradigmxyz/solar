@@ -1,9 +1,9 @@
 - // === ROOT/tests/ui/codegen/mir/inline/inline_internal_call.mir (before inline) ===
 + // === ROOT/tests/ui/codegen/mir/inline/inline_internal_call.mir (after inline) ===
-  @module InlineInternalCall
+  @module InlineICall
   fn @caller(arg0: u256) -> u256 {
     bb0:
--     v0 = internal_call @callee, 1, arg0
+-     v0 = icall @callee, 1, arg0
 -     ret v0
 +     jump bb2
 +   bb2:

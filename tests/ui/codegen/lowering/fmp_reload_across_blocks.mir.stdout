@@ -104,7 +104,7 @@ fn @onERC1155Received(arg0: address, arg1: address, arg2: u256, arg3: u256, arg4
     ret 0xf23a6e6100000000000000000000000000000000000000000000000000000000
   bb1:
     v2 = gas
-    v3 = internal_call @ln, 1, v2
+    v3 = icall @ln, 1, v2
     v4 = mul 54, v3
     v5 = iszero v3
     v6 = div v4, v3
@@ -134,7 +134,7 @@ fn @onERC1155Received(arg0: address, arg1: address, arg2: u256, arg3: u256, arg4
     v22 = lt v21, v15
     jumpi v22, bb4, bb9
   bb9:
-    v23 = internal_call @sqrt, 1, v21
+    v23 = icall @sqrt, 1, v21
     v24 = sub v23, 0xc00
     v25 = lt v23, 0xc00
     jumpi v25, bb4, bb10

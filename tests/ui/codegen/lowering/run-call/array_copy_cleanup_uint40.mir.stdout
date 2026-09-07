@@ -3,10 +3,10 @@
 fn @f() -> bool [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = add v0, 1
-    v2 = lt v1, v0
-    jumpi v2, bb1, bb2
+    v1 = gt v0, 0xffffffffffffffff
+    jumpi v1, bb1, bb2
   bb2:
+    v2 = add v0, 1
     v3 = storage_array_data_slot 0
     v4 = div v0, 6
     v5 = add v3, v4
@@ -21,12 +21,12 @@ fn @f() -> bool [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>]] {
     v14 = shl v8, v13
     v15 = or v12, v14
     sstore v5, v15 !metadata(storage=symbolic(v5))
-    sstore 0, v1 !metadata(storage=slot(0))
+    sstore 0, v2 !metadata(storage=slot(0))
     v16 = sload 0 !metadata(storage=slot(0))
-    v17 = add v16, 1
-    v18 = lt v17, v16
-    jumpi v18, bb1, bb3
+    v17 = gt v16, 0xffffffffffffffff
+    jumpi v17, bb1, bb3
   bb3:
+    v18 = add v16, 1
     v19 = storage_array_data_slot 0
     v20 = div v16, 6
     v21 = add v19, v20
@@ -41,12 +41,12 @@ fn @f() -> bool [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>]] {
     v30 = shl v24, v29
     v31 = or v28, v30
     sstore v21, v31 !metadata(storage=symbolic(v21))
-    sstore 0, v17 !metadata(storage=slot(0))
+    sstore 0, v18 !metadata(storage=slot(0))
     v32 = sload 0 !metadata(storage=slot(0))
-    v33 = add v32, 1
-    v34 = lt v33, v32
-    jumpi v34, bb1, bb4
+    v33 = gt v32, 0xffffffffffffffff
+    jumpi v33, bb1, bb4
   bb4:
+    v34 = add v32, 1
     v35 = storage_array_data_slot 0
     v36 = div v32, 6
     v37 = add v35, v36
@@ -61,12 +61,12 @@ fn @f() -> bool [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>]] {
     v46 = shl v40, v45
     v47 = or v44, v46
     sstore v37, v47 !metadata(storage=symbolic(v37))
-    sstore 0, v33 !metadata(storage=slot(0))
+    sstore 0, v34 !metadata(storage=slot(0))
     v48 = sload 0 !metadata(storage=slot(0))
-    v49 = add v48, 1
-    v50 = lt v49, v48
-    jumpi v50, bb1, bb5
+    v49 = gt v48, 0xffffffffffffffff
+    jumpi v49, bb1, bb5
   bb5:
+    v50 = add v48, 1
     v51 = storage_array_data_slot 0
     v52 = div v48, 6
     v53 = add v51, v52
@@ -81,12 +81,12 @@ fn @f() -> bool [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>]] {
     v62 = shl v56, v61
     v63 = or v60, v62
     sstore v53, v63 !metadata(storage=symbolic(v53))
-    sstore 0, v49 !metadata(storage=slot(0))
+    sstore 0, v50 !metadata(storage=slot(0))
     v64 = sload 0 !metadata(storage=slot(0))
-    v65 = add v64, 1
-    v66 = lt v65, v64
-    jumpi v66, bb1, bb6
+    v65 = gt v64, 0xffffffffffffffff
+    jumpi v65, bb1, bb6
   bb6:
+    v66 = add v64, 1
     v67 = storage_array_data_slot 0
     v68 = div v64, 6
     v69 = add v67, v68
@@ -101,12 +101,12 @@ fn @f() -> bool [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>]] {
     v78 = shl v72, v77
     v79 = or v76, v78
     sstore v69, v79 !metadata(storage=symbolic(v69))
-    sstore 0, v65 !metadata(storage=slot(0))
+    sstore 0, v66 !metadata(storage=slot(0))
     v80 = sload 0 !metadata(storage=slot(0))
-    v81 = add v80, 1
-    v82 = lt v81, v80
-    jumpi v82, bb1, bb7
+    v81 = gt v80, 0xffffffffffffffff
+    jumpi v81, bb1, bb7
   bb7:
+    v82 = add v80, 1
     v83 = storage_array_data_slot 0
     v84 = div v80, 6
     v85 = add v83, v84
@@ -121,12 +121,12 @@ fn @f() -> bool [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>]] {
     v94 = shl v88, v93
     v95 = or v92, v94
     sstore v85, v95 !metadata(storage=symbolic(v85))
-    sstore 0, v81 !metadata(storage=slot(0))
+    sstore 0, v82 !metadata(storage=slot(0))
     v96 = sload 0 !metadata(storage=slot(0))
-    v97 = add v96, 1
-    v98 = lt v97, v96
-    jumpi v98, bb1, bb8
+    v97 = gt v96, 0xffffffffffffffff
+    jumpi v97, bb1, bb8
   bb8:
+    v98 = add v96, 1
     v99 = storage_array_data_slot 0
     v100 = div v96, 6
     v101 = add v99, v100
@@ -141,12 +141,12 @@ fn @f() -> bool [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>]] {
     v110 = shl v104, v109
     v111 = or v108, v110
     sstore v101, v111 !metadata(storage=symbolic(v101))
-    sstore 0, v97 !metadata(storage=slot(0))
+    sstore 0, v98 !metadata(storage=slot(0))
     v112 = sload 0 !metadata(storage=slot(0))
-    v113 = add v112, 1
-    v114 = lt v113, v112
-    jumpi v114, bb1, bb9
+    v113 = gt v112, 0xffffffffffffffff
+    jumpi v113, bb1, bb9
   bb9:
+    v114 = add v112, 1
     v115 = storage_array_data_slot 0
     v116 = div v112, 6
     v117 = add v115, v116
@@ -161,12 +161,12 @@ fn @f() -> bool [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>]] {
     v126 = shl v120, v125
     v127 = or v124, v126
     sstore v117, v127 !metadata(storage=symbolic(v117))
-    sstore 0, v113 !metadata(storage=slot(0))
+    sstore 0, v114 !metadata(storage=slot(0))
     v128 = sload 0 !metadata(storage=slot(0))
-    v129 = add v128, 1
-    v130 = lt v129, v128
-    jumpi v130, bb1, bb10
+    v129 = gt v128, 0xffffffffffffffff
+    jumpi v129, bb1, bb10
   bb10:
+    v130 = add v128, 1
     v131 = storage_array_data_slot 0
     v132 = div v128, 6
     v133 = add v131, v132
@@ -181,12 +181,12 @@ fn @f() -> bool [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>]] {
     v142 = shl v136, v141
     v143 = or v140, v142
     sstore v133, v143 !metadata(storage=symbolic(v133))
-    sstore 0, v129 !metadata(storage=slot(0))
+    sstore 0, v130 !metadata(storage=slot(0))
     v144 = sload 0 !metadata(storage=slot(0))
-    v145 = add v144, 1
-    v146 = lt v145, v144
-    jumpi v146, bb1, bb11
+    v145 = gt v144, 0xffffffffffffffff
+    jumpi v145, bb1, bb11
   bb11:
+    v146 = add v144, 1
     v147 = storage_array_data_slot 0
     v148 = div v144, 6
     v149 = add v147, v148
@@ -201,12 +201,12 @@ fn @f() -> bool [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>]] {
     v158 = shl v152, v157
     v159 = or v156, v158
     sstore v149, v159 !metadata(storage=symbolic(v149))
-    sstore 0, v145 !metadata(storage=slot(0))
+    sstore 0, v146 !metadata(storage=slot(0))
     v160 = sload 0 !metadata(storage=slot(0))
-    v161 = add v160, 1
-    v162 = lt v161, v160
-    jumpi v162, bb1, bb12
+    v161 = gt v160, 0xffffffffffffffff
+    jumpi v161, bb1, bb12
   bb12:
+    v162 = add v160, 1
     v163 = storage_array_data_slot 0
     v164 = div v160, 6
     v165 = add v163, v164
@@ -221,12 +221,12 @@ fn @f() -> bool [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>]] {
     v174 = shl v168, v173
     v175 = or v172, v174
     sstore v165, v175 !metadata(storage=symbolic(v165))
-    sstore 0, v161 !metadata(storage=slot(0))
+    sstore 0, v162 !metadata(storage=slot(0))
     v176 = sload 0 !metadata(storage=slot(0))
-    v177 = add v176, 1
-    v178 = lt v177, v176
-    jumpi v178, bb1, bb13
+    v177 = gt v176, 0xffffffffffffffff
+    jumpi v177, bb1, bb13
   bb13:
+    v178 = add v176, 1
     v179 = storage_array_data_slot 0
     v180 = div v176, 6
     v181 = add v179, v180
@@ -241,12 +241,12 @@ fn @f() -> bool [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>]] {
     v190 = shl v184, v189
     v191 = or v188, v190
     sstore v181, v191 !metadata(storage=symbolic(v181))
-    sstore 0, v177 !metadata(storage=slot(0))
+    sstore 0, v178 !metadata(storage=slot(0))
     v192 = sload 0 !metadata(storage=slot(0))
-    v193 = add v192, 1
-    v194 = lt v193, v192
-    jumpi v194, bb1, bb14
+    v193 = gt v192, 0xffffffffffffffff
+    jumpi v193, bb1, bb14
   bb14:
+    v194 = add v192, 1
     v195 = storage_array_data_slot 0
     v196 = div v192, 6
     v197 = add v195, v196
@@ -261,12 +261,12 @@ fn @f() -> bool [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>]] {
     v206 = shl v200, v205
     v207 = or v204, v206
     sstore v197, v207 !metadata(storage=symbolic(v197))
-    sstore 0, v193 !metadata(storage=slot(0))
+    sstore 0, v194 !metadata(storage=slot(0))
     v208 = sload 0 !metadata(storage=slot(0))
-    v209 = add v208, 1
-    v210 = lt v209, v208
-    jumpi v210, bb1, bb15
+    v209 = gt v208, 0xffffffffffffffff
+    jumpi v209, bb1, bb15
   bb15:
+    v210 = add v208, 1
     v211 = storage_array_data_slot 0
     v212 = div v208, 6
     v213 = add v211, v212
@@ -281,12 +281,12 @@ fn @f() -> bool [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>]] {
     v222 = shl v216, v221
     v223 = or v220, v222
     sstore v213, v223 !metadata(storage=symbolic(v213))
-    sstore 0, v209 !metadata(storage=slot(0))
+    sstore 0, v210 !metadata(storage=slot(0))
     v224 = sload 0 !metadata(storage=slot(0))
-    v225 = add v224, 1
-    v226 = lt v225, v224
-    jumpi v226, bb1, bb16
+    v225 = gt v224, 0xffffffffffffffff
+    jumpi v225, bb1, bb16
   bb16:
+    v226 = add v224, 1
     v227 = storage_array_data_slot 0
     v228 = div v224, 6
     v229 = add v227, v228
@@ -301,12 +301,12 @@ fn @f() -> bool [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>]] {
     v238 = shl v232, v237
     v239 = or v236, v238
     sstore v229, v239 !metadata(storage=symbolic(v229))
-    sstore 0, v225 !metadata(storage=slot(0))
+    sstore 0, v226 !metadata(storage=slot(0))
     v240 = sload 0 !metadata(storage=slot(0))
-    v241 = add v240, 1
-    v242 = lt v241, v240
-    jumpi v242, bb1, bb17
+    v241 = gt v240, 0xffffffffffffffff
+    jumpi v241, bb1, bb17
   bb17:
+    v242 = add v240, 1
     v243 = storage_array_data_slot 0
     v244 = div v240, 6
     v245 = add v243, v244
@@ -321,12 +321,12 @@ fn @f() -> bool [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>]] {
     v254 = shl v248, v253
     v255 = or v252, v254
     sstore v245, v255 !metadata(storage=symbolic(v245))
-    sstore 0, v241 !metadata(storage=slot(0))
+    sstore 0, v242 !metadata(storage=slot(0))
     v256 = sload 0 !metadata(storage=slot(0))
-    v257 = add v256, 1
-    v258 = lt v257, v256
-    jumpi v258, bb1, bb18
+    v257 = gt v256, 0xffffffffffffffff
+    jumpi v257, bb1, bb18
   bb18:
+    v258 = add v256, 1
     v259 = storage_array_data_slot 0
     v260 = div v256, 6
     v261 = add v259, v260
@@ -341,12 +341,12 @@ fn @f() -> bool [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>]] {
     v270 = shl v264, v269
     v271 = or v268, v270
     sstore v261, v271 !metadata(storage=symbolic(v261))
-    sstore 0, v257 !metadata(storage=slot(0))
+    sstore 0, v258 !metadata(storage=slot(0))
     v272 = sload 0 !metadata(storage=slot(0))
-    v273 = add v272, 1
-    v274 = lt v273, v272
-    jumpi v274, bb1, bb19
+    v273 = gt v272, 0xffffffffffffffff
+    jumpi v273, bb1, bb19
   bb19:
+    v274 = add v272, 1
     v275 = storage_array_data_slot 0
     v276 = div v272, 6
     v277 = add v275, v276
@@ -361,12 +361,12 @@ fn @f() -> bool [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>]] {
     v286 = shl v280, v285
     v287 = or v284, v286
     sstore v277, v287 !metadata(storage=symbolic(v277))
-    sstore 0, v273 !metadata(storage=slot(0))
+    sstore 0, v274 !metadata(storage=slot(0))
     v288 = sload 0 !metadata(storage=slot(0))
-    v289 = add v288, 1
-    v290 = lt v289, v288
-    jumpi v290, bb1, bb20
+    v289 = gt v288, 0xffffffffffffffff
+    jumpi v289, bb1, bb20
   bb20:
+    v290 = add v288, 1
     v291 = storage_array_data_slot 0
     v292 = div v288, 6
     v293 = add v291, v292
@@ -381,12 +381,12 @@ fn @f() -> bool [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>]] {
     v302 = shl v296, v301
     v303 = or v300, v302
     sstore v293, v303 !metadata(storage=symbolic(v293))
-    sstore 0, v289 !metadata(storage=slot(0))
+    sstore 0, v290 !metadata(storage=slot(0))
     v304 = sload 0 !metadata(storage=slot(0))
-    v305 = add v304, 1
-    v306 = lt v305, v304
-    jumpi v306, bb1, bb21
+    v305 = gt v304, 0xffffffffffffffff
+    jumpi v305, bb1, bb21
   bb21:
+    v306 = add v304, 1
     v307 = storage_array_data_slot 0
     v308 = div v304, 6
     v309 = add v307, v308
@@ -401,7 +401,7 @@ fn @f() -> bool [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>]] {
     v318 = shl v312, v317
     v319 = or v316, v318
     sstore v309, v319 !metadata(storage=symbolic(v309))
-    sstore 0, v305 !metadata(storage=slot(0))
+    sstore 0, v306 !metadata(storage=slot(0))
     v320 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v320, 1
     v321 = memory_object_len memoryarray, v320

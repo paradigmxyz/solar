@@ -118,7 +118,7 @@ fn @sum(arg0: calldataslice) -> u256 [selector=0xe3db0bf3, pure, abi_params=[arr
   bb15:
     v33 = add v20, 32
     v34 = make_calldata_slice v33, v26
-    v35 = internal_call @_length, 1, v34
+    v35 = icall @_length, 1, v34
     v36 = add v2, v35
     v37 = lt v36, v2
     jumpi v37, bb16, bb17
@@ -324,7 +324,7 @@ fn @tupleTernary() -> u256 [selector=0x75466b3a, view, abi_params=[], abi_return
 
 fn @useTuple(arg0: calldataslice, arg1: bool) -> u256 [selector=0xf8c72565, pure, abi_params=[bytes, bool], abi_returns=[word]] {
   bb0:
-    v0 = internal_call @_decode, 3, arg0, arg1
+    v0 = icall @_decode, 3, arg0, arg1
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 32
     v3 = mload v2

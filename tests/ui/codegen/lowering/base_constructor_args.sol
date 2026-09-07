@@ -10,6 +10,7 @@
 //@ run-call: FunctionUsageDerived::getA => 2
 //@ run-call: VirtualFunctionUsageDerived::getA => 2
 //@ run-call: EmptyBaseArgumentMask::domain => "Token", "1"
+//@ run-call: WriterDerived::order => 12
 // ported-from: test/libsolidity/semanticTests/constructor/order_of_evaluation.sol
 // ported-from: test/libsolidity/semanticTests/inheritance/constructor_inheritance_init_order_3_viaIR.sol
 // ported-from: test/libsolidity/semanticTests/constructor/function_usage_in_constructor_arguments.sol
@@ -182,4 +183,30 @@ contract TokenBase {
 
 contract EmptyBaseArgumentMask is TokenBase, PermitBase {
     constructor() TokenBase("Token", "TKN") PermitBase("Token") {}
+}
+
+contract WriterBaseA {
+    constructor(uint256) {}
+}
+
+contract WriterBaseB {
+    constructor(uint256) {}
+}
+
+// Two contracts write a base constructor argument list, and each list has a
+// side effect. The list of the more derived writer runs first, so `order` ends
+// up as 12 rather than 21.
+abstract contract WriterMiddle is WriterBaseA, WriterBaseB {
+    uint256 public order;
+
+    constructor() WriterBaseB(trace(2)) {}
+
+    function trace(uint256 digit) internal returns (uint256) {
+        order = order * 10 + digit;
+        return digit;
+    }
+}
+
+contract WriterDerived is WriterMiddle {
+    constructor() WriterBaseA(trace(1)) {}
 }

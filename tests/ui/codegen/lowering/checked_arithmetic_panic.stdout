@@ -163,7 +163,7 @@ fn @unchecked_pow(arg0: u256, arg1: u256) -> u256 [selector=0xef90b373, pure, ab
 
 fn @unchecked_call(arg0: u256, arg1: u256) -> u256 [selector=0x27805c8b, pure, abi_params=[u256, u256], abi_returns=[word]] {
   bb0:
-    v0 = internal_call @checked_inner, 1, arg0, arg1
+    v0 = icall @checked_inner, 1, arg0, arg1
     ret v0
 }
 

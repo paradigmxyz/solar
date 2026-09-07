@@ -7,9 +7,9 @@ fn @mappingEmpty() -> bool [selector=0x20f98002, abi_params=[], abi_returns=[wor
     v2 = alloc memorybytes, exact, zeroed, panic, v1
     set_memory_object_len memorybytes, v2, 0
     v3 = mapping_slot 0, 0
-    internal_call @store_storage_bytes, 0, v3, v2
+    icall @store_storage_bytes, 0, v3, v2
     v4 = mapping_slot 0, 0
-    v5 = internal_call @load_storage_bytes, 1, v4
+    v5 = icall @load_storage_bytes, 1, v4
     v6 = keccak256_bytes v5
     v7 = keccak256_bytes v2
     v8 = eq v6, v7
@@ -26,9 +26,9 @@ fn @mappingLong(arg0: bytes32, arg1: bytes1) -> bool [selector=0xa4972bce, abi_p
     memory_object_store_word memorybytes, v3, 0, arg0
     memory_object_store_word memorybytes, v3, 32, v0
     v4 = mapping_slot 0, 0
-    internal_call @store_storage_bytes, 0, v4, v3
+    icall @store_storage_bytes, 0, v4, v3
     v5 = mapping_slot 0, 0
-    v6 = internal_call @load_storage_bytes, 1, v5
+    v6 = icall @load_storage_bytes, 1, v5
     v7 = keccak256_bytes v6
     v8 = keccak256_bytes v3
     v9 = eq v7, v8
@@ -44,9 +44,9 @@ fn @mappingShort(arg0: bytes31) -> bool [selector=0xd17dedff, abi_params=[bytes3
     set_memory_object_len memorybytes, v3, 31
     memory_object_store_word memorybytes, v3, 0, v0
     v4 = mapping_slot 1, 0
-    internal_call @store_storage_bytes, 0, v4, v3
+    icall @store_storage_bytes, 0, v4, v3
     v5 = mapping_slot 1, 0
-    v6 = internal_call @load_storage_bytes, 1, v5
+    v6 = icall @load_storage_bytes, 1, v5
     v7 = keccak256_bytes v6
     v8 = keccak256_bytes v3
     v9 = eq v7, v8
@@ -61,9 +61,9 @@ fn @mappingWord(arg0: bytes32) -> bool [selector=0x95027de5, abi_params=[bytes32
     set_memory_object_len memorybytes, v2, 32
     memory_object_store_word memorybytes, v2, 0, arg0
     v3 = mapping_slot 2, 0
-    internal_call @store_storage_bytes, 0, v3, v2
+    icall @store_storage_bytes, 0, v3, v2
     v4 = mapping_slot 2, 0
-    v5 = internal_call @load_storage_bytes, 1, v4
+    v5 = icall @load_storage_bytes, 1, v4
     v6 = keccak256_bytes v5
     v7 = keccak256_bytes v2
     v8 = eq v6, v7
@@ -81,9 +81,9 @@ fn @mappingTwoWords(arg0: bytes32, arg1: bytes32, arg2: bytes1) -> bool [selecto
     memory_object_store_word memorybytes, v3, 32, arg1
     memory_object_store_word memorybytes, v3, 64, v0
     v4 = mapping_slot 3, 0
-    internal_call @store_storage_bytes, 0, v4, v3
+    icall @store_storage_bytes, 0, v4, v3
     v5 = mapping_slot 3, 0
-    v6 = internal_call @load_storage_bytes, 1, v5
+    v6 = icall @load_storage_bytes, 1, v5
     v7 = keccak256_bytes v6
     v8 = keccak256_bytes v3
     v9 = eq v7, v8
@@ -100,9 +100,9 @@ fn @mappingReference(arg0: bytes32, arg1: bytes1) -> bool [selector=0xe1bd71bc, 
     memory_object_store_word memorybytes, v3, 0, arg0
     memory_object_store_word memorybytes, v3, 32, v0
     v4 = mapping_slot 4, 0
-    internal_call @store_storage_bytes, 0, v4, v3
+    icall @store_storage_bytes, 0, v4, v3
     v5 = mapping_slot 4, 0
-    v6 = internal_call @load_storage_bytes, 1, v5
+    v6 = icall @load_storage_bytes, 1, v5
     v7 = keccak256_bytes v6
     v8 = keccak256_bytes v3
     v9 = eq v7, v8
@@ -120,10 +120,10 @@ fn @nestedMapping(arg0: bytes32, arg1: bytes1) -> bool [selector=0x9670c676, abi
     memory_object_store_word memorybytes, v3, 32, v0
     v4 = mapping_slot 0, 1
     v5 = mapping_slot 1, v4
-    internal_call @store_storage_bytes, 0, v5, v3
+    icall @store_storage_bytes, 0, v5, v3
     v6 = mapping_slot 0, 1
     v7 = mapping_slot 1, v6
-    v8 = internal_call @load_storage_bytes, 1, v7
+    v8 = icall @load_storage_bytes, 1, v7
     v9 = keccak256_bytes v8
     v10 = keccak256_bytes v3
     v11 = eq v9, v10
@@ -139,8 +139,8 @@ fn @structField(arg0: bytes32, arg1: bytes1) -> bool [selector=0xc85878d4, abi_p
     set_memory_object_len memorybytes, v3, 33
     memory_object_store_word memorybytes, v3, 0, arg0
     memory_object_store_word memorybytes, v3, 32, v0
-    internal_call @store_storage_bytes, 0, 3, v3
-    v4 = internal_call @load_storage_bytes, 1, 3
+    icall @store_storage_bytes, 0, 3, v3
+    v4 = icall @load_storage_bytes, 1, 3
     v5 = keccak256_bytes v4
     v6 = keccak256_bytes v3
     v7 = eq v5, v6
@@ -156,8 +156,8 @@ fn @directValue(arg0: bytes32, arg1: bytes1) -> bool [selector=0xdb5536af, abi_p
     set_memory_object_len memorybytes, v3, 33
     memory_object_store_word memorybytes, v3, 0, arg0
     memory_object_store_word memorybytes, v3, 32, v0
-    internal_call @store_storage_bytes, 0, 4, v3
-    v4 = internal_call @load_storage_bytes, 1, 4
+    icall @store_storage_bytes, 0, 4, v3
+    v4 = icall @load_storage_bytes, 1, 4
     v5 = keccak256_bytes v4
     v6 = keccak256_bytes v3
     v7 = eq v5, v6
@@ -174,9 +174,9 @@ fn @internalReference(arg0: bytes32, arg1: bytes1) -> bool [selector=0xd14b1bf5,
     memory_object_store_word memorybytes, v3, 0, arg0
     memory_object_store_word memorybytes, v3, 32, v0
     v4 = mapping_slot 5, 0
-    internal_call @store_storage_bytes, 0, v4, v3
+    icall @store_storage_bytes, 0, v4, v3
     v5 = mapping_slot 5, 0
-    v6 = internal_call @hashStorageBytes, 1, v5
+    v6 = icall @hashStorageBytes, 1, v5
     v7 = keccak256_bytes v3
     v8 = eq v6, v7
     ret v8
@@ -184,7 +184,7 @@ fn @internalReference(arg0: bytes32, arg1: bytes1) -> bool [selector=0xd14b1bf5,
 
 fn @hashStorageBytes(arg0: storageptr) -> bytes32 [pure] {
   bb0:
-    v0 = internal_call @load_storage_bytes, 1, arg0
+    v0 = icall @load_storage_bytes, 1, arg0
     v1 = keccak256_bytes v0
     ret v1
 }
@@ -199,9 +199,9 @@ fn @mappingString(arg0: bytes32, arg1: bytes1) -> bool [selector=0x4cbcb134, abi
     memory_object_store_word memorybytes, v3, 0, arg0
     memory_object_store_word memorybytes, v3, 32, v0
     v4 = mapping_slot 0, 2
-    internal_call @store_storage_bytes, 0, v4, v3
+    icall @store_storage_bytes, 0, v4, v3
     v5 = mapping_slot 0, 2
-    v6 = internal_call @load_storage_bytes, 1, v5
+    v6 = icall @load_storage_bytes, 1, v5
     v7 = keccak256_bytes v6
     v8 = keccak256_bytes v3
     v9 = eq v7, v8
@@ -218,9 +218,9 @@ fn @mappingStringErc7201(arg0: bytes32, arg1: bytes1) -> bool [selector=0x55edb0
     memory_object_store_word memorybytes, v3, 0, arg0
     memory_object_store_word memorybytes, v3, 32, v0
     v4 = mapping_slot 1, 2
-    internal_call @store_storage_bytes, 0, v4, v3
+    icall @store_storage_bytes, 0, v4, v3
     v5 = mapping_slot 1, 2
-    v6 = internal_call @load_storage_bytes, 1, v5
+    v6 = icall @load_storage_bytes, 1, v5
     v7 = keccak256_bytes v6
     v8 = sub v7, 1
     v9 = alloc memorybytes, exact, uninitialized, infallible, 64
@@ -286,7 +286,7 @@ fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
     v19 = and v2, v18
     jumpi v19, bb5, bb6
   bb5:
-    internal_call @clear_storage_words, 0, arg0, v17, v12
+    icall @clear_storage_words, 0, arg0, v17, v12
     jump bb6
   bb6:
     jumpi v16, bb7, bb8

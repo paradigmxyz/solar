@@ -24,13 +24,13 @@ function flip(BalanceDelta) pure returns (BalanceDelta) {
 
 contract UserDefinedOperators {
     // UDO-LABEL: fn @doAdd
-    // UDO: internal_call
+    // UDO: icall
     function doAdd(int256 x, int256 y) public pure returns (int256) {
         return BalanceDelta.unwrap(BalanceDelta.wrap(x) + BalanceDelta.wrap(y));
     }
 
     // UDO-LABEL: fn @doNeg
-    // UDO: internal_call
+    // UDO: icall
     function doNeg(int256 x) public pure returns (int256) {
         return BalanceDelta.unwrap(-BalanceDelta.wrap(x));
     }

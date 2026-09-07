@@ -1,4 +1,11 @@
 //! Lower semantic memory/storage aggregate operations to word operations.
+//!
+//! Walk each function after the main optimization pipeline and expand aggregate
+//! copies, loads, and clears using their recorded storage layouts. Packed fields
+//! are grouped by slot; partial groups preserve uncovered bytes. Expansions can
+//! introduce loops, so the original control transfer and its source context move
+//! together to the final continuation block. Layouts remain explicit rather than
+//! being inferred again from physical memory operations.
 
 use crate::{
     mir::{
@@ -93,7 +100,7 @@ fn lower_function(func: &mut Function) -> bool {
     let blocks = func.blocks.indices();
     for block in blocks {
         let instructions = std::mem::take(&mut func.blocks[block].instructions);
-        let terminator = func.blocks[block].terminator.take();
+        let (terminator, terminator_metadata) = func.blocks[block].take_terminator();
         let mut builder = FunctionBuilder::new(func);
         builder.switch_to_block(block);
         for inst in instructions {
@@ -118,7 +125,9 @@ fn lower_function(func: &mut Function) -> bool {
             }
         }
         let current = builder.current_block();
+        // final_block: lowered_aggregate_ops; terminator !metadata(original block)
         builder.func_mut().blocks[current].terminator = terminator;
+        builder.func_mut().blocks[current].terminator_metadata = terminator_metadata;
     }
     true
 }

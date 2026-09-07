@@ -1,0 +1,29 @@
+// `debugInfo` only affects Yul IR output, which we do not emit; the components are
+// validated and otherwise ignored. `revertStrings: default` leaves metadata unchanged.
+// CHECK-NOT: "severity": "error"
+// CHECK: "metadata":
+// CHECK-NOT: revertStrings
+// CHECK: "deployedBytecode": {
+// CHECK: 08c379a0
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract A { function f(uint256 x) external pure returns (uint256) { require(x == 1, \"x must be one\"); return x; } }"
+    }
+  },
+  "settings": {
+    "debug": {
+      "revertStrings": "default",
+      "debugInfo": ["location", "snippet", "ast-id", "ethdebug", "*"]
+    },
+    "outputSelection": {
+      "*": {
+        "*": [
+          "metadata",
+          "evm.deployedBytecode.object"
+        ]
+      }
+    }
+  }
+}

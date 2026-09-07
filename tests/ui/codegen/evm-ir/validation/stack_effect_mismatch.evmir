@@ -2,5 +2,5 @@
 @module module
 
 bb0:
-  push 1 !meta(stack=0->0)
+  push 1 !metadata(stack=0->0)
   stop

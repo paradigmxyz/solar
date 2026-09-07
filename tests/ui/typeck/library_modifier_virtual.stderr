@@ -1,0 +1,20 @@
+error[3275]: modifiers in a library cannot be `virtual`
+   ╭▸ ROOT/tests/ui/typeck/library_modifier_virtual.sol:LL:CC
+   │
+LL │     modifier mv virtual { _; }
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[3275]: modifiers in a library cannot be `virtual`
+   ╭▸ ROOT/tests/ui/typeck/library_modifier_virtual.sol:LL:CC
+   │
+LL │     modifier m() virtual { _; }
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[7801]: library functions cannot be `virtual`
+   ╭▸ ROOT/tests/ui/typeck/library_modifier_virtual.sol:LL:CC
+   │
+LL │     function f() internal virtual returns (uint256) { return 1; }
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 3 previous errors
+

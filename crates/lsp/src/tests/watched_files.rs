@@ -100,7 +100,7 @@ async fn watched_file_specs_are_prepared_after_the_analysis_commit_unlocks() {
         result: AnalysisResult {
             analyzed_documents: AnalyzedDocuments::default(),
             diagnostics: DiagnosticMap::default(),
-            symbol_tables: SymbolTables::default(),
+            symbol_tables: Default::default(),
         },
         analysis_paths: AnalysisPathIndex {
             resolved_dependencies: FxHashSet::from_iter([
@@ -115,7 +115,7 @@ async fn watched_file_specs_are_prepared_after_the_analysis_commit_unlocks() {
     std::thread::scope(|scope| {
         let publisher = scope.spawn(move || {
             let _runtime = runtime.enter();
-            snapshot.publish_analysis_output(version, output)
+            snapshot.publish_analysis_output(version, output.into_shared())
         });
 
         let deadline = Instant::now() + ASYNC_TEST_TIMEOUT;
@@ -666,7 +666,7 @@ fn watched_file_specs_add_only_approved_dependency_parents() {
             crate::workspace::Workspace::load_foundry_bounded(
                 project.path("/workspace/foundry.toml"),
                 &[project.path("/workspace")],
-                crate::workspace::FoundryConfigContext::default(),
+                &mut crate::workspace::FoundryConfigContext::default(),
             )
             .unwrap(),
         ],
@@ -1284,7 +1284,7 @@ async fn synchronous_discovery_refreshes_watched_file_specs_before_analysis() {
     state.config = Arc::new(config);
     *state.watched_file_registration.desired_specs.lock() = Some(initial_specs);
 
-    state.rediscover_workspaces();
+    state.rediscover_workspaces().unwrap();
 
     let specs = state.watched_file_registration.desired_specs.lock();
     assert!(
@@ -1503,7 +1503,7 @@ async fn discovery_and_analysis_refresh_bounded_watched_file_specs() {
         result: AnalysisResult {
             analyzed_documents: AnalyzedDocuments::default(),
             diagnostics: DiagnosticMap::default(),
-            symbol_tables: SymbolTables::default(),
+            symbol_tables: Default::default(),
         },
         analysis_paths: AnalysisPathIndex {
             resolved_dependencies: FxHashSet::from_iter([
@@ -1514,7 +1514,7 @@ async fn discovery_and_analysis_refresh_bounded_watched_file_specs() {
             ..Default::default()
         },
     };
-    assert!(state.snapshot().publish_analysis_output(version, output));
+    assert!(state.snapshot().publish_analysis_output(version, output.into_shared()));
     let published_specs = state.watched_file_registration.desired_specs.lock().clone().unwrap();
     assert!(
         published_specs

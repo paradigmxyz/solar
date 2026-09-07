@@ -21,7 +21,6 @@ contract C {
         //~[homestead]^ ERROR: typed catch clause requires Byzantium-compatible EVM
         } catch (bytes memory) {
         //~[homestead]^ ERROR: typed catch clause requires Byzantium-compatible EVM
-        } catch {
         }
     }
 }

@@ -2,13 +2,16 @@
 
 use super::{
     AbiEncodeMode, AllocationSemantics, BlockId, FrameMode, FrameSlotKind, Function, FunctionId,
-    Immediate, ImmutableId, InstId, InstKind, Instruction, MemoryObjectKind, MemoryObjectLayout,
-    MemoryRegion, MirType, SliceLocation, StorageAlias, Terminator, Value, ValueId,
+    Immediate, ImmutableId, InstId, InstKind, Instruction, InstructionMetadata, MemoryObjectKind,
+    MemoryObjectLayout, MemoryRegion, MirType, SliceLocation, StorageAlias, Terminator, Value,
+    ValueId,
 };
 use crate::memory::EvmMemoryLayout;
 use alloy_primitives::U256;
 use smallvec::SmallVec;
+use solar_config::RevertStrings;
 use solar_data_structures::map::FxHashMap;
+use solar_interface::Span;
 
 /// Solidity's built-in `Panic(uint256)` error codes.
 #[repr(u8)]
@@ -74,10 +77,104 @@ macro_rules! impl_signed_to_uint {
 
 impl_signed_to_uint!(i8, i16, i32, i64, i128, isize);
 
+/// The Error(string) selector, `keccak256("Error(string)")[..4]`, left-aligned in a word.
+pub(crate) const ERROR_SELECTOR: U256 = U256::from_limbs([0, 0, 0, 0x08c3_79a0_u64 << 32]);
+
+/// Why a revert with no user-supplied payload fires.
+///
+/// These reverts carry no data by default. With `--revert-strings debug`, each reason other than
+/// [`RevertReason::Empty`] is encoded as an `Error(string)` payload with the same message solc
+/// attaches to the corresponding check, so a failing transaction explains which internal check
+/// rejected it.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub(crate) enum RevertReason {
+    /// Empty data in every mode: `require` and `revert()` without a message, stripped messages,
+    /// and checks solc never attaches a message to, such as decoded ABI word validators.
+    Empty,
+    /// A non-payable external entry point received Ether.
+    EtherSentToNonPayable,
+    /// The selector did not match any external function and no fallback exists, but the
+    /// contract has a `receive` function.
+    UnknownSelector,
+    /// The call matched nothing and the contract has neither a fallback nor a `receive`.
+    NoFallbackNorReceive,
+    /// ABI-encoded input ends before the static head of a tuple.
+    TupleDataTooShort,
+    /// A tuple element offset points outside the encoded input.
+    InvalidTupleOffset,
+    /// A dynamic array or `bytes` head offset points outside the encoded input.
+    InvalidCalldataArrayOffset,
+    /// A dynamic array or `bytes calldata` length exceeds the encodable range.
+    InvalidCalldataArrayLength,
+    /// A dynamic array's element data does not fit the encoded input.
+    InvalidCalldataArrayStride,
+    /// A `bytes` or `string` decoded to memory does not fit the encoded input.
+    InvalidByteArrayLength,
+    /// A struct member offset exceeds the encodable range.
+    InvalidStructOffset,
+    /// Calldata ends before the static head of a struct.
+    StructCalldataTooShort,
+    /// ABI-encoded memory data ends before the static head of a struct.
+    StructDataTooShort,
+    /// A calldata array element or struct member offset is out of range while re-encoding.
+    InvalidCalldataAccessOffset,
+    /// A calldata array element length exceeds the encodable range while re-encoding.
+    InvalidCalldataAccessLength,
+    /// A calldata array element's data does not fit in calldata while re-encoding.
+    InvalidCalldataAccessStride,
+    /// A calldata tail element offset is out of range.
+    InvalidCalldataTailOffset,
+    /// A calldata tail element length exceeds the encodable range.
+    InvalidCalldataTailLength,
+    /// A calldata tail element's data does not fit in calldata.
+    CalldataTailTooShort,
+    /// A slice end exceeds the sliced value's length.
+    SliceGreaterThanLength,
+    /// A slice starts after its end.
+    SliceStartsAfterEnd,
+    /// An external call target has no code.
+    TargetContractHasNoCode,
+    /// A non-view library function was called directly instead of through `DELEGATECALL`.
+    LibraryCalledWithoutDelegatecall,
+}
+
+impl RevertReason {
+    /// The message solc attaches to this check with `--revert-strings debug`, if any.
+    pub(crate) const fn message(self) -> Option<&'static str> {
+        Some(match self {
+            Self::Empty => return None,
+            Self::EtherSentToNonPayable => "Ether sent to non-payable function",
+            Self::UnknownSelector => "Unknown signature and no fallback defined",
+            Self::NoFallbackNorReceive => "Contract does not have fallback nor receive functions",
+            Self::TupleDataTooShort => "ABI decoding: tuple data too short",
+            Self::InvalidTupleOffset => "ABI decoding: invalid tuple offset",
+            Self::InvalidCalldataArrayOffset => "ABI decoding: invalid calldata array offset",
+            Self::InvalidCalldataArrayLength => "ABI decoding: invalid calldata array length",
+            Self::InvalidCalldataArrayStride => "ABI decoding: invalid calldata array stride",
+            Self::InvalidByteArrayLength => "ABI decoding: invalid byte array length",
+            Self::InvalidStructOffset => "ABI decoding: invalid struct offset",
+            Self::StructCalldataTooShort => "ABI decoding: struct calldata too short",
+            Self::StructDataTooShort => "ABI decoding: struct data too short",
+            Self::InvalidCalldataAccessOffset => "Invalid calldata access offset",
+            Self::InvalidCalldataAccessLength => "Invalid calldata access length",
+            Self::InvalidCalldataAccessStride => "Invalid calldata access stride",
+            Self::InvalidCalldataTailOffset => "Invalid calldata tail offset",
+            Self::InvalidCalldataTailLength => "Invalid calldata tail length",
+            Self::CalldataTailTooShort => "Calldata tail too short",
+            Self::SliceGreaterThanLength => "Slice is greater than length",
+            Self::SliceStartsAfterEnd => "Slice starts after end",
+            Self::TargetContractHasNoCode => "Target contract does not contain code",
+            Self::LibraryCalledWithoutDelegatecall => {
+                "Non-view function of library called without DELEGATECALL"
+            }
+        })
+    }
+}
+
 #[derive(Clone, Copy, Eq, Hash, PartialEq)]
 enum RevertKind {
-    Empty,
     Panic(PanicCode),
+    Reason(RevertReason),
 }
 
 /// Revert blocks shared while constructing one MIR function.
@@ -92,6 +189,10 @@ pub(crate) struct FunctionBuilder<'a> {
     current_block: BlockId,
     /// Revert blocks shared within this function.
     revert_blocks: RevertBlocks,
+    /// Source context attached to instructions emitted in the current lowering scope.
+    current_debug_context: InstructionMetadata,
+    /// How compiler-generated reverts with a [`RevertReason`] are encoded.
+    revert_strings: RevertStrings,
 }
 
 /// A counted loop whose body is the builder's current block.
@@ -111,7 +212,59 @@ impl CountedLoop {
 impl<'a> FunctionBuilder<'a> {
     /// Creates a new function builder.
     pub(crate) fn new(func: &'a mut Function) -> Self {
-        Self { func, current_block: BlockId::ENTRY, revert_blocks: RevertBlocks::default() }
+        Self {
+            func,
+            current_block: BlockId::ENTRY,
+            revert_blocks: RevertBlocks::default(),
+            current_debug_context: InstructionMetadata::EMPTY,
+            revert_strings: RevertStrings::Default,
+        }
+    }
+
+    /// Selects how compiler-generated reverts with a [`RevertReason`] are encoded.
+    ///
+    /// Only `debug` changes the output: reasons then revert with an `Error(string)` payload
+    /// instead of empty data.
+    pub(crate) fn with_revert_strings(mut self, revert_strings: RevertStrings) -> Self {
+        self.revert_strings = revert_strings;
+        self
+    }
+
+    /// Returns `true` if reasons revert with an `Error(string)` payload.
+    ///
+    /// Lowering can use this to split a fused check into per-reason checks only when the
+    /// reasons are observable, keeping the default output unchanged.
+    pub(crate) fn encodes_revert_reasons(&self) -> bool {
+        self.revert_strings.is_debug()
+    }
+
+    /// Replaces the source span attached to newly emitted instructions.
+    pub(crate) fn replace_source_span(&mut self, span: Span) -> Span {
+        let previous = self.current_debug_context.source_span().unwrap_or(Span::DUMMY);
+        self.current_debug_context.set_debug_source_span(Some(span));
+        previous
+    }
+
+    /// Replaces the modifier nesting depth attached to newly emitted instructions.
+    pub(crate) fn replace_modifier_depth(&mut self, depth: u32) -> u32 {
+        let previous = self.current_debug_context.modifier_depth();
+        self.current_debug_context.set_modifier_depth(depth);
+        previous
+    }
+
+    /// Inherits source context while replacing an instruction or control transfer.
+    pub(crate) fn set_debug_context(&mut self, metadata: &InstructionMetadata) {
+        self.current_debug_context.copy_debug_context(metadata);
+    }
+
+    /// Inherits the source context of a terminator being lowered in this block.
+    pub(crate) fn inherit_terminator_debug_context(&mut self, block: BlockId) {
+        let metadata = self.func.blocks[block].terminator_metadata.clone();
+        self.set_debug_context(&metadata);
+    }
+
+    fn set_current_debug_context(&self, metadata: &mut InstructionMetadata) {
+        metadata.copy_debug_context(&self.current_debug_context);
     }
 
     /// Returns the current block.
@@ -120,7 +273,10 @@ impl<'a> FunctionBuilder<'a> {
         self.current_block
     }
 
-    /// Switches to a different block.
+    /// Switches blocks without changing the enclosing source-lowering scope.
+    ///
+    /// Rewrites using a fresh builder must explicitly inherit the debug context
+    /// of the instruction or terminator they replace after switching blocks.
     pub(crate) fn switch_to_block(&mut self, block: BlockId) {
         self.current_block = block;
     }
@@ -215,18 +371,58 @@ impl<'a> FunctionBuilder<'a> {
         self.branch_to_revert(condition, true, RevertKind::Panic(code));
     }
 
-    /// Reverts with empty data when `condition` is true.
-    pub(crate) fn revert_if(&mut self, condition: ValueId) -> BlockId {
-        self.revert_if_with(condition, false)
+    /// Reverts for `reason` when `condition` is true.
+    ///
+    /// The data is empty unless the builder encodes revert reasons; see
+    /// [`Self::with_revert_strings`].
+    pub(crate) fn revert_if(&mut self, condition: ValueId, reason: RevertReason) -> BlockId {
+        self.branch_to_revert(condition, false, RevertKind::Reason(reason))
     }
 
-    /// Reverts with empty data when `condition` is zero.
-    pub(crate) fn revert_if_zero(&mut self, condition: ValueId) -> BlockId {
-        self.revert_if_with(condition, true)
+    /// Reverts for `reason` when `condition` is zero.
+    pub(crate) fn revert_if_zero(&mut self, condition: ValueId, reason: RevertReason) -> BlockId {
+        self.branch_to_revert(condition, true, RevertKind::Reason(reason))
     }
 
-    fn revert_if_with(&mut self, condition: ValueId, condition_is_zero: bool) -> BlockId {
-        self.branch_to_revert(condition, condition_is_zero, RevertKind::Empty)
+    /// Terminates the current block by reverting for `reason`.
+    pub(crate) fn revert_with(&mut self, reason: RevertReason) {
+        match reason.message() {
+            Some(message) if self.encodes_revert_reasons() => self.revert_error_string(message),
+            _ => {
+                // revert(0, 0)
+                let zero = self.imm(0);
+                self.revert(zero, zero);
+            }
+        }
+    }
+
+    /// Reverts with `abi_encode(Error(string), message)` for a constant `message`.
+    fn revert_error_string(&mut self, message: &str) {
+        // mstore(0, Error(string).selector)
+        // mstore(4, 32)
+        // mstore(36, len)
+        // mstore(68 + 32 * i, word_i) for each 32-byte chunk of message
+        // revert(0, 68 + ceil32(len))
+        let selector = self.imm(ERROR_SELECTOR);
+        let zero = self.imm(0);
+        self.mstore(zero, selector);
+        let offset = self.imm(4);
+        let tuple_offset = self.imm(32);
+        self.mstore(offset, tuple_offset);
+        let length_offset = self.imm(36);
+        let length = self.imm(message.len() as u64);
+        self.mstore(length_offset, length);
+        let mut data_offset = 68u64;
+        for chunk in message.as_bytes().chunks(32) {
+            let mut word = [0u8; 32];
+            word[..chunk.len()].copy_from_slice(chunk);
+            let offset = self.imm(data_offset);
+            let word = self.imm(U256::from_be_bytes(word));
+            self.mstore(offset, word);
+            data_offset += 32;
+        }
+        let size = self.imm(data_offset);
+        self.revert(zero, size);
     }
 
     fn branch_to_revert(
@@ -245,11 +441,8 @@ impl<'a> FunctionBuilder<'a> {
         if new_revert {
             self.switch_to_block(revert);
             match kind {
-                RevertKind::Empty => {
-                    let zero = self.imm(0);
-                    self.revert(zero, zero);
-                }
                 RevertKind::Panic(code) => self.panic(code),
+                RevertKind::Reason(reason) => self.revert_with(reason),
             }
         }
         self.switch_to_block(continue_block);
@@ -257,7 +450,24 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     fn revert_block(&mut self, kind: RevertKind) -> (BlockId, bool) {
+        // Without encoded reasons every reason reverts with empty data, so share one block.
+        let kind = match kind {
+            RevertKind::Reason(reason)
+                if !self.encodes_revert_reasons() || reason.message().is_none() =>
+            {
+                RevertKind::Reason(RevertReason::Empty)
+            }
+            kind => kind,
+        };
         if let Some(&block) = self.revert_blocks.0.get(&kind) {
+            // Shared revert body !metadata(union of all failed-check origins)
+            for index in 0..self.func.blocks[block].instructions.len() {
+                let inst = self.func.blocks[block].instructions[index];
+                self.func.inst_mut(inst).metadata.merge_debug_context(&self.current_debug_context);
+            }
+            self.func.blocks[block]
+                .terminator_metadata
+                .merge_debug_context(&self.current_debug_context);
             return (block, false);
         }
         let block = self.create_block();
@@ -363,6 +573,7 @@ impl<'a> FunctionBuilder<'a> {
         inst.metadata.set_effect(Some(inst.kind.effect_kind()));
         inst.metadata.set_memory_region(self.memory_region_for_inst(&inst.kind));
         inst.metadata.set_storage_alias(self.storage_alias_for_inst(&inst.kind));
+        self.set_current_debug_context(&mut inst.metadata);
         inst
     }
 
@@ -883,24 +1094,6 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_void_inst(InstKind::MemoryObjectCopyFromSliceAt { object, kind, offset, source });
     }
 
-    /// Copies a byte range between two dynamic memory objects.
-    pub(crate) fn memory_object_copy(
-        &mut self,
-        destination: ValueId,
-        destination_kind: crate::mir::MemoryObjectKind,
-        source: ValueId,
-        source_kind: crate::mir::MemoryObjectKind,
-        length: ValueId,
-    ) {
-        self.emit_void_inst(InstKind::MemoryObjectCopy {
-            destination,
-            destination_kind,
-            source,
-            source_kind,
-            length,
-        });
-    }
-
     fn alloc_kind(
         &mut self,
         size: ValueId,
@@ -1153,7 +1346,7 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     /// Emits an internal function call.
-    pub(crate) fn internal_call(
+    pub(crate) fn icall(
         &mut self,
         function: FunctionId,
         args: Vec<ValueId>,
@@ -1161,21 +1354,13 @@ impl<'a> FunctionBuilder<'a> {
         returns: usize,
     ) -> ValueId {
         let returns = u32::try_from(returns).expect("too many internal call return values");
-        self.emit_inst(
-            InstKind::InternalCall { function, args: args.into(), returns },
-            Some(result_ty),
-        )
+        self.emit_inst(InstKind::ICall { function, args: args.into(), returns }, Some(result_ty))
     }
 
     /// Emits an internal function call whose result, if any, is not used as a value.
-    pub(crate) fn internal_call_void(
-        &mut self,
-        function: FunctionId,
-        args: Vec<ValueId>,
-        returns: usize,
-    ) {
+    pub(crate) fn icall_void(&mut self, function: FunctionId, args: Vec<ValueId>, returns: usize) {
         let returns = u32::try_from(returns).expect("too many internal call return values");
-        self.emit_void_inst(InstKind::InternalCall { function, args: args.into(), returns });
+        self.emit_void_inst(InstKind::ICall { function, args: args.into(), returns });
     }
 
     /// Emits an address inside the current internal-call frame.
@@ -1571,7 +1756,9 @@ impl<'a> FunctionBuilder<'a> {
         for successor in terminator.successors() {
             self.func.blocks[successor].predecessors.push(current);
         }
-        self.func.blocks[current].terminator = Some(terminator);
+        let mut metadata = InstructionMetadata::EMPTY;
+        self.set_current_debug_context(&mut metadata);
+        self.func.blocks[current].set_terminator(terminator, metadata);
     }
 
     /// Returns a reference to the function.

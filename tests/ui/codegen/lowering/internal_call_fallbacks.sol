@@ -3,29 +3,29 @@
 //@[mir] filecheck:
 //@ run-call: callEntry 41 => 42
 
-contract InternalCallFallbacks {
+contract ICallFallbacks {
     // CHECK-LABEL: fn @recurse{{[( ]}}
-    // CHECK: {{v[0-9]+}} = internal_call @a, 1, arg0
+    // CHECK: {{v[0-9]+}} = icall @a, 1, arg0
     function recurse(uint256 x) public returns (uint256) {
         return a(x);
     }
 
     // CHECK-LABEL: fn @a{{[( ]}}
     // CHECK: [[NEXT:v[0-9]+]] = sub arg0, 1
-    // CHECK: internal_call @b, 1, [[NEXT]]
+    // CHECK: icall @b, 1, [[NEXT]]
     function a(uint256 x) internal returns (uint256) {
         return x == 0 ? 0 : b(x - 1);
     }
 
     // CHECK-LABEL: fn @b{{[( ]}}
     // CHECK: [[NEXT:v[0-9]+]] = sub arg0, 1
-    // CHECK: internal_call @a, 1, [[NEXT]]
+    // CHECK: icall @a, 1, [[NEXT]]
     function b(uint256 x) internal returns (uint256) {
         return x == 0 ? 0 : a(x - 1);
     }
 
     // CHECK-LABEL: fn @multi{{[( ]}}
-    // CHECK: internal_call @pair, 2, arg0
+    // CHECK: icall @pair, 2, arg0
     // CHECK: frame_load multi_return, word, 0
     // CHECK: [[PTR:v[0-9]+]] = add {{v[0-9]+}}, 32
     // CHECK: mload [[PTR]]
@@ -42,8 +42,8 @@ contract InternalCallFallbacks {
     }
 
     // CHECK-LABEL: fn @callVoid{{[( ]}}
-    // CHECK-NOT: = internal_call @branchingVoid, 0, arg0
-    // CHECK: internal_call @branchingVoid, 0, arg0
+    // CHECK-NOT: = icall @branchingVoid, 0, arg0
+    // CHECK: icall @branchingVoid, 0, arg0
     function callVoid(uint256 x) public pure {
         branchingVoid(x);
     }

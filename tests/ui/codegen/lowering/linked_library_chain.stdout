@@ -7,22 +7,32 @@ bb0:
 // === ROOT/tests/ui/codegen/lowering/linked_library_chain.sol:Inner (runtime) ===
 @module Inner_runtime
 bb0:
-  callvalue
-  push bb3
-  jumpi
   push 0
   calldataload
   push 224
   shr
   dup 1
   push 0xfaf4836c
-  sub
-  push bb3
+  eq
+  push bb1
+  jumpi
+  push 0
+  push 0
+  revert
+bb4 [cold]:
+  push 0
+  push 0
+  revert
+bb1:
+  push_immutable 0, 20
+  address
+  eq
+  push bb4
   jumpi
   push 68
   calldatasize
   lt
-  push bb3
+  push bb4
   jumpi
   push 4
   calldataload
@@ -34,7 +44,7 @@ bb0:
   swap 1
   dup 2
   lt
-  push bb7
+  push bb8
   jumpi
   push 4
   calldataload
@@ -47,11 +57,7 @@ bb0:
   push 32
   push 128
   return
-bb3 [cold]:
-  push 0
-  push 0
-  revert
-bb7 [cold]:
+bb8 [cold]:
   push 0x4e487b71
   push 224
   shl
@@ -66,17 +72,27 @@ bb7 [cold]:
 // === ROOT/tests/ui/codegen/lowering/linked_library_chain.sol:Outer (runtime) ===
 @module Outer_runtime
 bb0:
-  callvalue
-  push bb3
-  jumpi
   push 0
   calldataload
   push 224
   shr
   dup 1
   push 0x5e0b1cef
-  sub
-  push bb3
+  eq
+  push bb1
+  jumpi
+  push 0
+  push 0
+  revert
+bb14 [cold]:
+  push 0
+  push 0
+  revert
+bb1:
+  push_immutable 0, 20
+  address
+  eq
+  push bb14
   jumpi
   push 256
   push 64
@@ -84,25 +100,21 @@ bb0:
   push 68
   calldatasize
   lt
-  push bb3
+  push bb14
   jumpi
   push 36
   calldataload
-  push bb7
+  push bb8
   jumpi
   push 0
-  jump bb13
-bb13:
+  jump bb15
+bb15:
   push 128
   mstore
   push 32
   push 128
   return
-bb3 [cold]:
-  push 0
-  push 0
-  revert
-bb7:
+bb8:
   push 64
   mload
   push 96
@@ -139,7 +151,7 @@ bb7:
   swap 1
   pop
   iszero
-  push bb11
+  push bb12
   jumpi
   returndatasize
   push 63
@@ -148,7 +160,7 @@ bb7:
   dup 2
   dup 2
   lt
-  push bb12
+  push bb13
   jumpi
   push 31
   not
@@ -182,11 +194,11 @@ bb7:
   push 32
   gt
   or
-  push bb3
+  push bb14
   jumpi
   mload
-  jump bb13
-bb11 [cold]:
+  jump bb15
+bb12 [cold]:
   returndatasize
   push 0
   push 0
@@ -194,7 +206,7 @@ bb11 [cold]:
   returndatasize
   push 0
   revert
-bb12 [cold]:
+bb13 [cold]:
   push 0x4e487b71
   push 224
   shl

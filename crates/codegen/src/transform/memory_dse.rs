@@ -1630,7 +1630,7 @@ impl MemoryStoreEliminator {
             let effects = self.alias().instruction_mod_ref(func, inst_id);
             effects.observes_gas()
                 || effects.observes_memory_size()
-                || matches!(func.inst(inst_id).kind, InstKind::InternalCall { .. })
+                || matches!(func.inst(inst_id).kind, InstKind::ICall { .. })
         })
     }
 

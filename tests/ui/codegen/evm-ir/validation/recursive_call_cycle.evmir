@@ -1,0 +1,22 @@
+// A cycle through a call-shaped edge leaves one more return address on the stack every round, so
+// its depth is a runtime property and the walk must not accumulate it.
+@module module
+
+bb0:
+  push bb4
+  jump bb1
+
+bb1:
+  push 0
+  calldataload
+  jumpi bb2, bb3
+
+bb2:
+  push bb3
+  jump bb1
+
+bb3:
+  jump
+
+bb4:
+  stop

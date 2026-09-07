@@ -1,0 +1,174 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/this_call_delegated_guard.sol:Impl ===
+@module Impl
+fn @initialized() -> u256 [selector=0x158ef93e, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @init() [selector=0xe1c7392a, abi_params=[], abi_returns=[]] {
+  bb0:
+    v0 = address
+    v1 = gas
+    v2 = abi_encode [], selector 0x5c36b18600000000000000000000000000000000000000000000000000000000
+    v3 = slice_ptr v2
+    v4 = slice_len v2
+    v5 = extcodesize v0
+    v6 = iszero v5
+    jumpi v6, bb1, bb2
+  bb2:
+    v7 = call v1, v0, 0, v3, v4, 0, 0
+    jumpi v7, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    sstore 0, 1 !metadata(storage=slot(0))
+    stop
+  bb1:
+    revert 0, 0
+}
+
+fn @ping() [selector=0x5c36b186, abi_params=[], abi_returns=[]] {
+  bb0:
+    stop
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/this_call_delegated_guard.sol:Proxy ===
+@module Proxy
+fn @initialized() -> u256 [selector=0x158ef93e, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @constructor(arg0: address) [constructor, abi_params=[address]] {
+  bb0:
+    v0 = gas
+    v1 = abi_encode [], object, selector 0xe1c7392a00000000000000000000000000000000000000000000000000000000
+    v2 = memory_object_data memorybytes, v1
+    v3 = memory_object_len memorybytes, v1
+    v4 = delegatecall v0, arg0, v2, v3, 0, 0
+    v5 = iszero v4
+    jumpi v5, bb1, bb2
+  bb2:
+    stop
+  bb1:
+    icall @revert_error, 0, 11, 0x696e6974206661696c6564000000000000000000000000000000000000000000
+    invalid
+}
+
+fn @revert_error(arg0: u256, arg1: u256) {
+  bb0:
+    mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 32 !metadata(memory=scratch)
+    mstore 36, arg0 !metadata(memory=scratch)
+    mstore 68, arg1 !metadata(memory=scratch)
+    revert 0, 100
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/this_call_delegated_guard.sol:Deployer ===
+@module Deployer
+data:
+  Impl_initcode_0: hex"34600d5760c98060115f395ff35b5f5ffd346036575f3560e01c8063158ef93e14602a5780635c36b18614602e578063e1c7392a146032576036565b603a565b60c8565b604c565b5f5ffd5b5f546080526020608001608090036080f35b60e06040525a8060a0528060a0526040518060c0528060c052602081016040527f5c36b186000000000000000000000000000000000000000000000000000000008152600481015030806080523b151560a3575f5ffd5b8160a0528060c0525f5f6004835f3087f191505060c2573d5f5f3e3d5ffd5b60015f55005b"
+  Proxy_initcode_1: hex"6101c13803806101c16101403961014001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe016604052607d565b7f08c379a0000000000000000000000000000000000000000000000000000000005f52602060045260a0516040015160245260a0516060015160445260645ffd5b34610182576101408060c0528060c0526101406101c13803016020820111156101705761016c565b6040518060e0526040810160405260048152602081017fe1c7392a000000000000000000000000000000000000000000000000000000008152600490015060208101818060e052519150806101005281610120525f5f8383610140515af491505015156101675760405160a0518160200152600b81604001527f696e6974206661696c656400000000000000000000000000000000000000000081606001528060a052608001604052610155603c565b60a05160405260a0516020015160a052fe5b610186565b5f5ffd5b8060c0525160a01c151561016c5760a5565b5f5ffd5b6030806101915f395ff334601a575f3560e01c8063158ef93e14601657601a565b601e565b5f5ffd5b5f546080526020608001608090036080f3"
+
+fn @deployProxy() -> u256 [selector=0x44882b95, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 249, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy Impl_initcode_0, v3, 218
+    v4 = slice_ptr v0
+    v5 = add v3, 218
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 218
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
+    v8 = abi_encode [word<u160>], args v7
+    v9 = not 31
+    v10 = and 512, v9
+    v11 = alloc raw, exact, uninitialized, infallible, v10
+    data_copy Proxy_initcode_1, v11, 449
+    v12 = slice_ptr v8
+    v13 = add v11, 449
+    mcopy v13, v12, 32 !metadata(memory=heap)
+    v14 = create 0, v11, 481
+    jumpi v14, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v15 = gas
+    v16 = abi_encode [], selector 0x158ef93e00000000000000000000000000000000000000000000000000000000
+    v17 = slice_ptr v16
+    v18 = slice_len v16
+    v19 = staticcall v15, v14, v17, v18, 0, 32
+    jumpi v19, bb6, bb5
+  bb5:
+    revert_returndata
+  bb6:
+    v20 = returndatasize
+    v21 = lt v20, 32
+    jumpi v21, bb7, bb8
+  bb8:
+    v22 = add 0, 0
+    v23 = mload v22
+    v24 = add 0, 0
+    v25 = mload v24
+    ret v25
+  bb7:
+    revert 0, 0
+}
+
+fn @callImplDirectly() -> u256 [selector=0x0bba4d4b, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 249, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy Impl_initcode_0, v3, 218
+    v4 = slice_ptr v0
+    v5 = add v3, 218
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 218
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = gas
+    v8 = abi_encode [], selector 0xe1c7392a00000000000000000000000000000000000000000000000000000000
+    v9 = slice_ptr v8
+    v10 = slice_len v8
+    v11 = extcodesize v6
+    v12 = iszero v11
+    jumpi v12, bb3, bb4
+  bb4:
+    v13 = call v7, v6, 0, v9, v10, 0, 0
+    jumpi v13, bb6, bb5
+  bb5:
+    revert_returndata
+  bb6:
+    v14 = gas
+    v15 = abi_encode [], selector 0x158ef93e00000000000000000000000000000000000000000000000000000000
+    v16 = slice_ptr v15
+    v17 = slice_len v15
+    v18 = staticcall v14, v6, v16, v17, 0, 32
+    jumpi v18, bb8, bb7
+  bb7:
+    revert_returndata
+  bb8:
+    v19 = returndatasize
+    v20 = lt v19, 32
+    jumpi v20, bb3, bb9
+  bb9:
+    v21 = add 0, 0
+    v22 = mload v21
+    v23 = add 0, 0
+    v24 = mload v23
+    ret v24
+  bb3:
+    revert 0, 0
+}

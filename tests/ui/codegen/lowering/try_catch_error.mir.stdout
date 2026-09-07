@@ -7,7 +7,7 @@ fn @ok() [selector=0xd909b403, pure, abi_params=[], abi_returns=[]] {
 
 fn @fail() [selector=0xa9cc4718, pure, abi_params=[], abi_returns=[]] {
   bb0:
-    internal_call @revert_error, 0, 2, 0x6e6f000000000000000000000000000000000000000000000000000000000000
+    icall @revert_error, 0, 2, 0x6e6f000000000000000000000000000000000000000000000000000000000000
     invalid
 }
 
@@ -94,7 +94,7 @@ fn @success() -> u256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
   bb9:
     jump bb10
   bb8:
-    v24 = internal_call @try_decode_error_message, 1, v16, v17
+    v24 = icall @try_decode_error_message, 1, v16, v17
     jump bb10
   bb10:
     v25 = phi [bb8: v24], [bb9: 0]
@@ -174,7 +174,7 @@ fn @failure() -> u256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
   bb9:
     jump bb10
   bb8:
-    v24 = internal_call @try_decode_error_message, 1, v16, v17
+    v24 = icall @try_decode_error_message, 1, v16, v17
     jump bb10
   bb10:
     v25 = phi [bb8: v24], [bb9: 0]

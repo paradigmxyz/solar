@@ -1,0 +1,24 @@
+error[3542]: invalid catch clause name
+   ╭▸ ROOT/tests/ui/typeck/try_catch_clause_name.sol:LL:CC
+   │
+LL │           } catch Error2(string memory) {
+   │ ┏━━━━━━━━━━━┛
+LL │ ┃
+LL │ ┃         } catch abc(uint256) {
+   │ ┗━━━━━━━━━┛
+   │
+   ╰ help: expected `catch (...)`, `catch Error(...)`, or `catch Panic(...)`
+
+error[3542]: invalid catch clause name
+   ╭▸ ROOT/tests/ui/typeck/try_catch_clause_name.sol:LL:CC
+   │
+LL │           } catch abc(uint256) {
+   │ ┏━━━━━━━━━━━┛
+LL │ ┃
+LL │ ┃         }
+   │ ┗━━━━━━━━━┛
+   │
+   ╰ help: expected `catch (...)`, `catch Error(...)`, or `catch Panic(...)`
+
+error: aborting due to 2 previous errors
+

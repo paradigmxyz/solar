@@ -10,9 +10,9 @@
 //@ run-call: sumTriple 2 => 1474
 //@ run-call: sumSix 2 => 10599
 
-contract InternalCallMultiStackReturn {
+contract ICallMultiStackReturn {
     // A two-word stack return rotates the hidden return label above both results.
-    // CHECK-LABEL: @module InternalCallMultiStackReturn_runtime
+    // CHECK-LABEL: @module ICallMultiStackReturn_runtime
     // CHECK: push 256
     // CHECK-NEXT: push 64
     // CHECK-NEXT: mstore

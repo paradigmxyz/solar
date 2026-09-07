@@ -72,6 +72,9 @@ Options:
       -Zswitch-max-bit-slice-gas-code-growth <SWITCH_MAX_BIT_SLICE_GAS_CODE_GROWTH>
           Override the per-switch bit-slice table growth limit for benchmarking
 
+      -Zassert-planned-edge-spill-home
+          Assert instead of logging when a value is live across a planned stack edge into an already-emitted block without a spill home
+
       -Zhelp
           Print help
 

@@ -87,7 +87,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let struct_fields = self.cx.gcx.hir.strukt(struct_id).fields;
         let fields = struct_fields.len() as u64;
         if args.len() != fields as usize {
-            return self.cx.report_unsupported(expr.span, "struct constructor arguments");
+            return self.cx.report_unsupported(expr.span, "struct constructor argument list");
         }
         let parameter_names =
             self.cx.gcx.callable_param_names(CallableParamSource::Struct(struct_id));
@@ -164,15 +164,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let helper = self.ensure_bytes_word_helper();
             let word = self.lower_string_literal_word(bytes);
             let length = self.builder.imm(bytes.len() as u64);
-            self.builder.internal_call(
+            self.builder.icall(
                 helper,
                 vec![word, length],
                 MirType::MemoryObject(MemoryObjectKind::Bytes),
                 1,
             )
-        } else if self.cx.shared_literals.contains(&symbol) {
-            let helper = self.ensure_bytes_literal_helper(symbol);
-            self.builder.internal_call(
+        } else if let Some(index) = self.cx.shared_literals.get_index_of(&symbol) {
+            let helper = self.ensure_bytes_literal_helper(symbol, index);
+            self.builder.icall(
                 helper,
                 Vec::new(),
                 MirType::MemoryObject(MemoryObjectKind::Bytes),
@@ -235,9 +235,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(object)
     }
 
-    fn ensure_bytes_literal_helper(&mut self, symbol: ByteSymbol) -> FunctionId {
+    fn ensure_bytes_literal_helper(&mut self, symbol: ByteSymbol, index: usize) -> FunctionId {
         // literal_bytes() -> bytes
-        self.lazy_helper(helper_name(sym::literal_bytes, symbol.as_u32()), |this, function| {
+        self.lazy_helper(helper_name(sym::literal_bytes, index), |this, function| {
             let mut builder = FunctionBuilder::new(function);
             builder.add_return(MirType::MemoryObject(MemoryObjectKind::Bytes));
             let object = Self::build_bytes_literal(

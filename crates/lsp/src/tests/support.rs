@@ -528,10 +528,18 @@ impl RequestFixture {
 
     pub(super) fn check_selection_ranges(&self, markers: &[&str], expected: impl IntoData) {
         let mut state = self.state();
-        let (params, positions) = self.selection_range_request(markers);
-        let response =
-            block_on(crate::handlers::selection_range(&mut state, params)).unwrap().unwrap();
+        let (_, positions) = self.selection_range_request(markers);
+        let response = self.selection_range_response_in_state(&mut state, markers);
         check_selection_range_response(response, &positions, expected);
+    }
+
+    pub(super) fn selection_range_response_in_state(
+        &self,
+        state: &mut GlobalState,
+        markers: &[&str],
+    ) -> Vec<SelectionRange> {
+        let (params, _) = self.selection_range_request(markers);
+        block_on(crate::handlers::selection_range(state, params)).unwrap().unwrap()
     }
 
     pub(super) fn check_selection_ranges_at(
@@ -663,7 +671,7 @@ impl RequestFixture {
             crate::vfs::VfsPath::from(path),
             Some(crop::Rope::from(changed_contents)),
         );
-        *state.symbol_tables.write() = result.symbol_tables;
+        state.symbol_tables.store(Arc::new(result.symbol_tables));
         let position = self.marked.marker(marker).position();
         self.check_signature_help_in_state(&mut state, uri, position, expected);
     }
@@ -722,7 +730,7 @@ impl RequestFixture {
         }
         let output = outputs.finish();
         let state = self.state_with_label_offsets(true);
-        *state.symbol_tables.write() = output.result.symbol_tables;
+        state.symbol_tables.store(Arc::new(output.result.symbol_tables));
         state.analysis_commit.lock().analysis_paths = output.analysis_paths;
         state
     }
@@ -743,7 +751,7 @@ impl RequestFixture {
         }
         state.config = Arc::new(config);
         *state.vfs.write() = self.marked.project().vfs();
-        *state.symbol_tables.write() = self.result.symbol_tables.clone();
+        state.symbol_tables.store(Arc::new(self.result.symbol_tables.clone()));
         state.analysis_commit.lock().vfs_content_revision = state.vfs.read().content_revision();
         state
     }

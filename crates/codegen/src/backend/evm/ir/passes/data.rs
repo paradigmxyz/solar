@@ -220,15 +220,22 @@ fn materialize_data(gcx: Gcx<'_>, module: &mut Module, groups: RewriteGroups) ->
     }
     prepared.sort_unstable_by_key(|rewrite| (rewrite.block, rewrite.start));
     for rewrite in prepared.iter().rev() {
-        module.blocks[rewrite.block].instructions.splice(
-            rewrite.start..rewrite.end,
-            [
-                Instruction::push_value(U256::from(rewrite.size)),
-                Instruction::push_data(rewrite.data),
-                Instruction::opcode(op::DUP3),
-                Instruction::opcode(op::CODECOPY),
-            ],
-        );
+        let metadata = module.blocks[rewrite.block].instructions[rewrite.start].metadata.clone();
+        // push size
+        // push data
+        // dup 3
+        // codecopy
+        let replacement = [
+            Instruction::push_value(U256::from(rewrite.size)),
+            Instruction::push_data(rewrite.data),
+            Instruction::opcode(op::DUP3),
+            Instruction::opcode(op::CODECOPY),
+        ]
+        .map(|mut inst| {
+            inst.metadata.copy_source_debug_from(&metadata);
+            inst
+        });
+        module.blocks[rewrite.block].instructions.splice(rewrite.start..rewrite.end, replacement);
     }
     !prepared.is_empty()
 }

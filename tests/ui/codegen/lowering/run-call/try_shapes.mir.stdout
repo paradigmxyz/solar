@@ -66,7 +66,7 @@ fn @ok() -> u256 [selector=0xd909b403, pure, abi_params=[], abi_returns=[word]] 
 
 fn @bad() [selector=0x9c3674fc, pure, abi_params=[], abi_returns=[word]] {
   bb0:
-    internal_call @revert_error, 0, 4, 0x626f6f6d00000000000000000000000000000000000000000000000000000000
+    icall @revert_error, 0, 4, 0x626f6f6d00000000000000000000000000000000000000000000000000000000
     invalid
 }
 
@@ -103,7 +103,7 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word]] 
   bb8:
     jump bb9
   bb7:
-    v29 = internal_call @try_decode_error_message, 1, v21, v22
+    v29 = icall @try_decode_error_message, 1, v21, v22
     jump bb9
   bb9:
     v30 = phi [bb7: v29], [bb8: 0]
@@ -179,7 +179,7 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word]] 
   bb21:
     jump bb22
   bb20:
-    v79 = internal_call @try_decode_error_message, 1, v71, v72
+    v79 = icall @try_decode_error_message, 1, v71, v72
     jump bb22
   bb22:
     v80 = phi [bb20: v79], [bb21: 0]

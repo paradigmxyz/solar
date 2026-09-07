@@ -33,7 +33,7 @@ fn @f() -> (memorybytes, memorybytes) [selector=0x26121ff0, abi_params=[], abi_r
     sstore 1, v14 !metadata(storage=slot(1))
     v15 = add 1, 1
     v16 = memory_object_load_field memorystruct<4>, v0, 1
-    internal_call @store_storage_bytes, 0, v15, v16
+    icall @store_storage_bytes, 0, v15, v16
     v17 = add 1, 2
     v18 = memory_object_load_field memorystruct<4>, v0, 2
     v19 = sload v17 !metadata(storage=slot(3))
@@ -44,11 +44,11 @@ fn @f() -> (memorybytes, memorybytes) [selector=0x26121ff0, abi_params=[], abi_r
     sstore v17, v23 !metadata(storage=slot(3))
     v24 = add 1, 3
     v25 = memory_object_load_field memorystruct<4>, v0, 3
-    internal_call @store_storage_bytes, 0, v24, v25
+    icall @store_storage_bytes, 0, v24, v25
     v26 = add 1, 1
-    v27 = internal_call @load_storage_bytes, 1, v26
+    v27 = icall @load_storage_bytes, 1, v26
     v28 = add 1, 3
-    v29 = internal_call @load_storage_bytes, 1, v28
+    v29 = icall @load_storage_bytes, 1, v28
     ret v27, v29
 }
 
@@ -85,7 +85,7 @@ fn @g() -> (memorybytes, memorybytes) [selector=0xe2179b8e, abi_params=[], abi_r
     sstore 1, v14 !metadata(storage=slot(1))
     v15 = add 1, 1
     v16 = memory_object_load_field memorystruct<4>, v0, 1
-    internal_call @store_storage_bytes, 0, v15, v16
+    icall @store_storage_bytes, 0, v15, v16
     v17 = add 1, 2
     v18 = memory_object_load_field memorystruct<4>, v0, 2
     v19 = sload v17 !metadata(storage=slot(3))
@@ -96,11 +96,11 @@ fn @g() -> (memorybytes, memorybytes) [selector=0xe2179b8e, abi_params=[], abi_r
     sstore v17, v23 !metadata(storage=slot(3))
     v24 = add 1, 3
     v25 = memory_object_load_field memorystruct<4>, v0, 3
-    internal_call @store_storage_bytes, 0, v24, v25
+    icall @store_storage_bytes, 0, v24, v25
     v26 = add 1, 1
-    v27 = internal_call @load_storage_bytes, 1, v26
+    v27 = icall @load_storage_bytes, 1, v26
     v28 = add 1, 3
-    v29 = internal_call @load_storage_bytes, 1, v28
+    v29 = icall @load_storage_bytes, 1, v28
     ret v27, v29
 }
 
@@ -119,7 +119,7 @@ fn @h() -> (memorybytes, memorybytes) [selector=0xb8c9d365, abi_params=[], abi_r
     sstore 1, v6 !metadata(storage=slot(1))
     v7 = add 1, 1
     v8 = memory_object_load_field memorystruct<4>, v0, 1
-    internal_call @store_storage_bytes, 0, v7, v8
+    icall @store_storage_bytes, 0, v7, v8
     v9 = add 1, 2
     v10 = memory_object_load_field memorystruct<4>, v0, 2
     v11 = sload v9 !metadata(storage=slot(3))
@@ -130,11 +130,11 @@ fn @h() -> (memorybytes, memorybytes) [selector=0xb8c9d365, abi_params=[], abi_r
     sstore v9, v15 !metadata(storage=slot(3))
     v16 = add 1, 3
     v17 = memory_object_load_field memorystruct<4>, v0, 3
-    internal_call @store_storage_bytes, 0, v16, v17
+    icall @store_storage_bytes, 0, v16, v17
     v18 = add 1, 1
-    v19 = internal_call @load_storage_bytes, 1, v18
+    v19 = icall @load_storage_bytes, 1, v18
     v20 = add 1, 3
-    v21 = internal_call @load_storage_bytes, 1, v20
+    v21 = icall @load_storage_bytes, 1, v20
     ret v19, v21
 }
 
@@ -183,7 +183,7 @@ fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
     v19 = and v2, v18
     jumpi v19, bb5, bb6
   bb5:
-    internal_call @clear_storage_words, 0, arg0, v17, v12
+    icall @clear_storage_words, 0, arg0, v17, v12
     jump bb6
   bb6:
     jumpi v16, bb7, bb8

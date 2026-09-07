@@ -16,25 +16,5 @@ error: type too large for memory
 LL │         returns (uint256[][18446744073709551615] memory values)
    ╰╴                 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-error: codegen rewrite does not support this function parameter shape yet
-   ╭▸ ROOT/tests/ui/codegen/lowering/abi_head_size_overflow.sol:LL:CC
-   │
-LL │ ┏     function oversized(
-LL │ ┃         uint256[18446744073709551616] calldata values
-LL │ ┃     ) external pure returns (uint256) {
-LL │ ┃         return values[0];
-LL │ ┃     }
-   ╰╴┗━━━━━┛
-
-error: codegen rewrite does not support this function return shape yet
-   ╭▸ ROOT/tests/ui/codegen/lowering/abi_head_size_overflow.sol:LL:CC
-   │
-LL │ ┏     function oversizedDynamicReturn()
-LL │ ┃         external
-LL │ ┃         pure
-LL │ ┃         returns (uint256[][18446744073709551616] memory values)
-LL │ ┃     {}
-   ╰╴┗━━━━━━┛
-
-error: aborting due to 5 previous errors
+error: aborting due to 3 previous errors
 

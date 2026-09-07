@@ -1,4 +1,4 @@
-use super::super::{import_path_at, import_path_at_for_completion};
+use super::super::{import_path_at, import_path_at_for_completion, parse_import_path};
 
 #[test]
 fn completion_recovers_an_unterminated_import_before_an_unrelated_string() {
@@ -37,4 +37,38 @@ fn completion_does_not_recover_past_an_unescaped_line_break() {
     let cursor = source.find("contract").unwrap() + "contract".len();
 
     assert!(import_path_at_for_completion(source, cursor).is_none());
+}
+
+#[test]
+fn valid_import_paths_match_parser_at_every_boundary() {
+    for source in [
+        r#"import "./Dep.sol"; contract C { string s = "ordinary"; }"#,
+        "import {Dep as Alias} from './Dep.sol'; // import './Fake.sol';",
+        r#"/* import "./Fake.sol"; */ import "./Dep.sol" as Dep;"#,
+        r#"import * as Dep from "./😀.sol";"#,
+        r#"contract C { string s = unicode"./Dep.sol"; bytes s2 = hex"abcd"; }"#,
+    ] {
+        for cursor in (0..=source.len()).filter(|&cursor| source.is_char_boundary(cursor)) {
+            let expected = parse_import_path(source, cursor);
+            assert_eq!(import_path_at(source, cursor), expected, "cursor {cursor} in {source}");
+            assert_eq!(
+                import_path_at_for_completion(source, cursor),
+                expected,
+                "cursor {cursor} in {source}",
+            );
+        }
+    }
+}
+
+#[test]
+fn definition_matches_parser_import_ranges_at_every_boundary() {
+    for source in [r#"import "./Dep" "suffix";"#, r#"import "./Dep"#] {
+        for cursor in (0..=source.len()).filter(|&cursor| source.is_char_boundary(cursor)) {
+            assert_eq!(
+                import_path_at(source, cursor),
+                parse_import_path(source, cursor),
+                "cursor {cursor} in {source}"
+            );
+        }
+    }
 }

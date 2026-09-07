@@ -1,0 +1,31 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/constant_literal_mobile_type.sol:C ===
+@module C
+fn @wideShr() -> u256 [selector=0x1fc24411, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    ret 0x8000000000000000000000000000000000000000000000000000000000000000
+}
+
+fn @mixedSub() -> u256 [selector=0xe2f9bfc3, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    ret 292
+}
+
+fn @mixedShl() -> u256 [selector=0x5ffb579f, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    ret 2
+}
+
+fn @mixedPow() -> u256 [selector=0xaab60365, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    ret 256
+}
+
+fn @mixedAdd() -> u256 [selector=0xc34d9d84, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    ret 264
+}
+
+fn @mixedU16() -> u16 [selector=0xef4076d3, pure, abi_params=[], abi_returns=[word<u16>]] {
+  bb0:
+    ret 0xffff
+}

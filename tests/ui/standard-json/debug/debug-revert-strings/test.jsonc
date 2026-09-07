@@ -1,0 +1,31 @@
+// `revertStrings: debug` attaches solc's messages to compiler-generated reverts. A contract
+// without any user revert string then still contains the `Error(string)` selector and the
+// "Contract does not have fallback nor receive functions" and "Ether sent to non-payable
+// function" messages in its runtime code.
+// CHECK: "metadata":
+// CHECK: \"debug\":{\"revertStrings\":\"debug\"}
+// CHECK: "deployedBytecode": {
+// CHECK: 08c379a0
+// CHECK-SAME: 436f6e747261637420646f6573206e6f7420686176652066616c6c6261636b20
+// CHECK-SAME: 45746865722073656e7420746f206e6f6e2d70617961626c652066756e637469
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract A { function f(uint256 x) external pure returns (uint256) { return x; } }"
+    }
+  },
+  "settings": {
+    "debug": {
+      "revertStrings": "debug"
+    },
+    "outputSelection": {
+      "*": {
+        "*": [
+          "metadata",
+          "evm.deployedBytecode.object"
+        ]
+      }
+    }
+  }
+}

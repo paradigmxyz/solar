@@ -1,6 +1,6 @@
 //! MIR basic blocks.
 
-use super::{BlockId, InstId, ValueId};
+use super::{BlockId, InstId, InstructionMetadata, ValueId};
 use smallvec::SmallVec;
 use std::fmt;
 
@@ -11,15 +11,47 @@ pub(crate) struct BasicBlock {
     pub(crate) instructions: Vec<InstId>,
     /// The terminator instruction.
     pub(crate) terminator: Option<Terminator>,
+    /// Source context of the control transfer, independent of the last value instruction.
+    pub(crate) terminator_metadata: InstructionMetadata,
     /// Predecessor blocks.
     pub(crate) predecessors: SmallVec<[BlockId; 4]>,
 }
 
 impl BasicBlock {
+    /// Replaces a control transfer together with its source context.
+    ///
+    /// The caller remains responsible for updating CFG edges and phi inputs.
+    pub(crate) fn set_terminator(&mut self, terminator: Terminator, metadata: InstructionMetadata) {
+        self.terminator = Some(terminator);
+        self.terminator_metadata = metadata;
+    }
+
+    /// Replaces a transfer with compiler-generated control flow, dropping stale context.
+    pub(crate) fn set_generated_terminator(&mut self, terminator: Terminator) {
+        let mut metadata = InstructionMetadata::EMPTY;
+        metadata.mark_debug_info_dropped();
+        self.set_terminator(terminator, metadata);
+    }
+
+    /// Moves a control transfer out, leaving fresh generated-code context behind.
+    pub(crate) fn take_terminator(&mut self) -> (Option<Terminator>, InstructionMetadata) {
+        let mut generated = InstructionMetadata::EMPTY;
+        generated.mark_debug_info_dropped();
+        let metadata = std::mem::replace(&mut self.terminator_metadata, generated);
+        (self.terminator.take(), metadata)
+    }
+
     /// Creates a new empty basic block.
     #[must_use]
     pub(crate) fn new() -> Self {
-        Self { instructions: Vec::new(), terminator: None, predecessors: SmallVec::new() }
+        let mut terminator_metadata = InstructionMetadata::EMPTY;
+        terminator_metadata.mark_debug_info_dropped();
+        Self {
+            instructions: Vec::new(),
+            terminator: None,
+            terminator_metadata,
+            predecessors: SmallVec::new(),
+        }
     }
 }
 

@@ -989,8 +989,10 @@ impl LoadRedundancyEliminator {
                 first
             }
             _ => {
-                let (phi_inst, phi_value) = func
-                    .alloc_value_inst(Instruction::new(InstKind::Phi(incoming), Some(result_ty)));
+                let (phi_inst, phi_value) = func.alloc_value_inst(
+                    Instruction::new(InstKind::Phi(incoming), Some(result_ty))
+                        .with_debug_info_dropped(),
+                );
                 let phi_count = func.blocks[target]
                     .instructions
                     .iter()

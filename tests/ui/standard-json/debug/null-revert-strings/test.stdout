@@ -1,0 +1,14 @@
+{
+  "errors": [
+    {
+      "sourceLocation": null,
+      "secondarySourceLocations": [],
+      "type": "Exception",
+      "component": "general",
+      "severity": "error",
+      "errorCode": null,
+      "message": "JSON parse error: invalid type: null, expected a RevertStrings string at line 5 column 27",
+      "formattedMessage": "error: JSON parse error: invalid type: null, expected a RevertStrings string at line 5 column 27\n\n"
+    }
+  ]
+}

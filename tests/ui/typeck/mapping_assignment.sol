@@ -40,3 +40,20 @@ contract TupleAssignment {
         (a, x) = (b, y); //~ ERROR: types in storage containing (nested) mappings cannot be assigned to
     }
 }
+
+// A struct that reaches its mapping only through its own recursion still
+// contains one: mapping discovery must descend through the cycle instead of
+// giving up on recursive structs.
+contract RecursiveStructWithMapping {
+    struct S {
+        uint256 x;
+        mapping(uint256 => S) recurse;
+    }
+
+    S a;
+    S[3] b;
+
+    function assignRecursive() public {
+        b[0] = a; //~ ERROR: types in storage containing (nested) mappings cannot be assigned to
+    }
+}

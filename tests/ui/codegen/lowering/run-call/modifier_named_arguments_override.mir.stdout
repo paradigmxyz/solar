@@ -1,0 +1,128 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/modifier_named_arguments_override.sol:Base ===
+@module Base
+fn @r() -> u256 [selector=0x6c8ae38c, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @named() -> u256 [selector=0x45f907a8, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = mul 1, 100
+    v1 = iszero 100
+    v2 = div v0, 100
+    v3 = eq v2, 1
+    v4 = or v1, v3
+    v5 = iszero v4
+    jumpi v5, bb2, bb3
+  bb3:
+    v6 = add v0, 2
+    v7 = lt v6, v0
+    jumpi v7, bb2, bb4
+  bb4:
+    sstore 0, v6 !metadata(storage=slot(0))
+    v8 = sload 0 !metadata(storage=slot(0))
+    jump bb5
+  bb5:
+    jump bb1
+  bb1:
+    ret v8
+  bb2:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @positional() -> u256 [selector=0x8a0495cd, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = mul 1, 100
+    v1 = iszero 100
+    v2 = div v0, 100
+    v3 = eq v2, 1
+    v4 = or v1, v3
+    v5 = iszero v4
+    jumpi v5, bb2, bb3
+  bb3:
+    v6 = add v0, 2
+    v7 = lt v6, v0
+    jumpi v7, bb2, bb4
+  bb4:
+    sstore 0, v6 !metadata(storage=slot(0))
+    v8 = sload 0 !metadata(storage=slot(0))
+    jump bb5
+  bb5:
+    jump bb1
+  bb1:
+    ret v8
+  bb2:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/modifier_named_arguments_override.sol:Derived ===
+@module Derived
+fn @r() -> u256 [selector=0x6c8ae38c, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @named() -> u256 [selector=0x45f907a8, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = mul 2, 100
+    v1 = iszero 100
+    v2 = div v0, 100
+    v3 = eq v2, 2
+    v4 = or v1, v3
+    v5 = iszero v4
+    jumpi v5, bb2, bb3
+  bb3:
+    v6 = add v0, 1
+    v7 = lt v6, v0
+    jumpi v7, bb2, bb4
+  bb4:
+    sstore 0, v6 !metadata(storage=slot(0))
+    v8 = sload 0 !metadata(storage=slot(0))
+    jump bb5
+  bb5:
+    jump bb1
+  bb1:
+    ret v8
+  bb2:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @positional() -> u256 [selector=0x8a0495cd, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = mul 2, 100
+    v1 = iszero 100
+    v2 = div v0, 100
+    v3 = eq v2, 2
+    v4 = or v1, v3
+    v5 = iszero v4
+    jumpi v5, bb2, bb3
+  bb3:
+    v6 = add v0, 1
+    v7 = lt v6, v0
+    jumpi v7, bb2, bb4
+  bb4:
+    sstore 0, v6 !metadata(storage=slot(0))
+    v8 = sload 0 !metadata(storage=slot(0))
+    jump bb5
+  bb5:
+    jump bb1
+  bb1:
+    ret v8
+  bb2:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    stop
+}

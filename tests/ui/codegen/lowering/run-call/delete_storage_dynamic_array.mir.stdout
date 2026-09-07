@@ -3,10 +3,10 @@
 fn @clearAndPush() -> (u256, u24) [selector=0x1698ee0c, abi_params=[], abi_returns=[word, word<u24>]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = add v0, 1
-    v2 = lt v1, v0
-    jumpi v2, bb1, bb2
+    v1 = gt v0, 0xffffffffffffffff
+    jumpi v1, bb1, bb2
   bb2:
+    v2 = add v0, 1
     v3 = storage_array_data_slot 0
     v4 = div v0, 10
     v5 = add v3, v4
@@ -21,7 +21,7 @@ fn @clearAndPush() -> (u256, u24) [selector=0x1698ee0c, abi_params=[], abi_retur
     v14 = shl v8, v13
     v15 = or v12, v14
     sstore v5, v15 !metadata(storage=symbolic(v5))
-    sstore 0, v1 !metadata(storage=slot(0))
+    sstore 0, v2 !metadata(storage=slot(0))
     mstore 0, 32 !metadata(memory=scratch)
     v16 = sload 0 !metadata(storage=slot(0))
     sstore 0, 0 !metadata(storage=slot(0))
@@ -38,10 +38,10 @@ fn @clearAndPush() -> (u256, u24) [selector=0x1698ee0c, abi_params=[], abi_retur
     jumpi v24, bb4, bb5
   bb5:
     v27 = sload 0 !metadata(storage=slot(0))
-    v28 = add v27, 1
-    v29 = lt v28, v27
-    jumpi v29, bb1, bb6
+    v28 = gt v27, 0xffffffffffffffff
+    jumpi v28, bb1, bb6
   bb6:
+    v29 = add v27, 1
     v30 = storage_array_data_slot 0
     v31 = div v27, 10
     v32 = add v30, v31
@@ -56,7 +56,7 @@ fn @clearAndPush() -> (u256, u24) [selector=0x1698ee0c, abi_params=[], abi_retur
     v41 = shl v35, v40
     v42 = or v39, v41
     sstore v32, v42 !metadata(storage=symbolic(v32))
-    sstore 0, v28 !metadata(storage=slot(0))
+    sstore 0, v29 !metadata(storage=slot(0))
     v43 = sload 0 !metadata(storage=slot(0))
     v44 = sload 0 !metadata(storage=slot(0))
     v45 = lt 0, v44

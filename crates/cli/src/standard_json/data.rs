@@ -8,6 +8,7 @@ use serde::{
     de::{self, SeqAccess, Visitor},
 };
 use serde_json::{Map, Value};
+use solar_config::RevertStrings;
 use solar_data_structures::map::FxBuildHasher;
 use solar_interface::diagnostics::SolcDiagnostic;
 use solar_sema::output::{Documentation, StorageLayoutOutput};
@@ -86,9 +87,8 @@ pub(super) struct Settings<'a> {
     pub(super) metadata: MetadataSettings,
     #[serde(borrow, default)]
     pub(super) libraries: Libraries<'a>,
-    // Debug output is not supported yet.
-    // #[serde(borrow, default)]
-    // debug: Option<CowValue<'a>>,
+    #[serde(default, deserialize_with = "deserialize_present")]
+    pub(super) debug: Option<DebugSettings>,
     //
     // Not supported.
     // #[serde(borrow, default)]
@@ -99,6 +99,60 @@ pub(super) struct Settings<'a> {
     // via_ir: Option<bool>,
     // #[serde(default)]
     // via_ssa_cfg: Option<bool>,
+}
+
+/// The solc Standard JSON `settings.debug` object.
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(super) struct DebugSettings {
+    /// Revert reason string handling.
+    #[serde(default, deserialize_with = "deserialize_present")]
+    pub(super) revert_strings: Option<RevertStrings>,
+    /// Debug info components to include in IR output.
+    ///
+    /// We do not emit Yul IR, so only the selection rules are enforced: `snippet` requires
+    /// `location`, and an explicit selection must include `ethdebug` to request ethdebug output.
+    #[serde(default, deserialize_with = "deserialize_present")]
+    pub(super) debug_info: Option<Vec<DebugInfoComponent>>,
+}
+
+impl DebugSettings {
+    /// Returns `true` if `component` is selected.
+    ///
+    /// Like solc, `*` selects exactly the non-experimental components (`location`, `snippet`,
+    /// and `ast-id`) regardless of what else is listed. Returns `false` when `debugInfo` is
+    /// absent; callers apply solc's defaults themselves.
+    pub(super) fn selects_debug_info(&self, component: DebugInfoComponent) -> bool {
+        let Some(components) = self.debug_info.as_deref() else { return false };
+        if components.contains(&DebugInfoComponent::All) {
+            return component.is_selected_by_wildcard();
+        }
+        components.contains(&component)
+    }
+}
+
+/// A solc `DebugInfoSelection` component name.
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub(super) enum DebugInfoComponent {
+    /// Source locations, `@src` in Yul IR.
+    Location,
+    /// Source snippets next to locations.
+    Snippet,
+    /// AST node IDs, `@ast-id` in Yul IR.
+    AstId,
+    /// Ethdebug annotations.
+    Ethdebug,
+    /// Every non-experimental component.
+    #[serde(rename = "*")]
+    All,
+}
+
+impl DebugInfoComponent {
+    /// Returns `true` if `*` selects this component; experimental `ethdebug` is excluded.
+    const fn is_selected_by_wildcard(self) -> bool {
+        matches!(self, Self::Location | Self::Snippet | Self::AstId)
+    }
 }
 
 /// The solc Standard JSON `settings.metadata` object.
@@ -149,6 +203,17 @@ const fn default_true() -> bool {
     true
 }
 
+/// Deserializes an optional field that may be omitted but not `null`, like solc's presence
+/// checks: `#[serde(default)]` supplies `None` for an absent field, and a present field must
+/// hold a `T`.
+fn deserialize_present<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    T::deserialize(deserializer).map(Some)
+}
+
 /// The supported subset of solc's Standard JSON `settings.optimizer` object.
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -188,9 +253,8 @@ pub(super) struct CompilerOutput<'gcx> {
     pub(super) sources: FxIndexMap<String, SourceOutput>,
     #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
     pub(super) contracts: FxIndexMap<String, FxIndexMap<String, ContractOutput<'gcx>>>,
-    // `ethdebug` output is not supported yet.
-    // #[serde(skip_serializing_if = "Option::is_none")]
-    // ethdebug: Option<CowValue<'a>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) ethdebug: Option<EthdebugOutput>,
 }
 
 #[derive(Debug, Serialize)]
@@ -257,17 +321,15 @@ pub(super) struct EvmOutput {
 pub(super) struct BytecodeOutput {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) object: Option<MaybeHexBytecode>,
-    // Ethdebug output is not supported yet.
-    // #[serde(skip_serializing_if = "Option::is_none")]
-    // ethdebug: Option<CowValue<'a>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) ethdebug: Option<EthdebugProgram>,
     // Function debug data is not supported yet.
     // #[serde(skip_serializing_if = "Option::is_none")]
     // function_debug_data: Option<CowValue<'a>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) opcodes: Option<String>,
-    // Source map output is not supported yet.
-    // #[serde(default, skip_serializing_if = "String::is_empty")]
-    // source_map: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) source_map: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) link_references: Option<FxIndexMap<String, FxIndexMap<String, Vec<OffsetLength>>>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -276,6 +338,142 @@ pub(super) struct BytecodeOutput {
     // Not supported.
     // #[serde(skip_serializing_if = "Option::is_none")]
     // generated_sources: Option<CowValue<'a>>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(untagged)]
+pub(super) enum EthdebugId {
+    Number(u32),
+    Text(String),
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub(super) struct EthdebugReference {
+    pub(super) id: EthdebugId,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub(super) struct EthdebugRange {
+    pub(super) offset: usize,
+    pub(super) length: usize,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub(super) struct EthdebugSourceRange {
+    pub(super) source: EthdebugReference,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) range: Option<EthdebugRange>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub(super) struct EthdebugFunctionInvoke {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) identifier: Option<String>,
+    pub(super) declaration: EthdebugSourceRange,
+    pub(super) jump: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) target: Option<EthdebugInvocationTarget>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub(super) struct EthdebugInvocationTarget {
+    pub(super) pointer: EthdebugCodePointer,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub(super) struct EthdebugCodePointer {
+    pub(super) location: &'static str,
+    pub(super) offset: usize,
+    pub(super) length: usize,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub(super) struct EthdebugFunctionExit {}
+
+#[derive(Clone, Debug, Serialize)]
+pub(super) struct EthdebugContext {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) code: Option<EthdebugSourceRange>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub(super) pick: Vec<Self>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) invoke: Option<EthdebugFunctionInvoke>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) r#return: Option<EthdebugFunctionExit>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) revert: Option<EthdebugFunctionExit>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub(super) struct EthdebugOperation {
+    pub(super) mnemonic: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub(super) arguments: Vec<String>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub(super) struct EthdebugInstruction {
+    pub(super) offset: usize,
+    pub(super) operation: EthdebugOperation,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) context: Option<EthdebugContext>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub(super) struct EthdebugContract {
+    pub(super) name: String,
+    pub(super) definition: EthdebugSourceRange,
+}
+
+#[derive(Clone, Copy, Debug, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub(super) enum EthdebugEnvironment {
+    Call,
+    Create,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub(crate) struct EthdebugProgram {
+    pub(super) compilation: EthdebugReference,
+    pub(super) contract: EthdebugContract,
+    pub(super) environment: EthdebugEnvironment,
+    pub(super) instructions: Vec<EthdebugInstruction>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub(super) struct EthdebugCompiler {
+    pub(super) name: String,
+    pub(super) version: String,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub(super) struct EthdebugSource {
+    pub(super) id: EthdebugId,
+    pub(super) path: String,
+    pub(super) contents: String,
+    pub(super) language: String,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub(crate) struct EthdebugCompilation {
+    pub(super) id: EthdebugId,
+    pub(super) compiler: EthdebugCompiler,
+    pub(super) sources: Vec<EthdebugSource>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub(crate) struct EthdebugResources {
+    pub(super) compilation: EthdebugCompilation,
+    pub(super) types: Map<String, Value>,
+    pub(super) pointers: Map<String, Value>,
+}
+
+#[derive(Debug, Default, Serialize)]
+pub(super) struct EthdebugOutput {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) resources: Option<EthdebugResources>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) compilation: Option<EthdebugCompilation>,
 }
 
 #[derive(Debug, Serialize)]
@@ -292,6 +490,19 @@ pub(super) struct OutputSelection<'a>(
 impl<'a> OutputSelection<'a> {
     pub(super) fn all(&self) -> OutputSelectionFlags {
         self.source("*")
+    }
+
+    /// Returns every flag selected for any source or contract, including the wildcards.
+    pub(super) fn union(&self) -> OutputSelectionFlags {
+        self.0
+            .values()
+            .flat_map(FxIndexMap::values)
+            .fold(OutputSelectionFlags::empty(), |acc, &f| acc | f)
+    }
+
+    pub(super) fn global(&self) -> OutputSelectionFlags {
+        self.0.get("*").and_then(|contracts| contracts.get("*")).copied().unwrap_or_default()
+            & OutputSelectionFlags::GLOBAL
     }
 
     pub(super) fn source(&self, source: &str) -> OutputSelectionFlags {
@@ -407,6 +618,8 @@ bitflags::bitflags! {
             | Self::TRANSIENT_STORAGE_LAYOUT.bits()
             | Self::YUL.bits()
             | Self::EVM.bits()
+            | Self::BYTECODE_SOURCE_MAP.bits()
+            | Self::DEPLOYED_BYTECODE_SOURCE_MAP.bits()
             | Self::BYTECODE_ETHDEBUG.bits()
             | Self::DEPLOYED_BYTECODE_ETHDEBUG.bits();
         const GLOBAL = Self::ETHDEBUG_RESOURCES.bits() | Self::ETHDEBUG_COMPILATION.bits();
@@ -853,6 +1066,36 @@ mod tests {
     }
 
     #[test]
+    fn debug_settings_parse_solc_names() {
+        assert!(serde_json::from_str::<DebugSettings>(r#"{"verbose":true}"#).is_err());
+        assert!(serde_json::from_str::<DebugSettings>(r#"{"revertStrings":null}"#).is_err());
+        assert!(serde_json::from_str::<DebugSettings>(r#"{"debugInfo":null}"#).is_err());
+        assert!(serde_json::from_str::<Settings<'_>>(r#"{"debug":null}"#).is_err());
+        assert!(serde_json::from_str::<Settings<'_>>(r#"{"debug":{}}"#).is_ok());
+        assert!(serde_json::from_str::<DebugSettings>(r#"{"revertStrings":"Strip"}"#).is_err());
+        assert!(serde_json::from_str::<DebugSettings>(r#"{"debugInfo":["source"]}"#).is_err());
+        let debug = serde_json::from_str::<DebugSettings>(
+            r#"{"revertStrings":"verboseDebug","debugInfo":["location","ast-id","*"]}"#,
+        )
+        .unwrap();
+        assert_eq!(debug.revert_strings, Some(RevertStrings::VerboseDebug));
+        assert_eq!(
+            debug.debug_info.as_deref(),
+            Some(
+                &[DebugInfoComponent::Location, DebugInfoComponent::AstId, DebugInfoComponent::All]
+                    [..]
+            )
+        );
+        assert!(debug.selects_debug_info(DebugInfoComponent::Snippet));
+        assert!(!debug.selects_debug_info(DebugInfoComponent::Ethdebug));
+        assert!(!DebugSettings::default().selects_debug_info(DebugInfoComponent::Ethdebug));
+        let explicit =
+            serde_json::from_str::<DebugSettings>(r#"{"debugInfo":["ethdebug"]}"#).unwrap();
+        assert!(explicit.selects_debug_info(DebugInfoComponent::Ethdebug));
+        assert!(!explicit.selects_debug_info(DebugInfoComponent::Location));
+    }
+
+    #[test]
     fn optimizer_rejects_unsupported_details() {
         assert!(serde_json::from_str::<Optimizer>(r#"{"details":{"peephole":false}}"#).is_err());
     }
@@ -911,6 +1154,15 @@ mod tests {
             selection_flags(r#"["evm.bytecode", "evm.deployedBytecode"]"#),
             OutputSelectionFlags::BYTECODE | OutputSelectionFlags::DEPLOYED_BYTECODE
         );
+        assert!(OutputSelectionFlags::BYTECODE.contains(OutputSelectionFlags::BYTECODE_SOURCE_MAP));
+        assert!(
+            OutputSelectionFlags::DEPLOYED_BYTECODE
+                .contains(OutputSelectionFlags::DEPLOYED_BYTECODE_SOURCE_MAP)
+        );
+        assert!(OutputSelectionFlags::WILDCARD.contains(
+            OutputSelectionFlags::BYTECODE_SOURCE_MAP
+                | OutputSelectionFlags::DEPLOYED_BYTECODE_SOURCE_MAP
+        ));
         assert!(!OutputSelectionFlags::EVM.intersects(OutputSelectionFlags::ETHDEBUG));
     }
 
@@ -981,5 +1233,6 @@ mod tests {
                 | OutputSelectionFlags::DEVDOC
                 | OutputSelectionFlags::STORAGE_LAYOUT
         );
+        assert_eq!(selection.global(), OutputSelectionFlags::ETHDEBUG_RESOURCES);
     }
 }

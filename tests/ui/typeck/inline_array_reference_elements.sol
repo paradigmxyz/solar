@@ -18,6 +18,20 @@ contract C {
         nested;
     }
 
+    // The expected element type seeds the literal, so an element can widen. solc types a literal
+    // from its elements alone and rejects every one of these; see TYPECK-003 in
+    // `docs/SOLC_DIVERGENCE.md`.
+    function expectedElementType(bytes memory b) public pure {
+        uint256[2] memory widened = [1, 2];
+        int256[2] memory signed = [1, 2];
+        bytes[2] memory bs = ["a", b];
+        uint256[2][2] memory nested = [[1, 2], [3, 4]];
+        widened;
+        signed;
+        bs;
+        nested;
+    }
+
     function bad() public pure {
         [1, "a"]; //~ ERROR: cannot infer array element type
     }

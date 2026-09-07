@@ -1,0 +1,26 @@
+// One pass through the cycle already leaves the exit short: `bb1` is reached at depth 3 from
+// `bb0` and at depth 2 after one round, and `bb3` pops three words. Only the drift a second
+// round would carry is left unchecked, so the underflow is still reported.
+//~? ERROR: EVM IR verification failed: block 3: `pop` on an empty stack
+@module module
+
+bb0:
+  push 0
+  push 0
+  push 0
+  jump bb1
+
+bb1:
+  push 0
+  mload
+  jumpi bb2, bb3
+
+bb2:
+  pop
+  jump bb1
+
+bb3:
+  pop
+  pop
+  pop
+  stop

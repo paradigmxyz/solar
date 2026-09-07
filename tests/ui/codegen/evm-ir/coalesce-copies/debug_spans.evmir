@@ -1,0 +1,19 @@
+//@ compile-flags: --evm-version cancun -Zevm-ir-pipeline=coalesce-copies
+//@ filecheck:
+@module CoalesceCopyDebugSpans
+
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK: + push 64 !metadata(span=50..60)
+// CHECK: {{^[ +].*}}push 128 !metadata(span=50..60)
+// CHECK: {{^[ +].*}}push 256 !metadata(span=50..60)
+// CHECK: + mcopy !metadata(span=50..60)
+bb0:
+  push 128 !metadata(span=50..60)
+  mload !metadata(span=50..60)
+  push 256 !metadata(span=50..60)
+  mstore !metadata(span=50..60)
+  push 160 !metadata(span=50..60)
+  mload !metadata(span=50..60)
+  push 288 !metadata(span=50..60)
+  mstore !metadata(span=50..60)
+  stop

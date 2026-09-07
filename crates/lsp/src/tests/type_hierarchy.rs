@@ -12,7 +12,7 @@ use serde_json::json;
 use solar_config::{CompileOpts, ImportRemapping};
 use std::{
     future::Future,
-    sync::atomic::Ordering,
+    sync::{Arc, atomic::Ordering},
     task::{Context, Poll, Waker},
 };
 
@@ -280,11 +280,18 @@ fn validates_the_full_echoed_item_and_opaque_data() {
         "/Validation.sol",
     );
     let item = prepared(&fixture, "$1");
-    let data = item.data.as_ref().unwrap().as_object().unwrap();
-    assert_eq!(data.len(), 3);
-    assert_eq!(data["version"], 1);
-    assert_eq!(data["uri"], json!(item.uri));
-    assert_eq!(data["selectionRange"], json!(item.selection_range));
+    let range = item.selection_range;
+    assert_eq!(
+        item.data,
+        Some(json!([
+            2,
+            item.uri,
+            range.start.line,
+            range.start.character,
+            range.end.line,
+            range.end.character,
+        ]))
+    );
 
     let mut tampered = Vec::new();
     let mut changed = item.clone();
@@ -312,27 +319,33 @@ fn validates_the_full_echoed_item_and_opaque_data() {
     for data in [
         None,
         Some(json!(null)),
-        Some(json!({})),
-        Some(json!({
-            "version": 2,
-            "uri": item.uri,
-            "selectionRange": item.selection_range,
-        })),
+        Some(json!([])),
+        Some(json!([
+            1,
+            item.uri,
+            range.start.line,
+            range.start.character,
+            range.end.line,
+            range.end.character
+        ])),
+        Some(json!([
+            2,
+            Url::from_file_path(std::env::temp_dir().join("Other.sol")).unwrap(),
+            range.start.line,
+            range.start.character,
+            range.end.line,
+            range.end.character
+        ])),
+        Some(json!([2, item.uri, 9, 0, 9, 1])),
+        Some(json!([2, item.uri, 0, 0, 0, 0, true])),
+        Some(json!([2, item.uri, 0, 0, 0])),
+        Some(json!([2, item.uri, -1, 0, 0, 0])),
+        Some(json!([2, item.uri, 4294967296u64, 0, 0, 0])),
+        Some(json!([2, item.uri, 0.0, 0, 0, 0])),
         Some(json!({
             "version": 1,
-            "uri": Url::from_file_path(std::env::temp_dir().join("Other.sol")).unwrap(),
-            "selectionRange": item.selection_range,
-        })),
-        Some(json!({
-            "version": 1,
-            "uri": item.uri,
-            "selectionRange": Range::new(Position::new(9, 0), Position::new(9, 1)),
-        })),
-        Some(json!({
-            "version": 1,
             "uri": item.uri,
             "selectionRange": item.selection_range,
-            "extra": true,
         })),
     ] {
         let mut changed = item.clone();
@@ -692,7 +705,7 @@ fn requests_read_the_latest_published_analysis() {
     let sub_base =
         old_tables.prepare_type_hierarchy(&uri, Position::new(3, 10)).unwrap().pop().unwrap();
     let mut state = GlobalState::new(ClientSocket::new_closed());
-    *state.symbol_tables.write() = old_tables;
+    state.symbol_tables.store(Arc::new(old_tables));
     state.analysis_version.fetch_add(1, Ordering::AcqRel);
 
     let mut prepare = std::pin::pin!(crate::handlers::prepare_type_hierarchy(
@@ -715,8 +728,8 @@ fn requests_read_the_latest_published_analysis() {
 
     state.analysis_version.fetch_add(1, Ordering::AcqRel);
     let mut snapshot = state.snapshot();
-    assert!(snapshot.publish_symbol_tables(2, new_tables));
-    assert!(!snapshot.publish_symbol_tables(1, SymbolTables::default()));
+    assert!(snapshot.publish_symbol_tables(2, Arc::new(new_tables)));
+    assert!(!snapshot.publish_symbol_tables(1, Default::default()));
 
     assert_eq!(ready_names(prepare.as_mut().poll(&mut context)), ["New"]);
     assert_eq!(ready_names(supertypes.as_mut().poll(&mut context)), ["SuperNew"]);
@@ -738,7 +751,7 @@ fn requests_capture_the_analysis_epoch_when_created() {
     let base = tables.prepare_type_hierarchy(&uri, Position::new(0, 10)).unwrap().pop().unwrap();
     let child = tables.prepare_type_hierarchy(&uri, Position::new(1, 10)).unwrap().pop().unwrap();
     let mut state = GlobalState::new(ClientSocket::new_closed());
-    *state.symbol_tables.write() = tables;
+    state.symbol_tables.store(Arc::new(tables));
 
     let mut prepare = std::pin::pin!(crate::handlers::prepare_type_hierarchy(
         &mut state,

@@ -91,7 +91,7 @@ fn @constructor(arg0: memoryarray, arg1: memorybytes) [constructor, abi_params=[
     v9 = lt v8, v0
     jumpi v9, bb7, bb8
   bb8:
-    internal_call @store_storage_bytes, 0, 1, arg1
+    icall @store_storage_bytes, 0, 1, arg1
     stop
   bb7:
     v10 = memory_object_load_element memoryarray<1>, arg0, v8
@@ -153,7 +153,7 @@ fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
     v19 = and v2, v18
     jumpi v19, bb5, bb6
   bb5:
-    internal_call @clear_storage_words, 0, arg0, v17, v12
+    icall @clear_storage_words, 0, arg0, v17, v12
     jump bb6
   bb6:
     jumpi v16, bb7, bb8

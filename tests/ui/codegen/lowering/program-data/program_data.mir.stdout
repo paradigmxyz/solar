@@ -62,21 +62,21 @@ fn @splatData() -> memorybytes [selector=0xe1910fda, pure, abi_params=[], abi_re
 
 fn @zeroHash() -> bytes32 [selector=0x672c8259, pure, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = internal_call @zeroData, 1
+    v0 = icall @zeroData, 1
     v1 = keccak256_bytes v0
     ret v1
 }
 
 fn @zeroWordHash() -> bytes32 [selector=0x0d00d797, pure, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = internal_call @zeroWord, 1
+    v0 = icall @zeroWord, 1
     v1 = keccak256_bytes v0
     ret v1
 }
 
 fn @splatHash() -> bytes32 [selector=0x38f844b9, pure, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = internal_call @splatData, 1
+    v0 = icall @splatData, 1
     v1 = keccak256_bytes v0
     ret v1
 }

@@ -93,7 +93,7 @@ fn @forwards() -> u256 [selector=0xa38e2a32, abi_params=[], abi_returns=[word]] 
   bb4:
     ret 1
   bb3:
-    internal_call @revert_error, 0, 7, 0x666f727761726400000000000000000000000000000000000000000000000000
+    icall @revert_error, 0, 7, 0x666f727761726400000000000000000000000000000000000000000000000000
     invalid
 }
 

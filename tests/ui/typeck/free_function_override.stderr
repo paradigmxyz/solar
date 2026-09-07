@@ -1,0 +1,15 @@
+error[1750]: free functions cannot override
+   ╭▸ ROOT/tests/ui/typeck/free_function_override.sol:LL:CC
+   │
+LL │ ┏ function fun() override {
+LL │ ┃ }
+   ╰╴┗━┛
+
+error[1750]: free functions cannot override
+   ╭▸ ROOT/tests/ui/typeck/free_function_override.sol:LL:CC
+   │
+LL │ function fun2() override(A) {}
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 2 previous errors
+

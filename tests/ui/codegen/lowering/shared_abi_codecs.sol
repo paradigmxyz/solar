@@ -4,12 +4,12 @@
 //@ run-call: roundTrip 3, [[5], [8]] => 16
 
 // CHECK-LABEL: fn @encodeFirst
-// CHECK: internal_call @[[DECODER:decode_calldata_type]]
-// CHECK: internal_call @[[ENCODER:encodeFirst.body]]
+// CHECK: icall @[[DECODER:decode_calldata_type]]
+// CHECK: icall @[[ENCODER:encodeFirst.body]]
 // CHECK: ret
 // CHECK-LABEL: fn @encodeSecond
-// CHECK: internal_call @[[DECODER]]
-// CHECK: internal_call @[[ENCODER]]
+// CHECK: icall @[[DECODER]]
+// CHECK: icall @[[ENCODER]]
 // CHECK: fn @[[DECODER]]
 // CHECK: fn @[[ENCODER]]
 // CHECK: mstore

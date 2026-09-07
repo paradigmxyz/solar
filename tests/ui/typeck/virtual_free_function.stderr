@@ -1,0 +1,26 @@
+error: free functions must be implemented
+   ╭▸ ROOT/tests/ui/typeck/virtual_free_function.sol:LL:CC
+   │
+LL │ function fun2() virtual;
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[4493]: free functions cannot be `virtual`
+   ╭▸ ROOT/tests/ui/typeck/virtual_free_function.sol:LL:CC
+   │
+LL │ function fun() virtual {}
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[4493]: free functions cannot be `virtual`
+   ╭▸ ROOT/tests/ui/typeck/virtual_free_function.sol:LL:CC
+   │
+LL │ function fun2() virtual;
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━
+
+warning[5815]: interface functions are implicitly `virtual`
+   ╭▸ ROOT/tests/ui/typeck/virtual_free_function.sol:LL:CC
+   │
+LL │     function f() external virtual;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 3 previous errors; 1 warning emitted
+

@@ -43,7 +43,17 @@ fn display_block<'a>(module: &'a Module, block: &'a Block) -> impl fmt::Display 
             (false, true) => " [loop]",
             (true, true) => " [cold, loop]",
         };
-        writeln!(f, "bb{}{}:", block.label, attributes)?;
+        write!(f, "bb{}{}", block.label, attributes)?;
+        if let Some(function) = block.metadata.function_invoke {
+            write!(
+                f,
+                " [invoke={}@{}..{}]",
+                function.identifier,
+                function.declaration.lo().0,
+                function.declaration.hi().0
+            )?;
+        }
+        writeln!(f, ":")?;
         for inst in &block.instructions {
             writeln!(f, "  {}", display_instruction(module, inst))?;
         }
@@ -120,11 +130,74 @@ fn display_metadata(
     default_stack: Option<StackEffect>,
 ) -> impl fmt::Display + '_ {
     fmt::from_fn(move |f| {
-        if let Some(stack) = metadata.stack
-            && Some(stack) != default_stack
+        let stack = metadata.stack.filter(|&stack| Some(stack) != default_stack);
+        let spans = metadata.source_spans();
+        let function_invoke = metadata.function_invoke();
+        let function_exit = metadata.function_exit();
+        if stack.is_none()
+            && spans.is_empty()
+            && function_invoke.is_none()
+            && function_exit.is_none()
+            && !metadata.keep_with_next
         {
-            write!(f, " !meta(stack={}->{})", stack.inputs, stack.outputs)?;
+            return Ok(());
         }
+
+        write!(f, " !metadata(")?;
+        if let Some(stack) = stack {
+            write!(f, "stack={}->{}", stack.inputs, stack.outputs)?;
+        }
+        if let [span] = spans {
+            if stack.is_some() {
+                write!(f, ", ")?;
+            }
+            write!(f, "span={}..{}", span.lo().0, span.hi().0)?;
+        } else if !spans.is_empty() {
+            if stack.is_some() {
+                write!(f, ", ")?;
+            }
+            write!(f, "spans=[")?;
+            for (index, span) in spans.iter().enumerate() {
+                if index != 0 {
+                    write!(f, ", ")?;
+                }
+                write!(f, "{}..{}", span.lo().0, span.hi().0)?;
+            }
+            write!(f, "]")?;
+        }
+        if let Some(function) = function_invoke {
+            if stack.is_some() || !spans.is_empty() {
+                write!(f, ", ")?;
+            }
+            write!(
+                f,
+                "invoke={}@{}..{}",
+                function.identifier,
+                function.declaration.lo().0,
+                function.declaration.hi().0
+            )?;
+        }
+        if let Some(function_exit) = function_exit {
+            if stack.is_some() || !spans.is_empty() || function_invoke.is_some() {
+                write!(f, ", ")?;
+            }
+            let exit = match function_exit {
+                DebugFunctionExit::Return => "return",
+                DebugFunctionExit::Revert => "revert",
+            };
+            write!(f, "exit={exit}")?;
+        }
+        if metadata.keep_with_next {
+            if stack.is_some()
+                || !spans.is_empty()
+                || function_invoke.is_some()
+                || function_exit.is_some()
+            {
+                write!(f, ", ")?;
+            }
+            write!(f, "keep_with_next")?;
+        }
+        write!(f, ")")?;
         Ok(())
     })
 }

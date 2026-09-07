@@ -86,7 +86,7 @@ fn @constructor() [constructor] {
     jump bb1
   bb1:
     v1 = sload 0 !metadata(storage=slot(0))
-    v2 = internal_call @f, 1, v1
+    v2 = icall @f, 1, v1
     sstore 3, v2 !metadata(storage=slot(3))
     v3 = sload 1 !metadata(storage=slot(1))
     sstore 4, v3 !metadata(storage=slot(4))

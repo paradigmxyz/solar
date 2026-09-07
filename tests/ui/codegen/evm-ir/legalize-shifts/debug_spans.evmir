@@ -1,0 +1,13 @@
+//@ compile-flags: --evm-version byzantium -Zevm-ir-pipeline=legalize-shifts
+//@ filecheck:
+@module LegalizeShiftDebugSpans
+
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK: + push 2 !metadata(span=30..40)
+// CHECK-NEXT: + exp !metadata(span=30..40)
+// CHECK-NEXT: + mul !metadata(span=30..40)
+bb0:
+  push 7
+  push 1
+  shl !metadata(span=30..40)
+  stop

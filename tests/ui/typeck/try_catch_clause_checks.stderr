@@ -1,0 +1,172 @@
+error: invalid data location `calldata`
+   ╭▸ ROOT/tests/ui/typeck/try_catch_clause_checks.sol:LL:CC
+   │
+LL │         } catch Error(string calldata) {}
+   │                       ━━━━━━━━━━━━━━━
+   │
+   ╰ note: data location must be `memory` for try/catch clause, but got `calldata`
+
+error: invalid data location `storage`
+   ╭▸ ROOT/tests/ui/typeck/try_catch_clause_checks.sol:LL:CC
+   │
+LL │         } catch (bytes storage) {}
+   │                  ━━━━━━━━━━━━━
+   │
+   ╰ note: data location must be `memory` for try/catch clause, but got `storage`
+
+error[2536]: `try` can only be used with external function calls and contract creation calls
+   ╭▸ ROOT/tests/ui/typeck/try_catch_clause_checks.sol:LL:CC
+   │
+LL │         try internal_() returns (uint256 v) {
+   ╰╴            ━━━━━━━━━━━
+
+error[2536]: `try` can only be used with external function calls and contract creation calls
+   ╭▸ ROOT/tests/ui/typeck/try_catch_clause_checks.sol:LL:CC
+   │
+LL │         try abi.decode(d, (uint256)) returns (uint256 v) {
+   ╰╴            ━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[2536]: `try` can only be used with external function calls and contract creation calls
+   ╭▸ ROOT/tests/ui/typeck/try_catch_clause_checks.sol:LL:CC
+   │
+LL │         try gasleft() returns (uint256 v) {
+   ╰╴            ━━━━━━━━━
+
+error[2536]: `try` can only be used with external function calls and contract creation calls
+   ╭▸ ROOT/tests/ui/typeck/try_catch_clause_checks.sol:LL:CC
+   │
+LL │         try new bytes(4) returns (bytes memory b) {
+   ╰╴            ━━━━━━━━━━━━
+
+error[5347]: `try` can only be used with external function calls and contract creation calls
+   ╭▸ ROOT/tests/ui/typeck/try_catch_clause_checks.sol:LL:CC
+   │
+LL │         try I(a) returns (I i) {
+   ╰╴            ━━━━
+
+error[5347]: `try` can only be used with external function calls and contract creation calls
+   ╭▸ ROOT/tests/ui/typeck/try_catch_clause_checks.sol:LL:CC
+   │
+LL │         try uint256(x) returns (uint256 v) {
+   ╰╴            ━━━━━━━━━━
+
+error[5347]: `try` can only be used with external function calls and contract creation calls
+   ╭▸ ROOT/tests/ui/typeck/try_catch_clause_checks.sol:LL:CC
+   │
+LL │         try S(1) returns (S memory s) {
+   ╰╴            ━━━━
+
+error[5347]: `try` can only be used with external function calls and contract creation calls
+   ╭▸ ROOT/tests/ui/typeck/try_catch_clause_checks.sol:LL:CC
+   │
+LL │         try x++ returns (uint256 v) {
+   ╰╴            ━━━
+
+error[2536]: `try` can only be used with external function calls and contract creation calls
+   ╭▸ ROOT/tests/ui/typeck/try_catch_clause_checks.sol:LL:CC
+   │
+LL │             try internal_() {
+   ╰╴                ━━━━━━━━━━━
+
+error[1036]: this `try` statement already has an `Error` catch clause
+   ╭▸ ROOT/tests/ui/typeck/try_catch_clause_checks.sol:LL:CC
+   │
+LL │         } catch Error(string memory) {} catch Error(string memory) {}
+   │                                         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the first clause is here
+   ╭▸ ROOT/tests/ui/typeck/try_catch_clause_checks.sol:LL:CC
+   │
+LL │         } catch Error(string memory) {} catch Error(string memory) {}
+   ╰╴          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[6732]: this `try` statement already has a `Panic` catch clause
+   ╭▸ ROOT/tests/ui/typeck/try_catch_clause_checks.sol:LL:CC
+   │
+LL │         } catch Panic(uint256) {} catch Panic(uint256) {}
+   │                                   ━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the first clause is here
+   ╭▸ ROOT/tests/ui/typeck/try_catch_clause_checks.sol:LL:CC
+   │
+LL │         } catch Panic(uint256) {} catch Panic(uint256) {}
+   ╰╴          ━━━━━━━━━━━━━━━━━━━━━━━
+
+error[5320]: this `try` statement already has a low-level catch clause
+   ╭▸ ROOT/tests/ui/typeck/try_catch_clause_checks.sol:LL:CC
+   │
+LL │         } catch (bytes memory) {} catch {}
+   │                                   ━━━━━━━━
+   ╰╴
+note: the first clause is here
+   ╭▸ ROOT/tests/ui/typeck/try_catch_clause_checks.sol:LL:CC
+   │
+LL │         } catch (bytes memory) {} catch {}
+   ╰╴          ━━━━━━━━━━━━━━━━━━━━━━━
+
+error[5320]: this `try` statement already has a low-level catch clause
+   ╭▸ ROOT/tests/ui/typeck/try_catch_clause_checks.sol:LL:CC
+   │
+LL │         } catch {} catch (bytes memory) {}
+   │                    ━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the first clause is here
+   ╭▸ ROOT/tests/ui/typeck/try_catch_clause_checks.sol:LL:CC
+   │
+LL │         } catch {} catch (bytes memory) {}
+   ╰╴          ━━━━━━━━
+
+error[5320]: this `try` statement already has a low-level catch clause
+   ╭▸ ROOT/tests/ui/typeck/try_catch_clause_checks.sol:LL:CC
+   │
+LL │         } catch {} catch {}
+   │                    ━━━━━━━━
+   ╰╴
+note: the first clause is here
+   ╭▸ ROOT/tests/ui/typeck/try_catch_clause_checks.sol:LL:CC
+   │
+LL │         } catch {} catch {}
+   ╰╴          ━━━━━━━━
+
+error[2943]: invalid `Error` catch clause parameters
+   ╭▸ ROOT/tests/ui/typeck/try_catch_clause_checks.sol:LL:CC
+   │
+LL │         } catch Error(uint256) {}
+   │           ━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: expected `catch Error(string memory ...) { ... }`
+
+error[1271]: invalid `Panic` catch clause parameters
+   ╭▸ ROOT/tests/ui/typeck/try_catch_clause_checks.sol:LL:CC
+   │
+LL │         } catch Panic(uint8) {}
+   │           ━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: expected `catch Panic(uint ...) { ... }`
+
+error[6231]: invalid low-level catch clause parameters
+   ╭▸ ROOT/tests/ui/typeck/try_catch_clause_checks.sol:LL:CC
+   │
+LL │         } catch (uint256) {}
+   │           ━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: expected `catch (bytes memory ...) { ... }` or `catch { ... }`
+
+error[6231]: invalid low-level catch clause parameters
+   ╭▸ ROOT/tests/ui/typeck/try_catch_clause_checks.sol:LL:CC
+   │
+LL │         } catch (bytes memory, uint256) {}
+   │           ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: expected `catch (bytes memory ...) { ... }` or `catch { ... }`
+
+error[3542]: invalid catch clause name
+   ╭▸ ROOT/tests/ui/typeck/try_catch_clause_checks.sol:LL:CC
+   │
+LL │         } catch Custom(uint256) {}
+   │           ━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: expected `catch (...)`, `catch Error(...)`, or `catch Panic(...)`
+
+error: aborting due to 21 previous errors
+

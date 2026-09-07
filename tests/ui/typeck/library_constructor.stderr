@@ -1,0 +1,8 @@
+error[7634]: constructor cannot be defined in libraries
+   ╭▸ ROOT/tests/ui/typeck/library_constructor.sol:LL:CC
+   │
+LL │     constructor() {}
+   ╰╴    ━━━━━━━━━━━━━━━━
+
+error: aborting due to 1 previous error
+

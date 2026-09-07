@@ -1,0 +1,14 @@
+//@compile-flags: -Zmir-pipeline=lower-slices
+//@filecheck:
+@module DebugInfo
+
+// CHECK-LABEL: {{^[ +].*}}fn @select_slice{{[( ]}}
+// CHECK: + {{v[0-9]+}} = select arg4, arg0, arg2
+// CHECK: + [[LENGTH:v[0-9]+]] = select arg4, arg1, arg3
+// CHECK: + ret [[LENGTH]]
+fn @select_slice(arg0: calldataslice, arg1: calldataslice, arg2: bool) -> u256 {
+  bb0:
+    v3 = select arg2, arg0, arg1 !metadata(span=10..20)
+    v4 = slice_len v3 !metadata(span=20..30)
+    ret v4
+}

@@ -4,9 +4,10 @@
 //! form only records labels, relocations, deferred pushes, opcodes, and opaque
 //! program data for byte encoding.
 
-use super::{Data, DataId};
+use super::{Data, DataId, DebugFunction, DebugFunctionExit, DebugSpans};
 use crate::backend::evm::op::WORD_BYTES;
 use solar_data_structures::index::IndexVec;
+use solar_interface::Span;
 
 mod indexed_jump;
 mod inst;
@@ -37,11 +38,89 @@ pub(in crate::backend::evm) struct Program {
     pub(in crate::backend::evm) packed_labels: IndexVec<PackedLabelsId, PackedLabels>,
     pub(in crate::backend::evm) data: IndexVec<DataId, Data>,
     pub(in crate::backend::evm) data_refs: IndexVec<DataRefId, super::DataRef>,
+    pub(in crate::backend::evm) source_spans: Option<Vec<DebugSpans>>,
+    pub(in crate::backend::evm) function_invokes: Option<Vec<Option<DebugFunction>>>,
+    pub(in crate::backend::evm) function_exits: Option<Vec<Option<DebugFunctionExit>>>,
+    pub(in crate::backend::evm) modifier_depths: Option<Vec<u32>>,
+    current_source_spans: DebugSpans,
+    current_modifier_depth: u32,
 }
 
 impl Program {
+    pub(in crate::backend::evm) fn with_debug_info(capture: bool) -> Self {
+        Self {
+            source_spans: capture.then(Vec::new),
+            function_invokes: capture.then(Vec::new),
+            function_exits: capture.then(Vec::new),
+            modifier_depths: capture.then(Vec::new),
+            current_source_spans: DebugSpans::new(),
+            current_modifier_depth: 0,
+            ..Self::default()
+        }
+    }
+
+    pub(in crate::backend::evm) fn set_source_span(&mut self, span: Option<Span>) {
+        self.current_source_spans.clear();
+        self.current_source_spans.extend(span);
+    }
+
+    pub(in crate::backend::evm) fn set_source_spans(&mut self, spans: &[Span]) {
+        self.current_source_spans.clear();
+        self.current_source_spans.extend_from_slice(spans);
+    }
+
+    pub(in crate::backend::evm) fn set_modifier_depth(&mut self, depth: u32) {
+        self.current_modifier_depth = depth;
+    }
+
     pub(in crate::backend::evm) fn push(&mut self, inst: AsmInst) {
         self.instructions.push(inst);
+        if let Some(source_spans) = &mut self.source_spans {
+            source_spans.push(self.current_source_spans.clone());
+        }
+        if let Some(function_invokes) = &mut self.function_invokes {
+            function_invokes.push(None);
+        }
+        if let Some(function_exits) = &mut self.function_exits {
+            function_exits.push(None);
+        }
+        if let Some(modifier_depths) = &mut self.modifier_depths {
+            modifier_depths.push(self.current_modifier_depth);
+        }
+    }
+
+    pub(in crate::backend::evm) fn mark_last_function_invoke(
+        &mut self,
+        function: Option<DebugFunction>,
+    ) {
+        if let Some(function_invokes) = &mut self.function_invokes
+            && let Some(last) = function_invokes.last_mut()
+        {
+            *last = function;
+        }
+    }
+
+    pub(in crate::backend::evm) fn set_function_invoke(
+        &mut self,
+        index: usize,
+        function: Option<DebugFunction>,
+    ) {
+        if let Some(function_invokes) = &mut self.function_invokes
+            && let Some(slot) = function_invokes.get_mut(index)
+        {
+            *slot = function;
+        }
+    }
+
+    pub(in crate::backend::evm) fn mark_last_function_exit(
+        &mut self,
+        exit: Option<DebugFunctionExit>,
+    ) {
+        if let Some(function_exits) = &mut self.function_exits
+            && let Some(last) = function_exits.last_mut()
+        {
+            *last = exit;
+        }
     }
 
     pub(in crate::backend::evm) fn push_op(&mut self, opcode: u8) {

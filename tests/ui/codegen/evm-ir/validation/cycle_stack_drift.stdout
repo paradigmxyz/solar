@@ -1,0 +1,10 @@
+- // === ROOT/tests/ui/codegen/evm-ir/validation/cycle_stack_drift.evmir (before none) ===
++ // === ROOT/tests/ui/codegen/evm-ir/validation/cycle_stack_drift.evmir (after none) ===
+  @module module
+  bb0:
+    push 0
+    push 1
+    jumpi bb0, bb1
+  bb1:
+    stop
+  

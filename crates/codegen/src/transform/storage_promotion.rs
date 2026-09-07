@@ -300,7 +300,7 @@ impl StorageScalarPromoter {
                     | InstKind::ExtCall { .. }
                     | InstKind::ExtDelegateCall { .. }
                     | InstKind::ExtStaticCall { .. }
-                    | InstKind::InternalCall { .. }
+                    | InstKind::ICall { .. }
                     | InstKind::Create(_, _, _)
                     | InstKind::Create2(_, _, _, _)
                     | InstKind::Gas
@@ -348,7 +348,7 @@ impl StorageScalarPromoter {
                     | InstKind::ExtCall { .. }
                     | InstKind::ExtDelegateCall { .. }
                     | InstKind::ExtStaticCall { .. }
-                    | InstKind::InternalCall { .. }
+                    | InstKind::ICall { .. }
                     | InstKind::Create(_, _, _)
                     | InstKind::Create2(_, _, _, _)
                     | InstKind::Gas => return false,
@@ -776,12 +776,14 @@ impl StorageScalarPromoter {
         slot_value: ValueId,
         temp_addr: ValueId,
     ) {
-        let (load_inst, load_value) = func.alloc_value_inst(Instruction::new(
-            InstKind::MLoad(temp_addr),
-            Some(MirType::uint256()),
-        ));
-        let store_inst =
-            func.alloc_inst(Instruction::new(InstKind::SStore(slot_value, load_value), None));
+        let (load_inst, load_value) = func.alloc_value_inst(
+            Instruction::new(InstKind::MLoad(temp_addr), Some(MirType::uint256()))
+                .with_debug_info_dropped(),
+        );
+        let store_inst = func.alloc_inst(
+            Instruction::new(InstKind::SStore(slot_value, load_value), None)
+                .with_debug_info_dropped(),
+        );
 
         let insert_pos = func.blocks[exit]
             .instructions
@@ -804,7 +806,7 @@ impl StorageScalarPromoter {
         let store_block = func.alloc_block();
 
         let old_instructions = std::mem::take(&mut func.blocks[exit].instructions);
-        let old_terminator = func.blocks[exit].terminator.take();
+        let (old_terminator, terminator_metadata) = func.blocks[exit].take_terminator();
         let old_successors =
             old_terminator.as_ref().map(Terminator::successors).unwrap_or_default();
 
@@ -816,33 +818,42 @@ impl StorageScalarPromoter {
         let mut exit_instructions = old_instructions[..split_pos].to_vec();
         let continuation_instructions = old_instructions[split_pos..].to_vec();
 
-        let (dirty_load_inst, dirty_value) = func
-            .alloc_value_inst(Instruction::new(InstKind::MLoad(dirty_addr), Some(MirType::Bool)));
+        let (dirty_load_inst, dirty_value) = func.alloc_value_inst(
+            Instruction::new(InstKind::MLoad(dirty_addr), Some(MirType::Bool))
+                .with_debug_info_dropped(),
+        );
         exit_instructions.push(dirty_load_inst);
 
+        // dirty = mload dirty_addr
+        // jumpi dirty, store_block, continuation !metadata(intentionally dropped)
         func.blocks[exit].instructions = exit_instructions;
-        func.blocks[exit].terminator = Some(Terminator::Branch {
+        func.blocks[exit].set_generated_terminator(Terminator::Branch {
             condition: dirty_value,
             then_block: store_block,
             else_block: continuation,
         });
 
-        let (load_inst, load_value) = func.alloc_value_inst(Instruction::new(
-            InstKind::MLoad(temp_addr),
-            Some(MirType::uint256()),
-        ));
-        let store_inst =
-            func.alloc_inst(Instruction::new(InstKind::SStore(slot_value, load_value), None));
+        let (load_inst, load_value) = func.alloc_value_inst(
+            Instruction::new(InstKind::MLoad(temp_addr), Some(MirType::uint256()))
+                .with_debug_info_dropped(),
+        );
+        let store_inst = func.alloc_inst(
+            Instruction::new(InstKind::SStore(slot_value, load_value), None)
+                .with_debug_info_dropped(),
+        );
 
         func.blocks[store_block].predecessors.push(exit);
         func.blocks[store_block].instructions.push(load_inst);
         func.blocks[store_block].instructions.push(store_inst);
-        func.blocks[store_block].terminator = Some(Terminator::Jump(continuation));
+        func.blocks[store_block].set_generated_terminator(Terminator::Jump(continuation));
 
         func.blocks[continuation].predecessors.push(exit);
         func.blocks[continuation].predecessors.push(store_block);
+        // continuation: remaining_instructions; old_terminator !metadata(exit)
         func.blocks[continuation].instructions = continuation_instructions;
-        func.blocks[continuation].terminator = old_terminator;
+        if let Some(terminator) = old_terminator {
+            func.blocks[continuation].set_terminator(terminator, terminator_metadata);
+        }
 
         self.redirect_successor_phi_incoming(func, exit, continuation, &old_successors);
         for successor in old_successors {
@@ -896,13 +907,13 @@ impl StorageScalarPromoter {
         kind: InstKind,
         ty: MirType,
     ) -> (InstId, ValueId) {
-        func.alloc_value_inst(Instruction::new(kind, Some(ty)))
+        func.alloc_value_inst(Instruction::new(kind, Some(ty)).with_debug_info_dropped())
     }
 
     /// Allocates an instruction that produces no value, so no result [`Value`]
     /// entry is created for it.
     fn alloc_void_inst(&self, func: &mut Function, kind: InstKind) -> InstId {
-        func.alloc_inst(Instruction::new(kind, None))
+        func.alloc_inst(Instruction::new(kind, None).with_debug_info_dropped())
     }
 
     fn storage_alias_for_loop_value(

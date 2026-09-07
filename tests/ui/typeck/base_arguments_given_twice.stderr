@@ -1,0 +1,31 @@
+error[3364]: base constructor arguments given twice
+   ╭▸ ROOT/tests/ui/typeck/base_arguments_given_twice.sol:LL:CC
+   │
+LL │ contract TwoAncestors is Bb, Cc {
+   │          ━━━━━━━━━━━━
+   ╰╴
+note: first argument list is here
+   ╭▸ ROOT/tests/ui/typeck/base_arguments_given_twice.sol:LL:CC
+   │
+LL │     constructor(uint256 c) A(c + 20) {}
+   ╰╴                           ━━━━━━━━━
+note: second argument list is here
+   ╭▸ ROOT/tests/ui/typeck/base_arguments_given_twice.sol:LL:CC
+   │
+LL │     constructor(uint256 b) A(b + 10) {}
+   ╰╴                           ━━━━━━━━━
+
+error[3364]: base constructor arguments given twice
+   ╭▸ ROOT/tests/ui/typeck/base_arguments_given_twice.sol:LL:CC
+   │
+LL │     constructor() A(3) Bb(1) Dd(2) {}
+   │                   ━━━━
+   ╰╴
+note: second argument list is here
+   ╭▸ ROOT/tests/ui/typeck/base_arguments_given_twice.sol:LL:CC
+   │
+LL │     constructor(uint256 b) A(b + 10) {}
+   ╰╴                           ━━━━━━━━━
+
+error: aborting due to 2 previous errors
+

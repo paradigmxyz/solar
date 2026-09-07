@@ -15,9 +15,9 @@ use solar_sema::{
     Gcx,
     builtins::Builtin,
     hir::{self, CallArgs, FunctionKind, ItemId, NatSpecKind, Res, StateMutability, Visit},
-    ty::{CallableParamSource, CallableSignature, TyKind},
+    ty::{CallableParamSource, CallableSignature, Ty, TyKind},
 };
-use std::{fmt::Write, ops::ControlFlow, sync::Arc};
+use std::{borrow::Cow, fmt::Write, ops::ControlFlow, sync::Arc};
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct SignatureHelpIndex {
@@ -64,10 +64,18 @@ struct ActiveArgument<'a> {
 }
 
 impl SignatureHelpIndex {
-    pub(crate) fn build(gcx: Gcx<'_>) -> Self {
+    pub(crate) fn build(gcx: Gcx<'_>, locations: &proto::LocationConverter) -> Self {
         let mut index = Self::default();
-        index.build_callable_catalog(gcx);
-        let mut collector = CallCollector { index: &mut index, gcx, source: None, contract: None };
+        let mut renderer = SignatureRenderer { gcx, signatures: FxHashMap::default() };
+        index.build_callable_catalog(&mut renderer, locations);
+        let mut collector = CallCollector {
+            index: &mut index,
+            renderer: &mut renderer,
+            locations,
+            gcx,
+            source: None,
+            contract: None,
+        };
         for source_id in gcx.hir.source_ids() {
             collector.source = Some(source_id);
             collector.contract = None;
@@ -83,7 +91,7 @@ impl SignatureHelpIndex {
         for (uri, mut calls) in other.calls {
             for call in &mut calls {
                 for signature in &mut call.signatures {
-                    *signature = self.intern_shared_signature(signature.clone());
+                    *signature = self.intern_signature(signature.clone());
                 }
             }
             let destination = self.calls.entry(uri).or_default();
@@ -92,12 +100,7 @@ impl SignatureHelpIndex {
         }
         for (name, entries) in other.callables_by_name {
             for entry in entries {
-                self.push_shared_callable(
-                    name.clone(),
-                    entry.location,
-                    entry.form,
-                    entry.signature,
-                );
+                self.push_callable(name.clone(), entry.location, entry.form, entry.signature);
             }
         }
     }
@@ -184,14 +187,17 @@ impl SignatureHelpIndex {
         Some(SignatureHelp { signatures, active_signature: Some(0), active_parameter })
     }
 
-    fn build_callable_catalog(&mut self, gcx: Gcx<'_>) {
+    fn build_callable_catalog(
+        &mut self,
+        renderer: &mut SignatureRenderer<'_>,
+        locations: &proto::LocationConverter,
+    ) {
+        let gcx = renderer.gcx;
         for item_id in gcx.hir.item_ids() {
             if let Some(name) = gcx.hir.item(item_id).name()
-                && let Some(signature) = render_item(gcx, item_id)
+                && let Some(signature) = renderer.render_item(item_id)
             {
-                let Some(location) =
-                    proto::span_to_location(gcx.sess.source_map(), gcx.hir.item(item_id).span())
-                else {
+                let Some(location) = locations.location(gcx.hir.item(item_id).span()) else {
                     continue;
                 };
                 let form = match item_id {
@@ -204,7 +210,7 @@ impl SignatureHelpIndex {
             }
         }
         for builtin in Builtin::global() {
-            if let Some(signature) = render_res(gcx, Res::Builtin(builtin)) {
+            if let Some(signature) = renderer.render_res(Res::Builtin(builtin)) {
                 self.push_callable(builtin.name().to_string(), None, CallForm::Regular, signature);
             }
         }
@@ -215,19 +221,9 @@ impl SignatureHelpIndex {
         name: String,
         location: Option<Location>,
         form: CallForm,
-        signature: CallSignature,
-    ) {
-        self.push_shared_callable(name, location, form, Arc::new(signature));
-    }
-
-    fn push_shared_callable(
-        &mut self,
-        name: String,
-        location: Option<Location>,
-        form: CallForm,
         signature: Arc<CallSignature>,
     ) {
-        let signature = self.intern_shared_signature(signature);
+        let signature = self.intern_signature(signature);
         let entries = self.callables_by_name.entry(name).or_default();
         if !entries.iter().any(|entry| {
             entry.location == location && entry.form == form && entry.signature == signature
@@ -239,19 +235,17 @@ impl SignatureHelpIndex {
     fn push(
         &mut self,
         gcx: Gcx<'_>,
+        locations: &proto::LocationConverter,
         args: &CallArgs<'_>,
         callee_span: Span,
         form: CallForm,
-        signatures: Vec<CallSignature>,
+        signatures: Vec<Arc<CallSignature>>,
     ) {
         if args.is_dummy() || signatures.is_empty() {
             return;
         }
-        let Some(location) = proto::span_to_location(gcx.sess.source_map(), args.span) else {
-            return;
-        };
-        let Some(callee_location) = proto::span_to_location(gcx.sess.source_map(), callee_span)
-        else {
+        let Some(location) = locations.location(args.span) else { return };
+        let Some(callee_location) = locations.location(callee_span) else {
             return;
         };
         if callee_location.uri != location.uri {
@@ -270,11 +264,7 @@ impl SignatureHelpIndex {
         });
     }
 
-    fn intern_signature(&mut self, signature: CallSignature) -> Arc<CallSignature> {
-        self.intern_shared_signature(Arc::new(signature))
-    }
-
-    fn intern_shared_signature(&mut self, signature: Arc<CallSignature>) -> Arc<CallSignature> {
+    fn intern_signature(&mut self, signature: Arc<CallSignature>) -> Arc<CallSignature> {
         let candidates =
             self.signatures_by_label.entry(signature.information.label.clone()).or_default();
         if let Some(existing) =
@@ -347,7 +337,9 @@ impl CallSignature {
 }
 
 struct CallCollector<'a, 'gcx> {
+    renderer: &'a mut SignatureRenderer<'gcx>,
     index: &'a mut SignatureHelpIndex,
+    locations: &'a proto::LocationConverter,
     gcx: Gcx<'gcx>,
     source: Option<hir::SourceId>,
     contract: Option<hir::ContractId>,
@@ -378,7 +370,7 @@ impl<'gcx> CallCollector<'_, 'gcx> {
         };
         let callee_span = callee.span.with_hi(args.span.lo());
         let selected = self.gcx.resolved_callee(callee.id);
-        let mut candidates = Vec::<(bool, CallSignature)>::new();
+        let mut candidates = Vec::<(bool, Arc<CallSignature>)>::new();
 
         match callee.kind {
             hir::ExprKind::Ident(resolutions) => {
@@ -386,7 +378,7 @@ impl<'gcx> CallCollector<'_, 'gcx> {
                     if matches!(res, Res::Item(ItemId::Contract(_))) {
                         continue;
                     }
-                    if let Some(signature) = render_res(self.gcx, res) {
+                    if let Some(signature) = self.renderer.render_res(res) {
                         candidates.push((selected.is_some_and(|it| it.res == res), signature));
                     }
                 }
@@ -418,9 +410,11 @@ impl<'gcx> CallCollector<'_, 'gcx> {
                         let is_selected = selected.is_some_and(|selected| {
                             member.res == Some(selected.res) && member.attached == selected.attached
                         });
-                        if let Some(signature) =
-                            render_callable(self.gcx, callable, member.res, Some(name.to_string()))
-                        {
+                        if let Some(signature) = self.renderer.render_callable(
+                            callable,
+                            member.res,
+                            Some(Cow::Borrowed(name.name.as_str_in(self.gcx.sess))),
+                        ) {
                             candidates.push((is_selected, signature));
                         }
                     }
@@ -430,13 +424,13 @@ impl<'gcx> CallCollector<'_, 'gcx> {
                 let signature = if let hir::ExprKind::New(ref ty) = callee.kind
                     && let TyKind::Contract(id) = self.gcx.type_of_hir_ty(ty).kind
                 {
-                    render_item(self.gcx, ItemId::Contract(id))
+                    self.renderer.render_item(ItemId::Contract(id))
                 } else if let Some(ty) = callee_ty
                     && let Some(callable) = self.gcx.callable_signature_of_ty(ty)
                 {
                     let fallback_name =
                         self.gcx.sess.source_map().span_to_snippet(callee.span).ok();
-                    render_callable(self.gcx, callable, None, fallback_name)
+                    self.renderer.render_callable(callable, None, fallback_name.map(Cow::Owned))
                 } else {
                     None
                 };
@@ -449,19 +443,20 @@ impl<'gcx> CallCollector<'_, 'gcx> {
         candidates.sort_by_key(|(selected, _)| !selected);
         let mut signatures = Vec::with_capacity(candidates.len());
         for (_, signature) in candidates {
-            if !signatures.iter().any(|existing: &CallSignature| {
+            if !signatures.iter().any(|existing: &Arc<CallSignature>| {
                 existing.information.label == signature.information.label
             }) {
                 signatures.push(signature);
             }
         }
-        self.index.push(self.gcx, args, callee_span, form, signatures);
+        self.index.push(self.gcx, self.locations, args, callee_span, form, signatures);
     }
 
     fn collect_modifier(&mut self, modifier: &'gcx hir::Modifier<'gcx>) {
-        let Some(signature) = render_item(self.gcx, modifier.id) else { return };
+        let Some(signature) = self.renderer.render_item(modifier.id) else { return };
         self.index.push(
             self.gcx,
+            self.locations,
             &modifier.args,
             modifier.span.with_hi(modifier.args.span.lo()),
             CallForm::Regular,
@@ -500,44 +495,91 @@ impl<'gcx> Visit<'gcx> for CallCollector<'_, 'gcx> {
     }
 }
 
-fn render_res(gcx: Gcx<'_>, res: Res) -> Option<CallSignature> {
-    if let Res::Item(item_id) = res {
-        return render_item(gcx, item_id);
-    }
-    let callable = gcx.callable_signature_of_ty(gcx.type_of_res(res))?;
-    let fallback_name = match res {
-        Res::Builtin(builtin) => Some(builtin.name().to_string()),
-        Res::Item(item_id) => gcx.hir.item(item_id).name().map(|name| name.to_string()),
-        Res::Namespace(_) | Res::Err(_) => None,
-    };
-    render_callable(gcx, callable, Some(res), fallback_name)
+/// Render each compiler signature once per analysis, before interning the owned result.
+struct SignatureRenderer<'gcx> {
+    gcx: Gcx<'gcx>,
+    signatures: FxHashMap<SignatureKey<'gcx>, Option<Arc<CallSignature>>>,
 }
 
-fn render_item(gcx: Gcx<'_>, item_id: ItemId) -> Option<CallSignature> {
-    if let ItemId::Contract(id) = item_id {
-        let contract = gcx.hir.contract(id);
-        if let Some(constructor) = contract.ctor {
-            return render_item(gcx, ItemId::Function(constructor));
+#[derive(PartialEq, Eq, Hash)]
+struct SignatureKey<'gcx> {
+    parameters: &'gcx [Ty<'gcx>],
+    returns: &'gcx [Ty<'gcx>],
+    param_source: Option<CallableParamSource>,
+    res: Option<Res>,
+    fallback_name: Option<Cow<'gcx, str>>,
+}
+
+impl<'gcx> SignatureRenderer<'gcx> {
+    fn render_res(&mut self, res: Res) -> Option<Arc<CallSignature>> {
+        let gcx = self.gcx;
+        if let Res::Item(item_id) = res {
+            return self.render_item(item_id);
         }
-        return Some(CallSignature {
-            information: SignatureInformation {
-                label: "constructor()".into(),
-                documentation: None,
-                parameters: Some(Vec::new()),
-                active_parameter: None,
-            },
-            parameter_names: Vec::new(),
-            variadic: false,
-        });
+        let callable = gcx.callable_signature_of_ty(gcx.type_of_res(res))?;
+        let fallback_name = match res {
+            Res::Builtin(builtin) => Some(Cow::Borrowed(builtin.name().as_str_in(gcx.sess))),
+            Res::Item(item_id) => gcx
+                .hir
+                .item(item_id)
+                .name()
+                .map(|name| Cow::Borrowed(name.name.as_str_in(gcx.sess))),
+            Res::Namespace(_) | Res::Err(_) => None,
+        };
+        self.render_callable(callable, Some(res), fallback_name)
     }
 
-    let res = Res::Item(item_id);
-    let mut callable = gcx.callable_signature_of_ty(gcx.type_of_res(res))?;
-    if let ItemId::Variable(id) = item_id {
-        callable.param_source = Some(CallableParamSource::FunctionType(id));
+    fn render_item(&mut self, item_id: ItemId) -> Option<Arc<CallSignature>> {
+        let gcx = self.gcx;
+        if let ItemId::Contract(id) = item_id {
+            let contract = gcx.hir.contract(id);
+            if let Some(constructor) = contract.ctor {
+                return self.render_item(ItemId::Function(constructor));
+            }
+            return Some(Arc::new(CallSignature {
+                information: SignatureInformation {
+                    label: "constructor()".into(),
+                    documentation: None,
+                    parameters: Some(Vec::new()),
+                    active_parameter: None,
+                },
+                parameter_names: Vec::new(),
+                variadic: false,
+            }));
+        }
+
+        let res = Res::Item(item_id);
+        let mut callable = gcx.callable_signature_of_ty(gcx.type_of_res(res))?;
+        if let ItemId::Variable(id) = item_id {
+            callable.param_source = Some(CallableParamSource::FunctionType(id));
+        }
+        let fallback_name =
+            gcx.hir.item(item_id).name().map(|name| Cow::Borrowed(name.name.as_str_in(gcx.sess)));
+        self.render_callable(callable, Some(res), fallback_name)
     }
-    let fallback_name = gcx.hir.item(item_id).name().map(|name| name.to_string());
-    render_callable(gcx, callable, Some(res), fallback_name)
+
+    fn render_callable(
+        &mut self,
+        callable: CallableSignature<'gcx>,
+        res: Option<Res>,
+        fallback_name: Option<Cow<'gcx, str>>,
+    ) -> Option<Arc<CallSignature>> {
+        let key = SignatureKey {
+            parameters: callable.parameters,
+            returns: callable.returns,
+            param_source: callable.param_source,
+            res,
+            fallback_name,
+        };
+        let gcx = self.gcx;
+        self.signatures
+            .entry(key)
+            .or_insert_with_key(|key| {
+                render_callable(gcx, callable, res, key.fallback_name.clone().map(Cow::into_owned))
+                    .map(Arc::new)
+            })
+            .clone()
+    }
 }
 
 fn render_callable<'gcx>(
@@ -1038,10 +1080,11 @@ mod tests {
     #[test]
     fn extend_reinterns_callsite_signatures() {
         let mut destination = SignatureHelpIndex::default();
-        let canonical =
-            destination.intern_signature(test_signature("function f(uint256)", vec![None]));
+        let canonical = destination
+            .intern_signature(Arc::new(test_signature("function f(uint256)", vec![None])));
         let mut source = SignatureHelpIndex::default();
-        let duplicate = source.intern_signature(test_signature("function f(uint256)", vec![None]));
+        let duplicate =
+            source.intern_signature(Arc::new(test_signature("function f(uint256)", vec![None])));
         let uri = Url::parse("file:///Signature.sol").unwrap();
         source.calls.insert(
             uri.clone(),

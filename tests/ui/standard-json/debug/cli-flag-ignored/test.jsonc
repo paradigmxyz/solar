@@ -1,0 +1,25 @@
+//@ compile-flags: --revert-strings strip
+// Standard JSON does not inherit the command line's `--revert-strings`, like solc: the
+// reason string stays in the bytecode and the metadata records no `debug` settings.
+// CHECK: "metadata":
+// CHECK-NOT: revertStrings
+// CHECK: "deployedBytecode": {
+// CHECK: 08c379a0
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract A { function f(uint256 x) external pure returns (uint256) { require(x == 1, \"x must be one\"); return x; } }"
+    }
+  },
+  "settings": {
+    "outputSelection": {
+      "*": {
+        "*": [
+          "metadata",
+          "evm.deployedBytecode.object"
+        ]
+      }
+    }
+  }
+}

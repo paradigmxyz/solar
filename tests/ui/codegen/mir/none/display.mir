@@ -39,10 +39,10 @@ fn @storage_ops(arg0: u256, arg1: u256) {
 }
 
 // CHECK-LABEL: fn @over.load.4(
-// CHECK: internal_call @over.load.5, 1
+// CHECK: icall @over.load.5, 1
 fn @over.load.4() -> u256 {
   bb0:
-    v0 = internal_call @over.load.5, 1
+    v0 = icall @over.load.5, 1
     ret v0
 }
 

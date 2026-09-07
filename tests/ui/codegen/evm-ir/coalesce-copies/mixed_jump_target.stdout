@@ -2,10 +2,10 @@
 + // === ROOT/tests/ui/codegen/evm-ir/coalesce-copies/mixed_jump_target.evmir (after coalesce-copies) ===
   @module MixedJumpTarget
   bb0:
-    op_0c !meta(stack=0->255)
-    op_0c !meta(stack=0->255)
-    op_0c !meta(stack=0->255)
-    op_0c !meta(stack=0->255)
+    op_0c !metadata(stack=0->255)
+    op_0c !metadata(stack=0->255)
+    op_0c !metadata(stack=0->255)
+    op_0c !metadata(stack=0->255)
     push 0
     push 0
     push 0

@@ -153,10 +153,10 @@
       ret v0
   }
   
-  fn @internal_call_barrier() -> u256 {
+  fn @icall_barrier() -> u256 {
     bb0:
       mstore 128, 42
-      internal_call @callee, 0
+      icall @callee, 0
       v0 = mload 128
       ret v0
   }

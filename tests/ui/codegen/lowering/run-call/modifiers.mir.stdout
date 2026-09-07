@@ -43,7 +43,7 @@ fn @guarded(arg0: u256) -> u256 [selector=0x5e284975, pure, abi_params=[u256], a
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    internal_call @revert_error, 0, 5, 0x6775617264000000000000000000000000000000000000000000000000000000
+    icall @revert_error, 0, 5, 0x6775617264000000000000000000000000000000000000000000000000000000
     invalid
 }
 
@@ -63,7 +63,7 @@ fn @literalString() -> memorybytes [selector=0x660cf51a, pure, abi_params=[], ab
   bb1:
     ret v2
   bb2:
-    internal_call @revert_error, 0, 5, 0x6775617264000000000000000000000000000000000000000000000000000000
+    icall @revert_error, 0, 5, 0x6775617264000000000000000000000000000000000000000000000000000000
     invalid
 }
 
@@ -79,7 +79,7 @@ fn @literalBytes() -> bytes4 [selector=0x95549276, pure, abi_params=[], abi_retu
   bb1:
     ret 0x1122334400000000000000000000000000000000000000000000000000000000
   bb2:
-    internal_call @revert_error, 0, 5, 0x6775617264000000000000000000000000000000000000000000000000000000
+    icall @revert_error, 0, 5, 0x6775617264000000000000000000000000000000000000000000000000000000
     invalid
 }
 
@@ -121,23 +121,23 @@ fn @calldataBytes(arg0: calldataslice) -> memorybytes [selector=0x7965815f, pure
   bb5:
     revert 0, 0
   bb2:
-    internal_call @revert_error, 0, 5, 0x6775617264000000000000000000000000000000000000000000000000000000
+    icall @revert_error, 0, 5, 0x6775617264000000000000000000000000000000000000000000000000000000
     invalid
 }
 
 fn @inner(arg0: u256) {
   bb0:
-    v0 = internal_call @rec, 1, 1
-    v1 = internal_call @rec, 1, 11
-    v2 = internal_call @rec, 1, 2
-    v3 = internal_call @rec, 1, 21
-    v4 = internal_call @rec, 1, 3
+    v0 = icall @rec, 1, 1
+    v1 = icall @rec, 1, 11
+    v2 = icall @rec, 1, 2
+    v3 = icall @rec, 1, 21
+    v4 = icall @rec, 1, 3
     jump bb3
   bb3:
-    v5 = internal_call @rec, 1, 29
+    v5 = icall @rec, 1, 29
     jump bb2
   bb2:
-    v6 = internal_call @rec, 1, 19
+    v6 = icall @rec, 1, 19
     jump bb1
   bb1:
     stop
@@ -145,7 +145,7 @@ fn @inner(arg0: u256) {
 
 fn @orderFull(arg0: u256) -> u256 [selector=0xcd96f9ce, abi_params=[u256], abi_returns=[word]] {
   bb0:
-    internal_call @inner, 0, arg0
+    icall @inner, 0, arg0
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
@@ -219,7 +219,7 @@ fn @retMid() -> u256 [selector=0x436126b8, abi_params=[], abi_returns=[word]] {
   bb1:
     ret 9
   bb6:
-    internal_call @revert_error, 0, 4, 0x706f737400000000000000000000000000000000000000000000000000000000
+    icall @revert_error, 0, 4, 0x706f737400000000000000000000000000000000000000000000000000000000
     invalid
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
@@ -235,11 +235,11 @@ fn @lazy(arg0: bool) -> u256 [selector=0x90bca39b, abi_params=[bool], abi_return
   bb4:
     jump bb5
   bb5:
-    v2 = internal_call @rec, 1, 7
-    v3 = internal_call @rec, 1, 11
+    v2 = icall @rec, 1, 7
+    v3 = icall @rec, 1, 11
     jump bb7
   bb7:
-    v4 = internal_call @rec, 1, 19
+    v4 = icall @rec, 1, 19
     jump bb6
   bb6:
     jump bb2
@@ -256,7 +256,7 @@ fn @lazy(arg0: bool) -> u256 [selector=0x90bca39b, abi_params=[bool], abi_return
   bb1:
     ret v5
   bb8:
-    internal_call @revert_error, 0, 4, 0x6c617a7900000000000000000000000000000000000000000000000000000000
+    icall @revert_error, 0, 4, 0x6c617a7900000000000000000000000000000000000000000000000000000000
     invalid
 }
 
@@ -357,7 +357,7 @@ fn @repeatedInner() {
 
 fn @repeated() -> u256 [selector=0xc7642fc4, abi_params=[], abi_returns=[word]] {
   bb0:
-    internal_call @repeatedInner, 0
+    icall @repeatedInner, 0
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }

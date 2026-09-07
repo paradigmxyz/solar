@@ -161,10 +161,9 @@ fn fmp_write_has_future_observer(func: &Function, cfg: &CfgInfo, inst_id: InstId
 
 fn instruction_observes_fmp(func: &Function, inst_id: InstId) -> bool {
     match func.inst(inst_id).kind {
-        InstKind::Alloc { .. }
-        | InstKind::Fmp
-        | InstKind::SetFmp(_)
-        | InstKind::InternalCall { .. } => true,
+        InstKind::Alloc { .. } | InstKind::Fmp | InstKind::SetFmp(_) | InstKind::ICall { .. } => {
+            true
+        }
         InstKind::MLoad(address) => func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT),
         _ => false,
     }
@@ -227,8 +226,8 @@ fn eligible_static_allocations(
     let aa = AliasAnalysis::new(func);
     if func.instructions().any(|inst_id| {
         let kind = &func.inst(inst_id).kind;
-        let bad = !matches!(kind, InstKind::InternalCall { .. })
-            && aa.instruction_may_reset_fmp(func, inst_id);
+        let bad =
+            !matches!(kind, InstKind::ICall { .. }) && aa.instruction_may_reset_fmp(func, inst_id);
         bad && fmp_write_has_future_observer(func, &cfg, inst_id)
     }) {
         return Vec::new();
@@ -449,7 +448,7 @@ fn candidate_uses_are_safe(
                                 .is_some_and(|offset| in_range_at(off, offset, 32))
                         })
                 }
-                InstKind::InternalCall { function, args, .. } => {
+                InstKind::ICall { function, args, .. } => {
                     call_use_is_safe(function, &args, operand, calls, summaries)
                 }
                 _ => false,

@@ -13,10 +13,10 @@ fn @escape() -> memptr {
 }
 
 // CHECK-LABEL: fn @entry()
-// CHECK: v0 = internal_call @escape, 1
+// CHECK: v0 = icall @escape, 1
 fn @entry() [selector=0x01020304] {
   bb0:
-    v0 = internal_call fn0, 1
+    v0 = icall fn0, 1
     ret
 }
 
@@ -32,9 +32,9 @@ fn @escape_slice() -> memoryslice {
 }
 
 // CHECK-LABEL: fn @slice_entry()
-// CHECK: internal_call @escape_slice, 0
+// CHECK: icall @escape_slice, 0
 fn @slice_entry() [selector=0x05060708] {
   bb0:
-    v0 = internal_call fn2, 1
+    v0 = icall fn2, 1
     ret
 }

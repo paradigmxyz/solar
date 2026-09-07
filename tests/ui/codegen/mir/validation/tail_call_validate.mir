@@ -18,9 +18,9 @@ fn @unknownTarget() {
     tail_call fn9
 }
 
-//~? ERROR: [fn3] internal_call targets nonexistent function fn9
+//~? ERROR: [fn3] icall targets nonexistent function fn9
 fn @unknownInternalTarget() {
   bb0:
-    internal_call fn9, 0
+    icall fn9, 0
     stop
 }

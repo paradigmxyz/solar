@@ -8,9 +8,9 @@
 // forwarded to an ordinary internal call. Verified byte-identical to solc.
 contract CalldataSliceControlFlow {
     // A single calldata slice trimmed under a branch and returned through an
-    // implicit named return: the helper inlines, so no `internal_call` is left.
+    // implicit named return: the helper inlines, so no `icall` is left.
     // CHECK-LABEL: fn @trimLen{{[( ]}}
-    // CHECK: internal_call @_trim
+    // CHECK: icall @_trim
     function trimLen(bytes calldata data) external pure returns (uint256) {
         return _trim(data).length;
     }
@@ -29,7 +29,7 @@ contract CalldataSliceControlFlow {
     // Uninitialized calldata slices filled in assembly are forwarded to an
     // ordinary internal call.
     // CHECK-LABEL: fn @forward{{[( ]}}
-    // CHECK: internal_call @_sum
+    // CHECK: icall @_sum
     function forward(bytes calldata x) external pure returns (uint256) {
         bytes calldata a;
         bytes calldata b;
@@ -49,7 +49,7 @@ contract CalldataSliceControlFlow {
     // An explicit `return` under control flow: the body inlines with an inline
     // exit block, each `return` storing to the return slot and jumping there.
     // CHECK-LABEL: fn @explicitTrim{{[( ]}}
-    // CHECK: internal_call @_explicitTrim
+    // CHECK: icall @_explicitTrim
     function explicitTrim(bytes calldata x) external pure returns (uint256) {
         return _explicitTrim(x).length;
     }
@@ -64,7 +64,7 @@ contract CalldataSliceControlFlow {
     // slices directly to the bindings, bypassing the one-word-per-value
     // multi-return buffer that cannot carry a two-word slice.
     // CHECK-LABEL: fn @headTail{{[( ]}}
-    // CHECK: internal_call @_split
+    // CHECK: icall @_split
     function headTail(bytes calldata x) external pure returns (uint256 hl, uint256 tl) {
         (bytes calldata head, bytes calldata tail) = _split(x);
         hl = head.length;

@@ -1,0 +1,16 @@
+//@ compile-flags: -Zevm-ir-pipeline=outline
+//@ filecheck:
+@module DebugInfoPush
+
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK: + jump [[STUB:bb[0-9]+]] !metadata(invoke=first@1..10)
+// CHECK: + [[STUB]]:
+// CHECK: {{^[ +].*}}push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef !metadata(spans=[1..5, 11..15])
+// CHECK: + [[SECOND:bb[0-9]+]]:
+// CHECK: + jump [[STUB]] !metadata(invoke=second@11..20)
+bb0:
+  push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef !metadata(span=1..5, invoke=first@1..10)
+  pop !metadata(span=6..10)
+  push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef !metadata(span=11..15, invoke=second@11..20)
+  pop !metadata(span=16..20)
+  stop !metadata(span=21..25)

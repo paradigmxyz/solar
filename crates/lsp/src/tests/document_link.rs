@@ -1,6 +1,6 @@
 use super::{
-    AnalysisBatch, AnalysisResultAccumulator, GlobalState, SymbolTables, analyze,
-    snapshot_with_config, support::RequestFixture,
+    AnalysisBatch, AnalysisResultAccumulator, GlobalState, analyze, snapshot_with_config,
+    support::RequestFixture,
 };
 use crate::test_support::TestProject;
 use async_lsp::ClientSocket;
@@ -12,7 +12,7 @@ use snapbox::str;
 use solar_config::CompileOpts;
 use std::{
     future::Future,
-    sync::atomic::Ordering,
+    sync::{Arc, atomic::Ordering},
     task::{Context, Waker},
 };
 
@@ -101,7 +101,7 @@ fn equivalent_percent_encoded_uri_returns_document_links() {
         partial_result_params: PartialResultParams::default(),
     };
     let mut state = GlobalState::new(ClientSocket::new_closed());
-    *state.symbol_tables.write() = tables;
+    state.symbol_tables.store(Arc::new(tables));
     let mut request = std::pin::pin!(crate::handlers::document_links(&mut state, params));
     let waker = Waker::noop();
     let mut context = Context::from_waker(waker);
@@ -205,7 +205,7 @@ fn waits_for_current_analysis_before_returning_document_links() {
         partial_result_params: PartialResultParams::default(),
     };
     let mut state = GlobalState::new(ClientSocket::new_closed());
-    *state.symbol_tables.write() = old_tables;
+    state.symbol_tables.store(Arc::new(old_tables));
     state.analysis_version.fetch_add(1, Ordering::AcqRel);
 
     let mut request = std::pin::pin!(crate::handlers::document_links(&mut state, params));
@@ -216,8 +216,8 @@ fn waits_for_current_analysis_before_returning_document_links() {
 
     state.analysis_version.fetch_add(1, Ordering::AcqRel);
     let mut snapshot = state.snapshot();
-    assert!(snapshot.publish_symbol_tables(2, new_tables));
-    assert!(!snapshot.publish_symbol_tables(1, SymbolTables::default()));
+    assert!(snapshot.publish_symbol_tables(2, Arc::new(new_tables)));
+    assert!(!snapshot.publish_symbol_tables(1, Default::default()));
     let std::task::Poll::Ready(response) = request.as_mut().poll(&mut context) else {
         panic!("document-link request should complete after analysis is published");
     };

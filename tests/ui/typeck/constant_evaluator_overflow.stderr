@@ -1,0 +1,31 @@
+error: failed to evaluate constant: arithmetic overflow
+   ╭▸ ROOT/tests/ui/typeck/constant_evaluator_overflow.sol:LL:CC
+   │
+LL │     uint16 constant b = a + 2;
+   │                         ───── evaluation of constant value failed here
+LL │     function f() public pure {
+LL │         uint[b] memory x;
+   ╰╴             ━
+
+error: failed to evaluate constant: arithmetic overflow
+   ╭▸ ROOT/tests/ui/typeck/constant_evaluator_overflow.sol:LL:CC
+   │
+LL │         uint[a - 1] memory x;
+   ╰╴             ━━━━━ evaluation of constant value failed here
+
+error: failed to evaluate constant: arithmetic overflow
+   ╭▸ ROOT/tests/ui/typeck/constant_evaluator_overflow.sol:LL:CC
+   │
+LL │         uint[-a] memory x;
+   ╰╴             ━━ evaluation of constant value failed here
+
+error: failed to evaluate constant: arithmetic overflow
+   ╭▸ ROOT/tests/ui/typeck/constant_evaluator_overflow.sol:LL:CC
+   │
+LL │ contract ConstantDividedByItsNegation layout at n / ~n {}
+   │                                                 ━━━━┬─
+   │                                                     │
+   ╰╴                                                    evaluation of constant value failed here
+
+error: aborting due to 4 previous errors
+

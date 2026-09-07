@@ -96,7 +96,7 @@ impl CallGraphInfo {
     fn collect_internal_callees(func: &Function, function_count: usize) -> DenseBitSet<FunctionId> {
         let mut callees = DenseBitSet::new_empty(function_count);
         for inst_id in func.instructions() {
-            if let InstKind::InternalCall { function, .. } = func.inst(inst_id).kind {
+            if let InstKind::ICall { function, .. } = func.inst(inst_id).kind {
                 callees.insert(function);
             }
         }

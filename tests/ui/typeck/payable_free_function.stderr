@@ -1,0 +1,8 @@
+error[9559]: free functions cannot be payable
+   ╭▸ ROOT/tests/ui/typeck/payable_free_function.sol:LL:CC
+   │
+LL │ function f() payable {}
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 1 previous error
+

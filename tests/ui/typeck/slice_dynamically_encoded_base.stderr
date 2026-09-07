@@ -1,0 +1,32 @@
+error: index range access is not supported for arrays with dynamically encoded base types
+   ╭▸ ROOT/tests/ui/typeck/slice_dynamically_encoded_base.sol:LL:CC
+   │
+LL │         return d[1:2][0].a.length;
+   ╰╴               ━━━━━━
+
+error: index range access is not supported for arrays with dynamically encoded base types
+   ╭▸ ROOT/tests/ui/typeck/slice_dynamically_encoded_base.sol:LL:CC
+   │
+LL │         Dynamic[] memory m = d[0:1];
+   ╰╴                             ━━━━━━
+
+error: index range access is not supported for arrays with dynamically encoded base types
+   ╭▸ ROOT/tests/ui/typeck/slice_dynamically_encoded_base.sol:LL:CC
+   │
+LL │         d[0:1];
+   ╰╴        ━━━━━━
+
+error: index range access is not supported for arrays with dynamically encoded base types
+   ╭▸ ROOT/tests/ui/typeck/slice_dynamically_encoded_base.sol:LL:CC
+   │
+LL │         d[0:1];
+   ╰╴        ━━━━━━
+
+error: index range access is not supported for arrays with dynamically encoded base types
+   ╭▸ ROOT/tests/ui/typeck/slice_dynamically_encoded_base.sol:LL:CC
+   │
+LL │         d[0:1];
+   ╰╴        ━━━━━━
+
+error: aborting due to 5 previous errors
+

@@ -9,7 +9,7 @@
 use super::{EvmPass, data::literal_store_run, utils::instruction_size_lower_bound};
 use crate::{
     backend::evm::{
-        ir::{BlockId, Data, DataRef, Instruction, Module},
+        ir::{BlockId, Data, DataRef, Instruction, Metadata, Module},
         op::{self, WORD_BYTES},
     },
     lower::data_copy_cost,
@@ -70,15 +70,23 @@ fn materialize_constant_data(gcx: Gcx<'_>, module: &mut Module) -> bool {
         prepared.push((rewrite.block, rewrite.start, rewrite.end, size, data));
     }
     for (block, start, end, size, data) in prepared.into_iter().rev() {
-        module.blocks[block].instructions.splice(
-            start..end,
-            [
-                Instruction::push_value(U256::from(size)),
-                Instruction::push_data(data),
-                Instruction::stack_op(op::StackOp::Dup(3)),
-                Instruction::opcode(op::CODECOPY),
-            ],
-        );
+        // The copy carries every origin of the stores it replaces; their function events land
+        // on the copy itself, the last replacement.
+        let mut metadata = Metadata::default();
+        for inst in &module.blocks[block].instructions[start..end] {
+            metadata.absorb_debug_info(&inst.metadata);
+        }
+        let mut replacement = [
+            Instruction::push_value(U256::from(size)),
+            Instruction::push_data(data),
+            Instruction::stack_op(op::StackOp::Dup(3)),
+            Instruction::opcode(op::CODECOPY),
+        ];
+        for inst in &mut replacement {
+            inst.metadata.copy_source_debug_from(&metadata);
+        }
+        replacement[3].metadata.absorb_debug_info(&metadata);
+        module.blocks[block].instructions.splice(start..end, replacement);
     }
     true
 }

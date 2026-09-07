@@ -3,13 +3,13 @@
 fn @f() -> (u256, u256) [selector=0x26121ff0, abi_params=[], abi_returns=[word, word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = add v0, 1
-    v2 = lt v1, v0
-    jumpi v2, bb1, bb2
+    v1 = gt v0, 0xffffffffffffffff
+    jumpi v1, bb1, bb2
   bb2:
+    v2 = add v0, 1
     v3 = storage_array_data_slot 0
     v4 = add v3, v0
-    sstore 0, v1 !metadata(storage=slot(0))
+    sstore 0, v2 !metadata(storage=slot(0))
     v5 = sload 0 !metadata(storage=slot(0))
     v6 = lt 0, v5
     v7 = iszero v6
@@ -18,14 +18,14 @@ fn @f() -> (u256, u256) [selector=0x26121ff0, abi_params=[], abi_returns=[word, 
     v8 = storage_array_data_slot 0
     v9 = add v8, 0
     v10 = sload v9 !metadata(storage=symbolic(v8))
-    v11 = add v10, 1
-    v12 = lt v11, v10
-    jumpi v12, bb1, bb5
+    v11 = gt v10, 0xffffffffffffffff
+    jumpi v11, bb1, bb5
   bb5:
+    v12 = add v10, 1
     v13 = storage_array_data_slot v9
     v14 = add v13, v10
     sstore v14, 7 !metadata(storage=symbolic(v14))
-    sstore v9, v11 !metadata(storage=symbolic(v8))
+    sstore v9, v12 !metadata(storage=symbolic(v8))
     v15 = sload 0 !metadata(storage=slot(0))
     v16 = lt 0, v15
     v17 = iszero v16
@@ -34,22 +34,22 @@ fn @f() -> (u256, u256) [selector=0x26121ff0, abi_params=[], abi_returns=[word, 
     v18 = storage_array_data_slot 0
     v19 = add v18, 0
     v20 = sload v19 !metadata(storage=symbolic(v18))
-    v21 = add v20, 1
-    v22 = lt v21, v20
-    jumpi v22, bb1, bb7
+    v21 = gt v20, 0xffffffffffffffff
+    jumpi v21, bb1, bb7
   bb7:
+    v22 = add v20, 1
     v23 = storage_array_data_slot v19
     v24 = add v23, v20
     sstore v24, 8 !metadata(storage=symbolic(v24))
-    sstore v19, v21 !metadata(storage=symbolic(v18))
+    sstore v19, v22 !metadata(storage=symbolic(v18))
     v25 = sload 0 !metadata(storage=slot(0))
-    v26 = add v25, 1
-    v27 = lt v26, v25
-    jumpi v27, bb1, bb8
+    v26 = gt v25, 0xffffffffffffffff
+    jumpi v26, bb1, bb8
   bb8:
+    v27 = add v25, 1
     v28 = storage_array_data_slot 0
     v29 = add v28, v25
-    sstore 0, v26 !metadata(storage=slot(0))
+    sstore 0, v27 !metadata(storage=slot(0))
     v30 = sload 0 !metadata(storage=slot(0))
     v31 = lt 1, v30
     v32 = iszero v31
@@ -58,14 +58,14 @@ fn @f() -> (u256, u256) [selector=0x26121ff0, abi_params=[], abi_returns=[word, 
     v33 = storage_array_data_slot 0
     v34 = add v33, 1
     v35 = sload v34 !metadata(storage=offset(v33, 1))
-    v36 = add v35, 1
-    v37 = lt v36, v35
-    jumpi v37, bb1, bb10
+    v36 = gt v35, 0xffffffffffffffff
+    jumpi v36, bb1, bb10
   bb10:
+    v37 = add v35, 1
     v38 = storage_array_data_slot v34
     v39 = add v38, v35
     sstore v39, 9 !metadata(storage=symbolic(v39))
-    sstore v34, v36 !metadata(storage=offset(v33, 1))
+    sstore v34, v37 !metadata(storage=offset(v33, 1))
     v40 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v40, 1
     jump bb11

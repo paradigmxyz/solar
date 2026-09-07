@@ -114,7 +114,7 @@ fn @wideningConversions() -> (u16, u256) [selector=0x06a404a3, pure, abi_params=
   bb0:
     v0 = and 0x12345678, 255
     v1 = and 0x12345678, 255
-    v2 = internal_call @widen, 1, v1
+    v2 = icall @widen, 1, v1
     ret v0, v2
 }
 
@@ -150,8 +150,8 @@ fn @assemblyRead() -> u256 [selector=0x4f21d5c0, pure, abi_params=[], abi_return
 
 fn @internalArguments() -> (u8, u8) [selector=0xd0754141, pure, abi_params=[], abi_returns=[word<u8>, word<u8>]] {
   bb0:
-    v0 = internal_call @dirtyNot, 1, 0x4200
-    v1 = internal_call @dirtyNot, 1, 0x4200
+    v0 = icall @dirtyNot, 1, 0x4200
+    v1 = icall @dirtyNot, 1, 0x4200
     ret v0, v1
 }
 

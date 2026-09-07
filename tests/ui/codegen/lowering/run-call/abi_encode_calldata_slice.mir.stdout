@@ -687,7 +687,7 @@ fn @testBytes() [selector=0xd5aedd33, view, abi_params=[], abi_returns=[]] {
     v54 = make_returndata_slice 0, v48
     memory_object_copy_from_slice memorybytes, v53, v54
     v55 = abi_decode [bytes], v53
-    internal_call @compare, 0, v41, v55
+    icall @compare, 0, v41, v55
     v56 = address
     v57 = gas
     v58 = abi_encode [memory_bytes, word, word], selector 0x676eb8e500000000000000000000000000000000000000000000000000000000, args v22, v23, v24
@@ -732,7 +732,7 @@ fn @testBytes() [selector=0xd5aedd33, view, abi_params=[], abi_returns=[]] {
     v82 = make_returndata_slice 0, v76
     memory_object_copy_from_slice memorybytes, v81, v82
     v83 = abi_decode [bytes], v81
-    internal_call @compare, 0, v69, v83
+    icall @compare, 0, v69, v83
     jump bb16
   bb16:
     jump bb13
@@ -856,7 +856,7 @@ fn @testUint256() [selector=0xd2aeef3b, view, abi_params=[], abi_returns=[]] {
     v46 = make_returndata_slice 0, v40
     memory_object_copy_from_slice memorybytes, v45, v46
     v47 = abi_decode [bytes], v45
-    internal_call @compare, 0, v33, v47
+    icall @compare, 0, v33, v47
     v48 = address
     v49 = gas
     v50 = abi_encode [memory_array<word>, word, word], selector 0x5f29ad1d00000000000000000000000000000000000000000000000000000000, args v14, v15, v16
@@ -901,7 +901,7 @@ fn @testUint256() [selector=0xd2aeef3b, view, abi_params=[], abi_returns=[]] {
     v74 = make_returndata_slice 0, v68
     memory_object_copy_from_slice memorybytes, v73, v74
     v75 = abi_decode [bytes], v73
-    internal_call @compare, 0, v61, v75
+    icall @compare, 0, v61, v75
     jump bb16
   bb16:
     jump bb13

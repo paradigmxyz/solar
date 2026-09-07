@@ -39,6 +39,8 @@ pub(crate) fn import_path_at(source: &str, cursor: usize) -> Option<ImportPathAt
         return None;
     }
 
+    // Import paths are plain strings; code navigation does not need a full-file parse.
+    plain_string_at(source, cursor)?;
     parse_import_path(source, cursor)
 }
 
@@ -48,9 +50,8 @@ pub(crate) fn import_path_at_for_completion(source: &str, cursor: usize) -> Opti
         return None;
     }
 
-    let Some(string) = plain_string_at(source, cursor) else {
-        return parse_import_path(source, cursor);
-    };
+    // Import paths are plain string tokens. Avoid parsing the whole file for code completions.
+    let string = plain_string_at(source, cursor)?;
     if string.first_unescaped_line_break.is_some_and(|line_break| cursor > line_break) {
         return None;
     }
@@ -139,6 +140,9 @@ struct PlainStringAt {
 
 fn plain_string_at(source: &str, cursor: usize) -> Option<PlainStringAt> {
     for (start, token) in Cursor::new(source).with_position() {
+        if start > cursor {
+            break;
+        }
         let end = start + token.len as usize;
         let RawTokenKind::Literal { kind: RawLiteralKind::Str { kind: StrKind::Str, terminated } } =
             token.kind
@@ -147,7 +151,7 @@ fn plain_string_at(source: &str, cursor: usize) -> Option<PlainStringAt> {
         };
         let content_start = start + 1;
         let content_end = if terminated { end - 1 } else { end };
-        if !(content_start..=content_end).contains(&cursor) {
+        if !(start..=content_end).contains(&cursor) {
             continue;
         }
 

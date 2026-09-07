@@ -31,7 +31,7 @@ fn @test() -> u256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
     v3 = address
     v4 = shl 32, v3
     v5 = or v4, 0xc2985578
-    v6 = internal_call @internal_dispatcher_p_function_function_r_function, 1, 1, v2, v5
+    v6 = icall @internal_dispatcher_p_function_function_r_function, 1, 1, v2, v5
     v7 = and v6, 0xffffffff
     v8 = shl 224, v7
     v9 = shr 32, v6
@@ -52,7 +52,7 @@ fn @test() -> u256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
     v18 = mload v17
     v19 = add 0, 0
     v20 = mload v19
-    v21 = internal_call @internal_dispatcher_p_u256_u256_r_u256, 1, 2, 5, 1
+    v21 = icall @internal_dispatcher_p_u256_u256_r_u256, 1, 2, 5, 1
     v22 = add v20, v21
     v23 = lt v22, v20
     jumpi v23, bb5, bb6
@@ -75,7 +75,7 @@ fn @internal_dispatcher_p_function_function_r_function(arg0: function, arg1: fun
     mstore 4, 81 !metadata(memory=scratch)
     revert 0, 36
   bb1:
-    v1 = internal_call @m, 1, arg1, arg2
+    v1 = icall @m, 1, arg1, arg2
     ret v1
 }
 
@@ -88,6 +88,6 @@ fn @internal_dispatcher_p_u256_u256_r_u256(arg0: function, arg1: u256, arg2: u25
     mstore 4, 81 !metadata(memory=scratch)
     revert 0, 36
   bb1:
-    v1 = internal_call @s, 1, arg1, arg2
+    v1 = icall @s, 1, arg1, arg2
     ret v1
 }

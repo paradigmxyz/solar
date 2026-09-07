@@ -1,0 +1,34 @@
+// A cycle entered at two of its blocks: `bb1` reaches `bb2` at depth 0 and `bb4` reaches `bb3`
+// at depth 1022 on a path that never goes around the cycle. The high-depth arrival crosses the
+// same `bb3 -> bb2` edge the depth-first walk classified as the cycle edge, so it is a first
+// complete traversal, not accumulated growth, and its third `push` must still be reported.
+//~? ERROR: EVM IR verification failed: block 2: `push` grows the stack to 1025 words, exceeding the limit of 1024
+@module module
+
+bb0:
+  push 1
+  jumpi bb4, bb1
+
+bb1:
+  jump bb2
+
+bb2:
+  push 0
+  push 0
+  push 0
+  jumpi bb3, bb5
+
+bb3:
+  jump bb2
+
+bb4:
+  op_0c !meta(stack=0->255)
+  op_0c !meta(stack=0->255)
+  op_0c !meta(stack=0->255)
+  op_0c !meta(stack=0->255)
+  push 0
+  push 0
+  jump bb3
+
+bb5:
+  stop

@@ -3,9 +3,9 @@
 use super::{ContractBytecodes, function, storage::StorageLayout, types::TypeLowerer};
 use solar_data_structures::{
     Never,
-    map::{FxHashMap, FxHashSet},
+    map::{FxHashMap, FxHashSet, FxIndexSet},
 };
-use solar_interface::{ByteSymbol, Ident};
+use solar_interface::{ByteSymbol, Ident, kw, sym};
 use solar_sema::{
     Gcx,
     hir::{self, ContractId, Visit},
@@ -13,13 +13,18 @@ use solar_sema::{
 };
 use std::ops::ControlFlow;
 
-use crate::mir::{Function, FunctionAttributes, FunctionBuilder, Module};
+use crate::mir::{Function, FunctionAttributes, FunctionBuilder, MirType, Module};
 
 /// Builds a typed MIR module from one HIR contract.
+///
+/// `sema_errored` records whether the compilation had already failed when the
+/// code generation phase started, which decides whether a lowering bail-out is
+/// worth reporting.
 pub(super) fn lower(
     gcx: Gcx<'_>,
     contract_id: ContractId,
     child_bytecodes: &FxHashMap<ContractId, ContractBytecodes>,
+    sema_errored: bool,
 ) -> Module {
     let contract = gcx.hir.contract(contract_id);
     let mut module = Module::new(contract.name);
@@ -140,6 +145,26 @@ pub(super) fn lower(
     let mut seen_ids = FxHashSet::default();
     let function_ids =
         function_ids.into_iter().filter(|(id, _)| seen_ids.insert(*id)).collect::<Vec<_>>();
+    let is_library = contract.kind == hir::ContractKind::Library;
+    module.is_library = is_library;
+    // A library's non-view external functions may only run through `DELEGATECALL`. Like
+    // solc, the dispatch compares `address()` against the library's own deployment address,
+    // which the creation code patches into the runtime code like an immutable.
+    let library_deploy_address = (is_library
+        && function_ids.iter().any(|&(id, expose_selector)| {
+            expose_selector
+                && matches!(
+                    gcx.hir.function(id).state_mutability,
+                    hir::StateMutability::NonPayable | hir::StateMutability::Payable
+                )
+        }))
+    .then(|| {
+        module.add_immutable(
+            Ident::with_dummy_span(sym::library_deploy_address),
+            MirType::Address,
+            None,
+        )
+    });
     let (shared_literals, shared_word_literals) = shared_string_literals(gcx, &function_ids);
     let mut mir_ids = FxHashMap::default();
     let mut visiting_storage_structs = FxHashSet::default();
@@ -184,6 +209,7 @@ pub(super) fn lower(
             immutable_ids: &immutable_ids,
             child_bytecodes,
             state: &mut state,
+            sema_errored,
             shared_literals: &shared_literals,
             shared_word_literals: &shared_word_literals,
             share_storage_bytes,
@@ -191,9 +217,21 @@ pub(super) fn lower(
         for (function_id, expose_selector) in function_ids {
             let mir_id = context.function_ids[&function_id];
             let name = context.module.function(mir_id).name;
+            let errors_before = gcx.dcx().err_count();
             let Some(mut mir) = function::lower(context.reborrow(), function_id, expose_selector)
             else {
                 let function = gcx.hir.function(function_id);
+                // The trapping body below only stands in for a reported
+                // failure. Report a bail-out that reported nothing itself, so
+                // that no unsupported construct reaches the runtime as
+                // `INVALID`. The delta is taken around this function alone:
+                // asking whether the compilation has failed would let one
+                // function's report hide the next one's gap. A bail-out from a
+                // compilation that had already failed is skipped by
+                // `report_unsupported` itself.
+                if gcx.dcx().err_count() == errors_before {
+                    let _: Option<()> = context.report_unsupported(function.span, "function");
+                }
                 let mut builder = FunctionBuilder::new(context.module.function_mut(mir_id));
                 for &param in function.parameters {
                     builder.add_param(TypeLowerer::mir_type(gcx.type_of_item(param.into())));
@@ -212,9 +250,13 @@ pub(super) fn lower(
             let mir_id = context.module.add_function(Function::new(
                 solar_interface::Ident::with_dummy_span(solar_interface::kw::Constructor),
             ));
+            let errors_before = gcx.dcx().err_count();
             let Some(mut mir) =
                 function::lower_synthetic_constructor(context.reborrow(), contract_id)
             else {
+                if gcx.dcx().err_count() == errors_before {
+                    let _: Option<()> = context.report_unsupported(contract.name.span, "contract");
+                }
                 FunctionBuilder::new(context.module.function_mut(mir_id)).invalid();
                 return false;
             };
@@ -225,6 +267,22 @@ pub(super) fn lower(
     })();
     if !synthetic_ok {
         return module;
+    }
+
+    // Libraries have no constructor of their own; stage the deployment address for the
+    // dispatch guard:
+    //   fn @constructor
+    //     v0 = address
+    //     storeimmutable library_deploy_address, v0
+    //     ret
+    if let Some(immutable_id) = library_deploy_address {
+        let mut constructor = Function::new(Ident::with_dummy_span(kw::Constructor));
+        constructor.attributes.is_constructor = true;
+        let mut builder = FunctionBuilder::new(&mut constructor);
+        let address = builder.address();
+        builder.store_immutable(immutable_id, address);
+        builder.ret(std::iter::empty());
+        module.add_function(constructor);
     }
 
     function::generate_internal_function_pointer_dispatchers(gcx, &mut module, &mir_ids, &state);
@@ -238,7 +296,7 @@ pub(super) fn lower(
 fn shared_string_literals(
     gcx: Gcx<'_>,
     function_ids: &[(hir::FunctionId, bool)],
-) -> (FxHashSet<ByteSymbol>, FxHashSet<ByteSymbol>) {
+) -> (FxIndexSet<ByteSymbol>, FxHashSet<ByteSymbol>) {
     struct Counter<'hir> {
         hir: &'hir hir::Hir<'hir>,
         counts: FxHashMap<ByteSymbol, usize>,
@@ -273,7 +331,7 @@ fn shared_string_literals(
     for &(function_id, _) in function_ids {
         let _ = counter.visit_function(gcx.hir.function(function_id));
     }
-    let mut shared = FxHashSet::default();
+    let mut shared = FxIndexSet::default();
     let mut shared_word = FxHashSet::default();
     for (bytes, count) in counter.counts {
         if count < 3 || bytes.as_byte_str().is_empty() {
@@ -284,6 +342,8 @@ fn shared_string_literals(
         }
         shared_word.insert(bytes);
     }
+    // Symbol IDs depend on parallel parsing order; name helpers by sorted bytes.
+    shared.sort_unstable_by(|a, b| a.as_byte_str().cmp(b.as_byte_str()));
     (shared, shared_word)
 }
 
@@ -295,6 +355,8 @@ pub(super) fn declaration(
 ) -> Function {
     let name = Ident::with_dummy_span(function.name_or_kind());
     let mut mir = Function::new(name);
+    mir.declaration_span = function.span;
+    mir.debug_identifier = Some(name.name);
     mir.attributes = FunctionAttributes {
         visibility: function.visibility,
         state_mutability: function.state_mutability,

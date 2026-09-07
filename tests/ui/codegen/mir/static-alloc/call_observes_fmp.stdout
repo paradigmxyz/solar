@@ -5,7 +5,7 @@
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       mstore v0, 7
-      v1 = internal_call @observes, 1, v0
+      v1 = icall @observes, 1, v0
       ret v1
   }
   
@@ -13,7 +13,7 @@
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       mstore v0, 7
-      v1 = internal_call @forwards, 1, v0
+      v1 = icall @forwards, 1, v0
       ret v1
   }
   
@@ -21,7 +21,7 @@
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       mstore v0, 7
-      v1 = internal_call @dereferences, 1, v0
+      v1 = icall @dereferences, 1, v0
       ret v1
   }
   
@@ -29,7 +29,7 @@
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       mstore v0, 7
-      v1 = internal_call @measures, 1, v0
+      v1 = icall @measures, 1, v0
       ret v1
   }
   
@@ -42,7 +42,7 @@
   
   fn @forwards(arg0: memptr) -> bool {
     bb0:
-      v0 = internal_call @observes, 1, arg0
+      v0 = icall @observes, 1, arg0
       ret v0
   }
   
@@ -88,7 +88,7 @@
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       mstore v0, 7
-      v1 = internal_call @iterates, 1, v0
+      v1 = icall @iterates, 1, v0
       ret v1
   }
   
@@ -110,7 +110,7 @@
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       mstore v0, 7
-      v1 = internal_call @observes, 1, v0
+      v1 = icall @observes, 1, v0
       ret v1
   }
   
@@ -118,7 +118,7 @@
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       mstore v0, 7
-      v1 = internal_call @forwards, 1, v0
+      v1 = icall @forwards, 1, v0
       ret v1
   }
   
@@ -126,9 +126,9 @@
     bb0:
 -     v0 = alloc raw, exact, uninitialized, infallible, 32
 -     mstore v0, 7
--     v1 = internal_call @dereferences, 1, v0
+-     v1 = icall @dereferences, 1, v0
 +     mstore 128, 7
-+     v1 = internal_call @dereferences, 1, 128
++     v1 = icall @dereferences, 1, 128
       ret v1
   }
   
@@ -136,7 +136,7 @@
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       mstore v0, 7
-      v1 = internal_call @measures, 1, v0
+      v1 = icall @measures, 1, v0
       ret v1
   }
   
@@ -149,7 +149,7 @@
   
   fn @forwards(arg0: memptr) -> bool {
     bb0:
-      v0 = internal_call @observes, 1, arg0
+      v0 = icall @observes, 1, arg0
       ret v0
   }
   
@@ -192,9 +192,9 @@
     bb0:
 -     v0 = alloc raw, exact, uninitialized, infallible, 32
 -     mstore v0, 7
--     v1 = internal_call @iterates, 1, v0
+-     v1 = icall @iterates, 1, v0
 +     mstore 128, 7
-+     v1 = internal_call @iterates, 1, 128
++     v1 = icall @iterates, 1, 128
       ret v1
   }
   

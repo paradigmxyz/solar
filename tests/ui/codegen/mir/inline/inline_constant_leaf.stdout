@@ -3,7 +3,7 @@
   @module InlineConstantLeaf
   fn @constant_caller(arg0: u256) -> u256 {
     bb0:
--     v0 = internal_call @shared_leaf, 1, arg0, 7
+-     v0 = icall @shared_leaf, 1, arg0, 7
 -     ret v0
 +     jump bb2
 +   bb2:
@@ -20,7 +20,7 @@
   
   fn @dynamic_caller(arg0: u256, arg1: u256) -> u256 {
     bb0:
-      v0 = internal_call @shared_leaf, 1, arg0, arg1
+      v0 = icall @shared_leaf, 1, arg0, arg1
       ret v0
   }
   
@@ -36,13 +36,13 @@
   
   fn @constant_decode_caller(arg0: memorybytes) -> u256 {
     bb0:
-      v0 = internal_call @decode_leaf, 1, arg0, 1
+      v0 = icall @decode_leaf, 1, arg0, 1
       ret v0
   }
   
   fn @dynamic_decode_caller(arg0: memorybytes, arg1: u256) -> u256 {
     bb0:
-      v0 = internal_call @decode_leaf, 1, arg0, arg1
+      v0 = icall @decode_leaf, 1, arg0, arg1
       ret v0
   }
   

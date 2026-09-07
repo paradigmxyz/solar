@@ -1,0 +1,116 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/named_arguments_extended.sol:Base ===
+@module Base
+fn @v() -> u256 [selector=0x7c2efcba, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @constructor(arg0: u8, arg1: u256) [constructor, abi_params=[u8, u256]] {
+  bb0:
+    v0 = and arg0, 255
+    v1 = mul v0, 0x3e8
+    v2 = iszero 0x3e8
+    v3 = div v1, 0x3e8
+    v4 = eq v3, v0
+    v5 = or v2, v4
+    v6 = iszero v5
+    jumpi v6, bb1, bb2
+  bb2:
+    v7 = add v1, arg1
+    v8 = lt v7, v1
+    jumpi v8, bb1, bb3
+  bb3:
+    sstore 0, v7 !metadata(storage=slot(0))
+    stop
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/named_arguments_extended.sol:Derived ===
+@module Derived
+fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = mul 4, 10
+    v1 = iszero 10
+    v2 = div v0, 10
+    v3 = eq v2, 4
+    v4 = or v1, v3
+    v5 = iszero v4
+    jumpi v5, bb2, bb3
+  bb3:
+    v6 = add v0, 3
+    v7 = lt v6, v0
+    jumpi v7, bb2, bb4
+  bb4:
+    sstore 1, v6 !metadata(storage=slot(1))
+    v8 = sload 1 !metadata(storage=slot(1))
+    jump bb5
+  bb5:
+    jump bb1
+  bb1:
+    ret v8
+  bb2:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @g() -> u256 [selector=0xe2179b8e, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = mul 5, 10
+    v1 = iszero 10
+    v2 = div v0, 10
+    v3 = eq v2, 5
+    v4 = or v1, v3
+    v5 = iszero v4
+    jumpi v5, bb2, bb3
+  bb3:
+    v6 = add v0, 6
+    v7 = lt v6, v0
+    jumpi v7, bb2, bb4
+  bb4:
+    sstore 1, v6 !metadata(storage=slot(1))
+    v8 = sload 1 !metadata(storage=slot(1))
+    jump bb5
+  bb5:
+    jump bb1
+  bb1:
+    ret v8
+  bb2:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @v() -> u256 [selector=0x7c2efcba, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    v0 = mul 2, 0x3e8
+    v1 = iszero 0x3e8
+    v2 = div v0, 0x3e8
+    v3 = eq v2, 2
+    v4 = or v1, v3
+    v5 = iszero v4
+    jumpi v5, bb2, bb3
+  bb3:
+    v6 = add v0, 1
+    v7 = lt v6, v0
+    jumpi v7, bb2, bb4
+  bb4:
+    sstore 0, v6 !metadata(storage=slot(0))
+    jump bb1
+  bb1:
+    stop
+  bb2:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}

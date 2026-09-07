@@ -176,7 +176,7 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
   bb13:
     ret 1
   bb12:
-    internal_call @revert_error, 0, 7, 0x666f727761726400000000000000000000000000000000000000000000000000
+    icall @revert_error, 0, 7, 0x666f727761726400000000000000000000000000000000000000000000000000
     invalid
   bb5:
     revert 0, 0

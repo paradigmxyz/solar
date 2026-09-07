@@ -25,11 +25,11 @@ error: array length cannot be negative
 LL │     function d(uint[0 - 1] memory) public {}
    ╰╴                    ━━━━━
 
-error: array length cannot be negative
+error: failed to evaluate constant: arithmetic overflow
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
    │
 LL │     function d2(uint[zeroPublic - 1] memory) public {}
-   ╰╴                     ━━━━━━━━━━━━━━
+   ╰╴                     ━━━━━━━━━━━━━━ evaluation of constant value failed here
 
 error: failed to evaluate constant: arithmetic overflow
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
@@ -42,6 +42,46 @@ error: failed to evaluate constant: arithmetic overflow
    │
 LL │     function d4(uint[1 << 4294967295] memory) public {}
    ╰╴                     ━━━━━━━━━━━━━━━ evaluation of constant value failed here
+
+error: array length cannot be negative
+   ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
+   │
+LL │     function d7(uint[signedNegTwo] memory) public {}
+   ╰╴                     ━━━━━━━━━━━━
+
+error: failed to evaluate constant: arithmetic overflow
+   ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
+   │
+LL │     function d11(uint[maxInt8 + 1] memory) public {}
+   ╰╴                      ━━━━━━━━━━━ evaluation of constant value failed here
+
+error: failed to evaluate constant: arithmetic overflow
+   ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
+   │
+LL │     function d12(uint[-minInt8] memory) public {}
+   ╰╴                      ━━━━━━━━ evaluation of constant value failed here
+
+error: failed to evaluate constant: arithmetic overflow
+   ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
+   │
+LL │     function d13(uint[maxUint8 + 1] memory) public {}
+   ╰╴                      ━━━━━━━━━━━━ evaluation of constant value failed here
+
+error: failed to evaluate constant: arithmetic overflow
+   ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
+   │
+LL │     function d14(uint[(maxInt8 + 1) - 1] memory) public {}
+   │                       ┬────────────━━━━
+   │                       │
+   ╰╴                      evaluation of constant value failed here
+
+error: failed to evaluate constant: arithmetic overflow
+   ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
+   │
+LL │     function d15(uint[maxUint8 * 2 / 2] memory) public {}
+   │                       ┬───────────━━━━
+   │                       │
+   ╰╴                      evaluation of constant value failed here
 
 error: failed to evaluate constant: recursion limit reached
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
@@ -121,17 +161,11 @@ error: array length must be greater than zero
 LL │     uint[zero] public zeroArray;
    ╰╴         ━━━━
 
-error: array length cannot be negative
+error: failed to evaluate constant: arithmetic overflow
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
    │
 LL │     uint[bigLiteral + 1] public tooBig1;
-   ╰╴         ━━━━━━━━━━━━━━
-
-error: mismatched types
-   ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
-   │
-LL │     function d(uint[0 - 1] memory) public {}
-   ╰╴                    ━━━━━ expected `uint256`, found `int_literal[1]`
+   ╰╴         ━━━━━━━━━━━━━━ evaluation of constant value failed here
 
 error: mismatched types
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
@@ -145,5 +179,5 @@ error: cannot assign to a constant variable
 LL │     function k(uint[--x] memory) public {}
    ╰╴                      ━
 
-error: aborting due to 23 previous errors
+error: aborting due to 28 previous errors
 

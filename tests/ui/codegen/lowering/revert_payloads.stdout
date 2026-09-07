@@ -19,19 +19,19 @@ fn @require_message(arg0: bool) [selector=0x79cfb63f, pure, abi_params=[bool], a
   bb2:
     stop
   bb1:
-    internal_call @revert_error, 0, 3, 0x6261640000000000000000000000000000000000000000000000000000000000
+    icall @revert_error, 0, 3, 0x6261640000000000000000000000000000000000000000000000000000000000
     invalid
 }
 
 fn @revert_message() [selector=0x0900437f, pure, abi_params=[], abi_returns=[]] {
   bb0:
-    internal_call @revert_error, 0, 3, 0x6261640000000000000000000000000000000000000000000000000000000000
+    icall @revert_error, 0, 3, 0x6261640000000000000000000000000000000000000000000000000000000000
     invalid
 }
 
 fn @revert_hex_message() [selector=0x36440c33, pure, abi_params=[], abi_returns=[]] {
   bb0:
-    internal_call @revert_error, 0, 3, 0x6261640000000000000000000000000000000000000000000000000000000000
+    icall @revert_error, 0, 3, 0x6261640000000000000000000000000000000000000000000000000000000000
     invalid
 }
 

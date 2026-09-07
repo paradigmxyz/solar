@@ -8,7 +8,7 @@ fn @value() -> u256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word
 
 fn @set(arg0: u256) [selector=0x60fe47b1, abi_params=[u256], abi_returns=[]] {
   bb0:
-    internal_call @writeIfNonZero, 0, arg0
+    icall @writeIfNonZero, 0, arg0
     stop
 }
 
@@ -41,7 +41,7 @@ fn @setUnlessZero(arg0: u256) [selector=0x305f34c8, abi_params=[u256], abi_retur
 
 fn @returnVoidCall(arg0: u256) [selector=0x6659499b, abi_params=[u256], abi_returns=[]] {
   bb0:
-    internal_call @writeIfNonZero, 0, arg0
+    icall @writeIfNonZero, 0, arg0
     stop
 }
 
@@ -54,10 +54,10 @@ fn @unitTernary(arg0: bool, arg1: u256) [selector=0xeb6f9827, abi_params=[bool, 
   bb0:
     jumpi arg0, bb1, bb2
   bb2:
-    internal_call @clear, 0
+    icall @clear, 0
     jump bb3
   bb1:
-    internal_call @writeIfNonZero, 0, arg1
+    icall @writeIfNonZero, 0, arg1
     jump bb3
   bb3:
     stop

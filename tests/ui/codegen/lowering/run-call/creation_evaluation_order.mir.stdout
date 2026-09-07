@@ -81,9 +81,9 @@ fn @arg() -> u256 {
 
 fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = internal_call @valueOpt, 1
-    v1 = internal_call @saltOpt, 1
-    v2 = internal_call @arg, 1
+    v0 = icall @valueOpt, 1
+    v1 = icall @saltOpt, 1
+    v2 = icall @arg, 1
     v3 = abi_encode [word], args v2
     v4 = not 31
     v5 = and 167, v4

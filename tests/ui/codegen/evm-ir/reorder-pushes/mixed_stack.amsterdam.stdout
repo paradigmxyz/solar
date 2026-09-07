@@ -10,7 +10,7 @@
     sub
     stop
   bb1:
-    callf !meta(stack=0->15)
+    callf !metadata(stack=0->15)
 -   dup 15
     push_deferred 0
 -   swap 1
@@ -18,7 +18,7 @@
     sub
     stop
   bb2:
-    callf !meta(stack=0->16)
+    callf !metadata(stack=0->16)
 -   dup 16
     push_immutable 0, 32
 -   swap 1
@@ -54,13 +54,13 @@
     sub
     stop
   bb1:
-    callf !meta(stack=0->15)
+    callf !metadata(stack=0->15)
     push_deferred 0
     dup 16
     sub
     stop
   bb2:
-    callf !meta(stack=0->16)
+    callf !metadata(stack=0->16)
     push_immutable 0, 32
     dup 17
     sub

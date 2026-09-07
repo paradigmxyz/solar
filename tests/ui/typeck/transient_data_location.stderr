@@ -1,0 +1,38 @@
+error[1834]: transient data location is only supported for value types
+   ╭▸ ROOT/tests/ui/typeck/transient_data_location.sol:LL:CC
+   │
+LL │     bytes transient bs;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━
+
+error[1834]: transient data location is only supported for value types
+   ╭▸ ROOT/tests/ui/typeck/transient_data_location.sol:LL:CC
+   │
+LL │     string transient st;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━
+
+error[1834]: transient data location is only supported for value types
+   ╭▸ ROOT/tests/ui/typeck/transient_data_location.sol:LL:CC
+   │
+LL │     uint256[] transient arr;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[1834]: transient data location is only supported for value types
+   ╭▸ ROOT/tests/ui/typeck/transient_data_location.sol:LL:CC
+   │
+LL │     uint256[3] transient farr;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[1834]: transient data location is only supported for value types
+   ╭▸ ROOT/tests/ui/typeck/transient_data_location.sol:LL:CC
+   │
+LL │     S transient s;
+   ╰╴    ━━━━━━━━━━━━━━
+
+error[1834]: transient data location is only supported for value types
+   ╭▸ ROOT/tests/ui/typeck/transient_data_location.sol:LL:CC
+   │
+LL │     mapping(uint256 => uint256) transient m;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 6 previous errors
+

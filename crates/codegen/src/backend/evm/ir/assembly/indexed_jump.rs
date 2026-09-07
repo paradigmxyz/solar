@@ -1006,7 +1006,7 @@ mod tests {
             let mut labels = vec![None; 3];
             let mut assembler = Assembler::new(c.gcx());
             let program =
-                super::super::lower::lower_evm_ir(&mut assembler, &mut module, &mut labels);
+                super::super::lower::lower_evm_ir(&mut assembler, &mut module, &mut labels, false);
 
             assert_eq!(module.blocks.len(), 3);
             assert!(matches!(
@@ -1045,7 +1045,7 @@ mod tests {
             let mut labels = vec![None; 3];
             let mut assembler = Assembler::new(c.gcx());
             let program =
-                super::super::lower::lower_evm_ir(&mut assembler, &mut module, &mut labels);
+                super::super::lower::lower_evm_ir(&mut assembler, &mut module, &mut labels, false);
 
             let TerminatorKind::IndexedJump(entries) =
                 &module.blocks[entry].terminator.as_ref().unwrap().kind
@@ -1119,7 +1119,7 @@ mod tests {
             let mut labels = vec![None; 2];
             let mut assembler = Assembler::new(c.gcx());
             let program =
-                super::super::lower::lower_evm_ir(&mut assembler, &mut module, &mut labels);
+                super::super::lower::lower_evm_ir(&mut assembler, &mut module, &mut labels, false);
 
             assert_eq!(
                 program

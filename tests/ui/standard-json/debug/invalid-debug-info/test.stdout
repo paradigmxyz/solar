@@ -1,0 +1,14 @@
+{
+  "errors": [
+    {
+      "sourceLocation": null,
+      "secondarySourceLocations": [],
+      "type": "Exception",
+      "component": "general",
+      "severity": "error",
+      "errorCode": null,
+      "message": "to use `snippet` with `settings.debug.debugInfo` you must also select `location`",
+      "formattedMessage": "error: to use `snippet` with `settings.debug.debugInfo` you must also select `location`\n\n"
+    }
+  ]
+}

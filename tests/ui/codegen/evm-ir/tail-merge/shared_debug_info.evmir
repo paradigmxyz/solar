@@ -1,0 +1,25 @@
+//@ compile-flags: -Zevm-ir-pipeline=tail-merge,tail-merge
+//@ filecheck:
+@module SharedDebugInfo
+
+// A suffix already shared by an earlier pass does not make the new edge ambiguous.
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK: + jump [[TAIL:bb[0-9]+]] !metadata(span=30..40)
+bb0:
+  push 11
+  push 22 !metadata(spans=[10..20, 50..60])
+  push 33 !metadata(spans=[10..20, 50..60])
+  push 44 !metadata(spans=[10..20, 50..60])
+  push 55 !metadata(spans=[10..20, 50..60])
+  revert !metadata(span=30..40)
+
+// With no unique site origin, the replacement transfer remains intentionally unmapped.
+// CHECK-LABEL: {{^[ +].*}}bb1:
+// CHECK: + jump [[TAIL]]{{$}}
+bb1:
+  push 99
+  push 22 !metadata(spans=[10..20, 50..60])
+  push 33 !metadata(spans=[10..20, 50..60])
+  push 44 !metadata(spans=[10..20, 50..60])
+  push 55 !metadata(spans=[10..20, 50..60])
+  revert !metadata(spans=[30..40, 70..80])

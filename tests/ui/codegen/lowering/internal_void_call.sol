@@ -7,7 +7,7 @@ contract InternalVoidCall {
     uint256 public value;
 
     // CHECK-LABEL: fn @set{{[( ]}}
-    // CHECK: internal_call @writeIfNonZero, 0, arg0
+    // CHECK: icall @writeIfNonZero, 0, arg0
     function set(uint256 newValue) public {
         writeIfNonZero(newValue);
     }
@@ -34,7 +34,7 @@ contract InternalVoidCall {
     }
 
     // CHECK-LABEL: fn @returnVoidCall{{[( ]}}
-    // CHECK: internal_call @writeIfNonZero, 0, arg0
+    // CHECK: icall @writeIfNonZero, 0, arg0
     // CHECK: stop
     function returnVoidCall(uint256 newValue) public {
         return writeIfNonZero(newValue);
@@ -48,8 +48,8 @@ contract InternalVoidCall {
 
     // CHECK-LABEL: fn @unitTernary{{[( ]}}
     // CHECK: jumpi arg0,
-    // CHECK: internal_call @clear, 0
-    // CHECK: internal_call @writeIfNonZero, 0, arg1
+    // CHECK: icall @clear, 0
+    // CHECK: icall @writeIfNonZero, 0, arg1
     function unitTernary(bool writeValue, uint256 newValue) public {
         writeValue ? writeIfNonZero(newValue) : clear();
     }

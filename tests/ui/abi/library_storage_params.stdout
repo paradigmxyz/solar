@@ -1,0 +1,69 @@
+{
+  "contracts": {
+    "ROOT/tests/ui/abi/library_storage_params.sol:L": {
+      "abi": [
+        {
+          "type": "function",
+          "name": "ext",
+          "inputs": [
+            {
+              "name": "x",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ],
+          "stateMutability": "pure"
+        },
+        {
+          "type": "function",
+          "name": "memStruct",
+          "inputs": [
+            {
+              "name": "p",
+              "type": "tuple",
+              "internalType": "struct L.Plain",
+              "components": [
+                {
+                  "name": "a",
+                  "type": "uint256",
+                  "internalType": "uint256"
+                }
+              ]
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ],
+          "stateMutability": "pure"
+        }
+      ],
+      "hashes": {
+        "arrParam(uint256[] storage)": "75803ad4",
+        "ext(uint256)": "0be5edb6",
+        "mapOf(mapping(uint256 => uint256) storage)": "72e37e63",
+        "mappingParam(mapping(uint256 => uint256) storage)": "8aa88f55",
+        "mappingReturn(L.Set storage)": "3449bda1",
+        "memStruct(L.Plain)": "e6d09e6b",
+        "nestedParam(L.Nested storage)": "5971f431",
+        "plainStruct(L.Plain storage)": "2d886fae",
+        "pubParam(L.Set storage)": "35d8e2b3",
+        "setArrParam(L.Set[] storage)": "d1723c79",
+        "setReturn(L.Set storage)": "40190381",
+        "storageReturn(uint256[] storage)": "c37e2c8e",
+        "withMapping(L.Set storage)": "6bd4ab76"
+      }
+    }
+  },
+  "version": "VERSION"
+}

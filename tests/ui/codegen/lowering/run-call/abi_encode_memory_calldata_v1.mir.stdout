@@ -11,6 +11,6 @@ fn @f(arg0: memoryarray, arg1: calldataslice) -> bytes32 [selector=0x510dd1f5, p
 
 fn @g(arg0: memoryarray, arg1: calldataslice) -> bytes32 [selector=0x876f6047, pure, abi_params=[array<_, u256>, bytes], abi_returns=[word]] {
   bb0:
-    v0 = internal_call @f, 1, arg0, arg1
+    v0 = icall @f, 1, arg0, arg1
     ret v0
 }

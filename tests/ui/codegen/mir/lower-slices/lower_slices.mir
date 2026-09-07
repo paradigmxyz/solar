@@ -4,7 +4,7 @@
 // CHECK: + fn @entry()
 fn @entry(arg0: calldataslice) [selector=0x12345678] {
   bb0:
-    v1 = internal_call @len, 1, arg0
+    v1 = icall @len, 1, arg0
     mstore 128, v1
     returndata 128, 32
 }
@@ -23,7 +23,7 @@ fn @len(arg0: calldataslice) -> u256 {
 // CHECK-LABEL: {{^[ +].*}}fn @tail{{[( ]}}
 // CHECK: + [[POINTER:v[0-9]+]] = add arg0, arg2
 // CHECK: + [[LENGTH:v[0-9]+]] = sub arg1, arg2
-// CHECK: + {{v[0-9]+}} = internal_call @pair_len, 1, [[POINTER]], [[LENGTH]]
+// CHECK: + {{v[0-9]+}} = icall @pair_len, 1, [[POINTER]], [[LENGTH]]
 fn @tail(arg0: calldataslice, arg1: u256) -> u256 {
   bb0:
     v2 = slice_ptr arg0
@@ -31,7 +31,7 @@ fn @tail(arg0: calldataslice, arg1: u256) -> u256 {
     v4 = add v2, arg1
     v5 = sub v3, arg1
     v6 = make_calldata_slice v4, v5
-    v7 = internal_call @pair_len, 1, v6
+    v7 = icall @pair_len, 1, v6
     ret v7
 }
 

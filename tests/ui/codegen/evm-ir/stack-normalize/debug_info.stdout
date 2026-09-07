@@ -1,0 +1,13 @@
+- // === ROOT/tests/ui/codegen/evm-ir/stack-normalize/debug_info.evmir (before stack-normalize) ===
++ // === ROOT/tests/ui/codegen/evm-ir/stack-normalize/debug_info.evmir (after stack-normalize) ===
+  @module DebugInfo
+  bb0:
+    push 1 !metadata(span=1..2)
+    push 2 !metadata(span=3..4)
+    push 3 !metadata(span=5..6)
+-   swap 1 !metadata(span=7..8)
+-   swap 1 !metadata(span=9..10)
+-   pop !metadata(span=11..12)
++   pop !metadata(spans=[7..8, 9..10, 11..12])
+    stop !metadata(span=13..14)
+  

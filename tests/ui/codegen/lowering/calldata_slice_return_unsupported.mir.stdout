@@ -19,7 +19,7 @@ fn @peel(arg0: calldataslice) -> calldataslice [pure] {
     v8 = sub v4, 1
     v9 = add v3, 1
     v10 = make_calldata_slice v9, v8
-    v11 = internal_call @peel, 1, v10
+    v11 = icall @peel, 1, v10
     ret v11
   bb4:
     revert 0, 0
@@ -29,6 +29,6 @@ fn @peel(arg0: calldataslice) -> calldataslice [pure] {
 
 fn @use(arg0: calldataslice) [selector=0x01bd03f7, pure, abi_params=[bytes], abi_returns=[]] {
   bb0:
-    v0 = internal_call @peel, 1, arg0
+    v0 = icall @peel, 1, arg0
     stop
 }

@@ -3,7 +3,7 @@
 fn @builtinOrder() -> u256 [selector=0x0eb481d9, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     mstore 0, 3 !metadata(memory=scratch)
-    v0 = internal_call @eff, 1
+    v0 = icall @eff, 1
     v1 = mload 0 !metadata(memory=scratch)
     v2 = mul v1, v0
     ret v2
@@ -12,7 +12,7 @@ fn @builtinOrder() -> u256 [selector=0x0eb481d9, pure, abi_params=[], abi_return
 fn @userFnOrder() -> u256 [selector=0x6b0e5af2, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     mstore 0, 1 !metadata(memory=scratch)
-    v0 = internal_call @w, 1, 7
+    v0 = icall @w, 1, 7
     v1 = mload 0 !metadata(memory=scratch)
     v2 = add v1, 100
     v3 = sub v2, v0
@@ -26,7 +26,7 @@ fn @deployIdiom() -> u256 [selector=0x298d6964, abi_params=[], abi_returns=[word
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0x600a600a5f39600a5ff3600760005260206000f3000000000000000000000000
     mstore 32, 0 !metadata(memory=scratch)
-    v2 = internal_call @doCreate, 1, v0
+    v2 = icall @doCreate, 1, v0
     v3 = mload 32 !metadata(memory=scratch)
     v4 = extcodesize v3
     v5 = mul v4, v2

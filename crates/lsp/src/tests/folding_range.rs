@@ -1,5 +1,6 @@
 use super::support::RequestFixture;
-use crate::folding_range::folding_ranges;
+use crate::folding_range::{folding_ranges, folding_ranges_from_rope};
+use crop::Rope;
 use lsp_types::{FoldingRange, FoldingRangeKind, Url};
 use snapbox::{assert_data_eq, str};
 use std::fmt::Write as _;
@@ -551,6 +552,35 @@ fn uses_utf16_positions_and_crlf_line_endings() {
 
 "#]],
     );
+}
+
+#[test]
+fn rope_snapshot_matches_string_folding_ranges() {
+    let source = "contract C {\n    function f() external {\n    }\n}\n";
+    assert_eq!(folding_ranges_from_rope(Rope::from(source)), folding_ranges(source.into()));
+}
+
+#[test]
+fn single_line_sources_have_no_folding_ranges() {
+    let source = "contract C { function f() external {} }";
+    assert!(folding_ranges(source.to_owned()).is_empty());
+    assert!(folding_ranges_from_rope(Rope::from(source)).is_empty());
+}
+
+#[test]
+fn folding_respects_lsp_line_breaks() {
+    for newline in ["\n", "\r\n", "\r"] {
+        for (source, expected) in [
+            (format!("contract C {{{newline}"), "0:0-1:0 code\n"),
+            (format!("/*{newline}"), "0:0-1:0 comment\n"),
+            (format!("contract C {{{newline}}}{newline}"), "0:0-1:1 code\n"),
+            (format!("/* first{newline}second */"), "0:0-1:9 comment\n"),
+        ] {
+            let rope = Rope::from(source.as_str());
+            assert_data_eq!(folding_range_output(&folding_ranges(source)), expected);
+            assert_data_eq!(folding_range_output(&folding_ranges_from_rope(rope)), expected);
+        }
+    }
 }
 
 fn folding_range_output(ranges: &[FoldingRange]) -> String {

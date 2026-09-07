@@ -1,0 +1,31 @@
+{
+  "errors": [
+    {
+      "sourceLocation": null,
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "2264",
+      "message": "code generation is experimental",
+      "formattedMessage": "warning[2264]: code generation is experimental\n\n"
+    }
+  ],
+  "sources": {
+    "A.sol": {
+      "id": 0
+    }
+  },
+  "contracts": {
+    "A.sol": {
+      "A": {
+        "metadata": "{\"compiler\":{\"version\":\"VERSION\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"x\",\"type\":\"uint256\"}],\"name\":\"f\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"pure\",\"type\":\"function\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"version\":1}},\"settings\":{\"compilationTarget\":{\"A.sol\":\"A\"},\"evmVersion\":\"osaka\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\"},\"optimizer\":{\"enabled\":false,\"runs\":200},\"remappings\":[]},\"sources\":{\"A.sol\":{\"keccak256\":\"0xe8332c065ae4cc6a93390bb3b5f87d5b1eda7bdcc95d8a2fda3cf3cb1d34f8e4\",\"urls\":[\"bzz-raw://de1efcea475e6bb68b1c1620775f2813f39968663f5b4dab4e54e72ad4305f6e\",\"dweb:/ipfs/QmXVdA7XTQg7gr2jRELVRDn1bqwjgEcQJBNheCHCxvDLKJ\"]}},\"version\":1}",
+        "evm": {
+          "deployedBytecode": {
+            "object": "34601a575f3560e01c8063b3de648b14601657601a565b601e565b5f5ffd5b60e06040526024361015607e57607a565b6001600435141515606757600d60a0527f78206d757374206265206f6e650000000000000000000000000000000000000060c0526082565b6004356080526020608001608090036080f35b5f5ffd5b602f565b7f08c379a0000000000000000000000000000000000000000000000000000000005f52602060045260a05160245260c05160445260645ffdfea264697066735822122092b282e5b85f77fdbb891e963bd5339669ba09f96c46c2a4842a0e3556e65afd65736f6c6172430002000034"
+          }
+        }
+      }
+    }
+  }
+}

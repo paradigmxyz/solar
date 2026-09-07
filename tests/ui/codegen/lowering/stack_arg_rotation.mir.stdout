@@ -13,18 +13,18 @@ fn @run(arg0: u256) -> u256 [selector=0xa444f5e9, abi_params=[u256], abi_returns
     jumpi v1, bb1, bb2
   bb2:
     v2 = xor arg0, 7
-    v3 = internal_call @mix, 1, v0, v2
-    v4 = internal_call @mix, 1, arg0, 1
+    v3 = icall @mix, 1, v0, v2
+    v4 = icall @mix, 1, arg0, 1
     v5 = add v3, v4
     v6 = lt v5, v3
     jumpi v6, bb1, bb3
   bb3:
-    v7 = internal_call @mix, 1, arg0, 2
+    v7 = icall @mix, 1, arg0, 2
     v8 = add v5, v7
     v9 = lt v8, v5
     jumpi v9, bb1, bb4
   bb4:
-    v10 = internal_call @mix, 1, arg0, 3
+    v10 = icall @mix, 1, arg0, 3
     v11 = add v8, v10
     v12 = lt v11, v8
     jumpi v12, bb1, bb5

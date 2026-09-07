@@ -15,7 +15,7 @@ fn @callAfterSet() -> u256 [selector=0xa9885fda, abi_params=[], abi_returns=[wor
     sstore 0, v4 !metadata(storage=slot(0))
     v5 = sload 0 !metadata(storage=slot(0))
     v6 = and v5, 0xffffffffffffffff
-    v7 = internal_call @internal_dispatcher_p_none_r_u256, 1, v6
+    v7 = icall @internal_dispatcher_p_none_r_u256, 1, v6
     ret v7
 }
 
@@ -35,7 +35,7 @@ fn @callAfterDelete() -> u256 [selector=0x58819bde, abi_params=[], abi_returns=[
     sstore 0, v9 !metadata(storage=slot(0))
     v10 = sload 0 !metadata(storage=slot(0))
     v11 = and v10, 0xffffffffffffffff
-    v12 = internal_call @internal_dispatcher_p_none_r_u256, 1, v11
+    v12 = icall @internal_dispatcher_p_none_r_u256, 1, v11
     ret v12
 }
 
@@ -48,6 +48,6 @@ fn @internal_dispatcher_p_none_r_u256(arg0: function) -> u256 [function_pointer_
     mstore 4, 81 !metadata(memory=scratch)
     revert 0, 36
   bb1:
-    v1 = internal_call @value, 1
+    v1 = icall @value, 1
     ret v1
 }

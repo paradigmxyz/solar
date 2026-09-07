@@ -1,0 +1,21 @@
+error[5811]: free functions cannot have modifiers
+   ╭▸ ROOT/tests/ui/typeck/free_function_modifiers.sol:LL:CC
+   │
+LL │ ┏ function fun() C.someModifier {
+LL │ ┃ }
+   ╰╴┗━┛
+
+error[5811]: free functions cannot have modifiers
+   ╭▸ ROOT/tests/ui/typeck/free_function_modifiers.sol:LL:CC
+   │
+LL │ function fun2() fun {}
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━
+
+error: expected modifier, found function
+   ╭▸ ROOT/tests/ui/typeck/free_function_modifiers.sol:LL:CC
+   │
+LL │ function fun2() fun {}
+   ╰╴                ━━━
+
+error: aborting due to 3 previous errors
+

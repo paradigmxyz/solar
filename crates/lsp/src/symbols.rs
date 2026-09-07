@@ -28,6 +28,7 @@ use std::{
     fmt::Write as _,
     ops::ControlFlow,
     path::{Path, PathBuf},
+    sync::Arc,
 };
 
 use crate::{
@@ -59,7 +60,7 @@ pub(crate) struct SymbolTables {
     scopes: IndexVec<ScopeId, Scope>,
     global_completions: Vec<CompletionItem>,
     builtin_member_completions: FxHashMap<String, Vec<CompletionItem>>,
-    receiver_member_completions: FxHashMap<SymbolId, Vec<CompletionItem>>,
+    receiver_member_completions: FxHashMap<SymbolId, Arc<[CompletionItem]>>,
     member_completions: Vec<MemberCompletionScope>,
     file_member_completions: FxHashMap<Url, Vec<usize>>,
     file_scopes: FxHashMap<Url, Vec<ScopeId>>,
@@ -202,7 +203,7 @@ struct ScopedDeclaration {
 struct MemberCompletionScope {
     uri: Url,
     range: Range,
-    items: Vec<CompletionItem>,
+    items: Arc<[CompletionItem]>,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -303,7 +304,8 @@ impl SymbolTables {
     /// every other table still includes transitive dependencies.
     pub(crate) fn build(gcx: Gcx<'_>, document_link_sources: &FxHashSet<PathBuf>) -> Self {
         let mut tables = Self::default();
-        tables.rename.record_source_contents(gcx);
+        let locations = proto::LocationConverter::new(gcx.sess.clone_source_map());
+        tables.rename.record_source_contents(gcx, &locations);
         tables.build_builtin_completions();
         let item_ids = gcx.hir.item_ids();
         let yul_variables = YulVariableCollector::collect(gcx);
@@ -322,11 +324,10 @@ impl SymbolTables {
             let Some((name, name_span)) = declaration_name(gcx, item_id) else {
                 continue;
             };
-            let Some(location) = proto::span_to_location(gcx.sess.source_map(), item.span()) else {
+            let Some(location) = locations.location(item.span()) else {
                 continue;
             };
-            let Some(name_location) = proto::span_to_location(gcx.sess.source_map(), name_span)
-            else {
+            let Some(name_location) = locations.location(name_span) else {
                 continue;
             };
 
@@ -367,7 +368,8 @@ impl SymbolTables {
         }
 
         tables.build_type_definitions(gcx, &item_symbols);
-        tables.call_hierarchy = CallHierarchyIndex::build(gcx, &item_symbols, &tables.declarations);
+        tables.call_hierarchy =
+            CallHierarchyIndex::build(gcx, &locations, &item_symbols, &tables.declarations);
         tables.code_lens = CodeLensIndex::build(gcx, &item_symbols);
 
         // Public state-variable getters are compiler-generated functions, but source member calls
@@ -380,16 +382,18 @@ impl SymbolTables {
             }
         }
         tables.type_hierarchy = TypeHierarchyIndex::build(gcx, &item_symbols, &tables.declarations);
-        tables.build_scopes(gcx);
-        tables.build_receiver_member_completions(gcx);
-        tables.build_member_completions(gcx);
-        tables.build_references(gcx, &item_symbols);
+        tables.build_scopes(gcx, &locations);
+        let mut member_completions = FxHashMap::default();
+        tables.build_receiver_member_completions(gcx, &mut member_completions);
+        tables.build_member_completions(gcx, &locations, &mut member_completions);
+        drop(member_completions);
+        tables.build_references(gcx, &locations, &item_symbols);
         // HIR IDs are scoped to this compiler run and cannot back published LSP queries.
         tables.symbols_by_key = FxHashMap::default();
-        tables.document_links = DocumentLinkIndex::build(gcx, document_link_sources);
-        tables.inlay_hints = InlayHintIndex::build(gcx);
+        tables.document_links = DocumentLinkIndex::build(gcx, document_link_sources, &locations);
+        tables.inlay_hints = InlayHintIndex::build(gcx, &locations);
         tables.natspec_completion = NatSpecCompletionIndex::build(gcx);
-        tables.signature_help = SignatureHelpIndex::build(gcx);
+        tables.signature_help = SignatureHelpIndex::build(gcx, &locations);
         tables.rebuild_indexes();
         tables
     }
@@ -568,8 +572,13 @@ impl SymbolTables {
 
     fn reference_count(&self, targets: &[SymbolId]) -> Option<usize> {
         let mut locations = FxHashSet::default();
-        for index in self.complete_reference_indices_for_targets(targets)? {
+        for &index in
+            targets.iter().filter_map(|target| self.symbol_references.get(target)).flatten()
+        {
             let location = &self.references[index].location;
+            if self.rename.conflicting_contents().contains(&location.uri) {
+                return None;
+            }
             locations.insert((&location.uri, location.range));
         }
         Some(locations.len())
@@ -977,6 +986,9 @@ impl SymbolTables {
             return Vec::new();
         };
 
+        let prefix = completion_filter_prefix(context.prefix);
+        let matches_prefix =
+            |name: &str| prefix.as_ref().is_none_or(|prefix| fuzzy_completion_match(prefix, name));
         let mut seen = FxHashMap::<&str, SymbolId>::default();
         let mut scope = Some(scope_id);
         while let Some(scope_id) = scope {
@@ -989,17 +1001,21 @@ impl SymbolTables {
                     continue;
                 }
                 let symbol = &self.declarations[declaration.symbol_id];
-                seen.entry(symbol.name.as_str()).or_insert(declaration.symbol_id);
+                if matches_prefix(&symbol.name) {
+                    seen.entry(symbol.name.as_str()).or_insert(declaration.symbol_id);
+                }
             }
             scope = current.parent;
         }
 
         let mut items =
             seen.into_values().map(|symbol_id| self.completion_item(symbol_id)).collect::<Vec<_>>();
-        items.extend(self.global_completions.iter().cloned());
+        items.extend(
+            self.global_completions.iter().filter(|item| matches_prefix(&item.label)).cloned(),
+        );
         items.sort_by(|a, b| a.label.cmp(&b.label));
         items.dedup_by(|a, b| a.label == b.label);
-        filter_completion_items(items, context.prefix)
+        items
     }
 
     pub(crate) fn resolve_completion_item(
@@ -1071,7 +1087,11 @@ impl SymbolTables {
             .collect();
     }
 
-    fn build_receiver_member_completions(&mut self, gcx: Gcx<'_>) {
+    fn build_receiver_member_completions<'gcx>(
+        &mut self,
+        gcx: Gcx<'gcx>,
+        cache: &mut MemberCompletionCache<'gcx>,
+    ) {
         for variable_id in gcx.hir.variable_ids() {
             let Some(&symbol_id) =
                 self.symbols_by_key.get(&SymbolKey::Item(ItemId::Variable(variable_id)))
@@ -1080,8 +1100,13 @@ impl SymbolTables {
             };
             let variable = gcx.hir.variable(variable_id);
             let ty = gcx.type_of_item(ItemId::Variable(variable_id));
-            let items =
-                self.member_completion_items_for_ty(gcx, ty, variable.source, variable.contract);
+            let items = self.member_completion_items_for_ty(
+                gcx,
+                ty,
+                variable.source,
+                variable.contract,
+                cache,
+            );
             if !items.is_empty() {
                 self.receiver_member_completions.insert(symbol_id, items);
             }
@@ -1094,14 +1119,19 @@ impl SymbolTables {
         ty: Ty<'gcx>,
         source: hir::SourceId,
         contract: Option<hir::ContractId>,
-    ) -> Vec<CompletionItem> {
-        let mut items = gcx
-            .members_of(ty, source, contract)
-            .map(|member| self.completion_item_for_member(gcx, member))
-            .collect::<Vec<_>>();
-        sort_completion_items(&mut items);
-        items.dedup_by(|a, b| a.label == b.label);
-        items
+        cache: &mut MemberCompletionCache<'gcx>,
+    ) -> Arc<[CompletionItem]> {
+        // Member visibility and attached functions depend on both source and contract context.
+        // Keep compiler types in this analysis-local cache and share only the owned LSP items.
+        Arc::clone(cache.entry((ty, source, contract)).or_insert_with(|| {
+            let mut items = gcx
+                .members_of(ty, source, contract)
+                .map(|member| self.completion_item_for_member(gcx, member))
+                .collect::<Vec<_>>();
+            sort_completion_items(&mut items);
+            items.dedup_by(|a, b| a.label == b.label);
+            Arc::from(items)
+        }))
     }
 
     fn push_declaration(&mut self, key: SymbolKey, declaration: DeclarationSymbol) -> SymbolId {
@@ -1115,7 +1145,7 @@ impl SymbolTables {
 
     fn push_reference_entry(
         &mut self,
-        gcx: Gcx<'_>,
+        locations: &proto::LocationConverter,
         span: Span,
         targets: ReferenceTargets,
         kind: DocumentHighlightKind,
@@ -1123,9 +1153,7 @@ impl SymbolTables {
         if targets.is_empty() {
             return;
         }
-        let Some(location) = proto::span_to_location(gcx.sess.source_map(), span) else {
-            return;
-        };
+        let Some(location) = locations.location(span) else { return };
         self.references.push(SymbolReference { location, targets, kind });
     }
 
@@ -1138,16 +1166,27 @@ impl SymbolTables {
         id
     }
 
-    fn build_scopes(&mut self, gcx: Gcx<'_>) {
-        let mut builder = ScopeBuilder { tables: self, gcx, scope: None };
+    fn build_scopes(&mut self, gcx: Gcx<'_>, locations: &proto::LocationConverter) {
+        let mut builder = ScopeBuilder { tables: self, locations, gcx, scope: None };
         for source_id in gcx.hir.source_ids() {
             builder.visit_source_scope(source_id);
         }
     }
 
-    fn build_member_completions(&mut self, gcx: Gcx<'_>) {
-        let mut collector =
-            MemberCompletionCollector { tables: self, gcx, source: None, contract: None };
+    fn build_member_completions<'gcx>(
+        &mut self,
+        gcx: Gcx<'gcx>,
+        locations: &proto::LocationConverter,
+        cache: &mut MemberCompletionCache<'gcx>,
+    ) {
+        let mut collector = MemberCompletionCollector {
+            tables: self,
+            locations,
+            gcx,
+            cache,
+            source: None,
+            contract: None,
+        };
         for source_id in gcx.hir.source_ids() {
             collector.source = Some(source_id);
             collector.contract = None;
@@ -1156,8 +1195,13 @@ impl SymbolTables {
         }
     }
 
-    fn scope_for_span(&mut self, gcx: Gcx<'_>, span: Span, parent: ScopeId) -> Option<ScopeId> {
-        let location = proto::span_to_location(gcx.sess.source_map(), span)?;
+    fn scope_for_span(
+        &mut self,
+        locations: &proto::LocationConverter,
+        span: Span,
+        parent: ScopeId,
+    ) -> Option<ScopeId> {
+        let location = locations.location(span)?;
         Some(self.push_scope(location.uri, location.range, Some(parent)))
     }
 
@@ -1173,13 +1217,13 @@ impl SymbolTables {
 
     fn add_local_scope_declaration(
         &mut self,
-        gcx: Gcx<'_>,
+        locations: &proto::LocationConverter,
         scope: ScopeId,
         item_id: ItemId,
         span: Span,
     ) {
         if let Some(&symbol_id) = self.symbols_by_key.get(&SymbolKey::Item(item_id)) {
-            self.add_local_symbol_to_scope(gcx, scope, symbol_id, span);
+            self.add_local_symbol_to_scope(locations, scope, symbol_id, span);
         }
     }
 
@@ -1189,12 +1233,13 @@ impl SymbolTables {
 
     fn add_local_symbol_to_scope(
         &mut self,
-        gcx: Gcx<'_>,
+        locations: &proto::LocationConverter,
         scope: ScopeId,
         symbol_id: SymbolId,
         span: Span,
     ) {
-        let available_from = proto::span_to_location(gcx.sess.source_map(), span)
+        let available_from = locations
+            .location(span)
             .map(|location| location.range.end)
             .unwrap_or(self.declarations[symbol_id].location.range.end);
         self.scopes[scope]
@@ -1202,20 +1247,26 @@ impl SymbolTables {
             .push(ScopedDeclaration { symbol_id, available_from: Some(available_from) });
     }
 
-    fn build_references(&mut self, gcx: Gcx<'_>, item_symbols: &FxHashMap<ItemId, SymbolId>) {
-        let bindings = self.rename.build_imports(gcx, item_symbols);
+    fn build_references(
+        &mut self,
+        gcx: Gcx<'_>,
+        locations: &proto::LocationConverter,
+        item_symbols: &FxHashMap<ItemId, SymbolId>,
+    ) {
+        let bindings = self.rename.build_imports(gcx, locations, item_symbols);
         for (span, targets) in bindings.references() {
             self.push_reference_entry(
-                gcx,
+                locations,
                 span,
                 targets.iter().copied().collect(),
                 DocumentHighlightKind::READ,
             );
         }
-        let mapping_bindings = self.rename.build_mapping_names(gcx);
-        self.rename.build_natspec(gcx, &bindings, item_symbols, &self.declarations);
+        let mapping_bindings = self.rename.build_mapping_names(gcx, locations);
+        self.rename.build_natspec(gcx, locations, &bindings, item_symbols, &self.declarations);
         self.rename.build_overrides(
             gcx,
+            locations,
             &bindings,
             item_symbols,
             &self.declarations,
@@ -1223,6 +1274,7 @@ impl SymbolTables {
         );
         let mut collector = ReferenceCollector {
             tables: self,
+            locations,
             gcx,
             item_symbols,
             bindings: &bindings,
@@ -1544,7 +1596,7 @@ impl SymbolTables {
                     return self
                         .receiver_member_completions
                         .get(&symbol_id)
-                        .map(Vec::as_slice)
+                        .map(AsRef::as_ref)
                         .or(Some(&[]));
                 }
             }
@@ -1727,6 +1779,7 @@ impl<'gcx> hir::Visit<'gcx> for YulVariableCollector<'gcx> {
 
 struct ScopeBuilder<'a, 'gcx> {
     tables: &'a mut SymbolTables,
+    locations: &'a proto::LocationConverter,
     gcx: Gcx<'gcx>,
     scope: Option<ScopeId>,
 }
@@ -1734,21 +1787,14 @@ struct ScopeBuilder<'a, 'gcx> {
 impl<'gcx> ScopeBuilder<'_, 'gcx> {
     fn visit_source_scope(&mut self, source_id: hir::SourceId) {
         let source = self.gcx.hir.source(source_id);
-        let Some(path) = source.file.name.as_real() else {
-            return;
-        };
-        let Some(uri) = Url::from_file_path(path).ok() else {
-            return;
-        };
-        let Some(range) = proto::span_to_location(
-            self.gcx.sess.source_map(),
-            Span::new(source.file.start_pos, source.file.end_position()),
-        )
-        .map(|location| location.range) else {
+        let Some(_) = source.file.name.as_real() else { return };
+        let Some(location) =
+            self.locations.location(Span::new(source.file.start_pos, source.file.end_position()))
+        else {
             return;
         };
 
-        let root = self.tables.push_scope(uri, range, None);
+        let root = self.tables.push_scope(location.uri, location.range, None);
         self.with_scope(root, |this| {
             for &item_id in source.items {
                 this.tables.add_scope_declaration(root, item_id);
@@ -1759,7 +1805,7 @@ impl<'gcx> ScopeBuilder<'_, 'gcx> {
 
     fn push_child_scope(&mut self, span: Span) -> Option<ScopeId> {
         let parent = self.scope?;
-        self.tables.scope_for_span(self.gcx, span, parent)
+        self.tables.scope_for_span(self.locations, span, parent)
     }
 
     fn with_scope(&mut self, scope: ScopeId, f: impl FnOnce(&mut Self)) {
@@ -1898,7 +1944,7 @@ impl<'gcx> hir::Visit<'gcx> for ScopeBuilder<'_, 'gcx> {
         match stmt.kind {
             StmtKind::DeclSingle(var) => {
                 self.tables.add_local_scope_declaration(
-                    self.gcx,
+                    self.locations,
                     scope,
                     ItemId::Variable(var),
                     stmt.span,
@@ -1907,7 +1953,7 @@ impl<'gcx> hir::Visit<'gcx> for ScopeBuilder<'_, 'gcx> {
             StmtKind::DeclMulti(vars, _) => {
                 for var in vars.iter().copied().flatten() {
                     self.tables.add_local_scope_declaration(
-                        self.gcx,
+                        self.locations,
                         scope,
                         ItemId::Variable(var),
                         stmt.span,
@@ -1955,8 +2001,13 @@ impl<'gcx> hir::Visit<'gcx> for ScopeBuilder<'_, 'gcx> {
     }
 }
 
+type MemberCompletionCache<'gcx> =
+    FxHashMap<(Ty<'gcx>, hir::SourceId, Option<hir::ContractId>), Arc<[CompletionItem]>>;
+
 struct MemberCompletionCollector<'a, 'gcx> {
+    cache: &'a mut MemberCompletionCache<'gcx>,
     tables: &'a mut SymbolTables,
+    locations: &'a proto::LocationConverter,
     gcx: Gcx<'gcx>,
     source: Option<hir::SourceId>,
     contract: Option<hir::ContractId>,
@@ -1974,8 +2025,7 @@ impl<'gcx> MemberCompletionCollector<'_, 'gcx> {
         let Some(receiver_ty) = self.gcx.type_of_expr(receiver.id) else {
             return;
         };
-        let Some(location) = proto::span_to_location(self.gcx.sess.source_map(), member.span)
-        else {
+        let Some(location) = self.locations.location(member.span) else {
             return;
         };
 
@@ -1984,6 +2034,7 @@ impl<'gcx> MemberCompletionCollector<'_, 'gcx> {
             receiver_ty,
             source,
             self.contract,
+            self.cache,
         );
         if items.is_empty() {
             return;
@@ -2027,6 +2078,7 @@ impl<'gcx> hir::Visit<'gcx> for MemberCompletionCollector<'_, 'gcx> {
 
 struct ReferenceCollector<'a, 'gcx> {
     tables: &'a mut SymbolTables,
+    locations: &'a proto::LocationConverter,
     gcx: Gcx<'gcx>,
     item_symbols: &'a FxHashMap<ItemId, SymbolId>,
     bindings: &'a ImportBindings,
@@ -2053,6 +2105,7 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
             }
             self.tables.rename.push_symbol_reference(
                 self.gcx,
+                self.locations,
                 RenameReferenceContext {
                     bindings: self.bindings,
                     source,
@@ -2064,7 +2117,7 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
                 &targets,
             );
         }
-        self.tables.push_reference_entry(self.gcx, span, targets, kind);
+        self.tables.push_reference_entry(self.locations, span, targets, kind);
     }
 
     fn visit_ident_reference(
@@ -2117,6 +2170,7 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
         let Some(source) = self.source else { return };
         self.tables.rename.push_namespace_reference(
             self.gcx,
+            self.locations,
             self.bindings,
             source,
             span,
@@ -2168,7 +2222,7 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
                 continue;
             };
             if self.tables.rename.push_mapping_reference(
-                self.gcx,
+                self.locations,
                 self.mapping_bindings,
                 param,
                 arg.name.span,
@@ -2547,12 +2601,6 @@ fn completion_item_for_builtin(builtin: Builtin) -> CompletionItem {
         }),
         ..Default::default()
     }
-}
-
-fn filter_completion_items(mut items: Vec<CompletionItem>, prefix: &str) -> Vec<CompletionItem> {
-    let Some(prefix) = completion_filter_prefix(prefix) else { return items };
-    items.retain(|item| fuzzy_completion_match(&prefix, &item.label));
-    items
 }
 
 fn filtered_completion_items(items: &[CompletionItem], prefix: &str) -> Vec<CompletionItem> {

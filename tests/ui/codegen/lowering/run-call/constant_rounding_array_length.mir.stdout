@@ -1,0 +1,18 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/constant_rounding_array_length.sol:ConstantRoundingArrayLength ===
+@module ConstantRoundingArrayLength
+fn @f() -> (u256, i256, u256, i256) [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word, word, word, word]] {
+  bb0:
+    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    memory_zero v0, 64
+    v1 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    memory_zero v1, 64
+    v2 = eq 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe, 0x8000000000000000000000000000000000000000000000000000000000000000
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = sub 0, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
+    ret 2, 2, 2, v3
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}

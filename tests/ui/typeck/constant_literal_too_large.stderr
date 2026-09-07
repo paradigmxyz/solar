@@ -1,0 +1,62 @@
+error: failed to evaluate constant: literal is too large for the type of the other operand
+   ╭▸ ROOT/tests/ui/typeck/constant_literal_too_large.sol:LL:CC
+   │
+LL │ …     uint256[(1 << 256) >> ONE] memory shr;
+   ╰╴              ━━━━━━━━━━━━━━━━━ evaluation of constant value failed here
+
+error: failed to evaluate constant: literal is too large for the type of the other operand
+   ╭▸ ROOT/tests/ui/typeck/constant_literal_too_large.sol:LL:CC
+   │
+LL │ …     uint256[(1 << 256) ** ONE] memory pow;
+   ╰╴              ━━━━━━━━━━━━━━━━━ evaluation of constant value failed here
+
+error: failed to evaluate constant: literal is too large for the type of the other operand
+   ╭▸ ROOT/tests/ui/typeck/constant_literal_too_large.sol:LL:CC
+   │
+LL │ …     uint256[(0 - (1 << 256)) >> ONE] memory negativeShr;
+   ╰╴              ━━━━━━━━━━━━━━━━━━━━━━━ evaluation of constant value failed here
+
+error: failed to evaluate constant: literal is too large for the type of the other operand
+   ╭▸ ROOT/tests/ui/typeck/constant_literal_too_large.sol:LL:CC
+   │
+LL │ …     uint256[ONE << (1 << 256)] memory shlAmount;
+   ╰╴              ━━━━━━━━━━━━━━━━━ evaluation of constant value failed here
+
+error: failed to evaluate constant: literal is too large for the type of the other operand
+   ╭▸ ROOT/tests/ui/typeck/constant_literal_too_large.sol:LL:CC
+   │
+LL │ …     uint256[(1 << 256) + S8] memory add;
+   ╰╴              ━━━━━━━━━━━━━━━ evaluation of constant value failed here
+
+error: failed to evaluate constant: literal is too large for the type of the other operand
+   ╭▸ ROOT/tests/ui/typeck/constant_literal_too_large.sol:LL:CC
+   │
+LL │ …     uint256[(1 << 256) - S8] memory sub;
+   ╰╴              ━━━━━━━━━━━━━━━ evaluation of constant value failed here
+
+error: failed to evaluate constant: literal is too large for the type of the other operand
+   ╭▸ ROOT/tests/ui/typeck/constant_literal_too_large.sol:LL:CC
+   │
+LL │ …     uint256[(1 << 256) / S8] memory div;
+   ╰╴              ━━━━━━━━━━━━━━━ evaluation of constant value failed here
+
+error: failed to evaluate constant: literal is too large for the type of the other operand
+   ╭▸ ROOT/tests/ui/typeck/constant_literal_too_large.sol:LL:CC
+   │
+LL │     uint256 constant SHR = (1 << 256) >> ONE;
+   │                            ───────────────── evaluation of constant value failed here
+   ‡
+LL │         uint256[SHR] memory shr;
+   ╰╴                ━━━
+
+error: failed to evaluate constant: literal is too large for the type of the other operand
+   ╭▸ ROOT/tests/ui/typeck/constant_literal_too_large.sol:LL:CC
+   │
+LL │     uint256 constant ADD = (1 << 256) + S8;
+   │                            ─────────────── evaluation of constant value failed here
+   ‡
+LL │         uint256[ADD] memory add;
+   ╰╴                ━━━
+
+error: aborting due to 9 previous errors
+

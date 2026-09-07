@@ -16,7 +16,7 @@
       sstore 1, arg1
       ret arg1
     bb1:
-      v0 = internal_call @recursive, 1, 0, arg1
+      v0 = icall @recursive, 1, 0, arg1
       ret v0
   }
   
@@ -27,13 +27,13 @@
   
   fn @entry() -> u256 [selector=0x01020304] {
     bb0:
--     v0 = internal_call @discarded, 1, 7
--     v1 = internal_call @recursive, 1, 1, 8
--     v2 = internal_call @kept, 1, 9
+-     v0 = icall @discarded, 1, 7
+-     v1 = icall @recursive, 1, 1, 8
+-     v2 = icall @kept, 1, 9
 -     ret v2
-+     internal_call @discarded, 0, 7
-+     v0 = internal_call @recursive, 1, 1, 8
-+     v1 = internal_call @kept, 1, 9
++     icall @discarded, 0, 7
++     v0 = icall @recursive, 1, 1, 8
++     v1 = icall @kept, 1, 9
 +     ret v1
   }
   

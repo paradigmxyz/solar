@@ -1,0 +1,25 @@
+//@ filecheck:
+// CHECK-LABEL: "bytecode": {
+// CHECK-NEXT: "sourceMap": ":::-:0
+// CHECK-LABEL: "deployedBytecode": {
+// CHECK-NEXT: "sourceMap": ":::-:0
+// CHECK: :::i
+// CHECK: :::o
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract C { function f(uint x) external pure returns (uint) { return x + 1; } }"
+    }
+  },
+  "settings": {
+    "outputSelection": {
+      "*": {
+        "*": [
+          "evm.bytecode.sourceMap",
+          "evm.deployedBytecode.sourceMap"
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,56 @@
+error[2973]: wrong argument count for modifier invocation: 0 arguments given but expected 2
+   ╭▸ ROOT/tests/ui/typeck/modifier_arguments.sol:LL:CC
+   │
+LL │     function missing() external two {}
+   ╰╴                                ━━━
+
+error[2973]: wrong argument count for modifier invocation: 1 arguments given but expected 2
+   ╭▸ ROOT/tests/ui/typeck/modifier_arguments.sol:LL:CC
+   │
+LL │     function tooFew() external two(1) {}
+   ╰╴                               ━━━━━━
+
+error[2973]: wrong argument count for modifier invocation: 3 arguments given but expected 2
+   ╭▸ ROOT/tests/ui/typeck/modifier_arguments.sol:LL:CC
+   │
+LL │     function tooMany() external two(1, 2, 3) {}
+   ╰╴                                ━━━━━━━━━━━━
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/modifier_arguments.sol:LL:CC
+   │
+LL │     function badType() external two("a", 1) {}
+   ╰╴                                    ━━━ expected `uint256`, found `utf8_string_literal[1]`
+
+error[2973]: wrong argument count for modifier invocation: 1 arguments given but expected 0
+   ╭▸ ROOT/tests/ui/typeck/modifier_arguments.sol:LL:CC
+   │
+LL │     function extra() external none(1) {}
+   ╰╴                              ━━━━━━━
+
+error: duplicate named argument `a`
+   ╭▸ ROOT/tests/ui/typeck/modifier_arguments.sol:LL:CC
+   │
+LL │     function duplicateName() external two({a: 1, a: 2}) {}
+   ╰╴                                                 ━
+
+error: named argument `c` does not match function declaration
+   ╭▸ ROOT/tests/ui/typeck/modifier_arguments.sol:LL:CC
+   │
+LL │     function unknownName() external two({a: 1, c: 2}) {}
+   ╰╴                                               ━
+
+error[2973]: wrong argument count for modifier invocation: 1 arguments given but expected 2
+   ╭▸ ROOT/tests/ui/typeck/modifier_arguments.sol:LL:CC
+   │
+LL │     function tooFewNames() external two({a: 1}) {}
+   ╰╴                                    ━━━━━━━━━━━
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/modifier_arguments.sol:LL:CC
+   │
+LL │     function badNamedType() external two({b: 1, a: "a"}) {}
+   ╰╴                                                   ━━━ expected `uint256`, found `utf8_string_literal[1]`
+
+error: aborting due to 9 previous errors
+

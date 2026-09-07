@@ -2,10 +2,10 @@
 + // === ROOT/tests/ui/codegen/evm-ir/reorder-pushes/compacted_push.evmir (after reorder-pushes) ===
   @module CompactedPush
   bb0:
-    callf !meta(stack=0->255)
-    callf !meta(stack=0->255)
-    callf !meta(stack=0->255)
-    callf !meta(stack=0->255)
+    callf !metadata(stack=0->255)
+    callf !metadata(stack=0->255)
+    callf !metadata(stack=0->255)
+    callf !metadata(stack=0->255)
     push 0
     push 0
     push bb1
@@ -22,7 +22,7 @@
     mstore
     stop
   bb2:
-    callf !meta(stack=0->3)
+    callf !metadata(stack=0->3)
     pop
     pop
     pop
@@ -66,10 +66,10 @@
 + // === ROOT/tests/ui/codegen/evm-ir/reorder-pushes/compacted_push.evmir (after compact-pushes) ===
   @module CompactedPush
   bb0:
-    callf !meta(stack=0->255)
-    callf !meta(stack=0->255)
-    callf !meta(stack=0->255)
-    callf !meta(stack=0->255)
+    callf !metadata(stack=0->255)
+    callf !metadata(stack=0->255)
+    callf !metadata(stack=0->255)
+    callf !metadata(stack=0->255)
     push 0
     push 0
     push bb1
@@ -87,7 +87,7 @@
     mstore
     stop
   bb2:
-    callf !meta(stack=0->3)
+    callf !metadata(stack=0->3)
     pop
     pop
     pop
