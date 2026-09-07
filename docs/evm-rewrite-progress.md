@@ -1095,3 +1095,81 @@ fixtures or expectations changed. Frozen binaries, source diffs, exact
 input joins and rejected results are in
 `target/codegen-bench/evm-rewrite-candidate/selective-spills-workflow-20260907/`;
 adjacent regression reviews retain binary-matched writer-region evidence.
+
+
+### Selective Phi residence: accepted bounded milestone
+
+`54199124` keeps selected Phi values and their inputs on the stack after
+ordinary allocation, with mixed transfers in the private machine lowering
+module. One interval-ranked proposal preserves entry layouts and reserved
+home addresses. Failed actual emission restores owned blocks, debug data,
+bindings and switch budgets. Dynamic frames, returning/hidden-prefix owners
+and rematerialization recipes remain outside admission. This is a bounded
+scheduler improvement, not a general private-memory repair or optimal search.
+
+The writer guard fixes the rejected Nitro/Seaport bank fragmentation by
+comparing the actual live, initialized, overlapping original and proposed
+banks. A separate narrow filter keeps single-use arithmetic stores that
+already target an unpromoted Phi's home. Draft3 incorrectly excluded canonical
+Pure metadata; draft4 corrected that and removed the remaining eight +2-byte
+artifacts. Final draft5 removes only a redundant selection flag. All rejected
+outputs and failed analyses remain retained.
+
+Frozen final `04887ff5` preserves all original 808 source hashes, 807 UI
+compilation IDs per mode, 4,912 objects and eighteen diagnostic rows. Gas
+creation/runtime each shrink by 557 bytes; Size is byte-identical. Nine full
+projects retain 1,672 contract IDs and 3,344 objects: creation/runtime shrink
+by 40,112/39,845 bytes across 154 objects, with no individual growth or
+worsened sealed debt. Final contract outputs and metadata exactly match
+passing draft4; three projects differ only in diagnostic ordering, with exact
+multisets. Origin-policy review finds no new transport defect: body operations
+retain MIR origins, and generated mixed edges remain explicitly unknown.
+
+The freshly fetched main `933bc1e2` is already merged. The new benchmark and
+comparison workflow records all 24 Gas IDs and fifteen Size IDs. Each runtime
+leg retains 175 ordered gas labels and 139 observations, exact solc reference
+records, and unchanged physical artifacts, deployment gas and runtime gas.
+Only two captured MIR files have proved bijective helper-symbol renames.
+Full compiler time is +1.483% and peak RSS +0.064%. Twenty-two cases have five
+samples per leg; Seaport and Solady have one because of the ten-second cutoff.
+Reversed five-repeat outlier runs give Nitro +0.76%, signature checker -1.36%
+and Solmate +0.25%; these do not replace the primary full-run cost. The Size
+one-sample run is a correctness/gas supplement, not an acceptance timing claim.
+
+`52a30c23` adds four standard-matrix fixtures and four MIR snapshots, preserving
+all 46 runtime directives. Selective checking passes sixteen revisions and
+184 calls, including MIR's ordinary None execution. Fresh same-installed-path
+baseline/candidate captures preserve ABI and physical bytecode; complete
+requested outputs match prepared captures after explicit path substitution.
+The separate 138-call three-mode trace ledger has no gas increases. Gas
+runtime savings are 121, 70 and 73 bytes in transfers, cycles and mixed writer;
+the returning-call control and every None/Size object are unchanged. Actual
+mixed-header traces capture an old home before overwriting it on the same edge.
+No existing test or expectation changed.
+
+Clippy, nightly formatting and spelling checks pass. All 36 Foundry projects
+pass with exact ordered IDs, gas and sizes: 772 compiler and 765 solc tests.
+The seven compiler-only stack-deep cases remain unchanged. The first successful
+Foundry run omitted report output; a second run retains all 36 reports and
+exact final binary hashes before/after execution. Project-specific solc pins
+remain in effect; the reports do not record every actual solc executable.
+Fresh paired symbolic runs on the installed transfer fixture use depth 2048,
+64 paths and 64 queries. Both reach the solver-query limit, so neither supplies
+agreement or a counterexample. Identical requested settings/source are retained;
+the derived bytecode-holding bound differs 734 to 613.
+
+The final workspace has 1,395 passing tests and the same failing UI aggregate:
+11,607 UI revisions pass, four original cases fail, and 851 are filtered.
+Cold call fallthrough (Size), global calldata aliasing, low-level calldata
+calls and tuple assignment remain CI blockers. General mutable-memory defects
+and sealed performance debt remain open. Backend Rust totals 16,274 raw lines
+in 45 files, 18,364 fewer (53.0%) than the recorded deletion scope, including
+comments and inline tests. This milestone adds 549 production-file lines.
+Publication remains blocked by the earlier automatic push rejection.
+
+Evidence is retained under `selective-spills-workflow-20260907/`, with adjacent
+independent corpus, metadata, installed-test and rollback reviews. The focused
+symbolic projects and traces remain under `target/selective-spills-tests-20260907/`.
+A read-only follow-up design identifies one existing late MemoryDse invocation
+as a possible tuple transport fix; no pipeline change has yet been made, and
+shared-return obligations remain separate.
