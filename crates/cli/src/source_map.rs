@@ -84,7 +84,7 @@ impl SourceMapEncoder {
             Some((source.data.start as i64, source.data.len() as i64, source_id))
         });
         let (start, length, source) = location.unwrap_or((-1, -1, -1));
-        // Legacy `i`/`o` markers describe internal jumps, not external RETURNs.
+        // Legacy `i`/`o` markers describe internal jumps, not external returns.
         let is_jump = matches!(instruction.opcode, 0x56 | 0x57);
         let enters_function = instruction.function_invoke.is_some()
             || static_jump_target(bytecode, previous, instruction)
