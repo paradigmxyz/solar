@@ -59,7 +59,7 @@ Options:
       --emit <EMIT>
           Comma separated list of types of output for the compiler to emit.
           
-          Outputs are collected in JSON on stdout, or `combined.json` in `--out-dir`. ETHDebug programs include source resources; legacy source maps include `sourceList`.
+          Outputs are collected in JSON on stdout, or `combined.json` in `--out-dir`.
           
           [possible values: abi, bin, bin-runtime, hashes, ethdebug, ethdebug-runtime, ethdebug-resources, srcmap, srcmap-runtime]
 

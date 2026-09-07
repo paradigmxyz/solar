@@ -288,6 +288,8 @@ impl OptimizationMode {
 
 str_enum! {
     /// Type of output for the compiler to emit.
+    ///
+    /// Output names follow solc's `--combined-json`, extended with ETHDebug artifacts.
     #[strum(serialize_all = "kebab-case")]
     #[non_exhaustive]
     pub enum CompilerOutput {
