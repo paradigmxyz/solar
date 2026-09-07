@@ -893,3 +893,66 @@ The sealed performance debts and computed-memory interference remain open.
 A fresh fetch confirms main `933bc1e2`; merging reports already up to date.
 Future comparisons use main's full benchmark and artifact workflow. Local
 commits remain unpublished after automatic approval review rejected push.
+
+
+### Computed immutable spill recipes
+
+Commits `d88041fa` and `649033b0` repair a source-memory readback corrupted
+by restoring a compiler spill over the source's `mstore`. At the stack
+scheduling boundary, a bounded whole bank of immutable calldata expressions
+becomes cached recipes. ADD, SUB, AND, OR and XOR over a fixed calldata read
+and literal retain operand order; canonical constant ADDs can complete the
+bank. Only closed same-block producers are suppressed, with original
+liveness cleanup retained. Reservations, protocol choices and assembler
+behavior stay fixed. Internal-call artifacts, dynamic frames, returning
+owners, oversized functions and noncanonical banks decline this extension.
+This is a targeted correctness repair, not a general solution to compiler
+storage interfering with source memory.
+
+The original eighteen-value witness now returns the source's `0xdeadbeef`
+instead of the restored spill value 257. Runtime size drops 408 to 255 bytes
+in both optimized modes; executed opcode gas drops 790 to 526 at address
+192 and 1,161 to 924 at 4,096. These are trace opcode costs, not transaction
+receipt gas. Three new standard-matrix fixtures pass twelve UI revisions
+and 48 focused runtime calls, repairing eighteen baseline failures across
+None/Gas/Size. They cover unaligned writes, all five recipe operations,
+shared producers and actual mixed-bank/internal-call controls. Thirteen
+unique negative FileCheck controls reject. Original tests remain intact.
+
+The required `solsymdiff` tool confirms the old mismatch through a fixed
+concrete prefix on a mutability-only derivative of the constrained array
+witness. The reported symbolic suffix is not itself the failing call.
+Candidate exploration and the earlier array/scalar attempts timed out;
+none establishes symbolic equivalence. Generated runtime bodies bridge to
+concrete before/candidate/solc replays. Complete attempts and the independent
+scope audit remain in `computed-rematerialization-symbolic-20260907/`.
+
+Commit `74381ecf` separately extracts recipe emission and moves suppression
+cleanup to opcode lowering without changing selected or emitted code. The
+debug `load_value` helper shrinks 2,863 to 1,826 native bytes and its frame
+1,888 to 976 bytes. Against the unextracted fix, the full 24-case compiler
+time geometric mean improves 0.95%, with final-process peak RSS 0.50%
+higher. Against the pre-fix baseline, full time is 0.31% lower overall,
+but Solarray remains 2.24% slower and 2.85% slower in a reversed repeat.
+This repeated per-project cost remains open. Official unknown-profile
+exclusions are preserved; raw full-run timing is explicitly supplemental
+with dev-build provenance. The reversed run uses verified debug aliases.
+
+The new workflow retains all 24 case IDs and, in each hot mode, fifteen
+runtime cases, 175 gas labels and 139 observations per compiler. Gas,
+creation and runtime bytes are exact; only two MIR helper-name changes
+need explicit bijections. Solc records and artifacts are fingerprint-checked
+reuse. All 4,908 UI objects and 3,344 heavy objects bridge exactly through
+the extraction, including the three added sources as a separate inventory
+extension. Sealed UI/heavy debts remain unchanged. Raw runs and reviews
+are under `computed-rematerialization-workflow-20260907/` and adjacent
+`computed-rematerialization-*` review directories.
+
+Clippy passes. The full workspace has 1,395 passing tests and one failing
+UI aggregate: 11,581 cases pass, the same five original cases fail, and
+851 are filtered. That aggregate includes the Standard JSON and upstream
+Solc modes; no separate rerun is claimed. Current backend Rust files total
+15,465 raw lines versus 34,638 deleted: 19,173 fewer (55.4%), including
+comments and inline tests. Full functionality, sealed performance parity
+and CI remain unfinished. Main `933bc1e2` is merged; publication remains
+blocked by the earlier automatic push rejection.
