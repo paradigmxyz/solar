@@ -72,16 +72,19 @@
 //!    ping-pong between mutually-preceding joins.
 //! 3. A function-size-derived rewrite budget backstops the above.
 
-use crate::{backend::evm::op, target::{GasTier, Target, Warmth}};
-use crate::mir::{
-    BlockId, Function, InstId, InstKind, Instruction, InstructionMetadata, MemoryObjectKind,
-    MemoryRegion, MirType, Module, StorageAlias, Terminator, Value, ValueId,
-    analysis::{
-        Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, Location, LocationSize,
-        MemoryAddress, MemoryLocation, ModRef,
+use crate::{
+    backend::evm::op,
+    mir::{
+        BlockId, Function, InstId, InstKind, Instruction, InstructionMetadata, MemoryObjectKind,
+        MemoryRegion, MirType, Module, StorageAlias, Terminator, Value, ValueId,
+        analysis::{
+            Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, Location, LocationSize,
+            MemoryAddress, MemoryLocation, ModRef,
+        },
+        pass::{MirPass, run_function_pass},
+        utils as mir_utils,
     },
-    pass::{MirPass, run_function_pass},
-    utils as mir_utils,
+    target::{GasTier, Target, Warmth},
 };
 use alloy_primitives::U256;
 use solar_data_structures::{

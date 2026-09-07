@@ -172,7 +172,7 @@ under `crates/codegen/isle/`:
   view. `simplify` rules return a value, `rewrite` rules return an `Op` that
   `Op::into_kind` turns back into an instruction.
 
-The `egraph` pass (`transform/egraph.rs`) is the MIR simplification and
+The `egraph` pass (`mir/transform/egraph.rs`) is the MIR simplification and
 value-numbering pass: an acyclic e-graph with dominator-scoped hash-consing,
 `rewrite` results kept as alternative nodes, `simplify` results merged, and
 the cheapest node per class extracted under the target cost model, all at

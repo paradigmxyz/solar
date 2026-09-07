@@ -15,8 +15,8 @@
 //! explicit.
 
 use crate::mir::{
-    AllocationKind, Function, Immediate, InstId, InstKind, MemoryObjectLayout, Module,
-    Value, ValueId,
+    AllocationKind, Function, Immediate, InstId, InstKind, MemoryObjectLayout, Module, Value,
+    ValueId,
     analysis::{AliasAnalysis, Location, LocationSize},
     memory::{EvmMemoryLayout, MemoryLayoutPolicy},
     pass::{MirPass, run_function_pass},

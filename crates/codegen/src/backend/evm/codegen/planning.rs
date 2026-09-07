@@ -27,9 +27,8 @@ use super::{
     select::{self, OpcodeLowering},
 };
 use crate::{
-    mir::analysis::Liveness,
     backend::evm::op,
-    mir::{BlockId, EffectKind, Function, Op, Value, ValueId},
+    mir::{BlockId, EffectKind, Function, Op, Value, ValueId, analysis::Liveness},
     target::{Cost, Target},
 };
 use smallvec::SmallVec;

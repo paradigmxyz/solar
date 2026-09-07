@@ -62,11 +62,11 @@ def main():
         path: hashlib.sha256((ROOT / path).read_bytes()).hexdigest()
         for path in (
             "crates/codegen/src/mir/op_schema.rs",
-            "crates/codegen/src/transform/egraph/isle.rs",
-            "crates/codegen/src/transform/egraph.rs",
-            "crates/codegen/src/utils/eval.rs",
-            "crates/codegen/src/transform/word_sequence.rs",
-            "crates/codegen/src/transform/word_sequence/isle.rs",
+            "crates/codegen/src/mir/transform/egraph/isle.rs",
+            "crates/codegen/src/mir/transform/egraph.rs",
+            "crates/codegen/src/mir/utils/eval.rs",
+            "crates/codegen/src/mir/transform/word_sequence.rs",
+            "crates/codegen/src/mir/transform/word_sequence/isle.rs",
             "crates/codegen/src/backend/evm/codegen/select.rs",
             "crates/codegen/src/backend/evm/codegen/planning/isle.rs",
         )
