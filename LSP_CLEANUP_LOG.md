@@ -140,3 +140,19 @@ interpret the shared-host dev measurements as precise release-speed changes.
 - Kept the existing manual file-read helper because the repository disallows
   `fs::read_to_string`; the shorter replacement introduced a lint warning.
 - The final Rust tests and warning-free scoped Clippy run cover these changes.
+
+## Focused runner and fixture cleanup
+
+- Shared setup/measured phase classification and result storage, keeping exact
+  errors, crash precedence, setup prefixes, and fallback observations.
+- Shared probe anchor preparation and document capability checks. Request order,
+  validation order, and measured request boundaries remain unchanged.
+- Centralized optional step probes and fixture file traversal, retaining path
+  validation, ignored directories, and symlink checks.
+- Shared seven runner fixture setups and 21 integration CLI invocations.
+- Added phase-result coverage within the existing test module. All 1,202 scoped
+  Rust tests passed (one skipped); scoped Clippy/typechecking passed, and all
+  37 Criterion benchmark preflights succeeded. Formatting and diff checks passed.
+- Reuse, simplification, efficiency, and altitude reviews cover this pass.
+  Cargo Crap remains unavailable, so the complexity-only scan was skipped.
+  No new timing comparison was run; preflights verify workloads, not speed.

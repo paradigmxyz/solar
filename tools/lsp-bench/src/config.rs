@@ -275,6 +275,19 @@ pub(crate) enum StepSpec {
 }
 
 impl StepSpec {
+    fn probe(&self) -> Option<&ProbeSpec> {
+        match self {
+            Self::Probe { probe, .. } | Self::Warm { probe, .. } => Some(probe),
+            Self::Replace { probe, .. }
+            | Self::Save { probe, .. }
+            | Self::Rename { probe, .. }
+            | Self::CreateFile { probe, .. }
+            | Self::RenameFile { probe, .. }
+            | Self::DeleteFile { probe, .. } => probe.as_ref(),
+            Self::Open { .. } | Self::Restart { .. } => None,
+        }
+    }
+
     pub(crate) const fn execution_step_count(&self) -> usize {
         if matches!(self, Self::Warm { .. }) { 2 } else { 1 }
     }
@@ -800,41 +813,29 @@ fn validate_relative_path(path: &Path, kind: &str) -> Result<()> {
 
 fn validate_step_paths(step: &StepSpec) -> Result<()> {
     match step {
-        StepSpec::Open { path } => validate_relative_path(path, "scenario path"),
-        StepSpec::Save { path, probe }
-        | StepSpec::Replace { path, probe, .. }
-        | StepSpec::CreateFile { path, probe, .. }
-        | StepSpec::DeleteFile { path, probe } => {
-            validate_relative_path(path, "scenario path")?;
-            if let Some(probe) = probe {
-                validate_probe_path(probe)?;
-            }
-            Ok(())
-        }
-        StepSpec::Probe { probe, .. } | StepSpec::Warm { probe, .. } => validate_probe_path(probe),
-        StepSpec::Rename { path, expected_edits, probe, .. } => {
+        StepSpec::Open { path }
+        | StepSpec::Save { path, .. }
+        | StepSpec::Replace { path, .. }
+        | StepSpec::CreateFile { path, .. }
+        | StepSpec::DeleteFile { path, .. } => validate_relative_path(path, "scenario path")?,
+        StepSpec::Rename { path, expected_edits, .. } => {
             validate_relative_path(path, "scenario path")?;
             validate_rename_edits(expected_edits)?;
-            if let Some(probe) = probe {
-                validate_probe_path(probe)?;
-            }
-            Ok(())
         }
-        StepSpec::RenameFile { from, to, probe } => {
+        StepSpec::RenameFile { from, to, .. } => {
             validate_relative_path(from, "scenario path")?;
             validate_relative_path(to, "scenario path")?;
-            if let Some(probe) = probe {
-                validate_probe_path(probe)?;
-            }
-            Ok(())
         }
-        StepSpec::Restart { invalidate } => {
-            if let Some(invalidate) = invalidate {
-                validate_relative_path(&invalidate.path, "restart invalidation path")?;
-            }
-            Ok(())
+        StepSpec::Restart { invalidate: Some(invalidate) } => {
+            validate_relative_path(&invalidate.path, "restart invalidation path")?;
+        }
+        StepSpec::Restart { invalidate: None } | StepSpec::Probe { .. } | StepSpec::Warm { .. } => {
         }
     }
+    if let Some(probe) = step.probe() {
+        validate_probe_path(probe)?;
+    }
+    Ok(())
 }
 
 fn validate_probe_path(probe: &ProbeSpec) -> Result<()> {
@@ -869,38 +870,18 @@ fn validate_step_anchors(step: &StepSpec, fixture: &FixtureSpec, workload: &str)
         }
     };
     match step {
-        StepSpec::Replace { anchor, probe, .. } => {
-            require(anchor)?;
-            if let Some(probe) = probe {
-                validate_probe_anchors(probe, &require)?;
-            }
-        }
-        StepSpec::Rename { anchor, expected_edits, probe, .. } => {
+        StepSpec::Replace { anchor, .. } => require(anchor)?,
+        StepSpec::Rename { anchor, expected_edits, .. } => {
             require(anchor)?;
             for expected in expected_edits {
                 require(&expected.anchor)?;
             }
-            if let Some(probe) = probe {
-                validate_probe_anchors(probe, &require)?;
-            }
         }
-        StepSpec::Probe { probe, .. } | StepSpec::Warm { probe, .. } => {
-            validate_probe_anchors(probe, &require)?;
-        }
-        StepSpec::Save { probe, .. }
-        | StepSpec::CreateFile { probe, .. }
-        | StepSpec::RenameFile { probe, .. }
-        | StepSpec::DeleteFile { probe, .. } => {
-            if let Some(probe) = probe {
-                validate_probe_anchors(probe, &require)?;
-            }
-        }
-        StepSpec::Restart { invalidate } => {
-            if let Some(invalidate) = invalidate {
-                require(&invalidate.anchor)?;
-            }
-        }
-        StepSpec::Open { .. } => {}
+        StepSpec::Restart { invalidate: Some(invalidate) } => require(&invalidate.anchor)?,
+        _ => {}
+    }
+    if let Some(probe) = step.probe() {
+        validate_probe_anchors(probe, &require)?;
     }
     Ok(())
 }
