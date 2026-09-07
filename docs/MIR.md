@@ -200,7 +200,9 @@ conservative; known intrinsics expose their summaries without expanding their
 implementation.
 DCE, CSE, and LICM use shared derived deletion, commoning, and speculation
 properties. Internal-call summaries include failure, divergence, and external
-termination. DCE removes unused calls only when these summaries prove normal
+termination. Compute them only for called functions, including tail-call targets;
+uncalled bodies need no interprocedural summary. DCE removes unused calls only
+when these summaries prove normal
 termination and no observable effects. Recursive calls and possible CFG cycles
 remain conservative. DCE and ADCE preserve memory expansion when `msize` in the
 function or a callee can observe it.

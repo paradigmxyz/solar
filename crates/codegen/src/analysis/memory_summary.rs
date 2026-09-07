@@ -1,6 +1,6 @@
 //! Interprocedural memory and pointer-capture summaries.
 //!
-//! Summaries are computed to a fixpoint over internal-call edges. Missing
+//! Summaries are computed only for internal-call targets, to a fixpoint over their edges. Missing
 //! bodies stay fully conservative; recursive groups converge because every
 //! effect grows monotonically. Persistent and transient storage retain bounded sets of exact
 //! slots. Memory retains fixed byte ranges relative to formal parameters or absolute addresses.
@@ -21,7 +21,11 @@ use crate::{
     },
 };
 use alloy_primitives::U256;
-use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashSet};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    index::IndexVec,
+    map::{FxHashMap, FxHashSet},
+};
 use std::collections::{BTreeSet, VecDeque};
 
 /// Includes observations in callees, conservatively retaining reads without a call summary.
@@ -371,72 +375,83 @@ impl FunctionMemorySummary {
 /// Cached module-level summaries for all internal-call targets.
 #[derive(Clone, Debug)]
 pub(crate) struct MemoryCallSummaries {
-    summaries: IndexVec<FunctionId, FunctionMemorySummary>,
+    summaries: FxHashMap<FunctionId, FunctionMemorySummary>,
 }
 
 impl MemoryCallSummaries {
     /// Computes summaries to a monotone fixpoint over the module call graph.
     #[must_use]
     pub(crate) fn new(module: &Module) -> Self {
-        if !module.functions.iter().any(|func| {
-            func.instructions()
-                .any(|inst_id| matches!(func.inst(inst_id).kind, InstKind::ICall { .. }))
-                || func
-                    .blocks
-                    .iter()
-                    .any(|block| matches!(block.terminator, Some(Terminator::TailCall { .. })))
-        }) {
-            return Self { summaries: IndexVec::new() };
-        }
-
-        let sources = module.functions.iter().map(parameter_sources).collect::<IndexVec<_, _>>();
-        let calls = CallGraphInfo::new(module);
-        let mut local = IndexVec::with_capacity(module.functions.len());
-        for (func_id, func) in module.functions.iter_enumerated() {
-            let mut summary = local_summary(module, func, &sources[func_id]);
-            summary.has_multiple_returns = func.returns.len() > 1;
-            summary.control.may_diverge |= calls.is_recursive(func_id);
-            local.push(summary);
-        }
-        let mut summaries = local.clone();
-
-        let mut callers = IndexVec::from_vec(vec![Vec::new(); module.functions.len()]);
-        for (caller, func) in module.functions.iter_enumerated() {
-            for inst_id in func.instructions() {
-                if let InstKind::ICall { function, .. } = func.inst(inst_id).kind
-                    && let Some(function_callers) = callers.get_mut(function)
+        let mut targets = DenseBitSet::new_empty(module.functions.len());
+        for func in &module.functions {
+            for inst in func.instructions() {
+                if let InstKind::ICall { function, .. } = func.inst(inst).kind
+                    && module.functions.get(function).is_some()
                 {
-                    function_callers.push(caller);
+                    targets.insert(function);
                 }
             }
             for block in &func.blocks {
                 if let Some(Terminator::TailCall { function, .. }) = &block.terminator
-                    && let Some(function_callers) = callers.get_mut(*function)
+                    && module.functions.get(*function).is_some()
                 {
-                    function_callers.push(caller);
+                    targets.insert(*function);
                 }
             }
         }
-        for function_callers in &mut callers {
+        if targets.is_empty() {
+            return Self { summaries: FxHashMap::default() };
+        }
+
+        let sources = targets
+            .iter()
+            .map(|id| (id, parameter_sources(&module.functions[id])))
+            .collect::<FxHashMap<_, _>>();
+        let calls = CallGraphInfo::new(module);
+        let mut local = FxHashMap::default();
+        for func_id in &targets {
+            let func = &module.functions[func_id];
+            let mut summary = local_summary(module, func, &sources[&func_id]);
+            summary.has_multiple_returns = func.returns.len() > 1;
+            summary.control.may_diverge |= calls.is_recursive(func_id);
+            local.insert(func_id, summary);
+        }
+        let mut summaries = local.clone();
+
+        let mut callers = FxHashMap::<_, Vec<_>>::default();
+        for caller in &targets {
+            let func = &module.functions[caller];
+            for inst_id in func.instructions() {
+                if let InstKind::ICall { function, .. } = func.inst(inst_id).kind {
+                    callers.entry(function).or_default().push(caller);
+                }
+            }
+            for block in &func.blocks {
+                if let Some(Terminator::TailCall { function, .. }) = &block.terminator {
+                    callers.entry(*function).or_default().push(caller);
+                }
+            }
+        }
+        for function_callers in callers.values_mut() {
             function_callers.sort_unstable();
             function_callers.dedup();
         }
 
-        let mut queued = DenseBitSet::new_filled(module.functions.len());
-        let mut worklist = module.functions.indices().collect::<VecDeque<_>>();
+        let mut worklist = targets.iter().collect::<VecDeque<_>>();
+        let mut queued = targets;
         while let Some(func_id) = worklist.pop_front() {
             queued.remove(func_id);
             let func = &module.functions[func_id];
-            let mut summary = local[func_id].clone();
+            let mut summary = local[&func_id].clone();
             for block in &func.blocks {
                 for &inst_id in &block.instructions {
                     if let InstKind::ICall { function, ref args, .. } = func.inst(inst_id).kind {
                         merge_call(
                             &mut summary,
                             func,
-                            summaries.get(function),
+                            summaries.get(&function),
                             args,
-                            &sources[func_id],
+                            &sources[&func_id],
                         );
                     }
                 }
@@ -444,16 +459,16 @@ impl MemoryCallSummaries {
                     merge_call(
                         &mut summary,
                         func,
-                        summaries.get(*function),
+                        summaries.get(function),
                         args,
-                        &sources[func_id],
+                        &sources[&func_id],
                     );
                 }
             }
 
-            if summary != summaries[func_id] {
-                summaries[func_id] = summary;
-                for &caller in &callers[func_id] {
+            if summary != summaries[&func_id] {
+                summaries.insert(func_id, summary);
+                for &caller in callers.get(&func_id).into_iter().flatten() {
                     if queued.insert(caller) {
                         worklist.push_back(caller);
                     }
@@ -464,10 +479,10 @@ impl MemoryCallSummaries {
         Self { summaries }
     }
 
-    /// Returns a function summary, if the target belongs to this module.
+    /// Returns a summary for a called function that belongs to this module.
     #[must_use]
     pub(crate) fn get(&self, function: FunctionId) -> Option<&FunctionMemorySummary> {
-        self.summaries.get(function)
+        self.summaries.get(&function)
     }
 }
 
@@ -961,7 +976,15 @@ mod tests {
                     }
                 }
                 let caller = module.add_function(caller);
+                let mut entry = Function::new(Ident::DUMMY);
+                // tail_call caller()
+                FunctionBuilder::new(&mut entry).set_terminator(Terminator::TailCall {
+                    function: caller,
+                    args: Default::default(),
+                });
+                let entry = module.add_function(entry);
                 let summaries = MemoryCallSummaries::new(&module);
+                assert!(summaries.get(entry).is_none());
                 for function in [leaf, caller] {
                     let summary = summaries.get(function).unwrap();
                     assert!(summary.reads(AddressSpace::Memory), "revert={revert}, tail={tail}");
@@ -1052,7 +1075,20 @@ mod tests {
         }
         let returning_caller = module.add_function(returning_caller);
 
+        let mut entry = Function::new(Ident::DUMMY);
+        {
+            let mut builder = FunctionBuilder::new(&mut entry);
+            let pointer = builder.imm(128);
+            // icall each target(pointer)
+            // ret
+            for function in [reader_caller, returning_caller, obfuscated, resetter] {
+                builder.icall_void(function, vec![pointer]);
+            }
+            builder.ret([]);
+        }
+        let entry = module.add_function(entry);
         let summaries = MemoryCallSummaries::new(&module);
+        assert!(summaries.get(entry).is_none());
         assert!(!summaries.get(reader_caller).unwrap().captures_param(ArgIdx::new(0)));
         assert!(summaries.get(returning_caller).unwrap().captures_param(ArgIdx::new(0)));
         assert!(summaries.get(obfuscated).unwrap().captures_param(ArgIdx::new(0)));
