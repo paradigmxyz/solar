@@ -211,6 +211,10 @@
 //! reusing the same MIR `ValueId` across a memory mutation is not sufficient to
 //! distinguish an old stack copy from a newly loaded value.
 
+pub(super) mod edges;
+pub(super) mod layout;
+pub(super) mod spills;
+
 mod model;
 mod scheduler;
 pub(crate) mod shuffler;
