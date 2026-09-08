@@ -97,6 +97,9 @@ to state variables, fields, and indexed entries retain their bytes as an owned p
 including hex literals, and need no source-memory reads. Both
 forms share the clear helper created during builtin conversion; literal
 expansion writes known headers and padded words without allocating memory.
+Repeated short literals share their validation, cleanup and final write in a
+helper. Each caller reads the old header so prior storage writes can still
+forward into that read.
 Dynamic storage-array loads retain scalar element widths, signed/fixed-bytes
 encoding, enum bounds, and bytes-element identity. Conversion allocates and
 copies the array, sharing the bytes loader across bytes elements and direct

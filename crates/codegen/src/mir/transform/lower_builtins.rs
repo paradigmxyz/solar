@@ -39,11 +39,16 @@ impl MirPass for LowerBuiltins {
     ) -> solar_interface::Result<bool> {
         let mut needs_clear = false;
         let mut needs_bytes = false;
+        let mut literal_counts = FxHashMap::default();
         for func in &module.functions {
             for id in func.instructions() {
-                match func.inst(id).kind {
-                    InstKind::StorageBytesStore(..) | InstKind::StorageBytesStoreLiteral { .. } => {
-                        needs_clear = true
+                match &func.inst(id).kind {
+                    InstKind::StorageBytesStore(..) => needs_clear = true,
+                    InstKind::StorageBytesStoreLiteral { bytes, .. } => {
+                        needs_clear = true;
+                        if bytes.len() < 32 {
+                            *literal_counts.entry(bytes.clone()).or_insert(0) += 1;
+                        }
                     }
                     InstKind::StorageArrayLoad {
                         element: MirType::MemoryObject(MemoryObjectKind::Bytes),
@@ -58,6 +63,23 @@ impl MirPass for LowerBuiltins {
             needs_clear.then(|| super::lower_storage_bytes::add_clear_helper(module));
         // fn load_storage_bytes(slot) { object = load_storage_bytes slot; ret object }
         let bytes_helper = needs_bytes.then(|| super::lower_storage_bytes::add_load_helper(module));
+        let mut literals = literal_counts
+            .into_iter()
+            .filter_map(|(bytes, count)| (count >= 2).then_some(bytes))
+            .collect::<Vec<_>>();
+        literals.sort_unstable();
+        let literal_helpers = literals
+            .into_iter()
+            .map(|bytes| {
+                // fn store_literal(slot, header) { validate; clear old tail; sstore literal; ret }
+                let helper = super::lower_storage_bytes::add_literal_helper(
+                    module,
+                    &bytes,
+                    clear_helper.expect("literal storage store requires a clear helper"),
+                );
+                (bytes, helper)
+            })
+            .collect::<FxHashMap<_, _>>();
         Ok(run_function_pass(module, analyses, |func, _| {
             if !func.instructions().any(|id| is_builtin(&func.inst(id).kind)) {
                 return false;
@@ -113,10 +135,18 @@ impl MirPass for LowerBuiltins {
                             continue;
                         }
                         InstKind::StorageBytesStoreLiteral { slot, bytes } => {
+                            // header = sload(slot)
+                            let header = builder.sload(slot);
+                            if let Some(&helper) = literal_helpers.get(&bytes) {
+                                // icall store_literal, slot, header
+                                builder.icall_void(helper, vec![slot, header]);
+                                continue;
+                            }
                             // validate header; clear old tail; store literal header and data
                             super::lower_storage_bytes::store_literal(
                                 &mut builder,
                                 slot,
+                                header,
                                 &bytes,
                                 clear_helper
                                     .expect("literal storage store requires a clear helper"),

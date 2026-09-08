@@ -363,6 +363,22 @@
 +     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch, span=50..60, modifier_depth=5)
 +     mstore 4, 34 !metadata(memory=scratch, span=50..60, modifier_depth=5)
 +     revert 0, 36 !metadata(span=50..60, modifier_depth=5)
+  }
+  
+  fn @shared_literal_first(arg0: u256) {
+    bb0:
+-     store_storage_bytes_literal arg0, hex"78" !metadata(span=60..70)
++     v0 = sload arg0 !metadata(storage=symbolic(arg0), span=60..70)
++     icall @store_storage_bytes_literal, arg0, v0 !metadata(span=60..70)
+      ret
+  }
+  
+  fn @shared_literal_second(arg0: u256) {
+    bb0:
+-     store_storage_bytes_literal arg0, hex"78" !metadata(span=70..80)
++     v0 = sload arg0 !metadata(storage=symbolic(arg0), span=70..80)
++     icall @store_storage_bytes_literal, arg0, v0 !metadata(span=70..80)
+      ret
 + }
 + 
 + fn @clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
@@ -382,5 +398,34 @@
 +     v5 = add v2, 1
 +     v6 = add v3, 1
 +     jump bb1
++ }
++ 
++ fn @store_storage_bytes_literal(arg0: u256, arg1: u256) {
++   bb0:
++     v0 = and arg1, 1
++     v1 = eq v0, 1
++     v2 = sub 0, v0
++     v3 = or 127, v2
++     v4 = shr 1, arg1
++     v5 = and v4, v3
++     v6 = lt v5, 32
++     v7 = eq v1, v6
++     jumpi v7, bb1, bb2
++   bb2:
++     v8 = gt v5, 1
++     v9 = and v1, v8
++     jumpi v9, bb3, bb4
++   bb3:
++     v10 = add v5, 31
++     v11 = div v10, 32
++     icall @clear_storage_words, arg0, 0, v11
++     jump bb4
++   bb4:
++     sstore arg0, 0x7800000000000000000000000000000000000000000000000000000000000002 !metadata(storage=symbolic(arg0))
++     ret
++   bb1:
++     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
++     mstore 4, 34 !metadata(memory=scratch)
++     revert 0, 36
   }
   

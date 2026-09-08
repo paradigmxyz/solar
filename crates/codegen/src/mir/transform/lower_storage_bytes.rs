@@ -10,6 +10,9 @@
 //! the old header, clear truncated words, and mask partial words before storing new data. They
 //! leave allocation and memory layout decisions to the later conversion passes. Literal stores
 //! write known headers and padded words directly, without creating a memory bytes object.
+//! Repeated short literals share a helper with the storage slot and old header as arguments. The
+//! literal stays constant inside the helper, so header checks and old-tail clearing share code.
+//! Reading the header at the call site preserves forwarding from preceding storage writes.
 
 use crate::mir::{
     AllocationSemantics, Function, FunctionBuilder, FunctionId, InstKind, MemoryObjectKind,
@@ -130,6 +133,21 @@ pub(super) fn add_clear_helper(module: &mut Module) -> FunctionId {
     module.add_function(function)
 }
 
+pub(super) fn add_literal_helper(
+    module: &mut Module,
+    bytes: &[u8],
+    clear_helper: FunctionId,
+) -> FunctionId {
+    // fn store_literal(slot, header) { validate; clear old tail; sstore literal; ret }
+    let mut function = Function::new(Ident::with_dummy_span(sym::store_storage_bytes_literal));
+    let mut builder = FunctionBuilder::new(&mut function);
+    let slot = builder.add_param(MirType::uint256());
+    let header = builder.add_param(MirType::uint256());
+    store_literal(&mut builder, slot, header, bytes, clear_helper);
+    builder.ret([]);
+    module.add_function(function)
+}
+
 pub(super) fn store(
     builder: &mut FunctionBuilder<'_>,
     slot: ValueId,
@@ -238,13 +256,12 @@ pub(super) fn store(
 pub(super) fn store_literal(
     builder: &mut FunctionBuilder<'_>,
     slot: ValueId,
+    header: ValueId,
     bytes: &[u8],
     clear_helper: FunctionId,
 ) {
-    // header = sload(slot)
     // old_is_long, old_length = validate_storage_bytes(header)
     // branch old_is_long && old_length > length, cleanup, write
-    let header = builder.sload(slot);
     let (old_is_long, old_length) = validate(builder, header);
     let length = builder.imm(bytes.len() as u64);
     let shrunk = builder.gt(old_length, length);

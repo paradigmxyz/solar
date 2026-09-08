@@ -68,3 +68,15 @@
       ret v0
   }
   
+  fn @shared_literal_first(arg0: u256) {
+    bb0:
+      store_storage_bytes_literal arg0, hex"78" !metadata(span=60..70)
+      ret
+  }
+  
+  fn @shared_literal_second(arg0: u256) {
+    bb0:
+      store_storage_bytes_literal arg0, hex"78" !metadata(span=70..80)
+      ret
+  }
+  
