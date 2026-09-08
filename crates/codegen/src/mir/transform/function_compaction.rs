@@ -2,10 +2,14 @@
 //!
 //! This module removes unused internal parameters and results and combines equivalent internal
 //! function bodies. These transforms preserve external ABI entry signatures: only direct MIR call
-//! edges are rewritten. Before pruning, direct callers reuse an argument when every explicit
-//! return in the callee returns that same argument. Calls remain in place, including their effects
-//! and failure paths. Tail calls, mixed return values, and baked signature-frame addresses prevent
-//! forwarding; no recursive summary or control-flow fixed point is needed.
+//! edges are rewritten. Before pruning, direct callers reuse an argument or constant when every
+//! explicit return in the callee returns that same value. Calls remain in place, including their
+//! effects and failure paths. Tail calls, mixed return values, and baked signature-frame addresses
+//! prevent forwarding; no recursive summary or control-flow fixed point is needed.
+//!
+//! Constants must reach a pure instruction or a non-return terminator. Direct stores and returns
+//! alone do not justify discarding the call result and pushing the same constant again.
+//!
 //! Equivalent bodies merge their source origins, independently of structural
 //! matching, so later lowering cannot attribute shared code to one arbitrary body.
 
@@ -47,7 +51,7 @@ impl MirPass for DeadArgElim {
         module: &mut Module,
         _analyses: &mut ModuleAnalyses,
     ) -> solar_interface::Result<bool> {
-        let forwarded = forward_returned_arguments(module);
+        let forwarded = forward_returned_values(module);
         if !gcx.sess.opts.optimization.is_size() {
             return Ok(prune_unused_args(module) != 0 || forwarded != 0);
         }
@@ -63,14 +67,14 @@ impl MirPass for DeadArgElim {
     }
 }
 
-fn forward_returned_arguments(module: &mut Module) -> usize {
+fn forward_returned_values(module: &mut Module) -> usize {
     let returned = module
         .functions
         .iter_enumerated()
         .filter_map(|(id, func)| {
-            let arg = returned_argument(func)?;
+            let value = returned_value(func)?;
             (is_internal_body(module, id, func) && frame_offsets_are_local(func))
-                .then_some((id, arg))
+                .then_some((id, value))
         })
         .collect::<FxHashMap<_, _>>();
     if returned.is_empty() {
@@ -78,40 +82,70 @@ fn forward_returned_arguments(module: &mut Module) -> usize {
     }
     let mut forwarded = 0;
     for func in &mut module.functions {
-        let mut replacements = func
+        let calls = func
             .instructions()
-            .filter_map(|inst| {
-                let InstKind::ICall { function, args } = &func.inst(inst).kind else {
-                    return None;
-                };
-                Some((func.inst_result_value(inst)?, *args.get(returned.get(function)?.index())?))
+            .filter(|&inst| {
+                matches!(func.inst(inst).kind, InstKind::ICall { function, .. }
+                if returned.contains_key(&function))
             })
-            .collect::<FxHashMap<_, _>>();
-        if replacements.is_empty() {
+            .collect::<Vec<_>>();
+        if calls.is_empty() {
             continue;
         }
         let mut used = DenseBitSet::new_empty(func.num_values());
+        let mut constant_uses = DenseBitSet::new_empty(func.num_values());
         for block in &func.blocks {
             for &inst in &block.instructions {
-                for value in func.inst(inst).operands() {
+                let kind = &func.inst(inst).kind;
+                for value in kind.operands() {
                     used.insert(value);
+                    if kind.effect_kind() == EffectKind::Pure {
+                        constant_uses.insert(value);
+                    }
                 }
             }
             if let Some(term) = &block.terminator {
                 for value in term.operands() {
                     used.insert(value);
+                    if !matches!(term, Terminator::Return { .. }) {
+                        constant_uses.insert(value);
+                    }
                 }
             }
         }
-        replacements.retain(|value, _| used.contains(*value));
+        let mut replacements = FxHashMap::default();
+        for inst in calls {
+            let Some(result) = func.inst_result_value(inst).filter(|&value| used.contains(value))
+            else {
+                continue;
+            };
+            let InstKind::ICall { function, args } = &func.inst(inst).kind else { unreachable!() };
+            let replacement = match &returned[function] {
+                ReturnedValue::Argument(arg) => args[arg.index()],
+                ReturnedValue::Constant(value) => {
+                    if !constant_uses.contains(result) {
+                        continue;
+                    }
+                    // callee.constant => caller.constant
+                    func.alloc_value(Value::Immediate(value.clone()))
+                }
+            };
+            replacements.insert(result, replacement);
+        }
         forwarded += replacements.len();
-        // result = icall callee, args; use result => icall callee, args; use args[returned]
+        // result = icall callee, args; use result => icall callee, args; use returned_value
         func.replace_uses_canonicalized(&replacements);
     }
     forwarded
 }
 
-fn returned_argument(func: &Function) -> Option<ArgIdx> {
+#[derive(PartialEq, Eq)]
+enum ReturnedValue {
+    Argument(ArgIdx),
+    Constant(Immediate),
+}
+
+fn returned_value(func: &Function) -> Option<ReturnedValue> {
     if func.returns.len() != 1 {
         return None;
     }
@@ -120,10 +154,15 @@ fn returned_argument(func: &Function) -> Option<ArgIdx> {
         match &block.terminator {
             Some(Terminator::Return { values }) => {
                 let [value] = values.as_slice() else { return None };
-                let Value::Arg(arg) = func.value(*value) else { return None };
-                if returned.replace(*arg).is_some_and(|previous| previous != *arg) {
+                let value = match func.value(*value) {
+                    Value::Arg(arg) => ReturnedValue::Argument(*arg),
+                    Value::Immediate(value) => ReturnedValue::Constant(value.clone()),
+                    _ => return None,
+                };
+                if returned.as_ref().is_some_and(|previous| *previous != value) {
                     return None;
                 }
+                returned = Some(value);
             }
             Some(Terminator::TailCall { .. }) => return None,
             _ => {}
