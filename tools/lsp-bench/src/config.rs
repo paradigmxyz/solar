@@ -719,7 +719,7 @@ fn resolve_manifest_path(base: &Path, path: &Path) -> Result<PathBuf> {
 fn load_yaml<T: for<'de> Deserialize<'de>>(path: &Path, kind: &str) -> Result<(T, String)> {
     let bytes =
         fs::read(path).with_context(|| format!("failed to read {kind} `{}`", path.display()))?;
-    let document = serde_yaml_ng::from_slice(&bytes)
+    let document = serde_saphyr::from_slice(&bytes)
         .with_context(|| format!("failed to parse {kind} `{}`", path.display()))?;
     Ok((document, sha256_bytes(&bytes)))
 }
