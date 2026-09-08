@@ -286,28 +286,6 @@
                   "offset": 4,
                   "operation": {
                     "mnemonic": "JUMPDEST"
-                  },
-                  "context": {
-                    "invoke": {
-                      "identifier": "x",
-                      "declaration": {
-                        "source": {
-                          "id": 0
-                        },
-                        "range": {
-                          "offset": 20,
-                          "length": 18
-                        }
-                      },
-                      "jump": true,
-                      "target": {
-                        "pointer": {
-                          "location": "code",
-                          "offset": 4,
-                          "length": 1
-                        }
-                      }
-                    }
                   }
                 },
                 {
@@ -544,28 +522,6 @@
                   "offset": 26,
                   "operation": {
                     "mnemonic": "JUMPDEST"
-                  },
-                  "context": {
-                    "invoke": {
-                      "identifier": "fallthrough",
-                      "declaration": {
-                        "source": {
-                          "id": 0
-                        },
-                        "range": {
-                          "offset": 39,
-                          "length": 34
-                        }
-                      },
-                      "jump": true,
-                      "target": {
-                        "pointer": {
-                          "location": "code",
-                          "offset": 26,
-                          "length": 1
-                        }
-                      }
-                    }
                   }
                 },
                 {
@@ -610,28 +566,6 @@
                   "offset": 32,
                   "operation": {
                     "mnemonic": "JUMPDEST"
-                  },
-                  "context": {
-                    "invoke": {
-                      "identifier": "named",
-                      "declaration": {
-                        "source": {
-                          "id": 0
-                        },
-                        "range": {
-                          "offset": 74,
-                          "length": 68
-                        }
-                      },
-                      "jump": true,
-                      "target": {
-                        "pointer": {
-                          "location": "code",
-                          "offset": 32,
-                          "length": 1
-                        }
-                      }
-                    }
                   }
                 },
                 {
@@ -854,28 +788,6 @@
                   "offset": 54,
                   "operation": {
                     "mnemonic": "JUMPDEST"
-                  },
-                  "context": {
-                    "invoke": {
-                      "identifier": "viaPointer",
-                      "declaration": {
-                        "source": {
-                          "id": 0
-                        },
-                        "range": {
-                          "offset": 143,
-                          "length": 136
-                        }
-                      },
-                      "jump": true,
-                      "target": {
-                        "pointer": {
-                          "location": "code",
-                          "offset": 54,
-                          "length": 1
-                        }
-                      }
-                    }
                   }
                 },
                 {
@@ -1313,28 +1225,6 @@
                   "offset": 119,
                   "operation": {
                     "mnemonic": "JUMPDEST"
-                  },
-                  "context": {
-                    "invoke": {
-                      "identifier": "a",
-                      "declaration": {
-                        "source": {
-                          "id": 0
-                        },
-                        "range": {
-                          "offset": 280,
-                          "length": 64
-                        }
-                      },
-                      "jump": true,
-                      "target": {
-                        "pointer": {
-                          "location": "code",
-                          "offset": 119,
-                          "length": 1
-                        }
-                      }
-                    }
                   }
                 },
                 {
@@ -1395,28 +1285,6 @@
                   "offset": 128,
                   "operation": {
                     "mnemonic": "JUMPDEST"
-                  },
-                  "context": {
-                    "invoke": {
-                      "identifier": "b",
-                      "declaration": {
-                        "source": {
-                          "id": 0
-                        },
-                        "range": {
-                          "offset": 345,
-                          "length": 64
-                        }
-                      },
-                      "jump": true,
-                      "target": {
-                        "pointer": {
-                          "location": "code",
-                          "offset": 128,
-                          "length": 1
-                        }
-                      }
-                    }
                   }
                 },
                 {
@@ -2599,7 +2467,7 @@
                 }
               ]
             },
-            "sourceMap": ":::-:0;;;20:18:0;;;;;;;;;;-1:-1:-1;20:18:0:o;-1:-1:-1:-;;:::i;:::-;39:34:0;-1:-1:-1;;:::i;:::-;74:68:0;;;;;;;;;-1:-1:-1;74:68:0:o;-1:-1:-1:-;;:::i;:::-;;;;;;;;;;;250:14:0;;;;-1:-1:-1;250:14:0;;-1:-1:-1;250:14:0;;-1:-1:-1;273:3:0;;-1:-1:-1;;;;;;;;;;;;;;;;;;;;;:::i;:::-;;;280:64:0:o;-1:-1:-1:-;;:::i;:::-;;;345:64:0:o;-1:-1:-1:-;;:::i;:::-;;;;;;;;;280:64:0;-1:-1:-1;;;;;;;;;;;345:64:0;-1:-1:-1;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;266:11:0;;;;;;;;-1:-1:-1;266:11:0:o;-1:-1:-1:-;;;;;;280:64:0:o;-1:-1:-1:-;;345:64:0:o;-1:-1:-1:-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;"
+            "sourceMap": ":::-:0;;;20:18:0;;;;;;;;;;-1:-1:-1;20:18:0;-1:-1:-1;;:::i;:::-;39:34:0;-1:-1:-1;;:::i;:::-;74:68:0;;;;;;;;;-1:-1:-1;74:68:0;-1:-1:-1;;:::i;:::-;;;;;;;;;;;250:14:0;;;;-1:-1:-1;250:14:0;;-1:-1:-1;250:14:0;;-1:-1:-1;273:3:0;;-1:-1:-1;;;;;;;;;;;;;;;;;;;;;:::i;:::-;;;280:64:0:o;-1:-1:-1:-;;:::i;:::-;;;345:64:0:o;-1:-1:-1:-;;:::i;:::-;;;;;;;;;280:64:0;-1:-1:-1;;;;;;;;;;;345:64:0;-1:-1:-1;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;266:11:0;;;;;;;;-1:-1:-1;266:11:0;-1:-1:-1;;;;;;280:64:0:o;-1:-1:-1:-;;345:64:0:o;-1:-1:-1:-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;"
           }
         }
       }

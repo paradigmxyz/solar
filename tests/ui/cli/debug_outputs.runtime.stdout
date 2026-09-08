@@ -30,7 +30,7 @@
             "operation": {
               "mnemonic": "PUSH1",
               "arguments": [
-                "0x14"
+                "0x13"
               ]
             }
           },
@@ -70,12 +70,6 @@
           {
             "offset": 9,
             "operation": {
-              "mnemonic": "DUP1"
-            }
-          },
-          {
-            "offset": 10,
-            "operation": {
               "mnemonic": "PUSH4",
               "arguments": [
                 "0x26121ff0"
@@ -83,28 +77,28 @@
             }
           },
           {
-            "offset": 15,
+            "offset": 14,
             "operation": {
               "mnemonic": "SUB"
             }
           },
           {
-            "offset": 16,
+            "offset": 15,
             "operation": {
               "mnemonic": "PUSH1",
               "arguments": [
-                "0x14"
+                "0x13"
               ]
             }
           },
           {
-            "offset": 18,
+            "offset": 17,
             "operation": {
               "mnemonic": "JUMPI"
             }
           },
           {
-            "offset": 19,
+            "offset": 18,
             "operation": {
               "mnemonic": "STOP"
             },
@@ -117,14 +111,19 @@
                   "offset": 392,
                   "length": 24
                 }
-              },
-              "return": {}
+              }
+            }
+          },
+          {
+            "offset": 19,
+            "operation": {
+              "mnemonic": "JUMPDEST"
             }
           },
           {
             "offset": 20,
             "operation": {
-              "mnemonic": "JUMPDEST"
+              "mnemonic": "PUSH0"
             }
           },
           {
@@ -136,13 +135,10 @@
           {
             "offset": 22,
             "operation": {
-              "mnemonic": "PUSH0"
-            }
-          },
-          {
-            "offset": 23,
-            "operation": {
               "mnemonic": "REVERT"
+            },
+            "context": {
+              "revert": {}
             }
           }
         ]

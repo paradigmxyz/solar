@@ -1,5 +1,5 @@
 //@ normalize-stdout-test: "solar-[0-9a-f]{64}" -> "solar-COMPILATION_ID"
-//@ filecheck:
+//@ filecheck: --implicit-check-not=:o
 // The require and both instruction-free returns retain executable source origins.
 // CHECK-LABEL: "deployedBytecode": {
 // CHECK: "mnemonic": "RETURN"
@@ -17,8 +17,8 @@
 // CHECK: "offset": 75,
 // CHECK-NEXT: "length": 15
 // CHECK: "revert": {}
-// Legacy maps keep the path-specific return locations, not an arbitrary shared origin.
-// CHECK: "sourceMap": "{{.*}}172:19:0:o{{.*}}92:9:0:o
+// Legacy maps keep both return locations; external RETURN is not an internal jump.
+// CHECK: "sourceMap": "{{.*}}172:19:0{{.*}}92:9:0
 {
   "language": "Solidity",
   "sources": {

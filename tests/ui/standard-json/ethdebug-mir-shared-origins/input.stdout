@@ -121,21 +121,6 @@
                   "offset": 18,
                   "operation": {
                     "mnemonic": "CALLDATASIZE"
-                  },
-                  "context": {
-                    "invoke": {
-                      "identifier": "run",
-                      "declaration": {
-                        "source": {
-                          "id": 0
-                        },
-                        "range": {
-                          "offset": 18,
-                          "length": 133
-                        }
-                      },
-                      "jump": true
-                    }
                   }
                 },
                 {
@@ -520,7 +505,7 @@
                 }
               ]
             },
-            "sourceMap": ":::-:0;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;:::o"
+            "sourceMap": ":::-:0;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;"
           }
         }
       }
