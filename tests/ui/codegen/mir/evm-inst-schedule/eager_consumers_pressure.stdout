@@ -1,0 +1,143 @@
+- // === ROOT/tests/ui/codegen/mir/evm-inst-schedule/eager_consumers_pressure.mir (before evm-inst-schedule) ===
++ // === ROOT/tests/ui/codegen/mir/evm-inst-schedule/eager_consumers_pressure.mir (after evm-inst-schedule) ===
+  @module EagerConsumersPressure
+  fn @captured_checksum_pressure(arg0: u256, arg1: u256) -> (u256, u256, u256) {
+    bb0:
+      v0 = sload 0
+      v1 = calldataload 36
+      v2 = xor v1, 256
++     v35 = add v0, v2
+      v3 = calldataload 68
+      v4 = xor v3, 256
++     v36 = add v35, v4
+      v5 = calldataload 100
+      v6 = xor v5, 256
++     v37 = add v36, v6
+      v7 = calldataload 132
+      v8 = xor v7, 256
++     v38 = add v37, v8
+      v9 = calldataload 164
+      v10 = xor v9, 256
++     v39 = add v38, v10
+      v11 = calldataload 196
+      v12 = xor v11, 256
++     v40 = add v39, v12
+      v13 = calldataload 228
+      v14 = xor v13, 256
++     v41 = add v40, v14
+      v15 = calldataload 260
+      v16 = xor v15, 256
++     v42 = add v41, v16
+      v17 = calldataload 292
+      v18 = xor v17, 256
++     v43 = add v42, v18
+      v19 = calldataload 324
+      v20 = xor v19, 256
++     v44 = add v43, v20
+      v21 = calldataload 356
+      v22 = xor v21, 256
++     v45 = add v44, v22
+      v23 = calldataload 388
+      v24 = xor v23, 256
++     v46 = add v45, v24
+      v25 = calldataload 420
+      v26 = xor v25, 256
++     v47 = add v46, v26
+      v27 = calldataload 452
+      v28 = xor v27, 256
++     v48 = add v47, v28
+      v29 = calldataload 484
+      v30 = xor v29, 256
++     v49 = add v48, v30
+      v31 = calldataload 516
+      v32 = xor v31, 256
++     v50 = add v49, v32
+      v33 = calldataload 548
+      v34 = xor v33, 256
++     v51 = add v50, v34
+      sstore 0, 9
+      mstore arg0, 0xdeadbeef
+-     v35 = add v0, v2
+-     v36 = add v35, v4
+-     v37 = add v36, v6
+-     v38 = add v37, v8
+-     v39 = add v38, v10
+-     v40 = add v39, v12
+-     v41 = add v40, v14
+-     v42 = add v41, v16
+-     v43 = add v42, v18
+-     v44 = add v43, v20
+-     v45 = add v44, v22
+-     v46 = add v45, v24
+-     v47 = add v46, v26
+-     v48 = add v47, v28
+-     v49 = add v48, v30
+-     v50 = add v49, v32
+-     v51 = add v50, v34
+      v52 = sload 0
+      v53 = mload arg1
+      ret v53, v51, v52
+  }
+  
+  fn @shared_capture_pressure(arg0: u256, arg1: u256) -> (u256, u256, u256, u256) {
+    bb0:
+      v0 = sload 0
+      v1 = calldataload 36
+      v2 = xor v1, 256
+      v3 = calldataload 68
+      v4 = xor v3, 256
+      v5 = calldataload 100
+      v6 = xor v5, 256
+      v7 = calldataload 132
+      v8 = xor v7, 256
+      v9 = calldataload 164
+      v10 = xor v9, 256
+      v11 = calldataload 196
+      v12 = xor v11, 256
+      v13 = calldataload 228
+      v14 = xor v13, 256
+      v15 = calldataload 260
+      v16 = xor v15, 256
+      v17 = calldataload 292
+      v18 = xor v17, 256
+      v19 = calldataload 324
+      v20 = xor v19, 256
+      v21 = calldataload 356
+      v22 = xor v21, 256
+      v23 = calldataload 388
+      v24 = xor v23, 256
+      v25 = calldataload 420
+      v26 = xor v25, 256
+      v27 = calldataload 452
+      v28 = xor v27, 256
+      v29 = calldataload 484
+      v30 = xor v29, 256
+      v31 = calldataload 516
+      v32 = xor v31, 256
+      v33 = calldataload 548
+      v34 = xor v33, 256
+      sstore 0, 9
+      mstore arg0, 0xdeadbeef
++     v52 = sload 0
+      v35 = add v0, v2
+      v36 = add v35, v4
+      v37 = add v36, v6
+      v38 = add v37, v8
+      v39 = add v38, v10
+      v40 = add v39, v12
+      v41 = add v40, v14
+      v42 = add v41, v16
+      v43 = add v42, v18
+      v44 = add v43, v20
+      v45 = add v44, v22
+      v46 = add v45, v24
+      v47 = add v46, v26
+      v48 = add v47, v28
+      v49 = add v48, v30
+      v50 = add v49, v32
+      v51 = add v50, v34
+-     v52 = sload 0
+      v53 = mload arg1
+      ret v53, v51, v52, v0
+  }
+  

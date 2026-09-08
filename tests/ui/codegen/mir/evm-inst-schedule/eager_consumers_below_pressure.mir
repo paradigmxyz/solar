@@ -1,0 +1,90 @@
+//@ compile-flags: -Zmir-pipeline=evm-inst-schedule
+//@ filecheck:
+@module EagerConsumersBelowPressure
+
+// These small programs fit the legacy reachable stack window. Contraction
+// leaves their checksums after writes. The ordinary scheduler can still move
+// the final storage read within the post-write region.
+
+// CHECK-LABEL: {{^[ +].*}}fn @captured_storage_checksum{{[( ]}}
+// CHECK: [[OLD:v[0-9]+]] = sload 0
+// CHECK-NOT: +
+// CHECK: sstore 0, 9
+// CHECK-NEXT: mstore arg0, 0xdeadbeef
+// CHECK-NEXT: + [[NEW:v[0-9]+]] = sload 0
+// CHECK-NEXT: [[SUM1:v[0-9]+]] = add [[OLD]], {{v[0-9]+}}
+// CHECK-NEXT: [[SUM2:v[0-9]+]] = add [[SUM1]], {{v[0-9]+}}
+// CHECK-NEXT: [[SUM3:v[0-9]+]] = add [[SUM2]], {{v[0-9]+}}
+// CHECK-NEXT: - [[NEW]] = sload 0
+// CHECK-NEXT: [[READ:v[0-9]+]] = mload arg1
+// CHECK-NEXT: ret [[READ]], [[SUM3]], [[NEW]]
+fn @captured_storage_checksum(arg0: u256, arg1: u256) -> (u256, u256, u256) {
+  bb0:
+    v2 = sload 0
+    v3 = calldataload 36
+    v4 = xor v3, 256
+    v5 = calldataload 68
+    v6 = xor v5, 256
+    v7 = calldataload 100
+    v8 = xor v7, 256
+    sstore 0, 9
+    mstore arg0, 0xdeadbeef
+    v9 = add v2, v4
+    v10 = add v9, v6
+    v11 = add v10, v8
+    v12 = sload 0
+    v13 = mload arg1
+    ret v13, v11, v12
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @shared_capture_stays{{[( ]}}
+// CHECK-NOT: {{^[+-]}}
+// CHECK: {{^  [}]$}}
+fn @shared_capture_stays() -> (u256, u256) {
+  bb0:
+    v0 = sload 0
+    v1 = calldataload 36
+    v2 = xor v1, 256
+    sstore 0, 9
+    v3 = add v0, v2
+    ret v3, v0
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @post_write_capture_stays{{[( ]}}
+// CHECK-NOT: {{^[+-]}}
+// CHECK: {{^  [}]$}}
+fn @post_write_capture_stays() -> u256 {
+  bb0:
+    v0 = sload 0
+    v1 = calldataload 36
+    sstore 0, 9
+    v2 = sload 0
+    v3 = add v0, v1
+    v4 = add v3, v2
+    ret v4
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @repeated_operand_stays{{[( ]}}
+// CHECK-NOT: {{^[+-]}}
+// CHECK: {{^  [}]$}}
+fn @repeated_operand_stays() -> u256 {
+  bb0:
+    v0 = sload 0
+    sstore 0, 9
+    v1 = add v0, v0
+    ret v1
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @gas_region_stays{{[( ]}}
+// CHECK-NOT: {{^[+-]}}
+// CHECK: {{^  [}]$}}
+fn @gas_region_stays() -> (u256, u256) {
+  bb0:
+    v0 = sload 0
+    v1 = calldataload 36
+    sstore 0, 9
+    v2 = gas
+    v3 = add v0, v1
+    ret v3, v2
+}
+

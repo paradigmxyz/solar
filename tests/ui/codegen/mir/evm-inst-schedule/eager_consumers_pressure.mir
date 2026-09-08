@@ -1,0 +1,201 @@
+//@ compile-flags: -Zmir-pipeline=evm-inst-schedule
+//@ filecheck:
+@module EagerConsumersPressure
+
+// Eighteen independent captured roots outlive the source storage and memory
+// writes. Interleave their wrapping checksum without moving or reissuing reads.
+// The returned post-write storage value must remain a distinct capture.
+
+// CHECK-LABEL: {{^[ +].*}}fn @captured_checksum_pressure{{[( ]}}
+// CHECK: [[OLD:v[0-9]+]] = sload 0
+// CHECK-NEXT: [[LOAD1:v[0-9]+]] = calldataload 36
+// CHECK-NEXT: [[ROOT1:v[0-9]+]] = xor [[LOAD1]], 256
+// CHECK-NEXT: + [[SUM1:v[0-9]+]] = add [[OLD]], [[ROOT1]]
+// CHECK-NEXT: [[LOAD2:v[0-9]+]] = calldataload 68
+// CHECK-NEXT: [[ROOT2:v[0-9]+]] = xor [[LOAD2]], 256
+// CHECK-NEXT: + [[SUM2:v[0-9]+]] = add [[SUM1]], [[ROOT2]]
+// CHECK-NEXT: [[LOAD3:v[0-9]+]] = calldataload 100
+// CHECK-NEXT: [[ROOT3:v[0-9]+]] = xor [[LOAD3]], 256
+// CHECK-NEXT: + [[SUM3:v[0-9]+]] = add [[SUM2]], [[ROOT3]]
+// CHECK-NEXT: [[LOAD4:v[0-9]+]] = calldataload 132
+// CHECK-NEXT: [[ROOT4:v[0-9]+]] = xor [[LOAD4]], 256
+// CHECK-NEXT: + [[SUM4:v[0-9]+]] = add [[SUM3]], [[ROOT4]]
+// CHECK-NEXT: [[LOAD5:v[0-9]+]] = calldataload 164
+// CHECK-NEXT: [[ROOT5:v[0-9]+]] = xor [[LOAD5]], 256
+// CHECK-NEXT: + [[SUM5:v[0-9]+]] = add [[SUM4]], [[ROOT5]]
+// CHECK-NEXT: [[LOAD6:v[0-9]+]] = calldataload 196
+// CHECK-NEXT: [[ROOT6:v[0-9]+]] = xor [[LOAD6]], 256
+// CHECK-NEXT: + [[SUM6:v[0-9]+]] = add [[SUM5]], [[ROOT6]]
+// CHECK-NEXT: [[LOAD7:v[0-9]+]] = calldataload 228
+// CHECK-NEXT: [[ROOT7:v[0-9]+]] = xor [[LOAD7]], 256
+// CHECK-NEXT: + [[SUM7:v[0-9]+]] = add [[SUM6]], [[ROOT7]]
+// CHECK-NEXT: [[LOAD8:v[0-9]+]] = calldataload 260
+// CHECK-NEXT: [[ROOT8:v[0-9]+]] = xor [[LOAD8]], 256
+// CHECK-NEXT: + [[SUM8:v[0-9]+]] = add [[SUM7]], [[ROOT8]]
+// CHECK-NEXT: [[LOAD9:v[0-9]+]] = calldataload 292
+// CHECK-NEXT: [[ROOT9:v[0-9]+]] = xor [[LOAD9]], 256
+// CHECK-NEXT: + [[SUM9:v[0-9]+]] = add [[SUM8]], [[ROOT9]]
+// CHECK-NEXT: [[LOAD10:v[0-9]+]] = calldataload 324
+// CHECK-NEXT: [[ROOT10:v[0-9]+]] = xor [[LOAD10]], 256
+// CHECK-NEXT: + [[SUM10:v[0-9]+]] = add [[SUM9]], [[ROOT10]]
+// CHECK-NEXT: [[LOAD11:v[0-9]+]] = calldataload 356
+// CHECK-NEXT: [[ROOT11:v[0-9]+]] = xor [[LOAD11]], 256
+// CHECK-NEXT: + [[SUM11:v[0-9]+]] = add [[SUM10]], [[ROOT11]]
+// CHECK-NEXT: [[LOAD12:v[0-9]+]] = calldataload 388
+// CHECK-NEXT: [[ROOT12:v[0-9]+]] = xor [[LOAD12]], 256
+// CHECK-NEXT: + [[SUM12:v[0-9]+]] = add [[SUM11]], [[ROOT12]]
+// CHECK-NEXT: [[LOAD13:v[0-9]+]] = calldataload 420
+// CHECK-NEXT: [[ROOT13:v[0-9]+]] = xor [[LOAD13]], 256
+// CHECK-NEXT: + [[SUM13:v[0-9]+]] = add [[SUM12]], [[ROOT13]]
+// CHECK-NEXT: [[LOAD14:v[0-9]+]] = calldataload 452
+// CHECK-NEXT: [[ROOT14:v[0-9]+]] = xor [[LOAD14]], 256
+// CHECK-NEXT: + [[SUM14:v[0-9]+]] = add [[SUM13]], [[ROOT14]]
+// CHECK-NEXT: [[LOAD15:v[0-9]+]] = calldataload 484
+// CHECK-NEXT: [[ROOT15:v[0-9]+]] = xor [[LOAD15]], 256
+// CHECK-NEXT: + [[SUM15:v[0-9]+]] = add [[SUM14]], [[ROOT15]]
+// CHECK-NEXT: [[LOAD16:v[0-9]+]] = calldataload 516
+// CHECK-NEXT: [[ROOT16:v[0-9]+]] = xor [[LOAD16]], 256
+// CHECK-NEXT: + [[SUM16:v[0-9]+]] = add [[SUM15]], [[ROOT16]]
+// CHECK-NEXT: [[LOAD17:v[0-9]+]] = calldataload 548
+// CHECK-NEXT: [[ROOT17:v[0-9]+]] = xor [[LOAD17]], 256
+// CHECK-NEXT: + [[SUM17:v[0-9]+]] = add [[SUM16]], [[ROOT17]]
+// CHECK-NEXT: sstore 0, 9
+// CHECK-NEXT: mstore arg0, 0xdeadbeef
+// CHECK: [[NEW:v[0-9]+]] = sload 0
+// CHECK-NEXT: [[READ:v[0-9]+]] = mload arg1
+// CHECK-NEXT: ret [[READ]], [[SUM17]], [[NEW]]
+fn @captured_checksum_pressure(arg0: u256, arg1: u256) -> (u256, u256, u256) {
+  bb0:
+    v2 = sload 0
+    v3 = calldataload 36
+    v4 = xor v3, 256
+    v5 = calldataload 68
+    v6 = xor v5, 256
+    v7 = calldataload 100
+    v8 = xor v7, 256
+    v9 = calldataload 132
+    v10 = xor v9, 256
+    v11 = calldataload 164
+    v12 = xor v11, 256
+    v13 = calldataload 196
+    v14 = xor v13, 256
+    v15 = calldataload 228
+    v16 = xor v15, 256
+    v17 = calldataload 260
+    v18 = xor v17, 256
+    v19 = calldataload 292
+    v20 = xor v19, 256
+    v21 = calldataload 324
+    v22 = xor v21, 256
+    v23 = calldataload 356
+    v24 = xor v23, 256
+    v25 = calldataload 388
+    v26 = xor v25, 256
+    v27 = calldataload 420
+    v28 = xor v27, 256
+    v29 = calldataload 452
+    v30 = xor v29, 256
+    v31 = calldataload 484
+    v32 = xor v31, 256
+    v33 = calldataload 516
+    v34 = xor v33, 256
+    v35 = calldataload 548
+    v36 = xor v35, 256
+    sstore 0, 9
+    mstore arg0, 0xdeadbeef
+    v37 = add v2, v4
+    v38 = add v37, v6
+    v39 = add v38, v8
+    v40 = add v39, v10
+    v41 = add v40, v12
+    v42 = add v41, v14
+    v43 = add v42, v16
+    v44 = add v43, v18
+    v45 = add v44, v20
+    v46 = add v45, v22
+    v47 = add v46, v24
+    v48 = add v47, v26
+    v49 = add v48, v28
+    v50 = add v49, v30
+    v51 = add v50, v32
+    v52 = add v51, v34
+    v53 = add v52, v36
+    v54 = sload 0
+    v55 = mload arg1
+    ret v55, v53, v54
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @shared_capture_pressure{{[( ]}}
+// Returning the first capture as well as its checksum keeps that operand
+// shared. Pressure cannot permit its early contraction. Ordinary scheduling
+// can still move the final SLOAD within the segment after both writes.
+// CHECK: [[CAPTURE:v[0-9]+]] = sload 0
+// CHECK-NOT: +
+// CHECK: sstore 0, 9
+// CHECK-NEXT: mstore arg0, 0xdeadbeef
+// CHECK-NEXT: + [[AFTER:v[0-9]+]] = sload 0
+// CHECK-NEXT: [[FIRST:v[0-9]+]] = add [[CAPTURE]], {{v[0-9]+}}
+// CHECK: [[LAST:v[0-9]+]] = add {{v[0-9]+}}, {{v[0-9]+}}
+// CHECK: - [[AFTER]] = sload 0
+// CHECK-NEXT: [[OBSERVED:v[0-9]+]] = mload arg1
+// CHECK-NEXT: ret [[OBSERVED]], {{v[0-9]+}}, [[AFTER]], [[CAPTURE]]
+fn @shared_capture_pressure(arg0: u256, arg1: u256) -> (u256, u256, u256, u256) {
+  bb0:
+    v2 = sload 0
+    v3 = calldataload 36
+    v4 = xor v3, 256
+    v5 = calldataload 68
+    v6 = xor v5, 256
+    v7 = calldataload 100
+    v8 = xor v7, 256
+    v9 = calldataload 132
+    v10 = xor v9, 256
+    v11 = calldataload 164
+    v12 = xor v11, 256
+    v13 = calldataload 196
+    v14 = xor v13, 256
+    v15 = calldataload 228
+    v16 = xor v15, 256
+    v17 = calldataload 260
+    v18 = xor v17, 256
+    v19 = calldataload 292
+    v20 = xor v19, 256
+    v21 = calldataload 324
+    v22 = xor v21, 256
+    v23 = calldataload 356
+    v24 = xor v23, 256
+    v25 = calldataload 388
+    v26 = xor v25, 256
+    v27 = calldataload 420
+    v28 = xor v27, 256
+    v29 = calldataload 452
+    v30 = xor v29, 256
+    v31 = calldataload 484
+    v32 = xor v31, 256
+    v33 = calldataload 516
+    v34 = xor v33, 256
+    v35 = calldataload 548
+    v36 = xor v35, 256
+    sstore 0, 9
+    mstore arg0, 0xdeadbeef
+    v37 = add v2, v4
+    v38 = add v37, v6
+    v39 = add v38, v8
+    v40 = add v39, v10
+    v41 = add v40, v12
+    v42 = add v41, v14
+    v43 = add v42, v16
+    v44 = add v43, v18
+    v45 = add v44, v20
+    v46 = add v45, v22
+    v47 = add v46, v24
+    v48 = add v47, v26
+    v49 = add v48, v28
+    v50 = add v49, v30
+    v51 = add v50, v32
+    v52 = add v51, v34
+    v53 = add v52, v36
+    v54 = sload 0
+    v55 = mload arg1
+    ret v55, v53, v54, v2
+}

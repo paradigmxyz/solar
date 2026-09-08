@@ -1,0 +1,62 @@
+- // === ROOT/tests/ui/codegen/mir/evm-inst-schedule/eager_consumers_below_pressure.mir (before evm-inst-schedule) ===
++ // === ROOT/tests/ui/codegen/mir/evm-inst-schedule/eager_consumers_below_pressure.mir (after evm-inst-schedule) ===
+  @module EagerConsumersBelowPressure
+  fn @captured_storage_checksum(arg0: u256, arg1: u256) -> (u256, u256, u256) {
+    bb0:
+      v0 = sload 0
+      v1 = calldataload 36
+      v2 = xor v1, 256
+      v3 = calldataload 68
+      v4 = xor v3, 256
+      v5 = calldataload 100
+      v6 = xor v5, 256
+      sstore 0, 9
+      mstore arg0, 0xdeadbeef
++     v10 = sload 0
+      v7 = add v0, v2
+      v8 = add v7, v4
+      v9 = add v8, v6
+-     v10 = sload 0
+      v11 = mload arg1
+      ret v11, v9, v10
+  }
+  
+  fn @shared_capture_stays() -> (u256, u256) {
+    bb0:
+      v0 = sload 0
+      v1 = calldataload 36
+      v2 = xor v1, 256
+      sstore 0, 9
+      v3 = add v0, v2
+      ret v3, v0
+  }
+  
+  fn @post_write_capture_stays() -> u256 {
+    bb0:
+      v0 = sload 0
+      v1 = calldataload 36
+      sstore 0, 9
+      v2 = sload 0
+      v3 = add v0, v1
+      v4 = add v3, v2
+      ret v4
+  }
+  
+  fn @repeated_operand_stays() -> u256 {
+    bb0:
+      v0 = sload 0
+      sstore 0, 9
+      v1 = add v0, v0
+      ret v1
+  }
+  
+  fn @gas_region_stays() -> (u256, u256) {
+    bb0:
+      v0 = sload 0
+      v1 = calldataload 36
+      sstore 0, 9
+      v2 = gas
+      v3 = add v0, v1
+      ret v3, v2
+  }
+  
