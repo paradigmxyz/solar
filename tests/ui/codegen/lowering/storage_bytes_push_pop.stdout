@@ -192,8 +192,8 @@ fn @pushZero() [selector=0xe83b401e, abi_params=[], abi_returns=[]] {
     v7 = gt v6, 0x10000000000000000
     panic_if v7, 0x41
     v8 = gt v5, 31
-    jumpi v8, bb1, bb2
-  bb2:
+    jumpi v8, bb2, bb1
+  bb1:
     v14 = eq v5, 31
     jumpi v14, bb3, bb4
   bb4:
@@ -216,7 +216,7 @@ fn @pushZero() [selector=0xe83b401e, abi_params=[], abi_returns=[]] {
     v19 = or v18, 1
     sstore 0, v19 !metadata(storage=slot(0))
     jump bb5
-  bb1:
+  bb2:
     v9 = shl 1, v6
     v10 = or v9, 1
     sstore 0, v10 !metadata(storage=slot(0))
@@ -225,7 +225,7 @@ fn @pushZero() [selector=0xe83b401e, abi_params=[], abi_returns=[]] {
     v13 = add v11, v12
     jump bb5
   bb5:
-    v28 = phi [bb1: v13], [bb3: v15], [bb4: 0]
+    v28 = phi [bb2: v13], [bb3: v15], [bb4: 0]
     v29 = and v5, 31
     v30 = sub 31, v29
     v31 = sload v28 !metadata(storage=symbolic(v28))

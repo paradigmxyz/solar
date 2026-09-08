@@ -140,8 +140,8 @@ fn @bytesPush() -> struct1 [selector=0x52808f21, abi_params=[], abi_returns=[wor
     v53 = gt v52, 0x10000000000000000
     panic_if v53, 0x41
     v54 = gt v51, 31
-    jumpi v54, bb12, bb13
-  bb13:
+    jumpi v54, bb13, bb12
+  bb12:
     v60 = eq v51, 31
     jumpi v60, bb14, bb15
   bb15:
@@ -164,7 +164,7 @@ fn @bytesPush() -> struct1 [selector=0x52808f21, abi_params=[], abi_returns=[wor
     v65 = or v64, 1
     sstore 2, v65 !metadata(storage=slot(2))
     jump bb16
-  bb12:
+  bb13:
     v55 = shl 1, v52
     v56 = or v55, 1
     sstore 2, v56 !metadata(storage=slot(2))
@@ -173,7 +173,7 @@ fn @bytesPush() -> struct1 [selector=0x52808f21, abi_params=[], abi_returns=[wor
     v59 = add v57, v58
     jump bb16
   bb16:
-    v74 = phi [bb12: v59], [bb14: v61], [bb15: 2]
+    v74 = phi [bb13: v59], [bb14: v61], [bb15: 2]
     v75 = and v51, 31
     v76 = sub 31, v75
     v77 = sload v74 !metadata(storage=symbolic(v74))
@@ -527,8 +527,8 @@ fn @bytesPushLvalue(arg0: u256) -> struct0 [selector=0x6fd1f0e5, abi_params=[u25
     v57 = gt v56, 0x10000000000000000
     panic_if v57, 0x41
     v58 = gt v55, 31
-    jumpi v58, bb12, bb13
-  bb13:
+    jumpi v58, bb13, bb12
+  bb12:
     v64 = eq v55, 31
     jumpi v64, bb14, bb15
   bb15:
@@ -551,7 +551,7 @@ fn @bytesPushLvalue(arg0: u256) -> struct0 [selector=0x6fd1f0e5, abi_params=[u25
     v69 = or v68, 1
     sstore 2, v69 !metadata(storage=slot(2))
     jump bb16
-  bb12:
+  bb13:
     v59 = shl 1, v56
     v60 = or v59, 1
     sstore 2, v60 !metadata(storage=slot(2))
@@ -560,7 +560,7 @@ fn @bytesPushLvalue(arg0: u256) -> struct0 [selector=0x6fd1f0e5, abi_params=[u25
     v63 = add v61, v62
     jump bb16
   bb16:
-    v78 = phi [bb12: v63], [bb14: v65], [bb15: 2]
+    v78 = phi [bb13: v63], [bb14: v65], [bb15: 2]
     v79 = and v55, 31
     v80 = sub 31, v79
     v81 = mul v80, 8
@@ -653,8 +653,8 @@ fn @bytesPushLvalue(arg0: u256) -> struct0 [selector=0x6fd1f0e5, abi_params=[u25
     v15 = gt v14, 0x10000000000000000
     panic_if v15, 0x41
     v16 = gt v13, 31
-    jumpi v16, bb7, bb8
-  bb8:
+    jumpi v16, bb8, bb7
+  bb7:
     v22 = eq v13, 31
     jumpi v22, bb9, bb10
   bb10:
@@ -677,7 +677,7 @@ fn @bytesPushLvalue(arg0: u256) -> struct0 [selector=0x6fd1f0e5, abi_params=[u25
     v27 = or v26, 1
     sstore 2, v27 !metadata(storage=slot(2))
     jump bb11
-  bb7:
+  bb8:
     v17 = shl 1, v14
     v18 = or v17, 1
     sstore 2, v18 !metadata(storage=slot(2))
@@ -686,7 +686,7 @@ fn @bytesPushLvalue(arg0: u256) -> struct0 [selector=0x6fd1f0e5, abi_params=[u25
     v21 = add v19, v20
     jump bb11
   bb11:
-    v36 = phi [bb7: v21], [bb9: v23], [bb10: 2]
+    v36 = phi [bb8: v21], [bb9: v23], [bb10: 2]
     v37 = and v13, 31
     v38 = sub 31, v37
     v39 = mul v38, 8
@@ -720,8 +720,8 @@ fn @bytesPushTuple() -> struct0 [selector=0xc07456bc, abi_params=[], abi_returns
     v7 = gt v6, 0x10000000000000000
     panic_if v7, 0x41
     v8 = gt v5, 31
-    jumpi v8, bb1, bb2
-  bb2:
+    jumpi v8, bb2, bb1
+  bb1:
     v14 = eq v5, 31
     jumpi v14, bb3, bb4
   bb4:
@@ -744,7 +744,7 @@ fn @bytesPushTuple() -> struct0 [selector=0xc07456bc, abi_params=[], abi_returns
     v19 = or v18, 1
     sstore 2, v19 !metadata(storage=slot(2))
     jump bb5
-  bb1:
+  bb2:
     v9 = shl 1, v6
     v10 = or v9, 1
     sstore 2, v10 !metadata(storage=slot(2))
@@ -753,7 +753,7 @@ fn @bytesPushTuple() -> struct0 [selector=0xc07456bc, abi_params=[], abi_returns
     v13 = add v11, v12
     jump bb5
   bb5:
-    v28 = phi [bb1: v13], [bb3: v15], [bb4: 2]
+    v28 = phi [bb2: v13], [bb3: v15], [bb4: 2]
     v29 = and v5, 31
     v30 = sub 31, v29
     v31 = sload 2 !metadata(storage=slot(2))
@@ -767,8 +767,8 @@ fn @bytesPushTuple() -> struct0 [selector=0xc07456bc, abi_params=[], abi_returns
     v38 = gt v37, 0x10000000000000000
     panic_if v38, 0x41
     v39 = gt v36, 31
-    jumpi v39, bb6, bb7
-  bb7:
+    jumpi v39, bb7, bb6
+  bb6:
     v45 = eq v36, 31
     jumpi v45, bb8, bb9
   bb9:
@@ -791,7 +791,7 @@ fn @bytesPushTuple() -> struct0 [selector=0xc07456bc, abi_params=[], abi_returns
     v50 = or v49, 1
     sstore 2, v50 !metadata(storage=slot(2))
     jump bb10
-  bb6:
+  bb7:
     v40 = shl 1, v37
     v41 = or v40, 1
     sstore 2, v41 !metadata(storage=slot(2))
@@ -800,7 +800,7 @@ fn @bytesPushTuple() -> struct0 [selector=0xc07456bc, abi_params=[], abi_returns
     v44 = add v42, v43
     jump bb10
   bb10:
-    v59 = phi [bb6: v44], [bb8: v46], [bb9: 2]
+    v59 = phi [bb7: v44], [bb8: v46], [bb9: 2]
     v60 = and v36, 31
     v61 = sub 31, v60
     v62 = mul v61, 8

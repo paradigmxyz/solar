@@ -257,8 +257,8 @@ fn @pushZero(arg0: u256) -> struct0 [selector=0xb0e28d5e, abi_params=[u256], abi
     v12 = gt v11, 0x10000000000000000
     panic_if v12, 0x41
     v13 = gt v10, 31
-    jumpi v13, bb7, bb8
-  bb8:
+    jumpi v13, bb8, bb7
+  bb7:
     v19 = eq v10, 31
     jumpi v19, bb9, bb10
   bb10:
@@ -281,7 +281,7 @@ fn @pushZero(arg0: u256) -> struct0 [selector=0xb0e28d5e, abi_params=[u256], abi
     v24 = or v23, 1
     sstore 0, v24 !metadata(storage=slot(0))
     jump bb11
-  bb7:
+  bb8:
     v14 = shl 1, v11
     v15 = or v14, 1
     sstore 0, v15 !metadata(storage=slot(0))
@@ -290,7 +290,7 @@ fn @pushZero(arg0: u256) -> struct0 [selector=0xb0e28d5e, abi_params=[u256], abi
     v18 = add v16, v17
     jump bb11
   bb11:
-    v33 = phi [bb7: v18], [bb9: v20], [bb10: 0]
+    v33 = phi [bb8: v18], [bb9: v20], [bb10: 0]
     v34 = and v10, 31
     v35 = sub 31, v34
     v36 = sload v33 !metadata(storage=symbolic(v33))
@@ -335,8 +335,8 @@ fn @pushAssign(arg0: u256) -> memorybytes [selector=0xbcb447d8, abi_params=[u256
     v14 = gt v13, 0x10000000000000000
     panic_if v14, 0x41
     v15 = gt v12, 31
-    jumpi v15, bb7, bb8
-  bb8:
+    jumpi v15, bb8, bb7
+  bb7:
     v21 = eq v12, 31
     jumpi v21, bb9, bb10
   bb10:
@@ -359,7 +359,7 @@ fn @pushAssign(arg0: u256) -> memorybytes [selector=0xbcb447d8, abi_params=[u256
     v26 = or v25, 1
     sstore 0, v26 !metadata(storage=slot(0))
     jump bb11
-  bb7:
+  bb8:
     v16 = shl 1, v13
     v17 = or v16, 1
     sstore 0, v17 !metadata(storage=slot(0))
@@ -368,7 +368,7 @@ fn @pushAssign(arg0: u256) -> memorybytes [selector=0xbcb447d8, abi_params=[u256
     v20 = add v18, v19
     jump bb11
   bb11:
-    v35 = phi [bb7: v20], [bb9: v22], [bb10: 0]
+    v35 = phi [bb8: v20], [bb9: v22], [bb10: 0]
     v36 = and v12, 31
     v37 = sub 31, v36
     v38 = mul v37, 8
@@ -1482,8 +1482,8 @@ fn @pushZeroRead(arg0: u256) -> struct3 [selector=0x421e4f69, abi_params=[u256],
     v11 = gt v10, 0x10000000000000000
     panic_if v11, 0x41
     v12 = gt v9, 31
-    jumpi v12, bb1, bb2
-  bb2:
+    jumpi v12, bb2, bb1
+  bb1:
     v18 = eq v9, 31
     jumpi v18, bb3, bb4
   bb4:
@@ -1506,7 +1506,7 @@ fn @pushZeroRead(arg0: u256) -> struct3 [selector=0x421e4f69, abi_params=[u256],
     v23 = or v22, 1
     sstore 0, v23 !metadata(storage=slot(0))
     jump bb5
-  bb1:
+  bb2:
     v13 = shl 1, v10
     v14 = or v13, 1
     sstore 0, v14 !metadata(storage=slot(0))
@@ -1515,7 +1515,7 @@ fn @pushZeroRead(arg0: u256) -> struct3 [selector=0x421e4f69, abi_params=[u256],
     v17 = add v15, v16
     jump bb5
   bb5:
-    v32 = phi [bb1: v17], [bb3: v19], [bb4: 0]
+    v32 = phi [bb2: v17], [bb3: v19], [bb4: 0]
     v33 = and v9, 31
     v34 = sub 31, v33
     v35 = sload v32 !metadata(storage=symbolic(v32))
@@ -1557,8 +1557,8 @@ fn @pushZeroReadLong(arg0: u256) -> struct1 [selector=0x18e52e09, abi_params=[u2
     v17 = gt v16, 0x10000000000000000
     panic_if v17, 0x41
     v18 = gt v15, 31
-    jumpi v18, bb1, bb2
-  bb2:
+    jumpi v18, bb2, bb1
+  bb1:
     v24 = eq v15, 31
     jumpi v24, bb3, bb4
   bb4:
@@ -1581,7 +1581,7 @@ fn @pushZeroReadLong(arg0: u256) -> struct1 [selector=0x18e52e09, abi_params=[u2
     v29 = or v28, 1
     sstore 0, v29 !metadata(storage=slot(0))
     jump bb5
-  bb1:
+  bb2:
     v19 = shl 1, v16
     v20 = or v19, 1
     sstore 0, v20 !metadata(storage=slot(0))
@@ -1590,7 +1590,7 @@ fn @pushZeroReadLong(arg0: u256) -> struct1 [selector=0x18e52e09, abi_params=[u2
     v23 = add v21, v22
     jump bb5
   bb5:
-    v38 = phi [bb1: v23], [bb3: v25], [bb4: 0]
+    v38 = phi [bb2: v23], [bb3: v25], [bb4: 0]
     v39 = and v15, 31
     v40 = sub 31, v39
     v41 = sload v38 !metadata(storage=symbolic(v38))
