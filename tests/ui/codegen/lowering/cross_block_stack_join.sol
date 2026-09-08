@@ -63,6 +63,7 @@ contract PhiFreeStackJoin {
     // CHECK-LABEL: @module PhiFreeStackJoin_runtime
     // CHECK-NOT: mload
     // CHECK: return
+    // CHECK-NOT: mload
     function carryWithoutPhi(uint256 x) external returns (uint256 result) {
         assembly {
             let kept := div(x, 7)
