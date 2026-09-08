@@ -26,6 +26,8 @@ separate Python integer evaluator. Timeouts, unsupported terms and unsatisfiable
 preconditions are distinct failures, never proofs. Verification exits nonzero
 unless every selected rule is proved. Empty rule files fail too. CI runs the
 checker's regression tests and verifies every rule in all three gated files.
+CI uploads the report and SMT queries only when this job fails, retaining them
+for seven days to diagnose failures and replay the exact solver queries.
 
 ## Semantics and trusted boundary
 
