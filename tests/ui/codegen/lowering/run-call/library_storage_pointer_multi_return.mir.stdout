@@ -31,21 +31,17 @@ fn @constructor() [constructor] {
     v9 = add v8, v5
     sstore v9, 22 !metadata(storage=symbolic(v9))
     sstore 0, v7 !metadata(storage=slot(0))
-    v10 = alloc memorybytes, exact, uninitialized, infallible, 64
-    set_memory_object_len memorybytes, v10, 3
-    v11 = memory_object_data memorybytes, v10
-    mstore v11, 0xaabbcc0000000000000000000000000000000000000000000000000000000000
-    icall @store_storage_bytes, 1, v10
+    store_storage_bytes_literal 1, hex"aabbcc"
     sstore 2, 7 !metadata(storage=slot(2))
-    v12 = add 2, 1
-    v13 = sload v12 !metadata(storage=slot(3))
-    v14 = gt v13, 0xffffffffffffffff
-    panic_if v14, 0x41
-    v15 = add v13, 1
-    v16 = storage_array_data_slot v12
-    v17 = add v16, v13
-    sstore v17, 33 !metadata(storage=symbolic(v17))
-    sstore v12, v15 !metadata(storage=slot(3))
+    v10 = add 2, 1
+    v11 = sload v10 !metadata(storage=slot(3))
+    v12 = gt v11, 0xffffffffffffffff
+    panic_if v12, 0x41
+    v13 = add v11, 1
+    v14 = storage_array_data_slot v10
+    v15 = add v14, v11
+    sstore v15, 33 !metadata(storage=symbolic(v15))
+    sstore v10, v13 !metadata(storage=slot(3))
     ret
 }
 
@@ -224,12 +220,6 @@ fn @triple(arg0: storageptr, arg1: storageptr) -> struct6 [view] {
     v2 = insert_value struct6, v1, 1, v0
     v3 = insert_value struct6, v2, 2, arg1
     ret v3
-}
-
-fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
-  bb0:
-    store_storage_bytes arg0, arg1
-    ret
 }
 
 fn @load_storage_word_array(arg0: u256) -> memoryarray {

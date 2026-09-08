@@ -53,10 +53,9 @@ fn @nestedMapping() [selector=0x041c73d0, abi_params=[], abi_returns=[]] {
 
 fn @structRequire() [selector=0x8bb9ced2, abi_params=[], abi_returns=[]] {
   bb0:
-    v0 = icall @literal_bytes_word, 0x7800000000000000000000000000000000000000000000000000000000000000, 1
-    icall @store_storage_bytes, 2, v0
-    v1 = icall @load_storage_bytes, 2
-    require false, error_string v1
+    store_storage_bytes_literal 2, hex"78"
+    v0 = icall @load_storage_bytes, 2
+    require false, error_string v0
     ret
 }
 

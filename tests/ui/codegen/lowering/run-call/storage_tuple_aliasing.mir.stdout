@@ -419,25 +419,17 @@ fn @dynamicArrays() -> struct0 [selector=0x586e696e, abi_params=[], abi_returns=
 
 fn @byteArrays() -> struct3 [selector=0x2d074e2f, abi_params=[], abi_returns=[memory_bytes, memory_bytes], abi_return_params=[bytes, bytes]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
-    set_memory_object_len memorybytes, v0, 2
-    v1 = memory_object_data memorybytes, v0
-    mstore v1, 0x102000000000000000000000000000000000000000000000000000000000000
-    icall @store_storage_bytes, 7, v0
-    v2 = alloc memorybytes, exact, uninitialized, infallible, 64
-    set_memory_object_len memorybytes, v2, 3
-    v3 = memory_object_data memorybytes, v2
-    mstore v3, 0x304050000000000000000000000000000000000000000000000000000000000
-    icall @store_storage_bytes, 8, v2
-    v4 = icall @load_storage_bytes, 7
-    icall @store_storage_bytes, 8, v4
-    v5 = icall @load_storage_bytes, 8
-    icall @store_storage_bytes, 7, v5
-    v6 = icall @load_storage_bytes, 7
-    v7 = icall @load_storage_bytes, 8
-    v8 = insert_value struct3, undef struct3, 0, v6
-    v9 = insert_value struct3, v8, 1, v7
-    ret v9
+    store_storage_bytes_literal 7, hex"0102"
+    store_storage_bytes_literal 8, hex"030405"
+    v0 = icall @load_storage_bytes, 7
+    icall @store_storage_bytes, 8, v0
+    v1 = icall @load_storage_bytes, 8
+    icall @store_storage_bytes, 7, v1
+    v2 = icall @load_storage_bytes, 7
+    v3 = icall @load_storage_bytes, 8
+    v4 = insert_value struct3, undef struct3, 0, v2
+    v5 = insert_value struct3, v4, 1, v3
+    ret v5
 }
 
 fn @nextLhs() -> u256 {
@@ -488,14 +480,14 @@ fn @load_storage_word_array(arg0: u256) -> memoryarray {
     ret v0
 }
 
-fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
-  bb0:
-    store_storage_bytes arg0, arg1
-    ret
-}
-
 fn @load_storage_bytes(arg0: u256) -> memorybytes {
   bb0:
     v0 = load_storage_bytes arg0
     ret v0
+}
+
+fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
+  bb0:
+    store_storage_bytes arg0, arg1
+    ret
 }

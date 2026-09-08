@@ -3,77 +3,52 @@
 types:
   struct0: {u256, u256, u256}
 
-data:
-  literal_0: hex"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-
 fn @cleanup() -> struct0 [selector=0x3cecd719, abi_params=[], abi_returns=[word<bool>, word<bool>, word], abi_return_params=[bool, bool, u256]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 96
-    set_memory_object_len memorybytes, v0, 64
-    v1 = memory_object_data memorybytes, v0
-    data_copy literal_0, v1, 64
-    icall @store_storage_bytes, 0, v0
-    v2 = alloc memorybytes, exact, uninitialized, infallible, 64
-    set_memory_object_len memorybytes, v2, 32
-    v3 = memory_object_data memorybytes, v2
-    mstore v3, 0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
-    icall @store_storage_bytes, 0, v2
+    store_storage_bytes_literal 0, hex"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    store_storage_bytes_literal 0, hex"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
     mstore 0, 0 !metadata(memory=scratch)
-    v4 = keccak256 0, 32 !metadata(memory=scratch)
-    v5 = sload v4 !metadata(storage=symbolic(v4))
+    v0 = keccak256 0, 32 !metadata(memory=scratch)
+    v1 = sload v0 !metadata(storage=symbolic(v0))
+    v2 = iszero v1
+    v3 = iszero v2
+    v4 = add v0, 1
+    v5 = sload v4 !metadata(storage=offset(v0, 1))
     v6 = iszero v5
-    v7 = iszero v6
-    v8 = add v4, 1
-    v9 = sload v8 !metadata(storage=offset(v4, 1))
-    v10 = iszero v9
-    v11 = sload 0 !metadata(storage=slot(0))
-    validate_storage_bytes v11
-    v12 = and v11, 1
-    v13 = eq v12, 1
-    v14 = shr 1, v11
-    v15 = and v14, 127
-    v16 = select v13, v14, v15
-    v17 = insert_value struct0, undef struct0, 0, v7
-    v18 = insert_value struct0, v17, 1, v10
-    v19 = insert_value struct0, v18, 2, v16
-    ret v19
+    v7 = sload 0 !metadata(storage=slot(0))
+    validate_storage_bytes v7
+    v8 = and v7, 1
+    v9 = eq v8, 1
+    v10 = shr 1, v7
+    v11 = and v10, 127
+    v12 = select v9, v10, v11
+    v13 = insert_value struct0, undef struct0, 0, v3
+    v14 = insert_value struct0, v13, 1, v6
+    v15 = insert_value struct0, v14, 2, v12
+    ret v15
 }
 
 fn @cleanupShort() -> struct0 [selector=0x14d48529, abi_params=[], abi_returns=[word<bool>, word<bool>, word], abi_return_params=[bool, bool, u256]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 96
-    set_memory_object_len memorybytes, v0, 64
-    v1 = memory_object_data memorybytes, v0
-    data_copy literal_0, v1, 64
-    icall @store_storage_bytes, 0, v0
-    v2 = alloc memorybytes, exact, uninitialized, infallible, 64
-    set_memory_object_len memorybytes, v2, 1
-    v3 = memory_object_data memorybytes, v2
-    mstore v3, 0xbb00000000000000000000000000000000000000000000000000000000000000
-    icall @store_storage_bytes, 0, v2
+    store_storage_bytes_literal 0, hex"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    store_storage_bytes_literal 0, hex"bb"
     mstore 0, 0 !metadata(memory=scratch)
-    v4 = keccak256 0, 32 !metadata(memory=scratch)
-    v5 = sload v4 !metadata(storage=symbolic(v4))
+    v0 = keccak256 0, 32 !metadata(memory=scratch)
+    v1 = sload v0 !metadata(storage=symbolic(v0))
+    v2 = iszero v1
+    v3 = iszero v2
+    v4 = add v0, 1
+    v5 = sload v4 !metadata(storage=offset(v0, 1))
     v6 = iszero v5
-    v7 = iszero v6
-    v8 = add v4, 1
-    v9 = sload v8 !metadata(storage=offset(v4, 1))
-    v10 = iszero v9
-    v11 = sload 0 !metadata(storage=slot(0))
-    validate_storage_bytes v11
-    v12 = and v11, 1
-    v13 = eq v12, 1
-    v14 = shr 1, v11
-    v15 = and v14, 127
-    v16 = select v13, v14, v15
-    v17 = insert_value struct0, undef struct0, 0, v7
-    v18 = insert_value struct0, v17, 1, v10
-    v19 = insert_value struct0, v18, 2, v16
-    ret v19
-}
-
-fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
-  bb0:
-    store_storage_bytes arg0, arg1
-    ret
+    v7 = sload 0 !metadata(storage=slot(0))
+    validate_storage_bytes v7
+    v8 = and v7, 1
+    v9 = eq v8, 1
+    v10 = shr 1, v7
+    v11 = and v10, 127
+    v12 = select v9, v10, v11
+    v13 = insert_value struct0, undef struct0, 0, v3
+    v14 = insert_value struct0, v13, 1, v6
+    v15 = insert_value struct0, v14, 2, v12
+    ret v15
 }

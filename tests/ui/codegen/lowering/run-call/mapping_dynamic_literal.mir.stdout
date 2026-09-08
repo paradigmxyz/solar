@@ -2,19 +2,18 @@
 @module MappingDynamicLiteral
 fn @constructor() [constructor] {
   bb0:
+    store_storage_bytes_literal 0, hex"616263"
     v0 = icall @literal_bytes_word, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
-    icall @store_storage_bytes, 0, v0
-    v1 = icall @literal_bytes_word, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
-    v2 = mapping_slot_memory v1, 1
-    sstore v2, 7 !metadata(storage=symbolic(v2))
-    v3 = alloc memorybytes, exact, uninitialized, infallible, 96
-    set_memory_object_len memorybytes, v3, 58
-    v4 = memory_object_data memorybytes, v3
-    mstore v4, 0x61206c69746572616c206b6579206c6f6e676572207468616e20746869727479
-    v5 = add v4, 32
-    mstore v5, 0x2d74776f2062797465732c2068617368656420696e2066756c6c000000000000
-    v6 = mapping_slot_memory v3, 1
-    sstore v6, 11 !metadata(storage=symbolic(v6))
+    v1 = mapping_slot_memory v0, 1
+    sstore v1, 7 !metadata(storage=symbolic(v1))
+    v2 = alloc memorybytes, exact, uninitialized, infallible, 96
+    set_memory_object_len memorybytes, v2, 58
+    v3 = memory_object_data memorybytes, v2
+    mstore v3, 0x61206c69746572616c206b6579206c6f6e676572207468616e20746869727479
+    v4 = add v3, 32
+    mstore v4, 0x2d74776f2062797465732c2068617368656420696e2066756c6c000000000000
+    v5 = mapping_slot_memory v2, 1
+    sstore v5, 11 !metadata(storage=symbolic(v5))
     ret
 }
 
@@ -100,10 +99,4 @@ fn @literal_bytes_word(arg0: bytes32, arg1: u256) -> memorybytes {
     set_memory_object_len memorybytes, v0, arg1
     memory_object_store_word memorybytes, v0, 0, arg0
     ret v0
-}
-
-fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
-  bb0:
-    store_storage_bytes arg0, arg1
-    ret
 }
