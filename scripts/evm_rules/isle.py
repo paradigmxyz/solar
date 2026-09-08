@@ -213,7 +213,7 @@ class Context:
                                      z3.ULT(self.model.eval(shift), word(256)),
                                      smt[0] == word(1) << self.model.eval(shift)])
             return shift
-        if name in ("is_const", "differ", "has_bitwise_shifting", "has_self_balance", "in_current_block"):
+        if name in ("is_const", "differ", "has_bitwise_shifting", "has_self_balance", "in_current_block", "single_use"):
             # In particular, different ValueIds must NOT imply different word values.
             self.contracts.add(f"{name}: structural/fork condition is overapproximated")
             return z3.Bool(f"structural_{name}_{repr(node)}")
