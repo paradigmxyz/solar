@@ -1,7 +1,16 @@
 //! Local peephole optimization over scheduled EVM IR.
 //!
 //! The rewrite rules are written in ISLE in `isle/peephole.isle`; this module
-//! drives them over each block and applies the edits they return.
+//! drives them over each block and applies the edits they return. Matching uses
+//! the same ordered rules on each successive prefix, retrying its tail after
+//! every edit so newly adjacent operations can simplify immediately.
+//!
+//! Prefixes are inspected in place until the first rewrite. Only then is the
+//! unvisited suffix moved to a scratch buffer for streaming cleanup. Unchanged
+//! blocks require no instruction copies, which matters when later pipeline
+//! passes expose few new opportunities. Rules never cross a block boundary;
+//! target legality, push removability, and symbolic stack bounds stay in the
+//! extractors, and edits preserve their existing metadata policy.
 
 use super::{
     EvmPass,
@@ -77,10 +86,24 @@ fn optimize(
     scratch: &mut Vec<Instruction>,
     block: u32,
 ) -> usize {
+    // Inspect the original prefix without copying instructions. Until the first
+    // rewrite, this is exactly the optimized prefix the streaming matcher sees.
+    let first = (1..=instructions.len()).find_map(|end| {
+        isle::PeepContext::new(&instructions[..end], evm_version)
+            .peep()
+            .map(|rewrite| (end, rewrite))
+    });
+    let Some((end, isle::Rewrite { skip, edit })) = first else { return 0 };
+
+    // unchanged prefix; matched suffix => unchanged prefix; replacement
+    // Resume the streaming matcher at the first changed tail, including cascades.
     scratch.clear();
-    std::mem::swap(instructions, scratch);
-    instructions.reserve(scratch.len());
-    let mut rewrites = 0;
+    scratch.extend(instructions.drain(end..));
+    rewrite(evm_version, instructions, usize::from(skip), edit, block);
+    let mut rewrites = 1;
+    while try_peephole(evm_version, instructions, block) {
+        rewrites += 1;
+    }
     for inst in scratch.drain(..) {
         instructions.push(inst);
         while try_peephole(evm_version, instructions, block) {
