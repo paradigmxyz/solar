@@ -93,7 +93,7 @@ retains its slot and half-open word range as one storage-writing operation;
 builtin conversion emits the loop before physical address hashing. Stores from
 memory bytes objects retain header validation, tail clearing, and copying as
 one storage-writing operation that reads the source object. Literal assignments
-to state variables and their field chains retain their bytes as an owned payload,
+to state variables, fields, and indexed entries retain their bytes as an owned payload,
 including hex literals, and need no source-memory reads. Both
 forms share the clear helper created during builtin conversion; literal
 expansion writes known headers and padded words without allocating memory.

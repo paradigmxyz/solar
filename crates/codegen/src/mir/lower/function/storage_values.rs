@@ -69,7 +69,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         rhs: &hir::Expr<'_>,
     ) -> bool {
         let mut root = lhs.peel_parens();
-        while let ExprKind::Member(receiver, _) = &root.kind {
+        while let ExprKind::Member(receiver, _) | ExprKind::Index(receiver, Some(_)) = &root.kind {
             root = receiver.peel_parens();
         }
         let ExprKind::Ident(_) = root.kind else { return false };
