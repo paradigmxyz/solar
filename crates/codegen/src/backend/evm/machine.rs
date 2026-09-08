@@ -20,9 +20,11 @@ use super::{
 };
 use crate::{
     mir,
-    mir::analysis::{AliasAnalysis, CallGraphInfo, CfgInfo, Liveness},
-    mir::immutable,
-    mir::memory::EvmMemoryLayout,
+    mir::{
+        analysis::{AliasAnalysis, CallGraphInfo, CfgInfo, Liveness},
+        immutable,
+        memory::EvmMemoryLayout,
+    },
 };
 use alloy_primitives::U256;
 use solar_config::{EvmVersion, OptimizationMode};

@@ -8,8 +8,8 @@
 //!
 //! The segment scheduler moves computations and reads between barriers. Memory and state writes,
 //! calls, creation, logs, `gas`, `msize`, and phis are barriers for that phase, so its traversal
-//! never crosses an observable mutation, gas observation, call-gas boundary, or phi definition. Within
-//! each barrier-delimited segment, a deterministic dependency-first traversal emits operand
+//! never crosses an observable mutation, gas observation, call-gas boundary, or phi definition.
+//! Within each barrier-delimited segment, a deterministic dependency-first traversal emits operand
 //! producers in EVM push order and places values consumed by the following barrier or terminator
 //! last. Shared-result producers stay at their original positions because moving one use changes
 //! which physical copy should survive for later consumers. Single-use islands between those pinned
@@ -20,17 +20,18 @@
 //! order before stack scheduling.
 //!
 //! Eager contraction also runs without optimization to avoid unnecessary spilling. The subsequent
-//! segment scheduler remains optional. Eager contractions consume uniquely used SSA inputs as soon as
-//! they are available across ordinary source writes. A backwards scan first requires more local
+//! segment scheduler remains optional. Eager contractions consume uniquely used SSA inputs as soon
+//! as they are available across ordinary source writes. A backwards scan first requires more local
 //! non-Phi instruction results live at a write than the target's reachable stack depth. This is a
 //! pressure-driven profitability gate, not a physical failure proof: other blocks' uses, incoming
 //! values, rematerialization and hidden protocol words are not modeled by that lower bound.
-//! Only canonical native pure instructions move; every read and write keeps its order. Calls, gas/memory-size and code observations, noncanonical
-//! effects, and protocol operations remain hard boundaries. The contraction replaces two or more
-//! distinct dying instruction results with one result, strictly reducing their intervening live count.
-//! It never reissues a mutable read or grants permission to spill. Reordered liveness can change
-//! home allocation. Existing physical reach checks and measured final code quality remain necessary;
-//! fewer live SSA values are not a bytecode proof.
+//! Only canonical native pure instructions move; every read and write keeps its order. Calls,
+//! gas/memory-size and code observations, noncanonical effects, and protocol operations remain hard
+//! boundaries. The contraction replaces two or more distinct dying instruction results with one
+//! result, strictly reducing their intervening live count. It never reissues a mutable read or
+//! grants permission to spill. Reordered liveness can change home allocation. Existing physical
+//! reach checks and measured final code quality remain necessary; fewer live SSA values are not a
+//! bytecode proof.
 //!
 //! This is a locality heuristic, not a whole-function profitability search. It does not price the
 //! residual physical stack left by each possible order, so an isolated function can grow even when

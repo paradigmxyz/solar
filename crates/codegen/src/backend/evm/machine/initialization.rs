@@ -17,8 +17,10 @@ use crate::{
         storage::{FrameAddress, FrameBase, FunctionStorage, ModulePlan},
     },
     mir,
-    mir::analysis::{AliasAnalysis, CallGraphInfo, ModRef},
-    mir::memory::EvmMemoryLayout,
+    mir::{
+        analysis::{AliasAnalysis, CallGraphInfo, ModRef},
+        memory::EvmMemoryLayout,
+    },
 };
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 

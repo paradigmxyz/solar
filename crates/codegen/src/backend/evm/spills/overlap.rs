@@ -18,8 +18,10 @@ use crate::{
         FrameAddress, FunctionStorage, PREVIOUS_FRAME_OFFSET, SAVED_FMP_OFFSET,
     },
     mir,
-    mir::analysis::{Access, AddressSpace, Location, MemoryAddress, MemoryBase, ModRef},
-    mir::memory::EvmMemoryLayout,
+    mir::{
+        analysis::{Access, AddressSpace, Location, MemoryAddress, MemoryBase, ModRef},
+        memory::EvmMemoryLayout,
+    },
 };
 
 /// Recognizes writes disjoint from every possible compiler-owned activation word before layout.

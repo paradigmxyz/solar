@@ -24,10 +24,10 @@
 //! frame setup, restoration, runtime overflow checks and the EVM return-label stack protocol. This
 //! module checks every constant address/size calculation and never silently wraps a layout.
 
-use crate::{
-    mir::analysis::{CallGraphInfo, MemoryCallSummaries},
-    mir::memory::EvmMemoryLayout,
-    mir::{AllocationAlignment, Function, FunctionId, InstId, InstKind, Module, Terminator},
+use crate::mir::{
+    AllocationAlignment, Function, FunctionId, InstId, InstKind, Module, Terminator,
+    analysis::{CallGraphInfo, MemoryCallSummaries},
+    memory::EvmMemoryLayout,
 };
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use std::collections::VecDeque;
