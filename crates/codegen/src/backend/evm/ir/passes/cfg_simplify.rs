@@ -7,6 +7,10 @@
 //! [`TerminatorKind::JumpI`] terminators and the physical `PUSH target; JUMPI; jump target` form
 //! emitted when edge-specific stack scheduling lowers one branch edge before EVM IR construction.
 //!
+//! Final cleanup exposes acyclic branch triangles as structural conditional terminators so
+//! layout can place their taken arm before the join. It preserves source origins and excludes
+//! glued instructions, custom stack effects and function activation events. Keeping this after
+//! sharing avoids changing which physical instruction sequences earlier passes can merge.
 //! Final cleanup also recognizes labels passed straight to a shared `JUMPI` head as direct
 //! jump targets. Deferring this until sharing is complete avoids exposing larger tails whose
 //! merger would add jumps back to the paths being shortened.
@@ -23,6 +27,7 @@
 
 use super::{
     EvmPass,
+    block_layout::triangle_arm,
     utils::{instruction_size_lower_bound, is_split_point, remap_block_order, retain_blocks},
 };
 use crate::backend::evm::{
@@ -79,6 +84,9 @@ fn simplify_cfg(gcx: Gcx<'_>, module: &mut Module, thread_shared_jumps: bool) ->
             coalesce_blocks(module, &mut state.references, &mut state.retained, &mut state.order);
         changed |= truncated || degenerate || redirected || inlined || swept || coalesced;
         if !truncated && !degenerate && !redirected && !inlined && !swept && !coalesced {
+            if thread_shared_jumps {
+                changed |= normalize_triangle_branches(module);
+            }
             return changed;
         }
     }
@@ -176,6 +184,44 @@ impl RunState {
         reserve_to(self.references.as_mut_vec(), blocks);
         reserve_to(&mut self.order, blocks);
     }
+}
+
+fn normalize_triangle_branches(module: &mut Module) -> bool {
+    let mut changed = false;
+    for block_id in module.blocks.indices() {
+        let block = &module.blocks[block_id];
+        if let Some(terminator) = &block.terminator
+            && let TerminatorKind::Jump(else_block) = terminator.kind
+            && let [.., pushed, jumpi] = block.instructions.as_slice()
+            && let Some(PushValue::Block(then_block)) = pushed.value
+            && !block.metadata.in_loop
+            && pushed.is_encoded_push()
+            && pushed.has_canonical_stack_effect()
+            && jumpi.as_evm_opcode() == Some(op::JUMPI)
+            && jumpi.has_canonical_stack_effect()
+            && is_split_point(&block.instructions, block.instructions.len() - 2)
+            && !pushed.keeps_with_next()
+            && !jumpi.keeps_with_next()
+            && [&pushed.metadata, &jumpi.metadata, &terminator.metadata].into_iter().all(
+                |metadata| {
+                    metadata.function_invoke().is_none() && metadata.function_exit().is_none()
+                },
+            )
+            && terminator.metadata.stack.is_none()
+            && triangle_arm(module, then_block, else_block)
+        {
+            // push arm; jumpi; jump join -> jumpi arm, join
+            let mut branch = Terminator::new(TerminatorKind::JumpI { then_block, else_block });
+            branch.metadata.copy_debug_info_from(&jumpi.metadata);
+            branch.metadata.merge_source_spans(&pushed.metadata);
+            branch.metadata.merge_source_spans(&terminator.metadata);
+            let block = &mut module.blocks[block_id];
+            block.instructions.truncate(block.instructions.len() - 2);
+            block.terminator = Some(branch);
+            changed = true;
+        }
+    }
+    changed
 }
 
 fn reserve_to<T>(values: &mut Vec<T>, capacity: usize) {

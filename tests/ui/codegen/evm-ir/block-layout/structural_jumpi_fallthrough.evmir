@@ -28,3 +28,18 @@ bb2:
   stop
 bb3:
   invalid
+
+// CHECK-LABEL: {{^[ +].*}}bb4:
+// CHECK: {{^[ +].*}}jumpi bb6, bb5
+// CHECK: {{^[ +].*}}bb6:
+// CHECK: {{^[ +].*}}bb5:
+bb4:
+  calldatasize
+  jumpi bb6, bb5
+bb5:
+  stop
+bb6:
+  push 0
+  push 0
+  mstore
+  jump bb5

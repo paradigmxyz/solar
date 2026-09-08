@@ -777,8 +777,16 @@ bb9:
   swap 5
   swap 6
   swap 4
-  push bb27
-  jumpi
+  jumpi bb27, bb21
+bb27:
+  push 32
+  dup 3
+  sub
+  dup 2
+  add
+  push 0
+  swap 1
+  mstore
   jump bb21
 bb21:
   swap 1
@@ -883,16 +891,6 @@ bb21:
   jumpi
   mload
   jump bb29
-bb27:
-  push 32
-  dup 3
-  sub
-  dup 2
-  add
-  push 0
-  swap 1
-  mstore
-  jump bb21
 bb20 [cold]:
   returndatasize
   push 0

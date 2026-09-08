@@ -65,8 +65,16 @@ bb0:
   swap 2
   swap 1
   exchange 4, 5
-  push bb3
-  jumpi
+  jumpi bb3, bb4
+bb3:
+  push 32
+  dup 3
+  sub
+  dup 2
+  add
+  push 0
+  swap 1
+  mstore
   jump bb4
 bb4:
   swap 1
@@ -99,23 +107,13 @@ bb4:
   swap 2
   swap 1
   log1
-  push 334
+  push 331
   dup 1
-  push 411
+  push 408
   push 0
   codecopy
   push 0
   return
-bb3:
-  push 32
-  dup 3
-  sub
-  dup 2
-  add
-  push 0
-  swap 1
-  mstore
-  jump bb4
 bb2 [cold]:
   push 0
   push 0
@@ -212,8 +210,16 @@ bb0:
   swap 2
   swap 1
   exchange 4, 5
-  push bb5
-  jumpi
+  jumpi bb5, bb6
+bb5:
+  push 32
+  dup 3
+  sub
+  dup 2
+  add
+  push 0
+  swap 1
+  mstore
   jump bb6
 bb6:
   swap 1
@@ -249,15 +255,5 @@ bb3 [cold]:
   push 0
   push 0
   revert
-bb5:
-  push 32
-  dup 3
-  sub
-  dup 2
-  add
-  push 0
-  swap 1
-  mstore
-  jump bb6
 
 @data literal_0 hex"11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111"

@@ -2,7 +2,9 @@
 //!
 //! The IR keeps control-flow edges explicit and leaves physical fallthrough to
 //! assembly. This pass follows unconditional jump successors to form linear
-//! traces, making those successor blocks adjacent whenever possible. The
+//! traces, making those successor blocks adjacent whenever possible. For an acyclic branch
+//! whose taken arm jumps to its other successor, it places the arm before that join. Cold arms
+//! stay separate, and known loops keep their existing branch order. The
 //! final lowering can then omit jumps whose target is the next emitted block
 //! without encoding physical layout assumptions in the IR. Independent hot
 //! traces are placed before cold terminal traces so unlikely exit paths do not
@@ -47,8 +49,8 @@ fn layout_blocks(gcx: Gcx<'_>, module: &mut Module) -> bool {
     }
     let mut state = RunState::default();
     state.reset(module.blocks.len());
-    for block in &module.blocks {
-        if let Some(target) = layout_successor(block)
+    for block in module.blocks.indices() {
+        if let Some(target) = layout_successor(module, block)
             && target.index() < state.predecessor_counts.len()
         {
             state.predecessor_counts[target] += 1;
@@ -78,6 +80,7 @@ fn layout_blocks(gcx: Gcx<'_>, module: &mut Module) -> bool {
     if state.order.iter().copied().eq(module.blocks.indices()) {
         return false;
     }
+    // branch -> arm -> join; remaining traces
     remap_block_order(module, &state.order);
     true
 }
@@ -370,16 +373,32 @@ fn append_layout_trace(
 ) {
     while block.index() < module.blocks.len() && placed.insert(block) {
         order.push(block);
-        let Some(target) = layout_successor(&module.blocks[block]) else { return };
+        let Some(target) = layout_successor(module, block) else { return };
         block = target;
     }
 }
 
-fn layout_successor(block: &Block) -> Option<BlockId> {
-    match &block.terminator.as_ref()?.kind {
+fn layout_successor(module: &Module, block: BlockId) -> Option<BlockId> {
+    match &module.blocks[block].terminator.as_ref()?.kind {
         TerminatorKind::Jump(target) => Some(*target),
+        TerminatorKind::JumpI { then_block, else_block }
+            if !module.blocks[block].metadata.in_loop
+                && triangle_arm(module, *then_block, *else_block) =>
+        {
+            Some(*then_block)
+        }
         _ => None,
     }
+}
+
+pub(super) fn triangle_arm(module: &Module, arm: BlockId, join: BlockId) -> bool {
+    arm != join
+        && module.blocks.get(arm).is_some_and(|block| {
+            !block.metadata.hotness.is_cold()
+                && !block.metadata.in_loop
+                && matches!(block.terminator.as_ref().map(|term| &term.kind),
+                    Some(TerminatorKind::Jump(target)) if *target == join)
+        })
 }
 
 fn is_cold_terminal_block(block: &Block) -> bool {

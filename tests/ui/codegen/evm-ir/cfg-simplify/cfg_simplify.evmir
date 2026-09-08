@@ -23,6 +23,14 @@ bb1:
 // CHECK-NEXT: + pop
 // CHECK-NEXT: + stop
 bb2:
+  push bb33
+  pop
+  push bb36
+  pop
+  push bb42
+  pop
+  push bb45
+  pop
   push bb31
   pop
   push 1
@@ -202,4 +210,70 @@ bb31:
   jump bb32
 bb32 [loop]:
   push 8
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb33:
+// CHECK: + jumpi bb34, bb35 !metadata(span=10..20)
+bb33:
+  calldatasize
+  push bb34
+  jumpi !metadata(span=10..20)
+  jump bb35
+bb34:
+  push 0
+  push 0
+  mstore
+  jump bb35
+bb35:
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb36 [loop]:
+// CHECK: {{^[ +].*}}push bb37
+// CHECK: {{^[ +].*}}jumpi
+// CHECK: {{^[ +].*}}jump bb38
+bb36 [loop]:
+  calldatasize
+  push bb37
+  jumpi !metadata(span=10..20)
+  jump bb38
+bb37:
+  push 0
+  push 0
+  mstore
+  jump bb38
+bb38:
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb42:
+// CHECK: {{^[ +].*}}push bb43
+// CHECK: {{^[ +].*}}jumpi
+// CHECK: {{^[ +].*}}jump bb44
+bb42:
+  calldatasize
+  push bb43
+  jumpi !metadata(invoke=callee@30..40)
+  jump bb44
+bb43:
+  push 0
+  push 0
+  mstore
+  jump bb44
+bb44:
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb45:
+// CHECK: {{^[ +].*}}push bb46
+// CHECK: {{^[ +].*}}jumpi
+// CHECK: {{^[ +].*}}jump bb47
+bb45:
+  calldatasize
+  push bb46
+  jumpi !metadata(span=10..20)
+  jump bb47
+bb46 [cold]:
+  push 0
+  push 0
+  mstore
+  jump bb47
+bb47:
   stop

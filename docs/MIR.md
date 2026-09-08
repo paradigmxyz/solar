@@ -502,6 +502,11 @@ an argument-only layout. A condition that remains live keeps the global plan,
 which avoids disturbing loop-entry layouts. Cold terminal siblings may keep
 unused stack words, but their payloads and required live-ins stay explicit.
 
+Final CFG cleanup exposes acyclic branch triangles as structural conditional
+terminators. Layout places the taken arm before its join so assembly can omit
+the arm’s jump. Known loops and cold arms keep their existing order, and the
+conversion preserves source origins and excludes function activation events.
+
 EVM layout packs small shared terminal traces below the PUSH1 address limit.
 It moves the whole fallthrough trace, so moving a shared exit does not insert
 jumps between its predecessor blocks. Multi-block traces must end at an exit

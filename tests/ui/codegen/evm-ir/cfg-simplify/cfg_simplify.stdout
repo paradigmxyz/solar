@@ -8,6 +8,14 @@
 - bb1:
 -   jump bb2
   bb2:
+    push bb33
+    pop
+    push bb36
+    pop
+    push bb42
+    pop
+    push bb45
+    pop
     push bb31
     pop
     push 1
@@ -143,5 +151,54 @@
 -   jump bb32
 - bb32 [loop]:
     push 8
+    stop
+  bb33:
+    calldatasize
+-   push bb34
+-   jumpi !metadata(span=10..20)
+-   jump bb35
++   jumpi bb34, bb35 !metadata(span=10..20)
+  bb34:
+    push 0
+    push 0
+    mstore
+    jump bb35
+  bb35:
+    stop
+  bb36 [loop]:
+    calldatasize
+    push bb37
+    jumpi !metadata(span=10..20)
+    jump bb38
+  bb37:
+    push 0
+    push 0
+    mstore
+    jump bb38
+  bb38:
+    stop
+  bb42:
+    calldatasize
+    push bb43
+    jumpi !metadata(invoke=callee@30..40)
+    jump bb44
+  bb43:
+    push 0
+    push 0
+    mstore
+    jump bb44
+  bb44:
+    stop
+  bb45:
+    calldatasize
+    push bb46
+    jumpi !metadata(span=10..20)
+    jump bb47
+  bb46 [cold]:
+    push 0
+    push 0
+    mstore
+    jump bb47
+  bb47:
     stop
   

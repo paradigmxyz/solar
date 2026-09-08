@@ -422,8 +422,16 @@ bb43:
   swap 2
   swap 1
   exchange 4, 5
-  push bb39
-  jumpi
+  jumpi bb39, bb15
+bb39:
+  push 32
+  dup 3
+  sub
+  dup 2
+  add
+  push 0
+  swap 1
+  mstore
   jump bb15
 bb15:
   swap 1
@@ -572,8 +580,16 @@ bb44:
   swap 3
   swap 2
   swap 1
-  push bb42
-  jumpi
+  jumpi bb42, bb24
+bb42:
+  push 32
+  dup 3
+  sub
+  dup 2
+  add
+  push 0
+  swap 1
+  mstore
   jump bb24
 bb24:
   swap 1
@@ -663,26 +679,6 @@ bb34:
   jump bb38
 bb35:
   jump bb31
-bb39:
-  push 32
-  dup 3
-  sub
-  dup 2
-  add
-  push 0
-  swap 1
-  mstore
-  jump bb15
-bb42:
-  push 32
-  dup 3
-  sub
-  dup 2
-  add
-  push 0
-  swap 1
-  mstore
-  jump bb24
 bb46:
   push 160
   calldatasize
