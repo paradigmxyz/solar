@@ -113,7 +113,13 @@ use solar_data_structures::{
     index::index_vec,
     map::{FxHashMap, StdEntry},
 };
-use std::{cell::Cell, cmp::Ordering, collections::BinaryHeap, mem::size_of};
+use std::{
+    cell::Cell,
+    cmp::Ordering,
+    collections::BinaryHeap,
+    hash::{Hash, Hasher},
+    mem::size_of,
+};
 
 /// Returns whether a MIR value is a calling-convention-backed rematerializable leaf.
 pub(crate) const fn is_rematerializable_leaf(value: &Value) -> bool {
@@ -235,7 +241,24 @@ type PlannedActions = SmallVec<[PlannedAction; 8]>;
 // Keep the 17-word `SWAP16` window plus a ternary's three pushes inline.
 const SEARCH_STACK_INLINE_CAPACITY: usize = MAX_STACK_ACCESS + 4;
 
-type SearchStack = SmallVec<[Option<ValueId>; SEARCH_STACK_INLINE_CAPACITY]>;
+/// A search layout hashed with one word per slot, including anonymous slots.
+#[derive(Clone, Debug, Default, PartialEq, Eq, derive_more::Deref, derive_more::DerefMut)]
+struct SearchStack(SmallVec<[Option<ValueId>; SEARCH_STACK_INLINE_CAPACITY]>);
+
+impl FromIterator<Option<ValueId>> for SearchStack {
+    fn from_iter<T: IntoIterator<Item = Option<ValueId>>>(iter: T) -> Self {
+        Self(iter.into_iter().collect())
+    }
+}
+
+impl Hash for SearchStack {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.len().hash(state);
+        for value in self.iter() {
+            value.map_or(usize::MAX, |value| value.index()).hash(state);
+        }
+    }
+}
 
 /// Tracks physical stack state and plans operand preparation.
 #[derive(Clone)]
@@ -3672,13 +3695,13 @@ mod tests {
 
     #[test]
     fn operand_search_byte_budget_counts_spilled_stacks() {
-        let inline = SearchStack::new();
+        let inline = SearchStack::default();
         let base_bytes = size_of::<OperandSearchState>()
             + size_of::<SearchStack>()
             + size_of::<OperandSearchQueueEntry>();
         assert_eq!(StackScheduler::operand_search_state_bytes(&inline), base_bytes);
 
-        let mut spilled = SearchStack::new();
+        let mut spilled = SearchStack::default();
         spilled.resize(SEARCH_STACK_INLINE_CAPACITY + 1, None);
         assert!(spilled.spilled());
         assert_eq!(
