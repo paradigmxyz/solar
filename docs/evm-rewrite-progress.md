@@ -268,6 +268,43 @@ Evidence is under
 `target/codegen-bench/evm-rewrite-candidate/main-integration-20260908/` and
 `target/codegen-bench/evm-rewrite-candidate/alias-ci-contract-review-20260908/`.
 
+## Four-word terminal returns and Windows CI integration
+
+The terminal return proof now handles up to four completely overwritten words,
+including a final size/DUP1 pair, with the existing memory and code-observer
+refusals. It uses four fixed store positions and adds five physical backend
+lines. Four EVM IR fixtures and one Solidity fixture add 18 revisions and 36
+runtime calls. Two existing snapshots change only the compacted addresses and
+resulting deployment lengths; frozen baseline reproduction and the retained
+immutable/entry-order runtime oracles justify those updates. No existing test
+source or runtime expectation was removed.
+
+Against the previous checkpoint, all 1,660 existing UI IDs retain their status:
+310 of 5,060 bytecode objects shrink, 4,750 are exact, and none grow. Gas saves
+237 bytes each in creation/runtime output; Size saves 144 each. The additional
+fixture is compared separately against the frozen baseline. Full runtime and
+Size runs preserve all 175 gas labels and 139 observations per compiler/lane;
+Aave saves four bytes per object and twelve v4 objects save two bytes each.
+The final compiler is connected to those execution results through identical
+complete outputs and 270 freshly captured artifacts, not relabeled fresh gas
+runs. Four bounded symbolic comparisons agree with pinned solc. Workspace tests
+pass (1,562, two existing skips), as do Clippy, formatting and typo checks.
+
+Quiet ABBA means increase 1.735% for Seaport, 2.735% for v4 and 0.073% for
+Solmate. All time ranges overlap with only two samples per compiler/project;
+this does not establish a speed win or dismiss the measured cost. RSS means
+change -0.275%, +0.604% and +2.000%, respectively. The size improvement is
+retained while compiler-time concerns remain open. Independent review and the
+complete provenance, rejected fixture attempts, output joins and measurements
+are under `target/codegen-bench/evm-rewrite-candidate/terminal-four-word-workflow-20260908/`.
+
+Main `2632e43b` (Windows CI test repairs) is merged after the previous draft
+head passed all remote checks. The merge leaves the rewritten backend exactly
+unchanged. The merged workspace passes all 1,562 tests with two skips; the
+nightly-feature run passes 1,559 with five skips, including its three existing
+layout-test exclusions. Formatting also passes. Remote checks will run on the
+pushed head; the previous green head does not certify these new commits.
+
 ## Remaining acceptance work
 
 The alias assertion migration passes; its generated-code size debt remains.
@@ -275,10 +312,10 @@ The original readback failures now pass in every mode. General source-memory
 ownership remains an open contract; bounded shared-input sweeps pass. The accepted heavy ledger
 still has 31,831,619 positive bytes of sealed size debt;
 this is a sum of regressions, not net corpus growth. Compiler-time debts remain.
-The backend has 17,072 physical lines in 46 files, 17,566 fewer than the deletion
-inventory. Excluding trailing test modules leaves 15,767 physical lines. A
+The backend has 17,077 physical lines in 46 files, 17,561 fewer than the deletion
+inventory. Excluding trailing test modules leaves 15,772 physical lines. A
 retained count-only baseline reports 29,006 production-section lines, giving a
-conditional reduction of 13,239; that file lacks a revision/hash link to the
+conditional reduction of 13,234; that file lacks a revision/hash link to the
 sealed archive. These counts include comments and are not strict production SLOC.
 
 Eager contraction removes avoidable spills and saves bytecode without corpus
@@ -293,8 +330,8 @@ with baseline contention and a measured parser overlap; no causal timing claim
 follows. Next, restore alias-codegen size and complete the remaining runtime/size
 gates. Keep correctness and runtime
 gas ahead of size, then compiler time and memory. These local milestones do not
-establish complete functionality or green remote CI. All committed work through
-`a5726f0e` has been pushed to the draft PR.
+establish complete functionality. Remote CI passed at `3c2fe7f3`; the new
+return-compaction and main-integration commits require their own remote checks.
 
 [pr]: https://github.com/paradigmxyz/solar/pull/1388
 [literal]: ../target/codegen-bench/evm-rewrite-candidate/literal-cache-workflow-20260908/
