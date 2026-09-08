@@ -15,7 +15,7 @@ from unittest.mock import patch
 
 import z3
 
-from evm_rules.discovery import Cost, Prices, discover_rules, emit_rule, enumerate_rules
+from evm_rules.discovery import Cost, Prices, discover_rules, emit_rule, enumerate_rules, read_seeds
 from evm_rules.isle import Context, ISLE, Rule, forms, verify_file
 from evm_rules.semantics import Expr, MASK, MODULUS, SIGN, Model, Unsupported, check, concrete, partition_shift
 from verify_evm_rules import main
@@ -228,6 +228,59 @@ class CliTests(unittest.TestCase):
 
 
 class DiscoveryTests(unittest.TestCase):
+    def test_deep_seeds_search_a_small_replacement_frontier(self):
+        x, y = Expr.var("x"), Expr.var("y")
+        seed = expression("sub", expression("or", x, y), expression("and", x, y))
+        rules, summary = enumerate_rules(Prices("osaka"), ["x", "y"], ["xor"], 1, 20, 5000, seeds=[seed])
+        self.assertIn((seed, expression("xor", x, y)), [(lhs, rhs) for lhs, rhs, _, _ in rules])
+        self.assertEqual(summary["seeds_proved"], 1)
+        self.assertLess(summary["expressions"], 20)
+
+    def test_seed_sample_collisions_and_unknowns_are_not_proofs(self):
+        x = Expr.var("x")
+        seed = expression("add", x, 1)
+        initial = [{"x": 0}]
+        rules, summary = enumerate_rules(Prices("osaka"), ["x"], ["not"], 1, 20, 5000,
+                                         initial_samples=initial, seeds=[seed])
+        self.assertFalse(any(lhs == seed for lhs, _, _, _ in rules))
+        self.assertGreater(summary["counterexamples"], 0)
+        self.assertGreater(summary["samples"], 1)
+        self.assertEqual(initial, [{"x": 0}])
+        with patch("evm_rules.discovery.check", return_value=({"status": "unknown"}, "")):
+            rules, summary = enumerate_rules(Prices("osaka"), ["x"], ["not"], 1, 20, 5000,
+                                             seeds=[expression("not", expression("not", x))])
+        self.assertFalse(rules)
+        self.assertGreater(summary["unknown"], 0)
+
+    def test_seed_reader_rejects_invalid_or_unbounded_inputs(self):
+        deep = "x"
+        for _ in range(17):
+            deep = ["not", deep]
+        invalid = [[], [True], ["x"], [["add", "x"]], [["not", "y"]],
+                   [["not", 123456789]], [["storage", "x"]], [deep], [["not", "x"]] * 129]
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "seeds.json"
+            for rows in invalid:
+                path.write_text(json.dumps(rows))
+                with self.subTest(rows=rows), self.assertRaises(ValueError):
+                    read_seeds(path, Prices("osaka"), ["x"])
+            path.write_text(json.dumps([["not", "x"], ["not", "x"]]))
+            self.assertEqual(read_seeds(path, Prices("osaka"), ["x"]), [expression("not", Expr.var("x"))])
+
+    def test_seed_cli_proves_and_documents_emitted_source(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "seeds.json"
+            path.write_text(json.dumps([["sub", ["or", "x", "y"], ["and", "x", "y"]]]))
+            output = Path(directory) / "candidates.isle"
+            report = discover_rules(SimpleNamespace(
+                runs=200, max_rules=32, evm_version="osaka", objective="gas", seed_expressions=path,
+                variables=["x", "y"], ops=["xor"], max_ops=1, max_expressions=20,
+                timeout_ms=5000, include_constants=False, emit_isle=output))
+            self.assertTrue(report["accepted"])
+            self.assertEqual(report["summary"]["seeds_proved"], 1)
+            self.assertEqual(len(report["seeds_sha256"]), 64)
+            self.assertIn(";; ((x | y) - (x & y)) => (x ^ y)", output.read_text())
+
     def test_empty_search_does_not_leave_stale_candidates(self):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / "candidates.isle"

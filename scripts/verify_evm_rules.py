@@ -30,6 +30,7 @@ def main():
     discover.add_argument("--max-rhs-ops", type=int, default=2, help="maximum operations in a replacement recipe")
     discover.add_argument("--max-expressions", type=int, default=10000)
     discover.add_argument("--max-rules", type=int, default=32)
+    discover.add_argument("--seed-expressions", type=Path, help="JSON input trees to simplify against the bounded replacement frontier")
     discover.add_argument("--ops", nargs="+", default=["and", "or", "xor", "not", "add", "sub"])
     discover.add_argument("--result-ops", nargs="+", help="focus emitted candidates on these replacement root operations")
     discover.add_argument("--variables", nargs="+", default=["x", "y"])
