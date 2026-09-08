@@ -80,6 +80,17 @@ impl RunState {
         self.tail_roots.clear();
         self.tail_edges.clear();
         self.tail_representatives.clear();
+        let instruction_count = module
+            .blocks
+            .iter()
+            .filter(|block| {
+                is_candidate(block)
+                    && !(gcx.sess.opts.optimization.is_gas() && block.metadata.in_loop)
+            })
+            .map(|block| block.instructions.len())
+            .sum::<usize>();
+        self.tail_edges.reserve(instruction_count);
+        self.tail_representatives.reserve(instruction_count + module.blocks.len());
         for (block_id, block) in module.blocks.iter_enumerated() {
             if !is_candidate(block) {
                 continue;

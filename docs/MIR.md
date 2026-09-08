@@ -495,7 +495,12 @@ EVM layout packs small shared terminal traces below the PUSH1 address limit.
 It moves the whole fallthrough trace, so moving a shared exit does not insert
 jumps between its predecessor blocks. Multi-block traces must end at an exit
 with at least four references beyond the low-address range; the stricter limit
-avoids moving hot code for weak size gains.
+avoids moving hot code for weak size gains. Packing reserves space for one-byte
+indexed jump tables, since wider entries add shifts and masking to each lookup.
+
+Packed ABI encoding skips allocation rounding when every component occupies
+whole words, while retaining overflow checks. Storage-byte pushes place the
+short-header path first so packed writes can fall through during growth.
 
 Semantic checks fold a negated condition into their failure polarity. This lets
 ordinary dead-code cleanup remove the predicate before conversion and exposes
