@@ -136,8 +136,12 @@ fn run_passes_inner(
     validate_each: bool,
     output: PassOutput<'_>,
 ) -> bool {
-    let output_name =
-        output.name.map(ToOwned::to_owned).unwrap_or_else(|| mir_output_name(gcx, module));
+    let output_name = if gcx.sess.opts.unstable.pass_diff || gcx.sess.opts.unstable.print_after_each
+    {
+        output.name.map(ToOwned::to_owned).unwrap_or_else(|| mir_output_name(gcx, module))
+    } else {
+        String::new()
+    };
     let explicit = output.name.is_some();
     let mut changed = false;
     let mut analyses = ModuleAnalyses::default();

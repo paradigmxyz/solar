@@ -26,6 +26,7 @@ use crate::mir::{
     pass_manager::{mir_output_name, parse_pass_pipeline, print_pass_diff},
     transform::*,
 };
+use smallvec::SmallVec;
 use solar_data_structures::map::FxHashMap;
 use std::{
     any::{Any, TypeId},
@@ -466,31 +467,30 @@ impl ModuleAnalyses {
     }
 }
 
-fn cfg_edges(func: &Function) -> Vec<(u32, u32)> {
-    let mut edges = Vec::new();
-    for (block_id, block) in func.blocks.iter_enumerated() {
-        if let Some(terminator) = &block.terminator {
-            for successor in terminator.successors() {
-                edges.push((block_id.index() as u32, successor.index() as u32));
+fn verified_preservation(func: &Function, cfg: &CfgInfo, insts_before: usize) -> (bool, bool) {
+    let mut keep_cfg = cfg.num_blocks() == func.blocks.len();
+    let mut only_removed_edges = keep_cfg;
+    if keep_cfg {
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            let before = cfg.successors(block_id);
+            let mut after =
+                block.terminator.as_ref().map(|term| term.successors()).unwrap_or_default();
+            if before == after.as_slice() {
+                continue;
+            }
+            only_removed_edges &= after.iter().all(|edge| before.contains(edge));
+            if keep_cfg {
+                let mut before = SmallVec::<[_; 2]>::from_slice(before);
+                before.sort_unstable();
+                after.sort_unstable();
+                keep_cfg = before == after;
             }
         }
     }
-    edges.sort_unstable();
-    edges
-}
-
-fn verified_preservation(
-    func: &Function,
-    edges_before: &[(u32, u32)],
-    insts_before: usize,
-) -> (bool, bool) {
-    let edges_after = cfg_edges(func);
-    let keep_cfg = edges_after == edges_before;
     let no_new_side_effects = (insts_before..func.num_insts())
         .map(InstId::from_usize)
         .all(|inst_id| !func.inst(inst_id).kind.has_side_effects());
-    let keep_alias = no_new_side_effects
-        && (keep_cfg || edges_after.iter().all(|edge| edges_before.binary_search(edge).is_ok()));
+    let keep_alias = no_new_side_effects && only_removed_edges;
     (keep_alias, keep_cfg)
 }
 
@@ -503,11 +503,10 @@ fn run_function_pass_cached(
 ) -> bool {
     let bundle = analyses.bundle(func_id, &module.functions[func_id]);
     let func = &mut module.functions[func_id];
-    let edges_before = cfg_edges(func);
     let insts_before = func.num_insts();
     let changed = run(func, &bundle);
     if changed {
-        let (keep_alias, keep_cfg) = verified_preservation(func, &edges_before, insts_before);
+        let (keep_alias, keep_cfg) = verified_preservation(func, &bundle.cfg, insts_before);
         analyses.retain(func_id, keep_alias, keep_cfg);
     }
     changed
@@ -553,5 +552,53 @@ impl AnalysisPass for LivenessAnalysis {
 
     fn run(&self, func: &Function) -> Self::Result {
         crate::mir::analysis::Liveness::compute(func)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::mir::{BasicBlock, BlockId, FunctionBuilder, Terminator};
+    use solar_interface::Ident;
+
+    #[test]
+    fn cfg_preservation_uses_snapshot() {
+        let mut func = Function::new(Ident::DUMMY);
+        let left = func.blocks.push(BasicBlock::new());
+        let right = func.blocks.push(BasicBlock::new());
+        // bb0 -> left, right
+        let condition = FunctionBuilder::new(&mut func).imm(1);
+        FunctionBuilder::new(&mut func).branch(condition, left, right);
+        let cfg = CfgInfo::new(&func);
+        assert_eq!(verified_preservation(&func, &cfg, 0), (true, true));
+
+        // bb0 -> right, left
+        FunctionBuilder::new(&mut func).branch(condition, right, left);
+        assert_eq!(verified_preservation(&func, &cfg, 0), (true, true));
+
+        // bb0 -> left
+        FunctionBuilder::new(&mut func).jump(left);
+        assert_eq!(verified_preservation(&func, &cfg, 0), (true, false));
+
+        // bb0 -> bb0
+        FunctionBuilder::new(&mut func).jump(BlockId::ENTRY);
+        assert_eq!(verified_preservation(&func, &cfg, 0), (false, false));
+
+        // bb0 -> left, right; new isolated block
+        FunctionBuilder::new(&mut func).branch(condition, left, right);
+        func.blocks.push(BasicBlock::new());
+        assert_eq!(verified_preservation(&func, &cfg, 0), (false, false));
+        func.blocks.pop();
+
+        // bb0: mstore(0, 0); branch left, right
+        let mut builder = FunctionBuilder::new(&mut func);
+        let zero = builder.imm(0);
+        builder.mstore(zero, zero);
+        assert_eq!(verified_preservation(&func, &cfg, 0), (false, true));
+
+        // bb0 -> left, left
+        func.blocks[BlockId::ENTRY].terminator =
+            Some(Terminator::Branch { condition, then_block: left, else_block: left });
+        assert_eq!(verified_preservation(&func, &cfg, func.num_insts()), (true, false));
     }
 }
