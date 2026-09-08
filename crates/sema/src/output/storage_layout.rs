@@ -61,36 +61,59 @@ pub type StorageLayoutMember = StorageLayoutEntry;
 impl<'gcx> Gcx<'gcx> {
     /// Returns the storage layout for the given contract.
     pub fn storage_layout(self, contract_id: hir::ContractId) -> StorageLayoutOutput {
-        StorageLayoutBuilder::new(self, contract_id, DataLocation::Storage).build()
+        StorageLayoutBuilder::new(
+            self,
+            self.contract_fully_qualified_name(contract_id).to_string(),
+            DataLocation::Storage,
+        )
+        .build_contract(contract_id)
     }
 
     /// Returns the transient storage layout for the given contract.
     pub fn transient_storage_layout(self, contract_id: hir::ContractId) -> StorageLayoutOutput {
-        StorageLayoutBuilder::new(self, contract_id, DataLocation::Transient).build()
+        StorageLayoutBuilder::new(
+            self,
+            self.contract_fully_qualified_name(contract_id).to_string(),
+            DataLocation::Transient,
+        )
+        .build_contract(contract_id)
+    }
+
+    /// Returns the storage layout for a struct rooted at `base_slot`.
+    ///
+    /// Top-level fields use absolute slots; nested struct members retain relative slots.
+    /// Slot arithmetic wraps modulo 2^256, just like EVM storage addressing.
+    pub fn storage_layout_for_struct(
+        self,
+        struct_id: hir::StructId,
+        base_slot: U256,
+    ) -> StorageLayoutOutput {
+        let strukt = self.hir.strukt(struct_id);
+        let contract_name = strukt.contract.map_or_else(
+            || format!("{}:{}", self.hir.source(strukt.source).file.name.display(), strukt.name),
+            |id| self.contract_fully_qualified_name(id).to_string(),
+        );
+        let mut builder = StorageLayoutBuilder::new(self, contract_name, DataLocation::Storage);
+        let storage = builder.layout_fields(strukt.fields, &mut StorageCursor::new(base_slot));
+        let types = (!builder.types.is_empty()).then_some(builder.types);
+        StorageLayoutOutput { storage, types }
     }
 }
 
 struct StorageLayoutBuilder<'gcx> {
     gcx: Gcx<'gcx>,
-    contract_id: hir::ContractId,
     contract_name: String,
     location: DataLocation,
     types: FxIndexMap<String, StorageLayoutType>,
 }
 
 impl<'gcx> StorageLayoutBuilder<'gcx> {
-    fn new(gcx: Gcx<'gcx>, contract_id: hir::ContractId, location: DataLocation) -> Self {
-        Self {
-            gcx,
-            contract_id,
-            contract_name: gcx.contract_fully_qualified_name(contract_id).to_string(),
-            location,
-            types: FxIndexMap::default(),
-        }
+    fn new(gcx: Gcx<'gcx>, contract_name: String, location: DataLocation) -> Self {
+        Self { gcx, contract_name, location, types: FxIndexMap::default() }
     }
 
-    fn build(mut self) -> StorageLayoutOutput {
-        let contract = self.gcx.hir.contract(self.contract_id);
+    fn build_contract(mut self, contract_id: hir::ContractId) -> StorageLayoutOutput {
+        let contract = self.gcx.hir.contract(contract_id);
         let base_slot = match self.location {
             DataLocation::Storage => contract.layout.map_or(U256::ZERO, |layout| {
                 self.gcx
@@ -103,7 +126,7 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
             DataLocation::Memory | DataLocation::Calldata => unreachable!(),
         };
         let bases = if contract.linearized_bases.is_empty() {
-            std::slice::from_ref(&self.contract_id)
+            std::slice::from_ref(&contract_id)
         } else {
             contract.linearized_bases
         }
@@ -138,14 +161,23 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
 
     fn layout_members(&mut self, fields: &[hir::VariableId]) -> (Vec<StorageLayoutEntry>, U256) {
         let mut cursor = StorageCursor::new(U256::ZERO);
+        let members = self.layout_fields(fields, &mut cursor);
+        (members, cursor.size())
+    }
+
+    fn layout_fields(
+        &mut self,
+        fields: &[hir::VariableId],
+        cursor: &mut StorageCursor,
+    ) -> Vec<StorageLayoutEntry> {
         let mut members = Vec::with_capacity(fields.len());
         for &field in fields {
             let ty = self.gcx.type_of_item(field.into());
             let ty_name = self.generate_type(ty);
-            let (slot, offset) = self.place_type(ty, &mut cursor);
+            let (slot, offset) = self.place_type(ty, cursor);
             members.push(self.storage_entry(field, slot, offset, ty_name));
         }
-        (members, cursor.size())
+        members
     }
 
     fn storage_entry(
@@ -429,13 +461,13 @@ impl StorageCursor {
 
     fn align(&mut self) {
         if self.offset != 0 {
-            self.slot += U256::from(1);
+            self.slot = self.slot.wrapping_add(U256::from(1));
             self.offset = 0;
         }
     }
 
     fn advance(&mut self, slots: U256) {
-        self.slot += slots;
+        self.slot = self.slot.wrapping_add(slots);
         self.offset = 0;
     }
 
@@ -446,4 +478,69 @@ impl StorageCursor {
 
 fn slots_for(bytes: U256) -> U256 {
     bytes / U256::from(32) + U256::from(u8::from(bytes % U256::from(32) != U256::ZERO))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Compiler;
+    use solar_interface::Session;
+    use std::{ops::ControlFlow, path::PathBuf};
+
+    #[test]
+    fn struct_storage_roots() {
+        let mut compiler = Compiler::new(Session::builder().with_test_emitter().build());
+        compiler.enter_mut(|compiler| {
+            let file = compiler
+                .sess()
+                .source_map()
+                .new_source_file(
+                    PathBuf::from("test.sol"),
+                    r#"
+                struct Nested { uint128 a; uint128 b; }
+                struct Data {
+                    address owner;
+                    bool paused;
+                    Nested nested;
+                    uint256[2] values;
+                    mapping(uint256 => address) accounts;
+                    uint256[] dynamicValues;
+                }
+                "#,
+                )
+                .unwrap();
+            let mut parser = compiler.parse();
+            parser.add_file(file);
+            parser.parse();
+            assert_eq!(compiler.lower_asts(), Ok(ControlFlow::Continue(())));
+            assert_eq!(compiler.analysis(), Ok(ControlFlow::Continue(())));
+            let gcx = compiler.gcx();
+            let id = gcx
+                .hir
+                .strukt_ids()
+                .find(|&id| gcx.hir.strukt(id).name.as_str() == "Data")
+                .unwrap();
+            let zero = gcx.storage_layout_for_struct(id, U256::ZERO);
+            for root in [U256::from(0x1000), U256::MAX] {
+                let layout = gcx.storage_layout_for_struct(id, root);
+                assert_eq!(layout.storage.len(), 6);
+                for (entry, relative) in layout.storage.iter().zip(&zero.storage) {
+                    assert_eq!(
+                        entry.slot,
+                        root.wrapping_add(relative.slot.parse().unwrap()).to_string()
+                    );
+                    assert_eq!(entry.offset, relative.offset);
+                }
+                assert_eq!(
+                    serde_json::to_value(&layout.types).unwrap(),
+                    serde_json::to_value(&zero.types).unwrap()
+                );
+            }
+            assert_eq!(
+                zero.storage.iter().map(|s| (s.slot.as_str(), s.offset)).collect::<Vec<_>>(),
+                [("0", 0), ("0", 20), ("1", 0), ("2", 0), ("4", 0), ("5", 0)]
+            );
+            assert_eq!(zero.storage[0].contract, "test.sol:Data");
+        });
+    }
 }
