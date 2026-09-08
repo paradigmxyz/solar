@@ -48,7 +48,7 @@ all commands, individual deltas, exact output joins and source/binary pins.
 
 ## Verification and reviewed expectations
 
-Final workspace results are 11,747 UI passes, one original alias assertion
+The earlier tail-group workspace had 11,747 UI passes, one original alias assertion
 failure, 1,557 other passes and two skips. All 36 Foundry projects pass
 (772 compiler tests, 765 solc tests), with reported gas and sizes unchanged.
 Clippy, formatting and typos pass. The larger tail fixture passes 24 fresh calls
@@ -136,6 +136,15 @@ peephole form. Two samples per build and project establish no causal speedup;
 earlier positive deltas remain preserved. Concurrent full-run timings are unused.
 [Unit-carry evidence][unit] retains exact commands, producers, unchanged IDs,
 raw samples, reviews and rejected trials.
+
+The prior-art follow-up identifies a concrete information loss: the native
+`toOrders` return remains an explicit allocation until `lower-alloc` rewrites it
+to `mload(64)`. Ordinary and diagnostic outputs match completely. Retaining that
+local identity alone does not export its lifetime/range across calls or prove
+private-home separation. The terminal-anchor trial also remains deferred:
+current source Size output already shares its return, so the isolated rule
+would not activate. [Research](evm-stack-scheduling-research.md) links the pinned
+primary mechanisms, native boundaries, controls and remaining proof obligations.
 
 ## Remaining acceptance work
 

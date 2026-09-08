@@ -628,10 +628,26 @@ Our mapped `toOrders` returns originate in `mload(64)`, not a returned argument
 or a retained MIR allocation. None of these mechanisms proves their separation
 from the two omitted argument-home intervals. A small exact returned-argument
 summary could carry a caller's existing allocation, but would not activate this
-case or refine every incoming context of the shared callee. The next bounded
-diagnostic checks where allocation identity is lost, or whether it was never
-represented. No residence floor is relaxed on the strength of source shape.
+case or refine every incoming context of the shared callee. The native boundary
+diagnostic now confirms that the actual returned value is an explicit allocation:
+it survives memory-object lowering and coalescing, then the same SSA result
+becomes `mload(64)` at `lower-alloc`. All three complete ordinary/dump outputs
+match with frozen producer `4eb07937`. Public MIR controls distinguish an
+allocation forwarded through an identity call, a fresh allocation return, a raw
+FMP return and a mixed argument/unknown return. They are lowering checks, not
+runtime or noalias proofs. Preserving the local fact and exporting its lifetime
+and physical range across all relevant calls remain separate obligations. No
+residence floor is relaxed on the strength of source shape.
 Eleven primary files, exact revisions, current interfaces and the diagnostic
 proposal are pinned under
 `target/codegen-bench/evm-rewrite-candidate/return-provenance-prior-art-20260908/`.
 This research establishes constraints, not a generated-code performance result.
+
+A separate terminal-anchor check confirms an existing return block and duplicate
+suffix in the retained 155-byte oriented alias artifact. Its conservative
+203-byte envelope proves one-byte label immediates suffice; it does not fix the
+independent overflow gas debt. Current source Size output at 166 bytes already
+shares that return and has no eligible donor, so this isolated rule has no
+measured source benefit. Three exact native captures and the bound are retained
+under `target/codegen-bench/evm-rewrite-candidate/terminal-anchor-bound-20260908/`.
+No terminal rule is added on the strength of the edited-IR witness alone.
