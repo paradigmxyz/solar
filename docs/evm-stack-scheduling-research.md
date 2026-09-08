@@ -430,3 +430,23 @@ exact outgoing stack and peak must be preserved. No constant-cache implementatio
 or savings claim follows from the byte census alone. Exact source pins, traces,
 limits and the proposed witness are in
 `target/codegen-bench/evm-rewrite-candidate/wide-constant-prior-art-20260908/`.
+
+
+The bounded native witness now reduces the reduced fixture's runtime from
+1,793 to 853 bytes. Ordinary/doubling execution falls from 995/1,103 to
+980/1,070 gas; all twelve fresh calls across witness, current compiler and solc
+pass the four original tuple oracles. A static whole-module capacity proof and
+native traces retain maximum stack height 14 and 13 memory words. The third
+arithmetic block's cache adds 21 fixed gas and is rejected. The two chosen blocks
+still leave 20 bytes of sealed size debt. This is modified emitted-IR evidence,
+not a production compiler policy: baseline native IR replay was byte-exact,
+and the witness used a separately identified deployment wrapper.
+
+The existing `compact-pushes` adapter already computes physical stack facts and
+observer permission. Its absolute incoming bounds can allow the extra local slot
+that the successful witness needs; unknown prefixes retain the nonincreasing-peak
+rule. This avoids another MIR scheduling replay or caller-analysis framework.
+Integration must confirm the actual compiler analysis grants that permission,
+retain the selected prefix and exact exit, and charge the complete literal plan,
+all duplicates and all setup/release swaps. Models, rejected variants, exact
+native traces and source pins are in `wide-constant-prior-art-20260908/boundary/`.
