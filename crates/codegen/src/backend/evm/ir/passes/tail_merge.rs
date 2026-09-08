@@ -8,9 +8,12 @@
 //! the cost of its new jumps and labels, and the pass keeps address-taken or
 //! otherwise incompatible entries separate. Debug metadata never participates
 //! in equivalence: path-specific function activations stay on the original
-//! blocks or the jumps that replace their instruction suffixes. Those jumps also
-//! retain the suffix's entry location before its origins are merged, so single-origin
-//! source maps do not lose both callers' locations on a shared body.
+//! blocks or the jumps that replace their instruction suffixes.
+//! A terminal suffix covering the representative's whole body reuses its block and label when
+//! there are no nested shared tails or function-entry events. Nested tails keep their placement
+//! to preserve fallthrough paths. Other address-taken entries keep their jump stubs.
+//! Replacement jumps retain the suffix's entry location before its origins are merged, so
+//! single-origin source maps do not lose both callers' locations on a shared body.
 //!
 //! A shared tail starts at a block boundary, so both the merged block and the representative may
 //! only be cut where `keep_with_next` allows a split. That keeps sequences whose intervening gas
@@ -286,23 +289,40 @@ impl RunState {
                         }
                     }
                 }
-                let tail = module.add_block(tail);
+                // whole_body: suffix => whole_body: shared_suffix
+                let tail = if commons.len() == 1
+                    && common == instructions.len()
+                    && terminator.as_ref().is_some_and(|term| is_terminal_boundary(&term.kind))
+                    && metadata.function_invoke.is_none()
+                    && instructions.iter().all(|inst| inst.metadata.function_invoke().is_none())
+                    && terminator
+                        .as_ref()
+                        .is_none_or(|term| term.metadata.function_invoke().is_none())
+                {
+                    tail.label = module.blocks[group.representative].label;
+                    module.blocks[group.representative] = tail;
+                    group.representative
+                } else {
+                    module.add_block(tail)
+                };
                 tails.push((common, tail));
                 previous_common = common;
                 previous_tail = Some(tail);
             }
 
             let &(max_common, max_tail) = tails.last().expect("merge group must have a tail");
-            let representative_debug =
-                suffix_debug_info(&module.blocks[group.representative], max_common);
-            // prefix; suffix !metadata(origin) => prefix; jump tail !metadata(origin)
-            module.blocks[group.representative]
-                .instructions
-                .truncate(instructions.len() - max_common);
-            let mut terminator =
-                Terminator::new(TerminatorKind::Jump(max_tail)).with_debug_info_dropped();
-            terminator.metadata.copy_debug_info_from(&representative_debug);
-            module.blocks[group.representative].terminator = Some(terminator);
+            if max_tail != group.representative {
+                let representative_debug =
+                    suffix_debug_info(&module.blocks[group.representative], max_common);
+                // prefix; suffix !metadata(origin) => prefix; jump tail !metadata(origin)
+                module.blocks[group.representative]
+                    .instructions
+                    .truncate(instructions.len() - max_common);
+                let mut terminator =
+                    Terminator::new(TerminatorKind::Jump(max_tail)).with_debug_info_dropped();
+                terminator.metadata.copy_debug_info_from(&representative_debug);
+                module.blocks[group.representative].terminator = Some(terminator);
+            }
             for &(block, common) in &group.sites {
                 let tail = tails
                     .binary_search_by_key(&common, |&(known, _)| known)

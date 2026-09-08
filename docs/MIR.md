@@ -556,3 +556,5 @@ activation events on the replaced jump prevent the copy.
 When both branch arms terminate normally, gas layout places the false arm first.
 The true arm then uses the existing condition directly, avoiding an inversion
 and exposing its return path to later sharing and placement.
+
+Tail merging reuses an existing whole-body terminal suffix when there are no nested shared tails or function-entry events. Other return labels remain distinct jump stubs, so sharing avoids an extra block without changing address identity or nested fallthrough paths.

@@ -99,7 +99,34 @@
     push 1
     push 2
     push 0
-+   stop
+    stop
+  bb20:
+    push bb21
+    push bb22
+    stop
+  bb21:
+    push 0x4d2
+    push 0x162e
+    return
+  bb22:
+-   push 0x4d2
+-   push 0x162e
+-   return
++   jump bb21
+  bb30:
+-   push 0x7530
+-   push 0x2710
+-   push 0x4e20
+-   return
++   jump bb18
+  bb31:
+-   push 0x7530
+-   push 0x2710
+-   push 0x4e20
+-   return
++   jump bb18
+  bb32:
++   jump bb17
 + bb4:
 +   push 33
 +   push 44
@@ -118,5 +145,12 @@
 +   exchange 1, 2
 +   pop
 +   pop
-    stop
++   stop
++ bb17:
+    push 0x2710
+    push 0x4e20
+    return
++ bb18:
++   push 0x7530
++   jump bb17
   

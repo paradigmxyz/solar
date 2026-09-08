@@ -75,8 +75,8 @@ bb12:
   lt
   push bb14
   jumpi
-  jump bb52
-bb52:
+  jump bb51
+bb51:
   push 0
   mstore
   push 32
@@ -156,7 +156,7 @@ bb25:
   push bb27
   jumpi
   dup 2
-  jump bb52
+  jump bb51
 bb27:
   dup 1
   push 1
@@ -202,7 +202,7 @@ bb35:
   lt
   push bb39
   jumpi
-  jump bb52
+  jump bb51
 bb39:
   push 192
   mstore

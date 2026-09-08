@@ -22,5 +22,21 @@ bb1 [invoke=second@31..60]:
   push 55 !metadata(span=51..55)
   revert !metadata(span=56..60)
 
+
+// A whole-body match still needs separate entries when the body starts a function.
+// CHECK-LABEL: {{^[ +].*}}bb2 [invoke=third@61..90]:
+// CHECK: + jump [[WHOLE:bb[0-9]+]] !metadata(span=61..65, invoke=inner_third@61..90)
+bb2 [invoke=third@61..90]:
+  push 1234 !metadata(span=61..65, invoke=inner_third@61..90)
+  push 5678 !metadata(span=66..70)
+  return !metadata(span=71..75)
+
+// CHECK-LABEL: {{^[ +].*}}bb3:
+// CHECK: + jump [[WHOLE]] !metadata(span=91..95)
+bb3:
+  push 1234 !metadata(span=91..95)
+  push 5678 !metadata(span=96..100)
+  return !metadata(span=101..105)
+
 // CHECK: {{^[ +].*}}[[TAIL]]:
 // CHECK: push 22 !metadata(spans=[6..10, 36..40])
