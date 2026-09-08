@@ -469,13 +469,19 @@ impl<'a> Builder<'a> {
         for class in self.classes.values() {
             // Rules only produce canonical forms, so the latest node wins ties.
             let target = self.target;
-            let best = class
-                .nodes
-                .iter()
-                .rev()
-                .copied()
-                .min_by_key(|node| CostKey(target, costs.node(class, node)))
-                .expect("a class holds its own node");
+            let best = if class.nodes.len() == 1 {
+                // No selection is needed. Dependencies still get priced lazily
+                // if another class with alternatives needs this class's cost.
+                class.nodes[0]
+            } else {
+                class
+                    .nodes
+                    .iter()
+                    .rev()
+                    .copied()
+                    .min_by_key(|node| CostKey(target, costs.node(class, node)))
+                    .expect("a class holds its own node")
+            };
             cheapest.push((class.home, best));
         }
         // %r = <cheapest node over canonical operands>
@@ -912,8 +918,8 @@ impl Costs<'_> {
         // A rewrite that reaches for values the instruction did not need keeps
         // them alive up to here, unless every operand it stops needing dies here.
         // Immediates are pushed fresh and cost nothing to keep.
-        let original = operands_of(&class.nodes[0]);
         if node != &class.nodes[0] {
+            let original = operands_of(&class.nodes[0]);
             let displaced_survive =
                 original.iter().any(|value| !operands.contains(value) && self.uses(*value) > 1);
             if displaced_survive {
