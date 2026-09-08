@@ -116,6 +116,11 @@ read storage; call and delegatecall may also write it.
 Jump threading collapses a phi-only branch when a single unconditional predecessor
 remains and the phi has no outside uses, exposing nested short-circuit checks
 without another pipeline iteration.
+After representation lowering, `branch-simplify` folds repeated SSA conditions
+established by a sole incoming edge. It retains intervening instructions and
+updates phi inputs through the CFG edit API. This avoids keeping loop bounds
+checks and their spill homes after an earlier branch has proved the bound.
+Block merging and terminal sharing remain with the backend at this stage.
 The final scalar/check cleanup group runs after these conversions; the semantic
 operation still counts as control flow when inlining estimates its expansion.
 Array push/pop and Solidity-level call preparation remain to migrate.

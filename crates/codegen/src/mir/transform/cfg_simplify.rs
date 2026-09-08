@@ -10,6 +10,12 @@
 //! Remove blocks that contain no instructions and only an unconditional jump,
 //! redirecting predecessors to the target.
 //!
+//! A branch also folds when its sole incoming edge establishes the same SSA condition.
+//! The block keeps its instructions; only its terminator changes. Entry blocks and
+//! predecessors whose two arms reach the block provide no such fact. `branch-simplify`
+//! runs just this terminator cleanup after lowering, followed by unreachable-block removal.
+//! It leaves block merging and terminal sharing to the backend to preserve stack lifetimes.
+//!
 //! ## Dead Function Elimination
 //! Remove functions that are never called, starting from entry points
 //! (public/external functions, constructor, fallback, receive).
@@ -48,6 +54,32 @@ impl MirPass for CfgSimplify {
     ) -> solar_interface::Result<bool> {
         Ok(run_function_pass(module, analyses, |func, _| {
             CfgSimplifier::new().run_to_fixpoint(func).total() != 0
+        }))
+    }
+}
+
+/// Folds known branches after representation lowering exposes repeated conditions.
+pub(crate) struct BranchSimplify;
+
+impl MirPass for BranchSimplify {
+    fn name(&self) -> &'static str {
+        "branch-simplify"
+    }
+
+    fn run_pass(
+        &self,
+        _gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut crate::mir::pass::ModuleAnalyses,
+    ) -> solar_interface::Result<bool> {
+        Ok(run_function_pass(module, analyses, |func, _| {
+            let mut simplifier = CfgSimplifier::new();
+            simplifier.simplify_degenerate_terminators(func);
+            let changed = simplifier.stats.total() != 0;
+            if changed {
+                let _ = remove_unreachable_blocks(func);
+            }
+            changed
         }))
     }
 }
@@ -394,8 +426,14 @@ impl CfgSimplifier {
 
     fn simplify_degenerate_terminators(&mut self, func: &mut Function) {
         for block_id in func.blocks.indices() {
+            if !matches!(
+                func.blocks[block_id].terminator,
+                Some(Terminator::Branch { .. } | Terminator::Switch { .. })
+            ) {
+                continue;
+            }
             let mut terminator = func.blocks[block_id].terminator.clone();
-            let mut replacement = Self::immediate_branch_target(func, block_id);
+            let mut replacement = Self::known_branch_target(func, block_id);
             if replacement.is_none() {
                 replacement = match terminator.as_mut() {
                     Some(Terminator::Branch { then_block, else_block, .. })
@@ -428,14 +466,35 @@ impl CfgSimplifier {
         }
     }
 
-    fn immediate_branch_target(func: &Function, block: BlockId) -> Option<BlockId> {
+    fn known_branch_target(func: &Function, block: BlockId) -> Option<BlockId> {
         let Terminator::Branch { condition, then_block, else_block } =
             func.blocks[block].terminator.as_ref()?
         else {
             return None;
         };
-        let value = func.value_u256(*condition)?;
-        Some(if value.is_zero() { *else_block } else { *then_block })
+        let taken = if let Some(value) = func.value_u256(*condition) {
+            !value.is_zero()
+        } else {
+            if block == BlockId::ENTRY {
+                return None;
+            }
+            let [pred] = func.blocks[block].predecessors.as_slice() else {
+                return None;
+            };
+            let Terminator::Branch {
+                condition: incoming,
+                then_block: incoming_then,
+                else_block: incoming_else,
+            } = func.blocks[*pred].terminator.as_ref()?
+            else {
+                return None;
+            };
+            if incoming != condition || incoming_then == incoming_else {
+                return None;
+            }
+            *incoming_then == block
+        };
+        Some(if taken { *then_block } else { *else_block })
     }
 
     /// Runs CFG simplification iteratively until no more changes.

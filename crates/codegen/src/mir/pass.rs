@@ -58,6 +58,7 @@ pub static ALL_PASSES: &[&dyn MirPass] = &[
     &loop_opt::Licm,
     &check_elim::CheckElim,
     &jump_threading::JumpThreading,
+    &cfg_simplify::BranchSimplify,
     &cfg_simplify::CfgSimplify,
     &frame_promotion::FrameSlotPromotion,
     &function_compaction::DeadArgElim,
@@ -269,6 +270,7 @@ pub static LOWERING_PIPELINE: &[&dyn MirPass] = &[
 
 /// Optimizes lowered word SSA before physical stack scheduling.
 pub static LOWERED_PIPELINE: &[&dyn MirPass] = &[
+    &cfg_simplify::BranchSimplify,
     // Late lowering can leave pure address and length calculations unused.
     // Remove their complete dependency chains before selecting physical stack order.
     &dce::Dce,
