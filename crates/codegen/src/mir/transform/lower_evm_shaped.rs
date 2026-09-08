@@ -1,17 +1,13 @@
-//! EVM-shaped phase lowering: prepare control flow for the EVM backend.
+//! Finish representation conversion and prepare control flow for the EVM backend.
 //!
-//! Real lowered external bodies keep their encode fused: they terminate with
-//! `RETURN`/`REVERT` and never return to a caller. After the ABI and dispatch
-//! phases, wrappers still reach such bodies through `icall`, which
-//! models a returning edge that does not exist — the same dishonesty the
-//! dispatch phase removed from its own case blocks.
+//! After ABI and dispatch lowering, some internal calls still target bodies that
+//! terminate execution instead of returning. This pass replaces a resultless `icall`
+//! to a callee that cannot return, directly or through tail calls, with a
+//! [`Terminator::TailCall`] and drops the dead remainder of the block.
 //!
-//! This pass rewrites a resultless `icall` to a callee that cannot
-//! return, directly or through tail calls, into a
-//! [`Terminator::TailCall`], dropping the dead remainder of the block. The
-//! module comes out in the `lowered` phase: every call edge either returns
-//! or is an explicit tail call, which is the control-flow shape the backend
-//! consumes.
+//! The pass then verifies all lowered-representation requirements and advances the
+//! module from semantic to lowered MIR. A failed check leaves its phase semantic
+//! and prevents the backend from consuming it.
 //!
 //! Arguments ride along: the backend stores them at the callee's compile-time
 //! frame addresses and jumps, pushing no return address. That addressing only
@@ -31,7 +27,7 @@ use crate::mir::{
 };
 use solar_data_structures::bit_set::DenseBitSet;
 
-/// EVM-shaped phase lowering pass.
+/// Shapes call edges and checks the final MIR phase transition.
 pub(crate) struct LowerEvmShaped;
 
 impl MirPass for LowerEvmShaped {

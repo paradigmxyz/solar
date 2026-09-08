@@ -107,7 +107,7 @@ impl<'gcx> TypeLowerer<'gcx> {
         self.abi_type(ty.with_loc_if_ref(self.gcx, DataLocation::Memory))
     }
 
-    /// Builds the ABI return shape while retaining scalar MIR types for the ABI phase.
+    /// Builds the ABI return shape while retaining scalar MIR types for ABI lowering.
     pub(super) fn abi_return_param_type(&mut self, ty: Ty<'gcx>) -> Option<AbiParamType> {
         self.abi_param_type(Self::return_encoding_ty(self.gcx, ty))
     }

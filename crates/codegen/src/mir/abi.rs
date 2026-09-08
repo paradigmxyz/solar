@@ -30,7 +30,7 @@ pub(crate) type AbiLayoutRef = Arc<AbiLayout>;
 
 /// ABI input shape retained until the ABI lowering phase.
 ///
-/// Unlike [`AbiType`], scalar leaves keep their MIR type so the ABI phase can
+/// Unlike [`AbiType`], scalar leaves keep their MIR type so ABI lowering can
 /// validate narrow words before it stores them in an aggregate object.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(crate) struct AbiParamLayout {

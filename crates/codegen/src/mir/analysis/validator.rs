@@ -1365,7 +1365,7 @@ impl<'a> Validator<'a> {
     /// [`MirPhase`], so
     /// the phase is a real contract rather than a label.
     fn validate_module_phase(&mut self, module: &Module, phase: MirPhase) {
-        // From the `dispatch` phase on, routing is materialized: a module with
+        // Lowered MIR has explicit routing: a module with
         // a runtime interface must contain exactly one synthesized `entry`.
         if phase < MirPhase::Lowered {
             return;

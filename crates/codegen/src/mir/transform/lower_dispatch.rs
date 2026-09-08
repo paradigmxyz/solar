@@ -1,19 +1,18 @@
-//! Dispatch phase lowering: materialize the selector switch as MIR.
+//! Dispatch lowering: materialize the selector switch as MIR.
 //!
-//! In `built`/`optimized` MIR, selector routing is still implicit. This pass
-//! makes it an ordinary MIR function named `entry` (the dispatch phase of the
-//! sketch in [`MirPhase`]).
+//! Semantic MIR initially leaves selector routing implicit. This conversion pass
+//! creates an ordinary MIR function named `entry` while the module stays semantic.
 //!
 //! The synthesized `entry` function loads the 4-byte selector through a
-//! semantic calldata slice and switches on it to one argument-free `icall`
+//! semantic calldata slice and switches on it to one argument-free `tail_call`
 //! per external wrapper, defaulting to a `revert`. It is meant
 //! to run after [`super::lower_abi::LowerAbi`], which turns external functions into the
 //! argument-free self-decoding wrappers this switch routes to; that is why it
 //! only routes selector-bearing functions that take no MIR arguments.
 //!
-//! It requires the `abi` phase: it routes to the argument-free wrappers that
-//! [`super::lower_abi::LowerAbi`] produces, so it bails on `built`/`optimized` modules
-//! rather than half-dispatching argument-taking functions.
+//! It checks that ABI entries are explicit before creating routes, and reports an error
+//! if no valid entry can be formed. The final conversion verifies the complete lowered
+//! representation before the backend can consume it.
 //!
 //! Library modules differ in two ways, both matching solc. Their entry never
 //! checks `callvalue`: a `DELEGATECALL` sees the caller's value, so a library
@@ -39,7 +38,7 @@ use alloy_primitives::U256;
 use solar_config::RevertStrings;
 use solar_interface::{Ident, sym};
 
-/// Dispatch phase lowering pass.
+/// Materializes selector routing through explicit ABI wrappers.
 pub(crate) struct LowerDispatch;
 
 impl MirPass for LowerDispatch {
@@ -89,7 +88,7 @@ fn lower_dispatch(
         return false;
     }
 
-    // Collect the routable external wrappers. After the ABI phase every
+    // Collect the routable external wrappers. After ABI lowering every
     // such wrapper is argument-free; assert that rather
     // than silently skipping, since a leftover argument-taking selector
     // function would mean the ABI invariant was violated.

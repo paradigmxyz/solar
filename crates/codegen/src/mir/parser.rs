@@ -735,7 +735,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 rest.parse().map_err(|_| self.parser.error(format!("invalid arg `{ident}`")))?;
             // ABI wrappers reference `argN` with an empty parameter list:
             // those denote calldata head words. Allocate them on demand so
-            // printed `abi`-phase modules round-trip. A function that does
+            // printed ABI wrappers round-trip. A function that does
             // declare parameters keeps strict bounds checking.
             if idx >= self.arg_values.len() && builder.func().params.is_empty() {
                 for _ in self.arg_values.len()..=idx {

@@ -1,9 +1,8 @@
-//! ABI phase lowering: materialize calldata decode / returndata encode as MIR.
+//! ABI lowering: materialize calldata decoding and returndata encoding as MIR.
 //!
-//! In `built`/`optimized` MIR an external function takes typed MIR arguments and
-//! returns typed values; the calldata decode and returndata encode happen
-//! implicitly in the backend. This pass makes that explicit, moving the ABI
-//! boundary into MIR itself (the ABI phase of the sketch in [`MirPhase`]).
+//! Semantic MIR initially gives external functions typed arguments and return values.
+//! This conversion pass makes their ABI handling explicit before dispatch lowering.
+//! The module stays semantic until the final conversion checks the lowered representation.
 //!
 //! For each external entry `f(x0: T0, .., xn: Tn)`, it:
 //!
@@ -21,10 +20,11 @@
 //! call sites that targeted a wrapped function are retargeted to its extracted
 //! raw-return body, so internal calls to public functions keep their convention.
 //!
-//! The phase transition is all-or-nothing: if any value-returning external
-//! function lacks a matching ABI return layout, the module is left untouched
-//! and does not advance, so an `abi`-phase module always means every external
-//! function is a complete wrapper.
+//! Unsupported return layouts fail the preflight checks. The pass reports an error if
+//! any external entry still has an implicit ABI or any `abi_decode` remains afterward.
+//! Argument-free functions that only return a short literal use direct fixed-buffer stores;
+//! both typed word stores and their data-pointer/store form qualify. Other instructions,
+//! allocation policies, and longer literals keep the general encoder.
 //!
 //! The `fallback(bytes calldata) returns (bytes memory)` form is a separate
 //! raw-data boundary: it gets an argument-free dispatch wrapper and an
@@ -50,7 +50,7 @@ use solar_data_structures::{
 };
 use solar_interface::{Ident, Span, Symbol, sym};
 
-/// ABI phase lowering pass.
+/// Materializes explicit ABI entries and decoding.
 pub(crate) struct LowerAbi;
 
 impl MirPass for LowerAbi {
