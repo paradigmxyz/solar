@@ -114,18 +114,19 @@ impl EvmInstSchedule {
             }
             ordered.clear();
             let mut segment_start = 0;
+            // [single-use producers]; boundary
+            //   -> schedule(producers, boundary inputs); boundary
             for (index, &inst_id) in original.iter().enumerate() {
                 let inst = func.inst(inst_id);
-                if Self::is_movable(inst) {
+                if Self::is_movable(inst) && !shared_results.contains(inst_id) {
                     continue;
                 }
 
                 let consumer = Self::stack_input_order(&inst.kind);
-                Self::schedule_segment(
+                Self::schedule_single_use_segment(
                     func,
                     &original[segment_start..index],
                     &consumer,
-                    &shared_results,
                     &mut scratch,
                     &mut ordered,
                 );
@@ -138,11 +139,10 @@ impl EvmInstSchedule {
                 .as_ref()
                 .map(Self::terminator_stack_input_order)
                 .unwrap_or_default();
-            Self::schedule_segment(
+            Self::schedule_single_use_segment(
                 func,
                 &original[segment_start..],
                 &terminator_inputs,
-                &shared_results,
                 &mut scratch,
                 &mut ordered,
             );
@@ -328,44 +328,6 @@ impl EvmInstSchedule {
         let mut operands = SmallVec::from_iter(term.operands());
         operands.reverse();
         operands
-    }
-
-    fn schedule_segment(
-        func: &Function,
-        segment: &[InstId],
-        consumer_inputs: &[ValueId],
-        shared_results: &DenseBitSet<InstId>,
-        scratch: &mut ScheduleScratch,
-        ordered: &mut Vec<InstId>,
-    ) {
-        if segment.len() < 2 {
-            ordered.extend_from_slice(segment);
-            return;
-        }
-
-        let mut island_start = 0;
-        for (index, &inst_id) in segment.iter().enumerate() {
-            if !shared_results.contains(inst_id) {
-                continue;
-            }
-            let inputs = Self::stack_input_order(&func.inst(inst_id).kind);
-            Self::schedule_single_use_segment(
-                func,
-                &segment[island_start..index],
-                &inputs,
-                scratch,
-                ordered,
-            );
-            ordered.push(inst_id);
-            island_start = index + 1;
-        }
-        Self::schedule_single_use_segment(
-            func,
-            &segment[island_start..],
-            consumer_inputs,
-            scratch,
-            ordered,
-        );
     }
 
     fn schedule_single_use_segment(
