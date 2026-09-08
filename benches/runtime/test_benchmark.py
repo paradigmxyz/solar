@@ -362,6 +362,42 @@ class RuntimeComparisonTests(unittest.TestCase):
         self.assertEqual(entry["runtime_status"], "ok")
         self.assertEqual(set(entry["compilers"]), {"solar", "solc", "solx"})
 
+    def test_reuses_compile_failure_without_runtime_observations(self) -> None:
+        entry = {
+            "test_id": "test",
+            "suite": "runtime",
+            "gas_profile": "hot",
+            "compilers": {
+                "solar": {
+                    "input_fingerprint": "input",
+                    "runtime_results": [{"label": "value", "value": "1"}],
+                },
+            },
+        }
+        failure = {
+            "status": "failed",
+            "error": "unsupported input",
+            "input_fingerprint": "input",
+        }
+        references = {
+            ("runtime", "test"): {
+                "gas_profile": "hot",
+                "compilers": {"solx": failure},
+            },
+        }
+        self.assertTrue(benchmark.merge_reference_compiler(entry, references, "solx"))
+        self.assertEqual(entry["compilers"]["solx"], failure)
+        self.assertIsNot(entry["compilers"]["solx"], failure)
+
+        entry["compilers"].pop("solx")
+        for fingerprint, profile in (("other", "hot"), ("input", "smoke")):
+            with self.subTest(fingerprint=fingerprint, profile=profile):
+                failure["input_fingerprint"] = fingerprint
+                entry["gas_profile"] = profile
+                self.assertFalse(
+                    benchmark.merge_reference_compiler(entry, references, "solx")
+                )
+
 
 class ArtifactTests(unittest.TestCase):
     def test_artifact_input_requests_portable_outputs(self) -> None:
@@ -509,6 +545,18 @@ class ArtifactTests(unittest.TestCase):
             entry["runtime_mismatches"],
             [{"label": "value", "values": {"solc": "1", "solar": "2"}}],
         )
+        specs = (*specs, benchmark.CompilerSpec("solx", "solx", Path("solx"), "solx"))
+        entry["compilers"]["solx"] = {"status": "failed"}
+        benchmark.compare_runtime_results(entry, specs)
+        self.assertEqual(entry["runtime_status"], "mismatch")
+        self.assertEqual(
+            entry["runtime_mismatches"],
+            [{"label": "value", "values": {"solc": "1", "solar": "2", "solx": None}}],
+        )
+        entry["compilers"]["solar"]["runtime_results"][0]["value"] = "1"
+        benchmark.compare_runtime_results(entry, specs)
+        self.assertEqual(entry["runtime_status"], "failed")
+        self.assertEqual(entry["runtime_mismatches"], [])
 
 
 class RpcTransportTests(unittest.TestCase):

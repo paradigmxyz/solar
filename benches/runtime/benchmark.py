@@ -1433,8 +1433,7 @@ def compare_runtime_results(
         }
         if any(value is None for value in values.values()):
             failed = True
-            continue
-        unique_values = set(values.values())
+        unique_values = {value for value in values.values() if value is not None}
         if len(unique_values) > 1:
             mismatches.append({"label": label, "values": values})
 
@@ -1510,7 +1509,8 @@ def merge_reference_compiler(
         return False
     if entry.get("gas_profile") != reference.get("gas_profile"):
         return False
-    if not any(
+    # Compilation failures have no runtime workload to match.
+    if reference_data.get("status") != "failed" and not any(
         workload_signature(data) == workload_signature(reference_data)
         for data in compilers.values()
         if isinstance(data, dict)
@@ -1958,10 +1958,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     skipped = []
     if (
-        args.solc
-        and (not args.solar_only or use_reference_solc)
-        and not args.include_incompatible
-    ):
+        (args.solc and not args.solar_only) or use_reference_solc
+    ) and not args.include_incompatible:
         compatible_tests = []
         for test in tests:
             if test.project_file is not None and not version_in_range(
