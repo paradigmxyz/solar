@@ -1922,3 +1922,22 @@ or solc claim. Evidence is under `operand-materialization-workflow-20260907/`
 and `repeated-argument-carry-tests-20260907/`. The original cold-fallthrough and
 calldata-alias failures, memory-contract defects and broader sealed performance
 debt remain open.
+
+
+### Shared conditional helper rejected before installation
+
+A smaller after-layout conditional-sharing model saves six Size bytes on the
+cold-call fixture, but increases current path gas while staying within the sealed
+labels. Its 135-line implementation proposal passed static safety review. A
+1,257-contract Size bytecode census found the complete shape only in that fixture;
+fourteen objects could not be fully decoded. This does not exclude shapes removed
+by later passes, but the observed scope does not justify the helper. The proposal
+and seventeen fixture drafts remain uncompiled; no production code or expectation
+was installed. Evidence is in `conditional-tail-sharing-proposal-20260908/`.
+
+The fresh baseline remains reusable: its compiler is byte-identical to the
+accepted operand-materialization binary. All 1,642 existing UI IDs preserve their
+objects and statuses, with two IDs added by the new regression test. Full/Size
+workflow outputs, gas labels and metadata match the accepted baseline; four MIR
+files differ only by proved helper-name bijections. Results are retained under
+`conditional-tail-sharing-workflow-20260908/`.
