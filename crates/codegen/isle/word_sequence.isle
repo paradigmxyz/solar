@@ -93,3 +93,21 @@
 
 ;; x < 2 ** 248 => (x >> 248) == 0
 (rule (sequence_rewrite (Op.Lt v0 (iconst c0))) (if-let true (u256_same c0 (u256_from_limbs 0 0 0 72057594037927936))) (if-let r0 (imm (u256 248))) (if-let r1 (make (Op.Shr r0 v0))) (sequence (Op.IsZero r1)))
+
+;; Seeded search: scripts/evm_rules/seeds.json.
+;; (~(x & y) & x) => (~y & x)
+(rule (sequence_rewrite (Op.And (bnot (band v0 v1)) v0)) (if-let r0 (make (Op.Not v1))) (sequence (Op.And r0 v0)))
+;; (~(y & x) & x) => (~y & x)
+(rule (sequence_rewrite (Op.And (bnot (band v0 v1)) v1)) (if-let r0 (make (Op.Not v0))) (sequence (Op.And r0 v1)))
+;; (x & ~(x & y)) => (~y & x)
+(rule (sequence_rewrite (Op.And v0 (bnot (band v0 v1)))) (if-let r0 (make (Op.Not v1))) (sequence (Op.And r0 v0)))
+;; (x & ~(y & x)) => (~y & x)
+(rule (sequence_rewrite (Op.And v0 (bnot (band v1 v0)))) (if-let r0 (make (Op.Not v1))) (sequence (Op.And r0 v0)))
+;; (~(x | y) | x) => (~y | x)
+(rule (sequence_rewrite (Op.Or (bnot (bor v0 v1)) v0)) (if-let r0 (make (Op.Not v1))) (sequence (Op.Or r0 v0)))
+;; (~(y | x) | x) => (~y | x)
+(rule (sequence_rewrite (Op.Or (bnot (bor v0 v1)) v1)) (if-let r0 (make (Op.Not v0))) (sequence (Op.Or r0 v1)))
+;; (x | ~(x | y)) => (~y | x)
+(rule (sequence_rewrite (Op.Or v0 (bnot (bor v0 v1)))) (if-let r0 (make (Op.Not v1))) (sequence (Op.Or r0 v0)))
+;; (x | ~(y | x)) => (~y | x)
+(rule (sequence_rewrite (Op.Or v0 (bnot (bor v1 v0)))) (if-let r0 (make (Op.Not v1))) (sequence (Op.Or r0 v0)))
