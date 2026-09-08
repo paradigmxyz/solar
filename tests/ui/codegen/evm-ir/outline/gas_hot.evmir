@@ -37,9 +37,6 @@ bb0:
 // CHECK-LABEL: bb1:
 // CHECK: push [[RET1:bb[0-9]+]]
 // CHECK-NEXT: jump [[OUTLINE]]
-// CHECK: [[OUTLINE]]:
-// CHECK-COUNT-12: push 1
-// CHECK: jump
 bb1:
   push 1
   pop
@@ -66,3 +63,37 @@ bb1:
   push 1
   pop
   stop
+
+// CHECK-LABEL: bb2 [loop]:
+// CHECK-COUNT-12: push 1
+// CHECK: stop
+bb2 [loop]:
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  stop
+
+// CHECK: [[OUTLINE]]:
+// CHECK-COUNT-12: push 1
+// CHECK: jump

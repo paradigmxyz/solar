@@ -442,6 +442,8 @@ fn coalesce_blocks(
                 break;
             }
 
+            // predecessor: prefix; jump target
+            // target [loop]: suffix => predecessor [loop]: prefix; suffix
             let mut instructions = std::mem::take(&mut module.blocks[target].instructions);
             let mut terminator = module.blocks[target].terminator.take();
             if let Some(function) = module.blocks[target].metadata.function_invoke {
@@ -451,6 +453,7 @@ fn coalesce_blocks(
                     terminator.metadata.set_function_invoke(function);
                 }
             }
+            module.blocks[predecessor].metadata.in_loop |= module.blocks[target].metadata.in_loop;
             module.blocks[predecessor].instructions.append(&mut instructions);
             module.blocks[predecessor].terminator = terminator;
             retained.remove(target);

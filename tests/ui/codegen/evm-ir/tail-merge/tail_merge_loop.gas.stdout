@@ -36,14 +36,50 @@
 -   push 44
 -   push 55
 -   revert
-+   jump bb6
++   jump bb9
   bb5:
     push 88
-+   jump bb6
-+ bb6:
+-   push 22
+-   push 33
+-   push 44
+-   push 55
+-   revert
++   jump bb9
+  bb6:
+    push 87
+-   pop
++   jump bb10
++ bb7 [loop]:
++   push 88
++   jump bb10
++ bb8 [loop]:
++   push 1
++   push bb7
++   jumpi
++   stop
++ bb9:
     push 22
     push 33
+-   mstore
     push 44
     push 55
-    revert
+-   mstore
+-   jump bb8
+- bb7 [loop]:
+-   push 88
++   revert
++ bb10 [loop]:
+    pop
+    push 22
+    push 33
+    mstore
+    push 44
+    push 55
+    mstore
+    jump bb8
+- bb8 [loop]:
+-   push 1
+-   push bb7
+-   jumpi
+-   stop
   

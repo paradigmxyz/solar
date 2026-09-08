@@ -98,13 +98,17 @@ impl RunState {
             if !is_candidate(block) {
                 continue;
             }
-            // A shared tail is reached by a jump every time it runs. In gas mode a loop block
-            // keeps its own copy: the bytes saved never pay back a jump per iteration.
-            if gcx.sess.opts.optimization.is_gas() && block.metadata.in_loop {
+            // Do not use loop bodies to seed sharing groups. They may reuse a tail
+            // from a non-loop path to preserve common loop entries.
+            let matched = self.longest_common_tail(block);
+            let in_gas_loop = gcx.sess.opts.optimization.is_gas() && block.metadata.in_loop;
+            if in_gas_loop
+                && !matched.is_some_and(|(representative, _)| {
+                    !module.blocks[representative].metadata.in_loop
+                })
+            {
                 continue;
             }
-
-            let matched = self.longest_common_tail(block);
 
             // A hot shared tail adds a runtime jump, so require one extra byte in gas mode.
             if let Some((representative, common)) = matched
@@ -117,7 +121,7 @@ impl RunState {
                 }
             {
                 self.merges.push(Merge { representative, block: block_id, common });
-            } else {
+            } else if !in_gas_loop {
                 self.insert_tail(block_id, block);
             }
         }

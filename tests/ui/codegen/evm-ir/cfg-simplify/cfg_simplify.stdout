@@ -8,6 +8,8 @@
 - bb1:
 -   jump bb2
   bb2:
+    push bb31
+    pop
     push 1
     push bb3
     pop
@@ -135,4 +137,11 @@
     jump bb30
   bb30:
     jump bb22 !metadata(invoke=callee@30..40)
+- bb31:
++ bb31 [loop]:
+    push 7
+-   jump bb32
+- bb32 [loop]:
+    push 8
+    stop
   

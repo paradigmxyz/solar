@@ -23,6 +23,8 @@ bb1:
 // CHECK-NEXT: + pop
 // CHECK-NEXT: + stop
 bb2:
+  push bb31
+  pop
   push 1
   push bb3
   pop
@@ -189,3 +191,15 @@ bb29:
 // CHECK-NEXT: {{^[ +].*}}jump bb22 !metadata(invoke=callee@30..40)
 bb30:
   jump bb22 !metadata(invoke=callee@30..40)
+
+
+// CHECK-LABEL: {{^[ +].*}}bb31 [loop]:
+// CHECK: {{^[ +].*}}push 7
+// CHECK: {{^[ +].*}}push 8
+// CHECK: {{^[ +].*}}stop
+bb31:
+  push 7
+  jump bb32
+bb32 [loop]:
+  push 8
+  stop

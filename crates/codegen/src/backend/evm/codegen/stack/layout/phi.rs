@@ -1,14 +1,15 @@
 //! Stack-resident phi planning for loops, branches, and live joins.
 
 use super::super::super::{
-    BlockId, DenseBitSet, Function, FunctionId, FxHashMap, FxHashSet, GlobalStackPlan, IndexVec,
-    InstId, InstKind, Liveness, Loop, LoopAnalyzer, MAX_STACK_ACCESS, OptimizationMode,
-    STACK_PHI_LAYOUT_LIMIT, SmallVec, Terminator, ValueId, index_vec,
+    BlockId, DenseBitSet, Function, FunctionId, FxHashMap, FxHashSet, GlobalStackPlan,
+    GrowableBitSet, IndexVec, InstId, InstKind, Liveness, Loop, LoopAnalyzer, MAX_STACK_ACCESS,
+    OptimizationMode, STACK_PHI_LAYOUT_LIMIT, SmallVec, Terminator, ValueId, index_vec,
     rematerializable_nullary_opcode,
 };
 
 #[derive(Clone, Default)]
 pub(in crate::backend::evm::codegen) struct StackPhiPlan {
+    pub(in crate::backend::evm::codegen) loop_blocks: GrowableBitSet<BlockId>,
     pub(in crate::backend::evm::codegen) entries: FxHashMap<BlockId, Vec<ValueId>>,
     pub(in crate::backend::evm::codegen) edges: FxHashMap<BlockId, StackPhiEdge>,
     pub(in crate::backend::evm::codegen) branch_edges: FxHashMap<BlockId, StackPhiBranch>,
@@ -294,6 +295,9 @@ impl<'a> StackPhiPlanner<'a> {
         let mut plan = StackPhiPlan::default();
         self.plan_live_joins(liveness, &mut plan);
         for loop_info in &self.loops {
+            for block in loop_info.blocks.iter() {
+                plan.loop_blocks.insert(block);
+            }
             self.plan_loop(loop_info, liveness, &mut plan);
         }
         self.plan_branch_phi_joins(&mut plan);

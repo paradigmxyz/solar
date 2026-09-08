@@ -125,7 +125,7 @@ bb15:
   mstore
   push 0
   jump bb19
-bb19:
+bb19 [loop]:
   push 128
   mload
   dup 2
@@ -133,7 +133,7 @@ bb19:
   push bb22
   jumpi
   stop
-bb22:
+bb22 [loop]:
   push 1
   push 160
   mload
@@ -214,19 +214,17 @@ bb22:
   swap 2
   push 0
   byte
-  jump bb82
-bb82:
   swap 1
   shl
   or
   swap 1
   sstore
   jump bb21
-bb21:
+bb21 [loop]:
   push 1
   add
   jump bb19
-bb26:
+bb26 [loop]:
   swap 1
   push 2
   add
@@ -262,8 +260,13 @@ bb26:
   shr
   push 255
   and
-  jump bb82
-bb27:
+  swap 1
+  shl
+  or
+  swap 1
+  sstore
+  jump bb21
+bb27 [loop]:
   dup 4
   push 0
   mstore
@@ -487,8 +490,8 @@ bb42:
   eq
   push bb79
   jumpi
-  jump bb83
-bb83:
+  jump bb82
+bb82:
   push 0
   mstore
   push 32
@@ -564,7 +567,7 @@ bb50:
   and
   push 248
   shl
-  jump bb83
+  jump bb82
 bb49:
   push 0
   mstore
@@ -886,7 +889,7 @@ bb71:
   swap 1
   swap 2
   jump bb73
-bb73:
+bb73 [loop]:
   dup 4
   dup 2
   lt
@@ -897,7 +900,7 @@ bb73:
   swap 1
   pop
   jump bb72
-bb74:
+bb74 [loop]:
   dup 1
   dup 3
   add

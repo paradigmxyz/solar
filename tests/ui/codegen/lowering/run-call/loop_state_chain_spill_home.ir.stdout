@@ -24,8 +24,8 @@ bb0:
   push bb5
   jumpi
   push 1
-  jump bb50
-bb50:
+  jump bb49
+bb49 [loop]:
   push 0
   mstore
   push 32
@@ -44,17 +44,15 @@ bb7:
   push 0
   push 0
   jump bb9
-bb9:
+bb9 [loop]:
   push 4
   calldataload
   dup 3
   lt
   push bb11
-  jump bb49
-bb49:
   jumpi
-  jump bb50
-bb11:
+  jump bb49
+bb11 [loop]:
   dup 1
   push 160
   mstore
@@ -78,18 +76,18 @@ bb11:
   push 192
   mstore
   jump bb16
-bb16:
+bb16 [loop]:
   push 192
   mload
   jump bb14
-bb14:
+bb14 [loop]:
   push 1
   push 224
   mload
   add
   swap 1
   jump bb9
-bb13:
+bb13 [loop]:
   push 1
   push 160
   mload
@@ -113,11 +111,11 @@ bb13:
   push 256
   mstore
   jump bb23
-bb23:
+bb23 [loop]:
   push 256
   mload
   jump bb14
-bb17:
+bb17 [loop]:
   dup 1
   push 224
   mstore
@@ -136,7 +134,7 @@ bb17:
   push 192
   mstore
   jump bb21
-bb21:
+bb21 [loop]:
   push 192
   mload
   jump bb14
@@ -149,14 +147,15 @@ bb25:
   push 0
   push 0
   jump bb27
-bb27:
+bb27 [loop]:
   push 4
   calldataload
   dup 3
   lt
   push bb29
+  jumpi
   jump bb49
-bb29:
+bb29 [loop]:
   dup 1
   push 192
   mstore
@@ -180,18 +179,18 @@ bb29:
   push 160
   mstore
   jump bb34
-bb34:
+bb34 [loop]:
   push 160
   mload
   jump bb32
-bb32:
+bb32 [loop]:
   push 1
   push 224
   mload
   add
   swap 1
   jump bb27
-bb31:
+bb31 [loop]:
   push 1
   push 192
   mload
@@ -219,7 +218,7 @@ bb31:
   swap 1
   pop
   jump bb32
-bb35:
+bb35 [loop]:
   dup 1
   push 224
   mstore
@@ -238,11 +237,11 @@ bb35:
   push 160
   mstore
   jump bb39
-bb39:
+bb39 [loop]:
   push 160
   mload
   jump bb32
-bb40:
+bb40 [loop]:
   dup 1
   push 224
   mstore
@@ -261,11 +260,11 @@ bb40:
   push 160
   mstore
   jump bb44
-bb44:
+bb44 [loop]:
   push 160
   mload
   jump bb32
-bb45:
+bb45 [loop]:
   push 13
   dup 3
   eq
@@ -282,7 +281,7 @@ bb45:
   push 160
   mstore
   jump bb48
-bb48:
+bb48 [loop]:
   push 160
   mload
   jump bb32

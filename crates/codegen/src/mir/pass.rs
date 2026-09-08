@@ -215,7 +215,6 @@ pub static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // Size mode shares arithmetic payloads too, before selecting stack layouts.
     &SizeOnly::new(outline_reverts::OutlineReverts),
     // Expansion exposes scalar checks and object copies to this bounded cleanup group.
-    &GasOnly::new(load_pre::LoadPre::Storage),
     &sccp::Sccp,
     &inst_simplify::InstSimplify,
     &gvn::Gvn,
@@ -245,6 +244,10 @@ pub static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // Late CSE reduces runtime gas after aggregate lowering, but can grow
     // bytecode through longer live ranges, so keep it out of `-Osize`.
     &GasOnly::new(cse::Cse),
+    // Common dominated loads before PRE replaces join loads with phis, then
+    // fold checks exposed by forwarding the stored values.
+    &GasOnly::new(load_pre::LoadPre::Storage),
+    &GasOnly::new(check_elim::CheckElim),
     &dce::Dce,
     &lower_dispatch::LowerDispatch,
     &lower_structs::LowerStructs,

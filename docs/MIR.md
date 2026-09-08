@@ -48,12 +48,12 @@ HIR -> semantic MIR
 These are responsibilities and dependency constraints, not a benchmarked new
 pass ordering. The conversion may contain several named passes and local
 cleanup steps without introducing another stable phase. The gas pipeline runs
-storage PRE after builtin expansion, so joins can reuse values stored by expanded
-aggregate operations. This cleanup leaves memory reads alone to avoid extending
-pointer lifetimes. ABI expansion can create object operations and aggregate
-results; flatten structs before erasing object types, and keep allocation
-identity until placement has
-finished. Any newly introduced helper must pass through the remaining required
+CSE, storage PRE, and range-check elimination after aggregate expansion.
+First eliminate repeated dominated loads, then replace join loads with phis and
+fold checks that forwarding exposes. Storage PRE leaves memory reads alone to
+avoid extending pointer lifetimes. ABI expansion can create object operations
+and aggregate results; flatten structs before erasing object types, and keep
+allocation identity until placement has finished. Any newly introduced helper must pass through the remaining required
 lowerings too. Expansion must not leave a high-level operation behind merely
 because it was created after that operation's lowering pass ran.
 
@@ -563,3 +563,8 @@ and exposing its return path to later sharing and placement.
 Tail merging reuses an existing whole-body terminal suffix when there are no nested shared tails or function-entry events. Other return labels remain distinct jump stubs, so sharing avoids an extra block without changing address identity or nested fallthrough paths.
 
 The lowered pipeline folds constant results before branch cleanup and stack scheduling. It keeps other value identities and instruction choices intact to avoid lengthening live ranges after representation lowering.
+
+The scheduler carries known loop membership into EVM IR, and block merging
+preserves it. Gas-mode outlining keeps loop computations and large pushes
+inline. Tail merging can reuse an existing non-loop tail from a loop, but loop
+blocks do not seed new sharing groups.

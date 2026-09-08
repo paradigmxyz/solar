@@ -59,7 +59,7 @@ bb7:
   push 0
   sload
   jump bb50
-bb50:
+bb50 [loop]:
   push 0
   mstore
   push 32
@@ -155,7 +155,7 @@ bb8:
   push 0
   exchange 2, 3
   jump bb15
-bb15:
+bb15 [loop]:
   dup 4
   mload
   dup 2
@@ -170,7 +170,7 @@ bb15:
   pop
   pop
   jump bb50
-bb17:
+bb17 [loop]:
   push 32
   dup 2
   mul

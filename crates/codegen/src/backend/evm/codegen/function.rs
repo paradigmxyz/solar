@@ -332,6 +332,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             if self.block_is_cold(block_id) {
                 self.asm.mark_label_cold(label);
             }
+            if stack_phi_plan.loop_blocks.contains(block_id) {
+                self.asm.mark_label_loop(label);
+            }
             self.block_labels.insert(block_id, label);
         }
 

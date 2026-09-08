@@ -204,7 +204,7 @@ impl Block {
 pub(crate) struct BlockMetadata {
     /// Estimated block hotness for layout decisions.
     pub(crate) hotness: Hotness,
-    /// Whether the block belongs to a natural loop.
+    /// Whether the block contains code from a known natural loop.
     pub(crate) in_loop: bool,
     /// Source function entered by this block's leading `JUMPDEST`.
     pub(crate) function_invoke: Option<DebugFunction>,

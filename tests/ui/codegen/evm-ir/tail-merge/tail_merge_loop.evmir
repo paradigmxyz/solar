@@ -5,8 +5,7 @@
 //@[size] filecheck: --check-prefix=SIZE
 @module module
 
-// A shared tail is entered by a jump every time it runs. Loop blocks keep their own copy in
-// gas mode, where the bytes saved never pay back a jump per iteration; size mode merges them.
+// Loop blocks do not seed sharing groups in gas mode; size mode merges them.
 bb0:
   push 0
   jump bb1
@@ -92,3 +91,37 @@ bb5:
 // SIZE-NEXT: {{^[ +].*}}pop
 // SIZE-NEXT: {{^[ +].*}}push 22
 // SIZE: {{^[ +].*}}jump bb1
+
+
+// An existing non-loop path can supply a shared entry to a loop.
+// GAS-LABEL: {{^[ +].*}}bb6:
+// GAS: + jump [[ENTRY:bb[0-9]+]]
+bb6:
+  push 87
+  pop
+  push 22
+  push 33
+  mstore
+  push 44
+  push 55
+  mstore
+  jump bb8
+
+// GAS-LABEL: {{^[ +].*}}bb7 [loop]:
+// GAS: + jump [[ENTRY]]
+bb7 [loop]:
+  push 88
+  pop
+  push 22
+  push 33
+  mstore
+  push 44
+  push 55
+  mstore
+  jump bb8
+
+bb8 [loop]:
+  push 1
+  push bb7
+  jumpi
+  stop

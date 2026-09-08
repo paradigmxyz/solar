@@ -284,7 +284,7 @@ bb1:
   swap 3
   swap 2
   jump bb19
-bb19:
+bb19 [loop]:
   dup 5
   mload
   dup 1
@@ -343,7 +343,7 @@ bb19:
   push 32
   push 0
   return
-bb23:
+bb23 [loop]:
   push 32
   add
   push 32

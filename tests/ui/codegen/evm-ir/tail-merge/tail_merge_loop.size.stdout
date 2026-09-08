@@ -19,17 +19,28 @@
 -   push 55
 -   mstore
 -   jump bb1
-+   jump bb6
++   jump bb9
   bb3 [loop]:
     push 99
-+   jump bb6
++   jump bb9
 + bb4:
 +   push 77
-+   jump bb7
++   jump bb10
 + bb5:
 +   push 88
-+   jump bb7
-+ bb6 [loop]:
++   jump bb10
++ bb6:
++   push 87
++   jump bb11
++ bb7 [loop]:
++   push 88
++   jump bb11
++ bb8 [loop]:
++   push 1
++   push bb7
++   jumpi
++   stop
++ bb9 [loop]:
     pop
     push 22
     push 33
@@ -40,17 +51,43 @@
     jump bb1
 - bb4:
 -   push 77
--   push 22
--   push 33
--   push 44
--   push 55
--   revert
-- bb5:
--   push 88
-+ bb7:
++ bb10:
     push 22
     push 33
     push 44
     push 55
     revert
+- bb5:
+-   push 88
+-   push 22
+-   push 33
+-   push 44
+-   push 55
+-   revert
+- bb6:
+-   push 87
++ bb11 [loop]:
+    pop
+    push 22
+    push 33
+    mstore
+    push 44
+    push 55
+    mstore
+    jump bb8
+- bb7 [loop]:
+-   push 88
+-   pop
+-   push 22
+-   push 33
+-   mstore
+-   push 44
+-   push 55
+-   mstore
+-   jump bb8
+- bb8 [loop]:
+-   push 1
+-   push bb7
+-   jumpi
+-   stop
   
