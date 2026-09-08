@@ -1,0 +1,419 @@
+// === ROOT/tests/ui/codegen/lowering/entry_order_winner.sol:InternalModularEntryWinner (runtime) ===
+@module InternalModularEntryWinner_runtime
+bb0:
+  callvalue
+  jumpi bb2, bb11
+bb11:
+  push 0
+  calldataload
+  push 224
+  shr
+  push 0x9f13e31
+  sub
+  jumpi bb2, bb4
+bb4:
+  push 320
+  push 64
+  mstore
+  calldatasize
+  push 196
+  gt
+  jumpi bb2, bb3
+bb3:
+  push 64
+  mload
+  push 96
+  dup 2
+  add
+  push 64
+  mstore
+  push 96
+  push 4
+  dup 3
+  calldatacopy
+  push 164
+  calldataload
+  push 100
+  calldataload
+  push 132
+  calldataload
+  push bb15
+  swap 4
+  swap 3
+  push 64
+  dup 5
+  add
+  mload
+  push 0xfffffffeffffffffffffffffffffffff000000000000000000000000
+  not
+  dup 2
+  dup 1
+  mulmod
+  push 0xfffffffeffffffffffffffffffffffff000000000000000000000000
+  not
+  dup 4
+  dup 1
+  mulmod
+  push 0xfffffffeffffffffffffffffffffffff000000000000000000000000
+  not
+  dup 5
+  dup 3
+  mulmod
+  push 32
+  dup 9
+  add
+  mload
+  push 0xfffffffeffffffffffffffffffffffff000000000000000000000000
+  not
+  swap 2
+  swap 1
+  mulmod
+  dup 1
+  push 0xfffffffeffffffffffffffffffffffff000000000000000000000000
+  not
+  sub
+  push 0xfffffffeffffffffffffffffffffffff000000000000000000000000
+  not
+  dup 1
+  dup 7
+  dup 7
+  mulmod
+  dup 9
+  mulmod
+  push 0xfffffffeffffffffffffffffffffffff000000000000000000000000
+  not
+  swap 2
+  swap 1
+  addmod
+  swap 1
+  swap 2
+  swap 3
+  swap 4
+  swap 5
+  swap 6
+  swap 7
+  swap 8
+  mload
+  push 0xfffffffeffffffffffffffffffffffff000000000000000000000000
+  not
+  dup 5
+  swap 1
+  swap 2
+  mulmod
+  dup 1
+  push 0xfffffffeffffffffffffffffffffffff000000000000000000000000
+  not
+  sub
+  push 0xfffffffeffffffffffffffffffffffff000000000000000000000000
+  not
+  swap 5
+  swap 6
+  swap 4
+  swap 5
+  swap 3
+  swap 4
+  swap 2
+  swap 3
+  swap 1
+  swap 2
+  dup 11
+  mulmod
+  push 0xfffffffeffffffffffffffffffffffff000000000000000000000000
+  not
+  swap 2
+  swap 1
+  addmod
+  dup 1
+  iszero
+  dup 4
+  iszero
+  and
+  dup 1
+  iszero
+  jumpi bb20, bb19
+bb19:
+  push 1
+  sub
+  jumpi bb16, bb18
+bb18:
+  pop
+  pop
+  pop
+  pop
+  swap 1
+  pop
+  swap 2
+  swap 3
+  swap 1
+  swap 2
+  push 0xfffffffeffffffffffffffffffffffff000000000000000000000000
+  not
+  dup 1
+  dup 6
+  dup 1
+  mulmod
+  swap 2
+  dup 1
+  mulmod
+  push 0xfffffffeffffffffffffffffffffffff000000000000000000000000
+  not
+  swap 1
+  push 0xfffffffeffffffffffffffffffffffff000000000000000000000003
+  not
+  mulmod
+  push 0xfffffffeffffffffffffffffffffffff000000000000000000000000
+  not
+  dup 1
+  dup 5
+  dup 1
+  mulmod
+  push 3
+  mulmod
+  push 0xfffffffeffffffffffffffffffffffff000000000000000000000000
+  not
+  swap 2
+  swap 1
+  addmod
+  push 0xfffffffeffffffffffffffffffffffff000000000000000000000000
+  not
+  dup 3
+  swap 4
+  swap 2
+  swap 3
+  swap 1
+  swap 2
+  mulmod
+  push 0xfffffffeffffffffffffffffffffffff000000000000000000000000
+  not
+  swap 1
+  push 4
+  mulmod
+  push 0xfffffffeffffffffffffffffffffffff000000000000000000000000
+  not
+  dup 2
+  push 2
+  mulmod
+  push 0xfffffffeffffffffffffffffffffffff000000000000000000000000
+  not
+  sub
+  push 0xfffffffeffffffffffffffffffffffff000000000000000000000000
+  not
+  dup 4
+  dup 1
+  mulmod
+  push 0xfffffffeffffffffffffffffffffffff000000000000000000000000
+  not
+  swap 2
+  swap 1
+  addmod
+  push 0xfffffffeffffffffffffffffffffffff000000000000000000000000
+  not
+  swap 3
+  swap 4
+  swap 2
+  swap 3
+  swap 1
+  swap 2
+  dup 1
+  mulmod
+  push 0xfffffffeffffffffffffffffffffffff000000000000000000000000
+  not
+  swap 1
+  push 8
+  mulmod
+  push 0xfffffffeffffffffffffffffffffffff000000000000000000000000
+  not
+  sub
+  dup 2
+  push 0xfffffffeffffffffffffffffffffffff000000000000000000000000
+  not
+  sub
+  push 0xfffffffeffffffffffffffffffffffff000000000000000000000000
+  not
+  swap 2
+  swap 3
+  swap 4
+  addmod
+  push 0xfffffffeffffffffffffffffffffffff000000000000000000000000
+  not
+  swap 2
+  swap 3
+  swap 4
+  mulmod
+  push 0xfffffffeffffffffffffffffffffffff000000000000000000000000
+  not
+  swap 2
+  swap 1
+  addmod
+  push 0xfffffffeffffffffffffffffffffffff000000000000000000000000
+  not
+  swap 2
+  swap 4
+  exchange 1, 3
+  mulmod
+  push 0xfffffffeffffffffffffffffffffffff000000000000000000000000
+  not
+  swap 1
+  push 2
+  mulmod
+  swap 2
+  jump bb6
+bb15:
+  push 32
+  mload
+  push 64
+  push 32
+  dup 3
+  add
+  mload
+  swap 2
+  add
+  mload
+  swap 1
+  swap 2
+  push 128
+  mstore
+  swap 1
+  push 160
+  mstore
+  push 192
+  mstore
+  push 96
+  push 128
+  return
+bb2 [cold]:
+  push 0
+  push 0
+  revert
+bb16:
+  push 0
+  push 0
+  push 0
+  swap 11
+  swap 1
+  swap 10
+  swap 2
+  swap 9
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  jump bb6
+bb6:
+  swap 1
+  push 256
+  mstore
+  swap 1
+  push 288
+  mstore
+  push 224
+  push 32
+  mstore
+  swap 1
+  jump
+bb20:
+  pop
+  swap 4
+  pop
+  swap 6
+  pop
+  swap 6
+  pop
+  swap 1
+  swap 5
+  swap 3
+  swap 4
+  exchange 2, 3
+  push 0xfffffffeffffffffffffffffffffffff000000000000000000000000
+  not
+  dup 1
+  dup 8
+  dup 1
+  mulmod
+  dup 1
+  swap 3
+  mulmod
+  push 0xfffffffeffffffffffffffffffffffff000000000000000000000000
+  not
+  swap 1
+  swap 2
+  dup 8
+  mulmod
+  push 0xfffffffeffffffffffffffffffffffff000000000000000000000000
+  not
+  dup 3
+  push 2
+  mulmod
+  push 0xfffffffeffffffffffffffffffffffff000000000000000000000000
+  not
+  sub
+  dup 2
+  push 0xfffffffeffffffffffffffffffffffff000000000000000000000000
+  not
+  sub
+  push 0xfffffffeffffffffffffffffffffffff000000000000000000000000
+  not
+  dup 7
+  dup 1
+  mulmod
+  push 0xfffffffeffffffffffffffffffffffff000000000000000000000000
+  not
+  swap 2
+  swap 1
+  addmod
+  push 0xfffffffeffffffffffffffffffffffff000000000000000000000000
+  not
+  swap 2
+  swap 1
+  addmod
+  push 0xfffffffeffffffffffffffffffffffff000000000000000000000000
+  not
+  swap 2
+  swap 1
+  swap 3
+  swap 4
+  mulmod
+  push 0xfffffffeffffffffffffffffffffffff000000000000000000000000
+  not
+  sub
+  dup 2
+  push 0xfffffffeffffffffffffffffffffffff000000000000000000000000
+  not
+  sub
+  push 0xfffffffeffffffffffffffffffffffff000000000000000000000000
+  not
+  swap 2
+  swap 3
+  swap 4
+  addmod
+  push 0xfffffffeffffffffffffffffffffffff000000000000000000000000
+  not
+  swap 2
+  swap 3
+  swap 4
+  mulmod
+  push 0xfffffffeffffffffffffffffffffffff000000000000000000000000
+  not
+  swap 2
+  swap 1
+  addmod
+  push 0xfffffffeffffffffffffffffffffffff000000000000000000000000
+  not
+  swap 2
+  swap 4
+  swap 1
+  swap 3
+  mulmod
+  push 0xfffffffeffffffffffffffffffffffff000000000000000000000000
+  not
+  swap 2
+  swap 3
+  swap 4
+  mulmod
+  swap 2
+  jump bb6

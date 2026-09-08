@@ -1,0 +1,85 @@
+// === ROOT/tests/ui/codegen/lowering/entry_order_winner.sol:InternalModularEntryWinner ===
+@module InternalModularEntryWinner
+fn @combine(arg0: memoryfixedarray, arg1: u256, arg2: u256, arg3: u256) -> (u256, u256, u256) [selector=0x09f13e31, pure, abi_params=[array<3, u256>, u256, u256, u256], abi_returns=[word, word, word]] {
+  bb0:
+    v0 = icall @mix, 3, arg0, arg1, arg2, arg3
+    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v2 = add v1, 32
+    v3 = mload v2
+    v4 = add v1, 64
+    v5 = mload v4
+    ret v0, v3, v5
+}
+
+fn @mix(arg0: memoryfixedarray, arg1: u256, arg2: u256, arg3: u256) -> (u256, u256, u256) [pure] {
+  bb0:
+    v0 = add arg0, 64
+    v1 = mload v0
+    v2 = mulmod v1, v1, 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff
+    v3 = mulmod arg3, arg3, 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff
+    v4 = mulmod v3, arg3, 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff
+    v5 = add arg0, 32
+    v6 = mload v5
+    v7 = mulmod v6, v4, 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff
+    v8 = sub 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff, v7
+    v9 = mulmod v2, v1, 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff
+    v10 = mulmod arg2, v9, 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff
+    v11 = addmod v10, v8, 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff
+    v12 = mload arg0
+    v13 = mulmod v12, v3, 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff
+    v14 = sub 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff, v13
+    v15 = mulmod arg1, v2, 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff
+    v16 = addmod v15, v14, 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff
+    v17 = iszero v16
+    v18 = iszero v11
+    v19 = and v18, v17
+    switch v19, default bb1, [0 => bb2, 1 => bb3]
+  bb3:
+    v37 = mulmod arg2, arg2, 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff
+    v38 = mulmod v3, v3, 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff
+    v39 = sub 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff, 3
+    v40 = mulmod v39, v38, 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff
+    v41 = mulmod arg1, arg1, 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff
+    v42 = mulmod 3, v41, 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff
+    v43 = addmod v42, v40, 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff
+    v44 = mulmod arg1, v37, 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff
+    v45 = mulmod 4, v44, 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff
+    v46 = mulmod 2, v45, 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff
+    v47 = sub 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff, v46
+    v48 = mulmod v43, v43, 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff
+    v49 = addmod v48, v47, 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff
+    v50 = mulmod v37, v37, 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff
+    v51 = mulmod 8, v50, 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff
+    v52 = sub 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff, v51
+    v53 = sub 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff, v49
+    v54 = addmod v45, v53, 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff
+    v55 = mulmod v43, v54, 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff
+    v56 = addmod v55, v52, 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff
+    v57 = mulmod arg2, arg3, 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff
+    v58 = mulmod 2, v57, 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff
+    jump bb1
+  bb2:
+    v20 = mulmod v16, v16, 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff
+    v21 = mulmod v13, v20, 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff
+    v22 = mulmod v16, v20, 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff
+    v23 = mulmod 2, v21, 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff
+    v24 = sub 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff, v23
+    v25 = sub 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff, v22
+    v26 = mulmod v11, v11, 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff
+    v27 = addmod v26, v25, 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff
+    v28 = addmod v27, v24, 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff
+    v29 = mulmod v7, v22, 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff
+    v30 = sub 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff, v29
+    v31 = sub 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff, v28
+    v32 = addmod v21, v31, 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff
+    v33 = mulmod v11, v32, 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff
+    v34 = addmod v33, v30, 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff
+    v35 = mulmod v1, arg3, 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff
+    v36 = mulmod v16, v35, 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff
+    jump bb1
+  bb1:
+    v59 = phi [bb0: 0], [bb2: v36], [bb3: v58]
+    v60 = phi [bb0: 0], [bb2: v34], [bb3: v56]
+    v61 = phi [bb0: 0], [bb2: v28], [bb3: v49]
+    ret v61, v60, v59
+}
