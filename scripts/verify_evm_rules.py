@@ -9,6 +9,7 @@ from collections import Counter
 import hashlib
 import json
 from pathlib import Path
+import sys
 
 import z3
 
@@ -48,6 +49,11 @@ def main():
         exit_code = 0 if report.get("accepted", True) else 1
     else:
         files = [verify_file(path, args.timeout_ms, args.artifacts) for path in args.files]
+        for file in files:
+            for rule in file["rules"]:
+                if rule["status"] != "proved":
+                    reason = f": {rule['reason']}" if "reason" in rule else ""
+                    print(f"{file['source']}:{rule['line']}: {rule['status']}{reason}", file=sys.stderr)
         counts = Counter(rule["status"] for file in files for rule in file["rules"])
         report = {"files": files, "counts": dict(counts)}
         exit_code = 0 if counts.get("proved", 0) and set(counts) == {"proved"} else 1

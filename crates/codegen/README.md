@@ -22,7 +22,7 @@ HIR (from solar-sema) -> Lowering -> MIR -> Code Generation -> EVM Bytecode
 named operands, mnemonic, result kind, phase legality, effects, and traits.
 Metadata sits directly above the operation inside `define_mir_ops!`:
 
-```rust
+```rust,ignore
 #[mir_op(
     mnemonic = "add",
     result = Word,

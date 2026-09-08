@@ -26,6 +26,10 @@ separate Python integer evaluator. Timeouts, unsupported terms and unsatisfiable
 preconditions are distinct failures, never proofs. Verification exits nonzero
 unless every selected rule is proved. Empty rule files fail too. CI runs the
 checker's regression tests and verifies every rule in all three gated files.
+Failures also print the source file, rule line, status and reason in the job log.
+Applicability and equality use separate solver queries so the satisfiability
+check does not disable Z3's one-shot bitvector preprocessing. Both queries retain
+all rule preconditions, and unsatisfiable preconditions still fail verification.
 CI uploads the report and SMT queries only when this job fails, retaining them
 for seven days to diagnose failures and replay the exact solver queries.
 

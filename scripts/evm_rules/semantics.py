@@ -191,7 +191,12 @@ def check(lhs, rhs, assumptions=(), timeout_ms=5000, model=None):
     if applicability != z3.sat:
         return {"status": "inapplicable" if applicability == z3.unsat else "unknown",
                 "reason": "preconditions are unsatisfiable or could not be established"}, ""
-    solver.add(left != right)
+    # The applicability check switches Z3 to incremental solving. Reset before
+    # the independent equality query so QF_BV can use its one-shot preprocessing.
+    # Keep every precondition in both queries; neither vacuity nor an unguarded
+    # counterexample establishes the rule's conditional equivalence.
+    solver.reset()
+    solver.add(*assumptions, left != right)
     query = solver.to_smt2()
     result = solver.check()
     if result == z3.unsat:
