@@ -1,4 +1,6 @@
-//@compile-flags: -Zmir-pipeline=load-pre
+//@ revisions: all storage
+//@[all] compile-flags: -Zmir-pipeline=load-pre
+//@[storage] compile-flags: -Zmir-pipeline=storage-pre
 //@filecheck:
 // Basic storage shapes: a join reload of a slot loaded in both arms becomes a
 // phi; an sstore in one arm forwards its stored value into the phi. A load
@@ -71,4 +73,18 @@ fn @transient_store_forward(arg0: bool, arg1: u256) -> u256 {
   bb3:
     v3 = tload 5
     ret v3
+}
+
+fn @memory_join(arg0: bool, arg1: u256) -> u256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    mstore 128, arg1
+    jump bb3
+  bb2:
+    mstore 128, arg1
+    jump bb3
+  bb3:
+    v1 = mload 128
+    ret v1
 }

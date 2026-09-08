@@ -47,9 +47,12 @@ HIR -> semantic MIR
 
 These are responsibilities and dependency constraints, not a benchmarked new
 pass ordering. The conversion may contain several named passes and local
-cleanup steps without introducing another stable phase. In particular, ABI
-expansion can create object operations and aggregate results; flatten structs
-before erasing object types, and keep allocation identity until placement has
+cleanup steps without introducing another stable phase. The gas pipeline runs
+storage PRE after builtin expansion, so joins can reuse values stored by expanded
+aggregate operations. This cleanup leaves memory reads alone to avoid extending
+pointer lifetimes. ABI expansion can create object operations and aggregate
+results; flatten structs before erasing object types, and keep allocation
+identity until placement has
 finished. Any newly introduced helper must pass through the remaining required
 lowerings too. Expansion must not leave a high-level operation behind merely
 because it was created after that operation's lowering pass ran.

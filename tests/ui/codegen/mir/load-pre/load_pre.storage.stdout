@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/load-pre/load_pre.mir (before load-pre) ===
-+ // === ROOT/tests/ui/codegen/mir/load-pre/load_pre.mir (after load-pre) ===
+- // === ROOT/tests/ui/codegen/mir/load-pre/load_pre.mir (before storage-pre) ===
++ // === ROOT/tests/ui/codegen/mir/load-pre/load_pre.mir (after storage-pre) ===
   @module LoadPre
   fn @full_diamond(arg0: bool) -> u256 {
     bb0:
@@ -63,5 +63,19 @@
 -     ret v1
 +     v2 = phi [bb1: arg1], [bb2: v0]
 +     ret v2
+  }
+  
+  fn @memory_join(arg0: bool, arg1: u256) -> u256 {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb2:
+      mstore 128, arg1
+      jump bb3
+    bb1:
+      mstore 128, arg1
+      jump bb3
+    bb3:
+      v0 = mload 128
+      ret v0
   }
   

@@ -52,7 +52,8 @@ pub static ALL_PASSES: &[&dyn MirPass] = &[
     &gvn::Gvn,
     &storage_load_cse::StorageLoadCse,
     &storage_dse::StorageDse,
-    &load_pre::LoadPre,
+    &load_pre::LoadPre::All,
+    &load_pre::LoadPre::Storage,
     &loop_canonicalize::LoopCanonicalize,
     &indvar_simplify::IndVarSimplify,
     &storage_promotion::StorageScalarPromotion,
@@ -176,7 +177,7 @@ pub static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     &pre::Pre,
     &storage_load_cse::StorageLoadCse,
     &storage_dse::StorageDse,
-    &load_pre::LoadPre,
+    &load_pre::LoadPre::All,
     &frame_promotion::FrameSlotPromotion,
     &loop_canonicalize::LoopCanonicalize,
     &indvar_simplify::IndVarSimplify,
@@ -214,6 +215,7 @@ pub static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // Size mode shares arithmetic payloads too, before selecting stack layouts.
     &SizeOnly::new(outline_reverts::OutlineReverts),
     // Expansion exposes scalar checks and object copies to this bounded cleanup group.
+    &GasOnly::new(load_pre::LoadPre::Storage),
     &sccp::Sccp,
     &inst_simplify::InstSimplify,
     &gvn::Gvn,

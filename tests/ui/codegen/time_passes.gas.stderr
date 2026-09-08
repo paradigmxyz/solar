@@ -32,6 +32,7 @@ time: <TIME>	MIR TimePasses lower-checks changed=false
 time: <TIME>	MIR TimePasses lower-builtins changed=false
 time: <TIME>	MIR TimePasses outline-reverts changed=false
 time: <TIME>	MIR TimePasses lower-arithmetic changed=false
+time: <TIME>	MIR TimePasses storage-pre changed=false
 time: <TIME>	MIR TimePasses sccp changed=false
 time: <TIME>	MIR TimePasses inst-simplify changed=false
 time: <TIME>	MIR TimePasses gvn changed=false
