@@ -2026,41 +2026,21 @@ impl StackScheduler {
             missing_counts.push((value, missing));
             total_missing += missing;
 
-            let duplicate =
-                stack.contains(&Some(value)).then_some(ScheduledOp::Stack(StackOp::Dup(1)));
-            let materialize = self.materialize_operand(value, func);
-            let first = match (duplicate, materialize) {
-                (Some(duplicate), Some(materialize)) => {
-                    let duplicate_cost = ScheduleCost::of_op(&duplicate, evm_version, cost_model);
-                    let materialize_cost =
-                        ScheduleCost::of_op(&materialize, evm_version, cost_model);
-                    if duplicate_cost.cmp_for(materialize_cost, optimization).is_le() {
-                        duplicate
-                    } else {
-                        materialize
-                    }
-                }
-                (Some(op), None) | (None, Some(op)) => op,
-                (None, None) => continue,
+            let duplicate = ScheduleCost::stack_op(StackOp::Dup(1), evm_version);
+            let materialize = self
+                .materialize_operand(value, func)
+                .map(|op| ScheduleCost::of_op(&op, evm_version, cost_model));
+            let subsequent = materialize
+                .filter(|cost| cost.cmp_for(duplicate, optimization).is_lt())
+                .unwrap_or(duplicate);
+            let first = if current != 0 {
+                subsequent
+            } else if let Some(cost) = materialize {
+                cost
+            } else {
+                continue;
             };
-            remaining = remaining.with_op(&first, evm_version, cost_model);
-            let subsequent = match materialize {
-                Some(materialize) => {
-                    let duplicate = ScheduledOp::Stack(StackOp::Dup(1));
-                    let duplicate_cost = ScheduleCost::of_op(&duplicate, evm_version, cost_model);
-                    let materialize_cost =
-                        ScheduleCost::of_op(&materialize, evm_version, cost_model);
-                    if materialize_cost.cmp_for(duplicate_cost, optimization).is_lt() {
-                        materialize
-                    } else {
-                        duplicate
-                    }
-                }
-                None => ScheduledOp::Stack(StackOp::Dup(1)),
-            };
-            for _ in 1..missing {
-                remaining = remaining.with_op(&subsequent, evm_version, cost_model);
-            }
+            remaining = remaining.plus(first).plus(subsequent.times(missing - 1));
         }
 
         if total_missing != 0
