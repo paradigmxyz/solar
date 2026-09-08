@@ -2,7 +2,10 @@
 //!
 //! This module removes unused internal parameters and results and combines equivalent internal
 //! function bodies. These transforms preserve external ABI entry signatures: only direct MIR call
-//! edges are rewritten.
+//! edges are rewritten. Before pruning, direct callers reuse an argument when every explicit
+//! return in the callee returns that same argument. Calls remain in place, including their effects
+//! and failure paths. Tail calls, mixed return values, and baked signature-frame addresses prevent
+//! forwarding; no recursive summary or control-flow fixed point is needed.
 //! Equivalent bodies merge their source origins, independently of structural
 //! matching, so later lowering cannot attribute shared code to one arbitrary body.
 
@@ -44,10 +47,11 @@ impl MirPass for DeadArgElim {
         module: &mut Module,
         _analyses: &mut ModuleAnalyses,
     ) -> solar_interface::Result<bool> {
+        let forwarded = forward_returned_arguments(module);
         if !gcx.sess.opts.optimization.is_size() {
-            return Ok(prune_unused_args(module) != 0);
+            return Ok(prune_unused_args(module) != 0 || forwarded != 0);
         }
-        let mut changed = false;
+        let mut changed = forwarded != 0;
         loop {
             let pruned = prune_unused_args(module) + prune_unused_returns(module);
             if pruned == 0 {
@@ -57,6 +61,75 @@ impl MirPass for DeadArgElim {
         }
         Ok(changed)
     }
+}
+
+fn forward_returned_arguments(module: &mut Module) -> usize {
+    let returned = module
+        .functions
+        .iter_enumerated()
+        .filter_map(|(id, func)| {
+            let arg = returned_argument(func)?;
+            (is_internal_body(module, id, func) && frame_offsets_are_local(func))
+                .then_some((id, arg))
+        })
+        .collect::<FxHashMap<_, _>>();
+    if returned.is_empty() {
+        return 0;
+    }
+    let mut forwarded = 0;
+    for func in &mut module.functions {
+        let mut replacements = func
+            .instructions()
+            .filter_map(|inst| {
+                let InstKind::ICall { function, args } = &func.inst(inst).kind else {
+                    return None;
+                };
+                Some((func.inst_result_value(inst)?, *args.get(returned.get(function)?.index())?))
+            })
+            .collect::<FxHashMap<_, _>>();
+        if replacements.is_empty() {
+            continue;
+        }
+        let mut used = DenseBitSet::new_empty(func.num_values());
+        for block in &func.blocks {
+            for &inst in &block.instructions {
+                for value in func.inst(inst).operands() {
+                    used.insert(value);
+                }
+            }
+            if let Some(term) = &block.terminator {
+                for value in term.operands() {
+                    used.insert(value);
+                }
+            }
+        }
+        replacements.retain(|value, _| used.contains(*value));
+        forwarded += replacements.len();
+        // result = icall callee, args; use result => icall callee, args; use args[returned]
+        func.replace_uses_canonicalized(&replacements);
+    }
+    forwarded
+}
+
+fn returned_argument(func: &Function) -> Option<ArgIdx> {
+    if func.returns.len() != 1 {
+        return None;
+    }
+    let mut returned = None;
+    for block in &func.blocks {
+        match &block.terminator {
+            Some(Terminator::Return { values }) => {
+                let [value] = values.as_slice() else { return None };
+                let Value::Arg(arg) = func.value(*value) else { return None };
+                if returned.replace(*arg).is_some_and(|previous| previous != *arg) {
+                    return None;
+                }
+            }
+            Some(Terminator::TailCall { .. }) => return None,
+            _ => {}
+        }
+    }
+    returned
 }
 
 /// Redirects calls to alpha-equivalent internal function bodies.

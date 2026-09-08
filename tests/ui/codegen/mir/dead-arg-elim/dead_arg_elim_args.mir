@@ -72,3 +72,56 @@ fn @tail_entry() [selector=0x01020306] {
   bb0:
     tail_call fn6, 4, 5
 }
+
+// CHECK-LABEL: fn @same_argument(arg0: bool, arg1: u256) -> u256
+// CHECK: sstore 1, arg1
+// CHECK: ret arg1
+// CHECK: sstore 0, arg1
+// CHECK: ret arg1
+fn @same_argument(arg0: bool, arg1: u256) -> u256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    sstore 0, arg1
+    ret arg1
+  bb2:
+    sstore 1, arg1
+    ret arg1
+}
+
+fn @different_arguments(arg0: bool, arg1: u256, arg2: u256) -> u256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    ret arg1
+  bb2:
+    ret arg2
+}
+
+fn @tail_result(arg0: bool, arg1: u256) -> u256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    ret arg1
+  bb2:
+    tail_call @different_arguments, arg0, arg1, 11
+}
+
+// CHECK-LABEL: fn @forwarded_calls(arg0: bool, arg1: u256) -> u256
+// CHECK:       v0 = icall @same_argument, arg0, arg1
+// CHECK: +     v1 = icall @same_argument, arg0, arg1
+// CHECK: +     v2 = icall @different_arguments, arg0, arg1, 11
+// CHECK:       v3 = icall @tail_result, arg0, arg1
+// CHECK: +     v4 = add arg1, v2
+// CHECK:       v5 = add v4, v3
+// CHECK:       ret v5
+fn @forwarded_calls(arg0: bool, arg1: u256) -> u256 [selector=0x01020307] {
+  bb0:
+    v0 = icall @same_argument, arg0, arg1
+    v1 = icall @same_argument, arg0, v0
+    v2 = icall @different_arguments, arg0, v0, 11
+    v3 = icall @tail_result, arg0, arg1
+    v4 = add v1, v2
+    v5 = add v4, v3
+    ret v5
+}

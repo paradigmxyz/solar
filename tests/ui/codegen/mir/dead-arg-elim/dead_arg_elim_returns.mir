@@ -28,7 +28,7 @@ fn @recursive(arg0: bool, arg1: u256) -> u256 {
     ret arg1
 }
 
-// CHECK-LABEL: fn @kept(arg0: u256) -> u256
+// CHECK-LABEL: + fn @kept()
 fn @kept(arg0: u256) -> u256 {
   bb0:
     ret arg0
@@ -37,7 +37,8 @@ fn @kept(arg0: u256) -> u256 {
 // CHECK-LABEL: fn @entry() -> u256
 // CHECK: icall @discarded, 7
 // CHECK: v0 = icall @recursive, true, 8
-// CHECK: icall @kept, 9
+// CHECK: +     icall @kept
+// CHECK-NEXT: +     ret 9
 fn @entry() -> u256 [selector=0x01020304] {
   bb0:
     v0 = icall fn0, 7
