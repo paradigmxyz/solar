@@ -370,6 +370,22 @@ impl Target {
         Cost::new(self.opcode_gas(opcode), 1 + immediate)
     }
 
+    /// Cost of an opcode whose arguments are known in EVM pop order.
+    /// Includes operand-dependent work such as the exponent bytes of `EXP`;
+    /// memory expansion and state-dependent access prices remain excluded.
+    pub(crate) fn opcode_with_immediates(self, opcode: u8, arguments: &[Option<U256>]) -> Cost {
+        let mut cost = self.opcode(opcode);
+        if let Some(definition) = op::definition(opcode) {
+            cost.gas = cost.gas.saturating_add(
+                definition
+                    .gas
+                    .dynamic_gas(self.evm_version)
+                    .saturating_mul(definition.gas.dynamic_units(arguments)),
+            );
+        }
+        cost
+    }
+
     /// Cost of one `DUP`.
     pub(crate) fn dup(self) -> Cost {
         self.opcode(op::DUP1)
@@ -650,6 +666,15 @@ mod tests {
         assert_eq!(exponent(Some(U256::from(255))), Cost::new(60, 1));
         assert_eq!(exponent(Some(U256::from(1 << 16))), Cost::new(160, 1));
         assert_eq!(exponent(Some(U256::ZERO)), Cost::new(10, 1));
+        assert_eq!(
+            target.opcode_with_immediates(op::EXP, &[Some(U256::from(2)), Some(U256::from(256))]),
+            Cost::new(110, 1),
+        );
+        assert_eq!(
+            Target::with(EvmVersion::Homestead, OptimizationMode::Gas, 200)
+                .opcode_with_immediates(op::EXP, &[Some(U256::from(2)), Some(U256::from(256))]),
+            Cost::new(30, 1),
+        );
         assert_eq!(GasTier::Keccak.dynamic_units(&[None, Some(U256::from(64))]), 2);
         assert_eq!(GasTier::Copy.dynamic_units(&[None, None, Some(U256::from(33))]), 2);
         assert_eq!(GasTier::Log(1).dynamic_units(&[None, Some(U256::from(5)), None]), 5);

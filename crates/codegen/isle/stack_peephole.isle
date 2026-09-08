@@ -1,0 +1,15 @@
+;; Pure physical-stack rewrites, checked directly by the offline verifier.
+;; Priorities belong to the shared peephole rule set.
+
+;; `NOT NOT -> ∅`, `DUPn POP -> ∅`, or an involutive stack operation twice -> ∅.
+(rule 270 (peep_nonpush (last2 (opcode $NOT) (opcode $NOT))) (rewrite 2 (Edit.Keep 0)))
+(rule 260 (peep_nonpush (last2 (dup _) (pop))) (rewrite 2 (Edit.Keep 0)))
+(rule 250 (peep_nonpush (last2 (swap n) (swap n))) (rewrite 2 (Edit.Keep 0)))
+(rule 240 (peep_nonpush (last2 (exchange n m) (exchange n m))) (rewrite 2 (Edit.Keep 0)))
+
+;; `DUPn SWAPn -> DUPn` because the swapped values are equal.
+(rule 235 (peep_nonpush (last2 (dup n) (swap n))) (rewrite 2 (Edit.Keep 1)))
+
+;; `ISZERO ISZERO ISZERO -> ISZERO`.
+(rule 230 (peep_nonpush (last3 (opcode $ISZERO) (opcode $ISZERO) (opcode $ISZERO)))
+         (rewrite 3 (Edit.OverwriteOne $ISZERO)))

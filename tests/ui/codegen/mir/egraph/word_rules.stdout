@@ -401,7 +401,7 @@
     bb0:
 -     v0 = mul arg0, 2
 -     v1 = div v0, 2
-+     v0 = shl 1, arg0
++     v0 = add arg0, arg0
 +     v1 = shr 1, v0
       ret v1
   }

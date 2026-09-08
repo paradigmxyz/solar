@@ -1,0 +1,54 @@
+// === ROOT/tests/ui/codegen/lowering/critical_load_edges.sol:CriticalLoadEdges ===
+@module CriticalLoadEdges
+fn @branch(arg0: bool, arg1: bool, arg2: u256) -> u256 [selector=0x5b2c5464, abi_params=[bool, bool, u256], abi_returns=[word]] {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb2:
+    v0 = eq arg1, 0
+    v1 = iszero v0
+    v2 = iszero v1
+    jumpi v2, bb4, bb5
+  bb5:
+    jump bb6
+  bb6:
+    jump bb3
+  bb4:
+    ret 99
+  bb1:
+    sstore 0, arg2 !metadata(storage=slot(0))
+    jump bb3
+  bb3:
+    v3 = phi [bb1: 3], [bb6: 7]
+    v4 = sload 0 !metadata(storage=slot(0))
+    v5 = add v4, v3
+    ret v5
+}
+
+fn @transientRead(arg0: bool, arg1: bool, arg2: u256) -> u256 [selector=0xd519425a, abi_params=[bool, bool, u256], abi_returns=[word]] {
+  bb0:
+    switch arg0, default bb3, [1 => bb2]
+  bb2:
+    tstore 5, arg2
+    jump bb1
+  bb3:
+    v0 = iszero arg1
+    v1 = eq v0, 0
+    v2 = iszero v1
+    jumpi v2, bb4, bb5
+  bb5:
+    jump bb6
+  bb6:
+    jump bb1
+  bb1:
+    v3 = tload 5
+    ret v3
+  bb4:
+    mstore 0, 99 !metadata(memory=scratch)
+    returndata 0, 32
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    sstore 0, 17 !metadata(storage=slot(0))
+    stop
+}
