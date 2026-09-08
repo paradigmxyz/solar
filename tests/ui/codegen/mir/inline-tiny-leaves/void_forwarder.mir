@@ -1,0 +1,100 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zmir-pipeline=inline-tiny-leaves,cfg-simplify
+//@[size] compile-flags: -Osize -Zmir-pipeline=inline-tiny-leaves,cfg-simplify
+@module VoidForwarder
+
+// Both callers retain exactly one sink call, with reordered arguments and the callers' constants.
+fn @caller(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    icall @forward_stop, 0, arg0, arg1, 7
+    v0 = sload 0
+    ret v0
+}
+
+fn @other(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    icall @forward_stop, 0, arg1, arg0, 9
+    v0 = sload 0
+    ret v0
+}
+
+fn @forward_stop(arg0: u256, arg1: u256, arg2: u256) {
+  bb0:
+    icall @sink, 0, arg1, arg0, arg2
+    stop
+}
+
+fn @explicit_return(arg0: u256, arg1: u256) {
+  bb0:
+    icall @forward_return, 0, arg0, arg1
+    stop
+}
+
+fn @forward_return(arg0: u256, arg1: u256) {
+  bb0:
+    icall @sink, 0, arg0, arg1, 9
+    ret
+}
+
+// The branched sink must stay shared rather than becoming a tiny leaf.
+fn @sink(arg0: u256, arg1: u256, arg2: u256) {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    sstore 0, arg1
+    sstore 1, arg2
+    stop
+  bb2:
+    revert 0, 0
+}
+
+// A wrapper that drops a result is not a void-call forwarder.
+fn @discard_caller(arg0: u256) {
+  bb0:
+    icall @discard, 0, arg0
+    stop
+}
+
+fn @discard(arg0: u256) {
+  bb0:
+    v0 = icall @value_sink, 1, arg0
+    stop
+}
+
+fn @value_sink(arg0: u256) -> u256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    sstore 0, arg0
+    ret arg0
+  bb2:
+    revert 0, 0
+}
+
+// Extra effects prevent forwarding even when they follow a void call.
+fn @effect_caller(arg0: u256, arg1: u256) {
+  bb0:
+    icall @effect, 0, arg0, arg1
+    stop
+}
+
+fn @effect(arg0: u256, arg1: u256) {
+  bb0:
+    icall @sink, 0, arg0, arg1, 11
+    sstore 2, arg0
+    stop
+}
+
+// Keep extra argument setup shared across multiple callers.
+fn @shared_extra_caller(arg0: u256, arg1: u256) {
+  bb0:
+    icall @shared_extra, 0, arg0, arg1
+    icall @shared_extra, 0, arg1, arg0
+    stop
+}
+
+fn @shared_extra(arg0: u256, arg1: u256) {
+  bb0:
+    icall @sink, 0, arg0, arg1, 13
+    stop
+}

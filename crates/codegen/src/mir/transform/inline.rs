@@ -11,6 +11,11 @@
 //! with a header guard and no other exit receive that weight. Conditional calls and
 //! unknown loop bounds retain the ordinary per-invocation estimate; size mode keeps
 //! its existing growth policy. These are profitability estimates, never legality facts.
+//! Tiny forwarding wrappers may return one call result or forward a void call.
+//! Both forms contain only that call and its internal return, so inlining exposes
+//! the original call exactly once without cloning the callee body. Shared void
+//! forwarders that add arguments stay shared: cloning their extra setup can
+//! outweigh the removed wrapper and increase stack pressure at every caller.
 
 use crate::{
     backend::evm::{op, select},
@@ -261,9 +266,11 @@ struct MirInlineSummary {
     has_control_flow: bool,
     has_unsupported_terminator: bool,
     has_reference_return: bool,
-    /// A one-block helper that only returns an argument or forwards an internal call's result.
+    /// A one-block helper that returns an argument or forwards one internal call.
     /// Such wrappers are safe to inline even when the value is memory-backed.
     is_transparent_forwarder: bool,
+    /// Whether a void forwarder adds arguments whose setup benefits from sharing.
+    void_forwarder_adds_args: bool,
     is_entry_point: bool,
     is_constructor: bool,
     is_function_pointer_dispatcher: bool,
@@ -539,6 +546,7 @@ impl MirInliner {
                 || summary.return_count != 1
                 || (summary.has_reference_return && !summary.is_transparent_forwarder)
                 || (summary.has_icall && !summary.is_transparent_forwarder)
+                || (!single_call && summary.void_forwarder_adds_args)
                 || summary.has_control_flow)
         {
             return false;
@@ -681,7 +689,12 @@ fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInli
             summary.instruction_count += instructions;
             summary.estimated_code_size += inst_cost.bytes as usize;
             match kind {
-                InstKind::ICall { .. } => summary.has_icall = true,
+                InstKind::ICall { args, .. } => {
+                    summary.has_icall = true;
+                    if summary.is_transparent_forwarder && func.returns.is_empty() {
+                        summary.void_forwarder_adds_args = args.len() > func.params.len();
+                    }
+                }
                 InstKind::Phi(_) => summary.has_phi = true,
                 // ABI decoding validates its input through branches, and dynamic encoding
                 // emits copy loops and padding branches, so neither operation is a tiny leaf.
@@ -758,7 +771,7 @@ fn is_transparent_forwarder(func: &Function) -> bool {
         || func.attributes.is_receive
         || func.blocks.len() != 1
         || func.internal_frame_size != 0
-        || func.returns.len() != 1
+        || func.returns.len() > 1
     {
         return false;
     }
@@ -768,12 +781,16 @@ fn is_transparent_forwarder(func: &Function) -> bool {
     }
 
     let [call] = func.blocks[BlockId::ENTRY].instructions.as_slice() else { return false };
-    let InstKind::ICall { returns: 1, .. } = func.inst(*call).kind else { return false };
-    let Some(result) = func.inst_result_value(*call) else { return false };
-    matches!(
-        func.blocks[BlockId::ENTRY].terminator.as_ref(),
-        Some(Terminator::Return { values }) if values.as_slice() == [result]
-    )
+    let InstKind::ICall { returns, .. } = func.inst(*call).kind else { return false };
+    match (returns, func.blocks[BlockId::ENTRY].terminator.as_ref()) {
+        (0, Some(Terminator::Stop)) => func.returns.is_empty(),
+        (0, Some(Terminator::Return { values })) => func.returns.is_empty() && values.is_empty(),
+        (1, Some(Terminator::Return { values })) => {
+            func.returns.len() == 1
+                && func.inst_result_value(*call).is_some_and(|result| values.as_slice() == [result])
+        }
+        _ => false,
+    }
 }
 
 fn is_identity_function(func: &Function) -> bool {
