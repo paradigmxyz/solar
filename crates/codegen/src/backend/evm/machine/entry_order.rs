@@ -170,7 +170,17 @@ pub(super) fn choose(
     if let Some(selected) = entry(&best) {
         return Some(selected);
     }
-    consider(OperandOrder::MaterializedOperands, &mut best);
+    // Missing unary operands become shallow and retain canonical preparation.
+    // Without a loadable multi-operand input, this repeats the DeadOperands body.
+    if context.function.blocks[block_id].instructions.iter().any(|&id| {
+        let kind = &context.function.inst(id).kind;
+        let operands = kind.operands();
+        kind.evm_opcode().is_some()
+            && operands.len() > 1
+            && operands.iter().any(|&value| !super::resident(context, value))
+    }) {
+        consider(OperandOrder::MaterializedOperands, &mut best);
+    }
     (best != original_insts).then(|| (original_stack.clone(), best))
 }
 
