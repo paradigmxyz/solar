@@ -53,9 +53,9 @@ fn @add(arg0: i256, arg1: i256) -> i256 [pure] {
   bb2:
     ret v1
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 17 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 fn @neg(arg0: i256) -> i256 [pure] {
@@ -66,9 +66,9 @@ fn @neg(arg0: i256) -> i256 [pure] {
     v2 = sub 0, arg0
     ret v2
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 17 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 fn @entry() [entry] {

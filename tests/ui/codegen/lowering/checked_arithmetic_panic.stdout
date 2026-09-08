@@ -8,9 +8,9 @@ fn @add(arg0: u256, arg1: u256) -> u256 [selector=0x771602f7, pure, abi_params=[
   bb2:
     ret v1
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 17 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 fn @sub(arg0: u256, arg1: u256) -> u256 [selector=0xb67d77c5, pure, abi_params=[u256, u256], abi_returns=[word]] {
@@ -21,9 +21,9 @@ fn @sub(arg0: u256, arg1: u256) -> u256 [selector=0xb67d77c5, pure, abi_params=[
   bb2:
     ret v1
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 17 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 fn @mul(arg0: u256, arg1: u256) -> u256 [selector=0xc8a4ac9c, pure, abi_params=[u256, u256], abi_returns=[word]] {
@@ -38,18 +38,18 @@ fn @mul(arg0: u256, arg1: u256) -> u256 [selector=0xc8a4ac9c, pure, abi_params=[
   bb2:
     ret v1
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 17 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 fn @div_zero(arg0: u256, arg1: u256) -> u256 [selector=0xf37348f3, pure, abi_params=[u256, u256], abi_returns=[word]] {
   bb0:
     jumpi arg1, bb2, bb1
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 18 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 18 !metadata(memory=scratch)
+    revert 28, 36
   bb2:
     v1 = div arg0, arg1
     ret v1
@@ -91,9 +91,9 @@ fn @pow(arg0: u256, arg1: u256) -> u256 [selector=0x2e4c697f, pure, abi_params=[
   bb6:
     jump bb1
   bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 17 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 fn @signed_add(arg0: i256, arg1: i256) -> i256 [selector=0xd51c5580, pure, abi_params=[i256, i256], abi_returns=[word]] {
@@ -110,9 +110,9 @@ fn @signed_add(arg0: i256, arg1: i256) -> i256 [selector=0xd51c5580, pure, abi_p
   bb2:
     ret v1
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 17 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 fn @signed_neg(arg0: i256) -> i256 [selector=0x85cce915, pure, abi_params=[i256], abi_returns=[word]] {
@@ -123,9 +123,9 @@ fn @signed_neg(arg0: i256) -> i256 [selector=0x85cce915, pure, abi_params=[i256]
     v2 = sub 0, arg0
     ret v2
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 17 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 fn @narrow_add(arg0: u8, arg1: u8) -> u8 [selector=0xeb8645e0, pure, abi_params=[u8, u8], abi_returns=[word<u8>]] {
@@ -138,9 +138,9 @@ fn @narrow_add(arg0: u8, arg1: u8) -> u8 [selector=0xeb8645e0, pure, abi_params=
   bb2:
     ret v3
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 17 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 fn @unchecked_add(arg0: u256, arg1: u256) -> u256 [selector=0xda71cb6d, pure, abi_params=[u256, u256], abi_returns=[word]] {
@@ -175,7 +175,7 @@ fn @checked_inner(arg0: u256, arg1: u256) -> u256 [pure] {
   bb2:
     ret v1
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 17 !metadata(memory=scratch)
+    revert 28, 36
 }

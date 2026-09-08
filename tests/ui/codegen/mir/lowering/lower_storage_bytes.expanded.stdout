@@ -17,9 +17,9 @@
 +   bb2:
       ret v0
 +   bb1:
-+     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch, span=10..20, modifier_depth=1)
-+     mstore 4, 34 !metadata(memory=scratch, span=10..20, modifier_depth=1)
-+     revert 0, 36 !metadata(span=10..20, modifier_depth=1)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch, span=10..20, modifier_depth=1)
++     mstore 32, 34 !metadata(memory=scratch, span=10..20, modifier_depth=1)
++     revert 28, 36 !metadata(span=10..20, modifier_depth=1)
   }
   
   fn @load(arg0: u256) -> memorybytes {
@@ -71,13 +71,13 @@
 +     v24 = add v19, 1 !metadata(span=20..30, modifier_depth=2)
 +     jump bb8 !metadata(span=20..30, modifier_depth=2)
 +   bb3:
-+     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch, span=20..30, modifier_depth=2)
-+     mstore 4, 65 !metadata(memory=scratch, span=20..30, modifier_depth=2)
-+     revert 0, 36 !metadata(span=20..30, modifier_depth=2)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch, span=20..30, modifier_depth=2)
++     mstore 32, 65 !metadata(memory=scratch, span=20..30, modifier_depth=2)
++     revert 28, 36 !metadata(span=20..30, modifier_depth=2)
 +   bb1:
-+     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch, span=20..30, modifier_depth=2)
-+     mstore 4, 34 !metadata(memory=scratch, span=20..30, modifier_depth=2)
-+     revert 0, 36 !metadata(span=20..30, modifier_depth=2)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch, span=20..30, modifier_depth=2)
++     mstore 32, 34 !metadata(memory=scratch, span=20..30, modifier_depth=2)
++     revert 28, 36 !metadata(span=20..30, modifier_depth=2)
   }
   
   fn @edge(arg0: bool, arg1: u256, arg2: memorybytes) -> memorybytes {
@@ -136,13 +136,13 @@
 +     v25 = add v20, 1
 +     jump bb11
 +   bb6:
-+     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-+     mstore 4, 65 !metadata(memory=scratch)
-+     revert 0, 36
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 65 !metadata(memory=scratch)
++     revert 28, 36
 +   bb4:
-+     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-+     mstore 4, 34 !metadata(memory=scratch)
-+     revert 0, 36
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 34 !metadata(memory=scratch)
++     revert 28, 36
   }
   
   fn @clear(arg0: bool, arg1: u256, arg2: u256, arg3: u256) -> u256 {
@@ -264,13 +264,13 @@
 +     v0 = phi [bb12: 1], [bb2: 2]
       ret v0
 +   bb6:
-+     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch, span=40..50, modifier_depth=4)
-+     mstore 4, 65 !metadata(memory=scratch, span=40..50, modifier_depth=4)
-+     revert 0, 36 !metadata(span=40..50, modifier_depth=4)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch, span=40..50, modifier_depth=4)
++     mstore 32, 65 !metadata(memory=scratch, span=40..50, modifier_depth=4)
++     revert 28, 36 !metadata(span=40..50, modifier_depth=4)
 +   bb4:
-+     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch, span=40..50, modifier_depth=4)
-+     mstore 4, 34 !metadata(memory=scratch, span=40..50, modifier_depth=4)
-+     revert 0, 36 !metadata(span=40..50, modifier_depth=4)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch, span=40..50, modifier_depth=4)
++     mstore 32, 34 !metadata(memory=scratch, span=40..50, modifier_depth=4)
++     revert 28, 36 !metadata(span=40..50, modifier_depth=4)
   }
   
   fn @store_literal(arg0: bool, arg1: u256) -> u256 {
@@ -328,9 +328,9 @@
 +     sstore arg1, 0 !metadata(storage=symbolic(arg1))
       jump bb3
 +   bb8:
-+     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-+     mstore 4, 34 !metadata(memory=scratch)
-+     revert 0, 36
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 34 !metadata(memory=scratch)
++     revert 28, 36
     bb1:
 -     store_storage_bytes_literal arg1, hex"61" !metadata(span=50..60, modifier_depth=5)
 +     v1 = sload arg1 !metadata(storage=symbolic(arg1), span=50..60, modifier_depth=5)
@@ -360,9 +360,9 @@
 +     v0 = phi [bb7: 1], [bb14: 2]
       ret v0
 +   bb4:
-+     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch, span=50..60, modifier_depth=5)
-+     mstore 4, 34 !metadata(memory=scratch, span=50..60, modifier_depth=5)
-+     revert 0, 36 !metadata(span=50..60, modifier_depth=5)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch, span=50..60, modifier_depth=5)
++     mstore 32, 34 !metadata(memory=scratch, span=50..60, modifier_depth=5)
++     revert 28, 36 !metadata(span=50..60, modifier_depth=5)
   }
   
   fn @shared_literal_first(arg0: u256) {
@@ -424,8 +424,8 @@
 +     sstore arg0, 0x7800000000000000000000000000000000000000000000000000000000000002 !metadata(storage=symbolic(arg0))
 +     ret
 +   bb1:
-+     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-+     mstore 4, 34 !metadata(memory=scratch)
-+     revert 0, 36
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 34 !metadata(memory=scratch)
++     revert 28, 36
   }
   

@@ -19,9 +19,9 @@
 +     memory_zero v0, v3
       ret v0
 +   bb2:
-+     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-+     mstore 4, 65 !metadata(memory=scratch)
-+     revert 0, 36
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 65 !metadata(memory=scratch)
++     revert 28, 36
   }
   
   fn @internal() -> memptr {

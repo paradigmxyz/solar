@@ -36,9 +36,9 @@
 +     v17 = add v12, 1
 +     jump bb4
 +   bb1:
-+     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-+     mstore 4, 65 !metadata(memory=scratch)
-+     revert 0, 36
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 65 !metadata(memory=scratch)
++     revert 28, 36
   }
   
   fn @signed(arg0: u256) -> memoryarray {
@@ -81,9 +81,9 @@
 +     v22 = add v12, 1
 +     jump bb4
 +   bb1:
-+     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-+     mstore 4, 65 !metadata(memory=scratch)
-+     revert 0, 36
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 65 !metadata(memory=scratch)
++     revert 28, 36
   }
   
   fn @fixed(arg0: u256) -> memoryarray {
@@ -126,9 +126,9 @@
 +     v22 = add v12, 1
 +     jump bb4
 +   bb1:
-+     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-+     mstore 4, 65 !metadata(memory=scratch)
-+     revert 0, 36
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 65 !metadata(memory=scratch)
++     revert 28, 36
   }
   
   fn @enums(arg0: u256) -> memoryarray {
@@ -174,13 +174,13 @@
 +     v23 = add v12, 1
 +     jump bb4
 +   bb7:
-+     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-+     mstore 4, 33 !metadata(memory=scratch)
-+     revert 0, 36
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 33 !metadata(memory=scratch)
++     revert 28, 36
 +   bb1:
-+     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-+     mstore 4, 65 !metadata(memory=scratch)
-+     revert 0, 36
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 65 !metadata(memory=scratch)
++     revert 28, 36
   }
   
   fn @bytes(arg0: bool, arg1: u256, arg2: memoryarray) -> memoryarray {
@@ -224,9 +224,9 @@
 +     v17 = add v13, 1 !metadata(span=50..60, modifier_depth=5)
 +     jump bb7 !metadata(span=50..60, modifier_depth=5)
 +   bb4:
-+     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch, span=50..60, modifier_depth=5)
-+     mstore 4, 65 !metadata(memory=scratch, span=50..60, modifier_depth=5)
-+     revert 0, 36 !metadata(span=50..60, modifier_depth=5)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch, span=50..60, modifier_depth=5)
++     mstore 32, 65 !metadata(memory=scratch, span=50..60, modifier_depth=5)
++     revert 28, 36 !metadata(span=50..60, modifier_depth=5)
 + }
 + 
 + fn @load_storage_bytes(arg0: u256) -> memorybytes {
@@ -276,12 +276,12 @@
 +     v24 = add v19, 1
 +     jump bb8
 +   bb3:
-+     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-+     mstore 4, 65 !metadata(memory=scratch)
-+     revert 0, 36
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 65 !metadata(memory=scratch)
++     revert 28, 36
 +   bb1:
-+     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-+     mstore 4, 34 !metadata(memory=scratch)
-+     revert 0, 36
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 34 !metadata(memory=scratch)
++     revert 28, 36
   }
   

@@ -5,7 +5,7 @@ bb0:
   callvalue
   push bb1
   jumpi
-  push 700
+  push 698
   dup 1
   push 18
   push 0
@@ -39,15 +39,13 @@ bb3 [cold]:
   revert
 bb48 [cold]:
   push 0x4e487b71
-  push 224
-  shl
   push 0
   mstore
   push 17
-  push 4
+  push 32
   mstore
   push 36
-  push 0
+  push 28
   revert
 bb4:
   push 36

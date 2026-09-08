@@ -36,9 +36,9 @@ fn @upow(arg0: u256, arg1: u256) -> u256 [selector=0x11698b2f, pure, abi_params=
   bb6:
     jump bb1
   bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 17 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 fn @spow(arg0: i256, arg1: u256) -> i256 [selector=0x8c0da14f, pure, abi_params=[i256, u256], abi_returns=[word]] {
@@ -85,9 +85,9 @@ fn @spow(arg0: i256, arg1: u256) -> i256 [selector=0x8c0da14f, pure, abi_params=
   bb6:
     jump bb1
   bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 17 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 fn @upow8(arg0: u8, arg1: u8) -> u8 [selector=0x3f7ced5f, pure, abi_params=[u8, u8], abi_returns=[word<u8>]] {
@@ -132,9 +132,9 @@ fn @upow8(arg0: u8, arg1: u8) -> u8 [selector=0x3f7ced5f, pure, abi_params=[u8, 
   bb6:
     jump bb1
   bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 17 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 fn @spow8(arg0: i8, arg1: u8) -> i8 [selector=0xd44642ed, pure, abi_params=[i8, u8], abi_returns=[word<i8>]] {
@@ -191,9 +191,9 @@ fn @spow8(arg0: i8, arg1: u8) -> i8 [selector=0xd44642ed, pure, abi_params=[i8, 
   bb6:
     jump bb1
   bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 17 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 fn @const2(arg0: u256) -> u256 [selector=0xb253ebfa, pure, abi_params=[u256], abi_returns=[word]] {
@@ -232,9 +232,9 @@ fn @const2(arg0: u256) -> u256 [selector=0xb253ebfa, pure, abi_params=[u256], ab
   bb6:
     jump bb1
   bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 17 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 fn @const10(arg0: u256) -> u256 [selector=0xd325f19a, pure, abi_params=[u256], abi_returns=[word]] {
@@ -273,9 +273,9 @@ fn @const10(arg0: u256) -> u256 [selector=0xd325f19a, pure, abi_params=[u256], a
   bb6:
     jump bb1
   bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 17 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 fn @const_neg2(arg0: u256) -> i256 [selector=0xf3adabf1, pure, abi_params=[u256], abi_returns=[word]] {
@@ -323,9 +323,9 @@ fn @const_neg2(arg0: u256) -> i256 [selector=0xf3adabf1, pure, abi_params=[u256]
   bb6:
     jump bb1
   bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 17 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 fn @unchecked_pow8(arg0: u8, arg1: u8) -> u8 [selector=0xa376b2ef, pure, abi_params=[u8, u8], abi_returns=[word<u8>]] {

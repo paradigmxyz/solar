@@ -60,13 +60,11 @@ bb10:
   jump bb16
 bb15 [cold]:
   push 0x4e487b71
-  push 224
-  shl
   push 0
   mstore
   push 33
-  push 4
+  push 32
   mstore
   push 36
-  push 0
+  push 28
   revert

@@ -15,9 +15,9 @@
 -     panic_if_zero arg1, 0x1
 +     jumpi arg1, bb5, bb4
 +   bb4:
-+     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-+     mstore 4, 1 !metadata(memory=scratch)
-+     revert 0, 36
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 1 !metadata(memory=scratch)
++     revert 28, 36
 +   bb5:
       v0 = add arg1, 1
 -     revert_if_zero v0, tuple_data_too_short

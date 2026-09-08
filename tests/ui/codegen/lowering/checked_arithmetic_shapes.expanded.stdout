@@ -14,9 +14,9 @@ fn @sadd(arg0: i256, arg1: i256) -> i256 [selector=0x16495fa8, pure, abi_params=
   bb2:
     ret v1
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 17 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 fn @ssub(arg0: i256, arg1: i256) -> i256 [selector=0xb1e83b76, pure, abi_params=[i256, i256], abi_returns=[word]] {
@@ -32,9 +32,9 @@ fn @ssub(arg0: i256, arg1: i256) -> i256 [selector=0xb1e83b76, pure, abi_params=
   bb2:
     ret v1
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 17 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 fn @smul(arg0: i256, arg1: i256) -> i256 [selector=0x95701bd4, pure, abi_params=[i256, i256], abi_returns=[word]] {
@@ -53,18 +53,18 @@ fn @smul(arg0: i256, arg1: i256) -> i256 [selector=0x95701bd4, pure, abi_params=
   bb2:
     ret v1
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 17 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 fn @sdiv(arg0: i256, arg1: i256) -> i256 [selector=0x397b3a49, pure, abi_params=[i256, i256], abi_returns=[word]] {
   bb0:
     jumpi arg1, bb2, bb1
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 18 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 18 !metadata(memory=scratch)
+    revert 28, 36
   bb2:
     v1 = eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
     v2 = eq arg1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -74,18 +74,18 @@ fn @sdiv(arg0: i256, arg1: i256) -> i256 [selector=0x397b3a49, pure, abi_params=
     v4 = sdiv arg0, arg1
     ret v4
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 17 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 fn @smod(arg0: i256, arg1: i256) -> i256 [selector=0x75df4bb9, pure, abi_params=[i256, i256], abi_returns=[word]] {
   bb0:
     jumpi arg1, bb2, bb1
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 18 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 18 !metadata(memory=scratch)
+    revert 28, 36
   bb2:
     v1 = smod arg0, arg1
     ret v1
@@ -99,9 +99,9 @@ fn @neg(arg0: i256) -> i256 [selector=0x54a53dc1, pure, abi_params=[i256], abi_r
     v2 = sub 0, arg0
     ret v2
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 17 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 fn @inc(arg0: u256) -> u256 [selector=0x812600df, pure, abi_params=[u256], abi_returns=[word]] {
@@ -112,9 +112,9 @@ fn @inc(arg0: u256) -> u256 [selector=0x812600df, pure, abi_params=[u256], abi_r
   bb2:
     ret v1
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 17 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 fn @dec(arg0: u256) -> u256 [selector=0xc20efb90, pure, abi_params=[u256], abi_returns=[word]] {
@@ -125,9 +125,9 @@ fn @dec(arg0: u256) -> u256 [selector=0xc20efb90, pure, abi_params=[u256], abi_r
   bb2:
     ret v1
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 17 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 fn @uadd128(arg0: u128, arg1: u128) -> u128 [selector=0xb6edec74, pure, abi_params=[u128, u128], abi_returns=[word<u128>]] {
@@ -140,9 +140,9 @@ fn @uadd128(arg0: u128, arg1: u128) -> u128 [selector=0xb6edec74, pure, abi_para
   bb2:
     ret v3
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 17 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 fn @umul128(arg0: u128, arg1: u128) -> u128 [selector=0x664cefee, pure, abi_params=[u128, u128], abi_returns=[word<u128>]] {
@@ -161,9 +161,9 @@ fn @umul128(arg0: u128, arg1: u128) -> u128 [selector=0x664cefee, pure, abi_para
   bb2:
     ret v3
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 17 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 fn @smul128(arg0: i128, arg1: i128) -> i128 [selector=0xaf26a496, pure, abi_params=[i128, i128], abi_returns=[word<i128>]] {
@@ -188,9 +188,9 @@ fn @smul128(arg0: i128, arg1: i128) -> i128 [selector=0xaf26a496, pure, abi_para
   bb2:
     ret v3
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 17 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 fn @umul192(arg0: u192, arg1: u192) -> u192 [selector=0xcf392d15, pure, abi_params=[u192, u192], abi_returns=[word<u192>]] {
@@ -209,9 +209,9 @@ fn @umul192(arg0: u192, arg1: u192) -> u192 [selector=0xcf392d15, pure, abi_para
   bb2:
     ret v3
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 17 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 fn @leftU8(arg0: u8, arg1: u8) -> u8 [selector=0xb0f599fc, pure, abi_params=[u8, u8], abi_returns=[word<u8>]] {

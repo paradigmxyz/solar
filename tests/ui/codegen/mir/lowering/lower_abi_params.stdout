@@ -89,9 +89,9 @@
 +     v39 = sub v38, 128
 +     returndata 128, v39
 +   bb8:
-+     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-+     mstore 4, 65 !metadata(memory=scratch)
-+     revert 0, 36
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 65 !metadata(memory=scratch)
++     revert 28, 36
 +   bb4:
 +     revert 0, 0
 +   bb2:

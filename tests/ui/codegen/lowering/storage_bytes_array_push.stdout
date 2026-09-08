@@ -50,13 +50,13 @@ fn @pushStr() [selector=0xe6e6accc, abi_wrapper] {
   bb1:
     tail_call @revert_stub.7
   bb10:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
   bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
   bb3:
     revert 0, 0
 }
@@ -66,9 +66,9 @@ fn @popStr() [selector=0x5d7696c3, abi_wrapper] {
     v0 = sload 0 !metadata(storage=slot(0))
     jumpi v0, bb4, bb3
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 49 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 49 !metadata(memory=scratch)
+    revert 28, 36
   bb4:
     v2 = sub v0, 1
     sstore 0, v2 !metadata(storage=slot(0))
@@ -120,9 +120,9 @@ fn @blobAt() [selector=0x8f236983, abi_wrapper, view] {
     v1 = lt arg0, v0
     jumpi v1, bb2, bb1
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 50 !metadata(memory=scratch)
+    revert 28, 36
   bb2:
     mstore 0, 2 !metadata(memory=scratch)
     v34 = keccak256 0, 32 !metadata(memory=scratch)
@@ -316,9 +316,9 @@ fn @load_storage_bytes(arg0: u256) -> memptr {
     v24 = add v19, 1
     jump bb8
   bb11:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
   bb3:
     tail_call @revert_stub.7
   bb1:
@@ -347,16 +347,16 @@ fn @clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
 
 fn @revert_stub.7() {
   bb0:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 fn @revert_stub.8() {
   bb0:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 34 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 34 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 fn @entry() [entry] {

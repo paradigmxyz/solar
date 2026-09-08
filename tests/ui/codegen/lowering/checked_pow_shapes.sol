@@ -13,7 +13,7 @@ contract CheckedPowShapes {
     // CHECK: and {{v[0-9]+}}, 1
     // CHECK: mul {{v[0-9]+}}, {{v[0-9]+}}
     // CHECK: shr 1,
-    // CHECK: mstore 4, 17
+    // CHECK: mstore 32, 17
     function upow(uint256 a, uint256 b) public pure returns (uint256) {
         return a ** b;
     }
@@ -26,7 +26,7 @@ contract CheckedPowShapes {
     // CHECK-NOT: sgt
     // CHECK: eq {{v[0-9]+}}, 0x8000000000000000000000000000000000000000000000000000000000000000
     // CHECK: mul {{v[0-9]+}}, {{v[0-9]+}}
-    // CHECK: mstore 4, 17
+    // CHECK: mstore 32, 17
     function spow(int256 a, uint256 b) public pure returns (int256) {
         return a ** b;
     }
@@ -34,7 +34,7 @@ contract CheckedPowShapes {
     // CHECK-LABEL: fn @upow8{{[( ]}}
     // CHECK: phi [bb0: 1]
     // CHECK: gt {{v[0-9]+}}, 255
-    // CHECK: mstore 4, 17
+    // CHECK: mstore 32, 17
     function upow8(uint8 a, uint8 b) public pure returns (uint8) {
         return a ** b;
     }
@@ -43,7 +43,7 @@ contract CheckedPowShapes {
     // CHECK: phi [bb0: 1]
     // CHECK: slt {{v[0-9]+}}, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
     // CHECK: sgt {{v[0-9]+}}, 127
-    // CHECK: mstore 4, 17
+    // CHECK: mstore 32, 17
     function spow8(int8 a, uint8 b) public pure returns (int8) {
         return a ** b;
     }
@@ -51,14 +51,14 @@ contract CheckedPowShapes {
     // CHECK-LABEL: fn @const2{{[( ]}}
     // CHECK: phi [bb0: 1]
     // CHECK: phi [bb0: 2]
-    // CHECK: mstore 4, 17
+    // CHECK: mstore 32, 17
     function const2(uint256 b) public pure returns (uint256) {
         return 2 ** b;
     }
 
     // CHECK-LABEL: fn @const10{{[( ]}}
     // CHECK: phi [bb0: 10]
-    // CHECK: mstore 4, 17
+    // CHECK: mstore 32, 17
     function const10(uint256 b) public pure returns (uint256) {
         return 10 ** b;
     }
@@ -67,18 +67,18 @@ contract CheckedPowShapes {
     // CHECK: [[BASE:v[0-9]+]] = sub 0, 2
     // CHECK: phi [bb0: [[BASE]]]
     // CHECK: sdiv {{v[0-9]+}}, {{v[0-9]+}}
-    // CHECK: mstore 4, 17
+    // CHECK: mstore 32, 17
     function const_neg2(uint256 b) public pure returns (int256) {
         return (-2) ** b;
     }
 
     // CHECK-LABEL: fn @unchecked_pow8{{[( ]}}
-    // CHECK-NOT: mstore 4, 17
+    // CHECK-NOT: mstore 32, 17
     // CHECK: [[BASE:v[0-9]+]] = and arg0, 255
     // CHECK: [[EXPONENT:v[0-9]+]] = and arg1, 255
     // CHECK: [[POWER:v[0-9]+]] = exp [[BASE]], [[EXPONENT]]
     // CHECK: and [[POWER]], 255
-    // CHECK-NOT: mstore 4, 17
+    // CHECK-NOT: mstore 32, 17
     function unchecked_pow8(uint8 a, uint8 b) public pure returns (uint8) {
         unchecked {
             return a ** b;

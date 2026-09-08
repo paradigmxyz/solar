@@ -41,13 +41,13 @@ fn @recover() [selector=0xce746024, abi_wrapper, pure] {
     mstore 128, v10
     returndata 128, 32
   bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
   bb2:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 fn @recoverInvalid() [selector=0x008f4bed, abi_wrapper, pure] {
@@ -90,13 +90,13 @@ fn @recoverInvalid() [selector=0x008f4bed, abi_wrapper, pure] {
     mstore 128, v9
     returndata 128, 32
   bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
   bb2:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 fn @sha() [selector=0x65707d6f, abi_wrapper, pure] {
@@ -122,9 +122,9 @@ fn @sha() [selector=0x65707d6f, abi_wrapper, pure] {
     mstore 128, v9
     returndata 128, 32
   bb2:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 fn @ripemd() [selector=0xa1e754ea, abi_wrapper, pure] {
@@ -152,9 +152,9 @@ fn @ripemd() [selector=0xa1e754ea, abi_wrapper, pure] {
     mstore 128, v11
     returndata 128, 32
   bb2:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 fn @shaLiteral() [selector=0x4aa7a4c7, abi_wrapper, pure] {
@@ -180,9 +180,9 @@ fn @shaLiteral() [selector=0x4aa7a4c7, abi_wrapper, pure] {
     mstore 128, v9
     returndata 128, 32
   bb2:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 fn @ripemdLiteral() [selector=0x062c5650, abi_wrapper, pure] {
@@ -210,9 +210,9 @@ fn @ripemdLiteral() [selector=0x062c5650, abi_wrapper, pure] {
     mstore 128, v11
     returndata 128, 32
   bb2:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 fn @shaEmpty() [selector=0xf1609893, abi_wrapper, pure] {
@@ -240,9 +240,9 @@ fn @shaEmpty() [selector=0xf1609893, abi_wrapper, pure] {
     mstore 128, v10
     returndata 128, 32
   bb2:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 fn @ripemdEmpty() [selector=0x0c4b170a, abi_wrapper, pure] {
@@ -272,9 +272,9 @@ fn @ripemdEmpty() [selector=0x0c4b170a, abi_wrapper, pure] {
     mstore 128, v12
     returndata 128, 32
   bb2:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 fn @literal_bytes_word(arg0: bytes32, arg1: u256) -> memptr {

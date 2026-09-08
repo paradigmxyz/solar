@@ -11,7 +11,7 @@ fn @mutate() -> u256 [selector=0x7795b5fc, abi_params=[], abi_returns=[word]] {
 // === ROOT/tests/ui/codegen/lowering/run-call/external_call_evaluation_order.sol:ExternalCallEvaluationOrder ===
 @module ExternalCallEvaluationOrder
 data:
-  MutatingBase_initcode_0: hex"34600d5760838060115f395ff35b5f5ffd34601a575f3560e01c80637795b5fc14601657601a565b601e565b5f5ffd5b5f54600181018060a0528060a052818110915050156063577f4e487b71000000000000000000000000000000000000000000000000000000005f52601160045260245ffd5b60a0518060a0525f5560a0518060a0526080526020608001608090036080f3"
+  MutatingBase_initcode_0: hex"34600d5760688060115f395ff35b5f5ffd34601a575f3560e01c80637795b5fc14601657601a565b601e565b5f5ffd5b5f54600181018060a0528060a05281811091505015604857634e487b715f5260116020526024601cfd5b60a0518060a0525f5560a0518060a0526080526020608001608090036080f3"
 
 immutables:
   target: address
@@ -179,13 +179,13 @@ fn @constructor() [constructor] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 179, v1
+    v2 = and 152, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy MutatingBase_initcode_0, v3, 148
+    data_copy MutatingBase_initcode_0, v3, 121
     v4 = slice_ptr v0
-    v5 = add v3, 148
+    v5 = add v3, 121
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 148
+    v6 = create 0, v3, 121
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata

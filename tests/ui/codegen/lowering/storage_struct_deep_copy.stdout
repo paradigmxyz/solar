@@ -112,9 +112,9 @@ fn @assign() [selector=0x4bd0273c, abi_wrapper] {
     v34 = add v18, 1
     jump bb3
   bb15:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
   bb10:
     revert 0, 0
 }
@@ -241,13 +241,13 @@ fn @push() [selector=0xa60249a3, abi_wrapper] {
     v40 = add v24, 1
     jump bb3
   bb10:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
   bb17:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
   bb12:
     revert 0, 0
 }
@@ -257,9 +257,9 @@ fn @pop() [selector=0xa4ece52c, abi_wrapper] {
     v0 = sload 2 !metadata(storage=slot(2))
     jumpi v0, bb2, bb1
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 49 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 49 !metadata(memory=scratch)
+    revert 28, 36
   bb2:
     v2 = sub v0, 1
     sstore 2, v2 !metadata(storage=slot(2))
@@ -404,9 +404,9 @@ fn @assignFixed() [selector=0xb7ffd825, abi_wrapper] {
     v38 = add v22, 1
     jump bb3
   bb15:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 65 !metadata(memory=scratch)
+    revert 28, 36
   bb10:
     revert 0, 0
 }

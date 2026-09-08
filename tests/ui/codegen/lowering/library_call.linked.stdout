@@ -19,15 +19,13 @@ bb11 [cold]:
   revert
 bb10 [cold]:
   push 0x4e487b71
-  push 224
-  shl
   push 0
   mstore
   push 17
-  push 4
+  push 32
   mstore
   push 36
-  push 0
+  push 28
   revert
 bb1:
   push_immutable 0, 20
@@ -235,13 +233,11 @@ bb10 [cold]:
   revert
 bb11 [cold]:
   push 0x4e487b71
-  push 224
-  shl
   push 0
   mstore
   push 65
-  push 4
+  push 32
   mstore
   push 36
-  push 0
+  push 28
   revert

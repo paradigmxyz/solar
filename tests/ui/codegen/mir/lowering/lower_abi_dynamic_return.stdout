@@ -193,9 +193,9 @@
 +     v14 = add v10, 1
 +     jump bb4
 +   bb1:
-+     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-+     mstore 4, 65 !metadata(memory=scratch)
-+     revert 0, 36
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 65 !metadata(memory=scratch)
++     revert 28, 36
 + }
 + 
 + fn @cleanup_return.12(arg0: memoryarray) -> memoryarray {
@@ -259,8 +259,8 @@
 +     v31 = add v26, 1
 +     jump bb9
 +   bb1:
-+     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-+     mstore 4, 65 !metadata(memory=scratch)
-+     revert 0, 36
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 65 !metadata(memory=scratch)
++     revert 28, 36
   }
   

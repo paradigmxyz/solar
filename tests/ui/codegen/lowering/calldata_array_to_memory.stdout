@@ -35,22 +35,18 @@ bb6 [cold]:
   revert
 bb48 [cold]:
   push 0x4e487b71
-  push 224
-  shl
   push 0
   mstore
   push 65
   jump bb49
 bb49 [cold]:
-  push 4
+  push 32
   mstore
   push 36
-  push 0
+  push 28
   revert
 bb47 [cold]:
   push 0x4e487b71
-  push 224
-  shl
   push 0
   mstore
   push 17

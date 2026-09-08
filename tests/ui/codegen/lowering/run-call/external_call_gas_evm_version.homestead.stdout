@@ -66,19 +66,19 @@ types:
   struct1: {u256, u256, u256, u256, u256, u256, u256, u256}
 
 data:
-  CallGasCallee_initcode_0: hex"346010576102038060166000396000f35b60006000fe36600857610202565b6000357c010000000000000000000000000000000000000000000000000000000090048063295b4e1714606b5780633fa4f24514606f5780635dfc2e4a146073578063a8aa1b31146077578063cb94343e14607b578063f5e34bfa14607f576084565b60af565b6094565b6089565b60c1565b60e9565b610143565b600080fe5b34608f57005b600080fe5b3460aa57602a6080526020608001608090036080f35b600080fe5b60076080526020608001608090036080f35b60c06040523460e457600160805260206080016002815260209001608090036080f35b600080fe5b6101806040523461013e57600160805260206080016002815260209001600381526020900160048152602090016005815260209001600681526020900160078152602090016008815260209001608090036080f35b600080fe5b610120604052346101fd576040518060c0528060c05260408101604052604036828060c05237600260001015156101a4575b7f4e487b7100000000000000000000000000000000000000000000000000000000600052603260045260246000fe5b8060c052600b81526002600110156101755760208101601681525060005b8060e05260028110156101ed576020818060e0520282015160208202608001526001810190506101c2565b6040608001915050608090036080f35b600080fe5b"
+  CallGasCallee_initcode_0: hex"346010576101e78060166000396000f35b60006000fe366008576101e6565b6000357c010000000000000000000000000000000000000000000000000000000090048063295b4e1714606b5780633fa4f24514606f5780635dfc2e4a146073578063a8aa1b31146077578063cb94343e14607b578063f5e34bfa14607f576084565b60af565b6094565b6089565b60c1565b60e9565b610143565b600080fe5b34608f57005b600080fe5b3460aa57602a6080526020608001608090036080f35b600080fe5b60076080526020608001608090036080f35b60c06040523460e457600160805260206080016002815260209001608090036080f35b600080fe5b6101806040523461013e57600160805260206080016002815260209001600381526020900160048152602090016005815260209001600681526020900160078152602090016008815260209001608090036080f35b600080fe5b610120604052346101e1576040518060c0528060c05260408101604052604036828060c0523760026000101515610188575b634e487b7160005260326020526024601cfe5b8060c052600b81526002600110156101755760208101601681525060005b8060e05260028110156101d1576020818060e0520282015160208202608001526001810190506101a6565b6040608001915050608090036080f35b600080fe5b"
 
 fn @noReturn() -> u256 [selector=0x31794254, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 568, v1
+    v2 = and 540, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy CallGasCallee_initcode_0, v3, 537
+    data_copy CallGasCallee_initcode_0, v3, 509
     v4 = slice_ptr v0
-    v5 = add v3, 537
+    v5 = add v3, 509
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 537
+    v6 = create 0, v3, 509
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata
@@ -103,13 +103,13 @@ fn @withReturn() -> u256 [selector=0x2149184b, abi_params=[], abi_returns=[word]
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 568, v1
+    v2 = and 540, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy CallGasCallee_initcode_0, v3, 537
+    data_copy CallGasCallee_initcode_0, v3, 509
     v4 = slice_ptr v0
-    v5 = add v3, 537
+    v5 = add v3, 509
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 537
+    v6 = create 0, v3, 509
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata
@@ -141,13 +141,13 @@ fn @withValue() -> u256 [selector=0xd6b69802, abi_params=[], abi_returns=[word]]
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 568, v1
+    v2 = and 540, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy CallGasCallee_initcode_0, v3, 537
+    data_copy CallGasCallee_initcode_0, v3, 509
     v4 = slice_ptr v0
-    v5 = add v3, 537
+    v5 = add v3, 509
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 537
+    v6 = create 0, v3, 509
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata
@@ -179,13 +179,13 @@ fn @twoReturns() -> u256 [selector=0xf7f4979a, abi_params=[], abi_returns=[word]
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 568, v1
+    v2 = and 540, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy CallGasCallee_initcode_0, v3, 537
+    data_copy CallGasCallee_initcode_0, v3, 509
     v4 = slice_ptr v0
-    v5 = add v3, 537
+    v5 = add v3, 509
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 537
+    v6 = create 0, v3, 509
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata
@@ -226,13 +226,13 @@ fn @eightReturns() -> u256 [selector=0x67b0b213, abi_params=[], abi_returns=[wor
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 568, v1
+    v2 = and 540, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy CallGasCallee_initcode_0, v3, 537
+    data_copy CallGasCallee_initcode_0, v3, 509
     v4 = slice_ptr v0
-    v5 = add v3, 537
+    v5 = add v3, 509
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 537
+    v6 = create 0, v3, 509
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata
@@ -315,13 +315,13 @@ fn @aggregate() -> u256 [selector=0xaf36778b, abi_params=[], abi_returns=[word]]
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 568, v1
+    v2 = and 540, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy CallGasCallee_initcode_0, v3, 537
+    data_copy CallGasCallee_initcode_0, v3, 509
     v4 = slice_ptr v0
-    v5 = add v3, 537
+    v5 = add v3, 509
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 537
+    v6 = create 0, v3, 509
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata
@@ -363,13 +363,13 @@ fn @bare() -> u256 [selector=0x8095dd0b, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 568, v1
+    v2 = and 540, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy CallGasCallee_initcode_0, v3, 537
+    data_copy CallGasCallee_initcode_0, v3, 509
     v4 = slice_ptr v0
-    v5 = add v3, 537
+    v5 = add v3, 509
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 537
+    v6 = create 0, v3, 509
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata
@@ -390,13 +390,13 @@ fn @sendZero() -> u256 [selector=0xe857d88b, abi_params=[], abi_returns=[word]] 
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 568, v1
+    v2 = and 540, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy CallGasCallee_initcode_0, v3, 537
+    data_copy CallGasCallee_initcode_0, v3, 509
     v4 = slice_ptr v0
-    v5 = add v3, 537
+    v5 = add v3, 509
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 537
+    v6 = create 0, v3, 509
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata

@@ -248,15 +248,16 @@ impl<'a> FunctionBuilder<'a> {
             self.invalid();
             return;
         }
-        // mstore(0, Panic.selector); mstore(4, code); revert(0, 36)
-        let selector = self.imm(U256::from(0x4e48_7b71_u64) << 224);
+        // mstore(0, Panic.selector); mstore(32, code); revert(28, 36)
+        let selector = self.imm(0x4e48_7b71_u64);
         let code = self.imm(code.as_u64());
         let zero = self.imm(U256::ZERO);
         self.mstore(zero, selector);
-        let four = self.imm(4);
-        self.mstore(four, code);
+        let word = self.imm(32);
+        self.mstore(word, code);
+        let offset = self.imm(28);
         let size = self.imm(36);
-        self.revert(zero, size);
+        self.revert(offset, size);
     }
 
     /// Retains evaluated error arguments until conditional payload encoding.

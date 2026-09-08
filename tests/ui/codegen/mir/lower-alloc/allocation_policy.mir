@@ -4,7 +4,7 @@
 // CHECK: +     v0 = mload 64 !metadata(memory=scratch)
 // CHECK: +     jumpi v8, bb2, bb1
 // CHECK: +     memory_zero v0, v3
-// CHECK: +     revert 0, 36
+// CHECK: +     revert 28, 36
 // CHECK-LABEL:   fn @internal() -> memptr {
 // CHECK: +     v0 = mload 64 !metadata(memory=scratch, span=10..20)
 // CHECK: +     mstore 64, v1 !metadata(memory=scratch)

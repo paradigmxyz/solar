@@ -39,9 +39,9 @@ fn @combine() [selector=0xd9171e32, abi_wrapper, pure] {
     mstore 128, v12
     returndata 128, 32
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 17 !metadata(memory=scratch)
+    revert 28, 36
   bb4:
     revert 0, 0
 }

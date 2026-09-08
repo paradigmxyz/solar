@@ -47,19 +47,19 @@ types:
   struct0: {u256, u256}
 
 data:
-  TryCallee_initcode_0: hex"34600e576101658060125f395ff35b5f5ffd5f3560e01c80633fa4f24514603a5780635dfc2e4a14603e578063a8aa1b31146043578063a9cc4718146047578063f5e34bfa14604c576050565b6054565b61014d565b606e565b610158565b6095565b5f5ffd5b34606a57602a6080526020608001608090036080f35b5f5ffd5b60c060405234609157600160805260206080016002815260209001608090036080f35b5f5ffd5b61012060405234610149576040518060c0528060c05260408101604052604036828060c0523760025f10151560f2575b7f4e487b71000000000000000000000000000000000000000000000000000000005f52603260045260245ffd5b8060c052600b815260026001101560c5576020810160168152505f5b8060e0526002811015610139576020818060e05202820151602082026080015260018101905061010e565b6040608001915050608090036080f35b5f5ffd5b3461015457005b5f5ffd5b600115610163575f5ffd5bfe"
+  TryCallee_initcode_0: hex"34600e576101498060125f395ff35b5f5ffd5f3560e01c80633fa4f24514603a5780635dfc2e4a14603e578063a8aa1b31146043578063a9cc4718146047578063f5e34bfa14604c576050565b6054565b610131565b606e565b61013c565b6095565b5f5ffd5b34606a57602a6080526020608001608090036080f35b5f5ffd5b60c060405234609157600160805260206080016002815260209001608090036080f35b5f5ffd5b6101206040523461012d576040518060c0528060c05260408101604052604036828060c0523760025f10151560d7575b634e487b715f5260326020526024601cfd5b8060c052600b815260026001101560c5576020810160168152505f5b8060e052600281101561011d576020818060e05202820151602082026080015260018101905060f3565b6040608001915050608090036080f35b5f5ffd5b3461013857005b5f5ffd5b600115610147575f5ffd5bfe"
 
 fn @live() -> u256 [selector=0x957aa58c, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 406, v1
+    v2 = and 378, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy TryCallee_initcode_0, v3, 375
+    data_copy TryCallee_initcode_0, v3, 347
     v4 = slice_ptr v0
-    v5 = add v3, 375
+    v5 = add v3, 347
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 375
+    v6 = create 0, v3, 347
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata
@@ -90,13 +90,13 @@ fn @liveTwo() -> u256 [selector=0xa9b44a2a, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 406, v1
+    v2 = and 378, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy TryCallee_initcode_0, v3, 375
+    data_copy TryCallee_initcode_0, v3, 347
     v4 = slice_ptr v0
-    v5 = add v3, 375
+    v5 = add v3, 347
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 375
+    v6 = create 0, v3, 347
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata
@@ -130,13 +130,13 @@ fn @liveAggregate() -> u256 [selector=0xc64a4ee9, abi_params=[], abi_returns=[wo
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 406, v1
+    v2 = and 378, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy TryCallee_initcode_0, v3, 375
+    data_copy TryCallee_initcode_0, v3, 347
     v4 = slice_ptr v0
-    v5 = add v3, 375
+    v5 = add v3, 347
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 375
+    v6 = create 0, v3, 347
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata
@@ -176,13 +176,13 @@ fn @liveNoReturn() -> u256 [selector=0x0f81fb69, abi_params=[], abi_returns=[wor
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 406, v1
+    v2 = and 378, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy TryCallee_initcode_0, v3, 375
+    data_copy TryCallee_initcode_0, v3, 347
     v4 = slice_ptr v0
-    v5 = add v3, 375
+    v5 = add v3, 347
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 375
+    v6 = create 0, v3, 347
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata
@@ -214,13 +214,13 @@ fn @liveCatch() -> u256 [selector=0x852bf1e6, abi_params=[], abi_returns=[word]]
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 406, v1
+    v2 = and 378, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy TryCallee_initcode_0, v3, 375
+    data_copy TryCallee_initcode_0, v3, 347
     v4 = slice_ptr v0
-    v5 = add v3, 375
+    v5 = add v3, 347
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 375
+    v6 = create 0, v3, 347
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata
@@ -251,13 +251,13 @@ fn @livePointer() -> u256 [selector=0x6347cf88, abi_params=[], abi_returns=[word
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 406, v1
+    v2 = and 378, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy TryCallee_initcode_0, v3, 375
+    data_copy TryCallee_initcode_0, v3, 347
     v4 = slice_ptr v0
-    v5 = add v3, 375
+    v5 = add v3, 347
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 375
+    v6 = create 0, v3, 347
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata
@@ -293,13 +293,13 @@ fn @liveCreation() -> u256 [selector=0xb217934d, abi_params=[], abi_returns=[wor
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 406, v1
+    v2 = and 378, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy TryCallee_initcode_0, v3, 375
+    data_copy TryCallee_initcode_0, v3, 347
     v4 = slice_ptr v0
-    v5 = add v3, 375
+    v5 = add v3, 347
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 375
+    v6 = create 0, v3, 347
     v7 = eq v6, 0
     v8 = iszero v7
     jumpi v8, bb1, bb2

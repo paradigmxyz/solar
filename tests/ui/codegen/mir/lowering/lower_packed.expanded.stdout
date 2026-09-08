@@ -30,9 +30,9 @@
 +   bb4:
 +     ret v10
 +   bb1:
-+     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-+     mstore 4, 65 !metadata(memory=scratch)
-+     revert 0, 36
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 65 !metadata(memory=scratch)
++     revert 28, 36
   }
   
   fn @hash(arg0: i16) -> bytes32 {
@@ -140,9 +140,9 @@
 +     v36 = add v30, 1
 +     jump bb9
 +   bb1:
-+     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-+     mstore 4, 65 !metadata(memory=scratch)
-+     revert 0, 36
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 65 !metadata(memory=scratch)
++     revert 28, 36
   }
   
   fn @nested(arg0: memoryfixedarray) -> memorybytes {
@@ -181,17 +181,17 @@
 +     v14 = lt v13, 3
 +     jumpi v14, bb10, bb9
 +   bb9:
-+     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-+     mstore 4, 33 !metadata(memory=scratch)
-+     revert 0, 36
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 33 !metadata(memory=scratch)
++     revert 28, 36
 +   bb10:
 +     memory_object_store_word memorybytes, v1, v12, v13
 +     v15 = add v9, 1
 +     jump bb6
 +   bb4:
-+     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-+     mstore 4, 65 !metadata(memory=scratch)
-+     revert 0, 36
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 65 !metadata(memory=scratch)
++     revert 28, 36
   }
   
   fn @edge(arg0: bool, arg1: memoryarray, arg2: memorybytes) -> memorybytes {
@@ -251,9 +251,9 @@
 +     v27 = add v22, 1
 +     jump bb10
 +   bb4:
-+     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-+     mstore 4, 65 !metadata(memory=scratch)
-+     revert 0, 36
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 65 !metadata(memory=scratch)
++     revert 28, 36
   }
   
   fn @prefixed_array(arg0: memoryarray) -> memorybytes {
@@ -310,8 +310,8 @@
 +     v29 = add v23, 1
 +     jump bb7
 +   bb1:
-+     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-+     mstore 4, 65 !metadata(memory=scratch)
-+     revert 0, 36
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 65 !metadata(memory=scratch)
++     revert 28, 36
   }
   

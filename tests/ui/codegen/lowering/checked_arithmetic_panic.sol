@@ -5,7 +5,7 @@ contract CheckedArithmeticPanic {
     // CHECK-LABEL: fn @add{{[( ]}}
     // CHECK: [[SUM:v[0-9]+]] = add arg0, arg1
     // CHECK: lt [[SUM]], arg0
-    // CHECK: mstore 4, 17
+    // CHECK: mstore 32, 17
     function add(uint256 a, uint256 b) public pure returns (uint256) {
         return a + b;
     }
@@ -13,7 +13,7 @@ contract CheckedArithmeticPanic {
     // CHECK-LABEL: fn @sub{{[( ]}}
     // CHECK: {{v[0-9]+}} = sub arg0, arg1
     // CHECK: lt arg0, arg1
-    // CHECK: mstore 4, 17
+    // CHECK: mstore 32, 17
     function sub(uint256 a, uint256 b) public pure returns (uint256) {
         return a - b;
     }
@@ -21,14 +21,14 @@ contract CheckedArithmeticPanic {
     // CHECK-LABEL: fn @mul{{[( ]}}
     // CHECK: [[PRODUCT:v[0-9]+]] = mul arg0, arg1
     // CHECK: div [[PRODUCT]], arg1
-    // CHECK: mstore 4, 17
+    // CHECK: mstore 32, 17
     function mul(uint256 a, uint256 b) public pure returns (uint256) {
         return a * b;
     }
 
     // CHECK-LABEL: fn @div_zero{{[( ]}}
     // CHECK: jumpi arg1,
-    // CHECK: mstore 4, 18
+    // CHECK: mstore 32, 18
     // CHECK: div arg0, arg1
     function div_zero(uint256 a, uint256 b) public pure returns (uint256) {
         return a / b;
@@ -40,7 +40,7 @@ contract CheckedArithmeticPanic {
     // CHECK: mul {{v[0-9]+}}, {{v[0-9]+}}
     // CHECK: and {{v[0-9]+}}, {{v[0-9]+}}
     // CHECK: shr 1,
-    // CHECK: mstore 4, 17
+    // CHECK: mstore 32, 17
     function pow(uint256 a, uint256 b) public pure returns (uint256) {
         return a ** b;
     }
@@ -50,7 +50,7 @@ contract CheckedArithmeticPanic {
     // CHECK: slt arg0, 0
     // CHECK: slt arg1, 0
     // CHECK: slt [[SUM]], 0
-    // CHECK: mstore 4, 17
+    // CHECK: mstore 32, 17
     function signed_add(int256 a, int256 b) public pure returns (int256) {
         return a + b;
     }
@@ -58,7 +58,7 @@ contract CheckedArithmeticPanic {
     // CHECK-LABEL: fn @signed_neg{{[( ]}}
     // CHECK: eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
     // CHECK: sub 0, arg0
-    // CHECK: mstore 4, 17
+    // CHECK: mstore 32, 17
     function signed_neg(int256 a) public pure returns (int256) {
         return -a;
     }
@@ -68,14 +68,14 @@ contract CheckedArithmeticPanic {
     // CHECK: [[RHS:v[0-9]+]] = and arg1, 255
     // CHECK: [[SUM:v[0-9]+]] = add [[LHS]], [[RHS]]
     // CHECK: gt [[SUM]], 255
-    // CHECK: mstore 4, 17
+    // CHECK: mstore 32, 17
     function narrow_add(uint8 a, uint8 b) public pure returns (uint8) {
         return a + b;
     }
 
     // CHECK-LABEL: fn @unchecked_add{{[( ]}}
     // CHECK: add arg0, arg1
-    // CHECK-NOT: mstore 4, 17
+    // CHECK-NOT: mstore 32, 17
     // CHECK: ret
     function unchecked_add(uint256 a, uint256 b) public pure returns (uint256) {
         unchecked {
@@ -84,11 +84,11 @@ contract CheckedArithmeticPanic {
     }
 
     // CHECK-LABEL: fn @unchecked_neg{{[( ]}}
-    // CHECK-NOT: mstore 4, 17
+    // CHECK-NOT: mstore 32, 17
     // CHECK: sub 0, arg0
-    // CHECK-NOT: mstore 4, 17
+    // CHECK-NOT: mstore 32, 17
     // CHECK: ret
-    // CHECK-NOT: mstore 4, 17
+    // CHECK-NOT: mstore 32, 17
     function unchecked_neg(int256 a) public pure returns (int256) {
         unchecked {
             return -a;
@@ -96,11 +96,11 @@ contract CheckedArithmeticPanic {
     }
 
     // CHECK-LABEL: fn @unchecked_pow{{[( ]}}
-    // CHECK-NOT: mstore 4, 17
+    // CHECK-NOT: mstore 32, 17
     // CHECK: exp arg0, arg1
-    // CHECK-NOT: mstore 4, 17
+    // CHECK-NOT: mstore 32, 17
     // CHECK: ret
-    // CHECK-NOT: mstore 4, 17
+    // CHECK-NOT: mstore 32, 17
     function unchecked_pow(uint256 a, uint256 b) public pure returns (uint256) {
         unchecked {
             return a ** b;
@@ -118,7 +118,7 @@ contract CheckedArithmeticPanic {
     // CHECK-LABEL: fn @checked_inner{{[( ]}}
     // CHECK: [[SUM:v[0-9]+]] = add arg0, arg1
     // CHECK: lt [[SUM]], arg0
-    // CHECK: mstore 4, 17
+    // CHECK: mstore 32, 17
     function checked_inner(uint256 a, uint256 b) internal pure returns (uint256) {
         return a + b;
     }

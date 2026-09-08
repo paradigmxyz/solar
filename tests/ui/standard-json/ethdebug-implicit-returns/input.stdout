@@ -177,7 +177,7 @@
                   "operation": {
                     "mnemonic": "PUSH2",
                     "arguments": [
-                      "0x0193"
+                      "0x0178"
                     ]
                   }
                 },
@@ -2765,7 +2765,7 @@
                   "operation": {
                     "mnemonic": "PUSH2",
                     "arguments": [
-                      "0x015a"
+                      "0x013f"
                     ]
                   }
                 },
@@ -2778,26 +2778,26 @@
                 {
                   "offset": 302,
                   "operation": {
-                    "mnemonic": "PUSH32",
+                    "mnemonic": "PUSH4",
                     "arguments": [
-                      "0x4e487b7100000000000000000000000000000000000000000000000000000000"
+                      "0x4e487b71"
                     ]
                   }
                 },
                 {
-                  "offset": 335,
+                  "offset": 307,
                   "operation": {
                     "mnemonic": "PUSH0"
                   }
                 },
                 {
-                  "offset": 336,
+                  "offset": 308,
                   "operation": {
                     "mnemonic": "MSTORE"
                   }
                 },
                 {
-                  "offset": 337,
+                  "offset": 309,
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
@@ -2806,22 +2806,22 @@
                   }
                 },
                 {
-                  "offset": 339,
+                  "offset": 311,
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
-                      "0x04"
+                      "0x20"
                     ]
                   }
                 },
                 {
-                  "offset": 341,
+                  "offset": 313,
                   "operation": {
                     "mnemonic": "MSTORE"
                   }
                 },
                 {
-                  "offset": 342,
+                  "offset": 314,
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
@@ -2830,25 +2830,28 @@
                   }
                 },
                 {
-                  "offset": 344,
+                  "offset": 316,
                   "operation": {
-                    "mnemonic": "PUSH0"
+                    "mnemonic": "PUSH1",
+                    "arguments": [
+                      "0x1c"
+                    ]
                   }
                 },
                 {
-                  "offset": 345,
+                  "offset": 318,
                   "operation": {
                     "mnemonic": "REVERT"
                   }
                 },
                 {
-                  "offset": 346,
+                  "offset": 319,
                   "operation": {
                     "mnemonic": "JUMPDEST"
                   }
                 },
                 {
-                  "offset": 347,
+                  "offset": 320,
                   "operation": {
                     "mnemonic": "INVALID"
                   }

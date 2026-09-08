@@ -1,10 +1,15 @@
 //@ revisions: default debug
 //@ compile-flags: -Zmir-pipeline=lower-checks
+//@ filecheck:
 //@[debug] compile-flags: --revert-strings debug
 @module LowerChecks
 
 // Splitting either predecessor must update only its incoming phi label. The panic payload
 // stays shared across both original blocks; the reason depends on revert-string mode.
+// CHECK-LABEL: fn @branch_checks(
+// CHECK: mstore 0, 0x4e487b71
+// CHECK-NEXT: mstore 32, 1
+// CHECK-NEXT: revert 28, 36
 fn @branch_checks(arg0: bool, arg1: u256) -> u256 {
   bb0:
     jumpi arg0, bb1, bb2

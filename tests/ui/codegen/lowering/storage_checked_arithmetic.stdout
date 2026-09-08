@@ -12,9 +12,9 @@ fn @storage_sub(arg0: address, arg1: u256) [selector=0x8af2db43, abi_params=[add
     sstore v1, v4 !metadata(storage=symbolic(v1))
     ret
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 17 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 fn @storage_binary_sub(arg0: address, arg1: u256) [selector=0x816bb6a5, abi_params=[address, u256], abi_returns=[]] {
@@ -31,9 +31,9 @@ fn @storage_binary_sub(arg0: address, arg1: u256) [selector=0x816bb6a5, abi_para
     sstore v5, v6 !metadata(storage=symbolic(v5))
     ret
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 17 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 fn @storage_struct_add(arg0: address, arg1: u128) [selector=0xb11dd1b8, abi_params=[address, u128], abi_returns=[]] {
@@ -55,9 +55,9 @@ fn @storage_struct_add(arg0: address, arg1: u128) [selector=0xb11dd1b8, abi_para
     sstore v1, v10 !metadata(storage=symbolic(v1))
     ret
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 17 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 fn @storage_struct_signed_sub(arg0: address, arg1: i8) [selector=0x14ebfa30, abi_params=[address, i8], abi_returns=[]] {
@@ -92,7 +92,7 @@ fn @storage_struct_signed_sub(arg0: address, arg1: i8) [selector=0x14ebfa30, abi
     sstore v1, v14 !metadata(storage=symbolic(v1))
     ret
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    mstore 32, 17 !metadata(memory=scratch)
+    revert 28, 36
 }
