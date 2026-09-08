@@ -27,6 +27,8 @@
 //!
 //! Loads at allocation bases stay local unless the cached value already crosses the block edge.
 //! Extending their lifetimes can add a spill whose store and reload cost more than the load.
+//! Constant semantic length writes seed the same read cache without extending register lifetimes.
+//! Overlapping writes and calls invalidate these entries through the usual alias checks.
 //!
 //! Safety contract:
 //! - cache only pure expressions, classified memory reads, and exact storage or transient-storage
@@ -499,13 +501,7 @@ impl CommonSubexprEliminator {
             for &inst_id in &func.blocks[block_id].instructions {
                 let kind = &func.inst(inst_id).kind;
                 if kind.has_side_effects() {
-                    self.invalidate_for_side_effect(
-                        func,
-                        inst_id,
-                        kind,
-                        ctx.replacements,
-                        &mut cache,
-                    );
+                    self.update_for_side_effect(func, inst_id, kind, ctx.replacements, &mut cache);
                     continue;
                 }
 
@@ -559,6 +555,7 @@ impl CommonSubexprEliminator {
         cache.retain_stateful(|key, value| {
             !matches!(key, ExprKey::MLoad(location)
                 if location.address.is_allocation_base())
+                || func.value_u256(*value).is_some()
                 || ctx
                     .liveness
                     .get_or_init(|| Liveness::compute(func))
@@ -655,13 +652,7 @@ impl CommonSubexprEliminator {
             let kind = &inst.kind;
 
             if kind.has_side_effects() {
-                self.invalidate_for_side_effect(
-                    func,
-                    inst_id,
-                    kind,
-                    &replacements,
-                    &mut expr_cache,
-                );
+                self.update_for_side_effect(func, inst_id, kind, &replacements, &mut expr_cache);
                 continue;
             }
 
@@ -870,7 +861,7 @@ impl CommonSubexprEliminator {
         }
     }
 
-    fn invalidate_for_side_effect(
+    fn update_for_side_effect(
         &self,
         func: &Function,
         inst_id: InstId,
@@ -884,6 +875,17 @@ impl CommonSubexprEliminator {
             self.apply_clobber(expr_cache, clobber);
             if !expr_cache.has_stateful() {
                 break;
+            }
+        }
+        if let InstKind::SetMemoryObjectLen(object, len, object_kind) = kind {
+            let object = mir_utils::resolve_replacement(*object, replacements);
+            let len = mir_utils::resolve_replacement(*len, replacements);
+            if func.value_u256(len).is_some()
+                && let Some(location) =
+                    self.alias().memory_object_length_location(func, inst_id, object, *object_kind)
+            {
+                // set_memory_object_len object, constant; memory_object_len object -> constant
+                expr_cache.insert(ExprKey::MLoad(location), len);
             }
         }
     }
