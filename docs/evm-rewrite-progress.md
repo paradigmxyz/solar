@@ -3,7 +3,7 @@
 The rewrite remains incomplete. One original UI assertion, incomplete general
 memory-ownership evidence and individual sealed gas/size debts still block final
 acceptance.
-This page summarizes local state after `5b06f7ab` on 2026-09-08. The
+This page summarizes local state after `ce593973` on 2026-09-08. The
 [handoff](evm-rewrite-plan.md) defines acceptance; [PR #1388][pr] tracks review.
 The [checkpoint archive](evm-rewrite-checkpoints.md) preserves the complete
 history, baseline hashes, rejected trials and measurement limitations.
@@ -83,8 +83,12 @@ inventory; this includes embedded tests and is not strict production SLOC.
 Eager contraction removes avoidable spills and saves bytecode without corpus
 growth; full Gas/Size outputs and Foundry gas remain exact. It adds 188 physical
 MIR Rust lines. Quiet repeats retain +1.64% OpenZeppelin and +3.11% Morpho compile
-costs. Next, simplify that analysis, restore alias-codegen size, and complete the
-remaining runtime/size gates. Keep correctness and runtime
+costs. The consumer-tracking simplification (`ce593973`) removes five Rust
+lines, halves its consumer entry to four bytes, and preserves all measured
+outputs and gas. Its full timing (+4.22%, RSS +0.10%) overlaps another task
+on the host and has unequal baseline sample counts; it establishes no speed
+claim. Next, restore alias-codegen size and complete the remaining runtime/size
+gates. Keep correctness and runtime
 gas ahead of size, then compiler time and memory. These local milestones do not
 establish complete functionality, green remote CI or a successful remote push.
 

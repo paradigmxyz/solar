@@ -3393,3 +3393,34 @@ return unknown at 2/10-second solver limits; neither is agreement. A separate
 shared-capture extension passes 36 calls plus 244 address-sweep calls with
 baseline-identical objects, establishing only bounded refusal coverage. General
 memory ownership and the overall rewrite remain open.
+
+
+## September 8: compact consumer tracking
+
+Accepted `ce593973` replaces the sole-consumer enum with `Option<InstId>` and
+builds the shared-definition bitset during active-use traversal. The existing
+generation sentinel distinguishes first use from shared or terminator-only use.
+It removes a final instruction scan and five physical Rust lines; consumer
+entries shrink from eight to four bytes. Scheduling policy and layer boundaries
+remain unchanged. Frozen debug compiler `solar-sole-user-draft1` has SHA256
+`5bc3e1f9384b38c5a50b9ec8155e253cfe92eb0d5556b783137607b4586c6f21`.
+
+Evidence is under `target/codegen-bench/evm-rewrite-candidate/sole-user-workflow-20260908/`.
+All 1,652 UI IDs, 827 source hashes and 5,044 complete objects match the accepted
+eager-consumer baseline. Full Gas joins all 24 IDs, 175 ordered labels and 139
+observations per compiler; Size joins 15/175/139. Complete output fingerprints,
+physical artifacts and gas match. Two MIR artifacts differ only by verified
+literal-helper name bijections. One UI stderr reorders ten identical warning
+blocks. No expectation changed. Workspace retains 11,734 UI passes, the original
+alias assertion failure, 1,395 other passes and two skips. Formatting, Clippy
+and diff checks pass. All 146 production source pins and the frozen binary match.
+
+The full observed compiler-time geometric mean is +4.2173%, RSS +0.0991%.
+Another task's profiling/Foundry workload overlapped the host; the process
+snapshot supersedes the runner's initial quiet-run description. Our own agents
+were quiet. Candidate `--repeat-long-compiles` retains five samples for every
+case, whereas Seaport, OpenZeppelin and Solady baselines stopped after one.
+Individual deltas and samples are retained, but neither a speedup nor a causal
+slowdown is established. Concurrent Size timing is unused. The independent
+report and acceptance manifest record this bounded simplification; all original
+alias, sealed size/gas and general memory-ownership acceptance debts remain open.
