@@ -552,3 +552,7 @@ Gas cleanup can copy an eight-byte word-return body into a stub shared by
 multiple empty stubs. This removes an extra jump while retaining distinct
 return labels. Size mode keeps the shared body, and function-entry blocks or
 activation events on the replaced jump prevent the copy.
+
+When both branch arms terminate normally, gas layout places the false arm first.
+The true arm then uses the existing condition directly, avoiding an inversion
+and exposing its return path to later sharing and placement.

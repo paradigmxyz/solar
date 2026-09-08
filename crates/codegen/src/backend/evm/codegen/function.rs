@@ -1,4 +1,7 @@
 //! Function emission, phi edge splitting, and cold-block layout.
+//!
+//! Gas mode places the false arm first when both branch arms terminate normally,
+//! so the existing condition can drive the jump without an inversion.
 
 use super::{
     BlockId, CfgInfo, DenseBitSet, EvmCodegen, EvmMemoryLayout, Function, FunctionId, FxHashMap,
@@ -1280,6 +1283,18 @@ impl<'gcx> EvmCodegen<'gcx> {
                     match (self.block_is_cold(*then_block), self.block_is_cold(*else_block)) {
                         (true, false) => *else_block,
                         (false, true) => *then_block,
+                        // jumpi condition, then; else ... exit; then ... exit
+                        (false, false)
+                            if self.gcx.sess.opts.optimization.is_gas()
+                                && [*then_block, *else_block].into_iter().all(|target| {
+                                    func.blocks[target]
+                                        .terminator
+                                        .as_ref()
+                                        .is_some_and(|term| term.successors().is_empty())
+                                }) =>
+                        {
+                            *else_block
+                        }
                         _ => return,
                     }
                 }
