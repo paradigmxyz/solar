@@ -1,0 +1,103 @@
+// === ROOT/tests/ui/codegen/mir/inline-tiny-leaves/void_forwarder_runtime.sol:VoidForwarder ===
+@module VoidForwarder
+fn @once(arg0: u256, arg1: u256) -> u256 [selector=0x4c579d9d, abi_params=[u256, u256], abi_returns=[word]] {
+  bb0:
+    icall @forward, 0, arg0, arg1, 7
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @twice(arg0: u256, arg1: u256) -> u256 [selector=0x09d3ef31, abi_params=[u256, u256], abi_returns=[word]] {
+  bb0:
+    icall @forward, 0, arg0, arg1, 7
+    icall @forward, 0, arg1, arg0, 7
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @wrap(arg0: u256) -> u256 [selector=0xea598cb0, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    icall @wrappingForward, 0, arg0
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @forward(arg0: u256, arg1: u256, arg2: u256) {
+  bb0:
+    icall @sink, 0, arg1, arg0, arg2
+    stop
+}
+
+fn @wrappingForward(arg0: u256) {
+  bb0:
+    icall @uncheckedSink, 0, arg0, 4
+    stop
+}
+
+fn @sink(arg0: u256, arg1: u256, arg2: u256) {
+  bb0:
+    v0 = eq arg0, 0
+    v1 = iszero v0
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = sload 0 !metadata(storage=slot(0))
+    v4 = mul v3, 100
+    v5 = iszero 100
+    v6 = div v4, 100
+    v7 = eq v6, v3
+    v8 = or v5, v7
+    v9 = iszero v8
+    jumpi v9, bb3, bb4
+  bb4:
+    v10 = mul arg1, 0x3e8
+    v11 = iszero 0x3e8
+    v12 = div v10, 0x3e8
+    v13 = eq v12, arg1
+    v14 = or v11, v13
+    v15 = iszero v14
+    jumpi v15, bb3, bb5
+  bb5:
+    v16 = add v4, v10
+    v17 = lt v16, v4
+    jumpi v17, bb3, bb6
+  bb6:
+    v18 = mul arg0, 10
+    v19 = iszero 10
+    v20 = div v18, 10
+    v21 = eq v20, arg0
+    v22 = or v19, v21
+    v23 = iszero v22
+    jumpi v23, bb3, bb7
+  bb7:
+    v24 = add v16, v18
+    v25 = lt v24, v16
+    jumpi v25, bb3, bb8
+  bb8:
+    v26 = add v24, arg2
+    v27 = lt v26, v24
+    jumpi v27, bb3, bb9
+  bb9:
+    sstore 0, v26 !metadata(storage=slot(0))
+    stop
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    revert 0, 0
+}
+
+fn @uncheckedSink(arg0: u256, arg1: u256) {
+  bb0:
+    v0 = eq arg0, 0
+    jumpi v0, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v1 = add arg0, arg1
+    sstore 0, v1 !metadata(storage=slot(0))
+    stop
+  bb1:
+    revert 0, 0
+}
