@@ -146,3 +146,15 @@ fn @unused_storage_array(arg0: u256) {
     v0 = load_storage_array enum<3>, arg0
     ret
 }
+
+// CHECK-LABEL: fn @dead_memory_observer
+// CHECK: - {{v[0-9]+}} = mload 0x1000
+// CHECK: - {{v[0-9]+}} = msize
+// CHECK: - {{v[0-9]+}} = add {{v[0-9]+}}, {{v[0-9]+}}
+fn @dead_memory_observer() {
+  bb0:
+    v0 = mload 4096
+    v1 = msize
+    v2 = add v1, v1
+    ret
+}

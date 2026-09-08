@@ -233,14 +233,15 @@ impl InstKind {
                     | EffectKind::Create
                     | EffectKind::Log
             ),
-            expands_memory: matches!(
+            expands_memory: (matches!(
                 kind,
                 EffectKind::MemoryRead
                     | EffectKind::MemoryWrite
                     | EffectKind::ExternalCall
                     | EffectKind::Create
                     | EffectKind::Log
-            ) || matches!(self, Self::StorageBytesStore(..)),
+            ) && !matches!(self, Self::MSize))
+                || matches!(self, Self::StorageBytesStore(..)),
             observes_execution: matches!(self, Self::Gas | Self::MSize),
             has_identity: matches!(
                 self,

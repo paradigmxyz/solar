@@ -117,3 +117,11 @@
       ret
   }
   
+  fn @dead_memory_observer() {
+    bb0:
+-     v0 = mload 0x1000
+-     v1 = msize
+-     v2 = add v1, v1
+      ret
+  }
+  
