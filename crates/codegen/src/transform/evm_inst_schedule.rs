@@ -165,7 +165,7 @@ impl EvmInstSchedule {
         func: &Function,
         original: &[InstId],
         terminator: Option<&Terminator>,
-        users: &IndexVec<ValueId, Users>,
+        users: &IndexVec<ValueId, Option<InstId>>,
         reach: usize,
         scratch: &mut ScheduleScratch,
         ordered: &mut Vec<InstId>,
@@ -249,7 +249,7 @@ impl EvmInstSchedule {
             while scratch.visited.insert(id) {
                 ordered.push(id);
                 let Some(value) = func.inst_result_value(id) else { break };
-                let Users::One(Some(consumer)) = users[value] else { break };
+                let Some(consumer) = users[value] else { break };
                 if !scratch.members.contains(consumer)
                     || scratch.visited.contains(consumer)
                     || scratch.original_positions[consumer] != scratch.original_positions[anchor]
@@ -271,7 +271,7 @@ impl EvmInstSchedule {
                             scratch.members.contains(*definition)
                                 && scratch.visited.contains(*definition)
                                 && !matches!(func.inst(*definition).kind, InstKind::Phi(_))
-                                && matches!(users[operand], Users::One(Some(user)) if user == consumer)
+                                && users[operand] == Some(consumer)
                         } else {
                             func.value_u256(operand).is_some()
                         }
@@ -475,8 +475,9 @@ impl EvmInstSchedule {
         true
     }
 
-    fn users(func: &Function) -> (DenseBitSet<InstId>, IndexVec<ValueId, Users>) {
-        let mut users = index_vec![Users::None; func.num_values()];
+    fn users(func: &Function) -> (DenseBitSet<InstId>, IndexVec<ValueId, Option<InstId>>) {
+        let mut users = index_vec![None; func.num_values()];
+        let mut shared = DenseBitSet::new_empty(func.num_insts());
         let mut seen = index_vec![0usize; func.num_values()];
         let mut generation = 0usize;
         // Instruction arenas retain replaced and eliminated instructions, but only instructions
@@ -487,9 +488,11 @@ impl EvmInstSchedule {
             for &inst_id in &block.instructions {
                 generation += 1;
                 record_distinct_users(
+                    func,
                     func.inst(inst_id).kind.operands(),
                     &mut users,
                     &mut seen,
+                    &mut shared,
                     generation,
                     Some(inst_id),
                 );
@@ -497,25 +500,17 @@ impl EvmInstSchedule {
             if let Some(terminator) = &block.terminator {
                 generation += 1;
                 record_distinct_users(
+                    func,
                     terminator.operands(),
                     &mut users,
                     &mut seen,
+                    &mut shared,
                     generation,
                     None,
                 );
             }
         }
 
-        let mut shared = DenseBitSet::new_empty(func.num_insts());
-        for block in &func.blocks {
-            for &inst_id in &block.instructions {
-                if let Some(result) = func.inst_result_value(inst_id)
-                    && matches!(users[result], Users::Shared)
-                {
-                    shared.insert(inst_id);
-                }
-            }
-        }
         (shared, users)
     }
 
@@ -550,28 +545,28 @@ impl EvmInstSchedule {
     }
 }
 
-/// The existing distinct-user scan also records the sole consumer for eager contractions.
-#[derive(Clone, Copy)]
-enum Users {
-    None,
-    One(Option<InstId>),
-    Shared,
-}
-
+/// Records sole instruction consumers and marks shared definitions during the same traversal.
 fn record_distinct_users(
+    func: &Function,
     operands: impl IntoIterator<Item = ValueId>,
-    users: &mut IndexVec<ValueId, Users>,
+    users: &mut IndexVec<ValueId, Option<InstId>>,
     seen: &mut IndexVec<ValueId, usize>,
+    shared: &mut DenseBitSet<InstId>,
     generation: usize,
     instruction: Option<InstId>,
 ) {
     for operand in operands {
         if seen[operand] != generation {
+            // Zero distinguishes an unused value from a sole terminator use or a shared value.
+            if seen[operand] == 0 {
+                users[operand] = instruction;
+            } else {
+                users[operand] = None;
+                if let Value::Inst(definition) = func.value(operand) {
+                    shared.insert(*definition);
+                }
+            }
             seen[operand] = generation;
-            users[operand] = match users[operand] {
-                Users::None => Users::One(instruction),
-                Users::One(_) | Users::Shared => Users::Shared,
-            };
         }
     }
 }
