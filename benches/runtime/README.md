@@ -57,6 +57,9 @@ uv run benches/runtime/benchmark-compare.py \
 
 The script prints Markdown to stdout by default. `--report-output` also saves the same
 report; omit it when you only need terminal output.
+CI uses `--pr-comment-output` for a compact PR comment with gas and size changes and
+a button to open the benchmark overview. The detailed report stays in the job summary
+and artifacts. `--comment-output` writes the separate should-comment flag.
 
 Inputs may be directories containing `results.json` or JSON paths. Artifacts default to
 `artifacts/` beside each JSON. Use `--baseline-artifacts` and `--artifacts` for other paths.

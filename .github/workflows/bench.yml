@@ -263,6 +263,7 @@ jobs:
             --results target/codegen-bench/results.json
             --common-output target/codegen-bench/common.json
             --report-output target/codegen-bench/report.md
+            --pr-comment-output target/codegen-bench/comment.md
             --comment-output target/codegen-bench/should-comment
             --ignore-compile-time-changes
           )
@@ -289,7 +290,7 @@ jobs:
         uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88 # v3.0.5
         with:
           header: codegen-runtime-bench
-          message: ${{ steps.runtime-report.outputs.report }}
+          path: target/codegen-bench/comment.md
           only_update: ${{ steps.runtime-report.outputs.should_comment != 'true' }}
 
       - name: Upload results as artifact

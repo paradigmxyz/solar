@@ -79,6 +79,37 @@ class ReportFormattingTests(unittest.TestCase):
             "</details>\n",
         )
 
+    def test_pr_comment_without_comparison_links_to_overview(self):
+        button = "[![View benchmark overview](https://img.shields.io/badge/View_benchmark_overview-2563eb?style=for-the-badge)](https://example.test/?base=01234567&head=fedcba98#benchmarks)\n"
+        with patch.dict(
+            os.environ,
+            {
+                "BENCHMARK_BASE_SHA": "0123456789abcdef",
+                "BENCHMARK_PR_HEAD_SHA": "fedcba9876543210",
+                "BENCHMARK_SITE_URL": "https://example.test/",
+            },
+            clear=True,
+        ):
+            for rows, status in (
+                ([], "No benchmark results were produced."),
+                (
+                    [{"issues": ["missing baseline"]}],
+                    (
+                        "No baseline was available for comparison.\n\n"
+                        "> ⚠️ Benchmarks with incomplete or incompatible results: 1."
+                    ),
+                ),
+            ):
+                with self.subTest(rows=rows):
+                    self.assertEqual(
+                        benchmark.pr_comment(
+                            {"rows": rows, "baseline": None}, True, True, "main"
+                        ),
+                        f"## Codegen benchmarks\n\n{status}\n\n"
+                        "> ⚠️ This branch is behind `main`; results may be stale.\n\n"
+                        + button,
+                    )
+
     def test_changed_report_has_no_details(self):
         self.assertEqual(
             benchmark.format_report(
@@ -1167,6 +1198,7 @@ class RunComparisonTests(unittest.TestCase):
                 name: root / name
                 for name in (
                     "report.md",
+                    "comment.md",
                     "comparison.json",
                     "common.json",
                     "comment",
@@ -1192,6 +1224,8 @@ class RunComparisonTests(unittest.TestCase):
                         str(root / "after"),
                         "--report-output",
                         str(outputs["report.md"]),
+                        "--pr-comment-output",
+                        str(outputs["comment.md"]),
                         "--json-output",
                         str(outputs["comparison.json"]),
                         "--common-output",
@@ -1205,6 +1239,17 @@ class RunComparisonTests(unittest.TestCase):
                 outputs["summary"].read_text(), outputs["report.md"].read_text() + "\n"
             )
             self.assertEqual(outputs["comment"].read_text(), "false\n")
+            self.assertEqual(
+                outputs["comment.md"].read_text(),
+                "## Codegen benchmarks\n\n"
+                "No significant benchmark changes against `before`.\n\n"
+                "| Metric | Change | Compared |\n| --- | ---: | ---: |\n"
+                "| runtime gas | ~0% | 1 |\n"
+                "| runtime bytes | ~0% | 1 |\n"
+                "| creation bytes | ~0% | 1 |\n\n"
+                "Equal-weight geometric means; lower is better.\n\n"
+                "[![View benchmark overview](https://img.shields.io/badge/View_benchmark_overview-2563eb?style=for-the-badge)](https://getfoundry.sh/perf/solar/)\n",
+            )
             self.assertEqual(
                 json.loads(outputs["comparison.json"].read_text())["totals"][
                     "runtime_size"
