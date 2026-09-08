@@ -16,7 +16,7 @@ env:
 
 jobs:
   evm-rules:
-    name: EVM word proofs
+    name: EVM word and stack proofs
     runs-on: depot-ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -25,10 +25,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
       - run: uv run scripts/test_evm_rules.py
-      - name: Verify compiled ISLE word rules
+      - name: Verify compiled ISLE word and stack rules
         run: uv run scripts/verify_evm_rules.py verify --output target/evm-rules/proofs.json --artifacts target/evm-rules/smt
       # Keep SMT queries and coverage to diagnose and replay failed verification.
-      - name: Upload failed word proof diagnostics
+      - name: Upload failed proof diagnostics
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

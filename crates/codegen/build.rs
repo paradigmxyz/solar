@@ -11,7 +11,7 @@ const RULE_SETS: &[(&str, &[&str])] = &[
         "word_sequence",
         &["prelude.isle", "extractors.isle", "word_sequence_prelude.isle", "word_sequence.isle"],
     ),
-    ("peephole", &["evm_prelude.isle", "peephole.isle"]),
+    ("peephole", &["evm_prelude.isle", "peephole.isle", "stack_peephole.isle"]),
 ];
 
 fn main() {

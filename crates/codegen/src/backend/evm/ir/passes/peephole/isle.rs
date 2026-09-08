@@ -9,10 +9,11 @@ use super::{Edit, is_block_push, is_removable_push, materialization_cost, push_v
 use crate::{
     backend::evm::{ir::Instruction, op, op::*},
     mir::utils::eval,
+    target::Target,
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
-use solar_config::EvmVersion;
+use solar_config::{EvmVersion, OptimizationMode};
 
 /// How far back a rule may simulate the block's stack.
 const MAX_STACK_WINDOW: usize = 24;
@@ -264,8 +265,18 @@ impl generated::Context for PeepContext<'_> {
         let (rhs_size, rhs_gas) = materialization_cost(self.evm_version, rhs_value);
         let (result_size, result_gas) = materialization_cost(self.evm_version, result);
         let input_size = lhs_size + rhs_size + 1;
-        // TODO: Include the evaluated opcode's gas once opcode metadata exposes it.
-        let input_gas = lhs_gas + rhs_gas;
+        let target = Target::with(
+            self.evm_version,
+            OptimizationMode::Gas,
+            Target::DEFAULT_EXPECTED_EXECUTIONS,
+        );
+        // PUSH lhs; PUSH rhs; opcode => materialize evaluated word
+        // Price the operation too: compact wide constants may need several
+        // instructions yet cost less than the operation they replace.
+        let input_gas = lhs_gas
+            + rhs_gas
+            + target.opcode_with_immediates(opcode, &[Some(rhs_value), Some(lhs_value)]).gas
+                as usize;
         (result_size <= input_size
             && result_gas <= input_gas
             && (result_size < input_size || result_gas < input_gas))

@@ -6,6 +6,11 @@
 //! original body disappears through function DCE, so this avoids duplicating shared bodies.
 //! Recursive calls, explicit no-inline functions, large helpers, and aggregate allocation
 //! semantics stay with the existing call convention. It runs before late scalar cleanup.
+//! For gas-oriented lifetime decisions, statically counted loops weight call-protocol
+//! savings by their iteration count. Only blocks that dominate every latch in a loop
+//! with a header guard and no other exit receive that weight. Conditional calls and
+//! unknown loop bounds retain the ordinary per-invocation estimate; size mode keeps
+//! its existing growth policy. These are profitability estimates, never legality facts.
 
 use crate::{
     backend::evm::{op, select},
@@ -301,7 +306,7 @@ impl MirInliner {
             })
         });
         for caller_id in caller_ids {
-            let loop_depths = block_loop_depths(module.function(caller_id));
+            let loop_costs = block_loop_costs(module.function(caller_id));
             // Bound how much each caller may grow from inlining so a function
             // calling many internal helpers (e.g. a large verifier) cannot
             // balloon past the deployable code-size limit.
@@ -309,7 +314,7 @@ impl MirInliner {
                 summaries.get(&caller_id).map(|s| s.instruction_count).unwrap_or_default();
             let mut cursor = (0, 0);
             while let Some(site) =
-                self.find_next_call(module.function(caller_id), cursor, &loop_depths)
+                self.find_next_call(module.function(caller_id), cursor, &loop_costs)
             {
                 stats.call_sites += 1;
                 cursor = (site.block.index(), site.inst_index + 1);
@@ -459,7 +464,7 @@ impl MirInliner {
         &self,
         func: &Function,
         start: (usize, usize),
-        loop_depths: &FxHashMap<BlockId, usize>,
+        loop_costs: &FxHashMap<BlockId, LoopCost>,
     ) -> Option<CallSite> {
         for (block, bb) in func.blocks.iter_enumerated().skip(start.0) {
             let start_inst = if block.index() == start.0 { start.1 } else { 0 };
@@ -472,7 +477,8 @@ impl MirInliner {
                         callee: function,
                         args_len: args.len(),
                         returns: returns as usize,
-                        loop_depth: loop_depths.get(&block).copied().unwrap_or_default(),
+                        loop_depth: loop_costs.get(&block).map_or(0, |cost| cost.depth),
+                        loop_executions: loop_costs.get(&block).map_or(1, |cost| cost.executions),
                         has_constant_function_selector: args
                             .first()
                             .is_some_and(|&arg| func.value(arg).as_immediate().is_some()),
@@ -618,8 +624,11 @@ impl MirInliner {
 
         let added_deposit_cost =
             (inlined_bytes - removed_bytes) as u128 * CODE_DEPOSIT_GAS_PER_BYTE;
+        let loop_executions =
+            if self.target.optimization().is_gas() { site.loop_executions } else { 1 };
         let execution_savings = u128::from(estimated_icall_savings(self.target, site, summary))
-            * u128::from(self.expected_executions_per_deployment);
+            .saturating_mul(u128::from(self.expected_executions_per_deployment))
+            .saturating_mul(u128::from(loop_executions));
         execution_savings > added_deposit_cost
     }
 }
@@ -633,6 +642,7 @@ struct CallSite {
     args_len: usize,
     returns: usize,
     loop_depth: usize,
+    loop_executions: u64,
     has_constant_function_selector: bool,
     has_constant_argument: bool,
 }
@@ -1064,16 +1074,39 @@ fn estimated_internal_return_code_size(
     target.internal_return(summary.param_count, site.returns).bytes as usize
 }
 
-fn block_loop_depths(func: &Function) -> FxHashMap<BlockId, usize> {
+struct LoopCost {
+    depth: usize,
+    executions: u64,
+}
+
+fn block_loop_costs(func: &Function) -> FxHashMap<BlockId, LoopCost> {
     let mut analyzer = LoopAnalyzer::new();
     let loop_info = analyzer.analyze(func);
-    let mut depths = FxHashMap::default();
+    let mut costs = FxHashMap::default();
     for loop_data in loop_info.all_loops() {
+        let counted = loop_data.trip_count.filter(|_| {
+            loop_data.trip_guard_is_header
+                && loop_data.blocks.iter().all(|block| {
+                    block == loop_data.header
+                        || func.blocks[block].terminator.as_ref().is_some_and(|term| {
+                            let successors = term.successors();
+                            !successors.is_empty()
+                                && successors.iter().all(|&next| loop_data.blocks.contains(next))
+                        })
+                })
+        });
         for block in &loop_data.blocks {
-            *depths.entry(block).or_default() += 1;
+            let cost = costs.entry(block).or_insert(LoopCost { depth: 0, executions: 1 });
+            cost.depth += 1;
+            if let Some(count) = counted
+                && loop_data.back_edges.iter().all(|&latch| analyzer.dominates(block, latch))
+            {
+                let count = count.saturating_add(u64::from(block == loop_data.header));
+                cost.executions = cost.executions.saturating_mul(count);
+            }
         }
     }
-    depths
+    costs
 }
 
 fn specialize_function_pointers(module: &mut Module) -> usize {

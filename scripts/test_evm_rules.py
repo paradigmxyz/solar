@@ -17,12 +17,110 @@ import z3
 
 from evm_rules.discovery import Cost, Prices, discover_rules, emit_rule, enumerate_rules, read_seeds
 from evm_rules.isle import Context, ISLE, Rule, forms, verify_file
+from evm_rules.mining import mine
+from evm_rules.stack import verify_stack_file
 from evm_rules.semantics import Expr, MASK, MODULUS, SIGN, Model, Unsupported, check, concrete, partition_shift
 from verify_evm_rules import main
 
 
 def expression(op, *args):
     return Expr(op, tuple(Expr.const(a) if isinstance(a, int) else a for a in args))
+
+
+class MiningTests(unittest.TestCase):
+    def mine_source(self, source, **kwargs):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "input.mir"
+            path.write_text(source)
+            return mine([path], **kwargs)
+
+    def test_function_local_ids_and_frequency(self):
+        report = self.mine_source("""@module M
+fn @first(arg0: u256, arg1: u256) {
+  bb0:
+    v0 = or arg0, arg1
+    v1 = and arg0, arg1
+    v2 = sub v0, v1
+    ret v2
+}
+fn @second(arg0: u256, arg1: u256) {
+  bb0:
+    v10 = or arg0, arg1
+    v11 = and arg0, arg1
+    v12 = sub v10, v11
+    ret v12
+}
+""")
+        self.assertEqual(len(report["candidates"]), 1)
+        row = report["candidates"][0]
+        self.assertEqual(row["tree"], ["sub", ["or", "x", "y"], ["and", "x", "y"]])
+        self.assertEqual(row["occurrences"], 2)
+        self.assertEqual([e["line"] for e in row["examples"]], [6, 13])
+        self.assertEqual(len(report["sources"][0]["sha256"]), 64)
+
+    def test_boundaries_and_shared_producers(self):
+        template = """fn @f(arg0: u256, arg1: u256) {
+  bb0:
+    v0 = not arg0
+%s
+    v1 = not v0
+    ret v1
+}
+"""
+        for barrier in ("    sstore 0, v0", "    v2 = mload v0", "  bb1:", "    v3 = unknown v0"):
+            report = self.mine_source(template % barrier)
+            self.assertEqual(report["candidates"], [], barrier)
+        # A second use after the root prevents claiming deletion of its producer.
+        report = self.mine_source((template % "").replace("ret v1", "ret v0, v1"))
+        self.assertEqual(report["candidates"], [])
+
+    def test_mined_seed_is_proved_before_emission(self):
+        report = self.mine_source("""fn @f(arg0: u256) {
+  bb0:
+    v0 = not arg0
+    v1 = not v0
+    ret v1
+}
+""")
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "seeds.json"
+            path.write_text(json.dumps([r["tree"] for r in report["candidates"]]))
+            prices = Prices("osaka")
+            seeds = read_seeds(path, prices, ["x", "y", "z"])
+            rules, stats = enumerate_rules(prices, ["x"], ["not"], 1, 10, 5000, seeds=seeds)
+        self.assertEqual(stats["seeds_proved"], 1)
+        self.assertEqual(rules[0][1], Expr.var("x"))
+
+
+class StackProofTests(unittest.TestCase):
+    def verify(self, source):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "stack_peephole.isle"
+            path.write_text(source)
+            return verify_stack_file(path)
+
+    def test_actual_compiled_stack_rules(self):
+        report = verify_stack_file(ISLE / "stack_peephole.isle")
+        self.assertEqual(len(report["rules"]), 6)
+        self.assertTrue(all(r["status"] == "proved" for r in report["rules"]))
+        self.assertGreater(sum(len(r["variants"]) for r in report["rules"]), 900)
+
+    def test_wrong_depth_and_opcode_have_replayed_counterexamples(self):
+        for source in (
+            "(rule (peep_nonpush (last2 (dup 2) (swap 1))) (rewrite 2 (Edit.Keep 1)))",
+            "(rule (peep_nonpush (last2 (opcode $NOT) (opcode $NOT))) (rewrite 2 (Edit.OverwriteOne $ISZERO)))",
+        ):
+            result = self.verify(source)["rules"][0]
+            self.assertEqual(result["status"], "counterexample")
+            self.assertTrue(result["variants"][0]["replayed"])
+
+    def test_unknown_effect_and_changed_extent_fail_closed(self):
+        for source in (
+            "(rule (peep_nonpush (last2 (opcode $MLOAD) (pop))) (rewrite 2 (Edit.Keep 0)))",
+            "(rule (peep_nonpush (last2 (dup 1) (pop))) (rewrite 3 (Edit.Keep 0)))",
+            "(rule (peep_nonpush (last2 (dup 1) (pop))) (rewrite 2 (Edit.Unknown)))",
+        ):
+            self.assertEqual(self.verify(source)["rules"][0]["status"], "unsupported")
 
 
 class SemanticsTests(unittest.TestCase):

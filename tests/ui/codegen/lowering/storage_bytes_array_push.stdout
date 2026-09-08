@@ -220,16 +220,16 @@ fn @store_storage_bytes(arg0: u256, arg1: memptr) {
   bb6:
     jumpi v16, bb7, bb8
   bb8:
-    v29 = shl 1, v8
-    v30 = or v29, 1
+    v50 = not v8
+    v30 = sub v8, v50
     sstore arg0, v30 !metadata(storage=symbolic(arg0))
     mstore 0, arg0 !metadata(memory=scratch)
-    v52 = keccak256 0, 32 !metadata(memory=scratch)
+    v53 = keccak256 0, 32 !metadata(memory=scratch)
     v32 = shr 5, v8
     jump bb10
   bb10:
     v33 = phi [bb8: 0], [bb11: v38]
-    v50 = phi [bb8: v52], [bb11: v51]
+    v51 = phi [bb8: v53], [bb11: v52]
     v34 = lt v33, v32
     jumpi v34, bb11, bb12
   bb12:
@@ -237,24 +237,24 @@ fn @store_storage_bytes(arg0: u256, arg1: memptr) {
     jumpi v39, bb13, bb9
   bb13:
     v41 = shl 5, v32
-    v57 = add v9, v41
-    v42 = mload v57
+    v58 = add v9, v41
+    v42 = mload v58
     v43 = sub 32, v39
     v44 = shl 3, v43
     v45 = shl v44, 1
     v46 = sub v45, 1
     v47 = not v46
     v48 = and v42, v47
-    v49 = add v52, v32
+    v49 = add v53, v32
     sstore v49, v48 !metadata(storage=symbolic(v49))
     jump bb9
   bb11:
     v35 = shl 5, v33
-    v55 = add v9, v35
-    v36 = mload v55
-    sstore v50, v36 !metadata(storage=symbolic(v50))
+    v56 = add v9, v35
+    v36 = mload v56
+    sstore v51, v36 !metadata(storage=symbolic(v51))
     v38 = add v33, 1
-    v51 = add v50, 1
+    v52 = add v51, 1
     jump bb10
   bb7:
     v20 = mload v9
@@ -264,7 +264,7 @@ fn @store_storage_bytes(arg0: u256, arg1: memptr) {
     v24 = sub v23, 1
     v25 = not v24
     v26 = and v20, v25
-    v27 = shl 1, v8
+    v27 = add v8, v8
     v28 = or v26, v27
     sstore arg0, v28 !metadata(storage=symbolic(arg0))
     jump bb9

@@ -21,6 +21,9 @@
 //! window is bounded independently of function size and never crosses effects
 //! or CFG edges. Speculation neither emits instructions nor consumes the real
 //! scheduler's search budget.
+//! Keep intermediate layouts so a useful one-instruction window survives an
+//! unsupported second instruction. Prefer the longest common window that
+//! rejoins; a partial trial cannot be compared with a longer baseline.
 
 use super::{
     EvmCodegen, OperandPlan, ScheduleCost,
@@ -42,6 +45,11 @@ struct ExpressionPlan {
     cost: Cost,
     layout: Vec<Option<ValueId>>,
     peak: usize,
+}
+
+struct WindowPlan {
+    cost: Cost,
+    layout: SmallVec<[Option<ValueId>; 8]>,
 }
 
 impl EvmCodegen<'_> {
@@ -174,13 +182,14 @@ impl EvmCodegen<'_> {
             return false;
         }
         let target = Target::new(self.gcx);
-        if let Some((old_cost, old_layout)) =
-            self.binary_window(func, current, result, liveness, block, index)
-            && let Some((new_cost, new_layout)) =
-                self.binary_window(func, candidate, result, liveness, block, index)
-            && old_layout == new_layout
+        if let Some(old) = self.binary_window(func, current, result, liveness, block, index)
+            && let Some(new) = self.binary_window(func, candidate, result, liveness, block, index)
         {
-            return target.cmp(new_cost, old_cost).is_lt();
+            for (old, new) in old.iter().zip(&new).rev() {
+                if old.layout == new.layout {
+                    return target.cmp(new.cost, old.cost).is_lt();
+                }
+            }
         }
         candidate.cost().cmp_for(current.cost(), target.optimization()).is_lt()
     }
@@ -194,7 +203,7 @@ impl EvmCodegen<'_> {
         liveness: &Liveness,
         block: BlockId,
         index: usize,
-    ) -> Option<(Cost, Vec<Option<ValueId>>)> {
+    ) -> Option<SmallVec<[WindowPlan; 2]>> {
         if self.global_stack_active
             || self.scheduler.stack.depth() > 8
             || !self.global_stack_aliases.is_empty()
@@ -215,22 +224,22 @@ impl EvmCodegen<'_> {
         for op in scheduler.drop_dead_values(liveness, block, index) {
             cost += ScheduleCost::stack_op(op, target.evm_version()).target_cost();
         }
-        let mut followed = 0;
+        let mut windows = SmallVec::new();
         for (offset, &inst) in
             func.blocks[block].instructions[index + 1..].iter().take(2).enumerate()
         {
             let index = index + 1 + offset;
             let kind = &func.inst(inst).kind;
-            let result = func.inst_result_value(inst)?;
+            let Some(result) = func.inst_result_value(inst) else { break };
             if kind.effect_kind() != EffectKind::Pure
                 || scheduler.spills.get(result).is_some()
                 || liveness.live_out(block).contains(result)
             {
-                return None;
+                break;
             }
-            let lowering = select::opcode_lowering(&kind.op())?;
+            let Some(lowering) = select::opcode_lowering(&kind.op()) else { break };
             if !matches!(lowering, OpcodeLowering::Unary { .. } | OpcodeLowering::Binary { .. }) {
-                return None;
+                break;
             }
             let operands = kind.operands();
             if operands.iter().any(|&value| {
@@ -238,18 +247,20 @@ impl EvmCodegen<'_> {
                     || matches!(func.value(value), Value::Arg(_))
                         && !scheduler.stack.contains(value)
             }) {
-                return None;
+                break;
             }
             let order: SmallVec<[ValueId; 8]> = operands.iter().rev().copied().collect();
             let preserved =
                 self.preserved_operands_for(&scheduler, func, &order, liveness, block, index);
-            let mut plan = scheduler.plan_operands(
+            let Some(mut plan) = scheduler.plan_operands(
                 &order,
                 &preserved,
                 func,
                 target.optimization(),
                 self.operand_cost_model(),
-            )?;
+            ) else {
+                break;
+            };
             if order.len() == 2
                 && order[0] != order[1]
                 && op::swapped_binary_opcode(lowering.opcode()).is_some()
@@ -271,8 +282,8 @@ impl EvmCodegen<'_> {
             for op in scheduler.drop_dead_values(liveness, block, index) {
                 cost += ScheduleCost::stack_op(op, target.evm_version()).target_cost();
             }
-            followed += 1;
+            windows.push(WindowPlan { cost, layout: scheduler.stack.iter().collect() });
         }
-        (followed > 0).then(|| (cost, scheduler.stack.iter().collect()))
+        (!windows.is_empty()).then_some(windows)
     }
 }

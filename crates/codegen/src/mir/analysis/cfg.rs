@@ -20,6 +20,7 @@ use solar_data_structures::{
 #[derive(Clone, Debug)]
 pub(crate) struct CfgInfo {
     successors: IndexVec<BlockId, SmallVec<[BlockId; 2]>>,
+    edges: OnceCell<Vec<(u32, u32)>>,
     reachable: OnceCell<DenseBitSet<BlockId>>,
     rpo: OnceCell<Vec<BlockId>>,
     cyclic_blocks: OnceCell<DenseBitSet<BlockId>>,
@@ -40,6 +41,7 @@ impl CfgInfo {
             .collect();
         Self {
             successors,
+            edges: OnceCell::new(),
             reachable: OnceCell::new(),
             rpo: OnceCell::new(),
             cyclic_blocks: OnceCell::new(),
@@ -52,6 +54,24 @@ impl CfgInfo {
     #[must_use]
     pub(crate) fn successors(&self, block: BlockId) -> &[BlockId] {
         &self.successors[block]
+    }
+
+    /// Canonical edges for checking analysis preservation after a transform.
+    /// Unchanged passes need no edge walk, and CFG-preserving passes reuse the
+    /// same sorted snapshot on their next invocation.
+    pub(crate) fn edges(&self) -> &[(u32, u32)] {
+        self.edges.get_or_init(|| {
+            let mut edges = Vec::new();
+            for (block, successors) in self.successors.iter_enumerated() {
+                edges.extend(
+                    successors
+                        .iter()
+                        .map(|successor| (block.index() as u32, successor.index() as u32)),
+                );
+            }
+            edges.sort_unstable();
+            edges
+        })
     }
 
     /// Returns the blocks reachable from the entry.

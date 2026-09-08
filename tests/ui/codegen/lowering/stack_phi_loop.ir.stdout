@@ -189,8 +189,8 @@ bb29:
   push 160
   mstore
   dup 1
-  push 1
-  shl
+  dup 1
+  add
   dup 1
   push 1
   shr

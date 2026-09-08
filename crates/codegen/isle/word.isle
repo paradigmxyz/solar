@@ -7,6 +7,10 @@
 ;; Add(value, 0) lets a leaf replacement use the multi-result rewrite interface;
 ;; ordinary simplification removes it without allocating an instruction.
 
+;; shl(1, x) => x + x
+;; Keep the producer in place; rebuilding it at a later consumer extends live ranges.
+(rule (rewrite (Op.Shl (one) x)) (Op.Add x x))
+
 ;; lt (add x, 1), x => iszero (add x, 1)
 ;; gt x, (add x, 1) => iszero (add x, 1)
 ;; Only wrapping from MAX to zero can make an increment smaller. Reuse the

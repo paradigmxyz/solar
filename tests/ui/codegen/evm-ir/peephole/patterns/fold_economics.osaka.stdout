@@ -1,0 +1,15 @@
+- // === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/fold_economics.evmir (before peephole) ===
++ // === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/fold_economics.evmir (after peephole) ===
+  @module FoldEconomics
+  bb0:
++   push 1
+    push 200
+-   push 2
+-   exp
++   shl
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  

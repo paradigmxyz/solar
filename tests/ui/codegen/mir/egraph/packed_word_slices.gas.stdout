@@ -141,7 +141,8 @@
   
   fn @byte_shl_0_1(arg0: u256) -> u256 {
     bb0:
-      v0 = shl 1, arg0
+-     v0 = shl 1, arg0
++     v0 = add arg0, arg0
       v1 = byte 0, v0
       ret v1
   }
@@ -336,7 +337,7 @@
   
   fn @byte_shl_0_1(arg0: u256) -> u256 {
     bb0:
-      v0 = shl 1, arg0
+      v0 = add arg0, arg0
       v1 = byte 0, v0
       ret v1
   }
