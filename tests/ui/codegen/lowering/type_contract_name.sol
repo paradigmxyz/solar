@@ -61,6 +61,13 @@ contract ContractNames {
         return NAME;
     }
 
+    // CHECK-LABEL: fn @longName()
+    // CHECK-NEXT: bb0:
+    // CHECK-NEXT: mstore 128, 32
+    // CHECK-NEXT: mstore 160, 36
+    // CHECK-NEXT: mstore 192, 0x436f6e74726163744e616d654c6f6e6765725468616e54686972747954776f42
+    // CHECK-NEXT: mstore 224, 0x7974657300000000000000000000000000000000000000000000000000000000
+    // CHECK-NEXT: returndata 128, 128
     function longName() external pure returns (string memory) {
         return type(ContractNameLongerThanThirtyTwoBytes).name;
     }

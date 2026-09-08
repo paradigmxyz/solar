@@ -24,7 +24,7 @@
 //! any external entry still has an implicit ABI or any `abi_decode` remains afterward.
 //! Argument-free functions that only return a short literal use direct fixed-buffer stores;
 //! both typed word stores and their data-pointer/store form qualify. Other instructions,
-//! allocation policies, and longer literals keep the general encoder.
+//! allocation policies, and literals longer than two words keep the general encoder.
 //!
 //! The `fallback(bytes calldata) returns (bytes memory)` form is a separate
 //! raw-data boundary: it gets an argument-free dispatch wrapper and an
@@ -149,6 +149,7 @@ struct CanonicalCallProof<'a> {
 struct StaticBytesReturn {
     len: u64,
     word: U256,
+    tail: Option<U256>,
 }
 
 impl DecodeOptions<'_> {
@@ -3925,7 +3926,6 @@ fn static_bytes_return(func: &Function) -> Option<StaticBytesReturn> {
     let InstKind::Alloc { size, kind, semantics } = func.inst(*alloc).kind else { return None };
     if kind != AllocationKind::Object(MemoryObjectLayout::Bytes)
         || semantics != AllocationSemantics::INTERNAL
-        || func.value_u64(size) != Some(64)
     {
         return None;
     }
@@ -3934,7 +3934,7 @@ fn static_bytes_return(func: &Function) -> Option<StaticBytesReturn> {
     else {
         return None;
     };
-    let value = match initialization {
+    let (value, tail) = match initialization {
         [store] => {
             let InstKind::MemoryObjectStoreWord { object: word_object, offset, value } =
                 func.inst(*store).kind
@@ -3944,9 +3944,9 @@ fn static_bytes_return(func: &Function) -> Option<StaticBytesReturn> {
             if word_object != *object || func.value_u64(offset) != Some(0) {
                 return None;
             }
-            value
+            (value, None)
         }
-        [data, store] => {
+        [data, store, remaining @ ..] => {
             let InstKind::MemoryObjectData(data_object, MemoryObjectKind::Bytes) =
                 func.inst(*data).kind
             else {
@@ -3956,17 +3956,41 @@ fn static_bytes_return(func: &Function) -> Option<StaticBytesReturn> {
             if data_object != *object || func.inst_result_value(*data) != Some(ptr) {
                 return None;
             }
-            value
+            let tail = match remaining {
+                [] => None,
+                [offset, store] => {
+                    let InstKind::Add(base, delta) = func.inst(*offset).kind else { return None };
+                    let InstKind::MStore(tail_ptr, tail) = func.inst(*store).kind else {
+                        return None;
+                    };
+                    if base != ptr
+                        || func.value_u64(delta) != Some(32)
+                        || func.inst_result_value(*offset) != Some(tail_ptr)
+                    {
+                        return None;
+                    }
+                    Some(tail)
+                }
+                _ => return None,
+            };
+            (value, tail)
         }
         _ => return None,
     };
     let len = func.value_u64(len)?;
-    if len_object != *object || !(1..=32).contains(&len) {
+    if len_object != *object
+        || !(1..=64).contains(&len)
+        || (len > 32) != tail.is_some()
+        || func.value_u64(size) != Some(32 + len.next_multiple_of(32))
+    {
         return None;
     }
-    let word = func.value_u256(value)?;
-    let trailing_bits = usize::try_from((32 - len) * 8).ok()?;
-    Some(StaticBytesReturn { len, word: word >> trailing_bits << trailing_bits })
+    let mut word = func.value_u256(value)?;
+    let mut tail = if let Some(value) = tail { Some(func.value_u256(value)?) } else { None };
+    let trailing_bits = usize::try_from((len.next_multiple_of(32) - len) * 8).ok()?;
+    let last = tail.as_mut().unwrap_or(&mut word);
+    *last = *last >> trailing_bits << trailing_bits;
+    Some(StaticBytesReturn { len, word, tail })
 }
 
 fn encode_static_bytes_return(
@@ -3975,7 +3999,7 @@ fn encode_static_bytes_return(
     value: StaticBytesReturn,
 ) {
     let word_size = EvmMemoryLayout::WORD_SIZE;
-    let return_size = word_size * 3;
+    let return_size = word_size * 2 + value.len.next_multiple_of(word_size);
     func.blocks[return_block].instructions.clear();
     func.blocks[return_block].terminator = None;
     func.external_static_return_size = return_size;
@@ -3985,7 +4009,8 @@ fn encode_static_bytes_return(
     // mstore(128, 32)
     // mstore(160, len)
     // mstore(192, word)
-    // returndata(128, 96)
+    // if tail { mstore(224, tail) }
+    // returndata(128, 64 + rounded_length)
     let offset = builder.imm(EvmMemoryLayout::HEAP_START);
     let data_offset = builder.imm(word_size);
     let len_offset = builder.imm(EvmMemoryLayout::HEAP_START + word_size);
@@ -3996,6 +4021,12 @@ fn encode_static_bytes_return(
     builder.mstore(offset, data_offset);
     builder.mstore(len_offset, len);
     builder.mstore(word_offset, word);
+    if let Some(tail) = value.tail {
+        // mstore(224, tail)
+        let tail_offset = builder.imm(EvmMemoryLayout::HEAP_START + word_size * 3);
+        let tail = builder.imm(tail);
+        builder.mstore(tail_offset, tail);
+    }
     builder.ret_data(offset, size);
 }
 
