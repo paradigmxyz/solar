@@ -3296,3 +3296,46 @@ The helper adds 194 physical backend lines: 16,909 in 46 files, 17,729 fewer tha
 the deletion inventory. This is physical LOC, not a strict production-SLOC count.
 The two original UI failures, raw-memory/spill ownership defect and remaining
 32,427,688 positive heavy bytes versus sealed remain open.
+
+
+## Profitable Size tail groups: 2026-09-08
+
+Commits `96c07690` and `d9fa3bd8` enlarge an existing ordinary Size tail pair
+only when the body covers two PUSH3/JUMP transfers and a marker. Static Jump
+receives zero terminal credit; JumpI receives its minimum fork-specific width.
+Each additional member independently passes split, destination and stack checks.
+The initial body-eight groups grew seven UI objects through lost fallthroughs,
+duplicated prefixes and four widened references. The stricter reserve restores
+all seven objects while retaining 56 shrinking objects and -559 creation/runtime
+bytes each. No Gas UI or full-workflow output changes.
+
+Frozen final `fca09c9a` follows the Clippy-equivalent usize comparison change
+from `>= 1 + 2 * 5` to `> 2 * 5`; prior `426d54da` and the separate test-build
+`97480f82` remain distinct producers. Full 24/175/139 output joins include all
+nine heavy projects; Size 15/175/139 saves 11 bytes in ERC20Mock creation/runtime
+and 2,376 deployment gas with unchanged call gas. Quiet full time is -1.06%,
+RSS +0.30%; no causal speedup or concurrent Size timing claim is made.
+
+The exact alias objects transfer the earlier 126 fresh calls: Size179→166,
+three account-3 labels +11 gas against the prior candidate, still below sealed;
+Gas remains exact. The larger fixture has 24 fresh successful calls and unchanged
+gas at Size95→79. A fresh bounded Size solsymdiff checks typed address/uint256
+inputs against pinned solc. Four revisioned fixtures add eight UI cases.
+
+Final workspace has 11,724 UI passes and only the original alias assertion fails;
+1,395 other tests pass and two are skipped. Foundry36/772/765 passes with reported
+sizes/gas exact, using a normal debug build from final sources; no separate
+immediate pre/post Foundry binary hash was recorded. Clippy/fmt/typos pass.
+Ninety-two actual metadata/plain captures cover 64 programs and 58 changed
+objects. All 75,054 map projections match emitted origins; shared/removed events
+and the library deployment-address relocation are explicitly reviewed. The
+third-member forwarding fixture records inherited event loss, not a new promise
+of event retention. All nodes and native jobs are reaped.
+
+Evidence is retained under `size-long-tail-group-workflow-20260908/`, including
+both rejected and accepted patches, native trace groups, exact-source cold
+comment/directive bridges, actual producers and independent review. Backend
+physical LOC rises by22 to16,931; sealed heavy debt and raw-memory corruption
+remain open. The separately committed cold-call expectation migration is a
+reviewed test contract change with30 passing runtime checks, not a new layout
+optimization. Every prior progress paragraph is preserved above verbatim.
