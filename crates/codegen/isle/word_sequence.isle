@@ -4,6 +4,27 @@
 ;; logical unless its left operand is signed; counts never wrap modulo 256.
 ;; Comparisons produce 0 or 1. `**` denotes exponentiation.
 
+;; (x & m) == (m & y) => ((x ^ y) & m) == 0
+(rule (sequence_rewrite (Op.Eq (band x m) (band m y)))
+      (if-let difference (make (Op.Xor x y)))
+      (if-let masked (make (Op.And difference m)))
+      (sequence (Op.IsZero masked)))
+;; (x & m) == (y & m) => ((x ^ y) & m) == 0
+(rule (sequence_rewrite (Op.Eq (band x m) (band y m)))
+      (if-let difference (make (Op.Xor x y)))
+      (if-let masked (make (Op.And difference m)))
+      (sequence (Op.IsZero masked)))
+;; (m & x) == (m & y) => ((x ^ y) & m) == 0
+(rule (sequence_rewrite (Op.Eq (band m x) (band m y)))
+      (if-let difference (make (Op.Xor x y)))
+      (if-let masked (make (Op.And difference m)))
+      (sequence (Op.IsZero masked)))
+;; (m & x) == (y & m) => ((x ^ y) & m) == 0
+(rule (sequence_rewrite (Op.Eq (band m x) (band y m)))
+      (if-let difference (make (Op.Xor x y)))
+      (if-let masked (make (Op.And difference m)))
+      (sequence (Op.IsZero masked)))
+
 ;; shl(1, x) | 1 => x - ~x
 (rule (sequence_rewrite (Op.Or (shl (one) x) (one)))
       (if-let complement (make (Op.Not x))) (sequence (Op.Sub x complement)))

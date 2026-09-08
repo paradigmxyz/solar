@@ -11,6 +11,12 @@
 ;; Keep the producer in place; rebuilding it at a later consumer extends live ranges.
 (rule (rewrite (Op.Shl (one) x)) (Op.Add x x))
 
+;; ~((1 << n) - 1) => MAX << n
+;; ~(x - 1) => 0 - x
+;; Mined from storage-byte masks; shifts of 256 or more yield zero.
+(rule (rewrite (Op.Not (sub (shl n (one)) (one)))) (Op.Shl n (imm (u256_max))))
+(rule (rewrite (Op.Not (sub x (one)))) (Op.Sub (imm (u256 0)) x))
+
 ;; lt (add x, 1), x => iszero (add x, 1)
 ;; gt x, (add x, 1) => iszero (add x, 1)
 ;; Only wrapping from MAX to zero can make an increment smaller. Reuse the

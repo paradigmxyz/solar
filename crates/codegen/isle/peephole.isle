@@ -31,6 +31,8 @@
 (type Edit extern (enum
   (Keep (len u8))
   (OverwritePush0)
+  (LowMask)
+  (LowMaskWithSwap)
   (DropDiscardedSwap)
   (FoldConstants (value U256))
   (RemoveFirstKeepOne)
@@ -247,3 +249,22 @@
 (rule 50 (peep_nonpush (last3 (swap first) (swap second) (swap third)))
         (if-let exchange (exchange_of_swaps first second third))
         (rewrite 3 (Edit.StackOp exchange)))
+
+;; A bounded window around a closed, one-result shift-count computation.
+(type LateWindow (primitive LateWindow))
+(decl late_window (Inst Inst Inst Inst) LateWindow)
+(extern extractor late_window late_window)
+(decl pure closed_count (LateWindow) bool)
+(extern constructor closed_count closed_count)
+(decl pure low_mask_profitable () bool)
+(extern constructor low_mask_profitable low_mask_profitable)
+(decl pure late_length (LateWindow) u8)
+(extern constructor late_length late_length)
+(decl partial late_peep (LateWindow) Rewrite)
+
+(decl protected_window (Inst Inst Inst Inst Inst) LateWindow)
+(extern extractor protected_window protected_window)
+(decl pure protected_count (LateWindow) bool)
+(extern constructor protected_count protected_count)
+(decl pure protected_mask_profitable () bool)
+(extern constructor protected_mask_profitable protected_mask_profitable)

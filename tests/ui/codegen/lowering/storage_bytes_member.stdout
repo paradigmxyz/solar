@@ -350,8 +350,8 @@ bb32:
   iszero
   push bb37
   jumpi
-  push 1
-  dup 1
+  push 0
+  not
   push 128
   mload
   push 32
@@ -359,8 +359,6 @@ bb32:
   push 3
   shl
   shl
-  sub
-  not
   push 192
   mload
   and
