@@ -2244,3 +2244,51 @@ source pins and independent review are retained under
 `target/codegen-bench/evm-rewrite-candidate/materialization-trial-cost-20260908/`.
 The guard adds ten physical backend lines: 16,715 total, 17,923 fewer than the
 deletion inventory. Original correctness, UI and sealed size debts are unchanged.
+
+### Repeated negated literals on the physical stack
+
+The Gas-only compact-pushes pass now retains one repeated PUSH/NOT result per
+block when full-body transport reduces bytes without increasing static gas.
+Selection is deterministic; existing physical stack facts enforce legacy DUP/
+SWAP reach and the 1,024-word limit. MIR scheduling, memory homes and the primitive
+assembler are unchanged. The design follows the constant-reuse opportunity in
+our pinned solx, Venom and Sonatina research, with measured local costs instead
+of an upstream width threshold.
+
+Against frozen `0e61860e`, the matched UI screen has 1,646 IDs and 5,032 objects:
+eight shrink, none grow, and Gas creation/runtime totals each fall 977 bytes.
+Size objects are exact. The entry-order witness saves 940 bytes per object and
+15/33 gas on its ordinary/doubling calls; it still exceeds the sealed Gas object
+by 20 bytes. Its two adjacency checks now allow the new transport while retaining
+the old winner and rejecting the known scheduling mutants. Original cold-call
+and calldata-alias tests are untouched.
+
+The official full workflow retains 24 IDs, 175 ordered gas labels and 139
+observations. All runtime cases match solc; 19 Aave labels save 12 gas and two
+save 24, with no increases. Aave creation shrinks eight bytes. The nine heavy
+projects retain all 1,672 contracts and 3,344 objects: eight shrink two bytes,
+none grow. The Size supplement is byte/gas exact. Compiler-time geometric mean
+is +1.16%, RSS -0.61%; several per-case sample ranges are disjoint. These output
+wins carry a measured compilation cost, not a compilation-speed claim.
+
+All 36 Foundry projects pass (772 compiler tests, 765 solc tests), with reported
+sizes and gas unchanged. The three additionally changed UI sources pass 530
+fresh focused calls; pinned solc rejects one unchanged packed-array source,
+whose calls still run against current, candidate and sealed binaries. A new
+narrow-cache control saves seven bytes per object and 14 gas, with nine fresh
+calls and bounded solsymdiff agreement. Earlier wide-fixture executions transfer
+only through exact bytecode bridges and retain their actual producer hashes.
+
+Final workspace results are 11,714 UI passes and the two original failures,
+1,395 other passes and two skips. All newly installed matrix/runtime tests pass;
+Clippy, formatting, typos and whitespace checks pass.
+
+Actual metadata/debug captures are byte-neutral. Generated transport has unknown
+source ownership; one downstream SWAP/AND cleanup also drops an AND checkpoint
+under the existing metadata merge rule. Full invocation/source-map review and
+all raw inputs, failures, producers and comparisons are retained under
+`target/codegen-bench/evm-rewrite-candidate/literal-cache-workflow-20260908/`.
+The helper adds 194 physical backend lines: 16,909 in 46 files, 17,729 fewer than
+the deletion inventory. This is physical LOC, not a strict production-SLOC count.
+The two original UI failures, raw-memory/spill ownership defect and remaining
+32,427,688 positive heavy bytes versus sealed remain open.
