@@ -4,6 +4,8 @@
 //! passes can reason about it without reconstructing a load/add/store idiom.
 //! This pass expands the abstraction before the EVM-shaped boundary. Deferred
 //! static-allocation placeholders remain for final backend layout.
+//! A rewritten FMP load inherits the new native effect only when its explicit
+//! classification matched the old default; absent and custom effects stay intact.
 
 use crate::mir::{
     AllocationAlignment, AllocationFailure, AllocationInitialization, AllocationSemantics, BlockId,
@@ -198,7 +200,14 @@ fn initialize(
 fn rewrite_as_fmp_load(builder: &mut FunctionBuilder<'_>, inst: crate::mir::InstId) {
     let slot = builder.imm(EvmMemoryLayout::FMP_SLOT);
     let instruction = builder.func_mut().inst_mut(inst);
+    let old_effect = instruction.kind.effect_kind();
+    // fmp / alloc -> mload 64; allocation writes remain in the expansion
     instruction.kind = InstKind::MLoad(slot);
+    if old_effect != instruction.kind.effect_kind()
+        && instruction.metadata.effect() == Some(old_effect)
+    {
+        instruction.metadata.set_effect(Some(instruction.kind.effect_kind()));
+    }
     instruction.metadata.set_memory_region(Some(MemoryRegion::Scratch));
 }
 
