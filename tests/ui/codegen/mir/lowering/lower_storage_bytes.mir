@@ -1,8 +1,19 @@
 //@ revisions: semantic expanded
 //@[semantic] compile-flags: -Zmir-pipeline=none
 //@[expanded] compile-flags: -Zmir-pipeline=lower-builtins
+//@[expanded] filecheck:
 @module StorageBytes
 
+// CHECK-LABEL: fn @header(
+// CHECK: [[FLAG:v[0-9]+]] = and [[HEADER:v[0-9]+]], 1
+// CHECK-NEXT: [[LONG:v[0-9]+]] = eq [[FLAG]], 1
+// CHECK-NEXT: [[NEG:v[0-9]+]] = sub 0, [[FLAG]]
+// CHECK-NEXT: [[MASK:v[0-9]+]] = or 127, [[NEG]]
+// CHECK-NEXT: [[HALF:v[0-9]+]] = shr 1, [[HEADER]]
+// CHECK-NEXT: [[LENGTH:v[0-9]+]] = and [[HALF]], [[MASK]]
+// CHECK-NEXT: [[SHORT:v[0-9]+]] = lt [[LENGTH]], 32
+// CHECK-NEXT: [[INVALID:v[0-9]+]] = eq [[LONG]], [[SHORT]]
+// CHECK-NEXT: jumpi [[INVALID]],
 fn @header(arg0: u256) -> u256 {
   bb0:
     v0 = sload arg0

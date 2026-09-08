@@ -1718,19 +1718,10 @@ fn decode_storage_bytes_header(
 ) -> (ValueId, ValueId, ValueId) {
     // header = sload(slot)
     // validate_storage_bytes(header)
-    // flag = header & 1; is_long = (flag == 1)
-    // half = header >> 1
-    // length = is_long ? half : (half & 0x7f)
+    // is_long, length = storage_bytes_header_parts(header)
     let header = builder.sload(slot);
     builder.validate_storage_bytes(header);
-    let one = builder.imm(1);
-    let flag = builder.and(header, one);
-    let is_long = builder.eq(flag, one);
-    let shift = builder.imm(1);
-    let half = builder.shr(shift, header);
-    let short_mask = builder.imm(0x7f);
-    let short_len = builder.and(half, short_mask);
-    let length = builder.select(is_long, half, short_len);
+    let (is_long, length) = builder.storage_bytes_header_parts(header);
     (header, is_long, length)
 }
 

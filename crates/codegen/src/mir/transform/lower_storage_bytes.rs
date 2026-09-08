@@ -19,18 +19,9 @@ use alloy_primitives::U256;
 use solar_interface::{Ident, sym};
 
 pub(super) fn validate(builder: &mut FunctionBuilder<'_>, header: ValueId) -> (ValueId, ValueId) {
-    // flag = header & 1; is_long = (flag == 1)
-    // half = header >> 1
-    // length = is_long ? half : (half & 0x7f)
+    // is_long, length = storage_bytes_header_parts(header)
     // if invalid_short_long_encoding { panic(StorageEncoding) }
-    let one = builder.imm(1);
-    let flag = builder.and(header, one);
-    let is_long = builder.eq(flag, one);
-    let shift = builder.imm(1);
-    let half = builder.shr(shift, header);
-    let short_mask = builder.imm(0x7f);
-    let short_len = builder.and(half, short_mask);
-    let length = builder.select(is_long, half, short_len);
+    let (is_long, length) = builder.storage_bytes_header_parts(header);
     let thirty_two = builder.imm(32);
     let short_length = builder.lt(length, thirty_two);
     let invalid_encoding = builder.eq(is_long, short_length);

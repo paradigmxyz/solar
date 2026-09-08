@@ -46,13 +46,14 @@ fn @cleanupShort() -> struct1 [selector=0x14d48529, abi_params=[], abi_returns=[
     validate_storage_bytes v4
     v5 = and v4, 1
     v6 = eq v5, 1
-    v7 = shr 1, v4
-    v8 = and v7, 127
-    v9 = select v6, v7, v8
-    v10 = insert_value struct1, undef struct1, 0, v9
-    v11 = insert_value struct1, v10, 1, v1
-    v12 = insert_value struct1, v11, 2, v3
-    ret v12
+    v7 = sub 0, v5
+    v8 = or 127, v7
+    v9 = shr 1, v4
+    v10 = and v9, v8
+    v11 = insert_value struct1, undef struct1, 0, v10
+    v12 = insert_value struct1, v11, 1, v1
+    v13 = insert_value struct1, v12, 2, v3
+    ret v13
 }
 
 fn @choose(arg0: bool) -> memorybytes [selector=0xf6e00e0f, abi_params=[bool], abi_returns=[memory_bytes]] {

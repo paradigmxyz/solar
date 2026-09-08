@@ -234,45 +234,46 @@
 +     v1 = sload arg0 !metadata(storage=symbolic(arg0))
 +     v2 = and v1, 1
 +     v3 = eq v2, 1
-+     v4 = shr 1, v1
-+     v5 = and v4, 127
-+     v6 = select v3, v4, v5
-+     v7 = lt v6, 32
-+     v8 = eq v3, v7
-+     jumpi v8, bb1, bb2
++     v4 = sub 0, v2
++     v5 = or 127, v4
++     v6 = shr 1, v1
++     v7 = and v6, v5
++     v8 = lt v7, 32
++     v9 = eq v3, v8
++     jumpi v9, bb1, bb2
 +   bb2:
-+     v9 = add v6, 31
-+     v10 = div v9, 32
-+     v11 = add v6, 63
-+     v12 = lt v11, v6
-+     jumpi v12, bb3, bb4
++     v10 = add v7, 31
++     v11 = div v10, 32
++     v12 = add v7, 63
++     v13 = lt v12, v7
++     jumpi v13, bb3, bb4
 +   bb4:
-+     v13 = not 31
-+     v14 = and v11, v13
-+     v15 = alloc memorybytes, exact, uninitialized, panic, v14
-+     set_memory_object_len memorybytes, v15, v6
++     v14 = not 31
++     v15 = and v12, v14
++     v16 = alloc memorybytes, exact, uninitialized, panic, v15
++     set_memory_object_len memorybytes, v16, v7
 +     jumpi v3, bb6, bb5
 +   bb5:
-+     v16 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-+     memory_object_store_word memorybytes, v15, 0, v16
++     v17 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
++     memory_object_store_word memorybytes, v16, 0, v17
 +     jump bb7
 +   bb6:
-+     v17 = storage_array_data_slot arg0
++     v18 = storage_array_data_slot arg0
 +     jump bb8
 +   bb8:
-+     v18 = phi [bb6: 0], [bb9: v23]
-+     v19 = lt v18, v10
-+     jumpi v19, bb9, bb10
++     v19 = phi [bb6: 0], [bb9: v24]
++     v20 = lt v19, v11
++     jumpi v20, bb9, bb10
 +   bb10:
 +     jump bb7
 +   bb7:
-+     ret v15
++     ret v16
 +   bb9:
-+     v20 = add v17, v18
-+     v21 = sload v20 !metadata(storage=symbolic(v20))
-+     v22 = mul v18, 32
-+     memory_object_store_word memorybytes, v15, v22, v21
-+     v23 = add v18, 1
++     v21 = add v18, v19
++     v22 = sload v21 !metadata(storage=symbolic(v21))
++     v23 = mul v19, 32
++     memory_object_store_word memorybytes, v16, v23, v22
++     v24 = add v19, 1
 +     jump bb8
 +   bb3:
 +     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)

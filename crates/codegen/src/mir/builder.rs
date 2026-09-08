@@ -1150,6 +1150,24 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_void_inst(InstKind::ValidateStorageBytes(header));
     }
 
+    /// Decodes the long-encoding flag and length without validating the header.
+    pub(crate) fn storage_bytes_header_parts(&mut self, header: ValueId) -> (ValueId, ValueId) {
+        // flag = header & 1
+        // is_long = flag == 1
+        // mask = 0x7f | (0 - flag)
+        // length = (header >> 1) & mask
+        let one = self.imm(1);
+        let flag = self.and(header, one);
+        let is_long = self.eq(flag, one);
+        let zero = self.imm(0);
+        let long_mask = self.sub(zero, flag);
+        let short_mask = self.imm(0x7f);
+        let mask = self.or(short_mask, long_mask);
+        let half = self.shr(one, header);
+        let length = self.and(half, mask);
+        (is_long, length)
+    }
+
     /// Gives raw pointer bits an object type without checking the object.
     pub(crate) fn memory_object_from_ptr(
         &mut self,

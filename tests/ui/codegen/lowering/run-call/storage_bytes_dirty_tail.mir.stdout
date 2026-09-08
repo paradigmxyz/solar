@@ -25,13 +25,14 @@ fn @storeLong() -> struct0 [selector=0xc4a6ec73, abi_params=[], abi_returns=[wor
     validate_storage_bytes v9
     v10 = and v9, 1
     v11 = eq v10, 1
-    v12 = shr 1, v9
-    v13 = and v12, 127
-    v14 = select v11, v12, v13
-    v15 = insert_value struct0, undef struct0, 0, v6
-    v16 = insert_value struct0, v15, 1, v8
-    v17 = insert_value struct0, v16, 2, v14
-    ret v17
+    v12 = sub 0, v10
+    v13 = or 127, v12
+    v14 = shr 1, v9
+    v15 = and v14, v13
+    v16 = insert_value struct0, undef struct0, 0, v6
+    v17 = insert_value struct0, v16, 1, v8
+    v18 = insert_value struct0, v17, 2, v15
+    ret v18
 }
 
 fn @storeShort() -> struct1 [selector=0x5296e6c1, abi_params=[], abi_returns=[word, word], abi_return_params=[bytes32, u256]] {
@@ -49,12 +50,13 @@ fn @storeShort() -> struct1 [selector=0x5296e6c1, abi_params=[], abi_returns=[wo
     validate_storage_bytes v5
     v6 = and v5, 1
     v7 = eq v6, 1
-    v8 = shr 1, v5
-    v9 = and v8, 127
-    v10 = select v7, v8, v9
-    v11 = insert_value struct1, undef struct1, 0, v4
-    v12 = insert_value struct1, v11, 1, v10
-    ret v12
+    v8 = sub 0, v6
+    v9 = or 127, v8
+    v10 = shr 1, v5
+    v11 = and v10, v9
+    v12 = insert_value struct1, undef struct1, 0, v4
+    v13 = insert_value struct1, v12, 1, v11
+    ret v13
 }
 
 fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {

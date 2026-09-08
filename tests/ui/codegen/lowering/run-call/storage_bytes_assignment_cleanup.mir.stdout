@@ -19,13 +19,14 @@ fn @cleanup() -> struct0 [selector=0x3cecd719, abi_params=[], abi_returns=[word<
     validate_storage_bytes v7
     v8 = and v7, 1
     v9 = eq v8, 1
-    v10 = shr 1, v7
-    v11 = and v10, 127
-    v12 = select v9, v10, v11
-    v13 = insert_value struct0, undef struct0, 0, v3
-    v14 = insert_value struct0, v13, 1, v6
-    v15 = insert_value struct0, v14, 2, v12
-    ret v15
+    v10 = sub 0, v8
+    v11 = or 127, v10
+    v12 = shr 1, v7
+    v13 = and v12, v11
+    v14 = insert_value struct0, undef struct0, 0, v3
+    v15 = insert_value struct0, v14, 1, v6
+    v16 = insert_value struct0, v15, 2, v13
+    ret v16
 }
 
 fn @cleanupShort() -> struct0 [selector=0x14d48529, abi_params=[], abi_returns=[word<bool>, word<bool>, word], abi_return_params=[bool, bool, u256]] {
@@ -44,11 +45,12 @@ fn @cleanupShort() -> struct0 [selector=0x14d48529, abi_params=[], abi_returns=[
     validate_storage_bytes v7
     v8 = and v7, 1
     v9 = eq v8, 1
-    v10 = shr 1, v7
-    v11 = and v10, 127
-    v12 = select v9, v10, v11
-    v13 = insert_value struct0, undef struct0, 0, v3
-    v14 = insert_value struct0, v13, 1, v6
-    v15 = insert_value struct0, v14, 2, v12
-    ret v15
+    v10 = sub 0, v8
+    v11 = or 127, v10
+    v12 = shr 1, v7
+    v13 = and v12, v11
+    v14 = insert_value struct0, undef struct0, 0, v3
+    v15 = insert_value struct0, v14, 1, v6
+    v16 = insert_value struct0, v15, 2, v13
+    ret v16
 }

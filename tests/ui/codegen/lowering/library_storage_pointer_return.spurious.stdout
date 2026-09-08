@@ -100,10 +100,11 @@ fn @bytesLen() -> u256 [selector=0x6a4634a6, view, abi_params=[], abi_returns=[w
     validate_storage_bytes v11
     v12 = and v11, 1
     v13 = eq v12, 1
-    v14 = shr 1, v11
-    v15 = and v14, 127
-    v16 = select v13, v14, v15
-    ret v16
+    v14 = sub 0, v12
+    v15 = or 127, v14
+    v16 = shr 1, v11
+    v17 = and v16, v15
+    ret v17
 }
 
 fn @member() -> u256 [selector=0xe3f6b544, view, abi_params=[], abi_returns=[word]] {

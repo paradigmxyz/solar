@@ -440,31 +440,32 @@ fn @pushBytes() -> u256 [selector=0x7a248eac, abi_params=[], abi_returns=[word]]
     validate_storage_bytes v26
     v27 = and v26, 1
     v28 = eq v27, 1
-    v29 = shr 1, v26
-    v30 = and v29, 127
-    v31 = select v28, v29, v30
-    v32 = lt 0, v31
-    v33 = iszero v32
-    panic_if v33, 0x32
+    v29 = sub 0, v27
+    v30 = or 127, v29
+    v31 = shr 1, v26
+    v32 = and v31, v30
+    v33 = lt 0, v32
+    v34 = iszero v33
+    panic_if v34, 0x32
     jumpi v28, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v34 = storage_array_data_slot v25
-    v35 = shr 5, 0
-    v36 = add v34, v35
+    v35 = storage_array_data_slot v25
+    v36 = shr 5, 0
+    v37 = add v35, v36
     jump bb3
   bb3:
-    v37 = phi [bb1: v36], [bb2: v25]
-    v38 = and 0, 31
-    v39 = sub 31, v38
-    v40 = sload v37 !metadata(storage=symbolic(v37))
-    v41 = mul v39, 8
-    v42 = shr v41, v40
-    v43 = and v42, 255
-    v44 = shl 248, v43
-    v45 = shr 248, v44
-    ret v45
+    v38 = phi [bb1: v37], [bb2: v25]
+    v39 = and 0, 31
+    v40 = sub 31, v39
+    v41 = sload v38 !metadata(storage=symbolic(v38))
+    v42 = mul v40, 8
+    v43 = shr v42, v41
+    v44 = and v43, 255
+    v45 = shl 248, v44
+    v46 = shr 248, v45
+    ret v46
 }
 
 fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {

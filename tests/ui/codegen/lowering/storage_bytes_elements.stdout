@@ -19,34 +19,35 @@ fn @poke() [selector=0x18178358, abi_params=[], abi_returns=[]] {
     validate_storage_bytes v1
     v2 = and v1, 1
     v3 = eq v2, 1
-    v4 = shr 1, v1
-    v5 = and v4, 127
-    v6 = select v3, v4, v5
-    v7 = lt 5, v6
-    v8 = iszero v7
-    panic_if v8, 0x32
+    v4 = sub 0, v2
+    v5 = or 127, v4
+    v6 = shr 1, v1
+    v7 = and v6, v5
+    v8 = lt 5, v7
+    v9 = iszero v8
+    panic_if v9, 0x32
     jumpi v3, bb1, bb2
   bb2:
     jump bb3
   bb1:
-    v9 = storage_array_data_slot 0
-    v10 = shr 5, 5
-    v11 = add v9, v10
+    v10 = storage_array_data_slot 0
+    v11 = shr 5, 5
+    v12 = add v10, v11
     jump bb3
   bb3:
-    v12 = phi [bb1: v11], [bb2: 0]
-    v13 = and 5, 31
-    v14 = sub 31, v13
-    v15 = mul v14, 8
-    v16 = shl v15, 255
-    v17 = sload v12 !metadata(storage=symbolic(v12))
-    v18 = not v16
-    v19 = and v17, v18
-    v20 = shr 248, v0
-    v21 = and v20, 255
-    v22 = shl v15, v21
-    v23 = or v19, v22
-    sstore v12, v23 !metadata(storage=symbolic(v12))
+    v13 = phi [bb1: v12], [bb2: 0]
+    v14 = and 5, 31
+    v15 = sub 31, v14
+    v16 = mul v15, 8
+    v17 = shl v16, 255
+    v18 = sload v13 !metadata(storage=symbolic(v13))
+    v19 = not v17
+    v20 = and v18, v19
+    v21 = shr 248, v0
+    v22 = and v21, 255
+    v23 = shl v16, v22
+    v24 = or v20, v23
+    sstore v13, v24 !metadata(storage=symbolic(v13))
     ret
 }
 

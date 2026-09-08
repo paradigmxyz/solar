@@ -154,22 +154,17 @@ bb22 [loop]:
   dup 2
   and
   push 1
-  eq
   dup 2
+  eq
+  swap 1
+  push 0
+  sub
+  push 127
+  or
+  dup 3
   push 1
   shr
-  push 127
-  dup 2
   and
-  swap 1
-  dup 3
-  dup 3
-  dup 3
-  sub
-  mul
-  swap 1
-  pop
-  add
   push 32
   dup 2
   lt
@@ -308,22 +303,17 @@ bb32:
   dup 2
   and
   push 1
-  eq
   dup 2
+  eq
+  swap 1
+  push 0
+  sub
+  push 127
+  or
+  dup 3
   push 1
   shr
-  push 127
-  dup 2
   and
-  swap 1
-  dup 3
-  dup 3
-  dup 3
-  sub
-  mul
-  swap 1
-  pop
-  add
   push 32
   dup 2
   lt
@@ -466,22 +456,19 @@ bb42:
   dup 2
   and
   push 1
+  dup 2
   eq
   swap 1
+  push 0
+  sub
+  push 127
+  or
+  swap 2
   push 1
   shr
-  push 127
-  dup 2
+  swap 1
+  swap 2
   and
-  swap 1
-  dup 3
-  dup 3
-  dup 3
-  sub
-  mul
-  swap 1
-  pop
-  add
   push 32
   dup 2
   lt
@@ -520,22 +507,19 @@ bb45:
   dup 2
   and
   push 1
+  dup 2
   eq
   swap 1
+  push 0
+  sub
+  push 127
+  or
+  swap 2
   push 1
   shr
-  push 127
-  dup 2
+  swap 1
+  swap 2
   and
-  swap 1
-  dup 3
-  dup 3
-  dup 3
-  sub
-  mul
-  swap 1
-  pop
-  add
   push 32
   dup 2
   lt
@@ -609,22 +593,19 @@ bb54:
   dup 2
   and
   push 1
+  dup 2
   eq
   swap 1
+  push 0
+  sub
+  push 127
+  or
+  swap 2
   push 1
   shr
-  push 127
-  dup 2
+  swap 1
+  swap 2
   and
-  swap 1
-  dup 3
-  dup 3
-  dup 3
-  sub
-  mul
-  swap 1
-  pop
-  add
   push 32
   dup 2
   lt
@@ -708,22 +689,17 @@ bb64:
   dup 2
   and
   push 1
-  eq
   dup 2
+  eq
+  swap 1
+  push 0
+  sub
+  push 127
+  or
+  dup 3
   push 1
   shr
-  push 127
-  dup 2
   and
-  swap 1
-  dup 3
-  dup 3
-  dup 3
-  sub
-  mul
-  swap 1
-  pop
-  add
   push 32
   dup 2
   lt
