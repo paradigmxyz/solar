@@ -587,8 +587,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let too_long = self.builder.iszero(in_range);
         self.builder.panic_if(too_long, PanicCode::MemoryAllocationOverflow);
 
-        let long_block = self.builder.create_block();
+        // Keep the short-header path first so repeated packed pushes can fall through.
         let short_block = self.builder.create_block();
+        let long_block = self.builder.create_block();
         let transition_block = self.builder.create_block();
         let packed_block = self.builder.create_block();
         let merge_block = self.builder.create_block();

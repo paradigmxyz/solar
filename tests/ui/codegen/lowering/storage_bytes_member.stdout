@@ -186,11 +186,47 @@ bb22:
   iszero
   push bb78
   jumpi
-  push 32
+  push 31
   dup 2
-  lt
+  gt
   push bb26
   jumpi
+  push 31
+  dup 2
+  eq
+  push bb27
+  jumpi
+  swap 1
+  push 2
+  add
+  swap 1
+  push 31
+  sub
+  push 3
+  shl
+  push 255
+  dup 2
+  shl
+  not
+  swap 1
+  swap 2
+  and
+  swap 2
+  push 0
+  byte
+  jump bb82
+bb82:
+  swap 1
+  shl
+  or
+  swap 1
+  sstore
+  jump bb21
+bb21:
+  push 1
+  add
+  jump bb19
+bb26:
   swap 1
   push 2
   add
@@ -229,23 +265,7 @@ bb22:
   push 255
   and
   jump bb82
-bb82:
-  swap 1
-  shl
-  or
-  swap 1
-  sstore
-  jump bb21
-bb21:
-  push 1
-  add
-  jump bb19
-bb26:
-  push 31
-  dup 2
-  sub
-  push bb28
-  jumpi
+bb27:
   dup 4
   push 0
   mstore
@@ -269,26 +289,6 @@ bb26:
   swap 1
   sstore
   jump bb21
-bb28:
-  swap 1
-  push 2
-  add
-  swap 1
-  push 31
-  sub
-  push 3
-  shl
-  push 255
-  dup 2
-  shl
-  not
-  swap 1
-  swap 2
-  and
-  swap 2
-  push 0
-  byte
-  jump bb82
 bb32:
   caller
   push 0

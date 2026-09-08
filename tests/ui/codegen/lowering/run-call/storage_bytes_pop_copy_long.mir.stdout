@@ -102,8 +102,8 @@ fn @test() -> memorybytes [selector=0xf8a8fd6d, abi_params=[], abi_returns=[memo
     v10 = iszero v9
     panic_if v10, 0x41
     v11 = gt v8, 31
-    jumpi v11, bb7, bb8
-  bb8:
+    jumpi v11, bb8, bb7
+  bb7:
     v27 = eq v8, 31
     jumpi v27, bb9, bb10
   bb10:
@@ -127,7 +127,7 @@ fn @test() -> memorybytes [selector=0xf8a8fd6d, abi_params=[], abi_returns=[memo
     sstore v28, v32 !metadata(storage=symbolic(v28))
     sstore 0, 65 !metadata(storage=slot(0))
     jump bb11
-  bb7:
+  bb8:
     v12 = add v3, 2
     sstore 0, v12 !metadata(storage=slot(0))
     v13 = storage_array_data_slot 0
@@ -180,8 +180,8 @@ fn @testNoPop() -> memorybytes [selector=0xa43e8948, abi_params=[], abi_returns=
     v10 = iszero v9
     panic_if v10, 0x41
     v11 = gt v8, 31
-    jumpi v11, bb7, bb8
-  bb8:
+    jumpi v11, bb8, bb7
+  bb7:
     v27 = eq v8, 31
     jumpi v27, bb9, bb10
   bb10:
@@ -205,7 +205,7 @@ fn @testNoPop() -> memorybytes [selector=0xa43e8948, abi_params=[], abi_returns=
     sstore v28, v32 !metadata(storage=symbolic(v28))
     sstore 0, 65 !metadata(storage=slot(0))
     jump bb11
-  bb7:
+  bb8:
     v12 = add v3, 2
     sstore 0, v12 !metadata(storage=slot(0))
     v13 = storage_array_data_slot 0
@@ -345,8 +345,8 @@ fn @testOnePop() -> u8 [selector=0x38de92b5, abi_params=[], abi_returns=[word<u8
     v10 = iszero v9
     panic_if v10, 0x41
     v11 = gt v8, 31
-    jumpi v11, bb7, bb8
-  bb8:
+    jumpi v11, bb8, bb7
+  bb7:
     v27 = eq v8, 31
     jumpi v27, bb9, bb10
   bb10:
@@ -370,7 +370,7 @@ fn @testOnePop() -> u8 [selector=0x38de92b5, abi_params=[], abi_returns=[word<u8
     sstore v28, v32 !metadata(storage=symbolic(v28))
     sstore 0, 65 !metadata(storage=slot(0))
     jump bb11
-  bb7:
+  bb8:
     v12 = add v3, 2
     sstore 0, v12 !metadata(storage=slot(0))
     v13 = storage_array_data_slot 0

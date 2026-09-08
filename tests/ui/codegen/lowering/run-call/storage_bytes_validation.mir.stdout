@@ -408,8 +408,8 @@ fn @invalidShortPush() [selector=0x6753fa56, abi_params=[], abi_returns=[]] {
     v7 = iszero v6
     panic_if v7, 0x41
     v8 = gt v5, 31
-    jumpi v8, bb1, bb2
-  bb2:
+    jumpi v8, bb2, bb1
+  bb1:
     v24 = eq v5, 31
     jumpi v24, bb3, bb4
   bb4:
@@ -433,7 +433,7 @@ fn @invalidShortPush() [selector=0x6753fa56, abi_params=[], abi_returns=[]] {
     sstore v25, v29 !metadata(storage=symbolic(v25))
     sstore 0, 65 !metadata(storage=slot(0))
     jump bb5
-  bb1:
+  bb2:
     v9 = add v0, 2
     sstore 0, v9 !metadata(storage=slot(0))
     v10 = storage_array_data_slot 0
@@ -470,8 +470,8 @@ fn @invalidLongPush() [selector=0xefd41847, abi_params=[], abi_returns=[]] {
     v7 = iszero v6
     panic_if v7, 0x41
     v8 = gt v5, 31
-    jumpi v8, bb1, bb2
-  bb2:
+    jumpi v8, bb2, bb1
+  bb1:
     v24 = eq v5, 31
     jumpi v24, bb3, bb4
   bb4:
@@ -495,7 +495,7 @@ fn @invalidLongPush() [selector=0xefd41847, abi_params=[], abi_returns=[]] {
     sstore v25, v29 !metadata(storage=symbolic(v25))
     sstore 0, 65 !metadata(storage=slot(0))
     jump bb5
-  bb1:
+  bb2:
     v9 = add v0, 2
     sstore 0, v9 !metadata(storage=slot(0))
     v10 = storage_array_data_slot 0
@@ -912,8 +912,8 @@ fn @pushAtMaxLength() -> u256 [selector=0x35078c3f, abi_params=[], abi_returns=[
     v11 = iszero v10
     panic_if v11, 0x41
     v12 = gt v9, 31
-    jumpi v12, bb1, bb2
-  bb2:
+    jumpi v12, bb2, bb1
+  bb1:
     v28 = eq v9, 31
     jumpi v28, bb3, bb4
   bb4:
@@ -937,7 +937,7 @@ fn @pushAtMaxLength() -> u256 [selector=0x35078c3f, abi_params=[], abi_returns=[
     sstore v29, v33 !metadata(storage=symbolic(v29))
     sstore 0, 65 !metadata(storage=slot(0))
     jump bb5
-  bb1:
+  bb2:
     v13 = add v4, 2
     sstore 0, v13 !metadata(storage=slot(0))
     v14 = storage_array_data_slot 0
@@ -978,8 +978,8 @@ fn @pushPastMaxLength() [selector=0xd9fa2828, abi_params=[], abi_returns=[]] {
     v10 = iszero v9
     panic_if v10, 0x41
     v11 = gt v8, 31
-    jumpi v11, bb1, bb2
-  bb2:
+    jumpi v11, bb2, bb1
+  bb1:
     v27 = eq v8, 31
     jumpi v27, bb3, bb4
   bb4:
@@ -1003,7 +1003,7 @@ fn @pushPastMaxLength() [selector=0xd9fa2828, abi_params=[], abi_returns=[]] {
     sstore v28, v32 !metadata(storage=symbolic(v28))
     sstore 0, 65 !metadata(storage=slot(0))
     jump bb5
-  bb1:
+  bb2:
     v12 = add v3, 2
     sstore 0, v12 !metadata(storage=slot(0))
     v13 = storage_array_data_slot 0

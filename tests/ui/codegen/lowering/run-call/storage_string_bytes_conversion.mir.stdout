@@ -40,8 +40,8 @@ fn @pushThroughConversion() -> memorybytes [selector=0x10f946b0, abi_params=[], 
     v7 = iszero v6
     panic_if v7, 0x41
     v8 = gt v5, 31
-    jumpi v8, bb1, bb2
-  bb2:
+    jumpi v8, bb2, bb1
+  bb1:
     v24 = eq v5, 31
     jumpi v24, bb3, bb4
   bb4:
@@ -65,7 +65,7 @@ fn @pushThroughConversion() -> memorybytes [selector=0x10f946b0, abi_params=[], 
     sstore v25, v29 !metadata(storage=symbolic(v25))
     sstore 0, 65 !metadata(storage=slot(0))
     jump bb5
-  bb1:
+  bb2:
     v9 = add v0, 2
     sstore 0, v9 !metadata(storage=slot(0))
     v10 = storage_array_data_slot 0
@@ -314,8 +314,8 @@ fn @transitionThroughConversion() -> struct0 [selector=0x7117dd67, abi_params=[]
     v16 = iszero v15
     panic_if v16, 0x41
     v17 = gt v14, 31
-    jumpi v17, bb6, bb7
-  bb7:
+    jumpi v17, bb7, bb6
+  bb6:
     v33 = eq v14, 31
     jumpi v33, bb8, bb9
   bb9:
@@ -339,7 +339,7 @@ fn @transitionThroughConversion() -> struct0 [selector=0x7117dd67, abi_params=[]
     sstore v34, v38 !metadata(storage=symbolic(v34))
     sstore 0, 65 !metadata(storage=slot(0))
     jump bb10
-  bb6:
+  bb7:
     v18 = add v9, 2
     sstore 0, v18 !metadata(storage=slot(0))
     v19 = storage_array_data_slot 0

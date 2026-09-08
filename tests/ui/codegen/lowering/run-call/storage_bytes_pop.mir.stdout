@@ -16,8 +16,8 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v7 = iszero v6
     panic_if v7, 0x41
     v8 = gt v5, 31
-    jumpi v8, bb1, bb2
-  bb2:
+    jumpi v8, bb2, bb1
+  bb1:
     v24 = eq v5, 31
     jumpi v24, bb3, bb4
   bb4:
@@ -41,7 +41,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     sstore v25, v29 !metadata(storage=symbolic(v25))
     sstore 0, 65 !metadata(storage=slot(0))
     jump bb5
-  bb1:
+  bb2:
     v9 = add v0, 2
     sstore 0, v9 !metadata(storage=slot(0))
     v10 = storage_array_data_slot 0
@@ -72,8 +72,8 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v46 = iszero v45
     panic_if v46, 0x41
     v47 = gt v44, 31
-    jumpi v47, bb6, bb7
-  bb7:
+    jumpi v47, bb7, bb6
+  bb6:
     v63 = eq v44, 31
     jumpi v63, bb8, bb9
   bb9:
@@ -97,7 +97,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     sstore v64, v68 !metadata(storage=symbolic(v64))
     sstore 0, 65 !metadata(storage=slot(0))
     jump bb10
-  bb6:
+  bb7:
     v48 = add v39, 2
     sstore 0, v48 !metadata(storage=slot(0))
     v49 = storage_array_data_slot 0
@@ -255,8 +255,8 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v177 = iszero v176
     panic_if v177, 0x41
     v178 = gt v175, 31
-    jumpi v178, bb21, bb22
-  bb22:
+    jumpi v178, bb22, bb21
+  bb21:
     v194 = eq v175, 31
     jumpi v194, bb23, bb24
   bb24:
@@ -280,7 +280,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     sstore v195, v199 !metadata(storage=symbolic(v195))
     sstore 0, 65 !metadata(storage=slot(0))
     jump bb25
-  bb21:
+  bb22:
     v179 = add v170, 2
     sstore 0, v179 !metadata(storage=slot(0))
     v180 = storage_array_data_slot 0

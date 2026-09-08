@@ -232,8 +232,8 @@ fn @bytesPush() -> struct1 [selector=0x52808f21, abi_params=[], abi_returns=[wor
     v13 = iszero v12
     panic_if v13, 0x41
     v14 = gt v11, 31
-    jumpi v14, bb7, bb8
-  bb8:
+    jumpi v14, bb8, bb7
+  bb7:
     v30 = eq v11, 31
     jumpi v30, bb9, bb10
   bb10:
@@ -257,7 +257,7 @@ fn @bytesPush() -> struct1 [selector=0x52808f21, abi_params=[], abi_returns=[wor
     sstore v31, v35 !metadata(storage=symbolic(v31))
     sstore 2, 65 !metadata(storage=slot(2))
     jump bb11
-  bb7:
+  bb8:
     v15 = add v6, 2
     sstore 2, v15 !metadata(storage=slot(2))
     v16 = storage_array_data_slot 2
@@ -365,8 +365,8 @@ fn @bytesTransition() -> u256 [selector=0xe0a151c6, abi_params=[], abi_returns=[
     v11 = iszero v10
     panic_if v11, 0x41
     v12 = gt v9, 31
-    jumpi v12, bb7, bb8
-  bb8:
+    jumpi v12, bb8, bb7
+  bb7:
     v28 = eq v9, 31
     jumpi v28, bb9, bb10
   bb10:
@@ -390,7 +390,7 @@ fn @bytesTransition() -> u256 [selector=0xe0a151c6, abi_params=[], abi_returns=[
     sstore v29, v33 !metadata(storage=symbolic(v29))
     sstore 2, 65 !metadata(storage=slot(2))
     jump bb11
-  bb7:
+  bb8:
     v13 = add v4, 2
     sstore 2, v13 !metadata(storage=slot(2))
     v14 = storage_array_data_slot 2

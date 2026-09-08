@@ -150,8 +150,8 @@ fn @test() -> bool [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>]
     v14 = iszero v13
     panic_if v14, 0x41
     v15 = gt v12, 31
-    jumpi v15, bb7, bb8
-  bb8:
+    jumpi v15, bb8, bb7
+  bb7:
     v31 = eq v12, 31
     jumpi v31, bb9, bb10
   bb10:
@@ -175,7 +175,7 @@ fn @test() -> bool [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>]
     sstore v32, v36 !metadata(storage=symbolic(v32))
     sstore 0, 65 !metadata(storage=slot(0))
     jump bb11
-  bb7:
+  bb8:
     v16 = add v7, 2
     sstore 0, v16 !metadata(storage=slot(0))
     v17 = storage_array_data_slot 0

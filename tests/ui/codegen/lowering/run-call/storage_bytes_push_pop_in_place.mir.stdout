@@ -33,8 +33,8 @@ fn @_push(arg0: u256) {
     v13 = iszero v12
     panic_if v13, 0x41
     v14 = gt v11, 31
-    jumpi v14, bb7, bb8
-  bb8:
+    jumpi v14, bb8, bb7
+  bb7:
     v30 = eq v11, 31
     jumpi v30, bb9, bb10
   bb10:
@@ -58,7 +58,7 @@ fn @_push(arg0: u256) {
     sstore v31, v35 !metadata(storage=symbolic(v31))
     sstore 0, 65 !metadata(storage=slot(0))
     jump bb11
-  bb7:
+  bb8:
     v15 = add v6, 2
     sstore 0, v15 !metadata(storage=slot(0))
     v16 = storage_array_data_slot 0
@@ -99,8 +99,8 @@ fn @pushOne(arg0: bytes1) [selector=0x5da02415, abi_params=[bytes1], abi_returns
     v7 = iszero v6
     panic_if v7, 0x41
     v8 = gt v5, 31
-    jumpi v8, bb1, bb2
-  bb2:
+    jumpi v8, bb2, bb1
+  bb1:
     v25 = eq v5, 31
     jumpi v25, bb3, bb4
   bb4:
@@ -124,7 +124,7 @@ fn @pushOne(arg0: bytes1) [selector=0x5da02415, abi_params=[bytes1], abi_returns
     sstore v26, v30 !metadata(storage=symbolic(v26))
     sstore 0, 65 !metadata(storage=slot(0))
     jump bb5
-  bb1:
+  bb2:
     v9 = add v0, 2
     sstore 0, v9 !metadata(storage=slot(0))
     v10 = storage_array_data_slot 0
@@ -707,8 +707,8 @@ fn @interleaved(arg0: u256) -> struct2 [selector=0x8a27da89, abi_params=[u256], 
     v17 = iszero v16
     panic_if v17, 0x41
     v18 = gt v15, 31
-    jumpi v18, bb7, bb8
-  bb8:
+    jumpi v18, bb8, bb7
+  bb7:
     v34 = eq v15, 31
     jumpi v34, bb9, bb10
   bb10:
@@ -732,7 +732,7 @@ fn @interleaved(arg0: u256) -> struct2 [selector=0x8a27da89, abi_params=[u256], 
     sstore v35, v39 !metadata(storage=symbolic(v35))
     sstore 0, 65 !metadata(storage=slot(0))
     jump bb11
-  bb7:
+  bb8:
     v19 = add v10, 2
     sstore 0, v19 !metadata(storage=slot(0))
     v20 = storage_array_data_slot 0
@@ -1117,8 +1117,8 @@ fn @structPushPop(arg0: u256) -> struct0 [selector=0x9c0e8d6f, abi_params=[u256]
     v16 = iszero v15
     panic_if v16, 0x41
     v17 = gt v14, 31
-    jumpi v17, bb7, bb8
-  bb8:
+    jumpi v17, bb8, bb7
+  bb7:
     v33 = eq v14, 31
     jumpi v33, bb9, bb10
   bb10:
@@ -1142,7 +1142,7 @@ fn @structPushPop(arg0: u256) -> struct0 [selector=0x9c0e8d6f, abi_params=[u256]
     sstore v34, v38 !metadata(storage=symbolic(v34))
     sstore v5, 65 !metadata(storage=slot(2))
     jump bb11
-  bb7:
+  bb8:
     v18 = add v9, 2
     sstore v5, v18 !metadata(storage=slot(2))
     v19 = storage_array_data_slot v5
@@ -1262,8 +1262,8 @@ fn @mappingPushPop(arg0: u256) -> memorybytes [selector=0x9881887b, abi_params=[
     v15 = iszero v14
     panic_if v15, 0x41
     v16 = gt v13, 31
-    jumpi v16, bb7, bb8
-  bb8:
+    jumpi v16, bb8, bb7
+  bb7:
     v32 = eq v13, 31
     jumpi v32, bb9, bb10
   bb10:
@@ -1287,7 +1287,7 @@ fn @mappingPushPop(arg0: u256) -> memorybytes [selector=0x9881887b, abi_params=[
     sstore v33, v37 !metadata(storage=symbolic(v33))
     sstore v4, 65 !metadata(storage=symbolic(v4))
     jump bb11
-  bb7:
+  bb8:
     v17 = add v8, 2
     sstore v4, v17 !metadata(storage=symbolic(v4))
     v18 = storage_array_data_slot v4
@@ -1411,8 +1411,8 @@ fn @_pushPop(arg0: storageptr, arg1: u256) -> memorybytes {
     v15 = iszero v14
     panic_if v15, 0x41
     v16 = gt v13, 31
-    jumpi v16, bb7, bb8
-  bb8:
+    jumpi v16, bb8, bb7
+  bb7:
     v32 = eq v13, 31
     jumpi v32, bb9, bb10
   bb10:
@@ -1436,7 +1436,7 @@ fn @_pushPop(arg0: storageptr, arg1: u256) -> memorybytes {
     sstore v33, v37 !metadata(storage=symbolic(v33))
     sstore v3, 65 !metadata(storage=symbolic(v3))
     jump bb11
-  bb7:
+  bb8:
     v17 = add v8, 2
     sstore v3, v17 !metadata(storage=symbolic(v3))
     v18 = storage_array_data_slot v3

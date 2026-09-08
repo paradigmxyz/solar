@@ -13,8 +13,8 @@ fn @constructor() [constructor] {
     v7 = iszero v6
     panic_if v7, 0x41
     v8 = gt v5, 31
-    jumpi v8, bb1, bb2
-  bb2:
+    jumpi v8, bb2, bb1
+  bb1:
     v24 = eq v5, 31
     jumpi v24, bb3, bb4
   bb4:
@@ -38,7 +38,7 @@ fn @constructor() [constructor] {
     sstore v25, v29 !metadata(storage=symbolic(v25))
     sstore 0, 65 !metadata(storage=slot(0))
     jump bb5
-  bb1:
+  bb2:
     v9 = add v0, 2
     sstore 0, v9 !metadata(storage=slot(0))
     v10 = storage_array_data_slot 0
@@ -69,8 +69,8 @@ fn @constructor() [constructor] {
     v46 = iszero v45
     panic_if v46, 0x41
     v47 = gt v44, 31
-    jumpi v47, bb6, bb7
-  bb7:
+    jumpi v47, bb7, bb6
+  bb6:
     v63 = eq v44, 31
     jumpi v63, bb8, bb9
   bb9:
@@ -94,7 +94,7 @@ fn @constructor() [constructor] {
     sstore v64, v68 !metadata(storage=symbolic(v64))
     sstore 0, 65 !metadata(storage=slot(0))
     jump bb10
-  bb6:
+  bb7:
     v48 = add v39, 2
     sstore 0, v48 !metadata(storage=slot(0))
     v49 = storage_array_data_slot 0
@@ -130,8 +130,8 @@ fn @pushValue(arg0: bytes1) [selector=0x0217b939, abi_params=[bytes1], abi_retur
     v7 = iszero v6
     panic_if v7, 0x41
     v8 = gt v5, 31
-    jumpi v8, bb1, bb2
-  bb2:
+    jumpi v8, bb2, bb1
+  bb1:
     v25 = eq v5, 31
     jumpi v25, bb3, bb4
   bb4:
@@ -155,7 +155,7 @@ fn @pushValue(arg0: bytes1) [selector=0x0217b939, abi_params=[bytes1], abi_retur
     sstore v26, v30 !metadata(storage=symbolic(v26))
     sstore 0, 65 !metadata(storage=slot(0))
     jump bb5
-  bb1:
+  bb2:
     v9 = add v0, 2
     sstore 0, v9 !metadata(storage=slot(0))
     v10 = storage_array_data_slot 0
