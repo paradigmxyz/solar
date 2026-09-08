@@ -1,12 +1,24 @@
-//@ revisions: none size
+//@ revisions: none size mir
+//@[mir] compile-flags: -O none -Zdump=mir
+//@[none,size,mir] run-call-fail: nonzero 0 => 0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000047a65726f00000000000000000000000000000000000000000000000000000000
+//@[none,size,mir] run-call: nonzero 1 => 1
+//@[none,size,mir] run-call-fail: belowLimit 1 => 0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000036f6e650000000000000000000000000000000000000000000000000000000000
+//@[none,size,mir] run-call-fail: belowLimit 2 => 0x08c379a00000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000374776f0000000000000000000000000000000000000000000000000000000000
+//@[none,size,mir] run-call-fail: belowLimit 3 => 0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000056f74686572000000000000000000000000000000000000000000000000000000
+//@[none,size,mir] run-call: belowLimit 100 => 100
+//@[none,size,mir] run-call-fail: 0x161e4029 => 0x
+//@[none,size,mir] run-call-fail: 0x => 0x
+//@[none,size,mir] run-call-fail: 0xdeadbeef => 0x
+//@[none,size,mir] run-call-fail: nonzero 1; value=1 => 0x
 //@[none] compile-flags: -O none -Zdump=evm-ir-runtime
 //@[none] filecheck: --check-prefix=NONE --enable-var-scope
 //@[size] compile-flags: -O size -Zdump=evm-ir-runtime --pretty-json
 //@[size] filecheck: --check-prefix=SIZE --enable-var-scope
 
-// Calls to the non-returning helper make their blocks cold. The backend should
-// lay out each successful continuation as the branch fallthrough after
-// optimization, while the unoptimized revision retains the explicit jumps.
+// Non-returning helper paths stay cold and preserve each validated argument.
+// Cost-based layout may reach the shared successful terminal by a taken edge.
+// Matched sealed gas and size checks supersede the former two-fallthrough
+// strategy. None retains its explicit jumps.
 contract ColdCallFallthrough {
     // NONE-LABEL: @module ColdCallFallthrough_runtime
     // NONE: jump {{bb[0-9]+}}
@@ -56,18 +68,59 @@ contract ColdCallFallthrough {
     // NONE-NEXT: jumpi [[TAKEN]], {{bb[0-9]+}}
 
     // SIZE-LABEL: @module ColdCallFallthrough_runtime
-    // SIZE: eq
-    // SIZE-NEXT: push [[SIZE_DISPATCH:bb[0-9]+]]
-    // SIZE-NEXT: jumpi
-    // SIZE: [[SIZE_DISPATCH]]:
-    // SIZE: iszero
-    // SIZE-NEXT: push [[SIZE_COLD:bb[0-9]+]]
-    // SIZE-NEXT: jump [[BRANCH:bb[0-9]+]]
-    // SIZE: [[BRANCH]]:
-    // SIZE-NEXT: jumpi
-    // SIZE-NOT: jump
-    // SIZE: return
-    // SIZE: [[SIZE_COLD]] [cold]:
+    // SIZE: callvalue
+    // SIZE-NEXT: jumpi [[REJECT:bb[0-9]+]], [[DISPATCH:bb[0-9]+]]
+    // SIZE: [[DISPATCH]]:
+    // SIZE: push 0x161e4029
+    // SIZE-NEXT: eq
+    // SIZE-NEXT: jumpi [[NONZERO:bb[0-9]+]], [[OTHER:bb[0-9]+]]
+    // SIZE: [[OTHER]]:
+    // SIZE-NEXT: push 0x4b692dff
+    // SIZE-NEXT: sub
+    // SIZE-NEXT: jumpi [[REJECT]], [[BELOW:bb[0-9]+]]
+    // SIZE: [[BELOW]]:
+    // SIZE-NEXT: calldatasize
+    // SIZE-NEXT: push 36
+    // SIZE-NEXT: gt
+    // SIZE-NEXT: jumpi [[REJECT]], [[LIMIT:bb[0-9]+]]
+    // SIZE: [[LIMIT]]:
+    // SIZE-NEXT: push 100
+    // SIZE-NEXT: push 4
+    // SIZE-NEXT: calldataload
+    // SIZE-NEXT: lt
+    // SIZE-NEXT: jumpi [[BELOW_COLD:bb[0-9]+]], [[RETURN:bb[0-9]+]]
+    // SIZE: [[RETURN]]:
+    // SIZE-NEXT: push 4
+    // SIZE-NEXT: calldataload
+    // SIZE-NEXT: push 0
+    // SIZE-NEXT: mstore
+    // SIZE-NEXT: push 32
+    // SIZE-NEXT: push 0
+    // SIZE-NEXT: return
+    // SIZE: [[REJECT]] [cold]:
+    // SIZE-NEXT: push 0
+    // SIZE-NEXT: push 0
+    // SIZE-NEXT: revert
+    // SIZE: [[BELOW_COLD]] [cold]:
+    // SIZE-NEXT: push 4
+    // SIZE-NEXT: calldataload
+    // SIZE-NEXT: jump [[ABORT:bb[0-9]+]]
+    // SIZE: [[NONZERO]]:
+    // SIZE-NEXT: calldatasize
+    // SIZE-NEXT: push 36
+    // SIZE-NEXT: gt
+    // SIZE-NEXT: jumpi [[REJECT]], [[VALUE:bb[0-9]+]]
+    // SIZE: [[VALUE]]:
+    // SIZE-NEXT: push 4
+    // SIZE-NEXT: calldataload
+    // SIZE-NEXT: jumpi [[RETURN]], [[ZERO_COLD:bb[0-9]+]]
+    // SIZE: [[ZERO_COLD]] [cold]:
+    // SIZE-NEXT: push 4
+    // SIZE-NEXT: calldataload
+    // SIZE-NEXT: jump [[ABORT]]
+    // SIZE: [[ABORT]] [cold]:
+    // SIZE-NEXT: dup 1
+    // SIZE-NEXT: jumpi [[OTHER_ERROR:bb[0-9]+]], [[ZERO_ERROR:bb[0-9]+]]
     function nonzero(uint256 value) external pure returns (uint256) {
         if (value == 0) abort(value);
         return value;

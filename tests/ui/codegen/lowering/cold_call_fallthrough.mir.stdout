@@ -1,0 +1,66 @@
+// === ROOT/tests/ui/codegen/lowering/cold_call_fallthrough.sol:ColdCallFallthrough ===
+@module ColdCallFallthrough
+fn @nonzero(arg0: u256) -> u256 [selector=0x161e4029, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = eq arg0, 0
+    jumpi v0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    icall @abort, 0, arg0
+    jump bb3
+  bb3:
+    ret arg0
+}
+
+fn @belowLimit(arg0: u256) -> u256 [selector=0x4b692dff, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = lt arg0, 100
+    jumpi v0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    icall @abort, 0, arg0
+    jump bb3
+  bb3:
+    ret arg0
+}
+
+fn @abort(arg0: u256) [pure] {
+  bb0:
+    v0 = eq arg0, 0
+    jumpi v0, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v1 = eq arg0, 1
+    jumpi v1, bb4, bb5
+  bb5:
+    jump bb6
+  bb6:
+    v2 = eq arg0, 2
+    jumpi v2, bb7, bb8
+  bb8:
+    jump bb9
+  bb9:
+    icall @revert_error, 0, 5, 0x6f74686572000000000000000000000000000000000000000000000000000000
+    invalid
+  bb7:
+    icall @revert_error, 0, 3, 0x74776f0000000000000000000000000000000000000000000000000000000000
+    invalid
+  bb4:
+    icall @revert_error, 0, 3, 0x6f6e650000000000000000000000000000000000000000000000000000000000
+    invalid
+  bb1:
+    icall @revert_error, 0, 4, 0x7a65726f00000000000000000000000000000000000000000000000000000000
+    invalid
+}
+
+fn @revert_error(arg0: u256, arg1: u256) {
+  bb0:
+    mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 32 !metadata(memory=scratch)
+    mstore 36, arg0 !metadata(memory=scratch)
+    mstore 68, arg1 !metadata(memory=scratch)
+    revert 0, 100
+}

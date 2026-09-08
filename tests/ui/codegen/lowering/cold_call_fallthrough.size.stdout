@@ -1,9 +1,58 @@
+{
+  "contracts": {
+    "ROOT/tests/ui/codegen/lowering/cold_call_fallthrough.sol:ColdCallFallthrough": {
+      "abi": [
+        {
+          "type": "function",
+          "name": "belowLimit",
+          "inputs": [
+            {
+              "name": "value",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ],
+          "stateMutability": "pure"
+        },
+        {
+          "type": "function",
+          "name": "nonzero",
+          "inputs": [
+            {
+              "name": "value",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ],
+          "stateMutability": "pure"
+        }
+      ],
+      "bin": "34600d5760b08060115f395ff35b5f5ffd346036575f3560e01c8063161e402914608c57634b692dff0360365736602411603657606460043510603a575b6004355f5260205ff35b5f5ffd5b600435609d565b600181146084576002146075576437ba3432b960d91b6005905b62461bcd60e51b5f5260206004529060245260445260645ffd5b6274776f5b60e81b600390605b565b626f6e65607a565b36602411603657600435602c576004355b80604157637a65726f60e01b600490605b56"
+    }
+  },
+  "version": "VERSION"
+}
+
 // === ROOT/tests/ui/codegen/lowering/cold_call_fallthrough.sol:ColdCallFallthrough (runtime) ===
 @module ColdCallFallthrough_runtime
 bb0:
   callvalue
-  push bb4
-  jumpi
+  jumpi bb4, bb24
+bb24:
   push 0
   calldataload
   push 224
@@ -11,118 +60,103 @@ bb0:
   dup 1
   push 0x161e4029
   eq
-  push bb5
-  jumpi
-  dup 1
+  jumpi bb32, bb31
+bb31:
   push 0x4b692dff
-  eq
-  push bb10
-  jumpi
-  jump bb4
+  sub
+  jumpi bb4, bb7
+bb7:
+  calldatasize
+  push 36
+  gt
+  jumpi bb4, bb11
+bb11:
+  push 100
+  push 4
+  calldataload
+  lt
+  jumpi bb8, bb3
+bb3:
+  push 4
+  calldataload
+  push 0
+  mstore
+  push 32
+  push 0
+  return
 bb4 [cold]:
   push 0
   push 0
   revert
-bb5:
-  push 160
-  push 64
-  mstore
-  push 36
-  calldatasize
-  lt
-  push bb4
-  jumpi
-  push 4
-  calldataload
-  iszero
-  push bb8
-  jump bb23
-bb23:
-  jumpi
-  push 4
-  calldataload
-  push 128
-  mstore
-  push 32
-  push 128
-  return
 bb8 [cold]:
   push 4
   calldataload
-  jump bb15
+  jump bb13
 bb15 [cold]:
-  dup 1
-  push bb17
-  jumpi
-  pop
-  push 4
-  push 0x7a65726f
-  push 224
+  push 1
+  dup 2
+  eq
+  jumpi bb30, bb17
+bb17 [cold]:
+  push 2
+  eq
+  jumpi bb18, bb19
+bb19 [cold]:
+  push 0x37ba3432b9
+  push 217
   shl
-  jump bb22
-bb22 [cold]:
-  push 0x8c379a0
-  push 224
+  push 5
+  swap 1
+  jump bb21
+bb21 [cold]:
+  push 0x461bcd
+  push 229
   shl
   push 0
   mstore
   push 32
   push 4
   mstore
-  dup 2
+  swap 1
   push 36
   mstore
-  swap 1
-  pop
   push 68
   mstore
   push 100
   push 0
   revert
-bb10:
-  push 160
-  push 64
-  mstore
-  push 36
-  calldatasize
-  lt
-  push bb4
-  jumpi
-  push 100
-  push 4
-  calldataload
-  lt
-  push bb13
-  jump bb23
-bb13 [cold]:
-  push 4
-  calldataload
-  jump bb15
-bb17 [cold]:
-  push 1
-  dup 2
-  sub
-  push bb19
-  jumpi
-  pop
-  push 0x6f6e65
-  jump bb24
-bb24 [cold]:
+bb18 [cold]:
+  push 0x74776f
+  jump bb34
+bb34 [cold]:
   push 232
   shl
   push 3
   swap 1
-  jump bb22
-bb19 [cold]:
-  push 2
-  sub
-  push bb21
-  jumpi
-  push 0x74776f
-  jump bb24
-bb21 [cold]:
-  push 5
-  push 0x6f74686572
-  push 216
+  jump bb21
+bb30 [cold]:
+  push 0x6f6e65
+  jump bb34
+bb32:
+  calldatasize
+  push 36
+  gt
+  jumpi bb4, bb5
+bb5:
+  push 4
+  calldataload
+  jumpi bb3, bb2
+bb2 [cold]:
+  push 4
+  calldataload
+  jump bb13
+bb13 [cold]:
+  dup 1
+  jumpi bb15, bb29
+bb29 [cold]:
+  push 0x7a65726f
+  push 224
   shl
-  jump bb22
+  push 4
+  swap 1
+  jump bb21
