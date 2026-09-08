@@ -14,6 +14,9 @@
 //! Final cleanup also recognizes labels passed straight to a shared `JUMPI` head as direct
 //! jump targets. Deferring this until sharing is complete avoids exposing larger tails whose
 //! merger would add jumps back to the paths being shortened.
+//! Size cleanup turns a constant label passed to a shared one-instruction `JUMPI` body into
+//! a direct conditional terminator. This lets layout remove the intermediate jump; glued
+//! sequences, custom stack effects, and function activation events remain intact.
 //! Gas cleanup duplicates a word-return body of at most eight bytes into an empty stub
 //! reached by at least two other empty stubs. It amortizes the copy across those paths while
 //! preserving every address-taken label. The copy stays after structural sharing so it cannot
@@ -74,6 +77,9 @@ fn simplify_cfg(gcx: Gcx<'_>, module: &mut Module, thread_shared_jumps: bool) ->
         let inlined = thread_shared_jumps
             && gcx.sess.opts.optimization.is_gas()
             && inline_shared_return_thunks(gcx, module, &mut state.references);
+        let branches = thread_shared_jumps
+            && gcx.sess.opts.optimization.is_size()
+            && expose_shared_branches(module);
         let swept = remove_unreachable_blocks(
             module,
             &mut state.reachable,
@@ -82,14 +88,59 @@ fn simplify_cfg(gcx: Gcx<'_>, module: &mut Module, thread_shared_jumps: bool) ->
         );
         let coalesced =
             coalesce_blocks(module, &mut state.references, &mut state.retained, &mut state.order);
-        changed |= truncated || degenerate || redirected || inlined || swept || coalesced;
-        if !truncated && !degenerate && !redirected && !inlined && !swept && !coalesced {
+        changed |=
+            truncated || degenerate || redirected || inlined || branches || swept || coalesced;
+        if !truncated && !degenerate && !redirected && !inlined && !branches && !swept && !coalesced
+        {
             if thread_shared_jumps {
                 changed |= normalize_triangle_branches(module);
             }
             return changed;
         }
     }
+}
+
+fn expose_shared_branches(module: &mut Module) -> bool {
+    let mut changed = false;
+    for block_id in module.blocks.indices() {
+        let block = &module.blocks[block_id];
+        if let Some(jump) = &block.terminator
+            && let TerminatorKind::Jump(target) = jump.kind
+            && let Some(pushed) = block.instructions.last()
+            && let Some(PushValue::Block(then_block)) = pushed.value
+            && pushed.is_encoded_push()
+            && pushed.has_canonical_stack_effect()
+            && is_split_point(&block.instructions, block.instructions.len() - 1)
+            && !pushed.keeps_with_next()
+            && let body = &module.blocks[target]
+            && body.metadata.function_invoke.is_none()
+            && let [jumpi] = body.instructions.as_slice()
+            && jumpi.as_evm_opcode() == Some(op::JUMPI)
+            && jumpi.has_canonical_stack_effect()
+            && !jumpi.keeps_with_next()
+            && let Some(continuation) = &body.terminator
+            && let TerminatorKind::Jump(else_block) = continuation.kind
+            && jump.metadata.stack.is_none()
+            && continuation.metadata.stack.is_none()
+            && [&pushed.metadata, &jump.metadata, &jumpi.metadata, &continuation.metadata]
+                .into_iter()
+                .all(|metadata| {
+                    metadata.function_invoke().is_none() && metadata.function_exit().is_none()
+                })
+        {
+            // push taken; jump head; head: jumpi; jump other -> jumpi taken, other
+            let mut branch = Terminator::new(TerminatorKind::JumpI { then_block, else_block });
+            branch.metadata.copy_debug_info_from(&jumpi.metadata);
+            branch.metadata.merge_source_spans(&pushed.metadata);
+            branch.metadata.merge_source_spans(&jump.metadata);
+            branch.metadata.merge_source_spans(&continuation.metadata);
+            let block = &mut module.blocks[block_id];
+            block.instructions.pop();
+            block.terminator = Some(branch);
+            changed = true;
+        }
+    }
+    changed
 }
 
 fn inline_shared_return_thunks(
