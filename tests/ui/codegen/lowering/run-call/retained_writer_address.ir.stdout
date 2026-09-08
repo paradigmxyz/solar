@@ -273,14 +273,10 @@ bb14:
   add
   dup 1
   mload
-  swap 1
-  swap 3
   swap 5
   swap 1
-  swap 2
   swap 4
   mstore
-  swap 1
   mstore
   mstore
   push 224
@@ -649,14 +645,10 @@ bb14:
   add
   dup 1
   mload
-  swap 1
-  swap 3
   swap 5
   swap 1
-  swap 2
   swap 4
   mstore
-  swap 1
   mstore
   mstore
   push 224
@@ -1033,14 +1025,10 @@ bb14:
   add
   dup 1
   mload
-  swap 1
-  swap 3
   swap 5
   swap 1
-  swap 2
   swap 4
   mstore
-  swap 1
   mstore
   mstore
   push 0
@@ -1561,14 +1549,10 @@ bb3:
   add
   dup 1
   mload
-  swap 1
-  swap 3
   swap 5
   swap 1
-  swap 2
   swap 4
   mstore
-  swap 1
   mstore
   mstore
   push 5

@@ -25,8 +25,10 @@
 // CHECK-NEXT: push 192{{$}}
 // CHECK-NEXT: dup 2
 // CHECK-NEXT: push 31{{$}}
-// CHECK: mstore
+// CHECK: swap 5
 // CHECK-NEXT: swap 1
+// CHECK-NEXT: swap 4
+// CHECK-NEXT: mstore
 // CHECK-NEXT: mstore
 // CHECK-NEXT: mstore
 // CHECK: push 64{{$}}
@@ -234,8 +236,10 @@ contract ResidentWriterSuffix {
 // CHECK-NEXT: push 192{{$}}
 // CHECK-NEXT: dup 2
 // CHECK-NEXT: push 31{{$}}
-// CHECK: mstore
+// CHECK: swap 5
 // CHECK-NEXT: swap 1
+// CHECK-NEXT: swap 4
+// CHECK-NEXT: mstore
 // CHECK-NEXT: mstore
 // CHECK-NEXT: mstore
 // CHECK: push 64{{$}}

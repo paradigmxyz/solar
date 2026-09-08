@@ -4,7 +4,8 @@
 //! initialized word in a sufficiently long absolute run, select those two words at
 //! runtime, loading both before the source store and restoring them immediately afterward.
 //! Out-of-run candidates select the first initialized home; duplicate selections therefore
-//! save and restore the same original value. Modular subtraction handles arbitrary source
+//! save and restore the same original value. Restores may run in either order because
+//! selected aligned homes are disjoint or identical. Modular subtraction handles arbitrary source
 //! pointers without a heap-region or free-memory-pointer assumption.
 //!
 //! The longest contiguous run is the first candidate. On forks with SHR, a bitmap may select
@@ -307,24 +308,12 @@ fn template(start: u64, selection: Selection) -> Vec<ir::Instruction> {
         output.extend([Dup(1), Op(op::MLOAD)].map(Into::into));
     }
     // value; destination; old0; address0; address1; old1
-    // old0; address0; address1; old1; value; destination
+    // old1; address1; old0; address0; value; destination
     // mstore(destination, value)
-    // mstore(address1, old1)
     // mstore(address0, old0)
+    // mstore(address1, old1)
     output.extend(
-        [
-            Swap(1),
-            Swap(3),
-            Swap(5),
-            Swap(1),
-            Swap(2),
-            Swap(4),
-            Op(op::MSTORE),
-            Swap(1),
-            Op(op::MSTORE),
-            Op(op::MSTORE),
-        ]
-        .map(Into::into),
+        [Swap(5), Swap(1), Swap(4), Op(op::MSTORE), Op(op::MSTORE), Op(op::MSTORE)].map(Into::into),
     );
     output
 }
@@ -366,7 +355,7 @@ mod tests {
         for version in [EvmVersion::Byzantium, EvmVersion::London, EvmVersion::Osaka] {
             let instructions = template(480, Selection::Contiguous(28 * 32));
             assert_eq!(ir::scheduling_usage(&instructions), Some((2, -2, 5)));
-            assert_eq!(cost(version, &instructions), (51, 121));
+            assert_eq!(cost(version, &instructions), (47, 109));
         }
     }
 
@@ -392,7 +381,7 @@ mod tests {
         let (start, mask) = membership(&homes, homes.len()).unwrap();
         let instructions = template(start, Selection::Bitmap(mask));
         assert_eq!(ir::scheduling_usage(&instructions), Some((2, -2, 5)));
-        assert_eq!(cost(EvmVersion::London, &instructions), (69, 142));
+        assert_eq!(cost(EvmVersion::London, &instructions), (65, 130));
         assert_eq!(choose(&homes, homes.len(), EvmVersion::London).unwrap().range, 0..28);
         assert!(choose(&homes, homes.len(), EvmVersion::Byzantium).is_none());
 
