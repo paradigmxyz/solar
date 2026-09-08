@@ -21,7 +21,7 @@ fn @pushStr() [selector=0xe6e6accc] {
     jumpi v16, bb6, bb7
   bb7:
     v18 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v19 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v19 = mload 64 !metadata(memory=scratch)
     v27 = add v19, v18
     v28 = lt v27, v19
     v29 = gt v27, 0xffffffffffffffff
@@ -152,7 +152,7 @@ fn @blobAt() [selector=0x8f236983, view] {
     v27 = sub v26, v11
     v29 = add v27, 31
     v31 = and v29, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v32 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v32 = mload 64 !metadata(memory=scratch)
     v35 = add v32, v31
     mstore 64, v35 !metadata(memory=scratch)
     returndata v32, v27
@@ -298,7 +298,7 @@ fn @load_storage_bytes(arg0: u256) -> memptr {
     jumpi v11, bb3, bb4
   bb4:
     v13 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v14 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v14 = mload 64 !metadata(memory=scratch)
     v30 = add v14, v13
     v31 = lt v30, v14
     v32 = gt v30, 0xffffffffffffffff

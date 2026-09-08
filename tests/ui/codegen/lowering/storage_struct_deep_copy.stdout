@@ -15,7 +15,7 @@ fn @assign() [selector=0x4bd0273c] {
     v69 = shl 32, v68
     jumpi v69, bb10, bb13
   bb13:
-    v0 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v0 = mload 64 !metadata(memory=scratch)
     v80 = add v0, 64
     v81 = lt v80, v0
     v82 = gt v80, 0xffffffffffffffff
@@ -135,7 +135,7 @@ fn @push() [selector=0xa60249a3] {
     v75 = shl 32, v74
     jumpi v75, bb12, bb15
   bb15:
-    v0 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v0 = mload 64 !metadata(memory=scratch)
     v87 = add v0, 64
     v88 = lt v87, v0
     v89 = gt v87, 0xffffffffffffffff
@@ -311,7 +311,7 @@ fn @assignFixed() [selector=0xb7ffd825] {
     v73 = shl 32, v72
     jumpi v73, bb10, bb13
   bb13:
-    v0 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v0 = mload 64 !metadata(memory=scratch)
     v84 = add v0, 64
     v85 = lt v84, v0
     v86 = gt v84, 0xffffffffffffffff

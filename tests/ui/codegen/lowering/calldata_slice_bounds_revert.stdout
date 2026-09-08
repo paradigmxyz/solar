@@ -26,7 +26,7 @@ fn @endPastLength() [selector=0x8063d43b, pure] {
   bb4:
     v15 = add arg1, 62
     v18 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v19 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v19 = mload 64 !metadata(memory=scratch)
     v49 = add v19, v18
     mstore 64, v49 !metadata(memory=scratch)
     mstore v19, v5
@@ -50,7 +50,7 @@ fn @endPastLength() [selector=0x8063d43b, pure] {
     v42 = sub v41, v29
     v44 = add v42, 31
     v46 = and v44, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v47 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v47 = mload 64 !metadata(memory=scratch)
     v50 = add v47, v46
     mstore 64, v50 !metadata(memory=scratch)
     returndata v47, v42
@@ -84,7 +84,7 @@ fn @startAfterEnd() [selector=0x598bfb30, pure] {
   bb4:
     v15 = add v5, 63
     v18 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v19 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v19 = mload 64 !metadata(memory=scratch)
     v49 = add v19, v18
     mstore 64, v49 !metadata(memory=scratch)
     mstore v19, v5
@@ -108,7 +108,7 @@ fn @startAfterEnd() [selector=0x598bfb30, pure] {
     v42 = sub v41, v29
     v44 = add v42, 31
     v46 = and v44, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v47 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v47 = mload 64 !metadata(memory=scratch)
     v50 = add v47, v46
     mstore 64, v50 !metadata(memory=scratch)
     returndata v47, v42

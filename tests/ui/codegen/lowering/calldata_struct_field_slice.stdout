@@ -202,7 +202,7 @@ fn @tailHash.4(arg0: calldataptr, arg1: u256) -> bytes32 [pure] {
   bb12:
     v59 = add v49, 63
     v62 = and v59, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v63 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v63 = mload 64 !metadata(memory=scratch)
     v71 = add v63, v62
     mstore 64, v71 !metadata(memory=scratch)
     mstore v63, v49

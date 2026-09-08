@@ -3,7 +3,7 @@
 @phase evm-shaped
 fn @recover() [selector=0xce746024, pure] {
   bb0:
-    v1 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v1 = mload 64 !metadata(memory=scratch)
     v21 = add v1, 192
     v22 = lt v21, v1
     v23 = gt v21, 0xffffffffffffffff
@@ -22,7 +22,7 @@ fn @recover() [selector=0xce746024, pure] {
     mstore v17, 0x6673ffad2147741f04772b6f921f0ba6af0c1e77fc439e65c36dedf4092e8898
     v19 = add v2, 96
     mstore v19, 0x4c1a971652e0ada880120ef8025e709fff2080c4a39aae068d12eed009b68c89
-    v3 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v3 = mload 64 !metadata(memory=scratch)
     v25 = add v3, 64
     v26 = lt v25, v3
     v27 = gt v25, 0xffffffffffffffff
@@ -52,7 +52,7 @@ fn @recover() [selector=0xce746024, pure] {
 
 fn @recoverInvalid() [selector=0x008f4bed, pure] {
   bb0:
-    v0 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v0 = mload 64 !metadata(memory=scratch)
     v20 = add v0, 192
     v21 = lt v20, v0
     v22 = gt v20, 0xffffffffffffffff
@@ -71,7 +71,7 @@ fn @recoverInvalid() [selector=0x008f4bed, pure] {
     mstore v16, 0
     v18 = add v1, 96
     mstore v18, 0
-    v2 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v2 = mload 64 !metadata(memory=scratch)
     v24 = add v2, 64
     v25 = lt v24, v2
     v26 = gt v24, 0xffffffffffffffff
@@ -104,7 +104,7 @@ fn @sha() [selector=0x65707d6f, pure] {
     v0 = icall @literal_bytes_word, 1, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
     v1 = add v0, 32
     v2 = mload v0
-    v3 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v3 = mload 64 !metadata(memory=scratch)
     v12 = add v3, 64
     v13 = lt v12, v3
     v14 = gt v12, 0xffffffffffffffff
@@ -132,7 +132,7 @@ fn @ripemd() [selector=0xa1e754ea, pure] {
     v0 = icall @literal_bytes_word, 1, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
     v1 = add v0, 32
     v2 = mload v0
-    v3 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v3 = mload 64 !metadata(memory=scratch)
     v14 = add v3, 64
     v15 = lt v14, v3
     v16 = gt v14, 0xffffffffffffffff
@@ -162,7 +162,7 @@ fn @shaLiteral() [selector=0x4aa7a4c7, pure] {
     v0 = icall @literal_bytes_word, 1, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
     v1 = add v0, 32
     v2 = mload v0
-    v3 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v3 = mload 64 !metadata(memory=scratch)
     v12 = add v3, 64
     v13 = lt v12, v3
     v14 = gt v12, 0xffffffffffffffff
@@ -190,7 +190,7 @@ fn @ripemdLiteral() [selector=0x062c5650, pure] {
     v0 = icall @literal_bytes_word, 1, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
     v1 = add v0, 32
     v2 = mload v0
-    v3 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v3 = mload 64 !metadata(memory=scratch)
     v14 = add v3, 64
     v15 = lt v14, v3
     v16 = gt v14, 0xffffffffffffffff
@@ -217,12 +217,12 @@ fn @ripemdLiteral() [selector=0x062c5650, pure] {
 
 fn @shaEmpty() [selector=0xf1609893, pure] {
   bb0:
-    v0 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v0 = mload 64 !metadata(memory=scratch)
     v17 = add v0, 32
     mstore 64, v17 !metadata(memory=scratch)
     mstore v0, 0
     v1 = add v0, 32
-    v4 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v4 = mload 64 !metadata(memory=scratch)
     v13 = add v4, 64
     v14 = lt v13, v4
     v15 = gt v13, 0xffffffffffffffff
@@ -247,12 +247,12 @@ fn @shaEmpty() [selector=0xf1609893, pure] {
 
 fn @ripemdEmpty() [selector=0x0c4b170a, pure] {
   bb0:
-    v0 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v0 = mload 64 !metadata(memory=scratch)
     v19 = add v0, 32
     mstore 64, v19 !metadata(memory=scratch)
     mstore v0, 0
     v1 = add v0, 32
-    v4 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v4 = mload 64 !metadata(memory=scratch)
     v15 = add v4, 64
     v16 = lt v15, v4
     v17 = gt v15, 0xffffffffffffffff
@@ -279,7 +279,7 @@ fn @ripemdEmpty() [selector=0x0c4b170a, pure] {
 
 fn @literal_bytes_word(arg0: bytes32, arg1: u256) -> memptr {
   bb0:
-    v0 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v0 = mload 64 !metadata(memory=scratch)
     v3 = add v0, 64
     mstore 64, v3 !metadata(memory=scratch)
     mstore v0, arg1
