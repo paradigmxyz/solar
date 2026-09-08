@@ -2,6 +2,7 @@
 
 use serde::Serialize;
 use serde_json::Value;
+use serde_saphyr::SerializerOptions;
 use sha2::{Digest, Sha256};
 use snapbox::{assert_data_eq, str};
 use std::{
@@ -23,7 +24,9 @@ fn run_benchmark(config: &Path, output: &Path, args: &[&str]) -> ExitStatus {
 }
 
 fn yaml(value: impl Serialize) -> String {
-    serde_yaml_ng::to_string(&value).unwrap().trim_end().to_owned()
+    let mut options = SerializerOptions::default();
+    options.quote_all = true;
+    serde_saphyr::to_string_with_options(&value, options).unwrap().trim_end().to_owned()
 }
 
 fn read_json(path: &Path) -> Value {
