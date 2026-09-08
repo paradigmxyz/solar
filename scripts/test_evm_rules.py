@@ -4,6 +4,9 @@
 # ///
 """Regression tests for the trusted word model, ISLE reader and discovery gate."""
 
+from contextlib import redirect_stderr, redirect_stdout
+import io
+import json
 from pathlib import Path
 from types import SimpleNamespace
 import tempfile
@@ -15,6 +18,7 @@ import z3
 from evm_rules.discovery import Cost, Prices, discover_rules, emit_rule, enumerate_rules
 from evm_rules.isle import Context, ISLE, Rule, forms, verify_file
 from evm_rules.semantics import Expr, MASK, MODULUS, SIGN, Model, Unsupported, check, concrete, partition_shift
+from verify_evm_rules import main
 
 
 def expression(op, *args):
@@ -73,6 +77,26 @@ class SemanticsTests(unittest.TestCase):
         with patch.object(type(z3.Solver()), "check", side_effect=[z3.sat, z3.unknown]):
             result, _ = check(x, x)
         self.assertEqual(result["status"], "unknown")
+
+    def test_equality_query_preserves_preconditions(self):
+        x, y = Expr.var("x"), Expr.var("y")
+        model = Model()
+        lhs = expression("add", x, y)
+        # The identity is conditional on y == 0. Replay the exported query too.
+        result, query = check(lhs, x, [model.eval(y) == 0], model=model)
+        self.assertEqual(result["status"], "proved")
+        solver = z3.SolverFor("QF_BV")
+        solver.from_string(query)
+        self.assertEqual(solver.check(), z3.unsat)
+        # The counterexample must satisfy the guard after the solver reset.
+        result, _ = check(lhs, x, [model.eval(y) == 1], model=model)
+        self.assertEqual(result["status"], "counterexample")
+        self.assertEqual(int(result["inputs"]["y"], 16), 1)
+        self.assertTrue(result["replayed"])
+        # Contradictory guards cannot prove an identity vacuously.
+        result, query = check(lhs, lhs, [model.eval(y) == 0, model.eval(y) == 1], model=model)
+        self.assertEqual(result["status"], "inapplicable")
+        self.assertEqual(query, "")
 
     def test_unsupported_operations_fail(self):
         for op in ("sload", "mload", "call", "keccak256", "mystery"):
@@ -179,6 +203,28 @@ class RuleTests(unittest.TestCase):
         self.assertEqual(rule["status"], "counterexample")
         self.assertTrue(rule["replayed"])
         self.assertGreaterEqual(int(rule["inputs"]["index"], 16), 32)
+
+
+class CliTests(unittest.TestCase):
+    def test_verification_status_and_failure_diagnostics(self):
+        for status in ("proved", "unknown", "counterexample", "unsupported", "inapplicable"):
+            with self.subTest(status=status), tempfile.TemporaryDirectory() as directory:
+                output = Path(directory) / "proofs.json"
+                rule = {"line": 84, "status": status}
+                if status == "unknown":
+                    rule["reason"] = "timeout"
+                files = {"source": "rules.isle", "rules": [rule]}
+                stdout, stderr = io.StringIO(), io.StringIO()
+                with (patch("sys.argv", ["verify_evm_rules.py", "verify", "rules.isle", "--output", str(output)]),
+                      patch("verify_evm_rules.verify_file", return_value=files),
+                      redirect_stdout(stdout), redirect_stderr(stderr)):
+                    code = main()
+                self.assertEqual(code, 0 if status == "proved" else 1)
+                reason = ": timeout" if status == "unknown" else ""
+                expected = "" if status == "proved" else f"rules.isle:84: {status}{reason}\n"
+                self.assertEqual(stderr.getvalue(), expected)
+                self.assertEqual(json.loads(stdout.getvalue()), {status: 1})
+                self.assertEqual(json.loads(output.read_text())["counts"], {status: 1})
 
 
 class DiscoveryTests(unittest.TestCase):
