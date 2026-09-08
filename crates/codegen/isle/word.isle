@@ -161,6 +161,79 @@
   (if-let index (sign_byte shift))
   (Op.Byte (imm index) x))
 
+;; (x << s) >> s => x, if x fits in the retained 256 - s bits.
+;; Keep the intermediate in this block to avoid extending a cross-block live range.
+;; Require one use so removing a shared overflow check does not disrupt outlining.
+(rule (rewrite (Op.Shr (iconst shift) (and shifted (shl (iconst shift) x))))
+      (if-let true (in_current_block shifted))
+      (if-let true (single_use shifted))
+      (if-let true (u256_lt shift 256))
+      (if-let true (mask_covers (u256_shr shift (u256_max)) x))
+      (Op.Add x (imm (u256 0))))
+
+;; (x << s) == (y << s) => x == y, if neither shift loses bits.
+(rule (rewrite (Op.Eq (shl (iconst shift) x) (shl (iconst shift) y)))
+      (if-let true (u256_lt shift 256))
+      (if-let true (mask_covers (u256_shr shift (u256_max)) x))
+      (if-let true (mask_covers (u256_shr shift (u256_max)) y))
+      (Op.Eq x y))
+
+;; (x << s) == c => x == (c >> s), if x fits and c is aligned to 2^s.
+(rule (rewrite (Op.Eq (shl (iconst shift) x) (iconst c)))
+      (if-let true (u256_lt shift 256))
+      (if-let true (u256_same (u256_shl shift (u256_shr shift c)) c))
+      (if-let true (mask_covers (u256_shr shift (u256_max)) x))
+      (Op.Eq x (imm (u256_shr shift c))))
+
+;; c == (x << s) => (c >> s) == x, if x fits and c is aligned to 2^s.
+(rule (rewrite (Op.Eq (iconst c) (shl (iconst shift) x)))
+      (if-let true (u256_lt shift 256))
+      (if-let true (u256_same (u256_shl shift (u256_shr shift c)) c))
+      (if-let true (mask_covers (u256_shr shift (u256_max)) x))
+      (Op.Eq (imm (u256_shr shift c)) x))
+
+;; (x << s) < (y << s) => x < y, if neither shift loses bits.
+(rule (rewrite (Op.Lt (shl (iconst shift) x) (shl (iconst shift) y)))
+      (if-let true (u256_lt shift 256))
+      (if-let true (mask_covers (u256_shr shift (u256_max)) x))
+      (if-let true (mask_covers (u256_shr shift (u256_max)) y))
+      (Op.Lt x y))
+
+;; (x << s) < c => x < (c >> s), if x fits and c is aligned to 2^s.
+(rule (rewrite (Op.Lt (shl (iconst shift) x) (iconst c)))
+      (if-let true (u256_lt shift 256))
+      (if-let true (u256_same (u256_shl shift (u256_shr shift c)) c))
+      (if-let true (mask_covers (u256_shr shift (u256_max)) x))
+      (Op.Lt x (imm (u256_shr shift c))))
+
+;; c < (x << s) => (c >> s) < x, if x fits and c is aligned to 2^s.
+(rule (rewrite (Op.Lt (iconst c) (shl (iconst shift) x)))
+      (if-let true (u256_lt shift 256))
+      (if-let true (u256_same (u256_shl shift (u256_shr shift c)) c))
+      (if-let true (mask_covers (u256_shr shift (u256_max)) x))
+      (Op.Lt (imm (u256_shr shift c)) x))
+
+;; (x << s) > (y << s) => x > y, if neither shift loses bits.
+(rule (rewrite (Op.Gt (shl (iconst shift) x) (shl (iconst shift) y)))
+      (if-let true (u256_lt shift 256))
+      (if-let true (mask_covers (u256_shr shift (u256_max)) x))
+      (if-let true (mask_covers (u256_shr shift (u256_max)) y))
+      (Op.Gt x y))
+
+;; (x << s) > c => x > (c >> s), if x fits and c is aligned to 2^s.
+(rule (rewrite (Op.Gt (shl (iconst shift) x) (iconst c)))
+      (if-let true (u256_lt shift 256))
+      (if-let true (u256_same (u256_shl shift (u256_shr shift c)) c))
+      (if-let true (mask_covers (u256_shr shift (u256_max)) x))
+      (Op.Gt x (imm (u256_shr shift c))))
+
+;; c > (x << s) => (c >> s) > x, if x fits and c is aligned to 2^s.
+(rule (rewrite (Op.Gt (iconst c) (shl (iconst shift) x)))
+      (if-let true (u256_lt shift 256))
+      (if-let true (u256_same (u256_shl shift (u256_shr shift c)) c))
+      (if-let true (mask_covers (u256_shr shift (u256_max)) x))
+      (Op.Gt (imm (u256_shr shift c)) x))
+
 ;; Applying the same sign extension twice has no further effect.
 (rule (rewrite (Op.SignExtend index (signextend index x))) (Op.SignExtend index x))
 

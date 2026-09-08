@@ -1,0 +1,37 @@
+// === ROOT/tests/ui/codegen/mir/egraph/cost_shared_inputs_runtime.sol:SharedInputCosts ===
+@module SharedInputCosts
+fn @retained(arg0: u256) -> (u256, bool) [selector=0x0634616b, pure, abi_params=[u256], abi_returns=[word, word<bool>]] {
+  bb0:
+    v0 = byte 31, arg0
+    v1 = shl 248, v0
+    v2 = shl 248, 7
+    v3 = eq v1, v2
+    ret v1, v3
+}
+
+fn @several(arg0: u256) -> (bool, bool, bool) [selector=0x640af651, pure, abi_params=[u256], abi_returns=[word<bool>, word<bool>, word<bool>]] {
+  bb0:
+    v0 = byte 31, arg0
+    v1 = shl 248, v0
+    v2 = shl 248, 7
+    v3 = eq v1, v2
+    v4 = shl 248, 8
+    v5 = lt v1, v4
+    v6 = shl 248, 6
+    v7 = gt v1, v6
+    ret v3, v5, v7
+}
+
+fn @repeated(arg0: u256) -> u256 [selector=0x0abef8a2, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = shl 1, arg0
+    v1 = shl 1, v0
+    ret v1
+}
+
+fn @returned(arg0: u256) -> (u256, u256) [selector=0xf8c883cc, pure, abi_params=[u256], abi_returns=[word, word]] {
+  bb0:
+    v0 = shl 1, arg0
+    v1 = shl 1, v0
+    ret v0, v1
+}

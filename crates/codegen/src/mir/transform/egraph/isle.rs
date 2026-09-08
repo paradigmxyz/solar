@@ -17,6 +17,7 @@ use crate::{
 };
 use alloy_primitives::U256;
 use solar_config::EvmVersion;
+use solar_data_structures::map::FxHashMap;
 
 /// Rewrite-rule name of a MIR value.
 type Value = ValueId;
@@ -50,6 +51,8 @@ pub(super) struct RuleContext<'a> {
     evm_version: EvmVersion,
     /// Original block of the root, for rules that must not extend cross-block dependencies.
     block: Option<BlockId>,
+    /// Pre-pass use counts for profitability guards, when available.
+    uses: Option<&'a FxHashMap<ValueId, u32>>,
     /// One retained equivalent definition exposed during bounded matching.
     view: Option<(ValueId, Op)>,
 }
@@ -57,12 +60,18 @@ pub(super) struct RuleContext<'a> {
 impl<'a> RuleContext<'a> {
     /// Creates a context over `func`.
     pub(super) fn new(func: &'a mut Function, evm_version: EvmVersion) -> Self {
-        Self { func, evm_version, block: None, view: None }
+        Self { func, evm_version, block: None, uses: None, view: None }
     }
 
     /// Restricts placement-sensitive matching to producers in this block.
     pub(super) fn with_block(mut self, block: BlockId) -> Self {
         self.block = Some(block);
+        self
+    }
+
+    /// Supplies existing use counts without rebuilding use information per rule.
+    pub(super) fn with_uses(mut self, uses: &'a FxHashMap<ValueId, u32>) -> Self {
+        self.uses = Some(uses);
         self
     }
 
@@ -229,6 +238,10 @@ fn has_known_sign_bit(func: &Function, value: ValueId) -> bool {
 const UINT160_MASK: U256 = U256::from_limbs([u64::MAX, u64::MAX, u32::MAX as u64, 0]);
 
 impl generated::Context for RuleContext<'_> {
+    fn single_use(&mut self, value: Value) -> bool {
+        self.uses.and_then(|uses| uses.get(&value)) == Some(&1)
+    }
+
     fn inst_data(&mut self, value: Value) -> Option<Op> {
         self.view
             .filter(|&(operand, _)| operand == value)

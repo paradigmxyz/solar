@@ -1,0 +1,78 @@
+- // === ROOT/tests/ui/codegen/mir/egraph/cost_shared_inputs.mir (before egraph) ===
++ // === ROOT/tests/ui/codegen/mir/egraph/cost_shared_inputs.mir (after egraph) ===
+  @module SharedInputCosts
+  fn @retained_parent(arg0: u256) -> (u256, u256) {
+    bb0:
+      v0 = byte 31, arg0
+      v1 = shl 248, v0
+-     v2 = eq v1, 0x700000000000000000000000000000000000000000000000000000000000000
++     v2 = eq v0, 7
+      ret v1, v2
+  }
+  
+  fn @several_consumers(arg0: u256) -> (u256, u256, u256) {
+    bb0:
+      v0 = byte 31, arg0
+      v1 = shl 248, v0
+-     v2 = eq v1, 0x700000000000000000000000000000000000000000000000000000000000000
+-     v3 = lt v1, 0x800000000000000000000000000000000000000000000000000000000000000
+-     v4 = gt v1, 0x600000000000000000000000000000000000000000000000000000000000000
++     v2 = eq v0, 7
++     v3 = lt v0, 8
++     v4 = gt v0, 6
+      ret v2, v3, v4
+  }
+  
+  fn @repeated_shift_count(arg0: u256) -> u256 {
+    bb0:
+-     v0 = shl 1, arg0
+-     v1 = shl 1, v0
++     v0 = add arg0, arg0
++     v1 = shl 2, arg0
+      ret v1
+  }
+  
+  fn @returned_double(arg0: u256) -> (u256, u256) {
+    bb0:
+-     v0 = shl 1, arg0
+-     v1 = shl 1, v0
++     v0 = add arg0, arg0
++     v1 = add v0, v0
+      ret v0, v1
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/egraph/cost_shared_inputs.mir (before dce) ===
++ // === ROOT/tests/ui/codegen/mir/egraph/cost_shared_inputs.mir (after dce) ===
+  @module SharedInputCosts
+  fn @retained_parent(arg0: u256) -> (u256, u256) {
+    bb0:
+      v0 = byte 31, arg0
+      v1 = shl 248, v0
+      v2 = eq v0, 7
+      ret v1, v2
+  }
+  
+  fn @several_consumers(arg0: u256) -> (u256, u256, u256) {
+    bb0:
+      v0 = byte 31, arg0
+-     v1 = shl 248, v0
+      v2 = eq v0, 7
+      v3 = lt v0, 8
+      v4 = gt v0, 6
+      ret v2, v3, v4
+  }
+  
+  fn @repeated_shift_count(arg0: u256) -> u256 {
+    bb0:
+-     v0 = add arg0, arg0
+      v1 = shl 2, arg0
+      ret v1
+  }
+  
+  fn @returned_double(arg0: u256) -> (u256, u256) {
+    bb0:
+      v0 = add arg0, arg0
+      v1 = add v0, v0
+      ret v0, v1
+  }
+  

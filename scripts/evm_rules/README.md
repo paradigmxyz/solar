@@ -244,6 +244,25 @@ to four retained child spellings, one at a time, exposing nested opportunities
 within one pass. It preserves instruction placement and dominance; it does not
 form the Cartesian product of child classes or perform unrestricted saturation.
 
+Lossless-shift rules cancel a left/right shift pair and compare unshifted
+operands when range analysis proves that neither left shift loses bits. Constant
+comparisons additionally require alignment to the shift. The verifier models
+the range guard as a word-level mask contract and checks every shift count;
+mutation tests expose counterexamples when essential guards are removed.
+Cancellation requires one original use and stays within one block to avoid
+extending a value's lifetime across control flow or changing shared overflow
+checks that affect later outlining. Comparison alternatives still compete under
+the existing cost model; independently priced consumers may retain a shared
+shift even when changing all of them together could remove it.
+
+Extraction does not charge an input's computation again when every alternative
+of a shared displaced producer directly needs that input. It still charges
+for the extra stack copy. Literals are fresh pushes, so their reuse does not
+trigger a live-value preservation charge. This allows some shared comparisons
+to use smaller operands without a new analysis or a global extraction search.
+The estimate checks one dependency edge and uses original use counts; scheduled
+bytecode and runtime measurements still decide whether the change is useful.
+
 The `word-sequence` pass follows e-graph extraction. Its rules cover De Morgan
 identities, boolean tests, common masks, common shifts and size-oriented power-of-two
 comparisons. A recipe has a private namespace; only a winning recipe allocates MIR

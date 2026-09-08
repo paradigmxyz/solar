@@ -17,12 +17,18 @@
 //! placement, dominance and the existing extraction cost remain unchanged.
 //! Byte/shift fusion additionally requires the producer in the root block, since
 //! replacing a cross-block temporary can introduce costly loop-carried spills.
+//! Lossless shift cancellation also requires one original use of the intermediate:
+//! simplifying shared overflow checks can change later outlining and raise gas.
 //!
 //! After the walk, every surviving class keeps its cheapest node. The cost
 //! model is static gas plus the stack traffic a node implies: an operand's
 //! computation is charged only when this node is its sole user, and a node that
 //! reaches for a value the instruction did not need before pays for the copy
 //! that keeps that value alive, unless the operand it displaces dies here.
+//! A shared displaced producer can already require that input: omit its
+//! computation cost when every retained producer spelling reads it directly,
+//! but keep the stack-copy charge. This bounded dependency check uses original
+//! use counts; it is not coordinated extraction across all consumers.
 //! Instructions are rewritten in place at their original position; merged
 //! instructions are deleted and their uses redirected. Placement never
 //! changes, and local rules cannot increase the MIR instruction count.
@@ -253,6 +259,7 @@ impl<'a> Builder<'a> {
             for view in std::iter::once(None).chain(views.into_iter().map(Some)) {
                 isle::RuleContext::new(self.func, self.target.evm_version())
                     .with_block(block)
+                    .with_uses(&self.uses)
                     .with_view(view)
                     .rewrite(&current, &mut alternatives);
             }
@@ -903,6 +910,7 @@ impl Costs<'_> {
     /// Cost of computing `node` in place of the instruction that roots `class`.
     fn node(&mut self, class: &Class, node: &Op) -> Cost {
         let operands = operands_of(node);
+        let original = (node != &class.nodes[0]).then(|| operands_of(&class.nodes[0]));
         // An operand shared with other users is computed regardless of this
         // choice; an immediate is pushed at every use.
         let func = self.func;
@@ -911,17 +919,19 @@ impl Costs<'_> {
             _ => None,
         });
         for &operand in &operands {
-            if self.uses(operand) <= 1 || matches!(self.func.value(operand), Value::Immediate(_)) {
+            if matches!(self.func.value(operand), Value::Immediate(_))
+                || self.uses(operand) <= 1
+                    && !self.retained_input(operand, original.as_deref().unwrap_or(&[]), &operands)
+            {
                 cost += self.class(operand);
             }
         }
         // A rewrite that reaches for values the instruction did not need keeps
         // them alive up to here, unless every operand it stops needing dies here.
         // Immediates are pushed fresh and cost nothing to keep.
-        if node != &class.nodes[0] {
-            let original = operands_of(&class.nodes[0]);
+        if let Some(original) = original {
             let displaced_survive =
-                original.iter().any(|value| !operands.contains(value) && self.uses(*value) > 1);
+                original.iter().any(|&value| self.shared_displaced(value, &operands));
             if displaced_survive {
                 let reached = operands
                     .iter()
@@ -934,6 +944,23 @@ impl Costs<'_> {
             }
         }
         cost
+    }
+
+    /// Whether an original stack value is still needed by another consumer.
+    fn shared_displaced(&self, value: ValueId, operands: &[ValueId]) -> bool {
+        !matches!(self.func.value(value), Value::Immediate(_))
+            && self.uses(value) > 1
+            && !operands.contains(&value)
+    }
+
+    /// A shared producer keeps its direct input computed under every spelling.
+    fn retained_input(&self, input: ValueId, original: &[ValueId], operands: &[ValueId]) -> bool {
+        original.iter().any(|&value| {
+            self.shared_displaced(value, operands)
+                && self.classes.get(&value).is_some_and(|class| {
+                    class.nodes.iter().all(|node| operands_of(node).contains(&input))
+                })
+        })
     }
 }
 

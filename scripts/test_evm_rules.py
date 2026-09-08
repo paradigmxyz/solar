@@ -332,6 +332,30 @@ class RuleTests(unittest.TestCase):
           (if-let true (u256_eq c 2)) (Op.Add x (imm (u256 0))))""")
         self.assertEqual(report["rules"][0]["status"], "counterexample")
 
+    def test_shift_cancellation_requires_a_lossless_input(self):
+        guard = "(if-let true (mask_covers (u256_shr shift (u256_max)) x))"
+        source = f"""(rule (rewrite (Op.Shr (iconst shift) (shl (iconst shift) x)))
+          (if-let true (u256_lt shift 256)) {guard}
+          (Op.Add x (imm (u256 0))))"""
+        self.assertEqual(self.verify(source)["rules"][0]["status"], "proved")
+        result = self.verify(source.replace(guard, ""))["rules"][0]
+        self.assertEqual(result["status"], "counterexample")
+        self.assertTrue(result["replayed"])
+
+    def test_shifted_comparison_requires_constant_alignment(self):
+        guard = "(if-let true (u256_same (u256_shl shift (u256_shr shift c)) c))"
+        for op in ("Eq", "Lt", "Gt"):
+            source = f"""(rule (rewrite (Op.{op} (shl (iconst shift) x) (iconst c)))
+              (if-let true (u256_lt shift 256)) {guard}
+              (if-let true (mask_covers (u256_shr shift (u256_max)) x))
+              (Op.{op} x (imm (u256_shr shift c))))"""
+            self.assertEqual(self.verify(source)["rules"][0]["status"], "proved")
+            # Gt needs no alignment guard for floor division; Eq and Lt do.
+            if op != "Gt":
+                result = self.verify(source.replace(guard, ""))["rules"][0]
+                self.assertEqual(result["status"], "counterexample")
+                self.assertTrue(result["replayed"])
+
     def test_distinct_ssa_ids_can_hold_equal_words(self):
         report = self.verify("""(rule (rewrite (Op.Eq a b))
           (if-let true (differ a b)) (Op.Add (imm (u256 0)) (imm (u256 0))))""")
