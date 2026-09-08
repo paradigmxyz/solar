@@ -539,8 +539,30 @@ provenance, not accepted source compiler output or a metadata proof.
 The isolated carry orientation ties current Gas output cost. Existing Size
 sharing on that Gas IR yields 179 bytes versus a matched 187-byte control, still
 larger than current source Size output at 166 bytes. The medium-tail collector
-forms pairs despite a potentially profitable larger group. The next experiment
-changes only conservative group admission, retaining all existing stack and
-observer guards; it does not claim to deliver the complete 153-byte witness.
+forms pairs despite a potentially profitable larger group. A conditional-only
+group-admission trial preserves all 5,048 complete UI objects across 1,654 matched
+IDs and 828 source hashes, with no source-corpus benefit. Its production patch
+is therefore reverted and retained as an experiment. The broader proposal was
+held before compilation because it re-admitted fixed-exit groups already shown
+to grow bytecode. Neither proposal delivers the complete 153-byte witness.
+The conditional trial and independent audit are retained under
+`target/codegen-bench/evm-rewrite-candidate/conditional-medium-tail-workflow-20260908/`.
 Exact primary-source pins, refusals and fresh native calls are retained under
 `target/codegen-bench/evm-rewrite-candidate/alias-current-tail-witness-20260908/`.
+
+The conditional collector plus the oriented alias IR reaches 155 Size bytes,
+but one overflow label uses 218 gas against sealed 215. All 84 fresh comparison
+calls return the expected status and data; the gas regression still rejects
+this composition. The independent payload fixture shrinks 99 to 84 Size bytes
+with unchanged gas across 32 fresh baseline/candidate calls. These are emitted-IR
+experiments, not restored source-level functionality.
+
+A separate entry-residence investigation finds three protected homes in
+`SuggestedActionHelper.encode_abi_array.33`. Arguments, reused writer operands
+and a Phi source each have independent residence restrictions. Existing caller
+MIR shows the input originates from an FMP allocation, but the call-result
+interface carries no pointer bound that the callee's alias analysis can use.
+An overlapping-input counterexample prevents removing these restrictions
+indiscriminately. The bounded stack model and missing proof are retained under
+`target/codegen-bench/evm-rewrite-candidate/entry-writer-residence-investigation-20260908/`;
+its modeled savings are not generated-code measurements.

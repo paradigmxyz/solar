@@ -95,6 +95,13 @@ Raw full compiler time is -0.90%, RSS +1.05%, with the reference run's recorded
 parser overlap and no controlled interleaved timing claim. The new workflow's
 79 Python tests pass. No solx measurements were collected in this comparison.
 
+The conditional-only medium-tail experiment is deferred: all 5,048 matched UI
+bytecode objects remain identical in both modes, so it adds no measured source
+benefit. The production patch is reverted; no tracked test was installed or
+removed. Its focused activation and independent bytecode audit remain in
+`target/codegen-bench/evm-rewrite-candidate/conditional-medium-tail-workflow-20260908/`.
+The broader proposal remains held for overlap with known bytecode regressions.
+
 ## Remaining acceptance work
 
 `global_stack_calldata_alias.sol` remains the original failing assertion.
