@@ -4660,6 +4660,7 @@ dependencies = [
  "paste",
  "rayon",
  "serde",
+ "serde_json",
  "snapbox",
  "solar-ast",
  "solar-data-structures",

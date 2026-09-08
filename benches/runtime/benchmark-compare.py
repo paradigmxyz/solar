@@ -96,10 +96,7 @@ def compare_runs(
                 gas_reason = "ordered runtime workloads differ"
             elif old.get("gas_status") != "ok" or new.get("gas_status") != "ok":
                 gas_reason = "gas run failed or was not measured"
-            elif any(
-                data.get("runtime_status") in ("failed", "mismatch")
-                for data in (old, new, before, after)
-            ):
+            elif any(runtime_failed(case, compiler) for case in (before, after)):
                 gas_reason = "runtime checks failed"
         if (
             gas_reason
@@ -138,7 +135,7 @@ def compare_runs(
         for label, case in (("baseline", before), ("candidate", after)):
             if case.get("benchmark_error"):
                 issues.append(f"{label}: {case['benchmark_error']}")
-            if case.get("runtime_status") in ("failed", "mismatch"):
+            if runtime_mismatches(case, compiler):
                 issues.append(f"{label} cross-compiler runtime checks failed")
 
         measurements = {}
@@ -341,8 +338,8 @@ def comparison_report(comparison: dict[str, Any]) -> str:
         "Change is the geometric mean of candidate/baseline ratios, with equal weight per benchmark. Only positive, comparable pairs enter the mean.",
         "Runtime gas is the sum of measured calls within each benchmark. Timing and RSS are noisy.",
         "",
-        "| Metric | Change | Pairs in mean | Improved | Regressed | Unchanged | Excluded from mean |",
-        "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+        "| Metric | Change |",
+        "| --- | ---: |",
     ]
     for name, values in comparison["summary"].items():
         change = (
@@ -350,9 +347,7 @@ def comparison_report(comparison: dict[str, Any]) -> str:
             if values["percent"] is not None
             else "n/a"
         )
-        lines.append(
-            f"| {METRICS[name]} | {change} | {values['ratio_pairs']} | {values['improved']} | {values['regressed']} | {values['unchanged']} | {len(rows) - values['ratio_pairs']} |"
-        )
+        lines.append(f"| {METRICS[name]} | {change} |")
     if compile_only := sum(bool(row.get("compile_only")) for row in rows):
         lines.extend(
             [
@@ -372,15 +367,13 @@ def comparison_report(comparison: dict[str, Any]) -> str:
         lines.extend(["", "#### Incomplete or incompatible comparisons", "", *issues])
     changed = []
     for name, metric_label in METRICS.items():
-        if comparison["compiler"] == "solar":
-            continue
         for row in sorted(
             rows, key=lambda row: row["metrics"][name]["percent"] or 0, reverse=True
         ):
             values = row["metrics"][name]
             if values["delta"] not in (None, 0):
                 changed.append(
-                    f"| {markdown_cell(row['test_id'])} | {metric_label} | {comparison_cells(values, name)} |"
+                    f"| {perf_link(markdown_cell(row['test_id']), row['test_id'])} | {metric_label} | {comparison_cells(values, name)} |"
                 )
     if changed:
         lines.extend(
@@ -546,7 +539,7 @@ def compiler_failures(results: list[dict[str, Any]]) -> list[str]:
             continue
         compilers = result.get("compilers", {})
         for compiler_id, data in compilers.items():
-            if data.get("status") != "ok":
+            if compiler_id == "solar" and data.get("status") != "ok":
                 error_lines = str(data.get("error") or "").strip().splitlines()
                 error = error_lines[0] if error_lines else "compiler failed"
                 failures.append(f"{test_id} {compiler_id}: {error}")
@@ -566,21 +559,41 @@ def format_values(values: dict[str, Any]) -> str:
     )
 
 
+def runtime_mismatches(result: dict[str, Any], compiler: str) -> list[dict[str, Any]]:
+    return [
+        mismatch
+        for mismatch in result.get("runtime_mismatches") or []
+        if (value := (mismatch.get("values") or {}).get(compiler)) is not None
+        and any(
+            other is not None and other != value
+            for other in mismatch["values"].values()
+        )
+    ]
+
+
+def runtime_failed(result: dict[str, Any], compiler: str) -> bool:
+    return compiler_data(result, compiler).get("runtime_status") in (
+        "failed",
+        "mismatch",
+    ) or bool(runtime_mismatches(result, compiler))
+
+
 def runtime_issue_details(results: list[dict[str, Any]]) -> list[str]:
     details = []
     for result in results:
-        status = result.get("runtime_status")
-        if status in (None, "skipped", "ok"):
+        if not runtime_failed(result, "solar"):
             continue
         test_id = "/".join(suite_key(result))
         before = len(details)
 
-        for mismatch in result.get("runtime_mismatches") or []:
+        for mismatch in runtime_mismatches(result, "solar"):
             label = mismatch.get("label", "<unknown>")
             values = mismatch.get("values") or {}
             details.append(f"{test_id} {label}: {format_values(values)}")
 
         for compiler_id, data in (result.get("compilers") or {}).items():
+            if compiler_id != "solar":
+                continue
             for check in data.get("runtime_results") or []:
                 if check.get("status") == "ok":
                     continue
@@ -589,7 +602,8 @@ def runtime_issue_details(results: list[dict[str, Any]]) -> list[str]:
                 details.append(f"{test_id} {compiler_id} {label}: {shorten(error)}")
 
         if len(details) == before:
-            details.append(f"{test_id}: runtime_status={status}")
+            status = compiler_data(result, "solar").get("runtime_status")
+            details.append(f"{test_id} solar: runtime_status={status}")
 
     return details
 
@@ -1438,6 +1452,74 @@ def format_report(
     return notices + details
 
 
+def pr_comment(
+    comparison: dict[str, Any], has_changes: bool, behind_base: bool, base_ref: str
+) -> str:
+    lines = ["## Codegen benchmarks", ""]
+    if not comparison["rows"]:
+        lines.append("No benchmark results were produced.")
+    elif comparison["baseline"] is None:
+        lines.append("No baseline was available for comparison.")
+    else:
+        lines.append(
+            f"Benchmark changes detected against `{base_ref}`."
+            if has_changes
+            else f"No significant benchmark changes against `{base_ref}`."
+        )
+        lines.extend(["", "### Overview", "", "| Metric | Change |", "| --- | ---: |"])
+        metrics = ("total_gas", "runtime_size", "bytecode_size")
+        for name in metrics:
+            values = comparison["summary"][name]
+            change = (
+                fmt_pct(values["percent"], positive_is_good=False)
+                if values["percent"] is not None
+                else "n/a"
+            )
+            lines.append(f"| {METRICS[name]} | {change} |")
+        lines.extend(["", "Equal-weight geometric means; lower is better."])
+        changed = []
+        for row in comparison["rows"]:
+            if any(row["metrics"][name]["delta"] not in (None, 0) for name in metrics):
+                cells = [perf_link(markdown_cell(row["test_id"]), row["test_id"])]
+                for name in metrics:
+                    values = row["metrics"][name]
+                    cells.append(
+                        fmt_pct(values["percent"], positive_is_good=False)
+                        if values["percent"] is not None
+                        else "n/a"
+                    )
+                changed.append("| " + " | ".join(cells) + " |")
+        if changed:
+            lines.extend(
+                [
+                    "",
+                    f"### Changed benchmarks vs `{base_ref}`",
+                    "",
+                    "| Benchmark | Runtime gas | Runtime bytes | Creation bytes |",
+                    "| --- | ---: | ---: | ---: |",
+                    *changed,
+                ]
+            )
+    if any(row["issues"] for row in comparison["rows"]):
+        lines.extend(
+            [
+                "",
+                "> ⚠️ Some benchmarks have incomplete or incompatible results.",
+            ]
+        )
+    if behind_base:
+        lines.extend(
+            ["", f"> ⚠️ This branch is behind `{base_ref}`; results may be stale."]
+        )
+    button = "![View benchmark overview](https://img.shields.io/badge/View_benchmark_overview-2563eb?style=for-the-badge)"
+    link = perf_link(button)
+    if link == button:
+        site = os.environ.get("BENCHMARK_SITE_URL") or PERF_SITE_URL
+        link = f"[{button}]({site})"
+    lines.extend(["", link, ""])
+    return "\n".join(lines)
+
+
 def metric(value: float, unit: str, statistic: str) -> dict[str, Any]:
     return {"value": value, "unit": unit, "statistic": statistic}
 
@@ -1574,6 +1656,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--common-output", type=Path)
     parser.add_argument("--report-output", type=Path)
     parser.add_argument(
+        "--pr-comment-output", type=Path, help="Write a compact PR comment"
+    )
+    parser.add_argument(
         "--json-output",
         type=Path,
         help="Write per-case deltas, eligibility, samples, and artifact hashes",
@@ -1625,6 +1710,7 @@ def main(argv: list[str] | None = None) -> int:
     current_root = args.artifacts or args.results.parent / "artifacts"
     for output in (
         args.report_output,
+        args.pr_comment_output,
         args.json_output,
         args.diff_output,
         args.common_output,
@@ -1689,7 +1775,6 @@ def main(argv: list[str] | None = None) -> int:
         )
     except (OSError, ValueError) as error:
         parser.error(str(error))
-    eligible_rows = {(row["suite"], row["test_id"]): row for row in comparison["rows"]}
     emit_warnings(results, [])
     for row in comparison["rows"]:
         for name in ("total_gas", "runtime_size", "bytecode_size", "deploy_gas"):
@@ -1699,26 +1784,31 @@ def main(argv: list[str] | None = None) -> int:
                     f"{row['test_id']} {row['compiler']} {METRICS[name]} regressed: {values['before']} -> {values['after']}"
                 )
     report = (
-        codegen_report(results, baseline_results, base_ref, eligible_rows)
-        if args.compiler == "solar"
-        else "## Codegen benchmark\n"
+        codegen_report(results, baseline_results, base_ref)
+        if args.baseline is None
+        else ""
     )
     should_comment = not baseline_results or comparison_has_changes(
         comparison, args.ignore_compile_time_changes
     )
+    behind_base = branch_is_behind(base_ref)
     markdown = format_report(
         report,
         should_comment,
-        branch_is_behind(base_ref),
+        behind_base,
         base_ref,
         comparison_report(comparison) if args.baseline is not None else "",
     )
     print(markdown)
-    append_github_output("report", markdown)
     append_github_output("should_comment", "true" if should_comment else "false")
     if args.report_output is not None:
         args.report_output.parent.mkdir(parents=True, exist_ok=True)
         args.report_output.write_text(markdown)
+    if args.pr_comment_output is not None:
+        args.pr_comment_output.parent.mkdir(parents=True, exist_ok=True)
+        args.pr_comment_output.write_text(
+            pr_comment(comparison, should_comment, behind_base, base_ref)
+        )
     if args.json_output is not None:
         args.json_output.parent.mkdir(parents=True, exist_ok=True)
         args.json_output.write_text(

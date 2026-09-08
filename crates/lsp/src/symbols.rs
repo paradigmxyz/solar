@@ -723,6 +723,16 @@ impl SymbolTables {
         symbols
     }
 
+    /// Whether an unambiguous source snapshot indexes code at this position.
+    ///
+    /// These ranges cover HIR references and declaration names, never import path literals.
+    /// Callers must separately ensure that the current source matches this analysis.
+    pub(crate) fn has_code_symbol_at_position(&self, uri: &Url, position: Position) -> bool {
+        !self.rename.conflicting_contents().contains(uri)
+            && (self.reference_at_position(uri, position).is_some()
+                || self.declaration_at_position(uri, position).is_some())
+    }
+
     pub(crate) fn goto_definition(
         &self,
         uri: &Url,

@@ -18,7 +18,8 @@ The default runs only our compiler. Pass `--solc PATH` to record a two-compiler 
 Pass `--solx PATH` to include [solx](https://github.com/NomicFoundation/solx) as a separate compiler,
 with its own compilation, gas, runtime checks, and artifacts. CI pins solx 0.1.8 and installs and
 runs it only on pushes to main. Its measurements appear alongside solc in the Markdown report.
-Unsupported inputs remain visible as compiler failures.
+Reference compiler failures remain in the raw results but do not produce report warnings or
+trigger PR comments. Failures from our compiler and result mismatches involving it still do.
 
 Use `--solar-only` to skip solc and solx benchmark compilation even when `--solc PATH` supplies a binary
 for reference validation or helper contracts. The default skips the
@@ -56,6 +57,13 @@ uv run benches/runtime/benchmark-compare.py \
 
 The script prints Markdown to stdout by default. `--report-output` also saves the same
 report; omit it when you only need terminal output.
+CI uses `--pr-comment-output` for a compact PR comment with a gas and size overview,
+changed benchmarks compared with the base branch, and a button to open the web overview.
+Neither overview includes comparison counts. The detailed report stays in the job summary
+and artifacts. `--comment-output` writes the separate should-comment flag.
+With a baseline, the detailed report shows only changed benchmarks against that baseline,
+plus per-call gas changes and artifact details. Reference compiler tables appear only in
+single-run reports.
 
 Inputs may be directories containing `results.json` or JSON paths. Artifacts default to
 `artifacts/` beside each JSON. Use `--baseline-artifacts` and `--artifacts` for other paths.
