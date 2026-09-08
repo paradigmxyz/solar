@@ -9,6 +9,7 @@ They estimate trees with resident inputs, not complete scheduled EVM programs.
 from dataclasses import dataclass
 import hashlib
 from itertools import product
+import json
 from pathlib import Path
 import random
 import re
@@ -72,8 +73,35 @@ def samples(variables):
     return result
 
 
+def read_seeds(path, prices, variables):
+    """Read bounded expression trees, never executable Python or SMT text."""
+    rows = json.loads(path.read_text())
+    if not isinstance(rows, list) or not 1 <= len(rows) <= 128:
+        raise ValueError("seed file requires one to 128 expression trees")
+
+    def parse(node, budget):
+        if isinstance(node, str) and node in variables:
+            return Expr.var(node)
+        if type(node) is int and node in prices.constants:
+            return Expr.const(node)
+        if (not isinstance(node, list) or not node or not isinstance(node[0], str)
+                or node[0] not in prices.ops or len(node) != prices.ops[node[0]][0] + 1):
+            raise ValueError("seed requires declared variables, priced constants and correctly arity-matched Target operations")
+        budget[0] -= 1
+        if budget[0] < 0:
+            raise ValueError("seed exceeds 16 operations")
+        return Expr(node[0], tuple(parse(child, budget) for child in node[1:]))
+
+    result = list(dict.fromkeys(parse(row, [16]) for row in rows))
+    for expr in result:
+        if expr.operators() == 0:
+            raise ValueError("seed requires an operation root")
+        Model().eval(expr)  # Reject operations without supported word semantics.
+    return result
+
+
 def enumerate_rules(prices, variables, ops, max_ops, max_expressions, timeout_ms, initial_samples=None, include_constants=False,
-                    max_rhs_ops=1, constants=None):
+                    max_rhs_ops=1, constants=None, seeds=()):
     if not 1 <= len(variables) <= 3 or len(set(variables)) != len(variables):
         raise ValueError("discovery requires one to three distinct variables")
     if any(not re.fullmatch(r"[a-z][a-z0-9_]*", v) or v in ("true", "false") for v in variables):
@@ -89,7 +117,7 @@ def enumerate_rules(prices, variables, ops, max_ops, max_expressions, timeout_ms
         if op not in prices.ops or prices.ops[op][0] not in (1, 2):
             raise ValueError(f"unsupported search operation on selected fork: {op}")
         Model.apply(op, tuple(Model().eval(Expr.var(v)) for v in variables[:1]) * prices.ops[op][0])
-    inputs = initial_samples if initial_samples is not None else samples(variables)
+    inputs = list(initial_samples) if initial_samples is not None else samples(variables)
     inputs_constants = set(constants)
     # Canonical identities remain available as results even in a specialized
     # input domain, so zero is never represented by an expensive expression.
@@ -100,9 +128,14 @@ def enumerate_rules(prices, variables, ops, max_ops, max_expressions, timeout_ms
     model = Model()
     statistics = dict(expressions=0, smt_queries=0, proved=0, counterexamples=0, unknown=0)
     discovered = []
+    fingerprints = {}
 
     def fingerprint(expr):
-        return tuple(concrete(expr, row) for row in inputs)
+        # Counterexamples only append samples: retain old evaluations, but
+        # extend every cached vector before using it as a bucket key again.
+        values = fingerprints.setdefault(expr, [])
+        values.extend(concrete(expr, row) for row in inputs[len(values):])
+        return tuple(values)
 
     def insert(expr):
         buckets.setdefault(fingerprint(expr), []).append(expr)
@@ -163,6 +196,29 @@ def enumerate_rules(prices, variables, ops, max_ops, max_expressions, timeout_ms
                 break
         if bounded:
             break
+    # Search deep input shapes against the bounded replacement frontier. Seeds
+    # never expand the frontier, consume its expression budget or become assumed
+    # equalities. Even a sample collision needs an independent UNSAT result.
+    seed_proved = 0
+    for seed in seeds:
+        candidates = sorted(buckets.get(fingerprint(seed), []), key=lambda e: (prices.key(prices.cost(e)), e.text()))
+        for candidate in candidates:
+            before, after = prices.cost(seed), prices.cost(candidate)
+            if candidate.operators() > max_rhs_ops or prices.key(after) >= prices.key(before):
+                continue
+            statistics["smt_queries"] += 1
+            result, _ = check(seed, candidate, timeout_ms=timeout_ms, model=model)
+            statistics["counterexamples" if result["status"] == "counterexample" else result["status"]] += 1
+            if result["status"] == "proved":
+                discovered.append((seed, candidate, before, after))
+                seed_proved += 1
+                break
+            if result["status"] == "counterexample":
+                inputs.append({v: int(result["inputs"].get(v, "0"), 16) for v in variables})
+                buckets.clear()
+                for previous in representatives:
+                    insert(previous)
+    statistics.update(seeds=len(seeds), seeds_proved=seed_proved)
     statistics.update(samples=len(inputs), representatives=len(representatives), budget_exhausted=bounded)
     return discovered, statistics
 
@@ -195,6 +251,21 @@ def constant_source(value):
         return f"(u256 {value})"
     limbs = [(value >> (64 * i)) & ((1 << 64) - 1) for i in range(4)]
     return f"(u256_from_limbs {' '.join(map(str, limbs))})"
+
+
+def pseudocode(expr):
+    """Describe a candidate in the same wrapping-word notation as the rule files."""
+    if expr.op == "var":
+        return expr.args[0]
+    if expr.op == "const":
+        return "MAX" if expr.args[0] == MASK else str(expr.args[0])
+    args = [pseudocode(child) for child in expr.args]
+    infix = {"and": "&", "or": "|", "xor": "^", "add": "+", "sub": "-", "mul": "*"}
+    if expr.op in infix:
+        return f"({args[0]} {infix[expr.op]} {args[1]})"
+    if expr.op == "not":
+        return f"~{args[0]}"
+    return f"{expr.op}({', '.join(args)})"
 
 
 def emit_rule(lhs, rhs, prices=None):
@@ -275,12 +346,16 @@ def discover_rules(args):
     if args.runs < 0 or args.max_rules <= 0:
         raise ValueError("runs must be nonnegative and max-rules positive")
     prices = Prices(args.evm_version, args.objective, args.runs)
+    seed_path = getattr(args, "seed_expressions", None)
+    seeds = read_seeds(seed_path, prices, args.variables) if seed_path else []
     result_ops = getattr(args, "result_ops", None)
     if result_ops and any(op not in prices.ops and op not in ("var", "const") for op in result_ops):
         raise ValueError("unsupported replacement root filter")
     rules, summary = enumerate_rules(prices, args.variables, args.ops, args.max_ops,
                                      args.max_expressions, args.timeout_ms, include_constants=args.include_constants,
-                                     max_rhs_ops=getattr(args, "max_rhs_ops", 1), constants=getattr(args, "constants", None))
+                                     max_rhs_ops=getattr(args, "max_rhs_ops", 1), constants=getattr(args, "constants", None), seeds=seeds)
+    if seed_path:
+        rules = [rule for rule in rules if rule[0] in seeds]
     # A repeated identical child is handled by existing generic idempotence/
     # cancellation rules; keep discovery proposals focused on mixed shapes.
     rules = [r for r in rules if not (len(r[0].args) == 2 and r[0].args[0] == r[0].args[1])]
@@ -296,7 +371,7 @@ def discover_rules(args):
             if source in seen:
                 continue
             seen.add(source)
-            emitted.append(source)
+            emitted.append(f";; {pseudocode(variant)} => {pseudocode(rhs)}\n{source}")
             selected.append(dict(lhs=variant.text(), rhs=rhs.text(), estimated_before=before.__dict__,
                                  estimated_after=after.__dict__, isle=source))
             if len(emitted) >= args.max_rules:
@@ -304,6 +379,8 @@ def discover_rules(args):
         if len(emitted) >= args.max_rules:
             break
     report = dict(summary=summary, candidates=selected, fork=args.evm_version,
+                  seeds=[seed.text() for seed in seeds],
+                  seeds_sha256=hashlib.sha256(seed_path.read_bytes()).hexdigest() if seed_path else None,
                   objective=args.objective, expected_executions=args.runs,
                   result_ops=result_ops,
                   bounds=dict(max_ops=args.max_ops, max_expressions=args.max_expressions,
