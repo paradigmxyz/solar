@@ -10,7 +10,10 @@
 //! 2. **Store-to-load forwarding across joins**: a store in one arm makes the value known on that
 //!    path, so the join reload merges stored and loaded values.
 //! 3. **Partial redundancy**: a read available on some predecessors is inserted at the end of the
-//!    jump-terminated remaining predecessors, then handled as a full redundancy.
+//!    remaining predecessor edges, then handled as a full redundancy. Critical edges are split so
+//!    the read executes only on the path to the join. Their transfer overhead is charged before
+//!    selecting the rewrite. Size mode keeps the existing unsplit-edge policy until physical
+//!    phi/transfer size is known.
 //!
 //! # Keys
 //!
@@ -60,7 +63,7 @@
 //! reads, but we keep the single conservative scan for both cases for simplicity.
 //!
 //! An inserted load reads exactly the state the original would have read on that path: it
-//! sits at the end of the predecessor (nothing follows it but the jump), and the join
+//! sits at the end of the predecessor or a new edge block (only a jump follows), and the join
 //! prefix above the original load contains no kills of the key.
 //!
 //! # Termination
@@ -233,7 +236,19 @@ impl LoadPreCostModel {
     fn estimate(&self, input: LoadPreCostInput<'_>) -> LoadPreCost {
         let read = self.read_cost(input.key);
         let saved = read * input.loads.len() as i64 * input.predecessors.len() as i64;
-        let inserted = read * input.insertions.len() as i64;
+        let splits = input
+            .insertions
+            .iter()
+            .filter(|&&pred| {
+                !matches!(input.func.blocks[pred].terminator, Some(Terminator::Jump(_)))
+            })
+            .count() as i64;
+        let transfer = self
+            .target
+            .opcode(op::PUSH2)
+            .plus(self.target.opcode(op::JUMP))
+            .plus(self.target.opcode(op::JUMPDEST));
+        let inserted = read * input.insertions.len() as i64 + splits * i64::from(transfer.gas);
         let phi = if !input.needs_phi || input.loop_carried {
             0
         } else {
@@ -458,10 +473,16 @@ impl LoadRedundancyEliminator {
                 break;
             }
             rewrites += batch.len();
+            let blocks_before = func.blocks.len();
             for candidate in batch {
                 self.apply_candidate(func, candidate, &mut eliminated_keys, &mut inserted_insts);
             }
-            self.alias().clear_cached_addresses();
+            if func.blocks.len() != blocks_before {
+                self.cfg = None;
+                self.alias = Some(Rc::new(AliasAnalysis::new(func)));
+            } else {
+                self.alias().clear_cached_addresses();
+            }
         }
 
         self.stats
@@ -643,7 +664,15 @@ impl LoadRedundancyEliminator {
                 for &(_, value) in &candidate.loads {
                     eliminated_values.insert(value);
                 }
+                let splits_edge = candidate.insertions.iter().any(|&pred| {
+                    !matches!(func.blocks[pred].terminator, Some(Terminator::Jump(_)))
+                });
                 batch.push(candidate);
+                // Rebuild CFG and availability before collecting another
+                // candidate against predecessor lists changed by edge splitting.
+                if splits_edge {
+                    break 'targets;
+                }
             }
         }
 
@@ -800,9 +829,13 @@ impl LoadRedundancyEliminator {
                 incoming.push((pred, value));
                 continue;
             }
-            // The key is unavailable on this predecessor; a compensating load
-            // can only go on an edge that needs no splitting.
+            // The key is unavailable here; insert only on an explicit CFG edge.
             if !Self::can_insert_on_edge(func, pred, target) {
+                return None;
+            }
+            if self.target.optimization().is_size()
+                && !matches!(func.blocks[pred].terminator, Some(Terminator::Jump(_)))
+            {
                 return None;
             }
             // Termination rule 2: never insert a key into a block it was
@@ -974,6 +1007,13 @@ impl LoadRedundancyEliminator {
 
         let fully_available = insertions.is_empty();
         for block in insertions {
+            // pred -> edge: load key; jump target
+            // target: phi [..., edge: loaded_value, ...]
+            let block = if matches!(func.blocks[block].terminator, Some(Terminator::Jump(_))) {
+                block
+            } else {
+                mir_utils::split_edge(func, block, target)
+            };
             let mut instruction = Instruction::new(kind.clone(), Some(result_ty));
             instruction.metadata = metadata.clone();
             let (new_inst, value) = func.alloc_value_inst(instruction);
@@ -1217,7 +1257,12 @@ impl LoadRedundancyEliminator {
     // ----- CFG helpers -----
 
     fn can_insert_on_edge(func: &Function, pred: BlockId, target: BlockId) -> bool {
-        matches!(func.blocks[pred].terminator, Some(Terminator::Jump(jump_target)) if jump_target == target)
+        func.blocks[pred].terminator.as_ref().is_some_and(|term| {
+            matches!(
+                term,
+                Terminator::Jump(_) | Terminator::Branch { .. } | Terminator::Switch { .. }
+            ) && term.successors().contains(&target)
+        })
     }
 
     fn operands_dominate_block(

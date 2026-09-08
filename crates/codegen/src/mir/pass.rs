@@ -487,11 +487,10 @@ fn run_function_pass_cached(
 ) -> bool {
     let bundle = analyses.bundle(func_id, &module.functions[func_id]);
     let func = &mut module.functions[func_id];
-    let edges_before = cfg_edges(func);
     let insts_before = func.num_insts();
     let changed = run(func, &bundle);
     if changed {
-        let (keep_alias, keep_cfg) = verified_preservation(func, &edges_before, insts_before);
+        let (keep_alias, keep_cfg) = verified_preservation(func, bundle.cfg.edges(), insts_before);
         analyses.retain(func_id, keep_alias, keep_cfg);
     }
     changed

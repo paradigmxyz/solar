@@ -1,0 +1,20 @@
+//@ revisions: paris osaka
+//@ compile-flags: -Zevm-ir-pipeline=peephole
+//@[paris] compile-flags: --evm-version=paris
+//@[osaka] compile-flags: --evm-version=osaka
+//@ filecheck:
+@module FoldEconomics
+
+// Compact materialization needs nine gas but replaces a 60-gas EXP.
+// CHECK-LABEL: bb0:
+// CHECK: - exp
+// CHECK: + shl
+bb0:
+  push 200
+  push 2
+  exp
+  push 0
+  mstore
+  push 32
+  push 0
+  return

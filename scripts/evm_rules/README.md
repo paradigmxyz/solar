@@ -2,7 +2,8 @@
 
 This is an offline search and SMT verification lane for the **actual ISLE source
 compiled into the optimizer**. It currently gates `word.isle`, `word_sequence.isle` and
-`stack_select.isle`. The compiler itself has no solver dependency.
+`stack_select.isle`, plus the physical rules in `stack_peephole.isle`. The compiler
+itself has no solver dependency.
 
 ```sh
 uv run scripts/test_evm_rules.py
@@ -25,7 +26,7 @@ Only UNSAT establishes equivalence. SAT must replay as different outputs in a
 separate Python integer evaluator. Timeouts, unsupported terms and unsatisfiable
 preconditions are distinct failures, never proofs. Verification exits nonzero
 unless every selected rule is proved. Empty rule files fail too. CI runs the
-checker's regression tests and verifies every rule in all three gated files.
+checker's regression tests and verifies every rule in all four gated files.
 Failures also print the source file, rule line, status and reason in the job log.
 Applicability and equality use separate solver queries so the satisfiability
 check does not disable Z3's one-shot bitvector preprocessing. Both queries retain
@@ -65,6 +66,15 @@ structural/fork guards; actual opcode availability and profitability remain the
 compiler's responsibility. There is no claim of a verified compiler or an
 independently checked proof certificate.
 
+The physical stack lane checks the six compiled rules in `stack_peephole.isle`
+directly, including every supported DUP/SWAP depth from 1 through 235 and every
+legal EXCHANGE pair. It compares every touched word, the final height, required
+input depth and peak growth; an arbitrary deeper prefix stays unchanged.
+Malformed input bytecode and out-of-gas behavior are excluded. The Rust window
+facets, edits and target lowering remain trusted and are recorded by hash.
+Other peepholes, especially memory and branch rewrites, are not covered by this
+lane. Unknown syntax, guards, edits or operations fail verification.
+
 An audit of the older rules is available explicitly:
 
 ```sh
@@ -78,6 +88,34 @@ therefore exits nonzero. Add semantics and tests before moving such rules into
 the mandatory proof lane; do not ignore unknown or unsupported results.
 
 ## Discovering candidates
+
+Mine candidates from actual MIR artifacts before searching:
+
+```sh
+uv run scripts/verify_evm_rules.py mine \
+  target/codegen-bench/baseline/artifacts/*/solar/mir.mir \
+  --max-ops 8 --max-seeds 128 \
+  --output target/evm-rules/mined.json \
+  --emit-seeds target/evm-rules/mined-seeds.json
+uv run scripts/verify_evm_rules.py discover \
+  --variables x y z --max-ops 2 --max-rhs-ops 2 \
+  --seed-expressions target/evm-rules/mined-seeds.json \
+  --output target/evm-rules/discovery.json \
+  --emit-isle target/evm-rules/candidates.isle
+```
+
+The miner recognizes direct word operations within one straight-line region.
+Block boundaries and unrecognized instructions end the region. Shared producers
+become independent inputs instead of receiving deletion credit. Trees have at
+most three inputs and sixteen operations. The report ranks static occurrences
+times target tree cost and records source hashes, functions, blocks and lines;
+this is a search priority, not a claim about runtime frequency or realized savings.
+Empty mining results exit unsuccessfully. Mining neither proves nor installs rules.
+The exact emitted ISLE must pass verification, then gas/size measurements decide
+whether to integrate it. Mining the optimized runtime corpus motivated the
+doubling rule in `word.isle` and odd-word recipes in `word_sequence.isle`.
+The doubling rule keeps the producer at its original position: rebuilding it at
+the later addition regressed stack traffic across intervening computations.
 
 ```sh
 uv run scripts/verify_evm_rules.py discover \

@@ -151,8 +151,8 @@ bb20 [continuation]:
   pop
   push 320
   mload
-  push 1
-  shl
+  dup 1
+  add
   dup 1
   push 1
   shr
@@ -187,8 +187,8 @@ bb25 [continuation]:
   push 0
   sstore
   dup 2
-  push 1
-  shl
+  dup 1
+  add
   dup 1
   push 1
   shr
@@ -466,8 +466,8 @@ bb46:
   dup 1
   push 320
   mstore
-  push 1
-  shl
+  dup 1
+  add
   dup 1
   push 1
   shr

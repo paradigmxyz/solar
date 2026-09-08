@@ -381,8 +381,8 @@ bb32:
   and
   push 128
   mload
-  push 1
-  shl
+  dup 1
+  add
   or
   push 160
   mload
