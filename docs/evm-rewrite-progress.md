@@ -3,17 +3,17 @@
 The rewrite remains incomplete. One original UI assertion, incomplete general
 memory-ownership evidence and individual sealed gas/size debts still block final
 acceptance.
-This page summarizes local state after `ce593973` on 2026-09-08. The
+This page summarizes the local unit-carry milestone on 2026-09-08. The
 [handoff](evm-rewrite-plan.md) defines acceptance; [PR #1388][pr] tracks review.
 The [checkpoint archive](evm-rewrite-checkpoints.md) preserves the complete
 history, baseline hashes, rejected trials and measurement limitations.
 
 ## Accepted local state
 
-Main `6059f0c0` was integrated by merge `53075d0e`. Recent commits implement
-literal caching (`552c9d04`, tests `432df730`), review the cold-call expectations
-(`c0782114`), group profitable Size tails (`96c07690`, tests `d9fa3bd8`), and
-contract live SSA values before writes (`5f70b2f2`, tests `5b06f7ab`).
+Main `becd2143` was integrated by merge `e40b84f0`. Recent commits preserve
+cheaper Phi writer schedules (`e34bb6e6`) and simplify physical unit-add carry
+(`8bf5b0d0`, tests `e9c7f759`, reviewed debug goldens `92fa93ee`). Earlier accepted
+literal caching, tail grouping and eager SSA contraction remain in place.
 
 MIR semantics, private stack scheduling, physical block IR and primitive assembly
 remain separate. Literal caching uses existing capacity and observer facts.
@@ -102,6 +102,41 @@ removed. Its focused activation and independent bytecode audit remain in
 `target/codegen-bench/evm-rewrite-candidate/conditional-medium-tail-workflow-20260908/`.
 The broader proposal remains held for overlap with known bytecode regressions.
 
+## Physical unit-carry milestone
+
+A six-instruction unsigned increment carry test becomes
+`push 1; add; dup1; iszero` in physical EVM IR. Both literal/copy orders preserve
+the opaque prefix, sum and carry; each match saves two bytes and six gas while
+lowering peak stack depth. Existing observer and metadata guards apply. MIR
+scheduling trials, memory homes and the assembler are unchanged. The earlier MIR
+version is rejected because 313 UI objects grew despite aggregate savings.
+
+The final frozen producer is `4eb07937` and its reference is `82012fcd`.
+Across 1,656 matched UI IDs, 829 source hashes and 5,052 objects, 42 Gas objects
+shrink, none grow, and all Size objects remain exact. Gas creation/runtime totals
+fall 50/48 bytes. All 3,344 heavy objects remain exact through complete output
+fingerprints and retained raw captures. Full and Size workflows preserve all
+175 call labels and 139 observations; Foundry preserves all 36 project/settings
+IDs, 1,537 test records and 244 size fields. The final workspace has 11,757 UI
+passes, the original alias failure, 1,557 other passes and two skips. Clippy,
+formatting and typos pass. No original source or FileCheck assertion changes;
+two debug goldens have separate instruction/source-map/event reviews.
+
+Focused execution totals 318 exact calls without gas increases on the original
+peephole producer. The final equivalent matcher independently repeats the UI,
+full, Size and Foundry gates; it is not relabeled as that earlier producer.
+Bounded symbolic comparison agrees with solc 0.8.36 for one checked increment,
+within the retained input, query, path and time limits. This is not exhaustive
+proof. Foundry's historical report lacks per-project input-content hashes; its
+path/settings join and current source-stability receipts retain that limitation.
+
+A quiet six-leg compiler-time repeat puts final mean v4/Solmate times
+4.03%/2.30% below the accepted reference, but 0.59%/2.23% above the earlier
+peephole form. Two samples per build and project establish no causal speedup;
+earlier positive deltas remain preserved. Concurrent full-run timings are unused.
+[Unit-carry evidence][unit] retains exact commands, producers, unchanged IDs,
+raw samples, reviews and rejected trials.
+
 ## Remaining acceptance work
 
 `global_stack_calldata_alias.sol` remains the original failing assertion.
@@ -109,10 +144,10 @@ The original readback failures now pass in every mode. General source-memory
 ownership remains an open contract; bounded shared-input sweeps pass. The accepted heavy ledger
 still has 31,831,619 positive bytes of sealed size debt;
 this is a sum of regressions, not net corpus growth. Compiler-time debts remain.
-The backend has 16,944 physical lines in 46 files, 17,694 fewer than the deletion
-inventory. Excluding trailing test modules leaves 15,639 physical lines. A
+The backend has 16,974 physical lines in 46 files, 17,664 fewer than the deletion
+inventory. Excluding trailing test modules leaves 15,669 physical lines. A
 retained count-only baseline reports 29,006 production-section lines, giving a
-conditional reduction of 13,367; that file lacks a revision/hash link to the
+conditional reduction of 13,337; that file lacks a revision/hash link to the
 sealed archive. These counts include comments and are not strict production SLOC.
 
 Eager contraction removes avoidable spills and saves bytecode without corpus
@@ -133,3 +168,5 @@ establish complete functionality, green remote CI or a successful remote push.
 [literal]: ../target/codegen-bench/evm-rewrite-candidate/literal-cache-workflow-20260908/
 [cold]: ../target/codegen-bench/evm-rewrite-candidate/cold-expectation-migration-20260908/
 [group]: ../target/codegen-bench/evm-rewrite-candidate/size-long-tail-group-workflow-20260908/
+
+[unit]: ../target/codegen-bench/evm-rewrite-candidate/unit-carry-physical-workflow-20260908/

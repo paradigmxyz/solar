@@ -566,3 +566,72 @@ An overlapping-input counterexample prevents removing these restrictions
 indiscriminately. The bounded stack model and missing proof are retained under
 `target/codegen-bench/evm-rewrite-candidate/entry-writer-residence-investigation-20260908/`;
 its modeled savings are not generated-code measurements.
+
+## Unit-increment carry tests
+
+The unsigned identity `sum = x + 1; sum < x` equals `sum == 0` for wrapping
+256-bit addition. An early MIR trial removes the old comparison operand, but
+changes scheduling and branch polarity: 313 UI objects grow despite aggregate
+size reductions. A minimal case saves three arithmetic bytes and adds four
+transfer/marker bytes. Its 162 focused runtime calls pass; that does not waive
+the corpus regressions. The MIR change is reverted and its evidence remains in
+`target/codegen-bench/evm-rewrite-candidate/unit-carry-workflow-20260908/`.
+
+A separate physical peephole recognizes two exact six-instruction schedules
+and reduces them to `push 1; add; dup1; iszero`. It preserves the opaque stack
+prefix, wrapped sum and carry result, lowers peak depth, and leaves scheduler
+cost trials unchanged. This follows the placement constraints in the pinned
+solx, Venom and Sonatina reviews above: a valid algebraic identity still needs
+an affordable physical schedule and preserved control-flow behavior.
+Including the new checked-add fixture, the candidate shrinks 42 of 5,052 matched
+UI objects, with no growth or same-length changes. Gas creation/runtime totals
+fall 50/48 bytes; all Size objects and all 3,344 heavy objects remain exact.
+All 318 focused runtime calls pass without gas increases. Full and Size workflows
+preserve all 175 labels, and Foundry preserves 1,537 test records. The workspace
+passes 11,757 UI cases and 1,557 other tests; the unchanged original alias
+assertion still fails and two tests remain skipped.
+
+The final Rust match spells out both complete tuple alternatives. Actual compiler
+assembly rejects irrelevant first instructions before examining the suffix;
+this is a dispatch observation, not a measured speedup. A quiet six-leg comparison
+uses baseline/original/final/final/original/baseline order, with two samples per
+build and project. Final mean compiler times are 4.03% lower on v4 and 2.30%
+lower on Solmate than the accepted baseline, but 0.59% and 2.23% higher than the
+original peephole form. Earlier positive timing deltas remain retained. This
+repeat establishes neither a causal speedup nor full compiler-time acceptance.
+
+The final producer independently repeats UI, full runtime, Size and Foundry
+checks. Its complete heavy-output fingerprints join retained original-producer
+raw JSON captures; no fresh final-producer heavy raw capture is claimed. Two
+debug snapshots change only after actual source, bytecode, source-map and event
+reviews; original source and FileCheck assertions remain intact. The physical
+rule adds 30 production-section lines and no scheduling analysis or assembler
+logic. Artifacts, producer hashes, bounded symbolic comparison and timing
+limitations are retained in
+`target/codegen-bench/evm-rewrite-candidate/unit-carry-physical-workflow-20260908/`.
+This bounded improvement leaves the rewrite's alias and sealed size debts open.
+
+## Returned pointers and spill ownership
+
+The follow-up review distinguishes preserving an allocation fact from inventing
+one. [solx's LLVM return-attribute inference](https://github.com/NomicFoundation/solx-llvm/blob/9cf8cfdbfcdc3e74dd81f7cc0e7258ef81e8810a/llvm/lib/Transforms/IPO/FunctionAttrs.cpp#L1445)
+requires allocation/noalias-call roots and capture checks; arbitrary loads fail.
+This review does not establish that a selected solx pipeline invokes the generic
+LLVM inference. Its reserved frame region is a separate memory contract.
+[Venom memory locations](https://github.com/vyperlang/vyper/blob/6dd5fef7ce71bb9b363ceb94df94080d451f4236/vyper/venom/memory_location.py#L120)
+retain explicit allocation identities, but concrete and abstract locations can
+still alias. Its caller return-buffer operand exposes an existing destination.
+[Sonatina call-result provenance](https://github.com/fe-lang/sonatina/blob/8e6c99f67cf3f20b9672cab61d8655c2ff33a6a7/crates/codegen/src/isa/evm/ptr_provenance.rs#L269)
+substitutes returned arguments; a possible non-argument return stays unknown.
+
+Our mapped `toOrders` returns originate in `mload(64)`, not a returned argument
+or a retained MIR allocation. None of these mechanisms proves their separation
+from the two omitted argument-home intervals. A small exact returned-argument
+summary could carry a caller's existing allocation, but would not activate this
+case or refine every incoming context of the shared callee. The next bounded
+diagnostic checks where allocation identity is lost, or whether it was never
+represented. No residence floor is relaxed on the strength of source shape.
+Eleven primary files, exact revisions, current interfaces and the diagnostic
+proposal are pinned under
+`target/codegen-bench/evm-rewrite-candidate/return-provenance-prior-art-20260908/`.
+This research establishes constraints, not a generated-code performance result.
