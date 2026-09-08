@@ -1,0 +1,55 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_multi_memory.sol:TerminalMultiMemory ===
+@module TerminalMultiMemory
+fn @forward3(arg0: u256, arg1: u256, arg2: u256) [selector=0x573cd5dc, pure, abi_params=[u256, u256, u256], abi_returns=[word, word, word]] {
+  bb0:
+    mstore 128, arg0
+    mstore 160, arg1
+    mstore 192, arg2
+    returndata 128, 96
+}
+
+fn @reverse3(arg0: u256, arg1: u256, arg2: u256) [selector=0x886d94c4, pure, abi_params=[u256, u256, u256], abi_returns=[word, word, word]] {
+  bb0:
+    mstore 192, arg2
+    mstore 160, arg1
+    mstore 128, arg0
+    returndata 128, 96
+}
+
+fn @forward4(arg0: u256, arg1: u256, arg2: u256, arg3: u256) [selector=0x0048792b, pure, abi_params=[u256, u256, u256, u256], abi_returns=[word, word, word, word]] {
+  bb0:
+    mstore 128, arg0
+    mstore 160, arg1
+    mstore 192, arg2
+    mstore 224, arg3
+    returndata 128, 128
+}
+
+fn @reverse4(arg0: u256, arg1: u256, arg2: u256, arg3: u256) [selector=0x58d83088, pure, abi_params=[u256, u256, u256, u256], abi_returns=[word, word, word, word]] {
+  bb0:
+    mstore 224, arg3
+    mstore 192, arg2
+    mstore 160, arg1
+    mstore 128, arg0
+    returndata 128, 128
+}
+
+fn @observed(arg0: u256) [selector=0x3a5fe8af, pure, abi_params=[u256], abi_returns=[word, word, word, word]] {
+  bb0:
+    mstore 128, arg0
+    v0 = msize
+    mstore 160, v0
+    mstore 192, 0
+    v1 = not 0
+    mstore 224, v1
+    returndata 128, 128
+}
+
+fn @aliased(arg0: u256, arg1: u256) [selector=0x6e041818, pure, abi_params=[u256, u256], abi_returns=[word, word, word]] {
+  bb0:
+    mstore 128, arg0
+    v0 = mload 128
+    mstore 160, v0
+    mstore 192, arg1
+    returndata 128, 96
+}

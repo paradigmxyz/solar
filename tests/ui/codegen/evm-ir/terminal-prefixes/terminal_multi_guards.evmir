@@ -1,0 +1,107 @@
+//@ revisions: gas size legacy
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=terminal-prefixes
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=terminal-prefixes
+//@[legacy] compile-flags: -Ogas --evm-version homestead -Zevm-ir-pipeline=terminal-prefixes
+//@ filecheck:
+@module terminal_multi_guards
+
+// A three-word return with a missing middle word is not fully initialized.
+// CHECK-LABEL: {{^[ +] *}}bb0:
+// CHECK-NOT: {{^[+-]}}
+bb0:
+  push 11
+  push 128
+  mstore
+  push 33
+  push 192
+  mstore
+  push 96
+  push 128
+  return
+
+// A repeated store encountered before full four-word coverage refuses.
+// CHECK-LABEL: {{^[ +] *}}bb1:
+// CHECK-NOT: {{^[+-]}}
+bb1:
+  push 11
+  push 128
+  mstore
+  push 22
+  push 160
+  mstore
+  push 99
+  push 192
+  mstore
+  push 33
+  push 192
+  mstore
+  push 44
+  push 224
+  mstore
+  push 128
+  push 128
+  return
+
+// A misaligned word store does not cover the missing third word.
+// CHECK-LABEL: {{^[ +] *}}bb2:
+// CHECK-NOT: {{^[+-]}}
+bb2:
+  push 11
+  push 128
+  mstore
+  push 22
+  push 160
+  mstore
+  push 33
+  push 193
+  mstore
+  push 44
+  push 224
+  mstore
+  push 128
+  push 128
+  return
+
+// Five fully covered words remain outside the bounded extension.
+// CHECK-LABEL: {{^[ +] *}}bb3:
+// CHECK-NOT: {{^[+-]}}
+bb3:
+  push 11
+  push 128
+  mstore
+  push 22
+  push 160
+  mstore
+  push 33
+  push 192
+  mstore
+  push 44
+  push 224
+  mstore
+  push 55
+  push 256
+  mstore
+  push 160
+  push 128
+  return
+
+// DUP2 remains outside the exact offset form, even when its value is also 128.
+// CHECK-LABEL: {{^[ +] *}}bb4:
+// CHECK-NOT: {{^[+-]}}
+bb4:
+  push 128
+  push 11
+  push 128
+  mstore
+  push 22
+  push 160
+  mstore
+  push 33
+  push 192
+  mstore
+  push 44
+  push 224
+  mstore
+  push 128
+  dup 2
+  return

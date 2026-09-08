@@ -1,0 +1,152 @@
+//@ revisions: gas size legacy
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=terminal-prefixes
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=terminal-prefixes
+//@[legacy] compile-flags: -Ogas --evm-version homestead -Zevm-ir-pipeline=terminal-prefixes
+//@ filecheck:
+@module terminal_multi_orders
+
+// Three ascending stores return [11,22,33].
+// CHECK-LABEL: {{^[ +] *}}bb0:
+// CHECK: + {{ *}}push 0{{$}}
+// CHECK-NEXT: {{^[ +] *}}mstore{{$}}
+// CHECK: + {{ *}}push 32{{$}}
+// CHECK-NEXT: {{^[ +] *}}mstore{{$}}
+// CHECK: + {{ *}}push 64{{$}}
+// CHECK-NEXT: {{^[ +] *}}mstore{{$}}
+// CHECK: {{^[ +] *}}push 96{{$}}
+// CHECK: + {{ *}}push 0{{$}}
+// CHECK-NEXT: {{^[ +] *}}return{{$}}
+bb0:
+  push 11
+  push 32
+  mstore
+  push 22
+  push 64
+  mstore
+  push 33
+  push 96
+  mstore
+  push 96
+  push 32
+  return
+
+// Three descending stores and an exchange below the address return [11,22,33].
+// CHECK-LABEL: {{^[ +] *}}bb1:
+// CHECK: + {{ *}}push 64{{$}}
+// CHECK-NEXT: {{^[ +] *}}exchange 1, 2{{$}}
+// CHECK-NEXT: {{^[ +] *}}mstore{{$}}
+// CHECK: + {{ *}}push 32{{$}}
+// CHECK-NEXT: {{^[ +] *}}mstore{{$}}
+// CHECK: + {{ *}}push 0{{$}}
+// CHECK-NEXT: {{^[ +] *}}mstore{{$}}
+// CHECK: {{^[ +] *}}push 96{{$}}
+// CHECK: + {{ *}}push 0{{$}}
+// CHECK-NEXT: {{^[ +] *}}return{{$}}
+bb1:
+  push 33
+  push 22
+  push 128
+  exchange 1, 2
+  mstore
+  push 96
+  mstore
+  push 11
+  push 64
+  mstore
+  push 96
+  push 64
+  return
+
+// Four ascending stores preserve [11,22,33,44] and a retained stack prefix.
+// CHECK-LABEL: {{^[ +] *}}bb2:
+// CHECK: + {{ *}}push 0{{$}}
+// CHECK-NEXT: {{^[ +] *}}exchange 1, 2{{$}}
+// CHECK-NEXT: {{^[ +] *}}mstore{{$}}
+// CHECK: + {{ *}}push 32{{$}}
+// CHECK-NEXT: {{^[ +] *}}mstore{{$}}
+// CHECK: + {{ *}}push 64{{$}}
+// CHECK-NEXT: {{^[ +] *}}mstore{{$}}
+// CHECK: + {{ *}}push 96{{$}}
+// CHECK-NEXT: {{^[ +] *}}mstore{{$}}
+// CHECK: {{^[ +] *}}push 128{{$}}
+// CHECK: + {{ *}}push 0{{$}}
+// CHECK-NEXT: {{^[ +] *}}return{{$}}
+bb2:
+  push 999
+  push 11
+  push 22
+  push 32
+  exchange 1, 2
+  mstore
+  push 64
+  mstore
+  push 33
+  push 96
+  mstore
+  push 44
+  push 128
+  mstore
+  push 128
+  push 32
+  return
+
+// Four descending stores return [11,22,33,44]; base equals length.
+// CHECK-LABEL: {{^[ +] *}}bb3:
+// CHECK: + {{ *}}push 96{{$}}
+// CHECK-NEXT: {{^[ +] *}}mstore{{$}}
+// CHECK: + {{ *}}push 64{{$}}
+// CHECK-NEXT: {{^[ +] *}}mstore{{$}}
+// CHECK: + {{ *}}push 32{{$}}
+// CHECK-NEXT: {{^[ +] *}}mstore{{$}}
+// CHECK: + {{ *}}push 0{{$}}
+// CHECK-NEXT: {{^[ +] *}}mstore{{$}}
+// CHECK: {{^[ +] *}}push 128{{$}}
+// CHECK: + {{ *}}push 0{{$}}
+// CHECK-NEXT: {{^[ +] *}}return{{$}}
+bb3:
+  push 44
+  push 224
+  mstore
+  push 33
+  push 192
+  mstore
+  push 22
+  push 160
+  mstore
+  push 11
+  push 128
+  mstore
+  push 128
+  dup 1
+  return
+
+// The explicit abstract stack effect is identical for DUP and replacement PUSH.
+// CHECK-LABEL: {{^[ +] *}}bb4:
+// CHECK: + {{ *}}push 0{{$}}
+// CHECK-NEXT: {{^[ +] *}}mstore{{$}}
+// CHECK: + {{ *}}push 32{{$}}
+// CHECK-NEXT: {{^[ +] *}}mstore{{$}}
+// CHECK: + {{ *}}push 64{{$}}
+// CHECK-NEXT: {{^[ +] *}}mstore{{$}}
+// CHECK: + {{ *}}push 96{{$}}
+// CHECK-NEXT: {{^[ +] *}}mstore{{$}}
+// CHECK: {{^[ +] *}}push 128{{$}}
+// CHECK: + {{ *}}push 0{{$}}
+// CHECK-NEXT: {{^[ +] *}}return{{$}}
+bb4:
+  push 11
+  push 128
+  mstore
+  push 22
+  push 160
+  mstore
+  push 33
+  push 192
+  mstore
+  push 44
+  push 224
+  mstore
+  push 128
+  dup 1 !meta(stack=0->1)
+  return
+

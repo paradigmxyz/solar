@@ -1,0 +1,95 @@
+//@ revisions: gas size legacy
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=terminal-prefixes
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=terminal-prefixes
+//@[legacy] compile-flags: -Ogas --evm-version homestead -Zevm-ir-pipeline=terminal-prefixes
+//@ filecheck:
+@module terminal_multi_observers
+
+// An intervening MLOAD can observe the original first word.
+// CHECK-LABEL: {{^[ +] *}}bb0:
+// CHECK-NOT: {{^[+-]}}
+bb0:
+  push 11
+  push 128
+  mstore
+  push 128
+  mload
+  push 160
+  mstore
+  push 33
+  push 192
+  mstore
+  push 44
+  push 224
+  mstore
+  push 128
+  dup 1
+  return
+
+// An intervening MSIZE can observe the original memory high-water mark.
+// CHECK-LABEL: {{^[ +] *}}bb1:
+// CHECK-NOT: {{^[+-]}}
+bb1:
+  push 11
+  push 128
+  mstore
+  msize
+  push 160
+  mstore
+  push 33
+  push 192
+  mstore
+  push 44
+  push 224
+  mstore
+  push 128
+  dup 1
+  return
+
+// An intervening GAS observation keeps the old store addresses.
+// CHECK-LABEL: {{^[ +] *}}bb2:
+// CHECK-NOT: {{^[+-]}}
+bb2:
+  push 11
+  push 128
+  mstore
+  gas
+  push 160
+  mstore
+  push 33
+  push 192
+  mstore
+  push 44
+  push 224
+  mstore
+  push 128
+  dup 1
+  return
+
+// An intervening CALL remains an effect boundary.
+// CHECK-LABEL: {{^[ +] *}}bb3:
+// CHECK-NOT: {{^[+-]}}
+bb3:
+  push 11
+  push 128
+  mstore
+  push 0
+  push 0
+  push 0
+  push 0
+  push 0
+  push 1
+  push 1000
+  call
+  push 160
+  mstore
+  push 33
+  push 192
+  mstore
+  push 44
+  push 224
+  mstore
+  push 128
+  dup 1
+  return
+

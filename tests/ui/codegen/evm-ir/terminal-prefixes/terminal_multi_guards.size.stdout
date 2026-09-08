@@ -1,0 +1,85 @@
+- // === ROOT/tests/ui/codegen/evm-ir/terminal-prefixes/terminal_multi_guards.evmir (before terminal-prefixes) ===
++ // === ROOT/tests/ui/codegen/evm-ir/terminal-prefixes/terminal_multi_guards.evmir (after terminal-prefixes) ===
+  @module terminal_multi_guards
+  bb0:
+    push 11
+    push 128
+    mstore
+    push 33
+    push 192
+    mstore
+    push 96
+    push 128
+    return
+  bb1:
+    push 11
+    push 128
+    mstore
+    push 22
+    push 160
+    mstore
+    push 99
+    push 192
+    mstore
+    push 33
+    push 192
+    mstore
+    push 44
+    push 224
+    mstore
+    push 128
+    push 128
+    return
+  bb2:
+    push 11
+    push 128
+    mstore
+    push 22
+    push 160
+    mstore
+    push 33
+    push 193
+    mstore
+    push 44
+    push 224
+    mstore
+    push 128
+    push 128
+    return
+  bb3:
+    push 11
+    push 128
+    mstore
+    push 22
+    push 160
+    mstore
+    push 33
+    push 192
+    mstore
+    push 44
+    push 224
+    mstore
+    push 55
+    push 256
+    mstore
+    push 160
+    push 128
+    return
+  bb4:
+    push 128
+    push 11
+    push 128
+    mstore
+    push 22
+    push 160
+    mstore
+    push 33
+    push 192
+    mstore
+    push 44
+    push 224
+    mstore
+    push 128
+    dup 2
+    return
+  
