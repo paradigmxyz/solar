@@ -27,8 +27,8 @@
 //!
 //! Loads at allocation bases stay local unless the cached value already crosses the block edge.
 //! Extending their lifetimes can add a spill whose store and reload cost more than the load.
-//! Constant semantic length writes seed the same read cache without extending register lifetimes.
-//! Overlapping writes and calls invalidate these entries through the usual alias checks.
+//! Constant word and semantic length writes seed the same read cache without extending register
+//! lifetimes. Overlapping writes and calls invalidate these entries through the usual alias checks.
 //!
 //! After allocation lowering, `fmp-cse` forwards reads of the free-memory-pointer slot within
 //! each block. It tracks one word, clears it at every other side effect, and never carries it
@@ -81,12 +81,7 @@ impl MirPass for Cse {
     ) -> solar_interface::Result<bool> {
         let summaries = analyses.call_summaries(module);
         let changed = run_function_pass(module, analyses, |func, analyses| {
-            if func
-                .instructions()
-                .filter(|&inst_id| func.inst(inst_id).result_ty.is_some())
-                .nth(1)
-                .is_none()
-            {
+            if !func.instructions().any(|inst_id| func.inst(inst_id).result_ty.is_some()) {
                 return false;
             }
             let mut eliminator =
@@ -947,6 +942,17 @@ impl CommonSubexprEliminator {
             self.apply_clobber(expr_cache, clobber);
             if !expr_cache.has_stateful() {
                 break;
+            }
+        }
+        if let InstKind::MStore(address, value) = kind {
+            let address = mir_utils::resolve_replacement(*address, replacements);
+            let value = mir_utils::resolve_replacement(*value, replacements);
+            if func.value_u256(value).is_some()
+                && let Some(location) =
+                    self.memory_range_key(func, inst_id, address, LocationSize::Const(32))
+            {
+                // mstore address, constant; mload address -> constant
+                expr_cache.insert(ExprKey::MLoad(location), value);
             }
         }
         if let InstKind::SetMemoryObjectLen(object, len, object_kind) = kind {

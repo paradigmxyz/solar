@@ -32,8 +32,7 @@ fn @combine() [selector=0xd9171e32, abi_wrapper, pure] {
     v11 = lt v10, v4
     jumpi v11, bb1, bb2
   bb2:
-    v8 = mload v22
-    v12 = add v10, v8
+    v12 = add v10, 3
     v13 = lt v12, v10
     jumpi v13, bb1, bb3
   bb3:

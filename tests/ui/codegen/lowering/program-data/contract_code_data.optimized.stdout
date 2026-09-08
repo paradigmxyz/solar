@@ -259,7 +259,7 @@ bb8 [cold]:
   push 0
   revert
 bb10:
-  push 256
+  push 640
   push 64
   mstore
   push 0
@@ -289,18 +289,11 @@ bb10:
   iszero
   push bb8
   jumpi
-  push 64
-  mload
-  push 384
-  dup 2
-  add
-  push 64
-  mstore
+  push 256
   push 322
   dup 2
   mstore
   push 32
-  dup 2
   add
   push 320
   dup 2
@@ -312,8 +305,7 @@ bb10:
   push_data CodeTarget_initcode_0+18
   dup 3
   codecopy
-  swap 1
-  mload
+  push 322
   swap 1
   keccak256
   push 192
