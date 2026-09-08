@@ -6,9 +6,11 @@
 //! stack parameters in size-oriented modes. A final specialized path shares repeated large pushes
 //! when the call and return sequence is smaller than spelling out each literal.
 //!
-//! Candidates must be closed stack computations with known effects: they consume a fixed number
-//! of inputs, produce a fixed number of outputs, contain no control flow or observable operation,
-//! and contain no control flow or observable operation. Profitability includes the shared body,
+//! Gas-mode candidates are closed stack computations: they leave the incoming stack untouched
+//! and produce up to sixteen outputs. The hidden return address remains below those outputs;
+//! `SWAP1` through `SWAPn` rotate it to the top for the return jump. Size mode also permits bounded
+//! input arguments. Candidates have known stack effects and contain no control flow or position
+//! or gas observations. Profitability includes the shared body,
 //! per-site call sequence, continuation labels, and target-dependent push widths. Sites are
 //! selected without overlap, and new blocks and labels are installed through the normal EVM IR CFG
 //! representation.
@@ -56,7 +58,7 @@ impl EvmPass for Outline {
     }
 }
 
-const MIN_MACHINE_RUN: usize = 4;
+const MIN_MACHINE_RUN: usize = 3;
 const MAX_MACHINE_RUN_CANDIDATES: usize = 2_000_000;
 
 type BlockEdits = SmallVec<[(usize, usize, BlockId, u16); 1]>;
@@ -94,6 +96,11 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
         return false;
     }
     let max_run_length = max_machine_run_length(repeated_instructions);
+    let target = Target::new(gcx);
+    let transfer_size = (target.opcode(op::PUSH2).bytes * 2
+        + target.opcode(op::JUMP).bytes
+        + target.opcode(op::JUMPDEST).bytes) as usize;
+    let shuffle_size = target.opcode(op::SWAP1).bytes as usize;
 
     let mut candidates = FxHashMap::<MachineInstSlice<'_>, SmallVec<[Site; 2]>>::default();
     for (block_id, block) in module.blocks.iter_enumerated() {
@@ -121,14 +128,14 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
                     break;
                 }
                 let len = end + 1 - start;
-                let closed = inputs == 0 && matches!(outputs, 0 | 1);
+                let closed = inputs == 0 && (0..=16).contains(&outputs);
                 let open_size_run = gcx.sess.opts.optimization.is_size()
                     && (0..=16).contains(&inputs)
                     && (0..=16).contains(&outputs);
-                // An outlined site costs at least seven bytes plus one stack shuffle per input,
-                // before the shared stub's fixed overhead. A run no larger than that site can
-                // never save bytes regardless of its occurrence count, so do not intern it.
-                let can_amortize = run_size > 7 + inputs as usize;
+                // Price both address pushes at PUSH2, plus the jump, continuation label, and
+                // input shuffles. Runs no larger than this site cannot pass the shared stub's
+                // profitability check regardless of occurrence count, so do not intern them.
+                let can_amortize = run_size > transfer_size + inputs as usize * shuffle_size;
                 if len >= MIN_MACHINE_RUN
                     && can_amortize
                     && (closed || open_size_run)
@@ -196,9 +203,12 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
         merge_site_source_spans(module, &mut body, &free);
         clear_function_invokes(&mut body);
         let run_size = lower_bound(gcx, &body);
-        let stub_size = 1 + run_size + usize::from(first.outputs) + 1;
-        let site_size = (if free.len() >= 4 { 7 } else { 8 }) + usize::from(first.inputs);
-        if free.len() * run_size < free.len() * site_size + stub_size + 1 {
+        let stub_size = run_size
+            + (target.opcode(op::JUMPDEST).bytes
+                + target.opcode(op::SWAP1).bytes * u32::from(first.outputs)
+                + target.opcode(op::JUMP).bytes) as usize;
+        let site_size = transfer_size + usize::from(first.inputs) * shuffle_size;
+        if free.len() * run_size <= free.len() * site_size + stub_size {
             continue;
         }
         for site in &free {
@@ -546,8 +556,11 @@ fn split_parametric_outline_site(
     let function_invoke = range_function_invoke(
         &module.blocks[block].instructions[edit.start..edit.start + edit.len],
     );
+    // prefix; parameters; push continuation; rotate return below inputs; jump stub
+    // continuation: suffix; original terminator
     let mut continuation = Block::new(continuation_label);
     continuation.metadata = module.blocks[block].metadata;
+    continuation.metadata.is_continuation = true;
     continuation.instructions = module.blocks[block].instructions.split_off(edit.start + edit.len);
     module.blocks[block].instructions.truncate(edit.start);
     continuation.terminator = module.blocks[block].terminator.take();
@@ -721,8 +734,11 @@ fn split_outline_site(
 ) {
     let function_invoke =
         range_function_invoke(&module.blocks[block].instructions[start..start + len]);
+    // prefix; push continuation; rotate return below inputs; jump stub
+    // continuation: suffix; original terminator
     let mut continuation = Block::new(continuation_label);
     continuation.metadata = module.blocks[block].metadata;
+    continuation.metadata.is_continuation = true;
     continuation.instructions = module.blocks[block].instructions.split_off(start + len);
     module.blocks[block].instructions.truncate(start);
     continuation.terminator = module.blocks[block].terminator.take();

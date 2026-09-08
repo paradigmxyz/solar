@@ -44,6 +44,9 @@ fn display_block<'a>(module: &'a Module, block: &'a Block) -> impl fmt::Display 
             (true, true) => " [cold, loop]",
         };
         write!(f, "bb{}{}", block.label, attributes)?;
+        if block.metadata.is_continuation {
+            f.write_str(" [continuation]")?;
+        }
         if let Some(function) = block.metadata.function_invoke {
             write!(
                 f,

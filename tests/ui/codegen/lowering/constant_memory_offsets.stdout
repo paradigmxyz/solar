@@ -55,7 +55,7 @@ bb4 [cold]:
   push 0
   revert
 bb6:
-  push 224
+  push 160
   dup 1
   push 64
   mstore

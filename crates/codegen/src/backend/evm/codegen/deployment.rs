@@ -350,6 +350,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             // the runtime prefix validation below.
             self.preserve_caller_stack = false;
             self.static_frame_addr_consts.clear();
+            self.packed_static_frame_sizes.clear();
             self.external_spill_addr_consts.clear();
             self.pending_static_allocs.clear();
             self.runtime_free_memory_consts.clear();

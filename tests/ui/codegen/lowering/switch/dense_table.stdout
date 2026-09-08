@@ -31,8 +31,6 @@ bb0:
   push 255
   push 0
   sstore
-  jump bb7
-bb7:
   stop
 bb3 [cold]:
   push 0
@@ -44,119 +42,119 @@ bb8:
   push 10
   push 0
   sstore
-  jump bb7
+  stop
 bb9:
   push 11
   push 0
   sstore
-  jump bb7
+  stop
 bb10:
   push 12
   push 0
   sstore
-  jump bb7
+  stop
 bb11:
   push 13
   push 0
   sstore
-  jump bb7
+  stop
 bb12:
   push 14
   push 0
   sstore
-  jump bb7
+  stop
 bb13:
   push 15
   push 0
   sstore
-  jump bb7
+  stop
 bb14:
   push 16
   push 0
   sstore
-  jump bb7
+  stop
 bb15:
   push 17
   push 0
   sstore
-  jump bb7
+  stop
 bb16:
   push 18
   push 0
   sstore
-  jump bb7
+  stop
 bb17:
   push 19
   push 0
   sstore
-  jump bb7
+  stop
 bb18:
   push 20
   push 0
   sstore
-  jump bb7
+  stop
 bb19:
   push 21
   push 0
   sstore
-  jump bb7
+  stop
 bb20:
   push 22
   push 0
   sstore
-  jump bb7
+  stop
 bb21:
   push 23
   push 0
   sstore
-  jump bb7
+  stop
 bb22:
   push 24
   push 0
   sstore
-  jump bb7
+  stop
 bb23:
   push 25
   push 0
   sstore
-  jump bb7
+  stop
 bb24:
   push 26
   push 0
   sstore
-  jump bb7
+  stop
 bb25:
   push 27
   push 0
   sstore
-  jump bb7
+  stop
 bb26:
   push 28
   push 0
   sstore
-  jump bb7
+  stop
 bb27:
   push 29
   push 0
   sstore
-  jump bb7
+  stop
 bb28:
   push 30
   push 0
   sstore
-  jump bb7
+  stop
 bb29:
   push 31
   push 0
   sstore
-  jump bb7
+  stop
 bb30:
   push 32
   push 0
   sstore
-  jump bb7
+  stop
 bb31:
   push 33
   push 0
   sstore
-  jump bb7
+  stop

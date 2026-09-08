@@ -1,0 +1,32 @@
+//@ compile-flags: -Ogas -Zevm-ir-pipeline=cfg-simplify
+@module ContinuationProvenance
+
+bb0:
+  push bb1
+  push bb3
+  push bb4
+  push bb5
+  jump bb7
+
+// Forwarding an unobservable address transfers the property to its destination.
+bb1 [continuation]:
+  jump bb2
+bb2:
+  pop
+  stop
+
+// An existing opaque use of the destination prevents transferring the property.
+bb3 [continuation]:
+  jump bb4
+bb4:
+  pop
+  pop
+  stop
+
+// Cyclic thunks remain a cycle, and the pass terminates.
+bb5 [continuation]:
+  jump bb6
+bb6 [continuation]:
+  jump bb5
+bb7:
+  jump

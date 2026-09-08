@@ -275,8 +275,7 @@ fn @dDynArr() [selector=0xaca542ca, pure] {
   bb3:
     v14 = mload v9
     v16 = add v14, 1
-    v17 = lt v16, v14
-    jumpi v17, bb4, bb5
+    jumpi v16, bb5, bb4
   bb5:
     v18 = shl 5, v16
     v20 = shr 5, v18
@@ -296,6 +295,10 @@ fn @dDynArr() [selector=0xaca542ca, pure] {
     v27 = shr 5, v25
     v28 = eq v27, v14
     jumpi v28, bb7, bb4
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
   bb7:
     v31 = sub v4, v10
     v32 = shr 5, v31
@@ -323,10 +326,6 @@ fn @dDynArr() [selector=0xaca542ca, pure] {
     v41 = add v36, 1
     jump bb9
   bb14:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
@@ -439,8 +438,7 @@ fn @decode_memory_type(arg0: u256, arg1: u256, arg2: u256) -> memptr {
   bb8:
     v32 = mload v27
     v34 = add v32, 1
-    v35 = lt v34, v32
-    jumpi v35, bb5, bb9
+    jumpi v34, bb9, bb5
   bb9:
     v36 = shl 5, v34
     v38 = shr 5, v36

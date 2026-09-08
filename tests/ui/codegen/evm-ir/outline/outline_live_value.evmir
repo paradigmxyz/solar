@@ -23,9 +23,9 @@
 // CHECK-COUNT-20: {{^[ +].*}}not
 // CHECK-NEXT: + swap 1
 // CHECK-NEXT: + jump
-// CHECK: + [[RET0]]:
-// CHECK: + [[RET1]]:
-// CHECK: + [[RET2]]:
+// CHECK: + [[RET0]] [continuation]:
+// CHECK: + [[RET1]] [continuation]:
+// CHECK: + [[RET2]] [continuation]:
 bb0:
   push 1
   not

@@ -29,7 +29,7 @@ bb5 [cold]:
   push 0
   revert
 bb6:
-  push 352
+  push 160
   push 64
   mstore
   push 68

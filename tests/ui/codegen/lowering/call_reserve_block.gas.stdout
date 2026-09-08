@@ -43,7 +43,7 @@ bb0:
   sub
   push bb4
   jumpi
-  push 224
+  push 192
   push 64
   mstore
   push 0
@@ -97,7 +97,7 @@ bb4 [cold]:
   dup 1
   invalid
 bb9:
-  push 256
+  push 192
   push 64
   mstore
   push 0
@@ -138,11 +138,9 @@ bb9:
   add
   push 64
   mstore
-  dup 3
-  dup 2
-  mstore
   swap 2
-  pop
+  dup 3
+  mstore
   dup 1
   extcodesize
   iszero

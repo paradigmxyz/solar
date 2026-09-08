@@ -39,7 +39,7 @@
     not
 +   swap 1
 +   jump
-+ bb4:
++ bb4 [continuation]:
     push 100
     mstore
     jump bb1
@@ -65,7 +65,7 @@
 -   not
 -   not
 -   not
-+ bb5:
++ bb5 [continuation]:
     push 200
     mstore
     jump bb2
@@ -91,7 +91,7 @@
 -   not
 -   not
 -   not
-+ bb6:
++ bb6 [continuation]:
     push 300
     mstore
     stop

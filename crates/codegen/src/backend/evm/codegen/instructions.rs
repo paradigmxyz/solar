@@ -794,6 +794,14 @@ impl<'gcx> EvmCodegen<'gcx> {
         block: BlockId,
         inst_idx: usize,
     ) {
+        if let Some(plan) = self.plan_operands(func, &[val, addr], liveness, block, inst_idx) {
+            // prepare [value, address]; store
+            self.emit_operand_plan(func, plan);
+            self.asm.emit_op(opcode);
+            self.scheduler.instruction_executed(2, None);
+            return;
+        }
+
         self.preserve_stack_only_operands(&[addr, val], liveness, block, inst_idx);
 
         // Check if addr is still live after this instruction.

@@ -1,7 +1,11 @@
 //! Function inlining optimization pass.
 //!
 //! This module inlines profitable MIR internal calls to remove their call
-//! protocol and expose further optimization opportunities.
+//! protocol and expose further optimization opportunities. The dedicated single-use pass only
+//! consumes one-call-site, frameless scalar helpers without phis or reference returns. The
+//! original body disappears through function DCE, so this avoids duplicating shared bodies.
+//! Recursive calls, explicit no-inline functions, large helpers, and aggregate allocation
+//! semantics stay with the existing call convention. It runs before late scalar cleanup.
 
 use crate::{
     backend::evm::{op, select},
@@ -60,6 +64,31 @@ impl MirPass for InlineTinyLeaves {
     ) -> bool {
         let mut inliner = MirInliner::for_tiny_leaves();
         inliner.run(gcx, module).inlined != 0
+    }
+}
+
+/// Module pass for consuming a single-use helper without duplicating its body.
+pub(crate) struct InlineSingleUse;
+
+impl MirPass for InlineSingleUse {
+    fn name(&self) -> &'static str {
+        "inline-single-use"
+    }
+
+    fn run_pass(
+        &self,
+        gcx: Gcx<'_>,
+        module: &mut Module,
+        _analyses: &mut crate::mir::pass::ModuleAnalyses,
+    ) -> bool {
+        MirInliner {
+            mode: InlineMode::SingleUse,
+            max_single_call_sanity_instructions: 256,
+            ..MirInliner::default()
+        }
+        .run(gcx, module)
+        .inlined
+            != 0
     }
 }
 
@@ -138,6 +167,7 @@ enum InlineMode {
     Normal,
     TinyLeaves,
     ConstantLeaves,
+    SingleUse,
 }
 
 impl Default for MirInliner {
@@ -300,6 +330,8 @@ impl MirInliner {
                     || grew_too_much
                     || framed_constructor_call
                     || call_graph.is_recursive(site.callee)
+                    || (self.mode == InlineMode::SingleUse
+                        && module.function(site.callee).attributes.no_inline)
                     || !self.is_inlineable(
                         caller_id,
                         site,
@@ -463,6 +495,14 @@ impl MirInliner {
         preferred_large_call_site: Option<(MirFunctionId, InstId)>,
     ) -> bool {
         let single_call = self.inline_single_call && call_count == 1;
+        if self.mode == InlineMode::SingleUse
+            && (!single_call
+                || summary.internal_frame_size != 0
+                || summary.has_reference_return
+                || summary.has_phi)
+        {
+            return false;
+        }
 
         // Keep shared helpers intact unless a constant function selector lets
         // later passes discard all but one dispatcher arm.

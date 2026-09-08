@@ -47,13 +47,9 @@ bb1:
   push bb8
   jumpi
   dup 1
-  push 160
-  mstore
   push 4
   calldataload
   sstore
-  push 160
-  mload
   push 128
   mstore
   push 32
@@ -96,7 +92,7 @@ bb1:
   eq
   push bb14
   jumpi
-  push 256
+  push 160
   push 64
   mstore
   push 68
@@ -234,7 +230,7 @@ bb0:
   sub
   push bb3
   jumpi
-  push 256
+  push 160
   push 64
   mstore
   push 36

@@ -379,30 +379,38 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.asm.emit_stack_op(op);
         }
 
-        let identity =
-            |edge: &StackPhiEdge| edge.sources == branch.union && edge.results == edge.sources;
-        let (laid_out, direct_block, laid_out_block, invert) = if identity(&branch.then_edge) {
-            (&branch.else_edge, then_block, else_block, false)
-        } else if identity(&branch.else_edge) {
-            (&branch.then_edge, else_block, then_block, true)
-        } else {
-            let then_cleanup = self.asm.new_label();
-            self.asm.emit_push_label(then_cleanup);
-            self.asm.emit_op(op::JUMPI);
-            self.scheduler.stack.pop();
-            let union_stack = self.scheduler.stack.clone();
+        // jumpi condition, successor(phi_results := union)
+        // Phi renaming changes the successor's value identities, not the physical stack.
+        // Its entry reconstructs those identities from the plan, so an edge whose sources
+        // already match the union needs no cleanup block even when its results differ.
+        let needs_no_shuffle = |edge: &StackPhiEdge| edge.sources == branch.union;
+        // When both arms already have their physical layout, keep the scheduled fallthrough
+        // arm in place instead of introducing an unconditional jump around it.
+        let (laid_out, direct_block, laid_out_block, invert) =
+            if needs_no_shuffle(&branch.then_edge)
+                && (fallthrough != Some(then_block) || !needs_no_shuffle(&branch.else_edge))
+            {
+                (&branch.else_edge, then_block, else_block, false)
+            } else if needs_no_shuffle(&branch.else_edge) {
+                (&branch.then_edge, else_block, then_block, true)
+            } else {
+                let then_cleanup = self.asm.new_label();
+                self.asm.emit_push_label(then_cleanup);
+                self.asm.emit_op(op::JUMPI);
+                self.scheduler.stack.pop();
+                let union_stack = self.scheduler.stack.clone();
 
-            self.emit_stack_phi_edge_layout(&branch.else_edge);
-            self.emit_push_label(self.block_labels[&else_block]);
-            self.asm.emit_op(op::JUMP);
+                self.emit_stack_phi_edge_layout(&branch.else_edge);
+                self.emit_push_label(self.block_labels[&else_block]);
+                self.asm.emit_op(op::JUMP);
 
-            self.asm.define_label(then_cleanup);
-            self.scheduler.stack = union_stack;
-            self.emit_stack_phi_edge_layout(&branch.then_edge);
-            self.emit_push_label(self.block_labels[&then_block]);
-            self.asm.emit_op(op::JUMP);
-            return;
-        };
+                self.asm.define_label(then_cleanup);
+                self.scheduler.stack = union_stack;
+                self.emit_stack_phi_edge_layout(&branch.then_edge);
+                self.emit_push_label(self.block_labels[&then_block]);
+                self.asm.emit_op(op::JUMP);
+                return;
+            };
         if invert {
             self.asm.emit_op(op::ISZERO);
         }

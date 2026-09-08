@@ -1,4 +1,16 @@
 //! Internal frame placement, address resolution, and spill memory layout.
+//!
+//! After function emission and spill DSE, scalar static frames retain only referenced words.
+//! Every surviving deferred address keeps its identity while its word moves to a dense offset;
+//! address-taken locals, contiguous multiword return buffers, and recursive frames keep their
+//! existing layouts. External entries likewise reserve only surviving spill words.
+//!
+//! Static helpers overlay when their activations cannot coexist. The conservative placement
+//! reserves a region above every external entry; a final call-graph relaxation can lower each
+//! helper above its actual callers instead. Shared helpers take the maximum caller end, and an
+//! entry's heap starts above all reachable frames. This refinement must converge, never increase
+//! a frame address, and preserves the separate recursive-frame prefix and heap-prefix guards.
+//! All decisions use executable references and are independent of debug metadata.
 
 use super::{
     ArgIdx, CallGraphInfo, DebugFunction, DebugFunctionExit, DeferredConst, DenseBitSet,
@@ -14,6 +26,62 @@ const SPILL_HAZARD_BOUND: u64 = 0x2000;
 mod hazards;
 
 impl<'gcx> EvmCodegen<'gcx> {
+    /// Packs compiler-owned scalar words after all bodies have emitted and dead spill stores
+    /// have been removed. These words have no address arithmetic or escaping pointers: every
+    /// access uses its own deferred binding. Keeping the binding ID preserves aliasing between
+    /// callers and callees while unused signature and spill words disappear.
+    ///
+    /// Address-taken locals, multiword return buffers and recursive frames retain their layouts.
+    /// Constructors retain their independent frame convention.
+    pub(in crate::backend::evm::codegen) fn pack_scalar_static_frames(&mut self, module: &Module) {
+        if !self.runtime_stack_args
+            || !(self.gcx.sess.opts.optimization.is_gas()
+                || self.gcx.sess.opts.optimization.is_size())
+        {
+            return;
+        }
+        let referenced = self.asm.referenced_deferred_constants().collect::<FxHashSet<_>>();
+        self.static_frame_addr_consts.retain(|_, (id, _)| referenced.contains(id));
+        let mut packed = DenseBitSet::new_empty(module.functions.len());
+        for func_id in self.static_frame_functions.iter() {
+            let func = &module.functions[func_id];
+            if !self.recursive_frame_functions.contains(func_id)
+                && func.internal_frame_size == 0
+                && func.returns.len() <= 1
+                && !func
+                    .instructions()
+                    .any(|inst| matches!(func.inst(inst).kind, InstKind::InternalFrameAddr(_)))
+            {
+                packed.insert(func_id);
+                self.packed_static_frame_sizes.insert(func_id, 0);
+            }
+        }
+        let mut addresses =
+            std::mem::take(&mut self.static_frame_addr_consts).into_iter().collect::<Vec<_>>();
+        addresses.sort_unstable_by_key(|&(key, _)| key);
+        for ((func_id, offset), constant) in addresses {
+            let offset = if packed.contains(func_id) {
+                let size = self.packed_static_frame_sizes.get_mut(&func_id).unwrap();
+                let rank = *size;
+                *size += EvmMemoryLayout::WORD_SIZE;
+                rank
+            } else {
+                offset
+            };
+            // load/store frame[old_offset] -> load/store frame[packed_offset]
+            self.static_frame_addr_consts.insert((func_id, offset), constant);
+        }
+        for &entry in &self.runtime_entry_funcs {
+            let size = if let Some(slots) = self.external_spill_addr_consts.get_mut(&entry) {
+                slots.retain(|(id, _)| referenced.contains(id));
+                slots.len() as u64 * EvmMemoryLayout::WORD_SIZE
+            } else {
+                0
+            };
+            self.function_spill_sizes.insert(entry, size);
+        }
+    }
+
     /// Records the exact spill area size of the function body that just emitted.
     pub(in crate::backend::evm::codegen) fn record_function_spill_size(
         &mut self,
@@ -324,6 +392,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         module: &Module,
         func_id: FunctionId,
     ) -> u64 {
+        if let Some(&size) = self.packed_static_frame_sizes.get(&func_id) {
+            return size;
+        }
         let func = &module.functions[func_id];
         let header = if self.runtime_stack_args && self.static_frame_functions.contains(func_id) {
             0
@@ -654,15 +725,82 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         let max_entry_end = entry_ends.values().copied().max().unwrap_or(0);
         let (region_start, _) = layout(max_entry_end);
+        let mut frame_bases = placed
+            .iter()
+            .map(|&func| (func, region_start + frame_relative[&func]))
+            .collect::<FxHashMap<_, _>>();
+        // Refine the global region after allocation placement. An unrelated entry's high
+        // spill or assembly-memory bound should not raise every helper's addresses. Relax
+        // absolute ends from each actual entry; shared callees must satisfy every caller.
+        // Recursive scratch frames retain the established disjoint-prefix convention.
+        if recursive_span == 0 {
+            // frame_base(callee) >= frame_base(caller) + frame_size(caller)
+            // frame_base(first_helper) >= entry_end
+            let mut bounds = entry_ends.clone();
+            let mut converged = false;
+            for _ in 0..=module.functions.len() {
+                let mut changed = false;
+                for &(caller, callee) in &edges {
+                    if let Some(&base) = bounds.get(&caller) {
+                        let end = base.max(low_memory_end)
+                            + if self.static_frame_functions.contains(caller) {
+                                self.emitted_frame_size(module, caller)
+                            } else {
+                                0
+                            };
+                        if end > bounds.get(&callee).copied().unwrap_or(0) {
+                            bounds.insert(callee, end);
+                            changed = true;
+                        }
+                    }
+                }
+                if !changed {
+                    converged = true;
+                    break;
+                }
+            }
+            if converged
+                && placed
+                    .iter()
+                    .all(|func| bounds.get(func).is_none_or(|base| *base <= frame_bases[func]))
+            {
+                for (&func, base) in &mut frame_bases {
+                    if let Some(&bound) = bounds.get(&func) {
+                        *base = bound.max(low_memory_end);
+                    }
+                }
+            }
+        }
+        // frame[offset] -> absolute(frame_base + offset)
         for (&(func_id, offset), &(id, _)) in &self.static_frame_addr_consts {
-            let relative = frame_relative[&func_id] + offset;
-            self.asm.set_deferred_const(id, U256::from(region_start + relative));
+            self.asm.set_deferred_const(id, U256::from(frame_bases[&func_id] + offset));
         }
         let free_memory_floors: FxHashMap<FunctionId, u64> = self
             .runtime_free_memory_consts
             .keys()
             .copied()
-            .map(|entry| (entry, free_memory_floor(entry, &entry_ends, region_start)))
+            .map(|entry| {
+                let static_end = self
+                    .runtime_entry_reachability
+                    .get(&entry)
+                    .into_iter()
+                    .flat_map(|reachable| reachable.iter())
+                    .filter_map(|func| {
+                        frame_bases
+                            .get(&func)
+                            .map(|base| base + self.emitted_frame_size(module, func))
+                    })
+                    .max()
+                    .unwrap_or(low_memory_end);
+                let floor = entry_ends
+                    .get(&entry)
+                    .copied()
+                    .unwrap_or(low_memory_end)
+                    .max(static_end)
+                    .checked_add(reachable_heap_prefix_guards.get(&entry).copied().unwrap_or(0))
+                    .expect("runtime heap prefix overflow");
+                (entry, floor.max(low_memory_end))
+            })
             .collect();
         for (entry, id) in self.runtime_free_memory_consts.drain() {
             let floor = free_memory_floors[&entry];

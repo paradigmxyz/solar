@@ -14,9 +14,15 @@
 //! A shared tail starts at a block boundary, so both the merged block and the representative may
 //! only be cut where `keep_with_next` allows a split. That keeps sequences whose intervening gas
 //! is observable, such as a pre-EIP-150 call's `GAS`-relative gas reserve, in one block.
+//!
+//! Splitting between a pushed label and its branch must preserve the label's control-only
+//! identity. The pass first records all opaque label uses, then marks safe branch continuations
+//! before separating the push from its consumer. Subsequent CFG cleanup can still redirect those
+//! addresses through jump thunks, while numerically observed labels remain distinct.
 
 use super::{
     EvmPass,
+    cfg_simplify::is_direct_jump_label,
     utils::{
         FreshLabels, MachineInstKey, instruction_size_lower_bound, is_split_point,
         is_terminal_boundary,
@@ -26,7 +32,7 @@ use crate::backend::evm::{
     ir::{Block, BlockId, Hotness, Metadata, Module, Terminator, TerminatorKind},
     op::{StackOp, push_len},
 };
-use solar_data_structures::map::FxHashMap;
+use solar_data_structures::map::{FxHashMap, FxHashSet};
 use solar_sema::Gcx;
 
 pub(super) struct TailMerge;
@@ -63,6 +69,7 @@ fn merge_tails(gcx: Gcx<'_>, module: &mut Module) -> bool {
 
 #[derive(Default)]
 struct RunState {
+    opaque_labels: FxHashSet<BlockId>,
     merges: Vec<Merge>,
     group_indices: FxHashMap<BlockId, usize>,
     groups: Vec<MergeGroup>,
@@ -76,6 +83,17 @@ struct RunState {
 impl RunState {
     fn plan_merges(&mut self, gcx: Gcx<'_>, module: &Module) {
         self.merges.clear();
+        self.opaque_labels.clear();
+        for block in &module.blocks {
+            for (at, inst) in block.instructions.iter().enumerate() {
+                if let Some(target) = inst.pushed_block()
+                    && !module.blocks[target].metadata.is_continuation
+                    && !is_direct_jump_label(block, at)
+                {
+                    self.opaque_labels.insert(target);
+                }
+            }
+        }
         self.tail_roots.clear();
         self.tail_node_pool.append(&mut self.tail_nodes);
         self.tail_node_pool.iter_mut().for_each(TailNode::clear);
@@ -196,7 +214,7 @@ impl RunState {
             self.groups[index].sites.push((merge.block, merge.common));
         }
 
-        let Self { groups, commons, tails, .. } = self;
+        let Self { groups, commons, tails, opaque_labels, .. } = self;
         let mut label_count = 0;
         for group in groups.iter().take(group_count) {
             commons.clear();
@@ -227,6 +245,12 @@ impl RunState {
             let mut previous_common = 0;
             let mut previous_tail = None;
             for &common in commons.iter() {
+                preserve_split_control_target(
+                    module,
+                    group.representative,
+                    instructions.len() - common,
+                    opaque_labels,
+                );
                 let mut tail = Block::new(labels.next().expect("reserved one label per tail"));
                 tail.metadata.hotness = metadata.hotness;
                 tail.metadata.in_loop = metadata.in_loop
@@ -299,6 +323,7 @@ impl RunState {
                     .map(|index| tails[index].1)
                     .expect("tail must exist for every merge site");
                 let len = module.blocks[block].instructions.len();
+                preserve_split_control_target(module, block, len - common, opaque_labels);
                 let debug_info = suffix_debug_info(&module.blocks[block], common);
                 // prefix; suffix !metadata(origin) => prefix; jump tail !metadata(origin)
                 module.blocks[block].instructions.truncate(len - common);
@@ -310,6 +335,23 @@ impl RunState {
         }
         debug_assert!(labels.next().is_none());
         true
+    }
+}
+
+/// Preserve an address's control-only identity when its consumer moves into a shared tail.
+fn preserve_split_control_target(
+    module: &mut Module,
+    block: BlockId,
+    split: usize,
+    opaque_labels: &FxHashSet<BlockId>,
+) {
+    if let Some(previous) = split.checked_sub(1)
+        && is_direct_jump_label(&module.blocks[block], previous)
+        && let Some(target) = module.blocks[block].instructions[previous].pushed_block()
+        && !opaque_labels.contains(&target)
+    {
+        // push target; jumpi -> push target; jump shared; shared: jumpi
+        module.blocks[target].metadata.is_continuation = true;
     }
 }
 

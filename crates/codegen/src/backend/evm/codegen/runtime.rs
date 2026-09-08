@@ -112,6 +112,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.restorable_internal_frames.clear_to(module.functions.len());
         self.static_frame_functions.clear_to(module.functions.len());
         self.static_frame_addr_consts.clear();
+        self.packed_static_frame_sizes.clear();
         self.external_spill_addr_consts.clear();
         self.pending_static_allocs.clear();
         self.runtime_free_memory_consts.clear();
@@ -406,6 +407,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.record_function_spill_size(func_id);
         }
 
+        self.pack_scalar_static_frames(module);
         self.resolve_pending_frame_size_consts(module);
         self.resolve_static_frames(module);
     }

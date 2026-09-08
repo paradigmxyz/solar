@@ -323,6 +323,8 @@ pub struct EvmCodegen<'gcx> {
     /// by (function, byte offset within its frame). Resolved at the end of
     /// the pass, once every body's exact spill size is known.
     static_frame_addr_consts: FxHashMap<(FunctionId, u64), (DeferredConst, usize)>,
+    /// Final packed sizes of scalar static frames after unused references are deleted.
+    packed_static_frame_sizes: FxHashMap<FunctionId, u64>,
     /// Deferred allocations emitted by each external entry.
     pending_static_allocs: FxHashMap<FunctionId, Vec<(DeferredAlloc, u64)>>,
     /// Per-external-entry free-memory-pointer constants, resolved after static-frame placement.
@@ -432,6 +434,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             restorable_internal_frames: DenseBitSet::new_empty(0),
             static_frame_functions: DenseBitSet::new_empty(0),
             static_frame_addr_consts: FxHashMap::default(),
+            packed_static_frame_sizes: FxHashMap::default(),
             pending_static_allocs: FxHashMap::default(),
             runtime_free_memory_consts: FxHashMap::default(),
             runtime_entry_reachability: FxHashMap::default(),
@@ -496,6 +499,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.restorable_internal_frames.clear_to(module.functions.len());
         self.static_frame_functions.clear_to(module.functions.len());
         self.static_frame_addr_consts.clear();
+        self.packed_static_frame_sizes.clear();
         self.pending_static_allocs.clear();
         self.runtime_free_memory_consts.clear();
         self.runtime_entry_reachability.clear();

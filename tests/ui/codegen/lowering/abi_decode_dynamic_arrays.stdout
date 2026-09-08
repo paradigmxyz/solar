@@ -26,8 +26,7 @@ fn @words() [selector=0x5a7641c8, pure] {
   bb3:
     v13 = mload v8
     v15 = add v13, 1
-    v16 = lt v15, v13
-    jumpi v16, bb4, bb5
+    jumpi v15, bb5, bb4
   bb5:
     v17 = shl 5, v15
     v19 = shr 5, v17
@@ -47,6 +46,10 @@ fn @words() [selector=0x5a7641c8, pure] {
     v26 = shr 5, v24
     v27 = eq v26, v13
     jumpi v27, bb7, bb4
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
   bb7:
     v30 = sub v3, v9
     v31 = shr 5, v30
@@ -75,10 +78,6 @@ fn @words() [selector=0x5a7641c8, pure] {
     mstore 64, v65 !metadata(memory=scratch)
     returndata v56, v51
   bb11:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
@@ -111,8 +110,7 @@ fn @bools() [selector=0xcfb203c5, pure] {
   bb3:
     v13 = mload v8
     v15 = add v13, 1
-    v16 = lt v15, v13
-    jumpi v16, bb4, bb5
+    jumpi v15, bb5, bb4
   bb5:
     v17 = shl 5, v15
     v19 = shr 5, v17
@@ -147,13 +145,16 @@ fn @bools() [selector=0xcfb203c5, pure] {
   bb11:
     v45 = mload v23
     v46 = add v45, 1
-    v47 = lt v46, v45
-    jumpi v47, bb4, bb14
+    jumpi v46, bb14, bb4
   bb14:
     v48 = shl 5, v46
     v50 = shr 5, v48
     v51 = eq v50, v46
     jumpi v51, bb15, bb4
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
   bb15:
     v54 = mload 64 !metadata(memory=scratch, effect=memory_write)
     v104 = add v54, v48
@@ -229,10 +230,6 @@ fn @bools() [selector=0xcfb203c5, pure] {
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
-  bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb1:
     revert 0, 0
 }
@@ -262,8 +259,7 @@ fn @strs() [selector=0x68f4ce0b, pure] {
   bb3:
     v13 = mload v8
     v15 = add v13, 1
-    v16 = lt v15, v13
-    jumpi v16, bb4, bb5
+    jumpi v15, bb5, bb4
   bb5:
     v17 = shl 5, v15
     v19 = shr 5, v17
@@ -391,11 +387,11 @@ fn @strs() [selector=0x68f4ce0b, pure] {
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
-  bb22:
+  bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
-  bb4:
+  bb22:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
@@ -430,8 +426,7 @@ fn @mixed() [selector=0x6791505c, pure] {
   bb3:
     v18 = mload v13
     v20 = add v18, 1
-    v21 = lt v20, v18
-    jumpi v21, bb4, bb5
+    jumpi v20, bb5, bb4
   bb5:
     v22 = shl 5, v20
     v24 = shr 5, v22
@@ -549,11 +544,11 @@ fn @mixed() [selector=0x6791505c, pure] {
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
-  bb16:
+  bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
-  bb4:
+  bb16:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36

@@ -1,0 +1,583 @@
+// === ROOT/tests/ui/codegen/lowering/return_spill_loop.sol:ReturnCopy (runtime) ===
+@module ReturnCopy_runtime
+bb0:
+  callvalue
+  push bb6
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x194e10ce
+  eq
+  push bb24
+  jumpi
+  dup 1
+  push 0x5a2aaa96
+  eq
+  push bb31
+  jumpi
+  dup 1
+  push 0xdb082440
+  eq
+  push bb7
+  jumpi
+  dup 1
+  push 0xf770a1a3
+  eq
+  push bb19
+  jumpi
+  jump bb6
+bb6 [cold]:
+  push 0
+  push 0
+  revert
+bb46 [cold]:
+  push 0x4e487b71
+  push 224
+  shl
+  push 0
+  mstore
+  push 50
+  jump bb58
+bb58 [cold]:
+  push 4
+  mstore
+  push 36
+  push 0
+  revert
+bb7:
+  push 448
+  push 64
+  mstore
+  push 36
+  calldatasize
+  lt
+  push bb6
+  jumpi
+  push 64
+  mload
+  push 64
+  dup 2
+  add
+  dup 2
+  dup 2
+  lt
+  push 0
+  not
+  push 192
+  shr
+  dup 3
+  gt
+  or
+  push bb59
+  jumpi
+  push 64
+  mstore
+  push 64
+  calldatasize
+  dup 3
+  calldatacopy
+  push 3
+  dup 2
+  mstore
+  push 4
+  calldataload
+  push 31
+  byte
+  push 32
+  dup 3
+  add
+  swap 1
+  dup 2
+  mstore8
+  dup 2
+  mload
+  dup 1
+  push 1
+  lt
+  iszero
+  push bb46
+  jumpi
+  push 1
+  dup 3
+  add
+  push 34
+  swap 1
+  mstore8
+  push 2
+  lt
+  iszero
+  push bb46
+  jumpi
+  push 2
+  add
+  push 51
+  swap 1
+  mstore8
+  push bb12
+  jump bb55
+bb55:
+  push 34
+  exchange 1, 2
+  jump bb39
+bb39:
+  push 64
+  mload
+  dup 1
+  push 288
+  mstore
+  push 32
+  dup 4
+  add
+  dup 1
+  push 320
+  mstore
+  dup 4
+  mload
+  dup 2
+  add
+  push 352
+  mstore
+  swap 1
+  swap 2
+  swap 3
+  dup 3
+  sub
+  push 384
+  mstore
+  push 416
+  mstore
+  pop
+  jump bb40
+bb44:
+  push 384
+  mload
+  dup 3
+  add
+  mstore
+  push 1
+  add
+  push 416
+  mstore
+  jump bb40
+bb40:
+  push 352
+  mload
+  push 416
+  mload
+  lt
+  push 416
+  mload
+  swap 1
+  push bb42
+  jumpi
+  swap 1
+  pop
+  jump bb41
+bb41:
+  push 320
+  mload
+  swap 1
+  sub
+  push 288
+  mload
+  dup 2
+  dup 2
+  mstore
+  push 32
+  dup 2
+  add
+  dup 3
+  add
+  push 0
+  swap 1
+  mstore
+  push 64
+  dup 2
+  add
+  swap 1
+  swap 2
+  add
+  push 64
+  mstore
+  swap 1
+  jump
+bb12 [continuation]:
+  dup 1
+  mload
+  dup 1
+  push 224
+  mstore
+  iszero
+  push bb46
+  jumpi
+  push 32
+  add
+  dup 1
+  mload
+  push 0
+  byte
+  push 248
+  shl
+  push 248
+  shr
+  push 224
+  mload
+  push 1
+  lt
+  iszero
+  push bb46
+  jumpi
+  push 1
+  dup 3
+  add
+  mload
+  push 0
+  byte
+  push 248
+  shl
+  push 248
+  shr
+  push 224
+  mload
+  push 2
+  lt
+  iszero
+  push bb46
+  jumpi
+  swap 2
+  push 2
+  add
+  mload
+  push 0
+  byte
+  push 248
+  shl
+  push 248
+  shr
+  swap 1
+  push 128
+  mstore
+  swap 1
+  push 160
+  mstore
+  push 192
+  mstore
+  push 96
+  push 128
+  return
+bb19:
+  push 448
+  dup 1
+  push 64
+  mstore
+  dup 1
+  push 160
+  mstore
+  push 64
+  dup 2
+  add
+  push 64
+  mstore
+  push 3
+  dup 2
+  mstore
+  push 32
+  dup 2
+  add
+  push 0x222233
+  push 232
+  shl
+  swap 1
+  mstore
+  push bb20
+  jump bb55
+bb20 [continuation]:
+  push bb21
+  push 221
+  exchange 1, 2
+  jump bb39
+bb21 [continuation]:
+  dup 1
+  mload
+  push 1
+  lt
+  iszero
+  push bb46
+  jumpi
+  push 33
+  add
+  mload
+  push 0
+  byte
+  push 248
+  shl
+  push 248
+  shr
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb24:
+  push 448
+  push 64
+  mstore
+  push 68
+  calldatasize
+  lt
+  push bb6
+  jumpi
+  push bb26
+  push 4
+  jump bb47
+bb47:
+  calldatasize
+  swap 1
+  calldataload
+  push 4
+  dup 2
+  add
+  push 32
+  dup 2
+  add
+  swap 2
+  push 0
+  not
+  push 192
+  shr
+  lt
+  swap 3
+  dup 3
+  gt
+  swap 1
+  swap 3
+  or
+  push bb6
+  jumpi
+  swap 1
+  calldataload
+  push 63
+  dup 2
+  add
+  dup 2
+  dup 2
+  lt
+  push bb53
+  jumpi
+  push 31
+  not
+  and
+  push 64
+  mload
+  swap 1
+  dup 2
+  add
+  dup 2
+  dup 2
+  lt
+  push 0
+  not
+  push 192
+  shr
+  dup 3
+  gt
+  or
+  push bb54
+  jumpi
+  push 64
+  mstore
+  dup 2
+  dup 2
+  mstore
+  dup 3
+  calldatasize
+  sub
+  dup 3
+  gt
+  push bb6
+  jumpi
+  push 32
+  dup 2
+  add
+  dup 3
+  dup 5
+  dup 3
+  calldatacopy
+  pop
+  swap 2
+  pop
+  pop
+  swap 1
+  jump
+bb26 [continuation]:
+  push bb60
+  jump bb56
+bb56:
+  push 36
+  calldataload
+  exchange 1, 2
+  jump bb39
+bb31:
+  push 448
+  push 64
+  mstore
+  push 68
+  calldatasize
+  lt
+  push bb6
+  jumpi
+  push bb33
+  push 4
+  jump bb47
+bb33 [continuation]:
+  push bb26
+  jump bb56
+bb42:
+  dup 1
+  mload
+  dup 1
+  push 0
+  byte
+  dup 4
+  sub
+  push bb44
+  jumpi
+  not
+  push 384
+  mload
+  dup 3
+  add
+  mstore
+  push 1
+  add
+  push 352
+  mload
+  dup 2
+  lt
+  push bb45
+  jumpi
+  swap 1
+  pop
+  jump bb41
+bb45:
+  push 416
+  mstore
+  jump bb40
+bb53 [cold]:
+  pop
+  pop
+  pop
+  jump bb59
+bb59 [cold]:
+  push 0x4e487b71
+  push 224
+  shl
+  push 0
+  mstore
+  push 65
+  jump bb58
+bb54 [cold]:
+  pop
+  pop
+  pop
+  pop
+  jump bb59
+bb57:
+  push 0
+  push 32
+  push 160
+  mload
+  sub
+  push 128
+  mload
+  add
+  mstore
+  jump bb30
+bb30:
+  push 160
+  mload
+  push 128
+  mload
+  add
+  push 32
+  push 192
+  mload
+  add
+  push 256
+  mload
+  dup 2
+  push 128
+  mload
+  mcopy
+  pop
+  push 224
+  mload
+  swap 1
+  sub
+  push 31
+  dup 2
+  add
+  push 31
+  not
+  and
+  push 64
+  mload
+  swap 1
+  dup 2
+  add
+  push 64
+  mstore
+  dup 2
+  dup 2
+  return
+bb60 [continuation]:
+  dup 1
+  push 192
+  mstore
+  push 64
+  mload
+  dup 1
+  push 224
+  mstore
+  push 32
+  dup 2
+  add
+  push 32
+  dup 3
+  mstore
+  dup 3
+  iszero
+  iszero
+  dup 4
+  mload
+  mul
+  dup 1
+  push 256
+  mstore
+  dup 1
+  dup 3
+  mstore
+  push 31
+  dup 2
+  add
+  push 31
+  not
+  and
+  dup 1
+  push 160
+  mstore
+  swap 2
+  push 32
+  add
+  push 128
+  mstore
+  pop
+  swap 2
+  pop
+  pop
+  push bb57
+  jumpi
+  jump bb30
