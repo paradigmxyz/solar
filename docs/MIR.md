@@ -543,3 +543,7 @@ keeps the original address, including an `MSIZE` that observes the store.
 Final store cleanup consumes a stack word directly when a duplicate is stored
 and its original is discarded immediately afterward. It preserves the order of
 the remaining stack and does not cross a function event or glued boundary.
+
+Two-word branch layouts place one reloaded join value above the resident word.
+Preparing the condition then needs one swap. Wider layouts retain their existing
+order because downstream joins can outweigh that local saving.

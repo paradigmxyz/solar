@@ -1,4 +1,6 @@
-//@ codegen-matrix: standard
+//@ codegen-matrix: standard ir
+//@[ir] compile-flags: -Ogas -Zdump=evm-ir-runtime
+//@[ir] filecheck:
 //@ run-call: pin => 1
 //@ run-call: threeStates 0 => 0
 //@ run-call: threeStates 4 => 1
@@ -41,6 +43,24 @@ contract LoopStateChainSpillHome {
         return state;
     }
 
+    // CHECK-LABEL: @module LoopStateChainSpillHome_runtime
+    // CHECK: push 0xcb11e62b
+    // CHECK-NEXT: eq
+    // CHECK-NEXT: push [[BODY:bb[0-9]+]]
+    // CHECK: [[BODY]]:
+    // CHECK: push 2{{$}}
+    // CHECK-NEXT: push [[STATE:[0-9]+]]
+    // CHECK-NEXT: mload
+    // CHECK-NEXT: eq
+    // CHECK: push 3{{$}}
+    // CHECK-NEXT: push [[STATE]]
+    // CHECK-NEXT: mload
+    // CHECK-NEXT: eq
+    // CHECK: push [[STATE]]
+    // CHECK-NEXT: mload
+    // CHECK-NEXT: swap 1
+    // CHECK-NEXT: push {{bb[0-9]+}}
+    // CHECK-NEXT: jumpi
     function fourStates(uint256 n) external pure returns (uint256) {
         uint256 state = 0;
         for (uint256 i = 0; i < n; i++) {

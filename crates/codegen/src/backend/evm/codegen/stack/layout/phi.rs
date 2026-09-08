@@ -744,10 +744,17 @@ impl<'a> StackPhiPlanner<'a> {
                             && wanted.contains(value))
                 })
                 .collect::<Vec<_>>();
-            // Join words the predecessor does not hold are materialized for the branch.
+            // A two-word layout needs only one swap to put the condition above its reload.
+            let reload_on_top = carried.len() == 1
+                && sources.iter().filter(|value| !carried.contains(value)).count() == 1;
             for &value in &sources {
                 if !carried.contains(&value) {
-                    carried.push(value);
+                    // [resident]; push value -> [value, resident]
+                    if reload_on_top {
+                        carried.insert(0, value);
+                    } else {
+                        carried.push(value);
+                    }
                 }
             }
             carried.truncate(LIVE_JOIN_LAYOUT_LIMIT.max(sources.len()));
