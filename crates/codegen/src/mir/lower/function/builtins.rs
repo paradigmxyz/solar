@@ -817,9 +817,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             );
         }
 
-        // output = concat(parts)
+        // output = icall concat, parts
         Some(self.builder.emit_inst(
-            InstKind::Concat(parts),
+            InstKind::concat(parts),
             Some(MirType::MemoryObject(MemoryObjectKind::Bytes)),
         ))
     }

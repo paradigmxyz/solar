@@ -39,12 +39,12 @@ impl MirPass for StorageScalarPromotion {
         _gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
-    ) -> solar_interface::Result<bool> {
-        Ok(run_function_pass(module, analyses, |func, _| {
+    ) -> bool {
+        run_function_pass(module, analyses, |func, _| {
             let mut promoter = StorageScalarPromoter::new();
             let stats = promoter.run(func);
             stats.loops_promoted + stats.loads_promoted + stats.stores_promoted != 0
-        }))
+        })
     }
 }
 

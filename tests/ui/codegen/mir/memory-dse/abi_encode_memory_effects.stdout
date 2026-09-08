@@ -11,7 +11,7 @@
   fn @require_reads_message(arg0: bool, arg1: memptr) {
     bb0:
       mstore arg1, 1
-      require arg0, error_string arg1
+      icall require error_string, arg0, arg1
       ret
   }
   
@@ -21,7 +21,7 @@
       v1 = alloc raw, exact, uninitialized, infallible, 32
       mstore v0, 7
       mstore v1, v0
-      require arg0, custom_error [array<1, memory_bytes>], 0, (v1)
+      icall require custom_error [array<1, memory_bytes>], arg0, 0, v1
       ret
   }
   

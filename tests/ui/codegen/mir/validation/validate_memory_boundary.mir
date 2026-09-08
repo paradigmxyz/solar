@@ -112,10 +112,10 @@ fn @unlowered_check(arg0: u256) {
     ret
 }
 
-//~? ERROR: [fn14] [bb0, inst0] conditional check instruction `require` survives the `lowered` phase boundary
+//~? ERROR: [fn14] [bb0, inst0] conditional check instruction `icall` survives the `lowered` phase boundary
 fn @unlowered_payload(arg0: u256) {
   bb0:
-    require arg0, empty_string
+    icall require empty_string, arg0
     ret
 }
 

@@ -7,7 +7,7 @@ fn @ok() -> u256 [selector=0xd909b403, pure, abi_params=[], abi_returns=[word]] 
 
 fn @bad() [selector=0x9c3674fc, pure, abi_params=[], abi_returns=[word]] {
   bb0:
-    require false, short_string 2, 0x6e6f000000000000000000000000000000000000000000000000000000000000
+    icall require short_string, false, 2, 0x6e6f000000000000000000000000000000000000000000000000000000000000
     invalid
 }
 

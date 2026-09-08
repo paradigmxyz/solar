@@ -9,7 +9,7 @@
 //! reconsidered only when deleting the last `msize` observer makes them discardable.
 
 use crate::mir::{
-    Function, InstId, InstKind, Module, Value, ValueId,
+    Callee, Function, InstId, InstKind, Module, Value, ValueId,
     analysis::{CfgInfo, MemoryCallSummaries, may_observe_msize},
     pass::{MirPass, run_function_pass},
     utils::invalidate_unreachable_block,
@@ -30,7 +30,7 @@ impl MirPass for Dce {
         _gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
-    ) -> solar_interface::Result<bool> {
+    ) -> bool {
         let summaries = analyses.call_summaries(module);
         let changed = run_function_pass(module, analyses, |func, _| {
             DeadCodeEliminator { call_summaries: Some(Arc::clone(&summaries)) }
@@ -39,7 +39,7 @@ impl MirPass for Dce {
         });
         // Removing operations and unreachable blocks cannot add call effects.
         analyses.preserve_call_summaries();
-        Ok(changed)
+        changed
     }
 }
 
@@ -101,7 +101,7 @@ impl DeadCodeEliminator {
         let mut pending = Vec::new();
         for inst_id in func.instructions() {
             let inst = func.inst(inst_id);
-            let discardable_call = matches!(&inst.kind, InstKind::ICall { function, .. }
+            let discardable_call = matches!(&inst.kind, InstKind::ICall { function: Callee::Function(function), .. }
                 if self.call_summaries.as_ref().and_then(|summaries| summaries.get(*function))
                     .is_some_and(|summary| summary.can_discard_call(observes_msize)));
             if !inst.must_execute(observes_msize) || discardable_call {

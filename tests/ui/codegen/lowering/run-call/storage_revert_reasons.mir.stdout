@@ -6,7 +6,7 @@ fn @mappingShort() [selector=0x9b5bf7ac, abi_params=[], abi_returns=[]] {
     store_storage_bytes_literal v0, hex"78"
     v1 = mapping_slot 0, 0
     v2 = icall @load_storage_bytes, v1
-    require false, error_string v2
+    icall require error_string, false, v2
     invalid
 }
 
@@ -16,7 +16,7 @@ fn @mappingLong() [selector=0xaf8ee9a6, abi_params=[], abi_returns=[]] {
     store_storage_bytes_literal v0, hex"6162636465666768696a6b6c6d6e6f707172737475767778797a30313233343536"
     v1 = mapping_slot 1, 0
     v2 = icall @load_storage_bytes, v1
-    require false, error_string v2
+    icall require error_string, false, v2
     invalid
 }
 
@@ -26,7 +26,7 @@ fn @mappingReference() [selector=0x49b1855e, abi_params=[], abi_returns=[]] {
     store_storage_bytes_literal v0, hex"78"
     v1 = mapping_slot 2, 0
     v2 = icall @load_storage_bytes, v1
-    require false, error_string v2
+    icall require error_string, false, v2
     invalid
 }
 
@@ -38,7 +38,7 @@ fn @nestedMapping() [selector=0x041c73d0, abi_params=[], abi_returns=[]] {
     v2 = mapping_slot 0, 1
     v3 = mapping_slot 1, v2
     v4 = icall @load_storage_bytes, v3
-    require false, error_string v4
+    icall require error_string, false, v4
     invalid
 }
 
@@ -46,7 +46,7 @@ fn @structRequire() [selector=0x8bb9ced2, abi_params=[], abi_returns=[]] {
   bb0:
     store_storage_bytes_literal 2, hex"78"
     v0 = icall @load_storage_bytes, 2
-    require false, error_string v0
+    icall require error_string, false, v0
     ret
 }
 
@@ -69,7 +69,7 @@ fn @calldataReason(arg0: calldataslice) [selector=0x3f2c0e1e, pure, abi_params=[
     v11 = alloc memorybytes, exact, uninitialized, infallible, v10
     set_memory_object_len memorybytes, v11, v6
     memory_object_copy_from_slice memorybytes, v11, arg0
-    require false, error_string v11
+    icall require error_string, false, v11
     invalid
 }
 

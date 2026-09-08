@@ -82,7 +82,7 @@ fn @join() -> struct1 [selector=0xb688a363, pure, abi_params=[], abi_returns=[wo
     jump bb8
   bb8:
     v17 = phi [bb4: v14], [bb7: v16]
-    v18 = concat ( memorybytes v4, memorybytes v17 )
+    v18 = icall concat<memorybytes, memorybytes>, v4, v17
     jump bb6
   bb6:
     jump bb3

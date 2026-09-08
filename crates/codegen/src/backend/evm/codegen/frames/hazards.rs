@@ -8,6 +8,7 @@ use super::{
     },
     SPILL_HAZARD_BOUND,
 };
+use crate::mir::Callee;
 
 impl<'gcx> EvmCodegen<'gcx> {
     /// Returns the destination of a symbolic memory write that can cover a
@@ -277,7 +278,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                     {
                         Some(true)
                     }
-                    InstKind::ICall { function, .. } if helper_returns.contains(*function) => {
+                    InstKind::ICall { function: Callee::Function(function), .. }
+                        if helper_returns.contains(*function) =>
+                    {
                         Some(true)
                     }
                     InstKind::Add(first, second) => {

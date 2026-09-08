@@ -6,6 +6,7 @@ use super::{
     Module, RelayoutAddress, SpillSlot, StackEffect, StackOp, StackPush, Terminator, U256, Value,
     ValueId, WORD_BYTES, immutable_staging_end, op, preserves_push_width,
 };
+use crate::mir::Callee;
 
 /// A dynamic-length write to a low absolute base below this bound above
 /// `HEAP_START` is treated as possibly reaching the spill area.
@@ -87,7 +88,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         func: &Function,
     ) -> bool {
         func.instructions().any(|inst_id| {
-            matches!(func.inst(inst_id).kind, InstKind::ICall { function, .. }
+            matches!(func.inst(inst_id).kind, InstKind::ICall { function: Callee::Function(function), .. }
                 if function == func_id)
         }) || func.blocks.iter().any(|block| {
             matches!(block.terminator, Some(Terminator::TailCall { function, .. })
@@ -367,7 +368,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 func.instructions().any(|inst_id| {
                     matches!(
                         func.inst(inst_id).kind,
-                        InstKind::ICall { function, .. }
+                        InstKind::ICall { function: Callee::Function(function), .. }
                             if !self.static_frame_functions.contains(function)
                     )
                 }) || func.blocks.iter().any(|block| {
@@ -438,7 +439,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                 continue;
             }
             for inst_id in func.instructions() {
-                if let InstKind::ICall { function, .. } = func.inst(inst_id).kind {
+                if let InstKind::ICall { function: Callee::Function(function), .. } =
+                    func.inst(inst_id).kind
+                {
                     edges.push((func_id, function));
                 }
             }
@@ -761,7 +764,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                 {
                     Some(0)
                 }
-                InstKind::ICall { function, .. } => returned_offsets.get(function).copied(),
+                InstKind::ICall { function: Callee::Function(function), .. } => {
+                    returned_offsets.get(function).copied()
+                }
                 InstKind::Sub(base, amount) => {
                     let base = derive(*base, visiting, memo).or_else(|| {
                         func.value_ty(*base).is_some_and(MirType::is_memory_reference).then_some(0)
@@ -891,7 +896,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 || module.functions[func_id].instructions().any(|inst_id| {
                     matches!(
                         module.functions[func_id].inst(inst_id).kind,
-                        InstKind::ICall { function, .. }
+                        InstKind::ICall { function: Callee::Function(function), .. }
                             if module.function(function).returns.len() > 1 || !self.static_frame_functions.contains(function)
                     )
                 })

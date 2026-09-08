@@ -41,8 +41,8 @@ impl MirPass for Sccp {
         _gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
-    ) -> solar_interface::Result<bool> {
-        Ok(run_function_pass(module, analyses, |func, _| SccpCx::new().run(func) != 0))
+    ) -> bool {
+        run_function_pass(module, analyses, |func, _| SccpCx::new().run(func) != 0)
     }
 }
 

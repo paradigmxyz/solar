@@ -36,7 +36,7 @@ use std::{
 pub use crate::mir::pass_manager::{MirPass, pipeline_label, run_passes, run_passes_no_validate};
 
 /// All known MIR passes exposed by `-Zmir-pipeline`.
-pub static ALL_PASSES: &[&dyn MirPass] = &[
+static ALL_PASSES: &[&dyn MirPass] = &[
     &inline::Inline,
     &inline::InlineConstantLeaves,
     &inline::InlineTinyLeaves,
@@ -124,7 +124,7 @@ impl<P: MirPass> MirPass for SizeOnly<P> {
         gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         analyses: &mut ModuleAnalyses,
-    ) -> solar_interface::Result<bool> {
+    ) -> bool {
         self.0.run_pass(gcx, module, analyses)
     }
 }
@@ -155,13 +155,13 @@ impl<P: MirPass> MirPass for GasOnly<P> {
         gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         analyses: &mut ModuleAnalyses,
-    ) -> solar_interface::Result<bool> {
+    ) -> bool {
         self.0.run_pass(gcx, module, analyses)
     }
 }
 
 /// The canonical MIR pipeline used by EVM codegen.
-pub static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
+static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     // Clone one constant call to a shared pure leaf so scalar passes can fold it.
     &GasOnly::new(inline::InlineConstantLeaves),
     // Broad MIR inlining remains available as an ad-hoc pass, but static internal
@@ -207,7 +207,7 @@ pub static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
 ];
 
 /// Expands semantic operations and makes the backend representation explicit.
-pub static LOWERING_PIPELINE: &[&dyn MirPass] = &[
+static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &lower_checks::LowerChecks,
     &lower_builtins::LowerBuiltins,
     // Gas mode keeps arithmetic failure edges local for stack scheduling.
@@ -276,7 +276,7 @@ pub static LOWERING_PIPELINE: &[&dyn MirPass] = &[
 ];
 
 /// Optimizes lowered word SSA before physical stack scheduling.
-pub static LOWERED_PIPELINE: &[&dyn MirPass] = &[
+static LOWERED_PIPELINE: &[&dyn MirPass] = &[
     &GasOnly::new(cse::FmpCse),
     &inst_simplify::ConstFold,
     &cfg_simplify::BranchSimplify,

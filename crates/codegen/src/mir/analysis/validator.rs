@@ -40,9 +40,9 @@
 //! ```
 
 use crate::mir::{
-    AddressCallKind, BlockId, Function, FunctionId, InstId, InstKind, MemoryObjectKind,
-    MemoryObjectLayout, MirPhase, MirType, Module, SliceLocation, TypeSize, Value, ValueId,
-    analysis::CfgInfo,
+    AddressCallKind, BlockId, Builtin, Callee, Function, FunctionId, InstId, InstKind,
+    MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module, RequireKind, SliceLocation,
+    TypeSize, Value, ValueId, analysis::CfgInfo,
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
@@ -593,7 +593,7 @@ impl<'a> Validator<'a> {
                             self.check_struct_type(func.value_ty(value), inst.result_ty, block, id);
                         }
                     }
-                    InstKind::ICall { function, args, .. } => {
+                    InstKind::ICall { function: Callee::Function(function), args, .. } => {
                         if let Some(callee) = module.functions.get(*function) {
                             for (&value, &ty) in args.iter().zip(&callee.params) {
                                 self.check_struct_type(func.value_ty(value), Some(ty), block, id);
@@ -795,29 +795,33 @@ impl<'a> Validator<'a> {
     fn validate_memory_object_types(&mut self, func: &Function) {
         for (block, body) in func.blocks.iter_enumerated() {
             for &id in &body.instructions {
-                if let InstKind::Require { condition, payload } = &func.inst(id).kind {
+                if let InstKind::ICall { function: Callee::Builtin(Builtin::Require(kind)), args } =
+                    &func.inst(id).kind
+                {
                     let word = |value| {
                         func.value_ty(value).is_some_and(|ty| {
                             ty.is_word() && !matches!(ty, MirType::MemoryObject(_))
                         })
                     };
-                    if !word(*condition) || func.inst(id).result_ty.is_some() {
+                    if args.first().is_none_or(|&condition| !word(condition))
+                        || func.inst(id).result_ty.is_some()
+                    {
                         self.emit_at_inst(
                             "require needs a word condition and no result",
                             block,
                             id,
                         );
                     }
-                    let valid = match payload.as_ref() {
-                        crate::mir::RevertPayload::ShortString { length, data } => {
+                    let valid = match (kind, args.as_ref()) {
+                        (RequireKind::ShortString, [_, length, data]) => {
                             word(*length)
                                 && word(*data)
                                 && func
                                     .value_u64(*length)
                                     .is_some_and(|length| (1..=32).contains(&length))
                         }
-                        crate::mir::RevertPayload::EmptyString => true,
-                        crate::mir::RevertPayload::ErrorString(value) => matches!(
+                        (RequireKind::EmptyString, [_]) => true,
+                        (RequireKind::ErrorString, [_, value]) => matches!(
                             func.value_ty(*value),
                             Some(
                                 MirType::MemoryObject(MemoryObjectKind::Bytes)
@@ -825,9 +829,10 @@ impl<'a> Validator<'a> {
                                     | MirType::UInt(_)
                             )
                         ),
-                        crate::mir::RevertPayload::CustomError { selector, layout, values } => {
+                        (RequireKind::CustomError(layout), [_, selector, values @ ..]) => {
                             word(*selector) && values.len() == layout.types.len()
                         }
+                        _ => false,
                     };
                     if !valid {
                         self.emit_at_inst("require payload has incompatible arguments", block, id);
@@ -910,24 +915,30 @@ impl<'a> Validator<'a> {
                         );
                     }
                 }
-                if let InstKind::Concat(parts) = &func.inst(id).kind {
-                    for part in parts {
-                        let valid = match part {
-                            crate::mir::ConcatPart::Bytes(value) => {
-                                matches!(
-                                    func.value_ty(*value),
-                                    Some(
-                                        MirType::MemoryObject(MemoryObjectKind::Bytes)
-                                            | MirType::MemPtr
-                                            | MirType::UInt(_)
-                                    )
+                if let InstKind::ICall { function: Callee::Builtin(Builtin::Concat(types)), args } =
+                    &func.inst(id).kind
+                {
+                    if types.len() != args.len() {
+                        self.emit_at_inst(
+                            "concat argument count does not match its parameter types",
+                            block,
+                            id,
+                        );
+                    }
+                    for (&ty, &value) in types.iter().zip(args) {
+                        let valid = match ty {
+                            MirType::MemoryObject(MemoryObjectKind::Bytes) => matches!(
+                                func.value_ty(value),
+                                Some(
+                                    MirType::MemoryObject(MemoryObjectKind::Bytes)
+                                        | MirType::MemPtr
+                                        | MirType::UInt(_)
                                 )
-                            }
-                            crate::mir::ConcatPart::Fixed { value, .. } => {
-                                func.value_ty(*value).is_some_and(|ty| {
-                                    ty.is_word() && !matches!(ty, MirType::MemoryObject(_))
-                                })
-                            }
+                            ),
+                            MirType::FixedBytes(_) => func.value_ty(value).is_some_and(|ty| {
+                                ty.is_word() && !matches!(ty, MirType::MemoryObject(_))
+                            }),
+                            _ => false,
                         };
                         if !valid {
                             self.emit_at_inst("concat input has an incompatible type", block, id);
@@ -1296,7 +1307,9 @@ impl<'a> Validator<'a> {
     /// mirrors how the display and every pass treat instructions.
     fn validate_calls(&mut self, module: &Module, func: &Function) {
         for inst_id in func.instructions() {
-            let InstKind::ICall { function, args } = &func.inst(inst_id).kind else {
+            let InstKind::ICall { function: Callee::Function(function), args } =
+                &func.inst(inst_id).kind
+            else {
                 continue;
             };
             let Some(callee) = module.functions.get(*function) else {

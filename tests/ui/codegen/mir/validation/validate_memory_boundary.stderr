@@ -48,7 +48,7 @@ error: [fn12] [bb0, inst0] ABI validation instruction `validate_abi` survives th
 
 error: [fn13] [bb0, inst0] conditional check instruction `panic_if_zero` survives the `lowered` phase boundary
 
-error: [fn14] [bb0, inst0] conditional check instruction `require` survives the `lowered` phase boundary
+error: [fn14] [bb0, inst0] conditional check instruction `icall` survives the `lowered` phase boundary
 
 error: [fn15] [bb0, inst0] builtin instruction `keccak256_packed` survives the `lowered` phase boundary
 

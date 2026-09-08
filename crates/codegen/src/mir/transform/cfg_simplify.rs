@@ -26,8 +26,8 @@
 //! terminators retain the bounded union of their original locations instead.
 
 use crate::mir::{
-    BlockId, Function, FunctionId, Immediate, InstKind, InstructionMetadata, MirType, Module,
-    Terminator, Value, ValueId,
+    BlockId, Callee, Function, FunctionId, Immediate, InstKind, InstructionMetadata, MirType,
+    Module, Terminator, Value, ValueId,
     analysis::{CallGraphInfo, CfgInfo},
     pass::{MirPass, run_function_pass},
     utils::{replace_terminator, retain_blocks},
@@ -51,10 +51,10 @@ impl MirPass for CfgSimplify {
         _gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
-    ) -> solar_interface::Result<bool> {
-        Ok(run_function_pass(module, analyses, |func, _| {
+    ) -> bool {
+        run_function_pass(module, analyses, |func, _| {
             CfgSimplifier::new().run_to_fixpoint(func).total() != 0
-        }))
+        })
     }
 }
 
@@ -71,8 +71,8 @@ impl MirPass for BranchSimplify {
         _gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
-    ) -> solar_interface::Result<bool> {
-        Ok(run_function_pass(module, analyses, |func, _| {
+    ) -> bool {
+        run_function_pass(module, analyses, |func, _| {
             let mut simplifier = CfgSimplifier::new();
             simplifier.simplify_degenerate_terminators(func);
             let changed = simplifier.stats.total() != 0;
@@ -80,7 +80,7 @@ impl MirPass for BranchSimplify {
                 let _ = remove_unreachable_blocks(func);
             }
             changed
-        }))
+        })
     }
 }
 
@@ -97,8 +97,8 @@ impl MirPass for FunctionDce {
         _gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         _analyses: &mut crate::mir::pass::ModuleAnalyses,
-    ) -> solar_interface::Result<bool> {
-        Ok(DeadFunctionEliminator::new().run(module) != 0)
+    ) -> bool {
+        DeadFunctionEliminator::new().run(module) != 0
     }
 }
 
@@ -875,7 +875,8 @@ impl DeadFunctionEliminator {
 
         for func in &mut module.functions {
             func.for_each_instruction_mut(|_, inst| {
-                if let InstKind::ICall { function, .. } = &mut inst.kind {
+                if let InstKind::ICall { function: Callee::Function(function), .. } = &mut inst.kind
+                {
                     *function = remap[*function]
                         .expect("reachable function cannot call an eliminated function");
                 }

@@ -7,7 +7,7 @@ use super::{
     InstId, InstKind, InstructionMetadata, MemoryRegion, MirType, Module, StorageAlias, Terminator,
     Value, ValueId,
 };
-use crate::mir::analysis::CfgInfo;
+use crate::mir::{Builtin, Callee, RequireKind, analysis::CfgInfo};
 use arrayvec::ArrayVec;
 use solar_data_structures::{
     fmt::{self, FmtIteratorExt},
@@ -604,27 +604,6 @@ fn display_inst_kind<'a>(
         InstKind::MemoryObjectData(object, kind) => {
             write!(f, "memory_object_data {kind}, {}", display_val(*object, func))
         }
-        InstKind::Require { condition, payload } => {
-            write!(f, "require {}, ", display_val(*condition, func))?;
-            match payload.as_ref() {
-                super::RevertPayload::ShortString { length, data } => write!(
-                    f,
-                    "short_string {}, {}",
-                    display_val(*length, func),
-                    display_val(*data, func)
-                ),
-                super::RevertPayload::EmptyString => write!(f, "empty_string"),
-                super::RevertPayload::ErrorString(value) => {
-                    write!(f, "error_string {}", display_val(*value, func))
-                }
-                super::RevertPayload::CustomError { selector, layout, values } => write!(
-                    f,
-                    "custom_error {layout}, {}, ({})",
-                    display_val(*selector, func),
-                    values.iter().map(|&v| display_val(v, func)).format(", ")
-                ),
-            }
-        }
         InstKind::Check { condition, failure, .. } => {
             write!(f, "{} {}, ", kind.mnemonic(), display_val(*condition, func))?;
             match failure {
@@ -668,22 +647,24 @@ fn display_inst_kind<'a>(
             }
             write!(f, ")")
         }
-        InstKind::Concat(parts) => {
-            write!(f, "concat (")?;
-            for (index, part) in parts.iter().enumerate() {
-                if index != 0 {
-                    write!(f, ",")?;
-                }
-                match part {
-                    super::ConcatPart::Bytes(value) => {
-                        write!(f, " memorybytes {}", display_val(*value, func))?
-                    }
-                    super::ConcatPart::Fixed { value, size } => {
-                        write!(f, " bytes{} {}", size.bytes(), display_val(*value, func))?
+        InstKind::ICall { function: Callee::Builtin(builtin), args } => {
+            write!(f, "icall ")?;
+            match builtin {
+                Builtin::Concat(types) => write!(f, "concat<{}>", types.iter().format(", "))?,
+                Builtin::Require(kind) => {
+                    write!(f, "require ")?;
+                    match kind {
+                        RequireKind::ShortString => write!(f, "short_string")?,
+                        RequireKind::EmptyString => write!(f, "empty_string")?,
+                        RequireKind::ErrorString => write!(f, "error_string")?,
+                        RequireKind::CustomError(layout) => write!(f, "custom_error {layout}")?,
                     }
                 }
             }
-            write!(f, " )")
+            for &arg in args {
+                write!(f, ", {}", display_val(arg, func))?;
+            }
+            Ok(())
         }
         InstKind::AbiEncode { mode, selector, args, layout } => {
             write!(f, "abi_encode {layout}")?;
@@ -719,7 +700,7 @@ fn display_inst_kind<'a>(
         InstKind::ClearStorage { storage, layout } => {
             write!(f, "clear_storage {layout}, {}", display_val(*storage, func))
         }
-        InstKind::ICall { function, args } => {
+        InstKind::ICall { function: Callee::Function(function), args } => {
             write!(f, "icall {}", display_function_ref(*function, module))?;
             if !args.is_empty() {
                 write!(f, ", {}", args.iter().map(|arg| display_val(*arg, func)).format(", "))?;

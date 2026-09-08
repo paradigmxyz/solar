@@ -42,13 +42,13 @@ impl MirPass for MemoryDse {
         _gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
-    ) -> solar_interface::Result<bool> {
-        Ok(run_function_pass(module, analyses, |func, analyses| {
+    ) -> bool {
+        run_function_pass(module, analyses, |func, analyses| {
             let mut eliminator = MemoryStoreEliminator::new();
             eliminator.alias = Some(Rc::clone(&analyses.alias));
             eliminator.cfg = Some(Rc::clone(&analyses.cfg));
             eliminator.run_to_fixpoint(func) != 0
-        }))
+        })
     }
 }
 

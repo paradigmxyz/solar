@@ -38,10 +38,10 @@ impl MirPass for FrameSlotPromotion {
         _gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
-    ) -> solar_interface::Result<bool> {
-        Ok(run_function_pass(module, analyses, |func, _| {
+    ) -> bool {
+        run_function_pass(module, analyses, |func, _| {
             FrameSlotPromoter::new().run(func).total() != 0
-        }))
+        })
     }
 }
 

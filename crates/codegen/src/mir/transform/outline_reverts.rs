@@ -35,8 +35,8 @@ impl MirPass for OutlineReverts {
         _gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         _analyses: &mut crate::mir::pass::ModuleAnalyses,
-    ) -> solar_interface::Result<bool> {
-        Ok(OutlineRevertsCx::default().run(module))
+    ) -> bool {
+        OutlineRevertsCx::default().run(module)
     }
 }
 

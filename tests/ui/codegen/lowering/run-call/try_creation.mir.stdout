@@ -5,7 +5,7 @@ fn @constructor(arg0: bool) [constructor, abi_params=[bool]] {
     v0 = eq arg0, 0
     v1 = iszero v0
     v2 = iszero v1
-    require v2, short_string 1, 0x7800000000000000000000000000000000000000000000000000000000000000
+    icall require short_string, v2, 1, 0x7800000000000000000000000000000000000000000000000000000000000000
     ret
 }
 

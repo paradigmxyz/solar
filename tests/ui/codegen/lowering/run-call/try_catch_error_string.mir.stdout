@@ -2,7 +2,7 @@
 @module TryErrorTarget
 fn @fail() [selector=0xa9cc4718, pure, abi_params=[], abi_returns=[]] {
   bb0:
-    require false, short_string 5, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
+    icall require short_string, false, 5, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
     invalid
 }
 

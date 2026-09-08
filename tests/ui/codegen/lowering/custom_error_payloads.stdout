@@ -2,7 +2,7 @@
 @module CustomErrorPayloads
 fn @revert_empty() [selector=0xc8567119, pure, abi_params=[], abi_returns=[]] {
   bb0:
-    require false, custom_error [], 0x4f3d7def00000000000000000000000000000000000000000000000000000000, ()
+    icall require custom_error [], false, 0x4f3d7def00000000000000000000000000000000000000000000000000000000
     invalid
 }
 
@@ -12,13 +12,13 @@ fn @revert_args() [selector=0x3a185347, pure, abi_params=[], abi_returns=[]] {
     set_memory_object_len memorybytes, v0, 6
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0x6661696c65640000000000000000000000000000000000000000000000000000
-    require false, custom_error [word, memory_bytes], 0xb9344e200000000000000000000000000000000000000000000000000000000, (7, v0)
+    icall require custom_error [word, memory_bytes], false, 0xb9344e200000000000000000000000000000000000000000000000000000000, 7, v0
     invalid
 }
 
 fn @require_empty(arg0: bool) [selector=0xfa8d4a29, pure, abi_params=[bool], abi_returns=[]] {
   bb0:
-    require arg0, custom_error [], 0x4f3d7def00000000000000000000000000000000000000000000000000000000, ()
+    icall require custom_error [], arg0, 0x4f3d7def00000000000000000000000000000000000000000000000000000000
     ret
 }
 
@@ -28,6 +28,6 @@ fn @require_named(arg0: bool) [selector=0x868ff2e0, pure, abi_params=[bool], abi
     set_memory_object_len memorybytes, v0, 6
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0x6661696c65640000000000000000000000000000000000000000000000000000
-    require arg0, custom_error [word, memory_bytes], 0xb9344e200000000000000000000000000000000000000000000000000000000, (7, v0)
+    icall require custom_error [word, memory_bytes], arg0, 0xb9344e200000000000000000000000000000000000000000000000000000000, 7, v0
     ret
 }

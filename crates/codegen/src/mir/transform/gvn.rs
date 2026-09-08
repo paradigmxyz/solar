@@ -66,12 +66,12 @@ impl MirPass for Gvn {
         _gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
-    ) -> solar_interface::Result<bool> {
-        Ok(run_function_pass(module, analyses, |func, analyses| {
+    ) -> bool {
+        run_function_pass(module, analyses, |func, analyses| {
             let mut numberer = GlobalValueNumberer::new();
             numberer.cfg = Some(Rc::clone(&analyses.cfg));
             numberer.run(func) != 0
-        }))
+        })
     }
 }
 

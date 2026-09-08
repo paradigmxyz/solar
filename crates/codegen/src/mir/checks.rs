@@ -201,39 +201,3 @@ pub(crate) enum RevertPayload {
     ErrorString(ValueId),
     CustomError { selector: ValueId, layout: AbiLayoutRef, values: Box<[ValueId]> },
 }
-
-impl RevertPayload {
-    pub(crate) fn for_each_operand(&self, mut f: impl FnMut(ValueId)) {
-        match self {
-            Self::ShortString { length, data } => {
-                f(*length);
-                f(*data);
-            }
-            Self::EmptyString => {}
-            Self::ErrorString(value) => f(*value),
-            Self::CustomError { selector, values, .. } => {
-                f(*selector);
-                for &value in values {
-                    f(value);
-                }
-            }
-        }
-    }
-
-    pub(crate) fn for_each_operand_mut(&mut self, mut f: impl FnMut(&mut ValueId)) {
-        match self {
-            Self::ShortString { length, data } => {
-                f(length);
-                f(data);
-            }
-            Self::EmptyString => {}
-            Self::ErrorString(value) => f(value),
-            Self::CustomError { selector, values, .. } => {
-                f(selector);
-                for value in values {
-                    f(value);
-                }
-            }
-        }
-    }
-}

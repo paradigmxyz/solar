@@ -27,7 +27,7 @@
 //! path cannot justify removing a check on another.
 
 use crate::mir::{
-    BlockId, Function, InstId, InstKind, Module, Terminator, Value, ValueId,
+    BlockId, Builtin, Callee, Function, InstId, InstKind, Module, Terminator, Value, ValueId,
     analysis::CfgInfo,
     pass::{MirPass, run_function_pass},
     utils::fold_terminator_to_jump,
@@ -53,12 +53,12 @@ impl MirPass for CheckElim {
         _gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
-    ) -> solar_interface::Result<bool> {
-        Ok(run_function_pass(module, analyses, |func, analyses| {
+    ) -> bool {
+        run_function_pass(module, analyses, |func, analyses| {
             let mut eliminator = CheckEliminator::new();
             eliminator.cfg = Some(Rc::clone(&analyses.cfg));
             eliminator.run(func) != 0
-        }))
+        })
     }
 }
 
@@ -229,7 +229,10 @@ impl CheckEliminator {
                             InstKind::Check { condition, is_zero, .. } => {
                                 Some((condition, is_zero))
                             }
-                            InstKind::Require { condition, .. } => Some((condition, true)),
+                            InstKind::ICall {
+                                function: Callee::Builtin(Builtin::Require(_)),
+                                ref args,
+                            } => Some((args[0], true)),
                             _ => None,
                         };
                         if let Some((condition, passing)) = fact {

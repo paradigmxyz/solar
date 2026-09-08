@@ -43,7 +43,7 @@ fn @roundTrip() -> u256 [selector=0x6643a628, pure, abi_params=[], abi_returns=[
     v22 = memory_object_load_field memorystruct<6>, v0, 0
     v23 = and v22, 0xffffffffffffffffffffffffffffffffffffffff
     v24 = eq v21, v23
-    require v24, short_string 6, 0x73656e6465720000000000000000000000000000000000000000000000000000
+    icall require short_string, v24, 6, 0x73656e6465720000000000000000000000000000000000000000000000000000
     v25 = memory_object_load_field memorystruct<6>, v19, 1, memorystruct
     v26 = memory_object_load_field memorystruct<5>, v25, 0
     v27 = and v26, 0xffffffffffffffffffffffffffffffffffffffff
@@ -51,7 +51,7 @@ fn @roundTrip() -> u256 [selector=0x6643a628, pure, abi_params=[], abi_returns=[
     v29 = memory_object_load_field memorystruct<5>, v28, 0
     v30 = and v29, 0xffffffffffffffffffffffffffffffffffffffff
     v31 = eq v27, v30
-    require v31, short_string 2, 0x6330000000000000000000000000000000000000000000000000000000000000
+    icall require short_string, v31, 2, 0x6330000000000000000000000000000000000000000000000000000000000000
     v32 = memory_object_load_field memorystruct<6>, v19, 1, memorystruct
     v33 = memory_object_load_field memorystruct<5>, v32, 1
     v34 = and v33, 0xffffffffffffffffffffffffffffffffffffffff
@@ -59,7 +59,7 @@ fn @roundTrip() -> u256 [selector=0x6643a628, pure, abi_params=[], abi_returns=[
     v36 = memory_object_load_field memorystruct<5>, v35, 1
     v37 = and v36, 0xffffffffffffffffffffffffffffffffffffffff
     v38 = eq v34, v37
-    require v38, short_string 2, 0x6331000000000000000000000000000000000000000000000000000000000000
+    icall require short_string, v38, 2, 0x6331000000000000000000000000000000000000000000000000000000000000
     v39 = memory_object_load_field memorystruct<6>, v19, 1, memorystruct
     v40 = memory_object_load_field memorystruct<5>, v39, 2
     v41 = and v40, 0xffffff
@@ -67,7 +67,7 @@ fn @roundTrip() -> u256 [selector=0x6643a628, pure, abi_params=[], abi_returns=[
     v43 = memory_object_load_field memorystruct<5>, v42, 2
     v44 = and v43, 0xffffff
     v45 = eq v41, v44
-    require v45, short_string 3, 0x6665650000000000000000000000000000000000000000000000000000000000
+    icall require short_string, v45, 3, 0x6665650000000000000000000000000000000000000000000000000000000000
     v46 = memory_object_load_field memorystruct<6>, v19, 1, memorystruct
     v47 = memory_object_load_field memorystruct<5>, v46, 3
     v48 = signextend 2, v47
@@ -75,7 +75,7 @@ fn @roundTrip() -> u256 [selector=0x6643a628, pure, abi_params=[], abi_returns=[
     v50 = memory_object_load_field memorystruct<5>, v49, 3
     v51 = signextend 2, v50
     v52 = eq v48, v51
-    require v52, short_string 2, 0x7473000000000000000000000000000000000000000000000000000000000000
+    icall require short_string, v52, 2, 0x7473000000000000000000000000000000000000000000000000000000000000
     v53 = memory_object_load_field memorystruct<6>, v19, 1, memorystruct
     v54 = memory_object_load_field memorystruct<5>, v53, 4
     v55 = and v54, 0xffffffffffffffffffffffffffffffffffffffff
@@ -83,26 +83,26 @@ fn @roundTrip() -> u256 [selector=0x6643a628, pure, abi_params=[], abi_returns=[
     v57 = memory_object_load_field memorystruct<5>, v56, 4
     v58 = and v57, 0xffffffffffffffffffffffffffffffffffffffff
     v59 = eq v55, v58
-    require v59, short_string 5, 0x686f6f6b73000000000000000000000000000000000000000000000000000000
+    icall require short_string, v59, 5, 0x686f6f6b73000000000000000000000000000000000000000000000000000000
     v60 = memory_object_load_field memorystruct<6>, v19, 2, memorystruct
     v61 = memory_object_load_field memorystruct<4>, v60, 0
     v62 = signextend 2, v61
     v63 = sub 0, 120
     v64 = eq v62, v63
-    require v64, short_string 2, 0x746c000000000000000000000000000000000000000000000000000000000000
+    icall require short_string, v64, 2, 0x746c000000000000000000000000000000000000000000000000000000000000
     v65 = memory_object_load_field memorystruct<6>, v19, 2, memorystruct
     v66 = memory_object_load_field memorystruct<4>, v65, 1
     v67 = signextend 2, v66
     v68 = eq v67, 120
-    require v68, short_string 2, 0x7475000000000000000000000000000000000000000000000000000000000000
+    icall require short_string, v68, 2, 0x7475000000000000000000000000000000000000000000000000000000000000
     v69 = memory_object_load_field memorystruct<6>, v19, 2, memorystruct
     v70 = memory_object_load_field memorystruct<4>, v69, 2
     v71 = eq v70, 0xde0b6b3a7640000
-    require v71, short_string 2, 0x6c64000000000000000000000000000000000000000000000000000000000000
+    icall require short_string, v71, 2, 0x6c64000000000000000000000000000000000000000000000000000000000000
     v72 = memory_object_load_field memorystruct<6>, v19, 3, memorybytes
     v73 = memory_object_len memorybytes, v72
     v74 = eq v73, 0
-    require v74, short_string 2, 0x6864000000000000000000000000000000000000000000000000000000000000
+    icall require short_string, v74, 2, 0x6864000000000000000000000000000000000000000000000000000000000000
     v75 = memory_object_load_field memorystruct<6>, v19, 4
     v76 = eq v75, 0
     v77 = iszero v76
@@ -118,13 +118,13 @@ fn @roundTrip() -> u256 [selector=0x6643a628, pure, abi_params=[], abi_returns=[
     jump bb3
   bb3:
     v83 = phi [bb1: v82], [bb2: false]
-    require v83, short_string 5, 0x666c616773000000000000000000000000000000000000000000000000000000
+    icall require short_string, v83, 5, 0x666c616773000000000000000000000000000000000000000000000000000000
     v84 = memory_object_load_field memorystruct<6>, v0, 1, memorystruct
     v85 = memory_object_load_field memorystruct<6>, v19, 1, memorystruct
     v86 = keccak256 v84, 160
     v87 = keccak256 v85, 160
     v88 = eq v86, v87
-    require v88, short_string 11, 0x6964206d69736d61746368000000000000000000000000000000000000000000
+    icall require short_string, v88, 11, 0x6964206d69736d61746368000000000000000000000000000000000000000000
     ret 1
 }
 
@@ -174,7 +174,7 @@ fn @outer() -> u256 [selector=0x87c3dbb6, view, abi_params=[], abi_returns=[word
     v24 = add 0, 0
     v25 = mload v24
     v26 = eq v12, v25
-    require v26, short_string 11, 0x6964206d69736d61746368000000000000000000000000000000000000000000
+    icall require short_string, v26, 11, 0x6964206d69736d61746368000000000000000000000000000000000000000000
     ret 1
 }
 
@@ -278,8 +278,8 @@ fn @run() -> u256 [selector=0xc0406226, view, abi_params=[], abi_returns=[word]]
     v36 = add 0, 0
     v37 = mload v36
     v38 = eq v23, v10
-    require v38, short_string 10, 0x6b65794f6e6c7920696400000000000000000000000000000000000000000000
+    icall require short_string, v38, 10, 0x6b65794f6e6c7920696400000000000000000000000000000000000000000000
     v39 = eq v37, v10
-    require v39, short_string 8, 0x6d69786564206964000000000000000000000000000000000000000000000000
+    icall require short_string, v39, 8, 0x6d69786564206964000000000000000000000000000000000000000000000000
     ret 1
 }

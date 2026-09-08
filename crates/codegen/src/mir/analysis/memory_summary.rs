@@ -14,7 +14,7 @@ use super::{
     MemoryBase, MemoryLocation,
 };
 use crate::mir::{
-    ArgIdx, ControlEffects, Function, FunctionId, InstId, InstKind, MemoryRegion, Module,
+    ArgIdx, Callee, ControlEffects, Function, FunctionId, InstId, InstKind, MemoryRegion, Module,
     StorageAlias, Terminator, Value, ValueId, memory::EvmMemoryLayout,
 };
 use alloy_primitives::U256;
@@ -32,7 +32,7 @@ pub(crate) fn may_observe_msize(func: &Function, summaries: Option<&MemoryCallSu
     };
     func.instructions().any(|inst| match &func.inst(inst).kind {
         InstKind::MSize => true,
-        InstKind::ICall { function, .. } => callee_observes(*function),
+        InstKind::ICall { function: Callee::Function(function), .. } => callee_observes(*function),
         _ => false,
     }) || func.blocks.iter().any(|block| {
         matches!(&block.terminator, Some(Terminator::TailCall { function, .. }) if callee_observes(*function))
@@ -382,7 +382,8 @@ impl MemoryCallSummaries {
         let mut targets = DenseBitSet::new_empty(module.functions.len());
         for func in &module.functions {
             for inst in func.instructions() {
-                if let InstKind::ICall { function, .. } = func.inst(inst).kind
+                if let InstKind::ICall { function: Callee::Function(function), .. } =
+                    func.inst(inst).kind
                     && module.functions.get(function).is_some()
                 {
                     targets.insert(function);
@@ -419,7 +420,9 @@ impl MemoryCallSummaries {
         for caller in &targets {
             let func = &module.functions[caller];
             for inst_id in func.instructions() {
-                if let InstKind::ICall { function, .. } = func.inst(inst_id).kind {
+                if let InstKind::ICall { function: Callee::Function(function), .. } =
+                    func.inst(inst_id).kind
+                {
                     callers.entry(function).or_default().push(caller);
                 }
             }
@@ -442,7 +445,10 @@ impl MemoryCallSummaries {
             let mut summary = local[&func_id].clone();
             for block in &func.blocks {
                 for &inst_id in &block.instructions {
-                    if let InstKind::ICall { function, ref args, .. } = func.inst(inst_id).kind {
+                    if let InstKind::ICall {
+                        function: Callee::Function(function), ref args, ..
+                    } = func.inst(inst_id).kind
+                    {
                         merge_call(
                             &mut summary,
                             func,
@@ -546,7 +552,7 @@ fn local_summary(
     for (block_id, block) in func.blocks.iter_enumerated() {
         for &inst_id in &block.instructions {
             let kind = &func.inst(inst_id).kind;
-            if let InstKind::ICall { function, .. } = kind {
+            if let InstKind::ICall { function: Callee::Function(function), .. } = kind {
                 // Callee effects merge through the call graph, but a multi-result
                 // call also writes the caller-side multi-return buffer during
                 // backend lowering. That traffic exists in no MIR body, so it

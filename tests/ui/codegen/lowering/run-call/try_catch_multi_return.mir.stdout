@@ -20,7 +20,7 @@ fn @value(arg0: bool) -> struct0 [selector=0xc4d47ed1, pure, abi_params=[bool], 
     v6 = insert_value struct0, v5, 1, v3
     ret v6
   bb1:
-    require false, short_string 2, 0x6e6f000000000000000000000000000000000000000000000000000000000000
+    icall require short_string, false, 2, 0x6e6f000000000000000000000000000000000000000000000000000000000000
     invalid
 }
 

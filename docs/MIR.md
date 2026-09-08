@@ -71,10 +71,10 @@ representation. A pass name or useful dump point alone does not justify one.
 HIR lowering should evaluate operands, resolve types and layouts, and emit a
 semantic operation for each runtime builtin. Builtins can stay opaque to
 passes that do not understand their internals while still exposing signatures,
-effects, and constant-folding rules. Use typed intrinsic identities or existing
-`InstKind` variants; do not encode them as unknown `ICall` targets or strings.
-Keep source functions and compiler intrinsics distinct, and retain callee-derived
-return signatures for ordinary calls.
+effects, and constant-folding rules. `ICall` targets distinguish function definitions
+from typed builtins. Concat and require pass evaluated values in the ordinary
+argument list; the builtin identity carries only static type information.
+Return signatures come from the callee. Expansion adds no runtime call overhead.
 
 ABI encoding/decoding, aggregate copies, memory-object accesses, abstract
 allocations, checked arithmetic, packed encoding, concatenation, and precompiles follow this
@@ -175,9 +175,10 @@ APIs and HIR-to-MIR fixtures as well as the phase checks.
 
 ### Make phase transitions checked boundaries
 
-Every pass uses one `MirPass::run_pass` entry point returning `Result<bool>`.
-Errors stop the pass manager and custom pipelines; the boolean reports whether
-the pass changed the module. Wrappers preserve both outcomes.
+Every pass uses one `MirPass::run_pass` entry point returning whether the module
+changed. Passes emit diagnostics through the session; an error stops the pass
+manager and custom pipelines. Keep `run_pass` last in each trait implementation.
+The canonical pipeline arrays are private to the pass manager.
 `abi_wrapper` marks an explicit entry ABI; it is verified independently of the
 module phase. The final phase uses a shared legality check, and runtime codegen
 requires an immutable `LoweredModule` view.
@@ -192,8 +193,8 @@ only the ones that happen to have consumers.
 Make the phase field private to parsing and checked transitions. Advance it
 only after verifying the destination contract, with monotonicity enforced in
 all builds. Parsing an `@phase` header declares a contract to verify; it does
-not prove that contract. Required conversion returns a diagnostic result,
-separate from its changed flag, and stops the pipeline on failure. Preflight
+not prove that contract. Required conversion emits a diagnostic on failure, and the pass manager stops
+the pipeline. Preflight
 unsupported cases before editing where practical. Otherwise discard the failed
 compilation's module; do not publish a partially lowered module as successful
 or clone every module just to provide rollback.

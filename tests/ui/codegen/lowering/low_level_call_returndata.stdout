@@ -24,7 +24,7 @@ fn @safeTransfer(arg0: address, arg1: address, arg2: u256) [selector=0xd1660f99,
     jump bb3
   bb3:
     v9 = phi [bb6: v8], [bb2: false]
-    require v9, short_string 2, 0x5446000000000000000000000000000000000000000000000000000000000000
+    icall require short_string, v9, 2, 0x5446000000000000000000000000000000000000000000000000000000000000
     ret
 }
 

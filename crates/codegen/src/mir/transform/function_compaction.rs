@@ -17,7 +17,7 @@
 //! and CFG edges closes that pairwise equivalence proof, including mutual recursion.
 
 use crate::mir::{
-    ArgIdx, EffectKind, Function, FunctionId, Immediate, InstId, InstKind, MirType, Module,
+    ArgIdx, Callee, EffectKind, Function, FunctionId, Immediate, InstId, InstKind, MirType, Module,
     StorageAlias, Terminator, Value, ValueId,
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses},
@@ -52,10 +52,10 @@ impl MirPass for DeadArgElim {
         gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         _analyses: &mut ModuleAnalyses,
-    ) -> solar_interface::Result<bool> {
+    ) -> bool {
         let forwarded = forward_returned_values(module);
         if !gcx.sess.opts.optimization.is_size() {
-            return Ok(prune_unused_args(module) != 0 || forwarded != 0);
+            return prune_unused_args(module) != 0 || forwarded != 0;
         }
         let mut changed = forwarded != 0;
         loop {
@@ -65,7 +65,7 @@ impl MirPass for DeadArgElim {
             }
             changed = true;
         }
-        Ok(changed)
+        changed
     }
 }
 
@@ -87,7 +87,7 @@ fn forward_returned_values(module: &mut Module) -> usize {
         let calls = func
             .instructions()
             .filter(|&inst| {
-                matches!(func.inst(inst).kind, InstKind::ICall { function, .. }
+                matches!(func.inst(inst).kind, InstKind::ICall { function: Callee::Function(function), .. }
                 if returned.contains_key(&function))
             })
             .collect::<Vec<_>>();
@@ -121,7 +121,11 @@ fn forward_returned_values(module: &mut Module) -> usize {
             else {
                 continue;
             };
-            let InstKind::ICall { function, args } = &func.inst(inst).kind else { unreachable!() };
+            let InstKind::ICall { function: Callee::Function(function), args } =
+                &func.inst(inst).kind
+            else {
+                unreachable!()
+            };
             let replacement = match &returned[function] {
                 ReturnedValue::Argument(arg) => args[arg.index()],
                 ReturnedValue::Constant(value) => {
@@ -186,8 +190,8 @@ impl MirPass for MergeEquivalentFunctions {
         _gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         _analyses: &mut ModuleAnalyses,
-    ) -> solar_interface::Result<bool> {
-        Ok(merge_equivalent_functions(module) != 0)
+    ) -> bool {
+        merge_equivalent_functions(module) != 0
     }
 }
 
@@ -320,7 +324,7 @@ fn prune_unused_args(module: &mut Module) -> usize {
     for (func_id, func) in module.functions.iter_enumerated() {
         for inst_id in func.instructions() {
             let kind = &func.inst(inst_id).kind;
-            if let InstKind::ICall { function, args, .. } = kind {
+            if let InstKind::ICall { function: Callee::Function(function), args, .. } = kind {
                 called.insert(*function);
                 record_arg_dependencies(func_id, func, *function, args, &mut live, &mut dependents);
             } else {
@@ -380,7 +384,9 @@ fn prune_unused_args(module: &mut Module) -> usize {
     let mut removed_call_operands = 0usize;
     for func in &mut module.functions {
         func.for_each_instruction_mut(|_, inst| {
-            if let InstKind::ICall { function, args, .. } = &mut inst.kind {
+            if let InstKind::ICall { function: Callee::Function(function), args, .. } =
+                &mut inst.kind
+            {
                 let old_len = args.len();
                 *args = args
                     .iter()
@@ -490,7 +496,9 @@ fn prune_unused_returns(module: &mut Module) -> usize {
     let mut called = DenseBitSet::new_empty(module.functions.len());
     for func in &module.functions {
         for inst_id in func.instructions() {
-            if let InstKind::ICall { function, .. } = func.inst(inst_id).kind {
+            if let InstKind::ICall { function: Callee::Function(function), .. } =
+                func.inst(inst_id).kind
+            {
                 called.insert(function);
             }
         }
@@ -527,7 +535,9 @@ fn prune_unused_returns(module: &mut Module) -> usize {
         let mut changed = false;
         for (caller_id, caller) in module.functions.iter_enumerated() {
             for inst_id in caller.instructions() {
-                let InstKind::ICall { function, .. } = caller.inst(inst_id).kind else {
+                let InstKind::ICall { function: Callee::Function(function), .. } =
+                    caller.inst(inst_id).kind
+                else {
                     continue;
                 };
                 if !candidates.contains(function) || live.contains(function) {
@@ -583,7 +593,7 @@ fn prune_unused_returns(module: &mut Module) -> usize {
             .filter(|&inst_id| {
                 matches!(
                     func.inst(inst_id).kind,
-                    InstKind::ICall { function, .. } if removed_set.contains(function)
+                    InstKind::ICall { function: Callee::Function(function), .. } if removed_set.contains(function)
                 )
             })
             .collect::<Vec<_>>();
@@ -957,8 +967,8 @@ fn equivalent_inst_payload(
     let lhs = lhs.clone_without_operands();
     let mut rhs = rhs.clone_without_operands();
     if let (
-        InstKind::ICall { function: lhs_target, .. },
-        InstKind::ICall { function: rhs_target, .. },
+        InstKind::ICall { function: Callee::Function(lhs_target), .. },
+        InstKind::ICall { function: Callee::Function(rhs_target), .. },
     ) = (&lhs, &mut rhs)
         && (*lhs_target == lhs_id || *lhs_target == rhs_id)
         && (*rhs_target == lhs_id || *rhs_target == rhs_id)
@@ -997,7 +1007,7 @@ fn equivalent_terminator_payload(
 fn redirect_calls(module: &mut Module, replacements: &FxHashMap<FunctionId, FunctionId>) {
     for func in &mut module.functions {
         func.for_each_instruction_mut(|_, inst| {
-            if let InstKind::ICall { function, .. } = &mut inst.kind
+            if let InstKind::ICall { function: Callee::Function(function), .. } = &mut inst.kind
                 && let Some(&replacement) = replacements.get(function)
             {
                 *function = replacement;

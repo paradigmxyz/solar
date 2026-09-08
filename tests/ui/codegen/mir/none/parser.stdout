@@ -104,7 +104,7 @@
   
   fn @concatenate(arg0: memorybytes) -> memorybytes {
     bb0:
-      v0 = concat ( memorybytes arg0, bytes2 0x1234000000000000000000000000000000000000000000000000000000000000 )
+      v0 = icall concat<memorybytes, bytes2>, arg0, 0x1234000000000000000000000000000000000000000000000000000000000000
       ret v0
   }
   

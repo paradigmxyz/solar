@@ -201,12 +201,12 @@ fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice,
     v18 = slice_len arg0
     v19 = slice_len arg2
     v20 = slice_len arg1
-    require false, custom_error [word, word, word], 0x679057600000000000000000000000000000000000000000000000000000000, (v18, v19, v20)
+    icall require custom_error [word, word, word], false, 0x679057600000000000000000000000000000000000000000000000000000000, v18, v19, v20
     invalid
   bb2:
     v7 = caller
     v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffff
-    require false, custom_error [word<u160>, word], 0x161a64a00000000000000000000000000000000000000000000000000000000, (v8, 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1)
+    icall require custom_error [word<u160>, word], false, 0x161a64a00000000000000000000000000000000000000000000000000000000, v8, 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1
     invalid
 }
 
@@ -229,10 +229,10 @@ fn @_schedule(arg0: bytes32, arg1: u256) {
     sstore v6, v5 !metadata(storage=symbolic(v6))
     ret
   bb4:
-    require false, custom_error [word, word], 0x48b6d3db00000000000000000000000000000000000000000000000000000000, (arg1, v2)
+    icall require custom_error [word, word], false, 0x48b6d3db00000000000000000000000000000000000000000000000000000000, arg1, v2
     invalid
   bb1:
     v1 = shl 0, 1
-    require false, custom_error [word, word], 0xd8dce7eb00000000000000000000000000000000000000000000000000000000, (arg0, v1)
+    icall require custom_error [word, word], false, 0xd8dce7eb00000000000000000000000000000000000000000000000000000000, arg0, v1
     invalid
 }

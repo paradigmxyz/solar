@@ -25,7 +25,7 @@ fn @boom(arg0: u256) -> u256 [selector=0xb443a085, pure, abi_params=[u256], abi_
     v2 = checked_div u256, 1, 0
     ret v2
   bb1:
-    require false, short_string 4, 0x6e6f706500000000000000000000000000000000000000000000000000000000
+    icall require short_string, false, 4, 0x6e6f706500000000000000000000000000000000000000000000000000000000
     invalid
 }
 

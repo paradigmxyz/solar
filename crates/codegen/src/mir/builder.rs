@@ -7,7 +7,7 @@ use super::{
     RevertKind, RevertPayload, RevertReason, SliceLocation, StorageAlias, StructId, Terminator,
     Value, ValueId,
 };
-use crate::mir::memory::EvmMemoryLayout;
+use crate::mir::{Callee, memory::EvmMemoryLayout};
 use alloy_primitives::{Bytes, U256};
 use smallvec::SmallVec;
 use solar_config::RevertStrings;
@@ -262,8 +262,8 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Retains evaluated error arguments until conditional payload encoding.
     pub(crate) fn require(&mut self, condition: ValueId, payload: RevertPayload) {
-        // require condition, payload
-        self.emit_void_inst(InstKind::Require { condition, payload: Box::new(payload) });
+        // icall require, condition, payload
+        self.emit_void_inst(InstKind::require(condition, payload));
     }
 
     /// Reverts with Solidity's `Panic(uint256)` payload when `condition` is true.
@@ -1399,12 +1399,18 @@ impl<'a> FunctionBuilder<'a> {
         args: Vec<ValueId>,
         result_ty: MirType,
     ) -> ValueId {
-        self.emit_inst(InstKind::ICall { function, args: args.into() }, Some(result_ty))
+        self.emit_inst(
+            InstKind::ICall { function: Callee::Function(function), args: args.into() },
+            Some(result_ty),
+        )
     }
 
     /// Emits an internal function call whose result, if any, is not used as a value.
     pub(crate) fn icall_void(&mut self, function: FunctionId, args: Vec<ValueId>) {
-        self.emit_void_inst(InstKind::ICall { function, args: args.into() });
+        self.emit_void_inst(InstKind::ICall {
+            function: Callee::Function(function),
+            args: args.into(),
+        });
     }
 
     /// Emits an address inside the current internal-call frame.

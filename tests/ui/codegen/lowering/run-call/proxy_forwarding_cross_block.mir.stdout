@@ -196,7 +196,7 @@ fn @fixedRange() -> u256 [selector=0x5d040bd2, abi_params=[], abi_returns=[word]
     v43 = add 0, 0
     v44 = mload v43
     v45 = eq v44, 166
-    require v45, short_string 5, 0x6669786564000000000000000000000000000000000000000000000000000000
+    icall require short_string, v45, 5, 0x6669786564000000000000000000000000000000000000000000000000000000
     ret 1
 }
 
@@ -280,7 +280,7 @@ fn @crossBlock() -> u256 [selector=0xb0694ed5, abi_params=[], abi_returns=[word]
     v43 = add 0, 0
     v44 = mload v43
     v45 = eq v44, 175
-    require v45, short_string 11, 0x63726f737320626c6f636b000000000000000000000000000000000000000000
+    icall require short_string, v45, 11, 0x63726f737320626c6f636b000000000000000000000000000000000000000000
     ret 1
 }
 
@@ -318,15 +318,15 @@ fn @dynamicRevert() -> u256 [selector=0x5dbb0715, abi_params=[], abi_returns=[wo
     v17 = address_call v14, v16, gas v15
     v18 = returndata_bytes
     v19 = iszero v17
-    require v19, short_string 7, 0x7375636365737300000000000000000000000000000000000000000000000000
+    icall require short_string, v19, 7, 0x7375636365737300000000000000000000000000000000000000000000000000
     v20 = memory_object_len memorybytes, v18
     v21 = eq v20, 228
-    require v21, short_string 6, 0x6c656e6774680000000000000000000000000000000000000000000000000000
+    icall require short_string, v21, 6, 0x6c656e6774680000000000000000000000000000000000000000000000000000
     v22 = add v18, 32
     v23 = mload v22
     v24 = shl 0, 0x1234
     v25 = eq v23, v24
-    require v25, short_string 7, 0x7061796c6f616400000000000000000000000000000000000000000000000000
+    icall require short_string, v25, 7, 0x7061796c6f616400000000000000000000000000000000000000000000000000
     ret 1
 }
 

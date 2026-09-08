@@ -9,6 +9,7 @@ use super::{
     OnceCell, OptimizationMode, PhiEliminator, STACK_PHI_LAYOUT_LIMIT, StackModel, StackPhiPlan,
     Terminator, Value, ValueId, cross_block_values, planned_entry_carries,
 };
+use crate::mir::Callee;
 use either::Either;
 use std::rc::Rc;
 
@@ -1118,7 +1119,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     if block.instructions.iter().any(|&inst_id| {
                         matches!(
                             func.inst(inst_id).kind,
-                            InstKind::ICall { function, .. } if cold.contains(function)
+                            InstKind::ICall { function: Callee::Function(function), .. } if cold.contains(function)
                         )
                     }) {
                         saw_exit = true;
@@ -1206,7 +1207,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         ) || block.instructions.iter().any(|&inst_id| {
             matches!(
                 func.inst(inst_id).kind,
-                InstKind::ICall { function, .. }
+                InstKind::ICall { function: Callee::Function(function), .. }
                     if self.cold_functions.contains(function)
             )
         })

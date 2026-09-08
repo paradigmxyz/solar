@@ -31,9 +31,9 @@ fn @branch_checks(arg0: bool, arg1: u256) -> u256 {
 
 fn @payloads(arg0: bool, arg1: memorybytes, arg2: u256) {
   bb0:
-    require arg0, short_string 3, 0x6261640000000000000000000000000000000000000000000000000000000000
-    require arg0, empty_string
-    require arg0, error_string arg1
-    require arg0, custom_error [word, memory_bytes], 0, (arg2, arg1)
+    icall require short_string, arg0, 3, 0x6261640000000000000000000000000000000000000000000000000000000000
+    icall require empty_string, arg0
+    icall require error_string, arg0, arg1
+    icall require custom_error [word, memory_bytes], arg0, 0, arg2, arg1
     ret
 }

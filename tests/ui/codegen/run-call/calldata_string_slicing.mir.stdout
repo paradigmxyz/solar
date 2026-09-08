@@ -54,7 +54,7 @@ fn @slice(arg0: calldataslice, arg1: u256) -> memorybytes [selector=0x8b150516, 
     v39 = alloc memorybytes, exact, uninitialized, infallible, v38
     set_memory_object_len memorybytes, v39, v34
     memory_object_copy_from_slice memorybytes, v39, v27
-    v40 = concat ( memorybytes v19, memorybytes v39 )
+    v40 = icall concat<memorybytes, memorybytes>, v19, v39
     ret v40
 }
 

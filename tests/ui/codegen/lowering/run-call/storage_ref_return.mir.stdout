@@ -31,7 +31,7 @@ fn @run() -> struct0 [selector=0xc0406226, abi_params=[], abi_returns=[word, wor
     v15 = sload v14 !metadata(storage=symbolic(v14))
     v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffff
     v17 = eq v16, 96
-    require v17, short_string 16, 0x72656164207468726f7567682072656600000000000000000000000000000000
+    icall require short_string, v17, 16, 0x72656164207468726f7567682072656600000000000000000000000000000000
     v18 = add v14, 1
     sstore v18, 7 !metadata(storage=offset(v14, 1))
     v19 = icall @_getPool, 0xe35b2940ca10a9581573918a0d9ed2422f97cc9196f63510c77f5a0ed5393cfd

@@ -4,9 +4,9 @@
 //! protocol and expose further optimization opportunities.
 
 use crate::mir::{
-    AbiLayout, AbiType, BlockId, FrameMode, FrameSlotKind, Function, FunctionBuilder,
-    FunctionId as MirFunctionId, Immediate, ImmutableEncoding, InstId, InstKind, Instruction,
-    MirType, Module, Terminator, Value, ValueId,
+    AbiLayout, AbiType, BlockId, Builtin, Callee, FrameMode, FrameSlotKind, Function,
+    FunctionBuilder, FunctionId as MirFunctionId, Immediate, ImmutableEncoding, InstId, InstKind,
+    Instruction, MirType, Module, Terminator, Value, ValueId,
     analysis::{CallGraphInfo, LoopAnalyzer},
     immutable::immutable_push_type_size,
     memory::{EvmMemoryLayout, MemoryLayoutPolicy},
@@ -30,13 +30,13 @@ impl MirPass for Inline {
         gcx: Gcx<'_>,
         module: &mut Module,
         _analyses: &mut crate::mir::pass::ModuleAnalyses,
-    ) -> solar_interface::Result<bool> {
+    ) -> bool {
         let mut inliner = if gcx.sess.opts.optimization == solar_config::OptimizationMode::Size {
             MirInliner::for_size()
         } else {
             MirInliner::default()
         };
-        Ok(inliner.run(gcx, module).inlined != 0)
+        inliner.run(gcx, module).inlined != 0
     }
 }
 
@@ -53,9 +53,9 @@ impl MirPass for InlineTinyLeaves {
         gcx: Gcx<'_>,
         module: &mut Module,
         _analyses: &mut crate::mir::pass::ModuleAnalyses,
-    ) -> solar_interface::Result<bool> {
+    ) -> bool {
         let mut inliner = MirInliner::for_tiny_leaves();
-        Ok(inliner.run(gcx, module).inlined != 0)
+        inliner.run(gcx, module).inlined != 0
     }
 }
 
@@ -72,9 +72,9 @@ impl MirPass for InlineConstantLeaves {
         gcx: Gcx<'_>,
         module: &mut Module,
         _analyses: &mut crate::mir::pass::ModuleAnalyses,
-    ) -> solar_interface::Result<bool> {
+    ) -> bool {
         let mut inliner = MirInliner::for_constant_leaves();
-        Ok(inliner.run(gcx, module).inlined != 0)
+        inliner.run(gcx, module).inlined != 0
     }
 }
 
@@ -91,8 +91,8 @@ impl MirPass for SpecializeFunctionPointers {
         _gcx: Gcx<'_>,
         module: &mut Module,
         _analyses: &mut crate::mir::pass::ModuleAnalyses,
-    ) -> solar_interface::Result<bool> {
-        Ok(specialize_function_pointers(module) != 0)
+    ) -> bool {
+        specialize_function_pointers(module) != 0
     }
 }
 
@@ -347,7 +347,9 @@ impl MirInliner {
         let mut counts = FxHashMap::default();
         for func in module.functions.iter() {
             for inst_id in func.instructions() {
-                if let InstKind::ICall { function, .. } = func.inst(inst_id).kind {
+                if let InstKind::ICall { function: Callee::Function(function), .. } =
+                    func.inst(inst_id).kind
+                {
                     *counts.entry(function).or_default() += 1;
                 }
             }
@@ -378,7 +380,9 @@ impl MirInliner {
                 summaries.get(&caller).map(|summary| summary.instruction_count).unwrap_or_default();
             for (block_index, block) in func.blocks.iter().enumerate() {
                 for (inst_index, &inst_id) in block.instructions.iter().enumerate() {
-                    let InstKind::ICall { function, ref args, .. } = func.inst(inst_id).kind else {
+                    let InstKind::ICall { function: Callee::Function(function), ref args, .. } =
+                        func.inst(inst_id).kind
+                    else {
                         continue;
                     };
                     if !summaries.get(&function).is_some_and(|summary| {
@@ -422,7 +426,9 @@ impl MirInliner {
         for (block, bb) in func.blocks.iter_enumerated().skip(start.0) {
             let start_inst = if block.index() == start.0 { start.1 } else { 0 };
             for (inst_index, &inst_id) in bb.instructions.iter().enumerate().skip(start_inst) {
-                if let InstKind::ICall { function, ref args } = func.inst(inst_id).kind {
+                if let InstKind::ICall { function: Callee::Function(function), ref args } =
+                    func.inst(inst_id).kind
+                {
                     return Some(CallSite {
                         block,
                         inst_index,
@@ -620,7 +626,7 @@ fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInli
             summary.estimated_code_size += inst_cost.code_size;
             summary.estimated_runtime_gas += inst_cost.runtime_gas;
             match kind {
-                InstKind::ICall { .. } => summary.has_icall = true,
+                InstKind::ICall { function: Callee::Function(_), .. } => summary.has_icall = true,
                 InstKind::Phi(_) => summary.has_phi = true,
                 // ABI decoding validates its input through branches, and dynamic encoding
                 // emits copy loops and padding branches, so neither operation is a tiny leaf.
@@ -635,7 +641,7 @@ fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInli
                 | InstKind::CheckedMulMod(..)
                 | InstKind::CheckedBinary { .. }
                 | InstKind::Check { .. }
-                | InstKind::Require { .. } => {
+                | InstKind::ICall { function: Callee::Builtin(Builtin::Require(_)), .. } => {
                     summary.has_control_flow = true;
                 }
                 InstKind::AbiEncodePacked { parts, hash: false }
@@ -733,7 +739,9 @@ fn is_transparent_forwarder(module: &Module, func: &Function) -> bool {
     }
 
     let [call] = func.blocks[BlockId::ENTRY].instructions.as_slice() else { return false };
-    let InstKind::ICall { function, .. } = func.inst(*call).kind else { return false };
+    let InstKind::ICall { function: Callee::Function(function), .. } = func.inst(*call).kind else {
+        return false;
+    };
     if module.function(function).returns.len() != 1 {
         return false;
     }
@@ -957,14 +965,16 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (MirCos
         InstKind::Sha256(_) | InstKind::Ripemd160(_) => (800, 64),
         InstKind::EcRecover(..) => (900, 100),
         InstKind::Check { .. } => (24, 8),
-        InstKind::Require { .. } => (40, 24),
+        InstKind::ICall { function: Callee::Builtin(Builtin::Require(_)), .. } => (40, 24),
         InstKind::ValidateAbi(_) => (0, 0),
         InstKind::CheckedBinary { op: crate::mir::CheckedOp::Pow, .. } => (300, 128),
         InstKind::CheckedBinary { .. } => (30, 20),
         InstKind::AbiEncodePacked { parts, .. } => {
             (60 + parts.len() as u64 * 20, 24 + parts.len() * 12)
         }
-        InstKind::Concat(parts) => (60 + parts.len() as u64 * 20, 24 + parts.len() * 12),
+        InstKind::ICall { function: Callee::Builtin(Builtin::Concat(_)), args: parts } => {
+            (60 + parts.len() as u64 * 20, 24 + parts.len() * 12)
+        }
         InstKind::MappingSlot(..) => (36, 3),
         InstKind::MappingSlotMemory(..) => (60, 8),
         InstKind::MappingSlotCalldata(..) => (63, 9),
@@ -983,7 +993,7 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (MirCos
         | InstKind::ExtCall { .. }
         | InstKind::ExtDelegateCall { .. }
         | InstKind::ExtStaticCall { .. } => (700, 1),
-        InstKind::ICall { function, args } => {
+        InstKind::ICall { function: Callee::Function(function), args } => {
             let returns = module.function(*function).returns.len();
             (80 + ((args.len() + returns) as u64) * 20, 16 + (args.len() + returns) * 4)
         }
@@ -1119,7 +1129,8 @@ fn find_next_constant_function_call(
     for (block, bb) in func.blocks.iter_enumerated().skip(start.0) {
         let start_inst = if block.index() == start.0 { start.1 } else { 0 };
         for (inst_index, &inst_id) in bb.instructions.iter().enumerate().skip(start_inst) {
-            if let InstKind::ICall { function, ref args, .. } = func.inst(inst_id).kind
+            if let InstKind::ICall { function: Callee::Function(function), ref args, .. } =
+                func.inst(inst_id).kind
                 && let Some(selector) =
                     args.first().and_then(|&arg| func.value(arg).as_immediate()).cloned()
             {
@@ -1168,7 +1179,9 @@ fn direct_dispatch_case_target(
     let [call] = block.instructions.as_slice() else {
         return None;
     };
-    let InstKind::ICall { function, args } = &dispatcher.inst(*call).kind else {
+    let InstKind::ICall { function: Callee::Function(function), args } =
+        &dispatcher.inst(*call).kind
+    else {
         return None;
     };
     if !args.iter().enumerate().all(|(index, &arg)| {
@@ -1199,7 +1212,9 @@ fn rewrite_dispatch_call(
     let Some(&call) = caller.blocks[call_block].instructions.get(call_inst_index) else {
         return false;
     };
-    let InstKind::ICall { function, args, .. } = &mut caller.inst_mut(call).kind else {
+    let InstKind::ICall { function: Callee::Function(function), args, .. } =
+        &mut caller.inst_mut(call).kind
+    else {
         return false;
     };
     if args.is_empty() {

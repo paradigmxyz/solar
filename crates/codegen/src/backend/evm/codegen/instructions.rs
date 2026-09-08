@@ -4,6 +4,7 @@ use super::{
     BlockId, EvmCodegen, Function, FunctionId, InstId, InstKind, Liveness, SmallVec, StackEffect,
     StackOp, StackPush, Terminator, ValueId, op,
 };
+use crate::mir::Callee;
 
 impl<'gcx> EvmCodegen<'gcx> {
     // ==================== Stack-Aware Emitter API ====================
@@ -321,7 +322,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 );
             }
 
-            InstKind::ICall { function, args } => {
+            InstKind::ICall { function: Callee::Function(function), args } => {
                 self.preserve_stack_only_operands(args, liveness, block, inst_idx);
                 self.emit_icall(
                     func_id,

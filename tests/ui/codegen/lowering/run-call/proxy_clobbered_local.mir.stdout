@@ -60,6 +60,6 @@ fn @forwards() -> u256 [selector=0xa38e2a32, abi_params=[], abi_returns=[word]] 
     v15 = eq v14, 7
     v16 = and v13, v15
     v17 = eq v16, 1
-    require v17, short_string 7, 0x666f727761726400000000000000000000000000000000000000000000000000
+    icall require short_string, v17, 7, 0x666f727761726400000000000000000000000000000000000000000000000000
     ret 1
 }

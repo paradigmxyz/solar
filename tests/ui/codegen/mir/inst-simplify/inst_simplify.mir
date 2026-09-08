@@ -233,12 +233,12 @@ fn @constant_checks(arg0: u256) {
 }
 
 // CHECK-LABEL: fn @constant_require
-// CHECK: - require true, error_string arg0
-// CHECK: require false, empty_string
+// CHECK: - icall require error_string, true, arg0
+// CHECK: icall require empty_string, false
 fn @constant_require(arg0: memorybytes) {
   bb0:
-    require true, error_string arg0
-    require false, empty_string
+    icall require error_string, true, arg0
+    icall require empty_string, false
     ret
 }
 

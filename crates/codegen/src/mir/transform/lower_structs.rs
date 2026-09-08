@@ -16,8 +16,8 @@
 //! cannot supply a pair and make this pass bail without changing the module.
 
 use crate::mir::{
-    ArgIdx, FrameMode, FrameSlotKind, Function, FunctionBuilder, FunctionId, InstKind, MirType,
-    Module, StructId, StructType, Terminator, Value, ValueId,
+    ArgIdx, Callee, FrameMode, FrameSlotKind, Function, FunctionBuilder, FunctionId, InstKind,
+    MirType, Module, StructId, StructType, Terminator, Value, ValueId,
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses},
 };
@@ -36,13 +36,8 @@ impl MirPass for LowerStructs {
         true
     }
 
-    fn run_pass(
-        &self,
-        _gcx: Gcx<'_>,
-        module: &mut Module,
-        _analyses: &mut ModuleAnalyses,
-    ) -> solar_interface::Result<bool> {
-        Ok(lower_structs(module))
+    fn run_pass(&self, _gcx: Gcx<'_>, module: &mut Module, _analyses: &mut ModuleAnalyses) -> bool {
+        lower_structs(module)
     }
 }
 
@@ -150,7 +145,9 @@ fn slice_values_are_pairs(module: &Module) -> bool {
             })
         };
         let calls_match = func.instructions().all(|id| match &func.inst(id).kind {
-            InstKind::ICall { function, args, .. } => args_match(*function, args),
+            InstKind::ICall { function: Callee::Function(function), args, .. } => {
+                args_match(*function, args)
+            }
             _ => true,
         });
         let returns_match = func.blocks.iter().all(|block| match &block.terminator {
@@ -190,7 +187,7 @@ fn slice_values_are_pairs(module: &Module) -> bool {
                     InstKind::Select(_, a, b) => {
                         [*a, *b].iter().all(|&value| func.value_ty(value) == Some(ty))
                     }
-                    InstKind::ICall { function, .. } => module
+                    InstKind::ICall { function: Callee::Function(function), .. } => module
                         .functions
                         .get(*function)
                         .is_some_and(|callee| callee.returns.first() == Some(&ty)),
@@ -321,7 +318,7 @@ fn lower_function(func: &mut Function, layouts: &Layouts) {
                 // first = icall callee, args.fields
                 // buffer = frame_load multi_return
                 // rest = mload(buffer + field_offset)
-                InstKind::ICall { function, args, .. } => {
+                InstKind::ICall { function: Callee::Function(function), args, .. } => {
                     let args =
                         args.iter().flat_map(|&value| components(value, &aggregates)).collect();
                     if let Some(fields) = fields {
@@ -350,8 +347,10 @@ fn lower_function(func: &mut Function, layouts: &Layouts) {
                             values
                         }
                     } else {
-                        builder.func_mut().inst_mut(id).kind =
-                            InstKind::ICall { function, args: args.into() };
+                        builder.func_mut().inst_mut(id).kind = InstKind::ICall {
+                            function: Callee::Function(function),
+                            args: args.into(),
+                        };
                         builder.func_mut().blocks[block].instructions.push(id);
                         continue;
                     }

@@ -43,7 +43,7 @@ fn @constructor(arg0: address) [constructor, abi_params=[address]] {
     v0 = gas
     v1 = abi_encode [], object, selector 0xe1c7392a00000000000000000000000000000000000000000000000000000000
     v2 = address_delegatecall arg0, v1, gas v0
-    require v2, short_string 11, 0x696e6974206661696c6564000000000000000000000000000000000000000000
+    icall require short_string, v2, 11, 0x696e6974206661696c6564000000000000000000000000000000000000000000
     ret
 }
 

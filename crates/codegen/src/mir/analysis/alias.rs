@@ -9,9 +9,9 @@
 
 use super::{CfgInfo, MemoryCallSummaries};
 use crate::mir::{
-    AbiType, AddressCallKind, ArgIdx, BlockId, FrameMode, FrameSlotKind, Function, ImmutableId,
-    InstId, InstKind, MemoryObjectKind, MemoryObjectLayout, MemoryRegion, SliceLocation,
-    StorageAlias, Terminator, Value, ValueId,
+    AbiType, AddressCallKind, ArgIdx, BlockId, Builtin, Callee, FrameMode, FrameSlotKind, Function,
+    ImmutableId, InstId, InstKind, MemoryObjectKind, MemoryObjectLayout, MemoryRegion, RequireKind,
+    SliceLocation, StorageAlias, Terminator, Value, ValueId,
     memory::{EvmMemoryLayout, MemoryLayoutPolicy},
 };
 use smallvec::SmallVec;
@@ -906,18 +906,15 @@ impl AliasAnalysis {
             InstKind::Create(_, offset, _) | InstKind::Create2(_, offset, _, _) => {
                 operand != *offset
             }
-            InstKind::Require { condition, payload } => {
-                *condition == operand
-                    || match payload.as_ref() {
-                        crate::mir::RevertPayload::ErrorString(value) => *value != operand,
-                        crate::mir::RevertPayload::CustomError { selector, values, layout } => {
-                            *selector == operand
-                                || values.iter().zip(layout.types.iter()).any(|(&value, ty)| {
-                                    value == operand && !Self::abi_type_reads_memory(ty)
-                                })
-                        }
-                        _ => true,
+            InstKind::ICall { function: Callee::Builtin(Builtin::Require(kind)), args } => {
+                match (kind, args.as_ref()) {
+                    (RequireKind::ErrorString, [_, value]) => *value != operand,
+                    (RequireKind::CustomError(layout), [condition, selector, values @ ..]) => {
+                        *condition == operand || *selector == operand
+                            || values.iter().zip(layout.types.iter()).any(|(&value, ty)| value == operand && !Self::abi_type_reads_memory(ty))
                     }
+                    _ => true,
+                }
             }
             InstKind::AbiEncodePacked { parts, .. } => parts.iter().any(|part| {
                 matches!(part, crate::mir::PackedPart::Scalar { value, .. } if *value == operand)
@@ -928,7 +925,7 @@ impl AliasAnalysis {
                 .filter(|(arg, _)| **arg == operand)
                 .any(|(_, ty)| !Self::abi_type_reads_memory(ty)),
             InstKind::AbiDecode { data, .. } => operand != *data,
-            InstKind::ICall { function, args, .. } => self
+            InstKind::ICall { function: Callee::Function(function), args, .. } => self
                 .call_summaries
                 .as_deref()
                 .and_then(|summaries| summaries.get(*function))
@@ -1172,7 +1169,7 @@ impl AliasAnalysis {
             }
             InstKind::Erc7201(..)
             | InstKind::AbiEncodePacked { .. }
-            | InstKind::Concat(..)
+            | InstKind::ICall { function: Callee::Builtin(Builtin::Concat(_)), .. }
             | InstKind::Sha256(..)
             | InstKind::Ripemd160(..)
             | InstKind::EcRecover(..)
@@ -1180,13 +1177,17 @@ impl AliasAnalysis {
                 effects.read_any(AddressSpace::Memory);
                 effects.write_any(AddressSpace::Memory);
             }
-            InstKind::Require { .. } => {
-                let InstKind::Require { payload, .. } = kind else { unreachable!() };
-                match payload.as_ref() {
-                    crate::mir::RevertPayload::ErrorString(value) => {
+            InstKind::ICall { function: Callee::Builtin(Builtin::Require(_)), .. } => {
+                let InstKind::ICall { function: Callee::Builtin(Builtin::Require(kind)), args } =
+                    kind
+                else {
+                    unreachable!()
+                };
+                match (kind, args.as_ref()) {
+                    (RequireKind::ErrorString, [_, value]) => {
                         read_memory(&mut effects, *value, SizeOperand::Unknown)
                     }
-                    crate::mir::RevertPayload::CustomError { layout, .. }
+                    (RequireKind::CustomError(layout), _)
                         if layout.types.iter().any(Self::abi_type_reads_memory) =>
                     {
                         // Aggregate payloads can follow references into distinct child objects.
@@ -1343,7 +1344,7 @@ impl AliasAnalysis {
                     effects.write_any(AddressSpace::Transient);
                 }
             }
-            InstKind::ICall { function, .. } => {
+            InstKind::ICall { function: Callee::Function(function), .. } => {
                 let has_multiple_returns = self
                     .call_summaries
                     .as_deref()
@@ -1849,7 +1850,7 @@ impl AliasAnalysis {
     ) -> bool {
         match func.inst(inst).kind {
             InstKind::SetFmp(_) => true,
-            InstKind::ICall { function, .. } => call_summaries
+            InstKind::ICall { function: Callee::Function(function), .. } => call_summaries
                 .and_then(|summaries| summaries.get(function))
                 .is_none_or(|summary| summary.may_reset_fmp()),
             InstKind::MStore(address, _) => Self::range_may_overlap_fmp(func, address, Some(32)),

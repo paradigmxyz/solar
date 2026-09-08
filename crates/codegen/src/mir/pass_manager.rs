@@ -105,13 +105,8 @@ pub trait MirPass: Sync {
         false
     }
 
-    /// Runs the pass, reporting a failed conversion separately from an unchanged module.
-    fn run_pass(
-        &self,
-        gcx: Gcx<'_>,
-        module: &mut Module,
-        analyses: &mut ModuleAnalyses,
-    ) -> Result<bool>;
+    /// Runs the pass and returns whether the module changed.
+    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool;
 }
 
 /// Runs a sequence of MIR passes without validating after each pass.
@@ -159,12 +154,13 @@ fn run_passes_inner(
             assert_debug_info_handled(module, pass_name, "before");
             analyses.begin_pass();
             let timer = PassTimer::new(gcx.sess.opts.unstable.time_passes);
-            let Ok(pass_changed) = pass.run_pass(gcx, module, &mut analyses) else {
-                return changed;
-            };
+            let pass_changed = pass.run_pass(gcx, module, &mut analyses);
             timer.finish("MIR", module.name, pass_name, pass_changed);
             analyses.finish_pass(pass_changed);
             changed |= pass_changed;
+            if gcx.dcx().has_errors().is_err() {
+                return changed;
+            }
             assert_debug_info_handled(module, pass_name, "after");
 
             if pass_changed && validate_each && should_validate_ir(gcx) {

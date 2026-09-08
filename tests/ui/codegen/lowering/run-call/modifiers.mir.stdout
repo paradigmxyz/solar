@@ -12,7 +12,7 @@ fn @rec(arg0: u256) -> u256 {
 fn @guarded(arg0: u256) -> u256 [selector=0x5e284975, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = lt arg0, 10
-    require v0, short_string 5, 0x6775617264000000000000000000000000000000000000000000000000000000
+    icall require short_string, v0, 5, 0x6775617264000000000000000000000000000000000000000000000000000000
     v1 = checked_add u256, arg0, 1
     jump bb2
   bb2:
@@ -24,7 +24,7 @@ fn @guarded(arg0: u256) -> u256 [selector=0x5e284975, pure, abi_params=[u256], a
 fn @literalString() -> memorybytes [selector=0x660cf51a, pure, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = lt 0, 10
-    require v0, short_string 5, 0x6775617264000000000000000000000000000000000000000000000000000000
+    icall require short_string, v0, 5, 0x6775617264000000000000000000000000000000000000000000000000000000
     v1 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v1, 3
     v2 = memory_object_data memorybytes, v1
@@ -39,7 +39,7 @@ fn @literalString() -> memorybytes [selector=0x660cf51a, pure, abi_params=[], ab
 fn @literalBytes() -> bytes4 [selector=0x95549276, pure, abi_params=[], abi_returns=[word<bytes4>]] {
   bb0:
     v0 = lt 0, 10
-    require v0, short_string 5, 0x6775617264000000000000000000000000000000000000000000000000000000
+    icall require short_string, v0, 5, 0x6775617264000000000000000000000000000000000000000000000000000000
     jump bb2
   bb2:
     jump bb1
@@ -50,7 +50,7 @@ fn @literalBytes() -> bytes4 [selector=0x95549276, pure, abi_params=[], abi_retu
 fn @calldataBytes(arg0: calldataslice) -> memorybytes [selector=0x7965815f, pure, abi_params=[bytes], abi_returns=[memory_bytes]] {
   bb0:
     v0 = lt 0, 10
-    require v0, short_string 5, 0x6775617264000000000000000000000000000000000000000000000000000000
+    icall require short_string, v0, 5, 0x6775617264000000000000000000000000000000000000000000000000000000
     v1 = slice_ptr arg0
     v2 = slice_len arg0
     v3 = gt v2, 0xffffffffffffffff
@@ -149,7 +149,7 @@ fn @retMid() -> u256 [selector=0x436126b8, abi_params=[], abi_returns=[word]] {
   bb2:
     v2 = sload 0 !metadata(storage=slot(0))
     v3 = eq v2, 0x3e9
-    require v3, short_string 4, 0x706f737400000000000000000000000000000000000000000000000000000000
+    icall require short_string, v3, 4, 0x706f737400000000000000000000000000000000000000000000000000000000
     jump bb1
   bb1:
     ret 9
@@ -177,7 +177,7 @@ fn @lazy(arg0: bool) -> u256 [selector=0x90bca39b, abi_params=[bool], abi_return
     v5 = phi [bb3: 0], [bb6: 5]
     v6 = sload 0 !metadata(storage=slot(0))
     v7 = eq v6, 0
-    require v7, short_string 4, 0x6c617a7900000000000000000000000000000000000000000000000000000000
+    icall require short_string, v7, 4, 0x6c617a7900000000000000000000000000000000000000000000000000000000
     jump bb1
   bb1:
     ret v5

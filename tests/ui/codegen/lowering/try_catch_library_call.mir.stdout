@@ -9,7 +9,7 @@ fn @direct(arg0: u256, arg1: bool) -> u256 [selector=0x52db6885, pure, abi_param
     v0 = eq arg1, 0
     v1 = iszero v0
     v2 = iszero v1
-    require v2, short_string 6, 0x6661696c65640000000000000000000000000000000000000000000000000000
+    icall require short_string, v2, 6, 0x6661696c65640000000000000000000000000000000000000000000000000000
     ret arg0
 }
 
@@ -18,7 +18,7 @@ fn @attached(arg0: storageptr, arg1: u256, arg2: bool) -> u256 [selector=0x280ac
     v0 = eq arg2, 0
     v1 = iszero v0
     v2 = iszero v1
-    require v2, short_string 6, 0x6661696c65640000000000000000000000000000000000000000000000000000
+    icall require short_string, v2, 6, 0x6661696c65640000000000000000000000000000000000000000000000000000
     sstore arg0, arg1 !metadata(storage=symbolic(arg0))
     v3 = sload arg0 !metadata(storage=symbolic(arg0))
     ret v3
@@ -29,7 +29,7 @@ fn @add(arg0: u256, arg1: u256, arg2: bool) -> u256 [selector=0x07f6a6c2, pure, 
     v0 = eq arg2, 0
     v1 = iszero v0
     v2 = iszero v1
-    require v2, short_string 6, 0x6661696c65640000000000000000000000000000000000000000000000000000
+    icall require short_string, v2, 6, 0x6661696c65640000000000000000000000000000000000000000000000000000
     v3 = checked_add u256, arg0, arg1
     ret v3
 }
@@ -227,7 +227,7 @@ fn @emptyCode() [selector=0xddb3636e, pure, abi_params=[], abi_returns=[]] {
     revert_if true, empty
     invalid
   bb4:
-    require false, short_string 6, 0x6361756768740000000000000000000000000000000000000000000000000000
+    icall require short_string, false, 6, 0x6361756768740000000000000000000000000000000000000000000000000000
     invalid
   bb1:
     jump bb3

@@ -634,7 +634,7 @@ mod tests {
         *,
     };
     use crate::mir::{
-        DataRef, FunctionBuilder, Immediate, Instruction, MirType, TypeSize, Value,
+        Callee, DataRef, FunctionBuilder, Immediate, Instruction, MirType, TypeSize, Value,
         utils as mir_utils,
     };
     use solar_config::{CompileOpts, EvmVersion};
@@ -974,7 +974,7 @@ mod tests {
     fn icall_headroom_includes_return_label() {
         let value = ValueId::from_usize(0);
         let call = InstKind::ICall {
-            function: FunctionId::from_usize(0),
+            function: Callee::Function(FunctionId::from_usize(0)),
             args: vec![value; MAX_STACK_ACCESS].into(),
         };
         assert_eq!(

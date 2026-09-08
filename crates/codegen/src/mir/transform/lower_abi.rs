@@ -37,10 +37,11 @@
 
 use crate::mir::{
     AbiEncodeMode, AbiLayout, AbiParamLayout, AbiParamLayoutRef, AbiParamLocation, AbiParamType,
-    AbiType, AbiWordValidator, AllocationKind, AllocationSemantics, ArgIdx, BlockId, FrameMode,
-    FrameSlotKind, Function, FunctionBuilder, FunctionId, InstId, InstKind, MangledSymbol,
-    MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module, PanicCode, RevertReason,
-    SliceLocation, Terminator, Value, ValueId, memory::EvmMemoryLayout, pass::MirPass,
+    AbiType, AbiWordValidator, AllocationKind, AllocationSemantics, ArgIdx, BlockId, Callee,
+    FrameMode, FrameSlotKind, Function, FunctionBuilder, FunctionId, InstId, InstKind,
+    MangledSymbol, MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module, PanicCode,
+    RevertReason, SliceLocation, Terminator, Value, ValueId, memory::EvmMemoryLayout,
+    pass::MirPass,
 };
 use alloy_primitives::U256;
 use solar_config::{EvmVersion, RevertStrings};
@@ -55,12 +56,24 @@ use solar_interface::{Ident, Span, Symbol, sym};
 pub(crate) struct LowerAbi;
 
 impl MirPass for LowerAbi {
+    fn name(&self) -> &'static str {
+        "lower-abi"
+    }
+
+    fn is_enabled(&self, _gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
+        module.phase() == MirPhase::Semantic
+    }
+
+    fn is_required(&self) -> bool {
+        true
+    }
+
     fn run_pass(
         &self,
         gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         _analyses: &mut crate::mir::pass::ModuleAnalyses,
-    ) -> solar_interface::Result<bool> {
+    ) -> bool {
         let changed =
             LowerAbiCx { revert_strings: gcx.sess.opts.revert_strings, ..Default::default() }.run(
                 module,
@@ -73,21 +86,10 @@ impl MirPass for LowerAbi {
                     .any(|id| matches!(func.inst(id).kind, InstKind::AbiDecode { .. }))
             })
         {
-            return Err(gcx.dcx().err("`lower-abi` cannot lower this ABI shape").emit());
+            gcx.dcx().err("`lower-abi` cannot lower this ABI shape").emit();
+            return changed;
         }
-        Ok(changed)
-    }
-
-    fn name(&self) -> &'static str {
-        "lower-abi"
-    }
-
-    fn is_enabled(&self, _gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
-        module.phase() == MirPhase::Semantic
-    }
-
-    fn is_required(&self) -> bool {
-        true
+        changed
     }
 }
 
@@ -226,7 +228,9 @@ impl LowerAbiCx {
             }
             for inst_id in func.instructions() {
                 has_decodes |= matches!(func.inst(inst_id).kind, InstKind::AbiDecode { .. });
-                if let InstKind::ICall { function, .. } = func.inst(inst_id).kind {
+                if let InstKind::ICall { function: Callee::Function(function), .. } =
+                    func.inst(inst_id).kind
+                {
                     internally_called.insert(function);
                 }
             }
@@ -323,7 +327,8 @@ impl LowerAbiCx {
         if !body_of_wrapper.is_empty() {
             for func in module.functions.iter_mut() {
                 func.for_each_instruction_mut(|_, inst| {
-                    if let InstKind::ICall { function, .. } = &mut inst.kind
+                    if let InstKind::ICall { function: Callee::Function(function), .. } =
+                        &mut inst.kind
                         && let Some(&body_id) = body_of_wrapper.get(function)
                     {
                         *function = body_id;
@@ -2663,7 +2668,7 @@ impl LowerAbiCx {
                 InstKind::MappingSlotMemory(..) | InstKind::MappingSlotCalldata(..) => {
                     (true, false)
                 }
-                InstKind::ICall { function, args, .. }
+                InstKind::ICall { function: Callee::Function(function), args, .. }
                     if args.iter().enumerate().any(|(index, value)| {
                         tainted.contains(*value)
                             && !matches!(
@@ -2831,7 +2836,7 @@ impl LowerAbiCx {
                 | InstKind::ExtCall { .. }
                 | InstKind::ExtDelegateCall { .. }
                 | InstKind::ExtStaticCall { .. } => return true,
-                InstKind::ICall { function, args, .. } => {
+                InstKind::ICall { function: Callee::Function(function), args, .. } => {
                     let callee_params = self.function_params.get(*function);
                     let preserves_calldata = args.iter().enumerate().all(|(index, value)| {
                         !tainted.contains(*value)
@@ -3149,7 +3154,8 @@ fn find_canonical_return_calls(
             for (&value, ty) in values.iter().zip(&layout.types) {
                 if cleanup_helpers.contains_key(ty)
                     && let Value::Inst(inst) = func.value(value)
-                    && let InstKind::ICall { function, .. } = func.inst(*inst).kind
+                    && let InstKind::ICall { function: Callee::Function(function), .. } =
+                        func.inst(*inst).kind
                     && module.function(function).returns.len() == 1
                     && func.value_ty(value) == Some(ty.mir_type())
                 {
@@ -3270,7 +3276,7 @@ fn is_canonical_return_value_inner(
     }
     if calls.module.is_some()
         && let Value::Inst(inst) = func.value(value)
-        && let InstKind::ICall { function, .. } = func.inst(*inst).kind
+        && let InstKind::ICall { function: Callee::Function(function), .. } = func.inst(*inst).kind
         && calls.module.is_some_and(|module| module.function(function).returns.len() == 1)
         && func.value_ty(value) == Some(ty.mir_type())
         && (ty.is_scalar_word() || is_unmodified_call_result(func, value, *inst))
@@ -3372,7 +3378,7 @@ fn is_canonical_return_call(
     canonical_calls: &FxHashSet<(FunctionId, AbiParamType)>,
 ) -> bool {
     let Value::Inst(inst) = func.value(value) else { return false };
-    let InstKind::ICall { function, .. } = func.inst(*inst).kind else {
+    let InstKind::ICall { function: Callee::Function(function), .. } = func.inst(*inst).kind else {
         return false;
     };
     func.blocks[block].instructions.last() == Some(inst)

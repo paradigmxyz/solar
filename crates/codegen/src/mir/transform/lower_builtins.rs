@@ -12,8 +12,8 @@
 //! capture allocates and copies after the call, before any later call can replace the data.
 
 use crate::mir::{
-    AddressCallKind, AllocationSemantics, ConcatPart, FunctionBuilder, InstKind, MemoryObjectKind,
-    MemoryObjectLayout, MirType, Module, PanicCode, SliceLocation, ValueId,
+    AddressCallKind, AllocationSemantics, Builtin, Callee, ConcatPart, FunctionBuilder, InstKind,
+    MemoryObjectKind, MemoryObjectLayout, MirType, Module, PanicCode, SliceLocation, ValueId,
     pass::{MirPass, run_function_pass},
 };
 use alloy_primitives::U256;
@@ -36,7 +36,7 @@ impl MirPass for LowerBuiltins {
         gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
-    ) -> solar_interface::Result<bool> {
+    ) -> bool {
         let mut needs_clear = false;
         let mut needs_bytes = false;
         let mut literal_counts = FxHashMap::default();
@@ -80,7 +80,7 @@ impl MirPass for LowerBuiltins {
                 (bytes, helper)
             })
             .collect::<FxHashMap<_, _>>();
-        Ok(run_function_pass(module, analyses, |func, _| {
+        run_function_pass(module, analyses, |func, _| {
             if !func.instructions().any(|id| is_builtin(&func.inst(id).kind)) {
                 return false;
             }
@@ -209,7 +209,20 @@ impl MirPass for LowerBuiltins {
                             lower_send(&mut builder, address, amount)
                         }
                         InstKind::Erc7201(input) => lower_erc7201(&mut builder, input),
-                        InstKind::Concat(parts) => lower_concat(&mut builder, parts),
+                        InstKind::ICall {
+                            function: Callee::Builtin(Builtin::Concat(types)),
+                            args,
+                        } => lower_concat(
+                            &mut builder,
+                            types
+                                .iter()
+                                .zip(args)
+                                .map(|(&ty, value)| match ty {
+                                    MirType::FixedBytes(size) => ConcatPart::Fixed { value, size },
+                                    _ => ConcatPart::Bytes(value),
+                                })
+                                .collect(),
+                        ),
                         InstKind::Sha256(input) => {
                             lower_hash(&mut builder, gcx.sess.opts.evm_version, input, false)
                         }
@@ -236,7 +249,7 @@ impl MirPass for LowerBuiltins {
             }
             func.replace_uses_canonicalized(&replacements);
             true
-        }))
+        })
     }
 }
 
@@ -253,7 +266,7 @@ fn is_builtin(kind: &InstKind) -> bool {
             | InstKind::CheckedAddMod(..)
             | InstKind::CheckedMulMod(..)
             | InstKind::AbiEncodePacked { .. }
-            | InstKind::Concat(..)
+            | InstKind::ICall { function: Callee::Builtin(Builtin::Concat(_)), .. }
             | InstKind::Sha256(..)
             | InstKind::Ripemd160(..)
             | InstKind::EcRecover(..)

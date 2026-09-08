@@ -24,15 +24,15 @@ impl MirPass for LowerFrameSlots {
         _gcx: Gcx<'_>,
         module: &mut Module,
         _analyses: &mut crate::mir::pass::ModuleAnalyses,
-    ) -> solar_interface::Result<bool> {
+    ) -> bool {
         if module.phase() == MirPhase::Lowered {
-            return Ok(false);
+            return false;
         }
         let mut changed = false;
         for func in &mut module.functions {
             changed |= lower_function(func);
         }
-        Ok(changed)
+        changed
     }
 }
 

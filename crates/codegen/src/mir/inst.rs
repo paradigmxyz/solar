@@ -2,9 +2,10 @@
 
 use super::{
     AbiLayoutRef, AbiParamLayoutRef, BlockId, DataRef, FrameMode, FrameSlotKind, Function,
-    FunctionId, ImmutableId, MemoryObjectKind, MemoryObjectLayout, MirType, SliceLocation,
-    StorageLayoutRef, StructId, Value, ValueId,
+    ImmutableId, MemoryObjectKind, MemoryObjectLayout, MirType, SliceLocation, StorageLayoutRef,
+    StructId, Value, ValueId,
 };
+use crate::mir::{Builtin, Callee};
 use alloy_primitives::{Bytes, U256};
 use smallvec::{Array, SmallVec};
 use solar_interface::Span;
@@ -703,7 +704,7 @@ impl Instruction {
             | InstKind::CheckedAddMod(..)
             | InstKind::CheckedMulMod(..)
             | InstKind::AbiEncodePacked { .. }
-            | InstKind::Concat(..)
+            | InstKind::ICall { function: Callee::Builtin(Builtin::Concat(_)), .. }
             | InstKind::Sha256(..)
             | InstKind::Ripemd160(..)
             | InstKind::EcRecover(..)
@@ -712,7 +713,10 @@ impl Instruction {
             | InstKind::AddressCall { .. }
             | InstKind::ReturndataBytes => Some("builtin"),
             InstKind::ValidateAbi(..) => Some("ABI validation"),
-            InstKind::Check { .. } | InstKind::Require { .. } => Some("conditional check"),
+            InstKind::Check { .. }
+            | InstKind::ICall { function: Callee::Builtin(Builtin::Require(_)), .. } => {
+                Some("conditional check")
+            }
             InstKind::AbiEncode { .. } => Some("ABI encoding"),
             InstKind::AbiDecode { .. } => Some("ABI decoding"),
             InstKind::StorageToMemory { .. }
@@ -1330,8 +1334,6 @@ pub(crate) enum InstKind {
     ValidateAbi(ValueId),
     /// Revert with a typed failure if the condition has the selected truth value.
     Check { condition: ValueId, is_zero: bool, failure: super::RevertKind },
-    /// Revert with evaluated payload arguments when the condition is zero.
-    Require { condition: ValueId, payload: Box<super::RevertPayload> },
     /// SHA-256 of a bytes object, including precompile output allocation and returndata effects.
     Sha256(ValueId),
     /// ERC-7201 namespace slot derived from a bytes object.
@@ -1340,8 +1342,6 @@ pub(crate) enum InstKind {
     CheckedAddMod(ValueId, ValueId, ValueId),
     /// Solidity modular multiplication, which panics for a zero modulus.
     CheckedMulMod(ValueId, ValueId, ValueId),
-    /// Concatenate bytes objects and left-aligned fixed words into a fresh bytes object.
-    Concat(Vec<ConcatPart>),
     /// Encode packed arguments, optionally hashing the temporary result.
     AbiEncodePacked { parts: Box<[super::PackedPart]>, hash: bool },
     /// Left-aligned RIPEMD-160 of a bytes object, with the same effects as `sha256`.
@@ -1437,7 +1437,7 @@ pub(crate) enum InstKind {
     /// EOF external static call: `extstaticcall(addr, argsOffset, argsSize)`.
     ExtStaticCall { addr: ValueId, args_offset: ValueId, args_size: ValueId },
     /// Internal function call lowered to a direct jump.
-    ICall { function: FunctionId, args: Box<[ValueId]> },
+    ICall { function: super::Callee, args: Box<[ValueId]> },
 
     // Contract creation
     /// Create contract: `create(value, offset, size)`
@@ -1599,14 +1599,9 @@ impl InstKind {
                 out.extend_from_slice(&[*storage, *memory]);
             }
 
-            Self::Require { condition, payload } => {
-                out.push(*condition);
-                payload.for_each_operand(|value| out.push(value));
-            }
             Self::AbiEncodePacked { parts, .. } => {
                 out.extend(parts.iter().filter_map(super::PackedPart::value))
             }
-            Self::Concat(parts) => out.extend(parts.iter().map(ConcatPart::value)),
 
             Self::AbiEncode { selector, args, .. } => {
                 out.extend(selector.iter().chain(args).copied());
@@ -1900,18 +1895,9 @@ impl InstKind {
                 f(memory);
             }
 
-            Self::Require { condition, payload } => {
-                f(condition);
-                payload.for_each_operand_mut(&mut f);
-            }
             Self::AbiEncodePacked { parts, .. } => {
                 for value in parts.iter_mut().filter_map(super::PackedPart::value_mut) {
                     f(value);
-                }
-            }
-            Self::Concat(parts) => {
-                for part in parts {
-                    f(part.value_mut());
                 }
             }
 
@@ -2212,7 +2198,6 @@ impl InstKind {
             Self::Keccak256Bytes(_) => "keccak256_bytes",
             Self::CheckedBinary { op, .. } => op.name(),
             Self::ValidateAbi(_) => "validate_abi",
-            Self::Require { .. } => "require",
             Self::Check { is_zero, failure, .. } => match (failure, is_zero) {
                 (super::RevertKind::Panic(_), false) => "panic_if",
                 (super::RevertKind::Panic(_), true) => "panic_if_zero",
@@ -2226,7 +2211,6 @@ impl InstKind {
                     "abi_encode_packed"
                 }
             }
-            Self::Concat(_) => "concat",
             Self::Sha256(_) => "sha256",
             Self::Ripemd160(_) => "ripemd160",
             Self::EcRecover(..) => "ecrecover",
@@ -2315,7 +2299,7 @@ impl InstKind {
             | Self::StorageArrayLoad { .. }
             | Self::Erc7201(..)
             | Self::AbiEncodePacked { .. }
-            | Self::Concat(..)
+            | Self::ICall { function: Callee::Builtin(Builtin::Concat(_)), .. }
             | Self::Sha256(..)
             | Self::Ripemd160(..)
             | Self::EcRecover(..)
@@ -2344,7 +2328,7 @@ impl InstKind {
             | Self::ExtCodeCopy(_, _, _, _)
             | Self::ReturnDataCopy(_, _, _) => EffectKind::MemoryWrite,
             Self::StoreImmutable(..) => EffectKind::ImmutableWrite,
-            Self::Require { .. }
+            Self::ICall { function: Callee::Builtin(Builtin::Require(_)), .. }
             | Self::MLoad(_)
             | Self::MemorySliceLoadWord { .. }
             | Self::FrameLoad { .. }
@@ -2513,12 +2497,6 @@ pub(crate) enum ConcatPart {
 impl ConcatPart {
     pub(crate) fn value(&self) -> ValueId {
         match *self {
-            Self::Bytes(value) | Self::Fixed { value, .. } => value,
-        }
-    }
-
-    pub(crate) fn value_mut(&mut self) -> &mut ValueId {
-        match self {
             Self::Bytes(value) | Self::Fixed { value, .. } => value,
         }
     }

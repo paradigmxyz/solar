@@ -3,7 +3,7 @@
 fn @a() [selector=0x0dbe671f, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = load_storage_bytes 0
-    v1 = concat ( memorybytes v0, bytes10 0x5b612063616c6c65645d00000000000000000000000000000000000000000000 )
+    v1 = icall concat<memorybytes, bytes10>, v0, 0x5b612063616c6c65645d00000000000000000000000000000000000000000000
     icall @store_storage_bytes, 0, v1
     ret
 }
@@ -11,7 +11,7 @@ fn @a() [selector=0x0dbe671f, abi_params=[], abi_returns=[]] {
 fn @b() [selector=0x4df7e3d0, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = load_storage_bytes 0
-    v1 = concat ( memorybytes v0, bytes10 0x5b622063616c6c65645d00000000000000000000000000000000000000000000 )
+    v1 = icall concat<memorybytes, bytes10>, v0, 0x5b622063616c6c65645d00000000000000000000000000000000000000000000
     icall @store_storage_bytes, 0, v1
     ret
 }

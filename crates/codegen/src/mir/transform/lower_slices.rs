@@ -7,8 +7,9 @@
 //! otherwise expanding a slice would invalidate the struct field's declared type.
 
 use crate::mir::{
-    ArgIdx, BlockId, Function, FunctionBuilder, FunctionId, InstId, InstKind, Instruction, MirType,
-    Module, SliceLocation, Terminator, Value, ValueId, memory::EvmMemoryLayout, pass::MirPass,
+    ArgIdx, BlockId, Callee, Function, FunctionBuilder, FunctionId, InstId, InstKind, Instruction,
+    MirType, Module, SliceLocation, Terminator, Value, ValueId, memory::EvmMemoryLayout,
+    pass::MirPass,
 };
 use solar_data_structures::{
     index::IndexVec,
@@ -33,8 +34,8 @@ impl MirPass for LowerSlices {
         _gcx: Gcx<'_>,
         module: &mut Module,
         _analyses: &mut crate::mir::pass::ModuleAnalyses,
-    ) -> solar_interface::Result<bool> {
-        Ok(Self::run(module))
+    ) -> bool {
+        Self::run(module)
     }
 }
 
@@ -313,7 +314,9 @@ impl LowerSlices {
             builder.switch_to_block(block_id);
             for inst_id in instructions {
                 let call = match &builder.func().inst(inst_id).kind {
-                    InstKind::ICall { function, args, .. } => Some((*function, args.to_vec())),
+                    InstKind::ICall { function: Callee::Function(function), args, .. } => {
+                        Some((*function, args.to_vec()))
+                    }
                     _ => None,
                 };
                 if let Some((callee, args)) = call
@@ -355,7 +358,7 @@ impl LowerSlices {
             for inst_id in instructions {
                 builder.func_mut().blocks[block_id].instructions.push(inst_id);
                 let Some((signature, result)) = (match builder.func().inst(inst_id).kind {
-                    InstKind::ICall { function, .. } => {
+                    InstKind::ICall { function: Callee::Function(function), .. } => {
                         signatures.get(&function).zip(builder.func().inst_result_value(inst_id))
                     }
                     _ => None,
@@ -642,7 +645,9 @@ impl LowerSlices {
             for (caller_id, caller) in module.functions.iter_enumerated() {
                 for inst_id in caller.instructions() {
                     let inst = caller.inst(inst_id);
-                    let InstKind::ICall { function: callee, args, .. } = &inst.kind else {
+                    let InstKind::ICall { function: Callee::Function(callee), args, .. } =
+                        &inst.kind
+                    else {
                         continue;
                     };
                     for index in module.function(*callee).params.indices() {

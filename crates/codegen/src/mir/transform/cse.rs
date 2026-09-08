@@ -78,7 +78,7 @@ impl MirPass for Cse {
         _gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
-    ) -> solar_interface::Result<bool> {
+    ) -> bool {
         let summaries = analyses.call_summaries(module);
         let changed = run_function_pass(module, analyses, |func, analyses| {
             if !func.instructions().any(|inst_id| func.inst(inst_id).result_ty.is_some()) {
@@ -92,7 +92,7 @@ impl MirPass for Cse {
         // CSE replaces equivalent values without changing control flow. Its old call
         // summaries remain conservative after redundant reads and computations disappear.
         analyses.preserve_call_summaries();
-        Ok(changed)
+        changed
     }
 }
 
@@ -109,8 +109,8 @@ impl MirPass for FmpCse {
         _gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
-    ) -> solar_interface::Result<bool> {
-        Ok(run_function_pass(module, analyses, |func, _| {
+    ) -> bool {
+        run_function_pass(module, analyses, |func, _| {
             let mut replacements = FxHashMap::default();
             let mut removed = DenseBitSet::new_empty(func.num_insts());
             for block in &func.blocks {
@@ -152,7 +152,7 @@ impl MirPass for FmpCse {
                 block.instructions.retain(|inst| !removed.contains(*inst));
             }
             true
-        }))
+        })
     }
 }
 

@@ -9,9 +9,9 @@
 //! invalidates module analyses along with the rewritten call edges.
 
 use crate::mir::{
-    AbiLayout, AbiType, ERROR_SELECTOR, Function, FunctionBuilder, FunctionId, InstKind,
-    InstructionMetadata, MirType, Module, RevertPayload, SliceLocation, pass::MirPass,
-    transform::utils::redirect_successor_predecessors,
+    AbiLayout, AbiType, Builtin, Callee, ERROR_SELECTOR, Function, FunctionBuilder, FunctionId,
+    InstKind, InstructionMetadata, MirType, Module, RequireKind, RevertPayload, SliceLocation,
+    pass::MirPass, transform::utils::redirect_successor_predecessors,
 };
 use solar_config::RevertStrings;
 use solar_interface::{Ident, sym};
@@ -33,15 +33,19 @@ impl MirPass for LowerChecks {
         gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         _analyses: &mut crate::mir::pass::ModuleAnalyses,
-    ) -> solar_interface::Result<bool> {
+    ) -> bool {
         let mut helper_context = InstructionMetadata::EMPTY;
         let mut needs_helper = false;
         for function in &module.functions {
             for id in function.instructions() {
                 let inst = function.inst(id);
-                if let InstKind::Require { payload, .. } = &inst.kind
-                    && matches!(payload.as_ref(), RevertPayload::ShortString { .. })
-                {
+                if matches!(
+                    &inst.kind,
+                    InstKind::ICall {
+                        function: Callee::Builtin(Builtin::Require(RequireKind::ShortString)),
+                        ..
+                    }
+                ) {
                     needs_helper = true;
                     helper_context.merge_debug_context(&inst.metadata);
                 }
@@ -52,7 +56,7 @@ impl MirPass for LowerChecks {
         for function in &mut module.functions {
             changed |= lower_function(function, helper, gcx.sess.opts.revert_strings);
         }
-        Ok(changed)
+        changed
     }
 }
 
@@ -92,14 +96,16 @@ fn lower_function(
                     // failure: revert payload
                     builder.branch_to_revert(condition, is_zero, failure);
                 }
-                InstKind::Require { condition, payload } => {
+                InstKind::ICall { function: Callee::Builtin(Builtin::Require(kind)), args } => {
+                    let condition = args[0];
+                    let payload = kind.payload(&args[1..]).expect("validated require arguments");
                     // branch condition, continuation, failure
                     // failure: encode evaluated payload; revert
                     let failure = builder.create_block();
                     let continuation = builder.create_block();
                     builder.branch(condition, continuation, failure);
                     builder.switch_to_block(failure);
-                    emit_payload(&mut builder, *payload, helper);
+                    emit_payload(&mut builder, payload, helper);
                     builder.switch_to_block(continuation);
                 }
                 _ => unreachable!(),
@@ -118,7 +124,11 @@ fn lower_function(
 }
 
 fn is_check(kind: &InstKind) -> bool {
-    matches!(kind, InstKind::Check { .. } | InstKind::Require { .. })
+    matches!(
+        kind,
+        InstKind::Check { .. }
+            | InstKind::ICall { function: Callee::Builtin(Builtin::Require(_)), .. }
+    )
 }
 
 fn emit_payload(

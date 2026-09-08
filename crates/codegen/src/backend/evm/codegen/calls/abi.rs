@@ -5,6 +5,7 @@ use super::super::{
     IndexVec, InstKind, LazyStackArgPlan, MAX_STACK_ACCESS, Module, OptimizationMode,
     StackReturnPlan, StaticCallAbi, StaticCallEntry, Terminator, ValueId, index_vec,
 };
+use crate::mir::Callee;
 
 impl<'gcx> EvmCodegen<'gcx> {
     pub(in crate::backend::evm::codegen) fn static_call_abi_mut(
@@ -182,7 +183,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 has_candidate_call |= block.instructions.iter().any(|&inst_id| {
                     matches!(
                         &func.inst(inst_id).kind,
-                        InstKind::ICall { function, .. }
+                        InstKind::ICall { function: Callee::Function(function), .. }
                             if self.static_frame_functions.contains(*function)
                     )
                 });
@@ -218,7 +219,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             for (block_idx, block) in func.blocks.iter().enumerate() {
                 for &inst_id in &block.instructions {
-                    let InstKind::ICall { function, args, .. } = &func.inst(inst_id).kind else {
+                    let InstKind::ICall { function: Callee::Function(function), args, .. } =
+                        &func.inst(inst_id).kind
+                    else {
                         continue;
                     };
                     if !self.static_frame_functions.contains(*function) {

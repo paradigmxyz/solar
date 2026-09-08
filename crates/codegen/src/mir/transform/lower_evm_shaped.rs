@@ -19,7 +19,7 @@
 //! selects the phi successor. This pass isolates only those copies in a single-successor block.
 
 use crate::mir::{
-    Function, InstKind, MirPhase, Module, Terminator,
+    Callee, Function, InstKind, MirPhase, Module, Terminator,
     analysis::{CallGraphInfo, Liveness},
     pass::MirPass,
     transform::cfg_simplify::remove_unreachable_blocks,
@@ -39,19 +39,19 @@ impl MirPass for LowerEvmShaped {
         module.phase() == MirPhase::Semantic
     }
 
+    fn is_required(&self) -> bool {
+        true
+    }
+
     fn run_pass(
         &self,
         gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         _analyses: &mut crate::mir::pass::ModuleAnalyses,
-    ) -> solar_interface::Result<bool> {
+    ) -> bool {
         let changed = lower_evm_shaped(module);
-        module.advance_phase(gcx.dcx(), MirPhase::Lowered)?;
-        Ok(changed)
-    }
-
-    fn is_required(&self) -> bool {
-        true
+        let _ = module.advance_phase(gcx.dcx(), MirPhase::Lowered);
+        changed
     }
 }
 
@@ -109,7 +109,11 @@ fn lower_evm_shaped(module: &mut Module) -> bool {
                     insts.iter().enumerate().find_map(|(position, &inst_id)| {
                         let inst = func.inst(inst_id);
                         if inst.result_ty.is_none()
-                            && let InstKind::ICall { function, args, .. } = &inst.kind
+                            && let InstKind::ICall {
+                                function: Callee::Function(function),
+                                args,
+                                ..
+                            } = &inst.kind
                             && tail_callable.contains(*function)
                             && (args.is_empty() || !constructor_reachable.contains(func_id))
                         {

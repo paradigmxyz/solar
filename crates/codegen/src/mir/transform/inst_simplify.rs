@@ -19,7 +19,8 @@
 //! - preserve boolean-only rewrites behind explicit MIR boolean type checks
 
 use crate::mir::{
-    Function, Immediate, InstId, InstKind, MirType, Module, Terminator, ToUint, Value, ValueId,
+    Builtin, Callee, Function, Immediate, InstId, InstKind, MirType, Module, Terminator, ToUint,
+    Value, ValueId,
     memory::{EvmMemoryLayout, MemoryLayoutPolicy},
     pass::{MirPass, run_function_pass},
     utils as mir_utils,
@@ -42,13 +43,13 @@ impl MirPass for InstSimplify {
         gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
-    ) -> solar_interface::Result<bool> {
+    ) -> bool {
         let changed = run_function_pass(module, analyses, |func, _| {
             InstSimplifier::new(gcx.sess.opts.evm_version).run_to_fixpoint(func) != 0
         });
         // Exact value rewrites and removed effects keep old call summaries conservative.
         analyses.preserve_call_summaries();
-        Ok(changed)
+        changed
     }
 }
 
@@ -65,14 +66,14 @@ impl MirPass for ConstFold {
         gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
-    ) -> solar_interface::Result<bool> {
+    ) -> bool {
         let changed = run_function_pass(module, analyses, |func, _| {
             let mut simplifier = InstSimplifier::new(gcx.sess.opts.evm_version);
             simplifier.constants_only = true;
             simplifier.run_to_fixpoint(func) != 0
         });
         analyses.preserve_call_summaries();
-        Ok(changed)
+        changed
     }
 }
 
@@ -803,8 +804,8 @@ impl InstSimplifier {
         let resolve = |value| mir_utils::resolve_replacement(value, replacements);
         match kind {
             // require a known passing condition, payload -> nothing
-            InstKind::Require { condition, .. } => {
-                func.value_u256(resolve(*condition)).is_some_and(|condition| !condition.is_zero())
+            InstKind::ICall { function: Callee::Builtin(Builtin::Require(_)), args } => {
+                func.value_u256(resolve(args[0])).is_some_and(|condition| !condition.is_zero())
             }
             // check a known passing condition -> nothing
             InstKind::Check { condition, is_zero, .. } => func

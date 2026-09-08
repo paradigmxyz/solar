@@ -37,10 +37,10 @@ impl MirPass for CopyElision {
         _gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
-    ) -> solar_interface::Result<bool> {
-        Ok(run_function_pass(module, analyses, |func, analyses| {
+    ) -> bool {
+        run_function_pass(module, analyses, |func, analyses| {
             CopyElisionCx::default().run(func, &analyses.alias)
-        }))
+        })
     }
 }
 

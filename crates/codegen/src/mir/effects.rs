@@ -6,6 +6,7 @@
 //! requires dependence and profitability proofs; a memory read may expand EVM memory.
 
 use super::{EffectKind, InstKind};
+use crate::mir::{Builtin, Callee};
 
 /// Control behavior that must survive even when an operation's result is unused.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -75,14 +76,16 @@ impl InstKind {
             | Self::CheckedMulMod(..)
             | Self::CheckedBinary { .. }
             | Self::Check { .. }
-            | Self::Require { .. } => ControlEffects { may_revert: true, ..ControlEffects::NONE },
-            Self::ICall { .. } => ControlEffects::UNKNOWN,
+            | Self::ICall { function: Callee::Builtin(Builtin::Require(_)), .. } => {
+                ControlEffects { may_revert: true, ..ControlEffects::NONE }
+            }
+            Self::ICall { function: Callee::Function(_), .. } => ControlEffects::UNKNOWN,
             Self::Alloc { semantics, .. } => ControlEffects {
                 may_revert: matches!(semantics.failure, super::AllocationFailure::Panic),
                 ..ControlEffects::NONE
             },
             Self::Erc7201(..)
-            | Self::Concat(..)
+            | Self::ICall { function: Callee::Builtin(Builtin::Concat(_)), .. }
             | Self::Sha256(..)
             | Self::Ripemd160(..)
             | Self::EcRecover(..) => ControlEffects { may_revert: true, ..ControlEffects::NONE },
@@ -251,7 +254,7 @@ impl InstKind {
                     | Self::StorageToMemory { .. }
                     | Self::StorageBytesLoad(..)
                     | Self::StorageArrayLoad { .. }
-                    | Self::Concat(..)
+                    | Self::ICall { function: Callee::Builtin(Builtin::Concat(_)), .. }
                     | Self::ReturndataBytes
             ),
         }

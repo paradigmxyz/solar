@@ -44,7 +44,7 @@ fn @pushLiteral() -> u256 [selector=0x90dead0b, abi_params=[], abi_returns=[word
     sstore 0, v19 !metadata(storage=slot(0))
     v34 = sload 0 !metadata(storage=slot(0))
     v35 = eq v34, 2
-    require v35, short_string 3, 0x6c656e0000000000000000000000000000000000000000000000000000000000
+    icall require short_string, v35, 3, 0x6c656e0000000000000000000000000000000000000000000000000000000000
     v36 = sload 0 !metadata(storage=slot(0))
     v37 = lt 0, v36
     v38 = iszero v37
@@ -61,7 +61,7 @@ fn @pushLiteral() -> u256 [selector=0x90dead0b, abi_params=[], abi_returns=[word
     v48 = shl 224, v47
     v49 = shl 224, 0x12345678
     v50 = eq v48, v49
-    require v50, short_string 2, 0x6530000000000000000000000000000000000000000000000000000000000000
+    icall require short_string, v50, 2, 0x6530000000000000000000000000000000000000000000000000000000000000
     v51 = sload 0 !metadata(storage=slot(0))
     v52 = lt 1, v51
     v53 = iszero v52
@@ -78,7 +78,7 @@ fn @pushLiteral() -> u256 [selector=0x90dead0b, abi_params=[], abi_returns=[word
     v63 = shl 224, v62
     v64 = shl 224, 0xabcdef01
     v65 = eq v63, v64
-    require v65, short_string 2, 0x6531000000000000000000000000000000000000000000000000000000000000
+    icall require short_string, v65, 2, 0x6531000000000000000000000000000000000000000000000000000000000000
     v66 = sload 1 !metadata(storage=slot(1))
     v67 = gt v66, 0xffffffffffffffff
     panic_if v67, 0x41
@@ -115,7 +115,7 @@ fn @pushLiteral() -> u256 [selector=0x90dead0b, abi_params=[], abi_returns=[word
     v95 = shl 240, v94
     v96 = shl 240, 0xbeef
     v97 = eq v95, v96
-    require v97, short_string 4, 0x7061697200000000000000000000000000000000000000000000000000000000
+    icall require short_string, v97, 4, 0x7061697200000000000000000000000000000000000000000000000000000000
     v98 = sload 0 !metadata(storage=slot(0))
     v99 = eq v98, 0
     panic_if v99, 0x31
@@ -161,6 +161,6 @@ fn @pushLiteral() -> u256 [selector=0x90dead0b, abi_params=[], abi_returns=[word
     jump bb3
   bb3:
     v132 = phi [bb1: v131], [bb2: false]
-    require v132, short_string 3, 0x706f700000000000000000000000000000000000000000000000000000000000
+    icall require short_string, v132, 3, 0x706f700000000000000000000000000000000000000000000000000000000000
     ret 1
 }

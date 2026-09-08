@@ -32,8 +32,8 @@ impl MirPass for LowerAlloc {
         _gcx: Gcx<'_>,
         module: &mut Module,
         _analyses: &mut crate::mir::pass::ModuleAnalyses,
-    ) -> solar_interface::Result<bool> {
-        Ok(lower_alloc(module))
+    ) -> bool {
+        lower_alloc(module)
     }
 }
 

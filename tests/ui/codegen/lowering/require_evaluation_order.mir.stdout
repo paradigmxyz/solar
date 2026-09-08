@@ -4,7 +4,7 @@ fn @customError() -> u256 [selector=0xdda3a7bd, abi_params=[], abi_returns=[word
   bb0:
     sstore 0, 0 !metadata(storage=slot(0))
     v0 = icall @increment
-    require true, custom_error [word], 0x2ff06700000000000000000000000000000000000000000000000000000000, (v0)
+    icall require custom_error [word], true, 0x2ff06700000000000000000000000000000000000000000000000000000000, v0
     v1 = sload 0 !metadata(storage=slot(0))
     ret v1
 }
@@ -13,7 +13,7 @@ fn @stringError() -> u256 [selector=0x277dd25f, abi_params=[], abi_returns=[word
   bb0:
     sstore 0, 0 !metadata(storage=slot(0))
     v0 = icall @reason
-    require true, error_string v0
+    icall require error_string, true, v0
     v1 = sload 0 !metadata(storage=slot(0))
     ret v1
 }
@@ -21,7 +21,7 @@ fn @stringError() -> u256 [selector=0x277dd25f, abi_params=[], abi_returns=[word
 fn @earlyReturn() -> u256 [selector=0x00aa1cdb, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = icall @returnSeven
-    require true, custom_error [word], 0x2ff06700000000000000000000000000000000000000000000000000000000, (v0)
+    icall require custom_error [word], true, 0x2ff06700000000000000000000000000000000000000000000000000000000, v0
     ret 42
 }
 
@@ -29,7 +29,7 @@ fn @customFailure() [selector=0x8fca80a3, abi_params=[], abi_returns=[]] {
   bb0:
     sstore 0, 0 !metadata(storage=slot(0))
     v0 = icall @increment
-    require false, custom_error [word], 0x2ff06700000000000000000000000000000000000000000000000000000000, (v0)
+    icall require custom_error [word], false, 0x2ff06700000000000000000000000000000000000000000000000000000000, v0
     ret
 }
 
@@ -37,7 +37,7 @@ fn @stringFailure() [selector=0x6bf37af5, abi_params=[], abi_returns=[]] {
   bb0:
     sstore 0, 0 !metadata(storage=slot(0))
     v0 = icall @reason
-    require false, error_string v0
+    icall require error_string, false, v0
     ret
 }
 
@@ -60,7 +60,7 @@ fn @nestedFailure() [selector=0x3e70e061, pure, abi_params=[], abi_returns=[]] {
     v8 = iszero v7
     panic_if v8, 0x32
     memory_object_store_element memoryarray<1>, v0, 0, v4
-    require false, custom_error [memory_array<memory_bytes>], 0xae7687df00000000000000000000000000000000000000000000000000000000, (v0)
+    icall require custom_error [memory_array<memory_bytes>], false, 0xae7687df00000000000000000000000000000000000000000000000000000000, v0
     ret
   bb2:
     memory_object_store_element memoryarray<1>, v0, v1, memorybytes 96

@@ -54,13 +54,8 @@ impl MirPass for EvmInstSchedule {
         "evm-inst-schedule"
     }
 
-    fn run_pass(
-        &self,
-        _gcx: Gcx<'_>,
-        module: &mut Module,
-        analyses: &mut ModuleAnalyses,
-    ) -> solar_interface::Result<bool> {
-        Ok(run_function_pass(module, analyses, |func, _| Self::run_on_function(func)))
+    fn run_pass(&self, _gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
+        run_function_pass(module, analyses, |func, _| Self::run_on_function(func))
     }
 }
 

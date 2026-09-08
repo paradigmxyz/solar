@@ -29,8 +29,8 @@ impl MirPass for LowerMappingSlots {
         _gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
-    ) -> solar_interface::Result<bool> {
-        Ok(run_function_pass(module, analyses, |func, _| {
+    ) -> bool {
+        run_function_pass(module, analyses, |func, _| {
             let has_mapping_slots = func.instructions().any(|inst_id| {
                 matches!(
                     func.inst(inst_id).kind,
@@ -96,7 +96,7 @@ impl MirPass for LowerMappingSlots {
             }
             func.replace_uses_canonicalized(&replacements);
             true
-        }))
+        })
     }
 }
 

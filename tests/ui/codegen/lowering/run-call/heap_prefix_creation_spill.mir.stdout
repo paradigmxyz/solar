@@ -49,7 +49,7 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v21 = add 0, 0
     v22 = mload v21
     v23 = eq v22, 7
-    require v23, short_string 5, 0x70726f7879000000000000000000000000000000000000000000000000000000
+    icall require short_string, v23, 5, 0x70726f7879000000000000000000000000000000000000000000000000000000
     ret 1
 }
 

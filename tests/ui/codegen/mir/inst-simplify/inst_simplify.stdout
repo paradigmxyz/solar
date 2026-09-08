@@ -192,8 +192,8 @@
   
   fn @constant_require(arg0: memorybytes) {
     bb0:
--     require true, error_string arg0
-      require false, empty_string
+-     icall require error_string, true, arg0
+      icall require empty_string, false
       ret
   }
   

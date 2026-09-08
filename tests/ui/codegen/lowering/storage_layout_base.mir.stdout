@@ -87,7 +87,7 @@ fn @erc7201Reference(arg0: memorybytes) -> u256 [pure] {
     v0 = keccak256_bytes arg0
     v1 = checked_sub u256, v0, 1
     v2 = shl 0, v1
-    v3 = concat ( bytes32 v2 )
+    v3 = icall concat<bytes32>, v2
     v4 = keccak256_bytes v3
     v5 = not 255
     v6 = and v4, v5

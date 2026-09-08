@@ -2,18 +2,18 @@
 @module LongRevertString
 fn @fail33(arg0: memorybytes) [selector=0x505e8306, pure, abi_params=[bytes], abi_returns=[]] {
   bb0:
-    require false, error_string arg0
+    icall require error_string, false, arg0
     invalid
 }
 
 fn @fail(arg0: memorybytes) [selector=0x78122f3a, pure, abi_params=[bytes], abi_returns=[]] {
   bb0:
-    require false, error_string arg0
+    icall require error_string, false, arg0
     invalid
 }
 
 fn @fail68(arg0: memorybytes) [selector=0x41fbdb12, pure, abi_params=[bytes], abi_returns=[]] {
   bb0:
-    require false, error_string arg0
+    icall require error_string, false, arg0
     invalid
 }

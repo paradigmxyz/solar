@@ -46,7 +46,7 @@ fn @succeed(arg0: memorystruct) [selector=0x93edcd0d, abi_params=[tuple<u256>], 
 
 fn @fail(arg0: memorystruct) [selector=0xe8be0a6f, pure, abi_params=[tuple<u256>], abi_returns=[]] {
   bb0:
-    require false, short_string 2, 0x6e6f000000000000000000000000000000000000000000000000000000000000
+    icall require short_string, false, 2, 0x6e6f000000000000000000000000000000000000000000000000000000000000
     invalid
 }
 

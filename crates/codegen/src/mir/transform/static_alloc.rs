@@ -20,7 +20,7 @@
 //! - allocations marked as source-visible FMP advances are never placed statically.
 
 use crate::mir::{
-    ArgIdx, BlockId, Function, FunctionId, Immediate, InstId, InstKind, MemoryObjectKind,
+    ArgIdx, BlockId, Callee, Function, FunctionId, Immediate, InstId, InstKind, MemoryObjectKind,
     MemoryObjectLayout, Module, Terminator, Value, ValueId,
     analysis::{AliasAnalysis, CallGraphInfo, CfgInfo, MemoryCallSummaries},
     memory::{EvmMemoryLayout, MemoryLayoutPolicy},
@@ -45,7 +45,7 @@ impl MirPass for StaticAlloc {
         _gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         analyses: &mut ModuleAnalyses,
-    ) -> solar_interface::Result<bool> {
+    ) -> bool {
         // Every entry's locals share the same low-memory region — only one
         // entry runs per call — so the tallest entry's frame top is a shadow
         // the others can grow into without moving the shared static-frame
@@ -70,7 +70,7 @@ impl MirPass for StaticAlloc {
             }
             changed |= run_on_entry(func_id, func, shadow, &calls, &summaries);
         }
-        Ok(changed)
+        changed
     }
 }
 
@@ -87,7 +87,7 @@ impl MirPass for DeferAlloc {
         _gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         analyses: &mut ModuleAnalyses,
-    ) -> solar_interface::Result<bool> {
+    ) -> bool {
         let calls = CallGraphInfo::new(module);
         let summaries = analyses.call_summaries(module);
         let mut candidates = Vec::new();
@@ -112,7 +112,7 @@ impl MirPass for DeferAlloc {
                 changed = true;
             }
         }
-        Ok(changed)
+        changed
     }
 }
 
@@ -446,7 +446,7 @@ fn candidate_uses_are_safe(
                                 .is_some_and(|offset| in_range_at(off, offset, 32))
                         })
                 }
-                InstKind::ICall { function, args, .. } => {
+                InstKind::ICall { function: Callee::Function(function), args, .. } => {
                     call_use_is_safe(function, &args, operand, calls, summaries)
                 }
                 _ => false,
