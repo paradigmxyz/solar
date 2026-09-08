@@ -21,45 +21,11 @@ const MAX_STACK_WINDOW: usize = 24;
 #[derive(Clone, Copy)]
 pub(super) struct Window;
 
-/// One instruction as the rules see it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum Inst {
-    /// A removable push of an immediate.
-    Push { value: U256 },
-    /// A push of a block label.
-    PushBlock { removable: bool },
-    /// Any other push.
-    PushOther { removable: bool },
-    /// An instruction with a legacy opcode, and the stack operation it was built as.
-    Op { opcode: u8, stack: Option<StackOp> },
-    /// A stack operation without a legacy encoding.
-    StackOnly { stack: StackOp },
-}
-
-impl Inst {
-    fn of(inst: &Instruction) -> Self {
-        if let Some(value) = push_value(inst) {
-            Self::Push { value }
-        } else if is_block_push(inst) {
-            Self::PushBlock { removable: is_removable_push(inst) }
-        } else if inst.is_encoded_push() {
-            Self::PushOther { removable: is_removable_push(inst) }
-        } else if let Some(opcode) = inst.as_evm_opcode() {
-            Self::Op { opcode, stack: inst.as_stack_op() }
-        } else {
-            let stack = inst.as_stack_op().expect("non-push instruction without a legacy opcode");
-            Self::StackOnly { stack }
-        }
-    }
-
-    const fn stack(self) -> Option<StackOp> {
-        match self {
-            Self::Op { stack, .. } => stack,
-            Self::StackOnly { stack } => Some(stack),
-            Self::Push { .. } | Self::PushBlock { .. } | Self::PushOther { .. } => None,
-        }
-    }
-}
+/// An index into the immutable instruction slice being matched.
+///
+/// Keeping indices in generated matches avoids repeatedly copying and decoding
+/// overlapping windows. Each extractor reads just the facet its rule needs.
+type Inst = usize;
 
 /// The result of a rule: how many trailing instructions it consumes and the edit.
 #[derive(Clone, Copy)]
@@ -146,11 +112,15 @@ impl<'a> PeepContext<'a> {
 
     fn tail<const N: usize>(&self) -> Option<[Inst; N]> {
         let start = self.instructions.len().checked_sub(N)?;
-        Some(std::array::from_fn(|index| Inst::of(&self.instructions[start + index])))
+        Some(std::array::from_fn(|index| start + index))
     }
 }
 
 impl generated::Context for PeepContext<'_> {
+    fn nonpush_tail(&mut self, _: Window) -> Option<()> {
+        (!self.instructions.last()?.is_encoded_push()).then_some(())
+    }
+
     fn last2(&mut self, _: Window) -> Option<(Inst, Inst)> {
         self.tail().map(|[a, b]| (a, b))
     }
@@ -235,11 +205,10 @@ impl generated::Context for PeepContext<'_> {
         let StackOp::Dup(depth) = instructions.last()?.as_stack_op()? else { return None };
         let end = instructions.len() - 1;
         let floor = end.saturating_sub(MAX_STACK_WINDOW);
-        let start = instructions[..end]
+        let start = instructions[floor..end]
             .iter()
             .rposition(|inst| !(inst.is_encoded_push() || inst.as_stack_op().is_some()))
-            .map_or(floor, |index| index + 1)
-            .max(floor);
+            .map_or(floor, |index| floor + index + 1);
         if !instructions[start..end].iter().any(|inst| push_value(inst) == Some(U256::ZERO)) {
             return None;
         }
@@ -325,44 +294,49 @@ impl generated::Context for PeepContext<'_> {
             .and_then(|start| u8::try_from(end - start).ok())
     }
 
-    fn dup(&mut self, inst: &Inst) -> Option<u8> {
-        match inst.stack()? {
+    fn dup(&mut self, inst: Inst) -> Option<u8> {
+        match self.instructions[inst].as_stack_op()? {
             StackOp::Dup(depth) => Some(depth),
             _ => None,
         }
     }
 
-    fn swap(&mut self, inst: &Inst) -> Option<u8> {
-        match inst.stack()? {
+    fn swap(&mut self, inst: Inst) -> Option<u8> {
+        match self.instructions[inst].as_stack_op()? {
             StackOp::Swap(depth) => Some(depth),
             _ => None,
         }
     }
 
-    fn exchange(&mut self, inst: &Inst) -> Option<(u8, u8)> {
-        match inst.stack()? {
+    fn exchange(&mut self, inst: Inst) -> Option<(u8, u8)> {
+        match self.instructions[inst].as_stack_op()? {
             StackOp::Exchange(n, m) => Some((n, m)),
             _ => None,
         }
     }
 
-    fn pop(&mut self, inst: &Inst) -> Option<()> {
-        matches!(inst.stack(), Some(StackOp::Pop)).then_some(())
+    fn pop(&mut self, inst: Inst) -> Option<()> {
+        matches!(self.instructions[inst].as_stack_op(), Some(StackOp::Pop)).then_some(())
     }
 
-    fn removable_push(&mut self, inst: &Inst) -> Option<()> {
-        match *inst {
-            Inst::Push { .. } => Some(()),
-            Inst::PushBlock { removable } | Inst::PushOther { removable } => {
-                removable.then_some(())
-            }
-            Inst::Op { .. } | Inst::StackOnly { .. } => None,
-        }
+    fn push(&mut self, inst: Inst) -> Option<U256> {
+        push_value(&self.instructions[inst])
     }
 
-    fn any_push(&mut self, inst: &Inst) -> Option<()> {
-        matches!(*inst, Inst::Push { .. } | Inst::PushBlock { .. } | Inst::PushOther { .. })
-            .then_some(())
+    fn push_block(&mut self, inst: Inst) -> Option<()> {
+        is_block_push(&self.instructions[inst]).then_some(())
+    }
+
+    fn opcode(&mut self, inst: Inst) -> Option<u8> {
+        self.instructions[inst].as_evm_opcode()
+    }
+
+    fn removable_push(&mut self, inst: Inst) -> Option<()> {
+        is_removable_push(&self.instructions[inst]).then_some(())
+    }
+
+    fn any_push(&mut self, inst: Inst) -> Option<()> {
+        self.instructions[inst].is_encoded_push().then_some(())
     }
 
     fn absorbs_zero(&mut self, opcode: u8) -> bool {
