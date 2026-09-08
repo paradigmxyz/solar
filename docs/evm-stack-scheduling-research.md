@@ -290,3 +290,22 @@ poisoned a later terminal-leaf request. Exempting terminal leaves from expansion
 budget preserves old admission and bounds recursive work separately from their
 once-per-function source scan. `3d6dc3c4` and `5661a94c` retain the implementation,
 measured output gains, ancestor/observer controls, and the rejected-draft witness.
+
+
+## Joint residence and materialization order
+
+The pinned solx commutable-input handling, Venom's dry-run operand orders, and
+Sonatina's separation of retained values from rematerialization motivate choosing
+these two decisions together. A cached argument with canonical materialization
+previously cost extra shuffles. Loading it before a commutative producer's literal
+instead allows DUP/SWAP to replace its second calldata read at equal gas.
+
+`b2b6db45` implements one bounded two-instruction candidate in the private
+scheduler, preserving the exact exit identities and checking complete normalized
+gas, bytes and peak. It keeps the established replay prefix guards. The measured
+UI and project size improvements survive those later normalization/sharing
+interactions; no upstream memory-region assumption or implementation is imported.
+The reversed compiler-time result is 0.45% slower, so this is an output-quality
+improvement without a compiler-speed claim. Pinned primary-source links, the
+378-case stack model and rejected alternatives remain in
+`repeated-argument-carry-study-20260907/` beneath the candidate evidence directory.

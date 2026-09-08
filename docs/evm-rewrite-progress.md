@@ -1881,3 +1881,44 @@ The new official full/Size baseline is retained, with all 24/15 IDs and 175 gas
 labels exact against the accepted milestone. Further work targets repeated
 operand materialization in the existing scheduler, informed by the pinned solx,
 Venom and Sonatina studies, rather than extending the rejected matcher.
+
+
+### Operand materialization accepted as a bounded milestone
+
+`b2b6db45` keeps a repeated immutable argument on the private stack through a
+commutative producer and ordered consumer. One candidate in the existing operand
+chooser reuses its complete gas/byte/peak checks; ordinary replay guards remain.
+The change adds 77 physical production-file lines. The backend is 45 files and
+16,687 physical lines, 17,951 fewer than the deleted scope, including comments
+and inline tests; a strict production-SLOC baseline remains unavailable.
+
+All 1,642 UI corpus IDs, statuses and 822 source hashes match. Thirty-two Gas
+contracts shrink: 45 creation and 44 runtime bytes total; all Size objects are
+exact. The nine-project audit accounts for 1,672 contracts and 3,344 objects:
+four objects shrink by five creation and five runtime bytes total, with no
+growth. Source maps and link/immutable tables remain exact. Both official
+runtime lanes preserve their 24/15 IDs, 175 gas labels, 139 observations per
+compiler, bytecode and deployment gas. Two MIR helper-name bijections per lane
+are separately proved; complete raw outputs and original producers are retained.
+
+All 222 focused calls preserve status, return data, gas, stack peak and memory
+peak. One activated XOR/comparison differential reports bounded agreement, with
+an exact executable-prefix bridge; this is neither unbounded proof nor a
+counterexample replay. Native debug origins, relocated branches and metadata
+request neutrality justify two precise snapshot updates. The new fixture covers
+six producer classes and two refusals; twelve mutants and the accepted baseline
+fail its activation checks. Final UI: 11,696 passed, two original failures,
+853 filtered. Foundry: all 36 projects, 772/765 tests, IDs, gas and reported sizes
+exact. Clippy, formatting, typos and whitespace checks pass. The earlier workspace
+exit remains nonzero; its other 1,395 tests passed, with two skips.
+
+Primary compiler-time geometric mean is -4.11935%, RSS -0.21409%, but 16 of
+24 medians rose. The reversed eight-case run is +0.44575% time and -0.48048% RSS,
+with four medians higher and four lower. Seaport remains slower in both separately
+ordered single-sample comparisons (+10.10%, +2.27%). This is a measured size
+improvement, not a demonstrated compiler speedup. All samples and missing-solc
+reference warnings from the timing-only repeat are retained; it makes no runtime
+or solc claim. Evidence is under `operand-materialization-workflow-20260907/`
+and `repeated-argument-carry-tests-20260907/`. The original cold-fallthrough and
+calldata-alias failures, memory-contract defects and broader sealed performance
+debt remain open.
