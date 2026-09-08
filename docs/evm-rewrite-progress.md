@@ -2136,3 +2136,74 @@ source restored. Rebuilding matches accepted `9ed4da3c` byte-for-byte. No test o
 expectation changed. Full workspace/UI-oracle and symbolic gates were not rerun
 for this rejected draft. A separate investigation will address last-use operand
 preparation refusing missing literals before their ordinary materialization.
+
+
+### Materialized dead operands: bounded milestone
+
+Commits `aeeed485` and `6540ccc4` add a final Gas operand-order trial and a
+reduced entry-order regression. Missing operands are materialized in the existing
+order before last-use scheduling. The unified block chooser retains the old
+unary, multi-operand, argument-carry and entry-order choices before trying it.
+An existing entry winner returns immediately, preserving its successor stack;
+otherwise the new trial must preserve the actual old winner's stack prefix.
+The assembler, IR passes, cost model and spill allocator are unchanged.
+
+Three earlier drafts were rejected or superseded. Changing existing operand
+policies lost previous winners; a separate policy fixed the UI regressions but
+still displaced P256's later entry choice. Captured block bodies show why local
+cost improvements were insufficient: downstream stack normalization and CSE
+turned the new ordinary-path schedule into 32 extra bytes. The final chooser
+restores that winner without another entry replay or simulated pass pipeline.
+The reduced fixture rejects the failed draft and deliberate swap mutations.
+
+The original UI size screen preserves 1,644 IDs, 823 source hashes and 5,028
+objects. There are 453 shrinking objects and no growth: Gas creation/runtime
+fall by 2,296/2,202 bytes. Size bytecode is exact. Across nine archived projects,
+1,672 contracts and 3,344 objects, 1,009 objects shrink and two retain their
+length; none grows. Creation/runtime totals fall by 49,869/47,767 bytes. Both
+equal-length MerkleTreeMock changes are equivalent operand permutations.
+
+The official workflow preserves all 24 cases and 175 ordered hot-gas labels;
+all 15 runtime cases match the exact-input solc reference. Two Aave labels save
+6 gas each and six Governor labels save 12 each. Other labels are unchanged.
+The Size run preserves all 15 cases, 175 labels, bytecode and execution costs.
+Five-sample compiler-time geometric mean is **+2.94%**, RSS **+0.66%**. Governor,
+Forge, PRB and Solmate have disjoint slower sample ranges; compilation is a
+remaining regression, not a speedup or a dismissed noise result.
+
+Final workspace verification has 1,395 other tests passing and two skipped;
+the UI suite has 11,701 passes and the two original failures. All 36 Foundry
+projects pass (772 compiler tests, 765 solc tests), with no increased gas or
+contract size against the previous accepted compiler. Clippy, formatting,
+typos and diff checks pass. Five instruction snapshots changed after independent
+source, MIR, FileCheck and stack/effect review; their existing checks and runtime
+expectations remain intact. Neither original failing expectation was blessed.
+
+Focused evidence includes 216 fresh deployments/calls across four compiler legs
+and both modes, with every oracle passing. A fresh symbolic last-word calldata
+case obtains bounded agreement with solc over the recorded lengths and budget.
+Those executions used draft3; complete draft4 bytecode/input bridges justify
+reuse without claiming a rerun. The new fixture has 48 fresh four-leg calls and
+eight additional sealed calls. Its Gas size remains 960 bytes above sealed in
+each object, although execution saves 1,071/1,192 gas; Size saves 162 bytes and
+991/1,254 gas. These new IDs remain separate from the original corpus ledger.
+
+Independent metadata review covers 553 changed source maps and 69 relocated
+reference tables. Known consuming-opcode ownership and ordered call events are
+preserved; the one LT-to-GT change reverses operands with equivalent stack and
+memory effects. Inserted scheduling checkpoints remain explicitly unknown.
+Link and immutable identities, payloads, widths and source ownership are retained.
+
+Frozen compiler `3133846e`, exact producer/input pins, rejected drafts, full
+measurements and review manifests are retained in
+`target/codegen-bench/evm-rewrite-candidate/dead-operand-materialization-workflow-20260908/`.
+The reduced fixture's sealed evidence is in the adjacent
+`entry-winner-regression-proposal-20260908/`. This change adds 29 backend physical
+lines: 16,705 across 45 files, 17,933 fewer than the deletion inventory. This is
+physical line counting, not a strict production-SLOC comparison.
+
+The whole rewrite remains incomplete. The original cold-fallthrough and calldata
+alias UI failures, raw-memory/spill ownership defect, and 32,427,696 bytes of
+positive sealed size debt across 1,050 archived objects remain open. The current
+compile-time increase also needs attention. No push was attempted for these
+commits because the earlier automatic approval rejection remains unresolved.
