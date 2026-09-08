@@ -38,3 +38,9 @@
       ret v1
   }
   
+  fn @prefixed_array(arg0: memoryarray) -> memorybytes {
+    bb0:
+      v0 = abi_encode_packed (data hex"ab", array<word<u8>> memoryarray<1> arg0)
+      ret v0
+  }
+  

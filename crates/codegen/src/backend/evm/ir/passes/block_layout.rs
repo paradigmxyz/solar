@@ -8,7 +8,9 @@
 //! traces are placed before cold terminal traces so unlikely exit paths do not
 //! interrupt hot code. Small, independently movable traces ending in a terminal are packed
 //! below the PUSH1 address limit by reference density. Moving the entire trace preserves its
-//! fallthrough edges, including a call followed by a shared failure block.
+//! fallthrough edges, including a call followed by a shared failure block. Packing also
+//! reserves address space for one-byte indexed jump tables to avoid widening their lookups.
+//! Size estimates guide placement; assembly still resolves the exact offsets and widths.
 
 use super::{
     EvmPass,
@@ -198,7 +200,7 @@ fn pack_terminal_traces(gcx: Gcx<'_>, module: &Module, state: &mut RunState) {
             .then(b.references.cmp(&a.references))
             .then(a.position.cmp(&b.position))
     });
-    let mut budget = 0xff_usize.saturating_sub(insert_offset);
+    let mut budget = terminal_packing_budget(gcx, module, state, insert_offset);
     for candidate in &state.candidates {
         if candidate.size <= budget {
             budget -= candidate.size;
@@ -215,6 +217,55 @@ fn pack_terminal_traces(gcx: Gcx<'_>, module: &Module, state: &mut RunState) {
     // entry_trace; selected_traces; other_traces
     state.order.retain(|block| !state.picked.contains(*block));
     state.order.splice(insert_at..insert_at, state.picked_order.drain(..));
+}
+
+// Reserve space for tables whose absolute targets fit in one-byte entries. Widening
+// such a table replaces BYTE with shifts and masking on every dispatch.
+fn terminal_packing_budget(
+    gcx: Gcx<'_>,
+    module: &Module,
+    state: &RunState,
+    insert_offset: usize,
+) -> usize {
+    let mut budget = 0xff_usize.saturating_sub(insert_offset);
+    if module.blocks.iter().any(|block| {
+        matches!(
+            block.terminator.as_ref().map(|term| &term.kind),
+            Some(TerminatorKind::IndexedJump(_))
+        )
+    }) {
+        let mut offsets = IndexVec::from_vec(vec![usize::MAX; module.blocks.len()]);
+        let mut offset = 0;
+        for (position, &block_id) in state.order.iter().enumerate() {
+            offsets[block_id] = offset;
+            let block = &module.blocks[block_id];
+            let next = state.order.get(position + 1).copied();
+            offset += estimated_block_size(gcx, block, next, state.references[block_id] != 0);
+            if let Some(kind @ TerminatorKind::IndexedJump(targets)) =
+                block.terminator.as_ref().map(|term| &term.kind)
+                && targets.len() <= 32
+            {
+                offset -= estimated_terminator_size(gcx, kind, next);
+                offset += estimated_indexed_jump_terminator_size(
+                    targets.len(),
+                    1,
+                    gcx.sess.opts.evm_version,
+                    gcx.sess.opts.optimization.is_size(),
+                );
+            }
+        }
+        for block in &module.blocks {
+            if let Some(TerminatorKind::IndexedJump(targets)) =
+                block.terminator.as_ref().map(|term| &term.kind)
+                && targets.len() <= 32
+                && let Some(last) = targets.iter().map(|&target| offsets[target]).max()
+                && (insert_offset..0xff).contains(&last)
+            {
+                budget = budget.min(0xfe - last);
+            }
+        }
+    }
+    budget
 }
 
 fn block_reference_counts(

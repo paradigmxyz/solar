@@ -4,6 +4,7 @@
 //! computes dynamic lengths only after argument evaluation, then emits copies or nested array
 //! loops. Hash-only encodings use the existing scratch policy when the shape permits it. Literal
 //! bytes and adjacent narrow scalars can share a word store without merging signed high bits.
+//! Encodings made entirely of whole words need no allocation-size rounding.
 
 use crate::mir::{
     AbiType, AbiWordValidator, AllocationSemantics, FunctionBuilder, MemoryObjectKind,
@@ -102,8 +103,29 @@ impl PackedEncoder<'_, '_> {
     }
 
     fn encode(&mut self, pieces: Vec<PackedPiece>, total: ValueId) -> ValueId {
-        // output = bytes(total)
-        let output = self.builder.alloc_bytes_object(total, AllocationSemantics::INTERNAL);
+        let word_aligned = pieces.iter().all(|piece| match piece {
+            PackedPiece::Bytes(bytes) => bytes.len().is_multiple_of(32),
+            PackedPiece::Static { length, .. } => length.is_multiple_of(32),
+            PackedPiece::Array { .. } => true,
+            PackedPiece::Dynamic { .. } => false,
+        });
+        let output = if word_aligned {
+            // size = checked_add(total, 32)
+            // output = alloc_object size, bytes
+            // set_memory_object_len output, total
+            let header = self.builder.imm(32);
+            let size = self.builder.checked_add(total, header);
+            let output = self.builder.alloc_object(
+                size,
+                MemoryObjectLayout::Bytes,
+                AllocationSemantics::INTERNAL,
+            );
+            self.builder.set_memory_object_len(output, total, MemoryObjectKind::Bytes);
+            output
+        } else {
+            // output = bytes(total)
+            self.builder.alloc_bytes_object(total, AllocationSemantics::INTERNAL)
+        };
 
         let mut offset = self.builder.imm(0);
         let mut index = 0;
