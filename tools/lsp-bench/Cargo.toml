@@ -24,12 +24,12 @@ lsp-types.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 serde_yaml_ng = "0.10"
-sha2 = "0.10"
+sha2 = "0.11"
 tempfile.workspace = true
-thiserror = "1.0"
+thiserror = "2.0"
 
 [build-dependencies]
-sha2 = "0.10"
+sha2 = "0.11"
 
 [dev-dependencies]
 snapbox.workspace = true
