@@ -775,12 +775,12 @@ fn @invalidShortPop() [selector=0xeaec3c61, abi_params=[], abi_returns=[]] {
     v6 = eq v5, 0
     panic_if v6, 0x31
     v7 = eq v5, 32
-    jumpi v7, bb1, bb2
-  bb2:
+    jumpi v7, bb4, bb1
+  bb1:
     v18 = sub v5, 1
     v19 = lt v5, 32
-    jumpi v19, bb3, bb4
-  bb4:
+    jumpi v19, bb2, bb3
+  bb3:
     v28 = storage_array_data_slot 0
     v29 = shr 5, v18
     v30 = add v28, v29
@@ -799,7 +799,7 @@ fn @invalidShortPop() [selector=0xeaec3c61, abi_params=[], abi_returns=[]] {
     v42 = sub v0, 2
     sstore 0, v42 !metadata(storage=slot(0))
     jump bb5
-  bb3:
+  bb2:
     v20 = sub 32, v18
     v21 = mul v20, 8
     v22 = shl v21, 1
@@ -810,7 +810,7 @@ fn @invalidShortPop() [selector=0xeaec3c61, abi_params=[], abi_returns=[]] {
     v27 = or v25, v26
     sstore 0, v27 !metadata(storage=slot(0))
     jump bb5
-  bb1:
+  bb4:
     v8 = storage_array_data_slot 0
     v9 = sload v8 !metadata(storage=symbolic(v8))
     v10 = sub 32, 31
@@ -841,12 +841,12 @@ fn @invalidLongPop() [selector=0x66075ed1, abi_params=[], abi_returns=[]] {
     v6 = eq v5, 0
     panic_if v6, 0x31
     v7 = eq v5, 32
-    jumpi v7, bb1, bb2
-  bb2:
+    jumpi v7, bb4, bb1
+  bb1:
     v18 = sub v5, 1
     v19 = lt v5, 32
-    jumpi v19, bb3, bb4
-  bb4:
+    jumpi v19, bb2, bb3
+  bb3:
     v28 = storage_array_data_slot 0
     v29 = shr 5, v18
     v30 = add v28, v29
@@ -865,7 +865,7 @@ fn @invalidLongPop() [selector=0x66075ed1, abi_params=[], abi_returns=[]] {
     v42 = sub v0, 2
     sstore 0, v42 !metadata(storage=slot(0))
     jump bb5
-  bb3:
+  bb2:
     v20 = sub 32, v18
     v21 = mul v20, 8
     v22 = shl v21, 1
@@ -876,7 +876,7 @@ fn @invalidLongPop() [selector=0x66075ed1, abi_params=[], abi_returns=[]] {
     v27 = or v25, v26
     sstore 0, v27 !metadata(storage=slot(0))
     jump bb5
-  bb1:
+  bb4:
     v8 = storage_array_data_slot 0
     v9 = sload v8 !metadata(storage=symbolic(v8))
     v10 = sub 32, 31

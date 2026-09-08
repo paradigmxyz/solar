@@ -165,12 +165,12 @@ fn @popThroughConversion() -> memorybytes [selector=0x14044da4, abi_params=[], a
     v6 = eq v5, 0
     panic_if v6, 0x31
     v7 = eq v5, 32
-    jumpi v7, bb1, bb2
-  bb2:
+    jumpi v7, bb4, bb1
+  bb1:
     v18 = sub v5, 1
     v19 = lt v5, 32
-    jumpi v19, bb3, bb4
-  bb4:
+    jumpi v19, bb2, bb3
+  bb3:
     v28 = storage_array_data_slot 0
     v29 = shr 5, v18
     v30 = add v28, v29
@@ -189,7 +189,7 @@ fn @popThroughConversion() -> memorybytes [selector=0x14044da4, abi_params=[], a
     v42 = sub v0, 2
     sstore 0, v42 !metadata(storage=slot(0))
     jump bb5
-  bb3:
+  bb2:
     v20 = sub 32, v18
     v21 = mul v20, 8
     v22 = shl v21, 1
@@ -200,7 +200,7 @@ fn @popThroughConversion() -> memorybytes [selector=0x14044da4, abi_params=[], a
     v27 = or v25, v26
     sstore 0, v27 !metadata(storage=slot(0))
     jump bb5
-  bb1:
+  bb4:
     v8 = storage_array_data_slot 0
     v9 = sload v8 !metadata(storage=symbolic(v8))
     v10 = sub 32, 31
@@ -247,12 +247,12 @@ fn @transitionThroughConversion() -> struct0 [selector=0x7117dd67, abi_params=[]
     v54 = eq v53, 0
     panic_if v54, 0x31
     v55 = eq v53, 32
-    jumpi v55, bb11, bb12
-  bb12:
+    jumpi v55, bb14, bb11
+  bb11:
     v66 = sub v53, 1
     v67 = lt v53, 32
-    jumpi v67, bb13, bb14
-  bb14:
+    jumpi v67, bb12, bb13
+  bb13:
     v76 = storage_array_data_slot 0
     v77 = shr 5, v66
     v78 = add v76, v77
@@ -271,7 +271,7 @@ fn @transitionThroughConversion() -> struct0 [selector=0x7117dd67, abi_params=[]
     v90 = sub v48, 2
     sstore 0, v90 !metadata(storage=slot(0))
     jump bb15
-  bb13:
+  bb12:
     v68 = sub 32, v66
     v69 = mul v68, 8
     v70 = shl v69, 1
@@ -282,7 +282,7 @@ fn @transitionThroughConversion() -> struct0 [selector=0x7117dd67, abi_params=[]
     v75 = or v73, v74
     sstore 0, v75 !metadata(storage=slot(0))
     jump bb15
-  bb11:
+  bb14:
     v56 = storage_array_data_slot 0
     v57 = sload v56 !metadata(storage=symbolic(v56))
     v58 = sub 32, 31

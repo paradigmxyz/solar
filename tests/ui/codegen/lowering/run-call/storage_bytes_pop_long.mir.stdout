@@ -79,12 +79,12 @@ fn @test() -> bool [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>]
     v91 = eq v90, 0
     panic_if v91, 0x31
     v92 = eq v90, 32
-    jumpi v92, bb21, bb22
-  bb22:
+    jumpi v92, bb24, bb21
+  bb21:
     v103 = sub v90, 1
     v104 = lt v90, 32
-    jumpi v104, bb23, bb24
-  bb24:
+    jumpi v104, bb22, bb23
+  bb23:
     v113 = storage_array_data_slot 0
     v114 = shr 5, v103
     v115 = add v113, v114
@@ -103,7 +103,7 @@ fn @test() -> bool [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>]
     v127 = sub v85, 2
     sstore 0, v127 !metadata(storage=slot(0))
     jump bb25
-  bb23:
+  bb22:
     v105 = sub 32, v103
     v106 = mul v105, 8
     v107 = shl v106, 1
@@ -114,7 +114,7 @@ fn @test() -> bool [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>]
     v112 = or v110, v111
     sstore 0, v112 !metadata(storage=slot(0))
     jump bb25
-  bb21:
+  bb24:
     v93 = storage_array_data_slot 0
     v94 = sload v93 !metadata(storage=symbolic(v93))
     v95 = sub 32, 31

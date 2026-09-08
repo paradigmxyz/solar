@@ -712,10 +712,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let empty = self.builder.eq(old_length, zero);
         self.builder.panic_if(empty, PanicCode::EmptyArrayPop);
 
-        let transition_block = self.builder.create_block();
+        // Keep ordinary resizes first so packed pops fall through to their continuation.
         let resize_block = self.builder.create_block();
         let packed_block = self.builder.create_block();
         let long_block = self.builder.create_block();
+        let transition_block = self.builder.create_block();
         let merge_block = self.builder.create_block();
         let word_size = self.builder.imm(32);
         let at_boundary = self.builder.eq(old_length, word_size);

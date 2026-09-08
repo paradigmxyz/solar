@@ -338,35 +338,9 @@ bb32:
   push 32
   push 128
   mload
-  sub
-  push bb36
+  eq
+  push bb38
   jumpi
-  dup 3
-  push 0
-  mstore
-  pop
-  pop
-  push 32
-  push 0
-  keccak256
-  dup 1
-  sload
-  push 255
-  not
-  and
-  push 62
-  or
-  dup 3
-  sstore
-  swap 1
-  pop
-  push 0
-  swap 1
-  sstore
-  jump bb39
-bb39:
-  stop
-bb36:
   push 1
   push 128
   mload
@@ -383,7 +357,7 @@ bb36:
   pop
   pop
   iszero
-  push bb38
+  push bb37
   jumpi
   push 1
   dup 1
@@ -408,7 +382,9 @@ bb36:
   mload
   sstore
   jump bb39
-bb38:
+bb39:
+  stop
+bb37:
   push 160
   mload
   push 0
@@ -444,6 +420,30 @@ bb38:
   sub
   push 160
   mload
+  sstore
+  jump bb39
+bb38:
+  dup 3
+  push 0
+  mstore
+  pop
+  pop
+  push 32
+  push 0
+  keccak256
+  dup 1
+  sload
+  push 255
+  not
+  and
+  push 62
+  or
+  dup 3
+  sstore
+  swap 1
+  pop
+  push 0
+  swap 1
   sstore
   jump bb39
 bb42:
