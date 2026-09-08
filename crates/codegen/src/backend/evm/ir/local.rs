@@ -3,8 +3,11 @@
 //! Peepholes use bounded adjacent identities in EVM pop order, respecting opaque
 //! stack metadata and unresolved deferred values. Constant evaluation delegates
 //! to the retained 256-bit evaluator. Compact literals use the shared bounded
-//! materializer and can reuse only the immediately preceding literal as a construction base.
-//! Complete adjacent-pair stack and byte/gas checks bound this reuse. Terminal cleanup removes only
+//! materializer; construction-base reuse considers only the preceding literal
+//! and checks the complete adjacent pair's stack and byte/gas costs. Gas mode can
+//! then cache one repeated PUSH/NOT result within the selected physical body,
+//! paying its stack transport and preserving the exact entry/exit boundary under
+//! full-block cost and capacity checks. Terminal cleanup removes only
 //! an unobserved pure suffix, stopping at effects or unknown stack contracts. Stack-only
 //! normalization symbolically executes permutations and asks the private scheduler for a cheaper
 //! equivalent. All changes happen on explicit block instructions before primitive assembly;
@@ -20,6 +23,7 @@ use solar_sema::Gcx;
 mod cse;
 mod dead_copies;
 mod environment;
+mod literal_cache;
 mod memory_roundtrip;
 mod orientation;
 mod peephole;
@@ -147,6 +151,15 @@ impl EvmPass for LocalPass {
                         }
                         height = next_height;
                         relative_height = next_relative;
+                    }
+                    if literal_copy_order && gcx.sess.opts.optimization.is_gas() {
+                        // <original entry>; <cached literal transport>; <exact original exit>
+                        changed |= literal_cache::reuse(
+                            &mut block.insts,
+                            version,
+                            entry_max,
+                            module.debug_info_tracked,
+                        );
                     }
                 }
                 "dce" => {

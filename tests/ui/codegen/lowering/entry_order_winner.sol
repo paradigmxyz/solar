@@ -39,7 +39,7 @@ contract InternalModularEntryWinner {
     // CHECK-NEXT: swap 2
     // CHECK-NEXT: push [[MOD:0x[0-9a-f]+]]
     // CHECK-NEXT: not
-    // CHECK-NEXT: dup 1
+    // CHECK: dup 1
     // CHECK-NEXT: dup 6
     // CHECK-NEXT: dup 1
     // CHECK-NEXT: mulmod
@@ -58,7 +58,7 @@ contract InternalModularEntryWinner {
     // CHECK-NEXT: exchange 2, 3
     // CHECK-NEXT: push [[MOD]]
     // CHECK-NEXT: not
-    // CHECK-NEXT: dup 1
+    // CHECK: dup 1
     // CHECK-NEXT: dup 8
     // CHECK-NEXT: dup 1
     // CHECK-NEXT: mulmod
