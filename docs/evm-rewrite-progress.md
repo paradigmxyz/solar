@@ -2207,3 +2207,40 @@ alias UI failures, raw-memory/spill ownership defect, and 32,427,696 bytes of
 positive sealed size debt across 1,050 archived objects remain open. The current
 compile-time increase also needs attention. No push was attempted for these
 commits because the earlier automatic approval rejection remains unresolved.
+
+
+### Duplicate materialization replay gate
+
+Commit `e9f3b5cf` adds a necessary-condition scan to the new operand trial.
+Without a multi-operand opcode containing a nonresident input, that trial must
+repeat the existing DeadOperands body or fail under the same loading rules.
+Missing unary operands become shallow and take the same canonical fallback;
+missing resident operands cannot load in Gas mode. Independent review also
+checks the original Phi policy, argument-carry candidate and old entry winner.
+This removes redundant work inside the output-improving milestone.
+
+The corrected UI screen preserves all 1,644 original IDs plus two new fixture
+IDs, 824 source hashes and 5,032 complete objects byte-for-byte. An initial run
+used a different experimental pass ordering; the command join rejected it.
+Its raw results remain separate and are not evidence for this candidate.
+Full and Size official runs preserve all cases, 175 ordered gas labels each,
+139 observations each and complete output fingerprints. Exact heavy fingerprints
+bridge all 3,344 objects and metadata to the previous reviewed captures, retaining
+the actual original producers. Two MIR dumps differ only by proved bijective
+literal-helper renaming.
+
+Quiet full-run compiler-time geometric mean is -0.70% against the ungated
+milestone, still +2.22% against retained `9ed4da3c`; RSS is -0.13%/+0.53%.
+Solarray's five-sample range is disjoint and 1.43% slower. These are measured
+comparisons, not a universal or causal speedup claim. The concurrent one-sample
+Size run supplies output evidence only. Workspace results remain 11,701 UI
+passes, two original UI failures, 1,395 other passes and two skips. Clippy,
+formatting and typos pass; no tests or expectations changed. Previous focused,
+Foundry and symbolic execution evidence is retained rather than relabeled as
+fresh gate executions.
+
+Frozen binary `0e61860e`, commands, corrected and refused screens, full results,
+source pins and independent review are retained under
+`target/codegen-bench/evm-rewrite-candidate/materialization-trial-cost-20260908/`.
+The guard adds ten physical backend lines: 16,715 total, 17,923 fewer than the
+deletion inventory. Original correctness, UI and sealed size debts are unchanged.
