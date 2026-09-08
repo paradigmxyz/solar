@@ -4,7 +4,8 @@
 //! computes dynamic lengths only after argument evaluation, then emits copies or nested array
 //! loops. Hash-only encodings use the existing scratch policy when the shape permits it. Literal
 //! bytes and adjacent narrow scalars can share a word store without merging signed high bits.
-//! Encodings made entirely of whole words need no allocation-size rounding.
+//! Encodings made entirely of whole words need no allocation-size rounding. Array loops use
+//! plain element-offset arithmetic: their index is below the length whose total extent was checked.
 
 use crate::mir::{
     AbiType, AbiWordValidator, AllocationSemantics, FunctionBuilder, MemoryObjectKind,
@@ -339,8 +340,11 @@ impl PackedEncoder<'_, '_> {
         self.builder.branch(more, body, exit);
 
         self.builder.switch_to_block(body);
-        let element_offset = self.builder.checked_mul(index, element_bytes_value);
-        let destination = self.builder.checked_add(offset, element_offset);
+        // index < length and the checked end_offset bound both operations.
+        // element_offset = index * element_width
+        // destination = offset + element_offset
+        let element_offset = self.builder.mul(index, element_bytes_value);
+        let destination = self.builder.add(offset, element_offset);
         match element {
             AbiType::Word(_) | AbiType::Function => {
                 // element = normalize(load_element(value, i))

@@ -81,7 +81,9 @@ allocations, checked arithmetic, packed encoding, concatenation, and precompiles
 approach. `lower-arithmetic` expands checked word operations and exponentiation
 loops. `lower-builtins` expands precompile buffers/calls, concatenation copies, and packed
 encoding. Packed arguments retain scalar widths and owned array layouts; length
-reads and packing loops run after argument evaluation. Both bytes results and
+reads and packing loops run after argument evaluation. Packing checks each array
+extent before entering its loop; the loop bound then proves that element offsets
+need no further overflow checks. Both bytes results and
 scratch hashes share the encoder. Solidity `addmod` and `mulmod` retain their
 zero-modulus panic until conversion; their Yul counterparts keep native zero
 semantics. Runtime `erc7201` retains the namespace object, while a literal

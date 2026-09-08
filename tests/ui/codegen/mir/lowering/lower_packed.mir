@@ -1,6 +1,7 @@
 //@ revisions: semantic expanded
 //@[semantic] compile-flags: -Zmir-pipeline=none
 //@[expanded] compile-flags: -Zmir-pipeline=lower-builtins
+//@[expanded] filecheck:
 @module PackedEncoding
 
 fn @mixed(arg0: u16, arg1: memorybytes) -> memorybytes {
@@ -40,6 +41,21 @@ fn @edge(arg0: bool, arg1: memoryarray, arg2: memorybytes) -> memorybytes {
     ret v1
 }
 
+// CHECK-LABEL: fn @prefixed_array(
+// CHECK: [[LENGTH:v[0-9]+]] = memory_object_len memoryarray, arg0
+// CHECK: [[BYTES:v[0-9]+]] = mul [[LENGTH]], 32
+// CHECK: div [[BYTES]], 32
+// CHECK: alloc memorybytes
+// CHECK: [[LOOP_BYTES:v[0-9]+]] = mul [[LENGTH]], 32
+// CHECK: [[END:v[0-9]+]] = add 1, [[LOOP_BYTES]]
+// CHECK-NEXT: {{.*}}lt [[END]], 1
+// CHECK: [[INDEX:v[0-9]+]] = phi
+// CHECK: [[MORE:v[0-9]+]] = lt [[INDEX]], [[LENGTH]]
+// CHECK-NEXT: {{.*}}jumpi [[MORE]], [[BODY:bb[0-9]+]],
+// CHECK: [[BODY]]:
+// CHECK-NEXT: {{.*}}[[OFFSET:v[0-9]+]] = mul [[INDEX]], 32
+// CHECK-NEXT: {{.*}}[[DEST:v[0-9]+]] = add 1, [[OFFSET]]
+// CHECK-NEXT: {{.*}}memory_object_load_element memoryarray<1>, arg0, [[INDEX]]
 fn @prefixed_array(arg0: memoryarray) -> memorybytes {
   bb0:
     v0 = abi_encode_packed (data hex"ab", array<word<u8>> memoryarray<1> arg0)
