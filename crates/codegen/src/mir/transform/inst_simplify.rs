@@ -41,9 +41,12 @@ impl MirPass for InstSimplify {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> solar_interface::Result<bool> {
-        Ok(run_function_pass(module, analyses, |func, _| {
+        let changed = run_function_pass(module, analyses, |func, _| {
             InstSimplifier::new(gcx.sess.opts.evm_version).run_to_fixpoint(func) != 0
-        }))
+        });
+        // Exact value rewrites and removed effects keep old call summaries conservative.
+        analyses.preserve_call_summaries();
+        Ok(changed)
     }
 }
 
@@ -61,11 +64,13 @@ impl MirPass for ConstFold {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> solar_interface::Result<bool> {
-        Ok(run_function_pass(module, analyses, |func, _| {
+        let changed = run_function_pass(module, analyses, |func, _| {
             let mut simplifier = InstSimplifier::new(gcx.sess.opts.evm_version);
             simplifier.constants_only = true;
             simplifier.run_to_fixpoint(func) != 0
-        }))
+        });
+        analyses.preserve_call_summaries();
+        Ok(changed)
     }
 }
 
