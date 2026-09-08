@@ -96,6 +96,37 @@ proved spellings replace expensive representatives so enumeration can build on
 them. This is bounded enumerative search inspired by cvec-based discovery, not
 a port of Ruler or unrestricted equality saturation.
 
+Use `--seed-expressions` to search replacements for deeper input trees without
+enumerating every tree of their size. For example, the checked-in seeds include
+`(x | y) - (x & y)`. A one-operation frontier can discover `x ^ y` even though
+the input has three operations:
+
+```sh
+uv run scripts/verify_evm_rules.py discover \
+  --seed-expressions scripts/evm_rules/seeds.json \
+  --ops and or xor not sub add --variables x y \
+  --max-ops 2 --max-rhs-ops 2 --max-expressions 1000 --max-rules 64 \
+  --output target/evm-rules/seeded.json \
+  --emit-isle target/evm-rules/seeded.isle
+```
+
+The seed file is a JSON array of expression trees. An operation is an array
+such as `["sub", ["or", "x", "y"], ["and", "x", "y"]`; leaves are declared
+variable names or integers with exported Target prices. Files contain at most
+128 trees of at most 16 operations each. Arity, fork availability and modeled
+semantics are checked before searching. Seeds may use operations absent from
+`--ops`, which controls the replacement frontier. With this option, only
+replacements for supplied seeds are emitted. The report records the seed file
+hash, input trees and how many obtained a proved cheaper replacement.
+
+Seeds do not enlarge the enumeration budget or enter the frontier. They are
+compared against the final representatives, including a partial frontier when
+the expression budget is exhausted. Samples only select solver queries; every
+seed replacement and its emitted ISLE must still be proved. Counterexample
+refinement extends cached sample vectors before reusing bucket keys. A seed
+with no proved cheaper match is left unresolved, including solver timeouts.
+This is a bounded local search, not a guarantee of finding the cheapest program.
+
 The default frontier uses variables. Zero, one and MAX remain possible results;
 `--include-constants` also enumerates literal inputs. `--constants` selects a
 specialized input domain from the exported Target table. Zero, one and MAX
