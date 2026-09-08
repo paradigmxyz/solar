@@ -102,7 +102,8 @@ const MAX_BITS_DEPTH: u32 = 8;
 /// Immediates and a few instructions bound their result exactly: comparisons
 /// are one bit, `byte` is eight, addresses produced by an opcode are 160, and
 /// the arithmetic and bitwise operations bound their result from their
-/// operands. Anything else, including arguments and phis, may hold any word.
+/// operands. Phis take the widest input. Stop traversing operands once the
+/// result is determined; unknown values may hold any word.
 fn max_bits(func: &Function, value: ValueId, depth: u32) -> u32 {
     if let Some(constant) = func.value_u256(value) {
         return constant.bit_len() as u32;
@@ -127,12 +128,22 @@ fn max_bits(func: &Function, value: ValueId, depth: u32) -> u32 {
         | InstKind::Coinbase
         | InstKind::Create(..)
         | InstKind::Create2(..) => 160,
-        InstKind::And(a, b) => bits(a).min(bits(b)),
-        InstKind::Or(a, b) | InstKind::Xor(a, b) | InstKind::Select(_, a, b) => {
-            bits(a).max(bits(b))
+        InstKind::And(a, b) => {
+            let a = bits(a);
+            if a == 0 { 0 } else { a.min(bits(b)) }
         }
-        InstKind::Add(a, b) => (bits(a).max(bits(b)) + 1).min(256),
-        InstKind::Mul(a, b) => (bits(a) + bits(b)).min(256),
+        InstKind::Or(a, b) | InstKind::Xor(a, b) | InstKind::Select(_, a, b) => {
+            let a = bits(a);
+            if a == 256 { 256 } else { a.max(bits(b)) }
+        }
+        InstKind::Add(a, b) => {
+            let a = bits(a);
+            if a >= 255 { 256 } else { (a.max(bits(b)) + 1).min(256) }
+        }
+        InstKind::Mul(a, b) => {
+            let a = bits(a);
+            if a == 256 { 256 } else { (a + bits(b)).min(256) }
+        }
         InstKind::Shl(amount, value) => match shift(amount) {
             Some(256) => 0,
             Some(amount) => (bits(value) + amount).min(256),
@@ -152,7 +163,17 @@ fn max_bits(func: &Function, value: ValueId, depth: u32) -> u32 {
             None => bits(value),
         },
         InstKind::Phi(ref incoming) => {
-            incoming.iter().map(|&(_, value)| bits(value)).max().unwrap_or(256)
+            if incoming.is_empty() {
+                return 256;
+            }
+            let mut widest = 0;
+            for &(_, value) in incoming {
+                widest = widest.max(bits(value));
+                if widest == 256 {
+                    break;
+                }
+            }
+            widest
         }
         _ => 256,
     }

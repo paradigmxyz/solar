@@ -30,6 +30,10 @@
 //! about definitions executed again in a loop are killed at block entry. This
 //! discovers bounded induction ranges without assuming a loop executes or
 //! converges, and preserves the existing dominator-scoped reasoning.
+//! Only transitive inputs of branch conditions need derived range facts. The
+//! analysis follows their SSA operands, including phi inputs, and ignores other
+//! computations. A block is revisited only after a predecessor's exit facts
+//! change, preserving the original reverse-postorder and eight-round bound.
 
 use crate::mir::{
     BlockId, Function, InstKind, Module, Terminator, Value, ValueId,
@@ -39,6 +43,7 @@ use crate::mir::{
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
+    bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
     map::{FxHashMap, FxHashSet},
 };
@@ -168,6 +173,10 @@ impl CheckEliminator {
     fn run(&mut self, func: &mut Function) -> usize {
         self.stats = CheckElimStats::default();
         let cfg = self.cfg.as_ref().map_or_else(|| Rc::new(CfgInfo::new(func)), Rc::clone);
+        let relevant = branch_inputs(func, &cfg);
+        if relevant.is_empty() {
+            return 0;
+        }
 
         // Predecessors recomputed from reachable terminators: facts must only
         // come from edges that can actually execute.
@@ -178,7 +187,7 @@ impl CheckEliminator {
             }
         }
 
-        let facts = Self::join_facts(func, &cfg, &preds);
+        let facts = Self::join_facts(func, &cfg, &preds, &relevant);
         let folds = self.collect_folds(func, &cfg, &preds, &facts);
         self.ranges.clear();
         self.relations.clear();
@@ -261,20 +270,25 @@ impl CheckEliminator {
     }
 
     /// Transfers edge facts from unknown, retaining only definitions available
-    /// at the join and evaluating every phi in its predecessor's context.
+    /// at the join and evaluating relevant phis in each predecessor's context.
     fn join_facts(
         func: &Function,
         cfg: &CfgInfo,
         preds: &IndexVec<BlockId, Vec<BlockId>>,
+        relevant: &DenseBitSet<ValueId>,
     ) -> IndexVec<BlockId, Facts> {
         const MAX_ROUNDS: usize = 8;
         let definitions = func.inst_blocks();
         let mut entries = index_vec![Facts::default(); func.blocks.len()];
         let mut exits = entries.clone();
         let mut cx = Self::new();
+        let mut pending = cfg.reachable().clone();
         for _ in 0..MAX_ROUNDS {
             let mut changed = false;
             for &block in cfg.rpo() {
+                if !pending.remove(block) {
+                    continue;
+                }
                 let mut merged: Option<Facts> = None;
                 if block != BlockId::ENTRY {
                     for &pred in &preds[block] {
@@ -298,6 +312,9 @@ impl CheckEliminator {
                                     return None;
                                 };
                                 let value = func.inst_result_value(inst)?;
+                                if !relevant.contains(value) {
+                                    return None;
+                                }
                                 let &(_, input) =
                                     incoming.iter().find(|&&(from, _)| from == pred)?;
                                 Some((value, cx.range_of(func, input, MAX_DEPTH)))
@@ -319,20 +336,21 @@ impl CheckEliminator {
                                 cx.ranges.insert(value, range);
                             }
                         }
-                        let edge =
-                            Facts { ranges: cx.ranges.clone(), relations: cx.relations.clone() };
                         if let Some(merged) = &mut merged {
                             merged.ranges.retain(|value, range| {
-                                if let Some(other) = edge.ranges.get(value) {
+                                if let Some(other) = cx.ranges.get(value) {
                                     *range = range.union(*other);
                                     *range != Range::FULL
                                 } else {
                                     false
                                 }
                             });
-                            merged.relations.retain(|relation| edge.relations.contains(relation));
+                            merged.relations.retain(|relation| cx.relations.contains(relation));
                         } else {
-                            merged = Some(edge);
+                            merged = Some(Facts {
+                                ranges: std::mem::take(&mut cx.ranges),
+                                relations: std::mem::take(&mut cx.relations),
+                            });
                         }
                     }
                 }
@@ -342,14 +360,24 @@ impl CheckEliminator {
                 cx.range_undo.clear();
                 cx.relation_undo.clear();
                 for &inst in &func.blocks[block].instructions {
-                    if let Some(value) = func.inst_result_value(inst) {
+                    if let Some(value) = func.inst_result_value(inst)
+                        && relevant.contains(value)
+                    {
                         let range = cx.range_of(func, value, MAX_DEPTH);
                         if range != Range::FULL {
                             cx.ranges.insert(value, range);
                         }
                     }
                 }
-                let exit = Facts { ranges: cx.ranges.clone(), relations: cx.relations.clone() };
+                let exit = Facts {
+                    ranges: std::mem::take(&mut cx.ranges),
+                    relations: std::mem::take(&mut cx.relations),
+                };
+                if exits[block] != exit {
+                    for &successor in cfg.successors(block) {
+                        pending.insert(successor);
+                    }
+                }
                 changed |= entries[block] != entry || exits[block] != exit;
                 entries[block] = entry;
                 exits[block] = exit;
@@ -775,6 +803,33 @@ impl CheckEliminator {
         }
         None
     }
+}
+
+/// Values whose ranges can affect a branch, closed over all SSA operands.
+/// Phi inputs keep loop-carried dependencies in the set. Memory and call
+/// operands are included conservatively even when range evaluation stops there.
+fn branch_inputs(func: &Function, cfg: &CfgInfo) -> DenseBitSet<ValueId> {
+    let mut relevant = DenseBitSet::new_empty(func.num_values());
+    let mut pending = cfg
+        .rpo()
+        .iter()
+        .filter_map(|&block| match func.blocks[block].terminator {
+            Some(Terminator::Branch { condition, then_block, else_block })
+                if then_block != else_block =>
+            {
+                Some(condition)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    while let Some(value) = pending.pop() {
+        if relevant.insert(value)
+            && let Value::Inst(inst) = func.value(value)
+        {
+            pending.extend(func.inst(*inst).operands());
+        }
+    }
+    relevant
 }
 
 /// Returns the fact implied on the unique dominating edge into `block`:

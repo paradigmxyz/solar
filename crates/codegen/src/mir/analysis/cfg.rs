@@ -194,6 +194,9 @@ impl CfgInfo {
 pub(crate) struct DominatorTree {
     idoms: IndexVec<BlockId, Option<BlockId>>,
     children: IndexVec<BlockId, Vec<BlockId>>,
+    /// Preorder intervals make repeated dominance queries independent of tree
+    /// depth. Build them only when a consumer asks about dominance.
+    intervals: OnceCell<IndexVec<BlockId, (usize, usize)>>,
 }
 
 impl DominatorTree {
@@ -247,7 +250,7 @@ impl DominatorTree {
                 children[idom].push(block);
             }
         }
-        Self { idoms, children }
+        Self { idoms, children, intervals: OnceCell::new() }
     }
 
     fn intersect(
@@ -277,16 +280,40 @@ impl DominatorTree {
     /// Returns true if `dominator` dominates `block`.
     #[must_use]
     pub(crate) fn dominates(&self, dominator: BlockId, block: BlockId) -> bool {
-        let mut current = block;
-        loop {
-            if current == dominator {
-                return true;
+        // Preserve reflexive queries for unreachable and out-of-domain blocks.
+        if dominator == block {
+            return true;
+        }
+        let intervals = self.intervals.get_or_init(|| self.preorder_intervals());
+        let (Some(&(start, end)), Some(&(position, _))) =
+            (intervals.get(dominator), intervals.get(block))
+        else {
+            return false;
+        };
+        start <= position && position < end
+    }
+
+    /// A node dominates precisely the nodes in its preorder subtree. Unreachable
+    /// nodes have empty intervals beyond every reachable position. Use an
+    /// explicit traversal stack so deeply nested control flow cannot recurse.
+    fn preorder_intervals(&self) -> IndexVec<BlockId, (usize, usize)> {
+        let mut intervals = index_vec![(usize::MAX, usize::MAX); self.idoms.len()];
+        let mut pending = vec![(BlockId::ENTRY, 0)];
+        let mut position = 0;
+        while let Some((block, child)) = pending.last_mut() {
+            if *child == 0 {
+                intervals[*block].0 = position;
+                position += 1;
             }
-            match self.idom(current) {
-                Some(idom) if idom != current => current = idom,
-                _ => return false,
+            if let Some(&next) = self.children[*block].get(*child) {
+                *child += 1;
+                pending.push((next, 0));
+            } else {
+                intervals[*block].1 = position;
+                pending.pop();
             }
         }
+        intervals
     }
 
     /// Returns dominator-tree children of `block`.
@@ -305,5 +332,48 @@ impl DominatorTree {
             current = self.idom(block).filter(|&idom| idom != block);
         }
         out
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn dominance_intervals_match_parent_walk() {
+        // A diamond, a loop, and an unreachable component with an edge into
+        // the reachable graph. Include out-of-domain and reflexive queries.
+        let edges: &[&[usize]] = &[&[1, 2], &[3], &[3], &[4, 6], &[5], &[4, 6], &[], &[6, 8], &[7]];
+        let successors = edges
+            .iter()
+            .map(|edges| edges.iter().map(|&block| BlockId::from_usize(block)).collect())
+            .collect();
+        let rpo = (0..7).map(BlockId::from_usize).collect::<Vec<_>>();
+        let tree = DominatorTree::compute(&successors, &rpo);
+        assert!(tree.intervals.get().is_none());
+        for a in 0..=edges.len() {
+            for b in 0..=edges.len() {
+                let a = BlockId::from_usize(a);
+                let b = BlockId::from_usize(b);
+                assert_eq!(tree.dominates(a, b), tree.self_and_dominators(b).contains(&a));
+            }
+        }
+    }
+
+    #[test]
+    fn dominance_intervals_handle_deep_trees() {
+        let count = 10_000;
+        let idoms = (0usize..count)
+            .map(|block| Some(BlockId::from_usize(block.saturating_sub(1))))
+            .collect();
+        let mut children = index_vec![Vec::new(); count];
+        for block in 1..count {
+            children[BlockId::from_usize(block - 1)].push(BlockId::from_usize(block));
+        }
+        let tree = DominatorTree { idoms, children, intervals: OnceCell::new() };
+        let last = BlockId::from_usize(count - 1);
+        assert!(tree.dominates(BlockId::ENTRY, last));
+        assert!(tree.dominates(BlockId::from_usize(count / 2), last));
+        assert!(!tree.dominates(last, BlockId::ENTRY));
     }
 }
