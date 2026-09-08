@@ -557,7 +557,7 @@ fn relative_watched_file_registration_respects_nested_workspace_ownership() {
     assert!(watched_file_registration_has_spec(&registration, &nested_source_root, "*"));
     assert!(watched_file_registration_has_spec(&registration, &nested_source_root, "*.sol"));
     assert!(watched_file_registration_has_spec(&registration, &nested_source_root, "foundry.toml"));
-    assert!(!watched_file_registration_has_spec(&registration, &nested_root, "*.sol"));
+    assert!(watched_file_registration_has_spec(&registration, &nested_root, "*.sol"));
     for excluded in [
         project.path("/nested/Outside.sol"),
         project.path("/nested/src/generated"),
@@ -953,13 +953,7 @@ async fn failed_watched_file_replacement_keeps_the_previous_registration() {
         });
         router
     });
-    let (server_stream, client_stream) = tokio::io::duplex(64 << 10);
-    let (server_rx, server_tx) = tokio::io::split(server_stream);
-    let server_task =
-        tokio::spawn(server_main.run_buffered(server_rx.compat(), server_tx.compat_write()));
-    let (client_rx, client_tx) = tokio::io::split(client_stream);
-    let client_task =
-        tokio::spawn(client_main.run_buffered(client_rx.compat(), client_tx.compat_write()));
+    let (server_task, client_task) = spawn_lsp_pair(server_main, client_main);
 
     let first_specs = vec![WatchedFileSpec::new(project.path("/first"), "**/*.sol")];
     let first =
@@ -1070,13 +1064,7 @@ async fn superseded_replacement_preserves_previous_registration_until_latest_is_
         });
         router
     });
-    let (server_stream, client_stream) = tokio::io::duplex(64 << 10);
-    let (server_rx, server_tx) = tokio::io::split(server_stream);
-    let server_task =
-        tokio::spawn(server_main.run_buffered(server_rx.compat(), server_tx.compat_write()));
-    let (client_rx, client_tx) = tokio::io::split(client_stream);
-    let client_task =
-        tokio::spawn(client_main.run_buffered(client_rx.compat(), client_tx.compat_write()));
+    let (server_task, client_task) = spawn_lsp_pair(server_main, client_main);
 
     let shared_root = project.path("/shared");
     let first_specs = vec![WatchedFileSpec::new(shared_root.clone(), "**/*.sol")];
@@ -1190,13 +1178,7 @@ async fn failed_unregistration_is_retried_after_the_next_replacement() {
         });
         router
     });
-    let (server_stream, client_stream) = tokio::io::duplex(64 << 10);
-    let (server_rx, server_tx) = tokio::io::split(server_stream);
-    let server_task =
-        tokio::spawn(server_main.run_buffered(server_rx.compat(), server_tx.compat_write()));
-    let (client_rx, client_tx) = tokio::io::split(client_stream);
-    let client_task =
-        tokio::spawn(client_main.run_buffered(client_rx.compat(), client_tx.compat_write()));
+    let (server_task, client_task) = spawn_lsp_pair(server_main, client_main);
 
     let first = prepare_watched_file_registration_update(
         &config,
@@ -1307,7 +1289,7 @@ async fn reregister_watched_files_preserves_missing_candidates() {
         //- /src/Main.sol
         contract Main {}
 
-        //- /generated/.keep
+        //- /out/generated/.keep
         "#,
     );
     let mut params = project.initialize_params();
@@ -1322,7 +1304,7 @@ async fn reregister_watched_files_preserves_missing_candidates() {
     config.rediscover_workspaces();
     let mut state = GlobalState::new(ClientSocket::new_closed());
     state.config = Arc::new(config);
-    let missing_parent = project.path("/generated");
+    let missing_parent = project.path("/out/generated");
     state
         .analysis_commit
         .lock()
@@ -1445,13 +1427,7 @@ async fn discovery_and_analysis_refresh_bounded_watched_file_specs() {
         });
         router
     });
-    let (server_stream, client_stream) = tokio::io::duplex(64 << 10);
-    let (server_rx, server_tx) = tokio::io::split(server_stream);
-    let server_task =
-        tokio::spawn(server_main.run_buffered(server_rx.compat(), server_tx.compat_write()));
-    let (client_rx, client_tx) = tokio::io::split(client_stream);
-    let client_task =
-        tokio::spawn(client_main.run_buffered(client_rx.compat(), client_tx.compat_write()));
+    let (server_task, client_task) = spawn_lsp_pair(server_main, client_main);
 
     let mut state = GlobalState::new(client_socket);
     state.config = Arc::new(config);

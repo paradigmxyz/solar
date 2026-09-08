@@ -1,6 +1,285 @@
 use super::*;
+use crate::{handlers, vfs::VfsPath};
 use async_lsp::LanguageServer;
+use crop::Rope;
 use std::sync::atomic::AtomicBool;
+
+#[tokio::test(flavor = "current_thread")]
+async fn dependency_references_survive_closing_arbitrary_project_sources() {
+    for (foundry, created_later) in [(false, false), (true, false), (false, true), (true, true)] {
+        let marked = MarkedProject::from_fixture(
+            r#"
+        //- /foundry.toml
+        [profile.default]
+        //- /src/Main.sol
+        contract Main {}
+        //- /lib/forge-std/src/Base.sol
+        abstract contract Base { uint internal constant $1vm = 1; }
+        //- /checks/Main.sol
+        import "../lib/forge-std/src/Base.sol";
+        contract Test is Base { function run() public pure returns (uint) { return $2vm; } }
+        //- /examples/Main.sol
+        import "../lib/forge-std/src/Base.sol";
+        contract Script is Base { function run() public pure returns (uint) { return $3vm; } }
+        "#,
+        );
+        let project = marked.project();
+        if !foundry {
+            project.remove_file("/foundry.toml");
+        }
+        let caller_source = project.read_file("/checks/Main.sol");
+        if created_later {
+            project.remove_file("/checks/Main.sol");
+            std::fs::remove_dir(project.path("/checks")).unwrap();
+        }
+        let uri = Url::from_file_path(project.path("/lib/forge-std/src/Base.sol")).unwrap();
+        let mut state = GlobalState::new(ClientSocket::new_closed());
+        state.config = Arc::new(project.config());
+        if created_later {
+            // No watcher notification: the editor is how we discover this new file.
+            project.write_file("/checks/Main.sol", &caller_source);
+        }
+        let _ = handlers::did_open_text_document(
+            &mut state,
+            DidOpenTextDocumentParams {
+                text_document: TextDocumentItem::new(
+                    uri.clone(),
+                    "solidity".into(),
+                    1,
+                    project.read_file("/lib/forge-std/src/Base.sol"),
+                ),
+            },
+        );
+        tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+        let references = state
+            .symbol_tables
+            .load()
+            .references(&uri, marked.marker("$1").position(), false)
+            .unwrap();
+        let expected = ["$2", "$3"].map(|name| {
+            let marker = marked.marker(name);
+            let position = marker.position();
+            lsp_types::Location::new(
+                Url::from_file_path(project.path(marker.path())).unwrap(),
+                Range::new(position, Position::new(position.line, position.character + 2)),
+            )
+        });
+        assert_eq!(references, if created_later { &expected[1..] } else { &expected[..] });
+
+        let test_uri = Url::from_file_path(project.path("/checks/Main.sol")).unwrap();
+        let _ = handlers::did_open_text_document(
+            &mut state,
+            DidOpenTextDocumentParams {
+                text_document: TextDocumentItem::new(
+                    test_uri.clone(),
+                    "solidity".into(),
+                    1,
+                    project.read_file("/checks/Main.sol"),
+                ),
+            },
+        );
+        tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+        {
+            let tables = state.symbol_tables.load();
+            assert_eq!(
+                tables.references(&uri, marked.marker("$1").position(), false).unwrap(),
+                expected
+            );
+            assert_eq!(
+                tables.references(&test_uri, marked.marker("$2").position(), false).unwrap(),
+                expected
+            );
+        }
+        let _ = handlers::did_change_text_document(
+            &mut state,
+            DidChangeTextDocumentParams {
+                text_document: VersionedTextDocumentIdentifier::new(test_uri.clone(), 2),
+                content_changes: vec![TextDocumentContentChangeEvent {
+                    range: None,
+                    range_length: None,
+                    text: project.read_file("/checks/Main.sol").replace("return vm", "return 0"),
+                }],
+            },
+        );
+        tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+        assert_eq!(
+            state
+                .symbol_tables
+                .load()
+                .references(&uri, marked.marker("$1").position(), false)
+                .unwrap(),
+            expected[1..]
+        );
+
+        for closed_uri in [test_uri, uri.clone()] {
+            let _ = handlers::did_close_text_document(
+                &mut state,
+                DidCloseTextDocumentParams {
+                    text_document: TextDocumentIdentifier::new(closed_uri),
+                },
+            );
+            tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(
+                state
+                    .symbol_tables
+                    .load()
+                    .references(&uri, marked.marker("$1").position(), false)
+                    .unwrap(),
+                expected
+            );
+        }
+        assert!(
+            state
+                .config
+                .watched_file_specs()
+                .iter()
+                .any(|spec| { spec.base == project.path("/checks") && spec.pattern == "**/*.sol" })
+        );
+    }
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn opening_identical_source_and_reverted_edits_reuse_analysis() {
+    let project = TestProject::from_fixture("//- /Main.sol\ncontract Main {}\n");
+    let path = project.path("/Main.sol");
+    let uri = Url::from_file_path(&path).unwrap();
+    let source = project.read_file("/Main.sol");
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    state.config = Arc::new(project.config());
+    state.recompute_after_opening_source(Vec::new());
+    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+    let published = state.symbol_tables.load_full();
+
+    let _ = handlers::did_open_text_document(
+        &mut state,
+        DidOpenTextDocumentParams {
+            text_document: TextDocumentItem::new(uri.clone(), "solidity".into(), 7, source.clone()),
+        },
+    );
+    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+    assert!(Arc::ptr_eq(&published, &state.symbol_tables.load()));
+    let reports = state.diagnostics.read().workspace_pull_reports(Vec::new());
+    assert_eq!(reports.iter().find(|report| report.uri == uri).unwrap().version, Some(7));
+
+    {
+        let mut vfs = state.vfs.write();
+        vfs.set_file_contents_with_version(
+            VfsPath::from(path.clone()),
+            Some(Rope::from("contract Edited {}")),
+            Some(8),
+        );
+        vfs.set_file_contents_with_version(
+            VfsPath::from(path.clone()),
+            Some(Rope::from(source.as_str())),
+            Some(9),
+        );
+    }
+    state.recompute_after_opening_source(vec![path.clone()]);
+    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+    assert!(Arc::ptr_eq(&published, &state.symbol_tables.load()));
+    let reports = state.diagnostics.read().workspace_pull_reports(Vec::new());
+    assert_eq!(reports.iter().find(|report| report.uri == uri).unwrap().version, Some(9));
+
+    state.vfs.write().set_file_contents_with_version(
+        VfsPath::from(path.clone()),
+        Some(Rope::from("contract Edited {}")),
+        Some(10),
+    );
+    state.recompute_after_opening_source(vec![path]);
+    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+    assert!(!Arc::ptr_eq(&published, &state.symbol_tables.load()));
+    assert_eq!(state.symbol_tables.load().workspace_symbols("Edited").len(), 1);
+
+    let edited = state.symbol_tables.load_full();
+    state.config = Arc::new((*state.config).clone());
+    state.recompute_after_opening_source(Vec::new());
+    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+    assert!(!Arc::ptr_eq(&edited, &state.symbol_tables.load()));
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn identical_inputs_do_not_hide_disk_dependency_changes() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /Main.sol
+        import "./lib/Dep.sol";
+        contract Main is Dep {}
+        //- /lib/Dep.sol
+        contract Dep {}
+    "#,
+    );
+    let main = project.path("/Main.sol");
+    let dep = project.path("/lib/Dep.sol");
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    state.config = Arc::new(project.config());
+    state.recompute_after_opening_source(Vec::new());
+    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+    let published = state.symbol_tables.load_full();
+    state.vfs.write().set_file_contents_with_version(
+        VfsPath::from(main.clone()),
+        Some(Rope::from(project.read_file("/Main.sol").as_str())),
+        Some(1),
+    );
+    std::fs::write(&dep, "contract Dep { uint public changed; }").unwrap();
+    state.recompute_with_disk_files(vec![dep]);
+    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+    assert!(!Arc::ptr_eq(&published, &state.symbol_tables.load()));
+    assert_eq!(state.symbol_tables.load().workspace_symbols("changed").len(), 1);
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn disk_dependency_changes_survive_cache_reuse_attempts() {
+    for notify_change in [false, true] {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /Main.sol
+            import "./lib/Dep.sol";
+            contract Main is Dep {}
+            //- /lib/Dep.sol
+            contract Dep {}
+        "#,
+        );
+        let main = project.path("/Main.sol");
+        let dep = project.path("/lib/Dep.sol");
+        let source = project.read_file("/Main.sol");
+        let mut state = GlobalState::new(ClientSocket::new_closed());
+        state.config = Arc::new(project.config());
+        state.vfs.write().set_file_contents_with_version(
+            VfsPath::from(main.clone()),
+            Some(Rope::from(source.as_str())),
+            Some(1),
+        );
+        state.recompute_after_opening_source(Vec::new());
+        tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+        let published = state.symbol_tables.load_full();
+
+        std::fs::write(&dep, "contract Dep { uint public changed; }").unwrap();
+        if notify_change {
+            // Supersede the debounced disk request without changing the VFS revision.
+            state.recompute_for_file_changes(vec![dep], Vec::new(), false);
+        } else {
+            // A reverted edit must reload disk imports even without a watcher notification.
+            let mut vfs = state.vfs.write();
+            vfs.set_file_contents_with_version(
+                VfsPath::from(main.clone()),
+                Some(Rope::from("contract Edited {}")),
+                Some(2),
+            );
+            vfs.set_file_contents_with_version(
+                VfsPath::from(main.clone()),
+                Some(Rope::from(source.as_str())),
+                Some(3),
+            );
+        }
+        state.recompute_after_opening_source(vec![main]);
+        tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+        assert!(!Arc::ptr_eq(&published, &state.symbol_tables.load()));
+        assert_eq!(state.symbol_tables.load().workspace_symbols("changed").len(), 1);
+    }
+}
 
 #[tokio::test(flavor = "current_thread")]
 async fn cached_and_published_symbol_tables_share_storage() {
@@ -38,7 +317,14 @@ async fn cached_and_published_symbol_tables_share_storage() {
     let old = Arc::downgrade(&published);
     drop(published);
     state.clear_analysis_cache();
-    assert!(old.upgrade().is_none());
+    // Publication wakes readers before the worker drops its previous snapshot.
+    tokio::time::timeout(ASYNC_TEST_TIMEOUT, async {
+        while old.upgrade().is_some() {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .unwrap();
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -505,13 +791,7 @@ async fn workspace_discovery_router_rejects_stale_and_cancelled_ready_events() {
     let (stale_version, stale_progress, latest_version, latest_progress, mut published, tables) =
         setup_rx.recv().unwrap();
 
-    let (server_stream, client_stream) = tokio::io::duplex(64 << 10);
-    let (server_rx, server_tx) = tokio::io::split(server_stream);
-    let server_task =
-        tokio::spawn(server_main.run_buffered(server_rx.compat(), server_tx.compat_write()));
-    let (client_rx, client_tx) = tokio::io::split(client_stream);
-    let client_task =
-        tokio::spawn(client_main.run_buffered(client_rx.compat(), client_tx.compat_write()));
+    let (server_task, client_task) = spawn_lsp_pair(server_main, client_main);
 
     internal_client
         .emit(WorkspaceDiscoveryReady {
@@ -633,13 +913,7 @@ async fn deferred_dependency_change_router_publishes_replacement_analysis() {
     });
     let (version, mut published, tables) = setup_rx.recv().unwrap();
 
-    let (server_stream, client_stream) = tokio::io::duplex(64 << 10);
-    let (server_rx, server_tx) = tokio::io::split(server_stream);
-    let server_task =
-        tokio::spawn(server_main.run_buffered(server_rx.compat(), server_tx.compat_write()));
-    let (client_rx, client_tx) = tokio::io::split(client_stream);
-    let client_task =
-        tokio::spawn(client_main.run_buffered(client_rx.compat(), client_tx.compat_write()));
+    let (server_task, client_task) = spawn_lsp_pair(server_main, client_main);
 
     internal_client.emit(PublishAnalysis { version, output: old_output }).unwrap();
     tokio::time::timeout(ASYNC_TEST_TIMEOUT, async {
@@ -935,13 +1209,7 @@ async fn background_workspace_folder_loader_failure_rolls_back_roots() {
         router
     });
     let mut published = setup_rx.recv().unwrap();
-    let (server_stream, client_stream) = tokio::io::duplex(64 << 10);
-    let (server_rx, server_tx) = tokio::io::split(server_stream);
-    let server_task =
-        tokio::spawn(server_main.run_buffered(server_rx.compat(), server_tx.compat_write()));
-    let (client_rx, client_tx) = tokio::io::split(client_stream);
-    let client_task =
-        tokio::spawn(client_main.run_buffered(client_rx.compat(), client_tx.compat_write()));
+    let (server_task, client_task) = spawn_lsp_pair(server_main, client_main);
 
     server
         .did_change_workspace_folders(replace_workspace_folder(
@@ -1068,8 +1336,11 @@ fn workspace_discovery_rechecks_sources_against_the_owning_workspace_policy() {
         .find(|workspace| workspace.compile_opts().base_path.as_deref() == Some(&nested_root))
         .unwrap();
     assert!(outer_workspace.source_files().is_empty());
-    assert_eq!(nested_workspace.source_files(), [project.path("/nested/src/Included.sol")]);
-    assert_eq!(config.index_metrics().eager, 1);
+    assert_eq!(
+        nested_workspace.source_files(),
+        [project.path("/nested/Outside.sol"), project.path("/nested/src/Included.sol")]
+    );
+    assert_eq!(config.index_metrics().eager, 2);
 
     let batches = snapshot_with_config(config, Vfs::default()).analysis_batches(Vec::new());
     let outer_batch = batches
@@ -1084,7 +1355,10 @@ fn workspace_discovery_rechecks_sources_against_the_owning_workspace_policy() {
     assert!(outer_batch.files.iter().all(|(path, _)| !path.starts_with(&nested_root)));
     assert_eq!(
         nested_batch.files,
-        vec![(project.path("/nested/src/Included.sol"), Arc::new("contract Included {}".into()),)]
+        vec![
+            (project.path("/nested/Outside.sol"), Arc::new("contract Outside {}".into())),
+            (project.path("/nested/src/Included.sol"), Arc::new("contract Included {}".into()))
+        ]
     );
 }
 
@@ -1116,7 +1390,15 @@ fn nested_external_source_root_outranks_an_outer_workspace_base() {
         .find(|workspace| workspace.compile_opts().base_path.as_deref() == Some(&nested_root))
         .unwrap();
 
-    assert_eq!(nested.source_roots(), [project.path("/shared")]);
+    assert_eq!(
+        nested.source_roots(),
+        [
+            project.path("/packages/app"),
+            project.path("/shared"),
+            project.path("/packages/app/test"),
+            project.path("/packages/app/script")
+        ]
+    );
     assert!(nested.source_files().contains(&shared));
     assert!(config.tracks_source_file(&shared));
 }
@@ -1252,7 +1534,8 @@ fn discovery_and_updates_share_the_most_specific_flycheck_owner() {
 
     let outer = workspace(outer_root, &config);
     let nested = workspace(&nested_root, &config);
-    assert!(outer.source_files().contains(&path));
+    assert!(!outer.source_files().contains(&path));
+    assert!(nested.source_files().contains(&path));
     assert!(!outer.flycheck_source_files().contains(&path));
     assert!(nested.flycheck_source_files().contains(&path));
 
@@ -1262,7 +1545,8 @@ fn discovery_and_updates_share_the_most_specific_flycheck_owner() {
     assert!(!workspace(&nested_root, &config).flycheck_source_files().contains(&path));
 
     config.add_source_file(path.clone());
-    assert!(workspace(outer_root, &config).source_files().contains(&path));
+    assert!(!workspace(outer_root, &config).source_files().contains(&path));
+    assert!(workspace(&nested_root, &config).source_files().contains(&path));
     assert!(!workspace(outer_root, &config).flycheck_source_files().contains(&path));
     assert!(workspace(&nested_root, &config).flycheck_source_files().contains(&path));
 }

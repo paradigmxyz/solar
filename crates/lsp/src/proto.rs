@@ -100,6 +100,34 @@ struct AdvertisedServerCapabilities {
     type_hierarchy_provider: bool,
 }
 
+pub(crate) fn byte_range_to_lsp(
+    contents: &Rope,
+    range: std::ops::Range<usize>,
+) -> Option<lsp_types::Range> {
+    Some(lsp_types::Range::new(
+        position_at_byte(contents, range.start)?,
+        position_at_byte(contents, range.end)?,
+    ))
+}
+
+pub(crate) fn range_contains(range: lsp_types::Range, position: lsp_types::Position) -> bool {
+    if range.start == range.end {
+        return position == range.start;
+    }
+    position >= range.start && position < range.end
+}
+
+pub(crate) fn range_size_key(range: lsp_types::Range) -> (u32, u32) {
+    (
+        range.end.line.saturating_sub(range.start.line),
+        range.end.character.saturating_sub(range.start.character),
+    )
+}
+
+pub(crate) fn range_key(range: lsp_types::Range) -> (u32, u32, u32, u32) {
+    (range.start.line, range.start.character, range.end.line, range.end.character)
+}
+
 pub(crate) fn vfs_path(url: &lsp_types::Url) -> Option<vfs::VfsPath> {
     url.to_file_path().map(VfsPath::from).ok()
 }
@@ -147,7 +175,7 @@ impl<R: Borrow<Rope>> LspPositionIndex<R> {
         (start <= end).then_some(start..end)
     }
 
-    fn text_range(&self, range: lsp_types::Range) -> std::ops::Range<usize> {
+    pub(crate) fn text_range(&self, range: lsp_types::Range) -> std::ops::Range<usize> {
         let start = self.byte_position_clamped(range.start);
         let end = self.byte_position_clamped(range.end);
         start..end

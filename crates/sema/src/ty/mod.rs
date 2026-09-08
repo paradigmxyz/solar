@@ -352,6 +352,7 @@ pub struct GlobalCtxt<'gcx> {
     pub(crate) hir_arenas: ThreadLocal<hir::Arena>,
     interner: Interner<'gcx>,
     cache: Cache<'gcx>,
+    pub(crate) eval_cache: FxOnceMap<hir::ExprId, Box<crate::eval::EvalResult>>,
     pub(crate) override_index: OnceLock<crate::typeck::override_checker::OverrideIndex<'gcx>>,
 }
 
@@ -387,6 +388,7 @@ impl<'gcx> GlobalCtxt<'gcx> {
             hir_arenas,
             interner,
             cache: Cache::default(),
+            eval_cache: FxOnceMap::default(),
             override_index: OnceLock::new(),
         }
     }
@@ -1942,12 +1944,6 @@ fn internal_function_members_in_context(
 ) -> members::MemberList<'gcx> {
     let (id, current_contract) = key;
     gcx.bump().alloc_vec(members::internal_function_members_in_context(gcx, id, current_contract))
-}
-
-pub(crate) fn eval_const_value_result(gcx: _, expr: &hir::Expr<'_>)
-    cached_by(hir::ExprId, expr.id) -> &'gcx crate::eval::EvalResult
-{
-    gcx.alloc(crate::eval::eval_const(gcx, expr))
 }
 
 } // cached!

@@ -108,7 +108,7 @@ impl EvmCodegen<'_> {
             return Ok(EvmArtifact::default());
         }
         module.set_debug_info_tracked(self.capture_debug_info);
-        let _changed = crate::pass::run_pipeline(self.gcx, module, None);
+        let _changed = crate::mir::pass::run_pipeline(self.gcx, module, None);
         self.gcx.dcx().has_errors()?;
         for (_, function) in module.iter_functions() {
             if let Some(instruction) = function

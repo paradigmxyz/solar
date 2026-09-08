@@ -1,0 +1,22 @@
+{
+  "ethdebug": {
+    "compilation": {
+      "id": "solar-COMPILATION_ID",
+      "compiler": {
+        "name": "solar",
+        "version": "VERSION"
+      },
+      "sources": [
+        {
+          "id": 0,
+          "path": "ROOT/tests/ui/cli/debug_outputs.sol",
+          "contents": "//@ revisions: creation runtime maps resources\n//@ compile-flags: --pretty-json --allow 2264\n//@[creation] compile-flags: --emit=ethdebug\n//@[runtime] compile-flags: --emit=ethdebug-runtime\n//@[maps] compile-flags: --emit=srcmap,srcmap-runtime\n//@[resources] compile-flags: --emit=ethdebug-resources\n//@ normalize-stdout-test: \"solar-[0-9a-f]{64}\" -> \"solar-COMPILATION_ID\"\n\ncontract C {\n    function f() external {}\n}\n",
+          "language": "Solidity"
+        }
+      ]
+    },
+    "types": {},
+    "pointers": {}
+  },
+  "version": "VERSION"
+}

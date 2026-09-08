@@ -7,7 +7,7 @@
 
 use super::Module;
 use crate::{
-    pass_manager::{
+    mir::pass_manager::{
         parse_pass_pipeline, pipeline_output_name, print_pass_diff, should_validate_ir,
     },
     timing::PassTimer,

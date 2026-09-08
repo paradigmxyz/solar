@@ -13,6 +13,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from workflow_helpers import extract_job, github_script, step_block
+
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_PATH = ROOT / ".github/workflows/lsp-bench-command.yml"
 WORKFLOW = WORKFLOW_PATH.read_text(encoding="utf-8")
@@ -26,26 +28,7 @@ DOWNLOAD_ARTIFACT_ACTION = (
 
 
 def job_block(name: str) -> str:
-    jobs = WORKFLOW.split("\njobs:\n", 1)[1]
-    match = re.search(
-        rf"^  {re.escape(name)}:\n(?P<body>.*?)(?=^  [A-Za-z0-9_-]+:\n|\Z)",
-        jobs,
-        re.MULTILINE | re.DOTALL,
-    )
-    if match is None:
-        raise AssertionError(f"job {name!r} is missing")
-    return match.group(0)
-
-
-def step_block(job: str, name: str) -> str:
-    marker = f"      - name: {name}\n"
-    if marker not in job:
-        raise AssertionError(f"step {name!r} is missing")
-    remainder = job.split(marker, 1)[1]
-    next_step = remainder.find("\n      - ")
-    if next_step >= 0:
-        remainder = remainder[:next_step]
-    return marker + remainder
+    return extract_job(WORKFLOW, name)
 
 
 def job_permissions(name: str) -> dict[str, str]:
@@ -67,15 +50,6 @@ def run_script(step: str) -> str:
     if not all(not line or line.startswith("          ") for line in run.splitlines()):
         raise AssertionError("run block has unexpected indentation")
     return "\n".join(line[10:] for line in run.splitlines())
-
-
-def github_script(step: str) -> str:
-    script = step.split("          script: |\n", 1)[1]
-    if not all(
-        not line or line.startswith("            ") for line in script.splitlines()
-    ):
-        raise AssertionError("github-script block has unexpected indentation")
-    return "\n".join(line[12:] for line in script.splitlines())
 
 
 def run_resolution_script(
@@ -1177,8 +1151,7 @@ class ExecutionAndRemovalTests(unittest.TestCase):
                 1,
             )
             self.assertIn('mkdir -p "$RUNNER_TEMP/lsp-bench-bin"', job)
-            self.assertIn("runs-on: ubuntu-latest", job)
-            self.assertNotIn("depot-ubuntu-latest", job)
+            self.assertIn("runs-on: depot-ubuntu-latest", job)
         self.assertEqual(
             WORKFLOW.count(
                 "cargo build --locked --release -p solar-compiler --bin solar"
@@ -1219,27 +1192,51 @@ class ExecutionAndRemovalTests(unittest.TestCase):
         self.assertIn('patch --batch --forward --directory="$source_dir"', compute)
         self.assertIn('--lsp-bench "$RUNNER_TEMP/lsp-bench-tool/lsp-bench"', compute)
         self.assertNotIn("lsp_filter.py", WORKFLOW)
-        self.assertIn("runs-on: ubuntu-latest", compute)
-        self.assertNotIn("depot-ubuntu-latest", compute)
+        self.assertIn("runs-on: depot-ubuntu-latest", compute)
 
-    def test_existing_benchmark_workflow_only_adds_adapter_unit_tests(self) -> None:
+    def test_existing_benchmark_workflow_tracks_tested_merge_base(self) -> None:
         trigger = BENCH_WORKFLOW.split("\nenv:", 1)[0]
 
         self.assertNotIn("issue_comment", trigger)
         self.assertNotIn("pull_request_target", trigger)
+        self.assertNotIn("github.event.pull_request.base.sha", BENCH_WORKFLOW)
+        self.assertIn(
+            'if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then', BENCH_WORKFLOW
+        )
+        self.assertIn(
+            "PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}", BENCH_WORKFLOW
+        )
+        self.assertIn(
+            'test "$(git rev-parse HEAD)" = "$GITHUB_SHA"', BENCH_WORKFLOW
+        )
+        self.assertIn(
+            'test "$(git rev-parse HEAD^2)" = "$PR_HEAD_SHA"', BENCH_WORKFLOW
+        )
+        self.assertIn('base_sha="$(git rev-parse HEAD^1)"', BENCH_WORKFLOW)
+        self.assertIn(
+            'base_sha="$(git rev-parse "origin/$BASE_BRANCH")"', BENCH_WORKFLOW
+        )
         self.assertIn(
             '"$RUNNER_TEMP/schema-test/bin/python" -m unittest discover \\\n'
             "            -s benches/lsp -p 'test_*.py'",
             BENCH_WORKFLOW,
         )
 
-    def test_legacy_lsp_stack_is_absent(self) -> None:
+    def test_cross_server_stack_coexists_with_command_gate(self) -> None:
         workflow_names = {
             path.name for path in (ROOT / ".github/workflows").glob("lsp-bench*.yml")
         }
 
-        self.assertEqual(workflow_names, {"lsp-bench-command.yml"})
-        self.assertFalse((ROOT / "tools/lsp-bench").exists())
+        self.assertEqual(
+            workflow_names,
+            {
+                "lsp-bench-command.yml",
+                "lsp-bench-comment.yml",
+                "lsp-bench-cross-server-command.yml",
+                "lsp-bench.yml",
+            },
+        )
+        self.assertTrue((ROOT / "tools/lsp-bench/Cargo.toml").is_file())
         self.assertFalse((ROOT / "LspBenchRunnerProbe.md").exists())
         for name in (
             "lsp-bench-authoritative-validate.jq",

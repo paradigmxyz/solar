@@ -26,9 +26,9 @@ use super::{
     writer,
 };
 use crate::{
-    analysis::ModRef,
     backend::evm::{scheduler::Stack, spills::may_overlap, storage::FrameAddress},
     mir,
+    mir::analysis::ModRef,
 };
 use solar_config::{EvmVersion, OptimizationMode};
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};

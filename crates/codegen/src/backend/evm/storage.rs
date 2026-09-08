@@ -25,8 +25,8 @@
 //! module checks every constant address/size calculation and never silently wraps a layout.
 
 use crate::{
-    analysis::{CallGraphInfo, MemoryCallSummaries},
-    memory::EvmMemoryLayout,
+    mir::analysis::{CallGraphInfo, MemoryCallSummaries},
+    mir::memory::EvmMemoryLayout,
     mir::{AllocationAlignment, Function, FunctionId, InstId, InstKind, Module, Terminator},
 };
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};

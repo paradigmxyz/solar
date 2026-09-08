@@ -29,12 +29,12 @@ const CLEARED_DIAGNOSTIC_SOURCE: &str = r#"contract Diagnostics {
 const PROJECT_FIXTURE: &str = r#"
     //- /foundry.toml
     [profile.default]
-    src = "before"
+    src = "lib/before"
 
-    //- /before/Before.sol
+    //- /lib/before/Before.sol
     contract Before {}
 
-    //- /after/After.sol
+    //- /lib/after/After.sol
     contract After {}
 "#;
 
@@ -590,7 +590,7 @@ async fn watched_manifest_change_reloads_workspace_symbols_on_the_wire() {
         "{profile_label}: server did not register the manifest watcher"
     );
 
-    project.write_file("/foundry.toml", "[profile.default]\nsrc = \"after\"\n");
+    project.write_file("/foundry.toml", "[profile.default]\nsrc = \"lib/after\"\n");
     session
         .notify(
             "workspace/didChangeWatchedFiles",
@@ -617,7 +617,7 @@ async fn configuration_change_reloads_workspace_symbols_on_the_wire() {
     session.initialize(profile, &root_uri, &capabilities).await;
     session.notify("initialized", json!({})).await;
 
-    project.write_file("/foundry.toml", "[profile.default]\nsrc = \"after\"\n");
+    project.write_file("/foundry.toml", "[profile.default]\nsrc = \"lib/after\"\n");
     session
         .notify(
             "workspace/didChangeConfiguration",

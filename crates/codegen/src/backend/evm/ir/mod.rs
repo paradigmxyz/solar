@@ -13,7 +13,7 @@ use solar_interface::{Result, Session, Span, Symbol, source_map::SourceFile};
 use solar_sema::Gcx;
 use std::fmt::Display;
 
-pub use crate::pass_manager::pipeline_label;
+pub use crate::mir::pass_manager::pipeline_label;
 
 mod blocks;
 mod cfg;

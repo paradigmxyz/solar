@@ -16,7 +16,7 @@ use super::{
     super::{Block, InstKind, Instruction, TerminatorKind, immediate},
     canonical, discardable_push, pure, rewrite, stack_usage, swapped,
 };
-use crate::{backend::evm::op, utils::eval::eval_opcode};
+use crate::{backend::evm::op, mir::utils::eval::eval_opcode};
 use alloy_primitives::U256;
 use solar_config::EvmVersion;
 

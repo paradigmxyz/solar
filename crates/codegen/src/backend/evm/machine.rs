@@ -19,10 +19,10 @@ use super::{
     storage::{FrameBase, FunctionStorage, ModulePlan},
 };
 use crate::{
-    analysis::{AliasAnalysis, CallGraphInfo, CfgInfo, Liveness},
-    immutable,
-    memory::EvmMemoryLayout,
     mir,
+    mir::analysis::{AliasAnalysis, CallGraphInfo, CfgInfo, Liveness},
+    mir::immutable,
+    mir::memory::EvmMemoryLayout,
 };
 use alloy_primitives::U256;
 use solar_config::{EvmVersion, OptimizationMode};
@@ -998,7 +998,7 @@ fn save_writer_homes(
 ) -> Result<SavedHomes, String> {
     let inst = context.function.blocks[block].instructions[position];
     let effects = context.layout.alias.instruction_mod_ref(context.function, inst);
-    if !effects.writes_space(crate::analysis::AddressSpace::Memory) {
+    if !effects.writes_space(crate::mir::analysis::AddressSpace::Memory) {
         return Ok(SavedHomes {
             protection: None,
             addresses: Vec::new(),

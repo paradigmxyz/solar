@@ -48,8 +48,8 @@
 
 use crate::{
     backend::evm::{ir, op},
+    mir::utils::eval,
     mir::{self, EffectKind},
-    utils::eval,
 };
 use alloy_primitives::U256;
 use solar_config::{EvmVersion, OptimizationMode};

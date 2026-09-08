@@ -3,8 +3,9 @@
 // CHECK-NEXT: "sourceMap": ":::-:0
 // CHECK-LABEL: "deployedBytecode": {
 // CHECK-NEXT: "sourceMap": ":::-:0
-// CHECK-SAME: 63:13:0:o
-// CHECK-SAME: :::i
+// CHECK: :::i
+// An external RETURN is not an internal return jump.
+// CHECK-NOT: :o
 {
   "language": "Solidity",
   "sources": {

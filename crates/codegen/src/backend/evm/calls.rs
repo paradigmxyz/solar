@@ -20,7 +20,7 @@ use super::{
     op,
     storage::{FrameAddress, FrameBase, FunctionStorage, PREVIOUS_FRAME_OFFSET, SAVED_FMP_OFFSET},
 };
-use crate::memory::EvmMemoryLayout;
+use crate::mir::memory::EvmMemoryLayout;
 use alloy_primitives::U256;
 use solar_config::EvmVersion;
 

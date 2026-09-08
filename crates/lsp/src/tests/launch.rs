@@ -67,8 +67,19 @@ async fn initialize_applies_launch_config_selected_profile_to_workspace_discover
         .iter()
         .find(|workspace| workspace.kind() == WorkspaceKind::Foundry)
         .unwrap();
-    assert_eq!(workspace.source_roots(), &[project.path("/custom-src")]);
-    assert_eq!(workspace.source_files(), &[project.path("/custom-src/Custom.sol")]);
+    assert_eq!(
+        workspace.source_roots(),
+        &[
+            project.path("/"),
+            project.path("/custom-src"),
+            project.path("/test"),
+            project.path("/script")
+        ]
+    );
+    assert_eq!(
+        workspace.source_files(),
+        &[project.path("/custom-src/Custom.sol"), project.path("/default-src/Default.sol")]
+    );
 }
 
 #[test]
@@ -215,7 +226,15 @@ async fn initialize_applies_host_resolved_foundry_workspace_config() {
                 == Some(project.path("/custom-src/nested").as_path())
         })
         .unwrap();
-    assert_eq!(nested.source_roots(), &[project.path("/custom-src/nested/src")]);
+    assert_eq!(
+        nested.source_roots(),
+        &[
+            project.path("/custom-src/nested"),
+            project.path("/custom-src/nested/src"),
+            project.path("/custom-src/nested/test"),
+            project.path("/custom-src/nested/script")
+        ]
+    );
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -277,7 +296,15 @@ async fn host_foundry_workspace_configs_match_their_own_roots() {
     };
     assert_eq!(source_roots("/one"), [project.path("/one/host-one")]);
     assert_eq!(source_roots("/two"), [project.path("/two/host-two")]);
-    assert_eq!(source_roots("/three"), [project.path("/three/local-three")]);
+    assert_eq!(
+        source_roots("/three"),
+        [
+            project.path("/three"),
+            project.path("/three/local-three"),
+            project.path("/three/test"),
+            project.path("/three/script")
+        ]
+    );
 }
 
 #[tokio::test(flavor = "current_thread")]

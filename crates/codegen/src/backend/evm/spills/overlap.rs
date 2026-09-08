@@ -14,12 +14,12 @@
 //! instructions or value identities are rewritten by these checks.
 
 use crate::{
-    analysis::{Access, AddressSpace, Location, MemoryAddress, MemoryBase, ModRef},
     backend::evm::storage::{
         FrameAddress, FunctionStorage, PREVIOUS_FRAME_OFFSET, SAVED_FMP_OFFSET,
     },
-    memory::EvmMemoryLayout,
     mir,
+    mir::analysis::{Access, AddressSpace, Location, MemoryAddress, MemoryBase, ModRef},
+    mir::memory::EvmMemoryLayout,
 };
 
 /// Recognizes writes disjoint from every possible compiler-owned activation word before layout.

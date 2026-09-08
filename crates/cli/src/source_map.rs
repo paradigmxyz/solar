@@ -25,7 +25,7 @@ pub(crate) struct SourceMapEncoder {
 }
 
 impl SourceMapEncoder {
-    /// Creates an encoder for the compilation's Standard JSON source IDs.
+    /// Creates an encoder for the compilation's source IDs.
     pub(crate) fn new(gcx: Gcx<'_>) -> Self {
         let source_ids = gcx
             .hir
@@ -84,15 +84,14 @@ impl SourceMapEncoder {
             Some((source.data.start as i64, source.data.len() as i64, source_id))
         });
         let (start, length, source) = location.unwrap_or((-1, -1, -1));
-        // `i` denotes an internal transfer and is meaningful only on a jump.
-        // `o` also covers RETURN, which is the external function's terminal transfer.
+        // Legacy `i`/`o` markers describe internal jumps, not external returns.
         let is_jump = matches!(instruction.opcode, 0x56 | 0x57);
         let enters_function = instruction.function_invoke.is_some()
             || static_jump_target(bytecode, previous, instruction)
                 .is_some_and(|target| function_entries.contains(&target));
         let jump = if is_jump && enters_function {
             'i'
-        } else if instruction.function_exit == Some(DebugFunctionExit::Return) {
+        } else if is_jump && instruction.function_exit == Some(DebugFunctionExit::Return) {
             'o'
         } else {
             '-'

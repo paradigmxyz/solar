@@ -57,13 +57,7 @@ impl VfsFile {
 
     fn analysis_source(&self) -> Arc<String> {
         self.analysis_source
-            .get_or_init(|| {
-                let mut source = String::with_capacity(self.contents.byte_len());
-                for chunk in self.contents.chunks() {
-                    source.push_str(chunk);
-                }
-                Arc::new(source)
-            })
+            .get_or_init(|| Arc::new(crate::utils::rope_to_string(&self.contents)))
             .clone()
     }
 }
@@ -92,7 +86,7 @@ impl FoldingRangeSource {
     pub(crate) fn folding_ranges(&self) -> Vec<lsp_types::FoldingRange> {
         self.0
             .folding_ranges
-            .get_or_init(|| folding_range::folding_ranges(self.0.contents.to_string()))
+            .get_or_init(|| folding_range::folding_ranges_from_rope(self.0.contents.clone()))
             .clone()
     }
 }

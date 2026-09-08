@@ -1,13 +1,13 @@
 //! Call hierarchy indexing.
 
 use crate::{
+    hierarchy::{HierarchyItem, HierarchyKey as CallableKey},
     proto,
     symbols::{DeclarationSymbol, SymbolId},
 };
 use lsp_types::{
     CallHierarchyIncomingCall, CallHierarchyItem, CallHierarchyOutgoingCall, Position, Range, Url,
 };
-use serde::{Deserialize, Serialize};
 use solar_interface::{
     Span,
     data_structures::{
@@ -21,9 +21,10 @@ use solar_sema::{
     hir::{self, ItemId, Visit},
     ty::TyKind,
 };
-use std::{cmp::Ordering, ops::ControlFlow, sync::OnceLock};
-
-const DATA_VERSION: u8 = 1;
+use std::{
+    ops::ControlFlow,
+    sync::{Arc, OnceLock},
+};
 
 #[derive(Debug, Default)]
 pub(crate) struct CallHierarchyIndex {
@@ -51,7 +52,7 @@ struct CallableFact {
 
 #[derive(Debug, Default)]
 struct QueryIndex {
-    items_by_symbol: FxHashMap<SymbolId, CallHierarchyItem>,
+    items_by_symbol: FxHashMap<SymbolId, HierarchyItem>,
     candidate_key_by_symbol: FxHashMap<SymbolId, CallableKey>,
     body_range_by_symbol: FxHashMap<SymbolId, Range>,
     canonical_symbol_by_key: FxHashMap<CallableKey, SymbolId>,
@@ -60,8 +61,8 @@ struct QueryIndex {
     incoming_by_key: CallRelations,
     incomplete_outgoing: FxHashSet<CallableKey>,
     incomplete_incoming: FxHashSet<CallableKey>,
-    call_sites_by_uri: FxHashMap<Url, Vec<CallSite>>,
-    bodies_by_uri: FxHashMap<Url, Vec<CallableBody>>,
+    call_sites_by_uri: FxHashMap<Arc<Url>, Vec<CallSite>>,
+    bodies_by_uri: FxHashMap<Arc<Url>, Vec<CallableBody>>,
 }
 
 type CallRelations = FxHashMap<CallableKey, FxHashMap<CallableKey, Vec<Range>>>;
@@ -83,35 +84,6 @@ struct CallSite {
 struct CallableBody {
     range: Range,
     callable: CallableKey,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-struct CallableKey {
-    uri: Url,
-    selection_range: Range,
-}
-
-impl Ord for CallableKey {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.uri
-            .as_str()
-            .cmp(other.uri.as_str())
-            .then_with(|| range_key(self.selection_range).cmp(&range_key(other.selection_range)))
-    }
-}
-
-impl PartialOrd for CallableKey {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-#[derive(Deserialize, Serialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct CallHierarchyData {
-    version: u8,
-    uri: Url,
-    selection_range: Range,
 }
 
 impl CallHierarchyIndex {
@@ -218,32 +190,25 @@ impl QueryIndex {
         conflicting_contents: &FxHashSet<Url>,
     ) -> Self {
         let mut index = Self::default();
+        let mut uris = FxHashMap::default();
         for fact in &facts.callables {
             let declaration = &declarations[fact.symbol];
             let key = CallableKey {
-                uri: declaration.location.uri.clone(),
+                uri: uris
+                    .entry(&declaration.location.uri)
+                    .or_insert_with(|| Arc::new(declaration.location.uri.clone()))
+                    .clone(),
                 selection_range: declaration.name_range,
-            };
-            let data = CallHierarchyData {
-                version: DATA_VERSION,
-                uri: key.uri.clone(),
-                selection_range: key.selection_range,
             };
             let detail = declaration.parent.map(|parent| declarations[parent].name.clone());
             index.items_by_symbol.insert(
                 fact.symbol,
-                CallHierarchyItem {
+                HierarchyItem {
+                    key: key.clone(),
                     name: declaration.name.clone(),
                     kind: declaration.kind,
-                    tags: None,
                     detail,
-                    uri: key.uri.clone(),
                     range: declaration.location.range,
-                    selection_range: key.selection_range,
-                    data: Some(
-                        serde_json::to_value(data)
-                            .expect("call hierarchy data should be serializable"),
-                    ),
                 },
             );
             index.candidate_key_by_symbol.insert(fact.symbol, key);
@@ -264,7 +229,7 @@ impl QueryIndex {
             outgoing_facts_by_symbol
                 .entry(call.caller)
                 .or_default()
-                .push((callee.clone(), range_key(call.from_range)));
+                .push((callee.clone(), proto::range_key(call.from_range)));
         }
         for facts in outgoing_facts_by_symbol.values_mut() {
             facts.sort_unstable();
@@ -273,7 +238,7 @@ impl QueryIndex {
 
         let mut incompatible_keys = FxHashSet::default();
         for (&symbol, key) in &self.candidate_key_by_symbol {
-            if conflicting_contents.contains(&key.uri) || incompatible_keys.contains(key) {
+            if conflicting_contents.contains(key.uri.as_ref()) || incompatible_keys.contains(key) {
                 continue;
             }
             if let Some(&existing) = self.canonical_symbol_by_key.get(key) {
@@ -337,7 +302,9 @@ impl QueryIndex {
         normalize_relations(&mut self.incoming_by_key);
         for sites in self.call_sites_by_uri.values_mut() {
             sites.sort_by(|a, b| {
-                range_key(a.range).cmp(&range_key(b.range)).then_with(|| a.callee.cmp(&b.callee))
+                proto::range_key(a.range)
+                    .cmp(&proto::range_key(b.range))
+                    .then_with(|| a.callee.cmp(&b.callee))
             });
             sites.dedup();
         }
@@ -352,8 +319,8 @@ impl QueryIndex {
         }
         for bodies in self.bodies_by_uri.values_mut() {
             bodies.sort_by(|a, b| {
-                range_key(a.range)
-                    .cmp(&range_key(b.range))
+                proto::range_key(a.range)
+                    .cmp(&proto::range_key(b.range))
                     .then_with(|| a.callable.cmp(&b.callable))
             });
             bodies.dedup();
@@ -368,13 +335,13 @@ impl QueryIndex {
     ) -> Option<Vec<CallHierarchyItem>> {
         if let Some(site) = self.call_site(uri, position) {
             let key = site.callee.as_ref()?;
-            return Some(vec![self.item(key)?.clone()]);
+            return Some(vec![self.item(key)?.to_call_item()]);
         }
         if let Some(key) = declaration.and_then(|symbol| self.key_by_symbol.get(&symbol)) {
-            return Some(vec![self.item(key)?.clone()]);
+            return Some(vec![self.item(key)?.to_call_item()]);
         }
         let key = self.enclosing_body_key(uri, position)?;
-        Some(vec![self.item(key)?.clone()])
+        Some(vec![self.item(key)?.to_call_item()])
     }
 
     pub(crate) fn incoming(
@@ -392,7 +359,7 @@ impl QueryIndex {
                 .into_iter()
                 .filter_map(|(caller, ranges)| {
                     Some(CallHierarchyIncomingCall {
-                        from: self.item(caller)?.clone(),
+                        from: self.item(caller)?.to_call_item(),
                         from_ranges: ranges.clone(),
                     })
                 })
@@ -415,7 +382,7 @@ impl QueryIndex {
                 .into_iter()
                 .filter_map(|(callee, ranges)| {
                     Some(CallHierarchyOutgoingCall {
-                        to: self.item(callee)?.clone(),
+                        to: self.item(callee)?.to_call_item(),
                         from_ranges: ranges.clone(),
                     })
                 })
@@ -427,34 +394,30 @@ impl QueryIndex {
         self.call_sites_by_uri
             .get(uri)?
             .iter()
-            .filter(|site| range_contains(site.range, position))
-            .min_by_key(|site| (range_size_key(site.range), range_key(site.range)))
+            .filter(|site| proto::range_contains(site.range, position))
+            .min_by_key(|site| (proto::range_size_key(site.range), proto::range_key(site.range)))
     }
 
     fn enclosing_body_key(&self, uri: &Url, position: Position) -> Option<&CallableKey> {
         self.bodies_by_uri
             .get(uri)?
             .iter()
-            .filter(|body| range_contains(body.range, position))
-            .min_by_key(|body| (range_size_key(body.range), range_key(body.range)))
+            .filter(|body| proto::range_contains(body.range, position))
+            .min_by_key(|body| (proto::range_size_key(body.range), proto::range_key(body.range)))
             .map(|body| &body.callable)
     }
 
-    fn item(&self, key: &CallableKey) -> Option<&CallHierarchyItem> {
+    fn item(&self, key: &CallableKey) -> Option<&HierarchyItem> {
         self.items_by_symbol.get(self.canonical_symbol_by_key.get(key)?)
     }
 
     fn resolve_item(&self, item: &CallHierarchyItem) -> Option<CallableKey> {
-        let data = CallHierarchyData::deserialize(item.data.as_ref()?).ok()?;
-        if data.version != DATA_VERSION {
-            return None;
-        }
-        let key = CallableKey { uri: data.uri, selection_range: data.selection_range };
+        let key = CallableKey::from_data(item.data.as_ref()?)?;
         let current = self.item(&key)?;
         // Name and kind distinguish a declaration replacement at the same source position. The
         // full range and detail are presentation data that may change while the callable remains.
-        (item.uri == current.uri
-            && item.selection_range == current.selection_range
+        (item.uri == *current.key.uri
+            && item.selection_range == current.key.selection_range
             && item.name == current.name
             && item.kind == current.kind)
             .then_some(key)
@@ -603,27 +566,8 @@ fn resolved_source_call<'gcx>(
 fn normalize_relations(relations: &mut CallRelations) {
     for targets in relations.values_mut() {
         for ranges in targets.values_mut() {
-            ranges.sort_by_key(|&range| range_key(range));
+            ranges.sort_by_key(|&range| proto::range_key(range));
             ranges.dedup();
         }
     }
-}
-
-fn range_contains(range: Range, position: Position) -> bool {
-    if range.start == range.end {
-        position == range.start
-    } else {
-        position >= range.start && position < range.end
-    }
-}
-
-fn range_size_key(range: Range) -> (u32, u32) {
-    (
-        range.end.line.saturating_sub(range.start.line),
-        range.end.character.saturating_sub(range.start.character),
-    )
-}
-
-fn range_key(range: Range) -> (u32, u32, u32, u32) {
-    (range.start.line, range.start.character, range.end.line, range.end.character)
 }

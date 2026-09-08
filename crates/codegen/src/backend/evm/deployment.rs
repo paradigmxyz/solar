@@ -12,7 +12,7 @@
 //! values or frame contents are observed after the final RETURN.
 
 use super::{ImmutableReference, ir, machine, op, storage::ModulePlan};
-use crate::{immutable::immutable_staging_addr, mir};
+use crate::mir::{self, immutable::immutable_staging_addr};
 use alloy_primitives::U256;
 use solar_config::{EvmVersion, OptimizationMode};
 

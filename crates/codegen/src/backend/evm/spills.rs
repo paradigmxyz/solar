@@ -41,8 +41,8 @@
 
 use super::{op, scheduler::Stack};
 use crate::{
-    analysis::{AddressSpace, AliasAnalysis, CfgInfo, Liveness},
     mir,
+    mir::analysis::{AddressSpace, AliasAnalysis, CfgInfo, Liveness},
 };
 use overlap::disjoint_frame_write;
 use solar_config::EvmVersion;

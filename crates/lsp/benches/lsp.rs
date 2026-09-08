@@ -11,9 +11,9 @@ use solar_lsp::{
     BenchmarkOpenDocuments, BenchmarkProject, BenchmarkRepeatedAnalysis, BenchmarkRequest,
     BenchmarkResponse, BenchmarkSelectionRangeRequests, BenchmarkWorkspaceDiscovery,
     BenchmarkWorkspacePathQueries, BenchmarkWorkspaceReports, benchmark_folding_ranges,
-    benchmark_folding_ranges_from_rope, benchmark_selection_ranges,
+    benchmark_folding_ranges_from_rope, benchmark_import_path_at, benchmark_selection_ranges,
 };
-use std::{fs, hint::black_box, path::PathBuf};
+use std::{fmt::Write as _, fs, hint::black_box, path::PathBuf};
 
 const ANALYSIS_FUNCTION_COUNTS: [usize; 2] = [64, 256];
 const INCOMPLETE_FOLDING_CONTRACT_COUNT: usize = 256;
@@ -37,75 +37,53 @@ struct BenchmarkSource {
     hover_positions: Vec<(u32, u32)>,
 }
 
-struct SourceBuilder {
-    source: String,
-    hover_anchors: Vec<String>,
-}
-
-impl SourceBuilder {
-    fn new(function_count: usize) -> Self {
-        Self { source: String::new(), hover_anchors: Vec::with_capacity(function_count * 2) }
-    }
-
-    fn push_line(&mut self, line: &str) {
-        self.source.push_str(line);
-        self.source.push('\n');
-    }
-
-    fn push_hover_anchor(&mut self, anchor: String) {
-        self.hover_anchors.push(anchor);
-    }
-
-    fn finish(self) -> BenchmarkSource {
-        let project = BenchmarkProject::from_source(self.source.clone());
-        let hover_positions = self
-            .hover_anchors
-            .into_iter()
-            .map(|anchor| {
-                let (_, position) = project
-                    .unique_anchor("benchmark.sol", &anchor)
-                    .expect("generated hover anchors should be unique");
-                (position.line, position.character)
-            })
-            .collect();
-        BenchmarkSource { source: self.source, project, hover_positions }
-    }
-}
-
 fn benchmark_source(function_count: usize) -> BenchmarkSource {
-    let mut builder = SourceBuilder::new(function_count);
-    builder.push_line("contract Benchmark {");
+    let mut source = String::new();
+    let mut hover_anchors = Vec::with_capacity(function_count * 2);
+    let mut push_line = |line: &str| {
+        source.push_str(line);
+        source.push('\n');
+    };
+    push_line("contract Benchmark {");
     for index in 0..function_count {
         let name = format!("function_{index:04}");
-        builder.push_line(&format!(
-            "    /// @notice Processes values for benchmark function {index}."
-        ));
-        builder.push_line("    /// @dev Used to measure resolved NatSpec rendering.");
-        builder.push_line("    /// @param first The first input value.");
-        builder.push_line("    /// @param second The second input value.");
-        builder.push_line("    /// @param account The account returned by the function.");
-        builder.push_line("    /// @return total The sum of both input values.");
-        builder.push_line("    /// @return owner The supplied account.");
+        push_line(&format!("    /// @notice Processes values for benchmark function {index}."));
+        push_line("    /// @dev Used to measure resolved NatSpec rendering.");
+        push_line("    /// @param first The first input value.");
+        push_line("    /// @param second The second input value.");
+        push_line("    /// @param account The account returned by the function.");
+        push_line("    /// @return total The sum of both input values.");
+        push_line("    /// @return owner The supplied account.");
         let declaration = format!(
             "    function {name}(uint256 first, uint256 second, address account) public pure returns (uint256 total, address owner) {{"
         );
-        builder.push_line(&declaration);
-        builder.push_hover_anchor(format!("{name}(uint256 first"));
-        builder.push_line("        total = first + second;");
-        builder.push_line("        owner = account;");
-        builder.push_line("    }");
+        push_line(&declaration);
+        hover_anchors.push(format!("{name}(uint256 first"));
+        push_line("        total = first + second;");
+        push_line("        owner = account;");
+        push_line("    }");
     }
 
-    builder.push_line("    function exercise() public pure {");
+    push_line("    function exercise() public pure {");
     for index in 0..function_count {
         let name = format!("function_{index:04}");
         let call = format!("        {name}(1, 2, address(0));");
-        builder.push_line(&call);
-        builder.push_hover_anchor(format!("{name}(1, 2, address(0))"));
+        push_line(&call);
+        hover_anchors.push(format!("{name}(1, 2, address(0))"));
     }
-    builder.push_line("    }");
-    builder.push_line("}");
-    builder.finish()
+    push_line("    }");
+    push_line("}");
+    let project = BenchmarkProject::from_source(source.clone());
+    let hover_positions = hover_anchors
+        .into_iter()
+        .map(|anchor| {
+            let (_, position) = project
+                .unique_anchor("benchmark.sol", &anchor)
+                .expect("generated hover anchors should be unique");
+            (position.line, position.character)
+        })
+        .collect();
+    BenchmarkSource { source, project, hover_positions }
 }
 
 fn analysis_build(c: &mut Criterion) {
@@ -127,6 +105,111 @@ fn analysis_build(c: &mut Criterion) {
             },
         );
     }
+    let call = "function_0000(1, 2, address(0));";
+    let source = benchmark_source(1).source.replace(call, &call.repeat(256));
+    assert_clean(&BenchmarkAnalysis::from_source(source.clone()));
+    group.throughput(Throughput::Bytes(source.len() as u64));
+    group.bench_function(BenchmarkId::from_parameter("repeated-calls"), |b| {
+        b.iter_batched(
+            || source.clone(),
+            |source| black_box(BenchmarkAnalysis::from_source(black_box(source))),
+            BatchSize::PerIteration,
+        );
+    });
+    group.finish();
+}
+
+fn call_hierarchy_queries(c: &mut Criterion) {
+    let mut source = String::from("contract Root { function target() internal {}\n");
+    for index in 0..128 {
+        writeln!(source, "function caller{index}() public {{ target(); }}").unwrap();
+    }
+    source.push_str("}\n");
+    let project = BenchmarkProject::from_source(source);
+    let (uri, position) = project.unique_anchor("benchmark.sol", "target() internal").unwrap();
+    let analysis = project.analyze();
+    assert_clean(&analysis);
+    assert_eq!(analysis.incoming_calls(&uri, position).len(), 128);
+    let mut group = c.benchmark_group("lsp/call-hierarchy");
+    group.bench_function(BenchmarkId::from_parameter("128-callers"), |b| {
+        b.iter(|| black_box(analysis.incoming_calls(black_box(&uri), black_box(position))));
+    });
+    group.finish();
+}
+
+fn type_hierarchy_queries(c: &mut Criterion) {
+    let mut source = String::from("contract Root {}\n");
+    for index in 0..128 {
+        writeln!(source, "contract Child{index} is Root {{}}").unwrap();
+    }
+    let project = BenchmarkProject::from_source(source);
+    let (uri, position) =
+        project.unique_anchor("benchmark.sol", "Root {}\ncontract Child0").unwrap();
+    let analysis = project.analyze();
+    assert_clean(&analysis);
+    assert_eq!(analysis.type_hierarchy(&uri, position).len(), 128);
+    let mut group = c.benchmark_group("lsp/type-hierarchy");
+    group.bench_function(BenchmarkId::from_parameter("128-subtypes"), |b| {
+        b.iter(|| black_box(analysis.type_hierarchy(black_box(&uri), black_box(position))));
+    });
+    group.finish();
+}
+
+fn code_lens_queries(c: &mut Criterion) {
+    let fixture = benchmark_source(HOVER_FUNCTION_COUNT);
+    let (uri, _) =
+        fixture.project.unique_anchor("benchmark.sol", "function_0255(1, 2, address(0))").unwrap();
+    let analysis = fixture.project.analyze();
+    assert_clean(&analysis);
+    assert!(analysis.code_lenses(&uri).len() >= HOVER_FUNCTION_COUNT);
+    let mut group = c.benchmark_group("lsp/code-lens");
+    group.bench_function(BenchmarkId::from_parameter("256-functions"), |b| {
+        b.iter(|| black_box(analysis.code_lenses(black_box(&uri))));
+    });
+    group.finish();
+}
+
+fn import_path_queries(c: &mut Criterion) {
+    let mut group = c.benchmark_group("lsp/import-path");
+    let cursor = OPTIMISM_SOURCE.rfind('}').unwrap();
+    assert!(!benchmark_import_path_at(OPTIMISM_SOURCE, cursor));
+    group.bench_function(BenchmarkId::from_parameter("optimism-code"), |b| {
+        b.iter(|| {
+            black_box(benchmark_import_path_at(black_box(OPTIMISM_SOURCE), black_box(cursor)))
+        });
+    });
+    group.finish();
+}
+
+fn completion_queries(c: &mut Criterion) {
+    let fixture = benchmark_source(HOVER_FUNCTION_COUNT);
+    let (uri, position) =
+        fixture.project.unique_anchor("benchmark.sol", "function_0255(1, 2, address(0))").unwrap();
+    let analysis = fixture.project.analyze();
+    assert_clean(&analysis);
+    let mut group = c.benchmark_group("lsp/completion");
+    for (name, prefix) in
+        [("all", ""), ("selective", "function_0255"), ("no-match", "not_a_symbol")]
+    {
+        let items = analysis.completions(&uri, position, prefix);
+        match name {
+            "all" => assert!(items.len() >= HOVER_FUNCTION_COUNT),
+            "selective" => assert_eq!(
+                items.iter().map(|item| item.label.as_str()).collect::<Vec<_>>(),
+                ["function_0255"]
+            ),
+            _ => assert!(items.is_empty()),
+        }
+        group.bench_function(BenchmarkId::from_parameter(name), |b| {
+            b.iter(|| {
+                black_box(analysis.completions(
+                    black_box(&uri),
+                    black_box(position),
+                    black_box(prefix),
+                ))
+            });
+        });
+    }
     group.finish();
 }
 
@@ -145,10 +228,11 @@ fn bounded_workspace_discovery(c: &mut Criterion) {
     let baseline = BenchmarkWorkspaceDiscovery::run(temp.path());
     assert_eq!(baseline.eager(), 0);
     assert_eq!(baseline.source_file_count(), 0);
-    // Manifest discovery prunes the import-only root without visiting its 10,000 descendants.
-    // The full workspace load still scans it once for remappings; discovery must not repeat it.
-    assert_eq!(baseline.pruned(), 1);
-    assert_eq!(baseline.visited(), 4);
+    // Manifest and source discovery each prune the import-only root without visiting its
+    // 10,000 descendants. Loading the workspace scans it once for remappings.
+    assert_eq!(baseline.pruned(), 2);
+    // Include the project root and configured entry-point roots, even when absent.
+    assert_eq!(baseline.visited(), 9);
 
     let mut group = c.benchmark_group("lsp/workspace-discovery");
     group.bench_function(BenchmarkId::from_parameter("foundry-10k-import-only"), |b| {
@@ -360,26 +444,99 @@ fn folding_range(c: &mut Criterion) {
     cached.bench_function(BenchmarkId::from_parameter("optimism-unchanged"), |b| {
         b.iter(|| black_box(requests.run()));
     });
+    cached.bench_function(BenchmarkId::from_parameter("optimism-first-request"), |b| {
+        b.iter_batched_ref(
+            || BenchmarkFoldingRangeRequests::new(OPTIMISM_SOURCE.to_owned()),
+            |requests| black_box(requests.run()),
+            BatchSize::PerIteration,
+        );
+    });
     cached.finish();
 }
 
 fn open_document_selection_range(c: &mut Criterion) {
-    let positions = [Position::new(0, 0)];
-    let requests =
-        BenchmarkSelectionRangeRequests::new(OPTIMISM_SOURCE.to_owned(), positions.iter().copied());
-    let expected = benchmark_selection_ranges(OPTIMISM_SOURCE.to_owned(), &positions)
-        .expect("the benchmark position should be valid");
-    let ranges = requests.run().expect("the benchmark position should be valid");
-    assert_eq!(ranges, expected);
-    assert_eq!(ranges.len(), positions.len());
-    assert!(ranges[0].range.start <= positions[0] && positions[0] < ranges[0].range.end);
+    let position_at = |source: &str, offset| {
+        let prefix = &source[..offset];
+        Position::new(
+            prefix.bytes().filter(|&byte| byte == b'\n').count() as u32,
+            prefix.rsplit('\n').next().unwrap().encode_utf16().count() as u32,
+        )
+    };
+    let middle = position_at(
+        OPTIMISM_SOURCE,
+        OPTIMISM_SOURCE
+            .match_indices("return ")
+            .find(|(offset, _)| *offset >= OPTIMISM_SOURCE.len() / 2)
+            .unwrap()
+            .0,
+    );
+    let end = position_at(OPTIMISM_SOURCE, OPTIMISM_SOURCE.rfind("return ").unwrap());
+    let start = Position::new(0, 0);
 
     let mut group = c.benchmark_group("lsp/open-document-selection-range");
     group.throughput(Throughput::Bytes(OPTIMISM_SOURCE.len() as u64));
-    group.bench_function(BenchmarkId::from_parameter("optimism"), |b| {
-        b.iter(|| black_box(black_box(&requests).run()));
-    });
+    for (name, positions) in [
+        ("optimism", vec![start]),
+        ("optimism-middle", vec![middle]),
+        ("optimism-end", vec![end]),
+        ("optimism-multiple", vec![end, start, middle, end]),
+    ] {
+        let requests = BenchmarkSelectionRangeRequests::new(
+            OPTIMISM_SOURCE.to_owned(),
+            positions.iter().copied(),
+        );
+        let expected = benchmark_selection_ranges(OPTIMISM_SOURCE.to_owned(), &positions)
+            .expect("the benchmark positions should be valid");
+        let ranges = requests.run().expect("the benchmark positions should be valid");
+        assert_eq!(ranges, expected);
+        assert_eq!(ranges.len(), positions.len());
+        for (range, position) in ranges.iter().zip(&positions) {
+            assert!(range.range.start <= *position && *position < range.range.end);
+            if *position != start {
+                assert!(range.parent.is_some());
+            }
+        }
+        group.bench_function(BenchmarkId::from_parameter(name), |b| {
+            b.iter(|| black_box(black_box(&requests).run()));
+        });
+    }
+    for (name, source) in [
+        ("uniswap-v3", include_str!("../../../testdata/UniswapV3.sol")),
+        (
+            "unifap-v2-router",
+            include_str!("../../../tests/foundry/unifap-v2/src/UnifapV2Router.sol"),
+        ),
+    ] {
+        let anchor = "\n    function ";
+        let offset = source
+            .match_indices(anchor)
+            .find(|(offset, _)| *offset >= source.len() / 2)
+            .expect("the real source should contain a function declaration")
+            .0
+            + anchor.len();
+        let positions = [position_at(source, offset)];
+        let requests = BenchmarkSelectionRangeRequests::new(source.to_owned(), positions);
+        let expected = benchmark_selection_ranges(source.to_owned(), &positions)
+            .expect("the benchmark position should be valid");
+        assert!(expected[0].parent.is_some());
+        assert_eq!(requests.run(), Some(expected));
+        group.throughput(Throughput::Bytes(source.len() as u64));
+        group.bench_function(BenchmarkId::from_parameter(name), |b| {
+            b.iter(|| black_box(black_box(&requests).run()));
+        });
+    }
     group.finish();
+
+    let mut cold = c.benchmark_group("lsp/open-document-selection-range-cold");
+    cold.throughput(Throughput::Bytes(OPTIMISM_SOURCE.len() as u64));
+    cold.bench_function(BenchmarkId::from_parameter("optimism"), |b| {
+        b.iter_batched_ref(
+            || BenchmarkSelectionRangeRequests::new(OPTIMISM_SOURCE.to_owned(), [middle]),
+            |requests| black_box(requests.run()),
+            BatchSize::PerIteration,
+        );
+    });
+    cold.finish();
 }
 
 fn workspace_diagnostic_hot_paths(c: &mut Criterion) {
@@ -450,6 +607,12 @@ fn repeated_analysis(c: &mut Criterion) {
     let mut cached = c.benchmark_group("lsp/incremental-analysis");
     cached.bench_function(BenchmarkId::from_parameter("unchanged"), |b| {
         b.iter(|| black_box(analysis.run()))
+    });
+    cached.bench_function(BenchmarkId::from_parameter("reverted-edit"), |b| {
+        b.iter(|| {
+            analysis.edit_and_revert();
+            black_box(analysis.run())
+        });
     });
     cached.finish();
 }
@@ -654,6 +817,11 @@ fn unifap_benches(c: &mut Criterion) {
 criterion_group!(
     benches,
     analysis_build,
+    completion_queries,
+    code_lens_queries,
+    type_hierarchy_queries,
+    call_hierarchy_queries,
+    import_path_queries,
     bounded_workspace_discovery,
     symbol_table_aggregation,
     burst_hover,

@@ -44,11 +44,11 @@ class ReportFormattingTests(unittest.TestCase):
         ):
             self.assertEqual(
                 benchmark.perf_link("Results"),
-                "[Results](https://getfoundry.sh/perf/?base=01234567&head=fedcba98#benchmarks)",
+                "[Results](https://getfoundry.sh/perf/solar/?base=01234567&head=fedcba98#benchmarks)",
             )
             self.assertEqual(
                 benchmark.perf_link("factorial", "factorial"),
-                "[factorial](https://getfoundry.sh/perf/?base=01234567&head=fedcba98&benchmark=factorial#artifacts)",
+                "[factorial](https://getfoundry.sh/perf/solar/?base=01234567&head=fedcba98&benchmark=factorial#artifacts)",
             )
 
     def test_perf_link_targets_artifact(self):
@@ -81,7 +81,10 @@ class ReportFormattingTests(unittest.TestCase):
 
     def test_changed_report_has_no_details(self):
         self.assertEqual(
-            benchmark.format_report("## Results", True, False), "## Results"
+            benchmark.format_report(
+                "## Results", True, False, comparison="### Run comparison"
+            ),
+            "### Run comparison\n\n## Results",
         )
 
     def test_notices_precede_comparison_and_details(self):
@@ -92,8 +95,8 @@ class ReportFormattingTests(unittest.TestCase):
             "> [!WARNING]\n"
             "> This branch is behind `main`, so these benchmark results may be incorrect.\n\n"
             "> [!NOTE]\n> Codegen benchmark output is unchanged from `main`.\n\n"
-            "### Run comparison\n\n"
             "<details>\n<summary>Codegen benchmark output</summary>\n\n"
+            "### Run comparison\n\n"
             "## Results\n\n</details>\n",
         )
 
@@ -110,13 +113,16 @@ class ReportFormattingTests(unittest.TestCase):
         )
 
     def test_behind_main_report_has_warning(self):
-        report = benchmark.format_report("## Results", True, True)
+        report = benchmark.format_report(
+            "## Results", True, True, comparison="### Run comparison"
+        )
         self.assertEqual(
             report,
             "> [!WARNING]\n"
             "> This branch is behind `main`, so these benchmark results may be incorrect.\n\n"
             "<details>\n"
             "<summary>Codegen benchmark output</summary>\n\n"
+            "### Run comparison\n\n"
             "## Results\n\n"
             "</details>\n",
         )
@@ -227,6 +233,30 @@ class ReportFormattingTests(unittest.TestCase):
             "| bench | gas (vs main) | solc | size (vs main) | solc |\n"
             "| ----- | ------------- | ---- | -------------- | ---- |\n"
             "| test | 110 (❌ +10.00%) | n/a (n/a) | 210B (❌ +5.00%) | n/a (n/a) |\n",
+        )
+
+    def test_codegen_report_adds_reference_compiler_columns(self):
+        current = result()
+        current["compilers"]["extra"] = {
+            "status": "ok",
+            "total_gas": 10,
+            "runtime_size": 20,
+            "deploy_gas": 30,
+            "bytecode_size": 40,
+        }
+        self.assertEqual(
+            benchmark.codegen_report([current], [current]),
+            "## Codegen benchmark\n"
+            "\n"
+            "| bench | gas (vs main) | solc | extra | size (vs main) | solc | extra |\n"
+            "| ----- | ------------- | ---- | ---- | -------------- | ---- | ---- |\n"
+            "| test | n/a (n/a) | n/a (n/a) | 10 (n/a) | n/a (n/a) | n/a (n/a) | 20B (n/a) |\n"
+            "\n"
+            "### Deployment\n"
+            "\n"
+            "| bench | gas (vs main) | solc | extra | size (vs main) | solc | extra |\n"
+            "| ----- | ------------- | ---- | ---- | -------------- | ---- | ---- |\n"
+            "| test | n/a (n/a) | n/a (n/a) | 30 (n/a) | n/a (n/a) | n/a (n/a) | 40B (n/a) |\n",
         )
 
     def test_codegen_report_labels_failed_revision(self):
@@ -537,6 +567,28 @@ class CompileTimeReportTests(unittest.TestCase):
         self.assertIn("| failed | n/a (n/a) | 400.0 ms (n/a) |", text)
         self.assertIn(
             "| **sum of medians** | **10.0 ms** | **200.0 ms (✅ +1900.00%)** |", text
+        )
+
+    def test_compile_time_report_with_third_compiler(self):
+        results = [self.timed_result("test", 0.010, 0.010)]
+        results[0]["compilers"]["extra"] = {
+            "status": "ok",
+            "compile_time_seconds": 0.010,
+        }
+        self.assertEqual(
+            benchmark.compile_time_report(results, {}, "main"),
+            [
+                "<details>",
+                "<summary>Compilation time</summary>",
+                "",
+                "| bench | time (vs main) | solc | extra |",
+                "| ----- | --------------------- | ---- | ---- |",
+                "| test | 10.0 ms (n/a) | 10.0 ms (~0%) | 10.0 ms (~0%) |",
+                "| **sum of medians** | **10.0 ms** | **10.0 ms (~0%)** | **10.0 ms (~0%)** |",
+                "",
+                "</details>",
+                "",
+            ],
         )
 
     def test_compile_time_report_uses_solar_baseline_delta(self):

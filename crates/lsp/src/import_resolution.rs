@@ -39,6 +39,8 @@ pub(crate) fn import_path_at(source: &str, cursor: usize) -> Option<ImportPathAt
         return None;
     }
 
+    // Import paths are plain strings; code navigation does not need a full-file parse.
+    plain_string_at(source, cursor)?;
     parse_import_path(source, cursor)
 }
 

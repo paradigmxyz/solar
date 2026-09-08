@@ -12,13 +12,13 @@
 
 use super::FunctionLayout;
 use crate::{
-    analysis::{AliasAnalysis, CallGraphInfo, ModRef},
     backend::evm::{
         spills,
         storage::{FrameAddress, FrameBase, FunctionStorage, ModulePlan},
     },
-    memory::EvmMemoryLayout,
     mir,
+    mir::analysis::{AliasAnalysis, CallGraphInfo, ModRef},
+    mir::memory::EvmMemoryLayout,
 };
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 

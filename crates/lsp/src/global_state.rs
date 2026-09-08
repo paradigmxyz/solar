@@ -97,6 +97,12 @@ struct AnalysisPathIndex {
 }
 
 impl AnalysisPathIndex {
+    fn is_empty(&self) -> bool {
+        self.resolved_dependencies.is_empty()
+            && self.existing_unresolved_candidates.is_empty()
+            && self.missing_candidates.is_empty()
+    }
+
     fn merge(&mut self, other: Self) {
         self.resolved_dependencies.extend(other.resolved_dependencies);
         self.existing_unresolved_candidates.extend(other.existing_unresolved_candidates);
@@ -267,6 +273,14 @@ struct CachedAnalysisOutput {
     vfs_content_revision: u64,
     config: Arc<Config>,
     output: AnalysisOutput<Arc<SymbolTables>>,
+    inputs: Vec<AnalysisBatchInputs>,
+}
+
+/// Exact analysis roots and overlays, excluding client document versions.
+#[derive(Clone)]
+struct AnalysisBatchInputs {
+    files: Vec<(PathBuf, Arc<String>)>,
+    preloaded_files: Vec<(PathBuf, Arc<String>)>,
 }
 
 impl AnalysisCommitState {
@@ -526,7 +540,7 @@ impl GlobalState {
         }
     }
 
-    fn reconcile_deferred_source_file(&mut self, path: &Path, typ: FileChangeType) -> bool {
+    fn reconcile_source_file(&mut self, path: &Path, typ: FileChangeType) -> bool {
         let present = match std::fs::symlink_metadata(path) {
             Ok(metadata) => Some(metadata.is_file()),
             Err(error) if error.kind() == io::ErrorKind::NotFound => Some(false),
@@ -674,17 +688,7 @@ impl GlobalState {
         if !self.config.supports_watched_file_dynamic_registration() {
             return;
         }
-        let analysis_paths = {
-            let commit = self.analysis_commit.lock();
-            AnalysisPathIndex {
-                resolved_dependencies: commit.analysis_paths.resolved_dependencies.clone(),
-                existing_unresolved_candidates: commit
-                    .analysis_paths
-                    .existing_unresolved_candidates
-                    .clone(),
-                missing_candidates: commit.analysis_paths.missing_candidates.clone(),
-            }
-        };
+        let analysis_paths = self.analysis_commit.lock().analysis_paths.clone();
         let specs = watched_file_specs(&self.config, &analysis_paths);
         let update = prepare_watched_file_registration_update(
             &self.config,
@@ -719,10 +723,28 @@ impl GlobalState {
     ///
     /// [`salsa`]: https://docs.rs/salsa/latest/salsa/
     pub(crate) fn recompute_with_disk_files(&mut self, disk_paths: Vec<PathBuf>) {
+        // New project files also need discovery to establish watches for their directories.
+        let rediscover = disk_paths.iter().any(|path| {
+            !self
+                .config
+                .workspaces()
+                .iter()
+                .any(|workspace| workspace.source_files().binary_search(path).is_ok())
+                && self.config.tracks_source_file(path)
+                && std::fs::symlink_metadata(path).is_ok_and(|metadata| metadata.is_file())
+        });
+        let mode = if rediscover {
+            AnalysisMode::Rediscover
+        } else {
+            for path in &disk_paths {
+                self.reconcile_source_file(path, FileChangeType::CHANGED);
+            }
+            AnalysisMode::Recompute
+        };
         let changed_paths = disk_paths.clone();
         let delay = self.config.source_change_debounce();
         self.request_analysis(
-            AnalysisMode::Recompute,
+            mode,
             AnalysisRequest { disk_paths, changed_paths, ..Default::default() },
             AnalysisTrigger::Document,
             delay,
@@ -1010,7 +1032,7 @@ impl GlobalState {
                 still_deferred.insert(path, typ);
                 continue;
             }
-            self.reconcile_deferred_source_file(&path, typ);
+            self.reconcile_source_file(&path, typ);
             deferred_paths.push(path);
         }
         if !still_deferred.is_empty() {
@@ -1059,7 +1081,7 @@ impl GlobalState {
         let mut disk_paths = Vec::with_capacity(event.events.len());
         let mut removed_paths = Vec::new();
         for (path, typ) in event.events {
-            if self.reconcile_deferred_source_file(&path, typ) {
+            if self.reconcile_source_file(&path, typ) {
                 removed_paths.push(path.clone());
             }
             disk_paths.push(path);
@@ -1197,6 +1219,8 @@ impl GlobalState {
             let progress = self.analysis_progress.reserve(version);
             if refresh_pull_results {
                 commit.begin_external_refresh();
+                // Keep invalidation even if a later request cancels the debounced worker.
+                commit.cached_output = None;
             }
             self.commit_analysis_epoch(&mut commit, version, changed_paths, rediscover);
             let update =
@@ -1630,6 +1654,46 @@ fn run_analysis(
         return AnalysisTaskOutcome::Superseded;
     }
 
+    if !has_disk_paths && source_files_complete {
+        let cached = {
+            let mut commit = snapshot.analysis_commit.lock();
+            if !commit.cache_invalidated
+                && let Some(cached) = &mut commit.cached_output
+                && Arc::ptr_eq(&cached.config, &config)
+                // The compared batches do not include disk-only imports or resolver probes.
+                && cached.output.analysis_paths.is_empty()
+                && cached.inputs.len() == batches.len()
+                && cached.inputs.iter().zip(&batches).all(|(inputs, batch)| {
+                    inputs.files == batch.files && inputs.preloaded_files == batch.preloaded_files
+                })
+            {
+                cached.vfs_content_revision = vfs_content_revision;
+                Some(cached.output.clone())
+            } else {
+                None
+            }
+        };
+        if let Some(output) = cached {
+            progress.report("Reusing workspace index");
+            return if snapshot.publish_analysis_output(version, output) {
+                AnalysisTaskOutcome::Published
+            } else {
+                AnalysisTaskOutcome::Superseded
+            };
+        }
+    }
+
+    let inputs = if has_disk_paths {
+        Vec::new()
+    } else {
+        batches
+            .iter()
+            .map(|batch| AnalysisBatchInputs {
+                files: batch.files.clone(),
+                preloaded_files: batch.preloaded_files.clone(),
+            })
+            .collect::<Vec<_>>()
+    };
     let mut results = AnalysisOutputAccumulator::default();
 
     for batch in batches {
@@ -1653,8 +1717,15 @@ fn run_analysis(
 
     let output = results.finish().into_shared();
     if !has_disk_paths {
-        snapshot.analysis_commit.lock().cached_output =
-            Some(CachedAnalysisOutput { vfs_content_revision, config, output: output.clone() });
+        let mut commit = snapshot.analysis_commit.lock();
+        if snapshot.is_current(version) && !commit.cache_invalidated {
+            commit.cached_output = Some(CachedAnalysisOutput {
+                vfs_content_revision,
+                config,
+                output: output.clone(),
+                inputs: if output.analysis_paths.is_empty() { inputs } else { Vec::new() },
+            });
+        }
     }
     progress.report("Publishing workspace index");
     if snapshot.publish_analysis_output(version, output) {
@@ -2746,7 +2817,11 @@ mod analysis_batch_tests {
         config.rediscover_workspaces();
         assert_eq!(
             config.workspaces()[0].source_files(),
-            &[project.path("/workspace/contracts/Tracked.sol")]
+            &[
+                project.path("/checks/Tracked.t.sol"),
+                project.path("/workspace/contracts/Tracked.sol"),
+                project.path("/workspace/deployments/Tracked.s.sol")
+            ]
         );
         let saved_path = project.path("/checks/SavedAfterDiscovery.t.sol");
         project
