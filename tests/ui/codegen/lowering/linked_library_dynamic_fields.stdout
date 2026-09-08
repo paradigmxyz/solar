@@ -733,9 +733,6 @@ bb9:
   push 68
   dup 3
   add
-  dup 1
-  push 320
-  mstore
   push 0
   dup 3
   mstore
@@ -753,12 +750,12 @@ bb9:
   swap 6
   mload
   dup 1
-  push 352
+  push 320
   mstore
   swap 3
   mload
   dup 1
-  push 384
+  push 352
   mstore
   push 196
   dup 4
@@ -782,13 +779,13 @@ bb9:
   mload
   mul
   dup 1
-  push 416
+  push 384
   mstore
   dup 7
   mstore
   swap 5
   pop
-  push 416
+  push 384
   mload
   push 5
   shl
@@ -810,23 +807,23 @@ bb9:
   pop
   swap 6
   pop
-  dup 4
-  dup 7
+  swap 3
+  dup 6
   sub
   push 132
-  dup 4
+  dup 3
   add
   mstore
+  dup 2
+  iszero
+  iszero
   dup 3
-  iszero
-  iszero
-  dup 4
   mload
   mul
   dup 1
   push 192
   mstore
-  dup 7
+  dup 6
   mstore
   push 31
   push 192
@@ -838,12 +835,11 @@ bb9:
   dup 1
   push 224
   mstore
-  swap 6
+  swap 5
   push 32
   add
   push 160
   mstore
-  pop
   pop
   pop
   pop
@@ -858,7 +854,7 @@ bb21:
   mload
   add
   push 32
-  push 352
+  push 320
   mload
   add
   push 192
@@ -872,7 +868,7 @@ bb21:
   not
   push 96
   shr
-  push 384
+  push 352
   mload
   and
   push 164
@@ -880,12 +876,6 @@ bb21:
   mload
   add
   mstore
-  push 320
-  mload
-  dup 1
-  swap 2
-  sub
-  add
   push 288
   mload
   swap 1

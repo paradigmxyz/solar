@@ -140,7 +140,7 @@ fn @getBytes() -> memorybytes [selector=0x0bcd3b33, pure, abi_params=[], abi_ret
 
 fn @getFixed() -> memoryfixedarray [selector=0x86952750, view, abi_params=[], abi_returns=[array<3, word>]] {
   bb0:
-    v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     memory_zero v0, 96
     v1 = alloc memoryfixedarray<3, 1>, exact, uninitialized, panic, 96
     jump bb1

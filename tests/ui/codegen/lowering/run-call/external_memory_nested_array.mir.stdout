@@ -153,7 +153,7 @@ fn @test() -> bool [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<
     v63 = phi [bb16: v62], [bb13: false]
     ret v63
   bb7:
-    v41 = alloc memorystruct<5>, exact, uninitialized, infallible, 160
+    v41 = alloc memorystruct<5>, exact, uninitialized, infallible, 160 !metadata(preserves_fmp)
     memory_zero v41, 160
     memory_object_store_element memoryarray<1>, v38, v39, v41
     v42 = add v39, 1

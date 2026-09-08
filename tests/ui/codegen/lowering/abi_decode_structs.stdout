@@ -68,8 +68,7 @@ fn @dNested() [selector=0xfc7ec666, abi_wrapper, pure] {
   bb2:
     v16 = mload v10
     v17 = add v10, v16
-    v18 = sub v12, v10
-    v19 = gt v16, v18
+    v19 = gt v16, v11
     jumpi v19, bb1, bb3
   bb3:
     v20 = sub v12, v17
@@ -143,9 +142,8 @@ fn @dNested() [selector=0xfc7ec666, abi_wrapper, pure] {
     v57 = mload 64 !metadata(memory=scratch)
     v58 = add v57, 96
     mstore v57, v2
-    v60 = sub v58, v57
     v59 = add v57, 32
-    mstore v59, v60
+    mstore v59, 96
     v62 = iszero v4
     v63 = iszero v62
     v61 = mload v4
@@ -169,7 +167,7 @@ fn @dNested() [selector=0xfc7ec666, abi_wrapper, pure] {
     v75 = sub v73, v57
     v77 = add v75, 31
     v79 = and v77, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v80 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v80 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
     v97 = add v80, v79
     mstore 64, v97 !metadata(memory=scratch)
     returndata v80, v75
@@ -202,8 +200,7 @@ fn @dFixed() [selector=0xc298c02b, abi_wrapper, pure] {
   bb4:
     v18 = mload v12
     v19 = add v12, v18
-    v20 = sub v14, v12
-    v21 = gt v18, v20
+    v21 = gt v18, v13
     jumpi v21, bb3, bb5
   bb5:
     v22 = sub v14, v19

@@ -5,7 +5,7 @@ types:
 
 fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[memory_bytes, memory_bytes], abi_return_params=[bytes, bytes]] {
   bb0:
-    v0 = alloc memorystruct<4>, exact, uninitialized, infallible, 128
+    v0 = alloc memorystruct<4>, exact, uninitialized, infallible, 128 !metadata(preserves_fmp)
     memory_zero v0, 128
     memory_object_store_field memorystruct<4>, v0, 1, memorybytes 96
     memory_object_store_field memorystruct<4>, v0, 3, memorybytes 96
@@ -59,7 +59,7 @@ fn @f() -> struct0 [selector=0x26121ff0, abi_params=[], abi_returns=[memory_byte
 
 fn @g() -> struct0 [selector=0xe2179b8e, abi_params=[], abi_returns=[memory_bytes, memory_bytes], abi_return_params=[bytes, bytes]] {
   bb0:
-    v0 = alloc memorystruct<4>, exact, uninitialized, infallible, 128
+    v0 = alloc memorystruct<4>, exact, uninitialized, infallible, 128 !metadata(preserves_fmp)
     memory_zero v0, 128
     memory_object_store_field memorystruct<4>, v0, 1, memorybytes 96
     memory_object_store_field memorystruct<4>, v0, 3, memorybytes 96
@@ -113,7 +113,7 @@ fn @g() -> struct0 [selector=0xe2179b8e, abi_params=[], abi_returns=[memory_byte
 
 fn @h() -> struct0 [selector=0xb8c9d365, abi_params=[], abi_returns=[memory_bytes, memory_bytes], abi_return_params=[bytes, bytes]] {
   bb0:
-    v0 = alloc memorystruct<4>, exact, uninitialized, infallible, 128
+    v0 = alloc memorystruct<4>, exact, uninitialized, infallible, 128 !metadata(preserves_fmp)
     memory_zero v0, 128
     memory_object_store_field memorystruct<4>, v0, 1, memorybytes 96
     memory_object_store_field memorystruct<4>, v0, 3, memorybytes 96

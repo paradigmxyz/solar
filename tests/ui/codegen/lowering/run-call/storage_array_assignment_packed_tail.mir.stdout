@@ -441,7 +441,7 @@ fn @exactSlotBoundary() -> u256 [selector=0xe55d27b8, abi_params=[], abi_returns
   bb5:
     jump bb2
   bb2:
-    v13 = alloc memoryfixedarray<8, 1>, exact, uninitialized, infallible, 256
+    v13 = alloc memoryfixedarray<8, 1>, exact, uninitialized, infallible, 256 !metadata(preserves_fmp)
     memory_zero v13, 256
     v14 = sload 0 !metadata(storage=slot(0))
     v15 = lt 8, v14

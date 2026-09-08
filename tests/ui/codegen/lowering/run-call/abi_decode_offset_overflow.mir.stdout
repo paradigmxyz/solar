@@ -5,7 +5,7 @@ fn @test() -> u256 [selector=0xf8a8fd6d, pure, abi_params=[], abi_returns=[word]
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1
     v1 = abi_encode [word, word, word], object, args 32, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
-    v2 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    v2 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<1>, v2, 0, 0
     memory_object_store_field memorystruct<1>, v2, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
     v3 = memory_object_len memoryarray, v0
@@ -41,7 +41,7 @@ fn @withinArray() -> u256 [selector=0xac457954, pure, abi_params=[], abi_returns
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1
     v1 = abi_encode [word, word], object, args 32, 2
-    v2 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v2 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<2>, v2, 0, 0
     memory_object_store_field memorystruct<2>, v2, 1, 0
     v3 = memory_object_len memoryarray, v0

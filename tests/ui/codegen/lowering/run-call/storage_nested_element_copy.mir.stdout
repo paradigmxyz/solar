@@ -1069,7 +1069,7 @@ fn @constructor() [constructor] {
     v25 = add v16, 1
     jump bb12
   bb2:
-    v3 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v3 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     jump bb4
   bb4:
     v4 = phi [bb2: 0], [bb5: v6]

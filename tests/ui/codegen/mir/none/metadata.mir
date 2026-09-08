@@ -4,10 +4,12 @@
 // CHECK-LABEL: {{^[ +].*}}fn @metadata{{[( ]}}
 // CHECK: {{^[ +].*}}sload 7 !metadata(storage=slot(7), hir=42, span=1..5, loop_depth=2)
 // CHECK: {{^[ +].*}}mload 64 !metadata(memory=scratch, unchecked)
+// CHECK: {{^[ +].*}}alloc raw, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
 fn @metadata(arg0: u256) -> u256 {
   bb0:
     v1 = sload 7 !metadata(storage=slot(7), loop_depth=2, hir=42, span=1..5)
     v2 = mload 64 !metadata(memory=scratch, unchecked)
     v3 = add v1, v2
+    v4 = alloc raw, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     ret v3
 }

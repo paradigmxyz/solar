@@ -5,7 +5,7 @@ types:
 
 fn @f() -> struct0 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
-    v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<1>, v0, 0, memoryarray 96
     v1 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v1, 1
@@ -35,7 +35,7 @@ fn @f() -> struct0 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word,
 
 fn @fixedArray() -> struct0 [selector=0x391e2457, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
-    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_zero v0, 64
     v1 = lt 0, 2
     v2 = iszero v1

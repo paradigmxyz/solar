@@ -175,7 +175,7 @@ fn @structMember() -> struct0 [selector=0x9f2d7231, view, abi_params=[], abi_ret
     v37 = insert_value struct0, v36, 1, v35
     ret v37
   bb2:
-    v3 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    v3 = alloc memorystruct<3>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<3>, v3, 0, 0
     memory_object_store_field memorystruct<3>, v3, 1, 0
     memory_object_store_field memorystruct<3>, v3, 2, memorybytes 96

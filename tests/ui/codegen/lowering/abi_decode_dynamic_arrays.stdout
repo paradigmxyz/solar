@@ -60,8 +60,7 @@ fn @words() [selector=0x5a7641c8, abi_wrapper, pure] {
     mcopy v58, v9, v24
     v40 = mload 64 !metadata(memory=scratch)
     v41 = add v40, 32
-    v42 = sub v41, v40
-    mstore v40, v42
+    mstore v40, 32
     v44 = iszero v23
     v45 = iszero v44
     v43 = mload v23
@@ -74,7 +73,7 @@ fn @words() [selector=0x5a7641c8, abi_wrapper, pure] {
     v51 = sub v50, v40
     v53 = add v51, 31
     v55 = and v53, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v56 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v56 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
     v65 = add v56, v55
     mstore 64, v65 !metadata(memory=scratch)
     returndata v56, v51
@@ -171,8 +170,7 @@ fn @bools() [selector=0xcfb203c5, abi_wrapper, pure] {
   bb18:
     v64 = mload 64 !metadata(memory=scratch)
     v65 = add v64, 32
-    v66 = sub v65, v64
-    mstore v64, v66
+    mstore v64, 32
     v68 = iszero v54
     v69 = iszero v68
     v67 = mload v54
@@ -191,7 +189,7 @@ fn @bools() [selector=0xcfb203c5, abi_wrapper, pure] {
     v84 = sub v74, v64
     v86 = add v84, 31
     v88 = and v86, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v89 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v89 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
     v105 = add v89, v88
     mstore 64, v105 !metadata(memory=scratch)
     returndata v89, v84
@@ -303,8 +301,7 @@ fn @strs() [selector=0x68f4ce0b, abi_wrapper, pure] {
   bb11:
     v62 = mload 64 !metadata(memory=scratch)
     v63 = add v62, 32
-    v64 = sub v63, v62
-    mstore v62, v64
+    mstore v62, 32
     v66 = iszero v23
     v67 = iszero v66
     v65 = mload v23
@@ -325,7 +322,7 @@ fn @strs() [selector=0x68f4ce0b, abi_wrapper, pure] {
     v96 = sub v74, v62
     v98 = add v96, 31
     v100 = and v98, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v101 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v101 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
     v117 = add v101, v100
     mstore 64, v117 !metadata(memory=scratch)
     returndata v101, v96
@@ -498,9 +495,8 @@ fn @mixed() [selector=0x6791505c, abi_wrapper, pure] {
     v68 = mload 64 !metadata(memory=scratch)
     v69 = add v68, 96
     mstore v68, v13
-    v71 = sub v69, v68
     v70 = add v68, 32
-    mstore v70, v71
+    mstore v70, 96
     v73 = iszero v31
     v74 = iszero v73
     v72 = mload v31
@@ -533,7 +529,7 @@ fn @mixed() [selector=0x6791505c, abi_wrapper, pure] {
     v95 = sub v94, v68
     v97 = add v95, 31
     v99 = and v97, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v100 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v100 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
     v116 = add v100, v99
     mstore 64, v116 !metadata(memory=scratch)
     returndata v100, v95

@@ -7,7 +7,7 @@ fn @target() [selector=0xd4b83992, abi_params=[], abi_returns=[]] {
 
 fn @emitEvent() [selector=0x7b0cb839, abi_params=[], abi_returns=[]] {
   bb0:
-    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<2>, v0, 0, 0
     memory_object_store_field memorystruct<2>, v0, 1, memorybytes 96
     v1 = address

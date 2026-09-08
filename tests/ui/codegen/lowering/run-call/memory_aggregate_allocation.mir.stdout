@@ -232,8 +232,8 @@ fn @allocate() -> u256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     v139 = checked_add u256, v121, v138
     ret v139
   bb7:
-    v35 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    v36 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v35 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v36 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_zero v36, 64
     memory_object_store_field memorystruct<2>, v35, 0, v36
     memory_object_store_field memorystruct<2>, v35, 1, memorybytes 96
@@ -241,7 +241,7 @@ fn @allocate() -> u256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     v37 = add v33, 1
     jump bb6
   bb2:
-    v20 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v20 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_zero v20, 64
     memory_object_store_element memoryarray<1>, v17, v18, v20
     v21 = add v18, 1

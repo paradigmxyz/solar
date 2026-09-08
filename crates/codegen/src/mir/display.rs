@@ -878,6 +878,7 @@ fn display_metadata<'a>(
         ModifierDepth(u32),
         Unchecked,
         DeferredAlloc,
+        PreservesFmp,
         LoopDepth(u16),
         Effect(EffectKind),
     }
@@ -903,6 +904,7 @@ fn display_metadata<'a>(
             MetadataField::ModifierDepth(depth) => write!(f, "modifier_depth={depth}"),
             MetadataField::Unchecked => write!(f, "unchecked"),
             MetadataField::DeferredAlloc => write!(f, "deferred_alloc"),
+            MetadataField::PreservesFmp => write!(f, "preserves_fmp"),
             MetadataField::LoopDepth(loop_depth) => write!(f, "loop_depth={loop_depth}"),
             MetadataField::Effect(effect) => write!(f, "effect={}", effect.name()),
         })
@@ -949,6 +951,9 @@ fn display_metadata<'a>(
         }
         if metadata.deferred_alloc() {
             fields.push(MetadataField::DeferredAlloc);
+        }
+        if metadata.preserves_fmp() {
+            fields.push(MetadataField::PreservesFmp);
         }
         if metadata.loop_depth != 0 {
             fields.push(MetadataField::LoopDepth(metadata.loop_depth));

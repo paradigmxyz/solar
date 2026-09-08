@@ -5,9 +5,9 @@ types:
 
 fn @f() -> struct0 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, i256, u256, i256]] {
   bb0:
-    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_zero v0, 64
-    v1 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v1 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_zero v1, 64
     v2 = checked_sub i256, 0, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
     v3 = insert_value struct0, undef struct0, 0, 2

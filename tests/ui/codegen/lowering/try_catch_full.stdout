@@ -55,9 +55,8 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
     v112 = mload 64 !metadata(memory=scratch)
     v113 = add v112, 64
     mstore v112, 3
-    v115 = sub v113, v112
     v114 = add v112, 32
-    mstore v114, v115
+    mstore v114, 64
     v117 = iszero v65
     v118 = iszero v117
     v116 = mload v65
@@ -78,7 +77,7 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
     v129 = sub v128, v112
     v131 = add v129, 31
     v133 = and v131, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v134 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v134 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
     v206 = add v134, v133
     mstore 64, v206 !metadata(memory=scratch)
     returndata v134, v129
@@ -94,9 +93,8 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
     v88 = mload 64 !metadata(memory=scratch)
     v89 = add v88, 64
     mstore v88, 2
-    v91 = sub v89, v88
     v90 = add v88, 32
-    mstore v90, v91
+    mstore v90, 64
     v93 = iszero v86
     v94 = iszero v93
     v92 = mload v86
@@ -117,7 +115,7 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
     v105 = sub v104, v88
     v107 = add v105, 31
     v109 = and v107, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v110 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v110 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
     v205 = add v110, v109
     mstore 64, v205 !metadata(memory=scratch)
     returndata v110, v105
@@ -139,9 +137,8 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
     v136 = mload 64 !metadata(memory=scratch)
     v137 = add v136, 64
     mstore v136, 1
-    v139 = sub v137, v136
     v138 = add v136, 32
-    mstore v138, v139
+    mstore v138, 64
     v141 = iszero v67
     v142 = iszero v141
     v140 = mload v67
@@ -163,7 +160,7 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
     v153 = sub v152, v136
     v155 = add v153, 31
     v157 = and v155, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v158 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v158 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
     v207 = add v158, v157
     mstore 64, v207 !metadata(memory=scratch)
     returndata v158, v153
@@ -187,9 +184,8 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
     v160 = mload 64 !metadata(memory=scratch)
     v161 = add v160, 64
     mstore v160, v184
-    v163 = sub v161, v160
     v162 = add v160, 32
-    mstore v162, v163
+    mstore v162, 64
     v165 = iszero v187
     v166 = iszero v165
     v164 = mload v187
@@ -211,7 +207,7 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
     v177 = sub v176, v160
     v179 = add v177, 31
     v181 = and v179, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v182 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v182 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
     v208 = add v182, v181
     mstore 64, v208 !metadata(memory=scratch)
     returndata v182, v177

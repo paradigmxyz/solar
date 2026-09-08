@@ -374,7 +374,17 @@ impl InstSimplifier {
                 } else if Self::is_zero(func, a) {
                     Some(b)
                 } else {
-                    None
+                    // add base, (sub end, base) -> end
+                    [(a, b), (b, a)].into_iter().find_map(|(base, difference)| {
+                        if let Value::Inst(inst) = func.value(difference)
+                            && let InstKind::Sub(end, start) = func.inst(*inst).kind
+                            && resolve(start) == base
+                        {
+                            Some(resolve(end))
+                        } else {
+                            None
+                        }
+                    })
                 }
             }
             InstKind::Sub(a, b) => {
@@ -383,6 +393,18 @@ impl InstSimplifier {
                     Some(a)
                 } else if a == b {
                     Some(Self::imm(func, U256::ZERO))
+                } else if let Value::Inst(inst) = func.value(a)
+                    && let InstKind::Add(lhs, rhs) = func.inst(*inst).kind
+                {
+                    // sub (add base, offset), base -> offset
+                    let (lhs, rhs) = (resolve(lhs), resolve(rhs));
+                    if lhs == b {
+                        Some(rhs)
+                    } else if rhs == b {
+                        Some(lhs)
+                    } else {
+                        None
+                    }
                 } else {
                     None
                 }

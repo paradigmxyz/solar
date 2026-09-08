@@ -5,6 +5,8 @@
 //! supplied by the lowering plan. Literal objects are kept until their projections
 //! can be folded. Generated stores inherit the encoding operation's source context;
 //! any block split moves the original terminator and its metadata together.
+//! Dynamic encoding writes at the free-memory pointer before reserving its final extent. That
+//! reservation must stay at the same address even if later folding makes its size constant.
 
 use crate::mir::{
     AbiEncodeMode, AbiLayout, AbiType, AbiWordValidator, BlockId, Function, FunctionBuilder,
@@ -370,6 +372,10 @@ fn lower_encode(
             MemoryObjectLayout::Bytes,
             crate::mir::AllocationSemantics::INTERNAL,
         );
+        // alloc at the already-written FMP; object.length = total
+        if let Value::Inst(alloc) = *builder.func().value(object) {
+            builder.func_mut().inst_mut(alloc).metadata.set_preserves_fmp(true);
+        }
         builder.set_memory_object_len(object, total, MemoryObjectKind::Bytes);
         return object;
     }
@@ -380,7 +386,11 @@ fn lower_encode(
     let rounded = builder.add(total, thirty_one);
     let mask = builder.not(thirty_one);
     let aligned = builder.and(rounded, mask);
+    // alloc at the already-written FMP; make_slice allocated, total
     let allocated = builder.alloc_raw(aligned, crate::mir::AllocationSemantics::INTERNAL);
+    if let Value::Inst(alloc) = *builder.func().value(allocated) {
+        builder.func_mut().inst_mut(alloc).metadata.set_preserves_fmp(true);
+    }
     builder.make_slice(allocated, total, SliceLocation::Memory)
 }
 

@@ -207,3 +207,27 @@ fn @unreachable_insertion_cycle(arg0: u256) -> u256 {
     v2 = extract_value struct0, v1, 0
     ret v2
 }
+
+// CHECK-LABEL: @cancel_offsets
+// CHECK: ret arg1, arg1, arg1, arg0
+fn @cancel_offsets(arg0: u256, arg1: u256) -> (u256, u256, u256, u256) {
+  bb0:
+    v0 = sub arg1, arg0
+    v1 = add arg0, v0
+    v2 = add v0, arg0
+    v3 = add arg0, arg1
+    v4 = sub v3, arg0
+    v5 = sub v3, arg1
+    ret v1, v2, v4, v5
+}
+
+// CHECK-LABEL: @different_offsets
+// CHECK: {{^[ +].*}}ret v1, v3
+fn @different_offsets(arg0: u256, arg1: u256, arg2: u256) -> (u256, u256) {
+  bb0:
+    v0 = sub arg1, arg0
+    v1 = add arg2, v0
+    v2 = add arg0, arg1
+    v3 = sub v2, arg2
+    ret v1, v3
+}

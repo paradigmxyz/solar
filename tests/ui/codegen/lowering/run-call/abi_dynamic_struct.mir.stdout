@@ -460,7 +460,7 @@ fn @allocatedAggregates() -> struct0 [selector=0x9619e572, pure, abi_params=[], 
     v193 = insert_value struct0, v192, 4, v188
     ret v193
   bb2:
-    v3 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    v3 = alloc memorystruct<3>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<3>, v3, 0, 0
     memory_object_store_field memorystruct<3>, v3, 1, memorybytes 96
     memory_object_store_field memorystruct<3>, v3, 2, memoryarray 96
@@ -471,7 +471,7 @@ fn @allocatedAggregates() -> struct0 [selector=0x9619e572, pure, abi_params=[], 
 
 fn @fixedAllocatedAggregates() -> struct0 [selector=0xf0c7c111, pure, abi_params=[], abi_returns=[word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256]] {
   bb0:
-    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v4]
@@ -837,7 +837,7 @@ fn @fixedAllocatedAggregates() -> struct0 [selector=0xf0c7c111, pure, abi_params
     v177 = insert_value struct0, v176, 4, v172
     ret v177
   bb2:
-    v3 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    v3 = alloc memorystruct<3>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<3>, v3, 0, 0
     memory_object_store_field memorystruct<3>, v3, 1, memorybytes 96
     memory_object_store_field memorystruct<3>, v3, 2, memoryarray 96
@@ -1002,7 +1002,7 @@ fn @zeroAllocatedAggregates() -> struct1 [selector=0x57863f65, pure, abi_params=
     v82 = insert_value struct1, v81, 3, v78
     ret v82
   bb2:
-    v3 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    v3 = alloc memorystruct<3>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<3>, v3, 0, 0
     memory_object_store_field memorystruct<3>, v3, 1, memorybytes 96
     memory_object_store_field memorystruct<3>, v3, 2, memoryarray 96
@@ -1185,7 +1185,7 @@ fn @zeroNestedDynamicAggregateAfterScratch() -> u256 [selector=0x84af5c73, pure,
     v16 = memory_object_len memorybytes, v15
     ret v16
   bb2:
-    v3 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    v3 = alloc memorystruct<3>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<3>, v3, 0, 0
     memory_object_store_field memorystruct<3>, v3, 1, memorybytes 96
     memory_object_store_field memorystruct<3>, v3, 2, memoryarray 96

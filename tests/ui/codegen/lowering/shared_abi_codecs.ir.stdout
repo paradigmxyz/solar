@@ -11,8 +11,7 @@ fn @encodeFirst() [selector=0xe9a7b169, abi_wrapper, pure] {
     v4 = icall @encodeFirst.body, v3
     v8 = mload 64 !metadata(memory=scratch)
     v9 = add v8, 32
-    v10 = sub v9, v8
-    mstore v8, v10
+    mstore v8, 32
     v12 = iszero v4
     v13 = iszero v12
     v11 = mload v4
@@ -34,7 +33,7 @@ fn @encodeFirst() [selector=0xe9a7b169, abi_wrapper, pure] {
     v24 = sub v23, v8
     v26 = add v24, 31
     v28 = and v26, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v29 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v29 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
     v31 = add v29, v28
     mstore 64, v31 !metadata(memory=scratch)
     returndata v29, v24
@@ -63,22 +62,19 @@ fn @encodeSecond() [selector=0x108c1ec5, abi_wrapper, pure] {
     v14 = add v7, 96
     mstore v14, v15
     v16 = icall @encode_abi_array, v12, v13
-    v17 = sub v16, v9
-    v18 = add v9, v17
-    v19 = sub v18, v8
+    v19 = sub v16, v8
     v21 = add v19, 63
     v22 = lt v21, v19
     jumpi v22, bb3, bb4
   bb4:
     v24 = and v21, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v25 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v25 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
     v50 = add v25, v24
     mstore 64, v50 !metadata(memory=scratch)
     mstore v25, v19
     v26 = mload 64 !metadata(memory=scratch)
     v27 = add v26, 32
-    v28 = sub v27, v26
-    mstore v26, v28
+    mstore v26, 32
     v30 = iszero v25
     v31 = iszero v30
     v29 = mload v25
@@ -100,7 +96,7 @@ fn @encodeSecond() [selector=0x108c1ec5, abi_wrapper, pure] {
     v42 = sub v41, v26
     v44 = add v42, 31
     v46 = and v44, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v47 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v47 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
     v51 = add v47, v46
     mstore 64, v51 !metadata(memory=scratch)
     returndata v47, v42
@@ -174,8 +170,7 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
   bb28:
     v102 = mload v96
     v103 = add v96, v102
-    v104 = sub v98, v96
-    v105 = gt v102, v104
+    v105 = gt v102, v97
     jumpi v105, bb10, bb29
   bb29:
     v106 = sub v98, v103
@@ -552,15 +547,13 @@ fn @encodeFirst.body(arg0: memptr) -> memptr [pure] {
     v8 = add v1, 96
     mstore v8, v9
     v10 = icall @encode_abi_array, v6, v7
-    v11 = sub v10, v3
-    v12 = add v3, v11
-    v13 = sub v12, v2
+    v13 = sub v10, v2
     v15 = add v13, 63
     v16 = lt v15, v13
     jumpi v16, bb1, bb2
   bb2:
     v18 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v19 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v19 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
     v21 = add v19, v18
     mstore 64, v21 !metadata(memory=scratch)
     mstore v19, v13

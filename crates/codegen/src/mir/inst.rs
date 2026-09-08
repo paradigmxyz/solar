@@ -223,13 +223,13 @@ impl InstructionMetadata {
         self.flags.clear_deferred_alloc();
     }
 
-    /// Returns whether removing this allocation's FMP bump would change Solidity-visible state.
+    /// Returns whether this allocation must keep its free-memory-pointer address and bump.
     #[must_use]
     pub(crate) fn preserves_fmp(&self) -> bool {
         self.flags.preserves_fmp()
     }
 
-    /// Marks an allocation whose FMP bump is observable by Solidity source semantics.
+    /// Marks an allocation whose address or bump is already observable before allocation.
     pub(crate) fn set_preserves_fmp(&mut self, value: bool) {
         self.flags.set_preserves_fmp(value);
     }

@@ -3,7 +3,7 @@
 fn @arrayCopy() -> memoryfixedarray [selector=0xb192499e, pure, abi_params=[], abi_returns=[array<2, word>]] {
   bb0:
     v0 = make_calldata_slice 4, 2
-    v1 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v1 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_zero v1, 64
     v2 = slice_ptr v0
     v3 = calldatasize

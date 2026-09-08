@@ -22,7 +22,7 @@ fn @f(arg0: memoryarray) -> memoryfixedarray [selector=0x2ed7fe6a, abi_params=[a
   bb2:
     v13 = returndata_bytes
     v14 = abi_decode [function], v13
-    v15 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    v15 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     memory_zero v15, 96
     v16 = lt 0, 3
     v17 = iszero v16

@@ -16,7 +16,7 @@ fn @hashStaticTuple() -> bytes32 [selector=0x432a72da, pure, abi_params=[], abi_
     v8 = keccak256 v6, v7
     ret v8
   bb2:
-    v3 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    v3 = alloc memorystruct<3>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<3>, v3, 0, 0
     memory_object_store_field memorystruct<3>, v3, 1, 0
     memory_object_store_field memorystruct<3>, v3, 2, 0
@@ -41,7 +41,7 @@ fn @hashDynamicTuple() -> bytes32 [selector=0xfe92a929, pure, abi_params=[], abi
     v8 = keccak256 v6, v7
     ret v8
   bb2:
-    v3 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    v3 = alloc memorystruct<3>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<3>, v3, 0, 0
     memory_object_store_field memorystruct<3>, v3, 1, memorybytes 96
     memory_object_store_field memorystruct<3>, v3, 2, memoryarray 96
@@ -66,7 +66,7 @@ fn @hashStaticFixedArray() -> bytes32 [selector=0x5fdc5289, pure, abi_params=[],
     v8 = keccak256 v6, v7
     ret v8
   bb2:
-    v3 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    v3 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     memory_zero v3, 96
     memory_object_store_element memoryarray<1>, v0, v1, v3
     v4 = add v1, 1
@@ -89,7 +89,7 @@ fn @hashDynamicFixedArray() -> bytes32 [selector=0x6c0960c7, pure, abi_params=[]
     v11 = keccak256 v9, v10
     ret v11
   bb2:
-    v3 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    v3 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     jump bb4
   bb4:
     v4 = phi [bb2: 0], [bb5: v6]
@@ -121,8 +121,8 @@ fn @hashNestedTuple() -> bytes32 [selector=0xe4f5ccbe, pure, abi_params=[], abi_
     v9 = keccak256 v7, v8
     ret v9
   bb2:
-    v3 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    v4 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    v3 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    v4 = alloc memorystruct<3>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<3>, v4, 0, 0
     memory_object_store_field memorystruct<3>, v4, 1, 0
     memory_object_store_field memorystruct<3>, v4, 2, 0
@@ -146,7 +146,7 @@ fn @returnDefaultSmall() -> memoryarray [selector=0x443c486c, pure, abi_params=[
   bb3:
     ret v0
   bb2:
-    v3 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    v3 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<1>, v3, 0, 0
     memory_object_store_element memoryarray<1>, v0, v1, v3
     v4 = add v1, 1

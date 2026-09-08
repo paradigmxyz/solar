@@ -43,7 +43,7 @@ fn @auth() -> memorystruct [pure] {
     set_memory_object_len memorybytes, v0, 62
     v1 = memory_object_data memorybytes, v0
     data_copy literal_0, v1, 64
-    v2 = alloc memorystruct<6>, exact, uninitialized, infallible, 192
+    v2 = alloc memorystruct<6>, exact, uninitialized, infallible, 192 !metadata(preserves_fmp)
     memory_zero v2, 192
     memory_object_store_field memorystruct<6>, v2, 0, memorybytes 96
     memory_object_store_field memorystruct<6>, v2, 1, memorybytes 96

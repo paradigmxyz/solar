@@ -91,7 +91,7 @@ fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
 
 fn @fArray() -> bool [selector=0x33554e3e, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
-    v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
+    v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     memory_zero v0, 32
     v1 = address
     v2 = shl 32, v1

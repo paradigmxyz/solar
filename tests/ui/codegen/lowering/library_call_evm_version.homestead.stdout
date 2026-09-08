@@ -21,7 +21,7 @@ fn @pair(arg0: u256) -> struct0 [selector=0x645751af, pure, abi_params=[u256], a
 
 fn @arr(arg0: u256) -> memoryfixedarray [selector=0x71e5ee5f, pure, abi_params=[u256], abi_returns=[array<2, word>]] {
   bb0:
-    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_zero v0, 64
     v1 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     memory_object_store_element memoryfixedarray<2, 1>, v1, 0, arg0
@@ -38,7 +38,7 @@ fn @flag(arg0: u256) -> bool [selector=0xbb760a75, pure, abi_params=[u256], abi_
 
 fn @flagged(arg0: u256) -> memorystruct [selector=0xa370c668, pure, abi_params=[u256], abi_returns=[tuple<word<bool>, word>], abi_return_params=[tuple<bool, u256>]] {
   bb0:
-    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<2>, v0, 0, 0
     memory_object_store_field memorystruct<2>, v0, 1, 0
     v1 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
@@ -142,7 +142,7 @@ fn @two(arg0: u256) -> struct0 [selector=0xcf2a8612, pure, abi_params=[u256], ab
 
 fn @aggregate(arg0: u256) -> memoryfixedarray [selector=0x407b7269, pure, abi_params=[u256], abi_returns=[array<2, word>]] {
   bb0:
-    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_zero v0, 64
     v1 = alloc memorybytes, exact, uninitialized, infallible, 96
     set_memory_object_len memorybytes, v1, 64
@@ -200,7 +200,7 @@ fn @boolean(arg0: u256) -> bool [selector=0xbc586ed6, pure, abi_params=[u256], a
 
 fn @structBool(arg0: u256) -> memorystruct [selector=0x199436a8, pure, abi_params=[u256], abi_returns=[tuple<word<bool>, word>], abi_return_params=[tuple<bool, u256>]] {
   bb0:
-    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<2>, v0, 0, 0
     memory_object_store_field memorystruct<2>, v0, 1, 0
     v1 = alloc memorybytes, exact, uninitialized, infallible, 96

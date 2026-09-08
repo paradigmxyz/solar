@@ -1200,6 +1200,7 @@ symbols! {
         panic_if_zero,
         phase,
         phi,
+        preserves_fmp,
         push,
         push_data,
         push_deferred,

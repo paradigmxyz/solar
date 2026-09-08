@@ -472,7 +472,10 @@ Static allocation keeps shared frames fixed so one entry's local objects cannot
 raise another entry's heap floor. Locals go before spills when their PUSH widths
 stay unchanged, after spills when they fit below shared frames, or after the
 entry's reachable frames. A reserved heap prefix stays between these locals and
-the initial free-memory pointer.
+the initial free-memory pointer. An allocation marked `preserves_fmp` must keep
+its FMP address and bump, even when folding makes its size constant. ABI encoding
+uses this requirement when it writes the output before reserving its final size.
+The flag round-trips through MIR text.
 
 CSE and load PRE avoid extending a load from an allocation base across blocks
 solely to eliminate a cheap reload. They can reuse a value already live across

@@ -176,7 +176,7 @@ fn @emptyFour() -> struct1 [selector=0x7bcee116, abi_params=[], abi_returns=[wor
 
 fn @emptyAgg() -> memoryfixedarray [selector=0x06df237b, abi_params=[], abi_returns=[array<2, word>]] {
   bb0:
-    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_zero v0, 64
     v1 = address
     v2 = alloc memorybytes, exact, uninitialized, infallible, 96
@@ -205,7 +205,7 @@ fn @emptyAgg() -> memoryfixedarray [selector=0x06df237b, abi_params=[], abi_retu
 
 fn @emptyAggArg() -> memoryfixedarray [selector=0x3dd9064d, abi_params=[], abi_returns=[array<2, word>]] {
   bb0:
-    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_zero v0, 64
     v1 = address
     v2 = alloc memorybytes, exact, uninitialized, infallible, 96
@@ -296,7 +296,7 @@ fn @partialPair() -> struct0 [selector=0x94ae8541, abi_params=[], abi_returns=[w
 
 fn @partialAgg() -> memoryfixedarray [selector=0xbf0809fa, abi_params=[], abi_returns=[array<2, word>]] {
   bb0:
-    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_zero v0, 64
     v1 = address
     v2 = alloc memorybytes, exact, uninitialized, infallible, 96

@@ -55,9 +55,7 @@ bb8:
   push 32
   dup 2
   add
-  dup 2
-  dup 2
-  sub
+  push 32
   dup 3
   mstore
   dup 4
