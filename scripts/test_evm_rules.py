@@ -19,6 +19,7 @@ from evm_rules.discovery import Cost, Prices, discover_rules, emit_rule, enumera
 from evm_rules.isle import Context, ISLE, Rule, forms, verify_file
 from evm_rules.mining import abstract_patterns, mine
 from evm_rules.stack import verify_stack_file
+from evm_rules.late import execute as execute_late, verify_late_file
 from evm_rules.semantics import Expr, MASK, MODULUS, SIGN, Model, Unsupported, check, concrete, partition_shift
 from verify_evm_rules import main
 
@@ -164,6 +165,39 @@ class StackProofTests(unittest.TestCase):
             "(rule (peep_nonpush (last2 (dup 1) (pop))) (rewrite 2 (Edit.Unknown)))",
         ):
             self.assertEqual(self.verify(source)["rules"][0]["status"], "unsupported")
+
+
+class LateWordProofTests(unittest.TestCase):
+    def verify(self, source):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "late_word.isle"
+            path.write_text(source)
+            return verify_late_file(path)
+
+    def test_compiled_mask_window_and_boundaries(self):
+        report = self.verify((ISLE / "late_word.isle").read_text())
+        result = report["rules"][0]
+        self.assertTrue(all(r["status"] == "proved" for r in report["rules"]))
+        self.assertEqual((result["minimum_stack"], result["summary_before_peak"], result["summary_after_peak"]), (0, 3, 2))
+        before, _ = execute_late([("push", 1), ("dup", 1), ("count", None), ("shl", None), ("sub", None)])
+        after, _ = execute_late([("push", 0), ("not", None), ("count", None), ("shl", None), ("not", None)])
+        for n in (0, 1, 255, 256, 257, MASK):
+            expected = (1 << n) - 1 if n < 256 else MASK
+            self.assertEqual(concrete(before[0], {"n": n}), expected)
+            self.assertEqual(concrete(after[0], {"n": n}), expected)
+
+    def test_changed_shift_replays_counterexample(self):
+        source = (ISLE / "late_word.isle").read_text().replace("(opcode $SHL)", "(opcode $SHR)")
+        self.assertTrue(all(r["status"] == "counterexample" for r in self.verify(source)["rules"]))
+
+    def test_missing_contract_or_changed_edit_fails_closed(self):
+        source = (ISLE / "late_word.isle").read_text()
+        for change in (source.replace("(if-let true (closed_count window))", ""),
+                       source.replace("(late_length window)", "4"),
+                       source.replace("(Edit.LowMask)", "(Edit.Keep 1)"),
+                       source.replace("(dup 1)", "(dup 2)"),
+                       source.replace("push one", "push 2").replace("u256_is_one one", "u256_is_one 2")):
+            self.assertTrue(any(r["status"] == "unsupported" for r in self.verify(change)["rules"]))
 
 
 class SemanticsTests(unittest.TestCase):

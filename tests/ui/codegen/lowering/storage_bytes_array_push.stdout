@@ -241,9 +241,7 @@ fn @store_storage_bytes(arg0: u256, arg1: memptr) {
     v42 = mload v58
     v43 = sub 32, v39
     v44 = shl 3, v43
-    v45 = shl v44, 1
-    v46 = sub v45, 1
-    v47 = not v46
+    v47 = shl v44, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v48 = and v42, v47
     v49 = add v53, v32
     sstore v49, v48 !metadata(storage=symbolic(v49))
@@ -260,9 +258,7 @@ fn @store_storage_bytes(arg0: u256, arg1: memptr) {
     v20 = mload v9
     v21 = sub 32, v8
     v22 = shl 3, v21
-    v23 = shl v22, 1
-    v24 = sub v23, 1
-    v25 = not v24
+    v25 = shl v22, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v26 = and v20, v25
     v27 = add v8, v8
     v28 = or v26, v27
