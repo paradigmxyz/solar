@@ -1,0 +1,107 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/argument_materialization.sol:ArgumentMaterialization ===
+@module ArgumentMaterialization
+fn @addCarry(arg0: u256) -> u256 [selector=0x7fbb2d70, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = add arg0, 17
+    v1 = lt v0, arg0
+    jumpi v1, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    ret v0
+  bb1:
+    revert 0, 0
+}
+
+fn @mulCarry(arg0: u256) -> u256 [selector=0x525e9652, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = mul arg0, 17
+    v1 = lt v0, arg0
+    jumpi v1, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    ret v0
+  bb1:
+    revert 0, 0
+}
+
+fn @andCarry(arg0: u256) -> u256 [selector=0x25443731, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = and arg0, 255
+    v1 = lt v0, arg0
+    jumpi v1, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    ret v0
+  bb1:
+    revert 0, 0
+}
+
+fn @orCarry(arg0: u256) -> u256 [selector=0x5bbeca28, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = or arg0, 256
+    v1 = gt v0, arg0
+    jumpi v1, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    ret v0
+  bb1:
+    revert 0, 0
+}
+
+fn @xorCarry(arg0: u256) -> u256 [selector=0xeee90f28, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = xor arg0, 256
+    v1 = lt v0, arg0
+    jumpi v1, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    ret v0
+  bb1:
+    revert 0, 0
+}
+
+fn @eqCarry(arg0: u256) -> u256 [selector=0xb38121a3, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = eq arg0, 17
+    v1 = lt v0, arg0
+    jumpi v1, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    ret v0
+  bb1:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/argument_materialization.sol:ArgumentMaterializationRefusals ===
+@module ArgumentMaterializationRefusals
+fn @wrongArgument(arg0: u256, arg1: u256) -> u256 [selector=0x1df4680b, pure, abi_params=[u256, u256], abi_returns=[word]] {
+  bb0:
+    v0 = add arg0, 17
+    v1 = lt v0, arg1
+    jumpi v1, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    ret v0
+  bb1:
+    revert 0, 0
+}
+
+fn @subtract(arg0: u256) -> u256 [selector=0x1dc05f17, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = sub arg0, 17
+    v1 = lt v0, arg0
+    jumpi v1, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    ret v0
+  bb1:
+    revert 0, 0
+}

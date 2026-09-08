@@ -18,8 +18,14 @@
 //! Their leading stack-only prefix must match the original, preserving the
 //! demonstrated cancellation with predecessor shuffles. This conservative
 //! boundary guard is not a guarantee about every later CFG/layout interaction.
+//!
+//! One additional Gas candidate materializes a repeated immutable argument once
+//! across two direct binary instructions. It requires an empty entry and an exact
+//! complete emitted body; the commutative producer and ordered consumer retain
+//! their output identities and relative peak. Its distinct materialization prefix
+//! is confined to this candidate. Later CFG sharing still needs corpus validation.
 
-use super::{Context, Slot, edge_values, lower_opcode, materialize, prefix};
+use super::{Context, Slot, debug, edge_values, lower_opcode, materialize, prefix};
 use crate::{
     backend::evm::{ir, op, scheduler::Stack},
     mir,
@@ -134,7 +140,78 @@ pub(super) fn choose_operands(
             best = insts;
         }
     }
+    if let Some(candidate) = carry_argument(context, block_id, original_stack, original_insts)
+        && improves(context, &best, &candidate)
+    {
+        best = candidate;
+    }
     (best != original_insts).then_some(best)
+}
+
+/// Tries one self-contained materialization pair; ordinary replay prefix guards stay intact.
+/// A carried immutable argument replaces its second load with DUP/SWAP at equal gas.
+/// Exact identity/peak checks do not prove later literal-arm sharing or CFG profitability.
+fn carry_argument(
+    context: &Context<'_>,
+    block: mir::BlockId,
+    original_stack: &Stack<Slot>,
+    original: &[ir::Instruction],
+) -> Option<Vec<ir::Instruction>> {
+    let function = context.function;
+    let [producer, consumer] = function.blocks[block].instructions.as_slice() else { return None };
+    if !context.layout.entries[block].is_empty() || !super::external_argument(function) {
+        return None;
+    }
+    let first = function.inst(*producer);
+    let second = function.inst(*consumer);
+    let producer_op = first.kind.evm_opcode()?;
+    let consumer_op = second.kind.evm_opcode()?;
+    let (arg, literal) = first.kind.reorderable_binary_operands()?;
+    let p = function.inst_result_value(*producer)?;
+    let c = function.inst_result_value(*consumer)?;
+    if !matches!(producer_op, op::ADD | op::MUL | op::AND | op::OR | op::XOR | op::EQ)
+        || !matches!(consumer_op, op::ADD..=op::SIGNEXTEND | op::LT..=op::SAR)
+        || op::stack_io(consumer_op) != Some((2, 1))
+        || !matches!(function.value(arg), mir::Value::Arg(_))
+        || second.kind.operands().as_slice() != [p, arg]
+        || original_stack.values() != [Slot::Value(p), Slot::Value(c)]
+    {
+        return None;
+    }
+    let mir::Value::Immediate(value) = function.value(literal) else { return None };
+    let value = value.as_u256()?;
+    let [constant, offset, read, produce, reload_offset, reload, duplicate, consume] = original
+    else {
+        return None;
+    };
+    if constant.kind != ir::InstKind::Push(value)
+        || !matches!(offset.kind, ir::InstKind::Push(value) if !value.is_zero())
+        || offset.kind != reload_offset.kind
+        || read.kind != ir::InstKind::Op(op::CALLDATALOAD)
+        || read.kind != reload.kind
+        || produce.kind != ir::InstKind::Op(producer_op)
+        || duplicate.kind != ir::InstKind::Dup(2)
+        || consume.kind != ir::InstKind::Op(consumer_op)
+        || original.iter().any(|inst| inst.stack_effect.is_some() || inst.keep_with_next)
+    {
+        return None;
+    }
+    // load arg; dup1; push literal; producer
+    // swap1; dup2; consumer
+    // Both complete bodies leave [producer_result, consumer_result], with peak three.
+    let mut candidate = vec![
+        offset.clone(),
+        read.clone(),
+        ir::InstKind::Dup(1).into(),
+        constant.clone(),
+        produce.clone(),
+        ir::InstKind::Swap(1).into(),
+        duplicate.clone(),
+        consume.clone(),
+    ];
+    debug::instructions(context, &first.metadata, &mut candidate[..5]);
+    debug::instructions(context, &second.metadata, &mut candidate[5..]);
+    Some(candidate)
 }
 
 fn stack_prefix(insts: &[ir::Instruction]) -> &[ir::Instruction] {
