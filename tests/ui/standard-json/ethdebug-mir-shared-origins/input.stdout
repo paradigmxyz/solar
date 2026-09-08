@@ -504,9 +504,6 @@
                   "offset": 52,
                   "operation": {
                     "mnemonic": "REVERT"
-                  },
-                  "context": {
-                    "revert": {}
                   }
                 }
               ]

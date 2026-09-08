@@ -31,9 +31,9 @@ contract ColdCallFallthrough {
     // SIZE-NEXT: jumpi
     // SIZE: [[SIZE_DISPATCH]]:
     // SIZE: iszero
-    // SIZE-NEXT: push [[SIZE_COLD:bb[0-9]+]]
     // SIZE-NEXT: jump [[BRANCH:bb[0-9]+]]
     // SIZE: [[BRANCH]]:
+    // SIZE-NEXT: push [[SIZE_COLD:bb[0-9]+]]
     // SIZE-NEXT: jumpi
     // SIZE-NOT: jump
     // SIZE: return
