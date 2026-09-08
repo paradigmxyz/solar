@@ -18,11 +18,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         liveness: &Liveness,
     ) -> Rc<StackPhiPlan> {
         let cold_functions = &self.cold_functions;
-        Rc::clone(
-            self.stack_phi_plans
-                .entry(func_id)
-                .or_insert_with(|| Rc::new(StackPhiPlan::analyze(func, liveness, cold_functions))),
-        )
+        Rc::clone(self.stack_phi_plans.entry(func_id).or_insert_with(|| {
+            Rc::new(StackPhiPlan::analyze(func, liveness, cold_functions, Target::new(self.gcx)))
+        }))
     }
 
     /// Collects the canonical identity of each used static-callee argument once for the stack
@@ -115,12 +113,16 @@ impl<'gcx> EvmCodegen<'gcx> {
             // established layout until the planner has execution-frequency-aware costing and
             // the loop composition is fixed; acyclic join edges compose without that
             // multiplier.
-            let carries_planned_backedge = phi_plan.edges.keys().any(|&pred| {
-                let Some(Terminator::Jump(target)) = func.blocks[pred].terminator.as_ref() else {
-                    return false;
-                };
-                plan.entry(*target).is_some() && context.cfg.dominators().dominates(*target, pred)
-            });
+            let carries_planned_backedge =
+                phi_plan.edges.keys().chain(phi_plan.branch_edges.keys()).any(|&pred| {
+                    func.blocks[pred].terminator.as_ref().is_some_and(|term| {
+                        term.successors().into_iter().any(|target| {
+                            (matches!(term, Terminator::Jump(_)) || target != pred)
+                                && plan.entry(target).is_some()
+                                && context.cfg.dominators().dominates(target, pred)
+                        })
+                    })
+                });
             if carries_planned_backedge {
                 return None;
             }

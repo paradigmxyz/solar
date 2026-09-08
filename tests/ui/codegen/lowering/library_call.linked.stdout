@@ -106,7 +106,7 @@ bb0:
   sub
   push bb3
   jumpi
-  push 256
+  push 160
   push 64
   mstore
   push 68
@@ -148,11 +148,8 @@ bb0:
   push 32
   dup 2
   add
-  dup 4
-  swap 1
+  exchange 1, 3
   mstore
-  swap 2
-  pop
   swap 1
   push 64
   add

@@ -7,6 +7,25 @@
 ;; Add(value, 0) lets a leaf replacement use the multi-result rewrite interface;
 ;; ordinary simplification removes it without allocating an instruction.
 
+;; lt (add x, 1), x => iszero (add x, 1)
+;; gt x, (add x, 1) => iszero (add x, 1)
+;; Only wrapping from MAX to zero can make an increment smaller. Reuse the
+;; sum so a checked increment does not keep the previous counter live too.
+(rule (rewrite (Op.Lt (and sum (add x (one))) x)) (Op.IsZero sum))
+(rule (rewrite (Op.Lt (and sum (add (one) x)) x)) (Op.IsZero sum))
+(rule (rewrite (Op.Gt x (and sum (add x (one))))) (Op.IsZero sum))
+(rule (rewrite (Op.Gt x (and sum (add (one) x)))) (Op.IsZero sum))
+
+;; gt (sub x, 1), x => iszero x
+;; lt x, (sub x, 1) => iszero x
+;; Only wrapping from zero to MAX can make a decrement larger.
+(rule (rewrite (Op.Gt (sub x (one)) x)) (Op.IsZero x))
+(rule (rewrite (Op.Lt x (sub x (one)))) (Op.IsZero x))
+(rule (rewrite (Op.Gt (add x (all_ones)) x)) (Op.IsZero x))
+(rule (rewrite (Op.Gt (add (all_ones) x) x)) (Op.IsZero x))
+(rule (rewrite (Op.Lt x (add x (all_ones)))) (Op.IsZero x))
+(rule (rewrite (Op.Lt x (add (all_ones) x))) (Op.IsZero x))
+
 ;; (x & y) & (x ^ y) => 0
 ;; (x & y) & (x | y) => x & y
 ;; (x | y) & (x ^ y) => x ^ y

@@ -189,8 +189,7 @@ fn @roundTrip() [selector=0x00746047, pure] {
   bb31:
     v113 = mload v108
     v115 = add v113, 1
-    v116 = lt v115, v113
-    jumpi v116, bb1, bb32
+    jumpi v115, bb32, bb1
   bb32:
     v117 = shl 5, v115
     v119 = shr 5, v117
@@ -298,8 +297,7 @@ fn @roundTrip() [selector=0x00746047, pure] {
   bb39:
     v143 = mload v138
     v145 = add v143, 1
-    v146 = lt v145, v143
-    jumpi v146, bb1, bb40
+    jumpi v145, bb40, bb1
   bb40:
     v147 = shl 5, v145
     v149 = shr 5, v147

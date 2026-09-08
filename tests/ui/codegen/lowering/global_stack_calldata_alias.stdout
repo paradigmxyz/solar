@@ -38,18 +38,15 @@ bb0:
   sub
   push bb9
   jumpi
+  swap 1
   push 1
-  jump bb25
-bb25:
-  dup 3
   add
   swap 1
   pop
+  dup 1
+  iszero
   jump bb24
 bb24:
-  swap 1
-  dup 2
-  lt
   push bb10
   jumpi
   jump bb23
@@ -76,6 +73,15 @@ bb9:
   jumpi
   push 3
   jump bb25
+bb25:
+  dup 3
+  add
+  swap 1
+  pop
+  swap 1
+  dup 2
+  lt
+  jump bb24
 bb11:
   push 2
   jump bb25
@@ -95,6 +101,9 @@ bb19:
   push 5
   dup 2
   add
+  swap 1
+  dup 2
+  lt
   jump bb24
 bb10 [cold]:
   push 0x4e487b71

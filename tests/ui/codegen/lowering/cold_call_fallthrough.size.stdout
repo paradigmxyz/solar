@@ -35,9 +35,9 @@ bb5:
   push 4
   calldataload
   iszero
-  push bb8
   jump bb23
 bb23:
+  push bb8
   jumpi
   push 4
   calldataload
@@ -49,8 +49,6 @@ bb23:
 bb8 [cold]:
   push 4
   calldataload
-  jump bb15
-bb15 [cold]:
   dup 1
   push bb17
   jumpi
@@ -69,11 +67,9 @@ bb22 [cold]:
   push 32
   push 4
   mstore
-  dup 2
+  swap 1
   push 36
   mstore
-  swap 1
-  pop
   push 68
   mstore
   push 100
@@ -92,12 +88,7 @@ bb10:
   push 4
   calldataload
   lt
-  push bb13
   jump bb23
-bb13 [cold]:
-  push 4
-  calldataload
-  jump bb15
 bb17 [cold]:
   push 1
   dup 2

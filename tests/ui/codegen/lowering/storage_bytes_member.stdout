@@ -59,35 +59,45 @@ bb3:
   eq
   push bb15
   jumpi
-  jump bb31
+  push 0
+  push 0
+  revert
 bb4:
   dup 1
   push 0x53b8a6c6
   eq
   push bb32
   jumpi
-  jump bb31
+  push 0
+  push 0
+  revert
 bb5:
   dup 1
   push 0x56d88e27
   eq
   push bb42
   jumpi
-  jump bb31
+  push 0
+  push 0
+  revert
 bb6:
   dup 1
   push 0xbee6975a
   eq
   push bb54
   jumpi
-  jump bb31
+  push 0
+  push 0
+  revert
 bb7:
   dup 1
   push 0x72bd964d
   eq
   push bb64
   jumpi
-  jump bb31
+  push 0
+  push 0
+  revert
 bb15:
   push 68
   calldatasize
@@ -230,11 +240,9 @@ bb27:
   add
   dup 4
   sstore
-  dup 3
+  swap 2
   push 0
   mstore
-  swap 2
-  pop
   dup 2
   push 5
   shr
@@ -379,8 +387,6 @@ bb32:
   push 160
   mload
   sstore
-  jump bb41
-bb41:
   stop
 bb37:
   dup 3
@@ -398,14 +404,13 @@ bb37:
   and
   push 62
   or
-  dup 3
-  sstore
   swap 1
-  pop
+  swap 2
+  sstore
   push 0
   swap 1
   sstore
-  jump bb41
+  stop
 bb40:
   push 160
   mload
@@ -443,7 +448,7 @@ bb40:
   push 160
   mload
   sstore
-  jump bb41
+  stop
 bb42:
   caller
   push 0
@@ -669,7 +674,7 @@ bb61:
   add
   jump bb62
 bb64:
-  push 384
+  push 256
   push 64
   mstore
   caller
@@ -746,18 +751,16 @@ bb64:
   push 64
   mstore
   dup 1
-  push 160
-  mstore
-  dup 3
-  dup 2
+  push 128
   mstore
   swap 2
-  pop
+  dup 3
+  mstore
   dup 5
-  push 192
+  push 160
   mstore
   dup 4
-  push 128
+  push 192
   mstore
   push 224
   mstore
@@ -769,15 +772,15 @@ bb64:
   jumpi
   push 255
   not
-  push 128
+  push 192
   mload
   and
   push 32
-  push 160
+  push 128
   mload
   add
   mstore
-  push 160
+  push 128
   mload
   jump bb72
 bb72:
@@ -796,26 +799,20 @@ bb72:
   mload
   mul
   dup 1
-  push 128
-  mstore
-  dup 2
+  dup 3
   mstore
   push 31
-  push 128
-  mload
+  dup 2
   add
   push 31
   not
   and
-  swap 1
+  swap 2
   push 32
   add
-  dup 2
-  push 128
-  mload
-  swap 3
+  dup 3
   swap 2
-  swap 1
+  swap 3
   push bb75
   jumpi
   jump bb76
@@ -852,7 +849,7 @@ bb76:
   dup 2
   return
 bb71:
-  push 192
+  push 160
   mload
   push 0
   mstore
@@ -860,7 +857,7 @@ bb71:
   push 0
   keccak256
   push 0
-  push 160
+  push 128
   mload
   push 224
   mload

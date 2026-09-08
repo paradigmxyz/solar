@@ -1033,6 +1033,7 @@ symbols! {
         concat,
         constructor_args_base,
         constructor_args_end,
+        continuation,
         creationCode,
         data,
         data_copy,

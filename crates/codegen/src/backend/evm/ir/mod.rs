@@ -207,6 +207,12 @@ pub(crate) struct BlockMetadata {
     pub(crate) hotness: Hotness,
     /// Whether the block belongs to a natural loop.
     pub(crate) in_loop: bool,
+    /// This label's address is used only for control transfer, never as an observable word.
+    /// Hidden return targets and branches separated from their pushed labels by sharing carry
+    /// this property. References may be redirected to an
+    /// equivalent continuation, unlike ordinary address-taken labels whose identity is opaque.
+    /// This is an executable-code property, independent of optional debug information.
+    pub(crate) is_continuation: bool,
     /// Source function entered by this block's leading `JUMPDEST`.
     pub(crate) function_invoke: Option<DebugFunction>,
 }
@@ -810,23 +816,18 @@ impl Metadata {
         self.debug_info_handled |= other.debug_info_handled;
     }
 
-    /// Merges all compatible debug information from an equivalent operation.
-    pub(crate) fn merge_equivalent_debug_info(&mut self, other: &Self) {
+    /// Merges origins for a shared machine operation while retaining only function events that
+    /// agree on every incoming path. Once an event is ambiguous, further merges cannot recover it.
+    pub(crate) fn merge_shared_debug_info(&mut self, other: &Self) {
         self.merge_source_spans(other);
-        debug_assert!(
-            self.function_invoke.is_none()
-                || other.function_invoke.is_none()
-                || self.function_invoke == other.function_invoke,
-            "cannot merge different function invocations"
-        );
-        debug_assert!(
-            self.function_exit.is_none()
-                || other.function_exit.is_none()
-                || self.function_exit == other.function_exit,
-            "cannot merge different function exits"
-        );
-        self.function_invoke = self.function_invoke.or(other.function_invoke);
-        self.function_exit = self.function_exit.or(other.function_exit);
+        // NOTE: One shared instruction cannot represent different function transitions. Drop
+        // those path-specific events instead of attributing another caller's transition to it.
+        if self.function_invoke != other.function_invoke {
+            self.function_invoke = None;
+        }
+        if self.function_exit != other.function_exit {
+            self.function_exit = None;
+        }
     }
 
     /// Returns the function entered after this operation.

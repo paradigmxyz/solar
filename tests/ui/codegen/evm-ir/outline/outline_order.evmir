@@ -14,9 +14,9 @@
 // CHECK: {{^[ +].*}}push 1
 // CHECK: {{^[ +].*}}push 12
 // CHECK: + jump
-// CHECK: + [[RET0]]:
+// CHECK: + [[RET0]] [continuation]:
 // CHECK: {{^[ +].*}}push 13
-// CHECK: + [[RET1]]:
+// CHECK: + [[RET1]] [continuation]:
 bb0:
   push 1
   pop

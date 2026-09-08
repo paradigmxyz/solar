@@ -50,11 +50,11 @@ bb0:
   dup 1
   push 256
   mstore
-  dup 4
+  dup 1
+  dup 5
   mstore
   push 31
-  push 256
-  mload
+  dup 2
   add
   push 31
   not
@@ -62,11 +62,12 @@ bb0:
   dup 1
   push 288
   mstore
-  swap 3
+  swap 4
   push 32
   add
   push 320
   mstore
+  pop
   pop
   pop
   push bb3
@@ -110,7 +111,7 @@ bb4:
   log1
   push 334
   dup 1
-  push 436
+  push 435
   push 0
   codecopy
   push 0

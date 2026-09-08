@@ -74,8 +74,8 @@ fn @distinct_steps(arg0: u256) -> u256 {
 // is that value: the phi and the recomputation both go.
 // CHECK-LABEL: {{^[ +].*}}fn @phi_of_recomputed_dominating_value{{[( ]}}
 // CHECK: - {{v[0-9]+}} = phi [bb0: [[X:v[0-9]+]]], [bb2: {{v[0-9]+}}]
-// CHECK: + ret [[X]]
 // CHECK: - {{v[0-9]+}} = add arg0, 1
+// CHECK: + ret [[X]]
 fn @phi_of_recomputed_dominating_value(arg0: u256) -> u256 {
   bb0:
     v0 = add arg0, 1

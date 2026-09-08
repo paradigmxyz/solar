@@ -12,7 +12,9 @@ pub(crate) mod compact_pushes;
 mod constant_data;
 pub(super) mod data;
 mod dce;
+mod inline_returns;
 mod legalize_shifts;
+mod loop_layout;
 mod outline;
 mod peephole;
 mod reorder_pushes;
@@ -62,6 +64,7 @@ pub static ALL_PASSES: &[&dyn EvmPass] = &[
     &block_cse::BlockCse,
     &peephole::Peephole,
     &dce::Dce,
+    &inline_returns::InlineReturns,
     &reorder_pushes::REORDER_PUSHES,
     &share_reverts::ShareReverts,
     &stack_normalize::StackDedup,
@@ -76,6 +79,7 @@ pub static ALL_PASSES: &[&dyn EvmPass] = &[
     &terminal_dedup::TerminalDedup,
     &tail_merge::TailMerge,
     &block_layout::BlockLayout,
+    &loop_layout::LoopLayout,
 ];
 
 /// The canonical EVM IR layout and code-size pipeline used by EVM codegen.
@@ -116,8 +120,8 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &cfg_simplify::CfgSimplify,
     &block_layout::BlockLayout,
     // Block CSE and final placement can expose new equal tails whose addresses or predecessors
-    // differed during the first structural sweep. Repeat the structural half to a fixed point at
-    // pass granularity; each pass remains internally profitability-gated.
+    // differed during the first structural sweep. Run a bounded second structural sweep;
+    // each pass remains internally profitability-gated.
     &terminal_dedup::TerminalDedup,
     &cfg_simplify::CfgSimplify,
     &tail_merge::TailMerge,
@@ -134,7 +138,7 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &share_reverts::ShareReverts,
     &cfg_simplify::CfgSimplify,
     &block_layout::BlockLayout,
-    // Materialize constants and finalize the referenced data pool after all code transforms.
+    // Materialize constants and pack the referenced data pool before final sharing and cleanup.
     &constant_data::ConstantData,
     &data::PackData,
     // Data packing can add compactable immediates and local stack shuffles.
@@ -142,6 +146,17 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &peephole::Peephole,
     &stack_normalize::StackDedup,
     &peephole::Cleanup(dce::Dce),
+    // Compact constants and stack cleanup can expose more equal bodies and tails.
+    &terminal_dedup::TerminalDedup,
+    &cfg_simplify::CfgSimplify,
+    &tail_merge::TailMerge,
+    &cfg_simplify::CfgSimplify,
+    &outline::Outline,
+    &cfg_simplify::CfgSimplify,
+    &peephole::Peephole,
+    &inline_returns::InlineReturns,
+    &cfg_simplify::CfgSimplify,
+    &loop_layout::LoopLayout,
 ];
 
 /// Finds an EVM IR pass by command-line name.

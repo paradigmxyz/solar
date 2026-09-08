@@ -21,6 +21,7 @@ struct ParsedBlockHeader {
     label: Symbol,
     hotness: Hotness,
     in_loop: bool,
+    is_continuation: bool,
     function_invoke: Option<DebugFunction>,
 }
 
@@ -98,6 +99,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let block_id = self.define_block(module, header.label)?;
                 module.blocks[block_id].metadata.hotness = header.hotness;
                 module.blocks[block_id].metadata.in_loop = header.in_loop;
+                module.blocks[block_id].metadata.is_continuation = header.is_continuation;
                 module.blocks[block_id].metadata.function_invoke = header.function_invoke;
                 current_block = Some(block_id);
                 continue;
@@ -136,6 +138,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         self.parser.bump();
         let mut hotness = Hotness::Hot;
         let mut in_loop = false;
+        let mut is_continuation = false;
         let mut function_invoke = None;
         while self.parser.eat(TokenKind::OpenDelim(Delimiter::Bracket)) {
             loop {
@@ -143,6 +146,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     hotness = Hotness::Cold;
                 } else if self.parser.eat_keyword(sym::Loop) {
                     in_loop = true;
+                } else if self.parser.eat_keyword(sym::continuation) {
+                    is_continuation = true;
                 } else if self.parser.eat_keyword(sym::invoke) {
                     self.parser.expect(TokenKind::Eq)?;
                     let identifier = self.parser.parse_ident()?;
@@ -153,9 +158,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                         declaration: Span::new(BytePos(lo), BytePos(hi)),
                     });
                 } else {
-                    return Err(self
-                        .parser
-                        .error("expected `cold`, `loop`, or `invoke` block attribute"));
+                    return Err(self.parser.error(
+                        "expected `cold`, `loop`, `continuation`, or `invoke` block attribute",
+                    ));
                 }
                 if !self.parser.eat(TokenKind::Comma) {
                     break;
@@ -166,7 +171,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
         self.parser.expect(TokenKind::Colon)?;
 
-        Ok(Some(ParsedBlockHeader { label, hotness, in_loop, function_invoke }))
+        Ok(Some(ParsedBlockHeader { label, hotness, in_loop, is_continuation, function_invoke }))
     }
 
     fn current_block_label(&self) -> PResult<'sess, Option<Symbol>> {

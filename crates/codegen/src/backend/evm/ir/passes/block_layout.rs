@@ -1,7 +1,7 @@
 //! EVM basic block trace layout.
 //!
 //! The IR keeps control-flow edges explicit and leaves physical fallthrough to
-//! assembly. This pass follows unconditional jump successors to form linear
+//! assembly. This pass follows unconditional jumps and conditional false edges to form linear
 //! traces, making those successor blocks adjacent whenever possible. The
 //! final lowering can then omit jumps whose target is the next emitted block
 //! without encoding physical layout assumptions in the IR. Independent hot
@@ -280,7 +280,7 @@ fn is_terminal_block(block: &Block) -> bool {
     block.terminator.as_ref().is_some_and(|term| is_terminal_boundary(&term.kind))
 }
 
-fn is_physical_terminal_boundary(block: &Block, next: Option<BlockId>) -> bool {
+pub(super) fn is_physical_terminal_boundary(block: &Block, next: Option<BlockId>) -> bool {
     block.terminator.as_ref().is_some_and(|term| {
         is_terminal_boundary(&term.kind)
             || matches!(term.kind, TerminatorKind::Jump(target) if Some(target) != next)
@@ -300,9 +300,10 @@ fn append_layout_trace(
     }
 }
 
-fn layout_successor(block: &Block) -> Option<BlockId> {
+pub(super) fn layout_successor(block: &Block) -> Option<BlockId> {
     match &block.terminator.as_ref()?.kind {
         TerminatorKind::Jump(target) => Some(*target),
+        TerminatorKind::JumpI { else_block, .. } => Some(*else_block),
         _ => None,
     }
 }

@@ -3,9 +3,10 @@
 use super::{
     BlockId, CfgInfo, DenseBitSet, EvmCodegen, EvmMemoryLayout, Function, FunctionId, FxHashMap,
     FxHashSet, GlobalStackPlan, GrowableBitSet, InstId, InstKind, Label, Liveness, Module,
-    OnceCell, OptimizationMode, PhiEliminator, STACK_PHI_LAYOUT_LIMIT, StackModel, StackPhiPlan,
-    Terminator, Value, ValueId, cross_block_values, planned_entry_carries,
+    OnceCell, OptimizationMode, PhiEliminator, STACK_PHI_LAYOUT_LIMIT, StackModel, StackOp,
+    StackPhiPlan, Terminator, Value, ValueId, cross_block_values, planned_entry_carries,
 };
+use crate::target::Target;
 use std::rc::Rc;
 
 impl<'gcx> EvmCodegen<'gcx> {
@@ -113,6 +114,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let liveness = block_local_liveness.unwrap_or_else(|| Liveness::compute(func));
         let liveness = &liveness;
         let cross_block_live = OnceCell::new();
+        let mut function_returns = FxHashSet::default();
 
         self.spill_hazard_insts = self.compute_spill_hazard_insts(func);
 
@@ -134,7 +136,12 @@ impl<'gcx> EvmCodegen<'gcx> {
         } else if whole_function_liveness {
             Some(self.stack_phi_plan(func_id, func, liveness))
         } else {
-            Some(Rc::new(StackPhiPlan::analyze(func, liveness, &self.cold_functions)))
+            Some(Rc::new(StackPhiPlan::analyze(
+                func,
+                liveness,
+                &self.cold_functions,
+                Target::new(self.gcx),
+            )))
         };
         let mut stack_phi_plan =
             phi_plan.as_deref().map_or_else(StackPhiPlan::default, StackPhiPlan::clone);
@@ -762,11 +769,21 @@ impl<'gcx> EvmCodegen<'gcx> {
             if !preserve_branch_targets.is_empty()
                 && let Some(Terminator::Branch { condition, .. }) = block.terminator.as_ref()
                 && liveness.live_out(block_id).contains(*condition)
+                && !self.scheduler.stack.iter().skip(1).any(|value| value == Some(*condition))
             {
-                // JUMPI consumes the condition while the preserved successor layout omits it.
-                // Save an instruction result that remains live so either successor can reload
-                // the same definition instead of observing an unwritten reserved spill slot.
-                self.spill_value_if_needed(func, *condition);
+                if self.scheduler.stack.depth() == 1 {
+                    // dup1 condition
+                    // jumpi condition, then, else
+                    // Keep a second copy for the recorded successor layouts. Saving the condition
+                    // to memory instead would turn a checked increment into a store/load pair.
+                    self.emit_stack_op(StackOp::Dup(1));
+                } else {
+                    // dup depth(condition)
+                    // mstore slot(condition), condition
+                    // Keep the established spill plan when other values already cross the edge;
+                    // inserting another carried word can increase their shuffle and spill costs.
+                    self.spill_value_if_needed(func, *condition);
+                }
             }
             if !preserve_branch_targets.is_empty() {
                 self.remove_dead_carried_spill_stores(
@@ -895,6 +912,14 @@ impl<'gcx> EvmCodegen<'gcx> {
             } else if let Some(term) = &block.terminator {
                 self.generate_terminator(func, term, fallthrough, preserve_stack);
             }
+            if self.in_internal_function
+                && matches!(block.terminator, Some(Terminator::Return { .. } | Terminator::Stop))
+            {
+                let (block, end) = self.asm.next_instruction_position();
+                if let Some(index) = end.checked_sub(1) {
+                    function_returns.insert((block, index));
+                }
+            }
             if self.capture_debug_info {
                 self.asm.set_source_span(None);
                 self.asm.set_modifier_depth(0);
@@ -934,7 +959,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             peak = peak.max(mask.count());
         }
         self.function_stack_peaks.insert(func_id, peak);
-        self.remove_dead_spill_stores();
+        self.remove_dead_spill_stores(&function_returns);
         self.assign_ranked_spill_addrs(func_id);
     }
 
@@ -983,11 +1008,11 @@ impl<'gcx> EvmCodegen<'gcx> {
             return Vec::new();
         };
 
-        if self.scheduler.stack.depth() <= 1 || self.scheduler.stack.top() != Some(*condition) {
+        if self.scheduler.stack.top() != Some(*condition) {
             return Vec::new();
         }
 
-        let Some(carried) = self
+        let Some(mut carried) = self
             .scheduler
             .stack
             .iter()
@@ -1000,14 +1025,24 @@ impl<'gcx> EvmCodegen<'gcx> {
         else {
             return Vec::new();
         };
-        if carried.len() > STACK_PHI_LAYOUT_LIMIT {
+        // Unit-increment overflow checks use the sum itself as their condition. Keep that
+        // sole word resident; other condition shapes retain the existing preservation policy.
+        if carried.is_empty()
+            && liveness.live_out(block_id).contains(*condition)
+            && matches!(func.value(*condition), Value::Inst(inst)
+                if matches!(func.inst(*inst).kind, InstKind::Add(lhs, rhs)
+                    if func.value_u64(lhs) == Some(1) || func.value_u64(rhs) == Some(1)))
+        {
+            carried.push(*condition);
+        }
+        if carried.is_empty() || carried.len() > STACK_PHI_LAYOUT_LIMIT {
             return Vec::new();
         }
 
         // Consuming the branch condition removes the top stack word. A resident argument has no
-        // frame fallback, so every stack-only live-out must already have another carried copy
-        // below the condition. Otherwise let the global stack-edge planner duplicate and arrange
-        // the condition together with the successor layout.
+        // frame fallback, so every stack-only live-out must have a carried copy. The caller
+        // duplicates a live condition before emitting JUMPI; other missing values still need
+        // the global stack-edge planner to materialize and arrange the successor layout.
         if liveness
             .live_out(block_id)
             .iter()
