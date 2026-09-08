@@ -547,3 +547,8 @@ the remaining stack and does not cross a function event or glued boundary.
 Two-word branch layouts place one reloaded join value above the resident word.
 Preparing the condition then needs one swap. Wider layouts retain their existing
 order because downstream joins can outweigh that local saving.
+
+Gas cleanup can copy an eight-byte word-return body into a stub shared by
+multiple empty stubs. This removes an extra jump while retaining distinct
+return labels. Size mode keeps the shared body, and function-entry blocks or
+activation events on the replaced jump prevent the copy.

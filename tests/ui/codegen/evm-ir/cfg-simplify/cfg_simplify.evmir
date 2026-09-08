@@ -1,4 +1,4 @@
-//@compile-flags: -Zevm-ir-pipeline=cfg-simplify
+//@compile-flags: -Ogas -Zevm-ir-pipeline=cfg-simplify
 //@filecheck:
 @module module
 
@@ -33,6 +33,30 @@ bb2:
   push bb11
   pop
   push bb15
+  pop
+  push bb19
+  pop
+  push bb20
+  pop
+  push bb21
+  pop
+  push bb22
+  pop
+  push bb23
+  pop
+  push bb24
+  pop
+  push bb25
+  pop
+  push bb26
+  pop
+  push bb27
+  pop
+  push bb28
+  pop
+  push bb29
+  pop
+  push bb30
   pop
   jump bb4
 
@@ -118,3 +142,50 @@ bb18:
   push 10
   pop
   stop
+
+bb19:
+  jump bb21
+bb20:
+  jump bb21
+// CHECK-LABEL: {{^[ +].*}}bb21:
+// CHECK: - jump bb22 !metadata(span=10..20)
+// CHECK: + push 128 !metadata(span=10..20)
+// CHECK-NEXT: + mstore
+// CHECK-NEXT: + push 32
+// CHECK-NEXT: + push 128
+// CHECK-NEXT: + return
+bb21:
+  jump bb22 !metadata(span=10..20)
+bb22:
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+// CHECK-LABEL: {{^[ +].*}}bb23:
+// CHECK-NEXT: {{^[ +].*}}jump bb22
+bb23:
+  jump bb22
+
+bb24:
+  jump bb26
+bb25:
+  jump bb26
+// CHECK-LABEL: {{^[ +].*}}bb26:
+// CHECK-NEXT: {{^[ +].*}}jump bb27
+bb26:
+  jump bb27
+bb27:
+  push 256
+  mstore
+  push 32
+  push 256
+  return
+bb28:
+  jump bb30
+bb29:
+  jump bb30
+// CHECK-LABEL: {{^[ +].*}}bb30:
+// CHECK-NEXT: {{^[ +].*}}jump bb22 !metadata(invoke=callee@30..40)
+bb30:
+  jump bb22 !metadata(invoke=callee@30..40)

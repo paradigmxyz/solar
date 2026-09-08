@@ -10,6 +10,11 @@
 //! Final cleanup also recognizes labels passed straight to a shared `JUMPI` head as direct
 //! jump targets. Deferring this until sharing is complete avoids exposing larger tails whose
 //! merger would add jumps back to the paths being shortened.
+//! Gas cleanup duplicates a word-return body of at most eight bytes into an empty stub
+//! reached by at least two other empty stubs. It amortizes the copy across those paths while
+//! preserving every address-taken label. The copy stays after structural sharing so it cannot
+//! be merged back into the jump it removes. Function-entry blocks and activation events on
+//! the replaced jump are excluded.
 //! Other address-taken blocks remain distinct, and block merging requires one reference so changing
 //! a predecessor cannot affect another edge. The pass preserves the condition's stack effect with a
 //! `POP`; later dead-code elimination may remove the pure condition computation. Replacing the
@@ -18,7 +23,7 @@
 
 use super::{
     EvmPass,
-    utils::{is_split_point, remap_block_order, retain_blocks},
+    utils::{instruction_size_lower_bound, is_split_point, remap_block_order, retain_blocks},
 };
 use crate::backend::evm::{
     ir::{Block, BlockId, Metadata, Module, PushValue, Terminator, TerminatorKind},
@@ -46,7 +51,7 @@ impl EvmPass for CfgSimplify {
     }
 }
 
-fn simplify_cfg(_gcx: Gcx<'_>, module: &mut Module, thread_shared_jumps: bool) -> bool {
+fn simplify_cfg(gcx: Gcx<'_>, module: &mut Module, thread_shared_jumps: bool) -> bool {
     let mut state = RunState::default();
     state.reserve(module.blocks.len());
     let mut changed = false;
@@ -61,6 +66,9 @@ fn simplify_cfg(_gcx: Gcx<'_>, module: &mut Module, thread_shared_jumps: bool) -
             &mut state.jump_heads,
             &mut state.order,
         );
+        let inlined = thread_shared_jumps
+            && gcx.sess.opts.optimization.is_gas()
+            && inline_shared_return_thunks(gcx, module, &mut state.references);
         let swept = remove_unreachable_blocks(
             module,
             &mut state.reachable,
@@ -69,11 +77,71 @@ fn simplify_cfg(_gcx: Gcx<'_>, module: &mut Module, thread_shared_jumps: bool) -
         );
         let coalesced =
             coalesce_blocks(module, &mut state.references, &mut state.retained, &mut state.order);
-        changed |= truncated || degenerate || redirected || swept || coalesced;
-        if !truncated && !degenerate && !redirected && !swept && !coalesced {
+        changed |= truncated || degenerate || redirected || inlined || swept || coalesced;
+        if !truncated && !degenerate && !redirected && !inlined && !swept && !coalesced {
             return changed;
         }
     }
+}
+
+fn inline_shared_return_thunks(
+    gcx: Gcx<'_>,
+    module: &mut Module,
+    incoming: &mut IndexVec<BlockId, usize>,
+) -> bool {
+    incoming.clear();
+    incoming.resize(module.blocks.len(), 0);
+    for block in &module.blocks {
+        if block.instructions.is_empty()
+            && let Some(TerminatorKind::Jump(target)) =
+                block.terminator.as_ref().map(|term| &term.kind)
+        {
+            incoming[*target] += 1;
+        }
+    }
+    let mut changed = false;
+    for block_id in module.blocks.indices() {
+        let block = &module.blocks[block_id];
+        if incoming[block_id] < 2
+            || !block.instructions.is_empty()
+            || block.metadata.hotness.is_cold()
+        {
+            continue;
+        }
+        let Some(jump) = &block.terminator else { continue };
+        let TerminatorKind::Jump(target) = jump.kind else { continue };
+        let body = &module.blocks[target];
+        let [offset, store, size, returned] = body.instructions.as_slice() else { continue };
+        if body.metadata.function_invoke.is_some()
+            || jump.metadata.function_invoke().is_some()
+            || jump.metadata.function_exit().is_some()
+            || !body.instructions.iter().all(|inst| inst.has_canonical_stack_effect())
+            || store.as_evm_opcode() != Some(op::MSTORE)
+            || size.concrete_immediate() != Some(alloy_primitives::U256::from(32))
+            || body
+                .instructions
+                .iter()
+                .map(|inst| instruction_size_lower_bound(gcx, inst))
+                .sum::<usize>()
+                > 7
+            || offset.concrete_immediate().is_none()
+            || returned.concrete_immediate() != offset.concrete_immediate()
+            || !matches!(
+                body.terminator.as_ref().map(|term| &term.kind),
+                Some(TerminatorKind::Op(op::RETURN))
+            )
+        {
+            continue;
+        }
+        // thunk: jump return_body -> thunk: mstore(offset, value); return(offset, 32)
+        let mut instructions = body.instructions.clone();
+        instructions[0].metadata.absorb_debug_info(&jump.metadata);
+        let terminator = body.terminator.clone();
+        module.blocks[block_id].instructions = instructions;
+        module.blocks[block_id].terminator = terminator;
+        changed = true;
+    }
+    changed
 }
 
 struct RunState {
