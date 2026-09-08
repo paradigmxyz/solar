@@ -515,3 +515,32 @@ metadata review and raw measurements are retained in
 `target/codegen-bench/evm-rewrite-candidate/writer-bank-floor-workflow-20260908/`.
 These results validate our bounded rule, not an algorithm supplied by solx,
 Venom or Sonatina, and do not establish complete rewrite acceptance.
+
+
+## Checked arithmetic tail sharing
+
+The pinned [solx post-stackification branch folder](https://github.com/NomicFoundation/solx-llvm/blob/9cf8cfdbfcdc3e74dd81f7cc0e7258ef81e8810a/llvm/lib/Target/EVM/EVMBranchFolder.cpp#L60)
+disables common-code hoisting because implicit stack operands constrain motion.
+[Venom terminal merging](https://github.com/vyperlang/vyper/blob/6dd5fef7ce71bb9b363ceb94df94080d451f4236/vyper/venom/passes/tail_merge.py#L29)
+refuses Phi and nonlocal variable inputs.
+[Sonatina suffix grouping](https://github.com/fe-lang/sonatina/blob/8e6c99f67cf3f20b9672cab61d8655c2ff33a6a7/crates/codegen/src/isa/evm/late_block_merge.rs#L768)
+charges every incoming transfer and its shared marker, but requires a closed
+stack suffix. These are useful constraints, not implementations of our live-input
+checked-add witness or proofs of its profitability.
+
+A current-only physical witness shrinks the alias fixture from 210 to 153 Gas
+runtime bytes, matching sealed. All 21 unchanged call labels pass within sealed
+gas limits. It preserves validation and uses the unsigned identity that
+`sum < x` equals `sum < k` for `sum = (x + k) mod 2^256`. Sharing the literal-first
+arithmetic continuation, preserving the last donor's fallthrough and reusing the
+default return are all necessary. This is edited emitted IR with explicit wrapper
+provenance, not accepted source compiler output or a metadata proof.
+
+The isolated carry orientation ties current Gas output cost. Existing Size
+sharing on that Gas IR yields 179 bytes versus a matched 187-byte control, still
+larger than current source Size output at 166 bytes. The medium-tail collector
+forms pairs despite a potentially profitable larger group. The next experiment
+changes only conservative group admission, retaining all existing stack and
+observer guards; it does not claim to deliver the complete 153-byte witness.
+Exact primary-source pins, refusals and fresh native calls are retained under
+`target/codegen-bench/evm-rewrite-candidate/alias-current-tail-witness-20260908/`.

@@ -48,8 +48,8 @@ all commands, individual deltas, exact output joins and source/binary pins.
 
 ## Verification and reviewed expectations
 
-Final workspace results are 11,739 UI passes, one original alias assertion
-failure, 1,395 other passes and two skips. All 36 Foundry projects pass
+Final workspace results are 11,747 UI passes, one original alias assertion
+failure, 1,557 other passes and two skips. All 36 Foundry projects pass
 (772 compiler tests, 765 solc tests), with reported gas and sizes unchanged.
 Clippy, formatting and typos pass. The larger tail fixture passes 24 fresh calls
 and saves 16 Size bytes with unchanged gas; the alias has bounded solsymdiff
@@ -83,6 +83,17 @@ and runtime each save 205 bytes, and all 175 hot-gas labels remain exact in both
 modes. Foundry preserves all 1,537 test records and gas values; bounded symbolic
 comparison agrees over nine paths and fourteen queries. The threshold-only
 trials remain rejected evidence. These alias trials are not accepted milestones.
+
+Main `becd2143` is merged in `e40b84f0`, retaining the rewrite backend while
+adopting the moved MIR interfaces, call-analysis caching, debug APIs and solx
+benchmark support. `503dcfc8` separately updates reviewed debug expectations.
+All 5,048 matched UI bytecode objects, 3,344 heavy objects, 175 hot-gas labels
+in both modes and 1,537 Foundry test records remain exact against the accepted
+writer milestone. Source-map changes are restricted to removing internal-return
+markers from external STOP/RETURN instructions; source ranges are preserved.
+Raw full compiler time is -0.90%, RSS +1.05%, with the reference run's recorded
+parser overlap and no controlled interleaved timing claim. The new workflow's
+79 Python tests pass. No solx measurements were collected in this comparison.
 
 ## Remaining acceptance work
 

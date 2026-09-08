@@ -3530,3 +3530,51 @@ retained-layer changes and benchmark infrastructure were inspected. Its backend
 implementation has not been read or integrated. The next merge must preserve
 the rewritten backend and resolve retained interfaces independently. Remote PR
 1388 remains draft at `2d5f077f`; its old failing CI is not this local milestone.
+
+
+## Retained-layer main merge — September 8
+
+`e40b84f0` merges main `becd2143` using an explicit retained-layer three-way
+application. No incoming backend body was read or materialized. All 47 backend
+files preserve their implementations after import-path normalization; all 146
+premerge codegen files have current counterparts. Eager scheduling, consumer
+tracking and memory DSE survive unchanged. All 4,172 existing test files remain
+present. The new call-summary cache and debug APIs are retained-layer changes,
+not a silent replacement of rewritten code.
+
+The frozen merge compiler is `solar-main-becd2143-draft1`, SHA256
+`82012fcd6f18d09ba4ac3f12879a92aefb043e9290e82f199d9b1bd49e3ab542`.
+Evidence is under
+`target/codegen-bench/evm-rewrite-candidate/main-becd2143-merge-20260908/`.
+The current 147 codegen source pins remain stable. Identical-input UI comparison
+preserves 1,654 IDs, 828 source hashes and 5,048 complete bytecode objects. The
+fresh nine-project heavy capture directly compares accepted writer output:
+all 1,672 contracts and 3,344 objects are byte-exact. Its output fingerprints
+also match the fresh full workflow; baseline raw JSON differs in reviewed
+source-map markers and compiler-note locations, not bytecode.
+
+The full workflow preserves 24 IDs, 175 ordered gas labels and 139 observations
+per compiler; the Size supplement preserves 15 IDs and the same labels and
+observations. Execution and deployment gas are exact. Matching pinned solc
+references are reused; optional solx references are absent and are not invented.
+The new benchmark workflow's 79 Python tests pass. Raw full compiler geometric
+mean is -0.90%, RSS +1.05%. The reference run's parser overlap is retained, and
+this is not a controlled interleaved speed measurement. Concurrent Size timing
+is unused. Foundry preserves 36 configurations, all 1,537 test records and 244
+reported sizes directly against the accepted writer milestone.
+
+`503dcfc8` separately updates twelve reviewed stdout expectations and one
+FileCheck directive. The independent debug audit checks 32 program views and
+1,812 actual instructions. Twelve non-transfer invoke contexts disappear and
+thirteen fixture source-map entries lose incorrect external RETURN `o` markers;
+source ranges and other contexts remain exact. The full heavy metadata review
+covers 729 changed sourceMap fields and 6,423 entries: only `o` to `-` at actual
+external STOP/RETURN instructions, with all other contract fields and source
+ranges preserved. This intentionally adopts main's stricter transfer semantics.
+
+The final workspace has 11,747 UI passes, the original alias failure, 1,557 other
+passes and two skips. Its distinct actual debug executable is recorded in
+`workspace2-completion.json`; it is not relabeled as the frozen benchmark binary.
+Clippy, formatting, typos and diff checks pass. The merge and metadata update are
+local commits; they do not establish green remote CI, a successful push, sealed
+size parity or completion of the rewrite goal.
