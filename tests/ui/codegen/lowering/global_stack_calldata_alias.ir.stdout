@@ -1,0 +1,157 @@
+// === ROOT/tests/ui/codegen/lowering/global_stack_calldata_alias.sol:Test (runtime) ===
+@module Test_runtime
+bb0:
+  callvalue
+  jumpi bb18, bb23
+bb23:
+  push 0
+  calldataload
+  push 224
+  shr
+  push 0xc21f7bbb
+  sub
+  jumpi bb18, bb1
+bb1:
+  calldatasize
+  push 68
+  gt
+  jumpi bb18, bb19
+bb19:
+  push 4
+  calldataload
+  push 160
+  shr
+  jumpi bb18, bb20
+bb20:
+  push 0
+  not
+  push 96
+  shr
+  push 4
+  calldataload
+  and
+  push 1
+  dup 2
+  eq
+  jumpi bb35, bb3
+bb3:
+  push 2
+  dup 2
+  eq
+  jumpi bb28, bb7
+bb7:
+  push 3
+  dup 2
+  eq
+  jumpi bb30, bb10
+bb10:
+  push 4
+  dup 2
+  eq
+  jumpi bb32, bb13
+bb13:
+  push 5
+  eq
+  jumpi bb15, bb16
+bb16:
+  push 36
+  calldataload
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb4 [cold]:
+  push 0x4e487b71
+  push 224
+  shl
+  push 0
+  mstore
+  push 17
+  push 4
+  mstore
+  push 36
+  push 0
+  revert
+bb15:
+  push 36
+  calldataload
+  dup 1
+  push 5
+  add
+  swap 1
+  dup 2
+  lt
+  jumpi bb4, bb17
+bb17:
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb18 [cold]:
+  push 0
+  push 0
+  revert
+bb28:
+  push 36
+  calldataload
+  dup 1
+  push 2
+  add
+  swap 1
+  dup 2
+  lt
+  jumpi bb4, bb8
+bb8:
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb30:
+  push 36
+  calldataload
+  dup 1
+  push 3
+  add
+  swap 1
+  dup 2
+  lt
+  jumpi bb4, bb11
+bb11:
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb32:
+  push 36
+  calldataload
+  dup 1
+  push 4
+  add
+  swap 1
+  dup 2
+  lt
+  jumpi bb4, bb14
+bb14:
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb35:
+  push 36
+  calldataload
+  push 1
+  add
+  dup 1
+  iszero
+  jumpi bb4, bb5
+bb5:
+  push 0
+  mstore
+  push 32
+  push 0
+  return
