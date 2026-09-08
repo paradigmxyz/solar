@@ -38,6 +38,7 @@ mod code_lens;
 mod compatibility_sessions;
 mod completion;
 mod completion_resolve;
+mod definition_fast_path;
 mod document_highlight;
 mod document_link;
 mod file_operations;
