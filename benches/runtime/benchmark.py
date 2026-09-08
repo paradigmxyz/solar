@@ -325,9 +325,7 @@ def artifact_compiler_input(input_text: str, test_case: TestCase, kind: str) -> 
         "evm.deployedBytecode.object",
     ]
     if kind in ("solc", "solx"):
-        outputs.append("ir")
-    if kind == "solc":
-        outputs.append("irOptimized")
+        outputs.extend(("ir", "irOptimized"))
     payload.setdefault("settings", {})["outputSelection"] = {
         source: {test_case.contract_name: outputs}
     }
@@ -443,7 +441,7 @@ def write_artifacts(
             (output_dir / "runtime.disasm").write_text(disassemble_evm(runtime))
     if spec.kind in ("solc", "solx") and (ir := contract.get("ir")):
         (output_dir / "ir.yul").write_text(str(ir).rstrip() + "\n")
-    if spec.kind == "solc" and (ir := contract.get("irOptimized")):
+    if spec.kind in ("solc", "solx") and (ir := contract.get("irOptimized")):
         (output_dir / "optimized-ir.yul").write_text(str(ir).rstrip() + "\n")
     return ""
 

@@ -39,7 +39,9 @@ and raw Standard JSON input and output. Solc emits unoptimized `ir.yul` and opti
 `optimized-ir.yul` where available, disassembly,
 bytecode, and raw Standard JSON input and output. When `--reference-results` points to a result next
 to an `artifacts` directory, the matching reference files are copied into the new run. Solx artifacts
-include unoptimized `ir.yul`, disassembly, bytecode, and raw Standard JSON input and output.
+use the same output requests as solc, saving `ir.yul` and `optimized-ir.yul` when returned,
+alongside disassembly, bytecode, and raw Standard JSON input and output. Solx 0.1.8 returns
+`ir` but omits `irOptimized`.
 
 Compare two runs with `benchmark-compare.py`, which also generates CI's Markdown report,
 common benchmark JSON, job summary, and comment metadata:
