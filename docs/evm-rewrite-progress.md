@@ -1941,3 +1941,47 @@ objects and statuses, with two IDs added by the new regression test. Full/Size
 workflow outputs, gas labels and metadata match the accepted baseline; four MIR
 files differ only by proved helper-name bijections. Results are retained under
 `conditional-tail-sharing-workflow-20260908/`.
+
+
+### Shorter spill restoration accepted as a bounded milestone
+
+Commit `eba00ed7` makes the existing selected-home writer restore its two saved words in stack
+order. Three SWAPs replace seven after both originals have been loaded; disjoint
+or identical aligned homes make the reversed restore order safe. No pass or
+analysis is added. The backend loses 11 physical lines and now has 16,676 across
+45 files, 17,962 fewer than the deleted scope, including comments and inline tests.
+
+The identical-input UI screen retains 1,644 IDs and 5,028 objects: 22 Gas objects
+shrink by 68 creation and 68 runtime bytes total; Size is byte-exact. Across nine
+archived projects, all 1,672 contracts remain: 302 objects shrink by 326,229
+creation and 262,395 runtime bytes, with no growth. Router falls from 23,795 to
+23,247 runtime bytes. The complete metadata review accounts for changed source
+maps, embedded-object sizes, chooser changes and relocated references. No
+diagnostic threshold is crossed. Official full/Size runs preserve their 24/15
+IDs and 175 gas labels per mode. Nitro loses 212 bytes in each object and 45,857
+deployment gas; measured call gas is unchanged.
+
+The memory model covers 3,184 cases. All 124 focused candidate/baseline call pairs
+preserve status, payload and peaks; seven Gas calls save 12 gas. Another 56 calls
+execute actual extracted bitmap fragments: 26 successful pairs save 12 gas with
+identical returned memory and two extreme-address failure pairs match. Thirty
+older sealed bitmap checksum mismatches remain explicitly separated. The fresh
+activated symbolic differential times out after 35 seconds and is incomplete;
+its executable-prefix bridge is exact, but it supplies no agreement proof.
+
+Only two restore CHECK groups and their reviewed IR/debug snapshots change.
+Runtime directives remain intact, eight negative CHECK mutants are rejected, and final
+UI is 11,696 passed, two original failures, 853 filtered. The workspace's other
+1,395 tests pass with two skips. All 36 Foundry projects pass with unchanged
+gas and two reported sizes each down 292 bytes. Clippy, formatting, typos and
+whitespace checks pass.
+
+Primary compiler-time geometric mean is +0.8285%, RSS -1.0436%. A reversed
+three-case repeat is -0.7803% time and +0.1275% RSS. The original v4-core +52.8%
+single-sample result does not reproduce in its repeated median, but a fourth
+candidate sample again crosses the cutoff; Aave remains +1.97% with overlapping
+ranges. These measurements establish no compiler speedup. Evidence remains in
+`writer-restore-order-workflow-20260908/` and
+`writer-restore-order-independent-20260908/`. The two original UI failures,
+arbitrary-memory contract defect, and 32,520,301 positive sealed size-debt bytes
+across 1,059 objects remain open. The whole rewrite is incomplete.

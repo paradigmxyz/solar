@@ -309,3 +309,21 @@ The reversed compiler-time result is 0.45% slower, so this is an output-quality
 improvement without a compiler-speed claim. Pinned primary-source links, the
 378-case stack model and rejected alternatives remain in
 `repeated-argument-carry-study-20260907/` beneath the candidate evidence directory.
+
+
+## Restoring homes in stack order
+
+The same pinned private-stack contracts support a smaller physical scheduling
+change in `eba00ed7`: after a protected source store, restore the two saved homes
+in the order already convenient on the stack. The six-word permutation needs
+three swaps instead of seven. Both originals are loaded first, and their aligned
+homes are disjoint or identical, so reversing these two stores preserves memory.
+No upstream implementation or new memory-ownership assumption is imported.
+
+The change removes eleven backend lines and improves generated gas and size
+without adding an analysis or pass. Cheaper templates also affect existing
+protection choices, which were reviewed separately against their original
+guards and actual emitted regions. Compiler timing remains mixed; the fresh
+symbolic attempt is incomplete. Full measurements, source/reference proofs,
+executed fragments and the unresolved whole-rewrite debts are retained in the
+progress record and `writer-restore-order-workflow-20260908/` evidence directory.
