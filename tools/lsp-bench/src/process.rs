@@ -2347,8 +2347,9 @@ mod tests {
 
     #[test]
     fn dynamic_document_selector_matches_all_filter_fields() {
-        let solidity = Url::from_file_path("/workspace/src/Main.sol").unwrap();
-        let javascript = Url::from_file_path("/workspace/src/Main.js").unwrap();
+        let workspace = std::env::current_dir().unwrap();
+        let solidity = Url::from_file_path(workspace.join("src/Main.sol")).unwrap();
+        let javascript = Url::from_file_path(workspace.join("src/Main.js")).unwrap();
         let selector = json!({
             "documentSelector": [{
                 "language": "solidity",
@@ -2383,10 +2384,11 @@ mod tests {
         assert!(parsed.contains_key("workspace/willDeleteFiles"));
         assert!(!parsed.contains_key("workspace/didRenameFiles"));
 
-        let root = Url::from_file_path("/workspace").unwrap();
-        let source = Url::from_file_path("/workspace/src/Main.sol").unwrap();
-        let root_file = Url::from_file_path("/workspace/Main.sol").unwrap();
-        let folder = Url::from_file_path("/workspace/src").unwrap();
+        let workspace = std::env::current_dir().unwrap();
+        let root = Url::from_file_path(&workspace).unwrap();
+        let source = Url::from_file_path(workspace.join("src/Main.sol")).unwrap();
+        let root_file = Url::from_file_path(workspace.join("Main.sol")).unwrap();
+        let folder = Url::from_file_path(workspace.join("src")).unwrap();
         assert!(parsed["workspace/didCreateFiles"][0].filters.as_ref().unwrap()[0].matches(
             root.as_str(),
             &source,

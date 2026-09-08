@@ -1,6 +1,8 @@
 #![allow(unused_crate_dependencies)]
 
+use serde::Serialize;
 use serde_json::Value;
+use serde_saphyr::SerializerOptions;
 use sha2::{Digest, Sha256};
 use snapbox::{assert_data_eq, str};
 use std::{
@@ -19,6 +21,12 @@ fn run_benchmark(config: &Path, output: &Path, args: &[&str]) -> ExitStatus {
         .arg(output)
         .status()
         .unwrap()
+}
+
+fn yaml(value: impl Serialize) -> String {
+    let mut options = SerializerOptions::default();
+    options.quote_all = true;
+    serde_saphyr::to_string_with_options(&value, options).unwrap().trim_end().to_owned()
 }
 
 fn read_json(path: &Path) -> Value {
@@ -138,7 +146,7 @@ fn dispatcher_preserves_out_of_order_messages_and_server_requests() {
             r#"version: 1
 servers:
   - id: fake
-    command: "{}"
+    command: {}
     version_args: [--version]
     env:
       LSP_BENCH_EXPECT_TOOLCHAIN: "1"
@@ -146,7 +154,7 @@ servers:
       solidity:
         compiler: fake
 "#,
-            env!("CARGO_BIN_EXE_solar-lsp-bench-fake"),
+            yaml(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")),
         ),
     )
     .unwrap();
@@ -165,11 +173,11 @@ profiles:
     timeout_ms: 2000
 fixtures:
   - id: synthetic
-    root: "{}"
+    root: {}
     source_roots: [.]
     solc:
       version: "1"
-      native: "{}"
+      native: {}
     anchors:
       call:
         path: Main.sol
@@ -319,8 +327,8 @@ scenarios:
           path: Main.sol
           expected_name: Recovered
 "#,
-            fixture.display(),
-            env!("CARGO_BIN_EXE_solar-lsp-bench-fake"),
+            yaml(&fixture),
+            yaml(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")),
         ),
     )
     .unwrap();
@@ -612,13 +620,13 @@ profiles:
     timeout_ms: 300
 servers:
   - id: ignores-files
-    command: "{}"
+    command: {}
     version_args: [--version]
     env:
       LSP_BENCH_FAKE_BEHAVIOR: ignore-file-notifications
 fixtures:
   - id: synthetic
-    root: "{}"
+    root: {}
     source_roots: [.]
 scenarios:
   - id: create
@@ -635,8 +643,8 @@ scenarios:
           expected_name: Scratch
           expected_path: Scratch.sol
 "#,
-            env!("CARGO_BIN_EXE_solar-lsp-bench-fake"),
-            fixture.display(),
+            yaml(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")),
+            yaml(&fixture),
         ),
     )
     .unwrap();
@@ -682,13 +690,13 @@ profiles:
     timeout_ms: 300
 servers:
   - id: missing-result
-    command: "{}"
+    command: {}
     version_args: [--version]
     env:
       LSP_BENCH_FAKE_BEHAVIOR: missing-negative-workspace-symbol-result
 fixtures:
   - id: synthetic
-    root: "{}"
+    root: {}
 scenarios:
   - id: lifecycle
     fixture: synthetic
@@ -712,8 +720,8 @@ scenarios:
           expected_path: Scratch.sol
           present: false
 "#,
-            env!("CARGO_BIN_EXE_solar-lsp-bench-fake"),
-            fixture.display(),
+            yaml(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")),
+            yaml(&fixture),
         ),
     )
     .unwrap();
@@ -760,22 +768,22 @@ profiles:
     readiness_quiet_ms: 20
 servers:
   - id: incorrect
-    command: "{}"
+    command: {}
     version_args: [--version]
     env:
       LSP_BENCH_FAKE_BEHAVIOR: incorrect-hover
   - id: timeout
-    command: "{}"
+    command: {}
     version_args: [--version]
     env:
       LSP_BENCH_FAKE_BEHAVIOR: timeout-hover
 fixtures:
   - id: synthetic
-    root: "{}"
+    root: {}
     source_roots: [.]
     solc:
       version: "1"
-      native: "{}"
+      native: {}
     anchors:
       call:
         path: Main.sol
@@ -794,10 +802,10 @@ scenarios:
           anchor: call
           expected_text: add
 "#,
-            env!("CARGO_BIN_EXE_solar-lsp-bench-fake"),
-            env!("CARGO_BIN_EXE_solar-lsp-bench-fake"),
-            fixture.display(),
-            env!("CARGO_BIN_EXE_solar-lsp-bench-fake"),
+            yaml(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")),
+            yaml(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")),
+            yaml(&fixture),
+            yaml(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")),
         ),
     )
     .unwrap();
@@ -842,13 +850,13 @@ profiles:
     timeout_ms: 200
 servers:
   - id: timeout
-    command: "{}"
+    command: {}
     version_args: [--version]
     env:
       LSP_BENCH_FAKE_BEHAVIOR: timeout-initialize
 fixtures:
   - id: synthetic
-    root: "{}"
+    root: {}
     source_roots: [.]
 scenarios:
   - id: initialize
@@ -857,8 +865,8 @@ scenarios:
       - kind: open
         path: Main.sol
 "#,
-            env!("CARGO_BIN_EXE_solar-lsp-bench-fake"),
-            fixture.display(),
+            yaml(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")),
+            yaml(&fixture),
         ),
     )
     .unwrap();
@@ -893,13 +901,13 @@ profiles:
     timeout_ms: 1000
 servers:
   - id: cleanup
-    command: "{}"
+    command: {}
     version_args: [--version]
     env:
       LSP_BENCH_FAKE_BEHAVIOR: leave-descendant-on-exit
 fixtures:
   - id: synthetic
-    root: "{}"
+    root: {}
     source_roots: [.]
 scenarios:
   - id: restart
@@ -911,8 +919,8 @@ scenarios:
       - kind: open
         path: Main.sol
 "#,
-            env!("CARGO_BIN_EXE_solar-lsp-bench-fake"),
-            fixture.display(),
+            yaml(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")),
+            yaml(&fixture),
         ),
     )
     .unwrap();
@@ -946,7 +954,7 @@ fn server_that_never_reads_stdin_is_bounded_by_request_timeout() {
     let fixture = directory.path().join("fixture");
     fs::create_dir(&fixture).unwrap();
     fs::write(fixture.join("Main.sol"), "contract Main {}\n").unwrap();
-    let initialization_payload = serde_json::to_string(&"x".repeat(1024 * 1024)).unwrap();
+    let initialization_payload = yaml("x".repeat(1024 * 1024));
     let config = directory.path().join("benchmark.yaml");
     fs::write(
         &config,
@@ -961,7 +969,7 @@ profiles:
     timeout_ms: 200
 servers:
   - id: blocked-stdin
-    command: "{}"
+    command: {}
     version_args: [--version]
     env:
       LSP_BENCH_FAKE_BEHAVIOR: never-read-stdin
@@ -969,7 +977,7 @@ servers:
       payload: {initialization_payload}
 fixtures:
   - id: synthetic
-    root: "{}"
+    root: {}
     source_roots: [.]
 scenarios:
   - id: initialize
@@ -978,8 +986,8 @@ scenarios:
       - kind: open
         path: Main.sol
 "#,
-            env!("CARGO_BIN_EXE_solar-lsp-bench-fake"),
-            fixture.display(),
+            yaml(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")),
+            yaml(&fixture),
         ),
     )
     .unwrap();
@@ -1015,13 +1023,13 @@ profiles:
     timeout_ms: 500
 servers:
   - id: crash
-    command: "{}"
+    command: {}
     version_args: [--version]
     env:
       LSP_BENCH_FAKE_BEHAVIOR: no-text-sync-shutdown-crash
 fixtures:
   - id: synthetic
-    root: "{}"
+    root: {}
     source_roots: [.]
     anchors:
       main:
@@ -1041,8 +1049,8 @@ scenarios:
           path: Main.sol
           expected_name: Renamed
 "#,
-            env!("CARGO_BIN_EXE_solar-lsp-bench-fake"),
-            fixture.display(),
+            yaml(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")),
+            yaml(&fixture),
         ),
     )
     .unwrap();
@@ -1083,13 +1091,13 @@ profiles:
     timeout_ms: 1000
 servers:
   - id: negotiated
-    command: "{}"
+    command: {}
     version_args: [--version]
     env:
       LSP_BENCH_FAKE_BEHAVIOR: negotiated-capabilities
 fixtures:
   - id: synthetic
-    root: "{}"
+    root: {}
     source_roots: [.]
     anchors:
       call:
@@ -1132,8 +1140,8 @@ scenarios:
           path: Main.sol
           expected_name: Renamed
 "#,
-            env!("CARGO_BIN_EXE_solar-lsp-bench-fake"),
-            fixture.display(),
+            yaml(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")),
+            yaml(&fixture),
         ),
     )
     .unwrap();
@@ -1197,13 +1205,13 @@ profiles:
     timeout_ms: 1000
 servers:
   - id: fake
-    command: "{}"
+    command: {}
     version_args: [--version]
     env:
       LSP_BENCH_FAKE_BEHAVIOR: position-sensitive-hover
 fixtures:
   - id: synthetic
-    root: "{}"
+    root: {}
     source_roots: [.]
     anchors:
       header:
@@ -1228,8 +1236,8 @@ scenarios:
           anchor: target
           expected_text: function add
 "#,
-            env!("CARGO_BIN_EXE_solar-lsp-bench-fake"),
-            fixture.display(),
+            yaml(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")),
+            yaml(&fixture),
         ),
     )
     .unwrap();
@@ -1270,13 +1278,13 @@ profiles:
     timeout_ms: 1000
 servers:
   - id: numeric
-    command: "{}"
+    command: {}
     version_args: [--version]
     env:
       LSP_BENCH_FAKE_BEHAVIOR: numeric-text-sync
 fixtures:
   - id: synthetic
-    root: "{}"
+    root: {}
     source_roots: [.]
     anchors:
       call:
@@ -1296,8 +1304,8 @@ scenarios:
           anchor: call
           expected_text: add
 "#,
-            env!("CARGO_BIN_EXE_solar-lsp-bench-fake"),
-            fixture.display(),
+            yaml(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")),
+            yaml(&fixture),
         ),
     )
     .unwrap();
@@ -1347,13 +1355,13 @@ profiles:
     timeout_ms: 1000
 servers:
   - id: no-sync
-    command: "{}"
+    command: {}
     version_args: [--version]
     env:
       LSP_BENCH_FAKE_BEHAVIOR: no-text-sync
 fixtures:
   - id: synthetic
-    root: "{}"
+    root: {}
     source_roots: [.]
     anchors:
       call:
@@ -1403,8 +1411,8 @@ scenarios:
           anchor: call
           expected_label: add
 "#,
-            env!("CARGO_BIN_EXE_solar-lsp-bench-fake"),
-            fixture.display(),
+            yaml(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")),
+            yaml(&fixture),
         ),
     )
     .unwrap();
@@ -1461,13 +1469,13 @@ profiles:
     timeout_ms: 1000
 servers:
   - id: dynamic-sync
-    command: "{}"
+    command: {}
     version_args: [--version]
     env:
       LSP_BENCH_FAKE_BEHAVIOR: dynamic-text-sync
 fixtures:
   - id: synthetic
-    root: "{}"
+    root: {}
     source_roots: [.]
     anchors:
       main:
@@ -1495,8 +1503,8 @@ scenarios:
           path: Main.sol
           expected_name: Renamed
 "#,
-            env!("CARGO_BIN_EXE_solar-lsp-bench-fake"),
-            fixture.display(),
+            yaml(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")),
+            yaml(&fixture),
         ),
     )
     .unwrap();
@@ -1548,13 +1556,13 @@ profiles:
     timeout_ms: 1000
 servers:
   - id: dynamic-sync
-    command: "{}"
+    command: {}
     version_args: [--version]
     env:
       LSP_BENCH_FAKE_BEHAVIOR: dynamic-text-sync-selector-mismatch
 fixtures:
   - id: synthetic
-    root: "{}"
+    root: {}
     source_roots: [.]
     anchors:
       main:
@@ -1576,8 +1584,8 @@ scenarios:
           path: Main.sol
           expected_name: Renamed
 "#,
-            env!("CARGO_BIN_EXE_solar-lsp-bench-fake"),
-            fixture.display(),
+            yaml(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")),
+            yaml(&fixture),
         ),
     )
     .unwrap();
@@ -1623,12 +1631,12 @@ profiles:
     timeout_ms: 500
 servers:
   - id: incompatible
-    command: "{}"
+    command: {}
     version_args: [--version]
     locked_version: "2"
 fixtures:
   - id: synthetic
-    root: "{}"
+    root: {}
     source_roots: [.]
 scenarios:
   - id: open
@@ -1637,8 +1645,8 @@ scenarios:
       - kind: open
         path: Main.sol
 "#,
-            env!("CARGO_BIN_EXE_solar-lsp-bench-fake"),
-            fixture.display(),
+            yaml(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")),
+            yaml(&fixture),
         ),
     )
     .unwrap();
@@ -1678,11 +1686,11 @@ profiles:
     require_authoritative: true
 servers:
   - id: fake
-    command: "{}"
+    command: {}
     version_args: [--version]
 fixtures:
   - id: synthetic
-    root: "{}"
+    root: {}
     source_roots: [.]
 scenarios:
   - id: open
@@ -1691,8 +1699,8 @@ scenarios:
       - kind: open
         path: Main.sol
 "#,
-            env!("CARGO_BIN_EXE_solar-lsp-bench-fake"),
-            fixture.display(),
+            yaml(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")),
+            yaml(&fixture),
         ),
     )
     .unwrap();
@@ -1745,13 +1753,13 @@ profiles:
     timeout_ms: 2000
 servers:
   - id: fake
-    command: "{}"
+    command: {}
     version_args: [--version]
     env:
       LSP_BENCH_FAKE_BEHAVIOR: {behavior}
 fixtures:
   - id: synthetic
-    root: "{}"
+    root: {}
     source_roots: [.]
 scenarios:
   - id: cold
@@ -1766,8 +1774,8 @@ scenarios:
           path: Main.sol
           expected_name: Main
 "#,
-                env!("CARGO_BIN_EXE_solar-lsp-bench-fake"),
-                fixture.display(),
+                yaml(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")),
+                yaml(&fixture),
             ),
         )
         .unwrap();
@@ -1819,11 +1827,11 @@ profiles:
     timeout_ms: 2000
 servers:
   - id: fake
-    command: "{}"
+    command: {}
     version_args: [--version]
 fixtures:
   - id: synthetic
-    root: "{}"
+    root: {}
     source_roots: [.]
     anchors:
       call-double:
@@ -1850,8 +1858,8 @@ scenarios:
           - path: Math.sol
             anchor: math-double
 "#,
-            env!("CARGO_BIN_EXE_solar-lsp-bench-fake"),
-            fixture.display(),
+            yaml(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")),
+            yaml(&fixture),
         ),
     )
     .unwrap();
@@ -1890,13 +1898,13 @@ profiles:
     timeout_ms: 2000
 servers:
   - id: fake
-    command: "{}"
+    command: {}
     version_args: [--version]
     env:
       LSP_BENCH_FAKE_BEHAVIOR: oversized-rename
 fixtures:
   - id: synthetic
-    root: "{}"
+    root: {}
     source_roots: [.]
     anchors:
       main:
@@ -1917,8 +1925,8 @@ scenarios:
           - path: Main.sol
             anchor: main
 "#,
-            env!("CARGO_BIN_EXE_solar-lsp-bench-fake"),
-            fixture.display(),
+            yaml(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")),
+            yaml(&fixture),
         ),
     )
     .unwrap();
@@ -1961,13 +1969,13 @@ profiles:
     timeout_ms: 2000
 servers:
   - id: fake
-    command: "{}"
+    command: {}
     version_args: [--version]
     env:
       LSP_BENCH_FAKE_BEHAVIOR: stale-versioned-edit
 fixtures:
   - id: synthetic
-    root: "{}"
+    root: {}
     source_roots: [.]
 scenarios:
   - id: open
@@ -1976,8 +1984,8 @@ scenarios:
       - kind: open
         path: Main.sol
 "#,
-            env!("CARGO_BIN_EXE_solar-lsp-bench-fake"),
-            fixture.display(),
+            yaml(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")),
+            yaml(&fixture),
         ),
     )
     .unwrap();
@@ -2018,13 +2026,13 @@ profiles:
     timeout_ms: 2000
 servers:
   - id: fake
-    command: "{}"
+    command: {}
     version_args: [--version]
     env:
       LSP_BENCH_FAKE_BEHAVIOR: multi-edit-apply
 fixtures:
   - id: synthetic
-    root: "{}"
+    root: {}
     source_roots: [.]
 scenarios:
   - id: open
@@ -2033,8 +2041,8 @@ scenarios:
       - kind: open
         path: Main.sol
 "#,
-            env!("CARGO_BIN_EXE_solar-lsp-bench-fake"),
-            fixture.display(),
+            yaml(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")),
+            yaml(&fixture),
         ),
     )
     .unwrap();
@@ -2101,13 +2109,13 @@ profiles:
     timeout_ms: 2000
 servers:
   - id: fake
-    command: "{}"
+    command: {}
     version_args: [--version]
     env:
       LSP_BENCH_FAKE_BEHAVIOR: shutdown-apply-edit
 fixtures:
   - id: synthetic
-    root: "{}"
+    root: {}
     source_roots: [.]
 scenarios:
   - id: open
@@ -2116,8 +2124,8 @@ scenarios:
       - kind: open
         path: Main.sol
 "#,
-            env!("CARGO_BIN_EXE_solar-lsp-bench-fake"),
-            fixture.display(),
+            yaml(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")),
+            yaml(&fixture),
         ),
     )
     .unwrap();
