@@ -116,3 +116,53 @@ bb6:
   push 32
   mload
   stop
+
+// CHECK-LABEL: bb7:
+// CHECK: +   dup 1
+// CHECK: {{^[ +].*}}sstore
+// CHECK: -   sload
+bb7:
+  push 7
+  push 4
+  sstore
+  push 4
+  sload
+  stop
+
+// CHECK-LABEL: bb8:
+// CHECK: +   dup 1
+// CHECK: {{^[ +].*}}tstore
+// CHECK: -   tload
+bb8:
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  push 0
+  tstore
+  push 0
+  tload
+  stop
+
+// Storage and transient storage are separate address spaces.
+// CHECK-LABEL: bb9:
+// CHECK: {{^[ +].*}}sstore
+// CHECK-NEXT: {{^[ +].*}}push 4
+// CHECK-NEXT: {{^[ +].*}}tload
+bb9:
+  push 7
+  push 4
+  sstore
+  push 4
+  tload
+  stop
+
+// A different slot must still be loaded.
+// CHECK-LABEL: bb10:
+// CHECK: {{^[ +].*}}tstore
+// CHECK-NEXT: {{^[ +].*}}push 5
+// CHECK-NEXT: {{^[ +].*}}tload
+bb10:
+  push 7
+  push 4
+  tstore
+  push 5
+  tload
+  stop

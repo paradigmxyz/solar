@@ -60,7 +60,7 @@ pub trait EvmPass: Sync {
 /// All EVM IR passes exposed by `-Zevm-ir-pipeline`.
 pub static ALL_PASSES: &[&dyn EvmPass] = &[
     &block_cse::BlockCse,
-    &peephole::Peephole,
+    &peephole::Peephole::FINAL,
     &dce::Dce,
     &reorder_pushes::REORDER_PUSHES,
     &share_reverts::ShareReverts,
@@ -81,7 +81,7 @@ pub static ALL_PASSES: &[&dyn EvmPass] = &[
 /// The canonical EVM IR layout and code-size pipeline used by EVM codegen.
 static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     // Normalize and establish the first physical layout.
-    &peephole::Peephole,
+    &peephole::Peephole::EARLY,
     &coalesce_copies::CoalesceCopies,
     &cfg_simplify::CfgSimplify::EARLY,
     &data::PackExistingData,
@@ -101,7 +101,7 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     // Reorder it only after structural sharing is fixed so local stack cleanup cannot perturb
     // outlining choices.
     &reorder_pushes::REORDER_PUSHES,
-    &peephole::Peephole,
+    &peephole::Peephole::EARLY,
     // Regenerate only after structural sharing is fixed. Doing this before
     // tail merging can make otherwise-identical blocks context-dependent and
     // lose more shared bytes than the local CSE removes.
@@ -126,7 +126,7 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &outline::Outline,
     &cfg_simplify::CfgSimplify::EARLY,
     &reorder_pushes::FINAL_REORDER_PUSHES,
-    &peephole::Peephole,
+    &peephole::Peephole::EARLY,
     &peephole::Cleanup(block_cse::BlockCse),
     &peephole::Cleanup(dce::Dce),
     &peephole::Cleanup(stack_normalize::StackNormalize),
@@ -139,7 +139,7 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &data::PackData,
     // Data packing can add compactable immediates and local stack shuffles.
     &compact_pushes::CompactPushes,
-    &peephole::Peephole,
+    &peephole::Peephole::FINAL,
     &stack_normalize::StackDedup,
     &peephole::Cleanup(dce::Dce),
 ];

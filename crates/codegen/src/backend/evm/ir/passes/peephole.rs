@@ -3,7 +3,8 @@
 //! This pass repeatedly applies ordered, bounded rewrites to the end of each block's instruction
 //! prefix until it reaches a local fixed point. The rules cover constant arithmetic, comparison
 //! canonicalization, redundant pushes and copies, target-aware `DUP`/`SWAP`/`EXCHANGE` identities,
-//! and short symbolic stack sequences whose net effect is the identity.
+//! adjacent memory/storage store-load pairs, and short symbolic stack sequences whose net
+//! effect is the identity.
 //!
 //! Rules match only canonical EVM IR instructions and preserve instruction metadata on retained or
 //! replacement operations. Constant materializations use the same target-dependent cost model as
@@ -14,7 +15,8 @@
 //! Peephole runs at several cleanup points after transforms that delete, coalesce, or resynthesize
 //! instructions. [`Cleanup`] couples such a pass with peephole only when the wrapped pass reports a
 //! change, keeping the canonical pipeline at a local fixed point without adding optimization logic
-//! to assembly.
+//! to assembly. Storage reload forwarding runs only after structural sharing, so retaining
+//! a stack copy cannot disturb earlier block resynthesis or outlining choices.
 
 use super::{
     EvmPass,
@@ -35,7 +37,14 @@ use solar_sema::Gcx;
 use std::fmt;
 use tracing::trace;
 
-pub(super) struct Peephole;
+pub(super) struct Peephole {
+    storage_reloads: bool,
+}
+
+impl Peephole {
+    pub(super) const EARLY: Self = Self { storage_reloads: false };
+    pub(super) const FINAL: Self = Self { storage_reloads: true };
+}
 
 /// Runs peephole cleanup only when the wrapped pass changes the module.
 pub(super) struct Cleanup<T>(pub(super) T);
@@ -46,7 +55,7 @@ impl EvmPass for Peephole {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        optimize_module(gcx, module)
+        optimize_module(gcx, module, self.storage_reloads)
     }
 }
 
@@ -66,7 +75,7 @@ impl<T: EvmPass> EvmPass for Cleanup<T> {
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
         let changed = self.0.run_pass(gcx, module);
         if changed {
-            let _ = Peephole.run_pass(gcx, module);
+            let _ = Peephole::EARLY.run_pass(gcx, module);
         }
         changed
     }
@@ -74,11 +83,12 @@ impl<T: EvmPass> EvmPass for Cleanup<T> {
 
 const TRACE_TARGET: &str = "solar::codegen::evm_ir::peephole";
 
-fn optimize_module(gcx: Gcx<'_>, module: &mut Module) -> bool {
+fn optimize_module(gcx: Gcx<'_>, module: &mut Module, storage_reloads: bool) -> bool {
     let mut changed = false;
     let mut scratch = Vec::new();
     for block in &mut module.blocks {
-        changed |= optimize(gcx, &mut block.instructions, &mut scratch, block.label);
+        changed |=
+            optimize(gcx, &mut block.instructions, &mut scratch, block.label, storage_reloads);
     }
     changed
 }
@@ -88,6 +98,7 @@ fn optimize(
     instructions: &mut Vec<Instruction>,
     scratch: &mut Vec<Instruction>,
     block: u32,
+    storage_reloads: bool,
 ) -> bool {
     scratch.clear();
     std::mem::swap(instructions, scratch);
@@ -95,14 +106,19 @@ fn optimize(
     let mut changed = false;
     for inst in scratch.drain(..) {
         instructions.push(inst);
-        while try_peephole(gcx, instructions, block) {
+        while try_peephole(gcx, instructions, block, storage_reloads) {
             changed = true;
         }
     }
     changed
 }
 
-fn try_peephole(gcx: Gcx<'_>, instructions: &mut Vec<Instruction>, block: u32) -> bool {
+fn try_peephole(
+    gcx: Gcx<'_>,
+    instructions: &mut Vec<Instruction>,
+    block: u32,
+    storage_reloads: bool,
+) -> bool {
     if instructions.last().is_none_or(Instruction::is_encoded_push) {
         return false;
     }
@@ -405,18 +421,23 @@ fn try_peephole(gcx: Gcx<'_>, instructions: &mut Vec<Instruction>, block: u32) -
         return rewrite!(6, Edit::Keep(3));
     }
 
-    // `PUSH value PUSH x MSTORE PUSH x MLOAD -> PUSH value DUP1 PUSH x MSTORE`.
-    //
-    // Keeping the stored value saves a push and MLOAD.
+    // PUSH x; MSTORE/SSTORE/TSTORE; PUSH x; MLOAD/SLOAD/TLOAD
+    //   -> DUP1; PUSH x; MSTORE/SSTORE/TSTORE
+    // Keeping the stored word saves a push and reload without extending a MIR live range.
     if let [.., store_addr, store, load_addr, load] = instructions.as_slice()
         && store_addr.has_canonical_stack_effect()
         && store.has_canonical_stack_effect()
         && load_addr.has_canonical_stack_effect()
         && load.has_canonical_stack_effect()
         && let Some(store_addr) = store_addr.concrete_immediate()
-        && store.as_evm_opcode() == Some(op::MSTORE)
         && let Some(load_addr) = load_addr.concrete_immediate()
-        && load.as_evm_opcode() == Some(op::MLOAD)
+        && match (store.as_evm_opcode(), load.as_evm_opcode()) {
+            (Some(op::MSTORE), Some(op::MLOAD)) => true,
+            (Some(op::SSTORE), Some(op::SLOAD)) | (Some(op::TSTORE), Some(op::TLOAD)) => {
+                storage_reloads
+            }
+            _ => false,
+        }
         && store_addr == load_addr
     {
         return rewrite!(4, Edit::ReloadStoredValue);

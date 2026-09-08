@@ -66,4 +66,34 @@
 -   push 32
 -   mload
     stop
+  bb7:
+    push 7
++   dup 1
+    push 4
+    sstore
+-   push 4
+-   sload
+    stop
+  bb8:
+    push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
++   dup 1
+    push 0
+    tstore
+-   push 0
+-   tload
+    stop
+  bb9:
+    push 7
+    push 4
+    sstore
+    push 4
+    tload
+    stop
+  bb10:
+    push 7
+    push 4
+    tstore
+    push 5
+    tload
+    stop
   
