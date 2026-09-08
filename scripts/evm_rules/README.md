@@ -2,7 +2,8 @@
 
 This is an offline search and SMT verification lane for the **actual ISLE source
 compiled into the optimizer**. It currently gates `word.isle`, `word_sequence.isle` and
-`stack_select.isle`, plus the physical rules in `stack_peephole.isle`. The compiler
+`stack_select.isle`, plus the physical rules in `stack_peephole.isle` and
+`late_word.isle`. The compiler
 itself has no solver dependency.
 
 ```sh
@@ -26,7 +27,7 @@ Only UNSAT establishes equivalence. SAT must replay as different outputs in a
 separate Python integer evaluator. Timeouts, unsupported terms and unsatisfiable
 preconditions are distinct failures, never proofs. Verification exits nonzero
 unless every selected rule is proved. Empty rule files fail too. CI runs the
-checker's regression tests and verifies every rule in all four gated files.
+checker's regression tests and verifies every rule in all five gated files.
 Failures also print the source file, rule line, status and reason in the job log.
 Applicability and equality use separate solver queries so the satisfiability
 check does not disable Z3's one-shot bitvector preprocessing. Both queries retain
@@ -75,6 +76,29 @@ facets, edits and target lowering remain trusted and are recorded by hash.
 Other peepholes, especially memory and branch rewrites, are not covered by this
 lane. Unknown syntax, guards, edits or operations fail verification.
 
+The late word lane models bounded physical windows around shift-count
+computations. One extractor requires a closed computation that leaves exactly
+one word and reads no incoming stack items. The other tracks a unique shift base
+through stack permutations: the body cannot duplicate, consume, or inspect that
+word, and must leave it directly below the count. Other stack results remain
+independent of the base. Neither body may observe gas/PC or transfer control;
+its instructions and external reads stay in order. The proof checks the
+surrounding stack expression and compares stack heights. Closed-body peak growth
+decreases by one; the protected body's entry height and internal growth are
+unchanged, and removing the decrement suffix cannot increase its peak. The Rust extractor,
+target profitability guard and edit implementation remain trusted and hashed.
+Missing guards and changed edits fail closed; changing the shift operation must
+produce a replayed counterexample in the checker tests.
+
+This lane implements `(1 << n) - 1 => ~(MAX << n)` only after outlining and
+stack cleanup. Earlier MIR materialization shortened individual expressions but
+lost sharing in a packed-storage fixture. The closed form removes one byte and
+one gas on PUSH0 targets. The protected-base form also removes a trailing
+`PUSH1 1; SWAP1`, saving three bytes and four gas with PUSH0, or two bytes and
+three gas on earlier shift-capable targets. The closed form stays unchanged on
+pre-PUSH0 targets because neither target cost improves. Earlier sharing
+decisions remain unchanged in both cases.
+
 An audit of the older rules is available explicitly:
 
 ```sh
@@ -111,6 +135,14 @@ most three inputs and sixteen operations. The report ranks static occurrences
 times target tree cost and records source hashes, functions, blocks and lines;
 this is a search priority, not a claim about runtime frequency or realized savings.
 Empty mining results exit unsuccessfully. Mining neither proves nor installs rules.
+Pass `--abstract-subtrees` to also replace an internal operation subtree or a
+nontrivial literal with an independent input. All occurrences of the selected
+subtree share that input, and alpha-renaming preserves the three-input bound.
+The literals zero, one and MAX remain available for identities. Each candidate
+abstracts at most one distinct subtree; the report identifies its abstracted
+occurrences and source locations. This exposes general patterns hidden by deep
+shift-count arithmetic or repeated literal masks. Equivalence must hold for
+every value of the new input, not merely values observed in the source program.
 The exact emitted ISLE must pass verification, then gas/size measurements decide
 whether to integrate it. Mining the optimized runtime corpus motivated the
 doubling rule in `word.isle` and odd-word recipes in `word_sequence.isle`.
@@ -206,13 +238,13 @@ the proof; correctness does not depend on its implementation.
 Constant SHL, SHR and BYTE constructors call the same EVM evaluator as constant
 folding. The verifier models their full-width indexes independently and records
 the evaluator's source hash in the trusted boundary.
-All 89 word rules pass the same source-based verification. Arithmetic and
+All compiled word rules pass the same source-based verification. Arithmetic and
 bitwise rewrites become competing e-class alternatives. Bounded operand matching can inspect up
 to four retained child spellings, one at a time, exposing nested opportunities
 within one pass. It preserves instruction placement and dominance; it does not
 form the Cartesian product of child classes or perform unrestricted saturation.
 
-The `word-sequence` pass follows e-graph extraction. Its 33 rules cover De Morgan
+The `word-sequence` pass follows e-graph extraction. Its rules cover De Morgan
 identities, boolean tests, common masks, common shifts and size-oriented power-of-two
 comparisons. A recipe has a private namespace; only a winning recipe allocates MIR
 instructions. Matching is restricted to earlier producers in the same pure segment.

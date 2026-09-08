@@ -74,6 +74,8 @@ The offline rule tool can mine bounded pure trees from real MIR artifacts,
 rank them by occurrence-weighted target cost, search for cheaper equivalents,
 and verify the emitted ISLE. See [the discovery and proof guide](../../scripts/evm_rules/README.md).
 Generated candidates still require scheduled-code measurements before inclusion.
+Subtree abstraction exposes generic shift-count and repeated-mask patterns inside
+larger expressions; the proof quantifies over every value of each abstract input.
 The in-compiler e-graph remains bounded and acyclic; this is not full equality saturation.
 
 `-Ogas --optimize-runs=N` sets the expected execution count used by lifetime
@@ -89,6 +91,12 @@ Load PRE can split critical edges in gas mode, charging the new transfer and
 preserving phi inputs; it inserts no read on a bypass path. Size mode retains
 the existing unsplit-edge policy. Constant folding prices the removed opcode's
 dynamic work, including exponent bytes, and requires non-increasing gas and bytes.
+
+The `late-word` EVM IR pass applies mined low-mask identities after outlining and
+stack cleanup. It checks either a closed count computation or the independence
+of a protected shift base through stack permutations. Pricing the physical
+replacement avoids changes to earlier sharing decisions that can turn a local
+MIR size reduction into larger final bytecode.
 
 CI checks the compiled word rules and a separate pure physical-stack subset.
 These proofs cover the modeled rules and explicit trusted contracts, not global
