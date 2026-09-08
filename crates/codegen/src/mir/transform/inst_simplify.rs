@@ -6,6 +6,11 @@
 //! semantics. Fixed aggregate projections also forward through bounded insertion chains, exposing
 //! scalar facts before aggregate lowering without allocating memory or expanding aggregate phis.
 //!
+//! The `const-fold` adapter runs after representation lowering. It removes zero-length memory
+//! operations and instructions with constant results, including identities such as `sub x, x`.
+//! It keeps other value identities and instruction choices intact to avoid extending the live
+//! ranges of nonconstant values before stack scheduling.
+//!
 //! Safety contract:
 //! - do not remove or reorder side effects
 //! - replace an instruction with a value only when the equality is exact for all 256-bit EVM words
@@ -42,12 +47,35 @@ impl MirPass for InstSimplify {
     }
 }
 
+/// Folds constant results without changing instruction choices or forwarding other values.
+pub(crate) struct ConstFold;
+
+impl MirPass for ConstFold {
+    fn name(&self) -> &'static str {
+        "const-fold"
+    }
+
+    fn run_pass(
+        &self,
+        gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut crate::mir::pass::ModuleAnalyses,
+    ) -> solar_interface::Result<bool> {
+        Ok(run_function_pass(module, analyses, |func, _| {
+            let mut simplifier = InstSimplifier::new(gcx.sess.opts.evm_version);
+            simplifier.constants_only = true;
+            simplifier.run_to_fixpoint(func) != 0
+        }))
+    }
+}
+
 /// Local MIR instruction simplification pass.
 #[derive(Debug)]
 struct InstSimplifier {
     /// Number of instructions simplified in the last run.
     simplified_count: usize,
     evm_version: EvmVersion,
+    constants_only: bool,
 }
 
 struct RunState {
@@ -64,7 +92,7 @@ impl RunState {
 impl InstSimplifier {
     /// Creates a new instruction simplifier.
     fn new(evm_version: EvmVersion) -> Self {
-        Self { simplified_count: 0, evm_version }
+        Self { simplified_count: 0, evm_version, constants_only: false }
     }
 
     fn run_with_state(&mut self, func: &mut Function, state: &mut RunState) -> usize {
@@ -94,7 +122,9 @@ impl InstSimplifier {
                         break;
                     }
 
-                    if let Some(new_kind) = self.rewrite_inst(func, &kind, &state.replacements) {
+                    if !self.constants_only
+                        && let Some(new_kind) = self.rewrite_inst(func, &kind, &state.replacements)
+                    {
                         tracing::trace!(
                             target: "solar::codegen::mir::inst_simplify",
                             function = %func.name,
@@ -117,6 +147,9 @@ impl InstSimplifier {
                     };
                     let replacement =
                         mir_utils::resolve_replacement(replacement, &state.replacements);
+                    if self.constants_only && func.value(replacement).as_immediate().is_none() {
+                        break;
+                    }
                     if matches!(kind, InstKind::ExtractValue { .. })
                         && func.value_ty(result) != func.value_ty(replacement)
                         && [func.value_ty(result), func.value_ty(replacement)]
@@ -152,7 +185,9 @@ impl InstSimplifier {
                 block.instructions.retain(|&id| !state.dead.contains(id));
             }
         }
-        self.simplified_count += self.rewrite_terminators(func, &state.replacements);
+        if !self.constants_only {
+            self.simplified_count += self.rewrite_terminators(func, &state.replacements);
+        }
 
         self.simplified_count
     }

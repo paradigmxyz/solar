@@ -558,3 +558,5 @@ The true arm then uses the existing condition directly, avoiding an inversion
 and exposing its return path to later sharing and placement.
 
 Tail merging reuses an existing whole-body terminal suffix when there are no nested shared tails or function-entry events. Other return labels remain distinct jump stubs, so sharing avoids an extra block without changing address identity or nested fallthrough paths.
+
+The lowered pipeline folds constant results before branch cleanup and stack scheduling. It keeps other value identities and instruction choices intact to avoid lengthening live ranges after representation lowering.

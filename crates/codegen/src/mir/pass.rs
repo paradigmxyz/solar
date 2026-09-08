@@ -46,6 +46,7 @@ pub static ALL_PASSES: &[&dyn MirPass] = &[
     &sccp::Sccp,
     &pure_eval::PureEval,
     &inst_simplify::InstSimplify,
+    &inst_simplify::ConstFold,
     &cse::Cse,
     &pre::Pre,
     &gvn::Gvn,
@@ -270,6 +271,7 @@ pub static LOWERING_PIPELINE: &[&dyn MirPass] = &[
 
 /// Optimizes lowered word SSA before physical stack scheduling.
 pub static LOWERED_PIPELINE: &[&dyn MirPass] = &[
+    &inst_simplify::ConstFold,
     &cfg_simplify::BranchSimplify,
     // Late lowering can leave pure address and length calculations unused.
     // Remove their complete dependency chains before selecting physical stack order.

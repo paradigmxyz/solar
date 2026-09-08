@@ -1,0 +1,63 @@
+- // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_resume.mir (before const-fold) ===
++ // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_resume.mir (after const-fold) ===
+  @module PhasePipelineResume
+  fn @ping() [selector=0x5c36b186, abi_wrapper] {
+    bb0:
+      stop
+  }
+  
+  fn @constants(arg0: u256) -> u256 {
+    bb0:
+-     v0 = sub arg0, arg0
+-     v1 = eq v0, 0
+      v2 = add arg0, 0
+      v3 = mul v2, 8
+-     sstore 0, v0
+-     jumpi v1, bb1, bb2
++     sstore 0, 0
++     jumpi true, bb1, bb2
+    bb2:
+      ret 999
+    bb1:
+      ret v3
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_resume.mir (before branch-simplify) ===
++ // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_resume.mir (after branch-simplify) ===
+  @module PhasePipelineResume
+  fn @ping() [selector=0x5c36b186, abi_wrapper] {
+    bb0:
+      stop
+  }
+  
+  fn @constants(arg0: u256) -> u256 {
+    bb0:
+      v2 = add arg0, 0
+      v3 = mul v2, 8
+      sstore 0, 0
+-     jumpi true, bb1, bb2
+-   bb2:
+-     ret 999
++     jump bb1
+    bb1:
+      ret v3
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_resume.mir (before dce) ===
++ // === ROOT/tests/ui/codegen/mir/lowering/phase_pipeline_resume.mir (after dce) ===
+  @module PhasePipelineResume
+  fn @ping() [selector=0x5c36b186, abi_wrapper] {
+    bb0:
+      stop
+  }
+  
+  fn @constants(arg0: u256) -> u256 {
+    bb0:
+      v2 = add arg0, 0
+      v3 = mul v2, 8
+      sstore 0, 0
+      jump bb1
+    bb1:
+      ret v3
+  }
+  
