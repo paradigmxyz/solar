@@ -1,3 +1,8 @@
+//@ codegen-matrix: standard
+//@[gas] compile-flags: -Zdump=mir
+//@[gas] filecheck:
+//@[mir] filecheck: --check-prefix=SEMANTIC
+//@[mir] normalize-stdout-test: "(?s).+" -> ""
 //@ run-call: concrete => "ConcreteTarget"
 //@ run-call: abstractContract => "AbstractTarget"
 //@ run-call: interfaceContract => "InterfaceTarget"
@@ -24,6 +29,14 @@ contract ContractNameLongerThanThirtyTwoBytes {}
 contract ContractNames {
     string private constant NAME = type(ConcreteTarget).name;
 
+    // SEMANTIC-LABEL: fn @concrete()
+    // SEMANTIC: [[DATA:v[0-9]+]] = memory_object_data memorybytes,
+    // SEMANTIC-NEXT: mstore [[DATA]], 0x436f6e6372657465546172676574000000000000000000000000000000000000
+    // CHECK-LABEL: fn @concrete()
+    // CHECK: mstore 128, 32
+    // CHECK-NEXT: mstore 160, 14
+    // CHECK-NEXT: mstore 192, 0x436f6e6372657465546172676574000000000000000000000000000000000000
+    // CHECK-NEXT: returndata 128, 96
     function concrete() external pure returns (string memory) {
         return type(ConcreteTarget).name;
     }

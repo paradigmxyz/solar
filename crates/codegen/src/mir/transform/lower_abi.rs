@@ -3916,7 +3916,7 @@ fn static_bytes_return(func: &Function) -> Option<StaticBytesReturn> {
         return None;
     }
     let block = &func.blocks[BlockId::ENTRY];
-    let [alloc, set_len, store_word] = block.instructions.as_slice() else { return None };
+    let [alloc, set_len, initialization @ ..] = block.instructions.as_slice() else { return None };
     let Some(Terminator::Return { values }) = &block.terminator else { return None };
     let [object] = values.as_slice() else { return None };
     if !matches!(func.value(*object), Value::Inst(inst) if inst == alloc) {
@@ -3934,17 +3934,34 @@ fn static_bytes_return(func: &Function) -> Option<StaticBytesReturn> {
     else {
         return None;
     };
-    let InstKind::MemoryObjectStoreWord { object: word_object, offset, value } =
-        func.inst(*store_word).kind
-    else {
-        return None;
+    let value = match initialization {
+        [store] => {
+            let InstKind::MemoryObjectStoreWord { object: word_object, offset, value } =
+                func.inst(*store).kind
+            else {
+                return None;
+            };
+            if word_object != *object || func.value_u64(offset) != Some(0) {
+                return None;
+            }
+            value
+        }
+        [data, store] => {
+            let InstKind::MemoryObjectData(data_object, MemoryObjectKind::Bytes) =
+                func.inst(*data).kind
+            else {
+                return None;
+            };
+            let InstKind::MStore(ptr, value) = func.inst(*store).kind else { return None };
+            if data_object != *object || func.inst_result_value(*data) != Some(ptr) {
+                return None;
+            }
+            value
+        }
+        _ => return None,
     };
     let len = func.value_u64(len)?;
-    if len_object != *object
-        || word_object != *object
-        || func.value_u64(offset) != Some(0)
-        || !(1..=32).contains(&len)
-    {
+    if len_object != *object || !(1..=32).contains(&len) {
         return None;
     }
     let word = func.value_u256(value)?;

@@ -130,35 +130,10 @@ fn @zeroData() [selector=0x6ec059cd, abi_wrapper, pure] {
 
 fn @zeroWord() [selector=0x4c092794, abi_wrapper, pure] {
   bb0:
-    v2 = icall @zeroWord.body
-    v6 = mload 64 !metadata(memory=scratch)
-    v7 = add v6, 32
-    mstore v6, 32
-    v10 = iszero v2
-    v11 = iszero v10
-    v9 = mload v2
-    v12 = mul v9, v11
-    mstore v7, v12
-    v14 = add v12, 31
-    v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v16 = add v6, 64
-    jumpi v15, bb1, bb2
-  bb1:
-    v18 = sub v15, 32
-    v19 = add v16, v18
-    mstore v19, 0
-    jump bb2
-  bb2:
-    v21 = add v16, v15
-    v20 = add v2, 32
-    mcopy v16, v20, v12 !metadata(memory=heap)
-    v22 = sub v21, v6
-    v24 = add v22, 31
-    v26 = and v24, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v27 = mload 64 !metadata(memory=scratch)
-    v29 = add v27, v26
-    mstore 64, v29 !metadata(memory=scratch)
-    returndata v27, v22
+    mstore 128, 32
+    mstore 160, 32
+    mstore 192, 0
+    returndata 128, 96
 }
 
 fn @splatData() [selector=0xe1910fda, abi_wrapper, pure] {
@@ -308,7 +283,7 @@ bb0:
   dup 1
   push 0xd00d797
   eq
-  push bb35
+  push bb32
   jumpi
   dup 1
   push 0x1b3012a3
@@ -318,7 +293,7 @@ bb0:
   dup 1
   push 0x38f844b9
   eq
-  push bb37
+  push bb34
   jumpi
   dup 1
   push 0x4c092794
@@ -328,7 +303,7 @@ bb0:
   dup 1
   push 0x672c8259
   eq
-  push bb33
+  push bb30
   jumpi
   dup 1
   push 0x6ec059cd
@@ -348,7 +323,7 @@ bb0:
   dup 1
   push 0xe1910fda
   eq
-  push bb29
+  push bb26
   jumpi
   dup 1
   push 0xe5a3e763
@@ -394,8 +369,8 @@ bb13:
   push 160
   mstore
   push_data literal_0
-  jump bb46
-bb46:
+  jump bb43
+bb43:
   swap 1
   codecopy
   push 64
@@ -447,7 +422,7 @@ bb46:
   swap 2
   swap 1
   exchange 4, 5
-  push bb42
+  push bb39
   jumpi
   jump bb15
 bb15:
@@ -462,8 +437,8 @@ bb15:
   pop
   pop
   swap 2
-  jump bb44
-bb44:
+  jump bb41
+bb41:
   pop
   swap 1
   sub
@@ -517,11 +492,11 @@ bb16:
   push 160
   mstore
   push_data literal_0+64
-  jump bb46
+  jump bb43
 bb19:
   push 0xfc1266ee7e93ac2873e7623af26456cf53c18a33ce56a117ef3ef0d901c28394
-  jump bb43
-bb43:
+  jump bb40
+bb40:
   push 0
   mstore
   push 32
@@ -529,17 +504,17 @@ bb43:
   return
 bb20:
   push 0xfe104a769973081412d46a6d04c990a5e9cc804baf45fa43d99b7dbee24984b8
-  jump bb43
+  jump bb40
 bb21:
   push 384
   push 64
   mstore
   push bb22
-  jump bb39
-bb39:
-  push bb49
-  jump bb48
-bb48:
+  jump bb36
+bb36:
+  push bb46
+  jump bb45
+bb45:
   push 64
   mload
   dup 1
@@ -560,8 +535,8 @@ bb48:
   swap 2
   jump
 bb22:
-  jump bb47
-bb47:
+  jump bb44
+bb44:
   push 64
   mload
   push 32
@@ -597,7 +572,7 @@ bb47:
   swap 3
   swap 2
   swap 1
-  push bb45
+  push bb42
   jumpi
   jump bb24
 bb24:
@@ -613,14 +588,42 @@ bb24:
   mcopy
   pop
   pop
-  jump bb44
+  jump bb41
 bb25:
+  push 32
+  push 128
+  mstore
+  push 32
+  push 160
+  mstore
+  push 0
+  push 192
+  mstore
+  push 96
+  push 128
+  return
+bb26:
   push 384
   push 64
   mstore
-  push bb26
-  jump bb40
-bb40:
+  push bb27
+  jump bb38
+bb38:
+  push bb47
+  jump bb45
+bb27:
+  jump bb44
+bb30:
+  push 384
+  push 64
+  mstore
+  push bb31
+  jump bb36
+bb32:
+  push 384
+  push 64
+  mstore
+  push bb33
   push 64
   mload
   dup 1
@@ -642,50 +645,25 @@ bb40:
   mstore
   swap 1
   jump
-bb26:
-  jump bb47
-bb29:
-  push 384
-  push 64
-  mstore
-  push bb30
-  jump bb41
-bb41:
-  push bb50
-  jump bb48
-bb30:
-  jump bb47
 bb33:
-  push 384
-  push 64
-  mstore
-  push bb34
-  jump bb39
-bb35:
-  push 384
-  push 64
-  mstore
-  push bb36
-  jump bb40
-bb36:
-  jump bb34
-bb34:
+  jump bb31
+bb31:
   dup 1
   mload
   swap 1
   push 32
   add
   keccak256
-  jump bb43
-bb37:
+  jump bb40
+bb34:
   push 384
   push 64
   mstore
-  push bb38
-  jump bb41
-bb38:
-  jump bb34
-bb42:
+  push bb35
+  jump bb38
+bb35:
+  jump bb31
+bb39:
   push 32
   dup 3
   sub
@@ -695,7 +673,7 @@ bb42:
   swap 1
   mstore
   jump bb15
-bb45:
+bb42:
   push 32
   dup 3
   sub
@@ -705,7 +683,7 @@ bb45:
   swap 1
   mstore
   jump bb24
-bb49:
+bb46:
   push 160
   calldatasize
   dup 3
@@ -713,14 +691,14 @@ bb49:
   pop
   swap 1
   jump
-bb50:
-  push bb53
-  jump bb51
-bb51:
+bb47:
+  push bb50
+  jump bb48
+bb48:
   push 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
   swap 1
   jump
-bb52:
+bb49:
   swap 1
   mstore
   push 64
@@ -742,13 +720,13 @@ bb52:
   pop
   swap 1
   jump
-bb53:
+bb50:
   dup 2
   mstore
   push 32
   dup 2
   add
-  push bb52
-  jump bb51
+  push bb49
+  jump bb48
 
 @data literal_0 hex"41414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465665a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a21"
