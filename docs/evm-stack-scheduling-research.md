@@ -724,3 +724,87 @@ residence/returning-entry proofs. None is inferred from the allocation tag alone
 The uncompiled reduced-source proposal and estimated implementation scope are
 retained in `return-provenance-prior-art-20260908/design-followup/`; no optimizer
 or residence relaxation is implemented from this static design.
+
+## Calldata carry specialization after sharing
+
+The physical unit-carry rule also applies when the same literal calldata offset
+is read again for the overflow comparison. Keeping the first four instructions
+and replacing the reload/compare tail with `dup1; iszero` preserves the arbitrary
+stack prefix, sum and carry. Calldata is immutable; required inputs stay zero,
+net height stays two, and peak falls from three to two. Savings are six gas for
+an ordinary offset PUSH, or five with PUSH0. Mutable reads and observations stay
+outside the rule.
+
+Applying this early made two Size contracts larger: Linear by eight bytes and
+cross-block nullary rematerialization by ninety. The cheaper local sequence lost
+sharing opportunities. The revised `late-dce` configuration reuses the existing
+final DCE traversal after Size TailMerge/Outline and enables only this new rule
+there. Gas keeps the earlier placement. The older six-op carry rule and scheduler
+cost trials are unchanged. All four growth objects recover exact baseline bytes.
+
+The strongest pinned analogy is [solx's late target pipeline](https://github.com/NomicFoundation/solx-llvm/blob/9cf8cfdbfcdc3e74dd81f7cc0e7258ef81e8810a/llvm/lib/Target/EVM/EVMTargetMachine.cpp#L333):
+branch folding and tail duplication precede late unfolding and peepholes.
+[Venom's Size sequence](https://github.com/vyperlang/vyper/blob/6dd5fef7ce71bb9b363ceb94df94080d451f4236/vyper/venom/optimization_levels/Os.py#L101)
+places literal specialization after CSE, but does not establish the same outlining
+policy. [Sonatina's late section merging](https://github.com/fe-lang/sonatina/blob/8e6c99f67cf3f20b9672cab61d8655c2ff33a6a7/crates/codegen/src/isa/evm/backend.rs#L343)
+shows that physical shape affects sharing; it is not direct precedent for this
+ordering. Our phase choice follows the measured regression, with later layout
+and deduplication still checked against complete native outputs.
+
+The combined UI comparison has 1,660 IDs and 5,060 objects: 66 shrink and 4,994
+remain byte-exact. Gas creation/runtime totals each fall 39 bytes; Size falls
+98/95. The new source returns increment and carry in 47 runtime bytes instead
+of 50, costing 109 rather than 115 gas. Sixty-two fresh focused calls agree;
+all 175 corpus gas labels, serialized artifacts and 1,537 Foundry records remain
+exact. The symbolic comparison agrees within its recorded bounds; its 47-byte
+executable prefix is joined separately from its 14-byte metadata trailer.
+The inherited debug policy unions the addition and comparison origins and emits
+an unknown legacy source-map range for that union; paired captures verify this
+policy and byte neutrality. The first quiet late-candidate ABBA measured
+Seaport +8.17% compiler time with disjoint ranges. That concern remains open.
+Native inspection finds the main peephole body grows from 28,499 to 31,798
+bytes and its local frame from 8,976 to 9,888 bytes; this is a lead, not a
+causal timing result. A separate helper experiment reduces the main body to
+29,183 bytes and its frame to 9,056, while all 5,060 UI objects remain exact.
+The helper holds only suffix validation and replacement construction, called
+after exact prefix admission. A contemporaneous six-leg comparison measures
+Seaport +3.20% versus the allocation baseline and -1.17% versus the larger late
+matcher; v4 and Solmate are -3.56% and -1.25% versus baseline. Two samples per
+producer do not establish neutrality or a causal improvement. We retain the
+compiler-cost concern alongside the output-quality gains.
+
+Paired 5 kHz profiles of the identical full Seaport input preserve complete
+output fingerprints. Native-symbol joins find peephole inclusive CPU nearly
+unchanged (7.166 versus 7.148 seconds), while stack analysis accounts for a
+larger share. Opcode stack-effect lookup alone consumes 3.39%/3.70% of compiler
+samples. These profiles guide the next investigation; profiled elapsed times
+are not acceptance timings. One baseline CPU-delta sample spans 5.665 seconds,
+so sample counts are primary and the anomaly remains recorded. Raw profiles,
+commands, source pins and independent audits are retained under
+`target/codegen-bench/evm-rewrite-candidate/rematerialized-unit-carry-workflow-20260908/outlined/`.
+
+Fresh replay of the original alias source uses exactly 21 labels and three
+frozen producers, with 63 independent deployments. Late Size runtime is 163
+bytes versus current 166 and sealed 153. Three account-one labels save six gas;
+overflow is 200 versus current 206 and sealed 215. The remaining eighteen
+labels are exact to current. Twenty are below sealed and one equal. This
+removes no test and leaves ten bytes of sealed size debt; it is separate from
+the rejected conditional-sharing policy whose overflow cost was 218.
+
+A separate five-call provenance diagnostic proves that the initial FMP floor
+14368 survives all 25 indexed decoder writes. The first missing fact was the
+nested-loaded base of `mustUseMatch`'s indirect `mstore v172, v13`. The follow-up
+checks all 278 preceding writes and identifies that base as the initialized
+allocation `v804`. Fresh nonzero elements make all six null-materialization
+branches unreachable, including later loop iterations. This closes that helper
+contextually. The next `getStructure.12` call also preserves the original
+content graph and FMP floor on returning paths, after checking fresh-copy
+bounds, encoder cursor bounds and output buffers separately. A 128-byte output
+exceeds its 64-byte reservation but misses the original graph and FMP; terminal
+scratch copies can overwrite FMP but revert. This is not an unconditional
+readonly summary, and the later paths to `toOrders` remain unreviewed. An allocation-backed memory-content
+analysis across calls is needed; an Arg floor or returned-allocation tag alone
+cannot express this proof. No frame store is removed from this manual analysis.
+Exact paths and the corrected infallible-allocation contract are retained in
+`return-provenance-prior-art-20260908/call-facts/`, `content-chain/` and
+`structure-chain/`.

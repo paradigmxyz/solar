@@ -180,6 +180,40 @@ current source Size output already shares its return, so the isolated rule
 would not activate. [Research](evm-stack-scheduling-research.md) links the pinned
 primary mechanisms, native boundaries, controls and remaining proof obligations.
 
+## Calldata carry checkpoint
+
+The repeated-calldata unit-carry rule reuses the incremented sum instead of
+loading the same immutable word for the comparison. Size enables it in the
+existing final DCE traversal after sharing; applying it earlier grew two
+contracts, so that rejected trial remains archived. The current comparison
+retains 1,660 IDs and 5,060 objects: 66 shrink and 4,994 remain byte-exact.
+Gas creation/runtime totals each fall 39 bytes; Size falls 98/95. The focused
+source saves six execution gas and three runtime bytes. The original alias
+case now has 163 Size runtime bytes versus sealed 153; its 63-call replay
+passes, including overflow at 200 gas versus sealed 215. Its original failing
+snapshot remains untouched.
+
+The outlined helper preserves every compared byte of the late matcher.
+Current-build runtime/Size/Foundry runs finish successfully. Independent corpus
+joins preserve all 175 gas labels, 139 observations and serialized artifacts
+per compiler. Foundry preserves 1,537 status/gas records and 244 size fields
+across 36 IDs, with the actual rebuilt producer recorded. Workspace testing records
+11,775 UI passes and the sole original alias failure, plus 1,557 other passes
+and two skips. The CI-scope Clippy command passes on the current stable
+toolchain; the initial all-features alias failure is retained. CI uses nightly.
+Two timing golden files change only the four final `dce` names to `late-dce`;
+raw captures justify each change. Fourteen new fixture files cover positive,
+refusal, observation and runtime behavior.
+
+Quiet six-leg means retain a Seaport compiler-time cost of +3.20% versus the
+allocation baseline (-1.17% versus the larger late matcher); the earlier
++8.17% trial is preserved. Profiling identifies stack verification and opcode
+effect lookup as larger costs than the carry matcher. No speed-neutral claim
+follows from two samples. The implementation adds 82 EVM Rust lines; its
+output gains and remaining compiler-cost concern are documented separately.
+Evidence lives under
+`target/codegen-bench/evm-rewrite-candidate/rematerialized-unit-carry-workflow-20260908/`.
+
 ## Remaining acceptance work
 
 `global_stack_calldata_alias.sol` remains the original failing assertion.
@@ -187,10 +221,10 @@ The original readback failures now pass in every mode. General source-memory
 ownership remains an open contract; bounded shared-input sweeps pass. The accepted heavy ledger
 still has 31,831,619 positive bytes of sealed size debt;
 this is a sum of regressions, not net corpus growth. Compiler-time debts remain.
-The backend has 16,974 physical lines in 46 files, 17,664 fewer than the deletion
-inventory. Excluding trailing test modules leaves 15,669 physical lines. A
+The backend has 17,056 physical lines in 46 files, 17,582 fewer than the deletion
+inventory. Excluding trailing test modules leaves 15,751 physical lines. A
 retained count-only baseline reports 29,006 production-section lines, giving a
-conditional reduction of 13,337; that file lacks a revision/hash link to the
+conditional reduction of 13,255; that file lacks a revision/hash link to the
 sealed archive. These counts include comments and are not strict production SLOC.
 
 Eager contraction removes avoidable spills and saves bytecode without corpus
