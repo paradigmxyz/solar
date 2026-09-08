@@ -96,10 +96,7 @@ def compare_runs(
                 gas_reason = "ordered runtime workloads differ"
             elif old.get("gas_status") != "ok" or new.get("gas_status") != "ok":
                 gas_reason = "gas run failed or was not measured"
-            elif any(
-                data.get("runtime_status") in ("failed", "mismatch")
-                for data in (old, new, before, after)
-            ):
+            elif any(runtime_failed(case, compiler) for case in (before, after)):
                 gas_reason = "runtime checks failed"
         if (
             gas_reason
@@ -138,7 +135,7 @@ def compare_runs(
         for label, case in (("baseline", before), ("candidate", after)):
             if case.get("benchmark_error"):
                 issues.append(f"{label}: {case['benchmark_error']}")
-            if case.get("runtime_status") in ("failed", "mismatch"):
+            if runtime_mismatches(case, compiler):
                 issues.append(f"{label} cross-compiler runtime checks failed")
 
         measurements = {}
@@ -546,7 +543,7 @@ def compiler_failures(results: list[dict[str, Any]]) -> list[str]:
             continue
         compilers = result.get("compilers", {})
         for compiler_id, data in compilers.items():
-            if data.get("status") != "ok":
+            if compiler_id == "solar" and data.get("status") != "ok":
                 error_lines = str(data.get("error") or "").strip().splitlines()
                 error = error_lines[0] if error_lines else "compiler failed"
                 failures.append(f"{test_id} {compiler_id}: {error}")
@@ -566,21 +563,41 @@ def format_values(values: dict[str, Any]) -> str:
     )
 
 
+def runtime_mismatches(result: dict[str, Any], compiler: str) -> list[dict[str, Any]]:
+    return [
+        mismatch
+        for mismatch in result.get("runtime_mismatches") or []
+        if (value := (mismatch.get("values") or {}).get(compiler)) is not None
+        and any(
+            other is not None and other != value
+            for other in mismatch["values"].values()
+        )
+    ]
+
+
+def runtime_failed(result: dict[str, Any], compiler: str) -> bool:
+    return compiler_data(result, compiler).get("runtime_status") in (
+        "failed",
+        "mismatch",
+    ) or bool(runtime_mismatches(result, compiler))
+
+
 def runtime_issue_details(results: list[dict[str, Any]]) -> list[str]:
     details = []
     for result in results:
-        status = result.get("runtime_status")
-        if status in (None, "skipped", "ok"):
+        if not runtime_failed(result, "solar"):
             continue
         test_id = "/".join(suite_key(result))
         before = len(details)
 
-        for mismatch in result.get("runtime_mismatches") or []:
+        for mismatch in runtime_mismatches(result, "solar"):
             label = mismatch.get("label", "<unknown>")
             values = mismatch.get("values") or {}
             details.append(f"{test_id} {label}: {format_values(values)}")
 
         for compiler_id, data in (result.get("compilers") or {}).items():
+            if compiler_id != "solar":
+                continue
             for check in data.get("runtime_results") or []:
                 if check.get("status") == "ok":
                     continue
@@ -589,7 +606,8 @@ def runtime_issue_details(results: list[dict[str, Any]]) -> list[str]:
                 details.append(f"{test_id} {compiler_id} {label}: {shorten(error)}")
 
         if len(details) == before:
-            details.append(f"{test_id}: runtime_status={status}")
+            status = compiler_data(result, "solar").get("runtime_status")
+            details.append(f"{test_id} solar: runtime_status={status}")
 
     return details
 

@@ -879,6 +879,69 @@ class RunComparisonTests(unittest.TestCase):
         row["compilers"]["solar"].update(values)
         return row
 
+    def test_reference_failures_do_not_trigger_comments_or_warnings(self):
+        for compiler in ("solc", "solx"):
+            for stage in ("status", "runtime_status", "gas_status"):
+                with self.subTest(compiler=compiler, stage=stage):
+                    before = self.fixture()
+                    after = self.fixture()
+                    after["compilers"][compiler] = {
+                        "status": "ok",
+                        stage: "failed",
+                        "error": "reference failed",
+                    }
+                    after["runtime_status"] = "failed"
+                    comparison = benchmark.compare_runs([after], [before])
+                    self.assertEqual(comparison["rows"][0]["issues"], [])
+                    self.assertEqual(
+                        comparison["rows"][0]["metrics"]["total_gas"]["delta"], 0
+                    )
+                    self.assertFalse(benchmark.comparison_has_changes(comparison, True))
+                    self.assertEqual(benchmark.compiler_failures([after]), [])
+                    self.assertEqual(benchmark.runtime_issue_details([after]), [])
+
+    def test_solar_failures_still_trigger_comments_and_warnings(self):
+        before = self.fixture()
+        for stage in ("status", "runtime_status"):
+            with self.subTest(stage=stage):
+                after = self.fixture(**{stage: "failed"})
+                comparison = benchmark.compare_runs([after], [before])
+                self.assertTrue(benchmark.comparison_has_changes(comparison, True))
+                if stage == "status":
+                    self.assertEqual(
+                        benchmark.compiler_failures([after]),
+                        ["repository/test solar: compiler failed"],
+                    )
+                else:
+                    self.assertEqual(
+                        benchmark.runtime_issue_details([after]),
+                        ["repository/test solar: runtime_status=failed"],
+                    )
+
+    def test_mismatches_require_a_solar_observation(self):
+        before = self.fixture()
+        after = self.fixture()
+        after["runtime_status"] = "mismatch"
+        after["runtime_mismatches"] = [
+            {"label": "value", "values": {"solc": "1", "solx": "2", "solar": None}}
+        ]
+        self.assertFalse(
+            benchmark.comparison_has_changes(
+                benchmark.compare_runs([after], [before]), True
+            )
+        )
+        self.assertEqual(benchmark.runtime_issue_details([after]), [])
+        after["runtime_mismatches"][0]["values"]["solar"] = "1"
+        self.assertTrue(
+            benchmark.comparison_has_changes(
+                benchmark.compare_runs([after], [before]), True
+            )
+        )
+        self.assertEqual(
+            benchmark.runtime_issue_details([after]),
+            ["repository/test value: solc=1, solx=2, solar=1"],
+        )
+
     def test_totals_exclude_failed_missing_and_changed_inputs(self):
         before = [
             self.fixture(name) for name in ("paired", "failed", "removed", "input")
