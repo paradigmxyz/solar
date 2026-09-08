@@ -133,7 +133,12 @@ impl<'gcx> EvmCodegen<'gcx> {
         } else if whole_function_liveness {
             Some(self.stack_phi_plan(func_id, func, liveness))
         } else {
-            Some(Rc::new(StackPhiPlan::analyze(func, liveness, &self.cold_functions)))
+            Some(Rc::new(StackPhiPlan::analyze(
+                func,
+                liveness,
+                &self.cold_functions,
+                self.gcx.sess.opts.optimization,
+            )))
         };
         let mut stack_phi_plan =
             phi_plan.as_deref().map_or_else(StackPhiPlan::default, StackPhiPlan::clone);

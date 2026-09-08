@@ -74,23 +74,18 @@ fn @invokePair(arg0: function, arg1: memorystruct) -> struct0 {
     v7 = call v3, v2, 0, v5, v6, 0, 0
     jumpi v7, bb1, bb2
   bb2:
-    v14 = returndata_bytes
-    v15 = memory_object_data memorybytes, v14
-    v16 = memory_object_len memorybytes, v14
-    v17 = make_memory_slice v15, v16
-    v18 = memory_slice_load_word memory, v17, 0
-    v19 = shr 224, v18
     jumpi true, bb4, bb5
   bb5:
-    revert v15, v16
+    revert_if true, empty
+    invalid
   bb4:
-    v20 = alloc memorybytes, exact, uninitialized, infallible, 64
-    set_memory_object_len memorybytes, v20, 6
-    v21 = memory_object_data memorybytes, v20
-    mstore v21, 0x6661696c65640000000000000000000000000000000000000000000000000000
-    v22 = insert_value struct0, undef struct0, 0, 0
-    v23 = insert_value struct0, v22, 1, v20
-    ret v23
+    v14 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v14, 6
+    v15 = memory_object_data memorybytes, v14
+    mstore v15, 0x6661696c65640000000000000000000000000000000000000000000000000000
+    v16 = insert_value struct0, undef struct0, 0, 0
+    v17 = insert_value struct0, v16, 1, v14
+    ret v17
   bb1:
     v8 = returndata_bytes
     v9 = abi_decode [u256, bytes], v8
@@ -100,9 +95,9 @@ fn @invokePair(arg0: function, arg1: memorystruct) -> struct0 {
     v13 = insert_value struct0, v12, 1, v11
     ret v13
   bb3:
-    v24 = insert_value struct0, undef struct0, 0, 0
-    v25 = insert_value struct0, v24, 1, memorybytes 96
-    ret v25
+    v18 = insert_value struct0, undef struct0, 0, 0
+    v19 = insert_value struct0, v18, 1, memorybytes 96
+    ret v19
 }
 
 fn @trySuccess() -> u256 [selector=0x3984eec7, abi_params=[], abi_returns=[word]] {

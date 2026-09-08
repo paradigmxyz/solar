@@ -514,11 +514,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.values = before.clone();
         self.storage_refs = before_storage_refs.clone();
         self.builder.switch_to_block(catch_block);
-        // Only from Byzantium on; before it the bare clause matches unconditionally and there is
-        // no data to bind or forward.
+        let needs_data =
+            catch_clauses.iter().any(|clause| clause.name.is_some() || !clause.args.is_empty());
         // data = returndata()
         // selector = mload(data) >> 224
-        let catch_data = supports_returndata.then(|| {
+        let catch_data = (supports_returndata && needs_data).then(|| {
             let object = self.materialize_returndata_bytes();
             let data = self.builder.memory_object_data(object, MemoryObjectKind::Bytes);
             let len = self.builder.memory_object_len(object, MemoryObjectKind::Bytes);
@@ -603,7 +603,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         match catch_data {
             // revert(data.data, data.length)
             Some(data) => self.builder.revert(data.data, data.len),
-            // Unreachable: a pre-Byzantium `try` only has a bare clause, which always matches.
+            // Unreachable: a bare catch matches unconditionally.
             // revert(0, 0)
             None => {
                 self.builder.revert_with(RevertReason::Empty);

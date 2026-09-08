@@ -57,15 +57,10 @@ fn @success() -> u256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     v8 = staticcall v2, v1, v6, v7, 0, 0
     jumpi v8, bb1, bb2
   bb2:
-    v11 = returndata_bytes
-    v12 = memory_object_data memorybytes, v11
-    v13 = memory_object_len memorybytes, v11
-    v14 = make_memory_slice v12, v13
-    v15 = memory_slice_load_word memory, v14, 0
-    v16 = shr 224, v15
     jumpi true, bb4, bb5
   bb5:
-    revert v12, v13
+    revert_if true, empty
+    invalid
   bb4:
     jump bb3
   bb1:
@@ -73,8 +68,8 @@ fn @success() -> u256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     v10 = abi_decode [u256], v9
     jump bb3
   bb3:
-    v17 = phi [bb1: v10], [bb4: 9]
-    ret v17
+    v11 = phi [bb1: v10], [bb4: 9]
+    ret v11
 }
 
 fn @failure() -> u256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[word]] {
@@ -90,15 +85,10 @@ fn @failure() -> u256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
     v8 = staticcall v2, v1, v6, v7, 0, 0
     jumpi v8, bb1, bb2
   bb2:
-    v11 = returndata_bytes
-    v12 = memory_object_data memorybytes, v11
-    v13 = memory_object_len memorybytes, v11
-    v14 = make_memory_slice v12, v13
-    v15 = memory_slice_load_word memory, v14, 0
-    v16 = shr 224, v15
     jumpi true, bb4, bb5
   bb5:
-    revert v12, v13
+    revert_if true, empty
+    invalid
   bb4:
     jump bb3
   bb1:
@@ -106,8 +96,8 @@ fn @failure() -> u256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
     v10 = abi_decode [u256], v9
     jump bb3
   bb3:
-    v17 = phi [bb1: v10], [bb4: 9]
-    ret v17
+    v11 = phi [bb1: v10], [bb4: 9]
+    ret v11
 }
 
 fn @ignored() -> u256 [selector=0x0c77db80, view, abi_params=[], abi_returns=[word]] {
@@ -123,15 +113,10 @@ fn @ignored() -> u256 [selector=0x0c77db80, view, abi_params=[], abi_returns=[wo
     v8 = staticcall v2, v1, v6, v7, 0, 0
     jumpi v8, bb1, bb2
   bb2:
-    v11 = returndata_bytes
-    v12 = memory_object_data memorybytes, v11
-    v13 = memory_object_len memorybytes, v11
-    v14 = make_memory_slice v12, v13
-    v15 = memory_slice_load_word memory, v14, 0
-    v16 = shr 224, v15
     jumpi true, bb4, bb5
   bb5:
-    revert v12, v13
+    revert_if true, empty
+    invalid
   bb4:
     ret 9
   bb1:

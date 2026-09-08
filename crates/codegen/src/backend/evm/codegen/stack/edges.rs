@@ -2,8 +2,8 @@
 
 use super::super::{
     BlockId, EvmCodegen, Function, FxHashMap, GLOBAL_STACK_LAYOUT_LIMIT, GlobalStackPlan,
-    MAX_STACK_ACCESS, StackModel, StackPhiBranch, StackPhiEdge, TargetSlot, Terminator, ValueId,
-    op,
+    MAX_STACK_ACCESS, OptimizationMode, StackModel, StackPhiBranch, StackPhiEdge, TargetSlot,
+    Terminator, ValueId, op,
 };
 
 impl<'gcx> EvmCodegen<'gcx> {
@@ -340,8 +340,13 @@ impl<'gcx> EvmCodegen<'gcx> {
             || self.can_prepare_stack_phi_edge(func, edge)
     }
 
-    fn emit_stack_phi_edge_layout(&mut self, edge: &StackPhiEdge) {
+    fn emit_stack_phi_edge_layout(&mut self, func: &Function, edge: &StackPhiEdge) {
         self.pop_stack_values_not_needed_by(&edge.sources);
+        // edge-only immediates; parallel stack copies
+        for value in Self::missing_stack_phi_sources(&self.scheduler.stack, &edge.sources) {
+            debug_assert!(matches!(func.value(value), crate::mir::Value::Immediate(_)));
+            self.emit_operand(func, value);
+        }
         let target: Vec<_> = edge.sources.iter().copied().map(TargetSlot::Value).collect();
         let shuffle = self
             .scheduler
@@ -362,9 +367,23 @@ impl<'gcx> EvmCodegen<'gcx> {
         branch: &StackPhiBranch,
         fallthrough: Option<BlockId>,
     ) {
+        let identity = |edge: &StackPhiEdge, values: &[ValueId]| {
+            edge.sources == values && edge.results == edge.sources
+        };
+        // condition; shared sources; branch; edge-only immediates
         let mut needed = Vec::with_capacity(branch.union.len() + 1);
         needed.push(condition);
-        needed.extend_from_slice(&branch.union);
+        needed.extend(branch.union.iter().copied().filter(|&value| {
+            self.gcx.sess.opts.optimization != OptimizationMode::Gas
+                || !matches!(func.value(value), crate::mir::Value::Immediate(_))
+                || branch.then_edge.sources.contains(&value)
+                    && branch.else_edge.sources.contains(&value)
+        }));
+        if !identity(&branch.then_edge, &needed[1..]) && !identity(&branch.else_edge, &needed[1..])
+        {
+            needed.truncate(1);
+            needed.extend_from_slice(&branch.union);
+        }
         self.pop_stack_values_not_needed_by(&needed);
         for value in Self::missing_stack_phi_sources(&self.scheduler.stack, &needed) {
             debug_assert!(self.can_emit_stack_phi_value(func, value));
@@ -379,8 +398,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.asm.emit_stack_op(op);
         }
 
-        let identity =
-            |edge: &StackPhiEdge| edge.sources == branch.union && edge.results == edge.sources;
+        let identity = |edge| identity(edge, &needed[1..]);
         let (laid_out, direct_block, laid_out_block, invert) = if identity(&branch.then_edge) {
             (&branch.else_edge, then_block, else_block, false)
         } else if identity(&branch.else_edge) {
@@ -392,13 +410,13 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.scheduler.stack.pop();
             let union_stack = self.scheduler.stack.clone();
 
-            self.emit_stack_phi_edge_layout(&branch.else_edge);
+            self.emit_stack_phi_edge_layout(func, &branch.else_edge);
             self.emit_push_label(self.block_labels[&else_block]);
             self.asm.emit_op(op::JUMP);
 
             self.asm.define_label(then_cleanup);
             self.scheduler.stack = union_stack;
-            self.emit_stack_phi_edge_layout(&branch.then_edge);
+            self.emit_stack_phi_edge_layout(func, &branch.then_edge);
             self.emit_push_label(self.block_labels[&then_block]);
             self.asm.emit_op(op::JUMP);
             return;
@@ -409,7 +427,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.emit_push_label(self.block_labels[&direct_block]);
         self.asm.emit_op(op::JUMPI);
         self.scheduler.stack.pop();
-        self.emit_stack_phi_edge_layout(laid_out);
+        self.emit_stack_phi_edge_layout(func, laid_out);
         if fallthrough != Some(laid_out_block) {
             self.emit_push_label(self.block_labels[&laid_out_block]);
             self.asm.emit_op(op::JUMP);

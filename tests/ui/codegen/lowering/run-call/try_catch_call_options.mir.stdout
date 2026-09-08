@@ -48,19 +48,50 @@ fn @highLevelGas() -> bool [selector=0x480be654, abi_params=[], abi_returns=[wor
     v8 = call 0, v1, 0, v4, v5, 0, 0
     jumpi v8, bb1, bb2
   bb2:
-    v9 = returndata_bytes
-    v10 = memory_object_data memorybytes, v9
-    v11 = memory_object_len memorybytes, v9
-    v12 = make_memory_slice v10, v11
-    v13 = memory_slice_load_word memory, v12, 0
-    v14 = shr 224, v13
     jumpi true, bb4, bb5
   bb5:
-    revert v10, v11
+    revert_if true, empty
+    invalid
   bb4:
     ret true
   bb1:
     ret false
   bb3:
     ret 0
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/try_catch_call_options.sol:BareCatchReturndata ===
+@module BareCatchReturndata
+fn @fail() [selector=0xa9cc4718, pure, abi_params=[], abi_returns=[]] {
+  bb0:
+    mstore 0, 42 !metadata(memory=scratch)
+    revert 0, 32
+}
+
+fn @read() -> u256 [selector=0x57de26a4, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = address
+    v1 = gas
+    v2 = abi_encode [], selector 0xa9cc471800000000000000000000000000000000000000000000000000000000
+    v3 = slice_ptr v2
+    v4 = slice_len v2
+    v5 = extcodesize v0
+    v6 = iszero v5
+    revert_if v6, target_contract_has_no_code
+    v7 = staticcall v1, v0, v3, v4, 0, 0
+    jumpi v7, bb1, bb2
+  bb2:
+    jumpi true, bb4, bb5
+  bb5:
+    revert_if true, empty
+    invalid
+  bb4:
+    returndatacopy 0, 0, 32 !metadata(memory=scratch)
+    v8 = mload 0 !metadata(memory=scratch)
+    jump bb3
+  bb1:
+    jump bb3
+  bb3:
+    v9 = phi [bb1: 0], [bb4: v8]
+    ret v9
 }

@@ -523,3 +523,9 @@ Stack layout planning covers ordinary joins as well as phi edges. Removing a
 function's last phi must not disable carrying live values through its other
 branches. Typed catch clauses test their selector and payload only when reached,
 so an earlier matching clause does not compute later catch conditions.
+
+A bare catch needs no copied return-data object. It leaves the EVM return-data
+buffer available to inline assembly. Gas-mode stack planning keeps constants
+used on only one branch off its sibling edge when the sibling can retain an
+identity layout; the edge that needs them emits their pushes. Size mode keeps
+the shared layout to preserve opportunities for merging tails.

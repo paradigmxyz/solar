@@ -17,11 +17,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         liveness: &Liveness,
     ) -> Rc<StackPhiPlan> {
         let cold_functions = &self.cold_functions;
-        Rc::clone(
-            self.stack_phi_plans
-                .entry(func_id)
-                .or_insert_with(|| Rc::new(StackPhiPlan::analyze(func, liveness, cold_functions))),
-        )
+        let optimization = self.gcx.sess.opts.optimization;
+        Rc::clone(self.stack_phi_plans.entry(func_id).or_insert_with(|| {
+            Rc::new(StackPhiPlan::analyze(func, liveness, cold_functions, optimization))
+        }))
     }
 
     /// Collects the canonical identity of each used static-callee argument once for the stack

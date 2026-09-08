@@ -222,15 +222,10 @@ fn @emptyCode() [selector=0xddb3636e, pure, abi_params=[], abi_returns=[]] {
     v6 = delegatecall v0, 0x1111111111111111111111111111111111111111, v2, v3, 0, 0
     jumpi v6, bb1, bb2
   bb2:
-    v7 = returndata_bytes
-    v8 = memory_object_data memorybytes, v7
-    v9 = memory_object_len memorybytes, v7
-    v10 = make_memory_slice v8, v9
-    v11 = memory_slice_load_word memory, v10, 0
-    v12 = shr 224, v11
     jumpi true, bb4, bb5
   bb5:
-    revert v8, v9
+    revert_if true, empty
+    invalid
   bb4:
     require false, short_string 6, 0x6361756768740000000000000000000000000000000000000000000000000000
     invalid

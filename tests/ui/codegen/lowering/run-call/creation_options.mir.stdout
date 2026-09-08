@@ -31,15 +31,10 @@ fn @sameShortLiteralSalt() -> bool [selector=0xae55518d, abi_params=[], abi_retu
     v15 = iszero v14
     jumpi v15, bb3, bb4
   bb4:
-    v16 = returndata_bytes
-    v17 = memory_object_data memorybytes, v16
-    v18 = memory_object_len memorybytes, v16
-    v19 = make_memory_slice v17, v18
-    v20 = memory_slice_load_word memory, v19, 0
-    v21 = shr 224, v20
     jumpi true, bb6, bb7
   bb7:
-    revert v17, v18
+    revert_if true, empty
+    invalid
   bb6:
     ret true
   bb3:
@@ -76,15 +71,10 @@ fn @sameEmptyLiteralSalt() -> bool [selector=0x01dd6ed9, abi_params=[], abi_retu
     v15 = iszero v14
     jumpi v15, bb3, bb4
   bb4:
-    v16 = returndata_bytes
-    v17 = memory_object_data memorybytes, v16
-    v18 = memory_object_len memorybytes, v16
-    v19 = make_memory_slice v17, v18
-    v20 = memory_slice_load_word memory, v19, 0
-    v21 = shr 224, v20
     jumpi true, bb6, bb7
   bb7:
-    revert v17, v18
+    revert_if true, empty
+    invalid
   bb6:
     ret true
   bb3:
@@ -121,15 +111,10 @@ fn @sameFullLiteralSalt() -> bool [selector=0xaf96a2f0, abi_params=[], abi_retur
     v15 = iszero v14
     jumpi v15, bb3, bb4
   bb4:
-    v16 = returndata_bytes
-    v17 = memory_object_data memorybytes, v16
-    v18 = memory_object_len memorybytes, v16
-    v19 = make_memory_slice v17, v18
-    v20 = memory_slice_load_word memory, v19, 0
-    v21 = shr 224, v20
     jumpi true, bb6, bb7
   bb7:
-    revert v17, v18
+    revert_if true, empty
+    invalid
   bb6:
     ret true
   bb3:

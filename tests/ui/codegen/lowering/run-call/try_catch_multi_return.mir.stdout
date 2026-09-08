@@ -69,15 +69,10 @@ fn @success() -> u256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     v8 = staticcall v2, v1, v6, v7, 0, 0
     jumpi v8, bb1, bb2
   bb2:
-    v15 = returndata_bytes
-    v16 = memory_object_data memorybytes, v15
-    v17 = memory_object_len memorybytes, v15
-    v18 = make_memory_slice v16, v17
-    v19 = memory_slice_load_word memory, v18, 0
-    v20 = shr 224, v19
     jumpi true, bb4, bb5
   bb5:
-    revert v16, v17
+    revert_if true, empty
+    invalid
   bb4:
     ret 0
   bb1:
@@ -105,15 +100,10 @@ fn @failure() -> u256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
     v8 = staticcall v2, v1, v6, v7, 0, 0
     jumpi v8, bb1, bb2
   bb2:
-    v13 = returndata_bytes
-    v14 = memory_object_data memorybytes, v13
-    v15 = memory_object_len memorybytes, v13
-    v16 = make_memory_slice v14, v15
-    v17 = memory_slice_load_word memory, v16, 0
-    v18 = shr 224, v17
     jumpi true, bb4, bb5
   bb5:
-    revert v14, v15
+    revert_if true, empty
+    invalid
   bb4:
     ret 9
   bb1:
