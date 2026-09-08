@@ -808,3 +808,19 @@ cannot express this proof. No frame store is removed from this manual analysis.
 Exact paths and the corrected infallible-allocation contract are retained in
 `return-provenance-prior-art-20260908/call-facts/`, `content-chain/` and
 `structure-chain/`.
+
+## Profile-guided opcode lookup
+
+The paired carry profiles identify opcode stack-effect lookup as roughly
+3.4–3.7% of compiler CPU samples. A declaration-derived table preserves every
+opcode result without adding an analysis or changing IR. The first Rust const
+array form copied 768 bytes per lookup in debug assembly, despite its smaller
+function body. A borrowed promoted constant removes that copy; exhaustive
+256-value execution and native assembly verify both claims. This is a local
+implementation correction, not an algorithm attributed to the upstream projects.
+
+The corrected build retains all 5,060 UI objects and improves quiet ABBA means
+against the carry checkpoint by 2.37%/6.67%/3.81% for Seaport/v4/Solmate. Two
+samples per producer and project remain the explicit limit. The earlier timing
+concerns and rejected table form are preserved under
+`opcode-stack-table-workflow-20260908/`; this is not a cross-batch neutrality claim.

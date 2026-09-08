@@ -214,6 +214,27 @@ output gains and remaining compiler-cost concern are documented separately.
 Evidence lives under
 `target/codegen-bench/evm-rewrite-candidate/rematerialized-unit-carry-workflow-20260908/`.
 
+## Opcode effect lookup checkpoint
+
+The profiled stack-effect match now indexes a borrowed constant table derived
+from the same opcode declarations. Exhaustive comparison preserves all 256
+results, including 95 unknown effects. A first by-value table copied 768 bytes
+per lookup in debug builds and is rejected; its binary, assembly and complete
+timing run remain archived. The final shared reference uses a 16-byte frame
+and a 97-byte lookup body, with no table copy.
+
+Against the carry checkpoint, quiet ABBA means fall 2.37% for Seaport, 6.67%
+for v4 and 3.81% for Solmate. Both samples per project are below the respective
+baseline range; this small batch does not establish isolated causal savings
+or erase the earlier allocation-baseline timing concern. All 5,060 UI bytecode
+objects are exact and workspace results are unchanged. Full runtime, hot-gas,
+Size, Foundry, Clippy and formatting runs finish with the same original alias
+failure retained in the workspace suite. Independent joins preserve all 175
+gas labels and 139 observations per compiler, all 375 retained artifacts and
+1,537 Foundry status/gas records with 244 size fields. The lookup adds eleven physical EVM
+Rust lines and changes no generated-code decision. Evidence is retained under
+`target/codegen-bench/evm-rewrite-candidate/opcode-stack-table-workflow-20260908/`.
+
 ## Remaining acceptance work
 
 `global_stack_calldata_alias.sol` remains the original failing assertion.
@@ -221,10 +242,10 @@ The original readback failures now pass in every mode. General source-memory
 ownership remains an open contract; bounded shared-input sweeps pass. The accepted heavy ledger
 still has 31,831,619 positive bytes of sealed size debt;
 this is a sum of regressions, not net corpus growth. Compiler-time debts remain.
-The backend has 17,056 physical lines in 46 files, 17,582 fewer than the deletion
-inventory. Excluding trailing test modules leaves 15,751 physical lines. A
+The backend has 17,067 physical lines in 46 files, 17,571 fewer than the deletion
+inventory. Excluding trailing test modules leaves 15,762 physical lines. A
 retained count-only baseline reports 29,006 production-section lines, giving a
-conditional reduction of 13,255; that file lacks a revision/hash link to the
+conditional reduction of 13,244; that file lacks a revision/hash link to the
 sealed archive. These counts include comments and are not strict production SLOC.
 
 Eager contraction removes avoidable spills and saves bytecode without corpus
