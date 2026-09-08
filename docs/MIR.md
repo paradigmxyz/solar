@@ -584,4 +584,5 @@ The lowered pipeline folds constant results before branch cleanup and stack sche
 The scheduler carries known loop membership into EVM IR, and block merging
 preserves it. Gas-mode outlining keeps loop computations and large pushes
 inline. Tail merging can reuse an existing non-loop tail from a loop, but loop
-blocks do not seed new sharing groups.
+blocks do not seed new sharing groups. Index non-loop paths first so their
+position in the block list does not prevent reuse.

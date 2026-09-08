@@ -125,3 +125,36 @@ bb8 [loop]:
   push bb7
   jumpi
   stop
+
+// A loop also reuses a non-loop tail that appears later in the block list.
+// GAS-LABEL: {{^[ +].*}}bb9 [loop]:
+// GAS: + jump [[LATER:bb[0-9]+]]
+bb9 [loop]:
+  push 101
+  pop
+  push 202
+  push 303
+  mstore
+  push 404
+  push 505
+  mstore
+  jump bb11
+
+// GAS-LABEL: {{^[ +].*}}bb10:
+// GAS: + jump [[LATER]]
+bb10:
+  push 102
+  pop
+  push 202
+  push 303
+  mstore
+  push 404
+  push 505
+  mstore
+  jump bb11
+
+bb11 [loop]:
+  push 1
+  push bb9
+  jumpi
+  stop

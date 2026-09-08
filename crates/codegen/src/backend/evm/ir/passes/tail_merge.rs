@@ -12,6 +12,8 @@
 //! A terminal suffix covering the representative's whole body reuses its block and label when
 //! there are no nested shared tails or function-entry events. Nested tails keep their placement
 //! to preserve fallthrough paths. Other address-taken entries keep their jump stubs.
+//! Gas mode indexes non-loop tails first, so loop paths can reuse them regardless of block order.
+//! Loop-only paths do not create sharing groups.
 //! Replacement jumps retain the suffix's entry location before its origins are merged, so
 //! single-origin source maps do not lose both callers' locations on a shared body.
 //!
@@ -94,7 +96,14 @@ impl RunState {
             .sum::<usize>();
         self.tail_edges.reserve(instruction_count);
         self.tail_representatives.reserve(instruction_count + module.blocks.len());
-        for (block_id, block) in module.blocks.iter_enumerated() {
+        let in_gas_loop =
+            |block: &Block| gcx.sess.opts.optimization.is_gas() && block.metadata.in_loop;
+        let blocks = module.blocks.iter_enumerated();
+        for (block_id, block) in blocks
+            .clone()
+            .filter(|(_, block)| !in_gas_loop(block))
+            .chain(blocks.filter(|(_, block)| in_gas_loop(block)))
+        {
             if !is_candidate(block) {
                 continue;
             }
