@@ -1,0 +1,36 @@
+//@ revisions: gas size
+//@ compile-flags: -Zevm-ir-pipeline=peephole
+//@[gas] compile-flags: -Ogas
+//@[size] compile-flags: -Osize
+//@ filecheck:
+
+@module PhysicalCarryGasObserver
+bb0:
+  push 0
+  calldataload
+  // Return a GAS sample after the carry; rewriting it would change the sample.
+  // CHECK: {{^[ +].*}}dup 1
+  // CHECK-NEXT: {{^[ +].*}}push 1
+  // CHECK-NEXT: {{^[ +].*}}add
+  // CHECK-NEXT: {{^[ +].*}}swap 1
+  // CHECK-NEXT: {{^[ +].*}}dup 2
+  // CHECK-NEXT: {{^[ +].*}}lt
+  dup 1
+  push 1
+  add
+  swap 1
+  dup 2
+  lt
+  push 32
+  mstore
+  push 0
+  mstore
+  // CHECK: {{^[ +].*}}gas
+  // CHECK-NEXT: {{^[ +].*}}push 64
+  // CHECK-NEXT: {{^[ +].*}}mstore
+  gas
+  push 64
+  mstore
+  push 96
+  push 0
+  return

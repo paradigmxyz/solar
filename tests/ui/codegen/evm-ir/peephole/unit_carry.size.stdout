@@ -1,0 +1,42 @@
+- // === ROOT/tests/ui/codegen/evm-ir/peephole/unit_carry.evmir (before peephole) ===
++ // === ROOT/tests/ui/codegen/evm-ir/peephole/unit_carry.evmir (after peephole) ===
+  @module PhysicalUnitCarry
+  bb0:
+    push 64
+    calldataload
+    push 32
+    calldataload
+    push 0
+    calldataload
+    jumpi bb1, bb2
+  bb1:
+-   dup 1
+    push 1
+    add
+-   swap 1
+-   dup 2
+-   lt
++   dup 1
++   iszero
+    jump bb3
+  bb2:
+    push 1
+-   dup 2
+    add
+-   swap 1
+-   dup 2
+-   lt
++   dup 1
++   iszero
+    jump bb3
+  bb3:
+    push 64
+    mstore
+    push 32
+    mstore
+    push 0
+    mstore
+    push 96
+    push 0
+    return
+  
