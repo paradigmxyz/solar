@@ -235,17 +235,50 @@ gas labels and 139 observations per compiler, all 375 retained artifacts and
 Rust lines and changes no generated-code decision. Evidence is retained under
 `target/codegen-bench/evm-rewrite-candidate/opcode-stack-table-workflow-20260908/`.
 
+## Main integration and alias contract migration (September 8)
+
+Merged main `54c76a0cce9e28fce531b841af1c8c70faf30686` in `7e7bff72`.
+All 46 rewritten backend files were byte-identical across the merge; no
+original backend implementation was retrieved. Nightly rustfmt then changed
+only import grouping and comment wrapping. The new benchmarking workflow
+and its comparison rules are retained from main.
+
+The alias fixture now checks the current physical branch representation and
+keeps the original Solidity function body. Its standard matrix runs all 21
+retained runtime oracles in four modes. A fifth Gas IR revision repeats one
+call so the runner retains its nonempty dump: 85 calls in total. The checked
+relationships preserve one cleaned account through the branch chain and read
+the independent value from calldata word 36. The old unrevisioned snapshot
+is replaced by reviewed IR and MIR snapshots; its original bytes remain in
+the evidence archive. All five revisions pass. Five corrupting IR mutants
+are rejected by the check patterns. Before/after annotation migration produces
+identical complete contract objects in None, Gas and Size.
+
+This is an assertion migration, not restoration of the old eager-load and
+shared-tail strategy. Alias runtime sizes remain 208 bytes in Gas and 163 in
+Size, versus the sealed 153-byte baseline: +55 and +10 bytes respectively.
+Fresh bounded symbolic comparisons agree with pinned solc in both modes;
+malformed calldata, dirty addresses and nonpayable calls are covered by the
+concrete runtime oracles. The merged workspace run passes all 1,562 tests
+with two pre-existing skips, including the complete UI runner and Foundry.
+Nightly-feature workspace tests, formatting, Clippy and typo checks pass
+locally. Remote checks are
+being run on the pushed draft; this checkpoint does not claim remote success.
+Evidence is under
+`target/codegen-bench/evm-rewrite-candidate/main-integration-20260908/` and
+`target/codegen-bench/evm-rewrite-candidate/alias-ci-contract-review-20260908/`.
+
 ## Remaining acceptance work
 
-`global_stack_calldata_alias.sol` remains the original failing assertion.
+The alias assertion migration passes; its generated-code size debt remains.
 The original readback failures now pass in every mode. General source-memory
 ownership remains an open contract; bounded shared-input sweeps pass. The accepted heavy ledger
 still has 31,831,619 positive bytes of sealed size debt;
 this is a sum of regressions, not net corpus growth. Compiler-time debts remain.
-The backend has 17,067 physical lines in 46 files, 17,571 fewer than the deletion
-inventory. Excluding trailing test modules leaves 15,762 physical lines. A
+The backend has 17,072 physical lines in 46 files, 17,566 fewer than the deletion
+inventory. Excluding trailing test modules leaves 15,767 physical lines. A
 retained count-only baseline reports 29,006 production-section lines, giving a
-conditional reduction of 13,244; that file lacks a revision/hash link to the
+conditional reduction of 13,239; that file lacks a revision/hash link to the
 sealed archive. These counts include comments and are not strict production SLOC.
 
 Eager contraction removes avoidable spills and saves bytecode without corpus
@@ -260,7 +293,8 @@ with baseline contention and a measured parser overlap; no causal timing claim
 follows. Next, restore alias-codegen size and complete the remaining runtime/size
 gates. Keep correctness and runtime
 gas ahead of size, then compiler time and memory. These local milestones do not
-establish complete functionality, green remote CI or a successful remote push.
+establish complete functionality or green remote CI. All committed work through
+`a5726f0e` has been pushed to the draft PR.
 
 [pr]: https://github.com/paradigmxyz/solar/pull/1388
 [literal]: ../target/codegen-bench/evm-rewrite-candidate/literal-cache-workflow-20260908/
