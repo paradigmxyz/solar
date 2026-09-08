@@ -393,3 +393,40 @@ the accepted-but-worse loop allocation. This is a proposed diagnostic, not an
 implemented or measured improvement. Exact source pins, native witnesses and
 interface limits remain in `joint-residence-prior-art-20260908/` beneath the
 candidate evidence directory. No upstream implementation was copied.
+
+
+## Wide constants and scheduler compilation cost
+
+The pinned solx stack solver
+[retains wide literals needed earlier in backward propagation](https://github.com/NomicFoundation/solx-llvm/blob/9cf8cfdbfcdc3e74dd81f7cc0e7258ef81e8810a/llvm/lib/Target/EVM/EVMStackSolver.cpp#L499),
+using immediate-width thresholds of eight bytes normally and four in Size.
+Sonatina's production builder enables
+[block-local immediate caching](https://github.com/fe-lang/sonatina/blob/8e6c99f67cf3f20b9672cab61d8655c2ff33a6a7/crates/codegen/src/stackalloc/stackify/builder.rs#L541):
+four uses and a 17-byte materialization plan normally, three uses and three bytes
+in Size. It canonicalizes numeric aliases and keeps this cache separate from
+SSA live-out residence. These are reference policies, not tuned thresholds for
+this codebase. Venom's inspected
+[operand emitter](https://github.com/vyperlang/vyper/blob/6dd5fef7ce71bb9b363ceb94df94080d451f4236/vyper/venom/venom_to_assembly.py#L407)
+repushes literals and tries local operand orientations; this narrow observation
+does not describe every later optimization.
+
+Their compilation budgets are also useful references. solx computes spill weights
+lazily, although failed propagation still retries. Venom limits this ordering
+choice to individual operand permutations. Sonatina uses bounded local searches,
+[query caches and early exits](https://github.com/fe-lang/sonatina/blob/8e6c99f67cf3f20b9672cab61d8655c2ff33a6a7/crates/codegen/src/stackalloc/stackify/planner/operand_prep.rs#L145),
+but deliberately leaves unary outer queries uncached when key construction would
+cost more than it saves. None establishes that repeated full-block alternatives
+are cheap. Our materialized-operand milestone improves output while increasing
+measured compilation time; a separate exact-duplicate replay gate is under test.
+
+The reduced entry-order fixture contains 47 modulus-related `PUSH28; NOT` plans,
+occupying 1,410 of 1,793 Gas runtime bytes. Its ordinary path executes 27 plans
+for 162 gas. Sealed bytecode uses a slower outlined construction and more memory
+transport, so restoring its shape would sacrifice current runtime quality.
+The next artifact experiment retains one repeated modulus inside an already
+chosen arithmetic block, paying every deeper access, duplicate and final disposal.
+Each replaced plan leaves only three gas for extra shuffles. The incoming winner,
+exact outgoing stack and peak must be preserved. No constant-cache implementation
+or savings claim follows from the byte census alone. Exact source pins, traces,
+limits and the proposed witness are in
+`target/codegen-bench/evm-rewrite-candidate/wide-constant-prior-art-20260908/`.
