@@ -1985,3 +1985,35 @@ ranges. These measurements establish no compiler speedup. Evidence remains in
 `writer-restore-order-independent-20260908/`. The two original UI failures,
 arbitrary-memory contract defect, and 32,520,301 positive sealed size-debt bytes
 across 1,059 objects remain open. The whole rewrite is incomplete.
+
+
+### Prior-art follow-up and ordinary sharing screen
+
+The MUL recipe proposal remains unimplemented: no complete eligible home bank
+was found in the current Router or retained writer fixtures. The solx, Venom
+and Sonatina review preserves the distinction between moving one-use work and
+duplicating expressions, including shared-input costs and observer constraints.
+
+The handoff compares final gas and size against sealed `9cb036c`. Earlier reports
+that rejected sharing solely for losing intermediate gas gains imposed an extra
+constraint; `global-alias-policy-review-20260908/` explicitly corrects it without
+overwriting the historical evidence. Current Gas already reuses the calldata
+value within each alias-test arithmetic arm. Its remaining runtime-size debt is
+57 bytes in Gas and 26 in Size.
+
+A fresh debug build is byte-identical to accepted `9ed4da3c`. The default and
+explicit early TerminalDedup/TailMerge screens retain all 1,644 IDs, 823 source
+hashes and 5,028 objects, with identical statuses and contract sets. Sharing
+shrinks 1,094 objects, grows 40 and changes two at equal length; Size is exact.
+Gas aggregate creation/runtime sizes fall by 14,076/14,018 bytes, and the alias
+runtime falls from 210 to 184 bytes, still 31 above sealed.
+
+Of the 40 growing objects, 16 remain within sealed size, four introduce sealed
+debt, eight worsen existing debt and 12 cannot be strictly joined because the
+source changed or the original ID is absent. The unchanged packed-static-hash
+fixture grows from 115 to 144 runtime bytes against sealed 118: early suffix
+sharing prevents complete-wrapper deduplication and duplicates ABI validation.
+This rejects the broad chain on actual sealed size regressions. No production
+pipeline or expectation changes, and no runtime-equivalence or timing claim,
+follow from this screen. Raw outputs, exact pipelines, joins and independent
+review remain in `sharing-budget-workflow-20260908/`.

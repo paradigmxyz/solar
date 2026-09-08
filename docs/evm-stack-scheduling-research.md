@@ -327,3 +327,30 @@ guards and actual emitted regions. Compiler timing remains mixed; the fresh
 symbolic attempt is incomplete. Full measurements, source/reference proofs,
 executed fragments and the unresolved whole-rewrite debts are retained in the
 progress record and `writer-restore-order-workflow-20260908/` evidence directory.
+
+
+## Immutable recipes and the comparison budget
+
+The pinned solx expression pass distinguishes moving one-use work from
+duplicating cheap expressions; its special calldata/ADD cases explicitly warn
+about code growth. Venom preserves dependency ordering during single-use
+expansion, and the inspected Sonatina rescue path rematerializes immediates.
+These sources do not establish a general multiplication recipe policy.
+
+The current MUL investigation remains unimplemented: Router has no matching
+fixed-calldata/literal roots, while the retained writer fixtures have nonrecipe
+homes or internal calls that reject the complete bank. A one-use MUL would
+move its five-gas operation once, but shared reloads and wider literals still
+need measurement. Existing computed-recipe admission does not globally exclude
+GAS, MSIZE or source-memory reads. The independent source and contract audits
+are in `mul-recipe-static-study-20260908/` and
+`mul-recipe-independent-20260908/` beneath the candidate evidence directory.
+
+The earlier rejection of ordinary sharing solely for losing an intermediate
+version's gas gains imposed a stronger rule than the handoff. Final acceptance
+compares each matched call and object against sealed revision `9cb036c`; keep
+intermediate deltas visible without treating each best-ever result as a separate
+requirement. The historical reports remain intact, with the explicit correction
+in `global-alias-policy-review-20260908/`. This permits investigating ordinary
+sharing within the original joint gas/size budget; it does not waive any sealed
+regression, unmatched input, or runtime mismatch.
