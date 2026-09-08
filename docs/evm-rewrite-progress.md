@@ -2017,3 +2017,21 @@ This rejects the broad chain on actual sealed size regressions. No production
 pipeline or expectation changes, and no runtime-equivalence or timing claim,
 follow from this screen. Raw outputs, exact pipelines, joins and independent
 review remain in `sharing-budget-workflow-20260908/`.
+
+
+### Validated scalar reuse: first draft rejected
+
+A 22-line net MIR change reused raw words already read by scalar ABI validators,
+keeping every raw load and failure branch unchanged. It built successfully but
+failed the identical-input screen: 317 objects shrink, 95 grow and eight change
+at equal length across the same 1,644 IDs. Of the growing objects, 33 worsen
+sealed debt, six introduce new debt, 36 remain within sealed size and 20 lack
+an exact sealed source/ID join. The alias fixture saves only two bytes per mode.
+
+Replacing typed arguments before return encoding loses its existing canonical-
+input proof. The unchanged scalar-validation fixture gains redundant cleanup
+and an enum panic path, growing 53 bytes in Gas and 43 in Size. The draft was
+reversed using its retained patch; source and rebuilt binary exactly match
+accepted `9ed4da3c`. No expectations changed, and the proposed 30-call fixture
+remains unexecuted. Evidence is in `validated-scalar-reuse-workflow-20260908/`;
+a possible return-encoding order correction remains a separate investigation.
