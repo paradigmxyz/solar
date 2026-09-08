@@ -3,7 +3,7 @@ use crate::{
     diagnostics::PullReport,
     document_links::solidity_string_contents,
     formatter::{self, FormatterError},
-    global_state::GlobalState,
+    global_state::{AnalysisRevision, GlobalState},
     import_resolution::{
         ImportCandidateKind, ImportResolver, decode_import_path, import_path_at,
         import_path_at_for_completion,
@@ -554,8 +554,12 @@ pub(crate) fn goto_definition(
     let params = params.text_document_position_params;
     let latest_analysis = latest_analysis_for_uri(state, &params.text_document.uri);
     let analysis_revision = state.analysis_revision();
-    let import_request =
-        import_definition_request(state, &params.text_document.uri, params.position);
+    let import_request = import_definition_request(
+        state,
+        &params.text_document.uri,
+        params.position,
+        &analysis_revision,
+    );
     let config = state.config.clone();
     async move {
         let Some(latest_analysis) = latest_analysis else { return Ok(None) };
@@ -598,15 +602,23 @@ fn import_definition_request(
     state: &GlobalState,
     uri: &Url,
     position: Position,
+    analysis_revision: &AnalysisRevision,
 ) -> Option<ImportDefinitionRequest> {
     let importer = uri.to_file_path().ok()?;
     let vfs_path = VfsPath::from(importer.clone());
-    let (vfs_content_revision, open_contents, overlay_paths) = {
+    let (vfs_content_revision, open_contents) = {
         let vfs = state.vfs.read();
-        let overlay_paths =
-            vfs.iter().filter_map(|(path, _)| path.as_path().map(Path::to_path_buf)).collect();
-        (vfs.content_revision(), vfs.get_file_contents(&vfs_path).cloned(), overlay_paths)
+        (vfs.content_revision(), vfs.get_file_contents(&vfs_path).cloned())
     };
+    // An indexed code symbol cannot overlap an import literal in the same source snapshot.
+    // Require an open, fully analyzed document; dirty buffers and closed files still need
+    // current-source parsing. The actual definition lookup still waits for latest analysis.
+    if open_contents.is_some()
+        && analysis_revision.is_current(vfs_content_revision)
+        && state.symbol_tables.load().has_code_symbol_at_position(uri, position)
+    {
+        return None;
+    }
     let contents = open_contents.or_else(|| {
         state
             .sess
@@ -622,6 +634,12 @@ fn import_definition_request(
     let source = contents.to_string();
     let import = import_path_at(&source, cursor_offset)?;
     let raw_path = import.raw_path;
+    let overlay_paths = state
+        .vfs
+        .read()
+        .iter()
+        .filter_map(|(path, _)| path.as_path().map(Path::to_path_buf))
+        .collect();
     Some(ImportDefinitionRequest { importer, raw_path, overlay_paths, vfs_content_revision })
 }
 
