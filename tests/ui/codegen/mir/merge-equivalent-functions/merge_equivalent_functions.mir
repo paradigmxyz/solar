@@ -87,3 +87,91 @@ fn @recursive_entry() [selector=0x01020306] {
     v1 = icall fn7, true, 2
     stop
 }
+
+// CHECK-LABEL: fn @mutual_a(
+// CHECK: + {{v[0-9]+}} = icall @mutual_a, {{v[0-9]+}} !metadata(spans=[100..110, 120..130])
+fn @mutual_a(arg0: u256) -> u256 {
+  bb0:
+    v0 = iszero arg0
+    jumpi v0, bb1, bb2
+  bb1:
+    ret 7
+  bb2:
+    v1 = sub arg0, 1
+    v2 = icall fn10, v1 !metadata(span=100..110)
+    ret v2
+}
+
+// CHECK-LABEL: fn @mutual_b(
+fn @mutual_b(arg0: u256) -> u256 {
+  bb0:
+    v0 = iszero arg0
+    jumpi v0, bb1, bb2
+  bb1:
+    ret 7
+  bb2:
+    v1 = sub arg0, 1
+    v2 = icall fn9, v1 !metadata(span=120..130)
+    ret v2
+}
+
+// CHECK-LABEL: fn @mutual_entry(
+// CHECK: + {{v[0-9]+}} = icall @mutual_a, 2
+fn @mutual_entry() -> u256 [selector=0x01020307] {
+  bb0:
+    v0 = icall fn10, 2
+    ret v0
+}
+
+// CHECK-LABEL: fn @different_mutual_a(
+// CHECK: {{^ +}}{{v[0-9]+}} = icall @different_mutual_b,
+fn @different_mutual_a(arg0: u256) -> u256 {
+  bb0:
+    v0 = iszero arg0
+    jumpi v0, bb1, bb2
+  bb1:
+    ret 17
+  bb2:
+    v1 = sub arg0, 1
+    v2 = icall fn13, v1
+    ret v2
+}
+
+// CHECK-LABEL: fn @different_mutual_b(
+// CHECK: {{^ +}}{{v[0-9]+}} = icall @different_mutual_a,
+fn @different_mutual_b(arg0: u256) -> u256 {
+  bb0:
+    v0 = iszero arg0
+    jumpi v0, bb1, bb2
+  bb1:
+    ret 18
+  bb2:
+    v1 = sub arg0, 1
+    v2 = icall fn12, v1
+    ret v2
+}
+
+// CHECK-LABEL: fn @mutual_tail_a(
+// CHECK: + tail_call @mutual_tail_a,
+fn @mutual_tail_a(arg0: u256) -> u256 {
+  bb0:
+    v0 = iszero arg0
+    jumpi v0, bb1, bb2
+  bb1:
+    ret 23
+  bb2:
+    v1 = sub arg0, 1
+    tail_call fn15, v1
+}
+
+// CHECK-LABEL: fn @mutual_tail_b(
+fn @mutual_tail_b(arg0: u256) -> u256 {
+  bb0:
+    v0 = iszero arg0
+    jumpi v0, bb1, bb2
+  bb1:
+    ret 23
+  bb2:
+    v1 = sub arg0, 1
+    tail_call fn14, v1
+}

@@ -72,3 +72,82 @@
       stop
   }
   
+  fn @mutual_a(arg0: u256) -> u256 {
+    bb0:
+      v0 = iszero arg0
+      jumpi v0, bb1, bb2
+    bb2:
+      v1 = sub arg0, 1
+-     v2 = icall @mutual_b, v1 !metadata(span=100..110)
++     v2 = icall @mutual_a, v1 !metadata(spans=[100..110, 120..130])
+      ret v2
+    bb1:
+      ret 7
+  }
+  
+  fn @mutual_b(arg0: u256) -> u256 {
+    bb0:
+      v0 = iszero arg0
+      jumpi v0, bb1, bb2
+    bb2:
+      v1 = sub arg0, 1
+      v2 = icall @mutual_a, v1 !metadata(span=120..130)
+      ret v2
+    bb1:
+      ret 7
+  }
+  
+  fn @mutual_entry() -> u256 [selector=0x01020307] {
+    bb0:
+-     v0 = icall @mutual_b, 2
++     v0 = icall @mutual_a, 2
+      ret v0
+  }
+  
+  fn @different_mutual_a(arg0: u256) -> u256 {
+    bb0:
+      v0 = iszero arg0
+      jumpi v0, bb1, bb2
+    bb2:
+      v1 = sub arg0, 1
+      v2 = icall @different_mutual_b, v1
+      ret v2
+    bb1:
+      ret 17
+  }
+  
+  fn @different_mutual_b(arg0: u256) -> u256 {
+    bb0:
+      v0 = iszero arg0
+      jumpi v0, bb1, bb2
+    bb2:
+      v1 = sub arg0, 1
+      v2 = icall @different_mutual_a, v1
+      ret v2
+    bb1:
+      ret 18
+  }
+  
+  fn @mutual_tail_a(arg0: u256) -> u256 {
+    bb0:
+      v0 = iszero arg0
+      jumpi v0, bb1, bb2
+    bb2:
+      v1 = sub arg0, 1
+-     tail_call @mutual_tail_b, v1
++     tail_call @mutual_tail_a, v1
+    bb1:
+      ret 23
+  }
+  
+  fn @mutual_tail_b(arg0: u256) -> u256 {
+    bb0:
+      v0 = iszero arg0
+      jumpi v0, bb1, bb2
+    bb2:
+      v1 = sub arg0, 1
+      tail_call @mutual_tail_a, v1
+    bb1:
+      ret 23
+  }
+  

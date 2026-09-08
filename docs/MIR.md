@@ -454,6 +454,12 @@ call so a later call cannot overwrite them. Only this calling convention, real
 memory objects, and eventual spills require memory traffic; insertion and
 extraction alone do not.
 
+Function compaction compares corresponding instructions, operands and CFG
+edges. Calls must target the same function or one of the two bodies being
+compared, which permits equivalent self-recursive and mutually recursive
+bodies to merge without a call-graph scan. Shared bodies retain both source
+origins.
+
 ## Output quality and remaining work
 
 Keep aggregates through inlining and high-level optimization, then lower once

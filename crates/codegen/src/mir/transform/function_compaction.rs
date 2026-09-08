@@ -12,11 +12,13 @@
 //!
 //! Equivalent bodies merge their source origins, independently of structural
 //! matching, so later lowering cannot attribute shared code to one arbitrary body.
+//! Recursive pairs need no call-graph analysis: corresponding calls must target the same
+//! function or one of the two bodies being compared. Matching all other instructions, operands
+//! and CFG edges closes that pairwise equivalence proof, including mutual recursion.
 
 use crate::mir::{
     ArgIdx, EffectKind, Function, FunctionId, Immediate, InstId, InstKind, MirType, Module,
     StorageAlias, Terminator, Value, ValueId,
-    analysis::CallGraphInfo,
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses},
 };
@@ -730,12 +732,9 @@ fn merge_equivalent_functions(module: &mut Module) -> usize {
     let mut merged_instructions = 0usize;
 
     loop {
-        // Redirecting one merge wave changes the graph observed by the next wave. Recompute SCC
-        // information so recursion eligibility never relies on the pre-redirect call graph.
-        let recursive = CallGraphInfo::new(module);
         let mut groups = FxHashMap::<u64, Vec<FunctionId>>::default();
         for (func_id, func) in module.functions.iter_enumerated() {
-            if !merged.contains(func_id) && is_merge_candidate(module, func_id, func, &recursive) {
+            if !merged.contains(func_id) && is_merge_candidate(module, func_id, func) {
                 groups.entry(equivalence_bucket(func)).or_default().push(func_id);
             }
         }
@@ -817,44 +816,8 @@ fn merge_function_debug_origins(
     }
 }
 
-fn is_merge_candidate(
-    module: &Module,
-    func_id: FunctionId,
-    func: &Function,
-    calls: &CallGraphInfo,
-) -> bool {
-    !func.blocks.is_empty()
-        && is_internal_body(module, func_id, func)
-        && (!calls.is_recursive(func_id) || has_only_direct_self_recursion(func_id, func, calls))
-}
-
-/// Recursive equivalence is local when every recursive edge is a direct self edge. Mutual SCCs
-/// need a whole-component isomorphism proof and remain conservatively excluded.
-fn has_only_direct_self_recursion(
-    func_id: FunctionId,
-    func: &Function,
-    calls: &CallGraphInfo,
-) -> bool {
-    let mut saw_self = false;
-    for inst_id in func.instructions() {
-        if let InstKind::ICall { function, .. } = func.inst(inst_id).kind {
-            if function == func_id {
-                saw_self = true;
-            } else if calls.is_recursive(function) {
-                return false;
-            }
-        }
-    }
-    for block in &func.blocks {
-        if let Some(Terminator::TailCall { function, .. }) = &block.terminator {
-            if *function == func_id {
-                saw_self = true;
-            } else if calls.is_recursive(*function) {
-                return false;
-            }
-        }
-    }
-    saw_self
+fn is_merge_candidate(module: &Module, func_id: FunctionId, func: &Function) -> bool {
+    !func.blocks.is_empty() && is_internal_body(module, func_id, func)
 }
 
 /// Cheaply partitions functions before the exact pairwise alpha-equivalence check.
@@ -997,10 +960,10 @@ fn equivalent_inst_payload(
         InstKind::ICall { function: lhs_target, .. },
         InstKind::ICall { function: rhs_target, .. },
     ) = (&lhs, &mut rhs)
-        && *lhs_target == lhs_id
-        && *rhs_target == rhs_id
+        && (*lhs_target == lhs_id || *lhs_target == rhs_id)
+        && (*rhs_target == lhs_id || *rhs_target == rhs_id)
     {
-        *rhs_target = lhs_id;
+        *rhs_target = *lhs_target;
     }
     lhs == rhs
 }
@@ -1023,10 +986,10 @@ fn equivalent_terminator_payload(
         Terminator::TailCall { function: lhs_target, .. },
         Terminator::TailCall { function: rhs_target, .. },
     ) = (&lhs, &mut rhs)
-        && *lhs_target == lhs_id
-        && *rhs_target == rhs_id
+        && (*lhs_target == lhs_id || *lhs_target == rhs_id)
+        && (*rhs_target == lhs_id || *rhs_target == rhs_id)
     {
-        *rhs_target = lhs_id;
+        *rhs_target = *lhs_target;
     }
     lhs == rhs
 }
