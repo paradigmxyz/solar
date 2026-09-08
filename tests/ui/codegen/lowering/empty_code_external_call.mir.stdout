@@ -28,13 +28,13 @@ fn @constructor() [constructor] {
 fn @direct() [selector=0x222b1407, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = gas
-    v1 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
-    v2 = slice_ptr v1
-    v3 = slice_len v1
-    v4 = extcodesize 0
-    v5 = iszero v4
-    revert_if v5, target_contract_has_no_code
-    v6 = call v0, 0, 0, v2, v3, 0, 0
+    v1 = extcodesize 0
+    v2 = iszero v1
+    revert_if v2, target_contract_has_no_code
+    v3 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
+    v4 = slice_ptr v3
+    v5 = slice_len v3
+    v6 = call v0, 0, 0, v4, v5, 0, 0
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata
@@ -50,13 +50,13 @@ fn @pointer() [selector=0x2f5f3b3c, abi_params=[], abi_returns=[]] {
     v3 = shl 224, v2
     v4 = shr 32, v1
     v5 = gas
-    v6 = abi_encode [], selector v3
-    v7 = slice_ptr v6
-    v8 = slice_len v6
-    v9 = extcodesize v4
-    v10 = iszero v9
-    revert_if v10, target_contract_has_no_code
-    v11 = call v5, v4, 0, v7, v8, 0, 0
+    v6 = extcodesize v4
+    v7 = iszero v6
+    revert_if v7, target_contract_has_no_code
+    v8 = abi_encode [], selector v3
+    v9 = slice_ptr v8
+    v10 = slice_len v8
+    v11 = call v5, v4, 0, v9, v10, 0, 0
     jumpi v11, bb2, bb1
   bb1:
     revert_returndata
@@ -66,14 +66,14 @@ fn @pointer() [selector=0x2f5f3b3c, abi_params=[], abi_returns=[]] {
 
 fn @libraryCall() [selector=0x239b86e9, abi_params=[], abi_returns=[]] {
   bb0:
-    v0 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
-    v1 = slice_ptr v0
-    v2 = slice_len v0
-    v3 = gas
-    v4 = extcodesize 0x1111111111111111111111111111111111111111
-    v5 = iszero v4
-    revert_if v5, target_contract_has_no_code
-    v6 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, 0, 0
+    v0 = extcodesize 0x1111111111111111111111111111111111111111
+    v1 = iszero v0
+    revert_if v1, target_contract_has_no_code
+    v2 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
+    v3 = slice_ptr v2
+    v4 = slice_len v2
+    v5 = gas
+    v6 = delegatecall v5, 0x1111111111111111111111111111111111111111, v3, v4, 0, 0
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata
@@ -84,13 +84,13 @@ fn @libraryCall() [selector=0x239b86e9, abi_params=[], abi_returns=[]] {
 fn @tryDirect() [selector=0x45eca8af, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = gas
-    v1 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
-    v2 = slice_ptr v1
-    v3 = slice_len v1
-    v4 = extcodesize 0
-    v5 = iszero v4
-    revert_if v5, target_contract_has_no_code
-    v6 = call v0, 0, 0, v2, v3, 0, 0
+    v1 = extcodesize 0
+    v2 = iszero v1
+    revert_if v2, target_contract_has_no_code
+    v3 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
+    v4 = slice_ptr v3
+    v5 = slice_len v3
+    v6 = call v0, 0, 0, v4, v5, 0, 0
     jumpi v6, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
@@ -113,13 +113,13 @@ fn @tryPointer() [selector=0xce20ef7a, abi_params=[], abi_returns=[]] {
     v3 = shl 224, v2
     v4 = shr 32, v1
     v5 = gas
-    v6 = abi_encode [], selector v3
-    v7 = slice_ptr v6
-    v8 = slice_len v6
-    v9 = extcodesize v4
-    v10 = iszero v9
-    revert_if v10, target_contract_has_no_code
-    v11 = call v5, v4, 0, v7, v8, 0, 0
+    v6 = extcodesize v4
+    v7 = iszero v6
+    revert_if v7, target_contract_has_no_code
+    v8 = abi_encode [], selector v3
+    v9 = slice_ptr v8
+    v10 = slice_len v8
+    v11 = call v5, v4, 0, v9, v10, 0, 0
     jumpi v11, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
@@ -137,13 +137,13 @@ fn @tryPointer() [selector=0xce20ef7a, abi_params=[], abi_returns=[]] {
 fn @tryStatic() [selector=0x54f223e3, view, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = gas
-    v1 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
-    v2 = slice_ptr v1
-    v3 = slice_len v1
-    v4 = extcodesize 0
-    v5 = iszero v4
-    revert_if v5, target_contract_has_no_code
-    v6 = staticcall v0, 0, v2, v3, 0, 0
+    v1 = extcodesize 0
+    v2 = iszero v1
+    revert_if v2, target_contract_has_no_code
+    v3 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
+    v4 = slice_ptr v3
+    v5 = slice_len v3
+    v6 = staticcall v0, 0, v4, v5, 0, 0
     jumpi v6, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
@@ -162,13 +162,13 @@ fn @trySelf() -> bool [selector=0xf948cf5e, abi_params=[], abi_returns=[word<boo
   bb0:
     v0 = address
     v1 = gas
-    v2 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
-    v3 = slice_ptr v2
-    v4 = slice_len v2
-    v5 = extcodesize v0
-    v6 = iszero v5
-    revert_if v6, target_contract_has_no_code
-    v7 = call v1, v0, 0, v3, v4, 0, 0
+    v2 = extcodesize v0
+    v3 = iszero v2
+    revert_if v3, target_contract_has_no_code
+    v4 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
+    v5 = slice_ptr v4
+    v6 = slice_len v4
+    v7 = call v1, v0, 0, v5, v6, 0, 0
     jumpi v7, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
@@ -197,13 +197,13 @@ fn @selfCall() -> bool [selector=0x8dae0159, abi_params=[], abi_returns=[word<bo
   bb0:
     v0 = address
     v1 = gas
-    v2 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
-    v3 = slice_ptr v2
-    v4 = slice_len v2
-    v5 = extcodesize v0
-    v6 = iszero v5
-    revert_if v6, target_contract_has_no_code
-    v7 = call v1, v0, 0, v3, v4, 0, 0
+    v2 = extcodesize v0
+    v3 = iszero v2
+    revert_if v3, target_contract_has_no_code
+    v4 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
+    v5 = slice_ptr v4
+    v6 = slice_len v4
+    v7 = call v1, v0, 0, v5, v6, 0, 0
     jumpi v7, bb2, bb1
   bb1:
     revert_returndata
@@ -219,19 +219,19 @@ fn @noop() [selector=0x5dfc2e4a, abi_params=[], abi_returns=[]] {
 // === ROOT/tests/ui/codegen/lowering/empty_code_external_call.sol:EmptyCodeTryFactory ===
 @module EmptyCodeTryFactory
 data:
-  EmptyCodeTryConstructor_initcode_0: hex"61012060405234609b575a8060e0528060e05260405180610100528061010052602081016040527f5dfc2e4a0000000000000000000000000000000000000000000000000000000081526004810150308060c0523b1515607d576079565b606a565b6001606e576072565b609f565b606a565b6001156099575b5f5ffd5b8160e05280610100525f5f6004835f3087f1915050605d576061565bfe5b5f5ffd5b601f8060a95f395ff334601a575f3560e01c80635dfc2e4a14601657601a565b601e565b5f5ffd5b"
+  EmptyCodeTryConstructor_initcode_0: hex"610120604052346091575a8060e0528060e052308060c0523b1515604157603d565b602e565b60016032576036565b6095565b602e565b600115608f575b5f5ffd5b6040518061010052602081016040527f5dfc2e4a00000000000000000000000000000000000000000000000000000000815260048101508160e0525f5f6004835f3087f19150506021576025565bfe5b5f5ffd5b601f80609f5f395ff334601a575f3560e01c80635dfc2e4a14601657601a565b601e565b5f5ffd5b"
 
 fn @deploy() [selector=0x775c300c, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 231, v1
+    v2 = and 221, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy EmptyCodeTryConstructor_initcode_0, v3, 200
+    data_copy EmptyCodeTryConstructor_initcode_0, v3, 190
     v4 = slice_ptr v0
-    v5 = add v3, 200
+    v5 = add v3, 190
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 200
+    v6 = create 0, v3, 190
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata
@@ -245,13 +245,13 @@ fn @constructor() [constructor] {
   bb0:
     v0 = address
     v1 = gas
-    v2 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
-    v3 = slice_ptr v2
-    v4 = slice_len v2
-    v5 = extcodesize v0
-    v6 = iszero v5
-    revert_if v6, target_contract_has_no_code
-    v7 = call v1, v0, 0, v3, v4, 0, 0
+    v2 = extcodesize v0
+    v3 = iszero v2
+    revert_if v3, target_contract_has_no_code
+    v4 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
+    v5 = slice_ptr v4
+    v6 = slice_len v4
+    v7 = call v1, v0, 0, v5, v6, 0, 0
     jumpi v7, bb1, bb2
   bb2:
     jumpi true, bb4, bb5

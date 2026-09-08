@@ -214,15 +214,15 @@ fn @liveNoReturn() -> u256 [selector=0x0f81fb69, abi_params=[], abi_returns=[wor
   bb1:
     revert_returndata
   bb2:
-    v7 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
-    v8 = slice_ptr v7
-    v9 = slice_len v7
-    v10 = extcodesize v6
-    v11 = iszero v10
-    revert_if v11, target_contract_has_no_code
+    v7 = extcodesize v6
+    v8 = iszero v7
+    revert_if v8, target_contract_has_no_code
+    v9 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
+    v10 = slice_ptr v9
+    v11 = slice_len v9
     v12 = gas
     v13 = sub v12, 50
-    v14 = call v13, v6, 0, v8, v9, v8, 0
+    v14 = call v13, v6, 0, v10, v11, v10, 0
     jumpi v14, bb3, bb4
   bb4:
     jumpi true, bb6, bb7
@@ -398,15 +398,15 @@ fn @noCode() -> u256 [selector=0x96c56dce, abi_params=[], abi_returns=[word]] {
 
 fn @noCodeNoReturn() -> u256 [selector=0xac1b26c4, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
-    v1 = slice_ptr v0
-    v2 = slice_len v0
-    v3 = extcodesize 0
-    v4 = iszero v3
-    revert_if v4, target_contract_has_no_code
+    v0 = extcodesize 0
+    v1 = iszero v0
+    revert_if v1, target_contract_has_no_code
+    v2 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
+    v3 = slice_ptr v2
+    v4 = slice_len v2
     v5 = gas
     v6 = sub v5, 50
-    v7 = call v6, 0, 0, v1, v2, v1, 0
+    v7 = call v6, 0, 0, v3, v4, v3, 0
     jumpi v7, bb1, bb2
   bb2:
     jumpi true, bb4, bb5

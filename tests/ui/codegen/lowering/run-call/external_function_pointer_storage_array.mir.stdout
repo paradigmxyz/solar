@@ -186,13 +186,13 @@ fn @runAll() -> memorybytes [selector=0x34ba89a6, abi_params=[], abi_returns=[me
     v65 = shl 224, v64
     v66 = shr 32, v63
     v67 = gas
-    v68 = abi_encode [], selector v65
-    v69 = slice_ptr v68
-    v70 = slice_len v68
-    v71 = extcodesize v66
-    v72 = iszero v71
-    revert_if v72, target_contract_has_no_code
-    v73 = call v67, v66, 0, v69, v70, 0, 0
+    v68 = extcodesize v66
+    v69 = iszero v68
+    revert_if v69, target_contract_has_no_code
+    v70 = abi_encode [], selector v65
+    v71 = slice_ptr v70
+    v72 = slice_len v70
+    v73 = call v67, v66, 0, v71, v72, 0, 0
     jumpi v73, bb10, bb9
   bb9:
     revert_returndata
@@ -214,13 +214,13 @@ fn @runAll() -> memorybytes [selector=0x34ba89a6, abi_params=[], abi_returns=[me
     v87 = shl 224, v86
     v88 = shr 32, v85
     v89 = gas
-    v90 = abi_encode [], selector v87
-    v91 = slice_ptr v90
-    v92 = slice_len v90
-    v93 = extcodesize v88
-    v94 = iszero v93
-    revert_if v94, target_contract_has_no_code
-    v95 = call v89, v88, 0, v91, v92, 0, 0
+    v90 = extcodesize v88
+    v91 = iszero v90
+    revert_if v91, target_contract_has_no_code
+    v92 = abi_encode [], selector v87
+    v93 = slice_ptr v92
+    v94 = slice_len v92
+    v95 = call v89, v88, 0, v93, v94, 0, 0
     jumpi v95, bb12, bb11
   bb11:
     revert_returndata
@@ -255,13 +255,13 @@ fn @runAll() -> memorybytes [selector=0x34ba89a6, abi_params=[], abi_returns=[me
     v117 = shl 224, v116
     v118 = shr 32, v115
     v119 = gas
-    v120 = abi_encode [], selector v117
-    v121 = slice_ptr v120
-    v122 = slice_len v120
-    v123 = extcodesize v118
-    v124 = iszero v123
-    revert_if v124, target_contract_has_no_code
-    v125 = call v119, v118, 0, v121, v122, 0, 0
+    v120 = extcodesize v118
+    v121 = iszero v120
+    revert_if v121, target_contract_has_no_code
+    v122 = abi_encode [], selector v117
+    v123 = slice_ptr v122
+    v124 = slice_len v122
+    v125 = call v119, v118, 0, v123, v124, 0, 0
     jumpi v125, bb16, bb15
   bb15:
     revert_returndata
@@ -283,13 +283,13 @@ fn @runAll() -> memorybytes [selector=0x34ba89a6, abi_params=[], abi_returns=[me
     v139 = shl 224, v138
     v140 = shr 32, v137
     v141 = gas
-    v142 = abi_encode [], selector v139
-    v143 = slice_ptr v142
-    v144 = slice_len v142
-    v145 = extcodesize v140
-    v146 = iszero v145
-    revert_if v146, target_contract_has_no_code
-    v147 = call v141, v140, 0, v143, v144, 0, 0
+    v142 = extcodesize v140
+    v143 = iszero v142
+    revert_if v143, target_contract_has_no_code
+    v144 = abi_encode [], selector v139
+    v145 = slice_ptr v144
+    v146 = slice_len v144
+    v147 = call v141, v140, 0, v145, v146, 0, 0
     jumpi v147, bb18, bb17
   bb17:
     revert_returndata
@@ -357,13 +357,13 @@ fn @runAll() -> memorybytes [selector=0x34ba89a6, abi_params=[], abi_returns=[me
     v227 = shl 224, v226
     v228 = shr 32, v225
     v229 = gas
-    v230 = abi_encode [], selector v227
-    v231 = slice_ptr v230
-    v232 = slice_len v230
-    v233 = extcodesize v228
-    v234 = iszero v233
-    revert_if v234, target_contract_has_no_code
-    v235 = call v229, v228, 0, v231, v232, 0, 0
+    v230 = extcodesize v228
+    v231 = iszero v230
+    revert_if v231, target_contract_has_no_code
+    v232 = abi_encode [], selector v227
+    v233 = slice_ptr v232
+    v234 = slice_len v232
+    v235 = call v229, v228, 0, v233, v234, 0, 0
     jumpi v235, bb31, bb30
   bb30:
     revert_returndata
@@ -385,13 +385,13 @@ fn @runAll() -> memorybytes [selector=0x34ba89a6, abi_params=[], abi_returns=[me
     v249 = shl 224, v248
     v250 = shr 32, v247
     v251 = gas
-    v252 = abi_encode [], selector v249
-    v253 = slice_ptr v252
-    v254 = slice_len v252
-    v255 = extcodesize v250
-    v256 = iszero v255
-    revert_if v256, target_contract_has_no_code
-    v257 = call v251, v250, 0, v253, v254, 0, 0
+    v252 = extcodesize v250
+    v253 = iszero v252
+    revert_if v253, target_contract_has_no_code
+    v254 = abi_encode [], selector v249
+    v255 = slice_ptr v254
+    v256 = slice_len v254
+    v257 = call v251, v250, 0, v255, v256, 0, 0
     jumpi v257, bb33, bb32
   bb32:
     revert_returndata

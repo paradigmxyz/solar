@@ -138,15 +138,15 @@ fn @aggregate() -> u256 [selector=0xaf36778b, abi_params=[], abi_returns=[word]]
 
 fn @directNoReturn() [selector=0xda4f8e3a, abi_params=[], abi_returns=[]] {
   bb0:
-    v0 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
-    v1 = slice_ptr v0
-    v2 = slice_len v0
-    v3 = extcodesize 0
-    v4 = iszero v3
-    revert_if v4, target_contract_has_no_code
+    v0 = extcodesize 0
+    v1 = iszero v0
+    revert_if v1, target_contract_has_no_code
+    v2 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
+    v3 = slice_ptr v2
+    v4 = slice_len v2
     v5 = gas
     v6 = sub v5, 50
-    v7 = call v6, 0, 0, v1, v2, v1, 0
+    v7 = call v6, 0, 0, v3, v4, v3, 0
     jumpi v7, bb2, bb1
   bb1:
     revert_returndata
@@ -159,15 +159,15 @@ fn @pointerNoReturn() [selector=0xcf820bfc, abi_params=[], abi_returns=[]] {
     v0 = and 0, 0xffffffff
     v1 = shl 224, v0
     v2 = shr 32, 0
-    v3 = abi_encode [], selector v1
-    v4 = slice_ptr v3
-    v5 = slice_len v3
-    v6 = extcodesize v2
-    v7 = iszero v6
-    revert_if v7, target_contract_has_no_code
+    v3 = extcodesize v2
+    v4 = iszero v3
+    revert_if v4, target_contract_has_no_code
+    v5 = abi_encode [], selector v1
+    v6 = slice_ptr v5
+    v7 = slice_len v5
     v8 = gas
     v9 = sub v8, 50
-    v10 = call v9, v2, 0, v4, v5, v4, 0
+    v10 = call v9, v2, 0, v6, v7, v6, 0
     jumpi v10, bb2, bb1
   bb1:
     revert_returndata

@@ -158,9 +158,13 @@ contract TryBareCatch {
     }
 
     // HOMESTEAD-LABEL: fn @noCodeNoReturn
+    // HOMESTEAD-NOT: abi_encode
     // HOMESTEAD: extcodesize
+    // HOMESTEAD: abi_encode
     // OSAKA-LABEL: fn @noCodeNoReturn
+    // OSAKA-NOT: abi_encode
     // OSAKA: extcodesize
+    // OSAKA: abi_encode
     function noCodeNoReturn() external returns (uint256 r) {
         try TryTarget(address(0)).noop() {
             r = 1;

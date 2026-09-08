@@ -404,6 +404,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let (values, types): (Vec<_>, Vec<_>) = values_and_types.into_iter().unzip();
         let return_tys = self.external_return_types(function.returns);
         let returns = return_tys.len();
+        let early_code_check = self.check_empty_call_code(address, values.len(), returns);
         // buffer = alloc_overlay_return_buffer(returns)
         // input = abi_encode(selector, args)
         let overlay_buffer = self.alloc_overlay_return_buffer(&return_tys);
@@ -415,7 +416,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let input_size = self.builder.slice_len(encoded);
         // ret_offset, ret_size, decode = plan_return_buffer(returns)
         let return_plan = self.plan_return_buffer(input, options.zero, &return_tys, overlay_buffer);
-        if self.needs_code_check(returns) {
+        if !early_code_check && self.needs_code_check(returns) {
             self.revert_if_no_code(address);
         }
         // The code check above is emitted at every version that needs the reserve, so the call
@@ -947,6 +948,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .collect::<Vec<_>>();
         let return_tys = self.external_return_types(&return_tys);
         let returns = return_tys.len();
+        let early_code_check = self.check_empty_call_code(address, values.len(), returns);
         // buffer = alloc_overlay_return_buffer(returns)
         // input = abi_encode(selector, args)
         let overlay_buffer = self.alloc_overlay_return_buffer(&return_tys);
@@ -960,7 +962,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let input_size = self.builder.slice_len(encoded);
         // ret_offset, ret_size, decode = plan_return_buffer(returns)
         let return_plan = self.plan_return_buffer(input, options.zero, &return_tys, overlay_buffer);
-        if self.needs_code_check(returns) {
+        if !early_code_check && self.needs_code_check(returns) {
             self.revert_if_no_code(address);
         }
         // The code check above is emitted at every version that needs the reserve, so the call
@@ -1139,6 +1141,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .map(|&ret| self.cx.gcx.type_of_item(ret.into()))
             .collect::<Vec<_>>();
         let return_types = self.external_return_types(&return_types);
+        let address = self.builder.imm(address);
+        let early_code_check =
+            self.check_empty_call_code(address, values.len(), return_types.len());
         // buffer = alloc_overlay_return_buffer(returns)
         // input = abi_encode(selector, args)
         let overlay_buffer = self.alloc_overlay_return_buffer(&return_types);
@@ -1152,7 +1157,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let input = self.builder.slice_ptr(encoded);
         let input_size = self.builder.slice_len(encoded);
         let zero = self.builder.imm(U256::ZERO);
-        let address = self.builder.imm(address);
         let gas = evm_version.can_overcharge_gas_for_call().then(|| self.builder.gas());
         // From Byzantium on the return values come out of the return data; before it the
         // delegatecall writes them into an output area overlaying its input and the success path
@@ -1163,7 +1167,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         } else {
             self.plan_return_buffer(input, zero, &return_types, overlay_buffer)
         };
-        if self.needs_code_check(return_types.len()) {
+        if !early_code_check && self.needs_code_check(return_types.len()) {
             self.revert_if_no_code(address);
         }
         // A delegatecall transfers no value and creates no account, so the pre-EIP-150 reserve is
@@ -1497,6 +1501,22 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let actual = self.current_returndata_size();
         let short = self.builder.lt(actual, expected);
         self.builder.revert_if(short, RevertReason::TupleDataTooShort);
+    }
+
+    /// Checks a call with no arguments or returns before allocating its selector buffer.
+    /// Argument expressions have already run, and encoding has no user memory to validate.
+    pub(super) fn check_empty_call_code(
+        &mut self,
+        address: ValueId,
+        arguments: usize,
+        returns: usize,
+    ) -> bool {
+        let check = arguments == 0 && returns == 0;
+        // if iszero(extcodesize(address)) { revert(no_code) }
+        if check {
+            self.revert_if_no_code(address);
+        }
+        check
     }
 
     pub(super) fn revert_if_no_code(&mut self, address: ValueId) {

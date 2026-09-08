@@ -5,6 +5,7 @@
 //! conservative: it only applies identities that are exact for EVM word
 //! semantics. Fixed aggregate projections also forward through bounded insertion chains, exposing
 //! scalar facts before aggregate lowering without allocating memory or expanding aggregate phis.
+//! Masked shifted words fold when a constant OR operand determines every selected bit.
 //!
 //! The `const-fold` adapter runs after representation lowering. It removes zero-length memory
 //! operations and instructions with constant results, including identities such as `sub x, x`.
@@ -518,7 +519,9 @@ impl InstSimplifier {
                 } else if Self::is_bitwise_complement_pair(func, a, b) {
                     Some(Self::imm(func, U256::ZERO))
                 } else {
-                    None
+                    // and (or (shift amount, value), constant), mask -> constant & mask
+                    Self::masked_shifted_constant(func, a, b)
+                        .map(|constant| Self::imm(func, constant))
                 }
             }
             InstKind::Or(a, b) => {
@@ -574,6 +577,12 @@ impl InstSimplifier {
                         && func.value_u256(shift).is_some_and(|shift| shift >= U256::from(256)))
                 {
                     Some(Self::imm(func, U256::ZERO))
+                } else if !self.constants_only
+                    && matches!(kind, InstKind::Shr(_, _))
+                    && let Some(base) = Self::unshift_clean_address(func, shift, value)
+                {
+                    // shr amount, (or (shl amount, address), constant) -> address
+                    Some(base)
                 } else {
                     None
                 }
@@ -974,6 +983,44 @@ impl InstSimplifier {
             InstKind::And(a, b) => Self::const_operand(func, a, b),
             _ => None,
         }
+    }
+
+    fn unshift_clean_address(func: &Function, shift: ValueId, value: ValueId) -> Option<ValueId> {
+        let shift = func.value_u256(shift)?;
+        if shift > U256::from(256 - 160) {
+            return None;
+        }
+        let Value::Inst(inst) = func.value(value) else { return None };
+        let InstKind::Or(a, b) = func.inst(*inst).kind else { return None };
+        let (value, constant) = Self::const_operand(func, a, b)?;
+        let Value::Inst(inst) = func.value(value) else { return None };
+        let InstKind::Shl(inner_shift, base) = func.inst(*inst).kind else { return None };
+        (func.value_u256(inner_shift) == Some(shift)
+            && (constant >> shift.to::<usize>()).is_zero()
+            && Self::is_clean_address(func, base))
+        .then_some(base)
+    }
+
+    fn masked_shifted_constant(func: &Function, a: ValueId, b: ValueId) -> Option<U256> {
+        let (value, mask) = Self::const_operand(func, a, b)?;
+        let Value::Inst(inst) = func.value(value) else { return None };
+        let InstKind::Or(a, b) = func.inst(*inst).kind else { return None };
+        let (value, constant) = Self::const_operand(func, a, b)?;
+        let Value::Inst(inst) = func.value(value) else { return None };
+        let (shift, left) = match func.inst(*inst).kind {
+            InstKind::Shl(shift, _) => (shift, true),
+            InstKind::Shr(shift, _) => (shift, false),
+            _ => return None,
+        };
+        let shift = func.value_u256(shift)?;
+        let unknown_mask = mask & !constant;
+        let known = shift >= U256::from(256)
+            || if left {
+                (unknown_mask >> shift.to::<usize>()).is_zero()
+            } else {
+                (unknown_mask << shift.to::<usize>()).is_zero()
+            };
+        known.then_some(constant & mask)
     }
 
     fn power_of_two_shift(value: U256) -> Option<U256> {

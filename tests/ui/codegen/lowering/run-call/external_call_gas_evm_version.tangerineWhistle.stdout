@@ -84,13 +84,13 @@ fn @noReturn() -> u256 [selector=0x31794254, abi_params=[], abi_returns=[word]] 
     revert_returndata
   bb2:
     v7 = gas
-    v8 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
-    v9 = slice_ptr v8
-    v10 = slice_len v8
-    v11 = extcodesize v6
-    v12 = iszero v11
-    revert_if v12, target_contract_has_no_code
-    v13 = call v7, v6, 0, v9, v10, v9, 0
+    v8 = extcodesize v6
+    v9 = iszero v8
+    revert_if v9, target_contract_has_no_code
+    v10 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
+    v11 = slice_ptr v10
+    v12 = slice_len v10
+    v13 = call v7, v6, 0, v11, v12, v11, 0
     jumpi v13, bb4, bb3
   bb3:
     revert_returndata

@@ -231,3 +231,108 @@ fn @different_offsets(arg0: u256, arg1: u256, arg2: u256) -> (u256, u256) {
     v3 = sub v2, arg2
     ret v1, v3
 }
+
+// CHECK-LABEL: @masked_left_shift
+// CHECK: ret 0x12345678, 120
+fn @masked_left_shift(arg0: u256) -> (u256, u256) {
+  bb0:
+    v0 = shl 32, arg0
+    v1 = or v0, 305419896
+    v2 = and v1, 0xffffffff
+    v3 = or 305419896, v0
+    v4 = and 255, v3
+    ret v2, v4
+}
+
+// CHECK-LABEL: @masked_right_shift
+// CHECK: ret 0x1200000000000000000000000000000000000000000000000000000000000000
+fn @masked_right_shift(arg0: u256) -> u256 {
+  bb0:
+    v0 = shr 8, arg0
+    v1 = or v0, 0x1200000000000000000000000000000000000000000000000000000000000001
+    v2 = and v1, 0xff00000000000000000000000000000000000000000000000000000000000000
+    ret v2
+}
+
+// CHECK-LABEL: @masked_constant_covers_bits
+// CHECK: ret 2
+fn @masked_constant_covers_bits(arg0: u256) -> u256 {
+  bb0:
+    v0 = shl 1, arg0
+    v1 = or v0, 2
+    v2 = and v1, 2
+    ret v2
+}
+
+// CHECK-LABEL: @masked_shift_boundaries
+// CHECK: ret 7, 9, 11
+fn @masked_shift_boundaries(arg0: u256) -> (u256, u256, u256) {
+  bb0:
+    v0 = shl 255, arg0
+    v1 = or v0, 7
+    v2 = and v1, 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v3 = shl 256, arg0
+    v4 = or v3, 9
+    v5 = and v4, 255
+    v6 = shr 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg0
+    v7 = or v6, 11
+    v8 = and v7, 255
+    ret v2, v5, v8
+}
+
+// CHECK-LABEL: @masked_unknown_bits
+// CHECK: {{^[ +].*}}ret v2, v5, v8, v11, v14
+fn @masked_unknown_bits(arg0: u256, arg1: u256) -> (u256, u256, u256, u256, u256) {
+  bb0:
+    v0 = shl 31, arg0
+    v1 = or v0, 7
+    v2 = and v1, 0xffffffff
+    v3 = shr 7, arg0
+    v4 = or v3, 1
+    v5 = and v4, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v6 = sar 8, arg0
+    v7 = or v6, 1
+    v8 = and v7, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v9 = shl arg1, arg0
+    v10 = or v9, 7
+    v11 = and v10, 255
+    v12 = shl 0, arg0
+    v13 = or v12, 1
+    v14 = and v13, 2
+    ret v2, v5, v8, v11, v14
+}
+
+// CHECK-LABEL: @unshift_address
+// CHECK: [[ADDRESS:v[0-9]+]] = address
+// CHECK: ret [[ADDRESS]], [[ADDRESS]]
+fn @unshift_address() -> (u256, u256) {
+  bb0:
+    v0 = address
+    v1 = shl 32, v0
+    v2 = or v1, 0x12345678
+    v3 = shr 32, v2
+    v4 = shl 96, v0
+    v5 = or 7, v4
+    v6 = shr 96, v5
+    ret v3, v6
+}
+
+// CHECK-LABEL: @keep_lossy_address_shifts
+// CHECK: {{^[ +].*}}ret v3, v6, v9, v12
+fn @keep_lossy_address_shifts(arg0: u256) -> (u256, u256, u256, u256) {
+  bb0:
+    v0 = address
+    v1 = shl 97, v0
+    v2 = or v1, 7
+    v3 = shr 97, v2
+    v4 = shl 32, arg0
+    v5 = or v4, 7
+    v6 = shr 32, v5
+    v7 = shl 32, v0
+    v8 = or v7, 0x100000000
+    v9 = shr 32, v8
+    v10 = shl 32, v0
+    v11 = or v10, 7
+    v12 = shr 31, v11
+    ret v3, v6, v9, v12
+}

@@ -417,6 +417,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 TryCallee::FunctionPointer { selector, .. } => selector,
                 TryCallee::Creation { .. } => unreachable!(),
             };
+            let early_code_check =
+                self.check_empty_call_code(address, values.len(), return_types.len());
             // buffer = alloc_overlay_return_buffer(returns)
             // input = abi_encode(selector, args)
             let overlay_buffer = self.alloc_overlay_return_buffer(&return_types);
@@ -437,7 +439,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(plan) => plan.output_area(),
                 None => (zero, self.builder.imm(0)),
             };
-            if self.needs_code_check(return_types.len()) {
+            if !early_code_check && self.needs_code_check(return_types.len()) {
                 self.revert_if_no_code(address);
             }
             // The code check above is emitted at every version that needs the reserve, so the
