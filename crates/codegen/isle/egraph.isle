@@ -116,6 +116,9 @@
 (extern constructor u256_byte u256_byte)
 (decl pure in_current_block (Value) bool)
 (extern constructor in_current_block in_current_block)
+;; The value had one use before this pass; a profitability condition only.
+(decl pure single_use (Value) bool)
+(extern constructor single_use single_use)
 (decl pure u256_same (U256 U256) bool)
 (extern constructor u256_same u256_same)
 (decl pure u256_from_limbs (u64 u64 u64 u64) U256)

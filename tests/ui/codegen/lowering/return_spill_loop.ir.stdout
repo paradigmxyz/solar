@@ -219,10 +219,6 @@ bb12 [continuation]:
   mload
   push 0
   byte
-  push 248
-  shl
-  push 248
-  shr
   push 224
   mload
   push 1
@@ -236,10 +232,6 @@ bb12 [continuation]:
   mload
   push 0
   byte
-  push 248
-  shl
-  push 248
-  shr
   push 224
   mload
   push 2
@@ -253,10 +245,6 @@ bb12 [continuation]:
   mload
   push 0
   byte
-  push 248
-  shl
-  push 248
-  shr
   swap 1
   push 128
   mstore
@@ -312,10 +300,6 @@ bb21 [continuation]:
   mload
   push 0
   byte
-  push 248
-  shl
-  push 248
-  shr
   push 128
   mstore
   push 32
