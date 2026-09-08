@@ -134,11 +134,11 @@ impl ArithmeticLowerer<'_, '_> {
                 // overflow |= result < min || result > max
                 overflow = self.add_signed_range_check(overflow, result, min, max);
             }
-            // overflow |= lhs == min && rhs == -1
-            let minus_one = self.builder.imm(U256::MAX);
+            // overflow |= lhs == min && rhs < 0
+            let zero = self.builder.imm(U256::ZERO);
             let lhs_is_min = self.builder.eq(lhs, min);
-            let rhs_is_minus_one = self.builder.eq(rhs, minus_one);
-            let special = self.builder.and(lhs_is_min, rhs_is_minus_one);
+            let rhs_negative = self.builder.slt(rhs, zero);
+            let special = self.builder.and(lhs_is_min, rhs_negative);
             overflow = self.builder.or(overflow, special);
         } else if let ArithmeticKind::Unsigned(bits) = kind
             && bits < 256

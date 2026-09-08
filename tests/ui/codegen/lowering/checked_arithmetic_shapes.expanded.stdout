@@ -46,7 +46,7 @@ fn @smul(arg0: i256, arg1: i256) -> i256 [selector=0x95701bd4, pure, abi_params=
     v5 = or v2, v4
     v6 = iszero v5
     v7 = eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
-    v8 = eq arg1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v8 = slt arg1, 0
     v9 = and v7, v8
     v10 = or v6, v9
     jumpi v10, bb1, bb2
@@ -181,7 +181,7 @@ fn @smul128(arg0: i128, arg1: i128) -> i128 [selector=0xaf26a496, pure, abi_para
     v11 = or v9, v10
     v12 = or v8, v11
     v13 = eq v0, 0xffffffffffffffffffffffffffffffff80000000000000000000000000000000
-    v14 = eq v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v14 = slt v1, 0
     v15 = and v13, v14
     v16 = or v12, v15
     jumpi v16, bb1, bb2

@@ -61,7 +61,7 @@ fn @spow(arg0: i256, arg1: u256) -> i256 [selector=0x8c0da14f, pure, abi_params=
     v10 = or v7, v9
     v11 = iszero v10
     v12 = eq v1, 0x8000000000000000000000000000000000000000000000000000000000000000
-    v13 = eq v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v13 = slt v2, 0
     v14 = and v12, v13
     v15 = or v11, v14
     v16 = and v5, v15
@@ -76,7 +76,7 @@ fn @spow(arg0: i256, arg1: u256) -> i256 [selector=0x8c0da14f, pure, abi_params=
     v23 = or v20, v22
     v24 = iszero v23
     v25 = eq v2, 0x8000000000000000000000000000000000000000000000000000000000000000
-    v26 = eq v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v26 = slt v2, 0
     v27 = and v25, v26
     v28 = or v24, v27
     v29 = gt v18, 0
@@ -163,7 +163,7 @@ fn @spow8(arg0: i8, arg1: u8) -> i8 [selector=0xd44642ed, pure, abi_params=[i8, 
     v16 = or v14, v15
     v17 = or v13, v16
     v18 = eq v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
-    v19 = eq v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v19 = slt v4, 0
     v20 = and v18, v19
     v21 = or v17, v20
     v22 = and v7, v21
@@ -182,7 +182,7 @@ fn @spow8(arg0: i8, arg1: u8) -> i8 [selector=0xd44642ed, pure, abi_params=[i8, 
     v33 = or v31, v32
     v34 = or v30, v33
     v35 = eq v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
-    v36 = eq v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v36 = slt v4, 0
     v37 = and v35, v36
     v38 = or v34, v37
     v39 = gt v24, 0
@@ -299,7 +299,7 @@ fn @const_neg2(arg0: u256) -> i256 [selector=0xf3adabf1, pure, abi_params=[u256]
     v11 = or v8, v10
     v12 = iszero v11
     v13 = eq v2, 0x8000000000000000000000000000000000000000000000000000000000000000
-    v14 = eq v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v14 = slt v3, 0
     v15 = and v13, v14
     v16 = or v12, v15
     v17 = and v6, v16
@@ -314,7 +314,7 @@ fn @const_neg2(arg0: u256) -> i256 [selector=0xf3adabf1, pure, abi_params=[u256]
     v24 = or v21, v23
     v25 = iszero v24
     v26 = eq v3, 0x8000000000000000000000000000000000000000000000000000000000000000
-    v27 = eq v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v27 = slt v3, 0
     v28 = and v26, v27
     v29 = or v25, v28
     v30 = gt v19, 0
