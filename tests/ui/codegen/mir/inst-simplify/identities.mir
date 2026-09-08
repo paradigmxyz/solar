@@ -361,3 +361,49 @@ fn @keep_distinct_bases(arg0: u256, arg1: u256) -> u256 {
     v2 = sub v0, v1
     ret v2
 }
+
+// CHECK-LABEL: @nested_shifts
+// CHECK: + [[LEFT:v[0-9]+]] = shl 8, arg0
+// CHECK: + [[RIGHT:v[0-9]+]] = shr 8, arg0
+// CHECK: + [[SIGNED:v[0-9]+]] = sar 8, arg0
+// CHECK: {{^[ +].*}}ret [[LEFT]], [[RIGHT]], [[SIGNED]]
+fn @nested_shifts(arg0: u256) -> (u256, u256, u256) {
+  bb0:
+    v0 = shl 3, arg0
+    v1 = shl 5, v0
+    v2 = shr 3, arg0
+    v3 = shr 5, v2
+    v4 = sar 3, arg0
+    v5 = sar 5, v4
+    ret v1, v3, v5
+}
+
+// CHECK-LABEL: @nested_shift_limits
+// CHECK: + [[SIGN:v[0-9]+]] = sar 256, arg0
+// CHECK: + ret 0, 0, [[SIGN]]
+fn @nested_shift_limits(arg0: u256) -> (u256, u256, u256) {
+  bb0:
+    v0 = shl 128, arg0
+    v1 = shl 128, v0
+    v2 = shr 255, arg0
+    v3 = shr 1, v2
+    v4 = sar 1, arg0
+    v5 = sar 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v4
+    ret v1, v3, v5
+}
+
+// CHECK-LABEL: @mixed_and_variable_shifts
+// CHECK: {{^[ +].*}}v1 = shr 5, v0
+// CHECK: {{^[ +].*}}v3 = shr 3, v2
+// CHECK: {{^[ +].*}}v5 = shl arg1, v4
+// CHECK: {{^[ +].*}}ret v1, v3, v5
+fn @mixed_and_variable_shifts(arg0: u256, arg1: u256) -> (u256, u256, u256) {
+  bb0:
+    v0 = shl 3, arg0
+    v1 = shr 5, v0
+    v2 = sar 5, arg0
+    v3 = shr 3, v2
+    v4 = shl 5, arg0
+    v5 = shl arg1, v4
+    ret v1, v3, v5
+}

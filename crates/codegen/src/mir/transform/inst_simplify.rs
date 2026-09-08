@@ -6,6 +6,7 @@
 //! semantics. Fixed aggregate projections also forward through bounded insertion chains, exposing
 //! scalar facts before aggregate lowering without allocating memory or expanding aggregate phis.
 //! Masked shifted words fold when a constant OR operand determines every selected bit.
+//! Consecutive shifts in the same direction combine constant amounts, capped at the word width.
 //!
 //! The `const-fold` adapter runs after representation lowering. It removes zero-length memory
 //! operations and instructions with constant results, including identities such as `sub x, x`.
@@ -332,13 +333,18 @@ impl InstSimplifier {
                     Self::is_one(func, a).then_some(InstKind::IsZero(b))
                 }
             }
+            InstKind::Shl(shift, value) | InstKind::Sar(shift, value) => {
+                Self::rewrite_nested_shift(func, kind, resolve(*shift), resolve(*value))
+            }
             InstKind::Shr(shift, value) => {
                 let (shift, value) = (resolve(*shift), resolve(*value));
-                if Self::is_const(func, shift, U256::from(8)) {
-                    Self::clz_operand(func, value).map(InstKind::IsZero)
-                } else {
-                    None
-                }
+                Self::rewrite_nested_shift(func, kind, shift, value).or_else(|| {
+                    if Self::is_const(func, shift, U256::from(8)) {
+                        Self::clz_operand(func, value).map(InstKind::IsZero)
+                    } else {
+                        None
+                    }
+                })
             }
             InstKind::Byte(index, value) => {
                 let (index, value) = (resolve(*index), resolve(*value));
@@ -989,6 +995,31 @@ impl InstSimplifier {
             InstKind::And(a, b) => Self::const_operand(func, a, b),
             _ => None,
         }
+    }
+
+    fn rewrite_nested_shift(
+        func: &mut Function,
+        kind: &InstKind,
+        shift: ValueId,
+        value: ValueId,
+    ) -> Option<InstKind> {
+        let Value::Inst(inner) = func.value(value) else { return None };
+        let (inner_shift, base) = match (kind, &func.inst(*inner).kind) {
+            (InstKind::Shl(_, _), InstKind::Shl(shift, base))
+            | (InstKind::Shr(_, _), InstKind::Shr(shift, base))
+            | (InstKind::Sar(_, _), InstKind::Sar(shift, base)) => (*shift, *base),
+            _ => return None,
+        };
+        let limit = U256::from(256);
+        let total = func.value_u256(shift)?.min(limit) + func.value_u256(inner_shift)?.min(limit);
+        let total = Self::imm(func, total.min(limit));
+        // shift outer, (shift inner, base) -> shift min(outer + inner, 256), base
+        Some(match kind {
+            InstKind::Shl(_, _) => InstKind::Shl(total, base),
+            InstKind::Shr(_, _) => InstKind::Shr(total, base),
+            InstKind::Sar(_, _) => InstKind::Sar(total, base),
+            _ => unreachable!(),
+        })
     }
 
     fn unshift_clean_address(func: &Function, shift: ValueId, value: ValueId) -> Option<ValueId> {
