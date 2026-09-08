@@ -400,15 +400,19 @@ impl Target {
             return Cost::new(GasTier::VeryLow.gas(self.evm_version), 1);
         };
         let tier = op::definition(lowering.opcode()).map_or(GasTier::VeryLow, |def| def.gas);
+        let static_gas = tier.gas_at(self.evm_version, warmth);
+        let dynamic_gas = tier.dynamic_gas(self.evm_version);
+        if dynamic_gas == 0 {
+            return Cost::new(static_gas, 1);
+        }
         let mut arguments = SmallVec::<[Option<U256>; 8]>::new();
         // Only the visit matters; the mapped copy is discarded.
         let _ = op.map_values(|value| {
             arguments.push(immediate(value));
             value
         });
-        let dynamic =
-            tier.dynamic_gas(self.evm_version).saturating_mul(tier.dynamic_units(&arguments));
-        Cost::new(tier.gas_at(self.evm_version, warmth).saturating_add(dynamic), 1)
+        let dynamic = dynamic_gas.saturating_mul(tier.dynamic_units(&arguments));
+        Cost::new(static_gas.saturating_add(dynamic), 1)
     }
 
     /// Gas of copying one more word with a copy opcode.
