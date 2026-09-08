@@ -6,9 +6,9 @@
 //! physical stack scheduler to preserve, duplicate, or spill it. This pass reorders instructions
 //! inside each basic block immediately before EVM codegen.
 //!
-//! The pass deliberately moves only computations and reads. Memory and state writes, calls,
-//! creation, logs, `gas`, `msize`, and phis are barriers, so the transformation cannot move work
-//! across an observable mutation, gas observation, call-gas boundary, or phi definition. Within
+//! The segment scheduler moves computations and reads between barriers. Memory and state writes,
+//! calls, creation, logs, `gas`, `msize`, and phis are barriers for that phase, so its traversal
+//! never crosses an observable mutation, gas observation, call-gas boundary, or phi definition. Within
 //! each barrier-delimited segment, a deterministic dependency-first traversal emits operand
 //! producers in EVM push order and places values consumed by the following barrier or terminator
 //! last. Shared-result producers stay at their original positions because moving one use changes
@@ -18,6 +18,19 @@
 //! operations whose lowering already costs both equivalent operand orientations.
 //! Instruction and value identities do not change; codegen recomputes liveness from the resulting
 //! order before stack scheduling.
+//!
+//! Eager contraction also runs without optimization to avoid unnecessary spilling. The subsequent
+//! segment scheduler remains optional. Eager contractions consume uniquely used SSA inputs as soon as
+//! they are available across ordinary source writes. A backwards scan first requires more local
+//! non-Phi instruction results live at a write than the target's reachable stack depth. This is a
+//! pressure-driven profitability gate, not a physical failure proof: other blocks' uses, incoming
+//! values, rematerialization and hidden protocol words are not modeled by that lower bound.
+//! Only canonical native pure instructions move; every read and write keeps its order. Calls, gas/memory-size and code observations, noncanonical
+//! effects, and protocol operations remain hard boundaries. The contraction replaces two or more
+//! distinct dying instruction results with one result, strictly reducing their intervening live count.
+//! It never reissues a mutable read or grants permission to spill. Reordered liveness can change
+//! home allocation. Existing physical reach checks and measured final code quality remain necessary;
+//! fewer live SSA values are not a bytecode proof.
 //!
 //! This is a locality heuristic, not a whole-function profitability search. It does not price the
 //! residual physical stack left by each possible order, so an isolated function can grow even when
@@ -54,26 +67,52 @@ impl MirPass for EvmInstSchedule {
         "evm-inst-schedule"
     }
 
-    fn run_pass(&self, _gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
-        run_function_pass(module, analyses, |func, _| Self::run_on_function(func))
+    fn is_required(&self) -> bool {
+        true
+    }
+
+    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
+        let reach = gcx.sess.opts.evm_version.reachable_stack_depth();
+        let reorder_segments = gcx.sess.opts.optimization != solar_config::OptimizationMode::None;
+        run_function_pass(module, analyses, |func, _| {
+            Self::run_on_function(func, reach, reorder_segments)
+        })
     }
 }
 
 impl EvmInstSchedule {
-    fn run_on_function(func: &mut Function) -> bool {
+    fn run_on_function(func: &mut Function, reach: usize, reorder_segments: bool) -> bool {
         let mut changed = false;
         let block_ids = func.blocks.indices();
-        let shared_results = Self::shared_results(func);
+        let (shared_results, users) = Self::users(func);
         let mut scratch = ScheduleScratch::new(func.num_insts());
 
         for block_id in block_ids {
-            let original = std::mem::take(&mut func.blocks[block_id].instructions);
+            let mut original = std::mem::take(&mut func.blocks[block_id].instructions);
             if original.len() < 2 {
                 func.blocks[block_id].instructions = original;
                 continue;
             }
 
             let mut ordered = Vec::with_capacity(original.len());
+            Self::contract_consumers(
+                func,
+                &original,
+                func.blocks[block_id].terminator.as_ref(),
+                &users,
+                reach,
+                &mut scratch,
+                &mut ordered,
+            );
+            if ordered != original {
+                std::mem::swap(&mut original, &mut ordered);
+                changed = true;
+            }
+            if !reorder_segments {
+                func.blocks[block_id].instructions = original;
+                continue;
+            }
+            ordered.clear();
             let mut segment_start = 0;
             for (index, &inst_id) in original.iter().enumerate() {
                 let inst = func.inst(inst_id);
@@ -121,6 +160,141 @@ impl EvmInstSchedule {
 }
 
 impl EvmInstSchedule {
+    /// Consumes dying SSA inputs early without moving reads, writes or crossing observations.
+    fn contract_consumers(
+        func: &Function,
+        original: &[InstId],
+        terminator: Option<&Terminator>,
+        users: &IndexVec<ValueId, Users>,
+        reach: usize,
+        scratch: &mut ScheduleScratch,
+        ordered: &mut Vec<InstId>,
+    ) {
+        // A block cannot have more local live instruction results than instructions.
+        if original.len() <= reach {
+            ordered.extend_from_slice(original);
+            return;
+        }
+        scratch.clear_segment();
+        let mut region = 0;
+        let mut segment = 0;
+        for &id in original {
+            let inst = func.inst(id);
+            let source_write = Self::is_source_write(inst);
+            let hard = !source_write
+                && (!Self::is_movable(inst)
+                    || inst.kind.evm_opcode().is_none()
+                    || inst
+                        .metadata
+                        .effect()
+                        .is_some_and(|effect| effect != inst.kind.effect_kind())
+                    || matches!(
+                        inst.kind,
+                        InstKind::CodeSize
+                            | InstKind::CodeCopy(..)
+                            | InstKind::ExtCodeSize(..)
+                            | InstKind::ExtCodeCopy(..)
+                            | InstKind::ExtCodeHash(..)
+                    ));
+            // Hard boundaries occupy their own region; source writes only separate old segments.
+            region += usize::from(hard);
+            scratch.original_positions[id] = region;
+            scratch.candidate_positions[id] = segment;
+            region += usize::from(hard);
+            segment += usize::from(!Self::is_movable(inst));
+            scratch.members.insert(id);
+            scratch.active_members.push(id);
+        }
+        // Count local instruction results live before each write, including its operands.
+        // This lower bound selects pressure-driven work; it is not a physical stack proof.
+        let add_uses = |operands: &[ValueId], scratch: &mut ScheduleScratch| {
+            operands
+                .iter()
+                .filter(|&&value| {
+                    matches!(func.value(value), Value::Inst(definition)
+                    if scratch.members.contains(*definition)
+                        && !matches!(func.inst(*definition).kind, InstKind::Phi(_))
+                        && scratch.dependencies.insert(*definition))
+                })
+                .count()
+        };
+        let mut operands = SmallVec::<[ValueId; 8]>::new();
+        if let Some(term) = terminator {
+            term.for_each_operand(|value| operands.push(value));
+        }
+        let mut live = add_uses(&operands, scratch);
+        let mut pressured = false;
+        for &id in original.iter().rev() {
+            live -= usize::from(scratch.dependencies.remove(id));
+            let inst = func.inst(id);
+            operands.clear();
+            if !matches!(inst.kind, InstKind::Phi(_)) {
+                inst.kind.collect_operands(&mut operands);
+            }
+            live += add_uses(&operands, scratch);
+            if Self::is_source_write(inst) && live > reach {
+                pressured = true;
+                break;
+            }
+        }
+        if !pressured {
+            ordered.extend_from_slice(original);
+            scratch.clear_segment();
+            return;
+        }
+        for &anchor in original {
+            let mut id = anchor;
+            // producer; ...; source write; pure consumer
+            // producer; pure consumer; ...; source write
+            while scratch.visited.insert(id) {
+                ordered.push(id);
+                let Some(value) = func.inst_result_value(id) else { break };
+                let Users::One(Some(consumer)) = users[value] else { break };
+                if !scratch.members.contains(consumer)
+                    || scratch.visited.contains(consumer)
+                    || scratch.original_positions[consumer] != scratch.original_positions[anchor]
+                    || scratch.candidate_positions[consumer] == scratch.candidate_positions[anchor]
+                {
+                    break;
+                }
+                let inst = func.inst(consumer);
+                let operands = inst.kind.operands();
+                if inst.kind.effect_kind() != crate::mir::EffectKind::Pure
+                    || inst.metadata.effect().is_some_and(|effect| effect != crate::mir::EffectKind::Pure)
+                    || inst.kind.evm_opcode().is_none()
+                    || func.inst_result_value(consumer).is_none()
+                    || !operands.iter().any(|&operand| {
+                        matches!(func.value(operand), Value::Inst(definition) if *definition != id)
+                    })
+                    || !operands.iter().all(|&operand| {
+                        if let Value::Inst(definition) = func.value(operand) {
+                            scratch.members.contains(*definition)
+                                && scratch.visited.contains(*definition)
+                                && !matches!(func.inst(*definition).kind, InstKind::Phi(_))
+                                && matches!(users[operand], Users::One(Some(user)) if user == consumer)
+                        } else {
+                            func.value_u256(operand).is_some()
+                        }
+                    })
+                {
+                    break;
+                }
+                id = consumer;
+            }
+        }
+        scratch.clear_segment();
+    }
+
+    fn is_source_write(inst: &Instruction) -> bool {
+        matches!(
+            inst.kind,
+            InstKind::MStore(..)
+                | InstKind::MStore8(..)
+                | InstKind::SStore(..)
+                | InstKind::TStore(..)
+        ) && inst.metadata.effect().is_none_or(|effect| effect == inst.kind.effect_kind())
+    }
+
     /// Whether an instruction may move among other read-only instructions in the same segment.
     fn is_movable(inst: &Instruction) -> bool {
         if matches!(inst.kind, InstKind::Phi(_) | InstKind::Gas | InstKind::MSize) {
@@ -301,8 +475,8 @@ impl EvmInstSchedule {
         true
     }
 
-    fn shared_results(func: &Function) -> DenseBitSet<InstId> {
-        let mut user_counts = index_vec![0u32; func.num_values()];
+    fn users(func: &Function) -> (DenseBitSet<InstId>, IndexVec<ValueId, Users>) {
+        let mut users = index_vec![Users::None; func.num_values()];
         let mut seen = index_vec![0usize; func.num_values()];
         let mut generation = 0usize;
         // Instruction arenas retain replaced and eliminated instructions, but only instructions
@@ -312,20 +486,22 @@ impl EvmInstSchedule {
         for block in &func.blocks {
             for &inst_id in &block.instructions {
                 generation += 1;
-                count_distinct_users(
+                record_distinct_users(
                     func.inst(inst_id).kind.operands(),
-                    &mut user_counts,
+                    &mut users,
                     &mut seen,
                     generation,
+                    Some(inst_id),
                 );
             }
             if let Some(terminator) = &block.terminator {
                 generation += 1;
-                count_distinct_users(
+                record_distinct_users(
                     terminator.operands(),
-                    &mut user_counts,
+                    &mut users,
                     &mut seen,
                     generation,
+                    None,
                 );
             }
         }
@@ -334,13 +510,13 @@ impl EvmInstSchedule {
         for block in &func.blocks {
             for &inst_id in &block.instructions {
                 if let Some(result) = func.inst_result_value(inst_id)
-                    && user_counts[result] > 1
+                    && matches!(users[result], Users::Shared)
                 {
                     shared.insert(inst_id);
                 }
             }
         }
-        shared
+        (shared, users)
     }
 
     fn visit_dependencies(
@@ -374,16 +550,28 @@ impl EvmInstSchedule {
     }
 }
 
-fn count_distinct_users(
+/// The existing distinct-user scan also records the sole consumer for eager contractions.
+#[derive(Clone, Copy)]
+enum Users {
+    None,
+    One(Option<InstId>),
+    Shared,
+}
+
+fn record_distinct_users(
     operands: impl IntoIterator<Item = ValueId>,
-    counts: &mut IndexVec<ValueId, u32>,
+    users: &mut IndexVec<ValueId, Users>,
     seen: &mut IndexVec<ValueId, usize>,
     generation: usize,
+    instruction: Option<InstId>,
 ) {
     for operand in operands {
         if seen[operand] != generation {
             seen[operand] = generation;
-            counts[operand] += 1;
+            users[operand] = match users[operand] {
+                Users::None => Users::One(instruction),
+                Users::One(_) | Users::Shared => Users::Shared,
+            };
         }
     }
 }
