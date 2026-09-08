@@ -13,6 +13,8 @@
 //! Repeated short literals share a helper with the storage slot and old header as arguments. The
 //! literal stays constant inside the helper, so header checks and old-tail clearing share code.
 //! Reading the header at the call site preserves forwarding from preceding storage writes.
+//! Size mode carries the load address through the loop; gas mode derives it from the index to
+//! avoid the extra stack traffic. Both forms count words independently of address wraparound.
 
 use crate::mir::{
     AllocationSemantics, Function, FunctionBuilder, FunctionId, InstKind, MemoryObjectKind,
@@ -32,7 +34,11 @@ pub(super) fn validate(builder: &mut FunctionBuilder<'_>, header: ValueId) -> (V
     (is_long, length)
 }
 
-pub(super) fn load(builder: &mut FunctionBuilder<'_>, slot: ValueId) -> ValueId {
+pub(super) fn load(
+    builder: &mut FunctionBuilder<'_>,
+    slot: ValueId,
+    optimize_for_size: bool,
+) -> ValueId {
     // header = sload(slot)
     // (is_long, length) = validate_storage_bytes(header)
     // words = (length + 31) / 32
@@ -60,17 +66,41 @@ pub(super) fn load(builder: &mut FunctionBuilder<'_>, slot: ValueId) -> ValueId 
     builder.jump(merge_block);
 
     // long: data_slot = storage_array_data_slot(slot)
-    // for index < words { store_word(object, index * 32, sload(data_slot + index)) }
-    // jump merge
     builder.switch_to_block(long_block);
     let data_slot = builder.storage_array_data_slot(slot);
-    builder.counted_loop(words, |builder, index| {
-        let element_slot = builder.add(data_slot, index);
+    if optimize_for_size {
+        // index = phi(0, index + 1); address = phi(data_slot, address + 1)
+        // for index < words { store_word(object, index * 32, sload(address)) }
+        let preheader = builder.current_block();
+        let header = builder.create_block();
+        let body = builder.create_block();
+        builder.jump(header);
+        builder.switch_to_block(header);
+        let index = builder.phi(vec![(preheader, zero)]);
+        let element_slot = builder.phi(vec![(preheader, data_slot)]);
+        let more = builder.lt(index, words);
+        builder.branch(more, body, merge_block);
+        builder.switch_to_block(body);
         let value = builder.sload(element_slot);
         let byte_offset = builder.mul(index, thirty_two);
         builder.memory_object_store_word(object, byte_offset, value);
-    });
-    builder.jump(merge_block);
+        let next = builder.add_u64_offset(index, 1);
+        let next_slot = builder.add_u64_offset(element_slot, 1);
+        let backedge = builder.current_block();
+        builder.jump(header);
+        builder.add_phi_incoming(index, backedge, next);
+        builder.add_phi_incoming(element_slot, backedge, next_slot);
+    } else {
+        // for index < words { store_word(object, index * 32, sload(data_slot + index)) }
+        // jump merge
+        builder.counted_loop(words, |builder, index| {
+            let element_slot = builder.add(data_slot, index);
+            let value = builder.sload(element_slot);
+            let byte_offset = builder.mul(index, thirty_two);
+            builder.memory_object_store_word(object, byte_offset, value);
+        });
+        builder.jump(merge_block);
+    }
 
     builder.switch_to_block(merge_block);
     object

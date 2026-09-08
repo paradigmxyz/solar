@@ -1,7 +1,10 @@
-//@ revisions: semantic expanded
+//@ revisions: semantic expanded expanded_size
 //@[semantic] compile-flags: -Zmir-pipeline=none
 //@[expanded] compile-flags: -Zmir-pipeline=lower-builtins
 //@[expanded] filecheck:
+//@[expanded_size] compile-flags: -Zmir-pipeline=lower-builtins -Osize
+//@[expanded_size] filecheck: --check-prefixes=CHECK,SIZE
+//@[expanded_size] normalize-stdout-test: "(?s).+" -> ""
 @module StorageBytes
 
 // CHECK-LABEL: fn @header(
@@ -21,6 +24,13 @@ fn @header(arg0: u256) -> u256 {
     ret v0
 }
 
+// SIZE-LABEL: fn @load(
+// SIZE: [[BASE:v[0-9]+]] = storage_array_data_slot arg0
+// SIZE: [[INDEX:v[0-9]+]] = phi
+// SIZE-NEXT: [[ADDRESS:v[0-9]+]] = phi [{{bb[0-9]+}}: [[BASE]]], [{{bb[0-9]+}}: [[NEXT:v[0-9]+]]]
+// SIZE-NEXT: [[MORE:v[0-9]+]] = lt [[INDEX]], {{v[0-9]+}}
+// SIZE: sload [[ADDRESS]]
+// SIZE: [[NEXT]] = add [[ADDRESS]], 1
 fn @load(arg0: u256) -> memorybytes {
   bb0:
     v0 = load_storage_bytes arg0 !metadata(span=20..30, modifier_depth=2)
