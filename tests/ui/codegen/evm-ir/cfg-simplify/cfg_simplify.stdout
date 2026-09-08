@@ -15,6 +15,10 @@
     pop
     push bb9
     pop
+    push bb11
+    pop
+    push bb15
+    pop
 -   jump bb4
 +   push 1
 +   pop
@@ -40,5 +44,34 @@
 -   jump bb10
 - bb10:
 +   pop
+    stop
+  bb11:
+    push 1
+-   push bb12
+-   jump bb13
+- bb12:
+-   jump bb14
+- bb13:
++   push bb14
+    jumpi
+    stop
+  bb14:
+    push 9
+    pop
+    stop
+  bb15:
+    push 1
+    push bb16
+-   jump bb17
+- bb16:
+-   jump bb18
+- bb17:
+    swap 1
+    jumpi
+    stop
+- bb18:
++ bb16:
+    push 10
+    pop
     stop
   

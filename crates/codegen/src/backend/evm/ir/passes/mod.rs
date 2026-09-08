@@ -71,7 +71,7 @@ pub static ALL_PASSES: &[&dyn EvmPass] = &[
     &coalesce_copies::CoalesceCopies,
     &data::PackData,
     &legalize_shifts::LegalizeShifts,
-    &cfg_simplify::CfgSimplify,
+    &cfg_simplify::CfgSimplify::FINAL,
     &outline::Outline,
     &terminal_dedup::TerminalDedup,
     &tail_merge::TailMerge,
@@ -83,20 +83,20 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     // Normalize and establish the first physical layout.
     &peephole::Peephole,
     &coalesce_copies::CoalesceCopies,
-    &cfg_simplify::CfgSimplify,
+    &cfg_simplify::CfgSimplify::EARLY,
     &data::PackExistingData,
     &peephole::Cleanup(compact_pushes::CompactPushes),
     &block_layout::BlockLayout,
     &share_reverts::ShareReverts,
     // Simplify and merge the explicit control-flow graph.
     &terminal_dedup::TerminalDedup,
-    &cfg_simplify::CfgSimplify,
+    &cfg_simplify::CfgSimplify::EARLY,
     &tail_merge::TailMerge,
-    &cfg_simplify::CfgSimplify,
+    &cfg_simplify::CfgSimplify::EARLY,
     &tail_merge::TailMerge,
     // Outline only after straight-line paths and terminal tails are canonical.
     &outline::Outline,
-    &cfg_simplify::CfgSimplify,
+    &cfg_simplify::CfgSimplify::EARLY,
     // Stack allocation can leave `producer; push; swap1` when the producer was emitted first.
     // Reorder it only after structural sharing is fixed so local stack cleanup cannot perturb
     // outlining choices.
@@ -113,18 +113,18 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     // revert branch that remains profitable in the final layout.
     &block_layout::BlockLayout,
     &share_reverts::ShareReverts,
-    &cfg_simplify::CfgSimplify,
+    &cfg_simplify::CfgSimplify::EARLY,
     &block_layout::BlockLayout,
     // Block CSE and final placement can expose new equal tails whose addresses or predecessors
     // differed during the first structural sweep. Repeat the structural half to a fixed point at
     // pass granularity; each pass remains internally profitability-gated.
     &terminal_dedup::TerminalDedup,
-    &cfg_simplify::CfgSimplify,
+    &cfg_simplify::CfgSimplify::EARLY,
     &tail_merge::TailMerge,
-    &cfg_simplify::CfgSimplify,
+    &cfg_simplify::CfgSimplify::EARLY,
     &tail_merge::TailMerge,
     &outline::Outline,
-    &cfg_simplify::CfgSimplify,
+    &cfg_simplify::CfgSimplify::EARLY,
     &reorder_pushes::FINAL_REORDER_PUSHES,
     &peephole::Peephole,
     &peephole::Cleanup(block_cse::BlockCse),
@@ -132,7 +132,7 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &peephole::Cleanup(stack_normalize::StackNormalize),
     &block_layout::BlockLayout,
     &share_reverts::ShareReverts,
-    &cfg_simplify::CfgSimplify,
+    &cfg_simplify::CfgSimplify::FINAL,
     &block_layout::BlockLayout,
     // Materialize constants and finalize the referenced data pool after all code transforms.
     &constant_data::ConstantData,

@@ -16,9 +16,8 @@ contract TupleAssignBranchLeak {
     // CHECK-LABEL: @module TupleAssignBranchLeak_runtime
     // CHECK: push 0x2143aa9
     // CHECK-NEXT: eq
-    // CHECK: push 2{{$}}
-    // CHECK-NEXT: gt
-    // CHECK-NEXT: iszero
+    // CHECK: push 1{{$}}
+    // CHECK-NEXT: lt
     // CHECK-NEXT: push {{bb[0-9]+}}
     // CHECK-NEXT: jumpi
     // CHECK-NEXT: push 4

@@ -7,8 +7,11 @@
 //! [`TerminatorKind::JumpI`] terminators and the physical `PUSH target; JUMPI; jump target` form
 //! emitted when edge-specific stack scheduling lowers one branch edge before EVM IR construction.
 //!
-//! Address-taken blocks remain distinct, and block merging requires one reference so changing a
-//! predecessor cannot affect another edge. The pass preserves the condition's stack effect with a
+//! Final cleanup also recognizes labels passed straight to a shared `JUMPI` head as direct
+//! jump targets. Deferring this until sharing is complete avoids exposing larger tails whose
+//! merger would add jumps back to the paths being shortened.
+//! Other address-taken blocks remain distinct, and block merging requires one reference so changing
+//! a predecessor cannot affect another edge. The pass preserves the condition's stack effect with a
 //! `POP`; later dead-code elimination may remove the pure condition computation. Replacing the
 //! physical form's `PUSH target; JUMPI` with that `POP` changes what runs after the condition, so
 //! it only applies where `keep_with_next` allows that boundary to be disturbed.
@@ -24,7 +27,14 @@ use crate::backend::evm::{
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use solar_sema::Gcx;
 
-pub(super) struct CfgSimplify;
+pub(super) struct CfgSimplify {
+    thread_shared_jumps: bool,
+}
+
+impl CfgSimplify {
+    pub(super) const EARLY: Self = Self { thread_shared_jumps: false };
+    pub(super) const FINAL: Self = Self { thread_shared_jumps: true };
+}
 
 impl EvmPass for CfgSimplify {
     fn name(&self) -> &'static str {
@@ -32,19 +42,25 @@ impl EvmPass for CfgSimplify {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        simplify_cfg(gcx, module)
+        simplify_cfg(gcx, module, self.thread_shared_jumps)
     }
 }
 
-fn simplify_cfg(_gcx: Gcx<'_>, module: &mut Module) -> bool {
+fn simplify_cfg(_gcx: Gcx<'_>, module: &mut Module, thread_shared_jumps: bool) -> bool {
     let mut state = RunState::default();
     state.reserve(module.blocks.len());
     let mut changed = false;
     loop {
         let truncated = truncate_after_terminal(module);
         let degenerate = simplify_degenerate_branches(module);
-        let redirected =
-            redirect_jump_thunks(module, &mut state.thunks, &mut state.addressed, &mut state.order);
+        let redirected = redirect_jump_thunks(
+            module,
+            thread_shared_jumps,
+            &mut state.thunks,
+            &mut state.addressed,
+            &mut state.jump_heads,
+            &mut state.order,
+        );
         let swept = remove_unreachable_blocks(
             module,
             &mut state.reachable,
@@ -63,6 +79,7 @@ fn simplify_cfg(_gcx: Gcx<'_>, module: &mut Module) -> bool {
 struct RunState {
     thunks: FxHashMap<BlockId, BlockId>,
     addressed: DenseBitSet<BlockId>,
+    jump_heads: DenseBitSet<BlockId>,
     reachable: DenseBitSet<BlockId>,
     pending: Vec<BlockId>,
     references: IndexVec<BlockId, usize>,
@@ -75,6 +92,7 @@ impl Default for RunState {
         Self {
             thunks: FxHashMap::default(),
             addressed: DenseBitSet::new_empty(0),
+            jump_heads: DenseBitSet::new_empty(0),
             reachable: DenseBitSet::new_empty(0),
             pending: Vec::new(),
             references: IndexVec::new(),
@@ -162,19 +180,29 @@ fn simplify_degenerate_branches(module: &mut Module) -> bool {
 
 fn redirect_jump_thunks(
     module: &mut Module,
+    thread_shared_jumps: bool,
     thunks: &mut FxHashMap<BlockId, BlockId>,
     addressed: &mut DenseBitSet<BlockId>,
+    jump_heads: &mut DenseBitSet<BlockId>,
     order: &mut Vec<BlockId>,
 ) -> bool {
-    // A thunk is an empty block that only jumps on. Every reference to it, a direct jump label
-    // or a return address an internal call pushes for its callee to jump back to, lands on the
-    // thunk's target just as well, so the thunk itself is never needed. Preserve any debug event
-    // on the thunk by moving it to each incoming edge before removing the indirection.
+    // Redirect direct edges through empty blocks. Keep labels used as values distinct, and move
+    // each removed thunk's debug event to its incoming edges.
+    jump_heads.clear_to(module.blocks.len());
+    if thread_shared_jumps {
+        for (block_id, block) in module.blocks.iter_enumerated() {
+            if block.instructions.first().is_some_and(|inst| {
+                inst.has_canonical_stack_effect() && inst.as_evm_opcode() == Some(op::JUMPI)
+            }) {
+                jump_heads.insert(block_id);
+            }
+        }
+    }
     addressed.clear_to(module.blocks.len());
     for block in &module.blocks {
         for (at, inst) in block.instructions.iter().enumerate() {
             if let Some(PushValue::Block(target)) = &inst.value
-                && !is_direct_jump_label(block, at)
+                && !is_direct_jump_label(block, at, jump_heads)
             {
                 addressed.insert(*target);
             }
@@ -226,7 +254,7 @@ fn redirect_jump_thunks(
     let mut changed = false;
     for block in &mut module.blocks {
         for at in 0..block.instructions.len() {
-            if is_direct_jump_label(block, at)
+            if is_direct_jump_label(block, at, jump_heads)
                 && let Some(PushValue::Block(target)) = block.instructions[at].value
             {
                 if let Some(metadata) = thunk_metadata.get(&target) {
@@ -259,13 +287,15 @@ fn redirect_jump_thunks(
     changed
 }
 
-fn is_direct_jump_label(block: &Block, at: usize) -> bool {
+// PUSH target; jump head; head: JUMPI -> a direct use of target
+fn is_direct_jump_label(block: &Block, at: usize, jump_heads: &DenseBitSet<BlockId>) -> bool {
     block.instructions.get(at + 1).is_some_and(|inst| matches!(inst.opcode, op::JUMP | op::JUMPI))
         || (at + 1 == block.instructions.len()
-            && block
-                .terminator
-                .as_ref()
-                .is_some_and(|term| matches!(term.kind, TerminatorKind::Op(op::JUMP | op::JUMPI))))
+            && block.terminator.as_ref().is_some_and(|term| match term.kind {
+                TerminatorKind::Op(op::JUMP | op::JUMPI) => true,
+                TerminatorKind::Jump(target) => jump_heads.contains(target),
+                _ => false,
+            }))
 }
 
 #[must_use]

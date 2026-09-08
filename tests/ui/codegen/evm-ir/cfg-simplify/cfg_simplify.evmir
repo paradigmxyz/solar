@@ -30,6 +30,10 @@ bb2:
   pop
   push bb9
   pop
+  push bb11
+  pop
+  push bb15
+  pop
   jump bb4
 
 // CHECK-LABEL: bb3:
@@ -77,4 +81,40 @@ bb9:
   jumpi
   jump bb10
 bb10:
+  stop
+
+// A shared conditional jump consumes the label directly.
+// CHECK-LABEL: bb11:
+// CHECK: - push bb12
+// CHECK: + push bb14
+bb11:
+  push 1
+  push bb12
+  jump bb13
+bb12:
+  jump bb14
+bb13:
+  jumpi
+  stop
+bb14:
+  push 9
+  pop
+  stop
+
+// A stack operation before the shared jump makes the label an ordinary value.
+// CHECK-LABEL: bb15:
+// CHECK: {{^[ +].*}}push bb16
+bb15:
+  push 1
+  push bb16
+  jump bb17
+bb16:
+  jump bb18
+bb17:
+  swap 1
+  jumpi
+  stop
+bb18:
+  push 10
+  pop
   stop

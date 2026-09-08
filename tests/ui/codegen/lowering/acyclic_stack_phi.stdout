@@ -60,10 +60,9 @@ bb0:
   push bb7
   swap 2
   swap 1
-  push 4
+  push 5
   dup 2
-  gt
-  iszero
+  lt
   push bb11
   jumpi
   push 4

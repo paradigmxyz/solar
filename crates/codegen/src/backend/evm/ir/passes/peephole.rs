@@ -237,6 +237,38 @@ fn try_peephole(gcx: Gcx<'_>, instructions: &mut Vec<Instruction>, block: u32) -
         return rewrite!(3, Edit::OverwriteOne(op::ISZERO));
     }
 
+    // PUSH c; [DUPn]; GT/LT; ISZERO -> PUSH c±1; [DUPn]; LT/GT
+    if instructions.last().and_then(Instruction::as_evm_opcode) == Some(op::ISZERO) {
+        let candidate = match instructions.as_slice() {
+            [.., pushed, dup, comparison, _] if matches!(dup.as_stack_op(), Some(PhysicalStackOp::Dup(depth)) if depth >= 2) => {
+                Some((pushed, comparison, true, 4))
+            }
+            [.., pushed, comparison, _] => Some((pushed, comparison, false, 3)),
+            _ => None,
+        };
+        if let Some((pushed, comparison, duplicated, count)) = candidate
+            && let Some(value) = pushed.concrete_immediate()
+            && let Some(opcode @ (op::GT | op::LT)) = comparison.as_evm_opcode()
+            && instructions[instructions.len() - count..]
+                .iter()
+                .all(Instruction::has_canonical_stack_effect)
+        {
+            let bound = if (opcode == op::GT) == duplicated {
+                value.checked_add(U256::ONE)
+            } else {
+                value.checked_sub(U256::ONE)
+            };
+            let evm_version = gcx.sess.opts.evm_version;
+            if let Some(bound) = bound
+                && op::push_len(evm_version, bound)
+                    <= immediate_materialization_cost(evm_version, value).0 + 1
+            {
+                let opcode = if opcode == op::GT { op::LT } else { op::GT };
+                return rewrite!(count, Edit::InvertComparison(bound, opcode));
+            }
+        }
+    }
+
     // `SWAP1 OP -> OP'` when the binary operation accepts reversed operands.
     if let [.., swap, comparison] = instructions.as_slice()
         && swap.as_evm_opcode() == Some(op::SWAP1)
@@ -613,6 +645,7 @@ enum Edit {
     ReloadStoredValue,
     DropDoubleIszero,
     EqIszeroJumpi,
+    InvertComparison(U256, u8),
     FoldConstants(U256, EvmVersion),
     StackOp(op::StackOp),
     StackOps(op::StackOp, op::StackOp),
@@ -671,6 +704,14 @@ impl Edit {
                 overwrite_raw(&mut instructions[start], op::SUB);
                 instructions.remove(start + 1);
                 overwrite_raw(&mut instructions[start + 2], op::JUMPI);
+            }
+            Self::InvertComparison(value, opcode) => {
+                // PUSH c; [DUPn]; compare; ISZERO -> PUSH adjusted; [DUPn]; opposite compare
+                instructions[start].replace_preserving_metadata(Instruction::push_value(value));
+                let iszero = instructions.pop().expect("matched ISZERO");
+                let comparison = instructions.last_mut().expect("matched comparison");
+                overwrite_raw(comparison, opcode);
+                comparison.metadata.merge_source_spans(&iszero.metadata);
             }
             Self::FoldConstants(value, evm_version) => {
                 instructions.truncate(start);

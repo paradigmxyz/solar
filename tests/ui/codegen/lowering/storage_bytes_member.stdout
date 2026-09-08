@@ -186,10 +186,9 @@ bb22:
   iszero
   push bb78
   jumpi
-  push 31
+  push 32
   dup 2
-  gt
-  iszero
+  lt
   push bb26
   jumpi
   swap 1
