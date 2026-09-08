@@ -354,3 +354,42 @@ requirement. The historical reports remain intact, with the explicit correction
 in `global-alias-policy-review-20260908/`. This permits investigating ordinary
 sharing within the original joint gas/size budget; it does not waive any sealed
 regression, unmatched input, or runtime mismatch.
+
+
+## Joint ordinary and Phi residence
+
+The September 8 live-segment trials exposed competition between two optional
+selection stages. Seven extra ordinary residents displaced nine Phi residents
+in a loop fixture, while a larger storage Phi proposal failed writer cost and
+lost every previously accepted retirement. More precise liveness did not imply
+cheaper transport. All three placement variants were rejected and the accepted
+compiler was restored; their measurements are in the progress record.
+
+At the pinned solx revision,
+[spill weights](https://github.com/NomicFoundation/solx-llvm/blob/9cf8cfdbfcdc3e74dd81f7cc0e7258ef81e8810a/llvm/lib/Target/EVM/EVMStackSolver.cpp#L157)
+account for loop uses, and
+[common-stack selection](https://github.com/NomicFoundation/solx-llvm/blob/9cf8cfdbfcdc3e74dd81f7cc0e7258ef81e8810a/llvm/lib/Target/EVM/EVMStackSolver.cpp#L856)
+prices transformations to both successors. Venom's
+[edge liveness](https://github.com/vyperlang/vyper/blob/6dd5fef7ce71bb9b363ceb94df94080d451f4236/vyper/venom/analysis/liveness.py#L96)
+combines matching Phi operands with ordinary live values; its
+[Phi emission](https://github.com/vyperlang/vyper/blob/6dd5fef7ce71bb9b363ceb94df94080d451f4236/vyper/venom/venom_to_assembly.py#L739)
+can rename an incoming stack identity, duplicating it when the old identity
+remains live. Sonatina's
+[block templates](https://github.com/fe-lang/sonatina/blob/8e6c99f67cf3f20b9672cab61d8655c2ff33a6a7/crates/codegen/src/stackalloc/stackify/templates.rs#L48)
+include Phi results and ordinary carry under one spill set, with joint
+[monotone spill discovery](https://github.com/fe-lang/sonatina/blob/8e6c99f67cf3f20b9672cab61d8655c2ff33a6a7/crates/codegen/src/stackalloc/stackify/builder.rs#L375).
+None establishes a globally optimal allocator or our source-memory contract.
+
+These mechanisms motivate one optional pool after stable home allocation,
+replacing the competing ordinary and Phi stages. Cyclic uses and incoming-edge
+transfers could inform its rank; cyclic membership is only a heuristic, not a
+frequency estimate. Writer profitability needs the complete saved-address set:
+a single removed home can make its protection template more expensive. A small
+shared admission interface to the existing writer chooser should reject that
+removal while preserving accepted choices, with actual emission still checking
+the final plan. Duplicating alias/availability analysis or adding repeated
+emission trials would add compilation cost and complexity without addressing
+the accepted-but-worse loop allocation. This is a proposed diagnostic, not an
+implemented or measured improvement. Exact source pins, native witnesses and
+interface limits remain in `joint-residence-prior-art-20260908/` beneath the
+candidate evidence directory. No upstream implementation was copied.
