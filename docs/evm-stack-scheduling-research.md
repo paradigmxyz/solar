@@ -651,3 +651,76 @@ shares that return and has no eligible donor, so this isolated rule has no
 measured source benefit. Three exact native captures and the bound are retained
 under `target/codegen-bench/evm-rewrite-candidate/terminal-anchor-bound-20260908/`.
 No terminal rule is added on the strength of the edited-IR witness alone.
+
+## Preserving the lowered operation's effect
+
+The allocation-boundary diagnostic exposed a smaller scheduling obstacle:
+`lower-alloc` changed an allocation into an FMP load while retaining its default
+`memory_write` classification. Late eager contraction treated that load as a
+hard boundary. The candidate rebases an explicit old-default effect to the new
+operation's default, preserving absent and unequal custom overrides. Allocation
+checks, FMP stores, initialization and other metadata remain in the expansion.
+An explicitly written classification equal to the old default also rebases; it
+is indistinguishable from the builder's default. Effect classification governs
+optimization permission, so this is not merely a debug-formatting cleanup.
+
+The actual mapped Suggested loads remain ineligible for useful motion. A smaller
+Solidity control instead keeps seventeen independent calldata values live across
+a Cell allocation. Observing the allocated extent prevents static deferral.
+Rebasing the load permits the existing pure checksum consumers to contract before
+the allocation, reducing runtime code 194 to 150 Gas bytes and 205 to 150 Size
+bytes. Three exact vectors under both modes and four producers give 24 fresh
+calls: candidate execution costs 330 gas versus current 456/489 and sealed 466.
+All returndata agrees with mathematical and solc oracles. These are measured
+executions, not a general stack-depth or arbitrary-input theorem.
+
+The custom-effect control remains unchanged; erasing its override makes the
+refusal FileCheck fail. The old compiler fails the positive ordering check.
+The initial Solidity source becomes a deferred allocation and remains byte-exact.
+The installed standard matrix passes after correcting tuple syntax in two new
+run-call directives; the failed setup is retained and no oracle value changes.
+The bounded solsymdiff result agrees over symbolic inputs within the recorded
+580-byte calldata, 96-byte output, path, query, depth and timeout limits. Actual
+exploration counts are unavailable in the compact result.
+
+All 5,052 existing UI objects and 3,344 heavy objects remain exact. Both runtime
+workflows preserve 175 labels and 139 observations; Foundry preserves 1,537
+records and 244 size fields. Thirteen existing snapshots change only 94 obsolete
+effect annotations; their original source and FileCheck assertions remain intact.
+The source correction adds nine MIR production-section lines, no analysis or
+scheduling search, and does not solve interprocedural allocation provenance.
+Eight paired debug captures preserve complete creation/runtime objects and ABI.
+All sixteen moved checksum ADDs retain exact source ranges; their execution
+order legitimately changes. This fixture has no invocation/return events, so
+populated-event preservation is outside that check.
+
+The first quiet ABBA comparison measured a Seaport compile-time increase from
+73.332 to 74.906 seconds (+2.15%), with disjoint two-sample ranges. It remains
+an acceptance concern. A serial `-Ztime-passes` diagnostic preserves all 39,324
+pass identities and changed flags and byte-identical complete output, but does
+not identify the cause: the MIR scheduler totals 1.019 versus 1.020 seconds.
+This flag disables parallel contract lowering, so its wall times cannot replace
+the ordinary workflow measurements.
+
+A separate simplification combines the shared-producer and effect-boundary scans
+and removes 38 MIR lines. Independent review establishes the same nontrivial
+islands, consumer order and scratch transitions. Frozen candidate `4fc59cdb`
+preserves all 5,056 current UI objects, including the allocation control; its
+workspace run passes 11,762 UI cases with only the original alias failure.
+Both complete workflow artifact sets, including serialized MIR, remain exact
+to the preceding effect candidate. The new quiet ABBA means are Seaport +0.07%,
+v4 +0.81% and Solmate +2.49% against the accepted unit-carry baseline. Seaport
+and Solmate ranges overlap; v4 ranges are disjoint. Two samples per leg do not
+establish a scheduler speedup or explain the earlier Seaport increase. These
+compiler costs remain visible tradeoffs behind the generated-code improvement.
+The two changes are separate commits, `dccc50b9` and `d59f07c0`, with a net
+29-line reduction in MIR production sections. Full evidence remains under
+`target/codegen-bench/evm-rewrite-candidate/lower-alloc-effect-workflow-20260908/single-scan/`.
+
+The separate provenance design identifies a conditional returned-pointer lower
+bound as a smaller useful fact than exporting a callee-local allocation ID.
+It still requires a valid FMP floor in every incoming context and separate
+residence/returning-entry proofs. None is inferred from the allocation tag alone.
+The uncompiled reduced-source proposal and estimated implementation scope are
+retained in `return-provenance-prior-art-20260908/design-followup/`; no optimizer
+or residence relaxation is implemented from this static design.

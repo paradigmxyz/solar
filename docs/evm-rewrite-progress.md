@@ -3,7 +3,7 @@
 The rewrite remains incomplete. One original UI assertion, incomplete general
 memory-ownership evidence and individual sealed gas/size debts still block final
 acceptance.
-This page summarizes the local unit-carry milestone on 2026-09-08. The
+This page summarizes the local allocation-effect milestone on 2026-09-08. The
 [handoff](evm-rewrite-plan.md) defines acceptance; [PR #1388][pr] tracks review.
 The [checkpoint archive](evm-rewrite-checkpoints.md) preserves the complete
 history, baseline hashes, rejected trials and measurement limitations.
@@ -21,6 +21,40 @@ Tail grouping stays in physical block IR and independently checks each member's
 transfer capacity, split boundary and destinations. Neither changes memory homes.
 [Prior-art research](evm-stack-scheduling-research.md) records pinned solx, Venom
 and Sonatina sources and the limits of their applicability.
+
+## Allocation-effect milestone
+
+`d59f07c0` rebases the old native allocation effect when its result becomes an
+FMP load. Absent and unequal custom effects stay intact; writes remain explicit.
+The existing eager contraction can then consume live values across that read.
+`dccc50b9` independently combines scheduling-boundary scans without changing
+schedules. Together they remove 29 MIR production-section lines. The new matrix
+and refusal tests are in `ff8222cf`; `f84255d6` updates 13 reviewed snapshots,
+removing only 94 stale effect annotations. No existing source or check changes.
+
+The focused checksum falls from 194/205 Gas/Size runtime bytes to 150 and from
+456/489 execution gas to 330. Against the sealed executable it saves 59 bytes
+and 136 gas in either mode. Three vectors, both modes and four actual producers
+agree in 24 fresh calls; bounded symbolic agreement and exact source-map checks
+are retained. The final scan simplification preserves that candidate's objects.
+
+All 5,052 preceding UI objects and 3,344 heavy objects are exact. The expanded
+UI corpus has 5,056 objects, with only the four added case objects shrinking.
+Full and Size preserve all 175 gas labels and 139 observations per compiler;
+Foundry preserves 1,537 records and 244 sizes. Final serialized MIR and physical
+artifacts are exact to the preceding effect candidate. Workspace has 11,762 UI
+passes and the original alias failure, plus 1,557 other passes and two skips.
+Clippy and formatting pass. This remains a local milestone, not green CI.
+
+The first effect-only quiet ABBA measured Seaport +2.15% compiler time with
+disjoint ranges. Final combined means are Seaport +0.07%, v4 +0.81% and Solmate
++2.49%; v4 ranges are disjoint and the other two overlap. Two samples per leg
+do not establish a compiler speedup or explain the earlier slowdown. A serial
+pass-timing diagnostic preserves complete output and all pass identities but
+changes parallel execution, so it does not replace these normal measurements.
+These compiler-time tradeoffs remain behind the generated-code improvement.
+Receipts, baseline/candidate hashes, failed setup attempts and comparisons are
+retained in `target/codegen-bench/evm-rewrite-candidate/lower-alloc-effect-workflow-20260908/`.
 
 ## Measured changes
 
