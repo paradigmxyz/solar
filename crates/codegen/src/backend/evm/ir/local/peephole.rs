@@ -5,6 +5,12 @@
 //! It leaves longer stack runs intact so normalization can choose their complete permutation.
 //! Scheduled unsigned unit-add carry tests reuse the sum with ISZERO, preserving
 //! the complete physical stack interface without changing scheduler cost trials.
+//! Repeated calldata reads at the same literal offset also reuse the incremented sum;
+//! calldata is immutable, and the replacement reduces both stack peak and gas.
+//! The caller separately permits that specialization so Size can retain common
+//! arithmetic tails until sharing has finished. Existing stack-carry rules stay enabled.
+//! The calldata suffix check and builder are outlined after exact prefix admission to
+//! keep their temporaries out of the main peephole function.
 //! Algebraic identities precede exact constant folding through the retained word
 //! evaluator. Memory patterns only remove already-observed identical accesses;
 //! extra copies require a proved stack-capacity bound and mutable observations
@@ -27,6 +33,7 @@ pub(super) fn peephole(
     version: EvmVersion,
     entry_max: Option<usize>,
     literal_copy_order: bool,
+    calldata_carry: bool,
 ) -> bool {
     let mut changed = false;
     let mut index = 0;
@@ -109,6 +116,24 @@ pub(super) fn peephole(
                         4,
                         vec![InstKind::Op(op::SUB).into(), tail[2].clone(), tail[3].clone()],
                     ));
+                }
+                (
+                    InstKind::Push(one),
+                    InstKind::Push(offset),
+                    InstKind::Op(op::CALLDATALOAD),
+                    InstKind::Op(op::ADD),
+                )
+                | (
+                    InstKind::Push(offset),
+                    InstKind::Op(op::CALLDATALOAD),
+                    InstKind::Push(one),
+                    InstKind::Op(op::ADD),
+                ) if literal_copy_order
+                    && calldata_carry
+                    && tail.len() >= 8
+                    && *one == U256::ONE =>
+                {
+                    replacement = calldata_unit_carry(tail, offset);
                 }
                 _ => {}
             }
@@ -366,6 +391,39 @@ pub(super) fn peephole(
         index += 1;
     }
     changed
+}
+
+/// Finishes an admitted unit-add prefix with the same calldata read and carry test.
+/// The caller proves the unit prefix, its canonical metadata and at least eight instructions.
+#[inline(never)]
+fn calldata_unit_carry(tail: &[Instruction], offset: &U256) -> Option<(usize, Vec<Instruction>)> {
+    if matches!(
+        (&tail[4].kind, &tail[5].kind, &tail[6].kind, &tail[7].kind),
+        (
+            InstKind::Push(other),
+            InstKind::Op(op::CALLDATALOAD),
+            InstKind::Dup(2),
+            InstKind::Op(op::LT)
+        ) if offset == other
+    ) && tail[4..8].iter().all(canonical)
+    {
+        // [push 1; push p; calldataload | push p; calldataload; push 1]; add
+        // push p; calldataload; dup2; lt
+        // -> <same first four instructions>; dup1; iszero
+        Some((
+            8,
+            vec![
+                tail[0].clone(),
+                tail[1].clone(),
+                tail[2].clone(),
+                tail[3].clone(),
+                InstKind::Dup(1).into(),
+                InstKind::Op(op::ISZERO).into(),
+            ],
+        ))
+    } else {
+        None
+    }
 }
 
 pub(super) fn dead_tail(

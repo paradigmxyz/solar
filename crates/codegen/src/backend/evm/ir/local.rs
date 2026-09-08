@@ -11,7 +11,10 @@
 //! an unobserved pure suffix, stopping at effects or unknown stack contracts. Stack-only
 //! normalization symbolically executes permutations and asks the private scheduler for a cheaper
 //! equivalent. All changes happen on explicit block instructions before primitive assembly;
-//! no operation moves across a control-flow edge or mutable observation. Raw
+//! no operation moves across a control-flow edge or mutable observation. The final
+//! `late-dce` configuration uses the same DCE traversal but permits calldata unit-carry
+//! specialization in Size mode after tail sharing; Gas mode permits it throughout.
+//! Earlier Size cleanup retains the common arithmetic shape for sharing. Raw
 //! JUMPDESTs are alternate entries: stack identities and height proofs stop
 //! there even when the textual block continues.
 
@@ -48,6 +51,8 @@ impl EvmPass for LocalPass {
         !matches!(gcx.sess.opts.optimization, OptimizationMode::None)
     }
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
+        let pass = if self.0 == "late-dce" { "dce" } else { self.0 };
+        let calldata_carry = gcx.sess.opts.optimization.is_gas() || self.0 == "late-dce";
         let version = gcx.sess.opts.evm_version;
         let mut changed = false;
         // The literal/copy rules shorten code. Private labels are control-only,
@@ -55,10 +60,10 @@ impl EvmPass for LocalPass {
         // Conservatively include gas forwarded to external calls and creations.
         // This permission concerns these literal rules, not gas invariance of the pipeline.
         let literal_copy_order =
-            matches!(self.0, "dce" | "peephole" | "compact-pushes" | "stack-normalize")
+            matches!(pass, "dce" | "peephole" | "compact-pushes" | "stack-normalize")
                 && literal_observers_allow(module);
         let facts = (matches!(
-            self.0,
+            pass,
             "compact-pushes" | "reorder-pushes" | "dce" | "peephole" | "stack-normalize"
         ))
         .then(|| verify::stack_facts(module).ok())
@@ -67,7 +72,7 @@ impl EvmPass for LocalPass {
             literal_copy_order && facts.as_ref().is_some_and(|(_, unknown)| !*unknown);
         let heights = facts.map(|(heights, _)| heights);
         let reachable = matches!(
-            self.0,
+            pass,
             "compact-pushes" | "reorder-pushes" | "dce" | "peephole" | "stack-normalize"
         )
         .then(|| verify::physical_reachability(module));
@@ -79,7 +84,7 @@ impl EvmPass for LocalPass {
                     reachable.as_ref().is_some_and(|reachable| !reachable.contains(id)).then_some(0)
                 });
             let block = &mut module.blocks[id];
-            match self.0 {
+            match pass {
                 "compact-pushes" => {
                     let old = std::mem::take(&mut block.insts);
                     let peak = stack_usage(&old).map(|(_, _, peak)| peak);
@@ -163,10 +168,22 @@ impl EvmPass for LocalPass {
                     }
                 }
                 "dce" => {
-                    changed |= peephole(&mut block.insts, version, entry_max, literal_copy_order);
+                    changed |= peephole(
+                        &mut block.insts,
+                        version,
+                        entry_max,
+                        literal_copy_order,
+                        calldata_carry,
+                    );
                     changed |= dead_copies::eliminate(&mut block.insts, version);
                     changed |= dedup_stack(&mut block.insts, version);
-                    changed |= peephole(&mut block.insts, version, entry_max, literal_copy_order);
+                    changed |= peephole(
+                        &mut block.insts,
+                        version,
+                        entry_max,
+                        literal_copy_order,
+                        calldata_carry,
+                    );
                     changed |= dead_tail(&mut block.insts, &block.terminator.kind, entry_max);
                     changed |=
                         terminal_pops(&mut block.insts, &block.terminator.kind, entry_max, version);
@@ -181,13 +198,19 @@ impl EvmPass for LocalPass {
                 }
                 "block-cse" => changed |= common_expressions(&mut block.insts, version),
                 "peephole" => {
-                    changed |= peephole(&mut block.insts, version, entry_max, literal_copy_order);
+                    changed |= peephole(
+                        &mut block.insts,
+                        version,
+                        entry_max,
+                        literal_copy_order,
+                        calldata_carry,
+                    );
                     changed |= dedup_stack(&mut block.insts, version);
                 }
                 _ => unreachable!(),
             }
         }
-        if self.0 == "dce"
+        if pass == "dce"
             && let Some(heights) = &heights
         {
             for id in module.block_ids().collect::<Vec<_>>() {
@@ -351,10 +374,10 @@ pub(super) fn simplify_schedule(
 ) -> Vec<Instruction> {
     // <physical sequence> -> <equivalent locally simplified sequence>
     let mut trial = input.to_vec();
-    peephole(&mut trial, version, None, false);
+    peephole(&mut trial, version, None, false, false);
     dead_copies::eliminate(&mut trial, version);
     dedup_stack(&mut trial, version);
-    peephole(&mut trial, version, None, false);
+    peephole(&mut trial, version, None, false, false);
     normalize(&mut trial, version, None, false);
     trial
 }

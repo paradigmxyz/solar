@@ -39,6 +39,7 @@ pub static ALL_PASSES: &[&dyn EvmPass] = &[
     &super::local::LocalPass("block-cse"),
     &super::local::LocalPass("peephole"),
     &super::local::LocalPass("dce"),
+    &super::local::LocalPass("late-dce"),
     &super::local::TerminalPrefixes,
     &super::local::LocalPass("reorder-pushes"),
     &super::cfg::ShareReverts,
@@ -179,7 +180,7 @@ pub fn run_pipeline(gcx: Gcx<'_>, module: &mut Module, name: Option<&str>) -> bo
         ]);
     }
     passes.extend([
-        &super::local::LocalPass("dce") as &dyn EvmPass,
+        &super::local::LocalPass("late-dce") as &dyn EvmPass,
         &super::local::TerminalPrefixes,
         &super::cfg::CfgSimplify,
         &super::cfg::BlockLayout,
