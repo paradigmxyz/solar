@@ -18,7 +18,8 @@ The default runs only our compiler. Pass `--solc PATH` to record a two-compiler 
 Pass `--solx PATH` to include [solx](https://github.com/NomicFoundation/solx) as a separate compiler,
 with its own compilation, gas, runtime checks, and artifacts. CI pins solx 0.1.8 and installs and
 runs it only on pushes to main. Its measurements appear alongside solc in the Markdown report.
-Unsupported inputs remain visible as compiler failures.
+Reference compiler failures remain in the raw results but do not produce report warnings or
+trigger PR comments. Failures from our compiler and result mismatches involving it still do.
 
 Use `--solar-only` to skip solc and solx benchmark compilation even when `--solc PATH` supplies a binary
 for reference validation or helper contracts. The default skips the
