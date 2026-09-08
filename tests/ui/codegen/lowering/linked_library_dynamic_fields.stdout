@@ -716,9 +716,6 @@ bb9:
   pop
   push 64
   mload
-  dup 1
-  push 256
-  mstore
   push 0xfa06cb96
   push 224
   shl
@@ -727,9 +724,6 @@ bb9:
   push 4
   dup 2
   add
-  dup 1
-  push 288
-  mstore
   push 68
   dup 3
   add
@@ -749,14 +743,8 @@ bb9:
   mload
   swap 6
   mload
-  dup 1
-  push 320
-  mstore
   swap 3
   mload
-  dup 1
-  push 352
-  mstore
   push 196
   dup 4
   add
@@ -779,13 +767,13 @@ bb9:
   mload
   mul
   dup 1
-  push 384
+  push 192
   mstore
   dup 7
   mstore
   swap 5
   pop
-  push 384
+  push 192
   mload
   push 5
   shl
@@ -821,63 +809,61 @@ bb9:
   mload
   mul
   dup 1
-  push 192
+  push 160
   mstore
   dup 6
   mstore
   push 31
-  push 192
+  push 160
   mload
   add
   push 31
   not
   and
-  dup 1
-  push 224
-  mstore
   swap 5
   push 32
   add
+  dup 6
   push 160
-  mstore
-  pop
-  pop
-  pop
-  pop
+  mload
+  swap 3
+  swap 7
+  swap 2
+  swap 1
+  swap 4
+  swap 5
+  swap 6
+  swap 4
   push bb27
   jumpi
   jump bb21
 bb21:
-  push 224
-  mload
-  push 160
-  mload
-  add
-  push 32
-  push 320
-  mload
-  add
-  push 192
-  mload
+  swap 1
   dup 2
-  push 160
-  mload
+  add
+  swap 4
+  push 32
+  add
+  dup 3
+  dup 2
+  dup 4
   mcopy
+  pop
+  pop
   pop
   push 0
   not
   push 96
   shr
-  push 352
-  mload
   and
+  swap 3
   push 164
-  push 256
-  mload
   add
+  dup 4
+  swap 1
   mstore
-  push 288
-  mload
+  swap 2
+  pop
   swap 1
   sub
   push 4
@@ -955,14 +941,13 @@ bb21:
   mload
   jump bb29
 bb27:
-  push 0
   push 32
-  push 224
-  mload
+  dup 3
   sub
-  push 160
-  mload
+  dup 2
   add
+  push 0
+  swap 1
   mstore
   jump bb21
 bb20 [cold]:

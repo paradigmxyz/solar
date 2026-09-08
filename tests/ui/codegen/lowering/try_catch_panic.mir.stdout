@@ -63,24 +63,20 @@ fn @success() -> u256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     v11 = memory_object_len memorybytes, v9
     v12 = make_memory_slice v10, v11
     v13 = memory_slice_load_word memory, v12, 0
-    v14 = lt v11, 4
-    v15 = iszero v14
-    v16 = shr 224, v13
-    v17 = eq v16, 0x8c379a0
+    v14 = shr 224, v13
+    v15 = eq v14, 0x4e487b71
+    v16 = lt v11, 36
+    v17 = iszero v16
     v18 = and v15, v17
-    v19 = lt v11, 36
-    v20 = iszero v19
-    v21 = eq v16, 0x4e487b71
-    v22 = and v20, v21
-    jumpi v22, bb4, bb5
+    jumpi v18, bb4, bb5
   bb5:
     revert v10, v11
   bb4:
-    v23 = memory_object_data memorybytes, v9
-    v24 = add v23, 4
-    v25 = make_memory_slice v24, 32
-    v26 = memory_slice_load_word memory, v25, 0
-    ret v26
+    v19 = memory_object_data memorybytes, v9
+    v20 = add v19, 4
+    v21 = make_memory_slice v20, 32
+    v22 = memory_slice_load_word memory, v21, 0
+    ret v22
   bb1:
     jump bb3
   bb3:
@@ -106,24 +102,20 @@ fn @failure() -> u256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
     v11 = memory_object_len memorybytes, v9
     v12 = make_memory_slice v10, v11
     v13 = memory_slice_load_word memory, v12, 0
-    v14 = lt v11, 4
-    v15 = iszero v14
-    v16 = shr 224, v13
-    v17 = eq v16, 0x8c379a0
+    v14 = shr 224, v13
+    v15 = eq v14, 0x4e487b71
+    v16 = lt v11, 36
+    v17 = iszero v16
     v18 = and v15, v17
-    v19 = lt v11, 36
-    v20 = iszero v19
-    v21 = eq v16, 0x4e487b71
-    v22 = and v20, v21
-    jumpi v22, bb4, bb5
+    jumpi v18, bb4, bb5
   bb5:
     revert v10, v11
   bb4:
-    v23 = memory_object_data memorybytes, v9
-    v24 = add v23, 4
-    v25 = make_memory_slice v24, 32
-    v26 = memory_slice_load_word memory, v25, 0
-    ret v26
+    v19 = memory_object_data memorybytes, v9
+    v20 = add v19, 4
+    v21 = make_memory_slice v20, 32
+    v22 = memory_slice_load_word memory, v21, 0
+    ret v22
   bb1:
     jump bb3
   bb3:

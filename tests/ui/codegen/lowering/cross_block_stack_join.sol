@@ -6,6 +6,8 @@
 //@ run-call: carry 42 => 65
 //@ run-call: carryAcrossUnevenEdges 14 => 19
 //@ run-call: carryAcrossUnevenEdges 15 => 21
+//@ run-call: carryWithoutPhi 42 => 12
+//@ run-call: carryWithoutPhi 43 => 12
 
 contract CrossBlockStackJoin {
     // Both predecessors carry `kept` and the selected phi through the join without reloading.
@@ -52,6 +54,20 @@ contract CrossBlockStackJoin {
         }
         assembly {
             result := add(result, mul(kept, 9))
+        }
+    }
+}
+
+contract PhiFreeStackJoin {
+    // Carry the quotient through both edges without introducing a phi or a spill slot.
+    // CHECK-LABEL: @module PhiFreeStackJoin_runtime
+    // CHECK-NOT: mload
+    // CHECK: return
+    function carryWithoutPhi(uint256 x) external returns (uint256 result) {
+        assembly {
+            let kept := div(x, 7)
+            if and(x, 1) { sstore(0, kept) }
+            result := add(kept, kept)
         }
     }
 }

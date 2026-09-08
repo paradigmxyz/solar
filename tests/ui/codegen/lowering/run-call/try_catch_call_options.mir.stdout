@@ -53,15 +53,7 @@ fn @highLevelGas() -> bool [selector=0x480be654, abi_params=[], abi_returns=[wor
     v11 = memory_object_len memorybytes, v9
     v12 = make_memory_slice v10, v11
     v13 = memory_slice_load_word memory, v12, 0
-    v14 = lt v11, 4
-    v15 = iszero v14
-    v16 = shr 224, v13
-    v17 = eq v16, 0x8c379a0
-    v18 = and v15, v17
-    v19 = lt v11, 36
-    v20 = iszero v19
-    v21 = eq v16, 0x4e487b71
-    v22 = and v20, v21
+    v14 = shr 224, v13
     jumpi true, bb4, bb5
   bb5:
     revert v10, v11

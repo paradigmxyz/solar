@@ -59,7 +59,7 @@ bb6:
   push 64
   mload
   dup 1
-  push 256
+  push 192
   mstore
   push 32
   dup 2
@@ -90,46 +90,36 @@ bb6:
   not
   and
   dup 1
-  push 192
+  push 224
   mstore
   push 64
   dup 4
   add
-  push 224
+  dup 1
+  push 256
   mstore
-  swap 2
-  pop
-  pop
-  iszero
-  push bb8
-  jumpi
-  push 0
-  push 32
-  push 192
-  mload
-  sub
-  push 224
-  mload
-  add
-  mstore
-  jump bb8
-bb8:
-  push 224
-  mload
-  push 192
-  mload
   dup 2
-  add
   push 128
   mload
-  push 160
-  mload
+  swap 3
+  swap 2
+  swap 1
+  exchange 4, 5
+  push bb7
+  jumpi
+  jump bb8
+bb8:
+  swap 1
+  dup 2
+  add
+  dup 3
+  dup 6
   dup 4
   mcopy
-  swap 1
+  swap 4
   pop
-  push 256
-  mload
+  pop
+  pop
   swap 1
   sub
   push 31
@@ -148,6 +138,16 @@ bb8:
   dup 2
   dup 2
   return
+bb7:
+  push 32
+  dup 3
+  sub
+  dup 2
+  add
+  push 0
+  swap 1
+  mstore
+  jump bb8
 
 @data literal_0 hex"112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
 // === ROOT/tests/ui/codegen/lowering/program-data/contract_creation_data_dedup.sol:Factory (runtime) ===
@@ -205,11 +205,11 @@ bb18:
   add
   push 64
   mstore
-  push 345
+  push 342
   push_data Child_initcode_0
   dup 3
   codecopy
-  push 345
+  push 342
   swap 1
   push 0
   create
@@ -229,11 +229,11 @@ bb18:
   add
   push 64
   mstore
-  push 345
+  push 342
   push_data Child_initcode_0
   dup 3
   codecopy
-  push 345
+  push 342
   swap 1
   push 0
   create
@@ -277,11 +277,11 @@ bb30:
   add
   push 64
   mstore
-  push 345
+  push 342
   push_data Child_initcode_0
   dup 3
   codecopy
-  push 345
+  push 342
   swap 1
   push 0
   create
@@ -386,4 +386,4 @@ bb28 [cold]:
   push 0
   revert
 
-@data Child_initcode_0 hex"34600e576101478060125f395ff35b5f5ffd34601d575f3560e01c80633fa4f245146021578063a878f85814602c575b5f5ffd5b600760805260206080f35b61014080604052806101205260a0810160405260808152602081018060a052608060c782396040518061010052602081016020825283151593519093028060805283529150601f60805101601f19168060c0526040830160e05291505015609a575f602060c0510360e05101525b60e05160c051810160805160a051835e9050610100519003601f8101601f19166040519081016040528181f3112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
+@data Child_initcode_0 hex"34600e576101448060125f395ff35b5f5ffd34601d575f3560e01c80633fa4f245146021578063a878f85814602c575b5f5ffd5b600760805260206080f35b61014080604052806101205260a0810160405260808152602081018060a052608060c482396040518060c052602081016020825283151593519093028060805283529150601f60805101601f19168060e0526040830180610100528160805192919093949360b7575b9081018285835e935050509003601f8101601f19166040519081016040528181f35b6020820381015f9052609556112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"

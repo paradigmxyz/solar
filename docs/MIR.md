@@ -513,3 +513,8 @@ including blocks appended during conversion. Gas mode keeps the surrounding
 order because shared call tails in loops depend on fallthrough placement.
 Size mode uses reverse postorder for the remaining chains. Layout and spill
 availability share one CFG snapshot.
+
+Stack layout planning covers ordinary joins as well as phi edges. Removing a
+function's last phi must not disable carrying live values through its other
+branches. Typed catch clauses test their selector and payload only when reached,
+so an earlier matching clause does not compute later catch conditions.

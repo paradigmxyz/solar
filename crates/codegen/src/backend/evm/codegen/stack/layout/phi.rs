@@ -789,6 +789,14 @@ impl<'a> StackPhiPlanner<'a> {
             resident.extend(defs.iter().copied().filter(|def| !incoming.contains(def)));
             resident.extend(incoming.iter().copied().filter(|value| live_out.contains(*value)));
         }
+        // An unplanned branch consumes its condition. Its spill home may still exist, but
+        // the join planner must not count a reload as an already-resident stack word.
+        if !facts.planned_branches.contains(block_id)
+            && !plan.branch_edges.contains_key(&block_id)
+            && let Some(Terminator::Branch { condition, .. }) = &block.terminator
+        {
+            resident.retain(|value| value != condition);
+        }
         if state.resident_out.get(&block_id) == Some(&resident) {
             return false;
         }

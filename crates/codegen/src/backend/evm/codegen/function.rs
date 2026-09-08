@@ -122,15 +122,13 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.elided_insts.clear();
         self.collect_late_gas_operands(func);
         let phi_result = PhiEliminator::analyze(func);
-        let has_phis = !phi_result.block_copies.is_empty();
         for (block_id, copies) in phi_result.block_copies {
             self.block_copies.insert(block_id, copies.copies);
         }
-        // Stack-phi planning starts with loop analysis, but cannot produce a
-        // plan without a phi. Avoid that analysis for the overwhelmingly
-        // common phi-free function.
+        // Ordinary joins can carry live values even when no phi remains.
+        // Functions without joins need no inter-block layout analysis.
         // The cached plan is keyed on whole-function liveness; a block-local entry gets its own.
-        let phi_plan = if !has_phis {
+        let phi_plan = if !func.blocks.iter().any(|block| block.predecessors.len() >= 2) {
             None
         } else if whole_function_liveness {
             Some(self.stack_phi_plan(func_id, func, liveness))

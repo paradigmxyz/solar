@@ -22,18 +22,11 @@ bb0:
   dup 2
   add
   push 224
-  dup 2
-  dup 1
-  push 192
-  mstore
   push_data literal_0
-  swap 1
+  dup 3
   codecopy
   push 64
   mload
-  dup 1
-  push 224
-  mstore
   push 32
   dup 2
   add
@@ -62,37 +55,31 @@ bb0:
   push 31
   not
   and
-  dup 1
-  push 288
-  mstore
   push 64
   dup 4
   add
-  push 320
-  mstore
+  dup 2
+  push 256
+  mload
+  swap 3
   swap 2
-  pop
-  pop
+  swap 1
+  exchange 4, 5
   push bb3
   jumpi
   jump bb4
 bb4:
-  push 320
-  mload
-  push 288
-  mload
+  swap 1
   dup 2
   add
-  push 256
-  mload
-  push 192
-  mload
+  dup 3
+  dup 6
   dup 4
   mcopy
-  swap 1
+  swap 4
   pop
-  push 224
-  mload
+  pop
+  pop
   swap 1
   sub
   push 31
@@ -112,22 +99,21 @@ bb4:
   swap 2
   swap 1
   log1
-  push 337
+  push 334
   dup 1
-  push 439
+  push 411
   push 0
   codecopy
   push 0
   return
 bb3:
-  push 0
   push 32
-  push 288
-  mload
+  dup 3
   sub
-  push 320
-  mload
+  dup 2
   add
+  push 0
+  swap 1
   mstore
   jump bb4
 bb2 [cold]:
@@ -180,7 +166,7 @@ bb0:
   push 64
   mload
   dup 1
-  push 256
+  push 192
   mstore
   push 32
   dup 2
@@ -211,46 +197,36 @@ bb0:
   not
   and
   dup 1
-  push 192
+  push 224
   mstore
   push 64
   dup 4
   add
-  push 224
+  dup 1
+  push 256
   mstore
-  swap 2
-  pop
-  pop
-  iszero
-  push bb6
-  jumpi
-  push 0
-  push 32
-  push 192
-  mload
-  sub
-  push 224
-  mload
-  add
-  mstore
-  jump bb6
-bb6:
-  push 224
-  mload
-  push 192
-  mload
   dup 2
-  add
   push 128
   mload
-  push 160
-  mload
+  swap 3
+  swap 2
+  swap 1
+  exchange 4, 5
+  push bb5
+  jumpi
+  jump bb6
+bb6:
+  swap 1
+  dup 2
+  add
+  dup 3
+  dup 6
   dup 4
   mcopy
-  swap 1
+  swap 4
   pop
-  push 256
-  mload
+  pop
+  pop
   swap 1
   sub
   push 31
@@ -273,5 +249,15 @@ bb3 [cold]:
   push 0
   push 0
   revert
+bb5:
+  push 32
+  dup 3
+  sub
+  dup 2
+  add
+  push 0
+  swap 1
+  mstore
+  jump bb6
 
 @data literal_0 hex"11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111"
