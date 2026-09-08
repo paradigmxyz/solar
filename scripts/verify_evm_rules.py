@@ -48,6 +48,8 @@ def main():
     miner.add_argument("files", nargs="+", type=Path)
     miner.add_argument("--max-ops", type=int, default=8)
     miner.add_argument("--max-seeds", type=int, default=128)
+    miner.add_argument("--abstract-subtrees", action="store_true",
+                       help="also replace one internal subtree with an independent symbolic input")
     miner.add_argument("--evm-version", default="osaka")
     miner.add_argument("--objective", choices=["gas", "size", "lifetime"], default="gas")
     miner.add_argument("--runs", type=int, default=200)
@@ -60,7 +62,8 @@ def main():
         if args.runs < 0:
             parser.error("--runs must be nonnegative")
         report = mine(args.files, fork=args.evm_version, objective=args.objective, runs=args.runs,
-                      max_ops=args.max_ops, max_seeds=args.max_seeds)
+                      max_ops=args.max_ops, max_seeds=args.max_seeds,
+                      abstract_subtrees=args.abstract_subtrees)
         args.emit_seeds.parent.mkdir(parents=True, exist_ok=True)
         args.emit_seeds.write_text(json.dumps([row["tree"] for row in report["candidates"]], indent=2) + "\n")
         exit_code = 0 if report["candidates"] else 1
