@@ -12,6 +12,9 @@
 //! improve bytes or static gas without making the other metric worse; size mode also disables
 //! optional duplicate retargeting that can trade bytes for gas.
 //!
+//! Non-expanding edits compact instructions in place; edits that add stack operations use a
+//! reusable scratch buffer.
+//!
 //! This is a post-scheduling cleanup. It removes duplicated stack values within one block, then
 //! removes a trailing pure stack computation before a halting terminal, including across an
 //! unconditional edge to a block that never reads its incoming stack.
@@ -511,6 +514,30 @@ fn apply_edits(
     edits: &[Edit],
     scratch: &mut Vec<Instruction>,
 ) {
+    if edits.iter().all(|edit| edit.replacement.len() <= 1) {
+        let mut edits = edits.iter().peekable();
+        let mut index = 0;
+        // dupN; ...; pop -> ...
+        // stack_op -> replacement_op
+        instructions.retain_mut(|inst| {
+            let at = index;
+            index += 1;
+            if edits.peek().is_some_and(|edit| edit.index == at) {
+                let edit = edits.next().unwrap();
+                if let Some(&stack_op) = edit.replacement.first() {
+                    let mut replacement = Instruction::stack_op(stack_op);
+                    replacement.metadata.copy_source_debug_from(&inst.metadata);
+                    *inst = replacement;
+                    true
+                } else {
+                    false
+                }
+            } else {
+                true
+            }
+        });
+        return;
+    }
     scratch.clear();
     std::mem::swap(instructions, scratch);
     let new_len = scratch.len() + edits.iter().map(|edit| edit.replacement.len()).sum::<usize>()
