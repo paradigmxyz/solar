@@ -3,6 +3,8 @@
 //! Patterns preserve EVM pop order and stop at noncanonical stack metadata.
 //! Literal/copy ordering removes a swap without changing required inputs or peak height.
 //! It leaves longer stack runs intact so normalization can choose their complete permutation.
+//! Scheduled unsigned unit-add carry tests reuse the sum with ISZERO, preserving
+//! the complete physical stack interface without changing scheduler cost trials.
 //! Algebraic identities precede exact constant folding through the retained word
 //! evaluator. Memory patterns only remove already-observed identical accesses;
 //! extra copies require a proved stack-capacity bound and mutable observations
@@ -120,6 +122,34 @@ pub(super) fn peephole(
                 &tail[4].kind,
                 &tail[5].kind,
             ) {
+                // [dup1; push 1 | push 1; dup2]; add; swap1; dup2; lt
+                // -> push 1; add; dup1; iszero
+                (
+                    InstKind::Dup(1),
+                    InstKind::Push(one),
+                    InstKind::Op(op::ADD),
+                    InstKind::Swap(1),
+                    InstKind::Dup(2),
+                    InstKind::Op(op::LT),
+                )
+                | (
+                    InstKind::Push(one),
+                    InstKind::Dup(2),
+                    InstKind::Op(op::ADD),
+                    InstKind::Swap(1),
+                    InstKind::Dup(2),
+                    InstKind::Op(op::LT),
+                ) if literal_copy_order && *one == U256::from(1) => {
+                    replacement = Some((
+                        6,
+                        vec![
+                            InstKind::Push(U256::from(1)).into(),
+                            InstKind::Op(op::ADD).into(),
+                            InstKind::Dup(1).into(),
+                            InstKind::Op(op::ISZERO).into(),
+                        ],
+                    ));
+                }
                 // dup1; push p; mstore; dup1; push p; mstore -> dup1; push p; mstore
                 (
                     InstKind::Dup(1),
