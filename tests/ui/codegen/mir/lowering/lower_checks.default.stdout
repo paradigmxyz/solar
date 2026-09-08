@@ -66,6 +66,30 @@
 +     revert v4, v5
 +   bb8:
       ret
+  }
+  
+  fn @constant_failure_with_writes() -> u256 {
+    bb0:
+      memory_zero 128, 32
+-     panic_if_zero 0, 0x32
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 50 !metadata(memory=scratch)
++     revert 28, 36
++   bb1:
+      v0 = add 1, 2
+      ret v0
+  }
+  
+  fn @constant_failure_without_writes() {
+    bb0:
+-     panic_if 1, 0x32
++     jumpi 1, bb1, bb2
++   bb2:
+      ret
++   bb1:
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 50 !metadata(memory=scratch)
++     revert 28, 36
 + }
 + 
 + fn @revert_error(arg0: u256, arg1: u256) {

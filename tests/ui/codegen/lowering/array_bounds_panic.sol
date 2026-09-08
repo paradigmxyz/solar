@@ -1,5 +1,18 @@
-//@compile-flags: -O none -Zdump=mir
-//@filecheck:
+//@ codegen-matrix: standard
+//@[mir] filecheck:
+//@ run-call: memFix 0 => 0
+//@ run-call: memFix 1 => 20
+//@ run-call: memFix 2 => 0
+//@ run-call: memFixConst => 30
+//@ run-call: memDyn 3, 2 => 0
+//@ run-call: stFix 2 => 0
+//@ run-call-fail: memFix 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@ run-call-fail: memFixConstOob => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@ run-call-fail: memDyn 3, 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@ run-call-fail: memDyn 0, 0 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@ run-call-fail: stDyn 0 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@ run-call-fail: stDynWrite 0, 1 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@ run-call-fail: stFix 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
 
 // Array indexing emits a bounds check that reverts with Panic(0x32)
 // (selector 0x4e487b71, code 0x32) when `index >= length`, matching solc:
@@ -10,8 +23,6 @@
 // - calldata dynamic arrays/bytes check against the length word at
 //   `4 + head`;
 // - constant indexes remain explicit in the unoptimized MIR.
-// Runtime-verified differentially against solc 0.8.30 --via-ir on anvil:
-// in-range results match and out-of-range reverts are byte-identical.
 contract ArrayBoundsPanic {
     uint256[] sdyn;
     uint256[3] sfix;

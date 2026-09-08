@@ -6,14 +6,17 @@
 //! predecessors update locally. The session's revert-string mode selects debug payloads without
 //! changing when argument evaluation or the check occurs. Require payloads read their evaluated
 //! arguments only on failure; short constant strings share a module helper. New helper creation
-//! invalidates module analyses along with the rewritten call edges.
+//! invalidates module analyses along with the rewritten call edges. Optimized checks known to
+//! fail after memory writes emit their payload in place, exposing those writes to dead-store
+//! elimination. Other failures retain shared helpers. Instructions after an unconditional
+//! failure move to an unreachable continuation.
 
 use crate::mir::{
-    AbiLayout, AbiType, Builtin, Callee, ERROR_SELECTOR, Function, FunctionBuilder, FunctionId,
-    InstKind, InstructionMetadata, MirType, Module, RequireKind, RevertPayload, SliceLocation,
-    pass::MirPass, transform::utils::redirect_successor_predecessors,
+    AbiLayout, AbiType, Builtin, Callee, ERROR_SELECTOR, EffectKind, Function, FunctionBuilder,
+    FunctionId, InstKind, InstructionMetadata, MirType, Module, RequireKind, RevertKind,
+    RevertPayload, SliceLocation, pass::MirPass, transform::utils::redirect_successor_predecessors,
 };
-use solar_config::RevertStrings;
+use solar_config::{OptimizationMode, RevertStrings};
 use solar_interface::{Ident, sym};
 use std::sync::Arc;
 
@@ -54,7 +57,12 @@ impl MirPass for LowerChecks {
         let helper = needs_helper.then(|| create_short_string_helper(module, &helper_context));
         let mut changed = false;
         for function in &mut module.functions {
-            changed |= lower_function(function, helper, gcx.sess.opts.revert_strings);
+            changed |= lower_function(
+                function,
+                helper,
+                gcx.sess.opts.revert_strings,
+                !matches!(gcx.sess.opts.optimization, OptimizationMode::None),
+            );
         }
         changed
     }
@@ -64,6 +72,7 @@ fn lower_function(
     func: &mut Function,
     helper: Option<FunctionId>,
     revert_strings: RevertStrings,
+    optimize: bool,
 ) -> bool {
     if !func.instructions().any(|id| is_check(&func.inst(id).kind)) {
         return false;
@@ -92,9 +101,30 @@ fn lower_function(
             builder.set_debug_context(&inst.metadata);
             match inst.kind {
                 InstKind::Check { condition, is_zero, failure } => {
-                    // branch condition, failure, continuation
-                    // failure: revert payload
-                    builder.branch_to_revert(condition, is_zero, failure);
+                    if optimize
+                        && builder
+                            .func()
+                            .value_u256(condition)
+                            .is_some_and(|value| value.is_zero() == is_zero)
+                        && builder.func().blocks[builder.current_block()].instructions.iter().any(
+                            |&id| {
+                                builder.func().inst(id).kind.effect_kind()
+                                    == EffectKind::MemoryWrite
+                            },
+                        )
+                    {
+                        // revert payload; unreachable continuation
+                        match failure {
+                            RevertKind::Panic(code) => builder.panic(code),
+                            RevertKind::Reason(reason) => builder.revert_with(reason),
+                        }
+                        let continuation = builder.create_block();
+                        builder.switch_to_block(continuation);
+                    } else {
+                        // branch condition, failure, continuation
+                        // failure: revert payload
+                        builder.branch_to_revert(condition, is_zero, failure);
+                    }
                 }
                 InstKind::ICall { function: Callee::Builtin(Builtin::Require(kind)), args } => {
                     let condition = args[0];

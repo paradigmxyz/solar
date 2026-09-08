@@ -37,3 +37,24 @@ fn @payloads(arg0: bool, arg1: memorybytes, arg2: u256) {
     icall require custom_error [word, memory_bytes], arg0, 0, arg2, arg1
     ret
 }
+
+// CHECK-LABEL: fn @constant_failure_with_writes(
+// CHECK: memory_zero
+// CHECK-NOT: jumpi
+// CHECK: + mstore 0, 0x4e487b71
+// CHECK: + revert 28, 36
+fn @constant_failure_with_writes() -> u256 {
+  bb0:
+    memory_zero 128, 32
+    panic_if_zero 0, 0x32
+    v0 = add 1, 2
+    ret v0
+}
+
+// CHECK-LABEL: fn @constant_failure_without_writes(
+// CHECK: + jumpi 1,
+fn @constant_failure_without_writes() {
+  bb0:
+    panic_if 1, 0x32
+    ret
+}
