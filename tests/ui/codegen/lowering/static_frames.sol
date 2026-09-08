@@ -31,6 +31,7 @@ contract SF {
     // Recursive calls reserve dynamic frames through the shared allocator.
     // CHECK: push 160
     // CHECK-NEXT: mload
+    // CHECK: [[REC_ALLOC]] [continuation]:
     // CHECK: push 288
     // CHECK-NEXT: add
     // CHECK-NEXT: push 64

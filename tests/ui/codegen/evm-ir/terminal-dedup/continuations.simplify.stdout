@@ -1,0 +1,96 @@
+- // === ROOT/tests/ui/codegen/evm-ir/terminal-dedup/continuations.evmir (before terminal-dedup) ===
++ // === ROOT/tests/ui/codegen/evm-ir/terminal-dedup/continuations.evmir (after terminal-dedup) ===
+  @module SharedContinuations
+  bb0:
+    push 0
+    calldataload
+    jumpi bb1, bb2
+  bb1:
+    push bb3
+    jump bb5
+  bb2:
+    push bb4
+    jump bb5
+- bb3 [continuation] [invoke=first@1..10]:
+-   push 1 !metadata(span=1..3, invoke=first@1..10)
++ bb3 [continuation]:
++   push 1 !metadata(spans=[1..3, 11..13])
+    add
+    jump bb6
+  bb4 [continuation] [invoke=second@11..20]:
+-   push 1 !metadata(span=11..13, invoke=second@11..20)
+-   add
+-   jump bb6
++   jump bb3
+  bb5:
+    push 9
+    swap 1
+    jump
+  bb6:
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  bb7:
+    jump bb8
+  bb8 [continuation]:
+    push 1
+    add
+    jump bb6
+  bb9:
+    push bb10
+    jump bb5
+  bb10:
+    push 1
+    add
+    jump bb6
+  
+- // === ROOT/tests/ui/codegen/evm-ir/terminal-dedup/continuations.evmir (before cfg-simplify) ===
++ // === ROOT/tests/ui/codegen/evm-ir/terminal-dedup/continuations.evmir (after cfg-simplify) ===
+  @module SharedContinuations
+  bb0:
+    push 0
+    calldataload
+    jumpi bb1, bb2
+  bb1:
+    push bb3
+    jump bb5
+  bb2:
+-   push bb4
++   push bb3
+    jump bb5
+  bb3 [continuation]:
+    push 1 !metadata(spans=[1..3, 11..13])
+    add
+-   jump bb6
+- bb4 [continuation] [invoke=second@11..20]:
+-   jump bb3
+- bb5:
+-   push 9
+-   swap 1
+-   jump
+- bb6:
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+- bb7:
+-   jump bb8
+- bb8 [continuation]:
+-   push 1
+-   add
+-   jump bb6
+- bb9:
+-   push bb10
+-   jump bb5
+- bb10:
+-   push 1
+-   add
+-   jump bb6
++ bb5:
++   push 9
++   swap 1
++   jump
+  

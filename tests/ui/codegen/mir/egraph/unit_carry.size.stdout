@@ -1,0 +1,217 @@
+- // === ROOT/tests/ui/codegen/mir/egraph/unit_carry.mir (before egraph) ===
++ // === ROOT/tests/ui/codegen/mir/egraph/unit_carry.mir (after egraph) ===
+  @module UnitCarry
+  fn @increment_lt(arg0: u256) -> bool {
+    bb0:
+      v0 = add arg0, 1
+-     v1 = lt v0, arg0
++     v1 = iszero v0
+      ret v1
+  }
+  
+  fn @increment_lt_commuted(arg0: u256) -> bool {
+    bb0:
+-     v0 = add 1, arg0
+-     v1 = lt v0, arg0
++     v0 = add arg0, 1
++     v1 = iszero v0
+      ret v1
+  }
+  
+  fn @increment_gt(arg0: u256) -> bool {
+    bb0:
+      v0 = add arg0, 1
+-     v1 = gt arg0, v0
++     v1 = iszero v0
+      ret v1
+  }
+  
+  fn @increment_gt_commuted(arg0: u256) -> bool {
+    bb0:
+-     v0 = add 1, arg0
+-     v1 = gt arg0, v0
++     v0 = add arg0, 1
++     v1 = iszero v0
+      ret v1
+  }
+  
+  fn @decrement_gt(arg0: u256) -> bool {
+    bb0:
+      v0 = sub arg0, 1
+-     v1 = gt v0, arg0
++     v1 = iszero arg0
+      ret v1
+  }
+  
+  fn @decrement_lt(arg0: u256) -> bool {
+    bb0:
+      v0 = sub arg0, 1
+-     v1 = lt arg0, v0
++     v1 = iszero arg0
+      ret v1
+  }
+  
+  fn @decrement_add_gt(arg0: u256) -> bool {
+    bb0:
+      v0 = add arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-     v1 = gt v0, arg0
++     v1 = iszero arg0
+      ret v1
+  }
+  
+  fn @decrement_add_gt_commuted(arg0: u256) -> bool {
+    bb0:
+-     v0 = add 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg0
+-     v1 = gt v0, arg0
++     v0 = add arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
++     v1 = iszero arg0
+      ret v1
+  }
+  
+  fn @decrement_add_lt(arg0: u256) -> bool {
+    bb0:
+      v0 = add arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-     v1 = lt arg0, v0
++     v1 = iszero arg0
+      ret v1
+  }
+  
+  fn @decrement_add_lt_commuted(arg0: u256) -> bool {
+    bb0:
+-     v0 = add 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg0
+-     v1 = lt arg0, v0
++     v0 = add arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
++     v1 = iszero arg0
+      ret v1
+  }
+  
+  fn @shared_increment(arg0: u256) -> (u256, bool) {
+    bb0:
+      v0 = add arg0, 1
+-     v1 = lt v0, arg0
++     v1 = iszero v0
+      ret v0, v1
+  }
+  
+  fn @nonunit_increment(arg0: u256) -> bool {
+    bb0:
+      v0 = add arg0, 2
+      v1 = lt v0, arg0
+      ret v1
+  }
+  
+  fn @signed_increment(arg0: u256) -> bool {
+    bb0:
+      v0 = add arg0, 1
+      v1 = slt v0, arg0
+      ret v1
+  }
+  
+  fn @different_operand(arg0: u256, arg1: u256) -> bool {
+    bb0:
+      v0 = add arg0, 1
+      v1 = lt v0, arg1
+      ret v1
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/egraph/unit_carry.mir (before dce) ===
++ // === ROOT/tests/ui/codegen/mir/egraph/unit_carry.mir (after dce) ===
+  @module UnitCarry
+  fn @increment_lt(arg0: u256) -> bool {
+    bb0:
+      v0 = add arg0, 1
+      v1 = iszero v0
+      ret v1
+  }
+  
+  fn @increment_lt_commuted(arg0: u256) -> bool {
+    bb0:
+      v0 = add arg0, 1
+      v1 = iszero v0
+      ret v1
+  }
+  
+  fn @increment_gt(arg0: u256) -> bool {
+    bb0:
+      v0 = add arg0, 1
+      v1 = iszero v0
+      ret v1
+  }
+  
+  fn @increment_gt_commuted(arg0: u256) -> bool {
+    bb0:
+      v0 = add arg0, 1
+      v1 = iszero v0
+      ret v1
+  }
+  
+  fn @decrement_gt(arg0: u256) -> bool {
+    bb0:
+-     v0 = sub arg0, 1
+      v1 = iszero arg0
+      ret v1
+  }
+  
+  fn @decrement_lt(arg0: u256) -> bool {
+    bb0:
+-     v0 = sub arg0, 1
+      v1 = iszero arg0
+      ret v1
+  }
+  
+  fn @decrement_add_gt(arg0: u256) -> bool {
+    bb0:
+-     v0 = add arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      v1 = iszero arg0
+      ret v1
+  }
+  
+  fn @decrement_add_gt_commuted(arg0: u256) -> bool {
+    bb0:
+-     v0 = add arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      v1 = iszero arg0
+      ret v1
+  }
+  
+  fn @decrement_add_lt(arg0: u256) -> bool {
+    bb0:
+-     v0 = add arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      v1 = iszero arg0
+      ret v1
+  }
+  
+  fn @decrement_add_lt_commuted(arg0: u256) -> bool {
+    bb0:
+-     v0 = add arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      v1 = iszero arg0
+      ret v1
+  }
+  
+  fn @shared_increment(arg0: u256) -> (u256, bool) {
+    bb0:
+      v0 = add arg0, 1
+      v1 = iszero v0
+      ret v0, v1
+  }
+  
+  fn @nonunit_increment(arg0: u256) -> bool {
+    bb0:
+      v0 = add arg0, 2
+      v1 = lt v0, arg0
+      ret v1
+  }
+  
+  fn @signed_increment(arg0: u256) -> bool {
+    bb0:
+      v0 = add arg0, 1
+      v1 = slt v0, arg0
+      ret v1
+  }
+  
+  fn @different_operand(arg0: u256, arg1: u256) -> bool {
+    bb0:
+      v0 = add arg0, 1
+      v1 = lt v0, arg1
+      ret v1
+  }
+  

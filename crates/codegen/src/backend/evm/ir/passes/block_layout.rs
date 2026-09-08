@@ -358,7 +358,7 @@ fn is_terminal_block(block: &Block) -> bool {
     block.terminator.as_ref().is_some_and(|term| is_terminal_boundary(&term.kind))
 }
 
-fn is_physical_terminal_boundary(block: &Block, next: Option<BlockId>) -> bool {
+pub(super) fn is_physical_terminal_boundary(block: &Block, next: Option<BlockId>) -> bool {
     block.terminator.as_ref().is_some_and(|term| {
         is_terminal_boundary(&term.kind)
             || matches!(term.kind, TerminatorKind::Jump(target) if Some(target) != next)
@@ -378,7 +378,7 @@ fn append_layout_trace(
     }
 }
 
-fn layout_successor(module: &Module, block: BlockId) -> Option<BlockId> {
+pub(super) fn layout_successor(module: &Module, block: BlockId) -> Option<BlockId> {
     match &module.blocks[block].terminator.as_ref()?.kind {
         TerminatorKind::Jump(target) => Some(*target),
         TerminatorKind::JumpI { then_block, else_block }
@@ -387,6 +387,7 @@ fn layout_successor(module: &Module, block: BlockId) -> Option<BlockId> {
         {
             Some(*then_block)
         }
+        TerminatorKind::JumpI { else_block, .. } => Some(*else_block),
         _ => None,
     }
 }
