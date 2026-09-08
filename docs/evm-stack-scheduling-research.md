@@ -490,3 +490,28 @@ versus the currently selected 89 bytes / 135 gas. This is a local cost witness,
 not proof that the complete Phi trial succeeds or that corpus output improves.
 Exact primary paths, pinned commits and hashes are in
 `target/codegen-bench/evm-rewrite-candidate/writer-profitable-bank-floor-proposal-20260908/prior-art-evidence.json`.
+
+
+The broader nine-home contiguous trial was rejected after actual nested calldata
+execution grew by 443 gas and ERC7579UtilsTest grew by 29 bytes. Keeping the
+contiguous floor at twelve isolated the eleven-home bitmap, but exposed the
+same nested regression and a 229-byte MatchAdvancedOrder increase. Both failed
+candidates and their unchanged-input comparisons remain retained.
+
+The native veto trace then identified a separate policy error: retiring one of
+eleven homes changed writer protection from 55 bytes / 130 gas to 75 bytes /
+123 gas. A bytes-or-gas veto rejected that lower-gas Phi schedule. The accepted
+Gas-only comparison orders gas first and bytes second. It retains all ownership,
+capacity, actual lowering and rollback checks, and adds no scheduling search.
+Its local estimate excludes surrounding stack preparation, edge transport and
+later outlining, so whole-output measurements remain necessary.
+
+This rule cures both observed corpus increases. All 3,344 heavy objects join by
+identity; 277 shrink and none grow. All 175 hot-gas labels remain exact in both
+optimization modes. The measured full-workflow compiler average is 4.18% higher;
+baseline contention and 54.26 seconds of candidate parser overlap prevent a
+causal timing conclusion. The exact source pins, rejected trials, native veto,
+metadata review and raw measurements are retained in
+`target/codegen-bench/evm-rewrite-candidate/writer-bank-floor-workflow-20260908/`.
+These results validate our bounded rule, not an algorithm supplied by solx,
+Venom or Sonatina, and do not establish complete rewrite acceptance.

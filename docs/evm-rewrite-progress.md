@@ -48,7 +48,7 @@ all commands, individual deltas, exact output joins and source/binary pins.
 
 ## Verification and reviewed expectations
 
-Final workspace results are 11,734 UI passes, one original alias assertion
+Final workspace results are 11,739 UI passes, one original alias assertion
 failure, 1,395 other passes and two skips. All 36 Foundry projects pass
 (772 compiler tests, 765 solc tests), with reported gas and sizes unchanged.
 Clippy, formatting and typos pass. The larger tail fixture passes 24 fresh calls
@@ -76,19 +76,26 @@ The validated-word cleanup trial is rejected: despite UI size wins, Fractional,
 Maple ERC20 and Governor grow 35/34/17 bytes in both modes, worsening sealed debt.
 Runtime results and gas remain exact. Its MIR patch is reversed. The isolated
 owner-equality tail fix is also rejected: alias overflow costs 218 gas versus
-sealed 215. The next spill experiment
-corrects a writer-bank cutoff that rejects an otherwise profitable eleven-home
-bitmap after Phi retirement. These alias trials are not accepted milestones.
+sealed 215. The writer-bank milestone (`e34bb6e6`) accepts profitable eleven-home bitmaps
+and prices Phi writer protection by gas first in Gas mode. It saves 596,175
+combined bytes across 277 of 3,344 heavy objects, with no growth. UI creation
+and runtime each save 205 bytes, and all 175 hot-gas labels remain exact in both
+modes. Foundry preserves all 1,537 test records and gas values; bounded symbolic
+comparison agrees over nine paths and fourteen queries. The threshold-only
+trials remain rejected evidence. These alias trials are not accepted milestones.
 
 ## Remaining acceptance work
 
 `global_stack_calldata_alias.sol` remains the original failing assertion.
 The original readback failures now pass in every mode. General source-memory
 ownership remains an open contract; bounded shared-input sweeps pass. The accepted heavy ledger
-still has 32,427,688 positive bytes of sealed size debt across 1,050 objects;
+still has 31,831,619 positive bytes of sealed size debt;
 this is a sum of regressions, not net corpus growth. Compiler-time debts remain.
-The backend has 16,931 physical lines in 46 files, 17,707 fewer than the deletion
-inventory; this includes embedded tests and is not strict production SLOC.
+The backend has 16,944 physical lines in 46 files, 17,694 fewer than the deletion
+inventory. Excluding trailing test modules leaves 15,639 physical lines. A
+retained count-only baseline reports 29,006 production-section lines, giving a
+conditional reduction of 13,367; that file lacks a revision/hash link to the
+sealed archive. These counts include comments and are not strict production SLOC.
 
 Eager contraction removes avoidable spills and saves bytecode without corpus
 growth; full Gas/Size outputs and Foundry gas remain exact. It adds 188 physical
@@ -97,7 +104,9 @@ costs. The consumer-tracking simplification (`ce593973`) removes five Rust
 lines, halves its consumer entry to four bytes, and preserves all measured
 outputs and gas. Its full timing (+4.22%, RSS +0.10%) overlaps another task
 on the host and has unequal baseline sample counts; it establishes no speed
-claim. Next, restore alias-codegen size and complete the remaining runtime/size
+claim. The writer milestone records +4.18% compiler time and -0.59% RSS,
+with baseline contention and a measured parser overlap; no causal timing claim
+follows. Next, restore alias-codegen size and complete the remaining runtime/size
 gates. Keep correctness and runtime
 gas ahead of size, then compiler time and memory. These local milestones do not
 establish complete functionality, green remote CI or a successful remote push.

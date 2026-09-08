@@ -3449,8 +3449,11 @@ Reusing a raw validation word changes the physical stack at body entry. Maple
 loses compact address-mask recipes and gains edge cleanup; Fractional's increase
 comes from its embedded NFTShare creation object. The narrow MIR patch is
 reversed exactly and its proposed tests remain uninstalled. No original source,
-expectation or oracle changed. The smaller actual-owner equality change remains
-isolated for its own acceptance checks. The broad forwarding-chain trial is
+expectation or oracle changed. The isolated actual-owner equality change is also
+rejected: alias Size overflow costs 218 gas versus sealed 215, and runtime is
+154 bytes versus sealed 153. Its four new UI revisions pass, but the six new
+uncommitted fixture files were removed by verified installation hashes; they
+remain in the evidence archive. The broad forwarding-chain trial is
 also rejected: it grew AbiFixedArray by 16 bytes and basic RunCall by one, and
 exceeded sealed alias overflow gas. Equal-pair normalization was deferred after
 zero real corpus changes. All binaries, failed checks and comparisons remain in
@@ -3466,3 +3469,64 @@ profitability, stack-capacity and ownership guards. Static review and pure
 helper test cases are ready; no production change or native improvement is
 claimed yet. Pinned solx, Venom and Sonatina evidence and explicit applicability
 limits are retained in `writer-profitable-bank-floor-proposal-20260908/`.
+
+
+## Gas-first Phi writer milestone — September 8
+
+`e34bb6e6` retains the twelve-home contiguous floor, admits profitable eleven-home
+bitmaps, and orders actual Phi writer protection by gas then bytes in Gas mode.
+The broad threshold-only and bitmap-only trials remain rejected: nested calldata
+grew by 150 bytes and 443 gas; separate heavy objects also grew. A native trace
+showed the byte-first veto rejecting 75 bytes / 123 gas in favor of 55 bytes /
+130 gas. The final rule restores the accepted nested output and gas without
+changing ownership, capacity, actual lowering or checkpoint rollback contracts.
+
+The final candidate is frozen as `solar-writer-bank-gas-first-draft1`, SHA256
+`3dd1ec58737d0a49ce0d5fb2037da56ed49fa61218e7d3cd3d7bbdce0367ffd2`.
+Evidence is under
+`target/codegen-bench/evm-rewrite-candidate/writer-bank-floor-workflow-20260908/gas-first/`.
+All 146 production source pins remain stable. Nine heavy projects preserve all
+1,672 contracts and 3,344 objects: 277 shrink, none grow, creation saves 329,454
+bytes and runtime 266,721. Embedded child amplification is included. Positive
+sealed debt falls to 31,831,619 bytes; this is not net corpus growth.
+
+The official full workflow preserves 24 IDs, 175 ordered gas labels and 139
+observations per compiler. All execution gas is exact; Nitro creation/runtime
+save 167 bytes each. The Size supplement preserves 15 IDs and the same label and
+observation counts with complete outputs exact. The original UI screen retains
+1,652 IDs, 827 hashes and 5,044 objects; creation/runtime each save 205 Gas bytes
+with no growth and exact Size output. The explicitly composed new-fixture
+extension has 1,654 IDs, 828 hashes and 5,048 objects, preserving every original
+input. All 112 changed source maps and 17 relocated reference tables pass the
+bounded independent review; removed optimizer checkpoints remain documented.
+
+Foundry retains all 36 project/configuration IDs and 1,537 test records with
+exact statuses and gas. Two DSTestPlus objects save 128 bytes each. A reduced
+symbolic run reports bounded agreement over nine paths and fourteen queries;
+its exact executable prefix matches both accepted and final compilers and
+differs from the rejected threshold-only compiler. No counterexample required
+replay; this is not unbounded equivalence or full memory-ownership proof.
+
+`38289f90` adds an independent reduced UI/runtime fixture. Its physical check
+passes with accepted/current compilers and fails with the rejected compiler.
+The original nested source and its three oracles remain unchanged. Actual full
+workspace results are 11,739 UI passes, the same original alias failure, 1,395
+other passes and two skips. The rebuilt workspace executable has SHA256
+`bb34783e85b4079f73615e04a3a1f8393d1dbd2a3fa2b879520166273a42e523`;
+its unchanged production source pins and distinct producer identity are retained
+in `workspace-completion.json`. Clippy, formatting, typos and diff checks pass.
+
+Raw full compiler geometric mean is +4.18% and RSS -0.59%. Baseline contention
+and a measured 54.26-second candidate parser overlap remain recorded; no causal
+speed claim follows. Backend counts are 16,944 physical lines, 15,639 excluding
+trailing test modules. The retained count-only baseline permits a conditional
+13,367 production-section-line reduction but lacks a sealed revision/hash link.
+Comments are included; this is not strict SLOC. General memory ownership, alias
+size/assertion debt and whole-corpus sealed regressions remain open.
+
+A fresh fetch found main `becd2143` beyond the last merged `6059f0c0`, including
+solx benchmark support and MIR/backend file reorganization. Only path metadata,
+retained-layer changes and benchmark infrastructure were inspected. Its backend
+implementation has not been read or integrated. The next merge must preserve
+the rewritten backend and resolve retained interfaces independently. Remote PR
+1388 remains draft at `2d5f077f`; its old failing CI is not this local milestone.
