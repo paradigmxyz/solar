@@ -1,5 +1,6 @@
 #![allow(unused_crate_dependencies)]
 
+use serde::Serialize;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use snapbox::{assert_data_eq, str};
@@ -19,6 +20,10 @@ fn run_benchmark(config: &Path, output: &Path, args: &[&str]) -> ExitStatus {
         .arg(output)
         .status()
         .unwrap()
+}
+
+fn yaml(value: impl Serialize) -> String {
+    serde_yaml_ng::to_string(&value).unwrap().trim_end().to_owned()
 }
 
 fn read_json(path: &Path) -> Value {
@@ -146,7 +151,7 @@ servers:
       solidity:
         compiler: fake
 "#,
-            serde_json::to_string(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")).unwrap(),
+            yaml(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")),
         ),
     )
     .unwrap();
@@ -319,8 +324,8 @@ scenarios:
           path: Main.sol
           expected_name: Recovered
 "#,
-            serde_json::to_string(&fixture).unwrap(),
-            serde_json::to_string(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")).unwrap(),
+            yaml(&fixture),
+            yaml(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")),
         ),
     )
     .unwrap();
@@ -635,8 +640,8 @@ scenarios:
           expected_name: Scratch
           expected_path: Scratch.sol
 "#,
-            serde_json::to_string(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")).unwrap(),
-            serde_json::to_string(&fixture).unwrap(),
+            yaml(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")),
+            yaml(&fixture),
         ),
     )
     .unwrap();
@@ -712,8 +717,8 @@ scenarios:
           expected_path: Scratch.sol
           present: false
 "#,
-            serde_json::to_string(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")).unwrap(),
-            serde_json::to_string(&fixture).unwrap(),
+            yaml(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")),
+            yaml(&fixture),
         ),
     )
     .unwrap();
@@ -794,10 +799,10 @@ scenarios:
           anchor: call
           expected_text: add
 "#,
-            serde_json::to_string(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")).unwrap(),
-            serde_json::to_string(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")).unwrap(),
-            serde_json::to_string(&fixture).unwrap(),
-            serde_json::to_string(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")).unwrap(),
+            yaml(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")),
+            yaml(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")),
+            yaml(&fixture),
+            yaml(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")),
         ),
     )
     .unwrap();
@@ -857,8 +862,8 @@ scenarios:
       - kind: open
         path: Main.sol
 "#,
-            serde_json::to_string(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")).unwrap(),
-            serde_json::to_string(&fixture).unwrap(),
+            yaml(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")),
+            yaml(&fixture),
         ),
     )
     .unwrap();
@@ -911,8 +916,8 @@ scenarios:
       - kind: open
         path: Main.sol
 "#,
-            serde_json::to_string(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")).unwrap(),
-            serde_json::to_string(&fixture).unwrap(),
+            yaml(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")),
+            yaml(&fixture),
         ),
     )
     .unwrap();
@@ -946,7 +951,7 @@ fn server_that_never_reads_stdin_is_bounded_by_request_timeout() {
     let fixture = directory.path().join("fixture");
     fs::create_dir(&fixture).unwrap();
     fs::write(fixture.join("Main.sol"), "contract Main {}\n").unwrap();
-    let initialization_payload = serde_json::to_string(&"x".repeat(1024 * 1024)).unwrap();
+    let initialization_payload = yaml("x".repeat(1024 * 1024));
     let config = directory.path().join("benchmark.yaml");
     fs::write(
         &config,
@@ -978,8 +983,8 @@ scenarios:
       - kind: open
         path: Main.sol
 "#,
-            serde_json::to_string(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")).unwrap(),
-            serde_json::to_string(&fixture).unwrap(),
+            yaml(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")),
+            yaml(&fixture),
         ),
     )
     .unwrap();
@@ -1041,8 +1046,8 @@ scenarios:
           path: Main.sol
           expected_name: Renamed
 "#,
-            serde_json::to_string(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")).unwrap(),
-            serde_json::to_string(&fixture).unwrap(),
+            yaml(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")),
+            yaml(&fixture),
         ),
     )
     .unwrap();
@@ -1132,8 +1137,8 @@ scenarios:
           path: Main.sol
           expected_name: Renamed
 "#,
-            serde_json::to_string(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")).unwrap(),
-            serde_json::to_string(&fixture).unwrap(),
+            yaml(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")),
+            yaml(&fixture),
         ),
     )
     .unwrap();
@@ -1228,8 +1233,8 @@ scenarios:
           anchor: target
           expected_text: function add
 "#,
-            serde_json::to_string(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")).unwrap(),
-            serde_json::to_string(&fixture).unwrap(),
+            yaml(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")),
+            yaml(&fixture),
         ),
     )
     .unwrap();
@@ -1296,8 +1301,8 @@ scenarios:
           anchor: call
           expected_text: add
 "#,
-            serde_json::to_string(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")).unwrap(),
-            serde_json::to_string(&fixture).unwrap(),
+            yaml(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")),
+            yaml(&fixture),
         ),
     )
     .unwrap();
@@ -1403,8 +1408,8 @@ scenarios:
           anchor: call
           expected_label: add
 "#,
-            serde_json::to_string(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")).unwrap(),
-            serde_json::to_string(&fixture).unwrap(),
+            yaml(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")),
+            yaml(&fixture),
         ),
     )
     .unwrap();
@@ -1495,8 +1500,8 @@ scenarios:
           path: Main.sol
           expected_name: Renamed
 "#,
-            serde_json::to_string(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")).unwrap(),
-            serde_json::to_string(&fixture).unwrap(),
+            yaml(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")),
+            yaml(&fixture),
         ),
     )
     .unwrap();
@@ -1576,8 +1581,8 @@ scenarios:
           path: Main.sol
           expected_name: Renamed
 "#,
-            serde_json::to_string(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")).unwrap(),
-            serde_json::to_string(&fixture).unwrap(),
+            yaml(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")),
+            yaml(&fixture),
         ),
     )
     .unwrap();
@@ -1637,8 +1642,8 @@ scenarios:
       - kind: open
         path: Main.sol
 "#,
-            serde_json::to_string(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")).unwrap(),
-            serde_json::to_string(&fixture).unwrap(),
+            yaml(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")),
+            yaml(&fixture),
         ),
     )
     .unwrap();
@@ -1691,8 +1696,8 @@ scenarios:
       - kind: open
         path: Main.sol
 "#,
-            serde_json::to_string(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")).unwrap(),
-            serde_json::to_string(&fixture).unwrap(),
+            yaml(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")),
+            yaml(&fixture),
         ),
     )
     .unwrap();
@@ -1766,8 +1771,8 @@ scenarios:
           path: Main.sol
           expected_name: Main
 "#,
-                serde_json::to_string(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")).unwrap(),
-                serde_json::to_string(&fixture).unwrap(),
+                yaml(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")),
+                yaml(&fixture),
             ),
         )
         .unwrap();
@@ -1850,8 +1855,8 @@ scenarios:
           - path: Math.sol
             anchor: math-double
 "#,
-            serde_json::to_string(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")).unwrap(),
-            serde_json::to_string(&fixture).unwrap(),
+            yaml(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")),
+            yaml(&fixture),
         ),
     )
     .unwrap();
@@ -1917,8 +1922,8 @@ scenarios:
           - path: Main.sol
             anchor: main
 "#,
-            serde_json::to_string(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")).unwrap(),
-            serde_json::to_string(&fixture).unwrap(),
+            yaml(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")),
+            yaml(&fixture),
         ),
     )
     .unwrap();
@@ -1976,8 +1981,8 @@ scenarios:
       - kind: open
         path: Main.sol
 "#,
-            serde_json::to_string(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")).unwrap(),
-            serde_json::to_string(&fixture).unwrap(),
+            yaml(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")),
+            yaml(&fixture),
         ),
     )
     .unwrap();
@@ -2033,8 +2038,8 @@ scenarios:
       - kind: open
         path: Main.sol
 "#,
-            serde_json::to_string(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")).unwrap(),
-            serde_json::to_string(&fixture).unwrap(),
+            yaml(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")),
+            yaml(&fixture),
         ),
     )
     .unwrap();
@@ -2116,8 +2121,8 @@ scenarios:
       - kind: open
         path: Main.sol
 "#,
-            serde_json::to_string(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")).unwrap(),
-            serde_json::to_string(&fixture).unwrap(),
+            yaml(env!("CARGO_BIN_EXE_solar-lsp-bench-fake")),
+            yaml(&fixture),
         ),
     )
     .unwrap();
