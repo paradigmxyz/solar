@@ -15,8 +15,7 @@
     "rust-analyzer": {
       "initialization_options": {
         "linkedProjects": [
-          "./Cargo.toml",
-          "./editors/zed/Cargo.toml"
+          "./Cargo.toml"
         ]
       }
     }

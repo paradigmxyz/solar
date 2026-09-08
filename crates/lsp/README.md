@@ -2,6 +2,15 @@
 
 Solar LSP definitions and implementation.
 
+## Workspace indexing
+
+Workspace indexing discovers Solidity files throughout the project, independently of build
+entry-point directories and open editor tabs. Dependencies are loaded through imports;
+closing a file restores its disk contents without removing it from the project index.
+Indexing exclusions still apply. Foundry settings supply import resolution, compiler options,
+and build entry points for flycheck. Explicitly configured source directories remain included,
+including directories outside the project root.
+
 ## Embedding
 
 Use the public `solar_lsp::launch` entry point to run the same language server implementation

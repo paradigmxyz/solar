@@ -402,7 +402,7 @@ fn foundry_index_roots(
     } else {
         let Ok(document) = load_foundry_document(manifest) else { return Default::default() };
         let profile = document.profile_for(foundry_config.selected_profile());
-        let source_roots = profile.source_roots(root);
+        let source_roots = profile.build_source_roots(root);
         let import_only_roots =
             profile.include_paths(root).into_iter().map(|path| path.normalize()).collect();
         (source_roots, import_only_roots)
@@ -637,7 +637,7 @@ mod tests {
                 &mut FoundryConfigContext::new(Some("custom"), &[]),
             )
             .0,
-            [project.path("/.hidden/custom-src")]
+            [project.path("/.hidden/custom-src"), project.path("/test"), project.path("/script")]
         );
 
         let nested_custom_manifest =

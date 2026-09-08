@@ -324,8 +324,8 @@ def artifact_compiler_input(input_text: str, test_case: TestCase, kind: str) -> 
         "evm.bytecode.object",
         "evm.deployedBytecode.object",
     ]
-    if kind == "solc":
-        outputs.append("irOptimized")
+    if kind in ("solc", "solx"):
+        outputs.extend(("ir", "irOptimized"))
     payload.setdefault("settings", {})["outputSelection"] = {
         source: {test_case.contract_name: outputs}
     }
@@ -431,7 +431,7 @@ def write_artifacts(
                 return f"invalid {prefix} bytecode: {error}"
             bytecodes[prefix] = bytes_
             (output_dir / f"{prefix}.hex").write_text(str(object_hex) + "\n")
-    if spec.kind == "solc":
+    if spec.kind != "solar":
         runtime = bytecodes.get("runtime", b"")
         creation = bytecodes.get("creation", b"")
         if creation:
@@ -439,7 +439,9 @@ def write_artifacts(
             (output_dir / "creation.disasm").write_text(disassemble_evm(deployment))
         if runtime:
             (output_dir / "runtime.disasm").write_text(disassemble_evm(runtime))
-    if spec.kind == "solc" and (ir := contract.get("irOptimized")):
+    if spec.kind in ("solc", "solx") and (ir := contract.get("ir")):
+        (output_dir / "ir.yul").write_text(str(ir).rstrip() + "\n")
+    if spec.kind in ("solc", "solx") and (ir := contract.get("irOptimized")):
         (output_dir / "optimized-ir.yul").write_text(str(ir).rstrip() + "\n")
     return ""
 
@@ -1431,8 +1433,7 @@ def compare_runtime_results(
         }
         if any(value is None for value in values.values()):
             failed = True
-            continue
-        unique_values = set(values.values())
+        unique_values = {value for value in values.values() if value is not None}
         if len(unique_values) > 1:
             mismatches.append({"label": label, "values": values})
 
@@ -1508,7 +1509,8 @@ def merge_reference_compiler(
         return False
     if entry.get("gas_profile") != reference.get("gas_profile"):
         return False
-    if not any(
+    # Compilation failures have no runtime workload to match.
+    if reference_data.get("status") != "failed" and not any(
         workload_signature(data) == workload_signature(reference_data)
         for data in compilers.values()
         if isinstance(data, dict)
@@ -1758,6 +1760,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="Path to solc binary; enables solc comparison unless --solar-only is set",
     )
     parser.add_argument(
+        "--solx",
+        help="Path to solx binary; enables solx comparison unless --solar-only is set",
+    )
+    parser.add_argument(
         "--solar",
         help="Path to solar binary (default: solar or target/{release,debug}/solar)",
     )
@@ -1792,12 +1798,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--solar-only",
         action="store_true",
-        help="Skip solc benchmark compilation even when --solc is supplied",
+        help="Skip reference compiler compilation even when --solc or --solx is supplied",
     )
     parser.add_argument(
         "--reference-results",
         type=Path,
-        help="Reuse matching solc results from another benchmark result document",
+        help="Reuse matching solc and solx results from another benchmark result document",
     )
     parser.add_argument("--tests", nargs="*", help="Subset of test IDs to run")
     parser.add_argument(
@@ -1850,10 +1856,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="Exit successfully even if a compiler fails for one or more tests",
     )
     args = parser.parse_args(argv)
-    args.solar_only = args.solar_only or args.solc is None
+    args.solar_only = args.solar_only or (args.solc is None and args.solx is None)
 
     if args.reference_results and not args.solar_only:
-        parser.error("--reference-results with --solc requires --solar-only")
+        parser.error("--reference-results with --solc or --solx requires --solar-only")
     try:
         reference_results = (
             load_reference_results(args.reference_results)
@@ -1883,7 +1889,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
 
     solc = find_binary(args.solc, ["solc"])
-    if not solc and (not args.solar_only or args.reference_results):
+    if not solc and ((args.solc and not args.solar_only) or args.reference_results):
         print(_color(f"solc not found: {args.solc}", RED), file=sys.stderr)
         return 1
 
@@ -1921,14 +1927,22 @@ def main(argv: Sequence[str] | None = None) -> int:
     solar_version, solar_version_error = binary_version(solar)
 
     specs = []
-    if not args.solar_only:
+    if args.solc and not args.solar_only:
         assert solc is not None
         specs.append(CompilerSpec("solc", f"solc {solc_version}", solc, "solc"))
+    if args.solx and not args.solar_only:
+        solx = find_binary(args.solx, ["solx"])
+        if solx is None:
+            parser.error(f"solx not found: {args.solx}")
+        solx_version, solx_error = binary_version(solx)
+        if solx_error:
+            parser.error(f"solx --version failed: {solx_error}")
+        specs.append(CompilerSpec("solx", f"solx {solx_version}", solx, "solx"))
     specs.append(CompilerSpec("solar", f"solar {solar_version}", solar, "solar"))
-    reference_solc_spec = (
-        CompilerSpec("solc", f"solc {solc_version}", solc, "solc")
-        if use_reference_solc and solc is not None
-        else None
+    reference_specs = (
+        [CompilerSpec(name, name, Path(name), name) for name in ("solc", "solx")]
+        if args.reference_results
+        else []
     )
 
     if args.tests:
@@ -1943,7 +1957,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         tests = list(suite_tests)
 
     skipped = []
-    if (not args.solar_only or use_reference_solc) and not args.include_incompatible:
+    if (
+        (args.solc and not args.solar_only) or use_reference_solc
+    ) and not args.include_incompatible:
         compatible_tests = []
         for test in tests:
             if test.project_file is not None and not version_in_range(
@@ -1979,7 +1995,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     for spec in specs:
         print(f"Using {spec.label}")
     if args.reference_results:
-        print(f"Reusing solc results from {display_path(args.reference_results)}")
+        print(f"Reusing reference results from {display_path(args.reference_results)}")
     if (not args.solar_only or use_reference_solc) and solc_version_error:
         print(
             _color(
@@ -2057,8 +2073,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                     file=sys.stderr,
                 )
                 result = failed_test_result(test, specs, args.gas_profile, exc)
-            if reference_solc_spec:
-                if merge_reference_compiler(result, reference_results, "solc"):
+            merged_specs = []
+            for reference_spec in reference_specs:
+                compiler_id = reference_spec.compiler_id
+                if merge_reference_compiler(result, reference_results, compiler_id):
+                    merged_specs.append(reference_spec)
                     if (
                         args.artifacts is not None
                         and args.reference_results is not None
@@ -2067,24 +2086,24 @@ def main(argv: Sequence[str] | None = None) -> int:
                             args.reference_results.parent
                             / "artifacts"
                             / test.test_id
-                            / "solc"
+                            / compiler_id
                         )
                         if source.is_dir():
                             shutil.copytree(
                                 source,
-                                args.artifacts / test.test_id / "solc",
+                                args.artifacts / test.test_id / compiler_id,
                                 dirs_exist_ok=True,
                             )
-                    if args.gas:
-                        compare_runtime_results(result, (reference_solc_spec, *specs))
                 else:
                     print(
                         _color(
-                            f"[{test.test_id}] matching solc reference result not found",
+                            f"[{test.test_id}] matching {compiler_id} reference result not found",
                             YELLOW,
                         ),
                         file=sys.stderr,
                     )
+            if args.gas and merged_specs:
+                compare_runtime_results(result, (*merged_specs, *specs))
             results.append(result)
         if current_suite is not None and suite_started is not None:
             timings[current_suite] = (

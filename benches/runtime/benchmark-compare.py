@@ -96,10 +96,7 @@ def compare_runs(
                 gas_reason = "ordered runtime workloads differ"
             elif old.get("gas_status") != "ok" or new.get("gas_status") != "ok":
                 gas_reason = "gas run failed or was not measured"
-            elif any(
-                data.get("runtime_status") in ("failed", "mismatch")
-                for data in (old, new, before, after)
-            ):
+            elif any(runtime_failed(case, compiler) for case in (before, after)):
                 gas_reason = "runtime checks failed"
         if (
             gas_reason
@@ -138,7 +135,7 @@ def compare_runs(
         for label, case in (("baseline", before), ("candidate", after)):
             if case.get("benchmark_error"):
                 issues.append(f"{label}: {case['benchmark_error']}")
-            if case.get("runtime_status") in ("failed", "mismatch"):
+            if runtime_mismatches(case, compiler):
                 issues.append(f"{label} cross-compiler runtime checks failed")
 
         measurements = {}
@@ -341,8 +338,8 @@ def comparison_report(comparison: dict[str, Any]) -> str:
         "Change is the geometric mean of candidate/baseline ratios, with equal weight per benchmark. Only positive, comparable pairs enter the mean.",
         "Runtime gas is the sum of measured calls within each benchmark. Timing and RSS are noisy.",
         "",
-        "| Metric | Change | Pairs in mean | Improved | Regressed | Unchanged | Excluded from mean |",
-        "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+        "| Metric | Change |",
+        "| --- | ---: |",
     ]
     for name, values in comparison["summary"].items():
         change = (
@@ -350,9 +347,7 @@ def comparison_report(comparison: dict[str, Any]) -> str:
             if values["percent"] is not None
             else "n/a"
         )
-        lines.append(
-            f"| {METRICS[name]} | {change} | {values['ratio_pairs']} | {values['improved']} | {values['regressed']} | {values['unchanged']} | {len(rows) - values['ratio_pairs']} |"
-        )
+        lines.append(f"| {METRICS[name]} | {change} |")
     if compile_only := sum(bool(row.get("compile_only")) for row in rows):
         lines.extend(
             [
@@ -372,15 +367,13 @@ def comparison_report(comparison: dict[str, Any]) -> str:
         lines.extend(["", "#### Incomplete or incompatible comparisons", "", *issues])
     changed = []
     for name, metric_label in METRICS.items():
-        if comparison["compiler"] == "solar":
-            continue
         for row in sorted(
             rows, key=lambda row: row["metrics"][name]["percent"] or 0, reverse=True
         ):
             values = row["metrics"][name]
             if values["delta"] not in (None, 0):
                 changed.append(
-                    f"| {markdown_cell(row['test_id'])} | {metric_label} | {comparison_cells(values, name)} |"
+                    f"| {perf_link(markdown_cell(row['test_id']), row['test_id'])} | {metric_label} | {comparison_cells(values, name)} |"
                 )
     if changed:
         lines.extend(
@@ -546,7 +539,7 @@ def compiler_failures(results: list[dict[str, Any]]) -> list[str]:
             continue
         compilers = result.get("compilers", {})
         for compiler_id, data in compilers.items():
-            if data.get("status") != "ok":
+            if compiler_id == "solar" and data.get("status") != "ok":
                 error_lines = str(data.get("error") or "").strip().splitlines()
                 error = error_lines[0] if error_lines else "compiler failed"
                 failures.append(f"{test_id} {compiler_id}: {error}")
@@ -566,21 +559,41 @@ def format_values(values: dict[str, Any]) -> str:
     )
 
 
+def runtime_mismatches(result: dict[str, Any], compiler: str) -> list[dict[str, Any]]:
+    return [
+        mismatch
+        for mismatch in result.get("runtime_mismatches") or []
+        if (value := (mismatch.get("values") or {}).get(compiler)) is not None
+        and any(
+            other is not None and other != value
+            for other in mismatch["values"].values()
+        )
+    ]
+
+
+def runtime_failed(result: dict[str, Any], compiler: str) -> bool:
+    return compiler_data(result, compiler).get("runtime_status") in (
+        "failed",
+        "mismatch",
+    ) or bool(runtime_mismatches(result, compiler))
+
+
 def runtime_issue_details(results: list[dict[str, Any]]) -> list[str]:
     details = []
     for result in results:
-        status = result.get("runtime_status")
-        if status in (None, "skipped", "ok"):
+        if not runtime_failed(result, "solar"):
             continue
         test_id = "/".join(suite_key(result))
         before = len(details)
 
-        for mismatch in result.get("runtime_mismatches") or []:
+        for mismatch in runtime_mismatches(result, "solar"):
             label = mismatch.get("label", "<unknown>")
             values = mismatch.get("values") or {}
             details.append(f"{test_id} {label}: {format_values(values)}")
 
         for compiler_id, data in (result.get("compilers") or {}).items():
+            if compiler_id != "solar":
+                continue
             for check in data.get("runtime_results") or []:
                 if check.get("status") == "ok":
                     continue
@@ -589,7 +602,8 @@ def runtime_issue_details(results: list[dict[str, Any]]) -> list[str]:
                 details.append(f"{test_id} {compiler_id} {label}: {shorten(error)}")
 
         if len(details) == before:
-            details.append(f"{test_id}: runtime_status={status}")
+            status = compiler_data(result, "solar").get("runtime_status")
+            details.append(f"{test_id} solar: runtime_status={status}")
 
     return details
 
@@ -1088,13 +1102,22 @@ def metric_rows(
         test_id = str(result.get("test_id", "<unknown>"))
         base = baseline.get(suite_key(result), {})
         solar_gas = compiler_metric(result, "solar", gas_metric)
-        solc_gas = compiler_metric(result, "solc", gas_metric)
+        reference_gas = [
+            compiler_metric(result, name, gas_metric)
+            for name in reference_compiler_ids(results)
+        ]
         base_solar_gas = compared_baseline(result, base, gas_metric, compared)
         solar_size = compiler_metric(result, "solar", size_metric)
-        solc_size = compiler_metric(result, "solc", size_metric)
+        reference_size = [
+            compiler_metric(result, name, size_metric)
+            for name in reference_compiler_ids(results)
+        ]
         base_solar_size = compared_baseline(result, base, size_metric, compared)
 
-        if all(value is None for value in (solar_gas, solc_gas, solar_size, solc_size)):
+        if all(
+            value is None
+            for value in (solar_gas, *reference_gas, solar_size, *reference_size)
+        ):
             continue
 
         rows.append(
@@ -1105,12 +1128,16 @@ def metric_rows(
                     fmt_value_with_lower_is_better_delta(
                         solar_gas, solar_gas, base_solar_gas
                     ),
-                    fmt_value_with_delta_vs_current(solc_gas, solar_gas, solc_gas),
+                    *(
+                        fmt_value_with_delta_vs_current(value, solar_gas, value)
+                        for value in reference_gas
+                    ),
                     fmt_value_with_lower_is_better_delta(
                         solar_size, solar_size, base_solar_size, "B"
                     ),
-                    fmt_value_with_delta_vs_current(
-                        solc_size, solar_size, solc_size, "B"
+                    *(
+                        fmt_value_with_delta_vs_current(value, solar_size, value, "B")
+                        for value in reference_size
                     ),
                 ]
             )
@@ -1126,6 +1153,13 @@ def compiler_ids(results: list[dict[str, Any]]) -> list[str]:
             if compiler_id not in ids:
                 ids.append(compiler_id)
     return ids
+
+
+def reference_compiler_ids(results: list[dict[str, Any]]) -> list[str]:
+    return [
+        "solc",
+        *(name for name in compiler_ids(results) if name not in ("solar", "solc")),
+    ]
 
 
 def memory_summary_rows(results: list[dict[str, Any]]) -> list[str]:
@@ -1215,7 +1249,6 @@ def compile_time_rows(
     rows = []
     for result in results:
         test_id = str(result.get("test_id", "<unknown>"))
-        solc_time = compile_time(result, "solc")
         solar_time = compile_time(result, "solar")
         base = baseline.get(suite_key(result), {})
         base_solar_time = compared_baseline(
@@ -1230,7 +1263,11 @@ def compile_time_rows(
                         f"{fmt_duration(solar_time)} "
                         f"({fmt_pct_change_lower_is_better(solar_time, base_solar_time)})"
                     ),
-                    f"{fmt_duration(solc_time)} ({fmt_pct_vs_current(solar_time, solc_time)})",
+                    *(
+                        f"{fmt_duration(value)} ({fmt_pct_vs_current(solar_time, value)})"
+                        for name in reference_compiler_ids(results)
+                        for value in [compile_time(result, name)]
+                    ),
                 ]
             )
             + " |"
@@ -1244,35 +1281,34 @@ def compile_time_report(
     baseline_label: str,
     compared: dict | None = None,
 ) -> list[str]:
-    # Aggregate only tests where both compilers succeeded, so a new failure
+    # Aggregate only tests where all compilers succeeded, so a new failure
     # cannot make the Solar total look faster.
-    paired = [
-        (compile_time(result, "solc"), compile_time(result, "solar"))
-        for result in results
-    ]
-    paired = [
-        (solc, solar)
-        for solc, solar in paired
-        if solc is not None and solar is not None
-    ]
+    ids = ["solar", *reference_compiler_ids(results)]
+    paired = [[compile_time(result, name) for name in ids] for result in results]
+    paired = [values for values in paired if all(value is not None for value in values)]
     if not any(compile_time(result, "solar") is not None for result in results):
         return []
 
-    solc_sum = sum(solc for solc, _ in paired)
-    solar_sum = sum(solar for _, solar in paired)
+    sums = [sum(values[index] for values in paired) for index in range(len(ids))]
+    solar_sum = sums[0]
+    reference_headers = " | ".join(ids[1:])
 
     return [
         "<details>",
         "<summary>Compilation time</summary>",
         "",
-        f"| bench | time (vs {baseline_label}) | solc |",
-        "| ----- | --------------------- | ---- |",
+        f"| bench | time (vs {baseline_label}) | {reference_headers} |",
+        "| ----- | --------------------- |" + " ---- |" * (len(ids) - 1),
         *compile_time_rows(results, baseline, compared),
         *(
             [
                 (
                     f"| **sum of medians** | **{fmt_duration(solar_sum)}** | "
-                    f"**{fmt_duration(solc_sum)} ({fmt_pct_vs_current(solar_sum, solc_sum)})** |"
+                    + " | ".join(
+                        f"**{fmt_duration(value)} ({fmt_pct_vs_current(solar_sum, value)})**"
+                        for value in sums[1:]
+                    )
+                    + " |"
                 )
             ]
             if paired
@@ -1303,13 +1339,22 @@ def report_section(
             [f"No `{baseline_ref}` baseline artifact was available for comparison.", ""]
         )
     lines.extend(compilation_failure_report(results, baseline_results, baseline_ref))
+    references = reference_compiler_ids(results)
+    reference_headers = " | ".join(references)
+    metric_header = f"| bench | gas (vs {baseline_label}) | {reference_headers} | size (vs {baseline_label}) | {reference_headers} |"
+    metric_separator = (
+        "| ----- | ------------- |"
+        + " ---- |" * len(references)
+        + " -------------- |"
+        + " ---- |" * len(references)
+    )
 
     rows = benchmark_rows(results, baseline, compared)
     if rows:
         lines.extend(
             [
-                f"| bench | gas (vs {baseline_label}) | solc | size (vs {baseline_label}) | solc |",
-                "| ----- | ------------- | ---- | -------------- | ---- |",
+                metric_header,
+                metric_separator,
                 *rows,
                 "",
             ]
@@ -1320,8 +1365,8 @@ def report_section(
             [
                 f"### {perf_link('Deployment')}",
                 "",
-                f"| bench | gas (vs {baseline_label}) | solc | size (vs {baseline_label}) | solc |",
-                "| ----- | ------------- | ---- | -------------- | ---- |",
+                metric_header,
+                metric_separator,
                 *deployment,
                 "",
             ]
@@ -1405,6 +1450,74 @@ def format_report(
         "</details>\n"
     )
     return notices + details
+
+
+def pr_comment(
+    comparison: dict[str, Any], has_changes: bool, behind_base: bool, base_ref: str
+) -> str:
+    lines = ["## Codegen benchmarks", ""]
+    if not comparison["rows"]:
+        lines.append("No benchmark results were produced.")
+    elif comparison["baseline"] is None:
+        lines.append("No baseline was available for comparison.")
+    else:
+        lines.append(
+            f"Benchmark changes detected against `{base_ref}`."
+            if has_changes
+            else f"No significant benchmark changes against `{base_ref}`."
+        )
+        lines.extend(["", "### Overview", "", "| Metric | Change |", "| --- | ---: |"])
+        metrics = ("total_gas", "runtime_size", "bytecode_size")
+        for name in metrics:
+            values = comparison["summary"][name]
+            change = (
+                fmt_pct(values["percent"], positive_is_good=False)
+                if values["percent"] is not None
+                else "n/a"
+            )
+            lines.append(f"| {METRICS[name]} | {change} |")
+        lines.extend(["", "Equal-weight geometric means; lower is better."])
+        changed = []
+        for row in comparison["rows"]:
+            if any(row["metrics"][name]["delta"] not in (None, 0) for name in metrics):
+                cells = [perf_link(markdown_cell(row["test_id"]), row["test_id"])]
+                for name in metrics:
+                    values = row["metrics"][name]
+                    cells.append(
+                        fmt_pct(values["percent"], positive_is_good=False)
+                        if values["percent"] is not None
+                        else "n/a"
+                    )
+                changed.append("| " + " | ".join(cells) + " |")
+        if changed:
+            lines.extend(
+                [
+                    "",
+                    f"### Changed benchmarks vs `{base_ref}`",
+                    "",
+                    "| Benchmark | Runtime gas | Runtime bytes | Creation bytes |",
+                    "| --- | ---: | ---: | ---: |",
+                    *changed,
+                ]
+            )
+    if any(row["issues"] for row in comparison["rows"]):
+        lines.extend(
+            [
+                "",
+                "> ⚠️ Some benchmarks have incomplete or incompatible results.",
+            ]
+        )
+    if behind_base:
+        lines.extend(
+            ["", f"> ⚠️ This branch is behind `{base_ref}`; results may be stale."]
+        )
+    button = "![View benchmark overview](https://img.shields.io/badge/View_benchmark_overview-2563eb?style=for-the-badge)"
+    link = perf_link(button)
+    if link == button:
+        site = os.environ.get("BENCHMARK_SITE_URL") or PERF_SITE_URL
+        link = f"[{button}]({site})"
+    lines.extend(["", link, ""])
+    return "\n".join(lines)
 
 
 def metric(value: float, unit: str, statistic: str) -> dict[str, Any]:
@@ -1543,6 +1656,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--common-output", type=Path)
     parser.add_argument("--report-output", type=Path)
     parser.add_argument(
+        "--pr-comment-output", type=Path, help="Write a compact PR comment"
+    )
+    parser.add_argument(
         "--json-output",
         type=Path,
         help="Write per-case deltas, eligibility, samples, and artifact hashes",
@@ -1564,7 +1680,9 @@ def main(argv: list[str] | None = None) -> int:
         help="Artifact kinds to inspect or diff",
     )
     parser.add_argument("--tests", nargs="+", help="Select test IDs from either run")
-    parser.add_argument("--compiler", choices=("solar", "solc"), default="solar")
+    parser.add_argument(
+        "--compiler", choices=("solar", "solc", "solx"), default="solar"
+    )
     parser.add_argument(
         "--comment-output", type=Path, help="Write CI should-comment metadata"
     )
@@ -1579,7 +1697,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.common_output and (args.tests or args.compiler != "solar"):
         parser.error("--common-output requires the complete run and --compiler solar")
     if args.compiler != "solar" and args.baseline is None:
-        parser.error("--compiler solc requires a baseline comparison")
+        parser.error(f"--compiler {args.compiler} requires a baseline comparison")
     for name in ("baseline", "results"):
         path = getattr(args, name)
         if path is not None and path.is_dir():
@@ -1592,6 +1710,7 @@ def main(argv: list[str] | None = None) -> int:
     current_root = args.artifacts or args.results.parent / "artifacts"
     for output in (
         args.report_output,
+        args.pr_comment_output,
         args.json_output,
         args.diff_output,
         args.common_output,
@@ -1656,7 +1775,6 @@ def main(argv: list[str] | None = None) -> int:
         )
     except (OSError, ValueError) as error:
         parser.error(str(error))
-    eligible_rows = {(row["suite"], row["test_id"]): row for row in comparison["rows"]}
     emit_warnings(results, [])
     for row in comparison["rows"]:
         for name in ("total_gas", "runtime_size", "bytecode_size", "deploy_gas"):
@@ -1666,26 +1784,31 @@ def main(argv: list[str] | None = None) -> int:
                     f"{row['test_id']} {row['compiler']} {METRICS[name]} regressed: {values['before']} -> {values['after']}"
                 )
     report = (
-        codegen_report(results, baseline_results, base_ref, eligible_rows)
-        if args.compiler == "solar"
-        else "## Codegen benchmark\n"
+        codegen_report(results, baseline_results, base_ref)
+        if args.baseline is None
+        else ""
     )
     should_comment = not baseline_results or comparison_has_changes(
         comparison, args.ignore_compile_time_changes
     )
+    behind_base = branch_is_behind(base_ref)
     markdown = format_report(
         report,
         should_comment,
-        branch_is_behind(base_ref),
+        behind_base,
         base_ref,
         comparison_report(comparison) if args.baseline is not None else "",
     )
     print(markdown)
-    append_github_output("report", markdown)
     append_github_output("should_comment", "true" if should_comment else "false")
     if args.report_output is not None:
         args.report_output.parent.mkdir(parents=True, exist_ok=True)
         args.report_output.write_text(markdown)
+    if args.pr_comment_output is not None:
+        args.pr_comment_output.parent.mkdir(parents=True, exist_ok=True)
+        args.pr_comment_output.write_text(
+            pr_comment(comparison, should_comment, behind_base, base_ref)
+        )
     if args.json_output is not None:
         args.json_output.parent.mkdir(parents=True, exist_ok=True)
         args.json_output.write_text(

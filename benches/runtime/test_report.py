@@ -79,6 +79,37 @@ class ReportFormattingTests(unittest.TestCase):
             "</details>\n",
         )
 
+    def test_pr_comment_without_comparison_links_to_overview(self):
+        button = "[![View benchmark overview](https://img.shields.io/badge/View_benchmark_overview-2563eb?style=for-the-badge)](https://example.test/?base=01234567&head=fedcba98#benchmarks)\n"
+        with patch.dict(
+            os.environ,
+            {
+                "BENCHMARK_BASE_SHA": "0123456789abcdef",
+                "BENCHMARK_PR_HEAD_SHA": "fedcba9876543210",
+                "BENCHMARK_SITE_URL": "https://example.test/",
+            },
+            clear=True,
+        ):
+            for rows, status in (
+                ([], "No benchmark results were produced."),
+                (
+                    [{"issues": ["missing baseline"]}],
+                    (
+                        "No baseline was available for comparison.\n\n"
+                        "> ⚠️ Some benchmarks have incomplete or incompatible results."
+                    ),
+                ),
+            ):
+                with self.subTest(rows=rows):
+                    self.assertEqual(
+                        benchmark.pr_comment(
+                            {"rows": rows, "baseline": None}, True, True, "main"
+                        ),
+                        f"## Codegen benchmarks\n\n{status}\n\n"
+                        "> ⚠️ This branch is behind `main`; results may be stale.\n\n"
+                        + button,
+                    )
+
     def test_changed_report_has_no_details(self):
         self.assertEqual(
             benchmark.format_report(
@@ -233,6 +264,30 @@ class ReportFormattingTests(unittest.TestCase):
             "| bench | gas (vs main) | solc | size (vs main) | solc |\n"
             "| ----- | ------------- | ---- | -------------- | ---- |\n"
             "| test | 110 (❌ +10.00%) | n/a (n/a) | 210B (❌ +5.00%) | n/a (n/a) |\n",
+        )
+
+    def test_codegen_report_adds_reference_compiler_columns(self):
+        current = result()
+        current["compilers"]["extra"] = {
+            "status": "ok",
+            "total_gas": 10,
+            "runtime_size": 20,
+            "deploy_gas": 30,
+            "bytecode_size": 40,
+        }
+        self.assertEqual(
+            benchmark.codegen_report([current], [current]),
+            "## Codegen benchmark\n"
+            "\n"
+            "| bench | gas (vs main) | solc | extra | size (vs main) | solc | extra |\n"
+            "| ----- | ------------- | ---- | ---- | -------------- | ---- | ---- |\n"
+            "| test | n/a (n/a) | n/a (n/a) | 10 (n/a) | n/a (n/a) | n/a (n/a) | 20B (n/a) |\n"
+            "\n"
+            "### Deployment\n"
+            "\n"
+            "| bench | gas (vs main) | solc | extra | size (vs main) | solc | extra |\n"
+            "| ----- | ------------- | ---- | ---- | -------------- | ---- | ---- |\n"
+            "| test | n/a (n/a) | n/a (n/a) | 30 (n/a) | n/a (n/a) | n/a (n/a) | 40B (n/a) |\n",
         )
 
     def test_codegen_report_labels_failed_revision(self):
@@ -545,6 +600,28 @@ class CompileTimeReportTests(unittest.TestCase):
             "| **sum of medians** | **10.0 ms** | **200.0 ms (✅ +1900.00%)** |", text
         )
 
+    def test_compile_time_report_with_third_compiler(self):
+        results = [self.timed_result("test", 0.010, 0.010)]
+        results[0]["compilers"]["extra"] = {
+            "status": "ok",
+            "compile_time_seconds": 0.010,
+        }
+        self.assertEqual(
+            benchmark.compile_time_report(results, {}, "main"),
+            [
+                "<details>",
+                "<summary>Compilation time</summary>",
+                "",
+                "| bench | time (vs main) | solc | extra |",
+                "| ----- | --------------------- | ---- | ---- |",
+                "| test | 10.0 ms (n/a) | 10.0 ms (~0%) | 10.0 ms (~0%) |",
+                "| **sum of medians** | **10.0 ms** | **10.0 ms (~0%)** | **10.0 ms (~0%)** |",
+                "",
+                "</details>",
+                "",
+            ],
+        )
+
     def test_compile_time_report_uses_solar_baseline_delta(self):
         results = [self.timed_result("bench", 0.100, 0.011)]
         baseline = {
@@ -833,6 +910,69 @@ class RunComparisonTests(unittest.TestCase):
         row["compilers"]["solar"].update(values)
         return row
 
+    def test_reference_failures_do_not_trigger_comments_or_warnings(self):
+        for compiler in ("solc", "solx"):
+            for stage in ("status", "runtime_status", "gas_status"):
+                with self.subTest(compiler=compiler, stage=stage):
+                    before = self.fixture()
+                    after = self.fixture()
+                    after["compilers"][compiler] = {
+                        "status": "ok",
+                        stage: "failed",
+                        "error": "reference failed",
+                    }
+                    after["runtime_status"] = "failed"
+                    comparison = benchmark.compare_runs([after], [before])
+                    self.assertEqual(comparison["rows"][0]["issues"], [])
+                    self.assertEqual(
+                        comparison["rows"][0]["metrics"]["total_gas"]["delta"], 0
+                    )
+                    self.assertFalse(benchmark.comparison_has_changes(comparison, True))
+                    self.assertEqual(benchmark.compiler_failures([after]), [])
+                    self.assertEqual(benchmark.runtime_issue_details([after]), [])
+
+    def test_solar_failures_still_trigger_comments_and_warnings(self):
+        before = self.fixture()
+        for stage in ("status", "runtime_status"):
+            with self.subTest(stage=stage):
+                after = self.fixture(**{stage: "failed"})
+                comparison = benchmark.compare_runs([after], [before])
+                self.assertTrue(benchmark.comparison_has_changes(comparison, True))
+                if stage == "status":
+                    self.assertEqual(
+                        benchmark.compiler_failures([after]),
+                        ["repository/test solar: compiler failed"],
+                    )
+                else:
+                    self.assertEqual(
+                        benchmark.runtime_issue_details([after]),
+                        ["repository/test solar: runtime_status=failed"],
+                    )
+
+    def test_mismatches_require_a_solar_observation(self):
+        before = self.fixture()
+        after = self.fixture()
+        after["runtime_status"] = "mismatch"
+        after["runtime_mismatches"] = [
+            {"label": "value", "values": {"solc": "1", "solx": "2", "solar": None}}
+        ]
+        self.assertFalse(
+            benchmark.comparison_has_changes(
+                benchmark.compare_runs([after], [before]), True
+            )
+        )
+        self.assertEqual(benchmark.runtime_issue_details([after]), [])
+        after["runtime_mismatches"][0]["values"]["solar"] = "1"
+        self.assertTrue(
+            benchmark.comparison_has_changes(
+                benchmark.compare_runs([after], [before]), True
+            )
+        )
+        self.assertEqual(
+            benchmark.runtime_issue_details([after]),
+            ["repository/test value: solc=1, solx=2, solar=1"],
+        )
+
     def test_totals_exclude_failed_missing_and_changed_inputs(self):
         before = [
             self.fixture(name) for name in ("paired", "failed", "removed", "input")
@@ -915,6 +1055,43 @@ class RunComparisonTests(unittest.TestCase):
         self.assertNotIn("Per-case metric changes", markdown)
         self.assertNotIn("inspect sample", markdown)
         self.assertEqual(markdown.count("| runtime bytes |"), 1)
+
+    def test_pr_comment_lists_only_changed_benchmarks_against_baseline(self):
+        before = [self.fixture("changed"), self.fixture("unchanged")]
+        after = [
+            self.fixture("changed", runtime_size=110, bytecode_size=60),
+            self.fixture("unchanged"),
+        ]
+        for row in after:
+            row["compilers"]["solc"] = {"status": "ok", "runtime_size": 200}
+            row["compilers"]["solx"] = {"status": "ok", "runtime_size": 300}
+        comparison = benchmark.compare_runs(after, before)
+        comparison["baseline"] = "main.json"
+        with patch.dict(os.environ, {}, clear=True):
+            comment = benchmark.pr_comment(comparison, True, False, "main")
+        self.assertEqual(
+            comment.split("### Changed benchmarks", 1)[1].split("[![", 1)[0],
+            " vs `main`\n\n"
+            "| Benchmark | Runtime gas | Runtime bytes | Creation bytes |\n"
+            "| --- | ---: | ---: | ---: |\n"
+            "| changed | ~0% | ❌ +10.00% | ✅ -50.00% |\n\n",
+        )
+
+    def test_detailed_overview_omits_counts(self):
+        comparison = benchmark.compare_runs([self.fixture()], [self.fixture()])
+        self.assertEqual(
+            benchmark.comparison_report(comparison).splitlines()[6:14],
+            [
+                "| Metric | Change |",
+                "| --- | ---: |",
+                "| runtime gas | ~0% |",
+                "| runtime bytes | ~0% |",
+                "| creation bytes | ~0% |",
+                "| deployment gas | ~0% |",
+                "| compile seconds | ~0% |",
+                "| peak RSS bytes | ~0% |",
+            ],
+        )
 
     def test_solar_only_report_keeps_compile_times(self):
         before = self.fixture()
@@ -1058,6 +1235,7 @@ class RunComparisonTests(unittest.TestCase):
                 name: root / name
                 for name in (
                     "report.md",
+                    "comment.md",
                     "comparison.json",
                     "common.json",
                     "comment",
@@ -1083,6 +1261,8 @@ class RunComparisonTests(unittest.TestCase):
                         str(root / "after"),
                         "--report-output",
                         str(outputs["report.md"]),
+                        "--pr-comment-output",
+                        str(outputs["comment.md"]),
                         "--json-output",
                         str(outputs["comparison.json"]),
                         "--common-output",
@@ -1096,6 +1276,18 @@ class RunComparisonTests(unittest.TestCase):
                 outputs["summary"].read_text(), outputs["report.md"].read_text() + "\n"
             )
             self.assertEqual(outputs["comment"].read_text(), "false\n")
+            self.assertEqual(
+                outputs["comment.md"].read_text(),
+                "## Codegen benchmarks\n\n"
+                "No significant benchmark changes against `before`.\n\n"
+                "### Overview\n\n"
+                "| Metric | Change |\n| --- | ---: |\n"
+                "| runtime gas | ~0% |\n"
+                "| runtime bytes | ~0% |\n"
+                "| creation bytes | ~0% |\n\n"
+                "Equal-weight geometric means; lower is better.\n\n"
+                "[![View benchmark overview](https://img.shields.io/badge/View_benchmark_overview-2563eb?style=for-the-badge)](https://getfoundry.sh/perf/solar/)\n",
+            )
             self.assertEqual(
                 json.loads(outputs["comparison.json"].read_text())["totals"][
                     "runtime_size"

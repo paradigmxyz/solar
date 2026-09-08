@@ -4,7 +4,7 @@ This directory contains fixtures and workload documentation for the codegen benc
 project archives live in `../../testdata/projects/`; archives group cases from the same upstream
 project. The default `runtime` mode selects each entrypoint's transitive Solidity import closure and
 omits the heavy full-project cases. The `compile-time` mode measures those cases by passing full
-archived Standard JSON inputs to both compilers without deployment or runtime workloads. CI runs
+archived Standard JSON inputs to each compiler without deployment or runtime workloads. CI runs
 both modes with `--mode runtime compile-time`.
 
 Keeping the inputs here makes the benchmark reproducible from this checkout and removes the CI
@@ -15,22 +15,34 @@ corpus against one EVM version. Use `--solar-only` when the selected target is n
 installed solc. When available, solc still provides helper contracts for cold-path runtime checks.
 
 The default runs only our compiler. Pass `--solc PATH` to record a two-compiler baseline.
-Use `--solar-only` to skip solc benchmark compilation even when `--solc PATH` supplies a binary
+Pass `--solx PATH` to include [solx](https://github.com/NomicFoundation/solx) as a separate compiler,
+with its own compilation, gas, runtime checks, and artifacts. CI pins solx 0.1.8 and installs and
+runs it only on pushes to main. Its measurements appear alongside solc in the Markdown report.
+Reference compiler failures remain in the raw results but do not produce report warnings or
+trigger PR comments. Failures from our compiler and result mismatches involving it still do.
+
+Use `--solar-only` to skip solc and solx benchmark compilation even when `--solc PATH` supplies a binary
 for reference validation or helper contracts. The default skips the
 reference solc compile for each case while retaining Solar compilation, gas measurements, and
 runtime failure checks. A one-compiler run cannot make differential runtime claims, so successful
 runtime comparisons are marked as skipped unless a matching reference result is supplied.
 
-Pass `--reference-results PATH` to reuse matching solc results from a prior
-run. The benchmark copies solc compile, gas, and runtime data only when the input fingerprint
+Pass `--reference-results PATH` to reuse matching solc and solx results from a prior
+run. The benchmark copies reference compile, gas, and runtime data only when the input fingerprint
 matches, then performs the normal cross-compiler runtime checks. PR CI uses the exact-base result
 as the reference, so solc runs on the base revision instead of repeating unchanged work on the PR.
+PR jobs never run solx, including when they must rebuild a missing baseline; solx columns appear
+when matching results are available in the downloaded main artifact.
 
 Pass `--artifacts PATH` to write a file tree for each runtime case and compiler. This extra compile
 runs outside the timed samples. Solar emits MIR, creation and runtime EVM IR, disassembly, bytecode,
-and raw Standard JSON input and output. Solc emits optimized Yul IR where available, disassembly,
+and raw Standard JSON input and output. Solc emits unoptimized `ir.yul` and optimized
+`optimized-ir.yul` where available, disassembly,
 bytecode, and raw Standard JSON input and output. When `--reference-results` points to a result next
-to an `artifacts` directory, the matching solc files are copied into the new run.
+to an `artifacts` directory, the matching reference files are copied into the new run. Solx artifacts
+use the same output requests as solc, saving `ir.yul` and `optimized-ir.yul` when returned,
+alongside disassembly, bytecode, and raw Standard JSON input and output. Solx 0.1.8 returns
+`ir` but omits `irOptimized`.
 
 Compare two runs with `benchmark-compare.py`, which also generates CI's Markdown report,
 common benchmark JSON, job summary, and comment metadata:
@@ -45,11 +57,19 @@ uv run benches/runtime/benchmark-compare.py \
 
 The script prints Markdown to stdout by default. `--report-output` also saves the same
 report; omit it when you only need terminal output.
+CI uses `--pr-comment-output` for a compact PR comment with a gas and size overview,
+changed benchmarks compared with the base branch, and a button to open the web overview.
+Neither overview includes comparison counts. The detailed report stays in the job summary
+and artifacts. `--comment-output` writes the separate should-comment flag.
+With a baseline, the detailed report shows only changed benchmarks against that baseline,
+plus per-call gas changes and artifact details. Reference compiler tables appear only in
+single-run reports.
 
 Inputs may be directories containing `results.json` or JSON paths. Artifacts default to
 `artifacts/` beside each JSON. Use `--baseline-artifacts` and `--artifacts` for other paths.
 Add `--tests factorial counter` to select cases, `--artifact mir` for MIR diffs, or
-`--artifact evm-ir disasm bytecode` for backend output. `--compiler solc` inspects solc;
+`--artifact evm-ir disasm bytecode` for backend output. `--compiler solc` or `--compiler solx`
+inspects that reference compiler;
 the default compares our compiler between runs. `--results PATH` without a baseline produces
 a single-run CI report. Numeric regressions do not cause a nonzero exit status;
 missing or invalid result inputs do. The shared CI schema (`--common-output`)
