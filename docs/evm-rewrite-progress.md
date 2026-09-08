@@ -2085,3 +2085,54 @@ remains held and uncompiled because retrying failed proposals cannot repair an
 accepted but more expensive allocation. The next design question is joint
 ordinary/Phi selection with edge and writer costs, not another occupancy policy
 layer. The existing whole-rewrite correctness and size debts remain open.
+
+
+### Joint residence: runtime and project gates reject draft
+
+The next prototype replaced the competing optional pools in eligible static Gas
+owners with reachable Phis. It retained short local exemptions, allocated homes,
+then selected ordinary and Phi values together using per-block live segments and
+cyclic-use priority. A shared initialized/live-home collector fed an admission
+filter that checked complete MSTORE protection banks before each removal. The
+existing physical emission and final writer guards remained authoritative.
+
+The native bank diagnostic explains why individual savings are insufficient:
+all 32 subsets of five proposed removals were priced by the existing chooser.
+Banks with 14, 13 or 12 homes cost 55 bytes/130 gas; dropping to 11 homes costs
+83–85 bytes/135 gas. Each singleton removal looks free, but every third removal
+crosses the template threshold. Shared-address ownership and initialization were
+retained, and bank-cost updates committed only when all affected writers passed.
+
+The full UI screen preserves 1,644 IDs, 823 source hashes and 5,028 objects.
+Twelve Gas objects shrink by 615 creation and 615 runtime bytes total; Size is
+byte-exact. Focused Parallel/Storage/Router runtime sizes fall from
+586/5,784/23,247 to 524/5,634/22,795 bytes. All three focused MIR bodies remain
+exact. These positive results did not establish acceptance.
+
+The prescribed full workflow preserves 24 cases and 175 ordered gas labels.
+Six Nitro calls each add 22 gas versus the accepted compiler while remaining
+232 gas below the sealed baseline. More importantly, 376 fresh-deployment
+focused calls cover 47 original labels, four compiler legs and both modes.
+Every oracle passes, but 16 Gas labels grow versus the accepted compiler;
+eight also exceed sealed gas. Parallel's zero-round path grows 982→1,046 gas
+against sealed 809; the equivalent Cycles path grows 550→600 against sealed 581.
+Two nested-memory calls grow by 308/393 gas and worsen sealed debt. Size gas is
+unchanged. Return/status agreement does not waive these runtime regressions.
+
+Across all nine archived projects, 1,672 contracts and 3,344 objects remain.
+Of 193 changed objects, 163 shrink and 30 grow. Every growing object worsens
+existing sealed debt, despite aggregate creation/runtime reductions of
+178,104/80,056 bytes. ReadOnlyOrderValidator runtime grows 9,627→9,876 against
+sealed 5,690; MockEntryPoint grows 5,235→5,238 against sealed 2,370. Metadata
+changes were not approved after these actual size failures.
+
+Trace attribution shows that the zero-round regressions mainly add retained-value
+SWAPs. The nested-memory calls execute four/six more bitmap protection templates;
+the gate's broader initial home allocation is not the accepted allocation's cost
+reference. Quiet compiler-time geometric mean is -1.52%, RSS +0.61%, with differing
+sample counts and per-case regressions; no speedup is claimed. The failed draft was
+preserved under `joint-residence-workflow-20260908/` and the saved rewritten
+source restored. Rebuilding matches accepted `9ed4da3c` byte-for-byte. No test or
+expectation changed. Full workspace/UI-oracle and symbolic gates were not rerun
+for this rejected draft. A separate investigation will address last-use operand
+preparation refusing missing literals before their ordinary materialization.
