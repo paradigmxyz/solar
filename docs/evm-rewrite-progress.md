@@ -1,8 +1,9 @@
 # EVM rewrite progress
 
-The rewrite remains incomplete. One original UI assertion, raw-memory/spill
-corruption and individual sealed gas/size debts still block final acceptance.
-This page summarizes local state after `d9fa3bd8` on 2026-09-08. The
+The rewrite remains incomplete. One original UI assertion, incomplete general
+memory-ownership evidence and individual sealed gas/size debts still block final
+acceptance.
+This page summarizes local state after `5b06f7ab` on 2026-09-08. The
 [handoff](evm-rewrite-plan.md) defines acceptance; [PR #1388][pr] tracks review.
 The [checkpoint archive](evm-rewrite-checkpoints.md) preserves the complete
 history, baseline hashes, rejected trials and measurement limitations.
@@ -11,7 +12,8 @@ history, baseline hashes, rejected trials and measurement limitations.
 
 Main `6059f0c0` was integrated by merge `53075d0e`. Recent commits implement
 literal caching (`552c9d04`, tests `432df730`), review the cold-call expectations
-(`c0782114`), and group profitable Size tails (`96c07690`, tests `d9fa3bd8`).
+(`c0782114`), group profitable Size tails (`96c07690`, tests `d9fa3bd8`), and
+contract live SSA values before writes (`5f70b2f2`, tests `5b06f7ab`).
 
 MIR semantics, private stack scheduling, physical block IR and primitive assembly
 remain separate. Literal caching uses existing capacity and observer facts.
@@ -46,7 +48,7 @@ all commands, individual deltas, exact output joins and source/binary pins.
 
 ## Verification and reviewed expectations
 
-Final workspace results are 11,724 UI passes, one original alias assertion
+Final workspace results are 11,734 UI passes, one original alias assertion
 failure, 1,395 other passes and two skips. All 36 Foundry projects pass
 (772 compiler tests, 765 solc tests), with reported gas and sizes unchanged.
 Clippy, formatting and typos pass. The larger tail fixture passes 24 fresh calls
@@ -71,14 +73,18 @@ attempts. No original test was removed to close that assertion.
 ## Remaining acceptance work
 
 `global_stack_calldata_alias.sol` remains the original failing assertion.
-Known raw-memory/spill alias corruption is unresolved. The accepted heavy ledger
+The original readback failures now pass in every mode. General source-memory
+ownership remains an open contract; bounded shared-input sweeps pass. The accepted heavy ledger
 still has 32,427,688 positive bytes of sealed size debt across 1,050 objects;
 this is a sum of regressions, not net corpus growth. Compiler-time debts remain.
 The backend has 16,931 physical lines in 46 files, 17,707 fewer than the deletion
 inventory; this includes embedded tests and is not strict production SLOC.
 
-Next, remove avoidable spill pressure across source writes, restore alias-codegen
-size, and complete the remaining runtime/size gates. Keep correctness and runtime
+Eager contraction removes avoidable spills and saves bytecode without corpus
+growth; full Gas/Size outputs and Foundry gas remain exact. It adds 188 physical
+MIR Rust lines. Quiet repeats retain +1.64% OpenZeppelin and +3.11% Morpho compile
+costs. Next, simplify that analysis, restore alias-codegen size, and complete the
+remaining runtime/size gates. Keep correctness and runtime
 gas ahead of size, then compiler time and memory. These local milestones do not
 establish complete functionality, green remote CI or a successful remote push.
 

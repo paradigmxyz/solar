@@ -3339,3 +3339,57 @@ physical LOC rises by22 to16,931; sealed heavy debt and raw-memory corruption
 remain open. The separately committed cold-call expectation migration is a
 reviewed test contract change with30 passing runtime checks, not a new layout
 optimization. Every prior progress paragraph is preserved above verbatim.
+
+
+## September 8: eager consumer scheduling
+
+Accepted production `5f70b2f2`, tests `5b06f7ab`, and independent writer-fixture
+policy migration `9e27b108`. Frozen normal debug compiler is
+`solar-eager-consumer-final`, SHA256
+`2b032ba7e02ff1acbb48c57d15a371ad230ee5ab7859f8cab1048a5eda57e7ae`.
+Evidence is under `target/codegen-bench/evm-rewrite-candidate/eager-consumer-workflow-20260908/`.
+
+The existing late MIR pass consumes two or more distinct dying SSA results
+before ordinary writes when a block's local live-result count exceeds target
+reach. Reads, writes and observation barriers keep their order. The contraction
+runs under None too; the previous segment scheduler stays optional. It reuses
+scratch bitsets and block buffers, introduces no spill permission, and leaves
+physical stack checks to lowering. It adds 188 physical Rust lines outside the
+backend. The backend remains 16,931 lines; these counts include embedded tests
+and are not strict production SLOC.
+
+The unrestricted draft had eight growing Gas entries and fifteen growing Size
+entries. Restricting motion to actual contractions removed all but one growth;
+the pressure gate restored that call-return case to baseline bytes. Every trial,
+failed expectation and exact emitted-object comparison remains in the archive.
+On the original unchanged corpus, Gas creation/runtime totals fall 1,270/1,268
+bytes and Size falls 1,258/1,256, with no growth. After adding the two original
+readback sources and the reviewed writer migration, all 1,652 IDs and 827
+source hashes match the explicitly bridged frozen baseline; totals fall
+1,458/1,455 Gas bytes and 1,943/1,940 Size bytes, with no growth.
+
+All 24 original readback calls pass across None/Gas/Size, including the captured
+storage checksum. The standard matrix executes 32 calls and both new MIR tests
+pass. Workspace: 11,734 UI passes, one original alias assertion failure, 1,395
+other passes, two skips. All 36 Foundry projects retain 772/765 passing tests
+and identical reported gas/sizes. The first passing Foundry run omitted reports;
+the retained reported rerun corrects that evidence gap. The writer migration
+keeps all five original oracles and actual live-home overlap while preventing
+its scratch region from aliasing the raw source write. Only that source's MIR
+snapshot and the newly required None timing line were updated.
+
+Full Gas retains all 24 IDs, 175 labels, 139 observations and complete outputs.
+The Size supplement retains 15/175/139 and exact outputs/gas. All nine heavy
+projects retain all 3,344 objects and requested metadata; positive sealed size
+debt remains 32,427,688 bytes across 1,050 objects. The quiet full compile-time
+geometric mean rises 0.543%; a reversed five-sample repeat confirms OpenZeppelin
++1.64% and Morpho +3.11%, with disjoint sample ranges. These costs remain real;
+a smaller sole-user analysis is the next measured change.
+
+Independent metadata review checks 88 captures and 14,600 source-map entries;
+all plain/debug objects and ABI joins match. One duplicated empty-revert owner
+has a corresponding extra real checkpoint. Two symbolic arbitrary-input runs
+return unknown at 2/10-second solver limits; neither is agreement. A separate
+shared-capture extension passes 36 calls plus 244 address-sweep calls with
+baseline-identical objects, establishing only bounded refusal coverage. General
+memory ownership and the overall rewrite remain open.

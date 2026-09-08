@@ -450,3 +450,22 @@ Integration must confirm the actual compiler analysis grants that permission,
 retain the selected prefix and exact exit, and charge the complete literal plan,
 all duplicates and all setup/release swaps. Models, rejected variants, exact
 native traces and source pins are in `wide-constant-prior-art-20260908/boundary/`.
+
+
+## Eager consumer scheduling
+
+The September 8 experiment distinguishes dependency legality from the choice
+of schedule. The pinned solx single-use pass permits data-only motion but sinks
+definitions; Venom's DFT separates data and effect dependencies; Sonatina's use
+tracker consumes dying values while its block planner walks existing IR order.
+None of those inspected paths implements this exact earlier-consumer rule.
+The focused primary-source audit is retained in
+`target/codegen-bench/evm-rewrite-candidate/raw-memory-residence-revisit-20260908/prior-art/report.md`.
+
+The accepted rule requires two distinct dying inputs, a pressured block and
+canonical pure operations. It retains captured mutable reads instead of issuing
+them again after writes. Neutral one-input motion and low-pressure motion were
+rejected after native code-size regressions. The linear implementation avoids
+an effect graph or scheduling search, but its measured compiler-time cost still
+requires attention. Fewer spills are not a general proof of source-memory
+ownership; that contract remains separate from scheduling profitability.
