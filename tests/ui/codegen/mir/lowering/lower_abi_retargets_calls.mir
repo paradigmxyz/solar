@@ -71,5 +71,45 @@ fn @overlappingLiteral() -> memorybytes [selector=0x0a0a0a06, abi_params=[], abi
     ret v0
 }
 
+// CHECK-LABEL: + fn @constantEncoding()
+// CHECK: + mstore 128, 32
+// CHECK: + mstore 160, 64
+// CHECK: + mstore 192, 1
+// CHECK: + mstore 224, 2
+// CHECK: + returndata 128, 128
+fn @constantEncoding() -> memorybytes [selector=0x0a0a0a07, abi_params=[], abi_returns=[memory_bytes]] {
+  bb0:
+    v0 = abi_encode [word, word], object, args 1, 2
+    ret v0
+}
+
+// CHECK-LABEL: + fn @emptyEncoding()
+// CHECK: + mstore 128, 32
+// CHECK-NEXT: + mstore 160, 0
+// CHECK-NEXT: + returndata 128, 64
+fn @emptyEncoding() -> memorybytes [selector=0x0a0a0a08, abi_params=[], abi_returns=[memory_bytes]] {
+  bb0:
+    v0 = abi_encode [], object
+    ret v0
+}
+
+// CHECK-LABEL: + fn @narrowEncoding()
+// CHECK: abi_encode [word<u8>], object, args 0x1234
+// CHECK: + {{v[0-9]+}} = abi_encode [memory_bytes], args
+fn @narrowEncoding() -> memorybytes [selector=0x0a0a0a09, abi_params=[], abi_returns=[memory_bytes]] {
+  bb0:
+    v0 = abi_encode [word<u8>], object, args 0x1234
+    ret v0
+}
+
+// CHECK-LABEL: + fn @prefixedEncoding()
+// CHECK: abi_encode [word], object, selector
+// CHECK: + {{v[0-9]+}} = abi_encode [memory_bytes], args
+fn @prefixedEncoding() -> memorybytes [selector=0x0a0a0a0a, abi_params=[], abi_returns=[memory_bytes]] {
+  bb0:
+    v0 = abi_encode [word], object, selector 0x1234567800000000000000000000000000000000000000000000000000000000, args 1
+    ret v0
+}
+
 // CHECK: + fn @pub.body{{[( ]}}
 // CHECK: + fn @literal.body{{[( ]}}

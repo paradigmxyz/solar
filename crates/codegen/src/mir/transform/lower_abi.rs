@@ -23,8 +23,9 @@
 //! Unsupported return layouts fail the preflight checks. The pass reports an error if
 //! any external entry still has an implicit ABI or any `abi_decode` remains afterward.
 //! Argument-free functions that only return a short literal use direct fixed-buffer stores;
-//! both typed word stores and their data-pointer/store form qualify. Other instructions,
-//! allocation policies, and literals longer than two words keep the general encoder.
+//! both typed word stores and their data-pointer/store form qualify. A single `abi_encode`
+//! of up to two constant words uses the same path while the encoding is still opaque. Other
+//! instructions, allocation policies, and literals longer than two words keep the general encoder.
 //!
 //! The `fallback(bytes calldata) returns (bytes memory)` form is a separate
 //! raw-data boundary: it gets an argument-free dispatch wrapper and an
@@ -35,8 +36,8 @@
 //! EVM codegen. Both passes must complete before the backend runs.
 
 use crate::mir::{
-    AbiLayout, AbiParamLayout, AbiParamLayoutRef, AbiParamLocation, AbiParamType, AbiType,
-    AbiWordValidator, AllocationKind, AllocationSemantics, ArgIdx, BlockId, FrameMode,
+    AbiEncodeMode, AbiLayout, AbiParamLayout, AbiParamLayoutRef, AbiParamLocation, AbiParamType,
+    AbiType, AbiWordValidator, AllocationKind, AllocationSemantics, ArgIdx, BlockId, FrameMode,
     FrameSlotKind, Function, FunctionBuilder, FunctionId, InstId, InstKind, MangledSymbol,
     MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module, PanicCode, RevertReason,
     SliceLocation, Terminator, Value, ValueId, memory::EvmMemoryLayout, pass::MirPass,
@@ -3917,9 +3918,24 @@ fn static_bytes_return(func: &Function) -> Option<StaticBytesReturn> {
         return None;
     }
     let block = &func.blocks[BlockId::ENTRY];
-    let [alloc, set_len, initialization @ ..] = block.instructions.as_slice() else { return None };
     let Some(Terminator::Return { values }) = &block.terminator else { return None };
     let [object] = values.as_slice() else { return None };
+    if let [encode] = block.instructions.as_slice()
+        && let InstKind::AbiEncode { mode: AbiEncodeMode::Bytes, selector: None, args, layout } =
+            &func.inst(*encode).kind
+        && func.inst_result_value(*encode) == Some(*object)
+        && args.len() == layout.types.len()
+        && layout.types.iter().all(|ty| matches!(ty, AbiType::Word(None)))
+    {
+        let (word, tail) = match args.as_ref() {
+            [] => (U256::ZERO, None),
+            [word] => (func.value_u256(*word)?, None),
+            [word, tail] => (func.value_u256(*word)?, Some(func.value_u256(*tail)?)),
+            _ => return None,
+        };
+        return Some(StaticBytesReturn { len: args.len() as u64 * 32, word, tail });
+    }
+    let [alloc, set_len, initialization @ ..] = block.instructions.as_slice() else { return None };
     if !matches!(func.value(*object), Value::Inst(inst) if inst == alloc) {
         return None;
     }
@@ -4008,19 +4024,22 @@ fn encode_static_bytes_return(
     builder.inherit_terminator_debug_context(return_block);
     // mstore(128, 32)
     // mstore(160, len)
-    // mstore(192, word)
+    // if length != 0 { mstore(192, word) }
     // if tail { mstore(224, tail) }
     // returndata(128, 64 + rounded_length)
     let offset = builder.imm(EvmMemoryLayout::HEAP_START);
     let data_offset = builder.imm(word_size);
     let len_offset = builder.imm(EvmMemoryLayout::HEAP_START + word_size);
     let len = builder.imm(value.len);
-    let word_offset = builder.imm(EvmMemoryLayout::HEAP_START + word_size * 2);
-    let word = builder.imm(value.word);
     let size = builder.imm(return_size);
     builder.mstore(offset, data_offset);
     builder.mstore(len_offset, len);
-    builder.mstore(word_offset, word);
+    if value.len != 0 {
+        // mstore(192, word)
+        let word_offset = builder.imm(EvmMemoryLayout::HEAP_START + word_size * 2);
+        let word = builder.imm(value.word);
+        builder.mstore(word_offset, word);
+    }
     if let Some(tail) = value.tail {
         // mstore(224, tail)
         let tail_offset = builder.imm(EvmMemoryLayout::HEAP_START + word_size * 3);
