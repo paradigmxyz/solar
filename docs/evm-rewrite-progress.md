@@ -2043,3 +2043,45 @@ BYTE/shift/mask/return body is duplicated, adding 22 Gas bytes. Encoding returns
 earlier can preserve canonicality facts but has no direct mechanism to restore
 this sharing; a coincidental layout improvement is not ruled out or claimed.
 No eager unvalidated loads or type-specific exception is proposed.
+
+
+### Live segments: three residency screens rejected
+
+Per-block live segments remove artificial occupancy in unrelated blocks while
+retaining the existing within-block endpoints, global ranking and home assignment
+algorithm. Ordinary home addresses can still change with the selected residents.
+The first draft used these segments for both ordinary and Phi selection. The
+identical-input UI screen preserves all 1,644 IDs, 823 source hashes and 5,028
+objects, with unchanged statuses and contract sets. Eighteen objects shrink,
+four grow and two change at equal length. Gas creation/runtime totals each
+fall by 127 bytes; Size totals each fall by 181 bytes. Router runtime falls
+from 23,247 to 22,379 bytes, but nested calldata storage grows from 5,784 to
+5,947 and parallel spill copies from 586 to 588. These regressions reject it.
+
+Native diagnostics reproduce the exact baseline and candidate objects. In
+parallel spill copies, seven additional ordinary residents displace nine Phi
+residents; both emission trials pass. In nested storage, seven ordinary gains
+accompany a larger Phi proposal whose writer-protection cost fails the existing
+guard. Rejecting that complete proposal loses 28 previously accepted Phi
+retirements. Neither regression is explained by lost ordinary residents or
+unexpected source changes. A fresh sealed-binary run on the exact current
+parallel-copy source gives 481 Gas runtime bytes, so its matched supplementary
+size debt worsens from 105 to 107 bytes. The historical unmatched row remains
+unchanged.
+
+Two focused follow-ups isolate the phases. Ordinary-only segments produce
+parallel/storage/Router Gas runtime sizes of 588/5,734/23,435 bytes; Phi-only
+segments produce 524/5,997/23,918. Each retains a growing case and is rejected.
+The Phi-only proposal leaves ordinary homes stable, showing that more precise
+occupancy alone does not establish profitable edge and writer transport.
+
+All three source patches, frozen binaries, exact inputs and raw outputs remain
+in `resident-live-segments-workflow-20260908/`, with the independent native-set
+review alongside them. The saved rewritten source was restored and the rebuilt
+compiler is byte-identical to accepted `9ed4da3c`. No test or expectation was
+changed. These rejected screens make no runtime-equivalence, hot-gas or compiler
+timing claim; they did not rerun the full acceptance suite. A larger retry patch
+remains held and uncompiled because retrying failed proposals cannot repair an
+accepted but more expensive allocation. The next design question is joint
+ordinary/Phi selection with edge and writer costs, not another occupancy policy
+layer. The existing whole-rewrite correctness and size debts remain open.
