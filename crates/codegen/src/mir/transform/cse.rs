@@ -43,6 +43,8 @@
 //! - when inheriting a cache across a dominator-tree edge, also invalidate state-dependent reads by
 //!   clobbers in every block that can lie on a CFG path between the dominator and its child
 //!   (diamond arms, loop bodies), including the child itself when it sits on a cycle
+//! - a child with one CFG predecessor inherits its parent's cache directly: each visit executes the
+//!   parent again, so writes on earlier iterations cannot invalidate a fresh parent load
 
 use crate::mir::{
     AddressCallKind, BlockId, EffectKind, Function, Immediate, ImmutableId, InstId, InstKind,
@@ -608,7 +610,8 @@ impl CommonSubexprEliminator {
     /// account-environment reads must also survive every CFG path from `parent` to `child`, which
     /// may pass through blocks that are not on the dominator-tree path (diamond arms, loop bodies).
     /// Applies the clobber summary of every such intermediate block, including `child` itself when
-    /// it lies on a cycle (clobbers wrap around the backedge to the child's entry).
+    /// it lies on a cycle (clobbers wrap around the backedge to the child's entry). A child whose
+    /// only CFG predecessor is `parent` needs no scan: the cache already reflects its entry state.
     fn filter_inherited_cache(
         &self,
         func: &Function,
@@ -627,7 +630,11 @@ impl CommonSubexprEliminator {
                     .live_in(child)
                     .contains(*value)
         });
-        if ctx.block_clobbers.is_empty() || !cache.has_stateful() {
+        // A sole predecessor has already applied every clobber before this edge.
+        if func.blocks[child].predecessors.as_slice() == [parent]
+            || ctx.block_clobbers.is_empty()
+            || !cache.has_stateful()
+        {
             return;
         }
         let Some(reachable_from_parent) = ctx.reachability.get(&parent) else { return };
