@@ -342,10 +342,12 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     fn emit_stack_phi_edge_layout(&mut self, func: &Function, edge: &StackPhiEdge) {
         self.pop_stack_values_not_needed_by(&edge.sources);
-        // edge-only immediates; parallel stack copies
-        for value in Self::missing_stack_phi_sources(&self.scheduler.stack, &edge.sources) {
-            debug_assert!(matches!(func.value(value), crate::mir::Value::Immediate(_)));
-            self.emit_operand(func, value);
+        // edge-only immediates; parallel stack copies (including repeated sources)
+        for &value in &edge.sources {
+            if !self.scheduler.stack.contains(value) {
+                debug_assert!(matches!(func.value(value), crate::mir::Value::Immediate(_)));
+                self.emit_operand(func, value);
+            }
         }
         let target: Vec<_> = edge.sources.iter().copied().map(TargetSlot::Value).collect();
         let shuffle = self
