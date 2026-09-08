@@ -217,29 +217,23 @@ fn @encPackedUint8(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [
     set_memory_object_len memoryarray, v33, v14
     jump bb1
   bb1:
-    v34 = phi [bb0: 0], [bb2: v48]
+    v34 = phi [bb0: 0], [bb2: v43]
     v35 = lt v34, v14
     jumpi v35, bb2, bb3
   bb3:
-    v49 = abi_encode_packed (array<word<u8>> memoryarray<1> v33)
-    ret v49
+    v44 = abi_encode_packed (array<word<u8>> memoryarray<1> v33)
+    ret v44
   bb2:
     v36 = mul v34, 32
-    v37 = iszero 32
-    v38 = div v36, 32
-    v39 = eq v38, v34
-    v40 = or v37, v39
+    v37 = add v15, v36
+    v38 = calldataload v37
+    v39 = and v38, 255
+    v40 = eq v38, v39
     v41 = iszero v40
-    panic_if v41, 0x41
-    v42 = add v15, v36
-    v43 = calldataload v42
-    v44 = and v43, 255
-    v45 = eq v43, v44
-    v46 = iszero v45
-    revert_if v46, empty
-    v47 = and v43, 255
-    memory_object_store_element memoryarray<1>, v33, v34, v47
-    v48 = add v34, 1
+    revert_if v41, empty
+    v42 = and v38, 255
+    memory_object_store_element memoryarray<1>, v33, v34, v42
+    v43 = add v34, 1
     jump bb1
 }
 

@@ -232,28 +232,22 @@ fn @dynamicNarrow(arg0: calldataslice) -> memoryarray [selector=0x320b552a, pure
     set_memory_object_len memoryarray, v25, v6
     jump bb1
   bb1:
-    v26 = phi [bb0: 0], [bb2: v40]
+    v26 = phi [bb0: 0], [bb2: v35]
     v27 = lt v26, v6
     jumpi v27, bb2, bb3
   bb3:
     ret v25
   bb2:
     v28 = mul v26, 32
-    v29 = iszero 32
-    v30 = div v28, 32
-    v31 = eq v30, v26
-    v32 = or v29, v31
+    v29 = add v7, v28
+    v30 = calldataload v29
+    v31 = and v30, 255
+    v32 = eq v30, v31
     v33 = iszero v32
-    panic_if v33, 0x41
-    v34 = add v7, v28
-    v35 = calldataload v34
-    v36 = and v35, 255
-    v37 = eq v35, v36
-    v38 = iszero v37
-    revert_if v38, empty
-    v39 = and v35, 255
-    memory_object_store_element memoryarray<1>, v25, v26, v39
-    v40 = add v26, 1
+    revert_if v33, empty
+    v34 = and v30, 255
+    memory_object_store_element memoryarray<1>, v25, v26, v34
+    v35 = add v26, 1
     jump bb1
 }
 
@@ -292,58 +286,52 @@ fn @dynamicNested(arg0: calldataslice) -> memoryarray [selector=0x24abb2f5, pure
     set_memory_object_len memoryarray, v25, v6
     jump bb1
   bb1:
-    v26 = phi [bb0: 0], [bb2: v63]
+    v26 = phi [bb0: 0], [bb2: v58]
     v27 = lt v26, v6
     jumpi v27, bb2, bb3
   bb3:
     ret v25
   bb2:
     v28 = mul v26, 32
-    v29 = iszero 32
-    v30 = div v28, 32
-    v31 = eq v30, v26
-    v32 = or v29, v31
-    v33 = iszero v32
-    panic_if v33, 0x41
-    v34 = add v7, v28
+    v29 = add v7, v28
+    v30 = calldatasize
+    v31 = sub v30, v29
+    v32 = slt v31, 32
+    revert_if v32, calldata_tail_too_short
+    v33 = calldataload v29
+    v34 = add v7, v33
     v35 = calldatasize
-    v36 = sub v35, v34
-    v37 = slt v36, 32
-    revert_if v37, calldata_tail_too_short
-    v38 = calldataload v34
-    v39 = add v7, v38
-    v40 = calldatasize
-    v41 = sub v40, v7
-    v42 = sub v41, 31
-    v43 = slt v38, v42
-    v44 = iszero v43
-    revert_if v44, invalid_calldata_tail_offset
-    v45 = calldataload v39
-    v46 = gt v45, 0xffffffffffffffff
-    revert_if v46, invalid_calldata_tail_length
-    v47 = mul v45, 32
-    v48 = add v39, 32
-    v49 = calldatasize
-    v50 = sub v49, v47
-    v51 = sgt v48, v50
-    revert_if v51, calldata_tail_too_short
-    v52 = add v39, 32
-    v53 = mul v45, 32
-    v54 = iszero 32
-    v55 = div v53, 32
-    v56 = eq v55, v45
-    v57 = or v54, v56
-    v58 = iszero v57
-    panic_if v58, 0x41
-    v59 = add 32, v53
-    v60 = lt v59, 32
-    panic_if v60, 0x41
-    v61 = alloc memoryarray<1>, exact, uninitialized, infallible, v59
-    set_memory_object_len memoryarray, v61, v45
-    v62 = make_calldata_slice v52, v53
-    memory_object_copy_from_slice memoryarray, v61, v62
-    memory_object_store_element memoryarray<1>, v25, v26, v61
-    v63 = add v26, 1
+    v36 = sub v35, v7
+    v37 = sub v36, 31
+    v38 = slt v33, v37
+    v39 = iszero v38
+    revert_if v39, invalid_calldata_tail_offset
+    v40 = calldataload v34
+    v41 = gt v40, 0xffffffffffffffff
+    revert_if v41, invalid_calldata_tail_length
+    v42 = mul v40, 32
+    v43 = add v34, 32
+    v44 = calldatasize
+    v45 = sub v44, v42
+    v46 = sgt v43, v45
+    revert_if v46, calldata_tail_too_short
+    v47 = add v34, 32
+    v48 = mul v40, 32
+    v49 = iszero 32
+    v50 = div v48, 32
+    v51 = eq v50, v40
+    v52 = or v49, v51
+    v53 = iszero v52
+    panic_if v53, 0x41
+    v54 = add 32, v48
+    v55 = lt v54, 32
+    panic_if v55, 0x41
+    v56 = alloc memoryarray<1>, exact, uninitialized, infallible, v54
+    set_memory_object_len memoryarray, v56, v40
+    v57 = make_calldata_slice v47, v48
+    memory_object_copy_from_slice memoryarray, v56, v57
+    memory_object_store_element memoryarray<1>, v25, v26, v56
+    v58 = add v26, 1
     jump bb1
 }
 

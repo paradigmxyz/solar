@@ -402,69 +402,63 @@ fn @copyArray(arg0: calldataslice) -> u256 [selector=0x58bdfbf3, pure, abi_param
     set_memory_object_len memoryarray, v19, v0
     jump bb1
   bb1:
-    v20 = phi [bb0: 0], [bb2: v54]
+    v20 = phi [bb0: 0], [bb2: v49]
     v21 = lt v20, v0
     jumpi v21, bb2, bb3
   bb3:
-    v55 = memory_object_len memoryarray, v19
-    v56 = lt 0, v55
-    v57 = iszero v56
-    panic_if v57, 0x32
-    v58 = memory_object_load_element memoryarray<1>, v19, 0
-    v59 = memory_object_from_ptr memorybytes, v58
-    v60 = eq v59, 0
-    jumpi v60, bb4, bb5
+    v50 = memory_object_len memoryarray, v19
+    v51 = lt 0, v50
+    v52 = iszero v51
+    panic_if v52, 0x32
+    v53 = memory_object_load_element memoryarray<1>, v19, 0
+    v54 = memory_object_from_ptr memorybytes, v53
+    v55 = eq v54, 0
+    jumpi v55, bb4, bb5
   bb4:
-    v61 = alloc memorybytes, exact, uninitialized, infallible, 32
-    set_memory_object_len memorybytes, v61, 0
-    memory_object_store_element memoryarray<1>, v19, 0, v61
+    v56 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v56, 0
+    memory_object_store_element memoryarray<1>, v19, 0, v56
     jump bb5
   bb5:
-    v62 = phi [bb3: v59], [bb4: v61]
-    v63 = memory_object_len memorybytes, v62
-    ret v63
+    v57 = phi [bb3: v54], [bb4: v56]
+    v58 = memory_object_len memorybytes, v57
+    ret v58
   bb2:
     v22 = mul v20, 32
-    v23 = iszero 32
-    v24 = div v22, 32
-    v25 = eq v24, v20
-    v26 = or v23, v25
-    v27 = iszero v26
-    panic_if v27, 0x41
-    v28 = add v1, v22
+    v23 = add v1, v22
+    v24 = calldatasize
+    v25 = sub v24, v23
+    v26 = slt v25, 32
+    revert_if v26, calldata_tail_too_short
+    v27 = calldataload v23
+    v28 = add v1, v27
     v29 = calldatasize
-    v30 = sub v29, v28
-    v31 = slt v30, 32
-    revert_if v31, calldata_tail_too_short
-    v32 = calldataload v28
-    v33 = add v1, v32
-    v34 = calldatasize
-    v35 = sub v34, v1
-    v36 = sub v35, 31
-    v37 = slt v32, v36
-    v38 = iszero v37
-    revert_if v38, invalid_calldata_tail_offset
-    v39 = calldataload v33
-    v40 = gt v39, 0xffffffffffffffff
-    revert_if v40, invalid_calldata_tail_length
-    v41 = mul v39, 1
-    v42 = add v33, 32
-    v43 = calldatasize
-    v44 = sub v43, v41
-    v45 = sgt v42, v44
-    revert_if v45, calldata_tail_too_short
-    v46 = add v33, 32
-    v47 = make_calldata_slice v46, v39
-    v48 = slice_len v47
-    v49 = add v48, 63
-    v50 = lt v49, v48
-    panic_if v50, 0x41
-    v51 = not 31
-    v52 = and v49, v51
-    v53 = alloc memorybytes, exact, uninitialized, infallible, v52
-    set_memory_object_len memorybytes, v53, v48
-    memory_object_copy_from_slice memorybytes, v53, v47
-    memory_object_store_element memoryarray<1>, v19, v20, v53
-    v54 = add v20, 1
+    v30 = sub v29, v1
+    v31 = sub v30, 31
+    v32 = slt v27, v31
+    v33 = iszero v32
+    revert_if v33, invalid_calldata_tail_offset
+    v34 = calldataload v28
+    v35 = gt v34, 0xffffffffffffffff
+    revert_if v35, invalid_calldata_tail_length
+    v36 = mul v34, 1
+    v37 = add v28, 32
+    v38 = calldatasize
+    v39 = sub v38, v36
+    v40 = sgt v37, v39
+    revert_if v40, calldata_tail_too_short
+    v41 = add v28, 32
+    v42 = make_calldata_slice v41, v34
+    v43 = slice_len v42
+    v44 = add v43, 63
+    v45 = lt v44, v43
+    panic_if v45, 0x41
+    v46 = not 31
+    v47 = and v44, v46
+    v48 = alloc memorybytes, exact, uninitialized, infallible, v47
+    set_memory_object_len memorybytes, v48, v43
+    memory_object_copy_from_slice memorybytes, v48, v42
+    memory_object_store_element memoryarray<1>, v19, v20, v48
+    v49 = add v20, 1
     jump bb1
 }

@@ -139,61 +139,55 @@ fn @fReenc(arg0: calldataslice) -> struct0 [selector=0xfbeba237, abi_params=[arr
     set_memory_object_len memoryarray, v21, v2
     jump bb1
   bb1:
-    v22 = phi [bb0: 0], [bb2: v37]
+    v22 = phi [bb0: 0], [bb2: v32]
     v23 = lt v22, v2
     jumpi v23, bb2, bb3
   bb3:
-    v38 = abi_encode [memory_array<function>], selector 0x2ed7fe6a00000000000000000000000000000000000000000000000000000000, args v21
-    v39 = slice_ptr v38
-    v40 = slice_len v38
-    v41 = call v1, v0, 0, v39, v40, v39, 96
-    jumpi v41, bb5, bb4
+    v33 = abi_encode [memory_array<function>], selector 0x2ed7fe6a00000000000000000000000000000000000000000000000000000000, args v21
+    v34 = slice_ptr v33
+    v35 = slice_len v33
+    v36 = call v1, v0, 0, v34, v35, v34, 96
+    jumpi v36, bb5, bb4
   bb4:
     revert_returndata
   bb5:
-    v42 = returndatasize
-    v43 = lt v42, 96
-    revert_if v43, tuple_data_too_short
-    v44 = add v39, 0
-    v45 = mload v44
-    v46 = add v39, 32
-    v47 = mload v46
-    v48 = add v39, 64
-    v49 = mload v48
-    v50 = add v39, 0
-    v51 = mload v50
-    v52 = add v39, 32
-    v53 = mload v52
-    v54 = add v39, 64
-    v55 = mload v54
-    v56 = insert_value struct0, undef struct0, 0, v51
-    v57 = insert_value struct0, v56, 1, v53
-    v58 = insert_value struct0, v57, 2, v55
-    v59 = extract_value struct0, v58, 0
-    v60 = extract_value struct0, v58, 1
-    v61 = extract_value struct0, v58, 2
-    v62 = insert_value struct0, undef struct0, 0, v59
-    v63 = insert_value struct0, v62, 1, v60
-    v64 = insert_value struct0, v63, 2, v61
-    ret v64
+    v37 = returndatasize
+    v38 = lt v37, 96
+    revert_if v38, tuple_data_too_short
+    v39 = add v34, 0
+    v40 = mload v39
+    v41 = add v34, 32
+    v42 = mload v41
+    v43 = add v34, 64
+    v44 = mload v43
+    v45 = add v34, 0
+    v46 = mload v45
+    v47 = add v34, 32
+    v48 = mload v47
+    v49 = add v34, 64
+    v50 = mload v49
+    v51 = insert_value struct0, undef struct0, 0, v46
+    v52 = insert_value struct0, v51, 1, v48
+    v53 = insert_value struct0, v52, 2, v50
+    v54 = extract_value struct0, v53, 0
+    v55 = extract_value struct0, v53, 1
+    v56 = extract_value struct0, v53, 2
+    v57 = insert_value struct0, undef struct0, 0, v54
+    v58 = insert_value struct0, v57, 1, v55
+    v59 = insert_value struct0, v58, 2, v56
+    ret v59
   bb2:
     v24 = mul v22, 32
-    v25 = iszero 32
-    v26 = div v24, 32
-    v27 = eq v26, v22
-    v28 = or v25, v27
+    v25 = add v3, v24
+    v26 = calldataload v25
+    v27 = and v26, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
+    v28 = eq v26, v27
     v29 = iszero v28
-    panic_if v29, 0x41
-    v30 = add v3, v24
-    v31 = calldataload v30
-    v32 = and v31, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
-    v33 = eq v31, v32
-    v34 = iszero v33
-    revert_if v34, empty
-    v35 = shr 64, v31
-    v36 = shl 64, v35
-    memory_object_store_element memoryarray<1>, v21, v22, v36
-    v37 = add v22, 1
+    revert_if v29, empty
+    v30 = shr 64, v26
+    v31 = shl 64, v30
+    memory_object_store_element memoryarray<1>, v21, v22, v31
+    v32 = add v22, 1
     jump bb1
 }
 

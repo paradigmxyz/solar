@@ -29,110 +29,98 @@ fn @g(arg0: calldataslice) -> memoryarray [selector=0xc12c508e, pure, abi_params
     set_memory_object_len memoryarray, v19, v0
     jump bb1
   bb1:
-    v20 = phi [bb0: 0], [bb6: v94]
+    v20 = phi [bb0: 0], [bb6: v84]
     v21 = lt v20, v0
     jumpi v21, bb2, bb3
   bb3:
     ret v19
   bb2:
     v22 = mul v20, 32
-    v23 = iszero 32
-    v24 = div v22, 32
-    v25 = eq v24, v20
-    v26 = or v23, v25
-    v27 = iszero v26
-    panic_if v27, 0x41
-    v28 = add v1, v22
+    v23 = add v1, v22
+    v24 = calldatasize
+    v25 = sub v24, v23
+    v26 = slt v25, 32
+    revert_if v26, calldata_tail_too_short
+    v27 = calldataload v23
+    v28 = add v1, v27
     v29 = calldatasize
-    v30 = sub v29, v28
-    v31 = slt v30, 32
-    revert_if v31, calldata_tail_too_short
-    v32 = calldataload v28
-    v33 = add v1, v32
-    v34 = calldatasize
-    v35 = sub v34, v1
-    v36 = sub v35, 31
-    v37 = slt v32, v36
-    v38 = iszero v37
-    revert_if v38, invalid_calldata_tail_offset
-    v39 = calldataload v33
-    v40 = gt v39, 0xffffffffffffffff
-    revert_if v40, invalid_calldata_tail_length
-    v41 = mul v39, 32
-    v42 = add v33, 32
-    v43 = calldatasize
-    v44 = sub v43, v41
-    v45 = sgt v42, v44
-    revert_if v45, calldata_tail_too_short
-    v46 = add v33, 32
-    v47 = mul v39, 32
-    v48 = iszero 32
-    v49 = div v47, 32
-    v50 = eq v49, v39
-    v51 = or v48, v50
-    v52 = iszero v51
-    panic_if v52, 0x41
-    v53 = add 32, v47
-    v54 = lt v53, 32
-    panic_if v54, 0x41
-    v55 = alloc memoryarray<1>, exact, uninitialized, infallible, v53
-    set_memory_object_len memoryarray, v55, v39
+    v30 = sub v29, v1
+    v31 = sub v30, 31
+    v32 = slt v27, v31
+    v33 = iszero v32
+    revert_if v33, invalid_calldata_tail_offset
+    v34 = calldataload v28
+    v35 = gt v34, 0xffffffffffffffff
+    revert_if v35, invalid_calldata_tail_length
+    v36 = mul v34, 32
+    v37 = add v28, 32
+    v38 = calldatasize
+    v39 = sub v38, v36
+    v40 = sgt v37, v39
+    revert_if v40, calldata_tail_too_short
+    v41 = add v28, 32
+    v42 = mul v34, 32
+    v43 = iszero 32
+    v44 = div v42, 32
+    v45 = eq v44, v34
+    v46 = or v43, v45
+    v47 = iszero v46
+    panic_if v47, 0x41
+    v48 = add 32, v42
+    v49 = lt v48, 32
+    panic_if v49, 0x41
+    v50 = alloc memoryarray<1>, exact, uninitialized, infallible, v48
+    set_memory_object_len memoryarray, v50, v34
     jump bb4
   bb4:
-    v56 = phi [bb2: 0], [bb5: v93]
-    v57 = lt v56, v39
-    jumpi v57, bb5, bb6
+    v51 = phi [bb2: 0], [bb5: v83]
+    v52 = lt v51, v34
+    jumpi v52, bb5, bb6
   bb6:
-    memory_object_store_element memoryarray<1>, v19, v20, v55
-    v94 = add v20, 1
+    memory_object_store_element memoryarray<1>, v19, v20, v50
+    v84 = add v20, 1
     jump bb1
   bb5:
-    v58 = mul v56, 32
-    v59 = iszero 32
-    v60 = div v58, 32
-    v61 = eq v60, v56
-    v62 = or v59, v61
-    v63 = iszero v62
-    panic_if v63, 0x41
-    v64 = add v46, v58
-    v65 = calldatasize
-    v66 = sub v65, v64
-    v67 = slt v66, 32
-    revert_if v67, calldata_tail_too_short
-    v68 = calldataload v64
-    v69 = add v46, v68
-    v70 = calldatasize
-    v71 = sub v70, v46
-    v72 = sub v71, 31
-    v73 = slt v68, v72
-    v74 = iszero v73
-    revert_if v74, invalid_calldata_tail_offset
-    v75 = calldataload v69
-    v76 = gt v75, 0xffffffffffffffff
-    revert_if v76, invalid_calldata_tail_length
-    v77 = mul v75, 32
-    v78 = add v69, 32
-    v79 = calldatasize
-    v80 = sub v79, v77
-    v81 = sgt v78, v80
-    revert_if v81, calldata_tail_too_short
-    v82 = add v69, 32
-    v83 = mul v75, 32
-    v84 = iszero 32
-    v85 = div v83, 32
-    v86 = eq v85, v75
-    v87 = or v84, v86
-    v88 = iszero v87
-    panic_if v88, 0x41
-    v89 = add 32, v83
-    v90 = lt v89, 32
-    panic_if v90, 0x41
-    v91 = alloc memoryarray<1>, exact, uninitialized, infallible, v89
-    set_memory_object_len memoryarray, v91, v75
-    v92 = make_calldata_slice v82, v83
-    memory_object_copy_from_slice memoryarray, v91, v92
-    memory_object_store_element memoryarray<1>, v55, v56, v91
-    v93 = add v56, 1
+    v53 = mul v51, 32
+    v54 = add v41, v53
+    v55 = calldatasize
+    v56 = sub v55, v54
+    v57 = slt v56, 32
+    revert_if v57, calldata_tail_too_short
+    v58 = calldataload v54
+    v59 = add v41, v58
+    v60 = calldatasize
+    v61 = sub v60, v41
+    v62 = sub v61, 31
+    v63 = slt v58, v62
+    v64 = iszero v63
+    revert_if v64, invalid_calldata_tail_offset
+    v65 = calldataload v59
+    v66 = gt v65, 0xffffffffffffffff
+    revert_if v66, invalid_calldata_tail_length
+    v67 = mul v65, 32
+    v68 = add v59, 32
+    v69 = calldatasize
+    v70 = sub v69, v67
+    v71 = sgt v68, v70
+    revert_if v71, calldata_tail_too_short
+    v72 = add v59, 32
+    v73 = mul v65, 32
+    v74 = iszero 32
+    v75 = div v73, 32
+    v76 = eq v75, v65
+    v77 = or v74, v76
+    v78 = iszero v77
+    panic_if v78, 0x41
+    v79 = add 32, v73
+    v80 = lt v79, 32
+    panic_if v80, 0x41
+    v81 = alloc memoryarray<1>, exact, uninitialized, infallible, v79
+    set_memory_object_len memoryarray, v81, v65
+    v82 = make_calldata_slice v72, v73
+    memory_object_copy_from_slice memoryarray, v81, v82
+    memory_object_store_element memoryarray<1>, v50, v51, v81
+    v83 = add v51, 1
     jump bb4
 }
 
@@ -165,76 +153,70 @@ fn @h(arg0: calldataslice) -> memoryarray [selector=0xba9ef85f, pure, abi_params
     set_memory_object_len memoryarray, v19, v0
     jump bb1
   bb1:
-    v20 = phi [bb0: 0], [bb6: v68]
+    v20 = phi [bb0: 0], [bb6: v63]
     v21 = lt v20, v0
     jumpi v21, bb2, bb3
   bb3:
     ret v19
   bb2:
     v22 = mul v20, 32
-    v23 = iszero 32
-    v24 = div v22, 32
-    v25 = eq v24, v20
-    v26 = or v23, v25
-    v27 = iszero v26
-    panic_if v27, 0x41
-    v28 = add v1, v22
+    v23 = add v1, v22
+    v24 = calldatasize
+    v25 = sub v24, v23
+    v26 = slt v25, 32
+    revert_if v26, calldata_tail_too_short
+    v27 = calldataload v23
+    v28 = add v1, v27
     v29 = calldatasize
-    v30 = sub v29, v28
-    v31 = slt v30, 32
-    revert_if v31, calldata_tail_too_short
-    v32 = calldataload v28
-    v33 = add v1, v32
-    v34 = calldatasize
-    v35 = sub v34, v1
-    v36 = sub v35, 31
-    v37 = slt v32, v36
-    v38 = iszero v37
-    revert_if v38, invalid_calldata_tail_offset
-    v39 = calldataload v33
-    v40 = gt v39, 0xffffffffffffffff
-    revert_if v40, invalid_calldata_tail_length
-    v41 = mul v39, 64
-    v42 = add v33, 32
-    v43 = calldatasize
-    v44 = sub v43, v41
-    v45 = sgt v42, v44
-    revert_if v45, calldata_tail_too_short
-    v46 = add v33, 32
-    v47 = mul v39, 32
-    v48 = iszero 32
-    v49 = div v47, 32
-    v50 = eq v49, v39
-    v51 = or v48, v50
-    v52 = iszero v51
-    panic_if v52, 0x41
-    v53 = add 32, v47
-    v54 = lt v53, 32
-    panic_if v54, 0x41
-    v55 = alloc memoryarray<1>, exact, uninitialized, infallible, v53
-    set_memory_object_len memoryarray, v55, v39
+    v30 = sub v29, v1
+    v31 = sub v30, 31
+    v32 = slt v27, v31
+    v33 = iszero v32
+    revert_if v33, invalid_calldata_tail_offset
+    v34 = calldataload v28
+    v35 = gt v34, 0xffffffffffffffff
+    revert_if v35, invalid_calldata_tail_length
+    v36 = mul v34, 64
+    v37 = add v28, 32
+    v38 = calldatasize
+    v39 = sub v38, v36
+    v40 = sgt v37, v39
+    revert_if v40, calldata_tail_too_short
+    v41 = add v28, 32
+    v42 = mul v34, 32
+    v43 = iszero 32
+    v44 = div v42, 32
+    v45 = eq v44, v34
+    v46 = or v43, v45
+    v47 = iszero v46
+    panic_if v47, 0x41
+    v48 = add 32, v42
+    v49 = lt v48, 32
+    panic_if v49, 0x41
+    v50 = alloc memoryarray<1>, exact, uninitialized, infallible, v48
+    set_memory_object_len memoryarray, v50, v34
     jump bb4
   bb4:
-    v56 = phi [bb2: 0], [bb5: v67]
-    v57 = lt v56, v39
-    jumpi v57, bb5, bb6
+    v51 = phi [bb2: 0], [bb5: v62]
+    v52 = lt v51, v34
+    jumpi v52, bb5, bb6
   bb6:
-    memory_object_store_element memoryarray<1>, v19, v20, v55
-    v68 = add v20, 1
+    memory_object_store_element memoryarray<1>, v19, v20, v50
+    v63 = add v20, 1
     jump bb1
   bb5:
-    v58 = mul v56, 64
-    v59 = iszero 64
-    v60 = div v58, 64
-    v61 = eq v60, v56
-    v62 = or v59, v61
-    v63 = iszero v62
-    panic_if v63, 0x41
-    v64 = add v46, v58
-    v65 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v66 = make_calldata_slice v64, 64
-    memory_object_copy_from_slice memoryfixedarray, v65, v66
-    memory_object_store_element memoryarray<1>, v55, v56, v65
-    v67 = add v56, 1
+    v53 = mul v51, 64
+    v54 = iszero 64
+    v55 = div v53, 64
+    v56 = eq v55, v51
+    v57 = or v54, v56
+    v58 = iszero v57
+    panic_if v58, 0x41
+    v59 = add v41, v53
+    v60 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v61 = make_calldata_slice v59, 64
+    memory_object_copy_from_slice memoryfixedarray, v60, v61
+    memory_object_store_element memoryarray<1>, v50, v51, v60
+    v62 = add v51, 1
     jump bb4
 }

@@ -29,28 +29,22 @@ fn @encode(arg0: calldataslice) -> memorybytes [selector=0x1597ee44, pure, abi_p
     set_memory_object_len memoryarray, v19, v0
     jump bb1
   bb1:
-    v20 = phi [bb0: 0], [bb2: v34]
+    v20 = phi [bb0: 0], [bb2: v29]
     v21 = lt v20, v0
     jumpi v21, bb2, bb3
   bb3:
-    v35 = abi_encode_packed (array<word<u8>> memoryarray<1> v19)
-    ret v35
+    v30 = abi_encode_packed (array<word<u8>> memoryarray<1> v19)
+    ret v30
   bb2:
     v22 = mul v20, 32
-    v23 = iszero 32
-    v24 = div v22, 32
-    v25 = eq v24, v20
-    v26 = or v23, v25
+    v23 = add v1, v22
+    v24 = calldataload v23
+    v25 = and v24, 255
+    v26 = eq v24, v25
     v27 = iszero v26
-    panic_if v27, 0x41
-    v28 = add v1, v22
-    v29 = calldataload v28
-    v30 = and v29, 255
-    v31 = eq v29, v30
-    v32 = iszero v31
-    revert_if v32, empty
-    v33 = and v29, 255
-    memory_object_store_element memoryarray<1>, v19, v20, v33
-    v34 = add v20, 1
+    revert_if v27, empty
+    v28 = and v24, 255
+    memory_object_store_element memoryarray<1>, v19, v20, v28
+    v29 = add v20, 1
     jump bb1
 }
