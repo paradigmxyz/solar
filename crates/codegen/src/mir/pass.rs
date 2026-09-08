@@ -48,6 +48,7 @@ pub static ALL_PASSES: &[&dyn MirPass] = &[
     &inst_simplify::InstSimplify,
     &inst_simplify::ConstFold,
     &cse::Cse,
+    &cse::FmpCse,
     &pre::Pre,
     &gvn::Gvn,
     &storage_load_cse::StorageLoadCse,
@@ -276,6 +277,7 @@ pub static LOWERING_PIPELINE: &[&dyn MirPass] = &[
 
 /// Optimizes lowered word SSA before physical stack scheduling.
 pub static LOWERED_PIPELINE: &[&dyn MirPass] = &[
+    &GasOnly::new(cse::FmpCse),
     &inst_simplify::ConstFold,
     &cfg_simplify::BranchSimplify,
     // Late lowering can leave pure address and length calculations unused.
