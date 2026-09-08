@@ -675,12 +675,11 @@ bb9:
   push 0
   dup 3
   mstore
-  dup 2
-  dup 2
-  sub
   push 36
-  dup 5
+  dup 4
   add
+  push 64
+  swap 1
   mstore
   swap 4
   mload
@@ -698,12 +697,11 @@ bb9:
   mstore
   swap 6
   pop
-  dup 5
-  dup 7
-  sub
   push 100
-  dup 5
+  dup 4
   add
+  push 128
+  swap 1
   mstore
   dup 7
   iszero

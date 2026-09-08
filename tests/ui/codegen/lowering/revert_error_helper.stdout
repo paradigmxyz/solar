@@ -264,9 +264,7 @@ bb31 [cold]:
   push 36
   dup 3
   add
-  dup 2
-  dup 2
-  sub
+  push 32
   dup 3
   mstore
   push 160

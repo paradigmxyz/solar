@@ -434,6 +434,12 @@ impl InstSimplifier {
                     Some(a)
                 } else if a == b {
                     Some(Self::imm(func, U256::ZERO))
+                } else if let Some((a_base, a_offset)) = Self::offset_base(func, a)
+                    && let Some((b_base, b_offset)) = Self::offset_base(func, b)
+                    && resolve(a_base) == resolve(b_base)
+                {
+                    // sub (base + a_offset), (base + b_offset) -> a_offset - b_offset
+                    Some(Self::imm(func, a_offset.wrapping_sub(b_offset)))
                 } else if let Value::Inst(inst) = func.value(a)
                     && let InstKind::Add(lhs, rhs) = func.inst(*inst).kind
                 {

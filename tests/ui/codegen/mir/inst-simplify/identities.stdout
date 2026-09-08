@@ -273,3 +273,25 @@
       ret v3, v6, v9, v12
   }
   
+  fn @subtract_common_base(arg0: u256) -> (u256, u256, u256) {
+    bb0:
+      v0 = add arg0, 68
+-     v1 = add 36, arg0
+-     v2 = sub v0, v1
++     v1 = add arg0, 36
+      v3 = sub arg0, 1
+      v4 = add arg0, 1
+-     v5 = sub v4, v3
+-     v6 = sub v1, v0
+-     ret v2, v5, v6
++     ret 32, 2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+  }
+  
+  fn @keep_distinct_bases(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = add arg0, 68
+      v1 = add arg1, 36
+      v2 = sub v0, v1
+      ret v2
+  }
+  
