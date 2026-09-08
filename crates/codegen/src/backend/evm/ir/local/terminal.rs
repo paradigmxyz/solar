@@ -22,17 +22,19 @@
 //! is retained. This runs before placement and can expose identical terminal tails;
 //! downstream sharing and layout profitability still need whole-pipeline checks.
 //!
-//! Two-word returns additionally scan backward within the same block until both
-//! distinct final word stores at A and A+32 are found. Only canonical stack
-//! operations, pure arithmetic and calldata reads may occur between those stores
+//! Two- through four-word returns additionally scan backward within the same block
+//! until every distinct final word store in the returned range is found. Only
+//! canonical stack operations, pure arithmetic and calldata reads may occur between those stores
 //! and RETURN. Any other write, memory/storage read, gas observation or call stops
-//! the proof. The stores can occur in either order; their literal addresses become
-//! zero and 32, preserving stored values, stack heights and metadata. A literal
+//! the proof. The stores can occur in any order; their literal addresses become
+//! zero through (word_count-1)*32, preserving values, stack heights and metadata. A literal
 //! store address may precede exchanges confined below the top stack word; those
 //! exchanges leave the address on top and remain in their original order.
 //! Earlier effects are not crossed after full coverage is found. One-word returns
-//! retain the original exact-adjacency rule. The scan is linear, uses two optional
-//! instruction positions, and adds no range, CFG or stack-height analysis.
+//! retain the original exact-adjacency rule. A final `push bytes; dup 1; return`
+//! also supplies a known base equal to the byte count; only the DUP becomes PUSH0.
+//! The scan is linear, uses four optional instruction positions, and adds no CFG
+//! or stack-height analysis. Larger returns retain their original addresses.
 
 use super::{
     super::{
@@ -75,9 +77,9 @@ fn compact_return_words(module: &mut Module) -> bool {
     }
     for (id, addresses) in candidates {
         let insts = &mut module.blocks[id].insts;
-        // push A; mstore; <pure stack operations>; push A+32; mstore
-        // push 64; push A; return
-        // -> same values and order, storing/returning at offsets 0 and 32
+        // push A+32*i; mstore; <pure stack operations>; ...
+        // push 32*word_count; push A (or dup 1 when A == 32*word_count); return
+        // -> same values and order, storing/returning at offsets 32*i
         // The one-word case retains its adjacent store/return sequence.
         for (word, address) in addresses.into_iter().enumerate() {
             if let Some(index) = address {
@@ -90,22 +92,27 @@ fn compact_return_words(module: &mut Module) -> bool {
 }
 
 /// Finds the final covering stores without crossing an observable memory effect.
-fn return_word_addresses(block: &Block) -> Option<[Option<usize>; 2]> {
+fn return_word_addresses(block: &Block) -> Option<[Option<usize>; 4]> {
     let insts = &block.insts;
-    if let [.., size, offset] = insts.as_slice()
-        && block.terminator.kind == TerminatorKind::Return
+    let [.., size, offset] = insts.as_slice() else { return None };
+    let (bytes, base) = match (&size.kind, &offset.kind) {
+        (InstKind::Push(bytes), InstKind::Push(base)) => (*bytes, *base),
+        (InstKind::Push(bytes), InstKind::Dup(1)) => (*bytes, *bytes),
+        _ => return None,
+    };
+    if block.terminator.kind == TerminatorKind::Return
         && !block.terminator.keep_with_next
         && block.terminator.stack_effect.is_none_or(|effect| effect == (2, 0))
-        && let InstKind::Push(base) = offset.kind
         && base > U256::ZERO
         && base <= U256::from(128)
-        && let InstKind::Push(bytes) = size.kind
-        && (bytes == U256::from(32) || bytes == U256::from(64))
+        && let Ok(bytes) = usize::try_from(bytes)
+        && (32..=128).contains(&bytes)
+        && bytes % 32 == 0
         && canonical(size)
         && canonical(offset)
     {
-        let words = if bytes == U256::from(32) { 1 } else { 2 };
-        let mut addresses = [None; 2];
+        let words = bytes / 32;
+        let mut addresses = [None; 4];
         let mut cursor = insts.len() - 2;
         while cursor > 0 {
             let index = cursor - 1;
@@ -115,7 +122,7 @@ fn return_word_addresses(block: &Block) -> Option<[Option<usize>; 2]> {
             }
             if inst.kind == InstKind::Op(op::MSTORE) {
                 let mut address_index = index.checked_sub(1)?;
-                if words == 2 {
+                if words > 1 {
                     while let InstKind::Exchange(a, b) = insts[address_index].kind
                         && a > 0
                         && a < b
@@ -129,13 +136,11 @@ fn return_word_addresses(block: &Block) -> Option<[Option<usize>; 2]> {
                     && split_allowed(insts, address_index)
                     && let InstKind::Push(value) = address.kind
                 {
-                    let word = if value == base {
-                        0
-                    } else if words == 2 && value == base + U256::from(32) {
-                        1
-                    } else {
+                    let relative = usize::try_from(value.checked_sub(base)?).ok()?;
+                    if relative >= bytes || relative % 32 != 0 {
                         return None;
-                    };
+                    }
+                    let word = relative / 32;
                     if addresses[word].replace(address_index).is_some() {
                         return None;
                     }
