@@ -103,10 +103,10 @@ bb17:
   sub
   swap 1
   keccak256
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb9:
   push 288

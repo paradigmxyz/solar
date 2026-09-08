@@ -529,3 +529,8 @@ buffer available to inline assembly. Gas-mode stack planning keeps constants
 used on only one branch off its sibling edge when the sibling can retain an
 identity layout; the edge that needs them emits their pushes. Size mode keeps
 the shared layout to preserve opportunities for merging tails.
+
+Final EVM peepholes move a word store immediately followed by a return of that
+word to scratch memory. This reduces pushes and memory expansion after tail
+sharing has settled. A different return range or an intervening instruction
+keeps the original address, including an `MSIZE` that observes the store.

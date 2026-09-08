@@ -37,10 +37,10 @@ bb7:
   push 1
   jump bb15
 bb15:
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb16:
   push 36

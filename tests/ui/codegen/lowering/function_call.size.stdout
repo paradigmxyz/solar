@@ -86,8 +86,8 @@ bb10:
 bb13:
   jump bb8
 bb8:
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return

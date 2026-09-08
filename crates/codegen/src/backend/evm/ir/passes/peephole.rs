@@ -16,7 +16,10 @@
 //! instructions. [`Cleanup`] couples such a pass with peephole only when the wrapped pass reports a
 //! change, keeping the canonical pipeline at a local fixed point without adding optimization logic
 //! to assembly. Storage reload forwarding runs only after structural sharing, so retaining
-//! a stack copy cannot disturb earlier block resynthesis or outlining choices.
+//! a stack copy cannot disturb earlier block resynthesis or outlining choices. Final cleanup
+//! also relocates a word store immediately followed by its return to scratch memory. Nothing
+//! can observe the original address or memory expansion between that store and return; doing
+//! this after sharing preserves the profitability decisions for common return tails.
 
 use super::{
     EvmPass,
@@ -25,7 +28,7 @@ use super::{
 use crate::{
     backend::evm::{
         codegen::StackOp as PhysicalStackOp,
-        ir::{Instruction, Module, PushValue},
+        ir::{Instruction, Module, PushValue, TerminatorKind},
         op,
     },
     mir::utils::eval,
@@ -38,12 +41,12 @@ use std::fmt;
 use tracing::trace;
 
 pub(super) struct Peephole {
-    storage_reloads: bool,
+    final_cleanup: bool,
 }
 
 impl Peephole {
-    pub(super) const EARLY: Self = Self { storage_reloads: false };
-    pub(super) const FINAL: Self = Self { storage_reloads: true };
+    pub(super) const EARLY: Self = Self { final_cleanup: false };
+    pub(super) const FINAL: Self = Self { final_cleanup: true };
 }
 
 /// Runs peephole cleanup only when the wrapped pass changes the module.
@@ -55,7 +58,7 @@ impl EvmPass for Peephole {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        optimize_module(gcx, module, self.storage_reloads)
+        optimize_module(gcx, module, self.final_cleanup)
     }
 }
 
@@ -83,12 +86,32 @@ impl<T: EvmPass> EvmPass for Cleanup<T> {
 
 const TRACE_TARGET: &str = "solar::codegen::evm_ir::peephole";
 
-fn optimize_module(gcx: Gcx<'_>, module: &mut Module, storage_reloads: bool) -> bool {
+fn optimize_module(gcx: Gcx<'_>, module: &mut Module, final_cleanup: bool) -> bool {
     let mut changed = false;
     let mut scratch = Vec::new();
     for block in &mut module.blocks {
-        changed |=
-            optimize(gcx, &mut block.instructions, &mut scratch, block.label, storage_reloads);
+        changed |= optimize(gcx, &mut block.instructions, &mut scratch, block.label, final_cleanup);
+        // mstore(offset, value); return(offset, 32)
+        // -> mstore(0, value); return(0, 32)
+        if final_cleanup
+            && matches!(
+                block.terminator.as_ref().map(|term| &term.kind),
+                Some(TerminatorKind::Op(op::RETURN))
+            )
+            && let [.., offset, store, size, returned] = block.instructions.as_mut_slice()
+            && [&*offset, &*store, &*size, &*returned]
+                .iter()
+                .all(|inst| inst.has_canonical_stack_effect())
+            && store.as_evm_opcode() == Some(op::MSTORE)
+            && size.concrete_immediate() == Some(U256::from(32))
+            && let Some(address) = offset.concrete_immediate()
+            && !address.is_zero()
+            && returned.concrete_immediate() == Some(address)
+        {
+            offset.replace_preserving_metadata(Instruction::push_value(U256::ZERO));
+            returned.replace_preserving_metadata(Instruction::push_value(U256::ZERO));
+            changed = true;
+        }
     }
     changed
 }
@@ -98,7 +121,7 @@ fn optimize(
     instructions: &mut Vec<Instruction>,
     scratch: &mut Vec<Instruction>,
     block: u32,
-    storage_reloads: bool,
+    final_cleanup: bool,
 ) -> bool {
     scratch.clear();
     std::mem::swap(instructions, scratch);
@@ -106,7 +129,7 @@ fn optimize(
     let mut changed = false;
     for inst in scratch.drain(..) {
         instructions.push(inst);
-        while try_peephole(gcx, instructions, block, storage_reloads) {
+        while try_peephole(gcx, instructions, block, final_cleanup) {
             changed = true;
         }
     }
@@ -117,7 +140,7 @@ fn try_peephole(
     gcx: Gcx<'_>,
     instructions: &mut Vec<Instruction>,
     block: u32,
-    storage_reloads: bool,
+    final_cleanup: bool,
 ) -> bool {
     if instructions.last().is_none_or(Instruction::is_encoded_push) {
         return false;
@@ -434,7 +457,7 @@ fn try_peephole(
         && match (store.as_evm_opcode(), load.as_evm_opcode()) {
             (Some(op::MSTORE), Some(op::MLOAD)) => true,
             (Some(op::SSTORE), Some(op::SLOAD)) | (Some(op::TSTORE), Some(op::TLOAD)) => {
-                storage_reloads
+                final_cleanup
             }
             _ => false,
         }

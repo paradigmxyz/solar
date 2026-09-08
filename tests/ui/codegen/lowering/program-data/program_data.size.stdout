@@ -522,10 +522,10 @@ bb19:
   push 0xfc1266ee7e93ac2873e7623af26456cf53c18a33ce56a117ef3ef0d901c28394
   jump bb43
 bb43:
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb20:
   push 0xfe104a769973081412d46a6d04c990a5e9cc804baf45fa43d99b7dbee24984b8

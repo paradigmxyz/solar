@@ -12,4 +12,13 @@
 -   exchange 2, 3 !metadata(span=3..4)
     swap 2 !metadata(span=4..5)
     stop
+  bb1:
+    calldatasize
+-   push 128 !metadata(span=5..6)
++   push 0 !metadata(span=5..6)
+    mstore !metadata(span=6..7)
+    push 32 !metadata(span=7..8)
+-   push 128 !metadata(span=8..9)
++   push 0 !metadata(span=8..9)
+    return !metadata(span=9..10)
   

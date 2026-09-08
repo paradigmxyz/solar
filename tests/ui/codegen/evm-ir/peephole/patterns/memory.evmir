@@ -166,3 +166,46 @@ bb10:
   push 5
   tload
   stop
+
+// CHECK-LABEL: bb11:
+// CHECK: -   push 128
+// CHECK: +   push 0
+// CHECK: {{^[ +].*}}mstore
+// CHECK: {{^[ +].*}}push 32
+// CHECK: -   push 128
+// CHECK: +   push 0
+bb11:
+  calldatasize
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+
+// A longer return includes memory outside the stored word.
+bb12:
+  calldatasize
+  push 128
+  mstore
+  push 64
+  push 128
+  return
+
+// A different return offset does not read the stored word.
+bb13:
+  calldatasize
+  push 128
+  mstore
+  push 32
+  push 160
+  return
+
+// MSIZE observes the store's original memory expansion.
+bb14:
+  calldatasize
+  push 128
+  mstore
+  msize
+  push 32
+  push 128
+  return

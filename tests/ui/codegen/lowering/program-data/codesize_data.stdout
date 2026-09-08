@@ -309,10 +309,10 @@ bb12:
   mload
   push 0
   byte
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb13:
   push 32

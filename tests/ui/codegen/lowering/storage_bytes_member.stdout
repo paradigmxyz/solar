@@ -491,10 +491,10 @@ bb42:
   jumpi
   jump bb83
 bb83:
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb45:
   push 36

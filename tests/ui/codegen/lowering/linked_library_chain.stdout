@@ -52,10 +52,10 @@ bb1:
   push 4
   calldataload
   sload
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb8 [cold]:
   push 0x4e487b71
@@ -109,10 +109,10 @@ bb1:
   push 0
   jump bb15
 bb15:
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb8:
   push 64
@@ -322,10 +322,10 @@ bb0:
   push bb3
   jumpi
   mload
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb3 [cold]:
   push 0

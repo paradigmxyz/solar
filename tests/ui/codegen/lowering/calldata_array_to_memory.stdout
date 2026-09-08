@@ -60,10 +60,10 @@ bb7:
   sload
   jump bb52
 bb52:
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb8:
   push 384
