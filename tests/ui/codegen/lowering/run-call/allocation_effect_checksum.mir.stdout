@@ -1,0 +1,77 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/allocation_effect_checksum.sol:AllocationEffectChecksum ===
+@module AllocationEffectChecksum
+fn @checksum(arg0: calldataslice, arg1: u256) -> (memorystruct, u256, u256) [selector=0xfb790ae8, pure, abi_params=[array<17, u256>, u256], abi_returns=[tuple<word>, word, word]] {
+  bb0:
+    v0 = slice_ptr arg0
+    v1 = add v0, 0
+    v2 = calldataload v1
+    v3 = slice_ptr arg0
+    v4 = add v3, 32
+    v5 = calldataload v4
+    v6 = slice_ptr arg0
+    v7 = add v6, 64
+    v8 = calldataload v7
+    v9 = slice_ptr arg0
+    v10 = add v9, 96
+    v11 = calldataload v10
+    v12 = slice_ptr arg0
+    v13 = add v12, 128
+    v14 = calldataload v13
+    v15 = slice_ptr arg0
+    v16 = add v15, 160
+    v17 = calldataload v16
+    v18 = slice_ptr arg0
+    v19 = add v18, 192
+    v20 = calldataload v19
+    v21 = slice_ptr arg0
+    v22 = add v21, 224
+    v23 = calldataload v22
+    v24 = slice_ptr arg0
+    v25 = add v24, 256
+    v26 = calldataload v25
+    v27 = slice_ptr arg0
+    v28 = add v27, 288
+    v29 = calldataload v28
+    v30 = slice_ptr arg0
+    v31 = add v30, 320
+    v32 = calldataload v31
+    v33 = slice_ptr arg0
+    v34 = add v33, 352
+    v35 = calldataload v34
+    v36 = slice_ptr arg0
+    v37 = add v36, 384
+    v38 = calldataload v37
+    v39 = slice_ptr arg0
+    v40 = add v39, 416
+    v41 = calldataload v40
+    v42 = slice_ptr arg0
+    v43 = add v42, 448
+    v44 = calldataload v43
+    v45 = slice_ptr arg0
+    v46 = add v45, 480
+    v47 = calldataload v46
+    v48 = slice_ptr arg0
+    v49 = add v48, 512
+    v50 = calldataload v49
+    v51 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    memory_object_store_field memorystruct<1>, v51, 0, arg1
+    v52 = add v2, v5
+    v53 = add v52, v8
+    v54 = add v53, v11
+    v55 = add v54, v14
+    v56 = add v55, v17
+    v57 = add v56, v20
+    v58 = add v57, v23
+    v59 = add v58, v26
+    v60 = add v59, v29
+    v61 = add v60, v32
+    v62 = add v61, v35
+    v63 = add v62, v38
+    v64 = add v63, v41
+    v65 = add v64, v44
+    v66 = add v65, v47
+    v67 = add v66, v50
+    v68 = mload 64 !metadata(memory=scratch)
+    v69 = sub v68, v51
+    ret v51, v67, v69
+}

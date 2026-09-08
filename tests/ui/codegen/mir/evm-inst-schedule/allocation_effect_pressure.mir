@@ -1,0 +1,105 @@
+//@ compile-flags: -Ogas -Zmir-pipeline=lower-alloc,evm-inst-schedule
+//@ filecheck:
+@module AllocationEffectPressure
+
+// Default allocation effects become the native load effect after expansion.
+// Under pressure, pure consumers contract before the FMP load and update.
+// CHECK-LABEL: (after evm-inst-schedule)
+// CHECK-LABEL: {{^[ +].*}}fn @default_effect_contracts{{[( ]}}
+// CHECK: [[FIRST:v[0-9]+]] = calldataload 0
+// CHECK-NEXT: [[SECOND:v[0-9]+]] = calldataload 32
+// CHECK-NEXT: + {{v[0-9]+}} = add [[FIRST]], [[SECOND]]
+// CHECK: [[LAST:v[0-9]+]] = calldataload 512
+// CHECK-NEXT: + [[SUM:v[0-9]+]] = add {{v[0-9]+}}, [[LAST]]
+// CHECK-NEXT: [[PTR:v[0-9]+]] = mload 64 !metadata(memory=scratch){{$}}
+// CHECK-NEXT: [[NEXT:v[0-9]+]] = add [[PTR]], 32
+// CHECK-NEXT: mstore 64, [[NEXT]]
+// CHECK-NOT: {{^[ +].*}} = add
+// CHECK: ret [[PTR]], [[SUM]]
+fn @default_effect_contracts() -> (memptr, u256) {
+  bb0:
+    v0 = calldataload 0
+    v1 = calldataload 32
+    v2 = calldataload 64
+    v3 = calldataload 96
+    v4 = calldataload 128
+    v5 = calldataload 160
+    v6 = calldataload 192
+    v7 = calldataload 224
+    v8 = calldataload 256
+    v9 = calldataload 288
+    v10 = calldataload 320
+    v11 = calldataload 352
+    v12 = calldataload 384
+    v13 = calldataload 416
+    v14 = calldataload 448
+    v15 = calldataload 480
+    v16 = calldataload 512
+    v17 = alloc raw, exact, uninitialized, infallible, 32 !metadata(effect=memory_write)
+    v18 = add v0, v1
+    v19 = add v18, v2
+    v20 = add v19, v3
+    v21 = add v20, v4
+    v22 = add v21, v5
+    v23 = add v22, v6
+    v24 = add v23, v7
+    v25 = add v24, v8
+    v26 = add v25, v9
+    v27 = add v26, v10
+    v28 = add v27, v11
+    v29 = add v28, v12
+    v30 = add v29, v13
+    v31 = add v30, v14
+    v32 = add v31, v15
+    v33 = add v32, v16
+    ret v17, v33
+}
+
+// A custom stronger override remains a hard barrier with the same checksum.
+// CHECK-LABEL: {{^[ +].*}}fn @custom_effect_stays{{[( ]}}
+// CHECK-NOT: {{^[ +].*}} = add
+// CHECK: {{v[0-9]+}} = calldataload 512
+// CHECK-NEXT: [[CUSTOM:v[0-9]+]] = mload 64 !metadata(memory=scratch, effect=storage_write)
+// CHECK-NEXT: [[CUSTOM_NEXT:v[0-9]+]] = add [[CUSTOM]], 32
+// CHECK-NEXT: mstore 64, [[CUSTOM_NEXT]]
+// CHECK-NEXT: {{v[0-9]+}} = add {{v[0-9]+}}, {{v[0-9]+}}
+// CHECK: ret [[CUSTOM]], {{v[0-9]+}}
+fn @custom_effect_stays() -> (memptr, u256) {
+  bb0:
+    v0 = calldataload 0
+    v1 = calldataload 32
+    v2 = calldataload 64
+    v3 = calldataload 96
+    v4 = calldataload 128
+    v5 = calldataload 160
+    v6 = calldataload 192
+    v7 = calldataload 224
+    v8 = calldataload 256
+    v9 = calldataload 288
+    v10 = calldataload 320
+    v11 = calldataload 352
+    v12 = calldataload 384
+    v13 = calldataload 416
+    v14 = calldataload 448
+    v15 = calldataload 480
+    v16 = calldataload 512
+    v17 = alloc raw, exact, uninitialized, infallible, 32 !metadata(effect=storage_write)
+    v18 = add v0, v1
+    v19 = add v18, v2
+    v20 = add v19, v3
+    v21 = add v20, v4
+    v22 = add v21, v5
+    v23 = add v22, v6
+    v24 = add v23, v7
+    v25 = add v24, v8
+    v26 = add v25, v9
+    v27 = add v26, v10
+    v28 = add v27, v11
+    v29 = add v28, v12
+    v30 = add v29, v13
+    v31 = add v30, v14
+    v32 = add v31, v15
+    v33 = add v32, v16
+    ret v17, v33
+}
+
