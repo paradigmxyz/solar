@@ -1,0 +1,114 @@
+- // === ROOT/tests/ui/codegen/evm-ir/compact-pushes/literal_cache_boundary.evmir (before compact-pushes) ===
++ // === ROOT/tests/ui/codegen/evm-ir/compact-pushes/literal_cache_boundary.evmir (after compact-pushes) ===
+  @module LiteralCacheBoundary
+  bb0:
+    push 99
+    push 0
+    calldataload
+    push 32
+    calldataload
+    jumpi bb3, bb1
+  bb1:
+    swap 1
+    swap 1
+    push 0x123456789abcdef0123456789abcdef0
+    not
++   swap 2
++   swap 1
++   dup 3
+    add
+-   push 0x123456789abcdef0123456789abcdef0
+-   not
++   dup 3
+    add
+-   push 0x123456789abcdef0123456789abcdef0
+-   not
++   dup 3
+    add
+-   push 0x123456789abcdef0123456789abcdef0
+-   not
++   dup 3
+    add
+-   push 0x123456789abcdef0123456789abcdef0
+-   not
++   dup 3
+    add
+-   push 0x123456789abcdef0123456789abcdef0
+-   not
++   dup 3
+    add
+-   push 0x123456789abcdef0123456789abcdef0
+-   not
++   dup 3
+    add
+-   push 0x123456789abcdef0123456789abcdef0
+-   not
++   dup 3
+    add
+-   push 0x123456789abcdef0123456789abcdef0
+-   not
++   swap 1
++   swap 2
+    add
+    jump bb2
+  bb3:
+    swap 1
+    swap 1
+    push 0x123456789abcdef0123456789abcdef0
+    not
++   swap 2
+    swap 1
++   dup 3
++   swap 1
+    sub
+-   push 0x123456789abcdef0123456789abcdef0
+-   not
++   dup 3
+    swap 1
+    sub
+-   push 0x123456789abcdef0123456789abcdef0
+-   not
++   dup 3
+    swap 1
+    sub
+-   push 0x123456789abcdef0123456789abcdef0
+-   not
++   dup 3
+    swap 1
+    sub
+-   push 0x123456789abcdef0123456789abcdef0
+-   not
++   dup 3
+    swap 1
+    sub
+-   push 0x123456789abcdef0123456789abcdef0
+-   not
++   dup 3
+    swap 1
+    sub
+-   push 0x123456789abcdef0123456789abcdef0
+-   not
++   dup 3
+    swap 1
+    sub
+-   push 0x123456789abcdef0123456789abcdef0
+-   not
++   dup 3
+    swap 1
+    sub
+-   push 0x123456789abcdef0123456789abcdef0
+-   not
++   swap 1
++   swap 2
+    swap 1
+    sub
+    jump bb2
+  bb2:
+    push 0
+    mstore
+    push 32
+    mstore
+    push 64
+    push 0
+    return
+  

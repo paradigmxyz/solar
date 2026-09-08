@@ -1,0 +1,43 @@
+//@ compile-flags: -Ogas --evm-version=cancun -Zevm-ir-pipeline=compact-pushes
+//@ filecheck:
+@module LiteralCacheRawEntry
+
+// A raw alternate entry invalidates the fixed-prefix lifetime proof.
+bb0:
+  push 7
+  jump bb1
+
+// CHECK-LABEL: {{^[ +] *}}bb1:
+// CHECK-COUNT-9: {{^[ +] *}}push 0x123456789abcdef0123456789abcdef0
+// CHECK-NOT: {{^[ +] *}}dup
+// CHECK: {{^[ +] *}}stop
+bb1:
+  jumpdest
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  stop

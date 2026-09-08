@@ -1,0 +1,22 @@
+// === ROOT/tests/ui/codegen/lowering/literal_cache.sol:NarrowModulusCache ===
+@module NarrowModulusCache
+fn @sum(arg0: u8) -> u256 [selector=0x9d4dcb83, pure, abi_params=[u8], abi_returns=[word]] {
+  bb0:
+    v0 = not 0
+    v1 = addmod arg0, 1, v0
+    v2 = not 0
+    v3 = addmod v1, 2, v2
+    v4 = not 0
+    v5 = addmod v3, 3, v4
+    v6 = not 0
+    v7 = addmod v5, 4, v6
+    v8 = not 0
+    v9 = addmod v7, 5, v8
+    v10 = not 0
+    v11 = addmod v9, 6, v10
+    v12 = not 0
+    v13 = addmod v11, 7, v12
+    v14 = not 0
+    v15 = addmod v13, 8, v14
+    ret v15
+}

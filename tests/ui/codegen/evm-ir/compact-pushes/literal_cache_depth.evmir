@@ -1,0 +1,153 @@
+//@ compile-flags: -Ogas --evm-version=cancun -Zevm-ir-pipeline=compact-pushes
+//@ filecheck:
+@module LiteralCacheDepth
+
+// Forty repetitions pay setup/teardown, but a cache below the required
+// sixteen-word suffix needs DUP17. This helper deliberately supports DUP1..16.
+bb0:
+  push 1
+  push 2
+  push 3
+  push 4
+  push 5
+  push 6
+  push 7
+  push 8
+  push 9
+  push 10
+  push 11
+  push 12
+  push 13
+  push 14
+  push 15
+  push 16
+  jump bb1
+
+// CHECK-LABEL: {{^[ +] *}}bb1:
+// CHECK-COUNT-40: {{^[ +] *}}push 0x123456789abcdef0123456789abcdef0
+// CHECK-NOT: {{^[ +] *}}dup 17
+// CHECK: {{^[ +] *}}stop
+bb1:
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  dup 16
+  pop
+  stop

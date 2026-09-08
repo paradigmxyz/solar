@@ -1,0 +1,85 @@
+- // === ROOT/tests/ui/codegen/evm-ir/compact-pushes/literal_cache_events.evmir (before compact-pushes) ===
++ // === ROOT/tests/ui/codegen/evm-ir/compact-pushes/literal_cache_events.evmir (after compact-pushes) ===
+  @module LiteralCacheEvents
+  bb0:
+    calldatasize
+    jumpi bb1, bb2
+  bb1:
+    push 7
+    push 0x123456789abcdef0123456789abcdef0
+    not
++   swap 1 !metadata(spans=[])
++   dup 2 !metadata(spans=[])
+    add
+-   push 0x123456789abcdef0123456789abcdef0
+-   not
++   dup 2
+    add
+-   push 0x123456789abcdef0123456789abcdef0
+-   not
++   dup 2
+    add
+-   push 0x123456789abcdef0123456789abcdef0 !metadata(span=130..138, invoke=middle@100..200)
+-   not
++   dup 2 !metadata(span=130..138, invoke=middle@100..200)
+    add
+-   push 0x123456789abcdef0123456789abcdef0
+-   not
++   dup 2
+    add
+-   push 0x123456789abcdef0123456789abcdef0
+-   not
++   dup 2
+    add
+-   push 0x123456789abcdef0123456789abcdef0
+-   not
++   dup 2
+    add
+-   push 0x123456789abcdef0123456789abcdef0
+-   not
++   dup 2
+    add
+-   push 0x123456789abcdef0123456789abcdef0 !metadata(span=300..308, invoke=last@300..320)
+-   not !metadata(span=309..310, exit=return)
++   swap 1 !metadata(invoke=last@300..320)
+    add
+    pop
+    stop !metadata(exit=return)
+  bb2:
+    push 0x123456789abcdef0123456789abcdef0
+    not
++   dup 1 !metadata(spans=[])
+    pop
+-   push 0x123456789abcdef0123456789abcdef0
+-   not
++   dup 1
+    pop
+-   push 0x123456789abcdef0123456789abcdef0
+-   not
++   dup 1
+    pop
+-   push 0x123456789abcdef0123456789abcdef0 !metadata(span=130..138, invoke=middle@100..200)
+-   not
++   dup 1 !metadata(span=130..138, invoke=middle@100..200)
+    pop
+-   push 0x123456789abcdef0123456789abcdef0
+-   not
++   dup 1
+    pop
+-   push 0x123456789abcdef0123456789abcdef0
+-   not
++   dup 1
+    pop
+-   push 0x123456789abcdef0123456789abcdef0
+-   not
++   dup 1
+    pop
+-   push 0x123456789abcdef0123456789abcdef0
+-   not
++   dup 1
+    pop
+-   push 0x123456789abcdef0123456789abcdef0 !metadata(span=400..408, invoke=vanished@400..420)
+-   not !metadata(span=409..410, exit=return)
+    pop
+    stop
+  

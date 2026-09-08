@@ -1,0 +1,41 @@
+- // === ROOT/tests/ui/codegen/evm-ir/compact-pushes/literal_cache_unknown.evmir (before compact-pushes) ===
++ // === ROOT/tests/ui/codegen/evm-ir/compact-pushes/literal_cache_unknown.evmir (after compact-pushes) ===
+  @module LiteralCacheUnknown
+  bb0:
+    push 7
+    calldatasize
+    jumpi bb1, bb2
+  bb2:
+    push 0
+    calldataload
+    jump
+  bb1:
+    push 0x123456789abcdef0123456789abcdef0
+    not
+    add
+    push 0x123456789abcdef0123456789abcdef0
+    not
+    add
+    push 0x123456789abcdef0123456789abcdef0
+    not
+    add
+    push 0x123456789abcdef0123456789abcdef0
+    not
+    add
+    push 0x123456789abcdef0123456789abcdef0
+    not
+    add
+    push 0x123456789abcdef0123456789abcdef0
+    not
+    add
+    push 0x123456789abcdef0123456789abcdef0
+    not
+    add
+    push 0x123456789abcdef0123456789abcdef0
+    not
+    add
+    push 0x123456789abcdef0123456789abcdef0
+    not
+    add
+    stop
+  

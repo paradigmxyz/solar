@@ -1,0 +1,37 @@
+- // === ROOT/tests/ui/codegen/evm-ir/compact-pushes/literal_cache_raw_entry.evmir (before compact-pushes) ===
++ // === ROOT/tests/ui/codegen/evm-ir/compact-pushes/literal_cache_raw_entry.evmir (after compact-pushes) ===
+  @module LiteralCacheRawEntry
+  bb0:
+    push 7
+    jump bb1
+  bb1:
+    jumpdest
+    push 0x123456789abcdef0123456789abcdef0
+    not
+    add
+    push 0x123456789abcdef0123456789abcdef0
+    not
+    add
+    push 0x123456789abcdef0123456789abcdef0
+    not
+    add
+    push 0x123456789abcdef0123456789abcdef0
+    not
+    add
+    push 0x123456789abcdef0123456789abcdef0
+    not
+    add
+    push 0x123456789abcdef0123456789abcdef0
+    not
+    add
+    push 0x123456789abcdef0123456789abcdef0
+    not
+    add
+    push 0x123456789abcdef0123456789abcdef0
+    not
+    add
+    push 0x123456789abcdef0123456789abcdef0
+    not
+    add
+    stop
+  

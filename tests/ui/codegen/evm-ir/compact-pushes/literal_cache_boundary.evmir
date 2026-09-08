@@ -1,0 +1,129 @@
+//@ revisions: gas size
+//@ compile-flags: --evm-version=cancun -Zevm-ir-pipeline=compact-pushes
+//@[gas] compile-flags: -Ogas
+//@[size] compile-flags: -Osize
+//@[gas] filecheck: --check-prefix=CACHE
+//@[size] filecheck: --check-prefix=KEEP
+@module LiteralCacheBoundary
+
+// Two incoming words: marker, accumulator. The selector is not retained.
+bb0:
+  push 99
+  push 0
+  calldataload
+  push 32
+  calldataload
+  jumpi bb3, bb1
+
+// The paid entry permutation remains before the first complete materializer.
+// CACHE-LABEL: {{^[ +] *}}bb1:
+// CACHE-NEXT: {{^[ +] *}}swap 1
+// CACHE-NEXT: {{^[ +] *}}swap 1
+// CACHE-NEXT: {{^[ +] *}}push 0x123456789abcdef0123456789abcdef0
+// CACHE-NEXT: {{^[ +] *}}not
+// CACHE-NEXT: {{^[ +] *}}swap 2
+// CACHE-NEXT: {{^[ +] *}}swap 1
+// CACHE-NEXT: {{^[ +] *}}dup 3
+// CACHE-COUNT-7: {{^[ +] *}}dup 3
+// CACHE: {{^[ +] *}}swap 1
+// CACHE-NEXT: {{^[ +] *}}swap 2
+// CACHE-NEXT: {{^[ +] *}}add
+// CACHE-NEXT: {{^[ +] *}}jump bb2
+// KEEP-LABEL: {{^[ +] *}}bb1:
+// KEEP-COUNT-9: {{^[ +] *}}push 0x123456789abcdef0123456789abcdef0
+// KEEP-NOT: {{^[ +] *}}dup
+// KEEP: {{^[ +] *}}jump bb2
+bb1:
+  swap 1
+  swap 1
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  jump bb2
+
+// The noncommutative consumer keeps its original operand order.
+// CACHE-LABEL: {{^[ +] *}}bb3:
+// CACHE: {{^[ +] *}}not
+// CACHE-NEXT: {{^[ +] *}}swap 2
+// CACHE-NEXT: {{^[ +] *}}swap 1
+// CACHE-NEXT: {{^[ +] *}}dup 3
+// CACHE-COUNT-7: {{^[ +] *}}dup 3
+// CACHE: {{^[ +] *}}jump bb2
+// KEEP-LABEL: {{^[ +] *}}bb3:
+// KEEP-COUNT-9: {{^[ +] *}}push 0x123456789abcdef0123456789abcdef0
+// KEEP-NOT: {{^[ +] *}}dup
+// KEEP: {{^[ +] *}}jump bb2
+bb3:
+  swap 1
+  swap 1
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  swap 1
+  sub
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  swap 1
+  sub
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  swap 1
+  sub
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  swap 1
+  sub
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  swap 1
+  sub
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  swap 1
+  sub
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  swap 1
+  sub
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  swap 1
+  sub
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  swap 1
+  sub
+  jump bb2
+
+// Exact outgoing protocol: result at zero and untouched marker at 32.
+bb2:
+  push 0
+  mstore
+  push 32
+  mstore
+  push 64
+  push 0
+  return

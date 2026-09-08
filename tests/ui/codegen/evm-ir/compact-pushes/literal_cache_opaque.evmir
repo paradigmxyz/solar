@@ -1,0 +1,44 @@
+//@ compile-flags: -Ogas --evm-version=cancun -Zevm-ir-pipeline=compact-pushes
+//@ filecheck:
+@module LiteralCacheOpaque
+
+// Opaque instruction semantics are not invented from an annotated stack count.
+// The existing module observer permission also refuses this input.
+bb0:
+  push 7
+  jump bb1
+
+// CHECK-LABEL: {{^[ +] *}}bb1:
+// CHECK-COUNT-9: {{^[ +] *}}push 0x123456789abcdef0123456789abcdef0
+// CHECK-NOT: {{^[ +] *}}dup
+// CHECK: {{^[ +] *}}stop
+bb1:
+  callf !meta(stack=1->1)
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  stop

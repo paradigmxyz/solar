@@ -1,0 +1,44 @@
+//@ compile-flags: -Ogas --evm-version=cancun -Zevm-ir-pipeline=compact-pushes
+//@ filecheck:
+@module LiteralCacheCodeObserver
+
+// Even a discarded code-size observation keeps the conservative module guard.
+bb0:
+  codesize
+  pop
+  push 7
+  jump bb1
+
+// CHECK-LABEL: {{^[ +] *}}bb1:
+// CHECK-COUNT-9: {{^[ +] *}}push 0x123456789abcdef0123456789abcdef0
+// CHECK-NOT: {{^[ +] *}}dup
+// CHECK: {{^[ +] *}}stop
+bb1:
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  stop

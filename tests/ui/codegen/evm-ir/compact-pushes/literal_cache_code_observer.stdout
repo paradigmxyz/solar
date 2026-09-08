@@ -1,0 +1,38 @@
+- // === ROOT/tests/ui/codegen/evm-ir/compact-pushes/literal_cache_code_observer.evmir (before compact-pushes) ===
++ // === ROOT/tests/ui/codegen/evm-ir/compact-pushes/literal_cache_code_observer.evmir (after compact-pushes) ===
+  @module LiteralCacheCodeObserver
+  bb0:
+    codesize
+    pop
+    push 7
+    jump bb1
+  bb1:
+    push 0x123456789abcdef0123456789abcdef0
+    not
+    add
+    push 0x123456789abcdef0123456789abcdef0
+    not
+    add
+    push 0x123456789abcdef0123456789abcdef0
+    not
+    add
+    push 0x123456789abcdef0123456789abcdef0
+    not
+    add
+    push 0x123456789abcdef0123456789abcdef0
+    not
+    add
+    push 0x123456789abcdef0123456789abcdef0
+    not
+    add
+    push 0x123456789abcdef0123456789abcdef0
+    not
+    add
+    push 0x123456789abcdef0123456789abcdef0
+    not
+    add
+    push 0x123456789abcdef0123456789abcdef0
+    not
+    add
+    stop
+  

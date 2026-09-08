@@ -1,0 +1,80 @@
+//@ compile-flags: -Ogas --evm-version=cancun -Zevm-ir-pipeline=compact-pushes
+//@ filecheck:
+@module LiteralCacheEvents
+
+bb0:
+  calldatasize
+  jumpi bb1, bb2
+
+// A nonempty release has an invocation checkpoint without invented source spans.
+// CHECK-LABEL: {{^[ +] *}}bb1:
+// CHECK: {{^[ +] *}}dup 2 !metadata(span=130..138, invoke=middle@100..200)
+// CHECK: {{^[ +] *}}swap 1 !metadata(invoke=last@300..320)
+// CHECK-NEXT: {{^[ +] *}}add
+// CHECK: {{^[ +] *}}stop !metadata(exit=return)
+bb1:
+  push 7
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0 !metadata(span=130..138, invoke=middle@100..200)
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  add
+  push 0x123456789abcdef0123456789abcdef0 !metadata(span=300..308, invoke=last@300..320)
+  not !metadata(span=309..310, exit=return)
+  add
+  pop
+  stop !metadata(exit=return)
+
+// A zero-depth release disappears. No unrelated opcode inherits its event.
+// CHECK-LABEL: {{^[ +] *}}bb2:
+// CHECK-NOT: {{^[ +].*}}invoke=vanished
+// CHECK-NOT: {{^[ +].*}}exit=return
+// CHECK: {{^[ +] *}}stop{{$}}
+bb2:
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  pop
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  pop
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  pop
+  push 0x123456789abcdef0123456789abcdef0 !metadata(span=130..138, invoke=middle@100..200)
+  not
+  pop
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  pop
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  pop
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  pop
+  push 0x123456789abcdef0123456789abcdef0
+  not
+  pop
+  push 0x123456789abcdef0123456789abcdef0 !metadata(span=400..408, invoke=vanished@400..420)
+  not !metadata(span=409..410, exit=return)
+  pop
+  stop
