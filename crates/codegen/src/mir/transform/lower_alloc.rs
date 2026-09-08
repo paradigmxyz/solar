@@ -3,7 +3,9 @@
 //! Allocation stays atomic through the optimization pipeline so placement
 //! passes can reason about it without reconstructing a load/add/store idiom.
 //! This pass expands the abstraction before the EVM-shaped boundary. Deferred
-//! static-allocation placeholders remain for final backend layout.
+//! static-allocation placeholders remain for final backend layout. Raw loads and stores discard
+//! allocation-only effect and placement metadata: the emitted stores, initialization, and panic
+//! branches carry those effects. Source metadata stays on the original instruction.
 
 use crate::mir::{
     AllocationAlignment, AllocationFailure, AllocationInitialization, AllocationSemantics, BlockId,
@@ -198,7 +200,10 @@ fn initialize(
 fn rewrite_as_fmp_load(builder: &mut FunctionBuilder<'_>, inst: crate::mir::InstId) {
     let slot = builder.imm(EvmMemoryLayout::FMP_SLOT);
     let instruction = builder.func_mut().inst_mut(inst);
+    // fmp / alloc size -> mload 64
     instruction.kind = InstKind::MLoad(slot);
+    instruction.metadata.set_effect(None);
+    instruction.metadata.set_preserves_fmp(false);
     instruction.metadata.set_memory_region(Some(MemoryRegion::Scratch));
 }
 
@@ -209,7 +214,10 @@ fn rewrite_as_fmp_store(
 ) {
     let slot = builder.imm(EvmMemoryLayout::FMP_SLOT);
     let instruction = builder.func_mut().inst_mut(inst);
+    // set_fmp ptr -> mstore 64, ptr
     instruction.kind = InstKind::MStore(slot, ptr);
+    instruction.metadata.set_effect(None);
+    instruction.metadata.set_preserves_fmp(false);
     instruction.metadata.set_memory_region(Some(MemoryRegion::Scratch));
 }
 

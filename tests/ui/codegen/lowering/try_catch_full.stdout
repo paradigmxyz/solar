@@ -13,7 +13,7 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
     v2 = gas
-    v81 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v81 = mload 64 !metadata(memory=scratch)
     v202 = add v81, 64
     mstore 64, v202 !metadata(memory=scratch)
     mstore v81, 0xb3de648b00000000000000000000000000000000000000000000000000000000
@@ -28,7 +28,7 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
     jumpi v60, bb8, bb11
   bb11:
     v62 = and v59, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v63 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v63 = mload 64 !metadata(memory=scratch)
     v201 = add v63, v62
     mstore 64, v201 !metadata(memory=scratch)
     mstore v63, v58
@@ -74,14 +74,14 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
     v127 = sub v126, v110
     v129 = add v127, 31
     v131 = and v129, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v132 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
+    v132 = mload 64 !metadata(memory=scratch)
     v204 = add v132, v131
     mstore 64, v204 !metadata(memory=scratch)
     returndata v132, v127
   bb6:
     v41 = add v194, 4
     v43 = mload v41
-    v84 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v84 = mload 64 !metadata(memory=scratch)
     v198 = add v84, 64
     mstore 64, v198 !metadata(memory=scratch)
     mstore v84, 32
@@ -112,7 +112,7 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
     v103 = sub v102, v86
     v105 = add v103, 31
     v107 = and v105, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v108 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
+    v108 = mload 64 !metadata(memory=scratch)
     v203 = add v108, v107
     mstore 64, v203 !metadata(memory=scratch)
     returndata v108, v103
@@ -124,7 +124,7 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
     jumpi v29, bb8, bb9
   bb9:
     v31 = and v28, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v32 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v32 = mload 64 !metadata(memory=scratch)
     v199 = add v32, v31
     mstore 64, v199 !metadata(memory=scratch)
     mstore v32, v25
@@ -157,7 +157,7 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
     v151 = sub v150, v134
     v153 = add v151, 31
     v155 = and v153, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v156 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
+    v156 = mload 64 !metadata(memory=scratch)
     v205 = add v156, v155
     mstore 64, v205 !metadata(memory=scratch)
     returndata v156, v151
@@ -168,7 +168,7 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
     jumpi v53, bb8, bb10
   bb10:
     v55 = and v52, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v56 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v56 = mload 64 !metadata(memory=scratch)
     v200 = add v56, v55
     mstore 64, v200 !metadata(memory=scratch)
     mstore v56, v51
@@ -204,7 +204,7 @@ fn @full() [selector=0xd17b272f, abi_wrapper, view] {
     v175 = sub v174, v158
     v177 = add v175, 31
     v179 = and v177, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v180 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
+    v180 = mload 64 !metadata(memory=scratch)
     v206 = add v180, v179
     mstore 64, v206 !metadata(memory=scratch)
     returndata v180, v175
@@ -223,7 +223,7 @@ fn @rethrows() [selector=0x0d7fadfb, abi_wrapper, view] {
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
     v2 = gas
-    v53 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v53 = mload 64 !metadata(memory=scratch)
     v74 = add v53, 64
     mstore 64, v74 !metadata(memory=scratch)
     mstore v53, 0xb3de648b00000000000000000000000000000000000000000000000000000000
@@ -238,7 +238,7 @@ fn @rethrows() [selector=0x0d7fadfb, abi_wrapper, view] {
     jumpi v42, bb7, bb10
   bb10:
     v44 = and v41, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v45 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v45 = mload 64 !metadata(memory=scratch)
     v73 = add v45, v44
     mstore 64, v73 !metadata(memory=scratch)
     mstore v45, v40
@@ -262,7 +262,7 @@ fn @rethrows() [selector=0x0d7fadfb, abi_wrapper, view] {
     jumpi v27, bb7, bb8
   bb8:
     v29 = and v26, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v30 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v30 = mload 64 !metadata(memory=scratch)
     v71 = add v30, v29
     mstore 64, v71 !metadata(memory=scratch)
     mstore v30, v23
@@ -277,7 +277,7 @@ fn @rethrows() [selector=0x0d7fadfb, abi_wrapper, view] {
     jumpi v35, bb7, bb9
   bb9:
     v37 = and v34, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v38 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v38 = mload 64 !metadata(memory=scratch)
     v72 = add v38, v37
     mstore 64, v72 !metadata(memory=scratch)
     mstore v38, v33
@@ -351,7 +351,7 @@ fn @decode_aggregate.4(arg0: memptr) -> memptr {
     jumpi v15, bb4, bb5
   bb5:
     v17 = and v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v18 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v18 = mload 64 !metadata(memory=scratch)
     v25 = add v18, v17
     v26 = lt v25, v18
     v27 = gt v25, 0xffffffffffffffff
@@ -405,7 +405,7 @@ fn @decode_aggregate.5(arg0: memptr) -> (u256, memptr) {
     jumpi v17, bb4, bb5
   bb5:
     v19 = and v16, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v20 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v20 = mload 64 !metadata(memory=scratch)
     v29 = add v20, v19
     v30 = lt v29, v20
     v31 = gt v29, 0xffffffffffffffff

@@ -7,7 +7,7 @@ data:
 
 fn @outer() [selector=0x87c3dbb6, abi_wrapper, pure] {
   bb0:
-    v0 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v0 = mload 64 !metadata(memory=scratch)
     v29 = add v0, 288
     mstore 64, v29 !metadata(memory=scratch)
     mstore v0, 241
@@ -38,7 +38,7 @@ fn @outer() [selector=0x87c3dbb6, abi_wrapper, pure] {
     v22 = sub v21, v6
     v24 = add v22, 31
     v26 = and v24, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v27 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
+    v27 = mload 64 !metadata(memory=scratch)
     v30 = add v27, v26
     mstore 64, v30 !metadata(memory=scratch)
     returndata v27, v22
@@ -46,7 +46,7 @@ fn @outer() [selector=0x87c3dbb6, abi_wrapper, pure] {
 
 fn @inner() [selector=0x4adb7729, abi_wrapper, pure] {
   bb0:
-    v0 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v0 = mload 64 !metadata(memory=scratch)
     v29 = add v0, 224
     mstore 64, v29 !metadata(memory=scratch)
     mstore v0, 161
@@ -77,7 +77,7 @@ fn @inner() [selector=0x4adb7729, abi_wrapper, pure] {
     v22 = sub v21, v6
     v24 = add v22, 31
     v26 = and v24, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v27 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
+    v27 = mload 64 !metadata(memory=scratch)
     v30 = add v27, v26
     mstore 64, v30 !metadata(memory=scratch)
     returndata v27, v22

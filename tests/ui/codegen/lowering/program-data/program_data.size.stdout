@@ -7,7 +7,7 @@ data:
 
 fn @data() [selector=0x73d4a13a, abi_wrapper, pure] {
   bb0:
-    v0 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v0 = mload 64 !metadata(memory=scratch)
     v29 = add v0, 320
     mstore 64, v29 !metadata(memory=scratch)
     mstore v0, 257
@@ -38,7 +38,7 @@ fn @data() [selector=0x73d4a13a, abi_wrapper, pure] {
     v22 = sub v21, v6
     v24 = add v22, 31
     v26 = and v24, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v27 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
+    v27 = mload 64 !metadata(memory=scratch)
     v30 = add v27, v26
     mstore 64, v30 !metadata(memory=scratch)
     returndata v27, v22
@@ -46,7 +46,7 @@ fn @data() [selector=0x73d4a13a, abi_wrapper, pure] {
 
 fn @subslice() [selector=0xb9ad073e, abi_wrapper, pure] {
   bb0:
-    v0 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v0 = mload 64 !metadata(memory=scratch)
     v29 = add v0, 224
     mstore 64, v29 !metadata(memory=scratch)
     mstore v0, 161
@@ -77,7 +77,7 @@ fn @subslice() [selector=0xb9ad073e, abi_wrapper, pure] {
     v22 = sub v21, v6
     v24 = add v22, 31
     v26 = and v24, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v27 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
+    v27 = mload 64 !metadata(memory=scratch)
     v30 = add v27, v26
     mstore 64, v30 !metadata(memory=scratch)
     returndata v27, v22
@@ -122,7 +122,7 @@ fn @zeroData() [selector=0x6ec059cd, abi_wrapper, pure] {
     v22 = sub v21, v6
     v24 = add v22, 31
     v26 = and v24, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v27 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
+    v27 = mload 64 !metadata(memory=scratch)
     v29 = add v27, v26
     mstore 64, v29 !metadata(memory=scratch)
     returndata v27, v22
@@ -155,7 +155,7 @@ fn @zeroWord() [selector=0x4c092794, abi_wrapper, pure] {
     v22 = sub v21, v6
     v24 = add v22, 31
     v26 = and v24, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v27 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
+    v27 = mload 64 !metadata(memory=scratch)
     v29 = add v27, v26
     mstore 64, v29 !metadata(memory=scratch)
     returndata v27, v22
@@ -188,7 +188,7 @@ fn @splatData() [selector=0xe1910fda, abi_wrapper, pure] {
     v25 = sub v24, v9
     v27 = add v25, 31
     v29 = and v27, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v30 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
+    v30 = mload 64 !metadata(memory=scratch)
     v32 = add v30, v29
     mstore 64, v32 !metadata(memory=scratch)
     returndata v30, v25
@@ -226,7 +226,7 @@ fn @splatHash() [selector=0x38f844b9, abi_wrapper, pure] {
 
 fn @zeroData.body() -> memptr [pure] {
   bb0:
-    v0 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v0 = mload 64 !metadata(memory=scratch)
     v2 = add v0, 192
     mstore 64, v2 !metadata(memory=scratch)
     mstore v0, 160
@@ -238,7 +238,7 @@ fn @zeroData.body() -> memptr [pure] {
 
 fn @zeroWord.body() -> memptr [pure] {
   bb0:
-    v0 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v0 = mload 64 !metadata(memory=scratch)
     v2 = add v0, 64
     mstore 64, v2 !metadata(memory=scratch)
     mstore v0, 32
@@ -249,7 +249,7 @@ fn @zeroWord.body() -> memptr [pure] {
 
 fn @splatData.body() -> memptr [pure] {
   bb0:
-    v0 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v0 = mload 64 !metadata(memory=scratch)
     v5 = add v0, 192
     mstore 64, v5 !metadata(memory=scratch)
     mstore v0, 160

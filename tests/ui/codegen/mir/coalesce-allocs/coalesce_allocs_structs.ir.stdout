@@ -8,7 +8,7 @@ fn @combine() [selector=0xd9171e32, abi_wrapper, pure] {
     jumpi v15, bb4, bb5
   bb5:
     v0 = alloc raw, exact, uninitialized, infallible, 96 !metadata(deferred_alloc)
-    v1 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v1 = mload 64 !metadata(memory=scratch)
     v25 = add v1, 128
     mstore 64, v25 !metadata(memory=scratch)
     mstore v1, arg0

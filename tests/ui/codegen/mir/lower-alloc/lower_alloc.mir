@@ -9,7 +9,7 @@
 fn @operations(arg0: u256) -> memptr {
   bb0:
     v1 = fmp
-    set_fmp v1
+    set_fmp v1 !metadata(preserves_fmp, effect=memory_write)
     v2 = alloc raw, word, uninitialized, infallible, 64
     mstore v2, arg0
     ret v2
