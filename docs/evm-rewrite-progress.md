@@ -2028,10 +2028,18 @@ at equal length across the same 1,644 IDs. Of the growing objects, 33 worsen
 sealed debt, six introduce new debt, 36 remain within sealed size and 20 lack
 an exact sealed source/ID join. The alias fixture saves only two bytes per mode.
 
-Replacing typed arguments before return encoding loses its existing canonical-
-input proof. The unchanged scalar-validation fixture gains redundant cleanup
+Replacing typed arguments before return encoding loses its existing canonical input
+proof. The unchanged scalar-validation fixture gains redundant cleanup
 and an enum panic path, growing 53 bytes in Gas and 43 in Size. The draft was
 reversed using its retained patch; source and rebuilt binary exactly match
 accepted `9ed4da3c`. No expectations changed, and the proposed 30-call fixture
 remains unexecuted. Evidence is in `validated-scalar-reuse-workflow-20260908/`;
 a possible return-encoding order correction remains a separate investigation.
+
+The ordering follow-up is held without a build. Fixed-bytes indexing has a
+separate representation split: validated `bytes1`/`bytes7` become stack-fed,
+while unvalidated `bytes32` remains a lazy argument. The formerly shared
+BYTE/shift/mask/return body is duplicated, adding 22 Gas bytes. Encoding returns
+earlier can preserve canonicality facts but has no direct mechanism to restore
+this sharing; a coincidental layout improvement is not ruled out or claimed.
+No eager unvalidated loads or type-specific exception is proposed.
