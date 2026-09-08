@@ -1,0 +1,56 @@
+- // === ROOT/tests/ui/codegen/evm-ir/tail-merge/ordinary_multiway_reserve_refusal.evmir (before tail-merge) ===
++ // === ROOT/tests/ui/codegen/evm-ir/tail-merge/ordinary_multiway_reserve_refusal.evmir (after tail-merge) ===
+  @module OrdinaryMultiwayReserveRefusal
+  bb0:
+    push 0
+    calldataload
+    push 3
+    swap 1
+    mod
+    indexed_jump bb1, bb2, bb3
+  bb1:
+    push 3
+-   push 32
+-   calldataload
+-   lt
+-   jumpi bb10, bb11
++   jump bb15
+  bb2:
+    push 2
+-   push 32
+-   calldataload
+-   lt
+-   jumpi bb12, bb11
++   jump bb15
+  bb3:
+    push 1
+    push 32
+    calldataload
+    lt
+    jumpi bb13, bb14
+  bb10:
+    push 100
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  bb11:
+    push 200
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  bb12:
+    jump bb10
+  bb13:
+    jump bb10
+  bb14:
+    jump bb11
++ bb15:
++   push 32
++   calldataload
++   lt
++   jumpi bb10, bb11
+  
