@@ -34,6 +34,12 @@
 //! per transfer and one shared label, without credit for fallthrough; ordinary
 //! pair matching and gas-mode thresholds are unchanged. This is a bounded cost
 //! estimate through PUSH3 label widths, not an assembler fixed-point size proof.
+//! Size mode collects additional eligible members of an already selected ordinary
+//! suffix before creating its shared body, avoiding separate pair-owned copies.
+//! Each member proves matching destinations, a legal split and transfer stack room.
+//! Enlarging an ordinary pair requires its body to cover two PUSH3/JUMP transfers
+//! and a marker, with no fallthrough-Jump credit and minimum conditional width.
+//! This is a profitability screen; later cleanup and layout still affect size.
 //! Unequal conditional terminators can match through one empty forwarding block
 //! per target; only accepted shared tails use those destinations. Equal original
 //! terminators retain their existing behavior, and metadata is never discarded. A final
@@ -1069,17 +1075,33 @@ fn tail_merge(gcx: Gcx<'_>, module: &mut Module) -> bool {
                 continue;
             }
             let mut additional = Vec::new();
-            if short {
-                // A six-byte suffix has one exact starting point in this block.
-                // Scan its group once; committing an initial pair can lose bytes.
-                tried_short_tail = true;
+            let ordinary_body = suffix_bytes
+                + match a.terminator.kind {
+                    TerminatorKind::Jump(_) => 0,
+                    TerminatorKind::JumpI(..) => {
+                        op::push_len(version, alloy_primitives::U256::ZERO) + 1
+                    }
+                    _ => 1,
+                };
+            // Reserve two PUSH3/JUMP transfers and a marker before enlarging an
+            // ordinary pair. Fallthroughs and later layout can consume that margin.
+            if size && (short || ordinary_body > 2 * 5) {
+                // prefix_1; suffix; exit, ..., prefix_n; suffix; exit
+                // -> prefix_1; jump shared, ..., prefix_n; jump shared
+                // shared: suffix; exit
+                tried_short_tail |= short;
                 let suffix = &a.insts[a.insts.len() - common..];
                 for &source in &ids[index + 1..] {
                     let block = &module.blocks[source];
                     if source != other
-                        && (size || !block.loop_header)
-                        && block.terminator == a.terminator
+                        && (block.terminator == a.terminator
+                            || forwarded.as_ref().is_some_and(|kind| {
+                                forwarded_conditional(module, &a.terminator, &block.terminator)
+                                    .as_ref()
+                                    == Some(kind)
+                            }))
                         && block.insts.ends_with(suffix)
+                        && super::split_allowed(&block.insts, block.insts.len() - common)
                         && (!has_gas_observers
                             || !reachable.contains(source)
                             || !tail_observes_gas(module, source, block.insts.len() - common))
@@ -1101,7 +1123,7 @@ fn tail_merge(gcx: Gcx<'_>, module: &mut Module) -> bool {
                 // n * body -> body + jumpdest + n * (push label; jump)
                 // Reserve five bytes per transfer (PUSH3 plus JUMP) and
                 // a new shared JUMPDEST; do not credit a possible fallthrough.
-                if count < 3 || count * body <= body + 1 + 5 * count {
+                if short && (count < 3 || count * body <= body + 1 + 5 * count) {
                     continue;
                 }
             }
