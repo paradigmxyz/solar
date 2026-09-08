@@ -381,7 +381,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let mut builder = FunctionBuilder::new_semantic(function);
             let data_ptr = builder.add_param(MirType::MemPtr);
             let data_len = builder.add_param(MirType::uint256());
-            builder.add_return(MirType::Bool);
+            builder.set_return_type(MirType::Bool);
 
             let check_offset = builder.create_block();
             let check_length = builder.create_block();

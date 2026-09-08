@@ -86,7 +86,7 @@ pub(crate) enum Terminator {
     },
     /// Return from function.
     Return {
-        /// The return values.
+        /// One logical value, or the components selected by the function's internal ABI.
         values: SmallVec<[ValueId; 2]>,
     },
     /// Revert execution.

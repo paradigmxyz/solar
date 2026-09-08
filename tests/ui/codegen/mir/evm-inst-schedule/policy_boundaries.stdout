@@ -1,6 +1,12 @@
 - // === ROOT/tests/ui/codegen/mir/evm-inst-schedule/policy_boundaries.mir (before evm-inst-schedule) ===
 + // === ROOT/tests/ui/codegen/mir/evm-inst-schedule/policy_boundaries.mir (after evm-inst-schedule) ===
   @module EvmInstSchedulePolicy
+  types:
+    struct0: {bool, bool, u256}
+    struct1: {u256, u256}
+    struct2: {u256, u256, u256}
+    struct3: {bool, u256}
+  
   fn @deep_dependency_tree(arg0: u256, arg1: u256, arg2: u256, arg3: u256, arg4: u256, arg5: u256) -> u256 {
     bb0:
 -     v0 = add arg0, arg1
@@ -57,7 +63,7 @@
       ret v2
   }
   
-  fn @multiple_terminator_roots(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> (u256, u256) {
+  fn @multiple_terminator_roots(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> struct1 [return_abi=[u256, u256]] {
     bb0:
 -     v0 = add arg0, arg1
       v1 = mul arg2, arg3
@@ -94,7 +100,7 @@
       ret v2
   }
   
-  fn @callcode_is_a_barrier(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> (bool, u256) {
+  fn @callcode_is_a_barrier(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> struct3 [return_abi=[bool, u256]] {
     bb0:
 -     v0 = add arg0, arg1
       v1 = mul arg2, arg3
@@ -108,7 +114,7 @@
       ret v3, v6
   }
   
-  fn @msize_is_a_barrier(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> (u256, u256, u256) {
+  fn @msize_is_a_barrier(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> struct2 [return_abi=[u256, u256, u256]] {
     bb0:
 -     v0 = add arg0, arg1
       v1 = mul arg2, arg3
@@ -150,7 +156,7 @@
       ret v6
   }
   
-  fn @metadata_cannot_downgrade_effect() -> (bool, bool, u256) {
+  fn @metadata_cannot_downgrade_effect() -> struct0 [return_abi=[bool, bool, u256]] {
     bb0:
       v0 = staticcall 0x3e8, 0xbeef, 0, 0, 0, 0 !metadata(effect=environment_read)
       v1 = returndatasize

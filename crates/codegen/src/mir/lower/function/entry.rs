@@ -30,7 +30,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .map(|&ret| types::TypeLowerer::mir_return_type(self.cx.gcx.type_of_item(ret.into())))
             .collect();
         if let Some(ty) = self.cx.module.intern_return_type(return_types) {
-            self.builder.add_return(ty);
+            self.builder.set_return_type(ty);
         }
         for &ret in function.returns {
             let ty = self.cx.gcx.type_of_item(ret.into());

@@ -152,7 +152,7 @@ enum ReturnedValue {
 }
 
 fn returned_value(func: &Function) -> Option<ReturnedValue> {
-    if func.returns.len() != 1 {
+    if func.return_components().len() != 1 {
         return None;
     }
     let mut returned = None;
@@ -223,7 +223,8 @@ fn has_rewritable_signature(
 /// those accesses do not identify which signature component they refer to, so changing that
 /// function's signature would be ambiguous.
 fn frame_offsets_are_local(func: &Function) -> bool {
-    let Some(signature_slots) = func.params.len().checked_add(func.returns.len()) else {
+    let Some(signature_slots) = func.params.len().checked_add(func.return_components().len())
+    else {
         return false;
     };
     let Some(signature_size) = u64::try_from(signature_slots)
@@ -269,7 +270,10 @@ fn rebase_frame_offsets(func: &mut Function, removed_slots: u64) {
     }
     let shift = removed_slots * EvmMemoryLayout::WORD_SIZE;
     let local_start = EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
-        .checked_add(((func.params.len() + func.returns.len()) as u64) * EvmMemoryLayout::WORD_SIZE)
+        .checked_add(
+            ((func.params.len() + func.return_components().len()) as u64)
+                * EvmMemoryLayout::WORD_SIZE,
+        )
         .expect("MIR frame prefix overflow");
     let old_local_start = local_start.checked_add(shift).expect("MIR frame prefix overflow");
     let local_end = (func.internal_frame_size != 0).then(|| {
@@ -512,7 +516,7 @@ fn prune_unused_returns(module: &mut Module) -> usize {
     let mut candidates = DenseBitSet::new_empty(module.functions.len());
     for (func_id, func) in module.functions.iter_enumerated() {
         if called.contains(func_id)
-            && func.returns.len() == 1
+            && func.return_components().len() == 1
             && is_internal_body(module, func_id, func)
             && frame_offsets_are_local(func)
             && returned_value_dependencies_are_pure(func)
@@ -604,12 +608,12 @@ fn prune_unused_returns(module: &mut Module) -> usize {
 
     for func_id in removed_set.iter() {
         let may_return_memory =
-            module.type_may_reference_memory(module.function(func_id).returns[0]);
+            module.type_may_reference_memory(module.function(func_id).return_components()[0]);
         let func = module.function_mut(func_id);
         // Candidates carry exactly one result, so clearing it removes one signature slot.
         func.attributes.may_return_memory |= may_return_memory;
-        let removed_slots = func.returns.len() as u64;
-        func.returns.clear();
+        let removed_slots = func.return_components().len() as u64;
+        func.set_return_type(MirType::Void);
         for block in &mut func.blocks {
             if let Some(Terminator::Return { values }) = &mut block.terminator {
                 values.clear();
@@ -834,7 +838,7 @@ fn is_merge_candidate(module: &Module, func_id: FunctionId, func: &Function) -> 
 fn equivalence_bucket(func: &Function) -> u64 {
     let mut key = FxHasher::default();
     func.params.hash(&mut key);
-    func.returns.hash(&mut key);
+    func.return_components().hash(&mut key);
     func.internal_frame_size.hash(&mut key);
     func.external_static_return_size.hash(&mut key);
     func.blocks.len().hash(&mut key);
@@ -856,7 +860,7 @@ fn equivalent_functions(
     rhs: &Function,
 ) -> bool {
     if lhs.params != rhs.params
-        || lhs.returns != rhs.returns
+        || lhs.return_components() != rhs.return_components()
         || lhs.abi_returns != rhs.abi_returns
         || lhs.internal_frame_size != rhs.internal_frame_size
         || lhs.external_static_return_size != rhs.external_static_return_size

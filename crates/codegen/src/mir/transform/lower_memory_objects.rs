@@ -60,7 +60,7 @@ impl MirPass for LowerMemoryObjects {
 fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
     let is_object_value = |value| func.value_ty(value).as_ref().is_some_and(is_object_type);
     let has_objects = func.arg_indices().any(|index| is_object_type(&func.arg_ty(index)))
-        || func.returns.iter().any(is_object_type)
+        || func.return_components().iter().any(is_object_type)
         || func.live_values().any(is_object_value)
         || func.instructions().any(|inst_id| func.inst(inst_id).kind.is_memory_object_op());
     if !has_objects {
@@ -679,7 +679,7 @@ fn erase_object_types(func: &mut Function) {
         erase_object_type(&mut ty);
         func.set_arg_ty(index, ty);
     }
-    for ty in &mut func.returns {
+    for ty in func.return_components_mut() {
         erase_object_type(ty);
     }
     let mut values = DenseBitSet::new_empty(func.num_values());

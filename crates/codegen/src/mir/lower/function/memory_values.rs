@@ -189,7 +189,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let mut builder = FunctionBuilder::new_semantic(function);
             let word = builder.add_param(MirType::bytes32());
             let length = builder.add_param(MirType::uint256());
-            builder.add_return(MirType::MemoryObject(MemoryObjectKind::Bytes));
+            builder.set_return_type(MirType::MemoryObject(MemoryObjectKind::Bytes));
             let size = builder.imm(64);
             let object = builder.alloc_object(
                 size,
@@ -236,7 +236,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // literal_bytes() -> bytes
         self.lazy_helper(helper_name(sym::literal_bytes, index), |this, function| {
             let mut builder = FunctionBuilder::new_semantic(function);
-            builder.add_return(MirType::MemoryObject(MemoryObjectKind::Bytes));
+            builder.set_return_type(MirType::MemoryObject(MemoryObjectKind::Bytes));
             let object = Self::build_bytes_literal(
                 this.cx.gcx,
                 this.cx.module,

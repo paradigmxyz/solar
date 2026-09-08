@@ -74,7 +74,7 @@ impl PureEvaluator {
         let Some(values) = self.evaluate(func) else {
             return &self.stats;
         };
-        if values.len() != func.returns.len() {
+        if values.len() != func.return_components().len() {
             return &self.stats;
         }
         if self.is_already_folded(func, &values) {
@@ -234,15 +234,14 @@ impl PureEvaluator {
             }
         }
 
-        let returns = std::mem::take(&mut func.returns);
         let values = values
             .iter()
-            .zip(&returns)
-            .map(|(&value, ty)| {
-                func.alloc_value(Value::Immediate(Immediate::for_type(Some(*ty), value)))
+            .enumerate()
+            .map(|(index, &value)| {
+                let ty = func.return_components()[index];
+                func.alloc_value(Value::Immediate(Immediate::for_type(Some(ty), value)))
             })
             .collect();
-        func.returns = returns;
         // entry: ret constants !metadata(union of return origins)
         func.blocks[entry].set_terminator(Terminator::Return { values }, metadata);
     }

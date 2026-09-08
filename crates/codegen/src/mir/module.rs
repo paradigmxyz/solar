@@ -257,7 +257,7 @@ impl Module {
         self.functions.iter().any(|func| {
             func.arg_indices()
                 .map(|index| func.arg_ty(index))
-                .chain(func.returns.iter().copied())
+                .chain(func.return_components().iter().copied())
                 .chain(func.live_values().filter_map(|value| func.value_ty(value)))
                 .any(&predicate)
         })

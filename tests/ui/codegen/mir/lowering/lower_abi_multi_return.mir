@@ -6,6 +6,7 @@
 types:
   struct0: {u256, u256}
 
+
 immutables:
   owner: address
 // CHECK-LABEL: {{^[ +].*}}fn @pair{{[( ]}}
@@ -13,7 +14,7 @@ immutables:
 // CHECK: + [[SECOND:v[0-9]+]] = add 128, 32
 // CHECK: + mstore [[SECOND]], {{v[0-9]+}}
 // CHECK: + returndata 128, {{v[0-9]+}}
-fn @pair(arg0: u256) -> (u256, u256) [selector=0x1f6a26ff, abi_returns=[word, word]] {
+fn @pair(arg0: u256) -> struct0 [return_abi=[u256, u256], selector=0x1f6a26ff, abi_returns=[word, word]] {
   bb0:
     v1 = add arg0, 1
     ret arg0, v1

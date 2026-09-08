@@ -8,7 +8,7 @@
     struct3: {memorybytes}
   
 - fn @pack(arg0: memoryslice, arg1: calldataslice, arg2: returndataslice) -> struct2 {
-+ fn @pack(arg0: memoryslice, arg1: calldataslice, arg2: returndataslice) -> (memptr, u256, calldataptr, u256, u256, u256, u256) {
++ fn @pack(arg0: memoryslice, arg1: calldataslice, arg2: returndataslice) -> struct2 [return_abi=[memptr, u256, calldataptr, u256, u256, u256, u256]] {
     bb0:
 -     v0 = insert_value struct1, undef struct1, 0, arg1
 -     v1 = insert_value struct1, v0, 1, 42
@@ -65,7 +65,7 @@
   }
   
 - fn @loop(arg0: struct2, arg1: bool) -> struct2 {
-+ fn @loop(arg0: memptr, arg1: u256, arg2: calldataptr, arg3: u256, arg4: u256, arg5: u256, arg6: u256, arg7: bool) -> (memptr, u256, calldataptr, u256, u256, u256, u256) {
++ fn @loop(arg0: memptr, arg1: u256, arg2: calldataptr, arg3: u256, arg4: u256, arg5: u256, arg6: u256, arg7: bool) -> struct2 [return_abi=[memptr, u256, calldataptr, u256, u256, u256, u256]] {
     bb0:
       jump bb1
     bb1:
@@ -95,21 +95,21 @@
   }
   
 - fn @forward(arg0: struct2) -> struct2 {
-+ fn @forward(arg0: memptr, arg1: u256, arg2: calldataptr, arg3: u256, arg4: u256, arg5: u256, arg6: u256) -> (memptr, u256, calldataptr, u256, u256, u256, u256) {
++ fn @forward(arg0: memptr, arg1: u256, arg2: calldataptr, arg3: u256, arg4: u256, arg5: u256, arg6: u256) -> struct2 [return_abi=[memptr, u256, calldataptr, u256, u256, u256, u256]] {
     bb0:
 -     ret arg0
 +     ret arg0, arg1, arg2, arg3, arg4, arg5, arg6
   }
   
 - fn @tail(arg0: struct2) -> struct2 {
-+ fn @tail(arg0: memptr, arg1: u256, arg2: calldataptr, arg3: u256, arg4: u256, arg5: u256, arg6: u256) -> (memptr, u256, calldataptr, u256, u256, u256, u256) {
++ fn @tail(arg0: memptr, arg1: u256, arg2: calldataptr, arg3: u256, arg4: u256, arg5: u256, arg6: u256) -> struct2 [return_abi=[memptr, u256, calldataptr, u256, u256, u256, u256]] {
     bb0:
 -     tail_call @forward, arg0
 +     tail_call @forward, arg0, arg1, arg2, arg3, arg4, arg5, arg6
   }
   
 - fn @from_undef() -> struct1 {
-+ fn @from_undef() -> (calldataptr, u256, u256) {
++ fn @from_undef() -> struct1 [return_abi=[calldataptr, u256, u256]] {
     bb0:
 -     v0 = insert_value struct1, undef struct1, 0, undef calldataslice
 -     v1 = insert_value struct1, v0, 1, 42
@@ -120,7 +120,7 @@
   }
   
 - fn @phi_undef(arg0: calldataslice, arg1: bool) -> struct1 {
-+ fn @phi_undef(arg0: calldataslice, arg1: bool) -> (calldataptr, u256, u256) {
++ fn @phi_undef(arg0: calldataslice, arg1: bool) -> struct1 [return_abi=[calldataptr, u256, u256]] {
     bb0:
       jumpi arg1, bb1, bb2
     bb2:
@@ -138,7 +138,7 @@
   }
   
 - fn @select_undef(arg0: calldataslice, arg1: bool) -> struct1 {
-+ fn @select_undef(arg0: calldataslice, arg1: bool) -> (calldataptr, u256, u256) {
++ fn @select_undef(arg0: calldataslice, arg1: bool) -> struct1 [return_abi=[calldataptr, u256, u256]] {
     bb0:
       v0 = select arg1, arg0, undef calldataslice
 -     v1 = insert_value struct1, undef struct1, 0, v0
@@ -164,7 +164,7 @@
   }
   
 - fn @phi_call_results(arg0: bool, arg1: calldataslice) -> struct1 {
-+ fn @phi_call_results(arg0: bool, arg1: calldataslice) -> (calldataptr, u256, u256) {
++ fn @phi_call_results(arg0: bool, arg1: calldataslice) -> struct1 [return_abi=[calldataptr, u256, u256]] {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -190,7 +190,7 @@
   }
   
 - fn @memory_call_results(arg0: bool, arg1: memorybytes) -> struct3 {
-+ fn @memory_call_results(arg0: bool, arg1: memorybytes) -> memorybytes {
++ fn @memory_call_results(arg0: bool, arg1: memorybytes) -> struct3 [return_abi=[memorybytes]] {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -221,7 +221,7 @@
     struct2: {memoryslice, struct0, struct1, returndataslice}
     struct3: {memorybytes}
   
-  fn @pack(arg0: memoryslice, arg1: calldataslice, arg2: returndataslice) -> (memptr, u256, calldataptr, u256, u256, u256, u256) {
+  fn @pack(arg0: memoryslice, arg1: calldataslice, arg2: returndataslice) -> struct2 [return_abi=[memptr, u256, calldataptr, u256, u256, u256, u256]] {
     bb0:
       v6 = slice_ptr arg1
       v7 = slice_len arg1
@@ -267,7 +267,7 @@
       ret v11
   }
   
-  fn @loop(arg0: memptr, arg1: u256, arg2: calldataptr, arg3: u256, arg4: u256, arg5: u256, arg6: u256, arg7: bool) -> (memptr, u256, calldataptr, u256, u256, u256, u256) {
+  fn @loop(arg0: memptr, arg1: u256, arg2: calldataptr, arg3: u256, arg4: u256, arg5: u256, arg6: u256, arg7: bool) -> struct2 [return_abi=[memptr, u256, calldataptr, u256, u256, u256, u256]] {
     bb0:
       jump bb1
     bb1:
@@ -290,24 +290,24 @@
       jump bb1
   }
   
-  fn @forward(arg0: memptr, arg1: u256, arg2: calldataptr, arg3: u256, arg4: u256, arg5: u256, arg6: u256) -> (memptr, u256, calldataptr, u256, u256, u256, u256) {
+  fn @forward(arg0: memptr, arg1: u256, arg2: calldataptr, arg3: u256, arg4: u256, arg5: u256, arg6: u256) -> struct2 [return_abi=[memptr, u256, calldataptr, u256, u256, u256, u256]] {
     bb0:
       ret arg0, arg1, arg2, arg3, arg4, arg5, arg6
   }
   
-  fn @tail(arg0: memptr, arg1: u256, arg2: calldataptr, arg3: u256, arg4: u256, arg5: u256, arg6: u256) -> (memptr, u256, calldataptr, u256, u256, u256, u256) {
+  fn @tail(arg0: memptr, arg1: u256, arg2: calldataptr, arg3: u256, arg4: u256, arg5: u256, arg6: u256) -> struct2 [return_abi=[memptr, u256, calldataptr, u256, u256, u256, u256]] {
     bb0:
       tail_call @forward, arg0, arg1, arg2, arg3, arg4, arg5, arg6
   }
   
-  fn @from_undef() -> (calldataptr, u256, u256) {
+  fn @from_undef() -> struct1 [return_abi=[calldataptr, u256, u256]] {
     bb0:
       v2 = slice_ptr undef calldataslice
       v3 = slice_len undef calldataslice
       ret v2, v3, 42
   }
   
-  fn @phi_undef(arg0: calldataslice, arg1: bool) -> (calldataptr, u256, u256) {
+  fn @phi_undef(arg0: calldataslice, arg1: bool) -> struct1 [return_abi=[calldataptr, u256, u256]] {
     bb0:
       jumpi arg1, bb1, bb2
     bb2:
@@ -321,7 +321,7 @@
       ret v3, v4, 42
   }
   
-  fn @select_undef(arg0: calldataslice, arg1: bool) -> (calldataptr, u256, u256) {
+  fn @select_undef(arg0: calldataslice, arg1: bool) -> struct1 [return_abi=[calldataptr, u256, u256]] {
     bb0:
       v0 = select arg1, arg0, undef calldataslice
       v3 = slice_ptr v0
@@ -343,7 +343,7 @@
       revert 0, 0
   }
   
-  fn @phi_call_results(arg0: bool, arg1: calldataslice) -> (calldataptr, u256, u256) {
+  fn @phi_call_results(arg0: bool, arg1: calldataslice) -> struct1 [return_abi=[calldataptr, u256, u256]] {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -365,7 +365,7 @@
       ret arg0
   }
   
-  fn @memory_call_results(arg0: bool, arg1: memorybytes) -> memorybytes {
+  fn @memory_call_results(arg0: bool, arg1: memorybytes) -> struct3 [return_abi=[memorybytes]] {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -394,8 +394,8 @@
     struct2: {memoryslice, struct0, struct1, returndataslice}
     struct3: {memorybytes}
   
-- fn @pack(arg0: memoryslice, arg1: calldataslice, arg2: returndataslice) -> (memptr, u256, calldataptr, u256, u256, u256, u256) {
-+ fn @pack(arg0: memptr, arg1: u256, arg2: calldataptr, arg3: u256, arg4: u256, arg5: u256) -> (memptr, u256, calldataptr, u256, u256, u256, u256) {
+- fn @pack(arg0: memoryslice, arg1: calldataslice, arg2: returndataslice) -> struct2 [return_abi=[memptr, u256, calldataptr, u256, u256, u256, u256]] {
++ fn @pack(arg0: memptr, arg1: u256, arg2: calldataptr, arg3: u256, arg4: u256, arg5: u256) -> struct2 [return_abi=[memptr, u256, calldataptr, u256, u256, u256, u256]] {
     bb0:
 -     v6 = slice_ptr arg1
 -     v7 = slice_len arg1
@@ -439,7 +439,7 @@
       ret v11
   }
   
-  fn @loop(arg0: memptr, arg1: u256, arg2: calldataptr, arg3: u256, arg4: u256, arg5: u256, arg6: u256, arg7: bool) -> (memptr, u256, calldataptr, u256, u256, u256, u256) {
+  fn @loop(arg0: memptr, arg1: u256, arg2: calldataptr, arg3: u256, arg4: u256, arg5: u256, arg6: u256, arg7: bool) -> struct2 [return_abi=[memptr, u256, calldataptr, u256, u256, u256, u256]] {
     bb0:
       jump bb1
     bb1:
@@ -464,17 +464,17 @@
       jump bb1
   }
   
-  fn @forward(arg0: memptr, arg1: u256, arg2: calldataptr, arg3: u256, arg4: u256, arg5: u256, arg6: u256) -> (memptr, u256, calldataptr, u256, u256, u256, u256) {
+  fn @forward(arg0: memptr, arg1: u256, arg2: calldataptr, arg3: u256, arg4: u256, arg5: u256, arg6: u256) -> struct2 [return_abi=[memptr, u256, calldataptr, u256, u256, u256, u256]] {
     bb0:
       ret arg0, arg1, arg2, arg3, arg4, arg5, arg6
   }
   
-  fn @tail(arg0: memptr, arg1: u256, arg2: calldataptr, arg3: u256, arg4: u256, arg5: u256, arg6: u256) -> (memptr, u256, calldataptr, u256, u256, u256, u256) {
+  fn @tail(arg0: memptr, arg1: u256, arg2: calldataptr, arg3: u256, arg4: u256, arg5: u256, arg6: u256) -> struct2 [return_abi=[memptr, u256, calldataptr, u256, u256, u256, u256]] {
     bb0:
       tail_call @forward, arg0, arg1, arg2, arg3, arg4, arg5, arg6
   }
   
-  fn @from_undef() -> (calldataptr, u256, u256) {
+  fn @from_undef() -> struct1 [return_abi=[calldataptr, u256, u256]] {
     bb0:
 -     v2 = slice_ptr undef calldataslice
 -     v3 = slice_len undef calldataslice
@@ -482,8 +482,8 @@
 +     ret undef calldataptr, undef u256, 42
   }
   
-- fn @phi_undef(arg0: calldataslice, arg1: bool) -> (calldataptr, u256, u256) {
-+ fn @phi_undef(arg0: calldataptr, arg1: u256, arg2: bool) -> (calldataptr, u256, u256) {
+- fn @phi_undef(arg0: calldataslice, arg1: bool) -> struct1 [return_abi=[calldataptr, u256, u256]] {
++ fn @phi_undef(arg0: calldataptr, arg1: u256, arg2: bool) -> struct1 [return_abi=[calldataptr, u256, u256]] {
     bb0:
 -     jumpi arg1, bb1, bb2
 +     jumpi arg2, bb1, bb2
@@ -501,8 +501,8 @@
 +     ret v9, v10, 42
   }
   
-- fn @select_undef(arg0: calldataslice, arg1: bool) -> (calldataptr, u256, u256) {
-+ fn @select_undef(arg0: calldataptr, arg1: u256, arg2: bool) -> (calldataptr, u256, u256) {
+- fn @select_undef(arg0: calldataslice, arg1: bool) -> struct1 [return_abi=[calldataptr, u256, u256]] {
++ fn @select_undef(arg0: calldataptr, arg1: u256, arg2: bool) -> struct1 [return_abi=[calldataptr, u256, u256]] {
     bb0:
 -     v0 = select arg1, arg0, undef calldataslice
 -     v3 = slice_ptr v0
@@ -514,7 +514,7 @@
   }
   
 - fn @checked_slice(arg0: calldataslice, arg1: bool) -> calldataslice {
-+ fn @checked_slice(arg0: calldataptr, arg1: u256, arg2: bool) -> (calldataptr, u256) {
++ fn @checked_slice(arg0: calldataptr, arg1: u256, arg2: bool) -> calldataslice [return_abi=[calldataptr, u256]] {
     bb0:
 -     jumpi arg1, bb1, bb2
 +     jumpi arg2, bb1, bb2
@@ -530,8 +530,8 @@
       revert 0, 0
   }
   
-- fn @phi_call_results(arg0: bool, arg1: calldataslice) -> (calldataptr, u256, u256) {
-+ fn @phi_call_results(arg0: bool, arg1: calldataptr, arg2: u256) -> (calldataptr, u256, u256) {
+- fn @phi_call_results(arg0: bool, arg1: calldataslice) -> struct1 [return_abi=[calldataptr, u256, u256]] {
++ fn @phi_call_results(arg0: bool, arg1: calldataptr, arg2: u256) -> struct1 [return_abi=[calldataptr, u256, u256]] {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
@@ -562,13 +562,13 @@
   }
   
 - fn @slice_identity(arg0: calldataslice) -> calldataslice {
-+ fn @slice_identity(arg0: calldataptr, arg1: u256) -> (calldataptr, u256) {
++ fn @slice_identity(arg0: calldataptr, arg1: u256) -> calldataslice [return_abi=[calldataptr, u256]] {
     bb0:
 -     ret arg0
 +     ret arg0, arg1
   }
   
-  fn @memory_call_results(arg0: bool, arg1: memorybytes) -> memorybytes {
+  fn @memory_call_results(arg0: bool, arg1: memorybytes) -> struct3 [return_abi=[memorybytes]] {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:

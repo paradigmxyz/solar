@@ -244,7 +244,7 @@ pub(super) fn lower(
                     builder.add_param(TypeLowerer::mir_type(gcx.type_of_item(param.into())));
                 }
                 if let Some(ty) = return_type {
-                    builder.add_return(ty);
+                    builder.set_return_type(ty);
                 }
                 builder.invalid();
                 continue;

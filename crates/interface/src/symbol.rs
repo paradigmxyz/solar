@@ -1209,6 +1209,7 @@ symbols! {
         require,
         result_ty,
         ret,
+        return_abi,
         returndata,
         returndata_array,
         returndata_bytes,

@@ -6,6 +6,9 @@
 // CHECK: - {{.*}}icall @single_large_callee
 // CHECK: + [[INLINED:v[0-9]+]] = add arg0, 1
 // CHECK: + {{v[0-9]+}} = phi [bb13: [[INLINED]]]
+types:
+  struct0: {u256, u256}
+
 fn @single_large_caller(arg0: u256) -> u256 {
   bb0:
     v1 = icall fn1, arg0
@@ -54,7 +57,7 @@ fn @multi_return_caller(arg0: u256) -> u256 {
     ret v3
 }
 
-fn @multi_return_callee(arg0: u256) -> (u256, u256) {
+fn @multi_return_callee(arg0: u256) -> struct0 [return_abi=[u256, u256]] {
   bb0:
     v1 = add arg0, 1
     v2 = add arg0, 2

@@ -47,7 +47,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             return EvmArtifact::default();
         }
         self.function_return_counts =
-            module.functions.iter().map(|func| func.returns.len()).collect();
+            module.functions.iter().map(|func| func.return_components().len()).collect();
         if self.emit_unsupported(module) {
             return EvmArtifact::default();
         }
@@ -360,7 +360,11 @@ impl<'gcx> EvmCodegen<'gcx> {
 
             for (func_id, func) in module.functions.iter_enumerated() {
                 if !func.attributes.may_return_memory
-                    && !func.params.iter().chain(&func.returns).any(|ty| ty.is_memory_reference())
+                    && !func
+                        .params
+                        .iter()
+                        .chain(func.return_components())
+                        .any(|ty| ty.is_memory_reference())
                 {
                     self.restorable_internal_frames.insert(func_id);
                 }

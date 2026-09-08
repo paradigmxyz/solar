@@ -414,7 +414,10 @@ mod round_trip {
             return Err("function count changed during round-trip".into());
         }
         for (before, after) in original.functions.iter().zip(&parsed.functions) {
-            if before.selector.is_none() && before.returns != after.returns {
+            if before.selector.is_none()
+                && (before.return_type() != after.return_type()
+                    || before.return_abi() != after.return_abi())
+            {
                 return Err(format!("return types of `{}` changed during round-trip", before.name));
             }
         }

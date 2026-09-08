@@ -134,7 +134,7 @@ fn synthesize_array_helpers(module: &mut Module, revert_strings: RevertStrings) 
             // provenance analysis see that the returned tail stays in the heap.
             let dest = builder.add_param(MirType::MemPtr);
             let tail = encode_memory_array(&mut builder, &key.element, value, dest, &helpers);
-            builder.add_return(MirType::uint256());
+            builder.set_return_type(MirType::uint256());
             builder.ret([tail]);
         }
         let helper = module.add_function(function);

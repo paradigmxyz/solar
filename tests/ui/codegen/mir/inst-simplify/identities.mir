@@ -5,6 +5,10 @@ types:
   struct0: {u256, u256}
   struct1: {struct0, u256}
 
+  struct2: {u256, u256, u256}
+  struct3: {u256, u256, u256, u256}
+  struct4: {u256, u256, u256, u256, u256}
+
 // CHECK-LABEL: @add_zero
 // CHECK: - [[SUM:v[0-9]+]] = add arg0, 0
 // CHECK: - ret [[SUM]]
@@ -41,7 +45,7 @@ fn @self_sub(arg0: u256) -> u256 {
 // CHECK: - [[XOR:v[0-9]+]] = xor arg0, arg0
 // CHECK: - ret [[AND]], [[OR]], [[XOR]]
 // CHECK: ret arg0, arg0, 0
-fn @idempotent_logic(arg0: u256) -> (u256, u256, u256) {
+fn @idempotent_logic(arg0: u256) -> struct2 [return_abi=[u256, u256, u256]] {
   bb0:
     v1 = and arg0, arg0
     v2 = or arg0, arg0
@@ -210,7 +214,7 @@ fn @unreachable_insertion_cycle(arg0: u256) -> u256 {
 
 // CHECK-LABEL: @cancel_offsets
 // CHECK: ret arg1, arg1, arg1, arg0
-fn @cancel_offsets(arg0: u256, arg1: u256) -> (u256, u256, u256, u256) {
+fn @cancel_offsets(arg0: u256, arg1: u256) -> struct3 [return_abi=[u256, u256, u256, u256]] {
   bb0:
     v0 = sub arg1, arg0
     v1 = add arg0, v0
@@ -223,7 +227,7 @@ fn @cancel_offsets(arg0: u256, arg1: u256) -> (u256, u256, u256, u256) {
 
 // CHECK-LABEL: @different_offsets
 // CHECK: {{^[ +].*}}ret v1, v3
-fn @different_offsets(arg0: u256, arg1: u256, arg2: u256) -> (u256, u256) {
+fn @different_offsets(arg0: u256, arg1: u256, arg2: u256) -> struct0 [return_abi=[u256, u256]] {
   bb0:
     v0 = sub arg1, arg0
     v1 = add arg2, v0
@@ -234,7 +238,7 @@ fn @different_offsets(arg0: u256, arg1: u256, arg2: u256) -> (u256, u256) {
 
 // CHECK-LABEL: @masked_left_shift
 // CHECK: ret 0x12345678, 120
-fn @masked_left_shift(arg0: u256) -> (u256, u256) {
+fn @masked_left_shift(arg0: u256) -> struct0 [return_abi=[u256, u256]] {
   bb0:
     v0 = shl 32, arg0
     v1 = or v0, 305419896
@@ -266,7 +270,7 @@ fn @masked_constant_covers_bits(arg0: u256) -> u256 {
 
 // CHECK-LABEL: @masked_shift_boundaries
 // CHECK: ret 7, 9, 11
-fn @masked_shift_boundaries(arg0: u256) -> (u256, u256, u256) {
+fn @masked_shift_boundaries(arg0: u256) -> struct2 [return_abi=[u256, u256, u256]] {
   bb0:
     v0 = shl 255, arg0
     v1 = or v0, 7
@@ -282,7 +286,7 @@ fn @masked_shift_boundaries(arg0: u256) -> (u256, u256, u256) {
 
 // CHECK-LABEL: @masked_unknown_bits
 // CHECK: {{^[ +].*}}ret v2, v5, v8, v11, v14
-fn @masked_unknown_bits(arg0: u256, arg1: u256) -> (u256, u256, u256, u256, u256) {
+fn @masked_unknown_bits(arg0: u256, arg1: u256) -> struct4 [return_abi=[u256, u256, u256, u256, u256]] {
   bb0:
     v0 = shl 31, arg0
     v1 = or v0, 7
@@ -305,7 +309,7 @@ fn @masked_unknown_bits(arg0: u256, arg1: u256) -> (u256, u256, u256, u256, u256
 // CHECK-LABEL: @unshift_address
 // CHECK: [[ADDRESS:v[0-9]+]] = address
 // CHECK: ret [[ADDRESS]], [[ADDRESS]]
-fn @unshift_address() -> (u256, u256) {
+fn @unshift_address() -> struct0 [return_abi=[u256, u256]] {
   bb0:
     v0 = address
     v1 = shl 32, v0
@@ -319,7 +323,7 @@ fn @unshift_address() -> (u256, u256) {
 
 // CHECK-LABEL: @keep_lossy_address_shifts
 // CHECK: {{^[ +].*}}ret v3, v6, v9, v12
-fn @keep_lossy_address_shifts(arg0: u256) -> (u256, u256, u256, u256) {
+fn @keep_lossy_address_shifts(arg0: u256) -> struct3 [return_abi=[u256, u256, u256, u256]] {
   bb0:
     v0 = address
     v1 = shl 97, v0
@@ -339,7 +343,7 @@ fn @keep_lossy_address_shifts(arg0: u256) -> (u256, u256, u256, u256) {
 
 // CHECK-LABEL: @subtract_common_base
 // CHECK: + ret 32, 2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-fn @subtract_common_base(arg0: u256) -> (u256, u256, u256) {
+fn @subtract_common_base(arg0: u256) -> struct2 [return_abi=[u256, u256, u256]] {
   bb0:
     v0 = add arg0, 68
     v1 = add 36, arg0
@@ -367,7 +371,7 @@ fn @keep_distinct_bases(arg0: u256, arg1: u256) -> u256 {
 // CHECK: + [[RIGHT:v[0-9]+]] = shr 8, arg0
 // CHECK: + [[SIGNED:v[0-9]+]] = sar 8, arg0
 // CHECK: {{^[ +].*}}ret [[LEFT]], [[RIGHT]], [[SIGNED]]
-fn @nested_shifts(arg0: u256) -> (u256, u256, u256) {
+fn @nested_shifts(arg0: u256) -> struct2 [return_abi=[u256, u256, u256]] {
   bb0:
     v0 = shl 3, arg0
     v1 = shl 5, v0
@@ -381,7 +385,7 @@ fn @nested_shifts(arg0: u256) -> (u256, u256, u256) {
 // CHECK-LABEL: @nested_shift_limits
 // CHECK: + [[SIGN:v[0-9]+]] = sar 256, arg0
 // CHECK: + ret 0, 0, [[SIGN]]
-fn @nested_shift_limits(arg0: u256) -> (u256, u256, u256) {
+fn @nested_shift_limits(arg0: u256) -> struct2 [return_abi=[u256, u256, u256]] {
   bb0:
     v0 = shl 128, arg0
     v1 = shl 128, v0
@@ -397,7 +401,7 @@ fn @nested_shift_limits(arg0: u256) -> (u256, u256, u256) {
 // CHECK: {{^[ +].*}}v3 = shr 3, v2
 // CHECK: {{^[ +].*}}v5 = shl arg1, v4
 // CHECK: {{^[ +].*}}ret v1, v3, v5
-fn @mixed_and_variable_shifts(arg0: u256, arg1: u256) -> (u256, u256, u256) {
+fn @mixed_and_variable_shifts(arg0: u256, arg1: u256) -> struct2 [return_abi=[u256, u256, u256]] {
   bb0:
     v0 = shl 3, arg0
     v1 = shr 5, v0

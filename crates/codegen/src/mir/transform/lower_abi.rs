@@ -432,7 +432,7 @@ impl LowerAbiCx {
             // overwritten while the return tuple is encoded.
             func.external_static_return_size = layout.head_size();
         }
-        let return_types = func.returns.clone();
+        let return_types = func.return_components().to_vec();
         for block_id in return_blocks {
             let values = match func.blocks[block_id].terminator.take() {
                 Some(Terminator::Return { values }) => values.into_vec(),
@@ -696,7 +696,7 @@ impl LowerAbiCx {
                 &mut current,
                 DecodeOptions::new(false, input_end, self.has_bitwise_shifting).checked(),
             );
-            builder.add_return(ty.mir_type());
+            builder.set_return_type(ty.mir_type());
             builder.ret([value]);
         }
         module.add_function(function)
@@ -772,7 +772,7 @@ impl LowerAbiCx {
         {
             let mut builder = FunctionBuilder::new(&mut function);
             let value = builder.add_param(ty.mir_type());
-            builder.add_return(ty.mir_type());
+            builder.set_return_type(ty.mir_type());
             let value =
                 canonicalize_return_value(&mut builder, ty, value, None, ReturnValueSource::Scalar);
             builder.ret([value]);
@@ -797,7 +797,7 @@ impl LowerAbiCx {
                 true,
                 RevertReason::InvalidTupleOffset,
             );
-            builder.add_return(MirType::uint256());
+            builder.set_return_type(MirType::uint256());
             builder.ret([base]);
         }
         module.add_function(function)
@@ -815,7 +815,7 @@ impl LowerAbiCx {
             let mut builder = self.builder(&mut function);
             let data = builder.add_param(MirType::MemoryObject(MemoryObjectKind::Bytes));
             let fields = layout.types.iter().map(AbiParamType::mir_type).collect();
-            builder.add_return(module.intern_return_type(fields).expect("decode has outputs"));
+            builder.set_return_type(module.intern_return_type(fields).expect("decode has outputs"));
             let base = builder.memory_object_data(data, MemoryObjectKind::Bytes);
             let length = builder.memory_object_len(data, MemoryObjectKind::Bytes);
             let values = decode_memory_tuple(
@@ -911,14 +911,15 @@ impl LowerAbiCx {
                 module.function_mut(wrapper_id),
                 body_id.expect("body clone for a calling wrapper"),
                 original_entry_inst.expect("calling wrapper has an entry instruction"),
-                &original.returns,
+                original.return_components(),
                 logical_values.into_iter().map(Option::unwrap).collect(),
             );
         }
-        if let [MirType::Struct(id)] = original.returns.as_slice() {
+        if let [MirType::Struct(id)] = original.return_components() {
             let fields = module.struct_types[*id].fields.clone();
             let wrapper = module.function_mut(wrapper_id);
-            wrapper.returns = fields.to_vec();
+            // wrapper -> struct [return_abi = fields]
+            wrapper.set_return_abi(fields.clone());
             let blocks = wrapper.blocks.indices();
             for block in blocks {
                 let Some(Terminator::Return { values }) = &wrapper.blocks[block].terminator else {
@@ -972,7 +973,7 @@ impl LowerAbiCx {
         // retain their physical ABI head words for deployment codegen.
         let wrapper = module.function_mut(wrapper_id);
         wrapper.params.clear();
-        wrapper.returns.clear();
+        wrapper.set_return_type(MirType::Void);
         Self::clear_abi_metadata(wrapper);
         body_id
     }
@@ -986,14 +987,13 @@ impl LowerAbiCx {
                     || (!abi_ty.is_scalar_word()
                         && matches!(param_ty, MirType::MemoryObject(_) | MirType::Slice(_)))
             })
-            && !func
-                .returns
+            && !func.return_components()
                 .iter()
                 .any(|&ty| matches!(ty, MirType::Slice(SliceLocation::Returndata)))
-            && (func.returns.len() <= 1
-                || func.returns.iter().all(|&ty| !matches!(ty, MirType::Slice(_))))
+            && (func.return_components().len() <= 1
+                || func.return_components().iter().all(|&ty| !matches!(ty, MirType::Slice(_))))
             && func.blocks.iter().all(|block| {
-                !matches!(&block.terminator, Some(Terminator::Return { values }) if values.len() != func.returns.len())
+                !matches!(&block.terminator, Some(Terminator::Return { values }) if values.len() != func.return_components().len())
             })
     }
 
@@ -1098,7 +1098,7 @@ impl LowerAbiCx {
         if !Self::lower_bytes_fallback_returns(&mut body) {
             return false;
         }
-        body.returns.clear();
+        body.set_return_type(MirType::Void);
         let body_id = module.add_function(body);
 
         let mut wrapper = Function::new(Ident::with_dummy_span(original.name.symbol));
@@ -3093,7 +3093,7 @@ fn synthesize_memory_decode_helper(
                 ..DecodeOptions::new(true, input_end, has_bitwise_shifting).checked()
             },
         );
-        builder.add_return(ty.mir_type());
+        builder.set_return_type(ty.mir_type());
         builder.ret([value]);
     }
     module.add_function(function)
@@ -3110,7 +3110,7 @@ fn is_wrappable_external(func: &Function) -> bool {
 fn is_bytes_fallback(func: &Function) -> bool {
     func.params.len() == 1
         && matches!(func.params[ArgIdx::new(0)], MirType::Slice(SliceLocation::Calldata))
-        && matches!(func.returns.as_slice(), [MirType::MemoryObject(MemoryObjectKind::Bytes)])
+        && matches!(func.return_components(), [MirType::MemoryObject(MemoryObjectKind::Bytes)])
 }
 
 /// Whether every value-carrying fallback return can use raw bytes returndata.
@@ -3156,7 +3156,7 @@ fn find_canonical_return_calls(
                     && let Value::Inst(inst) = func.value(value)
                     && let InstKind::ICall { function: Callee::Function(function), .. } =
                         func.inst(*inst).kind
-                    && module.function(function).returns.len() == 1
+                    && module.function(function).return_components().len() == 1
                     && func.value_ty(value) == Some(ty.mir_type())
                 {
                     candidates.insert((function, ty.clone()));
@@ -3277,7 +3277,9 @@ fn is_canonical_return_value_inner(
     if calls.module.is_some()
         && let Value::Inst(inst) = func.value(value)
         && let InstKind::ICall { function: Callee::Function(function), .. } = func.inst(*inst).kind
-        && calls.module.is_some_and(|module| module.function(function).returns.len() == 1)
+        && calls
+            .module
+            .is_some_and(|module| module.function(function).return_components().len() == 1)
         && func.value_ty(value) == Some(ty.mir_type())
         && (ty.is_scalar_word() || is_unmodified_call_result(func, value, *inst))
     {
@@ -3316,7 +3318,7 @@ fn is_canonical_return_function(
     }
     let module = calls.module.expect("recursive canonical proof has a module");
     let func = module.function(id);
-    let result = func.returns.as_slice() == [ty.mir_type()]
+    let result = func.return_components() == [ty.mir_type()]
         && func
             .blocks
             .iter()
@@ -3913,7 +3915,7 @@ fn reuse_direct_calldata_returns(
 
 fn static_bytes_return(func: &Function) -> Option<StaticBytesReturn> {
     if !func.params.is_empty()
-        || func.returns.as_slice() != [MirType::MemoryObject(MemoryObjectKind::Bytes)]
+        || func.return_components() != [MirType::MemoryObject(MemoryObjectKind::Bytes)]
         || func.abi_params.as_ref().is_none_or(|layout| !layout.types.is_empty())
         || func
             .abi_returns

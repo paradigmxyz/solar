@@ -5,7 +5,7 @@
     struct0: {u256, u256}
   
 - fn @caller(arg0: u256, arg1: bool) -> struct0 {
-+ fn @caller(arg0: u256, arg1: bool) -> (u256, u256) {
++ fn @caller(arg0: u256, arg1: bool) -> struct0 [return_abi=[u256, u256]] {
     bb0:
 -     v0 = icall @pair, arg0 !metadata(spans=[10..20, 30..40], modifier_depth=2)
 -     v1 = select arg1, v0, undef struct0 !metadata(spans=[50..60, 70..80], modifier_depth=3)
@@ -20,7 +20,7 @@
   }
   
 - fn @pair(arg0: u256) -> struct0 {
-+ fn @pair(arg0: u256) -> (u256, u256) {
++ fn @pair(arg0: u256) -> struct0 [return_abi=[u256, u256]] {
     bb0:
 -     v0 = insert_value struct0, undef struct0, 0, arg0 !metadata(span=110..120)
 -     v1 = insert_value struct0, v0, 1, 42 !metadata(span=120..130)

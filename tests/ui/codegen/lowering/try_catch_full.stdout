@@ -379,7 +379,7 @@ fn @decode_aggregate.4(arg0: memptr) -> memptr {
     revert 0, 0
 }
 
-fn @decode_aggregate.5(arg0: memptr) -> (u256, memptr) {
+fn @decode_aggregate.5(arg0: memptr) -> struct0 [return_abi=[u256, memptr]] {
   bb0:
     v0 = add arg0, 32
     v1 = mload arg0

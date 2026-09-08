@@ -116,7 +116,8 @@ fn frame_address(
         FrameMode::Internal => {
             let header = EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE;
             let args = (builder.func().params.len() as u64) * EvmMemoryLayout::WORD_SIZE;
-            let returns = (builder.func().returns.len() as u64) * EvmMemoryLayout::WORD_SIZE;
+            let returns =
+                (builder.func().return_components().len() as u64) * EvmMemoryLayout::WORD_SIZE;
             builder.internal_frame_addr(header + args + returns + offset)
         }
     }

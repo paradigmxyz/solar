@@ -100,7 +100,8 @@ fn lower_structs(module: &mut Module) -> bool {
         return false;
     }
     if module.functions.iter().any(|func| {
-        func.returns.len() > 1 && func.returns.iter().any(|ty| matches!(ty, MirType::Struct(_)))
+        func.return_components().len() > 1
+            && func.return_components().iter().any(|ty| matches!(ty, MirType::Struct(_)))
     }) {
         return false;
     }
@@ -115,8 +116,12 @@ fn lower_structs(module: &mut Module) -> bool {
     let Some(layouts) = Layouts::new(module) else { return false };
     let mut shifts = IndexVec::new();
     for func in &module.functions {
-        let slots =
-            func.params.iter().chain(&func.returns).map(|&ty| layouts.flatten(ty).len()).sum();
+        let slots = func
+            .params
+            .iter()
+            .chain(func.return_components())
+            .map(|&ty| layouts.flatten(ty).len())
+            .sum();
         let Some(offsets) = super::utils::rebase_frame_offsets(func, slots) else { return false };
         shifts.push(offsets);
     }
@@ -152,7 +157,7 @@ fn slice_values_are_pairs(module: &Module) -> bool {
         });
         let returns_match = func.blocks.iter().all(|block| match &block.terminator {
             Some(Terminator::Return { values }) => {
-                func.returns.iter().enumerate().all(|(index, &ty)| {
+                func.return_components().iter().enumerate().all(|(index, &ty)| {
                     !matches!(ty, MirType::Slice(_))
                         || values.get(index).is_some_and(|&value| func.value_ty(value) == Some(ty))
                 })
@@ -161,9 +166,9 @@ fn slice_values_are_pairs(module: &Module) -> bool {
                 args_match(*function, args)
                     && module.functions.get(*function).is_some_and(|callee| {
                         !returning.contains(*function)
-                            || func.returns.iter().enumerate().all(|(index, &ty)| {
+                            || func.return_components().iter().enumerate().all(|(index, &ty)| {
                                 !matches!(ty, MirType::Slice(_))
-                                    || callee.returns.get(index) == Some(&ty)
+                                    || callee.return_components().get(index) == Some(&ty)
                             })
                     })
             }
@@ -190,7 +195,7 @@ fn slice_values_are_pairs(module: &Module) -> bool {
                     InstKind::ICall { function: Callee::Function(function), .. } => module
                         .functions
                         .get(*function)
-                        .is_some_and(|callee| callee.returns.first() == Some(&ty)),
+                        .is_some_and(|callee| callee.return_components().first() == Some(&ty)),
                     _ => false,
                 }
             })
@@ -240,7 +245,10 @@ fn lower_function(func: &mut Function, layouts: &Layouts) {
             }
         }
     }
-    func.returns = func.returns.iter().flat_map(|&ty| layouts.flatten(ty)).collect();
+    // result: aggregate -> result: aggregate [return_abi = scalar leaves]
+    func.set_return_abi(
+        func.return_components().iter().flat_map(|&ty| layouts.flatten(ty)).collect::<Vec<_>>(),
+    );
 
     for block in func.blocks.indices() {
         let instructions = std::mem::take(&mut func.blocks[block].instructions);

@@ -32,8 +32,10 @@ pub(crate) struct Function {
     pub(crate) attributes: FunctionAttributes,
     /// Parameter types.
     pub(crate) params: IndexVec<ArgIdx, MirType>,
-    /// Return types.
-    pub(crate) returns: Vec<MirType>,
+    /// The function's single logical result, or `void`.
+    return_type: MirType,
+    /// Components selected by internal ABI lowering. The logical result stays intact.
+    return_abi: Option<Box<[MirType]>>,
     /// ABI layout of values returned by an external entry before `lower-abi`
     /// materializes returndata encoding.
     pub(crate) abi_returns: Option<AbiLayoutRef>,
@@ -86,7 +88,8 @@ impl Function {
             selector: None,
             attributes: FunctionAttributes::default(),
             params: IndexVec::new(),
-            returns: Vec::new(),
+            return_type: MirType::Void,
+            return_abi: None,
             abi_returns: None,
             abi_return_params: None,
             abi_params: None,
@@ -97,6 +100,56 @@ impl Function {
             arg_types: IndexVec::new(),
             instructions: IndexVec::new(),
             blocks,
+        }
+    }
+
+    /// Returns the function's single logical result type.
+    pub(crate) fn return_type(&self) -> MirType {
+        self.return_type
+    }
+
+    /// Sets the single logical result before selecting its internal ABI.
+    pub(crate) fn set_return_type(&mut self, ty: MirType) {
+        self.return_type = ty;
+        self.return_abi = None;
+    }
+
+    /// Selects the components delivered by the internal calling convention.
+    pub(crate) fn set_return_abi(&mut self, components: impl Into<Box<[MirType]>>) {
+        let components = components.into();
+        self.return_abi = if (self.return_type == MirType::Void && components.is_empty())
+            || (self.return_type != MirType::Void && components.as_ref() == [self.return_type])
+        {
+            None
+        } else {
+            Some(components)
+        };
+    }
+
+    /// Returns the selected internal ABI, if lowering has materialized it.
+    pub(crate) fn return_abi(&self) -> Option<&[MirType]> {
+        self.return_abi.as_deref()
+    }
+
+    /// Returns the logical value before ABI lowering, then its physical components.
+    pub(crate) fn return_components(&self) -> &[MirType] {
+        self.return_abi.as_deref().unwrap_or_else(|| {
+            if self.return_type == MirType::Void {
+                &[]
+            } else {
+                std::slice::from_ref(&self.return_type)
+            }
+        })
+    }
+
+    /// Returns mutable component types for representation lowering.
+    pub(crate) fn return_components_mut(&mut self) -> &mut [MirType] {
+        if let Some(components) = &mut self.return_abi {
+            components
+        } else if self.return_type == MirType::Void {
+            &mut []
+        } else {
+            std::slice::from_mut(&mut self.return_type)
         }
     }
 
@@ -648,8 +701,8 @@ impl fmt::Display for Function {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "fn {}({})", self.name, self.params.iter().format(", "))?;
 
-        if !self.returns.is_empty() {
-            write!(f, " -> ({})", self.returns.iter().format(", "))?;
+        if self.return_type != MirType::Void {
+            write!(f, " -> {}", self.return_type)?;
         }
 
         Ok(())

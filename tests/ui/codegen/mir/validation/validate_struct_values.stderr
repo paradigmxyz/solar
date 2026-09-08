@@ -10,7 +10,7 @@ error: [fn4] [bb0] terminator cannot consume a struct value
 
 error: [fn5] [bb0] tail-call arguments do not match the struct signature
 
-error: [fn6] a struct result must be the function's only result
+error: [fn6] internal return ABI does not match the function's result type
 
 error: [fn7] [bb0, inst0] memory object pointer conversion requires a word and matching object result
 

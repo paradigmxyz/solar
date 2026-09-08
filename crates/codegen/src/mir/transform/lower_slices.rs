@@ -206,8 +206,11 @@ impl LowerSlices {
     /// mutating the function so an offset near the address-space limit makes this transform bail
     /// atomically instead of panicking in debug builds or wrapping in release builds.
     fn shifted_frame_offsets(func: &Function, added_slots: usize) -> Option<Vec<(InstId, u64)>> {
-        let signature_slots =
-            func.params.len().checked_add(func.returns.len())?.checked_add(added_slots)?;
+        let signature_slots = func
+            .params
+            .len()
+            .checked_add(func.return_components().len())?
+            .checked_add(added_slots)?;
         super::utils::rebase_frame_offsets(func, signature_slots)
     }
 
@@ -407,7 +410,7 @@ impl LowerSlices {
     fn lower_returns(func: &mut Function, signature: &[ParamRepr]) -> bool {
         let added_slots = signature.iter().filter(|&&repr| repr == ParamRepr::Pair).count();
         let lowers_word_slice = func
-            .returns
+            .return_components()
             .iter()
             .zip(signature)
             .any(|(ty, repr)| Self::is_slice(ty) && *repr != ParamRepr::Pair);
@@ -442,8 +445,8 @@ impl LowerSlices {
             };
             *offset = shifted;
         }
-        let mut returns = Vec::with_capacity(func.returns.len() + added_slots);
-        for (&ty, repr) in func.returns.iter().zip(signature) {
+        let mut returns = Vec::with_capacity(func.return_components().len() + added_slots);
+        for (&ty, repr) in func.return_components().iter().zip(signature) {
             match repr {
                 ParamRepr::Word | ParamRepr::CompactCalldata => match ty {
                     MirType::Slice(location) => returns.push(slice_param_ptr_type(location)),
@@ -456,7 +459,8 @@ impl LowerSlices {
                 }
             }
         }
-        func.returns = returns;
+        // result: slice -> result: slice [return_abi = pointer, length]
+        func.set_return_abi(returns);
         true
     }
 
@@ -776,7 +780,7 @@ impl LowerSlices {
             .filter(|(_, func)| func.selector.is_none())
             .map(|(id, func)| {
                 let signature = func
-                    .returns
+                    .return_components()
                     .iter()
                     .enumerate()
                     .map(|(index, ty)| {

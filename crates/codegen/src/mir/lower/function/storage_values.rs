@@ -7,7 +7,7 @@ fn build_storage_bytes_helper(function: &mut Function) {
     // load_storage_bytes(slot) -> bytes_object
     let mut builder = FunctionBuilder::new_semantic(function);
     let slot = builder.add_param(MirType::uint256());
-    builder.add_return(MirType::MemoryObject(MemoryObjectKind::Bytes));
+    builder.set_return_type(MirType::MemoryObject(MemoryObjectKind::Bytes));
     let object = builder.emit_inst(
         InstKind::StorageBytesLoad(slot),
         Some(MirType::MemoryObject(MemoryObjectKind::Bytes)),
@@ -24,7 +24,7 @@ fn build_storage_array_helper(
     let mut builder = FunctionBuilder::new_semantic(function);
     let slot = builder.add_param(MirType::uint256());
     let ty = MirType::MemoryObject(MemoryObjectKind::DynamicArray);
-    builder.add_return(ty);
+    builder.set_return_type(ty);
     let object =
         builder.emit_inst(InstKind::StorageArrayLoad { slot, element, enum_variants }, Some(ty));
     builder.ret([object]);
@@ -1101,7 +1101,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         //     element_slot += element_slots
         // }
         let slot = self.builder.add_param(MirType::uint256());
-        self.builder.add_return(MirType::MemoryObject(MemoryObjectKind::DynamicArray));
+        self.builder.set_return_type(MirType::MemoryObject(MemoryObjectKind::DynamicArray));
 
         let length = self.builder.sload(slot);
         let (object, layout) = self

@@ -410,7 +410,7 @@ impl MemoryCallSummaries {
         for func_id in &targets {
             let func = &module.functions[func_id];
             let mut summary = local_summary(module, func, &sources[&func_id]);
-            summary.has_multiple_returns = func.returns.len() > 1;
+            summary.has_multiple_returns = func.return_components().len() > 1;
             summary.control.may_diverge |= calls.is_recursive(func_id);
             local.insert(func_id, summary);
         }
@@ -557,7 +557,11 @@ fn local_summary(
                 // call also writes the caller-side multi-return buffer during
                 // backend lowering. That traffic exists in no MIR body, so it
                 // must be a local memory effect of the calling function.
-                if module.functions.get(*function).is_none_or(|callee| callee.returns.len() > 1) {
+                if module
+                    .functions
+                    .get(*function)
+                    .is_none_or(|callee| callee.return_components().len() > 1)
+                {
                     summary.record_access(func, Access::Any(AddressSpace::Memory), false);
                     summary.record_access(func, Access::Any(AddressSpace::Memory), true);
                 }
@@ -1028,7 +1032,7 @@ mod tests {
             let value = builder.mload(ptr);
             builder.ret([value]);
         }
-        reader.returns.push(MirType::uint256());
+        reader.set_return_type(MirType::uint256());
         let reader = module.add_function(reader);
 
         let mut returning = Function::new(Ident::with_dummy_span(sym::ret));
@@ -1037,7 +1041,7 @@ mod tests {
             let ptr = builder.add_param(MirType::MemPtr);
             builder.ret([ptr]);
         }
-        returning.returns.push(MirType::MemPtr);
+        returning.set_return_type(MirType::MemPtr);
         let returning = module.add_function(returning);
 
         let mut obfuscated = Function::new(Ident::with_dummy_span(sym::ret));
@@ -1048,7 +1052,7 @@ mod tests {
             let value = builder.xor(ptr, zero);
             builder.ret([value]);
         }
-        obfuscated.returns.push(MirType::MemPtr);
+        obfuscated.set_return_type(MirType::MemPtr);
         let obfuscated = module.add_function(obfuscated);
 
         let mut resetter = Function::new(Ident::with_dummy_span(sym::fmp));

@@ -1063,7 +1063,7 @@ mod tests {
             function.internal_frame_size = EvmMemoryLayout::WORD_SIZE;
             let mut builder = FunctionBuilder::new(&mut function);
             let argument = builder.add_param(MirType::uint256());
-            builder.add_return(MirType::uint256());
+            builder.set_return_type(MirType::uint256());
             builder.ret([argument]);
             let function = module.add_function(function);
 

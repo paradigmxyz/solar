@@ -79,7 +79,7 @@ impl DispatchCallvalue {
 
 /// Preflights local frame offsets when a signature changes its scalar slot count.
 pub(super) fn rebase_frame_offsets(func: &Function, slots: usize) -> Option<Vec<(InstId, u64)>> {
-    let old_slots = func.params.len().checked_add(func.returns.len())?;
+    let old_slots = func.params.len().checked_add(func.return_components().len())?;
     if old_slots == slots {
         return Some(Vec::new());
     }

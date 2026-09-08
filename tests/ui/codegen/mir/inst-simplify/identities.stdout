@@ -4,6 +4,9 @@
   types:
     struct0: {u256, u256}
     struct1: {struct0, u256}
+    struct2: {u256, u256, u256}
+    struct3: {u256, u256, u256, u256}
+    struct4: {u256, u256, u256, u256, u256}
   
   fn @add_zero(arg0: u256) -> u256 {
     bb0:
@@ -26,7 +29,7 @@
 +     ret 0
   }
   
-  fn @idempotent_logic(arg0: u256) -> (u256, u256, u256) {
+  fn @idempotent_logic(arg0: u256) -> struct2 [return_abi=[u256, u256, u256]] {
     bb0:
 -     v0 = and arg0, arg0
 -     v1 = or arg0, arg0
@@ -156,7 +159,7 @@
       ret v2
   }
   
-  fn @cancel_offsets(arg0: u256, arg1: u256) -> (u256, u256, u256, u256) {
+  fn @cancel_offsets(arg0: u256, arg1: u256) -> struct3 [return_abi=[u256, u256, u256, u256]] {
     bb0:
       v0 = sub arg1, arg0
 -     v1 = add arg0, v0
@@ -168,7 +171,7 @@
 +     ret arg1, arg1, arg1, arg0
   }
   
-  fn @different_offsets(arg0: u256, arg1: u256, arg2: u256) -> (u256, u256) {
+  fn @different_offsets(arg0: u256, arg1: u256, arg2: u256) -> struct0 [return_abi=[u256, u256]] {
     bb0:
       v0 = sub arg1, arg0
       v1 = add arg2, v0
@@ -177,7 +180,7 @@
       ret v1, v3
   }
   
-  fn @masked_left_shift(arg0: u256) -> (u256, u256) {
+  fn @masked_left_shift(arg0: u256) -> struct0 [return_abi=[u256, u256]] {
     bb0:
       v0 = shl 32, arg0
       v1 = or v0, 0x12345678
@@ -206,7 +209,7 @@
 +     ret 2
   }
   
-  fn @masked_shift_boundaries(arg0: u256) -> (u256, u256, u256) {
+  fn @masked_shift_boundaries(arg0: u256) -> struct2 [return_abi=[u256, u256, u256]] {
     bb0:
       v0 = shl 255, arg0
       v1 = or v0, 7
@@ -221,7 +224,7 @@
 +     ret 7, 9, 11
   }
   
-  fn @masked_unknown_bits(arg0: u256, arg1: u256) -> (u256, u256, u256, u256, u256) {
+  fn @masked_unknown_bits(arg0: u256, arg1: u256) -> struct4 [return_abi=[u256, u256, u256, u256, u256]] {
     bb0:
       v0 = shl 31, arg0
       v1 = or v0, 7
@@ -242,7 +245,7 @@
       ret v2, v5, v8, v11, v14
   }
   
-  fn @unshift_address() -> (u256, u256) {
+  fn @unshift_address() -> struct0 [return_abi=[u256, u256]] {
     bb0:
       v0 = address
       v1 = shl 32, v0
@@ -255,7 +258,7 @@
 +     ret v0, v0
   }
   
-  fn @keep_lossy_address_shifts(arg0: u256) -> (u256, u256, u256, u256) {
+  fn @keep_lossy_address_shifts(arg0: u256) -> struct3 [return_abi=[u256, u256, u256, u256]] {
     bb0:
       v0 = address
       v1 = shl 97, v0
@@ -273,7 +276,7 @@
       ret v3, v6, v9, v12
   }
   
-  fn @subtract_common_base(arg0: u256) -> (u256, u256, u256) {
+  fn @subtract_common_base(arg0: u256) -> struct2 [return_abi=[u256, u256, u256]] {
     bb0:
       v0 = add arg0, 68
 -     v1 = add 36, arg0
@@ -295,7 +298,7 @@
       ret v2
   }
   
-  fn @nested_shifts(arg0: u256) -> (u256, u256, u256) {
+  fn @nested_shifts(arg0: u256) -> struct2 [return_abi=[u256, u256, u256]] {
     bb0:
       v0 = shl 3, arg0
 -     v1 = shl 5, v0
@@ -309,7 +312,7 @@
       ret v1, v3, v5
   }
   
-  fn @nested_shift_limits(arg0: u256) -> (u256, u256, u256) {
+  fn @nested_shift_limits(arg0: u256) -> struct2 [return_abi=[u256, u256, u256]] {
     bb0:
       v0 = shl 128, arg0
 -     v1 = shl 128, v0
@@ -322,7 +325,7 @@
 +     ret 0, 0, v5
   }
   
-  fn @mixed_and_variable_shifts(arg0: u256, arg1: u256) -> (u256, u256, u256) {
+  fn @mixed_and_variable_shifts(arg0: u256, arg1: u256) -> struct2 [return_abi=[u256, u256, u256]] {
     bb0:
       v0 = shl 3, arg0
       v1 = shr 5, v0

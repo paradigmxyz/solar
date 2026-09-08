@@ -214,9 +214,9 @@ impl<'a> FunctionBuilder<'a> {
         self.func.alloc_param(ty)
     }
 
-    /// Adds a return type to the function.
-    pub(crate) fn add_return(&mut self, ty: MirType) {
-        self.func.returns.push(ty);
+    /// Sets the function's single return type.
+    pub(crate) fn set_return_type(&mut self, ty: MirType) {
+        self.func.set_return_type(ty);
     }
 
     /// Creates a uint256 immediate value.
@@ -1798,7 +1798,7 @@ impl<'a> FunctionBuilder<'a> {
     /// Sets a return terminator.
     pub(crate) fn ret(&mut self, values: impl IntoIterator<Item = ValueId>) {
         let mut values = values.into_iter().collect::<SmallVec<[ValueId; 2]>>();
-        if let [MirType::Struct(ty)] = self.func.returns.as_slice()
+        if let [MirType::Struct(ty)] = self.func.return_components()
             && !(values.len() == 1 && self.func.value_ty(values[0]) == Some(MirType::Struct(*ty)))
         {
             // result = insert_value(undef, field0), ...

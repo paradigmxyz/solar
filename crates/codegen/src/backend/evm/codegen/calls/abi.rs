@@ -117,7 +117,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
 
         for (func_id, func) in module.functions.iter_enumerated() {
-            let arity = func.returns.len();
+            let arity = func.return_components().len();
             let mut has_return = false;
             let has_consistent_returns = func.blocks.iter().all(|block| match &block.terminator {
                 Some(Terminator::Return { values }) => {

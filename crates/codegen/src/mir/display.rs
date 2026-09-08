@@ -261,13 +261,8 @@ pub(crate) fn display_function_text<'a>(
             ))
         )?;
         write!(f, ")")?;
-        if function_prints_return_values(func) && !func.returns.is_empty() {
-            write!(f, " -> ")?;
-            if func.returns.len() == 1 {
-                write!(f, "{}", func.returns[0])?;
-            } else {
-                write!(f, "({})", func.returns.iter().format(", "))?;
-            }
+        if function_prints_return_values(func) && func.return_type() != super::MirType::Void {
+            write!(f, " -> {}", func.return_type())?;
         }
         write!(f, "{}", display_function_attributes(func, is_dispatch_entry))?;
         writeln!(f, " {{")?;
@@ -322,6 +317,13 @@ fn display_function_attributes(func: &Function, is_dispatch_entry: bool) -> impl
             hir::StateMutability::View => write_function_attribute(f, &mut first, "view")?,
             hir::StateMutability::Payable => write_function_attribute(f, &mut first, "payable")?,
             hir::StateMutability::NonPayable => {}
+        }
+        if let Some(components) = func.return_abi() {
+            write_function_attribute(
+                f,
+                &mut first,
+                format_args!("return_abi=[{}]", components.iter().format(", ")),
+            )?;
         }
         if let Some(layout) = &func.abi_params {
             write_function_attribute(f, &mut first, format_args!("abi_params={layout}"))?;

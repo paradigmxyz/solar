@@ -939,7 +939,7 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
             let arguments =
                 shape.params.iter().copied().map(|ty| builder.add_param(ty)).collect::<Vec<_>>();
             if let Some(ty) = module.intern_return_type(shape.returns.clone()) {
-                builder.add_return(ty);
+                builder.set_return_type(ty);
             }
 
             // for target {
@@ -978,7 +978,7 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                 } else {
                     // result = icall target(arguments)
                     // ret result
-                    let result_ty = builder.func().returns[0];
+                    let result_ty = builder.func().return_components()[0];
                     let result = builder.icall(mir_id, call_arguments, result_ty);
                     builder.ret([result]);
                 }

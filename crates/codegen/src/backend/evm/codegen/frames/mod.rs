@@ -79,7 +79,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         func: &Function,
     ) -> bool {
         func.attributes.is_yul
-            && func.returns.len() == 1
+            && func.return_components().len() == 1
             && Self::has_direct_self_call(func_id, func)
     }
 
@@ -116,7 +116,8 @@ impl<'gcx> EvmCodegen<'gcx> {
     pub(in crate::backend::evm::codegen) fn static_frame_offsets_are_local(
         func: &Function,
     ) -> bool {
-        let Some(signature_slots) = func.params.len().checked_add(func.returns.len()) else {
+        let Some(signature_slots) = func.params.len().checked_add(func.return_components().len())
+        else {
             return false;
         };
         let Some(signature_size) = u64::try_from(signature_slots)
@@ -332,7 +333,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
         };
         let size = header
-            + ((func.params.len() + func.returns.len()) as u64) * EvmMemoryLayout::WORD_SIZE
+            + ((func.params.len() + func.return_components().len()) as u64)
+                * EvmMemoryLayout::WORD_SIZE
             + func.internal_frame_size
             + self.function_spill_size(func_id);
         if let Some(plan) = self.stack_return_plan(func_id)
@@ -704,7 +706,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         for _ in 0..module.functions.len() {
             let mut changed = false;
             for (func_id, func) in module.functions.iter_enumerated() {
-                if func.returns.len() != 1 {
+                if func.return_components().len() != 1 {
                     continue;
                 }
                 let mut offset = offsets.get(&func_id).copied().unwrap_or(0);
@@ -897,7 +899,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     matches!(
                         module.functions[func_id].inst(inst_id).kind,
                         InstKind::ICall { function: Callee::Function(function), .. }
-                            if module.function(function).returns.len() > 1 || !self.static_frame_functions.contains(function)
+                            if module.function(function).return_components().len() > 1 || !self.static_frame_functions.contains(function)
                     )
                 })
         });
@@ -962,7 +964,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     fn internal_spill_slot_offset(&self, func: &Function, slot: SpillSlot) -> u64 {
         EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
             + (func.params.len() as u64) * EvmMemoryLayout::WORD_SIZE
-            + (func.returns.len() as u64) * EvmMemoryLayout::WORD_SIZE
+            + (func.return_components().len() as u64) * EvmMemoryLayout::WORD_SIZE
             + func.internal_frame_size
             + u64::from(slot.offset) * EvmMemoryLayout::WORD_SIZE
     }

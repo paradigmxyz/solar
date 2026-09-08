@@ -435,7 +435,7 @@ impl MirInliner {
                         inst: inst_id,
                         callee: function,
                         args_len: args.len(),
-                        returns: module.function(function).returns.len(),
+                        returns: module.function(function).return_components().len(),
                         loop_depth: loop_depths.get(&block).copied().unwrap_or_default(),
                         has_constant_function_selector: args
                             .first()
@@ -601,7 +601,7 @@ fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInli
             || func.attributes.is_receive
             || func.selector.is_some(),
         is_constructor: func.attributes.is_constructor,
-        has_reference_return: func.returns.iter().any(|ty| {
+        has_reference_return: func.return_components().iter().any(|ty| {
             matches!(
                 ty,
                 MirType::MemPtr
@@ -729,7 +729,7 @@ fn is_transparent_forwarder(module: &Module, func: &Function) -> bool {
         || func.attributes.is_receive
         || func.blocks.len() != 1
         || func.internal_frame_size != 0
-        || func.returns.len() != 1
+        || func.return_components().len() != 1
     {
         return false;
     }
@@ -742,7 +742,7 @@ fn is_transparent_forwarder(module: &Module, func: &Function) -> bool {
     let InstKind::ICall { function: Callee::Function(function), .. } = func.inst(*call).kind else {
         return false;
     };
-    if module.function(function).returns.len() != 1 {
+    if module.function(function).return_components().len() != 1 {
         return false;
     }
     let Some(result) = func.inst_result_value(*call) else { return false };
@@ -754,7 +754,7 @@ fn is_transparent_forwarder(module: &Module, func: &Function) -> bool {
 
 fn is_identity_function(func: &Function) -> bool {
     let [param] = func.params.raw.as_slice() else { return false };
-    let [return_ty] = func.returns.as_slice() else { return false };
+    let [return_ty] = func.return_components() else { return false };
     if param != return_ty || func.blocks.len() != 1 {
         return false;
     }
@@ -769,7 +769,7 @@ fn is_identity_function(func: &Function) -> bool {
 
 fn is_transparent_function_pointer_cast(func: &Function) -> bool {
     func.params == [MirType::Function]
-        && func.returns == [MirType::Function]
+        && func.return_components() == [MirType::Function]
         && is_identity_function(func)
 }
 
@@ -994,7 +994,7 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (MirCos
         | InstKind::ExtDelegateCall { .. }
         | InstKind::ExtStaticCall { .. } => (700, 1),
         InstKind::ICall { function: Callee::Function(function), args } => {
-            let returns = module.function(*function).returns.len();
+            let returns = module.function(*function).return_components().len();
             (80 + ((args.len() + returns) as u64) * 20, 16 + (args.len() + returns) * 4)
         }
         InstKind::Create(..) | InstKind::Create2(..) => (32_000, 1),
@@ -1196,7 +1196,7 @@ fn direct_dispatch_case_target(
     let Some(Terminator::Return { values }) = &block.terminator else {
         return None;
     };
-    match module.function(*function).returns.len() {
+    match module.function(*function).return_components().len() {
         0 if values.is_empty() => Some(*function),
         1 if values.as_slice() == [dispatcher.inst_result_value(*call)?] => Some(*function),
         _ => None,
@@ -1273,7 +1273,7 @@ fn inline_call_impl(
     let InstKind::ICall { args, .. } = caller.inst(call_inst).kind.clone() else {
         return None;
     };
-    let returns = callee.returns.len();
+    let returns = callee.return_components().len();
 
     let call_result = caller.inst_result_value(call_inst);
     if returns > 0 && call_result.is_none() {
@@ -1302,13 +1302,14 @@ fn inline_call_impl(
     let caller_frame_prefix = if caller_is_external {
         0
     } else {
-        let signature_slots = caller.params.len().checked_add(caller.returns.len())?;
+        let signature_slots = caller.params.len().checked_add(caller.return_components().len())?;
         let signature_size =
             u64::try_from(signature_slots).ok()?.checked_mul(EvmMemoryLayout::WORD_SIZE)?;
         EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE.checked_add(signature_size)?
     };
     let frame_base = caller_frame_prefix.checked_add(caller.internal_frame_size)?;
-    let callee_signature_slots = callee.params.len().checked_add(callee.returns.len())?;
+    let callee_signature_slots =
+        callee.params.len().checked_add(callee.return_components().len())?;
     let callee_signature_size =
         u64::try_from(callee_signature_slots).ok()?.checked_mul(EvmMemoryLayout::WORD_SIZE)?;
     let callee_frame_prefix =
@@ -1328,7 +1329,7 @@ fn inline_call_impl(
         let return_values = build_return_values(
             cloner.caller,
             continuation,
-            &callee.returns,
+            callee.return_components(),
             &cloner.return_edges,
         )?;
         replacements.insert(call_result?, return_values[0]);
@@ -1336,7 +1337,7 @@ fn inline_call_impl(
             cloner.caller,
             continuation,
             &return_values,
-            &callee.returns,
+            callee.return_components(),
             caller_is_external,
             caller_frame_prefix,
         )?;

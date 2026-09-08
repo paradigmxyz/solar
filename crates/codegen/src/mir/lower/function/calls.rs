@@ -554,7 +554,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     builder.add_param(ty);
                 }
                 if let Some(ty) = this.cx.module.intern_return_type(returns) {
-                    builder.add_return(ty);
+                    builder.set_return_type(ty);
                 }
                 Some(())
             })

@@ -42,9 +42,10 @@
 use crate::mir::{
     AddressCallKind, BlockId, Builtin, Callee, Function, FunctionId, InstId, InstKind,
     MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module, RequireKind, SliceLocation,
-    TypeSize, Value, ValueId, analysis::CfgInfo,
+    StructId, TypeSize, Value, ValueId, analysis::CfgInfo,
 };
 use alloy_primitives::U256;
+use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
@@ -58,12 +59,19 @@ struct Validator<'a> {
     function: Option<FunctionId>,
     error_count: usize,
     returning_functions: DenseBitSet<FunctionId>,
+    return_field_counts: IndexVec<StructId, Option<usize>>,
 }
 
 impl<'a> Validator<'a> {
     /// Creates a verifier that emits findings into `dcx`.
     fn new(dcx: &'a DiagCtxt) -> Self {
-        Self { dcx, function: None, error_count: 0, returning_functions: DenseBitSet::new_empty(0) }
+        Self {
+            dcx,
+            function: None,
+            error_count: 0,
+            returning_functions: DenseBitSet::new_empty(0),
+            return_field_counts: IndexVec::new(),
+        }
     }
 
     #[track_caller]
@@ -102,7 +110,7 @@ impl<'a> Validator<'a> {
                 self.emit(format_args!("parameter {index} cannot have type `void`"));
             }
         }
-        if func.returns.contains(&MirType::Void) {
+        if func.return_components().contains(&MirType::Void) {
             self.emit("return signature cannot contain `void`; use an empty return list");
         }
         self.validate_function_body(Some(module), func);
@@ -534,6 +542,7 @@ impl<'a> Validator<'a> {
     /// Validates every function in a module.
     fn validate_module(mut self, module: &Module) {
         self.returning_functions = module.returning_functions();
+        self.prepare_return_abi_validation(module);
         for (id, ty) in module.struct_types.iter_enumerated() {
             for field in &ty.fields {
                 if *field == MirType::Void
@@ -555,16 +564,44 @@ impl<'a> Validator<'a> {
         self.function = None;
     }
 
+    fn prepare_return_abi_validation(&mut self, module: &Module) {
+        if !module.functions.iter().any(|func| func.return_abi().is_some()) {
+            return;
+        }
+        for (id, structure) in module.struct_types.iter_enumerated() {
+            let count = structure.fields.iter().try_fold(0usize, |count, &field| {
+                let fields = match field {
+                    MirType::Struct(nested) if nested < id => self.return_field_counts[nested]?,
+                    MirType::Struct(_) | MirType::Void => return None,
+                    _ => 1,
+                };
+                count.checked_add(fields)
+            });
+            self.return_field_counts.push(count);
+        }
+    }
+
+    fn validate_return_abi(&mut self, module: &Module, func: &Function) {
+        if let Some(components) = func.return_abi()
+            && !return_abi_matches(
+                module,
+                func.return_type(),
+                components,
+                &self.return_field_counts,
+            )
+        {
+            self.emit("internal return ABI does not match the function's result type");
+        }
+    }
+
     /// Checks aggregate operands, field indices, and result types against the module declarations.
     fn validate_struct_values(&mut self, module: &Module, func: &Function) {
-        if func.returns.len() > 1 && func.returns.iter().any(|ty| matches!(ty, MirType::Struct(_)))
-        {
-            self.emit("a struct result must be the function's only result");
-        }
+        self.validate_return_abi(module, func);
         for ty in func
             .arg_indices()
             .map(|index| func.arg_ty(index))
-            .chain(func.returns.iter().copied())
+            .chain(std::iter::once(func.return_type()))
+            .chain(func.return_components().iter().copied())
             .chain(func.live_values().filter_map(|value| func.value_ty(value)))
         {
             if let MirType::Struct(id) = ty
@@ -601,7 +638,7 @@ impl<'a> Validator<'a> {
                             if inst.result_ty.is_some() {
                                 self.check_struct_type(
                                     inst.result_ty,
-                                    callee.returns.first().copied(),
+                                    callee.return_components().first().copied(),
                                     block,
                                     id,
                                 );
@@ -724,23 +761,24 @@ impl<'a> Validator<'a> {
             }
             match &body.terminator {
                 Some(crate::mir::Terminator::Return { values }) => {
-                    let has_struct = func.returns.iter().any(|ty| matches!(ty, MirType::Struct(_)))
-                        || values
-                            .iter()
-                            .any(|&value| matches!(func.value_ty(value), Some(MirType::Struct(_))));
-                    if values.len() != func.returns.len() {
+                    let has_struct =
+                        func.return_components().iter().any(|ty| matches!(ty, MirType::Struct(_)))
+                            || values.iter().any(|&value| {
+                                matches!(func.value_ty(value), Some(MirType::Struct(_)))
+                            });
+                    if values.len() != func.return_components().len() {
                         self.emit_at_block(
                             format_args!(
                                 "return has {} value(s), signature expects {}",
                                 values.len(),
-                                func.returns.len()
+                                func.return_components().len()
                             ),
                             block,
                         );
                     } else if has_struct
                         && values
                             .iter()
-                            .zip(&func.returns)
+                            .zip(func.return_components())
                             .any(|(&value, &ty)| func.value_ty(value) != Some(ty))
                     {
                         self.emit_at_block(
@@ -763,11 +801,11 @@ impl<'a> Validator<'a> {
                             );
                         }
                         if func.selector.is_none()
-                            && func.returns != callee.returns
+                            && func.return_components() != callee.return_components()
                             && func
-                                .returns
+                                .return_components()
                                 .iter()
-                                .chain(&callee.returns)
+                                .chain(callee.return_components())
                                 .any(|ty| matches!(ty, MirType::Struct(_)))
                             && self.returning_functions.contains(*function)
                         {
@@ -1327,7 +1365,7 @@ impl<'a> Validator<'a> {
                     callee.params.len()
                 ));
             }
-            if func.inst(inst_id).result_ty.is_some() && callee.returns.is_empty() {
+            if func.inst(inst_id).result_ty.is_some() && callee.return_components().is_empty() {
                 self.emit(format_args!(
                     "icall to `{}` produces a value but the callee returns no values",
                     callee.name,
@@ -1361,14 +1399,14 @@ impl<'a> Validator<'a> {
             // nothing, and an external caller's MIR signature does not model
             // its ABI returns, so both are exempt.
             if func.selector.is_none()
-                && func.returns.len() != callee.returns.len()
+                && func.return_components().len() != callee.return_components().len()
                 && self.returning_functions.contains(*function)
             {
                 self.emit(format_args!(
                     "tail_call to `{}` returns {} value(s), caller signature expects {}",
                     callee.name,
-                    callee.returns.len(),
-                    func.returns.len()
+                    callee.return_components().len(),
+                    func.return_components().len()
                 ));
             }
         }
@@ -1429,7 +1467,7 @@ impl<'a> Validator<'a> {
             let types = func
                 .arg_indices()
                 .map(|index| func.arg_ty(index))
-                .chain(func.returns.iter().copied())
+                .chain(func.return_components().iter().copied())
                 .chain(func.live_values().filter_map(|value| func.value_ty(value)))
                 .chain(func.instructions().filter_map(|id| func.inst(id).result_ty));
             if let Some(ty) =
@@ -1487,12 +1525,73 @@ pub(crate) fn validate_phase(
     phase: MirPhase,
 ) -> solar_interface::Result<()> {
     let mut validator = Validator::new(dcx);
+    validator.prepare_return_abi_validation(module);
     validator.validate_module_phase(module, phase);
     for (id, func) in module.iter_functions() {
         validator.function = Some(id);
+        validator.validate_return_abi(module, func);
         validator.validate_function_phase(phase, func);
     }
     dcx.has_errors()
+}
+
+/// Matches result components without recursive traversal or expanding repeated empty structs.
+fn return_abi_matches(
+    module: &Module,
+    ty: MirType,
+    mut components: &[MirType],
+    field_counts: &IndexVec<StructId, Option<usize>>,
+) -> bool {
+    let pointer_only = matches!(ty, MirType::Slice(_));
+    let mut pending = SmallVec::<[MirType; 4]>::from_slice(&[ty]);
+    while let Some(ty) = pending.pop() {
+        match ty {
+            MirType::Void => {
+                if !components.is_empty() {
+                    return false;
+                }
+            }
+            MirType::Struct(id) => {
+                let Some(&Some(count)) = field_counts.get(id) else { return false };
+                if count > components.len() {
+                    return false;
+                }
+                if count != 0 {
+                    pending.extend(module.struct_types[id].fields.iter().rev().copied());
+                }
+            }
+            _ => {
+                let Some((&actual, rest)) = components.split_first() else { return false };
+                components = rest;
+                if actual == ty {
+                    continue;
+                }
+                match ty {
+                    MirType::MemoryObject(_) if actual == MirType::MemPtr => {}
+                    MirType::Slice(location) => {
+                        let pointer = match location {
+                            SliceLocation::Memory => MirType::MemPtr,
+                            SliceLocation::Calldata => MirType::CalldataPtr,
+                            SliceLocation::Returndata => MirType::uint256(),
+                        };
+                        if actual != pointer {
+                            return false;
+                        }
+                        if pointer_only && components.is_empty() {
+                            continue;
+                        }
+                        let Some((&length, rest)) = components.split_first() else { return false };
+                        if length != MirType::uint256() {
+                            return false;
+                        }
+                        components = rest;
+                    }
+                    _ => return false,
+                }
+            }
+        }
+    }
+    components.is_empty()
 }
 
 // =============================================================================
@@ -1514,6 +1613,57 @@ mod tests {
 
     fn make_func() -> Function {
         Function::new(Ident::DUMMY)
+    }
+
+    #[test]
+    fn return_abi_matches_struct_fields() {
+        with_session(|sess| {
+            let mut module = Module::new(Ident::DUMMY);
+            let pair = module.intern_struct(vec![MirType::uint256(), MirType::Bool]);
+            let slice = MirType::Slice(SliceLocation::Memory);
+            let nested = module.intern_struct(vec![pair, slice]);
+            let mut function = make_func();
+            function.set_return_type(nested);
+            let words = [MirType::uint256(), MirType::Bool, MirType::MemPtr, MirType::uint256()];
+            function.set_return_abi(words);
+            module.add_function(function);
+            let mut validator = Validator::new(&sess.dcx);
+            validator.prepare_return_abi_validation(&module);
+            let matches = |ty, words: &[MirType]| {
+                return_abi_matches(&module, ty, words, &validator.return_field_counts)
+            };
+            assert!(matches(nested, &words));
+            assert!(!matches(nested, &words[..3]));
+            assert!(!matches(pair, &words));
+            assert!(!matches(pair, &[MirType::Bool, MirType::uint256()]));
+            assert!(matches(slice, &[MirType::MemPtr]));
+            assert!(matches(slice, &words[2..]));
+            assert!(!matches(slice, &[MirType::MemPtr, MirType::Bool]));
+        });
+    }
+
+    #[test]
+    fn return_abi_skips_repeated_empty_structs() {
+        with_session(|sess| {
+            let mut module = Module::new(Ident::DUMMY);
+            let mut ty = module.intern_struct(Vec::new());
+            for _ in 0..128 {
+                ty = module.intern_struct(vec![ty, ty]);
+            }
+            let mut function = make_func();
+            function.set_return_type(ty);
+            function.set_return_abi([]);
+            module.add_function(function);
+            let mut validator = Validator::new(&sess.dcx);
+            validator.prepare_return_abi_validation(&module);
+            assert!(return_abi_matches(&module, ty, &[], &validator.return_field_counts));
+            assert!(!return_abi_matches(
+                &module,
+                ty,
+                &[MirType::uint256()],
+                &validator.return_field_counts
+            ));
+        });
     }
 
     #[test]

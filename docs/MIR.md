@@ -451,8 +451,14 @@ later decides whether their values need stack moves or spills.
 
 The pass runs after ABI and dispatch construction, before frame and memory
 lowering. Internal calls remain typed and aggregate-valued until this boundary.
-Here, their results adopt the backend convention: the first scalar result plus
-reads of the remaining result words. Those reads occur immediately after the
+Every function has one `return_type`, with `void` for no result and a struct
+for a tuple. ABI lowering records the result components in a separate private
+layout, printed as `return_abi=[...]`; it preserves the logical result type.
+Both ordinary validation and the final phase check verify that layout against
+the result type. Changing the result type clears the selected ABI.
+
+Here, aggregate results adopt the backend convention: the first scalar result
+plus reads of the remaining result words. Those reads occur immediately after the
 call so a later call cannot overwrite them. Only this calling convention, real
 memory objects, and eventual spills require memory traffic; insertion and
 extraction alone do not.

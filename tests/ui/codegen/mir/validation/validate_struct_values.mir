@@ -5,12 +5,13 @@
 //~? ERROR: [fn3] [bb0, inst0] struct value does not match the required type
 //~? ERROR: [fn4] [bb0] terminator cannot consume a struct value
 //~? ERROR: [fn5] [bb0] tail-call arguments do not match the struct signature
-//~? ERROR: [fn6] a struct result must be the function's only result
+//~? ERROR: [fn6] internal return ABI does not match the function's result type
 //~? ERROR: [fn7] [bb0, inst0] memory object pointer conversion requires a word and matching object result
 @module InvalidStructValues
 
 types:
   struct0: {u256, bool}
+  struct1: {struct0, u256}
 
 fn @invalid_operand(arg0: u256) -> u256 {
   bb0:
@@ -49,7 +50,7 @@ fn @invalid_tail(arg0: u256) -> struct0 {
     tail_call @invalid_field, arg0
 }
 
-fn @mixed_return(arg0: struct0, arg1: u256) -> (struct0, u256) {
+fn @mixed_return(arg0: struct0, arg1: u256) -> struct1 [return_abi=[struct0, u256]] {
   bb0:
     ret arg0, arg1
 }

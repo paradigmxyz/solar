@@ -8,7 +8,7 @@
     struct3: {bool, u8, i8}
   
 - fn @pair(arg0: u256, arg1: bool) -> struct0 {
-+ fn @pair(arg0: u256, arg1: bool) -> (u256, bool) {
++ fn @pair(arg0: u256, arg1: bool) -> struct0 [return_abi=[u256, bool]] {
     bb0:
 -     v0 = insert_value struct0, undef struct0, 0, arg0
 -     v1 = insert_value struct0, v0, 1, arg1
@@ -40,7 +40,7 @@
   }
   
 - fn @loop(arg0: struct0, arg1: bool) -> struct0 {
-+ fn @loop(arg0: u256, arg1: bool, arg2: bool) -> (u256, bool) {
++ fn @loop(arg0: u256, arg1: bool, arg2: bool) -> struct0 [return_abi=[u256, bool]] {
     bb0:
       jump bb1
     bb1:
@@ -59,7 +59,7 @@
   }
   
 - fn @constants() -> struct3 {
-+ fn @constants() -> (bool, u8, i8) {
++ fn @constants() -> struct3 [return_abi=[bool, u8, i8]] {
     bb0:
 -     v0 = insert_value struct3, undef struct3, 0, true
 -     v1 = insert_value struct3, v0, 1, u8 255
@@ -82,7 +82,7 @@
   }
   
 - fn @empty(arg0: struct2) -> struct2 {
-+ fn @empty() {
++ fn @empty() -> struct2 [return_abi=[]] {
     bb0:
 -     ret arg0
 +     ret
@@ -102,7 +102,7 @@
   }
   
 - fn @select(arg0: bool, arg1: struct0, arg2: struct0) -> struct0 {
-+ fn @select(arg0: bool, arg1: u256, arg2: bool, arg3: u256, arg4: bool) -> (u256, bool) {
++ fn @select(arg0: bool, arg1: u256, arg2: bool, arg3: u256, arg4: bool) -> struct0 [return_abi=[u256, bool]] {
     bb0:
 -     v0 = select arg0, arg1, arg2
 -     ret v0
@@ -112,13 +112,13 @@
   }
   
 - fn @tail(arg0: u256, arg1: bool) -> struct0 {
-+ fn @tail(arg0: u256, arg1: bool) -> (u256, bool) {
++ fn @tail(arg0: u256, arg1: bool) -> struct0 [return_abi=[u256, bool]] {
     bb0:
       tail_call @pair, arg0, arg1
   }
   
 - fn @select_call(arg0: bool, arg1: struct0) -> struct0 {
-+ fn @select_call(arg0: bool, arg1: u256, arg2: bool) -> (u256, bool) {
++ fn @select_call(arg0: bool, arg1: u256, arg2: bool) -> struct0 [return_abi=[u256, bool]] {
     bb0:
 -     v0 = icall @pair, 42, true
 -     v1 = select arg0, v0, arg1
@@ -133,7 +133,7 @@
   }
   
 - fn @numeric_call() -> struct0 {
-+ fn @numeric_call() -> (u256, bool) {
++ fn @numeric_call() -> struct0 [return_abi=[u256, bool]] {
     bb0:
 -     v0 = icall @pair, 42, true
 -     ret v0

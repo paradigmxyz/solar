@@ -388,7 +388,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let return_types = module
             .functions
             .iter()
-            .map(|function| function.returns.first().copied())
+            .map(|function| function.return_components().first().copied())
             .collect::<IndexVec<_, _>>();
         for function in &mut module.functions {
             let instructions = function.instructions().collect::<Vec<_>>();
@@ -490,23 +490,21 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 }
             }
 
-            // Optional return type: `-> ty` or `-> (ty, ty, ...)`
+            // Optional single return type, also accepting a parenthesized type.
             if self.parser.eat(TokenKind::Arrow) {
-                if self.parser.eat(TokenKind::OpenDelim(Delimiter::Parenthesis)) {
-                    if !self.parser.eat(TokenKind::CloseDelim(Delimiter::Parenthesis)) {
-                        loop {
-                            let ty = self.parse_type()?;
-                            builder.add_return(ty);
-                            if self.parser.eat(TokenKind::Comma) {
-                                continue;
-                            }
-                            self.parser.expect(TokenKind::CloseDelim(Delimiter::Parenthesis))?;
-                            break;
-                        }
-                    }
-                } else {
+                let parenthesized = self.parser.eat(TokenKind::OpenDelim(Delimiter::Parenthesis));
+                if !parenthesized || !self.parser.eat(TokenKind::CloseDelim(Delimiter::Parenthesis))
+                {
                     let ty = self.parse_type()?;
-                    builder.add_return(ty);
+                    if self.parser.check(TokenKind::Comma) {
+                        return Err(self
+                            .parser
+                            .error("functions have one return type; use a struct"));
+                    }
+                    builder.set_return_type(ty);
+                    if parenthesized {
+                        self.parser.expect(TokenKind::CloseDelim(Delimiter::Parenthesis))?;
+                    }
                 }
             }
 
@@ -603,6 +601,21 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     let selector = self.parser.parse_uint()?;
                     let selector = self.u256_to_u32(selector)?;
                     builder.func_mut().selector = Some(selector.to_be_bytes());
+                }
+                sym::return_abi => {
+                    self.parser.expect(TokenKind::Eq)?;
+                    self.parser.expect(TokenKind::OpenDelim(Delimiter::Bracket))?;
+                    let mut components = Vec::new();
+                    if !self.parser.eat(TokenKind::CloseDelim(Delimiter::Bracket)) {
+                        loop {
+                            components.push(self.parse_type()?);
+                            if self.parser.eat(TokenKind::CloseDelim(Delimiter::Bracket)) {
+                                break;
+                            }
+                            self.parser.expect(TokenKind::Comma)?;
+                        }
+                    }
+                    builder.func_mut().set_return_abi(components);
                 }
                 sym::abi_returns => {
                     self.parser.expect(TokenKind::Eq)?;
