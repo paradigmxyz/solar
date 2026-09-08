@@ -35,6 +35,9 @@ contract WriterSpillValues {
                 let a18 := calldataload(add(base, 576))
                 let a19 := calldataload(add(base, 608))
                 let heap := mload(0x40)
+                // Keep scratch beyond the raw writer, independently of compiler reservations.
+                let writerEnd := add(target, 64)
+                if lt(heap, writerEnd) { heap := writerEnd }
                 mstore(0x40, add(heap, 96))
                 // These computed operands die in stores disjoint from compiler-owned words.
                 mstore(add(heap, 32), xor(a00, a19))

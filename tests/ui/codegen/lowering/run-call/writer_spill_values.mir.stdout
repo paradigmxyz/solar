@@ -56,42 +56,53 @@ fn @write(arg0: u256, arg1: u256) -> u256 {
     v38 = add arg0, 608
     v39 = calldataload v38
     v40 = mload 64 !metadata(memory=scratch)
-    v41 = add v40, 96
-    mstore 64, v41 !metadata(memory=scratch)
-    v42 = xor v1, v39
-    v43 = add v40, 32
-    mstore v43, v42
-    v44 = xor v3, v37
-    v45 = add v40, 64
-    mstore8 v45, v44
-    v46 = add v5, v35
-    v47 = add arg1, 32
-    mstore v47, v46
-    v48 = add v37, v39
-    v49 = add v33, v35
-    v50 = add v49, v48
-    v51 = add v29, v31
-    v52 = add v25, v27
-    v53 = add v52, v51
-    v54 = add v21, v23
-    v55 = add v17, v19
-    v56 = add v55, v54
-    v57 = add v56, v53
-    v58 = add v13, v15
-    v59 = add v9, v11
-    v60 = add v59, v58
-    v61 = add v5, v7
-    v62 = add v1, v3
-    v63 = add v62, v61
-    v64 = add v63, v60
-    v65 = add v64, v57
-    v66 = add v65, v50
-    v67 = add v40, 64
-    v68 = mload v67
-    v69 = byte 0, v68
-    v70 = add v40, 32
-    v71 = mload v70
-    v72 = add v71, v69
-    v73 = add v72, v66
-    ret v73
+    v41 = add arg1, 64
+    v42 = lt v40, v41
+    v43 = eq v42, 0
+    v44 = iszero v43
+    jumpi v44, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    jump bb3
+  bb3:
+    v45 = phi [bb1: v41], [bb2: v40]
+    v46 = add v45, 96
+    mstore 64, v46 !metadata(memory=scratch)
+    v47 = xor v1, v39
+    v48 = add v45, 32
+    mstore v48, v47
+    v49 = xor v3, v37
+    v50 = add v45, 64
+    mstore8 v50, v49
+    v51 = add v5, v35
+    v52 = add arg1, 32
+    mstore v52, v51
+    v53 = add v37, v39
+    v54 = add v33, v35
+    v55 = add v54, v53
+    v56 = add v29, v31
+    v57 = add v25, v27
+    v58 = add v57, v56
+    v59 = add v21, v23
+    v60 = add v17, v19
+    v61 = add v60, v59
+    v62 = add v61, v58
+    v63 = add v13, v15
+    v64 = add v9, v11
+    v65 = add v64, v63
+    v66 = add v5, v7
+    v67 = add v1, v3
+    v68 = add v67, v66
+    v69 = add v68, v65
+    v70 = add v69, v62
+    v71 = add v70, v55
+    v72 = add v45, 64
+    v73 = mload v72
+    v74 = byte 0, v73
+    v75 = add v45, 32
+    v76 = mload v75
+    v77 = add v76, v74
+    v78 = add v77, v71
+    ret v78
 }
