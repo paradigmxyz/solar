@@ -22,6 +22,9 @@ const MAX_STACK_WINDOW: usize = 24;
 #[derive(Clone, Copy)]
 pub(super) struct Window;
 
+/// Start index of a late window ending at the current prefix.
+type LateWindow = usize;
+
 /// An index into the immutable instruction slice being matched.
 ///
 /// Keeping indices in generated matches avoids repeatedly copying and decoding
@@ -107,8 +110,16 @@ impl<'a> PeepContext<'a> {
     }
 
     /// Returns the edit to apply to the tail of the block, when a rule matches.
-    pub(super) fn peep(&mut self) -> Option<Rewrite> {
-        generated::constructor_peep(self, Window)
+    pub(super) fn select<const LATE: bool>(&mut self) -> Option<Rewrite> {
+        if !LATE {
+            return generated::constructor_peep(self, Window);
+        }
+        if self.instructions.len() < 5 || raw_opcode(self.instructions.last()?) != Some(SUB) {
+            return None;
+        }
+        let first = self.instructions.len().saturating_sub(MAX_STACK_WINDOW);
+        (first..=self.instructions.len() - 5)
+            .find_map(|start| generated::constructor_late_peep(self, start))
     }
 
     fn tail<const N: usize>(&self) -> Option<[Inst; N]> {
@@ -118,6 +129,144 @@ impl<'a> PeepContext<'a> {
 }
 
 impl generated::Context for PeepContext<'_> {
+    fn late_window(&mut self, start: LateWindow) -> Option<(Inst, Inst, Inst, Inst)> {
+        let end = self.instructions.len();
+        Some((start, start + 1, end - 2, end - 1))
+    }
+
+    fn late_length(&mut self, start: LateWindow) -> u8 {
+        (self.instructions.len() - start) as u8
+    }
+
+    fn low_mask_profitable(&mut self) -> bool {
+        let target = Target::with(
+            self.evm_version,
+            OptimizationMode::Gas,
+            Target::DEFAULT_EXPECTED_EXECUTIONS,
+        );
+        let before = target.push(U256::ONE) + target.dup() + target.opcode(SUB);
+        let after = target.push(U256::ZERO) + target.opcode(NOT) + target.opcode(NOT);
+        after.gas <= before.gas && after.bytes <= before.bytes && after != before
+    }
+
+    fn closed_count(&mut self, start: LateWindow) -> bool {
+        let end = self.instructions.len();
+        // These edits change only the two prefix instructions and final SUB.
+        // Keep constrained instruction boundaries and custom stack effects intact.
+        if [start, start + 1, end - 2, end - 1].iter().any(|&i| {
+            self.instructions[i].keeps_with_next()
+                || !self.instructions[i].has_canonical_stack_effect()
+        }) || start > 0 && self.instructions[start - 1].keeps_with_next()
+        {
+            return false;
+        }
+        let mut depth = 0usize;
+        for inst in &self.instructions[start + 2..end - 2] {
+            if !inst.has_canonical_stack_effect() || inst.keeps_with_next() {
+                return false;
+            }
+            if inst.is_encoded_push() {
+                depth += 1;
+            } else if let Some(op) = inst.as_stack_op() {
+                if depth < op.required_depth() {
+                    return false;
+                }
+                depth = depth.checked_add_signed(op.net_growth()).expect("sufficient stack");
+            } else if let Some(opcode) = raw_opcode(inst)
+                && op::is_unaffected_by_preceding_push(opcode)
+                && let Some((inputs, outputs)) = op::stack_io(opcode)
+            {
+                if depth < usize::from(inputs) {
+                    return false;
+                }
+                depth = depth - usize::from(inputs) + usize::from(outputs);
+            } else {
+                return false;
+            }
+        }
+        depth == 1
+    }
+
+    fn protected_window(&mut self, start: LateWindow) -> Option<(Inst, Inst, Inst, Inst, Inst)> {
+        let end = self.instructions.len();
+        Some((start, end - 4, end - 3, end - 2, end - 1))
+    }
+
+    fn protected_mask_profitable(&mut self) -> bool {
+        let target = Target::with(
+            self.evm_version,
+            OptimizationMode::Gas,
+            Target::DEFAULT_EXPECTED_EXECUTIONS,
+        );
+        let before = target.push(U256::ONE)
+            + target.push(U256::ONE)
+            + target.opcode(SWAP1)
+            + target.opcode(SUB);
+        let after = target.push(U256::ZERO) + target.opcode(NOT) + target.opcode(NOT);
+        after.gas <= before.gas && after.bytes <= before.bytes && after != before
+    }
+
+    fn protected_count(&mut self, start: LateWindow) -> bool {
+        let end = self.instructions.len();
+        if self.instructions[start..]
+            .iter()
+            .any(|inst| inst.keeps_with_next() || !inst.has_canonical_stack_effect())
+            || start > 0 && self.instructions[start - 1].keeps_with_next()
+        {
+            return false;
+        }
+        // Track the one word whose value changes. Every other word and operation
+        // must be independent of it; only permutations may move the protected word.
+        let mut above = 0usize;
+        for inst in &self.instructions[start + 1..end - 4] {
+            if inst.is_encoded_push() {
+                above += 1;
+            } else if let Some(stack_op) = inst.as_stack_op() {
+                match stack_op {
+                    StackOp::Dup(depth) => {
+                        if usize::from(depth) == above + 1 {
+                            return false;
+                        }
+                        above += 1;
+                    }
+                    StackOp::Swap(depth) => {
+                        let depth = usize::from(depth);
+                        if above == 0 {
+                            above = depth;
+                        } else if above == depth {
+                            above = 0;
+                        }
+                    }
+                    StackOp::Exchange(first, second) => {
+                        let (first, second) = (usize::from(first), usize::from(second));
+                        if above == first {
+                            above = second;
+                        } else if above == second {
+                            above = first;
+                        }
+                    }
+                    StackOp::Pop => {
+                        if above == 0 {
+                            return false;
+                        }
+                        above -= 1;
+                    }
+                }
+            } else if let Some(opcode) = raw_opcode(inst)
+                && op::is_unaffected_by_preceding_push(opcode)
+                && let Some((inputs, outputs)) = op::stack_io(opcode)
+            {
+                if above < usize::from(inputs) {
+                    return false;
+                }
+                above = above - usize::from(inputs) + usize::from(outputs);
+            } else {
+                return false;
+            }
+        }
+        above == 1
+    }
+
     fn nonpush_tail(&mut self, _: Window) -> Option<()> {
         (!self.instructions.last()?.is_encoded_push()).then_some(())
     }

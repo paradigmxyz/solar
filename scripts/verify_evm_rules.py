@@ -16,6 +16,7 @@ import z3
 from evm_rules.isle import ISLE, ROOT, verify_file
 from evm_rules.discovery import discover_rules
 from evm_rules.mining import mine
+from evm_rules.late import verify_late_file
 from evm_rules.stack import verify_stack_file
 
 
@@ -23,7 +24,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
     verify = subparsers.add_parser("verify", help="fail unless every selected source rule is proved")
-    verify.add_argument("files", nargs="*", type=Path, default=[ISLE / "word.isle", ISLE / "word_sequence.isle", ISLE / "stack_select.isle", ISLE / "stack_peephole.isle"])
+    verify.add_argument("files", nargs="*", type=Path, default=[ISLE / "word.isle", ISLE / "word_sequence.isle", ISLE / "stack_select.isle", ISLE / "stack_peephole.isle", ISLE / "late_word.isle"])
     verify.add_argument("--timeout-ms", type=int, default=5000)
     verify.add_argument("--output", type=Path, required=True)
     verify.add_argument("--artifacts", type=Path)
@@ -71,7 +72,8 @@ def main():
         report = discover_rules(args)
         exit_code = 0 if report.get("accepted", True) else 1
     else:
-        files = [(verify_stack_file if path.name == "stack_peephole.isle" else verify_file)(
+        files = [(verify_stack_file if path.name == "stack_peephole.isle" else
+                  verify_late_file if path.name == "late_word.isle" else verify_file)(
             path, args.timeout_ms, args.artifacts) for path in args.files]
         for file in files:
             for rule in file["rules"]:

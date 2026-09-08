@@ -11,6 +11,16 @@
 //! passes expose few new opportunities. Rules never cross a block boundary;
 //! target legality, push removability, and symbolic stack bounds stay in the
 //! extractors, and edits preserve their existing metadata policy.
+//!
+//! The separate `late-word` entry point runs only after structural cleanup. It
+//! replaces a low-mask construction with a shorter complement/shift form. A closed
+//! count window cannot read the surrounding stack; a protected-base window may
+//! shuffle its base but cannot duplicate, consume, or inspect it. Neither window
+//! can cross a terminator or observe gas/PC. Their instructions stay in place.
+//! A target cost check requires a Pareto improvement, including the materialized
+//! constants. Deferring this rewrite preserves earlier outlining opportunities;
+//! doing it in MIR can turn a shareable run into two smaller inline copies that
+//! occupy more bytes overall. Matching is bounded to 24 instructions per tail.
 
 use super::{
     EvmPass,
@@ -36,7 +46,20 @@ impl EvmPass for Peephole {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        optimize_module(gcx, module)
+        optimize_module::<false>(gcx, module)
+    }
+}
+
+/// Rewrites word windows after structural sharing and stack scheduling are fixed.
+pub(super) struct LateWord;
+
+impl EvmPass for LateWord {
+    fn name(&self) -> &'static str {
+        "late-word"
+    }
+
+    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
+        optimize_module::<true>(gcx, module)
     }
 }
 
@@ -67,20 +90,21 @@ impl<T: EvmPass> EvmPass for Cleanup<T> {
 
 const TRACE_TARGET: &str = "solar::codegen::evm_ir::peephole";
 
-fn optimize_module(gcx: Gcx<'_>, module: &mut Module) -> bool {
+fn optimize_module<const LATE: bool>(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let evm_version = gcx.sess.opts.evm_version;
     let mut changed = false;
     let mut scratch = Vec::new();
     for block in &mut module.blocks {
         // Dead stack traffic before a terminator that cannot observe it is dead-code
         // elimination's to remove; this pass only rewrites what it can see locally.
-        let rewrites = optimize(evm_version, &mut block.instructions, &mut scratch, block.label);
+        let rewrites =
+            optimize::<LATE>(evm_version, &mut block.instructions, &mut scratch, block.label);
         changed |= rewrites != 0;
     }
     changed
 }
 
-fn optimize(
+fn optimize<const LATE: bool>(
     evm_version: EvmVersion,
     instructions: &mut Vec<Instruction>,
     scratch: &mut Vec<Instruction>,
@@ -90,7 +114,7 @@ fn optimize(
     // rewrite, this is exactly the optimized prefix the streaming matcher sees.
     let first = (1..=instructions.len()).find_map(|end| {
         isle::PeepContext::new(&instructions[..end], evm_version)
-            .peep()
+            .select::<LATE>()
             .map(|rewrite| (end, rewrite))
     });
     let Some((end, isle::Rewrite { skip, edit })) = first else { return 0 };
@@ -101,21 +125,25 @@ fn optimize(
     scratch.extend(instructions.drain(end..));
     rewrite(evm_version, instructions, usize::from(skip), edit, block);
     let mut rewrites = 1;
-    while try_peephole(evm_version, instructions, block) {
+    while try_peephole::<LATE>(evm_version, instructions, block) {
         rewrites += 1;
     }
     for inst in scratch.drain(..) {
         instructions.push(inst);
-        while try_peephole(evm_version, instructions, block) {
+        while try_peephole::<LATE>(evm_version, instructions, block) {
             rewrites += 1;
         }
     }
     rewrites
 }
 
-fn try_peephole(evm_version: EvmVersion, instructions: &mut Vec<Instruction>, block: u32) -> bool {
+fn try_peephole<const LATE: bool>(
+    evm_version: EvmVersion,
+    instructions: &mut Vec<Instruction>,
+    block: u32,
+) -> bool {
     let Some(isle::Rewrite { skip, edit }) =
-        isle::PeepContext::new(instructions, evm_version).peep()
+        isle::PeepContext::new(instructions, evm_version).select::<LATE>()
     else {
         return false;
     };
@@ -156,6 +184,10 @@ enum Edit {
     },
     /// Replace a duplicate of a known zero with `PUSH0`.
     OverwritePush0,
+    /// PUSH1 1; DUP1; closed_count; SHL; SUB => PUSH0; NOT; closed_count; SHL; NOT.
+    LowMask,
+    /// Replace a shuffled shift base and the trailing PUSH1 1; SWAP1; SUB.
+    LowMaskWithSwap,
     RemoveFirstKeepOne,
     RemoveFirstKeepTwo,
     RemoveFirstOverwrite {
@@ -195,6 +227,24 @@ enum Edit {
 impl Edit {
     fn apply(self, evm_version: EvmVersion, instructions: &mut Vec<Instruction>, start: usize) {
         match self {
+            Self::LowMaskWithSwap => {
+                // push 0; not; protected_count; shl; not
+                // NOTE: Changed constants and arithmetic have no exact source checkpoint.
+                instructions.truncate(instructions.len() - 3);
+                instructions[start] = Instruction::push_value(U256::ZERO).with_debug_info_dropped();
+                instructions
+                    .insert(start + 1, Instruction::opcode(op::NOT).with_debug_info_dropped());
+                instructions.push(Instruction::opcode(op::NOT).with_debug_info_dropped());
+            }
+            Self::LowMask => {
+                // push 0; not; closed_count; shl; not
+                // NOTE: The changed constants and operations have different meanings;
+                // their original source checkpoints cannot describe the replacement.
+                instructions[start] = Instruction::push_value(U256::ZERO).with_debug_info_dropped();
+                instructions[start + 1] = Instruction::opcode(op::NOT).with_debug_info_dropped();
+                *instructions.last_mut().expect("matched subtraction") =
+                    Instruction::opcode(op::NOT).with_debug_info_dropped();
+            }
             Self::Keep { len } => instructions.truncate(start + usize::from(len)),
             Self::OverwritePush0 => {
                 let metadata = std::mem::take(&mut instructions[start].metadata);
