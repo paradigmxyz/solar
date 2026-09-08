@@ -216,6 +216,12 @@ pub(in crate::backend) fn immediate_materialization_len(
 fn select_with_len(evm_version: EvmVersion, value: U256) -> (usize, CompactPush) {
     let width = push_width(evm_version, value);
     let normal_len = fixed_push_len(evm_version, width);
+    // NOT recipes require a full-width input. A shifted nonzero literal needs
+    // at least two PUSH1s and SHL (five bytes), so PUSH4 and shorter already win
+    // or tie every recipe. Keep the literal on ties, as the full search does.
+    if width < MIN_COMPACT_MASK_WIDTH {
+        return (normal_len, CompactPush::Literal);
+    }
     let mut best = (normal_len, CompactPush::Literal);
     let mut consider = |len, compact| {
         if len < best.0 {
