@@ -196,10 +196,15 @@ impl<'gcx> EvmCodegen<'gcx> {
             });
         let has_hazard_stack_plan = hazard_stack_plan.is_some();
         let required_stack_plan = resident_stack_plan.is_some() || hazard_stack_plan.is_some();
-        let mut global_stack_plan = hazard_stack_plan
-            .clone()
-            .or(resident_stack_plan)
-            .unwrap_or_else(|| GlobalStackPlan::analyze(func, liveness, &stack_phi_plan));
+        let mut global_stack_plan =
+            hazard_stack_plan.clone().or(resident_stack_plan).unwrap_or_else(|| {
+                GlobalStackPlan::analyze(
+                    func,
+                    liveness,
+                    &stack_phi_plan,
+                    self.gcx.sess.opts.optimization,
+                )
+            });
         let mut stack_phi_sources = stack_phi_plan.edge_sources();
         if required_stack_plan {
             if !stack_phi_plan.merge_resident(func, &global_stack_plan) {
