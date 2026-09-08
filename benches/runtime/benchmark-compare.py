@@ -338,8 +338,8 @@ def comparison_report(comparison: dict[str, Any]) -> str:
         "Change is the geometric mean of candidate/baseline ratios, with equal weight per benchmark. Only positive, comparable pairs enter the mean.",
         "Runtime gas is the sum of measured calls within each benchmark. Timing and RSS are noisy.",
         "",
-        "| Metric | Change | Pairs in mean | Improved | Regressed | Unchanged | Excluded from mean |",
-        "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+        "| Metric | Change |",
+        "| --- | ---: |",
     ]
     for name, values in comparison["summary"].items():
         change = (
@@ -347,9 +347,7 @@ def comparison_report(comparison: dict[str, Any]) -> str:
             if values["percent"] is not None
             else "n/a"
         )
-        lines.append(
-            f"| {METRICS[name]} | {change} | {values['ratio_pairs']} | {values['improved']} | {values['regressed']} | {values['unchanged']} | {len(rows) - values['ratio_pairs']} |"
-        )
+        lines.append(f"| {METRICS[name]} | {change} |")
     if compile_only := sum(bool(row.get("compile_only")) for row in rows):
         lines.extend(
             [
@@ -369,15 +367,13 @@ def comparison_report(comparison: dict[str, Any]) -> str:
         lines.extend(["", "#### Incomplete or incompatible comparisons", "", *issues])
     changed = []
     for name, metric_label in METRICS.items():
-        if comparison["compiler"] == "solar":
-            continue
         for row in sorted(
             rows, key=lambda row: row["metrics"][name]["percent"] or 0, reverse=True
         ):
             values = row["metrics"][name]
             if values["delta"] not in (None, 0):
                 changed.append(
-                    f"| {markdown_cell(row['test_id'])} | {metric_label} | {comparison_cells(values, name)} |"
+                    f"| {perf_link(markdown_cell(row['test_id']), row['test_id'])} | {metric_label} | {comparison_cells(values, name)} |"
                 )
     if changed:
         lines.extend(
@@ -1470,21 +1466,45 @@ def pr_comment(
             if has_changes
             else f"No significant benchmark changes against `{base_ref}`."
         )
-        lines.extend(["", "| Metric | Change | Compared |", "| --- | ---: | ---: |"])
-        for name in ("total_gas", "runtime_size", "bytecode_size"):
+        lines.extend(["", "### Overview", "", "| Metric | Change |", "| --- | ---: |"])
+        metrics = ("total_gas", "runtime_size", "bytecode_size")
+        for name in metrics:
             values = comparison["summary"][name]
             change = (
                 fmt_pct(values["percent"], positive_is_good=False)
                 if values["percent"] is not None
                 else "n/a"
             )
-            lines.append(f"| {METRICS[name]} | {change} | {values['ratio_pairs']} |")
+            lines.append(f"| {METRICS[name]} | {change} |")
         lines.extend(["", "Equal-weight geometric means; lower is better."])
-    if incomplete := sum(bool(row["issues"]) for row in comparison["rows"]):
+        changed = []
+        for row in comparison["rows"]:
+            if any(row["metrics"][name]["delta"] not in (None, 0) for name in metrics):
+                cells = [perf_link(markdown_cell(row["test_id"]), row["test_id"])]
+                for name in metrics:
+                    values = row["metrics"][name]
+                    cells.append(
+                        fmt_pct(values["percent"], positive_is_good=False)
+                        if values["percent"] is not None
+                        else "n/a"
+                    )
+                changed.append("| " + " | ".join(cells) + " |")
+        if changed:
+            lines.extend(
+                [
+                    "",
+                    f"### Changed benchmarks vs `{base_ref}`",
+                    "",
+                    "| Benchmark | Runtime gas | Runtime bytes | Creation bytes |",
+                    "| --- | ---: | ---: | ---: |",
+                    *changed,
+                ]
+            )
+    if any(row["issues"] for row in comparison["rows"]):
         lines.extend(
             [
                 "",
-                f"> ⚠️ Benchmarks with incomplete or incompatible results: {incomplete}.",
+                "> ⚠️ Some benchmarks have incomplete or incompatible results.",
             ]
         )
     if behind_base:
@@ -1755,7 +1775,6 @@ def main(argv: list[str] | None = None) -> int:
         )
     except (OSError, ValueError) as error:
         parser.error(str(error))
-    eligible_rows = {(row["suite"], row["test_id"]): row for row in comparison["rows"]}
     emit_warnings(results, [])
     for row in comparison["rows"]:
         for name in ("total_gas", "runtime_size", "bytecode_size", "deploy_gas"):
@@ -1765,9 +1784,9 @@ def main(argv: list[str] | None = None) -> int:
                     f"{row['test_id']} {row['compiler']} {METRICS[name]} regressed: {values['before']} -> {values['after']}"
                 )
     report = (
-        codegen_report(results, baseline_results, base_ref, eligible_rows)
-        if args.compiler == "solar"
-        else "## Codegen benchmark\n"
+        codegen_report(results, baseline_results, base_ref)
+        if args.baseline is None
+        else ""
     )
     should_comment = not baseline_results or comparison_has_changes(
         comparison, args.ignore_compile_time_changes

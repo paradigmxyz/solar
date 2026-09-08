@@ -96,7 +96,7 @@ class ReportFormattingTests(unittest.TestCase):
                     [{"issues": ["missing baseline"]}],
                     (
                         "No baseline was available for comparison.\n\n"
-                        "> ⚠️ Benchmarks with incomplete or incompatible results: 1."
+                        "> ⚠️ Some benchmarks have incomplete or incompatible results."
                     ),
                 ),
             ):
@@ -1056,6 +1056,43 @@ class RunComparisonTests(unittest.TestCase):
         self.assertNotIn("inspect sample", markdown)
         self.assertEqual(markdown.count("| runtime bytes |"), 1)
 
+    def test_pr_comment_lists_only_changed_benchmarks_against_baseline(self):
+        before = [self.fixture("changed"), self.fixture("unchanged")]
+        after = [
+            self.fixture("changed", runtime_size=110, bytecode_size=60),
+            self.fixture("unchanged"),
+        ]
+        for row in after:
+            row["compilers"]["solc"] = {"status": "ok", "runtime_size": 200}
+            row["compilers"]["solx"] = {"status": "ok", "runtime_size": 300}
+        comparison = benchmark.compare_runs(after, before)
+        comparison["baseline"] = "main.json"
+        with patch.dict(os.environ, {}, clear=True):
+            comment = benchmark.pr_comment(comparison, True, False, "main")
+        self.assertEqual(
+            comment.split("### Changed benchmarks", 1)[1].split("[![", 1)[0],
+            " vs `main`\n\n"
+            "| Benchmark | Runtime gas | Runtime bytes | Creation bytes |\n"
+            "| --- | ---: | ---: | ---: |\n"
+            "| changed | ~0% | ❌ +10.00% | ✅ -50.00% |\n\n",
+        )
+
+    def test_detailed_overview_omits_counts(self):
+        comparison = benchmark.compare_runs([self.fixture()], [self.fixture()])
+        self.assertEqual(
+            benchmark.comparison_report(comparison).splitlines()[6:14],
+            [
+                "| Metric | Change |",
+                "| --- | ---: |",
+                "| runtime gas | ~0% |",
+                "| runtime bytes | ~0% |",
+                "| creation bytes | ~0% |",
+                "| deployment gas | ~0% |",
+                "| compile seconds | ~0% |",
+                "| peak RSS bytes | ~0% |",
+            ],
+        )
+
     def test_solar_only_report_keeps_compile_times(self):
         before = self.fixture()
         after = self.fixture(compile_time_seconds=2)
@@ -1243,10 +1280,11 @@ class RunComparisonTests(unittest.TestCase):
                 outputs["comment.md"].read_text(),
                 "## Codegen benchmarks\n\n"
                 "No significant benchmark changes against `before`.\n\n"
-                "| Metric | Change | Compared |\n| --- | ---: | ---: |\n"
-                "| runtime gas | ~0% | 1 |\n"
-                "| runtime bytes | ~0% | 1 |\n"
-                "| creation bytes | ~0% | 1 |\n\n"
+                "### Overview\n\n"
+                "| Metric | Change |\n| --- | ---: |\n"
+                "| runtime gas | ~0% |\n"
+                "| runtime bytes | ~0% |\n"
+                "| creation bytes | ~0% |\n\n"
                 "Equal-weight geometric means; lower is better.\n\n"
                 "[![View benchmark overview](https://img.shields.io/badge/View_benchmark_overview-2563eb?style=for-the-badge)](https://getfoundry.sh/perf/solar/)\n",
             )
