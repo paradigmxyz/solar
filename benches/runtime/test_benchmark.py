@@ -374,10 +374,16 @@ class ArtifactTests(unittest.TestCase):
         solc = json.loads(
             benchmark.artifact_compiler_input(input_text, test_case, "solc")
         )
+        solx = json.loads(
+            benchmark.artifact_compiler_input(input_text, test_case, "solx")
+        )
         solar_outputs = next(iter(solar["settings"]["outputSelection"].values()))[
             test_case.contract_name
         ]
         solc_outputs = next(iter(solc["settings"]["outputSelection"].values()))[
+            test_case.contract_name
+        ]
+        solx_outputs = next(iter(solx["settings"]["outputSelection"].values()))[
             test_case.contract_name
         ]
 
@@ -387,6 +393,10 @@ class ArtifactTests(unittest.TestCase):
         self.assertNotIn("ir", solar_outputs)
         self.assertIn("ir", solc_outputs)
         self.assertIn("irOptimized", solc_outputs)
+        self.assertEqual(
+            solx_outputs,
+            ["abi", "evm.bytecode.object", "evm.deployedBytecode.object", "ir"],
+        )
 
     def test_disassemble_evm_matches_solar_dump_style(self) -> None:
         self.assertEqual(
