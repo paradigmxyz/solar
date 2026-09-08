@@ -8,9 +8,10 @@
 //! recipes. Entry materialization, reserved homes and the spill protocol remain unchanged.
 //! Actual function lowering checks the proposal; a checkpoint restores the complete original
 //! output and shared switch budgets on failure. An actual MSTORE also rejects a proposal when
-//! retiring live homes makes its complete protection cost worse in bytes or static gas. This
-//! local guard includes unselected backups but excludes surrounding scheduling and later
-//! outlining. This is a bounded trial, not a search for an optimal stack allocation.
+//! retiring live homes increases complete protection gas, or increases bytes at equal gas.
+//! This Gas-only policy prices unselected backups too, but excludes surrounding scheduling,
+//! edge transport and later outlining. This is a bounded trial, not a search for an optimal
+//! stack allocation.
 //!
 //! Mixed edges first capture old inputs for resident successors, then execute simultaneous
 //! memory copies while retaining their stack sources, and finally reconcile successor values.
@@ -76,7 +77,7 @@ impl Original {
             .ok_or("original Phi writer bank has unsupported addresses")?;
         let after = writer::protection_cost(context.version, addresses, protection)
             .ok_or("selected Phi writer bank has unsupported addresses")?;
-        if after.0 > before.0 || after.1 > before.1 {
+        if (after.1, after.0) > (before.1, before.0) {
             return Err("selected Phi homes increase memory-writer protection cost".into());
         }
         Ok(())

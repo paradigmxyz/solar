@@ -19,7 +19,7 @@
 //! to a byte address. Negative offsets cannot name a bitmap bit; wrapping the last EVM
 //! word to zero either selects home zero or the same initialized fallback.
 //! Its exact literal bytes and static gas must improve the ordinary run protection. The
-//! caller retains the original stack-capacity check; at least twelve removed backups pay
+//! caller retains the original stack-capacity check; at least eleven removed backups pay
 //! for the template's five temporaries. Final scheduling and outlining remain measured
 //! properties rather than guarantees of this local cost comparison. Size mode retains ordinary
 //! backups so repeated load/store runs remain available to outlining.
@@ -109,8 +109,8 @@ pub(super) fn choose(
     spill_homes: usize,
     version: EvmVersion,
 ) -> Option<Protection> {
-    // Even zero-width literals cannot make fewer than twelve homes pay the template's gas.
-    if spill_homes < 12
+    // A bitmap costs at least 127 gas; ten backups and the source store pay at most 123.
+    if spill_homes < 11
         || addresses.iter().any(|address| !matches!(address, FrameAddress::Absolute(_)))
     {
         return None;
@@ -364,7 +364,7 @@ mod tests {
         let mut homes =
             (0..28).map(|index| FrameAddress::Absolute(480 + index * 32)).collect::<Vec<_>>();
         assert_eq!(choose(&homes, 28, EvmVersion::London).unwrap().range, 0..28);
-        assert!(choose(&homes, 11, EvmVersion::London).is_none());
+        assert!(choose(&homes, 10, EvmVersion::London).is_none());
         homes.push(FrameAddress::Absolute(481));
         assert!(choose(&homes, 28, EvmVersion::London).is_none());
         homes.pop();
@@ -389,6 +389,18 @@ mod tests {
             (0..28).map(|index| FrameAddress::Absolute(480 + index * 32)).collect::<Vec<_>>();
         let selected = choose(&dense, dense.len(), EvmVersion::London).unwrap();
         assert_eq!(selected.instructions, template(480, Selection::Contiguous(28 * 32)));
+
+        // Retiring the home at 7840 leaves eleven initialized homes and its bit unset.
+        let eleven = [7360, 7392, 7424, 7488, 7520, 7552, 7584, 7616, 7648, 7680, 7744]
+            .map(FrameAddress::Absolute);
+        let (start, mask) = membership(&eleven, eleven.len()).unwrap();
+        assert_eq!((start, mask), (7360, U256::from(0x17f7)));
+        let selected = choose(&eleven, eleven.len(), EvmVersion::Osaka).unwrap();
+        assert_eq!(selected.range, 0..11);
+        assert_eq!(selected.instructions, template(start, Selection::Bitmap(mask)));
+        assert_eq!(protection_cost(EvmVersion::Osaka, &eleven, Some(&selected)), Some((55, 130)));
+        assert!(choose(&eleven[..10], 10, EvmVersion::Osaka).is_none());
+        assert!(choose(&eleven, eleven.len(), EvmVersion::Byzantium).is_none());
     }
 
     #[test]

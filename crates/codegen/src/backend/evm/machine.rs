@@ -1291,7 +1291,7 @@ fn lower_opcode(
     if let Some(protection) = &saved.protection {
         // <other backups>; value; destination
         // select and save two initialized homes; mstore; restore selected homes
-        // The original capacity guard reserved at least twelve removed backups; the
+        // The original capacity guard reserved at least eleven removed backups; the
         // template instead needs five words above the prepared operands.
         debug_assert!(stack.values().len() + 5 <= 1024);
         insts.extend_from_slice(&protection.instructions);
