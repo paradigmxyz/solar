@@ -2,11 +2,11 @@
 // === ImmutableWidths_deployment ===
 @module ImmutableWidths_deployment
 bb0:
-  push 377
+  push 369
   codesize
   sub
   dup 1
-  push 377
+  push 369
   push 416
   codecopy
   push 416
@@ -23,7 +23,7 @@ bb0:
   jumpi
   push 416
   dup 1
-  push 377
+  push 369
   codesize
   sub
   add
@@ -76,7 +76,7 @@ bb0:
   push 416
   dup 2
   mcopy
-  push 189
+  push 181
   dup 1
   push 188
   push 0
@@ -156,28 +156,20 @@ bb0:
   swap 4
   push 1
   signextend
-  dup 6
+  swap 5
   push 128
   mstore
-  swap 5
-  pop
-  dup 5
+  swap 4
   push 160
   mstore
-  swap 4
-  pop
-  dup 2
+  swap 1
   push 192
   mstore
-  swap 1
-  pop
   push 224
   mstore
-  dup 2
+  swap 1
   push 256
   mstore
-  swap 1
-  pop
   push 288
   mstore
   push 192

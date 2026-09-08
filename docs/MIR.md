@@ -534,3 +534,7 @@ Final EVM peepholes move a word store immediately followed by a return of that
 word to scratch memory. This reduces pushes and memory expansion after tail
 sharing has settled. A different return range or an intervening instruction
 keeps the original address, including an `MSIZE` that observes the store.
+
+Final store cleanup consumes a stack word directly when a duplicate is stored
+and its original is discarded immediately afterward. It preserves the order of
+the remaining stack and does not cross a function event or glued boundary.

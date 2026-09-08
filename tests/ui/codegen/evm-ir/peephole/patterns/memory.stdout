@@ -127,4 +127,35 @@
     push 32
     push 128
     return
+  bb15:
+    calldatasize
+    caller
+-   dup 2
++   swap 1
+    push 128
+    mstore
+-   swap 1
+-   pop
+    stop
+  bb16:
+    calldatasize
+    caller
+    callvalue
+-   dup 3
++   swap 2
+    push 128
+    mstore
+-   swap 2
+-   pop
+    stop
+  bb17:
+    calldatasize
+    caller
+    callvalue
+    dup 3
+    push 128
+    mstore
+    swap 1
+    pop
+    stop
   

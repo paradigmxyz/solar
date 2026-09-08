@@ -209,3 +209,43 @@ bb14:
   push 32
   push 128
   return
+
+// CHECK-LABEL: bb15:
+// CHECK: -   dup 2
+// CHECK: +   swap 1
+// CHECK: {{^[ +].*}}mstore
+// CHECK: -   swap 1
+// CHECK: -   pop
+bb15:
+  calldatasize
+  caller
+  dup 2
+  push 128
+  mstore
+  swap 1
+  pop
+  stop
+
+// Consume a deeper word without disturbing the remaining stack order.
+bb16:
+  calldatasize
+  caller
+  callvalue
+  dup 3
+  push 128
+  mstore
+  swap 2
+  pop
+  stop
+
+// A different swap discards a different source.
+bb17:
+  calldatasize
+  caller
+  callvalue
+  dup 3
+  push 128
+  mstore
+  swap 1
+  pop
+  stop

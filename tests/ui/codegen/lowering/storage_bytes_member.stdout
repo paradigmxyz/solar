@@ -232,11 +232,9 @@ bb26:
   add
   dup 4
   sstore
-  dup 3
+  swap 2
   push 0
   mstore
-  swap 2
-  pop
   dup 2
   push 5
   shr

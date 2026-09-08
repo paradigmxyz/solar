@@ -20,3 +20,23 @@ bb1:
   push 32 !metadata(span=7..8)
   push 128 !metadata(span=8..9)
   return !metadata(span=9..10)
+
+bb2:
+  calldatasize
+  caller
+  dup 2 !metadata(span=10..11)
+  push 128 !metadata(span=11..12)
+  mstore !metadata(span=12..13)
+  swap 1 !metadata(span=13..14)
+  pop !metadata(span=14..15)
+  stop
+
+bb3:
+  calldatasize
+  caller
+  dup 2
+  push 128
+  mstore
+  swap 1
+  pop !metadata(invoke=callee@16..20)
+  stop

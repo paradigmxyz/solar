@@ -19,7 +19,9 @@
 //! a stack copy cannot disturb earlier block resynthesis or outlining choices. Final cleanup
 //! also relocates a word store immediately followed by its return to scratch memory. Nothing
 //! can observe the original address or memory expansion between that store and return; doing
-//! this after sharing preserves the profitability decisions for common return tails.
+//! this after sharing preserves the profitability decisions for common return tails. A store
+//! followed by discarding its copied stack source consumes that source directly; the final
+//! stage keeps this shorter sequence from disrupting earlier sharing.
 
 use super::{
     EvmPass,
@@ -466,6 +468,26 @@ fn try_peephole(
         return rewrite!(4, Edit::ReloadStoredValue);
     }
 
+    // DUPn; PUSH address; MSTORE; SWAP(n-1); POP
+    // -> SWAP(n-1); PUSH address; MSTORE
+    if final_cleanup
+        && let [.., dup, address, store, swap, pop] = instructions.as_slice()
+        && let Some(op::StackOp::Dup(depth)) = dup.as_stack_op()
+        && depth > 1
+        && address.is_encoded_push()
+        && store.as_evm_opcode() == Some(op::MSTORE)
+        && swap.as_stack_op() == Some(op::StackOp::Swap(depth - 1))
+        && pop.as_evm_opcode() == Some(op::POP)
+        && [swap, pop].iter().all(|inst| {
+            inst.metadata.function_invoke().is_none() && inst.metadata.function_exit().is_none()
+        })
+        && [dup, address, store, swap, pop]
+            .iter()
+            .all(|inst| inst.has_canonical_stack_effect() && !inst.metadata.keep_with_next)
+    {
+        return rewrite!(5, Edit::ConsumeStoredValue(depth - 1));
+    }
+
     // `DUP1 PUSH x MSTORE POP -> PUSH x MSTORE`.
     if let [.., dup, pushed, store, pop] = instructions.as_slice()
         && dup.as_evm_opcode() == Some(op::DUP1)
@@ -687,6 +709,7 @@ enum Edit {
     MergeSwapPop(u8),
     DropDiscardedSwap,
     ReloadStoredValue,
+    ConsumeStoredValue(u8),
     DropDoubleIszero,
     EqIszeroJumpi,
     InvertComparison(U256, u8),
@@ -733,6 +756,11 @@ impl Edit {
             }
             Self::DropDiscardedSwap => {
                 instructions.remove(start);
+            }
+            Self::ConsumeStoredValue(depth) => {
+                // SWAP(n-1); PUSH address; MSTORE
+                overwrite_stack_op(&mut instructions[start], PhysicalStackOp::Swap(depth));
+                instructions.truncate(start + 3);
             }
             Self::ReloadStoredValue => {
                 instructions.swap(start, start + 3);
