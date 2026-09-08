@@ -32,11 +32,14 @@ impl MirPass for Dce {
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> solar_interface::Result<bool> {
         let summaries = analyses.call_summaries(module);
-        Ok(run_function_pass(module, analyses, |func, _| {
+        let changed = run_function_pass(module, analyses, |func, _| {
             DeadCodeEliminator { call_summaries: Some(Arc::clone(&summaries)) }
                 .run_to_fixpoint(func)
                 != 0
-        }))
+        });
+        // Removing operations and unreachable blocks cannot add call effects.
+        analyses.preserve_call_summaries();
+        Ok(changed)
     }
 }
 
