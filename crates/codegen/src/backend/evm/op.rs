@@ -33,14 +33,25 @@ macro_rules! opcodes {
         }
 
         /// Returns required and resulting words; immediate-dependent operations return `None`.
+        /// The declaration-derived table avoids repeated opcode dispatch in stack analysis.
         pub(crate) const fn stack_io(opcode: u8) -> Option<(u8, u8)> {
-            match opcode {
-                $($name => Some(($inputs, $outputs)),)*
-                PUSH1..=PUSH32 => Some((0, 1)),
-                DUP1..=DUP16 => Some((opcode - DUP1 + 1, opcode - DUP1 + 2)),
-                SWAP1..=SWAP16 => Some((opcode - SWAP1 + 2, opcode - SWAP1 + 2)),
-                _ => None,
-            }
+            const EFFECTS: &[Option<(u8, u8)>; 256] = &{
+                let mut effects = [None; 256];
+                let mut index = 0;
+                while index < effects.len() {
+                    let opcode = index as u8;
+                    effects[index] = match opcode {
+                        $($name => Some(($inputs, $outputs)),)*
+                        PUSH1..=PUSH32 => Some((0, 1)),
+                        DUP1..=DUP16 => Some((opcode - DUP1 + 1, opcode - DUP1 + 2)),
+                        SWAP1..=SWAP16 => Some((opcode - SWAP1 + 2, opcode - SWAP1 + 2)),
+                        _ => None,
+                    };
+                    index += 1;
+                }
+                effects
+            };
+            EFFECTS[opcode as usize]
         }
     };
 }
