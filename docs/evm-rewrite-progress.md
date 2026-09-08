@@ -70,6 +70,16 @@ All 15 matched labels use less gas except nonpayable rejection, which is equal.
 [Cold-call evidence][cold] preserves failed directive setup and normalization
 attempts. No original test was removed to close that assertion.
 
+## Current experiments
+
+The validated-word cleanup trial is rejected: despite UI size wins, Fractional,
+Maple ERC20 and Governor grow 35/34/17 bytes in both modes, worsening sealed debt.
+Runtime results and gas remain exact. Its MIR patch is reversed. The isolated
+owner-equality tail fix is also rejected: alias overflow costs 218 gas versus
+sealed 215. The next spill experiment
+corrects a writer-bank cutoff that rejects an otherwise profitable eleven-home
+bitmap after Phi retirement. These alias trials are not accepted milestones.
+
 ## Remaining acceptance work
 
 `global_stack_calldata_alias.sol` remains the original failing assertion.

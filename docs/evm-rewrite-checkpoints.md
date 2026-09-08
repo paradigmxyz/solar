@@ -3424,3 +3424,45 @@ Individual deltas and samples are retained, but neither a speedup nor a causal
 slowdown is established. Concurrent Size timing is unused. The independent
 report and acceptance manifest record this bounded simplification; all original
 alias, sealed size/gas and general memory-ownership acceptance debts remain open.
+
+
+## September 8: reject validated-word cleanup growth
+
+The combined validated-word/owner-equality trial is rejected. Frozen compiler
+`solar-alias-owner-draft1` is SHA256
+`c575adf1475672890e60d556b8438a958677ace1cd4f39f3ac1f1d41ee069d28`.
+Its unchanged UI corpus joins 1,652 IDs, 827 source hashes and 5,044 objects;
+Gas creation/runtime totals shrink 39/37 bytes and Size shrinks 54/52, with no
+individual UI growth. Original alias Size reaches 152 bytes versus sealed 153,
+and 126 fresh alias calls match their oracles without exceeding sealed gas.
+
+The official full benchmark and Size supplement expose the missing coverage:
+Fractional, Maple ERC20 and Governor grow by 35, 34 and 17 bytes respectively
+in both creation and runtime, in both modes. Each worsens exact-input sealed
+debt. Full joins all 24 IDs, 175 ordered labels and 139 observations; Size joins
+15/175/139. Execution gas is unchanged. Eight heavy project output fingerprints
+change; per-object heavy captures were not collected for this rejected trial.
+Raw compile time is +0.73%, RSS -0.08%, with five samples on both legs; recorded
+baseline host contention prevents a causal timing claim.
+
+Reusing a raw validation word changes the physical stack at body entry. Maple
+loses compact address-mask recipes and gains edge cleanup; Fractional's increase
+comes from its embedded NFTShare creation object. The narrow MIR patch is
+reversed exactly and its proposed tests remain uninstalled. No original source,
+expectation or oracle changed. The smaller actual-owner equality change remains
+isolated for its own acceptance checks. The broad forwarding-chain trial is
+also rejected: it grew AbiFixedArray by 16 bytes and basic RunCall by one, and
+exceeded sealed alias overflow gas. Equal-pair normalization was deferred after
+zero real corpus changes. All binaries, failed checks and comparisons remain in
+`target/codegen-bench/evm-rewrite-candidate/alias-owner-workflow-20260908/`,
+`tail-chain-workflow-20260908/` and `tail-normalization-workflow-20260908/`.
+
+The independent heavy-home investigation identifies a separate cost-model bug:
+SuggestedActionHelper rejects Phi-home retirement when one writer bank shrinks
+from twelve to eleven homes. Its remaining bitmap can still cost 55 bytes and
+130 gas, but a hard twelve-home cutoff selects 89 bytes and 135 gas instead.
+The proposed nine-home contiguous / eleven-home bitmap floors retain exact
+profitability, stack-capacity and ownership guards. Static review and pure
+helper test cases are ready; no production change or native improvement is
+claimed yet. Pinned solx, Venom and Sonatina evidence and explicit applicability
+limits are retained in `writer-profitable-bank-floor-proposal-20260908/`.

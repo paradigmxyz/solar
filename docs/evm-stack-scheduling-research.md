@@ -469,3 +469,24 @@ rejected after native code-size regressions. The linear implementation avoids
 an effect graph or scheduling search, but its measured compiler-time cost still
 requires attention. Fewer spills are not a general proof of source-memory
 ownership; that contract remains separate from scheduling profitability.
+
+
+## Phi-home retirement and writer protection
+
+The September 8 native trace shows a twelve-to-eleven-home bank transition
+blocking an otherwise attempted Phi-residence trial. Pinned solx stack-solver
+costs distinguish DUP from PUSH/MLOAD transport; Venom transfers Phi identities
+through edge liveness; Sonatina coordinates Phi and carry interfaces while
+monotonically discovering spills. These are relevant design constraints, but
+none of the inspected paths supplies our bitmap protection template or its
+minimum profitable bank size.
+
+Our proposed nine-home contiguous and eleven-home bitmap floors follow the
+actual template gas costs, with the existing exact-cost and capacity checks
+remaining authoritative. Retiring address 7840 leaves its bitmap bit unset;
+restoring an obsolete home merely to preserve the old bank is invalid. The
+template cost is 55 bytes / 130 gas for the remaining eleven homes,
+versus the currently selected 89 bytes / 135 gas. This is a local cost witness,
+not proof that the complete Phi trial succeeds or that corpus output improves.
+Exact primary paths, pinned commits and hashes are in
+`target/codegen-bench/evm-rewrite-candidate/writer-profitable-bank-floor-proposal-20260908/prior-art-evidence.json`.
