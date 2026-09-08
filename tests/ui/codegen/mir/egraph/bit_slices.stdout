@@ -17,8 +17,9 @@
   
   fn @shift_overflow(arg0: u256) -> (u256, u256, u256) {
     bb0:
-      v0 = shl 1, arg0
+-     v0 = shl 1, arg0
 -     v1 = shl 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v0
++     v0 = add arg0, arg0
       v2 = shr 255, arg0
 -     v3 = shr 1, v2
       v4 = sar 1, arg0
@@ -114,7 +115,7 @@
   
   fn @shift_overflow(arg0: u256) -> (u256, u256, u256) {
     bb0:
--     v0 = shl 1, arg0
+-     v0 = add arg0, arg0
 -     v2 = shr 255, arg0
 -     v4 = sar 1, arg0
       v5 = sar 256, arg0

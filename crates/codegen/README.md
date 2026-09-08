@@ -68,6 +68,32 @@ scheduling, complex lowering, and assembly remain in Rust. The schema snapshot
 tests check the generated vocabularies, and the selector snapshot checks its
 opcode mappings and stack contracts against both operation tables.
 
+### Optimization search and costs
+
+The offline rule tool can mine bounded pure trees from real MIR artifacts,
+rank them by occurrence-weighted target cost, search for cheaper equivalents,
+and verify the emitted ISLE. See [the discovery and proof guide](../../scripts/evm_rules/README.md).
+Generated candidates still require scheduled-code measurements before inclusion.
+The in-compiler e-graph remains bounded and acyclic; this is not full equality saturation.
+
+`-Ogas --optimize-runs=N` sets the expected execution count used by lifetime
+decisions without changing the chosen optimization objective. Standard JSON
+continues to use `settings.optimizer.runs`. The existing `inline` pass weights
+eligible calls in statically counted loops and leaves conditional or unknown-bound
+calls at their ordinary estimate. Broad inlining remains an explicitly selected
+pass; the default pipeline retains its narrower measured inlining policies.
+
+The physical planner compares equal-length windows with the same final stack,
+including useful one-instruction windows before effects or unsupported operations.
+Load PRE can split critical edges in gas mode, charging the new transfer and
+preserving phi inputs; it inserts no read on a bypass path. Size mode retains
+the existing unsplit-edge policy. Constant folding prices the removed opcode's
+dynamic work, including exponent bytes, and requires non-increasing gas and bytes.
+
+CI checks the compiled word rules and a separate pure physical-stack subset.
+These proofs cover the modeled rules and explicit trusted contracts, not global
+memory transformations, the complete backend, or whole-program correctness.
+
 ### Key Types
 
 - `ValueId`, `InstId`, `BlockId`, `FunctionId`: Index types for SSA values

@@ -159,8 +159,8 @@ bb25 [loop]:
   return
 bb27 [loop]:
   dup 1
-  push 1
-  shl
+  dup 1
+  add
   dup 1
   push 1
   shr

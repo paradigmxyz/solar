@@ -15,13 +15,15 @@ import z3
 
 from evm_rules.isle import ISLE, ROOT, verify_file
 from evm_rules.discovery import discover_rules
+from evm_rules.mining import mine
+from evm_rules.stack import verify_stack_file
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
     verify = subparsers.add_parser("verify", help="fail unless every selected source rule is proved")
-    verify.add_argument("files", nargs="*", type=Path, default=[ISLE / "word.isle", ISLE / "word_sequence.isle", ISLE / "stack_select.isle"])
+    verify.add_argument("files", nargs="*", type=Path, default=[ISLE / "word.isle", ISLE / "word_sequence.isle", ISLE / "stack_select.isle", ISLE / "stack_peephole.isle"])
     verify.add_argument("--timeout-ms", type=int, default=5000)
     verify.add_argument("--output", type=Path, required=True)
     verify.add_argument("--artifacts", type=Path)
@@ -42,14 +44,32 @@ def main():
     discover.add_argument("--timeout-ms", type=int, default=1000)
     discover.add_argument("--output", type=Path, required=True)
     discover.add_argument("--emit-isle", type=Path)
+    miner = subparsers.add_parser("mine", help="mine bounded pure trees from real MIR artifacts")
+    miner.add_argument("files", nargs="+", type=Path)
+    miner.add_argument("--max-ops", type=int, default=8)
+    miner.add_argument("--max-seeds", type=int, default=128)
+    miner.add_argument("--evm-version", default="osaka")
+    miner.add_argument("--objective", choices=["gas", "size", "lifetime"], default="gas")
+    miner.add_argument("--runs", type=int, default=200)
+    miner.add_argument("--output", type=Path, required=True)
+    miner.add_argument("--emit-seeds", type=Path, required=True)
     args = parser.parse_args()
-    if args.timeout_ms <= 0:
+    if getattr(args, "timeout_ms", 1) <= 0:
         parser.error("--timeout-ms must be positive")
-    if args.command == "discover":
+    if args.command == "mine":
+        if args.runs < 0:
+            parser.error("--runs must be nonnegative")
+        report = mine(args.files, fork=args.evm_version, objective=args.objective, runs=args.runs,
+                      max_ops=args.max_ops, max_seeds=args.max_seeds)
+        args.emit_seeds.parent.mkdir(parents=True, exist_ok=True)
+        args.emit_seeds.write_text(json.dumps([row["tree"] for row in report["candidates"]], indent=2) + "\n")
+        exit_code = 0 if report["candidates"] else 1
+    elif args.command == "discover":
         report = discover_rules(args)
         exit_code = 0 if report.get("accepted", True) else 1
     else:
-        files = [verify_file(path, args.timeout_ms, args.artifacts) for path in args.files]
+        files = [(verify_stack_file if path.name == "stack_peephole.isle" else verify_file)(
+            path, args.timeout_ms, args.artifacts) for path in args.files]
         for file in files:
             for rule in file["rules"]:
                 if rule["status"] != "proved":
@@ -76,6 +96,9 @@ def main():
             "crates/codegen/src/mir/transform/word_sequence/isle.rs",
             "crates/codegen/src/backend/evm/codegen/select.rs",
             "crates/codegen/src/backend/evm/codegen/planning/isle.rs",
+            "crates/codegen/src/backend/evm/ir/passes/peephole.rs",
+            "crates/codegen/src/backend/evm/ir/passes/peephole/isle.rs",
+            "crates/codegen/src/backend/evm/op.rs",
         )
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
