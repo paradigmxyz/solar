@@ -730,20 +730,16 @@ fn lower_function(
             record_result(context, inst_id, &mut stack, &mut insts, true)?;
             debug::instructions(context, &instruction.metadata, &mut insts[origin_start..]);
         }
-        if let Some(selected) = entry_order::choose_operands(context, block_id, &stack, &insts) {
-            // <same opcode sequence>; <paid restore of original post-instruction stack>
-            insts = selected;
+        if let Some((selected, instructions)) =
+            entry_order::choose(context, block_id, &stack, &insts)
+        {
+            // <paid entry/operand order>; <same opcodes>; <paid outgoing boundary>
+            stack = selected;
+            insts = instructions;
         }
         let term = block.terminator.as_ref().ok_or("unterminated MIR block")?;
         let terminator = match term {
             mir::Terminator::Jump(target) => {
-                if let Some((selected, instructions)) =
-                    entry_order::choose(context, block_id, *target, &stack, &insts)
-                {
-                    // <paid entry permutation>; <same opcodes>; <canonical successor values>
-                    stack = selected;
-                    insts = instructions;
-                }
                 ir::TerminatorKind::Jump(edge(context, block_id, *target, &stack, output)?)
             }
             mir::Terminator::Branch { condition, then_block, else_block } => {
@@ -1268,20 +1264,27 @@ fn lower_opcode(
             )
             .map_err(schedule_error)?,
         );
-    } else if operand_order.allows(operands.len())
-        && saved.tracked == 0
-        && let Some(prepared) = stack.prepare_dead_operands(
-            &operands.iter().copied().map(Slot::Value).collect::<Vec<_>>(),
+    } else if operand_order.allows(operands.len()) && saved.tracked == 0 {
+        let values = operands.iter().copied().map(Slot::Value).collect::<Vec<_>>();
+        if matches!(operand_order, entry_order::OperandOrder::MaterializedOperands) {
+            // <retained values>; <missing operands in existing reverse materialization order>
+            materialize(context, stack, insts, &values)?;
+        }
+        if let Some(prepared) = stack.prepare_dead_operands(
+            &values,
             prefix(context),
             context.version,
             |slot| match slot {
                 Slot::Value(value) => resident(context, value) && live(value),
                 _ => false,
             },
-        )
-    {
-        // <fixed prefix>; <reordered retained values>; <reverse last-use operand pop order>
-        insts.extend(prepared);
+        ) {
+            // <fixed prefix>; <reordered retained values>; <reverse last-use operand pop order>
+            insts.extend(prepared);
+        } else {
+            // <reverse materialization>; <canonical retained order>; <reverse pop order>
+            prepare(context, stack, insts, &operands, live)?;
+        }
     } else {
         prepare(context, stack, insts, &operands, live)?;
     }

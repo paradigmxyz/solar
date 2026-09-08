@@ -474,29 +474,30 @@ bb45:
   push 36
   dup 4
   add
-  swap 2
   swap 3
   gt
   dup 6
-  dup 3
+  dup 4
   gt
   or
-  swap 2
+  swap 1
   calldataload
-  dup 2
+  dup 3
   swap 5
   swap 6
   swap 4
   swap 5
   swap 3
   swap 4
-  exchange 1, 2
+  swap 2
+  swap 3
+  swap 1
+  swap 2
   sub
   dup 2
   gt
   swap 1
   swap 2
-  swap 3
   or
   jumpi bb6, bb46
 bb46:

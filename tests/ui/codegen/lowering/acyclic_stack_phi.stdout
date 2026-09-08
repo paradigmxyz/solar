@@ -33,15 +33,13 @@ bb3:
   push 36
   dup 4
   add
-  swap 2
   swap 3
   gt
   dup 4
-  dup 3
+  dup 4
   gt
   or
   swap 1
-  swap 2
   calldataload
   dup 3
   swap 4

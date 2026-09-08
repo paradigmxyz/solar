@@ -340,14 +340,12 @@ bb50:
   swap 1
   not
   and
-  swap 1
   swap 2
   push 248
   shr
   push 255
   and
   swap 1
-  swap 2
   shl
   or
   swap 1
@@ -430,15 +428,11 @@ bb66:
   add
   push 32
   swap 1
-  swap 2
-  swap 3
-  swap 4
   swap 5
   add
   swap 1
-  swap 3
-  swap 2
   mcopy
+  swap 1
   sub
   push 31
   dup 2
@@ -478,22 +472,19 @@ bb90:
   push 32
   push 0
   keccak256
-  swap 2
-  swap 3
   swap 4
   and
-  swap 1
-  swap 2
-  swap 3
   swap 4
   push 0
   byte
+  swap 1
+  swap 4
   or
   swap 1
+  swap 2
   sstore
   push 65
   swap 1
-  swap 2
   swap 3
   sstore
   jump bb4

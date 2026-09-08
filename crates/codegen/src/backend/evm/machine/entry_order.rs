@@ -15,9 +15,14 @@
 //! fixed return-label prefix never change. Later outlining/layout interactions
 //! still require complete generated-code measurements. Operand trials run only
 //! for gas optimization; size mode keeps canonical bodies for existing outlining.
-//! Their leading stack-only prefix must match the original, preserving the
-//! demonstrated cancellation with predecessor shuffles. This conservative
-//! boundary guard is not a guarantee about every later CFG/layout interaction.
+//! The original unary, multi-operand, argument-carry, and entry-order choices run
+//! before the final materialized-operand trial. A chosen entry order returns
+//! immediately, conservatively retaining its incoming boundary and successor
+//! stack even when its prefix happens to match. Otherwise materialization must
+//! preserve the complete old winner's leading stack-only prefix. The older
+//! operand trials still compare their prefix with the original. These guards
+//! preserve demonstrated predecessor cancellation, but do not guarantee every
+//! later CFG/layout interaction.
 //!
 //! One additional Gas candidate materializes a repeated immutable argument once
 //! across two direct binary instructions. It requires an empty entry and an exact
@@ -39,6 +44,7 @@ pub(super) enum OperandOrder {
     Canonical,
     DeadUnary,
     DeadOperands,
+    MaterializedOperands,
 }
 
 impl OperandOrder {
@@ -46,12 +52,12 @@ impl OperandOrder {
         match self {
             Self::Canonical => false,
             Self::DeadUnary => arity == 1,
-            Self::DeadOperands => arity > 0,
+            Self::DeadOperands | Self::MaterializedOperands => arity > 0,
         }
     }
 }
 
-pub(super) fn choose(
+fn choose_entry(
     context: &Context<'_>,
     block_id: mir::BlockId,
     target: mir::BlockId,
@@ -93,12 +99,20 @@ pub(super) fn choose(
     improves(context, &original, &insts).then_some((stack, insts))
 }
 
-pub(super) fn choose_operands(
+pub(super) fn choose(
     context: &Context<'_>,
     block_id: mir::BlockId,
     original_stack: &Stack<Slot>,
     original_insts: &[ir::Instruction],
-) -> Option<Vec<ir::Instruction>> {
+) -> Option<(Stack<Slot>, Vec<ir::Instruction>)> {
+    let entry = |insts: &[ir::Instruction]| {
+        let mir::Terminator::Jump(target) =
+            context.function.blocks[block_id].terminator.as_ref()?
+        else {
+            return None;
+        };
+        choose_entry(context, block_id, *target, original_stack, insts)
+    };
     if !matches!(context.optimization, OptimizationMode::Gas)
         || !eligible(context, block_id, |opcode| {
             op::stack_io(opcode).is_some()
@@ -124,28 +138,40 @@ pub(super) fn choose_operands(
                 )
         })
     {
-        return None;
+        return entry(original_insts);
     }
     let mut best = original_insts.to_vec();
-    for order in [OperandOrder::DeadUnary, OperandOrder::DeadOperands] {
+    let consider = |order, best: &mut Vec<ir::Instruction>| {
+        let boundary = if matches!(order, OperandOrder::MaterializedOperands) {
+            best.as_slice()
+        } else {
+            original_insts
+        };
         let mut stack = Stack::new(context.layout.entries[block_id].clone());
         let mut insts = Vec::new();
         // <same prepared operands>; <same opcodes>; <paid exact original exit order>
         if replay(context, block_id, &mut stack, &mut insts, order).is_some()
             && finish(context, &mut stack, &mut insts, original_stack.values()).is_some()
-            && stack_prefix(original_insts) == stack_prefix(&insts)
-            && insts != best
-            && improves(context, &best, &insts)
+            && stack_prefix(boundary) == stack_prefix(&insts)
+            && insts != *best
+            && improves(context, best, &insts)
         {
-            best = insts;
+            *best = insts;
         }
+    };
+    for order in [OperandOrder::DeadUnary, OperandOrder::DeadOperands] {
+        consider(order, &mut best);
     }
     if let Some(candidate) = carry_argument(context, block_id, original_stack, original_insts)
         && improves(context, &best, &candidate)
     {
         best = candidate;
     }
-    (best != original_insts).then_some(best)
+    if let Some(selected) = entry(&best) {
+        return Some(selected);
+    }
+    consider(OperandOrder::MaterializedOperands, &mut best);
+    (best != original_insts).then(|| (original_stack.clone(), best))
 }
 
 /// Tries one self-contained materialization pair; ordinary replay prefix guards stay intact.
