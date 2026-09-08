@@ -17,7 +17,7 @@ import z3
 
 from evm_rules.discovery import Cost, Prices, discover_rules, emit_rule, enumerate_rules, read_seeds
 from evm_rules.isle import Context, ISLE, Rule, forms, verify_file
-from evm_rules.mining import mine
+from evm_rules.mining import abstract_patterns, mine
 from evm_rules.stack import verify_stack_file
 from evm_rules.semantics import Expr, MASK, MODULUS, SIGN, Model, Unsupported, check, concrete, partition_shift
 from verify_evm_rules import main
@@ -90,6 +90,49 @@ fn @second(arg0: u256, arg1: u256) {
             rules, stats = enumerate_rules(prices, ["x"], ["not"], 1, 10, 5000, seeds=seeds)
         self.assertEqual(stats["seeds_proved"], 1)
         self.assertEqual(rules[0][1], Expr.var("x"))
+
+    def test_subtree_abstraction_exposes_dynamic_masks(self):
+        source = """fn @mask(arg0: u256) {
+  bb0:
+    v0 = sub 32, arg0
+    v1 = shl 3, v0
+    v2 = shl v1, 1
+    v3 = sub v2, 1
+    v4 = not v3
+    ret v4
+}
+"""
+        report = self.mine_source(source, abstract_subtrees=True)
+        mask = [r for r in report["candidates"]
+                if r["tree"] == ["not", ["sub", ["shl", "x", 1], 1]]]
+        self.assertEqual(len(mask), 1)
+        self.assertEqual(mask[0]["occurrences"], 1)
+        self.assertEqual(mask[0]["abstract_occurrences"], 1)
+        self.assertEqual(mask[0]["examples"][0]["line"], 7)
+        self.assertTrue(mask[0]["examples"][0]["abstracted"])
+        self.assertEqual(report["bounds"]["max_subtree_cuts"], 1)
+
+    def test_abstraction_preserves_repetition_and_variable_bound(self):
+        x, y, z = map(Expr.var, "xyz")
+        shared = expression("or", x, y)
+        source = expression("sub", expression("add", shared, z), shared)
+        patterns = list(abstract_patterns(source))
+        self.assertIn(expression("sub", expression("add", x, y), x), patterns)
+        self.assertEqual(len(patterns), len(set(patterns)))
+        # Cutting x + y must not leave four inputs (the cut, x, y and z).
+        source = expression("or", expression("add", x, y),
+                            expression("xor", x, expression("and", y, z)))
+        patterns = list(abstract_patterns(source))
+        self.assertTrue(patterns)
+        self.assertTrue(all(len(pattern.variables()) <= 3 for pattern in patterns))
+
+    def test_abstraction_generalizes_a_repeated_literal(self):
+        x, y, z = map(Expr.var, "xyz")
+        source = expression("eq", expression("and", x, 255), expression("and", y, 255))
+        # The same mask remains the same input on both sides; other operands
+        # are renamed in traversal order, including the newly exposed mask.
+        general = expression("eq", expression("and", x, y), expression("and", z, y))
+        self.assertIn(general, list(abstract_patterns(source)))
 
 
 class StackProofTests(unittest.TestCase):
