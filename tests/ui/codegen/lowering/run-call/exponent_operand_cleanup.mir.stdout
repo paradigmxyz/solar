@@ -51,3 +51,23 @@ fn @fullWidthOperands() -> u256 [selector=0xd0e127e5, pure, abi_params=[], abi_r
     v0 = exp 2, 4
     ret v0
 }
+
+fn @signedProduct(arg0: i256, arg1: i256) -> i256 [selector=0x1224b6ec, pure, abi_params=[i256, i256], abi_returns=[word]] {
+  bb0:
+    v0 = checked_mul i256, arg0, arg1
+    ret v0
+}
+
+fn @signedPower(arg0: i256, arg1: u256) -> i256 [selector=0xf418e101, pure, abi_params=[i256, u256], abi_returns=[word]] {
+  bb0:
+    v0 = checked_pow i256, arg0, arg1
+    ret v0
+}
+
+fn @narrowSignedPower(arg0: i8, arg1: u8) -> i8 [selector=0x6e1f2e38, pure, abi_params=[i8, u8], abi_returns=[word<i8>]] {
+  bb0:
+    v0 = signextend 0, arg0
+    v1 = and arg1, 255
+    v2 = checked_pow i8, v0, v1
+    ret v2
+}

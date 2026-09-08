@@ -45,15 +45,11 @@ fn @smul(arg0: i256, arg1: i256) -> i256 [selector=0x95701bd4, pure, abi_params=
     v4 = eq v3, arg0
     v5 = or v2, v4
     v6 = iszero v5
-    v7 = slt v1, 0x8000000000000000000000000000000000000000000000000000000000000000
-    v8 = sgt v1, 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v9 = or v7, v8
+    v7 = eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
+    v8 = eq arg1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v9 = and v7, v8
     v10 = or v6, v9
-    v11 = eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
-    v12 = eq arg1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v13 = and v11, v12
-    v14 = or v10, v13
-    jumpi v14, bb1, bb2
+    jumpi v10, bb1, bb2
   bb2:
     ret v1
   bb1:

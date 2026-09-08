@@ -129,10 +129,12 @@ impl ArithmeticLowerer<'_, '_> {
         let valid = self.builder.or(rhs_zero, exact);
         let mut overflow = self.builder.iszero(valid);
         if let ArithmeticKind::Signed(bits) = kind {
-            // overflow |= result < min || result > max
-            // overflow |= lhs == min && rhs == -1
             let (min, max) = signed_bounds(bits, self.builder);
-            overflow = self.add_signed_range_check(overflow, result, min, max);
+            if bits < 256 {
+                // overflow |= result < min || result > max
+                overflow = self.add_signed_range_check(overflow, result, min, max);
+            }
+            // overflow |= lhs == min && rhs == -1
             let minus_one = self.builder.imm(U256::MAX);
             let lhs_is_min = self.builder.eq(lhs, min);
             let rhs_is_minus_one = self.builder.eq(rhs, minus_one);

@@ -22,7 +22,9 @@ contract CheckedPowShapes {
     // CHECK: phi [bb0: 1]
     // CHECK: and {{v[0-9]+}}, 1
     // CHECK: sdiv {{v[0-9]+}}, {{v[0-9]+}}
-    // CHECK: slt {{v[0-9]+}}, 0x8000000000000000000000000000000000000000000000000000000000000000
+    // CHECK-NOT: slt
+    // CHECK-NOT: sgt
+    // CHECK: eq {{v[0-9]+}}, 0x8000000000000000000000000000000000000000000000000000000000000000
     // CHECK: mul {{v[0-9]+}}, {{v[0-9]+}}
     // CHECK: mstore 4, 17
     function spow(int256 a, uint256 b) public pure returns (int256) {

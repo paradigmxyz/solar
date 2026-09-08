@@ -45,6 +45,11 @@ contract CheckedArithmeticShapes {
     // CHECK-LABEL: fn @smul{{[( ]}}
     // CHECK: [[PRODUCT:v[0-9]+]] = mul arg0, arg1
     // CHECK: sdiv [[PRODUCT]], arg1
+    // CHECK-NOT: slt
+    // CHECK-NOT: sgt
+    // CHECK: eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
+    // CHECK-NOT: slt
+    // CHECK-NOT: sgt
     // CHECK: mstore 4, 17
     function smul(int256 a, int256 b) public pure returns (int256) {
         return a * b;
