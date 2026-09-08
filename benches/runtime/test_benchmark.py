@@ -384,6 +384,8 @@ class ArtifactTests(unittest.TestCase):
         self.assertNotIn("evm.deployedBytecode.opcodes", solar_outputs)
         self.assertNotIn("evm.deployedBytecode.opcodes", solc_outputs)
         self.assertNotIn("irOptimized", solar_outputs)
+        self.assertNotIn("ir", solar_outputs)
+        self.assertIn("ir", solc_outputs)
         self.assertIn("irOptimized", solc_outputs)
 
     def test_disassemble_evm_matches_solar_dump_style(self) -> None:

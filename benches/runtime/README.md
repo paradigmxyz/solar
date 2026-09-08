@@ -35,7 +35,8 @@ when matching results are available in the downloaded main artifact.
 
 Pass `--artifacts PATH` to write a file tree for each runtime case and compiler. This extra compile
 runs outside the timed samples. Solar emits MIR, creation and runtime EVM IR, disassembly, bytecode,
-and raw Standard JSON input and output. Solc emits optimized Yul IR where available, disassembly,
+and raw Standard JSON input and output. Solc emits unoptimized `ir.yul` and optimized
+`optimized-ir.yul` where available, disassembly,
 bytecode, and raw Standard JSON input and output. When `--reference-results` points to a result next
 to an `artifacts` directory, the matching reference files are copied into the new run. Solx artifacts
 include disassembly, bytecode, and raw Standard JSON input and output.
