@@ -1,0 +1,126 @@
+//@ revisions: gas size early
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=peephole
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=late-dce
+//@[early] compile-flags: -Osize -Zevm-ir-pipeline=peephole
+//@[gas] filecheck: --check-prefixes=CHECK,POS
+//@[size] filecheck: --check-prefixes=CHECK,POS
+//@[early] filecheck: --check-prefixes=CHECK,EARLY
+
+@module RematerializedUnitCarry
+// CHECK-LABEL: @module RematerializedUnitCarry
+bb0:
+  push 64
+  calldataload
+  // Offset 32; keep the independent prefix below both result words.
+  // EARLY: {{^[ +].*}}add
+  // EARLY-NEXT: {{^[ +].*}}push 32
+  // EARLY-NEXT: {{^[ +].*}}calldataload
+  // EARLY-NEXT: {{^[ +].*}}dup 2
+  // EARLY-NEXT: {{^[ +].*}}lt
+  // POS: {{^[ +].*}}add
+  // POS: {{^[+].*}}dup 1
+  // POS-NEXT: {{^[ +].*}}iszero
+  // POS-NOT: {{^[ +].*}}lt
+  // POS: {{^[ +].*}}push 64
+  push 1
+  push 32
+  calldataload
+  add
+  push 32
+  calldataload
+  dup 2
+  lt
+  push 64
+  mstore
+  push 32
+  mstore
+  // Offset 256; keep the independent prefix below both result words.
+  // EARLY: {{^[ +].*}}add
+  // EARLY-NEXT: {{^[ +].*}}push 256
+  // EARLY-NEXT: {{^[ +].*}}calldataload
+  // EARLY-NEXT: {{^[ +].*}}dup 2
+  // EARLY-NEXT: {{^[ +].*}}lt
+  // POS: {{^[ +].*}}add
+  // POS: {{^[+].*}}dup 1
+  // POS-NEXT: {{^[ +].*}}iszero
+  // POS-NOT: {{^[ +].*}}lt
+  // POS: {{^[ +].*}}push 128
+  push 256
+  calldataload !metadata(stack=1->1)
+  push 1
+  add
+  push 256
+  calldataload
+  dup 2
+  lt
+  push 128
+  mstore
+  push 96
+  mstore
+  // Offset 115792089237316195423570985008687907853269984665640564039457584007913129639935; keep the independent prefix below both result words.
+  // EARLY: {{^[ +].*}}add
+  // EARLY-NEXT: {{^[ +].*}}push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  // EARLY-NEXT: {{^[ +].*}}calldataload
+  // EARLY-NEXT: {{^[ +].*}}dup 2
+  // EARLY-NEXT: {{^[ +].*}}lt
+  // POS: {{^[ +].*}}add
+  // POS: {{^[+].*}}dup 1
+  // POS-NEXT: {{^[ +].*}}iszero
+  // POS-NOT: {{^[ +].*}}lt
+  // POS: {{^[ +].*}}push 192
+  push 1
+  push 115792089237316195423570985008687907853269984665640564039457584007913129639935
+  calldataload
+  add
+  push 115792089237316195423570985008687907853269984665640564039457584007913129639935
+  calldataload
+  dup 2
+  lt
+  push 192
+  mstore
+  push 160
+  mstore
+  // Offset 0; keep the independent prefix below both result words.
+  // EARLY: {{^[ +].*}}add
+  // EARLY-NEXT: {{^[ +].*}}push 0
+  // EARLY-NEXT: {{^[ +].*}}calldataload
+  // EARLY-NEXT: {{^[ +].*}}dup 2
+  // EARLY-NEXT: {{^[ +].*}}lt
+  // POS: {{^[ +].*}}add
+  // POS: {{^[+].*}}dup 1
+  // POS-NEXT: {{^[ +].*}}iszero
+  // POS-NOT: {{^[ +].*}}lt
+  // POS: {{^[ +].*}}push 256
+  push 0
+  calldataload
+  push 1
+  add
+  push 0
+  calldataload
+  dup 2
+  lt
+  push 256
+  mstore
+  push 224
+  mstore
+  // Existing stack-carry cleanup remains active in every configuration.
+  // CHECK: {{^[+].*}}dup 1
+  // CHECK-NEXT: {{^[+].*}}iszero
+  // CHECK: {{^[ +].*}}push 320
+  push 0
+  calldataload
+  dup 1
+  push 1
+  add
+  swap 1
+  dup 2
+  lt
+  push 320
+  mstore
+  push 288
+  mstore
+  push 0
+  mstore
+  push 352
+  push 0
+  return

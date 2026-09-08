@@ -1,0 +1,82 @@
+- // === ROOT/tests/ui/codegen/evm-ir/peephole/rematerialized_unit_carry.evmir (before late-dce) ===
++ // === ROOT/tests/ui/codegen/evm-ir/peephole/rematerialized_unit_carry.evmir (after late-dce) ===
+  @module RematerializedUnitCarry
+  bb0:
+    push 64
+    calldataload
+    push 1
+    push 32
+    calldataload
+    add
+-   push 32
+-   calldataload
+-   dup 2
+-   lt
++   dup 1
++   iszero
+    push 64
+    mstore
+    push 32
+    mstore
+    push 256
+    calldataload
+    push 1
+    add
+-   push 256
+-   calldataload
+-   dup 2
+-   lt
++   dup 1
++   iszero
+    push 128
+    mstore
+    push 96
+    mstore
+    push 1
+    push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    calldataload
+    add
+-   push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-   calldataload
+-   dup 2
+-   lt
++   dup 1
++   iszero
+    push 192
+    mstore
+    push 160
+    mstore
+    push 0
+    calldataload
+    push 1
+    add
+-   push 0
+-   calldataload
+-   dup 2
+-   lt
++   dup 1
++   iszero
+    push 256
+    mstore
+    push 224
+    mstore
+    push 0
+    calldataload
+-   dup 1
+    push 1
+    add
+-   swap 1
+-   dup 2
+-   lt
++   dup 1
++   iszero
+    push 320
+    mstore
+    push 288
+    mstore
+    push 0
+    mstore
+    push 352
+    push 0
+    return
+  

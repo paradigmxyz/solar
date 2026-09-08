@@ -1,0 +1,8 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/rematerialized_unit_carry.sol:RematerializedUnitCarry ===
+@module RematerializedUnitCarry
+fn @pair(arg0: u256) -> (u256, bool) [selector=0x645751af, pure, abi_params=[u256], abi_returns=[word, word<bool>]] {
+  bb0:
+    v0 = add arg0, 1
+    v1 = lt v0, arg0
+    ret v0, v1
+}

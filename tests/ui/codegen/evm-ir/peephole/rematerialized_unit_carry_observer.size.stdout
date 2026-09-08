@@ -1,0 +1,23 @@
+- // === ROOT/tests/ui/codegen/evm-ir/peephole/rematerialized_unit_carry_observer.evmir (before late-dce) ===
++ // === ROOT/tests/ui/codegen/evm-ir/peephole/rematerialized_unit_carry_observer.evmir (after late-dce) ===
+  @module RematerializedCarryGasObserver
+  bb0:
+    push 1
+    push 0
+    calldataload
+    add
+    push 0
+    calldataload
+    dup 2
+    lt
+    push 32
+    mstore
+    push 0
+    mstore
+    gas
+    push 64
+    mstore
+    push 96
+    push 0
+    return
+  

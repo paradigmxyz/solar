@@ -1,0 +1,35 @@
+//@ revisions: gas size early
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=peephole
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=late-dce
+//@[early] compile-flags: -Osize -Zevm-ir-pipeline=peephole
+//@ filecheck:
+
+@module RematerializedCarryGasObserver
+bb0:
+  // GAS is observed after the candidate arithmetic window.
+  // CHECK: {{^[ +].*}}add
+  // CHECK-NEXT: {{^[ +].*}}push 0
+  // CHECK-NEXT: {{^[ +].*}}calldataload
+  // CHECK-NEXT: {{^[ +].*}}dup 2
+  // CHECK-NEXT: {{^[ +].*}}lt
+  push 1
+  push 0
+  calldataload
+  add
+  push 0
+  calldataload
+  dup 2
+  lt
+  push 32
+  mstore
+  push 0
+  mstore
+  // CHECK: {{^[ +].*}}gas
+  // CHECK-NEXT: {{^[ +].*}}push 64
+  // CHECK-NEXT: {{^[ +].*}}mstore
+  gas
+  push 64
+  mstore
+  push 96
+  push 0
+  return

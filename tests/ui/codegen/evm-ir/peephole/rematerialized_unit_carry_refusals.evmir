@@ -1,0 +1,105 @@
+//@ revisions: gas size early
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=peephole
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=late-dce
+//@[early] compile-flags: -Osize -Zevm-ir-pipeline=peephole
+//@ filecheck:
+
+@module RematerializedCarryRefusals
+bb0:
+  // different offsets.
+  // CHECK: {{^[ +].*}}add
+  // CHECK-NEXT: {{^[ +].*}}push 64
+  // CHECK-NEXT: {{^[ +].*}}calldataload
+  // CHECK-NEXT: {{^[ +].*}}dup 2
+  // CHECK-NEXT: {{^[ +].*}}lt
+  push 1
+  push 32
+  calldataload
+  add
+  push 64
+  calldataload
+  dup 2
+  lt
+  push 32
+  mstore
+  push 0
+  mstore
+  // non-unit increment.
+  // CHECK: {{^[ +].*}}add
+  // CHECK-NEXT: {{^[ +].*}}push 32
+  // CHECK-NEXT: {{^[ +].*}}calldataload
+  // CHECK-NEXT: {{^[ +].*}}dup 2
+  // CHECK-NEXT: {{^[ +].*}}lt
+  push 2
+  push 32
+  calldataload
+  add
+  push 32
+  calldataload
+  dup 2
+  lt
+  push 96
+  mstore
+  push 64
+  mstore
+  // signed comparison.
+  // CHECK: {{^[ +].*}}add
+  // CHECK-NEXT: {{^[ +].*}}push 32
+  // CHECK-NEXT: {{^[ +].*}}calldataload
+  // CHECK-NEXT: {{^[ +].*}}dup 2
+  // CHECK-NEXT: {{^[ +].*}}slt
+  push 1
+  push 32
+  calldataload
+  add
+  push 32
+  calldataload
+  dup 2
+  slt
+  push 160
+  mstore
+  push 128
+  mstore
+  // reversed comparison.
+  // CHECK: {{^[ +].*}}add
+  // CHECK-NEXT: {{^[ +].*}}push 32
+  // CHECK-NEXT: {{^[ +].*}}calldataload
+  // CHECK-NEXT: {{^[ +].*}}dup 2
+  // CHECK-NEXT: {{^[ +].*}}gt
+  push 1
+  push 32
+  calldataload
+  add
+  push 32
+  calldataload
+  dup 2
+  gt
+  push 224
+  mstore
+  push 192
+  mstore
+  // mutable load outside matcher.
+  push 32
+  calldataload
+  push 512
+  mstore
+  // CHECK: {{^[ +].*}}add
+  // CHECK-NEXT: {{^[ +].*}}push 512
+  // CHECK-NEXT: {{^[ +].*}}mload
+  // CHECK-NEXT: {{^[ +].*}}dup 2
+  // CHECK-NEXT: {{^[ +].*}}lt
+  push 1
+  push 512
+  mload
+  add
+  push 512
+  mload
+  dup 2
+  lt
+  push 288
+  mstore
+  push 256
+  mstore
+  push 320
+  push 0
+  return
