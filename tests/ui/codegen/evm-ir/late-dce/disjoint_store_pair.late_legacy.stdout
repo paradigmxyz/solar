@@ -1,0 +1,130 @@
+- // === ROOT/tests/ui/codegen/evm-ir/late-dce/disjoint_store_pair.evmir (before late-dce) ===
++ // === ROOT/tests/ui/codegen/evm-ir/late-dce/disjoint_store_pair.evmir (after late-dce) ===
+  @module DisjointStorePair
+  bb0:
+    push 99
+    push 11
+    push 22
+-   push 128
+-   exchange 1, 2
+-   mstore
+    push 160
+    mstore
++   push 128
++   mstore
+    push 224
+    mstore
+    push 128
+    push 128
+    return
+  bb1:
+    push 11
+    push 22
+    push 128
+    exchange 1, 2
+    mstore
+    push 128
+    mstore
+    push 32
+    push 128
+    return
+  bb2:
+    push 11
+    push 22
+    push 128
+    exchange 1, 2
+    mstore
+    push 159
+    mstore
+    push 64
+    push 128
+    return
+  bb3:
+    push 11
+    push 22
+    push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    exchange 1, 2
+    mstore
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  bb4:
+    push 11
+    push 22
+    push 128
+    exchange 1, 2
+    mstore8
+    push 160
+    mstore
+    push 64
+    push 128
+    return
+  bb5:
+    push 11
+    push 22
+-   push 128 !metadata(span=0..1)
+-   exchange 1, 2 !metadata(span=10..11)
+-   mstore !metadata(span=20..21)
+    push 160 !metadata(span=30..31)
+    mstore !metadata(span=40..41)
++   push 128 !metadata(span=0..1)
++   mstore !metadata(span=20..21)
+    push 64
+    push 128
+    return
+  bb6:
+    push 11
+    push 22
+-   push 160
+-   exchange 1, 2
+-   mstore
+    push 128
+    mstore
++   push 160
++   mstore
+    push 64
+    push 128
+    return
+  bb7:
+    push 11
+    push 22
+    push 128
+    exchange 1, 2
+    mstore
+    push 160
+    sstore
+    push 32
+    push 128
+    return
+  bb8:
+    push 11
+    push 22
+-   push 128 !metadata(span=0..1, invoke=store_pair@1..50)
+-   exchange 1, 2 !metadata(span=10..11)
+-   mstore !metadata(span=20..21)
+-   push 160 !metadata(span=30..31)
+-   mstore !metadata(span=40..41, exit=return)
++   push 160 !metadata(span=30..31, invoke=store_pair@1..50)
++   mstore !metadata(span=40..41)
++   push 128 !metadata(span=0..1)
++   mstore !metadata(span=20..21, exit=return)
+    push 64
+    push 128
+    return
+  bb9:
+    push 11
+    push 22
+-   push 128 !metadata(invoke=outer@1..50)
+-   exchange 1, 2 !metadata(invoke=inner@2..20)
+-   mstore !metadata(exit=revert)
+-   push 160
++   push 160 !metadata(invoke=outer@1..50)
++   mstore
++   push 128
+    mstore !metadata(exit=return)
+    push 64
+    push 128
+    return
+  

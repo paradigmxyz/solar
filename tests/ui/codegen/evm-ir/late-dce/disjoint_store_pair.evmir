@@ -1,0 +1,234 @@
+//@ revisions: early_gas late_gas early_size late_size early_legacy late_legacy early_extended late_extended
+//@[early_gas] compile-flags: -Ogas --evm-version=osaka -Zevm-ir-pipeline=peephole
+//@[early_gas] filecheck: --check-prefixes=EARLY,COMMON
+//@[late_gas] compile-flags: -Ogas --evm-version=osaka -Zevm-ir-pipeline=late-dce
+//@[late_gas] filecheck: --check-prefixes=LATE,COMMON
+//@[early_size] compile-flags: -Osize --evm-version=osaka -Zevm-ir-pipeline=peephole
+//@[early_size] filecheck: --check-prefixes=EARLY,COMMON
+//@[late_size] compile-flags: -Osize --evm-version=osaka -Zevm-ir-pipeline=late-dce
+//@[late_size] filecheck: --check-prefixes=LATE,COMMON
+//@[early_legacy] compile-flags: -Ogas --evm-version=paris -Zevm-ir-pipeline=peephole
+//@[early_legacy] filecheck: --check-prefixes=EARLY,COMMON
+//@[late_legacy] compile-flags: -Ogas --evm-version=paris -Zevm-ir-pipeline=late-dce
+//@[late_legacy] filecheck: --check-prefixes=LATE,COMMON
+//@[early_extended] compile-flags: -Ogas --evm-version=amsterdam -Zevm-ir-pipeline=peephole
+//@[early_extended] filecheck: --check-prefixes=EARLY,COMMON
+//@[late_extended] compile-flags: -Ogas --evm-version=amsterdam -Zevm-ir-pipeline=late-dce
+//@[late_extended] filecheck: --check-prefixes=LATE,COMMON
+
+@module DisjointStorePair
+
+// Exchange the two independent writes, preserving their values and the live prefix.
+// LATE-LABEL: {{^[ +]*}}bb0:
+// LATE: {{^[ +]*}}push 160
+// LATE-NEXT: {{^[ +]*}}mstore
+// LATE-NEXT: {{^[ +]*}}push 128
+// LATE-NEXT: {{^[ +]*}}mstore
+// LATE-NEXT: {{^[ +]*}}push 224
+// LATE-NEXT: {{^[ +]*}}mstore
+// EARLY-LABEL: {{^[ +]*}}bb0:
+// EARLY: {{^[ +]*}}push 22
+// EARLY-NEXT: {{^[ +]*}}push 128
+// EARLY-NEXT: {{^[ +]*}}exchange 1, 2
+// EARLY-NEXT: {{^[ +]*}}mstore
+// EARLY-NEXT: {{^[ +]*}}push 160
+bb0:
+  push 99
+  push 11
+  push 22
+  push 128
+  exchange 1, 2
+  mstore
+  push 160
+  mstore
+  push 224
+  mstore
+  push 128
+  push 128
+  return
+
+// Equal addresses must preserve which value wins.
+// COMMON-LABEL: {{^[ +]*}}bb1:
+// COMMON: {{^[ +]*}}push 128
+// COMMON-NEXT: {{^[ +]*}}exchange 1, 2
+// COMMON-NEXT: {{^[ +]*}}mstore
+// COMMON-NEXT: {{^[ +]*}}push 128
+// COMMON-NEXT: {{^[ +]*}}mstore
+bb1:
+  push 11
+  push 22
+  push 128
+  exchange 1, 2
+  mstore
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+
+// Partially overlapping words also keep write order.
+// COMMON-LABEL: {{^[ +]*}}bb2:
+// COMMON: {{^[ +]*}}push 128
+// COMMON-NEXT: {{^[ +]*}}exchange 1, 2
+// COMMON-NEXT: {{^[ +]*}}mstore
+// COMMON-NEXT: {{^[ +]*}}push 159
+// COMMON-NEXT: {{^[ +]*}}mstore
+bb2:
+  push 11
+  push 22
+  push 128
+  exchange 1, 2
+  mstore
+  push 159
+  mstore
+  push 64
+  push 128
+  return
+
+// A wrapping endpoint is outside the range proof.
+// COMMON-LABEL: {{^[ +]*}}bb3:
+// COMMON: {{^[ +]*}}exchange 1, 2
+// COMMON-NEXT: {{^[ +]*}}mstore
+// COMMON-NEXT: {{^[ +]*}}push 0
+// COMMON-NEXT: {{^[ +]*}}mstore
+bb3:
+  push 11
+  push 22
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+  exchange 1, 2
+  mstore
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+
+// Byte stores are not full-word stores.
+// COMMON-LABEL: {{^[ +]*}}bb4:
+// COMMON: {{^[ +]*}}exchange 1, 2
+// COMMON-NEXT: {{^[ +]*}}mstore8
+bb4:
+  push 11
+  push 22
+  push 128
+  exchange 1, 2
+  mstore8
+  push 160
+  mstore
+  push 64
+  push 128
+  return
+
+// The retained source spans follow their original address/store instructions.
+// LATE-LABEL: {{^[ +]*}}bb5:
+// LATE: {{^[ +]*}}push 160 !metadata(span=30..31)
+// LATE-NEXT: {{^[ +]*}}mstore !metadata(span=40..41)
+// LATE-NEXT: {{^[ +]*}}push 128 !metadata(span=0..1)
+// LATE-NEXT: {{^[ +]*}}mstore !metadata(span=20..21)
+// EARLY-LABEL: {{^[ +]*}}bb5:
+// EARLY: {{^[ +]*}}push 128 !metadata(span=0..1)
+// EARLY-NEXT: {{^[ +]*}}exchange 1, 2 !metadata(span=10..11)
+// EARLY-NEXT: {{^[ +]*}}mstore !metadata(span=20..21)
+// EARLY-NEXT: {{^[ +]*}}push 160 !metadata(span=30..31)
+// EARLY-NEXT: {{^[ +]*}}mstore !metadata(span=40..41)
+bb5:
+  push 11
+  push 22
+  push 128 !metadata(span=0..1)
+  exchange 1, 2 !metadata(span=10..11)
+  mstore !metadata(span=20..21)
+  push 160 !metadata(span=30..31)
+  mstore !metadata(span=40..41)
+  push 64
+  push 128
+  return
+
+// Either numeric ordering of the disjoint ranges is permitted.
+// LATE-LABEL: {{^[ +]*}}bb6:
+// LATE: {{^[ +]*}}push 128
+// LATE-NEXT: {{^[ +]*}}mstore
+// LATE-NEXT: {{^[ +]*}}push 160
+// LATE-NEXT: {{^[ +]*}}mstore
+// EARLY-LABEL: {{^[ +]*}}bb6:
+// EARLY: {{^[ +]*}}push 160
+// EARLY-NEXT: {{^[ +]*}}exchange 1, 2
+// EARLY-NEXT: {{^[ +]*}}mstore
+// EARLY-NEXT: {{^[ +]*}}push 128
+// EARLY-NEXT: {{^[ +]*}}mstore
+bb6:
+  push 11
+  push 22
+  push 160
+  exchange 1, 2
+  mstore
+  push 128
+  mstore
+  push 64
+  push 128
+  return
+
+// Different address spaces do not match the word-store permutation.
+// COMMON-LABEL: {{^[ +]*}}bb7:
+// COMMON: {{^[ +]*}}exchange 1, 2
+// COMMON-NEXT: {{^[ +]*}}mstore
+// COMMON-NEXT: {{^[ +]*}}push 160
+// COMMON-NEXT: {{^[ +]*}}sstore
+bb7:
+  push 11
+  push 22
+  push 128
+  exchange 1, 2
+  mstore
+  push 160
+  sstore
+  push 32
+  push 128
+  return
+
+// Function boundary events surround the reordered pair; spans follow each instruction.
+// LATE-LABEL: {{^[ +]*}}bb8:
+// LATE: {{^[ +]*}}push 160 !metadata(span=30..31, invoke=store_pair@1..50)
+// LATE-NEXT: {{^[ +]*}}mstore !metadata(span=40..41)
+// LATE-NEXT: {{^[ +]*}}push 128 !metadata(span=0..1)
+// LATE-NEXT: {{^[ +]*}}mstore !metadata(span=20..21, exit=return)
+// EARLY-LABEL: {{^[ +]*}}bb8:
+// EARLY: {{^[ +]*}}push 128 !metadata(span=0..1, invoke=store_pair@1..50)
+// EARLY-NEXT: {{^[ +]*}}exchange 1, 2 !metadata(span=10..11)
+// EARLY-NEXT: {{^[ +]*}}mstore !metadata(span=20..21)
+// EARLY-NEXT: {{^[ +]*}}push 160 !metadata(span=30..31)
+// EARLY-NEXT: {{^[ +]*}}mstore !metadata(span=40..41, exit=return)
+bb8:
+  push 11
+  push 22
+  push 128 !metadata(span=0..1, invoke=store_pair@1..50)
+  exchange 1, 2 !metadata(span=10..11)
+  mstore !metadata(span=20..21)
+  push 160 !metadata(span=30..31)
+  mstore !metadata(span=40..41, exit=return)
+  push 64
+  push 128
+  return
+
+// Boundary events may need new metadata records; intermediate events have no checkpoint.
+// LATE-LABEL: {{^[ +]*}}bb9:
+// LATE: {{^[ +]*}}push 160 !metadata(invoke=outer@1..50)
+// LATE-NEXT: {{^[ +]*}}mstore{{$}}
+// LATE-NEXT: {{^[ +]*}}push 128{{$}}
+// LATE-NEXT: {{^[ +]*}}mstore !metadata(exit=return)
+// EARLY-LABEL: {{^[ +]*}}bb9:
+// EARLY: {{^[ +]*}}push 128 !metadata(invoke=outer@1..50)
+// EARLY-NEXT: {{^[ +]*}}exchange 1, 2 !metadata(invoke=inner@2..20)
+// EARLY-NEXT: {{^[ +]*}}mstore !metadata(exit=revert)
+// EARLY-NEXT: {{^[ +]*}}push 160
+// EARLY-NEXT: {{^[ +]*}}mstore !metadata(exit=return)
+bb9:
+  push 11
+  push 22
+  push 128 !metadata(invoke=outer@1..50)
+  exchange 1, 2 !metadata(invoke=inner@2..20)
+  mstore !metadata(exit=revert)
+  push 160
+  mstore !metadata(exit=return)
+  push 64
+  push 128
+  return

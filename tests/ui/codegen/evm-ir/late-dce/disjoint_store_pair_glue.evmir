@@ -1,0 +1,30 @@
+//@ compile-flags: -Ogas -Zevm-ir-pipeline=peephole
+//~? ERROR: EVM IR verification failed: block 0: `push` cannot be kept with a next instruction
+//~? ERROR: EVM IR verification failed: block 1: `push` cannot be kept with a next instruction
+
+// Invalid glue is rejected before a peephole can alter either word-store sequence.
+@module DisjointStorePairGlue
+bb0:
+  push 11
+  push 22
+  push 128 !meta(keep_with_next)
+  exchange 1, 2
+  mstore
+  push 160
+  mstore
+  push 64
+  push 128
+  return
+
+bb1:
+  push 11
+  push 22 !meta(keep_with_next)
+  push 128
+  exchange 1, 2
+  mstore
+  push 160
+  mstore
+  push 64
+  push 128
+  return
+
