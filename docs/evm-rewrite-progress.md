@@ -950,6 +950,41 @@ declaration orders. Assertions specific to the rejected optimization remain in
 the archived experimental fixtures. Production LOC and performance debt remain
 at the preceding accepted milestone.
 
+## Tuple streaming investigation
+
+The late ABI cleanup regression test landed in `7a813f6a`. It covers dirty
+narrow words, invalid enum cleanup after a dynamic field, and source alias
+mutation, with unchanged runtime oracles across the standard matrix.
+
+Streaming dynamic tuple field loads reduced total size by 3,148,608 bytes
+across the same 3,344 heavy objects, but 306 objects grew. Nine existing UI
+mode/contract rows also grew, and three existing snapshots changed. The runtime
+corpus retained all 175 gas labels and 139 observations in each mode; six Nitro
+calls saved 22 gas each. These results do not satisfy the per-object acceptance
+gate, so the production experiment was reverted without blessing snapshots.
+A 247-line address-rematerialization trial reduced one 13-byte regression to
+two bytes and was also rejected. The proposed stack-cycle change remained
+uninstalled: the existing EVM IR normalizer already minimizes the measured
+rotation. Retained address lifetimes remain the next scheduling question.
+
+The new wide and cleanup fixtures passed 72 concrete calls across the retained
+baseline, candidate, and pinned solc. That comparison explicitly disabled
+EIP-170: the wide fixture exceeds the baseline deployment limit in None, Size,
+and MIR. It is therefore archived with the experiment rather than installed as
+a passing baseline test. The cleanup fixture passes normal deployment and is
+committed. Its Gas/Size symbolic comparisons found bounded agreement over six
+paths and 11 solver queries each; no counterexample required replay.
+
+All five experimental source/fixture files, their hashes, the patch, and the
+rewritten source before-image are retained in
+`target/codegen-bench/evm-rewrite-candidate/size-ownership-20260909/tuple-streaming-rejected-source.tar.gz`
+(SHA-256 `2b73e01a748f1d90ebd69954cf7d9be0cb83dc197f949adc41b8eac86f26e741`).
+The same directory retains baseline/candidate reports, binaries' source pins,
+heavy object joins, differential evidence, and failure logs. No existing tracked
+test, runtime assertion, or snapshot was removed or relaxed. This investigation
+leaves production LOC and accepted performance debt unchanged. After restoration,
+the debug compiler rebuild and all 1,577 workspace tests pass (two skipped).
+
 ## Remaining acceptance work
 
 The alias assertion migration passes; its generated-code size debt remains.
