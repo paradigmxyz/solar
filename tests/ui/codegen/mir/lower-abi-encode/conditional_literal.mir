@@ -1,0 +1,51 @@
+//@ compile-flags: -Zmir-pipeline=lower-abi-encode
+//@ filecheck:
+@module ConditionalLiteral
+
+// The word store does not dominate the encoding. A function-wide scan of
+// initializer uses cannot turn this conditional initialization into a literal.
+// CHECK-LABEL: (after lower-abi-encode)
+// CHECK: fn @encode
+// CHECK: memory_object_len memorybytes, v0
+// CHECK: memory_object_data memorybytes, v0
+fn @encode(arg0: u256) -> memoryslice {
+  bb0:
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v0, 1
+    jumpi arg0, bb1, bb2
+  bb1:
+    memory_object_store_word memorybytes, v0, 0, 0x3100000000000000000000000000000000000000000000000000000000000000
+    jump bb2
+  bb2:
+    v1 = abi_encode [memory_bytes], args v0
+    ret v1
+}
+
+// A wrapping offset from a later object reaches the earlier object's payload.
+// CHECK: fn @overlapping
+// CHECK: memory_object_len memorybytes, v0
+// CHECK: memory_object_data memorybytes, v0
+fn @overlapping(arg0: u256) -> memoryslice {
+  bb0:
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v0, 1
+    memory_object_store_word memorybytes, v0, 0, 0x3100000000000000000000000000000000000000000000000000000000000000
+    v1 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v1, 1
+    memory_object_store_word memorybytes, v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffc0, arg0
+    v2 = abi_encode [memory_bytes], args v0
+    ret v2
+}
+
+// Literal folding cannot remove an observable free-memory-pointer bump.
+// CHECK: fn @preserved
+// CHECK: alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+// CHECK: memory_object_len memorybytes, v0
+fn @preserved() -> memoryslice {
+  bb0:
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v0, 1
+    memory_object_store_word memorybytes, v0, 0, 0x3100000000000000000000000000000000000000000000000000000000000000
+    v1 = abi_encode [memory_bytes], args v0
+    ret v1
+}
