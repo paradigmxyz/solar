@@ -67,6 +67,7 @@ time: <TIME>	MIR TimePasses lower-mapping-slots changed=false
 time: <TIME>	MIR TimePasses lower-memory-objects changed=true
 time: <TIME>	MIR TimePasses cse changed=false
 time: <TIME>	MIR TimePasses late-check-elim changed=false
+time: <TIME>	MIR TimePasses inline-guards changed=false
 time: <TIME>	MIR TimePasses defer-alloc changed=false
 time: <TIME>	MIR TimePasses lower-slices changed=false
 time: <TIME>	MIR TimePasses coalesce-allocs changed=false

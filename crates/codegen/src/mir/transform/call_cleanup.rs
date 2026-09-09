@@ -23,11 +23,16 @@
 //! may write into argument homes through those pointers. Masks live across calls
 //! are retained for profitability, since replacing their materialized result
 //! with an argument changes which values the stack ABI must preserve or spill.
+//!
+//! A separate bounded fixed point proves helpers that return only zero or one
+//! for every input. Double boolean normalization of their results can disappear
+//! without trusting a nominal `bool` return type. Unknown and recursive return
+//! dependencies start unproved; phis require every incoming value to be clean.
 
 use super::egraph::max_bits_with_args;
 use crate::mir::{
     AbiWordValidator, ArgIdx, Function, FunctionId, InstId, InstKind, MirPhase, Module, Terminator,
-    ValueId,
+    Value, ValueId,
     analysis::Liveness,
     pass::{MirPass, ModuleAnalyses},
     utils,
@@ -60,6 +65,7 @@ impl MirPass for CallCleanup {
         _analyses: &mut ModuleAnalyses,
     ) -> bool {
         let facts = infer_arguments(module);
+        let boolean_returns = infer_boolean_returns(module);
         let abi_lowered = module.phase >= MirPhase::Abi;
         let mut changed = false;
         for (id, func) in module.functions.iter_mut_enumerated() {
@@ -67,6 +73,20 @@ impl MirPass for CallCleanup {
             let mut replacements = FxHashMap::default();
             let mut dead = DenseBitSet::<InstId>::new_empty(func.num_insts());
             for inst in func.instructions() {
+                if let InstKind::IsZero(inner) = func.inst(inst).kind
+                    && func
+                        .inst(inst)
+                        .metadata
+                        .effect()
+                        .is_none_or(|effect| effect == func.inst(inst).kind.effect_kind())
+                    && let Value::Inst(inner) = func.value(inner)
+                    && let InstKind::IsZero(value) = func.inst(*inner).kind
+                    && is_boolean(func, value, &boolean_returns, MAX_VALUE_DEPTH, &argument_bits)
+                    && let Some(result) = func.inst_result_value(inst)
+                {
+                    replacements.insert(result, value);
+                    dead.insert(inst);
+                }
                 if let InstKind::And(a, b) = func.inst(inst).kind
                     && let Some((value, mask)) = func
                         .value_u256(b)
@@ -92,8 +112,9 @@ impl MirPass for CallCleanup {
             }
             if !replacements.is_empty() {
                 // result = and value, low_mask; use result -> use value
-                // NOTE: Removed mask instructions lose their debug checkpoints;
-                // their source locations must not be assigned to the argument.
+                // result = iszero(iszero(boolean)); use result -> use boolean
+                // NOTE: Removed cleanup instructions lose their debug checkpoints;
+                // their source locations must not be assigned to the replacement value.
                 func.for_each_instruction_mut(|_, inst| {
                     inst.rewrite_operands(|value| {
                         *value = utils::resolve_replacement(*value, &replacements);
@@ -109,6 +130,73 @@ impl MirPass for CallCleanup {
             }
         }
         changed
+    }
+}
+
+fn infer_boolean_returns(module: &Module) -> DenseBitSet<FunctionId> {
+    let mut known = DenseBitSet::new_empty(module.functions.len());
+    for _ in 0..MAX_ROUNDS {
+        let mut changed = false;
+        for (id, func) in module.functions.iter_enumerated() {
+            if known.contains(id) || func.returns.len() != 1 {
+                continue;
+            }
+            let mut has_return = false;
+            let clean = func.blocks.iter().all(|block| match &block.terminator {
+                Some(Terminator::Return { values }) => {
+                    has_return = true;
+                    values.len() == 1
+                        && is_boolean(func, values[0], &known, MAX_VALUE_DEPTH, &|_| 256)
+                }
+                Some(
+                    Terminator::TailCall { .. } | Terminator::Stop | Terminator::ReturnData { .. },
+                )
+                | None => false,
+                _ => true,
+            });
+            if has_return && clean {
+                known.insert(id);
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    known
+}
+
+fn is_boolean(
+    func: &Function,
+    value: ValueId,
+    returns: &DenseBitSet<FunctionId>,
+    depth: u32,
+    args: &impl Fn(ArgIdx) -> u32,
+) -> bool {
+    if let Some(value) = func.value_u256(value) {
+        return value <= U256::ONE;
+    }
+    let Some(depth) = depth.checked_sub(1) else { return false };
+    let Value::Inst(inst) = func.value(value) else {
+        return matches!(func.value(value), Value::Arg(index) if args(*index) <= 1);
+    };
+    let clean = |value| is_boolean(func, value, returns, depth, args);
+    match &func.inst(*inst).kind {
+        InstKind::Eq(..)
+        | InstKind::Lt(..)
+        | InstKind::Gt(..)
+        | InstKind::SLt(..)
+        | InstKind::SGt(..)
+        | InstKind::IsZero(..) => true,
+        InstKind::ICall { function, returns: 1, .. } => returns.contains(*function),
+        InstKind::Phi(incoming) => {
+            !incoming.is_empty() && incoming.iter().all(|&(_, value)| clean(value))
+        }
+        InstKind::Select(_, a, b) | InstKind::Or(a, b) | InstKind::Xor(a, b) => {
+            clean(*a) && clean(*b)
+        }
+        InstKind::And(a, b) => clean(*a) || clean(*b),
+        _ => false,
     }
 }
 
