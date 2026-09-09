@@ -1,4 +1,7 @@
-use super::{GlobalState, support::RequestFixture};
+use super::{
+    AnalysisMode, AnalysisTrigger, GlobalState, IndexingCancellation, WorkspaceDiscoveryReady,
+    support::RequestFixture,
+};
 use crate::vfs::VfsPath;
 use crop::Rope;
 use lsp_types::{
@@ -7,7 +10,7 @@ use lsp_types::{
     TextDocumentPositionParams, Url, WorkDoneProgressParams,
 };
 use snapbox::{IntoData, str};
-use std::time::Duration;
+use std::{sync::atomic::Ordering, time::Duration};
 
 #[tokio::test(flavor = "current_thread")]
 async fn remappings_change_refreshes_import_completion_context() {
@@ -49,7 +52,33 @@ async fn remappings_change_refreshes_import_completion_context() {
         .expect("analysis after remappings change should finish")
         .unwrap();
 
-    assert_eq!(import_completion_labels(&mut state, uri, position).await, ["pkg/New.sol"]);
+    assert_eq!(import_completion_labels(&mut state, uri.clone(), position).await, ["pkg/New.sol"]);
+
+    // A completion can populate the new epoch before discovery publishes its new configuration.
+    std::fs::write(fixture.project_path("/remappings.txt"), "pkg/=lib/old/\n").unwrap();
+    let (version, progress) = state
+        .begin_analysis(AnalysisMode::Rediscover, Vec::new(), Vec::new(), AnalysisTrigger::External)
+        .unwrap();
+    assert_eq!(import_completion_labels(&mut state, uri.clone(), position).await, ["pkg/New.sol"]);
+    let cancellation = IndexingCancellation::default();
+    let result = state.config.discover_workspaces(&cancellation).unwrap();
+    assert!(
+        state
+            .on_workspace_discovery_ready(WorkspaceDiscoveryReady {
+                version,
+                result,
+                disk_paths: Vec::new(),
+                progress,
+                cancellation,
+            })
+            .is_continue()
+    );
+    assert_eq!(state.analysis_version.load(Ordering::Acquire), version);
+    assert_eq!(import_completion_labels(&mut state, uri, position).await, ["pkg/Old.sol"]);
+    tokio::time::timeout(Duration::from_secs(5), state.latest_analysis())
+        .await
+        .expect("analysis after pending discovery should finish")
+        .unwrap();
 }
 
 #[tokio::test(flavor = "current_thread")]

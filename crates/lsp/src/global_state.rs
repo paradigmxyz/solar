@@ -1098,6 +1098,8 @@ impl GlobalState {
 
         let removed_owners =
             Arc::make_mut(&mut self.config).apply_workspace_discovery(event.result);
+        // Pending discovery can cache the old import configuration in this same epoch.
+        self.import_completion_cache.get_mut().entries.clear();
         self.clear_removed_flycheck_diagnostics(removed_owners);
         let deferred_source_file_events = {
             let mut commit = self.analysis_commit.lock();
