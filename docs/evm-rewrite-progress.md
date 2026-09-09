@@ -848,12 +848,59 @@ three-way comparison remain in the duplicate-store evidence directory under
 `merged-head/remote-ci/repeat1/`. Existing main-relative gas and compiler-time
 debts remain open; a successful CI benchmark is not performance acceptance.
 
+## Validated ABI argument selection (2026-09-09)
+
+Gas instruction selection now omits an exact canonical mask on a retained
+scalar external argument after ABI validation. It preserves the original MIR
+result identity and uses the existing operand preparation and result recording.
+Internal calls, constructors, noncanonical masks and explicit non-pure effects
+keep their ordinary lowering. There is no new pass, scheduler representation,
+or assembler operation. Sonatina and LLVM demanded-bit simplification support
+the algebraic proof; their earlier SSA replacement is not a precedent for this
+boundary's lifetime-preserving selection. The pinned prior-art review also
+records Venom's narrower identity rules.
+
+The initial Gas/Size candidate was rejected: later Size outlining made four
+Aave repayment calls cost 39 more gas and two liquidation calls cost 3 more.
+The accepted policy applies only in Gas mode. Its Full benchmark retains all
+24 successful IDs, and Size retains all 15. Both retain 175 gas labels and 139
+runtime observations. Gas improves 23 labels by 14 gas and two by 28, with no
+regressions against the fresh accepted baseline; every Size gas result and
+serialized runtime/creation object is exact to that baseline. Full creation
+and runtime totals each fall by 230 bytes.
+
+The final UI corpus has 1,680 rows and 5,112 objects: 91 shrink, none grow, and
+all Size objects are exact. All 18 existing failed rows remain unchanged. The
+new typed fixture covers valid and malformed scalar arguments and internal
+cleanup in all four modes. Eighty-four focused alias calls pass, including
+unchanged dirty-word rejection cost; both bounded symbolic differentials agree.
+Workspace (1,576 tests), UI, standard JSON, Foundry and clippy checks pass.
+Existing runtime assertions remain intact. The four adjusted IR snapshots lose
+only independently reviewed redundant mask instructions. Main `58c0e3f1` was
+merged cleanly and the merged workspace passed the same 1,576 tests.
+
+Nine complete heavy fingerprints join to the retained raw captures without
+relabeling their producers. Of 3,344 objects, 722 shrink and none grow, saving
+93,814 bytes; positive sealed debt falls by 90,686 bytes. The alias fixture is
+202 Gas runtime bytes and 163 Size bytes, still 49/10 above its sealed baseline.
+Full/Size geometric means of per-case compiler-time median ratios are
+0.960899/1.021731, with RSS ratios 1.007691/1.004635. Full has 21 five-sample
+cases and three one-sample cases; Size has five samples per case. These separate
+debug runs do not establish causal speed changes or close optimized CI timing
+debt. Source changes add 46 physical Rust lines, including documentation.
+
+Baseline, rejected and accepted binaries, complete outputs, traces, snapshots,
+prior-art pins and independent receipts remain under
+`target/codegen-bench/evm-rewrite-candidate/validated-abi-words-20260909/`.
+Candidate1 preserves the rejected Size outcome; candidate2 records the final
+Gas-only policy and explicit source/object bridges.
+
 ## Remaining acceptance work
 
 The alias assertion migration passes; its generated-code size debt remains.
 The original readback failures now pass in every mode. General source-memory
-ownership remains an open contract; bounded shared-input sweeps pass. The complete heavy join now has 30,371,648 positive bytes of sealed size debt
-across 1,039 objects. This includes creation/runtime and embedded-child
+ownership remains an open contract; bounded shared-input sweeps pass. The complete heavy join now has 30,280,962 positive bytes of sealed size debt
+across 1,007 objects. This includes creation/runtime and embedded-child
 amplification; it is a sum of regressions, not net corpus growth. The historical
 writer count was 31,831,619. Terminal returns removed 20 positive bytes before
 the resident trial, which removes another 87,574. All 3,344 sealed object IDs,
@@ -863,15 +910,16 @@ candidate's `pr-ledger/`; the bounded clean-call increment removes another
 reordering removes another 8,550 positive bytes; returning-memory analysis and
 halting-context verification remove another 631,275. Bitmap address scheduling
 removes another 655,108. Consumed-value duplicate stores remove another 19,956.
-Against current main, 19 of 175 gas labels regress,
-down from 24: Maple's five approve regressions are gone. OZ mint and Flash fee
-costs improve to +3; the remaining getter debts persist. Fractional's seven getter calls now cost
+Validated argument selection removes another 90,686.
+Against retained main `716e9cbc`, 15 of 175 gas labels regress,
+down from 24: Maple's five approve and Flash's four fee regressions are gone.
+OZ mint remains +3; the remaining getter debts persist. Fractional's seven getter calls now cost
 one additional gas each, down from ten. Compiler-time debts
 remain.
-The backend has 17,566 physical lines in 48 files, 17,072 fewer than the deletion
-inventory. Excluding trailing test modules leaves 16,261 physical lines. A
+The backend has 17,612 physical lines in 48 files, 17,026 fewer than the deletion
+inventory. Excluding trailing test modules leaves 16,307 physical lines. A
 retained count-only baseline reports 29,006 production-section lines, giving a
-conditional reduction of 12,745; that file lacks a revision/hash link to the
+conditional reduction of 12,699; that file lacks a revision/hash link to the
 sealed archive. These counts include comments and are not strict production SLOC.
 
 Eager contraction removes avoidable spills and saves bytecode without corpus
