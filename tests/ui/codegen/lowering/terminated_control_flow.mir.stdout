@@ -14,9 +14,13 @@ fn @invoke(arg0: bool) [selector=0x2605fe98, pure, abi_params=[bool], abi_return
 
 // === ROOT/tests/ui/codegen/lowering/terminated_control_flow.sol:TerminatedControlFlow ===
 @module TerminatedControlFlow
+types:
+  struct0: {u256, u256}
+
 data:
   TryTarget_initcode_0: hex"34600d5760558060115f395ff35b5f5ffd34601a575f3560e01c80632605fe9814601657601a565b601e565b5f5ffd5b60243610156046576042565b60043515603a576001603c576040565b005b5f5ffd5bfe5b5f5ffd5b6004356002901015604257602a56"
   StopsInConstructor_initcode_1: hex"60c060405234600a57005b5f5ffd60308060175f395ff334601a575f3560e01c8063e735afb214601657601a565b601e565b5f5ffd5b60016080526020608001608090036080f3"
+  RevertsInConstructor_initcode_2: hex"60b238038060b260c03960c001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0166040526046565b60a051604001515f5260205ffd5b3460a25760c060c060b23803016020820191508111905015609e57609a565b60405160a051816020015260c05181604001528060a05260800160405260886038565b60a05160405260a0516020015160a052fe5b5f5ffd5b6065565b5f5ffd60038060af5f395ff35f5ffd"
 
 fn @constructor() [constructor] {
   bb0:
@@ -129,6 +133,90 @@ fn @stopHelper() [pure] {
     stop
 }
 
+fn @scalarFailure(arg0: u256) -> u256 [selector=0x97ca1c76, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = icall @failScalar, arg0
+    v1 = checked_add u256, v0, 1
+    ret v1
+}
+
+fn @failScalar(arg0: u256) -> u256 [pure] {
+  bb0:
+    mstore 0, arg0 !metadata(memory=scratch)
+    revert 0, 32
+}
+
+fn @pairFailure(arg0: u256) -> struct0 [selector=0xbdf5d4d3, pure, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
+  bb0:
+    v0 = icall @failPair, arg0
+    v1 = extract_value struct0, v0, 0
+    v2 = extract_value struct0, v0, 1
+    v3 = checked_add u256, v1, 1
+    v4 = checked_add u256, v2, 2
+    v5 = insert_value struct0, undef struct0, 0, v3
+    v6 = insert_value struct0, v5, 1, v4
+    ret v6
+}
+
+fn @failPair(arg0: u256) -> struct0 [pure] {
+  bb0:
+    mstore 0, arg0 !metadata(memory=scratch)
+    revert 0, 32
+}
+
+fn @recursiveFailure(arg0: u256, arg1: u256) -> u256 [selector=0x0d8ae7f2, pure, abi_params=[u256, u256], abi_returns=[word]] {
+  bb0:
+    v0 = eq arg0, 0
+    jumpi v0, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v1 = checked_sub u256, arg0, 1
+    v2 = icall @recursiveFailure, v1, arg1
+    v3 = checked_add u256, v2, 1
+    ret v3
+  bb1:
+    mstore 0, arg1 !metadata(memory=scratch)
+    revert 0, 32
+}
+
+fn @constructorFailure(arg0: u256) -> address [selector=0x61e5bcd1, abi_params=[u256], abi_returns=[word<u160>]] {
+  bb0:
+    v0 = abi_encode [word], args arg0
+    v1 = not 31
+    v2 = and 241, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy RevertsInConstructor_initcode_2, v3, 178
+    v4 = slice_ptr v0
+    v5 = add v3, 178
+    mcopy v5, v4, 32 !metadata(memory=heap)
+    v6 = create 0, v3, 210
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    ret v6
+}
+
+fn @maybeFailure(arg0: bool) -> u256 [selector=0x5f6d6eda, pure, abi_params=[bool], abi_returns=[word]] {
+  bb0:
+    v0 = icall @maybeFail, arg0
+    v1 = checked_add u256, v0, 1
+    ret v1
+}
+
+fn @maybeFail(arg0: bool) -> u256 [pure] {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    ret 6
+  bb1:
+    revert_if true, empty
+    invalid
+}
+
 fn @breakSkipsTail() -> u256 [selector=0xa299c6cb, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     jump bb1
@@ -180,4 +268,19 @@ fn @constructor() [constructor] {
 fn @present() -> u256 [selector=0xe735afb2, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     ret 1
+}
+
+// === ROOT/tests/ui/codegen/lowering/terminated_control_flow.sol:RevertsInConstructor ===
+@module RevertsInConstructor
+fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
+  bb0:
+    v0 = icall @fail, arg0
+    sstore 0, v0 !metadata(storage=slot(0))
+    ret
+}
+
+fn @fail(arg0: u256) -> u256 [pure] {
+  bb0:
+    mstore 0, arg0 !metadata(memory=scratch)
+    revert 0, 32
 }

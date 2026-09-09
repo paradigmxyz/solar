@@ -6,6 +6,13 @@
 //@ run-call: TerminatedControlFlow::breakSkipsTail => 0
 //@ run-call: TerminatedControlFlow::continueSkipsTail => 0
 
+//@ run-call-fail: TerminatedControlFlow::scalarFailure 17 => 0x0000000000000000000000000000000000000000000000000000000000000011
+//@ run-call-fail: TerminatedControlFlow::pairFailure 19 => 0x0000000000000000000000000000000000000000000000000000000000000013
+//@ run-call-fail: TerminatedControlFlow::recursiveFailure 3, 23 => 0x0000000000000000000000000000000000000000000000000000000000000017
+//@ run-call-fail: TerminatedControlFlow::constructorFailure 29 => 0x000000000000000000000000000000000000000000000000000000000000001d
+//@ run-call: TerminatedControlFlow::maybeFailure false => 7
+//@ run-call-fail: TerminatedControlFlow::maybeFailure true => 0x
+
 contract TryTarget {
     function invoke(bool fail) external pure {
         if (fail) revert();
@@ -48,6 +55,43 @@ contract TerminatedControlFlow {
         assembly { stop() }
     }
 
+    function scalarFailure(uint256 reason) external pure returns (uint256) {
+        return failScalar(reason) + 1;
+    }
+
+    function failScalar(uint256 reason) internal pure returns (uint256) {
+        assembly { mstore(0, reason) revert(0, 32) }
+    }
+
+    function pairFailure(uint256 reason) external pure returns (uint256, uint256) {
+        (uint256 a, uint256 b) = failPair(reason);
+        return (a + 1, b + 2);
+    }
+
+    function failPair(uint256 reason) internal pure returns (uint256, uint256) {
+        assembly { mstore(0, reason) revert(0, 32) }
+    }
+
+    function recursiveFailure(uint256 depth, uint256 reason) public pure returns (uint256) {
+        if (depth == 0) {
+            assembly { mstore(0, reason) revert(0, 32) }
+        }
+        return recursiveFailure(depth - 1, reason) + 1;
+    }
+
+    function constructorFailure(uint256 reason) external returns (address) {
+        return address(new RevertsInConstructor(reason));
+    }
+
+    function maybeFailure(bool fail) external pure returns (uint256) {
+        return maybeFail(fail) + 1;
+    }
+
+    function maybeFail(bool fail) internal pure returns (uint256) {
+        if (fail) revert();
+        return 6;
+    }
+
     function breakSkipsTail() external pure returns (uint256 result) {
         for (uint256 i = 0; i < 1; ++i) {
             break;
@@ -70,5 +114,16 @@ contract StopsInConstructor {
 
     function present() external pure returns (uint256) {
         return 1;
+    }
+}
+
+contract RevertsInConstructor {
+    constructor(uint256 reason) {
+        uint256 result = fail(reason);
+        assembly { sstore(0, result) }
+    }
+
+    function fail(uint256 reason) internal pure returns (uint256) {
+        assembly { mstore(0, reason) revert(0, 32) }
     }
 }

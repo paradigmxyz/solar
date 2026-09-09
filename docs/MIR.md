@@ -422,8 +422,12 @@ a helper. ABI lowering converts empty external returns into `stop`. A shared
 returnability analysis follows tail-call chains, including cycles, so forwarding a call
 cannot hide an incompatible return signature. Proven nonreturning chains stay
 exempt. Call-to-tail-call conversion uses the same returnability facts, so it
-cannot discard a continuation after a returning tail-call chain. Slices as well
-as structs must be gone at the EVM-shaped boundary.
+cannot discard a continuation after a returning tail-call chain. Calls to proven
+nonreturning bodies lose their dead continuation even when they produce a result.
+When frame rules prevent a tail jump, the call remains an ordinary `icall` followed
+by `invalid`. The function keeps its declared result type: it describes a normal
+return, not a promise to return. Slices as well as structs must be gone at the
+EVM-shaped boundary.
 
 LLVM calls the matching aggregate operations `insertvalue` and `extractvalue`.
 Its `insertelement` and `extractelement` operate on vectors, can take dynamic
