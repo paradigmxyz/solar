@@ -676,11 +676,65 @@ merging `origin/main` at `2632e43b` reported already up to date. The backend
 remains at 17,517 physical Rust lines across 48 files; accepted performance
 and the remaining debts below are unchanged.
 
+## Bitmap address scheduling
+
+The revised shared-mask selector computes the second protected address before
+the first, consuming its intermediate values before either load. The two loads
+and three stores keep their original order. It remains in the existing writer
+helper at the MIR-to-EVM boundary; the contiguous selector, restore footer and
+all initialized-home, protocol-word, capacity and profitability guards remain.
+No planner, compiler trial or fallback is added.
+
+Unlike the rejected proposal above, this schedule removes one raw operation:
+41 instructions and 127 gas instead of 42 and 130. The executed focused selector
+and all 54 Nitro bitmap sites normalize to 39 instructions and 121 gas, tying
+the accepted incumbents. The six existing fixture oracles pass in both modes
+with unchanged gas across 12 fresh candidate calls. Retained baseline objects
+are joined exactly before reusing their concrete traces; the earlier pinned-solc
+leg remains reference evidence, not a fresh solc execution. Gas fixture
+creation/runtime each shrink four bytes, while Size bytecode is identical.
+
+The fresh official Full/Size workflows preserve all 24/15 ordered IDs, all 175
+gas labels and 139 execution observations in each lane. All gas records and
+execution results are unchanged. Nitro creation/runtime each shrink 172 bytes;
+every Size output, saved MIR and Standard JSON input remains exact. The final-source
+UI comparison joins 1,678 rows and 5,108 objects: ten shrink, none grow, and no
+equal-size objects change. Gas creation/runtime totals each fall 25 bytes;
+Size is exact and all 18 existing failed rows remain.
+
+Seven fresh heavy captures and two exact complete-fingerprint reuses preserve
+all nine projects, 1,672 contracts and 3,344 objects. There are 309 shrinking
+objects, 3,035 byte-exact objects, no growing objects and no equal-size changes.
+Total size falls by 655,111 bytes. Positive sealed debt falls by 655,108 bytes
+to 30,391,604 across the same 1,039 objects. The three-byte difference is a
+Solady creation object that was already below its sealed baseline.
+
+Compiler-time geometric means of per-case arithmetic sample-mean ratios rise
+1.454%/1.897% in Full/Size, with 108/75 samples per leg. Median-ratio geometric
+means rise 1.896%/0.945%; peak RSS changes by +0.156%/-0.191%. Disjoint five-sample
+slow ranges include Full Solady Signature (+1.727%) and PRB (+0.977%), and Size
+OpenZeppelin ERC20 (+6.116%), Vesting (+4.470%), Nitro (+7.781%), Aave (+8.931%),
+Flash (+2.733%) and Maple (+3.546%). These increases remain in the evidence;
+this change does not establish compiler-speed neutrality or improvement.
+
+All 1,562 workspace tests and nightly Clippy pass, with the same two existing
+skips. Only the reviewed selector FileCheck and two physical expectations
+change; test bodies, all six runtime oracles and the MIR golden are unchanged.
+Both bounded symbolic attempts remain incomplete after their 45-second limits,
+so neither establishes agreement. Independent byte-memory models, exact
+formatted-source extraction, executed traces and the complete Nitro selector
+census support the local transformation. Pinned solx, Venom and Sonatina
+scheduling and cost models informed the review; the selector algebra is an
+independent design. The step adds 35 physical production Rust lines and no
+production file. Evidence, source and compiler pins, per-label/per-object
+comparisons and limits remain under
+`target/codegen-bench/evm-rewrite-candidate/bitmap-stack-20260909/`.
+
 ## Remaining acceptance work
 
 The alias assertion migration passes; its generated-code size debt remains.
 The original readback failures now pass in every mode. General source-memory
-ownership remains an open contract; bounded shared-input sweeps pass. The complete heavy join now has 31,046,712 positive bytes of sealed size debt
+ownership remains an open contract; bounded shared-input sweeps pass. The complete heavy join now has 30,391,604 positive bytes of sealed size debt
 across 1,039 objects. This includes creation/runtime and embedded-child
 amplification; it is a sum of regressions, not net corpus growth. The historical
 writer count was 31,831,619. Terminal returns removed 20 positive bytes before
@@ -689,15 +743,16 @@ sizes and hashes match; the reconciliation is retained under the resident
 candidate's `pr-ledger/`; the bounded clean-call increment removes another
 57,488 positive bytes in its `candidate1/independent/` ledger. Late-DCE store
 reordering removes another 8,550 positive bytes; returning-memory analysis and
-halting-context verification remove another 631,275. Against current main, 19 of 175 gas labels regress,
+halting-context verification remove another 631,275. Bitmap address scheduling
+removes another 655,108. Against current main, 19 of 175 gas labels regress,
 down from 24: Maple's five approve regressions are gone. OZ mint and Flash fee
 costs improve to +3; the remaining getter debts persist. Fractional's seven getter calls now cost
 one additional gas each, down from ten. Compiler-time debts
 remain.
-The backend has 17,517 physical lines in 48 files, 17,121 fewer than the deletion
-inventory. Excluding trailing test modules leaves 16,212 physical lines. A
+The backend has 17,552 physical lines in 48 files, 17,086 fewer than the deletion
+inventory. Excluding trailing test modules leaves 16,247 physical lines. A
 retained count-only baseline reports 29,006 production-section lines, giving a
-conditional reduction of 12,794; that file lacks a revision/hash link to the
+conditional reduction of 12,759; that file lacks a revision/hash link to the
 sealed archive. These counts include comments and are not strict production SLOC.
 
 Eager contraction removes avoidable spills and saves bytecode without corpus
