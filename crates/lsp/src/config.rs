@@ -35,6 +35,7 @@ use std::{
     collections::BTreeSet,
     env,
     path::{Path, PathBuf},
+    sync::{Arc, OnceLock},
     time::Duration,
 };
 use tracing::{info, warn};
@@ -51,6 +52,7 @@ pub(crate) struct Config {
     selected_profile: Option<String>,
     foundry_workspace_config_source: FoundryWorkspaceConfigSource,
     workspaces: Vec<Workspace>,
+    workspace_path_cache: Arc<OnceLock<Arc<Vec<crate::workspace::WorkspaceImportPathIndexEntry>>>>,
     manifest_watch_roots: Vec<SourceWatchRoot>,
     git_marker_watch_roots: Vec<PathBuf>,
     index_policy: WorkspaceIndexPolicy,
@@ -135,6 +137,7 @@ impl Default for Config {
             selected_profile: None,
             foundry_workspace_config_source: FoundryWorkspaceConfigSource::default(),
             workspaces: Vec::new(),
+            workspace_path_cache: Arc::new(OnceLock::new()),
             manifest_watch_roots: Vec::new(),
             git_marker_watch_roots: Vec::new(),
             index_policy: WorkspaceIndexPolicy::default(),
@@ -339,7 +342,20 @@ impl Config {
         &self,
         path: &Path,
     ) -> Option<ImportResolutionContext<'_>> {
-        ImportResolutionContext::for_workspaces(&self.workspaces, path)
+        let entries = self.workspace_path_index().clone_import_entries();
+        ImportResolutionContext::for_workspaces_with_index(&self.workspaces, path, entries)
+    }
+
+    fn invalidate_workspace_path_cache(&mut self) {
+        self.workspace_path_cache = Arc::new(OnceLock::new());
+    }
+
+    fn workspace_path_index(&self) -> WorkspacePathIndex<'_> {
+        let entries = Arc::clone(
+            self.workspace_path_cache
+                .get_or_init(|| WorkspacePathIndex::new(&self.workspaces).clone_import_entries()),
+        );
+        WorkspacePathIndex::with_import_entries(&self.workspaces, entries)
     }
 
     pub(crate) fn is_index_import_only_path(&self, path: &Path) -> bool {
@@ -481,7 +497,7 @@ impl Config {
     }
 
     pub(crate) fn tracks_source_file(&self, path: &Path) -> bool {
-        WorkspacePathIndex::new(&self.workspaces)
+        self.workspace_path_index()
             .workspace_idx_for_source_path(&self.index_policy, path)
             .is_some()
     }
@@ -499,7 +515,7 @@ impl Config {
     }
 
     pub(crate) fn tracks_flycheck_file(&self, path: &Path) -> bool {
-        WorkspacePathIndex::new(&self.workspaces)
+        self.workspace_path_index()
             .workspace_idx_for_flycheck_path(&self.index_policy, path)
             .is_some()
     }
@@ -810,6 +826,7 @@ impl Config {
         &mut self,
         result: WorkspaceDiscoveryResult,
     ) -> Vec<DiagnosticOwner> {
+        self.invalidate_workspace_path_cache();
         self.workspaces = result.workspaces;
         self.manifest_watch_roots = result.manifest_watch_roots;
         self.git_marker_watch_roots = result.git_marker_watch_roots;
@@ -819,11 +836,13 @@ impl Config {
 
     pub(crate) fn remove_workspace(&mut self, path: &Path) {
         if let Some(pos) = self.workspace_roots.iter().position(|it| it == path) {
+            self.invalidate_workspace_path_cache();
             self.workspace_roots.remove(pos);
         }
     }
 
     pub(crate) fn add_workspaces(&mut self, paths: impl IntoIterator<Item = PathBuf>) {
+        self.invalidate_workspace_path_cache();
         for path in paths {
             if !self.workspace_roots.contains(&path) {
                 self.workspace_roots.push(path);
@@ -832,6 +851,7 @@ impl Config {
     }
 
     pub(crate) fn replace_workspace_roots(&mut self, roots: Vec<PathBuf>) {
+        self.invalidate_workspace_path_cache();
         self.workspace_roots = roots;
     }
 
@@ -850,12 +870,16 @@ impl Config {
         }
         let mut seen = FxHashSet::default();
         self.workspace_roots.retain(|root| seen.insert(root.clone()));
-        self.workspace_roots != previous
+        let changed = self.workspace_roots != previous;
+        if changed {
+            self.invalidate_workspace_path_cache();
+        }
+        changed
     }
 
     pub(crate) fn add_source_file(&mut self, path: PathBuf) {
         let (source_idx, flycheck_idx) = {
-            let index = WorkspacePathIndex::new(&self.workspaces);
+            let index = self.workspace_path_index();
             (
                 index.workspace_idx_for_source_path(&self.index_policy, &path),
                 index.workspace_idx_for_flycheck_path(&self.index_policy, &path),
@@ -871,7 +895,7 @@ impl Config {
 
     pub(crate) fn remove_source_file(&mut self, path: &Path) {
         let (source_idx, flycheck_idx) = {
-            let index = WorkspacePathIndex::new(&self.workspaces);
+            let index = self.workspace_path_index();
             (
                 index.workspace_idx_for_source_path(&self.index_policy, path),
                 index.workspace_idx_for_flycheck_path(&self.index_policy, path),

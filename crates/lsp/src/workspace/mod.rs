@@ -25,6 +25,7 @@ use solar_interface::{
 use std::{
     io,
     path::{Path, PathBuf},
+    sync::Arc,
 };
 
 mod foundry;
@@ -640,7 +641,8 @@ fn remove_sorted(files: &mut Vec<PathBuf>, path: &Path) {
 
 pub(crate) struct WorkspacePathIndex<'a> {
     workspaces: &'a [Workspace],
-    import_entries: Vec<WorkspaceImportPathIndexEntry>,
+    import_entries: Arc<Vec<WorkspaceImportPathIndexEntry>>,
+    root_index: FxHashMap<PathBuf, SmallVec<[WorkspacePathMatch; 4]>>,
 }
 
 type WorkspacePathMatch = (usize, usize, u8, usize);
@@ -649,12 +651,14 @@ pub(crate) struct WorkspacePathQuery {
     matches: SmallVec<[WorkspacePathMatch; 16]>,
 }
 
-struct WorkspaceImportPathIndexEntry {
+#[derive(Clone, Debug)]
+pub(crate) struct WorkspaceImportPathIndexEntry {
     idx: usize,
     base_depth: usize,
     roots: Vec<WorkspaceImportRoot>,
 }
 
+#[derive(Clone, Debug)]
 struct WorkspaceImportRoot {
     path: PathBuf,
     depth: usize,
@@ -663,12 +667,44 @@ struct WorkspaceImportRoot {
 
 impl<'a> WorkspacePathIndex<'a> {
     pub(crate) fn new(workspaces: &'a [Workspace]) -> Self {
-        let import_entries = workspaces
-            .iter()
-            .enumerate()
-            .map(|(idx, workspace)| WorkspaceImportPathIndexEntry::new(idx, workspace))
-            .collect();
-        Self { workspaces, import_entries }
+        let import_entries = Arc::new(
+            workspaces
+                .iter()
+                .enumerate()
+                .map(|(idx, workspace)| WorkspaceImportPathIndexEntry::new(idx, workspace))
+                .collect::<Vec<_>>(),
+        );
+        let root_index = Self::build_root_index(&import_entries);
+        Self { workspaces, import_entries, root_index }
+    }
+
+    pub(crate) fn with_import_entries(
+        workspaces: &'a [Workspace],
+        import_entries: Arc<Vec<WorkspaceImportPathIndexEntry>>,
+    ) -> Self {
+        let root_index = Self::build_root_index(&import_entries);
+        Self { workspaces, import_entries, root_index }
+    }
+
+    fn build_root_index(
+        import_entries: &[WorkspaceImportPathIndexEntry],
+    ) -> FxHashMap<PathBuf, SmallVec<[WorkspacePathMatch; 4]>> {
+        let mut root_index = FxHashMap::default();
+        for entry in import_entries {
+            for root in &entry.roots {
+                root_index.entry(root.path.clone()).or_insert_with(SmallVec::new).push((
+                    entry.idx,
+                    root.depth,
+                    root.kind,
+                    entry.base_depth,
+                ));
+            }
+        }
+        root_index
+    }
+
+    pub(crate) fn clone_import_entries(&self) -> Arc<Vec<WorkspaceImportPathIndexEntry>> {
+        Arc::clone(&self.import_entries)
     }
 
     pub(crate) fn query(&self, path: &Path) -> WorkspacePathQuery {
@@ -684,18 +720,24 @@ impl<'a> WorkspacePathIndex<'a> {
     }
 
     fn matching_entries(&self, path: &Path) -> SmallVec<[WorkspacePathMatch; 16]> {
-        self.import_entries
-            .iter()
-            .filter_map(|entry| {
-                let (root_depth, root_kind) = entry
-                    .roots
-                    .iter()
-                    .filter(|root| path.starts_with(&root.path))
-                    .map(|root| (root.depth, root.kind))
-                    .max()?;
-                Some((entry.idx, root_depth, root_kind, entry.base_depth))
-            })
-            .collect()
+        if self.root_index.is_empty() {
+            return SmallVec::new();
+        }
+        let mut matches = SmallVec::<[WorkspacePathMatch; 16]>::new();
+        for ancestor in path.ancestors() {
+            let Some(roots) = self.root_index.get(ancestor) else { continue };
+            for &candidate @ (idx, root_depth, root_kind, _) in roots {
+                if let Some(best) = matches.iter_mut().find(|best| best.0 == idx) {
+                    if (root_depth, root_kind) > (best.1, best.2) {
+                        *best = candidate;
+                    }
+                } else {
+                    matches.push(candidate);
+                }
+            }
+        }
+        matches.sort_unstable_by_key(|&(idx, _, _, _)| idx);
+        matches
     }
 
     pub(crate) fn workspace_idx_for_import_path(&self, path: &Path) -> Option<usize> {
@@ -1503,7 +1545,9 @@ mod tests {
         let workspaces = vec![outer, inner];
         let index = WorkspacePathIndex::new(&workspaces);
 
-        assert_eq!(index.query(&project.path("/nested/A.sol")).workspace_idx_for_path(), 1);
+        let query = index.query(&project.path("/nested/A.sol"));
+        assert_eq!(query.workspace_idx_for_path(), 1);
+        assert_eq!(query.workspace_idxs_for_import_path().collect::<Vec<_>>(), [0, 1]);
         assert_eq!(index.query(&project.path("/B.sol")).workspace_idx_for_path(), 0);
     }
 
