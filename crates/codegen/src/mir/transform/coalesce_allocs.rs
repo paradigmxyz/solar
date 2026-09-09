@@ -126,7 +126,11 @@ fn preserves_group(func: &Function, inst_id: InstId) -> bool {
         | EffectKind::StorageWrite
         | EffectKind::TransientRead
         | EffectKind::TransientWrite
-        | EffectKind::EnvironmentRead => true,
+        | EffectKind::EnvironmentRead
+        // Immutable access does not observe or move the allocation frontier.
+        // Lowering places constructor homes outside the FMP word.
+        | EffectKind::ImmutableRead
+        | EffectKind::ImmutableWrite => true,
         EffectKind::MemoryRead => match &inst.kind {
             InstKind::MLoad(addr) => {
                 range_avoids_fmp(func, *addr, Some(EvmMemoryLayout::WORD_SIZE))
@@ -160,9 +164,7 @@ fn preserves_group(func: &Function, inst_id: InstId) -> bool {
         EffectKind::ExternalCall
         | EffectKind::ICall
         | EffectKind::Create
-        | EffectKind::Log
-        | EffectKind::ImmutableRead
-        | EffectKind::ImmutableWrite => false,
+        | EffectKind::Log => false,
     }
 }
 

@@ -1,6 +1,9 @@
 - // === ROOT/tests/ui/codegen/mir/coalesce-allocs/coalesce_allocs_basic.mir (before coalesce-allocs) ===
 + // === ROOT/tests/ui/codegen/mir/coalesce-allocs/coalesce_allocs_basic.mir (after coalesce-allocs) ===
   @module CoalesceAllocsBasic
+  immutables:
+    stored: u256
+  
   fn @fuse_consecutive() -> u256 {
     bb0:
 -     v0 = alloc raw, exact, uninitialized, infallible, 64
@@ -76,6 +79,17 @@
       set_fmp 0x10000
       v1 = alloc raw, exact, uninitialized, infallible, 32
       mstore v1, 5
+      ret v1
+  }
+  
+  fn @across_immutable() -> memptr {
+    bb0:
+-     v0 = alloc raw, exact, uninitialized, infallible, 32
++     v0 = alloc raw, exact, uninitialized, infallible, 64
+      mstore v0, 42
+      storeimmutable stored, 7
+-     v1 = alloc raw, exact, uninitialized, infallible, 32
++     v1 = add v0, 32
       ret v1
   }
   

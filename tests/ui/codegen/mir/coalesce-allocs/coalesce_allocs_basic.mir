@@ -1,6 +1,8 @@
 //@compile-flags: -Zmir-pipeline=coalesce-allocs
 //@filecheck:
 @module CoalesceAllocsBasic
+immutables:
+  stored: u256
 
 // Three consecutive constant-size allocations fuse into one bump of the
 // summed size; later members become constant offsets from the fused base.
@@ -104,5 +106,19 @@ fn @keep_across_set_fmp() -> memptr {
     set_fmp 65536
     v1 = alloc raw, exact, uninitialized, infallible, 32
     mstore v1, 5
+    ret v1
+}
+
+// Immutable initialization does not move or observe the allocation frontier.
+// CHECK-LABEL: fn @across_immutable
+// CHECK: + v0 = alloc raw, exact, uninitialized, infallible, 64
+// CHECK: storeimmutable stored, 7
+// CHECK: + v1 = add v0, 32
+fn @across_immutable() -> memptr {
+  bb0:
+    v0 = alloc raw, exact, uninitialized, infallible, 32
+    mstore v0, 42
+    storeimmutable stored, 7
+    v1 = alloc raw, exact, uninitialized, infallible, 32
     ret v1
 }
