@@ -1,0 +1,291 @@
+//@ revisions: eager scheduled
+//@[eager] compile-flags: -Onone -Zmir-pipeline=evm-inst-schedule
+//@[scheduled] compile-flags: -Ogas -Zmir-pipeline=evm-inst-schedule
+//@ filecheck:
+@module SharedDagRegionBound
+
+// Exactly 128 instructions in one hard-boundary region; source-write anchors stay ordered.
+// CHECK-LABEL: fn @region128(
+// CHECK: [[A:v[0-9]+]] = sload 0
+// CHECK-NEXT: [[B:v[0-9]+]] = sload 1
+// CHECK-DAG: {{v[0-9]+}} = add [[A]], [[B]]
+// CHECK-DAG: {{v[0-9]+}} = xor [[A]], [[B]]
+// CHECK: [[LAST:v[0-9]+]] = sload 17
+// CHECK-DAG: [[SUM:v[0-9]+]] = add {{v[0-9]+}}, [[LAST]]
+// CHECK-DAG: [[XOR:v[0-9]+]] = xor {{v[0-9]+}}, [[LAST]]
+// CHECK-NEXT: sstore arg2, 9
+// CHECK-NEXT: mstore arg0, 0xdeadbeef
+// CHECK: ret {{v[0-9]+}}, [[SUM]], [[XOR]], {{v[0-9]+}}
+fn @region128(arg0: u256, arg1: u256, arg2: u256) -> (u256, u256, u256, u256) {
+  bb0:
+    sstore 1000, 1
+    sstore 1001, 2
+    sstore 1002, 3
+    sstore 1003, 4
+    sstore 1004, 5
+    sstore 1005, 6
+    sstore 1006, 7
+    sstore 1007, 8
+    sstore 1008, 9
+    sstore 1009, 10
+    sstore 1010, 11
+    sstore 1011, 12
+    sstore 1012, 13
+    sstore 1013, 14
+    sstore 1014, 15
+    sstore 1015, 16
+    sstore 1016, 17
+    sstore 1017, 18
+    sstore 1018, 19
+    sstore 1019, 20
+    sstore 1020, 21
+    sstore 1021, 22
+    sstore 1022, 23
+    sstore 1023, 24
+    sstore 1024, 25
+    sstore 1025, 26
+    sstore 1026, 27
+    sstore 1027, 28
+    sstore 1028, 29
+    sstore 1029, 30
+    sstore 1030, 31
+    sstore 1031, 32
+    sstore 1032, 33
+    sstore 1033, 34
+    sstore 1034, 35
+    sstore 1035, 36
+    sstore 1036, 37
+    sstore 1037, 38
+    sstore 1038, 39
+    sstore 1039, 40
+    sstore 1040, 41
+    sstore 1041, 42
+    sstore 1042, 43
+    sstore 1043, 44
+    sstore 1044, 45
+    sstore 1045, 46
+    sstore 1046, 47
+    sstore 1047, 48
+    sstore 1048, 49
+    sstore 1049, 50
+    sstore 1050, 51
+    sstore 1051, 52
+    sstore 1052, 53
+    sstore 1053, 54
+    sstore 1054, 55
+    sstore 1055, 56
+    sstore 1056, 57
+    sstore 1057, 58
+    sstore 1058, 59
+    sstore 1059, 60
+    sstore 1060, 61
+    sstore 1061, 62
+    sstore 1062, 63
+    sstore 1063, 64
+    sstore 1064, 65
+    sstore 1065, 66
+    sstore 1066, 67
+    sstore 1067, 68
+    sstore 1068, 69
+    sstore 1069, 70
+    sstore 1070, 71
+    sstore 1071, 72
+    v0 = sload 0
+    v1 = sload 1
+    v2 = sload 2
+    v3 = sload 3
+    v4 = sload 4
+    v5 = sload 5
+    v6 = sload 6
+    v7 = sload 7
+    v8 = sload 8
+    v9 = sload 9
+    v10 = sload 10
+    v11 = sload 11
+    v12 = sload 12
+    v13 = sload 13
+    v14 = sload 14
+    v15 = sload 15
+    v16 = sload 16
+    v17 = sload 17
+    sstore arg2, 9
+    mstore arg0, 0xdeadbeef
+    v18 = mload arg1
+    v19 = add v0, v1
+    v20 = add v19, v2
+    v21 = add v20, v3
+    v22 = add v21, v4
+    v23 = add v22, v5
+    v24 = add v23, v6
+    v25 = add v24, v7
+    v26 = add v25, v8
+    v27 = add v26, v9
+    v28 = add v27, v10
+    v29 = add v28, v11
+    v30 = add v29, v12
+    v31 = add v30, v13
+    v32 = add v31, v14
+    v33 = add v32, v15
+    v34 = add v33, v16
+    v35 = add v34, v17
+    v36 = xor v0, v1
+    v37 = xor v36, v2
+    v38 = xor v37, v3
+    v39 = xor v38, v4
+    v40 = xor v39, v5
+    v41 = xor v40, v6
+    v42 = xor v41, v7
+    v43 = xor v42, v8
+    v44 = xor v43, v9
+    v45 = xor v44, v10
+    v46 = xor v45, v11
+    v47 = xor v46, v12
+    v48 = xor v47, v13
+    v49 = xor v48, v14
+    v50 = xor v49, v15
+    v51 = xor v50, v16
+    v52 = xor v51, v17
+    v53 = sload arg2
+    ret v18, v35, v52, v53
+}
+// Exactly 129 instructions exceeds the bounded DAG trial; retain the prior scheduler result.
+// CHECK-LABEL: fn @region129(
+// CHECK: [[ROOT:v[0-9]+]] = sload 0
+// CHECK-NOT: = add
+// CHECK-NOT: = xor
+// CHECK: sstore arg2, 9
+// CHECK-NEXT: mstore arg0, 0xdeadbeef
+// CHECK: = add [[ROOT]],
+fn @region129(arg0: u256, arg1: u256, arg2: u256) -> (u256, u256, u256, u256) {
+  bb0:
+    sstore 1000, 1
+    sstore 1001, 2
+    sstore 1002, 3
+    sstore 1003, 4
+    sstore 1004, 5
+    sstore 1005, 6
+    sstore 1006, 7
+    sstore 1007, 8
+    sstore 1008, 9
+    sstore 1009, 10
+    sstore 1010, 11
+    sstore 1011, 12
+    sstore 1012, 13
+    sstore 1013, 14
+    sstore 1014, 15
+    sstore 1015, 16
+    sstore 1016, 17
+    sstore 1017, 18
+    sstore 1018, 19
+    sstore 1019, 20
+    sstore 1020, 21
+    sstore 1021, 22
+    sstore 1022, 23
+    sstore 1023, 24
+    sstore 1024, 25
+    sstore 1025, 26
+    sstore 1026, 27
+    sstore 1027, 28
+    sstore 1028, 29
+    sstore 1029, 30
+    sstore 1030, 31
+    sstore 1031, 32
+    sstore 1032, 33
+    sstore 1033, 34
+    sstore 1034, 35
+    sstore 1035, 36
+    sstore 1036, 37
+    sstore 1037, 38
+    sstore 1038, 39
+    sstore 1039, 40
+    sstore 1040, 41
+    sstore 1041, 42
+    sstore 1042, 43
+    sstore 1043, 44
+    sstore 1044, 45
+    sstore 1045, 46
+    sstore 1046, 47
+    sstore 1047, 48
+    sstore 1048, 49
+    sstore 1049, 50
+    sstore 1050, 51
+    sstore 1051, 52
+    sstore 1052, 53
+    sstore 1053, 54
+    sstore 1054, 55
+    sstore 1055, 56
+    sstore 1056, 57
+    sstore 1057, 58
+    sstore 1058, 59
+    sstore 1059, 60
+    sstore 1060, 61
+    sstore 1061, 62
+    sstore 1062, 63
+    sstore 1063, 64
+    sstore 1064, 65
+    sstore 1065, 66
+    sstore 1066, 67
+    sstore 1067, 68
+    sstore 1068, 69
+    sstore 1069, 70
+    sstore 1070, 71
+    sstore 1071, 72
+    sstore 1072, 73
+    v0 = sload 0
+    v1 = sload 1
+    v2 = sload 2
+    v3 = sload 3
+    v4 = sload 4
+    v5 = sload 5
+    v6 = sload 6
+    v7 = sload 7
+    v8 = sload 8
+    v9 = sload 9
+    v10 = sload 10
+    v11 = sload 11
+    v12 = sload 12
+    v13 = sload 13
+    v14 = sload 14
+    v15 = sload 15
+    v16 = sload 16
+    v17 = sload 17
+    sstore arg2, 9
+    mstore arg0, 0xdeadbeef
+    v18 = mload arg1
+    v19 = add v0, v1
+    v20 = add v19, v2
+    v21 = add v20, v3
+    v22 = add v21, v4
+    v23 = add v22, v5
+    v24 = add v23, v6
+    v25 = add v24, v7
+    v26 = add v25, v8
+    v27 = add v26, v9
+    v28 = add v27, v10
+    v29 = add v28, v11
+    v30 = add v29, v12
+    v31 = add v30, v13
+    v32 = add v31, v14
+    v33 = add v32, v15
+    v34 = add v33, v16
+    v35 = add v34, v17
+    v36 = xor v0, v1
+    v37 = xor v36, v2
+    v38 = xor v37, v3
+    v39 = xor v38, v4
+    v40 = xor v39, v5
+    v41 = xor v40, v6
+    v42 = xor v41, v7
+    v43 = xor v42, v8
+    v44 = xor v43, v9
+    v45 = xor v44, v10
+    v46 = xor v45, v11
+    v47 = xor v46, v12
+    v48 = xor v47, v13
+    v49 = xor v48, v14
+    v50 = xor v49, v15
+    v51 = xor v50, v16
+    v52 = xor v51, v17
+    v53 = sload arg2
+    ret v18, v35, v52, v53
+}

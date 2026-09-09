@@ -1,0 +1,399 @@
+//@ revisions: eager scheduled
+//@[eager] compile-flags: -Onone -Zmir-pipeline=evm-inst-schedule
+//@[scheduled] compile-flags: -Ogas -Zmir-pipeline=evm-inst-schedule
+//@ filecheck:
+@module SharedDagUses
+
+// One capture occurs twice in an ADD and also feeds XOR; retire distinct identities once.
+// CHECK-LABEL: fn @repeated_operand(
+// CHECK: [[A:v[0-9]+]] = sload 0
+// CHECK-NEXT: [[TWICE:v[0-9]+]] = add [[A]], [[A]]
+// CHECK-NEXT: [[B:v[0-9]+]] = sload 1
+// CHECK-DAG: {{v[0-9]+}} = add [[TWICE]], [[B]]
+// CHECK-DAG: {{v[0-9]+}} = xor [[A]], [[B]]
+// CHECK: [[LAST:v[0-9]+]] = sload 17
+// CHECK-DAG: [[SUM:v[0-9]+]] = add {{v[0-9]+}}, [[LAST]]
+// CHECK-DAG: [[XOR:v[0-9]+]] = xor {{v[0-9]+}}, [[LAST]]
+// CHECK-NEXT: sstore arg2, 9
+// CHECK: ret {{v[0-9]+}}, [[SUM]], [[XOR]], {{v[0-9]+}}
+fn @repeated_operand(arg0: u256, arg1: u256, arg2: u256) -> (u256, u256, u256, u256) {
+  bb0:
+    v0 = sload 0
+    v1 = sload 1
+    v2 = sload 2
+    v3 = sload 3
+    v4 = sload 4
+    v5 = sload 5
+    v6 = sload 6
+    v7 = sload 7
+    v8 = sload 8
+    v9 = sload 9
+    v10 = sload 10
+    v11 = sload 11
+    v12 = sload 12
+    v13 = sload 13
+    v14 = sload 14
+    v15 = sload 15
+    v16 = sload 16
+    v17 = sload 17
+    sstore arg2, 9
+    mstore arg0, 0xdeadbeef
+    v18 = mload arg1
+    v19 = add v0, v0
+    v20 = add v19, v1
+    v21 = add v20, v2
+    v22 = add v21, v3
+    v23 = add v22, v4
+    v24 = add v23, v5
+    v25 = add v24, v6
+    v26 = add v25, v7
+    v27 = add v26, v8
+    v28 = add v27, v9
+    v29 = add v28, v10
+    v30 = add v29, v11
+    v31 = add v30, v12
+    v32 = add v31, v13
+    v33 = add v32, v14
+    v34 = add v33, v15
+    v35 = add v34, v16
+    v36 = add v35, v17
+    v37 = xor v0, v1
+    v38 = xor v37, v2
+    v39 = xor v38, v3
+    v40 = xor v39, v4
+    v41 = xor v40, v5
+    v42 = xor v41, v6
+    v43 = xor v42, v7
+    v44 = xor v43, v8
+    v45 = xor v44, v9
+    v46 = xor v45, v10
+    v47 = xor v46, v11
+    v48 = xor v47, v12
+    v49 = xor v48, v13
+    v50 = xor v49, v14
+    v51 = xor v50, v15
+    v52 = xor v51, v16
+    v53 = xor v52, v17
+    v54 = sload arg2
+    ret v18, v36, v53, v54
+}
+// Three consumers per captured root are valid; the DAG must not clone any read or node.
+// CHECK-LABEL: fn @three_live_reductions(
+// CHECK: [[LAST:v[0-9]+]] = sload 17
+// CHECK-DAG: [[SUM:v[0-9]+]] = add {{v[0-9]+}}, [[LAST]]
+// CHECK-DAG: [[XOR:v[0-9]+]] = xor {{v[0-9]+}}, [[LAST]]
+// CHECK-DAG: [[OR:v[0-9]+]] = or {{v[0-9]+}}, [[LAST]]
+// CHECK-NEXT: sstore arg2, 9
+// CHECK: ret {{v[0-9]+}}, [[SUM]], [[XOR]], [[OR]], {{v[0-9]+}}
+fn @three_live_reductions(arg0: u256, arg1: u256, arg2: u256) -> (u256, u256, u256, u256, u256) {
+  bb0:
+    v0 = sload 0
+    v1 = sload 1
+    v2 = sload 2
+    v3 = sload 3
+    v4 = sload 4
+    v5 = sload 5
+    v6 = sload 6
+    v7 = sload 7
+    v8 = sload 8
+    v9 = sload 9
+    v10 = sload 10
+    v11 = sload 11
+    v12 = sload 12
+    v13 = sload 13
+    v14 = sload 14
+    v15 = sload 15
+    v16 = sload 16
+    v17 = sload 17
+    sstore arg2, 9
+    mstore arg0, 0xdeadbeef
+    v18 = mload arg1
+    v19 = add v0, v1
+    v20 = add v19, v2
+    v21 = add v20, v3
+    v22 = add v21, v4
+    v23 = add v22, v5
+    v24 = add v23, v6
+    v25 = add v24, v7
+    v26 = add v25, v8
+    v27 = add v26, v9
+    v28 = add v27, v10
+    v29 = add v28, v11
+    v30 = add v29, v12
+    v31 = add v30, v13
+    v32 = add v31, v14
+    v33 = add v32, v15
+    v34 = add v33, v16
+    v35 = add v34, v17
+    v36 = xor v0, v1
+    v37 = xor v36, v2
+    v38 = xor v37, v3
+    v39 = xor v38, v4
+    v40 = xor v39, v5
+    v41 = xor v40, v6
+    v42 = xor v41, v7
+    v43 = xor v42, v8
+    v44 = xor v43, v9
+    v45 = xor v44, v10
+    v46 = xor v45, v11
+    v47 = xor v46, v12
+    v48 = xor v47, v13
+    v49 = xor v48, v14
+    v50 = xor v49, v15
+    v51 = xor v50, v16
+    v52 = xor v51, v17
+    v53 = or v0, v1
+    v54 = or v53, v2
+    v55 = or v54, v3
+    v56 = or v55, v4
+    v57 = or v56, v5
+    v58 = or v57, v6
+    v59 = or v58, v7
+    v60 = or v59, v8
+    v61 = or v60, v9
+    v62 = or v61, v10
+    v63 = or v62, v11
+    v64 = or v63, v12
+    v65 = or v64, v13
+    v66 = or v65, v14
+    v67 = or v66, v15
+    v68 = or v67, v16
+    v69 = or v68, v17
+    v70 = sload arg2
+    ret v18, v35, v52, v69, v70
+}
+// Return every root as well as its reductions. Early evaluation cannot retire escaping roots.
+// CHECK-LABEL: fn @every_root_escapes(
+// CHECK: [[ROOT:v[0-9]+]] = sload 0
+// CHECK-NOT: = add
+// CHECK-NOT: = xor
+// CHECK: sstore arg2, 9
+// CHECK-NEXT: mstore arg0, 0xdeadbeef
+// CHECK: = add [[ROOT]],
+fn @every_root_escapes(arg0: u256, arg1: u256, arg2: u256) -> (u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256) {
+  bb0:
+    v0 = sload 0
+    v1 = sload 1
+    v2 = sload 2
+    v3 = sload 3
+    v4 = sload 4
+    v5 = sload 5
+    v6 = sload 6
+    v7 = sload 7
+    v8 = sload 8
+    v9 = sload 9
+    v10 = sload 10
+    v11 = sload 11
+    v12 = sload 12
+    v13 = sload 13
+    v14 = sload 14
+    v15 = sload 15
+    v16 = sload 16
+    v17 = sload 17
+    sstore arg2, 9
+    mstore arg0, 0xdeadbeef
+    v18 = mload arg1
+    v19 = add v0, v1
+    v20 = add v19, v2
+    v21 = add v20, v3
+    v22 = add v21, v4
+    v23 = add v22, v5
+    v24 = add v23, v6
+    v25 = add v24, v7
+    v26 = add v25, v8
+    v27 = add v26, v9
+    v28 = add v27, v10
+    v29 = add v28, v11
+    v30 = add v29, v12
+    v31 = add v30, v13
+    v32 = add v31, v14
+    v33 = add v32, v15
+    v34 = add v33, v16
+    v35 = add v34, v17
+    v36 = xor v0, v1
+    v37 = xor v36, v2
+    v38 = xor v37, v3
+    v39 = xor v38, v4
+    v40 = xor v39, v5
+    v41 = xor v40, v6
+    v42 = xor v41, v7
+    v43 = xor v42, v8
+    v44 = xor v43, v9
+    v45 = xor v44, v10
+    v46 = xor v45, v11
+    v47 = xor v46, v12
+    v48 = xor v47, v13
+    v49 = xor v48, v14
+    v50 = xor v49, v15
+    v51 = xor v50, v16
+    v52 = xor v51, v17
+    v53 = sload arg2
+    ret v18, v35, v52, v53, v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17
+}
+
+// Successor Phi edges retain every capture; local use scanning must not retire them.
+// CHECK-LABEL: fn @roots_escape_through_phi_edges(
+// CHECK: [[ROOT:v[0-9]+]] = sload 0
+// CHECK-NOT: = add
+// CHECK-NOT: = xor
+// CHECK: sstore arg2, 9
+// CHECK-NEXT: mstore arg0, 0xdeadbeef
+// CHECK: = add [[ROOT]],
+// CHECK: jump bb1
+// CHECK: bb1:
+// CHECK-NEXT: {{v[0-9]+}} = phi [bb0: [[ROOT]]]
+fn @roots_escape_through_phi_edges(arg0: u256, arg1: u256, arg2: u256) -> (u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256) {
+  bb0:
+    v0 = sload 0
+    v1 = sload 1
+    v2 = sload 2
+    v3 = sload 3
+    v4 = sload 4
+    v5 = sload 5
+    v6 = sload 6
+    v7 = sload 7
+    v8 = sload 8
+    v9 = sload 9
+    v10 = sload 10
+    v11 = sload 11
+    v12 = sload 12
+    v13 = sload 13
+    v14 = sload 14
+    v15 = sload 15
+    v16 = sload 16
+    v17 = sload 17
+    sstore arg2, 9
+    mstore arg0, 0xdeadbeef
+    v18 = mload arg1
+    v19 = add v0, v1
+    v20 = add v19, v2
+    v21 = add v20, v3
+    v22 = add v21, v4
+    v23 = add v22, v5
+    v24 = add v23, v6
+    v25 = add v24, v7
+    v26 = add v25, v8
+    v27 = add v26, v9
+    v28 = add v27, v10
+    v29 = add v28, v11
+    v30 = add v29, v12
+    v31 = add v30, v13
+    v32 = add v31, v14
+    v33 = add v32, v15
+    v34 = add v33, v16
+    v35 = add v34, v17
+    v36 = xor v0, v1
+    v37 = xor v36, v2
+    v38 = xor v37, v3
+    v39 = xor v38, v4
+    v40 = xor v39, v5
+    v41 = xor v40, v6
+    v42 = xor v41, v7
+    v43 = xor v42, v8
+    v44 = xor v43, v9
+    v45 = xor v44, v10
+    v46 = xor v45, v11
+    v47 = xor v46, v12
+    v48 = xor v47, v13
+    v49 = xor v48, v14
+    v50 = xor v49, v15
+    v51 = xor v50, v16
+    v52 = xor v51, v17
+    v53 = sload arg2
+    jump bb1
+  bb1:
+    v54 = phi [bb0: v0]
+    v55 = phi [bb0: v1]
+    v56 = phi [bb0: v2]
+    v57 = phi [bb0: v3]
+    v58 = phi [bb0: v4]
+    v59 = phi [bb0: v5]
+    v60 = phi [bb0: v6]
+    v61 = phi [bb0: v7]
+    v62 = phi [bb0: v8]
+    v63 = phi [bb0: v9]
+    v64 = phi [bb0: v10]
+    v65 = phi [bb0: v11]
+    v66 = phi [bb0: v12]
+    v67 = phi [bb0: v13]
+    v68 = phi [bb0: v14]
+    v69 = phi [bb0: v15]
+    v70 = phi [bb0: v16]
+    v71 = phi [bb0: v17]
+    ret v18, v35, v52, v53, v54, v55, v56, v57, v58, v59, v60, v61, v62, v63, v64, v65, v66, v67, v68, v69, v70, v71
+}
+
+// Six shared mutable captures fit the legacy reach despite eleven other live
+// calldata-derived values. The immutable values cannot trigger contraction.
+// CHECK-LABEL: fn @mutable_captures_below_reach(
+// CHECK: [[FIRST:v[0-9]+]] = sload 0
+// CHECK-NEXT: [[SECOND:v[0-9]+]] = sload 1
+// CHECK-NOT: = add [[FIRST]], [[SECOND]]
+// CHECK-NOT: = xor [[FIRST]], [[SECOND]]
+// CHECK: sstore {{v[0-9]+}}, 9
+// CHECK-NEXT: mstore {{v[0-9]+}}, 0xdeadbeef
+// CHECK: = add [[FIRST]], [[SECOND]]
+// CHECK: = xor [[FIRST]], [[SECOND]]
+fn @mutable_captures_below_reach() {
+  bb0:
+    v0 = calldataload 4
+    v1 = xor v0, 256
+    v2 = calldataload 36
+    v3 = xor v2, 256
+    v4 = calldataload 68
+    v5 = xor v4, 256
+    v6 = calldataload 100
+    v7 = xor v6, 256
+    v8 = calldataload 132
+    v9 = xor v8, 256
+    v10 = calldataload 164
+    v11 = xor v10, 256
+    v12 = calldataload 196
+    v13 = xor v12, 256
+    v14 = calldataload 228
+    v15 = xor v14, 256
+    v16 = calldataload 260
+    v17 = xor v16, 256
+    v18 = calldataload 292
+    v19 = xor v18, 256
+    v20 = calldataload 324
+    v21 = xor v20, 256
+    v22 = sload 0 !metadata(storage=slot(0))
+    v23 = sload 1 !metadata(storage=slot(1))
+    v24 = sload 2 !metadata(storage=slot(2))
+    v25 = sload 3 !metadata(storage=slot(3))
+    v26 = sload 4 !metadata(storage=slot(4))
+    v27 = sload 5 !metadata(storage=slot(5))
+    v28 = and v3, 15
+    v29 = and v1, 31
+    v30 = add v29, 576
+    sstore v28, 9 !metadata(storage=symbolic(v28))
+    mstore v30, 0xdeadbeef
+    v32 = add v22, v23
+    v33 = add v32, v24
+    v34 = add v33, v25
+    v35 = add v34, v26
+    v36 = add v35, v27
+    v37 = xor v22, v23
+    v38 = xor v37, v24
+    v39 = xor v38, v25
+    v40 = xor v39, v26
+    v41 = xor v40, v27
+    v42 = add v1, v3
+    v43 = add v42, v5
+    v44 = add v43, v7
+    v45 = add v44, v9
+    v46 = add v45, v11
+    v47 = add v46, v13
+    v48 = add v47, v15
+    v49 = add v48, v17
+    v50 = add v49, v19
+    v51 = add v50, v21
+    v52 = add v36, v51
+    v53 = sload v28 !metadata(storage=symbolic(v28))
+    mstore 128, 0xdeadbeef
+    mstore 160, v52
+    mstore 192, v41
+    mstore 224, v53
+    returndata 128, 128
+}

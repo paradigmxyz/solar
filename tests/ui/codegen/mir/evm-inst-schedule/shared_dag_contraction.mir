@@ -1,0 +1,166 @@
+//@ revisions: eager scheduled
+//@[eager] compile-flags: -Onone -Zmir-pipeline=evm-inst-schedule
+//@[scheduled] compile-flags: -Ogas -Zmir-pipeline=evm-inst-schedule
+//@ filecheck:
+@module SharedDagContraction
+
+// Both complete reductions must precede SSTORE; every SLOAD remains a single capture.
+// CHECK-LABEL: fn @shared_roots(
+// CHECK: [[A:v[0-9]+]] = sload 0
+// CHECK-NEXT: [[B:v[0-9]+]] = sload 1
+// CHECK-DAG: {{v[0-9]+}} = add [[A]], [[B]]
+// CHECK-DAG: {{v[0-9]+}} = xor [[A]], [[B]]
+// CHECK: [[LAST:v[0-9]+]] = sload 17
+// CHECK-DAG: [[SUM:v[0-9]+]] = add {{v[0-9]+}}, [[LAST]]
+// CHECK-DAG: [[XOR:v[0-9]+]] = xor {{v[0-9]+}}, [[LAST]]
+// CHECK-NEXT: sstore arg2, 9
+// CHECK-NEXT: mstore arg0, 0xdeadbeef
+// CHECK: ret {{v[0-9]+}}, [[SUM]], [[XOR]], {{v[0-9]+}}
+fn @shared_roots(arg0: u256, arg1: u256, arg2: u256) -> (u256, u256, u256, u256) {
+  bb0:
+    v0 = sload 0
+    v1 = sload 1
+    v2 = sload 2
+    v3 = sload 3
+    v4 = sload 4
+    v5 = sload 5
+    v6 = sload 6
+    v7 = sload 7
+    v8 = sload 8
+    v9 = sload 9
+    v10 = sload 10
+    v11 = sload 11
+    v12 = sload 12
+    v13 = sload 13
+    v14 = sload 14
+    v15 = sload 15
+    v16 = sload 16
+    v17 = sload 17
+    sstore arg2, 9
+    mstore arg0, 0xdeadbeef
+    v18 = mload arg1
+    v19 = add v0, v1
+    v20 = add v19, v2
+    v21 = add v20, v3
+    v22 = add v21, v4
+    v23 = add v22, v5
+    v24 = add v23, v6
+    v25 = add v24, v7
+    v26 = add v25, v8
+    v27 = add v26, v9
+    v28 = add v27, v10
+    v29 = add v28, v11
+    v30 = add v29, v12
+    v31 = add v30, v13
+    v32 = add v31, v14
+    v33 = add v32, v15
+    v34 = add v33, v16
+    v35 = add v34, v17
+    v36 = xor v0, v1
+    v37 = xor v36, v2
+    v38 = xor v37, v3
+    v39 = xor v38, v4
+    v40 = xor v39, v5
+    v41 = xor v40, v6
+    v42 = xor v41, v7
+    v43 = xor v42, v8
+    v44 = xor v43, v9
+    v45 = xor v44, v10
+    v46 = xor v45, v11
+    v47 = xor v46, v12
+    v48 = xor v47, v13
+    v49 = xor v48, v14
+    v50 = xor v49, v15
+    v51 = xor v50, v16
+    v52 = xor v51, v17
+    v53 = sload arg2
+    ret v18, v35, v52, v53
+}
+
+// The unoptimized return buffer keeps five pure address calculations. They must
+// remain beside their writes while the two mutable-root reductions contract.
+// CHECK-LABEL: fn @unfolded_return_buffer(
+// CHECK: [[LAST:v[0-9]+]] = sload 17
+// CHECK-DAG: [[SUM:v[0-9]+]] = add {{v[0-9]+}}, [[LAST]]
+// CHECK-DAG: [[XOR:v[0-9]+]] = xor {{v[0-9]+}}, [[LAST]]
+// CHECK-NEXT: sstore arg2, 9
+// CHECK-NEXT: mstore arg0, 0xdeadbeef
+// CHECK: mstore 128, {{v[0-9]+}}
+// CHECK-NEXT: [[A0:v[0-9]+]] = add 128, 32
+// CHECK-NEXT: mstore [[A0]], [[SUM]]
+// CHECK-NEXT: [[A1:v[0-9]+]] = add [[A0]], 32
+// CHECK-NEXT: mstore [[A1]], [[XOR]]
+// CHECK-NEXT: [[A2:v[0-9]+]] = add [[A1]], 32
+// CHECK-NEXT: mstore [[A2]], {{v[0-9]+}}
+// CHECK-NEXT: [[END:v[0-9]+]] = add [[A2]], 32
+// CHECK-NEXT: [[SIZE:v[0-9]+]] = sub [[END]], 128
+// CHECK-NEXT: returndata 128, [[SIZE]]
+fn @unfolded_return_buffer(arg0: u256, arg1: u256, arg2: u256) {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = sload 1 !metadata(storage=slot(1))
+    v2 = sload 2 !metadata(storage=slot(2))
+    v3 = sload 3 !metadata(storage=slot(3))
+    v4 = sload 4 !metadata(storage=slot(4))
+    v5 = sload 5 !metadata(storage=slot(5))
+    v6 = sload 6 !metadata(storage=slot(6))
+    v7 = sload 7 !metadata(storage=slot(7))
+    v8 = sload 8 !metadata(storage=slot(8))
+    v9 = sload 9 !metadata(storage=slot(9))
+    v10 = sload 10 !metadata(storage=slot(10))
+    v11 = sload 11 !metadata(storage=slot(11))
+    v12 = sload 12 !metadata(storage=slot(12))
+    v13 = sload 13 !metadata(storage=slot(13))
+    v14 = sload 14 !metadata(storage=slot(14))
+    v15 = sload 15 !metadata(storage=slot(15))
+    v16 = sload 16 !metadata(storage=slot(16))
+    v17 = sload 17 !metadata(storage=slot(17))
+    sstore arg2, 9 !metadata(storage=symbolic(arg2))
+    mstore arg0, 0xdeadbeef
+    v18 = mload arg1
+    v19 = add v0, v1
+    v20 = add v19, v2
+    v21 = add v20, v3
+    v22 = add v21, v4
+    v23 = add v22, v5
+    v24 = add v23, v6
+    v25 = add v24, v7
+    v26 = add v25, v8
+    v27 = add v26, v9
+    v28 = add v27, v10
+    v29 = add v28, v11
+    v30 = add v29, v12
+    v31 = add v30, v13
+    v32 = add v31, v14
+    v33 = add v32, v15
+    v34 = add v33, v16
+    v35 = add v34, v17
+    v36 = xor v0, v1
+    v37 = xor v36, v2
+    v38 = xor v37, v3
+    v39 = xor v38, v4
+    v40 = xor v39, v5
+    v41 = xor v40, v6
+    v42 = xor v41, v7
+    v43 = xor v42, v8
+    v44 = xor v43, v9
+    v45 = xor v44, v10
+    v46 = xor v45, v11
+    v47 = xor v46, v12
+    v48 = xor v47, v13
+    v49 = xor v48, v14
+    v50 = xor v49, v15
+    v51 = xor v50, v16
+    v52 = xor v51, v17
+    v53 = sload arg2 !metadata(storage=symbolic(arg2))
+    mstore 128, v18
+    v56 = add 128, 32
+    mstore v56, v35
+    v57 = add v56, 32
+    mstore v57, v52
+    v58 = add v57, 32
+    mstore v58, v53
+    v59 = add v58, 32
+    v60 = sub v59, 128
+    returndata 128, v60
+}

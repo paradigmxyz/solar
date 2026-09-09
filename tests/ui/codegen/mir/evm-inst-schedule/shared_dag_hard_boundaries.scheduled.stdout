@@ -1,0 +1,243 @@
+- // === ROOT/tests/ui/codegen/mir/evm-inst-schedule/shared_dag_hard_boundaries.mir (before evm-inst-schedule) ===
++ // === ROOT/tests/ui/codegen/mir/evm-inst-schedule/shared_dag_hard_boundaries.mir (after evm-inst-schedule) ===
+  @module SharedDagHardBoundaries
+  fn @gas_boundary(arg0: u256, arg1: u256, arg2: u256) -> (u256, u256, u256, u256, u256) {
+    bb0:
+      v0 = sload 0
+      v1 = sload 1
+      v2 = sload 2
+      v3 = sload 3
+      v4 = sload 4
+      v5 = sload 5
+      v6 = sload 6
+      v7 = sload 7
+      v8 = sload 8
+      v9 = sload 9
+      v10 = sload 10
+      v11 = sload 11
+      v12 = sload 12
+      v13 = sload 13
+      v14 = sload 14
+      v15 = sload 15
+      v16 = sload 16
+      v17 = sload 17
+      sstore arg2, 9
+      mstore arg0, 0xdeadbeef
+      v18 = mload arg1
+      v19 = gas
+-     v20 = add v0, v1
+-     v21 = add v20, v2
+-     v22 = add v21, v3
+-     v23 = add v22, v4
+-     v24 = add v23, v5
+-     v25 = add v24, v6
+-     v26 = add v25, v7
+-     v27 = add v26, v8
+-     v28 = add v27, v9
+-     v29 = add v28, v10
+-     v30 = add v29, v11
+-     v31 = add v30, v12
+-     v32 = add v31, v13
+-     v33 = add v32, v14
+-     v34 = add v33, v15
+-     v35 = add v34, v16
+-     v36 = add v35, v17
++     v54 = sload arg2
+      v37 = xor v0, v1
+      v38 = xor v37, v2
+      v39 = xor v38, v3
+      v40 = xor v39, v4
+      v41 = xor v40, v5
+      v42 = xor v41, v6
+      v43 = xor v42, v7
+      v44 = xor v43, v8
+      v45 = xor v44, v9
+      v46 = xor v45, v10
+      v47 = xor v46, v11
+      v48 = xor v47, v12
+      v49 = xor v48, v13
+      v50 = xor v49, v14
+      v51 = xor v50, v15
+      v52 = xor v51, v16
+      v53 = xor v52, v17
+-     v54 = sload arg2
++     v20 = add v0, v1
++     v21 = add v20, v2
++     v22 = add v21, v3
++     v23 = add v22, v4
++     v24 = add v23, v5
++     v25 = add v24, v6
++     v26 = add v25, v7
++     v27 = add v26, v8
++     v28 = add v27, v9
++     v29 = add v28, v10
++     v30 = add v29, v11
++     v31 = add v30, v12
++     v32 = add v31, v13
++     v33 = add v32, v14
++     v34 = add v33, v15
++     v35 = add v34, v16
++     v36 = add v35, v17
+      ret v18, v36, v53, v54, v19
+  }
+  
+  fn @msize_boundary(arg0: u256, arg1: u256, arg2: u256) -> (u256, u256, u256, u256, u256) {
+    bb0:
+      v0 = sload 0
+      v1 = sload 1
+      v2 = sload 2
+      v3 = sload 3
+      v4 = sload 4
+      v5 = sload 5
+      v6 = sload 6
+      v7 = sload 7
+      v8 = sload 8
+      v9 = sload 9
+      v10 = sload 10
+      v11 = sload 11
+      v12 = sload 12
+      v13 = sload 13
+      v14 = sload 14
+      v15 = sload 15
+      v16 = sload 16
+      v17 = sload 17
+      sstore arg2, 9
+      mstore arg0, 0xdeadbeef
+      v18 = mload arg1
+      v19 = msize
+-     v20 = add v0, v1
+-     v21 = add v20, v2
+-     v22 = add v21, v3
+-     v23 = add v22, v4
+-     v24 = add v23, v5
+-     v25 = add v24, v6
+-     v26 = add v25, v7
+-     v27 = add v26, v8
+-     v28 = add v27, v9
+-     v29 = add v28, v10
+-     v30 = add v29, v11
+-     v31 = add v30, v12
+-     v32 = add v31, v13
+-     v33 = add v32, v14
+-     v34 = add v33, v15
+-     v35 = add v34, v16
+-     v36 = add v35, v17
++     v54 = sload arg2
+      v37 = xor v0, v1
+      v38 = xor v37, v2
+      v39 = xor v38, v3
+      v40 = xor v39, v4
+      v41 = xor v40, v5
+      v42 = xor v41, v6
+      v43 = xor v42, v7
+      v44 = xor v43, v8
+      v45 = xor v44, v9
+      v46 = xor v45, v10
+      v47 = xor v46, v11
+      v48 = xor v47, v12
+      v49 = xor v48, v13
+      v50 = xor v49, v14
+      v51 = xor v50, v15
+      v52 = xor v51, v16
+      v53 = xor v52, v17
+-     v54 = sload arg2
++     v20 = add v0, v1
++     v21 = add v20, v2
++     v22 = add v21, v3
++     v23 = add v22, v4
++     v24 = add v23, v5
++     v25 = add v24, v6
++     v26 = add v25, v7
++     v27 = add v26, v8
++     v28 = add v27, v9
++     v29 = add v28, v10
++     v30 = add v29, v11
++     v31 = add v30, v12
++     v32 = add v31, v13
++     v33 = add v32, v14
++     v34 = add v33, v15
++     v35 = add v34, v16
++     v36 = add v35, v17
+      ret v18, v36, v53, v54, v19
+  }
+  
+  fn @effect_override_boundary(arg0: u256, arg1: u256, arg2: u256) -> (u256, u256, u256, u256, u256) {
+    bb0:
+      v0 = sload 0
+      v1 = sload 1
+      v2 = sload 2
+      v3 = sload 3
+      v4 = sload 4
+      v5 = sload 5
+      v6 = sload 6
+      v7 = sload 7
+      v8 = sload 8
+      v9 = sload 9
+      v10 = sload 10
+      v11 = sload 11
+      v12 = sload 12
+      v13 = sload 13
+      v14 = sload 14
+      v15 = sload 15
+      v16 = sload 16
+      v17 = sload 17
+      sstore arg2, 9
+      mstore arg0, 0xdeadbeef
+      v18 = mload arg1
+      v19 = xor arg0, arg1 !metadata(effect=memory_write)
+-     v20 = add v0, v1
+-     v21 = add v20, v2
+-     v22 = add v21, v3
+-     v23 = add v22, v4
+-     v24 = add v23, v5
+-     v25 = add v24, v6
+-     v26 = add v25, v7
+-     v27 = add v26, v8
+-     v28 = add v27, v9
+-     v29 = add v28, v10
+-     v30 = add v29, v11
+-     v31 = add v30, v12
+-     v32 = add v31, v13
+-     v33 = add v32, v14
+-     v34 = add v33, v15
+-     v35 = add v34, v16
+-     v36 = add v35, v17
++     v54 = sload arg2
+      v37 = xor v0, v1
+      v38 = xor v37, v2
+      v39 = xor v38, v3
+      v40 = xor v39, v4
+      v41 = xor v40, v5
+      v42 = xor v41, v6
+      v43 = xor v42, v7
+      v44 = xor v43, v8
+      v45 = xor v44, v9
+      v46 = xor v45, v10
+      v47 = xor v46, v11
+      v48 = xor v47, v12
+      v49 = xor v48, v13
+      v50 = xor v49, v14
+      v51 = xor v50, v15
+      v52 = xor v51, v16
+      v53 = xor v52, v17
+-     v54 = sload arg2
++     v20 = add v0, v1
++     v21 = add v20, v2
++     v22 = add v21, v3
++     v23 = add v22, v4
++     v24 = add v23, v5
++     v25 = add v24, v6
++     v26 = add v25, v7
++     v27 = add v26, v8
++     v28 = add v27, v9
++     v29 = add v28, v10
++     v30 = add v29, v11
++     v31 = add v30, v12
++     v32 = add v31, v13
++     v33 = add v32, v14
++     v34 = add v33, v15
++     v35 = add v34, v16
++     v36 = add v35, v17
+      ret v18, v36, v53, v54, v19
+  }
+  
