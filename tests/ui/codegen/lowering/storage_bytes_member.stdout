@@ -125,12 +125,6 @@ bb15:
   push 64
   push 0
   keccak256
-  push 192
-  mstore
-  push 255
-  push 36
-  calldataload
-  and
   push 160
   mstore
   push 0
@@ -138,8 +132,8 @@ bb15:
   mstore
   jump bb19
 bb19:
-  push 160
-  mload
+  push 36
+  calldataload
   push 128
   mload
   lt
@@ -148,15 +142,13 @@ bb19:
   stop
 bb22:
   push 1
-  push 192
+  push 160
   mload
   add
-  push 255
-  push 4
-  calldataload
-  and
   push 128
   mload
+  push 4
+  calldataload
   add
   push 248
   shl

@@ -9,6 +9,7 @@ use super::{
 
 mod abi;
 mod arguments;
+mod tail;
 
 impl<'gcx> EvmCodegen<'gcx> {
     /// Returns the first internal-call result only when it is consumed. The call itself remains

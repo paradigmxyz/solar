@@ -1,0 +1,97 @@
+// === ROOT/tests/ui/codegen/mir/call-cleanup/dirty_arguments.sol:DirtyArguments ===
+@module DirtyArguments
+fn @clean(arg0: address) -> u256 [selector=0x169b2623, pure, abi_params=[address], abi_returns=[word]] {
+  bb0:
+    v0 = icall @addressBits, 1, arg0
+    ret v0
+}
+
+fn @dirty(arg0: u256) -> u256 [selector=0x55136761, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = icall @addressBits, 1, arg0
+    ret v0
+}
+
+fn @addressBits(arg0: address) -> u256 [pure] {
+  bb0:
+    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    ret v0
+}
+
+fn @observeDirty(arg0: u256) -> u256 [selector=0xd14495e8, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = icall @rawBits, 1, arg0
+    ret v0
+}
+
+fn @rawBits(arg0: address) -> u256 [pure] {
+  bb0:
+    ret arg0
+}
+
+fn @cleanBool(arg0: bool) -> u256 [selector=0x6a54e09a, pure, abi_params=[bool], abi_returns=[word]] {
+  bb0:
+    v0 = icall @boolBit, 1, arg0
+    ret v0
+}
+
+fn @dirtyBool(arg0: u256) -> u256 [selector=0x121fbc13, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = icall @boolBit, 1, arg0
+    ret v0
+}
+
+fn @boolBit(arg0: bool) -> u256 [pure] {
+  bb0:
+    v0 = and arg0, 1
+    ret v0
+}
+
+fn @narrow(arg0: u256) -> u256 [selector=0x0ebb6188, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = and arg0, 255
+    v1 = icall @forward, 1, v0
+    ret v1
+}
+
+fn @forward(arg0: u8) -> u256 [pure] {
+  bb0:
+    v0 = and arg0, 255
+    ret v0
+}
+
+fn @recurse(arg0: u256, arg1: u256) -> u256 [selector=0x0dac78c4, pure, abi_params=[u256, u256], abi_returns=[word]] {
+  bb0:
+    v0 = gt arg1, 4
+    v1 = iszero v0
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = and arg0, 255
+    v4 = icall @recursive, 1, v3, arg1
+    ret v4
+  bb1:
+    revert 0, 0
+}
+
+fn @recursive(arg0: u8, arg1: u256) -> u256 [pure] {
+  bb0:
+    v0 = eq arg1, 0
+    jumpi v0, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v2 = sub arg1, 1
+    v3 = lt arg1, 1
+    jumpi v3, bb4, bb5
+  bb5:
+    v4 = icall @recursive, 1, arg0, v2
+    ret v4
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    v1 = and arg0, 255
+    ret v1
+}

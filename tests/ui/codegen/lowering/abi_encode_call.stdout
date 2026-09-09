@@ -11,7 +11,6 @@ fn @asValue() [selector=0x440a9300, pure] {
     v5 = shr 160, v4
     jumpi v5, bb1, bb3
   bb3:
-    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
     v10 = mload 64 !metadata(memory=scratch, effect=memory_write)
     v37 = add v10, 128
     mstore 64, v37 !metadata(memory=scratch)
@@ -19,7 +18,7 @@ fn @asValue() [selector=0x440a9300, pure] {
     v11 = add v10, 32
     mstore v11, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
     v12 = add v11, 4
-    mstore v12, v0
+    mstore v12, arg0
     v13 = add v12, 32
     mstore v13, arg1
     v14 = mload 64 !metadata(memory=scratch)
@@ -68,7 +67,6 @@ fn @viaCall() [selector=0x23d014a1] {
     jumpi v12, bb1, bb4
   bb4:
     v0 = gas
-    v1 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
     v18 = mload 64 !metadata(memory=scratch, effect=memory_write)
     v22 = add v18, 128
     mstore 64, v22 !metadata(memory=scratch)
@@ -76,7 +74,7 @@ fn @viaCall() [selector=0x23d014a1] {
     v19 = add v18, 32
     mstore v19, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
     v20 = add v19, 4
-    mstore v20, v1
+    mstore v20, arg1
     v21 = add v20, 32
     mstore v21, arg2
     v5 = call v0, arg0, 0, v19, 68, 0, 0
