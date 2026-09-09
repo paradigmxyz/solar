@@ -1,0 +1,69 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/disjoint_return_stores.sol:DisjointReturnStores (runtime) ===
+@module DisjointReturnStores_runtime
+bb0:
+  callvalue
+  jumpi bb2, bb6
+bb6:
+  push 0
+  calldataload
+  push 224
+  shr
+  push 0x9507d39a
+  sub
+  jumpi bb2, bb1
+bb1:
+  calldatasize
+  push 36
+  gt
+  jumpi bb2, bb3
+bb3:
+  push 4
+  calldataload
+  push 0
+  mstore
+  push 0
+  push 32
+  mstore
+  push 64
+  push 0
+  keccak256
+  push 1
+  dup 2
+  add
+  sload
+  push 2
+  dup 3
+  add
+  sload
+  push 3
+  dup 4
+  add
+  sload
+  push 0
+  not
+  push 96
+  shr
+  and
+  swap 3
+  sload
+  push 0
+  not
+  push 96
+  shr
+  and
+  push 0
+  mstore
+  swap 1
+  push 32
+  mstore
+  push 64
+  mstore
+  push 96
+  mstore
+  push 128
+  push 0
+  return
+bb2 [cold]:
+  push 0
+  push 0
+  revert

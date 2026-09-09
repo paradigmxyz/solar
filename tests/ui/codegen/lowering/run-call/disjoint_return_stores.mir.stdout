@@ -1,0 +1,79 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/disjoint_return_stores.sol:DisjointReturnStores ===
+@module DisjointReturnStores
+fn @constructor() [constructor] {
+  bb0:
+    v0 = alloc memorystruct<4>, exact, uninitialized, infallible, 128
+    v1 = and 17, 0xffffffffffffffffffffffffffffffffffffffff
+    v2 = and 68, 0xffffffffffffffffffffffffffffffffffffffff
+    memory_object_store_field memorystruct<4>, v0, 0, v1
+    memory_object_store_field memorystruct<4>, v0, 1, 22
+    memory_object_store_field memorystruct<4>, v0, 2, 33
+    memory_object_store_field memorystruct<4>, v0, 3, v2
+    v3 = mapping_slot 1, 0
+    v4 = memory_object_load_field memorystruct<4>, v0, 0
+    v5 = sload v3 !metadata(storage=symbolic(v3))
+    v6 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v7 = and v5, v6
+    v8 = and v4, 0xffffffffffffffffffffffffffffffffffffffff
+    v9 = or v7, v8
+    sstore v3, v9 !metadata(storage=symbolic(v3))
+    v10 = add v3, 1
+    v11 = memory_object_load_field memorystruct<4>, v0, 1
+    sstore v10, v11 !metadata(storage=offset(v3, 1))
+    v12 = add v3, 2
+    v13 = memory_object_load_field memorystruct<4>, v0, 2
+    sstore v12, v13 !metadata(storage=offset(v3, 2))
+    v14 = add v3, 3
+    v15 = memory_object_load_field memorystruct<4>, v0, 3
+    v16 = sload v14 !metadata(storage=offset(v3, 3))
+    v17 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v18 = and v16, v17
+    v19 = and v15, 0xffffffffffffffffffffffffffffffffffffffff
+    v20 = or v18, v19
+    sstore v14, v20 !metadata(storage=offset(v3, 3))
+    v21 = alloc memorystruct<4>, exact, uninitialized, infallible, 128
+    v22 = and 85, 0xffffffffffffffffffffffffffffffffffffffff
+    v23 = and 136, 0xffffffffffffffffffffffffffffffffffffffff
+    memory_object_store_field memorystruct<4>, v21, 0, v22
+    memory_object_store_field memorystruct<4>, v21, 1, 66
+    memory_object_store_field memorystruct<4>, v21, 2, 77
+    memory_object_store_field memorystruct<4>, v21, 3, v23
+    v24 = mapping_slot 2, 0
+    v25 = memory_object_load_field memorystruct<4>, v21, 0
+    v26 = sload v24 !metadata(storage=symbolic(v24))
+    v27 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v28 = and v26, v27
+    v29 = and v25, 0xffffffffffffffffffffffffffffffffffffffff
+    v30 = or v28, v29
+    sstore v24, v30 !metadata(storage=symbolic(v24))
+    v31 = add v24, 1
+    v32 = memory_object_load_field memorystruct<4>, v21, 1
+    sstore v31, v32 !metadata(storage=offset(v24, 1))
+    v33 = add v24, 2
+    v34 = memory_object_load_field memorystruct<4>, v21, 2
+    sstore v33, v34 !metadata(storage=offset(v24, 2))
+    v35 = add v24, 3
+    v36 = memory_object_load_field memorystruct<4>, v21, 3
+    v37 = sload v35 !metadata(storage=offset(v24, 3))
+    v38 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v39 = and v37, v38
+    v40 = and v36, 0xffffffffffffffffffffffffffffffffffffffff
+    v41 = or v39, v40
+    sstore v35, v41 !metadata(storage=offset(v24, 3))
+    stop
+}
+
+fn @get(arg0: u256) -> (address, u256, u256, address) [selector=0x9507d39a, view, abi_params=[u256], abi_returns=[word<u160>, word, word, word<u160>]] {
+  bb0:
+    v0 = mapping_slot arg0, 0
+    v1 = sload v0 !metadata(storage=symbolic(v0))
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffff
+    v3 = add v0, 1
+    v4 = sload v3 !metadata(storage=offset(v0, 1))
+    v5 = add v0, 2
+    v6 = sload v5 !metadata(storage=offset(v0, 2))
+    v7 = add v0, 3
+    v8 = sload v7 !metadata(storage=offset(v0, 3))
+    v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffff
+    ret v2, v4, v6, v9
+}
