@@ -1,0 +1,19 @@
+// === ROOT/tests/ui/codegen/mir/inline-tiny-leaves/literal_alias.sol:LiteralAlias ===
+@module LiteralAlias
+fn @overwritten(arg0: bytes32) -> memorybytes [selector=0x55dcfb46, pure, abi_params=[bytes32], abi_returns=[memory_bytes]] {
+  bb0:
+    v0 = icall @literal, 1
+    v1 = mload 64 !metadata(memory=scratch)
+    v2 = sub v1, 32
+    mstore v2, arg0
+    ret v0
+}
+
+fn @literal() -> memorybytes [pure] {
+  bb0:
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v0, 1
+    v1 = memory_object_data memorybytes, v0
+    mstore v1, 0x3100000000000000000000000000000000000000000000000000000000000000
+    ret v0
+}

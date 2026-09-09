@@ -1,0 +1,133 @@
+- // === ROOT/tests/ui/codegen/mir/lower-abi-encode/conditional_literal.mir (before lower-abi-encode) ===
++ // === ROOT/tests/ui/codegen/mir/lower-abi-encode/conditional_literal.mir (after lower-abi-encode) ===
+  @module ConditionalLiteral
+  fn @encode(arg0: u256) -> memoryslice {
+    bb0:
+      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+      set_memory_object_len memorybytes, v0, 1
+      jumpi arg0, bb1, bb2
+    bb1:
+      memory_object_store_word memorybytes, v0, 0, 0x3100000000000000000000000000000000000000000000000000000000000000
+      jump bb2
+    bb2:
+-     v1 = abi_encode [memory_bytes], args v0
+-     ret v1
++     v2 = fmp
++     v3 = add v2, 32
++     v4 = sub v3, v2
++     mstore v2, v4
++     v5 = memory_object_len memorybytes, v0
++     v6 = iszero v0
++     v7 = iszero v6
++     v8 = mul v5, v7
++     mstore v3, v8
++     v9 = not 31
++     v10 = add v8, 31
++     v11 = and v10, v9
++     v12 = add v3, 32
++     v13 = iszero v11
++     jumpi v13, bb4, bb3
++   bb3:
++     v14 = sub v11, 32
++     v15 = add v12, v14
++     mstore v15, 0
++     jump bb4
++   bb4:
++     v16 = memory_object_data memorybytes, v0
++     v17 = add v12, v11
++     mcopy v12, v16, v8 !metadata(memory=heap)
++     v18 = sub v17, v2
++     v19 = add v18, 0
++     v20 = add v19, 31
++     v21 = not 31
++     v22 = and v20, v21
++     v23 = alloc raw, exact, uninitialized, infallible, v22 !metadata(preserves_fmp)
++     v24 = make_memory_slice v23, v19
++     ret v24
+  }
+  
+  fn @overlapping(arg0: u256) -> memoryslice {
+    bb0:
+      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+      set_memory_object_len memorybytes, v0, 1
+      memory_object_store_word memorybytes, v0, 0, 0x3100000000000000000000000000000000000000000000000000000000000000
+      v1 = alloc memorybytes, exact, uninitialized, infallible, 64
+      set_memory_object_len memorybytes, v1, 1
+      memory_object_store_word memorybytes, v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffc0, arg0
+-     v2 = abi_encode [memory_bytes], args v0
+-     ret v2
++     v3 = fmp
++     v4 = add v3, 32
++     v5 = sub v4, v3
++     mstore v3, v5
++     v6 = memory_object_len memorybytes, v0
++     v7 = iszero v0
++     v8 = iszero v7
++     v9 = mul v6, v8
++     mstore v4, v9
++     v10 = not 31
++     v11 = add v9, 31
++     v12 = and v11, v10
++     v13 = add v4, 32
++     v14 = iszero v12
++     jumpi v14, bb2, bb1
++   bb1:
++     v15 = sub v12, 32
++     v16 = add v13, v15
++     mstore v16, 0
++     jump bb2
++   bb2:
++     v17 = memory_object_data memorybytes, v0
++     v18 = add v13, v12
++     mcopy v13, v17, v9 !metadata(memory=heap)
++     v19 = sub v18, v3
++     v20 = add v19, 0
++     v21 = add v20, 31
++     v22 = not 31
++     v23 = and v21, v22
++     v24 = alloc raw, exact, uninitialized, infallible, v23 !metadata(preserves_fmp)
++     v25 = make_memory_slice v24, v20
++     ret v25
+  }
+  
+  fn @preserved() -> memoryslice {
+    bb0:
+      v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+      set_memory_object_len memorybytes, v0, 1
+      memory_object_store_word memorybytes, v0, 0, 0x3100000000000000000000000000000000000000000000000000000000000000
+-     v1 = abi_encode [memory_bytes], args v0
+-     ret v1
++     v2 = fmp
++     v3 = add v2, 32
++     v4 = sub v3, v2
++     mstore v2, v4
++     v5 = memory_object_len memorybytes, v0
++     v6 = iszero v0
++     v7 = iszero v6
++     v8 = mul v5, v7
++     mstore v3, v8
++     v9 = not 31
++     v10 = add v8, 31
++     v11 = and v10, v9
++     v12 = add v3, 32
++     v13 = iszero v11
++     jumpi v13, bb2, bb1
++   bb1:
++     v14 = sub v11, 32
++     v15 = add v12, v14
++     mstore v15, 0
++     jump bb2
++   bb2:
++     v16 = memory_object_data memorybytes, v0
++     v17 = add v12, v11
++     mcopy v12, v16, v8 !metadata(memory=heap)
++     v18 = sub v17, v2
++     v19 = add v18, 0
++     v20 = add v19, 31
++     v21 = not 31
++     v22 = and v20, v21
++     v23 = alloc raw, exact, uninitialized, infallible, v22 !metadata(preserves_fmp)
++     v24 = make_memory_slice v23, v19
++     ret v24
+  }
+  

@@ -1,0 +1,127 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zmir-pipeline=inline-tiny-leaves,cfg-simplify,dce
+//@[size] compile-flags: -Osize -Zmir-pipeline=inline-tiny-leaves,cfg-simplify,dce
+@module LiteralArtifacts
+
+// One creation call and one runtime call do not share an emitted helper.
+fn @constructor() [constructor] {
+  bb0:
+    v0 = icall @literal, 1
+    v1 = memory_object_len memorybytes, v0
+    sstore 0, v1
+    v2 = icall @indirect, 1
+    v3 = memory_object_len memorybytes, v2
+    sstore 3, v3
+    stop
+}
+
+fn @entry() -> memorybytes [selector=0x01020304] {
+  bb0:
+    v0 = icall @literal, 1
+    ret v0
+}
+
+fn @literal() -> memorybytes {
+  bb0:
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v0, 1
+    v1 = memory_object_data memorybytes, v0
+    mstore v1, 0x3100000000000000000000000000000000000000000000000000000000000000
+    ret v0
+}
+
+// Two runtime sites must retain their shared initializer.
+fn @shared() -> memorybytes [selector=0x01020305] {
+  bb0:
+    v0 = icall @shared_literal, 1
+    v1 = icall @shared_literal, 1
+    memory_object_store_byte memorybytes, v0, 0, 65
+    ret v1
+}
+
+fn @shared_literal() -> memorybytes {
+  bb0:
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v0, 1
+    memory_object_store_word memorybytes, v0, 0, 0x3200000000000000000000000000000000000000000000000000000000000000
+    ret v0
+}
+
+// Tail-call edges count toward sharing even though this pass never inlines them.
+fn @tail_entry() -> memorybytes [selector=0x01020306] {
+  bb0:
+    tail_call @tail_literal
+}
+
+fn @call_entry() -> memorybytes [selector=0x01020307] {
+  bb0:
+    v0 = icall @tail_literal, 1
+    ret v0
+}
+
+fn @tail_literal() -> memorybytes {
+  bb0:
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v0, 1
+    memory_object_store_word memorybytes, v0, 0, 0x3300000000000000000000000000000000000000000000000000000000000000
+    ret v0
+}
+
+// Extra effects keep a reference-returning function outside this recognizer.
+fn @effect_entry() -> memorybytes [selector=0x01020308] {
+  bb0:
+    v0 = icall @effect_literal, 1
+    ret v0
+}
+
+fn @effect_literal() -> memorybytes {
+  bb0:
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v0, 1
+    memory_object_store_word memorybytes, v0, 0, 0x3400000000000000000000000000000000000000000000000000000000000000
+    sstore 1, 1
+    ret v0
+}
+
+// An unrooted caller conservatively makes its callees reachable in both artifacts.
+fn @unknown() -> memorybytes {
+  bb0:
+    v0 = icall @indirect, 1
+    ret v0
+}
+
+fn @indirect() -> memorybytes {
+  bb0:
+    v0 = icall @unknown_literal, 1
+    sstore 2, 1
+    ret v0
+}
+
+fn @unknown_entry() -> memorybytes [selector=0x01020309] {
+  bb0:
+    v0 = icall @unknown_literal, 1
+    ret v0
+}
+
+fn @unknown_literal() -> memorybytes {
+  bb0:
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v0, 1
+    memory_object_store_word memorybytes, v0, 0, 0x3500000000000000000000000000000000000000000000000000000000000000
+    ret v0
+}
+
+// An observable allocation obligation must survive even a single call site.
+fn @preserved_entry() -> memorybytes [selector=0x0102030a] {
+  bb0:
+    v0 = icall @preserved_literal, 1
+    ret v0
+}
+
+fn @preserved_literal() -> memorybytes {
+  bb0:
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v0, 1
+    memory_object_store_word memorybytes, v0, 0, 0x3600000000000000000000000000000000000000000000000000000000000000
+    ret v0
+}
