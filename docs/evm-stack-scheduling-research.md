@@ -824,3 +824,25 @@ against the carry checkpoint by 2.37%/6.67%/3.81% for Seaport/v4/Solmate. Two
 samples per producer and project remain the explicit limit. The earlier timing
 concerns and rejected table form are preserved under
 `opcode-stack-table-workflow-20260908/`; this is not a cross-batch neutrality claim.
+
+## Resident operands and literal construction headroom
+
+Pinned solx LLVM `9cf8cfdb` prices rematerialization and transport under stack
+pressure; Sonatina `8e6c99f6` bounds operand-preparation queries and caches local
+work; Venom `6dd5fef7` distinguishes literal pushes from resident live DUPs.
+The exact source paths and hashes are retained in
+`resident-before-literals-20260908/prior-art.json`. These observations motivate
+one final bounded scheduler trial, preserving all established candidates and
+preparing resident suffix operands before an absent scalar-literal prefix.
+
+Local execution showed that raw PUSH costs alone are insufficient: consuming
+one relative stack slot can replace a short SHL construction with PUSH32.
+The final query reuses the existing allocation-free literal planner at the same
+relative budget as compact-pushes, and reuses two instruction buffers across
+conservative, literal-aware and oriented estimates. It neither grants absolute
+entry facts nor moves optimization into assembly. Complete heavy outputs shrink
+by 92,009 bytes with no growth, and 55 of 175 matching hot-gas labels improve.
+The full compiler-time geomean is +0.962%, with individual slower cases retained;
+this is an output-quality improvement with compile-cost follow-up, not a speed
+claim. The three rejected candidate designs and their counterexamples remain
+in the evidence directory.

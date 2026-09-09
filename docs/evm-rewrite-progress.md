@@ -322,17 +322,84 @@ Those proposals remain unaccepted work, separate from the pushed backend.
 After restoring the accepted implementation, all 1,562 workspace tests pass
 with the same two skips. Formatting and the whitespace check pass.
 
+## Resident operands before literal construction
+
+The fourth resident-operand trial is accepted as an incremental milestone in
+`01e526b9`, with additional coverage in `11070cbb`. A
+focused scheduler helper prepares already resident operands before pushing an
+absent scalar-literal prefix. It runs last, preserves the established chooser's
+entry prefix and exact exit layout, and uses the same bounded block eligibility.
+The physical-IR cost query checks conservative normalization, literal-aware
+normalization and orientation, including the existing literal planner's relative
+stack budget. The assembler and MIR remain unchanged. These estimates do not
+model every later sharing or caching effect, so complete outputs remain a gate.
+
+The first two candidates above remain rejected. Candidate three removed every
+UI growth but grew 18 heavy bytecode objects: earlier DUPs consumed the headroom
+needed for short sign-bit constructions, leaving PUSH32 literals. Candidate four
+prices that construction headroom without granting additional stack capacity.
+The reduced recursive fixture preserves a short construction and shrinks from
+172 to 170 runtime bytes; candidate three produced 195 bytes.
+
+Against frozen integrated baseline `f6902c31`, candidate `0ab6248b` preserves all
+24 full-workflow IDs, 175 ordered call labels and 139 runtime observations.
+Fifty-five calls save gas, 120 are exact and none grow (summed delta -1,578 gas).
+The 15 runtime cases save 233 creation and 203 runtime bytes. The complete heavy
+ledger preserves nine project IDs, 1,672 contracts and 3,344 objects, including
+empty outputs: 1,112 objects shrink, none grow and none change at equal size,
+saving 92,009 bytes. Eight captures are fresh; Solarray explicitly reuses an
+identical full-output fingerprint. These are comparisons with the preceding
+checkpoint, not closure of the original sealed-baseline debts.
+
+The original 1,662 UI IDs retain their inputs and outcomes. The expanded 1,668-ID
+comparison saves 1,113 Gas creation bytes and 675 runtime bytes without growth;
+all Size bytes remain exact. New fixture rows are explicitly joined to separate
+captures from the same frozen producers, not presented as one fresh timing run.
+Three UI fixtures execute 111 calls; five Foundry tests check exact event topics,
+data, emitter and persistent state. Three fresh bounded symbolic comparisons
+agree with pinned solc on status and return data; they do not prove arbitrary
+logs, state or recursion. Four existing snapshots were updated only after frozen
+baseline reproduction, symbolic stack-effect review and unchanged FileChecks.
+No existing test source or runtime oracle was removed. All 1,562 workspace tests
+pass with the same two skips; formatting, typo checks and nightly Clippy pass.
+Clippy's first nightly process stalled on an exited build script; the two-job
+retry completed successfully. The stable all-features alias requires nightly.
+
+The official full-run compiler-time geometric mean increases 0.962%, with RSS
+-0.142%; Size time increases 0.183%, RSS 0.199%. Several individual compile-time
+ranges are disjoint, including Maple +9.396% and Governor +5.878%. Most rows have
+five samples, but adaptive repeats leave Seaport and Solady at one per producer,
+and OpenZeppelin at two baseline versus one candidate. These measurements do not
+establish a compiler speedup. The quiet five-case ABBA follow-up retains ten time samples per compiler and
+lane, with exact inputs and producer-specific output fingerprints. Gas means
+increase 4.051% geometrically: Maple +8.081%, Aave +3.468%, Governor +3.538%,
+Fractional +3.520%, LibString +1.755%. Maple, Governor and Fractional have
+disjoint slower ranges. The inactive Size lane is +0.131%. RSS geometric means
+are -0.591% Gas and +0.734% Size, with only two retained readings per compiler
+and case. This sustains a Gas compile-cost concern. Output quality justifies
+this local milestone while compiler-time debts remain open.
+
+The backend is now 17,290 physical Rust lines across 47 files, an increase of
+213 lines for this milestone and a reduction of 17,348 from the deletion
+inventory. Excluding trailing test modules leaves 15,985 physical lines. Pinned
+solx, Venom and Sonatina sources informed the bounded operand and literal-cost
+investigation; no deleted backend implementation was retrieved. Full inputs,
+producer hashes, rejected candidates, review receipts and measurements are under
+`target/codegen-bench/evm-rewrite-candidate/resident-before-literals-20260908/`.
+A fresh fetch and merge again find main `2632e43b` already integrated.
+
 ## Remaining acceptance work
 
 The alias assertion migration passes; its generated-code size debt remains.
 The original readback failures now pass in every mode. General source-memory
-ownership remains an open contract; bounded shared-input sweeps pass. The accepted heavy ledger
-still has 31,831,619 positive bytes of sealed size debt;
+ownership remains an open contract; bounded shared-input sweeps pass. The preceding accepted heavy ledger
+has 31,831,619 positive bytes of sealed size debt; the new local savings have not
+yet been rejoined to every sealed object, so this historical total is retained;
 this is a sum of regressions, not net corpus growth. Compiler-time debts remain.
-The backend has 17,077 physical lines in 46 files, 17,561 fewer than the deletion
-inventory. Excluding trailing test modules leaves 15,772 physical lines. A
+The backend has 17,290 physical lines in 47 files, 17,348 fewer than the deletion
+inventory. Excluding trailing test modules leaves 15,985 physical lines. A
 retained count-only baseline reports 29,006 production-section lines, giving a
-conditional reduction of 13,234; that file lacks a revision/hash link to the
+conditional reduction of 13,021; that file lacks a revision/hash link to the
 sealed archive. These counts include comments and are not strict production SLOC.
 
 Eager contraction removes avoidable spills and saves bytecode without corpus
