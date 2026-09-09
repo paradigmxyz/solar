@@ -196,10 +196,9 @@ bb14:
   lt
   push bb5
   jumpi
-  push 0
   push 4
   calldataload
-  swap 1
+  push 0
   jump bb16
 bb16:
   push 36

@@ -1,0 +1,48 @@
+- // === ROOT/tests/ui/codegen/evm-ir/reorder-expressions/calldata.evmir (before reorder-expressions) ===
++ // === ROOT/tests/ui/codegen/evm-ir/reorder-expressions/calldata.evmir (after reorder-expressions) ===
+  @module ClosedCalldata
+  bb0:
++   push 100
++   calldataload
+    push 132
+    calldatasize
+    lt
+-   push 100
+-   calldataload
+-   swap 1
+    sub
+    stop
+  bb1:
+-   push 4
+-   calldataload
+    push 36
+    calldataload
+    push 1
+    add
+-   swap 1
++   push 4
++   calldataload
+    div
+    stop
+  bb2:
+    msize
+    push 0x400
+    mload
+    swap 1
+    sub
+    stop
+  bb3:
+    gas
+    push 4
+    calldataload
+    swap 1
+    sub
+    stop
+  bb4:
+    dup 1
+    push 4
+    calldataload
+    swap 1
+    sub
+    stop
+  
