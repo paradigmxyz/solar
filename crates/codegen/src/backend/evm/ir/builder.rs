@@ -236,7 +236,11 @@ impl<'gcx> Assembler<'gcx> {
     }
 
     fn trace_successor(&self, block: ir::BlockId) -> Option<ir::BlockId> {
-        if self.indexed_jump_relocations.iter().any(|&(source, _, _)| source == block) {
+        if self
+            .indexed_jump_relocations
+            .binary_search_by_key(&block, |&(source, _, _)| source)
+            .is_ok()
+        {
             None
         } else if let Some(target) = self.explicit_jump_target(block) {
             Some(target)
@@ -274,7 +278,13 @@ impl<'gcx> Assembler<'gcx> {
                 }
             }
         };
-        for &(source, _, label) in &self.label_relocations {
+        // Relocations follow emission order, including after instruction deletion. Restrict
+        // this function's analysis to its own blocks instead of rescanning earlier functions.
+        let start =
+            self.label_relocations.partition_point(|&(block, _, _)| block.index() < range.start);
+        let end =
+            self.label_relocations.partition_point(|&(block, _, _)| block.index() < range.end);
+        for &(source, _, label) in &self.label_relocations[start..end] {
             if let Some(&target) = self.label_blocks.get(&label) {
                 push_edge(&mut edges, source, target);
             }
@@ -318,14 +328,15 @@ impl<'gcx> Assembler<'gcx> {
             return None;
         }
         let instruction = instructions.len() - 2;
-        let label = self.label_relocations.iter().find_map(|&(source, index, label)| {
-            (source == block && index == instruction).then_some(label)
-        })?;
-        self.label_blocks.get(&label).copied()
+        let index = self
+            .label_relocations
+            .binary_search_by_key(&(block, instruction), |&(source, index, _)| (source, index))
+            .ok()?;
+        self.label_blocks.get(&self.label_relocations[index].2).copied()
     }
 
     fn block_has_explicit_terminator(&self, block: ir::BlockId) -> bool {
-        self.indexed_jump_relocations.iter().any(|&(source, _, _)| source == block)
+        self.indexed_jump_relocations.binary_search_by_key(&block, |&(source, _, _)| source).is_ok()
             || self.program.blocks[block]
                 .instructions
                 .last()

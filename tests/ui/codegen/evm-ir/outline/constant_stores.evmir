@@ -1,0 +1,29 @@
+//@ revisions: gas size short
+//@[gas] compile-flags: -Ogas --optimize-runs=200 -Zevm-ir-pipeline=outline
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=outline
+//@[short] compile-flags: -Ogas --optimize-runs=1 -Zevm-ir-pipeline=outline
+@module ConstantStores
+
+// Repeated 20-byte stores save deposited bytes when shared, but add two pushes,
+// two jumps, and two jump destinations on each execution. Gas mode keeps
+// the stores inline at 200 runs; size mode and one-run deployment share them.
+bb0:
+  push 0x30313233343536373839616263646566
+  push 15
+  mstore
+  jump bb1
+bb1:
+  push 0x30313233343536373839616263646566
+  push 15
+  mstore
+  jump bb2
+bb2:
+  push 0x30313233343536373839616263646566
+  push 15
+  mstore
+  jump bb3
+bb3:
+  push 0x30313233343536373839616263646566
+  push 15
+  mstore
+  stop

@@ -34,6 +34,9 @@
 //! analysis follows their SSA operands, including phi inputs, and ignores other
 //! computations. A block is revisited only after a predecessor's exit facts
 //! change, preserving the original reverse-postorder and eight-round bound.
+//! After an edge consumes a single-use predicate, its own range and single-use
+//! negations are discarded. Operand ranges and relations remain available;
+//! predicates referenced by instructions, phis, or other terminators stay live.
 //!
 //! Transitive relational queries lazily index candidate edges once per function,
 //! when a query needs to combine facts. An edge is followed only
@@ -481,6 +484,31 @@ impl<'a> CheckEliminator<'a> {
     ) -> IndexVec<BlockId, Facts> {
         const MAX_ROUNDS: usize = 8;
         let definitions = func.inst_blocks();
+        // A predicate consumed only by this branch cannot be queried after the edge.
+        // Preserve its operand facts, but do not copy the dead predicate's own range
+        // through every later block. Single-use ISZERO chains have the same property.
+        let mut uses = index_vec![0usize; func.num_values()];
+        for block in &func.blocks {
+            for &inst in &block.instructions {
+                for value in func.inst(inst).operands() {
+                    uses[value] += 1;
+                }
+            }
+            if let Some(term) = &block.terminator {
+                term.for_each_operand(|value| uses[value] += 1);
+            }
+        }
+        let mut consumed_conditions = FxHashMap::<BlockId, SmallVec<[ValueId; 2]>>::default();
+        for &block in cfg.rpo() {
+            if let Some(Terminator::Branch { condition, .. }) = func.blocks[block].terminator {
+                let mut value = condition;
+                while uses[value] == 1 {
+                    consumed_conditions.entry(block).or_default().push(value);
+                    let Some(InstKind::IsZero(inner)) = inst_kind(func, value) else { break };
+                    value = *inner;
+                }
+            }
+        }
         let mut entries = index_vec![Facts::default(); func.blocks.len()];
         let mut exits = entries.clone();
         let mut cx = Self::new(self.immutable_ranges);
@@ -522,6 +550,9 @@ impl<'a> CheckEliminator<'a> {
                                 Some((value, cx.range_of(func, input, MAX_DEPTH)))
                             })
                             .collect();
+                        for value in consumed_conditions.get(&pred).into_iter().flatten() {
+                            cx.ranges.remove(value);
+                        }
                         let available = |value| match func.value(value) {
                             Value::Inst(inst) => definitions.get(inst).is_some_and(|&home| {
                                 home != block && cfg.dominators().dominates(home, block)

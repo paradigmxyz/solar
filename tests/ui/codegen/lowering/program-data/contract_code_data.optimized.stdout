@@ -31,12 +31,9 @@ bb5:
   push 128
   return
 bb6:
-  push 320
+  push 288
   dup 1
   push 64
-  mstore
-  dup 1
-  push 288
   mstore
   push 160
   dup 2
@@ -49,12 +46,13 @@ bb6:
   push 32
   dup 2
   add
+  push 128
+  dup 2
   dup 1
-  push 128
+  push 192
   mstore
-  push 128
   push_data literal_0
-  dup 3
+  swap 1
   codecopy
   push 64
   mload
@@ -88,12 +86,12 @@ bb6:
   not
   and
   dup 1
-  push 160
+  push 128
   mstore
   swap 4
   push 32
   add
-  push 192
+  push 160
   mstore
   pop
   pop
@@ -103,24 +101,24 @@ bb6:
   jumpi
   push 0
   push 32
-  push 160
+  push 128
   mload
   sub
-  push 192
+  push 160
   mload
   add
   mstore
   jump bb8
 bb8:
-  push 192
-  mload
   push 160
+  mload
+  push 128
   mload
   dup 2
   add
   push 256
   mload
-  push 128
+  push 192
   mload
   dup 4
   mcopy
@@ -168,19 +166,16 @@ bb0:
   sub
   push bb4
   jumpi
-  push 256
+  push 160
   dup 1
   push 64
-  mstore
-  dup 1
-  push 160
   mstore
   push 384
   dup 2
   add
   push 64
   mstore
-  push 342
+  push 338
   dup 2
   mstore
   push 32
@@ -191,19 +186,16 @@ bb0:
   push 0
   swap 1
   mstore
-  push 342
+  push 338
   push_data CodeTarget_initcode_0
   dup 3
   codecopy
-  push 342
+  push 338
   swap 1
   push 0
   create
   push 64
   mload
-  dup 1
-  push 192
-  mstore
   push 32
   dup 2
   add
@@ -213,9 +205,6 @@ bb0:
   push 224
   shl
   dup 2
-  mstore
-  dup 2
-  push 224
   mstore
   push 32
   push 0
@@ -257,7 +246,7 @@ bb8 [cold]:
   push 0
   revert
 bb10:
-  push 256
+  push 224
   push 64
   mstore
   push 0
@@ -265,19 +254,16 @@ bb10:
   mstore
   push 64
   mload
-  dup 1
-  push 224
-  mstore
   push 352
   dup 2
   add
   push 64
   mstore
-  push 342
+  push 338
   push_data CodeTarget_initcode_0
   dup 3
   codecopy
-  push 342
+  push 338
   swap 1
   push 0
   create
@@ -289,24 +275,18 @@ bb10:
   jumpi
   push 64
   mload
-  push 384
+  push 352
   dup 2
   add
   push 64
   mstore
-  push 324
+  push 320
   dup 2
   mstore
   push 32
   dup 2
   add
   push 320
-  dup 2
-  add
-  push 0
-  swap 1
-  mstore
-  push 324
   push_data CodeTarget_initcode_0+18
   dup 3
   codecopy
@@ -320,4 +300,4 @@ bb10:
   eq
   jump bb11
 
-@data CodeTarget_initcode_0 hex"34600e576101448060125f395ff35b5f5ffd34601d575f3560e01c80633fa4f245146021578063a878f85814602c575b5f5ffd5b600760805260206080f35b61014080604052806101205260a08101604052608081526020810180608052608060c482396040518060e052602081016020825283151593519093028061010052808452601f8101601f19168060a0529360200160c052505050156097575f602060a0510360c05101525b60c05160a051810161010051608051835e905060e0519003601f8101601f19166040519081016040528181f3112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
+@data CodeTarget_initcode_0 hex"34600e576101408060125f395ff35b5f5ffd34601d575f3560e01c80633fa4f245146021578063a878f85814602c575b5f5ffd5b600760805260206080f35b6101208060405260a0810160405260808152602081016080818060c05260c090396040518060e052602081016020825283151593519093028061010052808452601f8101601f1916806080529360200160a052505050156093575f60206080510360a05101525b60a05160805181016101005160c051835e905060e0519003601f8101601f19166040519081016040528181f3112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"

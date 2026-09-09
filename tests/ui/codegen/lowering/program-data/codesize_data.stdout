@@ -142,14 +142,11 @@ bb5 [cold]:
   push 0
   revert
 bb6:
-  push 320
+  push 288
   dup 1
   push 64
   mstore
   dup 1
-  push 288
-  mstore
-  push 288
   dup 2
   add
   push 64
@@ -160,9 +157,6 @@ bb6:
   push 32
   dup 2
   add
-  dup 1
-  push 128
-  mstore
   push 224
   dup 2
   add
@@ -172,7 +166,7 @@ bb6:
   push 241
   dup 2
   dup 1
-  push 128
+  push 192
   mstore
   push_data literal_0
   jump bb13
@@ -211,12 +205,12 @@ bb13:
   not
   and
   dup 1
-  push 160
+  push 128
   mstore
   swap 4
   push 32
   add
-  push 192
+  push 160
   mstore
   pop
   pop
@@ -226,24 +220,24 @@ bb13:
   jumpi
   push 0
   push 32
-  push 160
+  push 128
   mload
   sub
-  push 192
+  push 160
   mload
   add
   mstore
   jump bb8
 bb8:
-  push 192
-  mload
   push 160
+  mload
+  push 128
   mload
   dup 2
   add
   push 256
   mload
-  push 128
+  push 192
   mload
   dup 4
   mcopy
@@ -270,12 +264,9 @@ bb8:
   dup 2
   return
 bb9:
-  push 320
+  push 288
   dup 1
   push 64
-  mstore
-  dup 1
-  push 288
   mstore
   push 224
   dup 2
@@ -288,9 +279,6 @@ bb9:
   push 32
   dup 2
   add
-  dup 1
-  push 128
-  mstore
   push 160
   dup 2
   add
@@ -300,7 +288,7 @@ bb9:
   push 161
   dup 2
   dup 1
-  push 128
+  push 192
   mstore
   push_data literal_1
   jump bb13

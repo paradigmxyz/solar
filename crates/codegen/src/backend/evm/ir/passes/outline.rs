@@ -11,7 +11,9 @@
 //! `SWAP1` through `SWAPn` rotate it to the top for the return jump. Size mode also permits bounded
 //! input arguments. Candidates have known stack effects and contain no control flow or position
 //! or gas observations. Profitability includes the shared body,
-//! per-site call sequence, continuation labels, and target-dependent push widths. Sites are
+//! per-site call sequence, continuation labels, and target-dependent push widths. Constant
+//! store prefixes additionally charge call/return gas against deposited bytes using the requested
+//! optimizer run count in gas mode; other recipes retain the size-based sharing policy. Sites are
 //! selected without overlap, and new blocks and labels are installed through the normal EVM IR CFG
 //! representation.
 //!
@@ -41,7 +43,7 @@ use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
     index::IndexVec,
-    map::{FxHashMap, FxHasher},
+    map::{FxHashMap, FxHashSet, FxHasher},
 };
 use solar_sema::Gcx;
 use std::hash::{Hash, Hasher};
@@ -210,6 +212,31 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
         let site_size = transfer_size + usize::from(first.inputs) * shuffle_size;
         if free.len() * run_size <= free.len() * site_size + stub_size {
             continue;
+        }
+        // A constant store takes only two pushes and a memory opcode. Sharing it adds
+        // more transfer gas than the computation itself, so charge that overhead against
+        // the deposited bytes at the requested run count. Other recipes retain their
+        // existing size policy until their execution frequencies can be estimated.
+        if gcx.sess.opts.optimization.is_gas()
+            && matches!(body.get(..3), Some([value, address, store])
+                if value.is_encoded_push() && address.is_encoded_push()
+                    && matches!(store.opcode, op::MSTORE | op::MSTORE8))
+        {
+            let saved_bytes = free.len() * (run_size - site_size) - stub_size;
+            let transfer_gas = target.opcode_gas(op::PUSH2) * 2
+                + target.opcode_gas(op::JUMP) * 2
+                + target.opcode_gas(op::JUMPDEST) * 2
+                + target.opcode_gas(op::SWAP1) * u32::from(first.outputs);
+            if saved_bytes as u128 * u128::from(Target::CODE_DEPOSIT_GAS_PER_BYTE)
+                <= free.len() as u128
+                    * u128::from(transfer_gas)
+                    * u128::from(target.expected_executions())
+            {
+                if let Some(PushValue::Immediate(value)) = body[0].value {
+                    state.inline_store_literals.insert(value);
+                }
+                continue;
+            }
         }
         for site in &free {
             claimed
@@ -617,6 +644,10 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
     let mut values: Vec<_> = sites
         .iter()
         .filter_map(|(&value, occurrences)| {
+            // Do not recreate the rejected store outline as a literal-returning call.
+            if state.inline_store_literals.contains(&value) {
+                return None;
+            }
             let push_size = selected_len(gcx, value);
             let inline = occurrences.len() * push_size;
             let outlined = occurrences.len() * site_bytes + push_size + body_bytes;
@@ -1030,6 +1061,7 @@ impl Hash for ParamMachineInstSlice<'_> {
 
 #[derive(Default)]
 struct RunState {
+    inline_store_literals: FxHashSet<U256>,
     labels: Option<FreshLabels>,
 }
 

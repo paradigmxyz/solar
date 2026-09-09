@@ -1,5 +1,5 @@
 //@ codegen-matrix: standard ir
-//@[ir] compile-flags: -Ogas -Zevm-ir-pipeline=outline -Zdump=evm-ir-runtime
+//@[ir] compile-flags: -Osize -Zevm-ir-pipeline=outline -Zdump=evm-ir-runtime
 //@[ir] filecheck:
 //@ run-call: first 128 => 7
 //@ run-call: second 128 => 9

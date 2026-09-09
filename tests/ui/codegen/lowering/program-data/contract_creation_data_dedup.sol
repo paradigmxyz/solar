@@ -22,7 +22,9 @@ contract Child {
 // MIR-NOT: Child_initcode_1:
 // OPT-LABEL: contract_creation_data_dedup.sol:Factory (runtime) ===
 // OPT: @module Factory_runtime
-// OPT-COUNT-2: push_data Child_initcode_0
+// The shared creation-copy sequence references one canonical data object.
+// OPT: push_data Child_initcode_0
+// OPT-NOT: push_data Child_initcode_0
 // OPT: @data Child_initcode_0 hex"
 // OPT-NOT: @data Child_initcode_1
 contract Factory {

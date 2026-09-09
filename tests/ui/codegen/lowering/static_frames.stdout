@@ -32,7 +32,7 @@ bb4 [cold]:
   push 0
   revert
 bb6:
-  push 512
+  push 480
   push 64
   mstore
   push 36
@@ -131,9 +131,6 @@ bb19:
   mload
   dup 3
   xor
-  dup 1
-  push 352
-  mstore
   push bb25
   dup 2
   push 0
@@ -141,7 +138,7 @@ bb19:
   push 1
   add
   dup 1
-  push 480
+  push 448
   mstore
   push bb32
   jumpi
@@ -207,7 +204,7 @@ bb25 [continuation]:
   jumpi
   jump bb72
 bb32:
-  push 480
+  push 448
   mload
   push 0
   sstore
@@ -217,7 +214,7 @@ bb32:
   push 1
   add
   dup 1
-  push 480
+  push 448
   mstore
   push bb33
   jumpi
@@ -228,7 +225,7 @@ bb33:
   mod
   push 2
   add
-  push 480
+  push 448
   mload
   swap 2
   jump
