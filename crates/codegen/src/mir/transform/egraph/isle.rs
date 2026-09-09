@@ -5,7 +5,7 @@
 //! `build.rs` compiles both into Rust. This module implements the extractors
 //! and constructors the rules call.
 
-use super::same_value;
+use super::{OperandViews, same_value};
 use crate::{
     backend::evm::op,
     mir::{
@@ -53,14 +53,14 @@ pub(super) struct RuleContext<'a> {
     block: Option<BlockId>,
     /// Pre-pass use counts for profitability guards, when available.
     uses: Option<&'a FxHashMap<ValueId, u32>>,
-    /// One retained equivalent definition exposed during bounded matching.
-    view: Option<(ValueId, Op)>,
+    /// Up to two retained equivalent definitions exposed during bounded matching.
+    views: OperandViews,
 }
 
 impl<'a> RuleContext<'a> {
     /// Creates a context over `func`.
     pub(super) fn new(func: &'a mut Function, evm_version: EvmVersion) -> Self {
-        Self { func, evm_version, block: None, uses: None, view: None }
+        Self { func, evm_version, block: None, uses: None, views: [None; 2] }
     }
 
     /// Restricts placement-sensitive matching to producers in this block.
@@ -76,8 +76,8 @@ impl<'a> RuleContext<'a> {
     }
 
     /// Exposes an existing operand class alternative without rewriting its definition.
-    pub(super) fn with_view(mut self, view: Option<(ValueId, Op)>) -> Self {
-        self.view = view;
+    pub(super) fn with_views(mut self, views: OperandViews) -> Self {
+        self.views = views;
         self
     }
 
@@ -256,9 +256,11 @@ impl generated::Context for RuleContext<'_> {
     }
 
     fn inst_data(&mut self, value: Value) -> Option<Op> {
-        self.view
-            .filter(|&(operand, _)| operand == value)
-            .map(|(_, op)| op)
+        self.views
+            .iter()
+            .flatten()
+            .find(|&&(operand, _)| operand == value)
+            .map(|&(_, op)| op)
             .or_else(|| defining_kind(self.func, value).map(InstKind::op))
     }
 

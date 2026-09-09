@@ -183,6 +183,11 @@
 (rule (rewrite (Op.Sub (sub base (iconst existing)) (iconst offset)))
         (Op.Add base (imm (u256_sub (u256_neg existing) offset))))
 
+;; ~a == ~b => a == b
+(rule (rewrite (Op.Eq (bnot a) (bnot b))) (Op.Eq a b))
+;; ~a ^ ~b => a ^ b
+(rule (rewrite (Op.Xor (bnot a) (bnot b))) (Op.Xor a b))
+
 ;; c * b => b * c, when c is neither 0 nor 1 and b is not constant
 (rule (rewrite (Op.Mul (and a (iconst c)) b))
         (if-let false (is_const b))
@@ -294,6 +299,13 @@
 (rule (rewrite (Op.Shr (iconst c) (clz input))) (if-let true (u256_eq c 8)) (Op.IsZero input))
 ;; byte(30, clz(input)) => input == 0
 (rule (rewrite (Op.Byte (iconst c) (clz input))) (if-let true (u256_eq c 30)) (Op.IsZero input))
+
+;; byte(0, value << 248) => value & 255
+;; A single-use left-aligned byte followed by high-byte extraction keeps the low byte.
+(rule (rewrite (Op.Byte (zero) (and shifted (shl (iconst amount) value))))
+      (if-let true (single_use shifted))
+      (if-let true (u256_eq amount 248))
+      (Op.And value (imm (u256 255))))
 
 ;; cond ? 0 : 1 => cond == 0, when cond is boolean
 (rule (rewrite (Op.Select (and cond (bool_value)) (zero) (one))) (Op.IsZero cond))

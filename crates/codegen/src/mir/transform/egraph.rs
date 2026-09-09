@@ -11,9 +11,10 @@
 //! shape requires an already-live representative, avoiding longer live ranges
 //! that can cost more stack traffic than the redundant computation.
 //! Matching also tries a bounded number of retained operand definitions, one
-//! operand alternative at a time. This exposes nested simplifications hidden by
+//! operand alternative at a time, plus pairs for equality and XOR. This exposes
+//! nested simplifications hidden by
 //! the original spelling without mutating definitions during search. It is not
-//! a Cartesian product of child classes or unrestricted equality saturation;
+//! unrestricted equality saturation: at most four operand views yield six pairs;
 //! placement, dominance and the existing extraction cost remain unchanged.
 //! Byte/shift fusion additionally requires the producer in the root block, since
 //! replacing a cross-block temporary can introduce costly loop-carried spills.
@@ -98,6 +99,9 @@ const MAX_NODES: usize = 12;
 
 /// Maximum alternate operand definitions tried while matching one node.
 const MAX_OPERAND_VIEWS: usize = 4;
+
+/// Equivalent definitions exposed together to a single bounded rule match.
+type OperandViews = [Option<(ValueId, Op)>; 2];
 
 /// A hash-consing key: a node over canonical operands and its result type.
 type NodeKey = (Op, Option<MirType>);
@@ -260,12 +264,12 @@ impl<'a> Builder<'a> {
             let current = nodes[frontier];
             frontier += 1;
             alternatives.clear();
-            let views = self.operand_views(&current);
-            for view in std::iter::once(None).chain(views.into_iter().map(Some)) {
+            let views = self.matching_views(&current);
+            for view in views {
                 isle::RuleContext::new(self.func, self.target.evm_version())
                     .with_block(block)
                     .with_uses(&self.uses)
-                    .with_view(view)
+                    .with_views(view)
                     .rewrite(&current, &mut alternatives);
             }
             for next in alternatives.drain(..) {
@@ -287,10 +291,10 @@ impl<'a> Builder<'a> {
             }
             let kind = node.into_kind().expect("nodes are complete instructions");
             let equal = const_fold(self.func, &kind).or_else(|| {
-                let views = self.operand_views(node);
-                std::iter::once(None).chain(views.into_iter().map(Some)).find_map(|view| {
+                let views = self.matching_views(node);
+                views.into_iter().find_map(|view| {
                     isle::RuleContext::new(self.func, self.target.evm_version())
-                        .with_view(view)
+                        .with_views(view)
                         .simplify(node)
                 })
             });
@@ -314,6 +318,23 @@ impl<'a> Builder<'a> {
         } else {
             self.classes.insert(result, Class { nodes, home: inst_id });
         }
+    }
+
+    /// Match paired complement rules without multiplying unrestricted child classes.
+    fn matching_views(&self, node: &Op) -> SmallVec<[OperandViews; 11]> {
+        let operands = self.operand_views(node);
+        let mut views = smallvec::smallvec![[None, None]];
+        views.extend(operands.iter().map(|&view| [Some(view), None]));
+        if matches!(node, Op::Eq { .. } | Op::Xor { .. }) {
+            for (index, &first) in operands.iter().enumerate() {
+                for &second in &operands[index + 1..] {
+                    if first.0 != second.0 {
+                        views.push([Some(first), Some(second)]);
+                    }
+                }
+            }
+        }
+        views
     }
 
     /// Only existing equivalent nodes are exposed; no new SSA values or code
