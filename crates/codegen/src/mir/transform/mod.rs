@@ -35,6 +35,7 @@ pub(crate) mod memory_dse;
 pub(crate) mod outline_reverts;
 pub(crate) mod pre;
 pub(crate) mod pure_eval;
+pub(crate) mod readonly_eval;
 pub(crate) mod sccp;
 pub(crate) mod specialize;
 pub(crate) mod sroa;

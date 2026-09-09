@@ -49,6 +49,7 @@ pub static ALL_PASSES: &[&dyn MirPass] = &[
     &cfg_simplify::FunctionDce,
     &sccp::Sccp,
     &pure_eval::PureEval,
+    &readonly_eval::ReadonlyEval,
     &cse::Cse,
     &pre::Pre,
     &egraph::Egraph,
@@ -259,10 +260,13 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     // regions.
     &static_alloc::DeferAlloc,
     &lower_slices::LowerSlices,
-    &lower_immutables::LowerImmutables,
     // Fuse straight-line constant-size allocations before their free-memory
     // pointer traffic is materialized; pointer values are preserved exactly.
     &coalesce_allocs::CoalesceAllocs,
+    // Evaluate known allocation words before immutable initialization becomes
+    // physical memory stores that conservatively alias heap pointers.
+    &readonly_eval::ReadonlyEval,
+    &lower_immutables::LowerImmutables,
     &lower_alloc::LowerAlloc,
     &lower_memory_zero::LowerMemoryZero,
     &lower_mcopy::LowerMCopy,
