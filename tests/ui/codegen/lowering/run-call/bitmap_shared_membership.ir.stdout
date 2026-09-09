@@ -1,0 +1,511 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/bitmap_shared_membership.sol:BitmapSharedMembership (runtime) ===
+@module BitmapSharedMembership_runtime
+bb0:
+  jump bb13
+bb13:
+  jump bb9
+bb9:
+  callvalue
+  jumpi bb12, bb10
+bb10:
+  push 0
+  calldataload
+  push 224
+  shr
+  jump bb17
+bb17:
+  push 0x9ba6c5f7
+  sub
+  jumpi bb12, bb11
+bb11:
+  jump bb4
+bb4:
+  push 0x500
+  push 64
+  mstore
+  jump bb1
+bb1:
+  calldatasize
+  push 0x444
+  gt
+  jumpi bb2, bb3
+bb3:
+  push 4
+  calldataload
+  push 3
+  mul
+  push 192
+  mstore
+  push 36
+  calldataload
+  push 3
+  mul
+  push 224
+  mstore
+  push 68
+  calldataload
+  push 3
+  mul
+  push 256
+  mstore
+  push 100
+  calldataload
+  push 3
+  mul
+  push 288
+  mstore
+  push 132
+  calldataload
+  push 3
+  mul
+  push 320
+  mstore
+  push 164
+  calldataload
+  push 3
+  mul
+  push 352
+  mstore
+  push 196
+  calldataload
+  push 3
+  mul
+  push 384
+  mstore
+  push 228
+  calldataload
+  push 3
+  mul
+  push 416
+  mstore
+  push 260
+  calldataload
+  push 3
+  mul
+  push 448
+  mstore
+  push 292
+  calldataload
+  push 3
+  mul
+  push 480
+  mstore
+  push 324
+  calldataload
+  push 3
+  mul
+  push 512
+  mstore
+  push 356
+  calldataload
+  push 3
+  mul
+  push 544
+  mstore
+  push 388
+  calldataload
+  push 3
+  mul
+  push 576
+  mstore
+  push 420
+  calldataload
+  push 3
+  mul
+  push 608
+  mstore
+  push 452
+  calldataload
+  push 3
+  mul
+  push 640
+  mstore
+  push 484
+  calldataload
+  push 3
+  mul
+  push 672
+  mstore
+  push 516
+  calldataload
+  push 3
+  mul
+  push 704
+  mstore
+  push 548
+  calldataload
+  push 3
+  mul
+  push 736
+  mstore
+  push 580
+  calldataload
+  push 3
+  mul
+  push 768
+  mstore
+  push 612
+  calldataload
+  push 3
+  mul
+  push 800
+  mstore
+  push 644
+  calldataload
+  push 3
+  mul
+  push 832
+  mstore
+  push 676
+  calldataload
+  push 3
+  mul
+  push 864
+  mstore
+  push 708
+  calldataload
+  push 3
+  mul
+  push 896
+  mstore
+  push 740
+  calldataload
+  push 3
+  mul
+  push 928
+  mstore
+  push 772
+  calldataload
+  push 3
+  mul
+  push 960
+  mstore
+  push 804
+  calldataload
+  push 3
+  mul
+  push 992
+  mstore
+  push 836
+  calldataload
+  push 3
+  mul
+  push 0x400
+  mstore
+  push 868
+  calldataload
+  push 3
+  mul
+  push 0x420
+  mstore
+  push 900
+  calldataload
+  push 3
+  mul
+  push 0x440
+  mstore
+  push 932
+  calldataload
+  push 3
+  mul
+  push 0x460
+  mstore
+  push 964
+  calldataload
+  push 3
+  mul
+  push 0x480
+  mstore
+  push 996
+  calldataload
+  push 3
+  mul
+  push 0x4a0
+  mstore
+  push 1
+  push 0x404
+  calldataload
+  and
+  push 0x4c0
+  mstore
+  push 0x4a0
+  mload
+  push 192
+  mload
+  xor
+  push 0x4e0
+  mstore
+  push bb14
+  push 0x4c0
+  mload
+  push 0x4e0
+  mload
+  jump bb8
+bb8:
+  swap 1
+  jump bb5
+bb14:
+  push 0x4c0
+  mstore
+  push 288
+  mload
+  push 224
+  mload
+  add
+  push 352
+  mload
+  add
+  push 416
+  mload
+  add
+  push 480
+  mload
+  add
+  push 544
+  mload
+  add
+  push 608
+  mload
+  add
+  push 672
+  mload
+  add
+  push 736
+  mload
+  add
+  push 800
+  mload
+  add
+  push 864
+  mload
+  add
+  push 928
+  mload
+  add
+  push 992
+  mload
+  add
+  push 0x420
+  mload
+  add
+  push 0x460
+  mload
+  add
+  push 0x4a0
+  mload
+  add
+  push 224
+  mstore
+  push 0x4c0
+  mload
+  push 0x404
+  calldataload
+  push 6
+  dup 2
+  push 5
+  shr
+  sub
+  dup 1
+  push 0x55555557
+  dup 2
+  shr
+  push 1
+  and
+  mul
+  push 6
+  add
+  push 5
+  shl
+  dup 1
+  mload
+  swap 2
+  push 1
+  add
+  push 0x55555557
+  dup 2
+  shr
+  push 1
+  and
+  mul
+  push 6
+  add
+  push 5
+  shl
+  dup 1
+  mload
+  swap 5
+  swap 1
+  swap 4
+  mstore
+  mstore
+  mstore
+  push 0x424
+  calldataload
+  mload
+  push 1
+  dup 2
+  add
+  push 0x480
+  mload
+  dup 2
+  mul
+  push 288
+  mstore
+  push 0x440
+  mload
+  dup 2
+  mul
+  push 352
+  mstore
+  push 0x400
+  mload
+  dup 2
+  mul
+  push 416
+  mstore
+  push 960
+  mload
+  dup 2
+  mul
+  push 480
+  mstore
+  push 896
+  mload
+  dup 2
+  mul
+  push 544
+  mstore
+  push 832
+  mload
+  dup 2
+  mul
+  push 608
+  mstore
+  push 768
+  mload
+  dup 2
+  mul
+  push 672
+  mstore
+  push 704
+  mload
+  dup 2
+  mul
+  push 704
+  mstore
+  push 640
+  mload
+  dup 2
+  mul
+  push 640
+  mstore
+  push 576
+  mload
+  dup 2
+  mul
+  push 512
+  mload
+  dup 3
+  mul
+  push 448
+  mload
+  dup 4
+  mul
+  push 384
+  mload
+  dup 5
+  mul
+  push 320
+  mload
+  dup 6
+  mul
+  push 256
+  mload
+  dup 7
+  mul
+  push 192
+  mload
+  swap 7
+  swap 1
+  swap 2
+  swap 3
+  swap 4
+  swap 5
+  swap 6
+  swap 7
+  mul
+  add
+  add
+  add
+  add
+  add
+  add
+  push 640
+  mload
+  add
+  push 704
+  mload
+  add
+  push 672
+  mload
+  add
+  push 608
+  mload
+  add
+  push 544
+  mload
+  add
+  push 480
+  mload
+  add
+  push 416
+  mload
+  add
+  push 352
+  mload
+  add
+  push 288
+  mload
+  add
+  push 224
+  mload
+  add
+  push 160
+  mstore
+  push 128
+  mstore
+  push 64
+  push 128
+  return
+bb16:
+  jump bb7
+bb7:
+  swap 1
+  jump
+bb2 [cold]:
+  push 0
+  push 0
+  revert
+bb6:
+  push 1
+  swap 1
+  swap 2
+  sub
+  swap 1
+  push bb16
+  swap 2
+  jump bb5
+bb5:
+  dup 1
+  swap 2
+  add
+  dup 2
+  jumpi bb6, bb15
+bb15:
+  swap 1
+  pop
+  jump bb7
+bb12 [cold]:
+  push 0
+  push 0
+  revert
