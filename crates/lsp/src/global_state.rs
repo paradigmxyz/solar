@@ -11,6 +11,7 @@ use crate::{
     },
     file_operations::FileOperationCoordinator,
     flycheck,
+    import_resolution::ImportCompletion,
     progress::{ProgressCoordinator, ProgressTicket},
     proto,
     protocol_trace::ProtocolTrace,
@@ -381,6 +382,19 @@ struct AnalysisTasks {
     cancellation: Option<IndexingCancellation>,
 }
 
+/// Reuses import completion results within one analysis/configuration epoch.
+///
+/// The cache is deliberately bounded and discarded on every new analysis epoch so watched disk
+/// changes and VFS overlays cannot leave stale directory candidates visible to the client.
+#[derive(Default)]
+struct ImportCompletionCache {
+    generation: Option<usize>,
+    overlay_paths: Vec<PathBuf>,
+    entries: FxHashMap<(PathBuf, String), Arc<ImportCompletion>>,
+}
+
+const MAX_IMPORT_COMPLETION_CACHE_ENTRIES: usize = 256;
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 struct AnalysisTaskKey {
     version: usize,
@@ -438,6 +452,7 @@ pub(crate) struct GlobalState {
     flycheck_cancels: FxHashMap<DiagnosticOwner, oneshot::Sender<()>>,
     pub(crate) symbol_tables: Arc<ArcSwap<SymbolTables>>,
     diagnostics: Arc<RwLock<DiagnosticStore>>,
+    import_completion_cache: Mutex<ImportCompletionCache>,
 }
 
 pub(crate) struct AnalysisRevision {
@@ -485,6 +500,7 @@ impl GlobalState {
             flycheck_cancels: FxHashMap::default(),
             symbol_tables: Arc::new(Default::default()),
             diagnostics: Arc::new(Default::default()),
+            import_completion_cache: Mutex::new(ImportCompletionCache::default()),
             config,
             launch_config: crate::LaunchConfig::default(),
         }
@@ -501,6 +517,45 @@ impl GlobalState {
 
     pub(crate) fn client_socket(&self) -> ClientSocket {
         self.client.clone()
+    }
+
+    /// Return cached candidates or build them from the current overlay snapshot.
+    pub(crate) fn cached_import_completion(
+        &self,
+        importer: &Path,
+        prefix: &str,
+        build: impl FnOnce(&[PathBuf]) -> ImportCompletion,
+    ) -> Arc<ImportCompletion> {
+        let generation = self.analysis_version.load(Ordering::Acquire);
+        let key = (importer.to_path_buf(), prefix.to_owned());
+        {
+            let mut cache = self.import_completion_cache.lock();
+            if cache.generation != Some(generation) {
+                cache.generation = Some(generation);
+                cache.overlay_paths = self
+                    .vfs
+                    .read()
+                    .iter()
+                    .filter_map(|(path, _)| path.as_path().map(Path::to_path_buf))
+                    .collect();
+                cache.entries.clear();
+            }
+            if let Some(completion) = cache.entries.get(&key).cloned() {
+                return completion;
+            }
+        }
+
+        let overlay_paths = self.import_completion_cache.lock().overlay_paths.clone();
+        let completion = build(&overlay_paths);
+        let mut cache = self.import_completion_cache.lock();
+        if cache.entries.len() >= MAX_IMPORT_COMPLETION_CACHE_ENTRIES
+            && !cache.entries.contains_key(&key)
+        {
+            cache.entries.clear();
+        }
+        let completion = Arc::new(completion);
+        cache.entries.insert(key, Arc::clone(&completion));
+        completion
     }
 
     pub(crate) fn analysis_revision(&self) -> AnalysisRevision {

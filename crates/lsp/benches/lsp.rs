@@ -632,6 +632,14 @@ fn workspace_path_queries(c: &mut Criterion) {
             b.iter(|| black_box(queries.run()));
         },
     );
+    group.bench_function(
+        BenchmarkId::from_parameter(format!(
+            "{PATH_INDEX_WORKSPACE_COUNT}-workspaces-{PATH_INDEX_QUERY_COUNT}-queries-cached"
+        )),
+        |b| {
+            b.iter(|| black_box(queries.run_cached()));
+        },
+    );
     group.finish();
 
     let mut group = c.benchmark_group("lsp/workspace-path-single-query");
@@ -642,6 +650,14 @@ fn workspace_path_queries(c: &mut Criterion) {
         )),
         |b| {
             b.iter(|| black_box(queries.run_one()));
+        },
+    );
+    group.bench_function(
+        BenchmarkId::from_parameter(format!(
+            "{PATH_INDEX_WORKSPACE_COUNT}-workspaces-single-query-cached"
+        )),
+        |b| {
+            b.iter(|| black_box(queries.run_cached_one()));
         },
     );
     group.finish();
