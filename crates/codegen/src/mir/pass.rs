@@ -43,6 +43,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &inline::InlineSingleUse,
     &inline::InlineConstantLeaves,
     &inline::InlineTinyLeaves,
+    &inline::InlineImmutableLeaves,
     &inline::SpecializeFunctionPointers,
     &specialize::Specialize,
     &call_cleanup::CallCleanup,
@@ -260,6 +261,8 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &word_sequence::WordSequence,
     &cfg_simplify::CfgSimplify,
     &memory_dse::MemoryDse,
+    // Check elimination and CFG cleanup expose straight-line immutable helpers.
+    &inline::InlineImmutableLeaves,
     // Late CSE reduces runtime gas after aggregate lowering, but can grow
     // bytecode through longer live ranges, so keep it out of `-Osize`.
     &GasOnly::new(cse::Cse),
