@@ -6,6 +6,7 @@ Unsupported operations raise: they are never unconstrained functions.
 """
 
 from dataclasses import dataclass
+import json
 import time
 
 import z3
@@ -180,6 +181,42 @@ def concrete(expr, values):
     return result & MASK
 
 
+def portable_query(solver):
+    """Serialize QF_BV with legal, distinct names for every free constant.
+
+    Z3 accepts quoted names beginning with @ or ., which SMT-LIB reserves.
+    Alpha-renaming also handles overloaded names of different sorts. Keep the
+    live solver and its witness names unchanged; only serialize a renamed copy.
+    """
+    assertions = solver.assertions()
+    pending, seen, variables = list(assertions), set(), []
+    while pending:
+        term = pending.pop()
+        if term.get_id() in seen:
+            continue
+        seen.add(term.get_id())
+        if not z3.is_app(term):
+            raise Unsupported("portable word queries must be quantifier-free")
+        if term.decl().kind() == z3.Z3_OP_UNINTERPRETED:
+            if not z3.is_const(term):
+                raise Unsupported("portable word queries cannot contain uninterpreted functions")
+            variables.append(term)
+        pending.extend(term.children())
+    variables.sort(key=lambda value: (str(value.decl().name()), value.sort().sexpr()))
+    bindings = []
+    comments = []
+    for index, variable in enumerate(variables):
+        if variable.sort().kind() not in (z3.Z3_BOOL_SORT, z3.Z3_BV_SORT):
+            raise Unsupported("portable word queries require Boolean or bitvector constants")
+        name = f"solar_query_{index}"
+        bindings.append((variable, z3.Const(name, variable.sort())))
+        comments.append(f"; {name} = {json.dumps(str(variable.decl().name()))} : {variable.sort().sexpr()}")
+    portable = z3.SolverFor("QF_BV")
+    portable.add(*(z3.substitute(assertion, *bindings) if bindings else assertion
+                   for assertion in assertions))
+    return "(set-logic QF_BV)\n" + "\n".join(comments) + "\n" + portable.to_smt2()
+
+
 def check(lhs, rhs, assumptions=(), timeout_ms=5000, model=None):
     """Only UNSAT proves equivalence; SAT must replay and UNKNOWN stays incomplete."""
     model = model or Model()
@@ -197,7 +234,7 @@ def check(lhs, rhs, assumptions=(), timeout_ms=5000, model=None):
     # counterexample establishes the rule's conditional equivalence.
     solver.reset()
     solver.add(*assumptions, left != right)
-    query = solver.to_smt2()
+    query = portable_query(solver)
     result = solver.check()
     if result == z3.unsat:
         return {"status": "proved"}, query
@@ -251,8 +288,10 @@ def partition_shift(lhs, rhs, assumptions, timeout_ms, model):
             obligation = z3.And(*assumptions, conditions[index], model.eval(lhs) != model.eval(rhs))
             if index < WIDTH:
                 obligation = z3.substitute(obligation, (shift, word(index)))
-            solver.add(z3.simplify(obligation))
-        query = solver.to_smt2()
+            # Export the substituted obligation before solver simplification so
+            # another solver checks its own preprocessing as well.
+            solver.add(obligation)
+        query = portable_query(solver)
         result = solver.check()
         queries.append((f"case-{index + 1}", query))
         if result == z3.sat:
