@@ -23,10 +23,12 @@
 //! `may_return_memory` attribute is set must remain allocated on return. The call emitter owns
 //! frame setup, restoration, runtime overflow checks and the EVM return-label stack protocol. This
 //! module checks every constant address/size calculation and never silently wraps a layout.
+//! Existing call summaries also retain a clean-callee bitset for bounded backup-cost trials;
+//! this does not change frame reservation, alias provenance or multi-result publication.
 
 use crate::mir::{
     AllocationAlignment, Function, FunctionId, InstId, InstKind, Module, Terminator,
-    analysis::{CallGraphInfo, MemoryCallSummaries},
+    analysis::{AddressSpace, CallGraphInfo, MemoryCallSummaries},
     memory::EvmMemoryLayout,
 };
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
@@ -149,6 +151,8 @@ pub(crate) struct ModulePlan {
     reserved_end: u64,
     callees: IndexVec<FunctionId, Box<[FunctionId]>>,
     shared_deferred_entries: DenseBitSet<FunctionId>,
+    /// Known callees without source-memory writes; multi-result publication is checked by callers.
+    pub(crate) memory_clean_calls: DenseBitSet<FunctionId>,
 }
 
 impl ModulePlan {
@@ -192,8 +196,12 @@ impl ModulePlan {
         if deployment && module.immutable_count() != 0 {
             reserved_end = immutable_staging_end;
         }
+        let mut memory_clean_calls = DenseBitSet::new_empty(module.functions.len());
         let mut functions = IndexVec::with_capacity(module.functions.len());
         for (id, function) in module.functions.iter_enumerated() {
+            if memory_effects.get(id).is_some_and(|summary| !summary.writes(AddressSpace::Memory)) {
+                memory_clean_calls.insert(id);
+            }
             let entry = is_entry(function) || module.dispatch_entry() == Some(id);
             let mut storage = function_storage(function, entry)?;
             storage.reachable = reachable.contains(id);
@@ -272,6 +280,7 @@ impl ModulePlan {
             reserved_end: align(reserved_end)?,
             callees,
             shared_deferred_entries,
+            memory_clean_calls,
         };
         plan.finalize()?;
         Ok(plan)

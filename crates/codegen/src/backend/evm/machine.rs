@@ -34,6 +34,7 @@ use std::cell::{Cell, RefCell};
 mod call_entry;
 mod call_reserve;
 mod debug;
+mod emission;
 mod entry_order;
 mod initialization;
 mod operand_preparation;
@@ -450,8 +451,9 @@ pub(crate) fn lower(
         };
         output.blocks[context.layout.blocks[mir::BlockId::ENTRY]].function_invoke =
             debug::function(&context);
-        let checkpoint = trial.as_ref().map(|_| phi::Checkpoint::new(&context, &output, switches));
-        let lowered = lower_function(&context, &layouts, &mut output, switches);
+        let checkpoint =
+            trial.as_ref().map(|_| emission::Snapshot::new(&context, &output, switches));
+        let lowered = emission::lower(&context, &layouts, &mut output, switches);
         if lowered.is_err()
             && let Some(original) = trial
             && let Some(checkpoint) = checkpoint
@@ -473,7 +475,7 @@ pub(crate) fn lower(
                 tail_reverts: &tail_reverts,
             };
             // <ordinary owner body>; preserve the exact fallback schedule and metadata
-            lower_function(&context, &layouts, &mut output, switches)?;
+            emission::lower(&context, &layouts, &mut output, switches)?;
         } else {
             lowered?;
         }
@@ -512,7 +514,10 @@ fn lower_function(
     layouts: &FxHashMap<mir::FunctionId, FunctionLayout>,
     output: &mut ir::Module,
     switches: &mut super::switches::Planner,
-) -> Result<(), String> {
+    elide_clean_calls: bool,
+    mut entry_heights: Option<&mut FxHashMap<ir::BlockId, usize>>,
+) -> Result<bool, String> {
+    let mut eligible_call = false;
     let function = context.function;
     let layout = context.layout;
     let operand_order = if let Some(original) = context.original {
@@ -526,6 +531,9 @@ fn lower_function(
         }
         let mut current = layout.blocks[block_id];
         let mut stack = Stack::new(layout.entries[block_id].clone());
+        if let Some(heights) = entry_heights.as_deref_mut() {
+            heights.insert(current, stack.values().len());
+        }
         let mut insts = Vec::new();
         let mut emitted_until = 0;
         for (position, &inst_id) in block.instructions.iter().enumerate() {
@@ -545,15 +553,23 @@ fn lower_function(
             let origin_start = insts.len();
             let live = |value| layout.live.is_used_at_or_after(value, block_id, position + 1);
             if let mir::InstKind::ICall { function: callee, args, returns } = &instruction.kind {
-                let saved = save_writer_homes(
-                    context,
-                    (block_id, position),
-                    &mut stack,
-                    &mut insts,
-                    live,
-                    args.len() + 5,
-                    || true,
-                )?;
+                let clean = *returns <= 1 && context.plan.memory_clean_calls.contains(*callee);
+                // <caller>; [save overlapping homes]; <call arguments>
+                // A known clean single-result call needs no source-writer backups.
+                let saved = if elide_clean_calls && clean {
+                    SavedHomes::default()
+                } else {
+                    save_writer_homes(
+                        context,
+                        (block_id, position),
+                        &mut stack,
+                        &mut insts,
+                        live,
+                        args.len() + 5,
+                        || true,
+                    )?
+                };
+                eligible_call |= clean && !saved.addresses.is_empty();
                 let continuation = output.blocks.push(ir::Block::default());
                 let mut target = layouts[callee].entry;
                 let caller;
@@ -619,6 +635,15 @@ fn lower_function(
                     output,
                 )?;
                 current = continuation;
+                if let Some(heights) = entry_heights.as_deref_mut() {
+                    // The returned stack retains caller words, untracked backups and result 0.
+                    // ICall has no writer bank; tracked backups are already counted in caller.
+                    heights.insert(
+                        current,
+                        caller.len() + saved.addresses.len() - saved.tracked
+                            + usize::from(*returns != 0),
+                    );
+                }
                 stack = Stack::new(caller);
                 stack.truncate(stack.values().len() - saved.tracked);
                 restore_writer_homes(&saved, &mut insts, *returns != 0);
@@ -850,7 +875,7 @@ fn lower_function(
         output.blocks[current].terminator = terminator.into();
         debug::terminator(context, block, &mut output.blocks[current].terminator);
     }
-    Ok(())
+    Ok(eligible_call)
 }
 
 fn enter_call(
@@ -937,6 +962,7 @@ fn return_values(
 }
 
 /// Values held above the virtual activation prefix while an overlapping writer executes.
+#[derive(Default)]
 struct SavedHomes {
     protection: Option<writer::Protection>,
     addresses: Vec<super::storage::FrameAddress>,
@@ -1002,12 +1028,7 @@ fn save_writer_homes(
     let inst = context.function.blocks[block].instructions[position];
     let effects = context.layout.alias.instruction_mod_ref(context.function, inst);
     if !effects.writes_space(crate::mir::analysis::AddressSpace::Memory) {
-        return Ok(SavedHomes {
-            protection: None,
-            addresses: Vec::new(),
-            tracked: 0,
-            protected_prefix: None,
-        });
+        return Ok(SavedHomes::default());
     }
     let control_live = context.plan.max_dynamic_frame_size != 0 && control_live();
     let mut homes = context

@@ -151,42 +151,6 @@ bb3:
   xor
   push 800
   mstore
-  push 192
-  mload
-  push 224
-  mload
-  push 256
-  mload
-  push 288
-  mload
-  push 320
-  mload
-  push 352
-  mload
-  push 384
-  mload
-  push 416
-  mload
-  push 448
-  mload
-  push 480
-  mload
-  push 512
-  mload
-  push 544
-  mload
-  push 576
-  mload
-  push 608
-  mload
-  push 640
-  mload
-  push 672
-  mload
-  push 704
-  mload
-  push 736
-  mload
   push bb14
   push 768
   mload
@@ -197,44 +161,6 @@ bb8:
   swap 1
   jump bb5
 bb14:
-  swap 16
-  push 256
-  mstore
-  push 736
-  mstore
-  push 704
-  mstore
-  push 672
-  mstore
-  push 640
-  mstore
-  push 608
-  mstore
-  push 576
-  mstore
-  push 544
-  mstore
-  push 512
-  mstore
-  push 480
-  mstore
-  push 448
-  mstore
-  push 416
-  mstore
-  push 384
-  mstore
-  push 352
-  mstore
-  push 320
-  mstore
-  push 288
-  mstore
-  swap 2
-  push 192
-  mstore
-  push 224
-  mstore
   push 768
   mstore
   push 32
@@ -527,42 +453,6 @@ bb3:
   xor
   push 800
   mstore
-  push 192
-  mload
-  push 224
-  mload
-  push 256
-  mload
-  push 288
-  mload
-  push 320
-  mload
-  push 352
-  mload
-  push 384
-  mload
-  push 416
-  mload
-  push 448
-  mload
-  push 480
-  mload
-  push 512
-  mload
-  push 544
-  mload
-  push 576
-  mload
-  push 608
-  mload
-  push 640
-  mload
-  push 672
-  mload
-  push 704
-  mload
-  push 736
-  mload
   push bb14
   push 768
   mload
@@ -573,44 +463,6 @@ bb8:
   swap 1
   jump bb5
 bb14:
-  swap 16
-  push 256
-  mstore
-  push 736
-  mstore
-  push 704
-  mstore
-  push 672
-  mstore
-  push 640
-  mstore
-  push 608
-  mstore
-  push 576
-  mstore
-  push 544
-  mstore
-  push 512
-  mstore
-  push 480
-  mstore
-  push 448
-  mstore
-  push 416
-  mstore
-  push 384
-  mstore
-  push 352
-  mstore
-  push 320
-  mstore
-  push 288
-  mstore
-  swap 2
-  push 192
-  mstore
-  push 224
-  mstore
   push 32
   push 580
   calldataload
@@ -900,42 +752,6 @@ bb3:
   xor
   push 800
   mstore
-  push 192
-  mload
-  push 224
-  mload
-  push 256
-  mload
-  push 288
-  mload
-  push 320
-  mload
-  push 352
-  mload
-  push 384
-  mload
-  push 416
-  mload
-  push 448
-  mload
-  push 480
-  mload
-  push 512
-  mload
-  push 544
-  mload
-  push 576
-  mload
-  push 608
-  mload
-  push 640
-  mload
-  push 672
-  mload
-  push 704
-  mload
-  push 736
-  mload
   push bb14
   push 768
   mload
@@ -946,44 +762,6 @@ bb8:
   swap 1
   jump bb5
 bb14:
-  swap 16
-  push 256
-  mstore
-  push 736
-  mstore
-  push 704
-  mstore
-  push 672
-  mstore
-  push 640
-  mstore
-  push 608
-  mstore
-  push 576
-  mstore
-  push 544
-  mstore
-  push 512
-  mstore
-  push 480
-  mstore
-  push 448
-  mstore
-  push 416
-  mstore
-  push 384
-  mstore
-  push 352
-  mstore
-  push 320
-  mstore
-  push 288
-  mstore
-  swap 2
-  push 192
-  mstore
-  push 224
-  mstore
   push 768
   mstore
   push 32

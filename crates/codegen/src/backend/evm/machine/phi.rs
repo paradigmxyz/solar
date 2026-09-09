@@ -32,7 +32,6 @@ use crate::{
 };
 use solar_config::{EvmVersion, OptimizationMode};
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
-use std::cell::Cell;
 
 /// The ordinary allocation bindings retained until the real emission trial succeeds.
 pub(super) struct Original {
@@ -154,51 +153,6 @@ pub(super) fn select(
         entries: std::mem::replace(&mut layout.entries, entries),
         home_definitions: std::mem::replace(&mut layout.home_definitions, home_definitions),
     })
-}
-
-/// Function-local emission state, including metadata and shared switch growth budgets.
-pub(super) struct Checkpoint {
-    blocks: Vec<(ir::BlockId, ir::Block)>,
-    block_count: usize,
-    switches: crate::backend::evm::switches::Planner,
-    tail_entry_scope: Option<bool>,
-}
-
-impl Checkpoint {
-    pub(super) fn new(
-        context: &Context<'_>,
-        output: &ir::Module,
-        switches: &crate::backend::evm::switches::Planner,
-    ) -> Self {
-        let blocks = context
-            .layout
-            .blocks
-            .iter_enumerated()
-            .filter(|&(id, _)| context.layout.cfg.is_reachable(id))
-            .map(|(_, &id)| (id, output.blocks[id].clone()))
-            .collect();
-        Self {
-            blocks,
-            block_count: output.blocks.len(),
-            switches: switches.clone(),
-            tail_entry_scope: context.tail_entry_scope.get(),
-        }
-    }
-
-    pub(super) fn restore(
-        self,
-        output: &mut ir::Module,
-        switches: &mut crate::backend::evm::switches::Planner,
-        tail_entry_scope: &Cell<Option<bool>>,
-    ) {
-        // <original owner blocks>; discard speculative edge, call and switch blocks
-        output.blocks.truncate(self.block_count);
-        for (id, block) in self.blocks {
-            output.blocks[id] = block;
-        }
-        *switches = self.switches;
-        tail_entry_scope.set(self.tail_entry_scope);
-    }
 }
 
 /// Reports edges which cannot use the original memory-only copy emitter.
