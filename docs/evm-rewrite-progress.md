@@ -381,7 +381,7 @@ this local milestone while compiler-time debts remain open.
 
 The backend is now 17,290 physical Rust lines across 47 files, an increase of
 213 lines for this milestone and a reduction of 17,348 from the deletion
-inventory. Excluding trailing test modules leaves 16,130 physical lines. Pinned
+inventory. Excluding trailing test modules leaves 15,985 physical lines. Pinned
 solx, Venom and Sonatina sources informed the bounded operand and literal-cost
 investigation; no deleted backend implementation was retrieved. Full inputs,
 producer hashes, rejected candidates, review receipts and measurements are under
@@ -447,7 +447,7 @@ together with the rejected candidates, measurements and independent reviews.
 
 `530099f5` reuses existing memory-effect summaries to identify clean calls,
 without changing frame layouts, alias provenance or spill planning. The ordinary
-owner emission runs first; an eligible returning owner may try one alternate
+owner emission runs first; an owner with an eligible internal call may try an alternate
 without clean-call backups. Complete physical blocks must preserve topology,
 respect private entry-stack bounds and improve the existing literal-cost query.
 Multi-result calls and nested Phi trials remain conservative. A shared owner
