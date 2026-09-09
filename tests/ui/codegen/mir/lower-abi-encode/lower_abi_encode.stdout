@@ -225,21 +225,20 @@
 +     v5 = add arg1, 32
 +     v6 = memory_object_data memoryarray, arg0
 +     v7 = add v5, v4
-+     jump bb1
++     v8 = sub v6, v5
++     jumpi v3, bb1, bb2
 +   bb1:
-+     v8 = phi [bb0: 0], [bb2: v15]
-+     v9 = lt v8, v3
-+     jumpi v9, bb2, bb3
-+   bb3:
-+     ret v7
++     v9 = phi [bb0: v3], [bb1: v14]
++     v10 = phi [bb0: v5], [bb1: v15]
++     v11 = add v10, v8
++     v12 = mload v11
++     v13 = and v12, 255
++     mstore v10, v13
++     v14 = sub v9, 1
++     v15 = add v10, 32
++     jumpi v14, bb1, bb2
 +   bb2:
-+     v10 = mul v8, 32
-+     v11 = add v6, v10
-+     v12 = add v5, v10
-+     v13 = mload v11
-+     v14 = and v13, 255
-+     mstore v12, v14
-+     v15 = add v8, 1
-+     jump bb1
++     v16 = phi [bb0: v5], [bb1: v15]
++     ret v16
   }
   
