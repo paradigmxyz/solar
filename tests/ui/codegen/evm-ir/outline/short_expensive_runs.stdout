@@ -6,31 +6,24 @@
     calldataload
     indexed_jump bb1, bb2, bb3, bb4
   bb1:
--   push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
--   push 128
--   mstore
--   push 1
--   stop
-+   push bb7
-+   jump bb5
-  bb2:
-+   push bb8
-+   jump bb5
-+ bb3:
-+   push bb9
-+   jump bb6
-+ bb4:
-+   push bb10
-+   jump bb6
-+ bb5:
     push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
     push 128
     mstore
--   push 2
--   stop
-- bb3:
-+   jump
-+ bb6:
+    push 1
+    stop
+  bb2:
+    push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+    push 128
+    mstore
+    push 2
+    stop
+  bb3:
++   push bb6
++   jump bb5
++ bb4:
++   push bb7
++   jump bb5
++ bb5:
     push 0x23456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01
     push 0x3456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef012
     dup 1
@@ -38,20 +31,14 @@
 +   swap 2
 +   swap 3
 +   jump
-+ bb7 [continuation]:
-+   push 1
-+   stop
-+ bb8 [continuation]:
-+   push 2
-+   stop
-+ bb9 [continuation]:
++ bb6 [continuation]:
     push 3
     stop
 - bb4:
 -   push 0x23456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01
 -   push 0x3456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef012
 -   dup 1
-+ bb10 [continuation]:
++ bb7 [continuation]:
     push 4
     stop
   

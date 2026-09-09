@@ -45,6 +45,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &inline::InlineConstantLeaves,
     &inline::InlineTinyLeaves,
     &inline::InlineImmutableLeaves,
+    &inline::InlineMemoryWrappers,
     &inline::SpecializeFunctionPointers,
     &specialize::Specialize,
     &call_cleanup::CallCleanup,
@@ -289,6 +290,7 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // => body: ...; jump checked
     &check_elim::LateCheckElim,
     &inline_guards::InlineGuards,
+    &inline::InlineMemoryWrappers,
     // Revisit allocations after semantic memory accesses become bounded raw
     // operations, so fixed-size hash buffers can use backend-known static
     // regions.
