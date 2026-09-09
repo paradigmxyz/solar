@@ -1,0 +1,56 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=tail-merge
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=tail-merge
+@module ConditionalLoopTail
+
+bb0:
+  push 9
+  push 7
+  push 0
+  calldataload
+  dup 1
+  jumpi bb1, bb2
+
+// These headers have no loop markers. The conditional edges form cycles in the machine CFG.
+// Gas mode shares only the suffix after JUMPI; the continuing path pays no sharing jump.
+bb1:
+  dup 1
+  push bb3
+  jumpi
+  push 1
+  push 2
+  add
+  push 32
+  mstore
+  stop
+
+bb2:
+  dup 1
+  push bb4
+  jumpi
+  push 1
+  push 2
+  add
+  push 32
+  mstore
+  stop
+
+bb3:
+  swap 2
+  dup 2
+  add
+  swap 2
+  push 1
+  swap 1
+  sub
+  jump bb1
+
+bb4:
+  swap 2
+  dup 2
+  add
+  swap 2
+  push 2
+  swap 1
+  sub
+  jump bb2

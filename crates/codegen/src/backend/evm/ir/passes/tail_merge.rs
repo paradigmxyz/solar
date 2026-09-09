@@ -19,6 +19,15 @@
 //! identity. The pass first records all opaque label uses, then marks safe branch continuations
 //! before separating the push from its consumer. Subsequent CFG cleanup can still redirect those
 //! addresses through jump thunks, while numerically observed labels remain distinct.
+//!
+//! Gas mode keeps a short word loop's branch in its original block. Such a branch targets a
+//! latch of at most 24 pure word/stack instructions, with a three- or four-word input, that jumps
+//! straight back to the branch's block. A shared suffix must begin after its conditional branch:
+//! the continuing path avoids an extra jump, while the exiting path may still share the terminal
+//! suffix. This bounded frequency heuristic is independent of optional loop markers. Simpler
+//! layouts, larger loops, stack-only latches and memory/call bodies retain the existing sharing
+//! policy; broadly preventing their tail merges increased corpus bytecode size. Size mode may
+//! share across the branch as before.
 
 use super::{
     EvmPass,
@@ -29,8 +38,8 @@ use super::{
     },
 };
 use crate::backend::evm::{
-    ir::{Block, BlockId, Hotness, Metadata, Module, Terminator, TerminatorKind},
-    op::{StackOp, push_len},
+    ir::{Block, BlockId, Hotness, Instruction, Metadata, Module, Terminator, TerminatorKind},
+    op::{self, StackOp, push_len},
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 use solar_sema::Gcx;
@@ -107,7 +116,9 @@ impl RunState {
                 continue;
             }
 
-            let matched = self.longest_common_tail(block);
+            let keep_branches =
+                gcx.sess.opts.optimization.is_gas() && has_short_word_backedge(module, block_id);
+            let matched = self.longest_common_tail(block, keep_branches);
 
             // A hot shared tail adds a runtime jump, so require one extra byte in gas mode.
             if let Some((representative, common)) = matched
@@ -121,17 +132,20 @@ impl RunState {
             {
                 self.merges.push(Merge { representative, block: block_id, common });
             } else {
-                self.insert_tail(block_id, block);
+                self.insert_tail(block_id, block, keep_branches);
             }
         }
     }
 
-    fn longest_common_tail(&self, block: &Block) -> Option<(BlockId, usize)> {
+    fn longest_common_tail(&self, block: &Block, keep_branches: bool) -> Option<(BlockId, usize)> {
         let terminator = &block.terminator.as_ref()?.kind;
         let mut node = *self.tail_roots.get(terminator)?;
         let mut matched = None;
         let len = block.instructions.len();
         for (common, inst) in block.instructions.iter().rev().enumerate() {
+            if keep_branches && inst.as_evm_opcode() == Some(op::JUMPI) {
+                break;
+            }
             let Some(&child) = self.tail_nodes[node].children.get(&MachineInstKey::new(inst))
             else {
                 break;
@@ -149,7 +163,7 @@ impl RunState {
         matched
     }
 
-    fn insert_tail(&mut self, block_id: BlockId, block: &Block) {
+    fn insert_tail(&mut self, block_id: BlockId, block: &Block, keep_branches: bool) {
         let terminator = &block.terminator.as_ref().expect("candidate must have a terminator").kind;
         let mut node = self.tail_root(terminator);
         let len = block.instructions.len();
@@ -157,6 +171,11 @@ impl RunState {
         // whose start is a legal split point in its own instruction list.
         for common in 0..=len {
             if common > 0 {
+                if keep_branches
+                    && block.instructions[len - common].as_evm_opcode() == Some(op::JUMPI)
+                {
+                    break;
+                }
                 node =
                     self.tail_child(node, MachineInstKey::new(&block.instructions[len - common]));
             }
@@ -353,6 +372,47 @@ fn preserve_split_control_target(
         // push target; jumpi -> push target; jump shared; shared: jumpi
         module.blocks[target].metadata.is_continuation = true;
     }
+}
+
+/// Recognizes a small recurring word computation whose branch must stay on the local path.
+fn has_short_word_backedge(module: &Module, header: BlockId) -> bool {
+    module.blocks[header].instructions.windows(2).any(|pair| {
+        pair[1].as_evm_opcode() == Some(op::JUMPI)
+            && pair[0].pushed_block().is_some_and(|target| {
+                let latch = &module.blocks[target];
+                matches!(latch.terminator.as_ref().map(|term| &term.kind),
+                    Some(TerminatorKind::Jump(back)) if *back == header)
+                    && latch.instructions.len() <= 24
+                    && word_loop_input_width(&latch.instructions)
+                        .is_some_and(|width| (3..=4).contains(&width))
+            })
+    })
+}
+
+/// Computes the required input prefix for a pure latch containing a word computation.
+fn word_loop_input_width(instructions: &[Instruction]) -> Option<isize> {
+    let mut depth = 0;
+    let mut required = 0;
+    let mut computes_word = false;
+    for inst in instructions {
+        if !inst.has_canonical_stack_effect() {
+            return None;
+        }
+        let (inputs, growth) = if let Some(stack) = inst.as_stack_op() {
+            (stack.required_depth() as isize, stack.net_growth())
+        } else if inst.is_encoded_push() {
+            (0, 1)
+        } else if inst.as_evm_opcode().is_some_and(op::is_pure) {
+            computes_word = true;
+            let effect = inst.effective_stack_effect()?;
+            (isize::from(effect.inputs), isize::from(effect.outputs) - isize::from(effect.inputs))
+        } else {
+            return None;
+        };
+        required = required.max(inputs - depth);
+        depth += growth;
+    }
+    computes_word.then_some(required)
 }
 
 fn suffix_debug_info(block: &Block, len: usize) -> Metadata {

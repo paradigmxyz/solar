@@ -11,7 +11,11 @@
 //! A non-header join with one phi also considers interleaving that result with carried words in
 //! an incoming stack's order. Both layouts are priced with the actual target stack shuffler over
 //! every predecessor; unknown residency or an unrealizable shuffle retains the existing layout.
-//! Loop-header ordering remains fixed so this local choice cannot disturb its recurrence plan.
+//! Small loop headers with no carried words instead order their phi results by final use in the
+//! pure latch, keeping soon-consumed words near the top. This heuristic is limited to three or
+//! four phis and a single-predecessor latch with at most sixteen instructions. Both incoming edges
+//! use the same permutation, so initial values and backedge values retain their result identities.
+//! It changes physical layouts only; instruction order and the MIR recurrence stay intact.
 
 use super::super::super::{
     BlockId, DenseBitSet, Function, FunctionId, FxHashMap, FxHashSet, GlobalStackPlan, IndexVec,
@@ -762,6 +766,24 @@ impl<'a> StackPhiPlanner<'a> {
             let mut phis = facts.join_phis[&join].clone();
             carried.truncate(LIVE_JOIN_LAYOUT_LIMIT - phis.len());
             phis.extend(carried);
+            if let [latch] = latches
+                && (3..=4).contains(&phis.len())
+                && facts.join_phis[&join].len() == phis.len()
+                && func.blocks[*latch].predecessors.as_slice() == [join]
+                && func.blocks[*latch].instructions.len() <= 16
+                && func.blocks[*latch]
+                    .instructions
+                    .iter()
+                    .all(|&inst| func.inst(inst).kind.effect_kind() == crate::mir::EffectKind::Pure)
+            {
+                // phi layout -> order of final body use, earliest nearest the top
+                phis.sort_by_key(|value| {
+                    func.blocks[*latch]
+                        .instructions
+                        .iter()
+                        .rposition(|&inst| func.inst(inst).kind.operands().contains(value))
+                });
+            }
             if latches.is_empty()
                 && facts.join_phis[&join].len() == 1
                 && let Some(resident) = state.resident_out.get(&first)
