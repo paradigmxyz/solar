@@ -1,0 +1,210 @@
+//@ revisions: gas size
+//@ compile-flags: --evm-version=osaka -Zevm-ir-pipeline=compact-pushes
+//@[gas] compile-flags: -Ogas
+//@[size] compile-flags: -Osize
+//@ filecheck:
+@module HaltingLabelContexts
+
+// Seventeen distinct suspended return labels reach one shared panic block.
+// The panic cannot resume them, so its context budget must not invalidate their
+// independently reached continuation heights. Each successful path returns once.
+bb0:
+  calldatasize
+  indexed_jump bb1, bb2, bb3, bb4, bb5, bb6, bb7, bb8, bb9, bb10, bb11, bb12, bb13, bb14, bb15, bb16, bb17
+bb1:
+  push bb101
+  calldatasize
+  push bb100
+  jumpi
+  jump
+bb2:
+  push bb102
+  calldatasize
+  push bb100
+  jumpi
+  jump
+bb3:
+  push bb103
+  calldatasize
+  push bb100
+  jumpi
+  jump
+bb4:
+  push bb104
+  calldatasize
+  push bb100
+  jumpi
+  jump
+bb5:
+  push bb105
+  calldatasize
+  push bb100
+  jumpi
+  jump
+bb6:
+  push bb106
+  calldatasize
+  push bb100
+  jumpi
+  jump
+bb7:
+  push bb107
+  calldatasize
+  push bb100
+  jumpi
+  jump
+bb8:
+  push bb108
+  calldatasize
+  push bb100
+  jumpi
+  jump
+bb9:
+  push bb109
+  calldatasize
+  push bb100
+  jumpi
+  jump
+bb10:
+  push bb110
+  calldatasize
+  push bb100
+  jumpi
+  jump
+bb11:
+  push bb111
+  calldatasize
+  push bb100
+  jumpi
+  jump
+bb12:
+  push bb112
+  calldatasize
+  push bb100
+  jumpi
+  jump
+bb13:
+  push bb113
+  calldatasize
+  push bb100
+  jumpi
+  jump
+bb14:
+  push bb114
+  calldatasize
+  push bb100
+  jumpi
+  jump
+bb15:
+  push bb115
+  calldatasize
+  push bb100
+  jumpi
+  jump
+bb16:
+  push bb116
+  calldatasize
+  push bb100
+  jumpi
+  jump
+bb17:
+  push bb117
+  calldatasize
+  push bb100
+  jumpi
+  jump
+
+// CHECK-LABEL: {{^[ +]*}}bb100:
+// CHECK: {{^[ +] *}}mstore
+// CHECK: {{^[ +] *}}revert
+bb100:
+  push 17
+  push 0
+  mstore
+  push 32
+  push 0
+  revert
+
+// CHECK-LABEL: {{^[ +]*}}bb101:
+// CHECK: {{^[ +] *}}push 0
+// CHECK-NEXT: {{^[ +] *}}not
+// CHECK-NEXT: {{^[ +] *}}push 128
+// CHECK-NEXT: {{^[ +] *}}shr
+// CHECK-NEXT: {{^[ +] *}}pop
+// CHECK-NEXT: {{^[ +] *}}stop
+bb101:
+  push 0xffffffffffffffffffffffffffffffff
+  pop
+  stop
+bb102:
+  push 0xffffffffffffffffffffffffffffffff
+  pop
+  stop
+bb103:
+  push 0xffffffffffffffffffffffffffffffff
+  pop
+  stop
+bb104:
+  push 0xffffffffffffffffffffffffffffffff
+  pop
+  stop
+bb105:
+  push 0xffffffffffffffffffffffffffffffff
+  pop
+  stop
+bb106:
+  push 0xffffffffffffffffffffffffffffffff
+  pop
+  stop
+bb107:
+  push 0xffffffffffffffffffffffffffffffff
+  pop
+  stop
+bb108:
+  push 0xffffffffffffffffffffffffffffffff
+  pop
+  stop
+bb109:
+  push 0xffffffffffffffffffffffffffffffff
+  pop
+  stop
+bb110:
+  push 0xffffffffffffffffffffffffffffffff
+  pop
+  stop
+bb111:
+  push 0xffffffffffffffffffffffffffffffff
+  pop
+  stop
+bb112:
+  push 0xffffffffffffffffffffffffffffffff
+  pop
+  stop
+bb113:
+  push 0xffffffffffffffffffffffffffffffff
+  pop
+  stop
+bb114:
+  push 0xffffffffffffffffffffffffffffffff
+  pop
+  stop
+bb115:
+  push 0xffffffffffffffffffffffffffffffff
+  pop
+  stop
+bb116:
+  push 0xffffffffffffffffffffffffffffffff
+  pop
+  stop
+
+// CHECK-LABEL: {{^[ +]*}}bb117:
+// CHECK: {{^[ +] *}}push 0
+// CHECK-NEXT: {{^[ +] *}}not
+// CHECK-NEXT: {{^[ +] *}}push 128
+// CHECK-NEXT: {{^[ +] *}}shr
+// CHECK-NEXT: {{^[ +] *}}pop
+// CHECK-NEXT: {{^[ +] *}}stop
+bb117:
+  push 0xffffffffffffffffffffffffffffffff
+  pop
+  stop

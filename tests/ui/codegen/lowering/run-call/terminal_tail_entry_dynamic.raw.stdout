@@ -43,8 +43,6 @@ bb2:
 bb4:
   jump bb5
 bb5:
-  push 160
-  mload
   push 12
   push 11
   push 10
@@ -390,27 +388,22 @@ bb26:
   lt
   jumpi bb53, bb27
 bb27:
-  push 160
-  mload
-  mload
-  push 160
-  mload
-  push 32
-  add
-  mload
-  push 160
-  mload
-  swap 13
-  swap 4
-  swap 16
   swap 1
-  swap 14
+  swap 13
+  swap 2
+  swap 12
   swap 3
-  exchange 2, 15
-  exchange 5, 12
-  exchange 6, 11
-  exchange 7, 10
-  exchange 8, 9
+  swap 11
+  swap 4
+  swap 10
+  swap 5
+  swap 9
+  exchange 6, 8
+  swap 5
+  swap 4
+  swap 3
+  swap 2
+  swap 1
   push bb54
   swap 13
   swap 12
@@ -558,9 +551,6 @@ bb55:
   mstore
   jump bb29
 bb37 [cold]:
-  swap 1
-  push 160
-  mstore
   push 7
   add
   push 7
@@ -572,19 +562,6 @@ bb7 [cold]:
   mstore
   jump bb31
 bb54:
-  swap 1
-  push 160
-  mstore
-  swap 1
-  push 160
-  mload
-  push 32
-  add
-  mstore
-  swap 1
-  push 160
-  mload
-  mstore
   dup 2
   add
   dup 1

@@ -1,0 +1,53 @@
+//@ revisions: gas size
+//@ compile-flags: --evm-version=osaka -Zevm-ir-pipeline=compact-pushes
+//@[gas] compile-flags: -Ogas
+//@[size] compile-flags: -Osize
+//@ filecheck:
+@module ReturningLabelContexts
+
+// A terminating block can still branch through an embedded JUMPI. Preserve its
+// incoming label so the destination keeps its proved empty entry height.
+bb0:
+  calldatasize
+  jumpi bb1, bb3
+bb1:
+  push bb2
+  jump bb4
+bb4:
+  push 1
+  swap 1
+  jumpi
+  push 0
+  push 0
+  revert
+
+// CHECK-LABEL: {{^[ +]*}}bb2:
+// CHECK: {{^[ +] *}}push 0
+// CHECK-NEXT: {{^[ +] *}}not
+// CHECK-NEXT: {{^[ +] *}}push 128
+// CHECK-NEXT: {{^[ +] *}}shr
+// CHECK-NEXT: {{^[ +] *}}pop
+// CHECK-NEXT: {{^[ +] *}}stop
+bb2:
+  push 0xffffffffffffffffffffffffffffffff
+  pop
+  stop
+
+// A computed return remains a transfer, even with no explicit CFG successor.
+bb3:
+  push bb5
+  jump bb6
+bb6:
+  jump
+
+// CHECK-LABEL: {{^[ +]*}}bb5:
+// CHECK: {{^[ +] *}}push 0
+// CHECK-NEXT: {{^[ +] *}}not
+// CHECK-NEXT: {{^[ +] *}}push 128
+// CHECK-NEXT: {{^[ +] *}}shr
+// CHECK-NEXT: {{^[ +] *}}pop
+// CHECK-NEXT: {{^[ +] *}}stop
+bb5:
+  push 0xffffffffffffffffffffffffffffffff
+  pop
+  stop
