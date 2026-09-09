@@ -1,0 +1,91 @@
+- // === ROOT/tests/ui/codegen/mir/immutable-check-elim/bounds.mir (before immutable-check-elim) ===
++ // === ROOT/tests/ui/codegen/mir/immutable-check-elim/bounds.mir (after immutable-check-elim) ===
+  @module ImmutableBounds
+  immutables:
+    small: u64
+    signed: i64
+    wide: u256
+  
+  fn @runtime() -> u256 [selector=0x00000001] {
+    bb0:
+      v0 = icall @bounded, 1
+      icall @shared, 0
+      v1 = icall @signed_value, 1
+      v2 = icall @wide_value, 1
+      v3 = add v0, v1
+      v4 = add v3, v2
+      ret v4
+  }
+  
+  fn @bounded() -> u256 {
+    bb0:
+      v0 = loadimmutable small
+      v1 = add v0, 1
+      v2 = lt v1, v0
+      jumpi v2, bb1, bb2
+    bb2:
+      ret v1
+    bb1:
+      revert 0, 0
+  }
+  
+  fn @constructor(arg0: u64) [constructor] {
+    bb0:
+      storeimmutable small, arg0
+      icall @bridge, 0
+      stop
+  }
+  
+  fn @bridge() {
+    bb0:
+      tail_call @shared
+  }
+  
+  fn @shared() {
+    bb0:
+      v0 = loadimmutable small
+      v1 = add v0, 1
+      v2 = lt v1, v0
+      jumpi v2, bb1, bb2
+    bb2:
+      stop
+    bb1:
+      revert 0, 0
+  }
+  
+  fn @signed_value() -> u256 {
+    bb0:
+      v0 = loadimmutable signed
+      v1 = add v0, 1
+      v2 = lt v1, v0
+      jumpi v2, bb1, bb2
+    bb2:
+      ret v1
+    bb1:
+      revert 0, 0
+  }
+  
+  fn @wide_value() -> u256 {
+    bb0:
+      v0 = loadimmutable wide
+      v1 = add v0, 1
+      v2 = lt v1, v0
+      jumpi v2, bb1, bb2
+    bb2:
+      ret v1
+    bb1:
+      revert 0, 0
+  }
+  
+  fn @unrooted() -> u256 {
+    bb0:
+      v0 = loadimmutable small
+      v1 = add v0, 1
+      v2 = lt v1, v0
+      jumpi v2, bb1, bb2
+    bb2:
+      ret v1
+    bb1:
+      revert 0, 0
+  }
+  

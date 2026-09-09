@@ -34,11 +34,23 @@
 //! analysis follows their SSA operands, including phi inputs, and ignores other
 //! computations. A block is revisited only after a predecessor's exit facts
 //! change, preserving the original reverse-postorder and eight-round bound.
+//!
+//! Runtime-only functions also use bounds from zero-extended immutable encodings.
+//! These bounds follow the target's actual immediate width, not the result's
+//! nominal type. Constructor-reachable functions, including helpers shared with
+//! runtime code, are excluded: constructor loads read full staging words. Signed
+//! and left-aligned encodings remain unknown. The bounds are immutable facts and
+//! are available to both the forward analysis and the dominator walk.
+//! The separate `immutable-check-elim` adapter runs after ABI getter inlining,
+//! selecting only runtime functions that load bounded immutables. This exposes
+//! facts hidden behind getter calls during the ordinary earlier check passes.
 
 use crate::mir::{
-    BlockId, Function, InstKind, Module, Terminator, Value, ValueId,
-    analysis::CfgInfo,
-    pass::{MirPass, run_function_pass},
+    BlockId, Function, FunctionId, ImmutableEncoding, ImmutableId, InstKind, Module, Terminator,
+    Value, ValueId,
+    analysis::{CallGraphInfo, CfgInfo},
+    immutable::immutable_push_type_size,
+    pass::{MirPass, run_function_pass, run_selected_function_pass},
     utils::repair_reachability_phis,
 };
 use alloy_primitives::U256;
@@ -64,13 +76,94 @@ impl MirPass for CheckElim {
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         run_function_pass(module, analyses, |func, analyses| {
-            let mut eliminator = CheckEliminator::new();
+            let mut eliminator = CheckEliminator::new(None);
             eliminator.cfg = Some(Rc::clone(&analyses.cfg));
             let changed = eliminator.run(func) != 0;
             let repaired = repair_reachability_phis(func);
             changed || repaired
         })
     }
+}
+
+/// Applies runtime immutable bounds after getter inlining exposes their loads.
+pub(crate) struct ImmutableCheckElim;
+
+impl MirPass for ImmutableCheckElim {
+    fn name(&self) -> &'static str {
+        "immutable-check-elim"
+    }
+
+    fn run_pass(
+        &self,
+        gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut crate::mir::pass::ModuleAnalyses,
+    ) -> bool {
+        let bounds = module
+            .iter_immutables()
+            .filter_map(|(id, immutable)| {
+                let encoding @ ImmutableEncoding::Unsigned(_) =
+                    immutable.ty.immutable_encoding()?
+                else {
+                    return None;
+                };
+                let width = immutable_push_type_size(
+                    encoding,
+                    gcx.sess.opts.optimization,
+                    gcx.sess.opts.evm_version.has_bitwise_shifting(),
+                )
+                .bits();
+                (width < 256).then(|| (id, Range::new(U256::ZERO, U256::MAX >> (256 - width))))
+            })
+            .collect::<FxHashMap<_, _>>();
+        if bounds.is_empty() {
+            return false;
+        }
+        let mut runtime_only = runtime_only_functions(module);
+        for id in runtime_only.iter().collect::<Vec<_>>() {
+            if !module.function(id).instructions().any(|inst| {
+                matches!(module.function(id).inst(inst).kind,
+                    InstKind::LoadImmutable(immutable) if bounds.contains_key(&immutable))
+            }) {
+                runtime_only.remove(id);
+            }
+        }
+        run_selected_function_pass(module, analyses, &runtime_only, |func, analyses| {
+            let mut eliminator = CheckEliminator::new(Some(&bounds));
+            eliminator.cfg = Some(Rc::clone(&analyses.cfg));
+            let changed = eliminator.run(func) != 0;
+            let repaired = repair_reachability_phis(func);
+            changed || repaired
+        })
+    }
+}
+
+/// Excludes every constructor-reachable helper, including recursive and tail-call edges.
+fn runtime_only_functions(module: &Module) -> DenseBitSet<FunctionId> {
+    let graph = CallGraphInfo::new(module);
+    let roots = |constructor| {
+        module.functions.iter_enumerated().filter_map(move |(id, func)| {
+            let selected = if constructor {
+                func.attributes.is_constructor
+            } else {
+                func.selector.is_some()
+                    || func.attributes.is_receive
+                    || func.attributes.is_fallback
+                    || module.dispatch_entry() == Some(id)
+            };
+            selected.then_some(id)
+        })
+    };
+    let mut runtime = graph.reachable_callees_from(roots(false));
+    for root in roots(false) {
+        runtime.insert(root);
+    }
+    let mut constructor = graph.reachable_callees_from(roots(true));
+    for root in roots(true) {
+        constructor.insert(root);
+    }
+    runtime.subtract(&constructor);
+    runtime
 }
 
 /// Maximum recursion depth when evaluating value ranges and conditions.
@@ -150,7 +243,9 @@ fn ordered(a: ValueId, b: ValueId) -> (ValueId, ValueId) {
 
 /// Range-based overflow-check eliminator.
 #[derive(Default)]
-struct CheckEliminator {
+struct CheckEliminator<'a> {
+    /// Context-independent bounds for runtime-only immutable loads.
+    immutable_ranges: Option<&'a FxHashMap<ImmutableId, Range>>,
     /// Shared CFG snapshot taken at entry, matching the previous fresh build.
     cfg: Option<Rc<CfgInfo>>,
     /// Statistics from the last run.
@@ -161,11 +256,11 @@ struct CheckEliminator {
     relation_undo: Vec<Relation>,
 }
 
-impl CheckEliminator {
+impl<'a> CheckEliminator<'a> {
     /// Creates a new check eliminator.
     #[must_use]
-    fn new() -> Self {
-        Self::default()
+    fn new(immutable_ranges: Option<&'a FxHashMap<ImmutableId, Range>>) -> Self {
+        Self { immutable_ranges, ..Self::default() }
     }
 
     /// Runs check elimination on a function. Returns the number of folded
@@ -187,7 +282,7 @@ impl CheckEliminator {
             }
         }
 
-        let facts = Self::join_facts(func, &cfg, &preds, &relevant);
+        let facts = self.join_facts(func, &cfg, &preds, &relevant);
         let folds = self.collect_folds(func, &cfg, &preds, &facts);
         self.ranges.clear();
         self.relations.clear();
@@ -272,6 +367,7 @@ impl CheckEliminator {
     /// Transfers edge facts from unknown, retaining only definitions available
     /// at the join and evaluating relevant phis in each predecessor's context.
     fn join_facts(
+        &self,
         func: &Function,
         cfg: &CfgInfo,
         preds: &IndexVec<BlockId, Vec<BlockId>>,
@@ -281,7 +377,7 @@ impl CheckEliminator {
         let definitions = func.inst_blocks();
         let mut entries = index_vec![Facts::default(); func.blocks.len()];
         let mut exits = entries.clone();
-        let mut cx = Self::new();
+        let mut cx = Self::new(self.immutable_ranges);
         let mut pending = cfg.reachable().clone();
         for _ in 0..MAX_ROUNDS {
             let mut changed = false;
@@ -555,6 +651,11 @@ impl CheckEliminator {
         let Some(depth) = depth.checked_sub(1) else { return range };
         let Some(kind) = inst_kind(func, value) else { return range };
         let derived = match *kind {
+            InstKind::LoadImmutable(id) => self
+                .immutable_ranges
+                .and_then(|ranges| ranges.get(&id))
+                .copied()
+                .unwrap_or(Range::FULL),
             InstKind::Add(a, b) => {
                 let ra = self.range_of(func, a, depth);
                 let rb = self.range_of(func, b, depth);
