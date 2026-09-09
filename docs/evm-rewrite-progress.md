@@ -730,6 +730,49 @@ production file. Evidence, source and compiler pins, per-label/per-object
 comparisons and limits remain under
 `target/codegen-bench/evm-rewrite-candidate/bitmap-stack-20260909/`.
 
+## Rejected CSE prefix recovery (2026-09-09)
+
+Merged main `8d3d877e` as `bfb5b367` and pushed it. All 1,575 workspace tests
+passed with two existing skips; the merged head has 17 successful CI checks,
+one expected skip and one neutral check. Its official runtime benchmark keeps
+all 24 case IDs, 175 gas records, 139 observations, 30 bytecode files and nine
+heavy fingerprints identical to the prior accepted run.
+
+A fresh merged-head baseline preceded two local CSE trials. They preserve
+known stack values through accesses below the tracked suffix using fresh
+opaque identities. Review found that newly exposed reuse can replace a
+two-gas environment read with a three-gas DUP, so the first trial added a
+structural profitability guard. The guard preserves value identities but
+changes the early DUP forms used by later stack normalization. One calldata
+reference contract grows by one byte in each mode. Across the same 5,108 UI
+objects, 82 shrink, four grow and 16 change without changing size.
+
+The second trial additionally removes permutations of equal tracked values.
+It fixes those four objects, but two other contracts each grow by one byte
+under Size. The joined counts are 355 shrinking, four growing and eight
+same-size changed objects. The existing `literal_duplicate_run` Size fixture
+still gains a SWAP; its golden was never blessed. Stage captures identify
+normalization, producer ordering and outlining interactions, rather than
+address-width cliffs. A proposed selective key-invalidation workaround has a
+repeated-shuffle counterexample and was not implemented.
+
+Both trials are rejected. All 42 second-trial focused runtime calls passed
+with nonincreasing gas and unchanged observed stack peaks; fresh Gas and Size
+`solsymdiff` runs for `MultiReturnForward.first(uint256)` found bounded
+agreement with solc. The generated harness runtimes match the measured UI
+runtimes plus an explicit 14-byte metadata suffix. These correctness results
+do not override the cost failures. Full timed, hot-gas and heavy-object
+candidate runs were not started after the failed size screens.
+
+The accepted production source and every pre-existing test and expectation
+are restored exactly. Five new fixture sources and eleven new goldens,
+candidate patches, frozen compilers, failed runs, paired outputs, traces and
+reviews remain under
+`target/codegen-bench/evm-rewrite-candidate/cse-prefix-20260909/`, including
+`restoration.json` and `rejected-tests/`. This experiment contributes zero
+accepted production LOC and no performance improvement. The independent
+five-instruction duplicate-store opportunity remains a separate proposal.
+
 ## Remaining acceptance work
 
 The alias assertion migration passes; its generated-code size debt remains.
