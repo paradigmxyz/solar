@@ -381,7 +381,7 @@ this local milestone while compiler-time debts remain open.
 
 The backend is now 17,290 physical Rust lines across 47 files, an increase of
 213 lines for this milestone and a reduction of 17,348 from the deletion
-inventory. Excluding trailing test modules leaves 15,985 physical lines. Pinned
+inventory. Excluding trailing test modules leaves 16,130 physical lines. Pinned
 solx, Venom and Sonatina sources informed the bounded operand and literal-cost
 investigation; no deleted backend implementation was retrieved. Full inputs,
 producer hashes, rejected candidates, review receipts and measurements are under
@@ -443,24 +443,76 @@ retained under
 `target/codegen-bench/evm-rewrite-candidate/reference-bank-residence-20260909/`,
 together with the rejected candidates, measurements and independent reviews.
 
+## Bounded clean-call emission (2026-09-09)
+
+`530099f5` reuses existing memory-effect summaries to identify clean calls,
+without changing frame layouts, alias provenance or spill planning. The ordinary
+owner emission runs first; an eligible returning owner may try one alternate
+without clean-call backups. Complete physical blocks must preserve topology,
+respect private entry-stack bounds and improve the existing literal-cost query.
+Multi-result calls and nested Phi trials remain conservative. A shared owner
+snapshot preserves appended continuations, metadata and switch budgets when a
+trial is rejected. This adds 145 physical backend Rust lines; the assembler and
+MIR layer boundaries remain unchanged.
+
+The reduced recursive-call fixture in `97917400` preserves compact address-mask
+construction and executes both successful calls and an exact empty revert in all
+five UI revisions. The new and existing focused fixtures pass 54 fresh calls
+against the baseline, candidate and pinned solc in Gas and Size. Clean-call
+vectors save 219 gas; the reduced recursive vector saves 36 gas. Unknown-writer
+and multi-result controls retain exact gas and bytecode. All three changed
+existing snapshots were independently reviewed from paired outputs; surviving
+source maps match, and no source, check or runtime oracle was removed.
+
+The fresh official workflow preserves all 24 full test IDs, 15 Size IDs, 175 gas
+records and 139 observations in each lane. All 15 runtime output fingerprints
+remain exact. The extended UI comparison explicitly joins the original 1,670
+rows with two rows for the new fixture: 1,672 rows and 5,092 bytecode objects,
+with 32 shrinking objects and no growth or equal-length bytecode changes.
+Creation and runtime totals each fall by 1,042 bytes in each mode. All 18 known
+failed capture rows remain; one stderr difference is only warning ordering.
+
+The nine heavy projects retain all 1,672 contracts and 3,344 objects. Five fresh
+complete-output captures and four exact fingerprint reuses find 191 shrinking
+objects, no growth and 57,652 fewer bytes. MyGovernor shrinks by 28 bytes in both
+creation and runtime code; this resolves the preceding experiment's regression.
+Positive sealed size debt falls by 57,488 bytes. The selected outputs establish
+profitability on these corpora; they do not identify which cost guard rejected
+each discarded alternative or prove final layout costs universally.
+
+Full compiler-time median geometric mean changes by +0.047%, Size by +0.967%;
+RSS changes by +0.100% and -0.037%. Full sample counts are 112 baseline and 109
+candidate, including unequal OpenZeppelin counts and one-sample heavy rows.
+Flashloan and SignatureChecker have disjoint slower five-sample ranges. There
+is no compiler-speed claim. Pinned solc corpus rows are inherited exactly; the
+focused runtime and bounded symbolic runs execute solc freshly. The latter
+reports agreement for `first(uint256)` under 128 paths and 256 queries, with no
+counterexample; it does not cover the new constructor fixture.
+
+All 1,562 workspace tests, nightly Clippy and formatting pass. Baselines,
+compiler/source pins, complete outputs, failure reconciliation, independent
+reviews and per-object ledgers remain under
+`target/codegen-bench/evm-rewrite-candidate/call-region-cost-20260909/`.
+
 ## Remaining acceptance work
 
 The alias assertion migration passes; its generated-code size debt remains.
 The original readback failures now pass in every mode. General source-memory
-ownership remains an open contract; bounded shared-input sweeps pass. The complete heavy join now has 31,744,025 positive bytes of sealed size debt
+ownership remains an open contract; bounded shared-input sweeps pass. The complete heavy join now has 31,686,537 positive bytes of sealed size debt
 across 1,039 objects. This includes creation/runtime and embedded-child
 amplification; it is a sum of regressions, not net corpus growth. The historical
 writer count was 31,831,619. Terminal returns removed 20 positive bytes before
 the resident trial, which removes another 87,574. All 3,344 sealed object IDs,
 sizes and hashes match; the reconciliation is retained under the resident
-candidate's `pr-ledger/`. Against current main, 19 of 175 gas labels regress,
+candidate's `pr-ledger/`; the bounded clean-call increment removes another
+57,488 positive bytes in its `candidate1/independent/` ledger. Against current main, 19 of 175 gas labels regress,
 down from 24: Maple's five approve regressions are gone. OZ mint and Flash fee
 costs improve to +3; the remaining getter debts persist. Compiler-time debts
 remain.
-The backend has 17,290 physical lines in 47 files, 17,348 fewer than the deletion
-inventory. Excluding trailing test modules leaves 15,985 physical lines. A
+The backend has 17,435 physical lines in 48 files, 17,203 fewer than the deletion
+inventory. Excluding trailing test modules leaves 16,130 physical lines. A
 retained count-only baseline reports 29,006 production-section lines, giving a
-conditional reduction of 13,021; that file lacks a revision/hash link to the
+conditional reduction of 12,876; that file lacks a revision/hash link to the
 sealed archive. These counts include comments and are not strict production SLOC.
 
 Eager contraction removes avoidable spills and saves bytecode without corpus
@@ -475,7 +527,7 @@ with baseline contention and a measured parser overlap; no causal timing claim
 follows. Next, restore alias-codegen size and complete the remaining runtime/size
 gates. Keep correctness and runtime
 gas ahead of size, then compiler time and memory. These local milestones do not
-establish complete functionality. Remote CI passed at `5db94d77`; this does
+establish complete functionality. Remote CI is tracked for each pushed head; passing CI does
 not close the performance acceptance debts above.
 
 [pr]: https://github.com/paradigmxyz/solar/pull/1388
