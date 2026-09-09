@@ -388,6 +388,61 @@ producer hashes, rejected candidates, review receipts and measurements are under
 `target/codegen-bench/evm-rewrite-candidate/resident-before-literals-20260908/`.
 A fresh fetch and merge again find main `2632e43b` already integrated.
 
+## Shared-call experiment and integration (September 9)
+
+A fresh fetch finds main `2632e43b` already merged. The shared-call experiment
+is rejected and its two production files and two existing goldens are restored
+from our own checksummed pre-experiment copies. The rebuilt compiler is exactly
+`0ab6248b3a93b1d1be9b1ba58e51e717849f19a2ad353bde8044a36d129a346d`,
+the accepted executable. No production lines change in this checkpoint.
+
+The experiment reused storage planning's existing immutable call summaries in
+scheduler alias queries, adding eight physical Rust lines without another
+fixed-point computation. The UI screen preserves 1,668 IDs, 835 source hashes
+and 5,076 bytecode objects: 24 objects shrink, saving 892 creation and 892 runtime
+bytes in each optimization mode, with no growth. The official full and Size
+workflows retain all 175 hot-gas labels and 139 observations exactly; their 15
+runtime cases have identical full output fingerprints. Pinned solc corpus rows
+are inherited from the baseline; the focused tests below execute solc freshly.
+Full compiler-time median geometric mean is +0.284%, Size -0.136%. Seaport and
+Solady have only one sample per producer, and OpenZeppelin has two baseline
+versus one candidate; the other full rows and all Size rows have five.
+
+The complete heavy comparison prevents acceptance. Across the same 3,344
+objects, the net saving is 59,761 bytes, but `MyGovernor` grows by 18 bytes in
+both creation and runtime code. Removing protocol backups reduces the relative
+stack peak available to compact literals: three address masks and one byte mask
+grow by 76 bytes, outweighing 58 bytes of removed protocol/shuffle code. A second
+trial preserving initial spill planning still grows by 18 bytes. Neither trial
+ships. A follow-up must account for literal construction across the complete
+call region without weakening the caller-prefix capacity proof. Both candidate
+executables, complete inputs/outputs and the rejection witness remain preserved.
+
+Three new runtime owners retain eighteen computed values across memory-clean,
+unknown-pointer-writing and multi-result recursive calls. Their six exact
+oracles pass all five UI revisions. Another 36 fresh calls compare the accepted
+compiler, the first candidate and pinned solc in Gas and Size; all pass. The
+candidate saves 219 gas in the clean-call cases, while the two controls retain
+identical gas and bytecode. The candidate-only clean-call emission check stays
+in the experiment archive; committed tests retain the runtime oracles, MIR
+snapshots and physical checks for unknown-writer protection and hidden result
+loads. Removing either protected operation fails its corresponding check. No
+existing test or oracle is removed or weakened. The candidate also reports
+bounded symbolic agreement for the existing resident-argument fixture's
+`first(uint256)` entry point; its default differential settings produce different
+bytecode from the UI lane, so this is separate evidence.
+
+Native attribution of the original two 13-home Reference protection banks finds
+all thirteen values mandatory across calls, including five arguments and five
+Phi values. This experiment does not remove those banks or resolve general
+source-memory ownership. The complete selected Reference contract output stays
+exact. A diagnostic raw-dump assertion initially failed on absolute source-span
+offsets; independent reconciliation confirms identical canonical MIR,
+disassembly and complete output JSON. Both the failure and reconciliation are
+retained under
+`target/codegen-bench/evm-rewrite-candidate/reference-bank-residence-20260909/`,
+together with the rejected candidates, measurements and independent reviews.
+
 ## Remaining acceptance work
 
 The alias assertion migration passes; its generated-code size debt remains.
