@@ -313,7 +313,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.spill_stores.clear();
         self.spill_loads.clear();
         self.early_spill_removals.clear();
-        self.function_ir_block_start = self.asm.block_count();
+        // The caller already opened the entry block for the function prologue. Include it
+        // in spill liveness so entry stores without reachable reloads are removed too.
+        self.function_ir_block_start = self.asm.next_instruction_position().0.index();
 
         // Cross-block rematerialization is selected during spill preallocation. Record every
         // argument without a frame home before that analysis so an expression depending on one is

@@ -112,16 +112,16 @@ bb0:
   calldataload
   push 32
   calldataload
-  push 128
+  push 160
   mstore
   dup 1
-  push 160
+  push 128
   mstore
   dup 1
   push bb4
   jumpi
   pop
-  push 128
+  push 160
   mload
   dup 1
   push bb7
@@ -138,11 +138,11 @@ bb5:
 bb4:
   pop
   push 1
-  push 128
+  push 160
   mload
   and
   dup 1
-  push 160
+  push 128
   mstore
   dup 1
   push bb9

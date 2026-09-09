@@ -109,7 +109,7 @@ bb4:
   swap 2
   swap 1
   log1
-  push 334
+  push 330
   dup 1
   push 435
   push 0

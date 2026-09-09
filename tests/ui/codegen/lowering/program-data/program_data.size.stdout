@@ -283,12 +283,9 @@ bb14 [continuation]:
   dup 2
   return
 bb13:
-  push 416
+  push 384
   dup 1
   push 64
-  mstore
-  dup 1
-  push 128
   mstore
   push 320
   dup 2
@@ -322,7 +319,7 @@ bb37:
   push 64
   mload
   dup 1
-  push 256
+  push 224
   mstore
   push 32
   dup 2
@@ -337,7 +334,7 @@ bb37:
   mload
   mul
   dup 1
-  push 288
+  push 256
   mstore
   dup 1
   dup 3
@@ -349,12 +346,12 @@ bb37:
   not
   and
   dup 1
-  push 320
+  push 288
   mstore
   swap 2
   push 32
   add
-  push 352
+  push 320
   mstore
   pop
   swap 1
@@ -364,31 +361,31 @@ bb37:
   jumpi
   push 0
   push 32
-  push 320
+  push 288
   mload
   sub
-  push 352
+  push 320
   mload
   add
   mstore
   jump bb39
 bb39:
-  push 320
+  push 288
   mload
-  push 352
+  push 320
   mload
   add
   swap 1
   push 32
   add
-  push 288
+  push 256
   mload
   dup 2
-  push 352
+  push 320
   mload
   mcopy
   pop
-  push 256
+  push 224
   mload
   swap 1
   sub
@@ -408,12 +405,9 @@ bb39:
   swap 2
   jump
 bb15:
-  push 416
+  push 384
   dup 1
   push 64
-  mstore
-  dup 1
-  push 128
   mstore
   push 224
   dup 2
@@ -449,20 +443,14 @@ bb18:
   push 0xfe104a769973081412d46a6d04c990a5e9cc804baf45fa43d99b7dbee24984b8
   jump bb41
 bb19:
-  push 416
+  push 384
   push 64
   mstore
   push bb20
   jump bb34
 bb34:
-  push bb43
-  jump bb42
-bb42:
   push 64
   mload
-  dup 1
-  push 160
-  mstore
   push 192
   dup 2
   add
@@ -474,15 +462,19 @@ bb42:
   push 32
   dup 2
   add
+  push 160
+  calldatasize
+  dup 3
+  calldatacopy
+  pop
   swap 1
-  swap 2
   jump
 bb20 [continuation]:
   push bb14
   swap 1
   jump bb37
 bb22:
-  push 416
+  push 384
   push 64
   mstore
   push bb20
@@ -490,9 +482,6 @@ bb22:
 bb35:
   push 64
   mload
-  dup 1
-  push 160
-  mstore
   push 64
   dup 2
   add
@@ -510,16 +499,37 @@ bb35:
   swap 1
   jump
 bb25:
-  push 416
+  push 384
   push 64
   mstore
   push bb20
   jump bb36
 bb36:
-  push bb44
-  jump bb42
-bb28:
+  push 64
+  mload
   push 192
+  dup 2
+  add
+  push 64
+  mstore
+  push 160
+  push bb44
+  swap 2
+  swap 1
+  jump bb42
+bb42:
+  dup 2
+  mstore
+  push 32
+  dup 2
+  add
+  push 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
+  swap 1
+  swap 2
+  swap 3
+  jump
+bb28:
+  push 160
   push 64
   mstore
   push bb29
@@ -533,33 +543,18 @@ bb29 [continuation]:
   keccak256
   jump bb41
 bb30:
-  push 192
+  push 160
   push 64
   mstore
   push bb29
   jump bb35
 bb32:
-  push 192
+  push 160
   push 64
   mstore
   push bb29
   jump bb36
 bb43 [continuation]:
-  push 160
-  calldatasize
-  dup 3
-  calldatacopy
-  pop
-  swap 1
-  jump
-bb44 [continuation]:
-  push bb47
-  jump bb45
-bb45:
-  push 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
-  swap 1
-  jump
-bb46 [continuation]:
   swap 1
   mstore
   push 64
@@ -581,13 +576,10 @@ bb46 [continuation]:
   pop
   swap 1
   jump
-bb47 [continuation]:
-  dup 2
-  mstore
-  push 32
-  dup 2
-  add
-  push bb46
-  jump bb45
+bb44 [continuation]:
+  push bb43
+  swap 2
+  swap 1
+  jump bb42
 
 @data literal_0 hex"41414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465665a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a21"

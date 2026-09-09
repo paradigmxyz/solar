@@ -37,6 +37,12 @@
 //! headroom for operand staging. Loops, memory operations and shared phi helpers
 //! remain excluded. This is a bounded profitability estimate, not a promise that
 //! the scheduler will emit no spills.
+//! A separate gas-only late adapter accepts shared frameless wrappers with one returning
+//! call followed by at most five physical address/load/store operations. It clones
+//! the call and subsequent memory operations in order, without moving accesses
+//! across the call or assuming alias freedom. Both caller live words and wrapper
+//! peak words must fit the same twelve-word budget, and lifetime gas must pay for
+//! code growth. General allocators, branches, and larger memory helpers stay shared.
 
 use crate::{
     backend::evm::{op, select},
@@ -123,6 +129,35 @@ impl MirPass for InlineImmutableLeaves {
         MirInliner { immutable_leaves_only: true, ..MirInliner::for_tiny_leaves() }
             .run(gcx, module)
             .inlined
+            != 0
+    }
+}
+
+/// Inlines small post-call memory wrappers after physical memory lowering.
+pub(crate) struct InlineMemoryWrappers;
+
+impl MirPass for InlineMemoryWrappers {
+    fn name(&self) -> &'static str {
+        "inline-memory-wrappers"
+    }
+
+    fn run_pass(
+        &self,
+        gcx: Gcx<'_>,
+        module: &mut Module,
+        _analyses: &mut crate::mir::pass::ModuleAnalyses,
+    ) -> bool {
+        if !gcx.sess.opts.optimization.is_gas() || !module.functions.iter().any(is_memory_wrapper) {
+            return false;
+        }
+        MirInliner {
+            memory_wrappers_only: true,
+            max_instructions: 6,
+            max_single_call_sanity_instructions: 6,
+            ..MirInliner::for_tiny_leaves()
+        }
+        .run(gcx, module)
+        .inlined
             != 0
     }
 }
@@ -221,6 +256,8 @@ struct MirInliner {
     max_module_code_size: usize,
     /// Restricts late expansion to argument-free immutable word computations.
     immutable_leaves_only: bool,
+    /// Restricts late expansion to small post-call memory wrappers.
+    memory_wrappers_only: bool,
     mode: InlineMode,
 }
 
@@ -249,6 +286,7 @@ impl Default for MirInliner {
             ),
             max_module_code_size: usize::MAX,
             immutable_leaves_only: false,
+            memory_wrappers_only: false,
             mode: InlineMode::Normal,
         }
     }
@@ -348,6 +386,26 @@ impl MirInliner {
             return stats;
         }
 
+        let mut call_counts = self.call_counts(module);
+        // Shared wrappers repay protocol removal at multiple sites. Leave singly used
+        // wrappers available for tail-call lowering and shared ABI return encoders.
+        let memory_wrappers = if self.memory_wrappers_only {
+            module
+                .functions
+                .iter_enumerated()
+                .filter(|(id, func)| {
+                    call_counts.get(id).copied().unwrap_or(0) > 1 && is_memory_wrapper(func)
+                })
+                .map(|(id, func)| (id, scalar_stack_peak(func)))
+                .collect::<FxHashMap<_, _>>()
+        } else {
+            FxHashMap::default()
+        };
+
+        if self.memory_wrappers_only && memory_wrappers.is_empty() {
+            return stats;
+        }
+
         let mut summaries = self.summarize_module(gcx, module);
 
         // Track the estimator for explicit hard ceilings. Gas mode leaves the
@@ -357,7 +415,6 @@ impl MirInliner {
             return stats;
         }
 
-        let mut call_counts = self.call_counts(module);
         let call_graph = CallGraphInfo::new(module);
         let mut artifact_calls = (self.mode == InlineMode::TinyLeaves
             && summaries.values().any(|summary| summary.is_small_literal_return))
@@ -417,6 +474,7 @@ impl MirInliner {
                     || call_graph.is_recursive(site.callee)
                     || (self.immutable_leaves_only
                         && !is_immutable_word_leaf(module.function(site.callee)))
+                    || (self.memory_wrappers_only && !memory_wrappers.contains_key(&site.callee))
                     || (self.mode == InlineMode::SingleUse
                         && module.function(site.callee).attributes.no_inline)
                     || !self.is_inlineable(
@@ -431,7 +489,9 @@ impl MirInliner {
                     continue;
                 }
 
-                if let Some(peak) = summary.phi_stack_peak {
+                if let Some(peak) =
+                    summary.phi_stack_peak.or_else(|| memory_wrappers.get(&site.callee).copied())
+                {
                     let caller = module.function(caller_id);
                     let liveness = caller_liveness.get_or_insert_with(|| Liveness::compute(caller));
                     if surviving_call_words(caller, liveness, site).saturating_add(peak) > 12 {
@@ -648,8 +708,11 @@ impl MirInliner {
                 || summary.return_count != 1
                 || (summary.has_reference_return
                     && !summary.is_transparent_forwarder
+                    && !self.memory_wrappers_only
                     && !(single_call && summary.is_small_literal_return))
-                || (summary.has_icall && !summary.is_transparent_forwarder)
+                || (summary.has_icall
+                    && !summary.is_transparent_forwarder
+                    && !self.memory_wrappers_only)
                 || (!single_call && summary.void_forwarder_adds_args)
                 || summary.has_control_flow)
         {
@@ -1069,6 +1132,36 @@ fn surviving_call_words(func: &Function, liveness: &Liveness, site: CallSite) ->
 
 fn live_word_count(func: &Function, live: &GrowableBitSet<ValueId>) -> usize {
     live.iter().filter(|&value| matches!(func.value(value), Value::Arg(_) | Value::Inst(_))).count()
+}
+
+/// A call followed by bounded physical word operations, with no allocation or frame locals.
+fn is_memory_wrapper(func: &Function) -> bool {
+    if func.attributes.no_inline
+        || func.internal_frame_size != 0
+        || func.blocks.len() != 1
+        || func.params.len() > 2
+        || func.returns.as_slice() != [MirType::MemPtr]
+    {
+        return false;
+    }
+    let block = &func.blocks[BlockId::ENTRY];
+    let [call, rest @ ..] = block.instructions.as_slice() else { return false };
+    rest.len() <= 5
+        && matches!(func.inst(*call).kind, InstKind::ICall { returns: 1, .. })
+        && rest.iter().any(|&inst| {
+            matches!(func.inst(inst).kind, InstKind::MStore(..) | InstKind::MStore8(..))
+        })
+        && rest.iter().all(|&inst| {
+            matches!(
+                func.inst(inst).kind,
+                InstKind::Add(..)
+                    | InstKind::Sub(..)
+                    | InstKind::MLoad(..)
+                    | InstKind::MStore(..)
+                    | InstKind::MStore8(..)
+            )
+        })
+        && matches!(&block.terminator, Some(Terminator::Return { values }) if values.len() == 1)
 }
 
 /// Recognizes immutable loads combined without calls, memory access, or control flow.
