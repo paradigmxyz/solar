@@ -773,11 +773,60 @@ reviews remain under
 accepted production LOC and no performance improvement. The independent
 five-instruction duplicate-store opportunity remains a separate proposal.
 
+## Consumed-value duplicate stores (2026-09-09)
+
+`01bb3e5d` extends the existing physical peephole family: an adjacent
+`dup1; push A; mstore; push A; mstore` becomes `push A; mstore` for the same
+literal address. The rewrite consumes the incoming value and preserves the
+unrelated stack prefix, stored bytes and memory expansion. Existing
+canonical-effect, glue-boundary and debug-inheritance checks remain in force.
+It adds no pass, analysis state or assembler behavior. Prior-art notes for
+solx, Venom and Sonatina distinguish their broader memory/SSA dead-store
+analysis from this exact physical pattern; source pins and the independent
+proof remain in the evidence directory below.
+
+The fresh baseline on merged head `2fc0d7e8` preserves the previous codegen
+outputs. Candidate `c45df892` passes all 1,576 workspace tests with the same
+two skips. Nine new physical-IR revisions cover value consumption, expansion,
+unaligned addresses, refusal cases and metadata. Existing tests and goldens
+are unchanged. Eighty calls across forty baseline/candidate pairs return the
+expected results, saving eight or nine gas with unchanged whole-call stack
+peaks. Gas and Size `solsymdiff` runs for
+`ResidentArgMaterializedBeforeCall.first(uint256)` find bounded agreement
+with 128-path/query bounds. Native bytes join the generated harness through
+an explicit 14-byte INVALID/CBOR suffix. Initial missing-golden and new
+FileCheck-format failures remain recorded; only the new check comments changed.
+
+The same 1,678 UI rows and 5,108 objects yield 34 shrinking objects, zero growth
+and zero equal-size byte changes. Creation and runtime each save 101 bytes
+under Gas and 104 under Size; all 18 existing diagnostic failures remain.
+Full and Size preserve all 175 gas records, 139 observations and every runtime
+contract's complete output fingerprint. Heavy closure covers all 3,344 objects:
+3,122 are byte-exact and 222 shrink, saving 19,976 bytes with no growth or
+equal-size changes. Seaport saves 19,216, Morpho 400, Solady 280 and V4 80 bytes.
+These totals count creation/runtime and embedded-child amplification.
+
+Positive sealed debt falls by 19,956 bytes to 30,371,648 across the same
+1,039 objects. The remaining 20 saved bytes belong to a Solady object already
+below the sealed baseline. Fresh Full/Size geometric means of per-case compiler
+time mean ratios decrease 2.8053%/1.3918%; Full sample counts vary from 111 to
+108, while Size retains 75 each. Incidental artifact I/O and variability are
+recorded; these observations do not establish a causal compiler-speed gain.
+The change adds 14 physical Rust lines. Backend totals are now 17,566 lines in
+48 files, with 16,261 before trailing test modules; these include comments and
+blanks rather than strict production SLOC.
+
+Evidence is retained under
+`target/codegen-bench/evm-rewrite-candidate/redundant-store-20260909/`, with the
+fresh merged-head comparisons in `merged-head/`. Earlier compilers, baseline
+artifacts and rejected probes are preserved. This local milestone leaves the
+remaining rewrite acceptance debts below open.
+
 ## Remaining acceptance work
 
 The alias assertion migration passes; its generated-code size debt remains.
 The original readback failures now pass in every mode. General source-memory
-ownership remains an open contract; bounded shared-input sweeps pass. The complete heavy join now has 30,391,604 positive bytes of sealed size debt
+ownership remains an open contract; bounded shared-input sweeps pass. The complete heavy join now has 30,371,648 positive bytes of sealed size debt
 across 1,039 objects. This includes creation/runtime and embedded-child
 amplification; it is a sum of regressions, not net corpus growth. The historical
 writer count was 31,831,619. Terminal returns removed 20 positive bytes before
@@ -787,15 +836,16 @@ candidate's `pr-ledger/`; the bounded clean-call increment removes another
 57,488 positive bytes in its `candidate1/independent/` ledger. Late-DCE store
 reordering removes another 8,550 positive bytes; returning-memory analysis and
 halting-context verification remove another 631,275. Bitmap address scheduling
-removes another 655,108. Against current main, 19 of 175 gas labels regress,
+removes another 655,108. Consumed-value duplicate stores remove another 19,956.
+Against current main, 19 of 175 gas labels regress,
 down from 24: Maple's five approve regressions are gone. OZ mint and Flash fee
 costs improve to +3; the remaining getter debts persist. Fractional's seven getter calls now cost
 one additional gas each, down from ten. Compiler-time debts
 remain.
-The backend has 17,552 physical lines in 48 files, 17,086 fewer than the deletion
-inventory. Excluding trailing test modules leaves 16,247 physical lines. A
+The backend has 17,566 physical lines in 48 files, 17,072 fewer than the deletion
+inventory. Excluding trailing test modules leaves 16,261 physical lines. A
 retained count-only baseline reports 29,006 production-section lines, giving a
-conditional reduction of 12,759; that file lacks a revision/hash link to the
+conditional reduction of 12,745; that file lacks a revision/hash link to the
 sealed archive. These counts include comments and are not strict production SLOC.
 
 Eager contraction removes avoidable spills and saves bytecode without corpus
