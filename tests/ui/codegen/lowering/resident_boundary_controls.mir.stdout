@@ -1,0 +1,56 @@
+// === ROOT/tests/ui/codegen/lowering/resident_boundary_controls.sol:ResidentBoundaryControls ===
+@module ResidentBoundaryControls
+fn @missing(arg0: u256) -> u256 [selector=0xb114daa4, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    log3 0, 0, arg0, 170, v0
+    ret v0
+}
+
+fn @firstOpcode(arg0: bool) -> u256 [selector=0x42718047, abi_params=[bool], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    switch arg0, default bb3, [0 => bb2]
+  bb2:
+    log2 0, 0, 170, v0
+    jump bb1
+  bb3:
+    log2 0, 0, 187, v0
+    jump bb1
+  bb1:
+    ret v0
+}
+
+fn @successor(arg0: bool) -> (u256, u256, u256) [selector=0x77bf81b4, abi_params=[bool], abi_returns=[word, word, word]] {
+  bb0:
+    v0 = icall @emitAndChoose, 2, arg0
+    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v2 = add v1, 32
+    v3 = mload v2
+    v4 = mul v3, 256
+    v5 = xor v0, v4
+    ret v0, v3, v5
+}
+
+fn @emitAndChoose(arg0: bool) -> (u256, u256) {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = sload 1 !metadata(storage=slot(1))
+    log3 0, 0, 170, v0, v1
+    switch arg0, default bb3, [0 => bb2]
+  bb2:
+    jump bb1
+  bb3:
+    jump bb1
+  bb1:
+    v2 = phi [bb2: v1], [bb3: v0]
+    v3 = phi [bb2: v0], [bb3: v1]
+    ret v3, v2
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    sstore 0, 17 !metadata(storage=slot(0))
+    sstore 1, 34 !metadata(storage=slot(1))
+    stop
+}

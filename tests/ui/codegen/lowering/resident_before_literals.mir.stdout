@@ -1,0 +1,86 @@
+// === ROOT/tests/ui/codegen/lowering/resident_before_literals.sol:ResidentBeforeLiterals ===
+@module ResidentBeforeLiterals
+fn @dying() -> u256 [selector=0xfbc7852e, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = sload 1 !metadata(storage=slot(1))
+    mstore 0, 153 !metadata(memory=scratch)
+    log3 0, 32, 170, v0, v1
+    ret 1
+}
+
+fn @live() -> u256 [selector=0x957aa58c, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    mstore 0, 153 !metadata(memory=scratch)
+    log2 0, 32, 170, v0
+    sstore 3, v0 !metadata(storage=slot(3))
+    v1 = sload 3 !metadata(storage=slot(3))
+    ret v1
+}
+
+fn @repeated() -> u256 [selector=0xc7642fc4, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    mstore 0, 153 !metadata(memory=scratch)
+    log3 0, 32, 170, v0, v0
+    sstore 3, v0 !metadata(storage=slot(3))
+    v1 = sload 3 !metadata(storage=slot(3))
+    ret v1
+}
+
+fn @retained() -> u256 [selector=0x5216948c, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 2 !metadata(storage=slot(2))
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = sload 1 !metadata(storage=slot(1))
+    mstore 0, 153 !metadata(memory=scratch)
+    log3 0, 32, 170, v1, v2
+    ret v0
+}
+
+fn @interleaved() -> u256 [selector=0xb977aed8, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = sload 1 !metadata(storage=slot(1))
+    mstore 0, 153 !metadata(memory=scratch)
+    log3 0, 32, v0, 170, v1
+    ret 1
+}
+
+fn @nonliteral(arg0: u256) -> u256 [selector=0x06d33b09, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    mstore 0, 153 !metadata(memory=scratch)
+    v1 = calldataload 4
+    log3 0, 32, v1, 170, v0
+    ret 1
+}
+
+fn @repeatedZero() -> u256 [selector=0x02be81da, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    mstore 0, 153 !metadata(memory=scratch)
+    log3 0, 32, 0, v0, v0
+    sstore 3, v0 !metadata(storage=slot(3))
+    v1 = sload 3 !metadata(storage=slot(3))
+    ret v1
+}
+
+fn @repeatedWide() -> u256 [selector=0xae1ec012, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    mstore 0, 153 !metadata(memory=scratch)
+    log3 0, 32, 0x123456789abcdef0123456789abcdef0fedcba98765432100f1e2d3c4b5a6978, 0x123456789abcdef0123456789abcdef0fedcba98765432100f1e2d3c4b5a6978, v0
+    sstore 3, v0 !metadata(storage=slot(3))
+    v1 = sload 3 !metadata(storage=slot(3))
+    ret v1
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    sstore 0, 17 !metadata(storage=slot(0))
+    sstore 1, 34 !metadata(storage=slot(1))
+    sstore 2, 51 !metadata(storage=slot(2))
+    stop
+}

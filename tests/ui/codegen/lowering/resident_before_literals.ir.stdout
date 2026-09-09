@@ -1,0 +1,220 @@
+// === ROOT/tests/ui/codegen/lowering/resident_before_literals.sol:ResidentBeforeLiterals (runtime) ===
+@module ResidentBeforeLiterals_runtime
+bb0:
+  callvalue
+  jumpi bb12, bb20
+bb20:
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 6
+  shr
+  push 15
+  and
+  indexed_jump bb31, bb12, bb33, bb12, bb35, bb12, bb37, bb38, bb12, bb12, bb12, bb42, bb43, bb12, bb12, bb46
+bb12 [cold]:
+  push 0
+  push 0
+  revert
+bb31:
+  push 0xae1ec012
+  sub
+  jumpi bb12, bb17
+bb17:
+  push 0
+  sload
+  push 153
+  push 0
+  mstore
+  dup 1
+  push 0x123456789abcdef0123456789abcdef0fedcba98765432100f1e2d3c4b5a6978
+  dup 1
+  push 32
+  push 0
+  log3
+  push 3
+  sstore
+  push 3
+  sload
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb33:
+  push 0x5216948c
+  sub
+  jumpi bb12, bb7
+bb7:
+  push 2
+  sload
+  push 0
+  sload
+  push 1
+  sload
+  push 153
+  push 0
+  mstore
+  swap 1
+  push 170
+  push 32
+  push 0
+  log3
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb35:
+  push 0xfbc7852e
+  sub
+  jumpi bb12, bb1
+bb1:
+  push 0
+  sload
+  push 1
+  sload
+  push 153
+  push 0
+  mstore
+  swap 1
+  push 170
+  push 32
+  push 0
+  log3
+  push 1
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb37:
+  push 0x957aa58c
+  sub
+  jumpi bb12, bb3
+bb3:
+  push 0
+  sload
+  push 153
+  push 0
+  mstore
+  dup 1
+  push 170
+  push 32
+  push 0
+  log2
+  push 3
+  sstore
+  push 3
+  sload
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb38:
+  push 0x2be81da
+  sub
+  jumpi bb12, bb15
+bb15:
+  push 0
+  sload
+  push 153
+  push 0
+  mstore
+  dup 1
+  dup 1
+  push 0
+  push 32
+  push 0
+  log3
+  push 3
+  sstore
+  push 3
+  sload
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb42:
+  push 0xb977aed8
+  sub
+  jumpi bb12, bb9
+bb9:
+  push 0
+  sload
+  push 1
+  sload
+  push 153
+  push 0
+  mstore
+  push 170
+  push 32
+  push 0
+  swap 3
+  swap 4
+  swap 2
+  swap 3
+  log3
+  push 1
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb43:
+  push 0x6d33b09
+  sub
+  jumpi bb12, bb11
+bb11:
+  calldatasize
+  push 36
+  gt
+  jumpi bb12, bb13
+bb13:
+  push 0
+  sload
+  push 153
+  push 0
+  mstore
+  push 4
+  calldataload
+  push 170
+  push 32
+  push 0
+  exchange 2, 3
+  log3
+  push 1
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb46:
+  push 0xc7642fc4
+  sub
+  jumpi bb12, bb5
+bb5:
+  push 0
+  sload
+  push 153
+  push 0
+  mstore
+  dup 1
+  dup 1
+  push 170
+  push 32
+  push 0
+  log3
+  push 3
+  sstore
+  push 3
+  sload
+  push 0
+  mstore
+  push 32
+  push 0
+  return

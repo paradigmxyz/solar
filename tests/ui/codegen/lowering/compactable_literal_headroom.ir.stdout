@@ -1,0 +1,117 @@
+// === ROOT/tests/ui/codegen/lowering/compactable_literal_headroom.sol:LiteralHeadroom (runtime) ===
+@module LiteralHeadroom_runtime
+bb0:
+  jump bb15
+bb15:
+  jump bb11
+bb11:
+  callvalue
+  jumpi bb14, bb12
+bb12:
+  push 0
+  calldataload
+  push 224
+  shr
+  jump bb20
+bb20:
+  push 0x70cb9605
+  sub
+  jumpi bb14, bb13
+bb13:
+  jump bb4
+bb4:
+  jump bb1
+bb1:
+  calldatasize
+  push 132
+  gt
+  jumpi bb2, bb3
+bb3:
+  push 100
+  calldataload
+  push 4
+  calldataload
+  push 36
+  calldataload
+  push 68
+  calldataload
+  push bb16
+  swap 4
+  jump bb5
+bb5:
+  dup 1
+  jumpi bb6, bb17
+bb17:
+  pop
+  jump bb7
+bb7:
+  swap 1
+  swap 2
+  not
+  push 1
+  push 255
+  shl
+  dup 2
+  swap 1
+  sub
+  push 0x8000000000000000000000000000000000000000000000000000000000000000
+  exchange 1, 2
+  lt
+  jumpi bb19, bb9
+bb9:
+  exchange 1, 2
+  xor
+  swap 1
+  push 8
+  shl
+  xor
+  swap 1
+  jump
+bb16:
+  push 1
+  xor
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb18:
+  xor
+  swap 1
+  jump
+bb2 [cold]:
+  push 0
+  push 0
+  revert
+bb6:
+  push 1
+  dup 2
+  sub
+  push bb18
+  swap 4
+  swap 2
+  swap 5
+  swap 3
+  swap 1
+  jump bb5
+bb14 [cold]:
+  push 0
+  push 0
+  revert
+bb19 [cold]:
+  pop
+  pop
+  pop
+  jump bb8
+bb8 [cold]:
+  push 0x4e487b71
+  push 224
+  shl
+  push 0
+  mstore
+  push 17
+  push 4
+  mstore
+  push 36
+  push 0
+  revert

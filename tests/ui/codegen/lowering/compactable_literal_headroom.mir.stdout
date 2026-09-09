@@ -1,0 +1,39 @@
+// === ROOT/tests/ui/codegen/lowering/compactable_literal_headroom.sol:LiteralHeadroom ===
+@module LiteralHeadroom
+fn @f(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> u256 [selector=0x70cb9605, pure, abi_params=[u256, u256, u256, u256], abi_returns=[word]] {
+  bb0:
+    v0 = icall @subtractComplement, 1, arg0, arg1, arg2, arg3
+    v1 = xor v0, 1
+    ret v1
+}
+
+fn @subtractComplement(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> u256 [pure] {
+  bb0:
+    v0 = eq arg3, 0
+    v1 = iszero v0
+    jumpi v1, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v6 = not arg0
+    v7 = sub 0x8000000000000000000000000000000000000000000000000000000000000000, v6
+    v8 = lt 0x8000000000000000000000000000000000000000000000000000000000000000, v6
+    jumpi v8, bb4, bb6
+  bb6:
+    v9 = xor v7, arg1
+    v10 = shl 8, arg2
+    v11 = xor v9, v10
+    ret v11
+  bb1:
+    v2 = sub arg3, 1
+    v3 = lt arg3, 1
+    jumpi v3, bb4, bb5
+  bb5:
+    v4 = icall @subtractComplement, 1, arg0, arg1, arg2, v2
+    v5 = xor v4, arg3
+    ret v5
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
