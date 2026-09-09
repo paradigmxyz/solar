@@ -40,6 +40,7 @@ pub use crate::mir::pass_manager::{MirPass, pipeline_label, run_passes, run_pass
 pub static ALL_PASSES: &[&dyn MirPass] = &[
     &inline::Inline,
     &inline::InlineSingleUse,
+    &inline_guards::InlineGuards,
     &inline::InlineConstantLeaves,
     &inline::InlineTinyLeaves,
     &inline::InlineImmutableLeaves,
@@ -267,6 +268,7 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     // branch condition, body, exit; body: ...; branch condition, checked, panic
     // => body: ...; jump checked
     &check_elim::LateCheckElim,
+    &inline_guards::InlineGuards,
     // Revisit allocations after semantic memory accesses become bounded raw
     // operations, so fixed-size hash buffers can use backend-known static
     // regions.

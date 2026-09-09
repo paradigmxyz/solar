@@ -14,6 +14,7 @@ pub(crate) mod frame_promotion;
 pub(crate) mod function_compaction;
 pub(crate) mod indvar_simplify;
 pub(crate) mod inline;
+pub(crate) mod inline_guards;
 pub(crate) mod jump_threading;
 pub(crate) mod load_pre;
 pub(crate) mod loop_canonicalize;
