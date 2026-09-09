@@ -39,6 +39,10 @@
 //! block with equal incoming values merge into one, copies of zero bytes are
 //! deleted, and branches on `iszero` or a nonzero test branch on the tested
 //! value directly.
+//! A balance read can bypass a mask that preserves all address bits. Since
+//! effectful roots do not participate in cost extraction, this rule requires
+//! one original use of the mask in the same block. The account read remains
+//! at its original position; only its redundant address computation changes.
 //!
 //! Safety contract:
 //! - do not remove or reorder side effects
@@ -234,7 +238,7 @@ impl<'a> Builder<'a> {
             return;
         }
         if !is_node(&inst.kind) {
-            self.rewrite_in_place(inst_id);
+            self.rewrite_in_place(inst_id, block);
             return;
         }
         let kind = inst.kind.op();
@@ -393,7 +397,7 @@ impl<'a> Builder<'a> {
     }
 
     /// Applies the rewrite rules to an instruction outside the e-graph.
-    fn rewrite_in_place(&mut self, inst_id: InstId) {
+    fn rewrite_in_place(&mut self, inst_id: InstId, block: BlockId) {
         let op = self.func.inst(inst_id).kind.op();
         if op.into_kind().is_none() {
             return;
@@ -404,6 +408,8 @@ impl<'a> Builder<'a> {
         for _ in 0..MAX_NODES {
             alternatives.clear();
             isle::RuleContext::new(self.func, self.target.evm_version())
+                .with_block(block)
+                .with_uses(&self.uses)
                 .rewrite(&current, &mut alternatives);
             let Some(&next) = alternatives.first() else { break };
             current = next.map_values(|value| self.resolve(value));

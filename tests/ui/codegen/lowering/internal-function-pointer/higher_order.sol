@@ -1,3 +1,4 @@
+//@ codegen-matrix: standard
 //@ run-call: callReturned => 2
 
 // ported-from: test/libsolidity/semanticTests/functionCall/call_function_returning_function.sol

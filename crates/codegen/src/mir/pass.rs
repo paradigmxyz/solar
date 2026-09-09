@@ -63,6 +63,7 @@ pub static ALL_PASSES: &[&dyn MirPass] = &[
     &storage_promotion::StorageScalarPromotion,
     &loop_opt::Licm,
     &check_elim::CheckElim,
+    &check_elim::LateCheckElim,
     &check_elim::ImmutableCheckElim,
     &jump_threading::JumpThreading,
     &cfg_simplify::CfgSimplify,
@@ -261,6 +262,11 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &lower_memory_objects::LowerMemoryObjects,
     &GasOnly::new(cse::Cse),
     &SizeOnly::new(cse::Cse),
+    // Physical memory accesses let CSE unify semantic lengths with raw loads.
+    // Repeated bounds checks then use the same condition as a dominating guard:
+    // branch condition, body, exit; body: ...; branch condition, checked, panic
+    // => body: ...; jump checked
+    &check_elim::LateCheckElim,
     // Revisit allocations after semantic memory accesses become bounded raw
     // operations, so fixed-size hash buffers can use backend-known static
     // regions.

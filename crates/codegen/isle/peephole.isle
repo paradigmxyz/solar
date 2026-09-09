@@ -75,6 +75,12 @@
 ;; Adjacent constants whose folded result is a Pareto improvement, giving that result.
 (decl fold_constants (U256) Window)
 (extern extractor fold_constants fold_constants)
+;; `PUSH x; unary_op => materialize(unary_op(x))`, when bytes and gas improve.
+(decl fold_unary_constant (U256) Window)
+(extern extractor fold_unary_constant fold_unary_constant)
+;; `PUSH 0; PUSH block; JUMPI => empty`, respecting protected boundaries.
+(decl untaken_jump () Window)
+(extern extractor untaken_jump untaken_jump)
 ;; A trailing stack sequence whose net effect is the identity, giving its length.
 (decl noop_stack_suffix (u8) Window)
 (extern extractor noop_stack_suffix noop_stack_suffix)
@@ -167,6 +173,12 @@
 
 ;; Fold adjacent constants when the selected result materialization is a Pareto improvement.
 (rule 285 (peep_nonpush (fold_constants value)) (rewrite 3 (Edit.FoldConstants value)))
+
+;; PUSH x; unary_op => materialize(unary_op(x))
+(rule 284 (peep_nonpush (fold_unary_constant value)) (rewrite 2 (Edit.FoldConstants value)))
+
+;; PUSH 0; PUSH block; JUMPI => empty
+(rule 283 (peep_nonpush (untaken_jump)) (rewrite 3 (Edit.Keep 0)))
 
 ;; `PUSH x POP -> ∅`.
 (rule 280 (peep_nonpush (last2 (removable_push) (opcode $POP))) (rewrite 2 (Edit.Keep 0)))

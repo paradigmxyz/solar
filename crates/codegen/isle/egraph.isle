@@ -298,6 +298,20 @@
 ;; cond ? 0 : 1 => cond == 0, when cond is boolean
 (rule (rewrite (Op.Select (and cond (bool_value)) (zero) (one))) (Op.IsZero cond))
 
+;; balance(address & mask) => balance(address), when mask keeps all low 160 bits.
+;; Require a single use in this block to avoid retaining a shared mask or extending its live range.
+(rule (rewrite (Op.Balance (and masked (band address (iconst mask)))))
+      (if-let true (in_current_block masked))
+      (if-let true (single_use masked))
+      (if-let true (u256_is_zero (u256_shl (u256 96) (u256_not mask))))
+      (Op.Balance address))
+;; balance(mask & address) => balance(address), under the same conditions.
+(rule (rewrite (Op.Balance (and masked (band (iconst mask) address))))
+      (if-let true (in_current_block masked))
+      (if-let true (single_use masked))
+      (if-let true (u256_is_zero (u256_shl (u256 96) (u256_not mask))))
+      (Op.Balance address))
+
 ;; balance(address()) => selfbalance(), when SELFBALANCE is available
 (rule (rewrite (Op.Balance (current_address))) (if-let true (has_self_balance)) (Op.SelfBalance))
 

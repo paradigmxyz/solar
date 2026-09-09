@@ -18,7 +18,7 @@ jobs:
   evm-rules:
     name: EVM word and stack proofs
     runs-on: depot-ubuntu-24.04-arm
-    timeout-minutes: 10
+    timeout-minutes: 20
     permissions:
       contents: read
     steps:
@@ -38,6 +38,13 @@ jobs:
         run: uv run scripts/verify_evm_rules.py verify --partition-shifts --output target/evm-rules/proofs.json --artifacts target/evm-rules/smt
       - name: Replay every proof query with cvc5
         run: uv run scripts/replay_evm_rules.py target/evm-rules/proofs.json --output target/evm-rules/cvc5.json
+      - name: Verify MIR e-graph rules
+        run: >-
+          uv run scripts/verify_evm_rules.py verify crates/codegen/isle/egraph.isle
+          --partition-shifts --fallback-solver cvc5 --bit-partition-timeout-ms 120000
+          --output target/evm-rules/egraph.json --artifacts target/evm-rules/egraph-smt
+      - name: Replay e-graph proof queries with cvc5
+        run: uv run scripts/replay_evm_rules.py target/evm-rules/egraph.json --output target/evm-rules/egraph-cvc5.json
       # Keep SMT queries and coverage to diagnose and replay failed verification.
       - name: Upload failed proof diagnostics
         if: failure()

@@ -12,7 +12,8 @@ import re
 
 import z3
 
-from .semantics import Expr, MASK, Model, Unsupported, check, partition_shift, word
+from .semantics import Expr, MASK, Model, Unsupported, check, partition_bits, partition_shift, word
+from .memory import MemoryAddresses
 
 ROOT = Path(__file__).resolve().parents[2]
 ISLE = ROOT / "crates/codegen/isle"
@@ -99,15 +100,27 @@ class Context:
         self.bindings = opcode_bindings(selection_source if selection_source is not None
                                        else (ISLE / "select.isle").read_text())
         self.fresh_id = 0
+        self.memory = MemoryAddresses(self)
 
     def operation(self, name, args):
+        if name in MemoryAddresses.SHAPES:
+            # Semantic projections have no single-opcode selector. Check their
+            # schema-generated field names/types before applying the model.
+            declarations = [form[3][1:] for form, _ in forms((ISLE / "prelude.isle").read_text())
+                            if form[:3] == ("type", "Op", "extern")]
+            shapes = {"Op." + variant[0]: variant[1:] for variants in declarations for variant in variants}
+            if shapes.get(name) != MemoryAddresses.SHAPES[name]:
+                raise Unsupported(f"unmodeled or changed memory address schema: {name}")
+            return self.memory.operation(name, tuple(args))
         if name == "Op.Select":
             self.contracts.add("Select: trusted MIR semantics select the true arm for any nonzero word")
             return Expr("select", tuple(args))
         binding = self.bindings.get(name)
-        shape = {1: "OpcodeLowering.Unary", 2: "OpcodeLowering.Binary", 3: "OpcodeLowering.Nary"}
+        shape = {0: "OpcodeLowering.Nullary", 1: "OpcodeLowering.Unary", 2: "OpcodeLowering.Binary", 3: "OpcodeLowering.Nary"}
         if binding is None or binding != (name[3:].lower(), len(args), shape.get(len(args)), True):
             raise Unsupported(f"unmodeled or changed instruction selection: {name}")
+        if name in ("Op.Address", "Op.Balance", "Op.SelfBalance"):
+            self.contracts.add("environment reads: one executing account and one balance snapshot; no state changes, gas or access-list effects")
         return Expr(binding[0], tuple(args))
 
     def fresh(self):
@@ -116,7 +129,7 @@ class Context:
 
     def pattern(self, node):
         if isinstance(node, str):
-            if node.startswith("@fresh:"):
+            if node.startswith(("@fresh:", "@environment:")):
                 raise Unsupported("reserved proof-variable prefix")
             if node == "_":
                 return self.fresh()
@@ -149,6 +162,9 @@ class Context:
             return value
         if not args and name in ("zero", "one", "all_ones"):
             return Expr.const({"zero": 0, "one": 1, "all_ones": MASK}[name])
+        if name == "current_address" and not args:
+            self.contracts.add("current_address: Rust extractor matches an ADDRESS producer in this execution context")
+            return self.operation("Op.Address", [])
         if name == "bool_value" and not args:
             value = self.fresh()
             self.assumptions.append(z3.ULE(self.model.eval(value), word(1)))
@@ -165,6 +181,8 @@ class Context:
         if name.startswith("Op."):
             return self.operation(name, [self.constructor(a) for a in args])
         values = [self.constructor(a) for a in args]
+        if name in ("object_data_offset", "field_offset", "layout_kind"):
+            return self.memory.constructor(name, tuple(values))
         if name in ("imm", "u256", "resident", "make", "sequence") and len(values) == 1:
             if name == "resident":
                 self.contracts.add("resident: available value has the matched expression's word semantics")
@@ -261,10 +279,24 @@ class Context:
                 other = self.pattern(pattern)
                 self.assumptions.append(self.model.eval(other) == self.model.eval(value)
                                         if isinstance(value, Expr) else other == value)
-        return lhs, self.constructor(parts[-1])
+        rhs = self.constructor(parts[-1])
+
+        def validate_snapshot_root(expr):
+            if expr.op in ("var", "const"):
+                return
+            for child in expr.args:
+                if child.op in ("balance", "selfbalance"):
+                    raise Unsupported("balance reads are only modeled at instruction roots; nested producers may observe another state")
+                validate_snapshot_root(child)
+
+        # Account state is shared by the two replacements of this instruction,
+        # not by arbitrary earlier producers reached through operand extractors.
+        validate_snapshot_root(lhs)
+        validate_snapshot_root(rhs)
+        return lhs, rhs
 
 
-def verify_file(path, timeout_ms, artifacts=None, partition_shifts=False):
+def verify_file(path, timeout_ms, artifacts=None, partition_shifts=False, fallback=None, bit_partition_timeout_ms=0):
     source = path.read_text()
     rules = [Rule(form, line, str(path)) for form, line in forms(source) if form[0] == "rule"]
     if not rules:
@@ -285,6 +317,38 @@ def verify_file(path, timeout_ms, artifacts=None, partition_shifts=False):
                     if constants:
                         partitioned["constant_specializations"] = constants
                     result = partitioned
+            if query and result["status"] == "unknown" and fallback is not None:
+                # Prove the complete original obligation. A successful fallback
+                # replaces partial partitions, never promotes their proved prefix.
+                attempt = fallback.solve(query)
+                if attempt["status"] == "unsat":
+                    result = {"status": "proved", "proof_method": "solver-fallback",
+                              "fallback": attempt}
+                    if constants:
+                        result["constant_specializations"] = constants
+                    partitions = []
+                else:
+                    result["fallback"] = attempt
+                    if attempt["status"] == "sat":
+                        result["reason"] = "cvc5 reported SAT; no independently replayed counterexample"
+                    else:
+                        reason = result.get("reason", "Z3 verification incomplete")
+                        result["reason"] = f"{reason}; cvc5 fallback returned {attempt['status']}"
+                    if partitions:
+                        partitions.append(("word", query))
+            if (query and result["status"] == "unknown" and bit_partition_timeout_ms > 0
+                    and result.get("fallback", {}).get("status", "unknown") in ("unknown", "timeout")):
+                # All output bits must agree under the complete original guards.
+                # Do not hide a fallback solver's SAT result or process failure.
+                previous_fallback = result.get("fallback")
+                result, partitions = partition_bits(lhs, rhs, context.assumptions,
+                                                    bit_partition_timeout_ms, context.model)
+                if constants:
+                    result["constant_specializations"] = constants
+                if previous_fallback is not None:
+                    result["fallback"] = previous_fallback
+                if result["status"] != "proved":
+                    partitions.append(("word", query))
         except Unsupported as error:
             result = {"status": "unsupported", "reason": str(error)}
         result.update(line=rule.line, rule_sha256=rule.digest, contracts=sorted(context.contracts))

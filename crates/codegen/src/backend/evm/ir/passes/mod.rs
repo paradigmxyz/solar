@@ -22,6 +22,7 @@ mod share_reverts;
 mod stack_normalize;
 mod tail_merge;
 mod terminal_dedup;
+mod terminal_layout;
 pub(super) mod utils;
 
 pub(in crate::backend) use legalize_shifts::legalize_shifts;
@@ -82,6 +83,7 @@ pub static ALL_PASSES: &[&dyn EvmPass] = &[
     &tail_merge::TailMerge,
     &block_layout::BlockLayout,
     &loop_layout::LoopLayout,
+    &terminal_layout::TerminalLayout,
 ];
 
 /// The canonical EVM IR layout and code-size pipeline used by EVM codegen.
@@ -159,6 +161,7 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &inline_returns::InlineReturns,
     &cfg_simplify::CfgSimplify,
     &loop_layout::LoopLayout,
+    &terminal_layout::TerminalLayout,
     &reorder_pushes::REORDER_EXPRESSIONS,
     &peephole::LateWord,
 ];

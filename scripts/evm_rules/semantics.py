@@ -68,6 +68,32 @@ class Model:
     def __init__(self, constants=None):
         self.cache = {}
         self.constants = dict(constants or {})
+        self.environment = None
+
+    def snapshot(self):
+        """One executing account and one immutable balance map for this query."""
+        if self.environment is None:
+            self.environment = (z3.BitVec("@environment:address", 160),
+                                z3.Array("@environment:balances", z3.BitVecSort(160), z3.BitVecSort(WIDTH)))
+        return self.environment
+
+    def solver(self):
+        return z3.SolverFor("QF_ABV" if self.environment is not None else "QF_BV")
+
+    def environment_witness(self, witness):
+        """Materialize every observed account into an independent finite map."""
+        if self.environment is None:
+            return None
+        address, balances = self.environment
+        current = witness.eval(address, model_completion=True).as_long()
+        accounts = {current}
+        for expr in self.cache:
+            if expr.op == "balance":
+                accounts.add(witness.eval(self.eval(expr.args[0]), model_completion=True).as_long() & ((1 << 160) - 1))
+        return {"address": current, "balances": {
+            account: witness.eval(z3.Select(balances, z3.BitVecVal(account, 160)), model_completion=True).as_long()
+            for account in sorted(accounts)
+        }}
 
     def constant_condition(self):
         """The original inputs must satisfy every substitution used by this model."""
@@ -90,6 +116,14 @@ class Model:
             return word(self.constants[args[0]]) if args[0] in self.constants else z3.BitVec(args[0], WIDTH)
         if op == "const":
             return word(args[0])
+        if op in ("address", "selfbalance", "balance"):
+            if len(args) != (1 if op == "balance" else 0):
+                raise Unsupported(f"unmodeled environment operation arity: {op}/{len(args)}")
+            address, balances = self.snapshot()
+            if op == "address":
+                return z3.ZeroExt(WIDTH - 160, address)
+            key = z3.Extract(159, 0, self.eval(args[0])) if op == "balance" else address
+            return z3.Select(balances, key)
         return self.apply(op, tuple(self.eval(a) for a in args))
 
     @staticmethod
@@ -144,8 +178,15 @@ class Model:
             case "byte", (index, value):
                 return z3.If(z3.ULT(index, word(32)), z3.LShR(value, (31 - index) * 8) & 255, word(0))
             case "signextend", (index, value):
-                shift = 248 - index * 8
-                return z3.If(z3.ULT(index, word(31)), (value << shift) >> shift, value)
+                # Select the signed byte width directly. Constant extracts avoid
+                # two variable barrel shifts while retaining every 256-bit index.
+                # Indices >= 31 are the identity, including arbitrarily large ones.
+                result = value
+                for byte in reversed(range(31)):
+                    bits = 8 * (byte + 1)
+                    result = z3.If(index == word(byte),
+                                   z3.SignExt(WIDTH - bits, z3.Extract(bits - 1, 0, value)), result)
+                return result
             case "clz", (value,):
                 result = word(WIDTH)
                 for bit in range(WIDTH):
@@ -154,13 +195,20 @@ class Model:
         raise Unsupported(f"unmodeled operation or arity: {op}/{len(args)}")
 
 
-def concrete(expr, values):
+def concrete(expr, values, environment=None):
     """Independent integer evaluator used to replay solver counterexamples."""
     if expr.op == "var":
         return values[expr.args[0]] & MASK
     if expr.op == "const":
         return expr.args[0]
-    args = tuple(concrete(a, values) for a in expr.args)
+    args = tuple(concrete(a, values, environment) for a in expr.args)
+    if expr.op in ("address", "selfbalance", "balance"):
+        if environment is None or len(args) != (1 if expr.op == "balance" else 0):
+            raise Unsupported("environment operation requires a snapshot and correct arity")
+        if expr.op == "address":
+            return environment["address"]
+        address = (args[0] if expr.op == "balance" else environment["address"]) & ((1 << 160) - 1)
+        return environment["balances"].get(address, 0)
     match expr.op, args:
         case "add", (a, b): result = a + b
         case "sub", (a, b): result = a - b
@@ -201,7 +249,7 @@ def concrete(expr, values):
 
 
 def portable_query(solver):
-    """Serialize QF_BV with legal, distinct names for every free constant.
+    """Serialize word queries with legal, distinct names for every free constant.
 
     Z3 accepts quoted names beginning with @ or ., which SMT-LIB reserves.
     Alpha-renaming also handles overloaded names of different sorts. Keep the
@@ -209,6 +257,7 @@ def portable_query(solver):
     """
     assertions = solver.assertions()
     pending, seen, variables = list(assertions), set(), []
+    has_arrays = False
     while pending:
         term = pending.pop()
         if term.get_id() in seen:
@@ -216,6 +265,10 @@ def portable_query(solver):
         seen.add(term.get_id())
         if not z3.is_app(term):
             raise Unsupported("portable word queries must be quantifier-free")
+        if term.sort().kind() == z3.Z3_ARRAY_SORT:
+            if term.sort().domain() != z3.BitVecSort(160) or term.sort().range() != z3.BitVecSort(WIDTH):
+                raise Unsupported("only 160-bit-address to 256-bit-balance arrays are supported")
+            has_arrays = True
         if term.decl().kind() == z3.Z3_OP_UNINTERPRETED:
             if not z3.is_const(term):
                 raise Unsupported("portable word queries cannot contain uninterpreted functions")
@@ -225,15 +278,16 @@ def portable_query(solver):
     bindings = []
     comments = []
     for index, variable in enumerate(variables):
-        if variable.sort().kind() not in (z3.Z3_BOOL_SORT, z3.Z3_BV_SORT):
-            raise Unsupported("portable word queries require Boolean or bitvector constants")
+        if variable.sort().kind() not in (z3.Z3_BOOL_SORT, z3.Z3_BV_SORT, z3.Z3_ARRAY_SORT):
+            raise Unsupported("portable word queries require Boolean, bitvector or balance-array constants")
         name = f"solar_query_{index}"
         bindings.append((variable, z3.Const(name, variable.sort())))
         comments.append(f"; {name} = {json.dumps(str(variable.decl().name()))} : {variable.sort().sexpr()}")
-    portable = z3.SolverFor("QF_BV")
+    logic = "QF_ABV" if has_arrays else "QF_BV"
+    portable = z3.SolverFor(logic)
     portable.add(*(z3.substitute(assertion, *bindings) if bindings else assertion
                    for assertion in assertions))
-    return "(set-logic QF_BV)\n" + "\n".join(comments) + "\n" + portable.to_smt2()
+    return f"(set-logic {logic})\n" + "\n".join(comments) + "\n" + portable.to_smt2()
 
 
 def guarded_constants(assumptions):
@@ -268,7 +322,7 @@ def check(lhs, rhs, assumptions=(), timeout_ms=5000, model=None):
         model = Model(constants)
         left, right = model.eval(lhs), model.eval(rhs)
     details = {"constant_specializations": {k: hex(v) for k, v in sorted(model.constants.items())}} if model.constants else {}
-    solver = z3.SolverFor("QF_BV")
+    solver = model.solver()
     solver.set(timeout=timeout_ms)
     solver.add(*assumptions)
     applicability = solver.check()
@@ -287,25 +341,66 @@ def check(lhs, rhs, assumptions=(), timeout_ms=5000, model=None):
         return {"status": "proved", **details}, query
     if result == z3.unknown:
         return {"status": "unknown", "reason": solver.reason_unknown(), **details}, query
-    witness = solver.model()
+    return replay_counterexample(lhs, rhs, model, solver.model()), query
+
+
+def replay_counterexample(lhs, rhs, model, witness):
+    """Check a solver witness against complete words in the independent evaluator."""
+    details = {"constant_specializations": {k: hex(v) for k, v in sorted(model.constants.items())}} if model.constants else {}
     if model.constants and not z3.is_true(witness.eval(model.constant_condition(), model_completion=True)):
-        return {"status": "unsupported", "reason": "constant specialization is not implied by the guards", **details}, query
+        return {"status": "unsupported", "reason": "constant specialization is not implied by the guards", **details}
     values = {name: witness.eval(z3.BitVec(name, WIDTH), model_completion=True).as_long()
               for name in sorted(lhs.variables() | rhs.variables())}
-    actual = (concrete(lhs, values), concrete(rhs, values))
-    expected = tuple(witness.eval(x, model_completion=True).as_long() for x in (left, right))
+    environment = model.environment_witness(witness)
+    actual = (concrete(lhs, values, environment), concrete(rhs, values, environment))
+    expected = tuple(witness.eval(model.eval(x), model_completion=True).as_long() for x in (lhs, rhs))
     if actual != expected or actual[0] == actual[1]:
         raise RuntimeError("SMT/concrete semantics disagree on a counterexample")
+    if environment is not None:
+        details["environment"] = {"address": hex(environment["address"]),
+                                  "balances": {hex(k): hex(v) for k, v in environment["balances"].items()}}
     return {"status": "counterexample", "inputs": {k: hex(v) for k, v in values.items()},
-            "lhs_value": hex(actual[0]), "rhs_value": hex(actual[1]), "replayed": True, **details}, query
+            "lhs_value": hex(actual[0]), "rhs_value": hex(actual[1]), "replayed": True, **details}
+
+
+def partition_bits(lhs, rhs, assumptions, timeout_ms, model):
+    """Prove all 256 output bits separately, leaving every input fully symbolic.
+
+    Called only after applicability was SAT. Word equality is exactly the
+    conjunction of equality at each bit; unlike input-index partitions, no
+    coverage query or range assumption is needed. Every bit must be UNSAT
+    within one shared budget. Each query also retains the guards and constant
+    specialization obligation. A partial prefix never proves word equality.
+    """
+    deadline = time.monotonic() + timeout_ms / 1000
+    left, right = model.eval(lhs), model.eval(rhs)
+    queries = []
+    for bit in range(WIDTH):
+        remaining = int((deadline - time.monotonic()) * 1000)
+        if remaining <= 0:
+            return {"status": "unknown", "reason": "output bit partition budget exhausted"}, queries
+        solver = model.solver()
+        solver.set(timeout=remaining)
+        solver.add(*assumptions, model.difference(z3.Extract(bit, bit, left), z3.Extract(bit, bit, right)))
+        queries.append((f"bit-{bit}", portable_query(solver)))
+        result = solver.check()
+        if result == z3.sat:
+            return replay_counterexample(lhs, rhs, model, solver.model()), queries
+        if result != z3.unsat:
+            return {"status": "unknown", "reason": solver.reason_unknown()}, queries
+    return {"status": "proved", "proof_method": "exhaustive-output-bit-partition", "bits": WIDTH}, queries
 
 
 def partition_shift(lhs, rhs, assumptions, timeout_ms, model):
-    """Exhaust a single symbolic shift count or SIGNEXTEND index.
+    """Exhaust one symbolic shift count or SIGNEXTEND index.
 
     Shifts split at 256 and SIGNEXTEND at 31, where it becomes the identity.
     If an index serves both operations, use the larger boundary. The final
     case retains the symbolic index and covers its entire remaining range.
+    Counts in guards are candidates too, including a power-of-two divisor's
+    exponent. With several candidates, partition the smallest domain first
+    and leave every other input symbolic; no Cartesian enumeration is needed
+    for soundness, though an individual case can still time out.
 
     Called after applicability was SAT, either when the unsplit equality timed
     out or when exhaustive partitions were requested for cross-solver replay.
@@ -326,24 +421,37 @@ def partition_shift(lhs, rhs, assumptions, timeout_ms, model):
 
     visit(lhs)
     visit(rhs)
-    if len(indices) != 1:
-        return {"status": "unknown", "reason": "no single symbolic word index partition"}, []
-    variable, boundary = next(iter(indices.items()))
+    pending, seen = list(assumptions), set()
+    while pending:
+        term = pending.pop()
+        if term.get_id() in seen:
+            continue
+        seen.add(term.get_id())
+        if z3.is_app(term) and term.decl().kind() in (z3.Z3_OP_BSHL, z3.Z3_OP_BLSHR, z3.Z3_OP_BASHR):
+            amount = term.arg(1)
+            if (z3.is_const(amount) and amount.decl().kind() == z3.Z3_OP_UNINTERPRETED
+                    and z3.is_bv(amount) and amount.size() == WIDTH):
+                indices[Expr.var(str(amount.decl().name()))] = WIDTH
+        pending.extend(term.children())
+    if not indices:
+        return {"status": "unknown", "reason": "no symbolic word index partition"}, []
+    variable, boundary = min(indices.items(), key=lambda item: (item[1], item[0].args[0]))
     shift = z3.BitVec(variable.args[0], WIDTH)
     conditions = [shift == word(i) for i in range(boundary)] + [z3.UGE(shift, word(boundary))]
     deadline = time.monotonic() + timeout_ms / 1000
+    left, right = model.eval(lhs), model.eval(rhs)
     queries = []
     for index in range(-1, len(conditions)):
         remaining = int((deadline - time.monotonic()) * 1000)
         if remaining <= 0:
             return {"status": "unknown", "reason": "word index partition budget exhausted"}, queries
-        solver = z3.SolverFor("QF_BV")
+        solver = model.solver()
         solver.set(timeout=remaining)
         if index == -1:
             solver.add(z3.Not(z3.Or(conditions)))
         else:
             obligation = z3.And(*assumptions, conditions[index],
-                                model.difference(model.eval(lhs), model.eval(rhs)))
+                                model.difference(left, right))
             if index < boundary:
                 obligation = z3.substitute(obligation, (shift, word(index)))
             # Export the substituted obligation before solver simplification so
