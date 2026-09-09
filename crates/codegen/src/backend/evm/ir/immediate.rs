@@ -91,7 +91,16 @@ pub(super) fn materialize(version: EvmVersion, value: U256) -> Vec<Instruction> 
 
 /// Returns the default two-word construction cost without allocating instructions.
 pub(super) fn materialization_cost(version: EvmVersion, value: U256) -> (usize, usize) {
-    plan(version, value, 2).cost
+    materialization_cost_bounded(version, value, 2)
+}
+
+/// Returns a bounded construction cost without allocating instructions.
+pub(super) fn materialization_cost_bounded(
+    version: EvmVersion,
+    value: U256,
+    max_extra: usize,
+) -> (usize, usize) {
+    plan(version, value, max_extra).cost
 }
 
 /// Builds a literal without using more temporary words than the caller proved available.

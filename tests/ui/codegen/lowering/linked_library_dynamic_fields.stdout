@@ -963,9 +963,8 @@ bb22:
   dup 4
   swap 1
   shl
+  dup 1
   push 5
-  dup 2
-  swap 1
   shr
   dup 5
   eq

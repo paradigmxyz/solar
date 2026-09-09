@@ -334,6 +334,15 @@ pub(crate) fn scheduling_cost(
     local::scheduling_cost(version, instructions)
 }
 
+/// Requires conservative improvement and nonincrease with bounded literal constructions.
+pub(crate) fn scheduling_literal_costs_fit(
+    version: solar_config::EvmVersion,
+    original: &[Instruction],
+    candidate: &[Instruction],
+) -> bool {
+    local::scheduling_literal_costs_fit(version, original, candidate)
+}
+
 /// Validates final layout and indexed-lowering encoding stack peaks.
 pub(crate) fn validate_encoding(
     gcx: Gcx<'_>,

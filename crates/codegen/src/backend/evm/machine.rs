@@ -36,6 +36,7 @@ mod call_reserve;
 mod debug;
 mod entry_order;
 mod initialization;
+mod operand_preparation;
 mod phi;
 mod rematerialize;
 mod writer;
@@ -1287,6 +1288,14 @@ fn lower_opcode(
             // <reverse materialization>; <canonical retained order>; <reverse pop order>
             prepare(context, stack, insts, &operands, live)?;
         }
+    } else if matches!(operand_order, entry_order::OperandOrder::ResidentOperands)
+        && operands.len() >= 2
+        && saved.tracked == 0
+        && saved.addresses.is_empty()
+        && saved.protection.is_none()
+    {
+        // <canonical retained values>; <resident operands>; <literal operands>
+        operand_preparation::prepare(context, stack, insts, &operands, live)?;
     } else {
         prepare(context, stack, insts, &operands, live)?;
     }

@@ -17,6 +17,15 @@
 //! Earlier Size cleanup retains the common arithmetic shape for sharing. Raw
 //! JUMPDESTs are alternate entries: stack identities and height proofs stop
 //! there even when the textual block continues.
+//!
+//! Scheduling estimates normally disable literal-copy permission. The final resident-operand
+//! trial compares conservative, literal-aware and finally oriented query copies, retaining strict
+//! conservative improvement and nonincreasing later estimates. Each state also prices literal
+//! constructions within its relative peak using the existing allocation-free planner. Absolute
+//! entry facts, adjacent complement reuse and literal caching are not modeled. Orientation and
+//! construction queries do not simulate their complete executable pass order. These estimates
+//! never grant a module permission or change the established scheduling and outlining costs;
+//! complete generated-code measurements remain necessary.
 
 use super::{EvmPass, InstKind, Instruction, Module, immediate, verify};
 use crate::backend::evm::op;
@@ -112,10 +121,7 @@ impl EvmPass for LocalPass {
                         if let InstKind::Push(value) = inst.kind
                             && canonical(&inst)
                         {
-                            let budget = height
-                                .map(|height| 1024usize.saturating_sub(height))
-                                .or_else(|| usize::try_from(peak? - relative_height?).ok())
-                                .unwrap_or(1);
+                            let budget = literal_budget(height, peak, relative_height);
                             let mut replacement =
                                 immediate::materialize_bounded(version, value, budget);
                             if literal_copy_order
@@ -372,12 +378,97 @@ pub(super) fn simplify_schedule(
     version: solar_config::EvmVersion,
     input: &[Instruction],
 ) -> Vec<Instruction> {
-    // <physical sequence> -> <equivalent locally simplified sequence>
     let mut trial = input.to_vec();
-    peephole(&mut trial, version, None, false, false);
-    dead_copies::eliminate(&mut trial, version);
-    dedup_stack(&mut trial, version);
-    peephole(&mut trial, version, None, false, false);
-    normalize(&mut trial, version, None, false);
+    simplify_schedule_in_place(version, &mut trial, false);
     trial
+}
+
+/// Requires strict conservative improvement and nonincrease in later literal estimates.
+/// Bounded constructions use relative capacity, without pricing adjacent reuse or caching.
+pub(super) fn scheduling_literal_costs_fit(
+    version: solar_config::EvmVersion,
+    original: &[Instruction],
+    candidate: &[Instruction],
+) -> bool {
+    let mut old = Vec::with_capacity(original.len());
+    let mut new = Vec::with_capacity(candidate.len());
+    for (literal_copy_order, orient) in [(false, false), (true, false), (true, true)] {
+        if orient {
+            // <literal-aware query bodies> -> <finally oriented query bodies>
+            orientation::orient(&mut old);
+            orientation::orient(&mut new);
+        } else {
+            // <original query bodies> -> <locally simplified query bodies>
+            old.clear();
+            old.extend_from_slice(original);
+            new.clear();
+            new.extend_from_slice(candidate);
+            simplify_schedule_in_place(version, &mut old, literal_copy_order);
+            simplify_schedule_in_place(version, &mut new, literal_copy_order);
+        }
+        let old_cost = immediate::cost(version, &old);
+        let new_cost = immediate::cost(version, &new);
+        if new_cost.0 > old_cost.0
+            || new_cost.1 > old_cost.1
+            || (!literal_copy_order && new_cost == old_cost)
+        {
+            return false;
+        }
+        let (Some(old_cost), Some(new_cost)) =
+            (bounded_scheduling_cost(version, &old), bounded_scheduling_cost(version, &new))
+        else {
+            return false;
+        };
+        if new_cost.0 > old_cost.0 || new_cost.1 > old_cost.1 {
+            return false;
+        }
+    }
+    true
+}
+
+fn simplify_schedule_in_place(
+    version: solar_config::EvmVersion,
+    trial: &mut Vec<Instruction>,
+    literal_copy_order: bool,
+) {
+    // <physical sequence> -> <equivalent locally simplified sequence>
+    peephole(trial, version, None, literal_copy_order, false);
+    dead_copies::eliminate(trial, version);
+    dedup_stack(trial, version);
+    peephole(trial, version, None, literal_copy_order, false);
+    normalize(trial, version, None, literal_copy_order);
+}
+
+fn literal_budget(height: Option<usize>, peak: Option<i64>, relative_height: Option<i64>) -> usize {
+    height
+        .map(|height| 1024usize.saturating_sub(height))
+        .or_else(|| usize::try_from(peak? - relative_height?).ok())
+        .unwrap_or(1)
+}
+
+fn bounded_scheduling_cost(
+    version: solar_config::EvmVersion,
+    input: &[Instruction],
+) -> Option<(usize, usize)> {
+    let (_, _, peak) = stack_usage(input)?;
+    let mut height = 0i64;
+    let mut cost = (0, 0);
+    for inst in input {
+        let next = if let InstKind::Push(value) = inst.kind
+            && canonical(inst)
+        {
+            immediate::materialization_cost_bounded(
+                version,
+                value,
+                literal_budget(None, Some(peak), Some(height)),
+            )
+        } else {
+            immediate::cost(version, std::slice::from_ref(inst))
+        };
+        cost.0 += next.0;
+        cost.1 += next.1;
+        let (inputs, outputs) = verify::effect(&inst.kind).or(inst.stack_effect)?;
+        height = height.checked_sub(i64::from(inputs))?.checked_add(i64::from(outputs))?;
+    }
+    Some(cost)
 }

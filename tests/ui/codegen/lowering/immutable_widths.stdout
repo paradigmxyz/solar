@@ -5,11 +5,11 @@ bb0:
   push 384
   push 64
   mstore
-  push 460
+  push 451
   codesize
   sub
   dup 1
-  push 460
+  push 451
   push 384
   codecopy
   push 415
@@ -35,7 +35,7 @@ bb0:
   jumpi bb3, bb2
 bb2:
   push 384
-  push 460
+  push 451
   codesize
   sub
   dup 2
@@ -56,9 +56,8 @@ bb5:
   dup 2
   add
   mload
+  dup 1
   push 1
-  dup 2
-  swap 1
   signextend
   eq
   jumpi bb6, bb3
@@ -99,34 +98,28 @@ bb9:
   swap 5
   swap 6
   mstore
+  swap 1
+  swap 2
+  swap 3
+  swap 4
   push 224
-  swap 5
+  mstore
   swap 1
   swap 2
   swap 3
-  swap 4
-  swap 5
-  mstore
   push 256
-  swap 4
+  mstore
   swap 1
   swap 2
-  swap 3
-  swap 4
-  mstore
   push 288
-  swap 2
-  swap 3
-  swap 1
-  swap 2
   mstore
+  swap 1
   push 320
-  exchange 1, 2
   mstore
   push 352
   mstore
   push 189
-  push 271
+  push 262
   push 384
   codecopy
   push 192

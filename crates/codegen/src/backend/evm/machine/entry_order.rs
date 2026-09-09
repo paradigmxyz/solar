@@ -16,13 +16,24 @@
 //! still require complete generated-code measurements. Operand trials run only
 //! for gas optimization; size mode keeps canonical bodies for existing outlining.
 //! The original unary, multi-operand, argument-carry, and entry-order choices run
-//! before the final materialized-operand trial. A chosen entry order returns
+//! before the materialized-operand trial. A chosen entry order returns
 //! immediately, conservatively retaining its incoming boundary and successor
 //! stack even when its prefix happens to match. Otherwise materialization must
 //! preserve the complete old winner's leading stack-only prefix. The older
 //! operand trials still compare their prefix with the original. These guards
 //! preserve demonstrated predecessor cancellation, but do not guarantee every
 //! later CFG/layout interaction.
+//!
+//! A final resident-operand trial prepares present values before absent scalar literals. It
+//! preserves the complete established winner, including materialization, and uses the same paid
+//! exit, prefix and cost checks. Its opcode helper preserves the leading stack-only prefix and
+//! emits directly without nested local trials. One bounded scan preflights both materialization
+//! modes; missing nonliteral values and interleaved literal/resident operands stay canonical.
+//! The resident trial first requires strict conservative improvement, then prices literal-copy
+//! rules and final orientation without repeating the conservative normalization. Each state also
+//! prices bounded literal constructions using the available relative peak at each PUSH. These
+//! estimates must not grow in gas or bytes; they do not infer module permissions, price every
+//! later literal reuse/cache rule, or replace complete generated-code measurements.
 //!
 //! One additional Gas candidate materializes a repeated immutable argument once
 //! across two direct binary instructions. It requires an empty entry and an exact
@@ -45,12 +56,13 @@ pub(super) enum OperandOrder {
     DeadUnary,
     DeadOperands,
     MaterializedOperands,
+    ResidentOperands,
 }
 
 impl OperandOrder {
     pub(super) fn allows(self, arity: usize) -> bool {
         match self {
-            Self::Canonical => false,
+            Self::Canonical | Self::ResidentOperands => false,
             Self::DeadUnary => arity == 1,
             Self::DeadOperands | Self::MaterializedOperands => arity > 0,
         }
@@ -96,7 +108,7 @@ fn choose_entry(
     finish(context, &mut stack, &mut insts, &desired)?;
     let mut original = original_insts.to_vec();
     finish(context, &mut original_stack.clone(), &mut original, &desired)?;
-    improves(context, &original, &insts).then_some((stack, insts))
+    improves(context, &original, &insts, false).then_some((stack, insts))
 }
 
 pub(super) fn choose(
@@ -142,11 +154,13 @@ pub(super) fn choose(
     }
     let mut best = original_insts.to_vec();
     let consider = |order, best: &mut Vec<ir::Instruction>| {
-        let boundary = if matches!(order, OperandOrder::MaterializedOperands) {
-            best.as_slice()
-        } else {
-            original_insts
-        };
+        let boundary =
+            if matches!(order, OperandOrder::MaterializedOperands | OperandOrder::ResidentOperands)
+            {
+                best.as_slice()
+            } else {
+                original_insts
+            };
         let mut stack = Stack::new(context.layout.entries[block_id].clone());
         let mut insts = Vec::new();
         // <same prepared operands>; <same opcodes>; <paid exact original exit order>
@@ -154,7 +168,7 @@ pub(super) fn choose(
             && finish(context, &mut stack, &mut insts, original_stack.values()).is_some()
             && stack_prefix(boundary) == stack_prefix(&insts)
             && insts != *best
-            && improves(context, best, &insts)
+            && improves(context, best, &insts, matches!(order, OperandOrder::ResidentOperands))
         {
             *best = insts;
         }
@@ -163,7 +177,7 @@ pub(super) fn choose(
         consider(order, &mut best);
     }
     if let Some(candidate) = carry_argument(context, block_id, original_stack, original_insts)
-        && improves(context, &best, &candidate)
+        && improves(context, &best, &candidate, false)
     {
         best = candidate;
     }
@@ -172,14 +186,28 @@ pub(super) fn choose(
     }
     // Missing unary operands become shallow and retain canonical preparation.
     // Without a loadable multi-operand input, this repeats the DeadOperands body.
-    if context.function.blocks[block_id].instructions.iter().any(|&id| {
+    let mut materialized = false;
+    let mut residents = false;
+    for &id in &context.function.blocks[block_id].instructions {
         let kind = &context.function.inst(id).kind;
         let operands = kind.operands();
-        kind.evm_opcode().is_some()
-            && operands.len() > 1
-            && operands.iter().any(|&value| !super::resident(context, value))
-    }) {
+        if kind.evm_opcode().is_some() && operands.len() > 1 {
+            materialized =
+                materialized || operands.iter().any(|&value| !super::resident(context, value));
+            residents = residents
+                || (matches!(context.function.value(operands[0]), mir::Value::Immediate(value)
+                    if value.as_u256().is_some())
+                    && operands[1..].iter().any(|&value| super::resident(context, value)));
+            if materialized && residents {
+                break;
+            }
+        }
+    }
+    if materialized {
         consider(OperandOrder::MaterializedOperands, &mut best);
+    }
+    if residents {
+        consider(OperandOrder::ResidentOperands, &mut best);
     }
     (best != original_insts).then(|| (original_stack.clone(), best))
 }
@@ -301,11 +329,15 @@ fn improves(
     context: &Context<'_>,
     original: &[ir::Instruction],
     candidate: &[ir::Instruction],
+    price_literals: bool,
 ) -> bool {
     let Some(old) = ir::scheduling_usage(original) else { return false };
     let Some(new) = ir::scheduling_usage(candidate) else { return false };
     if new.0 > old.0 || new.1 != old.1 || new.2 > old.2 {
         return false;
+    }
+    if price_literals {
+        return ir::scheduling_literal_costs_fit(context.version, original, candidate);
     }
     let old = ir::scheduling_cost(context.version, original);
     let new = ir::scheduling_cost(context.version, candidate);

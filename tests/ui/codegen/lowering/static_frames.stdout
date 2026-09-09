@@ -64,9 +64,8 @@ bb40:
   dup 2
   swap 1
   shl
+  dup 1
   push 1
-  dup 2
-  swap 1
   shr
   exchange 1, 2
   eq
@@ -184,13 +183,11 @@ bb84:
 bb21:
   push 0
   sstore
-  push 1
-  dup 3
-  swap 1
-  shl
-  push 1
   dup 2
-  swap 1
+  push 1
+  shl
+  dup 1
+  push 1
   shr
   swap 2
   swap 3

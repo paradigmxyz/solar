@@ -59,7 +59,7 @@ fn matched_opcode(insts: &[Instruction]) -> Option<u8> {
     }
 }
 
-fn orient(insts: &mut Vec<Instruction>) -> bool {
+pub(super) fn orient(insts: &mut Vec<Instruction>) -> bool {
     let mut read = 0;
     let mut write = 0;
     while read < insts.len() {

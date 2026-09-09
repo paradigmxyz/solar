@@ -13,7 +13,9 @@
 //! net height, peak and cost checks must also improve the existing incumbent.
 //! No observed value, effect or control instruction is crossed. Literal sinking
 //! additionally requires the caller's module-wide permission for new code/gas
-//! changes; context-free schedule costing leaves this extension disabled.
+//! changes; ordinary schedule costing leaves this extension disabled. The final
+//! resident trial also prices query-only copies with it enabled, without granting
+//! that permission to the executable module.
 //! Reordering moves a literal across only
 //! a self-contained pure expression to remove its final swap. Unknown effects
 //! and noncanonical metadata bound each local analysis; no CFG edge is crossed.
