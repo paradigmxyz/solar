@@ -13,7 +13,8 @@
 //! Arguments ride along: the backend stores them at the callee's compile-time
 //! frame addresses and jumps, pushing no return address. That addressing only
 //! exists for callees the backend gives a static frame (bodied, selectorless,
-//! non-recursive), so calls to any other callee are left as ordinary calls.
+//! non-recursive). Constructor-reachable calls also keep ordinary frames, even
+//! without arguments: callee locals and spills still need a frame base.
 //! Returnability follows explicit returns and tail-call chains conservatively;
 //! unreachable returns can prevent a proof until CFG cleanup removes them. A
 //! caller worklist propagates newly proven nonreturning bodies after cleanup;
@@ -92,10 +93,8 @@ fn lower_evm_shaped(module: &mut Module) -> bool {
             }
         }
 
-        // The deployment path emits constructor-reachable bodies without static
-        // frames, so an argument-carrying tail call has no compile-time
-        // argument addresses there. Keep those calls ordinary; argument-less
-        // rewrites need no frame addressing and stay valid on both paths.
+        // Deployment emits these bodies with dynamic frames. Even argumentless
+        // callees need the ordinary call to establish a base for locals and spills.
         let mut constructor_reachable = call_graph.reachable_callees_from(
             module
                 .functions
@@ -159,9 +158,7 @@ fn lower_evm_shaped(module: &mut Module) -> bool {
                 let inst = func.inst(insts[position]);
                 let metadata = inst.metadata.debug_context();
                 let InstKind::ICall { args, .. } = &inst.kind else { unreachable!() };
-                if tail_callable.contains(function)
-                    && (args.is_empty() || !constructor_reachable.contains(func_id))
-                {
+                if tail_callable.contains(function) && !constructor_reachable.contains(func_id) {
                     // result = icall callee, args -> tail_call callee, args
                     let terminator =
                         Terminator::TailCall { function, args: args.iter().copied().collect() };

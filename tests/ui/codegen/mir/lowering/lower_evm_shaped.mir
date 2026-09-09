@@ -194,16 +194,30 @@ fn @recursive_fail(arg0: u256) -> u256 {
     revert 0, 0 !metadata(span=90..100)
 }
 
-// Constructor calls with arguments cannot use static frame tail jumps.
+// Constructor calls need dynamic frames even without arguments.
 // CHECK-LABEL: {{^[ +].*}}fn @constructor{{[( ]}}
 // CHECK: {{^[ +].*}}= icall @constructor_helper, 23
 // CHECK: - sstore 0,
 // CHECK: + invalid
+// CHECK: {{^[ +].*}}= icall @constructor_no_args
+// CHECK: + invalid
 fn @constructor() [abi_wrapper] {
   bb0:
-    v0 = icall @constructor_helper, 23
-    sstore 0, v0
+    v0 = callvalue
+    jumpi v0, bb2, bb1
+  bb1:
+    v1 = icall @constructor_helper, 23
+    sstore 0, v1
     ret
+  bb2:
+    v2 = icall @constructor_no_args
+    sstore 0, v2
+    ret
+}
+
+fn @constructor_no_args() -> u256 {
+  bb0:
+    revert 0, 0
 }
 
 // Constructor reachability also applies through newly nonreturning helpers.

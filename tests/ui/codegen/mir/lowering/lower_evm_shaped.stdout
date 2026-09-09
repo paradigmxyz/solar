@@ -170,10 +170,23 @@
   
   fn @constructor() [abi_wrapper, constructor] {
     bb0:
-      v0 = icall @constructor_helper, 23
--     sstore 0, v0
+      v0 = callvalue
+      jumpi v0, bb2, bb1
+    bb1:
+      v1 = icall @constructor_helper, 23
+-     sstore 0, v1
 -     ret
 +     invalid
+    bb2:
+      v2 = icall @constructor_no_args
+-     sstore 0, v2
+-     ret
++     invalid
+  }
+  
+  fn @constructor_no_args() -> u256 {
+    bb0:
+      revert 0, 0
   }
   
   fn @constructor_helper(arg0: u256) -> u256 {

@@ -21,6 +21,7 @@ data:
   TryTarget_initcode_0: hex"34600d5760558060115f395ff35b5f5ffd34601a575f3560e01c80632605fe9814601657601a565b601e565b5f5ffd5b60243610156046576042565b60043515603a576001603c576040565b005b5f5ffd5bfe5b5f5ffd5b6004356002901015604257602a56"
   StopsInConstructor_initcode_1: hex"60c060405234600a57005b5f5ffd60308060175f395ff334601a575f3560e01c8063e735afb214601657601a565b601e565b5f5ffd5b60016080526020608001608090036080f3"
   RevertsInConstructor_initcode_2: hex"60b238038060b260c03960c001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0166040526046565b60a051604001515f5260205ffd5b3460a25760c060c060b23803016020820191508111905015609e57609a565b60405160a051816020015260c05181604001528060a05260800160405260886038565b60a05160405260a0516020015160a052fe5b5f5ffd5b6065565b5f5ffd60038060af5f395ff35f5ffd"
+  RevertsWithoutArgs_initcode_3: hex"60c060405260d4565b600b43018060a051606001528060a05160600152438110156076576064565b43600b018060a051606001525f52426016018060a05160800152602052466021018060a05160a0015260405260605ffd5b6001156062575f5ffd5bfe5b634e487b715f5260116020526024601cfd5b601642018060a051608001528060a05160800152428110606457602146018060a05160a001528060a05160a001524681106064575a5f90118360a051606001528260a051608001528160a05160a00152905090509050156058576027565b346101065760405160a05181602001528060a05260c00160405260f46008565b60a05160405260a0516020015160a052fe5b5f5ffd6003806101145f395ff35f5ffd"
 
 fn @constructor() [constructor] {
   bb0:
@@ -198,6 +199,50 @@ fn @constructorFailure(arg0: u256) -> address [selector=0x61e5bcd1, abi_params=[
     ret v6
 }
 
+fn @constructorWithoutArgs() -> bool [selector=0x1f01d869, abi_params=[], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 310, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy RevertsWithoutArgs_initcode_3, v3, 279
+    v4 = slice_ptr v0
+    v5 = add v3, 279
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 279
+    v7 = eq v6, 0
+    v8 = iszero v7
+    jumpi v8, bb1, bb2
+  bb2:
+    v9 = returndata_bytes
+    v10 = memory_object_data memorybytes, v9
+    v11 = memory_object_len memorybytes, v9
+    v12 = make_memory_slice v10, v11
+    v13 = memory_slice_load_word memory, v12, 0
+    v14 = shr 224, v13
+    jumpi true, bb4, bb5
+  bb5:
+    revert v10, v11
+  bb4:
+    v15 = keccak256_bytes v9
+    v16 = number
+    v17 = checked_add u256, v16, 11
+    v18 = timestamp
+    v19 = checked_add u256, v18, 22
+    v20 = chainid
+    v21 = checked_add u256, v20, 33
+    v22 = abi_encode [word, word, word], scratch, args v17, v19, v21
+    v23 = slice_ptr v22
+    v24 = slice_len v22
+    v25 = keccak256 v23, v24
+    v26 = eq v15, v25
+    ret v26
+  bb1:
+    ret false
+  bb3:
+    ret 0
+}
+
 fn @maybeFailure(arg0: bool) -> u256 [selector=0x5f6d6eda, pure, abi_params=[bool], abi_returns=[word]] {
   bb0:
     v0 = icall @maybeFail, arg0
@@ -223,14 +268,14 @@ fn @breakSkipsTail() -> u256 [selector=0xa299c6cb, pure, abi_params=[], abi_retu
   bb1:
     v0 = phi [bb0: 0]
     v1 = phi [bb0: 0]
-    v2 = lt v0, 1
+    v2 = lt v1, 1
     jumpi v2, bb4, bb5
   bb5:
     jump bb2
   bb4:
     jump bb2
   bb2:
-    ret v1
+    ret v0
   bb3:
     invalid
   bb6:
@@ -241,18 +286,18 @@ fn @continueSkipsTail() -> u256 [selector=0xc45ef923, pure, abi_params=[], abi_r
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb3: v0]
-    v1 = phi [bb0: 0], [bb3: v3]
-    v2 = lt v1, 1
+    v0 = phi [bb0: 0], [bb3: v3]
+    v1 = phi [bb0: 0], [bb3: v1]
+    v2 = lt v0, 1
     jumpi v2, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v0
+    ret v1
   bb4:
     jump bb3
   bb3:
-    v3 = checked_add u256, v1, 1
+    v3 = checked_add u256, v0, 1
     jump bb1
   bb6:
     invalid
@@ -283,4 +328,36 @@ fn @fail(arg0: u256) -> u256 [pure] {
   bb0:
     mstore 0, arg0 !metadata(memory=scratch)
     revert 0, 32
+}
+
+// === ROOT/tests/ui/codegen/lowering/terminated_control_flow.sol:RevertsWithoutArgs ===
+@module RevertsWithoutArgs
+fn @constructor() [constructor] {
+  bb0:
+    v0 = icall @fail
+    sstore 0, v0 !metadata(storage=slot(0))
+    ret
+}
+
+fn @fail() -> u256 [view] {
+  bb0:
+    v0 = number
+    v1 = checked_add u256, v0, 11
+    v2 = timestamp
+    v3 = checked_add u256, v2, 22
+    v4 = chainid
+    v5 = checked_add u256, v4, 33
+    v6 = gas
+    v7 = gt v6, 0
+    jumpi v7, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    revert_if true, empty
+    invalid
+  bb1:
+    mstore 0, v1 !metadata(memory=scratch)
+    mstore 32, v3 !metadata(memory=scratch)
+    mstore 64, v5 !metadata(memory=scratch)
+    revert 0, 96
 }

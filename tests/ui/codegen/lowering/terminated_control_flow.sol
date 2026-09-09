@@ -11,6 +11,7 @@
 //@ run-call-fail: TerminatedControlFlow::recursiveFailure 3, 23 => 0x0000000000000000000000000000000000000000000000000000000000000017
 //@ run-call-fail: TerminatedControlFlow::constructorFailure 29 => 0x000000000000000000000000000000000000000000000000000000000000001d
 //@ run-call: TerminatedControlFlow::maybeFailure false => 7
+//@ run-call: TerminatedControlFlow::constructorWithoutArgs => true
 //@ run-call-fail: TerminatedControlFlow::maybeFailure true => 0x
 
 contract TryTarget {
@@ -83,6 +84,16 @@ contract TerminatedControlFlow {
         return address(new RevertsInConstructor(reason));
     }
 
+    function constructorWithoutArgs() external returns (bool) {
+        try new RevertsWithoutArgs() {
+            return false;
+        } catch (bytes memory reason) {
+            return keccak256(reason) == keccak256(abi.encode(
+                block.number + 11, block.timestamp + 22, block.chainid + 33
+            ));
+        }
+    }
+
     function maybeFailure(bool fail) external pure returns (uint256) {
         return maybeFail(fail) + 1;
     }
@@ -125,5 +136,27 @@ contract RevertsInConstructor {
 
     function fail(uint256 reason) internal pure returns (uint256) {
         assembly { mstore(0, reason) revert(0, 32) }
+    }
+}
+
+contract RevertsWithoutArgs {
+    constructor() {
+        uint256 result = fail();
+        assembly { sstore(0, result) }
+    }
+
+    function fail() internal view returns (uint256) {
+        uint256 a = block.number + 11;
+        uint256 b = block.timestamp + 22;
+        uint256 c = block.chainid + 33;
+        if (gasleft() > 0) {
+            assembly {
+                mstore(0, a)
+                mstore(32, b)
+                mstore(64, c)
+                revert(0, 96)
+            }
+        }
+        revert();
     }
 }

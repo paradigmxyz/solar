@@ -425,9 +425,10 @@ exempt. Call-to-tail-call conversion uses the same returnability facts, so it
 cannot discard a continuation after a returning tail-call chain. Calls to proven
 nonreturning bodies lose their dead continuation even when they produce a result.
 When frame rules prevent a tail jump, the call remains an ordinary `icall` followed
-by `invalid`. The function keeps its declared result type: it describes a normal
-return, not a promise to return. Slices as well as structs must be gone at the
-EVM-shaped boundary.
+by `invalid`. Constructor-reachable calls keep their dynamic frame even without
+arguments, since callee locals and spills still need a valid base. The function
+keeps its declared result type: it describes a normal return, not a promise to
+return. Slices as well as structs must be gone at the EVM-shaped boundary.
 
 LLVM calls the matching aggregate operations `insertvalue` and `extractvalue`.
 Its `insertelement` and `extractelement` operate on vectors, can take dynamic
