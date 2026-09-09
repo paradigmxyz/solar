@@ -6,6 +6,8 @@
 //! fresh continuation are checked one activation at a time, retaining suspended
 //! prefixes on return labels; their global height remains unknown. Entry bounds
 //! permit safe local temporary expansion only where an absolute bound is proved.
+//! Physically halting blocks without embedded jumps discard incoming label identities,
+//! preserving exact heights without tainting continuations they cannot resume.
 //! Unknown computed destinations invalidate absolute incoming bounds throughout
 //! the module: a known edge cannot exclude an additional dynamic entry prefix. At most sixteen
 //! distinct label states are retained per block and exact height; further states widen to unknown
@@ -254,6 +256,24 @@ fn stack_analysis(
         pending.push_back((entry, Vec::new(), false));
     }
     while let Some((id, mut stack, crossed_cycle)) = pending.pop_front() {
+        prototypes.entry(id).or_insert_with(|| stack.clone());
+        let block = &module.blocks[id];
+        if matches!(
+            block.terminator.kind,
+            TerminatorKind::Return
+                | TerminatorKind::Revert
+                | TerminatorKind::Stop
+                | TerminatorKind::Invalid
+                | TerminatorKind::SelfDestruct
+        ) && !block
+            .insts
+            .iter()
+            .any(|inst| matches!(inst.kind, InstKind::Op(op::JUMP | op::JUMPI)))
+        {
+            // [incoming labels]; <no embedded transfer>; halt
+            // [unknown words]; <same instructions and height>; halt
+            stack.fill(None);
+        }
         // A fixed height admits a bounded number of precise label contexts. Beyond
         // that, unknown labels subsume every context without changing the height.
         let contexts = states
@@ -274,7 +294,6 @@ fn stack_analysis(
             *contexts = None;
             stack.fill(None);
         }
-        prototypes.entry(id).or_insert_with(|| stack.clone());
         let entry = stack.len();
         match &mut bounds[id] {
             Some((min, max)) => {
@@ -283,7 +302,6 @@ fn stack_analysis(
             }
             bounds @ None => *bounds = Some((entry, entry)),
         }
-        let block = &module.blocks[id];
         for inst in &block.insts {
             let height = stack.len();
             match inst.kind {

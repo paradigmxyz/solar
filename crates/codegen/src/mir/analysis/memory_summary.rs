@@ -2,11 +2,13 @@
 //!
 //! Summaries are computed to a fixpoint over internal-call edges. Missing
 //! bodies stay fully conservative; recursive groups converge because every
-//! fact only moves from false to true.
+//! fact only moves from false to true. A separate memory-write fact covers paths
+//! that can resume a caller. It excludes abort-only writes without weakening
+//! the all-path effects used by alias analysis and frame planning.
 
 use super::{AddressSpace, AliasAnalysis};
 use crate::mir::{
-    ArgIdx, Function, FunctionId, InstId, InstKind, Module, Terminator, Value, ValueId,
+    ArgIdx, BlockId, Function, FunctionId, InstId, InstKind, Module, Terminator, Value, ValueId,
     memory::EvmMemoryLayout,
 };
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashSet};
@@ -19,6 +21,8 @@ pub(crate) struct FunctionMemorySummary {
     reads: u8,
     /// Written address spaces as a bit per [`space_index`].
     writes: u8,
+    /// Source-memory writes on paths that may resume an internal caller.
+    writes_memory_on_return: bool,
     may_reset_fmp: bool,
     /// Whether the function may move the free-memory pointer below its current value.
     may_recycle_fmp: bool,
@@ -39,6 +43,7 @@ impl FunctionMemorySummary {
         Self {
             reads: 0,
             writes: 0,
+            writes_memory_on_return: false,
             may_reset_fmp: false,
             may_recycle_fmp: false,
             may_observe_fmp: false,
@@ -52,6 +57,7 @@ impl FunctionMemorySummary {
         Self {
             reads: 0b1111,
             writes: 0b1111,
+            writes_memory_on_return: true,
             may_reset_fmp: true,
             may_recycle_fmp: true,
             may_observe_fmp: true,
@@ -71,6 +77,15 @@ impl FunctionMemorySummary {
     #[must_use]
     pub(crate) const fn writes(&self, space: AddressSpace) -> bool {
         self.writes & (1 << space_index(space)) != 0
+    }
+
+    /// Returns whether a path that may resume the caller can write source memory.
+    ///
+    /// Aborting paths can still write memory; alias and frame queries must use the
+    /// all-path effects. Backend multi-result publication is also a returning write.
+    #[must_use]
+    pub(crate) const fn writes_memory_on_return(&self) -> bool {
+        self.writes_memory_on_return
     }
 
     /// Returns whether the function may recycle or arbitrarily replace the FMP.
@@ -149,9 +164,10 @@ impl MemoryCallSummaries {
         }
 
         let sources = module.functions.iter().map(parameter_sources).collect::<IndexVec<_, _>>();
+        let returning = module.functions.iter().map(returning_blocks).collect::<IndexVec<_, _>>();
         let mut local = IndexVec::with_capacity(module.functions.len());
         for (func_id, func) in module.functions.iter_enumerated() {
-            local.push(local_summary(func, &sources[func_id]));
+            local.push(local_summary(func, &sources[func_id], &returning[func_id]));
         }
         let mut summaries = local.clone();
 
@@ -183,7 +199,7 @@ impl MemoryCallSummaries {
             queued.remove(func_id);
             let func = &module.functions[func_id];
             let mut summary = local[func_id].clone();
-            for block in &func.blocks {
+            for (block_id, block) in func.blocks.iter_enumerated() {
                 for &inst_id in &block.instructions {
                     if let InstKind::ICall { function, ref args, .. } = func.inst(inst_id).kind {
                         merge_call(
@@ -192,6 +208,7 @@ impl MemoryCallSummaries {
                             summaries.get(function),
                             args,
                             &sources[func_id],
+                            returning[func_id].contains(block_id),
                         );
                     }
                 }
@@ -202,6 +219,7 @@ impl MemoryCallSummaries {
                         summaries.get(*function),
                         args,
                         &sources[func_id],
+                        true,
                     );
                 }
             }
@@ -232,6 +250,7 @@ fn merge_call(
     callee: Option<&FunctionMemorySummary>,
     args: &[ValueId],
     sources: &IndexVec<ValueId, DenseBitSet<ArgIdx>>,
+    returning: bool,
 ) {
     let conservative;
     let callee = if let Some(callee) = callee {
@@ -241,6 +260,7 @@ fn merge_call(
         &conservative
     };
     summary.merge_effects(callee);
+    summary.writes_memory_on_return |= returning && callee.writes_memory_on_return;
     for (index, &arg) in args.iter().enumerate() {
         if callee.captures_param(ArgIdx::new(index)) {
             capture_sources(summary, func, sources, arg);
@@ -260,9 +280,35 @@ const fn space_index(space: AddressSpace) -> usize {
     }
 }
 
+/// Conservatively includes every block that can reach a caller-resuming exit.
+/// Void internal `stop` can return in the backend. Tail calls and incomplete
+/// blocks are roots too, so no local write before an uncertain exit is lost.
+fn returning_blocks(func: &Function) -> DenseBitSet<BlockId> {
+    let mut returning = DenseBitSet::new_empty(func.blocks.len());
+    let mut pending = func
+        .blocks
+        .iter_enumerated()
+        .filter_map(|(id, block)| {
+            matches!(
+                block.terminator,
+                Some(Terminator::Return { .. } | Terminator::Stop | Terminator::TailCall { .. })
+                    | None
+            )
+            .then_some(id)
+        })
+        .collect::<Vec<_>>();
+    while let Some(block) = pending.pop() {
+        if returning.insert(block) {
+            pending.extend(func.blocks[block].predecessors.iter().copied());
+        }
+    }
+    returning
+}
+
 fn local_summary(
     func: &Function,
     sources: &IndexVec<ValueId, DenseBitSet<ArgIdx>>,
+    returning: &DenseBitSet<BlockId>,
 ) -> FunctionMemorySummary {
     if func.blocks.is_empty() {
         return FunctionMemorySummary::conservative(func.params.len());
@@ -271,7 +317,8 @@ fn local_summary(
     let mut summary = FunctionMemorySummary::empty(func.params.len());
     let aa = AliasAnalysis::new(func);
     let heap_derived = heap_derived_values(func);
-    for block in &func.blocks {
+    for (block_id, block) in func.blocks.iter_enumerated() {
+        summary.writes_memory_on_return |= block.terminator.is_none();
         for &inst_id in &block.instructions {
             let kind = &func.inst(inst_id).kind;
             if let InstKind::ICall { returns, .. } = kind {
@@ -282,10 +329,13 @@ fn local_summary(
                 if *returns > 1 {
                     summary.reads |= 1 << space_index(AddressSpace::Memory);
                     summary.writes |= 1 << space_index(AddressSpace::Memory);
+                    summary.writes_memory_on_return |= returning.contains(block_id);
                 }
                 continue;
             }
             let effects = aa.instruction_mod_ref(func, inst_id);
+            summary.writes_memory_on_return |=
+                returning.contains(block_id) && effects.writes_space(AddressSpace::Memory);
             for space in [
                 AddressSpace::Memory,
                 AddressSpace::Storage,
