@@ -17,16 +17,27 @@ env:
 jobs:
   evm-rules:
     name: EVM word and stack proofs
-    runs-on: depot-ubuntu-latest
+    runs-on: depot-ubuntu-24.04-arm
     timeout-minutes: 10
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      - name: Install cvc5 1.2.0
+        run: |
+          curl --fail --location --retry 3 --silent --show-error \
+            https://github.com/cvc5/cvc5/releases/download/cvc5-1.2.0/cvc5-Linux-arm64-static.zip \
+            --output "$RUNNER_TEMP/cvc5.zip"
+          echo "142ac177af1ce37922308f69fe519d06e6cb4d0a62a312f28c25001e94c2fb56  $RUNNER_TEMP/cvc5.zip" | sha256sum --check
+          unzip -q "$RUNNER_TEMP/cvc5.zip" -d "$RUNNER_TEMP/cvc5"
+          echo "$RUNNER_TEMP/cvc5/cvc5-Linux-arm64-static/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/cvc5/cvc5-Linux-arm64-static/bin/cvc5" --version
       - run: uv run scripts/test_evm_rules.py
       - name: Verify compiled ISLE word and stack rules
-        run: uv run scripts/verify_evm_rules.py verify --output target/evm-rules/proofs.json --artifacts target/evm-rules/smt
+        run: uv run scripts/verify_evm_rules.py verify --partition-shifts --output target/evm-rules/proofs.json --artifacts target/evm-rules/smt
+      - name: Replay every proof query with cvc5
+        run: uv run scripts/replay_evm_rules.py target/evm-rules/proofs.json --output target/evm-rules/cvc5.json
       # Keep SMT queries and coverage to diagnose and replay failed verification.
       - name: Upload failed proof diagnostics
         if: failure()

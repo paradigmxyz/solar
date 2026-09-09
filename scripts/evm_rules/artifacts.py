@@ -31,9 +31,11 @@ def query_paths(report, *, require_proved=False):
                 queries = rule.get("smt2", [])
                 if require_proved and not queries:
                     raise ValueError("word rule has no saved queries")
-                if require_proved and rule.get("proof_method") == "exhaustive-shift-partition":
+                if require_proved and rule.get("proof_method") in (
+                    "exhaustive-shift-partition", "exhaustive-word-index-partition",
+                ):
                     if len(queries) != rule.get("cases", 0) + 1:
-                        raise ValueError("shift proof is missing a partition or its coverage query")
+                        raise ValueError("proof is missing a partition or its coverage query")
                 paths.extend(queries)
     if require_proved and not rule_count:
         raise ValueError("proof report has no rules")
