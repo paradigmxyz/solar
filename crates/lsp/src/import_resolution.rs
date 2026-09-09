@@ -49,6 +49,9 @@ pub(crate) fn import_path_at_for_completion(source: &str, cursor: usize) -> Opti
     if cursor > source.len() || !source.is_char_boundary(cursor) {
         return None;
     }
+    if !may_complete_string(source, cursor) {
+        return None;
+    }
 
     // Import paths are plain string tokens. Avoid parsing the whole file for code completions.
     let string = plain_string_at(source, cursor)?;
@@ -62,6 +65,25 @@ pub(crate) fn import_path_at_for_completion(source: &str, cursor: usize) -> Opti
         return None;
     }
     recover_unterminated_import_path(source, cursor, string)
+}
+
+/// Rejects code lines that cannot contain a completable import string.
+fn may_complete_string(source: &str, cursor: usize) -> bool {
+    let prefix = &source.as_bytes()[..cursor];
+    let line_break = memchr::memrchr2(b'\r', b'\n', prefix);
+    let line_start = line_break.map_or(0, |offset| offset + 1);
+    if matches!(source.as_bytes().get(cursor), Some(b'\'' | b'"'))
+        || memchr::memchr2(b'\'', b'"', &prefix[line_start..]).is_some()
+    {
+        return true;
+    }
+    let Some(mut line_break) = line_break else { return false };
+    if prefix[line_break] == b'\n' && line_break > 0 && prefix[line_break - 1] == b'\r' {
+        line_break -= 1;
+    }
+    // A string from an earlier line must cross this line break. Completion already rejects
+    // unescaped line breaks; possible continuations still use the full lexer and parser.
+    line_break > 0 && prefix[line_break - 1] == b'\\'
 }
 
 fn parse_import_path(source: &str, cursor: usize) -> Option<ImportPathAt> {
