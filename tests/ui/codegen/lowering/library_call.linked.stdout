@@ -46,13 +46,8 @@ bb1:
   shr
   push bb11
   jumpi
-  push 0
-  not
-  push 96
-  shr
   push 36
   calldataload
-  and
   push 0
   mstore
   push 4
@@ -120,13 +115,6 @@ bb0:
   shr
   push bb3
   jumpi
-  push 0
-  not
-  push 96
-  shr
-  push 4
-  calldataload
-  and
   push 64
   mload
   push 128
@@ -148,9 +136,10 @@ bb0:
   push 32
   dup 2
   add
-  exchange 1, 3
-  mstore
+  push 4
+  calldataload
   swap 1
+  mstore
   push 64
   add
   push 36

@@ -30,8 +30,7 @@ fn @assign() [selector=0x4bd0273c] {
     v77 = add v0, 32
     mstore v77, v4
     v5 = alloc raw, exact, uninitialized, infallible, 64 !metadata(deferred_alloc)
-    v6 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
-    mstore v5, v6
+    mstore v5, arg0
     v78 = add v5, 32
     mstore v78, v0
     v7 = mload v5
@@ -147,8 +146,7 @@ fn @push() [selector=0xa60249a3] {
     v85 = add v0, 32
     mstore v85, v4
     v5 = alloc raw, exact, uninitialized, infallible, 64 !metadata(deferred_alloc)
-    v6 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
-    mstore v5, v6
+    mstore v5, arg0
     v86 = add v5, 32
     mstore v86, v0
     v7 = sload 2 !metadata(storage=slot(2))
@@ -320,8 +318,7 @@ fn @assignFixed() [selector=0xb7ffd825] {
     v81 = add v0, 32
     mstore v81, v4
     v5 = alloc raw, exact, uninitialized, infallible, 64 !metadata(deferred_alloc)
-    v6 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
-    mstore v5, v6
+    mstore v5, arg0
     v82 = add v5, 32
     mstore v82, v0
     v11 = mload v5

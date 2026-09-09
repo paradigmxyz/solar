@@ -44,6 +44,7 @@ pub static ALL_PASSES: &[&dyn MirPass] = &[
     &inline::InlineTinyLeaves,
     &inline::SpecializeFunctionPointers,
     &specialize::Specialize,
+    &call_cleanup::CallCleanup,
     &outline_reverts::OutlineReverts,
     &cfg_simplify::FunctionDce,
     &sccp::Sccp,
@@ -265,6 +266,8 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &lower_alloc::LowerAlloc,
     &lower_memory_zero::LowerMemoryZero,
     &lower_mcopy::LowerMCopy,
+    // Carry proved argument widths across calls before simplifying word masks.
+    &call_cleanup::CallCleanup,
     // Memory lowering materializes address arithmetic; number and simplify it
     // once more before the physical shape is fixed. The stack-aware cost keeps
     // rewrites from reaching for values the scheduler would have to keep alive.

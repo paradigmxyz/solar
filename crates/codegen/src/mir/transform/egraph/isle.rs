@@ -9,7 +9,7 @@ use super::same_value;
 use crate::{
     backend::evm::op,
     mir::{
-        BlockId, Function, Immediate, InstKind, MemoryObjectKind, MemoryObjectLayout, Op,
+        ArgIdx, BlockId, Function, Immediate, InstKind, MemoryObjectKind, MemoryObjectLayout, Op,
         Value as MirValue, ValueId,
         memory::{EvmMemoryLayout, MemoryLayoutPolicy},
         utils::eval::eval_opcode,
@@ -114,14 +114,27 @@ const MAX_BITS_DEPTH: u32 = 8;
 /// operands. Phis take the widest input. Stop traversing operands once the
 /// result is determined; unknown values may hold any word.
 fn max_bits(func: &Function, value: ValueId, depth: u32) -> u32 {
+    max_bits_with_args(func, value, depth, &|_| 256)
+}
+
+/// Bounds a value using caller-proved argument widths instead of nominal types.
+pub(in crate::mir::transform) fn max_bits_with_args(
+    func: &Function,
+    value: ValueId,
+    depth: u32,
+    argument_bits: &impl Fn(ArgIdx) -> u32,
+) -> u32 {
     if let Some(constant) = func.value_u256(value) {
         return constant.bit_len() as u32;
+    }
+    if let MirValue::Arg(index) = func.value(value) {
+        return argument_bits(*index);
     }
     if depth == 0 {
         return 256;
     }
     let Some(kind) = defining_kind(func, value) else { return 256 };
-    let bits = |value| max_bits(func, value, depth - 1);
+    let bits = |value| max_bits_with_args(func, value, depth - 1, argument_bits);
     let shift = |shift| func.value_u256(shift).map(|shift| shift.min(U256::from(256)).to::<u32>());
     match *kind {
         InstKind::IsZero(_)

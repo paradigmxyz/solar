@@ -1,0 +1,141 @@
+- // === ROOT/tests/ui/codegen/mir/call-cleanup/argument_bits.mir (before call-cleanup) ===
++ // === ROOT/tests/ui/codegen/mir/call-cleanup/argument_bits.mir (after call-cleanup) ===
+  @module ArgumentBits
+  fn @root(arg0: u256) -> u256 {
+    bb0:
+      v0 = and arg0, 255
+      v1 = icall @forward, 1, v0
+      ret v1
+  }
+  
+  fn @forward(arg0: u256) {
+    bb0:
+-     v0 = and arg0, 255
+-     tail_call @leaf, v0
++     tail_call @leaf, arg0
+  }
+  
+  fn @leaf(arg0: u256) -> u256 {
+    bb0:
+-     v0 = and arg0, 255
+-     ret v0
++     ret arg0
+  }
+  
+  fn @clean_caller() -> u256 {
+    bb0:
+      v0 = caller
+      v1 = icall @mixed, 1, v0
+      ret v1
+  }
+  
+  fn @dirty_caller(arg0: address) -> u256 {
+    bb0:
+      v0 = icall @mixed, 1, arg0
+      ret v0
+  }
+  
+  fn @mixed(arg0: address) -> u256 {
+    bb0:
+      v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+      ret v0
+  }
+  
+  fn @recursive_root(arg0: u256) -> u256 {
+    bb0:
+      v0 = and arg0, 255
+      v1 = icall @recursive, 1, v0
+      ret v1
+  }
+  
+  fn @recursive(arg0: u256) -> u256 {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb2:
+      v1 = and arg0, 255
+      ret v1
+    bb1:
+      v0 = icall @recursive, 1, arg0
+      ret v0
+  }
+  
+  fn @sanitized_root(arg0: u256) -> u256 {
+    bb0:
+      v0 = and arg0, 255
+      v1 = icall @sanitized_recursive, 1, v0
+      ret v1
+  }
+  
+  fn @sanitized_recursive(arg0: u256) -> u256 {
+    bb0:
+-     v0 = and arg0, 255
+-     jumpi v0, bb1, bb2
++     jumpi arg0, bb1, bb2
+    bb2:
+-     ret v0
++     ret arg0
+    bb1:
+-     v1 = icall @sanitized_recursive, 1, v0
++     v1 = icall @sanitized_recursive, 1, arg0
+      ret v1
+  }
+  
+  fn @bool_root(arg0: u256) -> u256 {
+    bb0:
+      v0 = iszero arg0
+      v1 = icall @bool_leaf, 1, v0
+      ret v1
+  }
+  
+  fn @bool_leaf(arg0: bool) -> u256 {
+    bb0:
+-     v0 = and arg0, 1
+-     ret v0
++     ret arg0
+  }
+  
+  fn @public_caller() -> u256 {
+    bb0:
+      v0 = icall @public_input, 1, 1
+      ret v0
+  }
+  
+  fn @public_input(arg0: u256) -> u256 [selector=0x01020304] {
+    bb0:
+      v0 = and arg0, 255
+      ret v0
+  }
+  
+  fn @frame_caller() -> u256 {
+    bb0:
+      v0 = icall @frame_input, 1, 1
+      ret v0
+  }
+  
+  fn @frame_input(arg0: u256) -> u256 {
+    bb0:
+      v0 = internal_frame_addr 64
+      mstore v0, 511
+      v1 = and arg0, 255
+      ret v1
+  }
+  
+  fn @across_caller() -> u256 {
+    bb0:
+      v0 = icall @across_call, 1, 1
+      ret v0
+  }
+  
+  fn @across_call(arg0: u256) -> u256 {
+    bb0:
+      v0 = and arg0, 255
+      icall @clobber, 0
+      ret v0
+  }
+  
+  fn @clobber() {
+    bb0:
+      sstore 0, 1
+      stop
+  }
+  
