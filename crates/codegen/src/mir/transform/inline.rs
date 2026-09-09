@@ -16,13 +16,18 @@
 //! the original call exactly once without cloning the callee body. Shared void
 //! forwarders that add arguments stay shared: cloning their extra setup can
 //! outweigh the removed wrapper and increase stack pressure at every caller.
+//! Frameless one-word literal initializers also inline when each emitted artifact
+//! contains at most one call site. Creation and runtime reachability are counted
+//! separately, including tail calls and conservative roots for unrooted MIR.
+//! Cloning retains each allocation and its initialization at the original call
+//! site; arbitrary reference-returning helpers remain excluded.
 
 use crate::{
     backend::evm::{op, select},
     mir::{
-        AbiLayout, AbiType, BlockId, FrameMode, FrameSlotKind, Function, FunctionBuilder,
-        FunctionId as MirFunctionId, Immediate, ImmutableEncoding, InstId, InstKind, Instruction,
-        MirType, Module, Terminator, Value, ValueId,
+        AbiLayout, AbiType, AllocationSemantics, BlockId, FrameMode, FrameSlotKind, Function,
+        FunctionBuilder, FunctionId as MirFunctionId, Immediate, ImmutableEncoding, InstId,
+        InstKind, Instruction, MemoryObjectKind, MirType, Module, Terminator, Value, ValueId,
         analysis::{CallGraphInfo, LoopAnalyzer},
         immutable::immutable_push_type_size,
         memory::{EvmMemoryLayout, MemoryLayoutPolicy},
@@ -271,6 +276,8 @@ struct MirInlineSummary {
     is_transparent_forwarder: bool,
     /// Whether a void forwarder adds arguments whose setup benefits from sharing.
     void_forwarder_adds_args: bool,
+    /// A frameless initializer returning at most one word of literal bytes.
+    is_small_literal_return: bool,
     is_entry_point: bool,
     is_constructor: bool,
     is_function_pointer_dispatcher: bool,
@@ -303,6 +310,9 @@ impl MirInliner {
 
         let mut call_counts = self.call_counts(module);
         let call_graph = CallGraphInfo::new(module);
+        let mut artifact_calls = (self.mode == InlineMode::TinyLeaves
+            && summaries.values().any(|summary| summary.is_small_literal_return))
+        .then(|| ArtifactCallCounts::new(module, &call_graph));
         let preferred_large_call_sites = self.preferred_large_call_sites(module, &summaries);
 
         // Specialize dispatcher calls before helper-local inlining introduces phis.
@@ -330,7 +340,15 @@ impl MirInliner {
                     stats.skipped += 1;
                     continue;
                 };
-                let call_count = call_counts.get(&site.callee).copied().unwrap_or_default();
+                let call_count = if summary.is_small_literal_return {
+                    artifact_calls
+                        .as_ref()
+                        .and_then(|calls| calls.counts.get(&site.callee))
+                        .map(|counts| counts[0].max(counts[1]))
+                } else {
+                    None
+                }
+                .unwrap_or_else(|| call_counts.get(&site.callee).copied().unwrap_or_default());
                 let grew_too_much = summaries.get(&caller_id).is_some_and(|s| {
                     s.instruction_count.saturating_sub(base_instructions)
                         > self.max_caller_inlined_instructions
@@ -368,10 +386,18 @@ impl MirInliner {
                         .saturating_add(new_summary.estimated_code_size);
                     summaries.insert(caller_id, new_summary);
                     if self.mode == InlineMode::TinyLeaves {
-                        // Tiny-leaf candidates cannot contain internal calls, so inlining removes
-                        // exactly one call to the callee and cannot introduce another call site.
+                        // Remove this call site and count the forwarded calls cloned into its
+                        // caller. The original callee remains until function DCE runs.
                         if let Some(count) = call_counts.get_mut(&site.callee) {
                             *count = count.saturating_sub(1);
+                        }
+                        for inst in callee.instructions() {
+                            if let InstKind::ICall { function, .. } = callee.inst(inst).kind {
+                                *call_counts.entry(function).or_default() += 1;
+                            }
+                        }
+                        if let Some(calls) = &mut artifact_calls {
+                            calls.inline(caller_id, site.callee, &callee);
                         }
                     } else {
                         call_counts = self.call_counts(module);
@@ -544,7 +570,9 @@ impl MirInliner {
                         self.max_instructions
                     }
                 || summary.return_count != 1
-                || (summary.has_reference_return && !summary.is_transparent_forwarder)
+                || (summary.has_reference_return
+                    && !summary.is_transparent_forwarder
+                    && !(single_call && summary.is_small_literal_return))
                 || (summary.has_icall && !summary.is_transparent_forwarder)
                 || (!single_call && summary.void_forwarder_adds_args)
                 || summary.has_control_flow)
@@ -655,6 +683,135 @@ struct CallSite {
     has_constant_argument: bool,
 }
 
+/// Counts physical call sites separately in creation and runtime code.
+/// Reachability is an upper bound throughout inlining: cloning a callee into a
+/// caller cannot make either artifact reach a previously unreachable function.
+/// Functions retained until DCE may therefore overcount, but never undercount.
+struct ArtifactCallCounts {
+    creation: DenseBitSet<MirFunctionId>,
+    runtime: DenseBitSet<MirFunctionId>,
+    counts: FxHashMap<MirFunctionId, [usize; 2]>,
+}
+
+impl ArtifactCallCounts {
+    fn new(module: &Module, graph: &CallGraphInfo) -> Self {
+        let roots = |creation| {
+            module.functions.iter_enumerated().filter_map(move |(id, func)| {
+                let selected = if creation {
+                    func.attributes.is_constructor
+                } else {
+                    func.selector.is_some()
+                        || func.attributes.is_fallback
+                        || func.attributes.is_receive
+                        || module.dispatch_entry() == Some(id)
+                };
+                selected.then_some(id)
+            })
+        };
+        let mut creation = graph.reachable_callees_from(roots(true));
+        let mut runtime = graph.reachable_callees_from(roots(false));
+        for root in roots(true) {
+            creation.insert(root);
+        }
+        for root in roots(false) {
+            runtime.insert(root);
+        }
+        // Unrooted ad-hoc MIR and address-exposed functions get the conservative
+        // shared classification, rather than zero incoming artifact counts.
+        let unknown = module
+            .functions
+            .indices()
+            .filter(|&id| !creation.contains(id) && !runtime.contains(id))
+            .collect::<Vec<_>>();
+        let unknown_callees = graph.reachable_callees_from(unknown.iter().copied());
+        for id in unknown.into_iter().chain(unknown_callees.iter()) {
+            creation.insert(id);
+            runtime.insert(id);
+        }
+        let mut result = Self { creation, runtime, counts: FxHashMap::default() };
+        for (caller, func) in module.functions.iter_enumerated() {
+            for inst in func.instructions() {
+                if let InstKind::ICall { function, .. } = func.inst(inst).kind {
+                    result.add(caller, function);
+                }
+            }
+            for block in &func.blocks {
+                if let Some(Terminator::TailCall { function, .. }) = block.terminator {
+                    result.add(caller, function);
+                }
+            }
+        }
+        result
+    }
+
+    fn add(&mut self, caller: MirFunctionId, callee: MirFunctionId) {
+        let counts = self.counts.entry(callee).or_default();
+        counts[0] += usize::from(self.creation.contains(caller));
+        counts[1] += usize::from(self.runtime.contains(caller));
+    }
+
+    fn inline(&mut self, caller: MirFunctionId, callee_id: MirFunctionId, callee: &Function) {
+        if let Some(counts) = self.counts.get_mut(&callee_id) {
+            counts[0] -= usize::from(self.creation.contains(caller));
+            counts[1] -= usize::from(self.runtime.contains(caller));
+        }
+        for inst in callee.instructions() {
+            if let InstKind::ICall { function, .. } = callee.inst(inst).kind {
+                self.add(caller, function);
+            }
+        }
+    }
+}
+
+/// Recognizes a complete constant bytes initializer without relaxing the
+/// general reference-return guard. Inlining preserves the allocation and every
+/// store at the call site; separate calls still produce separate objects.
+fn is_small_literal_return(func: &Function) -> bool {
+    if func.attributes.no_inline
+        || func.internal_frame_size != 0
+        || func.blocks.len() != 1
+        || func.returns.as_slice() != [MirType::MemoryObject(MemoryObjectKind::Bytes)]
+    {
+        return false;
+    }
+    let block = &func.blocks[BlockId::ENTRY];
+    let [alloc, len, rest @ ..] = block.instructions.as_slice() else { return false };
+    if func.inst(*alloc).metadata.preserves_fmp() {
+        return false;
+    }
+    let InstKind::Alloc { size, semantics: AllocationSemantics::INTERNAL, .. } =
+        func.inst(*alloc).kind
+    else {
+        return false;
+    };
+    let Some(object) = func.inst_result_value(*alloc) else { return false };
+    let InstKind::SetMemoryObjectLen(value, length, MemoryObjectKind::Bytes) = func.inst(*len).kind
+    else {
+        return false;
+    };
+    if value != object
+        || !matches!(&block.terminator, Some(Terminator::Return { values }) if values.as_slice() == [object])
+    {
+        return false;
+    }
+    let Some(length) = func.value_u64(length) else { return false };
+    if length > 32 || func.value_u64(size) != Some(32 + length.next_multiple_of(32)) {
+        return false;
+    }
+    match rest {
+        [] => length == 0,
+        [store] => matches!(func.inst(*store).kind,
+            InstKind::MemoryObjectStoreWord { object: value, offset, value: word }
+            if length != 0 && value == object && func.value_u64(offset) == Some(0)
+                && func.value_u256(word).is_some()),
+        [data, store] => matches!((&func.inst(*data).kind, &func.inst(*store).kind),
+            (InstKind::MemoryObjectData(value, MemoryObjectKind::Bytes), InstKind::MStore(ptr, word))
+            if length != 0 && *value == object && func.inst_result_value(*data) == Some(*ptr)
+                && func.value_u256(*word).is_some()),
+        _ => false,
+    }
+}
+
 fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInlineSummary {
     let target = Target::new(gcx);
     let mut summary = MirInlineSummary {
@@ -676,6 +833,7 @@ fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInli
             )
         }),
         is_transparent_forwarder: is_transparent_forwarder(func),
+        is_small_literal_return: is_small_literal_return(func),
         is_function_pointer_dispatcher: func.attributes.is_function_pointer_dispatcher,
         has_function_selector: func.params.first() == Some(&MirType::Function),
         is_pure: func.attributes.state_mutability == StateMutability::Pure,
@@ -1333,6 +1491,17 @@ fn inline_call_impl(
         return None;
     }
 
+    if is_small_literal_return(callee) {
+        return inline_literal_call(
+            caller,
+            call_block,
+            call_inst_index,
+            callee,
+            args,
+            call_result?,
+        );
+    }
+
     let continuation = caller.alloc_block();
     let (old_terminator, metadata) = caller.blocks[call_block].take_terminator();
     let old_successors = old_terminator.as_ref().map(Terminator::successors).unwrap_or_default();
@@ -1398,6 +1567,58 @@ fn inline_call_impl(
     cloner.caller.replace_uses(&replacements);
     recompute_cfg(cloner.caller);
     prune_phi_incoming_to_predecessors(cloner.caller);
+    Some(())
+}
+
+/// Splices a literal initializer into the call block so ABI lowering can see
+/// the object directly, without an intermediate single-edge phi. The checked
+/// initializer shape is frameless and cannot require control-flow remapping.
+fn inline_literal_call(
+    caller: &mut Function,
+    block: BlockId,
+    index: usize,
+    callee: &Function,
+    args: Box<[ValueId]>,
+    result: ValueId,
+) -> Option<()> {
+    let mut cloner = InlineCloner::new(caller, callee, 0, 0, args);
+    let mut instructions = Vec::new();
+    // object = icall @literal
+    //   => object = alloc memorybytes, size
+    //      set_memory_object_len object, length
+    //      memory_object_store_word object, 0, word
+    for &inst in &callee.blocks[BlockId::ENTRY].instructions {
+        let source = callee.inst(inst);
+        let kind = cloner.clone_inst_kind(source.kind.clone())?;
+        let mut instruction = Instruction::new(kind, source.result_ty);
+        instruction.metadata.copy_debug_context(&source.metadata);
+        if let InstKind::MStore(ptr, value) = instruction.kind
+            && let Value::Inst(data) = cloner.caller.value(ptr)
+            && let InstKind::MemoryObjectData(object, MemoryObjectKind::Bytes) =
+                cloner.caller.inst(*data).kind
+        {
+            // mstore memory_object_data(object), word
+            //   => memory_object_store_word object, 0, word
+            let offset =
+                cloner.caller.alloc_value(Value::Immediate(Immediate::uint256(Default::default())));
+            instruction.kind = InstKind::MemoryObjectStoreWord { object, offset, value };
+        }
+        let new_inst = if let Some(value) = callee.inst_result_value(inst) {
+            let (new_inst, new_value) = cloner.caller.alloc_value_inst(instruction);
+            cloner.value_map.insert(value, new_value);
+            new_inst
+        } else {
+            cloner.caller.alloc_inst(instruction)
+        };
+        instructions.push(new_inst);
+    }
+    let Terminator::Return { values } = callee.blocks[BlockId::ENTRY].terminator.as_ref()? else {
+        return None;
+    };
+    let replacement = cloner.clone_value(values[0])?;
+    // prefix; icall @literal; suffix => prefix; initializer; suffix[object/result]
+    cloner.caller.blocks[block].instructions.splice(index..=index, instructions);
+    cloner.caller.replace_uses(&FxHashMap::from_iter([(result, replacement)]));
     Some(())
 }
 
