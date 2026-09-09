@@ -99,6 +99,8 @@ replacement avoids changes to earlier sharing decisions that can turn a local
 MIR size reduction into larger final bytecode.
 
 CI checks the compiled word rules and a separate pure physical-stack subset.
+Z3 verifies the rules and cvc5 replays every exported proof query, including
+exhaustive index partitions and their coverage checks.
 These proofs cover the modeled rules and explicit trusted contracts, not global
 memory transformations, the complete backend, or whole-program correctness.
 

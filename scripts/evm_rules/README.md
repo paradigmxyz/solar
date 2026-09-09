@@ -20,10 +20,14 @@ rule produces `unsat`. Difficult single-count shift queries can be split into
 257 exhaustive cases: each count from 0 through 255 and the entire saturating
 range. The checker also verifies partition coverage. Every case must finish
 with UNSAT within the partition budget; partial coverage never proves a rule.
+`SIGNEXTEND` indices use 32 exhaustive cases: 0 through 30, then the entire
+identity range from 31 upward. If one index also serves as a shift count, the
+partition uses the larger boundary. The final case always retains a symbolic
+index, so it includes arbitrarily large values rather than one representative.
 The report lists every saved query; replay one with `z3 path/to/rule.smt2` or
 `cvc5 --lang smt2 path/to/rule.smt2`.
 
-For complete replay with cvc5, export exhaustive shift partitions even when Z3
+For complete replay with cvc5, export exhaustive index partitions even when Z3
 can prove the original query directly:
 
 ```sh
@@ -48,7 +52,9 @@ and the solver version are recorded. SAT, exhausted time limits, parse errors,
 and process failures exit nonzero; SAT is a solver disagreement until separately
 replayed in the concrete model. This checks the exported formulas with another
 solver, not the semantics that generated them or an independent proof
-certificate. The replay command is currently local; CI still gates Z3 proofs.
+certificate. The proof job runs on native Linux ARM64, downloads the matching
+cvc5 1.2.0 release with a pinned SHA-256, exports exhaustive partitions, and
+requires both Z3 verification and complete cvc5 replay to pass.
 
 Only UNSAT establishes equivalence. SAT must replay as different outputs in a
 separate Python integer evaluator. Timeouts, unsupported terms and unsatisfiable
@@ -69,7 +75,15 @@ shift counts, unsigned comparisons and two's-complement signed comparisons.
 DIV, SDIV, MOD and SMOD return zero for a zero divisor. SDIV rounds toward zero
 and wraps the minimum signed word divided by minus one; SMOD takes the dividend's
 sign. ADDMOD and MULMOD use a 512-bit intermediate. BYTE and SIGNEXTEND check the
-full index before shifting. Only literal exponents are currently modeled for EXP.
+full index before shifting. EXP uses square-and-multiply for literal exponents,
+or all 256 exponent bits when the base is literal. When both are symbolic,
+literal equalities from the guards can specialize the word model. The exported
+query requires both the substitution and the resulting equality to hold:
+`guards && (!substitution_equalities || specialized_lhs != specialized_rhs)`
+must be UNSAT. A substitution not implied by the guards fails verification,
+including in partitioned queries. No input is chosen from a satisfying model
+to make an unsupported operation appear proved. Unconstrained EXP with both
+operands symbolic remains outside the current model.
 The tests cross-check the symbolic and independent concrete models at these
 boundaries; `tests/ui/codegen/mir/egraph/word_rules_runtime.sol` also checks actual
 compiled execution, including cases where ordinary integer identities are wrong.
@@ -86,6 +100,9 @@ backend implementation are trusted. Range predicates are conditional contracts,
 not proofs of the Rust analyses that implement them. Resident-value selection
 assumes the original expression has already executed and remains available.
 The new `word.isle` rules need no range-analysis predicates.
+The older `has_known_sign_bit` contract means bit 255 is set; its false result
+does not imply the bit is clear. The Rust extractor is conservative and remains
+part of the trusted, fingerprinted implementation.
 
 Memory, storage, calls, exceptions, gas observability, stack bounds, code motion
 and whole-program correctness are outside this proof. ISLE priorities affect
@@ -133,9 +150,10 @@ uv run scripts/verify_evm_rules.py verify crates/codegen/isle/egraph.isle \
   --timeout-ms 1000 --output target/evm-rules/audit.json
 ```
 
-That audit is incomplete: nonlinear/variable-shift queries can time out, and
-memory/environment terms and some analysis predicates are unsupported. The audit
-therefore exits nonzero. Add semantics and tests before moving such rules into
+That audit is incomplete: division/remainder and variable-index queries can time
+out, and semantic memory-object and environment terms are unsupported. Regression
+tests separately verify the complete EXP rule family directly from that file.
+The audit therefore exits nonzero. Add semantics and tests before moving such rules into
 the mandatory proof lane; do not ignore unknown or unsupported results.
 
 ## Discovering candidates
