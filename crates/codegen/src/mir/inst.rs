@@ -2300,9 +2300,6 @@ impl InstKind {
             | Self::Erc7201(..)
             | Self::AbiEncodePacked { .. }
             | Self::ICall { function: Callee::Builtin(Builtin::Concat(_)), .. }
-            | Self::Sha256(..)
-            | Self::Ripemd160(..)
-            | Self::EcRecover(..)
             | Self::ReturndataBytes
             | Self::MStore(_, _)
             | Self::MStore8(_, _)
@@ -2351,7 +2348,10 @@ impl InstKind {
             | Self::StorageBytesStoreLiteral { .. } => EffectKind::StorageWrite,
             Self::TLoad(_) => EffectKind::TransientRead,
             Self::TStore(_, _) => EffectKind::TransientWrite,
-            Self::AddressCall { .. }
+            Self::Sha256(..)
+            | Self::Ripemd160(..)
+            | Self::EcRecover(..)
+            | Self::AddressCall { .. }
             | Self::Send(..)
             | Self::Transfer(..)
             | Self::Call { .. }

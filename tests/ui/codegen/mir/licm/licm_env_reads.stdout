@@ -91,3 +91,48 @@
       jump bb1
   }
   
+  fn @keep_returndatasize_with_sha256(arg0: memorybytes) -> u256 {
+    bb0:
+      jump bb1
+    bb1:
+      v0 = phi [bb0: 0], [bb2: v2]
+      jumpi true, bb2, bb3
+    bb3:
+      ret v0
+    bb2:
+      v1 = returndatasize
+      v2 = mul v1, 3
+      v3 = sha256 arg0
+      jump bb1
+  }
+  
+  fn @keep_returndatasize_with_ripemd160(arg0: memorybytes) -> u256 {
+    bb0:
+      jump bb1
+    bb1:
+      v0 = phi [bb0: 0], [bb2: v2]
+      jumpi true, bb2, bb3
+    bb3:
+      ret v0
+    bb2:
+      v1 = returndatasize
+      v2 = mul v1, 3
+      v3 = ripemd160 arg0
+      jump bb1
+  }
+  
+  fn @keep_returndatasize_with_ecrecover() -> u256 {
+    bb0:
+      jump bb1
+    bb1:
+      v0 = phi [bb0: 0], [bb2: v2]
+      jumpi true, bb2, bb3
+    bb3:
+      ret v0
+    bb2:
+      v1 = returndatasize
+      v2 = mul v1, 3
+      v3 = ecrecover 1, 28, 2, 3
+      jump bb1
+  }
+  

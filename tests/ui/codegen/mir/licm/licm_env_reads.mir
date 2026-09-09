@@ -115,3 +115,60 @@ fn @keep_msize() -> u256 {
   bb3:
     ret v2
 }
+
+// The opaque precompile call replaces returndata before builtin expansion.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_returndatasize_with_sha256{{[( ]}}
+// CHECK: {{^[ +] *}}bb2:
+// CHECK-NEXT: {{^[ +].*}}v{{[0-9]+}} = returndatasize
+fn @keep_returndatasize_with_sha256(arg0: memorybytes) -> u256 {
+  bb0:
+    jump bb1
+  bb1:
+    v3 = phi [bb0: 0], [bb2: v1]
+    jumpi true, bb2, bb3
+  bb2:
+    v0 = returndatasize
+    v1 = mul v0, 3
+    v2 = sha256 arg0
+    jump bb1
+  bb3:
+    ret v3
+}
+
+// The opaque precompile call replaces returndata before builtin expansion.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_returndatasize_with_ripemd160{{[( ]}}
+// CHECK: {{^[ +] *}}bb2:
+// CHECK-NEXT: {{^[ +].*}}v{{[0-9]+}} = returndatasize
+fn @keep_returndatasize_with_ripemd160(arg0: memorybytes) -> u256 {
+  bb0:
+    jump bb1
+  bb1:
+    v3 = phi [bb0: 0], [bb2: v1]
+    jumpi true, bb2, bb3
+  bb2:
+    v0 = returndatasize
+    v1 = mul v0, 3
+    v2 = ripemd160 arg0
+    jump bb1
+  bb3:
+    ret v3
+}
+
+// The opaque precompile call replaces returndata before builtin expansion.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_returndatasize_with_ecrecover{{[( ]}}
+// CHECK: {{^[ +] *}}bb2:
+// CHECK-NEXT: {{^[ +].*}}v{{[0-9]+}} = returndatasize
+fn @keep_returndatasize_with_ecrecover() -> u256 {
+  bb0:
+    jump bb1
+  bb1:
+    v3 = phi [bb0: 0], [bb2: v1]
+    jumpi true, bb2, bb3
+  bb2:
+    v0 = returndatasize
+    v1 = mul v0, 3
+    v2 = ecrecover 1, 28, 2, 3
+    jump bb1
+  bb3:
+    ret v3
+}

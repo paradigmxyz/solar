@@ -12,6 +12,9 @@
 //@ run-call-fail: TerminatedControlFlow::constructorFailure 29 => 0x000000000000000000000000000000000000000000000000000000000000001d
 //@ run-call-fail: TerminatedControlFlow::oversizedReturn => 0x
 //@ run-call-fail: TerminatedControlFlow::unaffordableReturn => 0x
+//@ run-call: TerminatedControlFlow::precompileReturndata 2, 0 => 96
+//@ run-call: TerminatedControlFlow::precompileReturndata 2, 1 => 96
+//@ run-call: TerminatedControlFlow::precompileReturndata 2, 2 => 96
 //@ run-call: TerminatedControlFlow::maybeFailure false => 7
 //@ run-call: TerminatedControlFlow::constructorWithoutArgs => true
 //@ run-call-fail: TerminatedControlFlow::maybeFailure true => 0x
@@ -108,6 +111,26 @@ contract TerminatedControlFlow {
             mstore(0x123456789abcdef0, 7)
             return(0x123456789abcdef0, 32)
         }
+    }
+
+    function precompileReturndata(uint256 rounds, uint256 kind) external pure returns (uint256 total) {
+        uint256 i;
+        do {
+            assembly { total := add(total, mul(returndatasize(), 3)) }
+            if (kind == 0) {
+                sha256(abi.encode(i));
+            } else if (kind == 1) {
+                ripemd160(abi.encode(i));
+            } else {
+                ecrecover(
+                    bytes32(uint256(1)),
+                    28,
+                    0x6673ffad2147741f04772b6f921f0ba6af0c1e77fc439e65c36dedf4092e8898,
+                    0x4c1a971652e0ada880120ef8025e709fff2080c4a39aae068d12eed009b68c89
+                );
+            }
+            ++i;
+        } while (i < rounds);
     }
 
     function maybeFailure(bool fail) external pure returns (uint256) {

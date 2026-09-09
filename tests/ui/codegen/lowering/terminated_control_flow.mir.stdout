@@ -255,6 +255,52 @@ fn @unaffordableReturn() [selector=0x0acfbfd5, pure, abi_params=[], abi_returns=
     returndata 0x123456789abcdef0, 32
 }
 
+fn @precompileReturndata(arg0: u256, arg1: u256) -> u256 [selector=0x3553277c, pure, abi_params=[u256, u256], abi_returns=[word]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb10: v15]
+    v1 = phi [bb0: arg0], [bb10: v1]
+    v2 = phi [bb0: 0], [bb10: v6]
+    v3 = phi [bb0: arg1], [bb10: v3]
+    v4 = returndatasize
+    v5 = mul v4, 3
+    v6 = add v2, v5
+    v7 = eq v3, 0
+    jumpi v7, bb4, bb5
+  bb5:
+    v10 = eq v3, 1
+    jumpi v10, bb7, bb8
+  bb8:
+    v13 = shl 0, 1
+    v14 = ecrecover v13, 28, 0x6673ffad2147741f04772b6f921f0ba6af0c1e77fc439e65c36dedf4092e8898, 0x4c1a971652e0ada880120ef8025e709fff2080c4a39aae068d12eed009b68c89
+    jump bb9
+  bb7:
+    v11 = abi_encode [word], object, args v0
+    v12 = ripemd160 v11
+    jump bb9
+  bb9:
+    jump bb6
+  bb4:
+    v8 = abi_encode [word], object, args v0
+    v9 = sha256 v8
+    jump bb6
+  bb6:
+    v15 = checked_add u256, v0, 1
+    jump bb3
+  bb3:
+    v16 = lt v15, v1
+    jumpi v16, bb10, bb11
+  bb11:
+    jump bb2
+  bb2:
+    ret v6
+  bb10:
+    jump bb1
+  bb12:
+    invalid
+}
+
 fn @maybeFailure(arg0: bool) -> u256 [selector=0x5f6d6eda, pure, abi_params=[bool], abi_returns=[word]] {
   bb0:
     v0 = icall @maybeFail, arg0
@@ -280,14 +326,14 @@ fn @breakSkipsTail() -> u256 [selector=0xa299c6cb, pure, abi_params=[], abi_retu
   bb1:
     v0 = phi [bb0: 0]
     v1 = phi [bb0: 0]
-    v2 = lt v1, 1
+    v2 = lt v0, 1
     jumpi v2, bb4, bb5
   bb5:
     jump bb2
   bb4:
     jump bb2
   bb2:
-    ret v0
+    ret v1
   bb3:
     invalid
   bb6:
@@ -298,18 +344,18 @@ fn @continueSkipsTail() -> u256 [selector=0xc45ef923, pure, abi_params=[], abi_r
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb3: v3]
-    v1 = phi [bb0: 0], [bb3: v1]
-    v2 = lt v0, 1
+    v0 = phi [bb0: 0], [bb3: v0]
+    v1 = phi [bb0: 0], [bb3: v3]
+    v2 = lt v1, 1
     jumpi v2, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v1
+    ret v0
   bb4:
     jump bb3
   bb3:
-    v3 = checked_add u256, v0, 1
+    v3 = checked_add u256, v1, 1
     jump bb1
   bb6:
     invalid

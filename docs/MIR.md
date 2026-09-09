@@ -157,8 +157,10 @@ message())` evaluates `message()` even on success; only failure-path encoding
 may be deferred. Checked arithmetic and ABI validation can revert even when
 their result is unused. Keep those checks as semantic effects until proved
 redundant. Low-level calls and precompiles retain their gas, returndata, and
-failure behavior. Solidity's checked division and Yul's division by zero must
-not share a folding rule that changes their distinct semantics.
+failure behavior. Opaque SHA-256, RIPEMD-160, and ecrecover operations carry
+external-call effects before expansion, so loop motion cannot reuse an older
+return-data size across them. Solidity's checked division and Yul's division by
+zero must not share a folding rule that changes their distinct semantics.
 
 Aim for one typed body per source function, with external entries represented
 by interface declarations. ABI lowering owns decoding, validation, encoding,
