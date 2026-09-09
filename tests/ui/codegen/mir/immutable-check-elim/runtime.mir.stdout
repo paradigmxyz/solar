@@ -1,0 +1,66 @@
+// === ROOT/tests/ui/codegen/mir/immutable-check-elim/runtime.sol:ImmutableBounds ===
+@module ImmutableBounds
+immutables:
+  a: u64
+  b: u64
+  signedValue: i64
+  initial: u256
+
+fn @initial() -> u256 [selector=0xbb806dc9, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = loadimmutable initial
+    ret v0
+}
+
+fn @constructor(arg0: u64, arg1: u64, arg2: i64) [constructor, abi_params=[u64, u64, i64]] {
+  bb0:
+    storeimmutable a, arg0
+    storeimmutable b, arg1
+    storeimmutable signedValue, arg2
+    v0 = icall @total, 1
+    storeimmutable initial, v0
+    stop
+}
+
+fn @total() -> u256 [selector=0x2ddbd13a, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = loadimmutable a
+    v1 = loadimmutable b
+    v2 = add v0, v1
+    v3 = lt v2, v0
+    jumpi v3, bb1, bb2
+  bb2:
+    ret v2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @runtimeOnly() -> u256 [selector=0x31407e50, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = loadimmutable a
+    v1 = add v0, 1
+    v2 = lt v1, v0
+    jumpi v2, bb1, bb2
+  bb2:
+    ret v1
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @signedPlusOne() -> u256 [selector=0x115fd0af, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = loadimmutable signedValue
+    v1 = add v0, 1
+    v2 = lt v1, v0
+    jumpi v2, bb1, bb2
+  bb2:
+    ret v1
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}

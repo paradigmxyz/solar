@@ -21,6 +21,11 @@
 //! separately, including tail calls and conservative roots for unrooted MIR.
 //! Cloning retains each allocation and its initialization at the original call
 //! site; arbitrary reference-returning helpers remain excluded.
+//! Slice-only helpers are also transparent: constructing and projecting a slice
+//! copies its pointer, length and address space without reading the payload or
+//! allocating memory. Inlining exposes these components before slice lowering
+//! expands a returned slice into the internal multi-word return convention.
+//! The existing leaf-size and lifetime-cost limits still apply.
 
 use crate::{
     backend::evm::{op, select},
@@ -271,7 +276,7 @@ struct MirInlineSummary {
     has_control_flow: bool,
     has_unsupported_terminator: bool,
     has_reference_return: bool,
-    /// A one-block helper that returns an argument or forwards one internal call.
+    /// A one-block helper that forwards an argument, slice components, or one internal call.
     /// Such wrappers are safe to inline even when the value is memory-backed.
     is_transparent_forwarder: bool,
     /// Whether a void forwarder adds arguments whose setup benefits from sharing.
@@ -935,6 +940,19 @@ fn is_transparent_forwarder(func: &Function) -> bool {
     }
 
     if is_identity_function(func) {
+        return true;
+    }
+
+    if matches!(func.returns.as_slice(), [MirType::Slice(_)])
+        && matches!(func.blocks[BlockId::ENTRY].terminator.as_ref(),
+            Some(Terminator::Return { values }) if values.len() == 1)
+        && func.instructions().all(|inst| {
+            matches!(
+                func.inst(inst).kind,
+                InstKind::MakeSlice { .. } | InstKind::SlicePtr(_) | InstKind::SliceLen(_)
+            )
+        })
+    {
         return true;
     }
 

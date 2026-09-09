@@ -27,7 +27,7 @@ use crate::mir::{
     pass_manager::{mir_output_name, parse_pass_pipeline, print_pass_diff},
     transform::*,
 };
-use solar_data_structures::map::FxHashMap;
+use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 use std::{
     any::{Any, TypeId},
     rc::Rc,
@@ -62,6 +62,7 @@ pub static ALL_PASSES: &[&dyn MirPass] = &[
     &storage_promotion::StorageScalarPromotion,
     &loop_opt::Licm,
     &check_elim::CheckElim,
+    &check_elim::ImmutableCheckElim,
     &jump_threading::JumpThreading,
     &cfg_simplify::CfgSimplify,
     &frame_promotion::FrameSlotPromotion,
@@ -226,6 +227,8 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     // inlining pass; expand those leaves before encoding wrappers.
     &GasOnly::new(inline::InlineTinyLeaves),
     &SizeOnly::new(inline::InlineTinyLeaves),
+    // Getter inlining exposes runtime immutable widths after the general check passes.
+    &check_elim::ImmutableCheckElim,
     &cfg_simplify::FunctionDce,
     &function_compaction::DeadArgElim,
     &dce::Dce,
@@ -365,6 +368,25 @@ pub(crate) fn run_function_pass(
 ) -> bool {
     let mut changed = false;
     for func_id in module.functions.indices() {
+        if module.functions[func_id].blocks.is_empty() {
+            continue;
+        }
+        changed |= run_function_pass_cached(analyses, module, func_id, &mut run);
+    }
+    analyses.preserved_by_pass = true;
+    changed
+}
+
+/// Runs a transform only on selected functions, preserving unaffected analysis caches.
+#[must_use]
+pub(crate) fn run_selected_function_pass(
+    module: &mut Module,
+    analyses: &mut ModuleAnalyses,
+    selected: &DenseBitSet<FunctionId>,
+    mut run: impl FnMut(&mut Function, &FunctionAnalyses) -> bool,
+) -> bool {
+    let mut changed = false;
+    for func_id in selected.iter() {
         if module.functions[func_id].blocks.is_empty() {
             continue;
         }
