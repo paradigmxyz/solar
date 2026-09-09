@@ -18,6 +18,19 @@
 // CHECK: push 0x55555557
 // CHECK-NEXT: dup 2
 // CHECK-NEXT: shr
+// CHECK-NEXT: dup 2
+// CHECK-NEXT: push 1
+// CHECK-NEXT: add
+// CHECK-NEXT: dup 2
+// CHECK-NEXT: push 2
+// CHECK-NEXT: and
+// CHECK-NEXT: mul
+// CHECK-NEXT: push 4
+// CHECK-NEXT: shl
+// CHECK-NEXT: push 192
+// CHECK-NEXT: add
+// CHECK-NEXT: swap 2
+// CHECK-NEXT: swap 1
 // CHECK-NEXT: push 1
 // CHECK-NEXT: and
 // CHECK-NEXT: mul
@@ -28,18 +41,6 @@
 // CHECK-NEXT: dup 1
 // CHECK-NEXT: mload
 // CHECK-NEXT: swap 2
-// CHECK-NEXT: push 1
-// CHECK-NEXT: add
-// CHECK-NEXT: push 0x55555557
-// CHECK-NEXT: dup 2
-// CHECK-NEXT: shr
-// CHECK-NEXT: push 1
-// CHECK-NEXT: and
-// CHECK-NEXT: mul
-// CHECK-NEXT: push 6
-// CHECK-NEXT: add
-// CHECK-NEXT: push 5
-// CHECK-NEXT: shl
 // CHECK-NEXT: dup 1
 // CHECK-NEXT: mload
 // CHECK-NEXT: swap 5

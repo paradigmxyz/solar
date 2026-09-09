@@ -521,10 +521,22 @@ bb28:
   dup 2
   shr
   sub
-  dup 1
   push 0x5ddf
   dup 2
   shr
+  dup 2
+  push 1
+  add
+  dup 2
+  push 2
+  and
+  mul
+  push 4
+  shl
+  push 160
+  add
+  swap 2
+  swap 1
   push 1
   and
   mul
@@ -535,18 +547,6 @@ bb28:
   dup 1
   mload
   swap 2
-  push 1
-  add
-  push 0x5ddf
-  dup 2
-  shr
-  push 1
-  and
-  mul
-  push 5
-  add
-  push 5
-  shl
   dup 1
   mload
   swap 5
@@ -848,10 +848,22 @@ bb33:
   dup 2
   shr
   sub
-  dup 1
   push 0xdddf
   dup 2
   shr
+  dup 2
+  push 1
+  add
+  dup 2
+  push 2
+  and
+  mul
+  push 4
+  shl
+  push 160
+  add
+  swap 2
+  swap 1
   push 1
   and
   mul
@@ -862,18 +874,6 @@ bb33:
   dup 1
   mload
   swap 2
-  push 1
-  add
-  push 0xdddf
-  dup 2
-  shr
-  push 1
-  and
-  mul
-  push 5
-  add
-  push 5
-  shl
   dup 1
   mload
   swap 5
