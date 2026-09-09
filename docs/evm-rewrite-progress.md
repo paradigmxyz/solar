@@ -895,11 +895,63 @@ prior-art pins and independent receipts remain under
 Candidate1 preserves the rejected Size outcome; candidate2 records the final
 Gas-only policy and explicit source/object bridges.
 
+## Retained-addend carry investigation (2026-09-09)
+
+Main `25b0c078` was fetched and merged as `dee4ac25`; its two changed files
+concern LSP import paths. The merged workspace passes 1,577 tests. The carry
+trial replaces six physical instructions with five by comparing unsigned-add
+overflow against the retained other addend. Required input depth, complete
+output stack and peak height stay equal. LLVM's pinned unsigned-overflow
+comparison fold corroborates the arithmetic identity; the exact physical
+schedule is our own. The independent prior-art record also checks Sonatina
+and Venom without claiming an identical upstream stack rewrite.
+
+The first candidate is rejected despite six improving hot-gas labels in each
+mode and no runtime mismatches. The full heavy-object audit found two growing
+objects: CREATE3Test creation and runtime each gain eight bytes. A one-byte
+reduction in embedded WETH creation code crosses a word boundary and triggers
+an extra tail-clear sequence in the parent. The retained evidence includes all
+3,344 object IDs and the rejected outputs; aggregate shrinkage does not waive
+this regression. A follow-up compares padded data copying with separate tail
+clearing using the existing cost model and preserves repeated-word expansion.
+The follow-up fixes CREATE3Test but is also rejected: LifebuoyTest gains
+2,765 bytes in each output because padded and raw uses of the same child code
+lose their shared data identity. The UI corpus also catches CodeFactory growing 218 bytes in both Size outputs
+because padded runtime code no longer fits inside an existing creation-code blob.
+A shared raw/padded interner would not fix that containment case. The production
+trial is therefore fully reverted to the accepted rewritten head, with its
+complete patch, frozen binaries, new experimental fixtures and measurements
+archived. No carry or padding-policy performance improvement is accepted.
+
+A separate shared-root memory witness confirms a correctness regression in the
+accepted pre-carry compiler. Eighteen mutable storage reads each feed both an
+ADD reduction and an XOR reduction across source writes. At destination and
+source byte address 576, the source stores `0xdeadbeef`, then a compiler restore
+immediately overwrites it with zero. Gas and Size return zero; the retained
+sealed executable preserves the source value on the identical input. Failures
+at addresses 256 and 257 also occur in the sealed executable and remain a
+separate preexisting ownership defect. No deleted implementation was read.
+Pinned solc cannot compile this witness because of stack depth, so this is an
+execution-confirmed comparison with the sealed compiler, not a solc symbolic
+agreement claim. The prospective shared-DAG MIR scheduling repair is unproven.
+
+Artifacts, frozen producers, traces, input hashes and independent reviews are
+under `target/codegen-bench/evm-rewrite-candidate/next-debt-20260909/`. Existing
+test sources and runtime oracles are retained. All four temporarily changed
+existing carry snapshots are restored. The three new Solidity fixtures retain
+29 exact call/failure directives across the standard matrix (116 calls), covering
+retained addends, dirty allocation padding, and mixed creation-data uses in both
+declaration orders. Assertions specific to the rejected optimization remain in
+the archived experimental fixtures. Production LOC and performance debt remain
+at the preceding accepted milestone.
+
 ## Remaining acceptance work
 
 The alias assertion migration passes; its generated-code size debt remains.
 The original readback failures now pass in every mode. General source-memory
-ownership remains an open contract; bounded shared-input sweeps pass. The complete heavy join now has 30,280,962 positive bytes of sealed size debt
+ownership remains an open contract; the new shared-root witness above fails
+at byte address 576 in both optimized modes, despite earlier bounded sweeps
+passing. The complete heavy join has 30,280,962 positive bytes of sealed size debt
 across 1,007 objects. This includes creation/runtime and embedded-child
 amplification; it is a sum of regressions, not net corpus growth. The historical
 writer count was 31,831,619. Terminal returns removed 20 positive bytes before
