@@ -52,6 +52,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &pure_eval::PureEval,
     &inst_simplify::InstSimplify,
     &inst_simplify::ConstFold,
+    &readonly_eval::ReadonlyEval,
     &cse::Cse,
     &cse::FmpCse,
     &pre::Pre,
@@ -279,10 +280,13 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // regions.
     &static_alloc::DeferAlloc,
     &lower_slices::LowerSlices,
-    &lower_immutables::LowerImmutables,
     // Fuse straight-line constant-size allocations before their free-memory
     // pointer traffic is materialized; pointer values are preserved exactly.
     &coalesce_allocs::CoalesceAllocs,
+    // Evaluate known allocation words before immutable initialization becomes
+    // physical memory stores that conservatively alias heap pointers.
+    &readonly_eval::ReadonlyEval,
+    &lower_immutables::LowerImmutables,
     &lower_alloc::LowerAlloc,
     &lower_memory_zero::LowerMemoryZero,
     &lower_mcopy::LowerMCopy,
