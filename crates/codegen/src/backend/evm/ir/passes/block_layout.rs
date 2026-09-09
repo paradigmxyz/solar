@@ -235,6 +235,7 @@ fn estimated_instruction_size(gcx: Gcx<'_>, inst: &Instruction) -> usize {
     } else if inst.is_encoded_push() {
         match &inst.value {
             Some(PushValue::Immediate(value)) => selected_len(gcx, *value),
+            Some(PushValue::Library(_)) => 21,
             Some(PushValue::Block(_)) => 3,
             Some(PushValue::Data(_)) => 4,
             _ => 1,

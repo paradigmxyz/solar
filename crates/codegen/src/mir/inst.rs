@@ -1092,6 +1092,9 @@ pub(crate) enum InstKind {
     /// code. In constructor code it reads the staging word instead.
     LoadImmutable(ImmutableId),
 
+    /// A library address whose value is supplied by the linker.
+    LibraryAddress(U256),
+
     // Return data operations
     /// Get the current call's return data size: `returndatasize()`.
     ///
@@ -1527,6 +1530,7 @@ impl InstKind {
             | Self::ConstructorArgsBase
             | Self::ConstructorArgsEnd
             | Self::CodeSize
+            | Self::LibraryAddress(_)
             | Self::LoadImmutable(_)
             | Self::ReturnDataSize
             | Self::Caller
@@ -1794,6 +1798,7 @@ impl InstKind {
             | Self::ConstructorArgsBase
             | Self::ConstructorArgsEnd
             | Self::CodeSize
+            | Self::LibraryAddress(_)
             | Self::LoadImmutable(_)
             | Self::ReturnDataSize
             | Self::Caller
@@ -1894,6 +1899,7 @@ impl InstKind {
             Self::CodeCopy(_, _, _) => "codecopy",
             Self::StoreImmutable(..) => "storeimmutable",
             Self::LoadImmutable(_) => "loadimmutable",
+            Self::LibraryAddress(_) => "library_address",
             Self::ExtCodeSize(_) => "extcodesize",
             Self::ExtCodeCopy(_, _, _, _) => "extcodecopy",
             Self::ExtCodeHash(_) => "extcodehash",
@@ -2126,7 +2132,8 @@ impl InstKind {
             | Self::BlobBaseFee
             | Self::BlobHash(_) => EffectKind::EnvironmentRead,
             Self::LoadImmutable(_) => EffectKind::ImmutableRead,
-            Self::Add(_, _)
+            Self::LibraryAddress(_)
+            | Self::Add(_, _)
             | Self::StorageArrayDataSlot(_)
             | Self::StorageArrayElementSlot { .. }
             | Self::Sub(_, _)

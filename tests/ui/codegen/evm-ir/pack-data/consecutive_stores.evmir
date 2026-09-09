@@ -8,10 +8,30 @@
 // CHECK-NEXT: {{^[ +].*}}dup 3
 // CHECK-NEXT: {{^[ +].*}}codecopy
 // CHECK-NOT: {{^[ +].*}}mstore
-// CHECK: {{^[ +].*}}stop
+// CHECK: {{^[ +].*}}jump bb1
 bb0:
   push 128
   push 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
+  dup 2
+  mstore
+  push 32
+  dup 2
+  add
+  push 0xffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100
+  swap 1
+  mstore
+  jump bb1
+
+
+
+// CHECK-LABEL: {{^[ +].*}}bb1:
+// CHECK: {{^[ +].*}}push_library 0x8000000000000000000000000000000000000000
+// CHECK: {{^[ +].*}}mstore
+// CHECK-NOT: {{^[ +].*}}codecopy
+// CHECK: {{^[ +].*}}stop
+bb1:
+  push 128
+  push_library 0x8000000000000000000000000000000000000000
   dup 2
   mstore
   push 32

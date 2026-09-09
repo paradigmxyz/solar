@@ -7,12 +7,15 @@
 // CHECK: {{^[ +].*}}push_deferred 0xfffffff
 // CHECK: {{^[ +].*}}push_immutable 3, 1
 // CHECK: {{^[ +].*}}push_immutable 0xfffffff, 32
+// CHECK: {{^[ +].*}}push_library 0x8000000000000000000000000000000000000000
 bb0:
   push 1
   push_deferred 2
   push_deferred 0xfffffff
   push_immutable 3, 1
   push_immutable 0xfffffff, 32
+  push_library 0x8000000000000000000000000000000000000000
+  pop
   pop
   pop
   pop

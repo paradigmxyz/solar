@@ -386,6 +386,7 @@ fn display_inst_kind<'a>(
             write!(f, "storeimmutable {}", display_immutable_ref(*id, module))?;
             write!(f, ", {}", display_val(*value, func))
         }
+        InstKind::LibraryAddress(value) => write!(f, "library_address {value}"),
         InstKind::LoadImmutable(id) => {
             write!(f, "loadimmutable {}", display_immutable_ref(*id, module))
         }

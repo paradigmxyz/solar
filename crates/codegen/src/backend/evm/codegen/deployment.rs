@@ -146,6 +146,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         // [immutable patches]   ; patch staged words into the PUSH<N> placeholders
         // PUSH<n> copy_base     ; memory offset
         // RETURN                ; return the runtime code
+        let mut deployment_library_offsets = deploy_code.library_offsets;
+        deployment_library_offsets.extend(
+            runtime_code.library_offsets.iter().map(|offset| deploy_code.bytecode.len() + offset),
+        );
         let mut deploy_bytecode = deploy_code.bytecode;
         deploy_bytecode.extend_from_slice(&runtime_code.bytecode);
 
@@ -154,6 +158,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         EvmArtifact {
             deployment: deploy_bytecode,
             runtime: runtime_code.bytecode,
+            deployment_library_offsets,
+            runtime_library_offsets: runtime_code.library_offsets,
             immutable_references: immutable_refs,
             deployment_evm_ir: deploy_code.evm_ir,
             runtime_evm_ir: runtime_code.evm_ir,
@@ -504,6 +510,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let result = self.asm.assemble_prepared(&prepared.assembly, &deferred_values);
         GeneratedCode {
             bytecode: result.bytecode,
+            library_offsets: result.library_offsets,
             evm_ir: result.evm_ir,
             debug_info: result.debug_info,
         }

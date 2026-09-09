@@ -1,8 +1,7 @@
 //@ compile-flags: -Zdump=mir
 //@ filecheck:
 
-// A library function's selector needs no deploy-time address, so it lowers
-// even though `address(L)` does not; see `library_address_unsupported.sol`.
+// A library function's selector needs no deploy-time address.
 library L {
     function f(uint256 v) external pure returns (uint256) {
         return v;

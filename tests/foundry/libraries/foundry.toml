@@ -2,3 +2,6 @@
 src = "src"
 out = "out"
 libs = ["lib"]
+# Keep linked runtime blobs small enough to exercise constant-copy lowering.
+bytecode_hash = "none"
+cbor_metadata = false
