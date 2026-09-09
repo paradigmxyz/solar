@@ -1,0 +1,29 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=terminal-layout
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=terminal-layout
+//@[gas] filecheck: --check-prefix=GAS
+//@[size] filecheck: --check-prefix=SIZE
+
+@module SharedTerminal
+
+// GAS: {{^[ +].*}}bb0:
+// GAS: {{^[ +].*}}bb1:
+// GAS: {{^[ +].*}}bb3:
+// GAS: {{^[ +].*}}bb2:
+// SIZE: bb0:
+// SIZE: bb1:
+// SIZE: bb2:
+// SIZE: bb3:
+bb0:
+  push 1
+  indexed_jump bb1, bb3, bb3, bb3
+bb1:
+  push 0
+  push 0
+  jump bb2
+bb2:
+  return
+bb3:
+  push 0
+  push 0
+  jump bb2

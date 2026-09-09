@@ -19,6 +19,7 @@ from evm_rules.discovery import discover_rules
 from evm_rules.mining import mine
 from evm_rules.late import verify_late_file
 from evm_rules.stack import verify_stack_file
+from evm_rules.solver import Cvc5
 
 
 def main():
@@ -29,6 +30,9 @@ def main():
     verify.add_argument("--timeout-ms", type=int, default=5000)
     verify.add_argument("--output", type=Path, required=True)
     verify.add_argument("--artifacts", type=Path)
+    verify.add_argument("--fallback-solver", help="explicit cvc5 executable for incomplete word proofs")
+    verify.add_argument("--bit-partition-timeout-ms", type=int, default=0,
+                        help="optional total budget per incomplete word rule to prove all output bits separately")
     verify.add_argument("--partition-shifts", action="store_true",
                         help="exhaust single symbolic shift counts and SIGNEXTEND indices for cross-solver replay")
     discover = subparsers.add_parser("discover", help="bounded enumerative search with SMT validation")
@@ -62,6 +66,8 @@ def main():
     args = parser.parse_args()
     if getattr(args, "timeout_ms", 1) <= 0:
         parser.error("--timeout-ms must be positive")
+    if getattr(args, "bit_partition_timeout_ms", 0) < 0:
+        parser.error("--bit-partition-timeout-ms must be nonnegative")
     if args.command == "mine":
         if args.runs < 0:
             parser.error("--runs must be nonnegative")
@@ -75,6 +81,10 @@ def main():
         report = discover_rules(args)
         exit_code = 0 if report.get("accepted", True) else 1
     else:
+        try:
+            fallback = Cvc5(args.fallback_solver, args.timeout_ms) if args.fallback_solver else None
+        except (OSError, ValueError) as error:
+            parser.error(str(error))
         files = []
         for path in args.files:
             if path.name == "stack_peephole.isle":
@@ -82,7 +92,8 @@ def main():
             elif path.name == "late_word.isle":
                 file = verify_late_file(path, args.timeout_ms, args.artifacts)
             else:
-                file = verify_file(path, args.timeout_ms, args.artifacts, args.partition_shifts)
+                file = verify_file(path, args.timeout_ms, args.artifacts, args.partition_shifts, fallback,
+                                   args.bit_partition_timeout_ms)
             files.append(file)
         for file in files:
             for rule in file["rules"]:
@@ -91,12 +102,15 @@ def main():
                     print(f"{file['source']}:{rule['line']}: {rule['status']}{reason}", file=sys.stderr)
         counts = Counter(rule["status"] for file in files for rule in file["rules"])
         report = {"files": files, "counts": dict(counts)}
+        if fallback is not None:
+            report["fallback_solver"] = fallback.metadata
         report["query_sha256"] = query_manifest(report)
         exit_code = 0 if counts.get("proved", 0) and set(counts) == {"proved"} else 1
     implementation = sorted((Path(__file__).parent / "evm_rules").glob("*.py")) + [Path(__file__)]
     report.update(schema="solar:evm-word-rules@1", word_bits=256, solver=z3.get_version_string(),
                   implementation_sha256=hashlib.sha256(b"".join(p.read_bytes() for p in implementation)).hexdigest(),
                   selection_sha256=hashlib.sha256((ISLE / "select.isle").read_bytes()).hexdigest(),
+                  prelude_sha256=hashlib.sha256((ISLE / "prelude.isle").read_bytes()).hexdigest(),
                   extractors_sha256=hashlib.sha256((ISLE / "extractors.isle").read_bytes()).hexdigest())
     # These implementations remain trusted; record the exact versions reviewed
     # with the model rather than implying that their Rust bodies were proved.
@@ -107,6 +121,10 @@ def main():
             "crates/codegen/src/mir/transform/egraph/isle.rs",
             "crates/codegen/src/mir/transform/egraph.rs",
             "crates/codegen/src/mir/utils/eval.rs",
+            "crates/codegen/src/mir/memory.rs",
+            "crates/codegen/src/mir/types.rs",
+            "crates/codegen/src/mir/transform/lower_memory_objects.rs",
+            "crates/codegen/src/mir/transform/lower_slices.rs",
             "crates/codegen/src/mir/transform/word_sequence.rs",
             "crates/codegen/src/mir/transform/word_sequence/isle.rs",
             "crates/codegen/src/backend/evm/codegen/select.rs",

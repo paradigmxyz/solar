@@ -1,0 +1,105 @@
+- // === ROOT/tests/ui/codegen/mir/readonly-eval/closed_calls.mir (before readonly-eval) ===
++ // === ROOT/tests/ui/codegen/mir/readonly-eval/closed_calls.mir (after readonly-eval) ===
+  @module ClosedCalls
+  fn @closed() -> u256 {
+    bb0:
+-     v0 = icall @validated, 1, 42
+-     icall @guard, 0, v0
+-     ret v0
++     ret 42
+  }
+  
+  fn @validated(arg0: u256) -> u256 {
+    bb0:
+      icall @guard, 0, arg0
+      ret arg0
+  }
+  
+  fn @guard(arg0: u256) {
+    bb0:
+      v0 = eq arg0, 42
+      jumpi v0, bb1, bb2
+    bb2:
+      mstore 0, 17
+      revert 0, 32
+    bb1:
+      stop
+  }
+  
+  fn @failure() {
+    bb0:
+      icall @guard, 0, 41
+      stop
+  }
+  
+  fn @unknown(arg0: u256) {
+    bb0:
+      icall @guard, 0, arg0
+      stop
+  }
+  
+  fn @effects() {
+    bb0:
+      icall @write, 0, 42
+      icall @gas_reader, 0
+      icall @memory_reader, 0
+      stop
+  }
+  
+  fn @write(arg0: u256) {
+    bb0:
+      sstore 0, arg0
+      ret
+  }
+  
+  fn @gas_reader() {
+    bb0:
+      v0 = gas
+      ret
+  }
+  
+  fn @memory_reader() {
+    bb0:
+      v0 = mload 0x1000
+      ret
+  }
+  
+  fn @recursive_caller() {
+    bb0:
+      icall @recursive, 0, 42
+      ret
+  }
+  
+  fn @recursive(arg0: u256) {
+    bb0:
+      icall @recursive, 0, arg0
+      ret
+  }
+  
+  fn @known_memory() -> u256 {
+    bb0:
+      v0 = alloc raw, exact, uninitialized, infallible, 32
+      mstore v0, 19
+-     icall @guard, 0, 42
+-     v1 = icall @read, 1, v0
+-     ret v1
++     ret 19
+  }
+  
+  fn @read(arg0: memptr) -> u256 {
+    bb0:
+      v0 = mload arg0
+      ret v0
+  }
+  
+  fn @reference_caller() -> storageptr {
+    bb0:
+      v0 = icall @reference, 1
+      ret v0
+  }
+  
+  fn @reference() -> storageptr {
+    bb0:
+      ret 5
+  }
+  

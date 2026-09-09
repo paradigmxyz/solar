@@ -36,6 +36,12 @@ def query_paths(report, *, require_proved=False):
                 ):
                     if len(queries) != rule.get("cases", 0) + 1:
                         raise ValueError("proof is missing a partition or its coverage query")
+                if require_proved and rule.get("proof_method") == "solver-fallback":
+                    if len(queries) != 1 or rule.get("fallback", {}).get("status") != "unsat":
+                        raise ValueError("fallback proof must establish the complete query as UNSAT")
+                if require_proved and rule.get("proof_method") == "exhaustive-output-bit-partition":
+                    if rule.get("bits") != 256 or len(queries) != 256:
+                        raise ValueError("proof must include every one of the 256 output bits")
                 paths.extend(queries)
     if require_proved and not rule_count:
         raise ValueError("proof report has no rules")

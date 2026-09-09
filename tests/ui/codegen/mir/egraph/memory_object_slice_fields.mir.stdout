@@ -1,0 +1,40 @@
+// === ROOT/tests/ui/codegen/mir/egraph/memory_object_slice_fields.sol:SliceFields ===
+@module SliceFields
+fn @first(arg0: calldataslice) -> u256 [selector=0xa355ea34, pure, abi_params=[tuple<u256, u256>], abi_returns=[word]] {
+  bb0:
+    v0 = slice_ptr arg0
+    v1 = add v0, 0
+    v2 = calldataload v1
+    ret v2
+}
+
+fn @second(arg0: calldataslice) -> u256 [selector=0x8516528b, pure, abi_params=[tuple<u256, u256>], abi_returns=[word]] {
+  bb0:
+    v0 = slice_ptr arg0
+    v1 = add v0, 32
+    v2 = calldataload v1
+    ret v2
+}
+
+fn @choose(arg0: calldataslice, arg1: bool) -> u256 [selector=0x1fae9324, pure, abi_params=[tuple<u256, u256>, bool], abi_returns=[word]] {
+  bb0:
+    jumpi arg1, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v3 = slice_ptr arg0
+    v4 = add v3, 32
+    v5 = calldataload v4
+    ret v5
+  bb1:
+    v0 = slice_ptr arg0
+    v1 = add v0, 0
+    v2 = calldataload v1
+    ret v2
+}
+
+fn @memoryFirst(arg0: memorystruct) -> u256 [selector=0xfd428e4b, pure, abi_params=[tuple<u256, u256>], abi_returns=[word]] {
+  bb0:
+    v0 = memory_object_load_field memorystruct<2>, arg0, 0
+    ret v0
+}

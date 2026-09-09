@@ -122,6 +122,19 @@ impl<'a> PeepContext<'a> {
             .find_map(|start| generated::constructor_late_peep(self, start))
     }
 
+    /// A canonical instruction suffix whose boundaries permit replacement.
+    fn unprotected_tail<const N: usize>(&self) -> Option<[Inst; N]> {
+        let start = self.instructions.len().checked_sub(N)?;
+        if self.instructions[start..]
+            .iter()
+            .any(|inst| inst.keeps_with_next() || !inst.has_canonical_stack_effect())
+            || start > 0 && self.instructions[start - 1].keeps_with_next()
+        {
+            return None;
+        }
+        self.tail()
+    }
+
     fn tail<const N: usize>(&self) -> Option<[Inst; N]> {
         let start = self.instructions.len().checked_sub(N)?;
         Some(std::array::from_fn(|index| start + index))
@@ -432,6 +445,38 @@ impl generated::Context for PeepContext<'_> {
             .then_some(result)
     }
 
+    /// Folds a literal unary expression only when its materialization is Pareto better.
+    fn fold_unary_constant(&mut self, _: Window) -> Option<U256> {
+        let [value, instruction] = self.unprotected_tail()?;
+        let value = push_value(&self.instructions[value])?;
+        let opcode = raw_opcode(&self.instructions[instruction])?;
+        let result = eval::eval_opcode(opcode, &[value])?;
+        let target = Target::with(
+            self.evm_version,
+            OptimizationMode::Gas,
+            Target::DEFAULT_EXPECTED_EXECUTIONS,
+        );
+        let (input_size, input_gas) = materialization_cost(self.evm_version, value);
+        let (result_size, result_gas) = materialization_cost(self.evm_version, result);
+        let input_size = input_size + 1;
+        let input_gas =
+            input_gas + target.opcode_with_immediates(opcode, &[Some(value)]).gas as usize;
+        // PUSH value; unary_opcode => materialize evaluated word
+        (result_size <= input_size
+            && result_gas <= input_gas
+            && (result_size < input_size || result_gas < input_gas))
+            .then_some(result)
+    }
+
+    /// Removes a closed conditional jump whose literal condition is false.
+    fn untaken_jump(&mut self, _: Window) -> Option<()> {
+        let [condition, destination, instruction] = self.unprotected_tail()?;
+        (push_value(&self.instructions[condition])?.is_zero()
+            && is_block_push(&self.instructions[destination])
+            && raw_opcode(&self.instructions[instruction]) == Some(JUMPI))
+        .then_some(())
+    }
+
     /// The length of a trailing run of pushes and stack operations that together
     /// leave the stack unchanged, searched from the earliest such start.
     fn noop_stack_suffix(&mut self, _: Window) -> Option<u8> {
@@ -568,5 +613,46 @@ impl generated::Context for PeepContext<'_> {
 
     fn rewrite(&mut self, skip: u8, edit: &Edit) -> Rewrite {
         Rewrite { skip, edit: *edit }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::backend::evm::ir::StackEffect;
+
+    #[test]
+    fn suffix_boundaries_remain_protected() {
+        let mut instructions = [
+            Instruction::opcode(GAS),
+            Instruction::push_value(U256::from(2)),
+            Instruction::opcode(ISZERO),
+        ];
+        assert!(
+            PeepContext::new(&instructions, EvmVersion::Osaka).unprotected_tail::<2>().is_some()
+        );
+        for boundary in 0..instructions.len() {
+            instructions[boundary].metadata.keep_with_next = true;
+            assert!(
+                PeepContext::new(&instructions, EvmVersion::Osaka)
+                    .unprotected_tail::<2>()
+                    .is_none()
+            );
+            instructions[boundary].metadata.keep_with_next = false;
+        }
+    }
+
+    #[test]
+    fn suffix_requires_canonical_stack_effects() {
+        let mut instructions = [Instruction::push_value(U256::ONE), Instruction::opcode(ISZERO)];
+        instructions[0].metadata.stack = Some(StackEffect::new(0, 1));
+        instructions[1].metadata.stack = Some(StackEffect::new(1, 1));
+        assert!(
+            PeepContext::new(&instructions, EvmVersion::Osaka).unprotected_tail::<2>().is_some()
+        );
+        instructions[0].metadata.stack = Some(StackEffect::new(0, 2));
+        assert!(
+            PeepContext::new(&instructions, EvmVersion::Osaka).unprotected_tail::<2>().is_none()
+        );
     }
 }
