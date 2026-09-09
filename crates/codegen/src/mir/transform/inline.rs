@@ -26,13 +26,19 @@
 //! allocating memory. Inlining exposes these components before slice lowering
 //! expands a returned slice into the internal multi-word return convention.
 //! The existing leaf-size and lifetime-cost limits still apply.
+//! A targeted late adapter revisits argument-free immutable word helpers after
+//! range checks and CFG cleanup make them straight-line leaves. It admits only
+//! immutable loads and pure single-opcode computations, retaining the ordinary
+//! tiny-leaf size and lifetime-cost limits. Inlining stays at the original call
+//! site, including constructor calls; no runtime immutable bounds are assumed.
 
 use crate::{
     backend::evm::{op, select},
     mir::{
-        AbiLayout, AbiType, AllocationSemantics, BlockId, FrameMode, FrameSlotKind, Function,
-        FunctionBuilder, FunctionId as MirFunctionId, Immediate, ImmutableEncoding, InstId,
-        InstKind, Instruction, MemoryObjectKind, MirType, Module, Terminator, Value, ValueId,
+        AbiLayout, AbiType, AllocationSemantics, BlockId, EffectKind, FrameMode, FrameSlotKind,
+        Function, FunctionBuilder, FunctionId as MirFunctionId, Immediate, ImmutableEncoding,
+        InstId, InstKind, Instruction, MemoryObjectKind, MirType, Module, Terminator, Value,
+        ValueId,
         analysis::{CallGraphInfo, LoopAnalyzer},
         immutable::immutable_push_type_size,
         memory::{EvmMemoryLayout, MemoryLayoutPolicy},
@@ -84,6 +90,30 @@ impl MirPass for InlineTinyLeaves {
     ) -> bool {
         let mut inliner = MirInliner::for_tiny_leaves();
         inliner.run(gcx, module).inlined != 0
+    }
+}
+
+/// Revisits small immutable computations exposed by late check elimination.
+pub(crate) struct InlineImmutableLeaves;
+
+impl MirPass for InlineImmutableLeaves {
+    fn name(&self) -> &'static str {
+        "inline-immutable-leaves"
+    }
+
+    fn run_pass(
+        &self,
+        gcx: Gcx<'_>,
+        module: &mut Module,
+        _analyses: &mut crate::mir::pass::ModuleAnalyses,
+    ) -> bool {
+        if !module.functions.iter().any(is_immutable_word_leaf) {
+            return false;
+        }
+        MirInliner { immutable_leaves_only: true, ..MirInliner::for_tiny_leaves() }
+            .run(gcx, module)
+            .inlined
+            != 0
     }
 }
 
@@ -179,6 +209,8 @@ struct MirInliner {
     /// profitability is governed by lifetime cost instead of this ceiling;
     /// zero remains the explicit off switch used by size mode.
     max_module_code_size: usize,
+    /// Restricts late expansion to argument-free immutable word computations.
+    immutable_leaves_only: bool,
     mode: InlineMode,
 }
 
@@ -206,6 +238,7 @@ impl Default for MirInliner {
                 Target::DEFAULT_EXPECTED_EXECUTIONS,
             ),
             max_module_code_size: usize::MAX,
+            immutable_leaves_only: false,
             mode: InlineMode::Normal,
         }
     }
@@ -365,6 +398,8 @@ impl MirInliner {
                     || grew_too_much
                     || framed_constructor_call
                     || call_graph.is_recursive(site.callee)
+                    || (self.immutable_leaves_only
+                        && !is_immutable_word_leaf(module.function(site.callee)))
                     || (self.mode == InlineMode::SingleUse
                         && module.function(site.callee).attributes.no_inline)
                     || !self.is_inlineable(
@@ -924,6 +959,31 @@ fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInli
     }
 
     summary
+}
+
+/// Recognizes immutable loads combined without calls, memory access, or control flow.
+fn is_immutable_word_leaf(func: &Function) -> bool {
+    if func.attributes.no_inline
+        || !func.params.is_empty()
+        || func.internal_frame_size != 0
+        || func.blocks.len() != 1
+        || func.returns.len() != 1
+        || func.blocks[BlockId::ENTRY].instructions.len() > 12
+        || !matches!(func.blocks[BlockId::ENTRY].terminator.as_ref(),
+            Some(Terminator::Return { values }) if values.len() == 1)
+    {
+        return false;
+    }
+    let mut has_immutable = false;
+    for inst in func.instructions() {
+        let kind = &func.inst(inst).kind;
+        if matches!(kind, InstKind::LoadImmutable(_)) {
+            has_immutable = true;
+        } else if kind.effect_kind() != EffectKind::Pure || kind.evm_opcode().is_none() {
+            return false;
+        }
+    }
+    has_immutable
 }
 
 fn is_transparent_forwarder(func: &Function) -> bool {

@@ -1,0 +1,13 @@
+// === ROOT/tests/ui/codegen/evm-ir/reorder-expressions/calldata_runtime.sol:ClosedCalldata ===
+@module ClosedCalldata
+fn @words(arg0: u256, arg1: u256) -> (u256, u256) [selector=0xa5a43888, pure, abi_params=[u256, u256], abi_returns=[word, word]] {
+  bb0:
+    v0 = calldataload 36
+    v1 = calldataload 4
+    v2 = sub v1, v0
+    v3 = calldataload 4
+    v4 = add v3, 1
+    v5 = calldatasize
+    v6 = div v5, v4
+    ret v2, v6
+}
