@@ -1107,6 +1107,12 @@ impl<'a> FunctionBuilder<'a> {
         )
     }
 
+    /// Emits an opaque library address supplied by the linker.
+    pub(crate) fn library_address(&mut self, placeholder: U256) -> ValueId {
+        // result = library_address placeholder
+        self.emit_inst(InstKind::LibraryAddress(placeholder), Some(MirType::uint256()))
+    }
+
     /// Emits a loadimmutable instruction.
     pub(crate) fn load_immutable(&mut self, id: ImmutableId, ty: MirType) -> ValueId {
         self.emit_inst(InstKind::LoadImmutable(id), Some(ty))

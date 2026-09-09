@@ -1,0 +1,19 @@
+// === ROOT/tests/ui/codegen/lowering/library_address.sol:L ===
+@module L
+@library
+fn @f(arg0: u256) -> u256 [selector=0xb3de648b, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    ret arg0
+}
+
+// === ROOT/tests/ui/codegen/lowering/library_address.sol:C ===
+@module C
+fn @addr() -> address [selector=0x767800de, pure, abi_params=[], abi_returns=[word<u160>]] {
+  bb0:
+    ret 0x1111111111111111111111111111111111111111
+}
+
+fn @sel() -> bytes4 [selector=0x41c910e1, pure, abi_params=[], abi_returns=[word<bytes4>]] {
+  bb0:
+    ret 0xb3de648b00000000000000000000000000000000000000000000000000000000
+}

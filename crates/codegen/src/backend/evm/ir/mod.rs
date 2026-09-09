@@ -68,6 +68,8 @@ pub(crate) struct Data {
     pub(crate) bytes: Bytes,
     pub(crate) name: Option<Symbol>,
     pub(crate) emit_in_runtime: bool,
+    /// Byte offsets of unresolved library addresses in this data.
+    pub(crate) library_offsets: Vec<usize>,
 }
 
 impl DataRef {
@@ -326,6 +328,12 @@ impl Instruction {
         Self::encoded_push(PushValue::Immediate(value), Self::ENCODED_PUSH)
     }
 
+    /// Creates an opaque library-address push instruction.
+    #[must_use]
+    pub(crate) fn push_library(value: U256) -> Self {
+        Self::encoded_push(PushValue::Library(value), Self::ENCODED_PUSH)
+    }
+
     /// Creates an encoded block-address push instruction.
     #[must_use]
     pub(crate) fn push_block(block: BlockId) -> Self {
@@ -401,6 +409,14 @@ impl Instruction {
         }
     }
 
+    /// Returns the opaque library placeholder, if any.
+    pub(in crate::backend) const fn pushed_library(&self) -> Option<U256> {
+        match self.value {
+            Some(PushValue::Library(value)) => Some(value),
+            _ => None,
+        }
+    }
+
     /// Returns a literal runtime word carried by an ordinary immediate push.
     ///
     /// Deferred and immutable pushes encode internal IDs in the same payload variant, but their
@@ -443,6 +459,9 @@ impl Instruction {
         fmt::from_fn(move |f| match self.stack_op {
             Some(stack_op) => f.write_str(stack_op.definition().mnemonic),
             None => match self.encoding {
+                Self::ENCODED_PUSH if self.pushed_library().is_some() => {
+                    f.write_str("push_library")
+                }
                 Self::ENCODED_PUSH => f.write_str("push"),
                 encoding if encoding == Self::ENCODED_PUSH | Self::DEFERRED => {
                     f.write_str("push_deferred")
@@ -693,6 +712,8 @@ impl fmt::Display for TerminatorKind {
 enum PushValue {
     /// Immediate EVM word.
     Immediate(U256),
+    /// Opaque library address supplied by the linker.
+    Library(U256),
     /// Basic block reference.
     Block(BlockId),
     /// Constant program-data reference.

@@ -117,6 +117,7 @@
   (ExtCodeHash (addr Value))
   (StoreImmutable (id ImmutableId) (value Value))
   (LoadImmutable (id ImmutableId))
+  (LibraryAddress (placeholder U256))
   (ReturnDataSize)
   (ReturnDataCopy (dest Value) (offset Value) (size Value))
   (Caller)

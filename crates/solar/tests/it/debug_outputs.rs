@@ -63,6 +63,8 @@ fn debug_output_selection_preserves_shared_tail_bytecode() {
         "../../codegen/lowering/run-call/external_call_returndata_size.sol",
         "../../codegen/lowering/empty_code_external_call.sol",
         "../../codegen/lowering/storage_checked_arithmetic.sol",
+        "../../codegen/lowering/library_address.sol",
+        "../../../foundry/libraries/test/OverloadLib.t.sol",
     ] {
         for mode in ["none", "gas", "size"] {
             let baseline = compile_json(&[source, "-O", mode, "--emit=bin,bin-runtime"]);

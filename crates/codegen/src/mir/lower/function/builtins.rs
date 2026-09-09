@@ -290,6 +290,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                                     contract_id,
                                     creation,
                                 )),
+                                if creation {
+                                    &self.cx.child_bytecodes[&contract_id]
+                                        .deployment_library_offsets
+                                } else {
+                                    &self.cx.child_bytecodes[&contract_id].runtime_library_offsets
+                                },
                             ),
                             None => {
                                 let (kind, name) = match builtin {
@@ -817,6 +823,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 &bytes,
                 AllocationSemantics::SOLIDITY_UNINITIALIZED,
                 None,
+                &[],
             );
         }
 

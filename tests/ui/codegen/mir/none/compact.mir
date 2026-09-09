@@ -1,6 +1,19 @@
 //@compile-flags: -Zmir-pipeline=none
 //@filecheck: --enable-var-scope
+// CHECK: linked_0: hex"8000000000000000000000000000000000000000" library_offsets [0]
 // CHECK-LABEL: @compact
 // CHECK: {{^ +}}[[SUM:v[0-9]+]] = add 1, 2
 // CHECK: {{^ +}}ret [[SUM]]
-@module Compact fn @compact() -> u256 { bb0: v0 = add 1, 2 ret v0 }
+@module Compact
+data:
+  linked_0: hex"8000000000000000000000000000000000000000" library_offsets [0]
+fn @compact() -> u256 { bb0: v0 = add 1, 2 ret v0 }
+
+
+// CHECK-LABEL: @library
+// CHECK: library_address 730750818665451459101842416358141509827966271488
+fn @library() -> u256 {
+  bb0:
+    v0 = library_address 730750818665451459101842416358141509827966271488
+    ret v0
+}

@@ -77,6 +77,15 @@ one rule source for optimization and offline checking without implying that
 every Rust rewrite belongs in the DSL. See the repository's
 [rule-writing guidance](../../AGENTS.md#operation-schema-and-isle-rules).
 
+### Library addresses and relocations
+
+Unresolved library addresses remain symbolic through MIR (`library_address`)
+and EVM IR (`push_library`). Their placeholder bytes identify the library;
+optimizers must not treat those bytes as the linked address. The assembler
+records each relocation when it emits the address or linked program data.
+Embedded creation and runtime bytecode carry these offsets through data
+pooling, which shares bytes only when their relocations also match.
+
 ### Optimization search and costs
 
 The offline rule tool can mine bounded pure trees from real MIR artifacts,

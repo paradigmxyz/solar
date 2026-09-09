@@ -785,7 +785,9 @@ fn estimated_block_size(
         } else if let Some(type_size) = inst.immutable_type_size() {
             usize::from(type_size.bytes()) + 1
         } else if inst.is_encoded_push() {
-            if let Some(value) = inst.pushed_value() {
+            if inst.pushed_library().is_some() {
+                21
+            } else if let Some(value) = inst.pushed_value() {
                 push_len(evm_version, value)
             } else if inst.pushed_block().is_some() {
                 usize::from(block_target_width) + 1
