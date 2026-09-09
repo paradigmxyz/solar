@@ -1,6 +1,7 @@
 //! Optimization and transformation passes for the Solar compiler.
 
 pub(crate) mod adce;
+pub(crate) mod call_cleanup;
 pub(crate) mod cfg_simplify;
 pub(crate) mod check_elim;
 pub(crate) mod coalesce_allocs;
