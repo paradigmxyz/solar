@@ -4561,6 +4561,8 @@ name = "solar-lint"
 version = "0.2.0"
 dependencies = [
  "rayon",
+ "serde_json",
+ "snapbox",
  "solar-ast",
  "solar-interface",
  "solar-sema",

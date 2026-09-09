@@ -57,6 +57,17 @@ impl<'s, 'gcx> ProjectLintContext<'s, 'gcx> {
         self.source_context(source).emit(lint, span);
     }
 
+    /// Emits a lint's default diagnostic with caller-provided advice using the source's policy.
+    pub fn emit_with_help<L: Lint>(
+        &self,
+        source: &ProjectSource<'_>,
+        lint: &'static L,
+        span: Span,
+        help: impl Into<DiagMsg>,
+    ) {
+        self.source_context(source).emit_with_help(lint, span, help);
+    }
+
     /// Emits a lint diagnostic with a caller-provided message.
     pub fn emit_with_msg<L: Lint>(
         &self,
@@ -66,6 +77,20 @@ impl<'s, 'gcx> ProjectLintContext<'s, 'gcx> {
         msg: impl Into<DiagMsg>,
     ) {
         self.source_context(source).emit_with_msg(lint, span, msg);
+    }
+
+    /// Emits a caller-provided message and advice using the source's suppression policy.
+    ///
+    /// The advice replaces the lint's default advice; its help URL remains attached separately.
+    pub fn emit_with_msg_and_help<L: Lint>(
+        &self,
+        source: &ProjectSource<'_>,
+        lint: &'static L,
+        span: Span,
+        msg: impl Into<DiagMsg>,
+        help: impl Into<DiagMsg>,
+    ) {
+        self.source_context(source).emit_with_msg_and_help(lint, span, msg, help);
     }
 
     fn source_context<'a>(&self, source: &'a ProjectSource<'_>) -> LintContext<'s, 'a>
@@ -79,5 +104,157 @@ impl<'s, 'gcx> ProjectLintContext<'s, 'gcx> {
             self.with_ansi_help,
             Some(source.file.clone()),
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use snapbox::{assert_data_eq, str};
+    use solar_interface::{ColorChoice, diagnostics::Level};
+    use solar_sema::Compiler;
+    use std::ops::ControlFlow;
+
+    struct HelpLint;
+
+    impl Lint for HelpLint {
+        fn id(&self) -> &'static str {
+            "project-help"
+        }
+
+        fn level(&self) -> Level {
+            Level::Warning
+        }
+
+        fn description(&self) -> &'static str {
+            "project lint message"
+        }
+
+        fn help(&self) -> &'static str {
+            "https://example.com/project-lint"
+        }
+
+        fn diagnostic_help(&self) -> Option<&'static str> {
+            Some("review the project declaration")
+        }
+    }
+
+    struct Policy {
+        enabled: bool,
+        suppressed: bool,
+    }
+
+    impl LintPolicy for Policy {
+        fn is_lint_enabled(&self, _id: &str) -> bool {
+            self.enabled
+        }
+
+        fn is_lint_suppressed(&self, _id: &str, _span: Span) -> bool {
+            self.suppressed
+        }
+    }
+
+    fn emit_project_help(policy: Policy) -> String {
+        let session = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+        session.dcx.set_flags(|flags| flags.track_diagnostics = false);
+        let mut compiler = Compiler::new(session);
+        let path = PathBuf::from("test.sol");
+        compiler.enter_mut(|compiler| {
+            let mut parser = compiler.parse();
+            let file = compiler
+                .sess()
+                .source_map()
+                .new_source_file(path.clone(), "contract Test {}")
+                .unwrap();
+            parser.add_file(file);
+            parser.parse();
+            assert_eq!(compiler.lower_asts(), Ok(ControlFlow::Continue(())));
+            assert_eq!(compiler.analysis(), Ok(ControlFlow::Continue(())));
+        });
+        compiler.enter(|compiler| {
+            let gcx = compiler.gcx();
+            let (_, ast_source) = gcx.get_ast_source(&path).unwrap();
+            let source = ProjectSource {
+                path: path.clone(),
+                file: ast_source.file.clone(),
+                ast: ast_source.ast.as_ref().unwrap(),
+                policy: Arc::new(policy),
+            };
+            let ctx = ProjectLintContext::new(
+                gcx.sess,
+                gcx,
+                Arc::new(Policy { enabled: true, suppressed: false }),
+                true,
+                false,
+            );
+            let span = source.ast.items.first().unwrap().span;
+            ctx.emit(&source, &HelpLint, span);
+            ctx.emit_with_help(&source, &HelpLint, span, "custom project advice");
+            ctx.emit_with_msg(&source, &HelpLint, span, "custom project message");
+            ctx.emit_with_msg_and_help(
+                &source,
+                &HelpLint,
+                span,
+                "conditional project message",
+                "review this declaration instead",
+            );
+        });
+        compiler.dcx().emitted_diagnostics().unwrap().to_string()
+    }
+
+    #[test]
+    fn project_diagnostic_help() {
+        assert_data_eq!(
+            emit_project_help(Policy { enabled: true, suppressed: false }),
+            str![[r#"
+warning[project-help]: project lint message
+  ╭▸ test.sol:1:1
+  │
+1 │ contract Test {}
+  │ ━━━━━━━━━━━━━━━━
+  │
+  ├ help: review the project declaration
+  ╰ help: https://example.com/project-lint
+
+warning[project-help]: project lint message
+  ╭▸ test.sol:1:1
+  │
+1 │ contract Test {}
+  │ ━━━━━━━━━━━━━━━━
+  │
+  ├ help: custom project advice
+  ╰ help: https://example.com/project-lint
+
+warning[project-help]: custom project message
+  ╭▸ test.sol:1:1
+  │
+1 │ contract Test {}
+  │ ━━━━━━━━━━━━━━━━
+  │
+  ├ help: review the project declaration
+  ╰ help: https://example.com/project-lint
+
+warning[project-help]: conditional project message
+  ╭▸ test.sol:1:1
+  │
+1 │ contract Test {}
+  │ ━━━━━━━━━━━━━━━━
+  │
+  ├ help: review this declaration instead
+  ╰ help: https://example.com/project-lint
+
+
+"#]]
+        );
+    }
+
+    #[test]
+    fn project_diagnostic_help_uses_source_policy() {
+        for policy in [
+            Policy { enabled: false, suppressed: false },
+            Policy { enabled: true, suppressed: true },
+        ] {
+            assert_data_eq!(emit_project_help(policy), str![""]);
+        }
     }
 }

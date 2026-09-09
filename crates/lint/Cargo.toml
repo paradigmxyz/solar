@@ -20,6 +20,11 @@ solar-ast.workspace = true
 solar-interface.workspace = true
 solar-sema.workspace = true
 
+[dev-dependencies]
+serde_json.workspace = true
+snapbox.workspace = true
+solar-interface = { workspace = true, features = ["json"] }
+
 [features]
 nightly = [
     "solar-ast/nightly",
