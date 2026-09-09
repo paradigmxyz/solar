@@ -335,10 +335,9 @@ bb10 [cold]:
   swap 4
   swap 5
   staticcall
-  push 0
-  exchange 1, 2
-  mstore
   push 32
+  mstore
+  push 0
   mstore
   push 64
   push 0

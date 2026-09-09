@@ -54,10 +54,9 @@ bb2 [cold]:
   swap 1
   jump bb11
 bb11 [cold]:
-  push 0
-  exchange 1, 2
-  mstore
   push 32
+  mstore
+  push 0
   mstore
   push 64
   push 0

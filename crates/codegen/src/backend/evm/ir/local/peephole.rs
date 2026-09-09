@@ -12,10 +12,15 @@
 //! The calldata suffix check and builder are outlined after exact prefix admission to
 //! keep their temporaries out of the main peephole function.
 //! Algebraic identities precede exact constant folding through the retained word
-//! evaluator. Memory patterns only remove already-observed identical accesses;
-//! extra copies require a proved stack-capacity bound and mutable observations
-//! never move. Terminal cleanup discards a pure suffix only when the terminator
-//! cannot observe it. Terminal bodies may leave discarded prefix words underneath
+//! evaluator. Memory round trips remove already-observed identical accesses;
+//! extra copies require a proved stack-capacity bound. Only the final late-DCE
+//! traversal may reorder adjacent stores to disjoint nonwrapping literal word ranges
+//! to remove a buried exchange. Scheduling queries and earlier passes disable it.
+//! Original source spans follow each unchanged instruction; function events retain
+//! only the original window boundaries. No read or other effect is crossed, and the
+//! final memory expansion and stack are unchanged. Terminal cleanup discards a pure
+//! suffix only when the terminator cannot observe it. Terminal bodies may leave
+//! discarded prefix words underneath
 //! their operands when the additional stack height remains safe. A SWAP1/POP pair
 //! is redundant when the suffix observes at most its unchanged top incoming word.
 //! These transforms run on blocks before assembly.
@@ -34,6 +39,7 @@ pub(super) fn peephole(
     entry_max: Option<usize>,
     literal_copy_order: bool,
     calldata_carry: bool,
+    store_pairs: bool,
 ) -> bool {
     let mut changed = false;
     let mut index = 0;
@@ -52,6 +58,27 @@ pub(super) fn peephole(
                     InstKind::Op(op::AND),
                 ) if literal_copy_order && (*a & *b).is_zero() => {
                     replacement = Some((4, vec![tail[2].clone(), tail[3].clone()]));
+                }
+                (
+                    InstKind::Push(a),
+                    InstKind::Exchange(1, 2),
+                    InstKind::Op(op::MSTORE),
+                    InstKind::Push(b),
+                ) if store_pairs
+                    && tail.get(4).is_some_and(|inst| {
+                        canonical(inst) && matches!(inst.kind, InstKind::Op(op::MSTORE))
+                    })
+                    && super::super::split_allowed(insts, index) =>
+                {
+                    if let Some(a_end) = a.checked_add(U256::from(32))
+                        && let Some(b_end) = b.checked_add(U256::from(32))
+                        && (*a >= b_end || *b >= a_end)
+                    {
+                        reorder_store_pair(insts, index);
+                        changed = true;
+                        index = index.saturating_sub(4);
+                        continue;
+                    }
                 }
                 // dup2; binary; swap1; pop -> [swap1]; binary
                 (
@@ -391,6 +418,37 @@ pub(super) fn peephole(
         index += 1;
     }
     changed
+}
+
+/// Reorders an admitted disjoint store pair, retaining instruction origins and boundary events.
+fn reorder_store_pair(insts: &mut Vec<Instruction>, start: usize) {
+    let events = insts[start..start + 5].iter().any(|inst| inst.debug.is_some()).then(|| {
+        (
+            insts[start].debug.as_deref().and_then(|debug| debug.function_invoke),
+            insts[start + 4].debug.as_deref().and_then(|debug| debug.function_exit),
+        )
+    });
+    // push A; exchange 1,2; mstore; push B; mstore
+    // -> push B; mstore; push A; mstore
+    insts[start..start + 5].rotate_left(3);
+    insts.remove(start + 3);
+    if let Some((invoke, exit)) = events {
+        // NOTE: Source spans and other metadata stay with their original instructions.
+        // Reordered intermediate events and the removed exchange have no reliable checkpoint;
+        // retain only the original window's boundary events, without changing admission.
+        for inst in &mut insts[start..start + 4] {
+            if let Some(debug) = &mut inst.debug {
+                debug.function_invoke = None;
+                debug.function_exit = None;
+            }
+        }
+        if let Some(invoke) = invoke {
+            insts[start].debug.get_or_insert_with(Default::default).function_invoke = Some(invoke);
+        }
+        if let Some(exit) = exit {
+            insts[start + 3].debug.get_or_insert_with(Default::default).function_exit = Some(exit);
+        }
+    }
 }
 
 /// Finishes an admitted unit-add prefix with the same calldata read and carry test.

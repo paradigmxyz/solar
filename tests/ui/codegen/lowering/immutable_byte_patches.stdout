@@ -5,11 +5,11 @@ bb0:
   push 288
   push 64
   mstore
-  push 202
+  push 199
   codesize
   sub
   dup 1
-  push 202
+  push 199
   push 288
   codecopy
   push 319
@@ -29,7 +29,7 @@ bb0:
   jumpi bb3, bb2
 bb2:
   push 288
-  push 202
+  push 199
   codesize
   sub
   dup 2
@@ -74,13 +74,12 @@ bb7:
   swap 1
   swap 2
   mstore
-  push 224
-  exchange 1, 2
-  mstore
   push 256
   mstore
+  push 224
+  mstore
   push 50
-  push 152
+  push 149
   push 288
   codecopy
   push 192

@@ -17,6 +17,8 @@
 // CHECK: [[BODY]] [cold]:
 // CHECK: push 32
 // CHECK-NEXT: mstore
+// CHECK-NEXT: push 0
+// CHECK-NEXT: mstore
 // CHECK-NEXT: push 64
 // CHECK-NEXT: push 0
 // CHECK-NEXT: revert

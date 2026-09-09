@@ -14,8 +14,10 @@
 //! no operation moves across a control-flow edge or mutable observation. The final
 //! `late-dce` configuration uses the same DCE traversal but permits calldata unit-carry
 //! specialization in Size mode after tail sharing; Gas mode permits it throughout.
-//! Earlier Size cleanup retains the common arithmetic shape for sharing. Raw
-//! JUMPDESTs are alternate entries: stack identities and height proofs stop
+//! Earlier Size cleanup retains the common arithmetic shape for sharing. Late-DCE alone
+//! also permits disjoint store-pair reordering, using its existing traversal. Earlier
+//! cleanup and all scheduling queries disable that rule independently of literal permissions.
+//! Raw JUMPDESTs are alternate entries: stack identities and height proofs stop
 //! there even when the textual block continues.
 //!
 //! Scheduling estimates normally disable literal-copy permission. The final resident-operand
@@ -62,6 +64,7 @@ impl EvmPass for LocalPass {
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
         let pass = if self.0 == "late-dce" { "dce" } else { self.0 };
         let calldata_carry = gcx.sess.opts.optimization.is_gas() || self.0 == "late-dce";
+        let store_pairs = self.0 == "late-dce";
         let version = gcx.sess.opts.evm_version;
         let mut changed = false;
         // The literal/copy rules shorten code. Private labels are control-only,
@@ -180,6 +183,7 @@ impl EvmPass for LocalPass {
                         entry_max,
                         literal_copy_order,
                         calldata_carry,
+                        store_pairs,
                     );
                     changed |= dead_copies::eliminate(&mut block.insts, version);
                     changed |= dedup_stack(&mut block.insts, version);
@@ -189,6 +193,7 @@ impl EvmPass for LocalPass {
                         entry_max,
                         literal_copy_order,
                         calldata_carry,
+                        store_pairs,
                     );
                     changed |= dead_tail(&mut block.insts, &block.terminator.kind, entry_max);
                     changed |=
@@ -210,6 +215,7 @@ impl EvmPass for LocalPass {
                         entry_max,
                         literal_copy_order,
                         calldata_carry,
+                        false,
                     );
                     changed |= dedup_stack(&mut block.insts, version);
                 }
@@ -432,10 +438,10 @@ fn simplify_schedule_in_place(
     literal_copy_order: bool,
 ) {
     // <physical sequence> -> <equivalent locally simplified sequence>
-    peephole(trial, version, None, literal_copy_order, false);
+    peephole(trial, version, None, literal_copy_order, false, false);
     dead_copies::eliminate(trial, version);
     dedup_stack(trial, version);
-    peephole(trial, version, None, literal_copy_order, false);
+    peephole(trial, version, None, literal_copy_order, false, false);
     normalize(trial, version, None, literal_copy_order);
 }
 

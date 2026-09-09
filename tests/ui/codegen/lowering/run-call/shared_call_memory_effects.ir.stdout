@@ -514,10 +514,9 @@ bb14:
   add
   push 128
   mstore
-  push 160
-  exchange 1, 2
-  mstore
   push 192
+  mstore
+  push 160
   mstore
   push 96
   push 128
@@ -971,10 +970,9 @@ bb15:
   mload
   push 192
   mstore
-  push 224
-  exchange 1, 2
-  mstore
   push 256
+  mstore
+  push 224
   mstore
   push 160
   push 128

@@ -401,10 +401,9 @@ bb23:
   push 96
   shr
   and
-  push 128
-  exchange 1, 2
-  mstore
   push 160
+  mstore
+  push 128
   mstore
   push 64
   push 128
