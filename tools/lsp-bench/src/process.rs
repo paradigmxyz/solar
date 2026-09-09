@@ -2719,18 +2719,14 @@ mod tests {
             .stderr(Stdio::null())
             .process_group(0);
         let child = command.spawn().unwrap();
-        let deadline = Instant::now() + Duration::from_secs(2);
-        while !pid_file.is_file() && Instant::now() < deadline {
-            thread::sleep(Duration::from_millis(5));
-        }
-        let descendant =
-            fs::read_to_string(&pid_file).unwrap().trim().parse::<libc::pid_t>().unwrap();
-
         let (_, _, forced_kill, timed_out) =
             wait_with_usage(child, Duration::from_secs(2), true).unwrap();
         assert!(forced_kill, "cleaning up a surviving descendant must be recorded");
         assert!(!timed_out);
 
+        // The shell must exit before reading: creating the file precedes writing its PID.
+        let descendant =
+            fs::read_to_string(&pid_file).unwrap().trim().parse::<libc::pid_t>().unwrap();
         let deadline = Instant::now() + Duration::from_secs(2);
         while process_exists(descendant) && Instant::now() < deadline {
             thread::sleep(Duration::from_millis(5));
