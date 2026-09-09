@@ -10,7 +10,12 @@ history, baseline hashes, rejected trials and measurement limitations.
 
 ## Accepted local state
 
-Main `2632e43b` was integrated by merge `790e3687`. Earlier commits preserve
+Main `25b0c078` was integrated by merge `dee4ac25`; the preceding pushed
+head `0303dbfd` has green CI. The [shared-capture milestone](evm-shared-capture-milestone.md)
+restores the address-576 witness in all optimization modes while retaining
+existing corpus gas and bytecode. Its bounded policy adds 352 MIR Rust lines;
+general source-memory ownership and the existing performance debts remain open.
+Earlier commits preserve
 cheaper Phi writer schedules (`e34bb6e6`) and simplify physical unit-add carry
 (`8bf5b0d0`, tests `e9c7f759`, reviewed debug goldens `92fa93ee`). Earlier accepted
 literal caching, tail grouping and eager SSA contraction remain in place.
@@ -949,9 +954,9 @@ at the preceding accepted milestone.
 
 The alias assertion migration passes; its generated-code size debt remains.
 The original readback failures now pass in every mode. General source-memory
-ownership remains an open contract; the new shared-root witness above fails
-at byte address 576 in both optimized modes, despite earlier bounded sweeps
-passing. The complete heavy join has 30,280,962 positive bytes of sealed size debt
+ownership remains an open contract. The shared-root witness at byte address
+576 now passes None, Gas and Size without changing its source or oracles;
+the shared-capture milestone documents its narrow admission and rejected trials. The complete heavy join has 30,280,962 positive bytes of sealed size debt
 across 1,007 objects. This includes creation/runtime and embedded-child
 amplification; it is a sum of regressions, not net corpus growth. The historical
 writer count was 31,831,619. Terminal returns removed 20 positive bytes before
@@ -963,7 +968,7 @@ reordering removes another 8,550 positive bytes; returning-memory analysis and
 halting-context verification remove another 631,275. Bitmap address scheduling
 removes another 655,108. Consumed-value duplicate stores remove another 19,956.
 Validated argument selection removes another 90,686.
-Against retained main `716e9cbc`, 15 of 175 gas labels regress,
+Against retained main `25b0c078`, 15 of 175 gas labels regress,
 down from 24: Maple's five approve and Flash's four fee regressions are gone.
 OZ mint remains +3; the remaining getter debts persist. Fractional's seven getter calls now cost
 one additional gas each, down from ten. Compiler-time debts
