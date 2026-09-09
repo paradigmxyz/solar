@@ -632,6 +632,50 @@ per-object and per-label audits, differential limits and independent reviews
 remain under
 `target/codegen-bench/evm-rewrite-candidate/returning-memory-20260909/`.
 
+## Shared bitmap selector experiment (rejected)
+
+The September 9 experiment reused one shifted membership mask for both words
+protected around a source store. The raw templates tied at 42 instructions and
+130 static gas, and independent arithmetic and memory-trace checks agreed.
+Final normalization nevertheless removed three instructions from the existing
+template and only two from the candidate. All six calls in the new sparse-bank
+fixture therefore cost three additional gas under `-Ogas`: the first-word case
+rose from 1,986 to 1,989 execution gas. The candidate is rejected and the
+immediately preceding rewritten source is restored. No deleted implementation
+was retrieved. No production changes from this experiment are retained.
+
+The official quiet Full/Size workflow preserved 24/15 ordered IDs and all 175
+gas labels and 139 execution observations per mode. That corpus missed the
+focused regression. Nitro creation/runtime each shrank 118 bytes; Size outputs
+were exact. The expanded UI screen joined 1,678 rows and 5,108 objects, with ten
+shrinking, none growing and all 18 existing failed rows retained. The heavy
+join retained all 3,344 objects: 266 shrank, none grew, 43 changed at equal size
+and 3,035 remained byte-exact. Its 520,911-byte reduction is rejected along with
+the candidate, and does not reduce the accepted size-debt ledger.
+
+Compiler-time geometric means of per-case arithmetic sample-mean ratios rose
+0.520%/1.035% in Full/Size, with 108/75 samples per leg; peak RSS rose
+0.267%/1.146%. Individual increases and sample ranges are retained. These
+measurements establish no compiler-speed improvement.
+
+The six fixture oracles pass against the baseline, candidate and pinned solc
+in both modes, covering 36 concrete calls. Both bounded symbolic attempts timed
+out and remain incomplete. An additional proposed unaligned-hole oracle assumed
+zero preexisting memory incorrectly: its final byte was not overwritten and
+already contained 12. That failed experiment remains in the evidence; the
+incorrect oracle was never added. All 1,562 workspace tests pass after restoring
+the accepted implementation, with the same two existing skips. The retained
+fixture checks the accepted
+sparse writer, including wrapped relative indices, word crossings, distinct
+readback and live-value preservation. No existing test or oracle is removed.
+
+Baseline and rejected candidate binaries, source copies, workflow results,
+per-object joins, gas traces, symbolic limits and independent reviews remain in
+`target/codegen-bench/evm-rewrite-candidate/nitro-size-20260909/`. Fetching and
+merging `origin/main` at `2632e43b` reported already up to date. The backend
+remains at 17,517 physical Rust lines across 48 files; accepted performance
+and the remaining debts below are unchanged.
+
 ## Remaining acceptance work
 
 The alias assertion migration passes; its generated-code size debt remains.
