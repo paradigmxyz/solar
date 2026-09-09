@@ -1,0 +1,50 @@
+//@ compile-flags: -Zmir-pipeline=egraph,dce
+//@ filecheck:
+@module PairedViews
+
+// Both XOR definitions retain NOT alternatives; matching either one is insufficient.
+// CHECK-LABEL: fn @equal_complements
+// CHECK: + {{v[0-9]+}} = eq arg0, arg1
+fn @equal_complements(arg0: u256, arg1: u256) -> bool {
+  bb0:
+    v0 = xor arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v1 = xor arg1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v2 = eq v0, v1
+    ret v2
+}
+
+// CHECK-LABEL: fn @xor_complements
+// CHECK: + {{v[0-9]+}} = xor arg0, arg1
+fn @xor_complements(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    v0 = xor arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v1 = xor arg1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v2 = xor v0, v1
+    ret v2
+}
+
+// CHECK-LABEL: fn @left_aligned_byte
+// CHECK: + {{v[0-9]+}} = and arg0, 255
+fn @left_aligned_byte(arg0: u256) -> u256 {
+  bb0:
+    v0 = shl 248, arg0
+    v1 = byte 0, v0
+    ret v1
+}
+
+// A different extraction position cannot use the low-byte identity.
+fn @other_byte(arg0: u256) -> u256 {
+  bb0:
+    v0 = shl 240, arg0
+    v1 = byte 0, v0
+    ret v1
+}
+
+// Shared producers still enter the ordinary extraction cost comparison.
+fn @shared_complements(arg0: u256, arg1: u256) -> (u256, u256, bool) {
+  bb0:
+    v0 = xor arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v1 = xor arg1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v2 = eq v0, v1
+    ret v0, v1, v2
+}

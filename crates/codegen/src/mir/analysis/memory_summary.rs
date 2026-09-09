@@ -175,6 +175,8 @@ pub(crate) struct FunctionMemorySummary {
     memory_writes: MemoryFootprint,
     /// Whether the signature uses the lowered multi-return buffer convention.
     pub(crate) has_multiple_returns: bool,
+    /// A bounded leaf with deterministic word reads and fully restored writes.
+    restores_memory: bool,
     may_reset_fmp: bool,
     /// Whether the function may move the free-memory pointer below its current value.
     may_recycle_fmp: bool,
@@ -202,6 +204,7 @@ impl FunctionMemorySummary {
             memory_reads: Default::default(),
             memory_writes: Default::default(),
             has_multiple_returns: false,
+            restores_memory: false,
             may_reset_fmp: false,
             may_recycle_fmp: false,
             may_observe_fmp: false,
@@ -228,6 +231,7 @@ impl FunctionMemorySummary {
             memory_reads: MemoryFootprint { unknown: true, ..Default::default() },
             memory_writes: MemoryFootprint { unknown: true, ..Default::default() },
             has_multiple_returns: false,
+            restores_memory: false,
             may_reset_fmp: true,
             may_recycle_fmp: true,
             may_observe_fmp: true,
@@ -258,6 +262,11 @@ impl FunctionMemorySummary {
     #[must_use]
     pub(crate) const fn writes(&self, space: AddressSpace) -> bool {
         self.writes & (1 << space_index(space)) != 0
+    }
+
+    /// Whether repeated calls with unchanged arguments and memory return the same value.
+    pub(crate) const fn restores_memory(&self) -> bool {
+        self.restores_memory
     }
 
     /// Returns whether the function may recycle or arbitrarily replace the FMP.
@@ -667,6 +676,12 @@ fn local_summary(
                 }
             }
         }
+    }
+    // saved = mload p; mstore p, temporary; ...; mstore p, saved; ret
+    // => no net memory write on a returning path
+    if summary.writes(AddressSpace::Memory) && super::memory_restoration::restores_memory(func) {
+        summary.writes &= !(1 << space_index(AddressSpace::Memory));
+        summary.restores_memory = true;
     }
     summary
 }

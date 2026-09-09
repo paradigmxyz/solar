@@ -52,7 +52,7 @@
 //!   parent again, so writes on earlier iterations cannot invalidate a fresh parent load
 
 use crate::mir::{
-    AddressCallKind, BlockId, EffectKind, Function, Immediate, ImmutableId, InstId, InstKind,
+    Callee, FunctionId, AddressCallKind, BlockId, EffectKind, Function, Immediate, ImmutableId, InstId, InstKind,
     Instruction, MemoryObjectKind, MemoryObjectLayout, MirType, Module, SliceLocation,
     StorageAlias, Value, ValueId,
     analysis::{
@@ -206,6 +206,7 @@ enum ExprKey {
     SignExtend(OperandKey, OperandKey),
     Select(OperandKey, OperandKey, OperandKey),
     MLoad(MemRangeKey),
+    RestoringCall(FunctionId, Vec<OperandKey>),
     Keccak256(MemRangeKey),
     MappingSlot(OperandKey, OperandKey),
     StorageArrayDataSlot(OperandKey),
@@ -769,6 +770,9 @@ impl CommonSubexprEliminator {
         let value = |v: ValueId| mir_utils::resolve_replacement(v, replacements);
 
         match kind {
+            InstKind::ICall { function, args, .. } if self.is_restoring_call(kind) => Some(
+                ExprKey::RestoringCall(*function, args.iter().map(|&arg| operand(arg)).collect()),
+            ),
             // Commutative operations - normalize operand order
             InstKind::Add(a, b) => {
                 if let Some((base, offset)) = Self::offset_expr_for_add(func, *a, *b, replacements)
@@ -1061,6 +1065,7 @@ impl CommonSubexprEliminator {
                     AliasAnalysis::memory_alias_locations(scratch, write).may_alias()
                 })
             }
+            ExprKey::RestoringCall(..) => false,
             _ => true,
         });
     }
@@ -1073,7 +1078,15 @@ impl CommonSubexprEliminator {
                 | ExprKey::MappingSlot(..)
                 | ExprKey::StorageArrayDataSlot(..)
                 | ExprKey::StorageArrayElementSlot(..)
+                | ExprKey::RestoringCall(..)
         )
+    }
+
+    fn is_restoring_call(&self, kind: &InstKind) -> bool {
+        matches!(kind, InstKind::ICall { function: Callee::Function(function), args }
+            if args.len() <= 8 && self.call_summaries.as_ref()
+                .and_then(|summaries| summaries.get(*function))
+                .is_some_and(|summary| summary.restores_memory()))
     }
 
     fn is_account_environment_expr(key: &ExprKey) -> bool {
@@ -1105,6 +1118,7 @@ impl CommonSubexprEliminator {
         !matches!(
             key,
             ExprKey::MLoad(_)
+                | ExprKey::RestoringCall(..)
                 | ExprKey::Keccak256(_)
                 | ExprKey::MappingSlot(..)
                 | ExprKey::StorageArrayDataSlot(..)

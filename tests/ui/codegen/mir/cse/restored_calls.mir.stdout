@@ -1,0 +1,184 @@
+// === ROOT/tests/ui/codegen/mir/cse/restored_calls.sol:RestoredCalls ===
+@module RestoredCalls
+fn @same(arg0: u256, arg1: u256) -> (u256, u256) [selector=0xc32c70b1, pure, abi_params=[u256, u256], abi_returns=[word, word]] {
+  bb0:
+    v0 = gt arg1, 8
+    v1 = iszero v0
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = not 31
+    v4 = and 127, v3
+    v5 = alloc memorybytes, exact, zeroed, panic, v4
+    set_memory_object_len memorybytes, v5, 64
+    v6 = add v5, 32
+    mstore v6, arg0
+    v7 = add v5, 64
+    mstore v7, 1
+    v8 = icall @scan, 1, v5, arg1
+    v9 = icall @scan, 1, v5, arg1
+    v10 = add v8, v9
+    v11 = lt v10, v8
+    jumpi v11, bb3, bb4
+  bb4:
+    v12 = add v5, 32
+    v13 = mload v12
+    ret v10, v13
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    revert 0, 0
+}
+
+fn @repeated(arg0: u256, arg1: u256, arg2: bool) -> (u256, u256, u256) [selector=0xd6d01539, pure, abi_params=[u256, u256, bool], abi_returns=[word, word, word]] {
+  bb0:
+    v0 = gt arg1, 8
+    v1 = iszero v0
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = not 31
+    v4 = and 127, v3
+    v5 = alloc memorybytes, exact, zeroed, panic, v4
+    set_memory_object_len memorybytes, v5, 64
+    v6 = add v5, 32
+    mstore v6, arg0
+    v7 = add v5, 64
+    mstore v7, 1
+    v8 = icall @scan, 1, v5, arg1
+    jumpi arg2, bb3, bb4
+  bb4:
+    jump bb5
+  bb3:
+    v9 = add v5, 95
+    mstore8 v9, 0
+    jump bb5
+  bb5:
+    v10 = icall @scan, 1, v5, arg1
+    v11 = add v5, 32
+    v12 = mload v11
+    ret v8, v10, v12
+  bb1:
+    revert 0, 0
+}
+
+fn @scan(arg0: memorybytes, arg1: u256) -> u256 [pure] {
+  bb0:
+    v0 = add arg0, 32
+    v1 = mload v0
+    mstore v0, 0
+    jump bb1
+  bb1:
+    v2 = phi [bb0: v1], [bb3: v2]
+    v3 = phi [bb0: 0], [bb3: v13]
+    v4 = phi [bb0: arg1], [bb3: v4]
+    v5 = phi [bb0: v0], [bb3: v5]
+    v6 = phi [bb0: 0], [bb3: v14]
+    v7 = phi [bb0: arg0], [bb3: v7]
+    v8 = lt v6, v4
+    v9 = eq v8, 0
+    v10 = iszero v9
+    jumpi v10, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    mstore v5, v2
+    ret v3
+  bb4:
+    v11 = add v5, 32
+    v12 = mload v11
+    v13 = add v3, v12
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v14 = add v6, 1
+    jump bb1
+}
+
+fn @restored(arg0: u256, arg1: u256) -> (u256, u256) [selector=0x70ef4778, pure, abi_params=[u256, u256], abi_returns=[word, word]] {
+  bb0:
+    v0 = gt arg1, 8
+    v1 = iszero v0
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = not 31
+    v4 = and 95, v3
+    v5 = alloc memorybytes, exact, zeroed, panic, v4
+    set_memory_object_len memorybytes, v5, 32
+    v6 = add v5, 32
+    mstore v6, arg0
+    v7 = icall @temporary, 1, v5, arg1
+    v8 = add v5, 32
+    v9 = mload v8
+    ret v7, v9
+  bb1:
+    revert 0, 0
+}
+
+fn @temporary(arg0: memorybytes, arg1: u256) -> u256 [pure] {
+  bb0:
+    v0 = add arg0, 32
+    v1 = mload v0
+    mstore v0, 17
+    jump bb1
+  bb1:
+    v2 = phi [bb0: v1], [bb3: v2]
+    v3 = phi [bb0: 0], [bb3: v12]
+    v4 = phi [bb0: arg1], [bb3: v4]
+    v5 = phi [bb0: v0], [bb3: v5]
+    v6 = phi [bb0: 0], [bb3: v13]
+    v7 = phi [bb0: arg0], [bb3: v7]
+    v8 = lt v6, v4
+    v9 = eq v8, 0
+    v10 = iszero v9
+    jumpi v10, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    mstore v5, v2
+    ret v3
+  bb4:
+    v11 = mload v5
+    v12 = add v3, v11
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v13 = add v6, 1
+    jump bb1
+}
+
+fn @dirty(arg0: u256, arg1: bool) -> u256 [selector=0xd5f2e1b7, pure, abi_params=[u256, bool], abi_returns=[word]] {
+  bb0:
+    v0 = not 31
+    v1 = and 95, v0
+    v2 = alloc memorybytes, exact, zeroed, panic, v1
+    set_memory_object_len memorybytes, v2, 32
+    v3 = add v2, 32
+    mstore v3, arg0
+    icall @conditional, 0, v2, arg1
+    v4 = add v2, 32
+    v5 = mload v4
+    ret v5
+}
+
+fn @conditional(arg0: memorybytes, arg1: bool) [pure] {
+  bb0:
+    v0 = add arg0, 32
+    v1 = mload v0
+    mstore v0, 17
+    v2 = eq arg1, 0
+    v3 = iszero v2
+    jumpi v3, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    mstore v0, v1
+    jump bb3
+  bb3:
+    stop
+}
