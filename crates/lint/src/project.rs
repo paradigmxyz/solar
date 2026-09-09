@@ -1,8 +1,8 @@
 use crate::{Lint, LintContext, LintPolicy};
 use solar_ast as ast;
-use solar_interface::{Session, Span, diagnostics::DiagMsg, source_map::SourceFile};
+use solar_interface::{Session, Span, diagnostics::Diag, source_map::SourceFile};
 use solar_sema::Gcx;
-use std::{path::PathBuf, sync::Arc};
+use std::{cell::RefCell, collections::HashSet, path::PathBuf, sync::Arc};
 
 /// A project-owned source visible to a project-wide lint pass.
 pub struct ProjectSource<'ast> {
@@ -28,6 +28,7 @@ pub struct ProjectLintContext<'s, 'gcx> {
     policy: Arc<dyn LintPolicy>,
     with_description: bool,
     with_ansi_help: bool,
+    emitted: RefCell<HashSet<u64>>,
 }
 
 impl<'s, 'gcx> ProjectLintContext<'s, 'gcx> {
@@ -39,7 +40,7 @@ impl<'s, 'gcx> ProjectLintContext<'s, 'gcx> {
         with_description: bool,
         with_ansi_help: bool,
     ) -> Self {
-        Self { sess, gcx, policy, with_description, with_ansi_help }
+        Self { sess, gcx, policy, with_description, with_ansi_help, emitted: RefCell::default() }
     }
 
     /// Returns the fully analyzed compiler context.
@@ -52,45 +53,17 @@ impl<'s, 'gcx> ProjectLintContext<'s, 'gcx> {
         self.policy.is_lint_enabled(id)
     }
 
-    /// Emits a lint's default diagnostic.
-    pub fn emit<L: Lint>(&self, source: &ProjectSource<'_>, lint: &'static L, span: Span) {
-        self.source_context(source).emit(lint, span);
-    }
-
-    /// Emits a lint's default diagnostic with caller-provided advice using the source's policy.
-    pub fn emit_with_help<L: Lint>(
-        &self,
-        source: &ProjectSource<'_>,
-        lint: &'static L,
-        span: Span,
-        help: impl Into<DiagMsg>,
-    ) {
-        self.source_context(source).emit_with_help(lint, span, help);
-    }
-
-    /// Emits a lint diagnostic with a caller-provided message.
-    pub fn emit_with_msg<L: Lint>(
-        &self,
-        source: &ProjectSource<'_>,
-        lint: &'static L,
-        span: Span,
-        msg: impl Into<DiagMsg>,
-    ) {
-        self.source_context(source).emit_with_msg(lint, span, msg);
-    }
-
-    /// Emits a caller-provided message and advice using the source's suppression policy.
+    /// Decorates and emits a lint diagnostic using the source's suppression policy.
     ///
-    /// The advice replaces the lint's default advice; its help URL remains attached separately.
-    pub fn emit_with_msg_and_help<L: Lint>(
+    /// See [`LintContext::span_lint`] for decoration and presentation behavior.
+    pub fn span_lint<L: Lint>(
         &self,
         source: &ProjectSource<'_>,
         lint: &'static L,
         span: Span,
-        msg: impl Into<DiagMsg>,
-        help: impl Into<DiagMsg>,
+        decorate: impl FnOnce(&mut Diag),
     ) {
-        self.source_context(source).emit_with_msg_and_help(lint, span, msg, help);
+        self.source_context(source).span_lint_with_dedup(lint, span, decorate, &self.emitted);
     }
 
     fn source_context<'a>(&self, source: &'a ProjectSource<'_>) -> LintContext<'s, 'a>
@@ -126,16 +99,8 @@ mod tests {
             Level::Warning
         }
 
-        fn description(&self) -> &'static str {
-            "project lint message"
-        }
-
         fn help(&self) -> &'static str {
             "https://example.com/project-lint"
-        }
-
-        fn diagnostic_help(&self) -> Option<&'static str> {
-            Some("review the project declaration")
         }
     }
 
@@ -156,7 +121,10 @@ mod tests {
 
     fn emit_project_help(policy: Policy) -> String {
         let session = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
-        session.dcx.set_flags(|flags| flags.track_diagnostics = false);
+        session.dcx.set_flags(|flags| {
+            flags.track_diagnostics = false;
+            flags.deduplicate_diagnostics = false;
+        });
         let mut compiler = Compiler::new(session);
         let path = PathBuf::from("test.sol");
         compiler.enter_mut(|compiler| {
@@ -188,16 +156,26 @@ mod tests {
                 false,
             );
             let span = source.ast.items.first().unwrap().span;
-            ctx.emit(&source, &HelpLint, span);
-            ctx.emit_with_help(&source, &HelpLint, span, "custom project advice");
-            ctx.emit_with_msg(&source, &HelpLint, span, "custom project message");
-            ctx.emit_with_msg_and_help(
-                &source,
-                &HelpLint,
-                span,
-                "conditional project message",
-                "review this declaration instead",
-            );
+            for _ in 0..2 {
+                ctx.span_lint(&source, &HelpLint, span, |diag| {
+                    assert!(source.policy.is_lint_enabled("project-help"));
+                    assert!(!source.policy.is_lint_suppressed("project-help", span));
+                    diag.primary_message("project lint message");
+                    diag.help("review the project declaration");
+                });
+            }
+            ctx.span_lint(&source, &HelpLint, span, |diag| {
+                diag.primary_message("project lint message");
+                diag.help("custom project advice");
+            });
+            ctx.span_lint(&source, &HelpLint, span, |diag| {
+                diag.primary_message("custom project message");
+                diag.help("review the project declaration");
+            });
+            ctx.span_lint(&source, &HelpLint, span, |diag| {
+                diag.primary_message("conditional project message");
+                diag.help("review this declaration instead");
+            });
         });
         compiler.dcx().emitted_diagnostics().unwrap().to_string()
     }

@@ -4,7 +4,7 @@
 //! prescribing toolchain-specific lint selection or configuration.
 
 mod context;
-pub use context::{Lint, LintContext, LintPolicy, Suggestion, SuggestionKind};
+pub use context::{Lint, LintContext, LintPolicy};
 
 mod early;
 pub use early::{EarlyLintPass, EarlyLintVisitor};

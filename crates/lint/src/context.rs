@@ -1,11 +1,14 @@
 use solar_interface::{
     Session, Span,
-    diagnostics::{
-        Applicability, DiagBuilder, DiagId, DiagMsg, Level, MultiSpan, Style, SuggestionStyle,
-    },
+    diagnostics::{Diag, DiagId, Level, MultiSpan},
     source_map::SourceFile,
 };
-use std::{cell::RefCell, collections::HashSet, sync::Arc};
+use std::{
+    cell::RefCell,
+    collections::HashSet,
+    hash::{DefaultHasher, Hash, Hasher},
+    sync::Arc,
+};
 
 /// Static metadata shared by a lint's diagnostics.
 pub trait Lint {
@@ -13,14 +16,8 @@ pub trait Lint {
     fn id(&self) -> &'static str;
     /// Diagnostic level emitted by this lint.
     fn level(&self) -> Level;
-    /// Default diagnostic message.
-    fn description(&self) -> &'static str;
     /// Help URL associated with the lint.
     fn help(&self) -> &'static str;
-    /// Actionable advice attached to diagnostics, separate from the help URL.
-    fn diagnostic_help(&self) -> Option<&'static str> {
-        None
-    }
 }
 
 /// Toolchain policy applied while emitting lint diagnostics.
@@ -39,7 +36,7 @@ pub struct LintContext<'s, 'p> {
     with_description: bool,
     with_ansi_help: bool,
     source_file: Option<Arc<SourceFile>>,
-    emitted: RefCell<HashSet<(&'static str, Span)>>,
+    emitted: RefCell<HashSet<u64>>,
 }
 
 impl<'s, 'p> LintContext<'s, 'p> {
@@ -76,131 +73,57 @@ impl<'s, 'p> LintContext<'s, 'p> {
         self.policy.is_lint_enabled(id)
     }
 
-    fn should_emit<L: Lint>(&self, lint: &'static L, span: Span) -> bool {
-        self.policy.is_lint_enabled(lint.id()) && !self.policy.is_lint_suppressed(lint.id(), span)
-    }
-
-    fn add_help<'a, L: Lint>(
-        &self,
-        mut diag: DiagBuilder<'a, ()>,
-        lint: &'static L,
-        help: Option<DiagMsg>,
-    ) -> DiagBuilder<'a, ()> {
-        if let Some(help) = help.or_else(|| lint.diagnostic_help().map(Into::into)) {
-            diag = diag.help(help);
-        }
-        if self.with_ansi_help { diag.help(hyperlink(lint.help())) } else { diag.help(lint.help()) }
-    }
-
-    /// Emits a lint's default diagnostic.
-    pub fn emit<L: Lint>(&self, lint: &'static L, span: Span) {
-        self.emit_with_optional_help(lint, span, None);
-    }
-
-    /// Emits a lint's default diagnostic with caller-provided advice.
+    /// Decorates and emits a lint diagnostic at `span`.
     ///
-    /// The advice replaces the lint's default advice. Description visibility and deduplication
-    /// are the same as for [`Self::emit`], and the help URL remains attached separately.
-    pub fn emit_with_help<L: Lint>(&self, lint: &'static L, span: Span, help: impl Into<DiagMsg>) {
-        self.emit_with_optional_help(lint, span, Some(help.into()));
-    }
-
-    fn emit_with_optional_help<L: Lint>(
+    /// The callback runs only if the source policy enables the lint and does not suppress it.
+    /// It supplies the primary message and any help, notes, labels, or suggestions. This context
+    /// appends the documentation URL, applies description visibility, and emits the diagnostic.
+    /// Exact duplicate decorated diagnostics are suppressed, including in UI-testing mode.
+    pub fn span_lint<L: Lint>(
         &self,
         lint: &'static L,
         span: Span,
-        help: Option<DiagMsg>,
+        decorate: impl FnOnce(&mut Diag),
     ) {
-        if !self.should_emit(lint, span) || !self.emitted.borrow_mut().insert((lint.id(), span)) {
+        self.span_lint_with_dedup(lint, span, decorate, &self.emitted);
+    }
+
+    pub(crate) fn span_lint_with_dedup<L: Lint>(
+        &self,
+        lint: &'static L,
+        span: Span,
+        decorate: impl FnOnce(&mut Diag),
+        emitted: &RefCell<HashSet<u64>>,
+    ) {
+        if !self.policy.is_lint_enabled(lint.id())
+            || self.policy.is_lint_suppressed(lint.id(), span)
+        {
             return;
         }
 
-        let message = if self.with_description { lint.description() } else { "" };
-        let diag = self
-            .sess
-            .dcx
-            .diag(lint.level(), message)
-            .code(DiagId::new_str(lint.id()))
-            .span(MultiSpan::from_span(span));
-        self.add_help(diag, lint, help).emit();
-    }
-
-    /// Emits a lint diagnostic with a caller-provided message.
-    pub fn emit_with_msg<L: Lint>(&self, lint: &'static L, span: Span, msg: impl Into<DiagMsg>) {
-        self.emit_with_msg_and_optional_help(lint, span, msg.into(), None);
-    }
-
-    /// Emits a caller-provided message and advice, replacing the lint's default advice.
-    ///
-    /// The lint's help URL is still attached separately.
-    pub fn emit_with_msg_and_help<L: Lint>(
-        &self,
-        lint: &'static L,
-        span: Span,
-        msg: impl Into<DiagMsg>,
-        help: impl Into<DiagMsg>,
-    ) {
-        self.emit_with_msg_and_optional_help(lint, span, msg.into(), Some(help.into()));
-    }
-
-    fn emit_with_msg_and_optional_help<L: Lint>(
-        &self,
-        lint: &'static L,
-        span: Span,
-        msg: DiagMsg,
-        help: Option<DiagMsg>,
-    ) {
-        if !self.should_emit(lint, span) {
-            return;
-        }
-
-        let diag = self
-            .sess
-            .dcx
-            .diag(lint.level(), msg)
-            .code(DiagId::new_str(lint.id()))
-            .span(MultiSpan::from_span(span));
-        self.add_help(diag, lint, help).emit();
-    }
-
-    /// Emits a lint diagnostic with a suggestion.
-    pub fn emit_with_suggestion<L: Lint>(
-        &self,
-        lint: &'static L,
-        span: Span,
-        suggestion: Suggestion,
-    ) {
-        if !self.should_emit(lint, span) {
-            return;
-        }
-
-        let message = if self.with_description { lint.description() } else { "" };
         let mut diag = self
             .sess
             .dcx
-            .diag(lint.level(), message)
+            .diag::<()>(lint.level(), "")
             .code(DiagId::new_str(lint.id()))
             .span(MultiSpan::from_span(span));
-
-        diag = match suggestion.kind {
-            SuggestionKind::Fix { span: fix_span, applicability, style } => diag
-                .span_suggestion_with_style(
-                    fix_span.unwrap_or(span),
-                    suggestion.description.unwrap_or_default(),
-                    suggestion.content,
-                    applicability,
-                    style,
-                ),
-            SuggestionKind::Example => {
-                if let Some(help) = suggestion.to_help() {
-                    diag.help(help.iter().map(|line| line.0.as_str()).collect::<String>())
-                } else {
-                    diag
-                }
-            }
+        decorate(&mut diag);
+        diag = if self.with_ansi_help {
+            diag.help(hyperlink(lint.help()))
+        } else {
+            diag.help(lint.help())
         };
+        if !self.with_description {
+            diag = diag.primary_message("");
+        }
 
-        self.add_help(diag, lint, None).emit();
+        let mut hasher = DefaultHasher::new();
+        (*diag).hash(&mut hasher);
+        if !emitted.borrow_mut().insert(hasher.finish()) {
+            diag.cancel();
+            return;
+        }
+        diag.emit();
     }
 
     /// Returns the source snippet covered by `span`.
@@ -228,92 +151,6 @@ impl<'s, 'p> LintContext<'s, 'p> {
     }
 }
 
-/// The presentation form of a lint suggestion.
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub enum SuggestionKind {
-    /// A standalone example emitted as help.
-    Example,
-    /// A source replacement.
-    Fix {
-        /// Replacement span, defaulting to the lint span.
-        span: Option<Span>,
-        /// Applicability of the replacement.
-        applicability: Applicability,
-        /// Presentation style.
-        style: SuggestionStyle,
-    },
-}
-
-/// A diagnostic suggestion emitted by a lint.
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub struct Suggestion {
-    description: Option<&'static str>,
-    content: String,
-    kind: SuggestionKind,
-}
-
-impl Suggestion {
-    /// Creates a standalone example.
-    pub const fn example(content: String) -> Self {
-        Self { description: None, content, kind: SuggestionKind::Example }
-    }
-
-    /// Creates a source replacement.
-    pub const fn fix(content: String, applicability: Applicability) -> Self {
-        Self {
-            description: None,
-            content,
-            kind: SuggestionKind::Fix {
-                span: None,
-                applicability,
-                style: SuggestionStyle::ShowCode,
-            },
-        }
-    }
-
-    /// Sets the suggestion description.
-    pub const fn with_desc(mut self, description: &'static str) -> Self {
-        self.description = Some(description);
-        self
-    }
-
-    /// Sets the replacement span.
-    pub const fn with_span(mut self, span: Span) -> Self {
-        if let SuggestionKind::Fix { span: target, .. } = &mut self.kind {
-            *target = Some(span);
-        }
-        self
-    }
-
-    /// Sets the suggestion presentation style.
-    pub const fn with_style(mut self, style: SuggestionStyle) -> Self {
-        if let SuggestionKind::Fix { style: target, .. } = &mut self.kind {
-            *target = style;
-        }
-        self
-    }
-
-    fn to_help(&self) -> Option<Vec<(DiagMsg, Style)>> {
-        if matches!(self.kind, SuggestionKind::Fix { .. }) {
-            return None;
-        }
-
-        let mut output = if let Some(description) = self.description {
-            vec![
-                (DiagMsg::from(description), Style::NoStyle),
-                (DiagMsg::from("\n\n"), Style::NoStyle),
-            ]
-        } else {
-            vec![(DiagMsg::from(" \n"), Style::NoStyle)]
-        };
-        output.extend(
-            self.content.lines().map(|line| (DiagMsg::from(format!("{line}\n")), Style::NoStyle)),
-        );
-        output.push((DiagMsg::from("\n"), Style::NoStyle));
-        Some(output)
-    }
-}
-
 fn hyperlink(url: &'static str) -> String {
     format!("\x1b]8;;{url}\x1b\\{url}\x1b]8;;\x1b\\")
 }
@@ -324,10 +161,10 @@ mod tests {
     use snapbox::{IntoData as _, assert_data_eq, str};
     use solar_interface::{
         BytePos, ColorChoice,
-        diagnostics::{DiagCtxt, InMemoryEmitter, JsonEmitter},
+        diagnostics::{Applicability, DiagCtxt, InMemoryEmitter, JsonEmitter},
         source_map::SourceMap,
     };
-    use std::{io, path::PathBuf, sync::Mutex};
+    use std::{cell::Cell, io, path::PathBuf, sync::Mutex};
 
     struct TestLint;
 
@@ -335,127 +172,93 @@ mod tests {
         fn id(&self) -> &'static str {
             "test-lint"
         }
-
         fn level(&self) -> Level {
             Level::Warning
         }
-
-        fn description(&self) -> &'static str {
-            "test lint message"
-        }
-
         fn help(&self) -> &'static str {
             "https://example.com/lint"
         }
     }
 
-    struct HelpLint;
+    struct Policy {
+        enabled: bool,
+        suppressed: bool,
+    }
 
-    impl Lint for HelpLint {
-        fn id(&self) -> &'static str {
-            TestLint.id()
+    impl LintPolicy for Policy {
+        fn is_lint_enabled(&self, _id: &str) -> bool {
+            self.enabled
         }
-
-        fn level(&self) -> Level {
-            TestLint.level()
-        }
-
-        fn description(&self) -> &'static str {
-            TestLint.description()
-        }
-
-        fn help(&self) -> &'static str {
-            TestLint.help()
-        }
-
-        fn diagnostic_help(&self) -> Option<&'static str> {
-            Some("use a supported value")
+        fn is_lint_suppressed(&self, _id: &str, _span: Span) -> bool {
+            self.suppressed
         }
     }
 
-    fn emit_help_diagnostics(session: &Session, policy: &dyn LintPolicy, with_description: bool) {
+    const ENABLED: Policy = Policy { enabled: true, suppressed: false };
+
+    fn emit_decorated_diagnostics(session: &Session, with_description: bool) {
         session.dcx.set_flags(|flags| flags.track_diagnostics = false);
-        let file =
-            session.source_map().new_source_file(PathBuf::from("test.sol"), "value\n").unwrap();
+        let file = session
+            .source_map()
+            .new_source_file(PathBuf::from("test.sol"), "value other\n")
+            .unwrap();
         let span = Span::new(file.start_pos, file.start_pos + BytePos(5));
-        let ctx = LintContext::new(session, policy, with_description, false, Some(file));
-        ctx.emit(&HelpLint, span);
-        ctx.emit(&HelpLint, span);
-        ctx.emit_with_msg(&HelpLint, span, "custom lint message");
-        ctx.emit_with_msg_and_help(
-            &HelpLint,
-            span,
-            "conditional lint message",
-            "use another value",
-        );
-        ctx.emit_with_suggestion(
-            &HelpLint,
-            span,
-            Suggestion::fix("replacement".into(), Applicability::MaybeIncorrect)
-                .with_desc("replace this value"),
-        );
-        ctx.emit_with_suggestion(
-            &HelpLint,
-            span,
-            Suggestion::example("replacement".into()).with_desc("consider this example"),
-        );
+        let other = Span::new(file.start_pos + BytePos(6), file.start_pos + BytePos(11));
+        let ctx = LintContext::new(session, &ENABLED, with_description, false, Some(file));
+        ctx.span_lint(&TestLint, span, |diag| {
+            diag.primary_message("test lint message");
+            diag.help("use a supported value");
+            diag.note("the other value is related");
+            diag.span_label(other, "related value");
+            diag.multipart_suggestion(
+                "replace both values",
+                vec![(span, "first".into()), (other, "second".into())],
+                Applicability::MaybeIncorrect,
+            );
+        });
+        ctx.span_lint(&TestLint, span, |diag| {
+            diag.primary_message("another lint message");
+            diag.span_suggestion(
+                span,
+                "replace this value",
+                "replacement",
+                Applicability::MachineApplicable,
+            );
+        });
+    }
+
+    fn trim_line_ends(text: &str) -> String {
+        text.lines().map(str::trim_end).collect::<Vec<_>>().join("\n")
     }
 
     #[test]
-    fn diagnostic_help_text() {
+    fn decorated_diagnostic_text() {
         let session = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
-        emit_help_diagnostics(&session, &TestPolicy, true);
+        emit_decorated_diagnostics(&session, true);
         assert_data_eq!(
             trim_line_ends(&session.dcx.emitted_diagnostics().unwrap().to_string()),
             str![[r#"
 warning[test-lint]: test lint message
   ╭▸ test.sol:1:1
   │
-1 │ value
-  │ ━━━━━
+1 │ value other
+  │ ━━━━━ ───── related value
   │
   ├ help: use a supported value
+  ├ note: the other value is related
   ╰ help: https://example.com/lint
+help: replace both values
+  ╭╴
+1 - value other
+1 + first second
+  ╰╴
 
-warning[test-lint]: custom lint message
+warning[test-lint]: another lint message
   ╭▸ test.sol:1:1
   │
-1 │ value
-  │ ━━━━━
-  │
-  ├ help: use a supported value
-  ╰ help: https://example.com/lint
-
-warning[test-lint]: conditional lint message
-  ╭▸ test.sol:1:1
-  │
-1 │ value
-  │ ━━━━━
-  │
-  ├ help: use another value
-  ╰ help: https://example.com/lint
-
-warning[test-lint]: test lint message
-  ╭▸ test.sol:1:1
-  │
-1 │ value
+1 │ value other
   │ ━━━━━ help: replace this value: `replacement`
   │
-  ├ help: use a supported value
-  ╰ help: https://example.com/lint
-
-warning[test-lint]: test lint message
-  ╭▸ test.sol:1:1
-  │
-1 │ value
-  │ ━━━━━
-  │
-  ├ help: consider this example
-  │
-  │       replacement
-  │
-  │
-  ├ help: use a supported value
   ╰ help: https://example.com/lint
 
 "#]]
@@ -463,60 +266,33 @@ warning[test-lint]: test lint message
     }
 
     #[test]
-    fn diagnostic_help_without_description() {
+    fn decorated_diagnostic_without_description() {
         let session = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
-        emit_help_diagnostics(&session, &TestPolicy, false);
+        emit_decorated_diagnostics(&session, false);
         assert_data_eq!(
             trim_line_ends(&session.dcx.emitted_diagnostics().unwrap().to_string()),
             str![[r#"
 warning[test-lint]:
   ╭▸ test.sol:1:1
   │
-1 │ value
-  │ ━━━━━
+1 │ value other
+  │ ━━━━━ ───── related value
   │
   ├ help: use a supported value
+  ├ note: the other value is related
   ╰ help: https://example.com/lint
-
-warning[test-lint]: custom lint message
-  ╭▸ test.sol:1:1
-  │
-1 │ value
-  │ ━━━━━
-  │
-  ├ help: use a supported value
-  ╰ help: https://example.com/lint
-
-warning[test-lint]: conditional lint message
-  ╭▸ test.sol:1:1
-  │
-1 │ value
-  │ ━━━━━
-  │
-  ├ help: use another value
-  ╰ help: https://example.com/lint
+help: replace both values
+  ╭╴
+1 - value other
+1 + first second
+  ╰╴
 
 warning[test-lint]:
   ╭▸ test.sol:1:1
   │
-1 │ value
+1 │ value other
   │ ━━━━━ help: replace this value: `replacement`
   │
-  ├ help: use a supported value
-  ╰ help: https://example.com/lint
-
-warning[test-lint]:
-  ╭▸ test.sol:1:1
-  │
-1 │ value
-  │ ━━━━━
-  │
-  ├ help: consider this example
-  │
-  │       replacement
-  │
-  │
-  ├ help: use a supported value
   ╰ help: https://example.com/lint
 
 "#]]
@@ -525,22 +301,17 @@ warning[test-lint]:
 
     struct SharedWriter(Arc<Mutex<Vec<u8>>>);
 
-    fn trim_line_ends(text: &str) -> String {
-        text.lines().map(str::trim_end).collect::<Vec<_>>().join("\n")
-    }
-
     impl io::Write for SharedWriter {
         fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
             self.0.lock().unwrap().write(buf)
         }
-
         fn flush(&mut self) -> io::Result<()> {
             self.0.lock().unwrap().flush()
         }
     }
 
     #[test]
-    fn diagnostic_help_json() {
+    fn decorated_diagnostic_json() {
         let source_map = Arc::new(SourceMap::empty());
         let writer = Arc::new(Mutex::new(Vec::new()));
         let emitter = JsonEmitter::new(
@@ -551,17 +322,14 @@ warning[test-lint]:
         .rustc_like(true);
         let session =
             Session::builder().source_map(source_map).dcx(DiagCtxt::new(Box::new(emitter))).build();
-        emit_help_diagnostics(&session, &TestPolicy, true);
+        emit_decorated_diagnostics(&session, true);
         let output = String::from_utf8(writer.lock().unwrap().clone()).unwrap();
         let diagnostics = output
             .lines()
             .map(|line| {
-                let diagnostic = serde_json::from_str::<serde_json::Value>(line).unwrap();
-                serde_json::json!({
-                    "message": diagnostic["message"],
-                    "code": diagnostic["code"],
-                    "children": diagnostic["children"],
-                })
+                let mut diagnostic = serde_json::from_str::<serde_json::Value>(line).unwrap();
+                diagnostic.as_object_mut().unwrap().remove("rendered");
+                diagnostic
             })
             .collect::<Vec<_>>();
         assert_data_eq!(
@@ -569,6 +337,7 @@ warning[test-lint]:
             str![[r#"
 [
   {
+    "$message_type": "diagnostic",
     "children": [
       {
         "children": [],
@@ -581,25 +350,8 @@ warning[test-lint]:
       {
         "children": [],
         "code": null,
-        "level": "help",
-        "message": "https://example.com/lint",
-        "rendered": null,
-        "spans": []
-      }
-    ],
-    "code": {
-      "code": "test-lint",
-      "explanation": null
-    },
-    "message": "test lint message"
-  },
-  {
-    "children": [
-      {
-        "children": [],
-        "code": null,
-        "level": "help",
-        "message": "use a supported value",
+        "level": "note",
+        "message": "the other value is related",
         "rendered": null,
         "spans": []
       },
@@ -610,49 +362,113 @@ warning[test-lint]:
         "message": "https://example.com/lint",
         "rendered": null,
         "spans": []
+      },
+      {
+        "children": [],
+        "code": null,
+        "level": "help",
+        "message": "replace both values",
+        "rendered": null,
+        "spans": [
+          {
+            "byte_end": 5,
+            "byte_start": 0,
+            "column_end": 6,
+            "column_start": 1,
+            "expansion": null,
+            "file_name": "test.sol",
+            "is_primary": true,
+            "label": null,
+            "line_end": 1,
+            "line_start": 1,
+            "suggested_replacement": "first",
+            "suggestion_applicability": "MaybeIncorrect",
+            "text": [
+              {
+                "highlight_end": 6,
+                "highlight_start": 1,
+                "text": "value other"
+              }
+            ]
+          },
+          {
+            "byte_end": 11,
+            "byte_start": 6,
+            "column_end": 12,
+            "column_start": 7,
+            "expansion": null,
+            "file_name": "test.sol",
+            "is_primary": true,
+            "label": null,
+            "line_end": 1,
+            "line_start": 1,
+            "suggested_replacement": "second",
+            "suggestion_applicability": "MaybeIncorrect",
+            "text": [
+              {
+                "highlight_end": 12,
+                "highlight_start": 7,
+                "text": "value other"
+              }
+            ]
+          }
+        ]
       }
     ],
     "code": {
       "code": "test-lint",
       "explanation": null
     },
-    "message": "custom lint message"
-  },
-  {
-    "children": [
+    "level": "warning",
+    "message": "test lint message",
+    "spans": [
       {
-        "children": [],
-        "code": null,
-        "level": "help",
-        "message": "use another value",
-        "rendered": null,
-        "spans": []
+        "byte_end": 11,
+        "byte_start": 6,
+        "column_end": 12,
+        "column_start": 7,
+        "expansion": null,
+        "file_name": "test.sol",
+        "is_primary": false,
+        "label": "related value",
+        "line_end": 1,
+        "line_start": 1,
+        "suggested_replacement": null,
+        "suggestion_applicability": null,
+        "text": [
+          {
+            "highlight_end": 12,
+            "highlight_start": 7,
+            "text": "value other"
+          }
+        ]
       },
       {
-        "children": [],
-        "code": null,
-        "level": "help",
-        "message": "https://example.com/lint",
-        "rendered": null,
-        "spans": []
+        "byte_end": 5,
+        "byte_start": 0,
+        "column_end": 6,
+        "column_start": 1,
+        "expansion": null,
+        "file_name": "test.sol",
+        "is_primary": true,
+        "label": null,
+        "line_end": 1,
+        "line_start": 1,
+        "suggested_replacement": null,
+        "suggestion_applicability": null,
+        "text": [
+          {
+            "highlight_end": 6,
+            "highlight_start": 1,
+            "text": "value other"
+          }
+        ]
       }
-    ],
-    "code": {
-      "code": "test-lint",
-      "explanation": null
-    },
-    "message": "conditional lint message"
+    ]
   },
   {
+    "$message_type": "diagnostic",
     "children": [
-      {
-        "children": [],
-        "code": null,
-        "level": "help",
-        "message": "use a supported value",
-        "rendered": null,
-        "spans": []
-      },
       {
         "children": [],
         "code": null,
@@ -680,12 +496,12 @@ warning[test-lint]:
             "line_end": 1,
             "line_start": 1,
             "suggested_replacement": "replacement",
-            "suggestion_applicability": "MaybeIncorrect",
+            "suggestion_applicability": "MachineApplicable",
             "text": [
               {
                 "highlight_end": 6,
                 "highlight_start": 1,
-                "text": "value"
+                "text": "value other"
               }
             ]
           }
@@ -696,40 +512,31 @@ warning[test-lint]:
       "code": "test-lint",
       "explanation": null
     },
-    "message": "test lint message"
-  },
-  {
-    "children": [
+    "level": "warning",
+    "message": "another lint message",
+    "spans": [
       {
-        "children": [],
-        "code": null,
-        "level": "help",
-        "message": "consider this example\n\nreplacement\n\n",
-        "rendered": null,
-        "spans": []
-      },
-      {
-        "children": [],
-        "code": null,
-        "level": "help",
-        "message": "use a supported value",
-        "rendered": null,
-        "spans": []
-      },
-      {
-        "children": [],
-        "code": null,
-        "level": "help",
-        "message": "https://example.com/lint",
-        "rendered": null,
-        "spans": []
+        "byte_end": 5,
+        "byte_start": 0,
+        "column_end": 6,
+        "column_start": 1,
+        "expansion": null,
+        "file_name": "test.sol",
+        "is_primary": true,
+        "label": null,
+        "line_end": 1,
+        "line_start": 1,
+        "suggested_replacement": null,
+        "suggestion_applicability": null,
+        "text": [
+          {
+            "highlight_end": 6,
+            "highlight_start": 1,
+            "text": "value other"
+          }
+        ]
       }
-    ],
-    "code": {
-      "code": "test-lint",
-      "explanation": null
-    },
-    "message": "test lint message"
+    ]
   }
 ]
 "#]]
@@ -737,62 +544,22 @@ warning[test-lint]:
         );
     }
 
-    struct FilteringPolicy {
-        enabled: bool,
-        suppressed: bool,
-    }
-
-    impl LintPolicy for FilteringPolicy {
-        fn is_lint_enabled(&self, _id: &str) -> bool {
-            self.enabled
-        }
-
-        fn is_lint_suppressed(&self, _id: &str, _span: Span) -> bool {
-            self.suppressed
-        }
-    }
-
     #[test]
-    fn diagnostic_help_respects_policy() {
+    fn source_policy_prevents_decoration() {
         for policy in [
-            FilteringPolicy { enabled: false, suppressed: false },
-            FilteringPolicy { enabled: true, suppressed: true },
+            Policy { enabled: false, suppressed: false },
+            Policy { enabled: true, suppressed: true },
         ] {
             let session = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
-            emit_help_diagnostics(&session, &policy, true);
-            assert_data_eq!(session.dcx.emitted_diagnostics().unwrap().to_string(), str![""]);
+            let ctx = LintContext::new(&session, &policy, true, false, None);
+            ctx.span_lint(&TestLint, Span::DUMMY, |_| panic!("suppressed decorator ran"));
             assert_eq!(session.dcx.warn_count(), 0);
+            assert_data_eq!(session.dcx.emitted_diagnostics().unwrap().to_string(), str![""]);
         }
     }
 
     #[test]
-    fn diagnostic_help_defaults_to_none() {
-        assert_eq!(TestLint.diagnostic_help(), None);
-        let session = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
-        session.dcx.set_flags(|flags| flags.track_diagnostics = false);
-        let file =
-            session.source_map().new_source_file(PathBuf::from("test.sol"), "value").unwrap();
-        let span = Span::new(file.start_pos, file.start_pos + BytePos(5));
-        let ctx = LintContext::new(&session, &TestPolicy, true, false, Some(file));
-        ctx.emit(&TestLint, span);
-        assert_data_eq!(
-            session.dcx.emitted_diagnostics().unwrap().to_string(),
-            str![[r#"
-warning[test-lint]: test lint message
-  ╭▸ test.sol:1:1
-  │
-1 │ value
-  │ ━━━━━
-  │
-  ╰ help: https://example.com/lint
-
-
-"#]]
-        );
-    }
-
-    #[test]
-    fn diagnostic_help_keeps_ansi_links_separate() {
+    fn keeps_ansi_url_separate() {
         let (emitter, diagnostics) = InMemoryEmitter::new();
         let session = Session::builder()
             .dcx(
@@ -800,55 +567,87 @@ warning[test-lint]: test lint message
                     .with_flags(|flags| flags.track_diagnostics = false),
             )
             .build();
-        let ctx = LintContext::new(&session, &TestPolicy, true, true, None);
-        ctx.emit(&HelpLint, Span::DUMMY);
+        let ctx = LintContext::new(&session, &ENABLED, true, true, None);
+        ctx.span_lint(&TestLint, Span::DUMMY, |diag| {
+            diag.primary_message("test message");
+            diag.help("first advice");
+        });
         let diagnostics = diagnostics.read();
         assert_eq!(diagnostics.len(), 1);
-        let children = &diagnostics[0].children;
-        assert_eq!(children.len(), 2);
-        assert_eq!(children[0].level, Level::Help);
-        assert_eq!(children[0].label(), "use a supported value");
-        assert_eq!(children[1].level, Level::Help);
-        assert_eq!(children[1].label(), hyperlink(TestLint.help()));
+        assert_eq!(diagnostics[0].children.len(), 2);
+        assert_eq!(diagnostics[0].children[0].label(), "first advice");
+        assert_eq!(diagnostics[0].children[1].label(), hyperlink(TestLint.help()));
+    }
+
+    fn check_deduplication(ui_testing: bool) {
+        let (emitter, diagnostics) = InMemoryEmitter::new();
+        let session = Session::builder()
+            .dcx(DiagCtxt::new(Box::new(emitter)).with_flags(|flags| {
+                flags.track_diagnostics = false;
+                flags.deduplicate_diagnostics = !ui_testing;
+            }))
+            .build();
+        let ctx = LintContext::new(&session, &ENABLED, true, false, None);
+        let calls = Cell::new(0);
+        for _ in 0..2 {
+            ctx.span_lint(&TestLint, Span::DUMMY, |diag| {
+                calls.set(calls.get() + 1);
+                diag.primary_message("first message");
+                diag.help("first advice");
+            });
+        }
+        ctx.span_lint(&TestLint, Span::DUMMY, |diag| {
+            diag.primary_message("second message");
+            diag.help("first advice");
+        });
+        ctx.span_lint(&TestLint, Span::DUMMY, |diag| {
+            diag.primary_message("first message");
+            diag.help("second advice");
+        });
+        for replacement in ["one", "two", "two"] {
+            ctx.span_lint(&TestLint, Span::DUMMY, |diag| {
+                diag.primary_message("first message");
+                diag.span_suggestion(
+                    Span::DUMMY,
+                    "replace",
+                    replacement,
+                    Applicability::MaybeIncorrect,
+                );
+            });
+        }
+        assert_eq!(calls.get(), 2);
+        assert_eq!(diagnostics.read().len(), 5);
+        assert_eq!(session.dcx.warn_count(), 5);
     }
 
     #[test]
-    fn diagnostic_help_preserves_default_deduplication() {
-        let (emitter, diagnostics) = InMemoryEmitter::new();
-        let session = Session::builder()
-            .dcx(
-                DiagCtxt::new(Box::new(emitter))
-                    .with_flags(|flags| flags.track_diagnostics = false),
-            )
-            .build();
-        let ctx = LintContext::new(&session, &TestPolicy, false, false, None);
-        ctx.emit_with_help(&HelpLint, Span::DUMMY, "first advice");
-        ctx.emit_with_help(&HelpLint, Span::DUMMY, "duplicate advice");
-        ctx.emit(&HelpLint, Span::DUMMY);
-        let second_span = Span::new(BytePos(1), BytePos(2));
-        ctx.emit(&HelpLint, second_span);
-        ctx.emit_with_help(&HelpLint, second_span, "duplicate advice");
-        let diagnostics = diagnostics.read();
-        assert_eq!(diagnostics.len(), 2);
-        for diagnostic in diagnostics.iter() {
-            assert_eq!(diagnostic.label(), "");
-            assert_eq!(diagnostic.children.len(), 2);
-            assert_eq!(diagnostic.children[1].label(), TestLint.help());
-        }
-        assert_eq!(diagnostics[0].children[0].label(), "first advice");
-        assert_eq!(diagnostics[1].children[0].label(), "use a supported value");
+    fn exact_duplicate_diagnostics() {
+        check_deduplication(false);
     }
 
-    struct TestPolicy;
+    #[test]
+    fn exact_duplicate_diagnostics_in_ui_mode() {
+        check_deduplication(true);
+    }
 
-    impl LintPolicy for TestPolicy {
-        fn is_lint_enabled(&self, _id: &str) -> bool {
-            true
+    #[test]
+    fn hidden_messages_deduplicate_after_decoration() {
+        let (emitter, diagnostics) = InMemoryEmitter::new();
+        let session = Session::builder()
+            .dcx(DiagCtxt::new(Box::new(emitter)).with_flags(|flags| {
+                flags.track_diagnostics = false;
+                flags.deduplicate_diagnostics = false;
+            }))
+            .build();
+        let ctx = LintContext::new(&session, &ENABLED, false, false, None);
+        for message in ["first message", "second message"] {
+            ctx.span_lint(&TestLint, Span::DUMMY, |diag| {
+                diag.primary_message(message);
+                diag.help("same advice");
+            });
         }
-
-        fn is_lint_suppressed(&self, _id: &str, _span: Span) -> bool {
-            false
-        }
+        assert_eq!(diagnostics.read().len(), 1);
+        assert_eq!(diagnostics.read()[0].label(), "");
     }
 
     fn indentation(source: &str, needle: &str) -> usize {
@@ -856,8 +655,7 @@ warning[test-lint]: test lint message
         let file = session.source_map().new_source_file(PathBuf::from("test.sol"), source).unwrap();
         let offset = source.find(needle).unwrap();
         let pos = BytePos(file.start_pos.0 + u32::try_from(offset).unwrap());
-        let policy = TestPolicy;
-        let context = LintContext::new(&session, &policy, false, false, Some(file));
+        let context = LintContext::new(&session, &ENABLED, false, false, Some(file));
         context.get_span_indentation(Span::new(pos, pos))
     }
 
@@ -865,12 +663,10 @@ warning[test-lint]: test lint message
     fn indentation_on_final_line() {
         assert_eq!(indentation("first line\n    target", "target"), 4);
     }
-
     #[test]
     fn indentation_with_utf8_before_span() {
         assert_eq!(indentation("  étarget", "target"), 2);
     }
-
     #[test]
     fn indentation_ignores_inline_whitespace() {
         assert_eq!(indentation("  item   target", "target"), 2);

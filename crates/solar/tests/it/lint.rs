@@ -7,7 +7,7 @@ use solar::{
     lint::{
         EarlyLintPass, LateLintPass, LateLintVisitor, Lint, LintContext, LintPolicy, LintRegistry,
         LintRunContext, LintRunError, LintSource, LintSuite, ProjectLintContext, ProjectLintPass,
-        ProjectSource, Suggestion, run_lints,
+        ProjectSource, run_lints,
     },
     sema::{Compiler, Gcx, hir},
 };
@@ -32,10 +32,6 @@ impl Lint for TestLint {
 
     fn level(&self) -> Level {
         self.level
-    }
-
-    fn description(&self) -> &'static str {
-        "test lint"
     }
 
     fn help(&self) -> &'static str {
@@ -82,15 +78,19 @@ impl<'ast> EarlyLintPass<'ast> for TestEarlyPass {
         assert!(!self.visited);
         self.visited = true;
 
-        ctx.emit(&EARLY, contract.name.span);
-        ctx.emit(&EARLY, contract.name.span);
-        ctx.emit_with_msg(&VARIABLE, contract.name.span, "variable message");
-        ctx.emit_with_suggestion(
-            &SUGGESTION,
-            contract.name.span,
-            Suggestion::fix("Renamed".to_owned(), Applicability::MaybeIncorrect),
-        );
-        ctx.emit(&SUPPRESSED, contract.name.span);
+        for _ in 0..2 {
+            ctx.span_lint(&EARLY, contract.name.span, |diag| {
+                diag.primary_message("test lint");
+            });
+        }
+        ctx.span_lint(&VARIABLE, contract.name.span, |diag| {
+            diag.primary_message("variable message");
+        });
+        ctx.span_lint(&SUGGESTION, contract.name.span, |diag| {
+            diag.primary_message("test lint");
+            diag.span_suggestion(contract.name.span, "", "Renamed", Applicability::MaybeIncorrect);
+        });
+        ctx.span_lint(&SUPPRESSED, contract.name.span, |_| panic!("suppressed decorator ran"));
     }
 }
 
@@ -104,7 +104,9 @@ impl<'gcx> LateLintPass<'gcx> for TestLatePass {
         _gcx: Gcx<'gcx>,
         contract: &'gcx hir::Contract<'gcx>,
     ) {
-        ctx.emit(&LATE, contract.span);
+        ctx.span_lint(&LATE, contract.span, |diag| {
+            diag.primary_message("test lint");
+        });
     }
 }
 
@@ -203,8 +205,11 @@ impl<'ast> ProjectLintPass<'ast> for TestProjectPass {
         assert_eq!(sources.len(), self.expected_sources);
         let source = &sources[0];
         let span = source.ast.items.first().unwrap().span;
-        ctx.emit(source, &PROJECT, span);
-        ctx.emit(source, &PROJECT, span);
+        for _ in 0..2 {
+            ctx.span_lint(source, &PROJECT, span, |diag| {
+                diag.primary_message("test lint");
+            });
+        }
     }
 }
 
@@ -341,7 +346,7 @@ fn run(compiler: &Compiler, suite: &TestSuite, targets: &[PathBuf]) {
         })
         .unwrap();
     assert_eq!(result.visited_sources, targets.len());
-    assert_eq!(compiler.dcx().warn_count() - warnings_before, 5 * targets.len());
+    assert_eq!(compiler.dcx().warn_count() - warnings_before, 4 * targets.len());
     assert_eq!(compiler.dcx().note_count() - notes_before, targets.len());
 }
 
