@@ -23,13 +23,8 @@ bb19:
   shr
   jumpi bb18, bb20
 bb20:
-  push 0
-  not
-  push 96
-  shr
   push 4
   calldataload
-  and
   push 1
   dup 2
   eq

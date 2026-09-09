@@ -11,6 +11,12 @@
 //! simultaneous transfer. Observable instructions execute in MIR order. MIR identities and the
 //! return-label marker exist only in this module and the private scheduler; emitted EVM IR contains
 //! scheduled physical instructions and explicit control-flow edges.
+//!
+//! In Gas mode, external wrappers can select an exact canonical argument mask as argument loading
+//! alone. ABI lowering already validates retained scalar argument types; keeping the MIR result
+//! identity until selection preserves its resident lifetime without moving work into validation.
+//! Size mode retains ordinary lowering because mask removal can change later scheduling costs.
+//! Internal/constructor arguments and noncanonical effects retain their ordinary opcode lowering.
 
 use super::{
     calls, ir, op, parallel_copy,
@@ -1231,6 +1237,17 @@ fn lower_opcode(
         prepare(context, stack, insts, &[], live)?;
         return Ok(());
     }
+    if opcode == op::AND
+        && let Some(argument) = canonical_argument_mask(context, instruction)
+    {
+        // <retained live values>; load argument
+        // bind the same word to the original AND result, without materializing its mask
+        prepare(context, stack, insts, &[argument], live)?;
+        stack.truncate(stack.values().len() - 1);
+        record_result(context, inst_id, stack, insts, true)?;
+        debug::instructions(context, &instruction.metadata, &mut insts[origin_start..]);
+        return Ok(());
+    }
     let operands = instruction.kind.operands();
     let saved = save_writer_homes(
         context,
@@ -1348,6 +1365,35 @@ fn lower_opcode(
     )?;
     debug::instructions(context, &instruction.metadata, &mut insts[origin_start..]);
     Ok(())
+}
+
+/// Selects an identity mask from the canonical scalar ABI argument contract in Gas mode.
+fn canonical_argument_mask(
+    context: &Context<'_>,
+    instruction: &mir::Instruction,
+) -> Option<mir::ValueId> {
+    let function = context.function;
+    if !context.optimization.is_gas()
+        || function.selector.is_none()
+        || !external_argument(function)
+        || instruction.metadata.effect().is_some_and(|effect| effect != mir::EffectKind::Pure)
+    {
+        return None;
+    }
+    let mir::InstKind::And(lhs, rhs) = instruction.kind else { return None };
+    let (argument, mask) = match (function.value(lhs), function.value(rhs)) {
+        (mir::Value::Arg(_), mir::Value::Immediate(_)) => (lhs, rhs),
+        (mir::Value::Immediate(_), mir::Value::Arg(_)) => (rhs, lhs),
+        _ => return None,
+    };
+    let mir::Value::Arg(index) = function.value(argument) else { return None };
+    let ty = function.arg_ty(*index);
+    if !matches!(ty, mir::MirType::Address | mir::MirType::UInt(_) | mir::MirType::FixedBytes(_)) {
+        return None;
+    }
+    // Enum arguments retain their underlying unsigned type, whose mask also covers every value.
+    let canonical = mir::AbiWordValidator::from_mir_type(ty)?.canonical_mask()?;
+    (function.value_u256(mask)? == canonical).then_some(argument)
 }
 
 fn record_result(

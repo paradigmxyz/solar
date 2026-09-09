@@ -1,0 +1,58 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/validated_argument_cleanup.sol:ValidatedArgumentCleanup ===
+@module ValidatedArgumentCleanup
+fn @clean(arg0: address, arg1: u8, arg2: bytes4) -> (u256, u256, bytes4) [selector=0x73889fbb, pure, abi_params=[address, u8, bytes4], abi_returns=[word, word, word<bytes4>]] {
+  bb0:
+    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    v1 = and arg1, 255
+    ret v0, v1, arg2
+}
+
+fn @publicAddress(arg0: address) -> u256 [selector=0xa202110d, pure, abi_params=[address], abi_returns=[word]] {
+  bb0:
+    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    ret v0
+}
+
+fn @internalDirty(arg0: u256) -> u256 [selector=0x12f2847a, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = icall @publicAddress, 1, arg0
+    ret v0
+}
+
+fn @maskedByte(arg0: address) -> u256 [selector=0x57bf1875, pure, abi_params=[address], abi_returns=[word]] {
+  bb0:
+    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    v1 = and v0, 255
+    ret v1
+}
+
+fn @choice(arg0: u8) -> u256 [selector=0x5cbeb69a, pure, abi_params=[enum<3, u8>], abi_returns=[word]] {
+  bb0:
+    v0 = lt arg0, 3
+    v1 = iszero v0
+    jumpi v1, bb1, bb2
+  bb2:
+    ret arg0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 33 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @signed(arg0: i8) -> i256 [selector=0xa2222724, pure, abi_params=[i8], abi_returns=[word]] {
+  bb0:
+    v0 = signextend 0, arg0
+    ret v0
+}
+
+fn @maskedTag(arg0: bytes4) -> bytes32 [selector=0x179f850e, pure, abi_params=[bytes4], abi_returns=[word]] {
+  bb0:
+    v0 = and arg0, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    ret v0
+}
+
+fn @choiceMask(arg0: u8) -> u256 [selector=0xebf04b36, pure, abi_params=[enum<3, u8>], abi_returns=[word]] {
+  bb0:
+    v0 = and arg0, 255
+    ret v0
+}

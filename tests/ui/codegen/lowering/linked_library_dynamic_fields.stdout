@@ -458,13 +458,8 @@ bb3:
   shr
   jumpi bb2, bb4
 bb4:
-  push 0
-  not
-  push 96
-  shr
   push 4
   calldataload
-  and
   push 0
   mstore
   push 0

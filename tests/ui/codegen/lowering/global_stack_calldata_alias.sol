@@ -52,13 +52,8 @@ contract Test {
     // CHECK-NEXT: shr
     // CHECK-NEXT: jumpi [[INVALID]], [[CHAIN:bb[0-9]+]]
     // CHECK: [[CHAIN]]:
-    // CHECK-NEXT: push 0
-    // CHECK-NEXT: not
-    // CHECK-NEXT: push 96
-    // CHECK-NEXT: shr
     // CHECK-NEXT: push 4
     // CHECK-NEXT: calldataload
-    // CHECK-NEXT: and
     // CHECK-NEXT: push 1
     // CHECK-NEXT: dup 2
     // CHECK-NEXT: eq

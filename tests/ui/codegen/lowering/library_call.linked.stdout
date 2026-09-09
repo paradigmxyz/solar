@@ -25,13 +25,8 @@ bb6:
   shr
   jumpi bb5, bb7
 bb7:
-  push 0
-  not
-  push 96
-  shr
   push 36
   calldataload
-  and
   push 0
   mstore
   push 4
@@ -114,13 +109,8 @@ bb8:
   shr
   jumpi bb6, bb9
 bb9:
-  push 0
-  not
-  push 96
-  shr
   push 4
   calldataload
-  and
   push 64
   mload
   push 128

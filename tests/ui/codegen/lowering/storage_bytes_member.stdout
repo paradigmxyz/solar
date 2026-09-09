@@ -16,10 +16,8 @@ bb5:
   push 1
   dup 2
   add
-  push 255
   push 4
   calldataload
-  and
   dup 5
   add
   push 255
@@ -318,12 +316,8 @@ bb49:
   add
   jump bb50
 bb50:
-  push 255
-  push 248
-  shl
   push 36
   calldataload
-  and
   push 31
   push 4
   calldataload
@@ -620,10 +614,8 @@ bb17:
   push 64
   push 0
   keccak256
-  push 255
   push 36
   calldataload
-  and
   push 0
   swap 2
   jump bb2
