@@ -15,6 +15,12 @@
 //! before encoding, keeping stores tied to the allocated base. This is limited
 //! to nonempty payloads: empty tails already have a short encoder, and moving
 //! their reservation earlier can increase stack setup around external calls.
+//! Word-cleanup loops use a guarded do-while with a destination cursor and fixed
+//! source displacement, returning the final cursor instead of retaining a
+//! separate tail. The original count controls iteration even if addresses wrap;
+//! loads, cleanup checks, and stores remain in their original order. Small
+//! constant allocations retain the counted loop because rotation's extra entry
+//! guard and exit phi can grow short encodings in callers with live arguments.
 
 use crate::{
     mir::{
@@ -1209,15 +1215,52 @@ fn encode_word_array(
     if let Some(cleanup) = cleanup
         && location == SliceLocation::Memory
     {
-        builder.counted_loop(len, |builder, index| {
-            let offset = builder.mul(index, word);
-            let source = builder.add(data_source, offset);
-            let destination = builder.add(data_dest, offset);
-            let value = builder.mload(source);
-            let value = clean_word(builder, cleanup, value);
-            builder.mstore(destination, value);
-        });
-        return tail;
+        // This is a profitability hint, not a length fact: assembly may have
+        // overwritten the length since allocation. Both loops use the loaded
+        // length and preserve the same addresses and memory-operation order.
+        let small_allocation = matches!(builder.func().value(value), Value::Inst(inst)
+            if matches!(builder.func().inst(*inst).kind, InstKind::Alloc { size, .. }
+                if builder.func().value_u64(size).is_some_and(|size| size <= 64)));
+        if small_allocation {
+            // for index in 0..len:
+            //   mstore data_dest + index * 32, clean(mload data_source + index * 32)
+            builder.counted_loop(len, |builder, index| {
+                let offset = builder.mul(index, word);
+                let source = builder.add(data_source, offset);
+                let destination = builder.add(data_dest, offset);
+                let value = builder.mload(source);
+                let value = clean_word(builder, cleanup, value);
+                builder.mstore(destination, value);
+            });
+            return tail;
+        }
+        // delta = data_source - data_dest
+        // remaining = len; destination = data_dest
+        // if remaining != 0: do:
+        //   mstore destination, clean(mload destination + delta)
+        //   remaining -= 1; destination += 32
+        // while remaining != 0
+        let delta = builder.sub(data_source, data_dest);
+        let preheader = builder.current_block();
+        let body = builder.create_block();
+        let done = builder.create_block();
+        builder.branch(len, body, done);
+        builder.switch_to_block(body);
+        let remaining = builder.phi(vec![(preheader, len)]);
+        let destination = builder.phi(vec![(preheader, data_dest)]);
+        let source = builder.add(destination, delta);
+        let value = builder.mload(source);
+        let value = clean_word(builder, cleanup, value);
+        builder.mstore(destination, value);
+        let one = builder.imm(1);
+        let next_remaining = builder.sub(remaining, one);
+        let next_destination = builder.add(destination, word);
+        let backedge = builder.current_block();
+        builder.branch(next_remaining, body, done);
+        builder.add_phi_incoming(remaining, backedge, next_remaining);
+        builder.add_phi_incoming(destination, backedge, next_destination);
+        builder.switch_to_block(done);
+        return builder.phi(vec![(preheader, data_dest), (backedge, next_destination)]);
     }
     builder.copy_slice_data(location, data_dest, data_source, bytes);
     tail
