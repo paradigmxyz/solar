@@ -720,6 +720,9 @@ impl<'a> WorkspacePathIndex<'a> {
     }
 
     fn matching_entries(&self, path: &Path) -> SmallVec<[WorkspacePathMatch; 16]> {
+        if self.root_index.is_empty() {
+            return SmallVec::new();
+        }
         let mut matches = SmallVec::<[WorkspacePathMatch; 16]>::new();
         for ancestor in path.ancestors() {
             let Some(roots) = self.root_index.get(ancestor) else { continue };
