@@ -33,6 +33,11 @@
 //! reach checks and measured final code quality remain necessary; fewer live SSA values are not a
 //! bytecode proof.
 //!
+//! Finally, bounded shared-expression regions receive one earliest-ready pure-DAG trial. It
+//! preserves read/write order and uses CFG liveness, including successor phi inputs, to require
+//! nonincreasing peak and per-write pressure with a strict gain at a pressured write. The trial
+//! keeps every SSA identity and never clones a read; see `shared` for its bounds and omissions.
+//!
 //! This is a locality heuristic, not a whole-function profitability search. It does not price the
 //! residual physical stack left by each possible order, so an isolated function can grow even when
 //! aggregate corpus output improves. Keeping the pass separate from physical scheduling makes that
@@ -59,6 +64,8 @@ use solar_data_structures::{
     index::{IndexVec, index_vec},
 };
 use solar_sema::Gcx;
+
+mod shared;
 
 /// Orders movable MIR instructions for the EVM stack scheduler.
 pub(crate) struct EvmInstSchedule;
@@ -156,6 +163,7 @@ impl EvmInstSchedule {
             }
         }
 
+        changed |= shared::contract(func, reach, &shared_results, &mut scratch);
         changed
     }
 }
@@ -181,22 +189,7 @@ impl EvmInstSchedule {
         let mut segment = 0;
         for &id in original {
             let inst = func.inst(id);
-            let source_write = Self::is_source_write(inst);
-            let hard = !source_write
-                && (!Self::is_movable(inst)
-                    || inst.kind.evm_opcode().is_none()
-                    || inst
-                        .metadata
-                        .effect()
-                        .is_some_and(|effect| effect != inst.kind.effect_kind())
-                    || matches!(
-                        inst.kind,
-                        InstKind::CodeSize
-                            | InstKind::CodeCopy(..)
-                            | InstKind::ExtCodeSize(..)
-                            | InstKind::ExtCodeCopy(..)
-                            | InstKind::ExtCodeHash(..)
-                    ));
+            let hard = Self::is_contraction_boundary(inst);
             // Hard boundaries occupy their own region; source writes only separate old segments.
             region += usize::from(hard);
             scratch.original_positions[id] = region;
@@ -206,39 +199,7 @@ impl EvmInstSchedule {
             scratch.members.insert(id);
             scratch.active_members.push(id);
         }
-        // Count local instruction results live before each write, including its operands.
-        // This lower bound selects pressure-driven work; it is not a physical stack proof.
-        let add_uses = |operands: &[ValueId], scratch: &mut ScheduleScratch| {
-            operands
-                .iter()
-                .filter(|&&value| {
-                    matches!(func.value(value), Value::Inst(definition)
-                    if scratch.members.contains(*definition)
-                        && !matches!(func.inst(*definition).kind, InstKind::Phi(_))
-                        && scratch.dependencies.insert(*definition))
-                })
-                .count()
-        };
-        let mut operands = SmallVec::<[ValueId; 8]>::new();
-        if let Some(term) = terminator {
-            term.for_each_operand(|value| operands.push(value));
-        }
-        let mut live = add_uses(&operands, scratch);
-        let mut pressured = false;
-        for &id in original.iter().rev() {
-            live -= usize::from(scratch.dependencies.remove(id));
-            let inst = func.inst(id);
-            operands.clear();
-            if !matches!(inst.kind, InstKind::Phi(_)) {
-                inst.kind.collect_operands(&mut operands);
-            }
-            live += add_uses(&operands, scratch);
-            if Self::is_source_write(inst) && live > reach {
-                pressured = true;
-                break;
-            }
-        }
-        if !pressured {
+        if !Self::has_pressure(func, original, terminator, reach, scratch) {
             ordered.extend_from_slice(original);
             scratch.clear_segment();
             return;
@@ -284,6 +245,61 @@ impl EvmInstSchedule {
             }
         }
         scratch.clear_segment();
+    }
+
+    fn has_pressure(
+        func: &Function,
+        original: &[InstId],
+        terminator: Option<&Terminator>,
+        reach: usize,
+        scratch: &mut ScheduleScratch,
+    ) -> bool {
+        // Count local instruction results live before each write, including its operands.
+        // This lower bound selects pressure-driven work; it is not a physical stack proof.
+        let add_uses = |operands: &[ValueId], scratch: &mut ScheduleScratch| {
+            operands
+                .iter()
+                .filter(|&&value| {
+                    matches!(func.value(value), Value::Inst(definition)
+                    if scratch.members.contains(*definition)
+                        && !matches!(func.inst(*definition).kind, InstKind::Phi(_))
+                        && scratch.dependencies.insert(*definition))
+                })
+                .count()
+        };
+        let mut operands = SmallVec::<[ValueId; 8]>::new();
+        if let Some(term) = terminator {
+            term.for_each_operand(|value| operands.push(value));
+        }
+        let mut live = add_uses(&operands, scratch);
+        for &id in original.iter().rev() {
+            live -= usize::from(scratch.dependencies.remove(id));
+            let inst = func.inst(id);
+            operands.clear();
+            if !matches!(inst.kind, InstKind::Phi(_)) {
+                inst.kind.collect_operands(&mut operands);
+            }
+            live += add_uses(&operands, scratch);
+            if Self::is_source_write(inst) && live > reach {
+                return true;
+            }
+        }
+        false
+    }
+
+    fn is_contraction_boundary(inst: &Instruction) -> bool {
+        !Self::is_source_write(inst)
+            && (!Self::is_movable(inst)
+                || inst.kind.evm_opcode().is_none()
+                || inst.metadata.effect().is_some_and(|effect| effect != inst.kind.effect_kind())
+                || matches!(
+                    inst.kind,
+                    InstKind::CodeSize
+                        | InstKind::CodeCopy(..)
+                        | InstKind::ExtCodeSize(..)
+                        | InstKind::ExtCodeCopy(..)
+                        | InstKind::ExtCodeHash(..)
+                ))
     }
 
     fn is_source_write(inst: &Instruction) -> bool {
