@@ -13,6 +13,7 @@ import sys
 
 import z3
 
+from evm_rules.artifacts import query_manifest
 from evm_rules.isle import ISLE, ROOT, verify_file
 from evm_rules.discovery import discover_rules
 from evm_rules.mining import mine
@@ -28,6 +29,8 @@ def main():
     verify.add_argument("--timeout-ms", type=int, default=5000)
     verify.add_argument("--output", type=Path, required=True)
     verify.add_argument("--artifacts", type=Path)
+    verify.add_argument("--partition-shifts", action="store_true",
+                        help="exhaust single symbolic shift counts for reproducible cross-solver replay")
     discover = subparsers.add_parser("discover", help="bounded enumerative search with SMT validation")
     discover.add_argument("--max-ops", type=int, default=3)
     discover.add_argument("--max-rhs-ops", type=int, default=2, help="maximum operations in a replacement recipe")
@@ -72,9 +75,15 @@ def main():
         report = discover_rules(args)
         exit_code = 0 if report.get("accepted", True) else 1
     else:
-        files = [(verify_stack_file if path.name == "stack_peephole.isle" else
-                  verify_late_file if path.name == "late_word.isle" else verify_file)(
-            path, args.timeout_ms, args.artifacts) for path in args.files]
+        files = []
+        for path in args.files:
+            if path.name == "stack_peephole.isle":
+                file = verify_stack_file(path, args.timeout_ms, args.artifacts)
+            elif path.name == "late_word.isle":
+                file = verify_late_file(path, args.timeout_ms, args.artifacts)
+            else:
+                file = verify_file(path, args.timeout_ms, args.artifacts, args.partition_shifts)
+            files.append(file)
         for file in files:
             for rule in file["rules"]:
                 if rule["status"] != "proved":
@@ -82,6 +91,7 @@ def main():
                     print(f"{file['source']}:{rule['line']}: {rule['status']}{reason}", file=sys.stderr)
         counts = Counter(rule["status"] for file in files for rule in file["rules"])
         report = {"files": files, "counts": dict(counts)}
+        report["query_sha256"] = query_manifest(report)
         exit_code = 0 if counts.get("proved", 0) and set(counts) == {"proved"} else 1
     implementation = sorted((Path(__file__).parent / "evm_rules").glob("*.py")) + [Path(__file__)]
     report.update(schema="solar:evm-word-rules@1", word_bits=256, solver=z3.get_version_string(),

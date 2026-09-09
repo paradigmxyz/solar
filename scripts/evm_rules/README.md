@@ -23,6 +23,33 @@ with UNSAT within the partition budget; partial coverage never proves a rule.
 The report lists every saved query; replay one with `z3 path/to/rule.smt2` or
 `cvc5 --lang smt2 path/to/rule.smt2`.
 
+For complete replay with cvc5, export exhaustive shift partitions even when Z3
+can prove the original query directly:
+
+```sh
+uv run scripts/verify_evm_rules.py verify --partition-shifts \
+  --output target/evm-rules/proofs.json --artifacts target/evm-rules/smt
+uv run scripts/replay_evm_rules.py target/evm-rules/proofs.json \
+  --solver cvc5 --output target/evm-rules/cvc5.json
+```
+
+Install cvc5 separately and run both commands from the repository root; saved
+query paths are relative to the verifier's working directory. Queries declare
+`QF_BV` and rename free constants to portable SMT-LIB identifiers, retaining
+their original names in comments. The report fingerprints every query with
+SHA-256. Replay checks the exact manifest and bytes, including partition
+coverage and every physical-stack variant. Missing or changed queries fail.
+
+Replay requires UNSAT from every query. It first uses cvc5's default bitvector
+strategy, then retries only timeouts or unknown results with
+`--solve-bv-as-int=sum`. The default limit is five seconds per strategy and four
+concurrent queries, configurable with `--timeout-ms` and `--jobs`. All attempts
+and the solver version are recorded. SAT, exhausted time limits, parse errors,
+and process failures exit nonzero; SAT is a solver disagreement until separately
+replayed in the concrete model. This checks the exported formulas with another
+solver, not the semantics that generated them or an independent proof
+certificate. The replay command is currently local; CI still gates Z3 proofs.
+
 Only UNSAT establishes equivalence. SAT must replay as different outputs in a
 separate Python integer evaluator. Timeouts, unsupported terms and unsatisfiable
 preconditions are distinct failures, never proofs. Verification exits nonzero
