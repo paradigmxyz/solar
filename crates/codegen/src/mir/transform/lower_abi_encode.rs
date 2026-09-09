@@ -11,14 +11,18 @@
 //! known. Their final reservation must retain that exact address even if later
 //! simplification makes the size constant; static placement would detach the
 //! result from the stores that already initialized it.
+//! Tuples with known literal byte tails can instead reserve their full output
+//! before encoding, keeping stores tied to the allocated base. This is limited
+//! to nonempty payloads: empty tails already have a short encoder, and moving
+//! their reservation earlier can increase stack setup around external calls.
 
 use crate::{
     mir::{
-        AbiEncodeMode, AbiLayout, AbiType, AbiWordValidator, BlockId, Function, FunctionBuilder,
-        FunctionId, InstKind, InstructionMetadata, MemoryObjectKind, MemoryObjectLayout, MirType,
-        Module, RevertReason, SliceLocation, Terminator, Value, ValueId, analysis::CallGraphInfo,
-        memory::EvmMemoryLayout, pass::MirPass, transform::utils::redirect_successor_predecessors,
-        utils::resolve_replacement,
+        AbiEncodeMode, AbiLayout, AbiType, AbiWordValidator, AllocationKind, BlockId, EffectKind,
+        Function, FunctionBuilder, FunctionId, InstKind, InstructionMetadata, MemoryObjectKind,
+        MemoryObjectLayout, MirType, Module, RevertReason, SliceLocation, Terminator, Value,
+        ValueId, analysis::CallGraphInfo, memory::EvmMemoryLayout, pass::MirPass,
+        transform::utils::redirect_successor_predecessors, utils::resolve_replacement,
     },
     target::{Cost, Target},
 };
@@ -62,13 +66,14 @@ impl MirPass for LowerAbiEncode {
                 constructors.insert(id);
             }
         }
-        let inline_helpers = EncodeHelpers::default();
+        let mut inline_helpers = EncodeHelpers::default();
         let mut changed = !helpers.arrays.is_empty() || !helpers.tuples.is_empty();
         for (id, func) in module.functions.iter_mut_enumerated() {
             // NOTE: Constructor calls allocate frames at the free-memory pointer. Encoding
             // writes there before reserving its output, so an outlined call would overwrite it.
             // abi_encode(args) => inline head stores and tail copies
-            let helpers = if constructors.contains(id) { &inline_helpers } else { &helpers };
+            let helpers =
+                if constructors.contains(id) { &mut inline_helpers } else { &mut helpers };
             changed |= lower_function(func, helpers, revert_strings);
         }
         changed
@@ -120,6 +125,8 @@ impl TupleHelperKey {
 struct EncodeHelpers {
     arrays: FxHashMap<ArrayHelperKey, FunctionId>,
     tuples: FxHashMap<TupleHelperKey, FunctionId>,
+    /// Proven on the original function, before encoding emits raw memory operations.
+    literal_objects: FxHashSet<ValueId>,
 }
 
 /// Builds `encode_abi_tuple(args.., [selector]) -> encoded` for every encoding shape at least
@@ -333,7 +340,7 @@ impl AbiValueSource {
 
 fn lower_function(
     func: &mut Function,
-    helpers: &EncodeHelpers,
+    helpers: &mut EncodeHelpers,
     revert_strings: RevertStrings,
 ) -> bool {
     let has_encodes =
@@ -341,6 +348,7 @@ fn lower_function(
     if !has_encodes {
         return false;
     }
+    helpers.literal_objects = literal_objects_at_encodes(func);
 
     let mut replacements = FxHashMap::default();
     let mut literal_objects = FxHashSet::default();
@@ -388,7 +396,13 @@ fn lower_function(
     }
     fold_slice_projections(func, &mut replacements);
     func.replace_uses_canonicalized(&replacements);
-    remove_literal_objects(func, &literal_objects.into_iter().collect::<Vec<_>>());
+    remove_literal_objects(
+        func,
+        &literal_objects
+            .into_iter()
+            .filter(|object| helpers.literal_objects.contains(object))
+            .collect::<Vec<_>>(),
+    );
     let repaired = crate::mir::utils::repair_reachability_phis(func);
     !replacements.is_empty() || repaired
 }
@@ -485,6 +499,31 @@ fn lower_encode(
         return builder.make_slice(buffer, total, SliceLocation::Memory);
     }
 
+    if mode == AbiEncodeMode::Slice
+        && let Some(total_size) = literal_tuple_size(
+            builder.func(),
+            builder.current_block(),
+            layout,
+            args,
+            selector_size,
+            &helpers.literal_objects,
+        )
+    {
+        // buffer = alloc raw, padded_size
+        // mstore buffer, selector (when present)
+        // encode_tuple buffer + selector_size, args
+        // make_slice buffer, total_size
+        let size = builder.imm(total_size.next_multiple_of(32));
+        let buffer = builder.alloc_raw(size, crate::mir::AllocationSemantics::INTERNAL);
+        if let Some(selector) = selector {
+            builder.mstore(buffer, selector);
+        }
+        let dest = offset_ptr(builder, buffer, selector_size);
+        encode_tuple(builder, args, &layout.types, dest, helpers);
+        let total = builder.imm(total_size);
+        return builder.make_slice(buffer, total, SliceLocation::Memory);
+    }
+
     // Source objects already live below the free-memory pointer. Encode into
     // the untouched range, then reserve the exact output in one pass.
     let allocation_base = builder.fmp();
@@ -525,6 +564,35 @@ fn lower_encode(
     let allocated = builder.alloc_raw(aligned, crate::mir::AllocationSemantics::INTERNAL);
     preserve_encoding_address(builder, allocated);
     builder.make_slice(allocated, total, SliceLocation::Memory)
+}
+
+/// Literal byte tails have known lengths even though their ABI types are
+/// dynamic. Reserve the output before writing it so its base is explicit and
+/// ordinary allocation analysis can place it. Other dynamic shapes retain the
+/// reserve-after-encoding path and its address-preservation obligation.
+fn literal_tuple_size(
+    func: &Function,
+    block: BlockId,
+    layout: &AbiLayout,
+    args: &[ValueId],
+    selector_size: u64,
+    literal_objects: &FxHashSet<ValueId>,
+) -> Option<u64> {
+    let mut size = selector_size;
+    let mut has_payload = false;
+    for (ty, &value) in layout.types.iter().zip(args) {
+        size = size.checked_add(ty.head_size())?;
+        if ty.is_dynamic() {
+            if *ty != AbiType::Bytes(SliceLocation::Memory) || !literal_objects.contains(&value) {
+                return None;
+            }
+            let length = u64::try_from(literal_bytes(func, value, block)?.len()).ok()?;
+            has_payload |= length != 0;
+            size = size.checked_add(32)?.checked_add(length.checked_next_multiple_of(32)?)?;
+        }
+    }
+    size.checked_next_multiple_of(32)?;
+    has_payload.then_some(size)
 }
 
 /// The reservation commits bytes already written through a separate FMP read.
@@ -843,7 +911,7 @@ fn encode_dynamic_body(
     match ty {
         AbiType::Bytes(location) => {
             let location = effective_slice_location(builder.func(), value, *location);
-            encode_bytes(builder, value, dest, location)
+            encode_bytes(builder, value, dest, location, helpers.literal_objects.contains(&value))
         }
         AbiType::DynamicArray { element, location } => {
             let location = effective_slice_location(builder.func(), value, *location);
@@ -1160,9 +1228,11 @@ fn encode_bytes(
     value: ValueId,
     dest: ValueId,
     location: SliceLocation,
+    literal_folding: bool,
 ) -> ValueId {
-    if location == SliceLocation::Memory
-        && let Some(bytes) = literal_bytes(builder.func(), value)
+    if literal_folding
+        && location == SliceLocation::Memory
+        && let Some(bytes) = literal_bytes(builder.func(), value, builder.current_block())
     {
         let length = builder.imm(bytes.len() as u64);
         builder.mstore(dest, length);
@@ -1217,14 +1287,99 @@ fn memory_object_non_null(builder: &mut FunctionBuilder<'_>, object: ValueId) ->
     builder.iszero(non_null)
 }
 
+/// Finds literal candidates whose allocation and encoding share a block, with
+/// no intervening opaque memory access or physical address observation. Capture
+/// this before lowering emits its own raw accesses. If any encoding use fails
+/// the check, reject the object for the whole function. The separate direct-use
+/// check rejects escaping pointers and validates complete initialization; after
+/// the last encoding use the unescaped source object is dead.
+fn literal_objects_at_encodes(func: &Function) -> FxHashSet<ValueId> {
+    let mut objects = FxHashSet::default();
+    let mut rejected = FxHashSet::default();
+    let mut available = FxHashSet::default();
+    for block in &func.blocks {
+        available.clear();
+        for &inst in &block.instructions {
+            let kind = &func.inst(inst).kind;
+            if literal_opaque_instruction(func, kind) {
+                available.clear();
+            }
+            if matches!(
+                kind,
+                InstKind::Alloc { kind: AllocationKind::Object(MemoryObjectLayout::Bytes), .. }
+            ) && let Some(object) = func.inst_result_value(inst)
+            {
+                available.insert(object);
+            }
+            if let InstKind::AbiEncode { args, .. } = kind {
+                for &object in args.iter() {
+                    if func.value_ty(object) == Some(MirType::MemoryObject(MemoryObjectKind::Bytes))
+                    {
+                        if available.contains(&object) {
+                            objects.insert(object);
+                        } else {
+                            rejected.insert(object);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    objects.retain(|object| !rejected.contains(object));
+    objects
+}
+
+fn literal_opaque_instruction(func: &Function, kind: &InstKind) -> bool {
+    match kind {
+        InstKind::Alloc { kind: AllocationKind::Object(_), .. } | InstKind::AbiEncode { .. } => {
+            false
+        }
+        InstKind::SetMemoryObjectLen(object, ..) => {
+            !literal_store_in_bounds(func, *object, Some(32))
+        }
+        InstKind::MemoryObjectStoreWord { object, offset, .. } => !literal_store_in_bounds(
+            func,
+            *object,
+            func.value_u64(*offset).and_then(|offset| offset.checked_add(64)),
+        ),
+        InstKind::MemoryObjectData(..)
+        | InstKind::MemoryObjectFieldAddr { .. }
+        | InstKind::MemoryObjectElementAddr { .. }
+        | InstKind::MSize => true,
+        _ => matches!(
+            kind.effect_kind(),
+            EffectKind::MemoryRead
+                | EffectKind::MemoryWrite
+                | EffectKind::ICall
+                | EffectKind::ExternalCall
+                | EffectKind::Create
+                | EffectKind::Log
+        ),
+    }
+}
+
+/// A semantic store to a different object is disjoint only inside its fresh
+/// allocation. An unknown or wrapping offset can overwrite a preceding object.
+fn literal_store_in_bounds(func: &Function, object: ValueId, end: Option<u64>) -> bool {
+    matches!((func.value(object), end), (Value::Inst(alloc), Some(end))
+        if matches!(func.inst(*alloc).kind, InstKind::Alloc { kind: AllocationKind::Object(_), size, .. }
+            if func.value_u64(size).is_some_and(|size| end <= size)))
+}
+
 /// Returns the bytes represented by an immutable literal object when all active
-/// uses are its literal initialization operations.
-fn literal_bytes(func: &Function, object: ValueId) -> Option<Vec<u8>> {
+/// uses are initialization operations preceding this encoding in the same block.
+/// The caller must also exclude opaque observers using the original IR.
+fn literal_bytes(func: &Function, object: ValueId, block: BlockId) -> Option<Vec<u8>> {
     if func.value_ty(object) != Some(MirType::MemoryObject(MemoryObjectKind::Bytes)) {
         return None;
     }
     let Value::Inst(defining_inst) = func.value(object) else { return None };
-    if !matches!(func.inst(*defining_inst).kind, InstKind::Alloc { .. }) {
+    if !func.blocks[block].instructions.contains(defining_inst) {
+        return None;
+    }
+    if !matches!(func.inst(*defining_inst).kind, InstKind::Alloc { .. })
+        || func.inst(*defining_inst).metadata.preserves_fmp()
+    {
         return None;
     }
 
@@ -1237,6 +1392,9 @@ fn literal_bytes(func: &Function, object: ValueId) -> Option<Vec<u8>> {
         let instruction = func.inst(inst);
         if !instruction.operands().contains(&object) {
             continue;
+        }
+        if !func.blocks[block].instructions.contains(&inst) {
+            return None;
         }
         match &instruction.kind {
             InstKind::SetMemoryObjectLen(value, len, MemoryObjectKind::Bytes)
@@ -1290,10 +1448,17 @@ fn literal_bytes(func: &Function, object: ValueId) -> Option<Vec<u8>> {
 fn remove_literal_objects(func: &mut Function, values: &[ValueId]) {
     let mut removed = FxHashSet::default();
     for &object in values {
-        if literal_bytes(func, object).is_none() {
+        let Value::Inst(defining_inst) = func.value(object) else { continue };
+        let Some(block) = func
+            .blocks
+            .iter_enumerated()
+            .find_map(|(id, block)| block.instructions.contains(defining_inst).then_some(id))
+        else {
+            continue;
+        };
+        if literal_bytes(func, object, block).is_none() {
             continue;
         }
-        let Value::Inst(defining_inst) = func.value(object) else { continue };
         removed.insert(*defining_inst);
         for inst_id in func.instructions() {
             if inst_id != *defining_inst && func.inst(inst_id).operands().contains(&object) {
