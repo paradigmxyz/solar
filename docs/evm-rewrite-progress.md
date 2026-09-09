@@ -494,6 +494,34 @@ compiler/source pins, complete outputs, failure reconciliation, independent
 reviews and per-object ledgers remain under
 `target/codegen-bench/evm-rewrite-candidate/call-region-cost-20260909/`.
 
+## Rejected store-pair experiment and integration checkpoint
+
+A disjoint adjacent-MSTORE rewrite passed focused stack, memory and source-map
+checks, but failed the complete UI size screen. The matched 1,674 rows and 5,096
+bytecode objects retain all inputs, contract IDs and compiler statuses. Gas
+creation/runtime totals fall by 289/287 bytes and Size by 361/332 bytes, yet 34
+individual objects grow across 18 contract rows. Aggregate savings do not meet
+the acceptance gate. The candidate workspace run passes 1,561 tests and fails
+the UI runner on 22 executable-output snapshots; these existing expectations
+were not blessed. Full hot-gas and heavy-corpus acceptance were not attempted.
+
+The rejected production edit and its new physical fixtures are archived with
+checksums under `target/codegen-bench/evm-rewrite-candidate/getter-terminal-20260909/store-pair/integration/`.
+The accepted implementation is restored from the preserved before-copy, and
+all previously tracked tests remain unchanged. The independent Solidity getter
+fixture is retained: absent and initialized mapping entries return four exact
+ABI values in all five codegen revisions. Only this new fixture's snapshots
+were generated for the restored compiler. Eighteen independent focused calls
+against the baseline, candidate and pinned solc also pass; their local gas
+savings do not override the corpus rejection. No compiler-speed claim follows.
+
+Main was fetched again at `2632e43b` and was already merged. The pushed
+`01e589d5` checkpoint has 17 successful checks, one expected skip and one neutral
+CodSpeed analysis. The restored workspace, including the retained getter
+fixture, passes all 1,562 tests with the same two existing skips. This
+integration does not change production code or close any of the remaining
+performance debts below.
+
 ## Remaining acceptance work
 
 The alias assertion migration passes; its generated-code size debt remains.
