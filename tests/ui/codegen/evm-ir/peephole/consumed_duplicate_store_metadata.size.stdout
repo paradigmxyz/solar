@@ -1,0 +1,24 @@
+- // === ROOT/tests/ui/codegen/evm-ir/peephole/consumed_duplicate_store_metadata.evmir (before peephole) ===
++ // === ROOT/tests/ui/codegen/evm-ir/peephole/consumed_duplicate_store_metadata.evmir (after peephole) ===
+  @module ConsumedDuplicateStoreMetadata
+  bb0:
+    push 0
+    calldataload
+-   dup 1
+    push 33
+    mstore
+-   push 33
+-   mstore
+    jump bb1
+  bb1:
+    push 0
+    calldataload
+-   dup 1 !metadata(span=0..1, invoke=outer@1..50)
+-   push 33 !metadata(span=10..11, invoke=inner@2..20)
+-   mstore !metadata(span=20..21)
+-   push 33 !metadata(span=30..31, exit=return)
+-   mstore !metadata(span=40..41, exit=return)
++   push 33 !metadata(spans=[0..1, 10..11, 20..21, 30..31, 40..41], invoke=outer@1..50)
++   mstore !metadata(spans=[0..1, 10..11, 20..21, 30..31, 40..41], exit=return)
+    stop
+  

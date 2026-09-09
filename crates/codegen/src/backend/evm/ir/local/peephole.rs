@@ -12,7 +12,8 @@
 //! The calldata suffix check and builder are outlined after exact prefix admission to
 //! keep their temporaries out of the main peephole function.
 //! Algebraic identities precede exact constant folding through the retained word
-//! evaluator. Memory round trips remove already-observed identical accesses;
+//! evaluator. Adjacent equal-address word stores coalesce when their copied value
+//! is either retained or consumed. Memory round trips remove already-observed identical accesses;
 //! extra copies require a proved stack-capacity bound. Only the final late-DCE
 //! traversal may reorder adjacent stores to disjoint nonwrapping literal word ranges
 //! to remove a buried exchange. Scheduling queries and earlier passes disable it.
@@ -93,6 +94,19 @@ pub(super) fn peephole(
                         vec![InstKind::Swap(1).into(), InstKind::Op(*code).into()]
                     };
                     replacement = Some((4, sequence));
+                }
+                // dup1; push p; mstore; push p; mstore -> push p; mstore
+                (
+                    InstKind::Dup(1),
+                    InstKind::Push(a),
+                    InstKind::Op(op::MSTORE),
+                    InstKind::Push(b),
+                ) if a == b
+                    && tail.get(4).is_some_and(|inst| {
+                        canonical(inst) && matches!(inst.kind, InstKind::Op(op::MSTORE))
+                    }) =>
+                {
+                    replacement = Some((5, vec![tail[1].clone(), tail[2].clone()]));
                 }
                 // dup1; push address; store; pop -> push address; store
                 (

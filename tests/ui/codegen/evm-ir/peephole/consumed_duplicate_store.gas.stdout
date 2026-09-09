@@ -1,0 +1,114 @@
+- // === ROOT/tests/ui/codegen/evm-ir/peephole/consumed_duplicate_store.evmir (before peephole) ===
++ // === ROOT/tests/ui/codegen/evm-ir/peephole/consumed_duplicate_store.evmir (after peephole) ===
+  @module ConsumedDuplicateStore
+  bb0:
+    push 0
+    calldataload
+    dup 1
+-   push 0
+-   eq
++   iszero
+    jumpi bb1, bb6
+  bb6:
+    dup 1
+    push 1
+    eq
+    jumpi bb2, bb7
+  bb7:
+    dup 1
+    push 2
+    eq
+    jumpi bb3, bb4
+  bb1:
+    pop
+    push 64
+    calldataload
+    push 32
+    calldataload
+-   dup 1
+    push 0
+    mstore
+-   push 0
+-   mstore
+    msize
+    push 0
+    mload
+    push 0
+    mstore
+    push 32
+    mstore
+    push 64
+    mstore
+    push 96
+    push 0
+    return
+  bb2:
+    pop
+    push 64
+    calldataload
+    push 32
+    calldataload
+-   dup 1
+    push 33
+    mstore
+-   push 33
+-   mstore
+    msize
+    push 33
+    mload
+    push 0
+    mstore
+    push 32
+    mstore
+    push 64
+    mstore
+    push 96
+    push 0
+    return
+  bb3:
+    pop
+    push 64
+    calldataload
+    push 32
+    calldataload
+-   dup 1
+    push 256
+    mstore
+-   push 256
+-   mstore
+    msize
+    push 256
+    mload
+    push 0
+    mstore
+    push 32
+    mstore
+    push 64
+    mstore
+    push 96
+    push 0
+    return
+  bb4:
+    pop
+    push 64
+    calldataload
+    push 32
+    calldataload
+-   dup 1
+-   push 0x10000
+-   mstore
+    push 0x10000
+    mstore
+    msize
+    push 0x10000
+    mload
+    push 0
+    mstore
+    push 32
+    mstore
+    push 64
+    mstore
+    push 96
+    push 0
+    return
+  

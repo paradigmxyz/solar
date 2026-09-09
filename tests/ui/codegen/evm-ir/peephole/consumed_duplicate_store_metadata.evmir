@@ -1,0 +1,38 @@
+//@ revisions: gas size paris
+//@[gas] compile-flags: -Ogas --evm-version osaka -Zevm-ir-pipeline=peephole
+//@[size] compile-flags: -Osize --evm-version osaka -Zevm-ir-pipeline=peephole
+//@[paris] compile-flags: -Ogas --evm-version paris -Zevm-ir-pipeline=peephole
+//@ filecheck:
+@module ConsumedDuplicateStoreMetadata
+
+// Both variants must rewrite regardless of function-event metadata.
+// CHECK-LABEL: {{^[ +] *}}bb0:
+// CHECK: - dup 1
+// CHECK-NEXT: {{^[ +] *}}push 33
+// CHECK-NEXT: {{^[ +] *}}mstore
+// CHECK-NEXT: - push 33
+// CHECK-NEXT: - mstore
+bb0:
+  push 0
+  calldataload
+  dup 1
+  push 33
+  mstore
+  push 33
+  mstore
+  jump bb1
+
+// Native-equal explicit effects remain valid on the retained instructions.
+// CHECK-LABEL: {{^[ +] *}}bb1:
+// CHECK: - dup 1
+// CHECK: + push 33 !metadata({{.*}}invoke=outer@1..50{{.*}})
+// CHECK-NEXT: + mstore !metadata({{.*}}exit=return{{.*}})
+bb1:
+  push 0
+  calldataload
+  dup 1 !metadata(stack=0->1, span=0..1, invoke=outer@1..50)
+  push 33 !metadata(stack=0->1, span=10..11, invoke=inner@2..20)
+  mstore !metadata(stack=2->0, span=20..21)
+  push 33 !metadata(span=30..31, exit=return)
+  mstore !metadata(stack=2->0, span=40..41, exit=return)
+  stop
