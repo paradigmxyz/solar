@@ -23,6 +23,8 @@ bb0:
   sub
   push bb5
   jumpi
+  push 36
+  calldataload
   push 68
   calldatasize
   lt
@@ -51,8 +53,7 @@ bb10:
   swap 1
   jump bb8
 bb8:
-  push 36
-  calldataload
+  dup 4
   dup 4
   lt
   push bb10
@@ -69,6 +70,8 @@ bb5 [cold]:
   push 0
   revert
 bb12:
+  push 68
+  calldataload
   push 100
   calldatasize
   lt
@@ -82,8 +85,7 @@ bb12:
   swap 2
   jump bb14
 bb14:
-  push 68
-  calldataload
+  dup 4
   dup 4
   lt
   push bb16
@@ -102,6 +104,8 @@ bb16:
   swap 1
   jump bb14
 bb18:
+  push 100
+  calldataload
   push 132
   calldatasize
   lt
@@ -118,8 +122,7 @@ bb18:
   exchange 1, 2
   jump bb20
 bb20:
-  push 100
-  calldataload
+  dup 5
   dup 5
   lt
   push bb22
@@ -128,7 +131,8 @@ bb20:
   mstore
   swap 2
   pop
-  swap 1
+  swap 2
+  pop
   push 160
   mstore
   push 192

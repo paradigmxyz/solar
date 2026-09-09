@@ -1,4 +1,14 @@
 //! Selection of profitable cross-block stack layouts under spill hazards.
+//!
+//! Gas mode also retains a calldata loop bound beneath three or four stack-resident phis when
+//! the loop has one pure, straight-line latch of at most sixteen instructions. The resident
+//! argument planner proves incoming layouts and liveness; the phi planner proves that its
+//! changing words fit above the invariant. Calls and uncomposable layouts keep reloads.
+//! This replaces repeated calldata loads with DUPs, trading a small setup and bytecode cost
+//! for cheaper iterations. It assumes repeated traversal for profitability, not correctness:
+//! zero-iteration calls can cost more. Size mode retains rematerialization. This decision
+//! stays at the scheduling boundary and neither changes the MIR recurrence nor moves loads
+//! across external calls.
 
 use super::super::super::{
     BlockId, CanonicalArgValues, CfgInfo, DenseBitSet, EvmCodegen, EvmMemoryLayout, Function,
@@ -10,6 +20,43 @@ use crate::target::Target;
 use std::rc::Rc;
 
 impl<'gcx> EvmCodegen<'gcx> {
+    /// Carries a calldata loop bound beneath a small pure loop's changing words.
+    pub(in crate::backend::evm::codegen) fn compute_loop_bound_stack_layout(
+        &self,
+        func: &Function,
+        liveness: &Liveness,
+        phi_plan: &StackPhiPlan,
+    ) -> Option<(Vec<ValueId>, GlobalStackPlan)> {
+        if !self.gcx.sess.opts.optimization.is_gas() || !Self::is_external_entry(func) {
+            return None;
+        }
+        for (header, block) in func.blocks.iter_enumerated() {
+            if let Some(Terminator::Branch { condition, then_block: body, .. }) = &block.terminator
+                && let Value::Inst(cond) = func.value(*condition)
+                && let InstKind::Lt(index, bound) = func.inst(*cond).kind
+                && matches!(func.value(bound), Value::Arg(_))
+                && let Some(layout) = phi_plan.entries.get(&header)
+                && (3..=4).contains(&layout.len())
+                && layout.contains(&index)
+                && func.blocks[*body].predecessors.as_slice() == [header]
+                && matches!(func.blocks[*body].terminator, Some(Terminator::Jump(to)) if to == header)
+                && func.blocks[*body].instructions.len() <= 16
+                && func.blocks[*body]
+                    .instructions
+                    .iter()
+                    .all(|&inst| func.inst(inst).kind.effect_kind() == crate::mir::EffectKind::Pure)
+            {
+                // preheader: carry(bound, initial phis...)
+                // header: compare(index, bound)
+                // latch: carry(bound, next phis...)
+                let values = vec![bound];
+                let plan = GlobalStackPlan::analyze_resident_args(func, liveness, &values, false)?;
+                return Some((values, plan));
+            }
+        }
+        None
+    }
+
     /// Returns the stack-phi plan for a function, computing it on first use.
     pub(in crate::backend::evm::codegen) fn stack_phi_plan(
         &mut self,

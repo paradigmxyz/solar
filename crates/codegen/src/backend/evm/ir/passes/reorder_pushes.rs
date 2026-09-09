@@ -10,6 +10,12 @@
 //! `DUPn; unary*; immediate recipe; SWAP1` into `immediate recipe; DUP(n+1); unary*`. The exact
 //! DUP rebasing checks target reach and accepts only a Pareto improvement after target-specific
 //! stack-op lowering.
+//! The closed-expression sweep also moves pure arithmetic and calldata expressions. These
+//! computations neither mutate memory nor observe its size, gas remaining, or the current PC.
+//! Their operands are entirely contained in the moved range, so moving them before another
+//! closed producer preserves both results while removing the intervening swap.
+//! This broader sweep runs only after the final structural sharing pass: moving a calldata
+//! read before a hash can otherwise expose a shared tail whose jumps cost more than the swap.
 //!
 //! The expression tracker accepts only known one-result operations, rejects physical stack
 //! instructions and observations such as `PC` or `GAS`, and clears at unknown effects.
@@ -29,17 +35,20 @@ use solar_config::{EvmVersion, OptimizationMode};
 use solar_sema::Gcx;
 
 pub(super) const REORDER_PUSHES: ReorderPushes =
-    ReorderPushes { reorder_legacy_size_expressions: false };
+    ReorderPushes { reorder_legacy_size_expressions: false, reorder_closed_expressions: false };
 pub(super) const FINAL_REORDER_PUSHES: ReorderPushes =
-    ReorderPushes { reorder_legacy_size_expressions: true };
+    ReorderPushes { reorder_legacy_size_expressions: true, reorder_closed_expressions: false };
+pub(super) const REORDER_EXPRESSIONS: ReorderPushes =
+    ReorderPushes { reorder_legacy_size_expressions: true, reorder_closed_expressions: true };
 
 pub(super) struct ReorderPushes {
     reorder_legacy_size_expressions: bool,
+    reorder_closed_expressions: bool,
 }
 
 impl EvmPass for ReorderPushes {
     fn name(&self) -> &'static str {
-        "reorder-pushes"
+        if self.reorder_closed_expressions { "reorder-expressions" } else { "reorder-pushes" }
     }
 
     fn is_enabled(&self, gcx: Gcx<'_>, _module: &Module) -> bool {
@@ -54,7 +63,12 @@ impl EvmPass for ReorderPushes {
         let mut state = ReorderState::default();
         let mut changed = false;
         for block in &mut module.blocks {
-            changed |= state.reorder(&mut block.instructions, evm_version, reorder_expressions);
+            changed |= state.reorder(
+                &mut block.instructions,
+                evm_version,
+                reorder_expressions,
+                self.reorder_closed_expressions,
+            );
         }
         changed
     }
@@ -73,6 +87,7 @@ impl ReorderState {
         instructions: &mut Vec<Instruction>,
         evm_version: EvmVersion,
         reorder_expressions: bool,
+        reorder_closed_expressions: bool,
     ) -> bool {
         if !instructions.iter().any(|inst| {
             inst.has_canonical_stack_effect() && inst.as_stack_op() == Some(StackOp::Swap(1))
@@ -101,11 +116,12 @@ impl ReorderState {
                 continue;
             }
 
+            // producer; closed expression; swap1 -> closed expression; producer
             if reorder_expressions
                 && inst.as_stack_op() == Some(StackOp::Swap(1))
                 && inst.has_canonical_stack_effect()
                 && let [.., producer, pushed] = self.expressions.as_slice()
-                && pushed.immediate_recipe
+                && (pushed.immediate_recipe || (reorder_closed_expressions && pushed.movable))
                 && let Some(pushed_end) = self.sequence.last
             {
                 let (producer, pushed) = (*producer, *pushed);
@@ -166,6 +182,7 @@ fn rebasable_dup_before(
 struct Expression {
     start: usize,
     immediate_recipe: bool,
+    movable: bool,
 }
 
 fn update_expressions(
@@ -188,7 +205,11 @@ fn update_expressions(
     };
     let inputs = usize::from(effect.inputs);
     if inputs == 0 {
-        expressions.push(Expression { start: node, immediate_recipe: inst.is_encoded_push() });
+        expressions.push(Expression {
+            start: node,
+            immediate_recipe: inst.is_encoded_push(),
+            movable: inst.is_encoded_push() || inst.as_evm_opcode() == Some(op::CALLDATASIZE),
+        });
         return;
     }
     let start = expressions.len() - inputs;
@@ -196,8 +217,12 @@ fn update_expressions(
         inst.as_evm_opcode().is_some_and(|opcode| matches!(opcode, op::NOT | op::SHL | op::SHR))
             && expressions[start..].iter().all(|expression| expression.immediate_recipe);
     let first = expressions[start].start;
+    let movable = inst
+        .as_evm_opcode()
+        .is_some_and(|opcode| op::is_pure(opcode) || opcode == op::CALLDATALOAD)
+        && expressions[start..].iter().all(|expression| expression.movable);
     expressions.truncate(start);
-    expressions.push(Expression { start: first, immediate_recipe });
+    expressions.push(Expression { start: first, immediate_recipe, movable });
 }
 
 struct InstructionNode {

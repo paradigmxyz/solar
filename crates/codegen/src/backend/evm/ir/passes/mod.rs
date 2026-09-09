@@ -67,6 +67,7 @@ pub static ALL_PASSES: &[&dyn EvmPass] = &[
     &dce::Dce,
     &inline_returns::InlineReturns,
     &reorder_pushes::REORDER_PUSHES,
+    &reorder_pushes::REORDER_EXPRESSIONS,
     &share_reverts::ShareReverts,
     &stack_normalize::StackDedup,
     &stack_normalize::StackNormalize,
@@ -158,6 +159,7 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &inline_returns::InlineReturns,
     &cfg_simplify::CfgSimplify,
     &loop_layout::LoopLayout,
+    &reorder_pushes::REORDER_EXPRESSIONS,
     &peephole::LateWord,
 ];
 

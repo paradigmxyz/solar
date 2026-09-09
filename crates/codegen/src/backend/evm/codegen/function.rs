@@ -218,6 +218,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     &cross_block_live,
                     phi_plan,
                 )
+                .or_else(|| self.compute_loop_bound_stack_layout(func, liveness, &stack_phi_plan))
             // Phi layouts own their incoming stack on planned joins. Adopt the layout only when
             // that composition is proven, mirroring the resident arm.
             && stack_phi_plan.merge_resident(func, &plan)

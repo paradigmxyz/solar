@@ -1,0 +1,62 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zmir-pipeline=inline-immutable-leaves,cfg-simplify,dce
+//@[size] compile-flags: -Osize -Zmir-pipeline=inline-immutable-leaves,cfg-simplify,dce
+@module ImmutableLeaves
+immutables:
+  start: u64
+  duration: u64
+  initial: u256
+
+fn @entry() -> u256 [selector=1] {
+  bb0:
+    v0 = icall @end, 1
+    v1 = icall @memory, 1
+    v2 = icall @ordinary, 1
+    v3 = icall @argument, 1, v0
+    v4 = add v0, v1
+    v5 = add v2, v3
+    v6 = add v4, v5
+    ret v6
+}
+
+// Inlining preserves constructor staging loads at the original call site.
+fn @constructor(arg0: u64, arg1: u64) [constructor] {
+  bb0:
+    storeimmutable start, arg0
+    storeimmutable duration, arg1
+    v0 = icall @end, 1
+    storeimmutable initial, v0
+    stop
+}
+
+fn @end() -> u256 {
+  bb0:
+    v0 = loadimmutable start
+    v1 = loadimmutable duration
+    v2 = add v0, v1
+    ret v2
+}
+
+// Memory reads are outside the immutable leaf adapter.
+fn @memory() -> u256 {
+  bb0:
+    v0 = mload 0
+    v1 = loadimmutable start
+    v2 = add v0, v1
+    ret v2
+}
+
+// Other pure helpers are left to the ordinary inliner.
+fn @ordinary() -> u256 {
+  bb0:
+    v0 = add 1, 2
+    ret v0
+}
+
+// The adapter excludes argument-carrying helpers.
+fn @argument(arg0: u256) -> u256 {
+  bb0:
+    v0 = loadimmutable start
+    v1 = add v0, arg0
+    ret v1
+}
