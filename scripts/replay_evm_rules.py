@@ -19,6 +19,7 @@ import subprocess
 import sys
 
 from evm_rules.artifacts import query_paths
+from evm_rules.solver import solve_query
 
 
 def replay_query(path, digest, solver, timeout_ms):
@@ -28,29 +29,7 @@ def replay_query(path, digest, solver, timeout_ms):
         if hashlib.sha256(data).hexdigest() != digest:
             raise ValueError("saved query hash differs from the proof report")
         # Hash and execute the same bytes, even if the file changes concurrently.
-        attempts = []
-        for strategy in ([], ["--solve-bv-as-int=sum"]):
-            try:
-                process = subprocess.run(
-                    [solver, "--lang", "smt2", f"--tlimit={timeout_ms}", *strategy],
-                    input=data, capture_output=True, timeout=timeout_ms / 1000 + 1,
-                )
-                stdout = process.stdout.decode(errors="replace").strip()
-                stderr = process.stderr.decode(errors="replace").strip()
-                status = stdout if process.returncode == 0 and stdout in ("unsat", "sat", "unknown") else "error"
-                if status == "error" and "interrupted by timeout" in stderr:
-                    status = "timeout"
-                attempt = dict(status=status, flags=strategy, returncode=process.returncode,
-                               stdout=stdout[:4096], stderr=stderr[:4096])
-            except subprocess.TimeoutExpired:
-                attempt = dict(status="timeout", flags=strategy,
-                               reason="solver process exceeded its time limit")
-            attempts.append(attempt)
-            result.update(attempt)
-            # Never hide SAT or a parse/process error by trying another strategy.
-            if attempt["status"] not in ("timeout", "unknown"):
-                break
-        result["attempts"] = attempts
+        result.update(solve_query(data, solver, timeout_ms))
     except (OSError, ValueError) as error:
         result.update(status="error", reason=str(error))
     return result

@@ -1,0 +1,127 @@
+//@ compile-flags: -Zmir-pipeline=readonly-eval
+//@ filecheck:
+@module ClosedCalls
+
+// Both the nested void guard and scalar result are known without an allocation.
+// CHECK-LABEL: fn @closed
+// CHECK: - {{v[0-9]+}} = icall @validated
+// CHECK: - icall @guard
+// CHECK: + ret 42
+fn @closed() -> u256 {
+  bb0:
+    v0 = icall @validated, 1, 42
+    icall @guard, 0, v0
+    ret v0
+}
+
+fn @validated(arg0: u256) -> u256 {
+  bb0:
+    icall @guard, 0, arg0
+    ret arg0
+}
+
+fn @guard(arg0: u256) {
+  bb0:
+    v0 = eq arg0, 42
+    jumpi v0, bb1, bb2
+  bb1:
+    stop
+  bb2:
+    mstore 0, 17
+    revert 0, 32
+}
+
+// Evaluating a failure must preserve its original call and revert behavior.
+// CHECK-LABEL: fn @failure
+// CHECK: {{^ +}}icall @guard, 0, 41
+fn @failure() {
+  bb0:
+    icall @guard, 0, 41
+    stop
+}
+
+// Unknown caller arguments do not satisfy the concrete guard.
+// CHECK-LABEL: fn @unknown
+// CHECK: {{^ +}}icall @guard, 0, arg0
+fn @unknown(arg0: u256) {
+  bb0:
+    icall @guard, 0, arg0
+    stop
+}
+
+// Executed writes, environment reads, and unknown memory reads remain calls.
+// CHECK-LABEL: fn @effects
+// CHECK: {{^ +}}icall @write, 0, 42
+// CHECK: {{^ +}}icall @gas_reader, 0
+// CHECK: {{^ +}}icall @memory_reader, 0
+fn @effects() {
+  bb0:
+    icall @write, 0, 42
+    icall @gas_reader, 0
+    icall @memory_reader, 0
+    stop
+}
+
+fn @write(arg0: u256) {
+  bb0:
+    sstore 0, arg0
+    ret
+}
+
+fn @gas_reader() {
+  bb0:
+    v0 = gas
+    ret
+}
+
+fn @memory_reader() {
+  bb0:
+    v0 = mload 4096
+    ret
+}
+
+// The recursive path cannot return within the existing shared fuel/depth limits.
+// CHECK-LABEL: fn @recursive_caller
+// CHECK: {{^ +}}icall @recursive, 0, 42
+fn @recursive_caller() {
+  bb0:
+    icall @recursive, 0, 42
+    ret
+}
+fn @recursive(arg0: u256) {
+  bb0:
+    icall @recursive, 0, arg0
+    ret
+}
+
+// A successful void guard does not invalidate the preceding initialized word.
+// CHECK-LABEL: fn @known_memory
+// CHECK: - icall @guard
+// CHECK: - {{v[0-9]+}} = icall @read
+// CHECK: + ret 19
+fn @known_memory() -> u256 {
+  bb0:
+    v0 = alloc raw, exact, uninitialized, infallible, 32
+    mstore v0, 19
+    icall @guard, 0, 42
+    v1 = icall @read, 1, v0
+    ret v1
+}
+fn @read(arg0: memptr) -> u256 {
+  bb0:
+    v0 = mload arg0
+    ret v0
+}
+
+// Constant references remain calls to avoid disrupting pointer induction.
+// CHECK-LABEL: fn @reference_caller
+// CHECK: {{^ +}}v0 = icall @reference, 1
+fn @reference_caller() -> storageptr {
+  bb0:
+    v0 = icall @reference, 1
+    ret v0
+}
+fn @reference() -> storageptr {
+  bb0:
+    ret 5
+}

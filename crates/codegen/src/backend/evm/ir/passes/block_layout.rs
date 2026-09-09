@@ -291,7 +291,7 @@ fn block_reference_counts(
     }
 }
 
-fn estimated_block_size(
+pub(super) fn estimated_block_size(
     gcx: Gcx<'_>,
     block: &Block,
     next: Option<BlockId>,

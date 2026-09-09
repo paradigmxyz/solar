@@ -1,0 +1,103 @@
+- // === ROOT/tests/ui/codegen/mir/egraph/memory_object_slice_projections.mir (before egraph) ===
++ // === ROOT/tests/ui/codegen/mir/egraph/memory_object_slice_projections.mir (after egraph) ===
+  @module MemoryObjectSliceProjections
+  @phase dispatch
+  fn @fixed_payload(arg0: memoryslice) -> memptr {
+    bb0:
+-     v0 = memory_object_data memorystruct, arg0
+-     ret v0
++     ret arg0
+  }
+  
+  fn @dynamic_payload(arg0: memoryslice) -> memptr {
+    bb0:
+      v0 = memory_object_data memorybytes, arg0
+      ret v0
+  }
+  
+  fn @memory_field(arg0: memoryslice) -> u256 {
+    bb0:
+-     v0 = memory_object_field_addr memorystruct<2>, arg0, 0
+-     v1 = mload v0
++     v1 = mload arg0
+      ret v1
+  }
+  
+  fn @calldata_field(arg0: calldataslice) -> u256 {
+    bb0:
+-     v0 = memory_object_field_addr memorystruct<2>, arg0, 0
+-     v1 = mload v0
++     v1 = mload arg0
+      ret v1
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/egraph/memory_object_slice_projections.mir (before lower-memory-objects) ===
++ // === ROOT/tests/ui/codegen/mir/egraph/memory_object_slice_projections.mir (after lower-memory-objects) ===
+  @module MemoryObjectSliceProjections
+- @phase dispatch
++ @phase memory-lowered
+  fn @fixed_payload(arg0: memoryslice) -> memptr {
+    bb0:
+      ret arg0
+  }
+  
+  fn @dynamic_payload(arg0: memoryslice) -> memptr {
+    bb0:
+-     v0 = memory_object_data memorybytes, arg0
+-     ret v0
++     v1 = slice_ptr arg0
++     ret v1
+  }
+  
+  fn @memory_field(arg0: memoryslice) -> u256 {
+    bb0:
+-     v1 = mload arg0
++     v2 = slice_ptr arg0
++     v1 = mload v2
+      ret v1
+  }
+  
+  fn @calldata_field(arg0: calldataslice) -> u256 {
+    bb0:
+-     v1 = mload arg0
++     v2 = slice_ptr arg0
++     v1 = calldataload v2
+      ret v1
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/egraph/memory_object_slice_projections.mir (before lower-slices) ===
++ // === ROOT/tests/ui/codegen/mir/egraph/memory_object_slice_projections.mir (after lower-slices) ===
+  @module MemoryObjectSliceProjections
+  @phase memory-lowered
+- fn @fixed_payload(arg0: memoryslice) -> memptr {
++ fn @fixed_payload(arg0: memptr, arg1: u256) -> memptr {
+    bb0:
+      ret arg0
+  }
+  
+- fn @dynamic_payload(arg0: memoryslice) -> memptr {
++ fn @dynamic_payload(arg0: memptr, arg1: u256) -> memptr {
+    bb0:
+-     v1 = slice_ptr arg0
+-     ret v1
++     ret arg0
+  }
+  
+- fn @memory_field(arg0: memoryslice) -> u256 {
++ fn @memory_field(arg0: memptr, arg1: u256) -> u256 {
+    bb0:
+-     v2 = slice_ptr arg0
+-     v1 = mload v2
++     v1 = mload arg0
+      ret v1
+  }
+  
+- fn @calldata_field(arg0: calldataslice) -> u256 {
++ fn @calldata_field(arg0: calldataptr, arg1: u256) -> u256 {
+    bb0:
+-     v2 = slice_ptr arg0
+-     v1 = calldataload v2
++     v1 = calldataload arg0
+      ret v1
+  }
+  

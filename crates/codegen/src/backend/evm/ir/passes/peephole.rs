@@ -11,6 +11,11 @@
 //! passes expose few new opportunities. Rules never cross a block boundary;
 //! target legality, push removability, and symbolic stack bounds stay in the
 //! extractors, and edits preserve their existing metadata policy.
+//! Literal unary expressions use the same evaluator as MIR and require a Pareto
+//! improvement under the target's immediate materialization costs. A known-false
+//! inline conditional jump then disappears with its two pushes. These rules
+//! preserve custom stack effects and protected instruction boundaries, and never
+//! treat symbolic label addresses or deferred values as literal constants.
 //!
 //! The separate `late-word` entry point runs only after structural cleanup. It
 //! replaces a low-mask construction with a shorter complement/shift form. A closed
