@@ -2,7 +2,7 @@
 //!
 //! This module inlines profitable MIR internal calls to remove their call
 //! protocol and expose further optimization opportunities. The dedicated single-use pass only
-//! consumes one-call-site, frameless scalar helpers without phis or reference returns. The
+//! consumes one-call-site, frameless scalar helpers without reference returns. The
 //! original body disappears through function DCE, so this avoids duplicating shared bodies.
 //! Recursive calls, explicit no-inline functions, large helpers, and aggregate allocation
 //! semantics stay with the existing call convention. It runs before late scalar cleanup.
@@ -31,6 +31,12 @@
 //! immutable loads and pure single-opcode computations, retaining the ordinary
 //! tiny-leaf size and lifetime-cost limits. Inlining stays at the original call
 //! site, including constructor calls; no runtime immutable bounds are assumed.
+//! Small acyclic scalar helpers with phis may also inline at their sole call site.
+//! Backward liveness estimates the callee's peak live words and the caller values
+//! surviving the call. Their sum must fit twelve words, leaving stack-addressing
+//! headroom for operand staging. Loops, memory operations and shared phi helpers
+//! remain excluded. This is a bounded profitability estimate, not a promise that
+//! the scheduler will emit no spills.
 
 use crate::{
     backend::evm::{op, select},
@@ -39,7 +45,7 @@ use crate::{
         Function, FunctionBuilder, FunctionId as MirFunctionId, Immediate, ImmutableEncoding,
         InstId, InstKind, Instruction, MemoryObjectKind, MirType, Module, Terminator, Value,
         ValueId,
-        analysis::{CallGraphInfo, LoopAnalyzer},
+        analysis::{CallGraphInfo, CfgInfo, Liveness, LoopAnalyzer},
         immutable::immutable_push_type_size,
         memory::{EvmMemoryLayout, MemoryLayoutPolicy},
         pass::MirPass,
@@ -48,7 +54,11 @@ use crate::{
 };
 use smallvec::SmallVec;
 use solar_ast::StateMutability;
-use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
+use solar_data_structures::{
+    bit_set::{DenseBitSet, GrowableBitSet},
+    index::IndexVec,
+    map::FxHashMap,
+};
 use solar_sema::Gcx;
 
 /// Module pass for metadata-backed MIR inlining.
@@ -302,6 +312,7 @@ struct MirInlineSummary {
     internal_frame_size: u64,
     has_icall: bool,
     has_phi: bool,
+    phi_stack_peak: Option<usize>,
     has_external_call: bool,
     has_storage_write: bool,
     has_immutable_write: bool,
@@ -361,6 +372,11 @@ impl MirInliner {
             })
         });
         for caller_id in caller_ids {
+            // Leaf bodies cannot contain an inline candidate. Keep their summary for
+            // callers, but avoid rebuilding loop analysis for every inlining mode.
+            if !summaries.get(&caller_id).is_some_and(|summary| summary.has_icall) {
+                continue;
+            }
             let loop_costs = block_loop_costs(module.function(caller_id));
             // Bound how much each caller may grow from inlining so a function
             // calling many internal helpers (e.g. a large verifier) cannot
@@ -368,6 +384,7 @@ impl MirInliner {
             let base_instructions =
                 summaries.get(&caller_id).map(|s| s.instruction_count).unwrap_or_default();
             let mut cursor = (0, 0);
+            let mut caller_liveness = None;
             while let Some(site) =
                 self.find_next_call(module.function(caller_id), cursor, &loop_costs)
             {
@@ -414,13 +431,28 @@ impl MirInliner {
                     continue;
                 }
 
+                if let Some(peak) = summary.phi_stack_peak {
+                    let caller = module.function(caller_id);
+                    let liveness = caller_liveness.get_or_insert_with(|| Liveness::compute(caller));
+                    if surviving_call_words(caller, liveness, site).saturating_add(peak) > 12 {
+                        stats.skipped += 1;
+                        continue;
+                    }
+                }
+
                 let callee = module.function(site.callee).clone();
                 let old_size =
                     summaries.get(&caller_id).map(|s| s.estimated_code_size).unwrap_or_default();
                 let caller = module.function_mut(caller_id);
                 if inline_call(caller, site.block, site.inst_index, &callee) {
                     stats.inlined += 1;
-                    let new_summary = summarize_function(gcx, module, module.function(caller_id));
+                    caller_liveness = None;
+                    let new_summary = summarize_function(
+                        gcx,
+                        module,
+                        module.function(caller_id),
+                        self.mode == InlineMode::SingleUse,
+                    );
                     module_code_size = module_code_size
                         .saturating_sub(old_size)
                         .saturating_add(new_summary.estimated_code_size);
@@ -460,7 +492,9 @@ impl MirInliner {
         module
             .functions
             .iter_enumerated()
-            .map(|(id, func)| (id, summarize_function(gcx, module, func)))
+            .map(|(id, func)| {
+                (id, summarize_function(gcx, module, func, self.mode == InlineMode::SingleUse))
+            })
             .collect()
     }
 
@@ -574,11 +608,13 @@ impl MirInliner {
         preferred_large_call_site: Option<(MirFunctionId, InstId)>,
     ) -> bool {
         let single_call = self.inline_single_call && call_count == 1;
+        let bounded_phi =
+            self.mode == InlineMode::SingleUse && single_call && summary.phi_stack_peak.is_some();
         if self.mode == InlineMode::SingleUse
             && (!single_call
                 || summary.internal_frame_size != 0
                 || summary.has_reference_return
-                || summary.has_phi)
+                || (summary.has_phi && !bounded_phi))
         {
             return false;
         }
@@ -594,7 +630,7 @@ impl MirInliner {
                 && !can_specialize_dispatcher)
             || summary.is_entry_point
             || summary.is_constructor
-            || summary.has_phi
+            || (summary.has_phi && !bounded_phi)
             || summary.has_unsupported_terminator
             || summary.return_count == 0
         {
@@ -852,7 +888,12 @@ fn is_small_literal_return(func: &Function) -> bool {
     }
 }
 
-fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInlineSummary {
+fn summarize_function(
+    gcx: Gcx<'_>,
+    module: &Module,
+    func: &Function,
+    analyze_phi: bool,
+) -> MirInlineSummary {
     let target = Target::new(gcx);
     let mut summary = MirInlineSummary {
         block_count: func.blocks.len(),
@@ -958,7 +999,76 @@ fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInli
         }
     }
 
+    if analyze_phi
+        && summary.has_phi
+        && summary.block_count <= 4
+        && summary.instruction_count <= 24
+        && summary.param_count <= 4
+        && !func.params.iter().any(|ty| matches!(ty, MirType::Slice(_)))
+        && summary.return_count == 1
+        && summary.internal_frame_size == 0
+        && !summary.has_reference_return
+        && !summary.has_icall
+        && func.instructions().all(|inst| func.inst(inst).kind.effect_kind() == EffectKind::Pure)
+        && CfgInfo::new(func).cyclic_blocks().is_empty()
+    {
+        summary.phi_stack_peak = Some(scalar_stack_peak(func));
+    }
     summary
+}
+
+/// Peak SSA live words in a small scalar helper; immediates are rematerialized.
+fn scalar_stack_peak(func: &Function) -> usize {
+    let liveness = Liveness::compute(func);
+    let mut peak = 0;
+    for (block, body) in func.blocks.iter_enumerated() {
+        let mut live = liveness.live_out(block).clone();
+        if let Some(term) = &body.terminator {
+            term.for_each_operand(|value| {
+                live.insert(value);
+            });
+        }
+        peak = peak.max(live_word_count(func, &live));
+        for &inst in body.instructions.iter().rev() {
+            if let Some(result) = func.inst_result_value(inst) {
+                live.remove(result);
+            }
+            if !matches!(func.inst(inst).kind, InstKind::Phi(_)) {
+                for value in func.inst(inst).operands() {
+                    live.insert(value);
+                }
+            }
+            peak = peak.max(live_word_count(func, &live));
+        }
+    }
+    peak
+}
+
+/// Caller words that survive the internal call and overlap an inline expansion.
+fn surviving_call_words(func: &Function, liveness: &Liveness, site: CallSite) -> usize {
+    let body = &func.blocks[site.block];
+    let mut live = liveness.live_out(site.block).clone();
+    if let Some(term) = &body.terminator {
+        term.for_each_operand(|value| {
+            live.insert(value);
+        });
+    }
+    for &inst in body.instructions[site.inst_index + 1..].iter().rev() {
+        if let Some(result) = func.inst_result_value(inst) {
+            live.remove(result);
+        }
+        for value in func.inst(inst).operands() {
+            live.insert(value);
+        }
+    }
+    if let Some(result) = func.inst_result_value(site.inst) {
+        live.remove(result);
+    }
+    live_word_count(func, &live)
+}
+
+fn live_word_count(func: &Function, live: &GrowableBitSet<ValueId>) -> usize {
+    live.iter().filter(|&value| matches!(func.value(value), Value::Arg(_) | Value::Inst(_))).count()
 }
 
 /// Recognizes immutable loads combined without calls, memory access, or control flow.

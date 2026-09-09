@@ -34,10 +34,16 @@
 //! - when inheriting a cache across a dominator-tree edge, also invalidate state-dependent reads by
 //!   clobbers in every block that can lie on a CFG path between the dominator and its child
 //!   (diamond arms, loop bodies), including the child itself when it sits on a cycle
+//!
+//! Local CSE also reuses single-result leaf calls whose bounded memory summary
+//! proves deterministic reads and complete restoration of temporary writes.
+//! Every intervening memory write invalidates these entries. Calls never sink or
+//! inherit a cached result across blocks; no read-footprint disjointness is assumed.
 
 use crate::mir::{
-    BlockId, Function, Immediate, ImmutableId, InstId, InstKind, Instruction, MemoryObjectKind,
-    MemoryObjectLayout, MirType, Module, SliceLocation, StorageAlias, Value, ValueId,
+    BlockId, Function, FunctionId, Immediate, ImmutableId, InstId, InstKind, Instruction,
+    MemoryObjectKind, MemoryObjectLayout, MirType, Module, SliceLocation, StorageAlias, Value,
+    ValueId,
     analysis::{
         Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, Location, LocationSize,
         MemoryCallSummaries, MemoryLocation,
@@ -81,8 +87,9 @@ impl MirPass for Cse {
             eliminator.cfg = Some(Rc::clone(&analyses.cfg));
             eliminator.run_to_fixpoint(func) != 0
         });
-        // CSE removes only side-effect-free instructions, so these summaries remain valid for
-        // the following allocation pass and avoid recomputing the module call graph.
+        // CSE removes pure computations or repeated restoring calls. Their conservative
+        // summaries remain valid for the following allocation pass and avoid recomputing
+        // the module call graph.
         analyses.preserve_call_summaries();
         changed
     }
@@ -133,6 +140,7 @@ enum ExprKey {
     SignExtend(OperandKey, OperandKey),
     Select(OperandKey, OperandKey, OperandKey),
     MLoad(MemRangeKey),
+    RestoringCall(FunctionId, Vec<OperandKey>),
     Keccak256(MemRangeKey),
     MappingSlot(OperandKey, OperandKey),
     MappingSlotMemory(OperandKey, OperandKey),
@@ -642,7 +650,9 @@ impl CommonSubexprEliminator {
                     &replacements,
                     &mut expr_cache,
                 );
-                continue;
+                if !self.is_restoring_call(kind) {
+                    continue;
+                }
             }
 
             // Try to create an expression key
@@ -650,7 +660,8 @@ impl CommonSubexprEliminator {
                 && let Some(result) = func.inst_result_value(inst_id)
             {
                 if let Some(&cached_value) = expr_cache.get(&key) {
-                    // This expression was already computed - mark for elimination
+                    // first = expr(args); second = expr(args) => second = first
+                    // Restoring calls additionally require unchanged memory.
                     replacements.insert(result, cached_value);
                     to_remove.insert(inst_id);
                     self.eliminated_count += 1;
@@ -685,6 +696,9 @@ impl CommonSubexprEliminator {
         let value = |v: ValueId| mir_utils::resolve_replacement(v, replacements);
 
         match kind {
+            InstKind::ICall { function, args, .. } if self.is_restoring_call(kind) => Some(
+                ExprKey::RestoringCall(*function, args.iter().map(|&arg| operand(arg)).collect()),
+            ),
             // Commutative operations - normalize operand order
             InstKind::Add(a, b) => {
                 if let Some((base, offset)) = Self::offset_expr_for_add(func, *a, *b, replacements)
@@ -949,13 +963,26 @@ impl CommonSubexprEliminator {
                 .preserves(*read, |read, write| {
                     AliasAnalysis::memory_alias_locations(read, write).may_alias()
                 }),
-            ExprKey::MappingSlotMemory(..) => false,
+            ExprKey::MappingSlotMemory(..) | ExprKey::RestoringCall(..) => false,
             _ => true,
         });
     }
 
     fn is_memory_expr(key: &ExprKey) -> bool {
-        matches!(key, ExprKey::MLoad(_) | ExprKey::Keccak256(_) | ExprKey::MappingSlotMemory(..))
+        matches!(
+            key,
+            ExprKey::MLoad(_)
+                | ExprKey::Keccak256(_)
+                | ExprKey::MappingSlotMemory(..)
+                | ExprKey::RestoringCall(..)
+        )
+    }
+
+    fn is_restoring_call(&self, kind: &InstKind) -> bool {
+        matches!(kind, InstKind::ICall { function, args, returns: 1 }
+            if args.len() <= 8 && self.call_summaries.as_ref()
+                .and_then(|summaries| summaries.get(*function))
+                .is_some_and(|summary| summary.restores_memory()))
     }
 
     fn is_account_environment_expr(key: &ExprKey) -> bool {
@@ -989,6 +1016,7 @@ impl CommonSubexprEliminator {
         !matches!(
             key,
             ExprKey::MLoad(_)
+                | ExprKey::RestoringCall(..)
                 | ExprKey::Keccak256(_)
                 | ExprKey::MappingSlot(..)
                 | ExprKey::MappingSlotMemory(..)

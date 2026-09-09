@@ -14,6 +14,8 @@ pub(crate) use alias::{
 mod memory_summary;
 pub(crate) use memory_summary::MemoryCallSummaries;
 
+mod memory_restoration;
+
 mod cfg;
 pub(crate) use cfg::{CfgInfo, DominatorTree};
 
