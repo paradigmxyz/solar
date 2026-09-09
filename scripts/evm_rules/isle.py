@@ -260,7 +260,7 @@ class Context:
         return lhs, self.constructor(parts[-1])
 
 
-def verify_file(path, timeout_ms, artifacts=None):
+def verify_file(path, timeout_ms, artifacts=None, partition_shifts=False):
     source = path.read_text()
     rules = [Rule(form, line, str(path)) for form, line in forms(source) if form[0] == "rule"]
     if not rules:
@@ -273,7 +273,7 @@ def verify_file(path, timeout_ms, artifacts=None):
         try:
             lhs, rhs = context.obligation(rule)
             result, query = check(lhs, rhs, context.assumptions, timeout_ms, context.model)
-            if result["status"] == "unknown" and query:
+            if query and (result["status"] == "unknown" or partition_shifts and result["status"] == "proved"):
                 partitioned, partitions = partition_shift(lhs, rhs, context.assumptions, timeout_ms, context.model)
                 if partitions:
                     result = partitioned
