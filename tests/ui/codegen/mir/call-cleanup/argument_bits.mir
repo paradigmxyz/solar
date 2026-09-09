@@ -1,0 +1,165 @@
+//@ compile-flags: -Zmir-pipeline=call-cleanup
+//@ filecheck:
+@module ArgumentBits
+
+fn @root(arg0: u256) -> u256 {
+  bb0:
+    v0 = and arg0, 255
+    v1 = icall @forward, 1, v0
+    ret v1
+}
+
+// CHECK-LABEL: fn @forward
+// CHECK-NOT: {{^[ +].*}}= and
+// CHECK: tail_call @leaf, arg0
+fn @forward(arg0: u256) -> u256 {
+  bb0:
+    v0 = and arg0, 255
+    tail_call @leaf, v0
+}
+
+// CHECK-LABEL: fn @leaf
+// CHECK-NOT: {{^[ +].*}}= and
+// CHECK: ret arg0
+fn @leaf(arg0: u256) -> u256 {
+  bb0:
+    v0 = and arg0, 255
+    ret v0
+}
+
+fn @clean_caller() -> u256 {
+  bb0:
+    v0 = caller
+    v1 = icall @mixed, 1, v0
+    ret v1
+}
+
+fn @dirty_caller(arg0: address) -> u256 {
+  bb0:
+    v0 = icall @mixed, 1, arg0
+    ret v0
+}
+
+// One dirty caller prevents cleanup removal, regardless of the signature.
+// CHECK-LABEL: fn @mixed
+// CHECK: = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+fn @mixed(arg0: address) -> u256 {
+  bb0:
+    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    ret v0
+}
+
+fn @recursive_root(arg0: u256) -> u256 {
+  bb0:
+    v0 = and arg0, 255
+    v1 = icall @recursive, 1, v0
+    ret v1
+}
+
+// A recursive identity edge does not bootstrap its own argument fact.
+// CHECK-LABEL: fn @recursive
+// CHECK: = and arg0, 255
+fn @recursive(arg0: u256) -> u256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    v0 = icall @recursive, 1, arg0
+    ret v0
+  bb2:
+    v1 = and arg0, 255
+    ret v1
+}
+
+fn @sanitized_root(arg0: u256) -> u256 {
+  bb0:
+    v0 = and arg0, 255
+    v1 = icall @sanitized_recursive, 1, v0
+    ret v1
+}
+
+// Every edge, including the recursive one, explicitly supplies a clean word.
+// CHECK-LABEL: fn @sanitized_recursive
+// CHECK-NOT: {{^[ +].*}}= and
+// CHECK: icall @sanitized_recursive, 1, arg0
+fn @sanitized_recursive(arg0: u256) -> u256 {
+  bb0:
+    v0 = and arg0, 255
+    jumpi v0, bb1, bb2
+  bb1:
+    v1 = icall @sanitized_recursive, 1, v0
+    ret v1
+  bb2:
+    ret v0
+}
+
+fn @bool_root(arg0: u256) -> u256 {
+  bb0:
+    v0 = iszero arg0
+    v1 = icall @bool_leaf, 1, v0
+    ret v1
+}
+
+// CHECK-LABEL: fn @bool_leaf
+// CHECK-NOT: {{^[ +].*}}= and
+// CHECK: ret arg0
+fn @bool_leaf(arg0: bool) -> u256 {
+  bb0:
+    v0 = and arg0, 1
+    ret v0
+}
+
+fn @public_caller() -> u256 {
+  bb0:
+    v0 = icall @public_input, 1, 1
+    ret v0
+}
+
+// A direct internal call does not constrain an external entry's inputs.
+// CHECK-LABEL: fn @public_input
+// CHECK: = and arg0, 255
+fn @public_input(arg0: u256) -> u256 [selector=0x01020304] {
+  bb0:
+    v0 = and arg0, 255
+    ret v0
+}
+
+fn @frame_caller() -> u256 {
+  bb0:
+    v0 = icall @frame_input, 1, 1
+    ret v0
+}
+
+// Explicit frame addresses can write an argument home after the call boundary.
+// CHECK-LABEL: fn @frame_input
+// CHECK: = and arg0, 255
+fn @frame_input(arg0: u256) -> u256 {
+  bb0:
+    v0 = internal_frame_addr 64
+    mstore v0, 511
+    v1 = and arg0, 255
+    ret v1
+}
+
+fn @across_caller() -> u256 {
+  bb0:
+    v0 = icall @across_call, 1, 1
+    ret v0
+}
+
+// Retain a materialized mask across calls to avoid changing the preserved stack.
+// CHECK-LABEL: fn @across_call
+// CHECK: [[MASK:v[0-9]+]] = and arg0, 255
+// CHECK: icall @clobber, 0
+// CHECK: ret [[MASK]]
+fn @across_call(arg0: u256) -> u256 {
+  bb0:
+    v0 = and arg0, 255
+    icall @clobber, 0
+    ret v0
+}
+
+fn @clobber() {
+  bb0:
+    sstore 0, 1
+    stop
+}
