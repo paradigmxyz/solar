@@ -302,8 +302,25 @@ Main `2632e43b` (Windows CI test repairs) is merged after the previous draft
 head passed all remote checks. The merge leaves the rewritten backend exactly
 unchanged. The merged workspace passes all 1,562 tests with two skips; the
 nightly-feature run passes 1,559 with five skips, including its three existing
-layout-test exclusions. Formatting also passes. Remote checks will run on the
-pushed head; the previous green head does not certify these new commits.
+layout-test exclusions. Formatting also passes. Remote checks completed on
+`5db94d77`: 17 succeeded, the full cross-server comparison was intentionally
+skipped, and CodSpeed reported neutral. The
+aggregate `ci success` check passed.
+
+## September 9 integration checkpoint
+
+A fresh fetch confirms main remains at `2632e43b`, already merged. The resident
+operand ordering experiment is rejected and its production changes are removed:
+the first trial grows 75 existing Gas contracts in the UI corpus, and the bounded
+block trial still grows 25. Both preserve the same 1,662 UI IDs; no expectations were blessed
+and no tests were removed. Stage captures identify literal-aware stack
+normalization as the first size reversal missed by the scheduler cost model.
+The candidate sources, frozen compilers, unchanged baselines, runtime reports
+and proposed tests are retained under
+`target/codegen-bench/evm-rewrite-candidate/resident-before-literals-20260908/`.
+Those proposals remain unaccepted work, separate from the pushed backend.
+After restoring the accepted implementation, all 1,562 workspace tests pass
+with the same two skips. Formatting and the whitespace check pass.
 
 ## Remaining acceptance work
 
@@ -330,8 +347,8 @@ with baseline contention and a measured parser overlap; no causal timing claim
 follows. Next, restore alias-codegen size and complete the remaining runtime/size
 gates. Keep correctness and runtime
 gas ahead of size, then compiler time and memory. These local milestones do not
-establish complete functionality. Remote CI passed at `3c2fe7f3`; the new
-return-compaction and main-integration commits require their own remote checks.
+establish complete functionality. Remote CI passed at `5db94d77`; this does
+not close the performance acceptance debts above.
 
 [pr]: https://github.com/paradigmxyz/solar/pull/1388
 [literal]: ../target/codegen-bench/evm-rewrite-candidate/literal-cache-workflow-20260908/
