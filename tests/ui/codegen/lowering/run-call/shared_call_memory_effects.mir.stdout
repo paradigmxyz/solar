@@ -1,0 +1,354 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/shared_call_memory_effects.sol:CallSummaryClean ===
+@module CallSummaryClean
+fn @run(arg0: calldataslice, arg1: u256) -> (u256, u256) [selector=0x2da50ecf, pure, abi_params=[array<18, u256>, u256], abi_returns=[word, word]] {
+  bb0:
+    v0 = slice_ptr arg0
+    v1 = add v0, 0
+    v2 = calldataload v1
+    v3 = mul v2, 7
+    v4 = slice_ptr arg0
+    v5 = add v4, 32
+    v6 = calldataload v5
+    v7 = mul v6, 7
+    v8 = slice_ptr arg0
+    v9 = add v8, 64
+    v10 = calldataload v9
+    v11 = mul v10, 7
+    v12 = slice_ptr arg0
+    v13 = add v12, 96
+    v14 = calldataload v13
+    v15 = mul v14, 7
+    v16 = slice_ptr arg0
+    v17 = add v16, 128
+    v18 = calldataload v17
+    v19 = mul v18, 7
+    v20 = slice_ptr arg0
+    v21 = add v20, 160
+    v22 = calldataload v21
+    v23 = mul v22, 7
+    v24 = slice_ptr arg0
+    v25 = add v24, 192
+    v26 = calldataload v25
+    v27 = mul v26, 7
+    v28 = slice_ptr arg0
+    v29 = add v28, 224
+    v30 = calldataload v29
+    v31 = mul v30, 7
+    v32 = slice_ptr arg0
+    v33 = add v32, 256
+    v34 = calldataload v33
+    v35 = mul v34, 7
+    v36 = slice_ptr arg0
+    v37 = add v36, 288
+    v38 = calldataload v37
+    v39 = mul v38, 7
+    v40 = slice_ptr arg0
+    v41 = add v40, 320
+    v42 = calldataload v41
+    v43 = mul v42, 7
+    v44 = slice_ptr arg0
+    v45 = add v44, 352
+    v46 = calldataload v45
+    v47 = mul v46, 7
+    v48 = slice_ptr arg0
+    v49 = add v48, 384
+    v50 = calldataload v49
+    v51 = mul v50, 7
+    v52 = slice_ptr arg0
+    v53 = add v52, 416
+    v54 = calldataload v53
+    v55 = mul v54, 7
+    v56 = slice_ptr arg0
+    v57 = add v56, 448
+    v58 = calldataload v57
+    v59 = mul v58, 7
+    v60 = slice_ptr arg0
+    v61 = add v60, 480
+    v62 = calldataload v61
+    v63 = mul v62, 7
+    v64 = slice_ptr arg0
+    v65 = add v64, 512
+    v66 = calldataload v65
+    v67 = mul v66, 7
+    v68 = slice_ptr arg0
+    v69 = add v68, 544
+    v70 = calldataload v69
+    v71 = mul v70, 7
+    v72 = icall @count, 1, arg1
+    v73 = add v3, v7
+    v74 = add v73, v11
+    v75 = add v74, v15
+    v76 = add v75, v19
+    v77 = add v76, v23
+    v78 = add v77, v27
+    v79 = add v78, v31
+    v80 = add v79, v35
+    v81 = add v80, v39
+    v82 = add v81, v43
+    v83 = add v82, v47
+    v84 = add v83, v51
+    v85 = add v84, v55
+    v86 = add v85, v59
+    v87 = add v86, v63
+    v88 = add v87, v67
+    v89 = add v88, v71
+    ret v89, v72
+}
+
+fn @count(arg0: u256) -> u256 {
+  bb0:
+    v0 = eq arg0, 0
+    v1 = iszero v0
+    jumpi v1, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v2 = sub arg0, 1
+    v3 = icall @count, 1, v2
+    jump bb3
+  bb3:
+    v4 = phi [bb1: v3], [bb2: 0]
+    v5 = add v4, 1
+    ret v5
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/shared_call_memory_effects.sol:CallSummaryUnknownWriter ===
+@module CallSummaryUnknownWriter
+fn @run(arg0: calldataslice, arg1: u256, arg2: u256) -> (u256, u256, u256) [selector=0xec8a0fc0, pure, abi_params=[array<18, u256>, u256, u256], abi_returns=[word, word, word]] {
+  bb0:
+    v0 = slice_ptr arg0
+    v1 = add v0, 0
+    v2 = calldataload v1
+    v3 = mul v2, 7
+    v4 = slice_ptr arg0
+    v5 = add v4, 32
+    v6 = calldataload v5
+    v7 = mul v6, 7
+    v8 = slice_ptr arg0
+    v9 = add v8, 64
+    v10 = calldataload v9
+    v11 = mul v10, 7
+    v12 = slice_ptr arg0
+    v13 = add v12, 96
+    v14 = calldataload v13
+    v15 = mul v14, 7
+    v16 = slice_ptr arg0
+    v17 = add v16, 128
+    v18 = calldataload v17
+    v19 = mul v18, 7
+    v20 = slice_ptr arg0
+    v21 = add v20, 160
+    v22 = calldataload v21
+    v23 = mul v22, 7
+    v24 = slice_ptr arg0
+    v25 = add v24, 192
+    v26 = calldataload v25
+    v27 = mul v26, 7
+    v28 = slice_ptr arg0
+    v29 = add v28, 224
+    v30 = calldataload v29
+    v31 = mul v30, 7
+    v32 = slice_ptr arg0
+    v33 = add v32, 256
+    v34 = calldataload v33
+    v35 = mul v34, 7
+    v36 = slice_ptr arg0
+    v37 = add v36, 288
+    v38 = calldataload v37
+    v39 = mul v38, 7
+    v40 = slice_ptr arg0
+    v41 = add v40, 320
+    v42 = calldataload v41
+    v43 = mul v42, 7
+    v44 = slice_ptr arg0
+    v45 = add v44, 352
+    v46 = calldataload v45
+    v47 = mul v46, 7
+    v48 = slice_ptr arg0
+    v49 = add v48, 384
+    v50 = calldataload v49
+    v51 = mul v50, 7
+    v52 = slice_ptr arg0
+    v53 = add v52, 416
+    v54 = calldataload v53
+    v55 = mul v54, 7
+    v56 = slice_ptr arg0
+    v57 = add v56, 448
+    v58 = calldataload v57
+    v59 = mul v58, 7
+    v60 = slice_ptr arg0
+    v61 = add v60, 480
+    v62 = calldataload v61
+    v63 = mul v62, 7
+    v64 = slice_ptr arg0
+    v65 = add v64, 512
+    v66 = calldataload v65
+    v67 = mul v66, 7
+    v68 = slice_ptr arg0
+    v69 = add v68, 544
+    v70 = calldataload v69
+    v71 = mul v70, 7
+    v72 = icall @writeCount, 1, arg1, arg2
+    v73 = mload arg2
+    v74 = add v3, v7
+    v75 = add v74, v11
+    v76 = add v75, v15
+    v77 = add v76, v19
+    v78 = add v77, v23
+    v79 = add v78, v27
+    v80 = add v79, v31
+    v81 = add v80, v35
+    v82 = add v81, v39
+    v83 = add v82, v43
+    v84 = add v83, v47
+    v85 = add v84, v51
+    v86 = add v85, v55
+    v87 = add v86, v59
+    v88 = add v87, v63
+    v89 = add v88, v67
+    v90 = add v89, v71
+    ret v90, v72, v73
+}
+
+fn @writeCount(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    v0 = eq arg0, 0
+    v1 = iszero v0
+    jumpi v1, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v2 = sub arg0, 1
+    v3 = icall @writeCount, 1, v2, arg1
+    jump bb3
+  bb3:
+    v4 = phi [bb1: v3], [bb2: 0]
+    v5 = add v4, 1
+    mstore arg1, v5
+    ret v5
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/shared_call_memory_effects.sol:CallSummaryMultipleResults ===
+@module CallSummaryMultipleResults
+fn @run(arg0: calldataslice, arg1: u256) -> (u256, u256, u256, u256, u256) [selector=0x2da50ecf, pure, abi_params=[array<18, u256>, u256], abi_returns=[word, word, word, word, word]] {
+  bb0:
+    v0 = slice_ptr arg0
+    v1 = add v0, 0
+    v2 = calldataload v1
+    v3 = mul v2, 7
+    v4 = slice_ptr arg0
+    v5 = add v4, 32
+    v6 = calldataload v5
+    v7 = mul v6, 7
+    v8 = slice_ptr arg0
+    v9 = add v8, 64
+    v10 = calldataload v9
+    v11 = mul v10, 7
+    v12 = slice_ptr arg0
+    v13 = add v12, 96
+    v14 = calldataload v13
+    v15 = mul v14, 7
+    v16 = slice_ptr arg0
+    v17 = add v16, 128
+    v18 = calldataload v17
+    v19 = mul v18, 7
+    v20 = slice_ptr arg0
+    v21 = add v20, 160
+    v22 = calldataload v21
+    v23 = mul v22, 7
+    v24 = slice_ptr arg0
+    v25 = add v24, 192
+    v26 = calldataload v25
+    v27 = mul v26, 7
+    v28 = slice_ptr arg0
+    v29 = add v28, 224
+    v30 = calldataload v29
+    v31 = mul v30, 7
+    v32 = slice_ptr arg0
+    v33 = add v32, 256
+    v34 = calldataload v33
+    v35 = mul v34, 7
+    v36 = slice_ptr arg0
+    v37 = add v36, 288
+    v38 = calldataload v37
+    v39 = mul v38, 7
+    v40 = slice_ptr arg0
+    v41 = add v40, 320
+    v42 = calldataload v41
+    v43 = mul v42, 7
+    v44 = slice_ptr arg0
+    v45 = add v44, 352
+    v46 = calldataload v45
+    v47 = mul v46, 7
+    v48 = slice_ptr arg0
+    v49 = add v48, 384
+    v50 = calldataload v49
+    v51 = mul v50, 7
+    v52 = slice_ptr arg0
+    v53 = add v52, 416
+    v54 = calldataload v53
+    v55 = mul v54, 7
+    v56 = slice_ptr arg0
+    v57 = add v56, 448
+    v58 = calldataload v57
+    v59 = mul v58, 7
+    v60 = slice_ptr arg0
+    v61 = add v60, 480
+    v62 = calldataload v61
+    v63 = mul v62, 7
+    v64 = slice_ptr arg0
+    v65 = add v64, 512
+    v66 = calldataload v65
+    v67 = mul v66, 7
+    v68 = slice_ptr arg0
+    v69 = add v68, 544
+    v70 = calldataload v69
+    v71 = mul v70, 7
+    v72 = icall @pair, 2, arg1
+    v73 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v74 = add v73, 32
+    v75 = mload v74
+    v76 = add arg1, 1
+    v77 = icall @pair, 2, v76
+    v78 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v79 = add v78, 32
+    v80 = mload v79
+    v81 = add v3, v7
+    v82 = add v81, v11
+    v83 = add v82, v15
+    v84 = add v83, v19
+    v85 = add v84, v23
+    v86 = add v85, v27
+    v87 = add v86, v31
+    v88 = add v87, v35
+    v89 = add v88, v39
+    v90 = add v89, v43
+    v91 = add v90, v47
+    v92 = add v91, v51
+    v93 = add v92, v55
+    v94 = add v93, v59
+    v95 = add v94, v63
+    v96 = add v95, v67
+    v97 = add v96, v71
+    ret v97, v72, v75, v77, v80
+}
+
+fn @pair(arg0: u256) -> (u256, u256) {
+  bb0:
+    switch arg0, default bb3, [0 => bb2]
+  bb2:
+    jump bb1
+  bb3:
+    v0 = sub arg0, 1
+    v1 = icall @pair, 2, v0
+    v2 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v3 = add v2, 32
+    v4 = mload v3
+    v5 = add v1, 1
+    v6 = add v4, 2
+    jump bb1
+  bb1:
+    v7 = phi [bb2: 3], [bb3: v6]
+    v8 = phi [bb2: 1], [bb3: v5]
+    ret v8, v7
+}
