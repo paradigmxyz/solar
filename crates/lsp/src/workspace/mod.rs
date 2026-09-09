@@ -25,6 +25,7 @@ use solar_interface::{
 use std::{
     io,
     path::{Path, PathBuf},
+    sync::Arc,
 };
 
 mod foundry;
@@ -640,7 +641,7 @@ fn remove_sorted(files: &mut Vec<PathBuf>, path: &Path) {
 
 pub(crate) struct WorkspacePathIndex<'a> {
     workspaces: &'a [Workspace],
-    import_entries: Vec<WorkspaceImportPathIndexEntry>,
+    import_entries: Arc<Vec<WorkspaceImportPathIndexEntry>>,
 }
 
 type WorkspacePathMatch = (usize, usize, u8, usize);
@@ -649,12 +650,14 @@ pub(crate) struct WorkspacePathQuery {
     matches: SmallVec<[WorkspacePathMatch; 16]>,
 }
 
-struct WorkspaceImportPathIndexEntry {
+#[derive(Clone, Debug)]
+pub(crate) struct WorkspaceImportPathIndexEntry {
     idx: usize,
     base_depth: usize,
     roots: Vec<WorkspaceImportRoot>,
 }
 
+#[derive(Clone, Debug)]
 struct WorkspaceImportRoot {
     path: PathBuf,
     depth: usize,
@@ -663,12 +666,25 @@ struct WorkspaceImportRoot {
 
 impl<'a> WorkspacePathIndex<'a> {
     pub(crate) fn new(workspaces: &'a [Workspace]) -> Self {
-        let import_entries = workspaces
-            .iter()
-            .enumerate()
-            .map(|(idx, workspace)| WorkspaceImportPathIndexEntry::new(idx, workspace))
-            .collect();
+        let import_entries = Arc::new(
+            workspaces
+                .iter()
+                .enumerate()
+                .map(|(idx, workspace)| WorkspaceImportPathIndexEntry::new(idx, workspace))
+                .collect(),
+        );
         Self { workspaces, import_entries }
+    }
+
+    pub(crate) fn with_import_entries(
+        workspaces: &'a [Workspace],
+        import_entries: Arc<Vec<WorkspaceImportPathIndexEntry>>,
+    ) -> Self {
+        Self { workspaces, import_entries }
+    }
+
+    pub(crate) fn clone_import_entries(&self) -> Arc<Vec<WorkspaceImportPathIndexEntry>> {
+        Arc::clone(&self.import_entries)
     }
 
     pub(crate) fn query(&self, path: &Path) -> WorkspacePathQuery {

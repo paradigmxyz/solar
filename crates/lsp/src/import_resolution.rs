@@ -211,6 +211,7 @@ pub(crate) struct ImportResolutionContext<'a> {
 }
 
 impl<'a> ImportResolutionContext<'a> {
+    #[cfg(test)]
     pub(crate) fn for_workspaces(
         workspaces: &'a [Workspace],
         importing_file: &Path,
@@ -218,6 +219,21 @@ impl<'a> ImportResolutionContext<'a> {
         let importing_file = importing_file.normalize();
         let idx =
             WorkspacePathIndex::new(workspaces).workspace_idx_for_import_path(&importing_file)?;
+        Self::from_workspace_index(workspaces, idx)
+    }
+
+    pub(crate) fn for_workspaces_with_index(
+        workspaces: &'a [Workspace],
+        importing_file: &Path,
+        entries: std::sync::Arc<Vec<crate::workspace::WorkspaceImportPathIndexEntry>>,
+    ) -> Option<Self> {
+        let importing_file = importing_file.normalize();
+        let index = WorkspacePathIndex::with_import_entries(workspaces, entries);
+        let idx = index.workspace_idx_for_import_path(&importing_file)?;
+        Self::from_workspace_index(workspaces, idx)
+    }
+
+    fn from_workspace_index(workspaces: &'a [Workspace], idx: usize) -> Option<Self> {
         let compile_opts = workspaces.get(idx)?.compile_opts();
         let workspace_root = compile_opts.base_path.as_deref()?.normalize();
         Some(Self { workspace_root, compile_opts })

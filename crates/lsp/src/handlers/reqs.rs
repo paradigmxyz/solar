@@ -969,13 +969,9 @@ fn import_completion(
     let Some(context) = state.config.import_resolution_context(&importer) else {
         return Some(CompletionResponse::Array(Vec::new()));
     };
-    let overlay_paths = state
-        .vfs
-        .read()
-        .iter()
-        .filter_map(|(path, _)| path.as_path().map(Path::to_path_buf))
-        .collect::<Vec<_>>();
-    let completion = ImportResolver::new(context, &overlay_paths).complete(&importer, &path_prefix);
+    let completion = state.cached_import_completion(&importer, &path_prefix, |overlay_paths| {
+        ImportResolver::new(context, overlay_paths).complete(&importer, &path_prefix)
+    });
     let items = completion
         .candidates()
         .iter()
