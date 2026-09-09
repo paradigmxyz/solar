@@ -822,6 +822,32 @@ fresh merged-head comparisons in `merged-head/`. Earlier compilers, baseline
 artifacts and rejected probes are preserved. This local milestone leaves the
 remaining rewrite acceptance debts below open.
 
+## Optimized CI timing follow-up (2026-09-09)
+
+All CI checks pass on `0cae6dc5`, and a fresh fetch confirms that main
+`716e9cbc` is already merged. The official runtime benchmark repeat
+[34371492436](https://github.com/paradigmxyz/solar/actions/runs/34371492436)
+retains the first same-head run's 24 compiler IDs, 175 gas labels, 139 runtime
+observations, 30 creation/runtime byte files and nine heavy output fingerprints.
+The heavy outputs join the locally audited 3,344 objects after stripping only
+explicitly recorded debug-origin diagnostic notes; raw debug/release output
+fingerprints are not identical.
+
+Optimized compiler wall times remain unresolved. The geometric mean of per-case
+median ratios is 1.422383 for the first `0cae6dc5` run versus `2fc0d7e8`,
+0.958910 for the repeat versus the first run, and 1.363937 for the repeat versus
+`2fc0d7e8`. The increase occurs in both changed and unchanged heavy projects.
+The repeat uses fresh solc references and omits solx; the original PR run uses
+cached references. Their surrounding workloads and runners therefore differ.
+The 19 published CodSpeed row comparisons show much smaller changes, but those
+rounded simulation results do not establish a wall-time bound or explain the
+observed slowdown. Neither a causal code regression nor host variation is proved.
+
+Raw samples, RSS, artifact digests, event/checkout provenance and the complete
+three-way comparison remain in the duplicate-store evidence directory under
+`merged-head/remote-ci/repeat1/`. Existing main-relative gas and compiler-time
+debts remain open; a successful CI benchmark is not performance acceptance.
+
 ## Remaining acceptance work
 
 The alias assertion migration passes; its generated-code size debt remains.
