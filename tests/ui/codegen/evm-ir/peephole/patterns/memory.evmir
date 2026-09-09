@@ -249,3 +249,25 @@ bb17:
   swap 1
   pop
   stop
+
+// Huge offsets must keep their exceptional memory expansion.
+// CHECK-LABEL: bb18:
+// CHECK: {{^[ +].*}}push 0x123456789abcdef0
+// CHECK: {{^[ +].*}}mstore
+// CHECK: {{^[ +].*}}push 0x123456789abcdef0
+bb18:
+  calldatasize
+  push 0x123456789abcdef0
+  mstore
+  push 32
+  push 0x123456789abcdef0
+  return
+
+// The memory range can also overflow the address itself.
+bb19:
+  calldatasize
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  mstore
+  push 32
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  return

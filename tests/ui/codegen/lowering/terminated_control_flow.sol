@@ -10,6 +10,8 @@
 //@ run-call-fail: TerminatedControlFlow::pairFailure 19 => 0x0000000000000000000000000000000000000000000000000000000000000013
 //@ run-call-fail: TerminatedControlFlow::recursiveFailure 3, 23 => 0x0000000000000000000000000000000000000000000000000000000000000017
 //@ run-call-fail: TerminatedControlFlow::constructorFailure 29 => 0x000000000000000000000000000000000000000000000000000000000000001d
+//@ run-call-fail: TerminatedControlFlow::oversizedReturn => 0x
+//@ run-call-fail: TerminatedControlFlow::unaffordableReturn => 0x
 //@ run-call: TerminatedControlFlow::maybeFailure false => 7
 //@ run-call: TerminatedControlFlow::constructorWithoutArgs => true
 //@ run-call-fail: TerminatedControlFlow::maybeFailure true => 0x
@@ -91,6 +93,20 @@ contract TerminatedControlFlow {
             return keccak256(reason) == keccak256(abi.encode(
                 block.number + 11, block.timestamp + 22, block.chainid + 33
             ));
+        }
+    }
+
+    function oversizedReturn() external pure {
+        assembly {
+            mstore(0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0, 7)
+            return(0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0, 32)
+        }
+    }
+
+    function unaffordableReturn() external pure {
+        assembly {
+            mstore(0x123456789abcdef0, 7)
+            return(0x123456789abcdef0, 32)
         }
     }
 

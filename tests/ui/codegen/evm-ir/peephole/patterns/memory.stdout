@@ -158,4 +158,18 @@
     swap 1
     pop
     stop
+  bb18:
+    calldatasize
+    push 0x123456789abcdef0
+    mstore
+    push 32
+    push 0x123456789abcdef0
+    return
+  bb19:
+    calldatasize
+    push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    mstore
+    push 32
+    push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    return
   

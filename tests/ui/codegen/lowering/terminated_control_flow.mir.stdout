@@ -243,6 +243,18 @@ fn @constructorWithoutArgs() -> bool [selector=0x1f01d869, abi_params=[], abi_re
     ret 0
 }
 
+fn @oversizedReturn() [selector=0xe98a2448, pure, abi_params=[], abi_returns=[]] {
+  bb0:
+    mstore 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0, 7
+    returndata 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0, 32
+}
+
+fn @unaffordableReturn() [selector=0x0acfbfd5, pure, abi_params=[], abi_returns=[]] {
+  bb0:
+    mstore 0x123456789abcdef0, 7
+    returndata 0x123456789abcdef0, 32
+}
+
 fn @maybeFailure(arg0: bool) -> u256 [selector=0x5f6d6eda, pure, abi_params=[bool], abi_returns=[word]] {
   bb0:
     v0 = icall @maybeFail, arg0

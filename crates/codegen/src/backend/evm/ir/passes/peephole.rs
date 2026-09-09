@@ -18,9 +18,10 @@
 //! to assembly. Storage reload forwarding runs only after structural sharing, so retaining
 //! a stack copy cannot disturb earlier block resynthesis or outlining choices. Final cleanup
 //! also relocates a word store immediately followed by its return to scratch memory. Nothing
-//! can observe the original address or memory expansion between that store and return; doing
-//! this after sharing preserves the profitability decisions for common return tails. A store
-//! followed by discarding its copied stack source consumes that source directly; the final
+//! can observe the original address or memory expansion between that store and return. Only
+//! 32-bit offsets qualify: their expansion cost fits EVM gas arithmetic, while larger assembly
+//! offsets may unconditionally halt. Running after sharing preserves common-tail profitability. A
+//! store followed by discarding its copied stack source consumes that source directly; the final
 //! stage keeps this shorter sequence from disrupting earlier sharing.
 
 use super::{
@@ -108,6 +109,7 @@ fn optimize_module(gcx: Gcx<'_>, module: &mut Module, final_cleanup: bool) -> bo
             && size.concrete_immediate() == Some(U256::from(32))
             && let Some(address) = offset.concrete_immediate()
             && !address.is_zero()
+            && u32::try_from(address).is_ok()
             && returned.concrete_immediate() == Some(address)
         {
             offset.replace_preserving_metadata(Instruction::push_value(U256::ZERO));
