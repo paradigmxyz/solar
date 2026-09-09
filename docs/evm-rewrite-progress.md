@@ -392,10 +392,16 @@ A fresh fetch and merge again find main `2632e43b` already integrated.
 
 The alias assertion migration passes; its generated-code size debt remains.
 The original readback failures now pass in every mode. General source-memory
-ownership remains an open contract; bounded shared-input sweeps pass. The preceding accepted heavy ledger
-has 31,831,619 positive bytes of sealed size debt; the new local savings have not
-yet been rejoined to every sealed object, so this historical total is retained;
-this is a sum of regressions, not net corpus growth. Compiler-time debts remain.
+ownership remains an open contract; bounded shared-input sweeps pass. The complete heavy join now has 31,744,025 positive bytes of sealed size debt
+across 1,039 objects. This includes creation/runtime and embedded-child
+amplification; it is a sum of regressions, not net corpus growth. The historical
+writer count was 31,831,619. Terminal returns removed 20 positive bytes before
+the resident trial, which removes another 87,574. All 3,344 sealed object IDs,
+sizes and hashes match; the reconciliation is retained under the resident
+candidate's `pr-ledger/`. Against current main, 19 of 175 gas labels regress,
+down from 24: Maple's five approve regressions are gone. OZ mint and Flash fee
+costs improve to +3; the remaining getter debts persist. Compiler-time debts
+remain.
 The backend has 17,290 physical lines in 47 files, 17,348 fewer than the deletion
 inventory. Excluding trailing test modules leaves 15,985 physical lines. A
 retained count-only baseline reports 29,006 production-section lines, giving a
