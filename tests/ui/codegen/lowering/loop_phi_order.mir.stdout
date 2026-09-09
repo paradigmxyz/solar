@@ -1,0 +1,91 @@
+// === ROOT/tests/ui/codegen/lowering/loop_phi_order.sol:LoopPhiOrder ===
+@module LoopPhiOrder
+fn @packed(arg0: u256, arg1: u256) -> u256 [selector=0xaf080e88, pure, abi_params=[u256, u256], abi_returns=[word]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb3: v12]
+    v1 = phi [bb0: arg0], [bb3: v11]
+    v2 = phi [bb0: 0], [bb3: v9]
+    v3 = phi [bb0: arg1], [bb3: v3]
+    v4 = lt v0, v3
+    v5 = eq v4, 0
+    v6 = iszero v5
+    jumpi v6, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v2
+  bb4:
+    v7 = shr 160, v1
+    v8 = and v7, 255
+    v9 = add v2, v8
+    v10 = shl 1, v1
+    v11 = add v10, v0
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v12 = add v0, 1
+    jump bb1
+}
+
+fn @complement(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0x82829e9f, pure, abi_params=[u256, u256, u256], abi_returns=[word]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg1], [bb3: v9]
+    v1 = phi [bb0: arg0], [bb3: v8]
+    v2 = phi [bb0: arg0], [bb3: v2]
+    v3 = phi [bb0: arg2], [bb3: v3]
+    v4 = phi [bb0: 0], [bb3: v10]
+    v5 = lt v4, v3
+    v6 = eq v5, 0
+    v7 = iszero v6
+    jumpi v7, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v1
+  bb4:
+    v8 = sub v0, v1
+    v9 = add v0, v4
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v10 = add v4, 1
+    jump bb1
+}
+
+fn @rotate(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> (u256, u256, u256) [selector=0x5423941f, pure, abi_params=[u256, u256, u256, u256], abi_returns=[word, word, word]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb3: v14]
+    v1 = phi [bb0: arg0], [bb3: v11]
+    v2 = phi [bb0: 0], [bb3: v2]
+    v3 = phi [bb0: arg1], [bb3: v12]
+    v4 = phi [bb0: 0], [bb3: v4]
+    v5 = phi [bb0: arg2], [bb3: v13]
+    v6 = phi [bb0: 0], [bb3: v6]
+    v7 = phi [bb0: arg3], [bb3: v7]
+    v8 = lt v0, v7
+    v9 = eq v8, 0
+    v10 = iszero v9
+    jumpi v10, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v1, v3, v5
+  bb4:
+    v11 = xor v1, v3
+    v12 = add v3, v5
+    v13 = add v5, v0
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v14 = add v0, 1
+    jump bb1
+}
