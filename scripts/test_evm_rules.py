@@ -6,22 +6,26 @@
 
 from contextlib import redirect_stderr, redirect_stdout
 import io
+import hashlib
 import json
 from pathlib import Path
 from types import SimpleNamespace
 import tempfile
+import subprocess
 import unittest
 from unittest.mock import patch
 
 import z3
 
+from evm_rules.artifacts import query_manifest, query_paths
 from evm_rules.discovery import Cost, Prices, discover_rules, emit_rule, enumerate_rules, read_seeds
 from evm_rules.isle import Context, ISLE, Rule, forms, verify_file
 from evm_rules.mining import abstract_patterns, mine
 from evm_rules.stack import verify_stack_file
 from evm_rules.late import execute as execute_late, verify_late_file
-from evm_rules.semantics import Expr, MASK, MODULUS, SIGN, Model, Unsupported, check, concrete, partition_shift
+from evm_rules.semantics import Expr, MASK, MODULUS, SIGN, Model, Unsupported, check, concrete, partition_shift, portable_query
 from verify_evm_rules import main
+from replay_evm_rules import main as replay_main, replay_query, replay_report
 
 
 def expression(op, *args):
@@ -402,6 +406,137 @@ class RuleTests(unittest.TestCase):
         self.assertEqual(rule["status"], "counterexample")
         self.assertTrue(rule["replayed"])
         self.assertGreaterEqual(int(rule["inputs"]["index"], 16), 32)
+
+
+class ProofArtifactTests(unittest.TestCase):
+    def test_portable_names_preserve_sorts_and_avoid_collisions(self):
+        a = z3.BitVec("@fresh:1", 256)
+        b = z3.BitVec("solar_query_0", 256)
+        flag = z3.Bool("@fresh:1")
+        solver = z3.SolverFor("QF_BV")
+        solver.add(a == 1, b == 2, flag)
+        source = portable_query(solver)
+        self.assertTrue(source.startswith("(set-logic QF_BV)\n"))
+        self.assertNotIn("(declare-fun |@", source)
+        replay = z3.SolverFor("QF_BV")
+        replay.add(*z3.parse_smt2_string(source))
+        self.assertEqual(replay.check(), z3.sat)
+        # The live solver still uses the original witness names.
+        self.assertEqual(solver.check(), z3.sat)
+        self.assertEqual(solver.model().eval(a).as_long(), 1)
+        self.assertEqual(solver.model().eval(b).as_long(), 2)
+        solver.add(a == b)
+        replay.reset()
+        replay.add(*z3.parse_smt2_string(portable_query(solver)))
+        self.assertEqual(replay.check(), z3.unsat)
+
+    def test_forced_partition_records_coverage_and_all_counts(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "shift.isle"
+            path.write_text("(rule (rewrite (Op.Shl n x)) (Op.Shl n x))")
+            report = verify_file(path, 5000, Path(directory) / "smt", partition_shifts=True)
+            rule = report["rules"][0]
+            self.assertEqual(rule["status"], "proved")
+            self.assertEqual(rule["proof_method"], "exhaustive-shift-partition")
+            self.assertEqual(rule["cases"], 257)
+            self.assertEqual(len(rule["smt2"]), 258)
+            coverage = z3.SolverFor("QF_BV")
+            coverage.add(*z3.parse_smt2_file(rule["smt2"][0]))
+            self.assertEqual(coverage.check(), z3.unsat)
+            # Export the raw substituted obligation, not a pre-simplified false.
+            self.assertIn("bvshl", Path(rule["smt2"][2]).read_text())
+
+    def test_portable_comments_cannot_inject_commands(self):
+        solver = z3.SolverFor("QF_BV")
+        solver.add(z3.BitVec(".name\n(check-sat)", 256) == 1)
+        source = portable_query(solver)
+        self.assertEqual(source.count("\n(check-sat)"), 1)
+        replay = z3.SolverFor("QF_BV")
+        replay.add(*z3.parse_smt2_string(source))
+        self.assertEqual(replay.check(), z3.sat)
+
+    def test_manifest_includes_words_partitions_and_stack_variants(self):
+        report = {"files": [{"rules": [
+            {"status": "proved", "smt2": ["word.smt2"]},
+            {"status": "proved", "smt2": ["coverage.smt2", "case.smt2"],
+             "proof_method": "exhaustive-shift-partition", "cases": 1},
+            {"status": "proved", "variants": [{"status": "proved", "query": "stack.smt2"}]},
+        ]}]}
+        self.assertEqual(query_paths(report, require_proved=True),
+                         ["word.smt2", "coverage.smt2", "case.smt2", "stack.smt2"])
+        report["files"][0]["rules"][1]["smt2"].pop()
+        with self.assertRaisesRegex(ValueError, "partition"):
+            query_paths(report, require_proved=True)
+
+    def test_incomplete_reports_never_replay_as_proved(self):
+        for rule in ({"status": "unknown"}, {"status": "proved"},
+                     {"status": "proved", "variants": []},
+                     {"status": "proved", "variants": [{"status": "proved"}]},
+                     {"status": "proved", "variants": [{"status": "unknown", "query": "x"}]},
+                     {"status": "proved", "smt2": ["x", "x"]}):
+            with self.subTest(rule=rule), self.assertRaises(ValueError):
+                query_paths({"files": [{"rules": [rule]}]}, require_proved=True)
+        with self.assertRaises(ValueError):
+            query_paths({"files": []}, require_proved=True)
+        with self.assertRaises(ValueError):
+            query_paths({"files": [{"rules": []}]}, require_proved=True)
+
+    def test_replay_requires_unsat_and_successful_exit(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "query.smt2"
+            path.write_text("(set-logic QF_BV)\n(assert false)\n(check-sat)\n")
+            digest = hashlib.sha256(path.read_bytes()).hexdigest()
+            for output, code, expected in ((b"unsat\n", 0, "unsat"), (b"sat\n", 0, "sat"),
+                                           (b"unknown\n", 0, "unknown"), (b"", 0, "error"),
+                                           (b"unsat\nunsat\n", 0, "error"),
+                                           (b"unsat\n", 1, "error")):
+                with patch("replay_evm_rules.subprocess.run", return_value=
+                           subprocess.CompletedProcess([], code, output, b"")):
+                    result = replay_query(str(path), digest, "cvc5", 100)
+                self.assertEqual(result["status"], expected)
+            with patch("replay_evm_rules.subprocess.run", side_effect=subprocess.TimeoutExpired([], 1)):
+                self.assertEqual(replay_query(str(path), digest, "cvc5", 100)["status"], "timeout")
+            path.write_text("(assert false)\n")
+            with patch("replay_evm_rules.subprocess.run") as run:
+                self.assertEqual(replay_query(str(path), digest, "cvc5", 100)["status"], "error")
+                run.assert_not_called()
+
+    def test_report_replay_checks_exact_manifest_and_hashes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            query = Path(directory) / "query.smt2"
+            query.write_text("(set-logic QF_BV)\n(assert false)\n(check-sat)\n")
+            report = {"schema": "solar:evm-word-rules@1", "word_bits": 256,
+                      "files": [{"rules": [{"status": "proved", "smt2": [str(query)]}]}]}
+            report["query_sha256"] = query_manifest(report)
+            path = Path(directory) / "proofs.json"
+            path.write_text(json.dumps(report))
+            def run(command, **kwargs):
+                if command[-1] == "--version":
+                    return subprocess.CompletedProcess(command, 0, "cvc5 test version", "")
+                self.assertEqual(kwargs["input"], query.read_bytes())
+                return subprocess.CompletedProcess(command, 0, b"unsat\n", b"")
+            with (patch("replay_evm_rules.shutil.which", return_value="/test/cvc5"),
+                  patch("replay_evm_rules.subprocess.run", side_effect=run)):
+                result = replay_report(path, jobs=1)
+            self.assertEqual(result["counts"], {"unsat": 1})
+            self.assertEqual(result["rule_count"], 1)
+            self.assertEqual(result["query_count"], 1)
+            self.assertEqual(result["proof_report_sha256"], hashlib.sha256(path.read_bytes()).hexdigest())
+            report["query_sha256"]["extra.smt2"] = "0" * 64
+            path.write_text(json.dumps(report))
+            with self.assertRaisesRegex(ValueError, "exactly every"):
+                replay_report(path)
+
+    def test_replay_cli_fails_for_every_non_unsat_status(self):
+        for status in ("unsat", "sat", "unknown", "timeout", "error"):
+            with self.subTest(status=status), tempfile.TemporaryDirectory() as directory:
+                output = Path(directory) / "replay.json"
+                with (patch("sys.argv", ["replay_evm_rules.py", "proofs.json", "--output", str(output)]),
+                      patch("replay_evm_rules.replay_report", return_value={"counts": {status: 1}, "queries": []}),
+                      redirect_stdout(io.StringIO())):
+                    code = replay_main()
+                self.assertEqual(code, 0 if status == "unsat" else 1)
+                self.assertEqual(json.loads(output.read_text())["counts"], {status: 1})
 
 
 class CliTests(unittest.TestCase):
