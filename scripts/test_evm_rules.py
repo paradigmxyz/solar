@@ -284,6 +284,32 @@ class SemanticsTests(unittest.TestCase):
         with self.assertRaises(Unsupported):
             Model().eval(expression("add", 0))
 
+    def test_symbolic_exponents_with_literal_bases_match_integer_pow(self):
+        exponent = Expr.var("exponent")
+        for base in (0, 1, 2, 3, SIGN, MASK):
+            expr = expression("exp", base, exponent)
+            term = Model().eval(expr)
+            for value in (0, 1, 2, 255, 256, SIGN, MASK):
+                result = z3.simplify(z3.substitute(term, (z3.BitVec("exponent", 256), z3.BitVecVal(value, 256))))
+                self.assertEqual(result.as_long(), concrete(expr, {"exponent": value}))
+
+    def test_specialization_requires_the_original_guards(self):
+        x = Expr.var("x")
+        result, query = check(x, x, model=Model({"x": 0}))
+        self.assertEqual(result["status"], "unsupported")
+        self.assertIn("not implied", result["reason"])
+        replay = z3.SolverFor("QF_BV")
+        replay.add(*z3.parse_smt2_string(query))
+        self.assertEqual(replay.check(), z3.sat)
+        result, _ = check(x, x, [z3.BitVec("x", 256) == 0], model=Model({"x": 0}))
+        self.assertEqual(result["status"], "proved")
+
+    def test_partition_preserves_specialization_obligations(self):
+        x, n = Expr.var("x"), Expr.var("n")
+        lhs = expression("shl", n, x)
+        result, _ = partition_shift(lhs, lhs, [], 5000, Model({"x": 0}))
+        self.assertEqual(result["status"], "unsupported")
+
     def test_shift_partition_covers_large_counts(self):
         x, y, n = map(Expr.var, ("x", "y", "n"))
         lhs = expression("shl", n, expression("or", x, y))
@@ -306,6 +332,28 @@ class SemanticsTests(unittest.TestCase):
         with patch("evm_rules.semantics.time.monotonic", side_effect=[0, 1]):
             result, _ = partition_shift(lhs, lhs, [], 500, Model())
         self.assertEqual(result["status"], "unknown")
+
+    def test_signextend_partition_keeps_the_whole_identity_range(self):
+        x, n = Expr.var("x"), Expr.var("n")
+        rhs = expression("signextend", n, x)
+        lhs = expression("signextend", n, rhs)
+        result, queries = partition_shift(lhs, rhs, [], 5000, Model())
+        self.assertEqual(result["status"], "proved")
+        self.assertEqual(result["proof_method"], "exhaustive-word-index-partition")
+        self.assertEqual((result["cases"], len(queries)), (32, 33))
+        # The error exists only at MAX, not at the range's first index, 31.
+        wrong = expression("select", expression("eq", n, MASK), expression("not", rhs), rhs)
+        result, _ = partition_shift(lhs, wrong, [], 5000, Model())
+        self.assertEqual(result["status"], "counterexample")
+        self.assertEqual(int(result["inputs"]["n"], 16), MASK)
+        self.assertTrue(result["replayed"])
+
+    def test_shared_shift_and_signextend_index_uses_the_larger_boundary(self):
+        x, n = Expr.var("x"), Expr.var("n")
+        lhs = expression("shl", n, expression("signextend", n, x))
+        result, queries = partition_shift(lhs, lhs, [], 5000, Model())
+        self.assertEqual(result["status"], "proved")
+        self.assertEqual((result["cases"], len(queries)), (257, 258))
 
 
 class RuleTests(unittest.TestCase):
@@ -335,6 +383,39 @@ class RuleTests(unittest.TestCase):
         report = self.verify("""(rule (rewrite (Op.Div (mul x (iconst c)) (iconst c)))
           (if-let true (u256_eq c 2)) (Op.Add x (imm (u256 0))))""")
         self.assertEqual(report["rules"][0]["status"], "counterexample")
+
+    def test_exp_specializes_only_proved_guard_constants(self):
+        source = """(rule (rewrite (Op.Exp a (iconst c)))
+          (if-let true (u256_eq c 2)) (Op.Mul a a))"""
+        rule = self.verify(source)["rules"][0]
+        self.assertEqual(rule["status"], "proved")
+        self.assertEqual(rule["constant_specializations"], {"c": "0x2"})
+        wrong = source.replace("u256_eq c 2", "u256_eq c 3").replace(
+            "(Op.Mul a a)", "(if-let true (u256_eq a 2)) (Op.Mul a a)")
+        rule = self.verify(wrong)["rules"][0]
+        self.assertEqual(rule["status"], "counterexample")
+        self.assertEqual(rule["inputs"]["c"], "0x3")
+        self.assertTrue(rule["replayed"])
+        for changed in (source.replace("(if-let true (u256_eq c 2))", ""),
+                        source.replace("if-let true", "if-let false")):
+            self.assertEqual(self.verify(changed)["rules"][0]["status"], "unsupported")
+        source = "(rule (simplify (Op.Exp (and a (one)) _)) a)"
+        rule = self.verify(source)["rules"][0]
+        self.assertEqual(rule["status"], "proved")
+        self.assertEqual(rule["constant_specializations"], {"a": "0x1"})
+
+    def test_actual_compiled_exp_rules(self):
+        def uses_exp(node):
+            return node == "Op.Exp" or isinstance(node, tuple) and any(uses_exp(child) for child in node)
+        path = ISLE / "egraph.isle"
+        rules = [Rule(form, line, str(path)) for form, line in forms(path.read_text())
+                 if form[0] == "rule" and uses_exp(form)]
+        self.assertEqual(len(rules), 4)
+        for rule in rules:
+            context = Context()
+            lhs, rhs = context.obligation(rule)
+            result, _ = check(lhs, rhs, context.assumptions, model=context.model)
+            self.assertEqual(result["status"], "proved", (rule.line, result))
 
     def test_shift_cancellation_requires_a_lossless_input(self):
         guard = "(if-let true (mask_covers (u256_shr shift (u256_max)) x))"
@@ -373,6 +454,25 @@ class RuleTests(unittest.TestCase):
              (Op.Add x (imm (u256 0))))""")
         self.assertEqual([r["status"] for r in report["rules"]], ["proved", "inapplicable"])
         self.assertTrue(report["rules"][0]["contracts"])
+
+    def test_clz_requires_the_known_sign_bit_contract(self):
+        guard = "(if-let true (has_known_sign_bit a))"
+        source = f"(rule (simplify (Op.Clz a)) {guard} (imm (u256 0)))"
+        rule = self.verify(source)["rules"][0]
+        self.assertEqual(rule["status"], "proved")
+        self.assertTrue(any("has_known_sign_bit" in contract for contract in rule["contracts"]))
+        for changed in (source.replace(guard, ""),
+                        source.replace(guard, "(if-let false (has_known_sign_bit a))"),
+                        source.replace("(u256 0)", "(u256 1)")):
+            rule = self.verify(changed)["rules"][0]
+            self.assertEqual(rule["status"], "counterexample")
+            self.assertTrue(rule["replayed"])
+        for constructor in ("has_known_sign_bit", "has_known_sign_bit a a",
+                            "is_zero_or_one a a", "below_const a", "below_const a a a"):
+            changed = source.replace("has_known_sign_bit a", constructor)
+            rule = self.verify(changed)["rules"][0]
+            self.assertEqual(rule["status"], "unsupported")
+            self.assertIn("arity", rule["reason"])
 
     def test_unknown_terms_and_bare_if_are_not_skipped(self):
         report = self.verify("""(rule (rewrite (Op.Unknown x)) (Op.Add x x))
@@ -465,8 +565,10 @@ class ProofArtifactTests(unittest.TestCase):
         self.assertEqual(query_paths(report, require_proved=True),
                          ["word.smt2", "coverage.smt2", "case.smt2", "stack.smt2"])
         report["files"][0]["rules"][1]["smt2"].pop()
-        with self.assertRaisesRegex(ValueError, "partition"):
-            query_paths(report, require_proved=True)
+        for method in ("exhaustive-shift-partition", "exhaustive-word-index-partition"):
+            report["files"][0]["rules"][1]["proof_method"] = method
+            with self.assertRaisesRegex(ValueError, "partition"):
+                query_paths(report, require_proved=True)
 
     def test_incomplete_reports_never_replay_as_proved(self):
         for rule in ({"status": "unknown"}, {"status": "proved"},
@@ -491,11 +593,19 @@ class ProofArtifactTests(unittest.TestCase):
                                            (b"unsat\nunsat\n", 0, "error"),
                                            (b"unsat\n", 1, "error")):
                 with patch("replay_evm_rules.subprocess.run", return_value=
-                           subprocess.CompletedProcess([], code, output, b"")):
+                           subprocess.CompletedProcess([], code, output, b"")) as run:
                     result = replay_query(str(path), digest, "cvc5", 100)
+                    self.assertEqual(run.call_count, 2 if expected == "unknown" else 1)
                 self.assertEqual(result["status"], expected)
             with patch("replay_evm_rules.subprocess.run", side_effect=subprocess.TimeoutExpired([], 1)):
                 self.assertEqual(replay_query(str(path), digest, "cvc5", 100)["status"], "timeout")
+            with patch("replay_evm_rules.subprocess.run", side_effect=[
+                subprocess.TimeoutExpired([], 1),
+                subprocess.CompletedProcess([], 0, b"unsat\n", b""),
+            ]):
+                result = replay_query(str(path), digest, "cvc5", 100)
+                self.assertEqual([attempt["status"] for attempt in result["attempts"]], ["timeout", "unsat"])
+                self.assertEqual(result["attempts"][1]["flags"], ["--solve-bv-as-int=sum"])
             path.write_text("(assert false)\n")
             with patch("replay_evm_rules.subprocess.run") as run:
                 self.assertEqual(replay_query(str(path), digest, "cvc5", 100)["status"], "error")

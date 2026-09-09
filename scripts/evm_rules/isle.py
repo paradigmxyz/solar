@@ -219,6 +219,7 @@ class Context:
             return z3.Bool(f"structural_{name}_{repr(node)}")
         guarantees = {
             "is_zero_or_one": lambda: z3.ULE(smt[0], word(1)),
+            "has_known_sign_bit": lambda: z3.Extract(255, 255, smt[0]) == 1,
             "below_const": lambda: z3.ULT(smt[0], smt[1]),
             "at_most_const": lambda: z3.ULE(smt[0], smt[1]),
             "mask_covers": lambda: smt[0] & smt[1] == smt[1],
@@ -228,6 +229,9 @@ class Context:
             "same_value": lambda: smt[0] == smt[1],
         }
         if name in guarantees:
+            arity = 1 if name in ("is_zero_or_one", "has_known_sign_bit") else 2
+            if len(smt) != arity:
+                raise Unsupported(f"extractor contract arity: {name}")
             flag = z3.Bool(f"contract_{name}_{repr(node)}")
             self.assumptions.append(z3.Implies(flag, guarantees[name]()))
             self.contracts.add(f"{name}: trusted Rust extractor contract (true implies word property)")
@@ -273,9 +277,13 @@ def verify_file(path, timeout_ms, artifacts=None, partition_shifts=False):
         try:
             lhs, rhs = context.obligation(rule)
             result, query = check(lhs, rhs, context.assumptions, timeout_ms, context.model)
+            if constants := result.get("constant_specializations"):
+                context.model = Model({name: int(value, 16) for name, value in constants.items()})
             if query and (result["status"] == "unknown" or partition_shifts and result["status"] == "proved"):
                 partitioned, partitions = partition_shift(lhs, rhs, context.assumptions, timeout_ms, context.model)
                 if partitions:
+                    if constants:
+                        partitioned["constant_specializations"] = constants
                     result = partitioned
         except Unsupported as error:
             result = {"status": "unsupported", "reason": str(error)}

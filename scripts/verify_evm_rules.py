@@ -30,7 +30,7 @@ def main():
     verify.add_argument("--output", type=Path, required=True)
     verify.add_argument("--artifacts", type=Path)
     verify.add_argument("--partition-shifts", action="store_true",
-                        help="exhaust single symbolic shift counts for reproducible cross-solver replay")
+                        help="exhaust single symbolic shift counts and SIGNEXTEND indices for cross-solver replay")
     discover = subparsers.add_parser("discover", help="bounded enumerative search with SMT validation")
     discover.add_argument("--max-ops", type=int, default=3)
     discover.add_argument("--max-rhs-ops", type=int, default=2, help="maximum operations in a replacement recipe")
