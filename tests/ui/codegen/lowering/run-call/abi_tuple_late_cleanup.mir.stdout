@@ -1,0 +1,100 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/abi_tuple_late_cleanup.sol:AbiTupleLateCleanup ===
+@module AbiTupleLateCleanup
+fn @probe(arg0: u256, arg1: bool) -> (u256, i256, bytes2, u256, u256, bool) [selector=0xdf8b2803, pure, abi_params=[u256, bool], abi_returns=[word, word, word<bytes2>, word, word, word<bool>]] {
+  bb0:
+    v0 = icall @literal_bytes_word, 1, 0x102030400000000000000000000000000000000000000000000000000000000, 4
+    v1 = alloc memorystruct<6>, exact, uninitialized, infallible, 192
+    v2 = and 0, 255
+    v3 = signextend 0, 0
+    v4 = and 0, 0xffff000000000000000000000000000000000000000000000000000000000000
+    v5 = lt 0, 2
+    v6 = iszero v5
+    jumpi v6, bb1, bb2
+  bb2:
+    memory_object_store_field memorystruct<6>, v1, 0, v0
+    memory_object_store_field memorystruct<6>, v1, 1, v2
+    memory_object_store_field memorystruct<6>, v1, 2, v3
+    memory_object_store_field memorystruct<6>, v1, 3, v4
+    memory_object_store_field memorystruct<6>, v1, 4, 0
+    memory_object_store_field memorystruct<6>, v1, 5, v0
+    v7 = add v1, 32
+    mstore v7, arg0
+    v8 = add v1, 64
+    mstore v8, arg0
+    v9 = add v1, 96
+    mstore v9, 0x1234567800000000000000000000000000000000000000000000000000000000
+    v10 = mul arg1, 4
+    v11 = add 1, v10
+    v12 = add v1, 128
+    mstore v12, v11
+    v13 = abi_encode [tuple<memory_bytes, word<u8>, word<i8>, word<bytes2>, word<enum 2>, memory_bytes>], object, args v1
+    v14 = shl 248, 255
+    v15 = memory_object_len memorybytes, v0
+    v16 = lt 0, v15
+    v17 = iszero v16
+    jumpi v17, bb3, bb4
+  bb4:
+    v18 = byte 0, v14
+    memory_object_store_byte memorybytes, v0, 0, v18
+    v19 = abi_decode [tuple<bytes, u8, i8, bytes2, enum<2, u8>, bytes>], v13
+    v20 = memory_object_load_field memorystruct<6>, v1, 5
+    v21 = memory_object_len memorybytes, v20
+    v22 = lt 0, v21
+    v23 = iszero v22
+    jumpi v23, bb3, bb5
+  bb5:
+    v24 = memory_object_load_byte memorybytes, v20, 0
+    v25 = shl 248, v24
+    v26 = shl 248, 255
+    v27 = eq v25, v26
+    jumpi v27, bb6, bb7
+  bb7:
+    jump bb8
+  bb6:
+    v28 = memory_object_load_field memorystruct<6>, v19, 0
+    v29 = keccak256_bytes v28
+    v30 = eq v29, 0xa6885b3731702da62e8e4a8f584ac46a7f6822f4e2ba50fba902f67b1588d23b
+    jump bb8
+  bb8:
+    v31 = phi [bb6: v30], [bb7: 0]
+    jumpi v31, bb9, bb10
+  bb10:
+    jump bb11
+  bb9:
+    v32 = memory_object_load_field memorystruct<6>, v19, 5
+    v33 = keccak256_bytes v32
+    v34 = eq v33, 0xa6885b3731702da62e8e4a8f584ac46a7f6822f4e2ba50fba902f67b1588d23b
+    jump bb11
+  bb11:
+    v35 = phi [bb9: v34], [bb10: 0]
+    v36 = memory_object_load_field memorystruct<6>, v19, 1
+    v37 = and v36, 255
+    v38 = memory_object_load_field memorystruct<6>, v19, 2
+    v39 = signextend 0, v38
+    v40 = memory_object_load_field memorystruct<6>, v19, 3
+    v41 = and v40, 0xffff000000000000000000000000000000000000000000000000000000000000
+    v42 = memory_object_load_field memorystruct<6>, v19, 4
+    v43 = lt v42, 2
+    v44 = iszero v43
+    jumpi v44, bb1, bb12
+  bb12:
+    v45 = memory_object_load_field memorystruct<6>, v19, 0
+    v46 = memory_object_len memorybytes, v45
+    ret v37, v39, v41, v42, v46, v35
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 33 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @literal_bytes_word(arg0: bytes32, arg1: u256) -> memorybytes {
+  bb0:
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v0, arg1
+    memory_object_store_word memorybytes, v0, 0, arg0
+    ret v0
+}
