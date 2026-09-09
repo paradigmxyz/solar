@@ -1,16 +1,16 @@
 # EVM rewrite progress
 
-The rewrite remains incomplete. One original UI assertion, incomplete general
-memory-ownership evidence and individual sealed gas/size debts still block final
-acceptance.
-This page summarizes the local allocation-effect milestone on 2026-09-08. The
+The rewrite remains incomplete. General memory-ownership evidence and individual
+sealed gas/size debts still block final acceptance. The original UI assertion
+has been resolved without changing its Solidity body.
+This page records accepted milestones and integration through 2026-09-09. The
 [handoff](evm-rewrite-plan.md) defines acceptance; [PR #1388][pr] tracks review.
 The [checkpoint archive](evm-rewrite-checkpoints.md) preserves the complete
 history, baseline hashes, rejected trials and measurement limitations.
 
 ## Accepted local state
 
-Main `becd2143` was integrated by merge `e40b84f0`. Recent commits preserve
+Main `2632e43b` was integrated by merge `790e3687`. Earlier commits preserve
 cheaper Phi writer schedules (`e34bb6e6`) and simplify physical unit-add carry
 (`8bf5b0d0`, tests `e9c7f759`, reviewed debug goldens `92fa93ee`). Earlier accepted
 literal caching, tail grouping and eager SSA contraction remain in place.
