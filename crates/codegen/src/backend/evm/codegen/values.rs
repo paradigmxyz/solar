@@ -172,6 +172,19 @@ impl<'gcx> EvmCodegen<'gcx> {
         {
             return;
         }
+        if self.scheduler.spills.is_recompute_only(val)
+            && self.scheduler.stack.find(val).is_none_or(|depth| depth >= self.stack_access_limit())
+        {
+            self.emit_value_fresh(func, val);
+            return;
+        }
+        if let Some(depth) = self.scheduler.stack.find(val)
+            && depth >= self.stack_access_limit()
+            && !self.spill_hazard_insts.is_empty()
+        {
+            self.duplicate_deep_forwarding_value(func, val, depth);
+            return;
+        }
         if let Some(depth) = self.scheduler.stack.find(val)
             && depth >= self.stack_access_limit()
             && self.scheduler.reloadable_spill(val).is_none()
@@ -303,6 +316,14 @@ impl<'gcx> EvmCodegen<'gcx> {
             && self.scheduler.reloadable_spill(val).is_none()
             && self.recover_lost_internal_stack_value(val)
         {
+            return;
+        }
+        if let Some(depth) = self.scheduler.stack.find(val)
+            && depth >= self.stack_access_limit()
+            && !self.spill_hazard_insts.is_empty()
+            && !self.scheduler.spills.is_recompute_only(val)
+        {
+            self.duplicate_deep_forwarding_value(func, val, depth);
             return;
         }
         match func.value(val) {

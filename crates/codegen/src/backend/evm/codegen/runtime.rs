@@ -28,8 +28,15 @@ impl<'gcx> EvmCodegen<'gcx> {
         let mut code_size_rescue = false;
         let mut gas_first_result = None;
         loop {
+            // Forwarding-buffer protection must also carry live values across helper calls
+            // without optimization: the overwritten frame slots cannot serve as a fallback.
             let mut preserve_caller_stack =
-                !matches!(self.gcx.sess.opts.optimization, OptimizationMode::None);
+                !matches!(self.gcx.sess.opts.optimization, OptimizationMode::None)
+                    || !self.low_fmp_functions.is_empty()
+                    || module
+                        .functions
+                        .iter()
+                        .any(|func| !self.compute_spill_hazard_insts(func).is_empty());
             let mut runtime_stack_args = true;
             let mut stack_returns_enabled = true;
             self.disabled_stack_only_functions.clear_to(module.functions.len());
@@ -49,15 +56,18 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
                 let stack_fits = self.caller_stack_prefixes_fit(module, MAX_STACK_DEPTH);
                 if !stack_fits && !self.icall_stack_edges.is_empty() {
-                    if preserve_caller_stack {
+                    if preserve_caller_stack
+                        && self.spill_clobber_functions.is_empty()
+                        && self.low_fmp_functions.is_empty()
+                    {
                         preserve_caller_stack = false;
                         continue;
                     }
-                    if runtime_stack_args {
+                    if runtime_stack_args && self.low_fmp_functions.is_empty() {
                         runtime_stack_args = false;
                         continue;
                     }
-                    if stack_returns_enabled {
+                    if stack_returns_enabled && self.low_fmp_functions.is_empty() {
                         stack_returns_enabled = false;
                         continue;
                     }

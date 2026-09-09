@@ -25,7 +25,7 @@ use crate::{
             op::{self, push_len},
         },
     },
-    mir::{BlockId, Function, Terminator, ValueId},
+    mir::{BlockId, Function, Terminator, Value, ValueId},
 };
 use alloy_primitives::U256;
 use solar_config::{EvmVersion, OptimizationMode, SwitchLowering};
@@ -1933,12 +1933,16 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         if preserve_stack {
             debug_assert_eq!(self.scheduler.stack.top(), Some(value));
-        } else if self.emitting_entry {
-            // The entry's just-computed selector stays on the stack
-            // through the case chain — no spill, clear, and reload —
-            // and is left inert below the taken arm instead of paying
-            // a POP. Every successor terminates externally and the
-            // entry runs once, so the leftover word cannot accumulate.
+        } else if self.emitting_entry
+            || cases.iter().all(|(case, _)| matches!(func.value(*case), Value::Immediate(_)))
+        {
+            // Constant cases need no preserved operands. Spilling the scrutinee here
+            // could overwrite a low-memory return buffer copied before this switch.
+            // The entry dispatch leaves it below the taken arm; all entry successors
+            // terminate externally, so that word cannot accumulate.
+            //
+            // dup scrutinee
+            // (swap1; pop)*
             self.emit_value(func, value);
             while self.scheduler.depth() > 1 {
                 self.emit_stack_op(StackOp::Swap(1));

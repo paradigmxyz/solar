@@ -358,6 +358,18 @@ pub struct EvmCodegen<'gcx> {
     /// across one are kept stack-resident instead of reloaded from the
     /// overwritten slot. Empty for every function without such a forward.
     spill_hazard_insts: FxHashSet<InstId>,
+    /// Cross-block values whose spill homes would overlap a forwarding buffer.
+    spill_hazard_values: DenseBitSet<ValueId>,
+    /// Functions that can share a call's memory with a source-level `msize` observation.
+    msize_observed_functions: GrowableBitSet<FunctionId>,
+    /// Functions that can overwrite their caller's low-memory frame.
+    spill_clobber_functions: GrowableBitSet<FunctionId>,
+    /// Functions sharing heap allocations made after an explicit low free-memory-pointer reset.
+    low_fmp_functions: GrowableBitSet<FunctionId>,
+    /// Heap-pointer arguments sufficient to keep a helper's writes out of caller spills.
+    spill_clobber_args: FxHashMap<FunctionId, DenseBitSet<ArgIdx>>,
+    /// Whether deep forwarding recovery must avoid expanding memory in this function.
+    forwarding_scratch_observable: bool,
     /// Leaf helpers whose sole returned word is derived from the free-memory pointer.
     /// Their callers may safely use the result as a dynamic forwarding-buffer base.
     heap_pointer_return_functions: DenseBitSet<FunctionId>,
@@ -446,6 +458,12 @@ impl<'gcx> EvmCodegen<'gcx> {
             stack_phi_plans: FxHashMap::default(),
             function_ir_block_start: 0,
             spill_hazard_insts: FxHashSet::default(),
+            spill_hazard_values: DenseBitSet::new_empty(0),
+            msize_observed_functions: GrowableBitSet::new_empty(),
+            spill_clobber_functions: GrowableBitSet::new_empty(),
+            low_fmp_functions: GrowableBitSet::new_empty(),
+            spill_clobber_args: FxHashMap::default(),
+            forwarding_scratch_observable: false,
             heap_pointer_return_functions: DenseBitSet::new_empty(0),
             global_stack_active: false,
             global_stack_aliases: FxHashMap::default(),
@@ -505,7 +523,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.elided_insts.clear();
         self.late_gas_operands.clear();
         self.stack_phi_plans.clear();
+        self.spill_clobber_functions.clear();
+        self.low_fmp_functions.clear();
+        self.spill_clobber_args.clear();
         self.spill_hazard_insts.clear();
+        self.spill_hazard_values.clear();
         self.heap_pointer_return_functions.clear_to(module.functions.len());
         self.global_stack_active = false;
         self.global_stack_aliases.clear();

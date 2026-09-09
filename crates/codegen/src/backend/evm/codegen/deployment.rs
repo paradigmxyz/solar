@@ -83,7 +83,17 @@ impl<'gcx> EvmCodegen<'gcx> {
         // Runtime and constructor emission inspect the same final MIR. Compute module-wide facts
         // once instead of rebuilding them for each artifact and caller-stack retry.
         let call_graph = CallGraphInfo::new(module);
+        self.msize_observed_functions =
+            Self::collect_msize_observed_functions(module, &call_graph).into();
         self.heap_pointer_return_functions = Self::collect_heap_pointer_return_functions(module);
+        self.low_fmp_functions = self.collect_low_fmp_functions(module, &call_graph).into();
+        if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
+            for id in self.low_fmp_functions.iter() {
+                // arg N (each use) -> one canonical arg N
+                module.functions[id].canonicalize_argument_uses();
+            }
+        }
+        self.spill_clobber_functions = self.collect_spill_clobber_functions(module).into();
         self.cold_functions = if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
             DenseBitSet::new_empty(module.functions.len())
         } else {
@@ -335,6 +345,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
 
         let constructor_arg_offset = if let Some((ctor_id, ctor)) = constructor {
+            let internal_targets = call_graph.reachable_callees_from([ctor_id]);
             // Generate constructor bytecode
             // Clear state and generate function body
             self.block_labels.clear();
@@ -346,9 +357,12 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.static_frame_functions.clear_to(module.functions.len());
             self.static_call_abis.clear();
             self.runtime_stack_args = false;
-            // Constructor code has a separate call graph and is not part of
-            // the runtime prefix validation below.
-            self.preserve_caller_stack = false;
+            // Constructor prefixes have their own stack-depth check below.
+            self.preserve_caller_stack =
+                std::iter::once(ctor_id).chain(internal_targets.iter()).any(|id| {
+                    self.low_fmp_functions.contains(id)
+                        || !self.compute_spill_hazard_insts(&module.functions[id]).is_empty()
+                });
             self.static_frame_addr_consts.clear();
             self.external_spill_addr_consts.clear();
             self.pending_static_allocs.clear();
@@ -368,7 +382,28 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
 
-            let internal_targets = call_graph.reachable_callees_from(std::iter::once(ctor_id));
+            // Set constructor context for LoadArg handling.
+            self.in_constructor = true;
+            self.constructor_param_count = ctor.params.len() as u32;
+            if self.preserve_caller_stack {
+                for id in internal_targets.iter() {
+                    if !call_graph.is_recursive(id)
+                        && Self::static_frame_offsets_are_local(&module.functions[id])
+                    {
+                        self.static_frame_functions.insert(id);
+                    }
+                }
+                self.runtime_stack_args = true;
+                self.stack_returns_enabled = true;
+                self.compute_stack_arg_masks(module);
+                let values = self.collect_canonical_stack_arg_values(module);
+                self.compute_resident_stack_args(module, &values);
+                let uses = self.collect_stack_arg_uses(module);
+                self.compute_lazy_stack_args(module, &values, &uses);
+                self.compute_direct_stack_args(module, &values, &uses);
+                self.compute_stack_return_plans(module);
+            }
+
             for func_id in &internal_targets {
                 let label = self.new_function_label(func_id);
                 self.function_labels.insert(func_id, label);
@@ -380,10 +415,6 @@ impl<'gcx> EvmCodegen<'gcx> {
             let constructor_fixed_memory_end = self.asm.new_deferred_const();
             let constructor_arg_offset =
                 (!ctor.params.is_empty()).then(|| self.asm.new_deferred_const());
-
-            // Set constructor context for LoadArg handling
-            self.in_constructor = true;
-            self.constructor_param_count = ctor.params.len() as u32;
 
             // Constructor args are appended after generated deployment bytecode.
             // Copy the complete blob above every fixed compiler-owned region,
@@ -425,9 +456,12 @@ impl<'gcx> EvmCodegen<'gcx> {
                     let label = self.function_labels[&func_id];
                     self.asm.define_label(label);
                     self.mark_debug_function_invoke(func);
+                    self.emit_stack_arg_prologue(func_id, func);
                     self.in_internal_function = true;
+                    self.current_internal_function = Some(func_id);
                     self.generate_function_body(func_id, func);
                     self.in_internal_function = false;
+                    self.current_internal_function = None;
                     self.record_function_spill_size(func_id);
                 }
 
@@ -443,13 +477,17 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.mark_debug_function_invoke(ctor);
             self.generate_function_body(ctor_id, ctor);
             let constructor_spill_size = self.record_function_spill_size(ctor_id);
-            self.asm.set_deferred_const(
-                constructor_fixed_memory_end,
-                U256::from(self.constructor_fixed_memory_end(
-                    module.immutable_count(),
-                    constructor_spill_size,
-                )),
-            );
+            let mut fixed_end =
+                self.constructor_fixed_memory_end(module.immutable_count(), constructor_spill_size);
+            for id in self.static_frame_functions.iter() {
+                for (&(function, offset), &(address, _)) in &self.static_frame_addr_consts {
+                    if function == id {
+                        self.asm.set_deferred_const(address, U256::from(fixed_end + offset));
+                    }
+                }
+                fixed_end += self.emitted_frame_size(module, id);
+            }
+            self.asm.set_deferred_const(constructor_fixed_memory_end, U256::from(fixed_end));
 
             self.resolve_pending_frame_size_consts(module);
 

@@ -25,7 +25,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                 abi.entry = StaticCallEntry::Stored;
             }
         }
-        if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
+        if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None)
+            && !(self.in_constructor && self.preserve_caller_stack)
+            && self.low_fmp_functions.is_empty()
+        {
             return;
         }
 
@@ -198,7 +201,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         module: &Module,
     ) -> FxHashMap<FunctionId, StackArgUseInfo> {
         let mut all_uses = FxHashMap::default();
-        if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
+        if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None)
+            && !(self.in_constructor && self.preserve_caller_stack)
+            && self.low_fmp_functions.is_empty()
+        {
             return all_uses;
         }
 
@@ -270,7 +276,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                 abi.entry = StaticCallEntry::Stored;
             }
         }
-        if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
+        if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None)
+            && !(self.in_constructor && self.preserve_caller_stack)
+            && self.low_fmp_functions.is_empty()
+        {
             return;
         }
 
@@ -355,7 +364,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                 abi.entry = StaticCallEntry::Stored;
             }
         }
-        if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
+        if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None)
+            && !(self.in_constructor && self.preserve_caller_stack)
+            && self.low_fmp_functions.is_empty()
+        {
             return;
         }
 
@@ -623,6 +635,12 @@ impl<'gcx> EvmCodegen<'gcx> {
         if !self.scheduler.is_stack_only_value(value) {
             return;
         }
+        if self.spill_hazard_values.contains(value) {
+            self.gcx.dcx().err(format!(
+                "codegen cannot spill stack-only values around a low-memory forwarding buffer in `{}`",
+                func.name
+            )).emit();
+        }
         match func.value(value) {
             crate::mir::Value::Arg(index) => self.materialize_stack_arg(func_id, *index, value),
             crate::mir::Value::Inst(_) => {
@@ -661,7 +679,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             let entry = self.scheduler.stack.iter().enumerate().find_map(|(depth, value)| {
                 value
                     .filter(|&value| {
-                        depth >= materialize_depth && self.scheduler.is_stack_only_value(value)
+                        depth >= materialize_depth
+                            && self.scheduler.is_stack_only_value(value)
+                            && !self.spill_hazard_values.contains(value)
                     })
                     .map(|value| (depth, value))
             });

@@ -604,6 +604,11 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Even a one-operand terminator needs the baseline check: an operand already below `DUP16`
     /// cannot be emitted without first materializing its frame fallback.
     pub(super) fn terminator_transient_growth(term: &Terminator) -> usize {
+        // Switch arms are compared one at a time: a scrutinee copy, comparison operand,
+        // and jump label bound the temporary words, regardless of the case count.
+        if matches!(term, Terminator::Switch { .. }) {
+            return 3;
+        }
         let operands = term.operands().len();
         if operands == 0 { 0 } else { operands.saturating_sub(1).max(1) }
     }

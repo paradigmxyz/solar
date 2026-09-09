@@ -19,3 +19,157 @@ fn @emitWord(arg0: u256) -> (u256, u256) {
     v1 = add arg0, 2
     ret v1, 0
 }
+
+// === ROOT/tests/ui/codegen/lowering/run-call/multi_return_unbumped_memory.sol:LowFmpAllocation ===
+@module LowFmpAllocation
+fn @probe(arg0: u256) -> (u256, u256) [selector=0xdb082440, pure, abi_params=[u256], abi_returns=[word, word]] {
+  bb0:
+    mstore 64, 128 !metadata(memory=scratch)
+    v0 = and arg0, 255
+    v1 = icall @allocate, 2, 37, v0
+    v2 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v3 = add v2, 32
+    v4 = mload v3
+    ret v1, v4
+}
+
+fn @returnedBuffer() -> u256 [selector=0xf8640036, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    mstore 64, 128 !metadata(memory=scratch)
+    v0 = icall @buffer, 1, 128
+    v1 = add v0, 32
+    v2 = mload v1
+    ret v2
+}
+
+fn @returnedBufferHash() -> bytes32 [selector=0x8b78d03c, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    mstore 64, 128 !metadata(memory=scratch)
+    v0 = icall @buffer, 1, 128
+    v1 = icall @increment, 1, 41
+    v2 = eq v1, 42
+    v3 = iszero v2
+    jumpi v3, bb1, bb2
+  bb2:
+    v4 = keccak256_bytes v0
+    ret v4
+  bb1:
+    revert 0, 0
+}
+
+fn @returnedBufferSecond() -> bytes32 [selector=0xbd1c9e65, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    mstore 64, 128 !metadata(memory=scratch)
+    v0 = icall @buffer, 1, 128
+    v1 = icall @triple, 3, 41
+    v2 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v3 = add v2, 32
+    v4 = mload v3
+    v5 = add v2, 64
+    v6 = mload v5
+    v7 = eq v4, 42
+    jumpi v7, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v8 = eq v6, 43
+    jump bb3
+  bb3:
+    v9 = phi [bb1: v8], [bb2: 0]
+    v10 = iszero v9
+    jumpi v10, bb4, bb5
+  bb5:
+    v11 = keccak256_bytes v0
+    ret v11
+  bb4:
+    revert 0, 0
+}
+
+fn @triple(arg0: u256) -> (u256, u256, u256) [pure] {
+  bb0:
+    v0 = add arg0, 1
+    v1 = lt v0, arg0
+    jumpi v1, bb1, bb2
+  bb2:
+    v2 = add arg0, 2
+    v3 = lt v2, arg0
+    jumpi v3, bb1, bb3
+  bb3:
+    ret arg0, v0, v2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @increment(arg0: u256) -> u256 [pure] {
+  bb0:
+    v0 = add arg0, 1
+    v1 = lt v0, arg0
+    jumpi v1, bb1, bb2
+  bb2:
+    ret v0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @buffer(arg0: u256) -> memorybytes [pure] {
+  bb0:
+    v0 = add arg0, 63
+    v1 = lt v0, arg0
+    jumpi v1, bb1, bb2
+  bb2:
+    v2 = not 31
+    v3 = and v0, v2
+    v4 = alloc memorybytes, exact, zeroed, panic, v3
+    set_memory_object_len memorybytes, v4, arg0
+    ret v4
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @allocate(arg0: u256, arg1: u256) -> (u256, u256) [pure] {
+  bb0:
+    v0 = add arg1, 63
+    v1 = lt v0, arg1
+    jumpi v1, bb1, bb2
+  bb2:
+    v2 = not 31
+    v3 = and v0, v2
+    v4 = alloc memorybytes, exact, zeroed, panic, v3
+    set_memory_object_len memorybytes, v4, arg1
+    v5 = add v4, 32
+    v6 = mload v5
+    ret arg0, v6
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/multi_return_unbumped_memory.sol:LowFmpArguments ===
+@module LowFmpArguments
+fn @output() -> bytes32 [selector=0xf20eaeb8, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    mstore 64, 128 !metadata(memory=scratch)
+    v1 = mload 64 !metadata(memory=scratch)
+    mstore 64, v0 !metadata(memory=scratch)
+    v2 = icall @allocate, 1, v1
+    v3 = keccak256_bytes v2
+    ret v3
+}
+
+fn @allocate(arg0: memorybytes) -> memorybytes [pure] {
+  bb0:
+    mstore 64, arg0 !metadata(memory=scratch)
+    v0 = not 31
+    v1 = and 191, v0
+    v2 = alloc memorybytes, exact, zeroed, panic, v1
+    set_memory_object_len memorybytes, v2, 128
+    ret v2
+}

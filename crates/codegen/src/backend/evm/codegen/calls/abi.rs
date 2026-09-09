@@ -129,7 +129,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                 _ => true,
             });
             if self.static_frame_functions.contains(func_id)
-                && !matches!(self.gcx.sess.opts.optimization, OptimizationMode::None)
+                && (!matches!(self.gcx.sess.opts.optimization, OptimizationMode::None)
+                    || (self.in_constructor && self.preserve_caller_stack)
+                    || self.low_fmp_functions.contains(func_id))
                 && !self.disabled_stack_only_functions.contains(func_id)
                 && !self.recursive_frame_functions.contains(func_id)
                 && (1..=MAX_STACK_ACCESS).contains(&arity)

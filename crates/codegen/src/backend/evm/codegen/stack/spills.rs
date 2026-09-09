@@ -740,7 +740,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         func: &Function,
         val: ValueId,
     ) {
-        if self.scheduler.is_stack_only_value(val) || !Self::can_own_spill_slot(func, val) {
+        if self.scheduler.is_stack_only_value(val)
+            || self.scheduler.spills.is_recompute_only(val)
+            || !Self::can_own_spill_slot(func, val)
+        {
             return;
         }
         if self.scheduler.should_recompute_unstored_spill(val)
@@ -845,6 +848,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         depth: usize,
     ) {
         debug_assert!(depth < self.stack_access_limit());
+        if self.scheduler.spills.is_recompute_only(val) {
+            return;
+        }
 
         // DUP the value to top of stack for storing.
         // We need to DUP (not just use ensure_on_top) because:
@@ -1025,6 +1031,62 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.asm.remove_instructions(&mut removals);
     }
 
+    /// Duplicates a buried word using temporary memory above the current memory extent.
+    /// The contiguous sequence performs no source-level memory operation; its scratch words
+    /// cannot overlap an already-copied forwarding buffer and are cleared when restored.
+    pub(in crate::backend::evm::codegen) fn duplicate_deep_forwarding_value(
+        &mut self,
+        func: &Function,
+        value: ValueId,
+        depth: usize,
+    ) {
+        if self.forwarding_scratch_observable {
+            // NOTE: Clearing scratch words cannot undo memory expansion. Until a stack-only
+            // plan exists, reject this recovery rather than change a later `msize` result.
+            self.gcx
+                .dcx()
+                .err(format!(
+                    "codegen cannot recover deep forwarding values without changing `msize` in `{}`",
+                    func.name
+                ))
+                .emit();
+            self.forwarding_scratch_observable = false;
+        }
+        let count = depth + 1 - self.stack_access_limit();
+        let mut saved = Vec::with_capacity(count);
+        for _ in 0..count {
+            // mstore(msize(), top); pop top
+            self.scheduler.stack.observe_peak(self.scheduler.depth() + 1);
+            self.asm.emit_op(op::MSIZE);
+            self.asm.emit_op(op::MSTORE);
+            saved.push(self.scheduler.stack.pop());
+        }
+        // dup16 target
+        self.emit_stack_op(StackOp::Dup(self.stack_access_limit() as u8));
+        for (index, saved) in saved.into_iter().rev().enumerate() {
+            // addr = msize() - (index + 1) * 32
+            // restored = mload(addr); mstore(addr, 0)
+            // swap restored, target
+            self.scheduler.stack.observe_peak(self.scheduler.depth() + 3);
+            self.asm.emit_push(U256::from((index + 1) * EvmMemoryLayout::WORD_SIZE as usize));
+            self.asm.emit_op(op::MSIZE);
+            self.asm.emit_op(op::SUB);
+            self.asm.emit_op(op::DUP1);
+            self.asm.emit_op(op::MLOAD);
+            self.asm.emit_op(op::SWAP1);
+            self.asm.emit_push(U256::ZERO);
+            self.asm.emit_op(op::SWAP1);
+            self.asm.emit_op(op::MSTORE);
+            if let Some(saved) = saved {
+                self.scheduler.stack.push(saved);
+            } else {
+                self.scheduler.stack.push_unknown();
+            }
+            self.emit_stack_op(StackOp::Swap(1));
+        }
+        debug_assert_eq!(self.scheduler.stack.top(), Some(value));
+    }
+
     pub(in crate::backend::evm::codegen) fn spill_deep_stack_value(
         &mut self,
         func: &Function,
@@ -1040,9 +1102,13 @@ impl<'gcx> EvmCodegen<'gcx> {
             let Some(top) = self.scheduler.stack.top() else {
                 panic!("cannot spill deep stack value {val:?}: untracked stack entry above it");
             };
-            let restore = if let Some(op) = Self::always_rematerializable_op(func, top) {
+            let restore = if self.scheduler.spills.is_recompute_only(top) {
+                // pop; rebuild the stable expression after exposing the buried value
                 self.emit_stack_op(StackOp::Pop);
-                ScheduledOp::RematerializeNullary(op)
+                None
+            } else if let Some(op) = Self::always_rematerializable_op(func, top) {
+                self.emit_stack_op(StackOp::Pop);
+                Some(ScheduledOp::RematerializeNullary(op))
             } else {
                 let top_slot = self.scheduler.spills.allocate(top);
                 if self.scheduler.reloadable_spill(top).is_some() {
@@ -1050,7 +1116,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 } else {
                     self.store_stack_top_to_spill(func, top, top_slot);
                 }
-                ScheduledOp::LoadSpill(top_slot)
+                Some(ScheduledOp::LoadSpill(top_slot))
             };
             saved_above.push((top, restore));
         }
@@ -1061,10 +1127,14 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.spill_accessible_stack_value(func, val, slot, accessible_depth);
 
         for (saved, restore) in saved_above.into_iter().rev() {
-            let stack_depth = self.scheduler.depth();
-            self.record_scheduled_ops_peak(stack_depth, std::slice::from_ref(&restore));
-            self.emit_scheduled_ops(func, [restore]);
-            self.scheduler.stack.push(saved);
+            if let Some(restore) = restore {
+                let stack_depth = self.scheduler.depth();
+                self.record_scheduled_ops_peak(stack_depth, std::slice::from_ref(&restore));
+                self.emit_scheduled_ops(func, [restore]);
+                self.scheduler.stack.push(saved);
+            } else {
+                self.emit_value_fresh(func, saved);
+            }
         }
     }
 
@@ -1097,6 +1167,11 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     fn store_stack_top_to_spill(&mut self, func: &Function, value: ValueId, slot: SpillSlot) {
+        if self.scheduler.spills.is_recompute_only(value) {
+            // pop; later uses rebuild the value without touching the forwarding buffer
+            self.emit_stack_op(StackOp::Pop);
+            return;
+        }
         // Store to spill slot: PUSH offset, MSTORE.
         // The PUSH creates an untracked stack entry, so we track it as unknown.
         self.emit_spill_slot_addr(func, slot);
@@ -1204,6 +1279,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             return;
         }
 
+        if self.scheduler.spills.is_recompute_only(value) {
+            return;
+        }
         let has_reserved_cross_block_slot = self.scheduler.spills.get(value).is_some();
         if liveness.is_dead_after(value, block, inst_idx) && !has_reserved_cross_block_slot {
             return;

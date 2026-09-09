@@ -32,11 +32,13 @@ impl<'gcx> EvmCodegen<'gcx> {
         module: &Module,
     ) -> FxHashMap<FunctionId, CanonicalArgValues> {
         let mut all_values = FxHashMap::default();
-        if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
-            return all_values;
-        }
-
         for func_id in self.static_frame_functions.iter() {
+            if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None)
+                && !(self.in_constructor && self.preserve_caller_stack)
+                && !self.low_fmp_functions.contains(func_id)
+            {
+                continue;
+            }
             let func = &module.functions[func_id];
             if func.params.is_empty() {
                 continue;
@@ -386,10 +388,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         stack_phi_plan: &StackPhiPlan,
         values: &[ValueId],
     ) -> Option<(Vec<ValueId>, GlobalStackPlan)> {
-        if self.spill_hazard_insts.is_empty() {
-            return None;
-        }
-
         if values.is_empty() {
             return None;
         }
@@ -416,34 +414,80 @@ impl<'gcx> EvmCodegen<'gcx> {
         Some((values.to_vec(), plan))
     }
 
-    /// Values that need a successor after a forwarding-buffer clobber.
+    /// Values that need a successor after a forwarding-buffer clobber, plus internal
+    /// arguments whose frame slots the copy can overwrite before their first use.
+    /// Stable expressions use mandatory rematerialization instead of occupying this layout.
     pub(in crate::backend::evm::codegen) fn spill_hazard_cross_block_values(
         &self,
+        func_id: FunctionId,
         func: &Function,
         liveness: &Liveness,
         cross_block_live: &OnceCell<DenseBitSet<ValueId>>,
         recomputable: &DenseBitSet<ValueId>,
     ) -> Vec<ValueId> {
+        let mut values = DenseBitSet::new_empty(func.num_values());
+        if (self.in_constructor && self.preserve_caller_stack)
+            || self.low_fmp_functions.contains(func_id)
+        {
+            for value in func.live_values().filter(|&value| {
+                Self::can_own_spill_slot(func, value)
+                    && !matches!(func.value(value), Value::Inst(inst) if self.elided_insts.contains(inst))
+            }) {
+                values.insert(value);
+            }
+        }
         if self.spill_hazard_is_repeated_low_phi(func) {
-            return cross_block_live
+            for value in cross_block_live
                 .get_or_init(|| Self::cross_block_live_values(func, liveness))
                 .iter()
-                .filter(|&value| {
-                    Self::can_own_spill_slot(func, value) && !recomputable.contains(value)
-                })
-                .collect();
+                .filter(|&value| Self::can_own_spill_slot(func, value))
+            {
+                values.insert(value);
+            }
         }
 
         let inst_blocks = func.inst_blocks();
-        let mut values = DenseBitSet::new_empty(func.num_values());
         for inst in &self.spill_hazard_insts {
             let Some(&block) = inst_blocks.get(inst) else { continue };
+            if matches!(func.inst(*inst).kind, InstKind::ICall { .. }) {
+                let instructions = &func.blocks[block].instructions;
+                let position = instructions.iter().position(|id| id == inst).unwrap();
+                for value in liveness.live_in(block).iter().chain(
+                    instructions[..position].iter().filter_map(|&id| func.inst_result_value(id)),
+                ) {
+                    if Self::can_own_spill_slot(func, value)
+                        && liveness.is_used_at_or_after(value, block, position + 1)
+                    {
+                        values.insert(value);
+                    }
+                }
+            }
             for value in liveness.live_out(block) {
-                if Self::can_own_spill_slot(func, value) && !recomputable.contains(value) {
+                if Self::can_own_spill_slot(func, value) {
                     values.insert(value);
                 }
             }
         }
+        if self.in_internal_function {
+            for value in func.arg_uses().iter().flatten().copied() {
+                if self
+                    .current_internal_function
+                    .and_then(|id| self.resident_stack_args(id))
+                    .is_some_and(|args| args.contains(&value))
+                {
+                    continue;
+                }
+                if self.spill_hazard_insts.iter().any(|inst| {
+                    let Some(&block) = inst_blocks.get(inst) else { return false };
+                    let position =
+                        func.blocks[block].instructions.iter().position(|id| id == inst).unwrap();
+                    liveness.is_used_at_or_after(value, block, position + 1)
+                }) {
+                    values.insert(value);
+                }
+            }
+        }
+        values.subtract(recomputable);
         values.iter().collect()
     }
 
@@ -479,10 +523,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         plan: &GlobalStackPlan,
         hazard_values: &[ValueId],
     ) -> bool {
-        let inst_blocks = func.inst_blocks();
-        self.spill_hazard_insts.iter().all(|inst| {
-            let Some(&block_id) = inst_blocks.get(inst) else { return false };
-            let Some(term) = func.blocks[block_id].terminator.as_ref() else { return false };
+        func.blocks.iter_enumerated().all(|(block_id, block)| {
+            let Some(term) = block.terminator.as_ref() else { return false };
             let carried = plan.uniformly_carried_values(func, term);
             hazard_values
                 .iter()

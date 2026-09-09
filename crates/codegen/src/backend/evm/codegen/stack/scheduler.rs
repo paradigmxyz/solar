@@ -2195,7 +2195,8 @@ impl StackScheduler {
 
     /// Returns whether an unstored reserved slot must be recomputed instead of loaded.
     pub(crate) fn should_recompute_unstored_spill(&self, value: ValueId) -> bool {
-        self.spills.get(value).is_some() && self.unstored_spill_requires_recompute(value)
+        self.spills.is_recompute_only(value)
+            || (self.spills.get(value).is_some() && self.unstored_spill_requires_recompute(value))
     }
 
     fn unstored_spill_requires_recompute(&self, value: ValueId) -> bool {
@@ -2381,7 +2382,9 @@ impl StackScheduler {
     pub(crate) fn can_emit_value(&self, value: ValueId, func: &Function) -> bool {
         // Check if on stack and reachable by DUP.
         if let Some(depth) = self.stack.find(value) {
-            return depth < self.max_stack_access() || self.reloadable_spill(value).is_some();
+            return depth < self.max_stack_access()
+                || self.reloadable_spill(value).is_some()
+                || self.spills.is_recompute_only(value);
         }
         if self.is_stack_only_value(value) {
             return false;

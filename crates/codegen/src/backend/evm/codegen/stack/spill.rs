@@ -34,6 +34,8 @@ pub(crate) struct SpillManager {
     stored: GrowableBitSet<ValueId>,
     /// Values whose unstored slot may be rematerialized from stable inputs.
     recomputable: GrowableBitSet<ValueId>,
+    /// Values that must be rebuilt because a forwarding buffer can overwrite their slots.
+    recompute_only: GrowableBitSet<ValueId>,
     /// Cross-block values whose slots must remain stable for the function.
     stable: GrowableBitSet<ValueId>,
     /// Values allocated since the last block boundary.
@@ -55,6 +57,7 @@ impl SpillManager {
             reloadable: GrowableBitSet::new_empty(),
             stored: GrowableBitSet::new_empty(),
             recomputable: GrowableBitSet::new_empty(),
+            recompute_only: GrowableBitSet::new_empty(),
             stable: GrowableBitSet::new_empty(),
             block_locals: Vec::new(),
             free_offsets: Vec::new(),
@@ -69,6 +72,7 @@ impl SpillManager {
         self.reloadable.clear();
         self.stored.clear();
         self.recomputable.clear();
+        self.recompute_only.clear();
         self.stable.clear();
         self.block_locals.clear();
         self.free_offsets.clear();
@@ -178,24 +182,24 @@ impl SpillManager {
     /// Returns true if the value has a spill slot that can be loaded.
     #[must_use]
     pub(crate) fn is_reloadable(&self, value: ValueId) -> bool {
-        self.reloadable.contains(value)
+        !self.recompute_only.contains(value) && self.reloadable.contains(value)
     }
 
     /// Returns true if already-emitted code has stored this value.
     #[must_use]
     pub(crate) fn is_stored(&self, value: ValueId) -> bool {
-        self.stored.contains(value)
+        !self.recompute_only.contains(value) && self.stored.contains(value)
     }
 
     /// Iterates every value whose slot already-emitted code has stored.
     pub(crate) fn stored_values(&self) -> impl Iterator<Item = ValueId> + '_ {
-        self.stored.iter()
+        self.stored.iter().filter(|&value| !self.recompute_only.contains(value))
     }
 
     /// Iterates every value whose spill slot can be loaded at this point,
     /// whether stored in this block or delivered by an edge.
     pub(crate) fn reloadable_values(&self) -> impl Iterator<Item = ValueId> + '_ {
-        self.reloadable.iter()
+        self.reloadable.iter().filter(|&value| !self.recompute_only.contains(value))
     }
 
     /// Marks an unstored value as safe to rematerialize from stable inputs.
@@ -204,10 +208,20 @@ impl SpillManager {
         self.recomputable.insert(value);
     }
 
+    /// Forbids reloads of a stable expression whose memory home can be overwritten.
+    pub(crate) fn mark_recompute_only(&mut self, value: ValueId) {
+        self.recompute_only.insert(value);
+    }
+
+    /// Returns whether this value must never be stored or reloaded through memory.
+    pub(crate) fn is_recompute_only(&self, value: ValueId) -> bool {
+        self.recompute_only.contains(value)
+    }
+
     /// Returns true if an unstored value may be rematerialized.
     #[must_use]
     pub(crate) fn is_recomputable(&self, value: ValueId) -> bool {
-        self.recomputable.contains(value)
+        self.recompute_only.contains(value) || self.recomputable.contains(value)
     }
 
     /// Forgets that already-emitted code stored this value. A value carried on
