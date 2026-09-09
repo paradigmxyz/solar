@@ -11,16 +11,19 @@
 //! Equivalent operand orders can leave different residual stacks. Comparing
 //! only the current instruction misses the DUPs, SWAPs and reloads those layouts
 //! cause at the next use. Replay both plans on cloned scheduler states through
-//! up to two following pure instructions, including dead-word cleanup and
-//! materialization through the active spill/argument convention. Compare total
-//! gas and bytes only when both trials finish at the same residual layout.
+//! up to two following word instructions, including memory loads/stores,
+//! dead-word cleanup and materialization through the active spill/argument convention. Compare
+//! total gas and bytes only when both trials finish at the same residual layout.
 //!
 //! This is a target selection decision at the lowering boundary; no physical
 //! stack state enters MIR. Unsupported operations, pending result spills, live
 //! exports and global stack aliases retain the ordinary local planner. The
-//! window is bounded independently of function size and never crosses effects
-//! or CFG edges. Speculation neither emits instructions nor consumes the real
-//! scheduler's search budget.
+//! window is bounded independently of function size and never crosses calls,
+//! environment observations or CFG edges. Memory operations are replayed in their
+//! original order with identical operands; only stack preparation changes.
+//! Memory lookahead is gas-only: local stack-byte savings can disrupt later
+//! bytecode sharing and increase the final size under the size objective.
+//! Speculation neither emits instructions nor consumes the real scheduler's search budget.
 //! Keep intermediate layouts so a useful one-instruction window survives an
 //! unsupported second instruction. Prefer the longest common window that
 //! rejoins; a partial trial cannot be compared with a longer baseline.
@@ -31,7 +34,7 @@ use super::{
 };
 use crate::{
     backend::evm::op,
-    mir::{BlockId, EffectKind, Function, Op, Value, ValueId, analysis::Liveness},
+    mir::{BlockId, EffectKind, Function, InstKind, Op, Value, ValueId, analysis::Liveness},
     target::{Cost, Target},
 };
 use smallvec::SmallVec;
@@ -230,15 +233,32 @@ impl EvmCodegen<'_> {
         {
             let index = index + 1 + offset;
             let kind = &func.inst(inst).kind;
-            let Some(result) = func.inst_result_value(inst) else { break };
-            if kind.effect_kind() != EffectKind::Pure
-                || scheduler.spills.get(result).is_some()
-                || liveness.live_out(block).contains(result)
+            let result = func.inst_result_value(inst);
+            if (kind.effect_kind() != EffectKind::Pure
+                && !(target.optimization().is_gas()
+                    && matches!(
+                        kind,
+                        InstKind::MLoad(_) | InstKind::MStore(..) | InstKind::MStore8(..)
+                    )))
+                || result.is_some_and(|result| {
+                    scheduler.spills.get(result).is_some()
+                        || liveness.live_out(block).contains(result)
+                })
+                || func
+                    .inst(inst)
+                    .metadata
+                    .effect()
+                    .is_some_and(|effect| effect != kind.effect_kind())
             {
                 break;
             }
             let Some(lowering) = select::opcode_lowering(&kind.op()) else { break };
-            if !matches!(lowering, OpcodeLowering::Unary { .. } | OpcodeLowering::Binary { .. }) {
+            if !matches!(
+                lowering,
+                OpcodeLowering::Unary { .. }
+                    | OpcodeLowering::Binary { .. }
+                    | OpcodeLowering::Store { .. }
+            ) {
                 break;
             }
             let operands = kind.operands();
@@ -278,7 +298,7 @@ impl EvmCodegen<'_> {
             cost += plan.cost().target_cost();
             // prepare operands; equivalent opcode; drop dead words
             scheduler.apply_operand_plan(plan);
-            scheduler.instruction_executed(operands.len(), Some(result));
+            scheduler.instruction_executed(operands.len(), result);
             for op in scheduler.drop_dead_values(liveness, block, index) {
                 cost += ScheduleCost::stack_op(op, target.evm_version()).target_cost();
             }
