@@ -200,6 +200,176 @@ async fn opening_identical_source_and_reverted_edits_reuse_analysis() {
     assert!(!Arc::ptr_eq(&edited, &state.symbol_tables.load()));
 }
 
+fn cached_batch_for_path(state: &GlobalState, path: &Path) -> Option<Arc<CachedAnalysisBatch>> {
+    let commit = state.analysis_commit.lock();
+    let cached = commit.cached_output.as_ref()?;
+    let idx = cached
+        .inputs
+        .iter()
+        .position(|inputs| inputs.files.iter().any(|(input_path, _)| input_path == path))?;
+    cached.batches.get(idx)?.clone()
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn editing_one_workspace_reuses_other_workspace_and_current_document_versions() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /a/Main.sol
+        contract Main { uint public original; }
+        //- /b/Other.sol
+        contract Other { uint public stable; }
+        "#,
+    );
+    let main = project.path("/a/Main.sol");
+    let other = project.path("/b/Other.sol");
+    let main_uri = Url::from_file_path(&main).unwrap();
+    let other_uri = Url::from_file_path(&other).unwrap();
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    state.config = Arc::new(project.config_with_roots(&["/a", "/b"]));
+    state.recompute_after_opening_source(Vec::new());
+    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+    let original_main = cached_batch_for_path(&state, &main).unwrap();
+    let original_other = cached_batch_for_path(&state, &other).unwrap();
+
+    for (uri, source) in [
+        (main_uri.clone(), project.read_file("/a/Main.sol")),
+        (other_uri.clone(), project.read_file("/b/Other.sol")),
+    ] {
+        let _ = handlers::did_open_text_document(
+            &mut state,
+            DidOpenTextDocumentParams {
+                text_document: TextDocumentItem::new(uri, "solidity".into(), 7, source),
+            },
+        );
+        tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+    }
+
+    let _ = handlers::did_change_text_document(
+        &mut state,
+        DidChangeTextDocumentParams {
+            text_document: VersionedTextDocumentIdentifier::new(main_uri.clone(), 8),
+            content_changes: vec![TextDocumentContentChangeEvent {
+                range: None,
+                range_length: None,
+                text: "contract Main { uint public edited; }".into(),
+            }],
+        },
+    );
+    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+    assert!(!Arc::ptr_eq(&original_main, &cached_batch_for_path(&state, &main).unwrap()));
+    assert!(Arc::ptr_eq(&original_other, &cached_batch_for_path(&state, &other).unwrap()));
+    let tables = state.symbol_tables.load_full();
+    assert!(tables.workspace_symbols("original").is_empty());
+    assert_eq!(tables.workspace_symbols("edited").len(), 1);
+    assert_eq!(tables.workspace_symbols("stable").len(), 1);
+    let reports = state.diagnostics.read().workspace_pull_reports(Vec::new());
+    assert_eq!(reports.iter().find(|report| report.uri == main_uri).unwrap().version, Some(8));
+    assert_eq!(reports.iter().find(|report| report.uri == other_uri).unwrap().version, Some(7));
+
+    let _ = handlers::did_close_text_document(
+        &mut state,
+        DidCloseTextDocumentParams { text_document: TextDocumentIdentifier::new(main_uri.clone()) },
+    );
+    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+    let tables = state.symbol_tables.load_full();
+    assert!(tables.workspace_symbols("edited").is_empty());
+    assert_eq!(tables.workspace_symbols("original").len(), 1);
+    assert_eq!(tables.workspace_symbols("stable").len(), 1);
+    let reports = state.diagnostics.read().workspace_pull_reports(Vec::new());
+    assert_eq!(reports.iter().find(|report| report.uri == main_uri).unwrap().version, None);
+    assert_eq!(reports.iter().find(|report| report.uri == other_uri).unwrap().version, Some(7));
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn workspace_batch_cache_revalidates_config_and_disk_sources() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /a/Main.sol
+        contract Main {}
+        //- /b/Other.sol
+        contract Other {}
+        "#,
+    );
+    let main = project.path("/a/Main.sol");
+    let other = project.path("/b/Other.sol");
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    state.config = Arc::new(project.config_with_roots(&["/a", "/b"]));
+    state.recompute_after_opening_source(Vec::new());
+    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+    let original = cached_batch_for_path(&state, &other).unwrap();
+
+    state.config = Arc::new((*state.config).clone());
+    state.recompute_after_opening_source(Vec::new());
+    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+    let reconfigured = cached_batch_for_path(&state, &other).unwrap();
+    assert!(!Arc::ptr_eq(&original, &reconfigured));
+
+    // A source edit also observes changed disk roots without a watcher notification.
+    project.write_file("/b/Other.sol", "contract Other { uint public diskChanged; }");
+    state.vfs.write().set_file_contents_with_version(
+        VfsPath::from(main.clone()),
+        Some(Rope::from("contract Main { uint public edited; }")),
+        Some(1),
+    );
+    state.recompute_after_opening_source(vec![main.clone()]);
+    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+    assert!(!Arc::ptr_eq(&reconfigured, &cached_batch_for_path(&state, &other).unwrap()));
+    assert_eq!(state.symbol_tables.load().workspace_symbols("diskChanged").len(), 1);
+
+    // Reanalysis without a VFS revision must still observe an unnotified disk root change.
+    project.write_file("/b/Other.sol", "contract Other { uint public diskOnly; }");
+    state.recompute_after_opening_source(Vec::new());
+    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+    assert_eq!(state.symbol_tables.load().workspace_symbols("diskOnly").len(), 1);
+
+    project.write_file("/b/Other.sol", "contract Other { uint public notified; }");
+    state.recompute_for_file_changes(vec![other], Vec::new(), false);
+    // A new document request may cancel the pending disk worker; invalidation must survive it.
+    state.recompute_after_opening_source(vec![main]);
+    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+    assert!(state.symbol_tables.load().workspace_symbols("diskChanged").is_empty());
+    assert_eq!(state.symbol_tables.load().workspace_symbols("notified").len(), 1);
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn workspace_batch_cache_rechecks_untracked_imports_and_resolver_probes() {
+    for initially_missing in [false, true] {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /a/Main.sol
+            contract Main {}
+            //- /b/Other.sol
+            import "./lib/Dep.sol";
+            contract Other is Dep {}
+            //- /b/lib/Dep.sol
+            contract Dep {}
+            "#,
+        );
+        let main = project.path("/a/Main.sol");
+        let other = project.path("/b/Other.sol");
+        if initially_missing {
+            project.remove_file("/b/lib/Dep.sol");
+        }
+        let mut state = GlobalState::new(ClientSocket::new_closed());
+        state.config = Arc::new(project.config_with_roots(&["/a", "/b"]));
+        state.recompute_after_opening_source(Vec::new());
+        tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+        assert!(cached_batch_for_path(&state, &main).is_some());
+        assert!(cached_batch_for_path(&state, &other).is_some());
+
+        project.write_file("/b/lib/Dep.sol", "contract Dep { uint public dependencyChanged; }");
+        state.vfs.write().set_file_contents_with_version(
+            VfsPath::from(main.clone()),
+            Some(Rope::from("contract Main { uint public edited; }")),
+            Some(1),
+        );
+        state.recompute_after_opening_source(vec![main]);
+        tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+        assert_eq!(state.symbol_tables.load().workspace_symbols("dependencyChanged").len(), 1);
+        assert!(cached_batch_for_path(&state, &other).is_some());
+    }
+}
+
 #[tokio::test(flavor = "current_thread")]
 async fn identical_inputs_do_not_hide_disk_dependency_changes() {
     let project = TestProject::from_fixture(
