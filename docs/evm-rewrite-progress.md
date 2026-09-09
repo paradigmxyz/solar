@@ -559,9 +559,8 @@ All 1,562 workspace tests and nightly Clippy pass. Seven snapshot changes were
 reviewed as eight disjoint-store rotations and four immutable offset updates.
 Two assertions were added to the shared-tail FileCheck to check both reordered
 stores; all original runtime bodies, directives and oracles remain unchanged.
-Fresh paired UI captures after that comment edit preserve every object. Nine
-new physical fixture revisions cover early refusal, late activation, overlap,
-wrapping addresses, glue validation and debug events. Fresh plain/debug assembly
+Fresh paired UI captures after that comment edit preserve every object. Eight new physical fixture revisions and one glue case cover early refusal,
+late activation, overlap, wrapping addresses, glue validation and debug events. Fresh plain/debug assembly
 captures are byte-identical per compiler in Osaka and Amsterdam. Bounded
 `solsymdiff` runs for `ICallFallbacks.multi(uint256)` agree with pinned solc in
 Gas and Size under 128 paths and 256 solver queries; the selected successful
@@ -572,11 +571,72 @@ Baselines, frozen compilers, per-object and per-label comparisons, rejected
 outputs, phase captures and independent reviews remain under
 `target/codegen-bench/evm-rewrite-candidate/getter-terminal-20260909/late-store-pair-20260909/`.
 
+## Returning-memory milestone
+
+The MIR call summary now distinguishes writes on paths that can resume a caller
+from all-path memory effects. One reverse CFG walk finds returning blocks; the
+existing monotone call fixpoint propagates the new fact. Void internal `stop`,
+tail calls, incomplete bodies and multi-result publication remain conservative.
+Only the backend caller-save decision consumes this fact; alias analysis and
+frame planning retain their all-path effects. This removes spill backup and
+restore operations around callees whose memory writes occur only while aborting.
+
+The first candidate was rejected: Morpho grew 243 bytes, amplified across 40
+heavy objects. A shared panic block exceeded the verifier's label-context limit
+and erased useful bounds on caller continuations it could never resume. Under
+Morpho's Paris target, 35 lost uint128 and two lost address-mask constructions
+cost 415 bytes, offset by 172 other saved bytes. The final verifier forgets label
+identities before deduplicating physically halting contexts without embedded
+jumps, preserving exact heights and the first raw recursion prototype. Capacity
+checks and returning or embedded-jump contexts remain intact. Independent review
+caught the prototype requirement before the final build. No context limit was
+raised. The final Morpho creation/runtime sizes are 16,167/15,745 bytes, each
+329 bytes below the baseline.
+
+Fresh official Full/Size runs preserve all 24/15 ordered IDs, all 175 gas records
+and all 139 execution observations in each lane. Gas and outputs are unchanged;
+Governor creation alone shrinks eight bytes in both modes. The UI screen joins
+1,676 rows and 5,104 objects, including the new fixture: 14 shrink, none grow and
+no equal-size objects change. All 18 prior failed rows remain. Five fresh heavy
+captures and four complete-fingerprint reuses preserve nine projects, 1,672
+contracts and 3,344 objects: 267 shrink, none grow and no equal-size objects
+change. The total falls by 631,439 bytes. Positive sealed debt falls by 631,275
+to 31,046,712 bytes across the same 1,039 objects.
+
+The geometric means of per-case arithmetic compiler-time mean ratios fall by
+0.236%/0.112% in Full/Size, with 108/75 samples per leg; RSS falls by
+0.317%/0.196%. These small aggregate differences do
+not establish a general speedup. Full Aave and Maple means increase by
+3.012%/2.995%, with disjoint five-sample ranges; OpenZeppelin increases 1.141%
+with only one sample per leg. Every per-case increase and sample is retained.
+
+All 1,562 workspace tests and nightly Clippy pass, with the same two existing
+skips. Two existing snapshots change only the reviewed caller-save backups and
+argument shuffling; no existing source, runtime oracle or test is removed.
+The new Solidity fixture covers 11 successful and five exact failing calls in
+five revisions. Paired baseline, candidate and pinned-solc runs pass all 96
+calls across Gas and Size. Its positive successful calls save 267 gas; writer
+controls remain exact. Three EVM IR fixtures exercise halting-context merging,
+embedded and returning jumps, and preservation of the 1,024-word capacity limit.
+Bounded `solsymdiff` agrees for a separate linear returning-call witness in both
+modes; the arithmetic fraction witness remains incomplete in both modes, with
+no replayed counterexample. Incomplete results are not agreement.
+
+Pinned Venom, Sonatina and solx LLVM passages were checked for terminal stack
+liveness and the distinction between internal return and external halt. They
+support that distinction, not a claim that they implement this exact memory
+summary. The implementation adds 68 physical production Rust lines: 50 in the
+MIR analysis and 18 in the existing EVM verifier, with no new production file.
+Baselines, rejected captures, primary-source links, source and executable pins,
+per-object and per-label audits, differential limits and independent reviews
+remain under
+`target/codegen-bench/evm-rewrite-candidate/returning-memory-20260909/`.
+
 ## Remaining acceptance work
 
 The alias assertion migration passes; its generated-code size debt remains.
 The original readback failures now pass in every mode. General source-memory
-ownership remains an open contract; bounded shared-input sweeps pass. The complete heavy join now has 31,677,987 positive bytes of sealed size debt
+ownership remains an open contract; bounded shared-input sweeps pass. The complete heavy join now has 31,046,712 positive bytes of sealed size debt
 across 1,039 objects. This includes creation/runtime and embedded-child
 amplification; it is a sum of regressions, not net corpus growth. The historical
 writer count was 31,831,619. Terminal returns removed 20 positive bytes before
@@ -584,15 +644,16 @@ the resident trial, which removes another 87,574. All 3,344 sealed object IDs,
 sizes and hashes match; the reconciliation is retained under the resident
 candidate's `pr-ledger/`; the bounded clean-call increment removes another
 57,488 positive bytes in its `candidate1/independent/` ledger. Late-DCE store
-reordering removes another 8,550 positive bytes. Against current main, 19 of 175 gas labels regress,
+reordering removes another 8,550 positive bytes; returning-memory analysis and
+halting-context verification remove another 631,275. Against current main, 19 of 175 gas labels regress,
 down from 24: Maple's five approve regressions are gone. OZ mint and Flash fee
 costs improve to +3; the remaining getter debts persist. Fractional's seven getter calls now cost
 one additional gas each, down from ten. Compiler-time debts
 remain.
-The backend has 17,499 physical lines in 48 files, 17,139 fewer than the deletion
-inventory. Excluding trailing test modules leaves 16,194 physical lines. A
+The backend has 17,517 physical lines in 48 files, 17,121 fewer than the deletion
+inventory. Excluding trailing test modules leaves 16,212 physical lines. A
 retained count-only baseline reports 29,006 production-section lines, giving a
-conditional reduction of 12,812; that file lacks a revision/hash link to the
+conditional reduction of 12,794; that file lacks a revision/hash link to the
 sealed archive. These counts include comments and are not strict production SLOC.
 
 Eager contraction removes avoidable spills and saves bytecode without corpus
