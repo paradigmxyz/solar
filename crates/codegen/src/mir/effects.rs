@@ -61,6 +61,18 @@ impl InstructionEffects {
 }
 
 impl InstKind {
+    /// Whether this operation reads remaining gas, directly or during builtin expansion.
+    pub(crate) const fn observes_gas(&self) -> bool {
+        matches!(
+            self,
+            Self::Gas
+                | Self::Sha256(..)
+                | Self::Ripemd160(..)
+                | Self::EcRecover(..)
+                | Self::AddressCall { gas: None, .. }
+        )
+    }
+
     /// Returns context-free effects; use alias and call summaries for resource footprints.
     pub(crate) const fn effects(&self) -> InstructionEffects {
         let control = match self {
@@ -245,7 +257,7 @@ impl InstKind {
                     | EffectKind::Log
             ) && !matches!(self, Self::MSize))
                 || matches!(self, Self::StorageBytesStore(..)),
-            observes_execution: matches!(self, Self::Gas | Self::MSize),
+            observes_execution: self.observes_gas() || matches!(self, Self::MSize),
             has_identity: matches!(
                 self,
                 Self::Alloc { .. }

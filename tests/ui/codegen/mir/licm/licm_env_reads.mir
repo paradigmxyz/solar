@@ -172,3 +172,56 @@ fn @keep_returndatasize_with_ecrecover() -> u256 {
   bb3:
     ret v3
 }
+
+// Gas reads introduced by builtin expansion must already constrain motion.
+// CHECK-LABEL: {{^[ +].*}}fn @gas_precompile{{[( ]}}
+// CHECK: {{^[ +] *}}bb2:
+// CHECK-NEXT: {{^[ +].*}}v{{[0-9]+}} = mul arg0, 3
+fn @gas_precompile(arg0: u256, arg1: memorybytes) -> u256 {
+  bb0:
+    jump bb1
+  bb1:
+    v3 = phi [bb0: 0], [bb2: v1]
+    jumpi true, bb2, bb3
+  bb2:
+    v1 = mul arg0, 3
+    v2 = ecrecover 1, 28, 2, 3
+    jump bb1
+  bb3:
+    ret v3
+}
+
+// Gas reads introduced by builtin expansion must already constrain motion.
+// CHECK-LABEL: {{^[ +].*}}fn @gas_default_call{{[( ]}}
+// CHECK: {{^[ +] *}}bb2:
+// CHECK-NEXT: {{^[ +].*}}v{{[0-9]+}} = mul arg0, 3
+fn @gas_default_call(arg0: u256, arg1: memorybytes) -> u256 {
+  bb0:
+    jump bb1
+  bb1:
+    v3 = phi [bb0: 0], [bb2: v1]
+    jumpi true, bb2, bb3
+  bb2:
+    v1 = mul arg0, 3
+    v2 = address_call 0xbeef, arg1
+    jump bb1
+  bb3:
+    ret v3
+}
+
+// Gas reads introduced by builtin expansion must already constrain motion.
+// CHECK-LABEL: {{^[ +].*}}fn @gas_explicit_call{{[( ]}}
+// CHECK: + {{v[0-9]+}} = mul arg0, 3
+fn @gas_explicit_call(arg0: u256, arg1: memorybytes) -> u256 {
+  bb0:
+    jump bb1
+  bb1:
+    v3 = phi [bb0: 0], [bb2: v1]
+    jumpi true, bb2, bb3
+  bb2:
+    v1 = mul arg0, 3
+    v2 = address_call 0xbeef, arg1, gas 1000
+    jump bb1
+  bb3:
+    ret v3
+}

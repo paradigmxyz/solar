@@ -455,7 +455,7 @@ impl LoopOptimizer {
     fn loop_observes_gas(&self, func: &Function, loop_data: &Loop) -> bool {
         for block_id in &loop_data.blocks {
             for &inst_id in &func.blocks[block_id].instructions {
-                if matches!(func.inst(inst_id).kind, InstKind::Gas) {
+                if func.inst(inst_id).kind.observes_gas() {
                     return true;
                 }
             }
