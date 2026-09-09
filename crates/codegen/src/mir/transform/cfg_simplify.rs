@@ -47,10 +47,13 @@ impl MirPass for CfgSimplify {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, _| {
-            CfgSimplifier::new().run_to_fixpoint(func).total() != 0
-        })
+        run_function_pass(module, analyses, |func, _| simplify_function(func))
     }
+}
+
+/// Cleans a function after a local transform changes its control flow.
+pub(super) fn simplify_function(func: &mut Function) -> bool {
+    CfgSimplifier::new().run_to_fixpoint(func).total() != 0
 }
 
 /// Module pass for dead internal function elimination.

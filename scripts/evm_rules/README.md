@@ -3,8 +3,8 @@
 This is an offline search and SMT verification lane for the **actual ISLE source
 compiled into the optimizer**. It currently gates `word.isle`, `word_sequence.isle` and
 `stack_select.isle`, plus the physical rules in `stack_peephole.isle` and
-`late_word.isle`. The compiler
-itself has no solver dependency.
+`late_word.isle`. CI also explicitly verifies and replays `egraph.isle` with
+the larger budgets described below. The compiler itself has no solver dependency.
 
 ```sh
 uv run scripts/test_evm_rules.py
@@ -16,7 +16,7 @@ The script pins Z3 through its inline dependency metadata. Each result records
 the source and rule hashes, solver version, instruction-selection and extractor
 hashes, verifier implementation hash, trusted Rust source hashes, and any
 trusted extractor contracts. The optional artifacts are standalone SMT-LIB counterexample queries. An equivalent
-rule produces `unsat`. Difficult single-count shift queries can be split into
+rule produces `unsat`. Difficult shift queries can be split into
 257 exhaustive cases: each count from 0 through 255 and the entire saturating
 range. The checker also verifies partition coverage. Every case must finish
 with UNSAT within the partition budget; partial coverage never proves a rule.
@@ -24,6 +24,12 @@ with UNSAT within the partition budget; partial coverage never proves a rule.
 identity range from 31 upward. If one index also serves as a shift count, the
 partition uses the larger boundary. The final case always retains a symbolic
 index, so it includes arbitrarily large values rather than one representative.
+Counts introduced only by guards are included, such as the exponent that
+constrains a divisor to a power of two. With several indices, the checker
+partitions the smallest domain, breaking ties by name, and leaves every other
+input symbolic in every case. It does not assume that distinct indices are
+equal or restrict them to sampled values. These cases can still time out;
+partitioning more source shapes does not make the legacy audit complete.
 The report lists every saved query; replay one with `z3 path/to/rule.smt2` or
 `cvc5 --lang smt2 path/to/rule.smt2`.
 
@@ -39,7 +45,7 @@ uv run scripts/replay_evm_rules.py target/evm-rules/proofs.json \
 
 Install cvc5 separately and run both commands from the repository root; saved
 query paths are relative to the verifier's working directory. Queries declare
-`QF_BV` and rename free constants to portable SMT-LIB identifiers, retaining
+`QF_BV` (or `QF_ABV` for balance snapshots) and rename free constants to portable SMT-LIB identifiers, retaining
 their original names in comments. The report fingerprints every query with
 SHA-256. Replay checks the exact manifest and bytes, including partition
 coverage and every physical-stack variant. Missing or changed queries fail.
@@ -56,6 +62,65 @@ certificate. The proof job runs on native Linux ARM64, downloads the matching
 cvc5 1.2.0 release with a pinned SHA-256, exports exhaustive partitions, and
 requires both Z3 verification and complete cvc5 replay to pass.
 
+Word verification has an optional, explicit cvc5 fallback:
+
+```sh
+uv run scripts/verify_evm_rules.py verify crates/codegen/isle/egraph.isle \
+  --fallback-solver cvc5 --output target/evm-rules/legacy.json \
+  --artifacts target/evm-rules/legacy-smt
+```
+
+It runs only after Z3 established satisfiable preconditions and left equality
+incomplete. It checks the **complete original query**, including specialization
+obligations. Only UNSAT replaces an incomplete result; no proved prefix of a
+partition is accepted. A successful whole-query proof replaces partial partition
+artifacts even with `--partition-shifts`, because cvc5 can replay that complete
+query directly. Failed attempts preserve the original query alongside any
+partial partitions. The rule records the executable, version, query hash,
+strategies and process results; the top-level `solver` remains the primary Z3
+version and `fallback_solver` identifies the optional backend.
+
+SAT from the fallback remains an unproved failure with an explicit reason until
+it has an independent concrete replay; it is never reported as a proved rule or
+a replay-confirmed counterexample. Neither an inapplicable rule nor a Z3
+counterexample is retried. Missing executables, parse errors and exhausted
+limits fail closed. The legacy audit can have incomplete shift proofs, so this command can exit
+nonzero. It does not waive them or add them to the default five-file CI gate.
+CI also exercises selected legacy division, remainder and comparison rules
+from the actual source in regression tests using the installed cvc5; local runs skip only that optional integration
+test when cvc5 is absent. The five-file gate still requires Z3 followed by cvc5
+replay for all its rules; the additional e-graph gate uses the explicit fallback
+and bit budget and also requires complete cvc5 replay.
+
+For word queries that remain incomplete, opt into an additional budget for
+proving every output bit separately:
+
+```sh
+uv run scripts/verify_evm_rules.py verify crates/codegen/isle/egraph.isle \
+  --fallback-solver cvc5 --bit-partition-timeout-ms 120000 \
+  --output target/evm-rules/legacy-bits.json \
+  --artifacts target/evm-rules/legacy-bits-smt
+```
+
+All input words remain fully symbolic in every bit query, including independent
+256-bit shift counts and their saturating ranges. Each query retains the
+original guards and any constant-specialization obligation. Word equality is
+the conjunction of equality at all 256 output bits, so no input sampling or
+extra range assumptions are involved. The budget is shared across all bits of
+one rule, rather than renewed per bit. All 256 queries must finish with UNSAT;
+a timeout leaves the rule unproved and preserves the original whole-word query
+alongside the attempted bit queries. SAT witnesses replay as complete words in
+the independent integer evaluator. Replay rejects a proof missing any bit or
+claiming a shorter word width. A separate coverage query is unnecessary here:
+the fixed list of output positions is exactly 0 through 255.
+
+This option runs only after satisfiable applicability and incomplete earlier
+proof attempts. It cannot override an inapplicable rule, a counterexample, or
+cvc5's SAT or process-error result. Failed cvc5 timeout attempts remain recorded
+when bit proofs subsequently succeed. The default gate and solver time limits
+are unchanged. The e-graph audit is a separate required step in the same CI job,
+which has a twenty-minute wall-time limit for both proof and replay lanes.
+
 Only UNSAT establishes equivalence. SAT must replay as different outputs in a
 separate Python integer evaluator. Timeouts, unsupported terms and unsatisfiable
 preconditions are distinct failures, never proofs. Verification exits nonzero
@@ -70,8 +135,67 @@ for seven days to diagnose failures and replay the exact solver queries.
 
 ## Semantics and trusted boundary
 
+Three semantic memory-object address projections are modeled under the selected
+`EvmMemoryLayout` policy: payload, direct struct field, and array element
+addresses. The reader checks their field names and types against the generated
+ISLE prelude, whose hash is recorded. Object operands denote their leading
+pointer words. Payload projection distinguishes a slice's existing payload
+pointer from an object reference preceding its header. The model includes all
+four object kinds, full u32 element strides, full u64 field counts and indices,
+the policy's saturating field-offset multiplication, and full-width wrapping
+address arithmetic. Layout length does not affect element-address calculation.
+Valid field ranges and applicable layout kinds are structural preconditions,
+not assumed equalities between the rewrite's two sides. Removing the actual
+source guards yields independently replayed counterexamples in regression tests.
+
+These proofs establish address-word equality only. They do not establish memory
+contents, allocation safety, bounds checks, aliasing, address-space selection,
+or correctness of typed slice erasure. The Rust layout policy, type definitions,
+memory-object lowering and slice lowering are explicitly fingerprinted trusted
+sources. MIR regression tests compare projection lowering with and without the
+e-graph pass for memory and calldata slices.
+
+`ADDRESS`, `BALANCE`, and `SELFBALANCE` use one executing-account address and
+one explicit account-balance snapshot. The address is a 160-bit symbolic input;
+balances are an unconstrained array from 160-bit keys to 256-bit words.
+`BALANCE` selects the low 160 bits of its operand, and `SELFBALANCE` selects
+the executing account. `ADDRESS` zero-extends the address to one word. This
+matches the operation definitions in [EIP-1884](https://eips.ethereum.org/EIPS/eip-1884)
+and the [execution client's BALANCE implementation](https://github.com/ethereum/go-ethereum/blob/master/core/vm/instructions.go).
+The reader still checks opcode selection and records the trusted
+`current_address` extractor and fork-availability contracts.
+
+Balance queries use quantifier-free bitvectors and arrays (`QF_ABV`); pure-word
+queries retain `QF_BV`. Export accepts only balance arrays with a 160-bit domain
+and 256-bit range, and still rejects arbitrary uninterpreted functions. On SAT,
+the checker records the current address and every observed account balance,
+then independently replays the complete expressions with integer addresses
+and a concrete dictionary, including nested balance reads. Tests reject an
+incorrect replacement for another account and check upper-bit truncation.
+
+This proves returned-word equality within one state snapshot. It does not
+model calls, balance mutations, gas, access-list warming, out-of-gas behavior,
+or opcode availability on a particular fork. It must not be used to justify
+balance CSE across calls or code motion across state changes. Unmodeled state
+operations continue to fail, rather than becoming unconstrained functions.
+The ISLE reader permits balance reads only at the instruction roots being
+replaced. It rejects nested balance producers, which could have executed before
+an intervening call; a shared-state assumption is not silently added for them.
+
+The compiled balance-mask rules remove `address & mask` before `BALANCE` when
+the mask preserves all low 160 bits. Their single-use and same-block guards
+restrict profitability; the proof checks returned-word equality for arbitrary
+addresses and masks satisfying the bit condition. Removing that condition in
+the regression tests produces independently replayed counterexamples selecting
+different accounts. The compiler keeps the account read at its original
+instruction and the runtime tests cover dirty upper bits and funded accounts.
+
 The model uses 256-bit bitvectors, wrapping arithmetic, full-width saturating
 shift counts, unsigned comparisons and two's-complement signed comparisons.
+SIGNEXTEND selects one of 31 constant signed byte widths, retaining the input
+for every index at or above 31. This avoids nested variable shifts in SMT. A
+regression proves equality with the shift-based definition over all words and
+all indices using 32 exhaustive cases and a separate coverage obligation.
 DIV, SDIV, MOD and SMOD return zero for a zero divisor. SDIV rounds toward zero
 and wraps the minimum signed word divided by minus one; SMOD takes the dividend's
 sign. ADDMOD and MULMOD use a 512-bit intermediate. BYTE and SIGNEXTEND check the
@@ -104,7 +228,7 @@ The older `has_known_sign_bit` contract means bit 255 is set; its false result
 does not imply the bit is clear. The Rust extractor is conservative and remains
 part of the trusted, fingerprinted implementation.
 
-Memory, storage, calls, exceptions, gas observability, stack bounds, code motion
+Memory contents, storage, calls, exceptions, gas observability, stack bounds, code motion
 and whole-program correctness are outside this proof. ISLE priorities affect
 matching but not an individual rule's equality obligation. We overapproximate
 structural/fork guards; actual opcode availability and profitability remain the
@@ -150,11 +274,14 @@ uv run scripts/verify_evm_rules.py verify crates/codegen/isle/egraph.isle \
   --timeout-ms 1000 --output target/evm-rules/audit.json
 ```
 
-That audit is incomplete: division/remainder and variable-index queries can time
-out, and semantic memory-object and environment terms are unsupported. Regression
-tests separately verify the complete EXP rule family directly from that file.
-The audit therefore exits nonzero. Add semantics and tests before moving such rules into
-the mandatory proof lane; do not ignore unknown or unsupported results.
+This short-budget audit can time out on division/remainder and variable-index
+queries. For a complete audit, use the explicit cvc5 fallback and output-bit
+budget described above; use `--partition-shifts` to export exhaustive input
+partitions for cross-solver replay. The three address projections and the local
+balance rule now have explicit models with the trusted boundaries documented
+above. Every selected rule must prove, and every exported query must replay;
+do not ignore unknown or unsupported results. CI runs this file separately
+from the default five-file selection and requires both lanes to pass.
 
 ## Discovering candidates
 

@@ -63,9 +63,9 @@ bb5:
   stop
 
 // CHECK-LABEL: {{^[ +].*}}bb6:
-// CHECK: {{^[ +].*}}push 2
-// CHECK: - push 0
-// CHECK: + iszero
+// CHECK: - push 2
+// CHECK: {{^[ +].*}}push 0
+// CHECK: - eq
 bb6:
   push 2
   push 0

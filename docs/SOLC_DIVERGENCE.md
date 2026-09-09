@@ -309,3 +309,28 @@ No intentional divergences documented yet.
 - Coverage: `tests/ui/standard-json/debug/`,
   `tests/ui/codegen/lowering/revert-strings/`,
   `tests/ui/codegen/lowering/library_delegatecall_guard.sol`.
+
+### CODEGEN-008: Environment snapshots across Foundry cheatcodes
+
+- ID: CODEGEN-008
+- Status: intentional
+- Difference: Foundry tests that save `block.number` across `vm.roll`, or
+  `block.timestamp` across `vm.warp`, can observe different values with solar
+  and solc. A source local is not a reliable snapshot: optimization can reuse
+  or rematerialize an environment read. Optimized solc via IR exhibits the
+  same class of behavior; passing with one pipeline is not a guarantee.
+- Rationale: block number and timestamp are invariant within an ordinary EVM
+  transaction. Cheatcodes change that environment outside production semantics.
+  Keep production optimizations and use `vm.getBlockNumber()` or
+  `vm.getBlockTimestamp()` at the intended snapshot or observation point.
+- Coverage: [Foundry PR #16727](https://github.com/foundry-rs/foundry/pull/16727)
+  implements source lints for both patterns, following local values, internal
+  helpers, and modifiers. Its tests cover getter behavior and bytecode
+  neutrality. The pinned OpenZeppelin external suite at
+  `f646874fdc9b151631e3c96a68defbdbe736cd53` retains an additional failure in
+  `BlockhashTest::testFuzzHistoryBlocks(uint16,uint256,bytes32)`: its helper
+  saves `block.number - 1` before rolling. Replacing that capture with
+  `vm.getBlockNumber() - 1` passes the reproduced case and 256 fixed-seed fuzz
+  cases under both compilers. The external source remains unmodified and the
+  test is not skipped. The lint diagnoses the risky source pattern; affected
+  tests still need to use the getter to make the external suite green.

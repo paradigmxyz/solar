@@ -35,6 +35,13 @@
 //! computations. A block is revisited only after a predecessor's exit facts
 //! change, preserving the original reverse-postorder and eight-round bound.
 //!
+//! Transitive relational queries lazily index candidate edges once per function,
+//! when a query needs to combine facts. An edge is followed only
+//! when its fact is present in the current scope; the index itself proves
+//! nothing. Search follows at most 128 states in stable block and operand order, carrying
+//! whether an unsigned ordering path contains a strict edge. Exhausting this
+//! bound leaves the check in place; disequality is never treated as transitive.
+//!
 //! Runtime-only functions also use bounds from zero-extended immutable encodings.
 //! These bounds follow the target's actual immediate width, not the result's
 //! nominal type. Constructor-reachable functions, including helpers shared with
@@ -45,6 +52,18 @@
 //! selecting only runtime functions that load bounded immutables. This exposes
 //! facts hidden behind getter calls during the ordinary earlier check passes.
 
+//! The `late-check-elim` adapter revisits conditions unified by CSE after memory
+//! lowering. Gas mode only removes redundant failure edges from blocks on a CFG
+//! cycle: repeated checks repay their removal each iteration, while other changes can disrupt
+//! shared ABI encoder tails and increase both size and gas. Size mode uses the
+//! full cleanup. Cycle membership is only a profitability filter. Gas mode uses
+//! dominator-scoped facts, sufficient for conditions unified by CSE, and leaves
+//! fixed-point range propagation to the earlier check passes. Size mode retains
+//! the full forward analysis. Both use the existing conservative proof logic.
+//! Run it after the post-memory CSE. Only functions with removed checks receive
+//! CFG cleanup, avoiding unrelated late block merges in other functions.
+
+use super::cfg_simplify::simplify_function;
 use crate::mir::{
     BlockId, Function, FunctionId, ImmutableEncoding, ImmutableId, InstKind, Module, Terminator,
     Value, ValueId,
@@ -54,6 +73,7 @@ use crate::mir::{
     utils::repair_reachability_phis,
 };
 use alloy_primitives::U256;
+use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
@@ -83,6 +103,63 @@ impl MirPass for CheckElim {
             changed || repaired
         })
     }
+}
+
+/// Revisits checks exposed by physical memory lowering and CSE.
+pub(crate) struct LateCheckElim;
+
+impl MirPass for LateCheckElim {
+    fn name(&self) -> &'static str {
+        "late-check-elim"
+    }
+
+    fn run_pass(
+        &self,
+        gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut crate::mir::pass::ModuleAnalyses,
+    ) -> bool {
+        let reverting = module
+            .functions
+            .iter_enumerated()
+            .filter_map(|(id, func)| {
+                leads_to_revert(func, BlockId::ENTRY, &FxHashSet::default()).then_some(id)
+            })
+            .collect::<FxHashSet<_>>();
+        run_function_pass(module, analyses, |func, analyses| {
+            let selected =
+                gcx.sess.opts.optimization.is_gas().then(|| analyses.cfg.cyclic_blocks());
+            if selected.is_some_and(DenseBitSet::is_empty) {
+                return false;
+            }
+            let mut eliminator = CheckEliminator::new(None);
+            eliminator.cfg = Some(Rc::clone(&analyses.cfg));
+            let changed =
+                eliminator.run_in_blocks(func, selected.map(|blocks| (blocks, &reverting))) != 0;
+            if changed {
+                // branch proven_condition, checked, panic => jump checked
+                // Remove unreachable panic blocks and merge the successful continuation.
+                let _ = repair_reachability_phis(func);
+                let _ = simplify_function(func);
+            }
+            changed
+        })
+    }
+}
+
+/// Recognizes short unconditional failure paths, including outlined revert helpers.
+/// This only selects profitable candidates; range analysis proves the edge unreachable.
+fn leads_to_revert(func: &Function, mut block: BlockId, reverting: &FxHashSet<FunctionId>) -> bool {
+    // Bound classification work and leave cycles or longer paths unclassified.
+    for _ in 0..8 {
+        match func.blocks[block].terminator {
+            Some(Terminator::Revert { .. } | Terminator::RevertReturndata) => return true,
+            Some(Terminator::TailCall { function, .. }) => return reverting.contains(&function),
+            Some(Terminator::Jump(next)) => block = next,
+            _ => return false,
+        }
+    }
+    false
 }
 
 /// Applies runtime immutable bounds after getter inlining exposes their loads.
@@ -252,6 +329,8 @@ struct CheckEliminator<'a> {
     stats: CheckElimStats,
     ranges: FxHashMap<ValueId, Range>,
     relations: FxHashSet<Relation>,
+    /// Possible outgoing facts; each candidate still requires a scoped membership check.
+    relation_index: Option<FxHashMap<ValueId, SmallVec<[Relation; 2]>>>,
     range_undo: Vec<(ValueId, Option<Range>)>,
     relation_undo: Vec<Relation>,
 }
@@ -266,7 +345,17 @@ impl<'a> CheckEliminator<'a> {
     /// Runs check elimination on a function. Returns the number of folded
     /// branches.
     fn run(&mut self, func: &mut Function) -> usize {
+        self.run_in_blocks(func, None)
+    }
+
+    /// Restricts the rewritten blocks while retaining all facts needed to prove their checks.
+    fn run_in_blocks(
+        &mut self,
+        func: &mut Function,
+        selected: Option<(&DenseBitSet<BlockId>, &FxHashSet<FunctionId>)>,
+    ) -> usize {
         self.stats = CheckElimStats::default();
+        self.relation_index = None;
         let cfg = self.cfg.as_ref().map_or_else(|| Rc::new(CfgInfo::new(func)), Rc::clone);
         let relevant = branch_inputs(func, &cfg);
         if relevant.is_empty() {
@@ -282,8 +371,25 @@ impl<'a> CheckEliminator<'a> {
             }
         }
 
-        let facts = self.join_facts(func, &cfg, &preds, &relevant);
-        let folds = self.collect_folds(func, &cfg, &preds, &facts);
+        let facts = if selected.is_some() {
+            index_vec![Facts::default(); func.blocks.len()]
+        } else {
+            self.join_facts(func, &cfg, &preds, &relevant)
+        };
+        let mut folds = self.collect_folds(func, &cfg, &preds, &facts);
+        if let Some((selected, reverting)) = selected {
+            folds.retain(|&(block, keep)| {
+                if selected.contains(block)
+                    && let Some(Terminator::Branch { then_block, else_block, .. }) =
+                        func.blocks[block].terminator
+                {
+                    let discarded = if keep == then_block { else_block } else { then_block };
+                    leads_to_revert(func, discarded, reverting)
+                } else {
+                    false
+                }
+            });
+        }
         self.ranges.clear();
         self.relations.clear();
         self.range_undo.clear();
@@ -367,7 +473,7 @@ impl<'a> CheckEliminator<'a> {
     /// Transfers edge facts from unknown, retaining only definitions available
     /// at the join and evaluating relevant phis in each predecessor's context.
     fn join_facts(
-        &self,
+        &mut self,
         func: &Function,
         cfg: &CfgInfo,
         preds: &IndexVec<BlockId, Vec<BlockId>>,
@@ -482,6 +588,7 @@ impl<'a> CheckEliminator<'a> {
                 break;
             }
         }
+        self.relation_index = cx.relation_index;
         entries
     }
 
@@ -597,7 +704,7 @@ impl<'a> CheckEliminator<'a> {
         }
     }
 
-    fn has_relation(&self, relation: Relation) -> bool {
+    fn has_relation(&mut self, func: &Function, relation: Relation) -> bool {
         if self.relations.contains(&relation) {
             return true;
         }
@@ -607,11 +714,28 @@ impl<'a> CheckEliminator<'a> {
             Relation::Eq(a, b) => (a, b, false, true),
             Relation::Ne(..) => return false,
         };
+        if start == end && !needs_strict {
+            return true;
+        }
+        if self.relations.len() <= 1 {
+            // A single strict/equal edge also proves a non-strict comparison.
+            // Every other single-edge implication was covered by direct lookup.
+            return self.relations.iter().any(|fact| match *fact {
+                Relation::Lt(a, b) => !equality_only && !needs_strict && a == start && b == end,
+                Relation::Eq(a, b) => !needs_strict && ordered(start, end) == (a, b),
+                Relation::Le(..) | Relation::Ne(..) => false,
+            });
+        }
+        let index = self.relation_index.get_or_insert_with(|| relation_candidates(func));
+        if !index.contains_key(&start) {
+            return false;
+        }
         // A bounded implication search: equality is bidirectional, <= carries
         // order, and one strict edge makes the complete path strict. Disequality
         // is not transitive. Exhausting the budget only misses an optimization.
-        const MAX_RELATION_STATES: usize = 64;
-        let mut pending = vec![(start, false)];
+        const MAX_RELATION_STATES: usize = 128;
+        let mut pending = SmallVec::<[_; 8]>::new();
+        pending.push((start, false));
         let mut seen = FxHashSet::default();
         while let Some((value, strict)) = pending.pop() {
             if value == end && (!needs_strict || strict) {
@@ -623,7 +747,10 @@ impl<'a> CheckEliminator<'a> {
             if seen.len() >= MAX_RELATION_STATES {
                 return false;
             }
-            for &fact in &self.relations {
+            for &fact in index.get(&value).into_iter().flatten() {
+                if !self.relations.contains(&fact) {
+                    continue;
+                }
                 let next = match fact {
                     Relation::Eq(a, b) if a == value => Some((b, strict)),
                     Relation::Eq(a, b) if b == value => Some((a, strict)),
@@ -794,12 +921,12 @@ impl<'a> CheckEliminator<'a> {
             return Some(false);
         }
         let (x, y) = ordered(a, b);
-        if self.has_relation(Relation::Lt(a, b)) {
+        if self.has_relation(func, Relation::Lt(a, b)) {
             return Some(true);
         }
-        if self.has_relation(Relation::Lt(b, a))
-            || self.has_relation(Relation::Le(b, a))
-            || self.has_relation(Relation::Eq(x, y))
+        if self.has_relation(func, Relation::Lt(b, a))
+            || self.has_relation(func, Relation::Le(b, a))
+            || self.has_relation(func, Relation::Eq(x, y))
         {
             return Some(false);
         }
@@ -847,12 +974,12 @@ impl<'a> CheckEliminator<'a> {
             return Some(true);
         }
         let (x, y) = ordered(a, b);
-        if self.has_relation(Relation::Eq(x, y)) {
+        if self.has_relation(func, Relation::Eq(x, y)) {
             return Some(true);
         }
-        if self.has_relation(Relation::Ne(x, y))
-            || self.has_relation(Relation::Lt(a, b))
-            || self.has_relation(Relation::Lt(b, a))
+        if self.has_relation(func, Relation::Ne(x, y))
+            || self.has_relation(func, Relation::Lt(a, b))
+            || self.has_relation(func, Relation::Lt(b, a))
         {
             return Some(false);
         }
@@ -931,6 +1058,54 @@ fn branch_inputs(func: &Function, cfg: &CfgInfo) -> DenseBitSet<ValueId> {
         }
     }
     relevant
+}
+
+/// Follows the boolean operations that `assume` can inspect, in stable block
+/// and operand order. Other computations cannot introduce a relational fact.
+/// Conditions outside the current scope are harmless: every candidate still
+/// requires membership in the current fact set. No IR changes during analysis.
+fn relation_candidates(func: &Function) -> FxHashMap<ValueId, SmallVec<[Relation; 2]>> {
+    let mut index = FxHashMap::<_, SmallVec<[Relation; 2]>>::default();
+    let mut seen = FxHashSet::default();
+    let mut add = |relation: Relation| {
+        if seen.insert(relation) {
+            let (a, b) = relation.operands();
+            index.entry(a).or_default().push(relation);
+            if matches!(relation, Relation::Eq(..)) && a != b {
+                index.entry(b).or_default().push(relation);
+            }
+        }
+    };
+    let mut visited = DenseBitSet::new_empty(func.num_values());
+    let mut pending = Vec::new();
+    for block in &func.blocks {
+        if let Some(Terminator::Branch { condition, then_block, else_block }) = block.terminator
+            && then_block != else_block
+        {
+            pending.push(condition);
+        }
+        while let Some(value) = pending.pop() {
+            if !visited.insert(value) {
+                continue;
+            }
+            match inst_kind(func, value) {
+                Some(&InstKind::Lt(a, b)) | Some(&InstKind::Gt(b, a)) => {
+                    add(Relation::Lt(a, b));
+                    add(Relation::Le(b, a));
+                }
+                Some(&InstKind::Eq(a, b) | &InstKind::Sub(a, b) | &InstKind::Xor(a, b)) => {
+                    let (x, y) = ordered(a, b);
+                    add(Relation::Eq(x, y));
+                }
+                Some(&InstKind::IsZero(a)) => pending.push(a),
+                Some(&InstKind::And(a, b) | &InstKind::Or(a, b)) => {
+                    pending.extend([b, a]);
+                }
+                _ => {}
+            }
+        }
+    }
+    index
 }
 
 /// Returns the fact implied on the unique dominating edge into `block`:
