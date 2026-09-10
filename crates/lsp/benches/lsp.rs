@@ -9,9 +9,10 @@ use solar_config::CompileOpts;
 use solar_lsp::{
     BenchmarkAnalysis, BenchmarkDocumentUpdate, BenchmarkFoldingRangeRequests,
     BenchmarkOpenDocuments, BenchmarkProject, BenchmarkRepeatedAnalysis, BenchmarkRequest,
-    BenchmarkResponse, BenchmarkSelectionRangeRequests, BenchmarkWorkspaceDiscovery,
-    BenchmarkWorkspacePathQueries, BenchmarkWorkspaceReports, benchmark_folding_ranges,
-    benchmark_folding_ranges_from_rope, benchmark_import_path_at, benchmark_selection_ranges,
+    BenchmarkResponse, BenchmarkSelectionRangeRequests, BenchmarkSignatureHelpRequests,
+    BenchmarkWorkspaceDiscovery, BenchmarkWorkspacePathQueries, BenchmarkWorkspaceReports,
+    benchmark_folding_ranges, benchmark_folding_ranges_from_rope, benchmark_import_path_at,
+    benchmark_selection_ranges,
 };
 use std::{fmt::Write as _, fs, hint::black_box, path::PathBuf};
 
@@ -210,6 +211,49 @@ fn completion_queries(c: &mut Criterion) {
             });
         });
     }
+    group.finish();
+}
+
+fn signature_help_requests(c: &mut Criterion) {
+    let mut group = c.benchmark_group("lsp/signature-help");
+    for function_count in [64, 256, 1024] {
+        let fixture = benchmark_source(function_count);
+        let anchor = format!("function_{:04}(1, ", function_count - 1);
+        let (uri, mut position) = fixture.project.unique_anchor("benchmark.sol", &anchor).unwrap();
+        position.character += anchor.len() as u32;
+        let mut requests = BenchmarkSignatureHelpRequests::new(fixture.project, uri, position);
+        let response = requests.run().expect("benchmark call should have signature help");
+        assert_eq!(response.active_parameter, Some(1));
+        assert_eq!(response.signatures.len(), 1);
+        assert!(
+            response.signatures[0].label.contains(&format!("function_{:04}", function_count - 1))
+        );
+        group.bench_function(BenchmarkId::from_parameter(function_count), |b| {
+            b.iter(|| black_box(requests.run()));
+        });
+    }
+
+    let project = unifap_project();
+    let (uri, mut position) = project
+        .unique_anchor(UNIFAP_ROUTER, "_safeTransferFrom(tokenB, msg.sender, pair, amountB)")
+        .unwrap();
+    position.character += "_safeTransferFrom(tokenB, ".len() as u32;
+    let mut requests = BenchmarkSignatureHelpRequests::new(project, uri, position);
+    let response = requests.run().expect("router call should have signature help");
+    assert_eq!(response.active_parameter, Some(1));
+    assert_eq!(response.signatures.len(), 1);
+    assert!(response.signatures[0].label.starts_with("function _safeTransferFrom("));
+    group.bench_function(BenchmarkId::from_parameter("unifap-v2-router"), |b| {
+        b.iter(|| black_box(requests.run()));
+    });
+    assert_eq!(requests.after_edit().run(), Some(response));
+    group.bench_function(BenchmarkId::from_parameter("unifap-v2-router-after-edit"), |b| {
+        b.iter_batched_ref(
+            || requests.after_edit(),
+            |requests| black_box(requests.run()),
+            BatchSize::PerIteration,
+        );
+    });
     group.finish();
 }
 
@@ -834,6 +878,7 @@ criterion_group!(
     benches,
     analysis_build,
     completion_queries,
+    signature_help_requests,
     code_lens_queries,
     type_hierarchy_queries,
     call_hierarchy_queries,

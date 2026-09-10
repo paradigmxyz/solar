@@ -633,13 +633,15 @@ impl SymbolTables {
         &self,
         uri: &Url,
         position: Position,
-        contents: &crop::Rope,
+        positions: &proto::LspPositionIndex<crop::Rope>,
+        source: &str,
         options: crate::config::SignatureHelpClientOptions,
     ) -> Option<lsp_types::SignatureHelp> {
         self.signature_help.signature_help(
             uri,
             position,
-            contents,
+            positions,
+            source,
             |name| self.visible_declaration_locations(uri, position, name),
             options,
         )

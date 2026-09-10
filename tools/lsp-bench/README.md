@@ -39,6 +39,13 @@ an exact `expected_label`, and a zero-based `expected_active_parameter`. They
 check the active signature, including a per-signature active parameter when
 provided, before accepting a request timing.
 
+The full profile includes `synthetic-warm-signature-help` for an imported library
+call and `v4-core-warm-signature-help` for the final argument of an internal call
+near the end of `PoolManager.sol`. The latter also checks that a preceding nested
+call does not change the selected signature or active parameter. Select these
+workloads with `--profile full` and the repeatable `--workload` filter; servers
+that do not advertise signature help are reported as unsupported.
+
 ## Requirements
 
 Run commands from the repository root. Preparation requires Git, curl, tar,

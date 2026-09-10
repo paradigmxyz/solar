@@ -356,8 +356,8 @@ pub use global_state::benchmark::{
     BenchmarkAnalysis, BenchmarkDocumentChange, BenchmarkDocumentUpdate, BenchmarkEdit,
     BenchmarkError, BenchmarkFoldingRangeRequests, BenchmarkOpenDocuments, BenchmarkProject,
     BenchmarkRepeatedAnalysis, BenchmarkRequest, BenchmarkResponse,
-    BenchmarkSelectionRangeRequests, BenchmarkWorkspaceDiscovery, BenchmarkWorkspacePathQueries,
-    BenchmarkWorkspaceReports,
+    BenchmarkSelectionRangeRequests, BenchmarkSignatureHelpRequests, BenchmarkWorkspaceDiscovery,
+    BenchmarkWorkspacePathQueries, BenchmarkWorkspaceReports,
 };
 
 /// Checks whether a source position belongs to a parsed import path.
