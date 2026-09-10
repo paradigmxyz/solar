@@ -66,6 +66,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &load_pre::LoadPre::All,
     &load_pre::LoadPre::Storage,
     &loop_canonicalize::LoopCanonicalize,
+    &loop_exit_remat::LoopExitRemat,
     &indvar_simplify::IndVarSimplify,
     &storage_promotion::StorageScalarPromotion,
     &loop_opt::Licm,
@@ -321,6 +322,8 @@ static LOWERED_PIPELINE: &[&dyn MirPass] = &[
     &GasOnly::new(cse::FmpCse),
     &inst_simplify::ConstFold,
     &cfg_simplify::BranchSimplify,
+    // Reconstruct old induction values on exits before selecting physical stack order.
+    &loop_exit_remat::LoopExitRemat,
     // Late lowering can leave pure address and length calculations unused.
     // Remove their complete dependency chains before selecting physical stack order.
     &dce::Dce,

@@ -45,13 +45,13 @@ contract C {
 
     // CHECK: [[MULTI]]:
     // The tiny-leaf inliner exposes `two()` as constants and removes its call frame.
-    // The entry's free-memory initialization and the following static allocation share their
-    // identical base push.
+    // Returned SSA words feed the ABI stores directly; the second word remains
+    // on the stack into the shared return block.
     // CHECK: push 7
     // CHECK-NEXT: push 128
     // CHECK-NEXT: mstore
-    // CHECK-NEXT: push 9
-    // CHECK: jump [[PAIR_RETURN]]
+    // CHECK: push 9
+    // CHECK-NEXT: jump [[PAIR_RETURN]]
     function multi() external pure returns (uint256 x, uint256 y) {
         x = 100;
         y = 200;
