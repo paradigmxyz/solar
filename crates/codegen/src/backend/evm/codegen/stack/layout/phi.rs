@@ -19,6 +19,11 @@
 //! In gas mode, conditional arms do not carry immediate phi inputs belonging to the sibling
 //! join edge. Those values can be materialized on their own edge, rather than
 //! being shuffled through an arm that does not consume them.
+//! Two-word load/store recurrences order the phi consumed by the store before
+//! the pointer updated afterward. Both entries and latches use this order,
+//! avoiding a store-operand exchange and a second exchange on the backedge.
+//! Only gas-mode loops with a direct or empty latch and a small header qualify;
+//! carried invariants retain their order below the two phi words.
 
 use super::super::super::{
     BlockId, DenseBitSet, Function, FunctionId, FxHashMap, FxHashSet, GlobalStackPlan, IndexVec,
@@ -713,6 +718,7 @@ impl<'a> StackPhiPlanner<'a> {
             let stack = StackModel::from_top_to_bottom(resident.iter().copied().map(Some));
             let goal = sources.into_iter().map(TargetSlot::Value).collect::<Vec<_>>();
             let shuffle = StackShuffler::for_evm_version(&stack, &goal, self.target.evm_version())
+                .with_wide_permutation_search(self.target.optimization().is_gas())
                 .shuffle()?;
             let (_, gas, bytes) = lowered_stack_cost(&shuffle.ops, self.target.evm_version());
             cost += Cost::new(gas as u32, bytes as u32);
@@ -767,6 +773,24 @@ impl<'a> StackPhiPlanner<'a> {
                 .collect::<Vec<_>>();
             // Phi sources are the newest words of a predecessor, so the results ride on top.
             let mut phis = facts.join_phis[&join].clone();
+            if self.target.optimization().is_gas()
+                && phis.len() == 2
+                && !latches.is_empty()
+                && block.instructions.len() <= 16
+                && latches.iter().all(|&latch| latch == join || func.blocks[latch].instructions.is_empty())
+                && block.instructions.iter().any(|&inst| {
+                    matches!(func.inst(inst).kind, InstKind::MStore(_, value) if phis.contains(&value))
+                })
+            {
+                // header: [stored_word, pointer, invariants...]
+                // latch: [next_stored_word, next_pointer, invariants...]
+                phis.sort_by_key(|value| {
+                    block.instructions.iter().rposition(|&inst| {
+                        !matches!(func.inst(inst).kind, InstKind::Phi(_))
+                            && func.inst(inst).operands().contains(value)
+                    })
+                });
+            }
             carried.truncate(LIVE_JOIN_LAYOUT_LIMIT - phis.len());
             phis.extend(carried);
             if let [latch] = latches
@@ -1431,11 +1455,22 @@ impl<'a> StackPhiPlanner<'a> {
             return false;
         }
 
-        let exit_values = entry
+        let mut exit_values = entry
             .iter()
             .copied()
             .filter(|value| liveness.live_in(exit).contains(*value))
             .collect::<Vec<_>>();
+        if self.target.optimization().is_gas() {
+            // header: [next_phi_sources, invariants...]
+            // exit: [live_next_phi_sources, live_invariants...]
+            // A phi update is already carried on the backedge. Its exit use can
+            // consume that same word, avoiding a store on every iteration.
+            for &value in &backedge_sources {
+                if liveness.live_in(exit).contains(value) && !exit_values.contains(&value) {
+                    exit_values.push(value);
+                }
+            }
+        }
         let backedge = StackPhiEdge { sources: backedge_sources, results: entry.clone() };
         let exit_edge = StackPhiEdge { sources: exit_values.clone(), results: exit_values.clone() };
         let (then_edge, else_edge) =

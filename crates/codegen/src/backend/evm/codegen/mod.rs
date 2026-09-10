@@ -410,7 +410,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         Self {
             gcx,
             asm: Assembler::new(gcx),
-            scheduler: StackScheduler::for_evm_version(gcx.sess.opts.evm_version),
+            scheduler: StackScheduler::for_evm_version(gcx.sess.opts.evm_version)
+                .with_wide_permutation_search(gcx.sess.opts.optimization.is_gas()),
             block_labels: FxHashMap::default(),
             function_labels: FxHashMap::default(),
             cold_functions: DenseBitSet::new_empty(0),

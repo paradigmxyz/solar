@@ -105,10 +105,10 @@ fn @overlap(arg0: memptr, arg1: memptr) {
     ret
 }
 
-// Byte writes and observations are outside the bounded summary.
+// A full-word restore also undoes a temporary byte write.
 // CHECK-LABEL: fn @partial_write
 // CHECK: {{^ +}}v0 = mload arg0
-// CHECK: {{^ +}}v1 = mload arg0
+// CHECK: - {{ *}}v1 = mload arg0
 fn @partial_write(arg0: memptr) -> u256 {
   bb0:
     v0 = mload arg0

@@ -81,6 +81,7 @@ time: <TIME>	MIR TimePasses call-cleanup changed=false
 time: <TIME>	MIR TimePasses egraph changed=false
 time: <TIME>	MIR TimePasses word-sequence changed=false
 time: <TIME>	MIR TimePasses lower-evm-shaped changed=true
+time: <TIME>	MIR TimePasses loop-exit-remat changed=false
 time: <TIME>	MIR TimePasses dce changed=false
 time: <TIME>	MIR TimePasses evm-inst-schedule changed=false
 time: <TIME>	EVM IR TimePasses_runtime peephole changed=false

@@ -61,6 +61,7 @@ pub static ALL_PASSES: &[&dyn MirPass] = &[
     &storage_dse::StorageDse,
     &load_pre::LoadPre,
     &loop_canonicalize::LoopCanonicalize,
+    &loop_exit_remat::LoopExitRemat,
     &indvar_simplify::IndVarSimplify,
     &storage_promotion::StorageScalarPromotion,
     &loop_opt::Licm,
@@ -294,6 +295,8 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &egraph::Egraph,
     &word_sequence::WordSequence,
     &lower_evm_shaped::LowerEvmShaped,
+    // Reconstruct old induction values on exits before selecting physical stack order.
+    &loop_exit_remat::LoopExitRemat,
     // Late lowering can leave pure address and length calculations unused.
     // Remove their complete dependency chains before selecting physical stack order.
     &dce::Dce,
