@@ -61,11 +61,12 @@
 //! # Safety of rewrites
 //!
 //! A join load is a candidate only if no kill of its key precedes it in the join block.
-//! For that scan, gas observations (including opaque calls) kill all spaces and `msize` is a
+//! For that scan, gas observations and calls block all spaces and `msize` is a
 //! kill for memory and keccak keys: a partial-redundancy insertion moves the read to the
 //! end of a predecessor, so everything in the join block above the original load executes
 //! after the moved read, and a `gas`/`msize` read there would observe the moved load's gas
-//! and memory-expansion effects early. Removal-only (fully redundant) rewrites do not move
+//! and memory-expansion effects early. A call can also observe storage-access warming even
+//! when it cannot change stored values. Removal-only (fully redundant) rewrites do not move
 //! reads, but we keep the single conservative scan for both cases for simplicity.
 //!
 //! An inserted load reads exactly the state the original would have read on that path: it
@@ -82,8 +83,8 @@
 //! 3. A function-size-derived rewrite budget backstops the above.
 
 use crate::mir::{
-    BlockId, Function, InstId, InstKind, Instruction, InstructionMetadata, MemoryObjectKind,
-    MemoryRegion, MirType, Module, StorageAlias, Terminator, Value, ValueId,
+    BlockId, EffectKind, Function, InstId, InstKind, Instruction, InstructionMetadata,
+    MemoryObjectKind, MemoryRegion, MirType, Module, StorageAlias, Terminator, Value, ValueId,
     analysis::{
         Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, Liveness, Location,
         LocationSize, MemoryAddress, MemoryLocation, ModRef,
@@ -687,10 +688,10 @@ impl LoadRedundancyEliminator {
     /// Returns, in program order, the first load of each key in `target` that
     /// no kill of that key precedes.
     ///
-    /// Gas observations (including opaque calls) and `msize` end or restrict the scan: a
+    /// Gas observations, calls, and `msize` end or restrict the scan: a
     /// partial-redundancy insertion moves the read to a predecessor's end, so
-    /// it must not cross a `gas` (any space) or `msize` (memory and keccak)
-    /// observation in the join prefix.
+    /// it must not cross a gas observation or call (any space), or `msize` (memory
+    /// and keccak) in the join prefix.
     fn first_loads(
         &self,
         func: &Function,
@@ -714,9 +715,8 @@ impl LoadRedundancyEliminator {
             }
             let kind = &func.inst(inst_id).kind;
             match kind {
-                // Gas observations block every space, so nothing after one can be a
-                // candidate.
-                _ if kind.observes_gas() => break,
+                // Gas observations and calls block motion in every space.
+                _ if Self::blocks_motion(kind) => break,
                 InstKind::MSize => {
                     for &idx in &analysis.kill_index.memory {
                         blocked.insert(idx);
@@ -743,6 +743,14 @@ impl LoadRedundancyEliminator {
         found
     }
 
+    fn blocks_motion(kind: &InstKind) -> bool {
+        kind.observes_gas()
+            || matches!(
+                kind.effect_kind(),
+                EffectKind::ExternalCall | EffectKind::ICall | EffectKind::Create
+            )
+    }
+
     fn same_key_loads_in_target(
         &self,
         func: &Function,
@@ -763,7 +771,7 @@ impl LoadRedundancyEliminator {
 
             if inst_id != first_inst {
                 let kind = &func.inst(inst_id).kind;
-                if kind.observes_gas() {
+                if Self::blocks_motion(kind) {
                     break;
                 }
                 if matches!(kind, InstKind::MSize)

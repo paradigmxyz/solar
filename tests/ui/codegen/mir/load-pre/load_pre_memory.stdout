@@ -174,22 +174,19 @@
       ret v4
   }
   
-  fn @explicit_gas_call_allows_pre(arg0: bool, arg1: memorybytes) -> u256 {
+  fn @explicit_gas_call_blocks_pre(arg0: bool, arg1: memorybytes) -> u256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
-+     v5 = mload 128
       jump bb3
     bb1:
       v0 = mload 128
       jump bb3
     bb3:
-+     v6 = phi [bb1: v0], [bb2: v5]
       v1 = address_call 0xbeef, arg1, gas 0x3e8
--     v2 = mload 128
--     v3 = mload 128
--     v4 = add v2, v3
-+     v4 = add v6, v6
+      v2 = mload 128
+      v3 = mload 128
+      v4 = add v2, v3
       ret v4
   }
   

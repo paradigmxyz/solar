@@ -219,12 +219,14 @@ fn @default_gas_call_blocks_reload(arg0: bool, arg1: memorybytes) -> u256 {
     ret v4
 }
 
-// Implicit gas observations constrain partial-redundancy insertion.
-// CHECK-LABEL: {{^[ +].*}}fn @explicit_gas_call_allows_pre{{[( ]}}
-// CHECK: + [[INSERTED:v[0-9]+]] = mload 128
-// CHECK: + [[MERGE:v[0-9]+]] = phi [bb1: {{v[0-9]+}}], [bb2: [[INSERTED]]]
-// CHECK: + {{v[0-9]+}} = add [[MERGE]], [[MERGE]]
-fn @explicit_gas_call_allows_pre(arg0: bool, arg1: memorybytes) -> u256 {
+// Calls remain motion barriers with an explicit gas argument.
+// CHECK-LABEL: {{^[ +].*}}fn @explicit_gas_call_blocks_pre{{[( ]}}
+// CHECK: {{^[ +] *}}bb2:
+// CHECK-NEXT: {{^[ +] *}}jump bb3
+// CHECK: {{^[ +] *}}bb3:
+// CHECK: {{^[ +].*}}mload 128
+// CHECK: {{^[ +].*}}mload 128
+fn @explicit_gas_call_blocks_pre(arg0: bool, arg1: memorybytes) -> u256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
