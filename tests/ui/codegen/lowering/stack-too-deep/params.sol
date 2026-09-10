@@ -8,7 +8,7 @@ contract StackTooDeepParams {
     // CHECK: push 0x8c4ee692
     // CHECK: eq
     // CHECK-NEXT: push [[BODY:bb[0-9]+]]
-    // CHECK: [[BODY]]:
+    // CHECK: [[BODY]]{{( \[.*\])?}}:
     // CHECK: push 644
     // CHECK-NEXT: calldatasize
     // CHECK-NEXT: lt

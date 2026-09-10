@@ -21,7 +21,7 @@ library L {
     // CHECK: push 0xfa06cb96
     // CHECK: eq
     // CHECK-NEXT: push [[APPLY:bb[0-9]+]]
-    // CHECK: [[APPLY]]:
+    // CHECK: [[APPLY]]{{( \[.*\])?}}:
     // CHECK: calldataload
     // CHECK: calldataload
     // CHECK: keccak256
@@ -49,13 +49,13 @@ contract C {
     // CHECK: push 0x776f3843
     // CHECK: eq
     // CHECK-NEXT: push [[SCORE:bb[0-9]+]]
-    // CHECK: [[SCORE]]:
+    // CHECK: [[SCORE]]{{( \[.*\])?}}:
     // CHECK: keccak256
     // CHECK-NEXT: sload
     // CHECK: return
     mapping(address => uint256) public score;
 
-    // CHECK: [[GO]]:
+    // CHECK: [[GO]]{{( \[.*\])?}}:
     // CHECK: calldatacopy
     // CHECK: calldatacopy
     // CHECK: push 0xfa06cb96

@@ -17,7 +17,7 @@ bb0:
 bb3 [cold]:
   push 0
   push 0
-  revert
+  revert !metadata(exit=revert)
 bb10 [cold]:
   push 0x4e487b71
   push 0
@@ -27,8 +27,8 @@ bb10 [cold]:
   mstore
   push 36
   push 28
-  revert
-bb4:
+  revert !metadata(exit=revert)
+bb4 [invoke=f@1592..1687]:
   push 320
   push 64
   mstore
@@ -60,7 +60,7 @@ bb4:
   mstore
   push bb6
   jump bb12
-bb12:
+bb12 [invoke=sum@1693..1841]:
   push 160
   mload
   push 64
@@ -76,7 +76,7 @@ bb19:
   push 96
   add
   mstore
-  jump
+  jump !metadata(exit=return)
 bb6:
   push bb17
   jump bb16
@@ -218,4 +218,4 @@ bb18:
   mstore
   push 32
   push 0
-  return
+  return !metadata(exit=return)

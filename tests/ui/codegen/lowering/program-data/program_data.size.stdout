@@ -335,7 +335,7 @@ bb12 [cold]:
   push 0
   push 0
   revert
-bb13:
+bb13 [invoke=data@1094..1430]:
   push 352
   dup 1
   push 64
@@ -465,8 +465,8 @@ bb41:
   mstore
   dup 2
   dup 2
-  return
-bb16:
+  return !metadata(exit=return)
+bb16 [invoke=subslice@1626..1870]:
   push 352
   dup 1
   push 64
@@ -501,7 +501,7 @@ bb16:
   mstore
   push_data literal_0+64
   jump bb43
-bb19:
+bb19 [invoke=dataHash@1876..2222]:
   push 0xfc1266ee7e93ac2873e7623af26456cf53c18a33ce56a117ef3ef0d901c28394
   jump bb40
 bb40:
@@ -509,17 +509,17 @@ bb40:
   mstore
   push 32
   push 0
-  return
-bb20:
+  return !metadata(exit=return)
+bb20 [invoke=subsliceHash@2228..2482]:
   push 0xfe104a769973081412d46a6d04c990a5e9cc804baf45fa43d99b7dbee24984b8
   jump bb40
-bb21:
+bb21 [invoke=zeroData@2567..2971]:
   push 384
   push 64
   mstore
   push bb22
   jump bb36
-bb36:
+bb36 [invoke=zeroData@2567..2971]:
   push bb46
   jump bb45
 bb45:
@@ -605,7 +605,7 @@ bb24:
   pop
   pop
   jump bb41
-bb25:
+bb25 [invoke=zeroWord@3049..3197]:
   push 32
   push 128
   mstore
@@ -617,30 +617,30 @@ bb25:
   mstore
   push 96
   push 128
-  return
-bb26:
+  return !metadata(exit=return)
+bb26 [invoke=splatData@3509..3914]:
   push 384
   push 64
   mstore
   push bb27
   jump bb38
-bb38:
+bb38 [invoke=splatData@3509..3914]:
   push bb47
   jump bb45
 bb27:
   jump bb44
-bb30:
+bb30 [invoke=zeroHash@3920..4017]:
   push 384
   push 64
   mstore
   push bb31
   jump bb36
-bb32:
+bb32 [invoke=zeroWordHash@4023..4124]:
   push 384
   push 64
   mstore
   push bb33
-  push 64
+  push 64 !metadata(invoke=zeroWord@3049..3197)
   mload
   dup 1
   push 352
@@ -660,7 +660,7 @@ bb32:
   swap 1
   mstore
   swap 1
-  jump
+  jump !metadata(exit=return)
 bb33:
   jump bb31
 bb31:
@@ -671,7 +671,7 @@ bb31:
   add
   keccak256
   jump bb40
-bb34:
+bb34 [invoke=splatHash@4130..4229]:
   push 384
   push 64
   mstore
@@ -679,22 +679,22 @@ bb34:
   jump bb38
 bb35:
   jump bb31
-bb46:
+bb46 [invoke=zeroData@2567..2971]:
   push 160
   calldatasize
   dup 3
   calldatacopy
   pop
   swap 1
-  jump
-bb47:
+  jump !metadata(exit=return)
+bb47 [invoke=splatData@3509..3914]:
   push bb50
   jump bb48
 bb48:
   push 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
   swap 1
   jump
-bb49:
+bb49 [invoke=splatData@3509..3914]:
   swap 1
   mstore
   push 64
@@ -715,8 +715,8 @@ bb49:
   pop
   pop
   swap 1
-  jump
-bb50:
+  jump !metadata(exit=return)
+bb50 [invoke=splatData@3509..3914]:
   dup 2
   mstore
   push 32

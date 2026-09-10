@@ -30,12 +30,12 @@ contract C {
     // CHECK: push 0x874b8e9d
     // CHECK: eq
     // CHECK-NEXT: push [[DECL_BODY:bb[0-9]+]]
-    // CHECK: [[ACC_BODY]]:
+    // CHECK: [[ACC_BODY]]{{( \[.*\])?}}:
     // CHECK: sload
     // CHECK: jump [[RETURN:bb[0-9]+]]
     // CHECK: [[RETURN]] [loop]:
     // CHECK: return
-    // CHECK: [[DECL_BODY]]:
+    // CHECK: [[DECL_BODY]]{{( \[.*\])?}}:
     // CHECK: sstore
     function viaDecl(uint256[] calldata xs) external returns (uint256) {
         uint256[] memory m = xs;
@@ -47,14 +47,14 @@ contract C {
         return s;
     }
 
-    // CHECK: [[ASSIGN_BODY]]:
+    // CHECK: [[ASSIGN_BODY]]{{( \[.*\])?}}:
     function viaAssign(uint256[] calldata xs) external pure returns (uint256) {
         uint256[] memory m;
         m = xs;
         return m.length;
     }
 
-    // CHECK: [[STRUCT_BODY]]:
+    // CHECK: [[STRUCT_BODY]]{{( \[.*\])?}}:
     // CHECK: calldatacopy
     // CHECK: calldatacopy
     // CHECK: mload

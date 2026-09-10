@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/immutable_widths.sol:ImmutableWidths (creation) ===
 // === ImmutableWidths_deployment ===
 @module ImmutableWidths_deployment
-bb0:
+bb0 [invoke=constructor@240..416]:
   push 369
   codesize
   sub
@@ -130,7 +130,7 @@ bb0:
 bb8 [cold]:
   push 0
   push 0
-  revert
+  revert !metadata(exit=revert)
 
 // === ImmutableWidths_runtime ===
 @module ImmutableWidths_runtime
@@ -147,7 +147,7 @@ bb0:
   sub
   push bb3
   jumpi
-  push_immutable 0, 1
+  push_immutable 0, 1 !metadata(invoke=read@707..831)
   push_immutable 1, 32
   push_immutable 2, 32
   push_immutable 3, 20
@@ -174,7 +174,7 @@ bb0:
   mstore
   push 192
   push 128
-  return
+  return !metadata(exit=return)
 bb3 [cold]:
   push 0
   push 0

@@ -27,8 +27,8 @@ bb0:
 bb5 [cold]:
   push 0
   push 0
-  revert
-bb6:
+  revert !metadata(exit=revert)
+bb6 [invoke=viaNamed@942..1051]:
   push 352
   push 64
   mstore
@@ -137,8 +137,8 @@ bb6:
   mstore
   push 32
   push 0
-  return
-bb13:
+  return !metadata(exit=return)
+bb13 [invoke=swap@1312..1444]:
   push 68
   calldatasize
   lt
@@ -156,8 +156,8 @@ bb17:
   mstore
   push 64
   push 128
-  return
-bb16:
+  return !metadata(exit=return)
+bb16 [invoke=multi@1925..2052]:
   push 7
   push 128
   mstore

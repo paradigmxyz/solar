@@ -32,7 +32,7 @@ bb0:
   sub
   push bb3
   jumpi
-  push 36
+  push 36 !metadata(invoke=f@562..628)
   calldatasize
   lt
   push bb3
@@ -43,8 +43,8 @@ bb5 [loop]:
   calldataload
   push bb5
   jumpi
-  stop
+  stop !metadata(exit=return)
 bb3 [cold]:
   push 0
   push 0
-  revert
+  revert !metadata(exit=revert)

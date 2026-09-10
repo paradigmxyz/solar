@@ -32,7 +32,7 @@ bb0:
 bb6 [cold]:
   push 0
   push 0
-  revert
+  revert !metadata(exit=revert)
 bb48 [cold]:
   push 0x4e487b71
   push 0
@@ -51,7 +51,7 @@ bb47 [cold]:
   mstore
   push 17
   jump bb49
-bb7:
+bb7 [invoke=acc@678..697]:
   push 0
   sload
   jump bb50
@@ -60,8 +60,8 @@ bb50 [loop]:
   mstore
   push 32
   push 0
-  return
-bb8:
+  return !metadata(exit=return)
+bb8 [invoke=viaDecl@1301..1548]:
   push 384
   push 64
   mstore
@@ -108,7 +108,7 @@ bb8:
   shr
   dup 3
   sub
-  push bb48
+  push bb48 !metadata(exit=return)
   jumpi
   dup 3
   calldatasize
@@ -123,7 +123,7 @@ bb8:
   push 32
   dup 2
   lt
-  push bb48
+  push bb48 !metadata(exit=return)
   jumpi
   push 64
   mload
@@ -183,7 +183,7 @@ bb17 [loop]:
   push 1
   add
   jump bb15
-bb22:
+bb22 [invoke=viaAssign@1599..1749]:
   push 352
   push 64
   mstore
@@ -230,7 +230,7 @@ bb22:
   shr
   dup 3
   sub
-  push bb48
+  push bb48 !metadata(exit=return)
   jumpi
   dup 3
   calldatasize
@@ -245,7 +245,7 @@ bb22:
   push 32
   dup 2
   lt
-  push bb48
+  push bb48 !metadata(exit=return)
   jumpi
   push 64
   mload
@@ -272,7 +272,7 @@ bb22:
   pop
   mload
   jump bb50
-bb31:
+bb31 [invoke=viaStructLiteral@1874..2143]:
   push 576
   push 64
   mstore
@@ -350,7 +350,7 @@ bb31:
   shr
   dup 6
   sub
-  push bb48
+  push bb48 !metadata(exit=return)
   jumpi
   dup 6
   calldatasize
@@ -365,7 +365,7 @@ bb31:
   push 32
   dup 2
   lt
-  push bb48
+  push bb48 !metadata(exit=return)
   jumpi
   push 64
   mload

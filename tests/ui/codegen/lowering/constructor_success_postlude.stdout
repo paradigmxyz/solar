@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/constructor_success_postlude.sol:ConstructorSuccessPostlude (creation) ===
 // === ConstructorSuccessPostlude_deployment ===
 @module ConstructorSuccessPostlude_deployment
-bb0:
+bb0 [invoke=constructor@385..443]:
   push 76
   codesize
   sub
@@ -55,7 +55,7 @@ bb0:
 bb5 [cold]:
   push 0
   push 0
-  revert
+  revert !metadata(exit=revert)
 
 // === ConstructorSuccessPostlude_runtime ===
 @module ConstructorSuccessPostlude_runtime

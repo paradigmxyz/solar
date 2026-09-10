@@ -24,7 +24,7 @@ bb0:
   sub
   push bb4
   jumpi
-  push 36
+  push 36 !metadata(invoke=isNone@511..631)
   calldatasize
   lt
   push bb4
@@ -36,7 +36,7 @@ bb16:
   calldataload
   lt
   iszero
-  push bb15
+  push bb15 !metadata(exit=return)
   jumpi
   push 4
   calldataload
@@ -45,12 +45,12 @@ bb16:
   mstore
   push 32
   push 0
-  return
+  return !metadata(exit=return)
 bb4 [cold]:
   push 0
   push 0
-  revert
-bb10:
+  revert !metadata(exit=revert)
+bb10 [invoke=isLocalNone@694..809]:
   push 36
   calldatasize
   lt

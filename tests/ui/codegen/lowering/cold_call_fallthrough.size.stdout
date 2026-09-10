@@ -22,8 +22,8 @@ bb0:
 bb4 [cold]:
   push 0
   push 0
-  revert
-bb5:
+  revert !metadata(exit=revert)
+bb5 [invoke=nonzero@1516..1647]:
   push 160
   push 64
   mstore
@@ -45,12 +45,12 @@ bb23:
   mstore
   push 32
   push 0
-  return
+  return !metadata(exit=return)
 bb8 [cold]:
   push 4
   calldataload
-  jump bb15
-bb15 [cold]:
+  jump bb15 !metadata(exit=return)
+bb15 [cold] [invoke=abort@1866..2060]:
   dup 1
   push bb17
   jumpi
@@ -59,7 +59,7 @@ bb15 [cold]:
   push 0x7a65726f
   push 224
   shl
-  jump bb22
+  jump bb22 !metadata(exit=return)
 bb22 [cold]:
   push 0x8c379a0
   push 224
@@ -77,7 +77,7 @@ bb22 [cold]:
   push 100
   push 0
   revert
-bb10:
+bb10 [invoke=belowLimit@1653..1788]:
   push 160
   push 64
   mstore
@@ -95,7 +95,7 @@ bb10:
 bb13 [cold]:
   push 4
   calldataload
-  jump bb15
+  jump bb15 !metadata(exit=return)
 bb17 [cold]:
   push 1
   dup 2
@@ -110,7 +110,7 @@ bb17 [cold]:
   push 0x6f74686572
   push 216
   shl
-  jump bb22
+  jump bb22 !metadata(exit=return)
 bb20 [cold]:
   push 0x74776f
   jump bb24
@@ -119,7 +119,7 @@ bb24 [cold]:
   shl
   push 3
   swap 1
-  jump bb22
+  jump bb22 !metadata(exit=return)
 bb21 [cold]:
   pop
   push 0x6f6e65

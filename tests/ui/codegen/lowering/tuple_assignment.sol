@@ -18,7 +18,7 @@ contract C {
     // CHECK: push 0xd96073cf
     // CHECK: eq
     // CHECK-NEXT: push [[SWAP:bb[0-9]+]]
-    // CHECK: [[NAMED]]:
+    // CHECK: [[NAMED]]{{( \[.*\])?}}:
     // CHECK: calldatacopy
     // CHECK: {{^.*[ =]call[[:space:]]}}
     // CHECK: return
@@ -26,13 +26,13 @@ contract C {
         (ok, ) = t.call(d);
     }
 
-    // CHECK: [[SWAP]]:
+    // CHECK: [[SWAP]]{{( \[.*\])?}}:
     // CHECK: push 36
     // CHECK-NEXT: calldataload
     // CHECK: push 4
     // CHECK-NEXT: calldataload
     // CHECK: jump [[PAIR_RETURN:bb[0-9]+]]
-    // CHECK: [[PAIR_RETURN]]:
+    // CHECK: [[PAIR_RETURN]]{{( \[.*\])?}}:
     // CHECK: return
     function swap(uint256 a, uint256 b) external pure returns (uint256, uint256) {
         (a, b) = (b, a);
@@ -43,7 +43,7 @@ contract C {
         return (7, 9);
     }
 
-    // CHECK: [[MULTI]]:
+    // CHECK: [[MULTI]]{{( \[.*\])?}}:
     // The tiny-leaf inliner exposes `two()` as constants and removes its call frame.
     // The entry's free-memory initialization and the following static allocation share their
     // identical base push.

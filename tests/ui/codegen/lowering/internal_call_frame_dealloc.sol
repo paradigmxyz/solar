@@ -5,18 +5,18 @@ contract ICallFrameDealloc {
     // CHECK: push 0xb3de648b
     // CHECK: eq
     // CHECK-NEXT: push [[BODY:bb[0-9]+]]
-    // CHECK: [[BODY]]:
+    // CHECK: [[BODY]]{{( \[.*\])?}}:
     // CHECK: push 192
     // CHECK-NEXT: add
     // CHECK-NEXT: push 64
     // CHECK-NEXT: mstore
     // CHECK-NEXT: push [[FIRST_RET:bb[0-9]+]]
     // CHECK-NEXT: jump [[SUM:bb[0-9]+]]
-    // CHECK: [[SUM]]:
-    // CHECK: [[FIRST_RET]]:
+    // CHECK: [[SUM]]{{( \[.*\])?}}:
+    // CHECK: [[FIRST_RET]]{{( \[.*\])?}}:
     // CHECK: push [[EPILOGUE_RET:bb[0-9]+]]
     // CHECK-NEXT: jump [[EPILOGUE:bb[0-9]+]]
-    // CHECK: [[EPILOGUE]]:
+    // CHECK: [[EPILOGUE]]{{( \[.*\])?}}:
     // CHECK-NEXT: push 160
     // CHECK-NEXT: mload
     // CHECK: push 64
@@ -31,7 +31,7 @@ contract ICallFrameDealloc {
     // CHECK-NEXT: pop
     // CHECK-NEXT: push [[RECURSE_RET:bb[0-9]+]]
     // CHECK-NEXT: jump [[SUM]]
-    // CHECK: [[RECURSE_RET]]:
+    // CHECK: [[RECURSE_RET]]{{( \[.*\])?}}:
     // CHECK-NEXT: push 160
     // CHECK-NEXT: mload
     // CHECK-NEXT: push 96

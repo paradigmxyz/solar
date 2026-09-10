@@ -13,7 +13,7 @@ bb0:
   sub
   push bb3
   jumpi
-  push 36
+  push 36 !metadata(invoke=select@480..1528)
   calldatasize
   lt
   push bb3
@@ -33,11 +33,11 @@ bb0:
   sstore
   jump bb32
 bb32:
-  stop
+  stop !metadata(exit=return)
 bb3 [cold]:
   push 0
   push 0
-  revert
+  revert !metadata(exit=revert)
 bb6:
   indexed_jump bb30, bb29, bb28, bb27, bb26, bb25, bb24, bb23, bb22, bb21, bb20, bb19, bb18, bb17, bb16, bb15, bb14, bb13, bb12, bb11, bb10, bb9, bb8, bb7
 bb7:

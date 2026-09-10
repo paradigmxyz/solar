@@ -13,7 +13,7 @@ bb0:
   sub
   push bb3
   jumpi
-  push 68
+  push 68 !metadata(invoke=select@599..973)
   calldatasize
   lt
   push 36
@@ -58,11 +58,11 @@ bb23:
   mstore
   push 32
   push 0
-  return
+  return !metadata(exit=return)
 bb3 [cold]:
   push 0
   push 0
-  revert
+  revert !metadata(exit=revert)
 bb9:
   push 2
   dup 2
@@ -105,4 +105,4 @@ bb22 [cold]:
   mstore
   push 36
   push 28
-  revert
+  revert !metadata(exit=revert)

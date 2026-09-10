@@ -18,7 +18,7 @@ bb0:
   push 0
   push 0
   revert
-bb4:
+bb4 [invoke=SHORT@825..861]:
   push 32
   push 128
   mstore
@@ -32,8 +32,8 @@ bb4:
   mstore
   push 96
   push 128
-  return
-bb5:
+  return !metadata(exit=return)
+bb5 [invoke=LONG@866..932]:
   push 32
   push 128
   mstore
@@ -50,7 +50,7 @@ bb5:
   mstore
   push 128
   dup 1
-  return
+  return !metadata(exit=return)
 // === ROOT/tests/ui/codegen/lowering/revert_error_helper.sol:R (runtime) ===
 @module R_runtime
 bb0:
@@ -75,7 +75,7 @@ bb2:
 bb12 [cold]:
   push 0
   push 0
-  revert
+  revert !metadata(exit=revert)
 bb3:
   dup 1
   push 0x9927bee4
@@ -104,7 +104,7 @@ bb6:
   push bb35
   jumpi
   jump bb12
-bb13:
+bb13 [invoke=viaLibConst@1226..1353]:
   push 160
   push 64
   mstore
@@ -128,13 +128,13 @@ bb41:
   mstore
   push 32
   push 0
-  return
+  return !metadata(exit=return)
 bb16 [cold]:
   push 2
   push 0x3339
   push 240
   shl
-  jump bb40
+  jump bb40 !metadata(exit=return)
 bb40 [cold]:
   push 0x8c379a0
   push 224
@@ -152,7 +152,7 @@ bb40 [cold]:
   push 100
   push 0
   revert
-bb18:
+bb18 [invoke=viaLiteral@1634..1761]:
   push 160
   push 64
   mstore
@@ -176,8 +176,8 @@ bb42 [cold]:
   shl
   push 11
   swap 1
-  jump bb40
-bb23:
+  jump bb40 !metadata(exit=return)
+bb23 [invoke=viaLocalConst@1882..2004]:
   push 160
   push 64
   mstore
@@ -198,8 +198,8 @@ bb26 [cold]:
   push 0x6c6f63616c2d636f6e73742d6d7367
   push 136
   shl
-  jump bb40
-bb28:
+  jump bb40 !metadata(exit=return)
+bb28 [invoke=viaLong@2159..2281]:
   push 352
   push 64
   mstore
@@ -336,7 +336,7 @@ bb34 [cold]:
   mstore
   dup 2
   dup 2
-  revert
+  revert !metadata(exit=revert)
 bb33 [cold]:
   push 0
   push 32
@@ -348,7 +348,7 @@ bb33 [cold]:
   add
   mstore
   jump bb34
-bb35:
+bb35 [invoke=viaRevertMsg@2368..2525]:
   push 160
   push 64
   mstore

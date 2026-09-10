@@ -204,7 +204,9 @@ unsupported cases before editing where practical. Otherwise discard the failed
 compilation's module; do not publish a partially lowered module as successful
 or clone every module just to provide rollback.
 
-Run a cheap representation check at each stable boundary in all builds. Keep
+Run a cheap representation check at each stable boundary in all builds. Check
+terminator targets, predecessor back-links, and call targets and arities there
+too, so the backend can trust the maintained CFG and function signatures. Keep
 full SSA, dominance, and type verification after each changed pass in debug
 builds and with `-Zvalidate-ir`; validate untrusted textual MIR fully at ingress.
 The backend should receive a verified immutable view after the last MIR pass,

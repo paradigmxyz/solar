@@ -58,7 +58,7 @@ struct Validator<'a> {
     dcx: &'a DiagCtxt,
     function: Option<FunctionId>,
     error_count: usize,
-    returning_functions: DenseBitSet<FunctionId>,
+    returning_functions: Option<DenseBitSet<FunctionId>>,
     return_field_counts: IndexVec<StructId, Option<usize>>,
 }
 
@@ -69,7 +69,7 @@ impl<'a> Validator<'a> {
             dcx,
             function: None,
             error_count: 0,
-            returning_functions: DenseBitSet::new_empty(0),
+            returning_functions: None,
             return_field_counts: IndexVec::new(),
         }
     }
@@ -123,12 +123,9 @@ impl<'a> Validator<'a> {
         self.validate_function_phase(module.phase(), func);
     }
 
-    fn validate_function_body(&mut self, module: Option<&Module>, func: &Function) {
-        let errors_before = self.error_count;
-        let num_values = func.num_values();
+    /// Checks terminators and both directions of the maintained predecessor relation.
+    fn validate_cfg(&mut self, func: &Function) {
         let num_blocks = func.blocks.len();
-        let num_insts = func.num_insts();
-
         if num_blocks == 0 {
             self.emit("function has no entry block");
             return;
@@ -194,6 +191,28 @@ impl<'a> Validator<'a> {
                     );
                 }
             }
+        }
+
+        // ----- Entry block invariants -----
+        if !func.blocks[BlockId::ENTRY].predecessors.is_empty() {
+            self.emit_at_block("entry block must have no predecessors", BlockId::ENTRY);
+        }
+    }
+
+    fn validate_function_body(&mut self, module: Option<&Module>, func: &Function) {
+        let errors_before = self.error_count;
+        let num_values = func.num_values();
+        let num_blocks = func.blocks.len();
+        let num_insts = func.num_insts();
+
+        if num_blocks == 0 {
+            self.emit("function has no entry block");
+            return;
+        }
+
+        self.validate_cfg(func);
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            let Some(term) = &block.terminator else { continue };
 
             // Check terminator operands are in range.
             term.for_each_operand(|op| {
@@ -346,11 +365,6 @@ impl<'a> Validator<'a> {
                     }
                 }
             }
-        }
-
-        // ----- Entry block invariants -----
-        if !func.blocks[BlockId::ENTRY].predecessors.is_empty() {
-            self.emit_at_block("entry block must have no predecessors", BlockId::ENTRY);
         }
 
         // ----- SSA dominance -----
@@ -541,7 +555,7 @@ impl<'a> Validator<'a> {
 
     /// Validates every function in a module.
     fn validate_module(mut self, module: &Module) {
-        self.returning_functions = module.returning_functions();
+        self.returning_functions = Some(module.returning_functions());
         self.prepare_return_abi_validation(module);
         for (id, ty) in module.struct_types.iter_enumerated() {
             for field in &ty.fields {
@@ -807,7 +821,10 @@ impl<'a> Validator<'a> {
                                 .iter()
                                 .chain(callee.return_components())
                                 .any(|ty| matches!(ty, MirType::Struct(_)))
-                            && self.returning_functions.contains(*function)
+                            && self
+                                .returning_functions
+                                .as_ref()
+                                .is_some_and(|returning| returning.contains(*function))
                         {
                             self.emit_at_block(
                                 "tail-call results do not match the struct signature",
@@ -1400,7 +1417,10 @@ impl<'a> Validator<'a> {
             // its ABI returns, so both are exempt.
             if func.selector.is_none()
                 && func.return_components().len() != callee.return_components().len()
-                && self.returning_functions.contains(*function)
+                && self
+                    .returning_functions
+                    .as_ref()
+                    .is_some_and(|returning| returning.contains(*function))
             {
                 self.emit(format_args!(
                     "tail_call to `{}` returns {} value(s), caller signature expects {}",
@@ -1518,7 +1538,7 @@ pub(crate) fn validate(dcx: &DiagCtxt, module: &Module) {
     Validator::new(dcx).validate_module(module);
 }
 
-/// Checks representation legality without computing dominance or call summaries.
+/// Checks representation, CFG, and call-target legality without dominance or call summaries.
 pub(crate) fn validate_phase(
     dcx: &DiagCtxt,
     module: &Module,
@@ -1529,6 +1549,8 @@ pub(crate) fn validate_phase(
     validator.validate_module_phase(module, phase);
     for (id, func) in module.iter_functions() {
         validator.function = Some(id);
+        validator.validate_cfg(func);
+        validator.validate_calls(module, func);
         validator.validate_return_abi(module, func);
         validator.validate_function_phase(phase, func);
     }
@@ -1683,6 +1705,41 @@ mod tests {
                 sess.emitted_diagnostics().unwrap().to_string(),
                 str![[r#"
 error: [bb0] use of ValueId(0) has no live definition
+
+
+"#]]
+            );
+        });
+    }
+
+    #[test]
+    fn phase_boundary_checks_predecessors_and_call_targets() {
+        with_session(|sess| {
+            let mut module = Module::new(Ident::DUMMY);
+            let mut func = make_func();
+            let next = func.alloc_block();
+            {
+                let mut builder = FunctionBuilder::new(&mut func);
+                // icall fn99
+                // jump bb1
+                // bb1: tail_call fn98
+                builder.icall_void(FunctionId::from_usize(99), Vec::new());
+                builder.jump(next);
+                builder.switch_to_block(next);
+                builder.tail_call(FunctionId::from_usize(98), Vec::new());
+            }
+            func.blocks[next].predecessors.clear();
+            module.add_function(func);
+            assert!(module.advance_phase(&sess.dcx, MirPhase::Lowered).is_err());
+            assert_eq!(module.phase(), MirPhase::Semantic);
+            assert_data_eq!(
+                sess.emitted_diagnostics().unwrap().to_string(),
+                str![[r#"
+error: [fn0] [bb0] successor bb1 does not list bb0 as a predecessor
+
+error: [fn0] icall targets nonexistent function fn99
+
+error: [fn0] tail_call targets nonexistent function fn98
 
 
 "#]]

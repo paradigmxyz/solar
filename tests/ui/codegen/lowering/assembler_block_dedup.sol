@@ -22,12 +22,12 @@ contract AssemblerBlockDedup {
 
     // CHECK: push 0xfeb97429
     // CHECK: push [[TWO]]
-    // CHECK: [[ONE]]:
+    // CHECK: [[ONE]]{{( \[.*\])?}}:
     // CHECK: push 1
     // CHECK: jump [[RETURN:bb[0-9]+]]
-    // CHECK: [[RETURN]]:
+    // CHECK: [[RETURN]]{{( \[.*\])?}}:
     // CHECK: return
-    // CHECK: [[TWO]]:
+    // CHECK: [[TWO]]{{( \[.*\])?}}:
     // CHECK: push {{bb[0-9]+}}
     // CHECK: jumpi
     // CHECK: push 2

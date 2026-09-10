@@ -18,7 +18,7 @@ contract ICallMultiStackReturn {
     // CHECK-NEXT: mstore
     // CHECK: push [[PAIR_RETURN:bb[0-9]+]]
     // CHECK: jump [[PAIR_HELPER:bb[0-9]+]]
-    // CHECK: [[PAIR_HELPER]]:
+    // CHECK: [[PAIR_HELPER]]{{( \[.*\])?}}:
     // CHECK: swap 2
     // CHECK-NEXT: jump
     function pair(uint256 x) external pure returns (uint256, uint256) {
@@ -52,7 +52,7 @@ contract ICallMultiStackReturn {
     // CHECK-NEXT: mstore
     // CHECK: push [[TRIPLE_RETURN:bb[0-9]+]]
     // CHECK: jump [[TRIPLE_HELPER:bb[0-9]+]]
-    // CHECK: [[TRIPLE_HELPER]]:
+    // CHECK: [[TRIPLE_HELPER]]{{( \[.*\])?}}:
     // CHECK: swap 3
     // CHECK-NEXT: jump
     function triple(uint256 x) external pure returns (uint256, uint256, uint256) {
@@ -98,7 +98,7 @@ contract ICallMultiStackReturn {
     // CHECK-NEXT: mstore
     // CHECK: push [[SIX_RETURN:bb[0-9]+]]
     // CHECK: jump [[SIX_HELPER:bb[0-9]+]]
-    // CHECK: [[SIX_HELPER]]:
+    // CHECK: [[SIX_HELPER]]{{( \[.*\])?}}:
     // CHECK: swap 6
     // CHECK-NEXT: exchange 1, 4
     // CHECK-NEXT: exchange 2, 3

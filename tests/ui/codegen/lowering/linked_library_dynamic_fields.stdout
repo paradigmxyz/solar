@@ -16,7 +16,7 @@ bb0:
 bb26 [cold]:
   push 0
   push 0
-  revert
+  revert !metadata(exit=revert)
 bb25 [cold]:
   push 0x4e487b71
   push 0
@@ -28,7 +28,7 @@ bb28 [cold]:
   mstore
   push 36
   push 28
-  revert
+  revert !metadata(exit=revert)
 bb27 [cold]:
   push 0x4e487b71
   push 0
@@ -41,7 +41,7 @@ bb1:
   eq
   push bb26
   jumpi
-  push 640
+  push 640 !metadata(invoke=apply_@1044..1373)
   push 64
   mstore
   push 68
@@ -338,7 +338,7 @@ bb19 [loop]:
   mstore
   push 32
   push 0
-  return
+  return !metadata(exit=return)
 bb23 [loop]:
   push 32
   add
@@ -400,7 +400,7 @@ bb0:
 bb4 [cold]:
   push 0
   push 0
-  revert
+  revert !metadata(exit=revert)
 bb28 [cold]:
   push 0x4e487b71
   push 0
@@ -411,7 +411,7 @@ bb28 [cold]:
   push 36
   push 28
   revert
-bb5:
+bb5 [invoke=score@1718..1759]:
   push 36
   calldatasize
   lt
@@ -445,8 +445,8 @@ bb29:
   mstore
   push 32
   push 0
-  return
-bb9:
+  return !metadata(exit=return)
+bb9 [invoke=go@2064..2349]:
   push 512
   push 64
   mstore
@@ -529,7 +529,7 @@ bb9:
   shr
   dup 5
   sub
-  push bb28
+  push bb28 !metadata(exit=return)
   jumpi
   dup 5
   calldatasize
@@ -544,7 +544,7 @@ bb9:
   push 32
   dup 2
   lt
-  push bb28
+  push bb28 !metadata(exit=return)
   jumpi
   push 64
   mload
@@ -847,7 +847,7 @@ bb21:
   dup 2
   dup 2
   lt
-  push bb28
+  push bb28 !metadata(exit=return)
   jumpi
   push 31
   not
@@ -892,4 +892,4 @@ bb20 [cold]:
   returndatacopy
   returndatasize
   push 0
-  revert
+  revert !metadata(exit=revert)

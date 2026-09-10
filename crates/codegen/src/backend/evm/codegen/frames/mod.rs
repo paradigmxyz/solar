@@ -25,9 +25,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         spill_size
     }
 
+    /// Retains function boundaries for EVM IR rewrites even without debug output.
     pub(in crate::backend::evm::codegen) fn mark_debug_function_invoke(&mut self, func: &Function) {
-        if self.capture_debug_info
-            && !func.declaration_span.is_dummy()
+        if !func.declaration_span.is_dummy()
             && let Some(identifier) = func.debug_identifier
         {
             self.asm.mark_function_invoke(DebugFunction {
@@ -42,10 +42,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         func: &Function,
         exit: DebugFunctionExit,
     ) {
-        if self.capture_debug_info
-            && !func.declaration_span.is_dummy()
-            && func.debug_identifier.is_some()
-        {
+        if !func.declaration_span.is_dummy() && func.debug_identifier.is_some() {
             self.asm.mark_function_exit(exit);
         }
     }
@@ -560,12 +557,14 @@ impl<'gcx> EvmCodegen<'gcx> {
         let mut heap_alloc_ends = FxHashMap::<FunctionId, u64>::default();
         for func_id in runtime_entries {
             let Some(allocations) = self.pending_static_allocs.remove(&func_id) else { continue };
+            let guard = reachable_heap_prefix_guards.get(&func_id).copied().unwrap_or(0);
             for (alloc, size) in allocations {
                 let current_static_size = static_alloc_sizes.get(&func_id).copied().unwrap_or(0);
                 let proposed_static_size = current_static_size + size;
                 let current_end = entry_ends[&func_id];
                 let proposed_end = current_end + size;
-                let prefix_fits = !heap_alloc_ends.contains_key(&func_id)
+                let prefix_fits = guard == 0
+                    && !heap_alloc_ends.contains_key(&func_id)
                     && (placed.is_empty() || proposed_end <= region_start);
                 let spills_width_neutral =
                     self.external_spill_addr_consts.get(&func_id).is_none_or(|spills| {
@@ -596,12 +595,12 @@ impl<'gcx> EvmCodegen<'gcx> {
                     entry_ends.insert(func_id, proposed_end);
                     post_spill_entries.insert(func_id);
                 } else {
-                    // alloc = reachable_frame_end + preceding_local_allocations
+                    // alloc = max(reachable_frame_end, previous_local_end) + heap_prefix_guard
                     // fmp = alloc + size + heap_prefix_guard
-                    let address = heap_alloc_ends.get(&func_id).copied().unwrap_or_else(|| {
-                        free_memory_floor(func_id, &entry_ends, region_start)
-                            - reachable_heap_prefix_guards.get(&func_id).copied().unwrap_or(0)
-                    });
+                    let address = heap_alloc_ends.get(&func_id).map_or_else(
+                        || free_memory_floor(func_id, &entry_ends, region_start),
+                        |end| end.checked_add(guard).expect("runtime heap prefix overflow"),
+                    );
                     self.asm.set_deferred_alloc_static(alloc, U256::from(address));
                     heap_alloc_ends.insert(func_id, address + size);
                 }

@@ -22,7 +22,7 @@ contract ResidentStaticArgs {
     // CHECK: push 0xa3395f5
     // CHECK-NEXT: eq
     // CHECK-NEXT: push [[ENTRY:bb[0-9]+]]
-    // CHECK: [[ENTRY]]:
+    // CHECK: [[ENTRY]]{{( \[.*\])?}}:
     // CHECK: push 36
     // CHECK-NEXT: calldataload
     // CHECK-NEXT: push 1
@@ -35,10 +35,10 @@ contract ResidentStaticArgs {
     // CHECK-NEXT: push 36
     // CHECK-NEXT: calldataload
     // CHECK-NEXT: jump [[CHOOSE:bb[0-9]+]]
-    // CHECK-NEXT: [[CHOOSE]]:
+    // CHECK-NEXT: [[CHOOSE]]{{( \[.*\])?}}:
     // CHECK: push 1{{$}}
     // CHECK-NEXT: jump [[JOIN:bb[0-9]+]]
-    // CHECK-NEXT: [[JOIN]]:
+    // CHECK-NEXT: [[JOIN]]{{( \[.*\])?}}:
     // CHECK-NEXT: dup 2
     // CHECK-NEXT: add
     function run(uint256 value, bool first) external pure returns (uint256) {

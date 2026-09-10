@@ -29,7 +29,7 @@ bb4 [cold]:
   push 0
   push 0
   revert
-bb5:
+bb5 [invoke=nonzero@1516..1647]:
   push 256
   push 64
   mstore
@@ -52,7 +52,7 @@ bb6:
 bb7:
   push 4
   calldataload
-  jump bb17
+  jump bb17 !metadata(exit=return)
 bb8:
   push 4
   calldataload
@@ -65,14 +65,14 @@ bb8:
   swap 1
   sub
   push 128
-  return
+  return !metadata(exit=return)
 bb9 [cold]:
   push 0
   push 0
-  revert
+  revert !metadata(exit=revert)
 bb10:
   jump bb6
-bb11:
+bb11 [invoke=belowLimit@1653..1788]:
   push 256
   push 64
   mstore
@@ -95,7 +95,7 @@ bb12:
 bb13:
   push 4
   calldataload
-  jump bb17
+  jump bb17 !metadata(exit=return)
 bb14:
   push 4
   calldataload
@@ -108,14 +108,14 @@ bb14:
   swap 1
   sub
   push 128
-  return
+  return !metadata(exit=return)
 bb15 [cold]:
   push 0
   push 0
-  revert
+  revert !metadata(exit=revert)
 bb16:
   jump bb12
-bb17:
+bb17 [invoke=abort@1866..2060]:
   push 160
   mstore
   push 0
@@ -172,28 +172,28 @@ bb24:
   push 0x7a65726f00000000000000000000000000000000000000000000000000000000
   push 4
   swap 1
-  jump bb32
+  jump bb32 !metadata(exit=return)
 bb25 [cold]:
   invalid
 bb26:
   push 0x6f6e650000000000000000000000000000000000000000000000000000000000
   push 3
   swap 1
-  jump bb32
+  jump bb32 !metadata(exit=return)
 bb27 [cold]:
   invalid
 bb28:
   push 0x74776f0000000000000000000000000000000000000000000000000000000000
   push 3
   swap 1
-  jump bb32
+  jump bb32 !metadata(exit=return)
 bb29 [cold]:
   invalid
 bb30:
   push 0x6f74686572000000000000000000000000000000000000000000000000000000
   push 5
   swap 1
-  jump bb32
+  jump bb32 !metadata(exit=return)
 bb31 [cold]:
   invalid
 bb32:

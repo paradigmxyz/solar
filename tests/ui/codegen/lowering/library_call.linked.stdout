@@ -16,7 +16,7 @@ bb0:
 bb11 [cold]:
   push 0
   push 0
-  revert
+  revert !metadata(exit=revert)
 bb10 [cold]:
   push 0x4e487b71
   push 0
@@ -26,14 +26,14 @@ bb10 [cold]:
   mstore
   push 36
   push 28
-  revert
+  revert !metadata(exit=revert)
 bb1:
   push_immutable 0, 20
   address
   eq
   push bb11
   jumpi
-  push 100
+  push 100 !metadata(invoke=bump@549..756)
   calldatasize
   lt
   push bb11
@@ -88,7 +88,7 @@ bb1:
   mstore
   push 32
   push 0
-  return
+  return !metadata(exit=return)
 // === ROOT/tests/ui/codegen/lowering/library_call.sol:C (runtime) ===
 @module C_runtime
 bb0:
@@ -104,7 +104,7 @@ bb0:
   sub
   push bb3
   jumpi
-  push 256
+  push 256 !metadata(invoke=inc@1199..1306)
   push 64
   mstore
   push 68
@@ -218,11 +218,11 @@ bb0:
   mstore
   push 32
   push 0
-  return
+  return !metadata(exit=return)
 bb3 [cold]:
   push 0
   push 0
-  revert
+  revert !metadata(exit=revert)
 bb10 [cold]:
   returndatasize
   push 0
@@ -230,7 +230,7 @@ bb10 [cold]:
   returndatacopy
   returndatasize
   push 0
-  revert
+  revert !metadata(exit=revert)
 bb11 [cold]:
   push 0x4e487b71
   push 0
@@ -240,4 +240,4 @@ bb11 [cold]:
   mstore
   push 36
   push 28
-  revert
+  revert !metadata(exit=revert)

@@ -18,7 +18,7 @@ contract LogTopicReuse {
     // CHECK: push 0xb3de648b
     // CHECK: eq
     // CHECK-NEXT: push [[BODY:bb[0-9]+]]
-    // CHECK: [[BODY]]:
+    // CHECK: [[BODY]]{{( \[.*\])?}}:
     // CHECK: keccak256
     // CHECK-NEXT: sload
     // CHECK: push 0x48257dc961b6f792c2b78a080dacfed693b660960a702de21cee364e20270e2f

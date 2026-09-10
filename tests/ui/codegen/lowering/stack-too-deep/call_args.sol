@@ -9,7 +9,7 @@ contract StackTooDeepCall {
     // CHECK-NEXT: eq
     // CHECK-NEXT: push [[BODY:bb[0-9]+]]
     // CHECK-NEXT: jumpi
-    // CHECK: [[BODY]]:
+    // CHECK: [[BODY]]{{( \[.*\])?}}:
     // CHECK: push 1{{$}}
     // CHECK-NEXT: push 4
     // CHECK-NEXT: calldataload
