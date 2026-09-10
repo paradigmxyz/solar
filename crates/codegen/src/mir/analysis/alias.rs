@@ -1286,7 +1286,6 @@ impl AliasAnalysis {
                 read_memory(&mut effects, address, SizeOperand::Unknown);
             }
             InstKind::MSize => effects.observes_memory_size = true,
-            InstKind::Gas => effects.observes_gas = true,
             InstKind::SLoad(slot) => effects.read(Access::Location(Location::Storage(
                 self.storage_alias_after_replacements(func, inst_id, slot, replacements),
             ))),
@@ -1396,6 +1395,7 @@ impl AliasAnalysis {
             }
             _ => {}
         }
+        effects.observes_gas = kind.observes_gas();
         effects
     }
 

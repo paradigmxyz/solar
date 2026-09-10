@@ -15,6 +15,7 @@
 //@ run-call: TerminatedControlFlow::precompileReturndata 2, 0 => 96
 //@ run-call: TerminatedControlFlow::precompileReturndata 2, 1 => 96
 //@ run-call: TerminatedControlFlow::precompileReturndata 2, 2 => 96
+//@ run-call: TerminatedControlFlow::storageRevertPayload => true
 //@ run-call: TerminatedControlFlow::maybeFailure false => 7
 //@ run-call: TerminatedControlFlow::constructorWithoutArgs => true
 //@ run-call-fail: TerminatedControlFlow::maybeFailure true => 0x
@@ -26,6 +27,8 @@ contract TryTarget {
 }
 
 contract TerminatedControlFlow {
+    bytes private revertData;
+    error StorageFailure(bytes data);
     TryTarget private target;
 
     constructor() {
@@ -131,6 +134,22 @@ contract TerminatedControlFlow {
             }
             ++i;
         } while (i < rounds);
+    }
+
+    function storageRevertPayload() external returns (bool) {
+        try this.failWithStorageBytes(3) {
+            return false;
+        } catch (bytes memory reason) {
+            return keccak256(reason) == keccak256(abi.encodeWithSelector(StorageFailure.selector, hex"00000000"));
+        }
+    }
+
+    function failWithStorageBytes(uint256 rounds) external {
+        assembly { sstore(revertData.slot, 2) }
+        for (uint256 i; i < rounds; ++i) {
+            assembly { sstore(revertData.slot, add(sload(revertData.slot), 2)) }
+            if (i == 2) revert StorageFailure(revertData);
+        }
     }
 
     function maybeFailure(bool fail) external pure returns (uint256) {

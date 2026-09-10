@@ -13,6 +13,7 @@
 //! - skip the flush on revert exits: `revert`/`invalid` roll back every storage write of the frame,
 //!   so the unflushed slot is unobservable there; reads of the promoted slot on those paths are
 //!   rewritten to the memory temp so revert data still sees the current value
+//! - reject opaque storage accesses on rollback exits because the rewrite cannot update them.
 //! - leave loop-variant mapping/array slots in storage
 
 use crate::mir::{
@@ -137,7 +138,7 @@ impl StorageScalarPromoter {
         {
             return None;
         }
-        if !self.loop_has_no_unpromotable_side_effects(func, loop_data) {
+        if !self.promotion_effects_are_safe(func, loop_data) {
             return None;
         }
 
@@ -209,7 +210,7 @@ impl StorageScalarPromoter {
         {
             return None;
         }
-        if !self.loop_has_no_unpromotable_side_effects(func, loop_data) {
+        if !self.promotion_effects_are_safe(func, loop_data) {
             return None;
         }
 
@@ -295,7 +296,7 @@ impl StorageScalarPromoter {
             !matches!(
                 kind.effect_kind(),
                 EffectKind::ExternalCall | EffectKind::ICall | EffectKind::Create
-            ) && !matches!(kind, InstKind::Gas)
+            ) && !kind.observes_gas()
         })
     }
 
@@ -310,26 +311,31 @@ impl StorageScalarPromoter {
         blocks
     }
 
-    fn loop_has_no_unpromotable_side_effects(&self, func: &Function, loop_data: &Loop) -> bool {
+    fn promotion_effects_are_safe(&self, func: &Function, loop_data: &Loop) -> bool {
         let alias = AliasAnalysis::empty();
-        for block_id in &loop_data.blocks {
-            if matches!(
-                func.blocks[block_id].terminator,
-                Some(
-                    Terminator::Return { .. }
-                        | Terminator::Revert { .. }
-                        | Terminator::RevertReturndata
-                        | Terminator::ReturnData { .. }
-                        | Terminator::Stop
-                        | Terminator::SelfDestruct { .. }
-                        | Terminator::Invalid
+        for block_id in self.promotion_block_ids(func, loop_data) {
+            if loop_data.blocks.contains(block_id)
+                && matches!(
+                    func.blocks[block_id].terminator,
+                    Some(
+                        Terminator::Return { .. }
+                            | Terminator::Revert { .. }
+                            | Terminator::RevertReturndata
+                            | Terminator::ReturnData { .. }
+                            | Terminator::Stop
+                            | Terminator::SelfDestruct { .. }
+                            | Terminator::Invalid
+                    )
                 )
-            ) {
+            {
                 return false;
             }
 
             for &inst_id in &func.blocks[block_id].instructions {
                 let inst = func.inst(inst_id);
+                if inst.kind.observes_gas() {
+                    return false;
+                }
                 match &inst.kind {
                     InstKind::SLoad(_) | InstKind::SStore(_, _) => {}
                     InstKind::TStore(_, _)
@@ -342,8 +348,7 @@ impl StorageScalarPromoter {
                     | InstKind::ExtStaticCall { .. }
                     | InstKind::ICall { .. }
                     | InstKind::Create(_, _, _)
-                    | InstKind::Create2(_, _, _, _)
-                    | InstKind::Gas => return false,
+                    | InstKind::Create2(_, _, _, _) => return false,
                     _ => {
                         let effects = alias.instruction_mod_ref(func, inst_id);
                         if effects.reads_space(AddressSpace::Storage)
@@ -465,8 +470,7 @@ impl StorageScalarPromoter {
                 | InstKind::MStore8(_, _)
                 | InstKind::MCopy(_, _, _)
                 | InstKind::DataCopy(_, _, _) => {}
-                kind if kind.has_side_effects() => return false,
-                InstKind::Gas => return false,
+                kind if kind.has_side_effects() || kind.observes_gas() => return false,
                 _ => {}
             }
         }
@@ -510,8 +514,7 @@ impl StorageScalarPromoter {
                 | InstKind::MStore8(_, _)
                 | InstKind::MCopy(_, _, _)
                 | InstKind::DataCopy(_, _, _) => {}
-                kind if kind.has_side_effects() => return false,
-                InstKind::Gas => return false,
+                kind if kind.has_side_effects() || kind.observes_gas() => return false,
                 _ => {}
             }
         }

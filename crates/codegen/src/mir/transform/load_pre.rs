@@ -61,7 +61,7 @@
 //! # Safety of rewrites
 //!
 //! A join load is a candidate only if no kill of its key precedes it in the join block.
-//! For that scan, `gas` is additionally treated as a kill in all spaces and `msize` as a
+//! For that scan, gas observations (including opaque calls) kill all spaces and `msize` is a
 //! kill for memory and keccak keys: a partial-redundancy insertion moves the read to the
 //! end of a predecessor, so everything in the join block above the original load executes
 //! after the moved read, and a `gas`/`msize` read there would observe the moved load's gas
@@ -687,7 +687,7 @@ impl LoadRedundancyEliminator {
     /// Returns, in program order, the first load of each key in `target` that
     /// no kill of that key precedes.
     ///
-    /// `gas` and `msize` conservatively end or restrict the scan: a
+    /// Gas observations (including opaque calls) and `msize` end or restrict the scan: a
     /// partial-redundancy insertion moves the read to a predecessor's end, so
     /// it must not cross a `gas` (any space) or `msize` (memory and keccak)
     /// observation in the join prefix.
@@ -714,9 +714,9 @@ impl LoadRedundancyEliminator {
             }
             let kind = &func.inst(inst_id).kind;
             match kind {
-                // `gas` blocks every space, so nothing after it can be a
+                // Gas observations block every space, so nothing after one can be a
                 // candidate.
-                InstKind::Gas => break,
+                _ if kind.observes_gas() => break,
                 InstKind::MSize => {
                     for &idx in &analysis.kill_index.memory {
                         blocked.insert(idx);
@@ -763,7 +763,7 @@ impl LoadRedundancyEliminator {
 
             if inst_id != first_inst {
                 let kind = &func.inst(inst_id).kind;
-                if matches!(kind, InstKind::Gas) {
+                if kind.observes_gas() {
                     break;
                 }
                 if matches!(kind, InstKind::MSize)
