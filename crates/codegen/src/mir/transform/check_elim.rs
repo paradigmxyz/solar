@@ -722,7 +722,9 @@ impl<'a> CheckEliminator<'a> {
     fn narrow(&mut self, value: ValueId, range: Range) {
         let old = self.ranges.get(&value).copied();
         let Some(new) = old.unwrap_or(Range::FULL).intersect(range) else { return };
-        if Some(new) == old {
+        // A missing entry already denotes FULL. Materializing that sentinel
+        // makes long check chains copy facts that convey no restriction.
+        if new == old.unwrap_or(Range::FULL) {
             return;
         }
         self.range_undo.push((value, old));

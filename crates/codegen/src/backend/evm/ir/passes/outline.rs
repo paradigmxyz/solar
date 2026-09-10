@@ -105,26 +105,33 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
     let shuffle_size = target.opcode(op::SWAP1).bytes as usize;
 
     let mut candidates = FxHashMap::<MachineInstSlice<'_>, SmallVec<[Site; 2]>>::default();
+    let mut metrics = Vec::new();
     for (block_id, block) in module.blocks.iter_enumerated() {
+        // Overlapping candidate windows revisit each instruction. Decode its stack
+        // effect and select its push size once, without changing window order or limits.
+        metrics.clear();
+        metrics.extend(block.instructions.iter().enumerate().map(|(index, inst)| {
+            hashes
+                .repeats(block_id, index)
+                .then(|| {
+                    whitelisted_effect(inst)
+                        .map(|effect| (effect, instruction_size_lower_bound(gcx, inst)))
+                })
+                .flatten()
+        }));
         for start in 0..block.instructions.len() {
             if !hashes.repeats(block_id, start) || !is_split_point(&block.instructions, start) {
                 continue;
             }
             let mut delta = 0i32;
             let mut inputs = 0i32;
-            let mut peak = 0i32;
             let mut run_size = 0usize;
             let limit = block.instructions.len().min(start + max_run_length);
-            for end in start..limit {
-                let inst = &block.instructions[end];
-                if !hashes.repeats(block_id, end) {
-                    break;
-                }
-                let Some((reads, pops, pushes)) = whitelisted_effect(inst) else { break };
-                run_size += instruction_size_lower_bound(gcx, inst);
+            for (end, &metric) in metrics.iter().enumerate().take(limit).skip(start) {
+                let Some(((reads, pops, pushes), size)) = metric else { break };
+                run_size += size;
                 inputs = inputs.max(i32::from(reads) - delta);
                 delta = delta - i32::from(pops) + i32::from(pushes);
-                peak = peak.max(delta);
                 let outputs = inputs + delta;
                 if inputs != 0 && !gcx.sess.opts.optimization.is_size() {
                     break;

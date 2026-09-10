@@ -1,0 +1,89 @@
+- // === ROOT/tests/ui/codegen/mir/cse/restored_words.mir (before cse) ===
++ // === ROOT/tests/ui/codegen/mir/cse/restored_words.mir (after cse) ===
+  @module RestoredWords
+  fn @reuse(arg0: memptr, arg1: u256) -> u256 {
+    bb0:
+      v0 = icall @restore_pair, 1, arg0, arg1
+-     v1 = icall @restore_pair, 1, arg0, arg1
+-     v2 = add v0, v1
++     v2 = add v0, v0
+      ret v2
+  }
+  
+  fn @restore_pair(arg0: memptr, arg1: u256) -> u256 {
+    bb0:
+      v0 = add arg0, 32
+      v1 = mload arg0
+      v2 = mload v0
+      mstore arg0, 17
+      mstore v0, 23
+      v3 = add arg0, arg1
+      v4 = mload v3
+      mstore v0, v2
+      mstore arg0, v1
+      ret v4
+  }
+  
+  fn @dirty_path(arg0: memptr, arg1: bool) -> u256 {
+    bb0:
+      v0 = icall @dirty_pair, 1, arg0, arg1
+      v1 = icall @dirty_pair, 1, arg0, arg1
+      v2 = add v0, v1
+      ret v2
+  }
+  
+  fn @dirty_pair(arg0: memptr, arg1: bool) -> u256 {
+    bb0:
+      v0 = add arg0, 32
+      v1 = mload arg0
+      v2 = mload v0
+      mstore arg0, 17
+      mstore v0, 23
+      mstore arg0, v1
+      jumpi arg1, bb1, bb2
+    bb1:
+      mstore v0, v2
+      jump bb2
+    bb2:
+      ret v2
+  }
+  
+  fn @overlapping(arg0: memptr) -> u256 {
+    bb0:
+      v0 = icall @overlap_pair, 1, arg0
+      v1 = icall @overlap_pair, 1, arg0
+      v2 = add v0, v1
+      ret v2
+  }
+  
+  fn @overlap_pair(arg0: memptr) -> u256 {
+    bb0:
+      v0 = add arg0, 16
+      v1 = mload arg0
+      mstore arg0, 17
+      v2 = mload v0
+      mstore v0, 23
+      mstore arg0, v1
+      mstore v0, v2
+      ret v2
+  }
+  
+  fn @unknown_alias(arg0: memptr, arg1: memptr) -> u256 {
+    bb0:
+      v0 = icall @unknown_pair, 1, arg0, arg1
+      v1 = icall @unknown_pair, 1, arg0, arg1
+      v2 = add v0, v1
+      ret v2
+  }
+  
+  fn @unknown_pair(arg0: memptr, arg1: memptr) -> u256 {
+    bb0:
+      v0 = mload arg0
+      mstore arg0, 17
+      v1 = mload arg1
+      mstore arg1, 23
+      mstore arg0, v0
+      mstore arg1, v1
+      ret v1
+  }
+  

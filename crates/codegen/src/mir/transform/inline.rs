@@ -37,7 +37,7 @@
 //! headroom for operand staging. Loops, memory operations and shared phi helpers
 //! remain excluded. This is a bounded profitability estimate, not a promise that
 //! the scheduler will emit no spills.
-//! A separate gas-only late adapter accepts shared frameless wrappers with one returning
+//! A separate gas-only late adapter accepts frameless wrappers with one returning
 //! call followed by at most five physical address/load/store operations. It clones
 //! the call and subsequent memory operations in order, without moving accesses
 //! across the call or assuming alias freedom. Both caller live words and wrapper
@@ -387,14 +387,13 @@ impl MirInliner {
         }
 
         let mut call_counts = self.call_counts(module);
-        // Shared wrappers repay protocol removal at multiple sites. Leave singly used
-        // wrappers available for tail-call lowering and shared ABI return encoders.
+        // Keep the initial candidate set stable as inlining removes call sites.
         let memory_wrappers = if self.memory_wrappers_only {
             module
                 .functions
                 .iter_enumerated()
                 .filter(|(id, func)| {
-                    call_counts.get(id).copied().unwrap_or(0) > 1 && is_memory_wrapper(func)
+                    call_counts.get(id).copied().unwrap_or(0) > 0 && is_memory_wrapper(func)
                 })
                 .map(|(id, func)| (id, scalar_stack_peak(func)))
                 .collect::<FxHashMap<_, _>>()

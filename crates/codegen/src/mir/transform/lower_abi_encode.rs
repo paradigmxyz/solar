@@ -21,6 +21,11 @@
 //! loads, cleanup checks, and stores remain in their original order. Small
 //! constant allocations retain the counted loop because rotation's extra entry
 //! guard and exit phi can grow short encodings in callers with live arguments.
+//! Byte tails zero their final padded word before writing the length header.
+//! For an empty tail these addresses coincide, and the header store restores its
+//! length. This removes a branch without touching memory beyond the encoded tail.
+//! Size mode retains the guarded padding store: its encoder tails share better
+//! in the machine outlining pipeline on large ABI-heavy contracts.
 
 use crate::{
     mir::{
@@ -58,8 +63,9 @@ impl MirPass for LowerAbiEncode {
         _analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         let revert_strings = gcx.sess.opts.revert_strings;
-        let mut helpers = synthesize_array_helpers(module, revert_strings);
-        synthesize_tuple_helpers(Target::new(gcx), module, &mut helpers, revert_strings);
+        let target = Target::new(gcx);
+        let mut helpers = synthesize_array_helpers(target, module, revert_strings);
+        synthesize_tuple_helpers(target, module, &mut helpers, revert_strings);
         let call_graph = CallGraphInfo::new(module);
         let mut constructors = call_graph.reachable_callees_from(
             module
@@ -72,7 +78,10 @@ impl MirPass for LowerAbiEncode {
                 constructors.insert(id);
             }
         }
-        let mut inline_helpers = EncodeHelpers::default();
+        let mut inline_helpers = EncodeHelpers {
+            branchless_byte_tails: !target.optimization().is_size(),
+            ..EncodeHelpers::default()
+        };
         let mut changed = !helpers.arrays.is_empty() || !helpers.tuples.is_empty();
         for (id, func) in module.functions.iter_mut_enumerated() {
             // NOTE: Constructor calls allocate frames at the free-memory pointer. Encoding
@@ -133,6 +142,7 @@ struct EncodeHelpers {
     tuples: FxHashMap<TupleHelperKey, FunctionId>,
     /// Proven on the original function, before encoding emits raw memory operations.
     literal_objects: FxHashSet<ValueId>,
+    branchless_byte_tails: bool,
 }
 
 /// Builds `encode_abi_tuple(args.., [selector]) -> encoded` for every encoding shape at least
@@ -204,7 +214,11 @@ fn synthesize_tuple_helpers(
 /// Builds `encode_abi_array(value, dest) -> tail` for every memory array layout whose
 /// element-wise loop at least two sites would otherwise expand inline. Inner layouts are built
 /// first so an outer helper's element encoding calls the inner helper.
-fn synthesize_array_helpers(module: &mut Module, revert_strings: RevertStrings) -> EncodeHelpers {
+fn synthesize_array_helpers(
+    target: Target,
+    module: &mut Module,
+    revert_strings: RevertStrings,
+) -> EncodeHelpers {
     fn count_sites(
         func: &Function,
         ty: &AbiType,
@@ -260,7 +274,10 @@ fn synthesize_array_helpers(module: &mut Module, revert_strings: RevertStrings) 
         .collect::<Vec<_>>();
     keys.sort_by_key(|(first, key)| (array_depth(&key.element), *first));
 
-    let mut helpers = EncodeHelpers::default();
+    let mut helpers = EncodeHelpers {
+        branchless_byte_tails: !target.optimization().is_size(),
+        ..EncodeHelpers::default()
+    };
     for (_, key) in keys {
         let mut function = Function::new(Ident::with_dummy_span(sym::encode_abi_array));
         {
@@ -917,7 +934,14 @@ fn encode_dynamic_body(
     match ty {
         AbiType::Bytes(location) => {
             let location = effective_slice_location(builder.func(), value, *location);
-            encode_bytes(builder, value, dest, location, helpers.literal_objects.contains(&value))
+            encode_bytes(
+                builder,
+                value,
+                dest,
+                location,
+                helpers.literal_objects.contains(&value),
+                helpers.branchless_byte_tails,
+            )
         }
         AbiType::DynamicArray { element, location } => {
             let location = effective_slice_location(builder.func(), value, *location);
@@ -1000,21 +1024,6 @@ fn effective_slice_location(
         }
         _ => declared,
     }
-}
-
-fn zero_padded_tail(builder: &mut FunctionBuilder<'_>, data: ValueId, padded: ValueId) {
-    let zero_block = builder.create_block();
-    let copy_block = builder.create_block();
-    let empty = builder.iszero(padded);
-    builder.branch(empty, copy_block, zero_block);
-    builder.switch_to_block(zero_block);
-    let word = builder.imm(32);
-    let last_offset = builder.sub(padded, word);
-    let last = builder.add(data, last_offset);
-    let zero = builder.imm(0);
-    builder.mstore(last, zero);
-    builder.jump(copy_block);
-    builder.switch_to_block(copy_block);
 }
 
 /// Encodes a memory array's elements: cleaned words and composite elements one at a time, full
@@ -1272,6 +1281,7 @@ fn encode_bytes(
     dest: ValueId,
     location: SliceLocation,
     literal_folding: bool,
+    branchless_padding: bool,
 ) -> ValueId {
     if literal_folding
         && location == SliceLocation::Memory
@@ -1296,7 +1306,10 @@ fn encode_bytes(
         SliceLocation::Memory => memory_object_len(builder, value, MemoryObjectKind::Bytes),
         SliceLocation::Calldata | SliceLocation::Returndata => builder.slice_len(value),
     };
-    builder.mstore(dest, len);
+    if !branchless_padding {
+        // mstore dest, len
+        builder.mstore(dest, len);
+    }
 
     let word = builder.imm(32);
     let thirty_one = builder.imm(31);
@@ -1305,7 +1318,29 @@ fn encode_bytes(
     let padded = builder.and(rounded, mask);
     let data_dest = builder.add(dest, word);
 
-    zero_padded_tail(builder, data_dest, padded);
+    if branchless_padding {
+        // last = dest + padded
+        // mstore last, 0
+        // mstore dest, len
+        // For an empty tail, last == dest; write the header after zeroing it.
+        let last = builder.add(dest, padded);
+        let zero = builder.imm(0);
+        builder.mstore(last, zero);
+        builder.mstore(dest, len);
+    } else {
+        // if padded != 0: mstore data_dest + padded - 32, 0
+        let zero_block = builder.create_block();
+        let copy_block = builder.create_block();
+        let empty = builder.iszero(padded);
+        builder.branch(empty, copy_block, zero_block);
+        builder.switch_to_block(zero_block);
+        let last_offset = builder.sub(padded, word);
+        let last = builder.add(data_dest, last_offset);
+        let zero = builder.imm(0);
+        builder.mstore(last, zero);
+        builder.jump(copy_block);
+        builder.switch_to_block(copy_block);
+    }
     let data_source = match location {
         SliceLocation::Memory => builder.memory_object_data(value, MemoryObjectKind::Bytes),
         SliceLocation::Calldata | SliceLocation::Returndata => builder.slice_ptr(value),

@@ -1,0 +1,32 @@
+- // === ROOT/tests/ui/codegen/mir/lower-abi-encode/byte_padding.mir (before lower-abi-encode) ===
++ // === ROOT/tests/ui/codegen/mir/lower-abi-encode/byte_padding.mir (after lower-abi-encode) ===
+  @module BytePadding
+  fn @encode(arg0: calldataslice) -> memoryslice {
+    bb0:
+-     v0 = abi_encode [calldata_bytes], args arg0
+-     ret v0
++     v1 = fmp
++     v2 = add v1, 32
++     v3 = sub v2, v1
++     mstore v1, v3
++     v4 = slice_len arg0
++     v5 = not 31
++     v6 = add v4, 31
++     v7 = and v6, v5
++     v8 = add v2, 32
++     v9 = add v2, v7
++     mstore v9, 0
++     mstore v2, v4
++     v10 = slice_ptr arg0
++     v11 = add v8, v7
++     calldatacopy v8, v10, v4 !metadata(memory=heap)
++     v12 = sub v11, v1
++     v13 = add v12, 0
++     v14 = add v13, 31
++     v15 = not 31
++     v16 = and v14, v15
++     v17 = alloc raw, exact, uninitialized, infallible, v16 !metadata(preserves_fmp)
++     v18 = make_memory_slice v17, v13
++     ret v18
+  }
+  

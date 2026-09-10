@@ -13,7 +13,7 @@ bb0:
   sub
   push bb3
   jumpi
-  push 288
+  push 128
   dup 1
   push 64
   mstore
@@ -29,18 +29,11 @@ bb0:
   dup 2
   add
   push 160
-  dup 2
-  dup 1
-  push 192
-  mstore
   push_data literal_0
-  swap 1
+  dup 3
   codecopy
   push 64
   mload
-  dup 1
-  push 224
-  mstore
   push 32
   dup 2
   add
@@ -55,60 +48,36 @@ bb0:
   swap 1
   swap 4
   mul
-  dup 1
-  push 256
-  mstore
-  dup 1
-  dup 5
-  mstore
   push 31
   dup 2
   add
   push 31
   not
   and
-  dup 1
-  push 128
-  mstore
-  swap 4
   push 32
+  dup 6
   add
-  push 160
-  mstore
-  pop
-  pop
-  pop
-  iszero
-  push bb6
-  jumpi
-  push 0
-  push 32
-  push 128
-  mload
-  sub
-  push 160
-  mload
-  add
-  mstore
-  jump bb6
-bb6:
-  push 160
-  mload
-  push 128
-  mload
   dup 2
+  dup 7
   add
-  push 256
-  mload
-  push 192
-  mload
-  dup 4
+  push 0
+  swap 1
+  mstore
+  dup 3
+  swap 1
+  swap 6
+  mstore
+  dup 5
+  add
+  dup 2
+  dup 5
+  dup 7
   mcopy
-  swap 1
+  swap 3
   pop
-  push 224
-  mload
-  swap 1
+  pop
+  swap 2
+  pop
   sub
   push 31
   dup 2

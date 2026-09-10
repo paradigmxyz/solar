@@ -16,6 +16,9 @@
 //! four phis and a single-predecessor latch with at most sixteen instructions. Both incoming edges
 //! use the same permutation, so initial values and backedge values retain their result identities.
 //! It changes physical layouts only; instruction order and the MIR recurrence stay intact.
+//! In gas mode, conditional arms do not carry immediate phi inputs belonging to the sibling
+//! join edge. Those values can be materialized on their own edge, rather than
+//! being shuffled through an arm that does not consume them.
 
 use super::super::super::{
     BlockId, DenseBitSet, Function, FunctionId, FxHashMap, FxHashSet, GlobalStackPlan, IndexVec,
@@ -814,7 +817,13 @@ impl<'a> StackPhiPlanner<'a> {
                 .layouts
                 .get(&join)
                 .and_then(|layout| self.layout_sources(join, layout, pred))
-                .unwrap_or_default();
+                .unwrap_or_default()
+                .into_iter()
+                .filter(|&value| {
+                    !self.target.optimization().is_gas()
+                        || self.func.value(value).as_immediate().is_none()
+                })
+                .collect::<Vec<_>>();
             let live_in = liveness.live_in(arm);
             let resident = state.resident_out.get(&pred).map(Vec::as_slice).unwrap_or_default();
             let wanted = &state.wanted[arm];
