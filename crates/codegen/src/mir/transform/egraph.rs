@@ -12,10 +12,13 @@
 //! that can cost more stack traffic than the redundant computation.
 //! Matching also tries a bounded number of retained operand definitions, one
 //! operand alternative at a time, plus pairs for equality and XOR. This exposes
-//! nested simplifications hidden by
-//! the original spelling without mutating definitions during search. It is not
-//! unrestricted equality saturation: at most four operand views yield six pairs;
-//! placement, dominance and the existing extraction cost remain unchanged.
+//! nested simplifications hidden by the original spelling without mutating
+//! definitions during search. Every class starts with the original tight
+//! bound. When that search fills its node or operand-view budget, small regions
+//! retry with twice the capacity, medium regions retry with a smaller
+//! expansion, and large functions stop. This is not unrestricted equality
+//! saturation; placement, dominance and the existing extraction cost remain
+//! unchanged.
 //! Byte/shift fusion additionally requires the producer in the root block, since
 //! replacing a cross-block temporary can introduce costly loop-carried spills.
 //! Lossless shift cancellation also requires one original use of the intermediate:
@@ -53,10 +56,12 @@
 use crate::{
     mir::{
         ArgIdx, BlockId, EffectKind, Function, Immediate, InstId, InstKind, MirType, Module, Op,
-        Terminator, Value, ValueId,
+        OpTraits, Terminator, Value, ValueId,
         analysis::{CfgInfo, Liveness},
-        pass::{MirPass, run_function_pass},
-        utils as mir_utils,
+        pass::{
+            MirPass, run_selected_function_pass_cached,
+            run_selected_function_pass_without_analyses_cached,
+        },
         utils::eval,
     },
     target::{Cost, Target},
@@ -65,6 +70,7 @@ use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
+    index::IndexVec,
     map::{FxHashMap, StdEntry},
 };
 use std::rc::Rc;
@@ -88,17 +94,66 @@ impl MirPass for Egraph {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, analyses| {
-            Builder::new(func, Target::new(gcx), Rc::clone(&analyses.cfg)).run() != 0
-        })
+        let mut flat = DenseBitSet::new_empty(module.functions.len());
+        let mut with_cfg = DenseBitSet::new_empty(module.functions.len());
+        for (func_id, func) in module.functions.iter_enumerated() {
+            let empty_return = (func.selector.is_some()
+                || func.attributes.is_receive
+                || func.attributes.is_fallback)
+                && func.blocks.iter().any(|block| {
+                    matches!(
+                        block.terminator,
+                        Some(Terminator::ReturnData { size, .. }) if is_zero(func, size)
+                    )
+                });
+            if func.instructions().next().is_some() || empty_return {
+                let has_edges = func.blocks.iter().any(|block| {
+                    block.terminator.as_ref().is_some_and(|term| !term.successors().is_empty())
+                });
+                if has_edges {
+                    with_cfg.insert(func_id);
+                } else {
+                    flat.insert(func_id);
+                }
+            }
+        }
+        let target = Target::new(gcx);
+        let mut changed = run_selected_function_pass_without_analyses_cached::<Self>(
+            module,
+            analyses,
+            &flat,
+            |func, _| Builder::new(func, target, None).run() != 0,
+        );
+        changed |= run_selected_function_pass_cached::<Self>(
+            module,
+            analyses,
+            &with_cfg,
+            |func, analyses| Builder::new(func, target, Some(Rc::clone(analyses.cfg()))).run() != 0,
+        );
+        changed
     }
 }
 
-/// Bound on the nodes of one class, counting the instruction as written.
-const MAX_NODES: usize = 12;
+/// Initial per-class search bound, counting the instruction as written.
+const BASE_MAX_NODES: usize = 12;
 
-/// Maximum alternate operand definitions tried while matching one node.
-const MAX_OPERAND_VIEWS: usize = 4;
+/// Initial alternate-operand budget used before a search proves saturated.
+const BASE_MAX_OPERAND_VIEWS: usize = 4;
+
+/// Inline capacity for the largest adaptive operand-view budget.
+const MAX_OPERAND_VIEWS: usize = 8;
+
+/// Allows a saturated local search to expand where the total work remains
+/// bounded. Small functions are also where a longer rewrite chain is most
+/// likely to survive extraction without creating stack pressure elsewhere in
+/// the CFG.
+fn search_limits(instructions: usize) -> (usize, usize) {
+    match instructions {
+        0..=64 => (24, 8),
+        65..=256 => (16, 6),
+        _ => (8, 2),
+    }
+}
 
 /// Equivalent definitions exposed together to a single bounded rule match.
 type OperandViews = [Option<(ValueId, Op)>; 2];
@@ -112,25 +167,67 @@ type PhiKey = (Vec<(BlockId, ValueId)>, Option<MirType>);
 /// A class of equal values rooted at one instruction.
 struct Class {
     /// Equivalent nodes; the first is the instruction as written.
-    nodes: Vec<Op>,
+    nodes: Nodes,
     /// The instruction defining the class representative.
     home: InstId,
+}
+
+/// Inline storage for the overwhelmingly common single-node class.
+enum Nodes {
+    One(Op),
+    Many(Vec<Op>),
+}
+
+#[derive(Clone, Copy)]
+enum Simplified {
+    Pending,
+    Unchanged,
+    Value(ValueId),
+}
+
+impl Simplified {
+    fn from_value(value: Option<ValueId>) -> Self {
+        value.map_or(Self::Unchanged, Self::Value)
+    }
+}
+
+impl Nodes {
+    fn as_slice(&self) -> &[Op] {
+        match self {
+            Self::One(node) => std::slice::from_ref(node),
+            Self::Many(nodes) => nodes,
+        }
+    }
+
+    fn len(&self) -> usize {
+        self.as_slice().len()
+    }
+
+    fn push(&mut self, node: Op) {
+        match self {
+            Self::One(first) => {
+                let first = *first;
+                *self = Self::Many(vec![first, node]);
+            }
+            Self::Many(nodes) => nodes.push(node),
+        }
+    }
 }
 
 struct Builder<'a> {
     func: &'a mut Function,
     target: Target,
-    cfg: Rc<CfgInfo>,
+    cfg: Option<Rc<CfgInfo>>,
     /// One identity for equal immediates, so nodes over them compare equal.
     immediates: FxHashMap<Immediate, ValueId>,
     /// One identity for equal immediates and for each function argument.
     /// Only instruction results are ever rewritten, so these never reach the
     /// replacement map.
-    leaves: FxHashMap<ValueId, ValueId>,
+    leaves: IndexVec<ValueId, Option<ValueId>>,
     /// Representative for every value merged into another class.
-    merged: FxHashMap<ValueId, ValueId>,
+    merged: IndexVec<ValueId, Option<ValueId>>,
     /// Classes keyed by representative value.
-    classes: FxHashMap<ValueId, Class>,
+    classes: IndexVec<ValueId, Option<Class>>,
     /// Hash-consing table scoped by the dominator tree.
     memo: FxHashMap<NodeKey, ValueId>,
     /// Undo log restoring `memo` when a dominator scope closes.
@@ -141,20 +238,27 @@ struct Builder<'a> {
     /// Hash-consing table for the phis of the current block.
     phis: FxHashMap<PhiKey, ValueId>,
     /// Number of uses of every value before the pass.
-    uses: FxHashMap<ValueId, u32>,
+    uses: IndexVec<ValueId, u32>,
     /// Computed lazily when a newly numbered alternative proposes reuse.
     liveness: Option<Liveness>,
     /// Instructions merged into another class or deleted as no-ops.
     dead: DenseBitSet<InstId>,
+    /// Per-class search budget selected from the function's active size.
+    max_nodes: usize,
+    /// Alternate operand definitions exposed to each rule match.
+    max_operand_views: usize,
     changed: usize,
 }
 
 impl<'a> Builder<'a> {
-    fn new(func: &'a mut Function, target: Target, cfg: Rc<CfgInfo>) -> Self {
+    fn new(func: &'a mut Function, target: Target, cfg: Option<Rc<CfgInfo>>) -> Self {
         let dead = DenseBitSet::new_empty(func.num_insts());
-        let (immediates, leaves) = canonical_leaves(func);
-        let uses = use_counts(func);
-        let optimistic = optimistic_phi_leaders(func, &cfg, &leaves);
+        let (max_nodes, max_operand_views) = search_limits(func.instructions().count());
+        let (immediates, leaves, uses) = value_info(func);
+        let optimistic = cfg
+            .as_deref()
+            .map_or_else(FxHashMap::default, |cfg| optimistic_phi_leaders(func, cfg, &leaves));
+        let values = func.num_values();
         Self {
             func,
             target,
@@ -162,14 +266,16 @@ impl<'a> Builder<'a> {
             immediates,
             leaves,
             optimistic,
-            merged: FxHashMap::default(),
-            classes: FxHashMap::default(),
+            merged: IndexVec::from_vec(vec![None; values]),
+            classes: IndexVec::from_vec(std::iter::repeat_with(|| None).take(values).collect()),
             memo: FxHashMap::default(),
             undo: Vec::new(),
             phis: FxHashMap::default(),
             uses,
             liveness: None,
             dead,
+            max_nodes,
+            max_operand_views,
             changed: 0,
         }
     }
@@ -184,22 +290,27 @@ impl<'a> Builder<'a> {
     /// Returns the class representative of `value`.
     fn resolve(&mut self, value: ValueId) -> ValueId {
         let mut value = self.leaf(value);
-        while let Some(&next) = self.merged.get(&value) {
+        let start = value;
+        while let Some(next) = self.merged.get(value).copied().flatten() {
             value = next;
+        }
+        if start != value {
+            self.merged[start] = Some(value);
         }
         value
     }
 
     /// Returns the canonical identity of an immediate or argument, or `value`.
     fn leaf(&mut self, value: ValueId) -> ValueId {
-        if let Some(&leaf) = self.leaves.get(&value) {
+        if let Some(leaf) = self.leaves.get(value).copied().flatten() {
             return leaf;
         }
         // Immediates created by rules while the pass runs join the canonical set.
         if let Value::Immediate(immediate) = self.func.value(value) {
             let leaf = *self.immediates.entry(immediate.clone()).or_insert(value);
             if leaf != value {
-                self.leaves.insert(value, leaf);
+                self.leaves.resize(self.func.num_values(), None);
+                self.leaves[value] = Some(leaf);
             }
             return leaf;
         }
@@ -214,9 +325,11 @@ impl<'a> Builder<'a> {
             let inst_id = self.func.blocks[block].instructions[index];
             self.visit_inst(inst_id, block, index);
         }
-        let children = self.cfg.dominators().children(block).to_vec();
-        for child in children {
-            self.visit(child);
+        if let Some(cfg) = &self.cfg {
+            let children = cfg.dominators().children(block).to_vec();
+            for child in children {
+                self.visit(child);
+            }
         }
         while self.undo.len() > mark {
             let (key, previous) = self.undo.pop().expect("undo log entry");
@@ -257,47 +370,96 @@ impl<'a> Builder<'a> {
 
         // Grow the class with every equivalent node the rules reach, breadth
         // first, then look for a value it already equals.
-        let mut nodes = vec![op];
+        let mut nodes = Nodes::One(op);
+        let mut simplified = SmallVec::<[Simplified; 2]>::from_slice(&[Simplified::Pending]);
         let mut frontier = 0;
         let mut alternatives = Vec::new();
-        while frontier < nodes.len() && nodes.len() < MAX_NODES {
-            let current = nodes[frontier];
-            frontier += 1;
-            alternatives.clear();
-            let views = self.matching_views(&current);
-            for view in views {
-                isle::RuleContext::new(self.func, self.target.evm_version())
-                    .with_block(block)
-                    .with_uses(&self.uses)
-                    .with_views(view)
-                    .rewrite(&current, &mut alternatives);
-            }
-            for next in alternatives.drain(..) {
-                let next = next.map_values(|value| self.resolve(value));
-                if !nodes.contains(&next) && nodes.len() < MAX_NODES {
-                    nodes.push(next);
+        let mut node_limit = self.max_nodes.min(BASE_MAX_NODES);
+        let mut view_limit = self.max_operand_views.min(BASE_MAX_OPERAND_VIEWS);
+        let mut expanded = false;
+        loop {
+            let mut views_truncated = false;
+            while frontier < nodes.len() && nodes.len() < node_limit {
+                let current_index = frontier;
+                let current = nodes.as_slice()[current_index];
+                frontier += 1;
+                alternatives.clear();
+                let kind = current.into_kind().expect("nodes are complete instructions");
+                let folded = const_fold(self.func, &kind);
+                if kind.op_def().traits.contains(OpTraits::EGRAPH_REWRITE) {
+                    let (views, truncated) = self.matching_views(&current, view_limit);
+                    views_truncated |= truncated;
+                    for &view in &views {
+                        isle::RuleContext::new(self.func, self.target.evm_version())
+                            .with_block(block)
+                            .with_uses(&self.uses)
+                            .with_views(view)
+                            .rewrite(&current, &mut alternatives);
+                    }
+                    simplified[current_index] = Simplified::from_value(folded.or_else(|| {
+                        views.into_iter().find_map(|view| {
+                            isle::RuleContext::new(self.func, self.target.evm_version())
+                                .with_views(view)
+                                .simplify(&current)
+                        })
+                    }));
+                } else {
+                    simplified[current_index] = Simplified::from_value(folded);
+                }
+                for next in alternatives.drain(..) {
+                    let next = next.map_values(|value| self.resolve(value));
+                    if !nodes.as_slice().contains(&next) && nodes.len() < node_limit {
+                        nodes.push(next);
+                        simplified.push(Simplified::Pending);
+                    }
                 }
             }
+            let nodes_truncated = frontier < nodes.len();
+            if !expanded
+                && (nodes_truncated || views_truncated)
+                && (self.max_nodes > node_limit || self.max_operand_views > view_limit)
+            {
+                // Revisit the original nodes with the larger operand budget;
+                // the first bounded search proved that additional work exists.
+                node_limit = self.max_nodes;
+                view_limit = self.max_operand_views;
+                frontier = 0;
+                simplified.iter_mut().for_each(|result| *result = Simplified::Pending);
+                expanded = true;
+                continue;
+            }
+            break;
         }
         // %result = any equivalent node => the dominating class leader
         // Number every alternative, so later instructions can reuse a rewrite
         // immediately. Scope every insertion, including simplified classes,
         // to the same dominator subtree as the original expression.
         let mut leader = None;
-        for node in &nodes {
+        for (node_index, node) in nodes.as_slice().iter().enumerate() {
             if let Some(equal) = self.memo_leader((canonical(*node), ty), key, block, index) {
                 leader = Some(equal);
                 break;
             }
-            let kind = node.into_kind().expect("nodes are complete instructions");
-            let equal = const_fold(self.func, &kind).or_else(|| {
-                let views = self.matching_views(node);
-                views.into_iter().find_map(|view| {
-                    isle::RuleContext::new(self.func, self.target.evm_version())
-                        .with_views(view)
-                        .simplify(node)
-                })
-            });
+            let equal = match simplified[node_index] {
+                Simplified::Value(value) => Some(value),
+                Simplified::Unchanged => None,
+                Simplified::Pending => {
+                    let kind = node.into_kind().expect("nodes are complete instructions");
+                    let folded = const_fold(self.func, &kind);
+                    if kind.op_def().traits.contains(OpTraits::EGRAPH_REWRITE) {
+                        let (views, _) = self.matching_views(node, view_limit);
+                        folded.or_else(|| {
+                            views.into_iter().find_map(|view| {
+                                isle::RuleContext::new(self.func, self.target.evm_version())
+                                    .with_views(view)
+                                    .simplify(node)
+                            })
+                        })
+                    } else {
+                        folded
+                    }
+                }
+            };
             if let Some(equal) = equal {
                 let equal = self.resolve(equal);
                 if equal != result {
@@ -307,7 +469,7 @@ impl<'a> Builder<'a> {
             }
         }
 
-        for &node in &nodes {
+        for &node in nodes.as_slice() {
             let key = (canonical(node), ty);
             let previous = self.memo.insert(key, leader.unwrap_or(result));
             self.undo.push((key, previous));
@@ -316,13 +478,13 @@ impl<'a> Builder<'a> {
             // %result => %leader
             self.merge(result, leader, inst_id);
         } else {
-            self.classes.insert(result, Class { nodes, home: inst_id });
+            self.classes[result] = Some(Class { nodes, home: inst_id });
         }
     }
 
     /// Match paired complement rules without multiplying unrestricted child classes.
-    fn matching_views(&self, node: &Op) -> SmallVec<[OperandViews; 11]> {
-        let operands = self.operand_views(node);
+    fn matching_views(&self, node: &Op, limit: usize) -> (SmallVec<[OperandViews; 11]>, bool) {
+        let (operands, truncated) = self.operand_views(node, limit);
         let mut views = smallvec::smallvec![[None, None]];
         views.extend(operands.iter().map(|&view| [Some(view), None]));
         if matches!(node, Op::Eq { .. } | Op::Xor { .. }) {
@@ -334,27 +496,31 @@ impl<'a> Builder<'a> {
                 }
             }
         }
-        views
+        (views, truncated)
     }
 
     /// Only existing equivalent nodes are exposed; no new SSA values or code
     /// motion are needed to match through an operand's alternative spelling.
-    fn operand_views(&self, node: &Op) -> SmallVec<[(ValueId, Op); MAX_OPERAND_VIEWS]> {
+    fn operand_views(
+        &self,
+        node: &Op,
+        limit: usize,
+    ) -> (SmallVec<[(ValueId, Op); MAX_OPERAND_VIEWS]>, bool) {
         let mut views = SmallVec::new();
         for operand in operands_of(node) {
-            if let Some(class) = self.classes.get(&operand) {
-                for &alternative in class.nodes.iter().skip(1) {
+            if let Some(class) = self.classes.get(operand).and_then(Option::as_ref) {
+                for &alternative in class.nodes.as_slice().iter().skip(1) {
                     let view = (operand, alternative);
                     if !views.contains(&view) {
-                        views.push(view);
-                        if views.len() == MAX_OPERAND_VIEWS {
-                            return views;
+                        if views.len() == limit {
+                            return (views, true);
                         }
+                        views.push(view);
                     }
                 }
             }
         }
-        views
+        (views, false)
     }
 
     /// Reuse through an alternative must not extend the representative's live
@@ -368,8 +534,8 @@ impl<'a> Builder<'a> {
         index: usize,
     ) -> Option<ValueId> {
         let leader = self.resolve(*self.memo.get(&key)?);
-        if let Some(class) = self.classes.get(&leader)
-            && (key != original || canonical(class.nodes[0]) != key.0)
+        if let Some(class) = self.classes.get(leader).and_then(Option::as_ref)
+            && (key != original || canonical(class.nodes.as_slice()[0]) != key.0)
             && !self
                 .liveness
                 .get_or_insert_with(|| Liveness::compute(self.func))
@@ -420,13 +586,14 @@ impl<'a> Builder<'a> {
     /// Applies the rewrite rules to an instruction outside the e-graph.
     fn rewrite_in_place(&mut self, inst_id: InstId, block: BlockId) {
         let op = self.func.inst(inst_id).kind.op();
-        if op.into_kind().is_none() {
+        let Some(kind) = op.into_kind() else { return };
+        if !kind.op_def().traits.contains(OpTraits::EGRAPH_REWRITE) {
             return;
         }
         let mut current = op.map_values(|value| self.resolve(value));
         let mut rewritten = false;
         let mut alternatives = Vec::new();
-        for _ in 0..MAX_NODES {
+        for _ in 0..self.max_nodes {
             alternatives.clear();
             isle::RuleContext::new(self.func, self.target.evm_version())
                 .with_block(block)
@@ -485,7 +652,7 @@ impl<'a> Builder<'a> {
             ?into,
             "mir_egraph"
         );
-        self.merged.insert(result, into);
+        self.merged[result] = Some(into);
         self.dead.insert(inst_id);
         self.changed += 1;
     }
@@ -498,19 +665,20 @@ impl<'a> Builder<'a> {
             target: self.target,
             classes: &self.classes,
             uses: &self.uses,
-            cache: FxHashMap::default(),
+            cache: IndexVec::from_vec(vec![None; self.func.num_values()]),
         };
         let mut cheapest = Vec::with_capacity(self.classes.len());
-        for class in self.classes.values() {
+        for class in self.classes.iter().flatten() {
             // Rules only produce canonical forms, so the latest node wins ties.
             let target = self.target;
             let best = if class.nodes.len() == 1 {
                 // No selection is needed. Dependencies still get priced lazily
                 // if another class with alternatives needs this class's cost.
-                class.nodes[0]
+                class.nodes.as_slice()[0]
             } else {
                 class
                     .nodes
+                    .as_slice()
                     .iter()
                     .rev()
                     .copied()
@@ -543,17 +711,17 @@ impl<'a> Builder<'a> {
                 block.instructions.retain(|&id| !self.dead.contains(id));
             }
         }
-        if self.merged.is_empty() {
+        if self.merged.iter().all(Option::is_none) {
             return;
         }
         // Skeleton instructions, phis, and terminators see canonical operands.
         let merged = &self.merged;
         self.func.for_each_instruction_mut(|_, inst| {
-            inst.rewrite_operands(|value| *value = mir_utils::resolve_replacement(*value, merged));
+            inst.rewrite_operands(|value| *value = resolve_replacement(*value, merged));
         });
         for block in self.func.blocks.iter_mut() {
             if let Some(term) = &mut block.terminator {
-                mir_utils::replace_terminator_uses_canonicalized(term, merged);
+                term.visit_operands_mut(|value| *value = resolve_replacement(*value, merged));
             }
         }
     }
@@ -580,7 +748,7 @@ impl<'a> Builder<'a> {
                 } else {
                     break;
                 };
-                let inner = mir_utils::resolve_replacement(inner, &self.merged);
+                let inner = resolve_replacement(inner, &self.merged);
                 let Some(Terminator::Branch { condition, then_block, else_block }) =
                     &mut func.blocks[block_id].terminator
                 else {
@@ -603,7 +771,7 @@ impl<'a> Builder<'a> {
 
             if externally_terminating
                 && let Some(Terminator::ReturnData { size, .. }) = func.blocks[block_id].terminator
-                && is_zero(func, mir_utils::resolve_replacement(size, &self.merged))
+                && is_zero(func, resolve_replacement(size, &self.merged))
             {
                 func.blocks[block_id].terminator = Some(Terminator::Stop);
                 self.changed += 1;
@@ -633,13 +801,13 @@ enum OptimisticKey {
 /// One round of optimistic numbering.
 struct OptimisticNumbering<'a> {
     func: &'a Function,
-    leaves: &'a FxHashMap<ValueId, ValueId>,
+    leaves: &'a IndexVec<ValueId, Option<ValueId>>,
     /// Class number of every key numbered this round.
     table: FxHashMap<OptimisticKey, u32>,
     /// Class numbers assigned this round.
-    fresh: FxHashMap<ValueId, u32>,
+    fresh: IndexVec<ValueId, u32>,
     /// Class numbers of the previous round, used across back edges.
-    numbers: FxHashMap<ValueId, u32>,
+    numbers: IndexVec<ValueId, u32>,
     next: u32,
 }
 
@@ -647,12 +815,13 @@ impl OptimisticNumbering<'_> {
     /// Class number of an operand: this round's number, the previous round's
     /// across a back edge, or `TOP` in the first round.
     fn number(&mut self, value: ValueId) -> u32 {
-        let value = self.leaves.get(&value).copied().unwrap_or(value);
-        if let Some(&number) = self.fresh.get(&value) {
+        let value = self.leaves.get(value).copied().flatten().unwrap_or(value);
+        let number = self.fresh[value];
+        if number != TOP {
             return number;
         }
         if matches!(self.func.value(value), Value::Inst(_)) {
-            return self.numbers.get(&value).copied().unwrap_or(TOP);
+            return self.numbers[value];
         }
         self.assign(value, OptimisticKey::Unique(value))
     }
@@ -663,7 +832,7 @@ impl OptimisticNumbering<'_> {
             *next += 1;
             *next
         });
-        self.fresh.insert(value, number);
+        self.fresh[value] = number;
         number
     }
 }
@@ -676,7 +845,7 @@ impl OptimisticNumbering<'_> {
 fn optimistic_phi_leaders(
     func: &Function,
     cfg: &CfgInfo,
-    leaves: &FxHashMap<ValueId, ValueId>,
+    leaves: &IndexVec<ValueId, Option<ValueId>>,
 ) -> FxHashMap<ValueId, ValueId> {
     let mut leaders = FxHashMap::default();
     // Only a cycle carries a value back into its own phi; elsewhere the
@@ -694,14 +863,14 @@ fn optimistic_phi_leaders(
         func,
         leaves,
         table: FxHashMap::default(),
-        fresh: FxHashMap::default(),
-        numbers: FxHashMap::default(),
+        fresh: IndexVec::from_vec(vec![TOP; func.num_values()]),
+        numbers: IndexVec::from_vec(vec![TOP; func.num_values()]),
         next: TOP,
     };
     let mut converged = false;
     for _ in 0..MAX_OPTIMISTIC_ROUNDS {
         numbering.table.clear();
-        numbering.fresh.clear();
+        numbering.fresh.iter_mut().for_each(|number| *number = TOP);
         numbering.next = TOP;
         for &block in cfg.rpo() {
             for &inst_id in &func.blocks[block].instructions {
@@ -718,7 +887,7 @@ fn optimistic_phi_leaders(
                             && first != TOP
                             && incoming.iter().all(|&(_, number)| number == first)
                         {
-                            numbering.fresh.insert(result, first);
+                            numbering.fresh[result] = first;
                             continue;
                         }
                         OptimisticKey::Phi(block, incoming, inst.result_ty)
@@ -747,15 +916,15 @@ fn optimistic_phi_leaders(
     // merges into its leader when the leader is a leaf, an earlier phi or
     // instruction of the same block, or defined in a dominating block.
     let mut first = FxHashMap::<u32, (ValueId, Option<BlockId>)>::default();
-    for (&value, &number) in &numbering.numbers {
-        if !matches!(func.value(value), Value::Inst(_)) {
+    for (value, &number) in numbering.numbers.iter_enumerated() {
+        if number != TOP && !matches!(func.value(value), Value::Inst(_)) {
             first.insert(number, (value, None));
         }
     }
     for &block in cfg.rpo() {
         for &inst_id in &func.blocks[block].instructions {
             let Some(result) = func.inst_result_value(inst_id) else { continue };
-            let number = numbering.numbers[&result];
+            let number = numbering.numbers[result];
             match first.entry(number) {
                 StdEntry::Occupied(entry) => {
                     let (leader, leader_block) = *entry.get();
@@ -776,41 +945,69 @@ fn optimistic_phi_leaders(
     leaders
 }
 
-/// Maps every immediate to the first equal immediate and every argument value
-/// to the first value of that argument.
-fn canonical_leaves(
-    func: &Function,
-) -> (FxHashMap<Immediate, ValueId>, FxHashMap<ValueId, ValueId>) {
+type ValueInfo =
+    (FxHashMap<Immediate, ValueId>, IndexVec<ValueId, Option<ValueId>>, IndexVec<ValueId, u32>);
+
+/// Canonicalizes live leaves while counting uses in the same block walk.
+fn value_info(func: &Function) -> ValueInfo {
     let mut immediates = FxHashMap::<Immediate, ValueId>::default();
-    let mut args = FxHashMap::<ArgIdx, ValueId>::default();
-    let mut leaves = FxHashMap::default();
-    for value in func.live_values() {
+    let mut args =
+        IndexVec::<ArgIdx, Option<ValueId>>::from_vec(vec![None; func.arg_indices().count()]);
+    let mut leaves = IndexVec::from_vec(vec![None; func.num_values()]);
+    let mut uses = IndexVec::from_vec(vec![0; func.num_values()]);
+    let mut seen = DenseBitSet::new_empty(func.num_values());
+    let mut record = |value| {
+        uses[value] += 1;
+        if !seen.insert(value) {
+            return;
+        }
         let canonical = match func.value(value) {
             Value::Immediate(immediate) => *immediates.entry(immediate.clone()).or_insert(value),
-            Value::Arg(index) => *args.entry(*index).or_insert(value),
-            _ => continue,
+            Value::Arg(index) => *args[*index].get_or_insert(value),
+            _ => return,
         };
         if canonical != value {
-            leaves.insert(value, canonical);
+            leaves[value] = Some(canonical);
+        }
+    };
+    for inst_id in func.instructions() {
+        for operand in func.inst(inst_id).operands() {
+            record(operand);
         }
     }
-    (immediates, leaves)
+    for block in &func.blocks {
+        if let Some(term) = &block.terminator {
+            term.for_each_operand(&mut record);
+        }
+    }
+    (immediates, leaves, uses)
 }
 
 /// Counts the uses of every value in instructions and terminators.
-pub(super) fn use_counts(func: &Function) -> FxHashMap<ValueId, u32> {
-    let mut uses = FxHashMap::<ValueId, u32>::default();
+pub(super) fn use_counts(func: &Function) -> IndexVec<ValueId, u32> {
+    let mut uses = IndexVec::from_vec(vec![0; func.num_values()]);
     for inst_id in func.instructions() {
         for operand in func.inst(inst_id).operands() {
-            *uses.entry(operand).or_default() += 1;
+            uses[operand] += 1;
         }
     }
     for block in func.blocks.iter() {
         if let Some(term) = &block.terminator {
-            term.for_each_operand(|operand| *uses.entry(operand).or_default() += 1);
+            term.for_each_operand(|operand| uses[operand] += 1);
         }
     }
     uses
+}
+
+/// Follows the acyclic replacement chain for a dense MIR value table.
+fn resolve_replacement(
+    mut value: ValueId,
+    replacements: &IndexVec<ValueId, Option<ValueId>>,
+) -> ValueId {
+    while let Some(next) = replacements.get(value).copied().flatten() {
+        value = next;
+    }
+    value
 }
 
 /// Returns whether an instruction is a pure expression the e-graph may number.
@@ -899,24 +1096,24 @@ fn iszero_operand(func: &Function, value: ValueId) -> Option<ValueId> {
 struct Costs<'a> {
     func: &'a Function,
     target: Target,
-    classes: &'a FxHashMap<ValueId, Class>,
-    uses: &'a FxHashMap<ValueId, u32>,
+    classes: &'a IndexVec<ValueId, Option<Class>>,
+    uses: &'a IndexVec<ValueId, u32>,
     /// Cheapest cost per class, memoized.
-    cache: FxHashMap<ValueId, Cost>,
+    cache: IndexVec<ValueId, Option<Cost>>,
 }
 
 impl Costs<'_> {
     fn uses(&self, value: ValueId) -> u32 {
-        self.uses.get(&value).copied().unwrap_or(0)
+        self.uses.get(value).copied().unwrap_or(0)
     }
 
     /// Cost of the cheapest node of a class; values outside the e-graph are
     /// free, except immediates, which are pushed at every use.
     fn class(&mut self, value: ValueId) -> Cost {
-        if let Some(&cost) = self.cache.get(&value) {
+        if let Some(cost) = self.cache.get(value).copied().flatten() {
             return cost;
         }
-        let Some(class) = self.classes.get(&value) else {
+        let Some(class) = self.classes.get(value).and_then(Option::as_ref) else {
             return match self.func.value(value) {
                 Value::Immediate(immediate) => {
                     immediate.as_u256().map_or(Cost::ZERO, |value| self.target.push(value))
@@ -927,18 +1124,20 @@ impl Costs<'_> {
         let target = self.target;
         let cost = class
             .nodes
+            .as_slice()
             .iter()
             .map(|node| self.node(class, node))
             .min_by(|a, b| target.cmp(*a, *b))
             .expect("a class holds its own node");
-        self.cache.insert(value, cost);
+        self.cache[value] = Some(cost);
         cost
     }
 
     /// Cost of computing `node` in place of the instruction that roots `class`.
     fn node(&mut self, class: &Class, node: &Op) -> Cost {
         let operands = operands_of(node);
-        let original = (node != &class.nodes[0]).then(|| operands_of(&class.nodes[0]));
+        let original =
+            (node != &class.nodes.as_slice()[0]).then(|| operands_of(&class.nodes.as_slice()[0]));
         // An operand shared with other users is computed regardless of this
         // choice; an immediate is pushed at every use.
         let func = self.func;
@@ -985,8 +1184,8 @@ impl Costs<'_> {
     fn retained_input(&self, input: ValueId, original: &[ValueId], operands: &[ValueId]) -> bool {
         original.iter().any(|&value| {
             self.shared_displaced(value, operands)
-                && self.classes.get(&value).is_some_and(|class| {
-                    class.nodes.iter().all(|node| operands_of(node).contains(&input))
+                && self.classes.get(value).and_then(Option::as_ref).is_some_and(|class| {
+                    class.nodes.as_slice().iter().all(|node| operands_of(node).contains(&input))
                 })
         })
     }

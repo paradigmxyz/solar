@@ -60,7 +60,7 @@ use crate::mir::{
         LocationSize, MemoryAddress, MemoryCallSummaries, MemoryLocation,
     },
     memory::EvmMemoryLayout,
-    pass::{MirPass, run_function_pass},
+    pass::{MirPass, run_function_pass_with_cfg},
     utils as mir_utils,
 };
 use alloy_primitives::U256;
@@ -85,13 +85,18 @@ impl MirPass for Cse {
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         let summaries = analyses.call_summaries(module);
-        let changed = run_function_pass(module, analyses, |func, analyses| {
-            if !func.instructions().any(|inst_id| func.inst(inst_id).result_ty.is_some()) {
+        let changed = run_function_pass_with_cfg(module, analyses, |func, analyses| {
+            if func
+                .instructions()
+                .filter(|&inst_id| func.inst(inst_id).result_ty.is_some())
+                .nth(1)
+                .is_none()
+            {
                 return false;
             }
             let mut eliminator =
                 CommonSubexprEliminator::with_call_summaries(Arc::clone(&summaries));
-            eliminator.cfg = Some(Rc::clone(&analyses.cfg));
+            eliminator.cfg = Some(Rc::clone(analyses.cfg()));
             eliminator.run_to_fixpoint(func) != 0
         });
         // CSE replaces equivalent values without changing control flow. Its old call

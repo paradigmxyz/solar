@@ -4,40 +4,80 @@
   fn @copy(arg0: memptr, arg1: memptr, arg2: u256) -> memptr {
     bb0:
 -     mcopy arg0, arg1, arg2
-+     v0 = not 31
-+     v1 = and arg2, v0
-+     jump bb2
++     v0 = iszero arg2
++     jumpi v0, bb1, bb2
 +   bb2:
-+     v2 = phi [bb0: 0], [bb3: v7]
-+     v3 = lt v2, v1
-+     jumpi v3, bb3, bb4
-+   bb4:
-+     v8 = lt v1, arg2
-+     jumpi v8, bb5, bb1
++     v1 = lt arg1, arg0
++     jumpi v1, bb4, bb3
++   bb3:
++     v2 = not 31
++     v3 = and arg2, v2
++     jump bb5
 +   bb5:
-+     v9 = and arg2, 31
-+     v10 = sub 32, v9
-+     v11 = shl 3, v10
-+     v12 = add arg1, v1
-+     v13 = mload v12
-+     v14 = shr v11, v13
-+     v15 = shl v11, v14
-+     v16 = add arg0, v1
-+     v17 = mload v16
-+     v18 = shl v11, 1
-+     v19 = sub v18, 1
-+     v20 = and v17, v19
-+     v21 = or v15, v20
-+     mstore v16, v21
++     v4 = phi [bb3: 0], [bb6: v9]
++     v5 = lt v4, v3
++     jumpi v5, bb6, bb7
++   bb7:
++     v10 = lt v3, arg2
++     jumpi v10, bb8, bb1
++   bb8:
++     v11 = and arg2, 31
++     v12 = sub 32, v11
++     v13 = shl 3, v12
++     v14 = add arg1, v3
++     v15 = mload v14
++     v16 = shr v13, v15
++     v17 = shl v13, v16
++     v18 = add arg0, v3
++     v19 = mload v18
++     v20 = shl v13, 1
++     v21 = sub v20, 1
++     v22 = and v19, v21
++     v23 = or v17, v22
++     mstore v18, v23
 +     jump bb1
++   bb6:
++     v6 = add arg1, v4
++     v7 = mload v6
++     v8 = add arg0, v4
++     mstore v8, v7
++     v9 = add v4, 32
++     jump bb5
++   bb4:
++     v24 = not 31
++     v25 = and arg2, v24
++     v26 = lt v25, arg2
++     jumpi v26, bb12, bb9
++   bb9:
++     jump bb10
++   bb12:
++     v27 = and arg2, 31
++     v28 = sub 32, v27
++     v29 = shl 3, v28
++     v30 = add arg1, v25
++     v31 = mload v30
++     v32 = shr v29, v31
++     v33 = shl v29, v32
++     v34 = add arg0, v25
++     v35 = mload v34
++     v36 = shl v29, 1
++     v37 = sub v36, 1
++     v38 = and v35, v37
++     v39 = or v33, v38
++     mstore v34, v39
++     jump bb10
++   bb10:
++     v40 = phi [bb9: v25], [bb12: v25], [bb11: v42]
++     v41 = iszero v40
++     jumpi v41, bb1, bb11
++   bb11:
++     v42 = sub v40, 32
++     v43 = add arg1, v42
++     v44 = mload v43
++     v45 = add arg0, v42
++     mstore v45, v44
++     jump bb10
 +   bb1:
       ret arg0
-+   bb3:
-+     v4 = add arg1, v2
-+     v5 = mload v4
-+     v6 = add arg0, v2
-+     mstore v6, v5
-+     v7 = add v2, 32
-+     jump bb2
   }
   

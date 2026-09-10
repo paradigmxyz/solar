@@ -1,0 +1,95 @@
+- // === ROOT/tests/ui/codegen/mir/lowering/lower_dispatch_common_calldata_guard.mir (before lower-dispatch) ===
++ // === ROOT/tests/ui/codegen/mir/lowering/lower_dispatch_common_calldata_guard.mir (after lower-dispatch) ===
+  @module DispatchCommonCalldataGuard
+- @phase abi
++ @phase dispatch
+  fn @a() [selector=0x00000001] {
+    bb0:
+      v0 = calldatasize
+      v1 = lt v0, 36
+-     jumpi v1, bb1, bb2
++     jump bb2
+    bb2:
+      stop
+    bb1:
+      revert 0, 0
+  }
+  
+  fn @b() [selector=0x00000002] {
+    bb0:
+      v0 = calldatasize
+      v1 = lt v0, 36
+-     jumpi v1, bb1, bb2
++     jump bb2
+    bb2:
+      stop
++   bb1:
++     revert 0, 0
++ }
++ 
++ fn @entry() [entry] {
++   bb0:
++     v0 = callvalue
++     v1 = calldatasize
++     v2 = lt v1, 36
++     v3 = or v0, v2
++     jumpi v3, bb1, bb2
++   bb2:
++     v4 = calldataload 0
++     v5 = shr 224, v4
++     switch v5, default bb1, [1 => bb3, 2 => bb4]
++   bb4:
++     tail_call @b
++   bb3:
++     tail_call @a
+    bb1:
+      revert 0, 0
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/lowering/lower_dispatch_common_calldata_guard.mir (before dce) ===
++ // === ROOT/tests/ui/codegen/mir/lowering/lower_dispatch_common_calldata_guard.mir (after dce) ===
+  @module DispatchCommonCalldataGuard
+  @phase dispatch
+  fn @a() [selector=0x00000001] {
+    bb0:
+-     v0 = calldatasize
+-     v1 = lt v0, 36
+      jump bb2
+    bb2:
+      stop
+    bb1:
+-     revert 0, 0
++     invalid
+  }
+  
+  fn @b() [selector=0x00000002] {
+    bb0:
+-     v0 = calldatasize
+-     v1 = lt v0, 36
+      jump bb2
+    bb2:
+      stop
+    bb1:
+-     revert 0, 0
++     invalid
+  }
+  
+  fn @entry() [entry] {
+    bb0:
+      v0 = callvalue
+      v1 = calldatasize
+      v2 = lt v1, 36
+      v3 = or v0, v2
+      jumpi v3, bb1, bb2
+    bb2:
+      v4 = calldataload 0
+      v5 = shr 224, v4
+      switch v5, default bb1, [1 => bb3, 2 => bb4]
+    bb4:
+      tail_call @b
+    bb3:
+      tail_call @a
+    bb1:
+      revert 0, 0
+  }
+  

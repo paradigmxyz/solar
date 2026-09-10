@@ -17,6 +17,7 @@ mod constant_data;
 pub(super) mod data;
 mod dce;
 mod inline_returns;
+mod late_structural;
 mod legalize_shifts;
 mod loop_layout;
 mod outline;
@@ -154,13 +155,7 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &peephole::Peephole::FINAL,
     &stack_normalize::StackDedup,
     &peephole::Cleanup(dce::Dce),
-    // Compact constants and stack cleanup can expose more equal bodies and tails.
-    &terminal_dedup::TerminalDedup,
-    &cfg_simplify::CfgSimplify,
-    &tail_merge::TailMerge,
-    &cfg_simplify::CfgSimplify,
-    &outline::Outline,
-    &cfg_simplify::CfgSimplify,
+    &late_structural::LateStructural,
     &peephole::Peephole,
     &inline_returns::InlineReturns,
     &cfg_simplify::CfgSimplify,

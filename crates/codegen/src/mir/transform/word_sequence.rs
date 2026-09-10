@@ -24,7 +24,10 @@ use crate::{
     target::{Cost, Target},
 };
 use alloy_primitives::U256;
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_data_structures::{
+    index::IndexVec,
+    map::{FxHashMap, FxHashSet},
+};
 
 mod isle;
 
@@ -224,17 +227,15 @@ fn run(func: &mut Function, target: Target) -> bool {
                 // Remove dead single-use producers; insert recipe children; retain the root.
                 for old in std::iter::once(inst).chain(dead.iter().copied()) {
                     for operand in func.inst(old).operands() {
-                        let count = uses.get_mut(&operand).expect("active operand use");
+                        let count = &mut uses[operand];
                         *count -= 1;
-                        if *count == 0 {
-                            uses.remove(&operand);
-                        }
                     }
                 }
                 let inserted = recipe.materialize(func, inst);
+                uses.resize(func.num_values(), 0);
                 for new in inserted.iter().copied().chain(std::iter::once(inst)) {
                     for operand in func.inst(new).operands() {
-                        *uses.entry(operand).or_default() += 1;
+                        uses[operand] += 1;
                     }
                 }
                 for &old in &dead {
@@ -259,7 +260,7 @@ fn run(func: &mut Function, target: Target) -> bool {
 fn collect_dead(
     func: &Function,
     node: &Op,
-    uses: &FxHashMap<ValueId, u32>,
+    uses: &IndexVec<ValueId, u32>,
     seen: &FxHashSet<InstId>,
     leaves: &FxHashSet<ValueId>,
     target: Target,
@@ -268,7 +269,7 @@ fn collect_dead(
     let _ = node.map_values(|value| {
         if dead.len() < MAX_CONE
             && !leaves.contains(&value)
-            && uses.get(&value) == Some(&1)
+            && uses.get(value) == Some(&1)
             && let Value::Inst(inst) = func.value(value)
             && seen.contains(inst)
             && removable(func.inst(*inst), target)
