@@ -140,13 +140,14 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     /// Whether a directly self-recursive Yul helper can reuse one static
     /// scratch frame while suspended activations carry their live state on the
-    /// EVM stack.
+    /// EVM stack. Void recursion has no child result to preserve; one-result
+    /// recursion stages that word before restoring the suspended activation.
     pub(in crate::backend::evm::codegen) fn uses_reentrant_static_frame(
         func_id: FunctionId,
         func: &Function,
     ) -> bool {
         func.attributes.is_yul
-            && func.returns.len() == 1
+            && func.returns.len() <= 1
             && Self::has_direct_self_call(func_id, func)
     }
 
@@ -547,14 +548,12 @@ impl<'gcx> EvmCodegen<'gcx> {
             .filter(|&func_id| self.recursive_frame_functions.contains(func_id))
             .collect();
         recursive_placed.sort_unstable();
+        let recursive_span = recursive_placed
+            .iter()
+            .map(|&func_id| self.emitted_frame_size(module, func_id))
+            .sum::<u64>();
         let mut frame_relative = FxHashMap::default();
-        let mut recursive_span = 0;
-        for func_id in recursive_placed {
-            frame_relative.insert(func_id, recursive_span);
-            recursive_span += self.emitted_frame_size(module, func_id);
-        }
-
-        let mut static_span = recursive_span;
+        let mut static_span = 0;
         for &func_id in &placed {
             let frame_size = self.emitted_frame_size(module, func_id);
             assert!(
@@ -567,10 +566,24 @@ impl<'gcx> EvmCodegen<'gcx> {
                 "static frame reference exceeds emitted frame size for `{}`",
                 module.functions[func_id].name
             );
+            if self.recursive_frame_functions.contains(func_id) {
+                continue;
+            }
             let relative = *frame_relative
                 .entry(func_id)
-                .or_insert_with(|| recursive_span + depth.get(&func_id).copied().unwrap_or(0));
+                .or_insert_with(|| depth.get(&func_id).copied().unwrap_or(0));
             static_span = static_span.max(relative + frame_size);
+        }
+        // ordinary static frames: [region_start, ordinary_end)
+        // recursive scratch frames: [ordinary_end, static_end)
+        //
+        // Keeping the scratch suffix after ordinary helpers prevents a large
+        // recursive function from raising shared helper addresses. An entry
+        // reserves the suffix only when its reachability set includes that
+        // recursive function.
+        for func_id in recursive_placed {
+            frame_relative.insert(func_id, static_span);
+            static_span += self.emitted_frame_size(module, func_id);
         }
 
         let layout = |max_entry_end: u64| {

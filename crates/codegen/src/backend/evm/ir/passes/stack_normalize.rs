@@ -75,7 +75,7 @@ type StackRun = SmallVec<[StackOp; MAX_STACK_RUN_LEN]>;
 type NormalizationCache = FxHashMap<StackRun, Option<StackRun>>;
 
 /// Reuse the common physical shuffles without retaining unbounded compiler state.
-const MAX_SHARED_NORMALIZATIONS: usize = 256;
+const MAX_SHARED_NORMALIZATIONS: usize = 4096;
 
 thread_local! {
     static SHARED_NORMALIZATIONS: RefCell<SharedNormalizations> = RefCell::default();

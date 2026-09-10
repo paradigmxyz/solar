@@ -1,74 +1,64 @@
 // === ROOT/tests/ui/codegen/lowering/continuation_calls.sol:ContinuationCalls (runtime) ===
 @module ContinuationCalls_runtime
 bb0:
+  push 36
+  calldatasize
+  lt
   callvalue
-  push bb8
+  or
+  push bb2
   jumpi
   push 0
   calldataload
   push 224
   shr
   dup 1
-  push 0xacb6e042
-  gt
-  push bb2
-  jumpi
-  dup 1
-  push 0xacb6e042
-  eq
-  push bb27
-  jumpi
-  dup 1
-  push 0xeadcc0c3
-  eq
-  push bb36
-  jumpi
-  dup 1
-  push 0xf1680ae6
-  eq
-  push bb21
-  jumpi
-  jump bb8
-bb8 [cold]:
-  push 0
-  push 0
-  revert
-bb2:
-  dup 1
   push 0xb3f62f5
   eq
-  push bb9
+  push bb8
   jumpi
   dup 1
   push 0x7896dfe3
   eq
-  push bb15
+  push bb12
   jumpi
+  dup 1
+  push 0xacb6e042
+  eq
+  push bb20
+  jumpi
+  dup 1
+  push 0xeadcc0c3
+  eq
+  push bb27
+  jumpi
+  dup 1
+  push 0xf1680ae6
+  eq
+  push bb16
+  jumpi
+  jump bb2
+bb2 [cold]:
   push 0
   push 0
   revert
-bb9:
-  push 36
-  calldatasize
-  lt
-  push bb8
-  jumpi
-  push bb11
-  jump bb52
-bb52:
+bb8:
+  push bb9
+  jump bb41
+bb41:
   push 4
   calldataload
   push 1
-  jump bb45
-bb45:
+  jump bb34
+bb34:
   push 192
   mstore
   push 160
   mstore
   push 0
   push 0
-  jump bb46
-bb48:
+  jump bb35
+bb37:
   push 1
   push 224
   mload
@@ -76,66 +66,51 @@ bb48:
   push 256
   mload
   swap 1
-  jump bb46
-bb46:
+  jump bb35
+bb35:
   push 160
   mload
   dup 2
   lt
-  push bb49
+  push bb38
   jumpi
   pop
   swap 1
   jump
-bb11 [continuation]:
+bb9 [continuation]:
   push 5
-  jump bb54
-bb54:
+  jump bb43
+bb43:
   dup 2
   add
   swap 1
   dup 2
   lt
-  push bb51
+  push bb40
   jumpi
   push 128
   mstore
   push 32
   push 128
   return
-bb15:
-  push 36
-  calldatasize
-  lt
-  push bb8
-  jumpi
-  push bb11
-  jump bb53
-bb53:
+bb12:
+  push bb9
+  jump bb42
+bb42:
   push 4
   calldataload
   push 2
-  jump bb45
-bb21:
-  push 36
-  calldatasize
-  lt
-  push bb8
-  jumpi
-  push bb11
+  jump bb34
+bb16:
+  push bb9
   push 4
   calldataload
   push 3
-  jump bb45
-bb27:
-  push 36
-  calldatasize
-  lt
-  push bb8
-  jumpi
-  push bb29
-  jump bb52
-bb29 [continuation]:
+  jump bb34
+bb20:
+  push bb21
+  jump bb41
+bb21 [continuation]:
   push 4
   calldataload
   add
@@ -143,52 +118,47 @@ bb29 [continuation]:
   calldataload
   dup 2
   lt
-  push bb51
+  push bb40
   jumpi
-  push bb55
-  jump bb53
-bb36:
-  push 36
-  calldatasize
-  lt
-  push bb8
-  jumpi
+  push bb44
+  jump bb42
+bb27:
   push 3
   push 4
   calldataload
   and
-  push bb38
+  push bb28
   dup 2
   push 1
-  jump bb45
-bb38 [continuation]:
+  jump bb34
+bb28 [continuation]:
   dup 2
   add
   dup 2
   dup 2
   lt
-  push bb51
-  jumpi
   push bb40
+  jumpi
+  push bb30
   dup 3
   push 2
-  jump bb45
-bb40 [continuation]:
+  jump bb34
+bb30 [continuation]:
   swap 2
   pop
   swap 1
-  jump bb55
-bb55 [continuation]:
+  jump bb44
+bb44 [continuation]:
   dup 2
   add
   swap 1
   dup 2
   lt
-  push bb51
+  push bb40
   jumpi
   push 7
-  jump bb54
-bb49:
+  jump bb43
+bb38:
   push 192
   mload
   dup 3
@@ -206,10 +176,10 @@ bb49:
   pop
   pop
   iszero
-  push bb48
+  push bb37
   jumpi
-  jump bb51
-bb51 [cold]:
+  jump bb40
+bb40 [cold]:
   push 0x4e487b71
   push 224
   shl

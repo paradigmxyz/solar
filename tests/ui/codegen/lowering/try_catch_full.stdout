@@ -3,9 +3,7 @@
 @phase evm-shaped
 fn @full() [selector=0xd17b272f, view] {
   bb0:
-    v57 = calldatasize
-    v58 = lt v57, 36
-    jumpi v58, bb13, bb14
+    jump bb14
   bb14:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
@@ -191,14 +189,12 @@ fn @full() [selector=0xd17b272f, view] {
   bb3:
     tail_call @revert_stub
   bb13:
-    revert 0, 0
+    invalid
 }
 
 fn @rethrows() [selector=0x0d7fadfb, view] {
   bb0:
-    v53 = calldatasize
-    v54 = lt v53, 36
-    jumpi v54, bb11, bb12
+    jump bb12
   bb12:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
@@ -272,7 +268,7 @@ fn @rethrows() [selector=0x0d7fadfb, view] {
   bb4:
     tail_call @revert_stub
   bb11:
-    revert 0, 0
+    invalid
 }
 
 fn @try_decode_error_message(arg0: memptr, arg1: u256) -> bool {
@@ -416,15 +412,18 @@ fn @decode_aggregate.5(arg0: memptr) -> memptr {
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
-    jumpi v0, bb4, bb1
-  bb1:
-    v1 = calldataload 0
-    v2 = shr 224, v1
-    switch v2, default bb4, [0xd7fadfb => bb2, 0xd17b272f => bb3]
-  bb3:
-    tail_call @full
+    v1 = calldatasize
+    v2 = lt v1, 36
+    v3 = or v0, v2
+    jumpi v3, bb1, bb2
   bb2:
-    tail_call @rethrows
+    v4 = calldataload 0
+    v5 = shr 224, v4
+    switch v5, default bb1, [0xd7fadfb => bb3, 0xd17b272f => bb4]
   bb4:
+    tail_call @full
+  bb3:
+    tail_call @rethrows
+  bb1:
     revert 0, 0
 }

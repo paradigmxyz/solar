@@ -6,6 +6,8 @@
 //@ run-call: zero 7 => 23
 //@ run-call-fail: zero 0
 //@ run-call: recurse 4 => 10
+//@ run-call: recursePair 2, 5, 3 => 6, 4
+//@ run-call: recurseYul 4 => 10
 //@ run-call: tuple 2, 5 => 2, 5, 5
 //@ run-call-fail: tuple 0, 5
 //@ run-call-fail: tuple 2, 0
@@ -84,5 +86,37 @@ contract VoidTailReturn {
     function recursive(uint256 depth) internal {
         total += depth;
         if (depth != 0) recursive(depth - 1);
+    }
+
+    function recursePair(uint256 a, uint256 b, uint256 depth)
+        external
+        returns (uint256, uint256)
+    {
+        recursivePair(a, b, depth);
+        return (total, second);
+    }
+
+    // The terminal re-entry must snapshot the complete argument tuple before
+    // overwriting the current frame because the first two values permute.
+    function recursivePair(uint256 a, uint256 b, uint256 depth) internal {
+        if (depth == 0) {
+            total = a;
+            second = b;
+        } else {
+            recursivePair(b, a + 1, depth - 1);
+        }
+    }
+
+    function recurseYul(uint256 depth) external returns (uint256 result) {
+        assembly {
+            function recursiveYul(n) {
+                if n {
+                    sstore(0, add(sload(0), n))
+                    recursiveYul(sub(n, 1))
+                }
+            }
+            recursiveYul(depth)
+            result := sload(0)
+        }
     }
 }

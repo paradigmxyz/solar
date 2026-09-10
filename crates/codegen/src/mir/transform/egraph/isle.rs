@@ -17,7 +17,7 @@ use crate::{
 };
 use alloy_primitives::U256;
 use solar_config::EvmVersion;
-use solar_data_structures::map::FxHashMap;
+use solar_data_structures::index::IndexVec;
 
 /// Rewrite-rule name of a MIR value.
 type Value = ValueId;
@@ -52,7 +52,7 @@ pub(super) struct RuleContext<'a> {
     /// Original block of the root, for rules that must not extend cross-block dependencies.
     block: Option<BlockId>,
     /// Pre-pass use counts for profitability guards, when available.
-    uses: Option<&'a FxHashMap<ValueId, u32>>,
+    uses: Option<&'a IndexVec<ValueId, u32>>,
     /// Up to two retained equivalent definitions exposed during bounded matching.
     views: OperandViews,
 }
@@ -70,7 +70,7 @@ impl<'a> RuleContext<'a> {
     }
 
     /// Supplies existing use counts without rebuilding use information per rule.
-    pub(super) fn with_uses(mut self, uses: &'a FxHashMap<ValueId, u32>) -> Self {
+    pub(super) fn with_uses(mut self, uses: &'a IndexVec<ValueId, u32>) -> Self {
         self.uses = Some(uses);
         self
     }
@@ -252,7 +252,7 @@ const UINT160_MASK: U256 = U256::from_limbs([u64::MAX, u64::MAX, u32::MAX as u64
 
 impl generated::Context for RuleContext<'_> {
     fn single_use(&mut self, value: Value) -> bool {
-        self.uses.and_then(|uses| uses.get(&value)) == Some(&1)
+        self.uses.and_then(|uses| uses.get(value)) == Some(&1)
     }
 
     fn inst_data(&mut self, value: Value) -> Option<Op> {

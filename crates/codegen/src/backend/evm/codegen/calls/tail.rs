@@ -1,4 +1,5 @@
-//! Forward inherited return addresses through terminal void calls.
+//! Forward inherited return addresses through terminal void calls and reuse a
+//! dynamic frame for direct self-tail recursion.
 //!
 //! At the MIR-to-EVM boundary, an internal call immediately followed by a void
 //! return can install the callee's argument stack above the caller's inherited
@@ -12,13 +13,84 @@
 //! external entries do not have the inherited internal return address. Discard
 //! every tracked caller word except the callee's actuals before transferring;
 //! even a zero-argument call must expose the hidden return address directly.
+//!
+//! A terminal void self-call snapshots every actual before writing any of
+//! them, overwrites the current dynamic frame's argument area, drains the
+//! tracked operand stack, and jumps back to the function entry. The inherited
+//! return address stays below the scheduler's stack throughout, so the final
+//! activation returns directly to the original caller. Following empty jump
+//! blocks when recognizing the return avoids making CFG layout decide whether
+//! the optimization applies.
 
 use super::super::{
-    BlockId, DebugFunctionExit, EvmCodegen, Function, FunctionId, ICallStackEdge, InstKind,
-    OptimizationMode, TargetSlot, Terminator, ValueId, op,
+    BlockId, DebugFunctionExit, DenseBitSet, EvmCodegen, EvmMemoryLayout, Function, FunctionId,
+    ICallStackEdge, InstKind, OptimizationMode, TargetSlot, Terminator, ValueId, op,
 };
 
 impl EvmCodegen<'_> {
+    pub(in crate::backend::evm::codegen) fn void_self_tail_call<'a>(
+        &self,
+        caller: FunctionId,
+        func: &'a Function,
+        block: BlockId,
+    ) -> Option<&'a [ValueId]> {
+        if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None)
+            || !self.in_internal_function
+            || !func.returns.is_empty()
+        {
+            return None;
+        }
+        let inst = func.inst(*func.blocks[block].instructions.last()?);
+        if let InstKind::ICall { function, args, returns: 0 } = &inst.kind
+            && *function == caller
+            && args.len() == func.params.len()
+            && returns_without_work(func, block)
+        {
+            Some(args)
+        } else {
+            None
+        }
+    }
+
+    pub(in crate::backend::evm::codegen) fn emit_void_self_tail_call(
+        &mut self,
+        caller: FunctionId,
+        func: &Function,
+        args: &[ValueId],
+    ) {
+        // [inherited_return, caller_words], frame(args...)
+        // => [inherited_return], frame(new_args...)
+        self.pop_stack_values_not_needed_by(args);
+        for value in Self::missing_stack_phi_sources(&self.scheduler.stack, args) {
+            self.emit_operand(func, value);
+        }
+        let target = args.iter().rev().copied().map(TargetSlot::Value).collect::<Vec<_>>();
+        let shuffle = self.scheduler.shuffle_to_layout(&target).unwrap_or_else(|| {
+            panic!("could not stage direct self-tail arguments in `{}`", func.name)
+        });
+        for op in shuffle.ops {
+            self.asm.emit_stack_op(op);
+        }
+        for index in (0..args.len()).rev() {
+            if self.static_frame_functions.contains(caller) {
+                self.emit_static_frame_arg_store(caller, index);
+            } else {
+                self.emit_current_internal_frame_addr(
+                    EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
+                        + index as u64 * EvmMemoryLayout::WORD_SIZE,
+                );
+                self.asm.emit_op(op::MSTORE);
+                // The computed frame address is intentionally untracked; only
+                // the staged argument belongs to the scheduler's logical stack.
+                self.scheduler.instruction_executed(1, None);
+            }
+        }
+        debug_assert_eq!(self.scheduler.stack.depth(), 0);
+        self.emit_push_label(self.function_labels[&caller]);
+        self.asm.emit_op(op::JUMP);
+        self.mark_debug_function_exit(func, DebugFunctionExit::Return);
+    }
+
     pub(in crate::backend::evm::codegen) fn void_tail_call<'a>(
         &self,
         caller: FunctionId,
@@ -91,5 +163,24 @@ impl EvmCodegen<'_> {
             preserved_words: 0,
             argument_words: args.len(),
         });
+    }
+}
+
+/// Whether the call block reaches a void return through empty jump blocks.
+fn returns_without_work(func: &Function, block: BlockId) -> bool {
+    let mut current = block;
+    let mut visited = DenseBitSet::new_empty(func.blocks.len());
+    loop {
+        if !visited.insert(current)
+            || current != block && !func.blocks[current].instructions.is_empty()
+        {
+            return false;
+        }
+        match &func.blocks[current].terminator {
+            Some(Terminator::Stop) => return true,
+            Some(Terminator::Return { values }) => return values.is_empty(),
+            Some(Terminator::Jump(next)) => current = *next,
+            _ => return false,
+        }
     }
 }

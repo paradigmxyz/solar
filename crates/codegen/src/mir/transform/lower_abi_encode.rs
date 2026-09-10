@@ -26,21 +26,32 @@
 //! length. This removes a branch without touching memory beyond the encoded tail.
 //! Size mode retains the guarded padding store: its encoder tails share better
 //! in the machine outlining pipeline on large ABI-heavy contracts.
+//! A terminal external return of a freshly allocated full-word array or byte
+//! string is encoded in place. Moving its payload forward by one word makes
+//! room for the ABI tuple offset and reuses the object's length word, avoiding
+//! a second allocation. A module-wide plan selects those sites before shared
+//! tuple helpers are built, so locally cheaper terminal encodings do not leave
+//! an unused shared body.
 
 use crate::{
     mir::{
         AbiEncodeMode, AbiLayout, AbiType, AbiWordValidator, AllocationKind, BlockId, EffectKind,
-        Function, FunctionBuilder, FunctionId, InstKind, InstructionMetadata, MemoryObjectKind,
-        MemoryObjectLayout, MirType, Module, RevertReason, SliceLocation, Terminator, Value,
-        ValueId, analysis::CallGraphInfo, memory::EvmMemoryLayout, pass::MirPass,
-        transform::utils::redirect_successor_predecessors, utils::resolve_replacement,
+        Function, FunctionBuilder, FunctionId, InstId, InstKind, InstructionMetadata,
+        MemoryObjectKind, MemoryObjectLayout, MirType, Module, RevertReason, SliceLocation,
+        Terminator, Value, ValueId, analysis::CallGraphInfo, memory::EvmMemoryLayout,
+        pass::MirPass, transform::utils::redirect_successor_predecessors,
+        utils::resolve_replacement,
     },
     target::{Cost, Target},
 };
 
 use alloy_primitives::U256;
 use solar_config::RevertStrings;
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    index::IndexVec,
+    map::{FxHashMap, FxHashSet},
+};
 use solar_interface::{Ident, sym};
 use solar_sema::Gcx;
 
@@ -64,8 +75,17 @@ impl MirPass for LowerAbiEncode {
     ) -> bool {
         let revert_strings = gcx.sess.opts.revert_strings;
         let target = Target::new(gcx);
+        let (fresh_object_returns, mut destructive_returns) =
+            plan_destructive_terminal_returns(target, module);
         let mut helpers = synthesize_array_helpers(target, module, revert_strings);
-        synthesize_tuple_helpers(target, module, &mut helpers, revert_strings);
+        synthesize_tuple_helpers(
+            target,
+            module,
+            &mut helpers,
+            revert_strings,
+            &destructive_returns,
+        );
+        destructive_returns.resize_with(module.functions.len(), FxHashSet::default);
         let call_graph = CallGraphInfo::new(module);
         let mut constructors = call_graph.reachable_callees_from(
             module
@@ -83,13 +103,19 @@ impl MirPass for LowerAbiEncode {
             ..EncodeHelpers::default()
         };
         let mut changed = !helpers.arrays.is_empty() || !helpers.tuples.is_empty();
-        for (id, func) in module.functions.iter_mut_enumerated() {
+        for (func_id, func) in module.functions.iter_mut_enumerated() {
             // NOTE: Constructor calls allocate frames at the free-memory pointer. Encoding
             // writes there before reserving its output, so an outlined call would overwrite it.
             // abi_encode(args) => inline head stores and tail copies
             let helpers =
-                if constructors.contains(id) { &mut inline_helpers } else { &mut helpers };
-            changed |= lower_function(func, helpers, revert_strings);
+                if constructors.contains(func_id) { &mut inline_helpers } else { &mut helpers };
+            changed |= lower_function(
+                func,
+                helpers,
+                revert_strings,
+                &fresh_object_returns,
+                &destructive_returns[func_id],
+            );
         }
         changed
     }
@@ -154,13 +180,17 @@ fn synthesize_tuple_helpers(
     module: &mut Module,
     helpers: &mut EncodeHelpers,
     revert_strings: RevertStrings,
+    destructive_returns: &IndexVec<FunctionId, FxHashSet<InstId>>,
 ) {
     let mut counts = FxHashMap::<TupleHelperKey, (usize, usize)>::default();
-    for func in module.functions.iter() {
+    for (func_id, func) in module.functions.iter_enumerated() {
         for inst in func.instructions() {
             let InstKind::AbiEncode { mode, selector, args, layout } = &func.inst(inst).kind else {
                 continue;
             };
+            if destructive_returns[func_id].contains(&inst) {
+                continue;
+            }
             let next = counts.len();
             let count = counts
                 .entry(TupleHelperKey::of(func, *mode, *selector, args, layout))
@@ -365,6 +395,8 @@ fn lower_function(
     func: &mut Function,
     helpers: &mut EncodeHelpers,
     revert_strings: RevertStrings,
+    fresh_object_returns: &DenseBitSet<FunctionId>,
+    destructive_returns: &FxHashSet<InstId>,
 ) -> bool {
     let has_encodes =
         func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::AbiEncode { .. }));
@@ -402,15 +434,25 @@ fn lower_function(
             let key = TupleHelperKey::of(builder.func(), mode, selector, &args, &layout);
             let result =
                 builder.func().inst_result_value(inst).expect("ABI encode must produce a value");
-            let replacement = match helpers.tuples.get(&key) {
-                Some(&helper) => {
-                    // encoded = icall @encode_abi_tuple, 1, args.., [selector]
-                    let result_ty =
-                        builder.func().value_ty(result).unwrap_or_else(MirType::uint256);
-                    let call_args = args.iter().copied().chain(selector).collect();
-                    builder.icall(helper, call_args, result_ty, 1)
+            let replacement = if destructive_returns.contains(&inst)
+                && let Some(encoded) = encode_dynamic_return_in_place(
+                    &mut builder,
+                    &layout,
+                    &args,
+                    fresh_object_returns,
+                ) {
+                encoded
+            } else {
+                match helpers.tuples.get(&key) {
+                    Some(&helper) => {
+                        // encoded = icall @encode_abi_tuple, 1, args.., [selector]
+                        let result_ty =
+                            builder.func().value_ty(result).unwrap_or_else(MirType::uint256);
+                        let call_args = args.iter().copied().chain(selector).collect();
+                        builder.icall(helper, call_args, result_ty, 1)
+                    }
+                    None => lower_encode(&mut builder, &layout, selector, &args, mode, helpers),
                 }
-                None => lower_encode(&mut builder, &layout, selector, &args, mode, helpers),
             };
             literal_objects.extend(args.iter().copied());
             replacements.insert(result, replacement);
@@ -428,6 +470,226 @@ fn lower_function(
     );
     let repaired = crate::mir::utils::repair_reachability_phis(func);
     !replacements.is_empty() || repaired
+}
+
+/// Selects destructive terminal encodings before module-wide helper sharing is
+/// costed. Unoptimized lowering retains the direct semantic expansion.
+fn plan_destructive_terminal_returns(
+    target: Target,
+    module: &Module,
+) -> (DenseBitSet<FunctionId>, IndexVec<FunctionId, FxHashSet<InstId>>) {
+    let mut fresh = DenseBitSet::new_empty(module.functions.len());
+    let mut plan = IndexVec::from_vec(vec![FxHashSet::default(); module.functions.len()]);
+    if !(target.optimization().is_gas() || target.optimization().is_size()) {
+        return (fresh, plan);
+    }
+    let candidates = module.functions.iter().map(terminal_return_encodes).collect::<Vec<_>>();
+    if candidates.iter().all(FxHashSet::is_empty) {
+        return (fresh, plan);
+    }
+    fresh = fresh_object_returning_functions(module);
+    for (func_id, candidates) in IndexVec::<FunctionId, _>::from_vec(candidates).iter_enumerated() {
+        let func = &module.functions[func_id];
+        let literal_objects = literal_objects_at_encodes(func);
+        for &inst in candidates {
+            let InstKind::AbiEncode { args, layout, .. } = &func.inst(inst).kind else {
+                unreachable!()
+            };
+            if args.iter().all(|arg| !literal_objects.contains(arg))
+                && can_encode_dynamic_return_in_place(func, layout, args, &fresh)
+            {
+                plan[func_id].insert(inst);
+            }
+        }
+    }
+    (fresh, plan)
+}
+
+/// Finds encodes used only by the two projections of an immediate
+/// `returndata`. Destructive encoding is safe only in this terminal shape.
+fn terminal_return_encodes(func: &Function) -> FxHashSet<InstId> {
+    if !func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::AbiEncode { .. })) {
+        return FxHashSet::default();
+    }
+    let mut uses = FxHashMap::<ValueId, usize>::default();
+    for inst_id in func.instructions() {
+        for operand in func.inst(inst_id).operands() {
+            *uses.entry(operand).or_default() += 1;
+        }
+    }
+    for block in &func.blocks {
+        if let Some(term) = &block.terminator {
+            for operand in term.operands() {
+                *uses.entry(operand).or_default() += 1;
+            }
+        }
+    }
+
+    let mut terminal = FxHashSet::default();
+    for block in &func.blocks {
+        let Some(Terminator::ReturnData { offset, size }) = &block.terminator else { continue };
+        for (position, &encode) in block.instructions.iter().enumerate() {
+            if !matches!(func.inst(encode).kind, InstKind::AbiEncode { .. }) {
+                continue;
+            }
+            let Some(encoded) = func.inst_result_value(encode) else { continue };
+            let suffix = &block.instructions[position + 1..];
+            if suffix.len() != 2 || uses.get(&encoded).copied() != Some(2) {
+                continue;
+            }
+            let mut projected_offset = None;
+            let mut projected_size = None;
+            for &projection in suffix {
+                let Some(result) = func.inst_result_value(projection) else { continue };
+                match func.inst(projection).kind {
+                    InstKind::SlicePtr(value) if value == encoded => {
+                        projected_offset = Some(result)
+                    }
+                    InstKind::SliceLen(value) if value == encoded => projected_size = Some(result),
+                    _ => {}
+                }
+            }
+            if projected_offset == Some(*offset)
+                && projected_size == Some(*size)
+                && uses.get(offset).copied() == Some(1)
+                && uses.get(size).copied() == Some(1)
+            {
+                terminal.insert(encode);
+            }
+        }
+    }
+    terminal
+}
+
+/// Returns functions whose successful exits return a freshly allocated object.
+/// Internal-call results propagate freshness to thin wrappers. Reverting paths
+/// do not affect the proof.
+pub(super) fn fresh_object_returning_functions(module: &Module) -> DenseBitSet<FunctionId> {
+    let mut fresh = DenseBitSet::new_empty(module.functions.len());
+    loop {
+        let mut changed = false;
+        for (func_id, func) in module.functions.iter_enumerated() {
+            if fresh.contains(func_id) {
+                continue;
+            }
+            let mut returns = func.blocks.iter().filter_map(|block| match &block.terminator {
+                Some(Terminator::Return { values }) => Some(values.as_slice()),
+                _ => None,
+            });
+            let Some(first) = returns.next() else { continue };
+            if return_values_are_fresh(func, first, &fresh)
+                && returns.all(|values| return_values_are_fresh(func, values, &fresh))
+            {
+                fresh.insert(func_id);
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    fresh
+}
+
+/// Proves that a successful exit returns one allocation owned by its caller.
+fn return_values_are_fresh(
+    func: &Function,
+    values: &[ValueId],
+    fresh: &DenseBitSet<FunctionId>,
+) -> bool {
+    let [value] = values else { return false };
+    let Value::Inst(inst) = func.value(*value) else { return false };
+    match func.inst(*inst).kind {
+        InstKind::Alloc { .. } => true,
+        InstKind::MLoad(address)
+            if func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
+                && func.inst(*inst).metadata.effect() == Some(EffectKind::MemoryWrite) =>
+        {
+            true
+        }
+        InstKind::ICall { function, returns: 1, .. } => fresh.contains(function),
+        _ => false,
+    }
+}
+
+fn can_encode_dynamic_return_in_place(
+    func: &Function,
+    layout: &AbiLayout,
+    args: &[ValueId],
+    fresh_object_returns: &DenseBitSet<FunctionId>,
+) -> bool {
+    let [object] = args else { return false };
+    let kind = match &*layout.types {
+        [AbiType::DynamicArray { element, location: SliceLocation::Memory }]
+            if matches!(element.as_ref(), AbiType::Word(None)) =>
+        {
+            MemoryObjectKind::DynamicArray
+        }
+        [AbiType::Bytes(SliceLocation::Memory)] => MemoryObjectKind::Bytes,
+        _ => return false,
+    };
+    func.value_ty(*object) == Some(MirType::MemoryObject(kind))
+        && fresh_memory_object(func, *object, fresh_object_returns)
+}
+
+/// Encodes a one-element dynamic tuple over the returned object's storage.
+fn encode_dynamic_return_in_place(
+    builder: &mut FunctionBuilder<'_>,
+    layout: &AbiLayout,
+    args: &[ValueId],
+    fresh_object_returns: &DenseBitSet<FunctionId>,
+) -> Option<ValueId> {
+    if !can_encode_dynamic_return_in_place(builder.func(), layout, args, fresh_object_returns) {
+        return None;
+    }
+    let [object] = args else { unreachable!() };
+
+    let kind = match &*layout.types {
+        [AbiType::DynamicArray { .. }] => MemoryObjectKind::DynamicArray,
+        [AbiType::Bytes(_)] => MemoryObjectKind::Bytes,
+        _ => unreachable!(),
+    };
+    let length = memory_object_len(builder, *object, kind);
+    let source = builder.memory_object_data(*object, kind);
+    let bytes = if kind == MemoryObjectKind::DynamicArray {
+        let five = builder.imm(5);
+        builder.shl(five, length)
+    } else {
+        let thirty_one = builder.imm(31);
+        let rounded = builder.add(length, thirty_one);
+        let mask = builder.not(thirty_one);
+        let padded = builder.and(rounded, mask);
+        // object: [length, bytes..., padding]
+        // => [32, length, bytes..., zero padding]
+        let last = builder.add(source, padded);
+        let zero = builder.imm(0);
+        builder.mstore(last, zero);
+        padded
+    };
+
+    // object: [length, payload...]
+    // => [32, length, payload...]
+    let destination = builder.add_u64_offset(source, 32);
+    let copy_size = if kind == MemoryObjectKind::Bytes { length } else { bytes };
+    builder.mcopy(destination, source, copy_size);
+    let offset = builder.imm(32);
+    builder.mstore(*object, offset);
+    builder.mstore(source, length);
+    let total = builder.add_u64_offset(bytes, 64);
+    Some(builder.make_slice(*object, total, SliceLocation::Memory))
+}
+
+fn fresh_memory_object(
+    func: &Function,
+    value: ValueId,
+    fresh_object_returns: &DenseBitSet<FunctionId>,
+) -> bool {
+    let Value::Inst(inst) = func.value(value) else { return false };
+    match func.inst(*inst).kind {
+        InstKind::Alloc { kind: AllocationKind::Object(_), .. } => true,
+        InstKind::ICall { function, returns: 1, .. } => fresh_object_returns.contains(function),
+        _ => false,
+    }
 }
 
 fn fold_slice_projections(func: &Function, replacements: &mut FxHashMap<ValueId, ValueId>) {

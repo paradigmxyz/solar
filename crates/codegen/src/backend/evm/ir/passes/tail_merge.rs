@@ -16,9 +16,10 @@
 //! is observable, such as a pre-EIP-150 call's `GAS`-relative gas reserve, in one block.
 //!
 //! Splitting between a pushed label and its branch must preserve the label's control-only
-//! identity. The pass first records all opaque label uses, then marks safe branch continuations
-//! before separating the push from its consumer. Subsequent CFG cleanup can still redirect those
-//! addresses through jump thunks, while numerically observed labels remain distinct.
+//! identity. Once it finds a profitable merge, the pass records opaque label uses and marks safe
+//! branch continuations before separating the push from its consumer. Subsequent CFG cleanup can
+//! still redirect those addresses through jump thunks, while numerically observed labels remain
+//! distinct.
 //!
 //! Gas mode keeps a short word loop's branch in its original block. Such a branch targets a
 //! latch of at most 24 pure word/stack instructions, with a three- or four-word input, that jumps
@@ -41,6 +42,7 @@ use crate::backend::evm::{
     ir::{Block, BlockId, Hotness, Instruction, Metadata, Module, Terminator, TerminatorKind},
     op::{self, StackOp, push_len},
 };
+use smallvec::SmallVec;
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 use solar_sema::Gcx;
 
@@ -93,19 +95,8 @@ impl RunState {
     fn plan_merges(&mut self, gcx: Gcx<'_>, module: &Module) {
         self.merges.clear();
         self.opaque_labels.clear();
-        for block in &module.blocks {
-            for (at, inst) in block.instructions.iter().enumerate() {
-                if let Some(target) = inst.pushed_block()
-                    && !module.blocks[target].metadata.is_continuation
-                    && !is_direct_jump_label(block, at)
-                {
-                    self.opaque_labels.insert(target);
-                }
-            }
-        }
         self.tail_roots.clear();
         self.tail_node_pool.append(&mut self.tail_nodes);
-        self.tail_node_pool.iter_mut().for_each(TailNode::clear);
         for (block_id, block) in module.blocks.iter_enumerated() {
             if !is_candidate(block) {
                 continue;
@@ -135,6 +126,18 @@ impl RunState {
                 self.insert_tail(block_id, block, keep_branches);
             }
         }
+        if !self.merges.is_empty() {
+            for block in &module.blocks {
+                for (at, inst) in block.instructions.iter().enumerate() {
+                    if let Some(target) = inst.pushed_block()
+                        && !module.blocks[target].metadata.is_continuation
+                        && !is_direct_jump_label(block, at)
+                    {
+                        self.opaque_labels.insert(target);
+                    }
+                }
+            }
+        }
     }
 
     fn longest_common_tail(&self, block: &Block, keep_branches: bool) -> Option<(BlockId, usize)> {
@@ -146,7 +149,11 @@ impl RunState {
             if keep_branches && inst.as_evm_opcode() == Some(op::JUMPI) {
                 break;
             }
-            let Some(&child) = self.tail_nodes[node].children.get(&MachineInstKey::new(inst))
+            let key = MachineInstKey::new(inst);
+            let Some(child) = self.tail_nodes[node]
+                .children
+                .iter()
+                .find_map(|&(known, child)| (known == key).then_some(child))
             else {
                 break;
             };
@@ -195,21 +202,28 @@ impl RunState {
     }
 
     fn tail_child(&mut self, node: usize, key: MachineInstKey) -> usize {
-        if let Some(&child) = self.tail_nodes[node].children.get(&key) {
+        if let Some(child) = self.tail_nodes[node]
+            .children
+            .iter()
+            .find_map(|&(known, child)| (known == key).then_some(child))
+        {
             return child;
         }
         let child = self.new_tail_node();
-        self.tail_nodes[node].children.insert(key, child);
+        self.tail_nodes[node].children.push((key, child));
         child
     }
 
     fn new_tail_node(&mut self) -> usize {
         let node = self.tail_nodes.len();
-        self.tail_nodes.push(self.tail_node_pool.pop().unwrap_or_default());
+        let mut tail = self.tail_node_pool.pop().unwrap_or_default();
+        tail.clear();
+        self.tail_nodes.push(tail);
         node
     }
 
     fn apply_merges(&mut self, module: &mut Module, labels: &mut FreshLabels) -> bool {
+        let track_debug_info = module.debug_info_is_tracked();
         self.group_indices.clear();
         let mut group_count = 0;
         for &merge in &self.merges {
@@ -284,20 +298,22 @@ impl RunState {
                 tail.instructions = instructions
                     [instructions.len() - common..instructions.len() - previous_common]
                     .to_vec();
-                for instruction in &mut tail.instructions {
-                    instruction.metadata.take_function_invoke();
-                }
-                for &(site, site_common) in &group.sites {
-                    if site_common < common {
-                        continue;
+                if track_debug_info {
+                    for instruction in &mut tail.instructions {
+                        instruction.metadata.take_function_invoke();
                     }
-                    let site_instructions = &module.blocks[site].instructions;
-                    let site_segment = &site_instructions[site_instructions.len() - common
-                        ..site_instructions.len() - previous_common];
-                    for (instruction, site_instruction) in
-                        tail.instructions.iter_mut().zip(site_segment)
-                    {
-                        instruction.metadata.merge_source_spans(&site_instruction.metadata);
+                    for &(site, site_common) in &group.sites {
+                        if site_common < common {
+                            continue;
+                        }
+                        let site_instructions = &module.blocks[site].instructions;
+                        let site_segment = &site_instructions[site_instructions.len() - common
+                            ..site_instructions.len() - previous_common];
+                        for (instruction, site_instruction) in
+                            tail.instructions.iter_mut().zip(site_segment)
+                        {
+                            instruction.metadata.merge_source_spans(&site_instruction.metadata);
+                        }
                     }
                 }
                 tail.terminator = previous_tail.map_or_else(
@@ -308,7 +324,8 @@ impl RunState {
                         )
                     },
                 );
-                if previous_tail.is_none()
+                if track_debug_info
+                    && previous_tail.is_none()
                     && let Some(tail_terminator) = &mut tail.terminator
                 {
                     for &(site, site_common) in &group.sites {
@@ -326,15 +343,17 @@ impl RunState {
             }
 
             let &(max_common, max_tail) = tails.last().expect("merge group must have a tail");
-            let representative_debug =
-                suffix_debug_info(&module.blocks[group.representative], max_common);
+            let representative_debug = track_debug_info
+                .then(|| suffix_debug_info(&module.blocks[group.representative], max_common));
             // prefix; suffix !metadata(origin) => prefix; jump tail !metadata(origin)
             module.blocks[group.representative]
                 .instructions
                 .truncate(instructions.len() - max_common);
             let mut terminator =
                 Terminator::new(TerminatorKind::Jump(max_tail)).with_debug_info_dropped();
-            terminator.metadata.copy_debug_info_from(&representative_debug);
+            if let Some(representative_debug) = representative_debug {
+                terminator.metadata.copy_debug_info_from(&representative_debug);
+            }
             module.blocks[group.representative].terminator = Some(terminator);
             for &(block, common) in &group.sites {
                 let tail = tails
@@ -343,12 +362,15 @@ impl RunState {
                     .expect("tail must exist for every merge site");
                 let len = module.blocks[block].instructions.len();
                 preserve_split_control_target(module, block, len - common, opaque_labels);
-                let debug_info = suffix_debug_info(&module.blocks[block], common);
+                let debug_info =
+                    track_debug_info.then(|| suffix_debug_info(&module.blocks[block], common));
                 // prefix; suffix !metadata(origin) => prefix; jump tail !metadata(origin)
                 module.blocks[block].instructions.truncate(len - common);
                 let mut terminator =
                     Terminator::new(TerminatorKind::Jump(tail)).with_debug_info_dropped();
-                terminator.metadata.copy_debug_info_from(&debug_info);
+                if let Some(debug_info) = debug_info {
+                    terminator.metadata.copy_debug_info_from(&debug_info);
+                }
                 module.blocks[block].terminator = Some(terminator);
             }
         }
@@ -491,7 +513,7 @@ struct MergeGroup {
 
 #[derive(Default)]
 struct TailNode {
-    children: FxHashMap<MachineInstKey, usize>,
+    children: SmallVec<[(MachineInstKey, usize); 1]>,
     representative: Option<BlockId>,
 }
 

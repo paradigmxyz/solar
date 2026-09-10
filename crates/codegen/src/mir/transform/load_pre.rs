@@ -84,7 +84,7 @@ use crate::{
             Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, Location, LocationSize,
             MemoryAddress, MemoryLocation, ModRef,
         },
-        pass::{MirPass, run_function_pass},
+        pass::{MirPass, run_function_pass_with_alias_and_cfg},
         utils as mir_utils,
     },
     target::{GasTier, Target, Warmth},
@@ -111,10 +111,10 @@ impl MirPass for LoadPre {
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         let target = Target::new(gcx);
-        run_function_pass(module, analyses, |func, analyses| {
+        run_function_pass_with_alias_and_cfg(module, analyses, |func, analyses| {
             let mut eliminator = LoadRedundancyEliminator::new(target);
-            eliminator.alias = Some(Rc::clone(&analyses.alias));
-            eliminator.cfg = Some(Rc::clone(&analyses.cfg));
+            eliminator.alias = Some(Rc::clone(analyses.alias()));
+            eliminator.cfg = Some(Rc::clone(analyses.cfg()));
             eliminator.run(func).total() != 0
         })
     }

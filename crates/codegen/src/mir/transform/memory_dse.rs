@@ -14,7 +14,7 @@ use crate::mir::{
         MemoryBase, MemoryLocation,
     },
     memory::EvmMemoryLayout,
-    pass::{MirPass, run_function_pass},
+    pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
     utils as mir_utils,
 };
 use alloy_primitives::{U256, keccak256};
@@ -43,13 +43,47 @@ impl MirPass for MemoryDse {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, analyses| {
-            let mut eliminator = MemoryStoreEliminator::new();
-            eliminator.alias = Some(Rc::clone(&analyses.alias));
-            eliminator.cfg = Some(Rc::clone(&analyses.cfg));
-            eliminator.run_to_fixpoint(func) != 0
-        })
+        let mut selected = DenseBitSet::new_empty(module.functions.len());
+        for (func_id, func) in module.functions.iter_enumerated() {
+            if has_memory_writes(func) {
+                selected.insert(func_id);
+            }
+        }
+        run_selected_function_pass_with_alias_and_cfg(
+            module,
+            analyses,
+            &selected,
+            |func, analyses| {
+                let mut eliminator = MemoryStoreEliminator::new();
+                eliminator.alias = Some(Rc::clone(analyses.alias()));
+                eliminator.cfg = Some(Rc::clone(analyses.cfg()));
+                eliminator.run_to_fixpoint(func) != 0
+            },
+        )
     }
+}
+
+/// Returns whether the function contains a memory write this pass can remove
+/// or forward from.
+fn has_memory_writes(func: &Function) -> bool {
+    func.instructions().any(|inst_id| {
+        matches!(
+            func.inst(inst_id).kind,
+            InstKind::MStore(_, _)
+                | InstKind::MStore8(_, _)
+                | InstKind::MemoryZero(_, _)
+                | InstKind::MCopy(_, _, _)
+                | InstKind::CalldataCopy(_, _, _)
+                | InstKind::DataCopy(_, _, _)
+                | InstKind::CodeCopy(_, _, _)
+                | InstKind::ReturnDataCopy(_, _, _)
+                | InstKind::ExtCodeCopy(_, _, _, _)
+                | InstKind::SetMemoryObjectLen(_, _, _)
+                | InstKind::StorageToMemory { .. }
+                | InstKind::AbiEncode { .. }
+                | InstKind::AbiDecode { .. }
+        )
+    })
 }
 
 /// Local dead memory optimization.
@@ -373,25 +407,7 @@ impl MemoryStoreEliminator {
         // Both store elimination and store-to-load forwarding need at least
         // one memory write to act on; functions without any skip the whole
         // scan and never build the alias snapshot.
-        let has_memory_writes = func.instructions().any(|inst_id| {
-            matches!(
-                func.inst(inst_id).kind,
-                InstKind::MStore(_, _)
-                    | InstKind::MStore8(_, _)
-                    | InstKind::MemoryZero(_, _)
-                    | InstKind::MCopy(_, _, _)
-                    | InstKind::CalldataCopy(_, _, _)
-                    | InstKind::DataCopy(_, _, _)
-                    | InstKind::CodeCopy(_, _, _)
-                    | InstKind::ReturnDataCopy(_, _, _)
-                    | InstKind::ExtCodeCopy(_, _, _, _)
-                    | InstKind::SetMemoryObjectLen(_, _, _)
-                    | InstKind::StorageToMemory { .. }
-                    | InstKind::AbiEncode { .. }
-                    | InstKind::AbiDecode { .. }
-            )
-        });
-        if !has_memory_writes {
+        if !has_memory_writes(func) {
             return 0;
         }
 

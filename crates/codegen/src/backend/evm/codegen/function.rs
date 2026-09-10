@@ -358,6 +358,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         for (pos, &block_id) in block_order.iter().enumerate() {
             let block = &func.blocks[block_id];
             let fallthrough = block_order.get(pos + 1).copied();
+            let self_tail_call = self.void_self_tail_call(func_id, func, block_id);
             let tail_call = self.void_tail_call(func_id, func, block_id);
             if self.capture_debug_info {
                 let modifier_depth = block
@@ -481,7 +482,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                 let inst = func.inst(inst_id);
 
                 // icall callee(args); return -> forward_return_address callee(args)
-                if tail_call.is_some() && inst_idx + 1 == block.instructions.len() {
+                if (self_tail_call.is_some() || tail_call.is_some())
+                    && inst_idx + 1 == block.instructions.len()
+                {
                     continue;
                 }
 
@@ -882,7 +885,12 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.asm.set_source_spans(metadata.source_spans());
                 self.asm.set_modifier_depth(metadata.modifier_depth());
             }
-            if let Some((callee, args)) = tail_call {
+            if let Some(args) = self_tail_call {
+                // [inherited_return, caller_words], frame(args...)
+                // => [inherited_return], frame(new_args...)
+                // jump self
+                self.emit_void_self_tail_call(func_id, func, args);
+            } else if let Some((callee, args)) = tail_call {
                 // [inherited_return, caller_words] -> [inherited_return, callee_args]
                 // jump callee
                 self.emit_void_tail_call(func_id, func, callee, args);

@@ -3,9 +3,7 @@
 @phase evm-shaped
 fn @dFlat() [selector=0x6644232b, pure] {
   bb0:
-    v22 = calldatasize
-    v23 = lt v22, 36
-    jumpi v23, bb1, bb5
+    jump bb5
   bb5:
     v24 = icall @decode_calldata_type, 1, 4
     v7 = add v24, 32
@@ -49,9 +47,7 @@ fn @dFlat() [selector=0x6644232b, pure] {
 
 fn @dNested() [selector=0xfc7ec666, pure] {
   bb0:
-    v48 = calldatasize
-    v49 = lt v48, 36
-    jumpi v49, bb1, bb11
+    jump bb11
   bb11:
     v50 = icall @decode_calldata_type, 1, 4
     v7 = add v50, 32
@@ -176,9 +172,7 @@ fn @dNested() [selector=0xfc7ec666, pure] {
 
 fn @dFixed() [selector=0xc298c02b, pure] {
   bb0:
-    v30 = calldatasize
-    v31 = lt v30, 36
-    jumpi v31, bb3, bb10
+    jump bb10
   bb10:
     v32 = icall @decode_calldata_type, 1, 4
     v11 = add v32, 32
@@ -247,9 +241,7 @@ fn @dFixed() [selector=0xc298c02b, pure] {
 
 fn @dDynArr() [selector=0xaca542ca, pure] {
   bb0:
-    v42 = calldatasize
-    v43 = lt v42, 36
-    jumpi v43, bb1, bb12
+    jump bb12
   bb12:
     v44 = icall @decode_calldata_type, 1, 4
     v2 = add v44, 32
@@ -483,19 +475,22 @@ fn @decode_memory_type(arg0: u256, arg1: u256, arg2: u256) -> memptr {
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
-    jumpi v0, bb6, bb1
-  bb1:
-    v1 = calldataload 0
-    v2 = shr 224, v1
-    switch v2, default bb6, [0x6644232b => bb2, 0xaca542ca => bb3, 0xc298c02b => bb4, 0xfc7ec666 => bb5]
-  bb5:
-    tail_call @dNested
-  bb4:
-    tail_call @dFixed
-  bb3:
-    tail_call @dDynArr
+    v1 = calldatasize
+    v2 = lt v1, 36
+    v3 = or v0, v2
+    jumpi v3, bb1, bb2
   bb2:
-    tail_call @dFlat
+    v4 = calldataload 0
+    v5 = shr 224, v4
+    switch v5, default bb1, [0x6644232b => bb3, 0xaca542ca => bb4, 0xc298c02b => bb5, 0xfc7ec666 => bb6]
   bb6:
+    tail_call @dNested
+  bb5:
+    tail_call @dFixed
+  bb4:
+    tail_call @dDynArr
+  bb3:
+    tail_call @dFlat
+  bb1:
     revert 0, 0
 }

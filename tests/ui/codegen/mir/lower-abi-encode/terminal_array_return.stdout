@@ -1,0 +1,107 @@
+- // === ROOT/tests/ui/codegen/mir/lower-abi-encode/terminal_array_return.mir (before lower-abi-encode) ===
++ // === ROOT/tests/ui/codegen/mir/lower-abi-encode/terminal_array_return.mir (after lower-abi-encode) ===
+  @module TerminalArrayReturn
+  fn @fresh_array() -> memoryarray {
+    bb0:
+      v0 = alloc memoryarray<1>, exact, uninitialized, infallible, 96
+      set_memory_object_len memoryarray, v0, 2
+      ret v0
+  }
+  
+  fn @terminal() {
+    bb0:
+      v0 = icall @fresh_array, 1
+-     v1 = abi_encode [memory_array<word>], args v0
+-     v2 = slice_ptr v1
+-     v3 = slice_len v1
+-     returndata v2, v3
++     v4 = memory_object_len memoryarray, v0
++     v5 = iszero v0
++     v6 = iszero v5
++     v7 = mul v4, v6
++     v8 = memory_object_data memoryarray, v0
++     v9 = shl 5, v7
++     v10 = add v8, 32
++     mcopy v10, v8, v9
++     mstore v0, 32
++     mstore v8, v7
++     v11 = add v9, 64
++     v12 = make_memory_slice v0, v11
++     v2 = slice_ptr v12
++     v3 = slice_len v12
++     returndata v0, v11
+  }
+  
+  fn @borrowed(arg0: memoryarray) {
+    bb0:
+-     v0 = abi_encode [memory_array<word>], args arg0
+-     v1 = slice_ptr v0
+-     v2 = slice_len v0
+-     returndata v1, v2
++     v3 = fmp
++     v4 = add v3, 32
++     v5 = sub v4, v3
++     mstore v3, v5
++     v6 = memory_object_len memoryarray, arg0
++     v7 = iszero arg0
++     v8 = iszero v7
++     v9 = mul v6, v8
++     mstore v4, v9
++     v10 = mul v9, 32
++     v11 = add v4, 32
++     v12 = memory_object_data memoryarray, arg0
++     v13 = add v11, v10
++     mcopy v11, v12, v10 !metadata(memory=heap)
++     v14 = sub v13, v3
++     v15 = add v14, 0
++     v16 = add v15, 31
++     v17 = not 31
++     v18 = and v16, v17
++     v19 = alloc raw, exact, uninitialized, infallible, v18 !metadata(preserves_fmp)
++     v20 = make_memory_slice v19, v15
++     v1 = slice_ptr v20
++     v2 = slice_len v20
++     returndata v19, v15
+  }
+  
+  fn @fresh_bytes(arg0: u256) -> memorybytes {
+    bb0:
+      v0 = alloc memorybytes, exact, uninitialized, infallible, 96
+      set_memory_object_len memorybytes, v0, arg0
+      ret v0
+  }
+  
+  fn @fresh_bytes_wrapper(arg0: u256) -> memorybytes {
+    bb0:
+      v0 = icall @fresh_bytes, 1, arg0
+      ret v0
+  }
+  
+  fn @terminal_bytes(arg0: u256) {
+    bb0:
+      v0 = icall @fresh_bytes_wrapper, 1, arg0
+-     v1 = abi_encode [memory_bytes], args v0
+-     v2 = slice_ptr v1
+-     v3 = slice_len v1
+-     returndata v2, v3
++     v4 = memory_object_len memorybytes, v0
++     v5 = iszero v0
++     v6 = iszero v5
++     v7 = mul v4, v6
++     v8 = memory_object_data memorybytes, v0
++     v9 = add v7, 31
++     v10 = not 31
++     v11 = and v9, v10
++     v12 = add v8, v11
++     mstore v12, 0
++     v13 = add v8, 32
++     mcopy v13, v8, v7
++     mstore v0, 32
++     mstore v8, v7
++     v14 = add v11, 64
++     v15 = make_memory_slice v0, v14
++     v2 = slice_ptr v15
++     v3 = slice_len v15
++     returndata v0, v14
+  }
+  

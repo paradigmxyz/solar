@@ -32,21 +32,10 @@ bb0:
   push_data literal_0
   dup 3
   codecopy
-  push 64
-  mload
-  push 32
   dup 2
-  add
-  push 32
-  dup 3
-  mstore
-  dup 4
   iszero
   iszero
-  swap 4
-  mload
-  swap 1
-  swap 4
+  push 160
   mul
   push 31
   dup 2
@@ -54,45 +43,27 @@ bb0:
   push 31
   not
   and
-  push 32
-  dup 6
-  add
-  dup 2
-  dup 7
+  dup 1
+  dup 4
   add
   push 0
   swap 1
   mstore
+  push 32
+  dup 4
+  add
   dup 3
-  swap 1
-  swap 6
-  mstore
   dup 5
-  add
-  dup 2
-  dup 5
-  dup 7
+  dup 3
   mcopy
-  swap 3
   pop
-  pop
-  swap 2
-  pop
-  sub
-  push 31
-  dup 2
-  add
-  push 31
-  not
-  and
-  push 64
-  mload
-  swap 1
-  dup 2
-  add
-  push 64
+  push 32
+  dup 5
   mstore
-  dup 2
+  swap 2
+  mstore
+  push 64
+  add
   dup 2
   return
 bb3 [cold]:

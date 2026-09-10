@@ -70,9 +70,10 @@ impl OpTraits {
     pub(crate) const REMATERIALIZABLE: Self = Self(1 << 1);
     /// The operation still carries a semantic memory-object representation.
     pub(crate) const MEMORY_OBJECT: Self = Self(1 << 2);
-
     /// The declared operand pair may be exchanged without changing the result.
     pub(crate) const COMMUTATIVE: Self = Self(1 << 3);
+    /// The operation is a root of at least one local e-graph rewrite rule.
+    pub(crate) const EGRAPH_REWRITE: Self = Self(1 << 4);
 
     /// Returns the union of two property sets.
     pub(crate) const fn union(self, other: Self) -> Self {
@@ -855,7 +856,7 @@ define_mir_ops! {
         result = Word,
         phases = PhaseSet::ALL,
         effect = Pure,
-        traits = OpTraits::REORDERABLE.union(OpTraits::REMATERIALIZABLE),
+        traits = OpTraits::REORDERABLE.union(OpTraits::REMATERIALIZABLE).union(OpTraits::EGRAPH_REWRITE),
         side_effects = false,
         category = None
     )]
@@ -868,7 +869,7 @@ define_mir_ops! {
         result = Word,
         phases = PhaseSet::ALL,
         effect = Pure,
-        traits = OpTraits::REMATERIALIZABLE,
+        traits = OpTraits::REMATERIALIZABLE.union(OpTraits::EGRAPH_REWRITE),
         side_effects = false,
         category = None
     )]
@@ -880,7 +881,7 @@ define_mir_ops! {
         result = Word,
         phases = PhaseSet::ALL,
         effect = Pure,
-        traits = OpTraits::REORDERABLE.union(OpTraits::REMATERIALIZABLE),
+        traits = OpTraits::REORDERABLE.union(OpTraits::REMATERIALIZABLE).union(OpTraits::EGRAPH_REWRITE),
         side_effects = false,
         category = None
     )]
@@ -893,7 +894,7 @@ define_mir_ops! {
         result = Word,
         phases = PhaseSet::ALL,
         effect = Pure,
-        traits = OpTraits::NONE,
+        traits = OpTraits::EGRAPH_REWRITE,
         side_effects = false,
         category = None
     )]
@@ -905,7 +906,7 @@ define_mir_ops! {
         result = SignedWord,
         phases = PhaseSet::ALL,
         effect = Pure,
-        traits = OpTraits::NONE,
+        traits = OpTraits::EGRAPH_REWRITE,
         side_effects = false,
         category = None
     )]
@@ -917,7 +918,7 @@ define_mir_ops! {
         result = Word,
         phases = PhaseSet::ALL,
         effect = Pure,
-        traits = OpTraits::NONE,
+        traits = OpTraits::EGRAPH_REWRITE,
         side_effects = false,
         category = None
     )]
@@ -929,7 +930,7 @@ define_mir_ops! {
         result = SignedWord,
         phases = PhaseSet::ALL,
         effect = Pure,
-        traits = OpTraits::NONE,
+        traits = OpTraits::EGRAPH_REWRITE,
         side_effects = false,
         category = None
     )]
@@ -941,7 +942,7 @@ define_mir_ops! {
         result = Word,
         phases = PhaseSet::ALL,
         effect = Pure,
-        traits = OpTraits::NONE,
+        traits = OpTraits::EGRAPH_REWRITE,
         side_effects = false,
         category = None
     )]
@@ -953,7 +954,7 @@ define_mir_ops! {
         result = Word,
         phases = PhaseSet::ALL,
         effect = Pure,
-        traits = OpTraits::NONE,
+        traits = OpTraits::EGRAPH_REWRITE,
         side_effects = false,
         category = None
     )]
@@ -966,7 +967,7 @@ define_mir_ops! {
         result = Word,
         phases = PhaseSet::ALL,
         effect = Pure,
-        traits = OpTraits::NONE,
+        traits = OpTraits::EGRAPH_REWRITE,
         side_effects = false,
         category = None
     )]
@@ -981,7 +982,7 @@ define_mir_ops! {
         result = Word,
         phases = PhaseSet::ALL,
         effect = Pure,
-        traits = OpTraits::REORDERABLE.union(OpTraits::REMATERIALIZABLE),
+        traits = OpTraits::REORDERABLE.union(OpTraits::REMATERIALIZABLE).union(OpTraits::EGRAPH_REWRITE),
         side_effects = false,
         category = None
     )]
@@ -994,7 +995,7 @@ define_mir_ops! {
         result = Word,
         phases = PhaseSet::ALL,
         effect = Pure,
-        traits = OpTraits::REORDERABLE.union(OpTraits::REMATERIALIZABLE),
+        traits = OpTraits::REORDERABLE.union(OpTraits::REMATERIALIZABLE).union(OpTraits::EGRAPH_REWRITE),
         side_effects = false,
         category = None
     )]
@@ -1007,7 +1008,7 @@ define_mir_ops! {
         result = Word,
         phases = PhaseSet::ALL,
         effect = Pure,
-        traits = OpTraits::REORDERABLE.union(OpTraits::REMATERIALIZABLE),
+        traits = OpTraits::REORDERABLE.union(OpTraits::REMATERIALIZABLE).union(OpTraits::EGRAPH_REWRITE),
         side_effects = false,
         category = None
     )]
@@ -1020,7 +1021,7 @@ define_mir_ops! {
         result = Word,
         phases = PhaseSet::ALL,
         effect = Pure,
-        traits = OpTraits::NONE,
+        traits = OpTraits::EGRAPH_REWRITE,
         side_effects = false,
         category = None
     )]
@@ -1032,7 +1033,7 @@ define_mir_ops! {
         result = Word,
         phases = PhaseSet::ALL,
         effect = Pure,
-        traits = OpTraits::NONE,
+        traits = OpTraits::EGRAPH_REWRITE,
         side_effects = false,
         category = None
     )]
@@ -1044,7 +1045,7 @@ define_mir_ops! {
         result = Word,
         phases = PhaseSet::ALL,
         effect = Pure,
-        traits = OpTraits::REMATERIALIZABLE,
+        traits = OpTraits::REMATERIALIZABLE.union(OpTraits::EGRAPH_REWRITE),
         side_effects = false,
         category = None
     )]
@@ -1056,7 +1057,7 @@ define_mir_ops! {
         result = Word,
         phases = PhaseSet::ALL,
         effect = Pure,
-        traits = OpTraits::REMATERIALIZABLE,
+        traits = OpTraits::REMATERIALIZABLE.union(OpTraits::EGRAPH_REWRITE),
         side_effects = false,
         category = None
     )]
@@ -1068,7 +1069,7 @@ define_mir_ops! {
         result = SignedWord,
         phases = PhaseSet::ALL,
         effect = Pure,
-        traits = OpTraits::REMATERIALIZABLE,
+        traits = OpTraits::REMATERIALIZABLE.union(OpTraits::EGRAPH_REWRITE),
         side_effects = false,
         category = None
     )]
@@ -1080,7 +1081,7 @@ define_mir_ops! {
         result = Word,
         phases = PhaseSet::ALL,
         effect = Pure,
-        traits = OpTraits::NONE,
+        traits = OpTraits::EGRAPH_REWRITE,
         side_effects = false,
         category = None
     )]
@@ -1094,7 +1095,7 @@ define_mir_ops! {
         result = Bool,
         phases = PhaseSet::ALL,
         effect = Pure,
-        traits = OpTraits::REORDERABLE,
+        traits = OpTraits::REORDERABLE.union(OpTraits::EGRAPH_REWRITE),
         side_effects = false,
         category = None
     )]
@@ -1106,7 +1107,7 @@ define_mir_ops! {
         result = Bool,
         phases = PhaseSet::ALL,
         effect = Pure,
-        traits = OpTraits::REORDERABLE,
+        traits = OpTraits::REORDERABLE.union(OpTraits::EGRAPH_REWRITE),
         side_effects = false,
         category = None
     )]
@@ -1118,7 +1119,7 @@ define_mir_ops! {
         result = Bool,
         phases = PhaseSet::ALL,
         effect = Pure,
-        traits = OpTraits::REORDERABLE,
+        traits = OpTraits::REORDERABLE.union(OpTraits::EGRAPH_REWRITE),
         side_effects = false,
         category = None
     )]
@@ -1130,7 +1131,7 @@ define_mir_ops! {
         result = Bool,
         phases = PhaseSet::ALL,
         effect = Pure,
-        traits = OpTraits::REORDERABLE,
+        traits = OpTraits::REORDERABLE.union(OpTraits::EGRAPH_REWRITE),
         side_effects = false,
         category = None
     )]
@@ -1142,7 +1143,7 @@ define_mir_ops! {
         result = Bool,
         phases = PhaseSet::ALL,
         effect = Pure,
-        traits = OpTraits::REORDERABLE,
+        traits = OpTraits::REORDERABLE.union(OpTraits::EGRAPH_REWRITE),
         side_effects = false,
         category = None
     )]
@@ -1155,7 +1156,7 @@ define_mir_ops! {
         result = Bool,
         phases = PhaseSet::ALL,
         effect = Pure,
-        traits = OpTraits::NONE,
+        traits = OpTraits::EGRAPH_REWRITE,
         side_effects = false,
         category = None
     )]
@@ -1292,7 +1293,7 @@ define_mir_ops! {
         result = MemPtr,
         phases = PhaseSet::THROUGH_DISPATCH,
         effect = Pure,
-        traits = OpTraits::MEMORY_OBJECT,
+        traits = OpTraits::MEMORY_OBJECT.union(OpTraits::EGRAPH_REWRITE),
         side_effects = false,
         category = Some("memory-object")
     )]
@@ -1303,7 +1304,7 @@ define_mir_ops! {
         result = MemPtr,
         phases = PhaseSet::THROUGH_DISPATCH,
         effect = Pure,
-        traits = OpTraits::MEMORY_OBJECT,
+        traits = OpTraits::MEMORY_OBJECT.union(OpTraits::EGRAPH_REWRITE),
         side_effects = false,
         category = Some("memory-object")
     )]
@@ -1321,7 +1322,7 @@ define_mir_ops! {
         result = MemPtr,
         phases = PhaseSet::THROUGH_DISPATCH,
         effect = Pure,
-        traits = OpTraits::MEMORY_OBJECT,
+        traits = OpTraits::MEMORY_OBJECT.union(OpTraits::EGRAPH_REWRITE),
         side_effects = false,
         category = Some("memory-object")
     )]
@@ -2158,7 +2159,7 @@ define_mir_ops! {
         result = Word,
         phases = PhaseSet::ALL,
         effect = EnvironmentRead,
-        traits = OpTraits::NONE,
+        traits = OpTraits::EGRAPH_REWRITE,
         side_effects = false,
         category = None
     )]
@@ -2552,7 +2553,7 @@ define_mir_ops! {
         result = Word,
         phases = PhaseSet::ALL,
         effect = Pure,
-        traits = OpTraits::NONE,
+        traits = OpTraits::EGRAPH_REWRITE,
         side_effects = false,
         category = None
     )]
@@ -2565,7 +2566,7 @@ define_mir_ops! {
         result = SignedWord,
         phases = PhaseSet::ALL,
         effect = Pure,
-        traits = OpTraits::NONE,
+        traits = OpTraits::EGRAPH_REWRITE,
         side_effects = false,
         category = None
     )]

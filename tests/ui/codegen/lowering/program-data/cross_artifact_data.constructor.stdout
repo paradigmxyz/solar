@@ -88,9 +88,9 @@ bb0:
   swap 2
   swap 1
   log1
-  push 283
+  push 250
   dup 1
-  push 380
+  push 379
   push 0
   codecopy
   push 0

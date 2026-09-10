@@ -10,7 +10,7 @@
 use crate::mir::{
     BlockId, Function, InstId, InstKind, Module, StorageAlias, ValueId,
     analysis::{Access, AddressSpace, AliasAnalysis, Liveness, Location},
-    pass::{AnalysisManager, LivenessAnalysis, MirPass, run_function_pass},
+    pass::{AnalysisManager, LivenessAnalysis, MirPass, run_function_pass_with_alias},
     utils as mir_utils,
 };
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
@@ -30,9 +30,9 @@ impl MirPass for StorageLoadCse {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, analyses| {
+        run_function_pass_with_alias(module, analyses, |func, analyses| {
             let mut cse = StorageLoadCseCx::new();
-            cse.alias = Some(Rc::clone(&analyses.alias));
+            cse.alias = Some(Rc::clone(analyses.alias()));
             cse.run_to_fixpoint(func) != 0
         })
     }
