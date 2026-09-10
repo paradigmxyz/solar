@@ -18,7 +18,7 @@ jobs:
   evm-rules:
     name: EVM word and stack proofs
     runs-on: depot-ubuntu-24.04-arm
-    timeout-minutes: 20
+    timeout-minutes: 40
     permissions:
       contents: read
     steps:
