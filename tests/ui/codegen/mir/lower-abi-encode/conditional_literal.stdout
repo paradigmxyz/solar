@@ -20,30 +20,24 @@
 +     v6 = iszero v0
 +     v7 = iszero v6
 +     v8 = mul v5, v7
-+     mstore v3, v8
 +     v9 = not 31
 +     v10 = add v8, 31
 +     v11 = and v10, v9
 +     v12 = add v3, 32
-+     v13 = iszero v11
-+     jumpi v13, bb4, bb3
-+   bb3:
-+     v14 = sub v11, 32
-+     v15 = add v12, v14
-+     mstore v15, 0
-+     jump bb4
-+   bb4:
-+     v16 = memory_object_data memorybytes, v0
-+     v17 = add v12, v11
-+     mcopy v12, v16, v8 !metadata(memory=heap)
-+     v18 = sub v17, v2
-+     v19 = add v18, 0
-+     v20 = add v19, 31
-+     v21 = not 31
-+     v22 = and v20, v21
-+     v23 = alloc raw, exact, uninitialized, infallible, v22 !metadata(preserves_fmp)
-+     v24 = make_memory_slice v23, v19
-+     ret v24
++     v13 = add v3, v11
++     mstore v13, 0
++     mstore v3, v8
++     v14 = memory_object_data memorybytes, v0
++     v15 = add v12, v11
++     mcopy v12, v14, v8 !metadata(memory=heap)
++     v16 = sub v15, v2
++     v17 = add v16, 0
++     v18 = add v17, 31
++     v19 = not 31
++     v20 = and v18, v19
++     v21 = alloc raw, exact, uninitialized, infallible, v20 !metadata(preserves_fmp)
++     v22 = make_memory_slice v21, v17
++     ret v22
   }
   
   fn @overlapping(arg0: u256) -> memoryslice {
@@ -64,30 +58,24 @@
 +     v7 = iszero v0
 +     v8 = iszero v7
 +     v9 = mul v6, v8
-+     mstore v4, v9
 +     v10 = not 31
 +     v11 = add v9, 31
 +     v12 = and v11, v10
 +     v13 = add v4, 32
-+     v14 = iszero v12
-+     jumpi v14, bb2, bb1
-+   bb1:
-+     v15 = sub v12, 32
-+     v16 = add v13, v15
-+     mstore v16, 0
-+     jump bb2
-+   bb2:
-+     v17 = memory_object_data memorybytes, v0
-+     v18 = add v13, v12
-+     mcopy v13, v17, v9 !metadata(memory=heap)
-+     v19 = sub v18, v3
-+     v20 = add v19, 0
-+     v21 = add v20, 31
-+     v22 = not 31
-+     v23 = and v21, v22
-+     v24 = alloc raw, exact, uninitialized, infallible, v23 !metadata(preserves_fmp)
-+     v25 = make_memory_slice v24, v20
-+     ret v25
++     v14 = add v4, v12
++     mstore v14, 0
++     mstore v4, v9
++     v15 = memory_object_data memorybytes, v0
++     v16 = add v13, v12
++     mcopy v13, v15, v9 !metadata(memory=heap)
++     v17 = sub v16, v3
++     v18 = add v17, 0
++     v19 = add v18, 31
++     v20 = not 31
++     v21 = and v19, v20
++     v22 = alloc raw, exact, uninitialized, infallible, v21 !metadata(preserves_fmp)
++     v23 = make_memory_slice v22, v18
++     ret v23
   }
   
   fn @preserved() -> memoryslice {
@@ -105,29 +93,23 @@
 +     v6 = iszero v0
 +     v7 = iszero v6
 +     v8 = mul v5, v7
-+     mstore v3, v8
 +     v9 = not 31
 +     v10 = add v8, 31
 +     v11 = and v10, v9
 +     v12 = add v3, 32
-+     v13 = iszero v11
-+     jumpi v13, bb2, bb1
-+   bb1:
-+     v14 = sub v11, 32
-+     v15 = add v12, v14
-+     mstore v15, 0
-+     jump bb2
-+   bb2:
-+     v16 = memory_object_data memorybytes, v0
-+     v17 = add v12, v11
-+     mcopy v12, v16, v8 !metadata(memory=heap)
-+     v18 = sub v17, v2
-+     v19 = add v18, 0
-+     v20 = add v19, 31
-+     v21 = not 31
-+     v22 = and v20, v21
-+     v23 = alloc raw, exact, uninitialized, infallible, v22 !metadata(preserves_fmp)
-+     v24 = make_memory_slice v23, v19
-+     ret v24
++     v13 = add v3, v11
++     mstore v13, 0
++     mstore v3, v8
++     v14 = memory_object_data memorybytes, v0
++     v15 = add v12, v11
++     mcopy v12, v14, v8 !metadata(memory=heap)
++     v16 = sub v15, v2
++     v17 = add v16, 0
++     v18 = add v17, 31
++     v19 = not 31
++     v20 = and v18, v19
++     v21 = alloc raw, exact, uninitialized, infallible, v20 !metadata(preserves_fmp)
++     v22 = make_memory_slice v21, v17
++     ret v22
   }
   
