@@ -1,0 +1,4 @@
+error: EVM stack access exceeds the target's supported depth
+
+error: aborting due to 1 previous error
+

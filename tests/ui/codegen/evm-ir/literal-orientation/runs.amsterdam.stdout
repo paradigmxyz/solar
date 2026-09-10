@@ -1,0 +1,58 @@
+- // === ROOT/tests/ui/codegen/evm-ir/literal-orientation/runs.evmir (before literal-orientation) ===
++ // === ROOT/tests/ui/codegen/evm-ir/literal-orientation/runs.evmir (after literal-orientation) ===
+  @module LiteralOrientationRuns
+  bb0:
+    push 0
+    calldataload
+    push 32
+    calldataload
+    push 64
+    calldataload
+    push 96
+    calldataload
+    push 128
+    calldataload
++   swap 2
+    push 7
+-   swap 1
+-   swap 3
+    add
++   swap 2
++   swap 2
+    push 8
+-   swap 1
+-   swap 3
+-   swap 3
+    xor
+-   push 9
+    swap 1
+    swap 2
+    swap 3
+    swap 4
+-   swap 5
+-   lt
+-   push 10
+-   swap 1
+-   swap 5
+-   swap 3
++   push 9
++   gt
++   swap 4
+    swap 2
+-   sgt
++   swap 1
++   push 10
++   slt
+    jump bb1
+  bb1:
+    push 13
+    swap 1
+    swap 4
+    swap 2
+    sub
+    push 14
+    swap 3
+    swap 2
+    add
+    stop
+  

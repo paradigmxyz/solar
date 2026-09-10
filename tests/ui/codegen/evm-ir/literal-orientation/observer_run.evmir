@@ -1,0 +1,29 @@
+//@ revisions: byzantium osaka amsterdam
+//@ compile-flags: -Ogas -Zevm-ir-pipeline=literal-orientation
+//@[byzantium] compile-flags: --evm-version byzantium
+//@[osaka] compile-flags: --evm-version osaka
+//@[amsterdam] compile-flags: --evm-version amsterdam
+//@ filecheck:
+
+@module LiteralOrientationObservedRun
+
+// A later PC prevents shortening the complete module, including a longer run.
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK: {{^[ +].*}}push 7{{$}}
+// CHECK-NEXT: {{^[ +].*}}swap 1{{$}}
+// CHECK-NEXT: {{^[ +].*}}swap 4{{$}}
+// CHECK-NEXT: {{^[ +].*}}swap 2{{$}}
+// CHECK-NEXT: {{^[ +].*}}add{{$}}
+// CHECK-NEXT: {{^[ +].*}}pc{{$}}
+bb0:
+  push 11
+  push 12
+  push 13
+  push 14
+  push 7
+  swap 1
+  swap 4
+  swap 2
+  add
+  pc
+  stop

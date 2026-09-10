@@ -94,24 +94,22 @@ bb16 [cold]:
   push 0
   revert
 bb6:
-  push 32
   swap 1
   swap 2
   swap 3
-  swap 4
+  push 32
   add
   push 32
   dup 7
   mul
   add
   mload
-  push 1
   swap 1
   swap 2
   swap 3
   swap 4
   swap 5
-  swap 6
+  push 1
   add
   dup 2
   dup 2
@@ -295,12 +293,11 @@ bb22:
   swap 2
   dup 2
   mstore
-  push 100
   swap 1
   swap 2
   swap 3
   swap 4
-  swap 5
+  push 100
   add
   calldataload
   dup 1

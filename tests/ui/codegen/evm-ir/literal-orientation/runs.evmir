@@ -1,0 +1,95 @@
+//@ revisions: byzantium osaka amsterdam
+//@ compile-flags: -Ogas -Zevm-ir-pipeline=literal-orientation
+//@[byzantium] compile-flags: --evm-version byzantium
+//@[osaka] compile-flags: --evm-version osaka
+//@[amsterdam] compile-flags: --evm-version amsterdam
+//@ filecheck:
+
+@module LiteralOrientationRuns
+
+// CHECK-LABEL: {{^[ +].*}}bb0:
+bb0:
+  push 0
+  calldataload
+  push 32
+  calldataload
+  push 64
+  calldataload
+  push 96
+  calldataload
+  push 128
+  calldataload
+
+// The run [3] projects one slot shallower; adjacent matches exercise compaction.
+// CHECK: {{^[ +].*}}swap 2{{$}}
+// CHECK: {{^[ +].*}}push 7{{$}}
+// CHECK: {{^[ +].*}}add{{$}}
+  push 7 !meta(stack=0->1)
+  swap 1 !meta(stack=0->0)
+  swap 3 !meta(stack=0->0)
+  add !meta(stack=2->1)
+
+// The run [3, 3] projects one slot shallower; adjacent matches exercise compaction.
+// CHECK: {{^[ +].*}}swap 2{{$}}
+// CHECK: {{^[ +].*}}swap 2{{$}}
+// CHECK: {{^[ +].*}}push 8{{$}}
+// CHECK: {{^[ +].*}}xor{{$}}
+  push 8 !meta(stack=0->1)
+  swap 1 !meta(stack=0->0)
+  swap 3 !meta(stack=0->0)
+  swap 3 !meta(stack=0->0)
+  xor !meta(stack=2->1)
+
+// The run [2, 3, 4, 5] projects one slot shallower; adjacent matches exercise compaction.
+// CHECK: {{^[ +].*}}swap 1{{$}}
+// CHECK: {{^[ +].*}}swap 2{{$}}
+// CHECK: {{^[ +].*}}swap 3{{$}}
+// CHECK: {{^[ +].*}}swap 4{{$}}
+// CHECK: {{^[ +].*}}push 9{{$}}
+// CHECK: {{^[ +].*}}gt{{$}}
+  push 9 !meta(stack=0->1)
+  swap 1 !meta(stack=0->0)
+  swap 2 !meta(stack=0->0)
+  swap 3 !meta(stack=0->0)
+  swap 4 !meta(stack=0->0)
+  swap 5 !meta(stack=0->0)
+  lt !meta(stack=2->1)
+
+// The run [5, 3, 2] projects one slot shallower; adjacent matches exercise compaction.
+// CHECK: {{^[ +].*}}swap 4{{$}}
+// CHECK: {{^[ +].*}}swap 2{{$}}
+// CHECK: {{^[ +].*}}swap 1{{$}}
+// CHECK: {{^[ +].*}}push 10{{$}}
+// CHECK: {{^[ +].*}}slt{{$}}
+  push 10 !meta(stack=0->1)
+  swap 1 !meta(stack=0->0)
+  swap 5 !meta(stack=0->0)
+  swap 3 !meta(stack=0->0)
+  swap 2 !meta(stack=0->0)
+  sgt !meta(stack=2->1)
+  jump bb1
+
+// SUB has no reverse opcode in the admitted family.
+// CHECK-LABEL: {{^[ +].*}}bb1:
+// CHECK: {{^[ +].*}}push 13{{$}}
+// CHECK-NEXT: {{^[ +].*}}swap 1{{$}}
+// CHECK-NEXT: {{^[ +].*}}swap 4{{$}}
+// CHECK-NEXT: {{^[ +].*}}swap 2{{$}}
+// CHECK-NEXT: {{^[ +].*}}sub{{$}}
+bb1:
+  push 13
+  swap 1
+  swap 4
+  swap 2
+  sub
+
+// A missing initial SWAP1 must leave the sequence unchanged.
+// CHECK: {{^[ +].*}}push 14{{$}}
+// CHECK-NEXT: {{^[ +].*}}swap 3{{$}}
+// CHECK-NEXT: {{^[ +].*}}swap 2{{$}}
+// CHECK-NEXT: {{^[ +].*}}add{{$}}
+  push 14
+  swap 3
+  swap 2
+  add
+  stop

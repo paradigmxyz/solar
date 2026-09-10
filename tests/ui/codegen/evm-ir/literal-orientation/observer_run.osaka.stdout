@@ -1,0 +1,16 @@
+- // === ROOT/tests/ui/codegen/evm-ir/literal-orientation/observer_run.evmir (before literal-orientation) ===
++ // === ROOT/tests/ui/codegen/evm-ir/literal-orientation/observer_run.evmir (after literal-orientation) ===
+  @module LiteralOrientationObservedRun
+  bb0:
+    push 11
+    push 12
+    push 13
+    push 14
+    push 7
+    swap 1
+    swap 4
+    swap 2
+    add
+    pc
+    stop
+  

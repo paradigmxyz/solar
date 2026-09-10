@@ -1,0 +1,273 @@
+//@ compile-flags: -Ogas --evm-version amsterdam -Zevm-ir-pipeline=literal-orientation
+//@ filecheck:
+
+@module LiteralOrientationExtended
+
+// The source has 235 live words before each literal and requires at most 236.
+// Repeated values must not affect the permutation identity.
+// CHECK-LABEL: {{^[ +].*}}bb0:
+bb0:
+  push 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+  dup 1
+
+// CHECK: {{^[ +].*}}swap 16{{$}}
+// CHECK: {{^[ +].*}}push 7{{$}}
+// CHECK: {{^[ +].*}}add{{$}}
+  push 7
+  swap 1
+  swap 17
+  add
+
+// CHECK: {{^[ +].*}}swap 234{{$}}
+// CHECK: {{^[ +].*}}push 8{{$}}
+// CHECK: {{^[ +].*}}add{{$}}
+  push 8
+  swap 1
+  swap 235
+  add
+
+// CHECK: {{^[ +].*}}swap 234{{$}}
+// CHECK: {{^[ +].*}}swap 16{{$}}
+// CHECK: {{^[ +].*}}swap 234{{$}}
+// CHECK: {{^[ +].*}}push 9{{$}}
+// CHECK: {{^[ +].*}}add{{$}}
+  push 9
+  swap 1
+  swap 235
+  swap 17
+  swap 235
+  add
+  stop
