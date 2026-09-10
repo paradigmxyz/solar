@@ -50,67 +50,38 @@ bb6:
   push_data literal_0
   dup 3
   codecopy
-  push 64
-  mload
-  push 32
   dup 2
-  add
-  push 32
-  dup 3
-  mstore
-  dup 4
   iszero
   iszero
-  swap 4
-  mload
-  swap 1
-  swap 4
-  mul
+  push 7
+  shl
   push 31
   dup 2
   add
   push 31
   not
   and
-  push 32
-  dup 6
-  add
-  dup 2
-  dup 7
+  dup 1
+  dup 4
   add
   push 0
   swap 1
   mstore
+  push 32
+  dup 4
+  add
   dup 3
-  swap 1
-  swap 6
-  mstore
   dup 5
-  add
-  dup 2
-  dup 5
-  dup 7
+  dup 3
   mcopy
-  swap 3
   pop
-  pop
-  swap 2
-  pop
-  sub
-  push 31
-  dup 2
-  add
-  push 31
-  not
-  and
-  push 64
-  mload
-  swap 1
-  dup 2
-  add
-  push 64
+  push 32
+  dup 5
   mstore
-  dup 2
+  swap 2
+  mstore
+  push 64
+  add
   dup 2
   return
 
@@ -165,12 +136,12 @@ bb18:
 bb32:
   push 64
   mload
-  push 320
+  push 256
   dup 2
   add
   push 64
   mstore
-  push 289
+  push 255
   push_data Child_initcode_0
   dup 3
   swap 1
@@ -229,7 +200,7 @@ bb38:
   jump
 bb34 [continuation]:
   codecopy
-  push 289
+  push 255
   swap 1
   push 0
   create
@@ -246,7 +217,7 @@ bb31:
   jump bb38
 bb35 [continuation]:
   codecopy
-  push 289
+  push 255
   swap 1
   push 0
   create
@@ -285,7 +256,7 @@ bb29:
   return
 bb37 [continuation]:
   codecopy
-  push 289
+  push 255
   swap 1
   push 0
   create
@@ -345,4 +316,4 @@ bb28 [cold]:
   push 0
   revert
 
-@data Child_initcode_0 hex"34600e5761010f8060125f395ff35b5f5ffd34601d575f3560e01c80633fa4f245146021578063a878f85814602c575b5f5ffd5b600760805260206080f35b60808060405260a081016040528081526020810181608f823960405160208101602082528315159351909302601f8101601f1916602085018186015f90528290955284018184865e925050915003601f8101601f19166040519081016040528181f3112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
+@data Child_initcode_0 hex"34600d5760ee8060115f395ff35b5f5ffd34601d575f3560e01c80633fa4f245146021578063a878f85814602c575b5f5ffd5b600760805260206080f35b60808060405260a081016040528081526020810181606e823981151560071b601f8101601f19168083015f9052602083018284825e5060208452915260400181f3112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"

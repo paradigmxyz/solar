@@ -257,6 +257,9 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &GasOnly::new(cse::Cse),
     &dce::Dce,
     &lower_dispatch::LowerDispatch,
+    // Dispatch can hoist a common ABI head-size guard out of every selector
+    // wrapper. Remove the dead per-wrapper comparisons before frame lowering.
+    &dce::Dce,
     &lower_frame_slots::LowerFrameSlots,
     // Expand semantic mapping locations after ABI, dispatch, and frame
     // lowering, while keeping variable-size hash objects ahead of the memory
@@ -380,14 +383,64 @@ pub(crate) trait AnalysisPass {
 pub(crate) fn run_function_pass(
     module: &mut Module,
     analyses: &mut ModuleAnalyses,
-    mut run: impl FnMut(&mut Function, &FunctionAnalyses) -> bool,
+    run: impl Fn(&mut Function, &FunctionAnalyses) -> bool + Sync,
+) -> bool {
+    run_function_pass_with(module, analyses, FunctionAnalysisRequirements::NONE, &run)
+}
+
+/// Runs a function-local transform with alias analysis available on demand.
+#[must_use]
+pub(crate) fn run_function_pass_with_alias(
+    module: &mut Module,
+    analyses: &mut ModuleAnalyses,
+    run: impl Fn(&mut Function, &FunctionAnalyses) -> bool + Sync,
+) -> bool {
+    run_function_pass_with(module, analyses, FunctionAnalysisRequirements::ALIAS, &run)
+}
+
+/// Runs a function-local transform with CFG analysis available on demand.
+#[must_use]
+pub(crate) fn run_function_pass_with_cfg(
+    module: &mut Module,
+    analyses: &mut ModuleAnalyses,
+    run: impl Fn(&mut Function, &FunctionAnalyses) -> bool + Sync,
+) -> bool {
+    run_function_pass_with(module, analyses, FunctionAnalysisRequirements::CFG, &run)
+}
+
+/// Runs a function-local transform with alias and CFG analyses available.
+#[must_use]
+pub(crate) fn run_function_pass_with_alias_and_cfg(
+    module: &mut Module,
+    analyses: &mut ModuleAnalyses,
+    run: impl Fn(&mut Function, &FunctionAnalyses) -> bool + Sync,
+) -> bool {
+    run_function_pass_with(module, analyses, FunctionAnalysisRequirements::ALL, &run)
+}
+
+fn run_function_pass_with(
+    module: &mut Module,
+    analyses: &mut ModuleAnalyses,
+    requirements: FunctionAnalysisRequirements,
+    run: &(impl Fn(&mut Function, &FunctionAnalyses) -> bool + Sync),
+) -> bool {
+    run_function_pass_with_cache(module, analyses, requirements, None, run)
+}
+
+fn run_function_pass_with_cache(
+    module: &mut Module,
+    analyses: &mut ModuleAnalyses,
+    requirements: FunctionAnalysisRequirements,
+    cache_key: Option<TypeId>,
+    run: &(impl Fn(&mut Function, &FunctionAnalyses) -> bool + Sync),
 ) -> bool {
     let mut changed = false;
     for func_id in module.functions.indices() {
         if module.functions[func_id].blocks.is_empty() {
             continue;
         }
-        changed |= run_function_pass_cached(analyses, module, func_id, &mut run);
+        changed |=
+            run_function_pass_cached(analyses, module, func_id, requirements, cache_key, run);
     }
     analyses.preserved_by_pass = true;
     changed
@@ -399,14 +452,89 @@ pub(crate) fn run_selected_function_pass(
     module: &mut Module,
     analyses: &mut ModuleAnalyses,
     selected: &DenseBitSet<FunctionId>,
-    mut run: impl FnMut(&mut Function, &FunctionAnalyses) -> bool,
+    run: impl Fn(&mut Function, &FunctionAnalyses) -> bool + Sync,
+) -> bool {
+    run_selected_function_pass_with(
+        module,
+        analyses,
+        selected,
+        FunctionAnalysisRequirements::CFG,
+        None,
+        &run,
+    )
+}
+
+/// Runs an alias- and CFG-aware transform only on selected functions.
+#[must_use]
+pub(crate) fn run_selected_function_pass_with_alias_and_cfg(
+    module: &mut Module,
+    analyses: &mut ModuleAnalyses,
+    selected: &DenseBitSet<FunctionId>,
+    run: impl Fn(&mut Function, &FunctionAnalyses) -> bool + Sync,
+) -> bool {
+    run_selected_function_pass_with(
+        module,
+        analyses,
+        selected,
+        FunctionAnalysisRequirements::ALL,
+        None,
+        &run,
+    )
+}
+
+/// Runs a CFG-aware function-local transform, skipping bodies on which the
+/// same transform previously reported no change and no intervening local pass
+/// has changed the body.
+#[must_use]
+pub(crate) fn run_selected_function_pass_cached<P: 'static>(
+    module: &mut Module,
+    analyses: &mut ModuleAnalyses,
+    selected: &DenseBitSet<FunctionId>,
+    run: impl Fn(&mut Function, &FunctionAnalyses) -> bool + Sync,
+) -> bool {
+    run_selected_function_pass_with(
+        module,
+        analyses,
+        selected,
+        FunctionAnalysisRequirements::CFG,
+        Some(TypeId::of::<P>()),
+        &run,
+    )
+}
+
+/// Runs an analysis-free function-local transform with unchanged-body reuse.
+#[must_use]
+pub(crate) fn run_selected_function_pass_without_analyses_cached<P: 'static>(
+    module: &mut Module,
+    analyses: &mut ModuleAnalyses,
+    selected: &DenseBitSet<FunctionId>,
+    run: impl Fn(&mut Function, &FunctionAnalyses) -> bool + Sync,
+) -> bool {
+    run_selected_function_pass_with(
+        module,
+        analyses,
+        selected,
+        FunctionAnalysisRequirements::NONE,
+        Some(TypeId::of::<P>()),
+        &run,
+    )
+}
+
+fn run_selected_function_pass_with(
+    module: &mut Module,
+    analyses: &mut ModuleAnalyses,
+    selected: &DenseBitSet<FunctionId>,
+    requirements: FunctionAnalysisRequirements,
+    cache_key: Option<TypeId>,
+    run: &(impl Fn(&mut Function, &FunctionAnalyses) -> bool + Sync),
 ) -> bool {
     let mut changed = false;
     for func_id in selected.iter() {
         if module.functions[func_id].blocks.is_empty() {
             continue;
         }
-        changed |= run_function_pass_cached(analyses, module, func_id, &mut run);
+        changed |=
+            run_function_pass_cached(analyses, module, func_id, requirements, cache_key, run);
     }
     analyses.preserved_by_pass = true;
     changed
@@ -415,9 +543,39 @@ pub(crate) fn run_selected_function_pass(
 /// Per-function analysis snapshots handed to a pass run.
 pub(crate) struct FunctionAnalyses {
     /// Shared alias analysis; provenance and address memos build lazily.
-    pub(crate) alias: Rc<AliasAnalysis>,
+    alias: Option<Rc<AliasAnalysis>>,
     /// Shared CFG snapshot; RPO, dominators, and reachability build lazily.
-    pub(crate) cfg: Rc<CfgInfo>,
+    cfg: Option<Rc<CfgInfo>>,
+}
+
+impl FunctionAnalyses {
+    /// Returns the alias analysis requested by the running transform.
+    pub(crate) fn alias(&self) -> &Rc<AliasAnalysis> {
+        self.alias.as_ref().expect("function pass must request alias analysis")
+    }
+
+    /// Returns the CFG analysis requested by the running transform.
+    pub(crate) fn cfg(&self) -> &Rc<CfgInfo> {
+        self.cfg.as_ref().expect("function pass must request CFG analysis")
+    }
+}
+
+#[derive(Clone, Copy)]
+struct FunctionAnalysisRequirements(u8);
+
+impl FunctionAnalysisRequirements {
+    const NONE: Self = Self(0);
+    const ALIAS: Self = Self(1 << 0);
+    const CFG: Self = Self(1 << 1);
+    const ALL: Self = Self(Self::ALIAS.0 | Self::CFG.0);
+
+    const fn alias(self) -> bool {
+        self.0 & Self::ALIAS.0 != 0
+    }
+
+    const fn cfg(self) -> bool {
+        self.0 & Self::CFG.0 != 0
+    }
 }
 
 /// Cached per-function analyses shared by every pass in one pipeline run.
@@ -426,6 +584,9 @@ pub(crate) struct FunctionAnalyses {
 pub struct ModuleAnalyses {
     alias: FxHashMap<FunctionId, Rc<AliasAnalysis>>,
     cfg: FxHashMap<FunctionId, Rc<CfgInfo>>,
+    /// Function bodies on which a function-local pass most recently reported
+    /// no change. Any intervening mutation of that body removes the entry.
+    local_no_change: FxHashMap<TypeId, DenseBitSet<FunctionId>>,
     call_summaries: Option<Arc<MemoryCallSummaries>>,
     preserved_by_pass: bool,
     call_summaries_preserved: bool,
@@ -459,8 +620,16 @@ impl ModuleAnalyses {
         Rc::clone(self.cfg.entry(func_id).or_insert_with(|| Rc::new(CfgInfo::new(func))))
     }
 
-    fn bundle(&mut self, func_id: FunctionId, func: &Function) -> FunctionAnalyses {
-        FunctionAnalyses { alias: self.alias(func_id), cfg: self.cfg(func_id, func) }
+    fn bundle(
+        &mut self,
+        func_id: FunctionId,
+        func: &Function,
+        requirements: FunctionAnalysisRequirements,
+    ) -> FunctionAnalyses {
+        FunctionAnalyses {
+            alias: requirements.alias().then(|| self.alias(func_id)),
+            cfg: requirements.cfg().then(|| self.cfg(func_id, func)),
+        }
     }
 
     /// Returns the module call summaries, computing them on first use. A pass that changes
@@ -489,9 +658,44 @@ impl ModuleAnalyses {
         }
     }
 
+    fn function_cached(&mut self, key: TypeId, func_id: FunctionId, functions: usize) -> bool {
+        let cached =
+            self.local_no_change.entry(key).or_insert_with(|| DenseBitSet::new_empty(functions));
+        if cached.domain_size() != functions {
+            *cached = DenseBitSet::new_empty(functions);
+        }
+        cached.contains(func_id)
+    }
+
+    fn record_function_result(
+        &mut self,
+        func_id: FunctionId,
+        functions: usize,
+        cache_key: Option<TypeId>,
+        changed: bool,
+    ) {
+        if changed {
+            for cached in self.local_no_change.values_mut() {
+                if func_id.index() < cached.domain_size() {
+                    cached.remove(func_id);
+                }
+            }
+        } else if let Some(key) = cache_key {
+            let cached = self
+                .local_no_change
+                .entry(key)
+                .or_insert_with(|| DenseBitSet::new_empty(functions));
+            if cached.domain_size() != functions {
+                *cached = DenseBitSet::new_empty(functions);
+            }
+            cached.insert(func_id);
+        }
+    }
+
     fn invalidate_all(&mut self) {
         self.alias.clear();
         self.cfg.clear();
+        self.local_no_change.clear();
     }
 }
 
@@ -528,16 +732,28 @@ fn run_function_pass_cached(
     analyses: &mut ModuleAnalyses,
     module: &mut Module,
     func_id: FunctionId,
-    run: &mut impl FnMut(&mut Function, &FunctionAnalyses) -> bool,
+    requirements: FunctionAnalysisRequirements,
+    cache_key: Option<TypeId>,
+    run: &impl Fn(&mut Function, &FunctionAnalyses) -> bool,
 ) -> bool {
-    let bundle = analyses.bundle(func_id, &module.functions[func_id]);
+    if let Some(key) = cache_key
+        && analyses.function_cached(key, func_id, module.functions.len())
+    {
+        return false;
+    }
+    let bundle = analyses.bundle(func_id, &module.functions[func_id], requirements);
     let func = &mut module.functions[func_id];
     let insts_before = func.num_insts();
     let changed = run(func, &bundle);
     if changed {
-        let (keep_alias, keep_cfg) = verified_preservation(func, bundle.cfg.edges(), insts_before);
-        analyses.retain(func_id, keep_alias, keep_cfg);
+        if let Some(cfg) = &bundle.cfg {
+            let (keep_alias, keep_cfg) = verified_preservation(func, cfg.edges(), insts_before);
+            analyses.retain(func_id, keep_alias, keep_cfg);
+        } else {
+            analyses.retain(func_id, false, false);
+        }
     }
+    analyses.record_function_result(func_id, module.functions.len(), cache_key, changed);
     changed
 }
 

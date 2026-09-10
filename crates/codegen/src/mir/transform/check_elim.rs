@@ -72,7 +72,7 @@ use crate::mir::{
     Value, ValueId,
     analysis::{CallGraphInfo, CfgInfo},
     immutable::immutable_push_type_size,
-    pass::{MirPass, run_function_pass, run_selected_function_pass},
+    pass::{MirPass, run_function_pass, run_function_pass_with_cfg, run_selected_function_pass},
     utils::repair_reachability_phis,
 };
 use alloy_primitives::U256;
@@ -98,9 +98,8 @@ impl MirPass for CheckElim {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, analyses| {
+        run_function_pass(module, analyses, |func, _| {
             let mut eliminator = CheckEliminator::new(None);
-            eliminator.cfg = Some(Rc::clone(&analyses.cfg));
             let changed = eliminator.run(func) != 0;
             let repaired = repair_reachability_phis(func);
             changed || repaired
@@ -129,14 +128,14 @@ impl MirPass for LateCheckElim {
                 leads_to_revert(func, BlockId::ENTRY, &FxHashSet::default()).then_some(id)
             })
             .collect::<FxHashSet<_>>();
-        run_function_pass(module, analyses, |func, analyses| {
+        run_function_pass_with_cfg(module, analyses, |func, analyses| {
             let selected =
-                gcx.sess.opts.optimization.is_gas().then(|| analyses.cfg.cyclic_blocks());
+                gcx.sess.opts.optimization.is_gas().then(|| analyses.cfg().cyclic_blocks());
             if selected.is_some_and(DenseBitSet::is_empty) {
                 return false;
             }
             let mut eliminator = CheckEliminator::new(None);
-            eliminator.cfg = Some(Rc::clone(&analyses.cfg));
+            eliminator.cfg = Some(Rc::clone(analyses.cfg()));
             let changed =
                 eliminator.run_in_blocks(func, selected.map(|blocks| (blocks, &reverting))) != 0;
             if changed {
@@ -210,7 +209,7 @@ impl MirPass for ImmutableCheckElim {
         }
         run_selected_function_pass(module, analyses, &runtime_only, |func, analyses| {
             let mut eliminator = CheckEliminator::new(Some(&bounds));
-            eliminator.cfg = Some(Rc::clone(&analyses.cfg));
+            eliminator.cfg = Some(Rc::clone(analyses.cfg()));
             let changed = eliminator.run(func) != 0;
             let repaired = repair_reachability_phis(func);
             changed || repaired
@@ -359,6 +358,14 @@ impl<'a> CheckEliminator<'a> {
     ) -> usize {
         self.stats = CheckElimStats::default();
         self.relation_index = None;
+        if !func.blocks.iter().any(|block| {
+            matches!(
+                block.terminator,
+                Some(Terminator::Branch { then_block, else_block, .. }) if then_block != else_block
+            )
+        }) {
+            return 0;
+        }
         let cfg = self.cfg.as_ref().map_or_else(|| Rc::new(CfgInfo::new(func)), Rc::clone);
         let relevant = branch_inputs(func, &cfg);
         if relevant.is_empty() {
@@ -374,7 +381,15 @@ impl<'a> CheckEliminator<'a> {
             }
         }
 
-        let facts = if selected.is_some() {
+        const MAX_ACYCLIC_JOIN_INSTRUCTIONS: usize = 128;
+        let bounded_acyclic_join = cfg.cyclic_blocks().is_empty()
+            && func.instructions().take(MAX_ACYCLIC_JOIN_INSTRUCTIONS + 1).count()
+                > MAX_ACYCLIC_JOIN_INSTRUCTIONS;
+        let facts = if selected.is_some() || bounded_acyclic_join {
+            // Bound the additional search in large acyclic functions, where
+            // copying fact sets through long chains is quadratic; the ordinary
+            // dominator proof still runs. Cyclic functions retain fixed-point
+            // propagation for induction ranges.
             index_vec![Facts::default(); func.blocks.len()]
         } else {
             self.join_facts(func, &cfg, &preds, &relevant)
@@ -953,29 +968,11 @@ impl<'a> CheckEliminator<'a> {
         if a == b {
             return Some(false);
         }
-        let (x, y) = ordered(a, b);
-        if self.has_relation(func, Relation::Lt(a, b)) {
-            return Some(true);
-        }
-        if self.has_relation(func, Relation::Lt(b, a))
-            || self.has_relation(func, Relation::Le(b, a))
-            || self.has_relation(func, Relation::Eq(x, y))
-        {
-            return Some(false);
-        }
-
-        let ra = self.range_of(func, a, depth);
-        let rb = self.range_of(func, b, depth);
-        if ra.hi < rb.lo {
-            return Some(true);
-        }
-        if ra.lo >= rb.hi {
-            return Some(false);
-        }
 
         // Overflow check for checked add: `lt (add x, y), x` is the wrap
-        // flag of `x + y`. If the maximum bounds cannot wrap the check is
-        // false; if even the minimum bounds wrap it is true.
+        // flag of `x + y`. Test it before the general relation and range path:
+        // expanding the result range would recursively derive the same input
+        // bounds and discard it once wrapping remains possible.
         if let Some(&InstKind::Add(x, y)) = inst_kind(func, a)
             && (b == x || b == y)
         {
@@ -998,6 +995,26 @@ impl<'a> CheckEliminator<'a> {
             return self.eval_lt(func, x, y, reduced_depth);
         }
 
+        let (x, y) = ordered(a, b);
+        if self.has_relation(func, Relation::Lt(a, b)) {
+            return Some(true);
+        }
+        if self.has_relation(func, Relation::Lt(b, a))
+            || self.has_relation(func, Relation::Le(b, a))
+            || self.has_relation(func, Relation::Eq(x, y))
+        {
+            return Some(false);
+        }
+
+        let ra = self.range_of(func, a, depth);
+        let rb = self.range_of(func, b, depth);
+        if ra.hi < rb.lo {
+            return Some(true);
+        }
+        if ra.lo >= rb.hi {
+            return Some(false);
+        }
+
         None
     }
 
@@ -1006,6 +1023,17 @@ impl<'a> CheckEliminator<'a> {
         if a == b {
             return Some(true);
         }
+
+        // Overflow check for checked mul: `eq (div (mul x, y), y), x` holds
+        // iff `x * y` did not wrap, provided the divisor is nonzero. Recognize
+        // it before deriving the complete ranges of both expression trees.
+        if let Some(truth) = self.eval_muldiv_roundtrip(func, a, b, depth) {
+            return Some(truth);
+        }
+        if let Some(truth) = self.eval_muldiv_roundtrip(func, b, a, depth) {
+            return Some(truth);
+        }
+
         let (x, y) = ordered(a, b);
         if self.has_relation(func, Relation::Eq(x, y)) {
             return Some(true);
@@ -1024,15 +1052,6 @@ impl<'a> CheckEliminator<'a> {
         }
         if ra.is_singleton() && ra == rb {
             return Some(true);
-        }
-
-        // Overflow check for checked mul: `eq (div (mul x, y), y), x` holds
-        // iff `x * y` did not wrap, provided the divisor is nonzero.
-        if let Some(truth) = self.eval_muldiv_roundtrip(func, a, b, depth) {
-            return Some(truth);
-        }
-        if let Some(truth) = self.eval_muldiv_roundtrip(func, b, a, depth) {
-            return Some(truth);
         }
 
         None

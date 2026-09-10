@@ -48,6 +48,32 @@ impl EvmPass for CfgSimplify {
     }
 }
 
+/// Runs CFG cleanup only when the wrapped transform changes the module.
+pub(super) struct Cleanup<T>(pub(super) T);
+
+impl<T: EvmPass> EvmPass for Cleanup<T> {
+    fn name(&self) -> &'static str {
+        self.0.name()
+    }
+
+    fn is_enabled(&self, gcx: Gcx<'_>, module: &Module) -> bool {
+        self.0.is_enabled(gcx, module)
+    }
+
+    fn is_required(&self) -> bool {
+        self.0.is_required()
+    }
+
+    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
+        let changed = self.0.run_pass(gcx, module);
+        if changed {
+            // changed CFG; simplify CFG
+            let _ = CfgSimplify.run_pass(gcx, module);
+        }
+        changed
+    }
+}
+
 fn simplify_cfg(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let mut state = RunState::default();
     state.reserve(module.blocks.len());
@@ -280,6 +306,19 @@ fn redirect_jump_thunks(
 ) -> bool {
     // A thunk is an empty block that only jumps on. Redirect direct branches and explicitly
     // unobservable return addresses; ordinary pushed labels may be compared numerically.
+    thunks.clear();
+    for (block_id, block) in module.blocks.iter_enumerated() {
+        if block.instructions.is_empty()
+            && let Some(terminator) = &block.terminator
+            && let TerminatorKind::Jump(target) = &terminator.kind
+        {
+            thunks.insert(block_id, *target);
+        }
+    }
+    if thunks.is_empty() {
+        return false;
+    }
+
     addressed.clear_to(module.blocks.len());
     for block in &module.blocks {
         for (at, inst) in block.instructions.iter().enumerate() {
@@ -291,17 +330,7 @@ fn redirect_jump_thunks(
             }
         }
     }
-
-    thunks.clear();
-    for (block_id, block) in module.blocks.iter_enumerated() {
-        if !addressed.contains(block_id)
-            && block.instructions.is_empty()
-            && let Some(terminator) = &block.terminator
-            && let TerminatorKind::Jump(target) = &terminator.kind
-        {
-            thunks.insert(block_id, *target);
-        }
-    }
+    thunks.retain(|block, _| !addressed.contains(*block));
     if thunks.is_empty() {
         return false;
     }

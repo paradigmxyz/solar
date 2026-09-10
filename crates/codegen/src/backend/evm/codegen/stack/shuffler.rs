@@ -28,21 +28,44 @@
 //! The MIR scheduler enables the wider permutation choices in gas mode. Size
 //! mode keeps its existing choices because locally shorter shuffles can reduce
 //! later block sharing and increase the final bytecode size.
+//! Exact results are cached by complete symbolic layout within each worker;
+//! generated wrappers and repeated cleanup passes frequently ask the same
+//! bounded question.
 
 use super::model::StackModel;
 use crate::{backend::evm::op::StackOp, mir::ValueId};
 use smallvec::SmallVec;
 use solar_config::EvmVersion;
 use solar_data_structures::map::{FxHashMap, StdEntry};
-use std::collections::VecDeque;
+use std::{cell::RefCell, collections::VecDeque};
 
 const MAX_LAYOUT_SEARCH_STATES: usize = 100_000;
+const MAX_SHARED_EXACT_SEARCHES: usize = 2_048;
 const EXACT_LAYOUT_OPTIMIZATION_LIMIT: usize = 4;
 const MAX_ENUMERATED_PHYSICAL_REMOVALS: usize = 7;
 const PHYSICAL_RESYNTHESIS_LAYOUT_LIMIT: usize = 236;
 
 type Layout = SmallVec<[Option<ValueId>; 16]>;
-type Predecessors = FxHashMap<Layout, Option<(Layout, StackOp)>>;
+type VisitedLayouts = FxHashMap<Layout, usize>;
+
+#[derive(Clone, Copy)]
+struct Predecessor {
+    previous: usize,
+    op: StackOp,
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+struct ExactSearchKey {
+    source: Layout,
+    target: SmallVec<[ValueId; 16]>,
+    max_stack_access: usize,
+}
+
+type ExactSearchCache = FxHashMap<ExactSearchKey, Option<Vec<StackOp>>>;
+
+thread_local! {
+    static EXACT_SEARCH_CACHE: RefCell<ExactSearchCache> = RefCell::default();
+}
 
 pub(crate) fn lowered_stack_cost(
     ops: &[StackOp],
@@ -352,23 +375,55 @@ impl<'a> StackShuffler<'a> {
         multiplicities: &FxHashMap<ValueId, usize>,
         max_stack_access: usize,
     ) -> Option<ShuffleResult> {
-        let mut queue = VecDeque::new();
-        let mut predecessors = FxHashMap::default();
-        predecessors.insert(source.clone(), None);
-        queue.push_back(source);
+        let key = ExactSearchKey {
+            source: source.clone(),
+            target: target
+                .iter()
+                .map(|slot| match slot {
+                    TargetSlot::Value(value) => *value,
+                })
+                .collect(),
+            max_stack_access,
+        };
+        if let Some(ops) = EXACT_SEARCH_CACHE.with_borrow(|cache| cache.get(&key).cloned()) {
+            return ops.map(|ops| ShuffleResult { ops });
+        }
 
-        while let Some(stack) = queue.pop_front() {
+        let result = Self::search_exact_uncached(source, target, multiplicities, max_stack_access);
+        EXACT_SEARCH_CACHE.with_borrow_mut(|cache| {
+            if cache.len() == MAX_SHARED_EXACT_SEARCHES {
+                cache.clear();
+            }
+            cache.insert(key, result.as_ref().map(|result| result.ops.clone()));
+        });
+        result
+    }
+
+    fn search_exact_uncached(
+        source: Layout,
+        target: &[TargetSlot],
+        multiplicities: &FxHashMap<ValueId, usize>,
+        max_stack_access: usize,
+    ) -> Option<ShuffleResult> {
+        let mut queue = VecDeque::new();
+        let mut visited = FxHashMap::default();
+        let mut predecessors = Vec::<Option<Predecessor>>::new();
+        predecessors.push(None);
+        visited.insert(source.clone(), 0);
+        queue.push_back((0, source));
+
+        while let Some((state, stack)) = queue.pop_front() {
             if Self::matches_target(&stack, target) {
                 let mut ops = Vec::new();
-                let mut current = stack;
-                while let Some((previous, op)) = predecessors[&current].clone() {
-                    ops.push(op);
-                    current = previous;
+                let mut current = state;
+                while let Some(predecessor) = predecessors[current] {
+                    ops.push(predecessor.op);
+                    current = predecessor.previous;
                 }
                 ops.reverse();
                 return Some(ShuffleResult { ops });
             }
-            if predecessors.len() >= MAX_LAYOUT_SEARCH_STATES {
+            if visited.len() >= MAX_LAYOUT_SEARCH_STATES {
                 continue;
             }
             let max_swap = stack.len().saturating_sub(1).min(max_stack_access);
@@ -376,21 +431,29 @@ impl<'a> StackShuffler<'a> {
                 if stack[0] == stack[depth] {
                     continue;
                 }
-                let mut next = stack.clone();
+                let mut next = Layout::clone(&stack);
                 next.swap(0, depth);
                 Self::enqueue(
                     &mut queue,
+                    &mut visited,
                     &mut predecessors,
-                    &stack,
+                    state,
                     next,
                     StackOp::Swap(depth as u8),
                 );
             }
 
             if stack.len() > target.len() {
-                let mut next = stack.clone();
+                let mut next = Layout::clone(&stack);
                 next.remove(0);
-                Self::enqueue(&mut queue, &mut predecessors, &stack, next, StackOp::Pop);
+                Self::enqueue(
+                    &mut queue,
+                    &mut visited,
+                    &mut predecessors,
+                    state,
+                    next,
+                    StackOp::Pop,
+                );
             }
 
             for (&value, &required) in multiplicities {
@@ -403,12 +466,13 @@ impl<'a> StackShuffler<'a> {
                 else {
                     continue;
                 };
-                let mut next = stack.clone();
+                let mut next = Layout::clone(&stack);
                 next.insert(0, Some(value));
                 Self::enqueue(
                     &mut queue,
+                    &mut visited,
                     &mut predecessors,
-                    &stack,
+                    state,
                     next,
                     StackOp::Dup((depth + 1) as u8),
                 );
@@ -419,19 +483,22 @@ impl<'a> StackShuffler<'a> {
     }
 
     fn enqueue(
-        queue: &mut VecDeque<Layout>,
-        predecessors: &mut Predecessors,
-        previous: &Layout,
+        queue: &mut VecDeque<(usize, Layout)>,
+        visited: &mut VisitedLayouts,
+        predecessors: &mut Vec<Option<Predecessor>>,
+        previous: usize,
         next: Layout,
         op: StackOp,
     ) {
-        if predecessors.len() >= MAX_LAYOUT_SEARCH_STATES {
+        if visited.len() >= MAX_LAYOUT_SEARCH_STATES {
             return;
         }
-        if let StdEntry::Vacant(entry) = predecessors.entry(next) {
+        if let StdEntry::Vacant(entry) = visited.entry(next) {
+            let state = predecessors.len();
             let next = entry.key().clone();
-            entry.insert(Some((previous.clone(), op)));
-            queue.push_back(next);
+            entry.insert(state);
+            predecessors.push(Some(Predecessor { previous, op }));
+            queue.push_back((state, next));
         }
     }
 

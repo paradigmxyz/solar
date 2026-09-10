@@ -1,11 +1,20 @@
 // === ROOT/tests/ui/codegen/lowering/cold_call_fallthrough.sol:ColdCallFallthrough (runtime) ===
 @module ColdCallFallthrough_runtime
 bb0:
+  push 36
+  calldatasize
+  lt
   callvalue
-  push bb4
+  or
+  iszero
+  push bb2
   jumpi
   jump bb1
-bb1:
+bb1 [cold]:
+  push 0
+  push 0
+  revert
+bb2:
   push 0
   calldataload
   push 224
@@ -13,22 +22,18 @@ bb1:
   dup 1
   push 0x161e4029
   eq
-  push bb2
+  push bb3
   jumpi
   dup 1
   push 0x4b692dff
   eq
-  push bb3
+  push bb4
   jumpi
-  jump bb4
-bb2:
-  jump bb5
+  jump bb1
 bb3:
-  jump bb11
-bb4 [cold]:
-  push 0
-  push 0
-  revert
+  jump bb5
+bb4:
+  jump bb8
 bb5:
   push 256
   push 64
@@ -36,24 +41,20 @@ bb5:
   push 36
   calldatasize
   lt
-  iszero
-  push bb10
-  jumpi
-  jump bb9
-bb6:
+  pop
   push 0
   push 4
   calldataload
   eq
   iszero
-  push bb8
+  push bb7
   jumpi
-  jump bb7
-bb7:
+  jump bb6
+bb6:
   push 4
   calldataload
-  jump bb17
-bb8:
+  jump bb11
+bb7:
   push 4
   calldataload
   push 128
@@ -66,37 +67,27 @@ bb8:
   sub
   push 128
   return
-bb9 [cold]:
-  push 0
-  push 0
-  revert
-bb10:
-  jump bb6
-bb11:
+bb8:
   push 256
   push 64
   mstore
   push 36
   calldatasize
   lt
-  iszero
-  push bb16
-  jumpi
-  jump bb15
-bb12:
+  pop
   push 100
   push 4
   calldataload
   lt
   iszero
-  push bb14
+  push bb10
   jumpi
-  jump bb13
-bb13:
+  jump bb9
+bb9:
   push 4
   calldataload
-  jump bb17
-bb14:
+  jump bb11
+bb10:
   push 4
   calldataload
   push 128
@@ -109,13 +100,7 @@ bb14:
   sub
   push 128
   return
-bb15 [cold]:
-  push 0
-  push 0
-  revert
-bb16:
-  jump bb12
-bb17:
+bb11:
   push 160
   mstore
   push 0
@@ -123,48 +108,48 @@ bb17:
   mload
   eq
   iszero
-  push bb19
+  push bb13
   jumpi
-  jump bb18
-bb18:
+  jump bb12
+bb12:
   push 0x7a65726f00000000000000000000000000000000000000000000000000000000
   push 4
   swap 1
-  jump bb24
-bb19:
+  jump bb18
+bb13:
   push 1
   push 160
   mload
   eq
   iszero
-  push bb21
+  push bb15
   jumpi
-  jump bb20
-bb20:
+  jump bb14
+bb14:
   push 0x6f6e650000000000000000000000000000000000000000000000000000000000
   push 3
   swap 1
-  jump bb24
-bb21:
+  jump bb18
+bb15:
   push 2
   push 160
   mload
   eq
   iszero
-  push bb23
+  push bb17
   jumpi
-  jump bb22
-bb22:
+  jump bb16
+bb16:
   push 0x74776f0000000000000000000000000000000000000000000000000000000000
   push 3
   swap 1
-  jump bb24
-bb23:
+  jump bb18
+bb17:
   push 0x6f74686572000000000000000000000000000000000000000000000000000000
   push 5
   swap 1
-  jump bb24
-bb24:
+  jump bb18
+bb18:
   push 224
   mstore
   push 192

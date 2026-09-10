@@ -3,9 +3,7 @@
 @phase evm-shaped
 fn @lastWord() [selector=0x3955f902, pure] {
   bb0:
-    v1 = calldatasize
-    v2 = lt v1, 36
-    jumpi v2, bb1, bb2
+    jump bb2
   bb2:
     v3 = icall @decode_calldata_slice, 1, 4
     v4 = calldataload v3
@@ -14,20 +12,20 @@ fn @lastWord() [selector=0x3955f902, pure] {
     mstore 128, v0
     returndata 128, 32
   bb1:
-    revert 0, 0
+    invalid
 }
 
 fn @lastWord2() [selector=0x97f495a8, pure] {
   bb0:
-    v11 = calldatasize
-    v12 = lt v11, 36
-    jumpi v12, bb1, bb3
+    jump bb3
   bb3:
     v13 = icall @decode_calldata_slice, 1, 4
     v14 = calldataload v13
     v15 = add v13, 32
     v0 = icall @_last, 1, v15, v14
     jumpi v14, bb2, bb1
+  bb1:
+    revert 0, 0
   bb2:
     v6 = sub v14, 1
     v7 = add v15, 1
@@ -35,8 +33,6 @@ fn @lastWord2() [selector=0x97f495a8, pure] {
     v10 = xor v0, v9
     mstore 128, v10
     returndata 128, 32
-  bb1:
-    revert 0, 0
 }
 
 fn @_last(arg0: calldataptr, arg1: u256) -> u256 [pure] {
@@ -70,15 +66,18 @@ fn @decode_calldata_slice(arg0: u256) -> u256 {
 fn @entry() [entry] {
   bb0:
     v0 = callvalue
-    jumpi v0, bb4, bb1
-  bb1:
-    v1 = calldataload 0
-    v2 = shr 224, v1
-    switch v2, default bb4, [0x3955f902 => bb2, 0x97f495a8 => bb3]
-  bb3:
-    tail_call @lastWord2
+    v1 = calldatasize
+    v2 = lt v1, 36
+    v3 = or v0, v2
+    jumpi v3, bb1, bb2
   bb2:
-    tail_call @lastWord
+    v4 = calldataload 0
+    v5 = shr 224, v4
+    switch v5, default bb1, [0x3955f902 => bb3, 0x97f495a8 => bb4]
   bb4:
+    tail_call @lastWord2
+  bb3:
+    tail_call @lastWord
+  bb1:
     revert 0, 0
 }

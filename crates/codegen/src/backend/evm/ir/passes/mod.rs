@@ -17,6 +17,7 @@ mod constant_data;
 pub(super) mod data;
 mod dce;
 mod inline_returns;
+mod late_structural;
 mod legalize_shifts;
 mod loop_layout;
 mod outline;
@@ -124,8 +125,7 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     // Pack address-sensitive terminal blocks, then clean up any adjacent
     // revert branch that remains profitable in the final layout.
     &block_layout::BlockLayout,
-    &share_reverts::ShareReverts,
-    &cfg_simplify::CfgSimplify,
+    &cfg_simplify::Cleanup(share_reverts::ShareReverts),
     &block_layout::BlockLayout,
     // Block CSE and final placement can expose new equal tails whose addresses or predecessors
     // differed during the first structural sweep. Run a bounded second structural sweep;
@@ -143,8 +143,7 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &peephole::Cleanup(dce::Dce),
     &peephole::Cleanup(stack_normalize::StackNormalize),
     &block_layout::BlockLayout,
-    &share_reverts::ShareReverts,
-    &cfg_simplify::CfgSimplify,
+    &cfg_simplify::Cleanup(share_reverts::ShareReverts),
     &block_layout::BlockLayout,
     // Materialize constants and pack the referenced data pool before final sharing and cleanup.
     &constant_data::ConstantData,
@@ -154,13 +153,7 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &peephole::Peephole,
     &stack_normalize::StackDedup,
     &peephole::Cleanup(dce::Dce),
-    // Compact constants and stack cleanup can expose more equal bodies and tails.
-    &terminal_dedup::TerminalDedup,
-    &cfg_simplify::CfgSimplify,
-    &tail_merge::TailMerge,
-    &cfg_simplify::CfgSimplify,
-    &outline::Outline,
-    &cfg_simplify::CfgSimplify,
+    &late_structural::LateStructural,
     &peephole::Peephole,
     &inline_returns::InlineReturns,
     &cfg_simplify::CfgSimplify,
