@@ -32,6 +32,16 @@ contract ConstructorArgsTest {
         require(keccak256(results[1]) == keccak256(expected));
     }
 
+    function buildString() public returns (ConstructorStringArgs, address) {
+        return (new ConstructorStringArgs("test", address(this)), address(this));
+    }
+
+    function test_InternalStringConstructor() public {
+        (ConstructorStringArgs instance, address owner) = buildString();
+        require(keccak256(bytes(instance.name())) == keccak256("test"));
+        require(instance.owner() == owner);
+    }
+
     function setUp() public {
         c = new ConstructorArgs(TEST_VALUE, TEST_OWNER);
     }
@@ -105,5 +115,22 @@ contract ForwardingHelperConstructor {
 
     function increment(uint256 x) internal pure returns (uint256) {
         return x + 1;
+    }
+}
+
+contract ConstructorStringArgs {
+    string public name;
+    address public owner;
+    event NameChanged(string previous, string current);
+
+    constructor(string memory name_, address owner_) {
+        setName(name_);
+        owner = owner_;
+    }
+
+    function setName(string memory name_) internal {
+        string memory previous = name;
+        name = name_;
+        emit NameChanged(previous, name_);
     }
 }

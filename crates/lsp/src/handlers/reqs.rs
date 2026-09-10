@@ -972,10 +972,15 @@ pub(crate) fn completion(
     let trigger_character =
         params.context.as_ref().and_then(|context| context.trigger_character.as_deref());
     let params = params.text_document_position;
-    let contents = crate::proto::vfs_path(&params.text_document.uri)
-        .and_then(|path| state.vfs.read().get_file_contents(&path).cloned());
-    if let Some(contents) = contents {
-        match natspec_completion::target(&contents, params.position) {
+    let source = crate::proto::vfs_path(&params.text_document.uri)
+        .and_then(|path| state.vfs.read().get_file_completion_source(&path));
+    if let Some(source) = source {
+        let contents = source.contents();
+        let cursor = source
+            .positions()
+            .checked_text_range(lsp_types::Range::new(params.position, params.position))
+            .map(|range| range.start);
+        match natspec_completion::target(contents, cursor) {
             NatSpecCompletionResult::Claimed(target) => {
                 let items = target.map_or_else(Vec::new, |target| {
                     let semantics = state
@@ -998,8 +1003,14 @@ pub(crate) fn completion(
             }
             NatSpecCompletionResult::NotApplicable => {}
         }
-        if let Some(response) =
-            import_completion(state, &params.text_document.uri, params.position, &contents)
+        if let Some(cursor) = cursor
+            && let Some(response) = import_completion(
+                state,
+                &params.text_document.uri,
+                cursor,
+                contents,
+                &source.source(),
+            )
         {
             return ready(Ok(Some(response)));
         }
@@ -1022,15 +1033,12 @@ pub(crate) fn completion(
 fn import_completion(
     state: &GlobalState,
     uri: &Url,
-    position: Position,
+    cursor_offset: usize,
     contents: &Rope,
+    source: &str,
 ) -> Option<CompletionResponse> {
     let importer = uri.to_file_path().ok()?;
-    let cursor_offset =
-        crate::proto::checked_text_range(contents, lsp_types::Range::new(position, position))?
-            .start;
-    let source = contents.to_string();
-    let import = import_path_at_for_completion(&source, cursor_offset)?;
+    let import = import_path_at_for_completion(source, cursor_offset)?;
     let prefix_end = cursor_offset.max(import.content_range.start);
     let raw_path_prefix = source.get(import.content_range.start..prefix_end).map(str::to_owned)?;
     let replacement = import.content_range;
