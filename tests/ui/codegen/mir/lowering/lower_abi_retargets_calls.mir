@@ -38,8 +38,24 @@ fn @literal() -> memorybytes [selector=0x0a0a0a03, abi_params=[], abi_returns=[m
 // CHECK: + {{v[0-9]+}} = icall @literal.body
 // CHECK: + fn @pub.body{{[( ]}}
 // CHECK: + fn @literal.body{{[( ]}}
+// CHECK: + fn @sliceBody.body{{[( ]}}
 fn @literalCaller() -> memorybytes [selector=0x0a0a0a04, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = icall fn2, 1
+    ret v0
+}
+
+fn @sliceBody() -> u256 [selector=0x0a0a0a05, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = make_calldata_slice 4, 32
+    jump bb1
+  bb1:
+    v1 = slice_ptr v0
+    ret v1
+}
+
+fn @sliceCaller() -> u256 [selector=0x0a0a0a06, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = icall fn4, 1
     ret v0
 }
