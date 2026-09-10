@@ -18,7 +18,7 @@ profiles:
       - synthetic-warm-document-symbol
       - synthetic-incremental-edit-save
   pr-smoke:
-    # Fast, capability-portable reference signal for comparing core4 on the
+    # Fast, capability-portable reference signal for comparing servers on the
     # tracked synthetic fixture in PR CI.
     warmup: 5
     samples: 20

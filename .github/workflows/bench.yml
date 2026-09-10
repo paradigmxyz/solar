@@ -20,13 +20,13 @@ on:
       solc_version:
         description: solc release used by the codegen runtime benchmark
         required: true
-        default: 0.8.36
+        default: 0.8.37
         type: string
 
 env:
   CARGO_TERM_COLOR: always
   RUSTC_WRAPPER: "sccache"
-  SOLC_VERSION: ${{ inputs.solc_version || '0.8.36' }}
+  SOLC_VERSION: ${{ inputs.solc_version || '0.8.37' }}
   SOLX_VERSION: '0.1.8'
 
 jobs:

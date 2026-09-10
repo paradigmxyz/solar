@@ -11,7 +11,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUSTC_WRAPPER: "sccache"
-  SOLC_VERSION: 0.8.36
+  SOLC_VERSION: 0.8.37
   FANDANGO_VERSION: 1.1.1
 
 jobs:

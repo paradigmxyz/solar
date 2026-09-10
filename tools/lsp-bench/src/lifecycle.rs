@@ -1461,15 +1461,15 @@ mod tests {
     #[test]
     fn locked_server_version_must_appear_in_probe_output() {
         let mut server = server_spec();
-        server.locked_version = Some("0.8.36".into());
+        server.locked_version = Some("1.2.3".into());
         assert!(
             verify_server_version_output(
                 &server,
-                "solc, the solidity compiler commandline interface\nVersion: 0.8.36+commit.8a079791"
+                "Test language server\nVersion: 1.2.3+commit.abcdef12"
             )
             .is_ok()
         );
-        assert!(verify_server_version_output(&server, "Version: 0.8.35").is_err());
+        assert!(verify_server_version_output(&server, "Version: 1.2.2").is_err());
     }
 
     #[cfg(unix)]

@@ -169,9 +169,9 @@ jobs:
           cargo build --locked --release -p solar-lsp-bench
           cargo build --locked --release -p solar-compiler --bin solar
 
-      - name: Prepare core4 and synthetic fixture
+      - name: Prepare servers and synthetic fixture
         run: >-
-          target/release/solar-lsp-bench prepare --fixture synthetic --server solar --server asyncswap --server nomic-foundation --server solc
+          target/release/solar-lsp-bench prepare --fixture synthetic --server solar --server asyncswap --server nomic-foundation
 
       - name: Run cross-server PR smoke comparison
         shell: bash
@@ -181,7 +181,7 @@ jobs:
           set -euo pipefail
           target/release/solar-lsp-bench run \
             --profile pr-smoke \
-            --server solar --server asyncswap --server nomic-foundation --server solc \
+            --server solar --server asyncswap --server nomic-foundation \
             --output target/lsp-bench/pr-smoke \
             --allow-failures \
             --solar-binary target/release/solar \
