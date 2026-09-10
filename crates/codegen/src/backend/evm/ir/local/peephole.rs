@@ -15,10 +15,12 @@
 //! evaluator. Adjacent equal-address word stores coalesce when their copied value
 //! is either retained or consumed. Memory round trips remove already-observed identical accesses;
 //! extra copies require a proved stack-capacity bound. Only the final late-DCE
-//! traversal may reorder adjacent stores to disjoint nonwrapping literal word ranges
-//! to remove a buried exchange. Scheduling queries and earlier passes disable it.
-//! Original source spans follow each unchanged instruction; function events retain
-//! only the original window boundaries. No read or other effect is crossed, and the
+//! traversal may retain a stored word across a literal and reversible binary consumer,
+//! or reorder adjacent stores to disjoint nonwrapping literal word ranges to remove a
+//! buried exchange. Scheduling queries and earlier passes disable these forms.
+//! Reordered stores keep their original source spans; other rewrites merge source
+//! origins through the common debug policy. Function events retain only the original
+//! window boundaries. No read or other effect is crossed, and the
 //! final memory expansion and stack are unchanged. Terminal cleanup discards a pure
 //! suffix only when the terminator cannot observe it. Terminal bodies may leave
 //! discarded prefix words underneath
@@ -40,7 +42,7 @@ pub(super) fn peephole(
     entry_max: Option<usize>,
     literal_copy_order: bool,
     calldata_carry: bool,
-    store_pairs: bool,
+    late_memory_rewrites: bool,
 ) -> bool {
     let mut changed = false;
     let mut index = 0;
@@ -65,7 +67,7 @@ pub(super) fn peephole(
                     InstKind::Exchange(1, 2),
                     InstKind::Op(op::MSTORE),
                     InstKind::Push(b),
-                ) if store_pairs
+                ) if late_memory_rewrites
                     && tail.get(4).is_some_and(|inst| {
                         canonical(inst) && matches!(inst.kind, InstKind::Op(op::MSTORE))
                     })
@@ -215,6 +217,34 @@ pub(super) fn peephole(
                             InstKind::Op(op::ISZERO).into(),
                         ],
                     ));
+                }
+                // push p; mstore; push k; push p; mload; binary
+                // -> dup1; push p; mstore; push k; swapped_binary
+                (
+                    InstKind::Push(a),
+                    InstKind::Op(op::MSTORE),
+                    InstKind::Push(_),
+                    InstKind::Push(b),
+                    InstKind::Op(op::MLOAD),
+                    InstKind::Op(code),
+                ) if late_memory_rewrites && a == b => {
+                    if let Some(code) = swapped(*code)
+                        && stack_usage(&insts[..index]).is_some_and(|(_, delta, _)| {
+                            entry_max.is_some_and(|entry| entry as i64 + delta + 2 <= 1024)
+                                || stack_usage(insts).is_some_and(|(_, _, peak)| delta + 2 <= peak)
+                        })
+                    {
+                        replacement = Some((
+                            6,
+                            vec![
+                                InstKind::Dup(1).into(),
+                                tail[0].clone(),
+                                tail[1].clone(),
+                                tail[2].clone(),
+                                InstKind::Op(code).into(),
+                            ],
+                        ));
+                    }
                 }
                 // dup1; push p; mstore; dup1; push p; mstore -> dup1; push p; mstore
                 (

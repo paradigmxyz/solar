@@ -1,0 +1,23 @@
+- // === ROOT/tests/ui/codegen/evm-ir/late-dce/same_word_reload_metadata.evmir (before late-dce) ===
++ // === ROOT/tests/ui/codegen/evm-ir/late-dce/same_word_reload_metadata.evmir (after late-dce) ===
+  @module StoreReloadMetadata
+  bb0:
+    push 0
+    calldataload
+-   push 128 !metadata(span=0..1, invoke=reload@1..50)
+-   mstore !metadata(span=10..11)
+-   push 7 !metadata(span=20..21)
+-   push 128 !metadata(span=30..31)
+-   mload !metadata(span=40..41)
+-   add !metadata(span=45..46, exit=return)
++   dup 1 !metadata(spans=[0..1, 10..11, 20..21, 30..31, 40..41, 45..46], invoke=reload@1..50)
++   push 128 !metadata(spans=[0..1, 10..11, 20..21, 30..31, 40..41, 45..46])
++   mstore !metadata(spans=[0..1, 10..11, 20..21, 30..31, 40..41, 45..46])
++   push 7 !metadata(spans=[0..1, 10..11, 20..21, 30..31, 40..41, 45..46])
++   add !metadata(spans=[0..1, 10..11, 20..21, 30..31, 40..41, 45..46], exit=return)
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  

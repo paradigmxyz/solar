@@ -1,0 +1,32 @@
+//@ compile-flags: -Ogas -Zevm-ir-pipeline=late-dce
+//~? ERROR: EVM IR verification failed: block 0: `push` cannot be kept with a next instruction
+//~? ERROR: EVM IR verification failed: block 1: `push` cannot be kept with a next instruction
+@module StoreReloadGlue
+bb0:
+  push 0
+  calldataload
+  push 128 !meta(keep_with_next)
+  mstore
+  push 7
+  push 128
+  mload
+  add
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb1:
+  push 0
+  calldataload
+  push 128
+  mstore
+  push 7 !meta(keep_with_next)
+  push 128
+  mload
+  add
+  push 0
+  mstore
+  push 32
+  push 0
+  return

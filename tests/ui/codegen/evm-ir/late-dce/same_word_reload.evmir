@@ -1,0 +1,191 @@
+//@ revisions: early_gas late_gas late_size paris amsterdam
+//@[early_gas] compile-flags: -Ogas --evm-version=osaka -Zevm-ir-pipeline=peephole
+//@[early_gas] filecheck: --check-prefix=EARLY
+//@[late_gas] compile-flags: -Ogas --evm-version=osaka -Zevm-ir-pipeline=late-dce
+//@[late_gas] filecheck: --check-prefix=LATE
+//@[late_size] compile-flags: -Osize --evm-version=osaka -Zevm-ir-pipeline=late-dce
+//@[late_size] filecheck: --check-prefix=LATE
+//@[paris] compile-flags: -Ogas --evm-version=paris -Zevm-ir-pipeline=late-dce
+//@[paris] filecheck: --check-prefix=LATE
+//@[amsterdam] compile-flags: -Ogas --evm-version=amsterdam -Zevm-ir-pipeline=late-dce
+//@[amsterdam] filecheck: --check-prefix=LATE
+
+@module StoreReload
+bb0:
+  push 0
+  calldataload
+  push 0
+  eq
+  jumpi bb4, bb1
+bb1:
+  push 0
+  calldataload
+  push 1
+  eq
+  jumpi bb5, bb2
+bb2:
+  push 0
+  calldataload
+  push 2
+  eq
+  jumpi bb6, bb7
+
+// Keep the incoming prefix and the stored word observable.
+// LATE-LABEL: {{^[ +]*}}bb4:
+// LATE: dup 1
+// LATE-NEXT: push 128
+// LATE-NEXT: mstore
+// LATE-NEXT: push 1
+// LATE: {{^[ +]*}}add
+// EARLY-LABEL: {{^[ +]*}}bb4:
+// EARLY: push 128
+// EARLY-NEXT: mstore
+// EARLY-NEXT: push 1
+// EARLY-NEXT: push 128
+// EARLY-NEXT: mload
+// EARLY-NEXT: add
+bb4:
+  push 64
+  calldataload
+  push 32
+  calldataload
+  push 128
+  mstore
+  push 1
+  push 128
+  mload
+  add
+  push 128
+  mload
+  push 64
+  mstore
+  push 0
+  mstore
+  push 32
+  mstore
+  msize
+  push 96
+  mstore
+  push 128
+  push 0
+  return
+
+// Keep the incoming prefix and the stored word observable.
+// LATE-LABEL: {{^[ +]*}}bb5:
+// LATE: dup 1
+// LATE-NEXT: push 0
+// LATE-NEXT: mstore
+// LATE-NEXT: push 7
+// LATE: {{^[ +]*}}gt
+// EARLY-LABEL: {{^[ +]*}}bb5:
+// EARLY: push 0
+// EARLY-NEXT: mstore
+// EARLY-NEXT: push 7
+// EARLY-NEXT: push 0
+// EARLY-NEXT: mload
+// EARLY-NEXT: lt
+bb5:
+  push 64
+  calldataload
+  push 32
+  calldataload
+  push 0
+  mstore
+  push 7
+  push 0
+  mload
+  lt
+  push 0
+  mload
+  push 64
+  mstore
+  push 0
+  mstore
+  push 32
+  mstore
+  msize
+  push 96
+  mstore
+  push 128
+  push 0
+  return
+
+// Keep the incoming prefix and the stored word observable.
+// LATE-LABEL: {{^[ +]*}}bb6:
+// LATE: dup 1
+// LATE-NEXT: push 33
+// LATE-NEXT: mstore
+// LATE-NEXT: push 0
+// LATE: {{^[ +]*}}slt
+// EARLY-LABEL: {{^[ +]*}}bb6:
+// EARLY: push 33
+// EARLY-NEXT: mstore
+// EARLY-NEXT: push 0
+// EARLY-NEXT: push 33
+// EARLY-NEXT: mload
+// EARLY-NEXT: sgt
+bb6:
+  push 64
+  calldataload
+  push 32
+  calldataload
+  push 33
+  mstore
+  push 0
+  push 33
+  mload
+  sgt
+  push 33
+  mload
+  push 64
+  mstore
+  push 0
+  mstore
+  push 32
+  mstore
+  msize
+  push 96
+  mstore
+  push 128
+  push 0
+  return
+
+// Keep the incoming prefix and the stored word observable.
+// LATE-LABEL: {{^[ +]*}}bb7:
+// LATE: dup 1
+// LATE-NEXT: push 256
+// LATE-NEXT: mstore
+// LATE-NEXT: push 7
+// LATE: {{^[ +]*}}lt
+// EARLY-LABEL: {{^[ +]*}}bb7:
+// EARLY: push 256
+// EARLY-NEXT: mstore
+// EARLY-NEXT: push 7
+// EARLY-NEXT: push 256
+// EARLY-NEXT: mload
+// EARLY-NEXT: gt
+bb7:
+  push 64
+  calldataload
+  push 32
+  calldataload
+  push 256
+  mstore
+  push 7
+  push 256
+  mload
+  gt
+  push 256
+  mload
+  push 64
+  mstore
+  push 0
+  mstore
+  push 32
+  mstore
+  msize
+  push 96
+  mstore
+  push 128
+  push 0
+  return

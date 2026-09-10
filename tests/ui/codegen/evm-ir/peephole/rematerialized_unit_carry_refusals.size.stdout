@@ -52,11 +52,12 @@
     mstore
     push 32
     calldataload
++   dup 1
     push 512
     mstore
     push 1
-    push 512
-    mload
+-   push 512
+-   mload
     add
     push 512
     mload

@@ -15,8 +15,9 @@
 //! `late-dce` configuration uses the same DCE traversal but permits calldata unit-carry
 //! specialization in Size mode after tail sharing; Gas mode permits it throughout.
 //! Earlier Size cleanup retains the common arithmetic shape for sharing. Late-DCE alone
-//! also permits disjoint store-pair reordering, using its existing traversal. Earlier
-//! cleanup and all scheduling queries disable that rule independently of literal permissions.
+//! also permits disjoint store-pair reordering and same-word reload elimination across
+//! a literal binary operand, using its existing traversal. Earlier cleanup and all
+//! scheduling queries disable those rules independently of literal permissions.
 //! Raw JUMPDESTs are alternate entries: stack identities and height proofs stop
 //! there even when the textual block continues.
 //!
@@ -64,7 +65,7 @@ impl EvmPass for LocalPass {
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
         let pass = if self.0 == "late-dce" { "dce" } else { self.0 };
         let calldata_carry = gcx.sess.opts.optimization.is_gas() || self.0 == "late-dce";
-        let store_pairs = self.0 == "late-dce";
+        let late_memory_rewrites = self.0 == "late-dce";
         let version = gcx.sess.opts.evm_version;
         let mut changed = false;
         // The literal/copy rules shorten code. Private labels are control-only,
@@ -183,7 +184,7 @@ impl EvmPass for LocalPass {
                         entry_max,
                         literal_copy_order,
                         calldata_carry,
-                        store_pairs,
+                        late_memory_rewrites,
                     );
                     changed |= dead_copies::eliminate(&mut block.insts, version);
                     changed |= dedup_stack(&mut block.insts, version);
@@ -193,7 +194,7 @@ impl EvmPass for LocalPass {
                         entry_max,
                         literal_copy_order,
                         calldata_carry,
-                        store_pairs,
+                        late_memory_rewrites,
                     );
                     changed |= dead_tail(&mut block.insts, &block.terminator.kind, entry_max);
                     changed |=
