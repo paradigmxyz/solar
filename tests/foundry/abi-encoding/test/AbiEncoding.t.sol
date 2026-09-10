@@ -3,6 +3,10 @@ pragma solidity ^0.8.0;
 
 import {AbiEncoding} from "../src/AbiEncoding.sol";
 
+interface AbiVm {
+    function assertLt(uint256 a, uint256 b) external pure;
+}
+
 contract AbiEncodingTest {
     AbiEncoding target;
 
@@ -80,5 +84,98 @@ contract AbiEncodingTest {
 
     function testRuntimeCode() public view {
         assert(target.runtimeCodeLength() > 0);
+    }
+
+    function testConstructorReturnedStrings() public {
+        StringConfig config = new StringConfig(this);
+        string[] memory values = abi.decode(config.get(), (string[]));
+        assert(values.length == 2);
+        assert(keccak256(bytes(values[0])) == keccak256("bar"));
+        assert(keccak256(bytes(values[1])) == keccak256("baz"));
+    }
+
+    struct Page {
+        uint256 a;
+    }
+
+    struct Key {
+        uint256 a;
+    }
+
+    function page(Key calldata key, bytes calldata cursor)
+        external
+        pure
+        returns (Page memory result, bytes memory next, bool done)
+    {
+        if (cursor.length == 0) {
+            next = new bytes(480);
+            assembly { mstore(add(next, 32), 1) }
+        } else {
+            uint256 a = abi.decode(cursor, (uint256));
+            assert(a == 1);
+            done = true;
+        }
+        result.a = key.a;
+    }
+
+    function testPagedReturn() public view {
+        Page memory result = getPaged(Key(7));
+        assert(result.a == 7);
+    }
+
+    function getPaged(Key memory key) internal view returns (Page memory result) {
+        bytes memory cursor;
+        bool done;
+        uint256 pages;
+        while (!done) {
+            (result, cursor, done) = this.page(key, cursor);
+            pages++;
+            AbiVm(address(uint160(uint256(keccak256("hevm cheat code"))))).assertLt(pages, 3);
+        }
+        assert(result.a == 7);
+    }
+
+    struct Kind {
+        uint8 tag;
+        bool array;
+    }
+
+    struct Wrapped {
+        Kind kind;
+        bytes data;
+    }
+    mapping(uint256 => Kind) kinds;
+
+    function wrapStoredKind(uint256 key) external view returns (Wrapped memory) {
+        return Wrapped(kinds[key], hex"abcd");
+    }
+
+    function testStorageStructConstructorArgument() public {
+        kinds[7] = Kind(3, true);
+        Wrapped memory result = this.wrapStoredKind(7);
+        assert(result.kind.tag == 3 && result.kind.array);
+        assert(keccak256(result.data) == keccak256(hex"abcd"));
+    }
+
+    function strings() external pure returns (string[] memory values) {
+        values = new string[](2);
+        values[0] = "bar";
+        values[1] = "baz";
+    }
+}
+
+contract StringConfig {
+    mapping(uint256 => mapping(string => bytes)) stored;
+
+    constructor(AbiEncodingTest source) {
+        stored[1]["values"] = abi.encode(source.strings());
+    }
+
+    function reload(string[] memory values) external {
+        stored[1]["values"] = abi.encode(values);
+    }
+
+    function get() external view returns (bytes memory) {
+        return stored[1]["values"];
     }
 }
