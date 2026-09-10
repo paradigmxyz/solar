@@ -1,0 +1,44 @@
+// === ROOT/tests/ui/codegen/mir/cse/restored_words_runtime.sol:RestoredWords ===
+@module RestoredWords
+fn @check(arg0: u256, arg1: u256, arg2: u256) -> (u256, u256, u256) [selector=0x4feb5714, pure, abi_params=[u256, u256, u256], abi_returns=[word, word, word]] {
+  bb0:
+    v0 = not 31
+    v1 = and 127, v0
+    v2 = alloc memorybytes, exact, zeroed, panic, v1
+    set_memory_object_len memorybytes, v2, 64
+    v3 = add v2, 32
+    mstore v3, arg0
+    v4 = add v2, 64
+    mstore v4, arg1
+    v5 = icall @readTemporary, 1, v2, arg2
+    v6 = icall @readTemporary, 1, v2, arg2
+    v7 = add v5, v6
+    v8 = lt v7, v5
+    jumpi v8, bb1, bb2
+  bb2:
+    v9 = add v2, 32
+    v10 = mload v9
+    v11 = add v2, 64
+    v12 = mload v11
+    ret v7, v10, v12
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @readTemporary(arg0: memorybytes, arg1: u256) -> u256 [pure] {
+  bb0:
+    v0 = add arg0, 32
+    v1 = add v0, 32
+    v2 = mload v0
+    v3 = mload v1
+    mstore v0, 17
+    mstore v1, 23
+    v4 = and arg1, 32
+    v5 = add v0, v4
+    v6 = mload v5
+    mstore v1, v3
+    mstore v0, v2
+    ret v6
+}

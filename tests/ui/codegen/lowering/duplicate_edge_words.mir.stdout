@@ -1,0 +1,38 @@
+// === ROOT/tests/ui/codegen/lowering/duplicate_edge_words.sol:DuplicateEdgeWords ===
+@module DuplicateEdgeWords
+fn @choose(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> (u256, u256, u256) [selector=0x3017409e, pure, abi_params=[u256, u256, u256, u256], abi_returns=[word, word, word]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg3], [bb5: v15]
+    v1 = phi [bb0: 0], [bb5: v1]
+    v2 = phi [bb0: arg0], [bb5: v13]
+    v3 = phi [bb0: arg2], [bb5: v3]
+    v4 = phi [bb0: 0], [bb5: v4]
+    v5 = phi [bb0: 0], [bb5: v5]
+    v6 = phi [bb0: arg1], [bb5: v14]
+    v7 = eq v0, 0
+    v8 = iszero v7
+    jumpi v8, bb3, bb4
+  bb4:
+    jump bb2
+  bb2:
+    ret v2, v6, v3
+  bb3:
+    v9 = and v2, 1
+    v10 = eq v9, 0
+    v11 = iszero v10
+    jumpi v11, bb6, bb7
+  bb7:
+    v12 = add v2, 1
+    jump bb8
+  bb6:
+    jump bb8
+  bb8:
+    v13 = phi [bb6: v2], [bb7: v12]
+    v14 = phi [bb6: v2], [bb7: v6]
+    v15 = sub v0, 1
+    jump bb5
+  bb5:
+    jump bb1
+}
