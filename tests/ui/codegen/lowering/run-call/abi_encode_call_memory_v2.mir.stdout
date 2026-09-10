@@ -15,6 +15,95 @@ fn @something() [selector=0xa7a0d537, pure, abi_params=[], abi_returns=[]] {
     ret
 }
 
+fn @accept(arg0: calldataslice, arg1: calldataslice) -> bytes32 [selector=0x1403c78f, pure, abi_params=[bytes, array<_, u256>], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode [calldata_bytes, calldata_array<word>], scratch, args arg0, arg1
+    v1 = slice_ptr v0
+    v2 = slice_len v0
+    v3 = keccak256 v1, v2
+    ret v3
+}
+
+fn @next() -> memorybytes [selector=0x4c8fe526, pure, abi_params=[], abi_returns=[memory_bytes]] {
+  bb0:
+    v0 = not 31
+    v1 = and 543, v0
+    v2 = alloc memorybytes, exact, zeroed, panic, v1
+    set_memory_object_len memorybytes, v2, 480
+    v3 = add v2, 32
+    mstore v3, 1
+    ret v2
+}
+
+fn @memoryLoop() -> u256 [selector=0x0f61b86c, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
+    set_memory_object_len memoryarray, v0, 2
+    v1 = memory_object_len memoryarray, v0
+    v2 = lt 0, v1
+    v3 = iszero v2
+    panic_if v3, 0x32
+    memory_object_store_element memoryarray<1>, v0, 0, 42
+    v4 = memory_object_len memoryarray, v0
+    v5 = lt 1, v4
+    v6 = iszero v5
+    panic_if v6, 0x32
+    memory_object_store_element memoryarray<1>, v0, 1, 99
+    jump bb1
+  bb1:
+    v7 = phi [bb0: 0], [bb3: v37]
+    v8 = phi [bb0: memorybytes 96], [bb3: v32]
+    v9 = phi [bb0: 0], [bb3: v9]
+    v10 = phi [bb0: v0], [bb3: v33]
+    v11 = lt v7, 2
+    jumpi v11, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret 1
+  bb4:
+    v12 = abi_encode [memory_bytes, memory_array<word>], object, selector 0x1403c78f00000000000000000000000000000000000000000000000000000000, args v8, v10
+    v13 = address
+    v14 = gas
+    v15 = address_call v13, v12, gas v14
+    v16 = returndata_bytes
+    v17 = iszero v15
+    revert_if v17, empty
+    v18 = abi_decode [bytes32], v16
+    v19 = abi_encode [memory_bytes, memory_array<word>], scratch, args v8, v10
+    v20 = slice_ptr v19
+    v21 = slice_len v19
+    v22 = keccak256 v20, v21
+    v23 = eq v18, v22
+    v24 = iszero v23
+    revert_if v24, empty
+    v25 = address
+    v26 = gas
+    v27 = abi_encode [], selector 0x4c8fe52600000000000000000000000000000000000000000000000000000000
+    v28 = slice_ptr v27
+    v29 = slice_len v27
+    v30 = staticcall v26, v25, v28, v29, 0, 0
+    jumpi v30, bb8, bb7
+  bb7:
+    revert_returndata
+  bb8:
+    v31 = returndata_bytes
+    v32 = abi_decode [bytes], v31
+    v33 = alloc memoryarray<1>, exact, zeroed, panic, 128
+    set_memory_object_len memoryarray, v33, 3
+    v34 = memory_object_len memoryarray, v33
+    v35 = lt 2, v34
+    v36 = iszero v35
+    panic_if v36, 0x32
+    memory_object_store_element memoryarray<1>, v33, 2, 123
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v37 = checked_add u256, v7, 1
+    jump bb1
+}
+
 fn @test() -> bytes4 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bytes4>]] {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)

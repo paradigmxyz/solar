@@ -116,6 +116,7 @@ impl BenchmarkError {
 pub struct BenchmarkWorkspacePathQueries {
     workspaces: Vec<Workspace>,
     paths: Vec<PathBuf>,
+    import_entries: Arc<Vec<crate::workspace::WorkspaceImportPathIndexEntry>>,
 }
 
 impl BenchmarkWorkspacePathQueries {
@@ -130,7 +131,8 @@ impl BenchmarkWorkspacePathQueries {
             workspaces.push(Workspace::naked(root.clone()));
         }
         let paths = (0..query_count).map(|index| root.join(format!("Query-{index}.sol"))).collect();
-        Self { workspaces, paths }
+        let import_entries = WorkspacePathIndex::new(&workspaces).clone_import_entries();
+        Self { workspaces, paths, import_entries }
     }
 
     /// Execute ownership and overlay-recipient queries for every prepared path.
@@ -143,8 +145,30 @@ impl BenchmarkWorkspacePathQueries {
         self.run_paths(&self.paths[..1])
     }
 
+    /// Execute the same queries with a prebuilt workspace path index.
+    pub fn run_cached(&self) -> usize {
+        self.run_paths_cached(&self.paths)
+    }
+
+    /// Execute one query with a prebuilt workspace path index.
+    pub fn run_cached_one(&self) -> usize {
+        self.run_paths_cached(&self.paths[..1])
+    }
+
     fn run_paths(&self, paths: &[PathBuf]) -> usize {
         let index = WorkspacePathIndex::new(&self.workspaces);
+        self.run_with_index(&index, paths)
+    }
+
+    fn run_paths_cached(&self, paths: &[PathBuf]) -> usize {
+        let index = WorkspacePathIndex::with_import_entries(
+            &self.workspaces,
+            Arc::clone(&self.import_entries),
+        );
+        self.run_with_index(&index, paths)
+    }
+
+    fn run_with_index(&self, index: &WorkspacePathIndex<'_>, paths: &[PathBuf]) -> usize {
         paths.iter().fold(0, |fingerprint, path| {
             let query = index.query(path);
             let primary = query.workspace_idx_for_path();

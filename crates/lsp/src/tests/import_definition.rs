@@ -599,3 +599,37 @@ fn unowned_import_definitions_do_not_use_the_first_workspace_context() {
 
     fixture.check_goto_definition("$1", "<none>\n");
 }
+
+#[tokio::test(flavor = "current_thread")]
+async fn unowned_indexed_import_definitions_do_not_bypass_context() {
+    let fixture = RequestFixture::new_in_batches(
+        r#"
+        //- /owned/foundry.toml
+        [profile.default]
+        auto_detect_remappings = false
+        remappings = ["pkg/=lib/"]
+
+        //- /owned/lib/Target.sol
+        contract Target {}
+
+        //- /unowned/Main.sol open
+        import "../owned/lib/$1Target.sol";
+        "#,
+        &["/unowned/Main.sol", "/owned/lib/Target.sol"],
+    );
+
+    let mut state = fixture.state();
+    let importer = fixture.project_path("/unowned/Main.sol");
+    state.vfs.write().set_file_contents(
+        VfsPath::from(importer.clone()),
+        Some(Rope::from(fixture.project_contents("/unowned/Main.sol"))),
+    );
+    {
+        let mut commit = state.analysis_commit.lock();
+        commit.vfs_content_revision = state.vfs.read().content_revision();
+        commit.symbol_tables_version = state.analysis_version.load(Ordering::Acquire);
+    }
+    let (uri, position) = fixture.marker_location("$1");
+    let response = crate::handlers::goto_definition(&mut state, goto_params(uri, position)).await;
+    assert_eq!(response.unwrap(), None);
+}

@@ -1,3 +1,4 @@
+use self::prototype_dependencies::DependencySnapshot;
 use crate::{
     NotifyResult,
     config::{
@@ -10,6 +11,7 @@ use crate::{
     },
     file_operations::FileOperationCoordinator,
     flycheck,
+    import_resolution::ImportCompletion,
     progress::{ProgressCoordinator, ProgressTicket},
     proto,
     protocol_trace::ProtocolTrace,
@@ -54,6 +56,8 @@ use tokio::{
     sync::{Mutex as AsyncMutex, Semaphore, oneshot, watch},
     task::{AbortHandle, JoinHandle},
 };
+
+mod prototype_dependencies;
 
 #[derive(Clone, Copy)]
 enum AnalysisMode {
@@ -139,11 +143,15 @@ impl ImportPathTracker {
 
 struct TrackingFileLoader {
     tracker: ImportPathTracker,
+    dependencies: Option<DependencySnapshot>,
 }
 
 impl FileLoader for TrackingFileLoader {
     fn canonicalize_path(&self, path: &Path) -> io::Result<PathBuf> {
         let result = RealFileLoader.canonicalize_path(path);
+        if let Some(dependencies) = &self.dependencies {
+            dependencies.record_canonicalize(path, &result);
+        }
         let mut probes = self.tracker.0.lock();
         if result.as_ref().is_err_and(|error| error.kind() == io::ErrorKind::NotFound) {
             probes.missing.insert(path.to_path_buf());
@@ -154,14 +162,24 @@ impl FileLoader for TrackingFileLoader {
     }
 
     fn load_stdin(&self) -> io::Result<String> {
+        if let Some(dependencies) = &self.dependencies {
+            dependencies.invalidate();
+        }
         RealFileLoader.load_stdin()
     }
 
     fn load_file(&self, path: &Path) -> io::Result<String> {
-        RealFileLoader.load_file(path)
+        let result = RealFileLoader.load_file(path);
+        if let Some(dependencies) = &self.dependencies {
+            dependencies.record_read(path, &result);
+        }
+        result
     }
 
     fn load_binary_file(&self, path: &Path) -> io::Result<Vec<u8>> {
+        if let Some(dependencies) = &self.dependencies {
+            dependencies.invalidate();
+        }
         RealFileLoader.load_binary_file(path)
     }
 }
@@ -274,6 +292,16 @@ struct CachedAnalysisOutput {
     config: Arc<Config>,
     output: AnalysisOutput<Arc<SymbolTables>>,
     inputs: Vec<AnalysisBatchInputs>,
+    /// Independently reusable batches whose inputs and loader observations can be revalidated.
+    ///
+    /// Keep these only for multiple nonempty workspaces: a single workspace can reuse the
+    /// aggregate directly, without retaining another copy of its symbol tables.
+    batches: Vec<Option<Arc<CachedAnalysisBatch>>>,
+}
+
+struct CachedAnalysisBatch {
+    output: AnalysisOutput,
+    dependencies: DependencySnapshot,
 }
 
 /// Exact analysis roots and overlays, excluding client document versions.
@@ -354,6 +382,19 @@ struct AnalysisTasks {
     cancellation: Option<IndexingCancellation>,
 }
 
+/// Reuses import completion results within one analysis/configuration epoch.
+///
+/// The cache is deliberately bounded and discarded on every new analysis epoch so watched disk
+/// changes and VFS overlays cannot leave stale directory candidates visible to the client.
+#[derive(Default)]
+struct ImportCompletionCache {
+    generation: Option<usize>,
+    overlay_paths: Vec<PathBuf>,
+    entries: FxHashMap<(PathBuf, String), Arc<ImportCompletion>>,
+}
+
+const MAX_IMPORT_COMPLETION_CACHE_ENTRIES: usize = 256;
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 struct AnalysisTaskKey {
     version: usize,
@@ -411,6 +452,7 @@ pub(crate) struct GlobalState {
     flycheck_cancels: FxHashMap<DiagnosticOwner, oneshot::Sender<()>>,
     pub(crate) symbol_tables: Arc<ArcSwap<SymbolTables>>,
     diagnostics: Arc<RwLock<DiagnosticStore>>,
+    import_completion_cache: Mutex<ImportCompletionCache>,
 }
 
 pub(crate) struct AnalysisRevision {
@@ -458,6 +500,7 @@ impl GlobalState {
             flycheck_cancels: FxHashMap::default(),
             symbol_tables: Arc::new(Default::default()),
             diagnostics: Arc::new(Default::default()),
+            import_completion_cache: Mutex::new(ImportCompletionCache::default()),
             config,
             launch_config: crate::LaunchConfig::default(),
         }
@@ -474,6 +517,45 @@ impl GlobalState {
 
     pub(crate) fn client_socket(&self) -> ClientSocket {
         self.client.clone()
+    }
+
+    /// Return cached candidates or build them from the current overlay snapshot.
+    pub(crate) fn cached_import_completion(
+        &self,
+        importer: &Path,
+        prefix: &str,
+        build: impl FnOnce(&[PathBuf]) -> ImportCompletion,
+    ) -> Arc<ImportCompletion> {
+        let generation = self.analysis_version.load(Ordering::Acquire);
+        let key = (importer.to_path_buf(), prefix.to_owned());
+        {
+            let mut cache = self.import_completion_cache.lock();
+            if cache.generation != Some(generation) {
+                cache.generation = Some(generation);
+                cache.overlay_paths = self
+                    .vfs
+                    .read()
+                    .iter()
+                    .filter_map(|(path, _)| path.as_path().map(Path::to_path_buf))
+                    .collect();
+                cache.entries.clear();
+            }
+            if let Some(completion) = cache.entries.get(&key).cloned() {
+                return completion;
+            }
+        }
+
+        let overlay_paths = self.import_completion_cache.lock().overlay_paths.clone();
+        let completion = build(&overlay_paths);
+        let mut cache = self.import_completion_cache.lock();
+        if cache.entries.len() >= MAX_IMPORT_COMPLETION_CACHE_ENTRIES
+            && !cache.entries.contains_key(&key)
+        {
+            cache.entries.clear();
+        }
+        let completion = Arc::new(completion);
+        cache.entries.insert(key, Arc::clone(&completion));
+        completion
     }
 
     pub(crate) fn analysis_revision(&self) -> AnalysisRevision {
@@ -1622,7 +1704,9 @@ fn run_analysis(
             } else {
                 commit.cached_output.as_ref().and_then(|cached| {
                     (cached.vfs_content_revision == vfs_content_revision
-                        && Arc::ptr_eq(&cached.config, &config))
+                        && Arc::ptr_eq(&cached.config, &config)
+                        // Multi-workspace caches must validate each batch's filesystem observations below.
+                        && cached.batches.is_empty())
                     .then(|| cached.output.clone())
                 })
             }
@@ -1662,6 +1746,8 @@ fn run_analysis(
                 && Arc::ptr_eq(&cached.config, &config)
                 // The compared batches do not include disk-only imports or resolver probes.
                 && cached.output.analysis_paths.is_empty()
+                // Multi-workspace caches must validate each batch's filesystem observations below.
+                && cached.batches.is_empty()
                 && cached.inputs.len() == batches.len()
                 && cached.inputs.iter().zip(&batches).all(|(inputs, batch)| {
                     inputs.files == batch.files && inputs.preloaded_files == batch.preloaded_files
@@ -1683,6 +1769,21 @@ fn run_analysis(
         }
     }
 
+    let cache_batches = !has_disk_paths
+        && source_files_complete
+        && batches.iter().filter(|batch| !batch.files.is_empty()).take(2).count() > 1;
+    let cached_batches = if cache_batches {
+        let commit = snapshot.analysis_commit.lock();
+        commit.cached_output.as_ref().and_then(|cached| {
+            (!commit.cache_invalidated
+                && Arc::ptr_eq(&cached.config, &config)
+                && cached.inputs.len() == batches.len()
+                && cached.batches.len() == batches.len())
+            .then(|| (cached.inputs.clone(), cached.batches.clone()))
+        })
+    } else {
+        None
+    };
     let inputs = if has_disk_paths {
         Vec::new()
     } else {
@@ -1695,8 +1796,10 @@ fn run_analysis(
             .collect::<Vec<_>>()
     };
     let mut results = AnalysisOutputAccumulator::default();
+    let mut next_cached_batches =
+        if cache_batches { vec![None; batches.len()] } else { Vec::new() };
 
-    for batch in batches {
+    for (idx, batch) in batches.into_iter().enumerate() {
         if batch.files.is_empty() {
             continue;
         }
@@ -1705,8 +1808,34 @@ fn run_analysis(
             return AnalysisTaskOutcome::Superseded;
         }
 
-        let Some(result) = analyze_cancellable(batch, cancellation) else {
-            return AnalysisTaskOutcome::Superseded;
+        let cached = cached_batches.as_ref().and_then(|(inputs, outputs)| {
+            let inputs = &inputs[idx];
+            (inputs.files == batch.files && inputs.preloaded_files == batch.preloaded_files)
+                .then(|| outputs[idx].clone())
+                .flatten()
+                .filter(|cached| cached.dependencies.unchanged(cancellation))
+        });
+        let result = if let Some(cached) = cached {
+            let mut result = cached.output.clone();
+            // Exact source contents permit reuse, but document versions belong to this epoch.
+            for (uri, version) in &mut result.result.analyzed_documents {
+                *version = batch.open_file_versions.get(uri).copied();
+            }
+            next_cached_batches[idx] = Some(cached);
+            result
+        } else {
+            let dependencies = cache_batches.then(DependencySnapshot::default);
+            let Some(result) =
+                analyze_recording_dependencies(batch, cancellation, dependencies.clone())
+            else {
+                return AnalysisTaskOutcome::Superseded;
+            };
+            // Root text alone cannot establish freshness: replay all disk reads and path probes.
+            if let Some(dependencies) = dependencies {
+                next_cached_batches[idx] =
+                    Some(Arc::new(CachedAnalysisBatch { output: result.clone(), dependencies }));
+            }
+            result
         };
         results.push(result);
 
@@ -1723,7 +1852,12 @@ fn run_analysis(
                 vfs_content_revision,
                 config,
                 output: output.clone(),
-                inputs: if output.analysis_paths.is_empty() { inputs } else { Vec::new() },
+                inputs: if output.analysis_paths.is_empty() || cache_batches {
+                    inputs
+                } else {
+                    Vec::new()
+                },
+                batches: next_cached_batches,
             });
         }
     }
@@ -2863,13 +2997,22 @@ fn analyze_with_source_map(batch: AnalysisBatch, source_map: Arc<SourceMap>) -> 
     .result
 }
 
+#[cfg(any(test, feature = "bench"))]
 fn analyze_cancellable(
     batch: AnalysisBatch,
     cancellation: &IndexingCancellation,
 ) -> Option<AnalysisOutput> {
+    analyze_recording_dependencies(batch, cancellation, None)
+}
+
+fn analyze_recording_dependencies(
+    batch: AnalysisBatch,
+    cancellation: &IndexingCancellation,
+    dependencies: Option<DependencySnapshot>,
+) -> Option<AnalysisOutput> {
     let tracker = ImportPathTracker::default();
     let source_map = Arc::new(SourceMap::empty());
-    source_map.set_file_loader(TrackingFileLoader { tracker: tracker.clone() });
+    source_map.set_file_loader(TrackingFileLoader { tracker: tracker.clone(), dependencies });
     analyze_cancellable_with_source_map(batch, source_map, tracker, cancellation)
 }
 

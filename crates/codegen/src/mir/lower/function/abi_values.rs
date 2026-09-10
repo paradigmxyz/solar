@@ -183,8 +183,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let ty = parameter_types[index];
                 let memory_ty = ty.with_loc_if_ref(this.cx.gcx, DataLocation::Memory);
                 let value = this.lower_typed_expr(expr, memory_ty)?;
-                let abi_type = this.types.abi_type(ty)?;
-                this.prepare_abi_encode_argument(expr, ty, value, abi_type)
+                let abi_type = this.types.abi_type(memory_ty)?;
+                this.prepare_abi_encode_argument(expr, memory_ty, value, abi_type)
             },
         )?;
         let (values, types): (Vec<_>, Vec<_>) = values_and_types.into_iter().unzip();

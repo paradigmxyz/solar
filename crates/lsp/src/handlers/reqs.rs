@@ -561,37 +561,85 @@ pub(crate) fn goto_definition(
         &analysis_revision,
     );
     let config = state.config.clone();
+    let vfs = state.vfs.clone();
     async move {
         let Some(latest_analysis) = latest_analysis else { return Ok(None) };
         let symbol_tables = latest_analysis.await?;
-        if let Some(import_request) = import_request {
-            if !analysis_revision.is_current(import_request.vfs_content_revision) {
+        let symbol_tables = symbol_tables.load();
+        let response = match import_request {
+            None => symbol_tables.goto_definition(&params.text_document.uri, params.position),
+            Some(ImportDefinitionRequest::Current { importer, contents, vfs_content_revision }) => {
+                if !analysis_revision.is_current(vfs_content_revision) {
+                    return Ok(None);
+                }
+                let Some(context) = config.import_resolution_context(&importer) else {
+                    return Ok(
+                        symbol_tables.goto_definition(&params.text_document.uri, params.position)
+                    );
+                };
+                if let Some(response) =
+                    symbol_tables.import_definition(&params.text_document.uri, params.position)
+                {
+                    return Ok(Some(response));
+                }
+                let overlay_paths = vfs
+                    .read()
+                    .iter()
+                    .filter_map(|(path, _)| path.as_path().map(Path::to_path_buf))
+                    .collect();
+                let Some(import_request) = parse_import_definition_request(
+                    importer,
+                    contents,
+                    params.position,
+                    overlay_paths,
+                    vfs_content_revision,
+                ) else {
+                    return Ok(
+                        symbol_tables.goto_definition(&params.text_document.uri, params.position)
+                    );
+                };
+                if let Some(target) = ImportResolver::new(context, &import_request.overlay_paths)
+                    .resolve(&import_request.importer, &import_request.raw_path)
+                    && let Ok(uri) = Url::from_file_path(target)
+                {
+                    let location = lsp_types::Location::new(uri, lsp_types::Range::default());
+                    return Ok(Some(GotoDefinitionResponse::Array(vec![location])));
+                }
+                None
+            }
+            Some(ImportDefinitionRequest::Parsed(import_request)) => {
+                if !analysis_revision.is_current(import_request.vfs_content_revision) {
+                    return Ok(None);
+                }
+                let Some(context) = config.import_resolution_context(&import_request.importer)
+                else {
+                    return Ok(None);
+                };
+                if let Some(response) =
+                    symbol_tables.import_definition(&params.text_document.uri, params.position)
+                {
+                    return Ok(Some(response));
+                }
+                if let Some(target) = ImportResolver::new(context, &import_request.overlay_paths)
+                    .resolve(&import_request.importer, &import_request.raw_path)
+                    && let Ok(uri) = Url::from_file_path(target)
+                {
+                    let location = lsp_types::Location::new(uri, lsp_types::Range::default());
+                    return Ok(Some(GotoDefinitionResponse::Array(vec![location])));
+                }
                 return Ok(None);
             }
-            let Some(context) = config.import_resolution_context(&import_request.importer) else {
-                return Ok(None);
-            };
-            if let Some(response) =
-                symbol_tables.load().import_definition(&params.text_document.uri, params.position)
-            {
-                return Ok(Some(response));
-            }
-            if let Some(target) = ImportResolver::new(context, &import_request.overlay_paths)
-                .resolve(&import_request.importer, &import_request.raw_path)
-                && let Ok(uri) = Url::from_file_path(target)
-            {
-                let location = lsp_types::Location::new(uri, lsp_types::Range::default());
-                return Ok(Some(GotoDefinitionResponse::Array(vec![location])));
-            }
-            return Ok(None);
-        }
-        let response =
-            symbol_tables.load().goto_definition(&params.text_document.uri, params.position);
+        };
         Ok(response)
     }
 }
 
-struct ImportDefinitionRequest {
+enum ImportDefinitionRequest {
+    Current { importer: PathBuf, contents: Rope, vfs_content_revision: u64 },
+    Parsed(ParsedImportDefinitionRequest),
+}
+
+struct ParsedImportDefinitionRequest {
     importer: PathBuf,
     raw_path: String,
     overlay_paths: Vec<PathBuf>,
@@ -619,6 +667,15 @@ fn import_definition_request(
     {
         return None;
     }
+    if let Some(contents) = open_contents.as_ref()
+        && analysis_revision.is_current(vfs_content_revision)
+    {
+        return Some(ImportDefinitionRequest::Current {
+            importer,
+            contents: contents.clone(),
+            vfs_content_revision,
+        });
+    }
     let contents = open_contents.or_else(|| {
         state
             .sess
@@ -628,19 +685,39 @@ fn import_definition_request(
             .ok()
             .map(|contents| Rope::from(contents.as_str()))
     })?;
-    let cursor_offset =
-        crate::proto::checked_text_range(&contents, lsp_types::Range::new(position, position))?
-            .start;
-    let source = contents.to_string();
-    let import = import_path_at(&source, cursor_offset)?;
-    let raw_path = import.raw_path;
     let overlay_paths = state
         .vfs
         .read()
         .iter()
         .filter_map(|(path, _)| path.as_path().map(Path::to_path_buf))
         .collect();
-    Some(ImportDefinitionRequest { importer, raw_path, overlay_paths, vfs_content_revision })
+    Some(ImportDefinitionRequest::Parsed(parse_import_definition_request(
+        importer,
+        contents,
+        position,
+        overlay_paths,
+        vfs_content_revision,
+    )?))
+}
+
+fn parse_import_definition_request(
+    importer: PathBuf,
+    contents: Rope,
+    position: Position,
+    overlay_paths: Vec<PathBuf>,
+    vfs_content_revision: u64,
+) -> Option<ParsedImportDefinitionRequest> {
+    let cursor_offset =
+        crate::proto::checked_text_range(&contents, lsp_types::Range::new(position, position))?
+            .start;
+    let source = contents.to_string();
+    let import = import_path_at(&source, cursor_offset)?;
+    Some(ParsedImportDefinitionRequest {
+        importer,
+        raw_path: import.raw_path,
+        overlay_paths,
+        vfs_content_revision,
+    })
 }
 
 pub(crate) fn goto_type_definition(
@@ -895,10 +972,15 @@ pub(crate) fn completion(
     let trigger_character =
         params.context.as_ref().and_then(|context| context.trigger_character.as_deref());
     let params = params.text_document_position;
-    let contents = crate::proto::vfs_path(&params.text_document.uri)
-        .and_then(|path| state.vfs.read().get_file_contents(&path).cloned());
-    if let Some(contents) = contents {
-        match natspec_completion::target(&contents, params.position) {
+    let source = crate::proto::vfs_path(&params.text_document.uri)
+        .and_then(|path| state.vfs.read().get_file_completion_source(&path));
+    if let Some(source) = source {
+        let contents = source.contents();
+        let cursor = source
+            .positions()
+            .checked_text_range(lsp_types::Range::new(params.position, params.position))
+            .map(|range| range.start);
+        match natspec_completion::target(contents, cursor) {
             NatSpecCompletionResult::Claimed(target) => {
                 let items = target.map_or_else(Vec::new, |target| {
                     let semantics = state
@@ -921,8 +1003,14 @@ pub(crate) fn completion(
             }
             NatSpecCompletionResult::NotApplicable => {}
         }
-        if let Some(response) =
-            import_completion(state, &params.text_document.uri, params.position, &contents)
+        if let Some(cursor) = cursor
+            && let Some(response) = import_completion(
+                state,
+                &params.text_document.uri,
+                cursor,
+                contents,
+                &source.source(),
+            )
         {
             return ready(Ok(Some(response)));
         }
@@ -945,15 +1033,12 @@ pub(crate) fn completion(
 fn import_completion(
     state: &GlobalState,
     uri: &Url,
-    position: Position,
+    cursor_offset: usize,
     contents: &Rope,
+    source: &str,
 ) -> Option<CompletionResponse> {
     let importer = uri.to_file_path().ok()?;
-    let cursor_offset =
-        crate::proto::checked_text_range(contents, lsp_types::Range::new(position, position))?
-            .start;
-    let source = contents.to_string();
-    let import = import_path_at_for_completion(&source, cursor_offset)?;
+    let import = import_path_at_for_completion(source, cursor_offset)?;
     let prefix_end = cursor_offset.max(import.content_range.start);
     let raw_path_prefix = source.get(import.content_range.start..prefix_end).map(str::to_owned)?;
     let replacement = import.content_range;
@@ -969,13 +1054,9 @@ fn import_completion(
     let Some(context) = state.config.import_resolution_context(&importer) else {
         return Some(CompletionResponse::Array(Vec::new()));
     };
-    let overlay_paths = state
-        .vfs
-        .read()
-        .iter()
-        .filter_map(|(path, _)| path.as_path().map(Path::to_path_buf))
-        .collect::<Vec<_>>();
-    let completion = ImportResolver::new(context, &overlay_paths).complete(&importer, &path_prefix);
+    let completion = state.cached_import_completion(&importer, &path_prefix, |overlay_paths| {
+        ImportResolver::new(context, overlay_paths).complete(&importer, &path_prefix)
+    });
     let items = completion
         .candidates()
         .iter()

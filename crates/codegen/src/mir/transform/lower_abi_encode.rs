@@ -7,12 +7,14 @@
 //! any block split moves the original terminator and its metadata together.
 //! Dynamic encoding writes at the free-memory pointer before reserving its final extent. That
 //! reservation must stay at the same address even if later folding makes its size constant.
+//! Constructor-reachable encoders stay inline because their output is not reserved
+//! until encoding finishes, and a dynamic call frame would overlap that output.
 
 use crate::mir::{
     AbiEncodeMode, AbiLayout, AbiType, AbiWordValidator, BlockId, Function, FunctionBuilder,
     FunctionId, InstKind, InstructionMetadata, MemoryObjectKind, MemoryObjectLayout, MirType,
-    Module, RevertReason, SliceLocation, Terminator, Value, ValueId, pass::MirPass,
-    transform::utils::redirect_successor_predecessors, utils::resolve_replacement,
+    Module, RevertReason, SliceLocation, Terminator, Value, ValueId, analysis::CallGraphInfo,
+    pass::MirPass, transform::utils::redirect_successor_predecessors, utils::resolve_replacement,
 };
 
 use alloy_primitives::U256;
@@ -41,9 +43,26 @@ impl MirPass for LowerAbiEncode {
     ) -> bool {
         let revert_strings = gcx.sess.opts.revert_strings;
         let helpers = synthesize_array_helpers(module, revert_strings);
+        let call_graph = CallGraphInfo::new(module);
+        let mut constructors = call_graph.reachable_callees_from(
+            module
+                .functions
+                .iter_enumerated()
+                .filter_map(|(id, func)| func.attributes.is_constructor.then_some(id)),
+        );
+        for (id, func) in module.functions.iter_enumerated() {
+            if func.attributes.is_constructor {
+                constructors.insert(id);
+            }
+        }
+        let inline_helpers = EncodeHelpers::default();
         let mut changed = !helpers.arrays.is_empty();
-        for func in module.functions.iter_mut() {
-            changed |= lower_function(func, &helpers, revert_strings);
+        for (id, func) in module.functions.iter_mut_enumerated() {
+            // NOTE: Constructor calls allocate frames at the free-memory pointer. Encoding
+            // writes there before reserving its output, so an outlined call would overwrite it.
+            // abi_encode(args) => inline head stores and tail copies
+            let helpers = if constructors.contains(id) { &inline_helpers } else { &helpers };
+            changed |= lower_function(func, helpers, revert_strings);
         }
         changed
     }

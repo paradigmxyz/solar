@@ -281,7 +281,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<(ValueId, AbiType)> {
         let value = self.lower_typed_expr(argument, parameter_ty)?;
         let abi_type = self.types.abi_type(parameter_ty)?;
-        let abi_type = self.abi_type_for_value(value, abi_type);
+        let abi_type = if self.cx.gcx.type_of_expr(argument.id).is_some_and(|ty| {
+            ty.is_ref_at(DataLocation::Memory) || ty.is_ref_at(DataLocation::Storage)
+        }) {
+            Self::memory_abi_type(abi_type)
+        } else {
+            self.abi_type_for_value(value, abi_type)
+        };
         self.validate_calldata_bytes_argument(value, &abi_type);
         self.prepare_abi_argument(argument, parameter_ty, value, abi_type)
     }

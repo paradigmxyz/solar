@@ -111,5 +111,25 @@ fn @prefixedEncoding() -> memorybytes [selector=0x0a0a0a0a, abi_params=[], abi_r
     ret v0
 }
 
+// CHECK-LABEL: + fn @sliceBody()
+// CHECK-NOT: slice_ptr
+// CHECK: + fn @sliceCaller()
+// CHECK: + {{v[0-9]+}} = icall @sliceBody.body
+fn @sliceBody() -> u256 [selector=0x0a0a0a0b, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = make_calldata_slice 4, 32
+    jump bb1
+  bb1:
+    v1 = slice_ptr v0
+    ret v1
+}
+
+fn @sliceCaller() -> u256 [selector=0x0a0a0a0c, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = icall @sliceBody
+    ret v0
+}
+
 // CHECK: + fn @pub.body{{[( ]}}
 // CHECK: + fn @literal.body{{[( ]}}
+// CHECK: + fn @sliceBody.body{{[( ]}}

@@ -41,7 +41,7 @@ use crate::mir::{
     FrameMode, FrameSlotKind, Function, FunctionBuilder, FunctionId, InstId, InstKind,
     MangledSymbol, MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module, PanicCode,
     RevertReason, SliceLocation, Terminator, Value, ValueId, memory::EvmMemoryLayout,
-    pass::MirPass,
+    pass::MirPass, transform::cfg_simplify::remove_unreachable_blocks,
 };
 use alloy_primitives::U256;
 use solar_config::{EvmVersion, RevertStrings};
@@ -1043,7 +1043,7 @@ impl LowerAbiCx {
         else {
             return;
         };
-        // original body -> icall body_id; ret results
+        // body(args) -> icall body_id, args; return results
         func.blocks[block].instructions.clear();
         crate::mir::utils::replace_terminator(func, block, Terminator::Invalid);
         func.blocks[block].terminator = None;
@@ -1081,6 +1081,8 @@ impl LowerAbiCx {
             }
             builder.ret(values);
         }
+        // Drop the detached body blocks before lowering their now-orphaned slice projections.
+        let _ = remove_unreachable_blocks(builder.func_mut());
     }
 
     /// Rewrites `fallback(bytes calldata) returns (bytes memory)` into an
