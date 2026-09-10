@@ -73,8 +73,8 @@ fn @dNested() [selector=0xfc7ec666, pure] {
   bb4:
     v19 = alloc raw, exact, uninitialized, infallible, 96 !metadata(deferred_alloc)
     v20 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v93 = add v20, 96
-    mstore 64, v93 !metadata(memory=scratch)
+    v91 = add v20, 96
+    mstore 64, v91 !metadata(memory=scratch)
     v21 = mload v14
     mstore v20, v21
     v22 = add v14, 32
@@ -82,20 +82,20 @@ fn @dNested() [selector=0xfc7ec666, pure] {
     v24 = shr 160, v23
     jumpi v24, bb1, bb5
   bb5:
-    v79 = add v20, 32
-    mstore v79, v23
+    v77 = add v20, 32
+    mstore v77, v23
     v26 = add v14, 64
     v27 = mload v26
     v28 = lt v27, 2
     jumpi v28, bb6, bb1
   bb6:
-    v80 = add v20, 64
-    mstore v80, v27
+    v78 = add v20, 64
+    mstore v78, v27
     mstore v19, v20
     v29 = add v14, 96
     v30 = icall @decode_memory_type, 1, v29, v14, v9
-    v81 = add v19, 32
-    mstore v81, v30
+    v79 = add v19, 32
+    mstore v79, v30
     v31 = add v14, 128
     v32 = mload v31
     v33 = add v14, v32
@@ -112,28 +112,28 @@ fn @dNested() [selector=0xfc7ec666, pure] {
   bb9:
     v43 = and v40, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v44 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v89 = add v44, v43
-    v90 = lt v89, v44
-    v91 = gt v89, 0xffffffffffffffff
-    v92 = or v90, v91
-    jumpi v92, bb15, bb14
-  bb14:
-    mstore 64, v89 !metadata(memory=scratch)
+    v87 = add v44, v43
+    v88 = lt v87, v44
+    v89 = gt v87, 0xffffffffffffffff
+    v90 = or v88, v89
+    jumpi v90, bb13, bb12
+  bb12:
+    mstore 64, v87 !metadata(memory=scratch)
     mstore v44, v38
     v45 = sub v9, v34
     v46 = gt v38, v45
     jumpi v46, bb1, bb10
   bb10:
-    v82 = add v44, 32
-    mcopy v82, v34, v38
-    v85 = add v19, 64
-    mstore v85, v44
+    v80 = add v44, 32
+    mcopy v80, v34, v38
+    v83 = add v19, 64
+    mstore v83, v44
     v1 = mload v19
     v2 = mload v1
-    v3 = mload v81
-    v87 = add v3, 32
-    v4 = mload v87
-    v5 = mload v85
+    v3 = mload v79
+    v85 = add v3, 32
+    v4 = mload v85
+    v5 = mload v83
     v6 = mload v5
     v54 = mload 64 !metadata(memory=scratch)
     v55 = add v54, 96
@@ -144,30 +144,25 @@ fn @dNested() [selector=0xfc7ec666, pure] {
     v60 = iszero v59
     v58 = mload v4
     v61 = mul v58, v60
-    mstore v55, v61
     v63 = add v61, 31
     v64 = and v63, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v65 = add v55, 32
-    jumpi v64, bb12, bb13
-  bb12:
-    v67 = sub v64, 32
-    v68 = add v65, v67
-    mstore v68, 0
-    jump bb13
+    v66 = add v55, v64
+    mstore v66, 0
+    mstore v55, v61
+    v68 = add v65, v64
+    v67 = add v4, 32
+    mcopy v65, v67, v61 !metadata(memory=heap)
+    v69 = add v54, 64
+    mstore v69, v6
+    v70 = sub v68, v54
+    v72 = add v70, 31
+    v74 = and v72, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v75 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
+    v92 = add v75, v74
+    mstore 64, v92 !metadata(memory=scratch)
+    returndata v75, v70
   bb13:
-    v70 = add v65, v64
-    v69 = add v4, 32
-    mcopy v65, v69, v61 !metadata(memory=heap)
-    v71 = add v54, 64
-    mstore v71, v6
-    v72 = sub v70, v54
-    v74 = add v72, 31
-    v76 = and v74, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v77 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
-    v94 = add v77, v76
-    mstore 64, v94 !metadata(memory=scratch)
-    returndata v77, v72
-  bb15:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36

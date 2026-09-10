@@ -125,8 +125,6 @@ bb8:
   gt
   iszero
   push bb11
-  jump bb31
-bb31:
   jumpi
   jump bb30
 bb30:
@@ -163,7 +161,7 @@ bb29 [cold]:
   push 36
   push 0
   revert
-bb11 [continuation]:
+bb11:
   dup 2
   push 160
   mstore
@@ -205,10 +203,8 @@ bb16:
   calldataload
   dup 3
   gt
-  iszero
-  push bb18
-  jump bb31
-bb18 [continuation]:
+  push bb30
+  jumpi
   dup 2
   add
   swap 1

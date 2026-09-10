@@ -123,8 +123,8 @@ fn @blobAt() [selector=0x8f236983, view] {
     revert 0, 36
   bb2:
     mstore 0, 2 !metadata(memory=scratch)
-    v34 = keccak256 0, 32 !metadata(memory=scratch)
-    v4 = add v34, arg0
+    v32 = keccak256 0, 32 !metadata(memory=scratch)
+    v4 = add v32, arg0
     v5 = icall @load_storage_bytes, 1, v4
     v11 = mload 64 !metadata(memory=scratch)
     v12 = add v11, 32
@@ -133,27 +133,22 @@ fn @blobAt() [selector=0x8f236983, view] {
     v16 = iszero v15
     v14 = mload v5
     v17 = mul v14, v16
-    mstore v12, v17
     v19 = add v17, 31
     v20 = and v19, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v21 = add v12, 32
-    jumpi v20, bb5, bb6
-  bb5:
-    v23 = sub v20, 32
-    v24 = add v21, v23
-    mstore v24, 0
-    jump bb6
-  bb6:
-    v26 = add v21, v20
-    v25 = add v5, 32
-    mcopy v21, v25, v17 !metadata(memory=heap)
-    v27 = sub v26, v11
-    v29 = add v27, 31
-    v31 = and v29, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v32 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
-    v35 = add v32, v31
-    mstore 64, v35 !metadata(memory=scratch)
-    returndata v32, v27
+    v22 = add v12, v20
+    mstore v22, 0
+    mstore v12, v17
+    v24 = add v21, v20
+    v23 = add v5, 32
+    mcopy v21, v23, v17 !metadata(memory=heap)
+    v25 = sub v24, v11
+    v27 = add v25, 31
+    v29 = and v27, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v30 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
+    v33 = add v30, v29
+    mstore 64, v33 !metadata(memory=scratch)
+    returndata v30, v25
   bb3:
     revert 0, 0
 }

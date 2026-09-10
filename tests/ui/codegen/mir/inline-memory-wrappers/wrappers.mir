@@ -22,7 +22,7 @@ fn @wrap(arg0: memptr) -> memptr {
     ret v0
 }
 
-// A sole caller may benefit from shared ABI return lowering instead.
+// A single-use adapter also expands when its call and stack costs permit it.
 fn @single(arg0: memptr) -> memptr {
   bb0:
     v0 = icall @base, 1, arg0

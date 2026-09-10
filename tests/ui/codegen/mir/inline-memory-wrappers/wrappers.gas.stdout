@@ -6,6 +6,7 @@
 -     v0 = icall @wrap, 1, arg0
 -     v1 = icall @wrap, 1, v0
 -     v2 = icall @single, 1, v1
+-     v3 = icall @effects, 1, v2
 +     jump bb2
 +   bb2:
 +     v4 = icall @base, 1, arg0
@@ -24,8 +25,15 @@
 +     jump bb3
 +   bb3:
 +     v11 = phi [bb4: v8]
-+     v2 = icall @single, 1, v11
-      v3 = icall @effects, 1, v2
++     jump bb6
++   bb6:
++     v12 = icall @base, 1, v11
++     v13 = mload v12
++     mstore v12, v13
++     jump bb5
++   bb5:
++     v14 = phi [bb6: v12]
++     v3 = icall @effects, 1, v14
       ret v3
   }
   
@@ -101,9 +109,17 @@
 -     jump bb3
 -   bb3:
 -     v11 = phi [bb4: v8]
--     v2 = icall @single, 1, v11
-+     v2 = icall @single, 1, v8
-      v3 = icall @effects, 1, v2
+-     jump bb6
+-   bb6:
+-     v12 = icall @base, 1, v11
++     v12 = icall @base, 1, v8
+      v13 = mload v12
+      mstore v12, v13
+-     jump bb5
+-   bb5:
+-     v14 = phi [bb6: v12]
+-     v3 = icall @effects, 1, v14
++     v3 = icall @effects, 1, v12
       ret v3
   }
   
@@ -168,8 +184,10 @@
       v9 = mload v8
       v10 = add v9, 2
       mstore v8, v10
-      v2 = icall @single, 1, v8
-      v3 = icall @effects, 1, v2
+      v12 = icall @base, 1, v8
+      v13 = mload v12
+      mstore v12, v13
+      v3 = icall @effects, 1, v12
       ret v3
   }
   

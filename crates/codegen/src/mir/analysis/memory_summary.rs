@@ -362,7 +362,8 @@ fn local_summary(
     }
     // saved = mload p; mstore p, temporary; ...; mstore p, saved; ret
     // => no net memory write on a returning path
-    if summary.writes(AddressSpace::Memory) && super::memory_restoration::restores_memory(func) {
+    if summary.writes(AddressSpace::Memory) && super::memory_restoration::restores_memory(func, &aa)
+    {
         summary.writes &= !(1 << space_index(AddressSpace::Memory));
         summary.restores_memory = true;
     }

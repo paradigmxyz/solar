@@ -3,6 +3,10 @@
 //! This module owns the pass list and canonical backend pipeline. Individual
 //! transforms live in their own modules so their implementation and invariants
 //! remain local, matching the organization of the MIR transforms.
+//! Within a pipeline run, a pass that reported no change need not repeat until
+//! another pass changes the module. The cache uses the complete trait-object
+//! identity so differently configured adapters with the same name stay distinct.
+//! A changing pass clears the cache; no pass is assumed to reach a fixed point.
 
 mod block_cse;
 mod block_layout;
@@ -200,6 +204,7 @@ fn run_passes_inner(
         name.map(ToOwned::to_owned).unwrap_or_else(|| pipeline_output_name(gcx, module.name()));
     let explicit = name.is_some();
     let mut changed = false;
+    let mut unchanged = Vec::<&dyn EvmPass>::new();
     for pass in passes {
         let pass_name = pass.name();
         let before =
@@ -213,7 +218,13 @@ fn run_passes_inner(
             assert_debug_info_handled(module, pass_name, "before");
             let errors_before = gcx.dcx().err_count();
             let timer = PassTimer::new(gcx.sess.opts.unstable.time_passes);
-            let pass_changed = pass.run_pass(gcx, module);
+            let cached = unchanged.iter().any(|&previous| std::ptr::eq(previous, *pass));
+            let pass_changed = !cached && pass.run_pass(gcx, module);
+            if pass_changed {
+                unchanged.clear();
+            } else if !cached {
+                unchanged.push(*pass);
+            }
             timer.finish("EVM IR", module.name(), pass_name, pass_changed);
             changed |= pass_changed;
             if gcx.dcx().err_count() != errors_before {

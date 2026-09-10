@@ -31,7 +31,7 @@ bb5:
   push 128
   return
 bb6:
-  push 288
+  push 128
   dup 1
   push 64
   mstore
@@ -40,25 +40,18 @@ bb6:
   add
   push 64
   mstore
-  push 128
+  dup 1
   dup 2
   mstore
   push 32
   dup 2
   add
-  push 128
   dup 2
-  dup 1
-  push 192
-  mstore
   push_data literal_0
-  swap 1
+  dup 3
   codecopy
   push 64
   mload
-  dup 1
-  push 224
-  mstore
   push 32
   dup 2
   add
@@ -73,60 +66,36 @@ bb6:
   swap 1
   swap 4
   mul
-  dup 1
-  push 256
-  mstore
-  dup 1
-  dup 5
-  mstore
   push 31
   dup 2
   add
   push 31
   not
   and
-  dup 1
-  push 128
-  mstore
-  swap 4
   push 32
+  dup 6
   add
-  push 160
-  mstore
-  pop
-  pop
-  pop
-  iszero
-  push bb8
-  jumpi
-  push 0
-  push 32
-  push 128
-  mload
-  sub
-  push 160
-  mload
-  add
-  mstore
-  jump bb8
-bb8:
-  push 160
-  mload
-  push 128
-  mload
   dup 2
+  dup 7
   add
-  push 256
-  mload
-  push 192
-  mload
-  dup 4
+  push 0
+  swap 1
+  mstore
+  dup 3
+  swap 1
+  swap 6
+  mstore
+  dup 5
+  add
+  dup 2
+  dup 5
+  dup 7
   mcopy
-  swap 1
+  swap 3
   pop
-  push 224
-  mload
-  swap 1
+  pop
+  swap 2
+  pop
   sub
   push 31
   dup 2
@@ -202,12 +171,12 @@ bb6:
 bb32:
   push 64
   mload
-  push 608
+  push 544
   dup 2
   add
   push 64
   mstore
-  push 552
+  push 503
   push_data ChildWithArg_initcode_0
   dup 3
   swap 1
@@ -247,7 +216,7 @@ bb18:
   jump bb32
 bb33 [continuation]:
   codecopy
-  push 552
+  push 503
   dup 2
   add
   push 32
@@ -257,7 +226,7 @@ bb33 [continuation]:
   pop
   swap 1
   pop
-  push 584
+  push 535
   swap 1
   push 0
   create
@@ -296,7 +265,7 @@ bb31:
   jump
 bb34 [continuation]:
   codecopy
-  push 552
+  push 503
   dup 2
   add
   push 32
@@ -306,7 +275,7 @@ bb34 [continuation]:
   pop
   swap 1
   pop
-  push 584
+  push 535
   push 1
   swap 2
   push 0
@@ -364,7 +333,7 @@ bb36 [continuation]:
   jump bb31
 bb37 [continuation]:
   codecopy
-  push 552
+  push 503
   dup 2
   add
   push 32
@@ -374,7 +343,7 @@ bb37 [continuation]:
   pop
   swap 1
   pop
-  push 584
+  push 535
   swap 1
   push 0
   create
@@ -388,7 +357,7 @@ bb37 [continuation]:
   jump bb31
 bb38 [continuation]:
   codecopy
-  push 552
+  push 503
   dup 2
   add
   push 32
@@ -398,7 +367,7 @@ bb38 [continuation]:
   pop
   swap 1
   pop
-  push 584
+  push 535
   swap 1
   push 0
   create
@@ -450,4 +419,4 @@ bb28 [cold]:
   push 0
   revert
 
-@data ChildWithArg_initcode_0 hex"61022838038061022860e03960e001601f01601f19166040523460455760e06102283803016101001160455760e05160c05261015f8060c960e03960c0516101035260e0f35b5f5ffdffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa9988776655443322110034601d575f3560e01c80633fa4f245146021578063a878f85814604b575b5f5ffd5b7f000000000000000000000000000000000000000000000000000000000000000060805260206080f35b6101208060405260a0810160405260808152602081016080818060c05260df90396040518060e052602081016020825283151593519093028061010052808452601f8101601f1916806080529360200160a0525050501560b2575f60206080510360a05101525b60a05160805181016101005160c051835e905060e0519003601f8101601f19166040519081016040528181f3ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100"
+@data ChildWithArg_initcode_0 hex"6101f73803806101f760e03960e001601f01601f19166040523460455760e06101f73803016101001160455760e05160c05261012e8060c960e03960c0516101035260e0f35b5f5ffdffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa9988776655443322110034601d575f3560e01c80633fa4f245146021578063a878f85814604b575b5f5ffd5b7f000000000000000000000000000000000000000000000000000000000000000060805260206080f35b60808060405260a08101604052808152602081018160ae823960405160208101602082528315159351909302601f8101601f1916602085018186015f90528290955284018184865e925050915003601f8101601f19166040519081016040528181f3ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100"
