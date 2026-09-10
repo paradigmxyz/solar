@@ -5,13 +5,13 @@ fixtures:
     source_roots:
       - .
     solc:
-      version: 0.8.36
-      native: ../../target/lsp-bench/artifacts/solc/0.8.36/solc-static-linux
-      native_url: https://binaries.soliditylang.org/linux-amd64/solc-linux-amd64-v0.8.36+commit.8a079791
-      native_sha256: c8d35afdddc3cd2743ee88b8f25e0fecd16e2bdd5f2120f37e52cd9cc45ae0e6
-      soljson: ../../target/lsp-bench/artifacts/solc/0.8.36/soljson.js
-      soljson_url: https://binaries.soliditylang.org/wasm/soljson-v0.8.36+commit.8a079791.js
-      soljson_sha256: 704877a592467d7de651ec5377ea6e3c676ae71d31f325401957d41bedfaa0d8
+      version: 0.8.37
+      native: ../../target/lsp-bench/artifacts/solc/0.8.37/solc-static-linux
+      native_url: https://github.com/argotorg/solidity/releases/download/v0.8.37/solc-static-linux
+      native_sha256: 5de843c2c93563cc66425c99a4fb13fdbf32b4c4ae07469480faaf126e14404a
+      soljson: ../../target/lsp-bench/artifacts/solc/0.8.37/soljson.js
+      soljson_url: https://github.com/argotorg/solidity/releases/download/v0.8.37/soljson.js
+      soljson_sha256: d73fead3cbc860438f56f4d1723677499cdef212d0f8890241748d2d5afc1c5f
     foundry:
       version: 1.7.1
       native: ../../target/lsp-bench/artifacts/foundry/1.7.1/forge

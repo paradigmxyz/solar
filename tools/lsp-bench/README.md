@@ -6,8 +6,8 @@ runtime correctness before its sample contributes to latency or resource
 statistics, so an unsupported or incorrect response cannot appear fast by
 doing less work.
 
-The v1 inventory is the **core4** set: Solar, Asyncswap, Nomic Foundation, and
-official `solc --lsp`. All servers use stdio. `servers.lock.yaml` records their
+The inventory includes Solar, Asyncswap, and Nomic Foundation.
+All servers use stdio. `servers.lock.yaml` records their
 versions, source revisions, installation commands, and artifact digests. The
 `solar` entry points at the workspace compiler binary; a workflow run
 supplies that exact binary, source revision, and executable digest as provenance.
@@ -79,10 +79,10 @@ The profiles in `benchmark.yaml` are:
 | --- | ---: | ---: | ---: | ---: | --- |
 | `smoke` | 1 | 2 | 1 | 1 | local synthetic subset |
 | `pr-smoke` | 5 | 20 | 4 | 4 | synthetic scenarios |
-| `full` | 10 | 100 | 8 | 8 | all scenarios for all core4 fixtures |
+| `full` | 10 | 100 | 8 | 8 | all scenarios for all fixtures |
 
 The CLI defaults `run` to `pr-smoke`; pass `--profile full` for the complete
-core4 matrix. A run publishes all result views in one operation:
+server matrix. A run publishes all result views in one operation:
 
 ```bash
 target/debug/solar-lsp-bench run \
@@ -91,7 +91,7 @@ target/debug/solar-lsp-bench run \
 
 target/debug/solar-lsp-bench run \
   --profile pr-smoke \
-  --server solar --server asyncswap --server nomic-foundation --server solc \
+  --server solar --server asyncswap --server nomic-foundation \
   --output target/lsp-bench/pr-smoke
 
 target/debug/solar-lsp-bench run \
@@ -115,7 +115,7 @@ target/debug/solar-lsp-bench report \
 
 ## CI
 
-`.github/workflows/lsp-bench.yml` runs `pr-smoke` against core4 and the
+`.github/workflows/lsp-bench.yml` runs `pr-smoke` against all servers and the
 synthetic fixture for pull requests. The PR job is reference-only and tolerates
 sample failures. A manual `full` dispatch on `main` runs the complete matrix
 strictly. Both jobs build the harness and compiler from the checked-out commit,

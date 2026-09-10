@@ -27,9 +27,7 @@ UPLOAD_ACTION = "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0
 STICKY_COMMENT_ACTION = (
     "marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88"
 )
-SERVER_ARGS = (
-    "--server solar --server asyncswap --server nomic-foundation --server solc"
-)
+SERVER_ARGS = "--server solar --server asyncswap --server nomic-foundation"
 
 
 def workflow() -> str:
@@ -268,7 +266,7 @@ class CrossServerWorkflowTests(unittest.TestCase):
         self.assertNotIn("github-script", text)
         self.assertIn("name: Verify checked out test merge", text)
 
-    def test_pr_smoke_runs_core4_synthetic_with_failure_tolerance(self) -> None:
+    def test_pr_smoke_runs_cross_server_synthetic_with_failure_tolerance(self) -> None:
         pr = job_block("pr-smoke")
         run = step_block(pr, "Run PR smoke comparison")
 
@@ -333,7 +331,7 @@ class CrossServerWorkflowTests(unittest.TestCase):
         self.assertIn("target/lsp-bench/pr-comment/", upload)
         self.assertNotIn(f"uses: {STICKY_COMMENT_ACTION}", pr)
 
-    def test_manual_full_runs_strict_core4_matrix(self) -> None:
+    def test_manual_full_runs_strict_cross_server_matrix(self) -> None:
         full = job_block("full")
         run = step_block(full, "Run full comparison")
 
