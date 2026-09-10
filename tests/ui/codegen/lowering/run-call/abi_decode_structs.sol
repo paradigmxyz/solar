@@ -17,6 +17,9 @@
 //@ run-call-fail: dFixedDyn 0x00
 //@ run-call-fail: dMixed 0x000000000000000000000000000000000000000000000000000000000000000700000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000a0
 //@ run-call: dOverlap 0x0000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000 => false, false
+//@ run-call: SourceTupleDecode::roundTrip 7 => 7, 8
+//@ run-call: SourceTupleDecode::narrow 7, true => 7, true
+//@ run-call: SourceTupleDecode::arrays => 7, 8
 
 
 // ported-from: test/libsolidity/semanticTests/abicoder/abi_decode_overlapping_dynamic_arrays.sol
@@ -161,5 +164,31 @@ contract AbiDecodeStructsRunCall {
             same := eq(arr1, arr2)
             inplaceDecoded := eq(arr1, add(buf, 0x60))
         }
+    }
+}
+
+contract SourceTupleDecode {
+    function arrays() external pure returns (uint256 first, uint256 second) {
+        uint256[] memory left = new uint256[](1);
+        uint256[] memory right = new uint256[](1);
+        left[0] = 7;
+        right[0] = 8;
+        bytes memory data = abi.encode(left, right);
+        (left, right) = abi.decode(data, (uint256[], uint256[]));
+        first = left[0];
+        second = right[0];
+        assembly { mstore(0x40, 0x80) }
+    }
+
+    function narrow(uint8 input, bool flag) external pure returns (uint8 first, bool second) {
+        bytes memory data = abi.encode(input, flag);
+        (first, second) = abi.decode(data, (uint8, bool));
+        assembly { mstore(0x40, 0x80) }
+    }
+
+    function roundTrip(uint256 input) external pure returns (uint256 first, uint256 second) {
+        bytes memory data = abi.encode(input, input + 1);
+        (first, second) = abi.decode(data, (uint256, uint256));
+        assembly { mstore(0x40, 0x80) }
     }
 }

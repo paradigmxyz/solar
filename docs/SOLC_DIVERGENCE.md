@@ -314,12 +314,13 @@ No intentional divergences documented yet.
 
 - ID: CODEGEN-008
 - Status: parity debt
-- Difference: Code generation rejects a forwarding function when accessing a
-  buried stack value requires temporary memory and a source-level `msize()`
-  can observe that expansion. This includes observations in internal callers,
-  callees, and sibling calls, but excludes separate external dispatcher arms.
-- Rationale: Memory above a copied forwarding buffer avoids corrupting its
-  contents, but clearing those temporary words cannot shrink the memory extent.
+- Difference: Code generation rejects functions with unrestricted assembly when
+  accessing a buried stack value or arranging a wide control-flow edge requires
+  temporary memory and source-level `msize()` can observe that expansion. This
+  includes observations in internal callers, callees, and sibling calls, but
+  excludes separate external dispatcher arms.
+- Rationale: Clearing temporary words restores their contents but cannot shrink
+  the memory extent.
   Until a stack-only plan exists, this case must report an error. The check
   conservatively ignores the order of internal calls and `msize()` observations.
 - Coverage: `tests/ui/codegen/lowering/forwarding_msize.sol` and

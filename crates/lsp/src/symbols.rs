@@ -1780,7 +1780,7 @@ impl<'gcx> hir::Visit<'gcx> for YulVariableCollector<'gcx> {
 
     fn visit_stmt(&mut self, stmt: &'gcx hir::Stmt<'gcx>) -> ControlFlow<Self::BreakValue> {
         let previous = self.in_yul;
-        self.in_yul |= matches!(stmt.kind, StmtKind::AssemblyBlock(_));
+        self.in_yul |= matches!(stmt.kind, StmtKind::AssemblyBlock(..));
         let result = hir::Visit::walk_stmt(self, stmt);
         self.in_yul = previous;
         result
@@ -1839,7 +1839,7 @@ impl<'gcx> ScopeBuilder<'_, 'gcx> {
         match stmt.kind {
             StmtKind::Block(block)
             | StmtKind::UncheckedBlock(block)
-            | StmtKind::AssemblyBlock(block) => self.visit_block_scope(block),
+            | StmtKind::AssemblyBlock(block, _) => self.visit_block_scope(block),
             StmtKind::Loop(block, source) => self.visit_loop_scope(block, source),
             _ => {
                 let _ = self.visit_stmt(stmt);
@@ -1972,7 +1972,7 @@ impl<'gcx> hir::Visit<'gcx> for ScopeBuilder<'_, 'gcx> {
             }
             StmtKind::Block(block)
             | StmtKind::UncheckedBlock(block)
-            | StmtKind::AssemblyBlock(block) => self.visit_block_scope(block),
+            | StmtKind::AssemblyBlock(block, _) => self.visit_block_scope(block),
             StmtKind::Loop(block, source) => self.visit_loop_scope(block, source),
             StmtKind::If(_, true_, false_) => {
                 self.visit_statement_child_scope(true_);
@@ -2410,7 +2410,7 @@ impl<'gcx> hir::Visit<'gcx> for ReferenceCollector<'_, 'gcx> {
 
     fn visit_stmt(&mut self, stmt: &'gcx hir::Stmt<'gcx>) -> ControlFlow<Self::BreakValue> {
         let previous = self.in_yul;
-        self.in_yul |= matches!(stmt.kind, StmtKind::AssemblyBlock(_));
+        self.in_yul |= matches!(stmt.kind, StmtKind::AssemblyBlock(..));
         let result = hir::Visit::walk_stmt(self, stmt);
         self.in_yul = previous;
         result

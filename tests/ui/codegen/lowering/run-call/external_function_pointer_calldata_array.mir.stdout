@@ -175,15 +175,13 @@ fn @fReenc(arg0: calldataslice) -> (u256, u256, u256) [selector=0xfbeba237, abi_
     v47 = mload v46
     v48 = add v39, 64
     v49 = mload v48
-    frame_store multi_return, word, 0, v39 !metadata(memory=scratch)
     v50 = add v39, 0
     v51 = mload v50
-    v52 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v53 = add v52, 32
-    v54 = mload v53
-    v55 = add v52, 64
-    v56 = mload v55
-    ret v51, v54, v56
+    v52 = add v39, 32
+    v53 = mload v52
+    v54 = add v39, 64
+    v55 = mload v54
+    ret v51, v53, v55
   bb8:
     v24 = mul v22, 32
     v25 = iszero 32
@@ -264,34 +262,32 @@ fn @g(arg0: bool) -> (u256, u256, u256) [selector=0xd48092f7, abi_params=[bool],
     memory_object_store_element memoryarray<1>, v0, 2, v21
     jumpi arg0, bb5, bb6
   bb6:
-    v43 = address
-    v44 = gas
-    v45 = abi_encode [memory_array<function>], selector 0x2ed7fe6a00000000000000000000000000000000000000000000000000000000, args v0
-    v46 = slice_ptr v45
-    v47 = slice_len v45
-    v48 = call v44, v43, 0, v46, v47, v46, 96
-    jumpi v48, bb13, bb12
+    v42 = address
+    v43 = gas
+    v44 = abi_encode [memory_array<function>], selector 0x2ed7fe6a00000000000000000000000000000000000000000000000000000000, args v0
+    v45 = slice_ptr v44
+    v46 = slice_len v44
+    v47 = call v43, v42, 0, v45, v46, v45, 96
+    jumpi v47, bb13, bb12
   bb12:
     revert_returndata
   bb13:
-    v49 = returndatasize
-    v50 = lt v49, 96
-    jumpi v50, bb10, bb14
+    v48 = returndatasize
+    v49 = lt v48, 96
+    jumpi v49, bb10, bb14
   bb14:
-    v51 = add v46, 0
-    v52 = mload v51
-    v53 = add v46, 32
-    v54 = mload v53
-    v55 = add v46, 64
-    v56 = mload v55
-    frame_store multi_return, word, 0, v46 !metadata(memory=scratch)
-    v57 = add v46, 0
-    v58 = mload v57
-    v59 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v60 = add v59, 32
+    v50 = add v45, 0
+    v51 = mload v50
+    v52 = add v45, 32
+    v53 = mload v52
+    v54 = add v45, 64
+    v55 = mload v54
+    v56 = add v45, 0
+    v57 = mload v56
+    v58 = add v45, 32
+    v59 = mload v58
+    v60 = add v45, 64
     v61 = mload v60
-    v62 = add v59, 64
-    v63 = mload v62
     jump bb7
   bb5:
     v22 = address
@@ -314,20 +310,18 @@ fn @g(arg0: bool) -> (u256, u256, u256) [selector=0xd48092f7, abi_params=[bool],
     v33 = mload v32
     v34 = add v25, 64
     v35 = mload v34
-    frame_store multi_return, word, 0, v25 !metadata(memory=scratch)
     v36 = add v25, 0
     v37 = mload v36
-    v38 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v39 = add v38, 32
-    v40 = mload v39
-    v41 = add v38, 64
-    v42 = mload v41
+    v38 = add v25, 32
+    v39 = mload v38
+    v40 = add v25, 64
+    v41 = mload v40
     jump bb7
   bb7:
-    v64 = phi [bb11: v37], [bb14: v58]
-    v65 = phi [bb11: v40], [bb14: v61]
-    v66 = phi [bb11: v42], [bb14: v63]
-    ret v64, v65, v66
+    v62 = phi [bb11: v37], [bb14: v57]
+    v63 = phi [bb11: v39], [bb14: v59]
+    v64 = phi [bb11: v41], [bb14: v61]
+    ret v62, v63, v64
   bb10:
     revert 0, 0
   bb1:

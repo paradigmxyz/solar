@@ -76,7 +76,7 @@
 +     v5 = phi [bb2: v3]
 +     v6 = phi [bb2: v4]
 +     v7 = internal_frame_addr 160
-+     mstore v7, v6 !metadata(memory=internal_frame)
++     mstore v7, v6 !metadata(memory=internal_frame, compiler_memory)
 +     v8 = internal_frame_addr 128
 +     frame_store multi_return, word, 0, v8 !metadata(memory=scratch)
       v1 = mload 32

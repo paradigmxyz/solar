@@ -908,6 +908,26 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         args: hir::CallArgs<'_>,
         call_opts: Option<&hir::CallOptions<'_>>,
     ) -> Option<ValueId> {
+        let values = self.lower_external_function_call_values(
+            expr,
+            callee,
+            function_id,
+            args,
+            call_opts,
+            ExternalReturnMode::First,
+        )?;
+        Some(values.into_iter().next().unwrap_or_else(|| self.builder.imm(U256::ZERO)))
+    }
+
+    pub(super) fn lower_external_function_call_values(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        callee: &hir::Expr<'_>,
+        function_id: hir::FunctionId,
+        args: hir::CallArgs<'_>,
+        call_opts: Option<&hir::CallOptions<'_>>,
+        mode: ExternalReturnMode,
+    ) -> Option<Vec<ValueId>> {
         let ExprKind::Member(receiver, _) = callee.kind else {
             return self.cx.report_unsupported(expr.span, "external function target");
         };
@@ -983,14 +1003,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // if !ok { revert(0, returndatasize()) }
         self.revert_external_call(success);
         // result = decode_buffer | decode_returndata | load_words(ret_offset)
-        let values = self.finish_external_call(
+        self.finish_external_call(
             return_plan,
             &return_tys,
             expr.span,
-            ExternalReturnMode::First,
+            mode,
             "codegen cannot decode external function returndata before Byzantium",
-        )?;
-        Some(values.into_iter().next().unwrap_or(options.zero))
+        )
     }
 
     pub(super) fn lower_abi_call_arguments(
@@ -1091,6 +1110,26 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         args: hir::CallArgs<'_>,
         address: U256,
     ) -> Option<ValueId> {
+        let values = self.lower_library_call_values(
+            expr,
+            function_id,
+            receiver,
+            args,
+            address,
+            ExternalReturnMode::First,
+        )?;
+        Some(values.into_iter().next().unwrap_or_else(|| self.builder.imm(U256::ZERO)))
+    }
+
+    pub(super) fn lower_library_call_values(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        function_id: hir::FunctionId,
+        receiver: Option<&hir::Expr<'_>>,
+        args: hir::CallArgs<'_>,
+        address: U256,
+        mode: ExternalReturnMode,
+    ) -> Option<Vec<ValueId>> {
         let function = self.cx.gcx.hir.function(function_id);
         let receiver_count = usize::from(receiver.is_some());
         if args.len() + receiver_count != function.parameters.len() {
@@ -1174,17 +1213,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // if !ok { revert(0, returndatasize()) }
         self.revert_external_call(success);
         if return_types.is_empty() {
-            return Some(zero);
+            return Some(Vec::new());
         }
         // result = load_words(ret_offset) | abi_decode(buffer) | abi_decode(returndata)
-        let values = self.finish_external_call(
+        self.finish_external_call(
             return_plan,
             &return_types,
             expr.span,
-            ExternalReturnMode::First,
+            mode,
             "codegen cannot decode linked library returndata before Byzantium",
-        )?;
-        Some(values.into_iter().next().unwrap_or(zero))
+        )
     }
 
     pub(super) fn lower_abi_receiver(
@@ -1417,7 +1455,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             };
         }
         self.validate_static_returndata(offset, return_tys);
-        if returns > 1 {
+        if returns > 1 && mode == ExternalReturnMode::First {
             self.builder.frame_store(0, FrameMode::MultiReturn, FrameSlotKind::Word, offset);
         }
         let first = self.load_multi_return_value_as(offset, 0, returns, return_tys[0]);

@@ -180,7 +180,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         if let Some(depth) = self.scheduler.stack.find(val)
             && depth >= self.stack_access_limit()
-            && !self.spill_hazard_insts.is_empty()
+            && (!self.spill_hazard_insts.is_empty() || self.asm.source_memory_required())
         {
             self.duplicate_deep_forwarding_value(func, val, depth);
             return;
@@ -406,6 +406,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                                 self.scheduler.stack.push(val);
                             }
                             crate::mir::InstKind::MLoad(offset) => {
+                                if func.inst(*inst_id).metadata.requires_private_memory() {
+                                    self.asm.require_private_memory();
+                                }
                                 // Re-reading a constant scratch location is safe, but the
                                 // free-memory-pointer word moves: a pointer defined as
                                 // `mload(0x40)` must reach this point through its spill
@@ -428,7 +431,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                                     );
                                 }
                                 self.emit_value_fresh(func, *offset);
-                                self.asm.emit_op(op::MLOAD);
+                                self.asm.emit_source_op(op::MLOAD);
                                 // Pop offset, push result
                                 self.scheduler.stack.pop();
                                 self.scheduler.stack.push(val);

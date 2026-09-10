@@ -26,6 +26,13 @@ contract DelegatecallGuardTest {
         lib = deployed;
     }
 
+    function test_tupleResultsRemainInValues() public {
+        (uint256 first, uint256 second) = user.pair(7, false);
+        require(first == 7 && second == 8, "direct tuple");
+        (first, second) = user.pair(9, true);
+        require(first == 9 && second == 10, "attached tuple");
+    }
+
     function test_delegatecallAcceptsValue() public {
         require(user.bump{value: 1 ether}(7) == 1, "bump");
         require(user.bump(8) == 2, "second bump");

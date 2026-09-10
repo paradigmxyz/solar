@@ -167,6 +167,7 @@ const fn is_cheap_recomputable_kind(kind: &InstKind) -> bool {
             | InstKind::Shr(_, _)
             | InstKind::Sar(_, _)
             | InstKind::ConstructorArgsBase
+            | InstKind::ConstructorArgsEnd
     )
 }
 

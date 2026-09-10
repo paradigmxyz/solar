@@ -231,13 +231,7 @@ fn @liveMixed() -> u256 [selector=0xaf1b6bff, abi_params=[], abi_returns=[word]]
     memory_object_copy_from_slice memorybytes, v17, v18
     v19 = abi_decode [u256, bytes], v17
     v20 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v21 = memory_object_load_element memoryfixedarray<2, 1>, v20, 1
-    v22 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v23 = memory_object_data memoryfixedarray, v22
-    frame_store multi_return, word, 0, v23 !metadata(memory=scratch)
-    memory_object_store_element memoryfixedarray<2, 1>, v22, 1, v21
-    v24 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v25 = memory_object_load_element memoryfixedarray<2, 1>, v24, 1
+    v21 = memory_object_load_element<memorybytes> memoryfixedarray<2, 1>, v20, 1
     ret v19
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)

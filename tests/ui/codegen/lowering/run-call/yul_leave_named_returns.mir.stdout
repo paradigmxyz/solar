@@ -14,7 +14,7 @@ fn @leaveEarly() -> u256 [selector=0x13ca22ec, pure, abi_params=[], abi_returns=
     ret v2
 }
 
-fn @leaveMulti() -> (u256, u256) [selector=0x4478046f, pure, abi_params=[], abi_returns=[word, word]] {
+fn @leaveMulti() -> (u256, u256) [selector=0x4478046f, unrestricted_memory, pure, abi_params=[], abi_returns=[word, word]] {
   bb0:
     v0 = icall @pair, 2, 7
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)

@@ -835,9 +835,25 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_inst(InstKind::MLoad(offset), Some(MirType::uint256()))
     }
 
+    /// Emits a load from compiler-owned memory.
+    pub(crate) fn private_mload(&mut self, offset: ValueId) -> ValueId {
+        // value = mload offset !metadata(compiler_memory)
+        let mut inst = self.make_inst(InstKind::MLoad(offset), Some(MirType::uint256()));
+        inst.metadata.set_requires_private_memory();
+        self.append_instruction(inst).1.expect("a memory load produces a value")
+    }
+
     /// Emits an mstore instruction.
     pub(crate) fn mstore(&mut self, offset: ValueId, value: ValueId) {
         self.emit_void_inst(InstKind::MStore(offset, value))
+    }
+
+    /// Emits a store to compiler-owned memory.
+    pub(crate) fn private_mstore(&mut self, offset: ValueId, value: ValueId) {
+        // mstore offset, value !metadata(compiler_memory)
+        let mut inst = self.make_inst(InstKind::MStore(offset, value), None);
+        inst.metadata.set_requires_private_memory();
+        self.append_instruction(inst);
     }
 
     /// Emits an mstore8 instruction.

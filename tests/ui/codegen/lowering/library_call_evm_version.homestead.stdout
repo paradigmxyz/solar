@@ -133,13 +133,11 @@ fn @two(arg0: u256) -> (u256, u256) [selector=0xcf2a8612, pure, abi_params=[u256
     v11 = mload v10
     v12 = add v3, 32
     v13 = mload v12
-    frame_store multi_return, word, 0, v3 !metadata(memory=scratch)
     v14 = add v3, 0
     v15 = mload v14
-    v16 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v17 = add v16, 32
-    v18 = mload v17
-    ret v15, v18
+    v16 = add v3, 32
+    v17 = mload v16
+    ret v15, v17
   bb1:
     revert 0, 0
 }
@@ -300,21 +298,19 @@ fn @dynamicArgument(arg0: memorybytes) -> (u256, u256) [selector=0x11b8efbf, pur
     v19 = mload v18
     v20 = add v3, 160
     v21 = mload v20
-    frame_store multi_return, word, 0, v3 !metadata(memory=scratch)
     v22 = add v3, 0
     v23 = mload v22
-    v24 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v25 = add v24, 32
-    v26 = mload v25
-    v27 = add v24, 64
-    v28 = mload v27
-    v29 = add v24, 96
-    v30 = mload v29
-    v31 = add v24, 128
-    v32 = mload v31
-    v33 = add v24, 160
-    v34 = mload v33
-    ret v23, v34
+    v24 = add v3, 32
+    v25 = mload v24
+    v26 = add v3, 64
+    v27 = mload v26
+    v28 = add v3, 96
+    v29 = mload v28
+    v30 = add v3, 128
+    v31 = mload v30
+    v32 = add v3, 160
+    v33 = mload v32
+    ret v23, v33
   bb1:
     revert 0, 0
 }

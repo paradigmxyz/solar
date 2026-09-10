@@ -10,7 +10,7 @@ fn @echo(arg0: u256) -> u256 [selector=0x6279e43c, pure, abi_params=[u256], abi_
 data:
   Impl_initcode_0: hex"34600d5760458060115f395ff35b5f5ffd34601a575f3560e01c80636279e43c14601657601a565b601e565b5f5ffd5b6024361015604157603d565b6004356080526020608001608090036080f35b5f5ffd5b602a56"
 
-fn @keepsLocal(arg0: u256, arg1: u256, arg2: u256, arg3: u256, arg4: u256) -> u256 [selector=0x0ea6bb92, pure, abi_params=[u256, u256, u256, u256, u256], abi_returns=[word]] {
+fn @keepsLocal(arg0: u256, arg1: u256, arg2: u256, arg3: u256, arg4: u256) -> u256 [selector=0x0ea6bb92, unrestricted_memory, pure, abi_params=[u256, u256, u256, u256, u256], abi_returns=[word]] {
   bb0:
     v0 = gt arg0, 0
     jumpi v0, bb1, bb2
@@ -61,7 +61,7 @@ fn @keepsLocal(arg0: u256, arg1: u256, arg2: u256, arg3: u256, arg4: u256) -> u2
     revert 0, 36
 }
 
-fn @forwards() -> u256 [selector=0xa38e2a32, abi_params=[], abi_returns=[word]] {
+fn @forwards() -> u256 [selector=0xa38e2a32, unrestricted_memory, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31

@@ -2,10 +2,10 @@
 
 use super::super::{
     BlockId, CfgInfo, CopyDest, CopySource, DenseBitSet, EvmCodegen, EvmMemoryLayout, Function,
-    FunctionId, FxHashMap, FxHashSet, IndexVec, InstKind, Liveness, MAX_STACK_ACCESS, OnceCell,
-    OptimizationMode, ParallelCopy, ScheduledOp, SmallVec, SpillSlot, SpillStore, StackOp,
-    StdEntry, Terminator, U256, Value, ValueId, cross_block_values, index_vec, ir,
-    is_cross_block_recomputable_kind, is_rematerializable_leaf, op, rematerializable_nullary_value,
+    FunctionId, FxHashMap, FxHashSet, IndexVec, InstKind, Liveness, OnceCell, OptimizationMode,
+    ParallelCopy, ScheduledOp, SmallVec, SpillSlot, SpillStore, StackOp, StdEntry, Terminator,
+    U256, Value, ValueId, cross_block_values, index_vec, ir, is_cross_block_recomputable_kind,
+    is_rematerializable_leaf, op, rematerializable_nullary_value,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -524,6 +524,28 @@ impl<'gcx> EvmCodegen<'gcx> {
         needed: &[ValueId],
     ) {
         while let Some(depth) = self.first_stack_value_not_needed_by(needed) {
+            if depth > self.stack_access_limit()
+                && self.asm.source_memory_required()
+                && !self.forwarding_scratch_observable
+            {
+                let mut remaining = Self::value_counts(needed.iter().copied());
+                let target: Vec<_> = self
+                    .scheduler
+                    .stack
+                    .iter()
+                    .flatten()
+                    .filter_map(|value| {
+                        let count = remaining.get_mut(&value)?;
+                        if *count == 0 {
+                            return None;
+                        }
+                        *count -= 1;
+                        Some(super::super::TargetSlot::Value(value))
+                    })
+                    .collect();
+                assert!(self.emit_stack_layout(&target), "could not trim required stack layout");
+                return;
+            }
             if depth > 0 {
                 assert!(
                     depth <= self.stack_access_limit(),
@@ -644,6 +666,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// them.
     pub(in crate::backend::evm::codegen) fn stage_stack_only_fresh_operands(
         &mut self,
+        func: &Function,
         operands: &[ValueId],
     ) {
         if !self.scheduler.has_stack_only_values() {
@@ -676,6 +699,13 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
                 panic!("stack-only CALL operand {operand:?} was lost before its use");
             };
+            if depth >= stack_access_limit
+                && self.asm.source_memory_required()
+                && !self.forwarding_scratch_observable
+            {
+                self.duplicate_deep_forwarding_value(func, operand, depth);
+                continue;
+            }
             assert!(depth < stack_access_limit, "stack-only CALL operand exceeded DUP reach");
             self.emit_stack_op(StackOp::Dup((depth + 1) as u8));
         }
@@ -1040,7 +1070,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         value: ValueId,
         depth: usize,
     ) {
-        if self.forwarding_scratch_observable {
+        let memory_extent_observable = self.forwarding_scratch_observable;
+        if memory_extent_observable {
             // NOTE: Clearing scratch words cannot undo memory expansion. Until a stack-only
             // plan exists, reject this recovery rather than change a later `msize` result.
             self.gcx
@@ -1052,37 +1083,23 @@ impl<'gcx> EvmCodegen<'gcx> {
                 .emit();
             self.forwarding_scratch_observable = false;
         }
-        let count = depth + 1 - self.stack_access_limit();
+        let stack_access_limit = self.stack_access_limit();
+        let count = depth + 1 - stack_access_limit;
+        self.asm.emit_atomic_deep_stack_dup(count, stack_access_limit, memory_extent_observable);
         let mut saved = Vec::with_capacity(count);
         for _ in 0..count {
-            // mstore(msize(), top); pop top
             self.scheduler.stack.observe_peak(self.scheduler.depth() + 1);
-            self.asm.emit_op(op::MSIZE);
-            self.asm.emit_op(op::MSTORE);
             saved.push(self.scheduler.stack.pop());
         }
-        // dup16 target
-        self.emit_stack_op(StackOp::Dup(self.stack_access_limit() as u8));
-        for (index, saved) in saved.into_iter().rev().enumerate() {
-            // addr = msize() - (index + 1) * 32
-            // restored = mload(addr); mstore(addr, 0)
-            // swap restored, target
+        self.scheduler.stack.dup(stack_access_limit as u8);
+        for saved in saved.into_iter().rev() {
             self.scheduler.stack.observe_peak(self.scheduler.depth() + 3);
-            self.asm.emit_push(U256::from((index + 1) * EvmMemoryLayout::WORD_SIZE as usize));
-            self.asm.emit_op(op::MSIZE);
-            self.asm.emit_op(op::SUB);
-            self.asm.emit_op(op::DUP1);
-            self.asm.emit_op(op::MLOAD);
-            self.asm.emit_op(op::SWAP1);
-            self.asm.emit_push(U256::ZERO);
-            self.asm.emit_op(op::SWAP1);
-            self.asm.emit_op(op::MSTORE);
             if let Some(saved) = saved {
                 self.scheduler.stack.push(saved);
             } else {
                 self.scheduler.stack.push_unknown();
             }
-            self.emit_stack_op(StackOp::Swap(1));
+            self.scheduler.stack.swap(1);
         }
         debug_assert_eq!(self.scheduler.stack.top(), Some(value));
     }
@@ -1303,8 +1320,11 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Keeps stack-only operands alive when an instruction is emitted without an operand plan.
     /// Planned operations preserve these values as part of the plan itself, so doing this before
     /// every instruction duplicates both liveness queries and stack scans on the hot path.
+    /// Excess copies can be discarded to expose deep operands; SWAP16 reaches one word beyond
+    /// DUP16.
     pub(in crate::backend::evm::codegen) fn preserve_stack_only_operands(
         &mut self,
+        func: &Function,
         operands: &[ValueId],
         liveness: &Liveness,
         block: BlockId,
@@ -1324,7 +1344,13 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
         }
-        for (operand, consumed) in uses {
+        let preserved = uses
+            .iter()
+            .map(|&(value, consumed)| {
+                (value, consumed + usize::from(!liveness.is_dead_after(value, block, inst_idx)))
+            })
+            .collect::<SmallVec<[_; 4]>>();
+        for &(operand, consumed) in &uses {
             if liveness.is_dead_after(operand, block, inst_idx) {
                 continue;
             }
@@ -1337,10 +1363,56 @@ impl<'gcx> EvmCodegen<'gcx> {
                     }
                     panic!("resident stack argument {operand:?} was lost before its final use")
                 });
-                assert!(depth < MAX_STACK_ACCESS, "resident stack argument exceeded DUP16 reach");
-                self.emit_stack_op(StackOp::Dup((depth + 1) as u8));
+                if depth > self.stack_access_limit() && self.discard_excess_stack_copy(&preserved) {
+                    continue;
+                }
+                if depth > self.stack_access_limit()
+                    && self.asm.source_memory_required()
+                    && !self.forwarding_scratch_observable
+                {
+                    self.duplicate_deep_forwarding_value(func, operand, depth);
+                    continue;
+                }
+                assert!(
+                    depth <= self.stack_access_limit(),
+                    "resident stack argument exceeded SWAP reach"
+                );
+                if depth == self.stack_access_limit() {
+                    // swap depth; dup1
+                    self.emit_stack_op(StackOp::Swap(depth as u8));
+                    self.emit_stack_op(StackOp::Dup(1));
+                } else {
+                    self.emit_stack_op(StackOp::Dup((depth + 1) as u8));
+                }
             }
         }
+    }
+
+    /// Removes one reachable excess copy while retaining each value and any required multiplicity.
+    pub(in crate::backend::evm::codegen) fn discard_excess_stack_copy(
+        &mut self,
+        preserved: &[(ValueId, usize)],
+    ) -> bool {
+        let duplicate =
+            self.scheduler.stack.iter().enumerate().take(self.stack_access_limit() + 1).find_map(
+                |(depth, value)| {
+                    let value = value?;
+                    let required = preserved
+                        .iter()
+                        .find(|(operand, _)| *operand == value)
+                        .map_or(1, |(_, count)| *count);
+                    let count =
+                        self.scheduler.stack.iter().filter(|slot| *slot == Some(value)).count();
+                    (count > required).then_some(depth)
+                },
+            );
+        let Some(depth) = duplicate else { return false };
+        // swap depth; pop
+        if depth != 0 {
+            self.emit_stack_op(StackOp::Swap(depth as u8));
+        }
+        self.emit_stack_op(StackOp::Pop);
+        true
     }
 
     /// Abandons a speculative internal stack ABI after one of its values was lost.

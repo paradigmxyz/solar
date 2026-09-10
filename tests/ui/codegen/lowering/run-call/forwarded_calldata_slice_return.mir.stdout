@@ -191,14 +191,14 @@ fn @_parseSlices(arg0: calldataslice) -> (u256, address) [pure] {
     revert 0, 0
 }
 
-fn @_tryParseSlices(arg0: calldataslice) -> (bool, u256, address) [pure] {
+fn @_tryParseSlices(arg0: calldataslice) -> (bool, u256, address) [unrestricted_memory, pure] {
   bb0:
     v0 = icall @_splitSlices, 4, arg0
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 32
     v3 = mload v2
-    v4 = memory_object_load_element memoryfixedarray<4, 1>, v1, 2
-    v5 = memory_object_load_element memoryfixedarray<4, 1>, v1, 3
+    v4 = memory_object_load_element<memorybytes> memoryfixedarray<4, 1>, v1, 2
+    v5 = memory_object_load_element<memorybytes> memoryfixedarray<4, 1>, v1, 3
     v6 = memory_object_len memorybytes, v4
     v7 = lt 0, v6
     v8 = iszero v7

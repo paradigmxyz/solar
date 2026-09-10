@@ -96,15 +96,8 @@ fn @strAndNum() -> (u256, u256) [selector=0x713d228b, abi_params=[], abi_returns
     v20 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v21 = add v20, 32
     v22 = mload v21
-    v23 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v24 = memory_object_data memoryfixedarray, v23
-    frame_store multi_return, word, 0, v24 !metadata(memory=scratch)
-    memory_object_store_element memoryfixedarray<2, 1>, v23, 1, v22
-    v25 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v26 = add v25, 32
-    v27 = mload v26
-    v28 = memory_object_len memorybytes, v19
-    ret v28, v27
+    v23 = memory_object_len memorybytes, v19
+    ret v23, v22
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -148,15 +141,9 @@ fn @numAndStr() -> (u256, u256) [selector=0xed19722c, abi_params=[], abi_returns
     memory_object_copy_from_slice memorybytes, v17, v18
     v19 = abi_decode [u256, bytes], v17
     v20 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v21 = memory_object_load_element memoryfixedarray<2, 1>, v20, 1
-    v22 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v23 = memory_object_data memoryfixedarray, v22
-    frame_store multi_return, word, 0, v23 !metadata(memory=scratch)
-    memory_object_store_element memoryfixedarray<2, 1>, v22, 1, v21
-    v24 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v25 = memory_object_load_element memoryfixedarray<2, 1>, v24, 1
-    v26 = memory_object_len memorybytes, v25
-    ret v19, v26
+    v21 = memory_object_load_element<memorybytes> memoryfixedarray<2, 1>, v20, 1
+    v22 = memory_object_len memorybytes, v21
+    ret v19, v22
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -200,16 +187,10 @@ fn @twoStrings() -> (u256, u256) [selector=0x477be19f, abi_params=[], abi_return
     memory_object_copy_from_slice memorybytes, v17, v18
     v19 = abi_decode [bytes, bytes], v17
     v20 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v21 = memory_object_load_element memoryfixedarray<2, 1>, v20, 1
-    v22 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v23 = memory_object_data memoryfixedarray, v22
-    frame_store multi_return, word, 0, v23 !metadata(memory=scratch)
-    memory_object_store_element memoryfixedarray<2, 1>, v22, 1, v21
-    v24 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v25 = memory_object_load_element memoryfixedarray<2, 1>, v24, 1
-    v26 = memory_object_len memorybytes, v19
-    v27 = memory_object_len memorybytes, v25
-    ret v26, v27
+    v21 = memory_object_load_element<memorybytes> memoryfixedarray<2, 1>, v20, 1
+    v22 = memory_object_len memorybytes, v19
+    v23 = memory_object_len memorybytes, v21
+    ret v22, v23
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -255,33 +236,24 @@ fn @mixed() -> (u256, u256, u256) [selector=0x354df1f9, abi_params=[], abi_retur
     v20 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v21 = add v20, 32
     v22 = mload v21
-    v23 = memory_object_load_element memoryfixedarray<3, 1>, v20, 2
-    v24 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
-    v25 = memory_object_data memoryfixedarray, v24
-    frame_store multi_return, word, 0, v25 !metadata(memory=scratch)
-    memory_object_store_element memoryfixedarray<3, 1>, v24, 1, v22
-    memory_object_store_element memoryfixedarray<3, 1>, v24, 2, v23
-    v26 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v27 = add v26, 32
-    v28 = mload v27
-    v29 = memory_object_load_element memoryfixedarray<3, 1>, v26, 2
-    v30 = memory_object_len memoryarray, v19
-    v31 = memory_object_len memoryarray, v19
-    v32 = lt 0, v31
-    v33 = iszero v32
-    jumpi v33, bb7, bb8
+    v23 = memory_object_load_element<memorybytes> memoryfixedarray<3, 1>, v20, 2
+    v24 = memory_object_len memoryarray, v19
+    v25 = memory_object_len memoryarray, v19
+    v26 = lt 0, v25
+    v27 = iszero v26
+    jumpi v27, bb7, bb8
   bb8:
-    v34 = memory_object_load_element memoryarray<1>, v19, 0
-    v35 = sub v28, 7
-    v36 = lt v28, 7
-    jumpi v36, bb9, bb10
+    v28 = memory_object_load_element memoryarray<1>, v19, 0
+    v29 = sub v22, 7
+    v30 = lt v22, 7
+    jumpi v30, bb9, bb10
   bb10:
-    v37 = add v34, v35
-    v38 = lt v37, v34
-    jumpi v38, bb9, bb11
+    v31 = add v28, v29
+    v32 = lt v31, v28
+    jumpi v32, bb9, bb11
   bb11:
-    v39 = memory_object_len memorybytes, v29
-    ret v30, v37, v39
+    v33 = memory_object_len memorybytes, v23
+    ret v24, v31, v33
   bb9:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)

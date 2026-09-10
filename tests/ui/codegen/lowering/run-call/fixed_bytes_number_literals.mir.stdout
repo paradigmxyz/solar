@@ -137,7 +137,7 @@ fn @returnedBytesObjectCast() -> u256 [selector=0x28a9d934, pure, abi_params=[],
   bb0:
     v0 = icall @returnBytes, 2
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v2 = memory_object_load_element memoryfixedarray<2, 1>, v1, 1
+    v2 = memory_object_load_element<memorybytes> memoryfixedarray<2, 1>, v1, 1
     v3 = memory_object_load_element memorybytes, v2, 0
     v4 = memory_object_len memorybytes, v2
     v5 = lt v4, 32

@@ -1,4 +1,7 @@
-//@ codegen-matrix: standard
+//@ codegen-matrix: standard none_debug gas_debug size_debug
+//@[none_debug] compile-flags: -Onone --emit=ethdebug
+//@[gas_debug] compile-flags: -Ogas --emit=ethdebug
+//@[size_debug] compile-flags: -Osize --emit=ethdebug
 //@ run-call: MemoryStructAssemblyList::defaultLocal => true
 //@ run-call: MemoryStructAssemblyList::defaultReturn => true
 //@ run-call: MemoryStructAssemblyList::firstAppend => true

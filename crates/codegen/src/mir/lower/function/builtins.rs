@@ -940,7 +940,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Builtin::YulLog4 => lower!(log4(offset, size, topic1, topic2, topic3, topic4)),
             Builtin::YulRevert => lower!(revert(offset, size)),
             Builtin::YulReturn => lower!(ret_data(offset, size)),
-            Builtin::YulStop => lower!(stop()),
+            Builtin::YulStop => {
+                let [] = self.lower_builtin_args(builtin, &args)?;
+                // Source halts retain their meaning when the function is internalized or inlined.
+                // returndata 0, 0
+                let zero = self.builder.imm(U256::ZERO);
+                self.builder.ret_data(zero, zero);
+                Some(())
+            }
             Builtin::YulInvalid => lower!(invalid()),
             Builtin::YulSelfdestruct => lower!(selfdestruct(address)),
             Builtin::YulPop => {

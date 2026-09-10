@@ -2,9 +2,9 @@
 
 use super::{
     BlockId, CfgInfo, DenseBitSet, EvmCodegen, EvmMemoryLayout, Function, FunctionId, FxHashMap,
-    FxHashSet, GlobalStackPlan, GrowableBitSet, InstId, InstKind, Label, Liveness, Module,
-    OnceCell, OptimizationMode, PhiEliminator, STACK_PHI_LAYOUT_LIMIT, StackModel, StackPhiPlan,
-    Terminator, Value, ValueId, cross_block_values, planned_entry_carries,
+    FxHashSet, GlobalStackPlan, InstId, InstKind, Label, Liveness, Module, OnceCell,
+    OptimizationMode, PhiEliminator, STACK_PHI_LAYOUT_LIMIT, StackModel, StackPhiPlan, Terminator,
+    Value, ValueId, cross_block_values, planned_entry_carries,
 };
 use std::rc::Rc;
 
@@ -20,8 +20,9 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// latch terminator or keep it live on the exit. Writing the backedge copy
     /// early then makes the branch observe the next iteration's value.
     /// Rerouting such edges through a fresh jump-only block gives the copies
-    /// an unconditional home after the predecessor's branch.
-    pub(super) fn split_phi_critical_edges(func: &mut Function) {
+    /// an unconditional home after the predecessor's branch. Required stack phis also split
+    /// switch edges so each tuple shuffle has a jump-only predecessor.
+    pub(super) fn split_phi_critical_edges(func: &mut Function, stack_phis: bool) {
         let has_phis = func.blocks.iter().any(|block| {
             block
                 .instructions
@@ -39,12 +40,15 @@ impl<'gcx> EvmCodegen<'gcx> {
                 let InstKind::Phi(incoming) = &func.inst(inst_id).kind else { continue };
                 let Some(dst) = func.inst_result_value(inst_id) else { continue };
                 for &(pred, src) in incoming {
-                    if src == dst || splits.contains(&(pred, block_id)) {
+                    let split_switch = stack_phis
+                        && matches!(func.blocks[pred].terminator, Some(Terminator::Switch { .. }));
+                    if (src == dst && !split_switch) || splits.contains(&(pred, block_id)) {
                         continue;
                     }
                     let Some(terminator) = func.blocks[pred].terminator.as_ref() else { continue };
                     let successors = terminator.successors();
-                    if terminator.operands().contains(&dst)
+                    if split_switch
+                        || terminator.operands().contains(&dst)
                         || successors
                             .iter()
                             .any(|&succ| succ != block_id && liveness.live_in(succ).contains(dst))
@@ -55,6 +59,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
 
+        // pred -> edge -> succ
+        // succ: phi [..., edge: source, ...]
         for (pred, succ) in splits {
             let edge = func.alloc_block();
             func.blocks[edge].terminator = Some(Terminator::Jump(succ));
@@ -105,6 +111,9 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     /// Generates the body of a function.
     pub(super) fn generate_function_body(&mut self, func_id: FunctionId, func: &Function) {
+        if self.uses_recursive_stack_abi(func_id) {
+            self.asm.require_source_memory(true);
+        }
         self.forwarding_scratch_observable = self.msize_observed_functions.contains(func_id);
         let stack_only_disabled_at_entry = self.stack_only_function_disabled(func_id);
         let report_missing_spill_home = self.gcx.sess.opts.unstable.assert_planned_edge_spill_home;
@@ -117,13 +126,17 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         self.spill_hazard_insts = self.compute_spill_hazard_insts(func);
 
-        // Only calldata arguments have a reload route independent of the overwritten frame.
-        let hazard_recomputable = if self.spill_hazard_insts.is_empty() {
+        // Calldata and immutable initcode provide reloads independent of source memory.
+        let hazard_recomputable = if self.spill_hazard_insts.is_empty()
+            && !self.asm.source_memory_required()
+            && !(self.in_constructor && self.preserve_caller_stack)
+        {
             DenseBitSet::new_empty(func.num_values())
         } else {
             cross_block_values(func, |value| {
                 !matches!(func.value(value), Value::Arg(_))
-                    || (!self.in_internal_function && !self.in_constructor)
+                    || (!self.in_internal_function
+                        && (!self.in_constructor || self.asm.source_memory_required()))
             })
         };
 
@@ -150,7 +163,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let mut stack_phi_plan =
             phi_plan.as_deref().map_or_else(StackPhiPlan::default, StackPhiPlan::clone);
         let resident_stack_plan = self.resident_stack_plan(func_id).cloned();
-        let hazard_cross_block_values = self.spill_hazard_cross_block_values(
+        let mut hazard_cross_block_values = self.spill_hazard_cross_block_values(
             func_id,
             func,
             liveness,
@@ -160,6 +173,13 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.spill_hazard_values = DenseBitSet::new_empty(func.num_values());
         for &value in &hazard_cross_block_values {
             self.spill_hazard_values.insert(value);
+        }
+        // Keep block-local values mandatory in the scheduler and across calls, but
+        // only values crossing CFG edges need a global entry layout.
+        if !hazard_cross_block_values.is_empty() {
+            let cross_block =
+                cross_block_live.get_or_init(|| Self::cross_block_live_values(func, liveness));
+            hazard_cross_block_values.retain(|value| cross_block.contains(*value));
         }
         let resident_carries_hazards = resident_stack_plan.as_ref().is_some_and(|plan| {
             self.stack_plan_carries_spill_hazards(func, liveness, plan, &hazard_cross_block_values)
@@ -174,12 +194,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let hazard_stack_layout = (!hazard_cross_block_values.is_empty()
             && !resident_carries_hazards)
             .then(|| {
-                self.compute_spill_hazard_stack_layout(
-                    func,
-                    liveness,
-                    &stack_phi_plan,
-                    &protected_stack_values,
-                )
+                self.compute_spill_hazard_stack_layout(func, liveness, &protected_stack_values)
             })
             .flatten();
         if !hazard_cross_block_values.is_empty()
@@ -189,7 +204,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.gcx
                 .dcx()
                 .err(format!(
-                    "codegen cannot preserve values across a low-memory forwarding buffer in `{}`",
+                    "codegen cannot preserve values without compiler memory in `{}`",
                     func.name
                 ))
                 .emit();
@@ -1097,71 +1112,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
     }
 
-    /// Finds functions whose reachable exits all abort, including chains of
-    /// calls to other cold functions.
+    /// Finds functions whose reachable exits all abort, including cold call chains.
     pub(super) fn collect_cold_functions(module: &Module) -> DenseBitSet<FunctionId> {
-        let mut cold = DenseBitSet::new_empty(module.functions.len());
-        let mut worklist = Vec::new();
-        let mut visited = GrowableBitSet::new_empty();
-        loop {
-            let mut changed = false;
-            for (function_id, func) in module.functions.iter_enumerated() {
-                if cold.contains(function_id) {
-                    continue;
-                }
-                worklist.clear();
-                worklist.push(BlockId::ENTRY);
-                visited.clear();
-                let mut saw_exit = false;
-                let mut all_exits_cold = true;
-                while let Some(block_id) = worklist.pop()
-                    && all_exits_cold
-                {
-                    if !visited.insert(block_id) {
-                        continue;
-                    }
-                    let block = &func.blocks[block_id];
-                    if block.instructions.iter().any(|&inst_id| {
-                        matches!(
-                            func.inst(inst_id).kind,
-                            InstKind::ICall { function, .. } if cold.contains(function)
-                        )
-                    }) {
-                        saw_exit = true;
-                        continue;
-                    }
-                    let Some(term) = block.terminator.as_ref() else {
-                        all_exits_cold = false;
-                        continue;
-                    };
-                    match term {
-                        Terminator::Revert { .. }
-                        | Terminator::RevertReturndata
-                        | Terminator::Invalid => {
-                            saw_exit = true;
-                        }
-                        Terminator::TailCall { function, .. } if cold.contains(*function) => {
-                            saw_exit = true;
-                        }
-                        _ => {
-                            let successors = term.successors();
-                            if successors.is_empty() {
-                                all_exits_cold = false;
-                            } else {
-                                worklist.extend(successors);
-                            }
-                        }
-                    }
-                }
-                if saw_exit && all_exits_cold {
-                    cold.insert(function_id);
-                    changed = true;
-                }
-            }
-            if !changed {
-                return cold;
-            }
-        }
+        crate::mir::analysis::CallGraphInfo::collect_cold_functions(module)
     }
 
     /// Finds blocks that abort directly or can only reach other cold blocks.

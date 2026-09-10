@@ -201,11 +201,10 @@ fn @liveMixed() -> u256 [selector=0xaf1b6bff, abi_params=[], abi_returns=[word]]
     v18 = mload v17
     v19 = add v10, 32
     v20 = mload v19
-    frame_store multi_return, word, 0, v10 !metadata(memory=scratch)
     v21 = add v10, 0
     v22 = mload v21
-    v23 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v24 = memory_object_load_element memoryfixedarray<2, 1>, v23, 1
+    v23 = add v10, 32
+    v24 = mload v23
     ret v22
   bb3:
     revert 0, 0

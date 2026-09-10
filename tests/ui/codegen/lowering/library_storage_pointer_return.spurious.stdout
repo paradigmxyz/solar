@@ -151,14 +151,12 @@ fn @pair() -> (u256, u256) [selector=0xa8aa1b31, view, abi_params=[], abi_return
     v8 = mload v7
     v9 = add v1, 32
     v10 = mload v9
-    frame_store multi_return, word, 0, v1 !metadata(memory=scratch)
     v11 = add v1, 0
     v12 = mload v11
-    v13 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v14 = add v13, 32
-    v15 = mload v14
-    v16 = sload v15 !metadata(storage=symbolic(v15))
-    ret v12, v16
+    v13 = add v1, 32
+    v14 = mload v13
+    v15 = sload v14 !metadata(storage=symbolic(v14))
+    ret v12, v15
   bb1:
     revert 0, 0
 }
@@ -244,20 +242,14 @@ fn @agg() -> (u256, u256) [selector=0xf5e34bfa, view, abi_params=[], abi_returns
     mcopy v1, v3, 96
     v9 = abi_decode [storageptr, array<2, u256>], v0
     v10 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v11 = memory_object_load_element memoryfixedarray<2, 1>, v10, 1
-    v12 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v13 = memory_object_data memoryfixedarray, v12
-    frame_store multi_return, word, 0, v13 !metadata(memory=scratch)
-    memory_object_store_element memoryfixedarray<2, 1>, v12, 1, v11
-    v14 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v15 = memory_object_load_element memoryfixedarray<2, 1>, v14, 1
-    v16 = sload v9 !metadata(storage=symbolic(v9))
-    v17 = lt 1, 2
-    v18 = iszero v17
-    jumpi v18, bb5, bb6
+    v11 = memory_object_load_element<memoryfixedarray> memoryfixedarray<2, 1>, v10, 1
+    v12 = sload v9 !metadata(storage=symbolic(v9))
+    v13 = lt 1, 2
+    v14 = iszero v13
+    jumpi v14, bb5, bb6
   bb6:
-    v19 = memory_object_load_element memoryfixedarray<2, 1>, v15, 1
-    ret v16, v19
+    v15 = memory_object_load_element memoryfixedarray<2, 1>, v11, 1
+    ret v12, v15
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

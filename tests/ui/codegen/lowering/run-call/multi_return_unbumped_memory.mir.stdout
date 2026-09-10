@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/multi_return_unbumped_memory.sol:MultiReturnUnbumpedMemory ===
 @module MultiReturnUnbumpedMemory
-fn @output() -> bytes32 [selector=0xf20eaeb8, pure, abi_params=[], abi_returns=[word]] {
+fn @output() -> bytes32 [selector=0xf20eaeb8, unrestricted_memory, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = add v0, 32
@@ -12,7 +12,7 @@ fn @output() -> bytes32 [selector=0xf20eaeb8, pure, abi_params=[], abi_returns=[
     ret v6
 }
 
-fn @emitWord(arg0: u256) -> (u256, u256) {
+fn @emitWord(arg0: u256) -> (u256, u256) [unrestricted_memory] {
   bb0:
     v0 = shl 240, 0x1234
     mstore arg0, v0
@@ -22,7 +22,108 @@ fn @emitWord(arg0: u256) -> (u256, u256) {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/multi_return_unbumped_memory.sol:LowFmpAllocation ===
 @module LowFmpAllocation
-fn @probe(arg0: u256) -> (u256, u256) [selector=0xdb082440, pure, abi_params=[u256], abi_returns=[word, word]] {
+fn @environmentTuple(arg0: u256) -> (u256, bool) [selector=0x69489fc5, unrestricted_memory, view, abi_params=[u256], abi_returns=[word, word<bool>]] {
+  bb0:
+    mstore 64, 128 !metadata(memory=scratch)
+    v0 = icall @triple, 3, arg0
+    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v2 = add v1, 32
+    v3 = mload v2
+    v4 = add v1, 64
+    v5 = mload v4
+    v6 = add v0, v3
+    v7 = lt v6, v0
+    jumpi v7, bb1, bb2
+  bb2:
+    v8 = chainid
+    v9 = address
+    v10 = or v8, v9
+    v11 = eq v10, 0
+    v12 = iszero v11
+    ret v6, v12
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @storedTuple(arg0: u128) -> u128 [selector=0xbed7f4fa, unrestricted_memory, abi_params=[u128], abi_returns=[word<u128>]] {
+  bb0:
+    mstore 64, 128 !metadata(memory=scratch)
+    v0 = icall @smallTriple, 3, arg0
+    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v2 = add v1, 32
+    v3 = mload v2
+    v4 = add v1, 64
+    v5 = mload v4
+    v6 = and v0, 0xffffffffffffffffffffffffffffffff
+    v7 = sload 0 !metadata(storage=slot(0))
+    v8 = not 0xffffffffffffffffffffffffffffffff
+    v9 = and v7, v8
+    v10 = and v6, 0xffffffffffffffffffffffffffffffff
+    v11 = or v9, v10
+    sstore 0, v11 !metadata(storage=slot(0))
+    v12 = and arg0, 0xffffffffffffffffffffffffffffffff
+    v13 = add v12, 1
+    v14 = gt v13, 0xffffffffffffffffffffffffffffffff
+    jumpi v14, bb1, bb2
+  bb2:
+    v15 = icall @smallTriple, 3, v13
+    v16 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v17 = add v16, 32
+    v18 = mload v17
+    v19 = add v16, 64
+    v20 = mload v19
+    v21 = and v3, 0xffffffffffffffffffffffffffffffff
+    v22 = and v18, 0xffffffffffffffffffffffffffffffff
+    v23 = add v21, v22
+    v24 = gt v23, 0xffffffffffffffffffffffffffffffff
+    jumpi v24, bb1, bb3
+  bb3:
+    v25 = sload 0 !metadata(storage=slot(0))
+    v26 = and v25, 0xffffffffffffffffffffffffffffffff
+    v27 = add v23, v26
+    v28 = gt v27, 0xffffffffffffffffffffffffffffffff
+    jumpi v28, bb1, bb4
+  bb4:
+    ret v27
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @smallTriple(arg0: u128) -> (u128, u128, u128) [pure] {
+  bb0:
+    v0 = and arg0, 0xffffffffffffffffffffffffffffffff
+    v1 = add v0, 1
+    v2 = gt v1, 0xffffffffffffffffffffffffffffffff
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = and arg0, 0xffffffffffffffffffffffffffffffff
+    v4 = add v3, 2
+    v5 = gt v4, 0xffffffffffffffffffffffffffffffff
+    jumpi v5, bb1, bb3
+  bb3:
+    ret arg0, v1, v4
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @computedPointer(arg0: u256) -> (u256, u256) [selector=0x55871c25, unrestricted_memory, pure, abi_params=[u256], abi_returns=[word, word]] {
+  bb0:
+    v0 = add arg0, 32
+    mstore 64, v0 !metadata(memory=scratch)
+    v1 = icall @allocate, 2, 37, 128
+    v2 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v3 = add v2, 32
+    v4 = mload v3
+    ret v1, v4
+}
+
+fn @probe(arg0: u256) -> (u256, u256) [selector=0xdb082440, unrestricted_memory, pure, abi_params=[u256], abi_returns=[word, word]] {
   bb0:
     mstore 64, 128 !metadata(memory=scratch)
     v0 = and arg0, 255
@@ -33,7 +134,7 @@ fn @probe(arg0: u256) -> (u256, u256) [selector=0xdb082440, pure, abi_params=[u2
     ret v1, v4
 }
 
-fn @returnedBuffer() -> u256 [selector=0xf8640036, pure, abi_params=[], abi_returns=[word]] {
+fn @returnedBuffer() -> u256 [selector=0xf8640036, unrestricted_memory, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     mstore 64, 128 !metadata(memory=scratch)
     v0 = icall @buffer, 1, 128
@@ -42,7 +143,7 @@ fn @returnedBuffer() -> u256 [selector=0xf8640036, pure, abi_params=[], abi_retu
     ret v2
 }
 
-fn @returnedBufferHash() -> bytes32 [selector=0x8b78d03c, pure, abi_params=[], abi_returns=[word]] {
+fn @returnedBufferHash() -> bytes32 [selector=0x8b78d03c, unrestricted_memory, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     mstore 64, 128 !metadata(memory=scratch)
     v0 = icall @buffer, 1, 128
@@ -57,7 +158,7 @@ fn @returnedBufferHash() -> bytes32 [selector=0x8b78d03c, pure, abi_params=[], a
     revert 0, 0
 }
 
-fn @returnedBufferSecond() -> bytes32 [selector=0xbd1c9e65, pure, abi_params=[], abi_returns=[word]] {
+fn @returnedBufferSecond() -> bytes32 [selector=0xbd1c9e65, unrestricted_memory, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     mstore 64, 128 !metadata(memory=scratch)
     v0 = icall @buffer, 1, 128
@@ -83,6 +184,53 @@ fn @returnedBufferSecond() -> bytes32 [selector=0xbd1c9e65, pure, abi_params=[],
     ret v11
   bb4:
     revert 0, 0
+}
+
+fn @discardedSlices(arg0: calldataslice) -> u256 [selector=0x24e6be90, unrestricted_memory, pure, abi_params=[bytes], abi_returns=[word]] {
+  bb0:
+    mstore 64, 128 !metadata(memory=scratch)
+    v0 = icall @slices, 2, arg0
+    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v2 = add v1, 64
+    v3 = mload v2
+    v4 = add v1, 96
+    v5 = mload v4
+    v6 = make_calldata_slice v3, v5
+    v7 = slice_len arg0
+    ret v7
+}
+
+fn @slices(arg0: calldataslice) -> (calldataslice, calldataslice) [pure] {
+  bb0:
+    v0 = make_calldata_slice 0, 0
+    v1 = make_calldata_slice 0, 0
+    ret arg0, arg0
+}
+
+fn @discardedTuple(arg0: u256) -> u256 [selector=0xeb2e0993, unrestricted_memory, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    mstore 64, 128 !metadata(memory=scratch)
+    v0 = icall @triple, 3, arg0
+    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v2 = add v1, 32
+    v3 = mload v2
+    v4 = add v1, 64
+    v5 = mload v4
+    v6 = add arg0, 1
+    v7 = lt v6, arg0
+    jumpi v7, bb1, bb2
+  bb2:
+    v8 = icall @triple, 3, v6
+    v9 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v10 = add v9, 32
+    v11 = mload v10
+    v12 = add v9, 64
+    v13 = mload v12
+    ret v3
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @triple(arg0: u256) -> (u256, u256, u256) [pure] {
@@ -132,7 +280,7 @@ fn @buffer(arg0: u256) -> memorybytes [pure] {
     revert 0, 36
 }
 
-fn @allocate(arg0: u256, arg1: u256) -> (u256, u256) [pure] {
+fn @allocate(arg0: u256, arg1: u256) -> (u256, u256) [unrestricted_memory, pure] {
   bb0:
     v0 = add arg1, 63
     v1 = lt v0, arg1
@@ -153,7 +301,7 @@ fn @allocate(arg0: u256, arg1: u256) -> (u256, u256) [pure] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/multi_return_unbumped_memory.sol:LowFmpArguments ===
 @module LowFmpArguments
-fn @output() -> bytes32 [selector=0xf20eaeb8, pure, abi_params=[], abi_returns=[word]] {
+fn @output() -> bytes32 [selector=0xf20eaeb8, unrestricted_memory, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     mstore 64, 128 !metadata(memory=scratch)
@@ -164,7 +312,7 @@ fn @output() -> bytes32 [selector=0xf20eaeb8, pure, abi_params=[], abi_returns=[
     ret v3
 }
 
-fn @allocate(arg0: memorybytes) -> memorybytes [pure] {
+fn @allocate(arg0: memorybytes) -> memorybytes [unrestricted_memory, pure] {
   bb0:
     mstore 64, arg0 !metadata(memory=scratch)
     v0 = not 31
@@ -172,4 +320,193 @@ fn @allocate(arg0: memorybytes) -> memorybytes [pure] {
     v2 = alloc memorybytes, exact, zeroed, panic, v1
     set_memory_object_len memorybytes, v2, 128
     ret v2
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/multi_return_unbumped_memory.sol:MemorySafeTupleScratch ===
+@module MemorySafeTupleScratch
+fn @output(arg0: u256) -> u256 [selector=0x64f9016b, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    mstore 32, 0x3e8 !metadata(memory=scratch)
+    v0 = icall @pair, 2, arg0
+    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v2 = add v1, 32
+    v3 = mload v2
+    v4 = add v0, v3
+    v5 = mload 32 !metadata(memory=scratch)
+    v6 = add v5, v4
+    ret v6
+}
+
+fn @pair(arg0: u256) -> (u256, u256) {
+  bb0:
+    v0 = add arg0, 1
+    ret arg0, v0
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/multi_return_unbumped_memory.sol:MemorySafeTupleConstructor ===
+@module MemorySafeTupleConstructor
+fn @value() -> u256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
+  bb0:
+    mstore 32, 0x3e8 !metadata(memory=scratch)
+    v0 = icall @pair, 2, arg0
+    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v2 = add v1, 32
+    v3 = mload v2
+    v4 = add v0, v3
+    v5 = mload 32 !metadata(memory=scratch)
+    v6 = add v5, v4
+    sstore 0, v6 !metadata(storage=slot(0))
+    stop
+}
+
+fn @pair(arg0: u256) -> (u256, u256) {
+  bb0:
+    v0 = add arg0, 1
+    ret arg0, v0
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/multi_return_unbumped_memory.sol:IndependentMemoryContexts ===
+@module IndependentMemoryContexts
+fn @recompute(arg0: u256) -> u256 [selector=0xa4dda897, unrestricted_memory, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = add arg0, 1
+    v1 = add arg0, 2
+    v2 = add arg0, 3
+    v3 = add arg0, 4
+    v4 = add arg0, 5
+    v5 = add arg0, 6
+    v6 = add arg0, 7
+    v7 = add arg0, 8
+    v8 = add arg0, 9
+    v9 = mload arg0
+    v10 = eq v9, 0
+    v11 = iszero v10
+    jumpi v11, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v12 = add v0, v1
+    v13 = add v12, v2
+    v14 = add v13, v3
+    v15 = add v14, v4
+    v16 = add v15, v5
+    v17 = add v16, v6
+    v18 = add v17, v7
+    v19 = add v18, v8
+    ret v19
+  bb1:
+    ret 0
+}
+
+fn @unrestricted() [selector=0x26278f86, unrestricted_memory, pure, abi_params=[], abi_returns=[]] {
+  bb0:
+    mstore 64, 128 !metadata(memory=scratch)
+    stop
+}
+
+fn @output(arg0: u256) -> u256 [selector=0x64f9016b, view, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = lt v0, 128
+    v2 = eq v1, 0
+    v3 = iszero v2
+    jumpi v3, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    mstore 0, arg0 !metadata(memory=scratch)
+    v4 = gas
+    v5 = staticcall v4, 4, 0, 32, 32, 32
+    v6 = iszero v5
+    v7 = eq v6, 0
+    v8 = iszero v7
+    jumpi v8, bb4, bb5
+  bb5:
+    jump bb6
+  bb6:
+    v9 = mload 32 !metadata(memory=scratch)
+    v10 = not 0
+    v11 = not 0
+    v12 = gas
+    v13 = staticcall v12, 4, v11, 0, v10, 0
+    v14 = iszero v13
+    v15 = eq v14, 0
+    v16 = iszero v15
+    jumpi v16, bb7, bb8
+  bb8:
+    jump bb9
+  bb9:
+    v17 = eq v9, arg0
+    v18 = iszero v17
+    jumpi v18, bb10, bb11
+  bb11:
+    v19 = icall @sum, 1, arg0, arg0, arg0, arg0, arg0, arg0, arg0, arg0, arg0, arg0, arg0, arg0, arg0, arg0, arg0, arg0, arg0
+    ret v19
+  bb10:
+    revert 0, 0
+  bb7:
+    revert 0, 0
+  bb4:
+    revert 0, 0
+  bb1:
+    revert 0, 0
+}
+
+fn @sum(arg0: u256, arg1: u256, arg2: u256, arg3: u256, arg4: u256, arg5: u256, arg6: u256, arg7: u256, arg8: u256, arg9: u256, arg10: u256, arg11: u256, arg12: u256, arg13: u256, arg14: u256, arg15: u256, arg16: u256) -> u256 [pure] {
+  bb0:
+    v0 = add arg0, arg1
+    v1 = add v0, arg2
+    v2 = add v1, arg3
+    v3 = add v2, arg4
+    v4 = add v3, arg5
+    v5 = add v4, arg6
+    v6 = add v5, arg7
+    v7 = add v6, arg8
+    v8 = add v7, arg9
+    v9 = add v8, arg10
+    v10 = add v9, arg11
+    v11 = add v10, arg12
+    v12 = add v11, arg13
+    v13 = add v12, arg14
+    v14 = add v13, arg15
+    v15 = add v14, arg16
+    ret v15
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/multi_return_unbumped_memory.sol:UnrestrictedScalarConstructor ===
+@module UnrestrictedScalarConstructor
+fn @value() -> u256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
+  bb0:
+    v0 = icall @forward, 1, arg0
+    sstore 0, v0 !metadata(storage=slot(0))
+    stop
+}
+
+fn @forward(arg0: u256) -> u256 [unrestricted_memory, pure] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    codecopy 0, 0, 265 !metadata(memory=scratch)
+    mstore 64, v0 !metadata(memory=scratch)
+    mstore 96, 0 !metadata(memory=scratch)
+    v1 = add arg0, 1
+    v2 = lt v1, arg0
+    jumpi v2, bb1, bb2
+  bb2:
+    ret v1
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
 }

@@ -157,7 +157,7 @@ fn @acceptsPayable() -> bool [selector=0xd6e5da6b, payable, abi_params=[], abi_r
     ret v9
 }
 
-fn @deploy(arg0: memorybytes) -> address {
+fn @deploy(arg0: memorybytes) -> address [unrestricted_memory] {
   bb0:
     v0 = mload arg0
     v1 = add arg0, 32

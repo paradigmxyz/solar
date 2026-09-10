@@ -18,24 +18,21 @@ bb0:
   sub
   push bb4
   jumpi
-  push 192
+  push 160
   dup 1
   push 64
-  mstore
-  dup 1
-  push 160
   mstore
   push 128
   dup 2
   add
   push 64
   mstore
+  dup 1
   push 128
   calldatasize
   dup 3
   calldatacopy
   push 64
-  dup 2
   add
   push 7
   swap 1
@@ -76,6 +73,7 @@ bb6:
   jumpi
   push 64
   mstore
+  dup 1
   push 128
   calldatasize
   dup 3
@@ -84,7 +82,6 @@ bb6:
   dup 2
   mstore
   push 96
-  dup 2
   add
   push 7
   swap 1

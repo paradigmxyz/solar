@@ -27,3 +27,66 @@ fn @read_words(arg0: memorystruct) -> u256 [selector=0x12345679, abi_params=[tup
     v5 = add v2, v4
     ret v5
 }
+
+// CHECK-LABEL: fn @decode_local
+// CHECK-NOT: + {{.*}}frame_store
+// CHECK-NOT: + {{.*}}alloc memoryfixedarray
+// CHECK: - {{.*}}frame_load multi_return
+// CHECK: - {{.*}}frame_load multi_return
+// CHECK-LABEL: fn @decode_cross_block
+// CHECK: + {{.*}}frame_store multi_return
+// CHECK: frame_load multi_return
+fn @decode_local(arg0: memorybytes) -> u256 {
+  bb0:
+    v0 = abi_decode [u256, u256], arg0
+    v1 = frame_load multi_return, word, 0
+    v2 = add v1, 32
+    v3 = mload v2
+    v4 = frame_load multi_return, word, 0
+    v5 = add v4, 32
+    v6 = mload v5
+    v7 = add v3, v6
+    ret v7
+}
+
+fn @decode_cross_block(arg0: memorybytes) -> u256 {
+  bb0:
+    v0 = abi_decode [u256, u256], arg0
+    jump bb1
+  bb1:
+    v1 = frame_load multi_return, word, 0
+    v2 = add v1, 32
+    v3 = mload v2
+    ret v3
+}
+
+// CHECK-LABEL: fn @decode_scalar_call
+// CHECK: + {{.*}}frame_store multi_return
+// CHECK: icall @scalar
+// CHECK: frame_load multi_return
+fn @decode_scalar_call(arg0: memorybytes) -> u256 {
+  bb0:
+    v0 = abi_decode [u256, u256], arg0
+    v1 = frame_load multi_return, word, 0
+    v2 = icall @scalar, 1
+    v3 = frame_load multi_return, word, 0
+    v4 = add v3, 32
+    v5 = mload v4
+    ret v5
+}
+
+fn @scalar() -> u256 {
+  bb0:
+    ret 0
+}
+
+// CHECK-LABEL: fn @decode_escaping_pointer
+// CHECK: + {{.*}}frame_store multi_return
+// CHECK: frame_load multi_return
+fn @decode_escaping_pointer(arg0: memorybytes) -> u256 {
+  bb0:
+    v0 = abi_decode [u256, u256], arg0
+    v1 = frame_load multi_return, word, 0
+    sstore 0, v1
+    ret v0
+}

@@ -5,14 +5,14 @@ immutables:
   first: u8
   second: bytes20
 
-// CHECK-LABEL: @constructor
+// CHECK-LABEL: @staged
 // CHECK: -     storeimmutable first, arg0
 // CHECK-NEXT: -     storeimmutable second, arg1
-// CHECK-NEXT: +     mstore 192, arg0
-// CHECK-NEXT: +     mstore 224, arg1
+// CHECK-NEXT: +     mstore 192, arg0 !metadata(compiler_memory)
+// CHECK-NEXT: +     mstore 224, arg1 !metadata(compiler_memory)
 // CHECK-NEXT:       [[LOAD:v[0-9]+]] = loadimmutable first
 // CHECK-NEXT:       ret [[LOAD]]
-fn @constructor(arg0: u8, arg1: bytes20) -> u8 {
+fn @staged(arg0: u8, arg1: bytes20) -> u8 {
   bb0:
     storeimmutable first, arg0
     storeimmutable second, arg1
@@ -30,7 +30,7 @@ fn @runtime() [selector=1] {
 
 // CHECK-LABEL: fn @entry
 // CHECK: -     storeimmutable first, 2
-// CHECK: +     mstore 192, 2
+// CHECK: +     mstore 192, 2 !metadata(compiler_memory)
 fn @entry() {
   bb0:
     storeimmutable first, 2
@@ -43,4 +43,37 @@ fn @router() [entry] {
   bb0:
     storeimmutable first, 3
     stop
+}
+
+// CHECK-LABEL: + fn @constructor(arg0: u8, arg1: bytes20) -> (u8, bytes20)
+// CHECK-NOT: + {{.*}}storeimmutable
+// CHECK: + {{.*}}ret arg0, arg1
+fn @constructor(arg0: u8, arg1: bytes20) [unrestricted_memory] {
+  bb0:
+    v1 = iszero arg0
+    jumpi v1, bb1, bb2
+  bb1:
+    tail_call @panic_chain
+  bb2:
+    storeimmutable first, arg0
+    storeimmutable second, arg1
+    v0 = icall @reader, 1
+    sstore 0, v0
+    stop
+}
+
+fn @reader() -> u8 {
+  bb0:
+    v0 = loadimmutable first
+    ret v0
+}
+
+fn @panic_chain() {
+  bb0:
+    tail_call @panic
+}
+
+fn @panic() {
+  bb0:
+    revert 0, 0
 }

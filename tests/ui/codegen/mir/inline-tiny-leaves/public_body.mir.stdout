@@ -15,7 +15,7 @@ fn @constructor(arg0: u256) [constructor] {
     v3 = gt v2, v1
     jumpi v3, bb2, bb3
   bb3:
-    mstore 192, arg0
+    mstore 192, arg0 !metadata(compiler_memory)
     stop
   bb2:
     revert 0, 0

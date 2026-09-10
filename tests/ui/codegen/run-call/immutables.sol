@@ -1,4 +1,5 @@
-//@ revisions: default size byzantium
+//@ revisions: default gas size byzantium
+//@[gas] compile-flags: -O gas
 //@[size] compile-flags: -O size
 //@[byzantium] compile-flags: --evm-version byzantium
 //@ run-call: tiny; constructor=[171, -1234, 0x000000000000000000000000000000000000beef, 48879, true] => 171
@@ -12,6 +13,8 @@
 //@ run-call: callFunctionPointer; constructor=[171, -1234, 0x000000000000000000000000000000000000beef, 48879, true] => 7
 //@ run-call: OneByteImmutables::read; constructor=[171, -5, 0xab] => 171, -5, 0xab
 //@ run-call: SyntheticImmutableFrame::marker => 77
+
+//@ run-call: ImmutableSourceMemory::read; constructor=[77] => 77, 77, 78, 0
 
 type Tiny is uint16;
 
@@ -79,4 +82,33 @@ contract SyntheticFrameBase {
 
 contract SyntheticImmutableFrame is SyntheticFrameBase {
     uint256 public immutable marker = 77;
+}
+
+contract ImmutableSourceMemory {
+    uint256 public immutable first;
+    uint256 public immutable duplicate;
+    uint256 public immutable next;
+    uint256 public observed;
+
+    constructor(uint256 value) {
+        first = value;
+        duplicate = first;
+        next = readNext();
+        uint256 word;
+        assembly {
+            word := mload(0xc0)
+            mstore(0xc0, 0xdead)
+            mstore(0xe0, 0xbeef)
+            mstore(0x100, 0xbad)
+        }
+        observed = word;
+    }
+
+    function readNext() internal view returns (uint256) {
+        return duplicate + 1;
+    }
+
+    function read() external view returns (uint256, uint256, uint256, uint256) {
+        return (first, duplicate, next, observed);
+    }
 }

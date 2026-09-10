@@ -57,7 +57,7 @@ fn @frameShadow() -> (u256, u256, u256, u256) [selector=0x7953faf2, pure, abi_pa
     ret 1, 2, 3, 4
 }
 
-fn @rawAssembly() -> u256 [selector=0x89eb38b4, pure, abi_params=[], abi_returns=[word]] {
+fn @rawAssembly() -> u256 [selector=0x89eb38b4, unrestricted_memory, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     mstore 64, v0 !metadata(memory=scratch)

@@ -18,6 +18,9 @@
 //! exists for callees the backend gives a static frame (bodied, selectorless,
 //! non-recursive), so calls to any other callee are left as ordinary calls.
 //!
+//! Required source-memory contexts first remove invariant phi aliases so constants and
+//! stable expressions retain their recomputation eligibility without compiler-owned slots.
+//!
 //! The backend also eliminates phis by copying each incoming value at the end of its predecessor.
 //! When a phi's previous value remains live on a sibling edge, that copy must run after the branch
 //! selects the phi successor. This pass isolates only those copies in a single-successor block.
@@ -26,7 +29,7 @@ use crate::mir::{
     Function, InstKind, MirPhase, Module, Terminator,
     analysis::{CallGraphInfo, CfgInfo, Liveness},
     pass::MirPass,
-    transform::cfg_simplify::remove_unreachable_blocks,
+    transform::cfg_simplify::{CfgSimplify, remove_unreachable_blocks},
     utils::{repair_reachability_phis, split_edge},
 };
 use solar_data_structures::bit_set::DenseBitSet;
@@ -151,7 +154,13 @@ fn lower_evm_shaped(module: &mut Module) -> bool {
             }
         }
     }
+    let needs_stack_owned_state =
+        module.functions.iter().any(|func| func.attributes.unrestricted_memory);
     for func in &mut module.functions {
+        if needs_stack_owned_state {
+            // phi [entry: value], [backedge: self] -> value
+            CfgSimplify::simplify_trivial_phis(func);
+        }
         split_clobbering_phi_edges(func);
     }
 

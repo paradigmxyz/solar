@@ -1,7 +1,11 @@
 //! Module-level call graph facts for MIR.
 
-use crate::mir::{Function, FunctionId, InstKind, Module, Terminator};
-use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
+use crate::mir::{BlockId, Function, FunctionId, InstKind, Module, Terminator};
+use solar_data_structures::{
+    bit_set::{DenseBitSet, GrowableBitSet},
+    index::IndexVec,
+    map::FxHashMap,
+};
 use std::collections::VecDeque;
 
 /// Module-level internal-call graph facts.
@@ -70,6 +74,100 @@ impl CallGraphInfo {
             }
         }
         component
+    }
+
+    /// Finds functions whose reachable exits all abort, including chains of
+    /// calls to other cold functions.
+    pub(crate) fn collect_cold_functions(module: &Module) -> DenseBitSet<FunctionId> {
+        let mut cold = DenseBitSet::new_empty(module.functions.len());
+        let mut worklist = Vec::new();
+        let mut visited = GrowableBitSet::new_empty();
+        loop {
+            let mut changed = false;
+            for (function_id, func) in module.functions.iter_enumerated() {
+                if cold.contains(function_id) {
+                    continue;
+                }
+                worklist.clear();
+                worklist.push(BlockId::ENTRY);
+                visited.clear();
+                let mut saw_exit = false;
+                let mut all_exits_cold = true;
+                while let Some(block_id) = worklist.pop()
+                    && all_exits_cold
+                {
+                    if !visited.insert(block_id) {
+                        continue;
+                    }
+                    let block = &func.blocks[block_id];
+                    if block.instructions.iter().any(|&inst_id| {
+                        matches!(
+                            func.inst(inst_id).kind,
+                            InstKind::ICall { function, .. } if cold.contains(function)
+                        )
+                    }) {
+                        saw_exit = true;
+                        continue;
+                    }
+                    let Some(term) = block.terminator.as_ref() else {
+                        all_exits_cold = false;
+                        continue;
+                    };
+                    match term {
+                        Terminator::Revert { .. }
+                        | Terminator::RevertReturndata
+                        | Terminator::Invalid => {
+                            saw_exit = true;
+                        }
+                        Terminator::TailCall { function, .. } if cold.contains(*function) => {
+                            saw_exit = true;
+                        }
+                        _ => {
+                            let successors = term.successors();
+                            if successors.is_empty() {
+                                all_exits_cold = false;
+                            } else {
+                                worklist.extend(successors);
+                            }
+                        }
+                    }
+                }
+                if saw_exit && all_exits_cold {
+                    cold.insert(function_id);
+                    changed = true;
+                }
+            }
+            if !changed {
+                return cold;
+            }
+        }
+    }
+
+    /// Returns functions sharing a call context with unrestricted source memory.
+    /// The dispatcher is excluded: independent external entries have separate memory
+    /// lifetimes, while a shared helper inherits the strictest caller's convention.
+    pub(crate) fn source_only_memory_contexts(&self, module: &Module) -> DenseBitSet<FunctionId> {
+        let mut unrestricted = DenseBitSet::new_empty(module.functions.len());
+        for (id, func) in module.functions.iter_enumerated() {
+            if func.attributes.unrestricted_memory {
+                unrestricted.insert(id);
+            }
+        }
+        let mut required = unrestricted.clone();
+        if unrestricted.is_empty() {
+            return required;
+        }
+        for id in module.functions.indices() {
+            if Some(id) == module.dispatch_entry() {
+                continue;
+            }
+            let mut reachable = self.reachable_callees_from([id]);
+            reachable.insert(id);
+            if unrestricted.iter().any(|callee| reachable.contains(callee)) {
+                required.union(&reachable);
+            }
+        }
+        required
     }
 
     /// Returns functions reachable from `roots` through MIR call edges.
@@ -215,6 +313,38 @@ impl CallGraphInfo {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::mir::FunctionBuilder;
+    use solar_interface::Ident;
+
+    #[test]
+    fn cold_calls_exclude_normally_returning_tails() {
+        let mut module = Module::new(Ident::DUMMY);
+        let mut abort = Function::new(Ident::DUMMY);
+        // abort: revert 0, 0
+        let mut builder = FunctionBuilder::new(&mut abort);
+        let zero = builder.imm(0);
+        builder.revert(zero, zero);
+        let abort = module.add_function(abort);
+
+        let mut returning = Function::new(Ident::DUMMY);
+        // returning: ret
+        FunctionBuilder::new(&mut returning).ret([]);
+        let returning = module.add_function(returning);
+
+        let mut cold_tail = Function::new(Ident::DUMMY);
+        // cold_tail: tail_call abort
+        FunctionBuilder::new(&mut cold_tail).tail_call(abort, Vec::new());
+        let cold_tail = module.add_function(cold_tail);
+        let mut warm_tail = Function::new(Ident::DUMMY);
+        // warm_tail: tail_call returning
+        FunctionBuilder::new(&mut warm_tail).tail_call(returning, Vec::new());
+        module.add_function(warm_tail);
+
+        assert_eq!(
+            CallGraphInfo::collect_cold_functions(&module).iter().collect::<Vec<_>>(),
+            [abort, cold_tail]
+        );
+    }
 
     #[test]
     fn recursion_excludes_callers_outside_the_cycle() {

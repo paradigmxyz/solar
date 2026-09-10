@@ -54,7 +54,7 @@ fn @validateArray(arg0: calldataslice) -> u256 [selector=0xc124fd97, pure, abi_p
     revert 0, 36
 }
 
-fn @memoryLayout() -> bool [selector=0x5caf991a, view, abi_params=[], abi_returns=[word<bool>]] {
+fn @memoryLayout() -> bool [selector=0x5caf991a, unrestricted_memory, view, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     v1 = address
@@ -72,7 +72,7 @@ fn @memoryLayout() -> bool [selector=0x5caf991a, view, abi_params=[], abi_return
     ret v11
 }
 
-fn @cleanup(arg0: u256) -> (u256, u256) [selector=0x0aa40018, view, abi_params=[u256], abi_returns=[word, word]] {
+fn @cleanup(arg0: u256) -> (u256, u256) [selector=0x0aa40018, unrestricted_memory, view, abi_params=[u256], abi_returns=[word, word]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     v1 = address
@@ -124,7 +124,7 @@ fn @cleanup(arg0: u256) -> (u256, u256) [selector=0x0aa40018, view, abi_params=[
     revert 0, 0
 }
 
-fn @dirtyReturn(arg0: u256) -> memorystruct [selector=0x2aae0ed6, view, abi_params=[u256], abi_returns=[tuple<function>], abi_return_params=[tuple<function>]] {
+fn @dirtyReturn(arg0: u256) -> memorystruct [selector=0x2aae0ed6, unrestricted_memory, view, abi_params=[u256], abi_returns=[tuple<function>], abi_return_params=[tuple<function>]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     v1 = address
@@ -136,7 +136,7 @@ fn @dirtyReturn(arg0: u256) -> memorystruct [selector=0x2aae0ed6, view, abi_para
     ret v0
 }
 
-fn @cleanupArray(arg0: u256) -> u256 [selector=0x7e130ca5, view, abi_params=[u256], abi_returns=[word]] {
+fn @cleanupArray(arg0: u256) -> u256 [selector=0x7e130ca5, unrestricted_memory, view, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1
@@ -165,7 +165,7 @@ fn @cleanupArray(arg0: u256) -> u256 [selector=0x7e130ca5, view, abi_params=[u25
     revert 0, 0
 }
 
-fn @packedArray(arg0: u256) -> memorybytes [selector=0xc341d66f, pure, abi_params=[u256], abi_returns=[memory_bytes]] {
+fn @packedArray(arg0: u256) -> memorybytes [selector=0xc341d66f, unrestricted_memory, pure, abi_params=[u256], abi_returns=[memory_bytes]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1
@@ -235,7 +235,7 @@ fn @packedArray(arg0: u256) -> memorybytes [selector=0xc341d66f, pure, abi_param
     revert 0, 36
 }
 
-fn @memoryStructToStorage(arg0: u256) -> u256 [selector=0xb4caea8f, abi_params=[u256], abi_returns=[word]] {
+fn @memoryStructToStorage(arg0: u256) -> u256 [selector=0xb4caea8f, unrestricted_memory, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     v1 = address
@@ -277,7 +277,7 @@ fn @memoryStructToStorage(arg0: u256) -> u256 [selector=0xb4caea8f, abi_params=[
     revert 0, 0
 }
 
-fn @storageStructToMemory() -> bool [selector=0x9a40632d, abi_params=[], abi_returns=[word<bool>]] {
+fn @storageStructToMemory() -> bool [selector=0x9a40632d, unrestricted_memory, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     v1 = address
@@ -308,7 +308,7 @@ fn @storageStructToMemory() -> bool [selector=0x9a40632d, abi_params=[], abi_ret
     ret v22
 }
 
-fn @memoryArrayToStorage(arg0: u256) -> u256 [selector=0xe3183809, abi_params=[u256], abi_returns=[word]] {
+fn @memoryArrayToStorage(arg0: u256) -> u256 [selector=0xe3183809, unrestricted_memory, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1
@@ -411,7 +411,7 @@ fn @memoryArrayToStorage(arg0: u256) -> u256 [selector=0xe3183809, abi_params=[u
     jump bb3
 }
 
-fn @storageArrayToMemory() -> bool [selector=0xc4550e60, abi_params=[], abi_returns=[word<bool>]] {
+fn @storageArrayToMemory() -> bool [selector=0xc4550e60, unrestricted_memory, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = address
     v1 = shl 32, v0

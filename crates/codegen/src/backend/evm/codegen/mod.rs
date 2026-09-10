@@ -13,6 +13,7 @@
 //! planning, edge transitions, and spilling.
 
 use self::{
+    memory_contract::MemoryCheckedEmitter,
     stack::{
         MAX_STACK_ACCESS, OperandCostModel, OperandPlan, ScheduleCost, ScheduledOp, SpillSlot,
         StackScheduler, TargetSlot, cross_block_values, is_cross_block_recomputable_kind,
@@ -71,11 +72,13 @@ mod deployment;
 mod frames;
 mod function;
 mod instructions;
+mod memory_contract;
 mod runtime;
 mod terminator;
 mod values;
 
 const STACK_PHI_LAYOUT_LIMIT: usize = 8;
+/// Bounds profitability search; physical layouts use the EVM stack-access limit.
 const GLOBAL_STACK_LAYOUT_LIMIT: usize = 8;
 
 #[derive(Default)]
@@ -168,13 +171,15 @@ struct StaticCallStackPlan {
     caller_stack: StackModel,
 }
 
-/// Stack-native exit signature for a non-recursive static callee.
+/// Stack-native exit signature for an internal callee.
 #[derive(Clone, Copy, Debug)]
 struct StackReturnPlan {
     /// Number of result words left on the physical stack.
     arity: usize,
     /// First local/spill byte in the original MIR frame layout.
     local_base: u64,
+    /// Whether the call occurs within assembly that may retain source scratch contents.
+    preserve_source_scratch: bool,
 }
 
 /// Caller-side binding of stack-returned tuple words to their multi-return
@@ -184,7 +189,7 @@ struct StackResultProjection {
     /// loads; all skipped during emission.
     elided: Vec<InstId>,
     /// The adopted load result for each extra return index `1..arity`.
-    extras: Vec<ValueId>,
+    extras: Vec<Option<ValueId>>,
 }
 
 /// Subset-invariant analyses shared by one resident-layout subset search.
@@ -197,12 +202,16 @@ struct ResidentSearchContext {
     value_uses: FxHashMap<ValueId, usize>,
 }
 
-/// Complete stack calling convention selected for one non-recursive static callee.
+/// Complete stack calling convention selected for one internal callee.
 #[derive(Clone, Debug)]
 struct StaticCallAbi {
+    /// Recursive activations use only stack arguments, locals, and results.
+    recursive_stack: bool,
     /// Argument positions delivered above the return address. Arguments not selected here keep
     /// their static-frame homes, which is the conservative per-word spill fallback.
     stack_args: DenseBitSet<usize>,
+    /// Unused parameters whose argument values need no delivery or frame home.
+    ignored_args: DenseBitSet<usize>,
     /// How the callee adopts the incoming argument tuple.
     entry: StaticCallEntry,
     /// Complete tuple returned above the preserved caller prefix, when profitable.
@@ -213,6 +222,8 @@ impl StaticCallAbi {
     fn new(arg_count: usize) -> Self {
         Self {
             stack_args: DenseBitSet::new_empty(arg_count),
+            recursive_stack: false,
+            ignored_args: DenseBitSet::new_empty(arg_count),
             entry: StaticCallEntry::Stored,
             returns: None,
         }
@@ -245,7 +256,7 @@ struct ICallStackEdge {
 pub struct EvmCodegen<'gcx> {
     gcx: Gcx<'gcx>,
     /// The assembler for bytecode generation.
-    asm: Assembler<'gcx>,
+    asm: MemoryCheckedEmitter<'gcx>,
     /// Stack scheduler.
     scheduler: StackScheduler,
     /// Block labels.
@@ -364,8 +375,8 @@ pub struct EvmCodegen<'gcx> {
     msize_observed_functions: GrowableBitSet<FunctionId>,
     /// Functions that can overwrite their caller's low-memory frame.
     spill_clobber_functions: GrowableBitSet<FunctionId>,
-    /// Functions sharing heap allocations made after an explicit low free-memory-pointer reset.
-    low_fmp_functions: GrowableBitSet<FunctionId>,
+    /// Functions sharing a call context with assembly that permits arbitrary memory access.
+    unrestricted_memory_functions: GrowableBitSet<FunctionId>,
     /// Heap-pointer arguments sufficient to keep a helper's writes out of caller spills.
     spill_clobber_args: FxHashMap<FunctionId, DenseBitSet<ArgIdx>>,
     /// Whether deep forwarding recovery must avoid expanding memory in this function.
@@ -417,7 +428,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let switch_gas_code_growth_remaining = Self::switch_gas_code_growth_limit(gcx);
         Self {
             gcx,
-            asm: Assembler::new(gcx),
+            asm: MemoryCheckedEmitter::new(gcx),
             scheduler: StackScheduler::for_evm_version(gcx.sess.opts.evm_version),
             block_labels: FxHashMap::default(),
             function_labels: FxHashMap::default(),
@@ -461,7 +472,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             spill_hazard_values: DenseBitSet::new_empty(0),
             msize_observed_functions: GrowableBitSet::new_empty(),
             spill_clobber_functions: GrowableBitSet::new_empty(),
-            low_fmp_functions: GrowableBitSet::new_empty(),
+            unrestricted_memory_functions: GrowableBitSet::new_empty(),
             spill_clobber_args: FxHashMap::default(),
             forwarding_scratch_observable: false,
             heap_pointer_return_functions: DenseBitSet::new_empty(0),
@@ -524,7 +535,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.late_gas_operands.clear();
         self.stack_phi_plans.clear();
         self.spill_clobber_functions.clear();
-        self.low_fmp_functions.clear();
+        self.unrestricted_memory_functions.clear();
         self.spill_clobber_args.clear();
         self.spill_hazard_insts.clear();
         self.spill_hazard_values.clear();
@@ -969,6 +980,7 @@ mod tests {
             ]),
             aliases: FxHashMap::default(),
             terminal_sensitive: true,
+            layout_limit: MAX_STACK_ACCESS,
         };
 
         assert_eq!(plan.uniformly_carried_values(&function, &term), [first]);
@@ -1030,6 +1042,7 @@ mod tests {
             entries: FxHashMap::from_iter([(join, vec![ValueId::from_usize(MAX_STACK_ACCESS)])]),
             aliases: FxHashMap::default(),
             terminal_sensitive: true,
+            layout_limit: MAX_STACK_ACCESS,
         };
 
         assert!(!phi.merge_resident(&function, &resident));

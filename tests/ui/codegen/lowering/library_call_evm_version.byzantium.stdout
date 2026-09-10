@@ -138,14 +138,7 @@ fn @two(arg0: u256) -> (u256, u256) [selector=0xcf2a8612, pure, abi_params=[u256
     v13 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v14 = add v13, 32
     v15 = mload v14
-    v16 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v17 = memory_object_data memoryfixedarray, v16
-    frame_store multi_return, word, 0, v17 !metadata(memory=scratch)
-    memory_object_store_element memoryfixedarray<2, 1>, v16, 1, v15
-    v18 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v19 = add v18, 32
-    v20 = mload v19
-    ret v12, v20
+    ret v12, v15
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -311,26 +304,7 @@ fn @dynamicArgument(arg0: memorybytes) -> (u256, u256) [selector=0x11b8efbf, pur
     v21 = mload v20
     v22 = add v13, 160
     v23 = mload v22
-    v24 = alloc memoryfixedarray<6, 1>, exact, uninitialized, infallible, 192
-    v25 = memory_object_data memoryfixedarray, v24
-    frame_store multi_return, word, 0, v25 !metadata(memory=scratch)
-    memory_object_store_element memoryfixedarray<6, 1>, v24, 1, v15
-    memory_object_store_element memoryfixedarray<6, 1>, v24, 2, v17
-    memory_object_store_element memoryfixedarray<6, 1>, v24, 3, v19
-    memory_object_store_element memoryfixedarray<6, 1>, v24, 4, v21
-    memory_object_store_element memoryfixedarray<6, 1>, v24, 5, v23
-    v26 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v27 = add v26, 32
-    v28 = mload v27
-    v29 = add v26, 64
-    v30 = mload v29
-    v31 = add v26, 96
-    v32 = mload v31
-    v33 = add v26, 128
-    v34 = mload v33
-    v35 = add v26, 160
-    v36 = mload v35
-    ret v12, v36
+    ret v12, v23
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)

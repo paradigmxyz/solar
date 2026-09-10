@@ -61,7 +61,7 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     revert 0, 0
 }
 
-fn @_cloneDeterministic(arg0: address, arg1: memorybytes, arg2: bytes32) -> address {
+fn @_cloneDeterministic(arg0: address, arg1: memorybytes, arg2: bytes32) -> address [unrestricted_memory] {
   bb0:
     v0 = icall @_creationStart, 1, arg1
     v1 = sub arg1, 96

@@ -3519,7 +3519,7 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
                 }
                 return ControlFlow::Continue(());
             }
-            hir::StmtKind::AssemblyBlock(block) => {
+            hir::StmtKind::AssemblyBlock(block, _) => {
                 let prev = std::mem::replace(&mut self.in_yul, true);
                 for stmt in block.stmts {
                     self.visit_stmt(stmt)?;

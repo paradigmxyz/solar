@@ -1,7 +1,10 @@
 //! Function inlining optimization pass.
 //!
 //! This module inlines profitable MIR internal calls to remove their call
-//! protocol and expose further optimization opportunities.
+//! protocol and expose further optimization opportunities. Tuple-return calls keep their
+//! call ABI in any constructor or runtime context containing unrestricted source memory:
+//! inlining those calls would publish results through a compiler-private buffer. The
+//! context is computed before rewriting so callee order cannot hide the memory constraint.
 
 use crate::mir::{
     AbiLayout, AbiType, BlockId, FrameMode, FrameSlotKind, Function, FunctionBuilder,
@@ -250,6 +253,7 @@ impl MirInliner {
 
         let mut call_counts = self.call_counts(module);
         let call_graph = CallGraphInfo::new(module);
+        let source_only_contexts = call_graph.source_only_memory_contexts(module);
         let preferred_large_call_sites = self.preferred_large_call_sites(module, &summaries);
 
         // Specialize dispatcher calls before helper-local inlining introduces phis.
@@ -288,6 +292,8 @@ impl MirInliner {
                 if module_code_size >= self.max_module_code_size
                     || grew_too_much
                     || framed_constructor_call
+                    || (source_only_contexts.contains(caller_id)
+                        && module.functions[site.callee].returns.len() > 1)
                     || call_graph.is_recursive(site.callee)
                     || !self.is_inlineable(
                         caller_id,
@@ -1012,6 +1018,7 @@ fn specialize_function_pointers(module: &mut Module) -> usize {
         return 0;
     }
 
+    let source_only_contexts = CallGraphInfo::new(module).source_only_memory_contexts(module);
     let mut specialized = 0;
     for index in 0..module.functions.len() {
         let caller = MirFunctionId::from_usize(index);
@@ -1041,6 +1048,7 @@ fn specialize_function_pointers(module: &mut Module) -> usize {
                     specialized += 1;
                 }
             } else if dispatcher.instructions().take(4097).count() <= 4096
+                && !(source_only_contexts.contains(caller) && dispatcher.returns.len() > 1)
                 // Constructors resolve cloned `InternalFrameAddr` offsets through the
                 // uninitialized internal-frame pointer, so a framed dispatcher must never
                 // be inlined into one. Dispatchers are frameless by construction today;
@@ -1170,7 +1178,7 @@ fn propagate_function_pointer_cast(
     true
 }
 
-fn inline_call(
+pub(super) fn inline_call(
     caller: &mut Function,
     call_block: BlockId,
     call_inst_index: usize,
@@ -1196,6 +1204,13 @@ fn inline_call_impl(
         return None;
     };
     let returns = returns as usize;
+    if returns > 1
+        && (caller.attributes.unrestricted_memory
+            || callee.attributes.unrestricted_memory
+            || callee.attributes.is_yul)
+    {
+        return None;
+    }
     if returns != callee.returns.len() {
         return None;
     }
@@ -1205,6 +1220,7 @@ fn inline_call_impl(
         return None;
     }
 
+    caller.attributes.unrestricted_memory |= callee.attributes.unrestricted_memory;
     let continuation = caller.alloc_block();
     let (old_terminator, metadata) = caller.blocks[call_block].take_terminator();
     let old_successors = old_terminator.as_ref().map(Terminator::successors).unwrap_or_default();
@@ -1316,6 +1332,9 @@ impl<'a> InlineCloner<'a> {
                 let inst = self.callee.inst(inst_id).clone();
                 let mut instruction = Instruction::new(inst.kind.clone(), inst.result_ty);
                 instruction.metadata.copy_debug_context(&inst.metadata);
+                if inst.metadata.requires_private_memory() {
+                    instruction.metadata.set_requires_private_memory();
+                }
                 let new_inst = if let Some(callee_result) = self.callee.inst_result_value(inst_id) {
                     let (new_inst, new_result) = self.caller.alloc_value_inst(instruction);
                     self.value_map.insert(callee_result, new_result);
@@ -1521,7 +1540,7 @@ fn insert_return_buffer_stores(
             } else {
                 builder.internal_frame_addr(frame_offset.checked_add(offset)?)
             };
-            builder.mstore(offset, value);
+            builder.private_mstore(offset, value);
         }
         let base = if caller_is_external {
             builder.imm(EvmMemoryLayout::HEAP_START.checked_add(local_offset)?)

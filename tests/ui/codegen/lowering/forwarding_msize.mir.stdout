@@ -8,13 +8,13 @@ fn @fallback() [fallback] {
     returndata 0, 32
 }
 
-fn @readSize() -> u256 [pure] {
+fn @readSize() -> u256 [unrestricted_memory, pure] {
   bb0:
     v0 = msize
     ret v0
 }
 
-fn @recover() {
+fn @recover() [unrestricted_memory] {
   bb0:
     v0 = calldatasize
     calldatacopy 0, 0, v0 !metadata(memory=scratch)

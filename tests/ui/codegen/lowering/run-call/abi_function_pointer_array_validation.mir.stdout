@@ -58,7 +58,7 @@ fn @checkM(arg0: bool) -> u256 [selector=0xfad9a4f1, view, abi_params=[bool], ab
     ret v0
 }
 
-fn @invoke(arg0: bytes4, arg1: bool, arg2: u256) -> u256 [view] {
+fn @invoke(arg0: bytes4, arg1: bool, arg2: u256) -> u256 [unrestricted_memory, view] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1

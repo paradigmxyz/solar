@@ -260,9 +260,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn parse_data_declarations(&mut self, module: &mut Module) -> PResult<'sess, ()> {
         self.parser.expect_keyword(sym::data)?;
         self.parser.expect(TokenKind::Colon)?;
-        while !self.parser.is_eof()
-            && !self.parser.check_keyword(sym::immutables)
-            && !(self.parser.check_keyword(sym::fn_)
+        while !(self.parser.is_eof()
+            || self.parser.check_keyword(sym::immutables)
+            || self.parser.check_keyword(sym::fn_)
                 && self.parser.look_ahead(1).kind == TokenKind::At)
         {
             let (id, name) = self.parser.parse_data_id()?;
@@ -281,8 +281,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn parse_immutable_declarations(&mut self, module: &mut Module) -> PResult<'sess, ()> {
         self.parser.expect_keyword(sym::immutables)?;
         self.parser.expect(TokenKind::Colon)?;
-        while !self.parser.is_eof()
-            && !(self.parser.check_keyword(sym::fn_)
+        while !(self.parser.is_eof()
+            || self.parser.check_keyword(sym::fn_)
                 && self.parser.look_ahead(1).kind == TokenKind::At)
         {
             let name_span = self.parser.token().span;
@@ -529,6 +529,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     builder.func_mut().abi_params = Some(self.parse_abi_param_layout()?);
                 }
                 sym::entry => self.parsed_dispatch_entry = true,
+                sym::unrestricted_memory => {
+                    builder.func_mut().attributes.unrestricted_memory = true;
+                }
                 sym::may_return_memory => {
                     builder.func_mut().attributes.may_return_memory = true;
                 }
@@ -1247,6 +1250,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 kw::Unchecked => {
                     metadata.set_unchecked(true);
                 }
+                sym::compiler_memory => {
+                    metadata.set_requires_private_memory();
+                }
                 sym::deferred_alloc => {
                     metadata.set_deferred_alloc();
                 }
@@ -1601,6 +1607,13 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 (InstKind::MemoryObjectElementAddr { object, layout, index }, Some(MirType::MemPtr))
             }
             sym::memory_object_load_field => {
+                let result_ty = if self.parser.eat(TokenKind::Lt) {
+                    let ty = self.parse_type()?;
+                    self.parser.expect(TokenKind::Gt)?;
+                    ty
+                } else {
+                    MirType::uint256()
+                };
                 let name = self.parser.parse_ident()?;
                 let layout = self.parse_memory_object_layout(name)?;
                 self.parser.expect(TokenKind::Comma)?;
@@ -1611,10 +1624,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     .parse_uint()?
                     .try_into()
                     .map_err(|_| self.parser.error("memory field index does not fit in u64"))?;
-                (
-                    InstKind::MemoryObjectLoadField { object, layout, field },
-                    Some(MirType::uint256()),
-                )
+                (InstKind::MemoryObjectLoadField { object, layout, field }, Some(result_ty))
             }
             sym::memory_object_store_field => {
                 let name = self.parser.parse_ident()?;
@@ -1632,16 +1642,20 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 (InstKind::MemoryObjectStoreField { object, layout, field, value }, None)
             }
             sym::memory_object_load_element => {
+                let result_ty = if self.parser.eat(TokenKind::Lt) {
+                    let ty = self.parse_type()?;
+                    self.parser.expect(TokenKind::Gt)?;
+                    ty
+                } else {
+                    MirType::uint256()
+                };
                 let name = self.parser.parse_ident()?;
                 let layout = self.parse_memory_object_layout(name)?;
                 self.parser.expect(TokenKind::Comma)?;
                 let object = self.parse_value(builder)?;
                 self.parser.expect(TokenKind::Comma)?;
                 let index = self.parse_value(builder)?;
-                (
-                    InstKind::MemoryObjectLoadElement { object, layout, index },
-                    Some(MirType::uint256()),
-                )
+                (InstKind::MemoryObjectLoadElement { object, layout, index }, Some(result_ty))
             }
             sym::memory_object_load_byte => {
                 let name = self.parser.parse_ident()?;
@@ -1812,10 +1826,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     Value::Inst(inst)
                         if matches!(builder.func().inst(*inst).kind, InstKind::ICall { .. })
                 );
-                if !matches!(data_ty, Some(MirType::MemoryObject(MemoryObjectKind::Bytes)))
-                    && !(data_ty == Some(MirType::MemPtr)
+                if !(matches!(data_ty, Some(MirType::MemoryObject(MemoryObjectKind::Bytes)))
+                    || pending_call
+                    || data_ty == Some(MirType::MemPtr)
                         && !layout.types.iter().any(AbiParamType::has_dynamic_child))
-                    && !pending_call
                 {
                     return Err(self
                         .parser

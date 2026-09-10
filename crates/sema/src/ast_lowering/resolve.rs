@@ -260,6 +260,7 @@ pub(super) struct ResolveContext<'gcx> {
     function_id: Option<hir::FunctionId>,
     yul_scopes: Vec<usize>,
     yul_function_scope: Option<usize>,
+    yul_memory_safe: bool,
 }
 
 impl<'gcx> std::ops::Deref for ResolveContext<'gcx> {
@@ -285,6 +286,7 @@ impl<'gcx> ResolveContext<'gcx> {
             function_id: None,
             yul_scopes: Vec::new(),
             yul_function_scope: None,
+            yul_memory_safe: false,
         }
     }
 
@@ -1022,7 +1024,7 @@ impl<'gcx> ResolveContext<'gcx> {
                 })),
                 self.lower_expr(expr),
             ),
-            ast::StmtKind::Assembly(assembly) => self.lower_yul_assembly(assembly),
+            ast::StmtKind::Assembly(assembly) => self.lower_yul_assembly(assembly, &stmt.docs),
             ast::StmtKind::Block(stmts) => hir::StmtKind::Block(self.lower_block(stmts)),
             ast::StmtKind::UncheckedBlock(stmts) => {
                 hir::StmtKind::UncheckedBlock(self.lower_block(stmts))
@@ -1066,7 +1068,11 @@ impl<'gcx> ResolveContext<'gcx> {
         hir::Stmt { span: stmt.span, kind }
     }
 
-    fn lower_yul_assembly(&mut self, assembly: &ast::StmtAssembly<'_>) -> hir::StmtKind<'gcx> {
+    fn lower_yul_assembly(
+        &mut self,
+        assembly: &ast::StmtAssembly<'_>,
+        docs: &ast::DocComments<'_>,
+    ) -> hir::StmtKind<'gcx> {
         let mut memory_safe = false;
         for flag in assembly.flags.iter() {
             let span = flag.span;
@@ -1087,7 +1093,14 @@ impl<'gcx> ResolveContext<'gcx> {
             }
         }
 
-        hir::StmtKind::AssemblyBlock(self.lower_yul_block(&assembly.block))
+        memory_safe |= docs.iter().flat_map(|doc| doc.natspec.iter()).any(|item| {
+            matches!(item.kind, ast::NatSpecKind::Internal { tag } if tag.name == sym::solidity)
+                && item.content().trim() == sym::memory_dash_safe.as_str()
+        });
+        let previous = std::mem::replace(&mut self.yul_memory_safe, memory_safe);
+        let block = self.lower_yul_block(&assembly.block);
+        self.yul_memory_safe = previous;
+        hir::StmtKind::AssemblyBlock(block, memory_safe)
     }
 
     fn lower_yul_block(&mut self, block: &ast::yul::Block<'_>) -> hir::Block<'gcx> {
@@ -1143,7 +1156,9 @@ impl<'gcx> ResolveContext<'gcx> {
             self.lower_yul_function_variables(id, function.returns, hir::VarKind::FunctionReturn);
 
         let block = self.lower_yul_block(&function.body);
-        let unchecked = self.hir_builder().stmt(hir::StmtKind::AssemblyBlock(block), block.span);
+        let unchecked = self
+            .hir_builder()
+            .stmt(hir::StmtKind::AssemblyBlock(block, self.yul_memory_safe), block.span);
         let body = self.hir_builder().block(self.arena.alloc_as_slice(unchecked), block.span);
 
         self.yul_function_scope = previous_yul_function_scope;

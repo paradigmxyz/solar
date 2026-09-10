@@ -17,3 +17,20 @@ fn @same_block() -> u256 {
     v7 = mload v6
     ret v7
 }
+
+// A store in the second slot must use the first slot's promoted value.
+// CHECK-LABEL: {{^[ +].*}}fn @dependent_slots{{[( ]}}
+// CHECK: + ret arg0
+fn @dependent_slots(arg0: u256) -> u256 {
+  bb0:
+    v1 = internal_frame_addr 128
+    mstore v1, arg0
+    v2 = mload v1
+    v3 = internal_frame_addr 160
+    mstore v3, v2
+    jump bb1
+  bb1:
+    v4 = internal_frame_addr 160
+    v5 = mload v4
+    ret v5
+}

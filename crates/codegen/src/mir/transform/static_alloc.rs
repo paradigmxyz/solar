@@ -62,6 +62,9 @@ impl MirPass for StaticAlloc {
             .unwrap_or(EvmMemoryLayout::HEAP_START);
 
         let mut changed = false;
+        if module.functions.iter().any(|func| func.attributes.unrestricted_memory) {
+            return false;
+        }
         let calls = CallGraphInfo::new(module);
         let summaries = analyses.call_summaries(module);
         for (func_id, func) in module.functions.iter_mut_enumerated() {
@@ -88,6 +91,9 @@ impl MirPass for DeferAlloc {
         module: &mut Module,
         analyses: &mut ModuleAnalyses,
     ) -> bool {
+        if module.functions.iter().any(|func| func.attributes.unrestricted_memory) {
+            return false;
+        }
         let calls = CallGraphInfo::new(module);
         let summaries = analyses.call_summaries(module);
         let mut candidates = Vec::new();
@@ -504,8 +510,8 @@ fn call_use_is_safe(
         && !summary.may_observe_msize()
         && args.iter().enumerate().filter(|(_, arg)| **arg == operand).all(|(index, _)| {
             let index = ArgIdx::new(index);
-            !summary.captures_param(index)
-                && !(summary.may_observe_fmp() && summary.observes_param(index))
+            !(summary.captures_param(index)
+                || summary.may_observe_fmp() && summary.observes_param(index))
         })
         && args.contains(&operand)
 }

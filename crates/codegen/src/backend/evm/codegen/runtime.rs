@@ -32,7 +32,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             // without optimization: the overwritten frame slots cannot serve as a fallback.
             let mut preserve_caller_stack =
                 !matches!(self.gcx.sess.opts.optimization, OptimizationMode::None)
-                    || !self.low_fmp_functions.is_empty()
+                    || !self.unrestricted_memory_functions.is_empty()
                     || module
                         .functions
                         .iter()
@@ -58,16 +58,16 @@ impl<'gcx> EvmCodegen<'gcx> {
                 if !stack_fits && !self.icall_stack_edges.is_empty() {
                     if preserve_caller_stack
                         && self.spill_clobber_functions.is_empty()
-                        && self.low_fmp_functions.is_empty()
+                        && self.unrestricted_memory_functions.is_empty()
                     {
                         preserve_caller_stack = false;
                         continue;
                     }
-                    if runtime_stack_args && self.low_fmp_functions.is_empty() {
+                    if runtime_stack_args && self.unrestricted_memory_functions.is_empty() {
                         runtime_stack_args = false;
                         continue;
                     }
-                    if stack_returns_enabled && self.low_fmp_functions.is_empty() {
+                    if stack_returns_enabled && self.unrestricted_memory_functions.is_empty() {
                         stack_returns_enabled = false;
                         continue;
                     }
@@ -272,6 +272,13 @@ impl<'gcx> EvmCodegen<'gcx> {
             return;
         };
 
+        let reachable = call_graph.reachable_callees_from([entry_id]);
+        self.asm.require_source_memory(
+            std::iter::once(entry_id)
+                .chain(reachable.iter())
+                .any(|id| module.functions[id].attributes.unrestricted_memory),
+        );
+
         let mut classified_recursive_frames = DenseBitSet::new_empty(module.functions.len());
         for (root, _) in module.functions.iter_enumerated() {
             if !call_graph.is_recursive(root) || classified_recursive_frames.contains(root) {
@@ -351,14 +358,23 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
         if self.runtime_stack_args {
-            self.compute_stack_arg_masks(module);
+            let mut callers = internal_targets.clone();
+            callers.insert(entry_id);
+            for (id, func) in module.functions.iter_enumerated() {
+                if Self::is_external_entry(func) {
+                    callers.insert(id);
+                }
+            }
+            self.compute_stack_arg_masks(module, &callers);
             let stack_arg_values = self.collect_canonical_stack_arg_values(module);
-            self.compute_resident_stack_args(module, &stack_arg_values);
+            self.compute_resident_stack_args(module, &stack_arg_values, &callers);
             let stack_arg_uses = self.collect_stack_arg_uses(module);
             self.compute_lazy_stack_args(module, &stack_arg_values, &stack_arg_uses);
             self.compute_direct_stack_args(module, &stack_arg_values, &stack_arg_uses);
         }
         self.compute_stack_return_plans(module);
+        self.compute_recursive_stack_abis(module, call_graph);
+        self.validate_memory_call_abis(module, &internal_targets);
         // Labels for every tail-call and internal-call target.
         for (func_id, func) in module.functions.iter_enumerated() {
             if func_id == entry_id {
@@ -390,6 +406,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.asm.define_label(label);
             self.mark_debug_function_invoke(func);
             self.in_internal_function = false;
+            self.asm.require_source_memory(self.unrestricted_memory_functions.contains(func_id));
             self.emit_entry_free_memory_start(module, call_graph, func_id);
             self.generate_function_body(func_id, func);
             self.record_function_spill_size(func_id);
@@ -407,6 +424,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             let Some(&label) = self.function_labels.get(&func_id) else { continue };
             self.asm.define_label(label);
             self.mark_debug_function_invoke(func);
+            self.asm.require_source_memory(self.unrestricted_memory_functions.contains(func_id));
             self.emit_stack_arg_prologue(func_id, func);
             self.in_internal_function = true;
             self.current_internal_function = Some(func_id);

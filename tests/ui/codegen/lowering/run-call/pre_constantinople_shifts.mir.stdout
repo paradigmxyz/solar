@@ -26,7 +26,7 @@ fn @packedStorage() -> u256 [selector=0x6e5f4079, abi_params=[], abi_returns=[wo
     ret v6
 }
 
-fn @partialCopy() -> bytes32 [selector=0xb787ef80, pure, abi_params=[], abi_returns=[word]] {
+fn @partialCopy() -> bytes32 [selector=0xb787ef80, unrestricted_memory, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 7

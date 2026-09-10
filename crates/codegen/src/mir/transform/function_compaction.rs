@@ -807,6 +807,8 @@ fn equivalent_functions(
                     rhs_inst.kind.operands(),
                 )
                 || !equivalent_inst_payload(lhs_id, &lhs_inst.kind, rhs_id, &rhs_inst.kind)
+                || lhs_inst.metadata.requires_private_memory()
+                    != rhs_inst.metadata.requires_private_memory()
                 || lhs_inst.metadata.memory_region() != rhs_inst.metadata.memory_region()
                 || lhs_inst.metadata.effect() != rhs_inst.metadata.effect()
                 || lhs_inst.metadata.unchecked() != rhs_inst.metadata.unchecked()
@@ -871,6 +873,7 @@ fn equivalent_attributes(lhs: &Function, rhs: &Function) -> bool {
         && lhs.attributes.is_fallback == rhs.attributes.is_fallback
         && lhs.attributes.is_receive == rhs.attributes.is_receive
         && lhs.attributes.may_return_memory == rhs.attributes.may_return_memory
+        && lhs.attributes.unrestricted_memory == rhs.attributes.unrestricted_memory
         && lhs.attributes.is_function_pointer_dispatcher
             == rhs.attributes.is_function_pointer_dispatcher
         && lhs.attributes.no_inline == rhs.attributes.no_inline

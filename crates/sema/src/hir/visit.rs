@@ -225,7 +225,7 @@ pub trait Visit<'hir> {
             }
             StmtKind::Block(block)
             | StmtKind::UncheckedBlock(block)
-            | StmtKind::AssemblyBlock(block) => {
+            | StmtKind::AssemblyBlock(block, _) => {
                 for stmt in block.stmts {
                     self.visit_stmt(stmt)?;
                 }

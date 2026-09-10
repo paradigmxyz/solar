@@ -421,10 +421,13 @@ impl LowerSlices {
                     continue;
                 }
 
+                // base = mload multi_return_slot !metadata(compiler_memory)
+                // length = mload (base + 32) !metadata(compiler_memory)
+                // slice = make_slice result, length
                 let slot = builder.imm(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
-                let base = builder.mload(slot);
+                let base = builder.private_mload(slot);
                 let length_address = builder.add_u64_offset(base, EvmMemoryLayout::WORD_SIZE);
-                let length = builder.mload(length_address);
+                let length = builder.private_mload(length_address);
                 let slice = builder.make_slice(result, length, location);
                 let Value::Inst(constructor) = *builder.func().value(slice) else { unreachable!() };
                 replacements.insert(result, slice);

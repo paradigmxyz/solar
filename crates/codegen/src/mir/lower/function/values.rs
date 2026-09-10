@@ -1,6 +1,6 @@
 //! Tuple, return, and multi-value lowering.
 
-use super::*;
+use super::{calls::ExternalReturnMode, *};
 
 enum PreparedTupleAssignment<'gcx> {
     Value { place: LValuePlace<'gcx>, rhs: TupleAssignmentRhs<'gcx> },
@@ -66,6 +66,54 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             if let Some(returns) = returns
                 && returns > 1
             {
+                if function_ty.is_some_and(|function| function.is_delegate_call())
+                    && let Some(function_id) = resolved_function
+                {
+                    let receiver = if self
+                        .cx
+                        .gcx
+                        .resolved_callee(callee.id)
+                        .is_some_and(|callee| callee.attached)
+                    {
+                        let ExprKind::Member(receiver, _) = callee.kind else {
+                            return self
+                                .cx
+                                .report_unsupported(expr.span, "attached function receiver");
+                        };
+                        Some(receiver)
+                    } else {
+                        None
+                    };
+                    let function_id = self.resolve_call_target(callee, function_id);
+                    let address = self.library_address(function_id);
+                    // values = delegatecall(library, selector, receiver, args)
+                    return self.lower_library_call_values(
+                        expr,
+                        function_id,
+                        receiver,
+                        *args,
+                        address,
+                        ExternalReturnMode::All,
+                    );
+                }
+                if function_ty.is_some_and(|function| function.is_external())
+                    && let Some(mut function_id) = resolved_function
+                {
+                    if let ExprKind::Member(receiver, _) = callee.kind
+                        && self.cx.gcx.resolved_builtin(receiver) == Some(Builtin::This)
+                    {
+                        function_id = self.resolve_call_target(callee, function_id);
+                    }
+                    // values = external_call(receiver, selector, args)
+                    return self.lower_external_function_call_values(
+                        expr,
+                        callee,
+                        function_id,
+                        *args,
+                        *call_opts,
+                        ExternalReturnMode::All,
+                    );
+                }
                 let first = self.lower_expr(expr)?;
                 let gcx = self.cx.gcx;
                 let return_types = if let Some(function_id) = resolved_function {

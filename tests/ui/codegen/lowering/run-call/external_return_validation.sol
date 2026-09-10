@@ -1,6 +1,10 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
+//@ run-call: InternalAssemblyHalt::callPublicReturn
+//@ run-call: InternalAssemblyHalt::callPublicStop
+//@ run-call: InternalAssemblyHalt::callInternalReturn
+//@ run-call: InternalAssemblyHalt::callInternalStop
 //@ run-call-fail: ExternalReturnValidation::short
 //@ run-call-fail: ExternalReturnValidation::dirty
 //@ run-call: ExternalReturnValidation::dirtyValue => 0
@@ -350,5 +354,43 @@ contract ExternalReturnValidation {
             mstore(0x20, 0x10000000000000000)
             return(0, 0x40)
         }
+    }
+}
+
+contract InternalAssemblyHalt {
+    function callPublicReturn() external pure {
+        publicReturn();
+        revert("halt returned to caller");
+    }
+
+    function callPublicStop() external pure {
+        publicStop();
+        revert("halt returned to caller");
+    }
+
+    function callInternalReturn() external pure {
+        internalReturn();
+        revert("halt returned to caller");
+    }
+
+    function callInternalStop() external pure {
+        internalStop();
+        revert("halt returned to caller");
+    }
+
+    function publicReturn() public pure returns (uint256) {
+        assembly { return(0, 0) }
+    }
+
+    function publicStop() public pure returns (uint256) {
+        assembly { stop() }
+    }
+
+    function internalReturn() internal pure {
+        assembly { return(0, 0) }
+    }
+
+    function internalStop() internal pure {
+        assembly { stop() }
     }
 }

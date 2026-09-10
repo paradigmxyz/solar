@@ -2,7 +2,7 @@
 
 use super::super::super::{
     ArgIdx, BlockId, CfgInfo, DenseBitSet, Function, FxHashMap, GLOBAL_STACK_LAYOUT_LIMIT,
-    InstKind, Liveness, StackPhiPlan, Terminator, ValueId, WORD_BYTES,
+    InstKind, Liveness, MAX_STACK_ACCESS, StackPhiPlan, Terminator, ValueId, WORD_BYTES,
 };
 
 const GLOBAL_STACK_DENSE_AMORTIZATION_BLOCKS: usize = 16;
@@ -28,6 +28,7 @@ pub(in crate::backend::evm::codegen) struct GlobalStackPlan {
     /// External arguments can reload in revert blocks; resident internal
     /// arguments have no memory fallback and therefore cannot ignore them.
     pub(in crate::backend::evm::codegen) terminal_sensitive: bool,
+    pub(in crate::backend::evm::codegen) layout_limit: usize,
 }
 
 impl GlobalStackPlan {
@@ -185,7 +186,7 @@ impl GlobalStackPlan {
             entries.clear();
         }
         aliases.retain(|_, arg| entries.values().any(|entry| entry.contains(arg)));
-        Self { entries, aliases, terminal_sensitive: false }
+        Self { entries, aliases, terminal_sensitive: false, layout_limit: MAX_STACK_ACCESS }
     }
 
     /// Plans a single physical layout for stack-passed arguments that never
@@ -197,6 +198,26 @@ impl GlobalStackPlan {
         liveness: &Liveness,
         values: &[ValueId],
         preserve_across_calls: bool,
+    ) -> Option<Self> {
+        Self::analyze_resident_args_with_limit(
+            func,
+            liveness,
+            values,
+            preserve_across_calls,
+            MAX_STACK_ACCESS,
+        )
+    }
+
+    pub(in crate::backend::evm::codegen) fn layout_limit(&self) -> usize {
+        self.layout_limit.max(MAX_STACK_ACCESS)
+    }
+
+    pub(in crate::backend::evm::codegen) fn analyze_resident_args_with_limit(
+        func: &Function,
+        liveness: &Liveness,
+        values: &[ValueId],
+        preserve_across_calls: bool,
+        layout_limit: usize,
     ) -> Option<Self> {
         if values.is_empty() {
             return None;
@@ -227,7 +248,7 @@ impl GlobalStackPlan {
                 .copied()
                 .filter(|&value| liveness.live_in(block_id).contains(value))
                 .collect();
-            if entry.len() > GLOBAL_STACK_LAYOUT_LIMIT {
+            if entry.len() > layout_limit {
                 return None;
             }
             if !entry.is_empty() {
@@ -271,7 +292,7 @@ impl GlobalStackPlan {
                         union.push(value);
                     }
                 }
-                if union.len() > GLOBAL_STACK_LAYOUT_LIMIT {
+                if union.len() > layout_limit {
                     return None;
                 }
             }
@@ -299,12 +320,13 @@ impl GlobalStackPlan {
                     }
                 }
             }
-            if union.len() > GLOBAL_STACK_LAYOUT_LIMIT {
+            if union.len() > layout_limit {
                 return None;
             }
         }
 
-        let plan = Self { entries, aliases: FxHashMap::default(), terminal_sensitive: true };
+        let plan =
+            Self { entries, aliases: FxHashMap::default(), terminal_sensitive: true, layout_limit };
         // Prove that every live-in is represented and every predecessor can
         // establish precisely the target layout. This is what makes omitting
         // the argument's frame store sound rather than merely profitable.
@@ -425,7 +447,7 @@ impl GlobalStackPlan {
         }
         let union_len = then_layout.len()
             + else_layout.iter().filter(|value| !then_layout.contains(value)).count();
-        (union_len <= GLOBAL_STACK_LAYOUT_LIMIT).then_some((then_layout, else_layout))
+        (union_len <= self.layout_limit()).then_some((then_layout, else_layout))
     }
 
     pub(in crate::backend::evm::codegen) fn switch_layouts(
@@ -447,7 +469,7 @@ impl GlobalStackPlan {
                 }
             }
         }
-        (!union.is_empty() && union.len() <= GLOBAL_STACK_LAYOUT_LIMIT).then_some(layouts)
+        (!union.is_empty() && union.len() <= self.layout_limit()).then_some(layouts)
     }
 
     /// Returns values present in every physical successor layout of `term`.

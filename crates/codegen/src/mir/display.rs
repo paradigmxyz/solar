@@ -4,7 +4,8 @@
 
 use super::{
     BasicBlock, BlockId, EffectKind, FrameMode, FrameSlotKind, Function, FunctionId, InstId,
-    InstKind, InstructionMetadata, MemoryRegion, Module, StorageAlias, Terminator, Value, ValueId,
+    InstKind, InstructionMetadata, MemoryRegion, MirType, Module, StorageAlias, Terminator, Value,
+    ValueId,
 };
 use crate::mir::analysis::CfgInfo;
 use arrayvec::ArrayVec;
@@ -72,7 +73,7 @@ pub(crate) fn display_function_dot<'a>(
             if inst.result_ty.is_some() {
                 write!(f, "v{} = ", inst_result_index(func, inst_id))?;
             }
-            write!(f, "{}\\l", display_inst_kind(&inst.kind, func, module))
+            write!(f, "{}\\l", display_inst_kind(&inst.kind, inst.result_ty, func, module))
         })
     }
 
@@ -241,7 +242,7 @@ pub(crate) fn display_function_text<'a>(
             writeln!(
                 f,
                 "{}{}",
-                display_inst_kind(&inst.kind, func, module),
+                display_inst_kind(&inst.kind, inst.result_ty, func, module),
                 display_metadata(&inst.metadata, Some(inst.kind.effect_kind()), func)
             )
         })
@@ -300,6 +301,9 @@ fn display_function_attributes(func: &Function, is_dispatch_entry: bool) -> impl
         }
         if is_dispatch_entry {
             write_function_attribute(f, &mut first, "entry")?;
+        }
+        if func.attributes.unrestricted_memory {
+            write_function_attribute(f, &mut first, "unrestricted_memory")?;
         }
         if func.attributes.may_return_memory {
             write_function_attribute(f, &mut first, "may_return_memory")?;
@@ -361,6 +365,7 @@ fn inst_result_index(func: &Function, inst_id: InstId) -> usize {
 /// Formats an instruction kind for display.
 fn display_inst_kind<'a>(
     kind: &'a InstKind,
+    result_ty: Option<MirType>,
     func: &'a Function,
     module: Option<&'a Module>,
 ) -> impl fmt::Display + 'a {
@@ -381,6 +386,15 @@ fn display_inst_kind<'a>(
         Ok(())
     }
 
+    let load_type = fmt::from_fn(move |f| {
+        if let Some(ty) = result_ty
+            && ty != MirType::uint256()
+        {
+            write!(f, "<{ty}>")
+        } else {
+            Ok(())
+        }
+    });
     fmt::from_fn(move |f| match kind {
         InstKind::StoreImmutable(id, value) => {
             write!(f, "storeimmutable {}", display_immutable_ref(*id, module))?;
@@ -431,7 +445,11 @@ fn display_inst_kind<'a>(
             display_val(*index, func)
         ),
         InstKind::MemoryObjectLoadField { object, layout, field } => {
-            write!(f, "memory_object_load_field {layout}, {}, {field}", display_val(*object, func))
+            write!(
+                f,
+                "memory_object_load_field{load_type} {layout}, {}, {field}",
+                display_val(*object, func)
+            )
         }
         InstKind::MemoryObjectStoreField { object, layout, field, value } => write!(
             f,
@@ -441,7 +459,7 @@ fn display_inst_kind<'a>(
         ),
         InstKind::MemoryObjectLoadElement { object, layout, index } => write!(
             f,
-            "memory_object_load_element {layout}, {}, {}",
+            "memory_object_load_element{load_type} {layout}, {}, {}",
             display_val(*object, func),
             display_val(*index, func)
         ),
@@ -713,6 +731,7 @@ fn display_metadata<'a>(
         ModifierDepth(u32),
         Unchecked,
         DeferredAlloc,
+        CompilerMemory,
         LoopDepth(u16),
         Effect(EffectKind),
     }
@@ -738,6 +757,7 @@ fn display_metadata<'a>(
             MetadataField::ModifierDepth(depth) => write!(f, "modifier_depth={depth}"),
             MetadataField::Unchecked => write!(f, "unchecked"),
             MetadataField::DeferredAlloc => write!(f, "deferred_alloc"),
+            MetadataField::CompilerMemory => write!(f, "compiler_memory"),
             MetadataField::LoopDepth(loop_depth) => write!(f, "loop_depth={loop_depth}"),
             MetadataField::Effect(effect) => write!(f, "effect={}", effect.name()),
         })
@@ -754,7 +774,7 @@ fn display_metadata<'a>(
     }
 
     fmt::from_fn(move |f| {
-        let mut fields = ArrayVec::<MetadataField<'_>, 9>::new();
+        let mut fields = ArrayVec::<MetadataField<'_>, 10>::new();
 
         if let Some(storage) = metadata.storage_alias() {
             fields.push(MetadataField::Storage(storage, func));
@@ -781,6 +801,9 @@ fn display_metadata<'a>(
         }
         if metadata.unchecked() {
             fields.push(MetadataField::Unchecked);
+        }
+        if metadata.requires_private_memory() {
+            fields.push(MetadataField::CompilerMemory);
         }
         if metadata.deferred_alloc() {
             fields.push(MetadataField::DeferredAlloc);

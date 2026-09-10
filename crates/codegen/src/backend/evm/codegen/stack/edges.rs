@@ -1,12 +1,61 @@
 //! Emission of stack-resident CFG edges and phi transitions.
 
-use super::super::{
-    BlockId, EvmCodegen, Function, FxHashMap, GLOBAL_STACK_LAYOUT_LIMIT, GlobalStackPlan,
-    MAX_STACK_ACCESS, StackModel, StackPhiBranch, StackPhiEdge, TargetSlot, Terminator, ValueId,
-    op,
+use super::{
+    super::{
+        BlockId, EvmCodegen, Function, FxHashMap, GlobalStackPlan, MAX_STACK_ACCESS, StackModel,
+        StackPhiBranch, StackPhiEdge, TargetSlot, Terminator, ValueId, op,
+    },
+    MAX_STACK_DEPTH,
 };
 
 impl<'gcx> EvmCodegen<'gcx> {
+    /// Bounds the tracked suffix, reserving a return label, branch condition, and three
+    /// temporaries. Suspended callers and recursion still contribute to the EVM's runtime
+    /// stack-depth limit.
+    pub(in crate::backend::evm::codegen) fn required_stack_layout_limit(atomic: bool) -> usize {
+        if atomic { MAX_STACK_DEPTH - 5 } else { MAX_STACK_ACCESS }
+    }
+
+    fn edge_stack_layout_limit(&self) -> usize {
+        Self::required_stack_layout_limit(
+            self.asm.source_memory_required() && !self.forwarding_scratch_observable,
+        )
+    }
+
+    pub(in crate::backend::evm::codegen) fn emit_stack_layout(
+        &mut self,
+        target: &[TargetSlot],
+    ) -> bool {
+        if let Some(shuffle) = self.scheduler.shuffle_to_layout(target) {
+            for op in shuffle.ops {
+                self.asm.emit_stack_op(op);
+            }
+            return true;
+        }
+        if !self.asm.source_memory_required()
+            || self.forwarding_scratch_observable
+            || self.scheduler.depth().max(target.len()) > MAX_STACK_DEPTH - 4
+        {
+            return false;
+        }
+        let source: Vec<_> = self.scheduler.stack.iter().collect();
+        let Some(indices) = target
+            .iter()
+            .map(|TargetSlot::Value(value)| source.iter().position(|slot| *slot == Some(*value)))
+            .collect::<Option<Vec<_>>>()
+        else {
+            return false;
+        };
+        self.asm.emit_atomic_stack_layout(source.len(), &indices, false);
+        self.scheduler.stack.observe_peak(source.len().saturating_add(1).max(target.len() + 3));
+        // stack = target; suspended activations below this tracked suffix remain untouched
+        self.scheduler.stack.clear();
+        for &TargetSlot::Value(value) in target.iter().rev() {
+            self.scheduler.stack.push(value);
+        }
+        true
+    }
+
     pub(in crate::backend::evm::codegen) fn set_stack_to_values(&mut self, values: &[ValueId]) {
         self.scheduler.stack.clear();
         for &value in values.iter().rev() {
@@ -20,7 +69,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         term: &Terminator,
         layout: &[ValueId],
     ) -> bool {
-        if layout.is_empty() || layout.len() > GLOBAL_STACK_LAYOUT_LIMIT {
+        if layout.is_empty() || layout.len() > self.edge_stack_layout_limit() {
             return false;
         }
 
@@ -38,18 +87,12 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
 
         let target: Vec<_> = needed.iter().copied().map(TargetSlot::Value).collect();
-        let shuffle = self
-            .scheduler
-            .shuffle_to_layout(&target)
-            .unwrap_or_else(|| panic!("could not construct global stack edge layout"));
+        assert!(self.emit_stack_layout(&target), "could not construct global stack edge layout");
         assert_eq!(self.scheduler.depth(), needed.len(), "global-stack edge depth mismatch");
         assert!(
             self.scheduler.stack.iter().eq(needed.iter().copied().map(Some)),
             "global-stack edge layout mismatch"
         );
-        for op in shuffle.ops {
-            self.asm.emit_stack_op(op);
-        }
 
         true
     }
@@ -75,7 +118,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         else_layout: &[ValueId],
     ) -> Option<Vec<ValueId>> {
         let union = Self::global_branch_union(then_layout, else_layout);
-        if union.is_empty() || union.len() > GLOBAL_STACK_LAYOUT_LIMIT {
+        if union.is_empty() || union.len() > self.edge_stack_layout_limit() {
             return None;
         }
         let mut needed = Vec::with_capacity(union.len() + 1);
@@ -86,13 +129,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.emit_operand(func, value);
         }
         let target: Vec<_> = needed.iter().copied().map(TargetSlot::Value).collect();
-        let shuffle = self
-            .scheduler
-            .shuffle_to_layout(&target)
-            .unwrap_or_else(|| panic!("could not construct edge-specific branch layout"));
-        for op in shuffle.ops {
-            self.asm.emit_stack_op(op);
-        }
+        assert!(self.emit_stack_layout(&target), "could not construct edge-specific branch layout");
         Some(union)
     }
 
@@ -113,13 +150,10 @@ impl<'gcx> EvmCodegen<'gcx> {
     fn emit_global_branch_cleanup(&mut self, layout: &[ValueId]) {
         self.pop_stack_values_not_needed_by(layout);
         let target: Vec<_> = layout.iter().copied().map(TargetSlot::Value).collect();
-        let shuffle = self
-            .scheduler
-            .shuffle_to_layout(&target)
-            .unwrap_or_else(|| panic!("could not construct edge-specific resident stack layout"));
-        for op in shuffle.ops {
-            self.asm.emit_stack_op(op);
-        }
+        assert!(
+            self.emit_stack_layout(&target),
+            "could not construct edge-specific resident stack layout"
+        );
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -248,7 +282,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     ) -> bool {
         if edge.sources.len() != edge.results.len()
             || edge.sources.is_empty()
-            || edge.sources.len() > MAX_STACK_ACCESS
+            || edge.sources.len() > self.edge_stack_layout_limit()
         {
             return false;
         }
@@ -258,7 +292,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         for &source in Self::missing_stack_phi_sources(&self.scheduler.stack, &edge.sources).iter()
         {
-            if !self.scheduler.can_emit_value(source, func) {
+            if !self.can_emit_stack_phi_value(func, source) {
                 return false;
             }
             self.emit_operand(func, source);
@@ -269,15 +303,14 @@ impl<'gcx> EvmCodegen<'gcx> {
         );
 
         let target: Vec<_> = edge.sources.iter().copied().map(TargetSlot::Value).collect();
-        let Some(shuffle) = self.scheduler.shuffle_to_layout(&target) else { return false };
+        if !self.emit_stack_layout(&target) {
+            return false;
+        }
         assert_eq!(self.scheduler.depth(), edge.sources.len(), "stack-phi edge depth mismatch");
         assert!(
             self.scheduler.stack.iter().eq(edge.sources.iter().copied().map(Some)),
             "stack-phi edge layout mismatch"
         );
-        for op in shuffle.ops {
-            self.asm.emit_stack_op(op);
-        }
 
         self.set_stack_to_values(&edge.results);
         true
@@ -290,14 +323,14 @@ impl<'gcx> EvmCodegen<'gcx> {
     ) -> bool {
         if edge.sources.len() != edge.results.len()
             || edge.sources.is_empty()
-            || edge.sources.len() > MAX_STACK_ACCESS
+            || edge.sources.len() > self.edge_stack_layout_limit()
         {
             return false;
         }
 
         let present =
             Self::stack_phi_source_counts_after_trim(&self.scheduler.stack, &edge.sources);
-        if present.len() > MAX_STACK_ACCESS {
+        if present.len() > self.edge_stack_layout_limit() {
             return false;
         }
 
@@ -318,6 +351,9 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     fn can_emit_stack_phi_value(&self, func: &Function, value: ValueId) -> bool {
         self.scheduler.can_emit_value(value, func)
+            || (self.asm.source_memory_required()
+                && !self.forwarding_scratch_observable
+                && self.scheduler.stack.find(value).is_some())
             || self.scheduler.should_recompute_unstored_spill(value)
             || Self::is_always_rematerializable_value(func, value)
     }
@@ -329,7 +365,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         branch: &StackPhiBranch,
     ) -> bool {
         !branch.union.is_empty()
-            && branch.union.len() <= MAX_STACK_ACCESS
+            && branch.union.len() <= self.edge_stack_layout_limit()
             && self.can_emit_stack_phi_value(func, condition)
             && self.can_prepare_stack_phi_branch_edge(func, &branch.then_edge)
             && self.can_prepare_stack_phi_branch_edge(func, &branch.else_edge)
@@ -343,13 +379,10 @@ impl<'gcx> EvmCodegen<'gcx> {
     fn emit_stack_phi_edge_layout(&mut self, edge: &StackPhiEdge) {
         self.pop_stack_values_not_needed_by(&edge.sources);
         let target: Vec<_> = edge.sources.iter().copied().map(TargetSlot::Value).collect();
-        let shuffle = self
-            .scheduler
-            .shuffle_to_layout(&target)
-            .expect("could not construct branch stack-phi edge layout");
-        for op in shuffle.ops {
-            self.asm.emit_stack_op(op);
-        }
+        assert!(
+            self.emit_stack_layout(&target),
+            "could not construct branch stack-phi edge layout"
+        );
         self.set_stack_to_values(&edge.results);
     }
 
@@ -371,13 +404,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.emit_operand(func, value);
         }
         let target: Vec<_> = needed.iter().copied().map(TargetSlot::Value).collect();
-        let shuffle = self
-            .scheduler
-            .shuffle_to_layout(&target)
-            .expect("could not construct branch stack-phi layout");
-        for op in shuffle.ops {
-            self.asm.emit_stack_op(op);
-        }
+        assert!(self.emit_stack_layout(&target), "could not construct branch stack-phi layout");
 
         let identity =
             |edge: &StackPhiEdge| edge.sources == branch.union && edge.results == edge.sources;

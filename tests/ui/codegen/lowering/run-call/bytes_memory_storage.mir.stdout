@@ -68,7 +68,7 @@ fn @copy() -> u256 [selector=0x60726abb, abi_params=[], abi_returns=[word]] {
     revert 0, 36
 }
 
-fn @dirty() -> u256 [selector=0x7dce0fd0, abi_params=[], abi_returns=[word]] {
+fn @dirty() -> u256 [selector=0x7dce0fd0, unrestricted_memory, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = not 31
     v1 = and 66, v0

@@ -1,18 +1,208 @@
 //! Selection of stack argument and return conventions for internal calls.
 
 use super::super::{
-    ArgIdx, DenseBitSet, EvmCodegen, EvmMemoryLayout, FunctionId, FxHashMap, GlobalStackPlan,
-    IndexVec, InstKind, LazyStackArgPlan, MAX_STACK_ACCESS, Module, OptimizationMode,
-    StackReturnPlan, StaticCallAbi, StaticCallEntry, Terminator, ValueId, index_vec,
+    ArgIdx, CallGraphInfo, DenseBitSet, EvmCodegen, EvmMemoryLayout, Function, FunctionId,
+    FxHashMap, GlobalStackPlan, IndexVec, InstKind, LazyStackArgPlan, Liveness, MAX_STACK_ACCESS,
+    Module, OptimizationMode, StackReturnPlan, StaticCallAbi, StaticCallEntry, Terminator, ValueId,
+    index_vec,
 };
 
 impl<'gcx> EvmCodegen<'gcx> {
+    pub(in crate::backend::evm::codegen) fn uses_recursive_stack_abi(
+        &self,
+        id: FunctionId,
+    ) -> bool {
+        self.static_call_abis.get(&id).is_some_and(|abi| abi.recursive_stack)
+    }
+
+    /// Selects frame-free recursive components with bounded word signatures and stack-planned phis.
+    /// Suspended activations retain their live words below the callee's return address.
+    /// Acyclic callees use their ordinary stack convention: they cannot reenter this component.
+    pub(in crate::backend::evm::codegen) fn compute_recursive_stack_abis(
+        &mut self,
+        module: &Module,
+        calls: &CallGraphInfo,
+    ) {
+        let cold_functions = Self::collect_cold_functions(module);
+        let mut visited = DenseBitSet::new_empty(module.functions.len());
+        for id in module.functions.indices() {
+            if !calls.is_recursive(id) || visited.contains(id) {
+                continue;
+            }
+            let component = calls.recursive_component(id);
+            visited.union(&component);
+            if !component.iter().any(|id| {
+                self.unrestricted_memory_functions.contains(id)
+                    || (module.functions[id].attributes.is_yul
+                        && module.functions[id].returns.len() > 1)
+            }) {
+                continue;
+            }
+            let members = component;
+            let mut plans = Vec::new();
+            for id in members.iter() {
+                let func = &module.functions[id];
+                if self.disabled_stack_only_functions.contains(id)
+                    || func.internal_frame_size != 0
+                    || func.params.len() > MAX_STACK_ACCESS
+                    || func.returns.len() > MAX_STACK_ACCESS
+                    || func
+                        .instructions()
+                        .any(|inst| matches!(func.inst(inst).kind, InstKind::InternalFrameAddr(_)))
+                    || func.blocks.iter().any(|block| {
+                        matches!(
+                            block.terminator.as_ref(),
+                            Some(Terminator::TailCall { function, args })
+                                if !args.is_empty() || !cold_functions.contains(*function)
+                        ) || (matches!(block.terminator, Some(Terminator::Stop))
+                            && !func.returns.is_empty())
+                    })
+                {
+                    break;
+                }
+                let uses = func.arg_uses();
+                if uses.iter().any(|values| {
+                    values.first().is_some_and(|first| values.iter().any(|value| value != first))
+                }) {
+                    break;
+                }
+                let values = uses
+                    .iter()
+                    .rev()
+                    .filter_map(|values| values.first().copied())
+                    .collect::<Vec<_>>();
+                let liveness = Liveness::compute(func);
+                let layout = if values.is_empty() {
+                    GlobalStackPlan::default()
+                } else if let Some(layout) =
+                    GlobalStackPlan::analyze_resident_args(func, &liveness, &values, true)
+                {
+                    layout
+                } else {
+                    break;
+                };
+                if func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::Phi(_)))
+                {
+                    let phi_plan = self.stack_phi_plan(id, func, &liveness);
+                    let mut composed = phi_plan.as_ref().clone();
+                    if func.blocks.iter_enumerated().any(|(block, data)| {
+                        data.instructions.iter().any(|&inst| {
+                            matches!(func.inst(inst).kind, InstKind::Phi(_))
+                                && func.inst_result_value(inst).is_none_or(|value| {
+                                    !phi_plan
+                                        .entries
+                                        .get(&block)
+                                        .is_some_and(|entry| entry.contains(&value))
+                                })
+                        })
+                    }) || !composed.merge_resident(func, &layout)
+                    {
+                        break;
+                    }
+                }
+                let mut abi = StaticCallAbi::new(func.params.len());
+                abi.recursive_stack = true;
+                for index in 0..func.params.len() {
+                    if uses[ArgIdx::new(index)].is_empty() {
+                        abi.ignored_args.insert(index);
+                    } else {
+                        abi.stack_args.insert(index);
+                    }
+                }
+                abi.entry = StaticCallEntry::Resident { values, layout };
+                abi.returns = Some(StackReturnPlan {
+                    arity: func.returns.len(),
+                    local_base: EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
+                        + ((func.params.len() + func.returns.len()) as u64)
+                            * EvmMemoryLayout::WORD_SIZE,
+                    preserve_source_scratch: true,
+                });
+                plans.push((id, abi));
+            }
+            if plans.len() == members.count() {
+                self.static_call_abis.extend(plans);
+            }
+        }
+    }
+
+    pub(in crate::backend::evm::codegen) fn report_private_memory_required(
+        &self,
+        func: &Function,
+        context: &str,
+    ) {
+        self.gcx
+            .dcx()
+            .err(format!(
+                "codegen cannot preserve {context} without compiler memory in `{}`",
+                func.name,
+            ))
+            .emit();
+    }
+
     pub(in crate::backend::evm::codegen) fn static_call_abi_mut(
         &mut self,
         func_id: FunctionId,
         arg_count: usize,
     ) -> &mut StaticCallAbi {
         self.static_call_abis.entry(func_id).or_insert_with(|| StaticCallAbi::new(arg_count))
+    }
+
+    /// Rejects argument and return conventions that violate source memory ownership.
+    pub(in crate::backend::evm::codegen) fn validate_memory_call_abis(
+        &self,
+        module: &Module,
+        internal_targets: &DenseBitSet<FunctionId>,
+    ) {
+        for func_id in internal_targets.iter() {
+            let func = &module.functions[func_id];
+            // Yul tuples must not publish a return-buffer pointer in source scratch memory.
+            if func.attributes.is_yul
+                && func.returns.len() > 1
+                && self
+                    .stack_return_plan(func_id)
+                    .is_none_or(|plan| plan.arity != func.returns.len())
+            {
+                self.report_private_memory_required(func, "Yul tuple returns");
+            }
+            if !self.unrestricted_memory_functions.contains(func_id) {
+                continue;
+            }
+            let func = &module.functions[func_id];
+            if Self::is_external_entry(func) {
+                continue;
+            }
+            let Some(abi) = self.static_call_abis.get(&func_id) else {
+                self.report_private_memory_required(func, "internal arguments");
+                continue;
+            };
+            let complete_args = abi.stack_args.count() + abi.ignored_args.count()
+                == func.params.len()
+                && abi.stack_args.iter().all(|index| !abi.ignored_args.contains(index));
+            let memory_free_entry = abi.stack_args.is_empty()
+                || match &abi.entry {
+                    StaticCallEntry::Stored => false,
+                    StaticCallEntry::Direct(values) | StaticCallEntry::Resident { values, .. } => {
+                        values.len() == abi.stack_args.count()
+                    }
+                    StaticCallEntry::Lazy(plan) => {
+                        plan.frame_values.is_empty() && plan.args.len() == abi.stack_args.count()
+                    }
+                };
+            if (!self.static_frame_functions.contains(func_id)
+                && !self.uses_recursive_stack_abi(func_id))
+                || self.disabled_stack_only_functions.contains(func_id)
+                || !complete_args
+                || !memory_free_entry
+            {
+                self.report_private_memory_required(func, "internal arguments");
+            }
+            if func.blocks.iter().any(|block| {
+                matches!(&block.terminator, Some(Terminator::Return { values }) if !values.is_empty())
+            }) && abi.returns.is_none_or(|plan| plan.arity != func.returns.len())
+            {
+                self.report_private_memory_required(func, "internal returns");
+            }
+        }
     }
 
     pub(in crate::backend::evm::codegen) fn stack_arg_mask(
@@ -108,21 +298,20 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// bounded tuple shuffle replaces callee stores and caller loads, and any function that cannot
     /// realize its plan is regenerated with its ordinary frame-backed return area.
     pub(in crate::backend::evm::codegen) fn compute_stack_return_plans(&mut self, module: &Module) {
+        let cold_functions = Self::collect_cold_functions(module);
         for abi in self.static_call_abis.values_mut() {
             abi.returns = None;
         }
-        if !self.stack_returns_enabled {
-            return;
-        }
-
         for (func_id, func) in module.functions.iter_enumerated() {
             let arity = func.returns.len();
-            let mut has_return = false;
+            let source_scratch_live = func.attributes.is_yul && arity > 1;
+            if !self.stack_returns_enabled && !source_scratch_live {
+                continue;
+            }
+            // Non-returning helpers can use this convention too: their callers must not
+            // manufacture a frame load after a call that always aborts.
             let has_consistent_returns = func.blocks.iter().all(|block| match &block.terminator {
-                Some(Terminator::Return { values }) => {
-                    has_return = true;
-                    values.len() == arity
-                }
+                Some(Terminator::Return { values }) => values.len() == arity,
                 // The backend treats `stop` in an internal function as a void return, which is
                 // incompatible with a non-empty stack-return convention.
                 Some(Terminator::Stop) => false,
@@ -131,17 +320,21 @@ impl<'gcx> EvmCodegen<'gcx> {
             if self.static_frame_functions.contains(func_id)
                 && (!matches!(self.gcx.sess.opts.optimization, OptimizationMode::None)
                     || (self.in_constructor && self.preserve_caller_stack)
-                    || self.low_fmp_functions.contains(func_id))
+                    || self.unrestricted_memory_functions.contains(func_id)
+                    || source_scratch_live)
                 && !self.disabled_stack_only_functions.contains(func_id)
                 && !self.recursive_frame_functions.contains(func_id)
                 && (1..=MAX_STACK_ACCESS).contains(&arity)
-                && has_return
                 && has_consistent_returns
             {
                 let local_base = EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
                     + ((func.params.len() + arity) as u64) * EvmMemoryLayout::WORD_SIZE;
                 self.static_call_abi_mut(func_id, func.params.len()).returns =
-                    Some(StackReturnPlan { arity, local_base });
+                    Some(StackReturnPlan {
+                        arity,
+                        local_base,
+                        preserve_source_scratch: source_scratch_live,
+                    });
             }
         }
 
@@ -158,7 +351,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             for block in &func.blocks {
                 if let Some(Terminator::TailCall { function, .. }) = &block.terminator {
-                    if !self.cold_functions.contains(*function)
+                    if !cold_functions.contains(*function)
                         && let Some(abi) = self.static_call_abis.get_mut(&caller)
                     {
                         abi.returns = None;
@@ -175,15 +368,20 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// stack. A site can deliver a stack argument through raw re-emission after
     /// the drain for immediates, position-independently reloadable caller
     /// arguments, and always-rematerializable reads, or through a
-    /// freshness-validated spill reload for other computed values. The
-    /// per-argument choice is scored across all sites — raw and
+    /// freshness-validated spill reload for other computed values.
+    /// Only callers emitted in the current deployment or runtime artifact constrain the ABI.
+    /// The per-argument choice is scored across those sites — raw and
     /// already-stored (cross-block) values save the four-byte frame store,
     /// while a fresh block-local value must first pay its own spill — and an
     /// argument passes on the stack when the sites' savings outweigh the
     /// callee's one-time prologue store. Tail calls use the same entry tuple without pushing a new
     /// return label; an internal caller reuses its inherited label, while fused external bodies do
     /// not return through one.
-    pub(in crate::backend::evm::codegen) fn compute_stack_arg_masks(&mut self, module: &Module) {
+    pub(in crate::backend::evm::codegen) fn compute_stack_arg_masks(
+        &mut self,
+        module: &Module,
+        callers: &DenseBitSet<FunctionId>,
+    ) {
         self.static_call_abis.clear();
         if self.static_frame_functions.is_empty() {
             return;
@@ -191,7 +389,8 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         let mut scores = FxHashMap::<FunctionId, IndexVec<ArgIdx, Option<i64>>>::default();
         let mut excluded = DenseBitSet::new_empty(module.functions.len());
-        for (caller_id, func) in module.functions.iter_enumerated() {
+        for caller_id in callers.iter() {
+            let func = &module.functions[caller_id];
             let mut has_candidate_call = false;
             for block in func.blocks.iter() {
                 has_candidate_call |= block.instructions.iter().any(|&inst_id| {
@@ -213,7 +412,11 @@ impl<'gcx> EvmCodegen<'gcx> {
 
             let caller_is_entry = Self::is_external_entry(func);
             let caller_static = self.static_frame_functions.contains(caller_id);
-            let raw_leaves_ok = caller_is_entry || caller_static;
+            let raw_leaves_ok = caller_is_entry
+                || caller_static
+                || (self.in_constructor
+                    && func.attributes.is_constructor
+                    && self.asm.source_memory_required());
             // Where each instruction result is defined, to spot cross-block
             // arguments (already stored at their definition).
             let mut inst_block = index_vec![None; func.num_insts()];
@@ -332,7 +535,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             // The callee prologue pays one store per stack argument.
             let mut mask = DenseBitSet::new_empty(score.len());
             for (index, benefit) in score.iter_enumerated() {
-                if benefit.is_some_and(|benefit| benefit > 4) {
+                if benefit.is_some_and(|benefit| {
+                    benefit > 4 || self.unrestricted_memory_functions.contains(func_id)
+                }) {
                     mask.insert(index.index());
                 }
             }
@@ -346,7 +551,13 @@ impl<'gcx> EvmCodegen<'gcx> {
         for (func_id, stack_args) in masks {
             self.static_call_abis.insert(
                 func_id,
-                StaticCallAbi { stack_args, entry: StaticCallEntry::Stored, returns: None },
+                StaticCallAbi {
+                    recursive_stack: false,
+                    ignored_args: DenseBitSet::new_empty(stack_args.domain_size()),
+                    stack_args,
+                    entry: StaticCallEntry::Stored,
+                    returns: None,
+                },
             );
         }
     }

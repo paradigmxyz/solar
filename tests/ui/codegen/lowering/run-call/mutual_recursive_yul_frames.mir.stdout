@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/mutual_recursive_yul_frames.sol:MutualRecursiveYulFrames ===
 @module MutualRecursiveYulFrames
-fn @encode(arg0: u256) -> (u256, u256, bytes32) [selector=0xdeb21fa2, pure, abi_params=[u256], abi_returns=[word, word, word]] {
+fn @encode(arg0: u256) -> (u256, u256, bytes32) [selector=0xdeb21fa2, unrestricted_memory, pure, abi_params=[u256], abi_returns=[word, word, word]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = icall @walk, 2, arg0, v0
@@ -12,7 +12,7 @@ fn @encode(arg0: u256) -> (u256, u256, bytes32) [selector=0xdeb21fa2, pure, abi_
     ret v5, v4, v6
 }
 
-fn @walk(arg0: u256, arg1: u256) -> (u256, u256) {
+fn @walk(arg0: u256, arg1: u256) -> (u256, u256) [unrestricted_memory] {
   bb0:
     v0 = iszero arg0
     v1 = eq v0, 0
@@ -32,7 +32,7 @@ fn @walk(arg0: u256, arg1: u256) -> (u256, u256) {
     ret v3, 1
 }
 
-fn @container(arg0: u256, arg1: u256) -> (u256, u256) {
+fn @container(arg0: u256, arg1: u256) -> (u256, u256) [unrestricted_memory] {
   bb0:
     v0 = add arg1, 1
     v1 = sub arg0, 1

@@ -5,12 +5,12 @@
     first: u8
     second: bytes20
   
-  fn @constructor(arg0: u8, arg1: bytes20) -> u8 [constructor] {
+  fn @staged(arg0: u8, arg1: bytes20) -> u8 {
     bb0:
 -     storeimmutable first, arg0
 -     storeimmutable second, arg1
-+     mstore 192, arg0
-+     mstore 224, arg1
++     mstore 192, arg0 !metadata(compiler_memory)
++     mstore 224, arg1 !metadata(compiler_memory)
       v0 = loadimmutable first
       ret v0
   }
@@ -24,7 +24,7 @@
   fn @entry() {
     bb0:
 -     storeimmutable first, 2
-+     mstore 192, 2
++     mstore 192, 2 !metadata(compiler_memory)
       stop
   }
   
@@ -32,5 +32,43 @@
     bb0:
       storeimmutable first, 3
       stop
+  }
+  
+- fn @constructor(arg0: u8, arg1: bytes20) [constructor, unrestricted_memory] {
++ fn @constructor(arg0: u8, arg1: bytes20) -> (u8, bytes20) [constructor, unrestricted_memory] {
+    bb0:
+      v0 = iszero arg0
+      jumpi v0, bb1, bb2
+    bb2:
+-     storeimmutable first, arg0
+-     storeimmutable second, arg1
+-     v1 = icall @reader, 1
+-     sstore 0, v1
+-     stop
++     jump bb4
++   bb4:
++     jump bb3
++   bb3:
++     v3 = phi [bb4: arg0]
++     sstore 0, v3
++     ret arg0, arg1
+    bb1:
+      tail_call @panic_chain
+  }
+  
+  fn @reader() -> u8 {
+    bb0:
+      v0 = loadimmutable first
+      ret v0
+  }
+  
+  fn @panic_chain() {
+    bb0:
+      tail_call @panic
+  }
+  
+  fn @panic() {
+    bb0:
+      revert 0, 0
   }
   

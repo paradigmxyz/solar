@@ -66,7 +66,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         module: &Module,
     ) {
         for (id, callee) in std::mem::take(&mut self.pending_frame_size_consts) {
-            self.asm.set_deferred_const(id, U256::from(self.emitted_frame_size(module, callee)));
+            let size = self.emitted_frame_size(module, callee);
+            self.asm.set_deferred_const(id, U256::from(size));
         }
     }
 
@@ -201,6 +202,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     fn emit_current_internal_frame_addr_untracked(&mut self, offset: u64) {
+        self.asm.require_private_memory();
         self.asm.emit_push(U256::from(EvmMemoryLayout::INTERNAL_FRAME_PTR_SLOT));
         self.asm.emit_op(op::MLOAD);
         if offset != 0 {
@@ -230,6 +232,35 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     pub(in crate::backend::evm::codegen) fn emit_constructor_arg_load(&mut self, index: ArgIdx) {
+        if self.asm.source_memory_required() {
+            let base =
+                self.constructor_args_offset_const.expect("constructor argument code offset");
+            let offset = index.index() as u64 * EvmMemoryLayout::WORD_SIZE;
+            self.scheduler.stack.observe_peak(self.scheduler.depth().saturating_add(4));
+            // saved = mload 0
+            // codecopy 0, argument_code_offset + word_index * 32, 32
+            // value = mload 0
+            // mstore 0, saved
+            // NOTE: No scheduling or source operations may run inside this sequence.
+            // The prologue has already expanded memory through the FMP word, so
+            // this saves and restores scratch without changing observable memory size.
+            self.asm.emit_push(U256::ZERO);
+            self.asm.emit_source_op(op::MLOAD);
+            self.asm.emit_push(U256::from(EvmMemoryLayout::WORD_SIZE));
+            self.asm.emit_push_deferred(base);
+            if offset != 0 {
+                self.asm.emit_push(U256::from(offset));
+                self.asm.emit_op(op::ADD);
+            }
+            self.asm.emit_push(U256::ZERO);
+            self.asm.emit_source_op(op::CODECOPY);
+            self.asm.emit_push(U256::ZERO);
+            self.asm.emit_source_op(op::MLOAD);
+            self.asm.emit_stack_op(StackOp::Swap(1));
+            self.asm.emit_push(U256::ZERO);
+            self.asm.emit_source_op(op::MSTORE);
+            return;
+        }
         self.emit_constructor_args_base();
         let offset = index.index() as u64 * EvmMemoryLayout::WORD_SIZE;
         if offset != 0 {
@@ -308,6 +339,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         func_id: FunctionId,
         offset: u64,
     ) -> DeferredConst {
+        self.asm.require_private_memory();
         let offset = self.compact_static_frame_offset(func_id, offset);
         if let Some((id, references)) = self.static_frame_addr_consts.get_mut(&(func_id, offset)) {
             *references += 1;
@@ -928,7 +960,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let id = self.asm.new_deferred_const();
         self.asm.emit_push_deferred(id);
         self.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
-        self.asm.emit_op(op::MSTORE);
+        self.asm.emit_source_op(op::MSTORE);
         self.runtime_free_memory_consts.insert(entry, id);
     }
 
@@ -937,6 +969,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         func: &Function,
         slot: SpillSlot,
     ) {
+        self.asm.require_private_memory();
         if self.in_internal_function {
             self.emit_own_frame_addr(self.internal_spill_slot_offset(func, slot));
         } else {
@@ -945,6 +978,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     fn emit_spill_slot_addr_untracked(&mut self, func: &Function, slot: SpillSlot) {
+        self.asm.require_private_memory();
         if self.in_internal_function {
             self.emit_own_frame_addr_untracked(self.internal_spill_slot_offset(func, slot));
         } else if self.in_constructor {

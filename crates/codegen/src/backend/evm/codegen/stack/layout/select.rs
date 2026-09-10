@@ -17,11 +17,26 @@ impl<'gcx> EvmCodegen<'gcx> {
         liveness: &Liveness,
     ) -> Rc<StackPhiPlan> {
         let cold_functions = &self.cold_functions;
-        Rc::clone(
-            self.stack_phi_plans
-                .entry(func_id)
-                .or_insert_with(|| Rc::new(StackPhiPlan::analyze(func, liveness, cold_functions))),
-        )
+        let required = self.unrestricted_memory_functions.contains(func_id);
+        let layout_limit = Self::required_stack_layout_limit(
+            required && !self.msize_observed_functions.contains(func_id),
+        );
+        Rc::clone(self.stack_phi_plans.entry(func_id).or_insert_with(|| {
+            let plan = StackPhiPlan::analyze(func, liveness, cold_functions);
+            let complete = func.blocks.iter_enumerated().all(|(block, data)| {
+                data.instructions.iter().all(|&inst| {
+                    !matches!(func.inst(inst).kind, InstKind::Phi(_))
+                        || func.inst_result_value(inst).is_some_and(|value| {
+                            plan.entries.get(&block).is_some_and(|entry| entry.contains(&value))
+                        })
+                })
+            });
+            Rc::new(if required && !complete {
+                StackPhiPlan::all_phis(func, layout_limit).unwrap_or(plan)
+            } else {
+                plan
+            })
+        }))
     }
 
     /// Collects the canonical identity of each used static-callee argument once for the stack
@@ -35,7 +50,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         for func_id in self.static_frame_functions.iter() {
             if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None)
                 && !(self.in_constructor && self.preserve_caller_stack)
-                && !self.low_fmp_functions.contains(func_id)
+                && !self.unrestricted_memory_functions.contains(func_id)
             {
                 continue;
             }
@@ -90,39 +105,43 @@ impl<'gcx> EvmCodegen<'gcx> {
         values: &[ValueId],
         preserve_across_calls: bool,
         context: &ResidentSearchContext,
+        required_layout_limit: Option<usize>,
     ) -> Option<(GlobalStackPlan, ScheduleCost)> {
-        let plan =
-            GlobalStackPlan::analyze_resident_args(func, liveness, values, preserve_across_calls)?;
+        let required = required_layout_limit.is_some();
+        let plan = GlobalStackPlan::analyze_resident_args_with_limit(
+            func,
+            liveness,
+            values,
+            preserve_across_calls,
+            required_layout_limit.unwrap_or(super::super::super::MAX_STACK_ACCESS),
+        )?;
         if let Some(phi_plan) = &context.phi_plan {
-            // One physical word cannot be both a phi input and an invariant resident prefix word.
-            // `merge_resident` would otherwise extend only the result side of that edge, leaving a
-            // non-square layout and a phantom word at the successor entry. Reject the complete or
-            // candidate subset here and retain the frame home for those arguments.
-            let resident_is_phi_source = phi_plan.edges.iter().any(|(&pred, edge)| {
-                let term = func.blocks[pred]
-                    .terminator
-                    .as_ref()
-                    .expect("stack-phi predecessor has no terminator");
-                plan.edge_layout(func, term)
-                    .is_some_and(|layout| layout.iter().any(|value| edge.sources.contains(value)))
-            });
-            if resident_is_phi_source {
+            let mut composed = phi_plan.as_ref().clone();
+            if !composed.merge_resident(func, &plan) {
                 return None;
             }
-            // A resident prefix on a planned backedge pays its shuffle on every loop iteration
-            // and the composed emission is not yet correct for loop-carried prefixes: lifting
-            // this gate miscompiled the nitro cold-prover paths (deep nested-loop deserialize
-            // callees) and cost gas even where output stayed correct. Keep loop phis on the
-            // established layout until the planner has execution-frequency-aware costing and
-            // the loop composition is fixed; acyclic join edges compose without that
-            // multiplier.
+            // Optional layouts retain the loop-cost gate. Required layouts carry every
+            // phi through the composed edge plan, including nested and branching loops.
             let carries_planned_backedge = phi_plan.edges.keys().any(|&pred| {
                 let Some(Terminator::Jump(target)) = func.blocks[pred].terminator.as_ref() else {
                     return false;
                 };
                 plan.entry(*target).is_some() && context.cfg.dominators().dominates(*target, pred)
             });
-            if carries_planned_backedge {
+            if carries_planned_backedge
+                && (!required
+                    || !func.blocks.iter_enumerated().all(|(block, data)| {
+                        data.instructions.iter().all(|&inst| {
+                            !matches!(func.inst(inst).kind, InstKind::Phi(_))
+                                || func.inst_result_value(inst).is_some_and(|value| {
+                                    composed
+                                        .entries
+                                        .get(&block)
+                                        .is_some_and(|entry| entry.contains(&value))
+                                })
+                        })
+                    }))
+            {
                 return None;
             }
         }
@@ -150,7 +169,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             .iter()
             .map(|value| context.value_uses.get(value).copied().unwrap_or_default())
             .sum::<usize>();
-        if uses < padding * 2 {
+        if !required && uses < padding * 2 {
             return None;
         }
         let evm_version = self.gcx.sess.opts.evm_version;
@@ -259,6 +278,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 &subset,
                 preserve_across_calls,
                 &context,
+                None,
             ) else {
                 continue;
             };
@@ -385,32 +405,21 @@ impl<'gcx> EvmCodegen<'gcx> {
         &self,
         func: &Function,
         liveness: &Liveness,
-        stack_phi_plan: &StackPhiPlan,
         values: &[ValueId],
     ) -> Option<(Vec<ValueId>, GlobalStackPlan)> {
         if values.is_empty() {
             return None;
         }
 
-        let mut plan = GlobalStackPlan::analyze_resident_args(
+        let plan = GlobalStackPlan::analyze_resident_args_with_limit(
             func,
             liveness,
             values,
             self.preserve_caller_stack,
+            Self::required_stack_layout_limit(
+                self.asm.source_memory_required() && !self.forwarding_scratch_observable,
+            ),
         )?;
-        // Phi operands are edge uses, not unchanged target live-ins. Full
-        // liveness conservatively includes them at the header; remove those
-        // incoming identities from the resident prefix so the phi edge can
-        // replace each source with its result instead of trying to carry both.
-        for (&pred, edge) in &stack_phi_plan.edges {
-            let Some(Terminator::Jump(target)) = func.blocks[pred].terminator.as_ref() else {
-                continue;
-            };
-            if let Some(entry) = plan.entries.get_mut(target) {
-                entry.retain(|value| !edge.sources.contains(value));
-            }
-        }
-        plan.entries.retain(|_, entry| !entry.is_empty());
         Some((values.to_vec(), plan))
     }
 
@@ -427,7 +436,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     ) -> Vec<ValueId> {
         let mut values = DenseBitSet::new_empty(func.num_values());
         if (self.in_constructor && self.preserve_caller_stack)
-            || self.low_fmp_functions.contains(func_id)
+            || self.unrestricted_memory_functions.contains(func_id)
         {
             for value in func.live_values().filter(|&value| {
                 Self::can_own_spill_slot(func, value)
@@ -591,6 +600,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 &subset,
                 self.preserve_caller_stack,
                 &context,
+                None,
             ) else {
                 continue;
             };

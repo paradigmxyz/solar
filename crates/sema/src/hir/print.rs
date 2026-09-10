@@ -449,8 +449,11 @@ impl<'gcx, W: fmt::Write> HirPrinter<'gcx, W> {
                 self.out.write_str("unchecked ")?;
                 self.print_block(block)?;
             }
-            StmtKind::AssemblyBlock(block) => {
+            StmtKind::AssemblyBlock(block, memory_safe) => {
                 self.out.write_str("assembly ")?;
+                if *memory_safe {
+                    self.out.write_str("(\"memory-safe\") ")?;
+                }
                 self.print_block(block)?;
             }
             StmtKind::Emit(expr) => {

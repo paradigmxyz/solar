@@ -43,7 +43,7 @@ fn @constructor(arg0: address) [constructor, abi_params=[address]] {
     stop
 }
 
-fn @fallback() [fallback] {
+fn @fallback() [unrestricted_memory, fallback] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
@@ -83,7 +83,7 @@ fn @constructor(arg0: address) [constructor, abi_params=[address]] {
     stop
 }
 
-fn @fallback() [fallback] {
+fn @fallback() [unrestricted_memory, fallback] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
@@ -315,7 +315,7 @@ fn @crossBlock() -> u256 [selector=0xb0694ed5, abi_params=[], abi_returns=[word]
     revert 0, 0
 }
 
-fn @dynamicRevert() -> u256 [selector=0x5dbb0715, abi_params=[], abi_returns=[word]] {
+fn @dynamicRevert() -> u256 [selector=0x5dbb0715, unrestricted_memory, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -403,7 +403,7 @@ fn @revert_error(arg0: u256, arg1: u256) {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:RevertingProducer ===
 @module RevertingProducer
-fn @fail() [selector=0xa9cc4718, pure, abi_params=[], abi_returns=[memory_bytes]] {
+fn @fail() [selector=0xa9cc4718, unrestricted_memory, pure, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     mstore 0, 0x1234 !metadata(memory=scratch)
     revert 0, 228
@@ -453,7 +453,7 @@ fn @bubble() -> memorybytes [selector=0x4ce637d6, view, abi_params=[], abi_retur
 
 // === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:SharedPublicFrame ===
 @module SharedPublicFrame
-fn @helper(arg0: u256) -> u256 [selector=0xdabf7ec4, pure, abi_params=[u256], abi_returns=[word]] {
+fn @helper(arg0: u256) -> u256 [selector=0xdabf7ec4, unrestricted_memory, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
     calldatacopy 0, 0, 0x1000 !metadata(memory=scratch)
     ret arg0
@@ -473,7 +473,7 @@ fn @buffer() -> u256 [pure] {
     ret v0
 }
 
-fn @forward(arg0: address, arg1: calldataslice) -> bool [selector=0x6fadcf72, abi_params=[address, bytes], abi_returns=[word<bool>]] {
+fn @forward(arg0: address, arg1: calldataslice) -> bool [selector=0x6fadcf72, unrestricted_memory, abi_params=[address, bytes], abi_returns=[word<bool>]] {
   bb0:
     v0 = icall @buffer, 1
     v1 = slice_len arg1
