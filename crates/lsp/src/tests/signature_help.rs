@@ -57,6 +57,46 @@ function add(uint256 lhs, uint256 rhs) public pure returns (uint256)
 }
 
 #[test]
+fn keeps_member_call_offsets_after_statements_and_lexical_trivia() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Signature.sol open
+        contract Target {
+            function set(string memory text, uint256 value) external pure {}
+        }
+
+        contract C {
+            function use(Target target) public pure {
+                target.set("", 0);
+                target.set("escaped quote: \";,(", $1 1);
+                target.set('escaped quote: \';,(', $2 2);
+                target.set(unicode"😀; // /*,(", $3 3);
+                target.set("value", /* /* ; " ' ( , // */ $4 4);
+                target.set("value", // ; " ' ( , /*
+                    $5 5);
+            }
+        }
+        "#,
+        "/Signature.sol",
+    );
+
+    // Member calls require the indexed callsite, so a relative opening-parenthesis offset cannot
+    // accidentally pass through the unqualified-name fallback.
+    for marker in ["$1", "$2", "$3", "$4", "$5"] {
+        fixture.check_signature_help(
+            marker,
+            str![[r#"
+active signature=Some(0) parameter=Some(1)
+function set(string memory text, uint256 value) external pure
+  13..31
+  33..46
+
+"#]],
+        );
+    }
+}
+
+#[test]
 fn uses_parameter_text_when_the_client_does_not_support_label_offsets() {
     let fixture = RequestFixture::new(
         r#"
@@ -417,6 +457,56 @@ fn warmed_requests_reject_a_changed_receiver_before_reanalysis() {
     let path = VfsPath::from(fixture.project_path("/Signature.sol"));
     state.vfs.write().set_file_contents(path.clone(), Some(Rope::from(changed)));
     assert_eq!(request_signature_help(&mut state, uri.clone(), position), None);
+
+    state.vfs.write().set_file_contents(path, Some(Rope::from(contents)));
+    assert_eq!(request_signature_help(&mut state, uri, position), Some(original));
+}
+
+#[test]
+fn warmed_requests_use_current_string_and_comment_boundaries_before_reanalysis() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Signature.sol open
+        contract Target {
+            function set(bytes memory text, uint256 value) external pure {}
+        }
+
+        contract C {
+            function use(Target target) public pure {
+                target.set(hex"3b3b", 0);
+                target.set(hex"3b3b", $1 2);
+            }
+        }
+        "#,
+        "/Signature.sol",
+    );
+    let mut state = fixture.state();
+    let (uri, position) = fixture.marker_location("$1");
+    let original = request_signature_help(&mut state, uri.clone(), position).unwrap();
+    assert_eq!(original.active_parameter, Some(1));
+    assert_eq!(request_signature_help(&mut state, uri.clone(), position), Some(original.clone()));
+
+    let contents = fixture.project_contents("/Signature.sol");
+    let path = VfsPath::from(fixture.project_path("/Signature.sol"));
+    let start = contents.rfind("hex\"3b3b\",").unwrap();
+    let end = start + "hex\"3b3b\",".len();
+    // Keep the callsite and cursor positions fixed while introducing invalid or incomplete
+    // literals and comments. A comma swallowed by an open token belongs to the first argument.
+    for (replacement, active_parameter) in
+        [(r#"hex";;,(","#, 1), (r#"hex";;,( ,"#, 0), (r#"/* "; */ ,"#, 1), (r#"/* ";    ,"#, 0)]
+    {
+        assert_eq!(replacement.len(), end - start);
+        let mut changed = contents.clone();
+        changed.replace_range(start..end, replacement);
+        state.vfs.write().set_file_contents(path.clone(), Some(Rope::from(changed)));
+        let mut expected = original.clone();
+        expected.active_parameter = Some(active_parameter);
+        assert_eq!(
+            request_signature_help(&mut state, uri.clone(), position),
+            Some(expected.clone())
+        );
+        assert_eq!(request_signature_help(&mut state, uri.clone(), position), Some(expected));
+    }
 
     state.vfs.write().set_file_contents(path, Some(Rope::from(contents)));
     assert_eq!(request_signature_help(&mut state, uri, position), Some(original));
