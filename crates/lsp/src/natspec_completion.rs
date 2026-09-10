@@ -1,8 +1,7 @@
 use crate::{config::CompletionClientOptions, proto};
 use crop::Rope;
 use lsp_types::{
-    CompletionItem, CompletionItemKind, CompletionTextEdit, InsertTextFormat, Position, Range,
-    TextEdit,
+    CompletionItem, CompletionItemKind, CompletionTextEdit, InsertTextFormat, Range, TextEdit,
 };
 use solar_config::CompileOpts;
 use solar_interface::{Session, source_map::FileName};
@@ -309,10 +308,8 @@ enum CandidateResult {
     Candidate(CommentCandidate),
 }
 
-pub(crate) fn target(contents: &Rope, position: Position) -> NatSpecCompletionResult {
-    let Some(cursor) = proto::checked_text_range(contents, Range::new(position, position))
-        .map(|range| range.start)
-    else {
+pub(crate) fn target(contents: &Rope, cursor: Option<usize>) -> NatSpecCompletionResult {
+    let Some(cursor) = cursor else {
         return NatSpecCompletionResult::Claimed(None);
     };
     if !has_natspec_prefix(contents, cursor) {
@@ -661,6 +658,13 @@ fn is_adjacent_doc_comment(gap: &str, style: CommentStyle) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use lsp_types::Position;
+
+    fn target(contents: &Rope, position: Position) -> NatSpecCompletionResult {
+        let cursor = proto::checked_text_range(contents, Range::new(position, position))
+            .map(|range| range.start);
+        super::target(contents, cursor)
+    }
 
     #[test]
     fn rejects_a_line_doc_comment_separated_by_a_blank_line() {

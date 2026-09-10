@@ -26,6 +26,7 @@ use super::VfsPath;
 use crate::{
     file_operations::{FileMoveBatch, FileMoveError},
     folding_range,
+    proto::LspPositionIndex,
     selection_range::SelectionRangeIndex,
 };
 use crop::Rope;
@@ -41,6 +42,7 @@ use std::{
 struct VfsFile {
     contents: Rope,
     analysis_source: OnceLock<Arc<String>>,
+    positions: OnceLock<LspPositionIndex<Rope>>,
     selection_range_index: OnceLock<SelectionRangeIndex>,
     folding_ranges: OnceLock<Vec<lsp_types::FoldingRange>>,
 }
@@ -50,6 +52,7 @@ impl VfsFile {
         Self {
             contents,
             analysis_source: OnceLock::new(),
+            positions: OnceLock::new(),
             selection_range_index: OnceLock::new(),
             folding_ranges: OnceLock::new(),
         }
@@ -59,6 +62,24 @@ impl VfsFile {
         self.analysis_source
             .get_or_init(|| Arc::new(crate::utils::rope_to_string(&self.contents)))
             .clone()
+    }
+}
+
+/// An exact-content handle for sharing completion's source text and position index.
+#[derive(Clone)]
+pub(crate) struct CompletionSource(Arc<VfsFile>);
+
+impl CompletionSource {
+    pub(crate) fn contents(&self) -> &Rope {
+        &self.0.contents
+    }
+
+    pub(crate) fn positions(&self) -> &LspPositionIndex<Rope> {
+        self.0.positions.get_or_init(|| LspPositionIndex::from_rope(self.0.contents.clone()))
+    }
+
+    pub(crate) fn source(&self) -> Arc<String> {
+        self.0.analysis_source()
     }
 }
 
@@ -154,6 +175,10 @@ impl Vfs {
     /// Returns a shared contiguous source for compiler analysis.
     pub(crate) fn get_file_analysis_source(&self, path: &VfsPath) -> Option<Arc<String>> {
         self.data.get(path).map(|file| file.analysis_source())
+    }
+
+    pub(crate) fn get_file_completion_source(&self, path: &VfsPath) -> Option<CompletionSource> {
+        self.data.get(path).cloned().map(CompletionSource)
     }
 
     /// Returns an exact-content handle whose derived index can initialize outside the VFS lock.
@@ -372,6 +397,54 @@ mod tests {
         let changed = vfs.get_file_analysis_source(&file).unwrap();
         assert!(!Arc::ptr_eq(&first, &changed));
         assert_eq!(changed.as_str(), "contract Changed {}");
+    }
+
+    #[test]
+    fn completion_sources_keep_text_and_positions_from_the_same_contents() {
+        let mut vfs = Vfs::default();
+        let file = path("/workspace/Test.sol");
+        insert(&mut vfs, "/workspace/Test.sol", "α😀\r\nnext\rtail\n", 1);
+        let original = vfs.get_file_completion_source(&file).unwrap();
+        let at = |source: &CompletionSource, line, character| {
+            let position = Position::new(line, character);
+            source.positions().checked_text_range(lsp_types::Range::new(position, position))
+        };
+        assert_eq!(at(&original, 0, 2), None);
+        assert_eq!(at(&original, 0, 99), Some(6..6));
+        assert_eq!(at(&original, 1, 2), Some(10..10));
+        assert_eq!(at(&original, 2, 4), Some(17..17));
+        assert_eq!(at(&original, 3, 0), Some(18..18));
+        assert_eq!(at(&original, 4, 0), None);
+
+        assert!(!vfs.set_file_contents_with_version(
+            file.clone(),
+            Some(original.contents().clone()),
+            Some(2),
+        ));
+        let unchanged = vfs.get_file_completion_source(&file).unwrap();
+        assert!(std::ptr::eq(original.positions(), unchanged.positions()));
+        assert!(Arc::ptr_eq(&original.source(), &unchanged.source()));
+
+        insert(&mut vfs, "/workspace/Test.sol", "x\n😀z\n", 3);
+        let changed = vfs.get_file_completion_source(&file).unwrap();
+        assert_eq!(at(&changed, 1, 2), Some(6..6));
+        assert_eq!(at(&changed, 2, 0), Some(8..8));
+        assert_eq!(changed.source().as_str(), "x\n😀z\n");
+        assert_eq!(at(&original, 1, 2), Some(10..10));
+        assert_eq!(original.source().as_str(), "α😀\r\nnext\rtail\n");
+
+        let moved = path("/workspace/Moved.sol");
+        vfs.rename_file_prefixes(&moves([(
+            PathBuf::from("/workspace/Test.sol"),
+            PathBuf::from("/workspace/Moved.sol"),
+        )]))
+        .unwrap();
+        assert!(vfs.get_file_completion_source(&file).is_none());
+        let renamed = vfs.get_file_completion_source(&moved).unwrap();
+        assert!(std::ptr::eq(changed.positions(), renamed.positions()));
+        assert_eq!(at(&renamed, 1, 2), Some(6..6));
+        vfs.set_file_contents(moved, None);
+        assert_eq!(renamed.source().as_str(), "x\n😀z\n");
     }
 
     #[test]
