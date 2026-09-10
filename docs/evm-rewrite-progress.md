@@ -987,11 +987,19 @@ the debug compiler rebuild and all 1,577 workspace tests pass (two skipped).
 
 ## Remaining acceptance work
 
+The [deeper literal orientation milestone](evm-deeper-literal-milestone.md)
+extends one existing EVM IR rewrite by 18 physical Rust lines. It retains every
+matched gas label and runtime observation, shrinks UI Gas/Size totals by
+948/1,426 bytes, and shrinks the heavy corpus by 1,046 bytes without individual
+object growth. Positive sealed debt is now 30,280,048 bytes. The three changed
+snapshots were reviewed as seven exact stack identities plus label offsets;
+all 1,577 workspace tests pass without removing or weakening an oracle.
+
 The alias assertion migration passes; its generated-code size debt remains.
 The original readback failures now pass in every mode. General source-memory
 ownership remains an open contract. The shared-root witness at byte address
 576 now passes None, Gas and Size without changing its source or oracles;
-the shared-capture milestone documents its narrow admission and rejected trials. The complete heavy join has 30,280,962 positive bytes of sealed size debt
+the shared-capture milestone documents its narrow admission and rejected trials. The complete heavy join has 30,280,048 positive bytes of sealed size debt
 across 1,007 objects. This includes creation/runtime and embedded-child
 amplification; it is a sum of regressions, not net corpus growth. The historical
 writer count was 31,831,619. Terminal returns removed 20 positive bytes before
@@ -1003,15 +1011,16 @@ reordering removes another 8,550 positive bytes; returning-memory analysis and
 halting-context verification remove another 631,275. Bitmap address scheduling
 removes another 655,108. Consumed-value duplicate stores remove another 19,956.
 Validated argument selection removes another 90,686.
+Deeper literal orientation removes another 914 positive bytes.
 Against retained main `25b0c078`, 15 of 175 gas labels regress,
 down from 24: Maple's five approve and Flash's four fee regressions are gone.
 OZ mint remains +3; the remaining getter debts persist. Fractional's seven getter calls now cost
 one additional gas each, down from ten. Compiler-time debts
 remain.
-The backend has 17,612 physical lines in 48 files, 17,026 fewer than the deletion
-inventory. Excluding trailing test modules leaves 16,307 physical lines. A
+The backend has 17,630 physical lines in 48 files, 17,008 fewer than the deletion
+inventory. Excluding trailing test modules leaves 16,325 physical lines. A
 retained count-only baseline reports 29,006 production-section lines, giving a
-conditional reduction of 12,699; that file lacks a revision/hash link to the
+conditional reduction of 12,681; that file lacks a revision/hash link to the
 sealed archive. These counts include comments and are not strict production SLOC.
 
 Eager contraction removes avoidable spills and saves bytecode without corpus
