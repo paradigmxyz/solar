@@ -1,17 +1,35 @@
 # EVM rewrite progress
 
-The rewrite remains incomplete. General memory-ownership evidence and individual
-sealed gas/size debts still block final acceptance. The original UI assertion
-has been resolved without changing its Solidity body.
-This page records accepted milestones and integration through 2026-09-09. The
+The deletion-first rewrite remains incomplete. The backend now has 17,661
+physical Rust lines, 16,977 fewer than the original 34,638-line scope inventory;
+these counts include comments, blanks and local tests. General source-memory
+ownership, 30,130,696 positive bytes of sealed heavy size debt and 15 retained-main
+hot-gas regressions still block final acceptance. The original UI assertion
+and bounded address-576 readback witness are resolved without changing their
+Solidity bodies or runtime oracles.
+
+This page records accepted milestones and integration through 2026-09-10. The
 [handoff](evm-rewrite-plan.md) defines acceptance; [PR #1388][pr] tracks review.
 The [checkpoint archive](evm-rewrite-checkpoints.md) preserves the complete
 history, baseline hashes, rejected trials and measurement limitations.
 
 ## Accepted local state
 
-Main `25b0c078` was integrated by merge `dee4ac25`; the preceding pushed
-head `0303dbfd` has green CI. The [shared-capture milestone](evm-shared-capture-milestone.md)
+The [same-word reload milestone](evm-store-reload-milestone.md) is the current
+accepted local candidate. It saves 149,352 heavy bytes without individual object
+growth and preserves every measured hot-gas label in both modes. All 1,577
+workspace tests pass with two existing skips. Full/Size compiler-median changes
+of -0.718%/+1.741% remain uncertain. A quiet four-leg Size ABBA recheck
+retains all 15 IDs and 75 samples per leg, with a +0.020% median geometric
+mean change and exact input/output fingerprints.
+The preceding pushed head `25767b5c` passed its exact-head CI checks. Main
+`afdd3a1c` is merged in `642e6ad1`; it changes only Windows CLI UI-test
+normalization. The implementation and reviewed tests are committed in `287eea34`.
+Remote CI completion for these new commits is not yet claimed.
+
+Earlier integration checkpoints include main `25b0c078` in merge `dee4ac25`
+and green CI on its preceding pushed head `0303dbfd`. The
+[shared-capture milestone](evm-shared-capture-milestone.md)
 restores the address-576 witness in all optimization modes while retaining
 existing corpus gas and bytecode. Its bounded policy adds 352 MIR Rust lines;
 general source-memory ownership and the existing performance debts remain open.
@@ -985,21 +1003,48 @@ test, runtime assertion, or snapshot was removed or relaxed. This investigation
 leaves production LOC and accepted performance debt unchanged. After restoration,
 the debug compiler rebuild and all 1,577 workspace tests pass (two skipped).
 
+## Same-word reload across a literal (September 10)
+
+The existing late-DCE peephole retains a just-stored word across one literal
+and a reversible binary consumer. It keeps the store, reverses the binary
+operand order through the existing helper, and proves the extra copy fits the
+existing stack-capacity bound. Earlier cleanup and scheduling queries disable
+it. No new pass, memory-ownership analysis or assembly transform is introduced;
+the implementation adds 31 physical backend lines.
+
+The frozen baseline/candidate pair preserves all 1,692 UI rows and 5,152 objects,
+with 22 shrinking objects and no growth or equal-size changes. Gas/Size totals
+fall 700/682 bytes. All 3,344 heavy objects are joined individually: 302 shrink
+and 3,042 remain exact, saving 149,352 bytes. Both runtime modes preserve all
+175 gas labels and 139 observations. Focused execution passes 48 calls and
+saves two or three gas on all 24 paired paths. The unchanged ResidentArgDepth
+source activates exactly one new late-DCE rewrite in each mode, shrinking its
+runtime by three bytes. Both bounded solsymdiff lanes agree with pinned solc;
+complete native/symbolic object joins retain the Standard JSON metadata trailer.
+Five installed fixtures pass eleven revisions, and the final workspace passes
+1,577 tests with two existing skips. Original test bodies and runtime oracles
+remain intact. [The milestone](evm-store-reload-milestone.md) records producer
+pins, reviewed snapshots, corrected fixture attempts, exact corpus joins and
+the pending compiler-time recheck. Local validation is separate from the
+requested main integration, push and remote CI run.
+
 ## Remaining acceptance work
 
 The [deeper literal orientation milestone](evm-deeper-literal-milestone.md)
 extends one existing EVM IR rewrite by 18 physical Rust lines. It retains every
 matched gas label and runtime observation, shrinks UI Gas/Size totals by
 948/1,426 bytes, and shrinks the heavy corpus by 1,046 bytes without individual
-object growth. Positive sealed debt is now 30,280,048 bytes. The three changed
-snapshots were reviewed as seven exact stack identities plus label offsets;
-all 1,577 workspace tests pass without removing or weakening an oracle.
+object growth. Its positive sealed debt checkpoint was 30,280,048 bytes. The
+three changed snapshots were reviewed as seven exact stack identities plus
+label offsets; all 1,577 workspace tests pass without removing or weakening
+an oracle.
 
 The alias assertion migration passes; its generated-code size debt remains.
 The original readback failures now pass in every mode. General source-memory
 ownership remains an open contract. The shared-root witness at byte address
 576 now passes None, Gas and Size without changing its source or oracles;
-the shared-capture milestone documents its narrow admission and rejected trials. The complete heavy join has 30,280,048 positive bytes of sealed size debt
+the shared-capture milestone documents its narrow admission and rejected trials.
+The current complete heavy join has 30,130,696 positive bytes of sealed size debt
 across 1,007 objects. This includes creation/runtime and embedded-child
 amplification; it is a sum of regressions, not net corpus growth. The historical
 writer count was 31,831,619. Terminal returns removed 20 positive bytes before
@@ -1011,17 +1056,19 @@ reordering removes another 8,550 positive bytes; returning-memory analysis and
 halting-context verification remove another 631,275. Bitmap address scheduling
 removes another 655,108. Consumed-value duplicate stores remove another 19,956.
 Validated argument selection removes another 90,686.
-Deeper literal orientation removes another 914 positive bytes.
+Deeper literal orientation removes another 914 positive bytes; the same-word
+reload milestone removes another 149,352.
 Against retained main `25b0c078`, 15 of 175 gas labels regress,
 down from 24: Maple's five approve and Flash's four fee regressions are gone.
 OZ mint remains +3; the remaining getter debts persist. Fractional's seven getter calls now cost
 one additional gas each, down from ten. Compiler-time debts
 remain.
-The backend has 17,630 physical lines in 48 files, 17,008 fewer than the deletion
-inventory. Excluding trailing test modules leaves 16,325 physical lines. A
-retained count-only baseline reports 29,006 production-section lines, giving a
-conditional reduction of 12,681; that file lacks a revision/hash link to the
-sealed archive. These counts include comments and are not strict production SLOC.
+The backend has 17,661 physical lines in 48 files, 16,977 fewer than the deletion
+inventory. The preceding orientation checkpoint had 16,325 physical lines after
+excluding trailing test modules. A retained count-only baseline reports 29,006
+production-section lines, giving that checkpoint a conditional reduction of
+12,681; the baseline file lacks a revision/hash link to the sealed archive.
+These counts include comments and are not strict production SLOC.
 
 Eager contraction removes avoidable spills and saves bytecode without corpus
 growth; full Gas/Size outputs and Foundry gas remain exact. It adds 188 physical
