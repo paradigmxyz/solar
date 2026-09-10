@@ -36,7 +36,7 @@ bb0:
 bb3 [cold]:
   push 0
   push 0
-  revert !metadata(exit=revert)
+  revert
 bb25 [cold]:
   push 0x4e487b71
   push 0
@@ -46,8 +46,8 @@ bb25 [cold]:
   mstore
   push 36
   push 28
-  revert !metadata(exit=revert)
-bb4 [invoke=sum@603..1207]:
+  revert
+bb4:
   push 644
   calldatasize
   lt
@@ -230,4 +230,4 @@ bb4 [invoke=sum@603..1207]:
   mstore
   push 32
   push 0
-  return !metadata(exit=return)
+  return

@@ -22,16 +22,16 @@ bb0:
 bb4 [cold]:
   push 0
   push 0
-  revert !metadata(exit=revert)
-bb5 [invoke=last@647..667]:
+  revert
+bb5:
   push 0
   sload
   push 0
   mstore
   push 32
   push 0
-  return !metadata(exit=return)
-bb6 [invoke=f@1014..1134]:
+  return
+bb6:
   push 36
   calldatasize
   lt
@@ -55,4 +55,4 @@ bb6 [invoke=f@1014..1134]:
   log2
   push 0
   sstore
-  stop !metadata(exit=return)
+  stop

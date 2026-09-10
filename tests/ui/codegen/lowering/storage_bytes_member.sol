@@ -43,7 +43,7 @@ contract StorageBytesMember {
     // CHECK: push 0x72bd964d
     // CHECK-NEXT: eq
     // CHECK-NEXT: push [[WHOLE:bb[0-9]+]]
-    // CHECK: [[PUSH_RANGE]]{{( \[.*\])?}}:
+    // CHECK: [[PUSH_RANGE]]:
     // CHECK: keccak256
     // CHECK: jump [[LOOP:bb[0-9]+]]
     // CHECK: [[LOOP]] [loop]:
@@ -61,26 +61,26 @@ contract StorageBytesMember {
         }
     }
 
-    // CHECK: [[POP_ONE]]{{( \[.*\])?}}:
+    // CHECK: [[POP_ONE]]:
     // CHECK: keccak256
     function popOne() external {
         KeccakState storage state = states[msg.sender];
         state.part.pop();
     }
 
-    // CHECK: [[LEN]]{{( \[.*\])?}}:
+    // CHECK: [[LEN]]:
     // CHECK: keccak256
     // CHECK: sload
     // CHECK-NOT: mload
     // CHECK: jump [[RETURN:bb[0-9]+]]
-    // CHECK: [[RETURN]]{{( \[.*\])?}}:
+    // CHECK: [[RETURN]]:
     // CHECK: return
     function len() external view returns (uint256) {
         KeccakState storage state = states[msg.sender];
         return state.part.length;
     }
 
-    // CHECK: [[AT]]{{( \[.*\])?}}:
+    // CHECK: [[AT]]:
     // CHECK: caller
     // CHECK: push 32
     // CHECK-NEXT: mstore
@@ -92,7 +92,7 @@ contract StorageBytesMember {
         return state.part[i];
     }
 
-    // CHECK: [[SET_AT]]{{( \[.*\])?}}:
+    // CHECK: [[SET_AT]]:
     // CHECK: keccak256
     // CHECK: sload
     // CHECK-NOT: mcopy
@@ -102,7 +102,7 @@ contract StorageBytesMember {
         state.part[i] = b;
     }
 
-    // CHECK: [[WHOLE]]{{( \[.*\])?}}:
+    // CHECK: [[WHOLE]]:
     // CHECK: caller
     // CHECK: push 32
     // CHECK-NEXT: mstore

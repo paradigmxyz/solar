@@ -480,9 +480,6 @@ fn try_peephole(
         && store.as_evm_opcode() == Some(op::MSTORE)
         && swap.as_stack_op() == Some(op::StackOp::Swap(depth - 1))
         && pop.as_evm_opcode() == Some(op::POP)
-        && [swap, pop].iter().all(|inst| {
-            inst.metadata.function_invoke().is_none() && inst.metadata.function_exit().is_none()
-        })
         && [dup, address, store, swap, pop]
             .iter()
             .all(|inst| inst.has_canonical_stack_effect() && !inst.metadata.keep_with_next)
@@ -762,6 +759,10 @@ impl Edit {
             Self::ConsumeStoredValue(depth) => {
                 // SWAP(n-1); PUSH address; MSTORE
                 overwrite_stack_op(&mut instructions[start], PhysicalStackOp::Swap(depth));
+                let (retained, removed) = instructions[start..].split_at_mut(3);
+                for inst in removed {
+                    retained[2].metadata.absorb_debug_info(&inst.metadata);
+                }
                 instructions.truncate(start + 3);
             }
             Self::ReloadStoredValue => {

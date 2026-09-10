@@ -4,7 +4,7 @@ bb0:
   callvalue
   push bb13
   jumpi
-  push 0 !metadata(invoke=fallback@3505..4408)
+  push 0
   calldataload
   dup 1
   push 128
@@ -21,7 +21,7 @@ bb0:
 bb13 [cold]:
   push 0
   push 0
-  revert !metadata(exit=revert)
+  revert
 bb5:
   push 107
   jump bb14
@@ -30,7 +30,7 @@ bb14:
   mstore
   push 32
   push 0
-  return !metadata(exit=return)
+  return
 bb6:
   push 106
   jump bb14

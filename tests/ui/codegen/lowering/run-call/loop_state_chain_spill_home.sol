@@ -47,7 +47,7 @@ contract LoopStateChainSpillHome {
     // CHECK: push 0xcb11e62b
     // CHECK-NEXT: eq
     // CHECK-NEXT: push [[BODY:bb[0-9]+]]
-    // CHECK: [[BODY]]{{( \[.*\])?}}:
+    // CHECK: [[BODY]]:
     // CHECK: push 2{{$}}
     // CHECK-NEXT: push [[STATE:[0-9]+]]
     // CHECK-NEXT: mload

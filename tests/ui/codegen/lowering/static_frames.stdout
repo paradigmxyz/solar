@@ -22,7 +22,7 @@ bb0:
 bb4 [cold]:
   push 0
   push 0
-  revert !metadata(exit=revert)
+  revert
 bb16 [cold]:
   push 0x4e487b71
   push 0
@@ -32,8 +32,8 @@ bb16 [cold]:
   mstore
   push 36
   push 28
-  revert !metadata(exit=revert)
-bb5 [invoke=s@235..252]:
+  revert
+bb5:
   push 0
   sload
   jump bb68
@@ -42,8 +42,8 @@ bb68:
   mstore
   push 32
   push 0
-  return !metadata(exit=return)
-bb6 [invoke=top@1236..1511]:
+  return
+bb6:
   push 832
   push 64
   mstore
@@ -67,7 +67,7 @@ bb6 [invoke=top@1236..1511]:
   push bb9
   push 4
   calldataload
-  push 1 !metadata(invoke=chainA@1517..1690)
+  push 1
   dup 2
   add
   dup 2
@@ -81,13 +81,13 @@ bb6 [invoke=top@1236..1511]:
   push 448
   mload
   dup 3
-  xor !metadata(invoke=chainB@1696..1895)
+  xor
   dup 1
   push 576
   mstore
   push bb25
   dup 2
-  push 0 !metadata(invoke=chainC@1901..2029)
+  push 0
   sload
   push 1
   dup 2
@@ -118,7 +118,7 @@ bb6 [invoke=top@1236..1511]:
   add
   swap 1
   swap 2
-  jump !metadata(exit=return)
+  jump
 bb9:
   dup 1
   push 256
@@ -194,7 +194,7 @@ bb69:
   push bb16
   jumpi
   swap 1
-  jump !metadata(exit=return)
+  jump
 bb25:
   push 0
   sload
@@ -253,7 +253,7 @@ bb83:
   push 128
   add
   mstore
-  jump !metadata(exit=return)
+  jump
 bb39:
   push 1
   push 160
@@ -317,7 +317,7 @@ bb41:
   push bb43
   swap 1
   jump bb46
-bb46 [invoke=leafS@2291..2423]:
+bb46:
   dup 1
   push 384
   mstore
@@ -355,7 +355,7 @@ bb46 [invoke=leafS@2291..2423]:
   swap 1
   mod
   swap 1
-  jump !metadata(exit=return)
+  jump
 bb43:
   push 160
   mload
@@ -388,7 +388,7 @@ bb54:
   mstore
   push bb55
   jump bb67
-bb67 [invoke=leaf2@2782..2885]:
+bb67:
   push 3
   push 384
   mload
@@ -410,7 +410,7 @@ bb67 [invoke=leaf2@2782..2885]:
   mload
   mod
   swap 1
-  jump !metadata(exit=return)
+  jump
 bb55:
   push 1
   push 160
@@ -499,7 +499,7 @@ bb75:
   pop
   push bb10
   jump bb35
-bb35 [invoke=rec@2035..2285]:
+bb35:
   push 160
   mload
   push 64
@@ -546,7 +546,7 @@ bb76:
   pop
   push bb11
   jump bb50
-bb50 [invoke=m1@2429..2606]:
+bb50:
   push 160
   mload
   push 64
@@ -682,7 +682,7 @@ bb81:
   pop
   pop
   push bb57
-  push 160 !metadata(invoke=m2@2612..2776)
+  push 160
   mload
   push 64
   add

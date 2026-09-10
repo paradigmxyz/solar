@@ -5,7 +5,7 @@
 contract TernaryOperandReuse {
     // The planner may consume `caller()` as the modulus because the return can
     // rematerialize it instead of retaining a stack copy.
-    // CHECK-LABEL: {{^}}bb5{{( \[.*\])?}}:
+    // CHECK-LABEL: {{^}}bb5:
     // CHECK: caller
     // CHECK-NOT: pop
     // CHECK: return
@@ -21,7 +21,7 @@ contract TernaryOperandReuse {
 
     // Repeated ternary operands need two input words; the return can rematerialize
     // its later occurrence instead of keeping a third physical copy.
-    // CHECK-LABEL: {{^}}bb8{{( \[.*\])?}}:
+    // CHECK-LABEL: {{^}}bb8:
     // CHECK: caller
     // CHECK-NEXT: caller
     // CHECK-NEXT: mulmod

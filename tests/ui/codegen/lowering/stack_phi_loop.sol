@@ -15,7 +15,7 @@ contract StackPhiLoop {
     // CHECK: eq
     // CHECK: push [[CARRIED:bb[0-9]+]]
     // CHECK: jumpi
-    // CHECK: [[CARRIED]]{{( \[.*\])?}}:
+    // CHECK: [[CARRIED]]:
     // CHECK-NOT: push 7
     // CHECK: calldataload
     // CHECK-NOT: push 7

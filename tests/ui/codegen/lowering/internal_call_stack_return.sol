@@ -34,39 +34,39 @@ contract ICallStackReturn {
     // GAS-NEXT: push [[COMMON_ENTRY]]
     //
     // A void call carries the caller multiplication beneath the hidden return label.
-    // GAS: [[VOID_ENTRY]]{{( \[.*\])?}}:
+    // GAS: [[VOID_ENTRY]]:
     // GAS: mul
     // GAS-NEXT: push [[VOID_RETURN:bb[0-9]+]]
     // GAS-NEXT: push 0
     // GAS-NEXT: sload
-    // GAS: [[VOID_RETURN]]{{( \[.*\])?}}:
+    // GAS: [[VOID_RETURN]]:
     // GAS-NEXT: push 4
     // GAS-NEXT: calldataload
     //
     // A nested helper rotates its one-word result above the hidden return label.
-    // GAS: [[NESTED_ENTRY]]{{( \[.*\])?}}:
+    // GAS: [[NESTED_ENTRY]]:
     // GAS: mul
     // GAS-NEXT: push [[NESTED_RETURN:bb[0-9]+]]
     // GAS-NEXT: jump [[HELPER:bb[0-9]+]]
-    // GAS-NEXT: [[HELPER]]{{( \[.*\])?}}:
+    // GAS-NEXT: [[HELPER]]:
     // GAS: push 11
     // GAS-NEXT: mul
     // GAS-NEXT: swap 1
     // GAS-NEXT: jump
     //
     // ADDMOD consumes two caller words and the helper result without a frame reload.
-    // GAS: [[MULTI_ENTRY]]{{( \[.*\])?}}:
+    // GAS: [[MULTI_ENTRY]]:
     // GAS: or
     // GAS: push [[MULTI_RETURN:bb[0-9]+]]
     // GAS-NEXT: jump [[HELPER]]
     //
     // The ordinary one-result callers share a tail-merged stack-only entry.
-    // GAS: [[COMMON_ENTRY]]{{( \[.*\])?}}:
+    // GAS: [[COMMON_ENTRY]]:
     // GAS: jump [[HELPER]]
-    // GAS: [[NESTED_RETURN]]{{( \[.*\])?}}:
+    // GAS: [[NESTED_RETURN]]:
     // GAS-NEXT: push 3
     // GAS-NEXT: add
-    // GAS: [[MULTI_RETURN]]{{( \[.*\])?}}:
+    // GAS: [[MULTI_RETURN]]:
     // GAS: addmod
 
     // Both optimized modes keep a one-word helper result on the physical stack and remove its

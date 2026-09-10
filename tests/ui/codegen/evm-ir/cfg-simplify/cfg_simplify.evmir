@@ -196,7 +196,9 @@ bb28:
 bb29:
   jump bb30
 // CHECK-LABEL: {{^[ +].*}}bb30:
-// CHECK-NEXT: {{^[ +].*}}jump bb22 !metadata(invoke=callee@30..40)
+// CHECK: + push 128 !metadata(invoke=callee@30..40)
+// CHECK-NEXT: + mstore
+// CHECK: + return
 bb30:
   jump bb22 !metadata(invoke=callee@30..40)
 
@@ -245,9 +247,7 @@ bb38:
   stop
 
 // CHECK-LABEL: {{^[ +].*}}bb42:
-// CHECK: {{^[ +].*}}push bb43
-// CHECK: {{^[ +].*}}jumpi
-// CHECK: {{^[ +].*}}jump bb44
+// CHECK: + jumpi bb43, bb44 !metadata(invoke=callee@30..40)
 bb42:
   calldatasize
   push bb43

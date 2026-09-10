@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/switch/common.sol:ProxyResult (runtime) ===
 @module ProxyResult_runtime
-bb1 [invoke=fallback@221..393]:
+bb1:
   push 0
   calldataload
   dup 1
@@ -11,9 +11,9 @@ bb1 [invoke=fallback@221..393]:
   jumpi
   push 0
   push 0
-  revert !metadata(exit=revert)
+  revert
 bb2:
-  stop !metadata(exit=return)
+  stop
 // === ROOT/tests/ui/codegen/lowering/switch/common.sol:Base64Remainder (runtime) ===
 @module Base64Remainder_runtime
 bb0:
@@ -21,7 +21,7 @@ bb0:
   push bb2
   jumpi
   push 3
-  push 0 !metadata(invoke=fallback@566..765)
+  push 0
   calldataload
   mod
   dup 1
@@ -40,7 +40,7 @@ bb0:
 bb6:
   push 32
   push 0
-  return !metadata(exit=return)
+  return
 bb4:
   dup 1
   push 2
@@ -62,7 +62,7 @@ bb0:
   callvalue
   push bb2
   jumpi
-  push 0 !metadata(invoke=fallback@938..1168)
+  push 0
   calldataload
   dup 1
   push 128
@@ -80,7 +80,7 @@ bb0:
 bb6:
   push 32
   push 0
-  return !metadata(exit=return)
+  return
 bb4:
   dup 1
   push 65
@@ -108,7 +108,7 @@ bb0:
   callvalue
   push bb2
   jumpi
-  push 0 !metadata(invoke=fallback@1323..1792)
+  push 0
   calldataload
   push 32
   calldataload
@@ -134,7 +134,7 @@ bb0:
 bb5:
   push 32
   push 0
-  return !metadata(exit=return)
+  return
 bb4:
   pop
   push 1

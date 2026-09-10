@@ -12,14 +12,14 @@ contract SF {
     // CHECK: push 0x86b714e2
     // CHECK-NEXT: eq
     // CHECK-NEXT: push [[GETTER:bb[0-9]+]]
-    // CHECK: [[GETTER]]{{( \[.*\])?}}:
+    // CHECK: [[GETTER]]:
     // CHECK-NEXT: push 0
     // CHECK-NEXT: sload
     // CHECK-NEXT: jump [[GETTER_RETURN:bb[0-9]+]]
-    // CHECK: [[GETTER_RETURN]]{{( \[.*\])?}}:
+    // CHECK: [[GETTER_RETURN]]:
     // CHECK: return
     // The allocating entry initializes its reachable frame floor.
-    // CHECK: [[TOP]]{{( \[.*\])?}}:
+    // CHECK: [[TOP]]:
     // CHECK-NEXT: push 832
     // CHECK-NEXT: push 64
     // CHECK-NEXT: mstore

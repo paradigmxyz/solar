@@ -23,14 +23,14 @@ bb4 [cold]:
   push 0
   push 0
   revert
-bb5 [invoke=value@338..369]:
+bb5:
   push_immutable 0, 32
   push 0
   mstore
   push 32
   push 0
-  return !metadata(exit=return)
-bb6 [invoke=payload@440..781]:
+  return
+bb6:
   push 320
   dup 1
   push 64
@@ -145,7 +145,7 @@ bb8:
   mstore
   dup 2
   dup 2
-  return !metadata(exit=return)
+  return
 
 @data literal_0 hex"ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100"
 // === ROOT/tests/ui/codegen/lowering/program-data/contract_creation_args_data_dedup.sol:FactoryWithArgs (runtime) ===
@@ -177,7 +177,7 @@ bb0:
 bb5 [cold]:
   push 0
   push 0
-  revert !metadata(exit=revert)
+  revert
 bb26 [cold]:
   returndatasize
   push 0
@@ -185,8 +185,8 @@ bb26 [cold]:
   returndatacopy
   returndatasize
   push 0
-  revert !metadata(exit=revert)
-bb6 [invoke=plain@1317..1413]:
+  revert
+bb6:
   push 288
   push 64
   mstore
@@ -252,7 +252,7 @@ bb31:
   mstore
   swap 1
   jump
-bb12 [invoke=salted@1503..1627]:
+bb12:
   push 288
   push 64
   mstore
@@ -295,7 +295,7 @@ bb12 [invoke=salted@1503..1627]:
   push 0
   create2
   jump bb30
-bb18 [invoke=pair@1723..1917]:
+bb18:
   push 384
   push 64
   mstore
@@ -384,7 +384,7 @@ bb18 [invoke=pair@1723..1917]:
   jumpi
   push bb33
   jump bb31
-bb32 [invoke=pair@1723..1917]:
+bb32:
   push 32
   push 0
   push 4
@@ -418,8 +418,8 @@ bb29:
   mstore
   push 32
   push 0
-  return !metadata(exit=return)
-bb33 [invoke=pair@1723..1917]:
+  return
+bb33:
   push 32
   push 0
   push 4
@@ -473,6 +473,6 @@ bb28 [cold]:
   mstore
   push 36
   push 28
-  revert !metadata(exit=revert)
+  revert
 
 @data ChildWithArg_initcode_0 hex"61022738038061022760e03960e001601f01601f19166040523460455760e06102273803016101001160455760e05160c05261015e8060c960e03960c0516101035260e0f35b5f5ffdffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa9988776655443322110034601d575f3560e01c80633fa4f245146021578063a878f858146049575b5f5ffd5b7f00000000000000000000000000000000000000000000000000000000000000005f5260205ff35b61014080604052806101205260a0810160405260808152602081018060a052608060de82396040518060c052602081016020825283151593519093028060805283529150601f60805101601f19168060e052604083018061010052816080519291909394931560bc576020820381015f90525b9081018285835e935050509003601f8101601f19166040519081016040528181f3ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100"

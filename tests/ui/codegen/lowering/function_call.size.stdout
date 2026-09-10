@@ -22,7 +22,7 @@ bb0:
 bb4 [cold]:
   push 0
   push 0
-  revert !metadata(exit=revert)
+  revert
 bb19 [cold]:
   push 0x4e487b71
   push 0
@@ -33,7 +33,7 @@ bb19 [cold]:
   push 36
   push 28
   revert
-bb5 [invoke=quadruple@540..641]:
+bb5:
   push 36
   calldatasize
   lt
@@ -43,7 +43,7 @@ bb5 [invoke=quadruple@540..641]:
   push 4
   calldataload
   jump bb16
-bb16 [invoke=double@313..401]:
+bb16:
   dup 1
   dup 1
   add
@@ -53,15 +53,15 @@ bb16 [invoke=double@313..401]:
   swap 1
   dup 2
   lt
-  push bb19 !metadata(exit=return)
+  push bb19
   jumpi
   swap 1
-  jump !metadata(exit=return)
+  jump
 bb7:
   push bb8
   swap 1
   jump bb16
-bb10 [invoke=sum_then_double@803..940]:
+bb10:
   push 68
   calldatasize
   lt
@@ -76,7 +76,7 @@ bb10 [invoke=sum_then_double@803..940]:
   calldataload
   dup 2
   lt
-  push bb19 !metadata(exit=return)
+  push bb19
   jumpi
   push bb13
   swap 1
@@ -88,4 +88,4 @@ bb8:
   mstore
   push 32
   push 0
-  return !metadata(exit=return)
+  return

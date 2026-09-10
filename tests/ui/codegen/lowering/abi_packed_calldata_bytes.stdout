@@ -22,8 +22,8 @@ bb0:
 bb4 [cold]:
   push 0
   push 0
-  revert !metadata(exit=revert)
-bb5 [invoke=h@999..1128]:
+  revert
+bb5:
   push 288
   push 64
   mstore
@@ -107,8 +107,8 @@ bb17:
   mstore
   push 32
   push 0
-  return !metadata(exit=return)
-bb9 [invoke=h2@1134..1271]:
+  return
+bb9:
   push 288
   push 64
   mstore

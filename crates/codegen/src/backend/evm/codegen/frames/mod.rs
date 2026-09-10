@@ -25,9 +25,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         spill_size
     }
 
-    /// Retains function boundaries for EVM IR rewrites even without debug output.
+    /// Records a function entry when debug output is requested.
     pub(in crate::backend::evm::codegen) fn mark_debug_function_invoke(&mut self, func: &Function) {
-        if !func.declaration_span.is_dummy()
+        if self.capture_debug_info
+            && !func.declaration_span.is_dummy()
             && let Some(identifier) = func.debug_identifier
         {
             self.asm.mark_function_invoke(DebugFunction {
@@ -42,7 +43,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         func: &Function,
         exit: DebugFunctionExit,
     ) {
-        if !func.declaration_span.is_dummy() && func.debug_identifier.is_some() {
+        if self.capture_debug_info
+            && !func.declaration_span.is_dummy()
+            && func.debug_identifier.is_some()
+        {
             self.asm.mark_function_exit(exit);
         }
     }

@@ -18,7 +18,7 @@ bb0:
   sub
   push bb4
   jumpi
-  push 192 !metadata(invoke=fixedArray@499..696)
+  push 192
   dup 1
   push 64
   mstore
@@ -49,12 +49,12 @@ bb9:
   mstore
   push 32
   push 0
-  return !metadata(exit=return)
+  return
 bb4 [cold]:
   push 0
   push 0
   revert
-bb6 [invoke=dynamicArray@702..927]:
+bb6:
   push 224
   dup 1
   push 64
@@ -102,4 +102,4 @@ bb8 [cold]:
   mstore
   push 36
   push 28
-  revert !metadata(exit=revert)
+  revert

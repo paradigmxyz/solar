@@ -17,7 +17,7 @@ bb2 [cold]:
   push 0
   push 0
   revert
-bb3 [invoke=readTwice@1012..2519]:
+bb3:
   push 960
   push 64
   mstore
@@ -113,4 +113,4 @@ bb3 [invoke=readTwice@1012..2519]:
   mstore
   push 960
   push 0
-  return !metadata(exit=return)
+  return

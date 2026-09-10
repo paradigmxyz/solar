@@ -46,7 +46,7 @@ bb2:
 bb31 [cold]:
   push 0
   push 0
-  revert !metadata(exit=revert)
+  revert
 bb3:
   dup 1
   push 0x4407bb95
@@ -82,7 +82,7 @@ bb7:
   push bb64
   jumpi
   jump bb31
-bb15 [invoke=pushRange@2042..2268]:
+bb15:
   push 68
   calldatasize
   lt
@@ -126,7 +126,7 @@ bb19 [loop]:
   lt
   push bb22
   jumpi
-  stop !metadata(exit=return)
+  stop
 bb22 [loop]:
   push 1
   push 160
@@ -165,7 +165,7 @@ bb22 [loop]:
   swap 1
   swap 2
   eq
-  push bb79 !metadata(exit=return)
+  push bb79
   jumpi
   push 1
   push 64
@@ -173,7 +173,7 @@ bb22 [loop]:
   dup 2
   lt
   iszero
-  push bb78 !metadata(exit=return)
+  push bb78
   jumpi
   push 31
   dup 2
@@ -279,7 +279,7 @@ bb27 [loop]:
   swap 1
   sstore
   jump bb21
-bb32 [invoke=popOne@2339..2455]:
+bb32:
   caller
   push 0
   mstore
@@ -314,7 +314,7 @@ bb32 [invoke=popOne@2339..2455]:
   dup 1
   swap 3
   eq
-  push bb79 !metadata(exit=return)
+  push bb79
   jumpi
   dup 1
   push 128
@@ -370,7 +370,7 @@ bb32 [invoke=popOne@2339..2455]:
   sstore
   jump bb39
 bb39:
-  stop !metadata(exit=return)
+  stop
 bb37:
   push 160
   mload
@@ -433,7 +433,7 @@ bb38:
   swap 1
   sstore
   jump bb39
-bb42 [invoke=len@2666..2810]:
+bb42:
   caller
   push 0
   mstore
@@ -469,7 +469,7 @@ bb42 [invoke=len@2666..2810]:
   swap 1
   swap 2
   eq
-  push bb79 !metadata(exit=return)
+  push bb79
   jumpi
   jump bb82
 bb82:
@@ -477,8 +477,8 @@ bb82:
   mstore
   push 32
   push 0
-  return !metadata(exit=return)
-bb45 [invoke=at@2985..3132]:
+  return
+bb45:
   push 36
   calldatasize
   lt
@@ -519,13 +519,13 @@ bb45 [invoke=at@2985..3132]:
   lt
   dup 3
   eq
-  push bb79 !metadata(exit=return)
+  push bb79
   jumpi
   push 4
   calldataload
   lt
   iszero
-  push bb80 !metadata(exit=return)
+  push bb80
   jumpi
   jumpi bb49, bb50
 bb49:
@@ -556,7 +556,7 @@ bb50:
   push 248
   shl
   jump bb82
-bb54 [invoke=setAt@3267..3402]:
+bb54:
   push 68
   calldatasize
   lt
@@ -603,13 +603,13 @@ bb54 [invoke=setAt@3267..3402]:
   lt
   dup 3
   eq
-  push bb79 !metadata(exit=return)
+  push bb79
   jumpi
   push 4
   calldataload
   lt
   iszero
-  push bb80 !metadata(exit=return)
+  push bb80
   jumpi
   jumpi bb59, bb60
 bb59:
@@ -657,8 +657,8 @@ bb60:
   or
   swap 1
   sstore
-  stop !metadata(exit=return)
-bb64 [invoke=whole@3557..3701]:
+  stop
+bb64:
   push 384
   push 64
   mstore
@@ -695,7 +695,7 @@ bb64 [invoke=whole@3557..3701]:
   lt
   dup 3
   eq
-  push bb79 !metadata(exit=return)
+  push bb79
   jumpi
   push 31
   dup 2
@@ -708,7 +708,7 @@ bb64 [invoke=whole@3557..3701]:
   dup 3
   dup 2
   lt
-  push bb78 !metadata(exit=return)
+  push bb78
   jumpi
   push 31
   not
@@ -845,7 +845,7 @@ bb76:
   mstore
   dup 2
   dup 2
-  return !metadata(exit=return)
+  return
 bb71:
   push 192
   mload

@@ -22,7 +22,7 @@ bb0:
 bb4 [cold]:
   push 0
   push 0
-  revert !metadata(exit=revert)
+  revert
 bb10 [cold]:
   push 0x4e487b71
   push 0
@@ -32,14 +32,14 @@ bb10 [cold]:
   mstore
   push 36
   push 28
-  revert !metadata(exit=revert)
+  revert
 bb1:
   push_immutable 0, 20
   address
   eq
   push bb4
   jumpi
-  push 68 !metadata(invoke=settle@1069..1243)
+  push 68
   calldatasize
   lt
   push bb4
@@ -96,4 +96,4 @@ bb1:
   mstore
   push 32
   push 0
-  return !metadata(exit=return)
+  return

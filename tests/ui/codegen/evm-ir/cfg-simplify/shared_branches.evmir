@@ -25,25 +25,21 @@ bb1:
   jump bb6
 
 // CHECK-LABEL: {{^[ +].*}}bb2:
-// CHECK: {{^[ +].*}}push bb7 !metadata(invoke=caller@5..10)
-// CHECK-NEXT: {{^[ +].*}}jump bb6
+// CHECK: + jumpi bb7, bb8 !metadata(invoke=caller@5..10)
 bb2:
   push 0
   push bb7 !metadata(invoke=caller@5..10)
   jump bb6
 
 // CHECK-LABEL: {{^[ +].*}}bb3:
-// CHECK: {{^[ +].*}}push bb7
-// CHECK-NEXT: {{^[ +].*}}jump bb6 !metadata(invoke=callee@1..5)
+// CHECK: + jumpi bb7, bb8 !metadata(invoke=callee@1..5)
 bb3:
   push 1
   push bb7
   jump bb6 !metadata(invoke=callee@1..5)
 
 // CHECK-LABEL: {{^[ +].*}}bb4:
-// CHECK: {{^[ +].*}}push bb7
-// CHECK: + jumpi !metadata(invoke=callee@10..20)
-// CHECK-NEXT: + jump bb8
+// CHECK: + jumpi bb7, bb8 !metadata(invoke=callee@10..20)
 bb4:
   push 1
   push bb7
@@ -51,7 +47,8 @@ bb4:
 
 // CHECK-LABEL: {{^[ +].*}}bb5:
 // CHECK: {{^[ +].*}}push bb7
-// CHECK-NEXT: {{^[ +].*}}jump bb6
+// CHECK: {{^[ +] *}}jumpi{{$}}
+// CHECK-NEXT: {{^[ +].*}}jump bb8
 bb5:
   push 1
   push bb7

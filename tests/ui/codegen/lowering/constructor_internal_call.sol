@@ -17,17 +17,17 @@ contract ConstructorICall {
     // EVMIR: pop
     // EVMIR-NEXT: push [[CTOR_CONT:bb[0-9]+]]
     // EVMIR-NEXT: jump [[HELPER:bb[0-9]+]]
-    // EVMIR: [[HELPER]]{{( \[.*\])?}}:
+    // EVMIR: [[HELPER]]:
     // EVMIR: push [[RECURSE_BLOCK:bb[0-9]+]]
     // EVMIR-NEXT: jumpi
-    // EVMIR: [[RECURSE_BLOCK]]{{( \[.*\])?}}:
+    // EVMIR: [[RECURSE_BLOCK]]:
     // EVMIR-NEXT: push 11
     // EVMIR: mul
     // EVMIR: jumpi
     // EVMIR-NEXT: push 1
     // EVMIR: push {{bb[0-9]+}}
     // EVMIR-NEXT: jump [[HELPER]]
-    // EVMIR: [[CTOR_CONT]]{{( \[.*\])?}}:
+    // EVMIR: [[CTOR_CONT]]:
     // EVMIR: sstore
     // EVMIR: return
     // EVMIR-LABEL: @module ConstructorICall_runtime

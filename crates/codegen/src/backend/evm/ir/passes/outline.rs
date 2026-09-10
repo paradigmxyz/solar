@@ -673,9 +673,8 @@ fn range_function_invoke(
 ) -> Option<crate::backend::evm::DebugFunction> {
     let mut functions =
         instructions.iter().filter_map(|instruction| instruction.metadata.function_invoke());
-    let function = functions.next();
-    debug_assert!(functions.all(|other| Some(other) == function));
-    function
+    let function = functions.next()?;
+    functions.all(|other| other == function).then_some(function)
 }
 
 fn apply_outline_edits(

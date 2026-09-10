@@ -267,6 +267,8 @@ undefined-behavior assumptions into Solidity checks or raw EVM operations.
 
 Correctness properties belong in operation semantics or verified analysis
 results. They must not depend on retaining optional source/debug metadata.
+EVM rewrites choose the same instructions with or without debug capture, then
+carry representable function events onto retained operations or drop them.
 `validate_abi` keeps a source ABI validation obligation explicit in the operand
 graph, including unused calldata struct fields. ABI lowering discharges it only
 when entry decoding or a typed internal body supplies the validation contract.

@@ -7,10 +7,10 @@
 //! suffixes into shared tail blocks until no new merges remain. Each candidate includes
 //! the cost of its new jumps and labels, and the pass keeps address-taken or
 //! otherwise incompatible entries separate. Debug metadata never participates
-//! in equivalence: path-specific function activations stay on the original
-//! blocks or the jumps that replace their instruction suffixes.
+//! in equivalence or profitability. Path-specific function activations stay on the original
+//! blocks or replacement jumps where representable; shared entries drop ambiguous events.
 //! A terminal suffix covering the representative's whole body reuses its block and label when
-//! there are no nested shared tails or function-entry events. Nested tails keep their placement
+//! there are no nested shared tails. Nested tails keep their placement
 //! to preserve fallthrough paths. Other address-taken entries keep their jump stubs.
 //! Gas mode indexes non-loop tails first, so loop paths can reuse them regardless of block order.
 //! Loop-only paths do not create sharing groups.
@@ -294,6 +294,7 @@ impl RunState {
                 if previous_tail.is_none()
                     && let Some(tail_terminator) = &mut tail.terminator
                 {
+                    tail_terminator.metadata.take_function_invoke();
                     for &(site, site_common) in &group.sites {
                         if site_common >= common
                             && let Some(site_terminator) = &module.blocks[site].terminator
@@ -303,14 +304,10 @@ impl RunState {
                     }
                 }
                 // whole_body: suffix => whole_body: shared_suffix
+                // Shared entries drop path-specific invocation events.
                 let tail = if commons.len() == 1
                     && common == instructions.len()
                     && terminator.as_ref().is_some_and(|term| is_terminal_boundary(&term.kind))
-                    && metadata.function_invoke.is_none()
-                    && instructions.iter().all(|inst| inst.metadata.function_invoke().is_none())
-                    && terminator
-                        .as_ref()
-                        .is_none_or(|term| term.metadata.function_invoke().is_none())
                 {
                     tail.label = module.blocks[group.representative].label;
                     module.blocks[group.representative] = tail;
@@ -370,11 +367,14 @@ fn suffix_debug_info(block: &Block, len: usize) -> Metadata {
     {
         metadata.copy_source_debug_from(origin);
     }
-    let mut functions =
-        suffix.iter().filter_map(|instruction| instruction.metadata.function_invoke());
-    let function = functions.next();
-    debug_assert!(functions.all(|other| Some(other) == function));
-    if let Some(function) = function {
+    let mut functions = suffix
+        .iter()
+        .map(|instruction| &instruction.metadata)
+        .chain(block.terminator.iter().map(|terminator| &terminator.metadata))
+        .filter_map(Metadata::function_invoke);
+    if let Some(function) = functions.next()
+        && functions.all(|other| other == function)
+    {
         metadata.set_function_invoke(function);
     }
     metadata

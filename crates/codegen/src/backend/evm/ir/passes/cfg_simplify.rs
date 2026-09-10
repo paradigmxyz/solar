@@ -9,19 +9,19 @@
 //!
 //! Final cleanup exposes acyclic branch triangles as structural conditional terminators so
 //! layout can place their taken arm before the join. It preserves source origins and excludes
-//! glued instructions, custom stack effects and function activation events. Keeping this after
+//! glued instructions and custom stack effects. Keeping this after
 //! sharing avoids changing which physical instruction sequences earlier passes can merge.
 //! Final cleanup also recognizes labels passed straight to a shared `JUMPI` head as direct
 //! jump targets. Deferring this until sharing is complete avoids exposing larger tails whose
 //! merger would add jumps back to the paths being shortened.
 //! Size cleanup turns a constant label passed to a shared one-instruction `JUMPI` body into
 //! a direct conditional terminator. This lets layout remove the intermediate jump; glued
-//! sequences, custom stack effects, and function activation events remain intact.
+//! sequences and custom stack effects remain intact.
 //! Gas cleanup duplicates a word-return body of at most eight bytes into an empty stub
 //! reached by at least two other empty stubs. It amortizes the copy across those paths while
 //! preserving every address-taken label. The copy stays after structural sharing so it cannot
-//! be merged back into the jump it removes. Function-entry blocks and activation events on
-//! the replaced jump are excluded.
+//! be merged back into the jump it removes. Debug events move to retained operations where
+//! representable; they do not affect rewrite eligibility.
 //! Other address-taken blocks remain distinct, and block merging requires one reference so changing
 //! a predecessor cannot affect another edge. The pass preserves the condition's stack effect with a
 //! `POP`; later dead-code elimination may remove the pure condition computation. Replacing the
@@ -113,7 +113,6 @@ fn expose_shared_branches(module: &mut Module) -> bool {
             && is_split_point(&block.instructions, block.instructions.len() - 1)
             && !pushed.keeps_with_next()
             && let body = &module.blocks[target]
-            && body.metadata.function_invoke.is_none()
             && let [jumpi] = body.instructions.as_slice()
             && jumpi.as_evm_opcode() == Some(op::JUMPI)
             && jumpi.has_canonical_stack_effect()
@@ -122,17 +121,17 @@ fn expose_shared_branches(module: &mut Module) -> bool {
             && let TerminatorKind::Jump(else_block) = continuation.kind
             && jump.metadata.stack.is_none()
             && continuation.metadata.stack.is_none()
-            && [&pushed.metadata, &jump.metadata, &jumpi.metadata, &continuation.metadata]
-                .into_iter()
-                .all(|metadata| {
-                    metadata.function_invoke().is_none() && metadata.function_exit().is_none()
-                })
         {
             // push taken; jump head; head: jumpi; jump other -> jumpi taken, other
             let mut branch = Terminator::new(TerminatorKind::JumpI { then_block, else_block });
             branch.metadata.copy_debug_info_from(&jumpi.metadata);
-            branch.metadata.merge_source_spans(&pushed.metadata);
-            branch.metadata.merge_source_spans(&jump.metadata);
+            branch.metadata.absorb_debug_info(&pushed.metadata);
+            branch.metadata.absorb_debug_info(&jump.metadata);
+            if branch.metadata.function_invoke().is_none()
+                && let Some(function) = body.metadata.function_invoke
+            {
+                branch.metadata.set_function_invoke(function);
+            }
             branch.metadata.merge_source_spans(&continuation.metadata);
             let block = &mut module.blocks[block_id];
             block.instructions.pop();
@@ -171,10 +170,7 @@ fn inline_shared_return_thunks(
         let TerminatorKind::Jump(target) = jump.kind else { continue };
         let body = &module.blocks[target];
         let [offset, store, size, returned] = body.instructions.as_slice() else { continue };
-        if body.metadata.function_invoke.is_some()
-            || jump.metadata.function_invoke().is_some()
-            || jump.metadata.function_exit().is_some()
-            || !body.instructions.iter().all(|inst| inst.has_canonical_stack_effect())
+        if !body.instructions.iter().all(|inst| inst.has_canonical_stack_effect())
             || store.as_evm_opcode() != Some(op::MSTORE)
             || size.concrete_immediate() != Some(alloy_primitives::U256::from(32))
             || body
@@ -194,6 +190,11 @@ fn inline_shared_return_thunks(
         }
         // thunk: jump return_body -> thunk: mstore(offset, value); return(offset, 32)
         let mut instructions = body.instructions.clone();
+        if instructions[0].metadata.function_invoke().is_none()
+            && let Some(function) = body.metadata.function_invoke
+        {
+            instructions[0].metadata.set_function_invoke(function);
+        }
         instructions[0].metadata.absorb_debug_info(&jump.metadata);
         let terminator = body.terminator.clone();
         module.blocks[block_id].instructions = instructions;
@@ -253,18 +254,13 @@ fn normalize_triangle_branches(module: &mut Module) -> bool {
             && is_split_point(&block.instructions, block.instructions.len() - 2)
             && !pushed.keeps_with_next()
             && !jumpi.keeps_with_next()
-            && [&pushed.metadata, &jumpi.metadata, &terminator.metadata].into_iter().all(
-                |metadata| {
-                    metadata.function_invoke().is_none() && metadata.function_exit().is_none()
-                },
-            )
             && terminator.metadata.stack.is_none()
             && triangle_arm(module, then_block, else_block)
         {
             // push arm; jumpi; jump join -> jumpi arm, join
             let mut branch = Terminator::new(TerminatorKind::JumpI { then_block, else_block });
             branch.metadata.copy_debug_info_from(&jumpi.metadata);
-            branch.metadata.merge_source_spans(&pushed.metadata);
+            branch.metadata.absorb_debug_info(&pushed.metadata);
             branch.metadata.merge_source_spans(&terminator.metadata);
             let block = &mut module.blocks[block_id];
             block.instructions.truncate(block.instructions.len() - 2);

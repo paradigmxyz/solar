@@ -144,8 +144,13 @@
   bb29:
     jump bb30
   bb30:
-    jump bb22 !metadata(invoke=callee@30..40)
+-   jump bb22 !metadata(invoke=callee@30..40)
 - bb31:
++   push 128 !metadata(invoke=callee@30..40)
++   mstore
++   push 32
++   push 128
++   return
 + bb31 [loop]:
     push 7
 -   jump bb32
@@ -179,9 +184,10 @@
     stop
   bb42:
     calldatasize
-    push bb43
-    jumpi !metadata(invoke=callee@30..40)
-    jump bb44
+-   push bb43
+-   jumpi !metadata(invoke=callee@30..40)
+-   jump bb44
++   jumpi bb43, bb44 !metadata(invoke=callee@30..40)
   bb43:
     push 0
     push 0

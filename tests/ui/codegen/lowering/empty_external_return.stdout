@@ -4,7 +4,7 @@ bb0:
   callvalue
   push bb2
   jumpi
-  stop !metadata(invoke=fallback@270..292, exit=return)
+  stop
 bb2 [cold]:
   push 0
   push 0

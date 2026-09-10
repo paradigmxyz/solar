@@ -20,23 +20,24 @@
 +   jumpi bb7, bb8
   bb2:
     push 0
-    push bb7 !metadata(invoke=caller@5..10)
-    jump bb6
+-   push bb7 !metadata(invoke=caller@5..10)
+-   jump bb6
++   jumpi bb7, bb8 !metadata(invoke=caller@5..10)
   bb3:
     push 1
-    push bb7
-    jump bb6 !metadata(invoke=callee@1..5)
+-   push bb7
+-   jump bb6 !metadata(invoke=callee@1..5)
++   jumpi bb7, bb8 !metadata(invoke=callee@1..5)
   bb4:
     push 1
-    push bb7
+-   push bb7
 -   jump bb9
-+   jumpi !metadata(invoke=callee@10..20)
-+   jump bb8
++   jumpi bb7, bb8 !metadata(invoke=callee@10..20)
   bb5:
     push 1
     push bb7
-    jump bb6
-  bb6:
+-   jump bb6
+- bb6:
     jumpi
     jump bb8
   bb7:

@@ -29,7 +29,7 @@ contract TupleAssignBranchLeak {
     // CHECK-NEXT: push 36
     // CHECK-NEXT: calldataload
     // CHECK-NEXT: jump [[PAIR:bb[0-9]+]]
-    // CHECK-NEXT: [[PAIR]]{{( \[.*\])?}}:
+    // CHECK-NEXT: [[PAIR]]:
     // CHECK: push 1
     // CHECK: add
     // CHECK: push 2
@@ -40,7 +40,7 @@ contract TupleAssignBranchLeak {
     // CHECK-NEXT: swap 2
     // CHECK-NEXT: jump
     // The else arm rebuilds `off` from calldata, not from the then arm's result.
-    // CHECK: [[ELSE]]{{( \[.*\])?}}:
+    // CHECK: [[ELSE]]:
     // CHECK-NEXT: push 7
     // CHECK-NEXT: push 36
     // CHECK-NEXT: calldataload

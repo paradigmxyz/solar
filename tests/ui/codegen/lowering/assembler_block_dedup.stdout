@@ -16,24 +16,24 @@ bb0:
   dup 1
   push 0x4df7e3d0
   eq
-  push bb7 !metadata(invoke=b@300..368)
+  push bb7
   jumpi
   dup 1
   push 0x5ce8bda8
   eq
-  push bb16 !metadata(invoke=d@906..1011)
+  push bb16
   jumpi
   dup 1
   push 0xfeb97429
   eq
-  push bb16 !metadata(invoke=c@440..545)
+  push bb16
   jumpi
   jump bb6
 bb6 [cold]:
   push 0
   push 0
-  revert !metadata(exit=revert)
-bb7 [invoke=a@169..237]:
+  revert
+bb7:
   push 1
   jump bb15
 bb15:
@@ -41,7 +41,7 @@ bb15:
   mstore
   push 32
   push 0
-  return !metadata(exit=return)
+  return
 bb16:
   push 36
   calldatasize

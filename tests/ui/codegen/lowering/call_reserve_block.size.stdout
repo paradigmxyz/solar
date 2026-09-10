@@ -13,12 +13,12 @@ bb0:
   sub
   push bb3
   jumpi
-  push 42 !metadata(invoke=value@1194..1269)
+  push 42
   push 0
   mstore
   push 32
   push 0
-  return !metadata(exit=return)
+  return
 bb3 [cold]:
   push 0
   dup 1
@@ -43,7 +43,7 @@ bb0:
   sub
   push bb4
   jumpi
-  push 224 !metadata(invoke=fixedGas@1965..2062)
+  push 224
   push 64
   mstore
   push bb12
@@ -70,8 +70,8 @@ bb11:
 bb4 [cold]:
   push 0
   dup 1
-  invalid !metadata(exit=revert)
-bb9 [invoke=pointer@2068..2205]:
+  invalid
+bb9:
   push 256
   push 64
   mstore
@@ -103,7 +103,7 @@ bb9 [invoke=pointer@2068..2205]:
   push bb13
   swap 1
   jump bb11
-bb12 [invoke=fixedGas@1965..2062]:
+bb12:
   extcodesize
   iszero
   push bb4
@@ -134,8 +134,8 @@ bb10:
   mstore
   push 32
   push 0
-  return !metadata(exit=return)
-bb13 [invoke=pointer@2068..2205]:
+  return
+bb13:
   extcodesize
   iszero
   push bb4

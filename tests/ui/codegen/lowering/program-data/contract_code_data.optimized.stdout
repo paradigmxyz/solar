@@ -23,14 +23,14 @@ bb4 [cold]:
   push 0
   push 0
   revert
-bb5 [invoke=value@313..387]:
+bb5:
   push 7
   push 0
   mstore
   push 32
   push 0
-  return !metadata(exit=return)
-bb6 [invoke=payload@393..734]:
+  return
+bb6:
   push 320
   dup 1
   push 64
@@ -145,7 +145,7 @@ bb8:
   mstore
   dup 2
   dup 2
-  return !metadata(exit=return)
+  return
 
 @data literal_0 hex"112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
 // === ROOT/tests/ui/codegen/lowering/program-data/contract_code_data.sol:CodeFactory (runtime) ===
@@ -168,7 +168,7 @@ bb0:
   sub
   push bb4
   jumpi
-  push 256 !metadata(invoke=deployCreationCode@1288..1589)
+  push 256
   dup 1
   push 64
   mstore
@@ -243,11 +243,11 @@ bb11:
   mstore
   push 32
   push 0
-  return !metadata(exit=return)
+  return
 bb4 [cold]:
   push 0
   push 0
-  revert !metadata(exit=revert)
+  revert
 bb8 [cold]:
   returndatasize
   push 0
@@ -255,8 +255,8 @@ bb8 [cold]:
   returndatacopy
   returndatasize
   push 0
-  revert !metadata(exit=revert)
-bb10 [invoke=runtimeCodeMatches@1748..1943]:
+  revert
+bb10:
   push 608
   push 64
   mstore

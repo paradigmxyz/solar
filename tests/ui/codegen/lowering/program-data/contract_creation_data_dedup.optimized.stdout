@@ -23,14 +23,14 @@ bb4 [cold]:
   push 0
   push 0
   revert
-bb5 [invoke=value@306..380]:
+bb5:
   push 7
   push 0
   mstore
   push 32
   push 0
-  return !metadata(exit=return)
-bb6 [invoke=payload@386..727]:
+  return
+bb6:
   push 320
   dup 1
   push 64
@@ -145,7 +145,7 @@ bb8:
   mstore
   dup 2
   dup 2
-  return !metadata(exit=return)
+  return
 
 @data literal_0 hex"112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
 // === ROOT/tests/ui/codegen/lowering/program-data/contract_creation_data_dedup.sol:Factory (runtime) ===
@@ -161,12 +161,12 @@ bb0:
   dup 1
   push 0x3df4ddf4
   eq
-  push bb30 !metadata(invoke=first@1179..1266)
+  push bb30
   jumpi
   dup 1
   push 0x5a8ac02d
   eq
-  push bb30 !metadata(invoke=second@1349..1437)
+  push bb30
   jumpi
   dup 1
   push 0xa8aa1b31
@@ -177,7 +177,7 @@ bb0:
 bb5 [cold]:
   push 0
   push 0
-  revert !metadata(exit=revert)
+  revert
 bb26 [cold]:
   returndatasize
   push 0
@@ -185,8 +185,8 @@ bb26 [cold]:
   returndatacopy
   returndatasize
   push 0
-  revert !metadata(exit=revert)
-bb18 [invoke=pair@1526..1690]:
+  revert
+bb18:
   push 320
   push 64
   mstore
@@ -291,7 +291,7 @@ bb30:
   jumpi
   push bb34
   jump bb31
-bb32 [invoke=pair@1526..1690]:
+bb32:
   push 32
   push 0
   push 4
@@ -325,8 +325,8 @@ bb29:
   mstore
   push 32
   push 0
-  return !metadata(exit=return)
-bb33 [invoke=pair@1526..1690]:
+  return
+bb33:
   push 32
   push 0
   push 4
@@ -380,6 +380,6 @@ bb28 [cold]:
   mstore
   push 36
   push 28
-  revert !metadata(exit=revert)
+  revert
 
 @data Child_initcode_0 hex"34600e5761013f8060125f395ff35b5f5ffd34601d575f3560e01c80633fa4f245146021578063a878f85814602a575b5f5ffd5b60075f5260205ff35b61014080604052806101205260a0810160405260808152602081018060a052608060bf82396040518060c052602081016020825283151593519093028060805283529150601f60805101601f19168060e0526040830180610100528160805192919093949315609d576020820381015f90525b9081018285835e935050509003601f8101601f19166040519081016040528181f3112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"

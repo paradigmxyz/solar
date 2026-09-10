@@ -13,7 +13,7 @@ bb0:
   sub
   push bb3
   jumpi
-  push 320 !metadata(invoke=runtimeData@1211..1620)
+  push 320
   dup 1
   push 64
   mstore
@@ -127,7 +127,7 @@ bb6:
   mstore
   dup 2
   dup 2
-  return !metadata(exit=return)
+  return
 bb3 [cold]:
   push 0
   push 0

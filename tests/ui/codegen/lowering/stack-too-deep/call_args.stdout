@@ -36,7 +36,7 @@ bb0:
 bb3 [cold]:
   push 0
   push 0
-  revert !metadata(exit=revert)
+  revert
 bb26 [cold]:
   push 0x4e487b71
   push 0
@@ -46,8 +46,8 @@ bb26 [cold]:
   mstore
   push 36
   push 28
-  revert !metadata(exit=revert)
-bb4 [invoke=call@678..1162]:
+  revert
+bb4:
   push 36
   calldatasize
   lt
@@ -340,7 +340,7 @@ bb4 [invoke=call@678..1162]:
   mload
   push 352
   mload
-  swap 6 !metadata(invoke=sum@1168..1772)
+  swap 6
   dup 8
   add
   dup 1
@@ -558,10 +558,10 @@ bb4 [invoke=call@678..1162]:
   push bb26
   jumpi
   swap 1
-  jump !metadata(exit=return)
+  jump
 bb25:
   push 0
   mstore
   push 32
   push 0
-  return !metadata(exit=return)
+  return
