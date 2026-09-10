@@ -1,0 +1,36 @@
+//@ compile-flags: -Zmir-pipeline=lower-dispatch,dce
+//@ filecheck:
+@module DispatchCommonCalldataGuard
+@phase abi
+
+// Identical wrapper head checks move into `entry`, where the nonpayable and
+// short-calldata conditions share one branch and one empty revert.
+// CHECK-LABEL: {{^[ +].*}}fn @entry{{[( ]}}
+// CHECK: [[VALUE:v[0-9]+]] = callvalue
+// CHECK: [[SIZE:v[0-9]+]] = calldatasize
+// CHECK: [[SHORT:v[0-9]+]] = lt [[SIZE]], 36
+// CHECK: [[REJECTED:v[0-9]+]] = or [[VALUE]], [[SHORT]]
+// CHECK: jumpi [[REJECTED]], [[REJECT:bb[0-9]+]],
+// CHECK: [[REJECT]]:
+// CHECK-NEXT: revert 0, 0
+fn @a() [selector=0x00000001] {
+  bb0:
+    v0 = calldatasize
+    v1 = lt v0, 36
+    jumpi v1, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    stop
+}
+
+fn @b() [selector=0x00000002] {
+  bb0:
+    v0 = calldatasize
+    v1 = lt v0, 36
+    jumpi v1, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    stop
+}

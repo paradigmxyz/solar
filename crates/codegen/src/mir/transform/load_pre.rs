@@ -89,13 +89,17 @@
 //!    ping-pong between mutually-preceding joins.
 //! 3. A function-size-derived rewrite budget backstops the above.
 
-use crate::{backend::evm::op, target::{GasTier, Target, Warmth}};
-use crate::mir::{
-    BlockId, EffectKind, Function, InstId, InstKind, Instruction, InstructionMetadata,
-    MemoryObjectKind, MirType, Module, StorageAlias, Terminator, Value, ValueId,
-    analysis::{
-        Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, Liveness, Location,
-        LocationSize, MemoryAddress, MemoryLocation, ModRef,
+use crate::{
+    backend::evm::op,
+    mir::{
+        EffectKind, BlockId, Function, InstId, InstKind, Instruction, InstructionMetadata, MemoryObjectKind,
+        MemoryRegion, MirType, Module, StorageAlias, Terminator, Value, ValueId,
+        analysis::{
+            Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, Liveness, Location, LocationSize,
+            MemoryAddress, MemoryLocation, ModRef,
+        },
+        pass::{MirPass, run_function_pass_with_alias_and_cfg},
+        utils as mir_utils,
     },
     pass::{MirPass, run_function_pass},
     utils as mir_utils,
@@ -130,11 +134,11 @@ impl MirPass for LoadPre {
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         let target = Target::new(gcx);
-        run_function_pass(module, analyses, |func, analyses| {
+        run_function_pass_with_alias_and_cfg(module, analyses, |func, analyses| {
             let mut eliminator = LoadRedundancyEliminator::new(target);
             eliminator.storage_only = matches!(self, Self::Storage);
-            eliminator.alias = Some(Rc::clone(&analyses.alias));
-            eliminator.cfg = Some(Rc::clone(&analyses.cfg));
+            eliminator.alias = Some(Rc::clone(analyses.alias()));
+            eliminator.cfg = Some(Rc::clone(analyses.cfg()));
             eliminator.run(func).total() != 0
         })
     }

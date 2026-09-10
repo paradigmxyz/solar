@@ -19,7 +19,7 @@ use crate::mir::{
     ValueId,
     analysis::{AliasAnalysis, Location, LocationSize},
     memory::{EvmMemoryLayout, MemoryLayoutPolicy},
-    pass::{MirPass, run_function_pass},
+    pass::{MirPass, run_function_pass_with_alias},
     transform::frame_promotion::{SlotAccessInfo, promote_object_slots},
 };
 use alloy_primitives::U256;
@@ -39,8 +39,8 @@ impl MirPass for Sroa {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, analyses| {
-            SroaCx::default().run(func, &analyses.alias)
+        run_function_pass_with_alias(module, analyses, |func, analyses| {
+            SroaCx::default().run(func, analyses.alias())
         })
     }
 }
