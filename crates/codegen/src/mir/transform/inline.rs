@@ -43,6 +43,11 @@
 //! across the call or assuming alias freedom. Both caller live words and wrapper
 //! peak words must fit the same twelve-word budget, and lifetime gas must pay for
 //! code growth. General allocators, branches, and larger memory helpers stay shared.
+//! After inlining a multi-word return, immediate reads of the published return
+//! buffer can use the returned SSA words directly. Only scalar word loads at
+//! constant offsets before the next memory/effect barrier qualify. Publication
+//! stores remain intact so later observers of the buffer retain their behavior;
+//! ordinary memory DSE decides whether those stores are removable.
 
 use crate::{
     backend::evm::{op, select},
@@ -55,6 +60,7 @@ use crate::{
         immutable::immutable_push_type_size,
         memory::{EvmMemoryLayout, MemoryLayoutPolicy},
         pass::MirPass,
+        utils::{replace_terminator_uses_canonicalized, resolve_replacement},
     },
     target::{Cost, Target},
 };
@@ -2163,8 +2169,87 @@ fn insert_return_buffer_stores(
             .drain(existing_len..)
             .collect::<Vec<_>>()
     };
+    let consumer_start = phi_count + instructions.len();
     caller.blocks[continuation].instructions.splice(phi_count..phi_count, instructions);
+    if return_tys.iter().all(|ty| !matches!(ty, MirType::Slice(_) | MirType::MemoryObject(_))) {
+        forward_inline_return_loads(caller, continuation, consumer_start, values);
+    }
     Some(())
+}
+
+/// Forward scalar return-buffer loads before any instruction can overwrite its contents.
+fn forward_inline_return_loads(
+    func: &mut Function,
+    block: BlockId,
+    start: usize,
+    returned: &[ValueId],
+) {
+    let mut offsets = FxHashMap::default();
+    let mut replacements = FxHashMap::default();
+    let mut removed = Vec::new();
+    for &inst in &func.blocks[block].instructions[start..] {
+        let instruction = func.inst(inst);
+        if instruction
+            .metadata
+            .effect()
+            .is_some_and(|effect| effect != instruction.kind.effect_kind())
+        {
+            break;
+        }
+        match instruction.kind {
+            InstKind::FrameLoad {
+                offset: 0,
+                mode: FrameMode::MultiReturn,
+                kind: FrameSlotKind::Word,
+            } => {
+                if let Some(value) = func.inst_result_value(inst) {
+                    offsets.insert(value, 0u64);
+                }
+            }
+            InstKind::Add(a, b) => {
+                if let Some(offset) = offsets
+                    .get(&a)
+                    .and_then(|&offset| func.value_u64(b)?.checked_add(offset))
+                    .or_else(|| {
+                        offsets.get(&b).and_then(|&offset| func.value_u64(a)?.checked_add(offset))
+                    })
+                    && let Some(value) = func.inst_result_value(inst)
+                {
+                    offsets.insert(value, offset);
+                }
+            }
+            InstKind::MLoad(address) => {
+                if let Some(&offset) = offsets.get(&address)
+                    && offset >= 32
+                    && offset % 32 == 0
+                    && let Some(&value) =
+                        returned.get(usize::try_from(offset / 32).unwrap_or(usize::MAX))
+                    && let Some(result) = func.inst_result_value(inst)
+                    && func.value_ty(value) == instruction.result_ty
+                {
+                    replacements.insert(result, value);
+                    removed.push(inst);
+                }
+            }
+            _ if instruction.kind.effect_kind() == EffectKind::Pure => {}
+            _ => break,
+        }
+    }
+    if !replacements.is_empty() {
+        // publish [_, result1, ...]; ptr = frame_load multi-return
+        // load(ptr + 32 * n) => resultN
+        func.for_each_instruction_mut(|_, instruction| {
+            instruction.rewrite_operands(|value| {
+                *value = resolve_replacement(*value, &replacements);
+            });
+        });
+        for block in &mut func.blocks {
+            if let Some(term) = &mut block.terminator {
+                replace_terminator_uses_canonicalized(term, &replacements);
+            }
+        }
+        func.blocks[block].instructions.retain(|inst| !removed.contains(inst));
+    }
 }
 
 fn redirect_phi_predecessors(

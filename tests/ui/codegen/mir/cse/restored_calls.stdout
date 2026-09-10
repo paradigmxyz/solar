@@ -97,8 +97,9 @@
     bb0:
       v0 = mload arg0
       icall @partial, 0, arg0
-      v1 = mload arg0
-      v2 = add v0, v1
+-     v1 = mload arg0
+-     v2 = add v0, v1
++     v2 = add v0, v0
       ret v2
   }
   

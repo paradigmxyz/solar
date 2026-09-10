@@ -18,6 +18,7 @@ pub(crate) mod inline_guards;
 pub(crate) mod jump_threading;
 pub(crate) mod load_pre;
 pub(crate) mod loop_canonicalize;
+pub(crate) mod loop_exit_remat;
 pub(crate) mod loop_opt;
 pub(crate) mod lower_abi;
 pub(crate) mod lower_abi_encode;

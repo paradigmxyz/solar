@@ -214,6 +214,8 @@ pub(crate) struct StackScheduler {
     pub spills: SpillManager,
     /// Target used to cost logical stack operations before assembly lowers them.
     evm_version: EvmVersion,
+    /// Gas mode may select wider edge permutations; size mode preserves existing sharing choices.
+    wide_permutations: bool,
     /// Values whose ordinary memory home was deliberately omitted.
     ///
     /// These values may only be reached through their physical stack copy. Treating them like
@@ -687,6 +689,7 @@ impl StackScheduler {
     /// Creates a scheduler for an EVM version.
     pub(crate) fn for_evm_version(evm_version: EvmVersion) -> Self {
         Self {
+            wide_permutations: true,
             stack: StackModel::new(),
             spills: SpillManager::new(),
             evm_version,
@@ -696,6 +699,12 @@ impl StackScheduler {
             #[cfg(test)]
             operand_search_stats: Cell::new(OperandSearchStats::default()),
         }
+    }
+
+    /// Selects the objective-specific edge permutation search.
+    pub(crate) fn with_wide_permutation_search(mut self, enabled: bool) -> Self {
+        self.wide_permutations = enabled;
+        self
     }
 
     /// Clears per-function state while retaining its backing allocations.
@@ -2494,7 +2503,8 @@ impl StackScheduler {
     /// Returns the shuffle result containing the operations to emit. Failure leaves the live stack
     /// unchanged so callers can use their spill/reload fallback.
     pub(crate) fn shuffle_to_layout(&mut self, target: &[TargetSlot]) -> Option<ShuffleResult> {
-        let shuffler = StackShuffler::for_evm_version(&self.stack, target, self.evm_version);
+        let shuffler = StackShuffler::for_evm_version(&self.stack, target, self.evm_version)
+            .with_wide_permutation_search(self.wide_permutations);
         let result = shuffler.shuffle()?;
 
         let mut next = self.stack.clone();
