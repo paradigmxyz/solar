@@ -23,7 +23,8 @@ use crop::Rope;
 use lsp_types::{
     CallHierarchyIncomingCall, CodeLens, CompletionItem, Diagnostic, DidChangeTextDocumentParams,
     GotoDefinitionResponse, Hover, HoverContents, Location, Position, PreviousResultId, Range,
-    TextDocumentContentChangeEvent, TypeHierarchyItem, Url, VersionedTextDocumentIdentifier,
+    SignatureHelp, SignatureHelpParams, TextDocumentContentChangeEvent, TextDocumentIdentifier,
+    TextDocumentPositionParams, TypeHierarchyItem, Url, VersionedTextDocumentIdentifier,
     WorkspaceFolder, WorkspaceSymbol,
 };
 use normalize_path::NormalizePath;
@@ -36,6 +37,7 @@ use std::{
     io,
     path::{Component, Path, PathBuf},
     sync::Arc,
+    task::{Context, Poll, Waker},
 };
 
 /// An opaque error returned while preparing an LSP benchmark project.
@@ -609,6 +611,66 @@ pub struct BenchmarkSelectionRangeRequests {
 pub struct BenchmarkFoldingRangeRequests {
     state: super::GlobalState,
     path: VfsPath,
+}
+
+/// A prepared open-document signature-help request using production analysis and its handler.
+#[doc(hidden)]
+pub struct BenchmarkSignatureHelpRequests {
+    state: super::GlobalState,
+    params: SignatureHelpParams,
+}
+
+impl BenchmarkSignatureHelpRequests {
+    /// Analyze a project and open the document containing the requested call argument.
+    pub fn new(project: BenchmarkProject, uri: Url, position: Position) -> Self {
+        let path = uri.to_file_path().expect("signature-help benchmark URI should be a file");
+        let (_, contents) = project
+            .files
+            .iter()
+            .find(|(source_path, _)| *source_path == path)
+            .expect("signature-help benchmark document should belong to the project");
+        let state = super::GlobalState::new(ClientSocket::new_closed());
+        state.vfs.write().set_file_contents_with_version(
+            VfsPath::from(path),
+            Some(Rope::from(contents.as_str())),
+            Some(1),
+        );
+        state.symbol_tables.store(Arc::new(project.analyze().symbol_tables));
+        let params = SignatureHelpParams {
+            text_document_position_params: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier { uri },
+                position,
+            },
+            work_done_progress_params: Default::default(),
+            context: None,
+        };
+        Self { state, params }
+    }
+
+    /// Prepare an edited document with unchanged analysis, outside the request timing.
+    pub fn after_edit(&self) -> Self {
+        let path =
+            crate::proto::vfs_path(&self.params.text_document_position_params.text_document.uri)
+                .expect("signature-help benchmark URI should be a file");
+        let mut contents = self.state.vfs.read().get_file_contents(&path).unwrap().clone();
+        contents.insert(contents.byte_len(), " ");
+        let state = super::GlobalState::new(ClientSocket::new_closed());
+        state.vfs.write().set_file_contents_with_version(path, Some(contents), Some(2));
+        state.symbol_tables.store(self.state.symbol_tables.load_full());
+        Self { state, params: self.params.clone() }
+    }
+
+    /// Execute one synchronous signature-help request through the production handler.
+    #[inline(never)]
+    pub fn run(&mut self) -> Option<SignatureHelp> {
+        let request = handlers::signature_help(&mut self.state, self.params.clone());
+        let mut request = std::pin::pin!(request);
+        let mut context = Context::from_waker(Waker::noop());
+        let Poll::Ready(response) = request.as_mut().poll(&mut context) else {
+            panic!("signature-help benchmark request should complete immediately");
+        };
+        response.expect("signature-help benchmark request should succeed")
+    }
 }
 
 fn open_benchmark_document(

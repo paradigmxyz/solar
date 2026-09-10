@@ -109,27 +109,28 @@ impl SignatureHelpIndex {
         &self,
         uri: &Url,
         position: Position,
-        contents: &Rope,
+        positions: &proto::LspPositionIndex<Rope>,
+        source: &str,
         visible_declarations: impl FnOnce(&str) -> Vec<&'a Location>,
         options: SignatureHelpClientOptions,
     ) -> Option<SignatureHelp> {
-        let positions = proto::LspPositionIndex::new(contents);
+        let contents = positions.rope();
         let cursor = positions.text_range(Range::new(position, position)).start;
-        let text = contents.byte_slice(..cursor).to_string();
-        let context = call_context(&text)?;
+        let context = call_context(&source[..cursor])?;
         let call = self.calls.get(uri).and_then(|calls| {
             calls.iter().find(|call| {
-                valid_text_position(contents, call.range.start)
-                    && positions.text_range(Range::new(call.range.start, call.range.start)).start
-                        == context.open
+                // Reject unrelated callables before converting their source positions.
+                call.form == context.form
                     && call
                         .callee_tokens
                         .last()
                         .map(String::as_str)
                         .filter(|token| is_identifier(token))
                         == context.callee_name
-                    && call.form == context.form
-                    && call.matches_current_callee(&positions)
+                    && valid_text_position(contents, call.range.start)
+                    && positions.text_range(Range::new(call.range.start, call.range.start)).start
+                        == context.open
+                    && call.matches_current_callee(positions)
             })
         });
         let (mut signatures, fallback): (Vec<&CallSignature>, _) = if let Some(call) = call {
@@ -278,7 +279,7 @@ impl SignatureHelpIndex {
 }
 
 impl CallSite {
-    fn matches_current_callee(&self, positions: &proto::LspPositionIndex<&Rope>) -> bool {
+    fn matches_current_callee(&self, positions: &proto::LspPositionIndex<Rope>) -> bool {
         let contents = positions.rope();
         if !valid_text_position(contents, self.callee_range.start)
             || !valid_text_position(contents, self.callee_range.end)
@@ -1132,7 +1133,9 @@ mod tests {
             signatures: Vec::new(),
         };
 
-        assert!(!call.matches_current_callee(&proto::LspPositionIndex::new(&Rope::from("😀f"))));
+        assert!(
+            !call.matches_current_callee(&proto::LspPositionIndex::from_rope(Rope::from("😀f")))
+        );
     }
 
     #[test]
@@ -1145,6 +1148,6 @@ mod tests {
             signatures: Vec::new(),
         };
 
-        assert!(!call.matches_current_callee(&proto::LspPositionIndex::new(&Rope::from("f"))));
+        assert!(!call.matches_current_callee(&proto::LspPositionIndex::from_rope(Rope::from("f"))));
     }
 }

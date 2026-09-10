@@ -36,6 +36,10 @@ fixtures:
         path: Main.sol
         needle: return Math.
         offset: 12
+      signature-double:
+        path: Main.sol
+        needle: Math.double(input)
+        offset: 12
       math-double:
         path: Math.sol
         needle: function double
@@ -94,6 +98,10 @@ fixtures:
         path: src/PoolManager.sol
         needle: key.hooks.beforeInitialize
         offset: 10
+      pool-manager-signature:
+        path: src/PoolManager.sol
+        needle: _accountDelta(key.currency1, delta.amount1(), target)
+        offset: 46
     corpus: Uniswap v4-core
     required: true
 
