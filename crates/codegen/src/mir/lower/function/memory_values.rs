@@ -103,7 +103,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             args.span,
             "struct constructor argument",
             |this, index, argument| {
-                let field_ty = this.cx.gcx.type_of_item(struct_fields[index].into());
+                let field_ty = this
+                    .cx
+                    .gcx
+                    .type_of_item(struct_fields[index].into())
+                    .with_loc_if_ref(this.cx.gcx, DataLocation::Memory);
                 let value = this.lower_typed_expr(argument, field_ty)?;
                 let value = this.materialize_memory_argument(field_ty, value, argument.span)?;
                 Some(this.encode_memory_scalar(field_ty, value))
