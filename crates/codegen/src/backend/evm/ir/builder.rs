@@ -487,6 +487,14 @@ impl<'gcx> Assembler<'gcx> {
         }
     }
 
+    /// Marks a label-started block as belonging to a natural MIR loop.
+    pub(in crate::backend) fn mark_label_loop(&mut self, label: Label) {
+        self.loop_labels.insert(label);
+        if let Some(&block) = self.label_blocks.get(&label) {
+            self.program.blocks[block].metadata.in_loop = true;
+        }
+    }
+
     fn current_block(&mut self) -> ir::BlockId {
         if let Some(block) = self.current_block {
             return block;

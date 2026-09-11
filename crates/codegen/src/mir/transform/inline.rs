@@ -31,12 +31,13 @@
 //! immutable loads and pure single-opcode computations, retaining the ordinary
 //! tiny-leaf size and lifetime-cost limits. Inlining stays at the original call
 //! site, including constructor calls; no runtime immutable bounds are assumed.
-//! Small acyclic scalar helpers with phis may also inline at their sole call site.
+//! Small scalar helpers with phis may also inline at their sole call site.
 //! Backward liveness estimates the callee's peak live words and the caller values
 //! surviving the call. Their sum must fit twelve words, leaving stack-addressing
-//! headroom for operand staging. Loops, memory operations and shared phi helpers
-//! remain excluded. This is a bounded profitability estimate, not a promise that
-//! the scheduler will emit no spills.
+//! headroom for operand staging. Read-only loops are eligible after loop-idiom
+//! lowering when their bounded MIR shape replaces the original scalar loop;
+//! writes and shared phi helpers remain excluded. This is a bounded profitability
+//! estimate, not a promise that the scheduler will emit no spills.
 //! A separate gas-only late adapter accepts frameless wrappers with one returning
 //! call followed by at most five physical address/load/store operations. It clones
 //! the call and subsequent memory operations in order, without moving accesses
@@ -56,7 +57,7 @@ use crate::{
         Function, FunctionBuilder, FunctionId as MirFunctionId, Immediate, ImmutableEncoding,
         InstId, InstKind, Instruction, MemoryObjectKind, MirType, Module, Terminator, Value,
         ValueId,
-        analysis::{CallGraphInfo, CfgInfo, Liveness, LoopAnalyzer},
+        analysis::{CallGraphInfo, Liveness, LoopAnalyzer},
         immutable::immutable_push_type_size,
         memory::{EvmMemoryLayout, MemoryLayoutPolicy},
         pass::MirPass,
@@ -1069,16 +1070,21 @@ fn summarize_function(
 
     if analyze_phi
         && summary.has_phi
-        && summary.block_count <= 4
-        && summary.instruction_count <= 24
+        && summary.block_count <= 16
+        && summary.instruction_count <= 112
         && summary.param_count <= 4
         && !func.params.iter().any(|ty| matches!(ty, MirType::Slice(_)))
-        && summary.return_count == 1
+        && summary.return_count <= 3
+        && summary.return_count != 0
         && summary.internal_frame_size == 0
         && !summary.has_reference_return
         && !summary.has_icall
-        && func.instructions().all(|inst| func.inst(inst).kind.effect_kind() == EffectKind::Pure)
-        && CfgInfo::new(func).cyclic_blocks().is_empty()
+        && func.instructions().all(|inst| {
+            matches!(
+                func.inst(inst).kind.effect_kind(),
+                EffectKind::Pure | EffectKind::MemoryRead | EffectKind::EnvironmentRead
+            )
+        })
     {
         summary.phi_stack_peak = Some(scalar_stack_peak(func));
     }

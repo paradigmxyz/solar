@@ -510,6 +510,7 @@ fn coalesce_blocks(
                     terminator.metadata.set_function_invoke(function);
                 }
             }
+            module.blocks[predecessor].metadata.in_loop |= module.blocks[target].metadata.in_loop;
             module.blocks[predecessor].instructions.append(&mut instructions);
             module.blocks[predecessor].terminator = terminator;
             retained.remove(target);

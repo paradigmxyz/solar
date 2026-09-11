@@ -24,6 +24,10 @@
 //! avoiding a store-operand exchange and a second exchange on the backedge.
 //! Only gas-mode loops with a direct or empty latch and a small header qualify;
 //! carried invariants retain their order below the two phi words.
+//! In gas mode, a non-nested loop with one phi and multiple byte stores can also
+//! retain its counter across body branches. The extra stores amortize the
+//! transfers. Existing exit-shape, call, and stack-depth restrictions still
+//! apply.
 
 use super::super::super::{
     BlockId, DenseBitSet, Function, FunctionId, FxHashMap, FxHashSet, GlobalStackPlan, IndexVec,
@@ -1520,7 +1524,27 @@ impl<'a> StackPhiPlanner<'a> {
                         && self.is_noreturn_block(*else_block))
                     || self.branch_phi_shape(loop_info, *then_block, *else_block).is_some()
             });
-        branch_shapes_safe && self.phi_insts(&self.func.blocks[loop_info.header]).len() >= 2
+        let phi_count = self.phi_insts(&self.func.blocks[loop_info.header]).len();
+        let single_counter = self.target.optimization().is_gas()
+            && phi_count == 1
+            && nesting_depth == 0
+            && loop_info.back_edges.len() == 1
+            && !self.loops.iter().any(|other| {
+                other.header != loop_info.header && loop_info.blocks.contains(other.header)
+            });
+        // header: [counter]; ...; mstore8 out_a, a; ...; mstore8 out_b, b
+        // latch: [next_counter] -> header
+        // Multiple byte stores amortize the stack transfers across body branches.
+        let writes_multiple_bytes = single_counter
+            && loop_info
+                .blocks
+                .iter()
+                .flat_map(|block| &self.func.blocks[block].instructions)
+                .filter(|&&inst| matches!(self.func.inst(inst).kind, InstKind::MStore8(..)))
+                .take(2)
+                .count()
+                == 2;
+        branch_shapes_safe && (phi_count >= 2 || writes_multiple_bytes)
     }
 
     fn loop_instructions_are_stack_safe(&self, loop_info: &Loop) -> bool {

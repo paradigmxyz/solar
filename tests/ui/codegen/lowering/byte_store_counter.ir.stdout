@@ -1,0 +1,663 @@
+// === ROOT/tests/ui/codegen/lowering/byte_store_counter.sol:ByteStoreCounter (runtime) ===
+@module ByteStoreCounter_runtime
+bb0:
+  callvalue
+  push bb8
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x12496a1b
+  eq
+  push bb9
+  jumpi
+  dup 1
+  push 0x43f8e26b
+  eq
+  push bb20
+  jumpi
+  dup 1
+  push 0xbca4d4a4
+  eq
+  push bb25
+  jumpi
+  dup 1
+  push 0xec31a730
+  eq
+  push bb32
+  jumpi
+  dup 1
+  push 0xf2609747
+  eq
+  push bb41
+  jumpi
+  dup 1
+  push 0xf58df096
+  eq
+  push bb14
+  jumpi
+  jump bb8
+bb8 [cold]:
+  push 0
+  push 0
+  revert
+bb77 [cold]:
+  push 0x4e487b71
+  push 224
+  shl
+  push 0
+  mstore
+  push 50
+  jump bb86
+bb86 [cold]:
+  push 4
+  mstore
+  push 36
+  push 0
+  revert
+bb9:
+  push 160
+  push 64
+  mstore
+  push 36
+  calldatasize
+  lt
+  push bb8
+  jumpi
+  push bb11
+  push 4
+  jump bb78
+bb78:
+  calldatasize
+  swap 1
+  calldataload
+  push 4
+  dup 2
+  add
+  push 32
+  dup 2
+  add
+  swap 2
+  push 0
+  not
+  push 192
+  shr
+  lt
+  swap 3
+  dup 3
+  gt
+  swap 1
+  swap 3
+  or
+  push bb8
+  jumpi
+  swap 1
+  calldataload
+  push 63
+  dup 2
+  add
+  dup 2
+  dup 2
+  lt
+  push bb84
+  jumpi
+  push 31
+  not
+  and
+  push 64
+  mload
+  swap 1
+  dup 2
+  add
+  dup 2
+  dup 2
+  lt
+  push 0
+  not
+  push 192
+  shr
+  dup 3
+  gt
+  or
+  push bb85
+  jumpi
+  push 64
+  mstore
+  dup 2
+  dup 2
+  mstore
+  dup 3
+  calldatasize
+  sub
+  dup 3
+  gt
+  push bb8
+  jumpi
+  push 32
+  dup 2
+  add
+  dup 3
+  dup 5
+  dup 3
+  calldatacopy
+  pop
+  swap 2
+  pop
+  pop
+  swap 1
+  jump
+bb11 [continuation]:
+  push 128
+  mstore
+  push bb12
+  jump bb54
+bb54:
+  push 128
+  mload
+  mload
+  dup 1
+  dup 1
+  add
+  dup 1
+  push 1
+  shr
+  swap 1
+  swap 2
+  sub
+  push bb75
+  jumpi
+  push 63
+  dup 2
+  add
+  dup 2
+  dup 2
+  lt
+  push bb88
+  jumpi
+  push 31
+  not
+  and
+  push 64
+  mload
+  dup 2
+  dup 2
+  add
+  dup 2
+  dup 2
+  lt
+  push 0
+  not
+  push 192
+  shr
+  dup 3
+  gt
+  or
+  push bb88
+  jumpi
+  push 64
+  mstore
+  dup 2
+  calldatasize
+  dup 3
+  calldatacopy
+  swap 1
+  pop
+  swap 1
+  dup 2
+  mstore
+  push 0
+  swap 1
+  jump bb60
+bb60:
+  push 128
+  mload
+  mload
+  dup 3
+  lt
+  push bb62
+  jumpi
+  swap 1
+  pop
+  swap 1
+  jump
+bb12 [continuation]:
+  dup 1
+  iszero
+  iszero
+  dup 2
+  mload
+  mul
+  push 32
+  dup 3
+  add
+  push 31
+  dup 3
+  add
+  push 31
+  not
+  and
+  dup 1
+  dup 3
+  add
+  push 0
+  swap 1
+  mstore
+  push 32
+  dup 3
+  add
+  dup 4
+  dup 4
+  dup 3
+  mcopy
+  pop
+  push 32
+  dup 5
+  mstore
+  swap 2
+  swap 1
+  mstore
+  push 64
+  add
+  dup 2
+  return
+bb14:
+  push 160
+  push 64
+  mstore
+  push 36
+  calldatasize
+  lt
+  push bb8
+  jumpi
+  push bb16
+  push 4
+  jump bb78
+bb16 [continuation]:
+  push 128
+  mstore
+  push bb11
+  jump bb54
+bb20:
+  push 256
+  push 64
+  mstore
+  push 36
+  calldatasize
+  lt
+  push bb8
+  jumpi
+  push bb22
+  push 4
+  jump bb78
+bb22 [continuation]:
+  push 192
+  mstore
+  push bb87
+  jump bb69
+bb69:
+  push 0
+  push 224
+  mstore
+  jump bb70
+bb72:
+  push 1
+  push 224
+  mload
+  add
+  push 224
+  mstore
+  jump bb70
+bb70:
+  push 192
+  mload
+  mload
+  push 224
+  mload
+  lt
+  push bb73
+  jumpi
+  push 1
+  swap 1
+  jump
+bb25:
+  push 256
+  push 64
+  mstore
+  push 68
+  calldatasize
+  lt
+  push bb8
+  jumpi
+  push bb27
+  push 4
+  jump bb78
+bb27 [continuation]:
+  push bb28
+  push 36
+  jump bb78
+bb28 [continuation]:
+  dup 2
+  push 192
+  mstore
+  swap 1
+  pop
+  push bb29
+  jump bb69
+bb29 [continuation]:
+  dup 2
+  push 192
+  mstore
+  swap 1
+  pop
+  push bb30
+  jump bb69
+bb30 [continuation]:
+  swap 1
+  push 128
+  mstore
+  push 160
+  mstore
+  push 64
+  push 128
+  return
+bb32:
+  push 224
+  push 64
+  mstore
+  push 36
+  calldatasize
+  lt
+  push bb8
+  jumpi
+  push bb34
+  push 4
+  jump bb78
+bb34 [continuation]:
+  push 192
+  mstore
+  push 0
+  push 160
+  mstore
+  jump bb35
+bb37:
+  push 1
+  push 160
+  mload
+  add
+  push 160
+  mstore
+  jump bb35
+bb35:
+  push 192
+  mload
+  mload
+  dup 1
+  push 160
+  mload
+  lt
+  push bb38
+  jumpi
+  jump bb87
+bb87 [continuation]:
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb38:
+  push 32
+  push 192
+  mload
+  add
+  swap 1
+  pop
+  push 160
+  mload
+  add
+  mload
+  push 0
+  byte
+  push 127
+  lt
+  iszero
+  push bb37
+  jumpi
+  push 160
+  mload
+  jump bb87
+bb41:
+  push 224
+  push 64
+  mstore
+  push 36
+  calldatasize
+  lt
+  push bb8
+  jumpi
+  push 63
+  push 4
+  calldataload
+  add
+  push 4
+  calldataload
+  dup 2
+  lt
+  push bb88
+  jumpi
+  push 31
+  not
+  and
+  push 64
+  mload
+  dup 2
+  dup 2
+  add
+  dup 2
+  dup 2
+  lt
+  push 0
+  not
+  push 192
+  shr
+  dup 3
+  gt
+  or
+  push bb88
+  jumpi
+  push 64
+  mstore
+  dup 2
+  calldatasize
+  dup 3
+  dup 1
+  push 192
+  mstore
+  calldatacopy
+  swap 1
+  pop
+  push 4
+  calldataload
+  dup 2
+  mstore
+  push 0
+  push 160
+  mstore
+  pop
+  jump bb46
+bb46:
+  push 192
+  mload
+  mload
+  push 160
+  mload
+  lt
+  push bb49
+  jumpi
+  push 1
+  jump bb87
+bb48:
+  push 1
+  push 160
+  mload
+  add
+  dup 1
+  push 160
+  mstore
+  push 255
+  lt
+  iszero
+  push bb46
+  jumpi
+  jump bb75
+bb75 [cold]:
+  push 0x4e487b71
+  push 224
+  shl
+  push 0
+  mstore
+  push 17
+  jump bb86
+bb49:
+  push 32
+  push 192
+  mload
+  add
+  push 160
+  mload
+  add
+  mload
+  push 0
+  byte
+  push 127
+  lt
+  iszero
+  push bb48
+  jumpi
+  push 0
+  jump bb87
+bb62:
+  push 128
+  mload
+  mload
+  dup 3
+  lt
+  iszero
+  push bb77
+  jumpi
+  push 32
+  push 128
+  mload
+  add
+  dup 3
+  add
+  mload
+  push 0
+  byte
+  dup 1
+  push 4
+  shr
+  push bb91
+  jump bb89
+bb89:
+  push 0x30313233343536373839616263646566
+  push 128
+  shl
+  swap 1
+  jump
+bb73:
+  push 32
+  push 192
+  mload
+  add
+  push 224
+  mload
+  add
+  mload
+  push 0
+  byte
+  push 127
+  lt
+  iszero
+  push bb72
+  jumpi
+  push 0
+  swap 1
+  jump
+bb84 [cold]:
+  pop
+  pop
+  pop
+  jump bb88
+bb88 [cold]:
+  push 0x4e487b71
+  push 224
+  shl
+  push 0
+  mstore
+  push 65
+  jump bb86
+bb85 [cold]:
+  pop
+  pop
+  pop
+  pop
+  jump bb88
+bb90 [continuation]:
+  swap 1
+  byte
+  swap 2
+  push 1
+  add
+  dup 4
+  mload
+  dup 2
+  lt
+  iszero
+  push bb77
+  jumpi
+  add
+  mstore8
+  swap 1
+  push 1
+  add
+  swap 1
+  jump bb60
+bb91 [continuation]:
+  swap 1
+  byte
+  dup 4
+  dup 1
+  add
+  dup 5
+  iszero
+  dup 6
+  dup 3
+  div
+  push 2
+  eq
+  or
+  iszero
+  push bb75
+  jumpi
+  dup 4
+  mload
+  dup 2
+  lt
+  iszero
+  push bb77
+  jumpi
+  push 32
+  dup 5
+  add
+  dup 2
+  dup 2
+  add
+  exchange 1, 3
+  mstore8
+  swap 2
+  push 15
+  and
+  push bb90
+  jump bb89

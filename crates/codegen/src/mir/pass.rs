@@ -63,6 +63,7 @@ pub static ALL_PASSES: &[&dyn MirPass] = &[
     &load_pre::LoadPre,
     &loop_canonicalize::LoopCanonicalize,
     &loop_exit_remat::LoopExitRemat,
+    &loop_idioms::LoopIdioms,
     &indvar_simplify::IndVarSimplify,
     &storage_promotion::StorageScalarPromotion,
     &loop_opt::Licm,
@@ -302,9 +303,16 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     // rewrites from reaching for values the scheduler would have to keep alive.
     &egraph::Egraph,
     &word_sequence::WordSequence,
+    // Collapse canonical read-only byte scans after bounds cleanup and word
+    // simplification expose their final physical shape.
+    &GasOnly::new(loop_idioms::LoopIdioms),
     // ABI and memory lowering leave dead guards and empty trampoline blocks.
     // Clean them before EVM shaping isolates phi copies on critical edges.
     &cfg_simplify::CfgSimplify,
+    // A word-at-a-time loop is compact enough to consume at its sole call site.
+    // This removes the internal frame protocol without duplicating the body.
+    &GasOnly::new(inline::InlineSingleUse),
+    &cfg_simplify::FunctionDce,
     &lower_evm_shaped::LowerEvmShaped,
     // Reconstruct old induction values on exits before selecting physical stack order.
     &loop_exit_remat::LoopExitRemat,
