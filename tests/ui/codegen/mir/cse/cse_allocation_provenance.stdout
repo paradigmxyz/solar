@@ -27,14 +27,13 @@
       ret v4
   }
   
-  fn @unbounded_heap_copy_preserves_zero_slot(arg0: u256) -> u256 {
+  fn @unbounded_heap_copy_keeps_reserved_load(arg0: u256) -> u256 {
     bb0:
       v0 = alloc raw, exact, uninitialized, infallible, 32
       v1 = mload 96
       mcopy v0, 0, arg0
--     v2 = mload 96
--     v3 = add v1, v2
-+     v3 = add v1, v1
+      v2 = mload 96
+      v3 = add v1, v2
       ret v3
   }
   

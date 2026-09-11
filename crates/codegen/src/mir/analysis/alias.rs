@@ -3,9 +3,9 @@
 //! Pointer provenance follows SSA definitions through address arithmetic,
 //! slices, selects, and control-flow joins. Fresh allocations retain unique
 //! identities, while incompatible incoming paths conservatively join to a
-//! symbolic pointer. The analysis also keeps compiler-owned regions disjoint
-//! and exposes the memory, storage, and transient-storage effects of each
-//! instruction.
+//! symbolic pointer. Region labels do not prove disjointness: raw pointer operations
+//! and FMP recycling can cross those regions. The analysis exposes the memory,
+//! storage, and transient-storage effects of each instruction.
 
 use super::{CfgInfo, MemoryCallSummaries};
 use crate::mir::{
@@ -48,7 +48,7 @@ pub(crate) enum MemoryBase {
     InternalFrame,
     /// One fresh abstract heap allocation.
     Allocation(InstId),
-    /// An allocation instruction with multiple dynamic loop instances.
+    /// An unrecycled allocation site with multiple dynamic loop instances.
     DynamicAllocation(InstId),
     /// A symbolic MIR value.
     Value(ValueId),
@@ -446,13 +446,12 @@ impl PointerProvenance {
             let mut reset = poisoned.contains(block_id);
             for &inst_id in &block.instructions {
                 if is_allocation(inst_id) {
+                    let fresh = reachable.contains(block_id) && !reset;
                     allocations.insert(
                         inst_id,
                         AllocationProvenance {
-                            dynamic: cyclic.contains(block_id),
-                            unique: reachable.contains(block_id)
-                                && !cyclic.contains(block_id)
-                                && !reset,
+                            dynamic: fresh && cyclic.contains(block_id),
+                            unique: fresh && !cyclic.contains(block_id),
                         },
                     );
                 }
@@ -1543,14 +1542,8 @@ impl AliasAnalysis {
         {
             return AliasResult::NoAlias;
         }
-        let first_region = first.address.region;
-        let second_region = second.address.region;
-        if first_region != MemoryRegion::Unknown
-            && second_region != MemoryRegion::Unknown
-            && first_region != second_region
-        {
-            return AliasResult::NoAlias;
-        }
+        // Region labels describe layout, not ownership. Raw addresses and recycled
+        // allocations can overlap scratch, heap, or frame memory.
         // Two accesses based on distinct allocation sites never overlap: each
         // `alloc` bumps the free-memory pointer into a fresh region, even
         // across loop iterations, so a loop-instance allocation is still
@@ -2123,7 +2116,7 @@ mod tests {
         );
 
         let scratch = Location::Memory(AliasAnalysis::fmp_location());
-        assert_eq!(AliasAnalysis::alias_locations(scratch, location(0, 32)), AliasResult::NoAlias);
+        assert_eq!(AliasAnalysis::alias_locations(scratch, location(0, 32)), AliasResult::MayAlias);
     }
 
     #[test]
@@ -2181,6 +2174,40 @@ mod tests {
         assert!(matches!(address.base, MemoryBase::DynamicAllocation(_)));
         let location = MemoryLocation::new(address, LocationSize::Const(32));
         assert_eq!(aa.memory_alias(location, location), AliasResult::MayAlias);
+    }
+
+    #[test]
+    fn pointer_reset_discards_loop_allocation_identity() {
+        let mut func = function();
+        let allocation = {
+            let mut builder = FunctionBuilder::new(&mut func);
+            let pointer = builder.add_param(MirType::MemPtr);
+            let condition = builder.add_param(MirType::Bool);
+            let header = builder.create_block();
+            let exit = builder.create_block();
+            // jump header
+            // header: set_fmp pointer; object = alloc 32; branch condition, header, exit
+            // exit: stop
+            builder.jump(header);
+            builder.switch_to_block(header);
+            builder.set_fmp(pointer);
+            let size = builder.imm(32);
+            let allocation = builder.alloc(size, crate::mir::AllocationSemantics::INTERNAL);
+            builder.branch(condition, header, exit);
+            builder.switch_to_block(exit);
+            builder.stop();
+            allocation
+        };
+        let aa = AliasAnalysis::new(&func);
+        let address = aa.memory_address(&func, allocation).unwrap();
+        assert_eq!(address.base, MemoryBase::Value(allocation));
+        assert_eq!(
+            aa.memory_alias(
+                MemoryLocation::new(address, LocationSize::Const(32)),
+                AliasAnalysis::fmp_location(),
+            ),
+            AliasResult::MayAlias
+        );
     }
 
     #[test]

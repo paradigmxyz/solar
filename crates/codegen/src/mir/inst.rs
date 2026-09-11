@@ -473,7 +473,7 @@ impl StorageAlias {
     }
 }
 
-/// A coarse memory region understood by MIR analyses.
+/// A coarse memory layout annotation, not a proof of disjointness.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum MemoryRegion {
     /// Compiler-owned low-memory scratch space.

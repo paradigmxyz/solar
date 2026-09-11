@@ -18,10 +18,11 @@ fn @forward_length_across_join(arg0: memorybytes, arg1: bool, arg2: u256) -> u25
     ret v3
 }
 
-// CHECK-LABEL: {{^[ +].*}}fn @data_write_preserves_allocation_provenance{{[( ]}}
-// CHECK: -     v{{[0-9]+}} = memory_object_len memorybytes,
-// CHECK: +     ret 7
-fn @data_write_preserves_allocation_provenance(arg0: bool) -> u256 {
+// CHECK-LABEL: {{^[ +].*}}fn @allocation_fmp_update_keeps_length_load{{[( ]}}
+// CHECK:     bb2:
+// CHECK:       [[RETAINED:v[0-9]+]] = memory_object_len memorybytes, v0
+// CHECK-NEXT:       ret [[RETAINED]]
+fn @allocation_fmp_update_keeps_length_load(arg0: bool) -> u256 {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 7

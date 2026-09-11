@@ -88,7 +88,7 @@
 
 use crate::mir::{
     BlockId, EffectKind, Function, InstId, InstKind, Instruction, InstructionMetadata,
-    MemoryObjectKind, MemoryRegion, MirType, Module, StorageAlias, Terminator, Value, ValueId,
+    MemoryObjectKind, MirType, Module, StorageAlias, Terminator, Value, ValueId,
     analysis::{
         Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, Liveness, Location,
         LocationSize, MemoryAddress, MemoryLocation, ModRef,
@@ -1220,12 +1220,6 @@ impl LoadRedundancyEliminator {
                 for &idx in words.values() {
                     kill(idx);
                 }
-                continue;
-            }
-            if group.region != MemoryRegion::Unknown
-                && written.address.region != MemoryRegion::Unknown
-                && group.region != written.address.region
-            {
                 continue;
             }
             if group.base == written.address.base {

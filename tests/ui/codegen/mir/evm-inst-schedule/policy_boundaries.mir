@@ -331,3 +331,17 @@ fn @block_local_scratch(
     v13 = mod v11, v12
     ret v13
 }
+
+// Semantic failures stay in source order even when their results feed a different operand order.
+// CHECK-LABEL: {{^[ +].*}}fn @checked_operations_are_barriers{{[( ]}}
+// CHECK-NOT: {{^[+-]}}
+// CHECK: [[FIRST:v[0-9]+]] = checked_add u256, arg0, 1
+// CHECK-NEXT: [[SECOND:v[0-9]+]] = checked_mul u256, arg1, 2
+// CHECK-NEXT: {{v[0-9]+}} = sub [[FIRST]], [[SECOND]]
+fn @checked_operations_are_barriers(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    v0 = checked_add u256, arg0, 1
+    v1 = checked_mul u256, arg1, 2
+    v2 = sub v0, v1
+    ret v2
+}

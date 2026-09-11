@@ -270,18 +270,10 @@ impl<T> SlotMap<T> {
 
     /// Applies a write to one group, returning whether the group survives.
     ///
-    /// The group shares a region and base, so the region and base rules of
+    /// The group shares a base, so the allocation rules of
     /// [`AliasAnalysis::memory_alias_locations`] settle the whole group at once;
     /// only a write onto that same base reaches the offset comparison.
     fn invalidate_bucket(bucket: &mut SlotBucket<T>, write: MemAddrKey, size: u64) -> bool {
-        // Distinct known regions never overlap.
-        if bucket.region != MemoryRegion::Unknown
-            && write.0.region != MemoryRegion::Unknown
-            && bucket.region != write.0.region
-        {
-            return true;
-        }
-
         let bucket_site = Self::alloc_site(bucket.base);
         let write_site = Self::alloc_site(write.0.base);
         if let (Some(bucket_site), Some(write_site)) = (bucket_site, write_site) {

@@ -185,3 +185,11 @@
       ret v6
   }
   
+  fn @checked_operations_are_barriers(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = checked_add u256, arg0, 1
+      v1 = checked_mul u256, arg1, 2
+      v2 = sub v0, v1
+      ret v2
+  }
+  
