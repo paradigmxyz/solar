@@ -4,7 +4,9 @@ use crate::{
     mir::{
         BlockId, EffectKind, Function, FunctionBuilder, FunctionId, InstId, InstKind, MirType,
         Module, Value, ValueId,
-        analysis::{AliasAnalysis, AliasResult, LocationSize, MemoryBase, MemoryLocation},
+        analysis::{
+            AliasAnalysis, AliasResult, CallGraphInfo, LocationSize, MemoryBase, MemoryLocation,
+        },
         memory::EvmMemoryLayout,
         pass::MirPass,
         transform::utils::redirect_successor_predecessors,
@@ -26,8 +28,10 @@ use solar_sema::Gcx;
 ///
 /// The loop is expanded at every site, or, when the objective ranks the
 /// bytes of the copies above the gas of the call protocol, built once as the
-/// internal function `mcopy_words(dest, src, len)` that every site calls, like
-/// solc's shared `copy_memory_to_memory` routine.
+/// internal function `mcopy_words(dest, src, len)` that eligible runtime sites
+/// call, like solc's shared `copy_memory_to_memory` routine. Constructor-reachable
+/// sites remain inline because their ABI output may occupy the free-memory
+/// pointer where an internal call would stage its frame.
 ///
 /// Copies whose destination starts above their source run backward; all other
 /// copies run forward. A masked partial-word merge ensures that the lowering
@@ -54,12 +58,29 @@ impl MirPass for LowerMCopy {
         if gcx.sess.opts.evm_version.has_mcopy() {
             return false;
         }
+        let call_graph = CallGraphInfo::new(module);
+        let constructor_roots = module
+            .functions
+            .iter_enumerated()
+            .filter_map(|(id, func)| func.attributes.is_constructor.then_some(id));
+        let mut constructor_reachable = call_graph.reachable_callees_from(constructor_roots);
+        for (id, func) in module.functions.iter_enumerated() {
+            if func.attributes.is_constructor {
+                constructor_reachable.insert(id);
+            }
+        }
         let sites = module
             .functions
-            .iter()
-            .map(|func| func.instructions().filter(|&inst| is_mcopy(func, inst)).count())
+            .iter_enumerated()
+            .filter(|(id, _)| !constructor_reachable.contains(*id))
+            .map(|(_, func)| func.instructions().filter(|&inst| is_mcopy(func, inst)).count())
             .sum::<usize>();
-        if sites == 0 {
+        let constructor_sites = module
+            .functions
+            .iter_enumerated()
+            .filter(|(id, _)| constructor_reachable.contains(*id))
+            .any(|(_, func)| func.instructions().any(|inst| is_mcopy(func, inst)));
+        if sites == 0 && !constructor_sites {
             return false;
         }
 
@@ -68,8 +89,11 @@ impl MirPass for LowerMCopy {
         let summaries = analyses.call_summaries(module);
         let helper = shared_copy_helper(target, sites);
         let helper = helper.map(|function| module.add_function(function));
-        for func in module.functions.iter_mut() {
+        for (func_id, func) in module.functions.iter_mut_enumerated() {
             if !func.blocks.is_empty() {
+                let constructor_reachable = func_id.index() < constructor_reachable.domain_size()
+                    && constructor_reachable.contains(func_id);
+                let helper = (!constructor_reachable).then_some(helper).flatten();
                 lower_function(func, helper, &fresh_returns, &summaries);
             }
         }

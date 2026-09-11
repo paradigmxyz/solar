@@ -19,3 +19,15 @@
       ret v2
   }
   
+  fn @sload_inside_gas_interval(arg0: u256) -> u256 {
+    bb0:
+      v0 = gas
+      v1 = sload arg0
+      v2 = sload arg0
+      v3 = gas
+      v4 = add v0, v1
+      v5 = add v2, v3
+      v6 = add v4, v5
+      ret v6
+  }
+  

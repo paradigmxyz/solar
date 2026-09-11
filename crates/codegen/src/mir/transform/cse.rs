@@ -50,6 +50,13 @@
 //!   (diamond arms, loop bodies), including the child itself when it sits on a cycle
 //! - a child with one CFG predecessor inherits its parent's cache directly: each visit executes the
 //!   parent again, so writes on earlier iterations cannot invalidate a fresh parent load
+//!
+//! Local CSE also reuses single-result leaf calls whose bounded memory summary
+//! proves deterministic reads and complete restoration of temporary writes.
+//! Every intervening memory write invalidates these entries. Calls never sink or
+//! inherit a cached result across blocks; no read-footprint disjointness is assumed.
+//! After a `gas` read, state-dependent expressions remain explicit so a later
+//! `gas` read observes their dynamically priced execution.
 
 use crate::mir::{
     Callee, FunctionId, AddressCallKind, BlockId, EffectKind, Function, Immediate, ImmutableId, InstId, InstKind,
@@ -174,6 +181,8 @@ struct CommonSubexprEliminator {
     cfg: Option<Rc<CfgInfo>>,
     /// Number of instructions eliminated.
     eliminated_count: usize,
+    /// `gas` instructions used exclusively as external-call gas operands.
+    forwarded_call_gas: Option<DenseBitSet<InstId>>,
     alias: Option<AliasAnalysis>,
     call_summaries: Option<Arc<MemoryCallSummaries>>,
 }
@@ -293,6 +302,10 @@ impl ExprCache {
         !self.stateful.is_empty()
     }
 
+    fn clear_stateful(&mut self) {
+        Rc::make_mut(&mut self.stateful).clear();
+    }
+
     /// Retains the state-dependent entries matching `keep`. The pure entries are
     /// untouched, which is why no clobber has to walk them.
     fn retain_stateful(&mut self, keep: impl Fn(&ExprKey, &ValueId) -> bool) {
@@ -387,6 +400,7 @@ impl CommonSubexprEliminator {
     /// Runs CSE iteratively until no more changes.
     fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
         self.eliminated_count = 0;
+        self.forwarded_call_gas = Some(Self::classify_forwarded_call_gas(func));
         let cfg = self.cfg.as_ref().map_or_else(|| Rc::new(CfgInfo::new(func)), Rc::clone);
 
         // Sinking only creates pure expressions, while elimination removes instructions and
@@ -567,12 +581,20 @@ impl CommonSubexprEliminator {
     }
 
     fn process_global_blocks(&mut self, func: &Function, ctx: &mut GlobalCseContext<'_>) {
-        let mut worklist = vec![(BlockId::ENTRY, ExprCache::default())];
-        while let Some((block_id, mut cache)) = worklist.pop() {
+        let mut worklist = vec![(BlockId::ENTRY, ExprCache::default(), false)];
+        while let Some((block_id, mut cache, mut gas_observed)) = worklist.pop() {
             for &inst_id in &func.blocks[block_id].instructions {
                 let kind = &func.inst(inst_id).kind;
+                if matches!(kind, InstKind::Gas) {
+                    if !self.is_forwarded_call_gas(inst_id) {
+                        cache.clear_stateful();
+                        gas_observed = true;
+                    }
+                    continue;
+                }
                 let candidate = self
                     .make_expr_key(func, inst_id, kind, ctx.replacements)
+                    .filter(|key| !gas_observed || !Self::is_path_sensitive_expr(key))
                     .zip(func.inst_result_value(inst_id));
                 if let Some((key, result)) = &candidate
                     && let Some(cached) = cache.get(key)
@@ -599,10 +621,10 @@ impl CommonSubexprEliminator {
             for &child in remaining_children.iter().rev() {
                 let mut child_cache = cache.clone();
                 self.filter_inherited_cache(func, block_id, child, &mut child_cache, ctx);
-                worklist.push((child, child_cache));
+                worklist.push((child, child_cache, gas_observed));
             }
             self.filter_inherited_cache(func, block_id, first_child, &mut cache, ctx);
-            worklist.push((first_child, cache));
+            worklist.push((first_child, cache, gas_observed));
         }
     }
 
@@ -721,6 +743,7 @@ impl CommonSubexprEliminator {
 
         // Instructions to remove
         let mut to_remove = DenseBitSet::new_empty(func.num_insts());
+        let mut gas_observed = false;
 
         let instruction_count = func.blocks[block_id].instructions.len();
         for index in 0..instruction_count {
@@ -728,9 +751,18 @@ impl CommonSubexprEliminator {
             let inst = func.inst(inst_id);
             let kind = &inst.kind;
 
+            if matches!(kind, InstKind::Gas) {
+                if !self.is_forwarded_call_gas(inst_id) {
+                    expr_cache.clear_stateful();
+                    gas_observed = true;
+                }
+                continue;
+            }
+
             let candidate = self
                 .make_expr_key(func, inst_id, kind, &replacements)
-                .zip(func.inst_result_value(inst_id));
+                .filter(|key| !gas_observed || !Self::is_path_sensitive_expr(key))
+                    .zip(func.inst_result_value(inst_id));
             if let Some((key, result)) = &candidate
                 && let Some(&cached_value) = expr_cache.get(key)
             {
@@ -932,6 +964,60 @@ impl CommonSubexprEliminator {
             // - Calls - side effects
             _ => None,
         }
+    }
+
+    /// Finds `gas` values whose only uses are the gas operand of legacy calls.
+    /// Those values are introduced by call lowering and do not represent a
+    /// source-level gas observation.
+    fn classify_forwarded_call_gas(func: &Function) -> DenseBitSet<InstId> {
+        let mut gas_values = FxHashMap::default();
+        for inst_id in func.instructions() {
+            if matches!(func.inst(inst_id).kind, InstKind::Gas)
+                && let Some(value) = func.inst_result_value(inst_id)
+            {
+                gas_values.insert(value, inst_id);
+            }
+        }
+
+        let mut forwarded = DenseBitSet::new_empty(func.num_insts());
+        let mut observed = DenseBitSet::new_empty(func.num_insts());
+        for inst_id in func.instructions() {
+            let kind = &func.inst(inst_id).kind;
+            let call_gas = match kind {
+                InstKind::Call { gas, .. }
+                | InstKind::CallCode { gas, .. }
+                | InstKind::StaticCall { gas, .. }
+                | InstKind::DelegateCall { gas, .. } => Some(*gas),
+                _ => None,
+            };
+            let mut accepted_call_gas = false;
+            for operand in kind.operands() {
+                let Some(&gas_inst) = gas_values.get(&operand) else { continue };
+                if call_gas == Some(operand) && !accepted_call_gas {
+                    forwarded.insert(gas_inst);
+                    accepted_call_gas = true;
+                } else {
+                    observed.insert(gas_inst);
+                }
+            }
+        }
+        for block in func.blocks.iter() {
+            if let Some(terminator) = &block.terminator {
+                for operand in terminator.operands() {
+                    if let Some(&gas_inst) = gas_values.get(&operand) {
+                        observed.insert(gas_inst);
+                    }
+                }
+            }
+        }
+        for gas_inst in observed.iter() {
+            forwarded.remove(gas_inst);
+        }
+        forwarded
+    }
+
+    fn is_forwarded_call_gas(&self, inst_id: InstId) -> bool {
+        self.forwarded_call_gas.as_ref().is_some_and(|gas| gas.contains(inst_id))
     }
 
     fn update_for_side_effect(

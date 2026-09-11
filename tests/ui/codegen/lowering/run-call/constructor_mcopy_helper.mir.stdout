@@ -1,0 +1,29 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/constructor_mcopy_helper.sol:ConstructorMCopyHelper ===
+@module ConstructorMCopyHelper
+immutables:
+  digest: bytes32
+
+fn @digest() -> bytes32 [selector=0x52a82b65, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = loadimmutable digest
+    ret v0
+}
+
+fn @constructor(arg0: memorybytes, arg1: memorybytes) [constructor, abi_params=[bytes, bytes]] {
+  bb0:
+    v0 = abi_encode [memory_bytes, memory_bytes], scratch, args arg0, arg1
+    v1 = slice_ptr v0
+    v2 = slice_len v0
+    v3 = keccak256 v1, v2
+    storeimmutable digest, v3
+    stop
+}
+
+fn @runtimeDigest(arg0: memorybytes, arg1: memorybytes) -> bytes32 [selector=0x8655a0e6, pure, abi_params=[bytes, bytes], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode [memory_bytes, memory_bytes], scratch, args arg0, arg1
+    v1 = slice_ptr v0
+    v2 = slice_len v0
+    v3 = keccak256 v1, v2
+    ret v3
+}
