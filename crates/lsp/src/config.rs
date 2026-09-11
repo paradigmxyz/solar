@@ -350,7 +350,7 @@ impl Config {
         self.workspace_path_cache = Arc::new(OnceLock::new());
     }
 
-    fn workspace_path_index(&self) -> WorkspacePathIndex<'_> {
+    pub(crate) fn workspace_path_index(&self) -> WorkspacePathIndex<'_> {
         let cache = Arc::clone(
             self.workspace_path_cache
                 .get_or_init(|| Arc::new(WorkspacePathIndex::cache(&self.workspaces))),

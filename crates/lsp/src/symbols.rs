@@ -2608,6 +2608,14 @@ fn completion_filter_prefix(prefix: &str) -> Option<String> {
 }
 
 fn fuzzy_completion_match(prefix: &str, label: &str) -> bool {
+    // Match ASCII names byte by byte, retaining Unicode case folding for other labels.
+    if prefix.is_ascii() && label.is_ascii() {
+        let mut label = label.bytes();
+        return prefix.bytes().all(|prefix_byte| {
+            label.by_ref().any(|label_byte| label_byte.eq_ignore_ascii_case(&prefix_byte))
+        });
+    }
+
     let mut label_chars = label.chars().flat_map(char::to_lowercase);
     prefix
         .chars()
@@ -2728,6 +2736,14 @@ fn is_generated_item(gcx: Gcx<'_>, item_id: ItemId) -> bool {
 mod tests {
     use super::{push_symbol_for_test as push, *};
     use lsp_types::Position;
+
+    #[test]
+    fn fuzzy_completion_match_handles_ascii_and_unicode() {
+        assert!(fuzzy_completion_match("FN", "FunctionName"));
+        assert!(fuzzy_completion_match("fnn", "FunctionName"));
+        assert!(!fuzzy_completion_match("fz", "FunctionName"));
+        assert!(fuzzy_completion_match("é", "Éclair"));
+    }
 
     #[test]
     fn document_symbols_are_nested_by_parent_and_ordered_by_source() {
