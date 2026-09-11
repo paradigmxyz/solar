@@ -447,7 +447,7 @@ bb29:
   push 0
   return
 bb9:
-  push 512
+  push 544
   push 64
   mstore
   push 132

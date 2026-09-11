@@ -537,9 +537,10 @@ raise another entry's heap floor. Locals go before spills when their PUSH widths
 stay unchanged, after spills when they fit below shared frames, or after the
 entry's reachable frames. Entries with backward heap consumers keep dynamic
 allocation: a guard belongs below the initial heap, while later allocations
-must remain adjacent to their resulting free-memory pointer. Prefix analysis follows bounded constant
-add/sub offsets with EVM modular arithmetic, including helper returns and
-merged paths. A known backward offset from an opaque base still reserves space;
+must remain adjacent to their resulting free-memory pointer. Prefix analysis
+covers physical memory reads and writes, including logs, both call buffers,
+and return/revert data. It follows bounded constant add/sub offsets with EVM
+modular arithmetic, including helper returns and merged paths. A known backward offset from an opaque base still reserves space;
 losing pointer provenance does not discard that offset. Forward offsets reduce
 the required prefix, but never below zero. This analysis covers constant working
 prefixes, not arbitrary unbounded assembly pointer arithmetic.

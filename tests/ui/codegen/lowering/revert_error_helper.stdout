@@ -200,7 +200,7 @@ bb26 [cold]:
   shl
   jump bb40
 bb28:
-  push 352
+  push 384
   push 64
   mstore
   push 36

@@ -682,33 +682,26 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     /// Returns the working-memory prefix a hand-written heap image needs.
     ///
-    /// Static frames end where the runtime heap begins. Creation-code builders
-    /// such as CWIA intentionally save, write, and restore words immediately
-    /// before a `bytes` object, then consume that prefix with `create2` or
-    /// `keccak256`. Reserve the largest constant backward offset for entries
-    /// that reach such a builder so its temporary image cannot overlap the
+    /// Static frames end where the runtime heap begins. Assembly may use words
+    /// immediately before an object through any memory read or write. Reserve
+    /// the largest constant backward offset so those words cannot overlap the
     /// highest static-frame spill slots. Constant offsets use EVM modular arithmetic, so
     /// adding a negative constant reserves the same prefix as subtracting its magnitude.
     fn heap_prefix_guard(func: &Function, returned_offsets: &FxHashMap<FunctionId, u64>) -> u64 {
-        func.instructions()
-            .filter_map(|inst_id| {
-                let offset = match func.inst(inst_id).kind {
-                    InstKind::Keccak256(offset, _)
-                    | InstKind::Create(_, offset, _)
-                    | InstKind::Create2(_, offset, _, _)
-                    | InstKind::Call { args_offset: offset, .. }
-                    | InstKind::CallCode { args_offset: offset, .. }
-                    | InstKind::StaticCall { args_offset: offset, .. }
-                    | InstKind::DelegateCall { args_offset: offset, .. } => Some(offset),
-                    _ => None,
-                }?;
-                let mut visiting = DenseBitSet::new_empty(func.num_values());
-                let mut memo = FxHashMap::default();
+        let mut guard = 0;
+        Self::for_each_memory_range(func, |offset, size| {
+            if size == Some(0) {
+                return;
+            }
+            let mut visiting = DenseBitSet::new_empty(func.num_values());
+            let mut memo = FxHashMap::default();
+            if let Some(prefix) =
                 Self::heap_prefix_offset(func, offset, returned_offsets, &mut visiting, &mut memo)
-            })
-            .max()
-            .unwrap_or(0)
-            .next_multiple_of(EvmMemoryLayout::WORD_SIZE)
+            {
+                guard = guard.max(prefix);
+            }
+        });
+        guard.next_multiple_of(EvmMemoryLayout::WORD_SIZE)
     }
 
     /// Computes the largest backward heap offset returned by each helper.
@@ -874,20 +867,31 @@ impl<'gcx> EvmCodegen<'gcx> {
         func: &Function,
     ) -> u64 {
         let bound = EvmMemoryLayout::HEAP_START + SPILL_HAZARD_BOUND;
-        let end_of = |offset: ValueId, size: u64| -> Option<u64> {
-            let start = func.value_u64(offset)?;
-            let end = start.checked_add(size)?;
-            (start < bound).then_some(end)
-        };
-        let sized_end = |offset: ValueId, size: ValueId| end_of(offset, func.value_u64(size)?);
         let mut mark = 0;
+        Self::for_each_memory_range(func, |offset, size| {
+            if let Some(start) = func.value_u64(offset)
+                && start < bound
+                && let Some(end) = size.and_then(|size| start.checked_add(size))
+            {
+                mark = mark.max(end);
+            }
+        });
+        mark
+    }
+
+    /// Visits physical memory ranges used by instructions and terminators.
+    /// Unknown lengths still expose their base to heap-prefix analysis.
+    fn for_each_memory_range(func: &Function, mut visit: impl FnMut(ValueId, Option<u64>)) {
         for inst_id in func.instructions() {
-            let end = match func.inst(inst_id).kind {
+            match func.inst(inst_id).kind {
                 InstKind::MLoad(addr) | InstKind::MStore(addr, _) => {
-                    end_of(addr, EvmMemoryLayout::WORD_SIZE)
+                    visit(addr, Some(EvmMemoryLayout::WORD_SIZE));
                 }
-                InstKind::MStore8(addr, _) => end_of(addr, 1),
-                InstKind::MCopy(dest, src, size) => sized_end(dest, size).max(sized_end(src, size)),
+                InstKind::MStore8(addr, _) => visit(addr, Some(1)),
+                InstKind::MCopy(dest, src, size) => {
+                    visit(dest, func.value_u64(size));
+                    visit(src, func.value_u64(size));
+                }
                 InstKind::CalldataCopy(dest, _, size)
                 | InstKind::DataCopy(_, dest, size)
                 | InstKind::CodeCopy(dest, _, size)
@@ -900,26 +904,25 @@ impl<'gcx> EvmCodegen<'gcx> {
                 | InstKind::Log3(dest, size, _, _, _)
                 | InstKind::Log4(dest, size, _, _, _, _)
                 | InstKind::Create(_, dest, size)
-                | InstKind::Create2(_, dest, size, _) => sized_end(dest, size),
+                | InstKind::Create2(_, dest, size, _) => visit(dest, func.value_u64(size)),
                 InstKind::Call { args_offset, args_size, ret_offset, ret_size, .. }
                 | InstKind::CallCode { args_offset, args_size, ret_offset, ret_size, .. }
                 | InstKind::StaticCall { args_offset, args_size, ret_offset, ret_size, .. }
                 | InstKind::DelegateCall { args_offset, args_size, ret_offset, ret_size, .. } => {
-                    sized_end(args_offset, args_size).max(sized_end(ret_offset, ret_size))
+                    visit(args_offset, func.value_u64(args_size));
+                    visit(ret_offset, func.value_u64(ret_size));
                 }
-                _ => None,
-            };
-            mark = mark.max(end.unwrap_or(0));
+                _ => {}
+            }
         }
-        for block in func.blocks.iter() {
+        for block in &func.blocks {
             if let Some(
                 Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size },
             ) = &block.terminator
             {
-                mark = mark.max(sized_end(*offset, *size).unwrap_or(0));
+                visit(*offset, func.value_u64(*size));
             }
         }
-        mark
     }
 
     pub(in crate::backend::evm::codegen) fn constructor_spill_base(
@@ -1060,7 +1063,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::{BlockId, FunctionBuilder};
+    use crate::mir::{BlockId, FunctionBuilder, Instruction};
     use solar_interface::Ident;
 
     #[test]
@@ -1135,6 +1138,114 @@ mod tests {
         // hash(prefix, 32)
         FunctionBuilder::new(&mut function).keccak256(prefix, word);
         assert_eq!(EvmCodegen::heap_prefix_guard(&function, &FxHashMap::default()), 32);
+    }
+
+    #[test]
+    fn heap_prefix_guard_covers_memory_ranges() {
+        let mut function = Function::new(Ident::DUMMY);
+        let mut builder = FunctionBuilder::new(&mut function);
+        // base = fmp
+        // prefix = base - 32
+        let base = builder.fmp();
+        let word = builder.imm(32);
+        let prefix = builder.sub(base, word);
+        let zero = builder.imm(0);
+        let dynamic_size = builder.add_param(MirType::uint256());
+        let result = Some(MirType::uint256());
+        for size in [zero, word, dynamic_size] {
+            for (kind, ty) in [
+                (InstKind::Keccak256(prefix, size), result),
+                (InstKind::Log0(prefix, size), None),
+                (InstKind::Log1(prefix, size, zero), None),
+                (InstKind::Log2(prefix, size, zero, zero), None),
+                (InstKind::Log3(prefix, size, zero, zero, zero), None),
+                (InstKind::Log4(prefix, size, zero, zero, zero, zero), None),
+                (InstKind::CalldataCopy(prefix, zero, size), None),
+                (InstKind::CodeCopy(prefix, zero, size), None),
+                (InstKind::ReturnDataCopy(prefix, zero, size), None),
+                (InstKind::ExtCodeCopy(zero, prefix, zero, size), None),
+                (InstKind::MCopy(prefix, base, size), None),
+                (InstKind::MCopy(base, prefix, size), None),
+                (
+                    InstKind::Call {
+                        gas: zero,
+                        addr: zero,
+                        value: zero,
+                        args_offset: base,
+                        args_size: zero,
+                        ret_offset: prefix,
+                        ret_size: size,
+                    },
+                    result,
+                ),
+                (
+                    InstKind::CallCode {
+                        gas: zero,
+                        addr: zero,
+                        value: zero,
+                        args_offset: base,
+                        args_size: zero,
+                        ret_offset: prefix,
+                        ret_size: size,
+                    },
+                    result,
+                ),
+                (
+                    InstKind::StaticCall {
+                        gas: zero,
+                        addr: zero,
+                        args_offset: base,
+                        args_size: zero,
+                        ret_offset: prefix,
+                        ret_size: size,
+                    },
+                    result,
+                ),
+                (
+                    InstKind::DelegateCall {
+                        gas: zero,
+                        addr: zero,
+                        args_offset: base,
+                        args_size: zero,
+                        ret_offset: prefix,
+                        ret_size: size,
+                    },
+                    result,
+                ),
+            ] {
+                let mut consumer = function.clone();
+                let name = kind.mnemonic();
+                // consumer(..., prefix, size, ...)
+                FunctionBuilder::new(&mut consumer).append_instruction(Instruction::new(kind, ty));
+                assert_eq!(
+                    EvmCodegen::heap_prefix_guard(&consumer, &FxHashMap::default()),
+                    if size == zero { 0 } else { 32 },
+                    "{name}",
+                );
+            }
+            for terminator in [
+                Terminator::ReturnData { offset: prefix, size },
+                Terminator::Revert { offset: prefix, size },
+            ] {
+                let mut consumer = function.clone();
+                // return_data/revert prefix, size
+                consumer.blocks[BlockId::ENTRY].terminator = Some(terminator);
+                assert_eq!(
+                    EvmCodegen::heap_prefix_guard(&consumer, &FxHashMap::default()),
+                    if size == zero { 0 } else { 32 },
+                );
+            }
+        }
+        for (kind, ty) in [
+            (InstKind::MLoad(prefix), result),
+            (InstKind::MStore(prefix, zero), None),
+            (InstKind::MStore8(prefix, zero), None),
+        ] {
+            let mut consumer = function.clone();
+            // mload/mstore/mstore8 prefix, ...
+            FunctionBuilder::new(&mut consumer).append_instruction(Instruction::new(kind, ty));
+            assert_eq!(EvmCodegen::heap_prefix_guard(&consumer, &FxHashMap::default()), 32);
+        }
     }
 
     #[test]
