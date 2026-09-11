@@ -121,19 +121,104 @@ fn analysis_build(c: &mut Criterion) {
 }
 
 fn call_hierarchy_queries(c: &mut Criterion) {
+    let mut group = c.benchmark_group("lsp/call-hierarchy");
+    for caller_count in [128, 2_048] {
+        let mut source = String::from("contract Root { function target() internal {}\n");
+        for index in 0..caller_count {
+            writeln!(source, "function caller{index}() public {{ target(); }}").unwrap();
+        }
+        source.push_str("}\n");
+        let project = BenchmarkProject::from_source(source);
+        let (uri, target_position) =
+            project.unique_anchor("benchmark.sol", "target() internal").unwrap();
+        let analysis = project.clone().analyze();
+        assert_clean(&analysis);
+        assert_eq!(analysis.incoming_calls(&uri, target_position).len(), caller_count);
+        group.bench_function(BenchmarkId::from_parameter(format!("{caller_count}-callers")), |b| {
+            b.iter(|| {
+                black_box(analysis.incoming_calls(black_box(&uri), black_box(target_position)))
+            });
+        });
+
+        let caller_line = format!("function caller{}() public {{ target(); }}", caller_count - 1);
+        let (body_uri, line_start) = project.unique_anchor("benchmark.sol", &caller_line).unwrap();
+        let body_position =
+            Position::new(line_start.line, line_start.character + "function ".len() as u32);
+        assert_eq!(analysis.prepare_call_hierarchy(&body_uri, body_position).unwrap().len(), 1);
+        group.bench_function(
+            BenchmarkId::from_parameter(format!("{caller_count}-callers-prepare-body")),
+            |b| {
+                b.iter(|| {
+                    black_box(
+                        analysis
+                            .prepare_call_hierarchy(black_box(&body_uri), black_box(body_position)),
+                    )
+                })
+            },
+        );
+
+        let call_position = Position::new(
+            line_start.line,
+            line_start.character
+                + format!("function caller{}() public {{ ", caller_count - 1).len() as u32,
+        );
+        assert_eq!(analysis.prepare_call_hierarchy(&body_uri, call_position).unwrap().len(), 1);
+        group.bench_function(
+            BenchmarkId::from_parameter(format!("{caller_count}-callers-prepare-callsite")),
+            |b| {
+                b.iter(|| {
+                    black_box(
+                        analysis
+                            .prepare_call_hierarchy(black_box(&body_uri), black_box(call_position)),
+                    )
+                })
+            },
+        );
+
+        group.bench_function(
+            BenchmarkId::from_parameter(format!("{caller_count}-callers-prepare-cold")),
+            |b| {
+                b.iter_batched(
+                    || analysis.clone(),
+                    |cold| black_box(cold.prepare_call_hierarchy(&body_uri, call_position)),
+                    BatchSize::PerIteration,
+                )
+            },
+        );
+    }
+    group.finish();
+}
+
+fn rename_candidate_queries(c: &mut Criterion) {
     let mut source = String::from("contract Root { function target() internal {}\n");
-    for index in 0..128 {
+    for index in 0..2_048 {
         writeln!(source, "function caller{index}() public {{ target(); }}").unwrap();
     }
     source.push_str("}\n");
     let project = BenchmarkProject::from_source(source);
-    let (uri, position) = project.unique_anchor("benchmark.sol", "target() internal").unwrap();
-    let analysis = project.analyze();
+    let (uri, eof_anchor) = project
+        .unique_anchor("benchmark.sol", "function caller2047() public { target(); }")
+        .unwrap();
+    let hit_position = Position::new(
+        eof_anchor.line,
+        eof_anchor.character + "function caller2047() public { ".len() as u32,
+    );
+    let analysis = project.clone().analyze();
     assert_clean(&analysis);
-    assert_eq!(analysis.incoming_calls(&uri, position).len(), 128);
-    let mut group = c.benchmark_group("lsp/call-hierarchy");
-    group.bench_function(BenchmarkId::from_parameter("128-callers"), |b| {
-        b.iter(|| black_box(analysis.incoming_calls(black_box(&uri), black_box(position))));
+    let Some((range, edit_count)) = analysis.rename_candidate(&uri, hit_position) else {
+        panic!("rename candidate should resolve at the final call site");
+    };
+    assert_eq!(edit_count, 2_049);
+    assert!(range.start <= hit_position && hit_position < range.end);
+    let miss_position = Position::new(eof_anchor.line + 1, 0);
+    assert!(analysis.rename_candidate(&uri, miss_position).is_none());
+
+    let mut group = c.benchmark_group("lsp/rename-candidate");
+    group.bench_function(BenchmarkId::from_parameter("2048-callers-hit-near-eof"), |b| {
+        b.iter(|| black_box(analysis.rename_candidate(black_box(&uri), black_box(hit_position))))
+    });
+    group.bench_function(BenchmarkId::from_parameter("2048-callers-miss-near-eof"), |b| {
+        b.iter(|| black_box(analysis.rename_candidate(black_box(&uri), black_box(miss_position))))
     });
     group.finish();
 }
@@ -1018,6 +1103,7 @@ fn unifap_benches(c: &mut Criterion) {
 criterion_group!(
     benches,
     analysis_build,
+    rename_candidate_queries,
     completion_queries,
     member_completion_queries,
     signature_help_requests,
