@@ -19,6 +19,12 @@ invoking other commands such as `cargo test`.
 
 ## Results
 
+The [checked Solady experiment](safe-solady/README.md) compares original
+Solady compiled by solc against a partial port without assembly or unchecked
+blocks compiled here. It preserves the same wrappers and inputs, measures
+both solc pipelines, and excludes semantic mismatches from gas comparisons.
+The full compatibility and gas-parity target is not yet met.
+
 You can view the Solar-only results on [codspeed.io](https://codspeed.io/paradigmxyz/solar).
 The codegen runtime workflow also publishes `common.json` using the vendored common benchmark
 result schema in [`schema/`](schema/), with wall-time metrics for each suite's compiler and runtime
