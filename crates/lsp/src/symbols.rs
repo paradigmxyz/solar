@@ -63,7 +63,7 @@ pub(crate) struct SymbolTables {
     builtin_member_completions: FxHashMap<String, Vec<CompletionItem>>,
     receiver_member_completions: FxHashMap<SymbolId, Arc<[CompletionItem]>>,
     member_completions: Vec<MemberCompletionScope>,
-    file_member_completions: FxHashMap<Url, Vec<usize>>,
+    file_member_completions: FxHashMap<Url, PositionIndex<usize>>,
     file_scopes: FxHashMap<Url, Vec<ScopeId>>,
     references: Vec<SymbolReference>,
     file_references: FxHashMap<Url, PositionIndex<usize>>,
@@ -269,6 +269,15 @@ impl<T: Copy> PositionIndex<T> {
         position: Position,
         range: impl Fn(T) -> Range + Copy + 'a,
     ) -> impl Iterator<Item = T> + 'a {
+        self.candidates_at_with(position, range, proto::range_contains)
+    }
+
+    fn candidates_at_with<'a>(
+        &'a self,
+        position: Position,
+        range: impl Fn(T) -> Range + Copy + 'a,
+        contains: impl Fn(Range, Position) -> bool + 'a,
+    ) -> impl Iterator<Item = T> + 'a {
         let end = self.entries.partition_point(|&entry| range(entry).start <= position);
         self.entries[..end]
             .iter()
@@ -276,7 +285,7 @@ impl<T: Copy> PositionIndex<T> {
             .zip(self.prefix_max_end[..end].iter().copied())
             .rev()
             .take_while(move |(_, prefix_max_end)| *prefix_max_end >= position)
-            .filter(move |&(entry, _)| proto::range_contains(range(entry), position))
+            .filter(move |&(entry, _)| contains(range(entry), position))
             .map(|(entry, _)| entry)
     }
 }
@@ -989,7 +998,9 @@ impl SymbolTables {
         position: Position,
         context: CompletionContext<'_>,
     ) -> Vec<CompletionItem> {
-        if let Some(items) = self.member_completion_items(uri, position) {
+        if !self.member_completions.is_empty()
+            && let Some(items) = self.member_completion_items(uri, position)
+        {
             return filtered_completion_items(items, context.prefix);
         }
         if let Some(items) = self.builtin_member_completion_items(context.member_receiver) {
@@ -1577,16 +1588,29 @@ impl SymbolTables {
     }
 
     fn member_completion_items(&self, uri: &Url, position: Position) -> Option<&[CompletionItem]> {
-        let completion = self
-            .file_member_completions
-            .get(uri)?
-            .iter()
-            .filter_map(|&index| {
-                let completion = &self.member_completions[index];
-                completion_range_contains(completion.range, position).then_some(completion)
-            })
-            .min_by_key(|completion| proto::range_size_key(completion.range))?;
-        Some(&completion.items)
+        let completions = self.file_member_completions.get(uri)?;
+        self.member_completion_items_at(completions, position)
+    }
+
+    // Keep interval traversal and its stack state out of the map-lookup wrapper.
+    #[inline(never)]
+    fn member_completion_items_at(
+        &self,
+        completions: &PositionIndex<usize>,
+        position: Position,
+    ) -> Option<&[CompletionItem]> {
+        let index = completions
+            .candidates_at_with(
+                position,
+                |index| self.member_completions[index].range,
+                completion_range_contains,
+            )
+            .min_by_key(|&index| {
+                let range = self.member_completions[index].range;
+                // Preserve the stable source order when equally small ranges overlap.
+                (proto::range_size_key(range), range.start, range.end, index)
+            })?;
+        Some(&self.member_completions[index].items)
     }
 
     fn builtin_member_completion_items(&self, receiver: Option<&str>) -> Option<&[CompletionItem]> {
@@ -1734,10 +1758,7 @@ impl SymbolTables {
             self.file_member_completions.entry(completion.uri.clone()).or_default().push(index);
         }
         for completions in self.file_member_completions.values_mut() {
-            completions.sort_by_key(|&index| {
-                let range = self.member_completions[index].range;
-                (range.start.line, range.start.character, range.end.line, range.end.character)
-            });
+            completions.rebuild(|index| self.member_completions[index].range);
         }
 
         self.file_references.clear();
@@ -2897,6 +2918,55 @@ mod tests {
             tables.reference_at_position(&uri, Position::new(4, 2)).unwrap().targets,
             ReferenceTargets::from_buf([point])
         );
+    }
+
+    #[test]
+    fn member_completion_lookups_preserve_endpoints_and_overlap_order() {
+        let uri = parse_uri("file:///workspace/src/Contract.sol");
+        let mut tables = SymbolTables::default();
+        for (label, range) in [
+            ("later", range(1, 2, 1, 6)),
+            ("outer", range(0, 0, 4, 0)),
+            ("earlier", range(1, 0, 1, 4)),
+            ("point", range(2, 3, 2, 3)),
+        ] {
+            tables.member_completions.push(MemberCompletionScope {
+                uri: uri.clone(),
+                range,
+                items: Arc::from([CompletionItem { label: label.into(), ..Default::default() }]),
+            });
+        }
+        tables.rebuild_indexes();
+
+        let mut duplicate = SymbolTables::default();
+        duplicate.member_completions.push(MemberCompletionScope {
+            uri: uri.clone(),
+            range: range(1, 0, 1, 4),
+            items: Arc::from([CompletionItem { label: "duplicate".into(), ..Default::default() }]),
+        });
+        duplicate.rebuild_indexes();
+        let mut aggregator = SymbolTablesAggregator::default();
+        aggregator.push(tables);
+        aggregator.push(duplicate);
+        let tables = aggregator.finish();
+
+        for (position, expected) in [
+            (Position::new(0, 0), Some("outer")),
+            (Position::new(1, 0), Some("earlier")),
+            (Position::new(1, 3), Some("earlier")),
+            (Position::new(1, 4), Some("earlier")),
+            (Position::new(1, 5), Some("later")),
+            (Position::new(1, 6), Some("later")),
+            (Position::new(2, 3), Some("point")),
+            (Position::new(4, 0), Some("outer")),
+            (Position::new(4, 1), None),
+        ] {
+            assert_eq!(
+                tables.member_completion_items(&uri, position).map(|items| items[0].label.as_str()),
+                expected,
+                "{position:?}",
+            );
+        }
     }
 
     #[test]
