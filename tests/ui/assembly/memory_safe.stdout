@@ -155,5 +155,41 @@ source 0 "ROOT/tests/ui/assembly/memory_safe.sol" {
                 result = 42;
             }
         }
+
+        function invalidBlankLineGroup() public pure returns (uint256 result) {
+            assembly {
+                result = 42;
+            }
+        }
+
+        function invalidIndentedBlankLineGroup() public pure returns (uint256 result) {
+            assembly {
+                result = 42;
+            }
+        }
+
+        function invalidCrLfBlankLineGroup() public pure returns (uint256 result) {
+            assembly {
+                result = 42;
+            }
+        }
+
+        function invalidCrBlankLineGroup() public pure returns (uint256 result) {
+            assembly {
+                result = 42;
+            }
+        }
+
+        function legacyCrLfLineGroup() public pure returns (uint256 result) {
+            assembly ("memory-safe") {
+                result = 42;
+            }
+        }
+
+        function legacyCrLineGroup() public pure returns (uint256 result) {
+            assembly ("memory-safe") {
+                result = 42;
+            }
+        }
     }
 }

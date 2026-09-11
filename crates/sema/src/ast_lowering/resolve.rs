@@ -25,7 +25,9 @@ fn legacy_memory_safe_annotation(sess: &Session, docs: &ast::DocComments<'_>) ->
         while first > 0 && docs[first - 1].kind == ast::CommentKind::Line {
             let gap = Span::new(docs[first - 1].span.hi(), docs[first].span.lo());
             if !sess.source_map().span_to_snippet(gap).is_ok_and(|gap| {
-                gap.bytes().all(|byte| matches!(byte, b' ' | b'\n' | b'\t' | b'\r'))
+                gap.strip_prefix("\r\n")
+                    .or_else(|| gap.strip_prefix(['\n', '\r']))
+                    .is_some_and(|indent| indent.bytes().all(|byte| matches!(byte, b' ' | b'\t')))
             }) {
                 break;
             }

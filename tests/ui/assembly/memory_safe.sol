@@ -199,4 +199,53 @@ contract MemorySafe {
         assembly { result := 42 }
     }
 
+    // CHECK-LABEL: function invalidBlankLineGroup(
+    // CHECK: assembly {
+    function invalidBlankLineGroup() public pure returns (uint256 result) {
+        /// @solidity memory-safe-assembly
+
+        /// @notice continuation
+        assembly { result := 42 }
+    }
+
+    // CHECK-LABEL: function invalidIndentedBlankLineGroup(
+    // CHECK: assembly {
+    function invalidIndentedBlankLineGroup() public pure returns (uint256 result) {
+        /// @solidity memory-safe-assembly
+ 	
+        /// @notice continuation
+        assembly { result := 42 }
+    }
+
+    // CHECK-LABEL: function invalidCrLfBlankLineGroup(
+    // CHECK: assembly {
+    function invalidCrLfBlankLineGroup() public pure returns (uint256 result) {
+        /// @solidity memory-safe-assembly
+
+        /// @notice continuation
+        assembly { result := 42 }
+    }
+
+    // CHECK-LABEL: function invalidCrBlankLineGroup(
+    // CHECK: assembly {
+    function invalidCrBlankLineGroup() public pure returns (uint256 result) {
+        /// @solidity memory-safe-assembly        /// @notice continuation
+        assembly { result := 42 }
+    }
+
+    // CHECK-LABEL: function legacyCrLfLineGroup(
+    // CHECK: assembly ("memory-safe") {
+    function legacyCrLfLineGroup() public pure returns (uint256 result) {
+        /// @solidity memory-safe-assembly
+        /// @notice continuation
+        assembly { result := 42 }
+    }
+
+    // CHECK-LABEL: function legacyCrLineGroup(
+    // CHECK: assembly ("memory-safe") {
+    function legacyCrLineGroup() public pure returns (uint256 result) {
+        /// @solidity memory-safe-assembly        /// @notice continuation
+        assembly { result := 42 }
+    }
+
 }
