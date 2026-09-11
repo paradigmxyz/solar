@@ -22,6 +22,84 @@ EDGE_BYTES32 = "0x" + "ff" * 31 + "f0"
 MIXED_BYTES32 = "0x" + "ff" * 30 + "0000"
 SIGNED_HASH = "0x7d768af957ef8cbf6219a37e743d5546d911dae3e46449d8a5810522db2ef65e"
 
+# Exercise both array iteration and bytes tails around the ABI word boundary.
+GOVERNOR_PROPOSALS = tuple(
+    (
+        f"hash-proposal-{length}-elements",
+        (
+            "[" + ",".join(f"0x{i + 1:040x}" for i in range(length)) + "]",
+            "[" + ",".join(str(i) for i in range(length)) + "]",
+            "["
+            + ",".join("0x" + "42" * (0, 1, 31, 32, 33)[i % 5] for i in range(length))
+            + "]",
+            "0x" + "42" * 32,
+        ),
+    )
+    for length in (1, 2, 8)
+)
+
+
+# Nonuniform bytes exercise both nibbles and the ABI/loop word boundaries.
+ENCODING_INPUTS = tuple(
+    (f"mixed-{length}", "0x" + bytes((i * 37 + 11) % 256 for i in range(length)).hex())
+    for length in (0, 1, 15, 16, 31, 32, 33, 63, 64, 65, 256)
+) + (
+    ("ascii-65", "0x" + "41" * 65),
+    ("high-first", "0x80" + "41" * 64),
+    ("high-boundary", "0x" + "41" * 31 + "80" + "41" * 33),
+    ("high-tail", "0x" + "41" * 64 + "80"),
+)
+# Additional boundaries and long scans are checked independently of the original
+# short-input tuning set, using a different nonuniform byte pattern.
+ENCODING_INPUTS += tuple(
+    (f"boundary-{length}", "0x" + bytes((i * 73 + 19) % 256 for i in range(length)).hex())
+    for length in (2, 7, 8, 17, 47, 95, 127, 128, 129, 255, 257, 511, 512, 513, 1023, 1024)
+) + tuple(
+    (f"ascii-{length}", "0x" + "41" * length)
+    for length in (0, 1, 2, 31, 32, 33, 63, 64, 127, 128, 129, 256, 257, 1024)
+) + tuple(
+    (f"high-{position}-{length}", "0x" + "41" * offset + "80" + "41" * (length - offset - 1))
+    for length in (257, 1024)
+    for position, offset in (("first", 0), ("boundary", 31), ("tail", length - 1))
+)
+
+
+# Isolated decimal and sorting calls avoid upstream assertions and gas-dependent
+# memory stress. Use the same inputs for timing and return-value comparison.
+ALGORITHM_INPUTS = tuple(
+    (f"decimal-{value}", "decimal(uint256)", "string", str(value))
+    for value in (
+        0, 1, 9, 10, 99, 100, (1 << 64) - 1, 10**31 - 1, 10**31,
+        (1 << 255) - 1, (1 << 256) - 1,
+    )
+) + tuple(
+    (f"signed-{value}", "signedDecimal(int256)", "string", str(value))
+    for value in (-1, -10, -(1 << 255), 0, 1, (1 << 255) - 1)
+) + tuple(
+    (
+        f"{method}-{pattern}-{length}",
+        f"{method}(uint256[])",
+        "uint256[]",
+        "[" + ",".join(map(str, values)) + "]",
+    )
+    for length in (0, 1, 2, 4, 12, 13, 32, 64)
+    for pattern, values in (
+        ("sorted", range(length)),
+        ("reversed", range(length - 1, -1, -1)),
+        ("equal", [1] * length),
+        ("mixed", [(i * 73 + 7) % 37 for i in range(length)]),
+    )
+    for method in ("insertion", "sort")
+) + tuple(
+    (label, "decode(string)", "bytes", value)
+    for label, value in (
+        ("base64-empty", ""),
+        ("base64-one", "YQ=="),
+        ("base64-three", "YWJj"),
+        ("base64-long", "YWJj" * 32),
+    )
+)
+
 
 @dataclass(frozen=True)
 class RuntimeCheck:
@@ -124,6 +202,93 @@ TEST_CASES: Sequence[TestCase] = (
         ),
         source_name="Arithmetic.sol",
         runtime_checks=(RuntimeCheck("value", "value()(uint256)"),),
+    ),
+    TestCase(
+        test_id="verified-words",
+        description="Synthetic bitwise and signed arithmetic loops for verified rules",
+        source_code=(TESTDATA_ROOT / "runtime/VerifiedWords.sol").read_text(),
+        source_name="VerifiedWords.sol",
+        contract_name="VerifiedWords",
+        gas_calls=(
+            GasCall("mix", "mix(uint256,uint256,uint256)", ("32769", "65408", "64")),
+            GasCall("merge", "merge(uint256,uint256,uint256)", ("32769", "65408", "64")),
+            GasCall("negate", "negate(uint256,uint256)", (str(1 << 255), "64")),
+        ),
+        runtime_checks=(
+            RuntimeCheck("mix", "mix(uint256,uint256,uint256)(uint256)", ("32769", "65408", "64")),
+            RuntimeCheck("merge", "merge(uint256,uint256,uint256)(uint256)", ("32769", "65408", "64")),
+            RuntimeCheck("negate", "negate(uint256,uint256)(uint256)", (str(1 << 255), "64")),
+            RuntimeCheck("zero-rounds", "mix(uint256,uint256,uint256)(uint256)", (MAX_UINT256, "1", "0")),
+        ),
+    ),
+    TestCase(
+        test_id="word-recipes",
+        description="Synthetic arithmetic, factoring, byte extraction and bounded comparisons",
+        source_code=(TESTDATA_ROOT / "runtime/WordRecipes.sol").read_text(),
+        source_name="WordRecipes.sol",
+        contract_name="WordRecipes",
+        gas_calls=(
+            GasCall("mixed", "mixed(uint256,uint256,uint256)", ("32769", "65408", "64")),
+            GasCall("factored", "factored(uint256,uint256,uint256,uint256)", ("32769", "65408", MAX_UINT256, "64")),
+            GasCall("packed", "packed(uint256,uint256)", (MAX_UINT256, "64")),
+            GasCall("bounded", "bounded(uint256)", (str((1 << 160) - 1),)),
+        ),
+        runtime_checks=(
+            RuntimeCheck("mixed", "mixed(uint256,uint256,uint256)(uint256)", ("32769", "65408", "64")),
+            RuntimeCheck("factored", "factored(uint256,uint256,uint256,uint256)(uint256)", ("32769", "65408", MAX_UINT256, "64")),
+            RuntimeCheck("packed", "packed(uint256,uint256)(uint256)", (MAX_UINT256, "64")),
+            RuntimeCheck("bounded-max", "bounded(uint256)(bool)", (str((1 << 160) - 1),)),
+            RuntimeCheck("bounded-overflow", "bounded(uint256)(bool)", (str(1 << 160),)),
+        ),
+    ),
+    TestCase(
+        test_id="seeded-words",
+        description="Synthetic mixed-word reductions found by seeded discovery",
+        source_code=(TESTDATA_ROOT / "runtime/SeededWords.sol").read_text(),
+        source_name="SeededWords.sol",
+        contract_name="SeededWords",
+        gas_calls=tuple(
+            GasCall(name, f"{name}(uint256,uint256,uint256)", ("32769", "65408", "64"))
+            for name in ("difference", "sumDifference", "complement", "absorb")
+        ),
+        runtime_checks=tuple(
+            RuntimeCheck(f"{name}-{label}", f"{name}(uint256,uint256,uint256)(uint256)", args)
+            for name in ("difference", "sumDifference", "complement", "absorb")
+            for label, args in (
+                ("loop", ("32769", "65408", "64")),
+                ("wrap", (MAX_UINT256, "1", "64")),
+                ("zero", ("0", "0", "0")),
+            )
+        ),
+    ),
+    TestCase(
+        test_id="compiler-optimizations",
+        description="CFG scalars, range proofs, shared constants, and storage writes",
+        source_code=(TESTDATA_ROOT / "runtime/CompilerOptimizations.sol").read_text(),
+        source_name="CompilerOptimizations.sol",
+        contract_name="CompilerOptimizations",
+        gas_calls=(
+            GasCall("aggregate-true", "aggregate(bool,uint256)", ("true", "30"), repeat=2),
+            GasCall("aggregate-false", "aggregate(bool,uint256)", ("false", "30"), repeat=2),
+            GasCall("bounds-left", "bounds(bool,uint256,uint256)", ("true", "99", "79")),
+            GasCall("bounds-right", "bounds(bool,uint256,uint256)", ("false", "99", "79")),
+            GasCall("packed", "packed(uint8,uint8)", ("255", "128"), repeat=3),
+            GasCall("overwrite", "overwrite(bool,uint256)", ("true", "37"), repeat=3),
+            GasCall("stack-equal", "stackShape(uint256,uint256)", ("7", "7"), repeat=2),
+            GasCall("stack-different", "stackShape(uint256,uint256)", ("9", "4"), repeat=2),
+            GasCall("shared-first", "first(uint256)", ("17",)),
+            GasCall("shared-second", "second(uint256)", ("23",)),
+            GasCall("shared-third", "third(uint256)", ("31",)),
+        ),
+        runtime_checks=(
+            RuntimeCheck("aggregate", "aggregate(bool,uint256)(uint256)", ("true", "30")),
+            RuntimeCheck("bounds", "bounds(bool,uint256,uint256)(uint256)", ("false", "99", "79")),
+            RuntimeCheck("stack-shape", "stackShape(uint256,uint256)(uint256,uint256,bool)", ("9", "4")),
+            RuntimeCheck("generic", "generic(bool,uint256)(uint256)", ("true", "3")),
+            RuntimeCheck("word", "word()(uint256)"),
+            RuntimeCheck("low", "low()(uint8)"),
+            RuntimeCheck("high", "high()(uint8)"),
+        ),
     ),
     TestCase(
         test_id="uniswap-v2-pair",
@@ -746,6 +911,15 @@ TEST_CASES: Sequence[TestCase] = (
             ),
             GasCall("name", "name()", repeat=3),
             GasCall("version", "version()", repeat=3),
+            *(
+                GasCall(
+                    label,
+                    "hashProposal(address[],uint256[],bytes[],bytes32)",
+                    args,
+                    repeat=3,
+                )
+                for label, args in GOVERNOR_PROPOSALS
+            ),
         ),
         runtime_checks=(
             RuntimeCheck("name", "name()(string)"),
@@ -754,6 +928,14 @@ TEST_CASES: Sequence[TestCase] = (
                 "hash-proposal-empty",
                 "hashProposal(address[],uint256[],bytes[],bytes32)(uint256)",
                 ("[]", "[]", "[]", "0x" + "00" * 32),
+            ),
+            *(
+                RuntimeCheck(
+                    label,
+                    "hashProposal(address[],uint256[],bytes[],bytes32)(uint256)",
+                    args,
+                )
+                for label, args in GOVERNOR_PROPOSALS
             ),
         ),
         suite="large",
@@ -816,6 +998,42 @@ TEST_CASES: Sequence[TestCase] = (
             ),
             GasCall("replace-medium", "testStringReplaceMedium()", repeat=3),
             GasCall("replace-long", "testStringReplaceLong()", repeat=3),
+            GasCall("hex-bytes-no-prefix", "testBytesToHexStringNoPrefix()", repeat=3),
+            GasCall("hex-bytes", "testBytesToHexString()", repeat=3),
+            GasCall("ascii-all-bytes", "testStringIs7BitASCII()", repeat=3),
+            *(
+                GasCall(f"hex-tail-{length}", "testBytesToHexStringNoPrefix(bytes)", ("0x" + "42" * length,))
+                for length in (0, 1, 31, 32, 33, 64, 65)
+            ),
+            *(
+                GasCall(f"hex-prefixed-tail-{length}", "testBytesToHexString(bytes)", ("0x" + "ff" * length,))
+                for length in (0, 1, 31, 32, 33, 64, 65)
+            ),
+            *(
+                GasCall(label, "testStringIs7BitASCIIDifferential(bytes)", (value,))
+                for label, value in (
+                    ("ascii-empty", "0x"),
+                    ("ascii-31", "0x" + "41" * 31),
+                    ("ascii-32", "0x" + "41" * 32),
+                    ("ascii-33", "0x" + "41" * 33),
+                    ("ascii-65", "0x" + "41" * 65),
+                    ("ascii-high-first", "0x80" + "41" * 64),
+                    ("ascii-high-boundary", "0x" + "41" * 31 + "80" + "41" * 33),
+                    ("ascii-high-tail", "0x" + "41" * 64 + "80"),
+                )
+            ),
+            *(
+                GasCall(label, "testStringRuneCountDifferential(string)", (value,), repeat=3)
+                for label, value in (
+                    ("runes-empty", ""),
+                    ("runes-one", "A"),
+                    ("runes-31", "A" * 31),
+                    ("runes-32", "A" * 32),
+                    ("runes-33", "A" * 33),
+                    ("runes-utf8-two-byte", "\u03bb" * 64),
+                    ("runes-utf8-four-byte", "\U0001f600" * 64),
+                )
+            ),
         ),
         runtime_checks=(
             RuntimeCheck("serial-number", "checkIsSN(string)(bool)", ("123456789",)),
@@ -830,6 +1048,52 @@ TEST_CASES: Sequence[TestCase] = (
             ),
         ),
         suite="large",
+    ),
+    TestCase(
+        test_id="solady-encoding",
+        description="Solady hex and ASCII with ordinary ABI calls",
+        min_solc="0.8.20",
+        project="solady-0.1.26",
+        project_file="solady-0.1.26.json.gz",
+        source="Encoding.sol",
+        source_code=(TESTDATA_ROOT / "runtime/Encoding.sol").read_text(),
+        contract_name="Encoding",
+        settings_profile="runtime",
+        gas_calls=tuple(
+            GasCall(f"{name}-{label}", f"{name}(bytes)", (value,))
+            for name in ("hexNoPrefix", "hexPrefixed", "ascii")
+            for label, value in ENCODING_INPUTS
+        ),
+        runtime_checks=tuple(
+            RuntimeCheck(f"{name}-{label}", f"{name}(bytes)({result})", (value,))
+            for name, result in (
+                ("hexNoPrefix", "string"),
+                ("hexPrefixed", "string"),
+                ("ascii", "bool"),
+            )
+            for label, value in ENCODING_INPUTS
+        ),
+        suite="repository",
+    ),
+    TestCase(
+        test_id="solady-algorithms",
+        description="Solady decimal conversion, sorting and Base64 decoding",
+        min_solc="0.8.20",
+        project="solady-0.1.26",
+        project_file="solady-0.1.26.json.gz",
+        source="Algorithms.sol",
+        source_code=(TESTDATA_ROOT / "runtime/Algorithms.sol").read_text(),
+        contract_name="Algorithms",
+        settings_profile="runtime",
+        gas_calls=tuple(
+            GasCall(label, signature, (value,))
+            for label, signature, _, value in ALGORITHM_INPUTS
+        ),
+        runtime_checks=tuple(
+            RuntimeCheck(label, f"{signature}({result})", (value,))
+            for label, signature, result, value in ALGORITHM_INPUTS
+        ),
+        suite="repository",
     ),
     TestCase(
         test_id="seaport-1.6-project",

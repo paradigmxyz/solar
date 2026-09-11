@@ -17,11 +17,11 @@ SPEC.loader.exec_module(benchmark)
 
 class CorpusTests(unittest.TestCase):
     def test_vendored_cases_and_projects_exist(self) -> None:
-        self.assertEqual(len(benchmark.TEST_CASES), 25)
+        self.assertEqual(len(benchmark.TEST_CASES), 31)
         repository_cases = [
             case for case in benchmark.TEST_CASES if case.suite == "repository"
         ]
-        self.assertEqual(len(repository_cases), 9)
+        self.assertEqual(len(repository_cases), 11)
         heavy_cases = [case for case in benchmark.TEST_CASES if case.suite == "heavy"]
         self.assertEqual(len(heavy_cases), 9)
         for case in heavy_cases:
@@ -38,6 +38,8 @@ class CorpusTests(unittest.TestCase):
             "lilweb3-flashloan": 2,
             "lilweb3-fractional": 3,
             "maple-erc20": 2,
+            "solady-encoding": 3,
+            "solady-algorithms": 5,
         }
         for case in repository_cases:
             self.assertTrue(case.project_path.is_file(), case.test_id)
@@ -47,6 +49,7 @@ class CorpusTests(unittest.TestCase):
                     case.source,
                     case.contract_name,
                     case.settings_profile,
+                    case.source_code,
                 )
             )
             self.assertIn(case.source, payload["sources"], case.test_id)
@@ -58,6 +61,30 @@ class CorpusTests(unittest.TestCase):
                 payload["settings"]["metadata"],
                 {"appendCBOR": False, "bytecodeHash": "none"},
             )
+
+    def test_benchmark_wrapper_preserves_pinned_sources(self) -> None:
+        for test_id, count in (("solady-encoding", 153), ("solady-algorithms", 85)):
+            with self.subTest(test_id=test_id):
+                case = next(
+                    case for case in benchmark.TEST_CASES if case.test_id == test_id
+                )
+                project = benchmark.load_project(case.project_path)
+                self.assertNotIn(case.source, project["sources"])
+                payload = json.loads(benchmark.compiler_input(case, None)[0])
+                self.assertEqual(payload["sources"][case.source]["content"], case.source_code)
+                self.assertIn("src/utils/LibString.sol", payload["sources"])
+                self.assertNotIn("test/LibString.t.sol", payload["sources"])
+                for source, contents in payload["sources"].items():
+                    if source != case.source:
+                        self.assertEqual(contents, project["sources"][source])
+                self.assertNotIn(
+                    case.source, benchmark.load_project(case.project_path)["sources"]
+                )
+                self.assertEqual(len(case.gas_calls), count)
+                self.assertEqual(len(case.runtime_checks), count)
+                labels = [call.label for call in case.gas_calls]
+                self.assertEqual(len(set(labels)), count)
+                self.assertEqual(labels, [call.label for call in case.runtime_checks])
 
     def test_runtime_projects_are_loaded_by_codspeed(self) -> None:
         criterion_sources = (
