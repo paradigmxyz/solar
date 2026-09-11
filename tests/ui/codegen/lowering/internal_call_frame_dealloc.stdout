@@ -102,8 +102,6 @@ bb12:
   push bb14
   jumpi
   push 0
-  jump bb22
-bb22:
   push 160
   mload
   push 96
@@ -111,9 +109,6 @@ bb22:
   mstore
   jump
 bb6 [continuation]:
-  push bb20
-  jump bb19
-bb19:
   push 160
   mload
   push 96
@@ -130,44 +125,6 @@ bb19:
   mload
   push 160
   mstore
-  swap 1
-  jump
-bb8 [continuation]:
-  push bb21
-  jump bb19
-bb15 [continuation]:
-  push 160
-  mload
-  push 96
-  add
-  mload
-  push 160
-  mload
-  push 64
-  mstore
-  push 160
-  mload
-  push 32
-  add
-  mload
-  dup 1
-  push 160
-  mstore
-  push 64
-  add
-  mload
-  add
-  push 160
-  mload
-  push 64
-  add
-  mload
-  dup 2
-  lt
-  push bb18
-  jumpi
-  jump bb22
-bb20 [continuation]:
   push 1
   push 4
   calldataload
@@ -203,7 +160,23 @@ bb20 [continuation]:
   mstore
   push bb8
   jump bb12
-bb21 [continuation]:
+bb8 [continuation]:
+  push 160
+  mload
+  push 96
+  add
+  mload
+  push 160
+  mload
+  push 64
+  mstore
+  push 160
+  mload
+  push 32
+  add
+  mload
+  push 160
+  mstore
   push 224
   mload
   swap 1
@@ -219,3 +192,40 @@ bb21 [continuation]:
   push 32
   push 128
   return
+bb15 [continuation]:
+  push 160
+  mload
+  push 96
+  add
+  mload
+  push 160
+  mload
+  push 64
+  mstore
+  push 160
+  mload
+  push 32
+  add
+  mload
+  dup 1
+  push 160
+  mstore
+  push 64
+  add
+  mload
+  add
+  push 160
+  mload
+  push 64
+  add
+  mload
+  dup 2
+  lt
+  push bb18
+  jumpi
+  push 160
+  mload
+  push 96
+  add
+  mstore
+  jump

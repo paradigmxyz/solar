@@ -337,6 +337,12 @@ impl Target {
     /// Expected executions per deployment when the optimizer runs are not set;
     /// solc's convention.
     pub(crate) const DEFAULT_EXPECTED_EXECUTIONS: u64 = 200;
+    /// No loop runs more than `2^MAX_TRIP_COUNT_BITS` times: every execution
+    /// client and block header keeps gas in 64 bits, and each iteration of a
+    /// MIR loop executes at least one priced instruction (its counter update
+    /// or its back-edge jump), so a counter stepping by a small constant never
+    /// travels further than `step << 64` from where it started.
+    pub(crate) const MAX_TRIP_COUNT_BITS: usize = 64;
 
     /// The model of the session's EVM version, objective, and optimizer runs.
     pub(crate) fn new(gcx: Gcx<'_>) -> Self {

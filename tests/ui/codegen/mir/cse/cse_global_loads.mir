@@ -6,7 +6,8 @@ immutables:
 
 // CHECK-LABEL: {{^[ +].*}}fn @dominating_mload{{[( ]}}
 // CHECK: - {{v[0-9]+}} = mload 0
-// CHECK: + ret {{v[0-9]+}}
+// CHECK: + ret 22
+// CHECK: + ret 11
 fn @dominating_mload(arg0: bool) -> u256 {
   bb0:
     mstore 0, 11

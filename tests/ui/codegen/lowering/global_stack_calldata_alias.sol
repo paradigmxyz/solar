@@ -3,10 +3,10 @@
 
 contract Test {
     // CHECK: push 0xc21f7bbb
-    // CHECK: sub
-    // CHECK: push 2
-    // CHECK: dup 2
     // CHECK: eq
+    // CHECK: push 2{{$}}
+    // CHECK-NEXT: dup 2
+    // CHECK-NEXT: eq
     // CHECK: push {{bb[0-9]+}}
     // CHECK: jumpi
     // CHECK: push 3
@@ -15,13 +15,15 @@ contract Test {
     // CHECK: push [[REST:bb[0-9]+]]
     // CHECK: jumpi
     // CHECK: push 3
-    // CHECK: jump {{bb[0-9]+}}
+    // CHECK-NEXT: dup 3
+    // CHECK-NEXT: add
     // CHECK: [[REST]]:
     // CHECK: push 4
     // CHECK: dup 2
     // CHECK: sub
     // CHECK: push 4
-    // CHECK: jump {{bb[0-9]+}}
+    // CHECK-NEXT: dup 3
+    // CHECK-NEXT: add
     // CHECK: push 5
     // CHECK: dup 2
     // CHECK: add

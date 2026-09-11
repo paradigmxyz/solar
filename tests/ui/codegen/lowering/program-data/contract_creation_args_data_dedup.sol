@@ -24,9 +24,9 @@ contract ChildWithArg {
 // MIR-NOT: ChildWithArg_initcode_1:
 // OPT-LABEL: contract_creation_args_data_dedup.sol:FactoryWithArgs (runtime) ===
 // OPT: @module FactoryWithArgs_runtime
-// The shared creation-copy sequence references one canonical data object.
+// Every creation site references the one canonical data object.
 // OPT: push_data ChildWithArg_initcode_0
-// OPT-NOT: push_data ChildWithArg_initcode_0
+// OPT-NOT: push_data ChildWithArg_initcode_1
 // OPT: @data ChildWithArg_initcode_0 hex"
 // OPT-NOT: @data ChildWithArg_initcode_1
 contract FactoryWithArgs {

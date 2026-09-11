@@ -278,7 +278,7 @@ fn fresh_base(
     match base {
         MemoryBase::Allocation(inst) | MemoryBase::DynamicAllocation(inst) => Some(inst),
         MemoryBase::Value(value) => fresh_value_base(func, value, fresh_returns, 0),
-        MemoryBase::Absolute | MemoryBase::InternalFrame => None,
+        MemoryBase::Absolute | MemoryBase::InternalFrame | MemoryBase::Param(_) => None,
     }
 }
 

@@ -4,7 +4,7 @@ fn @freshInLoop(arg0: bytes1) -> bool [selector=0x533a7d1b, pure, abi_params=[by
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb24: v33]
+    v0 = phi [bb0: 0], [bb24: v32]
     v1 = phi [bb0: arg0], [bb24: v1]
     v2 = phi [bb0: 96], [bb24: v5]
     v3 = phi [bb0: 0], [bb24: v3]
@@ -28,55 +28,54 @@ fn @freshInLoop(arg0: bytes1) -> bool [selector=0x533a7d1b, pure, abi_params=[by
   bb11:
     v12 = memory_object_load_byte memorybytes, v5, 0
     v13 = shl 248, v12
-    v14 = shl 248, 49
-    v15 = eq v13, v14
-    v16 = iszero v15
+    v14 = eq v13, 0x3100000000000000000000000000000000000000000000000000000000000000
+    v15 = iszero v14
     jump bb9
   bb8:
     jump bb9
   bb9:
-    v17 = phi [bb11: v16], [bb8: 1]
-    jumpi v17, bb12, bb13
+    v16 = phi [bb11: v15], [bb8: 1]
+    jumpi v16, bb12, bb13
   bb13:
     jump bb14
   bb14:
-    v18 = eq v0, 0
-    v19 = iszero v18
-    jumpi v19, bb15, bb16
+    v17 = eq v0, 0
+    v18 = iszero v17
+    jumpi v18, bb15, bb16
   bb16:
     jump bb17
   bb15:
-    v20 = memory_object_len memorybytes, v2
-    v21 = lt 0, v20
-    v22 = iszero v21
-    jumpi v22, bb10, bb18
+    v19 = memory_object_len memorybytes, v2
+    v20 = lt 0, v19
+    v21 = iszero v20
+    jumpi v21, bb10, bb18
   bb18:
-    v23 = memory_object_load_byte memorybytes, v2, 0
-    v24 = shl 248, v23
-    v25 = and v1, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v26 = eq v24, v25
-    v27 = iszero v26
+    v22 = memory_object_load_byte memorybytes, v2, 0
+    v23 = shl 248, v22
+    v24 = and v1, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v25 = eq v23, v24
+    v26 = iszero v25
     jump bb17
   bb17:
-    v28 = phi [bb18: v27], [bb16: 0]
-    jumpi v28, bb19, bb20
+    v27 = phi [bb18: v26], [bb16: 0]
+    jumpi v27, bb19, bb20
   bb20:
     jump bb21
   bb21:
-    v29 = memory_object_len memorybytes, v5
-    v30 = lt 0, v29
-    v31 = iszero v30
-    jumpi v31, bb10, bb22
+    v28 = memory_object_len memorybytes, v5
+    v29 = lt 0, v28
+    v30 = iszero v29
+    jumpi v30, bb10, bb22
   bb22:
-    v32 = byte 0, v1
-    memory_object_store_byte memorybytes, v5, 0, v32
+    v31 = byte 0, v1
+    memory_object_store_byte memorybytes, v5, 0, v31
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v33 = add v0, 1
-    v34 = lt v33, v0
-    jumpi v34, bb23, bb24
+    v32 = add v0, 1
+    v33 = lt v32, v0
+    jumpi v33, bb23, bb24
   bb24:
     jump bb1
   bb23:

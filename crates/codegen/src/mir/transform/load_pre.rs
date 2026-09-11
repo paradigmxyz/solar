@@ -1194,16 +1194,18 @@ impl LoadRedundancyEliminator {
                 for &idx in words.range((u64::MAX - 31)..).map(|(_, idx)| idx) {
                     kill(idx);
                 }
+                let start = written.address.offset.saturating_sub(31);
                 if let LocationSize::Const(size) = written.size
                     && let Some(end) = written.address.offset.checked_add(size)
                 {
-                    let start = written.address.offset.saturating_sub(31);
                     for &idx in words.range(start..end).map(|(_, idx)| idx) {
                         kill(idx);
                     }
                     continue;
                 }
-                for &idx in words.values() {
+                // A write of unknown extent begins at its offset and only
+                // extends forward; words that end before it survive.
+                for &idx in words.range(start..).map(|(_, idx)| idx) {
                     kill(idx);
                 }
                 continue;

@@ -142,7 +142,7 @@ fn @scanImpl(arg0: memorybytes) -> bool [pure] {
     jump bb1
   bb1:
     v0 = phi [bb0: arg0], [bb13: v0]
-    v1 = phi [bb0: 0], [bb13: v12]
+    v1 = phi [bb0: 0], [bb13: v11]
     v2 = phi [bb0: 0], [bb13: v2]
     v3 = memory_object_len memorybytes, v0
     v4 = lt v1, v3
@@ -159,9 +159,8 @@ fn @scanImpl(arg0: memorybytes) -> bool [pure] {
   bb8:
     v8 = memory_object_load_byte memorybytes, v0, v1
     v9 = shl 248, v8
-    v10 = shl 248, 127
-    v11 = gt v9, v10
-    jumpi v11, bb9, bb10
+    v10 = gt v9, 0x7f00000000000000000000000000000000000000000000000000000000000000
+    jumpi v10, bb9, bb10
   bb10:
     jump bb11
   bb11:
@@ -169,9 +168,9 @@ fn @scanImpl(arg0: memorybytes) -> bool [pure] {
   bb6:
     jump bb3
   bb3:
-    v12 = add v1, 1
-    v13 = lt v12, v1
-    jumpi v13, bb12, bb13
+    v11 = add v1, 1
+    v12 = lt v11, v1
+    jumpi v12, bb12, bb13
   bb13:
     jump bb1
   bb12:
@@ -191,7 +190,7 @@ fn @firstHigh(arg0: memorybytes) -> u256 [selector=0xec31a730, pure, abi_params=
     jump bb1
   bb1:
     v0 = phi [bb0: arg0], [bb13: v0]
-    v1 = phi [bb0: 0], [bb13: v12]
+    v1 = phi [bb0: 0], [bb13: v11]
     v2 = phi [bb0: 0], [bb13: v2]
     v3 = memory_object_len memorybytes, v0
     v4 = lt v1, v3
@@ -199,8 +198,8 @@ fn @firstHigh(arg0: memorybytes) -> u256 [selector=0xec31a730, pure, abi_params=
   bb5:
     jump bb2
   bb2:
-    v14 = memory_object_len memorybytes, v0
-    ret v14
+    v13 = memory_object_len memorybytes, v0
+    ret v13
   bb4:
     v5 = memory_object_len memorybytes, v0
     v6 = lt v1, v5
@@ -209,9 +208,8 @@ fn @firstHigh(arg0: memorybytes) -> u256 [selector=0xec31a730, pure, abi_params=
   bb8:
     v8 = memory_object_load_byte memorybytes, v0, v1
     v9 = shl 248, v8
-    v10 = shl 248, 127
-    v11 = gt v9, v10
-    jumpi v11, bb9, bb10
+    v10 = gt v9, 0x7f00000000000000000000000000000000000000000000000000000000000000
+    jumpi v10, bb9, bb10
   bb10:
     jump bb11
   bb11:
@@ -219,9 +217,9 @@ fn @firstHigh(arg0: memorybytes) -> u256 [selector=0xec31a730, pure, abi_params=
   bb6:
     jump bb3
   bb3:
-    v12 = add v1, 1
-    v13 = lt v12, v1
-    jumpi v13, bb12, bb13
+    v11 = add v1, 1
+    v12 = lt v11, v1
+    jumpi v12, bb12, bb13
   bb13:
     jump bb1
   bb12:
@@ -249,7 +247,7 @@ fn @checkedScan(arg0: u256) -> bool [selector=0xf2609747, pure, abi_params=[u256
     jump bb3
   bb3:
     v5 = phi [bb2: 0], [bb15: v5]
-    v6 = phi [bb2: 0], [bb15: v18]
+    v6 = phi [bb2: 0], [bb15: v17]
     v7 = phi [bb2: arg0], [bb15: v7]
     v8 = phi [bb2: v4], [bb15: v8]
     v9 = memory_object_len memorybytes, v8
@@ -267,9 +265,8 @@ fn @checkedScan(arg0: u256) -> bool [selector=0xf2609747, pure, abi_params=[u256
   bb10:
     v14 = memory_object_load_byte memorybytes, v8, v6
     v15 = shl 248, v14
-    v16 = shl 248, 127
-    v17 = gt v15, v16
-    jumpi v17, bb11, bb12
+    v16 = gt v15, 0x7f00000000000000000000000000000000000000000000000000000000000000
+    jumpi v16, bb11, bb12
   bb12:
     jump bb13
   bb13:
@@ -277,9 +274,9 @@ fn @checkedScan(arg0: u256) -> bool [selector=0xf2609747, pure, abi_params=[u256
   bb8:
     jump bb5
   bb5:
-    v18 = add v6, 1
-    v19 = gt v18, 255
-    jumpi v19, bb14, bb15
+    v17 = add v6, 1
+    v18 = gt v17, 255
+    jumpi v18, bb14, bb15
   bb15:
     jump bb3
   bb14:

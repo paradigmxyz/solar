@@ -1,0 +1,41 @@
+- // === ROOT/tests/ui/codegen/mir/specialize/single_caller.mir (before specialize) ===
++ // === ROOT/tests/ui/codegen/mir/specialize/single_caller.mir (after specialize) ===
+  @module SingleCallerSpecialization
+  fn @caller(arg0: u256) -> memorybytes [selector=0x00000001] {
+    bb0:
+      v0 = icall @fill, 1, arg0, 0
+      ret v0
+  }
+  
+  fn @fill(arg0: u256, arg1: u256) -> memorybytes {
+    bb0:
+      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+      set_memory_object_len memorybytes, v0, arg0
+-     jumpi arg1, bb1, bb2
+-   bb2:
+      memory_object_store_byte memorybytes, v0, 0, 45
+-     ret v0
+-   bb1:
+-     memory_object_store_byte memorybytes, v0, 0, 95
+      ret v0
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/specialize/single_caller.mir (before dead-arg-elim) ===
++ // === ROOT/tests/ui/codegen/mir/specialize/single_caller.mir (after dead-arg-elim) ===
+  @module SingleCallerSpecialization
+  fn @caller(arg0: u256) -> memorybytes [selector=0x00000001] {
+    bb0:
+-     v0 = icall @fill, 1, arg0, 0
++     v0 = icall @fill, 1, arg0
+      ret v0
+  }
+  
+- fn @fill(arg0: u256, arg1: u256) -> memorybytes {
++ fn @fill(arg0: u256) -> memorybytes {
+    bb0:
+      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+      set_memory_object_len memorybytes, v0, arg0
+      memory_object_store_byte memorybytes, v0, 0, 45
+      ret v0
+  }
+  

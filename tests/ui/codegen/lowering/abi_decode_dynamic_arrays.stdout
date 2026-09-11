@@ -444,32 +444,26 @@ fn @mixed() [selector=0x6791505c, pure] {
     mstore v103, v28
     v104 = add v56, 64
     mstore v104, v52
-    v96 = mload 32 !metadata(memory=scratch)
-    v105 = add v96, 32
-    v2 = mload v105
-    v106 = add v96, 64
-    v3 = mload v106
     v64 = mload 64 !metadata(memory=scratch)
     v65 = add v64, 96
     mstore v64, v10
     v66 = add v64, 32
     mstore v66, 96
-    v69 = iszero v2
+    v69 = iszero v28
     v70 = iszero v69
-    v68 = mload v2
+    v68 = mload v28
     v71 = mul v68, v70
     mstore v65, v71
     v72 = shl 5, v71
     v73 = add v65, 32
-    v74 = add v2, 32
     v75 = add v73, v72
-    mcopy v73, v74, v72 !metadata(memory=heap)
+    mcopy v73, v97, v72
     v77 = sub v75, v64
     v76 = add v64, 64
     mstore v76, v77
-    v79 = iszero v3
+    v79 = iszero v52
     v80 = iszero v79
-    v78 = mload v3
+    v78 = mload v52
     v81 = mul v78, v80
     v83 = add v81, 31
     v84 = and v83, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -478,8 +472,7 @@ fn @mixed() [selector=0x6791505c, pure] {
     mstore v86, 0
     mstore v75, v81
     v88 = add v85, v84
-    v87 = add v3, 32
-    mcopy v85, v87, v81 !metadata(memory=heap)
+    mcopy v85, v100, v81
     v89 = sub v88, v64
     v91 = add v89, 31
     v93 = and v91, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0

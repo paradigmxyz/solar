@@ -18,27 +18,15 @@
     push 2
     stop
   bb3:
-+   push bb6
-+   jump bb5
-+ bb4:
-+   push bb7
-+   jump bb5
-+ bb5:
     push 0x23456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01
     push 0x3456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef012
     dup 1
-+   swap 1
-+   swap 2
-+   swap 3
-+   jump
-+ bb6 [continuation]:
     push 3
     stop
-- bb4:
--   push 0x23456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01
--   push 0x3456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef012
--   dup 1
-+ bb7 [continuation]:
+  bb4:
+    push 0x23456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01
+    push 0x3456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef012
+    dup 1
     push 4
     stop
   

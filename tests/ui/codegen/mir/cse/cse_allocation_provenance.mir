@@ -4,9 +4,10 @@
 @module CseAllocationProvenance
 
 // CHECK-LABEL: @fresh
-// CHECK:       [[LOAD:v[0-9]+]] = mload {{v[0-9]+}}
-// CHECK: -     {{v[0-9]+}} = mload {{v[0-9]+}}
-// CHECK:       [[SUM:v[0-9]+]] = add [[LOAD]], [[LOAD]]
+// CHECK:       mstore [[ADDR:v[0-9]+]], arg0
+// CHECK: -     {{v[0-9]+}} = mload [[ADDR]]
+// CHECK: -     {{v[0-9]+}} = mload [[ADDR]]
+// CHECK: +     [[SUM:v[0-9]+]] = add arg0, arg0
 // CHECK:       ret [[SUM]]
 fn @fresh(arg0: u256, arg1: u256) -> u256 {
   bb0:
@@ -21,9 +22,11 @@ fn @fresh(arg0: u256, arg1: u256) -> u256 {
 }
 
 // CHECK-LABEL: @reset
-// CHECK: {{^ +}}[[FIRST:v[0-9]+]] = mload [[ADDR:v[0-9]+]]
+// CHECK: {{^ +}}mstore [[ADDR:v[0-9]+]], arg0
+// CHECK: -     {{v[0-9]+}} = mload [[ADDR]]
+// CHECK: {{^ +}}set_fmp [[ADDR]]
 // CHECK: {{^ +}}[[SECOND:v[0-9]+]] = mload [[ADDR]]
-// CHECK: {{^ +}}[[SUM:v[0-9]+]] = add [[FIRST]], [[SECOND]]
+// CHECK: +     [[SUM:v[0-9]+]] = add arg0, [[SECOND]]
 // CHECK: {{^ +}}ret [[SUM]]
 fn @reset(arg0: u256, arg1: u256) -> u256 {
   bb0:
@@ -36,4 +39,22 @@ fn @reset(arg0: u256, arg1: u256) -> u256 {
     v8 = mload v2
     v9 = add v4, v8
     ret v9
+}
+
+// A memory-object argument existed before the function ran, so writes into a
+// fresh allocation never reach its header.
+// CHECK-LABEL: @argument_header
+// CHECK: {{^ +}}[[LEN:v[0-9]+]] = memory_object_len memorybytes, arg0
+// CHECK: {{^ +}}memory_object_store_byte
+// CHECK: -     {{v[0-9]+}} = memory_object_len memorybytes, arg0
+// CHECK: +     {{v[0-9]+}} = add [[LEN]], [[LEN]]
+fn @argument_header(arg0: memorybytes) -> u256 {
+  bb0:
+    v0 = memory_object_len memorybytes, arg0
+    v1 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v1, 32
+    memory_object_store_byte memorybytes, v1, 0, 7
+    v2 = memory_object_len memorybytes, arg0
+    v3 = add v0, v2
+    ret v3
 }

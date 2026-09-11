@@ -5,8 +5,18 @@
     bb0:
 -     v0 = icall @once, 1, arg0
 -     v1 = icall @shared, 1, v0
+-     v2 = icall @shared, 1, v1
+-     ret v2
+- }
+- 
+- fn @once(arg0: u256) -> u256 {
+-   bb0:
+-     v0 = lt arg0, 10
+-     jumpi v0, bb1, bb2
 +     jump bb2
-+   bb2:
+    bb2:
+-     v2 = sub arg0, 3
+-     ret v2
 +     v3 = lt arg0, 10
 +     jumpi v3, bb3, bb4
 +   bb4:
@@ -15,23 +25,13 @@
 +   bb3:
 +     v4 = add arg0, 7
 +     jump bb1
-+   bb1:
+    bb1:
+-     v1 = add arg0, 7
+-     ret v1
 +     v6 = phi [bb3: v4], [bb4: v5]
 +     v1 = icall @shared, 1, v6
-      v2 = icall @shared, 1, v1
-      ret v2
-  }
-  
-  fn @once(arg0: u256) -> u256 {
-    bb0:
-      v0 = lt arg0, 10
-      jumpi v0, bb1, bb2
-    bb2:
-      v2 = sub arg0, 3
-      ret v2
-    bb1:
-      v1 = add arg0, 7
-      ret v1
++     v2 = icall @shared, 1, v1
++     ret v2
   }
   
   fn @shared(arg0: u256) -> u256 {

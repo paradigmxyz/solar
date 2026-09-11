@@ -156,9 +156,24 @@
   fn @icall_barrier() -> u256 {
     bb0:
       mstore 128, 42
-      icall @callee, 0
+      icall @writer, 0
       v0 = mload 128
       ret v0
+  }
+  
+  fn @writer() {
+    bb0:
+      mstore 160, 7
+      ret
+  }
+  
+  fn @icall_clean_callee() -> u256 {
+    bb0:
+      mstore 128, 42
+      icall @callee, 0
+-     v0 = mload 128
+-     ret v0
++     ret 42
   }
   
   fn @callee() {

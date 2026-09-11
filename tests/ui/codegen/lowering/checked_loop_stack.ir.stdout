@@ -38,7 +38,7 @@ bb6:
   push 1
   push 2
   jump bb8
-bb8:
+bb8 [loop]:
   push 4
   calldataload
   dup 2
@@ -64,10 +64,12 @@ bb8:
   jumpi
   push 1
   add
-  dup 1
-  push bb8
-  jumpi
-  jump bb12
+  jump bb8
+bb11:
+  swap 1
+  push 0
+  sstore
+  stop
 bb12 [cold]:
   push 0x4e487b71
   push 224
@@ -80,11 +82,6 @@ bb12 [cold]:
   push 36
   push 0
   revert
-bb11:
-  swap 1
-  push 0
-  sstore
-  stop
 // === ROOT/tests/ui/codegen/lowering/checked_loop_stack.sol:CheckedLoopStack (runtime) ===
 @module CheckedLoopStack_runtime
 bb0:
@@ -118,7 +115,15 @@ bb0:
   push 2
   push 1
   jump bb8
-bb8:
+bb10 [loop]:
+  push 1
+  push 160
+  mload
+  add
+  push 192
+  mload
+  jump bb8
+bb8 [loop]:
   push 4
   calldataload
   dup 3
@@ -126,8 +131,6 @@ bb8:
   iszero
   push bb11
   jumpi
-  jump bb30
-bb30:
   push 128
   mstore
   push 32
@@ -137,31 +140,7 @@ bb5 [cold]:
   push 0
   push 0
   revert
-bb10:
-  push 1
-  push 160
-  mload
-  add
-  dup 1
-  push 192
-  mload
-  swap 1
-  push bb8
-  jumpi
-  jump bb29
-bb29 [cold]:
-  push 0x4e487b71
-  push 224
-  shl
-  push 0
-  mstore
-  push 17
-  push 4
-  mstore
-  push 36
-  push 0
-  revert
-bb11:
+bb11 [loop]:
   dup 2
   push 160
   mstore
@@ -188,6 +167,18 @@ bb11:
   push bb10
   jumpi
   jump bb29
+bb29 [cold]:
+  push 0x4e487b71
+  push 224
+  shl
+  push 0
+  mstore
+  push 17
+  push 4
+  mstore
+  push 36
+  push 0
+  revert
 bb14:
   push 68
   calldatasize
@@ -198,12 +189,12 @@ bb14:
   calldataload
   push 0
   jump bb16
-bb16:
+bb16 [loop]:
   push 36
   calldataload
   dup 3
   gt
-  push bb30
+  push bb17
   jumpi
   dup 2
   add
@@ -215,6 +206,12 @@ bb16:
   push bb16
   jumpi
   jump bb29
+bb17:
+  push 128
+  mstore
+  push 32
+  push 128
+  return
 bb21:
   push 288
   push 64
@@ -228,7 +225,21 @@ bb21:
   push 4
   calldataload
   jump bb23
-bb25:
+bb23 [loop]:
+  push 36
+  calldataload
+  dup 2
+  gt
+  iszero
+  push bb25
+  jumpi
+  swap 1
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb25 [loop]:
   dup 1
   swap 2
   add
@@ -246,16 +257,6 @@ bb25:
   push 160
   mload
   jump bb23
-bb23:
-  push 36
-  calldataload
-  dup 2
-  gt
-  iszero
-  push bb25
-  jumpi
-  swap 1
-  jump bb30
 bb27 [cold]:
   push 192
   push 0x760769fe
