@@ -233,6 +233,24 @@ fn signature_help_requests(c: &mut Criterion) {
         });
     }
 
+    let mut source = String::from(
+        "contract Repeated { function target(uint256 first, uint256 second) public {} function exercise() public {\n",
+    );
+    for _ in 0..1_023 {
+        source.push_str("target(1, 2);\n");
+    }
+    source.push_str("target(1, 2); // final\n}\n}\n");
+    let project = BenchmarkProject::from_source(source);
+    let (uri, mut position) =
+        project.unique_anchor("benchmark.sol", "target(1, 2); // final").unwrap();
+    position.character += "target(1, ".len() as u32;
+    let mut requests = BenchmarkSignatureHelpRequests::new(project, uri, position);
+    let response = requests.run().expect("repeated-call benchmark should have signature help");
+    assert_eq!(response.active_parameter, Some(1));
+    group.bench_function(BenchmarkId::from_parameter("1024-repeated-calls"), |b| {
+        b.iter(|| black_box(requests.run()));
+    });
+
     let project = unifap_project();
     let (uri, mut position) = project
         .unique_anchor(UNIFAP_ROUTER, "_safeTransferFrom(tokenB, msg.sender, pair, amountB)")
