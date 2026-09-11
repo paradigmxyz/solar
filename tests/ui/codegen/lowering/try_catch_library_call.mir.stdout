@@ -213,13 +213,13 @@ fn @attachedValue(arg0: u256, arg1: bool) -> u256 [selector=0xcece4c7f, pure, ab
 fn @emptyCode() [selector=0xddb3636e, pure, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = gas
-    v1 = extcodesize 0x1111111111111111111111111111111111111111
-    v2 = iszero v1
-    revert_if v2, target_contract_has_no_code
-    v3 = abi_encode [], selector 0xf2a75fe400000000000000000000000000000000000000000000000000000000
-    v4 = slice_ptr v3
-    v5 = slice_len v3
-    v6 = delegatecall v0, 0x1111111111111111111111111111111111111111, v4, v5, 0, 0
+    v1 = abi_encode [], selector 0xf2a75fe400000000000000000000000000000000000000000000000000000000
+    v2 = slice_ptr v1
+    v3 = slice_len v1
+    v4 = extcodesize 0x1111111111111111111111111111111111111111
+    v5 = iszero v4
+    revert_if v5, target_contract_has_no_code
+    v6 = delegatecall v0, 0x1111111111111111111111111111111111111111, v2, v3, 0, 0
     jumpi v6, bb1, bb2
   bb2:
     jumpi true, bb4, bb5

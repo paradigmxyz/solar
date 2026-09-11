@@ -122,7 +122,9 @@ account observations and storage reads even while the call remains opaque.
 Low-level address calls retain a bytes input and evaluated gas/value options.
 Conversion exposes the input buffer and computes any pre-EIP-150 gas reserve.
 A separate returndata capture operation allocates a fresh bytes object at its
-original position, before another call can replace the returndata. Static calls
+original position, before another call can replace the returndata. External calls
+encode their arguments before checking for target code; even an empty selector
+buffer can fail allocation, so the code check cannot bypass encoding. Static calls
 read storage; call and delegatecall may also write it.
 Jump threading collapses a phi-only branch when a single unconditional predecessor
 remains and the phi has no outside uses, exposing nested short-circuit checks

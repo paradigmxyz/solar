@@ -46,13 +46,13 @@ fn @success() -> u256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
     v2 = gas
-    v3 = extcodesize v1
-    v4 = iszero v3
-    revert_if v4, target_contract_has_no_code
-    v5 = abi_encode [], selector 0xd909b40300000000000000000000000000000000000000000000000000000000
-    v6 = slice_ptr v5
-    v7 = slice_len v5
-    v8 = staticcall v2, v1, v6, v7, 0, 0
+    v3 = abi_encode [], selector 0xd909b40300000000000000000000000000000000000000000000000000000000
+    v4 = slice_ptr v3
+    v5 = slice_len v3
+    v6 = extcodesize v1
+    v7 = iszero v6
+    revert_if v7, target_contract_has_no_code
+    v8 = staticcall v2, v1, v4, v5, 0, 0
     jumpi v8, bb1, bb2
   bb2:
     v9 = returndata_bytes
@@ -85,13 +85,13 @@ fn @failure() -> u256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
     v2 = gas
-    v3 = extcodesize v1
-    v4 = iszero v3
-    revert_if v4, target_contract_has_no_code
-    v5 = abi_encode [], selector 0xa9cc471800000000000000000000000000000000000000000000000000000000
-    v6 = slice_ptr v5
-    v7 = slice_len v5
-    v8 = staticcall v2, v1, v6, v7, 0, 0
+    v3 = abi_encode [], selector 0xa9cc471800000000000000000000000000000000000000000000000000000000
+    v4 = slice_ptr v3
+    v5 = slice_len v3
+    v6 = extcodesize v1
+    v7 = iszero v6
+    revert_if v7, target_contract_has_no_code
+    v8 = staticcall v2, v1, v4, v5, 0, 0
     jumpi v8, bb1, bb2
   bb2:
     v9 = returndata_bytes

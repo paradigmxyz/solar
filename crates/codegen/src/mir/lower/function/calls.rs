@@ -404,7 +404,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let (values, types): (Vec<_>, Vec<_>) = values_and_types.into_iter().unzip();
         let return_tys = self.external_return_types(function.returns);
         let returns = return_tys.len();
-        let early_code_check = self.check_empty_call_code(address, values.len(), returns);
         // buffer = alloc_overlay_return_buffer(returns)
         // input = abi_encode(selector, args)
         let overlay_buffer = self.alloc_overlay_return_buffer(&return_tys);
@@ -416,7 +415,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let input_size = self.builder.slice_len(encoded);
         // ret_offset, ret_size, decode = plan_return_buffer(returns)
         let return_plan = self.plan_return_buffer(input, options.zero, &return_tys, overlay_buffer);
-        if !early_code_check && self.needs_code_check(returns) {
+        if self.needs_code_check(returns) {
             self.revert_if_no_code(address);
         }
         // The code check above is emitted at every version that needs the reserve, so the call
@@ -948,7 +947,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .collect::<Vec<_>>();
         let return_tys = self.external_return_types(&return_tys);
         let returns = return_tys.len();
-        let early_code_check = self.check_empty_call_code(address, values.len(), returns);
         // buffer = alloc_overlay_return_buffer(returns)
         // input = abi_encode(selector, args)
         let overlay_buffer = self.alloc_overlay_return_buffer(&return_tys);
@@ -962,7 +960,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let input_size = self.builder.slice_len(encoded);
         // ret_offset, ret_size, decode = plan_return_buffer(returns)
         let return_plan = self.plan_return_buffer(input, options.zero, &return_tys, overlay_buffer);
-        if !early_code_check && self.needs_code_check(returns) {
+        if self.needs_code_check(returns) {
             self.revert_if_no_code(address);
         }
         // The code check above is emitted at every version that needs the reserve, so the call
@@ -1142,8 +1140,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .collect::<Vec<_>>();
         let return_types = self.external_return_types(&return_types);
         let address = self.builder.imm(address);
-        let early_code_check =
-            self.check_empty_call_code(address, values.len(), return_types.len());
         // buffer = alloc_overlay_return_buffer(returns)
         // input = abi_encode(selector, args)
         let overlay_buffer = self.alloc_overlay_return_buffer(&return_types);
@@ -1167,7 +1163,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         } else {
             self.plan_return_buffer(input, zero, &return_types, overlay_buffer)
         };
-        if !early_code_check && self.needs_code_check(return_types.len()) {
+        if self.needs_code_check(return_types.len()) {
             self.revert_if_no_code(address);
         }
         // A delegatecall transfers no value and creates no account, so the pre-EIP-150 reserve is
@@ -1503,23 +1499,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.revert_if(short, RevertReason::TupleDataTooShort);
     }
 
-    /// Checks a call with no arguments or returns before allocating its selector buffer.
-    /// Argument expressions have already run, and encoding has no user memory to validate.
-    pub(super) fn check_empty_call_code(
-        &mut self,
-        address: ValueId,
-        arguments: usize,
-        returns: usize,
-    ) -> bool {
-        let check = arguments == 0 && returns == 0;
-        // if iszero(extcodesize(address)) { revert(no_code) }
-        if check {
-            self.revert_if_no_code(address);
-        }
-        check
-    }
-
+    /// Emit after ABI encoding, whose allocation can fail even with no arguments.
     pub(super) fn revert_if_no_code(&mut self, address: ValueId) {
+        // if iszero(extcodesize(address)) { revert(no_code) }
         let size = self.builder.extcodesize(address);
         let missing = self.builder.iszero(size);
         self.builder.revert_if(missing, RevertReason::TargetContractHasNoCode);

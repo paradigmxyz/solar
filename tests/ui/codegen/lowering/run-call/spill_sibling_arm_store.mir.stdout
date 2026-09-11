@@ -122,13 +122,13 @@ fn @_settleOrTake(arg0: address, arg1: i128) {
     v11 = sload 2 !metadata(storage=slot(2))
     v12 = and v11, 0xffffffffffffffffffffffffffffffffffffffff
     v13 = gas
-    v14 = extcodesize v12
-    v15 = iszero v14
-    revert_if v15, target_contract_has_no_code
-    v16 = abi_encode [], selector 0x11da60b400000000000000000000000000000000000000000000000000000000
-    v17 = slice_ptr v16
-    v18 = slice_len v16
-    v19 = call v13, v12, v8, v17, v18, 0, 0
+    v14 = abi_encode [], selector 0x11da60b400000000000000000000000000000000000000000000000000000000
+    v15 = slice_ptr v14
+    v16 = slice_len v14
+    v17 = extcodesize v12
+    v18 = iszero v17
+    revert_if v18, target_contract_has_no_code
+    v19 = call v13, v12, v8, v15, v16, 0, 0
     jumpi v19, bb8, bb7
   bb7:
     revert_returndata
@@ -200,13 +200,13 @@ fn @settle(arg0: address, arg1: address, arg2: address, arg3: u256, arg4: bool) 
     v28 = add 0, 0
     v29 = mload v28
     v30 = gas
-    v31 = extcodesize arg1
-    v32 = iszero v31
-    revert_if v32, target_contract_has_no_code
-    v33 = abi_encode [], selector 0x11da60b400000000000000000000000000000000000000000000000000000000
-    v34 = slice_ptr v33
-    v35 = slice_len v33
-    v36 = call v30, arg1, 0, v34, v35, 0, 0
+    v31 = abi_encode [], selector 0x11da60b400000000000000000000000000000000000000000000000000000000
+    v32 = slice_ptr v31
+    v33 = slice_len v31
+    v34 = extcodesize arg1
+    v35 = iszero v34
+    revert_if v35, target_contract_has_no_code
+    v36 = call v30, arg1, 0, v32, v33, 0, 0
     jumpi v36, bb12, bb11
   bb11:
     revert_returndata

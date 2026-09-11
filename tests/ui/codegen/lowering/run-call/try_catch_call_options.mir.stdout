@@ -39,13 +39,13 @@ fn @highLevelGas() -> bool [selector=0x480be654, abi_params=[], abi_returns=[wor
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
     v2 = gas
-    v3 = extcodesize v1
-    v4 = iszero v3
-    revert_if v4, target_contract_has_no_code
-    v5 = abi_encode [], selector 0x5c36b18600000000000000000000000000000000000000000000000000000000
-    v6 = slice_ptr v5
-    v7 = slice_len v5
-    v8 = call 0, v1, 0, v6, v7, 0, 0
+    v3 = abi_encode [], selector 0x5c36b18600000000000000000000000000000000000000000000000000000000
+    v4 = slice_ptr v3
+    v5 = slice_len v3
+    v6 = extcodesize v1
+    v7 = iszero v6
+    revert_if v7, target_contract_has_no_code
+    v8 = call 0, v1, 0, v4, v5, 0, 0
     jumpi v8, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
@@ -72,13 +72,13 @@ fn @read() -> u256 [selector=0x57de26a4, view, abi_params=[], abi_returns=[word]
   bb0:
     v0 = address
     v1 = gas
-    v2 = extcodesize v0
-    v3 = iszero v2
-    revert_if v3, target_contract_has_no_code
-    v4 = abi_encode [], selector 0xa9cc471800000000000000000000000000000000000000000000000000000000
-    v5 = slice_ptr v4
-    v6 = slice_len v4
-    v7 = staticcall v1, v0, v5, v6, 0, 0
+    v2 = abi_encode [], selector 0xa9cc471800000000000000000000000000000000000000000000000000000000
+    v3 = slice_ptr v2
+    v4 = slice_len v2
+    v5 = extcodesize v0
+    v6 = iszero v5
+    revert_if v6, target_contract_has_no_code
+    v7 = staticcall v1, v0, v3, v4, 0, 0
     jumpi v7, bb1, bb2
   bb2:
     jumpi true, bb4, bb5
