@@ -1625,10 +1625,10 @@ define_mir_ops! {
         category = Some("aggregate")
     )]
     MemoryToStorage {
-        /// Base storage slot.
-        storage: ValueId,
         /// Source memory pointer.
         memory: ValueId,
+        /// Base storage slot.
+        storage: ValueId,
         /// Aggregate layout.
         layout: StorageLayoutRef,
     },

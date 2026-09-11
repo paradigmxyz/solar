@@ -18,9 +18,11 @@
 //! them, overwrites the current dynamic frame's argument area, drains the
 //! tracked operand stack, and jumps back to the function entry. The inherited
 //! return address stays below the scheduler's stack throughout, so the final
-//! activation returns directly to the original caller. Following empty jump
-//! blocks when recognizing the return avoids making CFG layout decide whether
-//! the optimization applies.
+//! activation returns directly to the original caller. Self-tail transfer is
+//! disabled when the function has any stack-argument convention, since the
+//! jump writes every actual to the frame. Following empty jump blocks when
+//! recognizing the return avoids making CFG layout decide whether the
+//! optimization applies.
 
 use super::super::{
     BlockId, DebugFunctionExit, DenseBitSet, EvmCodegen, EvmMemoryLayout, Function, FunctionId,
@@ -37,6 +39,7 @@ impl EvmCodegen<'_> {
         if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None)
             || !self.in_internal_function
             || !func.returns.is_empty()
+            || self.stack_arg_mask(caller).is_some()
         {
             return None;
         }
@@ -58,6 +61,10 @@ impl EvmCodegen<'_> {
         func: &Function,
         args: &[ValueId],
     ) {
+        assert!(
+            self.stack_arg_mask(caller).is_none(),
+            "direct self-tail calls require frame-backed arguments"
+        );
         // [inherited_return, caller_words], frame(args...)
         // => [inherited_return], frame(new_args...)
         self.pop_stack_values_not_needed_by(args);
