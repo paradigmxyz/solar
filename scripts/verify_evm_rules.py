@@ -33,8 +33,10 @@ def main():
     verify.add_argument("--fallback-solver", help="explicit cvc5 executable for incomplete word proofs")
     verify.add_argument("--bit-partition-timeout-ms", type=int, default=0,
                         help="optional total budget per incomplete word rule to prove all output bits separately")
+    verify.add_argument("--index-partition-timeout-ms", type=int, default=0,
+                        help="total budget per word rule for exhaustive index partitions (default: --timeout-ms)")
     verify.add_argument("--partition-shifts", action="store_true",
-                        help="exhaust single symbolic shift counts and SIGNEXTEND indices for cross-solver replay")
+                        help="exhaust symbolic shift counts and SIGNEXTEND indices for cross-solver replay")
     discover = subparsers.add_parser("discover", help="bounded enumerative search with SMT validation")
     discover.add_argument("--max-ops", type=int, default=3)
     discover.add_argument("--max-rhs-ops", type=int, default=2, help="maximum operations in a replacement recipe")
@@ -68,6 +70,8 @@ def main():
         parser.error("--timeout-ms must be positive")
     if getattr(args, "bit_partition_timeout_ms", 0) < 0:
         parser.error("--bit-partition-timeout-ms must be nonnegative")
+    if getattr(args, "index_partition_timeout_ms", 0) < 0:
+        parser.error("--index-partition-timeout-ms must be nonnegative")
     if args.command == "mine":
         if args.runs < 0:
             parser.error("--runs must be nonnegative")
@@ -93,7 +97,7 @@ def main():
                 file = verify_late_file(path, args.timeout_ms, args.artifacts)
             else:
                 file = verify_file(path, args.timeout_ms, args.artifacts, args.partition_shifts, fallback,
-                                   args.bit_partition_timeout_ms)
+                                   args.bit_partition_timeout_ms, args.index_partition_timeout_ms)
             files.append(file)
         for file in files:
             for rule in file["rules"]:

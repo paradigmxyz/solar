@@ -296,7 +296,8 @@ class Context:
         return lhs, rhs
 
 
-def verify_file(path, timeout_ms, artifacts=None, partition_shifts=False, fallback=None, bit_partition_timeout_ms=0):
+def verify_file(path, timeout_ms, artifacts=None, partition_shifts=False, fallback=None, bit_partition_timeout_ms=0,
+                index_partition_timeout_ms=0):
     source = path.read_text()
     rules = [Rule(form, line, str(path)) for form, line in forms(source) if form[0] == "rule"]
     if not rules:
@@ -312,7 +313,8 @@ def verify_file(path, timeout_ms, artifacts=None, partition_shifts=False, fallba
             if constants := result.get("constant_specializations"):
                 context.model = Model({name: int(value, 16) for name, value in constants.items()})
             if query and (result["status"] == "unknown" or partition_shifts and result["status"] == "proved"):
-                partitioned, partitions = partition_shift(lhs, rhs, context.assumptions, timeout_ms, context.model)
+                partitioned, partitions = partition_shift(lhs, rhs, context.assumptions,
+                                                          index_partition_timeout_ms or timeout_ms, context.model)
                 if partitions:
                     if constants:
                         partitioned["constant_specializations"] = constants
