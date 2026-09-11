@@ -9,6 +9,10 @@
 //!
 //! This optimization is particularly important for EVM:
 //! - LICM: Avoids recomputing `arr.length` each iteration (MLOAD/SLOAD costs)
+//!
+//! Hoisting loads requires both independence and an execution guarantee. Semantic checks
+//! and calls may exit before a load without an explicit CFG edge; their control effects
+//! therefore constrain the guarantee even when a constant loop bound is known.
 
 use crate::mir::{
     BlockId, EffectKind, Function, ImmutableId, InstId, InstKind, Module, StorageAlias, Terminator,
@@ -347,6 +351,22 @@ impl LoopOptimizer {
         else {
             return false;
         };
+
+        // Semantic checks and calls can exit without a CFG edge. The candidate must execute
+        // before each such operation, including those earlier in its own block.
+        for block_id in &loop_data.blocks {
+            if block_id != inst_block && ctx.analyzer.dominates(inst_block, block_id) {
+                continue;
+            }
+            if func.blocks[block_id]
+                .instructions
+                .iter()
+                .take_while(|&&other| other != inst_id)
+                .any(|&other| func.inst(other).kind.effects().control.any())
+            {
+                return false;
+            }
+        }
 
         let exiting = self.live_exiting_blocks(func, loop_data);
         // No live exit means the loop only terminates by running out of gas,

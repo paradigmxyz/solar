@@ -79,7 +79,13 @@ Return signatures come from the callee. Expansion adds no runtime call overhead.
 ABI encoding/decoding, aggregate copies, memory-object accesses, abstract
 allocations, checked arithmetic, packed encoding, concatenation, and precompiles follow this
 approach. `lower-arithmetic` expands checked word operations and exponentiation
-loops. `lower-builtins` expands precompile buffers/calls, concatenation copies, and packed
+loops. Loop analysis recognizes checked unsigned word recurrences and affine
+expressions without removing their checks. When a checked update must stay live,
+strength reduction adds at most one scaled address counter; extra plain-add or
+per-field counters can cost more than the arithmetic they replace. LICM also checks
+for exits hidden in semantic instructions before using a trip bound to move a load.
+Signed and narrow recurrences remain conservative.
+`lower-builtins` expands precompile buffers/calls, concatenation copies, and packed
 encoding. Packed arguments retain scalar widths and owned array layouts; length
 reads and packing loops run after argument evaluation. Packing checks each array
 extent before entering its loop; the loop bound then proves that element offsets

@@ -140,3 +140,35 @@ fn @pairInternal(arg0: u256) -> struct0 [pure] {
     v3 = insert_value struct0, v2, 1, v1
     ret v3
 }
+
+fn @fill(arg0: u256) -> memoryfixedarray [selector=0x3fda5389, pure, abi_params=[u256], abi_returns=[array<4, word>]] {
+  bb0:
+    v0 = gt arg0, 4
+    v1 = iszero v0
+    v2 = iszero v1
+    revert_if v2, empty
+    v3 = alloc memoryfixedarray<4, 1>, exact, uninitialized, infallible, 128 !metadata(preserves_fmp)
+    memory_zero v3, 128
+    jump bb1
+  bb1:
+    v4 = phi [bb0: arg0], [bb3: v4]
+    v5 = phi [bb0: 0], [bb3: v11]
+    v6 = phi [bb0: v3], [bb3: v6]
+    v7 = lt v5, v4
+    jumpi v7, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v6
+  bb4:
+    v8 = add v5, 7
+    v9 = shl 5, v5
+    v10 = add v6, v9
+    mstore v10, v8
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v11 = checked_add u256, v5, 1
+    jump bb1
+}

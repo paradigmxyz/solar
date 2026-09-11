@@ -8,8 +8,9 @@
 //! - loop-invariant values are represented as a single optional base
 //! - constants and induction scales use checked signed arithmetic
 //! - unrecognized or overflowing expressions are omitted instead of guessed
+//! - checked unsigned word expressions describe successful results, not removable checks.
 
-use crate::mir::{Function, InstKind, Value, ValueId, analysis::Loop};
+use crate::mir::{ArithmeticKind, CheckedOp, Function, InstKind, Value, ValueId, analysis::Loop};
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_data_structures::map::FxHashMap;
@@ -156,17 +157,35 @@ impl ScalarEvolution {
                     AffineExpr::induction(value)
                 } else {
                     match func.inst(*inst_id).kind {
-                        InstKind::Add(a, b) => {
+                        InstKind::Add(a, b)
+                        | InstKind::CheckedBinary {
+                            op: CheckedOp::Add,
+                            arithmetic: ArithmeticKind::Unsigned(256),
+                            lhs: a,
+                            rhs: b,
+                        } => {
                             let a = self.affine_expr(func, loop_data, a)?;
                             let b = self.affine_expr(func, loop_data, b)?;
                             a.add(b)?
                         }
-                        InstKind::Sub(a, b) => {
+                        InstKind::Sub(a, b)
+                        | InstKind::CheckedBinary {
+                            op: CheckedOp::Sub,
+                            arithmetic: ArithmeticKind::Unsigned(256),
+                            lhs: a,
+                            rhs: b,
+                        } => {
                             let a = self.affine_expr(func, loop_data, a)?;
                             let b = self.affine_expr(func, loop_data, b)?;
                             a.sub(b)?
                         }
-                        InstKind::Mul(a, b) => {
+                        InstKind::Mul(a, b)
+                        | InstKind::CheckedBinary {
+                            op: CheckedOp::Mul,
+                            arithmetic: ArithmeticKind::Unsigned(256),
+                            lhs: a,
+                            rhs: b,
+                        } => {
                             let a_expr = self.affine_expr(func, loop_data, a);
                             let b_expr = self.affine_expr(func, loop_data, b);
                             match (a_expr, b_expr) {
