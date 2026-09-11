@@ -127,8 +127,8 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
     jumpi v178, bb10, bb45
   bb45:
     v0 = mload 64 !metadata(memory=scratch)
-    v216 = add v0, 64
-    mstore 64, v216 !metadata(memory=scratch)
+    v217 = add v0, 64
+    mstore 64, v217 !metadata(memory=scratch)
     v3 = shl 5, v174
     v5 = shr 5, v3
     v6 = eq v5, v174
@@ -175,7 +175,9 @@ fn @roundTrip() [selector=0x00746047, abi_wrapper, pure] {
     v102 = gt 64, v101
     jumpi v102, bb10, bb29
   bb29:
-    v103 = alloc raw, exact, uninitialized, infallible, 64 !metadata(deferred_alloc)
+    v103 = mload 64 !metadata(memory=scratch)
+    v216 = add v103, 64
+    mstore 64, v216 !metadata(memory=scratch)
     v104 = mload v98
     mstore v103, v104
     v105 = add v98, 32

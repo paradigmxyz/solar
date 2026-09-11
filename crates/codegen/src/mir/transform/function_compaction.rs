@@ -127,7 +127,10 @@ fn forward_returned_values(module: &mut Module) -> usize {
                 unreachable!()
             };
             let replacement = match &returned[function] {
-                ReturnedValue::Argument(arg) => args[arg.index()],
+                ReturnedValue::Argument(arg) => {
+                    let Some(&value) = args.get(arg.index()) else { continue };
+                    value
+                }
                 ReturnedValue::Constant(value) => {
                     if !constant_uses.contains(result) {
                         continue;

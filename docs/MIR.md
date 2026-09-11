@@ -255,7 +255,9 @@ still need a proof that they avoid reserved memory. An access beyond a proven
 fresh allocation can overlap other heap objects while retaining its heap region;
 loop allocations lose their distinct site identities after a possible pointer
 reset. Region labels describe layout and do not prove disjointness from raw
-addresses; CSE, memory DSE, and PRE require address or allocation proofs. Do not
+addresses; CSE, memory DSE, and PRE require address or allocation proofs. Semantic
+object stores and copies also invalidate allocation provenance when their destination
+may reach reserved memory. An object type alone does not establish ownership. Do not
 attach heap-allocated effect records to every instruction. Unknown calls remain
 conservative; known intrinsics expose their summaries without expanding their
 implementation.

@@ -1874,6 +1874,18 @@ impl AliasAnalysis {
                 .is_none_or(|summary| summary.may_reset_fmp()),
             InstKind::MStore(address, _) => Self::range_may_overlap_fmp(func, address, Some(32)),
             InstKind::MStore8(address, _) => Self::range_may_overlap_fmp(func, address, Some(1)),
+            InstKind::SetMemoryObjectLen(object, ..)
+            | InstKind::MemoryObjectStoreField { object, .. }
+            | InstKind::MemoryObjectStoreElement { object, .. }
+            | InstKind::MemoryObjectStoreByte { object, .. }
+            | InstKind::MemoryObjectStoreWord { object, .. }
+            | InstKind::MemoryObjectCopyFromSlice { object, .. }
+            | InstKind::MemoryObjectCopyFromSliceAt { object, .. }
+            | InstKind::MemoryObjectCopy { destination: object, .. } => {
+                // Object types do not prove ownership: raw pointers can be rebound
+                // to objects, and lowering exposes their writes to reserved memory.
+                Self::range_may_overlap_fmp(func, object, None)
+            }
             InstKind::MCopy(dest, _, size)
             | InstKind::MemoryZero(dest, size)
             | InstKind::CalldataCopy(dest, _, size)
@@ -2089,6 +2101,94 @@ mod tests {
             );
             assert!(!behavior.can_speculate());
             assert_eq!(aa.instruction_may_reset_fmp(&func, inst), size.is_none());
+        }
+    }
+
+    #[test]
+    fn semantic_object_writes_require_owned_destinations() {
+        for owned in [false, true] {
+            let mut func = function();
+            let (writes, allocation) = {
+                let mut builder = FunctionBuilder::new(&mut func);
+                let source = builder.add_param(MirType::Slice(SliceLocation::Calldata));
+                let size = builder.imm(128);
+                let objects = [
+                    MemoryObjectLayout::Bytes,
+                    MemoryObjectLayout::structure(1),
+                    MemoryObjectLayout::WORD_ARRAY,
+                ]
+                .map(|layout| {
+                    if owned {
+                        // object = alloc 128
+                        builder.alloc_object(
+                            size,
+                            layout,
+                            crate::mir::AllocationSemantics::INTERNAL,
+                        )
+                    } else {
+                        builder.add_param(MirType::MemoryObject(layout.kind()))
+                    }
+                });
+                let [bytes, structure, array] = objects;
+                let zero = builder.imm(0);
+                let writes = [
+                    InstKind::SetMemoryObjectLen(bytes, zero, MemoryObjectKind::Bytes),
+                    InstKind::MemoryObjectStoreField {
+                        object: structure,
+                        layout: MemoryObjectLayout::structure(1),
+                        field: 0,
+                        value: zero,
+                    },
+                    InstKind::MemoryObjectStoreElement {
+                        object: array,
+                        layout: MemoryObjectLayout::WORD_ARRAY,
+                        index: zero,
+                        value: zero,
+                    },
+                    InstKind::MemoryObjectStoreByte { object: bytes, index: zero, value: zero },
+                    InstKind::MemoryObjectStoreWord { object: bytes, offset: zero, value: zero },
+                    InstKind::MemoryObjectCopyFromSlice {
+                        object: bytes,
+                        kind: MemoryObjectKind::Bytes,
+                        source,
+                    },
+                    InstKind::MemoryObjectCopyFromSliceAt {
+                        object: bytes,
+                        kind: MemoryObjectKind::Bytes,
+                        offset: zero,
+                        source,
+                    },
+                    InstKind::MemoryObjectCopy {
+                        destination: bytes,
+                        destination_kind: MemoryObjectKind::Bytes,
+                        source: bytes,
+                        source_kind: MemoryObjectKind::Bytes,
+                        length: size,
+                    },
+                ]
+                .map(|kind| {
+                    // semantic store/copy object, value
+                    builder.append_instruction(Instruction::new(kind, None)).0
+                });
+                // allocation = alloc 128; stop
+                let allocation = builder.alloc(size, crate::mir::AllocationSemantics::INTERNAL);
+                builder.stop();
+                (writes, allocation)
+            };
+            let aa = AliasAnalysis::new(&func);
+            for inst in writes {
+                assert_eq!(
+                    aa.instruction_may_reset_fmp(&func, inst),
+                    !owned,
+                    "{:?}",
+                    func.inst(inst).kind
+                );
+            }
+            let base = aa.memory_address(&func, allocation).unwrap().base;
+            assert_eq!(matches!(base, MemoryBase::Allocation(_)), owned);
+            if !owned {
+                assert_eq!(base, MemoryBase::Value(allocation));
+            }
         }
     }
 
