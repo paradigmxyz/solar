@@ -665,6 +665,7 @@ fn workspace_path_queries(c: &mut Criterion) {
     let queries =
         BenchmarkWorkspacePathQueries::new(PATH_INDEX_WORKSPACE_COUNT, PATH_INDEX_QUERY_COUNT);
     assert_ne!(queries.run(), 0);
+    assert_eq!(queries.run(), queries.run_cached());
 
     let mut group = c.benchmark_group("lsp/workspace-path-queries");
     group.throughput(Throughput::Elements(PATH_INDEX_QUERY_COUNT as u64));
