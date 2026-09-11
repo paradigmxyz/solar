@@ -33,19 +33,19 @@ jobs:
           unzip -q "$RUNNER_TEMP/cvc5.zip" -d "$RUNNER_TEMP/cvc5"
           echo "$RUNNER_TEMP/cvc5/cvc5-Linux-arm64-static/bin" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/cvc5/cvc5-Linux-arm64-static/bin/cvc5" --version
-      - run: uv run scripts/test_evm_rules.py
+      - run: uv run scripts/evm-rules/test.py
       - name: Verify compiled ISLE word and stack rules
-        run: uv run scripts/verify_evm_rules.py verify --partition-shifts --output target/evm-rules/proofs.json --artifacts target/evm-rules/smt
+        run: uv run scripts/evm-rules/verify.py verify --partition-shifts --output target/evm-rules/proofs.json --artifacts target/evm-rules/smt
       - name: Replay every proof query with cvc5
-        run: uv run scripts/replay_evm_rules.py target/evm-rules/proofs.json --output target/evm-rules/cvc5.json
+        run: uv run scripts/evm-rules/replay.py target/evm-rules/proofs.json --output target/evm-rules/cvc5.json
       - name: Verify MIR e-graph rules
         run: >-
-          uv run scripts/verify_evm_rules.py verify crates/codegen/isle/egraph.isle
+          uv run scripts/evm-rules/verify.py verify crates/codegen/isle/egraph.isle
           --partition-shifts --index-partition-timeout-ms 30000
           --fallback-solver cvc5 --bit-partition-timeout-ms 120000
           --output target/evm-rules/egraph.json --artifacts target/evm-rules/egraph-smt
       - name: Replay e-graph proof queries with cvc5
-        run: uv run scripts/replay_evm_rules.py target/evm-rules/egraph.json --output target/evm-rules/egraph-cvc5.json
+        run: uv run scripts/evm-rules/replay.py target/evm-rules/egraph.json --output target/evm-rules/egraph-cvc5.json
       # Keep SMT queries and coverage to diagnose and replay failed verification.
       - name: Upload failed proof diagnostics
         if: failure()

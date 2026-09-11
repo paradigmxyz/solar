@@ -15,7 +15,7 @@ import z3
 from .semantics import Expr, MASK, Model, Unsupported, check, partition_bits, partition_shift, word
 from .memory import MemoryAddresses
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 ISLE = ROOT / "crates/codegen/isle"
 
 

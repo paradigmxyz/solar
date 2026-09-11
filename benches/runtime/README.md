@@ -171,3 +171,34 @@ against solc. This isolates encoding
 and ABI costs from upstream assertions and memory brutalization; keep both cases
 in reports, since they exercise different behavior.
 
+The three additional micro contracts (`../../testdata/Arithmetic.sol`,
+`../../testdata/Factorial.sol`, and `../../testdata/SumArray.sol`) came from the benchmark repository at the commit above. The
+runtime suite reuses the existing `../../testdata/Counter.sol` source from the normal benchmark
+suite. The Aave harness is embedded in `../../testdata/projects/aave-l2-encoder.json.gz`.
+`fixtures/runtime/RuntimeFixtures.sol` provides local Apache-2.0 helpers with the same interfaces
+used by the cold-path workloads. Embedded Solidity sources retain their SPDX identifiers.
+
+`verified-words` is a synthetic workload in `../../testdata/runtime/VerifiedWords.sol`
+for the SMT-checked word rules. It measures mixed bitwise expressions and signed
+negation in hot loops, with edge-value return checks. Report its results
+separately from the pinned project corpus; it demonstrates targeted reductions,
+not a general advantage over solc.
+
+`compiler-optimizations` uses the local
+`../../testdata/runtime/CompilerOptimizations.sol` workload to exercise aggregate SSA
+across branches and loops, joined bounds, shared constant-argument helpers,
+packed storage updates, and overwrites on both branch arms. It measures both
+fresh and repeated writes and checks returned values and final storage against
+solc. It is a focused regression workload; retain the project corpus comparison
+when evaluating its improvements.
+
+`word-recipes` uses `../../testdata/runtime/WordRecipes.sol` to measure mixed arithmetic,
+common-mask factoring, packed-byte extraction and a deployment/runtime tradeoff
+for a large comparison constant. Keep its targeted hot-loop results separate from
+the pinned projects and compare both optimization objectives.
+
+`seeded-words` uses `../../testdata/runtime/SeededWords.sol` for mixed bitwise
+subtraction, complemented arithmetic and mask absorption discovered from the
+offline seed trees. It checks zero iterations and
+wrapping inputs as well as hot loops. These targeted results are separate from
+the pinned project corpus and do not establish general superiority over solc.

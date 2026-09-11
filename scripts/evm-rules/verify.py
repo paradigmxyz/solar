@@ -2,7 +2,7 @@
 # requires-python = ">=3.11"
 # dependencies = ["z3-solver==4.16.0.0"]
 # ///
-"""Verify actual ISLE rules or discover candidates offline; see evm_rules/README.md."""
+"""Verify actual ISLE rules or discover candidates offline; see README.md."""
 
 import argparse
 from collections import Counter

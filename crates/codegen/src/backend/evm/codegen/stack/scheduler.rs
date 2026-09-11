@@ -106,7 +106,7 @@ use crate::{
         op::StackOp,
     },
     mir::{ArgIdx, BlockId, Function, InstKind, OpTraits, Value, ValueId, analysis::Liveness},
-    target::{Cost, GasTier, Target},
+    target::{Cost, StackCosts, Target},
 };
 use smallvec::SmallVec;
 use solar_config::{EvmVersion, OptimizationMode};
@@ -273,8 +273,7 @@ impl ScheduledOp {
 /// Cost of materializing a spill or argument under the active frame convention.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct OperandCostModel {
-    load_static_gas: u32,
-    load_encoded_bytes: u32,
+    load: Cost,
     spill_load_stack_growth: u8,
     arg_load_stack_growth: u8,
 }
@@ -283,8 +282,7 @@ impl OperandCostModel {
     /// A context-independent estimate for a direct address push followed by `MLOAD` or
     /// `CALLDATALOAD`.
     pub(crate) const DIRECT: Self = Self {
-        load_static_gas: 6,
-        load_encoded_bytes: 4,
+        load: StackCosts::DIRECT_LOAD,
         spill_load_stack_growth: 1,
         arg_load_stack_growth: 1,
     };
@@ -292,16 +290,14 @@ impl OperandCostModel {
     /// A context-independent estimate for a frame-pointer load, offset addition, and final value
     /// load.
     pub(crate) const DYNAMIC_FRAME: Self = Self {
-        load_static_gas: 15,
-        load_encoded_bytes: 7,
+        load: StackCosts::DYNAMIC_FRAME_LOAD,
         spill_load_stack_growth: 2,
         arg_load_stack_growth: 2,
     };
 
     /// Direct spill addressing with constructor arguments based on a deferred code offset.
     pub(crate) const CONSTRUCTOR: Self = Self {
-        load_static_gas: 6,
-        load_encoded_bytes: 4,
+        load: StackCosts::DIRECT_LOAD,
         spill_load_stack_growth: 1,
         arg_load_stack_growth: 2,
     };
@@ -311,9 +307,6 @@ impl OperandCostModel {
         stack_depth.saturating_add(usize::from(growth)) > MAX_STACK_DEPTH
     }
 }
-
-/// One very-low instruction without an immediate.
-const VERY_LOW: Cost = Cost::new(GasTier::VeryLow.fixed_gas(), 1);
 
 #[derive(Clone, Copy)]
 struct OperandPlanningContext<'a> {
@@ -374,7 +367,7 @@ impl ScheduleCost {
     /// later reloads. This is a strict lower bound for the ordinary call path.
     pub(crate) fn stack_drain_lower_bound(words: usize) -> Self {
         let words = u32::try_from(words).unwrap_or(u32::MAX);
-        Self::from_cost(Cost::new(GasTier::Base.fixed_gas(), 1).times(words), words)
+        Self::from_cost(StackCosts::POP.times(words), words)
     }
 
     const fn from_cost(cost: Cost, actions: u32) -> Self {
@@ -395,29 +388,24 @@ impl ScheduleCost {
 
     /// Cost of loading a word through the active frame-address convention.
     pub(crate) fn memory_load(cost_model: OperandCostModel) -> Self {
-        Self {
-            static_gas: cost_model.load_static_gas,
-            encoded_bytes: cost_model.load_encoded_bytes,
-            actions: 2,
-        }
+        Self { static_gas: cost_model.load.gas, encoded_bytes: cost_model.load.bytes, actions: 2 }
     }
 
     /// Cost of storing a word through the active frame-address convention.
     pub(crate) fn memory_store(cost_model: OperandCostModel) -> Self {
-        Self::memory_load(cost_model).plus(Self::from_cost(VERY_LOW, 0))
+        Self::memory_load(cost_model).plus(Self::from_cost(StackCosts::DUP, 0))
     }
 
     /// Conservative cost of a deferred target push followed by `JUMP`.
     // push3 label
     // jump
     pub(crate) fn control_flow_jump() -> Self {
-        let push3 = Cost::new(GasTier::VeryLow.fixed_gas(), 4);
-        Self::from_cost(push3.plus(Cost::new(GasTier::Mid.fixed_gas(), 1)), 2)
+        Self::from_cost(StackCosts::CONTROL_FLOW_JUMP, 2)
     }
 
     /// Cost of the local `JUMPDEST` introduced by a cleanup trampoline.
     pub(crate) fn jumpdest() -> Self {
-        Self::from_cost(Cost::new(GasTier::Jumpdest.fixed_gas(), 1), 1)
+        Self::from_cost(StackCosts::JUMPDEST, 1)
     }
 
     fn of_op(op: &ScheduledOp, evm_version: EvmVersion, cost_model: OperandCostModel) -> Self {
@@ -438,9 +426,11 @@ impl ScheduleCost {
                 let (bytes, gas) = immediate_materialization_cost(evm_version, *value);
                 (gas as u32, bytes as u32)
             }
-            ScheduledOp::RematerializeNullary(_) => (2, 1),
+            ScheduledOp::RematerializeNullary(_) => {
+                (StackCosts::NULLARY_READ.gas, StackCosts::NULLARY_READ.bytes)
+            }
             ScheduledOp::LoadSpill(_) | ScheduledOp::LoadArg(_) => {
-                (cost_model.load_static_gas, cost_model.load_encoded_bytes)
+                (cost_model.load.gas, cost_model.load.bytes)
             }
             ScheduledOp::Stack(_) => unreachable!(),
         };

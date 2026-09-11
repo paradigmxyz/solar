@@ -27,8 +27,8 @@ from evm_rules.memory import MemoryAddresses
 from evm_rules.stack import verify_stack_file
 from evm_rules.late import execute as execute_late, verify_late_file
 from evm_rules.semantics import Expr, MASK, MODULUS, SIGN, Model, Unsupported, check, concrete, partition_bits, partition_shift, portable_query
-from verify_evm_rules import main
-from replay_evm_rules import main as replay_main, replay_query, replay_report
+from verify import main
+from replay import main as replay_main, replay_query, replay_report
 
 
 def expression(op, *args):
@@ -1030,14 +1030,14 @@ class ProofArtifactTests(unittest.TestCase):
                                            (b"unknown\n", 0, "unknown"), (b"", 0, "error"),
                                            (b"unsat\nunsat\n", 0, "error"),
                                            (b"unsat\n", 1, "error"), (b"unknown\n", 1, "error")):
-                with patch("replay_evm_rules.subprocess.run", return_value=
+                with patch("replay.subprocess.run", return_value=
                            subprocess.CompletedProcess([], code, output, b"")) as run:
                     result = replay_query(str(path), digest, "cvc5", 100)
                     self.assertEqual(run.call_count, 3 if expected == "unknown" else 1)
                 self.assertEqual(result["status"], expected)
-            with patch("replay_evm_rules.subprocess.run", side_effect=subprocess.TimeoutExpired([], 1)):
+            with patch("replay.subprocess.run", side_effect=subprocess.TimeoutExpired([], 1)):
                 self.assertEqual(replay_query(str(path), digest, "cvc5", 100)["status"], "timeout")
-            with patch("replay_evm_rules.subprocess.run", side_effect=[
+            with patch("replay.subprocess.run", side_effect=[
                 subprocess.TimeoutExpired([], 1),
                 subprocess.CompletedProcess([], 0, b"unknown\n", b""),
                 subprocess.CompletedProcess([], 0, b"unsat\n", b""),
@@ -1047,7 +1047,7 @@ class ProofArtifactTests(unittest.TestCase):
                 self.assertEqual([attempt["flags"] for attempt in result["attempts"]],
                                  [["--bv-solver=bitblast-internal"], [], ["--solve-bv-as-int=sum"]])
             path.write_text("(assert false)\n")
-            with patch("replay_evm_rules.subprocess.run") as run:
+            with patch("replay.subprocess.run") as run:
                 self.assertEqual(replay_query(str(path), digest, "cvc5", 100)["status"], "error")
                 run.assert_not_called()
 
@@ -1065,8 +1065,8 @@ class ProofArtifactTests(unittest.TestCase):
                     return subprocess.CompletedProcess(command, 0, "cvc5 test version", "")
                 self.assertEqual(kwargs["input"], query.read_bytes())
                 return subprocess.CompletedProcess(command, 0, b"unsat\n", b"")
-            with (patch("replay_evm_rules.shutil.which", return_value="/test/cvc5"),
-                  patch("replay_evm_rules.subprocess.run", side_effect=run)):
+            with (patch("replay.shutil.which", return_value="/test/cvc5"),
+                  patch("replay.subprocess.run", side_effect=run)):
                 result = replay_report(path, jobs=1)
             self.assertEqual(result["counts"], {"unsat": 1})
             self.assertEqual(result["rule_count"], 1)
@@ -1081,8 +1081,8 @@ class ProofArtifactTests(unittest.TestCase):
         for status in ("unsat", "sat", "unknown", "timeout", "error"):
             with self.subTest(status=status), tempfile.TemporaryDirectory() as directory:
                 output = Path(directory) / "replay.json"
-                with (patch("sys.argv", ["replay_evm_rules.py", "proofs.json", "--output", str(output)]),
-                      patch("replay_evm_rules.replay_report", return_value={"counts": {status: 1}, "queries": []}),
+                with (patch("sys.argv", ["replay.py", "proofs.json", "--output", str(output)]),
+                      patch("replay.replay_report", return_value={"counts": {status: 1}, "queries": []}),
                       redirect_stdout(io.StringIO())):
                     code = replay_main()
                 self.assertEqual(code, 0 if status == "unsat" else 1)
@@ -1195,7 +1195,7 @@ class CliTests(unittest.TestCase):
     def test_negative_partition_budgets_are_rejected(self):
         for option in ("--bit-partition-timeout-ms", "--index-partition-timeout-ms"):
             with (self.subTest(option=option),
-                  patch("sys.argv", ["verify_evm_rules.py", "verify", "--output", "unused.json", option, "-1"]),
+                  patch("sys.argv", ["verify.py", "verify", "--output", "unused.json", option, "-1"]),
                   redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as error):
                 main()
             self.assertEqual(error.exception.code, 2)
@@ -1209,9 +1209,9 @@ class CliTests(unittest.TestCase):
                     rule["reason"] = "timeout"
                 files = {"source": "rules.isle", "rules": [rule]}
                 stdout, stderr = io.StringIO(), io.StringIO()
-                with (patch("sys.argv", ["verify_evm_rules.py", "verify", "rules.isle", "--output", str(output),
+                with (patch("sys.argv", ["verify.py", "verify", "rules.isle", "--output", str(output),
                                          "--index-partition-timeout-ms", "30000"]),
-                      patch("verify_evm_rules.verify_file", return_value=files) as verify,
+                      patch("verify.verify_file", return_value=files) as verify,
                       redirect_stdout(stdout), redirect_stderr(stderr)):
                     code = main()
                 self.assertEqual(verify.call_args.args[1], 5000)
