@@ -76,9 +76,37 @@ pub(crate) struct RenameIndex {
     symbol_targets: FxHashSet<SymbolId>,
     yul_symbol_targets: FxHashSet<SymbolId>,
     occurrences: Vec<RenameOccurrence>,
-    file_occurrences: FxHashMap<Url, Vec<usize>>,
+    file_occurrences: FxHashMap<Url, OccurrenceIndex>,
     target_occurrences: FxHashMap<RenameTarget, Vec<usize>>,
     ambiguous_targets: FxHashSet<RenameTarget>,
+}
+
+/// Start-sorted occurrence indexes with a prefix maximum end for point queries.
+#[derive(Clone, Debug, Default)]
+struct OccurrenceIndex {
+    entries: Vec<usize>,
+    prefix_max_end: Vec<Position>,
+}
+
+impl OccurrenceIndex {
+    fn rebuild(&mut self, occurrences: &[RenameOccurrence]) {
+        // `normalize_occurrences` orders the global list by URI and range before these
+        // per-file indexes are populated, so the entries are already start-sorted.
+        debug_assert!(self.entries.windows(2).all(|pair| {
+            let lhs = occurrences[pair[0]].location.range;
+            let rhs = occurrences[pair[1]].location.range;
+            (lhs.start, lhs.end, pair[0]) <= (rhs.start, rhs.end, pair[1])
+        }));
+
+        self.prefix_max_end.clear();
+        self.prefix_max_end.reserve(self.entries.len());
+        let mut max_end = None;
+        for &index in &self.entries {
+            let end = occurrences[index].location.range.end;
+            max_end = Some(max_end.map_or(end, |max_end: Position| max_end.max(end)));
+            self.prefix_max_end.push(max_end.unwrap());
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -637,7 +665,11 @@ impl RenameIndex {
         self.ambiguous_targets.clear();
 
         for (index, occurrence) in self.occurrences.iter().enumerate() {
-            self.file_occurrences.entry(occurrence.location.uri.clone()).or_default().push(index);
+            self.file_occurrences
+                .entry(occurrence.location.uri.clone())
+                .or_default()
+                .entries
+                .push(index);
             if occurrence.targets.len() > 1
                 && !same_rename_targets(
                     &self.aliases,
@@ -651,6 +683,9 @@ impl RenameIndex {
             for &target in &occurrence.targets {
                 self.target_occurrences.entry(target).or_default().push(index);
             }
+        }
+        for occurrences in self.file_occurrences.values_mut() {
+            occurrences.rebuild(&self.occurrences);
         }
     }
 
@@ -831,14 +866,27 @@ impl RenameIndex {
     }
 
     fn occurrence_at(&self, uri: &Url, position: Position) -> Option<&RenameOccurrence> {
-        self.file_occurrences
-            .get(uri)?
-            .iter()
-            .filter_map(|&index| {
-                let occurrence = &self.occurrences[index];
-                proto::range_contains(occurrence.location.range, position).then_some(occurrence)
-            })
-            .min_by_key(|occurrence| proto::range_size_key(occurrence.location.range))
+        let index = self.file_occurrences.get(uri)?;
+        let end = index
+            .entries
+            .partition_point(|&entry| self.occurrences[entry].location.range.start <= position);
+        let mut best = None;
+        for (&entry, &prefix_max_end) in
+            index.entries[..end].iter().zip(&index.prefix_max_end[..end]).rev()
+        {
+            if prefix_max_end < position {
+                break;
+            }
+            let occurrence = &self.occurrences[entry];
+            if !proto::range_contains(occurrence.location.range, position) {
+                continue;
+            }
+            let key = (proto::range_size_key(occurrence.location.range), entry);
+            if best.as_ref().is_none_or(|(best_key, _)| key < *best_key) {
+                best = Some((key, occurrence));
+            }
+        }
+        best.map(|(_, occurrence)| occurrence)
     }
 
     fn normalize_occurrences(&mut self) {

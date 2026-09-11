@@ -21,11 +21,11 @@ use crate::{
 use async_lsp::ClientSocket;
 use crop::Rope;
 use lsp_types::{
-    CallHierarchyIncomingCall, CodeLens, CompletionItem, Diagnostic, DidChangeTextDocumentParams,
-    DocumentSymbol, GotoDefinitionResponse, Hover, HoverContents, Location, Position,
-    PreviousResultId, Range, SignatureHelp, SignatureHelpParams, TextDocumentContentChangeEvent,
-    TextDocumentIdentifier, TextDocumentPositionParams, TypeHierarchyItem, Url,
-    VersionedTextDocumentIdentifier, WorkspaceFolder, WorkspaceSymbol,
+    CallHierarchyIncomingCall, CallHierarchyItem, CodeLens, CompletionItem, Diagnostic,
+    DidChangeTextDocumentParams, DocumentSymbol, GotoDefinitionResponse, Hover, HoverContents,
+    Location, Position, PreviousResultId, Range, SignatureHelp, SignatureHelpParams,
+    TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentPositionParams,
+    TypeHierarchyItem, Url, VersionedTextDocumentIdentifier, WorkspaceFolder, WorkspaceSymbol,
 };
 use normalize_path::NormalizePath;
 use solar_config::{CompileOpts, Threads};
@@ -941,6 +941,24 @@ impl BenchmarkAnalysis {
     pub fn incoming_calls(&self, uri: &Url, position: Position) -> Vec<CallHierarchyIncomingCall> {
         let items = self.symbol_tables.prepare_call_hierarchy(uri, position).unwrap();
         self.symbol_tables.call_hierarchy_incoming(&items[0]).unwrap()
+    }
+
+    /// Prepare one call hierarchy item at a source position.
+    #[inline(never)]
+    pub fn prepare_call_hierarchy(
+        &self,
+        uri: &Url,
+        position: Position,
+    ) -> Option<Vec<CallHierarchyItem>> {
+        self.symbol_tables.prepare_call_hierarchy(uri, position)
+    }
+
+    /// Return the selected range and edit count from a complete rename candidate lookup.
+    #[inline(never)]
+    pub fn rename_candidate(&self, uri: &Url, position: Position) -> Option<(Range, usize)> {
+        self.symbol_tables
+            .rename_candidate(uri, position)
+            .map(|candidate| (candidate.range, candidate.locations.len()))
     }
 
     /// Prepare a hierarchy item and query its direct subtypes.

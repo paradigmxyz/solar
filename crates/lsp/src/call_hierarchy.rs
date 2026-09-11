@@ -61,11 +61,57 @@ struct QueryIndex {
     incoming_by_key: CallRelations,
     incomplete_outgoing: FxHashSet<CallableKey>,
     incomplete_incoming: FxHashSet<CallableKey>,
-    call_sites_by_uri: FxHashMap<Arc<Url>, Vec<CallSite>>,
-    bodies_by_uri: FxHashMap<Arc<Url>, Vec<CallableBody>>,
+    call_sites_by_uri: FxHashMap<Arc<Url>, IndexedRanges<CallSite>>,
+    bodies_by_uri: FxHashMap<Arc<Url>, IndexedRanges<CallableBody>>,
 }
 
 type CallRelations = FxHashMap<CallableKey, FxHashMap<CallableKey, Vec<Range>>>;
+
+/// Entries sorted by start position with a prefix maximum end, allowing point queries to
+/// skip entries that end before the cursor while retaining the original range tie order.
+#[derive(Clone, Debug)]
+struct IndexedRanges<T> {
+    entries: Vec<T>,
+    prefix_max_end: Vec<Position>,
+}
+
+impl<T> Default for IndexedRanges<T> {
+    fn default() -> Self {
+        Self { entries: Vec::new(), prefix_max_end: Vec::new() }
+    }
+}
+
+impl<T> IndexedRanges<T> {
+    fn push(&mut self, entry: T) {
+        self.entries.push(entry);
+    }
+
+    fn rebuild(&mut self, range: impl Fn(&T) -> Range) {
+        self.prefix_max_end.clear();
+        self.prefix_max_end.reserve(self.entries.len());
+        let mut max_end = Position::default();
+        for entry in &self.entries {
+            let end = range(entry).end;
+            max_end = max_end.max(end);
+            self.prefix_max_end.push(max_end);
+        }
+    }
+
+    fn candidates_at<'a>(
+        &'a self,
+        position: Position,
+        range: impl Fn(&T) -> Range + Copy + 'a,
+    ) -> impl Iterator<Item = &'a T> + 'a {
+        let end = self.entries.partition_point(|entry| range(entry).start <= position);
+        self.entries[..end]
+            .iter()
+            .zip(self.prefix_max_end[..end].iter().copied())
+            .rev()
+            .take_while(move |(_, prefix_max_end)| *prefix_max_end >= position)
+            .filter(move |(entry, _)| proto::range_contains(range(entry), position))
+            .map(|(entry, _)| entry)
+    }
+}
 
 #[derive(Clone, Copy, Debug)]
 struct DirectCall {
@@ -301,12 +347,13 @@ impl QueryIndex {
         normalize_relations(&mut self.outgoing_by_key);
         normalize_relations(&mut self.incoming_by_key);
         for sites in self.call_sites_by_uri.values_mut() {
-            sites.sort_by(|a, b| {
+            sites.entries.sort_by(|a, b| {
                 proto::range_key(a.range)
                     .cmp(&proto::range_key(b.range))
                     .then_with(|| a.callee.cmp(&b.callee))
             });
-            sites.dedup();
+            sites.entries.dedup();
+            sites.rebuild(|site| site.range);
         }
 
         for (key, &symbol) in &self.canonical_symbol_by_key {
@@ -318,12 +365,13 @@ impl QueryIndex {
             }
         }
         for bodies in self.bodies_by_uri.values_mut() {
-            bodies.sort_by(|a, b| {
+            bodies.entries.sort_by(|a, b| {
                 proto::range_key(a.range)
                     .cmp(&proto::range_key(b.range))
                     .then_with(|| a.callable.cmp(&b.callable))
             });
-            bodies.dedup();
+            bodies.entries.dedup();
+            bodies.rebuild(|body| body.range);
         }
     }
 
@@ -393,17 +441,25 @@ impl QueryIndex {
     fn call_site(&self, uri: &Url, position: Position) -> Option<&CallSite> {
         self.call_sites_by_uri
             .get(uri)?
-            .iter()
-            .filter(|site| proto::range_contains(site.range, position))
-            .min_by_key(|site| (proto::range_size_key(site.range), proto::range_key(site.range)))
+            .candidates_at(position, |site| site.range)
+            // Include the callee key to preserve the pre-index order for equal ranges.
+            .min_by_key(|site| {
+                (
+                    proto::range_size_key(site.range),
+                    proto::range_key(site.range),
+                    site.callee.as_ref(),
+                )
+            })
     }
 
     fn enclosing_body_key(&self, uri: &Url, position: Position) -> Option<&CallableKey> {
         self.bodies_by_uri
             .get(uri)?
-            .iter()
-            .filter(|body| proto::range_contains(body.range, position))
-            .min_by_key(|body| (proto::range_size_key(body.range), proto::range_key(body.range)))
+            .candidates_at(position, |body| body.range)
+            // Include the callable key to preserve the pre-index order for equal ranges.
+            .min_by_key(|body| {
+                (proto::range_size_key(body.range), proto::range_key(body.range), &body.callable)
+            })
             .map(|body| &body.callable)
     }
 
@@ -569,5 +625,82 @@ fn normalize_relations(relations: &mut CallRelations) {
             ranges.sort_by_key(|&range| proto::range_key(range));
             ranges.dedup();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[derive(Clone, Copy)]
+    struct Entry {
+        id: u8,
+        range: Range,
+    }
+
+    #[test]
+    fn indexed_ranges_match_linear_point_queries() {
+        let mut indexed = IndexedRanges::default();
+        for entry in [
+            Entry { id: 3, range: Range::new(Position::new(2, 0), Position::new(2, 0)) },
+            Entry { id: 1, range: Range::new(Position::new(0, 0), Position::new(4, 0)) },
+            Entry { id: 4, range: Range::new(Position::new(1, 2), Position::new(1, 2)) },
+            Entry { id: 2, range: Range::new(Position::new(1, 0), Position::new(3, 0)) },
+        ] {
+            indexed.push(entry);
+        }
+        indexed.entries.sort_by_key(|entry| proto::range_key(entry.range));
+        indexed.rebuild(|entry| entry.range);
+
+        for position in [
+            Position::new(0, 0),
+            Position::new(1, 1),
+            Position::new(1, 2),
+            Position::new(2, 0),
+            Position::new(3, 0),
+            Position::new(4, 0),
+        ] {
+            let mut expected = indexed
+                .entries
+                .iter()
+                .filter(|entry| proto::range_contains(entry.range, position))
+                .map(|entry| entry.id)
+                .collect::<Vec<_>>();
+            let mut actual = indexed
+                .candidates_at(position, |entry| entry.range)
+                .map(|entry| entry.id)
+                .collect::<Vec<_>>();
+            expected.sort_unstable();
+            actual.sort_unstable();
+            assert_eq!(actual, expected, "{position:?}");
+        }
+    }
+
+    #[test]
+    fn equal_call_ranges_use_callee_order_after_reverse_scan() {
+        let uri = Arc::new(Url::parse("file:///Calls.sol").unwrap());
+        let range = Range::new(Position::new(1, 2), Position::new(1, 7));
+        let low = CallableKey {
+            uri: uri.clone(),
+            selection_range: Range::new(Position::new(0, 0), Position::new(0, 1)),
+        };
+        let high = CallableKey {
+            uri,
+            selection_range: Range::new(Position::new(0, 2), Position::new(0, 3)),
+        };
+        let mut sites = IndexedRanges::default();
+        sites.push(CallSite { range, callee: Some(high) });
+        sites.push(CallSite { range, callee: Some(low.clone()) });
+        sites.entries.sort_by(|a, b| {
+            proto::range_key(a.range)
+                .cmp(&proto::range_key(b.range))
+                .then_with(|| a.callee.cmp(&b.callee))
+        });
+        sites.rebuild(|site| site.range);
+        let mut query = QueryIndex::default();
+        let key_uri = sites.entries[0].callee.as_ref().unwrap().uri.clone();
+        query.call_sites_by_uri.insert(key_uri.clone(), sites);
+        let selected = query.call_site(key_uri.as_ref(), Position::new(1, 3));
+        assert_eq!(selected.and_then(|site| site.callee.as_ref()), Some(&low));
     }
 }
