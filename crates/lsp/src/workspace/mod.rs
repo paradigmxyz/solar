@@ -642,10 +642,21 @@ fn remove_sorted(files: &mut Vec<PathBuf>, path: &Path) {
 pub(crate) struct WorkspacePathIndex<'a> {
     workspaces: &'a [Workspace],
     import_entries: Arc<Vec<WorkspaceImportPathIndexEntry>>,
-    root_index: FxHashMap<PathBuf, SmallVec<[WorkspacePathMatch; 4]>>,
+    root_index: Arc<FxHashMap<PathBuf, SmallVec<[WorkspacePathMatch; 4]>>>,
 }
 
 type WorkspacePathMatch = (usize, usize, u8, usize);
+
+/// Immutable workspace path data shared by short-lived query indexes.
+///
+/// Workspace configuration recreates a borrowed index for each request. Keep the expensive root
+/// map in an owned cache so those indexes only clone two `Arc`s while retaining the workspace
+/// borrow needed for policy checks.
+#[derive(Debug)]
+pub(crate) struct WorkspacePathIndexCache {
+    import_entries: Arc<Vec<WorkspaceImportPathIndexEntry>>,
+    root_index: Arc<FxHashMap<PathBuf, SmallVec<[WorkspacePathMatch; 4]>>>,
+}
 
 pub(crate) struct WorkspacePathQuery {
     matches: SmallVec<[WorkspacePathMatch; 16]>,
@@ -674,15 +685,38 @@ impl<'a> WorkspacePathIndex<'a> {
                 .map(|(idx, workspace)| WorkspaceImportPathIndexEntry::new(idx, workspace))
                 .collect::<Vec<_>>(),
         );
-        let root_index = Self::build_root_index(&import_entries);
+        let root_index = Arc::new(Self::build_root_index(&import_entries));
         Self { workspaces, import_entries, root_index }
+    }
+
+    pub(crate) fn cache(workspaces: &[Workspace]) -> WorkspacePathIndexCache {
+        let import_entries = Arc::new(
+            workspaces
+                .iter()
+                .enumerate()
+                .map(|(idx, workspace)| WorkspaceImportPathIndexEntry::new(idx, workspace))
+                .collect::<Vec<_>>(),
+        );
+        let root_index = Arc::new(Self::build_root_index(&import_entries));
+        WorkspacePathIndexCache { import_entries, root_index }
+    }
+
+    pub(crate) fn with_cache(
+        workspaces: &'a [Workspace],
+        cache: Arc<WorkspacePathIndexCache>,
+    ) -> Self {
+        Self {
+            workspaces,
+            import_entries: Arc::clone(&cache.import_entries),
+            root_index: Arc::clone(&cache.root_index),
+        }
     }
 
     pub(crate) fn with_import_entries(
         workspaces: &'a [Workspace],
         import_entries: Arc<Vec<WorkspaceImportPathIndexEntry>>,
     ) -> Self {
-        let root_index = Self::build_root_index(&import_entries);
+        let root_index = Arc::new(Self::build_root_index(&import_entries));
         Self { workspaces, import_entries, root_index }
     }
 

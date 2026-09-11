@@ -49,23 +49,3 @@ servers:
       path: ../../target/lsp-bench/servers/nomic-foundation/node_modules/@nomicfoundation/solidity-language-server
       sha256: ac6618fb7360f633cefa6e646b3f47c98a09d12ce1ec2dd601314c9e9ea8673c
     required: true
-
-  - id: solc
-    label: Official solc 0.8.36
-    command: ../../target/lsp-bench/servers/solc/solc-static-linux
-    args:
-      - --experimental
-      - --lsp
-    version_args:
-      - --version
-    locked_version: "0.8.36"
-    source:
-      url: https://github.com/ethereum/solidity.git
-      revision: 8a079791d9cca7a6c03fd6a8429b93aa3bddefed
-    install:
-      kind: binary
-      url: https://github.com/argotorg/solidity/releases/download/v0.8.36/solc-static-linux
-    artifact:
-      path: ../../target/lsp-bench/servers/solc/solc-static-linux
-      sha256: c8d35afdddc3cd2743ee88b8f25e0fecd16e2bdd5f2120f37e52cd9cc45ae0e6
-    required: true

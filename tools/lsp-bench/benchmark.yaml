@@ -18,7 +18,7 @@ profiles:
       - synthetic-warm-document-symbol
       - synthetic-incremental-edit-save
   pr-smoke:
-    # Fast, capability-portable reference signal for comparing core4 on the
+    # Fast, capability-portable reference signal for comparing servers on the
     # tracked synthetic fixture in PR CI.
     warmup: 5
     samples: 20
@@ -136,6 +136,21 @@ scenarios:
           path: Main.sol
           min_count: 3
           expected_name: Main
+
+  - id: synthetic-warm-signature-help
+    fixture: synthetic
+    methods:
+      - textDocument/signatureHelp
+    steps:
+      - kind: open
+        path: Main.sol
+      - kind: warm
+        probe:
+          kind: signature-help
+          path: Main.sol
+          anchor: signature-double
+          expected_label: function double(uint256 value) internal pure returns (uint256)
+          expected_active_parameter: 0
 
   - id: synthetic-incremental-edit-save
     fixture: synthetic
@@ -384,6 +399,21 @@ scenarios:
           path: src/PoolManager.sol
           min_count: 5
           expected_name: PoolManager
+
+  - id: v4-core-warm-signature-help
+    fixture: v4-core
+    methods:
+      - textDocument/signatureHelp
+    steps:
+      - kind: open
+        path: src/PoolManager.sol
+      - kind: warm
+        probe:
+          kind: signature-help
+          path: src/PoolManager.sol
+          anchor: pool-manager-signature
+          expected_label: function _accountDelta(Currency currency, int128 delta, address target) internal
+          expected_active_parameter: 2
 
   - id: v4-core-incremental-edit-save
     fixture: v4-core

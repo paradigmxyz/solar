@@ -52,7 +52,7 @@ pub(crate) struct Config {
     selected_profile: Option<String>,
     foundry_workspace_config_source: FoundryWorkspaceConfigSource,
     workspaces: Vec<Workspace>,
-    workspace_path_cache: Arc<OnceLock<Arc<Vec<crate::workspace::WorkspaceImportPathIndexEntry>>>>,
+    workspace_path_cache: Arc<OnceLock<Arc<crate::workspace::WorkspacePathIndexCache>>>,
     manifest_watch_roots: Vec<SourceWatchRoot>,
     git_marker_watch_roots: Vec<PathBuf>,
     index_policy: WorkspaceIndexPolicy,
@@ -350,12 +350,12 @@ impl Config {
         self.workspace_path_cache = Arc::new(OnceLock::new());
     }
 
-    fn workspace_path_index(&self) -> WorkspacePathIndex<'_> {
-        let entries = Arc::clone(
+    pub(crate) fn workspace_path_index(&self) -> WorkspacePathIndex<'_> {
+        let cache = Arc::clone(
             self.workspace_path_cache
-                .get_or_init(|| WorkspacePathIndex::new(&self.workspaces).clone_import_entries()),
+                .get_or_init(|| Arc::new(WorkspacePathIndex::cache(&self.workspaces))),
         );
-        WorkspacePathIndex::with_import_entries(&self.workspaces, entries)
+        WorkspacePathIndex::with_cache(&self.workspaces, cache)
     }
 
     pub(crate) fn is_index_import_only_path(&self, path: &Path) -> bool {

@@ -2401,7 +2401,12 @@ impl GlobalStateSnapshot {
             files
         };
         let workspaces = self.analysis_workspaces();
-        let workspace_path_index = WorkspacePathIndex::new(&workspaces);
+        // Reuse the configured workspaces' immutable path index between analysis epochs.
+        let workspace_path_index = if self.config.workspaces().is_empty() {
+            WorkspacePathIndex::new(&workspaces)
+        } else {
+            self.config.workspace_path_index()
+        };
         let mut batches = workspaces
             .iter()
             .map(|workspace| AnalysisBatch::new(workspace.compile_opts().clone()))

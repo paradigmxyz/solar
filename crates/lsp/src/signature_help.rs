@@ -109,27 +109,28 @@ impl SignatureHelpIndex {
         &self,
         uri: &Url,
         position: Position,
-        contents: &Rope,
+        positions: &proto::LspPositionIndex<Rope>,
+        source: &str,
         visible_declarations: impl FnOnce(&str) -> Vec<&'a Location>,
         options: SignatureHelpClientOptions,
     ) -> Option<SignatureHelp> {
-        let positions = proto::LspPositionIndex::new(contents);
+        let contents = positions.rope();
         let cursor = positions.text_range(Range::new(position, position)).start;
-        let text = contents.byte_slice(..cursor).to_string();
-        let context = call_context(&text)?;
+        let context = call_context(&source[..cursor])?;
         let call = self.calls.get(uri).and_then(|calls| {
             calls.iter().find(|call| {
-                valid_text_position(contents, call.range.start)
-                    && positions.text_range(Range::new(call.range.start, call.range.start)).start
-                        == context.open
+                // Reject unrelated callables before converting their source positions.
+                call.form == context.form
                     && call
                         .callee_tokens
                         .last()
                         .map(String::as_str)
                         .filter(|token| is_identifier(token))
                         == context.callee_name
-                    && call.form == context.form
-                    && call.matches_current_callee(&positions)
+                    && valid_text_position(contents, call.range.start)
+                    && positions.text_range(Range::new(call.range.start, call.range.start)).start
+                        == context.open
+                    && call.matches_current_callee(positions)
             })
         });
         let (mut signatures, fallback): (Vec<&CallSignature>, _) = if let Some(call) = call {
@@ -278,7 +279,7 @@ impl SignatureHelpIndex {
 }
 
 impl CallSite {
-    fn matches_current_callee(&self, positions: &proto::LspPositionIndex<&Rope>) -> bool {
+    fn matches_current_callee(&self, positions: &proto::LspPositionIndex<Rope>) -> bool {
         let contents = positions.rope();
         if !valid_text_position(contents, self.callee_range.start)
             || !valid_text_position(contents, self.callee_range.end)
@@ -848,11 +849,34 @@ struct DelimiterFrame {
     open: usize,
 }
 
+/// Finds the last semicolon token, where call-context tracking resets.
+/// Retain the token itself as the barrier for backward call-form lookup.
+fn last_statement_boundary(text: &str) -> usize {
+    let bytes = text.as_bytes();
+    let mut cursor = 0;
+    let mut boundary = 0;
+    loop {
+        // Only strings and comments can contain semicolons that are not tokens. Skip ordinary
+        // code in bulk, then let the lexer handle quotes, escapes, and comment termination.
+        let next = memchr::memchr3(b'\'', b'"', b'/', &bytes[cursor..])
+            .map_or(bytes.len(), |offset| cursor + offset);
+        if let Some(offset) = memchr::memrchr(b';', &bytes[cursor..next]) {
+            boundary = cursor + offset;
+        }
+        if next == bytes.len() {
+            return boundary;
+        }
+        cursor = next + Cursor::new(&text[next..]).slop().len as usize;
+    }
+}
+
 fn call_context(text: &str) -> Option<CallContext<'_>> {
     let mut frames = Vec::<DelimiterFrame>::new();
     let mut significant = Vec::<(usize, usize)>::new();
+    let boundary = last_statement_boundary(text);
 
-    for (start, token) in Cursor::new(text).with_position() {
+    for (start, token) in Cursor::new(&text[boundary..]).with_position() {
+        let start = boundary + start;
         let end = start + token.len as usize;
         let lexeme = &text[start..end];
         if token.kind.is_trivial() {
@@ -1055,6 +1079,57 @@ fn is_identifier(value: &str) -> bool {
 mod tests {
     use super::*;
 
+    #[test]
+    fn statement_boundary_matches_lexer_at_every_cursor() {
+        let fragments = [
+            "",
+            ";",
+            "f(1, ",
+            "{}[]()",
+            "//;\r",
+            "//;\n",
+            "/*;*/",
+            "/* /*; */",
+            "/**/",
+            "/",
+            "/=",
+            "\\",
+            "\\\\",
+            "\";\"",
+            "'a;\\'b'",
+            "\"\\\\\";",
+            "\"\\\";\"",
+            "'",
+            "\"",
+            "/*;",
+            "//;",
+            "hex\";\"",
+            "unicode\"😀;\"",
+            "\0;",
+            "0x;",
+            "1e+;",
+            "😀;",
+        ];
+        for left in fragments {
+            for right in fragments {
+                let text = format!("{left}{right}; tail(");
+                for cursor in 0..=text.len() {
+                    if !text.is_char_boundary(cursor) {
+                        continue;
+                    }
+                    let prefix = &text[..cursor];
+                    let expected = Cursor::new(prefix)
+                        .with_position()
+                        .filter(|&(start, token)| &prefix[start..start + token.len as usize] == ";")
+                        .map(|(start, _)| start)
+                        .last()
+                        .unwrap_or(0);
+                    assert_eq!(last_statement_boundary(prefix), expected, "{prefix:?}");
+                }
+            }
+        }
+    }
+
     fn test_signature(label: &str, parameter_names: Vec<Option<&str>>) -> CallSignature {
         CallSignature {
             information: SignatureInformation {
@@ -1132,7 +1207,9 @@ mod tests {
             signatures: Vec::new(),
         };
 
-        assert!(!call.matches_current_callee(&proto::LspPositionIndex::new(&Rope::from("😀f"))));
+        assert!(
+            !call.matches_current_callee(&proto::LspPositionIndex::from_rope(Rope::from("😀f")))
+        );
     }
 
     #[test]
@@ -1145,6 +1222,6 @@ mod tests {
             signatures: Vec::new(),
         };
 
-        assert!(!call.matches_current_callee(&proto::LspPositionIndex::new(&Rope::from("f"))));
+        assert!(!call.matches_current_callee(&proto::LspPositionIndex::from_rope(Rope::from("f"))));
     }
 }

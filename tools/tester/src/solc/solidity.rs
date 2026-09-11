@@ -88,6 +88,10 @@ pub(crate) fn should_skip(path: &Path) -> Result<(), &'static str> {
         // Mapping key types are checked in sema.
         | "mapping_nonelementary_key_1"
         | "mapping_nonelementary_key_4"
+
+        // We allow named modifier and base-constructor arguments, which solc rejects.
+        | "inherited_constructor_named_parameters"
+        | "named_parameters_invocation"
     ) {
         return Err("manually skipped");
     };

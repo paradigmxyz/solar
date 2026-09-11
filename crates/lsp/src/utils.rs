@@ -26,6 +26,24 @@ pub(crate) fn apply_document_changes(
     text
 }
 
+/// Compare a rope's UTF-8 bytes with a contiguous string without flattening the rope.
+#[inline]
+pub(crate) fn rope_eq_str(contents: &Rope, text: &str) -> bool {
+    if contents.byte_len() != text.len() {
+        return false;
+    }
+
+    let mut offset = 0;
+    for chunk in contents.chunks() {
+        let end = offset + chunk.len();
+        if text.get(offset..end) != Some(chunk) {
+            return false;
+        }
+        offset = end;
+    }
+    true
+}
+
 pub(crate) fn rope_to_string(rope: &Rope) -> String {
     let mut source = String::with_capacity(rope.byte_len());
     for chunk in rope.chunks() {
@@ -36,9 +54,17 @@ pub(crate) fn rope_to_string(rope: &Rope) -> String {
 
 #[cfg(test)]
 mod tests {
-    use crate::utils::apply_document_changes;
+    use crate::utils::{apply_document_changes, rope_eq_str};
     use crop::Rope;
     use lsp_types::{Position, Range, TextDocumentContentChangeEvent};
+
+    #[test]
+    fn rope_eq_str_compares_chunked_utf8() {
+        let rope = Rope::from("alpha\nβeta😀");
+        assert!(rope_eq_str(&rope, "alpha\nβeta😀"));
+        assert!(!rope_eq_str(&rope, "alpha\nβeta"));
+        assert!(!rope_eq_str(&rope, "alpha\nβeta😃"));
+    }
 
     #[test]
     fn test_apply_document_changes() {

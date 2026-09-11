@@ -9,9 +9,10 @@ use solar_config::CompileOpts;
 use solar_lsp::{
     BenchmarkAnalysis, BenchmarkDocumentUpdate, BenchmarkFoldingRangeRequests,
     BenchmarkOpenDocuments, BenchmarkProject, BenchmarkRepeatedAnalysis, BenchmarkRequest,
-    BenchmarkResponse, BenchmarkSelectionRangeRequests, BenchmarkWorkspaceDiscovery,
-    BenchmarkWorkspacePathQueries, BenchmarkWorkspaceReports, benchmark_folding_ranges,
-    benchmark_folding_ranges_from_rope, benchmark_import_path_at, benchmark_selection_ranges,
+    BenchmarkResponse, BenchmarkSelectionRangeRequests, BenchmarkSignatureHelpRequests,
+    BenchmarkWorkspaceDiscovery, BenchmarkWorkspacePathQueries, BenchmarkWorkspaceReports,
+    benchmark_folding_ranges, benchmark_folding_ranges_from_rope, benchmark_import_path_at,
+    benchmark_selection_ranges,
 };
 use std::{fmt::Write as _, fs, hint::black_box, path::PathBuf};
 
@@ -169,6 +170,27 @@ fn code_lens_queries(c: &mut Criterion) {
     group.finish();
 }
 
+fn document_symbol_queries(c: &mut Criterion) {
+    let mut group = c.benchmark_group("lsp/document-symbol");
+    for function_count in [256, 1_024] {
+        let fixture = benchmark_source(function_count);
+        let (uri, _) = fixture
+            .project
+            .unique_anchor("benchmark.sol", "contract Benchmark")
+            .expect("the document-symbol anchor should be unique");
+        let analysis = fixture.project.analyze();
+        assert_clean(&analysis);
+        let symbols = analysis.document_symbols(&uri);
+        assert_eq!(symbols.len(), 1);
+        assert_eq!(symbols[0].children.as_ref().map_or(0, Vec::len), function_count + 1);
+        group.throughput(Throughput::Elements(function_count as u64));
+        group.bench_function(BenchmarkId::from_parameter(function_count), |b| {
+            b.iter(|| black_box(analysis.document_symbols(black_box(&uri))));
+        });
+    }
+    group.finish();
+}
+
 fn import_path_queries(c: &mut Criterion) {
     let mut group = c.benchmark_group("lsp/import-path");
     let cursor = OPTIMISM_SOURCE.rfind('}').unwrap();
@@ -210,6 +232,80 @@ fn completion_queries(c: &mut Criterion) {
             });
         });
     }
+    group.finish();
+}
+
+fn member_completion_queries(c: &mut Criterion) {
+    let mut group = c.benchmark_group("lsp/member-completion");
+    for access_count in [64, 256, 1024] {
+        let mut source = String::from(
+            "contract Benchmark {\nstruct Value { uint256 field; }\nfunction exercise(Value memory value) public pure returns (uint256 result) {\n",
+        );
+        for index in 0..access_count {
+            writeln!(source, "    result += value.field; // {index}").unwrap();
+        }
+        source.push_str("}\n}\n");
+        let project = BenchmarkProject::from_source(source);
+        let anchor = format!("value.field; // {}", access_count - 1);
+        let (uri, mut position) = project.unique_anchor("benchmark.sol", &anchor).unwrap();
+        position.character += "value.field".len() as u32;
+        let analysis = project.analyze();
+        assert_clean(&analysis);
+        let items = analysis.completions(&uri, position, "field");
+        assert_eq!(items.iter().map(|item| item.label.as_str()).collect::<Vec<_>>(), ["field"]);
+        group.bench_function(BenchmarkId::from_parameter(access_count), |b| {
+            b.iter(|| {
+                black_box(analysis.completions(
+                    black_box(&uri),
+                    black_box(position),
+                    black_box("field"),
+                ))
+            });
+        });
+    }
+    group.finish();
+}
+
+fn signature_help_requests(c: &mut Criterion) {
+    let mut group = c.benchmark_group("lsp/signature-help");
+    for function_count in [64, 256, 1024] {
+        let fixture = benchmark_source(function_count);
+        let anchor = format!("function_{:04}(1, ", function_count - 1);
+        let (uri, mut position) = fixture.project.unique_anchor("benchmark.sol", &anchor).unwrap();
+        position.character += anchor.len() as u32;
+        let mut requests = BenchmarkSignatureHelpRequests::new(fixture.project, uri, position);
+        let response = requests.run().expect("benchmark call should have signature help");
+        assert_eq!(response.active_parameter, Some(1));
+        assert_eq!(response.signatures.len(), 1);
+        assert!(
+            response.signatures[0].label.contains(&format!("function_{:04}", function_count - 1))
+        );
+        group.bench_function(BenchmarkId::from_parameter(function_count), |b| {
+            b.iter(|| black_box(requests.run()));
+        });
+    }
+
+    let project = unifap_project();
+    let (uri, mut position) = project
+        .unique_anchor(UNIFAP_ROUTER, "_safeTransferFrom(tokenB, msg.sender, pair, amountB)")
+        .unwrap();
+    position.character += "_safeTransferFrom(tokenB, ".len() as u32;
+    let mut requests = BenchmarkSignatureHelpRequests::new(project, uri, position);
+    let response = requests.run().expect("router call should have signature help");
+    assert_eq!(response.active_parameter, Some(1));
+    assert_eq!(response.signatures.len(), 1);
+    assert!(response.signatures[0].label.starts_with("function _safeTransferFrom("));
+    group.bench_function(BenchmarkId::from_parameter("unifap-v2-router"), |b| {
+        b.iter(|| black_box(requests.run()));
+    });
+    assert_eq!(requests.after_edit().run(), Some(response));
+    group.bench_function(BenchmarkId::from_parameter("unifap-v2-router-after-edit"), |b| {
+        b.iter_batched_ref(
+            || requests.after_edit(),
+            |requests| black_box(requests.run()),
+            BatchSize::PerIteration,
+        );
+    });
     group.finish();
 }
 
@@ -527,6 +623,42 @@ fn open_document_selection_range(c: &mut Criterion) {
     }
     group.finish();
 
+    let mut lines = c.benchmark_group("lsp/open-document-selection-range-line-layout");
+    for (name, separator, comment) in [
+        ("minified-ascii", " ", ""),
+        ("minified-unicode", " ", "/* 😀 */"),
+        ("multiline", "\n", ""),
+    ] {
+        let mut source = String::from("contract LineLayout {");
+        for index in 0..1024 {
+            write!(
+                source,
+                "{separator}{comment}function f{index}() external pure returns(uint){{return 123456;}}"
+            )
+            .unwrap();
+        }
+        source.push('}');
+        let literal_start = source.rfind("123456").unwrap();
+        let positions = [position_at(&source, literal_start + 2)];
+        let expected = benchmark_selection_ranges(source.clone(), &positions)
+            .expect("the benchmark position should be valid");
+        assert_eq!(
+            expected[0].range,
+            lsp_types::Range::new(
+                position_at(&source, literal_start),
+                position_at(&source, literal_start + "123456".len()),
+            )
+        );
+        assert!(expected[0].parent.is_some());
+        lines.throughput(Throughput::Bytes(source.len() as u64));
+        let requests = BenchmarkSelectionRangeRequests::new(source, positions);
+        assert_eq!(requests.run(), Some(expected));
+        lines.bench_function(BenchmarkId::from_parameter(name), |b| {
+            b.iter(|| black_box(black_box(&requests).run()));
+        });
+    }
+    lines.finish();
+
     let mut cold = c.benchmark_group("lsp/open-document-selection-range-cold");
     cold.throughput(Throughput::Bytes(OPTIMISM_SOURCE.len() as u64));
     cold.bench_function(BenchmarkId::from_parameter("optimism"), |b| {
@@ -621,6 +753,7 @@ fn workspace_path_queries(c: &mut Criterion) {
     let queries =
         BenchmarkWorkspacePathQueries::new(PATH_INDEX_WORKSPACE_COUNT, PATH_INDEX_QUERY_COUNT);
     assert_ne!(queries.run(), 0);
+    assert_eq!(queries.run(), queries.run_cached());
 
     let mut group = c.benchmark_group("lsp/workspace-path-queries");
     group.throughput(Throughput::Elements(PATH_INDEX_QUERY_COUNT as u64));
@@ -834,7 +967,10 @@ criterion_group!(
     benches,
     analysis_build,
     completion_queries,
+    member_completion_queries,
+    signature_help_requests,
     code_lens_queries,
+    document_symbol_queries,
     type_hierarchy_queries,
     call_hierarchy_queries,
     import_path_queries,

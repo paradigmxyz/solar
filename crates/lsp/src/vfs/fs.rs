@@ -65,11 +65,11 @@ impl VfsFile {
     }
 }
 
-/// An exact-content handle for sharing completion's source text and position index.
+/// An exact-content handle for sharing source text and its position index.
 #[derive(Clone)]
-pub(crate) struct CompletionSource(Arc<VfsFile>);
+pub(crate) struct DocumentSource(Arc<VfsFile>);
 
-impl CompletionSource {
+impl DocumentSource {
     pub(crate) fn contents(&self) -> &Rope {
         &self.0.contents
     }
@@ -168,6 +168,13 @@ impl Vfs {
         }
     }
 
+    /// Update an existing file's client version without replacing its contents.
+    pub(crate) fn set_file_version(&mut self, path: VfsPath, version: i32) {
+        debug_assert!(self.data.contains_key(&path));
+        self.versions.insert(path, version);
+        self.dirty = true;
+    }
+
     pub(crate) fn get_file_contents(&self, path: &VfsPath) -> Option<&Rope> {
         self.data.get(path).map(|file| &file.contents)
     }
@@ -177,8 +184,8 @@ impl Vfs {
         self.data.get(path).map(|file| file.analysis_source())
     }
 
-    pub(crate) fn get_file_completion_source(&self, path: &VfsPath) -> Option<CompletionSource> {
-        self.data.get(path).cloned().map(CompletionSource)
+    pub(crate) fn get_file_source(&self, path: &VfsPath) -> Option<DocumentSource> {
+        self.data.get(path).cloned().map(DocumentSource)
     }
 
     /// Returns an exact-content handle whose derived index can initialize outside the VFS lock.
@@ -400,12 +407,12 @@ mod tests {
     }
 
     #[test]
-    fn completion_sources_keep_text_and_positions_from_the_same_contents() {
+    fn document_sources_keep_text_and_positions_from_the_same_contents() {
         let mut vfs = Vfs::default();
         let file = path("/workspace/Test.sol");
         insert(&mut vfs, "/workspace/Test.sol", "α😀\r\nnext\rtail\n", 1);
-        let original = vfs.get_file_completion_source(&file).unwrap();
-        let at = |source: &CompletionSource, line, character| {
+        let original = vfs.get_file_source(&file).unwrap();
+        let at = |source: &DocumentSource, line, character| {
             let position = Position::new(line, character);
             source.positions().checked_text_range(lsp_types::Range::new(position, position))
         };
@@ -421,12 +428,12 @@ mod tests {
             Some(original.contents().clone()),
             Some(2),
         ));
-        let unchanged = vfs.get_file_completion_source(&file).unwrap();
+        let unchanged = vfs.get_file_source(&file).unwrap();
         assert!(std::ptr::eq(original.positions(), unchanged.positions()));
         assert!(Arc::ptr_eq(&original.source(), &unchanged.source()));
 
         insert(&mut vfs, "/workspace/Test.sol", "x\n😀z\n", 3);
-        let changed = vfs.get_file_completion_source(&file).unwrap();
+        let changed = vfs.get_file_source(&file).unwrap();
         assert_eq!(at(&changed, 1, 2), Some(6..6));
         assert_eq!(at(&changed, 2, 0), Some(8..8));
         assert_eq!(changed.source().as_str(), "x\n😀z\n");
@@ -439,8 +446,8 @@ mod tests {
             PathBuf::from("/workspace/Moved.sol"),
         )]))
         .unwrap();
-        assert!(vfs.get_file_completion_source(&file).is_none());
-        let renamed = vfs.get_file_completion_source(&moved).unwrap();
+        assert!(vfs.get_file_source(&file).is_none());
+        let renamed = vfs.get_file_source(&moved).unwrap();
         assert!(std::ptr::eq(changed.positions(), renamed.positions()));
         assert_eq!(at(&renamed, 1, 2), Some(6..6));
         vfs.set_file_contents(moved, None);

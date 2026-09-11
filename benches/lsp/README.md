@@ -26,7 +26,7 @@ executes a PR revision would give untrusted build code access to the default
 branch's Actions cache authority. The comment-triggered path keeps every job
 that builds or executes PR code separate from the trusted renderer.
 
-The cross-server workflow runs the `pr-smoke` core4/synthetic benchmark on every
+The cross-server workflow runs the `pr-smoke` synthetic benchmark on every
 pull request. To rerun that benchmark manually, add an exact `/bench
 cross-server` comment to the pull request. Its read-only benchmark job checks
 out the frozen PR head, while a separate job with comment permissions publishes

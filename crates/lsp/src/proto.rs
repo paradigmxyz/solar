@@ -171,7 +171,7 @@ impl<R: Borrow<Rope>> LspPositionIndex<R> {
         range: lsp_types::Range,
     ) -> Option<std::ops::Range<usize>> {
         let start = self.byte_position(range.start)?;
-        let end = self.byte_position(range.end)?;
+        let end = if range.start == range.end { start } else { self.byte_position(range.end)? };
         (start <= end).then_some(start..end)
     }
 
@@ -197,9 +197,14 @@ impl<R: Borrow<Rope>> LspPositionIndex<R> {
         let start = *self.line_starts.get(line)?;
         let end = self.line_end(line);
         let target = usize::try_from(position.character).ok()?;
+        let contents = rope.byte_slice(start..end);
+        // ASCII lines use one UTF-16 code unit per byte.
+        if contents.byte_len() == contents.utf16_len() {
+            return Some(start + target.min(contents.byte_len()));
+        }
         let mut utf16 = 0;
         let mut byte = start;
-        for ch in rope.byte_slice(start..end).chars() {
+        for ch in contents.chars() {
             if utf16 == target {
                 return Some(byte);
             }
@@ -217,8 +222,7 @@ impl<R: Borrow<Rope>> LspPositionIndex<R> {
         let rope = self.rope();
         let line = self.line_at_byte(byte)?;
         let start = self.line_starts[line];
-        let character =
-            rope.byte_slice(start..byte).chars().map(|ch| ch.len_utf16()).sum::<usize>();
+        let character = rope.byte_slice(start..byte).utf16_len();
         Some(lsp_types::Position::new(u32::try_from(line).ok()?, u32::try_from(character).ok()?))
     }
 
@@ -733,6 +737,10 @@ mod tests {
             checked_text_range(&rope, Range::new(Position::new(1, 0), Position::new(1, 0)),)
                 .is_none()
         );
+        assert!(
+            checked_text_range(&rope, Range::new(Position::new(0, 1), Position::new(0, 1)),)
+                .is_none()
+        );
     }
 
     #[test]
@@ -745,6 +753,39 @@ mod tests {
                     Range::new(Position::new(0, character), Position::new(0, character)),
                 ),
                 Some(5..5)
+            );
+        }
+    }
+
+    #[test]
+    fn checked_text_range_handles_ascii_lines_after_unicode() {
+        let ascii = "value ".repeat(1024);
+        for ending in ["\n", "\r\n", "\r"] {
+            let prefix = format!("😀{ending}");
+            let source = format!("{prefix}{ascii}{ending}");
+            let rope = Rope::from(source.as_str());
+            let index = super::LspPositionIndex::new(&rope);
+            for character in [0, 1, 1023, ascii.len() as u32, u32::MAX] {
+                let position = Position::new(1, character);
+                let byte = prefix.len() + (character as usize).min(ascii.len());
+                assert_eq!(
+                    index.checked_text_range(Range::new(position, position)),
+                    Some(byte..byte)
+                );
+            }
+            assert_eq!(
+                index.checked_text_range(Range::new(Position::new(1, 1), Position::new(1, 5))),
+                Some(prefix.len() + 1..prefix.len() + 5)
+            );
+            assert!(
+                index
+                    .checked_text_range(Range::new(Position::new(1, 5), Position::new(1, 1)))
+                    .is_none()
+            );
+            assert!(
+                index
+                    .checked_text_range(Range::new(Position::new(1, 0), Position::new(3, 0)))
+                    .is_none()
             );
         }
     }
@@ -818,6 +859,31 @@ mod tests {
         assert!(position_at_byte(&rope, 2).is_none());
         assert!(position_at_byte(&rope, 9).is_none());
         assert!(position_at_byte(&rope, rope.byte_len() + 1).is_none());
+    }
+
+    #[test]
+    fn position_at_byte_matches_utf16_columns_across_rope_chunks() {
+        let long_line = "xé中😀".repeat(512);
+        for ending in ["\n", "\r\n", "\r"] {
+            let lines = ["preceding😀", long_line.as_str(), ""];
+            let source = lines.join(ending);
+            let rope = Rope::from(source.as_str());
+            let index = super::LspPositionIndex::new(&rope);
+            let mut start = 0;
+            for (line, text) in lines.into_iter().enumerate() {
+                for byte in 0..=text.len() {
+                    let expected = text.get(..byte).map(|prefix| {
+                        Position::new(line as u32, prefix.encode_utf16().count() as u32)
+                    });
+                    assert_eq!(index.position_at_byte(start + byte), expected);
+                }
+                if ending == "\r\n" && line + 1 < lines.len() {
+                    assert!(index.position_at_byte(start + text.len() + 1).is_none());
+                }
+                start += text.len() + ending.len();
+            }
+            assert!(index.position_at_byte(source.len() + 1).is_none());
+        }
     }
 
     #[test]
