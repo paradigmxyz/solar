@@ -21,7 +21,7 @@ fn @arithmetic(arg0: u256) -> (u256, u256) [selector=0x9381a585, pure, abi_param
     ret v0, v3
 }
 
-fn @walk.2(arg0: u256, arg1: u256) -> (u256, u256) [unrestricted_memory] {
+fn @walk.2(arg0: u256, arg1: u256) -> (u256, u256) [yul, unrestricted_memory] {
   bb0:
     v0 = iszero arg0
     v1 = eq v0, 0
@@ -41,7 +41,7 @@ fn @walk.2(arg0: u256, arg1: u256) -> (u256, u256) [unrestricted_memory] {
     ret v3, 1
 }
 
-fn @container.3(arg0: u256, arg1: u256) -> (u256, u256) [unrestricted_memory] {
+fn @container.3(arg0: u256, arg1: u256) -> (u256, u256) [yul, unrestricted_memory] {
   bb0:
     v0 = add arg1, 1
     v1 = sub arg0, 1
@@ -55,7 +55,7 @@ fn @container.3(arg0: u256, arg1: u256) -> (u256, u256) [unrestricted_memory] {
     ret v2, v7
 }
 
-fn @walk.4(arg0: u256, arg1: u256) -> (u256, u256) {
+fn @walk.4(arg0: u256, arg1: u256) -> (u256, u256) [yul] {
   bb0:
     switch arg0, default bb3, [0 => bb2]
   bb2:
@@ -72,7 +72,7 @@ fn @walk.4(arg0: u256, arg1: u256) -> (u256, u256) {
     ret v4, v5
 }
 
-fn @container.5(arg0: u256, arg1: u256) -> (u256, u256) {
+fn @container.5(arg0: u256, arg1: u256) -> (u256, u256) [yul] {
   bb0:
     v0 = icall @addSteps, 1, arg0, arg1
     v1 = sub arg0, 1
@@ -84,7 +84,7 @@ fn @container.5(arg0: u256, arg1: u256) -> (u256, u256) {
     ret v2, v6
 }
 
-fn @addSteps(arg0: u256, arg1: u256) -> u256 {
+fn @addSteps(arg0: u256, arg1: u256) -> u256 [yul] {
   bb0:
     jump bb1
   bb1:

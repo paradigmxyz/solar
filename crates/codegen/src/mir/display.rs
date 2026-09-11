@@ -302,6 +302,9 @@ fn display_function_attributes(func: &Function, is_dispatch_entry: bool) -> impl
         if is_dispatch_entry {
             write_function_attribute(f, &mut first, "entry")?;
         }
+        if func.attributes.is_yul {
+            write_function_attribute(f, &mut first, "yul")?;
+        }
         if func.attributes.unrestricted_memory {
             write_function_attribute(f, &mut first, "unrestricted_memory")?;
         }

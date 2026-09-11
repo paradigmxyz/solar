@@ -12,7 +12,7 @@ fn @output() -> bytes32 [selector=0xf20eaeb8, unrestricted_memory, pure, abi_par
     ret v6
 }
 
-fn @emitWord(arg0: u256) -> (u256, u256) [unrestricted_memory] {
+fn @emitWord(arg0: u256) -> (u256, u256) [yul, unrestricted_memory] {
   bb0:
     v0 = shl 240, 0x1234
     mstore arg0, v0
@@ -337,7 +337,7 @@ fn @output(arg0: u256) -> u256 [selector=0x64f9016b, pure, abi_params=[u256], ab
     ret v6
 }
 
-fn @pair(arg0: u256) -> (u256, u256) {
+fn @pair(arg0: u256) -> (u256, u256) [yul] {
   bb0:
     v0 = add arg0, 1
     ret arg0, v0
@@ -365,7 +365,7 @@ fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
     stop
 }
 
-fn @pair(arg0: u256) -> (u256, u256) {
+fn @pair(arg0: u256) -> (u256, u256) [yul] {
   bb0:
     v0 = add arg0, 1
     ret arg0, v0

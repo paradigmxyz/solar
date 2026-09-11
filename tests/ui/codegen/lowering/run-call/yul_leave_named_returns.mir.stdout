@@ -23,7 +23,7 @@ fn @leaveMulti() -> (u256, u256) [selector=0x4478046f, unrestricted_memory, pure
     ret v0, v3
 }
 
-fn @skip(arg0: u256) -> u256 {
+fn @skip(arg0: u256) -> u256 [yul] {
   bb0:
     jump bb1
   bb1:
@@ -54,7 +54,7 @@ fn @skip(arg0: u256) -> u256 {
     ret v0
 }
 
-fn @f(arg0: u256) -> u256 {
+fn @f(arg0: u256) -> u256 [yul] {
   bb0:
     v0 = gt arg0, 10
     v1 = eq v0, 0
@@ -69,7 +69,7 @@ fn @f(arg0: u256) -> u256 {
     ret arg0
 }
 
-fn @pair(arg0: u256) -> (u256, u256) {
+fn @pair(arg0: u256) -> (u256, u256) [yul] {
   bb0:
     v0 = gt arg0, 5
     v1 = eq v0, 0

@@ -6,7 +6,7 @@ fn @permute(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0xa733caae, pu
     ret v0
 }
 
-fn @recurse(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+fn @recurse(arg0: u256, arg1: u256, arg2: u256) -> u256 [yul] {
   bb0:
     v0 = eq arg2, 0
     v1 = iszero v0

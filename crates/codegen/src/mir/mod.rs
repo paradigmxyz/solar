@@ -394,6 +394,14 @@ mod round_trip {
                 sess.emitted_diagnostics().unwrap()
             )
         })?;
+        if !module
+            .functions
+            .iter()
+            .map(|func| (func.name, func.attributes.is_yul))
+            .eq(parsed1.functions.iter().map(|func| (func.name, func.attributes.is_yul)))
+        {
+            return Err("function Yul attributes changed after parsing".to_string());
+        }
         let print2 = parsed1.to_text().to_string();
         let parsed2 = parse_module(sess, &print2).map_err(|_| {
             format!(

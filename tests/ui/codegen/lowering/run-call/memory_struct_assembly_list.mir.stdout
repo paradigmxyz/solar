@@ -152,7 +152,7 @@ fn @updateTail(arg0: memorystruct, arg1: memorystruct) [unrestricted_memory, pur
     stop
 }
 
-fn @encode(arg0: u256, arg1: u256) -> u256 [unrestricted_memory] {
+fn @encode(arg0: u256, arg1: u256) -> u256 [yul, unrestricted_memory] {
   bb0:
     v0 = iszero arg0
     v1 = eq v0, 0
@@ -173,7 +173,7 @@ fn @encode(arg0: u256, arg1: u256) -> u256 [unrestricted_memory] {
     ret v3
 }
 
-fn @encodeUint(arg0: u256, arg1: u256) -> u256 [unrestricted_memory] {
+fn @encodeUint(arg0: u256, arg1: u256) -> u256 [yul, unrestricted_memory] {
   bb0:
     v0 = add arg1, 1
     v1 = gt arg0, 127
@@ -219,7 +219,7 @@ fn @encodeUint(arg0: u256, arg1: u256) -> u256 [unrestricted_memory] {
     ret v0
 }
 
-fn @encodeAddress(arg0: u256, arg1: u256) -> u256 [unrestricted_memory] {
+fn @encodeAddress(arg0: u256, arg1: u256) -> u256 [yul, unrestricted_memory] {
   bb0:
     v0 = add arg1, 21
     v1 = shl 88, arg0
@@ -228,7 +228,7 @@ fn @encodeAddress(arg0: u256, arg1: u256) -> u256 [unrestricted_memory] {
     ret v0
 }
 
-fn @encodeBytes(arg0: u256, arg1: u256, arg2: u256) -> u256 [unrestricted_memory] {
+fn @encodeBytes(arg0: u256, arg1: u256, arg2: u256) -> u256 [yul, unrestricted_memory] {
   bb0:
     v0 = add arg1, 1
     v1 = mload arg0
@@ -328,7 +328,7 @@ fn @encodeBytes(arg0: u256, arg1: u256, arg2: u256) -> u256 [unrestricted_memory
     ret v19
 }
 
-fn @encodeList(arg0: u256, arg1: u256) -> u256 [unrestricted_memory] {
+fn @encodeList(arg0: u256, arg1: u256) -> u256 [yul, unrestricted_memory] {
   bb0:
     v0 = mload arg0
     v1 = iszero v0

@@ -872,6 +872,7 @@ fn equivalent_attributes(lhs: &Function, rhs: &Function) -> bool {
         && lhs.attributes.is_constructor == rhs.attributes.is_constructor
         && lhs.attributes.is_fallback == rhs.attributes.is_fallback
         && lhs.attributes.is_receive == rhs.attributes.is_receive
+        && lhs.attributes.is_yul == rhs.attributes.is_yul
         && lhs.attributes.may_return_memory == rhs.attributes.may_return_memory
         && lhs.attributes.unrestricted_memory == rhs.attributes.unrestricted_memory
         && lhs.attributes.is_function_pointer_dispatcher
@@ -946,5 +947,22 @@ fn redirect_calls(module: &mut Module, replacements: &FxHashMap<FunctionId, Func
                 *function = replacement;
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use solar_interface::Ident;
+
+    #[test]
+    fn equivalent_attributes_preserve_yul_semantics() {
+        let mut solidity = Function::new(Ident::DUMMY);
+        let mut yul = solidity.clone();
+        assert!(equivalent_attributes(&solidity, &yul));
+        yul.attributes.is_yul = true;
+        assert!(!equivalent_attributes(&solidity, &yul));
+        solidity.attributes.is_yul = true;
+        assert!(equivalent_attributes(&solidity, &yul));
     }
 }

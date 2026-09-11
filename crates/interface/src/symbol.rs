@@ -1232,6 +1232,7 @@ symbols! {
         word,
         wrap,
         x,
+        yul,
         zeroed,
     }
 }

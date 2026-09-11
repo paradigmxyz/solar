@@ -529,6 +529,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     builder.func_mut().abi_params = Some(self.parse_abi_param_layout()?);
                 }
                 sym::entry => self.parsed_dispatch_entry = true,
+                sym::yul => builder.func_mut().attributes.is_yul = true,
                 sym::unrestricted_memory => {
                     builder.func_mut().attributes.unrestricted_memory = true;
                 }
