@@ -343,9 +343,14 @@ class SemanticsTests(unittest.TestCase):
     def test_incomplete_partition_never_proves(self):
         x, n = Expr.var("x"), Expr.var("n")
         lhs = expression("shl", n, x)
-        with patch("evm_rules.semantics.time.monotonic", side_effect=[0, 1]):
-            result, _ = partition_shift(lhs, lhs, [], 500, Model())
-        self.assertEqual(result["status"], "unknown")
+        # Exhaust the budget before any query, or after coverage and one case.
+        for ticks, completed in (([0, 1], 0), ([0, 0, 0, 1], 2)):
+            with self.subTest(completed=completed):
+                with patch("evm_rules.semantics.time.monotonic", side_effect=ticks):
+                    result, queries = partition_shift(lhs, lhs, [], 500, Model())
+                self.assertEqual(result["status"], "unknown")
+                self.assertEqual(result["reason"], "word index partition budget exhausted")
+                self.assertEqual(len(queries), completed)
 
     def test_guard_shift_partition_covers_power_of_two_divisors(self):
         x, divisor, n = map(Expr.var, ("x", "divisor", "n"))
@@ -392,15 +397,21 @@ class SemanticsTests(unittest.TestCase):
         lhs = expression("signextend", a, expression("shl", b, x))
         both_max = expression("and", expression("eq", a, MASK), expression("eq", b, MASK))
         wrong = expression("select", both_max, expression("xor", lhs, 1), lhs)
-        result, queries = partition_shift(lhs, wrong, [], 5000, Model())
-        self.assertEqual(result["status"], "counterexample")
+        # Test all 289 queries independently of runner speed. Freeze only the
+        # aggregate deadline; each real Z3 check still has a five-second limit.
+        # test_incomplete_partition_never_proves covers budget exhaustion.
+        with patch("evm_rules.semantics.time.monotonic", return_value=0):
+            result, queries = partition_shift(lhs, wrong, [], 5000, Model())
+        self.assertEqual(result["status"], "counterexample", result)
         self.assertEqual(len(queries), 289)
         self.assertEqual(int(result["inputs"]["a"], 16), MASK)
         self.assertEqual(int(result["inputs"]["b"], 16), MASK)
         self.assertTrue(result["replayed"])
         guard = z3.BitVec("a", 256) != z3.BitVecVal(MASK, 256)
-        result, queries = partition_shift(lhs, wrong, [guard], 5000, Model())
-        self.assertEqual(result["status"], "proved")
+        with patch("evm_rules.semantics.time.monotonic", return_value=0):
+            result, queries = partition_shift(lhs, wrong, [guard], 5000, Model())
+        self.assertEqual(result["status"], "proved", result)
+        self.assertEqual((result["cases"], len(queries)), (288, 289))
         for _, query in queries:
             solver = z3.SolverFor("QF_BV")
             solver.set(timeout=5000)
