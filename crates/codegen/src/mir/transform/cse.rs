@@ -23,7 +23,12 @@
 //! ```
 //!
 //! The pass performs dominator-tree CSE with path-local invalidation for
-//! alias-sensitive memory/storage reads, then runs a local cleanup pass.
+//! alias-sensitive memory/storage reads, then runs a local cleanup pass. Slot hashes
+//! also write scratch memory; a repeated fixed-width hash can disappear only while
+//! its input and written ranges remain unchanged. Variable-width hashes can overwrite
+//! their source or the FMP itself, so they remain effectful until physical lowering. Check
+//! availability before applying the retained instruction's clobbers so an identical write does not
+//! invalidate itself.
 //!
 //! Loads at allocation bases stay local unless the cached value already crosses the block edge.
 //! Extending their lifetimes can add a spill whose store and reload cost more than the load.
@@ -35,8 +40,8 @@
 //! across edges. A preceding load or store already expanded memory through the entire slot.
 //!
 //! Safety contract:
-//! - cache only pure expressions, classified memory reads, and exact storage or transient-storage
-//!   reads
+//! - cache only pure expressions, classified reads, and idempotent slot hashes.
+//! - invalidate slot hashes when either their input or scratch memory may change.
 //! - invalidate memory reads by overlapping memory writes and unknown memory effects
 //! - invalidate storage reads by possibly-aliasing writes or calls that may re-enter and mutate the
 //!   current contract
@@ -52,7 +57,7 @@ use crate::mir::{
     StorageAlias, Value, ValueId,
     analysis::{
         Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, Liveness, Location,
-        LocationSize, MemoryCallSummaries, MemoryLocation,
+        LocationSize, MemoryAddress, MemoryCallSummaries, MemoryLocation,
     },
     memory::EvmMemoryLayout,
     pass::{MirPass, run_function_pass},
@@ -203,8 +208,6 @@ enum ExprKey {
     MLoad(MemRangeKey),
     Keccak256(MemRangeKey),
     MappingSlot(OperandKey, OperandKey),
-    MappingSlotMemory(OperandKey, OperandKey),
-    MappingSlotCalldata(OperandKey, OperandKey),
     StorageArrayDataSlot(OperandKey),
     StorageArrayElementSlot(OperandKey, OperandKey, u64),
     MakeSlice(OperandKey, OperandKey, SliceLocation),
@@ -562,23 +565,22 @@ impl CommonSubexprEliminator {
         while let Some((block_id, mut cache)) = worklist.pop() {
             for &inst_id in &func.blocks[block_id].instructions {
                 let kind = &func.inst(inst_id).kind;
-                if kind.has_side_effects() {
-                    self.update_for_side_effect(func, inst_id, kind, ctx.replacements, &mut cache);
-                    continue;
-                }
-
-                let Some(key) = self.make_expr_key(func, inst_id, kind, ctx.replacements) else {
-                    continue;
-                };
-
-                let Some(result) = func.inst_result_value(inst_id) else {
-                    continue;
-                };
-                if let Some(cached) = cache.get(&key) {
-                    ctx.replacements.insert(result, *cached);
+                let candidate = self
+                    .make_expr_key(func, inst_id, kind, ctx.replacements)
+                    .zip(func.inst_result_value(inst_id));
+                if let Some((key, result)) = &candidate
+                    && let Some(cached) = cache.get(key)
+                {
+                    // repeated expression with unchanged read/write dependencies -> cached value
+                    ctx.replacements.insert(*result, *cached);
                     ctx.dead.insert(inst_id);
                     self.eliminated_count += 1;
-                } else {
+                    continue;
+                }
+                if kind.has_side_effects() {
+                    self.update_for_side_effect(func, inst_id, kind, ctx.replacements, &mut cache);
+                }
+                if let Some((key, result)) = candidate {
                     cache.insert(key, result);
                 }
             }
@@ -690,7 +692,9 @@ impl CommonSubexprEliminator {
                 | InstKind::MemoryObjectLen(_, _)
                 | InstKind::Keccak256(_, _)
                 | InstKind::Keccak256Bytes(_)
-                | InstKind::MappingSlotMemory(_, _)
+                | InstKind::MappingSlot(..)
+                | InstKind::StorageArrayDataSlot(..)
+                | InstKind::StorageArrayElementSlot { .. }
                 | InstKind::SLoad(_)
                 | InstKind::TLoad(_)
                 | InstKind::ExtCodeSize(_)
@@ -718,24 +722,23 @@ impl CommonSubexprEliminator {
             let inst = func.inst(inst_id);
             let kind = &inst.kind;
 
-            if kind.has_side_effects() {
-                self.update_for_side_effect(func, inst_id, kind, &replacements, &mut expr_cache);
+            let candidate = self
+                .make_expr_key(func, inst_id, kind, &replacements)
+                .zip(func.inst_result_value(inst_id));
+            if let Some((key, result)) = &candidate
+                && let Some(&cached_value) = expr_cache.get(key)
+            {
+                // repeated expression with unchanged read/write dependencies -> cached value
+                replacements.insert(*result, cached_value);
+                to_remove.insert(inst_id);
+                self.eliminated_count += 1;
                 continue;
             }
-
-            // Try to create an expression key
-            if let Some(key) = self.make_expr_key(func, inst_id, kind, &replacements)
-                && let Some(result) = func.inst_result_value(inst_id)
-            {
-                if let Some(&cached_value) = expr_cache.get(&key) {
-                    // This expression was already computed - mark for elimination
-                    replacements.insert(result, cached_value);
-                    to_remove.insert(inst_id);
-                    self.eliminated_count += 1;
-                } else {
-                    // First occurrence - cache it
-                    expr_cache.insert(key, result);
-                }
+            if kind.has_side_effects() {
+                self.update_for_side_effect(func, inst_id, kind, &replacements, &mut expr_cache);
+            }
+            if let Some((key, result)) = candidate {
+                expr_cache.insert(key, result);
             }
         }
 
@@ -872,12 +875,6 @@ impl CommonSubexprEliminator {
             }
             InstKind::MappingSlot(key, slot) => {
                 Some(ExprKey::MappingSlot(operand(*key), operand(*slot)))
-            }
-            InstKind::MappingSlotMemory(key, slot) => {
-                Some(ExprKey::MappingSlotMemory(operand(*key), operand(*slot)))
-            }
-            InstKind::MappingSlotCalldata(key, slot) => {
-                Some(ExprKey::MappingSlotCalldata(operand(*key), operand(*slot)))
             }
             InstKind::StorageArrayDataSlot(slot) => {
                 Some(ExprKey::StorageArrayDataSlot(operand(*slot)))
@@ -1052,13 +1049,31 @@ impl CommonSubexprEliminator {
                 .preserves(*read, |read, write| {
                     AliasAnalysis::memory_alias_locations(read, write).may_alias()
                 }),
-            ExprKey::MappingSlotMemory(..) => false,
+            ExprKey::MappingSlot(..)
+            | ExprKey::StorageArrayDataSlot(..)
+            | ExprKey::StorageArrayElementSlot(..) => {
+                let words = if matches!(key, ExprKey::MappingSlot(..)) { 2 } else { 1 };
+                let scratch = MemoryLocation::new(
+                    MemoryAddress::absolute(0),
+                    LocationSize::Const(words * EvmMemoryLayout::WORD_SIZE),
+                );
+                write.preserves(scratch, |scratch, write| {
+                    AliasAnalysis::memory_alias_locations(scratch, write).may_alias()
+                })
+            }
             _ => true,
         });
     }
 
     fn is_memory_expr(key: &ExprKey) -> bool {
-        matches!(key, ExprKey::MLoad(_) | ExprKey::Keccak256(_) | ExprKey::MappingSlotMemory(..))
+        matches!(
+            key,
+            ExprKey::MLoad(_)
+                | ExprKey::Keccak256(_)
+                | ExprKey::MappingSlot(..)
+                | ExprKey::StorageArrayDataSlot(..)
+                | ExprKey::StorageArrayElementSlot(..)
+        )
     }
 
     fn is_account_environment_expr(key: &ExprKey) -> bool {
@@ -1092,8 +1107,6 @@ impl CommonSubexprEliminator {
             ExprKey::MLoad(_)
                 | ExprKey::Keccak256(_)
                 | ExprKey::MappingSlot(..)
-                | ExprKey::MappingSlotMemory(..)
-                | ExprKey::MappingSlotCalldata(..)
                 | ExprKey::StorageArrayDataSlot(..)
                 | ExprKey::StorageArrayElementSlot(..)
                 | ExprKey::SLoad(_)

@@ -158,3 +158,26 @@ fn @dead_memory_observer() {
     v2 = add v1, v1
     ret
 }
+
+// CHECK-LABEL: fn @unused_state_queries
+// CHECK: - {{v[0-9]+}} = icall @read_storage, arg0
+// CHECK: - {{v[0-9]+}} = icall @read_account, arg0
+// CHECK: {{^[ +].*}}ret
+fn @unused_state_queries(arg0: u256) {
+  bb0:
+    v1 = icall @read_storage, arg0
+    v2 = icall @read_account, arg0
+    ret
+}
+
+fn @read_storage(arg0: u256) -> u256 {
+  bb0:
+    v1 = sload arg0
+    ret v1
+}
+
+fn @read_account(arg0: u256) -> u256 {
+  bb0:
+    v1 = balance arg0
+    ret v1
+}

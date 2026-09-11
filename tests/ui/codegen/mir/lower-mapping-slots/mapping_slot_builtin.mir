@@ -49,12 +49,40 @@ fn @memory(arg0: memptr) -> u256 {
 }
 
 // CHECK: {{^[ +].*}}fn @calldata{{[( ]}}
-// CHECK: - [[HASH:v[0-9]+]] = mapping_slot_calldata arg0, 11
-// CHECK: - {{v[0-9]+}} = add [[HASH]], [[HASH]]
+// CHECK: + [[FIRST:v[0-9]+]] = keccak256
+// CHECK: + [[SECOND:v[0-9]+]] = keccak256
+// CHECK: + {{v[0-9]+}} = add [[FIRST]], [[SECOND]]
 fn @calldata(arg0: calldataslice) -> u256 {
   bb0:
     v1 = mapping_slot_calldata arg0, 11
     v2 = mapping_slot_calldata arg0, 11
     v3 = add v1, v2
     ret v3
+}
+
+// CHECK: {{^[ +].*}}fn @word_after_scratch_write{{[( ]}}
+// CHECK: + [[BEFORE:v[0-9]+]] = keccak256 0, 64
+// CHECK: {{^[ +].*}}mstore 0, arg1
+// CHECK: + [[AFTER:v[0-9]+]] = keccak256 0, 64
+// CHECK: {{^[ +].*}}add [[BEFORE]], [[AFTER]]
+fn @word_after_scratch_write(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    v2 = mapping_slot arg0, 7
+    mstore 0, arg1
+    v3 = mapping_slot arg0, 7
+    v4 = add v2, v3
+    ret v4
+}
+
+// CHECK: {{^[ +].*}}fn @array_after_disjoint_write{{[( ]}}
+// CHECK: + [[ARRAY:v[0-9]+]] = keccak256 0, 32
+// CHECK: {{^[ +].*}}mstore 32, arg1
+// CHECK: {{^[ +].*}}add [[ARRAY]], [[ARRAY]]
+fn @array_after_disjoint_write(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    v2 = storage_array_data_slot arg0
+    mstore 32, arg1
+    v3 = storage_array_data_slot arg0
+    v4 = add v2, v3
+    ret v4
 }

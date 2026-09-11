@@ -233,7 +233,10 @@ impl Access {
     }
 }
 
-/// Memory and state accesses performed by one MIR operation.
+/// Memory and state accesses that one MIR operation may perform.
+///
+/// A write footprint bounds possible writes; it does not prove that the
+/// operation overwrites every byte or executes the write on every path.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct ModRef {
     reads: SmallVec<[Access; 4]>,
@@ -243,13 +246,13 @@ pub(crate) struct ModRef {
 }
 
 impl ModRef {
-    /// Returns exact and address-space-wide reads.
+    /// Returns exact and address-space-wide possible reads.
     #[must_use]
     pub(crate) fn reads(&self) -> &[Access] {
         &self.reads
     }
 
-    /// Returns exact and address-space-wide writes.
+    /// Returns exact and address-space-wide possible writes.
     #[must_use]
     pub(crate) fn writes(&self) -> &[Access] {
         &self.writes
@@ -999,6 +1002,21 @@ impl AliasAnalysis {
         let kind = &func.inst(inst_id).kind;
         let resolve = |value| crate::mir::utils::resolve_replacement(value, replacements);
         let mut effects = ModRef::default();
+        let scratch_words = match kind {
+            InstKind::StorageBytesStore(..)
+            | InstKind::StorageBytesStoreLiteral { .. }
+            | InstKind::StorageClearWords(..)
+            | InstKind::StorageArrayDataSlot(..)
+            | InstKind::StorageArrayElementSlot { .. } => 1,
+            InstKind::MappingSlot(..) => 2,
+            _ => 0,
+        };
+        if scratch_words != 0 {
+            effects.write(Access::Location(Location::Memory(MemoryLocation::new(
+                MemoryAddress::absolute(0),
+                LocationSize::Const(scratch_words * EvmMemoryLayout::WORD_SIZE),
+            ))));
+        }
         let read_memory = |effects: &mut ModRef, address, size| {
             if let Some(location) = self.memory_location(
                 func,
@@ -1284,6 +1302,12 @@ impl AliasAnalysis {
             }
             InstKind::MappingSlotMemory(address, _) => {
                 read_memory(&mut effects, address, SizeOperand::Unknown);
+                effects.read(Access::Location(Location::Memory(Self::fmp_location())));
+                effects.write_any(AddressSpace::Memory);
+            }
+            InstKind::MappingSlotCalldata(..) => {
+                effects.read(Access::Location(Location::Memory(Self::fmp_location())));
+                effects.write_any(AddressSpace::Memory);
             }
             InstKind::MSize => effects.observes_memory_size = true,
             InstKind::SLoad(slot) => effects.read(Access::Location(Location::Storage(
@@ -1849,7 +1873,9 @@ impl AliasAnalysis {
         call_summaries: Option<&MemoryCallSummaries>,
     ) -> bool {
         match func.inst(inst).kind {
-            InstKind::SetFmp(_) => true,
+            InstKind::SetFmp(_)
+            | InstKind::MappingSlotMemory(..)
+            | InstKind::MappingSlotCalldata(..) => true,
             InstKind::ICall { function: Callee::Function(function), .. } => call_summaries
                 .and_then(|summaries| summaries.get(function))
                 .is_none_or(|summary| summary.may_reset_fmp()),
@@ -2000,12 +2026,77 @@ enum SizeOperand {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::{FunctionBuilder, MirType, TypeSize};
+    use crate::mir::{FunctionBuilder, Instruction, MirType, TypeSize};
     use alloy_primitives::U256;
     use solar_interface::Ident;
 
     fn function() -> Function {
         Function::new(Ident::DUMMY)
+    }
+
+    #[test]
+    fn semantic_hashes_declare_lowering_memory_writes() {
+        let mut func = function();
+        let cases = {
+            let mut builder = FunctionBuilder::new(&mut func);
+            let slot = builder.add_param(MirType::uint256());
+            let object = builder.add_param(MirType::MemoryObject(MemoryObjectKind::Bytes));
+            let calldata = builder.add_param(MirType::Slice(SliceLocation::Calldata));
+            let cases = [
+                (InstKind::StorageBytesStore(slot, object), Some(32), false),
+                (
+                    InstKind::StorageBytesStoreLiteral { slot, bytes: Default::default() },
+                    Some(32),
+                    false,
+                ),
+                (InstKind::StorageClearWords(slot, slot, slot), Some(32), false),
+                (InstKind::StorageArrayDataSlot(slot), Some(32), true),
+                (
+                    InstKind::StorageArrayElementSlot { slot, index: slot, element_slots: 2 },
+                    Some(32),
+                    true,
+                ),
+                (InstKind::MappingSlot(slot, slot), Some(64), true),
+                (InstKind::MappingSlotMemory(object, slot), None, true),
+                (InstKind::MappingSlotCalldata(calldata, slot), None, true),
+            ];
+            cases.map(|(kind, size, has_result)| {
+                // semantic hash/store operands
+                let inst = Instruction::new(kind, has_result.then_some(MirType::uint256()));
+                (builder.append_instruction(inst).0, size)
+            })
+        };
+        let aa = AliasAnalysis::new(&func);
+        for (inst, size) in cases {
+            let effects = aa.instruction_mod_ref(&func, inst);
+            let memory_writes = effects
+                .writes()
+                .iter()
+                .copied()
+                .filter(|access| {
+                    matches!(
+                        access,
+                        Access::Any(AddressSpace::Memory) | Access::Location(Location::Memory(_))
+                    )
+                })
+                .collect::<Vec<_>>();
+            let expected = size.map_or(Access::Any(AddressSpace::Memory), |size| {
+                Access::Location(Location::Memory(MemoryLocation::new(
+                    MemoryAddress::absolute(0),
+                    LocationSize::Const(size),
+                )))
+            });
+            assert_eq!(memory_writes, [expected], "{:?}", func.inst(inst).kind);
+            let behavior = func.inst(inst).kind.effects();
+            assert!(behavior.must_execute(false));
+            assert!(behavior.expands_memory);
+            assert_eq!(
+                behavior.can_common(),
+                size.is_some() && func.inst(inst).result_ty.is_some()
+            );
+            assert!(!behavior.can_speculate());
+            assert_eq!(aa.instruction_may_reset_fmp(&func, inst), size.is_none());
+        }
     }
 
     #[test]

@@ -238,6 +238,9 @@ impl FunctionMemorySummary {
     }
 
     /// Whether an unused call can disappear without losing effects or termination behavior.
+    ///
+    /// State reads remain discardable, matching ordinary DCE and solc. Their incidental
+    /// access-list warming does not pin a call whose result is unused.
     pub(crate) fn can_discard_call(&self, observes_msize: bool) -> bool {
         !(self.observable
             || self.control.any()
@@ -721,11 +724,15 @@ fn observe_sources(
 
 /// Returns whether an instruction reads the free-memory pointer or the memory size directly.
 ///
-/// Compiler-owned allocations are still abstract here and cannot relate a pointer argument to
-/// the heap; only source-visible pointer reads and writes can.
+/// Compiler-owned allocations stay abstract. Raw pointer operations and semantic hashes
+/// using transient heap scratch can expose a pointer's position relative to the heap.
 fn instruction_observes_fmp(func: &Function, inst_id: InstId) -> bool {
     match func.inst(inst_id).kind {
-        InstKind::Fmp | InstKind::SetFmp(_) | InstKind::MSize => true,
+        InstKind::Fmp
+        | InstKind::SetFmp(_)
+        | InstKind::MSize
+        | InstKind::MappingSlotMemory(..)
+        | InstKind::MappingSlotCalldata(..) => true,
         InstKind::MLoad(address) | InstKind::MStore(address, _) => {
             func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
         }
@@ -735,7 +742,9 @@ fn instruction_observes_fmp(func: &Function, inst_id: InstId) -> bool {
 
 fn instruction_may_recycle_fmp(func: &Function, inst_id: InstId) -> bool {
     match func.inst(inst_id).kind {
-        InstKind::SetFmp(_) => true,
+        InstKind::SetFmp(_)
+        | InstKind::MappingSlotMemory(..)
+        | InstKind::MappingSlotCalldata(..) => true,
         InstKind::MStore(address, value) => {
             if func.value_u64(address) != Some(EvmMemoryLayout::FMP_SLOT) {
                 return false;

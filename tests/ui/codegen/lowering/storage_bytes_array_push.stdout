@@ -167,6 +167,7 @@ fn @pushEmpty() [selector=0x19d30117, abi_wrapper] {
     jumpi v1, bb1, bb2
   bb2:
     v2 = add v0, 1
+    mstore 0, 2 !metadata(memory=scratch)
     sstore 2, v2 !metadata(storage=slot(2))
     stop
   bb1:

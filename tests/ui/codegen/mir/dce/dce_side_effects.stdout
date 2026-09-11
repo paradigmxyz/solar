@@ -125,3 +125,22 @@
       ret
   }
   
+  fn @unused_state_queries(arg0: u256) {
+    bb0:
+-     v0 = icall @read_storage, arg0
+-     v1 = icall @read_account, arg0
+      ret
+  }
+  
+  fn @read_storage(arg0: u256) -> u256 {
+    bb0:
+      v0 = sload arg0
+      ret v0
+  }
+  
+  fn @read_account(arg0: u256) -> u256 {
+    bb0:
+      v0 = balance arg0
+      ret v0
+  }
+  

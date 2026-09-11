@@ -82,7 +82,7 @@
   
   fn @overwrites_memory(arg0: memptr) -> u256 {
     bb0:
--     mstore arg0, 7
+      mstore arg0, 7
       storage_to_memory struct<word>, 0, arg0
       v0 = mload arg0
       ret v0
@@ -150,6 +150,7 @@
   
   fn @overwrites_memory(arg0: memptr) -> u256 {
     bb0:
+      mstore arg0, 7
       storage_to_memory struct<word>, 0, arg0
       v0 = mload arg0
       ret v0
@@ -224,6 +225,7 @@
   
   fn @overwrites_memory(arg0: memptr) -> u256 {
     bb0:
+      mstore arg0, 7
       storage_to_memory struct<word>, 0, arg0
       v0 = mload arg0
       ret v0
@@ -291,6 +293,7 @@
   
   fn @overwrites_memory(arg0: memptr) -> u256 {
     bb0:
+      mstore arg0, 7
       storage_to_memory struct<word>, 0, arg0
       v0 = mload arg0
       ret v0

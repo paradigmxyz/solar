@@ -257,6 +257,12 @@ loop allocations lack this guarantee after an explicit pointer reset. Do not
 attach heap-allocated effect records to every instruction. Unknown calls remain
 conservative; known intrinsics expose their summaries without expanding their
 implementation.
+Slot hashes declare their scratch writes, including the writes hidden inside
+storage-bytes stores and clearing. CSE can reuse a fixed-width slot hash only
+while both its input and written memory remain unchanged. Variable-width hashes
+need the physical alias proofs available after lowering. DCE retains their writes,
+and motion cannot speculate them onto a new path. Access summaries bound possible
+reads and writes; DSE requires an unconditional store to prove an overwrite.
 DCE, CSE, and LICM use shared derived deletion, commoning, and speculation
 properties. Internal-call summaries include failure, divergence, and external
 termination. Compute them only for called functions, including tail-call targets;
@@ -264,6 +270,9 @@ uncalled bodies need no interprocedural summary. DCE removes unused calls only
 when these summaries prove normal termination and no observable effects. Recursive calls and possible CFG cycles
 remain conservative. DCE and ADCE preserve memory expansion when `msize` in the
 function or a callee can observe it.
+As in solc, unused storage/account reads and normally returning calls containing
+only those reads may disappear, including their implicit access-list warming.
+Optimization preserves required effects rather than exact gas consumption.
 
 Track changing observations such as `gasleft`, returndata, balances, `msize`,
 and the free-memory pointer separately from stable inputs such as calldata.
@@ -522,8 +531,9 @@ bytecode-neutral throughout these rewrites.
 Static allocation keeps shared frames fixed so one entry's local objects cannot
 raise another entry's heap floor. Locals go before spills when their PUSH widths
 stay unchanged, after spills when they fit below shared frames, or after the
-entry's reachable frames. A reserved heap prefix stays between these locals and
-the initial free-memory pointer. Prefix analysis follows bounded constant
+entry's reachable frames. Entries with backward heap consumers keep dynamic
+allocation: a guard belongs below the initial heap, while later allocations
+must remain adjacent to their resulting free-memory pointer. Prefix analysis follows bounded constant
 add/sub offsets with EVM modular arithmetic, including helper returns and
 merged paths. A known backward offset from an opaque base still reserves space;
 losing pointer provenance does not discard that offset. Forward offsets reduce

@@ -565,13 +565,21 @@ impl<'gcx> EvmCodegen<'gcx> {
         for func_id in runtime_entries {
             let Some(allocations) = self.pending_static_allocs.remove(&func_id) else { continue };
             let guard = reachable_heap_prefix_guards.get(&func_id).copied().unwrap_or(0);
+            if guard != 0 {
+                // alloc = mload(FMP_SLOT)
+                // mstore(FMP_SLOT, alloc + size)
+                // Backward heap consumers may observe adjacency to the preceding allocation.
+                for (alloc, size) in allocations {
+                    self.asm.set_deferred_alloc_dynamic(alloc, U256::from(size));
+                }
+                continue;
+            }
             for (alloc, size) in allocations {
                 let current_static_size = static_alloc_sizes.get(&func_id).copied().unwrap_or(0);
                 let proposed_static_size = current_static_size + size;
                 let current_end = entry_ends[&func_id];
                 let proposed_end = current_end + size;
-                let prefix_fits = guard == 0
-                    && !heap_alloc_ends.contains_key(&func_id)
+                let prefix_fits = !heap_alloc_ends.contains_key(&func_id)
                     && (placed.is_empty() || proposed_end <= region_start);
                 let spills_width_neutral =
                     self.external_spill_addr_consts.get(&func_id).is_none_or(|spills| {
@@ -602,12 +610,12 @@ impl<'gcx> EvmCodegen<'gcx> {
                     entry_ends.insert(func_id, proposed_end);
                     post_spill_entries.insert(func_id);
                 } else {
-                    // alloc = max(reachable_frame_end, previous_local_end) + heap_prefix_guard
-                    // fmp = alloc + size + heap_prefix_guard
-                    let address = heap_alloc_ends.get(&func_id).map_or_else(
-                        || free_memory_floor(func_id, &entry_ends, region_start),
-                        |end| end.checked_add(guard).expect("runtime heap prefix overflow"),
-                    );
+                    // alloc = max(reachable_frame_end, previous_local_end)
+                    // fmp = alloc + size
+                    let address = heap_alloc_ends
+                        .get(&func_id)
+                        .copied()
+                        .unwrap_or_else(|| free_memory_floor(func_id, &entry_ends, region_start));
                     self.asm.set_deferred_alloc_static(alloc, U256::from(address));
                     heap_alloc_ends.insert(func_id, address + size);
                 }
@@ -642,11 +650,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             .map(|entry| {
                 let floor = free_memory_floor(entry, &entry_ends, region_start);
                 let local_end = heap_alloc_ends.get(&entry).copied().unwrap_or(0);
-                let guard = reachable_heap_prefix_guards.get(&entry).copied().unwrap_or(0);
-                (
-                    entry,
-                    floor.max(local_end.checked_add(guard).expect("runtime heap prefix overflow")),
-                )
+                (entry, floor.max(local_end))
             })
             .collect();
         for (entry, id) in self.runtime_free_memory_consts.drain() {
@@ -1109,6 +1113,28 @@ mod tests {
             );
             assert!(visiting.is_empty());
         }
+    }
+
+    #[test]
+    fn heap_prefix_guard_covers_consumers_only() {
+        let mut function = Function::new(Ident::DUMMY);
+        let mut builder = FunctionBuilder::new(&mut function);
+        // base = fmp
+        // prefix = base - 32
+        // adjacent = base + 32
+        let base = builder.fmp();
+        let word = builder.imm(32);
+        let prefix = builder.sub(base, word);
+        let adjacent = builder.add(base, word);
+        assert_eq!(EvmCodegen::heap_prefix_guard(&function, &FxHashMap::default()), 0);
+
+        // hash(adjacent, 32)
+        FunctionBuilder::new(&mut function).keccak256(adjacent, word);
+        assert_eq!(EvmCodegen::heap_prefix_guard(&function, &FxHashMap::default()), 0);
+
+        // hash(prefix, 32)
+        FunctionBuilder::new(&mut function).keccak256(prefix, word);
+        assert_eq!(EvmCodegen::heap_prefix_guard(&function, &FxHashMap::default()), 32);
     }
 
     #[test]

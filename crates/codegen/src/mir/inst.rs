@@ -1367,20 +1367,17 @@ pub(crate) enum InstKind {
     EcRecover(ValueId, ValueId, ValueId, ValueId),
     /// Hash a fixed-width mapping key and its parent slot.
     ///
-    /// The temporary scratch memory used by its late lowering is not an
-    /// observable part of this instruction's MIR semantics.
+    /// Its lowering writes both words of reserved scratch memory.
     MappingSlot(ValueId, ValueId),
     /// Hash a `[length][data...]` memory value and its parent mapping slot.
     MappingSlotMemory(ValueId, ValueId),
     /// Hash a dynamically-sized calldata value and its parent mapping slot.
     ///
-    /// The temporary scratch memory used by its late lowering is not an
-    /// observable part of this instruction's MIR semantics.
+    /// Its lowering writes transient scratch at the free-memory pointer.
     MappingSlotCalldata(ValueId, ValueId),
     /// Hash the slot of a dynamically-sized storage array to find its data.
     ///
-    /// The temporary scratch memory used by its late lowering is not an
-    /// observable part of this instruction's MIR semantics.
+    /// Its lowering writes the first word of reserved scratch memory.
     StorageArrayDataSlot(ValueId),
     /// Resolve one element slot in a dynamic storage array.
     ///
@@ -2298,6 +2295,11 @@ impl InstKind {
             Self::StorageBytesLoad(..)
             | Self::StorageArrayLoad { .. }
             | Self::Erc7201(..)
+            | Self::MappingSlot(..)
+            | Self::MappingSlotMemory(..)
+            | Self::MappingSlotCalldata(..)
+            | Self::StorageArrayDataSlot(..)
+            | Self::StorageArrayElementSlot { .. }
             | Self::AbiEncodePacked { .. }
             | Self::ICall { function: Callee::Builtin(Builtin::Concat(_)), .. }
             | Self::ReturndataBytes
@@ -2336,9 +2338,7 @@ impl InstKind {
             | Self::Fmp
             | Self::MSize
             | Self::Keccak256(_, _)
-            | Self::Keccak256Bytes(_)
-            | Self::MappingSlot(_, _)
-            | Self::MappingSlotMemory(_, _) => EffectKind::MemoryRead,
+            | Self::Keccak256Bytes(_) => EffectKind::MemoryRead,
             Self::SLoad(_) => EffectKind::StorageRead,
             Self::SStore(_, _)
             | Self::MemoryToStorage { .. }
@@ -2370,7 +2370,6 @@ impl InstKind {
             | Self::Log4(_, _, _, _, _, _) => EffectKind::Log,
             Self::CalldataLoad(_)
             | Self::CalldataSliceLoadWord { .. }
-            | Self::MappingSlotCalldata(_, _)
             | Self::CalldataSize
             | Self::ConstructorArgsBase
             | Self::ConstructorArgsEnd
@@ -2399,8 +2398,6 @@ impl InstKind {
             | Self::BlobHash(_) => EffectKind::EnvironmentRead,
             Self::LoadImmutable(_) => EffectKind::ImmutableRead,
             Self::Add(_, _)
-            | Self::StorageArrayDataSlot(_)
-            | Self::StorageArrayElementSlot { .. }
             | Self::Sub(_, _)
             | Self::Mul(_, _)
             | Self::Div(_, _)

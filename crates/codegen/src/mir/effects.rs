@@ -41,6 +41,7 @@ pub(crate) struct InstructionEffects {
     pub(crate) expands_memory: bool,
     observes_execution: bool,
     has_identity: bool,
+    idempotent_write: bool,
 }
 
 impl InstructionEffects {
@@ -49,14 +50,17 @@ impl InstructionEffects {
         self.observable || self.control.any() || (observes_msize && self.expands_memory)
     }
 
-    /// Whether equal operands and unchanged read dependencies can justify sharing a result.
+    /// Whether equal operands and unchanged read/write dependencies allow sharing a result.
     pub(crate) const fn can_common(self) -> bool {
-        !self.must_execute(false) && !self.observes_execution && !self.has_identity
+        (!self.observable || self.idempotent_write)
+            && !self.control.any()
+            && !self.observes_execution
+            && !self.has_identity
     }
 
     /// Whether motion still needs an execution guarantee or a more specific safety proof.
     pub(crate) const fn can_speculate(self) -> bool {
-        self.can_common() && !self.expands_memory
+        self.can_common() && !self.observable && !self.expands_memory
     }
 }
 
@@ -256,8 +260,19 @@ impl InstKind {
                     | EffectKind::Create
                     | EffectKind::Log
             ) && !matches!(self, Self::MSize))
-                || matches!(self, Self::StorageBytesStore(..)),
+                || matches!(
+                    self,
+                    Self::StorageBytesStore(..)
+                        | Self::StorageBytesStoreLiteral { .. }
+                        | Self::StorageClearWords(..)
+                ),
             observes_execution: self.observes_gas() || matches!(self, Self::MSize),
+            idempotent_write: matches!(
+                self,
+                Self::MappingSlot(..)
+                    | Self::StorageArrayDataSlot(..)
+                    | Self::StorageArrayElementSlot { .. }
+            ),
             has_identity: matches!(
                 self,
                 Self::Alloc { .. }
