@@ -137,6 +137,44 @@ fn scopes_semantic_matches_to_the_requested_document() {
 }
 
 #[test]
+fn single_target_index_filters_references_from_other_files() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Base.sol
+        contract Base {
+            uint256 shared;
+
+            function baseRead() public view returns (uint256) {
+                return shared;
+            }
+        }
+
+        //- /Use.sol
+        import "./Base.sol";
+        contract Use is Base {
+            uint256 local;
+
+            function use() public {
+                $1shared = 1;
+                local = local + local;
+                local = local + local;
+                local = local + local;
+            }
+        }
+        "#,
+        "/Use.sol",
+    );
+
+    fixture.check_document_highlights(
+        "$1",
+        str![[r#"
+4:8-4:14 WRITE
+
+"#]],
+    );
+}
+
+#[test]
 fn preserves_ambiguous_reference_targets() {
     let fixture = RequestFixture::new_allowing_diagnostics(
         r#"

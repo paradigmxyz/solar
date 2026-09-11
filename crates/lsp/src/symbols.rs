@@ -939,15 +939,33 @@ impl SymbolTables {
             .collect::<Vec<_>>();
 
         if let Some(references) = self.file_references.get(uri) {
-            highlights.extend(references.iter().filter_map(|&index| {
-                let reference = &self.references[index];
-                reference.targets.iter().any(|target| targets.contains(target)).then_some(
-                    DocumentHighlight {
+            let target_references = match targets.as_slice() {
+                [target] => Some(self.symbol_references.get(target).map_or(&[][..], Vec::as_slice)),
+                _ => None,
+            };
+            // Prefer the smaller index for a single target. Reference indices retain insertion
+            // order, preserving the file index's tie order after the stable range sort below.
+            if let Some(indices) = target_references
+                && indices.len() < references.entries.len()
+            {
+                highlights.extend(indices.iter().filter_map(|&index| {
+                    let reference = &self.references[index];
+                    (&reference.location.uri == uri).then_some(DocumentHighlight {
                         range: reference.location.range,
                         kind: Some(reference.kind),
-                    },
-                )
-            }));
+                    })
+                }));
+            } else {
+                highlights.extend(references.iter().filter_map(|&index| {
+                    let reference = &self.references[index];
+                    reference.targets.iter().any(|target| targets.contains(target)).then_some(
+                        DocumentHighlight {
+                            range: reference.location.range,
+                            kind: Some(reference.kind),
+                        },
+                    )
+                }));
+            }
         }
 
         highlights.sort_by_key(|highlight| (highlight.range.start, highlight.range.end));
