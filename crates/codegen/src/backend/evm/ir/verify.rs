@@ -68,6 +68,16 @@ use std::{collections::hash_map::Entry, fmt};
 /// Stack-operation diagnostics already reported, keyed by block and message.
 type ReportedErrors = FxHashMap<(BlockId, String), ErrorGuaranteed>;
 
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+enum TargetRequirement {
+    StackOp(op::StackOp),
+    Opcode(u8),
+}
+
+/// Target requirements already present before an EVM IR pass runs.
+#[derive(Default)]
+pub(super) struct TargetSupportSnapshot(FxHashMap<TargetRequirement, usize>);
+
 /// EVM IR verifier.
 pub(in crate::backend) struct Verifier<'a> {
     dcx: &'a DiagCtxt,
@@ -86,6 +96,34 @@ impl<'a> Verifier<'a> {
     /// Checks the target requirements EVM IR passes rely on.
     pub(super) fn verify_before_pipeline(&self, module: &Module) {
         self.verify_stack_ops_for_evm_version(module);
+    }
+
+    /// Checks structural invariants and target support after an EVM IR pass.
+    ///
+    /// Shifts and pre-Byzantium reverts remain temporarily legal because the
+    /// final legalization step expands them after the optimization pipeline.
+    pub(super) fn verify_between_passes(&self, module: &Module, before: &TargetSupportSnapshot) {
+        if self.verify_module_shape(module) {
+            self.verify_new_target_requirements(module, before);
+        }
+    }
+
+    /// Records target requirements that an input module already contains.
+    pub(super) fn target_support_snapshot(&self, module: &Module) -> TargetSupportSnapshot {
+        let mut requirements = FxHashMap::default();
+        for block in &module.blocks {
+            for inst in &block.instructions {
+                if let Some(requirement) = self.unsupported_instruction(inst) {
+                    *requirements.entry(requirement).or_default() += 1;
+                }
+            }
+            if let Some(Terminator { kind: TerminatorKind::Op(opcode), .. }) = &block.terminator
+                && let Some(requirement) = self.unsupported_opcode(*opcode)
+            {
+                *requirements.entry(requirement).or_default() += 1;
+            }
+        }
+        TargetSupportSnapshot(requirements)
     }
 
     /// Checks the module and its output target support after target legalization.
@@ -616,6 +654,63 @@ impl<'a> Verifier<'a> {
         }
     }
 
+    fn opcode_awaits_legalization(&self, opcode: u8) -> bool {
+        (!self.evm_version.has_bitwise_shifting() && matches!(opcode, op::SHL | op::SHR | op::SAR))
+            || (!self.evm_version.supports_returndata() && opcode == op::REVERT)
+    }
+
+    fn unsupported_instruction(&self, inst: &Instruction) -> Option<TargetRequirement> {
+        if let Some(stack_op) = inst.as_stack_op() {
+            stack_op
+                .lowering(self.evm_version)
+                .is_none()
+                .then_some(TargetRequirement::StackOp(stack_op))
+        } else {
+            self.unsupported_opcode(inst.opcode)
+        }
+    }
+
+    fn unsupported_opcode(&self, opcode: u8) -> Option<TargetRequirement> {
+        (!self.opcode_awaits_legalization(opcode) && !op::is_available(opcode, self.evm_version))
+            .then_some(TargetRequirement::Opcode(opcode))
+    }
+
+    fn verify_new_target_requirements(&self, module: &Module, before: &TargetSupportSnapshot) {
+        let mut remaining = before.0.clone();
+        let mut consume = |requirement| {
+            let Some(count) = remaining.get_mut(&requirement) else { return false };
+            if *count == 0 {
+                false
+            } else {
+                *count -= 1;
+                true
+            }
+        };
+        for (block_id, block) in module.blocks.iter_enumerated() {
+            for inst in &block.instructions {
+                let Some(requirement) = self.unsupported_instruction(inst) else { continue };
+                if consume(requirement) {
+                    continue;
+                }
+                match requirement {
+                    TargetRequirement::StackOp(_) => {
+                        self.error_in_block(
+                            block_id,
+                            format_args!("`{}` requires Amsterdam-compatible EVM", inst.mnemonic()),
+                        );
+                    }
+                    TargetRequirement::Opcode(opcode) => self.verify_opcode(block_id, opcode),
+                }
+            }
+            if let Some(Terminator { kind: TerminatorKind::Op(opcode), .. }) = &block.terminator
+                && let Some(requirement) = self.unsupported_opcode(*opcode)
+                && !consume(requirement)
+            {
+                self.verify_opcode(block_id, *opcode);
+            }
+        }
+    }
+
     fn verify_stack_ops_for_evm_version(&self, module: &Module) {
         for (block_id, block) in module.blocks.iter_enumerated() {
             for inst in &block.instructions {
@@ -856,6 +951,37 @@ mod tests {
         Verifier::for_evm_version(&amsterdam, EvmVersion::Amsterdam)
             .verify_after_legalization(&module);
         assert_eq!(amsterdam.err_count(), 0);
+    }
+
+    #[test]
+    fn between_passes_uses_target_fork() {
+        let mut module = Module::new(sym::module);
+        let entry = module.add_block(Block::new(0));
+        module.blocks[entry].instructions.extend([
+            Instruction::push_value(U256::ZERO),
+            Instruction::push_value(U256::ZERO),
+            Instruction::opcode(op::SHL),
+            Instruction::opcode(op::POP),
+        ]);
+        module.blocks[entry].terminator = Some(Terminator::new(TerminatorKind::Op(op::STOP)));
+
+        let byzantium = DiagCtxt::with_silent_emitter(None);
+        let verifier = Verifier::for_evm_version(&byzantium, EvmVersion::Byzantium);
+        let before = verifier.target_support_snapshot(&module);
+        module.blocks[entry].instructions.extend([
+            Instruction::push_value(U256::ZERO),
+            Instruction::push_value(U256::ZERO),
+            Instruction::push_value(U256::ZERO),
+            Instruction::opcode(op::MCOPY),
+        ]);
+        verifier.verify_between_passes(&module, &before);
+        assert_eq!(byzantium.err_count(), 1);
+
+        let cancun = DiagCtxt::with_silent_emitter(None);
+        let verifier = Verifier::for_evm_version(&cancun, EvmVersion::Cancun);
+        let before = verifier.target_support_snapshot(&module);
+        verifier.verify_between_passes(&module, &before);
+        assert_eq!(cancun.err_count(), 0);
     }
 
     /// Which module the stack-operation check sees must not depend on the EVM version, since

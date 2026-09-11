@@ -28,9 +28,9 @@
 //! The MIR scheduler enables the wider permutation choices in gas mode. Size
 //! mode keeps its existing choices because locally shorter shuffles can reduce
 //! later block sharing and increase the final bytecode size.
-//! Exact results are cached by complete symbolic layout within each worker;
-//! generated wrappers and repeated cleanup passes frequently ask the same
-//! bounded question.
+//! Exact results are cached by complete symbolic layout and EVM version within
+//! each worker; generated wrappers and repeated cleanup passes frequently ask
+//! the same bounded question.
 
 use super::model::StackModel;
 use crate::{backend::evm::op::StackOp, mir::ValueId};
@@ -59,6 +59,7 @@ struct ExactSearchKey {
     source: Layout,
     target: SmallVec<[ValueId; 16]>,
     max_stack_access: usize,
+    evm_version: EvmVersion,
 }
 
 type ExactSearchCache = FxHashMap<ExactSearchKey, Option<Vec<StackOp>>>;
@@ -335,7 +336,13 @@ impl<'a> StackShuffler<'a> {
                 synthesize_unique_layout(&original, self.target, self.evm_version)
                     .map(|ops| ShuffleResult { ops })
             } else {
-                Self::search_exact(original, self.target, &self.multiplicities, max_stack_access)
+                Self::search_exact(
+                    original,
+                    self.target,
+                    &self.multiplicities,
+                    max_stack_access,
+                    self.evm_version,
+                )
             };
             return match (greedy, exact) {
                 (Some(greedy), Some(exact)) => {
@@ -357,7 +364,13 @@ impl<'a> StackShuffler<'a> {
         }
 
         greedy.or_else(|| {
-            Self::search_exact(original, self.target, &self.multiplicities, max_stack_access)
+            Self::search_exact(
+                original,
+                self.target,
+                &self.multiplicities,
+                max_stack_access,
+                self.evm_version,
+            )
         })
     }
 
@@ -374,6 +387,7 @@ impl<'a> StackShuffler<'a> {
         target: &[TargetSlot],
         multiplicities: &FxHashMap<ValueId, usize>,
         max_stack_access: usize,
+        evm_version: EvmVersion,
     ) -> Option<ShuffleResult> {
         let key = ExactSearchKey {
             source: source.clone(),
@@ -384,6 +398,7 @@ impl<'a> StackShuffler<'a> {
                 })
                 .collect(),
             max_stack_access,
+            evm_version,
         };
         if let Some(ops) = EXACT_SEARCH_CACHE.with_borrow(|cache| cache.get(&key).cloned()) {
             return ops.map(|ops| ShuffleResult { ops });
@@ -940,9 +955,14 @@ mod tests {
             counts
         });
 
-        let result =
-            StackShuffler::search_exact(source, &target, &multiplicities, MAX_STACK_ACCESS)
-                .unwrap();
+        let result = StackShuffler::search_exact(
+            source,
+            &target,
+            &multiplicities,
+            MAX_STACK_ACCESS,
+            EvmVersion::Osaka,
+        )
+        .unwrap();
 
         assert_eq!(
             result.ops,
@@ -994,6 +1014,7 @@ mod tests {
                     &target,
                     &shuffler.multiplicities,
                     MAX_STACK_ACCESS,
+                    shuffler.evm_version,
                 )
                 .unwrap();
                 assert!(

@@ -83,6 +83,12 @@ const TRACE_TARGET: &str = "solar::codegen::mir::egraph";
 /// Function pass for e-graph based simplification and value numbering.
 pub(crate) struct Egraph;
 
+/// Unchanged-body cache identity for CFG-free functions.
+struct FlatEgraph;
+
+/// Unchanged-body cache identity for functions requiring CFG analysis.
+struct CfgEgraph;
+
 impl MirPass for Egraph {
     fn name(&self) -> &'static str {
         "egraph"
@@ -118,13 +124,13 @@ impl MirPass for Egraph {
             }
         }
         let target = Target::new(gcx);
-        let mut changed = run_selected_function_pass_without_analyses_cached::<Self>(
+        let mut changed = run_selected_function_pass_without_analyses_cached::<FlatEgraph>(
             module,
             analyses,
             &flat,
             |func, _| Builder::new(func, target, None).run() != 0,
         );
-        changed |= run_selected_function_pass_cached::<Self>(
+        changed |= run_selected_function_pass_cached::<CfgEgraph>(
             module,
             analyses,
             &with_cfg,

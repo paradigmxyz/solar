@@ -72,7 +72,7 @@
   (AbiEncode (mode AbiEncodeMode) (selector OptionValue) (args Unit) (layout Unit))
   (AbiDecode (data Value) (layout Unit))
   (StorageToMemory (storage Value) (memory Value) (layout Unit))
-  (MemoryToStorage (storage Value) (memory Value) (layout Unit))
+  (MemoryToStorage (memory Value) (storage Value) (layout Unit))
   (ClearStorage (storage Value) (layout Unit))
   (MCopy (dest Value) (src Value) (len Value))
   (SLoad (slot Value))

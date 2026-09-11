@@ -39,7 +39,7 @@ use crate::{
     },
     timing::PassTimer,
 };
-use solar_config::{EvmVersion, OptimizationMode};
+use solar_config::OptimizationMode;
 use solar_interface::diagnostics::DiagCtxt;
 use solar_sema::Gcx;
 
@@ -212,6 +212,8 @@ fn run_passes_inner(
             let errors_before = gcx.dcx().err_count();
             let timer = PassTimer::new(gcx.sess.opts.unstable.time_passes);
             let cached = unchanged.iter().any(|&previous| std::ptr::eq(previous, *pass));
+            let target_support_before = (!cached && validate_each && should_validate_ir(gcx))
+                .then(|| super::verify::Verifier::new(gcx).target_support_snapshot(module));
             let pass_changed = !cached && pass.run_pass(gcx, module);
             if pass_changed {
                 unchanged.clear();
@@ -223,8 +225,8 @@ fn run_passes_inner(
             if gcx.dcx().err_count() != errors_before {
                 return changed;
             }
-            if pass_changed && validate_each && should_validate_ir(gcx) {
-                validate_module_after_pass(module, pass_name);
+            if pass_changed && let Some(target_support_before) = target_support_before {
+                validate_module_after_pass(gcx, module, pass_name, &target_support_before);
             }
             assert_debug_info_handled(module, pass_name, "after");
         }
@@ -239,9 +241,15 @@ fn run_passes_inner(
     changed
 }
 
-fn validate_module_after_pass(module: &Module, pass_name: &str) {
+fn validate_module_after_pass(
+    gcx: Gcx<'_>,
+    module: &Module,
+    pass_name: &str,
+    target_support_before: &super::verify::TargetSupportSnapshot,
+) {
     let dcx = DiagCtxt::new_early();
-    super::verify::Verifier::for_evm_version(&dcx, EvmVersion::Osaka).verify_module_shape(module);
+    super::verify::Verifier::for_evm_version(&dcx, gcx.sess.opts.evm_version)
+        .verify_between_passes(module, target_support_before);
     if dcx.has_errors().is_err() {
         panic!("EVM IR validation failed after `{pass_name}`");
     }
