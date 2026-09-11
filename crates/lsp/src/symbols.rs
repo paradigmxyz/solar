@@ -55,6 +55,7 @@ pub(crate) struct SymbolTables {
     type_definitions: FxHashMap<SymbolId, TypeDefinitionTargets>,
     files: FxHashMap<Url, Vec<SymbolId>>,
     file_declaration_positions: FxHashMap<Url, PositionIndex<SymbolId>>,
+    document_symbol_children: IndexVec<SymbolId, Vec<SymbolId>>,
     workspace_symbol_ids: Vec<SymbolId>,
     symbols_by_key: FxHashMap<SymbolKey, SymbolId>,
     scopes: IndexVec<ScopeId, Scope>,
@@ -652,18 +653,6 @@ impl SymbolTables {
             return Vec::new();
         };
 
-        let mut child_symbols = FxHashMap::<SymbolId, Vec<SymbolId>>::with_capacity_and_hasher(
-            file_symbol_ids.len(),
-            Default::default(),
-        );
-        for &symbol_id in file_symbol_ids {
-            if let Some(parent) = self.declarations[symbol_id].parent
-                && self.declarations[parent].location.uri == *uri
-            {
-                child_symbols.entry(parent).or_default().push(symbol_id);
-            }
-        }
-
         file_symbol_ids
             .iter()
             .copied()
@@ -672,7 +661,7 @@ impl SymbolTables {
                     .parent
                     .is_none_or(|parent| self.declarations[parent].location.uri != *uri)
             })
-            .map(|symbol_id| self.document_symbol(symbol_id, &child_symbols))
+            .map(|symbol_id| self.document_symbol(symbol_id))
             .collect()
     }
 
@@ -1392,14 +1381,14 @@ impl SymbolTables {
         pushed_id
     }
 
-    fn document_symbol(
-        &self,
-        symbol_id: SymbolId,
-        child_symbols: &FxHashMap<SymbolId, Vec<SymbolId>>,
-    ) -> DocumentSymbol {
+    fn document_symbol(&self, symbol_id: SymbolId) -> DocumentSymbol {
         let symbol = &self.declarations[symbol_id];
-        let children = child_symbols.get(&symbol_id).map(|children| {
-            children.iter().map(|&child| self.document_symbol(child, child_symbols)).collect()
+        let children = (!self.document_symbol_children[symbol_id].is_empty()).then(|| {
+            self.document_symbol_children[symbol_id]
+                .iter()
+                .copied()
+                .map(|child| self.document_symbol(child))
+                .collect()
         });
 
         DocumentSymbol {
@@ -1705,6 +1694,22 @@ impl SymbolTables {
             positions.entries.extend(symbols.iter().copied());
             positions.rebuild(|symbol_id| self.declarations[symbol_id].name_range);
             self.file_declaration_positions.insert(uri.clone(), positions);
+        }
+
+        self.document_symbol_children.clear();
+        self.document_symbol_children.reserve(self.declarations.len());
+        for _ in self.declarations.indices() {
+            self.document_symbol_children.push(Vec::new());
+        }
+        for symbols in self.files.values() {
+            for &symbol_id in symbols {
+                if let Some(parent) = self.declarations[symbol_id].parent
+                    && self.declarations[parent].location.uri
+                        == self.declarations[symbol_id].location.uri
+                {
+                    self.document_symbol_children[parent].push(symbol_id);
+                }
+            }
         }
 
         self.workspace_symbol_ids.clear();
