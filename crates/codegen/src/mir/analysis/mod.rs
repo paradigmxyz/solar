@@ -32,7 +32,7 @@ mod phi_elimination;
 pub(crate) use phi_elimination::{CopyDest, CopySource, ParallelCopy, PhiEliminator};
 
 mod loop_analysis;
-pub(crate) use loop_analysis::{Loop, LoopAnalyzer};
+pub(crate) use loop_analysis::{Loop, LoopAnalyzer, LoopInfo};
 
 mod scalar_evolution;
 pub(crate) use scalar_evolution::{AffineExpr, ScalarEvolution};

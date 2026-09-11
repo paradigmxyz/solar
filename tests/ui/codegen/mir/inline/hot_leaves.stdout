@@ -1,0 +1,92 @@
+- // === ROOT/tests/ui/codegen/mir/inline/hot_leaves.mir (before inline-hot-leaves) ===
++ // === ROOT/tests/ui/codegen/mir/inline/hot_leaves.mir (after inline-hot-leaves) ===
+  @module HotLeaves
+  fn @loop_caller(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      jump bb1
+    bb1:
+-     v0 = phi [bb0: 0], [bb2: v8]
+-     v1 = phi [bb0: 0], [bb2: v7]
++     v0 = phi [bb0: 0], [bb11: v8]
++     v1 = phi [bb0: 0], [bb11: v7]
+      v2 = lt v0, arg0
+      jumpi v2, bb2, bb3
+    bb3:
+      ret v1
+    bb2:
+-     v3 = icall @classify, 1, v0
++     jump bb5
++   bb5:
++     v9 = lt v0, 32
++     jumpi v9, bb6, bb7
++   bb7:
++     v10 = lt v0, 64
++     jumpi v10, bb8, bb9
++   bb9:
++     jump bb10
++   bb8:
++     jump bb10
++   bb10:
++     v11 = phi [bb8: 7], [bb9: 9]
++     v12 = and v0, 31
++     v13 = add v11, v12
++     jump bb4
++   bb6:
++     jump bb4
++   bb4:
++     v14 = phi [bb6: 0], [bb10: v13]
+      v4 = add v0, arg1
+-     v5 = icall @classify, 1, v4
+-     v6 = add v3, v5
++     jump bb12
++   bb12:
++     v15 = lt v4, 32
++     jumpi v15, bb13, bb14
++   bb14:
++     v16 = lt v4, 64
++     jumpi v16, bb15, bb16
++   bb16:
++     jump bb17
++   bb15:
++     jump bb17
++   bb17:
++     v17 = phi [bb15: 7], [bb16: 9]
++     v18 = and v4, 31
++     v19 = add v17, v18
++     jump bb11
++   bb13:
++     jump bb11
++   bb11:
++     v20 = phi [bb13: 0], [bb17: v19]
++     v6 = add v14, v20
+      v7 = add v1, v6
+      v8 = add v0, 1
+      jump bb1
+  }
+  
+  fn @straight_caller(arg0: u256) -> u256 {
+    bb0:
+      v0 = icall @classify, 1, arg0
+      ret v0
+  }
+  
+  fn @classify(arg0: u256) -> u256 {
+    bb0:
+      v0 = lt arg0, 32
+      jumpi v0, bb1, bb2
+    bb2:
+      v1 = lt arg0, 64
+      jumpi v1, bb3, bb4
+    bb4:
+      jump bb5
+    bb3:
+      jump bb5
+    bb5:
+      v2 = phi [bb3: 7], [bb4: 9]
+      v3 = and arg0, 31
+      v4 = add v2, v3
+      ret v4
+    bb1:
+      ret 0
+  }
+  

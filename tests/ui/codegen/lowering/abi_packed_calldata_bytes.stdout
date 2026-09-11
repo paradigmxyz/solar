@@ -91,8 +91,6 @@ bb6 [continuation]:
   dup 2
   mstore
   push 32
-  jump bb14
-bb14:
   add
   dup 2
   swap 1
@@ -148,4 +146,14 @@ bb9 [continuation]:
   dup 2
   mstore
   push 20
-  jump bb14
+  add
+  dup 2
+  swap 1
+  sub
+  swap 1
+  keccak256
+  push 128
+  mstore
+  push 32
+  push 128
+  return

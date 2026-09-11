@@ -32,8 +32,9 @@
 //! - invalidate storage reads by possibly-aliasing writes or calls that may re-enter and mutate the
 //!   current contract
 //! - when inheriting a cache across a dominator-tree edge, also invalidate state-dependent reads by
-//!   clobbers in every block that can lie on a CFG path between the dominator and its child
-//!   (diamond arms, loop bodies), including the child itself when it sits on a cycle
+//!   clobbers in every block on a CFG path from the dominator to its child that does not re-enter
+//!   the dominator (diamond arms, inner loop bodies), including the child itself when it sits on
+//!   such a cycle; a path that returns to the dominator recomputes every cached read there
 //!
 //! Local CSE also reuses single-result leaf calls whose bounded memory summary
 //! proves deterministic reads and complete restoration of temporary writes.
@@ -43,14 +44,23 @@
 //! `gas` read observes their dynamically priced execution. A forward CFG may-observe
 //! analysis includes observations in non-dominating branches and loop backedges.
 //! Internal calls carry the callee's transitive gas-observation summary.
+//!
+//! A word store or a semantic length store also seeds the cache with the stored
+//! value under the written location, so a later load of that exact word forwards
+//! the value instead of reading memory; the ordinary clobber rules retire the
+//! entry. Inside loops, a cheap load is only replaced by a value cached in a
+//! dominating block when that value is already live into the loading block or
+//! the address is loop-invariant: reviving a dead value across the loop body
+//! costs the scheduler more stack traffic than the load it removes. Acyclic
+//! reuse is unchanged.
 
 use crate::mir::{
     BlockId, Function, FunctionId, Immediate, ImmutableId, InstId, InstKind, Instruction,
     MemoryObjectKind, MemoryObjectLayout, MirType, Module, SliceLocation, StorageAlias, Value,
     ValueId,
     analysis::{
-        Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, GasObservations, Location,
-        LocationSize, MemoryCallSummaries, MemoryLocation,
+        Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, GasObservations, Liveness,
+        Location, LocationSize, LoopAnalyzer, LoopInfo, MemoryCallSummaries, MemoryLocation,
     },
     pass::{MirPass, run_function_pass_with_cfg},
     utils as mir_utils,
@@ -58,6 +68,7 @@ use crate::mir::{
 use alloy_primitives::U256;
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
+    index::{IndexVec, index_vec},
     map::FxHashMap,
 };
 use std::{cmp::Ordering, rc::Rc, sync::Arc};
@@ -179,10 +190,22 @@ enum OperandKey {
 
 type MemRangeKey = MemoryLocation;
 
+/// What decides whether a dominated block should reuse a cheap memory read
+/// instead of reloading it.
+struct MemoryReuseFacts {
+    liveness: Liveness,
+    definitions: FxHashMap<InstId, BlockId>,
+    loops: LoopInfo,
+}
+
 struct GlobalCseContext<'a> {
     dom_tree: &'a DominatorTree,
     block_clobbers: &'a [(BlockId, Vec<Clobber>)],
     reachability: &'a FxHashMap<BlockId, DenseBitSet<BlockId>>,
+    /// Reachable predecessors, present only when clobbering blocks exist.
+    predecessors: &'a IndexVec<BlockId, Vec<BlockId>>,
+    /// Liveness and loop membership, present only when clobbering blocks exist.
+    reuse: Option<&'a MemoryReuseFacts>,
     replacements: &'a mut FxHashMap<ValueId, ValueId>,
     dead: &'a mut DenseBitSet<InstId>,
 }
@@ -355,9 +378,21 @@ impl CommonSubexprEliminator {
         let block_clobbers =
             if has_path_sensitive_expr { self.block_clobber_summaries(func) } else { Vec::new() };
         let empty_reachability = FxHashMap::default();
+        let mut predecessors = IndexVec::new();
+        let reuse = (!block_clobbers.is_empty()).then(|| MemoryReuseFacts {
+            liveness: Liveness::compute(func),
+            definitions: func.inst_blocks(),
+            loops: LoopAnalyzer::new().analyze(func),
+        });
         let (dom_tree, reachability) = if block_clobbers.is_empty() {
             (cfg.dominators(), &empty_reachability)
         } else {
+            predecessors = index_vec![Vec::new(); func.blocks.len()];
+            for block in cfg.reachable().iter() {
+                for &successor in cfg.successors(block) {
+                    predecessors[successor].push(block);
+                }
+            }
             (cfg.dominators(), cfg.transitive_reachability())
         };
         let mut replacements = FxHashMap::default();
@@ -366,6 +401,8 @@ impl CommonSubexprEliminator {
             dom_tree,
             block_clobbers: &block_clobbers,
             reachability,
+            predecessors: &predecessors,
+            reuse: reuse.as_ref(),
             replacements: &mut replacements,
             dead: &mut dead,
         };
@@ -529,6 +566,11 @@ impl CommonSubexprEliminator {
                         ctx.replacements,
                         &mut cache,
                     );
+                    if let Some((key, stored)) =
+                        self.forwarded_store(func, inst_id, kind, ctx.replacements)
+                    {
+                        cache.insert(key, stored);
+                    }
                     continue;
                 }
 
@@ -542,8 +584,16 @@ impl CommonSubexprEliminator {
                 let Some(result) = func.inst_result_value(inst_id) else {
                     continue;
                 };
-                if let Some(cached) = cache.get(&key) {
-                    ctx.replacements.insert(result, *cached);
+                if let Some(&cached) = cache.get(&key) {
+                    if matches!(key, ExprKey::MLoad(_))
+                        && !Self::memory_reuse_pays_off(func, ctx, block_id, cached, kind)
+                    {
+                        // Reload instead of stretching a word's live range across
+                        // blocks; later reads in this subtree reuse the reload.
+                        cache.insert(key, result);
+                        continue;
+                    }
+                    ctx.replacements.insert(result, cached);
                     ctx.dead.insert(inst_id);
                     self.eliminated_count += 1;
                 } else {
@@ -566,14 +616,54 @@ impl CommonSubexprEliminator {
         }
     }
 
+    /// Whether reusing `cached`, a word read in a dominating block, for the same
+    /// read in `block` is worth keeping that word on the stack until here.
+    ///
+    /// A word load costs a few gas; a value carried across blocks that the
+    /// scheduler cannot keep resident costs a spill store and reload instead.
+    /// Outside loops the carried word crosses a few blocks at most and reuse
+    /// keeps its established value. Inside a loop, reuse pays when the cached
+    /// word is defined in this block, is already live into it, or is a
+    /// loop-invariant read, where every iteration repeats the saving and code
+    /// motion would keep the word live anyway; a loop-varying element reloaded
+    /// after a compare-and-branch is cheaper to load again than to carry.
+    fn memory_reuse_pays_off(
+        func: &Function,
+        ctx: &GlobalCseContext<'_>,
+        block: BlockId,
+        cached: ValueId,
+        kind: &InstKind,
+    ) -> bool {
+        let Some(facts) = ctx.reuse else { return true };
+        let Some(header) = facts.loops.block_to_loop.get(&block) else { return true };
+        let Some(loop_info) = facts.loops.loops.get(header) else { return true };
+        let Value::Inst(cached_inst) = func.value(cached) else { return true };
+        if facts.definitions.get(cached_inst) == Some(&block) {
+            return true;
+        }
+        if facts.liveness.live_in(block).contains(cached) {
+            return true;
+        }
+        kind.operands().into_iter().all(|operand| match func.value(operand) {
+            Value::Inst(inst) => {
+                facts.definitions.get(inst).is_some_and(|home| !loop_info.blocks.contains(*home))
+            }
+            _ => true,
+        })
+    }
+
     /// Invalidates state-dependent cache entries inherited across the dominator-tree edge
     /// `parent -> child`.
     ///
     /// Dominance alone is sound only for pure expressions: memory, storage, transient-storage, and
     /// account-environment reads must also survive every CFG path from `parent` to `child`, which
     /// may pass through blocks that are not on the dominator-tree path (diamond arms, loop bodies).
-    /// Applies the clobber summary of every such intermediate block, including `child` itself when
-    /// it lies on a cycle (clobbers wrap around the backedge to the child's entry).
+    /// Applies the clobber summary of every block on such a path that does not re-enter `parent`,
+    /// including `child` itself when it lies on a cycle avoiding `parent` (clobbers wrap around the
+    /// backedge to the child's entry). A path through `parent` again recomputes every cached read
+    /// there, so a block whose only routes to `child` cross `parent` cannot deliver a stale value:
+    /// a store after the child in a loop shared with the dominator does not invalidate the
+    /// dominator's read for the current iteration.
     fn filter_inherited_cache(
         &self,
         parent: BlockId,
@@ -585,15 +675,26 @@ impl CommonSubexprEliminator {
             return;
         }
         let Some(reachable_from_parent) = ctx.reachability.get(&parent) else { return };
+        // Blocks with a path to `child` that avoids `parent`. Every such block is
+        // dominated by `parent`, so the walk stays within its dominator subtree.
+        let mut reaching_child = DenseBitSet::new_empty(ctx.predecessors.len());
+        let mut pending = vec![child];
+        while let Some(block) = pending.pop() {
+            for &pred in &ctx.predecessors[block] {
+                if pred != parent && reaching_child.insert(pred) {
+                    pending.push(pred);
+                }
+            }
+        }
         for (mid, clobbers) in ctx.block_clobbers {
             if !cache.has_stateful() {
                 break;
             }
             // Clobbers in `parent` itself were already applied while processing it sequentially.
-            if *mid == parent || !reachable_from_parent.contains(*mid) {
-                continue;
-            }
-            if !ctx.reachability.get(mid).is_some_and(|reachable| reachable.contains(child)) {
+            if *mid == parent
+                || !reachable_from_parent.contains(*mid)
+                || !reaching_child.contains(*mid)
+            {
                 continue;
             }
             for clobber in clobbers {
@@ -690,6 +791,11 @@ impl CommonSubexprEliminator {
                     &replacements,
                     &mut expr_cache,
                 );
+                if let Some((key, stored)) =
+                    self.forwarded_store(func, inst_id, kind, &replacements)
+                {
+                    expr_cache.insert(key, stored);
+                }
                 if !self.is_restoring_call(kind) {
                     continue;
                 }
@@ -723,6 +829,37 @@ impl CommonSubexprEliminator {
         // Remove eliminated instructions
         let block = func.block_mut(block_id);
         block.instructions.retain(|&id| !to_remove.contains(id));
+    }
+
+    /// The read key a word store satisfies and the value it stores, so a later
+    /// load of that word reuses the stored value instead of reloading it.
+    ///
+    /// store word, value; ...; load word => value
+    fn forwarded_store(
+        &self,
+        func: &Function,
+        inst_id: InstId,
+        kind: &InstKind,
+        replacements: &FxHashMap<ValueId, ValueId>,
+    ) -> Option<(ExprKey, ValueId)> {
+        let value = |v: ValueId| mir_utils::resolve_replacement(v, replacements);
+        match *kind {
+            InstKind::MStore(addr, stored) => {
+                let key =
+                    self.memory_range_key(func, inst_id, value(addr), LocationSize::Const(32))?;
+                Some((ExprKey::MLoad(key), value(stored)))
+            }
+            InstKind::SetMemoryObjectLen(object, stored, object_kind) => {
+                let key = self.alias().memory_object_length_location(
+                    func,
+                    inst_id,
+                    value(object),
+                    object_kind,
+                )?;
+                Some((ExprKey::MLoad(key), value(stored)))
+            }
+            _ => None,
+        }
     }
 
     /// Creates a normalized expression key for an instruction.

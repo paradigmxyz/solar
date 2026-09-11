@@ -5,17 +5,24 @@
 //! **Loop Invariant Code Motion (LICM)** moves computations that don't change
 //! within a loop to the preheader block, reducing redundant work.
 //!
+//! Memory reads hoist only when no loop instruction may write what they read,
+//! judged by the shared alias analysis with module call summaries, so a call
+//! to a memory-clean helper is not a barrier. A semantic length read of an
+//! existing heap object (a fresh allocation or an object argument) needs no
+//! execution guarantee: its header is allocated memory, so reading it early
+//! cannot expand memory or trap on a zero-trip loop.
+//!
 //! ## Gas Savings
 //!
 //! This optimization is particularly important for EVM:
 //! - LICM: Avoids recomputing `arr.length` each iteration (MLOAD/SLOAD costs)
 
 use crate::mir::{
-    BlockId, Function, ImmutableId, InstId, InstKind, Module, StorageAlias, Terminator, Value,
-    ValueId,
+    BlockId, Function, ImmutableId, InstId, InstKind, MemoryRegion, Module, StorageAlias,
+    Terminator, Value, ValueId,
     analysis::{
-        AddressSpace, AffineExpr, AliasAnalysis, AliasResult, Location, LocationSize, Loop,
-        LoopAnalyzer, ScalarEvolution,
+        Access, AddressSpace, AffineExpr, AliasAnalysis, AliasResult, Location, LocationSize, Loop,
+        LoopAnalyzer, MemoryBase, ScalarEvolution,
     },
     pass::{MirPass, run_function_pass_with_alias},
     utils as mir_utils,
@@ -255,11 +262,23 @@ impl LoopOptimizer {
                     && self.hoist_execution_guaranteed(func, inst_id, ctx)
                     && !self.loop_may_mutate_memory_range(func, ctx, addr, Some(32));
             }
+            // A semantic length read lowers to one word load of the object's
+            // header. Element, byte, and word stores address the payload that
+            // follows the header, so alias analysis can prove the loop leaves
+            // the length alone while the object identity is still explicit.
+            // The header of an existing heap object is allocated memory, so
+            // reading it early cannot expand memory or trap on a zero-trip loop;
+            // only the guaranteed-execution rule for other reads is relaxed.
+            InstKind::MemoryObjectLen(object, _) => {
+                return !self.function_observes_msize(func)
+                    && (self.hoist_execution_guaranteed(func, inst_id, ctx)
+                        || self.is_existing_heap_object(func, object))
+                    && !self.loop_may_write_read_locations(func, ctx, inst_id);
+            }
             // These semantic memory reads lower to `mload` after LICM. Keep them in
             // place until their physical address and width are explicit so a store
             // in the loop cannot be missed by the dependence check above.
-            InstKind::MemoryObjectLen(_, _)
-            | InstKind::MemoryObjectLoadField { .. }
+            InstKind::MemoryObjectLoadField { .. }
             | InstKind::MemoryObjectLoadElement { .. }
             | InstKind::MemoryObjectLoadByte { .. }
             | InstKind::MemorySliceLoadWord { .. }
@@ -439,7 +458,7 @@ impl LoopOptimizer {
             | InstKind::AddMod(_, _, _)
             | InstKind::MulMod(_, _, _)
             | InstKind::Clz(_) => 5,
-            InstKind::MLoad(_) | InstKind::CalldataLoad(_) => 3,
+            InstKind::MLoad(_) | InstKind::CalldataLoad(_) | InstKind::MemoryObjectLen(_, _) => 3,
             _ => 0,
         }
     }
@@ -522,6 +541,55 @@ impl LoopOptimizer {
                     }
                     InstKind::MSize => return true,
                     _ => {}
+                }
+            }
+        }
+        false
+    }
+
+    /// Whether `object` is a memory object that already exists at the loop: a
+    /// fresh allocation or an object argument, both with an allocated header.
+    fn is_existing_heap_object(&self, func: &Function, object: ValueId) -> bool {
+        self.alias().memory_address(func, object).is_some_and(|address| {
+            address.region == MemoryRegion::Heap
+                && match address.base {
+                    MemoryBase::Allocation(_)
+                    | MemoryBase::DynamicAllocation(_)
+                    | MemoryBase::Param(_) => true,
+                    MemoryBase::Value(value) => matches!(func.value(value), Value::Arg(_)),
+                    MemoryBase::Absolute | MemoryBase::InternalFrame => false,
+                }
+        })
+    }
+
+    /// Returns true if any loop instruction or terminator may write a location
+    /// that `load_inst` reads, or if that read is not a bounded location.
+    fn loop_may_write_read_locations(
+        &self,
+        func: &Function,
+        ctx: LoopOptContext<'_>,
+        load_inst: InstId,
+    ) -> bool {
+        let aa = self.alias();
+        let mut locations = ArrayVec::<Location, 4>::new();
+        for &access in aa.instruction_mod_ref(func, load_inst).reads() {
+            match access {
+                Access::Location(location) if !locations.is_full() => locations.push(location),
+                Access::Location(_) | Access::Any(_) => return true,
+            }
+        }
+        for block_id in &ctx.loop_data.blocks {
+            let block = &func.blocks[block_id];
+            for &inst_id in &block.instructions {
+                let effects = aa.instruction_mod_ref(func, inst_id);
+                if locations.iter().any(|&location| effects.may_write(aa, location)) {
+                    return true;
+                }
+            }
+            if let Some(terminator) = &block.terminator {
+                let effects = aa.terminator_mod_ref(func, terminator);
+                if locations.iter().any(|&location| effects.may_write(aa, location)) {
+                    return true;
                 }
             }
         }

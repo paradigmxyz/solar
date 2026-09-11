@@ -137,9 +137,6 @@ bb6:
   push 11
   dup 2
   mstore
-  push bb33
-  jump bb32
-bb32:
   push 64
   mload
   push 512
@@ -150,42 +147,6 @@ bb32:
   push 470
   push_data ChildWithArg_initcode_0
   dup 3
-  swap 1
-  swap 2
-  swap 3
-  swap 4
-  jump
-bb12:
-  push 256
-  push 64
-  mstore
-  push 160
-  push 32
-  dup 2
-  mstore
-  push 32
-  add
-  push 22
-  dup 2
-  mstore
-  push bb34
-  jump bb32
-bb18:
-  push 352
-  push 64
-  mstore
-  push 224
-  push 32
-  dup 2
-  mstore
-  push 32
-  add
-  push 3
-  dup 2
-  mstore
-  push bb38
-  jump bb32
-bb33 [continuation]:
   codecopy
   push 470
   dup 2
@@ -201,17 +162,14 @@ bb33 [continuation]:
   swap 1
   push 0
   create
-  jump bb30
-bb30:
+  jump bb29
+bb29:
   dup 1
   push 224
   mstore
   iszero
   push bb26
   jumpi
-  push bb39
-  jump bb31
-bb31:
   push 64
   mload
   push 32
@@ -228,13 +186,50 @@ bb31:
   push 0
   push 4
   dup 4
+  push 224
+  mload
+  gas
+  staticcall
   swap 1
-  swap 2
-  swap 3
-  swap 4
-  swap 5
-  jump
-bb34 [continuation]:
+  pop
+  iszero
+  push bb26
+  jumpi
+  returndatasize
+  push 32
+  gt
+  push bb5
+  jumpi
+  push 0
+  mload
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb12:
+  push 256
+  push 64
+  mstore
+  push 160
+  push 32
+  dup 2
+  mstore
+  push 32
+  add
+  push 22
+  dup 2
+  mstore
+  push 64
+  mload
+  push 512
+  dup 2
+  add
+  push 64
+  mstore
+  push 470
+  push_data ChildWithArg_initcode_0
+  dup 3
   codecopy
   push 470
   dup 2
@@ -251,82 +246,30 @@ bb34 [continuation]:
   swap 2
   push 0
   create2
-  jump bb30
-bb35 [continuation]:
-  push 192
-  mload
-  gas
-  staticcall
-  swap 1
-  pop
-  iszero
-  push bb26
-  jumpi
-  returndatasize
-  push 32
-  gt
-  push bb5
-  jumpi
-  push 0
-  mload
-  dup 2
-  add
-  swap 1
-  dup 2
-  lt
-  push bb28
-  jumpi
   jump bb29
-bb29:
-  push 128
+bb18:
+  push 352
+  push 64
+  mstore
+  push 224
+  push 32
+  dup 2
   mstore
   push 32
-  push 128
-  return
-bb36 [continuation]:
-  push 160
+  add
+  push 3
+  dup 2
+  mstore
+  push 64
   mload
-  gas
-  staticcall
-  swap 1
-  pop
-  iszero
-  push bb26
-  jumpi
-  returndatasize
-  push 32
-  gt
-  push bb5
-  jumpi
-  push 0
-  mload
-  push bb35
-  jump bb31
-bb37 [continuation]:
-  codecopy
-  push 470
+  push 512
   dup 2
   add
-  push 32
-  dup 4
-  dup 3
-  mcopy
-  pop
-  swap 1
-  pop
-  push 502
-  swap 1
-  push 0
-  create
-  dup 1
-  push 192
+  push 64
   mstore
-  iszero
-  push bb26
-  jumpi
-  push bb36
-  jump bb31
-bb38 [continuation]:
+  push 470
+  push_data ChildWithArg_initcode_0
+  dup 3
   codecopy
   push 470
   dup 2
@@ -357,10 +300,54 @@ bb38 [continuation]:
   push 4
   dup 2
   mstore
-  push bb37
-  jump bb32
-bb39 [continuation]:
+  push 64
+  mload
+  push 512
+  dup 2
+  add
+  push 64
+  mstore
+  push 470
+  push_data ChildWithArg_initcode_0
+  dup 3
+  codecopy
+  push 470
+  dup 2
+  add
+  push 32
+  dup 4
+  dup 3
+  mcopy
+  pop
+  swap 1
+  pop
+  push 502
+  swap 1
+  push 0
+  create
+  dup 1
+  push 192
+  mstore
+  iszero
+  push bb26
+  jumpi
+  push 64
+  mload
+  push 32
+  dup 2
+  add
+  push 64
+  mstore
+  push 0x3fa4f245
   push 224
+  shl
+  dup 2
+  mstore
+  push 32
+  push 0
+  push 4
+  dup 4
+  push 160
   mload
   gas
   staticcall
@@ -376,7 +363,50 @@ bb39 [continuation]:
   jumpi
   push 0
   mload
-  jump bb29
+  push 64
+  mload
+  push 32
+  dup 2
+  add
+  push 64
+  mstore
+  push 0x3fa4f245
+  push 224
+  shl
+  dup 2
+  mstore
+  push 32
+  push 0
+  push 4
+  dup 4
+  push 192
+  mload
+  gas
+  staticcall
+  swap 1
+  pop
+  iszero
+  push bb26
+  jumpi
+  returndatasize
+  push 32
+  gt
+  push bb5
+  jumpi
+  push 0
+  mload
+  dup 2
+  add
+  swap 1
+  dup 2
+  lt
+  push bb28
+  jumpi
+  push 128
+  mstore
+  push 32
+  push 128
+  return
 bb28 [cold]:
   push 0x4e487b71
   push 224

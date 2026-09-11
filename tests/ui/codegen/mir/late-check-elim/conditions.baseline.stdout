@@ -134,8 +134,9 @@
       jumpi v1, bb1, bb2
     bb1:
       mstore arg0, arg2
-      v2 = mload arg0
-      v3 = lt arg1, v2
+-     v2 = mload arg0
+-     v3 = lt arg1, v2
++     v3 = lt arg1, arg2
       jumpi v3, bb3, bb2
     bb2:
       revert 0, 0

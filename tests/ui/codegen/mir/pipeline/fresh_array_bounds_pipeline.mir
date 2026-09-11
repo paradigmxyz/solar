@@ -29,10 +29,10 @@ fn @constant_index() -> u256 {
     ret 7
 }
 
-// Runtime lengths still need the bounds branch.
+// Runtime lengths still need the bounds branch; the length read forwards the
+// stored argument.
 // CHECK-LABEL: fn @runtime_index{{[( ]}}
-// CHECK: [[LENGTH:v[0-9]+]] = mload {{v[0-9]+}}
-// CHECK: [[IN_BOUNDS:v[0-9]+]] = lt 1, [[LENGTH]]
+// CHECK: [[IN_BOUNDS:v[0-9]+]] = lt 1, arg0
 // CHECK: jumpi [[IN_BOUNDS]], bb2, bb1
 // CHECK: revert 0, 36
 fn @runtime_index(arg0: u256) -> u256 {

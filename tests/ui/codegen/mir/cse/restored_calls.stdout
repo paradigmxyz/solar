@@ -22,9 +22,10 @@
       v2 = lt v1, arg1
       jumpi v2, bb2, bb3
     bb3:
-      v4 = mload arg0
+-     v4 = mload arg0
       mstore arg0, v0
-      ret v4
+-     ret v4
++     ret 17
     bb2:
       v3 = add v1, 1
       jump bb1

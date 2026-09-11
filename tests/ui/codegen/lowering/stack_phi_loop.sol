@@ -20,9 +20,9 @@ contract StackPhiLoop {
     // CHECK: [[CARRIED_MERGE:bb[0-9]+]]:
     // CHECK: jump [[CARRIED_HEADER:bb[0-9]+]]
     // The latch now precedes the header; assembly removes this backedge jump by fallthrough.
-    // CHECK: [[CARRIED_LATCH:bb[0-9]+]]:
+    // CHECK: [[CARRIED_LATCH:bb[0-9]+]] [loop]:
     // CHECK: jump [[CARRIED_HEADER]]
-    // CHECK-NEXT: [[CARRIED_HEADER]]:
+    // CHECK-NEXT: [[CARRIED_HEADER]] [loop]:
     // CHECK: lt
     // CHECK: jumpi
     function loopCarried(uint256 n, bool flag) public pure returns (uint256) {

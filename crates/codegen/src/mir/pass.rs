@@ -43,6 +43,7 @@ pub static ALL_PASSES: &[&dyn MirPass] = &[
     &inline_guards::InlineGuards,
     &inline::InlineConstantLeaves,
     &inline::InlineTinyLeaves,
+    &inline::InlineHotLeaves,
     &inline::InlineImmutableLeaves,
     &inline::InlineMemoryWrappers,
     &inline_dispatch::InlineDispatch,
@@ -51,6 +52,7 @@ pub static ALL_PASSES: &[&dyn MirPass] = &[
     &call_cleanup::CallCleanup,
     &outline_reverts::OutlineReverts,
     &cfg_simplify::FunctionDce,
+    &cfg_simplify::SimplifyTrivialPhis,
     &sccp::Sccp,
     &pure_eval::PureEval,
     &readonly_eval::ReadonlyEval,
@@ -173,6 +175,12 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     // Broad MIR inlining remains available as an ad-hoc pass, but static internal
     // frames make calls cheap enough that the measured candidates regress gas.
     &cfg_simplify::FunctionDce,
+    // HIR lowering leaves trivial phis for locals that loops never reassign.
+    // They hide one object behind several SSA names, which alias analysis
+    // joins to distinct symbolic pointers, so remove them before the loop and
+    // memory passes. Only the phis: merging blocks this early hides the
+    // short-circuit shapes jump threading recognizes after check elimination.
+    &cfg_simplify::SimplifyTrivialPhis,
     // Early frame scalarization improves size but can increase hot-path gas.
     &SizeOnly::new(cfg_simplify::CfgSimplify),
     &SizeOnly::new(frame_promotion::FrameSlotPromotion),
@@ -184,6 +192,11 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &pre::Pre,
     &storage_load_cse::StorageLoadCse,
     &storage_dse::StorageDse,
+    // Checked array loops reload one object's length before every bounds
+    // check. Unify the dominated reads while object identity is explicit, so
+    // load PRE and LICM see one loop-invariant load and the later check passes
+    // compare against one bound.
+    &cse::Cse,
     &load_pre::LoadPre,
     &frame_promotion::FrameSlotPromotion,
     &loop_canonicalize::LoopCanonicalize,
@@ -221,6 +234,11 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &check_elim::CheckElim,
     &jump_threading::JumpThreading,
     &cfg_simplify::CfgSimplify,
+    // Lookup helpers called from loops pay for their clones through the
+    // protocol removed per iteration. They run after specialization so the
+    // clones carry no mode flags that every caller fixed; the lowering-time
+    // cleanup folds the exposed bodies.
+    &GasOnly::new(inline::InlineHotLeaves),
     &frame_promotion::FrameSlotPromotion,
     &memory_dse::MemoryDse,
     &adce::Adce,
@@ -310,9 +328,9 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     // Clean them before EVM shaping isolates phi copies on critical edges.
     &cfg_simplify::CfgSimplify,
     // A word-at-a-time loop is compact enough to consume at its sole call site.
-    // This removes the internal frame protocol without duplicating the body.
+    // This removes the internal frame protocol without duplicating the body;
+    // the pass drops the consumed callee itself.
     &GasOnly::new(inline::InlineSingleUse),
-    &cfg_simplify::FunctionDce,
     &lower_evm_shaped::LowerEvmShaped,
     // Reconstruct old induction values on exits before selecting physical stack order.
     &loop_exit_remat::LoopExitRemat,
@@ -626,9 +644,19 @@ impl ModuleAnalyses {
         }
     }
 
-    /// Returns the shared alias-analysis snapshot for a function.
-    pub(crate) fn alias(&mut self, func_id: FunctionId) -> Rc<AliasAnalysis> {
-        Rc::clone(self.alias.entry(func_id).or_insert_with(|| Rc::new(AliasAnalysis::empty())))
+    /// Returns the shared alias-analysis snapshot for a function, resolving
+    /// internal calls through the module call summaries when the snapshot is
+    /// first built. A snapshot cached by an earlier pass keeps its own view.
+    fn alias_with_summaries(
+        &mut self,
+        func_id: FunctionId,
+        summaries: Arc<MemoryCallSummaries>,
+    ) -> Rc<AliasAnalysis> {
+        Rc::clone(
+            self.alias
+                .entry(func_id)
+                .or_insert_with(|| Rc::new(AliasAnalysis::empty_with_summaries(summaries))),
+        )
     }
 
     /// Returns the shared CFG snapshot for a function.
@@ -639,12 +667,15 @@ impl ModuleAnalyses {
     fn bundle(
         &mut self,
         func_id: FunctionId,
-        func: &Function,
+        module: &Module,
         requirements: FunctionAnalysisRequirements,
     ) -> FunctionAnalyses {
         FunctionAnalyses {
-            alias: requirements.alias().then(|| self.alias(func_id)),
-            cfg: requirements.cfg().then(|| self.cfg(func_id, func)),
+            alias: requirements.alias().then(|| {
+                let summaries = self.call_summaries(module);
+                self.alias_with_summaries(func_id, summaries)
+            }),
+            cfg: requirements.cfg().then(|| self.cfg(func_id, &module.functions[func_id])),
         }
     }
 
@@ -757,7 +788,7 @@ fn run_function_pass_cached(
     {
         return false;
     }
-    let bundle = analyses.bundle(func_id, &module.functions[func_id], requirements);
+    let bundle = analyses.bundle(func_id, module, requirements);
     let func = &mut module.functions[func_id];
     let insts_before = func.num_insts();
     let changed = run(func, &bundle);

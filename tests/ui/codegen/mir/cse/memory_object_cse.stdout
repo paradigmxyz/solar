@@ -25,10 +25,11 @@
       v0 = memory_object_len memorybytes, arg0
 -     v1 = memory_object_len memorybytes, arg0
       set_memory_object_len memorybytes, arg0, 9
-      v2 = memory_object_len memorybytes, arg0
+-     v2 = memory_object_len memorybytes, arg0
 -     v3 = add v0, v1
+-     v4 = add v3, v2
 +     v3 = add v0, v0
-      v4 = add v3, v2
++     v4 = add v3, 9
       ret v4
   }
   

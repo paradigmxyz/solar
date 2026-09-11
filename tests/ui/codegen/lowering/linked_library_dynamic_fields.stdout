@@ -15,20 +15,28 @@ bb3 [cold]:
   push 0
   push 0
   revert
-bb26 [cold]:
+bb28 [cold]:
   push 0x4e487b71
   push 224
   shl
   push 0
   mstore
   push 65
-  jump bb27
-bb27 [cold]:
+  jump bb29
+bb29 [cold]:
   push 4
   mstore
   push 36
   push 0
   revert
+bb26 [cold]:
+  push 0x4e487b71
+  push 224
+  shl
+  push 0
+  mstore
+  push 17
+  jump bb29
 bb1:
   push_immutable 0, 20
   address
@@ -99,7 +107,7 @@ bb1:
   shr
   dup 3
   sub
-  push bb26
+  push bb28
   jumpi
   push 32
   dup 2
@@ -107,7 +115,7 @@ bb1:
   dup 2
   dup 2
   lt
-  push bb26
+  push bb28
   jumpi
   push 64
   mload
@@ -124,7 +132,7 @@ bb1:
   dup 3
   gt
   or
-  push bb26
+  push bb28
   jumpi
   push 64
   mstore
@@ -187,7 +195,7 @@ bb1:
   dup 2
   dup 2
   lt
-  push bb26
+  push bb28
   jumpi
   push 31
   not
@@ -207,7 +215,7 @@ bb1:
   dup 3
   gt
   or
-  push bb26
+  push bb28
   jumpi
   push 64
   mstore
@@ -263,7 +271,7 @@ bb1:
   push 0
   exchange 2, 4
   jump bb18
-bb18:
+bb18 [loop]:
   dup 5
   mload
   dup 1
@@ -290,14 +298,14 @@ bb18:
   swap 1
   swap 2
   sub
-  push bb24
+  push bb26
   jumpi
   dup 3
   add
   swap 2
   dup 3
   lt
-  push bb24
+  push bb26
   jumpi
   mload
   push 0
@@ -322,7 +330,14 @@ bb18:
   push 32
   push 128
   return
-bb22:
+bb22 [loop]:
+  dup 1
+  mload
+  dup 3
+  lt
+  iszero
+  push bb25
+  jumpi
   push 32
   add
   dup 2
@@ -334,21 +349,19 @@ bb22:
   push 1
   add
   dup 1
-  dup 3
-  mul
-  dup 2
   iszero
+  dup 2
+  dup 4
+  mul
   dup 3
-  dup 3
+  dup 2
   div
   swap 1
   swap 4
   eq
-  swap 1
-  swap 3
   or
   iszero
-  push bb24
+  push bb26
   jumpi
   swap 1
   dup 3
@@ -356,18 +369,17 @@ bb22:
   swap 2
   dup 3
   lt
-  iszero
-  push bb18
+  push bb26
   jumpi
-  jump bb24
-bb24 [cold]:
+  jump bb18
+bb25 [cold]:
   push 0x4e487b71
   push 224
   shl
   push 0
   mstore
-  push 17
-  jump bb27
+  push 50
+  jump bb29
 // === ROOT/tests/ui/codegen/lowering/linked_library_dynamic_fields.sol:C (runtime) ===
 @module C_runtime
 bb0:
@@ -428,8 +440,6 @@ bb5:
   push 0
   keccak256
   sload
-  jump bb26
-bb26:
   push 128
   mstore
   push 32
@@ -834,7 +844,11 @@ bb9:
   push bb4
   jumpi
   mload
-  jump bb26
+  push 128
+  mstore
+  push 32
+  push 128
+  return
 bb25 [cold]:
   returndatasize
   push 0

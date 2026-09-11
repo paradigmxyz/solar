@@ -111,9 +111,8 @@ fn @mapKeyCross() -> u256 [selector=0xef866c75, abi_params=[], abi_returns=[word
 fn @compareControl() -> bool [selector=0x86f1fef0, pure, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = shl 224, 0x41424344
-    v1 = shl 224, 0x41424344
-    v2 = eq v0, v1
-    ret v2
+    v1 = eq v0, 0x4142434400000000000000000000000000000000000000000000000000000000
+    ret v1
 }
 
 fn @bytesObjectCast() -> bytes4 [selector=0x3edbb59d, pure, abi_params=[], abi_returns=[word<bytes4>]] {
@@ -221,19 +220,8 @@ fn @stringAddressCast() -> address [selector=0x6e03912b, pure, abi_params=[], ab
 
 fn @emptyStringCompare() -> bool [selector=0x97e464f0, pure, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 32
-    set_memory_object_len memorybytes, v0, 0
-    v1 = memory_object_data memorybytes, v0
-    v2 = memory_object_load_element memorybytes, v0, 0
-    v3 = memory_object_len memorybytes, v0
-    v4 = lt v3, 32
-    v5 = sub 32, v3
-    v6 = mul 8, v5
-    v7 = shl v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v8 = select v4, v7, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v9 = and v2, v8
-    v10 = eq 0, v9
-    ret v10
+    v0 = eq 0, 0
+    ret v0
 }
 
 fn @stateLiterals() -> (bytes4, bytes2, bytes4) [selector=0x803da9a2, view, abi_params=[], abi_returns=[word<bytes4>, word<bytes2>, word<bytes4>]] {
