@@ -166,7 +166,7 @@
 (extractor (storagetomemory storage memory layout) (inst (Op.StorageToMemory storage memory layout)))
 
 (decl memorytostorage (Value Value Unit) Value)
-(extractor (memorytostorage storage memory layout) (inst (Op.MemoryToStorage storage memory layout)))
+(extractor (memorytostorage memory storage layout) (inst (Op.MemoryToStorage memory storage layout)))
 
 (decl clearstorage (Value Unit) Value)
 (extractor (clearstorage storage layout) (inst (Op.ClearStorage storage layout)))
