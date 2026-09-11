@@ -534,6 +534,11 @@ its FMP address and bump, even when folding makes its size constant. ABI encodin
 uses this requirement when it writes the output before reserving its final size.
 The flag round-trips through MIR text.
 
+Load PRE inserts reads only when the join prefix cannot revert, terminate, or
+diverge. Availability on one predecessor does not make it safe to execute a load
+before the check guarding its original path. A value already available on every
+incoming path can still replace a redundant load without inserting an access.
+
 CSE and load PRE avoid extending a load from an allocation base across blocks
 solely to eliminate a cheap reload. They can reuse a value already live across
 the edge, and load PRE prefers an equivalent constant or already-live value.

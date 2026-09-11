@@ -67,7 +67,11 @@
 //! after the moved read, and a `gas`/`msize` read there would observe the moved load's gas
 //! and memory-expansion effects early. A call can also observe storage-access warming even
 //! when it cannot change stored values. Removal-only (fully redundant) rewrites do not move
-//! reads, but we keep the single conservative scan for both cases for simplicity.
+//! reads, but we keep the single conservative scan for these cases for simplicity.
+//!
+//! Before inserting a read, also reject a join prefix that may revert, terminate, or diverge:
+//! the new read could trap or consume gas on a path that did not execute it. Full redundancy
+//! can still reuse values computed on every incoming path, without inserting an access.
 //!
 //! An inserted load reads exactly the state the original would have read on that path: it
 //! sits at the end of the predecessor (nothing follows it but the jump), and the join
@@ -878,6 +882,14 @@ impl LoadRedundancyEliminator {
         }
 
         if !insertions.is_empty() {
+            if func.blocks[target]
+                .instructions
+                .iter()
+                .take_while(|&&prefix| prefix != inst)
+                .any(|&prefix| func.inst(prefix).kind.effects().control.any())
+            {
+                return None;
+            }
             // Insertions must be structurally safe; profitability is decided
             // by `LoadPreCostModel` above.
             let loop_insertion = incoming

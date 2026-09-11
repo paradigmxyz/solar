@@ -84,3 +84,66 @@
       ret v4
   }
   
+  fn @checked_arithmetic_blocks_memory_insertion(arg0: bool, arg1: u256) -> u256 {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb2:
+      jump bb3
+    bb1:
+      v0 = mload 128
+      jump bb3
+    bb3:
+      v1 = checked_add u256, arg1, 1
+      v2 = mload 128
+      v3 = mload 128
+      v4 = add v2, v3
+      v5 = add v1, v4
+      ret v5
+  }
+  
+  fn @checked_modulus_blocks_storage_insertion(arg0: bool, arg1: u256) -> u256 {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb2:
+      jump bb3
+    bb1:
+      v0 = sload 5
+      jump bb3
+    bb3:
+      v1 = checked_addmod 1, 2, arg1
+      v2 = sload 5
+      v3 = add v1, v2
+      ret v3
+  }
+  
+  fn @conditional_check_blocks_keccak_insertion(arg0: bool, arg1: bool) -> u256 {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb2:
+      jump bb3
+    bb1:
+      v0 = keccak256 128, 32
+      jump bb3
+    bb3:
+      panic_if arg1, 0x1
+      v1 = keccak256 128, 32
+      ret v1
+  }
+  
+  fn @check_preserves_full_availability(arg0: bool, arg1: bool) -> u256 {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb2:
+      v1 = sload 5
+      jump bb3
+    bb1:
+      v0 = sload 5
+      jump bb3
+    bb3:
++     v3 = phi [bb1: v0], [bb2: v1]
+      panic_if arg1, 0x1
+-     v2 = sload 5
+-     ret v2
++     ret v3
+  }
+  
