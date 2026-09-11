@@ -81,3 +81,36 @@ fn @replace_uses_after_second_load() -> u256 {
     v5 = add v3, v4
     ret v5
 }
+
+// A load after the first gas observation retains its warm-access cost.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_store_forward_after_gas{{[( ]}}
+// CHECK: {{^[ +].*}}sstore 0, 9
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = gas
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = sload 0
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = gas
+fn @keep_store_forward_after_gas() -> u256 {
+  bb0:
+    sstore 0, 9
+    v0 = gas
+    v1 = sload 0
+    v2 = gas
+    v3 = add v1, v2
+    ret v3
+}
+
+// A store and load inside a measured interval both retain their gas cost.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_store_forward_inside_gas_interval{{[( ]}}
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = gas
+// CHECK: {{^[ +].*}}sstore 0, 9
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = sload 0
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = gas
+fn @keep_store_forward_inside_gas_interval() -> u256 {
+  bb0:
+    v0 = gas
+    sstore 0, 9
+    v1 = sload 0
+    v2 = gas
+    v3 = add v0, v1
+    v4 = add v3, v2
+    ret v4
+}

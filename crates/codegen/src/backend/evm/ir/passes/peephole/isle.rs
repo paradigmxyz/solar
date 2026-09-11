@@ -296,6 +296,10 @@ impl generated::Context for PeepContext<'_> {
         self.tail().map(|[a, b, c, d]| (a, b, c, d))
     }
 
+    fn canonical_stack_effects4(&mut self, a: Inst, b: Inst, c: Inst, d: Inst) -> bool {
+        [a, b, c, d].into_iter().all(|inst| self.instructions[inst].has_canonical_stack_effect())
+    }
+
     fn last5(&mut self, _: Window) -> Option<(Inst, Inst, Inst, Inst, Inst)> {
         self.tail().map(|[a, b, c, d, e]| (a, b, c, d, e))
     }
@@ -654,5 +658,18 @@ mod tests {
         assert!(
             PeepContext::new(&instructions, EvmVersion::Osaka).unprotected_tail::<2>().is_none()
         );
+    }
+
+    #[test]
+    fn reload_stored_value_requires_canonical_stack_effects() {
+        let mut instructions = [
+            Instruction::push_value(U256::from(128)),
+            Instruction::opcode(MSTORE),
+            Instruction::push_value(U256::from(128)),
+            Instruction::opcode(MLOAD),
+        ];
+        assert!(PeepContext::new(&instructions, EvmVersion::Osaka).select::<false>().is_some());
+        instructions[1].metadata.stack = Some(StackEffect::new(1, 0));
+        assert!(PeepContext::new(&instructions, EvmVersion::Osaka).select::<false>().is_none());
     }
 }

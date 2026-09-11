@@ -59,6 +59,8 @@
 (extern extractor last3 last3)
 (decl last4 (Inst Inst Inst Inst) Window)
 (extern extractor last4 last4)
+(decl pure canonical_stack_effects4 (Inst Inst Inst Inst) bool)
+(extern constructor canonical_stack_effects4 canonical_stack_effects4)
 (decl last5 (Inst Inst Inst Inst Inst) Window)
 (extern extractor last5 last5)
 (decl last6 (Inst Inst Inst Inst Inst Inst) Window)
@@ -230,7 +232,9 @@
          (rewrite 6 (Edit.Keep 3)))
 
 ;; `PUSH x MSTORE PUSH x MLOAD -> DUP1 PUSH x MSTORE`.
-(rule 130 (peep_nonpush (last4 (push a) (opcode $MSTORE) (push a) (opcode $MLOAD)))
+(rule 130 (peep_nonpush (last4 (and first (push a)) (and store (opcode $MSTORE))
+                                  (and second (push a)) (and load (opcode $MLOAD))))
+        (if-let true (canonical_stack_effects4 first store second load))
         (rewrite 4 (Edit.ReloadStoredValue)))
 
 ;; `DUP1 PUSH x MSTORE POP -> PUSH x MSTORE`.

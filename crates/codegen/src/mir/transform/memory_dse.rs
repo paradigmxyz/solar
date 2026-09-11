@@ -6,7 +6,8 @@
 //! same-block `mload` instructions from the latest exact-address `mstore` when
 //! no intervening operation can mutate memory. Across a unique predecessor
 //! edge, equal constant stores can be removed only while no overlapping
-//! 32-byte write has invalidated the remembered word.
+//! 32-byte write has invalidated the remembered word. Gas and memory-size
+//! observations act as barriers to memory elimination.
 
 use crate::mir::{
     BlockId, Function, Immediate, InstId, InstKind, MemoryObjectKind, MemoryRegion, Module,

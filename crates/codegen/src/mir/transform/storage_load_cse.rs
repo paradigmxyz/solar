@@ -5,7 +5,9 @@
 //! forward their full word to subsequent loads. This exposes packed field
 //! updates as word expressions, allowing storage DSE to remove intermediate
 //! writes while retaining every preserved bit. Calls and possible aliases
-//! invalidate both load and store facts.
+//! invalidate both load and store facts. After a `gas` read, storage accesses
+//! remain explicit so a later `gas` read observes their cost and warmness
+//! effects.
 
 use crate::mir::{
     BlockId, Function, InstId, InstKind, Module, StorageAlias, ValueId,
@@ -119,6 +121,7 @@ impl StorageLoadCseCx {
         state: &mut RunState,
     ) {
         let aa = self.alias.as_ref().expect("storage-load CSE alias snapshot is initialized");
+        let mut gas_observed = false;
         for (inst_idx, &inst_id) in func.blocks[block_id].instructions.iter().enumerate() {
             match &func.inst(inst_id).kind {
                 InstKind::SLoad(slot) => {
@@ -131,6 +134,9 @@ impl StorageLoadCseCx {
                     let Some(result) = func.inst_result_value(inst_id) else {
                         continue;
                     };
+                    if gas_observed {
+                        continue;
+                    }
                     if let Some(&(cached, from_store)) = state.cached_loads.get(&alias) {
                         if !from_store && !liveness.is_used_at_or_after(cached, block_id, inst_idx)
                         {
@@ -155,6 +161,9 @@ impl StorageLoadCseCx {
                         !aa.alias(Location::Storage(*cached_alias), Location::Storage(alias))
                             .may_alias()
                     });
+                    if gas_observed {
+                        continue;
+                    }
                     // sstore slot, value; result = sload slot => result = value
                     let value = mir_utils::resolve_replacement(*value, &state.replacements);
                     state.cached_loads.insert(alias, (value, true));
@@ -165,6 +174,11 @@ impl StorageLoadCseCx {
                         inst_id,
                         &state.replacements,
                     );
+                    if effects.observes_gas() {
+                        state.cached_loads.clear();
+                        gas_observed = true;
+                        continue;
+                    }
                     for &access in effects.writes() {
                         match access {
                             Access::Any(AddressSpace::Storage) => {
