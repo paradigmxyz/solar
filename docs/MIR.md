@@ -523,7 +523,13 @@ Static allocation keeps shared frames fixed so one entry's local objects cannot
 raise another entry's heap floor. Locals go before spills when their PUSH widths
 stay unchanged, after spills when they fit below shared frames, or after the
 entry's reachable frames. A reserved heap prefix stays between these locals and
-the initial free-memory pointer. An allocation marked `preserves_fmp` must keep
+the initial free-memory pointer. Prefix analysis follows bounded constant
+add/sub offsets with EVM modular arithmetic, including helper returns and
+merged paths. A known backward offset from an opaque base still reserves space;
+losing pointer provenance does not discard that offset. Forward offsets reduce
+the required prefix, but never below zero. This analysis covers constant working
+prefixes, not arbitrary unbounded assembly pointer arithmetic.
+An allocation marked `preserves_fmp` must keep
 its FMP address and bump, even when folding makes its size constant. ABI encoding
 uses this requirement when it writes the output before reserving its final size.
 The flag round-trips through MIR text.
@@ -545,7 +551,8 @@ unused stack words, but their payloads and required live-ins stay explicit.
 Final CFG cleanup exposes acyclic branch triangles as structural conditional
 terminators. Layout places the taken arm before its join so assembly can omit
 the arm’s jump. Known loops and cold arms keep their existing order, and the
-conversion preserves source origins and excludes function activation events.
+conversion preserves source origins and keeps glued instructions and custom stack
+effects intact. Debug events move to retained operations where representable.
 
 EVM layout packs small shared terminal traces below the PUSH1 address limit.
 It moves the whole fallthrough trace, so moving a shared exit does not insert
@@ -596,7 +603,8 @@ including an `MSIZE` that observes the store.
 
 Final store cleanup consumes a stack word directly when a duplicate is stored
 and its original is discarded immediately afterward. It preserves the order of
-the remaining stack and does not cross a function event or glued boundary.
+the remaining stack and does not cross a glued boundary. Debug events move to
+the retained store.
 
 Two-word branch layouts place one reloaded join value above the resident word.
 Preparing the condition then needs one swap. Wider layouts retain their existing
@@ -604,14 +612,17 @@ order because downstream joins can outweigh that local saving.
 
 Gas cleanup can copy an eight-byte word-return body into a stub shared by
 multiple empty stubs. This removes an extra jump while retaining distinct
-return labels. Size mode keeps the shared body, and function-entry blocks or
-activation events on the replaced jump prevent the copy.
+return labels. Size mode keeps the shared body. Debug events from the copied
+body and replaced jump move to retained operations where representable.
 
 When both branch arms terminate normally, gas layout places the false arm first.
 The true arm then uses the existing condition directly, avoiding an inversion
 and exposing its return path to later sharing and placement.
 
-Tail merging reuses an existing whole-body terminal suffix when there are no nested shared tails or function-entry events. Other return labels remain distinct jump stubs, so sharing avoids an extra block without changing address identity or nested fallthrough paths.
+Tail merging reuses an existing whole-body terminal suffix when there are no
+nested shared tails. Other return labels remain distinct jump stubs, so sharing
+avoids an extra block without changing address identity or nested fallthrough
+paths. Ambiguous function-entry events are dropped after selecting the rewrite.
 
 The lowered pipeline folds constant results before branch cleanup and stack scheduling. It keeps other value identities and instruction choices intact to avoid lengthening live ranges after representation lowering.
 

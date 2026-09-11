@@ -6,7 +6,10 @@ use super::{
     Module, RelayoutAddress, SpillSlot, StackEffect, StackOp, StackPush, Terminator, U256, Value,
     ValueId, WORD_BYTES, immutable_staging_end, op, preserves_push_width,
 };
-use crate::mir::Callee;
+use crate::mir::{
+    Callee,
+    utils::{eval::eval_inst, u256_to_u64},
+};
 
 /// A dynamic-length write to a low absolute base below this bound above
 /// `HEAP_START` is treated as possibly reaching the spill area.
@@ -680,7 +683,8 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// before a `bytes` object, then consume that prefix with `create2` or
     /// `keccak256`. Reserve the largest constant backward offset for entries
     /// that reach such a builder so its temporary image cannot overlap the
-    /// highest static-frame spill slots.
+    /// highest static-frame spill slots. Constant offsets use EVM modular arithmetic, so
+    /// adding a negative constant reserves the same prefix as subtracting its magnitude.
     fn heap_prefix_guard(func: &Function, returned_offsets: &FxHashMap<FunctionId, u64>) -> u64 {
         func.instructions()
             .filter_map(|inst_id| {
@@ -741,6 +745,22 @@ impl<'gcx> EvmCodegen<'gcx> {
         offsets
     }
 
+    /// Evaluates short constant expressions even when optimization is disabled.
+    fn heap_prefix_constant(func: &Function, value: ValueId, depth: usize) -> Option<U256> {
+        if let Some(value) = func.value_u256(value) {
+            return Some(value);
+        }
+        if depth == 8 {
+            return None;
+        }
+        let Value::Inst(inst_id) = func.value(value) else { return None };
+        eval_inst(&func.inst(*inst_id).kind, |operand| {
+            Self::heap_prefix_constant(func, operand, depth + 1).ok_or(())
+        })
+        .ok()
+        .flatten()
+    }
+
     /// Returns how far `value` can point before its underlying heap object.
     fn heap_prefix_offset(
         func: &Function,
@@ -758,7 +778,23 @@ impl<'gcx> EvmCodegen<'gcx> {
         let derive = |value, visiting: &mut DenseBitSet<ValueId>, memo: &mut FxHashMap<_, _>| {
             Self::heap_prefix_offset(func, value, returned_offsets, visiting, memo)
         };
-        let offset = match func.value(value) {
+        // An opaque base may still be a heap pointer. Keep its known backward displacement
+        // instead of dropping the consumer when a cast, helper, or merge loses provenance.
+        let shifted = |base,
+                       adjustment: U256,
+                       visiting: &mut DenseBitSet<ValueId>,
+                       memo: &mut FxHashMap<_, _>| {
+            if Self::heap_prefix_constant(func, base, 0).is_some() {
+                return None;
+            }
+            let prefix = derive(base, visiting, memo).unwrap_or(0);
+            if let Some(forward) = u256_to_u64(adjustment) {
+                Some(prefix.saturating_sub(forward))
+            } else {
+                prefix.checked_add(u256_to_u64(U256::ZERO.wrapping_sub(adjustment))?)
+            }
+        };
+        let offset = (|| match func.value(value) {
             Value::Arg(_) if func.value_ty(value).is_some_and(MirType::is_memory_reference) => {
                 Some(0)
             }
@@ -769,29 +805,46 @@ impl<'gcx> EvmCodegen<'gcx> {
                 {
                     Some(0)
                 }
-                InstKind::ICall { function: Callee::Function(function), .. } => {
-                    returned_offsets.get(function).copied()
+                InstKind::ICall { function: Callee::Function(function), args } => {
+                    let argument_prefix =
+                        args.iter().filter_map(|&argument| derive(argument, visiting, memo)).max();
+                    let returned = returned_offsets.get(function).copied();
+                    if argument_prefix.is_some() || returned.is_some() {
+                        argument_prefix.unwrap_or(0).checked_add(returned.unwrap_or(0))
+                    } else {
+                        None
+                    }
                 }
-                InstKind::Sub(base, amount) => {
-                    let base = derive(*base, visiting, memo).or_else(|| {
-                        func.value_ty(*base).is_some_and(MirType::is_memory_reference).then_some(0)
-                    })?;
-                    base.checked_add(func.value_u64(*amount)?)
+                InstKind::Add(first, second) => {
+                    if let Some(amount) = Self::heap_prefix_constant(func, *second, 0) {
+                        shifted(*first, amount, visiting, memo)
+                    } else if let Some(amount) = Self::heap_prefix_constant(func, *first, 0) {
+                        shifted(*second, amount, visiting, memo)
+                    } else {
+                        derive(*first, visiting, memo).max(derive(*second, visiting, memo))
+                    }
+                }
+                InstKind::Sub(base, amount) => shifted(
+                    *base,
+                    U256::ZERO.wrapping_sub(Self::heap_prefix_constant(func, *amount, 0)?),
+                    visiting,
+                    memo,
+                ),
+                InstKind::WordCast(base) | InstKind::MemoryObjectFromPtr { ptr: base, .. } => {
+                    derive(*base, visiting, memo)
                 }
                 InstKind::Phi(incoming) => incoming
                     .iter()
-                    .map(|&(_, incoming)| derive(incoming, visiting, memo))
-                    .collect::<Option<Vec<_>>>()?
-                    .into_iter()
+                    .filter_map(|&(_, incoming)| derive(incoming, visiting, memo))
                     .max(),
-                InstKind::Select(_, then_value, else_value) => Some(
-                    derive(*then_value, visiting, memo)?.max(derive(*else_value, visiting, memo)?),
-                ),
+                InstKind::Select(_, then_value, else_value) => {
+                    derive(*then_value, visiting, memo).max(derive(*else_value, visiting, memo))
+                }
                 _ if func.value_ty(value).is_some_and(MirType::is_memory_reference) => Some(0),
                 _ => None,
             },
             _ => None,
-        };
+        })();
         visiting.remove(value);
         if let Some(offset) = offset {
             memo.insert(value, offset);
@@ -997,5 +1050,125 @@ impl<'gcx> EvmCodegen<'gcx> {
                 + (index.index() as u64) * EvmMemoryLayout::WORD_SIZE,
         );
         self.asm.emit_op(op::MLOAD);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::mir::{BlockId, FunctionBuilder};
+    use solar_interface::Ident;
+
+    #[test]
+    fn heap_prefix_modular_offsets() {
+        let mut function = Function::new(Ident::DUMMY);
+        let mut builder = FunctionBuilder::new(&mut function);
+        // base = fmp
+        // opaque = arg0
+        // offsets = base - 32, base + (-32), (-32) + base
+        // mixed = (base + (-32)) - 16
+        let base = builder.fmp();
+        let opaque = builder.add_param(MirType::uint256());
+        let word = builder.imm(32);
+        let negative_word = builder.imm(-32);
+        let half_word = builder.imm(16);
+        let negative_half_word = builder.imm(-16);
+        let sub = builder.sub(base, word);
+        let add = builder.add(base, negative_word);
+        let commuted = builder.add(negative_word, base);
+        let last_byte = builder.imm(31);
+        let negative_expression = builder.not(last_byte);
+        let expression = builder.add(base, negative_expression);
+        let mixed = builder.sub(add, half_word);
+        let forward = builder.add(mixed, half_word);
+        let negative_sub = builder.sub(mixed, negative_half_word);
+        let opaque_prefix = builder.add(opaque, negative_word);
+        let cases = [
+            (base, 0),
+            (sub, 32),
+            (add, 32),
+            (commuted, 32),
+            (expression, 32),
+            (mixed, 48),
+            (forward, 32),
+            (negative_sub, 32),
+            (opaque_prefix, 32),
+        ];
+        let mut visiting = DenseBitSet::new_empty(function.num_values());
+        let mut memo = FxHashMap::default();
+        for (value, expected) in cases {
+            assert_eq!(
+                EvmCodegen::heap_prefix_offset(
+                    &function,
+                    value,
+                    &FxHashMap::default(),
+                    &mut visiting,
+                    &mut memo,
+                ),
+                Some(expected),
+            );
+            assert!(visiting.is_empty());
+        }
+    }
+
+    #[test]
+    fn heap_prefix_merges_keep_known_paths() {
+        let mut function = Function::new(Ident::DUMMY);
+        let mut builder = FunctionBuilder::new(&mut function);
+        // known = fmp - 32
+        // selected = select condition, opaque, known
+        // merged = phi [opaque, known]
+        let base = builder.fmp();
+        let word = builder.imm(32);
+        let known = builder.sub(base, word);
+        let opaque = builder.add_param(MirType::uint256());
+        let condition = builder.add_param(MirType::Bool);
+        let selected = builder.select(condition, opaque, known);
+        let merged = builder.phi(vec![(BlockId::ENTRY, opaque), (BlockId::ENTRY, known)]);
+        let mut visiting = DenseBitSet::new_empty(function.num_values());
+        let mut memo = FxHashMap::default();
+        for value in [selected, merged] {
+            assert_eq!(
+                EvmCodegen::heap_prefix_offset(
+                    &function,
+                    value,
+                    &FxHashMap::default(),
+                    &mut visiting,
+                    &mut memo,
+                ),
+                Some(32),
+            );
+            assert!(visiting.is_empty());
+        }
+    }
+
+    #[test]
+    fn heap_prefix_helper_offsets_compose() {
+        let mut module = Module::new(Ident::DUMMY);
+        let mut helper = Function::new(Ident::DUMMY);
+        let mut builder = FunctionBuilder::new(&mut helper);
+        builder.set_return_type(MirType::uint256());
+        // helper(base): return base + (-32)
+        let base = builder.add_param(MirType::uint256());
+        let adjustment = builder.imm(-32);
+        let prefix = builder.add(base, adjustment);
+        builder.ret([prefix]);
+        let helper = module.add_function(helper);
+
+        let mut caller = Function::new(Ident::DUMMY);
+        let mut builder = FunctionBuilder::new(&mut caller);
+        builder.set_return_type(MirType::uint256());
+        // caller(base): return helper(base - 16) - 16
+        let base = builder.add_param(MirType::uint256());
+        let adjustment = builder.imm(16);
+        let argument = builder.sub(base, adjustment);
+        let result = builder.icall(helper, vec![argument], MirType::uint256());
+        let prefix = builder.sub(result, adjustment);
+        builder.ret([prefix]);
+        let caller = module.add_function(caller);
+
+        let offsets = EvmCodegen::heap_prefix_return_offsets(&module);
+        assert_eq!(offsets[&helper], 32);
+        assert_eq!(offsets[&caller], 64);
     }
 }
