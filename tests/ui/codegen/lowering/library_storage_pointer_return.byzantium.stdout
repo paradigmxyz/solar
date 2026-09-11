@@ -175,7 +175,7 @@ fn @pair() -> (u256, u256) [selector=0xa8aa1b31, view, abi_params=[], abi_return
     v12 = abi_decode [u256, storageptr], v10
     v13 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v14 = add v13, 32
-    v15 = mload v14
+    v15 = mload v14 !metadata(compiler_memory)
     v16 = sload v15 !metadata(storage=symbolic(v15))
     ret v12, v16
   bb3:
@@ -280,7 +280,7 @@ fn @agg() -> (u256, u256) [selector=0xf5e34bfa, view, abi_params=[], abi_returns
     memory_object_copy_from_slice memorybytes, v10, v11
     v12 = abi_decode [storageptr, array<2, u256>], v10
     v13 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v14 = memory_object_load_element<memoryfixedarray> memoryfixedarray<2, 1>, v13, 1
+    v14 = memory_object_load_element<memoryfixedarray> memoryfixedarray<2, 1>, v13, 1 !metadata(compiler_memory)
     v15 = sload v12 !metadata(storage=symbolic(v12))
     v16 = lt 1, 2
     v17 = iszero v16

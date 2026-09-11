@@ -98,7 +98,7 @@ fn @read() -> (u256, memorybytes) [selector=0x57de26a4, view, abi_params=[], abi
     memory_object_copy_from_slice memorybytes, v17, v18
     v19 = abi_decode [u256, bytes], v17
     v20 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v21 = memory_object_load_element<memorybytes> memoryfixedarray<2, 1>, v20, 1
+    v21 = memory_object_load_element<memorybytes> memoryfixedarray<2, 1>, v20, 1 !metadata(compiler_memory)
     ret v19, v21
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
@@ -155,7 +155,7 @@ fn @readArguments() -> (u256, memorybytes) [selector=0x372fd38b, view, abi_param
     memory_object_copy_from_slice memorybytes, v26, v27
     v28 = abi_decode [u256, bytes], v26
     v29 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v30 = memory_object_load_element<memorybytes> memoryfixedarray<2, 1>, v29, 1
+    v30 = memory_object_load_element<memorybytes> memoryfixedarray<2, 1>, v29, 1 !metadata(compiler_memory)
     ret v28, v30
   bb6:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)

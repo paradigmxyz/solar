@@ -325,11 +325,11 @@ fn @useTuple(arg0: calldataslice, arg1: bool) -> u256 [selector=0xf8c72565, pure
     v0 = icall @_decode, 3, arg0, arg1
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 32
-    v3 = mload v2
+    v3 = mload v2 !metadata(compiler_memory)
     v4 = add v1, 64
-    v5 = mload v4
+    v5 = mload v4 !metadata(compiler_memory)
     v6 = add v1, 96
-    v7 = mload v6
+    v7 = mload v6 !metadata(compiler_memory)
     v8 = make_calldata_slice v5, v7
     v9 = slice_len v8
     ret v9

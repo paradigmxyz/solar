@@ -9,9 +9,9 @@ fn @direct(arg0: calldataslice) -> (bool, u256) [selector=0x18f2e0cb, pure, abi_
     v0 = icall @decode.3, 2, arg0
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 32
-    v3 = mload v2
+    v3 = mload v2 !metadata(compiler_memory)
     v4 = add v1, 64
-    v5 = mload v4
+    v5 = mload v4 !metadata(compiler_memory)
     v6 = make_calldata_slice v3, v5
     v7 = slice_ptr v6
     v8 = add v7, 64
@@ -24,9 +24,9 @@ fn @decode.1(arg0: calldataslice) -> (bool, calldataslice) [selector=0xe5c5e9a3,
     v0 = icall @decode.3, 2, arg0
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 32
-    v3 = mload v2
+    v3 = mload v2 !metadata(compiler_memory)
     v4 = add v1, 64
-    v5 = mload v4
+    v5 = mload v4 !metadata(compiler_memory)
     v6 = make_calldata_slice v3, v5
     ret v0, v6
 }
@@ -67,7 +67,7 @@ fn @roundTrip() -> (bool, u256, u256, u256, u256, u256, u256) [selector=0x6643a6
     memory_object_copy_from_slice memorybytes, v18, v19
     v20 = abi_decode [bool, tuple<bytes32, bytes32, u256, u256, bytes, bytes>], v18
     v21 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v22 = memory_object_load_element<memorystruct> memoryfixedarray<2, 1>, v21, 1
+    v22 = memory_object_load_element<memorystruct> memoryfixedarray<2, 1>, v21, 1 !metadata(compiler_memory)
     v23 = memory_object_load_field memorystruct<6>, v22, 0
     v24 = memory_object_load_field memorystruct<6>, v22, 1
     v25 = memory_object_load_field memorystruct<6>, v22, 2

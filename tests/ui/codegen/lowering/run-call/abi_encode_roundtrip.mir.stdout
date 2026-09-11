@@ -109,9 +109,9 @@ fn @mixedRoundtrip() -> (u256, u256, u8) [selector=0xb3f929db, pure, abi_params=
     v8 = abi_encode [array<2, word>, memory_bytes, word<u8>], object, args v0, v5, v7
     v9 = abi_decode [array<2, u256>, bytes, u8], v8
     v10 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v11 = memory_object_load_element<memorybytes> memoryfixedarray<3, 1>, v10, 1
+    v11 = memory_object_load_element<memorybytes> memoryfixedarray<3, 1>, v10, 1 !metadata(compiler_memory)
     v12 = add v10, 64
-    v13 = mload v12
+    v13 = mload v12 !metadata(compiler_memory)
     v14 = lt 1, 2
     v15 = iszero v14
     jumpi v15, bb1, bb4
@@ -221,7 +221,7 @@ fn @nestedMixedRoundtrip() -> (u256, u256, u256, u256) [selector=0x337c7ce0, pur
     v44 = abi_encode [memory_array<memory_array<word>>, memory_bytes], object, args v0, v42
     v45 = abi_decode [array<_, array<_, u256>>, bytes], v44
     v46 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v47 = memory_object_load_element<memorybytes> memoryfixedarray<2, 1>, v46, 1
+    v47 = memory_object_load_element<memorybytes> memoryfixedarray<2, 1>, v46, 1 !metadata(compiler_memory)
     v48 = memory_object_len memoryarray, v45
     v49 = memory_object_len memoryarray, v45
     v50 = lt 0, v49

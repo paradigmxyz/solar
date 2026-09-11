@@ -25,17 +25,21 @@ HIR (from solar-sema) -> Lowering -> MIR -> Code Generation -> EVM Bytecode
 
 ## Memory ownership
 
-Compiler frames, spill slots, and temporary return buffers require memory that
-source assembly cannot address. An unannotated assembly block that can access
+Compiler frames, spill slots, and temporary return buffers require exclusive
+ownership while they are live. An unannotated assembly block that can access
 memory outside the constant scratch range `[0, 64)`, change the free-memory
 pointer, or change a memory binding marks its function `unrestricted_memory`.
 Reading the free-memory pointer alone does not require this restriction.
 `assembly ("memory-safe")` and the legacy `/// @solidity memory-safe-assembly`
-annotation supply the source contract instead.
+annotation supply the source contract instead. Temporary heap memory begins
+at the free-memory pointer read on entry to the assembly block; its value
+includes compiler allocations.
 
 The backend propagates this restriction through each internal call context.
 It keeps compiler state on the stack, including arguments, return tuples, and
 phi values, and rejects code generation if a required memory fallback remains.
+Storage promotion skips these contexts and marks its temporary accesses as
+compiler-owned memory.
 Separate external entry points and creation code have separate memory lifetimes.
 Recursive Yul tuple components and their callees also require stack-owned state,
 so suspended calls cannot reuse a frame. The backend tracks this requirement
@@ -49,7 +53,9 @@ cannot grant permission to a scheduler spill.
 A closed stack-recovery sequence may temporarily use zeroed memory above
 `msize()` to reach a deep value or arrange a wide control-flow edge. It restores
 the saved words and clears that scratch before any source operation runs. This
-exception requires memory extent to be unobservable in the call context; clearing memory cannot undo its expansion. See
+exception requires memory extent to be unobservable in the call context; clearing
+memory cannot undo its expansion. Expansion still costs gas and can change the
+gas limit needed for a call. See
 [CODEGEN-008](../../docs/SOLC_DIVERGENCE.md#codegen-008-deep-forwarding-stacks-with-observable-memory-size).
 
 Constructor immutable assignments can remain in SSA until a normal constructor

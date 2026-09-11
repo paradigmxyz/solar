@@ -52,7 +52,7 @@ fn @forwardPair() -> (u256, memoryarray) [selector=0x9948ca45, view, abi_params=
     v0 = icall @pair, 2, 0
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 32
-    v3 = mload v2
+    v3 = mload v2 !metadata(compiler_memory)
     v4 = icall @load_storage_word_array, 1, v3
     ret v0, v4
 }
@@ -62,7 +62,7 @@ fn @forwardBytesPair() -> (u256, memorybytes) [selector=0x244e77d3, view, abi_pa
     v0 = icall @bytesPair, 2, 1
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 32
-    v3 = mload v2
+    v3 = mload v2 !metadata(compiler_memory)
     v4 = sload v3 !metadata(storage=symbolic(v3))
     v5 = and v4, 1
     v6 = eq v5, 1
@@ -124,7 +124,7 @@ fn @forwardStructPair() -> (u256, memorystruct) [selector=0x89663e35, view, abi_
     v1 = icall @structPair, 2, 2
     v2 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v3 = add v2, 32
-    v4 = mload v3
+    v4 = mload v3 !metadata(compiler_memory)
     v5 = alloc memorystruct<2>, exact, uninitialized, panic, 64
     v6 = sload v4 !metadata(storage=symbolic(v4))
     memory_object_store_field memorystruct<2>, v5, 0, v6
@@ -139,7 +139,7 @@ fn @forwardNarrowPair() -> (u256, memoryarray) [selector=0x1c173dc4, view, abi_p
     v0 = icall @narrowPair, 2, 0
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 32
-    v3 = mload v2
+    v3 = mload v2 !metadata(compiler_memory)
     v4 = and v0, 255
     v5 = icall @load_storage_word_array, 1, v3
     ret v4, v5
@@ -150,7 +150,7 @@ fn @forwardLeadingPair() -> (memoryarray, u256) [selector=0x59d1f54e, view, abi_
     v0 = icall @leadingPair, 2, 0
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 32
-    v3 = mload v2
+    v3 = mload v2 !metadata(compiler_memory)
     v4 = icall @load_storage_word_array, 1, v0
     ret v4, v3
 }
@@ -160,9 +160,9 @@ fn @forwardTriple() -> (memoryarray, u256, memorybytes) [selector=0xd5d6b86b, vi
     v0 = icall @triple, 3, 0, 1
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 32
-    v3 = mload v2
+    v3 = mload v2 !metadata(compiler_memory)
     v4 = add v1, 64
-    v5 = mload v4
+    v5 = mload v4 !metadata(compiler_memory)
     v6 = icall @load_storage_word_array, 1, v0
     v7 = sload v5 !metadata(storage=symbolic(v5))
     v8 = and v7, 1
@@ -222,7 +222,7 @@ fn @declarePair() -> (u256, memoryarray) [selector=0x2538210e, view, abi_params=
     v0 = icall @pair, 2, 0
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 32
-    v3 = mload v2
+    v3 = mload v2 !metadata(compiler_memory)
     v4 = icall @load_storage_word_array, 1, v3
     ret v0, v4
 }
@@ -232,7 +232,7 @@ fn @assignPair() -> (u256, memoryarray) [selector=0x9355e772, view, abi_params=[
     v0 = icall @pair, 2, 0
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 32
-    v3 = mload v2
+    v3 = mload v2 !metadata(compiler_memory)
     v4 = icall @load_storage_word_array, 1, v3
     ret v0, v4
 }
@@ -242,7 +242,7 @@ fn @keepStorage() -> (u256, storageptr) [view] {
     v0 = icall @pair, 2, 0
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 32
-    v3 = mload v2
+    v3 = mload v2 !metadata(compiler_memory)
     ret v0, v3
 }
 
@@ -251,7 +251,7 @@ fn @forwardKeepingStorage() -> (u256, u256) [selector=0xe85db471, view, abi_para
     v0 = icall @keepStorage, 2
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 32
-    v3 = mload v2
+    v3 = mload v2 !metadata(compiler_memory)
     v4 = sload v3 !metadata(storage=symbolic(v3))
     ret v0, v4
 }

@@ -52,6 +52,8 @@ impl EvmMemoryLayout {
     /// EVM word size in bytes.
     pub(crate) const WORD_SIZE: u64 = 32;
     /// Scratch word used to publish ephemeral multi-return buffers.
+    /// The caller captures this pointer before source memory access or another call.
+    /// Source assembly may use the word outside that publication-to-capture interval.
     pub(crate) const MULTI_RETURN_BUFFER_PTR_SLOT: u64 = 0x20;
     /// Scratch word containing the free-memory pointer.
     pub(crate) const FMP_SLOT: u64 = 0x40;

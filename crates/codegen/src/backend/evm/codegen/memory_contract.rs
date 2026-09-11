@@ -92,6 +92,8 @@ impl<'gcx> MemoryCheckedEmitter<'gcx> {
     /// Duplicates a buried stack word while owning only newly expanded, zeroed scratch.
     /// No source operation can run between staging and clearing these words. Successful memory
     /// expansion cannot wrap its address; an out-of-gas failure aborts before source execution.
+    /// NOTE: MSIZE is not pure, so EVM block CSE neither caches it nor tracks stores at these
+    /// dynamic addresses. Later rewrites must preserve the final zeroed contents.
     pub(super) fn emit_atomic_deep_stack_dup(
         &mut self,
         count: usize,

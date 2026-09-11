@@ -242,7 +242,7 @@ fn @agg() -> (u256, u256) [selector=0xf5e34bfa, view, abi_params=[], abi_returns
     mcopy v1, v3, 96
     v9 = abi_decode [storageptr, array<2, u256>], v0
     v10 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v11 = memory_object_load_element<memoryfixedarray> memoryfixedarray<2, 1>, v10, 1
+    v11 = memory_object_load_element<memoryfixedarray> memoryfixedarray<2, 1>, v10, 1 !metadata(compiler_memory)
     v12 = sload v9 !metadata(storage=symbolic(v9))
     v13 = lt 1, 2
     v14 = iszero v13

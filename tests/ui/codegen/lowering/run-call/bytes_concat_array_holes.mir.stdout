@@ -49,7 +49,7 @@ fn @join() -> (bytes32, bytes32) [selector=0xb688a363, pure, abi_params=[], abi_
     v0 = icall @chunksAndHash, 2
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 32
-    v3 = mload v2
+    v3 = mload v2 !metadata(compiler_memory)
     jump bb1
   bb1:
     v4 = phi [bb0: v3], [bb12: v4]

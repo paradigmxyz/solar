@@ -11,9 +11,9 @@ fn @f() -> bool [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>]] {
     v0 = icall @g, 3
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 32
-    v3 = mload v2
+    v3 = mload v2 !metadata(compiler_memory)
     v4 = add v1, 64
-    v5 = mload v4
+    v5 = mload v4 !metadata(compiler_memory)
     v6 = eq v0, 1
     v7 = iszero v6
     jumpi v7, bb2, bb1
@@ -42,9 +42,9 @@ fn @f() -> bool [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>]] {
     v15 = icall @g, 3
     v16 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v17 = add v16, 32
-    v18 = mload v17
+    v18 = mload v17 !metadata(compiler_memory)
     v19 = add v16, 64
-    v20 = mload v19
+    v20 = mload v19 !metadata(compiler_memory)
     v21 = sload v18 !metadata(storage=symbolic(v18))
     v22 = eq v21, 7
     v23 = iszero v22
@@ -55,9 +55,9 @@ fn @f() -> bool [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>]] {
     v24 = icall @g, 3
     v25 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v26 = add v25, 32
-    v27 = mload v26
+    v27 = mload v26 !metadata(compiler_memory)
     v28 = add v25, 64
-    v29 = mload v28
+    v29 = mload v28 !metadata(compiler_memory)
     v30 = eq v24, 1
     v31 = iszero v30
     jumpi v31, bb13, bb14
@@ -67,9 +67,9 @@ fn @f() -> bool [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>]] {
     v32 = icall @g, 3
     v33 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v34 = add v33, 32
-    v35 = mload v34
+    v35 = mload v34 !metadata(compiler_memory)
     v36 = add v33, 64
-    v37 = mload v36
+    v37 = mload v36 !metadata(compiler_memory)
     v38 = eq v37, 2
     v39 = iszero v38
     jumpi v39, bb16, bb17

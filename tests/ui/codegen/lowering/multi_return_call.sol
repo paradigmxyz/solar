@@ -20,7 +20,7 @@ contract C {
     // CHECK-LABEL: fn @sat{{[( ]}}
     // CHECK: icall @tryAdd, 2, arg0, arg1
     // CHECK: frame_load multi_return, word, 0
-    // CHECK: mload
+    // CHECK: mload {{v[0-9]+}} !metadata(compiler_memory)
     function sat(uint256 a, uint256 b) public pure returns (uint256) {
         (bool ok, uint256 c) = Math.tryAdd(a, b);
         if (!ok) return type(uint256).max;
@@ -31,9 +31,29 @@ contract C {
     // CHECK-LABEL: fn @tryA{{[( ]}}
     // CHECK: icall @tryAdd, 2, arg0, arg1
     // CHECK: frame_load multi_return, word, 0
-    // CHECK: mload
+    // CHECK: mload {{v[0-9]+}} !metadata(compiler_memory)
     // CHECK: ret {{v[0-9]+}}, {{v[0-9]+}}
     function tryA(uint256 a, uint256 b) public pure returns (bool, uint256) {
         return Math.tryAdd(a, b);
+    }
+    // CHECK-LABEL: fn @externalPair{{[( ]}}
+    // CHECK: staticcall
+    // CHECK: mload {{v[0-9]+}}{{$}}
+    // CHECK: mload {{v[0-9]+}}{{$}}
+    // CHECK: mload {{v[0-9]+}}{{$}}
+    // CHECK: mload {{v[0-9]+}}{{$}}
+    function externalPair(C other, uint256 a, uint256 b) public pure returns (bool, uint256) {
+        return other.tryA(a, b);
+    }
+
+    // CHECK-LABEL: fn @objectPair{{[( ]}}
+    // CHECK: icall @makeObjectPair, 2
+    // CHECK: memory_object_load_element{{.*}} !metadata(compiler_memory)
+    function objectPair(bytes memory data) public pure returns (uint256, bytes memory) {
+        return makeObjectPair(data);
+    }
+
+    function makeObjectPair(bytes memory data) internal pure returns (uint256, bytes memory) {
+        return (42, data);
     }
 }

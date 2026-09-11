@@ -57,9 +57,9 @@ fn @latestKey() -> u96 [selector=0x8ee82b53, view, abi_params=[], abi_returns=[w
     v0 = icall @latest, 3, 6
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 32
-    v3 = mload v2
+    v3 = mload v2 !metadata(compiler_memory)
     v4 = add v1, 64
-    v5 = mload v4
+    v5 = mload v4 !metadata(compiler_memory)
     ret v3
 }
 
@@ -289,9 +289,9 @@ fn @nextId() -> u96 [view] {
     v0 = icall @latest, 3, 6
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 32
-    v3 = mload v2
+    v3 = mload v2 !metadata(compiler_memory)
     v4 = add v1, 64
-    v5 = mload v4
+    v5 = mload v4 !metadata(compiler_memory)
     jumpi v0, bb1, bb2
   bb2:
     v9 = loadimmutable offset
@@ -591,7 +591,7 @@ fn @constructor() [constructor] {
     v0 = icall @pair, 2
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 32
-    v3 = mload v2
+    v3 = mload v2 !metadata(compiler_memory)
     storeimmutable value, v3
     stop
 }

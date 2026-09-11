@@ -16,8 +16,8 @@ fn @dMixed(arg0: memorybytes) -> (u256, memorybytes, u256) [selector=0x1be4db0e,
   bb0:
     v0 = abi_decode [u256, bytes, array<_, u256>], arg0
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v2 = memory_object_load_element<memorybytes> memoryfixedarray<3, 1>, v1, 1
-    v3 = memory_object_load_element<memoryarray> memoryfixedarray<3, 1>, v1, 2
+    v2 = memory_object_load_element<memorybytes> memoryfixedarray<3, 1>, v1, 1 !metadata(compiler_memory)
+    v3 = memory_object_load_element<memoryarray> memoryfixedarray<3, 1>, v1, 2 !metadata(compiler_memory)
     v4 = memory_object_len memoryarray, v3
     ret v0, v2, v4
 }
@@ -272,9 +272,9 @@ fn @nestedRoundtrip() -> (u256, memorybytes, u256) [selector=0x07f0bc21, pure, a
     v25 = abi_encode [tuple<tuple<word, word<u160>, word<bool>>, tuple<word, memory_bytes, memory_array<word>>, memory_bytes>], object, args v0
     v26 = icall @dNested, 3, v25
     v27 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v28 = memory_object_load_element<memorybytes> memoryfixedarray<3, 1>, v27, 1
+    v28 = memory_object_load_element<memorybytes> memoryfixedarray<3, 1>, v27, 1 !metadata(compiler_memory)
     v29 = add v27, 64
-    v30 = mload v29
+    v30 = mload v29 !metadata(compiler_memory)
     ret v26, v28, v30
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
@@ -355,11 +355,11 @@ fn @dynamicArrayRoundtrip() -> (u256, u256, u256, u256) [selector=0x533c608a, pu
     v32 = icall @dDynArr, 4, v31
     v33 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v34 = add v33, 32
-    v35 = mload v34
+    v35 = mload v34 !metadata(compiler_memory)
     v36 = add v33, 64
-    v37 = mload v36
+    v37 = mload v36 !metadata(compiler_memory)
     v38 = add v33, 96
-    v39 = mload v38
+    v39 = mload v38 !metadata(compiler_memory)
     ret v32, v35, v37, v39
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
@@ -908,7 +908,7 @@ fn @dOverlap(arg0: memorybytes) -> (bool, bool) [selector=0x9297ba94, pure, abi_
   bb0:
     v0 = abi_decode [array<_, u256>, array<_, u256>], arg0
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v2 = memory_object_load_element<memoryarray> memoryfixedarray<2, 1>, v1, 1
+    v2 = memory_object_load_element<memoryarray> memoryfixedarray<2, 1>, v1, 1 !metadata(compiler_memory)
     v3 = eq v0, v2
     v4 = add arg0, 96
     v5 = eq v0, v4
@@ -938,7 +938,7 @@ fn @arrays() -> (u256, u256) [selector=0x3b1facaf, unrestricted_memory, pure, ab
     v8 = abi_encode [memory_array<word>, memory_array<word>], object, args v0, v1
     v9 = abi_decode [array<_, u256>, array<_, u256>], v8
     v10 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v11 = memory_object_load_element<memoryarray> memoryfixedarray<2, 1>, v10, 1
+    v11 = memory_object_load_element<memoryarray> memoryfixedarray<2, 1>, v10, 1 !metadata(compiler_memory)
     v12 = memory_object_len memoryarray, v9
     v13 = lt 0, v12
     v14 = iszero v13
@@ -968,7 +968,7 @@ fn @narrow(arg0: u8, arg1: bool) -> (u8, bool) [selector=0xad3c2cff, unrestricte
     v4 = abi_decode [u8, bool], v3
     v5 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v6 = add v5, 32
-    v7 = mload v6
+    v7 = mload v6 !metadata(compiler_memory)
     mstore 64, 128 !metadata(memory=scratch)
     ret v4, v7
 }
@@ -983,7 +983,7 @@ fn @roundTrip(arg0: u256) -> (u256, u256) [selector=0x8d1ffca9, unrestricted_mem
     v3 = abi_decode [u256, u256], v2
     v4 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v5 = add v4, 32
-    v6 = mload v5
+    v6 = mload v5 !metadata(compiler_memory)
     mstore 64, 128 !metadata(memory=scratch)
     ret v3, v6
   bb1:

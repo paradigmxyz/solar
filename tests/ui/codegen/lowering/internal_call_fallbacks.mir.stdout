@@ -55,7 +55,7 @@ fn @multi(arg0: u256) -> (u256, u256) [selector=0x645444bd, pure, abi_params=[u2
     v0 = icall @pair, 2, arg0
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 32
-    v3 = mload v2
+    v3 = mload v2 !metadata(compiler_memory)
     ret v0, v3
 }
 

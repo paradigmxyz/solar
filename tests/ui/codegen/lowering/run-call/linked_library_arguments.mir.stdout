@@ -42,7 +42,7 @@ fn @test_multi() -> (u256, u256) [selector=0x255f2946, pure, abi_params=[], abi_
     v7 = icall @pick, 2, v0
     v8 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v9 = add v8, 32
-    v10 = mload v9
+    v10 = mload v9 !metadata(compiler_memory)
     ret v7, v10
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
@@ -75,7 +75,7 @@ fn @test_using() -> u256 [selector=0xd6c053d5, pure, abi_params=[], abi_returns=
     v7 = icall @pick, 2, v0
     v8 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v9 = add v8, 32
-    v10 = mload v9
+    v10 = mload v9 !metadata(compiler_memory)
     v11 = add v7, v10
     v12 = lt v11, v7
     jumpi v12, bb4, bb5

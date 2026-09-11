@@ -6,7 +6,7 @@ fn @encode(arg0: u256) -> (u256, u256, bytes32) [selector=0xdeb21fa2, unrestrict
     v1 = icall @walk.2, 2, arg0, v0
     v2 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v3 = add v2, 32
-    v4 = mload v3
+    v4 = mload v3 !metadata(compiler_memory)
     v5 = sub v1, v0
     v6 = mload v0
     ret v5, v4, v6
@@ -17,7 +17,7 @@ fn @arithmetic(arg0: u256) -> (u256, u256) [selector=0x9381a585, pure, abi_param
     v0 = icall @walk.4, 2, arg0, 7
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 32
-    v3 = mload v2
+    v3 = mload v2 !metadata(compiler_memory)
     ret v0, v3
 }
 
@@ -33,7 +33,7 @@ fn @walk.2(arg0: u256, arg1: u256) -> (u256, u256) [yul, unrestricted_memory] {
     v4 = icall @container.3, 2, arg0, arg1
     v5 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v6 = add v5, 32
-    v7 = mload v6
+    v7 = mload v6 !metadata(compiler_memory)
     ret v4, v7
   bb1:
     mstore8 arg1, 192
@@ -48,7 +48,7 @@ fn @container.3(arg0: u256, arg1: u256) -> (u256, u256) [yul, unrestricted_memor
     v2 = icall @walk.2, 2, v1, v0
     v3 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v4 = add v3, 32
-    v5 = mload v4
+    v5 = mload v4 !metadata(compiler_memory)
     v6 = add 160, arg0
     mstore8 arg1, v6
     v7 = add v5, 1
@@ -64,7 +64,7 @@ fn @walk.4(arg0: u256, arg1: u256) -> (u256, u256) [yul] {
     v0 = icall @container.5, 2, arg0, arg1
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 32
-    v3 = mload v2
+    v3 = mload v2 !metadata(compiler_memory)
     jump bb1
   bb1:
     v4 = phi [bb2: arg1], [bb3: v0]
@@ -79,7 +79,7 @@ fn @container.5(arg0: u256, arg1: u256) -> (u256, u256) [yul] {
     v2 = icall @walk.4, 2, v1, v0
     v3 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v4 = add v3, 32
-    v5 = mload v4
+    v5 = mload v4 !metadata(compiler_memory)
     v6 = add v5, 1
     ret v2, v6
 }

@@ -7,7 +7,7 @@ fn @output() -> bytes32 [selector=0xf20eaeb8, unrestricted_memory, pure, abi_par
     v2 = icall @emitWord, 2, v1
     v3 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v4 = add v3, 32
-    v5 = mload v4
+    v5 = mload v4 !metadata(compiler_memory)
     v6 = mload v1
     ret v6
 }
@@ -28,9 +28,9 @@ fn @environmentTuple(arg0: u256) -> (u256, bool) [selector=0x69489fc5, unrestric
     v0 = icall @triple, 3, arg0
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 32
-    v3 = mload v2
+    v3 = mload v2 !metadata(compiler_memory)
     v4 = add v1, 64
-    v5 = mload v4
+    v5 = mload v4 !metadata(compiler_memory)
     v6 = add v0, v3
     v7 = lt v6, v0
     jumpi v7, bb1, bb2
@@ -53,9 +53,9 @@ fn @storedTuple(arg0: u128) -> u128 [selector=0xbed7f4fa, unrestricted_memory, a
     v0 = icall @smallTriple, 3, arg0
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 32
-    v3 = mload v2
+    v3 = mload v2 !metadata(compiler_memory)
     v4 = add v1, 64
-    v5 = mload v4
+    v5 = mload v4 !metadata(compiler_memory)
     v6 = and v0, 0xffffffffffffffffffffffffffffffff
     v7 = sload 0 !metadata(storage=slot(0))
     v8 = not 0xffffffffffffffffffffffffffffffff
@@ -71,9 +71,9 @@ fn @storedTuple(arg0: u128) -> u128 [selector=0xbed7f4fa, unrestricted_memory, a
     v15 = icall @smallTriple, 3, v13
     v16 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v17 = add v16, 32
-    v18 = mload v17
+    v18 = mload v17 !metadata(compiler_memory)
     v19 = add v16, 64
-    v20 = mload v19
+    v20 = mload v19 !metadata(compiler_memory)
     v21 = and v3, 0xffffffffffffffffffffffffffffffff
     v22 = and v18, 0xffffffffffffffffffffffffffffffff
     v23 = add v21, v22
@@ -119,7 +119,7 @@ fn @computedPointer(arg0: u256) -> (u256, u256) [selector=0x55871c25, unrestrict
     v1 = icall @allocate, 2, 37, 128
     v2 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v3 = add v2, 32
-    v4 = mload v3
+    v4 = mload v3 !metadata(compiler_memory)
     ret v1, v4
 }
 
@@ -130,7 +130,7 @@ fn @probe(arg0: u256) -> (u256, u256) [selector=0xdb082440, unrestricted_memory,
     v1 = icall @allocate, 2, 37, v0
     v2 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v3 = add v2, 32
-    v4 = mload v3
+    v4 = mload v3 !metadata(compiler_memory)
     ret v1, v4
 }
 
@@ -165,9 +165,9 @@ fn @returnedBufferSecond() -> bytes32 [selector=0xbd1c9e65, unrestricted_memory,
     v1 = icall @triple, 3, 41
     v2 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v3 = add v2, 32
-    v4 = mload v3
+    v4 = mload v3 !metadata(compiler_memory)
     v5 = add v2, 64
-    v6 = mload v5
+    v6 = mload v5 !metadata(compiler_memory)
     v7 = eq v4, 42
     jumpi v7, bb1, bb2
   bb2:
@@ -192,9 +192,9 @@ fn @discardedSlices(arg0: calldataslice) -> u256 [selector=0x24e6be90, unrestric
     v0 = icall @slices, 2, arg0
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 64
-    v3 = mload v2
+    v3 = mload v2 !metadata(compiler_memory)
     v4 = add v1, 96
-    v5 = mload v4
+    v5 = mload v4 !metadata(compiler_memory)
     v6 = make_calldata_slice v3, v5
     v7 = slice_len arg0
     ret v7
@@ -213,9 +213,9 @@ fn @discardedTuple(arg0: u256) -> u256 [selector=0xeb2e0993, unrestricted_memory
     v0 = icall @triple, 3, arg0
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 32
-    v3 = mload v2
+    v3 = mload v2 !metadata(compiler_memory)
     v4 = add v1, 64
-    v5 = mload v4
+    v5 = mload v4 !metadata(compiler_memory)
     v6 = add arg0, 1
     v7 = lt v6, arg0
     jumpi v7, bb1, bb2
@@ -223,9 +223,9 @@ fn @discardedTuple(arg0: u256) -> u256 [selector=0xeb2e0993, unrestricted_memory
     v8 = icall @triple, 3, v6
     v9 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v10 = add v9, 32
-    v11 = mload v10
+    v11 = mload v10 !metadata(compiler_memory)
     v12 = add v9, 64
-    v13 = mload v12
+    v13 = mload v12 !metadata(compiler_memory)
     ret v3
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
@@ -330,7 +330,7 @@ fn @output(arg0: u256) -> u256 [selector=0x64f9016b, pure, abi_params=[u256], ab
     v0 = icall @pair, 2, arg0
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 32
-    v3 = mload v2
+    v3 = mload v2 !metadata(compiler_memory)
     v4 = add v0, v3
     v5 = mload 32 !metadata(memory=scratch)
     v6 = add v5, v4
@@ -357,7 +357,7 @@ fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
     v0 = icall @pair, 2, arg0
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 32
-    v3 = mload v2
+    v3 = mload v2 !metadata(compiler_memory)
     v4 = add v0, v3
     v5 = mload 32 !metadata(memory=scratch)
     v6 = add v5, v4

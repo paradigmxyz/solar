@@ -95,7 +95,7 @@ fn @strAndNum() -> (u256, u256) [selector=0x713d228b, abi_params=[], abi_returns
     v19 = abi_decode [bytes, u256], v17
     v20 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v21 = add v20, 32
-    v22 = mload v21
+    v22 = mload v21 !metadata(compiler_memory)
     v23 = memory_object_len memorybytes, v19
     ret v23, v22
   bb5:
@@ -141,7 +141,7 @@ fn @numAndStr() -> (u256, u256) [selector=0xed19722c, abi_params=[], abi_returns
     memory_object_copy_from_slice memorybytes, v17, v18
     v19 = abi_decode [u256, bytes], v17
     v20 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v21 = memory_object_load_element<memorybytes> memoryfixedarray<2, 1>, v20, 1
+    v21 = memory_object_load_element<memorybytes> memoryfixedarray<2, 1>, v20, 1 !metadata(compiler_memory)
     v22 = memory_object_len memorybytes, v21
     ret v19, v22
   bb5:
@@ -187,7 +187,7 @@ fn @twoStrings() -> (u256, u256) [selector=0x477be19f, abi_params=[], abi_return
     memory_object_copy_from_slice memorybytes, v17, v18
     v19 = abi_decode [bytes, bytes], v17
     v20 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v21 = memory_object_load_element<memorybytes> memoryfixedarray<2, 1>, v20, 1
+    v21 = memory_object_load_element<memorybytes> memoryfixedarray<2, 1>, v20, 1 !metadata(compiler_memory)
     v22 = memory_object_len memorybytes, v19
     v23 = memory_object_len memorybytes, v21
     ret v22, v23
@@ -235,8 +235,8 @@ fn @mixed() -> (u256, u256, u256) [selector=0x354df1f9, abi_params=[], abi_retur
     v19 = abi_decode [array<_, u256>, u256, bytes], v17
     v20 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v21 = add v20, 32
-    v22 = mload v21
-    v23 = memory_object_load_element<memorybytes> memoryfixedarray<3, 1>, v20, 2
+    v22 = mload v21 !metadata(compiler_memory)
+    v23 = memory_object_load_element<memorybytes> memoryfixedarray<3, 1>, v20, 2 !metadata(compiler_memory)
     v24 = memory_object_len memoryarray, v19
     v25 = memory_object_len memoryarray, v19
     v26 = lt 0, v25

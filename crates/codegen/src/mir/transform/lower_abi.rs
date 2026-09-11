@@ -1022,9 +1022,13 @@ impl LowerAbiCx {
                             base,
                             u64::try_from(index).unwrap_or(u64::MAX).saturating_mul(32),
                         );
-                        builder.mload(position)
+                        builder.private_mload(position)
                     }
                 };
+                // tuple projection -> !metadata(compiler_memory)
+                let func = builder.func_mut();
+                let Value::Inst(inst) = *func.value(value) else { unreachable!() };
+                func.inst_mut(inst).metadata.set_requires_private_memory();
                 values.push(value);
             }
             builder.ret(values);

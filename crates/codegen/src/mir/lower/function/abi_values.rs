@@ -316,6 +316,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             first,
             base,
             decoded_types.len(),
+            true,
             decoded_types.iter().skip(1).copied().map(Some),
         ))
     }

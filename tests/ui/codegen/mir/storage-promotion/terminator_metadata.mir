@@ -4,7 +4,7 @@
 
 // The dirty check is generated code, not the later source-level return.
 // CHECK-LABEL: {{^[ +].*}}fn @dirty{{[( ]}}
-// CHECK: + [[DIRTY:v[0-9]+]] = mload {{[0-9]+}}{{$}}
+// CHECK: + [[DIRTY:v[0-9]+]] = mload {{[0-9]+}} !metadata(compiler_memory){{$}}
 // CHECK-NEXT: + jumpi [[DIRTY]], bb{{[0-9]+}}, bb{{[0-9]+}}{{$}}
 // CHECK: ret arg0 !metadata(span=100..120, modifier_depth=2)
 fn @dirty(arg0: u256) -> u256 [selector=0x01020304] {

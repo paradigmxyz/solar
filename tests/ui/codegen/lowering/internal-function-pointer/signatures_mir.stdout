@@ -35,7 +35,7 @@ fn @callPair(arg0: u256) -> (u256, u256) [selector=0x85ead1f5, abi_params=[u256]
     v0 = icall @internal_dispatcher_p_u256_r_u256_u256, 2, 5, arg0
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 32
-    v3 = mload v2
+    v3 = mload v2 !metadata(compiler_memory)
     ret v0, v3
 }
 
@@ -102,7 +102,7 @@ fn @internal_dispatcher_p_u256_r_u256_u256(arg0: function, arg1: u256) -> (u256,
     v1 = icall @pair, 2, arg1
     v2 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v3 = add v2, 32
-    v4 = mload v3
+    v4 = mload v3 !metadata(compiler_memory)
     ret v1, v4
 }
 

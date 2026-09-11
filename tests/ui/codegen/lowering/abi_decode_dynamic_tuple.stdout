@@ -4,8 +4,8 @@ fn @decode(arg0: memorybytes) -> (u256, memorybytes, memorybytes) [selector=0xe5
   bb0:
     v0 = abi_decode [u256, bytes, bytes], arg0
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v2 = memory_object_load_element<memorybytes> memoryfixedarray<3, 1>, v1, 1
-    v3 = memory_object_load_element<memorybytes> memoryfixedarray<3, 1>, v1, 2
+    v2 = memory_object_load_element<memorybytes> memoryfixedarray<3, 1>, v1, 1 !metadata(compiler_memory)
+    v3 = memory_object_load_element<memorybytes> memoryfixedarray<3, 1>, v1, 2 !metadata(compiler_memory)
     ret v0, v2, v3
 }
 
@@ -14,8 +14,8 @@ fn @roundtrip(arg0: u256, arg1: memorybytes, arg2: memorybytes) -> (u256, memory
     v0 = abi_encode [word, memory_bytes, memory_bytes], object, args arg0, arg1, arg2
     v1 = abi_decode [u256, bytes, bytes], v0
     v2 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v3 = memory_object_load_element<memorybytes> memoryfixedarray<3, 1>, v2, 1
-    v4 = memory_object_load_element<memorybytes> memoryfixedarray<3, 1>, v2, 2
+    v3 = memory_object_load_element<memorybytes> memoryfixedarray<3, 1>, v2, 1 !metadata(compiler_memory)
+    v4 = memory_object_load_element<memorybytes> memoryfixedarray<3, 1>, v2, 2 !metadata(compiler_memory)
     ret v1, v3, v4
 }
 

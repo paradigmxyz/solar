@@ -137,7 +137,7 @@ fn @two(arg0: u256) -> (u256, u256) [selector=0xcf2a8612, pure, abi_params=[u256
     v12 = abi_decode [u256, u256], v10
     v13 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v14 = add v13, 32
-    v15 = mload v14
+    v15 = mload v14 !metadata(compiler_memory)
     ret v12, v15
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
@@ -295,15 +295,15 @@ fn @dynamicArgument(arg0: memorybytes) -> (u256, u256) [selector=0x11b8efbf, pur
     v12 = abi_decode [u256, u256, u256, u256, u256, u256], v10
     v13 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v14 = add v13, 32
-    v15 = mload v14
+    v15 = mload v14 !metadata(compiler_memory)
     v16 = add v13, 64
-    v17 = mload v16
+    v17 = mload v16 !metadata(compiler_memory)
     v18 = add v13, 96
-    v19 = mload v18
+    v19 = mload v18 !metadata(compiler_memory)
     v20 = add v13, 128
-    v21 = mload v20
+    v21 = mload v20 !metadata(compiler_memory)
     v22 = add v13, 160
-    v23 = mload v22
+    v23 = mload v22 !metadata(compiler_memory)
     ret v12, v23
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)

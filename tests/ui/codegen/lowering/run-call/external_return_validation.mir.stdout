@@ -194,7 +194,7 @@ fn @distinctDynamicReturns() -> u256 [selector=0x56c7de2c, abi_params=[], abi_re
     memory_object_copy_from_slice memorybytes, v11, v12
     v13 = abi_decode [tuple<array<_, u256>>, tuple<array<_, u256>>], v11
     v14 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v15 = memory_object_load_element<memorystruct> memoryfixedarray<2, 1>, v14, 1
+    v15 = memory_object_load_element<memorystruct> memoryfixedarray<2, 1>, v14, 1 !metadata(compiler_memory)
     v16 = memory_object_load_field memorystruct<1>, v13, 0
     v17 = memory_object_len memoryarray, v16
     v18 = lt 0, v17

@@ -1458,12 +1458,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if returns > 1 && mode == ExternalReturnMode::First {
             self.builder.frame_store(0, FrameMode::MultiReturn, FrameSlotKind::Word, offset);
         }
-        let first = self.load_multi_return_value_as(offset, 0, returns, return_tys[0]);
+        let first = self.load_multi_return_value_as(offset, 0, returns, return_tys[0], false);
         if mode == ExternalReturnMode::All && returns > 1 {
             return Some(self.load_multi_return_values(
                 first,
                 offset,
                 returns,
+                false,
                 return_tys.iter().skip(1).copied().map(Some),
             ));
         }
@@ -1549,7 +1550,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let size = self.builder.imm(words.saturating_mul(32));
         self.revert_if_short_returndata(size);
         for (index, &ty) in returns.iter().enumerate() {
-            let value = self.load_multi_return_value(offset, index, returns.len());
+            let value = self.load_multi_return_value(offset, index, returns.len(), false);
             self.validate_external_return_value(ty, value);
         }
     }
