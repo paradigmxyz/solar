@@ -247,6 +247,17 @@ class SemanticsTests(unittest.TestCase):
             result, _ = check(expression(op, x, 0), Expr.const(0))
             self.assertEqual(result["status"], "proved", op)
 
+    def test_clz_model_matches_full_bit_scan(self):
+        value = z3.BitVec("value", 256)
+        scan = z3.BitVecVal(256, 256)
+        for bit in range(256):
+            scan = z3.If(z3.Extract(bit, bit, value) != 0, z3.BitVecVal(255 - bit, 256), scan)
+        compact = Model().eval(expression("clz", Expr.var("value")))
+        solver = z3.SolverFor("QF_BV")
+        solver.set(timeout=5000)
+        solver.add(compact != scan)
+        self.assertEqual(solver.check(), z3.unsat)
+
     def test_counterexample_replay(self):
         x = Expr.var("x")
         result, _ = check(expression("shr", 1, expression("shl", 1, x)), x)
@@ -363,14 +374,38 @@ class SemanticsTests(unittest.TestCase):
         lhs = expression("signextend", a, expression("shl", b, x))
         result, queries = partition_shift(lhs, lhs, [], 5000, Model())
         self.assertEqual(result["status"], "proved")
-        # Select the 32-case SIGNEXTEND domain, not the 257-case shift domain.
-        self.assertEqual((result["cases"], len(queries)), (32, 33))
+        # The 31 concrete byte indices leave b symbolic. Only the identity
+        # tail splits b into 256 concrete counts and its full saturating range.
+        self.assertEqual((result["cases"], len(queries)), (288, 289))
         self.assertIn('"b"', queries[1][1])
+        self.assertIn('"a"', queries[32][1])
+        self.assertIn('"a"', queries[-1][1])
+        self.assertIn('"b"', queries[-1][1])
         wrong = expression("signextend", a, expression("shl", a, x))
         result, _ = partition_shift(lhs, wrong, [], 5000, Model())
         self.assertEqual(result["status"], "counterexample")
         self.assertNotEqual(result["inputs"]["a"], result["inputs"]["b"])
         self.assertTrue(result["replayed"])
+
+    def test_nested_index_tails_keep_large_inputs_and_guards(self):
+        x, a, b = map(Expr.var, ("x", "a", "b"))
+        lhs = expression("signextend", a, expression("shl", b, x))
+        both_max = expression("and", expression("eq", a, MASK), expression("eq", b, MASK))
+        wrong = expression("select", both_max, expression("xor", lhs, 1), lhs)
+        result, queries = partition_shift(lhs, wrong, [], 5000, Model())
+        self.assertEqual(result["status"], "counterexample")
+        self.assertEqual(len(queries), 289)
+        self.assertEqual(int(result["inputs"]["a"], 16), MASK)
+        self.assertEqual(int(result["inputs"]["b"], 16), MASK)
+        self.assertTrue(result["replayed"])
+        guard = z3.BitVec("a", 256) != z3.BitVecVal(MASK, 256)
+        result, queries = partition_shift(lhs, wrong, [guard], 5000, Model())
+        self.assertEqual(result["status"], "proved")
+        for _, query in queries:
+            solver = z3.SolverFor("QF_BV")
+            solver.set(timeout=5000)
+            solver.from_string(query)
+            self.assertEqual(solver.check(), z3.unsat)
 
     def test_signextend_partition_keeps_the_whole_identity_range(self):
         x, n = Expr.var("x"), Expr.var("n")
@@ -983,21 +1018,23 @@ class ProofArtifactTests(unittest.TestCase):
             for output, code, expected in ((b"unsat\n", 0, "unsat"), (b"sat\n", 0, "sat"),
                                            (b"unknown\n", 0, "unknown"), (b"", 0, "error"),
                                            (b"unsat\nunsat\n", 0, "error"),
-                                           (b"unsat\n", 1, "error")):
+                                           (b"unsat\n", 1, "error"), (b"unknown\n", 1, "error")):
                 with patch("replay_evm_rules.subprocess.run", return_value=
                            subprocess.CompletedProcess([], code, output, b"")) as run:
                     result = replay_query(str(path), digest, "cvc5", 100)
-                    self.assertEqual(run.call_count, 2 if expected == "unknown" else 1)
+                    self.assertEqual(run.call_count, 3 if expected == "unknown" else 1)
                 self.assertEqual(result["status"], expected)
             with patch("replay_evm_rules.subprocess.run", side_effect=subprocess.TimeoutExpired([], 1)):
                 self.assertEqual(replay_query(str(path), digest, "cvc5", 100)["status"], "timeout")
             with patch("replay_evm_rules.subprocess.run", side_effect=[
                 subprocess.TimeoutExpired([], 1),
+                subprocess.CompletedProcess([], 0, b"unknown\n", b""),
                 subprocess.CompletedProcess([], 0, b"unsat\n", b""),
             ]):
                 result = replay_query(str(path), digest, "cvc5", 100)
-                self.assertEqual([attempt["status"] for attempt in result["attempts"]], ["timeout", "unsat"])
-                self.assertEqual(result["attempts"][1]["flags"], ["--solve-bv-as-int=sum"])
+                self.assertEqual([attempt["status"] for attempt in result["attempts"]], ["timeout", "unknown", "unsat"])
+                self.assertEqual([attempt["flags"] for attempt in result["attempts"]],
+                                 [["--bv-solver=bitblast-internal"], [], ["--solve-bv-as-int=sum"]])
             path.write_text("(assert false)\n")
             with patch("replay_evm_rules.subprocess.run") as run:
                 self.assertEqual(replay_query(str(path), digest, "cvc5", 100)["status"], "error")
@@ -1086,11 +1123,39 @@ class SolverFallbackTests(unittest.TestCase):
                 rule = verify_file(path, 100, fallback=SimpleNamespace(solve=forbidden))["rules"][0]
             self.assertEqual(rule["status"], "unknown")
 
-    def test_nonzero_sat_exit_cannot_be_retried_as_timeout(self):
-        with patch("evm_rules.solver.subprocess.run", return_value=
-                   subprocess.CompletedProcess([], 1, b"sat\n", b"cvc5 interrupted by timeout.")) as run:
-            self.assertEqual(solve_query(b"query", "cvc5", 100)["status"], "error")
-            run.assert_called_once()
+    def test_nonzero_result_exit_cannot_be_retried_as_timeout(self):
+        for stdout in (b"sat\n", b"unsat\n", b"unknown\nunsat\n"):
+            with self.subTest(stdout=stdout), patch("evm_rules.solver.subprocess.run", return_value=
+                       subprocess.CompletedProcess([], 1, stdout, b"cvc5 interrupted by timeout.")) as run:
+                self.assertEqual(solve_query(b"query", "cvc5", 100)["status"], "error")
+                run.assert_called_once()
+
+    def test_unknown_with_timeout_diagnostic_can_retry(self):
+        with patch("evm_rules.solver.subprocess.run", side_effect=[
+            subprocess.CompletedProcess([], -6, b"unknown\n", b"cvc5 interrupted by timeout."),
+            subprocess.CompletedProcess([], 0, b"unsat\n", b""),
+        ]) as run:
+            result = solve_query(b"original query", "cvc5", 100)
+        self.assertEqual([attempt["status"] for attempt in result["attempts"]], ["timeout", "unsat"])
+        self.assertTrue(all(call.kwargs["input"] == b"original query" for call in run.call_args_list))
+
+    @unittest.skipUnless(shutil.which("cvc5"), "cvc5 is optional for local verifier tests")
+    def test_actual_clz_rules_replay_with_cvc5(self):
+        def uses_clz(node):
+            return node == "clz" or isinstance(node, tuple) and any(uses_clz(child) for child in node)
+        path = ISLE / "egraph.isle"
+        rules = [Rule(form, line, str(path)) for form, line in forms(path.read_text())
+                 if form[0] == "rule" and uses_clz(form)]
+        self.assertGreaterEqual(len(rules), 10)
+        fallback = Cvc5(timeout_ms=1000)
+        for rule in rules:
+            with self.subTest(line=rule.line):
+                cx = Context()
+                lhs, rhs = cx.obligation(rule)
+                result, query = check(lhs, rhs, cx.assumptions, 1000, cx.model)
+                self.assertIn(result["status"], ("proved", "unknown"), result)
+                self.assertTrue(query)
+                self.assertEqual(fallback.solve(query)["status"], "unsat")
 
     @unittest.skipUnless(shutil.which("cvc5"), "cvc5 is optional for local verifier tests")
     def test_actual_arithmetic_rules_with_cvc5_fallback(self):
@@ -1116,12 +1181,13 @@ class SolverFallbackTests(unittest.TestCase):
 
 
 class CliTests(unittest.TestCase):
-    def test_negative_bit_partition_budget_is_rejected(self):
-        with (patch("sys.argv", ["verify_evm_rules.py", "verify", "--output", "unused.json",
-                                 "--bit-partition-timeout-ms", "-1"]),
-              redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as error):
-            main()
-        self.assertEqual(error.exception.code, 2)
+    def test_negative_partition_budgets_are_rejected(self):
+        for option in ("--bit-partition-timeout-ms", "--index-partition-timeout-ms"):
+            with (self.subTest(option=option),
+                  patch("sys.argv", ["verify_evm_rules.py", "verify", "--output", "unused.json", option, "-1"]),
+                  redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as error):
+                main()
+            self.assertEqual(error.exception.code, 2)
 
     def test_verification_status_and_failure_diagnostics(self):
         for status in ("proved", "unknown", "counterexample", "unsupported", "inapplicable"):
@@ -1132,10 +1198,13 @@ class CliTests(unittest.TestCase):
                     rule["reason"] = "timeout"
                 files = {"source": "rules.isle", "rules": [rule]}
                 stdout, stderr = io.StringIO(), io.StringIO()
-                with (patch("sys.argv", ["verify_evm_rules.py", "verify", "rules.isle", "--output", str(output)]),
-                      patch("verify_evm_rules.verify_file", return_value=files),
+                with (patch("sys.argv", ["verify_evm_rules.py", "verify", "rules.isle", "--output", str(output),
+                                         "--index-partition-timeout-ms", "30000"]),
+                      patch("verify_evm_rules.verify_file", return_value=files) as verify,
                       redirect_stdout(stdout), redirect_stderr(stderr)):
                     code = main()
+                self.assertEqual(verify.call_args.args[1], 5000)
+                self.assertEqual(verify.call_args.args[6], 30000)
                 self.assertEqual(code, 0 if status == "proved" else 1)
                 reason = ": timeout" if status == "unknown" else ""
                 expected = "" if status == "proved" else f"rules.isle:84: {status}{reason}\n"

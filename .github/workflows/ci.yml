@@ -41,7 +41,8 @@ jobs:
       - name: Verify MIR e-graph rules
         run: >-
           uv run scripts/verify_evm_rules.py verify crates/codegen/isle/egraph.isle
-          --partition-shifts --fallback-solver cvc5 --bit-partition-timeout-ms 120000
+          --partition-shifts --index-partition-timeout-ms 30000
+          --fallback-solver cvc5 --bit-partition-timeout-ms 120000
           --output target/evm-rules/egraph.json --artifacts target/evm-rules/egraph-smt
       - name: Replay e-graph proof queries with cvc5
         run: uv run scripts/replay_evm_rules.py target/evm-rules/egraph.json --output target/evm-rules/egraph-cvc5.json

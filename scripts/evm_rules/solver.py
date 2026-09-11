@@ -1,7 +1,8 @@
 """Strict cvc5 process protocol shared by verification and artifact replay.
 
-Only a successful process returning exactly UNSAT proves a query. Retry timeouts
-and UNKNOWN with integer bitvector solving; never retry SAT or protocol errors.
+Only a successful process returning exactly UNSAT proves a query. Try internal
+bitblasting, default bitblasting, then integer bitvector solving. Retry only
+timeouts and UNKNOWN; never retry SAT or protocol errors.
 """
 
 import hashlib
@@ -13,7 +14,7 @@ import subprocess
 def solve_query(data, solver, timeout_ms):
     result = {}
     attempts = []
-    for strategy in ([], ["--solve-bv-as-int=sum"]):
+    for strategy in (["--bv-solver=bitblast-internal"], [], ["--solve-bv-as-int=sum"]):
         try:
             process = subprocess.run(
                 [solver, "--lang", "smt2", f"--tlimit={timeout_ms}", *strategy],
@@ -22,7 +23,7 @@ def solve_query(data, solver, timeout_ms):
             stdout = process.stdout.decode(errors="replace").strip()
             stderr = process.stderr.decode(errors="replace").strip()
             status = stdout if process.returncode == 0 and stdout in ("unsat", "sat", "unknown") else "error"
-            if status == "error" and not stdout and "interrupted by timeout" in stderr:
+            if status == "error" and stdout in ("", "unknown") and "interrupted by timeout" in stderr:
                 status = "timeout"
             attempt = dict(status=status, flags=strategy, returncode=process.returncode,
                            stdout=stdout[:4096], stderr=stderr[:4096])

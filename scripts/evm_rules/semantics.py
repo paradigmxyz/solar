@@ -188,10 +188,20 @@ class Model:
                                    z3.SignExt(WIDTH - bits, z3.Extract(bits - 1, 0, value)), result)
                 return result
             case "clz", (value,):
-                result = word(WIDTH)
-                for bit in range(WIDTH):
-                    result = z3.If(z3.Extract(bit, bit, value) != 0, word(255 - bit), result)
-                return result
+                # Select the half containing the highest set bit at each level.
+                # The eight decisions encode 0..255; zero separately yields 256.
+                # Keep the count nine bits wide until the final word extension,
+                # avoiding a 256-deep chain of full-word conditional results.
+                remaining, bits = value, []
+                while remaining.size() > 1:
+                    half = remaining.size() // 2
+                    high = z3.Extract(remaining.size() - 1, half, remaining)
+                    low = z3.Extract(half - 1, 0, remaining)
+                    high_is_zero = high == 0
+                    bits.append(z3.If(high_is_zero, z3.BitVecVal(1, 1), z3.BitVecVal(0, 1)))
+                    remaining = z3.If(high_is_zero, low, high)
+                count = z3.If(value == 0, z3.BitVecVal(WIDTH, 9), z3.ZeroExt(1, z3.Concat(*bits)))
+                return z3.ZeroExt(WIDTH - 9, count)
         raise Unsupported(f"unmodeled operation or arity: {op}/{len(args)}")
 
 
@@ -392,15 +402,17 @@ def partition_bits(lhs, rhs, assumptions, timeout_ms, model):
 
 
 def partition_shift(lhs, rhs, assumptions, timeout_ms, model):
-    """Exhaust one symbolic shift count or SIGNEXTEND index.
+    """Exhaust symbolic shift counts or SIGNEXTEND indices with nested tails.
 
     Shifts split at 256 and SIGNEXTEND at 31, where it becomes the identity.
     If an index serves both operations, use the larger boundary. The final
-    case retains the symbolic index and covers its entire remaining range.
+    tail retains the symbolic index and covers its entire remaining range.
     Counts in guards are candidates too, including a power-of-two divisor's
-    exponent. With several candidates, partition the smallest domain first
-    and leave every other input symbolic; no Cartesian enumeration is needed
-    for soundness, though an individual case can still time out.
+    exponent. Partition the smallest domain first, then refine only its tail
+    with the next index. Concrete cases leave all other inputs symbolic. The
+    final case retains every index at or above its boundary. This adds domain
+    sizes instead of multiplying them and avoids a difficult mixed tail such
+    as inner >= 31 with an unconstrained outer SIGNEXTEND index.
 
     Called after applicability was SAT, either when the unsplit equality timed
     out or when exhaustive partitions were requested for cross-solver replay.
@@ -435,9 +447,17 @@ def partition_shift(lhs, rhs, assumptions, timeout_ms, model):
         pending.extend(term.children())
     if not indices:
         return {"status": "unknown", "reason": "no symbolic word index partition"}, []
-    variable, boundary = min(indices.items(), key=lambda item: (item[1], item[0].args[0]))
-    shift = z3.BitVec(variable.args[0], WIDTH)
-    conditions = [shift == word(i) for i in range(boundary)] + [z3.UGE(shift, word(boundary))]
+    domains = sorted(indices.items(), key=lambda item: (item[1], item[0].args[0]))
+    conditions, substitutions, tail = [], [], []
+    for variable, boundary in domains:
+        shift = z3.BitVec(variable.args[0], WIDTH)
+        for value in range(boundary):
+            literal = word(value)
+            conditions.append(z3.And(*tail, shift == literal))
+            substitutions.append((shift, literal))
+        tail.append(z3.UGE(shift, word(boundary)))
+    conditions.append(z3.And(*tail))
+    substitutions.append(None)
     deadline = time.monotonic() + timeout_ms / 1000
     left, right = model.eval(lhs), model.eval(rhs)
     queries = []
@@ -452,8 +472,8 @@ def partition_shift(lhs, rhs, assumptions, timeout_ms, model):
         else:
             obligation = z3.And(*assumptions, conditions[index],
                                 model.difference(left, right))
-            if index < boundary:
-                obligation = z3.substitute(obligation, (shift, word(index)))
+            if substitutions[index] is not None:
+                obligation = z3.substitute(obligation, substitutions[index])
             # Export the substituted obligation before solver simplification so
             # another solver checks its own preprocessing as well.
             solver.add(obligation)
@@ -467,5 +487,6 @@ def partition_shift(lhs, rhs, assumptions, timeout_ms, model):
             return replay, queries
         if result != z3.unsat:
             return {"status": "unknown", "reason": solver.reason_unknown()}, queries
-    method = "exhaustive-shift-partition" if boundary == WIDTH else "exhaustive-word-index-partition"
+    method = ("exhaustive-shift-partition" if WIDTH in indices.values()
+              else "exhaustive-word-index-partition")
     return {"status": "proved", "proof_method": method, "cases": len(conditions)}, queries
