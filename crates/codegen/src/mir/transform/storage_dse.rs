@@ -11,7 +11,8 @@
 //! effects kill facts. Only after convergence are stores erased; local equal
 //! store removal then runs with the same alias barriers. Run after storage
 //! forwarding so packed read-modify-write chains expose their overwritten
-//! stores without discarding preserved fields.
+//! stores without discarding preserved fields. A `gas` read clears both
+//! forward and backward facts so measured storage writes remain explicit.
 
 use crate::mir::{
     BlockId, Function, InstId, InstKind, Module, StorageAlias, Terminator, ValueId,
@@ -256,7 +257,8 @@ impl StorageStoreEliminator {
         effects: &ModRef,
         later_writes: &mut FxHashSet<StorageAlias>,
     ) {
-        if effects.reads_anywhere(AddressSpace::Storage)
+        if effects.observes_gas()
+            || effects.reads_anywhere(AddressSpace::Storage)
             || effects.writes_anywhere(AddressSpace::Storage)
         {
             later_writes.clear();
@@ -284,7 +286,7 @@ impl StorageStoreEliminator {
         effects: &ModRef,
         stored_values: &mut FxHashMap<StorageAlias, ValueId>,
     ) {
-        if effects.writes_anywhere(AddressSpace::Storage) {
+        if effects.observes_gas() || effects.writes_anywhere(AddressSpace::Storage) {
             stored_values.clear();
             return;
         }
