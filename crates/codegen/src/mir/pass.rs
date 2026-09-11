@@ -45,6 +45,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &inline::InlineConstantLeaves,
     &inline::InlineTinyLeaves,
     &inline::InlineHotLeaves,
+    &if_convert::IfConvert,
     &inline::InlineImmutableLeaves,
     &inline::InlineMemoryWrappers,
     &inline_dispatch::InlineDispatch,
@@ -253,6 +254,10 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &check_elim::CheckElim,
     &jump_threading::JumpThreading,
     &cfg_simplify::CfgSimplify,
+    // Small pure diamonds become selects once folded conditions are gone, so
+    // bit searches lose their branches and lookup helpers arrive branch-free
+    // at the hot-leaf cloner below.
+    &if_convert::IfConvert,
     // Lookup helpers called from loops pay for their clones through the
     // protocol removed per iteration. They run after specialization so the
     // clones carry no mode flags that every caller fixed; the lowering-time

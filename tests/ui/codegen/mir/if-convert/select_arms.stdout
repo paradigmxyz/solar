@@ -1,0 +1,80 @@
+- // === ROOT/tests/ui/codegen/mir/if-convert/select_arms.mir (before if-convert) ===
++ // === ROOT/tests/ui/codegen/mir/if-convert/select_arms.mir (after if-convert) ===
+  @module SelectArms
+  fn @search_step(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = shr 128, arg0
+      v1 = iszero v0
+      v2 = iszero v1
+-     jumpi v2, bb1, bb2
+-   bb1:
+      v3 = shr 128, arg0
+      v4 = or arg1, 128
+-     jump bb2
+-   bb2:
+-     v5 = phi [bb0: arg0], [bb1: v3]
+-     v6 = phi [bb0: arg1], [bb1: v4]
+-     v7 = add v5, v6
++     v8 = mul v2, 128
++     v9 = shr v8, arg0
++     v10 = mul v2, 128
++     v11 = or arg1, v10
++     v7 = add v9, v11
+      ret v7
+  }
+  
+  fn @diamond(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb2:
+      v1 = xor arg1, 7
+      jump bb3
+    bb1:
+      v0 = mul arg1, 3
+      jump bb3
+    bb3:
+      v2 = phi [bb1: v0], [bb2: v1]
+      ret v2
+  }
+  
+  fn @memory_arm(arg0: bool, arg1: u256) -> u256 {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb1:
+      v0 = mload arg1
+      jump bb2
+    bb2:
+      v1 = phi [bb0: 0], [bb1: v0]
+      ret v1
+  }
+  
+  fn @wide_arm(arg0: bool, arg1: u256) -> u256 {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb1:
+      v0 = mul arg1, 3
+      v1 = add v0, 1
+      v2 = xor v1, 5
+      v3 = sub v2, 2
+      jump bb2
+    bb2:
+      v4 = phi [bb0: arg1], [bb1: v3]
+      ret v4
+  }
+  
+  fn @word_condition(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+-     jumpi arg0, bb1, bb2
+-   bb1:
++     v2 = iszero arg0
++     v3 = iszero v2
+      v0 = add arg1, 5
+-     jump bb2
+-   bb2:
+-     v1 = phi [bb0: arg1], [bb1: v0]
+-     ret v1
++     v4 = mul v3, 5
++     v5 = add arg1, v4
++     ret v5
+  }
+  
