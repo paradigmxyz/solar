@@ -1,7 +1,7 @@
-;; Pure 256-bit word reductions, checked from this source by verify_evm_rules.py.
+;; Pure 256-bit word reductions, checked by scripts/evm-rules/verify.py.
 ;;
 ;; Mixed bitwise families were discovered by bounded enumeration; arithmetic
-;; candidates were supplied explicitly. See scripts/evm_rules/README.md for the
+;; candidates were supplied explicitly. See scripts/evm-rules/README.md for the
 ;; search recipe, proof boundary and counterexample replay. These alternatives
 ;; stay at the original instruction and compete under Target plus stack traffic.
 ;; Add(value, 0) lets a leaf replacement use the multi-result rewrite interface;
@@ -286,7 +286,7 @@
   (if-let false (u256_le (u256_sub (u256 31) byte) index))
   (Op.Add (imm (u256 0)) (imm (u256 0))))
 
-;; Seeded search: scripts/evm_rules/seeds.json.
+;; Seeded search: scripts/evm-rules/seeds.json.
 ;; ((x + y) - (x & y)) => (x | y)
 (rule (rewrite (Op.Sub (add v0 v1) (band v0 v1))) (Op.Or v0 v1))
 ;; ((x + y) - (y & x)) => (x | y)
