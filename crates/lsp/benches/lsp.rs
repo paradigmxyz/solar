@@ -162,11 +162,63 @@ fn code_lens_queries(c: &mut Criterion) {
         fixture.project.unique_anchor("benchmark.sol", "function_0255(1, 2, address(0))").unwrap();
     let analysis = fixture.project.analyze();
     assert_clean(&analysis);
+    let mut first_requests = vec![("256-functions".to_owned(), analysis.clone(), uri.clone())];
     assert!(analysis.code_lenses(&uri).len() >= HOVER_FUNCTION_COUNT);
     let mut group = c.benchmark_group("lsp/code-lens");
     group.bench_function(BenchmarkId::from_parameter("256-functions"), |b| {
         b.iter(|| black_box(analysis.code_lenses(black_box(&uri))));
     });
+
+    for reference_count in [64, 1_024, 16_384] {
+        let mut source = String::from(
+            "contract RepeatedReferences {\nfunction target() internal pure {}\nfunction exercise() public pure {\n",
+        );
+        for _ in 0..reference_count {
+            source.push_str("target();\n");
+        }
+        source.push_str("}\n}\n");
+        let project = BenchmarkProject::from_source(source);
+        let (uri, position) = project.unique_anchor("benchmark.sol", "target() internal").unwrap();
+        let analysis = project.analyze();
+        assert_clean(&analysis);
+        first_requests.push((
+            format!("{reference_count}-references"),
+            analysis.clone(),
+            uri.clone(),
+        ));
+        let lenses = analysis.code_lenses(&uri);
+        assert_eq!(lenses.len(), 4);
+        assert!(lenses.iter().any(|lens| {
+            lens.range.start == position
+                && lens.command.as_ref().unwrap().title == format!("{reference_count} references")
+        }));
+        group.bench_function(
+            BenchmarkId::from_parameter(format!("{reference_count}-references")),
+            |b| b.iter(|| black_box(analysis.code_lenses(black_box(&uri)))),
+        );
+    }
+
+    let project = unifap_project();
+    let (uri, _) = project.unique_anchor(UNIFAP_PAIR, "SELECTOR").unwrap();
+    let analysis = project.analyze();
+    assert_clean(&analysis);
+    first_requests.push(("unifap-v2-pair".to_owned(), analysis.clone(), uri.clone()));
+    assert!(!analysis.code_lenses(&uri).is_empty());
+    group.bench_function(BenchmarkId::from_parameter("unifap-v2-pair"), |b| {
+        b.iter(|| black_box(analysis.code_lenses(black_box(&uri))));
+    });
+    group.finish();
+
+    let mut group = c.benchmark_group("lsp/code-lens-first-request");
+    for (name, analysis, uri) in first_requests {
+        group.bench_function(BenchmarkId::from_parameter(name), |b| {
+            b.iter_batched_ref(
+                || analysis.clone(),
+                |analysis| black_box(analysis.code_lenses(black_box(&uri))),
+                BatchSize::PerIteration,
+            );
+        });
+    }
     group.finish();
 }
 

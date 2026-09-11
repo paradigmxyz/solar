@@ -503,14 +503,23 @@ impl SymbolTables {
         if !options.enable {
             return Vec::new();
         }
+        let Some(file) = self.code_lens.file(uri) else { return Vec::new() };
+        let reference_counts = options.references.then(|| {
+            file.reference_counts.get_or_init(|| {
+                file.entries.iter().map(|entry| self.reference_count(&entry.symbol_ids)).collect()
+            })
+        });
 
-        let mut lenses = Vec::new();
-        for entry in self.code_lens.entries(uri) {
+        let mut lenses = Vec::with_capacity(
+            file.entries.len()
+                * (options.references as usize
+                    + options.selectors as usize
+                    + if options.inheritance { 2 } else { 0 }),
+        );
+        for (index, entry) in file.entries.iter().enumerate() {
             let position = entry.range.start;
 
-            if options.references
-                && let Some(count) = self.reference_count(&entry.symbol_ids)
-            {
+            if let Some(count) = reference_counts.and_then(|counts| counts[index]) {
                 let title = format_reference_title(count);
                 let (command, arguments) = if count > 0 && options.client_commands {
                     (
@@ -581,7 +590,10 @@ impl SymbolTables {
     }
 
     fn reference_count(&self, targets: &[SymbolId]) -> Option<usize> {
-        let mut locations = FxHashSet::default();
+        // Count the common zero/one-reference cases without allocating a hash set.  A set is
+        // materialized only after the first distinct location is observed.
+        let mut first = None;
+        let mut locations: Option<FxHashSet<(&Url, Range)>> = None;
         for &index in
             targets.iter().filter_map(|target| self.symbol_references.get(target)).flatten()
         {
@@ -589,9 +601,22 @@ impl SymbolTables {
             if self.rename.conflicting_contents().contains(&location.uri) {
                 return None;
             }
-            locations.insert((&location.uri, location.range));
+            let key = (&location.uri, location.range);
+            if let Some(set) = &mut locations {
+                set.insert(key);
+            } else if let Some(previous) = first {
+                if previous != key {
+                    let mut set = FxHashSet::default();
+                    set.reserve(2);
+                    set.insert(previous);
+                    set.insert(key);
+                    locations = Some(set);
+                }
+            } else {
+                first = Some(key);
+            }
         }
-        Some(locations.len())
+        Some(locations.map_or(usize::from(first.is_some()), |set| set.len()))
     }
 
     pub(crate) fn document_links(&self, path: &Path) -> Vec<lsp_types::DocumentLink> {
