@@ -584,6 +584,86 @@ fn does_not_reuse_a_stale_member_call_after_the_receiver_type_changes() {
 }
 
 #[test]
+fn warmed_member_signature_help_survives_an_earlier_line_edit() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Signature.sol open
+        contract Target {
+            function set(uint256 value) external pure {}
+        }
+
+        contract C {
+            function use(Target target) public pure { // short
+                /* 😀 */ target.set($1 2);
+            }
+        }
+        "#,
+        "/Signature.sol",
+    );
+    let mut state = fixture.state();
+    let (uri, position) = fixture.marker_location("$1");
+    let expected = request_signature_help(&mut state, uri.clone(), position).unwrap();
+
+    let original = fixture.project_contents("/Signature.sol");
+    let path = VfsPath::from(fixture.project_path("/Signature.sol"));
+    // Preserve the analysis while changing byte offsets before the call. Its opening
+    // delimiter and callee retain their LSP positions, including the UTF-16 column.
+    for changed in [
+        original.replace("// short", "// this comment is now much longer"),
+        original.replace("// short", "// 😀"),
+        original.replace('\n', "\r\n"),
+    ] {
+        state.vfs.write().set_file_contents(path.clone(), Some(Rope::from(changed)));
+        assert_eq!(
+            request_signature_help(&mut state, uri.clone(), position),
+            Some(expected.clone())
+        );
+        assert_eq!(
+            request_signature_help(&mut state, uri.clone(), position),
+            Some(expected.clone())
+        );
+    }
+    state.vfs.write().set_file_contents(path, Some(Rope::from(original)));
+    assert_eq!(request_signature_help(&mut state, uri, position), Some(expected));
+}
+
+#[test]
+fn warmed_member_signature_help_does_not_reuse_a_nearby_call() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Signature.sol open
+        contract A {
+            function f(uint256 value) external pure {}
+        }
+
+        contract B {
+            function f(uint128 value) external pure {}
+        }
+
+        contract C {
+            function use(A a, B b) public pure { a.f($1 1); }
+        }
+        "#,
+        "/Signature.sol",
+    );
+    let mut state = fixture.state();
+    let (uri, position) = fixture.marker_location("$1");
+    assert!(request_signature_help(&mut state, uri.clone(), position).is_some());
+
+    // The original callee is still valid at its cached position, but a new call on the
+    // same line has a different receiver and must not inherit its signature.
+    let original = fixture.project_contents("/Signature.sol");
+    let changed = original.replace("a.f(", "a.f(1); b.f(");
+    let delta = "a.f(1); ".len() as u32;
+    let changed_position = Position::new(position.line, position.character + delta);
+    state.vfs.write().set_file_contents(
+        VfsPath::from(fixture.project_path("/Signature.sol")),
+        Some(Rope::from(changed)),
+    );
+    assert_eq!(request_signature_help(&mut state, uri, changed_position), None);
+}
+
+#[test]
 fn puts_the_type_checked_overload_first() {
     let fixture = RequestFixture::new(
         r#"

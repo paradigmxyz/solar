@@ -22,14 +22,13 @@ use std::{borrow::Cow, fmt::Write, ops::ControlFlow, sync::Arc};
 #[derive(Clone, Debug, Default)]
 pub(crate) struct SignatureHelpIndex {
     calls: FxHashMap<Url, Vec<CallSite>>,
-    calls_by_open: FxHashMap<Url, FxHashMap<usize, Vec<usize>>>,
+    calls_by_open: FxHashMap<Url, FxHashMap<Position, Vec<usize>>>,
     callables_by_name: FxHashMap<String, Vec<CatalogEntry>>,
     signatures_by_label: FxHashMap<String, Vec<Arc<CallSignature>>>,
 }
 
 #[derive(Clone, Debug)]
 struct CallSite {
-    open: usize,
     range: Range,
     callee_range: Range,
     callee_tokens: Vec<String>,
@@ -114,7 +113,7 @@ impl SignatureHelpIndex {
         for (uri, calls) in &self.calls {
             let by_open = self.calls_by_open.entry(uri.clone()).or_default();
             for (index, call) in calls.iter().enumerate() {
-                by_open.entry(call.open).or_default().push(index);
+                by_open.entry(call.range.start).or_default().push(index);
             }
         }
     }
@@ -128,13 +127,14 @@ impl SignatureHelpIndex {
         visible_declarations: impl FnOnce(&str) -> Vec<&'a Location>,
         options: SignatureHelpClientOptions,
     ) -> Option<SignatureHelp> {
-        let contents = positions.rope();
         let cursor = positions.text_range(Range::new(position, position)).start;
         let context = call_context(&source[..cursor])?;
+        // Earlier-line edits can change byte offsets while preserving the cached LSP position.
+        let open = positions.position_at_byte(context.open)?;
         let call = self.calls.get(uri).and_then(|calls| {
-            let indices = self.calls_by_open.get(uri)?.get(&context.open)?;
+            let indices = self.calls_by_open.get(uri)?.get(&open)?;
             indices.iter().map(|&index| &calls[index]).find(|call| {
-                // Reject unrelated callables before converting their source positions.
+                // Reject unrelated callables before validating their current source text.
                 call.form == context.form
                     && call
                         .callee_tokens
@@ -142,7 +142,6 @@ impl SignatureHelpIndex {
                         .map(String::as_str)
                         .filter(|token| is_identifier(token))
                         == context.callee_name
-                    && valid_text_position(contents, call.range.start)
                     && call.matches_current_callee(positions)
             })
         });
@@ -267,12 +266,9 @@ impl SignatureHelpIndex {
         }
         let Ok(callee_text) = gcx.sess.source_map().span_to_snippet(callee_span) else { return };
         let callee_tokens = significant_tokens(&callee_text);
-        let file = gcx.sess.source_map().lookup_source_file(args.span.lo());
-        let open = file.relative_position(args.span.lo()).to_usize();
         let signatures =
             signatures.into_iter().map(|signature| self.intern_signature(signature)).collect();
         self.calls.entry(location.uri).or_default().push(CallSite {
-            open,
             range: location.range,
             callee_range: callee_location.range,
             callee_tokens,
@@ -1174,7 +1170,6 @@ mod tests {
         source.calls.insert(
             uri.clone(),
             vec![CallSite {
-                open: 0,
                 range: Range::default(),
                 callee_range: Range::default(),
                 callee_tokens: vec!["f".into()],
@@ -1217,7 +1212,6 @@ mod tests {
     #[test]
     fn stale_callee_range_splitting_a_surrogate_pair_is_rejected() {
         let call = CallSite {
-            open: 0,
             range: Range::default(),
             callee_range: Range::new(Position::new(0, 1), Position::new(0, 3)),
             callee_tokens: vec!["f".into()],
@@ -1233,7 +1227,6 @@ mod tests {
     #[test]
     fn stale_callee_range_beyond_the_current_file_is_rejected() {
         let call = CallSite {
-            open: 0,
             range: Range::default(),
             callee_range: Range::new(Position::new(2, 0), Position::new(2, 1)),
             callee_tokens: vec!["f".into()],
