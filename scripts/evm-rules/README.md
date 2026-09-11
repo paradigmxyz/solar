@@ -7,8 +7,8 @@ compiled into the optimizer**. It currently gates `word.isle`, `word_sequence.is
 the larger budgets described below. The compiler itself has no solver dependency.
 
 ```sh
-uv run scripts/test_evm_rules.py
-uv run scripts/verify_evm_rules.py verify \
+uv run scripts/evm-rules/test.py
+uv run scripts/evm-rules/verify.py verify \
   --output target/evm-rules/proofs.json --artifacts target/evm-rules/smt
 ```
 
@@ -37,9 +37,9 @@ For complete replay with cvc5, export exhaustive index partitions even when Z3
 can prove the original query directly:
 
 ```sh
-uv run scripts/verify_evm_rules.py verify --partition-shifts \
+uv run scripts/evm-rules/verify.py verify --partition-shifts \
   --output target/evm-rules/proofs.json --artifacts target/evm-rules/smt
-uv run scripts/replay_evm_rules.py target/evm-rules/proofs.json \
+uv run scripts/evm-rules/replay.py target/evm-rules/proofs.json \
   --solver cvc5 --output target/evm-rules/cvc5.json
 ```
 
@@ -88,7 +88,7 @@ five-second limit per strategy per query and fails on every exhausted query.
 Word verification has an optional, explicit cvc5 fallback:
 
 ```sh
-uv run scripts/verify_evm_rules.py verify crates/codegen/isle/egraph.isle \
+uv run scripts/evm-rules/verify.py verify crates/codegen/isle/egraph.isle \
   --fallback-solver cvc5 --output target/evm-rules/legacy.json \
   --artifacts target/evm-rules/legacy-smt
 ```
@@ -119,7 +119,7 @@ For word queries that remain incomplete, opt into an additional budget for
 proving every output bit separately:
 
 ```sh
-uv run scripts/verify_evm_rules.py verify crates/codegen/isle/egraph.isle \
+uv run scripts/evm-rules/verify.py verify crates/codegen/isle/egraph.isle \
   --fallback-solver cvc5 --bit-partition-timeout-ms 120000 \
   --output target/evm-rules/legacy-bits.json \
   --artifacts target/evm-rules/legacy-bits-smt
@@ -293,7 +293,7 @@ decisions remain unchanged in both cases.
 An audit of the older rules is available explicitly:
 
 ```sh
-uv run scripts/verify_evm_rules.py verify crates/codegen/isle/egraph.isle \
+uv run scripts/evm-rules/verify.py verify crates/codegen/isle/egraph.isle \
   --timeout-ms 1000 --output target/evm-rules/audit.json
 ```
 
@@ -311,12 +311,12 @@ from the default five-file selection and requires both lanes to pass.
 Mine candidates from actual MIR artifacts before searching:
 
 ```sh
-uv run scripts/verify_evm_rules.py mine \
+uv run scripts/evm-rules/verify.py mine \
   target/codegen-bench/baseline/artifacts/*/solar/mir.mir \
   --max-ops 8 --max-seeds 128 \
   --output target/evm-rules/mined.json \
   --emit-seeds target/evm-rules/mined-seeds.json
-uv run scripts/verify_evm_rules.py discover \
+uv run scripts/evm-rules/verify.py discover \
   --variables x y z --max-ops 2 --max-rhs-ops 2 \
   --seed-expressions target/evm-rules/mined-seeds.json \
   --output target/evm-rules/discovery.json \
@@ -345,7 +345,7 @@ The doubling rule keeps the producer at its original position: rebuilding it at
 the later addition regressed stack traffic across intervening computations.
 
 ```sh
-uv run scripts/verify_evm_rules.py discover \
+uv run scripts/evm-rules/verify.py discover \
   --ops and or xor not --variables x y m --max-ops 3 --max-rhs-ops 2 \
   --max-expressions 10000 --max-rules 256 \
   --evm-version osaka --objective gas \
@@ -367,8 +367,8 @@ enumerating every tree of their size. For example, the checked-in seeds include
 the input has three operations:
 
 ```sh
-uv run scripts/verify_evm_rules.py discover \
-  --seed-expressions scripts/evm_rules/seeds.json \
+uv run scripts/evm-rules/verify.py discover \
+  --seed-expressions scripts/evm-rules/seeds.json \
   --ops and or xor not sub add --variables x y \
   --max-ops 2 --max-rhs-ops 2 --max-expressions 1000 --max-rules 64 \
   --output target/evm-rules/seeded.json \
@@ -400,7 +400,7 @@ The table covers byte indexes, common shift counts, powers of two and field mask
 For example, search packed-byte patterns with:
 
 ```sh
-uv run scripts/verify_evm_rules.py discover \
+uv run scripts/evm-rules/verify.py discover \
   --ops and shr byte --result-ops byte --variables x --include-constants \
   --constants 0 1 8 30 31 255 256 --max-ops 2 --max-rhs-ops 2 \
   --output target/evm-rules/packed.json \

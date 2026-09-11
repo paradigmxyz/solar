@@ -23,6 +23,9 @@ use solar_config::{EvmVersion, OptimizationMode};
 use solar_sema::Gcx;
 use std::{cmp::Ordering, ops};
 
+mod stack;
+pub(crate) use stack::StackCosts;
+
 /// The gas class of an opcode in the fork schedule.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum GasTier {
@@ -255,6 +258,15 @@ const fn since(evm_version: EvmVersion, fork: EvmVersion) -> bool {
     evm_version as u8 >= fork as u8
 }
 
+/// Encoded size of an opcode including its immediate bytes.
+const fn opcode_bytes(opcode: u8) -> u32 {
+    let immediate = match opcode {
+        op::PUSH1..=op::PUSH32 => (opcode - op::PUSH1 + 1) as u32,
+        _ => 0,
+    };
+    1 + immediate
+}
+
 /// Static gas and encoded size of a code sequence.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub(crate) struct Cost {
@@ -271,6 +283,13 @@ impl Cost {
     /// Creates a cost.
     pub(crate) const fn new(gas: u32, bytes: u32) -> Self {
         Self { gas, bytes }
+    }
+
+    /// Cost of an opcode whose static gas is identical on every EVM version.
+    /// Panics for unknown opcodes or a fork-dependent gas tier.
+    const fn fixed_opcode(opcode: u8) -> Self {
+        let Some(definition) = op::definition(opcode) else { panic!("unknown opcode") };
+        Self::new(definition.gas.fixed_gas(), opcode_bytes(opcode))
     }
 
     /// Sums two costs, saturating.
@@ -363,11 +382,7 @@ impl Target {
 
     /// Cost of one opcode with its immediate, before dynamic components.
     pub(crate) fn opcode(self, opcode: u8) -> Cost {
-        let immediate = match opcode {
-            op::PUSH1..=op::PUSH32 => u32::from(opcode - op::PUSH1 + 1),
-            _ => 0,
-        };
-        Cost::new(self.opcode_gas(opcode), 1 + immediate)
+        Cost::new(self.opcode_gas(opcode), opcode_bytes(opcode))
     }
 
     /// Cost of an opcode whose arguments are known in EVM pop order.
