@@ -38,6 +38,7 @@ time: <TIME>	MIR TimePasses word-sequence changed=false
 time: <TIME>	MIR TimePasses check-elim changed=false
 time: <TIME>	MIR TimePasses jump-threading changed=false
 time: <TIME>	MIR TimePasses cfg-simplify changed=false
+time: <TIME>	MIR TimePasses if-convert changed=false
 time: <TIME>	MIR TimePasses frame-slot-promotion changed=false
 time: <TIME>	MIR TimePasses memory-dse changed=false
 time: <TIME>	MIR TimePasses adce changed=false

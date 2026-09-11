@@ -3,53 +3,47 @@
 fn @constructor() [constructor] {
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    v1 = eq 1, 0
-    v2 = iszero v1
     memory_object_store_field memorystruct<2>, v0, 0, 10
-    memory_object_store_field memorystruct<2>, v0, 1, v2
-    v3 = mapping_slot 1, 0
-    v4 = memory_object_load_field memorystruct<2>, v0, 0
-    sstore v3, v4 !metadata(storage=symbolic(v3))
-    v5 = add v3, 1
-    v6 = memory_object_load_field memorystruct<2>, v0, 1
-    v7 = sload v5 !metadata(storage=offset(v3, 1))
-    v8 = not 255
-    v9 = and v7, v8
-    v10 = and v6, 255
-    v11 = or v9, v10
-    sstore v5, v11 !metadata(storage=offset(v3, 1))
-    v12 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    v13 = eq 0, 0
-    v14 = iszero v13
-    memory_object_store_field memorystruct<2>, v12, 0, 20
-    memory_object_store_field memorystruct<2>, v12, 1, v14
-    v15 = mapping_slot 2, 0
-    v16 = memory_object_load_field memorystruct<2>, v12, 0
-    sstore v15, v16 !metadata(storage=symbolic(v15))
-    v17 = add v15, 1
-    v18 = memory_object_load_field memorystruct<2>, v12, 1
-    v19 = sload v17 !metadata(storage=offset(v15, 1))
-    v20 = not 255
-    v21 = and v19, v20
-    v22 = and v18, 255
-    v23 = or v21, v22
-    sstore v17, v23 !metadata(storage=offset(v15, 1))
-    v24 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    v25 = eq 1, 0
-    v26 = iszero v25
-    memory_object_store_field memorystruct<2>, v24, 0, 30
-    memory_object_store_field memorystruct<2>, v24, 1, v26
-    v27 = mapping_slot 3, 0
-    v28 = memory_object_load_field memorystruct<2>, v24, 0
-    sstore v27, v28 !metadata(storage=symbolic(v27))
-    v29 = add v27, 1
-    v30 = memory_object_load_field memorystruct<2>, v24, 1
-    v31 = sload v29 !metadata(storage=offset(v27, 1))
-    v32 = not 255
-    v33 = and v31, v32
-    v34 = and v30, 255
-    v35 = or v33, v34
-    sstore v29, v35 !metadata(storage=offset(v27, 1))
+    memory_object_store_field memorystruct<2>, v0, 1, 1
+    v1 = mapping_slot 1, 0
+    v2 = memory_object_load_field memorystruct<2>, v0, 0
+    sstore v1, v2 !metadata(storage=symbolic(v1))
+    v3 = add v1, 1
+    v4 = memory_object_load_field memorystruct<2>, v0, 1
+    v5 = sload v3 !metadata(storage=offset(v1, 1))
+    v6 = not 255
+    v7 = and v5, v6
+    v8 = and v4, 255
+    v9 = or v7, v8
+    sstore v3, v9 !metadata(storage=offset(v1, 1))
+    v10 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    memory_object_store_field memorystruct<2>, v10, 0, 20
+    memory_object_store_field memorystruct<2>, v10, 1, 0
+    v11 = mapping_slot 2, 0
+    v12 = memory_object_load_field memorystruct<2>, v10, 0
+    sstore v11, v12 !metadata(storage=symbolic(v11))
+    v13 = add v11, 1
+    v14 = memory_object_load_field memorystruct<2>, v10, 1
+    v15 = sload v13 !metadata(storage=offset(v11, 1))
+    v16 = not 255
+    v17 = and v15, v16
+    v18 = and v14, 255
+    v19 = or v17, v18
+    sstore v13, v19 !metadata(storage=offset(v11, 1))
+    v20 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    memory_object_store_field memorystruct<2>, v20, 0, 30
+    memory_object_store_field memorystruct<2>, v20, 1, 1
+    v21 = mapping_slot 3, 0
+    v22 = memory_object_load_field memorystruct<2>, v20, 0
+    sstore v21, v22 !metadata(storage=symbolic(v21))
+    v23 = add v21, 1
+    v24 = memory_object_load_field memorystruct<2>, v20, 1
+    v25 = sload v23 !metadata(storage=offset(v21, 1))
+    v26 = not 255
+    v27 = and v25, v26
+    v28 = and v24, 255
+    v29 = or v27, v28
+    sstore v23, v29 !metadata(storage=offset(v21, 1))
     stop
 }
 

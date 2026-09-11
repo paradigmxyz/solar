@@ -12,6 +12,7 @@ pub(crate) mod egraph;
 pub(crate) mod evm_inst_schedule;
 pub(crate) mod frame_promotion;
 pub(crate) mod function_compaction;
+pub(crate) mod if_convert;
 pub(crate) mod indvar_simplify;
 pub(crate) mod inline;
 pub(crate) mod inline_dispatch;

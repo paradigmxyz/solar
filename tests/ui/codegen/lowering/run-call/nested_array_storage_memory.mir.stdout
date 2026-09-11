@@ -144,177 +144,171 @@ fn @constructor() [constructor] {
     jumpi v108, bb60, bb61
   bb61:
     v113 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v114 = and 1, 255
-    memory_object_store_element memoryfixedarray<2, 1>, v113, 0, v114
-    v115 = and 2, 255
-    memory_object_store_element memoryfixedarray<2, 1>, v113, 1, v115
-    v116 = sload 3 !metadata(storage=slot(3))
-    v117 = gt v116, 0xffffffffffffffff
-    jumpi v117, bb62, bb63
+    memory_object_store_element memoryfixedarray<2, 1>, v113, 0, 1
+    memory_object_store_element memoryfixedarray<2, 1>, v113, 1, 2
+    v114 = sload 3 !metadata(storage=slot(3))
+    v115 = gt v114, 0xffffffffffffffff
+    jumpi v115, bb62, bb63
   bb63:
-    v118 = add v116, 1
-    v119 = storage_array_data_slot 3
-    v120 = mul v116, 2
-    v121 = add v119, v120
+    v116 = add v114, 1
+    v117 = storage_array_data_slot 3
+    v118 = mul v114, 2
+    v119 = add v117, v118
     jump bb64
   bb64:
-    v122 = phi [bb63: 0], [bb69: v127]
-    v123 = lt v122, 2
-    jumpi v123, bb65, bb66
+    v120 = phi [bb63: 0], [bb69: v125]
+    v121 = lt v120, 2
+    jumpi v121, bb65, bb66
   bb66:
-    sstore 3, v118 !metadata(storage=slot(3))
-    v128 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v129 = and 3, 255
-    memory_object_store_element memoryfixedarray<2, 1>, v128, 0, v129
-    v130 = and 4, 255
-    memory_object_store_element memoryfixedarray<2, 1>, v128, 1, v130
-    v131 = sload 3 !metadata(storage=slot(3))
-    v132 = gt v131, 0xffffffffffffffff
-    jumpi v132, bb62, bb70
+    sstore 3, v116 !metadata(storage=slot(3))
+    v126 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    memory_object_store_element memoryfixedarray<2, 1>, v126, 0, 3
+    memory_object_store_element memoryfixedarray<2, 1>, v126, 1, 4
+    v127 = sload 3 !metadata(storage=slot(3))
+    v128 = gt v127, 0xffffffffffffffff
+    jumpi v128, bb62, bb70
   bb70:
-    v133 = add v131, 1
-    v134 = storage_array_data_slot 3
-    v135 = mul v131, 2
-    v136 = add v134, v135
+    v129 = add v127, 1
+    v130 = storage_array_data_slot 3
+    v131 = mul v127, 2
+    v132 = add v130, v131
     jump bb71
   bb71:
-    v137 = phi [bb70: 0], [bb76: v142]
-    v138 = lt v137, 2
-    jumpi v138, bb72, bb73
+    v133 = phi [bb70: 0], [bb76: v138]
+    v134 = lt v133, 2
+    jumpi v134, bb72, bb73
   bb73:
-    sstore 3, v133 !metadata(storage=slot(3))
-    v143 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v144 = and 5, 255
-    memory_object_store_element memoryfixedarray<2, 1>, v143, 0, v144
-    v145 = and 6, 255
-    memory_object_store_element memoryfixedarray<2, 1>, v143, 1, v145
-    v146 = sload 3 !metadata(storage=slot(3))
-    v147 = gt v146, 0xffffffffffffffff
-    jumpi v147, bb62, bb77
+    sstore 3, v129 !metadata(storage=slot(3))
+    v139 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    memory_object_store_element memoryfixedarray<2, 1>, v139, 0, 5
+    memory_object_store_element memoryfixedarray<2, 1>, v139, 1, 6
+    v140 = sload 3 !metadata(storage=slot(3))
+    v141 = gt v140, 0xffffffffffffffff
+    jumpi v141, bb62, bb77
   bb77:
-    v148 = add v146, 1
-    v149 = storage_array_data_slot 3
-    v150 = mul v146, 2
-    v151 = add v149, v150
+    v142 = add v140, 1
+    v143 = storage_array_data_slot 3
+    v144 = mul v140, 2
+    v145 = add v143, v144
     jump bb78
   bb78:
-    v152 = phi [bb77: 0], [bb83: v157]
-    v153 = lt v152, 2
-    jumpi v153, bb79, bb80
+    v146 = phi [bb77: 0], [bb83: v151]
+    v147 = lt v146, 2
+    jumpi v147, bb79, bb80
   bb80:
-    sstore 3, v148 !metadata(storage=slot(3))
-    v158 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v159 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    memory_object_store_element memoryfixedarray<2, 1>, v159, 0, 10
-    memory_object_store_element memoryfixedarray<2, 1>, v159, 1, 11
-    memory_object_store_element memoryfixedarray<2, 1>, v158, 0, v159
-    v160 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    memory_object_store_element memoryfixedarray<2, 1>, v160, 0, 12
-    memory_object_store_element memoryfixedarray<2, 1>, v160, 1, 13
-    memory_object_store_element memoryfixedarray<2, 1>, v158, 1, v160
+    sstore 3, v142 !metadata(storage=slot(3))
+    v152 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v153 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    memory_object_store_element memoryfixedarray<2, 1>, v153, 0, 10
+    memory_object_store_element memoryfixedarray<2, 1>, v153, 1, 11
+    memory_object_store_element memoryfixedarray<2, 1>, v152, 0, v153
+    v154 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    memory_object_store_element memoryfixedarray<2, 1>, v154, 0, 12
+    memory_object_store_element memoryfixedarray<2, 1>, v154, 1, 13
+    memory_object_store_element memoryfixedarray<2, 1>, v152, 1, v154
     jump bb84
   bb84:
-    v161 = phi [bb80: 0], [bb89: v180]
-    v162 = lt v161, 2
-    jumpi v162, bb85, bb86
+    v155 = phi [bb80: 0], [bb89: v174]
+    v156 = lt v155, 2
+    jumpi v156, bb85, bb86
   bb86:
     stop
   bb85:
-    v163 = mul v161, 2
-    v164 = add 4, v163
-    v165 = lt v161, 2
-    jumpi v165, bb87, bb88
+    v157 = mul v155, 2
+    v158 = add 4, v157
+    v159 = lt v155, 2
+    jumpi v159, bb87, bb88
   bb88:
-    v173 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    memory_zero v173, 64
+    v167 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    memory_zero v167, 64
     jump bb96
   bb96:
-    v174 = phi [bb88: 0], [bb101: v179]
-    v175 = lt v174, 2
-    jumpi v175, bb97, bb98
+    v168 = phi [bb88: 0], [bb101: v173]
+    v169 = lt v168, 2
+    jumpi v169, bb97, bb98
   bb98:
     jump bb89
   bb97:
-    v176 = add v164, v174
-    v177 = lt v174, 2
-    jumpi v177, bb99, bb100
+    v170 = add v158, v168
+    v171 = lt v168, 2
+    jumpi v171, bb99, bb100
   bb100:
-    sstore v176, 0 !metadata(storage=symbolic(v176))
+    sstore v170, 0 !metadata(storage=symbolic(v170))
     jump bb101
   bb99:
-    v178 = memory_object_load_element memoryfixedarray<2, 1>, v173, v174
-    sstore v176, v178 !metadata(storage=symbolic(v176))
+    v172 = memory_object_load_element memoryfixedarray<2, 1>, v167, v168
+    sstore v170, v172 !metadata(storage=symbolic(v170))
     jump bb101
   bb101:
-    v179 = add v174, 1
+    v173 = add v168, 1
     jump bb96
   bb87:
-    v166 = memory_object_load_element memoryfixedarray<2, 1>, v158, v161
+    v160 = memory_object_load_element memoryfixedarray<2, 1>, v152, v155
     jump bb90
   bb90:
-    v167 = phi [bb87: 0], [bb95: v172]
-    v168 = lt v167, 2
-    jumpi v168, bb91, bb92
+    v161 = phi [bb87: 0], [bb95: v166]
+    v162 = lt v161, 2
+    jumpi v162, bb91, bb92
   bb92:
     jump bb89
   bb89:
-    v180 = add v161, 1
+    v174 = add v155, 1
     jump bb84
   bb91:
-    v169 = add v164, v167
-    v170 = lt v167, 2
-    jumpi v170, bb93, bb94
+    v163 = add v158, v161
+    v164 = lt v161, 2
+    jumpi v164, bb93, bb94
   bb94:
-    sstore v169, 0 !metadata(storage=symbolic(v169))
+    sstore v163, 0 !metadata(storage=symbolic(v163))
     jump bb95
   bb93:
-    v171 = memory_object_load_element memoryfixedarray<2, 1>, v166, v167
-    sstore v169, v171 !metadata(storage=symbolic(v169))
+    v165 = memory_object_load_element memoryfixedarray<2, 1>, v160, v161
+    sstore v163, v165 !metadata(storage=symbolic(v163))
     jump bb95
   bb95:
-    v172 = add v167, 1
+    v166 = add v161, 1
     jump bb90
   bb79:
-    v154 = add v151, v152
-    v155 = lt v152, 2
-    jumpi v155, bb81, bb82
+    v148 = add v145, v146
+    v149 = lt v146, 2
+    jumpi v149, bb81, bb82
   bb82:
-    sstore v154, 0 !metadata(storage=symbolic(v154))
+    sstore v148, 0 !metadata(storage=symbolic(v148))
     jump bb83
   bb81:
-    v156 = memory_object_load_element memoryfixedarray<2, 1>, v143, v152
-    sstore v154, v156 !metadata(storage=symbolic(v154))
+    v150 = memory_object_load_element memoryfixedarray<2, 1>, v139, v146
+    sstore v148, v150 !metadata(storage=symbolic(v148))
     jump bb83
   bb83:
-    v157 = add v152, 1
+    v151 = add v146, 1
     jump bb78
   bb72:
-    v139 = add v136, v137
-    v140 = lt v137, 2
-    jumpi v140, bb74, bb75
+    v135 = add v132, v133
+    v136 = lt v133, 2
+    jumpi v136, bb74, bb75
   bb75:
-    sstore v139, 0 !metadata(storage=symbolic(v139))
+    sstore v135, 0 !metadata(storage=symbolic(v135))
     jump bb76
   bb74:
-    v141 = memory_object_load_element memoryfixedarray<2, 1>, v128, v137
-    sstore v139, v141 !metadata(storage=symbolic(v139))
+    v137 = memory_object_load_element memoryfixedarray<2, 1>, v126, v133
+    sstore v135, v137 !metadata(storage=symbolic(v135))
     jump bb76
   bb76:
-    v142 = add v137, 1
+    v138 = add v133, 1
     jump bb71
   bb65:
-    v124 = add v121, v122
-    v125 = lt v122, 2
-    jumpi v125, bb67, bb68
+    v122 = add v119, v120
+    v123 = lt v120, 2
+    jumpi v123, bb67, bb68
   bb68:
-    sstore v124, 0 !metadata(storage=symbolic(v124))
+    sstore v122, 0 !metadata(storage=symbolic(v122))
     jump bb69
   bb67:
-    v126 = memory_object_load_element memoryfixedarray<2, 1>, v113, v122
-    sstore v124, v126 !metadata(storage=symbolic(v124))
+    v124 = memory_object_load_element memoryfixedarray<2, 1>, v113, v120
+    sstore v122, v124 !metadata(storage=symbolic(v122))
     jump bb69
   bb69:
-    v127 = add v122, 1
+    v125 = add v120, 1
     jump bb64
   bb62:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)

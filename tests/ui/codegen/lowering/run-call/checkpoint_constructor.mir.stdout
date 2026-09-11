@@ -239,62 +239,60 @@ fn @deploy() -> u96 [selector=0x775c300c, abi_params=[], abi_returns=[word<u96>]
     v3 = iszero v2
     jumpi v3, bb1, bb2
   bb2:
-    v4 = and 0xf52, 0xffffffffffffffffffffffff
-    memory_object_store_element memoryarray<1>, v0, 0, v4
-    v5 = memory_object_len memoryarray, v0
-    v6 = lt 1, v5
-    v7 = iszero v6
-    jumpi v7, bb1, bb3
+    memory_object_store_element memoryarray<1>, v0, 0, 0xf52
+    v4 = memory_object_len memoryarray, v0
+    v5 = lt 1, v4
+    v6 = iszero v5
+    jumpi v6, bb1, bb3
   bb3:
-    v8 = and 6, 0xffffffffffffffffffffffff
-    memory_object_store_element memoryarray<1>, v0, 1, v8
-    v9 = and 0x1234, 0xffffffffffffffffffffffffffffffffffffffff
-    v10 = and 0x48b, 0xffffffffffffffffffffffff
-    v11 = abi_encode [memory_array<word<u96>>, word<u160>, word<u96>], args v0, v9, v10
-    v12 = slice_len v11
-    v13 = add 0xdce, v12
-    v14 = lt v13, 0xdce
-    jumpi v14, bb4, bb5
+    memory_object_store_element memoryarray<1>, v0, 1, 6
+    v7 = and 0x1234, 0xffffffffffffffffffffffffffffffffffffffff
+    v8 = and 0x48b, 0xffffffffffffffffffffffff
+    v9 = abi_encode [memory_array<word<u96>>, word<u160>, word<u96>], args v0, v7, v8
+    v10 = slice_len v9
+    v11 = add 0xdce, v10
+    v12 = lt v11, 0xdce
+    jumpi v12, bb4, bb5
   bb5:
-    v15 = add v13, 31
-    v16 = lt v15, v13
-    jumpi v16, bb4, bb6
+    v13 = add v11, 31
+    v14 = lt v13, v11
+    jumpi v14, bb4, bb6
   bb6:
-    v17 = not 31
-    v18 = and v15, v17
-    v19 = alloc raw, exact, uninitialized, infallible, v18
-    data_copy CheckpointTarget_initcode_0, v19, 0xdce
-    v20 = slice_ptr v11
-    v21 = add v19, 0xdce
-    mcopy v21, v20, v12 !metadata(memory=heap)
-    v22 = create 0, v19, v13
-    jumpi v22, bb8, bb7
+    v15 = not 31
+    v16 = and v13, v15
+    v17 = alloc raw, exact, uninitialized, infallible, v16
+    data_copy CheckpointTarget_initcode_0, v17, 0xdce
+    v18 = slice_ptr v9
+    v19 = add v17, 0xdce
+    mcopy v19, v18, v10 !metadata(memory=heap)
+    v20 = create 0, v17, v11
+    jumpi v20, bb8, bb7
   bb7:
     revert_returndata
   bb8:
-    v23 = gas
-    v24 = abi_encode [], selector 0x8ee82b5300000000000000000000000000000000000000000000000000000000
-    v25 = slice_ptr v24
-    v26 = slice_len v24
-    v27 = staticcall v23, v22, v25, v26, 0, 32
-    jumpi v27, bb10, bb9
+    v21 = gas
+    v22 = abi_encode [], selector 0x8ee82b5300000000000000000000000000000000000000000000000000000000
+    v23 = slice_ptr v22
+    v24 = slice_len v22
+    v25 = staticcall v21, v20, v23, v24, 0, 32
+    jumpi v25, bb10, bb9
   bb9:
     revert_returndata
   bb10:
-    v28 = returndatasize
-    v29 = lt v28, 32
-    jumpi v29, bb11, bb12
+    v26 = returndatasize
+    v27 = lt v26, 32
+    jumpi v27, bb11, bb12
   bb12:
-    v30 = add 0, 0
-    v31 = mload v30
-    v32 = and v31, 0xffffffffffffffffffffffff
-    v33 = eq v31, v32
-    v34 = iszero v33
-    jumpi v34, bb11, bb13
+    v28 = add 0, 0
+    v29 = mload v28
+    v30 = and v29, 0xffffffffffffffffffffffff
+    v31 = eq v29, v30
+    v32 = iszero v31
+    jumpi v32, bb11, bb13
   bb13:
-    v35 = add 0, 0
-    v36 = mload v35
-    ret v36
+    v33 = add 0, 0
+    v34 = mload v33
+    ret v34
   bb11:
     revert 0, 0
   bb4:
