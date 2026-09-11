@@ -68,11 +68,20 @@ scheduling, complex lowering, and assembly remain in Rust. The schema snapshot
 tests check the generated vocabularies, and the selector snapshot checks its
 opcode mappings and stack contracts against both operation tables.
 
+The e-graph overlaps pure-expression CSE, but it does not replace the `cse`
+pass's alias-sensitive memory, storage, and call reuse. SCCP still propagates
+constants over executable CFG edges; range analysis, PRE, and LICM still supply
+facts and choose placement. Keep these algorithms in Rust and use ISLE for
+bounded local identities. This gives us typed matchers, overlap checks, and
+one rule source for optimization and offline checking without implying that
+every Rust rewrite belongs in the DSL. See the repository's
+[rule-writing guidance](../../AGENTS.md#operation-schema-and-isle-rules).
+
 ### Optimization search and costs
 
 The offline rule tool can mine bounded pure trees from real MIR artifacts,
 rank them by occurrence-weighted target cost, search for cheaper equivalents,
-and verify the emitted ISLE. See [the discovery and proof guide](../../scripts/evm_rules/README.md).
+and verify the emitted ISLE. See [the discovery and proof guide](../../scripts/evm-rules/README.md).
 Generated candidates still require scheduled-code measurements before inclusion.
 Subtree abstraction exposes generic shift-count and repeated-mask patterns inside
 larger expressions; the proof quantifies over every value of each abstract input.
