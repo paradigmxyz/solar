@@ -54,6 +54,7 @@ exception requires memory extent to be unobservable in the call context; clearin
 
 Constructor immutable assignments can remain in SSA until a normal constructor
 exit carries their values to the deployment postlude. Staging then happens after
-source execution ends. This lowering requires each assignment to dominate its
-reads and normal exits; it inlines nonrecursive readers when needed. Shapes that
-cannot establish this ownership retain the guarded memory lowering.
+source execution ends. Phi values merge assignments across branches and loops,
+starting with each immutable’s default zero. The lowering inlines nonrecursive
+readers when needed. Helper writes and recursive readers retain the guarded
+memory lowering.

@@ -47,19 +47,45 @@ fn @router() [entry] {
 
 // CHECK-LABEL: + fn @constructor(arg0: u8, arg1: bytes20) -> (u8, bytes20)
 // CHECK-NOT: + {{.*}}storeimmutable
-// CHECK: + {{.*}}ret arg0, arg1
+// CHECK: + {{.*}}phi
+// CHECK: + {{.*}}ret
 fn @constructor(arg0: u8, arg1: bytes20) [unrestricted_memory] {
   bb0:
+    v0 = loadimmutable first
+    sstore 0, v0
     v1 = iszero arg0
     jumpi v1, bb1, bb2
   bb1:
     tail_call @panic_chain
   bb2:
+    v2 = eq arg0, 1
+    jumpi v2, bb3, bb4
+  bb3:
     storeimmutable first, arg0
     storeimmutable second, arg1
-    v0 = icall @reader, 1
-    sstore 0, v0
+    jump bb5
+  bb4:
+    storeimmutable first, 2
+    storeimmutable second, arg1
+    jump bb5
+  bb5:
+    v3 = icall @reader, 1
+    sstore 1, v3
+    v4 = eq arg0, 3
+    jumpi v4, bb6, bb7
+  bb6:
+    storeimmutable first, arg0
+    jump bb5
+  bb7:
+    v5 = eq arg0, 4
+    jumpi v5, bb8, bb9
+  bb8:
     stop
+  bb9:
+    storeimmutable first, 4
+    stop
+  bb10:
+    jump bb5
 }
 
 fn @reader() -> u8 {

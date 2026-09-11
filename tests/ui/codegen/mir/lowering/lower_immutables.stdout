@@ -37,23 +37,52 @@
 - fn @constructor(arg0: u8, arg1: bytes20) [constructor, unrestricted_memory] {
 + fn @constructor(arg0: u8, arg1: bytes20) -> (u8, bytes20) [constructor, unrestricted_memory] {
     bb0:
-      v0 = iszero arg0
-      jumpi v0, bb1, bb2
+-     v0 = loadimmutable first
+-     sstore 0, v0
++     sstore 0, 0
+      v1 = iszero arg0
+      jumpi v1, bb1, bb2
     bb2:
+      v2 = eq arg0, 1
+      jumpi v2, bb3, bb4
+    bb4:
+-     storeimmutable first, 2
+-     storeimmutable second, arg1
+      jump bb5
+    bb3:
 -     storeimmutable first, arg0
 -     storeimmutable second, arg1
--     v1 = icall @reader, 1
--     sstore 0, v1
+      jump bb5
+    bb5:
+-     v3 = icall @reader, 1
+-     sstore 1, v3
++     v8 = phi [bb3: arg0], [bb4: 2], [bb6: arg0], [bb10: 0]
++     v9 = phi [bb3: arg1], [bb4: arg1], [bb6: v9], [bb10: 0]
++     jump bb12
++   bb12:
++     jump bb11
++   bb11:
++     v7 = phi [bb12: v8]
++     sstore 1, v7
+      v4 = eq arg0, 3
+      jumpi v4, bb6, bb7
+    bb7:
+      v5 = eq arg0, 4
+      jumpi v5, bb8, bb9
+    bb9:
+-     storeimmutable first, 4
 -     stop
-+     jump bb4
-+   bb4:
-+     jump bb3
-+   bb3:
-+     v3 = phi [bb4: arg0]
-+     sstore 0, v3
-+     ret arg0, arg1
++     ret 4, v9
+    bb8:
+-     stop
++     ret v8, v9
+    bb6:
+-     storeimmutable first, arg0
+      jump bb5
     bb1:
       tail_call @panic_chain
+    bb10:
+      jump bb5
   }
   
   fn @reader() -> u8 {
