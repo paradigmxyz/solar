@@ -12,10 +12,10 @@
 //! input arguments. Candidates have known stack effects and contain no control flow or position
 //! or gas observations. Profitability includes the shared body,
 //! per-site call sequence, continuation labels, and target-dependent push widths. Constant
-//! store prefixes additionally charge call/return gas against deposited bytes using the requested
-//! optimizer run count in gas mode; other recipes retain the size-based sharing policy. Sites are
-//! selected without overlap, and new blocks and labels are installed through the normal EVM IR CFG
-//! representation.
+//! recipes charge call/return gas against deposited bytes using the requested optimizer run count
+//! in gas mode. Gas mode never outlines a site inside a loop: static duplicate counts cannot
+//! justify adding two jumps to every dynamic iteration. Sites are selected without overlap, and
+//! new blocks and labels are installed through the normal EVM IR CFG representation.
 //!
 //! Replacing a site splits its block around the run, so both ends of a candidate run must be
 //! boundaries `keep_with_next` allows to become block boundaries.
@@ -107,6 +107,9 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
     let mut candidates = FxHashMap::<MachineInstSlice<'_>, SmallVec<[Site; 2]>>::default();
     let mut metrics = Vec::new();
     for (block_id, block) in module.blocks.iter_enumerated() {
+        if gcx.sess.opts.optimization.is_gas() && block.metadata.in_loop {
+            continue;
+        }
         // Overlapping candidate windows revisit each instruction. Decode its stack
         // effect and select its push size once, without changing window order or limits.
         metrics.clear();
@@ -220,26 +223,31 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
         if free.len() * run_size <= free.len() * site_size + stub_size {
             continue;
         }
-        // A constant store takes only two pushes and a memory opcode. Sharing it adds
-        // more transfer gas than the computation itself, so charge that overhead against
-        // the deposited bytes at the requested run count. Other recipes retain their
-        // existing size policy until their execution frequencies can be estimated.
-        if gcx.sess.opts.optimization.is_gas()
-            && matches!(body.get(..3), Some([value, address, store])
-                if value.is_encoded_push() && address.is_encoded_push()
-                    && matches!(store.opcode, op::MSTORE | op::MSTORE8))
-        {
+        // repeated run at each site
+        // =>
+        // push continuation; jump shared; ...; swap outputs; jump continuation
+        //
+        // Charge the transfer gas at the requested execution count against
+        // the deposited bytes saved by sharing. Static occurrence counts do
+        // not make the calls cold, even when every site is outside a loop.
+        if gcx.sess.opts.optimization.is_gas() {
             let saved_bytes = free.len() * (run_size - site_size) - stub_size;
             let transfer_gas = target.opcode_gas(op::PUSH2) * 2
                 + target.opcode_gas(op::JUMP) * 2
                 + target.opcode_gas(op::JUMPDEST) * 2
-                + target.opcode_gas(op::SWAP1) * u32::from(first.outputs);
-            if saved_bytes as u128 * u128::from(Target::CODE_DEPOSIT_GAS_PER_BYTE)
-                <= free.len() as u128
-                    * u128::from(transfer_gas)
-                    * u128::from(target.expected_executions())
-            {
-                if let Some(PushValue::Immediate(value)) = body[0].value {
+                + target.opcode_gas(op::SWAP1)
+                    * u32::from(first.outputs.saturating_add(first.inputs));
+            if !sharing_improves_lifetime(
+                saved_bytes,
+                free.len(),
+                transfer_gas,
+                target.expected_executions(),
+            ) {
+                if matches!(body.get(..3), Some([value, address, store])
+                    if value.is_encoded_push() && address.is_encoded_push()
+                        && matches!(store.opcode, op::MSTORE | op::MSTORE8))
+                    && let Some(PushValue::Immediate(value)) = body[0].value
+                {
                     state.inline_store_literals.insert(value);
                 }
                 continue;
@@ -298,6 +306,17 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
     apply_outline_edits(module, edits, &mut labels);
     debug_assert!(labels.next().is_none());
     true
+}
+
+/// Whether deposited bytes repay a repeated dynamic transfer over a deployment.
+const fn sharing_improves_lifetime(
+    saved_bytes: usize,
+    occurrences: usize,
+    transfer_gas: u32,
+    expected_executions: u64,
+) -> bool {
+    saved_bytes as u128 * Target::CODE_DEPOSIT_GAS_PER_BYTE as u128
+        > occurrences as u128 * transfer_gas as u128 * expected_executions as u128
 }
 
 fn max_machine_run_length(repeated_instructions: usize) -> usize {
@@ -618,6 +637,9 @@ fn split_parametric_outline_site(
 fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState) -> bool {
     let mut sites = FxHashMap::<U256, SmallVec<[(BlockId, usize); 2]>>::default();
     for (block_id, block) in module.blocks.iter_enumerated() {
+        if gcx.sess.opts.optimization.is_gas() && block.metadata.in_loop {
+            continue;
+        }
         for (index, inst) in block.instructions.iter().enumerate() {
             if inst.is_encoded_push()
                 && inst.deferred_push().is_none()
@@ -647,6 +669,10 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
     let body_bytes = (target.opcode(op::JUMPDEST).bytes
         + target.opcode(op::SWAP1).bytes
         + target.opcode(op::JUMP).bytes) as usize;
+    let transfer_gas = target.opcode_gas(op::PUSH2) * 2
+        + target.opcode_gas(op::JUMP) * 2
+        + target.opcode_gas(op::JUMPDEST) * 2
+        + target.opcode_gas(op::SWAP1);
     const MIN_SAVING: usize = 8;
     let mut values: Vec<_> = sites
         .iter()
@@ -658,8 +684,17 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
             let push_size = selected_len(gcx, value);
             let inline = occurrences.len() * push_size;
             let outlined = occurrences.len() * site_bytes + push_size + body_bytes;
-            (occurrences.len() >= 2 && inline >= outlined + MIN_SAVING)
-                .then_some((value, push_size))
+            let saved_bytes = inline.saturating_sub(outlined);
+            (occurrences.len() >= 2
+                && inline >= outlined + MIN_SAVING
+                && (!gcx.sess.opts.optimization.is_gas()
+                    || sharing_improves_lifetime(
+                        saved_bytes,
+                        occurrences.len(),
+                        transfer_gas,
+                        target.expected_executions(),
+                    )))
+            .then_some((value, push_size))
         })
         .collect();
     if values.is_empty() {
@@ -669,7 +704,16 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
         let occurrences = &sites[value];
         let inline = occurrences.len() * push_size;
         let outlined = occurrences.len() * site_bytes + push_size + body_bytes;
-        occurrences.len() >= 2 && inline >= outlined + MIN_SAVING
+        let saved_bytes = inline.saturating_sub(outlined);
+        occurrences.len() >= 2
+            && inline >= outlined + MIN_SAVING
+            && (!gcx.sess.opts.optimization.is_gas()
+                || sharing_improves_lifetime(
+                    saved_bytes,
+                    occurrences.len(),
+                    transfer_gas,
+                    target.expected_executions(),
+                ))
     });
     if values.is_empty() {
         return false;
@@ -1089,5 +1133,12 @@ mod tests {
             let lengths = max_machine_run_length(repeated) - MIN_MACHINE_RUN + 1;
             assert!(repeated * lengths <= MAX_MACHINE_RUN_CANDIDATES);
         }
+    }
+
+    #[test]
+    fn machine_run_lifetime_profitability() {
+        assert!(sharing_improves_lifetime(100, 2, 40, 200));
+        assert!(!sharing_improves_lifetime(80, 2, 40, 200));
+        assert!(!sharing_improves_lifetime(100, 2, 40, 1_000_000));
     }
 }

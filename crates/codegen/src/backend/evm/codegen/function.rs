@@ -2,8 +2,8 @@
 
 use super::{
     BlockId, CfgInfo, DenseBitSet, EvmCodegen, EvmMemoryLayout, Function, FunctionId, FxHashMap,
-    FxHashSet, GlobalStackPlan, GrowableBitSet, InstId, InstKind, Label, Liveness, Module,
-    OnceCell, OptimizationMode, PhiEliminator, STACK_PHI_LAYOUT_LIMIT, StackModel, StackOp,
+    FxHashSet, GlobalStackPlan, GrowableBitSet, InstId, InstKind, Label, Liveness, LoopAnalyzer,
+    Module, OnceCell, OptimizationMode, PhiEliminator, STACK_PHI_LAYOUT_LIMIT, StackModel, StackOp,
     StackPhiPlan, Terminator, Value, ValueId, cross_block_values, planned_entry_carries,
 };
 use crate::target::Target;
@@ -327,6 +327,12 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.preallocate_cross_block_spills(func, liveness, &cross_block_live);
 
         self.cold_blocks = self.collect_cold_blocks(func);
+        let mut loop_analyzer = LoopAnalyzer::new();
+        let loop_info = loop_analyzer.analyze(func);
+        let mut loop_blocks = DenseBitSet::new_empty(func.blocks.len());
+        for loop_data in loop_info.all_loops() {
+            loop_blocks.union(&loop_data.blocks);
+        }
 
         // Create labels for each block
         self.block_labels.clear();
@@ -334,6 +340,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             let label = self.asm.new_label();
             if self.block_is_cold(block_id) {
                 self.asm.mark_label_cold(label);
+            }
+            if loop_blocks.contains(block_id) {
+                self.asm.mark_label_loop(label);
             }
             self.block_labels.insert(block_id, label);
         }
