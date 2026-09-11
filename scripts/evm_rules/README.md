@@ -50,8 +50,10 @@ their original names in comments. The report fingerprints every query with
 SHA-256. Replay checks the exact manifest and bytes, including partition
 coverage and every physical-stack variant. Missing or changed queries fail.
 
-Replay requires UNSAT from every query. It first uses cvc5's default bitvector
-strategy, then retries only timeouts or unknown results with
+Replay requires UNSAT from every query. It first uses cvc5's internal
+bitblaster (`--bv-solver=bitblast-internal`), which handles the nested-shift
+output-bit obligations more reliably than the default backend. It retries
+only timeouts or unknown results with the default bitvector strategy, then
 `--solve-bv-as-int=sum`. The default limit is five seconds per strategy and four
 concurrent queries, configurable with `--timeout-ms` and `--jobs`. All attempts
 and the solver version are recorded. SAT, exhausted time limits, parse errors,
@@ -61,6 +63,27 @@ solver, not the semantics that generated them or an independent proof
 certificate. The proof job runs on native Linux ARM64, downloads the matching
 cvc5 1.2.0 release with a pinned SHA-256, exports exhaustive partitions, and
 requires both Z3 verification and complete cvc5 replay to pass.
+
+The CLZ model selects the half containing the highest set bit in eight steps
+and constructs a nine-bit count before extending it to an EVM word. Zero
+explicitly produces 256. This avoids the previous 256-deep conditional chain
+without assuming anything about the input. A regression proves this encoding
+equal to the full bit scan for every 256-bit word, and cvc5 integration tests
+replay the actual CLZ rules. Neither the compiler's rules nor the proof
+obligations' guards change.
+
+When a rule contains several shift or SIGNEXTEND indices, index partitioning
+refines only the remaining tail with the next index. For two SIGNEXTEND
+indices, this covers 31 concrete values of the first, then 31 concrete values
+of the second while the first is at least 31, then both indices at least 31.
+All other inputs remain symbolic, including both indices in the final case.
+The 63 cases replace one difficult symbolic tail without a Cartesian product;
+the exported coverage query must still prove that every input is covered.
+`--index-partition-timeout-ms` sets a shared budget for building and proving
+all cases of one rule; zero uses `--timeout-ms`. CI gives the e-graph index
+stage 30 seconds so a five-second total budget does not prematurely discard
+these smaller queries. Replay still has a
+five-second limit per strategy per query and fails on every exhausted query.
 
 Word verification has an optional, explicit cvc5 fallback:
 
