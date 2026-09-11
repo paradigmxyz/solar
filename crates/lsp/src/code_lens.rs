@@ -2,7 +2,9 @@
 //!
 //! The semantic analysis context is short-lived, so this module copies only the facts needed to
 //! render CodeLens items. Query-time reference locations remain owned by
-//! [`SymbolTables`](crate::symbols::SymbolTables).
+//! [`SymbolTables`](crate::symbols::SymbolTables). Distinct reference counts are cached lazily
+//! for each requested file, including counts rejected due to conflicting source snapshots.
+//! Rebuilding entries after analysis batches are merged discards those cached counts.
 
 use crate::symbols::{DeclarationSymbol, SymbolId};
 use lsp_types::{Range, Url};
@@ -15,12 +17,19 @@ use solar_sema::{
     Gcx,
     hir::{ItemId, VarKind},
 };
-use std::cmp::Ordering;
+use std::{cmp::Ordering, sync::OnceLock};
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct CodeLensIndex {
     candidates: Vec<CodeLensCandidate>,
-    entries_by_uri: FxHashMap<Url, Vec<CodeLensEntry>>,
+    entries_by_uri: FxHashMap<Url, CodeLensFile>,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct CodeLensFile {
+    pub(crate) entries: Vec<CodeLensEntry>,
+    /// Initialized only when reference lenses are requested from this immutable analysis.
+    pub(crate) reference_counts: OnceLock<Box<[Option<usize>]>>,
 }
 
 #[derive(Clone, Debug)]
@@ -124,13 +133,16 @@ impl CodeLensIndex {
             }
             if !entries.is_empty() {
                 entries.sort_unstable_by(|lhs, rhs| range_cmp(lhs.range, rhs.range));
-                self.entries_by_uri.insert(uri.clone(), entries);
+                self.entries_by_uri.insert(
+                    uri.clone(),
+                    CodeLensFile { entries, reference_counts: OnceLock::new() },
+                );
             }
         }
     }
 
-    pub(crate) fn entries(&self, uri: &Url) -> &[CodeLensEntry] {
-        self.entries_by_uri.get(uri).map_or(&[], Vec::as_slice)
+    pub(crate) fn file(&self, uri: &Url) -> Option<&CodeLensFile> {
+        self.entries_by_uri.get(uri)
     }
 }
 

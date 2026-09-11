@@ -1,5 +1,12 @@
-use super::support::RequestFixture;
-use snapbox::str;
+use super::{AnalysisBatch, analyze, support::RequestFixture};
+use crate::{
+    config::CodeLensConfig,
+    symbols::{SymbolTables, SymbolTablesAggregator},
+    test_support::MarkedProject,
+};
+use lsp_types::{Position, Url};
+use snapbox::{assert_data_eq, str};
+use solar_config::CompileOpts;
 
 #[test]
 fn shows_selectors_and_references() {
@@ -326,6 +333,107 @@ fn merges_reference_counts_for_imported_declarations() {
 }
 
 #[test]
+fn recomputes_warmed_reference_counts_when_merging_batches() {
+    let marked = MarkedProject::from_fixture(
+        r#"
+        //- /Shared.sol
+        library Shared {
+            function $1ping() internal pure {}
+        }
+
+        //- /First.sol
+        import "./Shared.sol";
+        library First {
+            function callFirst() internal pure { Shared.ping(); }
+        }
+
+        //- /Second.sol
+        import "./First.sol";
+        contract Second {
+            function callSecond() external pure {
+                First.callFirst();
+                Shared.ping();
+            }
+        }
+        "#,
+    );
+    let project = marked.project();
+    let analyze_path = |path| {
+        let result = analyze(AnalysisBatch::from_files(
+            CompileOpts::default(),
+            [(project.path(path), project.read_file(path))],
+        ));
+        assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
+        result.symbol_tables
+    };
+    let first = analyze_path("/First.sol");
+    let second = analyze_path("/Second.sol");
+    let uri = Url::from_file_path(project.path("/Shared.sol")).unwrap();
+    let position = marked.marker("$1").position();
+
+    assert_data_eq!(lens_titles_at(&first, &uri, position), "1 reference\n");
+    assert_data_eq!(lens_titles_at(&second, &uri, position), "2 references\n");
+    for (first, second) in [(first.clone(), second.clone()), (second, first)] {
+        let mut aggregator = SymbolTablesAggregator::default();
+        aggregator.push(first);
+        aggregator.push(second);
+        let tables = aggregator.finish();
+        for _ in 0..2 {
+            // The shared caller appears in both batches, but contributes only one location.
+            assert_data_eq!(lens_titles_at(&tables, &uri, position), "2 references\n");
+        }
+    }
+}
+
+#[test]
+fn suppresses_warmed_reference_counts_after_merging_conflicting_callers() {
+    let marked = MarkedProject::from_fixture(
+        r#"
+        //- /Target.sol
+        library Target {
+            function $1target() external pure {}
+        }
+
+        //- /Caller.sol
+        import "./Target.sol";
+        contract Caller {
+            function callTarget() external pure { Target.target(); }
+        }
+
+        //- /Root.sol
+        import "./Caller.sol";
+        "#,
+    );
+    let project = marked.project();
+    let contents = project.read_file("/Caller.sol");
+    let analyze_path = |path| {
+        let result = analyze(AnalysisBatch::from_files(
+            CompileOpts::default(),
+            [(project.path(path), project.read_file(path))],
+        ));
+        assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
+        result.symbol_tables
+    };
+    let first = analyze_path("/Caller.sol");
+    project.write_file("/Caller.sol", &contents.replace("Target.target();", "\nTarget.target();"));
+    let second = analyze_path("/Root.sol");
+    let uri = Url::from_file_path(project.path("/Target.sol")).unwrap();
+    let position = marked.marker("$1").position();
+
+    assert_data_eq!(lens_titles_at(&first, &uri, position), "1 reference\n0xd4b83992\n");
+    assert_data_eq!(lens_titles_at(&second, &uri, position), "1 reference\n0xd4b83992\n");
+    for (first, second) in [(first.clone(), second.clone()), (second, first)] {
+        let mut aggregator = SymbolTablesAggregator::default();
+        aggregator.push(first);
+        aggregator.push(second);
+        let tables = aggregator.finish();
+        for _ in 0..2 {
+            assert_data_eq!(lens_titles_at(&tables, &uri, position), "0xd4b83992\n");
+        }
+    }
+}
+
+#[test]
 fn rejects_references_from_conflicting_source_snapshots() {
     let source = r#"
         //- /Target.sol
@@ -494,4 +602,15 @@ fn preserves_titles_without_client_commands() {
 
 "#]],
     );
+}
+
+fn lens_titles_at(tables: &SymbolTables, uri: &Url, position: Position) -> String {
+    let mut output = String::new();
+    for lens in tables.code_lenses(uri, CodeLensConfig::default()) {
+        if lens.range.start == position {
+            output.push_str(&lens.command.unwrap().title);
+            output.push('\n');
+        }
+    }
+    output
 }
