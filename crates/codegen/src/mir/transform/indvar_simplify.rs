@@ -145,6 +145,14 @@ impl IndVarSimplifier {
 
         let mut replacements = FxHashMap::default();
         for (key, values) in candidates {
+            // ptr = phi [preheader: base + init], [latch: ptr + delta]
+            // costs one add per iteration plus a carried word the scheduler
+            // must keep resident. A plain `base + iv` at one site only trades
+            // an add for an add and a phi, so the rewrite must remove more
+            // than that across its uses; scaled or offset forms remove more.
+            if !Self::reduction_pays_off(key, values.len()) {
+                continue;
+            }
             let Some(pointer) =
                 self.materialize_pointer_phi(func, loop_data, preheader, *latch, key)
             else {
@@ -160,6 +168,39 @@ impl IndVarSimplifier {
         }
 
         self.stats.address_uses_replaced += self.replace_loop_uses(func, loop_data, &replacements);
+    }
+
+    /// Whether replacing `uses` occurrences of the affine address saves more
+    /// per iteration than the latch update costs. Every use drops one add,
+    /// plus a scaling operation and an offset add when present; the rewrite
+    /// adds one update and one loop-carried word that the counter's exit test
+    /// keeps alive beside it. Saving two operations only pays for the update
+    /// and the extra word (the LibString `replace` copy loop loses seven
+    /// percent when a lone `base + c + iv` is reduced), so the rewrite must
+    /// save at least three.
+    const fn reduction_pays_off(key: AddressKey, uses: usize) -> bool {
+        let per_use = 1 + (key.scale != 1) as usize + (key.constant != 0) as usize;
+        uses * per_use > 2
+    }
+
+    fn additive_step(
+        &self,
+        func: &Function,
+        iv_value: ValueId,
+        update_inst: Option<InstId>,
+    ) -> Option<i128> {
+        let update_inst = update_inst?;
+        let InstKind::Add(a, b) = func.inst(update_inst).kind else {
+            return None;
+        };
+        let step = if a == iv_value {
+            b
+        } else if b == iv_value {
+            a
+        } else {
+            return None;
+        };
+        self.value_i128(func, step)
     }
 
     fn address_key(

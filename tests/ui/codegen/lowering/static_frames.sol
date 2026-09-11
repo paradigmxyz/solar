@@ -2,7 +2,8 @@
 //@ filecheck:
 
 // Static frame overlays use compile-time-fixed frame addresses, while recursive
-// and mutually recursive calls share the dynamic frame allocator and epilogue.
+// and mutually recursive calls allocate dynamic frames from the free memory
+// pointer and restore it on return.
 contract SF {
     uint256 public s;
 
@@ -15,8 +16,8 @@ contract SF {
     // CHECK: [[GETTER]]:
     // CHECK-NEXT: push 0
     // CHECK-NEXT: sload
-    // CHECK-NEXT: jump [[GETTER_RETURN:bb[0-9]+]]
-    // CHECK: [[GETTER_RETURN]]:
+    // CHECK-NEXT: push 128
+    // CHECK-NEXT: mstore
     // CHECK: return
     // The allocating entry initializes its reachable frame floor.
     // CHECK: [[TOP]]:
@@ -35,6 +36,22 @@ contract SF {
     // CHECK: push 288
     // CHECK-NEXT: add
     // CHECK-NEXT: push 64
+    // CHECK-NEXT: mstore
+    // CHECK: push [[REC_RET:bb[0-9]+]]
+    // CHECK-NEXT: jump [[REC_ENTRY:bb[0-9]+]]
+    // CHECK: [[REC_ENTRY]]:
+    // CHECK-NEXT: push 160
+    // CHECK-NEXT: mload
+    // The continuation restores the caller's FMP and frame pointer from the frame.
+    // CHECK: [[REC_RET]] [continuation]:
+    // CHECK: push 64
+    // CHECK-NEXT: mstore
+    // CHECK-NEXT: push 160
+    // CHECK-NEXT: mload
+    // CHECK-NEXT: push 32
+    // CHECK-NEXT: add
+    // CHECK-NEXT: mload
+    // CHECK-NEXT: push 160
     // CHECK-NEXT: mstore
     function top(uint256 x) external returns (uint256) {
         uint256 keep = x * 3; // live across all the calls below

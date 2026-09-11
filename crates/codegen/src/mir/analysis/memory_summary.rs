@@ -578,7 +578,13 @@ fn local_summary(
 
     let mut summary = FunctionMemorySummary::empty(func.params.len());
     let heap_derived = heap_derived_values(func);
+    let returning = returning_blocks(func);
     for (block_id, block) in func.blocks.iter_enumerated() {
+        // A write or free-memory-pointer move on a path that can only revert is
+        // rolled back with the call frame, so no caller observes it; a panic
+        // block's `mstore` of the error selector does not make a helper a
+        // memory writer. Reads stay: revert data may expose them.
+        let returns = returning.contains(block_id);
         for &inst_id in &block.instructions {
             let kind = &func.inst(inst_id).kind;
             if let InstKind::ICall { function: Callee::Function(function), .. } = kind {
@@ -603,11 +609,13 @@ fn local_summary(
             for &access in effects.reads() {
                 summary.record_access(func, access, false);
             }
-            for &access in effects.writes() {
-                summary.record_access(func, access, true);
+            if returns {
+                for &access in effects.writes() {
+                    summary.record_access(func, access, true);
+                }
+                summary.may_reset_fmp |= aa.instruction_may_reset_fmp(func, inst_id);
+                summary.may_recycle_fmp |= instruction_may_recycle_fmp(func, inst_id);
             }
-            summary.may_reset_fmp |= aa.instruction_may_reset_fmp(func, inst_id);
-            summary.may_recycle_fmp |= instruction_may_recycle_fmp(func, inst_id);
             summary.may_observe_fmp |= instruction_observes_fmp(func, inst_id);
             summary.may_observe_msize |= matches!(kind, InstKind::MSize);
             summary.may_observe_gas |= matches!(kind, InstKind::Gas);
@@ -703,6 +711,41 @@ fn local_summary(
         summary.restores_memory = true;
     }
     summary
+}
+
+/// Blocks from which control can still leave the function without reverting.
+/// Every other block lies on paths that end in `revert` or `invalid`, whose
+/// state changes are discarded with the call frame.
+fn returning_blocks(func: &Function) -> DenseBitSet<BlockId> {
+    let mut returning = DenseBitSet::new_empty(func.blocks.len());
+    let mut predecessors = IndexVec::from_vec(vec![Vec::new(); func.blocks.len()]);
+    let mut worklist = Vec::new();
+    for (block_id, block) in func.blocks.iter_enumerated() {
+        let Some(terminator) = &block.terminator else {
+            returning.insert(block_id);
+            worklist.push(block_id);
+            continue;
+        };
+        for successor in terminator.successors() {
+            predecessors[successor].push(block_id);
+        }
+        if !matches!(
+            terminator,
+            Terminator::Revert { .. } | Terminator::RevertReturndata | Terminator::Invalid
+        ) && terminator.successors().is_empty()
+        {
+            returning.insert(block_id);
+            worklist.push(block_id);
+        }
+    }
+    while let Some(block) = worklist.pop() {
+        for &predecessor in &predecessors[block] {
+            if returning.insert(predecessor) {
+                worklist.push(predecessor);
+            }
+        }
+    }
+    returning
 }
 
 /// Values derived from the free-memory pointer or `msize`, through any computation except a
