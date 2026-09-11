@@ -19,6 +19,21 @@ use std::{borrow::Borrow, sync::Arc};
 #[derive(Debug)]
 pub(crate) enum Initialize {}
 
+/// Reuses source fingerprints while converting compiler diagnostics from one analysis snapshot.
+#[derive(Default)]
+pub(crate) struct DiagnosticDataCache {
+    fingerprints: FxHashMap<BytePos, String>,
+}
+
+impl DiagnosticDataCache {
+    fn fingerprint(&mut self, file: &SourceFile) -> String {
+        self.fingerprints
+            .entry(file.start_pos)
+            .or_insert_with(|| crate::code_actions::source_fingerprint(&file.src))
+            .clone()
+    }
+}
+
 #[derive(Debug, serde::Serialize)]
 #[serde(transparent)]
 pub(crate) struct InitializeParams {
@@ -292,14 +307,14 @@ pub(crate) fn position_at_byte(rope: &Rope, byte: usize) -> Option<lsp_types::Po
     LspPositionIndex::new(rope).position_at_byte(byte)
 }
 
-// TODO: track `None`s here as they shouldn't happen?
-pub(crate) fn diagnostic(
+pub(crate) fn diagnostic_with_cache(
     source_map: &SourceMap,
     diag: &Diag,
+    cache: &mut DiagnosticDataCache,
 ) -> Option<(lsp_types::Url, lsp_types::Diagnostic)> {
     let primary_span = diag.span.primary_span()?;
     let lsp_types::Location { uri, range } = span_to_location(source_map, primary_span)?;
-    let data = diagnostic_data(source_map, &uri, primary_span, diag)?;
+    let data = diagnostic_data(source_map, &uri, primary_span, diag, cache)?;
     Some((
         // SAFETY: currently we only use `FileName::Real`
         uri,
@@ -332,6 +347,7 @@ fn diagnostic_data(
     uri: &lsp_types::Url,
     primary_span: Span,
     diag: &Diag,
+    cache: &mut DiagnosticDataCache,
 ) -> Option<serde_json::Value> {
     let (file, _) = source_map.span_to_location_info(primary_span);
     let file = file?;
@@ -365,7 +381,41 @@ fn diagnostic_data(
             })
         })
         .collect();
-    Some(DiagnosticData::new(uri.clone(), &file.src, suggestions).to_value())
+    Some(
+        DiagnosticData::from_fingerprint(uri.clone(), cache.fingerprint(&file), suggestions)
+            .to_value(),
+    )
+}
+
+#[cfg(feature = "bench")]
+pub(crate) fn benchmark_diagnostic_conversion(
+    source: String,
+    diagnostic_count: usize,
+    cached: bool,
+) -> usize {
+    let source_map = SourceMap::empty();
+    let file = source_map
+        .new_source_file(std::env::temp_dir().join("solar-lsp-diagnostics.sol"), source)
+        .expect("benchmark source should fit in a source file");
+    let span = Span::new(file.start_pos, file.start_pos + BytePos::from_usize(1));
+    let diagnostics = (0..diagnostic_count)
+        .map(|_| {
+            let mut diagnostic = Diag::new(Level::Warning, "benchmark diagnostic");
+            diagnostic.span(span);
+            diagnostic
+        })
+        .collect::<Vec<_>>();
+    let mut cache = DiagnosticDataCache::default();
+    let mut converted = 0;
+    for diagnostic in &diagnostics {
+        let result = if cached {
+            diagnostic_with_cache(&source_map, diagnostic, &mut cache)
+        } else {
+            diagnostic_with_cache(&source_map, diagnostic, &mut DiagnosticDataCache::default())
+        };
+        converted += usize::from(result.is_some());
+    }
+    converted
 }
 
 /// Converts compiler spans to LSP locations while caching each source file URI.
@@ -588,7 +638,9 @@ mod tests {
             Applicability::MaybeIncorrect,
         );
 
-        let (_, diagnostic) = super::diagnostic(&source_map, &diagnostic).unwrap();
+        let mut cache = super::DiagnosticDataCache::default();
+        let (_, diagnostic) =
+            super::diagnostic_with_cache(&source_map, &diagnostic, &mut cache).unwrap();
         let data = diagnostic.data.expect("structured suggestions should be preserved");
 
         assert_eq!(data["version"], serde_json::json!(1));

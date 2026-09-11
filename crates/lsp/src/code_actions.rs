@@ -27,6 +27,7 @@ pub(crate) struct DiagnosticData {
 }
 
 impl DiagnosticData {
+    #[cfg(test)]
     pub(crate) fn new(uri: Url, source: &str, suggestions: Vec<DiagnosticSuggestion>) -> Self {
         Self {
             version: DIAGNOSTIC_DATA_VERSION,
@@ -47,6 +48,14 @@ impl DiagnosticData {
             source_fingerprint: source_fingerprint_chunks(source.chunks()),
             suggestions,
         }
+    }
+
+    pub(crate) fn from_fingerprint(
+        uri: Url,
+        source_fingerprint: String,
+        suggestions: Vec<DiagnosticSuggestion>,
+    ) -> Self {
+        Self { version: DIAGNOSTIC_DATA_VERSION, uri, source_fingerprint, suggestions }
     }
 
     pub(crate) fn to_value(&self) -> serde_json::Value {

@@ -3128,10 +3128,17 @@ fn analyze_cancellable_with_source_map(
             existing_unresolved_candidates,
             missing_candidates,
         };
+        let mut diagnostic_data_cache = proto::DiagnosticDataCache::default();
         let diagnostics = diag_buffer
             .read()
             .iter()
-            .filter_map(|diag| proto::diagnostic(compiler.sess().source_map(), diag))
+            .filter_map(|diag| {
+                proto::diagnostic_with_cache(
+                    compiler.sess().source_map(),
+                    diag,
+                    &mut diagnostic_data_cache,
+                )
+            })
             .fold(DiagnosticMap::default(), |mut diagnostics, (uri, diag)| {
                 diagnostics.entry(uri).or_default().push(diag);
                 diagnostics
