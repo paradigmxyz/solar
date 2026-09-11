@@ -1,0 +1,98 @@
+//@compile-flags: -Zmir-pipeline=if-convert
+//@filecheck:
+@module SelectArms
+
+// A bit-search step: both phis merge a value with one derived from it, so
+// the triangle becomes a scaled shift and a scaled or with no branch.
+// CHECK-LABEL: {{^[ +].*}}fn @search_step{{[( ]}}
+// CHECK: - jumpi
+// CHECK: + [[SCALED:v[0-9]+]] = mul [[COND:v[0-9]+]], 128
+// CHECK: + {{v[0-9]+}} = shr [[SCALED]], arg0
+// CHECK: + [[SCALED2:v[0-9]+]] = mul [[COND]], 128
+// CHECK: + {{v[0-9]+}} = or arg1, [[SCALED2]]
+// CHECK-NOT: {{^[ +].*}}phi
+fn @search_step(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    v0 = shr 128, arg0
+    v1 = iszero v0
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb1:
+    v3 = shr 128, arg0
+    v4 = or arg1, 128
+    jump bb2
+  bb2:
+    v5 = phi [bb0: arg0], [bb1: v3]
+    v6 = phi [bb0: arg1], [bb1: v4]
+    v7 = add v5, v6
+    ret v7
+}
+
+// A diamond of unrelated pure arms would need a general select, which costs
+// more than the branch in the backend: the branch stays.
+// CHECK-LABEL: {{^[ +].*}}fn @diamond{{[( ]}}
+// CHECK: {{^ +}}jumpi arg0
+// CHECK-NOT: select
+fn @diamond(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    v0 = mul arg1, 3
+    jump bb3
+  bb2:
+    v1 = xor arg1, 7
+    jump bb3
+  bb3:
+    v2 = phi [bb1: v0], [bb2: v1]
+    ret v2
+}
+
+// An arm that reads memory could expand it or trap when speculated: the
+// branch stays.
+// CHECK-LABEL: {{^[ +].*}}fn @memory_arm{{[( ]}}
+// CHECK: {{^ +}}jumpi
+fn @memory_arm(arg0: bool, arg1: u256) -> u256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    v0 = mload arg1
+    jump bb2
+  bb2:
+    v1 = phi [bb0: 0], [bb1: v0]
+    ret v1
+}
+
+// A four-instruction arm costs more to run unconditionally than the branch
+// it would remove: the branch stays.
+// CHECK-LABEL: {{^[ +].*}}fn @wide_arm{{[( ]}}
+// CHECK: {{^ +}}jumpi
+fn @wide_arm(arg0: bool, arg1: u256) -> u256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    v0 = mul arg1, 3
+    v1 = add v0, 1
+    v2 = xor v1, 5
+    v3 = sub v2, 2
+    jump bb2
+  bb2:
+    v4 = phi [bb0: arg1], [bb1: v3]
+    ret v4
+}
+
+// A word condition is normalized to zero or one before it scales the step.
+// CHECK-LABEL: {{^[ +].*}}fn @word_condition{{[( ]}}
+// CHECK: + [[Z:v[0-9]+]] = iszero arg0
+// CHECK: + [[C:v[0-9]+]] = iszero [[Z]]
+// CHECK: + [[S:v[0-9]+]] = mul [[C]], 5
+// CHECK: + {{v[0-9]+}} = add arg1, [[S]]
+fn @word_condition(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    v0 = add arg1, 5
+    jump bb2
+  bb2:
+    v1 = phi [bb0: arg1], [bb1: v0]
+    ret v1
+}

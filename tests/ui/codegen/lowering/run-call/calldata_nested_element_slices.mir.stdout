@@ -159,51 +159,50 @@ fn @structMember() -> (u256, bool) [selector=0x9f2d7231, view, abi_params=[], ab
     jumpi v2, bb2, bb3
   bb3:
     v5 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    v6 = and 1, 0xffffffffffffffffffffffffffffffffffffffff
-    v7 = alloc memorybytes, exact, uninitialized, infallible, 64
-    set_memory_object_len memorybytes, v7, 3
-    v8 = memory_object_data memorybytes, v7
-    mstore v8, 0xabcdef0000000000000000000000000000000000000000000000000000000000
-    memory_object_store_field memorystruct<3>, v5, 0, v6
+    v6 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v6, 3
+    v7 = memory_object_data memorybytes, v6
+    mstore v7, 0xabcdef0000000000000000000000000000000000000000000000000000000000
+    memory_object_store_field memorystruct<3>, v5, 0, 1
     memory_object_store_field memorystruct<3>, v5, 1, 2
-    memory_object_store_field memorystruct<3>, v5, 2, v7
-    v9 = memory_object_len memoryarray, v0
-    v10 = lt 0, v9
-    v11 = iszero v10
-    jumpi v11, bb4, bb5
+    memory_object_store_field memorystruct<3>, v5, 2, v6
+    v8 = memory_object_len memoryarray, v0
+    v9 = lt 0, v8
+    v10 = iszero v9
+    jumpi v10, bb4, bb5
   bb5:
     memory_object_store_element memoryarray<1>, v0, 0, v5
-    v12 = address
-    v13 = gas
-    v14 = abi_encode [memory_array<tuple<word<u160>, word, memory_bytes>>], selector 0x903f85b300000000000000000000000000000000000000000000000000000000, args v0
-    v15 = slice_ptr v14
-    v16 = slice_len v14
-    v17 = staticcall v13, v12, v15, v16, v15, 64
-    jumpi v17, bb7, bb6
+    v11 = address
+    v12 = gas
+    v13 = abi_encode [memory_array<tuple<word<u160>, word, memory_bytes>>], selector 0x903f85b300000000000000000000000000000000000000000000000000000000, args v0
+    v14 = slice_ptr v13
+    v15 = slice_len v13
+    v16 = staticcall v12, v11, v14, v15, v14, 64
+    jumpi v16, bb7, bb6
   bb6:
     revert_returndata
   bb7:
-    v18 = returndatasize
-    v19 = lt v18, 64
-    jumpi v19, bb8, bb9
+    v17 = returndatasize
+    v18 = lt v17, 64
+    jumpi v18, bb8, bb9
   bb9:
-    v20 = add v15, 0
-    v21 = mload v20
-    v22 = add v15, 32
-    v23 = mload v22
+    v19 = add v14, 0
+    v20 = mload v19
+    v21 = add v14, 32
+    v22 = mload v21
+    v23 = iszero v22
     v24 = iszero v23
-    v25 = iszero v24
-    v26 = eq v23, v25
-    v27 = iszero v26
-    jumpi v27, bb8, bb10
+    v25 = eq v22, v24
+    v26 = iszero v25
+    jumpi v26, bb8, bb10
   bb10:
-    frame_store multi_return, word, 0, v15 !metadata(memory=scratch)
-    v28 = add v15, 0
-    v29 = mload v28
-    v30 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v31 = add v30, 32
-    v32 = mload v31
-    ret v29, v32
+    frame_store multi_return, word, 0, v14 !metadata(memory=scratch)
+    v27 = add v14, 0
+    v28 = mload v27
+    v29 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v30 = add v29, 32
+    v31 = mload v30
+    ret v28, v31
   bb8:
     revert 0, 0
   bb4:
