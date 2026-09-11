@@ -1,6 +1,7 @@
 # Codegen benchmark corpus
 
-This directory contains fixtures and workload documentation for the codegen benchmark. The shared
+This directory contains the codegen benchmark runner and workload documentation. Local
+benchmark contracts live in `../../testdata/runtime/`. The shared
 project archives live in `../../testdata/projects/`; archives group cases from the same upstream
 project. The default `runtime` mode selects each entrypoint's transitive Solidity import closure and
 omits the heavy full-project cases. The `compile-time` mode measures those cases by passing full
@@ -104,6 +105,8 @@ runtime observations.
 | `lilweb3-flashloan` | `m1guelpf/lil-web3` plus `transmissions11/solmate` | `7346bd28c2586da3b07102d5290175a276949b15`, `e802bcf2fb24dda2bf7e513bea86d15c48b57486` | 2 |
 | `lilweb3-fractional` | `m1guelpf/lil-web3` plus `transmissions11/solmate` | `7346bd28c2586da3b07102d5290175a276949b15`, `e802bcf2fb24dda2bf7e513bea86d15c48b57486` | 3 |
 | `maple-erc20` | `maple-labs/erc20` | `baf791a9f894b0b319a2d42d5b9f8d30349ebaad` | 2 |
+| `solady-encoding` | `Vectorized/solady` plus `Encoding.sol` | `solady-0.1.26` archive | 3 |
+| `solady-algorithms` | `Vectorized/solady` plus `Algorithms.sol` | `solady-0.1.26` archive | 5 |
 
 The OpenZeppelin cases share the canonical
 `../../testdata/projects/openzeppelin-5.6.1.json.gz` archive; the file counts above are the sliced
@@ -116,9 +119,78 @@ are the sliced closure for each case.
 The large OpenZeppelin and Solady cases use the pinned archives in `../../testdata/projects/`. The
 normal benchmark suite also reads those archives from there.
 
+Governor measures empty proposals and proposals with one, two, and eight elements.
+The nonempty cases exercise address cleanup, word-array copies, and nested bytes
+tails of 0, 1, 31, 32, and 33 bytes. Each workload also checks the returned proposal
+hash against solc. Keep per-call results visible: empty proposals do not exercise
+encoder loops, and transaction gas floors can hide execution-cost changes on
+inputs with substantial calldata.
+
+LibString also exercises byte-to-hex conversion, every possible single-byte ASCII
+input, and rune counting for empty, one-byte, 31/32/33-byte ASCII, and longer
+multibyte UTF-8 strings. These pinned upstream tests assert their own results,
+including comparison against reference implementations. Keep these workloads
+alongside replacement and conversion calls: they expose loop and bounds-check
+costs that the original six-function profile missed.
+
+The byte conversion workloads also cover empty input and lengths 1, 31, 32, 33,
+64, and 65 with both prefix modes. ASCII differential calls exercise high-bit
+bytes at the first byte, a word boundary, and the final byte. These upstream
+checks dirty surrounding memory and verify that the helper restores its temporary
+writes. Their gas includes the upstream memory-brutalization and assertion setup,
+so it does not measure the encoder in isolation. The brutalizer seeds a pseudorandom
+memory offset from `gas()` and also copies `codesize()` bytes; changing generated code
+can select a more expensive stress path even when the library itself gets cheaper.
+Keep those per-call changes visible instead of treating their sum as isolated library
+cost. They are separate from the fixed
+hex and exhaustive single-byte workloads, so aggregate results cannot hide the
+original gaps.
+
+`solady-algorithms` uses [`Algorithms.sol`](../../testdata/runtime/Algorithms.sol) with unchanged pinned
+LibString, LibSort and Base64 sources. Its 85 calls cover unsigned decimal digit
+boundaries, signed limits, insertion and quicksort lengths around their cutoff,
+sorted/reversed/equal/nonuniform arrays, and padded Base64 tails. Return values
+are checked separately from gas measurements; the wrappers contain no assertions
+or gas-dependent memory stress.
+
+`solady-encoding` uses [`Encoding.sol`](../../testdata/runtime/Encoding.sol) with the same pinned Solady
+library and ordinary ABI calls. It measures both hex prefix modes and ASCII
+classification over nonuniform inputs of 0, 1, 15, 16, 31, 32, 33, 63, 64, 65,
+and 256 bytes, plus high-bit bytes at the beginning, word boundary, and end.
+Additional boundaries extend through 1024 bytes, including long all-ASCII scans
+and high-bit bytes near both ends. All 153 calls compare their returned values
+against solc. This isolates encoding
+and ABI costs from upstream assertions and memory brutalization; keep both cases
+in reports, since they exercise different behavior.
+
 The three additional micro contracts (`../../testdata/Arithmetic.sol`,
 `../../testdata/Factorial.sol`, and `../../testdata/SumArray.sol`) came from the benchmark repository at the commit above. The
 runtime suite reuses the existing `../../testdata/Counter.sol` source from the normal benchmark
 suite. The Aave harness is embedded in `../../testdata/projects/aave-l2-encoder.json.gz`.
 `fixtures/runtime/RuntimeFixtures.sol` provides local Apache-2.0 helpers with the same interfaces
 used by the cold-path workloads. Embedded Solidity sources retain their SPDX identifiers.
+
+`verified-words` is a synthetic workload in `../../testdata/runtime/VerifiedWords.sol`
+for the SMT-checked word rules. It measures mixed bitwise expressions and signed
+negation in hot loops, with edge-value return checks. Report its results
+separately from the pinned project corpus; it demonstrates targeted reductions,
+not a general advantage over solc.
+
+`compiler-optimizations` uses the local
+`../../testdata/runtime/CompilerOptimizations.sol` workload to exercise aggregate SSA
+across branches and loops, joined bounds, shared constant-argument helpers,
+packed storage updates, and overwrites on both branch arms. It measures both
+fresh and repeated writes and checks returned values and final storage against
+solc. It is a focused regression workload; retain the project corpus comparison
+when evaluating its improvements.
+
+`word-recipes` uses `../../testdata/runtime/WordRecipes.sol` to measure mixed arithmetic,
+common-mask factoring, packed-byte extraction and a deployment/runtime tradeoff
+for a large comparison constant. Keep its targeted hot-loop results separate from
+the pinned projects and compare both optimization objectives.
+
+`seeded-words` uses `../../testdata/runtime/SeededWords.sol` for mixed bitwise
+subtraction, complemented arithmetic and mask absorption discovered from the
+offline seed trees. It checks zero iterations and
+wrapping inputs as well as hot loops. These targeted results are separate from
+the pinned project corpus and do not establish general superiority over solc.
