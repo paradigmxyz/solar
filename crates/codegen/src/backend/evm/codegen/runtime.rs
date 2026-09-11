@@ -32,7 +32,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             // without optimization: the overwritten frame slots cannot serve as a fallback.
             let mut preserve_caller_stack =
                 !matches!(self.gcx.sess.opts.optimization, OptimizationMode::None)
-                    || !self.unrestricted_memory_functions.is_empty()
+                    || !self.stack_only_memory_functions.is_empty()
                     || module
                         .functions
                         .iter()
@@ -43,6 +43,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             loop {
                 let disabled_stack_only_functions = self.disabled_stack_only_functions.count();
                 self.reset_runtime_codegen(module);
+                self.disabled_stack_only_at_attempt_start =
+                    self.disabled_stack_only_functions.clone();
                 self.preserve_caller_stack = preserve_caller_stack;
                 self.runtime_stack_args = runtime_stack_args;
                 self.stack_returns_enabled = stack_returns_enabled;
@@ -58,16 +60,16 @@ impl<'gcx> EvmCodegen<'gcx> {
                 if !stack_fits && !self.icall_stack_edges.is_empty() {
                     if preserve_caller_stack
                         && self.spill_clobber_functions.is_empty()
-                        && self.unrestricted_memory_functions.is_empty()
+                        && self.stack_only_memory_functions.is_empty()
                     {
                         preserve_caller_stack = false;
                         continue;
                     }
-                    if runtime_stack_args && self.unrestricted_memory_functions.is_empty() {
+                    if runtime_stack_args && self.stack_only_memory_functions.is_empty() {
                         runtime_stack_args = false;
                         continue;
                     }
-                    if stack_returns_enabled && self.unrestricted_memory_functions.is_empty() {
+                    if stack_returns_enabled && self.stack_only_memory_functions.is_empty() {
                         stack_returns_enabled = false;
                         continue;
                     }
@@ -406,7 +408,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.asm.define_label(label);
             self.mark_debug_function_invoke(func);
             self.in_internal_function = false;
-            self.asm.require_source_memory(self.unrestricted_memory_functions.contains(func_id));
+            self.asm.require_source_memory(self.stack_only_memory_functions.contains(func_id));
             self.emit_entry_free_memory_start(module, call_graph, func_id);
             self.generate_function_body(func_id, func);
             self.record_function_spill_size(func_id);
@@ -424,7 +426,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             let Some(&label) = self.function_labels.get(&func_id) else { continue };
             self.asm.define_label(label);
             self.mark_debug_function_invoke(func);
-            self.asm.require_source_memory(self.unrestricted_memory_functions.contains(func_id));
+            self.asm.require_source_memory(self.stack_only_memory_functions.contains(func_id));
             self.emit_stack_arg_prologue(func_id, func);
             self.in_internal_function = true;
             self.current_internal_function = Some(func_id);

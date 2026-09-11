@@ -43,9 +43,11 @@ impl<'gcx> MemoryCheckedEmitter<'gcx> {
         if self.source_only && !self.reported {
             self.reported = true;
             if self.assembler.gcx.dcx().has_errors().is_ok() {
-                self.assembler.gcx.dcx().err(
-                    "codegen requires compiler memory but reachable assembly has no memory-safe contract",
-                ).emit();
+                self.assembler
+                    .gcx
+                    .dcx()
+                    .err("codegen requires compiler memory in a stack-only context")
+                    .emit();
             }
         }
     }
@@ -180,13 +182,26 @@ impl DerefMut for MemoryCheckedEmitter<'_> {
 }
 
 impl EvmCodegen<'_> {
-    /// Requires stack-owned compiler state throughout each affected call context.
-    /// Unrelated external entries do not share a memory lifetime. A shared helper
-    /// uses the stricter convention when any affected caller can reach it.
-    pub(super) fn collect_unrestricted_memory_functions(
+    /// Requires stack-owned compiler state for source ownership and recursive ABI lifetimes.
+    /// Source ownership constrains each complete call context, without combining unrelated
+    /// external entries. Frame-free recursive Yul tuples also constrain their reachable helpers:
+    /// emitting a helper's frame arguments or return buffer would need private memory in its
+    /// suspended caller. This requirement flows to descendants, not to unrelated callers.
+    pub(super) fn collect_stack_only_memory_functions(
         module: &Module,
         call_graph: &CallGraphInfo,
     ) -> DenseBitSet<FunctionId> {
-        call_graph.source_only_memory_contexts(module)
+        let mut required = call_graph.source_only_memory_contexts(module);
+        for (id, func) in module.functions.iter_enumerated() {
+            if !required.contains(id)
+                && func.attributes.is_yul
+                && func.returns.len() > 1
+                && call_graph.is_recursive(id)
+            {
+                required.insert(id);
+                required.union(&call_graph.reachable_callees_from([id]));
+            }
+        }
+        required
     }
 }

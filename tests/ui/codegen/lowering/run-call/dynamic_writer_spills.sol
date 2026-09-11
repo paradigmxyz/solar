@@ -8,6 +8,8 @@
 //@ run-call: DynamicWriterSpills::residentOffsets true => 2457
 //@ run-call: DynamicWriterSpills::run => 1
 //@ run-call: DynamicWriterSpills::storeDeep => 1
+//@ run-call: FrameArgsAcrossCopy::run false => 44
+//@ run-call: FrameArgsAcrossCopy::run true => 44
 
 contract DynamicWriterSpills {
     function payload() external pure {
@@ -211,6 +213,31 @@ contract DynamicWriterSpills {
             mstore(4672, v18)
             mstore(4704, v19)
             result := and(eq(keccak256(0, 640), keccak256(4096, 640)), iszero(mload(640)))
+        }
+    }
+}
+
+contract FrameArgsAcrossCopy {
+    struct Buffer { bytes data; }
+
+    function run(bool branch) external pure returns (uint256) {
+        return preserve(Buffer(new bytes(32)), 5, branch);
+    }
+
+    function seed() internal pure returns (uint256) {
+        return 7;
+    }
+
+    function preserve(Buffer memory buffer, uint256 value, bool branch)
+        internal pure returns (uint256 result)
+    {
+        uint256 initial = seed();
+        assembly ("memory-safe") {
+            let data := mload(buffer)
+            if branch {
+                calldatacopy(add(data, 32), calldatasize(), mload(data))
+            }
+            result := add(initial, add(value, mload(data)))
         }
     }
 }

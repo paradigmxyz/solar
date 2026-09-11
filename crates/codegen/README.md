@@ -30,13 +30,16 @@ source assembly cannot address. An unannotated assembly block that can access
 memory outside the constant scratch range `[0, 64)`, change the free-memory
 pointer, or change a memory binding marks its function `unrestricted_memory`.
 Reading the free-memory pointer alone does not require this restriction.
-`assembly ("memory-safe")` and the legacy memory-safe annotation supply the
-source contract instead.
+`assembly ("memory-safe")` and the legacy `/// @solidity memory-safe-assembly`
+annotation supply the source contract instead.
 
 The backend propagates this restriction through each internal call context.
 It keeps compiler state on the stack, including arguments, return tuples, and
 phi values, and rejects code generation if a required memory fallback remains.
 Separate external entry points and creation code have separate memory lifetimes.
+Recursive Yul tuple components and their callees also require stack-owned state,
+so suspended calls cannot reuse a frame. The backend tracks this requirement
+separately from the source assembly annotation.
 MIR `compiler_memory` metadata distinguishes private accesses from source
 operations; it is independent of alias and debug metadata. The emitter checks
 private operations after operand scheduling, so a source memory instruction

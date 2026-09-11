@@ -1,0 +1,159 @@
+source 0 "ROOT/tests/ui/assembly/memory_safe.sol" {
+    contract MemorySafe {
+        function memorySafe() public pure returns (uint256 result) {
+            assembly ("memory-safe") {
+                uint256 ptr = mload(0x40);
+                mstore(ptr, 42);
+                mstore(0x40, add(ptr, 32));
+                result = mload(ptr);
+            }
+        }
+
+        function withDialect() public pure returns (uint256 result) {
+            assembly {
+                result = 42;
+            }
+        }
+
+        function dialectAndFlag() public pure returns (uint256 result) {
+            assembly ("memory-safe") {
+                uint256 ptr = mload(0x40);
+                mstore(ptr, 100);
+                mstore(0x40, add(ptr, 32));
+                result = mload(ptr);
+            }
+        }
+
+        function legacyExact() public pure returns (uint256 result) {
+            assembly ("memory-safe") {
+                result = 42;
+            }
+        }
+
+        function legacyMultiple() public pure returns (uint256 result) {
+            assembly ("memory-safe") {
+                result = 42;
+            }
+        }
+
+        function invalidShortMarker() public pure returns (uint256 result) {
+            assembly {
+                result = 42;
+            }
+        }
+
+        function invalidSuffix() public pure returns (uint256 result) {
+            assembly {
+                result = 42;
+            }
+        }
+
+        function invalidPrefix() public pure returns (uint256 result) {
+            assembly {
+                result = 42;
+            }
+        }
+
+        function invalidUnicodeSeparator() public pure returns (uint256 result) {
+            assembly {
+                result = 42;
+            }
+        }
+
+        function invalidVerticalTabBoundary() public pure returns (uint256 result) {
+            assembly {
+                result = 42;
+            }
+        }
+
+        function invalidFormFeedTagBoundary() public pure returns (uint256 result) {
+            assembly {
+                result = 42;
+            }
+        }
+
+        function legacyBlockContinuation() public pure returns (uint256 result) {
+            assembly ("memory-safe") {
+                result = 42;
+            }
+        }
+
+        function invalidDoubleStarContinuation() public pure returns (uint256 result) {
+            assembly {
+                result = 42;
+            }
+        }
+
+        function invalidLineStarContinuation() public pure returns (uint256 result) {
+            assembly {
+                result = 42;
+            }
+        }
+
+        function legacyBlockCarriageReturn() public pure returns (uint256 result) {
+            assembly ("memory-safe") {
+                result = 42;
+            }
+        }
+
+        function invalidJoinedBlockSuffix() public pure returns (uint256 result) {
+            assembly {
+                result = 42;
+            }
+        }
+
+        function legacySeparatedBlockSuffix() public pure returns (uint256 result) {
+            assembly ("memory-safe") {
+                result = 42;
+            }
+        }
+
+        function invalidJoinedTag() public pure returns (uint256 result) {
+            assembly {
+                result = 42;
+            }
+        }
+
+        function invalidJoinedFollowingTag() public pure returns (uint256 result) {
+            assembly {
+                result = 42;
+            }
+        }
+
+        function legacyLineContinuation() public pure returns (uint256 result) {
+            assembly ("memory-safe") {
+                result = 42;
+            }
+        }
+
+        function invalidConsumedFollowingTag() public pure returns (uint256 result) {
+            assembly {
+                result = 42;
+            }
+        }
+
+        function invalidOverwrittenBlock() public pure returns (uint256 result) {
+            assembly {
+                result = 42;
+            }
+        }
+
+        function legacyMultipleBlockTags() public pure returns (uint256 result) {
+            assembly ("memory-safe") {
+                result = 42;
+            }
+        }
+
+        function invalidSkippedEmptyLine() public pure returns (uint256 result) {
+            assembly {
+                result = 42;
+            }
+        }
+
+        function invalidJoinedClosingStar() public pure returns (uint256 result) {
+            assembly {
+                result = 42;
+            }
+        }
+    }
+}

@@ -159,7 +159,7 @@ contract MemorySafeTupleConstructor {
 
     constructor(uint256 input) {
         uint256 result;
-        /// @solidity memory-safe
+        /// @solidity memory-safe-assembly
         assembly {
             function pair(argument) -> first, second {
                 first := argument

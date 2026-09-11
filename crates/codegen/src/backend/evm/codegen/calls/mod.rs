@@ -1086,7 +1086,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             // fallback buffer. A callee may legally leave slot `0x40` clobbered, so deriving this
             // address from the post-call free-memory pointer would turn a valid return into an
             // arbitrary write or OOG. The common direct-projection path never touches the buffer.
-            if self.unrestricted_memory_functions.contains(callee) || plan.preserve_source_scratch {
+            if self.stack_only_memory_functions.contains(callee) || plan.preserve_source_scratch {
                 self.report_private_memory_required(func, "tuple return buffer");
             }
             let return_base = plan.local_base - plan.arity as u64 * EvmMemoryLayout::WORD_SIZE;

@@ -1121,6 +1121,7 @@ symbols! {
         memory_bytes,
         memory_dash_lowered: "memory-lowered",
         memory_dash_safe: "memory-safe",
+        memory_dash_safe_dash_assembly: "memory-safe-assembly",
         memory_object_copy,
         memory_object_copy_from_slice,
         memory_object_copy_from_slice_at,

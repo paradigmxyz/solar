@@ -113,7 +113,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         if !values.is_empty()
             && self
                 .current_internal_function
-                .is_some_and(|id| self.unrestricted_memory_functions.contains(id))
+                .is_some_and(|id| self.stack_only_memory_functions.contains(id))
         {
             self.report_private_memory_required(func, "internal return values");
         }

@@ -179,7 +179,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         if !hazard_cross_block_values.is_empty() {
             let cross_block =
                 cross_block_live.get_or_init(|| Self::cross_block_live_values(func, liveness));
-            hazard_cross_block_values.retain(|value| cross_block.contains(*value));
+            // Arguments need an entry load from their frame home before becoming stack-only.
+            // The spill liveness set contains instruction results, so retain arguments here.
+            hazard_cross_block_values.retain(|value| {
+                cross_block.contains(*value) || matches!(func.value(*value), Value::Arg(_))
+            });
         }
         let resident_carries_hazards = resident_stack_plan.as_ref().is_some_and(|plan| {
             self.stack_plan_carries_spill_hazards(func, liveness, plan, &hazard_cross_block_values)
@@ -225,9 +229,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         if required_stack_plan {
             if !stack_phi_plan.merge_resident(func, &global_stack_plan) {
                 // Selection preflights this exact composition. If a future transform invalidates
-                // that proof, regenerate the runtime with the ordinary frame-backed convention
+                // that proof, regenerate the artifact with the ordinary frame-backed convention
                 // instead of emitting a partial stack ABI or panicking.
-                self.disabled_stack_only_functions.insert(func_id);
+                self.abandon_stack_only_function(func_id);
                 return;
             }
             stack_phi_sources = stack_phi_plan.edge_sources();
@@ -483,7 +487,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             if block_id == BlockId::ENTRY {
                 self.scheduler
                     .set_stack_only_values(func.num_values(), stack_only_values.iter().copied());
-                for &value in hazard_stack_values.into_iter().flatten() {
+                for value in self.spill_hazard_values.iter().collect::<Vec<_>>() {
                     if matches!(func.value(value), Value::Arg(_))
                         && !self.scheduler.stack.contains(value)
                     {

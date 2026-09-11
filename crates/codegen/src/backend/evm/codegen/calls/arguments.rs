@@ -28,12 +28,12 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None)
             && !(self.in_constructor && self.preserve_caller_stack)
-            && self.unrestricted_memory_functions.is_empty()
+            && self.stack_only_memory_functions.is_empty()
         {
             return;
         }
 
-        for func_id in self.unrestricted_memory_functions.iter().collect::<Vec<_>>() {
+        for func_id in self.stack_only_memory_functions.iter().collect::<Vec<_>>() {
             if !self.static_frame_functions.contains(func_id) {
                 continue;
             }
@@ -59,7 +59,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 || !self.static_frame_functions.contains(func_id)
                 || ((self.recursive_stack_functions.contains(func_id)
                     || self.recursion_reaching_functions.contains(func_id))
-                    && !self.unrestricted_memory_functions.contains(func_id))
+                    && !self.stack_only_memory_functions.contains(func_id))
             {
                 continue;
             }
@@ -81,7 +81,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             let caller = &module.functions[caller_id];
             let raw_leaves_ok = Self::is_external_entry(caller)
                 || self.static_frame_functions.contains(caller_id)
-                || self.unrestricted_memory_functions.contains(caller_id)
+                || self.stack_only_memory_functions.contains(caller_id)
                 || caller.attributes.is_constructor;
             for block in &caller.blocks {
                 for &inst_id in &block.instructions {
@@ -123,7 +123,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             if !seen.contains(func_id) || excluded.contains(func_id) || mask.is_empty() {
                 continue;
             }
-            let required = self.unrestricted_memory_functions.contains(func_id);
+            let required = self.stack_only_memory_functions.contains(func_id);
             let argument_limit =
                 if required { MAX_STACK_ACCESS } else { GLOBAL_STACK_LAYOUT_LIMIT };
             if mask.count() > argument_limit {
@@ -237,7 +237,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let mut all_uses = FxHashMap::default();
         if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None)
             && !(self.in_constructor && self.preserve_caller_stack)
-            && self.unrestricted_memory_functions.is_empty()
+            && self.stack_only_memory_functions.is_empty()
         {
             return all_uses;
         }
@@ -312,7 +312,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None)
             && !(self.in_constructor && self.preserve_caller_stack)
-            && self.unrestricted_memory_functions.is_empty()
+            && self.stack_only_memory_functions.is_empty()
         {
             return;
         }
@@ -400,7 +400,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None)
             && !(self.in_constructor && self.preserve_caller_stack)
-            && self.unrestricted_memory_functions.is_empty()
+            && self.stack_only_memory_functions.is_empty()
         {
             return;
         }
@@ -688,7 +688,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         if !self.scheduler.is_stack_only_value(value) {
             return;
         }
-        if self.unrestricted_memory_functions.contains(func_id) {
+        if self.stack_only_memory_functions.contains(func_id) {
             self.report_private_memory_required(func, "stack-only arguments and values");
         } else if self.spill_hazard_values.contains(value) {
             self.gcx.dcx().err(format!(

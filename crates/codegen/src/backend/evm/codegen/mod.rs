@@ -279,8 +279,10 @@ pub struct EvmCodegen<'gcx> {
     /// an argument not selected by a plan, uses the existing static-memory convention.
     static_call_abis: FxHashMap<FunctionId, StaticCallAbi>,
     /// Functions whose stack-only argument convention had to materialize a frame fallback during
-    /// emission. They stay on the ordinary stack-argument convention on the regenerated runtime.
+    /// emission. They stay on the ordinary stack-argument convention in later emission attempts.
     disabled_stack_only_functions: DenseBitSet<FunctionId>,
+    /// Functions already excluded when the current emission attempt began.
+    disabled_stack_only_at_attempt_start: DenseBitSet<FunctionId>,
     /// Whether stack-native return tuples may be selected. Cleared when the
     /// whole-program stack proof fails even without preserved prefixes or
     /// stack arguments, falling back to the frame-backed return convention.
@@ -375,8 +377,9 @@ pub struct EvmCodegen<'gcx> {
     msize_observed_functions: GrowableBitSet<FunctionId>,
     /// Functions that can overwrite their caller's low-memory frame.
     spill_clobber_functions: GrowableBitSet<FunctionId>,
-    /// Functions sharing a call context with assembly that permits arbitrary memory access.
-    unrestricted_memory_functions: GrowableBitSet<FunctionId>,
+    /// Functions requiring stack-owned compiler state due to source memory access or a
+    /// frame-free recursive caller. Source annotation attributes remain separate from this set.
+    stack_only_memory_functions: GrowableBitSet<FunctionId>,
     /// Heap-pointer arguments sufficient to keep a helper's writes out of caller spills.
     spill_clobber_args: FxHashMap<FunctionId, DenseBitSet<ArgIdx>>,
     /// Whether deep forwarding recovery must avoid expanding memory in this function.
@@ -439,6 +442,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             pending_frame_size_consts: Vec::new(),
             static_call_abis: FxHashMap::default(),
             disabled_stack_only_functions: DenseBitSet::new_empty(0),
+            disabled_stack_only_at_attempt_start: DenseBitSet::new_empty(0),
             stack_returns_enabled: true,
             preserve_caller_stack: false,
             recursive_stack_functions: DenseBitSet::new_empty(0),
@@ -472,7 +476,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             spill_hazard_values: DenseBitSet::new_empty(0),
             msize_observed_functions: GrowableBitSet::new_empty(),
             spill_clobber_functions: GrowableBitSet::new_empty(),
-            unrestricted_memory_functions: GrowableBitSet::new_empty(),
+            stack_only_memory_functions: GrowableBitSet::new_empty(),
             spill_clobber_args: FxHashMap::default(),
             forwarding_scratch_observable: false,
             heap_pointer_return_functions: DenseBitSet::new_empty(0),
@@ -509,6 +513,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.pending_frame_size_consts.clear();
         self.static_call_abis.clear();
         self.disabled_stack_only_functions.clear_to(module.functions.len());
+        self.disabled_stack_only_at_attempt_start.clear_to(module.functions.len());
         self.stack_returns_enabled = true;
         self.preserve_caller_stack = false;
         self.recursive_stack_functions.clear_to(module.functions.len());
@@ -535,7 +540,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.late_gas_operands.clear();
         self.stack_phi_plans.clear();
         self.spill_clobber_functions.clear();
-        self.unrestricted_memory_functions.clear();
+        self.stack_only_memory_functions.clear();
         self.spill_clobber_args.clear();
         self.spill_hazard_insts.clear();
         self.spill_hazard_values.clear();
@@ -1047,6 +1052,24 @@ mod tests {
 
         assert!(!phi.merge_resident(&function, &resident));
         assert_eq!(phi.entries[&join].len(), MAX_STACK_ACCESS);
+    }
+
+    #[test]
+    fn repeated_stack_abandonment_rejects_only_a_later_attempt() {
+        with_codegen(CompileOpts::default(), |mut codegen| {
+            let function = FunctionId::from_usize(0);
+            codegen.disabled_stack_only_functions = DenseBitSet::new_empty(1);
+            codegen.disabled_stack_only_at_attempt_start = DenseBitSet::new_empty(1);
+            codegen.abandon_stack_only_function(function);
+            codegen.abandon_stack_only_function(function);
+            assert_eq!(codegen.disabled_stack_only_functions.count(), 1);
+            assert!(codegen.gcx.dcx().has_errors().is_ok());
+
+            codegen.disabled_stack_only_at_attempt_start =
+                codegen.disabled_stack_only_functions.clone();
+            codegen.abandon_stack_only_function(function);
+            assert!(codegen.gcx.dcx().has_errors().is_err());
+        });
     }
 
     #[test]

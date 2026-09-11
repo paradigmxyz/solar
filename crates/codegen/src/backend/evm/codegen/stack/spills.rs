@@ -1418,17 +1418,31 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Abandons a speculative internal stack ABI after one of its values was lost.
     ///
     /// The emitted placeholder belongs to an attempt that the outer codegen loop discards. The
-    /// next attempt excludes this function from stack-only argument and return plans, so every
-    /// value has a frame-backed reload route.
+    /// next attempt excludes this function from speculative argument and return plans. If
+    /// recovery repeats, reject the artifact before using a placeholder to finish error recovery.
     pub(in crate::backend::evm::codegen) fn recover_lost_internal_stack_value(
         &mut self,
         value: ValueId,
     ) -> bool {
         let Some(func_id) = self.current_internal_function else { return false };
-        self.disabled_stack_only_functions.insert(func_id);
+        self.abandon_stack_only_function(func_id);
+        // push 0; stack[value] = placeholder for an abandoned or rejected attempt
         self.asm.emit_push(U256::ZERO);
         self.scheduler.stack.push(value);
         true
+    }
+
+    /// Requests one ABI retry, or rejects a layout that still fails after its ABI was disabled.
+    pub(in crate::backend::evm::codegen) fn abandon_stack_only_function(
+        &mut self,
+        func_id: FunctionId,
+    ) {
+        self.disabled_stack_only_functions.insert(func_id);
+        if self.disabled_stack_only_at_attempt_start.contains(func_id)
+            && self.gcx.dcx().has_errors().is_ok()
+        {
+            self.gcx.dcx().err("codegen could not preserve an internal stack layout").emit();
+        }
     }
 
     pub(in crate::backend::evm::codegen) fn stack_only_function_disabled(

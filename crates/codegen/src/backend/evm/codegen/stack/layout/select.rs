@@ -17,9 +17,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         liveness: &Liveness,
     ) -> Rc<StackPhiPlan> {
         let cold_functions = &self.cold_functions;
-        let required = self.unrestricted_memory_functions.contains(func_id);
+        let source_only = self.stack_only_memory_functions.contains(func_id);
+        let required = source_only || (func.attributes.is_yul && func.returns.len() > 1);
         let layout_limit = Self::required_stack_layout_limit(
-            required && !self.msize_observed_functions.contains(func_id),
+            source_only && !self.msize_observed_functions.contains(func_id),
         );
         Rc::clone(self.stack_phi_plans.entry(func_id).or_insert_with(|| {
             let plan = StackPhiPlan::analyze(func, liveness, cold_functions);
@@ -50,7 +51,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         for func_id in self.static_frame_functions.iter() {
             if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None)
                 && !(self.in_constructor && self.preserve_caller_stack)
-                && !self.unrestricted_memory_functions.contains(func_id)
+                && !self.stack_only_memory_functions.contains(func_id)
             {
                 continue;
             }
@@ -436,7 +437,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     ) -> Vec<ValueId> {
         let mut values = DenseBitSet::new_empty(func.num_values());
         if (self.in_constructor && self.preserve_caller_stack)
-            || self.unrestricted_memory_functions.contains(func_id)
+            || self.stack_only_memory_functions.contains(func_id)
         {
             for value in func.live_values().filter(|&value| {
                 Self::can_own_spill_slot(func, value)

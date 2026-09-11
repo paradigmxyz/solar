@@ -277,3 +277,44 @@ fn @bump(arg0: u256) -> u256 {
     v0 = add arg0, 1
     ret v0
 }
+
+// === ROOT/tests/ui/codegen/lowering/run-call/dynamic_writer_spills.sol:FrameArgsAcrossCopy ===
+@module FrameArgsAcrossCopy
+fn @run(arg0: bool) -> u256 [selector=0x166a2ad5, pure, abi_params=[bool], abi_returns=[word]] {
+  bb0:
+    v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    v1 = not 31
+    v2 = and 95, v1
+    v3 = alloc memorybytes, exact, zeroed, panic, v2
+    set_memory_object_len memorybytes, v3, 32
+    memory_object_store_field memorystruct<1>, v0, 0, v3
+    v4 = icall @preserve, 1, v0, 5, arg0
+    ret v4
+}
+
+fn @seed() -> u256 [pure] {
+  bb0:
+    ret 7
+}
+
+fn @preserve(arg0: memorystruct, arg1: u256, arg2: bool) -> u256 [pure] {
+  bb0:
+    v0 = icall @seed, 1
+    v1 = mload arg0
+    v2 = eq arg2, 0
+    v3 = iszero v2
+    jumpi v3, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v4 = mload v1
+    v5 = calldatasize
+    v6 = add v1, 32
+    calldatacopy v6, v5, v4
+    jump bb3
+  bb3:
+    v7 = mload v1
+    v8 = add arg1, v7
+    v9 = add v0, v8
+    ret v9
+}

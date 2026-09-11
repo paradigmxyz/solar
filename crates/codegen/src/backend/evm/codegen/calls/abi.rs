@@ -32,7 +32,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             let component = calls.recursive_component(id);
             visited.union(&component);
             if !component.iter().any(|id| {
-                self.unrestricted_memory_functions.contains(id)
+                self.stack_only_memory_functions.contains(id)
                     || (module.functions[id].attributes.is_yul
                         && module.functions[id].returns.len() > 1)
             }) {
@@ -164,7 +164,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             {
                 self.report_private_memory_required(func, "Yul tuple returns");
             }
-            if !self.unrestricted_memory_functions.contains(func_id) {
+            if !self.stack_only_memory_functions.contains(func_id) {
                 continue;
             }
             let func = &module.functions[func_id];
@@ -320,7 +320,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             if self.static_frame_functions.contains(func_id)
                 && (!matches!(self.gcx.sess.opts.optimization, OptimizationMode::None)
                     || (self.in_constructor && self.preserve_caller_stack)
-                    || self.unrestricted_memory_functions.contains(func_id)
+                    || self.stack_only_memory_functions.contains(func_id)
                     || source_scratch_live)
                 && !self.disabled_stack_only_functions.contains(func_id)
                 && !self.recursive_frame_functions.contains(func_id)
@@ -536,7 +536,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             let mut mask = DenseBitSet::new_empty(score.len());
             for (index, benefit) in score.iter_enumerated() {
                 if benefit.is_some_and(|benefit| {
-                    benefit > 4 || self.unrestricted_memory_functions.contains(func_id)
+                    benefit > 4 || self.stack_only_memory_functions.contains(func_id)
                 }) {
                     mask.insert(index.index());
                 }
