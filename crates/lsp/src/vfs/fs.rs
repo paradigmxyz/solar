@@ -168,6 +168,13 @@ impl Vfs {
         }
     }
 
+    /// Update an existing file's client version without replacing its contents.
+    pub(crate) fn set_file_version(&mut self, path: VfsPath, version: i32) {
+        debug_assert!(self.data.contains_key(&path));
+        self.versions.insert(path, version);
+        self.dirty = true;
+    }
+
     pub(crate) fn get_file_contents(&self, path: &VfsPath) -> Option<&Rope> {
         self.data.get(path).map(|file| &file.contents)
     }
