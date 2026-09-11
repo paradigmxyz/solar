@@ -22,10 +22,10 @@ use async_lsp::ClientSocket;
 use crop::Rope;
 use lsp_types::{
     CallHierarchyIncomingCall, CodeLens, CompletionItem, Diagnostic, DidChangeTextDocumentParams,
-    GotoDefinitionResponse, Hover, HoverContents, Location, Position, PreviousResultId, Range,
-    SignatureHelp, SignatureHelpParams, TextDocumentContentChangeEvent, TextDocumentIdentifier,
-    TextDocumentPositionParams, TypeHierarchyItem, Url, VersionedTextDocumentIdentifier,
-    WorkspaceFolder, WorkspaceSymbol,
+    DocumentSymbol, GotoDefinitionResponse, Hover, HoverContents, Location, Position,
+    PreviousResultId, Range, SignatureHelp, SignatureHelpParams, TextDocumentContentChangeEvent,
+    TextDocumentIdentifier, TextDocumentPositionParams, TypeHierarchyItem, Url,
+    VersionedTextDocumentIdentifier, WorkspaceFolder, WorkspaceSymbol,
 };
 use normalize_path::NormalizePath;
 use solar_config::{CompileOpts, Threads};
@@ -957,6 +957,12 @@ impl BenchmarkAnalysis {
             uri,
             crate::config::CodeLensConfig { client_commands: true, ..Default::default() },
         )
+    }
+
+    /// Build hierarchical document symbols for one analyzed source file.
+    #[inline(never)]
+    pub fn document_symbols(&self, uri: &Url) -> Vec<DocumentSymbol> {
+        self.symbol_tables.document_symbols(uri)
     }
 
     /// Complete names at a source position without protocol transport or parsing.

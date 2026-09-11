@@ -170,6 +170,27 @@ fn code_lens_queries(c: &mut Criterion) {
     group.finish();
 }
 
+fn document_symbol_queries(c: &mut Criterion) {
+    let mut group = c.benchmark_group("lsp/document-symbol");
+    for function_count in [256, 1_024] {
+        let fixture = benchmark_source(function_count);
+        let (uri, _) = fixture
+            .project
+            .unique_anchor("benchmark.sol", "contract Benchmark")
+            .expect("the document-symbol anchor should be unique");
+        let analysis = fixture.project.analyze();
+        assert_clean(&analysis);
+        let symbols = analysis.document_symbols(&uri);
+        assert_eq!(symbols.len(), 1);
+        assert_eq!(symbols[0].children.as_ref().map_or(0, Vec::len), function_count + 1);
+        group.throughput(Throughput::Elements(function_count as u64));
+        group.bench_function(BenchmarkId::from_parameter(function_count), |b| {
+            b.iter(|| black_box(analysis.document_symbols(black_box(&uri))));
+        });
+    }
+    group.finish();
+}
+
 fn import_path_queries(c: &mut Criterion) {
     let mut group = c.benchmark_group("lsp/import-path");
     let cursor = OPTIMISM_SOURCE.rfind('}').unwrap();
@@ -881,6 +902,7 @@ criterion_group!(
     completion_queries,
     signature_help_requests,
     code_lens_queries,
+    document_symbol_queries,
     type_hierarchy_queries,
     call_hierarchy_queries,
     import_path_queries,
