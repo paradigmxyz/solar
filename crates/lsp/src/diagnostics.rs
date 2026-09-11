@@ -8,6 +8,9 @@ pub(crate) type DiagnosticMap = FxHashMap<Url, Vec<Diagnostic>>;
 pub(crate) type AnalyzedDocuments = FxHashMap<Url, Option<i64>>;
 
 const EMPTY_RESULT_ID: &str = "solar-empty";
+// Sorting the complete request is cheaper than building and probing a second URI index for
+// small workspaces. Larger workspaces use the cached current-URI order and merge only stale IDs.
+const SORTED_WORKSPACE_REPORT_THRESHOLD: usize = 512;
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub(crate) enum DiagnosticOwner {
@@ -40,6 +43,9 @@ pub(crate) struct DiagnosticStore {
     diagnostics: FxHashMap<DiagnosticOwner, DiagnosticMap>,
     reports: FxHashMap<Url, CachedReport>,
     analyzed_documents: AnalyzedDocuments,
+    /// Current report/document URIs in protocol order. Rebuilding this is tied to mutations so
+    /// workspace pulls do not sort the full workspace on every request.
+    workspace_uris: Vec<Url>,
     next_result_id: u64,
 }
 
@@ -155,6 +161,54 @@ impl DiagnosticStore {
         &self,
         previous_result_ids: Vec<PreviousResultId>,
     ) -> Vec<WorkspacePullReport> {
+        if self.workspace_uris.len().max(previous_result_ids.len())
+            <= SORTED_WORKSPACE_REPORT_THRESHOLD
+        {
+            return self.workspace_pull_reports_sorted(previous_result_ids);
+        }
+
+        let capacity = previous_result_ids.len().max(self.workspace_uris.len());
+        let mut previous = FxHashMap::with_capacity_and_hasher(capacity, Default::default());
+        for PreviousResultId { uri, value } in previous_result_ids {
+            previous.insert(normalize_file_uri(uri), value);
+        }
+
+        // The current URI list is already sorted by `publish_batches`; only stale client entries
+        // need sorting. This keeps a large unchanged workspace pull linear in the workspace size.
+        let mut documents = Vec::with_capacity(capacity);
+        for uri in &self.workspace_uris {
+            documents.push((uri.clone(), previous.remove(uri)));
+        }
+        if !previous.is_empty() {
+            let mut stale =
+                previous.into_iter().map(|(uri, value)| (uri, Some(value))).collect::<Vec<_>>();
+            stale.sort_unstable_by(|(lhs, _), (rhs, _)| lhs.as_str().cmp(rhs.as_str()));
+            let mut merged = Vec::with_capacity(documents.len() + stale.len());
+            let mut current = documents.into_iter().peekable();
+            let mut stale = stale.into_iter().peekable();
+            loop {
+                match (current.peek(), stale.peek()) {
+                    (Some((current_uri, _)), Some((stale_uri, _)))
+                        if current_uri.as_str() <= stale_uri.as_str() =>
+                    {
+                        merged.push(current.next().unwrap());
+                    }
+                    (Some(_), Some(_)) => merged.push(stale.next().unwrap()),
+                    (Some(_), None) => merged.extend(&mut current),
+                    (None, Some(_)) => merged.extend(&mut stale),
+                    (None, None) => break,
+                }
+            }
+            documents = merged;
+        }
+
+        self.make_workspace_reports(documents)
+    }
+
+    fn workspace_pull_reports_sorted(
+        &self,
+        previous_result_ids: Vec<PreviousResultId>,
+    ) -> Vec<WorkspacePullReport> {
         let capacity =
             previous_result_ids.len().max(self.analyzed_documents.len() + self.reports.len());
         let mut documents = FxHashMap::with_capacity_and_hasher(capacity, Default::default());
@@ -169,7 +223,13 @@ impl DiagnosticStore {
 
         let mut documents = documents.into_iter().collect::<Vec<_>>();
         documents.sort_unstable_by(|(lhs, _), (rhs, _)| lhs.as_str().cmp(rhs.as_str()));
+        self.make_workspace_reports(documents)
+    }
 
+    fn make_workspace_reports(
+        &self,
+        documents: Vec<(Url, Option<String>)>,
+    ) -> Vec<WorkspacePullReport> {
         let report_capacity =
             documents.len().min(self.analyzed_documents.len() + self.reports.len());
         let mut reports = Vec::with_capacity(report_capacity);
@@ -221,6 +281,7 @@ impl DiagnosticStore {
 
     fn publish_batches(&mut self, affected_uris: FxHashSet<Url>) -> DiagnosticUpdate {
         if affected_uris.is_empty() {
+            self.rebuild_workspace_uris();
             return DiagnosticUpdate::default();
         }
 
@@ -265,7 +326,17 @@ impl DiagnosticStore {
                 (has_entry || was_published).then_some((uri, diagnostics))
             })
             .collect();
+        self.rebuild_workspace_uris();
         DiagnosticUpdate { batches, pull_reports_changed, workspace_documents_changed: false }
+    }
+
+    fn rebuild_workspace_uris(&mut self) {
+        self.workspace_uris.clear();
+        self.workspace_uris.extend(self.analyzed_documents.keys().cloned());
+        self.workspace_uris.extend(
+            self.reports.keys().filter(|uri| !self.analyzed_documents.contains_key(*uri)).cloned(),
+        );
+        self.workspace_uris.sort_unstable_by(|lhs, rhs| lhs.as_str().cmp(rhs.as_str()));
     }
 
     fn next_result_id(next_result_id: &mut u64) -> String {

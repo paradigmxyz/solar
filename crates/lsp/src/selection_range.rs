@@ -68,18 +68,23 @@ impl SelectionRangeIndex {
 /// Syntax ranges grouped by traversal order, with a bounding interval for each block.
 ///
 /// AST traversal keeps most neighboring ranges close in the source, so point queries can
-/// skip unrelated blocks. Building bounds requires no sorting and stores only two offsets
-/// per block; individual ranges are still checked for exact containment.
+/// skip unrelated blocks. Blocks are indexed by start offset and a prefix maximum end allows a
+/// point query to stop once all earlier blocks end before the cursor; individual ranges are still
+/// checked for exact containment.
 struct CandidateRanges {
     ranges: Vec<ByteRange<usize>>,
     bounds: Vec<ByteRange<usize>>,
+    /// Blocks ordered by start offset for logarithmic point-query narrowing.
+    block_order: Vec<usize>,
+    /// Maximum end offset of each prefix in `block_order`, used to stop scanning old blocks.
+    prefix_max_end: Vec<usize>,
 }
 
 impl CandidateRanges {
     const BLOCK_SIZE: usize = 64;
 
     fn new(ranges: Vec<ByteRange<usize>>) -> Self {
-        let bounds = ranges
+        let bounds: Vec<ByteRange<usize>> = ranges
             .chunks(Self::BLOCK_SIZE)
             .map(|block| {
                 block.iter().fold(block[0].clone(), |bounds, range| {
@@ -87,18 +92,37 @@ impl CandidateRanges {
                 })
             })
             .collect();
-        Self { ranges, bounds }
+        let mut block_order = (0..bounds.len()).collect::<Vec<_>>();
+        block_order.sort_unstable_by_key(|&index| bounds[index].start);
+        let mut max_end = 0;
+        let prefix_max_end = block_order
+            .iter()
+            .map(|&index| {
+                max_end = max_end.max(bounds[index].end);
+                max_end
+            })
+            .collect();
+        Self { ranges, bounds, block_order, prefix_max_end }
     }
 
     fn at(&self, cursor: usize) -> Vec<ByteRange<usize>> {
-        self.ranges
-            .chunks(Self::BLOCK_SIZE)
-            .zip(&self.bounds)
-            .filter(|(_, bounds)| bounds.contains(&cursor))
-            .flat_map(|(block, _)| block)
-            .filter(|range| range.contains(&cursor))
-            .cloned()
-            .collect()
+        let block_count =
+            self.block_order.partition_point(|&index| self.bounds[index].start <= cursor);
+        let mut candidates = Vec::new();
+        for order_index in (0..block_count).rev() {
+            // All blocks in this prefix end before the cursor, so older blocks cannot match.
+            if self.prefix_max_end[order_index] <= cursor {
+                break;
+            }
+            let block_index = self.block_order[order_index];
+            let bounds = &self.bounds[block_index];
+            if bounds.contains(&cursor) {
+                let block = &self.ranges[block_index * Self::BLOCK_SIZE
+                    ..((block_index + 1) * Self::BLOCK_SIZE).min(self.ranges.len())];
+                candidates.extend(block.iter().filter(|range| range.contains(&cursor)).cloned());
+            }
+        }
+        candidates
     }
 }
 

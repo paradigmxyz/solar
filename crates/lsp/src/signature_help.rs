@@ -22,6 +22,7 @@ use std::{borrow::Cow, fmt::Write, ops::ControlFlow, sync::Arc};
 #[derive(Clone, Debug, Default)]
 pub(crate) struct SignatureHelpIndex {
     calls: FxHashMap<Url, Vec<CallSite>>,
+    calls_by_open: FxHashMap<Url, FxHashMap<Position, Vec<usize>>>,
     callables_by_name: FxHashMap<String, Vec<CatalogEntry>>,
     signatures_by_label: FxHashMap<String, Vec<Arc<CallSignature>>>,
 }
@@ -84,6 +85,7 @@ impl SignatureHelpIndex {
         for calls in index.calls.values_mut() {
             calls.sort_by_key(|call| proto::range_size_key(call.range));
         }
+        index.rebuild_calls_by_open();
         index
     }
 
@@ -103,6 +105,17 @@ impl SignatureHelpIndex {
                 self.push_callable(name.clone(), entry.location, entry.form, entry.signature);
             }
         }
+        self.rebuild_calls_by_open();
+    }
+
+    fn rebuild_calls_by_open(&mut self) {
+        self.calls_by_open.clear();
+        for (uri, calls) in &self.calls {
+            let by_open = self.calls_by_open.entry(uri.clone()).or_default();
+            for (index, call) in calls.iter().enumerate() {
+                by_open.entry(call.range.start).or_default().push(index);
+            }
+        }
     }
 
     pub(crate) fn signature_help<'a>(
@@ -114,12 +127,14 @@ impl SignatureHelpIndex {
         visible_declarations: impl FnOnce(&str) -> Vec<&'a Location>,
         options: SignatureHelpClientOptions,
     ) -> Option<SignatureHelp> {
-        let contents = positions.rope();
         let cursor = positions.text_range(Range::new(position, position)).start;
         let context = call_context(&source[..cursor])?;
+        // Earlier-line edits can change byte offsets while preserving the cached LSP position.
+        let open = positions.position_at_byte(context.open)?;
         let call = self.calls.get(uri).and_then(|calls| {
-            calls.iter().find(|call| {
-                // Reject unrelated callables before converting their source positions.
+            let indices = self.calls_by_open.get(uri)?.get(&open)?;
+            indices.iter().map(|&index| &calls[index]).find(|call| {
+                // Reject unrelated callables before validating their current source text.
                 call.form == context.form
                     && call
                         .callee_tokens
@@ -127,9 +142,6 @@ impl SignatureHelpIndex {
                         .map(String::as_str)
                         .filter(|token| is_identifier(token))
                         == context.callee_name
-                    && valid_text_position(contents, call.range.start)
-                    && positions.text_range(Range::new(call.range.start, call.range.start)).start
-                        == context.open
                     && call.matches_current_callee(positions)
             })
         });
