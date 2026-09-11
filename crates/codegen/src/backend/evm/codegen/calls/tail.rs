@@ -47,6 +47,7 @@ impl EvmCodegen<'_> {
         if let InstKind::ICall { function, args, returns: 0 } = &inst.kind
             && *function == caller
             && args.len() == func.params.len()
+            && args.len() <= self.gcx.sess.opts.evm_version.reachable_stack_depth()
             && returns_without_work(func, block)
         {
             Some(args)
