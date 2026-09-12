@@ -153,6 +153,15 @@ bb22:
   pop
   push 0
   jump bb24
+bb26 [loop]:
+  push 1
+  push 160
+  mload
+  add
+  push 192
+  mload
+  swap 1
+  jump bb24
 bb24 [loop]:
   push 36
   calldataload
@@ -166,15 +175,6 @@ bb24 [loop]:
   push 32
   push 128
   return
-bb26 [loop]:
-  push 1
-  push 160
-  mload
-  add
-  push 192
-  mload
-  swap 1
-  jump bb24
 bb27 [loop]:
   dup 1
   push 160
@@ -288,16 +288,6 @@ bb40:
   push 4
   calldataload
   jump bb42
-bb42 [loop]:
-  push 68
-  calldataload
-  dup 3
-  lt
-  push bb44
-  jumpi
-  push 0
-  sstore
-  stop
 bb44 [loop]:
   push 36
   calldataload
@@ -340,3 +330,13 @@ bb44 [loop]:
   add
   swap 1
   jump bb42
+bb42 [loop]:
+  push 68
+  calldataload
+  dup 3
+  lt
+  push bb44
+  jumpi
+  push 0
+  sstore
+  stop

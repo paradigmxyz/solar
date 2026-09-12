@@ -271,6 +271,48 @@ bb1:
   push 0
   exchange 2, 4
   jump bb18
+bb22 [loop]:
+  dup 1
+  mload
+  dup 3
+  lt
+  iszero
+  push bb25
+  jumpi
+  push 32
+  add
+  dup 2
+  push 5
+  shl
+  add
+  mload
+  swap 1
+  push 1
+  add
+  dup 1
+  iszero
+  dup 2
+  dup 4
+  mul
+  dup 3
+  dup 2
+  div
+  swap 1
+  swap 4
+  eq
+  or
+  iszero
+  push bb26
+  jumpi
+  swap 1
+  dup 3
+  add
+  swap 2
+  dup 3
+  lt
+  push bb26
+  jumpi
+  jump bb18
 bb18 [loop]:
   dup 5
   mload
@@ -330,48 +372,6 @@ bb18 [loop]:
   push 32
   push 128
   return
-bb22 [loop]:
-  dup 1
-  mload
-  dup 3
-  lt
-  iszero
-  push bb25
-  jumpi
-  push 32
-  add
-  dup 2
-  push 5
-  shl
-  add
-  mload
-  swap 1
-  push 1
-  add
-  dup 1
-  iszero
-  dup 2
-  dup 4
-  mul
-  dup 3
-  dup 2
-  div
-  swap 1
-  swap 4
-  eq
-  or
-  iszero
-  push bb26
-  jumpi
-  swap 1
-  dup 3
-  add
-  swap 2
-  dup 3
-  lt
-  push bb26
-  jumpi
-  jump bb18
 bb25 [cold]:
   push 0x4e487b71
   push 224

@@ -44,14 +44,12 @@ bb0:
   dup 3
   dup 3
   or
-  jump bb9
-bb9:
+  jump bb8
+bb8:
   swap 3
   swap 1
   swap 2
   and
-  jump bb8
-bb8:
   push 128
   mstore
   push 160
@@ -82,7 +80,7 @@ bb2:
   dup 3
   dup 3
   add
-  jump bb9
+  jump bb8
 bb4:
   dup 1
   push 0x966953d1
@@ -104,7 +102,15 @@ bb4:
   swap 1
   swap 2
   or
-  jump bb8
+  push 128
+  mstore
+  push 160
+  mstore
+  push 192
+  mstore
+  push 96
+  push 128
+  return
 bb5:
   dup 1
   push 0x9ed41ba1
@@ -122,4 +128,4 @@ bb5:
   dup 3
   dup 3
   xor
-  jump bb9
+  jump bb8
