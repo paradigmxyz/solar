@@ -3,14 +3,12 @@
 @phase evm-shaped
 fn @full() [selector=0xd17b272f, view] {
   bb0:
-    jump bb14
-  bb14:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
     v2 = gas
     v71 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v185 = add v71, 64
-    mstore 64, v185 !metadata(memory=scratch)
+    v177 = add v71, 64
+    mstore 64, v177 !metadata(memory=scratch)
     mstore v71, 0xb3de648b00000000000000000000000000000000000000000000000000000000
     v72 = add v71, 4
     mstore v72, arg0
@@ -24,8 +22,8 @@ fn @full() [selector=0xd17b272f, view] {
   bb5:
     v21 = and v18, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v22 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v179 = add v22, v21
-    mstore 64, v179 !metadata(memory=scratch)
+    v180 = add v22, v21
+    mstore 64, v180 !metadata(memory=scratch)
     mstore v22, v17
     v169 = add v22, 32
     returndatacopy v169, 0, v17
@@ -68,15 +66,15 @@ fn @full() [selector=0xd17b272f, view] {
     v159 = add v157, 31
     v161 = and v159, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v162 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
-    v184 = add v162, v161
-    mstore 64, v184 !metadata(memory=scratch)
+    v185 = add v162, v161
+    mstore 64, v185 !metadata(memory=scratch)
     returndata v162, v157
   bb11:
     v51 = add v169, 4
     v53 = mload v51
     v118 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v182 = add v118, 64
-    mstore 64, v182 !metadata(memory=scratch)
+    v183 = add v118, 64
+    mstore 64, v183 !metadata(memory=scratch)
     mstore v118, 32
     v119 = add v118, 32
     mstore v119, v53
@@ -101,8 +99,8 @@ fn @full() [selector=0xd17b272f, view] {
     v137 = add v135, 31
     v139 = and v137, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v140 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
-    v183 = add v140, v139
-    mstore 64, v183 !metadata(memory=scratch)
+    v184 = add v140, v139
+    mstore 64, v184 !metadata(memory=scratch)
     returndata v140, v135
   bb8:
     v40 = add v169, 4
@@ -113,8 +111,8 @@ fn @full() [selector=0xd17b272f, view] {
   bb10:
     v47 = and v44, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v48 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v180 = add v48, v47
-    mstore 64, v180 !metadata(memory=scratch)
+    v181 = add v48, v47
+    mstore 64, v181 !metadata(memory=scratch)
     mstore v48, v41
     v173 = add v48, 32
     mcopy v173, v40, v41
@@ -141,8 +139,8 @@ fn @full() [selector=0xd17b272f, view] {
     v113 = add v111, 31
     v115 = and v113, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v116 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
-    v181 = add v116, v115
-    mstore 64, v181 !metadata(memory=scratch)
+    v182 = add v116, v115
+    mstore 64, v182 !metadata(memory=scratch)
     returndata v116, v111
   bb1:
     v7 = returndatasize
@@ -152,8 +150,8 @@ fn @full() [selector=0xd17b272f, view] {
   bb4:
     v11 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v12 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v177 = add v12, v11
-    mstore 64, v177 !metadata(memory=scratch)
+    v178 = add v12, v11
+    mstore 64, v178 !metadata(memory=scratch)
     mstore v12, v7
     v165 = add v12, 32
     returndatacopy v165, 0, v7
@@ -183,25 +181,21 @@ fn @full() [selector=0xd17b272f, view] {
     v91 = add v89, 31
     v93 = and v91, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v94 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
-    v178 = add v94, v93
-    mstore 64, v178 !metadata(memory=scratch)
+    v179 = add v94, v93
+    mstore 64, v179 !metadata(memory=scratch)
     returndata v94, v89
   bb3:
     tail_call @revert_stub
-  bb13:
-    invalid
 }
 
 fn @rethrows() [selector=0x0d7fadfb, view] {
   bb0:
-    jump bb12
-  bb12:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
     v2 = gas
     v57 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v73 = add v57, 64
-    mstore 64, v73 !metadata(memory=scratch)
+    v70 = add v57, 64
+    mstore 64, v70 !metadata(memory=scratch)
     mstore v57, 0xb3de648b00000000000000000000000000000000000000000000000000000000
     v58 = add v57, 4
     mstore v58, arg0
@@ -215,8 +209,8 @@ fn @rethrows() [selector=0x0d7fadfb, view] {
   bb6:
     v21 = and v18, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v22 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v71 = add v22, v21
-    mstore 64, v71 !metadata(memory=scratch)
+    v72 = add v22, v21
+    mstore 64, v72 !metadata(memory=scratch)
     mstore v22, v17
     v63 = add v22, 32
     returndatacopy v63, 0, v17
@@ -239,8 +233,8 @@ fn @rethrows() [selector=0x0d7fadfb, view] {
   bb10:
     v47 = and v44, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v48 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v72 = add v48, v47
-    mstore 64, v72 !metadata(memory=scratch)
+    v73 = add v48, v47
+    mstore 64, v73 !metadata(memory=scratch)
     mstore v48, v41
     v67 = add v48, 32
     mcopy v67, v40, v41
@@ -254,8 +248,8 @@ fn @rethrows() [selector=0x0d7fadfb, view] {
   bb5:
     v11 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v12 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v70 = add v12, v11
-    mstore 64, v70 !metadata(memory=scratch)
+    v71 = add v12, v11
+    mstore 64, v71 !metadata(memory=scratch)
     mstore v12, v7
     v60 = add v12, 32
     returndatacopy v60, 0, v7
@@ -267,8 +261,6 @@ fn @rethrows() [selector=0x0d7fadfb, view] {
     returndata 128, 32
   bb4:
     tail_call @revert_stub
-  bb11:
-    invalid
 }
 
 fn @try_decode_error_message(arg0: memptr, arg1: u256) -> bool {
@@ -334,7 +326,7 @@ fn @decode_aggregate.4(arg0: memptr) -> (u256, memptr) {
     v28 = lt v27, v20
     v29 = gt v27, 0xffffffffffffffff
     v30 = or v28, v29
-    jumpi v30, bb8, bb7
+    jumpi v30, bb4, bb7
   bb7:
     mstore 64, v27 !metadata(memory=scratch)
     mstore v20, v14
@@ -345,10 +337,6 @@ fn @decode_aggregate.4(arg0: memptr) -> (u256, memptr) {
     v24 = add v20, 32
     mcopy v24, v10, v14
     ret v6, v20
-  bb8:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -386,7 +374,7 @@ fn @decode_aggregate.5(arg0: memptr) -> memptr {
     v26 = lt v25, v18
     v27 = gt v25, 0xffffffffffffffff
     v28 = or v26, v27
-    jumpi v28, bb8, bb7
+    jumpi v28, bb4, bb7
   bb7:
     mstore 64, v25 !metadata(memory=scratch)
     mstore v18, v12
@@ -397,10 +385,6 @@ fn @decode_aggregate.5(arg0: memptr) -> memptr {
     v22 = add v18, 32
     mcopy v22, v8, v12
     ret v18
-  bb8:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)

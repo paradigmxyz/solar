@@ -201,7 +201,7 @@ fn @roundTrip() [selector=0x00746047, pure] {
     v206 = lt v205, v123
     v207 = gt v205, 0xffffffffffffffff
     v208 = or v206, v207
-    jumpi v208, bb48, bb47
+    jumpi v208, bb1, bb47
   bb47:
     mstore 64, v205 !metadata(memory=scratch)
     mstore v123, v113
@@ -309,8 +309,8 @@ fn @roundTrip() [selector=0x00746047, pure] {
     v210 = lt v209, v153
     v211 = gt v209, 0xffffffffffffffff
     v212 = or v210, v211
-    jumpi v212, bb50, bb49
-  bb49:
+    jumpi v212, bb1, bb48
+  bb48:
     mstore 64, v209 !metadata(memory=scratch)
     mstore v153, v143
     v154 = shl 5, v143
@@ -333,14 +333,6 @@ fn @roundTrip() [selector=0x00746047, pure] {
     v165 = add v134, 32
     v166 = add v135, 1
     jump bb36
-  bb50:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb48:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb7:
     v23 = shl 5, v21
     v25 = shr 5, v23
@@ -442,7 +434,7 @@ fn @decode_calldata_type(arg0: u256) -> memptr {
     v67 = lt v66, v26
     v68 = gt v66, 0xffffffffffffffff
     v69 = or v67, v68
-    jumpi v69, bb17, bb16
+    jumpi v69, bb5, bb16
   bb16:
     mstore 64, v66 !metadata(memory=scratch)
     mstore v26, v16
@@ -487,8 +479,8 @@ fn @decode_calldata_type(arg0: u256) -> memptr {
     v71 = lt v70, v50
     v72 = gt v70, 0xffffffffffffffff
     v73 = or v71, v72
-    jumpi v73, bb19, bb18
-  bb18:
+    jumpi v73, bb5, bb17
+  bb17:
     mstore 64, v70 !metadata(memory=scratch)
     mstore v50, v40
     v51 = sub v0, v36
@@ -506,14 +498,6 @@ fn @decode_calldata_type(arg0: u256) -> memptr {
     v56 = add v31, 32
     v57 = add v32, 1
     jump bb9
-  bb19:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb17:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)

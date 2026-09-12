@@ -27,7 +27,7 @@ fn @recover() [selector=0xce746024, pure] {
     v26 = lt v25, v3
     v27 = gt v25, 0xffffffffffffffff
     v28 = or v26, v27
-    jumpi v28, bb4, bb3
+    jumpi v28, bb2, bb3
   bb3:
     mstore 64, v25 !metadata(memory=scratch)
     v30 = calldatasize
@@ -40,10 +40,6 @@ fn @recover() [selector=0xce746024, pure] {
     v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffff
     mstore 128, v9
     returndata 128, 32
-  bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -76,7 +72,7 @@ fn @recoverInvalid() [selector=0x008f4bed, pure] {
     v25 = lt v24, v2
     v26 = gt v24, 0xffffffffffffffff
     v27 = or v25, v26
-    jumpi v27, bb4, bb3
+    jumpi v27, bb2, bb3
   bb3:
     mstore 64, v24 !metadata(memory=scratch)
     v29 = calldatasize
@@ -89,10 +85,6 @@ fn @recoverInvalid() [selector=0x008f4bed, pure] {
     v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffff
     mstore 128, v8
     returndata 128, 32
-  bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)

@@ -13,26 +13,18 @@ bb0:
   shr
   dup 1
   push 0xfaf4836c
-  eq
-  push bb1
+  sub
+  push bb3
   jumpi
-  push 0
-  push 0
-  revert
-bb4 [cold]:
-  push 0
-  push 0
-  revert
-bb1:
   push_immutable 0, 20
   address
   eq
-  push bb4
+  push bb3
   jumpi
   push 68
   calldatasize
   lt
-  push bb4
+  push bb3
   jumpi
   push 4
   calldataload
@@ -44,7 +36,7 @@ bb1:
   swap 1
   dup 2
   lt
-  push bb8
+  push bb7
   jumpi
   dup 1
   push 4
@@ -55,7 +47,11 @@ bb1:
   push 32
   push 128
   return
-bb8 [cold]:
+bb3 [cold]:
+  push 0
+  push 0
+  revert
+bb7 [cold]:
   push 0x4e487b71
   push 224
   shl
@@ -76,21 +72,13 @@ bb0:
   shr
   dup 1
   push 0x5e0b1cef
-  eq
-  push bb1
+  sub
+  push bb3
   jumpi
-  push 0
-  push 0
-  revert
-bb14 [cold]:
-  push 0
-  push 0
-  revert
-bb1:
   push_immutable 0, 20
   address
   eq
-  push bb14
+  push bb3
   jumpi
   push 160
   push 64
@@ -98,21 +86,25 @@ bb1:
   push 68
   calldatasize
   lt
-  push bb14
+  push bb3
   jumpi
   push 36
   calldataload
-  push bb8
+  push bb7
   jumpi
   push 0
-  jump bb15
-bb15:
+  jump bb13
+bb13:
   push 128
   mstore
   push 32
   push 128
   return
-bb8:
+bb3 [cold]:
+  push 0
+  push 0
+  revert
+bb7:
   push 64
   mload
   push 96
@@ -148,7 +140,7 @@ bb8:
   swap 1
   pop
   iszero
-  push bb12
+  push bb11
   jumpi
   returndatasize
   push 63
@@ -157,7 +149,7 @@ bb8:
   dup 2
   dup 2
   lt
-  push bb13
+  push bb12
   jumpi
   push 31
   not
@@ -191,11 +183,11 @@ bb8:
   push 32
   gt
   or
-  push bb14
+  push bb3
   jumpi
   mload
-  jump bb15
-bb12 [cold]:
+  jump bb13
+bb11 [cold]:
   returndatasize
   push 0
   push 0
@@ -203,7 +195,7 @@ bb12 [cold]:
   returndatasize
   push 0
   revert
-bb13 [cold]:
+bb12 [cold]:
   push 0x4e487b71
   push 224
   shl

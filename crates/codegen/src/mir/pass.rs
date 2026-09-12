@@ -257,6 +257,8 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &GasOnly::new(cse::Cse),
     &dce::Dce,
     &lower_dispatch::LowerDispatch,
+    // Hoisted ABI guards leave empty wrapper entries and unreachable reverts.
+    &cfg_simplify::CfgSimplify,
     // Dispatch can hoist a common ABI head-size guard out of every selector
     // wrapper. Remove the dead per-wrapper comparisons before frame lowering.
     &dce::Dce,
@@ -297,6 +299,9 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     // rewrites from reaching for values the scheduler would have to keep alive.
     &egraph::Egraph,
     &word_sequence::WordSequence,
+    // ABI and memory lowering leave dead guards and empty trampoline blocks.
+    // Clean them before EVM shaping isolates phi copies on critical edges.
+    &cfg_simplify::CfgSimplify,
     &lower_evm_shaped::LowerEvmShaped,
     // Reconstruct old induction values on exits before selecting physical stack order.
     &loop_exit_remat::LoopExitRemat,

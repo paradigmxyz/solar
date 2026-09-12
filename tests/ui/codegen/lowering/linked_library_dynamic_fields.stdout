@@ -10,22 +10,20 @@ bb0:
   eq
   push bb1
   jumpi
+  jump bb3
+bb3 [cold]:
   push 0
   push 0
   revert
 bb26 [cold]:
-  push 0
-  push 0
-  revert
-bb27 [cold]:
   push 0x4e487b71
   push 224
   shl
   push 0
   mstore
   push 65
-  jump bb28
-bb28 [cold]:
+  jump bb27
+bb27 [cold]:
   push 4
   mstore
   push 36
@@ -35,7 +33,7 @@ bb1:
   push_immutable 0, 20
   address
   eq
-  push bb26
+  push bb3
   jumpi
   push 320
   push 64
@@ -43,7 +41,7 @@ bb1:
   push 68
   calldatasize
   lt
-  push bb26
+  push bb3
   jumpi
   push 36
   calldataload
@@ -56,14 +54,14 @@ bb1:
   swap 1
   swap 2
   gt
-  push bb26
+  push bb3
   jumpi
   dup 1
   calldatasize
   sub
   push 128
   gt
-  push bb26
+  push bb3
   jumpi
   push 160
   dup 2
@@ -90,7 +88,7 @@ bb1:
   dup 4
   gt
   or
-  push bb26
+  push bb3
   jumpi
   calldataload
   dup 1
@@ -101,7 +99,7 @@ bb1:
   shr
   dup 3
   sub
-  push bb27
+  push bb26
   jumpi
   push 32
   dup 2
@@ -109,7 +107,7 @@ bb1:
   dup 2
   dup 2
   lt
-  push bb27
+  push bb26
   jumpi
   push 64
   mload
@@ -126,7 +124,7 @@ bb1:
   dup 3
   gt
   or
-  push bb27
+  push bb26
   jumpi
   push 64
   mstore
@@ -141,7 +139,7 @@ bb1:
   swap 1
   swap 3
   gt
-  push bb26
+  push bb3
   jumpi
   push 32
   dup 3
@@ -180,7 +178,7 @@ bb1:
   dup 4
   gt
   or
-  push bb26
+  push bb3
   jumpi
   calldataload
   push 63
@@ -189,7 +187,7 @@ bb1:
   dup 2
   dup 2
   lt
-  push bb27
+  push bb26
   jumpi
   push 31
   not
@@ -209,7 +207,7 @@ bb1:
   dup 3
   gt
   or
-  push bb27
+  push bb26
   jumpi
   push 64
   mstore
@@ -221,7 +219,7 @@ bb1:
   sub
   dup 3
   gt
-  push bb26
+  push bb3
   jumpi
   push 32
   dup 2
@@ -247,7 +245,7 @@ bb1:
   dup 1
   dup 5
   shr
-  push bb26
+  push bb3
   jumpi
   push 96
   dup 5
@@ -264,15 +262,15 @@ bb1:
   mload
   push 0
   exchange 2, 4
-  jump bb19
-bb19:
+  jump bb18
+bb18:
   dup 5
   mload
   dup 1
   mload
   dup 3
   lt
-  push bb23
+  push bb22
   jumpi
   swap 4
   mload
@@ -292,14 +290,14 @@ bb19:
   swap 1
   swap 2
   sub
-  push bb25
+  push bb24
   jumpi
   dup 3
   add
   swap 2
   dup 3
   lt
-  push bb25
+  push bb24
   jumpi
   mload
   push 0
@@ -324,7 +322,7 @@ bb19:
   push 32
   push 128
   return
-bb23:
+bb22:
   push 32
   add
   dup 2
@@ -350,7 +348,7 @@ bb23:
   swap 3
   or
   iszero
-  push bb25
+  push bb24
   jumpi
   swap 1
   dup 3
@@ -359,17 +357,17 @@ bb23:
   dup 3
   lt
   iszero
-  push bb19
+  push bb18
   jumpi
-  jump bb25
-bb25 [cold]:
+  jump bb24
+bb24 [cold]:
   push 0x4e487b71
   push 224
   shl
   push 0
   mstore
   push 17
-  jump bb28
+  jump bb27
 // === ROOT/tests/ui/codegen/lowering/linked_library_dynamic_fields.sol:C (runtime) ===
 @module C_runtime
 bb0:

@@ -1191,6 +1191,7 @@ impl AliasAnalysis {
                 if let Some(summary) =
                     self.call_summaries.as_deref().and_then(|summaries| summaries.get(function))
                 {
+                    effects.observes_gas = summary.may_observe_gas();
                     for space in [
                         AddressSpace::Memory,
                         AddressSpace::Storage,
@@ -1205,6 +1206,7 @@ impl AliasAnalysis {
                         }
                     }
                 } else {
+                    effects.observes_gas = true;
                     effects.read_any(AddressSpace::Memory);
                     effects.write_any(AddressSpace::Memory);
                     effects.read_any(AddressSpace::Storage);
@@ -1256,6 +1258,7 @@ impl AliasAnalysis {
                 if let Some(summary) =
                     self.call_summaries.as_deref().and_then(|summaries| summaries.get(function))
                 {
+                    effects.observes_gas = summary.may_observe_gas();
                     for space in [
                         AddressSpace::Memory,
                         AddressSpace::Storage,
@@ -1270,6 +1273,7 @@ impl AliasAnalysis {
                         }
                     }
                 } else {
+                    effects.observes_gas = true;
                     effects.read_any(AddressSpace::Memory);
                     effects.write_any(AddressSpace::Memory);
                     effects.read_any(AddressSpace::Storage);

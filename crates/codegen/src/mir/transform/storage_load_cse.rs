@@ -7,11 +7,11 @@
 //! writes while retaining every preserved bit. Calls and possible aliases
 //! invalidate both load and store facts. After a `gas` read, storage accesses
 //! remain explicit so a later `gas` read observes their cost and warmness
-//! effects.
+//! effects, including observations in predecessor blocks and transitive callees.
 
 use crate::mir::{
     BlockId, Function, InstId, InstKind, Module, StorageAlias, ValueId,
-    analysis::{Access, AddressSpace, AliasAnalysis, Liveness, Location},
+    analysis::{Access, AddressSpace, AliasAnalysis, CfgInfo, GasObservations, Liveness, Location},
     pass::{AnalysisManager, LivenessAnalysis, MirPass, run_function_pass_with_alias},
     utils as mir_utils,
 };
@@ -82,9 +82,10 @@ impl StorageLoadCseCx {
         state.replacements.clear();
         state.dead.clear();
 
+        let gas = GasObservations::new(func, &CfgInfo::new(func), self.alias.as_ref().unwrap());
         for block_id in func.blocks.indices() {
             state.cached_loads.clear();
-            self.process_block(func, block_id, liveness, state);
+            self.process_block(func, block_id, liveness, &gas, state);
         }
 
         if !state.replacements.is_empty() {
@@ -118,10 +119,11 @@ impl StorageLoadCseCx {
         func: &Function,
         block_id: BlockId,
         liveness: &Liveness,
+        gas: &GasObservations,
         state: &mut RunState,
     ) {
         let aa = self.alias.as_ref().expect("storage-load CSE alias snapshot is initialized");
-        let mut gas_observed = false;
+        let mut gas_observed = gas.at_entry(block_id);
         for (inst_idx, &inst_id) in func.blocks[block_id].instructions.iter().enumerate() {
             match &func.inst(inst_id).kind {
                 InstKind::SLoad(slot) => {
@@ -174,7 +176,7 @@ impl StorageLoadCseCx {
                         inst_id,
                         &state.replacements,
                     );
-                    if effects.observes_gas() {
+                    if gas.observes(inst_id) {
                         state.cached_loads.clear();
                         gas_observed = true;
                         continue;
