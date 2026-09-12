@@ -1563,15 +1563,27 @@ impl SymbolTables {
     }
 
     fn scope_at_position(&self, uri: &Url, position: Position) -> Option<ScopeId> {
-        self.file_scopes
-            .get(uri)?
-            .iter()
-            .copied()
-            .filter(|&scope_id| proto::range_contains(self.scopes[scope_id].range, position))
-            .min_by_key(|&scope_id| {
-                let (lines, chars) = proto::range_size_key(self.scopes[scope_id].range);
-                (lines, chars, u32::MAX - self.scope_depth(scope_id))
-            })
+        let scopes = self.file_scopes.get(uri)?;
+        let mut index =
+            scopes.partition_point(|&scope_id| self.scopes[scope_id].range.start <= position);
+        while index > 0 {
+            index -= 1;
+            let mut scope_id = scopes[index];
+            loop {
+                if proto::range_contains(self.scopes[scope_id].range, position) {
+                    return Some(scope_id);
+                }
+                let Some(parent) = self.scopes[scope_id].parent else { break };
+                scope_id = parent;
+            }
+            if index == 0
+                || self.scopes[scopes[index - 1]].range.start
+                    != self.scopes[scopes[index]].range.start
+            {
+                break;
+            }
+        }
+        None
     }
 
     fn visible_declaration_locations<'a>(
@@ -1601,15 +1613,6 @@ impl SymbolTables {
             scope = current.parent;
         }
         Vec::new()
-    }
-
-    fn scope_depth(&self, mut scope_id: ScopeId) -> u32 {
-        let mut depth = 0;
-        while let Some(parent) = self.scopes[scope_id].parent {
-            depth += 1;
-            scope_id = parent;
-        }
-        depth
     }
 
     fn member_completion_items(&self, uri: &Url, position: Position) -> Option<&[CompletionItem]> {
