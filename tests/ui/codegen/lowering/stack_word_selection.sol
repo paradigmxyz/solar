@@ -1,12 +1,12 @@
-//@ codegen-matrix: standard
-//@[gas] compile-flags: -Zdump=evm-ir
-//@[gas] filecheck:
+//@ codegen-matrix: standard ir
+//@[ir] compile-flags: -Ogas -Zdump=evm-ir-runtime
+//@[ir] filecheck:
 // CHECK-LABEL: @module StackWords_runtime
 // CHECK: xor
 // CHECK-NEXT: dup 1
 // CHECK-NEXT: dup 3
 // CHECK-NEXT: sub
-// CHECK: or
+// CHECK: {{^ *}}or{{$}}
 // CHECK-NEXT: dup 2
 // CHECK-NEXT: dup 2
 // CHECK-NEXT: sub
