@@ -190,6 +190,11 @@ enum OperandKey {
 
 type MemRangeKey = MemoryLocation;
 
+/// Live-in words below which a loop-varying read is reused across one edge
+/// instead of reloaded: the `DUP` reach less room for the block's own
+/// temporaries.
+const DIRECT_REUSE_LIVE_BUDGET: usize = 12;
+
 /// What decides whether a dominated block should reuse a cheap memory read
 /// instead of reloading it.
 struct MemoryReuseFacts {
@@ -642,6 +647,15 @@ impl CommonSubexprEliminator {
             return true;
         }
         if facts.liveness.live_in(block).contains(cached) {
+            return true;
+        }
+        // The word crosses exactly one edge from its defining block, as after
+        // a compare-and-branch on it; the scheduler keeps it resident when few
+        // other words are live here.
+        if let Some(&home) = facts.definitions.get(cached_inst)
+            && ctx.predecessors[block].contains(&home)
+            && facts.liveness.live_in(block).count() < DIRECT_REUSE_LIVE_BUDGET
+        {
             return true;
         }
         kind.operands().into_iter().all(|operand| match func.value(operand) {
