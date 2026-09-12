@@ -545,6 +545,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 (entry, guard)
             })
             .collect();
+        let gcx = self.gcx;
         let free_memory_floor =
             |entry: FunctionId, entry_ends: &FxHashMap<FunctionId, u64>, region_start: u64| {
                 let mut floor = entry_ends.get(&entry).copied().unwrap_or(low_memory_end);
@@ -554,7 +555,13 @@ impl<'gcx> EvmCodegen<'gcx> {
                     floor = floor.max(region_start + span);
                 }
                 if let Some(&guard) = reachable_heap_prefix_guards.get(&entry) {
-                    floor = floor.checked_add(guard).expect("runtime heap prefix overflow");
+                    floor = floor.checked_add(guard).unwrap_or_else(|| {
+                        gcx.dcx()
+                            .err("runtime heap prefix exceeds the addressable memory range")
+                            .span(module.functions[entry].name_span)
+                            .emit();
+                        floor
+                    });
                 }
                 floor.max(low_memory_end)
             };
@@ -714,7 +721,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                 guard = guard.max(prefix);
             }
         });
-        guard.next_multiple_of(EvmMemoryLayout::WORD_SIZE)
+        // Saturation forces the heap-floor addition to report an unrepresentable prefix.
+        guard.checked_next_multiple_of(EvmMemoryLayout::WORD_SIZE).unwrap_or(u64::MAX)
     }
 
     /// Propagates known heap offsets through actual arguments and helper returns.
@@ -887,10 +895,13 @@ impl<'gcx> EvmCodegen<'gcx> {
                 return None;
             }
             let prefix = derive(base, visiting, memo)?;
+            if prefix == u64::MAX {
+                return Some(prefix);
+            }
             if let Some(forward) = u256_to_u64(adjustment) {
                 Some(prefix.saturating_sub(forward))
             } else {
-                prefix.checked_add(u256_to_u64(U256::ZERO.wrapping_sub(adjustment))?)
+                Some(prefix.saturating_add(u256_to_u64(U256::ZERO.wrapping_sub(adjustment))?))
             }
         };
         let offset = (|| match func.value(value) {
@@ -942,11 +953,11 @@ impl<'gcx> EvmCodegen<'gcx> {
                     } else {
                         u256_to_u64(!mask)?
                     };
-                    derive(base, visiting, memo)?.checked_add(padding)
+                    Some(derive(base, visiting, memo)?.saturating_add(padding))
                 }
                 InstKind::Shl(..) | InstKind::Mul(..) => {
                     let (base, padding) = Self::heap_prefix_alignment(func, value)?;
-                    derive(base, visiting, memo)?.checked_add(padding)
+                    Some(derive(base, visiting, memo)?.saturating_add(padding))
                 }
                 InstKind::WordCast(base) | InstKind::MemoryObjectFromPtr { ptr: base, .. } => {
                     derive(*base, visiting, memo)
@@ -1310,6 +1321,15 @@ mod tests {
         // hash(prefix, 32)
         FunctionBuilder::new(&mut function).keccak256(prefix, word);
         assert_eq!(EvmCodegen::heap_prefix_guard(&function, None, &FxHashMap::default()), 32);
+
+        // oversized = base - u64::MAX - 32
+        // mload oversized
+        let mut builder = FunctionBuilder::new(&mut function);
+        let maximum = builder.imm(u64::MAX);
+        let oversized = builder.sub(base, maximum);
+        let oversized = builder.sub(oversized, word);
+        builder.mload(oversized);
+        assert_eq!(EvmCodegen::heap_prefix_guard(&function, None, &FxHashMap::default()), u64::MAX);
     }
 
     #[test]

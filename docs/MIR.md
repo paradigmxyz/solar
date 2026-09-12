@@ -547,7 +547,8 @@ and right/left shifts retain the same alignment bound. Scalar helper parameters 
 heap provenance from actual call arguments; helper results retain the offsets
 of their returned values. Unknown scalar arithmetic cannot create a heap origin.
 Forward offsets reduce the required prefix, but never below zero. This analysis
-covers constant working prefixes, not arbitrary unbounded assembly pointer arithmetic. Allocation
+covers constant working prefixes, not arbitrary unbounded assembly pointer arithmetic.
+A prefix that cannot fit in the address space produces a codegen diagnostic. Allocation
 coalescing uses the same address-range proof as alias analysis when crossing
 memory accesses; a pointer type alone cannot establish that they avoid the FMP.
 An allocation marked `preserves_fmp` must keep
