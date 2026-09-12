@@ -955,11 +955,17 @@ pub(crate) fn signature_help(
     let params = params.text_document_position_params;
     let response = crate::proto::vfs_path(&params.text_document.uri).and_then(|path| {
         let source = state.vfs.read().get_file_source(&path)?;
+        let cursor = source
+            .positions()
+            .text_range(lsp_types::Range::new(params.position, params.position))
+            .start;
+        let statement_boundary = Some(source.statement_boundary(cursor));
         state.symbol_tables.load().signature_help(
             &params.text_document.uri,
             params.position,
             source.positions(),
             &source.source(),
+            statement_boundary,
             state.config.signature_help_options(),
         )
     });
