@@ -1,3 +1,15 @@
+error: unresolved symbol `Missing`
+   ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
+   │
+LL │     function f(Missing) internal {}
+   ╰╴               ━━━━━━━
+
+error: unresolved symbol `Missing`
+   ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
+   │
+LL │     function f(Missing) internal {}
+   ╰╴               ━━━━━━━
+
 error: event with same name and parameter types declared twice
    ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
    │
@@ -241,5 +253,65 @@ note: other declaration
 LL │     event E5();
    ╰╴          ━━
 
-error: aborting due to 19 previous errors
+error: function with same name and parameter types declared twice
+   ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
+   │
+LL │     function f(uint) internal pure returns (uint) { return 0; }
+   │              ━
+   ╰╴
+note: other declaration
+   ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
+   │
+LL │     function f(uint) internal view returns (bytes32) { return 0; }
+   ╰╴             ━
+
+error: function with same name and parameter types declared twice
+   ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
+   │
+LL │     function f(bytes calldata) internal view {}
+   │              ━
+   ╰╴
+note: other declaration
+   ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
+   │
+LL │     function f(bytes memory) internal pure {}
+   ╰╴             ━
+
+error: event with same name and parameter types declared twice
+   ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
+   │
+LL │     event Interleaved(uint);
+   │           ━━━━━━━━━━━
+   ╰╴
+note: other declaration
+   ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
+   │
+LL │     event Interleaved(uint indexed) anonymous;
+   ╰╴          ━━━━━━━━━━━
+
+error: event with same name and parameter types declared twice
+   ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
+   │
+LL │     event Interleaved(bytes);
+   │           ━━━━━━━━━━━
+   ╰╴
+note: other declaration
+   ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
+   │
+LL │     event Interleaved(bytes indexed);
+   ╰╴          ━━━━━━━━━━━
+
+error: function with same name and parameter types declared twice
+   ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
+   │
+LL │     function f(Missing) internal {}
+   │              ━
+   ╰╴
+note: other declaration
+   ╭▸ ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
+   │
+LL │     function f(Missing) internal {}
+   ╰╴             ━
+
+error: aborting due to 26 previous errors
 
