@@ -1,7 +1,7 @@
 //! Signature help data collected from compiler analysis.
 
 use crate::{config::SignatureHelpClientOptions, proto};
-use crop::Rope;
+use crop::{Rope, RopeSlice};
 use lsp_types::{
     Documentation, Location, MarkupContent, MarkupKind, ParameterInformation, ParameterLabel,
     Position, Range, SignatureHelp, SignatureInformation, Url,
@@ -22,6 +22,7 @@ use std::{borrow::Cow, fmt::Write, ops::ControlFlow, sync::Arc};
 #[derive(Clone, Debug, Default)]
 pub(crate) struct SignatureHelpIndex {
     calls: FxHashMap<Url, Vec<CallSite>>,
+    calls_by_open: FxHashMap<Url, FxHashMap<Position, Vec<usize>>>,
     callables_by_name: FxHashMap<String, Vec<CatalogEntry>>,
     signatures_by_label: FxHashMap<String, Vec<Arc<CallSignature>>>,
 }
@@ -84,6 +85,7 @@ impl SignatureHelpIndex {
         for calls in index.calls.values_mut() {
             calls.sort_by_key(|call| proto::range_size_key(call.range));
         }
+        index.rebuild_calls_by_open();
         index
     }
 
@@ -103,23 +105,38 @@ impl SignatureHelpIndex {
                 self.push_callable(name.clone(), entry.location, entry.form, entry.signature);
             }
         }
+        self.rebuild_calls_by_open();
     }
 
+    fn rebuild_calls_by_open(&mut self) {
+        self.calls_by_open.clear();
+        for (uri, calls) in &self.calls {
+            let by_open = self.calls_by_open.entry(uri.clone()).or_default();
+            for (index, call) in calls.iter().enumerate() {
+                by_open.entry(call.range.start).or_default().push(index);
+            }
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn signature_help<'a>(
         &self,
         uri: &Url,
         position: Position,
         positions: &proto::LspPositionIndex<Rope>,
         source: &str,
+        statement_boundary: Option<usize>,
         visible_declarations: impl FnOnce(&str) -> Vec<&'a Location>,
         options: SignatureHelpClientOptions,
     ) -> Option<SignatureHelp> {
-        let contents = positions.rope();
         let cursor = positions.text_range(Range::new(position, position)).start;
-        let context = call_context(&source[..cursor])?;
+        let context = call_context_with_boundary(&source[..cursor], statement_boundary)?;
+        // Earlier-line edits can change byte offsets while preserving the cached LSP position.
+        let open = positions.position_at_byte(context.open)?;
         let call = self.calls.get(uri).and_then(|calls| {
-            calls.iter().find(|call| {
-                // Reject unrelated callables before converting their source positions.
+            let indices = self.calls_by_open.get(uri)?.get(&open)?;
+            indices.iter().map(|&index| &calls[index]).find(|call| {
+                // Reject unrelated callables before validating their current source text.
                 call.form == context.form
                     && call
                         .callee_tokens
@@ -127,10 +144,7 @@ impl SignatureHelpIndex {
                         .map(String::as_str)
                         .filter(|token| is_identifier(token))
                         == context.callee_name
-                    && valid_text_position(contents, call.range.start)
-                    && positions.text_range(Range::new(call.range.start, call.range.start)).start
-                        == context.open
-                    && call.matches_current_callee(positions)
+                    && call.matches_current_callee(positions, source)
             })
         });
         let (mut signatures, fallback): (Vec<&CallSignature>, _) = if let Some(call) = call {
@@ -227,7 +241,12 @@ impl SignatureHelpIndex {
         let signature = self.intern_signature(signature);
         let entries = self.callables_by_name.entry(name).or_default();
         if !entries.iter().any(|entry| {
-            entry.location == location && entry.form == form && entry.signature == signature
+            // Most same-name declarations differ in range; compare it before their longer URI.
+            entry.form == form
+                && entry.location.as_ref().map(|location| location.range)
+                    == location.as_ref().map(|location| location.range)
+                && entry.location == location
+                && entry.signature == signature
         }) {
             entries.push(CatalogEntry { location, form, signature });
         }
@@ -279,31 +298,49 @@ impl SignatureHelpIndex {
 }
 
 impl CallSite {
-    fn matches_current_callee(&self, positions: &proto::LspPositionIndex<Rope>) -> bool {
+    fn matches_current_callee(
+        &self,
+        positions: &proto::LspPositionIndex<Rope>,
+        source: &str,
+    ) -> bool {
         let contents = positions.rope();
-        if !valid_text_position(contents, self.callee_range.start)
-            || !valid_text_position(contents, self.callee_range.end)
-        {
+        if !valid_text_range(contents, self.callee_range) {
             return false;
         }
         let range = positions.text_range(self.callee_range);
         if range.start > range.end {
             return false;
         }
-        let current = contents.byte_slice(range).to_string();
-        significant_token_slices(&current).eq(self.callee_tokens.iter().map(String::as_str))
+        // The source and position index belong to the same immutable document snapshot.
+        source.get(range).is_some_and(|current| {
+            significant_token_slices(current).eq(self.callee_tokens.iter().map(String::as_str))
+        })
     }
 }
 
-fn valid_text_position(rope: &Rope, position: Position) -> bool {
-    let line = position.line as usize;
-    if line >= rope.line_len() {
+fn valid_text_range(rope: &Rope, range: Range) -> bool {
+    let start_line = range.start.line as usize;
+    let end_line = range.end.line as usize;
+    if start_line >= rope.line_len() || end_line >= rope.line_len() {
         return false;
     }
-    let line = rope.line(line);
-    let character = position.character as usize;
+    let line = rope.line(start_line);
+    valid_text_column(&line, range.start.character)
+        && if start_line == end_line {
+            valid_text_column(&line, range.end.character)
+        } else {
+            valid_text_column(&rope.line(end_line), range.end.character)
+        }
+}
+
+fn valid_text_column(line: &RopeSlice<'_>, character: u32) -> bool {
+    let character = character as usize;
     if character > line.utf16_len() {
         return false;
+    }
+    // Every byte on an ASCII line is a complete UTF-16 code unit.
+    if line.byte_len() == line.utf16_len() {
+        return true;
     }
     let byte = line.byte_of_utf16_code_unit(character);
     line.utf16_code_unit_of_byte(byte) == character
@@ -782,6 +819,9 @@ fn convert_documentation_to_markdown(documentation: &mut Option<Documentation>) 
 }
 
 fn deduplicate_signatures(signatures: &mut Vec<&CallSignature>) {
+    if signatures.len() < 2 {
+        return;
+    }
     let mut unique = Vec::with_capacity(signatures.len());
     for signature in signatures.drain(..) {
         if !unique.contains(&signature) {
@@ -812,6 +852,9 @@ fn use_simple_parameter_labels(signature: &mut SignatureInformation) {
 }
 
 fn utf16_slice(value: &str, start: u32, end: u32) -> Option<&str> {
+    if value.is_ascii() {
+        return value.get(start as usize..end as usize);
+    }
     let mut utf16 = 0u32;
     let mut start_byte = None;
     let mut end_byte = None;
@@ -849,9 +892,44 @@ struct DelimiterFrame {
     open: usize,
 }
 
+/// Semicolon-token offsets collected on demand from one immutable source snapshot.
+///
+/// Forward requests extend the scanned prefix; backward requests use binary search. Ordinary
+/// code is scanned in bulk, and the lexer skips strings and comments so their semicolons cannot
+/// become boundaries. A skipped token may end beyond the requested cursor, but contains no
+/// semicolon tokens. The index must never be reused with different source contents.
+#[derive(Default)]
+pub(crate) struct StatementBoundaryIndex {
+    boundaries: Vec<usize>,
+    scanned: usize,
+}
+
+impl StatementBoundaryIndex {
+    pub(crate) fn at(&mut self, source: &str, cursor: usize) -> usize {
+        let bytes = source.as_bytes();
+        while self.scanned < cursor {
+            let start = self.scanned;
+            let next = memchr::memchr3(b'\'', b'"', b'/', &bytes[start..cursor])
+                .map_or(cursor, |offset| start + offset);
+            self.boundaries.extend(
+                memchr::memchr_iter(b';', &bytes[start..next]).map(|offset| start + offset),
+            );
+            self.scanned = if next == cursor {
+                cursor
+            } else {
+                // Finish this token using the full snapshot, so the next query never resumes
+                // inside a string or comment, even when this cursor lies inside that token.
+                next + Cursor::new(&source[next..]).slop().len as usize
+            };
+        }
+        let end = self.boundaries.partition_point(|&boundary| boundary < cursor);
+        end.checked_sub(1).map_or(0, |index| self.boundaries[index])
+    }
+}
+
 /// Finds the last semicolon token, where call-context tracking resets.
 /// Retain the token itself as the barrier for backward call-form lookup.
-fn last_statement_boundary(text: &str) -> usize {
+pub(crate) fn last_statement_boundary(text: &str) -> usize {
     let bytes = text.as_bytes();
     let mut cursor = 0;
     let mut boundary = 0;
@@ -870,10 +948,22 @@ fn last_statement_boundary(text: &str) -> usize {
     }
 }
 
+#[cfg(test)]
 fn call_context(text: &str) -> Option<CallContext<'_>> {
+    call_context_with_boundary(text, None)
+}
+
+/// Finds call context using a previously computed statement boundary when available.
+///
+/// The boundary is only reused when supplied by the exact source snapshot that owns the request;
+/// callers must compute it for the current cursor and leave it as `None` without that snapshot.
+fn call_context_with_boundary(
+    text: &str,
+    statement_boundary: Option<usize>,
+) -> Option<CallContext<'_>> {
     let mut frames = Vec::<DelimiterFrame>::new();
     let mut significant = Vec::<(usize, usize)>::new();
-    let boundary = last_statement_boundary(text);
+    let boundary = statement_boundary.unwrap_or_else(|| last_statement_boundary(text));
 
     for (start, token) in Cursor::new(&text[boundary..]).with_position() {
         let start = boundary + start;
@@ -919,7 +1009,8 @@ fn call_context(text: &str) -> Option<CallContext<'_>> {
         if callee_name.is_some() && is_declaration_head(text, &significant, head_index) {
             continue;
         }
-        let arguments = text.get(frame.open + 1..)?;
+        // The opening parenthesis follows the callee head in the significant token stream.
+        let arguments = &significant[head_index + 2..];
         return Some(CallContext {
             open: frame.open,
             callee_name,
@@ -928,24 +1019,20 @@ fn call_context(text: &str) -> Option<CallContext<'_>> {
                 .checked_sub(1)
                 .and_then(|index| significant.get(index))
                 .is_some_and(|&(start, end)| &text[start..end] == "."),
-            active_argument: scan_active_argument(arguments),
+            active_argument: scan_active_argument(text, arguments),
         });
     }
     None
 }
 
-fn scan_active_argument(text: &str) -> ActiveArgument<'_> {
+fn scan_active_argument<'a>(text: &'a str, tokens: &[(usize, usize)]) -> ActiveArgument<'a> {
     let mut commas = 0;
     let mut frames = Vec::<char>::new();
     let mut first_significant = None;
     let mut named = false;
     let mut segment_start = 0;
-    for (start, token) in Cursor::new(text).with_position() {
-        let end = start + token.len as usize;
+    for (index, &(start, end)) in tokens.iter().enumerate() {
         let lexeme = &text[start..end];
-        if token.kind.is_trivial() {
-            continue;
-        }
         if first_significant.is_none() {
             first_significant = Some(lexeme);
             named = lexeme == "{";
@@ -965,20 +1052,17 @@ fn scan_active_argument(text: &str) -> ActiveArgument<'_> {
             }
             "," if frames.is_empty() || named && frames.as_slice() == ['{'] => {
                 commas += 1;
-                segment_start = end;
+                segment_start = index + 1;
             }
             _ => {}
         }
     }
-    let name = named.then(|| named_argument_name(text.get(segment_start..)?)).flatten();
+    let name = named.then(|| named_argument_name(text, &tokens[segment_start..])).flatten();
     ActiveArgument { ordinal: commas, name }
 }
 
-fn named_argument_name(text: &str) -> Option<&str> {
-    let mut tokens = Cursor::new(text)
-        .with_position()
-        .filter(|(_, token)| !token.kind.is_trivial())
-        .map(|(start, token)| &text[start..start + token.len as usize]);
+fn named_argument_name<'a>(text: &'a str, tokens: &[(usize, usize)]) -> Option<&'a str> {
+    let mut tokens = tokens.iter().map(|&(start, end)| &text[start..end]);
     let mut name = tokens.next()?;
     if name == "{" {
         name = tokens.next()?;
@@ -1113,6 +1197,7 @@ mod tests {
         for left in fragments {
             for right in fragments {
                 let text = format!("{left}{right}; tail(");
+                let mut index = StatementBoundaryIndex::default();
                 for cursor in 0..=text.len() {
                     if !text.is_char_boundary(cursor) {
                         continue;
@@ -1125,6 +1210,16 @@ mod tests {
                         .last()
                         .unwrap_or(0);
                     assert_eq!(last_statement_boundary(prefix), expected, "{prefix:?}");
+                    assert_eq!(index.at(&text, cursor), expected, "{prefix:?}");
+                }
+                for cursor in (0..=text.len()).rev() {
+                    if text.is_char_boundary(cursor) {
+                        assert_eq!(
+                            index.at(&text, cursor),
+                            last_statement_boundary(&text[..cursor]),
+                            "backward cursor {cursor} in {text:?}"
+                        );
+                    }
                 }
             }
         }
@@ -1198,6 +1293,52 @@ mod tests {
     }
 
     #[test]
+    fn callee_positions_reject_invalid_utf16_columns() {
+        for source in ["", "abc", "abc\n", "abc\r\ndef", "abc\rdef", "é😀x\nabc"] {
+            let rope = Rope::from(source);
+            for line_index in 0..=rope.line_len() {
+                let valid_columns = if line_index < rope.line_len() {
+                    let mut columns = vec![0];
+                    let mut utf16 = 0;
+                    for ch in rope.line(line_index).chars() {
+                        utf16 += ch.len_utf16();
+                        columns.push(utf16 as u32);
+                    }
+                    columns
+                } else {
+                    Vec::new()
+                };
+                for column in 0..=source.len() as u32 + 1 {
+                    let position = Position::new(line_index as u32, column);
+                    assert_eq!(
+                        valid_text_range(&rope, Range::new(position, position)),
+                        valid_columns.contains(&column),
+                        "{source:?} at {position:?}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn parameter_label_slices_preserve_utf16_boundaries() {
+        for (source, start, end, expected) in [
+            ("uint256 amount", 0, 7, Some("uint256")),
+            ("uint256 amount", 8, 14, Some("amount")),
+            ("uint256 amount", 14, 14, Some("")),
+            ("uint256 amount", 8, 15, None),
+            ("uint256 amount", 7, 0, None),
+            ("", 0, 0, Some("")),
+            ("é😀value", 1, 3, Some("😀")),
+            ("é😀value", 3, 8, Some("value")),
+            ("é😀value", 2, 3, None),
+            ("é😀value", 1, 2, None),
+        ] {
+            assert_eq!(utf16_slice(source, start, end), expected);
+        }
+    }
+
+    #[test]
     fn stale_callee_range_splitting_a_surrogate_pair_is_rejected() {
         let call = CallSite {
             range: Range::default(),
@@ -1208,7 +1349,10 @@ mod tests {
         };
 
         assert!(
-            !call.matches_current_callee(&proto::LspPositionIndex::from_rope(Rope::from("😀f")))
+            !call.matches_current_callee(
+                &proto::LspPositionIndex::from_rope(Rope::from("😀f")),
+                "😀f"
+            )
         );
     }
 
@@ -1222,6 +1366,8 @@ mod tests {
             signatures: Vec::new(),
         };
 
-        assert!(!call.matches_current_callee(&proto::LspPositionIndex::from_rope(Rope::from("f"))));
+        assert!(
+            !call.matches_current_callee(&proto::LspPositionIndex::from_rope(Rope::from("f")), "f")
+        );
     }
 }

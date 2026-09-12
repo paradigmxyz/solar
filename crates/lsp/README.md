@@ -38,7 +38,7 @@ default; when neither is configured, Forge is resolved as `forge` through `PATH`
 Run the LSP benchmarks locally with:
 
 ```console
-cargo bench -p solar-lsp --bench lsp --features bench
+cargo bench -p solar-lsp --bench lsp --bench lsp_diagnostic --features bench
 ```
 
 The current suite measures in-memory project analysis, edits, and queries. Loading manifests and
@@ -57,8 +57,43 @@ The benchmark groups intentionally keep separate timing boundaries:
 - `project-analysis` and `project-analysis-after-edit` measure compiler and symbol-table rebuilds.
 - `project-edit-application` measures UTF-16 document edit application without analysis.
 - `symbol-table-queries` measures synchronous query kernels, not complete LSP request latency.
+- `call-hierarchy-request` measures warm prepare, incoming, and outgoing requests through the
+  production handlers on the tracked Unifap project. Parameters are cloned into owned requests;
+  snapshot lookup, response construction, and response destruction are timed. Transport, JSON
+  encoding, analysis, and waiting for in-progress analysis are excluded.
+- `call-hierarchy-expand` follows the router's transfer helper to both liquidity callers, expands
+  their outgoing calls, and follows the helper to the ERC20 interface. Results are per five-request
+  burst. Preflight checks pin callable identities, grouped call-site ranges, and expanded targets.
+- `call-hierarchy-first-request` includes lazy query-index construction in the first prepare after
+  analysis. Cloning the semantic snapshot and destroying the snapshot and response are untimed.
+  Compare this group against its own baseline, separately from repeated request latency.
+- `code-lens` measures repeated queries, including response destruction. The separate
+  `code-lens-first-request` group clones an unqueried analysis snapshot outside timing and
+  includes the first query's reference-count initialization; snapshot and response destruction
+  stay outside timing. Compare each group's results against its own baseline.
 - `open-document-selection-range` measures repeated selection queries through the VFS snapshot,
   including UTF-16 conversion and response construction. It covers start, middle, and end positions
   in an unchanged document and multiple cursors, excluding transport and blocking-pool scheduling.
 - `open-document-selection-range-cold` includes the first request's parsing and index construction;
   preparing and destroying the open document stays outside timing.
+- `rename` includes the production handler, source validation, blocking task, and edit construction.
+  Its `optimism-predeploys` case renames the `getName` argument at all 31 occurrences in the original
+  self-contained Predeploys module extracted from `testdata/Optimism.sol`. The corresponding
+  `project-analysis/optimism-predeploys` case measures fresh analysis. These cover one real module;
+  the full flattened Optimism corpus contains conflicting dependency versions and is used only for
+  source-level workloads, such as folding and selection ranges.
+- `signature-help` measures repeated requests at one cursor through the production handler.
+  `signature-help-moving-cursor` cycles through arguments and calls in generated contracts and the
+  tracked Unifap router, including snapshot lookup, position conversion, and response destruction.
+  Results are per burst; throughput counts requests. Transport and compiler analysis are excluded.
+- `signature-help-first-request` and `signature-help-first-after-edit` measure an early or late
+  request with fresh document caches. The edited case appends whitespace while retaining analysis,
+  exercising signature help before reanalysis. Preparing and destroying snapshots is untimed.
+- `single-workspace-reverted-edit` measures applying and undoing an edit followed by a complete
+  production analysis epoch, including dependency validation and publication. `single-workspace-open-indexed`
+  opens a disk-identical root after initial indexing; setup and destruction are untimed.
+  Both cover 256 generated callers with a disk import and the tracked Unifap router's import
+  closure copied beneath an excluded `lib/` directory. `single-workspace-cold`,
+  `single-workspace-changed`, and `single-workspace-unchanged` provide first-analysis, changed-text,
+  and unchanged-epoch controls. These include synchronous filesystem validation and compiler work;
+  they exclude protocol transport, debounce, and blocking-pool scheduling.

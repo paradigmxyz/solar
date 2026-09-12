@@ -353,9 +353,10 @@ mod workspace;
 #[cfg(feature = "bench")]
 #[doc(hidden)]
 pub use global_state::benchmark::{
-    BenchmarkAnalysis, BenchmarkDocumentChange, BenchmarkDocumentUpdate, BenchmarkEdit,
-    BenchmarkError, BenchmarkFoldingRangeRequests, BenchmarkOpenDocuments, BenchmarkProject,
-    BenchmarkRepeatedAnalysis, BenchmarkRequest, BenchmarkResponse,
+    BenchmarkAnalysis, BenchmarkCallHierarchyRequests, BenchmarkCodeActionRequests,
+    BenchmarkDocumentChange, BenchmarkDocumentUpdate, BenchmarkEdit, BenchmarkError,
+    BenchmarkFoldingRangeRequests, BenchmarkOpenDocuments, BenchmarkProject,
+    BenchmarkRenameRequests, BenchmarkRepeatedAnalysis, BenchmarkRequest, BenchmarkResponse,
     BenchmarkSelectionRangeRequests, BenchmarkSignatureHelpRequests, BenchmarkWorkspaceDiscovery,
     BenchmarkWorkspacePathQueries, BenchmarkWorkspaceReports,
 };
@@ -379,6 +380,17 @@ pub fn benchmark_folding_ranges(source: String) -> Vec<lsp_types::FoldingRange> 
 #[doc(hidden)]
 pub fn benchmark_folding_ranges_from_rope(source: crop::Rope) -> Vec<lsp_types::FoldingRange> {
     folding_range::folding_ranges_from_rope(source)
+}
+
+/// Converts repeated compiler diagnostics for a source file for Criterion benchmarks.
+#[cfg(feature = "bench")]
+#[doc(hidden)]
+pub fn benchmark_diagnostic_conversion(
+    source: String,
+    diagnostic_count: usize,
+    cached: bool,
+) -> usize {
+    proto::benchmark_diagnostic_conversion(source, diagnostic_count, cached)
 }
 
 /// Runs the selection-range kernel for Criterion benchmarks.

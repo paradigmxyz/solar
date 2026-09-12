@@ -21,7 +21,7 @@ use solar_sema::{
     Gcx,
     hir::{self, ItemId, VariableId},
 };
-use std::{collections::hash_map::Entry, path::PathBuf, sync::Arc};
+use std::{borrow::Cow, path::PathBuf, sync::Arc};
 
 newtype_index! {
     /// A file-local import alias in the rename index.
@@ -74,11 +74,40 @@ pub(crate) struct RenameIndex {
     analyzed_contents: FxHashMap<Url, Arc<String>>,
     conflicting_contents: FxHashSet<Url>,
     symbol_targets: FxHashSet<SymbolId>,
+    family_targets: FxHashMap<SymbolId, Vec<RenameTarget>>,
     yul_symbol_targets: FxHashSet<SymbolId>,
     occurrences: Vec<RenameOccurrence>,
-    file_occurrences: FxHashMap<Url, Vec<usize>>,
+    file_occurrences: FxHashMap<Url, OccurrenceIndex>,
     target_occurrences: FxHashMap<RenameTarget, Vec<usize>>,
     ambiguous_targets: FxHashSet<RenameTarget>,
+}
+
+/// Start-sorted occurrence indexes with a prefix maximum end for point queries.
+#[derive(Clone, Debug, Default)]
+struct OccurrenceIndex {
+    entries: Vec<usize>,
+    prefix_max_end: Vec<Position>,
+}
+
+impl OccurrenceIndex {
+    fn rebuild(&mut self, occurrences: &[RenameOccurrence]) {
+        // `normalize_occurrences` orders the global list by URI and range before these
+        // per-file indexes are populated, so the entries are already start-sorted.
+        debug_assert!(self.entries.windows(2).all(|pair| {
+            let lhs = occurrences[pair[0]].location.range;
+            let rhs = occurrences[pair[1]].location.range;
+            (lhs.start, lhs.end, pair[0]) <= (rhs.start, rhs.end, pair[1])
+        }));
+
+        self.prefix_max_end.clear();
+        self.prefix_max_end.reserve(self.entries.len());
+        let mut max_end = None;
+        for &index in &self.entries {
+            let end = occurrences[index].location.range.end;
+            max_end = Some(max_end.map_or(end, |max_end: Position| max_end.max(end)));
+            self.prefix_max_end.push(max_end.unwrap());
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -265,97 +294,6 @@ impl RenameIndex {
         bindings
     }
 
-    pub(crate) fn build_natspec(
-        &mut self,
-        gcx: Gcx<'_>,
-        locations: &proto::LocationConverter,
-        bindings: &ImportBindings,
-        item_symbols: &FxHashMap<ItemId, SymbolId>,
-        declarations: &IndexVec<SymbolId, DeclarationSymbol>,
-    ) {
-        for item_id in gcx.hir.item_ids() {
-            let item = gcx.hir.item(item_id);
-            let doc_id = item.doc();
-            if doc_id.is_empty() {
-                continue;
-            }
-            let ast_comments = gcx.hir.doc(doc_id).ast_comments();
-
-            for natspec in gcx.natspec_doc_comments(doc_id) {
-                if !ast_comments
-                    .iter()
-                    .flat_map(|comment| comment.natspec.iter())
-                    .any(|local| local.span == natspec.span)
-                {
-                    continue;
-                }
-                match natspec.kind {
-                    hir::NatSpecKind::Param { name } => {
-                        let Some(parameters) = item.parameters() else { continue };
-                        self.push_natspec_variable_reference(
-                            gcx,
-                            locations,
-                            parameters,
-                            name,
-                            item_symbols,
-                        );
-                    }
-                    hir::NatSpecKind::Return { name: Some(name) } => {
-                        let Some(function_id) = item_id.as_function() else { continue };
-                        self.push_natspec_variable_reference(
-                            gcx,
-                            locations,
-                            gcx.hir.function(function_id).returns,
-                            name,
-                            item_symbols,
-                        );
-                    }
-                    hir::NatSpecKind::Inheritdoc { contract } => {
-                        let Some(contract_id) = gcx.natspec_contract(contract.name, item.source())
-                        else {
-                            continue;
-                        };
-                        let Some(&symbol_id) = item_symbols.get(&ItemId::Contract(contract_id))
-                        else {
-                            continue;
-                        };
-                        self.push_path_occurrences(
-                            gcx,
-                            locations,
-                            RenameReferenceContext {
-                                bindings,
-                                source: item.source(),
-                                contract: item.contract(),
-                                item_symbols,
-                                declarations,
-                            },
-                            contract.span,
-                            &[symbol_id],
-                        );
-                    }
-                    _ => {}
-                }
-            }
-        }
-    }
-
-    fn push_natspec_variable_reference(
-        &mut self,
-        gcx: Gcx<'_>,
-        locations: &proto::LocationConverter,
-        variables: &[VariableId],
-        name: Ident,
-        item_symbols: &FxHashMap<ItemId, SymbolId>,
-    ) {
-        let Some(variable_id) = variables.iter().copied().find(|&variable_id| {
-            gcx.hir.variable(variable_id).name.is_some_and(|variable| variable.name == name.name)
-        }) else {
-            return;
-        };
-        let Some(&symbol_id) = item_symbols.get(&ItemId::Variable(variable_id)) else { return };
-        self.push_symbol_occurrence(locations, name.span, &[symbol_id]);
-    }
-
     pub(crate) fn push_mapping_reference(
         &mut self,
         locations: &proto::LocationConverter,
@@ -522,25 +460,29 @@ impl RenameIndex {
         let targets = match target {
             RenameTarget::Symbol(symbol_id) => {
                 let family = override_families.family(symbol_id)?;
-                self.symbol_targets
-                    .iter()
-                    .copied()
-                    .filter(|candidate| override_families.family(*candidate) == Some(family))
-                    .map(RenameTarget::Symbol)
-                    .collect::<Vec<_>>()
+                Cow::Borrowed(
+                    self.family_targets
+                        .get(&family)
+                        .map(Vec::as_slice)
+                        .unwrap_or_else(|| std::slice::from_ref(&target)),
+                )
             }
-            RenameTarget::ImportAlias(alias_id) => self
-                .aliases
-                .indices()
-                .filter(|&candidate| self.aliases[alias_id] == self.aliases[candidate])
-                .map(RenameTarget::ImportAlias)
-                .collect(),
-            RenameTarget::MappingName(name_id) => self
-                .mapping_names
-                .indices()
-                .filter(|&candidate| self.mapping_names[name_id] == self.mapping_names[candidate])
-                .map(RenameTarget::MappingName)
-                .collect(),
+            RenameTarget::ImportAlias(alias_id) => Cow::Owned(
+                self.aliases
+                    .indices()
+                    .filter(|&candidate| self.aliases[alias_id] == self.aliases[candidate])
+                    .map(RenameTarget::ImportAlias)
+                    .collect(),
+            ),
+            RenameTarget::MappingName(name_id) => Cow::Owned(
+                self.mapping_names
+                    .indices()
+                    .filter(|&candidate| {
+                        self.mapping_names[name_id] == self.mapping_names[candidate]
+                    })
+                    .map(RenameTarget::MappingName)
+                    .collect(),
+            ),
         };
         if !self.conflicting_contents.contains(uri)
             && targets.iter().any(|target| self.ambiguous_targets.contains(target))
@@ -553,23 +495,34 @@ impl RenameIndex {
             RenameTarget::ImportAlias(alias_id) => self.aliases[alias_id].name.clone(),
             RenameTarget::MappingName(name_id) => self.mapping_names[name_id].name.clone(),
         };
-        let mut locations = targets
+        // Occurrences are unique and URI/range-sorted by `normalize_occurrences`. Each target's
+        // index list already follows that order; only combining targets requires normalization.
+        let mut indices = Vec::new();
+        let indices = if let [target] = targets.as_ref() {
+            self.target_occurrences.get(target).map(Vec::as_slice).unwrap_or_default()
+        } else {
+            indices.extend(
+                targets
+                    .iter()
+                    .filter_map(|target| self.target_occurrences.get(target))
+                    .flatten()
+                    .copied(),
+            );
+            indices.sort_unstable();
+            indices.dedup();
+            &indices
+        };
+        let locations = indices
             .iter()
-            .filter_map(|target| self.target_occurrences.get(target))
-            .flatten()
             .map(|&index| self.occurrences[index].location.clone())
             .collect::<Vec<_>>();
-        sort_locations(&mut locations);
-        locations.dedup_by(|a, b| a.uri == b.uri && a.range == b.range);
         let mut analyzed_contents = FxHashMap::default();
-        for location in &locations {
-            if let Entry::Vacant(entry) = analyzed_contents.entry(location.uri.clone()) {
-                let contents = self.analyzed_contents.get(&location.uri)?.clone();
-                entry.insert(contents);
-            }
+        let mut conflicting_contents = false;
+        for locations in locations.chunk_by(|a, b| a.uri == b.uri) {
+            let uri = &locations[0].uri;
+            analyzed_contents.insert(uri.clone(), self.analyzed_contents.get(uri)?.clone());
+            conflicting_contents |= self.conflicting_contents.contains(uri);
         }
-        let conflicting_contents =
-            locations.iter().any(|location| self.conflicting_contents.contains(&location.uri));
         Some(RenameCandidate {
             old_name,
             range: occurrence.location.range,
@@ -584,6 +537,7 @@ impl RenameIndex {
     }
 
     pub(crate) fn extend(&mut self, mut other: Self, symbol_offset: usize) {
+        self.family_targets.clear();
         let alias_offset = self.aliases.len();
         let mapping_name_offset = self.mapping_names.len();
         self.symbol_targets.extend(
@@ -635,9 +589,33 @@ impl RenameIndex {
         self.file_occurrences.clear();
         self.target_occurrences.clear();
         self.ambiguous_targets.clear();
+        self.family_targets.clear();
+
+        // Families are finalized before this rebuild, including shared declarations across batches.
+        // Store only families with a nonrepresentative renamable member; singleton queries borrow
+        // their target directly without allocating a vector or scanning unrelated declarations.
+        for &symbol_id in &self.symbol_targets {
+            if let Some(family) = override_families.family(symbol_id)
+                && family != symbol_id
+            {
+                self.family_targets
+                    .entry(family)
+                    .or_default()
+                    .push(RenameTarget::Symbol(symbol_id));
+            }
+        }
+        for (&family, targets) in &mut self.family_targets {
+            if self.symbol_targets.contains(&family) {
+                targets.push(RenameTarget::Symbol(family));
+            }
+        }
 
         for (index, occurrence) in self.occurrences.iter().enumerate() {
-            self.file_occurrences.entry(occurrence.location.uri.clone()).or_default().push(index);
+            self.file_occurrences
+                .entry(occurrence.location.uri.clone())
+                .or_default()
+                .entries
+                .push(index);
             if occurrence.targets.len() > 1
                 && !same_rename_targets(
                     &self.aliases,
@@ -651,6 +629,9 @@ impl RenameIndex {
             for &target in &occurrence.targets {
                 self.target_occurrences.entry(target).or_default().push(index);
             }
+        }
+        for occurrences in self.file_occurrences.values_mut() {
+            occurrences.rebuild(&self.occurrences);
         }
     }
 
@@ -831,14 +812,27 @@ impl RenameIndex {
     }
 
     fn occurrence_at(&self, uri: &Url, position: Position) -> Option<&RenameOccurrence> {
-        self.file_occurrences
-            .get(uri)?
-            .iter()
-            .filter_map(|&index| {
-                let occurrence = &self.occurrences[index];
-                proto::range_contains(occurrence.location.range, position).then_some(occurrence)
-            })
-            .min_by_key(|occurrence| proto::range_size_key(occurrence.location.range))
+        let index = self.file_occurrences.get(uri)?;
+        let end = index
+            .entries
+            .partition_point(|&entry| self.occurrences[entry].location.range.start <= position);
+        let mut best = None;
+        for (&entry, &prefix_max_end) in
+            index.entries[..end].iter().zip(&index.prefix_max_end[..end]).rev()
+        {
+            if prefix_max_end < position {
+                break;
+            }
+            let occurrence = &self.occurrences[entry];
+            if !proto::range_contains(occurrence.location.range, position) {
+                continue;
+            }
+            let key = (proto::range_size_key(occurrence.location.range), entry);
+            if best.as_ref().is_none_or(|(best_key, _)| key < *best_key) {
+                best = Some((key, occurrence));
+            }
+        }
+        best.map(|(_, occurrence)| occurrence)
     }
 
     fn normalize_occurrences(&mut self) {
@@ -977,8 +971,4 @@ fn compare_locations(a: &Location, b: &Location) -> std::cmp::Ordering {
             &(b.range.start.line, b.range.start.character, b.range.end.line, b.range.end.character),
         )
     })
-}
-
-fn sort_locations(locations: &mut [Location]) {
-    locations.sort_by(compare_locations);
 }

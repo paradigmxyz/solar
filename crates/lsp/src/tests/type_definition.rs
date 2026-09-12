@@ -358,7 +358,7 @@ fn resolves_named_custom_error_parameter_types() {
 }
 
 #[test]
-fn waits_for_current_analysis_before_returning_type_definitions() {
+fn waits_for_requested_analysis_before_returning_type_definitions() {
     let project = TestProject::from_fixture(
         r#"
         //- /Types.sol
@@ -402,10 +402,9 @@ fn waits_for_current_analysis_before_returning_type_definitions() {
 
     assert!(request.as_mut().poll(&mut context).is_pending());
 
-    state.analysis_version.fetch_add(1, Ordering::AcqRel);
     let mut snapshot = state.snapshot();
-    assert!(snapshot.publish_symbol_tables(2, Arc::new(new_tables)));
-    assert!(!snapshot.publish_symbol_tables(1, Default::default()));
+    assert!(snapshot.publish_symbol_tables(1, Arc::new(new_tables)));
+    assert!(!snapshot.publish_symbol_tables(0, Default::default()));
     let std::task::Poll::Ready(response) = request.as_mut().poll(&mut context) else {
         panic!("type-definition request should complete after analysis is published");
     };

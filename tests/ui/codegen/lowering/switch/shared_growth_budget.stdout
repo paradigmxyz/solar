@@ -1,5 +1,4 @@
 // === ROOT/tests/ui/codegen/lowering/switch/shared_growth_budget.sol:SwitchSharedGrowthBudget (creation) ===
-// === SwitchSharedGrowthBudget_deployment ===
 @module SwitchSharedGrowthBudget_deployment
 bb0:
   push 428
@@ -125,8 +124,7 @@ bb9:
   push 0
   sstore
   jump bb20
-
-// === SwitchSharedGrowthBudget_runtime ===
+// === ROOT/tests/ui/codegen/lowering/switch/shared_growth_budget.sol:SwitchSharedGrowthBudget (runtime) ===
 @module SwitchSharedGrowthBudget_runtime
 bb0:
   callvalue

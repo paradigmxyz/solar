@@ -16,7 +16,7 @@ use crate::{
     proto,
     protocol_trace::ProtocolTrace,
     symbols::{SymbolTables, SymbolTablesAggregator},
-    vfs::Vfs,
+    vfs::{Vfs, VfsPath},
     workspace::{WorkspaceError, WorkspacePathIndex, index_policy::IndexingCancellation},
 };
 use arc_swap::ArcSwap;
@@ -24,8 +24,8 @@ use async_lsp::{ClientSocket, LanguageClient, ResponseError};
 use lsp_types::{
     Diagnostic, DidChangeWatchedFilesRegistrationOptions, FileChangeType, FileSystemWatcher,
     GlobPattern, InitializeParams, InitializedParams, LogMessageParams, MessageType, OneOf,
-    PreviousResultId, PublishDiagnosticsParams, Registration, RegistrationParams, RelativePattern,
-    SetTraceParams, Unregistration, UnregistrationParams, Url, WatchKind,
+    PreviousResultId, PublishDiagnosticsParams, Range, Registration, RegistrationParams,
+    RelativePattern, SetTraceParams, Unregistration, UnregistrationParams, Url, WatchKind,
     WorkDoneProgressCancelParams,
     notification::{DidChangeWatchedFiles, Notification},
 };
@@ -297,6 +297,8 @@ struct CachedAnalysisOutput {
     /// Keep these only for multiple nonempty workspaces: a single workspace can reuse the
     /// aggregate directly, without retaining another copy of its symbol tables.
     batches: Vec<Option<Arc<CachedAnalysisBatch>>>,
+    /// Loader observations for reusing a single workspace's aggregate after identical inputs.
+    dependencies: Option<DependencySnapshot>,
 }
 
 struct CachedAnalysisBatch {
@@ -380,6 +382,7 @@ struct AnalysisTasks {
     coordinator: Option<(AnalysisTaskKey, AbortHandle)>,
     worker: Option<(AnalysisTaskKey, AbortHandle)>,
     cancellation: Option<IndexingCancellation>,
+    debounce: Option<(AnalysisTaskKey, oneshot::Sender<()>)>,
 }
 
 /// Reuses import completion results within one analysis/configuration epoch.
@@ -409,6 +412,7 @@ enum AnalysisTaskStage {
 
 impl AnalysisTasks {
     fn cancel(&mut self) {
+        self.debounce = None;
         if let Some(cancellation) = self.cancellation.take() {
             cancellation.cancel();
         }
@@ -442,6 +446,7 @@ pub(crate) struct GlobalState {
     pub(crate) file_operations: FileOperationCoordinator,
     analysis_version: Arc<AtomicUsize>,
     published_analysis_version: watch::Sender<usize>,
+    analysis_invalidated: watch::Sender<()>,
     analysis_commit: Arc<Mutex<AnalysisCommitState>>,
     analysis_progress: ProgressCoordinator,
     analysis_scheduler: Arc<AnalysisScheduler>,
@@ -453,6 +458,7 @@ pub(crate) struct GlobalState {
     pub(crate) symbol_tables: Arc<ArcSwap<SymbolTables>>,
     diagnostics: Arc<RwLock<DiagnosticStore>>,
     import_completion_cache: Mutex<ImportCompletionCache>,
+    last_vfs_path: Option<(Url, Arc<VfsPath>)>,
 }
 
 pub(crate) struct AnalysisRevision {
@@ -490,6 +496,7 @@ impl GlobalState {
             file_operations: FileOperationCoordinator::default(),
             analysis_version: Arc::new(AtomicUsize::new(0)),
             published_analysis_version,
+            analysis_invalidated: watch::channel(()).0,
             analysis_commit: Arc::new(Default::default()),
             analysis_progress,
             analysis_scheduler: Arc::new(Default::default()),
@@ -501,6 +508,7 @@ impl GlobalState {
             symbol_tables: Arc::new(Default::default()),
             diagnostics: Arc::new(Default::default()),
             import_completion_cache: Mutex::new(ImportCompletionCache::default()),
+            last_vfs_path: None,
             config,
             launch_config: crate::LaunchConfig::default(),
         }
@@ -517,6 +525,18 @@ impl GlobalState {
 
     pub(crate) fn client_socket(&self) -> ClientSocket {
         self.client.clone()
+    }
+
+    /// Reuse the last pure URI-to-VFS-path conversion while still reading the current VFS entry.
+    pub(crate) fn cached_vfs_path(&mut self, uri: &Url) -> Option<Arc<VfsPath>> {
+        if let Some((cached_uri, path)) = &self.last_vfs_path
+            && cached_uri == uri
+        {
+            return Some(Arc::clone(path));
+        }
+        let path = Arc::new(crate::proto::vfs_path(uri)?);
+        self.last_vfs_path = Some((uri.clone(), Arc::clone(&path)));
+        Some(path)
     }
 
     /// Return cached candidates or build them from the current overlay snapshot.
@@ -914,6 +934,7 @@ impl GlobalState {
                 diagnostics,
                 analysis_version,
                 published_analysis_version,
+                analysis_invalidated,
                 analysis_commit,
                 analysis_progress,
                 ..
@@ -924,6 +945,7 @@ impl GlobalState {
             analysis_progress.finish_active_after("Workspace index cleared", || {
                 // Invalidate workers before doing the potentially expensive diagnostic publication.
                 analysis_version.store(version, Ordering::Release);
+                analysis_invalidated.send_replace(());
                 let old_symbol_tables = symbol_tables.swap(Arc::default());
                 let inlay_hints_changed = compare_inlay_hints
                     && old_symbol_tables.inlay_hints_changed(&SymbolTables::default());
@@ -1211,9 +1233,24 @@ impl GlobalState {
             tasks.cancel();
         }
         tasks.cancellation = Some(cancellation.clone());
+        let debounce = if delay.is_zero() {
+            None
+        } else {
+            let (wake, debounce) = oneshot::channel();
+            tasks.debounce = Some((task_key, wake));
+            Some(debounce)
+        };
         let coordinator = tokio::spawn(async move {
-            if !delay.is_zero() {
-                tokio::time::sleep(delay).await;
+            if let Some(debounce) = debounce {
+                // Navigation needs the current snapshot now; background changes still coalesce.
+                tokio::select! {
+                    _ = tokio::time::sleep(delay) => {}
+                    _ = debounce => {}
+                }
+                let mut tasks = task_scheduler.tasks.lock();
+                if tasks.debounce.as_ref().is_some_and(|(key, _)| *key == task_key) {
+                    tasks.debounce = None;
+                }
             }
 
             let Ok(permit) = task_scheduler.gate.clone().acquire_owned().await else {
@@ -1385,19 +1422,56 @@ impl GlobalState {
         }
         commit.natspec_pending_source_changes.extend(changed_paths);
         self.analysis_version.store(version, Ordering::Release);
+        self.analysis_invalidated.send_replace(());
     }
 
-    /// Waits for analysis results at least as new as the latest version requested before this call.
+    /// Wake delayed analysis when an interactive request needs a fresh semantic snapshot.
+    ///
+    /// This only ends the current debounce. The single-worker gate, cancellation checks and
+    /// publication epoch still apply; a subsequent edit starts a new debounce window.
+    pub(crate) fn prioritize_pending_analysis(&self) {
+        let version = self.analysis_version.load(Ordering::Acquire);
+        if *self.published_analysis_version.borrow() == version {
+            return;
+        }
+        let mut tasks = self.analysis_scheduler.tasks.lock();
+        if tasks.debounce.as_ref().is_some_and(|(key, _)| key.version == version)
+            && let Some((_, wake)) = tasks.debounce.take()
+        {
+            let _ = wake.send(());
+        }
+    }
+
+    /// Waits for the request's analysis epoch, failing if processed changes invalidate it.
     pub(crate) fn latest_analysis(
         &self,
     ) -> impl Future<Output = Result<Arc<ArcSwap<SymbolTables>>, ResponseError>> + use<> {
         let mut published = self.published_analysis_version.subscribe();
-        let version = self.analysis_version.load(Ordering::Acquire);
+        let mut invalidated = self.analysis_invalidated.subscribe();
+        let analysis_version = self.analysis_version.clone();
+        let version = analysis_version.load(Ordering::Acquire);
         let symbol_tables = self.symbol_tables.clone();
         async move {
-            published.wait_for(|published| *published >= version).await.map_err(|_| {
-                ResponseError::new(async_lsp::ErrorCode::REQUEST_FAILED, "analysis was cancelled")
-            })?;
+            // Superseded workers may never publish. Invalidation must wake their requests too.
+            let superseded = tokio::select! {
+                biased;
+                _ = invalidated.changed() => true,
+                result = published.wait_for(|published| *published >= version) => {
+                    result.map_err(|_| {
+                        ResponseError::new(
+                            async_lsp::ErrorCode::REQUEST_FAILED,
+                            "analysis was cancelled",
+                        )
+                    })?;
+                    analysis_version.load(Ordering::Acquire) != version
+                }
+            };
+            if superseded {
+                return Err(ResponseError::new(
+                    async_lsp::ErrorCode::CONTENT_MODIFIED,
+                    "analysis inputs changed since request",
+                ));
+            }
             Ok(symbol_tables)
         }
     }
@@ -1443,6 +1517,7 @@ impl GlobalState {
     pub(crate) fn code_action_diagnostics(
         &self,
         uri: Url,
+        range: Range,
     ) -> impl Future<Output = Result<Vec<Diagnostic>, ResponseError>> + use<> {
         let (uri, latest_analysis) = match uri.to_file_path() {
             Ok(path) => (Url::from_file_path(path).unwrap_or(uri), Some(self.latest_analysis())),
@@ -1453,11 +1528,7 @@ impl GlobalState {
             if let Some(latest_analysis) = latest_analysis {
                 latest_analysis.await?;
             }
-            let PullReport::Full { diagnostics, .. } = diagnostics.read().pull_report(&uri, None)
-            else {
-                unreachable!("a report without a result ID is full")
-            };
-            Ok(diagnostics)
+            Ok(diagnostics.read().code_action_diagnostics(&uri, range))
         }
     }
 
@@ -1740,12 +1811,12 @@ fn run_analysis(
 
     if !has_disk_paths && source_files_complete {
         let cached = {
-            let mut commit = snapshot.analysis_commit.lock();
+            let commit = snapshot.analysis_commit.lock();
             if !commit.cache_invalidated
-                && let Some(cached) = &mut commit.cached_output
+                && let Some(cached) = &commit.cached_output
                 && Arc::ptr_eq(&cached.config, &config)
-                // The compared batches do not include disk-only imports or resolver probes.
-                && cached.output.analysis_paths.is_empty()
+                // Disk imports and resolver probes need exact observation replay outside the lock.
+                && (cached.output.analysis_paths.is_empty() || cached.dependencies.is_some())
                 // Multi-workspace caches must validate each batch's filesystem observations below.
                 && cached.batches.is_empty()
                 && cached.inputs.len() == batches.len()
@@ -1753,13 +1824,29 @@ fn run_analysis(
                     inputs.files == batch.files && inputs.preloaded_files == batch.preloaded_files
                 })
             {
-                cached.vfs_content_revision = vfs_content_revision;
-                Some(cached.output.clone())
+                Some(cached.dependencies.clone())
             } else {
                 None
             }
         };
-        if let Some(output) = cached {
+        if let Some(dependencies) = cached
+            && dependencies.as_ref().is_none_or(|dependencies| dependencies.unchanged(cancellation))
+        {
+            let output = {
+                let mut commit = snapshot.analysis_commit.lock();
+                if !snapshot.is_current(version)
+                    || cancellation.is_cancelled()
+                    || commit.cache_invalidated
+                {
+                    return AnalysisTaskOutcome::Superseded;
+                }
+                let Some(cached) = &mut commit.cached_output else {
+                    return AnalysisTaskOutcome::Superseded;
+                };
+                cached.vfs_content_revision = vfs_content_revision;
+                cached.output.update_document_versions(&batches);
+                cached.output.clone()
+            };
             progress.report("Reusing workspace index");
             return if snapshot.publish_analysis_output(version, output) {
                 AnalysisTaskOutcome::Published
@@ -1772,6 +1859,10 @@ fn run_analysis(
     let cache_batches = !has_disk_paths
         && source_files_complete
         && batches.iter().filter(|batch| !batch.files.is_empty()).take(2).count() > 1;
+    // A single workspace retains only observations beside its shared aggregate, avoiding the
+    // second symbol-table copy needed for independently reusable multi-workspace batches.
+    let dependencies = (!has_disk_paths && source_files_complete && !cache_batches)
+        .then(DependencySnapshot::default);
     let cached_batches = if cache_batches {
         let commit = snapshot.analysis_commit.lock();
         commit.cached_output.as_ref().and_then(|cached| {
@@ -1784,6 +1875,54 @@ fn run_analysis(
     } else {
         None
     };
+    let mut next_cached_batches =
+        if cache_batches { vec![None; batches.len()] } else { Vec::new() };
+    if let Some((inputs, outputs)) = cached_batches {
+        // Validate once before cloning or merging any symbol tables. If every batch matches,
+        // retain the aggregate and its initialized lazy query indexes across analysis epochs.
+        let mut all_reused = true;
+        for (idx, batch) in batches.iter().enumerate() {
+            if cancellation.is_cancelled() || !snapshot.is_current(version) {
+                return AnalysisTaskOutcome::Superseded;
+            }
+            let inputs = &inputs[idx];
+            let inputs_match =
+                inputs.files == batch.files && inputs.preloaded_files == batch.preloaded_files;
+            if inputs_match && !batch.files.is_empty() {
+                next_cached_batches[idx] = outputs[idx]
+                    .clone()
+                    .filter(|cached| cached.dependencies.unchanged(cancellation));
+            }
+            // Empty batches participate in the key: a previously populated batch may disappear.
+            all_reused &=
+                inputs_match && (batch.files.is_empty() || next_cached_batches[idx].is_some());
+        }
+        if all_reused {
+            let cached = {
+                let mut commit = snapshot.analysis_commit.lock();
+                if snapshot.is_current(version)
+                    && !cancellation.is_cancelled()
+                    && !commit.cache_invalidated
+                    && let Some(cached) = &mut commit.cached_output
+                    && Arc::ptr_eq(&cached.config, &config)
+                {
+                    cached.vfs_content_revision = vfs_content_revision;
+                    Some(cached.output.clone())
+                } else {
+                    None
+                }
+            };
+            if let Some(mut output) = cached {
+                output.update_document_versions(&batches);
+                progress.report("Reusing workspace index");
+                return if snapshot.publish_analysis_output(version, output) {
+                    AnalysisTaskOutcome::Published
+                } else {
+                    AnalysisTaskOutcome::Superseded
+                };
+            }
+        }
+    }
     let inputs = if has_disk_paths {
         Vec::new()
     } else {
@@ -1796,8 +1935,6 @@ fn run_analysis(
             .collect::<Vec<_>>()
     };
     let mut results = AnalysisOutputAccumulator::default();
-    let mut next_cached_batches =
-        if cache_batches { vec![None; batches.len()] } else { Vec::new() };
 
     for (idx, batch) in batches.into_iter().enumerate() {
         if batch.files.is_empty() {
@@ -1808,13 +1945,7 @@ fn run_analysis(
             return AnalysisTaskOutcome::Superseded;
         }
 
-        let cached = cached_batches.as_ref().and_then(|(inputs, outputs)| {
-            let inputs = &inputs[idx];
-            (inputs.files == batch.files && inputs.preloaded_files == batch.preloaded_files)
-                .then(|| outputs[idx].clone())
-                .flatten()
-                .filter(|cached| cached.dependencies.unchanged(cancellation))
-        });
+        let cached = next_cached_batches.get_mut(idx).and_then(Option::take);
         let result = if let Some(cached) = cached {
             let mut result = cached.output.clone();
             // Exact source contents permit reuse, but document versions belong to this epoch.
@@ -1824,14 +1955,18 @@ fn run_analysis(
             next_cached_batches[idx] = Some(cached);
             result
         } else {
-            let dependencies = cache_batches.then(DependencySnapshot::default);
+            let batch_dependencies = if cache_batches {
+                Some(DependencySnapshot::default())
+            } else {
+                dependencies.clone()
+            };
             let Some(result) =
-                analyze_recording_dependencies(batch, cancellation, dependencies.clone())
+                analyze_recording_dependencies(batch, cancellation, batch_dependencies.clone())
             else {
                 return AnalysisTaskOutcome::Superseded;
             };
             // Root text alone cannot establish freshness: replay all disk reads and path probes.
-            if let Some(dependencies) = dependencies {
+            if cache_batches && let Some(dependencies) = batch_dependencies {
                 next_cached_batches[idx] =
                     Some(Arc::new(CachedAnalysisBatch { output: result.clone(), dependencies }));
             }
@@ -1852,12 +1987,16 @@ fn run_analysis(
                 vfs_content_revision,
                 config,
                 output: output.clone(),
-                inputs: if output.analysis_paths.is_empty() || cache_batches {
+                inputs: if output.analysis_paths.is_empty()
+                    || cache_batches
+                    || dependencies.is_some()
+                {
                     inputs
                 } else {
                     Vec::new()
                 },
                 batches: next_cached_batches,
+                dependencies: dependencies.filter(|_| !output.analysis_paths.is_empty()),
             });
         }
     }
@@ -1959,6 +2098,21 @@ struct AnalysisResult<T = SymbolTables> {
 struct AnalysisOutput<T = SymbolTables> {
     result: AnalysisResult<T>,
     analysis_paths: AnalysisPathIndex,
+}
+
+impl<T> AnalysisOutput<T> {
+    /// Opening or closing an identical overlay changes versions without changing analysis.
+    /// Match aggregation's maximum version, clearing versions no longer open.
+    fn update_document_versions(&mut self, batches: &[AnalysisBatch]) {
+        for (uri, version) in &mut self.result.analyzed_documents {
+            *version = batches
+                .iter()
+                .filter(|batch| !batch.files.is_empty())
+                .filter_map(|batch| batch.open_file_versions.get(uri))
+                .copied()
+                .max();
+        }
+    }
 }
 
 impl AnalysisOutput {
@@ -3128,10 +3282,17 @@ fn analyze_cancellable_with_source_map(
             existing_unresolved_candidates,
             missing_candidates,
         };
+        let mut diagnostic_data_cache = proto::DiagnosticDataCache::default();
         let diagnostics = diag_buffer
             .read()
             .iter()
-            .filter_map(|diag| proto::diagnostic(compiler.sess().source_map(), diag))
+            .filter_map(|diag| {
+                proto::diagnostic_with_cache(
+                    compiler.sess().source_map(),
+                    diag,
+                    &mut diagnostic_data_cache,
+                )
+            })
             .fold(DiagnosticMap::default(), |mut diagnostics, (uri, diag)| {
                 diagnostics.entry(uri).or_default().push(diag);
                 diagnostics

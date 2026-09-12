@@ -16,12 +16,66 @@ SPEC.loader.exec_module(benchmark)
 
 
 class CorpusTests(unittest.TestCase):
+    def test_source_links_pin_checkout_and_upstream(self) -> None:
+        case = next(
+            case
+            for case in benchmark.TEST_CASES
+            if case.test_id == "forge-std-1.16.1-project"
+        )
+        with mock.patch.object(benchmark, "source_revision", return_value="a" * 40):
+            links = benchmark.source_links(case)
+            failed = benchmark.failed_test_result(case, [], "hot", ValueError("test"))
+        self.assertEqual(
+            links,
+            [
+                {
+                    "label": "testdata/projects/forge-std-1.16.1.json.gz",
+                    "url": "https://github.com/paradigmxyz/solar/blob/"
+                    + "a" * 40
+                    + "/testdata/projects/forge-std-1.16.1.json.gz",
+                },
+                {
+                    "label": "foundry-rs/forge-std",
+                    "url": "https://github.com/foundry-rs/forge-std/tree/"
+                    "620536fa5277db4e3fd46772d5cbc1ea0696fb43",
+                },
+            ],
+        )
+        self.assertEqual(failed["source_links"], links)
+
+    def test_source_metadata_covers_corpus(self) -> None:
+        for case in benchmark.TEST_CASES:
+            with self.subTest(case=case.test_id):
+                if case.source_code is not None:
+                    self.assertTrue(case.source_path)
+                    self.assertEqual(
+                        (benchmark.REPOSITORY_ROOT / case.source_path).read_text(),
+                        case.source_code,
+                    )
+                if case.project_file:
+                    origins = case.project.sources
+                    self.assertTrue(origins)
+                    for source in origins:
+                        self.assertRegex(source.commit, r"^[0-9a-f]{40}$")
+        wrapper = next(
+            case for case in benchmark.TEST_CASES if case.test_id == "solady-encoding"
+        )
+        with mock.patch.object(benchmark, "source_revision", return_value="a" * 40):
+            self.assertEqual(
+                [link["label"] for link in benchmark.source_links(wrapper)],
+                [
+                    "testdata/projects/solady-0.1.26.json.gz",
+                    "testdata/runtime/Encoding.sol",
+                    "Vectorized/solady",
+                ],
+            )
+
     def test_vendored_cases_and_projects_exist(self) -> None:
-        self.assertEqual(len(benchmark.TEST_CASES), 25)
+        self.assertEqual(len(benchmark.TEST_CASES), 32)
         repository_cases = [
             case for case in benchmark.TEST_CASES if case.suite == "repository"
         ]
-        self.assertEqual(len(repository_cases), 9)
+        self.assertEqual(len(repository_cases), 11)
         heavy_cases = [case for case in benchmark.TEST_CASES if case.suite == "heavy"]
         self.assertEqual(len(heavy_cases), 9)
         for case in heavy_cases:
@@ -38,6 +92,8 @@ class CorpusTests(unittest.TestCase):
             "lilweb3-flashloan": 2,
             "lilweb3-fractional": 3,
             "maple-erc20": 2,
+            "solady-encoding": 3,
+            "solady-algorithms": 5,
         }
         for case in repository_cases:
             self.assertTrue(case.project_path.is_file(), case.test_id)
@@ -47,6 +103,7 @@ class CorpusTests(unittest.TestCase):
                     case.source,
                     case.contract_name,
                     case.settings_profile,
+                    case.source_code,
                 )
             )
             self.assertIn(case.source, payload["sources"], case.test_id)
@@ -58,6 +115,32 @@ class CorpusTests(unittest.TestCase):
                 payload["settings"]["metadata"],
                 {"appendCBOR": False, "bytecodeHash": "none"},
             )
+
+    def test_benchmark_wrapper_preserves_pinned_sources(self) -> None:
+        for test_id, count in (("solady-encoding", 153), ("solady-algorithms", 85)):
+            with self.subTest(test_id=test_id):
+                case = next(
+                    case for case in benchmark.TEST_CASES if case.test_id == test_id
+                )
+                project = benchmark.load_project(case.project_path)
+                self.assertNotIn(case.source, project["sources"])
+                payload = json.loads(benchmark.compiler_input(case, None)[0])
+                self.assertEqual(
+                    payload["sources"][case.source]["content"], case.source_code
+                )
+                self.assertIn("src/utils/LibString.sol", payload["sources"])
+                self.assertNotIn("test/LibString.t.sol", payload["sources"])
+                for source, contents in payload["sources"].items():
+                    if source != case.source:
+                        self.assertEqual(contents, project["sources"][source])
+                self.assertNotIn(
+                    case.source, benchmark.load_project(case.project_path)["sources"]
+                )
+                self.assertEqual(len(case.gas_calls), count)
+                self.assertEqual(len(case.runtime_checks), count)
+                labels = [call.label for call in case.gas_calls]
+                self.assertEqual(len(set(labels)), count)
+                self.assertEqual(labels, [call.label for call in case.runtime_checks])
 
     def test_runtime_projects_are_loaded_by_codspeed(self) -> None:
         criterion_sources = (
@@ -79,7 +162,9 @@ class CorpusTests(unittest.TestCase):
         heavy_cases = [case for case in benchmark.TEST_CASES if case.suite == "heavy"]
         self.assertEqual(len(heavy_cases), 9)
         self.assertTrue(all(case.whole_project for case in heavy_cases))
-        case = next(case for case in heavy_cases if case.project == "solady-0.1.26")
+        case = next(
+            case for case in heavy_cases if case.project.name == "solady-0.1.26"
+        )
         archive = benchmark.load_project(case.project_path)
         payload = json.loads(
             benchmark.full_project_standard_json_input(case.project_file)
@@ -400,6 +485,104 @@ class RuntimeComparisonTests(unittest.TestCase):
 
 
 class ArtifactTests(unittest.TestCase):
+    def test_artifacts_include_complete_source_tree(self) -> None:
+        sources = {
+            "src/Main.sol": {"content": 'import "../lib/Lib.sol";\ncontract Main {}\n'},
+            "lib/Lib.sol": {"content": "library Lib {}\n"},
+            "@scope/package/Source": {"content": "// π\r\ncontract Source {}\r\n"},
+            "@scope/package/Source.sol": {"content": ""},
+            "folder with spaces/你好.sol": {"content": "// UTF-8\n"},
+            "remote.sol": {"urls": ["https://example.com/remote.sol"]},
+        }
+        spec = benchmark.CompilerSpec("solc", "solc", Path("solc"), "solc")
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            mock.patch.object(
+                benchmark, "run", return_value=mock.Mock(returncode=0, stdout="{}")
+            ),
+        ):
+            root = Path(directory)
+            case = benchmark.TEST_CASES[0]
+            error = benchmark.write_artifacts(
+                root, spec, case, (json.dumps({"sources": sources}), 1, "")
+            )
+            self.assertEqual(error, "")
+            output = root / case.test_id / "solc" / "sources"
+            self.assertEqual(
+                {
+                    p.relative_to(output).as_posix(): p.read_bytes().decode("utf-8")
+                    for p in output.rglob("*")
+                    if p.is_file()
+                },
+                {
+                    name: source["content"]
+                    for name, source in sources.items()
+                    if "content" in source
+                },
+            )
+            for name in (
+                "../escape.sol",
+                "/absolute.sol",
+                "a/../../escape.sol",
+                "a\\b.sol",
+                "C:/escape.sol",
+                "C:escape.sol",
+                "//server/share.sol",
+                "a//b.sol",
+                "./a.sol",
+                "a/./b.sol",
+                "nul\0.sol",
+                "control\x7f.sol",
+                "",
+            ):
+                with self.subTest(name=name):
+                    error = benchmark.write_artifacts(
+                        root,
+                        spec,
+                        case,
+                        (json.dumps({"sources": {name: {"content": ""}}}), 1, ""),
+                    )
+                    self.assertEqual(error, f"invalid source artifact path: {name!r}")
+
+    def test_source_artifacts_reject_symlinks_and_report_collisions(self) -> None:
+        spec = benchmark.CompilerSpec("solc", "solc", Path("solc"), "solc")
+        case = benchmark.TEST_CASES[0]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            output = root / case.test_id / "solc" / "sources"
+            output.mkdir(parents=True)
+            outside = root / "outside"
+            outside.mkdir()
+            (outside / "Keep.sol").write_text("keep")
+            (output / "linked").symlink_to(outside, target_is_directory=True)
+            error = benchmark.write_artifacts(
+                root,
+                spec,
+                case,
+                (
+                    json.dumps(
+                        {"sources": {"linked/Keep.sol": {"content": "changed"}}}
+                    ),
+                    1,
+                    "",
+                ),
+            )
+            self.assertEqual(
+                error, "source artifact path contains a symlink: 'linked/Keep.sol'"
+            )
+            self.assertEqual((outside / "Keep.sol").read_text(), "keep")
+            for sources in (
+                {"file": {"content": "keep"}, "file/Child.sol": {"content": "child"}},
+                {
+                    "directory/Child.sol": {"content": "child"},
+                    "directory": {"content": "keep"},
+                },
+            ):
+                error = benchmark.write_artifacts(
+                    root, spec, case, (json.dumps({"sources": sources}), 1, "")
+                )
+                self.assertTrue(error.startswith("cannot write source artifact"), error)
+
     def test_artifact_input_requests_portable_outputs(self) -> None:
         test_case = benchmark.TEST_CASES[0]
         input_text, _, _ = benchmark.compiler_input(test_case, None)
