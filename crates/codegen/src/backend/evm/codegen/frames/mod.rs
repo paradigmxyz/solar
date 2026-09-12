@@ -526,7 +526,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 (entry, span)
             })
             .collect();
-        let heap_prefix_returns = Self::heap_prefix_return_offsets(module);
+        let (heap_prefix_arguments, heap_prefix_returns) = Self::heap_prefix_offsets(module);
         let reachable_heap_prefix_guards: FxHashMap<FunctionId, u64> = self
             .runtime_entry_reachability
             .iter()
@@ -534,7 +534,11 @@ impl<'gcx> EvmCodegen<'gcx> {
                 let guard = reachable
                     .iter()
                     .map(|func_id| {
-                        Self::heap_prefix_guard(&module.functions[func_id], &heap_prefix_returns)
+                        Self::heap_prefix_guard(
+                            &module.functions[func_id],
+                            heap_prefix_arguments.get(&func_id),
+                            &heap_prefix_returns,
+                        )
                     })
                     .max()
                     .unwrap_or(0);
@@ -687,7 +691,11 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// the largest constant backward offset so those words cannot overlap the
     /// highest static-frame spill slots. Constant offsets use EVM modular arithmetic, so
     /// adding a negative constant reserves the same prefix as subtracting its magnitude.
-    fn heap_prefix_guard(func: &Function, returned_offsets: &FxHashMap<FunctionId, u64>) -> u64 {
+    fn heap_prefix_guard(
+        func: &Function,
+        argument_offsets: Option<&FxHashMap<ArgIdx, u64>>,
+        returned_offsets: &FxHashMap<FunctionId, u64>,
+    ) -> u64 {
         let mut guard = 0;
         Self::for_each_memory_range(func, |offset, size| {
             if size == Some(0) {
@@ -695,51 +703,108 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             let mut visiting = DenseBitSet::new_empty(func.num_values());
             let mut memo = FxHashMap::default();
-            if let Some(prefix) =
-                Self::heap_prefix_offset(func, offset, returned_offsets, &mut visiting, &mut memo)
-            {
+            if let Some(prefix) = Self::heap_prefix_offset(
+                func,
+                offset,
+                argument_offsets,
+                returned_offsets,
+                &mut visiting,
+                &mut memo,
+            ) {
                 guard = guard.max(prefix);
             }
         });
         guard.next_multiple_of(EvmMemoryLayout::WORD_SIZE)
     }
 
-    /// Computes the largest backward heap offset returned by each helper.
-    fn heap_prefix_return_offsets(module: &Module) -> FxHashMap<FunctionId, u64> {
-        let mut offsets = FxHashMap::default();
-        for _ in 0..module.functions.len() {
+    /// Propagates known heap offsets through actual arguments and helper returns.
+    /// Scalar parameters acquire heap provenance only from a caller. Forward and
+    /// backward propagation each need at most one round per nonrecursive call edge.
+    fn heap_prefix_offsets(
+        module: &Module,
+    ) -> (FxHashMap<FunctionId, FxHashMap<ArgIdx, u64>>, FxHashMap<FunctionId, u64>) {
+        let mut arguments = FxHashMap::<FunctionId, FxHashMap<ArgIdx, u64>>::default();
+        let mut returns = FxHashMap::default();
+        for _ in 0..=module.functions.len() * 2 {
             let mut changed = false;
             for (func_id, func) in module.functions.iter_enumerated() {
-                if func.return_components().len() != 1 {
-                    continue;
-                }
-                let mut offset = offsets.get(&func_id).copied().unwrap_or(0);
-                for block in &func.blocks {
-                    let Some(Terminator::Return { values }) = &block.terminator else { continue };
-                    for &value in values {
-                        let mut visiting = DenseBitSet::new_empty(func.num_values());
-                        let mut memo = FxHashMap::default();
-                        if let Some(returned) = Self::heap_prefix_offset(
-                            func,
-                            value,
-                            &offsets,
-                            &mut visiting,
-                            &mut memo,
-                        ) {
-                            offset = offset.max(returned);
+                let mut visiting = DenseBitSet::new_empty(func.num_values());
+                let mut memo = FxHashMap::default();
+                let mut derive = |value| {
+                    // A cycle can leave a partial result for a nested root.
+                    memo.clear();
+                    Self::heap_prefix_offset(
+                        func,
+                        value,
+                        arguments.get(&func_id),
+                        &returns,
+                        &mut visiting,
+                        &mut memo,
+                    )
+                };
+                let mut incoming = Vec::new();
+                let calls = func
+                    .instructions()
+                    .filter_map(|inst_id| {
+                        if let InstKind::ICall { function: Callee::Function(function), args } =
+                            &func.inst(inst_id).kind
+                        {
+                            Some((*function, &args[..]))
+                        } else {
+                            None
+                        }
+                    })
+                    .chain(func.blocks.iter().filter_map(|block| {
+                        if let Some(Terminator::TailCall { function, args }) = &block.terminator {
+                            Some((*function, &args[..]))
+                        } else {
+                            None
+                        }
+                    }));
+                for (callee, args) in calls {
+                    for (index, &value) in args.iter().enumerate() {
+                        if let Some(offset) = derive(value) {
+                            incoming.push((callee, ArgIdx::new(index), offset));
                         }
                     }
                 }
-                if offset > offsets.get(&func_id).copied().unwrap_or(0) {
-                    offsets.insert(func_id, offset);
-                    changed = true;
+                let mut returned = None;
+                if func.return_components().len() == 1 {
+                    for block in &func.blocks {
+                        if let Some(Terminator::Return { values }) = &block.terminator {
+                            for &value in values {
+                                returned = returned.max(derive(value));
+                            }
+                        }
+                    }
+                }
+                for (callee, index, offset) in incoming {
+                    let stored =
+                        arguments.entry(callee).or_default().entry(index).or_insert_with(|| {
+                            changed = true;
+                            offset
+                        });
+                    if offset > *stored {
+                        *stored = offset;
+                        changed = true;
+                    }
+                }
+                if let Some(offset) = returned {
+                    let stored = returns.entry(func_id).or_insert_with(|| {
+                        changed = true;
+                        offset
+                    });
+                    if offset > *stored {
+                        *stored = offset;
+                        changed = true;
+                    }
                 }
             }
             if !changed {
                 break;
             }
         }
-        offsets
+        (arguments, returns)
     }
 
     /// Evaluates short constant expressions even when optimization is disabled.
@@ -758,10 +823,42 @@ impl<'gcx> EvmCodegen<'gcx> {
         .flatten()
     }
 
+    /// Recognizes constant division followed by multiplication by the same factor.
+    /// Shifts are the power-of-two forms of these unsigned operations.
+    fn heap_prefix_alignment(func: &Function, value: ValueId) -> Option<(ValueId, u64)> {
+        let constant = |value| u256_to_u64(Self::heap_prefix_constant(func, value, 0)?);
+        let instruction = |value| match func.value(value) {
+            Value::Inst(inst_id) => Some(&func.inst(*inst_id).kind),
+            _ => None,
+        };
+        let (quotient, factor) = match instruction(value)? {
+            InstKind::Shl(shift, value) => {
+                (*value, 1_u64.checked_shl(constant(*shift)?.try_into().ok()?)?)
+            }
+            InstKind::Mul(first, second) => {
+                if let Some(factor) = constant(*second) {
+                    (*first, factor)
+                } else {
+                    (*second, constant(*first)?)
+                }
+            }
+            _ => return None,
+        };
+        let (base, divisor) = match instruction(quotient)? {
+            InstKind::Shr(shift, value) => {
+                (*value, 1_u64.checked_shl(constant(*shift)?.try_into().ok()?)?)
+            }
+            InstKind::Div(value, divisor) => (*value, constant(*divisor)?),
+            _ => return None,
+        };
+        (factor == divisor && factor != 0).then(|| (base, factor - 1))
+    }
+
     /// Returns how far `value` can point before its underlying heap object.
     fn heap_prefix_offset(
         func: &Function,
         value: ValueId,
+        argument_offsets: Option<&FxHashMap<ArgIdx, u64>>,
         returned_offsets: &FxHashMap<FunctionId, u64>,
         visiting: &mut DenseBitSet<ValueId>,
         memo: &mut FxHashMap<ValueId, u64>,
@@ -773,10 +870,15 @@ impl<'gcx> EvmCodegen<'gcx> {
             return None;
         }
         let derive = |value, visiting: &mut DenseBitSet<ValueId>, memo: &mut FxHashMap<_, _>| {
-            Self::heap_prefix_offset(func, value, returned_offsets, visiting, memo)
+            Self::heap_prefix_offset(
+                func,
+                value,
+                argument_offsets,
+                returned_offsets,
+                visiting,
+                memo,
+            )
         };
-        // An opaque base may still be a heap pointer. Keep its known backward displacement
-        // instead of dropping the consumer when a cast, helper, or merge loses provenance.
         let shifted = |base,
                        adjustment: U256,
                        visiting: &mut DenseBitSet<ValueId>,
@@ -784,7 +886,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             if Self::heap_prefix_constant(func, base, 0).is_some() {
                 return None;
             }
-            let prefix = derive(base, visiting, memo).unwrap_or(0);
+            let prefix = derive(base, visiting, memo)?;
             if let Some(forward) = u256_to_u64(adjustment) {
                 Some(prefix.saturating_sub(forward))
             } else {
@@ -792,25 +894,21 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         };
         let offset = (|| match func.value(value) {
-            Value::Arg(_) if func.value_ty(value).is_some_and(MirType::is_memory_reference) => {
-                Some(0)
+            Value::Arg(index) => {
+                argument_offsets.and_then(|offsets| offsets.get(index).copied()).or_else(|| {
+                    func.value_ty(value).is_some_and(MirType::is_memory_reference).then_some(0)
+                })
             }
             Value::Inst(inst_id) => match &func.inst(*inst_id).kind {
                 InstKind::Fmp | InstKind::Alloc { .. } => Some(0),
                 InstKind::MLoad(address)
-                    if func.value_u64(*address) == Some(EvmMemoryLayout::FMP_SLOT) =>
+                    if Self::heap_prefix_constant(func, *address, 0)
+                        == Some(U256::from(EvmMemoryLayout::FMP_SLOT)) =>
                 {
                     Some(0)
                 }
-                InstKind::ICall { function: Callee::Function(function), args } => {
-                    let argument_prefix =
-                        args.iter().filter_map(|&argument| derive(argument, visiting, memo)).max();
-                    let returned = returned_offsets.get(function).copied();
-                    if argument_prefix.is_some() || returned.is_some() {
-                        argument_prefix.unwrap_or(0).checked_add(returned.unwrap_or(0))
-                    } else {
-                        None
-                    }
+                InstKind::ICall { function: Callee::Function(function), .. } => {
+                    returned_offsets.get(function).copied()
                 }
                 InstKind::Add(first, second) => {
                     if let Some(amount) = Self::heap_prefix_constant(func, *second, 0) {
@@ -844,7 +942,11 @@ impl<'gcx> EvmCodegen<'gcx> {
                     } else {
                         u256_to_u64(!mask)?
                     };
-                    derive(base, visiting, memo).unwrap_or(0).checked_add(padding)
+                    derive(base, visiting, memo)?.checked_add(padding)
+                }
+                InstKind::Shl(..) | InstKind::Mul(..) => {
+                    let (base, padding) = Self::heap_prefix_alignment(func, value)?;
+                    derive(base, visiting, memo)?.checked_add(padding)
                 }
                 InstKind::WordCast(base) | InstKind::MemoryObjectFromPtr { ptr: base, .. } => {
                     derive(*base, visiting, memo)
@@ -1096,6 +1198,9 @@ mod tests {
         let base = builder.fmp();
         let opaque = builder.add_param(MirType::uint256());
         let word = builder.imm(32);
+        // loaded_base = mload(32 + 32)
+        let fmp_slot = builder.add(word, word);
+        let loaded_base = builder.mload(fmp_slot);
         let negative_word = builder.imm(-32);
         let half_word = builder.imm(16);
         let negative_half_word = builder.imm(-16);
@@ -1119,8 +1224,25 @@ mod tests {
         // aligned_narrow = add & u64_word_mask
         let narrow_mask = builder.imm(u64::MAX - 31);
         let aligned_narrow = builder.and(add, narrow_mask);
+        // shifted = (add >> 5) << 5
+        // divided = (add / 32) * 32
+        // mixed_alignment = (add >> 5) * 32
+        let shift = builder.imm(5);
+        let quotient = builder.shr(shift, add);
+        let shifted_alignment = builder.shl(shift, quotient);
+        let mixed_alignment = builder.mul(word, quotient);
+        let quotient = builder.div(add, word);
+        let divided_alignment = builder.mul(quotient, word);
+        let commuted_divided = builder.mul(word, quotient);
+        let mixed_shift = builder.shl(shift, quotient);
+        // opaque_alignment = (opaque / 32) * 32
+        // mismatched = (add / 32) * 16
+        let opaque_quotient = builder.div(opaque, word);
+        let opaque_alignment = builder.mul(opaque_quotient, word);
+        let mismatched = builder.mul(quotient, half_word);
         let cases = [
             (base, 0),
+            (loaded_base, 0),
             (sub, 32),
             (add, 32),
             (commuted, 32),
@@ -1128,11 +1250,14 @@ mod tests {
             (mixed, 48),
             (forward, 32),
             (negative_sub, 32),
-            (opaque_prefix, 32),
             (aligned, 63),
             (commuted_aligned, 63),
-            (aligned_opaque, 31),
             (aligned_narrow, 63),
+            (shifted_alignment, 63),
+            (divided_alignment, 63),
+            (commuted_divided, 63),
+            (mixed_alignment, 63),
+            (mixed_shift, 63),
         ];
         let mut visiting = DenseBitSet::new_empty(function.num_values());
         let mut memo = FxHashMap::default();
@@ -1141,6 +1266,7 @@ mod tests {
                 EvmCodegen::heap_prefix_offset(
                     &function,
                     value,
+                    None,
                     &FxHashMap::default(),
                     &mut visiting,
                     &mut memo,
@@ -1148,6 +1274,19 @@ mod tests {
                 Some(expected),
             );
             assert!(visiting.is_empty());
+        }
+        for value in [opaque, opaque_prefix, aligned_opaque, opaque_alignment, mismatched] {
+            assert_eq!(
+                EvmCodegen::heap_prefix_offset(
+                    &function,
+                    value,
+                    None,
+                    &FxHashMap::default(),
+                    &mut visiting,
+                    &mut memo
+                ),
+                None,
+            );
         }
     }
 
@@ -1162,15 +1301,15 @@ mod tests {
         let word = builder.imm(32);
         let prefix = builder.sub(base, word);
         let adjacent = builder.add(base, word);
-        assert_eq!(EvmCodegen::heap_prefix_guard(&function, &FxHashMap::default()), 0);
+        assert_eq!(EvmCodegen::heap_prefix_guard(&function, None, &FxHashMap::default()), 0);
 
         // hash(adjacent, 32)
         FunctionBuilder::new(&mut function).keccak256(adjacent, word);
-        assert_eq!(EvmCodegen::heap_prefix_guard(&function, &FxHashMap::default()), 0);
+        assert_eq!(EvmCodegen::heap_prefix_guard(&function, None, &FxHashMap::default()), 0);
 
         // hash(prefix, 32)
         FunctionBuilder::new(&mut function).keccak256(prefix, word);
-        assert_eq!(EvmCodegen::heap_prefix_guard(&function, &FxHashMap::default()), 32);
+        assert_eq!(EvmCodegen::heap_prefix_guard(&function, None, &FxHashMap::default()), 32);
     }
 
     #[test]
@@ -1251,7 +1390,7 @@ mod tests {
                 // consumer(..., prefix, size, ...)
                 FunctionBuilder::new(&mut consumer).append_instruction(Instruction::new(kind, ty));
                 assert_eq!(
-                    EvmCodegen::heap_prefix_guard(&consumer, &FxHashMap::default()),
+                    EvmCodegen::heap_prefix_guard(&consumer, None, &FxHashMap::default()),
                     if size == zero { 0 } else { 32 },
                     "{name}",
                 );
@@ -1264,7 +1403,7 @@ mod tests {
                 // return_data/revert prefix, size
                 consumer.blocks[BlockId::ENTRY].terminator = Some(terminator);
                 assert_eq!(
-                    EvmCodegen::heap_prefix_guard(&consumer, &FxHashMap::default()),
+                    EvmCodegen::heap_prefix_guard(&consumer, None, &FxHashMap::default()),
                     if size == zero { 0 } else { 32 },
                 );
             }
@@ -1277,7 +1416,7 @@ mod tests {
             let mut consumer = function.clone();
             // mload/mstore/mstore8 prefix, ...
             FunctionBuilder::new(&mut consumer).append_instruction(Instruction::new(kind, ty));
-            assert_eq!(EvmCodegen::heap_prefix_guard(&consumer, &FxHashMap::default()), 32);
+            assert_eq!(EvmCodegen::heap_prefix_guard(&consumer, None, &FxHashMap::default()), 32);
         }
     }
 
@@ -1302,6 +1441,7 @@ mod tests {
                 EvmCodegen::heap_prefix_offset(
                     &function,
                     value,
+                    None,
                     &FxHashMap::default(),
                     &mut visiting,
                     &mut memo,
@@ -1337,8 +1477,41 @@ mod tests {
         builder.ret([prefix]);
         let caller = module.add_function(caller);
 
-        let offsets = EvmCodegen::heap_prefix_return_offsets(&module);
-        assert_eq!(offsets[&helper], 32);
+        let (_, offsets) = EvmCodegen::heap_prefix_offsets(&module);
+        assert!(!offsets.contains_key(&helper));
+        assert!(!offsets.contains_key(&caller));
+
+        let mut root = Function::new(Ident::DUMMY);
+        let mut builder = FunctionBuilder::new(&mut root);
+        builder.set_return_type(MirType::uint256());
+        // root(): return caller(fmp)
+        let base = builder.fmp();
+        let result = builder.icall(caller, vec![base], MirType::uint256());
+        builder.ret([result]);
+        let root = module.add_function(root);
+
+        let mut scalar = Function::new(Ident::DUMMY);
+        let mut builder = FunctionBuilder::new(&mut scalar);
+        builder.set_return_type(MirType::uint256());
+        // scalar(pointer): return 7
+        builder.add_param(MirType::uint256());
+        let value = builder.imm(7);
+        builder.ret([value]);
+        let scalar = module.add_function(scalar);
+        // root(): scalar(fmp)
+        FunctionBuilder::new(&mut module.functions[root]).icall(
+            scalar,
+            vec![base],
+            MirType::uint256(),
+        );
+
+        let (arguments, offsets) = EvmCodegen::heap_prefix_offsets(&module);
+        assert_eq!(arguments[&caller][&ArgIdx::new(0)], 0);
+        assert_eq!(arguments[&helper][&ArgIdx::new(0)], 16);
+        assert_eq!(offsets[&helper], 48);
         assert_eq!(offsets[&caller], 64);
+        assert_eq!(offsets[&root], 64);
+        assert_eq!(arguments[&scalar][&ArgIdx::new(0)], 0);
+        assert!(!offsets.contains_key(&scalar));
     }
 }

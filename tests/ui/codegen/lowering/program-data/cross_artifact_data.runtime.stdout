@@ -13,7 +13,7 @@ bb0:
   sub
   push bb3
   jumpi
-  push 384
+  push 320
   dup 1
   push 64
   mstore
