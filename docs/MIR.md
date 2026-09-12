@@ -542,14 +542,18 @@ covers physical memory reads and writes, including logs, both call buffers,
 and return/revert data. It follows bounded constant add/sub offsets with EVM
 modular arithmetic, including helper returns and merged paths. Constant masks
 that clear low bits retain the base's prefix and reserve the largest extra
-backward displacement the mask can introduce. A known backward offset from
-an opaque base still reserves space; losing pointer provenance does not discard
-that offset. Forward offsets reduce the required prefix, but never below zero. This analysis covers constant working
-prefixes, not arbitrary unbounded assembly pointer arithmetic. Allocation
+backward displacement the mask can introduce. Matching division/multiplication
+and right/left shifts retain the same alignment bound. Scalar helper parameters acquire
+heap provenance from actual call arguments; helper results retain the offsets
+of their returned values. Unknown scalar arithmetic cannot create a heap origin.
+Forward offsets reduce the required prefix, but never below zero. This analysis
+covers constant working prefixes, not arbitrary unbounded assembly pointer arithmetic. Allocation
 coalescing uses the same address-range proof as alias analysis when crossing
 memory accesses; a pointer type alone cannot establish that they avoid the FMP.
 An allocation marked `preserves_fmp` must keep
-its FMP address and bump, even when folding makes its size constant. ABI encoding
+its FMP address and bump, even when folding makes its size constant. Coalescing
+only combines infallible allocations and stops at control effects; allocation
+panic checks remain at their original program points. ABI encoding
 uses this requirement when it writes the output before reserving its final size.
 The flag round-trips through MIR text.
 

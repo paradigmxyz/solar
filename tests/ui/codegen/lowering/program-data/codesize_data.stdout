@@ -142,7 +142,7 @@ bb5 [cold]:
   push 0
   revert
 bb6:
-  push 416
+  push 352
   dup 1
   push 64
   mstore
@@ -270,7 +270,7 @@ bb8:
   dup 2
   return
 bb9:
-  push 416
+  push 352
   dup 1
   push 64
   mstore
