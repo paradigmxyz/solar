@@ -78,6 +78,7 @@ time: <TIME>	MIR TimePasses lower-alloc changed=false
 time: <TIME>	MIR TimePasses lower-memory-zero changed=false
 time: <TIME>	MIR TimePasses lower-mcopy changed=false
 time: <TIME>	MIR TimePasses call-cleanup changed=false
+time: <TIME>	MIR TimePasses inline-dispatch changed=false
 time: <TIME>	MIR TimePasses egraph changed=false
 time: <TIME>	MIR TimePasses word-sequence changed=false
 time: <TIME>	MIR TimePasses cfg-simplify changed=false

@@ -6,52 +6,54 @@ bb0:
   lt
   callvalue
   or
-  push bb2
+  push bb7
   jumpi
   push 0
   calldataload
   push 224
   shr
+  push 4
+  calldataload
+  push 224
+  mstore
+  push 36
+  calldataload
+  push 256
+  mstore
   dup 1
-  push 0x966953d1
-  eq
-  push bb10
-  jumpi
+  push 288
+  mstore
   dup 1
-  push 0x9ed41ba1
-  eq
-  push bb8
+  push 0xaca5dfb5
+  gt
+  push bb4
   jumpi
   dup 1
   push 0xaca5dfb5
-  eq
-  push bb9
-  jumpi
-  dup 1
-  push 0xcad0899b
   sub
   push bb2
   jumpi
-  push 36
-  calldataload
-  push 4
-  calldataload
+  pop
+  push 256
+  mload
+  push 224
+  mload
+  dup 2
+  dup 2
+  xor
+  dup 3
+  dup 3
   or
-  push 36
-  calldataload
-  push 4
-  calldataload
-  add
-  push 36
-  calldataload
-  push 4
-  calldataload
+  jump bb9
+bb9:
+  swap 3
+  swap 1
+  swap 2
   and
-  jump bb11
-bb11:
+  jump bb8
+bb8:
   push 128
   mstore
-  swap 1
   push 160
   mstore
   push 192
@@ -59,52 +61,65 @@ bb11:
   push 96
   push 128
   return
-bb2 [cold]:
+bb7 [cold]:
   push 0
   push 0
   revert
-bb8:
-  push 36
-  calldataload
-  push 4
-  calldataload
-  or
-  push 36
-  calldataload
-  push 4
-  calldataload
-  xor
+bb2:
   dup 1
-  dup 3
+  push 0xcad0899b
   sub
-  jump bb11
-bb9:
-  push 36
-  calldataload
-  push 4
-  calldataload
-  xor
-  push 36
-  calldataload
-  push 4
-  calldataload
+  push bb7
+  jumpi
+  pop
+  push 256
+  mload
+  push 224
+  mload
+  dup 2
+  dup 2
   or
-  dup 2
-  dup 2
-  sub
-  jump bb11
-bb10:
-  push 36
-  calldataload
-  push 4
-  calldataload
-  xor
-  push 36
-  calldataload
-  push 4
-  calldataload
-  and
-  dup 2
-  dup 2
+  dup 3
+  dup 3
   add
-  jump bb11
+  jump bb9
+bb4:
+  dup 1
+  push 0x966953d1
+  sub
+  push bb5
+  jumpi
+  pop
+  push 256
+  mload
+  push 224
+  mload
+  dup 2
+  dup 2
+  xor
+  dup 3
+  dup 3
+  and
+  swap 3
+  swap 1
+  swap 2
+  or
+  jump bb8
+bb5:
+  dup 1
+  push 0x9ed41ba1
+  sub
+  push bb7
+  jumpi
+  pop
+  push 256
+  mload
+  push 224
+  mload
+  dup 2
+  dup 2
+  or
+  dup 3
+  dup 3
+  xor
+  jump bb9

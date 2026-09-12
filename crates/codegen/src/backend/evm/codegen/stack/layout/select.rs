@@ -2,7 +2,8 @@
 //!
 //! Gas mode also retains a calldata loop bound beneath three or four stack-resident phis when
 //! the loop has one pure, straight-line latch of at most sixteen instructions. The resident
-//! argument planner proves incoming layouts and liveness; the phi planner proves that its
+//! argument planner proves incoming layouts and liveness, including explicit calldata loads
+//! introduced by dispatcher inlining; the phi planner proves that its
 //! changing words fit above the invariant. Calls and uncomposable layouts keep reloads.
 //! This replaces repeated calldata loads with DUPs, trading a small setup and bytecode cost
 //! for cheaper iterations. It assumes repeated traversal for profitability, not correctness:
@@ -27,14 +28,20 @@ impl<'gcx> EvmCodegen<'gcx> {
         liveness: &Liveness,
         phi_plan: &StackPhiPlan,
     ) -> Option<(Vec<ValueId>, GlobalStackPlan)> {
-        if !self.gcx.sess.opts.optimization.is_gas() || !Self::is_external_entry(func) {
+        if !self.gcx.sess.opts.optimization.is_gas()
+            || self.in_internal_function
+            || self.in_constructor
+        {
             return None;
         }
         for (header, block) in func.blocks.iter_enumerated() {
             if let Some(Terminator::Branch { condition, then_block: body, .. }) = &block.terminator
                 && let Value::Inst(cond) = func.value(*condition)
                 && let InstKind::Lt(index, bound) = func.inst(*cond).kind
-                && matches!(func.value(bound), Value::Arg(_))
+                && (matches!(func.value(bound), Value::Arg(_))
+                    || matches!(func.value(bound), Value::Inst(inst)
+                        if matches!(func.inst(*inst).kind, InstKind::CalldataLoad(offset)
+                            if matches!(func.value(offset), Value::Immediate(_)))))
                 && let Some(layout) = phi_plan.entries.get(&header)
                 && (3..=4).contains(&layout.len())
                 && layout.contains(&index)

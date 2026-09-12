@@ -820,17 +820,6 @@ bb71:
   swap 1
   swap 2
   jump bb73
-bb73:
-  dup 4
-  dup 2
-  lt
-  push bb74
-  jumpi
-  pop
-  pop
-  swap 1
-  pop
-  jump bb72
 bb74:
   dup 2
   sload
@@ -849,6 +838,17 @@ bb74:
   add
   swap 1
   jump bb73
+bb73:
+  dup 4
+  dup 2
+  lt
+  push bb74
+  jumpi
+  pop
+  pop
+  swap 1
+  pop
+  jump bb72
 bb36 [cold]:
   push 0x4e487b71
   push 224

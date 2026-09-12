@@ -228,16 +228,6 @@ bb21:
   push 4
   calldataload
   jump bb23
-bb23:
-  push 36
-  calldataload
-  dup 2
-  gt
-  iszero
-  push bb25
-  jumpi
-  swap 1
-  jump bb30
 bb25:
   dup 1
   swap 2
@@ -256,6 +246,16 @@ bb25:
   push 160
   mload
   jump bb23
+bb23:
+  push 36
+  calldataload
+  dup 2
+  gt
+  iszero
+  push bb25
+  jumpi
+  swap 1
+  jump bb30
 bb27 [cold]:
   push 192
   push 0x760769fe
