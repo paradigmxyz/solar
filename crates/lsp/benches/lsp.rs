@@ -203,7 +203,7 @@ fn rename_candidate_queries(c: &mut Criterion) {
         eof_anchor.line,
         eof_anchor.character + "function caller2047() public { ".len() as u32,
     );
-    let analysis = project.clone().analyze();
+    let analysis = project.analyze();
     assert_clean(&analysis);
     let Some((range, edit_count)) = analysis.rename_candidate(&uri, hit_position) else {
         panic!("rename candidate should resolve at the final call site");
@@ -904,6 +904,94 @@ fn repeated_analysis(c: &mut Criterion) {
     cached.finish();
 }
 
+fn workspace_index_reuse(c: &mut Criterion) {
+    let workspace_count = 4;
+    let caller_count = 256;
+    let temp = tempfile::tempdir().expect("workspace index benchmark directory");
+    let mut source = String::from(
+        "import \"./lib/Dependency.sol\";\ncontract Main is Dependency {\nfunction target() internal {}\n",
+    );
+    for index in 0..caller_count {
+        writeln!(source, "function caller{index}() public {{ target(); }}").unwrap();
+    }
+    source.push_str("uint marker0;\n}\n");
+    let edited_source = source.replace("marker0", "marker1");
+    let roots = (0..workspace_count)
+        .map(|index| {
+            let root = temp.path().join(format!("workspace-{index}"));
+            fs::create_dir(&root).expect("benchmark workspace root");
+            fs::create_dir(root.join("lib")).expect("benchmark dependency directory");
+            fs::write(root.join("Main.sol"), &source).expect("benchmark source");
+            fs::write(root.join("lib/Dependency.sol"), "contract Dependency {}\n")
+                .expect("benchmark dependency");
+            root
+        })
+        .collect::<Vec<_>>();
+    let path = roots[0].join("Main.sol");
+    let uri = Url::from_file_path(&path).unwrap();
+    let position = Position::new(
+        caller_count as u32 + 2,
+        format!("function caller{}() public {{ ", caller_count - 1).len() as u32,
+    );
+
+    let mut group = c.benchmark_group("lsp/workspace-index-reuse");
+    group.bench_function("4x256-callers-cold", |b| {
+        b.iter_batched_ref(
+            || BenchmarkRepeatedAnalysis::from_workspaces(&roots, &source),
+            |analysis| black_box(analysis.run_epoch()),
+            BatchSize::PerIteration,
+        );
+    });
+    group.bench_function("4x256-callers-open-indexed-document-first-prepare", |b| {
+        b.iter_batched_ref(
+            || {
+                let mut analysis = BenchmarkRepeatedAnalysis::from_workspaces(&roots, &source);
+                analysis.clear_open_documents();
+                assert!(analysis.run_epoch());
+                assert_eq!(analysis.prepare_call_hierarchy(&uri, position).unwrap().len(), 1);
+                analysis
+            },
+            |analysis| {
+                analysis.replace_source(&path, &source);
+                black_box(analysis.run_epoch());
+                black_box(analysis.prepare_call_hierarchy(&uri, position))
+            },
+            BatchSize::PerIteration,
+        );
+    });
+
+    let mut analysis = BenchmarkRepeatedAnalysis::from_workspaces(&roots, &source);
+    assert!(analysis.run_epoch());
+    assert_eq!(analysis.prepare_call_hierarchy(&uri, position).unwrap().len(), 1);
+    // Initialization and the first lazy query happen once, outside every incremental sample.
+    group.bench_function("4x256-callers-unchanged", |b| {
+        b.iter(|| black_box(analysis.run_epoch()));
+    });
+    group.bench_function("4x256-callers-unchanged-first-prepare", |b| {
+        b.iter(|| {
+            black_box(analysis.run_epoch());
+            black_box(analysis.prepare_call_hierarchy(&uri, position))
+        });
+    });
+    group.bench_function("4x256-callers-reverted-edit-first-prepare", |b| {
+        b.iter(|| {
+            analysis.edit_and_revert();
+            black_box(analysis.run_epoch());
+            black_box(analysis.prepare_call_hierarchy(&uri, position))
+        });
+    });
+    let mut edited = false;
+    group.bench_function("4x256-callers-one-workspace-edit-first-prepare", |b| {
+        b.iter(|| {
+            edited = !edited;
+            analysis.replace_source(&path, if edited { &edited_source } else { &source });
+            black_box(analysis.run_epoch());
+            black_box(analysis.prepare_call_hierarchy(&uri, position))
+        });
+    });
+    group.finish();
+}
+
 fn workspace_path_queries(c: &mut Criterion) {
     let queries =
         BenchmarkWorkspacePathQueries::new(PATH_INDEX_WORKSPACE_COUNT, PATH_INDEX_QUERY_COUNT);
@@ -1139,6 +1227,7 @@ criterion_group!(
     workspace_diagnostic_hot_paths,
     open_document_analysis_batches,
     repeated_analysis,
+    workspace_index_reuse,
     workspace_path_queries,
     unifap_benches
 );

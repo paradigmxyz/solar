@@ -540,6 +540,88 @@ impl BenchmarkRepeatedAnalysis {
         Self { state }
     }
 
+    /// Prepare one open document in each independently configured workspace.
+    ///
+    /// The caller keeps these roots and their disk dependencies alive for the workload.
+    pub fn from_workspaces(roots: &[PathBuf], source: &str) -> Self {
+        let params = lsp_types::InitializeParams {
+            workspace_folders: Some(
+                roots
+                    .iter()
+                    .enumerate()
+                    .map(|(index, root)| WorkspaceFolder {
+                        uri: Url::from_file_path(root).expect("benchmark root should be absolute"),
+                        name: format!("workspace-{index}"),
+                    })
+                    .collect(),
+            ),
+            ..Default::default()
+        };
+        let (_, mut config) = negotiate_capabilities(params);
+        config.try_rediscover_workspaces().expect("benchmark workspace discovery should succeed");
+        assert_eq!(config.workspaces().len(), roots.len());
+        assert!(config.workspaces().iter().all(|workspace| {
+            workspace.source_files().len() == 1
+                && workspace.source_files()[0].file_name().is_some_and(|name| name == "Main.sol")
+        }));
+        let mut state = super::GlobalState::new(ClientSocket::new_closed());
+        state.config = Arc::new(config);
+        for root in roots {
+            state.vfs.write().set_file_contents_with_version(
+                VfsPath::from(root.join("Main.sol")),
+                Some(Rope::from(source)),
+                Some(1),
+            );
+        }
+        Self { state }
+    }
+
+    /// Open or replace one source while leaving the other workspaces unchanged.
+    pub fn replace_source(&mut self, path: &Path, source: &str) {
+        let path = VfsPath::from(path.to_path_buf());
+        let mut vfs = self.state.vfs.write();
+        let version = vfs.get_file_version(&path).unwrap_or_default() + 1;
+        vfs.set_file_contents_with_version(path, Some(Rope::from(source)), Some(version));
+    }
+
+    /// Remove all document overlays before preparing an initial disk-only analysis.
+    pub fn clear_open_documents(&mut self) {
+        *self.state.vfs.write() = Default::default();
+    }
+
+    /// Advance and synchronously run a production document-analysis epoch.
+    #[inline(never)]
+    pub fn run_epoch(&mut self) -> bool {
+        let version = self.state.next_analysis_version();
+        self.state.commit_analysis_epoch(
+            &mut self.state.analysis_commit.lock(),
+            version,
+            Vec::new(),
+            false,
+        );
+        let mut snapshot = self.state.snapshot();
+        let progress = self.state.analysis_progress.reserve(version);
+        matches!(
+            run_analysis(
+                &mut snapshot,
+                version,
+                Vec::new(),
+                &progress,
+                &IndexingCancellation::default(),
+            ),
+            AnalysisTaskOutcome::Published
+        )
+    }
+
+    /// Prepare call hierarchy against the latest published snapshot.
+    pub fn prepare_call_hierarchy(
+        &self,
+        uri: &Url,
+        position: Position,
+    ) -> Option<Vec<CallHierarchyItem>> {
+        self.state.symbol_tables.load().prepare_call_hierarchy(uri, position)
+    }
+
     /// Advance the VFS revision through an edit and undo before analysis begins.
     pub fn edit_and_revert(&mut self) {
         let mut vfs = self.state.vfs.write();
