@@ -1390,10 +1390,12 @@ impl AliasAnalysis {
                 if let Some(summary) =
                     self.call_summaries.as_deref().and_then(|summaries| summaries.get(function))
                 {
+                    effects.observes_gas = summary.may_observe_gas();
                     let args =
                         kind.operands().into_iter().map(resolve).collect::<SmallVec<[_; 8]>>();
                     effects.merge_call_summary(summary, func, self, &args);
                 } else {
+                    effects.observes_gas = true;
                     effects.read_any(AddressSpace::Memory);
                     effects.write_any(AddressSpace::Memory);
                     effects.read_any(AddressSpace::Storage);
@@ -1446,8 +1448,10 @@ impl AliasAnalysis {
                 if let Some(summary) =
                     self.call_summaries.as_deref().and_then(|summaries| summaries.get(function))
                 {
+                    effects.observes_gas = summary.may_observe_gas();
                     effects.merge_call_summary(summary, func, self, &terminator.operands());
                 } else {
+                    effects.observes_gas = true;
                     effects.read_any(AddressSpace::Memory);
                     effects.write_any(AddressSpace::Memory);
                     effects.read_any(AddressSpace::Storage);

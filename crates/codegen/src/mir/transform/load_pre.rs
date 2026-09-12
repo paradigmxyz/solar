@@ -63,6 +63,8 @@
 //!
 //! # Safety of rewrites
 //!
+//! A join load is never removed or moved after a gas observation on any incoming
+//! CFG path, including loop backedges and observations in transitive callees.
 //! A join load is a candidate only if no kill of its key precedes it in the join block.
 //! For that scan, gas observations and calls block all spaces and `msize` is a
 //! kill for memory and keccak keys: a partial-redundancy insertion moves the read to the
@@ -95,7 +97,7 @@ use crate::{
         EffectKind, BlockId, Function, InstId, InstKind, Instruction, InstructionMetadata, MemoryObjectKind,
         MemoryRegion, MirType, Module, StorageAlias, Terminator, Value, ValueId,
         analysis::{
-            Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, Liveness, Location, LocationSize,
+            Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, GasObservations, Liveness, Location, LocationSize,
             MemoryAddress, MemoryLocation, ModRef,
         },
         pass::{MirPass, run_function_pass_with_alias_and_cfg},
@@ -326,6 +328,7 @@ struct Analysis {
     /// Availability at block exit.
     outs: FxHashMap<BlockId, KeySet>,
     inst_blocks: FxHashMap<InstId, BlockId>,
+    gas: GasObservations,
 }
 
 #[derive(Default)]
@@ -634,7 +637,9 @@ impl LoadRedundancyEliminator {
             }
         }
 
+        let gas = GasObservations::new(func, &cfg, self.alias());
         Some(Analysis {
+            gas,
             keys,
             key_index,
             kill_index,
@@ -661,7 +666,7 @@ impl LoadRedundancyEliminator {
         let mut eliminated_values = DenseBitSet::new_empty(func.num_values());
 
         'targets: for target in func.blocks.indices() {
-            if !cx.analysis.cfg.is_reachable(target) {
+            if !cx.analysis.cfg.is_reachable(target) || cx.analysis.gas.at_entry(target) {
                 continue;
             }
             let predecessors = func.unique_predecessors(target);
@@ -748,6 +753,9 @@ impl LoadRedundancyEliminator {
         let mut found = Vec::new();
 
         for &inst_id in &func.blocks[target].instructions {
+            if analysis.gas.observes(inst_id) {
+                break;
+            }
             if let Some((key, GenSource::LoadResult)) = self.gen_key_value(func, inst_id) {
                 if let Some(&idx) = analysis.key_index.get(&key)
                     && !blocked.contains(idx)
@@ -1194,6 +1202,9 @@ impl LoadRedundancyEliminator {
 
     #[must_use]
     fn effects_kill_key(&self, effects: &ModRef, key: LoadKey) -> bool {
+        if effects.observes_gas() {
+            return true;
+        }
         let aa = self.alias();
         match key {
             LoadKey::Storage(alias) => effects.may_write(aa, Location::Storage(alias)),
