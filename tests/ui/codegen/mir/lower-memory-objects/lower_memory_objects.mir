@@ -73,3 +73,15 @@ fn @unreachable_cast_cycle() -> u256 {
     v1 = word_cast v0
     ret v0
 }
+
+// CHECK-LABEL: {{^[ +].*}}fn @merged_allocations{{[( ]}}
+// CHECK: + [[BASE:v[0-9]+]] = alloc raw, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+// CHECK: + [[NEXT:v[0-9]+]] = add [[BASE]], 32{{$}}
+fn @merged_allocations() -> memorybytes {
+  bb0:
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v0, 0
+    v1 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v1, 0
+    ret v1
+}

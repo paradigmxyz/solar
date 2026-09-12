@@ -554,9 +554,10 @@ memory accesses; a pointer type alone cannot establish that they avoid the FMP.
 An allocation marked `preserves_fmp` must keep
 its FMP address and bump, even when folding makes its size constant. Coalescing
 only combines infallible allocations and stops at control effects; allocation
-panic checks remain at their original program points. ABI encoding
-uses this requirement when it writes the output before reserving its final size.
-The flag round-trips through MIR text.
+panic checks remain at their original program points. Standard and packed ABI bytes
+results retain their allocation point because source code can observe the FMP bump.
+Dynamic encoding also uses this requirement when it writes the output before
+reserving its final size. The flag round-trips through MIR text.
 
 Load PRE inserts reads only when the join prefix cannot revert, terminate, or
 diverge. Availability on one predecessor does not make it safe to execute a load

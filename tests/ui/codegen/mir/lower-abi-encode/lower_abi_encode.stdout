@@ -13,6 +13,32 @@
 +     ret v3
   }
   
+  fn @static_bytes(arg0: u256, arg1: u256) -> memorybytes {
+    bb0:
+-     v0 = abi_encode [word, word], object, args arg0, arg1
+-     ret v0
++     v1 = alloc memorybytes, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
++     set_memory_object_len memorybytes, v1, 64
++     v2 = memory_object_data memorybytes, v1
++     mstore v2, arg0
++     v3 = add v2, 32
++     mstore v3, arg1
++     ret v1
+  }
+  
+  fn @selector_bytes(arg0: u256) -> memorybytes {
+    bb0:
+-     v0 = abi_encode [word], object, selector 0x1234567800000000000000000000000000000000000000000000000000000000, args arg0
+-     ret v0
++     v1 = alloc memorybytes, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
++     set_memory_object_len memorybytes, v1, 36
++     v2 = memory_object_data memorybytes, v1
++     mstore v2, 0x1234567800000000000000000000000000000000000000000000000000000000
++     v3 = add v2, 4
++     mstore v3, arg0
++     ret v1
+  }
+  
   fn @scratch(arg0: u256) -> memoryslice {
     bb0:
 -     v0 = abi_encode [word], scratch, args arg0

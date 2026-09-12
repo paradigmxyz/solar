@@ -18,7 +18,7 @@
 +   bb3:
 +     v8 = not 31
 +     v9 = and v6, v8
-+     v10 = alloc memorybytes, exact, uninitialized, infallible, v9
++     v10 = alloc memorybytes, exact, uninitialized, infallible, v9 !metadata(preserves_fmp)
 +     set_memory_object_len memorybytes, v10, v4
 +     v11 = shl 216, arg0
 +     v12 = or 0x1020000000000000000000000000000000000000000000000000000000000, v11
@@ -82,7 +82,7 @@
 +     v20 = lt v19, v17
 +     jumpi v20, bb1, bb6
 +   bb6:
-+     v21 = alloc memorybytes, exact, uninitialized, infallible, v19
++     v21 = alloc memorybytes, exact, uninitialized, infallible, v19 !metadata(preserves_fmp)
 +     set_memory_object_len memorybytes, v21, v17
 +     v22 = mul v1, 32
 +     v23 = iszero 32
@@ -149,7 +149,7 @@
     bb0:
 -     v0 = abi_encode_packed (array<array<2, word<enum 3>>> memoryfixedarray<2, 1> arg0)
 -     ret v0
-+     v1 = alloc memorybytes, exact, uninitialized, infallible, 160
++     v1 = alloc memorybytes, exact, uninitialized, infallible, 160 !metadata(preserves_fmp)
 +     set_memory_object_len memorybytes, v1, 128
 +     jump bb1
 +   bb1:
@@ -218,7 +218,7 @@
 +     v12 = lt v11, v9
 +     jumpi v12, bb4, bb7
 +   bb7:
-+     v13 = alloc memorybytes, exact, uninitialized, infallible, v11
++     v13 = alloc memorybytes, exact, uninitialized, infallible, v11 !metadata(preserves_fmp)
 +     set_memory_object_len memorybytes, v13, v9
 +     v14 = mul v2, 32
 +     v15 = iszero 32
@@ -279,7 +279,7 @@
 +   bb4:
 +     v12 = not 31
 +     v13 = and v10, v12
-+     v14 = alloc memorybytes, exact, uninitialized, infallible, v13
++     v14 = alloc memorybytes, exact, uninitialized, infallible, v13 !metadata(preserves_fmp)
 +     set_memory_object_len memorybytes, v14, v8
 +     memory_object_store_word memorybytes, v14, 0, 0xab00000000000000000000000000000000000000000000000000000000000000
 +     v15 = mul v1, 32

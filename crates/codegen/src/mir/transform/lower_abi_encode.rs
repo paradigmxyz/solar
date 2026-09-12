@@ -5,6 +5,7 @@
 //! supplied by the lowering plan. Literal objects are kept until their projections
 //! can be folded. Generated stores inherit the encoding operation's source context;
 //! any block split moves the original terminator and its metadata together.
+//! Bytes results keep their allocation point because source code can observe the FMP bump.
 //! Dynamic encoding writes at the free-memory pointer before reserving its final extent. That
 //! reservation must stay at the same address even if later folding makes its size constant.
 //! Constructor-reachable encoders stay inline because their output is not reserved
@@ -322,12 +323,16 @@ fn lower_encode(
         let total_size = selector_size + layout.head_size();
         let aligned_size = total_size.next_multiple_of(32);
         if mode == AbiEncodeMode::Bytes {
+            // object = alloc bytes(aligned_size + 32) !preserves_fmp
             let allocation_size = builder.imm(aligned_size.saturating_add(32));
             let object = builder.alloc_object(
                 allocation_size,
                 MemoryObjectLayout::Bytes,
                 crate::mir::AllocationSemantics::INTERNAL,
             );
+            if let Value::Inst(alloc) = *builder.func().value(object) {
+                builder.func_mut().inst_mut(alloc).metadata.set_preserves_fmp(true);
+            }
             let total = builder.imm(total_size);
             builder.set_memory_object_len(object, total, MemoryObjectKind::Bytes);
             let buffer = builder.memory_object_data(object, MemoryObjectKind::Bytes);

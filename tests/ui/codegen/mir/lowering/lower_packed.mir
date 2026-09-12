@@ -4,6 +4,8 @@
 //@[expanded] filecheck:
 @module PackedEncoding
 
+// CHECK-LABEL: fn @mixed(
+// CHECK: alloc memorybytes, {{.*}} !metadata(preserves_fmp)
 fn @mixed(arg0: u16, arg1: memorybytes) -> memorybytes {
   bb0:
     v0 = abi_encode_packed (data hex"000102", u16 arg0, bytes arg1)
@@ -16,6 +18,8 @@ fn @hash(arg0: i16) -> bytes32 {
     ret v0
 }
 
+// CHECK-LABEL: fn @arrays(
+// CHECK: alloc memorybytes, {{.*}} !metadata(preserves_fmp)
 fn @arrays(arg0: memoryarray, arg1: calldataslice) -> memorybytes {
   bb0:
     v0 = abi_encode_packed (array<word<i16>> memoryarray<1> arg0, array<word<bool>> calldata arg1)

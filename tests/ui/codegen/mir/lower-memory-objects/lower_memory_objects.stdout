@@ -85,3 +85,17 @@
 -     ret v0
   }
   
+- fn @merged_allocations() -> memorybytes {
++ fn @merged_allocations() -> memptr {
+    bb0:
+-     v0 = alloc memorybytes, exact, uninitialized, infallible, 32
+-     set_memory_object_len memorybytes, v0, 0
+-     v1 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+-     set_memory_object_len memorybytes, v1, 0
++     v0 = alloc raw, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
++     mstore v0, 0
++     v1 = add v0, 32
++     mstore v1, 0
+      ret v1
+  }
+  
