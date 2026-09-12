@@ -1449,6 +1449,49 @@ tx Module
 }
 
 #[test]
+fn completes_contract_members_with_trailing_file_content() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Completion.sol open
+        contract C {
+            uint256 stateValue;
+            uint256 other = $1stateValue;
+        }
+        // trailing comment
+        "#,
+        "/Completion.sol",
+    );
+
+    fixture.check_completion(
+        "$1",
+        str![[r#"
+C Class
+abi Module
+addmod Function
+assert Function
+blobhash Function
+block Module
+blockhash Function
+ecrecover Function
+erc7201 Function
+gasleft Function
+keccak256 Function
+msg Module
+mulmod Function
+other Property
+require Function
+revert Function
+ripemd160 Function
+selfdestruct Function
+sha256 Function
+stateValue Property
+tx Module
+
+"#]],
+    );
+}
+
+#[test]
 fn filters_locals_by_declaration_scope() {
     let fixture = RequestFixture::new(
         r#"
