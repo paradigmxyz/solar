@@ -341,11 +341,19 @@ impl Target {
     /// The model of the session's EVM version, objective, and optimizer runs.
     pub(crate) fn new(gcx: Gcx<'_>) -> Self {
         let opts = &gcx.sess.opts;
-        Self::with(
-            opts.evm_version,
-            opts.optimization,
-            opts.optimizer_runs.unwrap_or(Self::DEFAULT_EXPECTED_EXECUTIONS),
-        )
+        let expected_executions = Self::optimizer_runs(opts.optimization, opts.optimizer_runs);
+        Self::with(opts.evm_version, opts.optimization, expected_executions)
+    }
+
+    /// Resolves the run count used by enabled lifetime-aware optimizations.
+    const fn optimizer_runs(optimization: OptimizationMode, runs: Option<u64>) -> u64 {
+        if matches!(optimization, OptimizationMode::None) {
+            Self::DEFAULT_EXPECTED_EXECUTIONS
+        } else if let Some(runs) = runs {
+            runs
+        } else {
+            Self::DEFAULT_EXPECTED_EXECUTIONS
+        }
     }
 
     /// A model with explicit parameters.
@@ -667,6 +675,16 @@ mod tests {
         assert!(gas.improves(1, 0));
         assert!(!gas.improves(1, -1));
         assert!(size.improves(-5, 1));
+    }
+
+    #[test]
+    fn optimizer_runs_require_optimization() {
+        assert_eq!(
+            Target::optimizer_runs(OptimizationMode::None, Some(u64::MAX)),
+            Target::DEFAULT_EXPECTED_EXECUTIONS
+        );
+        assert_eq!(Target::optimizer_runs(OptimizationMode::Gas, Some(u64::MAX)), u64::MAX);
+        assert_eq!(Target::optimizer_runs(OptimizationMode::Size, Some(1)), 1);
     }
 
     #[test]

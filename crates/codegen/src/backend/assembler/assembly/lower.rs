@@ -174,7 +174,7 @@ fn lower_evm_ir_once(
     data_layout_is_observable: bool,
     capture_debug_info: bool,
 ) -> Program {
-    allocate_referenced_labels(assembler, module, labels);
+    allocate_referenced_labels(assembler, module, labels, indexed_jump_lowerings);
 
     let mut referenced_data = DenseBitSet::new_empty(module.data.len());
     for (id, data) in module.data.iter_enumerated() {
@@ -292,6 +292,7 @@ fn allocate_referenced_labels(
     assembler: &mut Assembler<'_>,
     module: &ir::Module,
     labels: &mut Vec<Option<Label>>,
+    indexed_jump_lowerings: &IndexVec<BlockId, indexed_jump::IndexedJumpLowering>,
 ) {
     let mut referenced = DenseBitSet::new_empty(module.blocks.len());
     for (block_id, block) in module.blocks.iter_enumerated() {
@@ -301,7 +302,11 @@ fn allocate_referenced_labels(
             }
         }
         if let Some(terminator) = &block.terminator {
-            let next = module.next_block(block_id);
+            let next = indexed_jump_lowerings[block_id]
+                .outlined_entry_width
+                .is_none()
+                .then(|| module.next_block(block_id))
+                .flatten();
             terminator.kind.visit_label_targets(next, |target| {
                 referenced.insert(target);
             });
