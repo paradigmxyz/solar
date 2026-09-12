@@ -118,17 +118,19 @@ impl SignatureHelpIndex {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn signature_help<'a>(
         &self,
         uri: &Url,
         position: Position,
         positions: &proto::LspPositionIndex<Rope>,
         source: &str,
+        statement_boundary: Option<usize>,
         visible_declarations: impl FnOnce(&str) -> Vec<&'a Location>,
         options: SignatureHelpClientOptions,
     ) -> Option<SignatureHelp> {
         let cursor = positions.text_range(Range::new(position, position)).start;
-        let context = call_context(&source[..cursor])?;
+        let context = call_context_with_boundary(&source[..cursor], statement_boundary)?;
         // Earlier-line edits can change byte offsets while preserving the cached LSP position.
         let open = positions.position_at_byte(context.open)?;
         let call = self.calls.get(uri).and_then(|calls| {
@@ -863,7 +865,7 @@ struct DelimiterFrame {
 
 /// Finds the last semicolon token, where call-context tracking resets.
 /// Retain the token itself as the barrier for backward call-form lookup.
-fn last_statement_boundary(text: &str) -> usize {
+pub(crate) fn last_statement_boundary(text: &str) -> usize {
     let bytes = text.as_bytes();
     let mut cursor = 0;
     let mut boundary = 0;
@@ -882,10 +884,22 @@ fn last_statement_boundary(text: &str) -> usize {
     }
 }
 
+#[cfg(test)]
 fn call_context(text: &str) -> Option<CallContext<'_>> {
+    call_context_with_boundary(text, None)
+}
+
+/// Finds call context using a previously computed statement boundary when available.
+///
+/// The boundary is only reused when supplied by the exact source snapshot that owns the request;
+/// callers must leave it as `None` after edits or when querying a different cursor.
+fn call_context_with_boundary(
+    text: &str,
+    statement_boundary: Option<usize>,
+) -> Option<CallContext<'_>> {
     let mut frames = Vec::<DelimiterFrame>::new();
     let mut significant = Vec::<(usize, usize)>::new();
-    let boundary = last_statement_boundary(text);
+    let boundary = statement_boundary.unwrap_or_else(|| last_statement_boundary(text));
 
     for (start, token) in Cursor::new(&text[boundary..]).with_position() {
         let start = boundary + start;
