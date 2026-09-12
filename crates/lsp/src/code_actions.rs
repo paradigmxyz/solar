@@ -490,6 +490,7 @@ fn is_single_solidity_pragma(pragma: &str) -> bool {
         return false;
     }
     let sess = Session::builder()
+        .without_base_path()
         .opts(CompileOpts::default())
         .with_silent_emitter(None)
         .single_threaded()
@@ -662,6 +663,7 @@ fn with_parsed_target<T>(
         proto::LspPositionIndex::new(contents).checked_text_range(diagnostic.range)?;
     let source = crate::utils::rope_to_string(contents);
     let sess = Session::builder()
+        .without_base_path()
         .opts(CompileOpts::default())
         .with_silent_emitter(None)
         .single_threaded()

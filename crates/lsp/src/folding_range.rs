@@ -463,7 +463,12 @@ fn has_one_line_break(text: &str) -> bool {
 fn collect_ranges(source: Arc<String>) -> Option<(Arc<SourceFile>, Vec<Candidate>)> {
     let mut opts = CompileOpts::default();
     opts.unstable.recover_incomplete_input = true;
-    let sess = Session::builder().opts(opts).with_silent_emitter(None).single_threaded().build();
+    let sess = Session::builder()
+        .without_base_path()
+        .opts(opts)
+        .with_silent_emitter(None)
+        .single_threaded()
+        .build();
 
     sess.enter_sequential(|| {
         let arena = ast::Arena::new();

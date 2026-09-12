@@ -165,7 +165,12 @@ enum SourceCode {
 fn collect_ranges(source: SourceCode, rope: &Rope) -> Vec<ByteRange<usize>> {
     let mut opts = CompileOpts::default();
     opts.unstable.recover_incomplete_input = true;
-    let sess = Session::builder().opts(opts).with_silent_emitter(None).single_threaded().build();
+    let sess = Session::builder()
+        .without_base_path()
+        .opts(opts)
+        .with_silent_emitter(None)
+        .single_threaded()
+        .build();
 
     sess.enter_sequential(|| {
         let arena = ast::Arena::new();

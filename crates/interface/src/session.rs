@@ -23,6 +23,8 @@ pub struct Session {
     /// The rayon thread pool. This is spawned lazily on first use, rather than always constructing
     /// one with `SessionBuilder`.
     thread_pool: OnceLock<rayon::ThreadPool>,
+    /// Whether source-map diagnostic paths should remain independent of the filesystem.
+    without_base_path: bool,
 }
 
 impl Default for Session {
@@ -47,6 +49,7 @@ pub struct SessionBuilder {
     dcx: Option<DiagCtxt>,
     globals: Option<SessionGlobals>,
     opts: Option<CompileOpts>,
+    without_base_path: bool,
 }
 
 impl SessionBuilder {
@@ -63,6 +66,15 @@ impl SessionBuilder {
     /// Sets the source map.
     pub fn source_map(mut self, source_map: Arc<SourceMap>) -> Self {
         self.get_globals().source_map = source_map;
+        self
+    }
+
+    /// Disables source-map base-path discovery and diagnostic path shortening.
+    ///
+    /// Use this only for sessions that parse custom, in-memory sources without filesystem
+    /// resolution. This policy also applies to subsequent calls to [`Session::reconfigure`].
+    pub fn without_base_path(mut self) -> Self {
+        self.without_base_path = true;
         self
     }
 
@@ -171,7 +183,13 @@ impl SessionBuilder {
         });
         let mut opts = opts.unwrap_or_default();
         Session::infer_language(&mut opts);
-        let sess = Session { globals, dcx, opts, thread_pool: OnceLock::new() };
+        let sess = Session {
+            globals,
+            dcx,
+            opts,
+            thread_pool: OnceLock::new(),
+            without_base_path: self.without_base_path,
+        };
         sess.reconfigure();
         debug!(version = %solar_config::version::SEMVER_VERSION, "created new session");
         sess
@@ -250,7 +268,10 @@ impl Session {
     /// Call this after updating options.
     pub fn reconfigure(&self) {
         'bp: {
-            let new_base_path = if self.opts.unstable.ui_testing {
+            let new_base_path = if self.without_base_path {
+                // Custom in-memory sources do not need filesystem-relative diagnostic paths.
+                None
+            } else if self.opts.unstable.ui_testing {
                 // `ui_test` relies on absolute paths.
                 None
             } else if let Some(base_path) =
@@ -552,7 +573,55 @@ fn in_rayon() -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
+    use crate::source_map::FileLoader;
+    use std::{
+        io,
+        path::PathBuf,
+        sync::atomic::{AtomicUsize, Ordering},
+    };
+
+    struct CountingFileLoader(Arc<AtomicUsize>);
+
+    impl FileLoader for CountingFileLoader {
+        fn canonicalize_path(&self, path: &Path) -> io::Result<PathBuf> {
+            self.0.fetch_add(1, Ordering::Relaxed);
+            Ok(path.to_path_buf())
+        }
+
+        fn load_stdin(&self) -> io::Result<String> {
+            unreachable!("session configuration does not read stdin")
+        }
+
+        fn load_file(&self, _: &Path) -> io::Result<String> {
+            unreachable!("session configuration does not read sources")
+        }
+
+        fn load_binary_file(&self, _: &Path) -> io::Result<Vec<u8>> {
+            unreachable!("session configuration does not read binary files")
+        }
+    }
+
+    #[test]
+    fn source_only_sessions_do_not_discover_base_paths() {
+        for without_base_path in [false, true] {
+            let probes = Arc::new(AtomicUsize::new(0));
+            let source_map = Arc::new(SourceMap::empty());
+            source_map.set_file_loader(CountingFileLoader(probes.clone()));
+            // Reusing a source map must also clear an earlier diagnostic base path.
+            source_map.set_base_path(Some(PathBuf::from("previous-root")));
+            let base_path = PathBuf::from("configured-root");
+            let opts = CompileOpts { base_path: Some(base_path.clone()), ..Default::default() };
+            let builder = Session::builder().source_map(source_map).opts(opts);
+            let builder = if without_base_path { builder.without_base_path() } else { builder };
+            let sess = builder.with_silent_emitter(None).build();
+            assert_eq!(probes.load(Ordering::Relaxed), usize::from(!without_base_path));
+            assert_eq!(sess.source_map().base_path(), (!without_base_path).then_some(base_path));
+
+            sess.reconfigure();
+            assert_eq!(probes.load(Ordering::Relaxed), 2 * usize::from(!without_base_path));
+            assert_eq!(sess.source_map().base_path().is_none(), without_base_path);
+        }
+    }
 
     /// Session to test `enter`.
     fn enter_tests_session() -> Session {
