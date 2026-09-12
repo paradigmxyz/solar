@@ -822,17 +822,6 @@ bb69:
   swap 1
   swap 3
   jump bb71
-bb71 [loop]:
-  dup 4
-  dup 2
-  lt
-  push bb72
-  jumpi
-  pop
-  pop
-  swap 1
-  pop
-  jump bb70
 bb72 [loop]:
   dup 1
   dup 3
@@ -849,6 +838,17 @@ bb72 [loop]:
   push 1
   add
   jump bb71
+bb71 [loop]:
+  dup 4
+  dup 2
+  lt
+  push bb72
+  jumpi
+  pop
+  pop
+  swap 1
+  pop
+  jump bb70
 bb26 [cold]:
   push 0x4e487b71
   push 224

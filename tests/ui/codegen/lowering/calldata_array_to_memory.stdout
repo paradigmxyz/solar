@@ -148,6 +148,20 @@ bb8:
   push 0
   exchange 2, 3
   jump bb17
+bb19 [loop]:
+  push 1
+  push 160
+  mload
+  add
+  push 192
+  mload
+  push 256
+  mload
+  push 224
+  mload
+  swap 3
+  exchange 1, 2
+  jump bb17
 bb17 [loop]:
   dup 4
   dup 2
@@ -166,20 +180,6 @@ bb17 [loop]:
   push 32
   push 128
   return
-bb19 [loop]:
-  push 1
-  push 160
-  mload
-  add
-  push 192
-  mload
-  push 256
-  mload
-  push 224
-  mload
-  swap 3
-  exchange 1, 2
-  jump bb17
 bb20 [loop]:
   dup 1
   push 160
