@@ -230,7 +230,9 @@ fn helper_owned_base(
                     if fresh_returns.contains(function)
             )
         }
-        MemoryBase::Absolute => false,
+        // A memory-object argument is whatever pointer the caller passed,
+        // possibly one assembly aimed at compiler-owned memory.
+        MemoryBase::Absolute | MemoryBase::Param(_) => false,
     }
 }
 

@@ -3346,6 +3346,24 @@ fn is_canonical_return_scalar(
     {
         return true;
     }
+    // An element of an array parameter whose words element cleanup proved
+    // narrower than the mask is canonical without one.
+    if let Value::Inst(inst) = func.value(value)
+        && let InstKind::MemoryObjectLoadElement { object, layout, .. } = func.inst(*inst).kind
+        && matches!(
+            layout,
+            MemoryObjectLayout::DynamicArray { element_words: 1 }
+                | MemoryObjectLayout::FixedArray { element_words: 1, .. }
+        )
+        && let Value::Arg(index) = func.value(object)
+        && func
+            .attributes
+            .array_element_bits
+            .get(index)
+            .is_some_and(|&bits| bits <= expected.bit_len() as u32)
+    {
+        return true;
+    }
     let Value::Inst(inst) = func.value(value) else {
         return func.value_u256(value).is_some_and(|value| value & !expected == U256::ZERO);
     };

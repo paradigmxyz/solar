@@ -12,6 +12,7 @@ time: <TIME>	MIR TimePasses storage-load-cse changed=false
 time: <TIME>	MIR TimePasses storage-dse changed=false
 time: <TIME>	MIR TimePasses cse changed=false
 time: <TIME>	MIR TimePasses load-pre changed=false
+time: <TIME>	MIR TimePasses element-cleanup changed=false
 time: <TIME>	MIR TimePasses frame-slot-promotion changed=false
 time: <TIME>	MIR TimePasses loop-canonicalize changed=false
 time: <TIME>	MIR TimePasses indvar-simplify changed=false
