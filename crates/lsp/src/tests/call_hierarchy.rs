@@ -3,7 +3,7 @@ use crate::{
     symbols::{SymbolTables, SymbolTablesAggregator},
     test_support::MarkedProject,
 };
-use lsp_types::{Position, Range, Url};
+use lsp_types::{CallHierarchyIncomingCall, CallHierarchyOutgoingCall, Position, Range, Url};
 use solar_config::CompileOpts;
 
 #[test]
@@ -46,6 +46,85 @@ fn basic_direct_call_hierarchy() {
     assert_eq!(incoming.len(), 1);
     assert_eq!(incoming[0].from, caller);
     assert_eq!(incoming[0].from_ranges, outgoing[0].from_ranges);
+}
+
+#[test]
+fn merged_relations_preserve_uri_and_source_order() {
+    let marked = MarkedProject::from_fixture(
+        r#"
+        //- /Z.sol
+        import {target} from "./B.sol";
+        function $1last() { $2target(); }
+        //- /M.sol
+        import {zebra, alpha} from "./A.sol";
+        import {target} from "./B.sol";
+        import {last} from "./Z.sol";
+        function $3caller() {
+            $4last(); $5target(); $6alpha(); $7zebra(); $8target();
+        }
+        //- /B.sol
+        function $9target() {}
+        //- /A.sol
+        import {target} from "./B.sol";
+        function $10zebra() { $11target(); }
+        function $12alpha() { $13target(); }
+        //- /Driver.sol
+        import "./M.sol";
+        "#,
+    );
+    let project = marked.project();
+    // Input, call-site and name order differ from the protocol's URI/source order.
+    let tables = analyze(AnalysisBatch::from_files(
+        CompileOpts::default(),
+        ["/Z.sol", "/M.sol", "/B.sol", "/A.sol"]
+            .map(|path| (project.path(path), project.read_file(path))),
+    ))
+    .symbol_tables;
+    let duplicate = analyze(AnalysisBatch::from_files(
+        CompileOpts::default(),
+        [(project.path("/Driver.sol"), project.read_file("/Driver.sol"))],
+    ))
+    .symbol_tables;
+    let tables = merge_symbol_tables(tables, duplicate);
+    let item = |path, marker| {
+        let uri = Url::from_file_path(project.path(path)).unwrap();
+        tables
+            .prepare_call_hierarchy(&uri, marked.marker(marker).position())
+            .unwrap()
+            .pop()
+            .unwrap()
+    };
+    let zebra = item("/A.sol", "$10");
+    let alpha = item("/A.sol", "$12");
+    let target = item("/B.sol", "$9");
+    let caller = item("/M.sol", "$3");
+    let last = item("/Z.sol", "$1");
+    let target_ranges = vec![marker_range(&marked, "$5", 6), marker_range(&marked, "$8", 6)];
+    let incoming = vec![
+        CallHierarchyIncomingCall {
+            from: zebra.clone(),
+            from_ranges: vec![marker_range(&marked, "$11", 6)],
+        },
+        CallHierarchyIncomingCall {
+            from: alpha.clone(),
+            from_ranges: vec![marker_range(&marked, "$13", 6)],
+        },
+        CallHierarchyIncomingCall { from: caller.clone(), from_ranges: target_ranges.clone() },
+        CallHierarchyIncomingCall {
+            from: last.clone(),
+            from_ranges: vec![marker_range(&marked, "$2", 6)],
+        },
+    ];
+    let outgoing = vec![
+        CallHierarchyOutgoingCall { to: zebra, from_ranges: vec![marker_range(&marked, "$7", 5)] },
+        CallHierarchyOutgoingCall { to: alpha, from_ranges: vec![marker_range(&marked, "$6", 5)] },
+        CallHierarchyOutgoingCall { to: target.clone(), from_ranges: target_ranges },
+        CallHierarchyOutgoingCall { to: last, from_ranges: vec![marker_range(&marked, "$4", 4)] },
+    ];
+    for _ in 0..2 {
+        assert_eq!(tables.call_hierarchy_incoming(&target).unwrap(), incoming);
+        assert_eq!(tables.call_hierarchy_outgoing(&caller).unwrap(), outgoing);
+    }
 }
 
 #[test]
