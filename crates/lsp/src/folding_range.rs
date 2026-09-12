@@ -1,13 +1,12 @@
 //! Syntax-based folding-range construction.
 
-use crate::proto;
 use crop::Rope;
-use lsp_types::{FoldingRange, FoldingRangeKind};
+use lsp_types::{FoldingRange, FoldingRangeKind, Position};
 use solar_config::CompileOpts;
 use solar_interface::{
-    Session, SourceMap, Span,
+    Session, Span,
     data_structures::{Never, map::FxHashMap},
-    source_map::FileName,
+    source_map::{FileName, SourceFile},
 };
 use solar_parse::{
     Cursor, Parser,
@@ -17,32 +16,24 @@ use solar_parse::{
 use std::{
     cmp::Reverse,
     ops::{ControlFlow, Range as ByteRange},
+    sync::Arc,
 };
 
 pub(crate) fn folding_ranges(source: String) -> Vec<FoldingRange> {
-    let rope = Rope::from(source.as_str());
-    folding_ranges_with_rope(source, &rope)
-}
-
-pub(crate) fn folding_ranges_from_rope(rope: Rope) -> Vec<FoldingRange> {
-    if is_single_line(&rope) {
+    if memchr::memchr2(b'\r', b'\n', source.as_bytes()).is_none() {
         return Vec::new();
     }
-    let source = crate::utils::rope_to_string(&rope);
-    folding_ranges_with_rope(source, &rope)
-}
-
-fn folding_ranges_with_rope(source: String, rope: &Rope) -> Vec<FoldingRange> {
-    if is_single_line(rope) {
-        return Vec::new();
-    }
-    let index = proto::LspPositionIndex::new(rope);
-    let ranges = collect_ranges(source, rope).unwrap_or_else(|| {
-        let source = crate::utils::rope_to_string(rope);
-        let LexicalInfo { mut ranges, fallback_ranges, .. } = collect_lexical_info(&source, true);
-        ranges.extend(fallback_ranges);
-        ranges
-    });
+    let source = Arc::new(source);
+    let (file, ranges) = collect_ranges(source.clone()).map_or_else(
+        || {
+            let LexicalInfo { mut ranges, fallback_ranges, .. } =
+                collect_lexical_info(&source, true);
+            ranges.extend(fallback_ranges);
+            (None, ranges)
+        },
+        |(file, ranges)| (Some(file), ranges),
+    );
+    let index = FlatPositionIndex::new(&source, file.as_deref());
     let mut ranges = ranges
         .into_iter()
         .filter_map(|candidate| folding_range(&index, candidate))
@@ -52,12 +43,61 @@ fn folding_ranges_with_rope(source: String, rope: &Rope) -> Vec<FoldingRange> {
     ranges
 }
 
+pub(crate) fn folding_ranges_from_rope(rope: Rope) -> Vec<FoldingRange> {
+    if is_single_line(&rope) {
+        return Vec::new();
+    }
+    folding_ranges(crate::utils::rope_to_string(&rope))
+}
+
 fn is_single_line(rope: &Rope) -> bool {
     // LSP counts lone CRs and a trailing empty line, unlike Rope's line metric.
     rope.line_len() <= 1 && rope.chunks().all(|chunk| !chunk.contains(['\r', '\n']))
 }
 
+/// Collects comments without tokenizing the code that the parser has already consumed.
+///
+/// Only slashes and quotes can begin a comment or a string that hides comment delimiters. The
+/// lexer still determines their exact ends, including escapes and unterminated strings.
+fn collect_comment_ranges(source: &str) -> Vec<Candidate> {
+    let mut ranges = Vec::new();
+    let mut line_group = None::<ByteRange<usize>>;
+    let mut cursor = 0;
+    while let Some(offset) = memchr::memchr3(b'/', b'\'', b'"', &source.as_bytes()[cursor..]) {
+        let start = cursor + offset;
+        let token = Cursor::new(&source[start..]).next().unwrap();
+        let end = start + token.len as usize;
+        match token.kind {
+            RawTokenKind::LineComment { .. } => {
+                if let Some(group) = &mut line_group
+                    && has_one_line_break(&source[group.end..start])
+                {
+                    group.end = end;
+                } else {
+                    flush_line_comment_group(&mut ranges, &mut line_group);
+                    line_group = Some(start..end);
+                }
+            }
+            RawTokenKind::BlockComment { .. } => {
+                flush_line_comment_group(&mut ranges, &mut line_group);
+                ranges.push(Candidate { range: start..end, kind: Some(FoldingRangeKind::Comment) });
+            }
+            _ => {}
+        }
+        cursor = end;
+    }
+    flush_line_comment_group(&mut ranges, &mut line_group);
+    ranges
+}
+
 fn collect_lexical_info(source: &str, include_fallback: bool) -> LexicalInfo {
+    if !include_fallback {
+        return LexicalInfo {
+            ranges: collect_comment_ranges(source),
+            fallback_ranges: Vec::new(),
+            unclosed_braces: Vec::new(),
+        };
+    }
     let mut ranges = Vec::new();
     let mut fallback_ranges = Vec::new();
     let mut line_group = None::<ByteRange<usize>>;
@@ -420,7 +460,7 @@ fn has_one_line_break(text: &str) -> bool {
     line_breaks == 1
 }
 
-fn collect_ranges(source: String, rope: &Rope) -> Option<Vec<Candidate>> {
+fn collect_ranges(source: Arc<String>) -> Option<(Arc<SourceFile>, Vec<Candidate>)> {
     let mut opts = CompileOpts::default();
     opts.unstable.recover_incomplete_input = true;
     let sess = Session::builder().opts(opts).with_silent_emitter(None).single_threaded().build();
@@ -429,7 +469,7 @@ fn collect_ranges(source: String, rope: &Rope) -> Option<Vec<Candidate>> {
         let arena = ast::Arena::new();
         let file = sess
             .source_map()
-            .new_source_file(FileName::Custom("lsp-folding-range.sol".into()), source)
+            .new_source_file_shared(FileName::Custom("lsp-folding-range.sol".into()), source)
             .ok()?;
         let mut parser = Parser::from_source_file(&sess, &arena, &file);
         let source_unit = match parser.parse_file() {
@@ -447,12 +487,12 @@ fn collect_ranges(source: String, rope: &Rope) -> Option<Vec<Candidate>> {
             collect_lexical_info(&file.src, include_fallback);
         let Some(source_unit) = source_unit else {
             ranges.extend(fallback_ranges);
-            return Some(ranges);
+            return Some((file, ranges));
         };
 
-        let mut collector = AstRangeCollector::new(sess.source_map(), rope, &unclosed_braces);
+        let mut collector = AstRangeCollector::new(&file, &unclosed_braces);
         let _ = collector.visit_source_unit(&source_unit);
-        let mut ast_ranges = collect_import_ranges(&source_unit, sess.source_map(), rope);
+        let mut ast_ranges = collect_import_ranges(&source_unit, &file);
         ast_ranges.extend(collector.ranges);
 
         if has_errors {
@@ -470,15 +510,11 @@ fn collect_ranges(source: String, rope: &Rope) -> Option<Vec<Candidate>> {
             }));
         }
         ranges.extend(ast_ranges);
-        Some(ranges)
+        Some((file, ranges))
     })
 }
 
-fn collect_import_ranges(
-    source_unit: &ast::SourceUnit<'_>,
-    source_map: &SourceMap,
-    rope: &Rope,
-) -> Vec<Candidate> {
+fn collect_import_ranges(source_unit: &ast::SourceUnit<'_>, file: &SourceFile) -> Vec<Candidate> {
     let mut ranges = Vec::new();
     let mut current = None::<ByteRange<usize>>;
 
@@ -490,15 +526,15 @@ fn collect_import_ranges(
             continue;
         }
 
-        let Some(range) = checked_span_range(source_map, rope, item.span) else {
+        let Some(range) = checked_span_range(file, item.span) else {
             if let Some(range) = current.take() {
                 ranges.push(Candidate { range, kind: Some(FoldingRangeKind::Imports) });
             }
             continue;
         };
-        let split = current.as_ref().is_some_and(|group| {
-            has_blank_line_between(rope.byte_slice(group.end..range.start).bytes())
-        });
+        let split = current
+            .as_ref()
+            .is_some_and(|group| has_blank_line_between(file.src[group.end..range.start].bytes()));
         if split && let Some(range) = current.take() {
             ranges.push(Candidate { range, kind: Some(FoldingRangeKind::Imports) });
         }
@@ -544,15 +580,97 @@ fn has_blank_line_between(bytes: impl IntoIterator<Item = u8>) -> bool {
     false
 }
 
-fn folding_range(
-    index: &proto::LspPositionIndex<&Rope>,
-    candidate: Candidate,
-) -> Option<FoldingRange> {
-    if index.line_at_byte(candidate.range.start)? >= index.line_at_byte(candidate.range.end)? {
+/// One-way source positions for the batch of ranges collected from a flat parser input.
+///
+/// Range construction already owns contiguous source text. Looking up byte boundaries and line
+/// endings directly avoids repeatedly descending the editor rope for every range endpoint.
+struct FlatPositionIndex<'a> {
+    source: &'a str,
+    line_starts: Vec<usize>,
+    /// Character ends and cumulative UTF-8 bytes beyond their UTF-16 code-unit count.
+    multibyte_offsets: Vec<(usize, usize)>,
+}
+
+impl<'a> FlatPositionIndex<'a> {
+    fn new(source: &'a str, file: Option<&SourceFile>) -> Self {
+        let mut line_starts = vec![0];
+        let mut previous_cr_end = None;
+        for offset in memchr::memchr2_iter(b'\r', b'\n', source.as_bytes()) {
+            let is_cr = source.as_bytes()[offset] == b'\r';
+            if !is_cr && previous_cr_end == Some(offset) {
+                *line_starts.last_mut().unwrap() = offset + 1;
+            } else {
+                line_starts.push(offset + 1);
+            }
+            previous_cr_end = is_cr.then_some(offset + 1);
+        }
+        let mut multibyte_offsets = Vec::new();
+        let mut extra_bytes = 0;
+        if let Some(file) = file {
+            for ch in &file.multibyte_chars {
+                let bytes = usize::from(ch.bytes);
+                extra_bytes += bytes - if bytes == 4 { 2 } else { 1 };
+                multibyte_offsets.push((ch.pos.to_usize() + bytes, extra_bytes));
+            }
+        } else {
+            for (line, &start) in line_starts.iter().enumerate() {
+                let end = line_starts.get(line + 1).copied().unwrap_or(source.len());
+                let contents = &source[start..end];
+                if !contents.is_ascii() {
+                    for (byte, ch) in contents.char_indices() {
+                        if !ch.is_ascii() {
+                            extra_bytes += ch.len_utf8() - ch.len_utf16();
+                            multibyte_offsets.push((start + byte + ch.len_utf8(), extra_bytes));
+                        }
+                    }
+                }
+            }
+        }
+        Self { source, line_starts, multibyte_offsets }
+    }
+
+    fn line_at_byte(&self, byte: usize) -> Option<usize> {
+        if !self.source.is_char_boundary(byte) {
+            return None;
+        }
+        let line = self.line_starts.partition_point(|&start| start <= byte).checked_sub(1)?;
+        if let Some(&next_start) = self.line_starts.get(line + 1) {
+            let bytes = self.source.as_bytes();
+            let end = if bytes[next_start - 1] == b'\n'
+                && next_start >= 2
+                && bytes[next_start - 2] == b'\r'
+            {
+                next_start - 2
+            } else {
+                next_start - 1
+            };
+            if byte > end {
+                return None;
+            }
+        }
+        Some(line)
+    }
+
+    fn position_in_line(&self, line: usize, byte: usize) -> Option<Position> {
+        let start = self.line_starts[line];
+        let character = byte - start - (self.extra_bytes(byte) - self.extra_bytes(start));
+        Some(Position::new(u32::try_from(line).ok()?, u32::try_from(character).ok()?))
+    }
+
+    fn extra_bytes(&self, byte: usize) -> usize {
+        let end = self.multibyte_offsets.partition_point(|&(end, _)| end <= byte);
+        end.checked_sub(1).map_or(0, |index| self.multibyte_offsets[index].1)
+    }
+}
+
+fn folding_range(index: &FlatPositionIndex<'_>, candidate: Candidate) -> Option<FoldingRange> {
+    let start_line = index.line_at_byte(candidate.range.start)?;
+    let end_line = index.line_at_byte(candidate.range.end)?;
+    if start_line >= end_line {
         return None;
     }
-    let start = index.position_at_byte(candidate.range.start)?;
-    let end = index.position_at_byte(candidate.range.end)?;
+    let start = index.position_in_line(start_line, candidate.range.start)?;
+    let end = index.position_in_line(end_line, candidate.range.end)?;
     Some(FoldingRange {
         start_line: start.line,
         start_character: Some(start.character),
@@ -649,36 +767,39 @@ impl FallbackBlock {
 }
 
 struct AstRangeCollector<'a> {
-    source_map: &'a SourceMap,
-    rope: &'a Rope,
+    file: &'a SourceFile,
     ranges: Vec<Candidate>,
     suppressed_block: Option<Span>,
     unclosed_braces: &'a [usize],
 }
 
 impl<'a> AstRangeCollector<'a> {
-    fn new(source_map: &'a SourceMap, rope: &'a Rope, unclosed_braces: &'a [usize]) -> Self {
-        Self { source_map, rope, ranges: Vec::new(), suppressed_block: None, unclosed_braces }
+    fn new(file: &'a SourceFile, unclosed_braces: &'a [usize]) -> Self {
+        Self { file, ranges: Vec::new(), suppressed_block: None, unclosed_braces }
     }
 
     fn push(&mut self, span: Span) {
-        if let Some(range) = checked_span_range(self.source_map, self.rope, span) {
+        if let Some(range) = checked_span_range(self.file, span) {
             self.ranges.push(Candidate { range, kind: None });
         }
     }
 
     fn push_block(&mut self, span: Span) {
-        let Some(mut range) = checked_span_range(self.source_map, self.rope, span) else { return };
+        let Some(mut range) = checked_span_range(self.file, span) else {
+            return;
+        };
         if self.unclosed_braces.binary_search(&range.start).is_ok() {
-            range.end = self.rope.byte_len();
+            range.end = self.file.src.len();
         }
         self.ranges.push(Candidate { range, kind: None });
     }
 
     fn push_braced_declaration(&mut self, span: Span, body: Option<Span>) {
-        let Some(mut range) = checked_span_range(self.source_map, self.rope, span) else { return };
+        let Some(mut range) = checked_span_range(self.file, span) else {
+            return;
+        };
         let brace = body
-            .and_then(|body| checked_span_range(self.source_map, self.rope, body))
+            .and_then(|body| checked_span_range(self.file, body))
             .map(|body| body.start)
             .or_else(|| {
                 self.unclosed_braces
@@ -687,7 +808,7 @@ impl<'a> AstRangeCollector<'a> {
                     .find(|&brace| range.start <= brace && brace < range.end)
             });
         if brace.is_some_and(|brace| self.unclosed_braces.binary_search(&brace).is_ok()) {
-            range.end = self.rope.byte_len();
+            range.end = self.file.src.len();
         }
         self.ranges.push(Candidate { range, kind: None });
     }
@@ -703,16 +824,18 @@ impl<'a> AstRangeCollector<'a> {
     }
 }
 
-fn checked_span_range(source_map: &SourceMap, rope: &Rope, span: Span) -> Option<ByteRange<usize>> {
-    if span.is_dummy() {
+fn checked_span_range(file: &SourceFile, span: Span) -> Option<ByteRange<usize>> {
+    if span.is_dummy()
+        || span.lo() >= span.hi()
+        || !file.contains(span.lo())
+        || !file.contains(span.hi())
+    {
         return None;
     }
-    let range = source_map.span_to_range(span).ok()?;
-    (!range.is_empty()
-        && range.end <= rope.byte_len()
-        && rope.is_char_boundary(range.start)
-        && rope.is_char_boundary(range.end))
-    .then_some(range)
+    let range =
+        file.relative_position(span.lo()).to_usize()..file.relative_position(span.hi()).to_usize();
+    (file.src.is_char_boundary(range.start) && file.src.is_char_boundary(range.end))
+        .then_some(range)
 }
 
 impl<'ast> Visit<'ast> for AstRangeCollector<'_> {
@@ -776,5 +899,114 @@ impl<'ast> Visit<'ast> for AstRangeCollector<'_> {
             self.push_block(block.span);
         }
         self.walk_yul_block(block)
+    }
+}
+
+#[cfg(test)]
+mod position_tests {
+    use super::{
+        FlatPositionIndex, checked_span_range, collect_comment_ranges, collect_lexical_info,
+    };
+    use crate::proto::LspPositionIndex;
+    use crop::Rope;
+    use solar_interface::{BytePos, SourceMap, Span, source_map::FileName};
+
+    #[test]
+    fn sparse_comments_match_full_lexing() {
+        let fragments = [
+            "",
+            " ",
+            "\t",
+            "\n",
+            "\r",
+            "\r\n",
+            "\n\n",
+            "x /= 2;",
+            "/* block */",
+            "/* open",
+            "// line",
+            "/// doc\n",
+            "\"// string\"",
+            "'/* string */'",
+            "unicode\"中😀//\"",
+            "hex\"abcd\"",
+            "\"escaped\\\"//\"",
+            "\"open\\\n",
+            "/",
+            "*",
+            "\\",
+            "'",
+        ];
+        for left in fragments {
+            for middle in fragments {
+                for right in fragments {
+                    let source = format!("{left}{middle}{right}");
+                    assert_eq!(
+                        collect_comment_ranges(&source),
+                        collect_lexical_info(&source, true).ranges,
+                        "{source:?}",
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn flat_positions_match_editor_positions() {
+        for text in ["", "plain", "é", "中", "😀", "aé中😀z"] {
+            for ending in ["", "\n", "\r", "\r\n", "\r\n\r\n", "\r\r\n\n"] {
+                for repeat in [1, 400] {
+                    let source = format!("{text}{ending}").repeat(repeat);
+                    let flat = FlatPositionIndex::new(&source, None);
+                    let source_map = SourceMap::empty();
+                    let file = source_map
+                        .new_source_file(FileName::Custom("input".into()), source.clone())
+                        .unwrap();
+                    let parsed = FlatPositionIndex::new(&source, Some(&file));
+                    let rope = Rope::from(source.as_str());
+                    let editor = LspPositionIndex::new(&rope);
+                    for byte in 0..=source.len() + 1 {
+                        let line = flat.line_at_byte(byte);
+                        assert_eq!(line, editor.line_at_byte(byte), "{text:?} {ending:?} {byte}");
+                        assert_eq!(
+                            line.and_then(|line| flat.position_in_line(line, byte)),
+                            editor.position_at_byte(byte),
+                            "{text:?} {ending:?} {byte}",
+                        );
+                        assert_eq!(
+                            line.and_then(|line| parsed.position_in_line(line, byte)),
+                            editor.position_at_byte(byte),
+                            "{text:?} {ending:?} {byte}",
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn spans_are_checked_against_the_parsed_file() {
+        let source_map = SourceMap::empty();
+        let first = source_map.new_source_file(FileName::Custom("first".into()), "other").unwrap();
+        let file = source_map.new_source_file(FileName::Custom("input".into()), "aé😀z").unwrap();
+        let span = |start, end| {
+            Span::new(
+                file.start_pos + BytePos::from_usize(start),
+                file.start_pos + BytePos::from_usize(end),
+            )
+        };
+        assert_eq!(checked_span_range(&file, span(1, 7)), Some(1..7));
+        assert_eq!(checked_span_range(&file, span(0, file.src.len())), Some(0..file.src.len()));
+        for span in [
+            Span::DUMMY,
+            span(1, 1),
+            span(2, 7),
+            span(1, 6),
+            span(0, file.src.len() + 1),
+            Span::new(first.start_pos, first.end_position()),
+            Span::new(first.start_pos, file.end_position()),
+        ] {
+            assert_eq!(checked_span_range(&file, span), None);
+        }
     }
 }
