@@ -22,6 +22,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from functools import cache, lru_cache
 from pathlib import Path
+from urllib.parse import quote
 
 from cases import (
     DEFAULT_FOURTH,
@@ -297,7 +298,7 @@ def with_evm_version(input_text: str, evm_version: str | None) -> str:
 def compiler_input(
     test_case: TestCase, evm_version: str | None
 ) -> tuple[str, int, str]:
-    if test_case.project_file is not None:
+    if test_case.project is not None:
         if test_case.whole_project:
             input_text = project_full_standard_json_input(test_case.project_file)
             timeout = 900
@@ -511,8 +512,8 @@ def compile_case(
         "peak_rss_bytes": None,
         "error": "",
     }
-    if test_case.project_file is not None:
-        result.update(source=test_case.source, project=test_case.project)
+    if test_case.project is not None:
+        result.update(source=test_case.source, project=test_case.project.name)
         if not test_case.project_path.exists():
             result["status"] = "failed"
             result["error"] = f"vendored project not found: {test_case.project_file}"
@@ -1535,6 +1536,40 @@ def merge_reference_compiler(
     return True
 
 
+@cache
+def source_revision() -> str:
+    return subprocess.check_output(
+        ["git", "rev-parse", "HEAD"], cwd=REPOSITORY_ROOT, text=True
+    ).strip()
+
+
+def source_links(test_case: TestCase) -> list[dict[str, str]]:
+    paths = []
+    if test_case.project is not None:
+        paths.append(str(test_case.project_path.relative_to(REPOSITORY_ROOT)))
+    if test_case.source_path:
+        paths.append(test_case.source_path)
+    if not paths:
+        paths.append("benches/runtime/cases.py")
+    links = [
+        {
+            "label": path,
+            "url": f"https://github.com/paradigmxyz/solar/blob/{source_revision()}/{quote(path)}",
+        }
+        for path in paths
+    ]
+    links.extend(
+        {
+            "label": source.repo,
+            "url": f"https://github.com/{source.repo}/tree/{source.commit}",
+        }
+        for source in (
+            test_case.project.sources if test_case.project is not None else ()
+        )
+    )
+    return links
+
+
 def failed_test_result(
     test_case: TestCase,
     specs: Sequence[CompilerSpec],
@@ -1548,13 +1583,14 @@ def failed_test_result(
         "contract_name": test_case.contract_name,
         "suite": test_case.suite,
         "gas_profile": gas_profile,
+        "source_links": source_links(test_case),
         "benchmark_error": message,
         "compilers": {
             spec.compiler_id: {"status": "failed", "error": message} for spec in specs
         },
     }
-    if test_case.project_file is not None:
-        entry["project"] = test_case.project
+    if test_case.project is not None:
+        entry["project"] = test_case.project.name
         entry["source"] = test_case.source
     return entry
 
@@ -1579,10 +1615,11 @@ def run_test_case(
         "contract_name": test_case.contract_name,
         "suite": test_case.suite,
         "gas_profile": gas_profile,
+        "source_links": source_links(test_case),
         "compilers": {},
     }
-    if test_case.project_file is not None:
-        entry["project"] = test_case.project
+    if test_case.project is not None:
+        entry["project"] = test_case.project.name
         entry["source"] = test_case.source
     reference_solc = next(
         (spec.path for spec in specs if spec.kind == "solc"), reference_solc_path
@@ -1884,14 +1921,18 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.projects:
         project_set = set(args.projects)
-        suite_tests = [test for test in suite_tests if test.project in project_set]
+        suite_tests = [
+            test
+            for test in suite_tests
+            if test.project is not None and test.project.name in project_set
+        ]
 
     test_map = {test.test_id: test for test in suite_tests}
     if args.list_tests:
         for test in suite_tests:
-            if test.project_file is not None:
+            if test.project is not None:
                 print(
-                    f"{test.test_id}	{test.project}	{test.source}	{test.contract_name}"
+                    f"{test.test_id}	{test.project.name}	{test.source}	{test.contract_name}"
                 )
             else:
                 print(
