@@ -46,6 +46,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &inline::InlineTinyLeaves,
     &inline::InlineImmutableLeaves,
     &inline::InlineMemoryWrappers,
+    &inline_dispatch::InlineDispatch,
     &inline::SpecializeFunctionPointers,
     &specialize::Specialize,
     &call_cleanup::CallCleanup,
@@ -314,6 +315,8 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &lower_mcopy::LowerMCopy,
     // Carry proved argument widths across calls before simplifying word masks.
     &call_cleanup::CallCleanup,
+    // Shared scalar ABI words and wrapper bodies become one CFG before extraction.
+    &inline_dispatch::InlineDispatch,
     // Memory lowering materializes address arithmetic; number and simplify it
     // once more before the physical shape is fixed. The stack-aware cost keeps
     // rewrites from reaching for values the scheduler would have to keep alive.
