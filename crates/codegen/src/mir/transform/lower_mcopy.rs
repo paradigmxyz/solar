@@ -97,6 +97,7 @@ impl MirPass for LowerMCopy {
                 lower_function(func, helper, &fresh_returns, &summaries);
             }
         }
+        CallGraphInfo::assert_runtime_helpers(module, helper);
         true
     }
 }

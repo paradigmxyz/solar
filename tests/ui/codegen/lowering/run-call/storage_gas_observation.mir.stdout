@@ -51,3 +51,72 @@ fn @forwardedLoad() -> u256 [selector=0x7cfab297, abi_params=[], abi_returns=[wo
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
 }
+
+// === ROOT/tests/ui/codegen/lowering/run-call/storage_gas_observation.sol:StorageGasCfgObservation ===
+@module StorageGasCfgObservation
+fn @diamond(arg0: bool) -> bool [selector=0xdf460a0e, view, abi_params=[bool], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = eq arg0, 0
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v3 = gas
+    jump bb3
+  bb3:
+    v4 = phi [bb1: v3], [bb2: 0]
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = gas
+    v7 = sub v4, v6
+    v8 = gt v7, 80
+    v9 = iszero arg0
+    v10 = or v9, v8
+    v11 = eq v0, v5
+    v12 = and v11, v10
+    ret v12
+}
+
+fn @loop() -> bool [selector=0xa92100cb, view, abi_params=[], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb3: v18]
+    v2 = phi [bb0: 1], [bb3: v17]
+    v3 = phi [bb0: v0], [bb3: v3]
+    v4 = phi [bb0: 0], [bb3: v19]
+    v5 = lt v4, 3
+    v6 = eq v5, 0
+    v7 = iszero v6
+    jumpi v7, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v2
+  bb4:
+    v8 = sload 0 !metadata(storage=slot(0))
+    v9 = gas
+    v10 = eq v4, 0
+    v11 = iszero v10
+    jumpi v11, bb7, bb8
+  bb8:
+    jump bb9
+  bb7:
+    v12 = sub v1, v9
+    v13 = gt v12, 80
+    v14 = and v2, v13
+    jump bb9
+  bb9:
+    v15 = phi [bb7: v14], [bb8: v2]
+    v16 = eq v3, v8
+    v17 = and v15, v16
+    v18 = gas
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v19 = add v4, 1
+    jump bb1
+}
