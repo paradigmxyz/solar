@@ -624,12 +624,12 @@ identity layout; the edge that needs them emits their pushes. Size mode keeps
 the shared layout to preserve opportunities for merging tails.
 
 Final EVM peepholes move a word store immediately followed by a return of that
-word to scratch memory when the offset fits 32 bits. This bound keeps the
-original expansion cost within EVM gas arithmetic. Larger assembly offsets
-stay intact to preserve exceptional halts from memory expansion. The rewrite
-reduces pushes and memory expansion after tail sharing has settled. A different
-return range or an intervening instruction keeps the original address,
-including an `MSIZE` that observes the store.
+word to scratch memory only when a preceding word store in the same block proves
+that the original range is already expanded. The proof stops at inline jump
+destinations. This keeps memory-limit halts and reduces pushes after tail sharing
+has settled. Reads do not establish this proof because later dead-code cleanup
+may remove them. A different return range or an intervening instruction keeps
+the original address, including an `MSIZE` that observes the store.
 
 Final store cleanup consumes a stack word directly when a duplicate is stored
 and its original is discarded immediately afterward. It preserves the order of

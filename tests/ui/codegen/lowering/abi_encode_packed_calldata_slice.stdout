@@ -111,10 +111,10 @@ bb7:
   jump bb18
 bb18:
   keccak256
-  push 0
+  push 128
   mstore
   push 32
-  push 0
+  push 128
   return
 bb10:
   push 320

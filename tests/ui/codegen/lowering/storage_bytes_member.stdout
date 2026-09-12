@@ -473,10 +473,10 @@ bb42:
   jumpi
   jump bb82
 bb82:
-  push 0
+  push 128
   mstore
   push 32
-  push 0
+  push 128
   return
 bb45:
   push 36

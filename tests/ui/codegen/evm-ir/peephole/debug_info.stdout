@@ -13,6 +13,9 @@
     swap 2 !metadata(span=4..5)
     stop
   bb1:
+    caller
+    push 256
+    mstore
     calldatasize
 -   push 128 !metadata(span=5..6)
 +   push 0 !metadata(span=5..6)

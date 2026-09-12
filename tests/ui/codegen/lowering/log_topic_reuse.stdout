@@ -26,10 +26,10 @@ bb4 [cold]:
 bb5:
   push 0
   sload
-  push 0
+  push 128
   mstore
   push 32
-  push 0
+  push 128
   return
 bb6:
   push 36

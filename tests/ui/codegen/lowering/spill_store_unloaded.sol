@@ -30,10 +30,10 @@ contract SpillStoreUnloaded {
     // CHECK-NEXT: lt
     // CHECK-NEXT: push [[OVERFLOW:bb[0-9]+]]
     // CHECK-NEXT: jumpi
-    // CHECK-NEXT: push 0
+    // CHECK-NEXT: push [[RETURN_OFFSET:[0-9]+]]
     // CHECK-NEXT: mstore
     // CHECK-NEXT: push 32
-    // CHECK-NEXT: push 0
+    // CHECK-NEXT: push [[RETURN_OFFSET]]
     // CHECK-NEXT: return
     // CHECK: [[OTHER]]:
     // CHECK-NEXT: swap 2

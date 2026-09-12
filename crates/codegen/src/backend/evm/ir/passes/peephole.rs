@@ -17,10 +17,10 @@
 //! change, keeping the canonical pipeline at a local fixed point without adding optimization logic
 //! to assembly. Storage reload forwarding runs only after structural sharing, so retaining
 //! a stack copy cannot disturb earlier block resynthesis or outlining choices. Final cleanup
-//! also relocates a word store immediately followed by its return to scratch memory. Nothing
-//! can observe the original address or memory expansion between that store and return. Only
-//! 32-bit offsets qualify: their expansion cost fits EVM gas arithmetic, while larger assembly
-//! offsets may unconditionally halt. Running after sharing preserves common-tail profitability. A
+//! also relocates a word store immediately followed by its return to scratch memory. A prior
+//! canonical word store after the last inline jump destination must prove that the original range
+//! is already expanded, preserving memory-limit halts. Reads cannot supply this proof because later
+//! dead-code cleanup may remove them. Running after sharing preserves common-tail profitability. A
 //! store followed by discarding its copied stack source consumes that source directly; the final
 //! stage keeps this shorter sequence from disrupting earlier sharing.
 
@@ -101,7 +101,7 @@ fn optimize_module(gcx: Gcx<'_>, module: &mut Module, final_cleanup: bool) -> bo
                 block.terminator.as_ref().map(|term| &term.kind),
                 Some(TerminatorKind::Op(op::RETURN))
             )
-            && let [.., offset, store, size, returned] = block.instructions.as_mut_slice()
+            && let [prefix @ .., offset, store, size, returned] = block.instructions.as_mut_slice()
             && [&*offset, &*store, &*size, &*returned]
                 .iter()
                 .all(|inst| inst.has_canonical_stack_effect())
@@ -109,8 +109,17 @@ fn optimize_module(gcx: Gcx<'_>, module: &mut Module, final_cleanup: bool) -> bo
             && size.concrete_immediate() == Some(U256::from(32))
             && let Some(address) = offset.concrete_immediate()
             && !address.is_zero()
-            && u32::try_from(address).is_ok()
             && returned.concrete_immediate() == Some(address)
+            && prefix
+                .windows(2)
+                .rev()
+                .take_while(|pair| pair[1].as_evm_opcode() != Some(op::JUMPDEST))
+                .any(|pair| {
+                    pair[0].has_canonical_stack_effect()
+                        && pair[1].has_canonical_stack_effect()
+                        && pair[1].as_evm_opcode() == Some(op::MSTORE)
+                        && pair[0].concrete_immediate().is_some_and(|previous| previous >= address)
+                })
         {
             offset.replace_preserving_metadata(Instruction::push_value(U256::ZERO));
             returned.replace_preserving_metadata(Instruction::push_value(U256::ZERO));
