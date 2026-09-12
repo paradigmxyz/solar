@@ -1,6 +1,6 @@
-//@ codegen-matrix: standard
-//@[gas] compile-flags: -Zdump=evm-ir
-//@[gas] filecheck:
+//@ codegen-matrix: standard ir
+//@[ir] compile-flags: -Ogas -Zdump=evm-ir-runtime
+//@[ir] filecheck:
 // CHECK-LABEL: @module StackExpressionSelection_runtime
 // CHECK: xor
 // CHECK-NEXT: jump [[TAIL:bb[0-9]+]]
