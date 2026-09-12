@@ -366,6 +366,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         // Compact dispatch can leave its selector below a separately scheduled wrapper.
         // An entry with inlined bodies uses ordinary intra-function switch cleanup instead.
+        self.record_runtime_entry_reachability(call_graph, entry_id);
         self.in_internal_function = false;
         self.emitting_entry =
             Liveness::compute_block_local_for_codegen(&module.functions[entry_id]).is_some();

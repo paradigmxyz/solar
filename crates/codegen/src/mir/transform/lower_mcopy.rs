@@ -31,7 +31,9 @@ use solar_sema::Gcx;
 /// internal function `mcopy_words(dest, src, len)` that eligible runtime sites
 /// call, like solc's shared `copy_memory_to_memory` routine. Constructor-reachable
 /// sites remain inline because their ABI output may occupy the free-memory
-/// pointer where an internal call would stage its frame.
+/// pointer where an internal call would stage its frame. Copies through raw or
+/// symbolic memory bases also remain inline because the helper's argument frame
+/// could overlap either copied range.
 ///
 /// Copies whose destination starts above their source run backward; all other
 /// copies run forward. A masked partial-word merge ensures that the lowering
@@ -69,25 +71,35 @@ impl MirPass for LowerMCopy {
                 constructor_reachable.insert(id);
             }
         }
-        let sites = module
+        let has_runtime_sites = module
             .functions
             .iter_enumerated()
             .filter(|(id, _)| !constructor_reachable.contains(*id))
-            .map(|(_, func)| func.instructions().filter(|&inst| is_mcopy(func, inst)).count())
-            .sum::<usize>();
+            .any(|(_, func)| func.instructions().any(|inst| is_mcopy(func, inst)));
         let constructor_sites = module
             .functions
             .iter_enumerated()
             .filter(|(id, _)| constructor_reachable.contains(*id))
             .any(|(_, func)| func.instructions().any(|inst| is_mcopy(func, inst)));
-        if sites == 0 && !constructor_sites {
+        if !has_runtime_sites && !constructor_sites {
             return false;
         }
 
         let target = Target::new(gcx);
         let fresh_returns = super::lower_abi_encode::fresh_object_returning_functions(module);
         let summaries = analyses.call_summaries(module);
-        let helper = shared_copy_helper(target, sites);
+        let helper_sites = module
+            .functions
+            .iter_enumerated()
+            .filter(|(id, _)| !constructor_reachable.contains(*id))
+            .map(|(_, func)| {
+                let alias = AliasAnalysis::with_call_summaries(func, summaries.clone());
+                func.instructions()
+                    .filter(|&inst| copy_helper_eligible(func, &alias, &fresh_returns, inst))
+                    .count()
+            })
+            .sum::<usize>();
+        let helper = shared_copy_helper(target, helper_sites);
         let helper = helper.map(|function| module.add_function(function));
         for (func_id, func) in module.functions.iter_mut_enumerated() {
             if !func.blocks.is_empty() {
@@ -143,13 +155,6 @@ fn lower_function(
     fresh_returns: &DenseBitSet<FunctionId>,
     summaries: &std::sync::Arc<crate::mir::analysis::MemoryCallSummaries>,
 ) -> bool {
-    if let Some(helper) = helper {
-        let sites = func.instructions().filter(|&inst| is_mcopy(func, inst)).collect::<Vec<_>>();
-        for &inst in &sites {
-            call_copy_helper(func, inst, helper);
-        }
-        return !sites.is_empty();
-    }
     let alias = AliasAnalysis::with_call_summaries(func, summaries.clone());
     let directions = func
         .instructions()
@@ -158,6 +163,19 @@ fn lower_function(
             Some((inst, copy_direction(func, &alias, fresh_returns, dest, src, len)))
         })
         .collect::<solar_data_structures::map::FxHashMap<_, _>>();
+    let helper_sites = helper.map(|helper| {
+        directions
+            .keys()
+            .copied()
+            .filter(|&inst| copy_helper_eligible(func, &alias, fresh_returns, inst))
+            .map(|inst| (inst, helper))
+            .collect::<solar_data_structures::map::FxHashMap<_, _>>()
+    });
+    if let Some(helper_sites) = &helper_sites {
+        for (&inst, &helper) in helper_sites {
+            call_copy_helper(func, inst, helper);
+        }
+    }
 
     // Expanding a copy splits its block at the copy, so the rest of the block,
     // with any later copy, is visited as the continuation.
@@ -165,12 +183,11 @@ fn lower_function(
     let mut block_index = 0;
     while block_index < func.blocks.len() {
         let block = BlockId::from_usize(block_index);
-        let mcopy = func.blocks[block]
-            .instructions
-            .iter()
-            .copied()
-            .enumerate()
-            .find(|&(_, inst)| is_mcopy(func, inst));
+        let mcopy =
+            func.blocks[block].instructions.iter().copied().enumerate().find(|&(_, inst)| {
+                is_mcopy(func, inst)
+                    && helper_sites.as_ref().is_none_or(|sites| !sites.contains_key(&inst))
+            });
         if let Some((position, inst)) = mcopy {
             lower_mcopy(func, block, position, inst, directions[&inst]);
             changed = true;
@@ -178,6 +195,43 @@ fn lower_function(
         block_index += 1;
     }
     changed
+}
+
+/// Returns whether a helper call frame is provably disjoint from both copy ranges.
+fn copy_helper_eligible(
+    func: &Function,
+    alias: &AliasAnalysis,
+    fresh_returns: &DenseBitSet<FunctionId>,
+    inst: InstId,
+) -> bool {
+    let InstKind::MCopy(dest, src, _) = func.inst(inst).kind else { return false };
+    [dest, src].into_iter().all(|pointer| {
+        alias
+            .memory_address(func, pointer)
+            .is_some_and(|address| helper_owned_base(func, address.base, fresh_returns))
+    })
+}
+
+/// Returns whether a base belongs to compiler-managed memory outside a callee's frame.
+fn helper_owned_base(
+    func: &Function,
+    base: MemoryBase,
+    fresh_returns: &DenseBitSet<FunctionId>,
+) -> bool {
+    match base {
+        MemoryBase::InternalFrame
+        | MemoryBase::Allocation(_)
+        | MemoryBase::DynamicAllocation(_) => true,
+        MemoryBase::Value(value) => {
+            let Value::Inst(inst) = func.value(value) else { return false };
+            matches!(
+                func.inst(*inst).kind,
+                InstKind::ICall { function, returns: 1, .. }
+                    if fresh_returns.contains(function)
+            )
+        }
+        MemoryBase::Absolute => false,
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
