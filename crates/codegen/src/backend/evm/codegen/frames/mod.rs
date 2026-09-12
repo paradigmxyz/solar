@@ -490,15 +490,16 @@ impl<'gcx> EvmCodegen<'gcx> {
             EvmMemoryLayout::HEAP_START
         };
         let runtime_entries = std::mem::take(&mut self.runtime_entry_funcs);
+        assert!(
+            runtime_entries.iter().all(|entry| self.runtime_entry_reachability.contains_key(entry)),
+            "runtime entry reachability must be recorded before frame placement"
+        );
         let reachable_memory_marks = runtime_entries
             .iter()
             .copied()
             .map(|entry| {
-                let mark = self
-                    .runtime_entry_reachability
-                    .get(&entry)
-                    .into_iter()
-                    .flat_map(|reachable| reachable.iter())
+                let mark = self.runtime_entry_reachability[&entry]
+                    .iter()
                     .map(|func_id| {
                         Self::constant_memory_high_water_mark(&module.functions[func_id])
                     })
@@ -526,7 +527,12 @@ impl<'gcx> EvmCodegen<'gcx> {
         let mut entry_ends: FxHashMap<FunctionId, u64> = runtime_entries
             .iter()
             .copied()
-            .map(|func_id| (func_id, entry_bases[&func_id] + self.function_spill_size(func_id)))
+            .map(|func_id| {
+                let end = entry_bases[&func_id]
+                    .checked_add(self.function_spill_size(func_id))
+                    .expect("runtime entry spill area overflow");
+                (func_id, end)
+            })
             .collect();
 
         // Longest live-chain depth below each function, over all call edges.
@@ -552,6 +558,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
         let mut depth: FxHashMap<FunctionId, u64> = FxHashMap::default();
+        let mut depth_converged = false;
         for _ in 0..=module.functions.len() {
             let mut changed = false;
             for &(caller, callee) in &edges {
@@ -559,7 +566,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                 if self.static_frame_functions.contains(caller)
                     && !self.recursive_frame_functions.contains(caller)
                 {
-                    contribution += self.emitted_frame_size(module, caller);
+                    contribution = contribution
+                        .checked_add(self.emitted_frame_size(module, caller))
+                        .expect("static frame depth overflow");
                 }
                 if contribution > depth.get(&callee).copied().unwrap_or(0) {
                     depth.insert(callee, contribution);
@@ -567,9 +576,11 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
             if !changed {
+                depth_converged = true;
                 break;
             }
         }
+        assert!(depth_converged, "static frame depth did not reach a fixed point");
 
         let placed: FxHashSet<FunctionId> =
             self.static_frame_addr_consts.keys().map(|&(func_id, _)| func_id).collect();
@@ -603,7 +614,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             let relative = *frame_relative
                 .entry(func_id)
                 .or_insert_with(|| depth.get(&func_id).copied().unwrap_or(0));
-            static_span = static_span.max(relative + frame_size);
+            let end = relative.checked_add(frame_size).expect("static frame span overflow");
+            static_span = static_span.max(end);
         }
         // ordinary static frames: [region_start, ordinary_end)
         // recursive scratch frames: [ordinary_end, static_end)
@@ -614,7 +626,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         // recursive function.
         for func_id in recursive_placed {
             frame_relative.insert(func_id, static_span);
-            static_span += self.emitted_frame_size(module, func_id);
+            static_span = static_span
+                .checked_add(self.emitted_frame_size(module, func_id))
+                .expect("recursive static frame span overflow");
         }
 
         let region_start = entry_ends.values().copied().max().unwrap_or(0).max(low_memory_end);
@@ -627,7 +641,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                     .copied()
                     .filter(|&func_id| reachable.contains(func_id))
                     .map(|func_id| {
-                        frame_relative[&func_id] + self.emitted_frame_size(module, func_id)
+                        frame_relative[&func_id]
+                            .checked_add(self.emitted_frame_size(module, func_id))
+                            .expect("reachable static frame span overflow")
                     })
                     .max()
                     .unwrap_or(0);
@@ -666,7 +682,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 if let Some(&span) = reachable_static_spans.get(&entry)
                     && span != 0
                 {
-                    floor = floor.max(region_start + span);
+                    floor = floor.max(region_start.checked_add(span).expect("runtime static frame overflow"));
                 }
                 if let Some(&guard) = reachable_heap_prefix_guards.get(&entry) {
                     floor = floor.checked_add(guard).unwrap_or_else(|| {
@@ -701,9 +717,11 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             for (alloc, size) in allocations {
                 let current_static_size = static_alloc_sizes.get(&func_id).copied().unwrap_or(0);
-                let proposed_static_size = current_static_size + size;
+                let proposed_static_size = current_static_size
+                    .checked_add(size)
+                    .expect("runtime static allocation size overflow");
                 let current_end = entry_ends[&func_id];
-                let proposed_end = current_end + size;
+                let proposed_end = current_end.checked_add(size).expect("runtime static allocation overflow");
                 let prefix_fits = !heap_alloc_ends.contains_key(&func_id)
                     && (placed.is_empty() || proposed_end <= region_start);
                 let spills_width_neutral =
@@ -783,12 +801,15 @@ impl<'gcx> EvmCodegen<'gcx> {
                 let mut changed = false;
                 for &(caller, callee) in &edges {
                     if let Some(&base) = bounds.get(&caller) {
-                        let end = base.max(low_memory_end)
-                            + if self.static_frame_functions.contains(caller) {
-                                self.emitted_frame_size(module, caller)
-                            } else {
-                                0
-                            };
+                        let frame_size = if self.static_frame_functions.contains(caller) {
+                            self.emitted_frame_size(module, caller)
+                        } else {
+                            0
+                        };
+                        let end = base
+                            .max(low_memory_end)
+                            .checked_add(frame_size)
+                            .expect("static frame bound overflow");
                         if end > bounds.get(&callee).copied().unwrap_or(0) {
                             bounds.insert(callee, end);
                             changed = true;
@@ -800,10 +821,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                     break;
                 }
             }
-            if converged
-                && placed
-                    .iter()
-                    .all(|func| bounds.get(func).is_none_or(|base| *base <= frame_bases[func]))
+            assert!(converged, "static frame bounds did not reach a fixed point");
+            if placed
+                .iter()
+                .all(|func| bounds.get(func).is_none_or(|base| *base <= frame_bases[func]))
             {
                 for (&func, base) in &mut frame_bases {
                     if let Some(&bound) = bounds.get(&func) {
@@ -1307,9 +1328,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         call_graph: &CallGraphInfo,
         entry: FunctionId,
     ) {
-        let mut reachable = call_graph.reachable_callees_from([entry]);
-        reachable.insert(entry);
-        self.runtime_entry_reachability.insert(entry, reachable.clone());
+        self.record_runtime_entry_reachability(call_graph, entry);
+        let reachable = &self.runtime_entry_reachability[&entry];
         let needs_free_memory = reachable.iter().any(|func_id| {
             call_graph.is_recursive(func_id)
                 || Self::function_may_observe_free_memory_slot(&module.functions[func_id])
@@ -1330,6 +1350,20 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
         self.asm.emit_op(op::MSTORE);
         self.runtime_free_memory_consts.insert(entry, id);
+    }
+
+    /// Records every function whose memory bounds contribute to one runtime entry.
+    pub(in crate::backend::evm::codegen) fn record_runtime_entry_reachability(
+        &mut self,
+        call_graph: &CallGraphInfo,
+        entry: FunctionId,
+    ) {
+        if self.runtime_entry_reachability.contains_key(&entry) {
+            return;
+        }
+        let mut reachable = call_graph.reachable_callees_from([entry]);
+        reachable.insert(entry);
+        self.runtime_entry_reachability.insert(entry, reachable);
     }
 
     pub(in crate::backend::evm::codegen) fn emit_spill_slot_addr(
