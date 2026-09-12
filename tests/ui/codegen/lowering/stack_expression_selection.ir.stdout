@@ -1,0 +1,194 @@
+// === ROOT/tests/ui/codegen/lowering/stack_expression_selection.sol:StackExpressionSelection (runtime) ===
+@module StackExpressionSelection_runtime
+bb0:
+  callvalue
+  push bb10
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x1a49b55c
+  gt
+  push bb2
+  jumpi
+  dup 1
+  push 0x1a49b55c
+  eq
+  push bb11
+  jumpi
+  dup 1
+  push 0x30ca6808
+  eq
+  push bb26
+  jumpi
+  dup 1
+  push 0x8552b9c1
+  eq
+  push bb14
+  jumpi
+  dup 1
+  push 0xa95cb7f7
+  eq
+  push bb20
+  jumpi
+  jump bb10
+bb10 [cold]:
+  push 0
+  push 0
+  revert
+bb2:
+  dup 1
+  push 0xb7d796e
+  eq
+  push bb29
+  jumpi
+  dup 1
+  push 0x10fe2b84
+  eq
+  push bb17
+  jumpi
+  dup 1
+  push 0x132a45fc
+  eq
+  push bb23
+  jumpi
+  push 0
+  push 0
+  revert
+bb11:
+  push 68
+  calldatasize
+  lt
+  push bb10
+  jumpi
+  push 36
+  calldataload
+  push 4
+  calldataload
+  xor
+  jump bb34
+bb34:
+  push 1
+  dup 2
+  add
+  dup 2
+  iszero
+  swap 2
+  push 128
+  mstore
+  push 160
+  mstore
+  push 192
+  mstore
+  push 96
+  push 128
+  return
+bb14:
+  push 68
+  calldatasize
+  lt
+  push bb10
+  jumpi
+  push 4
+  calldataload
+  push 36
+  calldataload
+  sub
+  jump bb34
+bb17:
+  push 68
+  calldatasize
+  lt
+  push bb10
+  jumpi
+  push 36
+  calldataload
+  push 4
+  calldataload
+  sub
+  jump bb34
+bb20:
+  push 68
+  calldatasize
+  lt
+  push bb10
+  jumpi
+  push 36
+  calldataload
+  push 4
+  calldataload
+  eq
+  push 36
+  calldataload
+  push 4
+  jump bb36
+bb36:
+  calldataload
+  sub
+  jump bb35
+bb35:
+  push 128
+  mstore
+  push 160
+  mstore
+  push 64
+  push 128
+  return
+bb23:
+  push 68
+  calldatasize
+  lt
+  push bb10
+  jumpi
+  push 36
+  calldataload
+  push 4
+  calldataload
+  eq
+  push 4
+  calldataload
+  push 36
+  jump bb36
+bb26:
+  push 68
+  calldatasize
+  lt
+  push bb10
+  jumpi
+  push 36
+  calldataload
+  push 4
+  calldataload
+  eq
+  push 36
+  calldataload
+  push 4
+  calldataload
+  xor
+  jump bb35
+bb29:
+  push 36
+  calldatasize
+  lt
+  push bb10
+  jumpi
+  push 0
+  jump bb31
+bb31:
+  push 4
+  calldataload
+  dup 2
+  lt
+  push bb33
+  jumpi
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb33:
+  push 1
+  add
+  jump bb31
