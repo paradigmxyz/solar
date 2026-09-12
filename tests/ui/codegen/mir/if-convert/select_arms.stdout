@@ -23,18 +23,43 @@
       ret v7
   }
   
+  fn @cheap_diamond(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+-     jumpi arg0, bb1, bb2
+-   bb2:
+-     v1 = xor arg1, 7
+-     jump bb3
+-   bb1:
++     v3 = iszero arg0
++     v4 = iszero v3
+      v0 = mul arg1, 3
+-     jump bb3
+-   bb3:
+-     v2 = phi [bb1: v0], [bb2: v1]
+-     ret v2
++     v1 = xor arg1, 7
++     v5 = sub v0, v1
++     v6 = mul v4, v5
++     v7 = add v1, v6
++     ret v7
+  }
+  
   fn @diamond(arg0: u256, arg1: u256) -> u256 {
     bb0:
       jumpi arg0, bb1, bb2
     bb2:
-      v1 = xor arg1, 7
+      v3 = xor arg1, 7
+      v4 = mul v3, 9
+      v5 = sub v4, 2
       jump bb3
     bb1:
       v0 = mul arg1, 3
+      v1 = add v0, 1
+      v2 = xor v1, 5
       jump bb3
     bb3:
-      v2 = phi [bb1: v0], [bb2: v1]
-      ret v2
+      v6 = phi [bb1: v2], [bb2: v5]
+      ret v6
   }
   
   fn @memory_arm(arg0: bool, arg1: u256) -> u256 {
@@ -76,5 +101,69 @@
 +     v4 = mul v3, 5
 +     v5 = add arg1, v4
 +     ret v5
+  }
+  
+  fn @literal_arms(arg0: bool) -> bytes32 {
+    bb0:
+-     jumpi arg0, bb1, bb2
+-   bb2:
+-     jump bb3
+-   bb1:
+-     jump bb3
+-   bb3:
+-     v0 = phi [bb1: 0x7100000000000000000000000000000000000000000000000000000000000000], [bb2: 0x5f00000000000000000000000000000000000000000000000000000000000000]
+-     ret v0
++     v1 = mul arg0, 0x1200000000000000000000000000000000000000000000000000000000000000
++     v2 = add 0x5f00000000000000000000000000000000000000000000000000000000000000, v1
++     ret v2
+  }
+  
+  fn @literal_or_value(arg0: bool, arg1: u256) -> u256 {
+    bb0:
+-     jumpi arg0, bb2, bb1
+-   bb1:
+-     jump bb2
+-   bb2:
+-     v0 = phi [bb0: 7], [bb1: arg1]
+-     ret v0
++     v1 = sub 7, arg1
++     v2 = mul arg0, v1
++     v3 = add arg1, v2
++     ret v3
+  }
+  
+  fn @table_ladder(arg0: u256) -> u256 {
+    bb0:
+      v0 = lt arg0, 64
+-     jumpi v0, bb4, bb1
+-   bb1:
+      v1 = lt arg0, 96
+-     jumpi v1, bb3, bb2
+-   bb2:
+-     jump bb3
+-   bb3:
+-     v2 = phi [bb1: 0x102030405060708090a0b0c0d0e0f10111213141516171819000000003f], [bb2: 0x1a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132330000000000]
+-     jump bb4
+-   bb4:
+-     v3 = phi [bb0: 0x3e3f3e003f3435363738393a3b3c3d000000000000], [bb3: v2]
++     v6 = mul v1, 0xffe5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e6000000003f
++     v7 = add 0x1a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132330000000000, v6
++     v8 = mul v0, 0xfffffefdfcfbfaf9f8f7f7343431f33125252525252525252524e6ffffffffc1
++     v9 = add v7, v8
+      v4 = and arg0, 31
+-     v5 = byte v4, v3
++     v5 = byte v4, v9
+      ret v5
+  }
+  
+  fn @pointer_arms(arg0: bool, arg1: memptr, arg2: memptr) -> u256 {
+    bb0:
+      jumpi arg0, bb2, bb1
+    bb1:
+      jump bb2
+    bb2:
+      v0 = phi [bb0: arg1], [bb1: arg2]
+      v1 = mload v0
+      ret v1
   }
   

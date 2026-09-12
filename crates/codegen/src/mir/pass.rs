@@ -72,6 +72,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &loop_canonicalize::LoopCanonicalize,
     &loop_exit_remat::LoopExitRemat,
     &loop_idioms::LoopIdioms,
+    &loop_split::LoopSplit,
     &indvar_simplify::IndVarSimplify,
     &storage_promotion::StorageScalarPromotion,
     &loop_opt::Licm,
@@ -248,6 +249,9 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     // Size mode shares arithmetic payloads too, before selecting stack layouts.
     &SizeOnly::new(outline_reverts::OutlineReverts),
     // Expansion exposes scalar checks and object copies to this bounded cleanup group.
+    // Peel the last groups of lookahead loops so the main loop's bound folds
+    // the body guards in the check elimination below.
+    &GasOnly::new(loop_split::LoopSplit),
     &sccp::Sccp,
     &egraph::Egraph,
     &word_sequence::WordSequence,
