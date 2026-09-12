@@ -1,0 +1,102 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/scalar_dispatch.sol:ScalarDispatch ===
+@module ScalarDispatch
+@phase evm-shaped
+fn @difference() [selector=0x214636e1, pure] {
+  bb0:
+    jump bb1
+  bb1:
+    v1 = phi [bb0: arg0], [bb2: v10]
+    v3 = phi [bb0: 0], [bb2: v12]
+    v4 = phi [bb0: arg1], [bb2: v11]
+    v5 = lt v3, arg2
+    jumpi v5, bb2, bb3
+  bb3:
+    mstore 128, v1
+    returndata 128, 32
+  bb2:
+    v10 = xor v1, v4
+    v11 = add v4, v3
+    v12 = add v3, 1
+    jump bb1
+}
+
+fn @sumDifference() [selector=0xe6dd5714, pure] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb2: v10]
+    v2 = phi [bb0: 0], [bb2: v12]
+    v3 = phi [bb0: arg1], [bb2: v11]
+    v5 = lt v2, arg2
+    jumpi v5, bb2, bb3
+  bb3:
+    mstore 128, v0
+    returndata 128, 32
+  bb2:
+    v10 = and v0, v3
+    v11 = add v3, v2
+    v12 = add v2, 1
+    jump bb1
+}
+
+fn @complement() [selector=0x82829e9f, pure] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb2: v12]
+    v1 = phi [bb0: arg1], [bb2: v11]
+    v3 = phi [bb0: arg0], [bb2: v10]
+    v5 = lt v0, arg2
+    jumpi v5, bb2, bb3
+  bb3:
+    mstore 128, v3
+    returndata 128, 32
+  bb2:
+    v10 = sub v1, v3
+    v11 = add v1, v0
+    v12 = add v0, 1
+    jump bb1
+}
+
+fn @absorb() [selector=0x0f92ced6, pure] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg1], [bb2: v11]
+    v2 = phi [bb0: arg0], [bb2: v10]
+    v4 = phi [bb0: 0], [bb2: v12]
+    v5 = lt v4, arg2
+    jumpi v5, bb2, bb3
+  bb3:
+    mstore 128, v2
+    returndata 128, 32
+  bb2:
+    v13 = not v0
+    v10 = and v13, v2
+    v11 = add v0, v4
+    v12 = add v4, 1
+    jump bb1
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = calldatasize
+    v2 = lt v1, 100
+    v3 = or v0, v2
+    jumpi v3, bb1, bb2
+  bb2:
+    v4 = calldataload 0
+    v5 = shr 224, v4
+    switch v5, default bb1, [0xf92ced6 => bb3, 0x214636e1 => bb4, 0x82829e9f => bb5, 0xe6dd5714 => bb6]
+  bb6:
+    tail_call @sumDifference
+  bb5:
+    tail_call @complement
+  bb4:
+    tail_call @difference
+  bb3:
+    tail_call @absorb
+  bb1:
+    revert 0, 0
+}

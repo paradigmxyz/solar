@@ -1,6 +1,10 @@
 //@ filecheck:
 // CHECK: @module
-//@ codegen-matrix: standard
+//@ codegen-matrix: standard amsterdamNone amsterdamGas amsterdamSize
+//@[amsterdamNone] compile-flags: --evm-version amsterdam -O none --emit=abi,bin
+//@[amsterdamGas] compile-flags: --evm-version amsterdam -O gas --emit=abi,bin
+//@[amsterdamSize] compile-flags: --evm-version amsterdam -O size --emit=abi,bin
+//@[amsterdamNone,amsterdamGas,amsterdamSize] normalize-stdout-test: ".+" -> ""
 //@ run-call: test => 1, 2, 3
 // ported-from: test/libsolidity/semanticTests/array/pop/array_pop_array_transition.sol
 

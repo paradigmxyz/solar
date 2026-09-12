@@ -136,7 +136,7 @@ fn @push() [selector=0xa60249a3] {
     v88 = lt v87, v0
     v89 = gt v87, 0xffffffffffffffff
     v90 = or v88, v89
-    jumpi v90, bb17, bb16
+    jumpi v90, bb1, bb16
   bb16:
     mstore 64, v87 !metadata(memory=scratch)
     v91 = calldatasize
@@ -237,10 +237,6 @@ fn @push() [selector=0xa60249a3] {
     v40 = add v24, 1
     jump bb5
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb17:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36

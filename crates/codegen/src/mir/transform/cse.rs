@@ -40,15 +40,17 @@
 //! Every intervening memory write invalidates these entries. Calls never sink or
 //! inherit a cached result across blocks; no read-footprint disjointness is assumed.
 //! After a `gas` read, state-dependent expressions remain explicit so a later
-//! `gas` read observes their dynamically priced execution.
+//! `gas` read observes their dynamically priced execution. A forward CFG may-observe
+//! analysis includes observations in non-dominating branches and loop backedges.
+//! Internal calls carry the callee's transitive gas-observation summary.
 
 use crate::mir::{
     BlockId, Function, FunctionId, Immediate, ImmutableId, InstId, InstKind, Instruction,
     MemoryObjectKind, MemoryObjectLayout, MirType, Module, SliceLocation, StorageAlias, Value,
     ValueId,
     analysis::{
-        Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, Location, LocationSize,
-        MemoryCallSummaries, MemoryLocation,
+        Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, GasObservations, Location,
+        LocationSize, MemoryCallSummaries, MemoryLocation,
     },
     pass::{MirPass, run_function_pass_with_cfg},
     utils as mir_utils,
@@ -105,8 +107,8 @@ struct CommonSubexprEliminator {
     cfg: Option<Rc<CfgInfo>>,
     /// Number of instructions eliminated.
     eliminated_count: usize,
-    /// `gas` instructions used exclusively as external-call gas operands.
-    forwarded_call_gas: Option<DenseBitSet<InstId>>,
+    /// Gas observations and their forward CFG closure, including backedges.
+    gas: Option<GasObservations>,
     alias: Option<AliasAnalysis>,
     call_summaries: Option<Arc<MemoryCallSummaries>>,
 }
@@ -238,9 +240,11 @@ impl ExprCache {
     }
 }
 
-/// A single cache-invalidating effect of a side-effecting instruction.
+/// A single effect that invalidates state-dependent cached expressions.
 #[derive(Clone, Copy, Debug)]
 enum Clobber {
+    /// A direct or interprocedural gas observation.
+    GasObservation,
     /// A memory write.
     Memory(ClobberScope<MemRangeKey>),
     /// A persistent-storage write.
@@ -302,6 +306,10 @@ impl CommonSubexprEliminator {
         self.alias.as_ref().expect("CSE alias snapshot is initialized")
     }
 
+    fn gas(&self) -> &GasObservations {
+        self.gas.as_ref().expect("CSE gas observations are initialized")
+    }
+
     fn run_with_cfg(&mut self, func: &mut Function, cfg: &CfgInfo) -> usize {
         self.sink_redundant_phi_expressions(func, cfg);
 
@@ -321,7 +329,6 @@ impl CommonSubexprEliminator {
     /// Runs CSE iteratively until no more changes.
     fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
         self.eliminated_count = 0;
-        self.forwarded_call_gas = Some(Self::classify_forwarded_call_gas(func));
         let cfg = self.cfg.as_ref().map_or_else(|| Rc::new(CfgInfo::new(func)), Rc::clone);
 
         // Sinking only creates pure expressions, while elimination removes instructions and
@@ -329,6 +336,7 @@ impl CommonSubexprEliminator {
         // fixed point. Drop only its value-address memo between iterations instead of rebuilding
         // alias analysis after every productive round.
         self.refresh_alias(func);
+        self.gas = Some(GasObservations::new(func, &cfg, self.alias()));
         loop {
             let before = self.eliminated_count;
             self.alias().clear_cached_addresses();
@@ -501,15 +509,16 @@ impl CommonSubexprEliminator {
     }
 
     fn process_global_blocks(&mut self, func: &Function, ctx: &mut GlobalCseContext<'_>) {
-        let mut worklist = vec![(BlockId::ENTRY, ExprCache::default(), false)];
-        while let Some((block_id, mut cache, mut gas_observed)) = worklist.pop() {
+        let mut worklist = vec![(BlockId::ENTRY, ExprCache::default())];
+        while let Some((block_id, mut cache)) = worklist.pop() {
+            let mut gas_observed = self.gas().at_entry(block_id);
             for &inst_id in &func.blocks[block_id].instructions {
                 let kind = &func.inst(inst_id).kind;
+                if self.gas().observes(inst_id) {
+                    cache.clear_stateful();
+                    gas_observed = true;
+                }
                 if matches!(kind, InstKind::Gas) {
-                    if !self.is_forwarded_call_gas(inst_id) {
-                        cache.clear_stateful();
-                        gas_observed = true;
-                    }
                     continue;
                 }
                 if kind.has_side_effects() {
@@ -550,10 +559,10 @@ impl CommonSubexprEliminator {
             for &child in remaining_children.iter().rev() {
                 let mut child_cache = cache.clone();
                 self.filter_inherited_cache(block_id, child, &mut child_cache, ctx);
-                worklist.push((child, child_cache, gas_observed));
+                worklist.push((child, child_cache));
             }
             self.filter_inherited_cache(block_id, first_child, &mut cache, ctx);
-            worklist.push((first_child, cache, gas_observed));
+            worklist.push((first_child, cache));
         }
     }
 
@@ -604,6 +613,9 @@ impl CommonSubexprEliminator {
             let mut clobbers = Vec::new();
             for &inst_id in &block.instructions {
                 let kind = &func.inst(inst_id).kind;
+                if self.gas().observes(inst_id) {
+                    clobbers.push(Clobber::GasObservation);
+                }
                 if kind.has_side_effects() {
                     self.side_effect_clobbers(func, inst_id, kind, &no_replacements, &mut clobbers);
                 }
@@ -654,7 +666,7 @@ impl CommonSubexprEliminator {
 
         // Instructions to remove
         let mut to_remove = DenseBitSet::new_empty(func.num_insts());
-        let mut gas_observed = false;
+        let mut gas_observed = self.gas().at_entry(block_id);
 
         let instruction_count = func.blocks[block_id].instructions.len();
         for index in 0..instruction_count {
@@ -662,11 +674,11 @@ impl CommonSubexprEliminator {
             let inst = func.inst(inst_id);
             let kind = &inst.kind;
 
+            if self.gas().observes(inst_id) {
+                expr_cache.clear_stateful();
+                gas_observed = true;
+            }
             if matches!(kind, InstKind::Gas) {
-                if !self.is_forwarded_call_gas(inst_id) {
-                    expr_cache.clear_stateful();
-                    gas_observed = true;
-                }
                 continue;
             }
 
@@ -892,60 +904,6 @@ impl CommonSubexprEliminator {
         }
     }
 
-    /// Finds `gas` values whose only uses are the gas operand of legacy calls.
-    /// Those values are introduced by call lowering and do not represent a
-    /// source-level gas observation.
-    fn classify_forwarded_call_gas(func: &Function) -> DenseBitSet<InstId> {
-        let mut gas_values = FxHashMap::default();
-        for inst_id in func.instructions() {
-            if matches!(func.inst(inst_id).kind, InstKind::Gas)
-                && let Some(value) = func.inst_result_value(inst_id)
-            {
-                gas_values.insert(value, inst_id);
-            }
-        }
-
-        let mut forwarded = DenseBitSet::new_empty(func.num_insts());
-        let mut observed = DenseBitSet::new_empty(func.num_insts());
-        for inst_id in func.instructions() {
-            let kind = &func.inst(inst_id).kind;
-            let call_gas = match kind {
-                InstKind::Call { gas, .. }
-                | InstKind::CallCode { gas, .. }
-                | InstKind::StaticCall { gas, .. }
-                | InstKind::DelegateCall { gas, .. } => Some(*gas),
-                _ => None,
-            };
-            let mut accepted_call_gas = false;
-            for operand in kind.operands() {
-                let Some(&gas_inst) = gas_values.get(&operand) else { continue };
-                if call_gas == Some(operand) && !accepted_call_gas {
-                    forwarded.insert(gas_inst);
-                    accepted_call_gas = true;
-                } else {
-                    observed.insert(gas_inst);
-                }
-            }
-        }
-        for block in func.blocks.iter() {
-            if let Some(terminator) = &block.terminator {
-                for operand in terminator.operands() {
-                    if let Some(&gas_inst) = gas_values.get(&operand) {
-                        observed.insert(gas_inst);
-                    }
-                }
-            }
-        }
-        for gas_inst in observed.iter() {
-            forwarded.remove(gas_inst);
-        }
-        forwarded
-    }
-
-    fn is_forwarded_call_gas(&self, inst_id: InstId) -> bool {
-        self.forwarded_call_gas.as_ref().is_some_and(|gas| gas.contains(inst_id))
-    }
-
     fn invalidate_for_side_effect(
         &self,
         func: &Function,
@@ -1003,6 +961,7 @@ impl CommonSubexprEliminator {
     /// Removes cache entries invalidated by a single clobbering effect.
     fn apply_clobber(&self, expr_cache: &mut ExprCache, clobber: &Clobber) {
         match *clobber {
+            Clobber::GasObservation => expr_cache.clear_stateful(),
             Clobber::Memory(write) => self.invalidate_memory(expr_cache, write),
             Clobber::Storage(write) => {
                 expr_cache.retain_stateful(|key, _| match key {

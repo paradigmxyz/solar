@@ -40,13 +40,21 @@ bb42 [cold]:
   push 0
   mstore
   push 50
-  jump bb54
-bb54 [cold]:
+  jump bb50
+bb50 [cold]:
   push 4
   mstore
   push 36
   push 0
   revert
+bb49 [cold]:
+  push 0x4e487b71
+  push 224
+  shl
+  push 0
+  mstore
+  push 65
+  jump bb50
 bb7:
   push 416
   push 64
@@ -71,7 +79,7 @@ bb7:
   dup 3
   gt
   or
-  push bb55
+  push bb49
   jumpi
   push 64
   mstore
@@ -366,7 +374,7 @@ bb43:
   dup 3
   gt
   or
-  push bb50
+  push bb49
   jumpi
   push 64
   mstore
@@ -508,25 +516,6 @@ bb41:
   push 384
   mstore
   jump bb36
-bb49 [cold]:
-  pop
-  pop
-  pop
-  jump bb55
-bb55 [cold]:
-  push 0x4e487b71
-  push 224
-  shl
-  push 0
-  mstore
-  push 65
-  jump bb54
-bb50 [cold]:
-  pop
-  pop
-  pop
-  pop
-  jump bb55
 bb53 [continuation]:
   push bb27
   jump bb52

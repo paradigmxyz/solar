@@ -4,10 +4,6 @@
 @library
 fn @entry() [entry] {
   bb0:
-    jump bb1
-  bb1:
-    jump bb2
-  bb2:
     revert 0, 0
 }
 
@@ -17,18 +13,16 @@ fn @entry() [entry] {
 fn @factory.0() [selector=0x1af91295, pure] {
   bb0:
     v1 = calldatasize
-    jump bb2
-  bb2:
     v3 = calldataload 4
     v4 = add v3, 4
     v5 = sub v1, 4
     v6 = gt v3, v5
-    jumpi v6, bb1, bb3
-  bb3:
+    jumpi v6, bb1, bb2
+  bb2:
     v7 = sub v1, v4
     v8 = gt 256, v7
-    jumpi v8, bb1, bb4
-  bb4:
+    jumpi v8, bb1, bb3
+  bb3:
     v0 = icall @factory.3, 1, v4, 32
     v10 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
     mstore 128, v10
@@ -40,18 +34,16 @@ fn @factory.0() [selector=0x1af91295, pure] {
 fn @tailHash.1() [selector=0x9850c81b, pure] {
   bb0:
     v1 = calldatasize
-    jump bb2
-  bb2:
     v3 = calldataload 4
     v4 = add v3, 4
     v5 = sub v1, 4
     v6 = gt v3, v5
-    jumpi v6, bb1, bb3
-  bb3:
+    jumpi v6, bb1, bb2
+  bb2:
     v7 = sub v1, v4
     v8 = gt 256, v7
-    jumpi v8, bb1, bb4
-  bb4:
+    jumpi v8, bb1, bb3
+  bb3:
     v0 = icall @tailHash.4, 1, v4, 32
     mstore 128, v0
     returndata 128, 32
@@ -62,18 +54,16 @@ fn @tailHash.1() [selector=0x9850c81b, pure] {
 fn @midWord.2() [selector=0xbb6106d2, pure] {
   bb0:
     v32 = calldatasize
-    jump bb7
-  bb7:
     v34 = calldataload 4
     v35 = add v34, 4
     v36 = sub v32, 4
     v37 = gt v34, v36
-    jumpi v37, bb1, bb8
-  bb8:
+    jumpi v37, bb1, bb7
+  bb7:
     v38 = sub v32, v35
     v39 = gt 256, v38
-    jumpi v39, bb1, bb9
-  bb9:
+    jumpi v39, bb1, bb8
+  bb8:
     v2 = add v35, 96
     v3 = calldatasize
     v4 = sub v3, v2

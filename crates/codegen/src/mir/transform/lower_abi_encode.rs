@@ -117,6 +117,10 @@ impl MirPass for LowerAbiEncode {
                 &destructive_returns[func_id],
             );
         }
+        CallGraphInfo::assert_runtime_helpers(
+            module,
+            helpers.arrays.values().chain(helpers.tuples.values()).copied(),
+        );
         changed
     }
 }
