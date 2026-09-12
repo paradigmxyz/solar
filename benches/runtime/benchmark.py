@@ -307,6 +307,7 @@ def compiler_input(
                 test_case.source,
                 test_case.contract_name,
                 test_case.settings_profile,
+                test_case.source_code,
             )
             timeout = 180
     else:
@@ -447,10 +448,20 @@ def write_artifacts(
 
 
 def project_standard_json_input(
-    project_file: str, source: str, contract_name: str, settings_profile: str = ""
+    project_file: str,
+    source: str,
+    contract_name: str,
+    settings_profile: str = "",
+    source_code: str | None = None,
 ) -> str:
     path = PROJECTS_ROOT / project_file
     project = load_project(path)
+    if source_code is not None:
+        # Keep the pinned archive cache intact when adding a benchmark wrapper.
+        project = {
+            **project,
+            "sources": {**project["sources"], source: {"content": source_code}},
+        }
     if settings_profile == "runtime":
         project_settings = project["settings"]
         settings = {

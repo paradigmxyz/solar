@@ -121,19 +121,104 @@ fn analysis_build(c: &mut Criterion) {
 }
 
 fn call_hierarchy_queries(c: &mut Criterion) {
+    let mut group = c.benchmark_group("lsp/call-hierarchy");
+    for caller_count in [128, 2_048] {
+        let mut source = String::from("contract Root { function target() internal {}\n");
+        for index in 0..caller_count {
+            writeln!(source, "function caller{index}() public {{ target(); }}").unwrap();
+        }
+        source.push_str("}\n");
+        let project = BenchmarkProject::from_source(source);
+        let (uri, target_position) =
+            project.unique_anchor("benchmark.sol", "target() internal").unwrap();
+        let analysis = project.clone().analyze();
+        assert_clean(&analysis);
+        assert_eq!(analysis.incoming_calls(&uri, target_position).len(), caller_count);
+        group.bench_function(BenchmarkId::from_parameter(format!("{caller_count}-callers")), |b| {
+            b.iter(|| {
+                black_box(analysis.incoming_calls(black_box(&uri), black_box(target_position)))
+            });
+        });
+
+        let caller_line = format!("function caller{}() public {{ target(); }}", caller_count - 1);
+        let (body_uri, line_start) = project.unique_anchor("benchmark.sol", &caller_line).unwrap();
+        let body_position =
+            Position::new(line_start.line, line_start.character + "function ".len() as u32);
+        assert_eq!(analysis.prepare_call_hierarchy(&body_uri, body_position).unwrap().len(), 1);
+        group.bench_function(
+            BenchmarkId::from_parameter(format!("{caller_count}-callers-prepare-body")),
+            |b| {
+                b.iter(|| {
+                    black_box(
+                        analysis
+                            .prepare_call_hierarchy(black_box(&body_uri), black_box(body_position)),
+                    )
+                })
+            },
+        );
+
+        let call_position = Position::new(
+            line_start.line,
+            line_start.character
+                + format!("function caller{}() public {{ ", caller_count - 1).len() as u32,
+        );
+        assert_eq!(analysis.prepare_call_hierarchy(&body_uri, call_position).unwrap().len(), 1);
+        group.bench_function(
+            BenchmarkId::from_parameter(format!("{caller_count}-callers-prepare-callsite")),
+            |b| {
+                b.iter(|| {
+                    black_box(
+                        analysis
+                            .prepare_call_hierarchy(black_box(&body_uri), black_box(call_position)),
+                    )
+                })
+            },
+        );
+
+        group.bench_function(
+            BenchmarkId::from_parameter(format!("{caller_count}-callers-prepare-cold")),
+            |b| {
+                b.iter_batched(
+                    || analysis.clone(),
+                    |cold| black_box(cold.prepare_call_hierarchy(&body_uri, call_position)),
+                    BatchSize::PerIteration,
+                )
+            },
+        );
+    }
+    group.finish();
+}
+
+fn rename_candidate_queries(c: &mut Criterion) {
     let mut source = String::from("contract Root { function target() internal {}\n");
-    for index in 0..128 {
+    for index in 0..2_048 {
         writeln!(source, "function caller{index}() public {{ target(); }}").unwrap();
     }
     source.push_str("}\n");
     let project = BenchmarkProject::from_source(source);
-    let (uri, position) = project.unique_anchor("benchmark.sol", "target() internal").unwrap();
-    let analysis = project.analyze();
+    let (uri, eof_anchor) = project
+        .unique_anchor("benchmark.sol", "function caller2047() public { target(); }")
+        .unwrap();
+    let hit_position = Position::new(
+        eof_anchor.line,
+        eof_anchor.character + "function caller2047() public { ".len() as u32,
+    );
+    let analysis = project.clone().analyze();
     assert_clean(&analysis);
-    assert_eq!(analysis.incoming_calls(&uri, position).len(), 128);
-    let mut group = c.benchmark_group("lsp/call-hierarchy");
-    group.bench_function(BenchmarkId::from_parameter("128-callers"), |b| {
-        b.iter(|| black_box(analysis.incoming_calls(black_box(&uri), black_box(position))));
+    let Some((range, edit_count)) = analysis.rename_candidate(&uri, hit_position) else {
+        panic!("rename candidate should resolve at the final call site");
+    };
+    assert_eq!(edit_count, 2_049);
+    assert!(range.start <= hit_position && hit_position < range.end);
+    let miss_position = Position::new(eof_anchor.line + 1, 0);
+    assert!(analysis.rename_candidate(&uri, miss_position).is_none());
+
+    let mut group = c.benchmark_group("lsp/rename-candidate");
+    group.bench_function(BenchmarkId::from_parameter("2048-callers-hit-near-eof"), |b| {
+        b.iter(|| black_box(analysis.rename_candidate(black_box(&uri), black_box(hit_position))))
+    });
+    group.bench_function(BenchmarkId::from_parameter("2048-callers-miss-near-eof"), |b| {
+        b.iter(|| black_box(analysis.rename_candidate(black_box(&uri), black_box(miss_position))))
     });
     group.finish();
 }
@@ -162,11 +247,63 @@ fn code_lens_queries(c: &mut Criterion) {
         fixture.project.unique_anchor("benchmark.sol", "function_0255(1, 2, address(0))").unwrap();
     let analysis = fixture.project.analyze();
     assert_clean(&analysis);
+    let mut first_requests = vec![("256-functions".to_owned(), analysis.clone(), uri.clone())];
     assert!(analysis.code_lenses(&uri).len() >= HOVER_FUNCTION_COUNT);
     let mut group = c.benchmark_group("lsp/code-lens");
     group.bench_function(BenchmarkId::from_parameter("256-functions"), |b| {
         b.iter(|| black_box(analysis.code_lenses(black_box(&uri))));
     });
+
+    for reference_count in [64, 1_024, 16_384] {
+        let mut source = String::from(
+            "contract RepeatedReferences {\nfunction target() internal pure {}\nfunction exercise() public pure {\n",
+        );
+        for _ in 0..reference_count {
+            source.push_str("target();\n");
+        }
+        source.push_str("}\n}\n");
+        let project = BenchmarkProject::from_source(source);
+        let (uri, position) = project.unique_anchor("benchmark.sol", "target() internal").unwrap();
+        let analysis = project.analyze();
+        assert_clean(&analysis);
+        first_requests.push((
+            format!("{reference_count}-references"),
+            analysis.clone(),
+            uri.clone(),
+        ));
+        let lenses = analysis.code_lenses(&uri);
+        assert_eq!(lenses.len(), 4);
+        assert!(lenses.iter().any(|lens| {
+            lens.range.start == position
+                && lens.command.as_ref().unwrap().title == format!("{reference_count} references")
+        }));
+        group.bench_function(
+            BenchmarkId::from_parameter(format!("{reference_count}-references")),
+            |b| b.iter(|| black_box(analysis.code_lenses(black_box(&uri)))),
+        );
+    }
+
+    let project = unifap_project();
+    let (uri, _) = project.unique_anchor(UNIFAP_PAIR, "SELECTOR").unwrap();
+    let analysis = project.analyze();
+    assert_clean(&analysis);
+    first_requests.push(("unifap-v2-pair".to_owned(), analysis.clone(), uri.clone()));
+    assert!(!analysis.code_lenses(&uri).is_empty());
+    group.bench_function(BenchmarkId::from_parameter("unifap-v2-pair"), |b| {
+        b.iter(|| black_box(analysis.code_lenses(black_box(&uri))));
+    });
+    group.finish();
+
+    let mut group = c.benchmark_group("lsp/code-lens-first-request");
+    for (name, analysis, uri) in first_requests {
+        group.bench_function(BenchmarkId::from_parameter(name), |b| {
+            b.iter_batched_ref(
+                || analysis.clone(),
+                |analysis| black_box(analysis.code_lenses(black_box(&uri))),
+                BatchSize::PerIteration,
+            );
+        });
+    }
     group.finish();
 }
 
@@ -284,6 +421,24 @@ fn signature_help_requests(c: &mut Criterion) {
             b.iter(|| black_box(requests.run()));
         });
     }
+
+    let mut source = String::from(
+        "contract Repeated { function target(uint256 first, uint256 second) public {} function exercise() public {\n",
+    );
+    for _ in 0..1_023 {
+        source.push_str("target(1, 2);\n");
+    }
+    source.push_str("target(1, 2); // final\n}\n}\n");
+    let project = BenchmarkProject::from_source(source);
+    let (uri, mut position) =
+        project.unique_anchor("benchmark.sol", "target(1, 2); // final").unwrap();
+    position.character += "target(1, ".len() as u32;
+    let mut requests = BenchmarkSignatureHelpRequests::new(project, uri, position);
+    let response = requests.run().expect("repeated-call benchmark should have signature help");
+    assert_eq!(response.active_parameter, Some(1));
+    group.bench_function(BenchmarkId::from_parameter("1024-repeated-calls"), |b| {
+        b.iter(|| black_box(requests.run()));
+    });
 
     let project = unifap_project();
     let (uri, mut position) = project
@@ -966,6 +1121,7 @@ fn unifap_benches(c: &mut Criterion) {
 criterion_group!(
     benches,
     analysis_build,
+    rename_candidate_queries,
     completion_queries,
     member_completion_queries,
     signature_help_requests,

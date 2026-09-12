@@ -1,5 +1,4 @@
 // === ROOT/tests/ui/codegen/lowering/constructor_internal_call.sol:ConstructorICall (creation) ===
-// === ConstructorICall_deployment ===
 @module ConstructorICall_deployment
 bb0:
   push 310
@@ -200,8 +199,7 @@ bb11:
   codecopy
   push 0
   return
-
-// === ConstructorICall_runtime ===
+// === ROOT/tests/ui/codegen/lowering/constructor_internal_call.sol:ConstructorICall (runtime) ===
 @module ConstructorICall_runtime
 bb0:
   callvalue
