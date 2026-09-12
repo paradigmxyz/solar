@@ -97,6 +97,8 @@ fn backedge_weights(module: &Module, header: BlockId) -> FxHashMap<BlockId, u64>
 }
 
 /// Gives a loop's latch the fallthrough currently owned by its one-time preheader.
+/// An adjacent header/latch pair also qualifies when the header's physical
+/// terminator leaves no fallthrough into the latch.
 fn place_loop_latches(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let mut order = module.blocks.indices().collect::<Vec<_>>();
     let mut moved = DenseBitSet::new_empty(module.blocks.len());
@@ -111,7 +113,7 @@ fn place_loop_latches(gcx: Gcx<'_>, module: &mut Module) -> bool {
         {
             let h = order.iter().position(|block| block == header).unwrap();
             let l = order.iter().position(|&block| block == latch).unwrap();
-            if h == 0 || l <= h + 1 {
+            if h == 0 || l <= h {
                 continue;
             }
             let preheader = order[h - 1];

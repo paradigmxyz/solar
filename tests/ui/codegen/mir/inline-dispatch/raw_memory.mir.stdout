@@ -1,0 +1,39 @@
+// === ROOT/tests/ui/codegen/mir/inline-dispatch/raw_memory.sol:RawMemory ===
+@module RawMemory
+fn @raw(arg0: u256) [selector=0x302e678f, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    returndata arg0, 32
+}
+
+fn @sum(arg0: u256, arg1: u256) -> u256 [selector=0xcad0899b, pure, abi_params=[u256, u256], abi_returns=[word]] {
+  bb0:
+    v0 = add arg0, arg1
+    v1 = lt v0, arg0
+    jumpi v1, bb1, bb2
+  bb2:
+    ret v0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+// === ROOT/tests/ui/codegen/mir/inline-dispatch/raw_memory.sol:RawRevert ===
+@module RawRevert
+fn @raw(arg0: u256) [selector=0x302e678f, pure, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    revert arg0, 32
+}
+
+fn @sum(arg0: u256, arg1: u256) -> u256 [selector=0xcad0899b, pure, abi_params=[u256, u256], abi_returns=[word]] {
+  bb0:
+    v0 = add arg0, arg1
+    v1 = lt v0, arg0
+    jumpi v1, bb1, bb2
+  bb2:
+    ret v0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}

@@ -1,0 +1,99 @@
+// === ROOT/tests/ui/codegen/mir/inline-dispatch/raw_memory.sol:RawMemory ===
+@module RawMemory
+@phase evm-shaped
+fn @raw() [selector=0x302e678f, pure] {
+  bb0:
+    v0 = calldatasize
+    v1 = lt v0, 36
+    jumpi v1, bb1, bb2
+  bb2:
+    returndata arg0, 32
+  bb1:
+    revert 0, 0
+}
+
+fn @sum() [selector=0xcad0899b, pure] {
+  bb0:
+    v2 = calldatasize
+    v3 = lt v2, 68
+    jumpi v3, bb3, bb4
+  bb4:
+    v0 = add arg0, arg1
+    v1 = lt v0, arg0
+    jumpi v1, bb1, bb2
+  bb2:
+    mstore 128, v0
+    returndata 128, 32
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    jumpi v0, bb4, bb1
+  bb1:
+    v1 = calldataload 0
+    v2 = shr 224, v1
+    switch v2, default bb4, [0x302e678f => bb2, 0xcad0899b => bb3]
+  bb3:
+    tail_call @sum
+  bb2:
+    tail_call @raw
+  bb4:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/codegen/mir/inline-dispatch/raw_memory.sol:RawRevert ===
+@module RawRevert
+@phase evm-shaped
+fn @raw() [selector=0x302e678f, pure] {
+  bb0:
+    v0 = calldatasize
+    v1 = lt v0, 36
+    jumpi v1, bb1, bb2
+  bb2:
+    revert arg0, 32
+  bb1:
+    revert 0, 0
+}
+
+fn @sum() [selector=0xcad0899b, pure] {
+  bb0:
+    v2 = calldatasize
+    v3 = lt v2, 68
+    jumpi v3, bb3, bb4
+  bb4:
+    v0 = add arg0, arg1
+    v1 = lt v0, arg0
+    jumpi v1, bb1, bb2
+  bb2:
+    mstore 128, v0
+    returndata 128, 32
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    jumpi v0, bb4, bb1
+  bb1:
+    v1 = calldataload 0
+    v2 = shr 224, v1
+    switch v2, default bb4, [0x302e678f => bb2, 0xcad0899b => bb3]
+  bb3:
+    tail_call @sum
+  bb2:
+    tail_call @raw
+  bb4:
+    revert 0, 0
+}
