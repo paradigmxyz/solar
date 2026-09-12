@@ -16,6 +16,60 @@ SPEC.loader.exec_module(benchmark)
 
 
 class CorpusTests(unittest.TestCase):
+    def test_source_links_pin_checkout_and_upstream(self) -> None:
+        case = next(
+            case
+            for case in benchmark.TEST_CASES
+            if case.test_id == "forge-std-1.16.1-project"
+        )
+        with mock.patch.object(benchmark, "source_revision", return_value="a" * 40):
+            links = benchmark.source_links(case)
+            failed = benchmark.failed_test_result(case, [], "hot", ValueError("test"))
+        self.assertEqual(
+            links,
+            [
+                {
+                    "label": "testdata/projects/forge-std-1.16.1.json.gz",
+                    "url": "https://github.com/paradigmxyz/solar/blob/"
+                    + "a" * 40
+                    + "/testdata/projects/forge-std-1.16.1.json.gz",
+                },
+                {
+                    "label": "foundry-rs/forge-std",
+                    "url": "https://github.com/foundry-rs/forge-std/tree/"
+                    "620536fa5277db4e3fd46772d5cbc1ea0696fb43",
+                },
+            ],
+        )
+        self.assertEqual(failed["source_links"], links)
+
+    def test_source_metadata_covers_corpus(self) -> None:
+        for case in benchmark.TEST_CASES:
+            with self.subTest(case=case.test_id):
+                if case.source_code is not None:
+                    self.assertTrue(case.source_path)
+                    self.assertEqual(
+                        (benchmark.REPOSITORY_ROOT / case.source_path).read_text(),
+                        case.source_code,
+                    )
+                if case.project_file:
+                    origins = case.project.sources
+                    self.assertTrue(origins)
+                    for source in origins:
+                        self.assertRegex(source.commit, r"^[0-9a-f]{40}$")
+        wrapper = next(
+            case for case in benchmark.TEST_CASES if case.test_id == "solady-encoding"
+        )
+        with mock.patch.object(benchmark, "source_revision", return_value="a" * 40):
+            self.assertEqual(
+                [link["label"] for link in benchmark.source_links(wrapper)],
+                [
+                    "testdata/projects/solady-0.1.26.json.gz",
+                    "testdata/runtime/Encoding.sol",
+                    "Vectorized/solady",
+                ],
+            )
+
     def test_vendored_cases_and_projects_exist(self) -> None:
         self.assertEqual(len(benchmark.TEST_CASES), 31)
         repository_cases = [
@@ -71,7 +125,9 @@ class CorpusTests(unittest.TestCase):
                 project = benchmark.load_project(case.project_path)
                 self.assertNotIn(case.source, project["sources"])
                 payload = json.loads(benchmark.compiler_input(case, None)[0])
-                self.assertEqual(payload["sources"][case.source]["content"], case.source_code)
+                self.assertEqual(
+                    payload["sources"][case.source]["content"], case.source_code
+                )
                 self.assertIn("src/utils/LibString.sol", payload["sources"])
                 self.assertNotIn("test/LibString.t.sol", payload["sources"])
                 for source, contents in payload["sources"].items():
@@ -106,7 +162,9 @@ class CorpusTests(unittest.TestCase):
         heavy_cases = [case for case in benchmark.TEST_CASES if case.suite == "heavy"]
         self.assertEqual(len(heavy_cases), 9)
         self.assertTrue(all(case.whole_project for case in heavy_cases))
-        case = next(case for case in heavy_cases if case.project == "solady-0.1.26")
+        case = next(
+            case for case in heavy_cases if case.project.name == "solady-0.1.26"
+        )
         archive = benchmark.load_project(case.project_path)
         payload = json.loads(
             benchmark.full_project_standard_json_input(case.project_file)

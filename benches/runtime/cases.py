@@ -117,6 +117,131 @@ class GasCall:
 
 
 @dataclass(frozen=True)
+class Source:
+    repo: str
+    commit: str
+
+
+@dataclass(frozen=True)
+class Project:
+    name: str
+    file: str
+    sources: Sequence[Source]
+
+    @property
+    def path(self) -> Path:
+        return PROJECTS_ROOT / self.file
+
+
+PROJECTS = {
+    "uniswap-v2-pair": Project(
+        "v2-core",
+        "uniswap-v2-pair.json.gz",
+        (Source("Uniswap/v2-core", "ee547b17853e71ed4e0101ccfd52e70d5acded58"),),
+    ),
+    "openzeppelin-contracts": Project(
+        "openzeppelin-contracts",
+        "openzeppelin-5.6.1.json.gz",
+        (
+            Source(
+                "OpenZeppelin/openzeppelin-contracts",
+                "5fd1781b1454fd1ef8e722282f86f9293cacf256",
+            ),
+        ),
+    ),
+    "openzeppelin-5.6.1": Project(
+        "openzeppelin-5.6.1",
+        "openzeppelin-5.6.1.json.gz",
+        (
+            Source(
+                "OpenZeppelin/openzeppelin-contracts",
+                "5fd1781b1454fd1ef8e722282f86f9293cacf256",
+            ),
+        ),
+    ),
+    "nitro-one-step-proof": Project(
+        "nitro-contracts",
+        "nitro-one-step-proof.json.gz",
+        (
+            Source(
+                "OffchainLabs/nitro-contracts",
+                "0b8c04e8f5f66fe6678a4f53aa15f23da417260e",
+            ),
+        ),
+    ),
+    "aave-l2-encoder": Project(
+        "aave-v3-core",
+        "aave-l2-encoder.json.gz",
+        (Source("aave/aave-v3-core", "782f51917056a53a2c228701058a6c3fb233684a"),),
+    ),
+    "lilweb3-ens": Project(
+        "lil-web3",
+        "lilweb3-ens.json.gz",
+        (Source("m1guelpf/lil-web3", "7346bd28c2586da3b07102d5290175a276949b15"),),
+    ),
+    "lilweb3-runtime": Project(
+        "lil-web3",
+        "lilweb3-runtime.json.gz",
+        (
+            Source("m1guelpf/lil-web3", "7346bd28c2586da3b07102d5290175a276949b15"),
+            Source(
+                "transmissions11/solmate", "e802bcf2fb24dda2bf7e513bea86d15c48b57486"
+            ),
+        ),
+    ),
+    "maple-erc20": Project(
+        "maple-erc20",
+        "maple-erc20.json.gz",
+        (Source("maple-labs/erc20", "baf791a9f894b0b319a2d42d5b9f8d30349ebaad"),),
+    ),
+    "solady-0.1.26": Project(
+        "solady-0.1.26",
+        "solady-0.1.26.json.gz",
+        (Source("Vectorized/solady", "acd959aa4bd04720d640bf4e6a5c71037510cc4b"),),
+    ),
+    "seaport-1.6": Project(
+        "seaport-1.6",
+        "seaport-1.6.json.gz",
+        (Source("ProjectOpenSea/seaport", "22ea29df3c241ebc17c95268164dde47e1186287"),),
+    ),
+    "v4-core-4.0.0": Project(
+        "v4-core-4.0.0",
+        "v4-core-4.0.0.json.gz",
+        (Source("Uniswap/v4-core", "e50237c43811bd9b526eff40f26772152a42daba"),),
+    ),
+    "morpho-blue-1.0.0": Project(
+        "morpho-blue-1.0.0",
+        "morpho-blue-1.0.0.json.gz",
+        (Source("morpho-org/morpho-blue", "55d2d99304fb3fb930c688462ae2ccabb1d533ad"),),
+    ),
+    "forge-std-1.16.1": Project(
+        "forge-std-1.16.1",
+        "forge-std-1.16.1.json.gz",
+        (Source("foundry-rs/forge-std", "620536fa5277db4e3fd46772d5cbc1ea0696fb43"),),
+    ),
+    "prb-math-4.1.1": Project(
+        "prb-math-4.1.1",
+        "prb-math-4.1.1.json.gz",
+        (Source("PaulRBerg/prb-math", "b51e8631ed28d3cc917c491dd47cd6c3ff652edc"),),
+    ),
+    "solmate-6": Project(
+        "solmate-6",
+        "solmate-6.json.gz",
+        (
+            Source(
+                "transmissions11/solmate", "a9e3ea26a2dc73bfa87f0cb189687d029028e0c5"
+            ),
+        ),
+    ),
+    "solarray-a547630": Project(
+        "solarray-a547630",
+        "solarray-a547630.json.gz",
+        (Source("evmcheb/solarray", "a547630f9bf7837af9e6919d217672afe7abf7f1"),),
+    ),
+}
+
+
+@dataclass(frozen=True)
 class TestCase:
     test_id: str
     description: str
@@ -124,8 +249,8 @@ class TestCase:
     test_calls: Sequence[tuple[str, Sequence[str]]] = field(default_factory=tuple)
     source_code: str | None = None
     source_name: str = ""
-    project: str = ""
-    project_file: str | None = None
+    source_path: str = ""
+    project: Project | None = None
     settings_profile: str = ""
     source: str = ""
     gas_calls: Sequence[GasCall] = field(default_factory=tuple)
@@ -141,10 +266,14 @@ class TestCase:
     whole_project: bool = False
 
     @property
+    def project_file(self) -> str | None:
+        return self.project.file if self.project is not None else None
+
+    @property
     def project_path(self) -> Path:
-        if self.project_file is None:
+        if self.project is None:
             raise ValueError(f"inline case {self.test_id} has no project archive")
-        return PROJECTS_ROOT / self.project_file
+        return self.project.path
 
 
 def source(name: str) -> str:
@@ -156,6 +285,7 @@ TEST_CASES: Sequence[TestCase] = (
         test_id="factorial",
         description="Factorial with storage caching opportunity",
         source_code=source("Factorial.sol"),
+        source_path="testdata/Factorial.sol",
         contract_name="FactorialStorage",
         test_calls=(
             ("computeFactorial(uint256)", ("5",)),
@@ -169,6 +299,7 @@ TEST_CASES: Sequence[TestCase] = (
         test_id="counter",
         description="Simple counter with setter and increment",
         source_code=source("Counter.sol"),
+        source_path="testdata/Counter.sol",
         contract_name="Counter",
         test_calls=(
             ("setNumber(uint256)", ("10",)),
@@ -182,6 +313,7 @@ TEST_CASES: Sequence[TestCase] = (
         test_id="sum-array",
         description="Sum computation with storage writes",
         source_code=source("SumArray.sol"),
+        source_path="testdata/SumArray.sol",
         contract_name="SumStorage",
         test_calls=(
             ("sumRange(uint256,uint256)", ("1", "10")),
@@ -195,6 +327,7 @@ TEST_CASES: Sequence[TestCase] = (
         test_id="arithmetic",
         description="Mixed arithmetic operations",
         source_code=source("Arithmetic.sol"),
+        source_path="testdata/Arithmetic.sol",
         contract_name="Arithmetic",
         test_calls=(
             ("compute(uint256,uint256,uint256)", ("100", "3", "10")),
@@ -207,6 +340,7 @@ TEST_CASES: Sequence[TestCase] = (
         test_id="verified-words",
         description="Synthetic bitwise and signed arithmetic loops for verified rules",
         source_code=(TESTDATA_ROOT / "runtime/VerifiedWords.sol").read_text(),
+        source_path="testdata/runtime/VerifiedWords.sol",
         source_name="VerifiedWords.sol",
         contract_name="VerifiedWords",
         gas_calls=(
@@ -225,6 +359,7 @@ TEST_CASES: Sequence[TestCase] = (
         test_id="word-recipes",
         description="Synthetic arithmetic, factoring, byte extraction and bounded comparisons",
         source_code=(TESTDATA_ROOT / "runtime/WordRecipes.sol").read_text(),
+        source_path="testdata/runtime/WordRecipes.sol",
         source_name="WordRecipes.sol",
         contract_name="WordRecipes",
         gas_calls=(
@@ -245,6 +380,7 @@ TEST_CASES: Sequence[TestCase] = (
         test_id="seeded-words",
         description="Synthetic mixed-word reductions found by seeded discovery",
         source_code=(TESTDATA_ROOT / "runtime/SeededWords.sol").read_text(),
+        source_path="testdata/runtime/SeededWords.sol",
         source_name="SeededWords.sol",
         contract_name="SeededWords",
         gas_calls=tuple(
@@ -265,6 +401,7 @@ TEST_CASES: Sequence[TestCase] = (
         test_id="compiler-optimizations",
         description="CFG scalars, range proofs, shared constants, and storage writes",
         source_code=(TESTDATA_ROOT / "runtime/CompilerOptimizations.sol").read_text(),
+        source_path="testdata/runtime/CompilerOptimizations.sol",
         source_name="CompilerOptimizations.sol",
         contract_name="CompilerOptimizations",
         gas_calls=(
@@ -293,8 +430,7 @@ TEST_CASES: Sequence[TestCase] = (
     TestCase(
         test_id="uniswap-v2-pair",
         description="Uniswap V2 Pair",
-        project="v2-core",
-        project_file="uniswap-v2-pair.json.gz",
+        project=PROJECTS["uniswap-v2-pair"],
         source="contracts/UniswapV2Pair.sol",
         contract_name="UniswapV2Pair",
         suite="repository",
@@ -305,8 +441,7 @@ TEST_CASES: Sequence[TestCase] = (
     TestCase(
         test_id="openzeppelin-erc20-mock",
         description="OpenZeppelin ERC20Mock",
-        project="openzeppelin-contracts",
-        project_file="openzeppelin-5.6.1.json.gz",
+        project=PROJECTS["openzeppelin-contracts"],
         source="contracts/mocks/token/ERC20Mock.sol",
         contract_name="ERC20Mock",
         suite="repository",
@@ -360,8 +495,7 @@ TEST_CASES: Sequence[TestCase] = (
     TestCase(
         test_id="openzeppelin-vesting-wallet",
         description="OpenZeppelin VestingWallet",
-        project="openzeppelin-contracts",
-        project_file="openzeppelin-5.6.1.json.gz",
+        project=PROJECTS["openzeppelin-contracts"],
         source="contracts/finance/VestingWallet.sol",
         contract_name="VestingWallet",
         suite="repository",
@@ -410,8 +544,7 @@ TEST_CASES: Sequence[TestCase] = (
     TestCase(
         test_id="nitro-one-step-proof",
         description="Nitro OneStepProofEntry",
-        project="nitro-contracts",
-        project_file="nitro-one-step-proof.json.gz",
+        project=PROJECTS["nitro-one-step-proof"],
         source="src/osp/OneStepProofEntry.sol",
         contract_name="OneStepProofEntry",
         suite="repository",
@@ -484,8 +617,7 @@ TEST_CASES: Sequence[TestCase] = (
     TestCase(
         test_id="aave-l2-encoder",
         description="Aave V3 L2Encoder",
-        project="aave-v3-core",
-        project_file="aave-l2-encoder.json.gz",
+        project=PROJECTS["aave-l2-encoder"],
         source="fixtures/aave/L2EncoderHarness.sol",
         contract_name="L2EncoderHarness",
         suite="repository",
@@ -657,8 +789,7 @@ TEST_CASES: Sequence[TestCase] = (
     TestCase(
         test_id="lilweb3-ens",
         description="LilENS",
-        project="lil-web3",
-        project_file="lilweb3-ens.json.gz",
+        project=PROJECTS["lilweb3-ens"],
         source="src/LilENS.sol",
         contract_name="LilENS",
         suite="repository",
@@ -694,8 +825,7 @@ TEST_CASES: Sequence[TestCase] = (
     TestCase(
         test_id="lilweb3-flashloan",
         description="LilFlashloan",
-        project="lil-web3",
-        project_file="lilweb3-runtime.json.gz",
+        project=PROJECTS["lilweb3-runtime"],
         source="src/LilFlashloan.sol",
         contract_name="LilFlashloan",
         suite="repository",
@@ -759,8 +889,7 @@ TEST_CASES: Sequence[TestCase] = (
     TestCase(
         test_id="lilweb3-fractional",
         description="LilFractional",
-        project="lil-web3",
-        project_file="lilweb3-runtime.json.gz",
+        project=PROJECTS["lilweb3-runtime"],
         source="src/LilFractional.sol",
         contract_name="LilFractional",
         suite="repository",
@@ -819,8 +948,7 @@ TEST_CASES: Sequence[TestCase] = (
     TestCase(
         test_id="maple-erc20",
         description="Maple ERC20",
-        project="maple-erc20",
-        project_file="maple-erc20.json.gz",
+        project=PROJECTS["maple-erc20"],
         source="contracts/ERC20.sol",
         contract_name="ERC20",
         suite="repository",
@@ -892,8 +1020,7 @@ TEST_CASES: Sequence[TestCase] = (
     TestCase(
         test_id="openzeppelin-governor",
         description="OpenZeppelin Governor",
-        project="openzeppelin-5.6.1",
-        project_file="openzeppelin-5.6.1.json.gz",
+        project=PROJECTS["openzeppelin-5.6.1"],
         source="test/governance/Governor.t.sol",
         contract_name="GovernorInternalTest",
         gas_calls=(
@@ -943,8 +1070,7 @@ TEST_CASES: Sequence[TestCase] = (
     TestCase(
         test_id="solady-signature-checker",
         description="Solady SignatureCheckerLib",
-        project="solady-0.1.26",
-        project_file="solady-0.1.26.json.gz",
+        project=PROJECTS["solady-0.1.26"],
         source="test/SignatureCheckerLib.t.sol",
         contract_name="SignatureCheckerLibTest",
         gas_calls=(
@@ -980,8 +1106,7 @@ TEST_CASES: Sequence[TestCase] = (
     TestCase(
         test_id="solady-lib-string",
         description="Solady LibString",
-        project="solady-0.1.26",
-        project_file="solady-0.1.26.json.gz",
+        project=PROJECTS["solady-0.1.26"],
         source="test/LibString.t.sol",
         contract_name="LibStringTest",
         gas_calls=(
@@ -1053,10 +1178,10 @@ TEST_CASES: Sequence[TestCase] = (
         test_id="solady-encoding",
         description="Solady hex and ASCII with ordinary ABI calls",
         min_solc="0.8.20",
-        project="solady-0.1.26",
-        project_file="solady-0.1.26.json.gz",
+        project=PROJECTS["solady-0.1.26"],
         source="Encoding.sol",
         source_code=(TESTDATA_ROOT / "runtime/Encoding.sol").read_text(),
+        source_path="testdata/runtime/Encoding.sol",
         contract_name="Encoding",
         settings_profile="runtime",
         gas_calls=tuple(
@@ -1079,10 +1204,10 @@ TEST_CASES: Sequence[TestCase] = (
         test_id="solady-algorithms",
         description="Solady decimal conversion, sorting and Base64 decoding",
         min_solc="0.8.20",
-        project="solady-0.1.26",
-        project_file="solady-0.1.26.json.gz",
+        project=PROJECTS["solady-0.1.26"],
         source="Algorithms.sol",
         source_code=(TESTDATA_ROOT / "runtime/Algorithms.sol").read_text(),
+        source_path="testdata/runtime/Algorithms.sol",
         contract_name="Algorithms",
         settings_profile="runtime",
         gas_calls=tuple(
@@ -1099,8 +1224,7 @@ TEST_CASES: Sequence[TestCase] = (
         test_id="seaport-1.6-project",
         description="Seaport 1.6 full project",
         contract_name="*",
-        project="seaport-1.6",
-        project_file="seaport-1.6.json.gz",
+        project=PROJECTS["seaport-1.6"],
         whole_project=True,
         suite="heavy",
     ),
@@ -1108,8 +1232,7 @@ TEST_CASES: Sequence[TestCase] = (
         test_id="v4-core-project",
         description="Uniswap v4-core full project (viaIR)",
         contract_name="*",
-        project="v4-core-4.0.0",
-        project_file="v4-core-4.0.0.json.gz",
+        project=PROJECTS["v4-core-4.0.0"],
         whole_project=True,
         suite="heavy",
     ),
@@ -1117,8 +1240,7 @@ TEST_CASES: Sequence[TestCase] = (
         test_id="morpho-blue-project",
         description="Morpho Blue full project (viaIR)",
         contract_name="*",
-        project="morpho-blue-1.0.0",
-        project_file="morpho-blue-1.0.0.json.gz",
+        project=PROJECTS["morpho-blue-1.0.0"],
         whole_project=True,
         suite="heavy",
     ),
@@ -1126,8 +1248,7 @@ TEST_CASES: Sequence[TestCase] = (
         test_id="openzeppelin-5.6.1-project",
         description="OpenZeppelin 5.6.1 full project",
         contract_name="*",
-        project="openzeppelin-5.6.1",
-        project_file="openzeppelin-5.6.1.json.gz",
+        project=PROJECTS["openzeppelin-5.6.1"],
         whole_project=True,
         suite="heavy",
     ),
@@ -1135,8 +1256,7 @@ TEST_CASES: Sequence[TestCase] = (
         test_id="solady-0.1.26-project",
         description="Solady 0.1.26 full project",
         contract_name="*",
-        project="solady-0.1.26",
-        project_file="solady-0.1.26.json.gz",
+        project=PROJECTS["solady-0.1.26"],
         whole_project=True,
         suite="heavy",
     ),
@@ -1144,8 +1264,7 @@ TEST_CASES: Sequence[TestCase] = (
         test_id="forge-std-1.16.1-project",
         description="Forge Std 1.16.1 full project",
         contract_name="*",
-        project="forge-std-1.16.1",
-        project_file="forge-std-1.16.1.json.gz",
+        project=PROJECTS["forge-std-1.16.1"],
         whole_project=True,
         suite="heavy",
     ),
@@ -1153,8 +1272,7 @@ TEST_CASES: Sequence[TestCase] = (
         test_id="prb-math-4.1.1-project",
         description="PRBMath 4.1.1 full project",
         contract_name="*",
-        project="prb-math-4.1.1",
-        project_file="prb-math-4.1.1.json.gz",
+        project=PROJECTS["prb-math-4.1.1"],
         whole_project=True,
         suite="heavy",
     ),
@@ -1162,8 +1280,7 @@ TEST_CASES: Sequence[TestCase] = (
         test_id="solmate-6-project",
         description="Solmate 6 full project",
         contract_name="*",
-        project="solmate-6",
-        project_file="solmate-6.json.gz",
+        project=PROJECTS["solmate-6"],
         whole_project=True,
         suite="heavy",
     ),
@@ -1171,8 +1288,7 @@ TEST_CASES: Sequence[TestCase] = (
         test_id="solarray-a547630-project",
         description="Solarray full project",
         contract_name="*",
-        project="solarray-a547630",
-        project_file="solarray-a547630.json.gz",
+        project=PROJECTS["solarray-a547630"],
         whole_project=True,
         suite="heavy",
     ),
