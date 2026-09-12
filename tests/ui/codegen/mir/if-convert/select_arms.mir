@@ -28,12 +28,16 @@ fn @search_step(arg0: u256, arg1: u256) -> u256 {
     ret v7
 }
 
-// A diamond of unrelated pure arms would need a general select, which costs
-// more than the branch in the backend: the branch stays.
-// CHECK-LABEL: {{^[ +].*}}fn @diamond{{[( ]}}
-// CHECK: {{^ +}}jumpi arg0
-// CHECK-NOT: select
-fn @diamond(arg0: u256, arg1: u256) -> u256 {
+// A diamond of unrelated one-instruction arms: running both plus the
+// general select is cheaper than the branch, so it becomes `f + c * (t - f)`.
+// CHECK-LABEL: {{^[ +].*}}fn @cheap_diamond{{[( ]}}
+// CHECK: - jumpi
+// CHECK: + [[Z:v[0-9]+]] = iszero arg0
+// CHECK: + [[C:v[0-9]+]] = iszero [[Z]]
+// CHECK: + [[D:v[0-9]+]] = sub [[T:v[0-9]+]], [[F:v[0-9]+]]
+// CHECK: + [[S:v[0-9]+]] = mul [[C]], [[D]]
+// CHECK: + {{v[0-9]+}} = add [[F]], [[S]]
+fn @cheap_diamond(arg0: u256, arg1: u256) -> u256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
@@ -45,6 +49,29 @@ fn @diamond(arg0: u256, arg1: u256) -> u256 {
   bb3:
     v2 = phi [bb1: v0], [bb2: v1]
     ret v2
+}
+
+// A diamond of three-instruction arms: speculating both costs more than
+// the branch saves, so the branch stays.
+// CHECK-LABEL: {{^[ +].*}}fn @diamond{{[( ]}}
+// CHECK: {{^ +}}jumpi arg0
+// CHECK-NOT: select
+fn @diamond(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    v0 = mul arg1, 3
+    v1 = add v0, 1
+    v2 = xor v1, 5
+    jump bb3
+  bb2:
+    v3 = xor arg1, 7
+    v4 = mul v3, 9
+    v5 = sub v4, 2
+    jump bb3
+  bb3:
+    v6 = phi [bb1: v2], [bb2: v5]
+    ret v6
 }
 
 // An arm that reads memory could expand it or trap when speculated: the
@@ -94,5 +121,86 @@ fn @word_condition(arg0: u256, arg1: u256) -> u256 {
     jump bb2
   bb2:
     v1 = phi [bb0: arg1], [bb1: v0]
+    ret v1
+}
+
+// Two literal arms: the join becomes the else literal plus the condition
+// times the folded difference, with no branch.
+// CHECK-LABEL: {{^[ +].*}}fn @literal_arms{{[( ]}}
+// CHECK: - jumpi
+// CHECK: + [[S:v[0-9]+]] = mul arg0, 0x1200000000000000000000000000000000000000000000000000000000000000
+// CHECK: + {{v[0-9]+}} = add 0x5f00000000000000000000000000000000000000000000000000000000000000, [[S]]
+// CHECK-NOT: {{^[ +].*}}phi
+fn @literal_arms(arg0: bool) -> bytes32 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v0 = phi [bb1: 0x7100000000000000000000000000000000000000000000000000000000000000], [bb2: 0x5f00000000000000000000000000000000000000000000000000000000000000]
+    ret v0
+}
+
+// A literal over a value computed before the branch: `f + c * (t - f)`.
+// CHECK-LABEL: {{^[ +].*}}fn @literal_or_value{{[( ]}}
+// CHECK: - jumpi
+// CHECK: + [[D:v[0-9]+]] = sub 7, arg1
+// CHECK: + [[S:v[0-9]+]] = mul arg0, [[D]]
+// CHECK: + {{v[0-9]+}} = add arg1, [[S]]
+fn @literal_or_value(arg0: bool, arg1: u256) -> u256 {
+  bb0:
+    jumpi arg0, bb2, bb1
+  bb1:
+    jump bb2
+  bb2:
+    v0 = phi [bb0: 7], [bb1: arg1]
+    ret v0
+}
+
+// A ladder of table-word selections on one value: the inner triangle folds
+// to a literal select, and the outer literal then adds a scaled delta on
+// its own condition, which implies the inner one.
+// CHECK-LABEL: {{^[ +].*}}fn @table_ladder{{[( ]}}
+// CHECK: {{^ +}}[[C1:v[0-9]+]] = lt arg0, 64
+// CHECK: {{^ +}}[[C2:v[0-9]+]] = lt arg0, 96
+// CHECK: + [[S2:v[0-9]+]] = mul [[C2]], 0x{{[0-9a-f]+}}
+// CHECK: + [[E:v[0-9]+]] = add 0x1a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132330000000000, [[S2]]
+// CHECK: + [[S1:v[0-9]+]] = mul [[C1]], 0x{{[0-9a-f]+}}
+// CHECK: + {{v[0-9]+}} = add [[E]], [[S1]]
+// CHECK-NOT: {{^[ +].*}}phi
+// CHECK-NOT: {{^[ +].*}}jumpi
+fn @table_ladder(arg0: u256) -> u256 {
+  bb0:
+    v0 = lt arg0, 64
+    jumpi v0, bb4, bb1
+  bb1:
+    v1 = lt arg0, 96
+    jumpi v1, bb3, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v2 = phi [bb1: 0x102030405060708090a0b0c0d0e0f10111213141516171819000000003f], [bb2: 0x1a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132330000000000]
+    jump bb4
+  bb4:
+    v3 = phi [bb0: 0x3e3f3e003f3435363738393a3b3c3d000000000000], [bb3: v2]
+    v4 = and arg0, 31
+    v5 = byte v4, v3
+    ret v5
+}
+
+// A pointer phi keeps its branch: the arithmetic form would erase the
+// allocation provenance later passes rely on.
+// CHECK-LABEL: {{^[ +].*}}fn @pointer_arms{{[( ]}}
+// CHECK: {{^ +}}jumpi
+fn @pointer_arms(arg0: bool, arg1: memptr, arg2: memptr) -> u256 {
+  bb0:
+    jumpi arg0, bb2, bb1
+  bb1:
+    jump bb2
+  bb2:
+    v0 = phi [bb0: arg1], [bb1: arg2]
+    v1 = mload v0
     ret v1
 }

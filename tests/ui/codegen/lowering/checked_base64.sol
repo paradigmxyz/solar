@@ -29,9 +29,13 @@
 // helper four times per group. The helper's only stores build a panic
 // payload, so it summarizes as memory-clean; the input length is read once,
 // the group offsets cannot wrap within the trip-count bound, and the decode
-// helper is cloned into its loop by the hot-leaf inliner. The encoder's
-// mode flags differ between its callers here, so its helper keeps the
-// flag parameter and stays shared where the loop's live words leave no room.
+// loop is split into a main loop bounded by `i + 3 < n`, whose lookahead
+// guards fold, and the original loop for the last group. The decode helper's
+// table ladder is branch-free, and the hot-leaf inliner clones it into the
+// last-group loop and the first two sites of the main loop; the other two
+// sites keep the call because the main loop's live words leave no room for
+// the helper's remaining joins. The encoder's mode flags differ between its
+// callers here, so its helper keeps the flag parameter and stays shared.
 
 library Base64 {
     bytes32 private constant ENCODE0 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef";
@@ -127,7 +131,13 @@ contract CheckedBase64 {
     // OPT: {{v[0-9]+}} = mload arg0
     // OPT-NOT: mload arg0
     // OPT-NOT: icall @literal_bytes_word
+    // OPT: {{v[0-9]+}} = add {{v[0-9]+}}, 3{{$}}
+    // OPT-NEXT: [[MAIN:v[0-9]+]] = lt
+    // OPT-NEXT: jumpi [[MAIN]]
+    // OPT-COUNT-2: icall @_decode
     // OPT-NOT: icall @_decode
+    // OPT-NOT: mload arg0
+    // OPT-LABEL: fn @_decode{{[( ]}}
     function decode(string memory data) external pure returns (bytes memory) {
         return Base64.decode(data);
     }

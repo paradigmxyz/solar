@@ -32,6 +32,7 @@ time: <TIME>	MIR TimePasses specialize-function-pointers changed=false
 time: <TIME>	MIR TimePasses specialize changed=false
 time: <TIME>	MIR TimePasses dead-arg-elim changed=false
 time: <TIME>	MIR TimePasses function-dce changed=false
+time: <TIME>	MIR TimePasses loop-split changed=false
 time: <TIME>	MIR TimePasses sccp changed=false
 time: <TIME>	MIR TimePasses egraph changed=false
 time: <TIME>	MIR TimePasses word-sequence changed=false

@@ -67,6 +67,7 @@ pub static ALL_PASSES: &[&dyn MirPass] = &[
     &loop_canonicalize::LoopCanonicalize,
     &loop_exit_remat::LoopExitRemat,
     &loop_idioms::LoopIdioms,
+    &loop_split::LoopSplit,
     &indvar_simplify::IndVarSimplify,
     &storage_promotion::StorageScalarPromotion,
     &loop_opt::Licm,
@@ -229,6 +230,9 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &specialize::Specialize,
     &function_compaction::DeadArgElim,
     &cfg_simplify::FunctionDce,
+    // Peel the last groups of lookahead loops so the main loop's bound folds
+    // the body guards in the check elimination below.
+    &GasOnly::new(loop_split::LoopSplit),
     &sccp::Sccp,
     &egraph::Egraph,
     &word_sequence::WordSequence,

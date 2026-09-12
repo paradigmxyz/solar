@@ -904,6 +904,45 @@ impl<'a> CheckEliminator<'a> {
         self.reverse_index = Some(reverse);
     }
 
+    /// Whether `base + amount < bound` holds in the current scope for a
+    /// literal `amount` of at least `offset` such that `base + amount`
+    /// cannot wrap.
+    fn has_larger_offset_bound(
+        &mut self,
+        func: &Function,
+        base: ValueId,
+        offset: U256,
+        bound: ValueId,
+        depth: usize,
+    ) -> bool {
+        self.ensure_relation_index(func);
+        let reverse = self.reverse_index.as_ref().expect("relation index was just built");
+        let mut amounts = SmallVec::<[U256; 4]>::new();
+        for &fact in reverse.get(&bound).into_iter().flatten() {
+            let Relation::Lt(index, limit) = fact else { continue };
+            if limit != bound
+                || !(self.relations.contains(&fact) || self.universal_relations.contains(&fact))
+            {
+                continue;
+            }
+            let amount = match inst_kind(func, index) {
+                Some(&InstKind::Add(x, c)) if x == base => const_of(func, c),
+                Some(&InstKind::Add(c, x)) if x == base => const_of(func, c),
+                _ => None,
+            };
+            if let Some(amount) = amount
+                && amount >= offset
+            {
+                amounts.push(amount);
+            }
+        }
+        if amounts.is_empty() {
+            return false;
+        }
+        let hi = self.range_of(func, base, depth).hi;
+        amounts.into_iter().any(|amount| hi.checked_add(amount).is_some())
+    }
+
     /// Whether some value is provably below `value` in the current scope,
     /// which puts `value` at one or more: every word is at least zero.
     fn has_strict_lower_bound(&mut self, func: &Function, value: ValueId) -> bool {
@@ -1263,6 +1302,21 @@ impl<'a> CheckEliminator<'a> {
             && self.has_relation(func, Relation::Lt(b, x))
         {
             return Some(false);
+        }
+
+        // A smaller constant offset stays below whatever a larger one stays
+        // below: `x + b < n` follows from `x + a < n` when `b <= a` and
+        // `x + a` cannot wrap, which covers the lookahead guards and the
+        // original bound of a loop split to run while `i + K < n`.
+        let (base, offset) = match inst_kind(func, a) {
+            Some(&InstKind::Add(x, c)) if const_of(func, c).is_some() => (x, const_of(func, c)),
+            Some(&InstKind::Add(c, x)) if const_of(func, c).is_some() => (x, const_of(func, c)),
+            _ => (a, Some(U256::ZERO)),
+        };
+        if let Some(offset) = offset
+            && self.has_larger_offset_bound(func, base, offset, b, depth)
+        {
+            return Some(true);
         }
 
         let (x, y) = ordered(a, b);
