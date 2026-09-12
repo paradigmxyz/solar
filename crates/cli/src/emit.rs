@@ -587,15 +587,10 @@ fn write_evm_ir_dump_contract(
     if dump.kinds.contains(&DumpKind::EvmIr) {
         writeln!(writer, "// === {name} (creation) ===")
             .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
-        write_highlighted(
-            writer,
-            format_deployment_evm_ir(
-                artifact.deployment_evm_ir.as_ref(),
-                artifact.runtime_evm_ir.as_ref(),
-            ),
-            Syntax::Ir,
-        )
-        .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
+        if let Some(deployment_evm_ir) = &artifact.deployment_evm_ir {
+            write_highlighted(writer, deployment_evm_ir.to_text().to_string(), Syntax::Ir)
+                .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
+        }
     }
     if dump.kinds.contains(&DumpKind::EvmIrRuntime) {
         writeln!(writer, "// === {name} (runtime) ===")
@@ -667,23 +662,6 @@ fn write_disassembly_dump_contract(
         .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
     }
     Ok(())
-}
-
-pub(crate) fn format_deployment_evm_ir(
-    deployment: Option<&ir::Module>,
-    runtime: Option<&ir::Module>,
-) -> String {
-    use std::fmt::Write;
-
-    let mut output = String::new();
-    for (index, module) in deployment.into_iter().chain(runtime).enumerate() {
-        if index != 0 {
-            output.push('\n');
-        }
-        writeln!(output, "// === {} ===", module.name()).unwrap();
-        write!(output, "{}", module.to_text()).unwrap();
-    }
-    output
 }
 
 fn contract_hashes(gcx: Gcx<'_>, id: ContractId) -> Hashes {

@@ -1,4 +1,4 @@
-//@compile-flags: -Zdump=evm-ir
+//@compile-flags: -Zdump=evm-ir-runtime
 //@ filecheck:
 
 contract WhileEmptyBody {
