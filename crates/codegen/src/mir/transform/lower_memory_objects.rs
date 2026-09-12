@@ -456,9 +456,13 @@ fn coalesce_constant_allocations(func: &mut Function) {
                 position = scan;
                 continue;
             };
+            let preserves_fmp =
+                allocations.iter().any(|(inst, _, _)| func.inst(*inst).metadata.preserves_fmp());
             let base = allocations[0].1.result;
             let size = func.alloc_value(Value::Immediate(Immediate::uint256(U256::from(total))));
             let mut offset = 0_u64;
+            // base = alloc total !preserves_fmp(any member)
+            // remaining members = base + offset
             for (index, (allocation_id, allocation, _)) in allocations.iter().enumerate() {
                 if index == 0 {
                     let inst = func.inst_mut(*allocation_id);
@@ -467,6 +471,7 @@ fn coalesce_constant_allocations(func: &mut Function) {
                         kind: AllocationKind::Raw,
                         semantics: AllocationSemantics::INTERNAL,
                     };
+                    inst.metadata.set_preserves_fmp(preserves_fmp);
                 } else {
                     let offset_value =
                         func.alloc_value(Value::Immediate(Immediate::uint256(U256::from(offset))));
@@ -476,6 +481,7 @@ fn coalesce_constant_allocations(func: &mut Function) {
                     inst.metadata.set_memory_region(None);
                     inst.metadata.set_storage_alias(None);
                     inst.metadata.clear_deferred_alloc();
+                    inst.metadata.set_preserves_fmp(false);
                 }
                 offset = offset.saturating_add(allocation.size);
             }

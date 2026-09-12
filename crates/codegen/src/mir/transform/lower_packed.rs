@@ -6,11 +6,12 @@
 //! bytes and adjacent narrow scalars can share a word store without merging signed high bits.
 //! Encodings made entirely of whole words need no allocation-size rounding. Array loops use
 //! plain element-offset arithmetic: their index is below the length whose total extent was checked.
+//! Bytes results retain their FMP bump at the encoding point even when their size becomes constant.
 
 use crate::mir::{
     AbiType, AbiWordValidator, AllocationSemantics, FunctionBuilder, MemoryObjectKind,
-    MemoryObjectLayout, MirType, PackedArraySource, PackedPart, PanicCode, SliceLocation, ValueId,
-    memory::EvmMemoryLayout, packed_element_bytes,
+    MemoryObjectLayout, MirType, PackedArraySource, PackedPart, PanicCode, SliceLocation, Value,
+    ValueId, memory::EvmMemoryLayout, packed_element_bytes,
 };
 use alloy_primitives::{Bytes, U256};
 
@@ -127,6 +128,10 @@ impl PackedEncoder<'_, '_> {
             // output = bytes(total)
             self.builder.alloc_bytes_object(total, AllocationSemantics::INTERNAL)
         };
+        // output = alloc bytes(...) !preserves_fmp
+        if let Value::Inst(alloc) = *self.builder.func().value(output) {
+            self.builder.func_mut().inst_mut(alloc).metadata.set_preserves_fmp(true);
+        }
 
         let mut offset = self.builder.imm(0);
         let mut index = 0;
