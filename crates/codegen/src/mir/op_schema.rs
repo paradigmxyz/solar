@@ -40,6 +40,11 @@ use std::fmt::Write as _;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) struct PhaseSet(u8);
 
+const _: () = assert!(
+    (MirPhase::EvmShaped as u32 + 1) < u8::BITS,
+    "PhaseSet storage must be widened before adding another MIR phase"
+);
+
 impl PhaseSet {
     pub(crate) const SEMANTIC: Self = Self::through(MirPhase::Semantic);
     /// All phases currently defined by MIR.

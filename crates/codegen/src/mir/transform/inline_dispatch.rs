@@ -17,15 +17,15 @@
 //! optimization enabled. Dynamic inputs qualify only when their lowered body
 //! needs word operations alone; general dynamic ABI and memory copying retain
 //! the wrapper boundary. Returns must use the bounded ABI buffer and reverts
-//! must fit below the free-memory-pointer slot. Arbitrary assembly memory exits
-//! could otherwise observe spills introduced by the combined dispatcher, or
-//! depend on a wrapper's free-memory initialization.
+//! must fit below the free-memory-pointer slot. Constant writes must stay in
+//! scratch memory or the route's static ABI return buffer. Arbitrary assembly
+//! memory accesses could otherwise observe or overwrite spills introduced by
+//! the combined dispatcher, or depend on a wrapper's free-memory initialization.
 
 use crate::{
     backend::evm::select::opcode_lowering,
     mir::{
         EffectKind, Function, FunctionBuilder, InstKind, MirPhase, MirType, Module, Terminator,
-        Value,
         analysis::CallGraphInfo,
         memory::EvmMemoryLayout,
         pass::{MirPass, ModuleAnalyses},
@@ -160,7 +160,7 @@ fn eligible(func: &Function) -> bool {
         && func.instructions().all(|id| {
             let kind = &func.inst(id).kind;
             match kind {
-                InstKind::MStore(ptr, _) => matches!(func.value(*ptr), Value::Immediate(_)),
+                InstKind::MStore(ptr, _) => safe_constant_memory_write(func, *ptr),
                 InstKind::Phi(_) | InstKind::CalldataLoad(_) | InstKind::CalldataSize => true,
                 _ => {
                     kind.effect_kind() == EffectKind::Pure && opcode_lowering(&kind.op()).is_some()
@@ -188,4 +188,31 @@ fn eligible(func: &Function) -> bool {
             ) => true,
             _ => false,
         })
+}
+
+/// Returns whether a constant word write stays within memory owned by the route.
+fn safe_constant_memory_write(func: &Function, pointer: crate::mir::ValueId) -> bool {
+    let Some(start) = func.value_u64(pointer) else { return false };
+    let Some(end) = start.checked_add(EvmMemoryLayout::WORD_SIZE) else { return false };
+    if end <= EvmMemoryLayout::HEAP_START {
+        return true;
+    }
+    let terminal_return_size = func
+        .blocks
+        .iter()
+        .filter_map(|block| {
+            let Some(Terminator::ReturnData { offset, size }) = block.terminator else {
+                return None;
+            };
+            (func.value_u64(offset) == Some(EvmMemoryLayout::HEAP_START))
+                .then(|| func.value_u64(size))
+                .flatten()
+        })
+        .max()
+        .unwrap_or(0);
+    let return_size = func.external_static_return_size.max(terminal_return_size);
+    let Some(return_end) = EvmMemoryLayout::HEAP_START.checked_add(return_size) else {
+        return false;
+    };
+    start >= EvmMemoryLayout::HEAP_START && end <= return_end
 }
