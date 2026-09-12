@@ -2,18 +2,23 @@
 //@[ir] compile-flags: -Ogas -Zdump=evm-ir-runtime
 //@[ir] filecheck:
 // CHECK-LABEL: @module StackWords_runtime
+// The combined dispatcher shares its intersection and ABI return tail.
+// Standalone resident-expression selection is covered in stack_word_resident.sol.
 // CHECK: xor
-// CHECK-NEXT: dup 1
 // CHECK-NEXT: dup 3
-// CHECK-NEXT: sub
+// CHECK-NEXT: dup 3
+// CHECK-NEXT: {{^ *}}or{{$}}
+// CHECK-NEXT: jump [[COMMON:bb[0-9]+]]
+// CHECK-NEXT: [[COMMON]]:
+// CHECK-NEXT: swap 3
+// CHECK-NEXT: swap 1
+// CHECK-NEXT: swap 2
+// CHECK-NEXT: and
 // CHECK: {{^ *}}or{{$}}
-// CHECK-NEXT: dup 2
-// CHECK-NEXT: dup 2
-// CHECK-NEXT: sub
-// CHECK: and
-// CHECK-NEXT: dup 2
-// CHECK-NEXT: dup 2
+// CHECK-NEXT: dup 3
+// CHECK-NEXT: dup 3
 // CHECK-NEXT: add
+// CHECK-NEXT: jump [[COMMON]]
 //@ run-call: sum 9, 4 => 0, 13, 13
 //@ run-call: sum 7, 7 => 7, 7, 14
 //@ run-call: xor 9, 4 => 0, 13, 13

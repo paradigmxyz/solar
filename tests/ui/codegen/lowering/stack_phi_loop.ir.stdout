@@ -168,15 +168,6 @@ bb24:
   pop
   push 0
   jump bb26
-bb26:
-  push 36
-  calldataload
-  dup 2
-  lt
-  push bb29
-  jumpi
-  swap 1
-  jump bb57
 bb28:
   push 1
   push 160
@@ -186,6 +177,15 @@ bb28:
   mload
   swap 1
   jump bb26
+bb26:
+  push 36
+  calldataload
+  dup 2
+  lt
+  push bb29
+  jumpi
+  swap 1
+  jump bb57
 bb29:
   dup 1
   push 160
@@ -325,16 +325,6 @@ bb46:
   push 4
   calldataload
   jump bb48
-bb48:
-  push 68
-  calldataload
-  dup 3
-  lt
-  push bb50
-  jumpi
-  push 0
-  sstore
-  stop
 bb50:
   push 36
   calldataload
@@ -377,3 +367,13 @@ bb50:
   add
   swap 1
   jump bb48
+bb48:
+  push 68
+  calldataload
+  dup 3
+  lt
+  push bb50
+  jumpi
+  push 0
+  sstore
+  stop

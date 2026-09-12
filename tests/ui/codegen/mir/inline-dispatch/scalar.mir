@@ -1,0 +1,38 @@
+//@ revisions: inline disabled
+//@[inline] compile-flags: -Ogas -Zmir-pipeline=inline-dispatch,cfg-simplify,dce
+//@[disabled] compile-flags: -Onone -Zmir-pipeline=inline-dispatch
+//@[inline] filecheck:
+@module ScalarDispatcher
+@phase memory-lowered
+
+// CHECK-LABEL: {{^[ +].*}}fn @entry
+// CHECK: [[LEFT:v[0-9]+]] = calldataload 4
+// CHECK: [[RIGHT:v[0-9]+]] = calldataload 36
+// CHECK: switch
+// CHECK: sub [[LEFT]], [[RIGHT]]
+// CHECK: add [[LEFT]], [[RIGHT]]
+// CHECK-NOT: tail_call
+fn @add() [selector=0x00000001, pure] {
+  bb0:
+    v0 = add arg0, arg1
+    mstore 128, v0
+    returndata 128, 32
+}
+fn @sub() [selector=0x00000002, pure] {
+  bb0:
+    v0 = sub arg0, arg1
+    mstore 128, v0
+    returndata 128, 32
+}
+fn @entry() [entry] {
+  bb0:
+    v0 = calldataload 0
+    v1 = shr 224, v0
+    switch v1, default bb3, [1 => bb1, 2 => bb2]
+  bb1:
+    tail_call @add
+  bb2:
+    tail_call @sub
+  bb3:
+    revert 0, 0
+}

@@ -9,11 +9,18 @@
 
 contract LiveBranchCondition {
     // CHECK-LABEL: @module LiveBranchCondition_runtime
+    // The return store is shared after dispatcher inlining. The checked sum
+    // stays on the stack across its overflow guard until that shared return.
+    // CHECK: jump [[RETURN:bb[0-9]+]]
+    // CHECK-NEXT: [[RETURN]]:
+    // CHECK-NEXT: push 128
+    // CHECK-NEXT: mstore
+    // CHECK: push 0xedd004e5
     // CHECK: add
     // CHECK-NOT: mstore
     // CHECK: jumpi
     // CHECK-NOT: mload
-    // CHECK: mstore
+    // CHECK: jump [[RETURN]]
     function next(uint256 x) external pure returns (uint256) {
         return x + 1;
     }

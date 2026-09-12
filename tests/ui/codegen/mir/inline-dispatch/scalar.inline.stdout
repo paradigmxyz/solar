@@ -1,0 +1,93 @@
+- // === ROOT/tests/ui/codegen/mir/inline-dispatch/scalar.mir (before inline-dispatch) ===
++ // === ROOT/tests/ui/codegen/mir/inline-dispatch/scalar.mir (after inline-dispatch) ===
+  @module ScalarDispatcher
+  @phase memory-lowered
+- fn @add() [selector=0x00000001, pure] {
+-   bb0:
+-     v0 = add arg0, arg1
+-     mstore 128, v0
+-     returndata 128, 32
+- }
+- 
+- fn @sub() [selector=0x00000002, pure] {
+-   bb0:
+-     v0 = sub arg0, arg1
+-     mstore 128, v0
+-     returndata 128, 32
+- }
+- 
+  fn @entry() [entry] {
+    bb0:
+      v0 = calldataload 0
+      v1 = shr 224, v0
++     v2 = calldataload 4
++     v3 = calldataload 36
+      switch v1, default bb3, [1 => bb1, 2 => bb2]
+    bb2:
+-     tail_call @sub
++     jump bb5
++   bb5:
++     v5 = sub v2, v3
++     mstore 128, v5
++     returndata 128, 32
+    bb1:
+-     tail_call @add
++     jump bb4
++   bb4:
++     v4 = add v2, v3
++     mstore 128, v4
++     returndata 128, 32
+    bb3:
+      revert 0, 0
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/inline-dispatch/scalar.mir (before cfg-simplify) ===
++ // === ROOT/tests/ui/codegen/mir/inline-dispatch/scalar.mir (after cfg-simplify) ===
+  @module ScalarDispatcher
+  @phase memory-lowered
+  fn @entry() [entry] {
+    bb0:
+      v0 = calldataload 0
+      v1 = shr 224, v0
+      v2 = calldataload 4
+      v3 = calldataload 36
+      switch v1, default bb3, [1 => bb1, 2 => bb2]
+    bb2:
+-     jump bb5
+-   bb5:
+      v5 = sub v2, v3
+      mstore 128, v5
+      returndata 128, 32
+    bb1:
+-     jump bb4
+-   bb4:
+      v4 = add v2, v3
+      mstore 128, v4
+      returndata 128, 32
+    bb3:
+      revert 0, 0
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/inline-dispatch/scalar.mir (before dce) ===
++ // === ROOT/tests/ui/codegen/mir/inline-dispatch/scalar.mir (after dce) ===
+  @module ScalarDispatcher
+  @phase memory-lowered
+  fn @entry() [entry] {
+    bb0:
+      v0 = calldataload 0
+      v1 = shr 224, v0
+      v2 = calldataload 4
+      v3 = calldataload 36
+      switch v1, default bb3, [1 => bb1, 2 => bb2]
+    bb2:
+      v5 = sub v2, v3
+      mstore 128, v5
+      returndata 128, 32
+    bb1:
+      v4 = add v2, v3
+      mstore 128, v4
+      returndata 128, 32
+    bb3:
+      revert 0, 0
+  }
+  
