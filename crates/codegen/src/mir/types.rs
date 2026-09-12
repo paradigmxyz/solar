@@ -1,5 +1,6 @@
 //! MIR type system.
 
+use super::StructId;
 use std::fmt;
 
 pub(crate) use solar_ast::TypeSize;
@@ -187,6 +188,15 @@ impl fmt::Display for SliceLocation {
     }
 }
 
+/// A fixed aggregate of MIR values, with fields in declaration order.
+///
+/// Structs are SSA values, not references to Solidity memory objects. Nested
+/// structs refer to earlier declarations, keeping their layouts finite.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub(crate) struct StructType {
+    pub(crate) fields: Box<[MirType]>,
+}
+
 /// Types used in MIR.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum MirType {
@@ -212,11 +222,19 @@ pub(crate) enum MirType {
     Slice(SliceLocation),
     /// Function type.
     Function,
+    /// A fixed aggregate declared in the module type table.
+    Struct(StructId),
     /// Void/unit type (for functions that don't return).
     Void,
 }
 
 impl MirType {
+    /// Returns whether a value occupies one word rather than an SSA aggregate or no value.
+    #[must_use]
+    pub(crate) const fn is_word(self) -> bool {
+        !matches!(self, Self::Struct(_) | Self::Slice(_) | Self::Void)
+    }
+
     /// Returns this value type's semantic size, or `None` for `void`.
     #[must_use]
     pub(crate) const fn type_size(self) -> Option<TypeSize> {
@@ -232,7 +250,7 @@ impl MirType {
             | Self::CalldataPtr
             | Self::Slice(_) => Some(TypeSize::new_int_bits(256)),
             Self::Function => Some(TypeSize::new_int_bits(192)),
-            Self::Void => None,
+            Self::Struct(_) | Self::Void => None,
         }
     }
 
@@ -251,6 +269,7 @@ impl MirType {
             | Self::StoragePtr
             | Self::CalldataPtr
             | Self::Slice(_)
+            | Self::Struct(_)
             | Self::Void => return None,
         })
     }
@@ -269,6 +288,26 @@ impl MirType {
             Self::UInt(size) if size.bits() == 256
         ) || matches!(self, Self::Int(size) if size.bits() == 256)
             || matches!(self, Self::FixedBytes(size) if size.bytes() == 32)
+    }
+
+    /// Returns the carrier type used for scalar fields of a return tuple.
+    /// Scalar words may contain dirty upper bits; aggregates preserve them until cleanup.
+    pub(crate) const fn return_field_type(self) -> Self {
+        match self {
+            Self::UInt(_)
+            | Self::Int(_)
+            | Self::Bool
+            | Self::Address
+            | Self::FixedBytes(_)
+            | Self::Function
+            | Self::StoragePtr => Self::uint256(),
+            _ => self,
+        }
+    }
+
+    /// Checks whether a struct field can carry this value without changing its bits.
+    pub(crate) fn accepts_field_value(self, actual: Self) -> bool {
+        self == actual || (self == Self::uint256() && actual.is_word())
     }
 
     /// Returns the uint256 type.
@@ -304,6 +343,7 @@ impl fmt::Display for MirType {
             Self::CalldataPtr => write!(f, "calldataptr"),
             Self::Slice(location) => write!(f, "{location}slice"),
             Self::Function => write!(f, "function"),
+            Self::Struct(id) => write!(f, "struct{}", id.index()),
             Self::Void => write!(f, "void"),
         }
     }

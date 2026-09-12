@@ -6,42 +6,26 @@
 // unbumped scratch buffer; materialized encodings still use bytes objects.
 contract AbiEncodePackedMixed {
     // CHECK-LABEL: fn @fixedBytesArg{{[( ]}}
-    // CHECK: {{v[0-9]+}} = and arg1, {{.*}}
-    // CHECK: fmp
-    // CHECK: mstore {{v[0-9]+}}, arg0
-    // CHECK: {{v[0-9]+}} = shl 96, {{v[0-9]+}}
-    // CHECK: mstore {{v[0-9]+}}, {{v[0-9]+}}
-    // CHECK: mstore {{v[0-9]+}}, {{v[0-9]+}}
-    // CHECK: [[HASH:v[0-9]+]] = keccak256 {{v[0-9]+}}, 54
+    // CHECK: keccak256_packed (u256 arg0, u160 {{v[0-9]+}}, bytes2 {{v[0-9]+}})
     function fixedBytesArg(uint a, address b, bytes2 c) external pure returns (bytes32) {
         return keccak256(abi.encodePacked(a, b, c));
     }
 
     // CHECK-LABEL: fn @dynamicArg{{[( ]}}
-    // CHECK: [[LEN:v[0-9]+]] = memory_object_len memorybytes
-    // CHECK: [[DATA:v[0-9]+]] = memory_object_data memorybytes
-    // CHECK: [[SLICE:v[0-9]+]] = make_memory_slice [[DATA]], [[LEN]]
-    // CHECK: [[BASE:v[0-9]+]] = fmp
-    // CHECK: mcopy {{v[0-9]+}}, {{v[0-9]+}}, {{v[0-9]+}}
-    // CHECK: [[HASH:v[0-9]+]] = keccak256 [[BASE]], {{v[0-9]+}}
-    // CHECK-NOT: keccak256_bytes
+    // CHECK: keccak256_packed (bytes32 arg0, bytes arg1)
     function dynamicArg(bytes32 h, bytes memory tail) external pure returns (bytes32) {
         return keccak256(abi.encodePacked(h, tail));
     }
 
     // CHECK-LABEL: fn @materialized{{[( ]}}
-    // CHECK: set_memory_object_len memorybytes
-    // CHECK: {{v[0-9]+}} = shl 240, {{v[0-9]+}}
-    // CHECK: memory_object_copy_from_slice_at memorybytes
-    // CHECK: [[BOOL:v[0-9]+]] = shl 248, {{v[0-9]+}}
-    // CHECK: memory_object_store_word memorybytes, {{.*}}, {{.*}}, [[BOOL]]
+    // CHECK: abi_encode_packed (u16 {{v[0-9]+}}, bytes arg1, u8 {{v[0-9]+}})
     function materialized(uint16 a, bytes memory mid, bool b) external pure returns (bytes memory) {
         return abi.encodePacked(a, mid, b);
     }
 
     // CHECK-LABEL: fn @hashArray{{[( ]}}
-    // CHECK: memory_object_load_element memoryarray<1>
-    // CHECK: memory_object_store_word memorybytes
+    // CHECK: [[BYTES:v[0-9]+]] = abi_encode_packed (array<word> memoryarray<1> arg0)
+    // CHECK: keccak256_bytes [[BYTES]]
     function hashArray(bytes32[] memory values) external pure returns (bytes32) {
         return keccak256(abi.encodePacked(values));
     }
@@ -50,10 +34,7 @@ contract AbiEncodePackedMixed {
     // preceding field must mask the sign extension before shifting, or the
     // high bits overwrite that field.
     // CHECK-LABEL: fn @signedStaticRun{{[( ]}}
-    // CHECK: [[CLEAN:v[0-9]+]] = and {{v[0-9]+}}, 0xffff
-    // CHECK: [[SIGNED:v[0-9]+]] = shl 232, [[CLEAN]]
-    // CHECK: mstore 0, {{v[0-9]+}}
-    // CHECK: keccak256 0, 6
+    // CHECK: keccak256_packed (u8 {{v[0-9]+}}, i16 {{v[0-9]+}}, bytes3 {{v[0-9]+}})
     function signedStaticRun(uint8 prefix, int16 value, bytes3 suffix)
         external
         pure

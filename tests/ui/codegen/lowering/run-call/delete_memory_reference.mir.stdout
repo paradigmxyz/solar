@@ -1,14 +1,16 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/delete_memory_reference.sol:DeleteMemoryReference ===
 @module DeleteMemoryReference
-fn @array() -> (u256, u256, u256) [selector=0xb0ec2ae1, pure, abi_params=[], abi_returns=[word, word, word]] {
+types:
+  struct0: {u256, u256, u256}
+
+fn @array() -> struct0 [selector=0xb0ec2ae1, pure, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1
     v1 = memory_object_len memoryarray, v0
     v2 = lt 0, v1
     v3 = iszero v2
-    jumpi v3, bb1, bb2
-  bb2:
+    panic_if v3, 0x32
     memory_object_store_element memoryarray<1>, v0, 0, 7
     v4 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v4, 0
@@ -17,17 +19,15 @@ fn @array() -> (u256, u256, u256) [selector=0xb0ec2ae1, pure, abi_params=[], abi
     v7 = memory_object_len memoryarray, v0
     v8 = lt 0, v7
     v9 = iszero v8
-    jumpi v9, bb1, bb3
-  bb3:
+    panic_if v9, 0x32
     v10 = memory_object_load_element memoryarray<1>, v0, 0
-    ret v5, v6, v10
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    v11 = insert_value struct0, undef struct0, 0, v5
+    v12 = insert_value struct0, v11, 1, v6
+    v13 = insert_value struct0, v12, 2, v10
+    ret v13
 }
 
-fn @bytesValue() -> (u256, u256, bytes2) [selector=0x5a286ac0, pure, abi_params=[], abi_returns=[word, word, word<bytes2>]] {
+fn @bytesValue() -> struct0 [selector=0x5a286ac0, pure, abi_params=[], abi_returns=[word, word, word<bytes2>], abi_return_params=[u256, u256, bytes2]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 2
@@ -45,5 +45,8 @@ fn @bytesValue() -> (u256, u256, bytes2) [selector=0x5a286ac0, pure, abi_params=
     v10 = shl v9, 0xffff000000000000000000000000000000000000000000000000000000000000
     v11 = select v7, v10, 0xffff000000000000000000000000000000000000000000000000000000000000
     v12 = and v5, v11
-    ret v3, v4, v12
+    v13 = insert_value struct0, undef struct0, 0, v3
+    v14 = insert_value struct0, v13, 1, v4
+    v15 = insert_value struct0, v14, 2, v12
+    ret v15
 }

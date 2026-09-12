@@ -1,0 +1,108 @@
+- // === ROOT/tests/ui/codegen/mir/lowering/lower_checks.mir (before lower-checks) ===
++ // === ROOT/tests/ui/codegen/mir/lowering/lower_checks.mir (after lower-checks) ===
+  @module LowerChecks
+  fn @branch_checks(arg0: bool, arg1: u256) -> u256 {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb2:
+-     panic_if_zero arg1, 0x1
++     jumpi arg1, bb8, bb4
++   bb8:
+      v1 = mul arg1, 2
+      jump bb3
+    bb1:
+      mstore 64, arg1
+-     panic_if_zero arg1, 0x1
++     jumpi arg1, bb5, bb4
++   bb4:
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 1 !metadata(memory=scratch)
++     revert 28, 36
++   bb5:
+      v0 = add arg1, 1
+-     revert_if_zero v0, tuple_data_too_short
++     jumpi v0, bb7, bb6
++   bb6:
++     mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
++     mstore 4, 32 !metadata(memory=scratch)
++     mstore 36, 34 !metadata(memory=scratch)
++     mstore 68, 0x414249206465636f64696e673a207475706c65206461746120746f6f2073686f !metadata(memory=scratch)
++     mstore 100, 0x7274000000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
++     revert 0, 132
++   bb7:
+      mstore 96, v0
+      jump bb3
+    bb3:
+-     v2 = phi [bb1: v0], [bb2: v1]
++     v2 = phi [bb7: v0], [bb8: v1]
+      ret v2
+  }
+  
+  fn @payloads(arg0: bool, arg1: memorybytes, arg2: u256) {
+    bb0:
+-     icall require short_string, arg0, 3, 0x6261640000000000000000000000000000000000000000000000000000000000
+-     icall require empty_string, arg0
+-     icall require error_string, arg0, arg1
+-     icall require custom_error [word, memory_bytes], arg0, 0, arg2, arg1
++     jumpi arg0, bb2, bb1
++   bb1:
++     icall @revert_error, 3, 0x6261640000000000000000000000000000000000000000000000000000000000
++     invalid
++   bb2:
++     jumpi arg0, bb4, bb3
++   bb3:
++     mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
++     mstore 4, 32 !metadata(memory=scratch)
++     mstore 36, 0 !metadata(memory=scratch)
++     revert 0, 68
++   bb4:
++     jumpi arg0, bb6, bb5
++   bb5:
++     v0 = abi_encode [memory_bytes], selector 0x8c379a000000000000000000000000000000000000000000000000000000000, args arg1
++     v1 = slice_ptr v0
++     v2 = slice_len v0
++     revert v1, v2
++   bb6:
++     jumpi arg0, bb8, bb7
++   bb7:
++     v3 = abi_encode [word, memory_bytes], selector 0, args arg2, arg1
++     v4 = slice_ptr v3
++     v5 = slice_len v3
++     revert v4, v5
++   bb8:
+      ret
+  }
+  
+  fn @constant_failure_with_writes() -> u256 {
+    bb0:
+      memory_zero 128, 32
+-     panic_if_zero 0, 0x32
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 50 !metadata(memory=scratch)
++     revert 28, 36
++   bb1:
+      v0 = add 1, 2
+      ret v0
+  }
+  
+  fn @constant_failure_without_writes() {
+    bb0:
+-     panic_if 1, 0x32
++     jumpi 1, bb1, bb2
++   bb2:
+      ret
++   bb1:
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     mstore 32, 50 !metadata(memory=scratch)
++     revert 28, 36
++ }
++ 
++ fn @revert_error(arg0: u256, arg1: u256) {
++   bb0:
++     mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
++     mstore 4, 32 !metadata(memory=scratch)
++     mstore 36, arg0 !metadata(memory=scratch)
++     mstore 68, arg1 !metadata(memory=scratch)
++     revert 0, 100
+  }
+  

@@ -1,21 +1,26 @@
 //@compile-flags: -Zmir-pipeline=dce
-//~? ERROR: [fn0] [bb0, inst0] slice instruction `make_memory_slice` survives the `evm-shaped` phase boundary
-//~? ERROR: [fn0] [bb0, inst1] slice instruction `slice_len` survives the `evm-shaped` phase boundary
-//~? ERROR: [fn1] [bb0, inst0] ABI encoding instruction `abi_encode` survives the `evm-shaped` phase boundary
-//~? ERROR: [fn2] memory-object signature type `memorystruct` survives the `evm-shaped` phase boundary
-//~? ERROR: [fn2] [bb0, inst0] aggregate instruction `storage_to_memory` survives the `evm-shaped` phase boundary
-//~? ERROR: [fn3] [bb0, inst0] abstract allocation instruction `fmp` survives the `evm-shaped` phase boundary
-//~? ERROR: [fn3] [bb0, inst1] abstract allocation instruction `set_fmp` survives the `evm-shaped` phase boundary
-//~? ERROR: [fn3] [bb0, inst2] abstract allocation instruction `alloc` survives the `evm-shaped` phase boundary
-//~? ERROR: [fn3] [bb0, inst3] storage slot instruction `mapping_slot` survives the `evm-shaped` phase boundary
-//~? ERROR: [fn3] [bb0, inst4] storage slot instruction `mapping_slot_memory` survives the `evm-shaped` phase boundary
-//~? ERROR: [fn3] [bb0, inst5] storage slot instruction `mapping_slot_calldata` survives the `evm-shaped` phase boundary
-//~? ERROR: [fn3] [bb0, inst6] storage slot instruction `storage_array_data_slot` survives the `evm-shaped` phase boundary
-//~? ERROR: [fn3] [bb0, inst7] storage slot instruction `storage_array_element_slot` survives the `evm-shaped` phase boundary
+//~? ERROR: [fn0] [bb0, inst0] slice instruction `make_memory_slice` survives the `lowered` phase boundary
+//~? ERROR: [fn0] [bb0, inst1] slice instruction `slice_len` survives the `lowered` phase boundary
+//~? ERROR: [fn1] [bb0, inst0] ABI encoding instruction `abi_encode` survives the `lowered` phase boundary
+//~? ERROR: [fn2] non-word type `memorystruct` survives the `lowered` phase boundary
+//~? ERROR: [fn2] [bb0, inst0] aggregate instruction `storage_to_memory` survives the `lowered` phase boundary
+//~? ERROR: [fn3] [bb0, inst0] abstract allocation instruction `fmp` survives the `lowered` phase boundary
+//~? ERROR: [fn3] [bb0, inst1] abstract allocation instruction `set_fmp` survives the `lowered` phase boundary
+//~? ERROR: [fn3] [bb0, inst2] abstract allocation instruction `alloc` survives the `lowered` phase boundary
+//~? ERROR: [fn3] [bb0, inst3] storage slot instruction `mapping_slot` survives the `lowered` phase boundary
+//~? ERROR: [fn3] [bb0, inst4] storage slot instruction `mapping_slot_memory` survives the `lowered` phase boundary
+//~? ERROR: [fn3] [bb0, inst5] storage slot instruction `mapping_slot_calldata` survives the `lowered` phase boundary
+//~? ERROR: [fn3] [bb0, inst6] storage slot instruction `storage_array_data_slot` survives the `lowered` phase boundary
+//~? ERROR: [fn3] [bb0, inst7] storage slot instruction `storage_array_element_slot` survives the `lowered` phase boundary
 // EVM-shaped MIR is the word-backend boundary. Semantic memory operations
 // must be rejected here if their named lowering pass did not consume them.
+//~? ERROR: [fn0] non-word type `memoryslice` survives the `lowered` phase boundary
+//~? ERROR: [fn1] non-word type `memoryslice` survives the `lowered` phase boundary
+//~? ERROR: [fn4] non-word type `memoryslice` survives the `lowered` phase boundary
+//~? ERROR: [fn5] non-word type `calldataslice` survives the `lowered` phase boundary
+//~? ERROR: [fn6] non-word type `returndataslice` survives the `lowered` phase boundary
 @module ValidateMemoryBoundary
-@phase evm-shaped
+@phase lowered
 fn @slice(arg0: memptr, arg1: u256) -> u256 {
   bb0:
     v2 = make_memory_slice arg0, arg1
@@ -43,4 +48,120 @@ fn @allocation() {
     v5 = storage_array_data_slot v0
     v6 = storage_array_element_slot v0, v1, 1
     stop
+}
+
+fn @memorySignature(arg0: memoryslice) -> memoryslice {
+  bb0:
+    ret arg0
+}
+fn @calldataSignature(arg0: calldataslice) -> calldataslice {
+  bb0:
+    ret arg0
+}
+fn @returndataSignature(arg0: returndataslice) -> returndataslice {
+  bb0:
+    ret arg0
+}
+
+//~? ERROR: [fn7] [bb0, inst0] memory-object instruction `word_cast` survives the `lowered` phase boundary
+fn @unloweredWordCast(arg0: u256) -> u256 {
+  bb0:
+    v0 = word_cast arg0
+    ret v0
+}
+
+//~? ERROR: [fn8] [bb0, inst0] abstract allocation instruction `alloc` survives the `lowered` phase boundary
+fn @checked_deferred() -> memptr {
+  bb0:
+    v0 = alloc raw, exact, zeroed, panic, 32 !metadata(deferred_alloc)
+    ret v0
+}
+
+//~? ERROR: [fn9] [bb0, inst0] deferred allocation requires a constant size
+fn @dynamic_deferred(arg0: u256) -> memptr {
+  bb0:
+    v0 = alloc raw, exact, uninitialized, infallible, arg0 !metadata(deferred_alloc)
+    ret v0
+}
+
+//~? ERROR: [fn10] [bb0, inst0] builtin instruction `ecrecover` survives the `lowered` phase boundary
+fn @unlowered_precompile() -> u256 {
+  bb0:
+    v0 = ecrecover 0, 0, 0, 0
+    ret v0
+}
+
+//~? ERROR: [fn11] [bb0, inst0] checked arithmetic instruction `checked_add` survives the `lowered` phase boundary
+fn @unlowered_arithmetic(arg0: u256) -> u256 {
+  bb0:
+    v0 = checked_add u256, arg0, 1
+    ret v0
+}
+
+//~? ERROR: [fn12] [bb0, inst0] ABI validation instruction `validate_abi` survives the `lowered` phase boundary
+fn @pending_validation(arg0: u256) {
+  bb0:
+    validate_abi arg0
+    ret
+}
+
+//~? ERROR: [fn13] [bb0, inst0] conditional check instruction `panic_if_zero` survives the `lowered` phase boundary
+fn @unlowered_check(arg0: u256) {
+  bb0:
+    panic_if_zero arg0, 0x1
+    ret
+}
+
+//~? ERROR: [fn14] [bb0, inst0] conditional check instruction `icall` survives the `lowered` phase boundary
+fn @unlowered_payload(arg0: u256) {
+  bb0:
+    icall require empty_string, arg0
+    ret
+}
+
+//~? ERROR: [fn15] [bb0, inst0] builtin instruction `keccak256_packed` survives the `lowered` phase boundary
+fn @unlowered_packed() -> bytes32 {
+  bb0:
+    v0 = keccak256_packed (data hex"abcd")
+    ret v0
+}
+
+//~? ERROR: [fn16] [bb0, inst0] builtin instruction `checked_addmod` survives the `lowered` phase boundary
+fn @unlowered_modular() -> u256 {
+  bb0:
+    v0 = checked_addmod 1, 2, 3
+    ret v0
+}
+
+//~? ERROR: [fn17] [bb0, inst0] builtin instruction `erc7201` survives the `lowered` phase boundary
+fn @unlowered_namespace(arg0: memptr) -> u256 {
+  bb0:
+    v0 = erc7201 arg0
+    ret v0
+}
+
+//~? ERROR: [fn18] [bb0, inst0] builtin instruction `validate_storage_bytes` survives the `lowered` phase boundary
+fn @unlowered_storage_header(arg0: u256) -> u256 {
+  bb0:
+    validate_storage_bytes arg0
+    ret arg0
+}
+
+//~? ERROR: [fn19] [bb0, inst0] builtin instruction `send` survives the `lowered` phase boundary
+//~? ERROR: [fn19] [bb0, inst1] builtin instruction `transfer` survives the `lowered` phase boundary
+fn @payable(arg0: u256) {
+  bb0:
+    v0 = send arg0, 0
+    transfer arg0, 0
+    ret
+}
+
+//~? ERROR: [fn20] non-word type `memorybytes` survives the `lowered` phase boundary
+//~? ERROR: [fn20] [bb0, inst0] builtin instruction `returndata_bytes` survives the `lowered` phase boundary
+//~? ERROR: [fn20] [bb0, inst1] builtin instruction `address_call` survives the `lowered` phase boundary
+fn @unlowered_address_call(arg0: u256) {
+  bb0:
+    v0 = returndata_bytes
+    v1 = address_call arg0, v0
+    ret
 }

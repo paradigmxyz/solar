@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/pipeline/pipeline.mir (after pipeline-default) ===
 @module Pipeline
-@phase evm-shaped
+@phase lowered
 fn @noisy(arg0: u256) -> u256 {
   bb0:
     v0 = add arg0, 1

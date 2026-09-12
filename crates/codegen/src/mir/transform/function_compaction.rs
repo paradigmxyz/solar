@@ -2,14 +2,23 @@
 //!
 //! This module removes unused internal parameters and results and combines equivalent internal
 //! function bodies. These transforms preserve external ABI entry signatures: only direct MIR call
-//! edges are rewritten.
+//! edges are rewritten. Before pruning, direct callers reuse an argument or constant when every
+//! explicit return in the callee returns that same value. Calls remain in place, including their
+//! effects and failure paths. Tail calls, mixed return values, and baked signature-frame addresses
+//! prevent forwarding; no recursive summary or control-flow fixed point is needed.
+//!
+//! Constants must reach a pure instruction or a non-return terminator. Direct stores and returns
+//! alone do not justify discarding the call result and pushing the same constant again.
+//!
 //! Equivalent bodies merge their source origins, independently of structural
 //! matching, so later lowering cannot attribute shared code to one arbitrary body.
+//! Recursive pairs need no call-graph analysis: corresponding calls must target the same
+//! function or one of the two bodies being compared. Matching all other instructions, operands
+//! and CFG edges closes that pairwise equivalence proof, including mutual recursion.
 
 use crate::mir::{
-    ArgIdx, EffectKind, Function, FunctionId, Immediate, InstId, InstKind, MirType, Module,
+    ArgIdx, Callee, EffectKind, Function, FunctionId, Immediate, InstId, InstKind, MirType, Module,
     StorageAlias, Terminator, Value, ValueId,
-    analysis::CallGraphInfo,
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses},
 };
@@ -27,11 +36,10 @@ type ArgDependents = IndexVec<FunctionId, IndexVec<ArgIdx, Vec<(FunctionId, ArgI
 /// dead argument can strand the call whose result kept another function's result live, so the two
 /// analyses are iterated to a joint fixed point.
 ///
-/// The component analyses stay distinct rather than sharing one lattice because MIR represents only
-/// a single-word result as an SSA value — additional results travel through the ephemeral
-/// multi-return buffer — so result pruning is restricted to one-word signatures and, like today,
-/// runs only under `-Osize`. Under other objectives argument liveness is already an internal fixed
-/// point, so a single pass suffices with no outer iteration.
+/// Result pruning removes a complete SSA result, including a struct, and runs only under `-Osize`.
+/// It leaves legacy multi-result signatures intact because their extra results use a shared buffer.
+/// Under other objectives argument liveness is already an internal fixed point, so a single pass
+/// suffices with no outer iteration.
 pub(crate) struct DeadArgElim;
 
 impl MirPass for DeadArgElim {
@@ -45,10 +53,11 @@ impl MirPass for DeadArgElim {
         module: &mut Module,
         _analyses: &mut ModuleAnalyses,
     ) -> bool {
+        let forwarded = forward_returned_values(module);
         if !gcx.sess.opts.optimization.is_size() {
-            return prune_unused_args(module) != 0;
+            return prune_unused_args(module) != 0 || forwarded != 0;
         }
-        let mut changed = false;
+        let mut changed = forwarded != 0;
         loop {
             let pruned = prune_unused_args(module) + prune_unused_returns(module);
             if pruned == 0 {
@@ -58,6 +67,117 @@ impl MirPass for DeadArgElim {
         }
         changed
     }
+}
+
+fn forward_returned_values(module: &mut Module) -> usize {
+    let returned = module
+        .functions
+        .iter_enumerated()
+        .filter_map(|(id, func)| {
+            let value = returned_value(func)?;
+            (is_internal_body(module, id, func) && frame_offsets_are_local(func))
+                .then_some((id, value))
+        })
+        .collect::<FxHashMap<_, _>>();
+    if returned.is_empty() {
+        return 0;
+    }
+    let mut forwarded = 0;
+    for func in &mut module.functions {
+        let calls = func
+            .instructions()
+            .filter(|&inst| {
+                matches!(func.inst(inst).kind, InstKind::ICall { function: Callee::Function(function), .. }
+                if returned.contains_key(&function))
+            })
+            .collect::<Vec<_>>();
+        if calls.is_empty() {
+            continue;
+        }
+        let mut used = DenseBitSet::new_empty(func.num_values());
+        let mut constant_uses = DenseBitSet::new_empty(func.num_values());
+        for block in &func.blocks {
+            for &inst in &block.instructions {
+                let kind = &func.inst(inst).kind;
+                for value in kind.operands() {
+                    used.insert(value);
+                    if kind.effect_kind() == EffectKind::Pure {
+                        constant_uses.insert(value);
+                    }
+                }
+            }
+            if let Some(term) = &block.terminator {
+                for value in term.operands() {
+                    used.insert(value);
+                    if !matches!(term, Terminator::Return { .. }) {
+                        constant_uses.insert(value);
+                    }
+                }
+            }
+        }
+        let mut replacements = FxHashMap::default();
+        for inst in calls {
+            let Some(result) = func.inst_result_value(inst).filter(|&value| used.contains(value))
+            else {
+                continue;
+            };
+            let InstKind::ICall { function: Callee::Function(function), args } =
+                &func.inst(inst).kind
+            else {
+                unreachable!()
+            };
+            let replacement = match &returned[function] {
+                ReturnedValue::Argument(arg) => {
+                    let Some(&value) = args.get(arg.index()) else { continue };
+                    value
+                }
+                ReturnedValue::Constant(value) => {
+                    if !constant_uses.contains(result) {
+                        continue;
+                    }
+                    // callee.constant => caller.constant
+                    func.alloc_value(Value::Immediate(value.clone()))
+                }
+            };
+            replacements.insert(result, replacement);
+        }
+        forwarded += replacements.len();
+        // result = icall callee, args; use result => icall callee, args; use returned_value
+        func.replace_uses_canonicalized(&replacements);
+    }
+    forwarded
+}
+
+#[derive(PartialEq, Eq)]
+enum ReturnedValue {
+    Argument(ArgIdx),
+    Constant(Immediate),
+}
+
+fn returned_value(func: &Function) -> Option<ReturnedValue> {
+    if func.return_components().len() != 1 {
+        return None;
+    }
+    let mut returned = None;
+    for block in &func.blocks {
+        match &block.terminator {
+            Some(Terminator::Return { values }) => {
+                let [value] = values.as_slice() else { return None };
+                let value = match func.value(*value) {
+                    Value::Arg(arg) => ReturnedValue::Argument(*arg),
+                    Value::Immediate(value) => ReturnedValue::Constant(value.clone()),
+                    _ => return None,
+                };
+                if returned.as_ref().is_some_and(|previous| *previous != value) {
+                    return None;
+                }
+                returned = Some(value);
+            }
+            Some(Terminator::TailCall { .. }) => return None,
+            _ => {}
+        }
+    }
+    returned
 }
 
 /// Redirects calls to alpha-equivalent internal function bodies.
@@ -106,7 +226,8 @@ fn has_rewritable_signature(
 /// those accesses do not identify which signature component they refer to, so changing that
 /// function's signature would be ambiguous.
 fn frame_offsets_are_local(func: &Function) -> bool {
-    let Some(signature_slots) = func.params.len().checked_add(func.returns.len()) else {
+    let Some(signature_slots) = func.params.len().checked_add(func.return_components().len())
+    else {
         return false;
     };
     let Some(signature_size) = u64::try_from(signature_slots)
@@ -152,7 +273,10 @@ fn rebase_frame_offsets(func: &mut Function, removed_slots: u64) {
     }
     let shift = removed_slots * EvmMemoryLayout::WORD_SIZE;
     let local_start = EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
-        .checked_add(((func.params.len() + func.returns.len()) as u64) * EvmMemoryLayout::WORD_SIZE)
+        .checked_add(
+            ((func.params.len() + func.return_components().len()) as u64)
+                * EvmMemoryLayout::WORD_SIZE,
+        )
         .expect("MIR frame prefix overflow");
     let old_local_start = local_start.checked_add(shift).expect("MIR frame prefix overflow");
     let local_end = (func.internal_frame_size != 0).then(|| {
@@ -207,7 +331,7 @@ fn prune_unused_args(module: &mut Module) -> usize {
     for (func_id, func) in module.functions.iter_enumerated() {
         for inst_id in func.instructions() {
             let kind = &func.inst(inst_id).kind;
-            if let InstKind::ICall { function, args, .. } = kind {
+            if let InstKind::ICall { function: Callee::Function(function), args, .. } = kind {
                 called.insert(*function);
                 record_arg_dependencies(func_id, func, *function, args, &mut live, &mut dependents);
             } else {
@@ -267,7 +391,9 @@ fn prune_unused_args(module: &mut Module) -> usize {
     let mut removed_call_operands = 0usize;
     for func in &mut module.functions {
         func.for_each_instruction_mut(|_, inst| {
-            if let InstKind::ICall { function, args, .. } = &mut inst.kind {
+            if let InstKind::ICall { function: Callee::Function(function), args, .. } =
+                &mut inst.kind
+            {
                 let old_len = args.len();
                 *args = args
                     .iter()
@@ -368,18 +494,18 @@ fn record_arg_dependencies(
     }
 }
 
-/// Removes a one-word result when every direct caller discards it.
+/// Removes a complete SSA result when every direct caller discards it.
 ///
-/// MIR represents only the first internal-call result as an SSA value. Additional results travel
-/// through the ephemeral multi-return buffer, so changing an arbitrary component would require
-/// making that buffer protocol explicit in the IR. Restricting this transform to one-word
-/// signatures keeps the proof local and still removes the complete return slot and call-result
-/// protocol for common effect-only helpers.
+/// Scalar and struct results both have one SSA value. Legacy multi-result signatures still carry
+/// extra results through a shared buffer and remain unchanged. Preserve the memory-return flag
+/// before erasing the signature, including when a nested struct field refers to memory.
 fn prune_unused_returns(module: &mut Module) -> usize {
     let mut called = DenseBitSet::new_empty(module.functions.len());
     for func in &module.functions {
         for inst_id in func.instructions() {
-            if let InstKind::ICall { function, .. } = func.inst(inst_id).kind {
+            if let InstKind::ICall { function: Callee::Function(function), .. } =
+                func.inst(inst_id).kind
+            {
                 called.insert(function);
             }
         }
@@ -393,7 +519,7 @@ fn prune_unused_returns(module: &mut Module) -> usize {
     let mut candidates = DenseBitSet::new_empty(module.functions.len());
     for (func_id, func) in module.functions.iter_enumerated() {
         if called.contains(func_id)
-            && func.returns.len() == 1
+            && func.return_components().len() == 1
             && is_internal_body(module, func_id, func)
             && frame_offsets_are_local(func)
             && returned_value_dependencies_are_pure(func)
@@ -416,7 +542,9 @@ fn prune_unused_returns(module: &mut Module) -> usize {
         let mut changed = false;
         for (caller_id, caller) in module.functions.iter_enumerated() {
             for inst_id in caller.instructions() {
-                let InstKind::ICall { function, .. } = caller.inst(inst_id).kind else {
+                let InstKind::ICall { function: Callee::Function(function), .. } =
+                    caller.inst(inst_id).kind
+                else {
                     continue;
                 };
                 if !candidates.contains(function) || live.contains(function) {
@@ -472,25 +600,23 @@ fn prune_unused_returns(module: &mut Module) -> usize {
             .filter(|&inst_id| {
                 matches!(
                     func.inst(inst_id).kind,
-                    InstKind::ICall { function, .. } if removed_set.contains(function)
+                    InstKind::ICall { function: Callee::Function(function), .. } if removed_set.contains(function)
                 )
             })
             .collect::<Vec<_>>();
         for inst_id in calls {
-            let InstKind::ICall { returns, .. } = &mut func.inst_mut(inst_id).kind else {
-                unreachable!()
-            };
-            *returns = 0;
             func.remove_inst_result(inst_id);
         }
     }
 
     for func_id in removed_set.iter() {
+        let may_return_memory =
+            module.type_may_reference_memory(module.function(func_id).return_components()[0]);
         let func = module.function_mut(func_id);
         // Candidates carry exactly one result, so clearing it removes one signature slot.
-        func.attributes.may_return_memory |= func.returns[0].is_memory_reference();
-        let removed_slots = func.returns.len() as u64;
-        func.returns.clear();
+        func.attributes.may_return_memory |= may_return_memory;
+        let removed_slots = func.return_components().len() as u64;
+        func.set_return_type(MirType::Void);
         for block in &mut func.blocks {
             if let Some(Terminator::Return { values }) = &mut block.terminator {
                 values.clear();
@@ -623,12 +749,9 @@ fn merge_equivalent_functions(module: &mut Module) -> usize {
     let mut merged_instructions = 0usize;
 
     loop {
-        // Redirecting one merge wave changes the graph observed by the next wave. Recompute SCC
-        // information so recursion eligibility never relies on the pre-redirect call graph.
-        let recursive = CallGraphInfo::new(module);
         let mut groups = FxHashMap::<u64, Vec<FunctionId>>::default();
         for (func_id, func) in module.functions.iter_enumerated() {
-            if !merged.contains(func_id) && is_merge_candidate(module, func_id, func, &recursive) {
+            if !merged.contains(func_id) && is_merge_candidate(module, func_id, func) {
                 groups.entry(equivalence_bucket(func)).or_default().push(func_id);
             }
         }
@@ -710,51 +833,15 @@ fn merge_function_debug_origins(
     }
 }
 
-fn is_merge_candidate(
-    module: &Module,
-    func_id: FunctionId,
-    func: &Function,
-    calls: &CallGraphInfo,
-) -> bool {
-    !func.blocks.is_empty()
-        && is_internal_body(module, func_id, func)
-        && (!calls.is_recursive(func_id) || has_only_direct_self_recursion(func_id, func, calls))
-}
-
-/// Recursive equivalence is local when every recursive edge is a direct self edge. Mutual SCCs
-/// need a whole-component isomorphism proof and remain conservatively excluded.
-fn has_only_direct_self_recursion(
-    func_id: FunctionId,
-    func: &Function,
-    calls: &CallGraphInfo,
-) -> bool {
-    let mut saw_self = false;
-    for inst_id in func.instructions() {
-        if let InstKind::ICall { function, .. } = func.inst(inst_id).kind {
-            if function == func_id {
-                saw_self = true;
-            } else if calls.is_recursive(function) {
-                return false;
-            }
-        }
-    }
-    for block in &func.blocks {
-        if let Some(Terminator::TailCall { function, .. }) = &block.terminator {
-            if *function == func_id {
-                saw_self = true;
-            } else if calls.is_recursive(*function) {
-                return false;
-            }
-        }
-    }
-    saw_self
+fn is_merge_candidate(module: &Module, func_id: FunctionId, func: &Function) -> bool {
+    !func.blocks.is_empty() && is_internal_body(module, func_id, func)
 }
 
 /// Cheaply partitions functions before the exact pairwise alpha-equivalence check.
 fn equivalence_bucket(func: &Function) -> u64 {
     let mut key = FxHasher::default();
     func.params.hash(&mut key);
-    func.returns.hash(&mut key);
+    func.return_components().hash(&mut key);
     func.internal_frame_size.hash(&mut key);
     func.external_static_return_size.hash(&mut key);
     func.blocks.len().hash(&mut key);
@@ -776,7 +863,7 @@ fn equivalent_functions(
     rhs: &Function,
 ) -> bool {
     if lhs.params != rhs.params
-        || lhs.returns != rhs.returns
+        || lhs.return_components() != rhs.return_components()
         || lhs.abi_returns != rhs.abi_returns
         || lhs.internal_frame_size != rhs.internal_frame_size
         || lhs.external_static_return_size != rhs.external_static_return_size
@@ -884,19 +971,16 @@ fn equivalent_inst_payload(
     rhs_id: FunctionId,
     rhs: &InstKind,
 ) -> bool {
-    let mut lhs = lhs.clone();
-    let mut rhs = rhs.clone();
-    let zero = ValueId::from_usize(0);
-    lhs.visit_operands_mut(|value| *value = zero);
-    rhs.visit_operands_mut(|value| *value = zero);
+    let lhs = lhs.clone_without_operands();
+    let mut rhs = rhs.clone_without_operands();
     if let (
-        InstKind::ICall { function: lhs_target, .. },
-        InstKind::ICall { function: rhs_target, .. },
+        InstKind::ICall { function: Callee::Function(lhs_target), .. },
+        InstKind::ICall { function: Callee::Function(rhs_target), .. },
     ) = (&lhs, &mut rhs)
-        && *lhs_target == lhs_id
-        && *rhs_target == rhs_id
+        && (*lhs_target == lhs_id || *lhs_target == rhs_id)
+        && (*rhs_target == lhs_id || *rhs_target == rhs_id)
     {
-        *rhs_target = lhs_id;
+        *rhs_target = *lhs_target;
     }
     lhs == rhs
 }
@@ -919,10 +1003,10 @@ fn equivalent_terminator_payload(
         Terminator::TailCall { function: lhs_target, .. },
         Terminator::TailCall { function: rhs_target, .. },
     ) = (&lhs, &mut rhs)
-        && *lhs_target == lhs_id
-        && *rhs_target == rhs_id
+        && (*lhs_target == lhs_id || *lhs_target == rhs_id)
+        && (*rhs_target == lhs_id || *rhs_target == rhs_id)
     {
-        *rhs_target = lhs_id;
+        *rhs_target = *lhs_target;
     }
     lhs == rhs
 }
@@ -930,7 +1014,7 @@ fn equivalent_terminator_payload(
 fn redirect_calls(module: &mut Module, replacements: &FxHashMap<FunctionId, FunctionId>) {
     for func in &mut module.functions {
         func.for_each_instruction_mut(|_, inst| {
-            if let InstKind::ICall { function, .. } = &mut inst.kind
+            if let InstKind::ICall { function: Callee::Function(function), .. } = &mut inst.kind
                 && let Some(&replacement) = replacements.get(function)
             {
                 *function = replacement;

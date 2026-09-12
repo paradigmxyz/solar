@@ -1,19 +1,22 @@
-//@compile-flags: -Zmir-pipeline=lower-evm-shaped
+//@compile-flags: -Zmir-pipeline=lower-structs,lower-frame-slots,lower-evm-shaped
 //@filecheck:
 // `lower-evm-shaped` makes the old continuation unreachable and must clean it
 // up before handing the module to the backend.
+// CHECK-LABEL: (after lower-evm-shaped)
 // CHECK-LABEL: fn @caller
 // CHECK: tail_call @fused
 // CHECK-NOT: bb1:
 @module LowerEvmShapedCleanup
-@phase memory-lowered
+@phase semantic
+types:
+  struct0: {u256, u256}
 fn @entry() {
   bb0:
     tail_call fn1
 }
 fn @caller() {
   bb0:
-    icall fn2, 0
+    icall fn2
     jump bb1
   bb1:
     v0 = add 1, 2
@@ -23,4 +26,25 @@ fn @caller() {
 fn @fused() {
   bb0:
     returndata 0, 0
+}
+
+// The struct result and its physical return loads are dead after a reverting call.
+// CHECK-LABEL: fn @pair_caller
+// CHECK: + tail_call @pair_fail, 29
+// CHECK-NOT: + {{.*}}mload
+// CHECK-NOT: + {{.*}}sstore
+fn @pair_caller() -> struct0 {
+  bb0:
+    v0 = icall @pair_fail, 29
+    jump bb1
+  bb1:
+    v1 = extract_value struct0, v0, 1
+    sstore 0, v1
+    ret v0
+}
+
+fn @pair_fail(arg0: u256) -> struct0 {
+  bb0:
+    mstore 0, arg0
+    revert 0, 32
 }

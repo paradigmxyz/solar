@@ -1,37 +1,38 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_dynamic_array_from_fixed.sol:StorageDynamicArrayFromFixed ===
 @module StorageDynamicArrayFromFixed
-fn @assign() -> (u256, u8, u8) [selector=0x12ae6397, abi_params=[], abi_returns=[word, word<enum 6>, word<enum 6>], abi_return_params=[u256, enum<6, u8>, enum<6, u8>]] {
+types:
+  struct0: {u256, u256, u256}
+
+fn @assign() -> struct0 [selector=0x12ae6397, abi_params=[], abi_returns=[word, word<enum 6>, word<enum 6>], abi_return_params=[u256, enum<6, u8>, enum<6, u8>]] {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     v1 = lt 4, 6
     v2 = iszero v1
-    jumpi v2, bb1, bb2
-  bb2:
+    panic_if v2, 0x21
     memory_object_store_element memoryfixedarray<2, 1>, v0, 0, 4
     v3 = lt 5, 6
     v4 = iszero v3
-    jumpi v4, bb1, bb3
-  bb3:
+    panic_if v4, 0x21
     memory_object_store_element memoryfixedarray<2, 1>, v0, 1, 5
     v5 = sload 0 !metadata(storage=slot(0))
     v6 = gt v5, 2
-    jumpi v6, bb4, bb5
-  bb4:
+    jumpi v6, bb1, bb2
+  bb1:
+    jump bb3
+  bb3:
+    v7 = phi [bb1: 2], [bb4: v22]
+    v8 = lt v7, v5
+    jumpi v8, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    sstore 0, 2 !metadata(storage=slot(0))
     jump bb6
   bb6:
-    v7 = phi [bb4: 2], [bb7: v22]
-    v8 = lt v7, v5
-    jumpi v8, bb7, bb8
-  bb8:
-    jump bb5
-  bb5:
-    sstore 0, 2 !metadata(storage=slot(0))
-    jump bb9
-  bb9:
-    v23 = phi [bb5: 0], [bb12: v41]
+    v23 = phi [bb2: 0], [bb7: v41]
     v24 = lt v23, 2
-    jumpi v24, bb10, bb11
-  bb11:
+    jumpi v24, bb7, bb8
+  bb8:
     v42 = storage_array_data_slot 0
     v43 = add v42, 0
     v44 = sload v43 !metadata(storage=symbolic(v42))
@@ -41,8 +42,7 @@ fn @assign() -> (u256, u8, u8) [selector=0x12ae6397, abi_params=[], abi_returns=
     v47 = sload 0 !metadata(storage=slot(0))
     v48 = lt 0, v47
     v49 = iszero v48
-    jumpi v49, bb13, bb14
-  bb14:
+    panic_if v49, 0x32
     v50 = storage_array_data_slot 0
     v51 = div 0, 32
     v52 = add v50, v51
@@ -54,13 +54,11 @@ fn @assign() -> (u256, u8, u8) [selector=0x12ae6397, abi_params=[], abi_returns=
     v58 = and v57, 255
     v59 = lt v58, 6
     v60 = iszero v59
-    jumpi v60, bb1, bb15
-  bb15:
+    panic_if v60, 0x21
     v61 = sload 0 !metadata(storage=slot(0))
     v62 = lt 1, v61
     v63 = iszero v62
-    jumpi v63, bb13, bb16
-  bb16:
+    panic_if v63, 0x32
     v64 = storage_array_data_slot 0
     v65 = div 1, 32
     v66 = add v64, v65
@@ -72,14 +70,12 @@ fn @assign() -> (u256, u8, u8) [selector=0x12ae6397, abi_params=[], abi_returns=
     v72 = and v71, 255
     v73 = lt v72, 6
     v74 = iszero v73
-    jumpi v74, bb1, bb17
-  bb17:
-    ret v46, v58, v72
-  bb13:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb10:
+    panic_if v74, 0x21
+    v75 = insert_value struct0, undef struct0, 0, v46
+    v76 = insert_value struct0, v75, 1, v58
+    v77 = insert_value struct0, v76, 2, v72
+    ret v77
+  bb7:
     v25 = memory_object_load_element memoryfixedarray<2, 1>, v0, v23
     v26 = storage_array_data_slot 0
     v27 = div v23, 32
@@ -88,8 +84,7 @@ fn @assign() -> (u256, u8, u8) [selector=0x12ae6397, abi_params=[], abi_returns=
     v30 = mul v29, 1
     v31 = lt v25, 6
     v32 = iszero v31
-    jumpi v32, bb1, bb12
-  bb12:
+    panic_if v32, 0x21
     v33 = mul v30, 8
     v34 = shl v33, 255
     v35 = sload v28 !metadata(storage=symbolic(v28))
@@ -100,8 +95,8 @@ fn @assign() -> (u256, u8, u8) [selector=0x12ae6397, abi_params=[], abi_returns=
     v40 = or v37, v39
     sstore v28, v40 !metadata(storage=symbolic(v28))
     v41 = add v23, 1
-    jump bb9
-  bb7:
+    jump bb6
+  bb4:
     v9 = storage_array_data_slot 0
     v10 = div v7, 32
     v11 = add v9, v10
@@ -117,9 +112,5 @@ fn @assign() -> (u256, u8, u8) [selector=0x12ae6397, abi_params=[], abi_returns=
     v21 = or v18, v20
     sstore v11, v21 !metadata(storage=symbolic(v11))
     v22 = add v7, 1
-    jump bb6
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 33 !metadata(memory=scratch)
-    revert 0, 36
+    jump bb3
 }

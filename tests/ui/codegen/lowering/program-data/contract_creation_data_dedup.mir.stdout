@@ -20,19 +20,19 @@ fn @payload() -> memorybytes [selector=0xa878f858, pure, abi_params=[], abi_retu
 // === ROOT/tests/ui/codegen/lowering/program-data/contract_creation_data_dedup.sol:Factory ===
 @module Factory
 data:
-  Child_initcode_0: hex"34600e576101b18060125f395ff35b5f5ffd346028575f3560e01c80633fa4f245146020578063a878f858146024576028565b602c565b603e565b5f5ffd5b60076080526020608001608090036080f35b6101406040526040518060e0528060e05260a081016040526080815260208101608081610131903950604051806101005280610100526020810181806101005281038252828060e05251838060e0521515810280608052905080608052806080528152601f19601f60805101168060a0528060a052602082018060c05291508160c0528060a0521590509050905060de57602060a0510360c051015f8152505b602060e0510160a0518060a05260c05101608051806080528260c0518060c0525e905061010051806101005290035f9001601f8101601f1981169050604051806101205281810191508160405290508181f3112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
+  Child_initcode_0: hex"34600e576101ae8060125f395ff35b5f5ffd346028575f3560e01c80633fa4f245146020578063a878f858146024576028565b602c565b603e565b5f5ffd5b60076080526020608001608090036080f35b6101406040526040518060c0528060c05260a08101604052608081526020810160808161012e9039506040518060e0528060e05260208101818060e05281038252828060c05251838060c0521515810280608052905080608052806080528152601f19601f60805101168060a0528060a052602082018061010052915081610100528060a0521560a0516080519190929091929160e0576020820381015f8152505b602085019450818060a052810191508280608052858280610100525e50905091508060e052810390505f9001601f8101601f1981169050604051806101205281810191508160405290508181f3112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
 
 fn @first() -> u256 [selector=0x3df4ddf4, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 482, v1
+    v2 = and 479, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy Child_initcode_0, v3, 451
+    data_copy Child_initcode_0, v3, 448
     v4 = slice_ptr v0
-    v5 = add v3, 451
+    v5 = add v3, 448
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 451
+    v6 = create 0, v3, 448
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata
@@ -48,28 +48,25 @@ fn @first() -> u256 [selector=0x3df4ddf4, abi_params=[], abi_returns=[word]] {
   bb4:
     v12 = returndatasize
     v13 = lt v12, 32
-    jumpi v13, bb5, bb6
-  bb6:
+    revert_if v13, tuple_data_too_short
     v14 = add 0, 0
     v15 = mload v14
     v16 = add 0, 0
     v17 = mload v16
     ret v17
-  bb5:
-    revert 0, 0
 }
 
 fn @second() -> u256 [selector=0x5a8ac02d, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 482, v1
+    v2 = and 479, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy Child_initcode_0, v3, 451
+    data_copy Child_initcode_0, v3, 448
     v4 = slice_ptr v0
-    v5 = add v3, 451
+    v5 = add v3, 448
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 451
+    v6 = create 0, v3, 448
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata
@@ -85,41 +82,38 @@ fn @second() -> u256 [selector=0x5a8ac02d, abi_params=[], abi_returns=[word]] {
   bb4:
     v12 = returndatasize
     v13 = lt v12, 32
-    jumpi v13, bb5, bb6
-  bb6:
+    revert_if v13, tuple_data_too_short
     v14 = add 0, 0
     v15 = mload v14
     v16 = add 0, 0
     v17 = mload v16
     ret v17
-  bb5:
-    revert 0, 0
 }
 
 fn @pair() -> u256 [selector=0xa8aa1b31, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 482, v1
+    v2 = and 479, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy Child_initcode_0, v3, 451
+    data_copy Child_initcode_0, v3, 448
     v4 = slice_ptr v0
-    v5 = add v3, 451
+    v5 = add v3, 448
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 451
+    v6 = create 0, v3, 448
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata
   bb2:
     v7 = abi_encode []
     v8 = not 31
-    v9 = and 482, v8
+    v9 = and 479, v8
     v10 = alloc raw, exact, uninitialized, infallible, v9
-    data_copy Child_initcode_0, v10, 451
+    data_copy Child_initcode_0, v10, 448
     v11 = slice_ptr v7
-    v12 = add v10, 451
+    v12 = add v10, 448
     mcopy v12, v11, 0 !metadata(memory=heap)
-    v13 = create 0, v10, 451
+    v13 = create 0, v10, 448
     jumpi v13, bb4, bb3
   bb3:
     revert_returndata
@@ -135,8 +129,7 @@ fn @pair() -> u256 [selector=0xa8aa1b31, abi_params=[], abi_returns=[word]] {
   bb6:
     v19 = returndatasize
     v20 = lt v19, 32
-    jumpi v20, bb7, bb8
-  bb8:
+    revert_if v20, tuple_data_too_short
     v21 = add 0, 0
     v22 = mload v21
     v23 = add 0, 0
@@ -146,27 +139,17 @@ fn @pair() -> u256 [selector=0xa8aa1b31, abi_params=[], abi_returns=[word]] {
     v27 = slice_ptr v26
     v28 = slice_len v26
     v29 = staticcall v25, v13, v27, v28, 0, 32
-    jumpi v29, bb10, bb9
-  bb9:
+    jumpi v29, bb8, bb7
+  bb7:
     revert_returndata
-  bb10:
+  bb8:
     v30 = returndatasize
     v31 = lt v30, 32
-    jumpi v31, bb7, bb11
-  bb11:
+    revert_if v31, tuple_data_too_short
     v32 = add 0, 0
     v33 = mload v32
     v34 = add 0, 0
     v35 = mload v34
-    v36 = add v24, v35
-    v37 = lt v36, v24
-    jumpi v37, bb12, bb13
-  bb13:
+    v36 = checked_add u256, v24, v35
     ret v36
-  bb12:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb7:
-    revert 0, 0
 }

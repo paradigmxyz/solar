@@ -11,11 +11,15 @@
 //! Ordinary dead-store elimination keeps such copies because they write
 //! memory; proving the destination allocation is unread lets them go. The pass
 //! is conservative: any read of the allocation (`mload`, `keccak256`, a copy
-//! that reads it, or an escape into a call/return) keeps every write.
+//! that reads it, or an escape into a call/return) keeps every write. Writes must fit a known
+//! allocation extent; writes outside it can affect other objects, even when this object is unread.
+//! Indexed element stores also qualify when their sole incoming edge proves an unsigned index
+//! bound whose final word fits the allocation. Other dynamic addresses remain conservative.
 
 use crate::mir::{
-    Function, InstId, InstKind, Module, ValueId,
-    analysis::{Access, AddressSpace, AliasAnalysis, Location, LocationSize},
+    BlockId, Function, InstId, InstKind, Module, Terminator, Value, ValueId,
+    analysis::{Access, AddressSpace, AliasAnalysis, Location, MemoryLocation},
+    memory::{EvmMemoryLayout, MemoryLayoutPolicy},
     pass::{MirPass, run_function_pass},
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
@@ -46,6 +50,8 @@ struct CopyElisionCx {
     eliminated: usize,
     /// Instruction uses indexed by operand value.
     uses: FxHashMap<ValueId, Vec<InstId>>,
+    /// Blocks containing indexed element stores that may need an edge bounds proof.
+    indexed_stores: FxHashMap<InstId, BlockId>,
     /// Values used by terminators.
     terminator_uses: FxHashSet<ValueId>,
 }
@@ -69,6 +75,7 @@ impl CopyElisionCx {
         let mut changed = false;
         loop {
             self.uses.clear();
+            self.indexed_stores.clear();
             self.terminator_uses.clear();
             self.index_uses(func);
 
@@ -79,13 +86,17 @@ impl CopyElisionCx {
                 {
                     continue;
                 }
-                let Some(writes) = self.write_only_writes(func, object) else { continue };
-                dead.extend(writes);
-                self.eliminated += 1;
+                if let Some(writes) = self.write_only_writes(func, object)
+                    && self.writes_fit_allocation(func, alias, object, &writes)
+                {
+                    dead.extend(writes);
+                    self.eliminated += 1;
+                }
             }
             if dead.is_empty() {
                 break;
             }
+            // stores confined to an unread allocation -> removed
             for block in func.blocks.iter_mut() {
                 block.instructions.retain(|inst| !dead.contains(inst));
             }
@@ -94,14 +105,78 @@ impl CopyElisionCx {
         changed
     }
 
+    fn writes_fit_allocation(
+        &self,
+        func: &Function,
+        alias: &AliasAnalysis,
+        object: ValueId,
+        writes: &[InstId],
+    ) -> bool {
+        if let Value::Inst(inst) = func.value(object)
+            && let InstKind::Alloc { size, .. } = func.inst(*inst).kind
+            && let Some(size) = func.value_u64(size)
+            && let Some(address) = alias.memory_address(func, object)
+            && let Some(end) = address.offset.checked_add(size)
+        {
+            writes.iter().all(|&inst| {
+                if self.guarded_element_end(func, object, inst).is_some_and(|end| end <= size) {
+                    return true;
+                }
+                alias.instruction_mod_ref(func, inst).writes().iter().all(|access| {
+                    if let Access::Location(Location::Memory(location)) = access
+                        && location.address.base == address.base
+                        && location.address.offset >= address.offset
+                        && let Some(size) = location.size.as_const()
+                        && let Some(write_end) = location.address.offset.checked_add(size)
+                    {
+                        write_end <= end
+                    } else {
+                        false
+                    }
+                })
+            })
+        } else {
+            false
+        }
+    }
+
+    fn guarded_element_end(&self, func: &Function, object: ValueId, inst: InstId) -> Option<u64> {
+        let block = *self.indexed_stores.get(&inst)?;
+        if let InstKind::MemoryObjectStoreElement { layout, object: target, index, .. } =
+            func.inst(inst).kind
+            && target == object
+            && let [pred] = func.blocks[block].predecessors.as_slice()
+            && let Some(Terminator::Branch { condition, then_block, else_block }) =
+                func.blocks[*pred].terminator
+            && then_block == block
+            && else_block != block
+            && let Value::Inst(condition) = *func.value(condition)
+            && let InstKind::Lt(value, bound) = func.inst(condition).kind
+            && value == index
+        {
+            let last = func.value_u64(bound)?.checked_sub(1)?;
+            let stride = EvmMemoryLayout::element_stride(layout)?;
+            EvmMemoryLayout::object_data_offset(layout.kind())
+                .checked_add(last.checked_mul(stride)?)?
+                .checked_add(EvmMemoryLayout::WORD_SIZE)
+        } else {
+            None
+        }
+    }
+
     fn allocation_may_be_read(
         &self,
         func: &Function,
         alias: &AliasAnalysis,
         object: ValueId,
     ) -> bool {
-        let Some(allocation) = alias.bare_memory_location(func, object, LocationSize::Unknown)
-        else {
+        let allocation = if let Value::Inst(inst) = func.value(object)
+            && let InstKind::Alloc { size, .. } = func.inst(*inst).kind
+            && let Some(address) = alias.memory_address(func, object)
+        {
+            // The allocation's own extent is in bounds, including when its size is dynamic.
+            MemoryLocation::new(address, alias.location_size(func, size))
+        } else {
             return true;
         };
         let reads_allocation = |access: Access| match access {
@@ -119,9 +194,15 @@ impl CopyElisionCx {
     }
 
     fn index_uses(&mut self, func: &Function) {
-        for inst_id in func.instructions() {
-            for operand in func.inst(inst_id).operands() {
-                self.uses.entry(operand).or_default().push(inst_id);
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            for &inst_id in &block.instructions {
+                let inst = func.inst(inst_id);
+                if matches!(inst.kind, InstKind::MemoryObjectStoreElement { .. }) {
+                    self.indexed_stores.insert(inst_id, block_id);
+                }
+                for operand in inst.operands() {
+                    self.uses.entry(operand).or_default().push(inst_id);
+                }
             }
         }
         for block in &func.blocks {

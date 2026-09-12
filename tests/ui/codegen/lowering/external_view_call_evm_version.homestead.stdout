@@ -10,22 +10,19 @@ fn @read(arg0: address) -> u256 [selector=0xa087a87e, view, abi_params=[address]
     v4 = slice_len v2
     v5 = extcodesize arg0
     v6 = iszero v5
-    jumpi v6, bb1, bb2
-  bb2:
+    revert_if v6, target_contract_has_no_code
     v7 = gas
     v8 = sub v7, 50
     v9 = call v8, arg0, 0, v3, v4, v3, 32
-    jumpi v9, bb4, bb3
-  bb3:
+    jumpi v9, bb2, bb1
+  bb1:
     revert_returndata
-  bb4:
+  bb2:
     v10 = add v3, 0
     v11 = mload v10
     v12 = add v3, 0
     v13 = mload v12
     ret v13
-  bb1:
-    revert 0, 0
 }
 
 fn @readPointer(arg0: function) -> u256 [selector=0x92528617, view, abi_params=[function], abi_returns=[word]] {
@@ -41,20 +38,17 @@ fn @readPointer(arg0: function) -> u256 [selector=0x92528617, view, abi_params=[
     v7 = slice_len v5
     v8 = extcodesize v2
     v9 = iszero v8
-    jumpi v9, bb1, bb2
-  bb2:
+    revert_if v9, target_contract_has_no_code
     v10 = gas
     v11 = sub v10, 50
     v12 = call v11, v2, 0, v6, v7, v6, 32
-    jumpi v12, bb4, bb3
-  bb3:
+    jumpi v12, bb2, bb1
+  bb1:
     revert_returndata
-  bb4:
+  bb2:
     v13 = add v6, 0
     v14 = mload v13
     v15 = add v6, 0
     v16 = mload v15
     ret v16
-  bb1:
-    revert 0, 0
 }

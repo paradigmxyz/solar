@@ -1,12 +1,17 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/loop_tuple_spill_across_branch.sol:LoopTupleSpillAcrossBranch ===
 @module LoopTupleSpillAcrossBranch
-fn @step(arg0: u256, arg1: u256) -> (u256, u256) [pure] {
+types:
+  struct0: {u256, u256}
+
+fn @step(arg0: u256, arg1: u256) -> struct0 [pure] {
   bb0:
     v0 = mul arg0, 3
     v1 = add v0, arg1
     v2 = shl 1, arg1
     v3 = xor arg0, v2
-    ret v1, v3
+    v4 = insert_value struct0, undef struct0, 0, v1
+    v5 = insert_value struct0, v4, 1, v3
+    ret v5
 }
 
 fn @mix(arg0: u256) -> u256 [pure] {
@@ -30,7 +35,7 @@ fn @loopTuple(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0x2a5696fb, 
     v9 = eq v8, 1
     jumpi v9, bb1, bb2
   bb2:
-    v11 = icall @mix, 1, v6
+    v11 = icall @mix, v6
     jump bb3
   bb1:
     v10 = mul v6, v4
@@ -42,49 +47,48 @@ fn @loopTuple(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0x2a5696fb, 
   bb4:
     v14 = phi [bb3: v6], [bb6: v14]
     v15 = phi [bb3: 0], [bb6: v15]
-    v16 = phi [bb3: v3], [bb6: v29]
+    v16 = phi [bb3: v3], [bb6: v30]
     v17 = phi [bb3: arg0], [bb6: v17]
     v18 = phi [bb3: v0], [bb6: v18]
     v19 = phi [bb3: v12], [bb6: v19]
     v20 = phi [bb3: v4], [bb6: v20]
     v21 = phi [bb3: arg1], [bb6: v21]
-    v22 = phi [bb3: 0], [bb6: v33]
+    v22 = phi [bb3: 0], [bb6: v32]
     v23 = phi [bb3: v1], [bb6: v23]
     v24 = phi [bb3: v5], [bb6: v24]
     v25 = phi [bb3: arg2], [bb6: v25]
-    v26 = phi [bb3: v13], [bb6: v32]
+    v26 = phi [bb3: v13], [bb6: v31]
     v27 = and v20, 3
     v28 = lt v22, v27
     jumpi v28, bb7, bb8
   bb8:
     jump bb5
   bb5:
-    v34 = mul v18, 1
-    v35 = mul v23, 2
-    v36 = xor v34, v35
-    v37 = mul v26, 3
-    v38 = xor v36, v37
-    v39 = mul v16, 4
-    v40 = xor v38, v39
-    v41 = mul v20, 5
-    v42 = xor v40, v41
-    v43 = mul v24, 6
-    v44 = xor v42, v43
-    v45 = mul v14, 7
-    v46 = xor v44, v45
-    v47 = mul v19, 8
-    v48 = xor v46, v47
-    ret v48
+    v33 = mul v18, 1
+    v34 = mul v23, 2
+    v35 = xor v33, v34
+    v36 = mul v26, 3
+    v37 = xor v35, v36
+    v38 = mul v16, 4
+    v39 = xor v37, v38
+    v40 = mul v20, 5
+    v41 = xor v39, v40
+    v42 = mul v24, 6
+    v43 = xor v41, v42
+    v44 = mul v14, 7
+    v45 = xor v43, v44
+    v46 = mul v19, 8
+    v47 = xor v45, v46
+    ret v47
   bb7:
-    v29 = icall @step, 2, v23, v26
-    v30 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v31 = add v30, 32
-    v32 = mload v31
+    v29 = icall @step, v23, v26
+    v30 = extract_value struct0, v29, 0
+    v31 = extract_value struct0, v29, 1
     jump bb9
   bb9:
     jump bb6
   bb6:
-    v33 = add v22, 1
+    v32 = add v22, 1
     jump bb4
 }
 
@@ -102,7 +106,7 @@ fn @loopTupleInline(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0xb423
     v9 = eq v8, 1
     jumpi v9, bb1, bb2
   bb2:
-    v11 = icall @mix, 1, v6
+    v11 = icall @mix, v6
     jump bb3
   bb1:
     v10 = mul v6, v4

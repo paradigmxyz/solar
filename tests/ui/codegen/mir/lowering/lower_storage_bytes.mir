@@ -1,0 +1,115 @@
+//@ revisions: semantic expanded expanded_size
+//@[semantic] compile-flags: -Zmir-pipeline=none
+//@[expanded] compile-flags: -Zmir-pipeline=lower-builtins
+//@[expanded] filecheck:
+//@[expanded_size] compile-flags: -Zmir-pipeline=lower-builtins -Osize
+//@[expanded_size] filecheck: --check-prefixes=CHECK,SIZE
+//@[expanded_size] normalize-stdout-test: "(?s).+" -> ""
+@module StorageBytes
+
+// CHECK-LABEL: fn @header(
+// CHECK: [[FLAG:v[0-9]+]] = and [[HEADER:v[0-9]+]], 1
+// CHECK-NEXT: [[LONG:v[0-9]+]] = eq [[FLAG]], 1
+// CHECK-NEXT: [[NEG:v[0-9]+]] = sub 0, [[FLAG]]
+// CHECK-NEXT: [[MASK:v[0-9]+]] = or 127, [[NEG]]
+// CHECK-NEXT: [[HALF:v[0-9]+]] = shr 1, [[HEADER]]
+// CHECK-NEXT: [[LENGTH:v[0-9]+]] = and [[HALF]], [[MASK]]
+// CHECK-NEXT: [[SHORT:v[0-9]+]] = lt [[LENGTH]], 32
+// CHECK-NEXT: [[INVALID:v[0-9]+]] = eq [[LONG]], [[SHORT]]
+// CHECK-NEXT: jumpi [[INVALID]],
+fn @header(arg0: u256) -> u256 {
+  bb0:
+    v0 = sload arg0
+    validate_storage_bytes v0 !metadata(span=10..20, modifier_depth=1)
+    ret v0
+}
+
+// SIZE-LABEL: fn @load(
+// SIZE: [[BASE:v[0-9]+]] = storage_array_data_slot arg0
+// SIZE: [[INDEX:v[0-9]+]] = phi
+// SIZE-NEXT: [[ADDRESS:v[0-9]+]] = phi [{{bb[0-9]+}}: [[BASE]]], [{{bb[0-9]+}}: [[NEXT:v[0-9]+]]]
+// SIZE-NEXT: [[MORE:v[0-9]+]] = lt [[INDEX]], {{v[0-9]+}}
+// SIZE: sload [[ADDRESS]]
+// SIZE: [[NEXT]] = add [[ADDRESS]], 1
+fn @load(arg0: u256) -> memorybytes {
+  bb0:
+    v0 = load_storage_bytes arg0 !metadata(span=20..30, modifier_depth=2)
+    ret v0
+}
+
+fn @edge(arg0: bool, arg1: u256, arg2: memorybytes) -> memorybytes {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    v0 = load_storage_bytes arg1
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v1 = phi [bb1: v0], [bb2: arg2]
+    ret v1
+}
+
+fn @clear(arg0: bool, arg1: u256, arg2: u256, arg3: u256) -> u256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    clear_storage_words arg1, arg2, arg3 !metadata(span=30..40, modifier_depth=3)
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v0 = phi [bb1: 1], [bb2: 2]
+    ret v0
+}
+
+fn @store(arg0: bool, arg1: u256, arg2: memorybytes) -> u256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    store_storage_bytes arg1, arg2 !metadata(span=40..50, modifier_depth=4)
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v0 = phi [bb1: 1], [bb2: 2]
+    ret v0
+}
+
+fn @store_literal(arg0: bool, arg1: u256) -> u256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    store_storage_bytes_literal arg1, hex"61" !metadata(span=50..60, modifier_depth=5)
+    jump bb3
+  bb2:
+    store_storage_bytes_literal arg1, hex"6162636465666768696a6b6c6d6e6f707172737475767778797a3031323334353637"
+    store_storage_bytes_literal arg1, hex""
+    jump bb3
+  bb3:
+    v0 = phi [bb1: 1], [bb2: 2]
+    ret v0
+}
+
+// CHECK-LABEL: fn @shared_literal_first(
+// CHECK: [[FIRST_HEADER:v[0-9]+]] = sload arg0
+// CHECK: icall @store_storage_bytes_literal, arg0, [[FIRST_HEADER]] !metadata(span=60..70)
+fn @shared_literal_first(arg0: u256) {
+  bb0:
+    store_storage_bytes_literal arg0, hex"78" !metadata(span=60..70)
+    ret
+}
+
+// CHECK-LABEL: fn @shared_literal_second(
+// CHECK: [[SECOND_HEADER:v[0-9]+]] = sload arg0
+// CHECK: icall @store_storage_bytes_literal, arg0, [[SECOND_HEADER]] !metadata(span=70..80)
+fn @shared_literal_second(arg0: u256) {
+  bb0:
+    store_storage_bytes_literal arg0, hex"78" !metadata(span=70..80)
+    ret
+}
+
+// CHECK-LABEL: fn @store_storage_bytes_literal(
+// CHECK: and arg1, 1
+// CHECK: icall @clear_storage_words, arg0,
+// CHECK: sstore arg0, 0x7800000000000000000000000000000000000000000000000000000000000002

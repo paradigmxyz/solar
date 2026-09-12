@@ -2,14 +2,20 @@
 //!
 //! The pass groups blocks by their machine terminator and indexes representative
 //! tails in reverse. This finds each block's longest shared suffix without
-//! comparing it with every earlier block. It then splits profitable suffixes
-//! into shared tail blocks until no new merges remain. Each candidate includes
+//! comparing it with every earlier block. A single edge map indexes `(node, instruction)` pairs,
+//! so linear tails do not allocate a hash table for each instruction. It then splits profitable
+//! suffixes into shared tail blocks until no new merges remain. Each candidate includes
 //! the cost of its new jumps and labels, and the pass keeps address-taken or
 //! otherwise incompatible entries separate. Debug metadata never participates
-//! in equivalence: path-specific function activations stay on the original
-//! blocks or the jumps that replace their instruction suffixes. Those jumps also
-//! retain the suffix's entry location before its origins are merged, so single-origin
-//! source maps do not lose both callers' locations on a shared body.
+//! in equivalence or profitability. Path-specific function activations stay on the original
+//! blocks or replacement jumps where representable; shared entries drop ambiguous events.
+//! A terminal suffix covering the representative's whole body reuses its block and label when
+//! there are no nested shared tails. Nested tails keep their placement
+//! to preserve fallthrough paths. Other address-taken entries keep their jump stubs.
+//! Gas mode indexes non-loop tails first, so loop paths can reuse them regardless of block order.
+//! Loop-only paths do not create sharing groups.
+//! Replacement jumps retain the suffix's entry location before its origins are merged, so
+//! single-origin source maps do not lose both callers' locations on a shared body.
 //!
 //! A shared tail starts at a block boundary, so both the merged block and the representative may
 //! only be cut where `keep_with_next` allows a split. That keeps sequences whose intervening gas
@@ -69,27 +75,49 @@ struct RunState {
     commons: Vec<usize>,
     tails: Vec<(usize, BlockId)>,
     tail_roots: FxHashMap<TerminatorKind, usize>,
-    tail_nodes: Vec<TailNode>,
-    tail_node_pool: Vec<TailNode>,
+    tail_edges: FxHashMap<(usize, MachineInstKey), usize>,
+    tail_representatives: Vec<Option<BlockId>>,
 }
 
 impl RunState {
     fn plan_merges(&mut self, gcx: Gcx<'_>, module: &Module) {
         self.merges.clear();
         self.tail_roots.clear();
-        self.tail_node_pool.append(&mut self.tail_nodes);
-        self.tail_node_pool.iter_mut().for_each(TailNode::clear);
-        for (block_id, block) in module.blocks.iter_enumerated() {
+        self.tail_edges.clear();
+        self.tail_representatives.clear();
+        let instruction_count = module
+            .blocks
+            .iter()
+            .filter(|block| {
+                is_candidate(block)
+                    && !(gcx.sess.opts.optimization.is_gas() && block.metadata.in_loop)
+            })
+            .map(|block| block.instructions.len())
+            .sum::<usize>();
+        self.tail_edges.reserve(instruction_count);
+        self.tail_representatives.reserve(instruction_count + module.blocks.len());
+        let in_gas_loop =
+            |block: &Block| gcx.sess.opts.optimization.is_gas() && block.metadata.in_loop;
+        let blocks = module.blocks.iter_enumerated();
+        for (block_id, block) in blocks
+            .clone()
+            .filter(|(_, block)| !in_gas_loop(block))
+            .chain(blocks.filter(|(_, block)| in_gas_loop(block)))
+        {
             if !is_candidate(block) {
                 continue;
             }
-            // A shared tail is reached by a jump every time it runs. In gas mode a loop block
-            // keeps its own copy: the bytes saved never pay back a jump per iteration.
-            if gcx.sess.opts.optimization.is_gas() && block.metadata.in_loop {
+            // Do not use loop bodies to seed sharing groups. They may reuse a tail
+            // from a non-loop path to preserve common loop entries.
+            let matched = self.longest_common_tail(block);
+            let in_gas_loop = gcx.sess.opts.optimization.is_gas() && block.metadata.in_loop;
+            if in_gas_loop
+                && !matched.is_some_and(|(representative, _)| {
+                    !module.blocks[representative].metadata.in_loop
+                })
+            {
                 continue;
             }
-
-            let matched = self.longest_common_tail(block);
 
             // A hot shared tail adds a runtime jump, so require one extra byte in gas mode.
             if let Some((representative, common)) = matched
@@ -102,7 +130,7 @@ impl RunState {
                 }
             {
                 self.merges.push(Merge { representative, block: block_id, common });
-            } else {
+            } else if !in_gas_loop {
                 self.insert_tail(block_id, block);
             }
         }
@@ -114,8 +142,7 @@ impl RunState {
         let mut matched = None;
         let len = block.instructions.len();
         for (common, inst) in block.instructions.iter().rev().enumerate() {
-            let Some(&child) = self.tail_nodes[node].children.get(&MachineInstKey::new(inst))
-            else {
+            let Some(&child) = self.tail_edges.get(&(node, MachineInstKey::new(inst))) else {
                 break;
             };
             node = child;
@@ -124,7 +151,7 @@ impl RunState {
             if !is_split_point(&block.instructions, len - common - 1) {
                 continue;
             }
-            if let Some(representative) = self.tail_nodes[node].representative {
+            if let Some(representative) = self.tail_representatives[node] {
                 matched = Some((representative, common + 1));
             }
         }
@@ -143,7 +170,7 @@ impl RunState {
                     self.tail_child(node, MachineInstKey::new(&block.instructions[len - common]));
             }
             if is_split_point(&block.instructions, len - common) {
-                self.tail_nodes[node].representative.get_or_insert(block_id);
+                self.tail_representatives[node].get_or_insert(block_id);
             }
         }
     }
@@ -158,17 +185,16 @@ impl RunState {
     }
 
     fn tail_child(&mut self, node: usize, key: MachineInstKey) -> usize {
-        if let Some(&child) = self.tail_nodes[node].children.get(&key) {
-            return child;
-        }
-        let child = self.new_tail_node();
-        self.tail_nodes[node].children.insert(key, child);
-        child
+        *self.tail_edges.entry((node, key)).or_insert_with(|| {
+            let child = self.tail_representatives.len();
+            self.tail_representatives.push(None);
+            child
+        })
     }
 
     fn new_tail_node(&mut self) -> usize {
-        let node = self.tail_nodes.len();
-        self.tail_nodes.push(self.tail_node_pool.pop().unwrap_or_default());
+        let node = self.tail_representatives.len();
+        self.tail_representatives.push(None);
         node
     }
 
@@ -268,6 +294,7 @@ impl RunState {
                 if previous_tail.is_none()
                     && let Some(tail_terminator) = &mut tail.terminator
                 {
+                    tail_terminator.metadata.take_function_invoke();
                     for &(site, site_common) in &group.sites {
                         if site_common >= common
                             && let Some(site_terminator) = &module.blocks[site].terminator
@@ -276,23 +303,36 @@ impl RunState {
                         }
                     }
                 }
-                let tail = module.add_block(tail);
+                // whole_body: suffix => whole_body: shared_suffix
+                // Shared entries drop path-specific invocation events.
+                let tail = if commons.len() == 1
+                    && common == instructions.len()
+                    && terminator.as_ref().is_some_and(|term| is_terminal_boundary(&term.kind))
+                {
+                    tail.label = module.blocks[group.representative].label;
+                    module.blocks[group.representative] = tail;
+                    group.representative
+                } else {
+                    module.add_block(tail)
+                };
                 tails.push((common, tail));
                 previous_common = common;
                 previous_tail = Some(tail);
             }
 
             let &(max_common, max_tail) = tails.last().expect("merge group must have a tail");
-            let representative_debug =
-                suffix_debug_info(&module.blocks[group.representative], max_common);
-            // prefix; suffix !metadata(origin) => prefix; jump tail !metadata(origin)
-            module.blocks[group.representative]
-                .instructions
-                .truncate(instructions.len() - max_common);
-            let mut terminator =
-                Terminator::new(TerminatorKind::Jump(max_tail)).with_debug_info_dropped();
-            terminator.metadata.copy_debug_info_from(&representative_debug);
-            module.blocks[group.representative].terminator = Some(terminator);
+            if max_tail != group.representative {
+                let representative_debug =
+                    suffix_debug_info(&module.blocks[group.representative], max_common);
+                // prefix; suffix !metadata(origin) => prefix; jump tail !metadata(origin)
+                module.blocks[group.representative]
+                    .instructions
+                    .truncate(instructions.len() - max_common);
+                let mut terminator =
+                    Terminator::new(TerminatorKind::Jump(max_tail)).with_debug_info_dropped();
+                terminator.metadata.copy_debug_info_from(&representative_debug);
+                module.blocks[group.representative].terminator = Some(terminator);
+            }
             for &(block, common) in &group.sites {
                 let tail = tails
                     .binary_search_by_key(&common, |&(known, _)| known)
@@ -327,11 +367,14 @@ fn suffix_debug_info(block: &Block, len: usize) -> Metadata {
     {
         metadata.copy_source_debug_from(origin);
     }
-    let mut functions =
-        suffix.iter().filter_map(|instruction| instruction.metadata.function_invoke());
-    let function = functions.next();
-    debug_assert!(functions.all(|other| Some(other) == function));
-    if let Some(function) = function {
+    let mut functions = suffix
+        .iter()
+        .map(|instruction| &instruction.metadata)
+        .chain(block.terminator.iter().map(|terminator| &terminator.metadata))
+        .filter_map(Metadata::function_invoke);
+    if let Some(function) = functions.next()
+        && functions.all(|other| other == function)
+    {
         metadata.set_function_invoke(function);
     }
     metadata
@@ -385,17 +428,4 @@ struct Merge {
 struct MergeGroup {
     representative: BlockId,
     sites: Vec<(BlockId, usize)>,
-}
-
-#[derive(Default)]
-struct TailNode {
-    children: FxHashMap<MachineInstKey, usize>,
-    representative: Option<BlockId>,
-}
-
-impl TailNode {
-    fn clear(&mut self) {
-        self.children.clear();
-        self.representative = None;
-    }
 }

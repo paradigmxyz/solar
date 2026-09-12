@@ -5,36 +5,38 @@
     bb0:
       jump bb1
     bb1:
-      v0 = phi [bb0: 64], [bb2: v3]
-      v1 = lt v0, 100
-      jumpi v1, bb2, bb3
+      v0 = phi [bb0: 0], [bb2: v3]
+      v1 = phi [bb0: 64], [bb2: v4]
+      v2 = lt v1, 100
+      jumpi v2, bb2, bb3
     bb3:
-      ret v2
+      ret v0
     bb2:
-      v2 = mload 0
--     sstore v0, v2
-+     sstore v0, v2 !metadata(storage=symbolic(v0))
-      mstore v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-      v3 = sub v0, 1
+      v3 = mload 0
+-     sstore v1, v3
++     sstore v1, v3 !metadata(storage=symbolic(v1))
+      mstore v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      v4 = sub v1, 1
       jump bb1
   }
   
   fn @hoist_mload_ascending_iv() -> u256 {
     bb0:
-+     v2 = mload 0
++     v3 = mload 0
       jump bb1
     bb1:
-      v0 = phi [bb0: 64], [bb2: v3]
-      v1 = lt v0, 100
-      jumpi v1, bb2, bb3
+      v0 = phi [bb0: 0], [bb2: v3]
+      v1 = phi [bb0: 64], [bb2: v4]
+      v2 = lt v1, 100
+      jumpi v2, bb2, bb3
     bb3:
-      ret v2
+      ret v0
     bb2:
--     v2 = mload 0
--     sstore v0, v2
-+     sstore v0, v2 !metadata(storage=symbolic(v0))
-      mstore v0, 7
-      v3 = add v0, 1
+-     v3 = mload 0
+-     sstore v1, v3
++     sstore v1, v3 !metadata(storage=symbolic(v1))
+      mstore v1, 7
+      v4 = add v1, 1
       jump bb1
   }
   

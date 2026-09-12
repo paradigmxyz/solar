@@ -12,3 +12,34 @@ bb0:
   exchange 2, 3 !metadata(span=3..4)
   swap 2 !metadata(span=4..5)
   stop
+
+bb1:
+  caller
+  push 256
+  mstore
+  calldatasize
+  push 128 !metadata(span=5..6)
+  mstore !metadata(span=6..7)
+  push 32 !metadata(span=7..8)
+  push 128 !metadata(span=8..9)
+  return !metadata(span=9..10)
+
+bb2:
+  calldatasize
+  caller
+  dup 2 !metadata(span=10..11)
+  push 128 !metadata(span=11..12)
+  mstore !metadata(span=12..13)
+  swap 1 !metadata(span=13..14)
+  pop !metadata(span=14..15)
+  stop
+
+bb3:
+  calldatasize
+  caller
+  dup 2
+  push 128
+  mstore
+  swap 1
+  pop !metadata(invoke=callee@16..20)
+  stop

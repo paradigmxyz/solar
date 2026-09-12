@@ -27,6 +27,9 @@
 // CHECK:       [[BODY_STORE_FRAME:v[0-9]+]] = internal_frame_addr
 // CHECK: -     mstore [[BODY_STORE_FRAME]], [[OLD_NEXT]]
 // CHECK:       jump [[HEADER]]
+types:
+  struct0: {bytes32, u256}
+
 fn @loop_carried() -> u256 {
   bb0:
     v0 = internal_frame_addr 128
@@ -55,7 +58,7 @@ fn @loop_carried() -> u256 {
 // CHECK: {{^ +}}[[HASH:v[0-9]+]] = keccak256 [[FRAME]], 32
 // CHECK: {{^ +}}[[LOAD:v[0-9]+]] = mload [[FRAME]]
 // CHECK: {{^ +}}ret [[HASH]], [[LOAD]]
-fn @escaped_address() -> (bytes32, u256) {
+fn @escaped_address() -> struct0 [return_abi=[bytes32, u256]] {
   bb0:
     v0 = internal_frame_addr 128
     mstore v0, 42
@@ -100,7 +103,7 @@ fn @msize_observed() -> u256 {
 // CHECK-LABEL: @icall
 // CHECK:       [[FRAME:v[0-9]+]] = internal_frame_addr
 // CHECK: -     mstore [[FRAME]], 42
-// CHECK:       icall @callee, 0
+// CHECK:       icall @callee
 // CHECK: -     [[OLD:v[0-9]+]] = mload [[FRAME]]
 // CHECK: -     ret [[OLD]]
 // CHECK:       ret 42
@@ -108,7 +111,7 @@ fn @icall() -> u256 {
   bb0:
     v0 = internal_frame_addr 128
     mstore v0, 42
-    icall @callee, 0
+    icall @callee
     v1 = mload v0
     ret v1
 }

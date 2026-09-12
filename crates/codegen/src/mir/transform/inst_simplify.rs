@@ -3,7 +3,15 @@
 //! This pass removes algebraic no-ops and rewrites a few equivalent EVM
 //! instruction patterns before stack scheduling. It is intentionally local and
 //! conservative: it only applies identities that are exact for EVM word
-//! semantics.
+//! semantics. Fixed aggregate projections also forward through bounded insertion chains, exposing
+//! scalar facts before aggregate lowering without allocating memory or expanding aggregate phis.
+//! Masked shifted words fold when a constant OR operand determines every selected bit.
+//! Consecutive shifts in the same direction combine constant amounts, capped at the word width.
+//!
+//! The `const-fold` adapter runs after representation lowering. It removes zero-length memory
+//! operations and instructions with constant results, including identities such as `sub x, x`.
+//! It keeps other value identities and instruction choices intact to avoid extending the live
+//! ranges of nonconstant values before stack scheduling.
 //!
 //! Safety contract:
 //! - do not remove or reorder side effects
@@ -11,7 +19,8 @@
 //! - preserve boolean-only rewrites behind explicit MIR boolean type checks
 
 use crate::mir::{
-    Function, Immediate, InstId, InstKind, Module, Terminator, ToUint, Value, ValueId,
+    Builtin, Callee, Function, Immediate, InstId, InstKind, MirType, Module, Terminator, ToUint,
+    Value, ValueId,
     memory::{EvmMemoryLayout, MemoryLayoutPolicy},
     pass::{MirPass, run_function_pass},
     utils as mir_utils,
@@ -35,9 +44,36 @@ impl MirPass for InstSimplify {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, _| {
+        let changed = run_function_pass(module, analyses, |func, _| {
             InstSimplifier::new(gcx.sess.opts.evm_version).run_to_fixpoint(func) != 0
-        })
+        });
+        // Exact value rewrites and removed effects keep old call summaries conservative.
+        analyses.preserve_call_summaries();
+        changed
+    }
+}
+
+/// Folds constant results without changing instruction choices or forwarding other values.
+pub(crate) struct ConstFold;
+
+impl MirPass for ConstFold {
+    fn name(&self) -> &'static str {
+        "const-fold"
+    }
+
+    fn run_pass(
+        &self,
+        gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut crate::mir::pass::ModuleAnalyses,
+    ) -> bool {
+        let changed = run_function_pass(module, analyses, |func, _| {
+            let mut simplifier = InstSimplifier::new(gcx.sess.opts.evm_version);
+            simplifier.constants_only = true;
+            simplifier.run_to_fixpoint(func) != 0
+        });
+        analyses.preserve_call_summaries();
+        changed
     }
 }
 
@@ -47,6 +83,7 @@ struct InstSimplifier {
     /// Number of instructions simplified in the last run.
     simplified_count: usize,
     evm_version: EvmVersion,
+    constants_only: bool,
 }
 
 struct RunState {
@@ -63,7 +100,7 @@ impl RunState {
 impl InstSimplifier {
     /// Creates a new instruction simplifier.
     fn new(evm_version: EvmVersion) -> Self {
-        Self { simplified_count: 0, evm_version }
+        Self { simplified_count: 0, evm_version, constants_only: false }
     }
 
     fn run_with_state(&mut self, func: &mut Function, state: &mut RunState) -> usize {
@@ -93,7 +130,9 @@ impl InstSimplifier {
                         break;
                     }
 
-                    if let Some(new_kind) = self.rewrite_inst(func, &kind, &state.replacements) {
+                    if !self.constants_only
+                        && let Some(new_kind) = self.rewrite_inst(func, &kind, &state.replacements)
+                    {
                         tracing::trace!(
                             target: "solar::codegen::mir::inst_simplify",
                             function = %func.name,
@@ -116,6 +155,17 @@ impl InstSimplifier {
                     };
                     let replacement =
                         mir_utils::resolve_replacement(replacement, &state.replacements);
+                    if self.constants_only && func.value(replacement).as_immediate().is_none() {
+                        break;
+                    }
+                    if matches!(kind, InstKind::ExtractValue { .. })
+                        && func.value_ty(result) != func.value_ty(replacement)
+                        && [func.value_ty(result), func.value_ty(replacement)]
+                            .iter()
+                            .any(|ty| matches!(ty, Some(MirType::MemoryObject(_))))
+                    {
+                        break;
+                    }
                     if replacement != result {
                         tracing::trace!(
                             target: "solar::codegen::mir::inst_simplify",
@@ -143,7 +193,9 @@ impl InstSimplifier {
                 block.instructions.retain(|&id| !state.dead.contains(id));
             }
         }
-        self.simplified_count += self.rewrite_terminators(func, &state.replacements);
+        if !self.constants_only {
+            self.simplified_count += self.rewrite_terminators(func, &state.replacements);
+        }
 
         self.simplified_count
     }
@@ -178,6 +230,11 @@ impl InstSimplifier {
         let resolve = |value| mir_utils::resolve_replacement(value, replacements);
 
         match kind {
+            // check iszero(condition), polarity -> check condition, !polarity
+            InstKind::Check { condition, is_zero, failure } => {
+                let condition = Self::iszero_operand(func, resolve(*condition))?;
+                Some(InstKind::Check { condition, is_zero: !is_zero, failure: *failure })
+            }
             InstKind::Add(a, b) => {
                 let (a, b) = (resolve(*a), resolve(*b));
                 self.rewrite_add(func, a, b)
@@ -277,13 +334,18 @@ impl InstSimplifier {
                     Self::is_one(func, a).then_some(InstKind::IsZero(b))
                 }
             }
+            InstKind::Shl(shift, value) | InstKind::Sar(shift, value) => {
+                Self::rewrite_nested_shift(func, kind, resolve(*shift), resolve(*value))
+            }
             InstKind::Shr(shift, value) => {
                 let (shift, value) = (resolve(*shift), resolve(*value));
-                if Self::is_const(func, shift, U256::from(8)) {
-                    Self::clz_operand(func, value).map(InstKind::IsZero)
-                } else {
-                    None
-                }
+                Self::rewrite_nested_shift(func, kind, shift, value).or_else(|| {
+                    if Self::is_const(func, shift, U256::from(8)) {
+                        Self::clz_operand(func, value).map(InstKind::IsZero)
+                    } else {
+                        None
+                    }
+                })
             }
             InstKind::Byte(index, value) => {
                 let (index, value) = (resolve(*index), resolve(*value));
@@ -327,6 +389,32 @@ impl InstSimplifier {
         }
 
         match kind {
+            // extract_value(insert_value aggregate, index, value), index -> value
+            InstKind::ExtractValue { ty, aggregate, index } => {
+                let mut aggregate = resolve(*aggregate);
+                // Bound work for long tuples and malformed cycles in unreachable blocks.
+                for _ in 0..16 {
+                    let Value::Inst(id) = func.value(aggregate) else { break };
+                    let InstKind::InsertValue {
+                        ty: inserted_ty,
+                        aggregate: base,
+                        index: field,
+                        value,
+                    } = &func.inst(*id).kind
+                    else {
+                        break;
+                    };
+                    if inserted_ty != ty {
+                        break;
+                    }
+                    if field == index {
+                        return Some(resolve(*value));
+                    }
+                    aggregate = resolve(*base);
+                }
+                None
+            }
+
             InstKind::Add(a, b) => {
                 let (a, b) = (resolve(*a), resolve(*b));
                 if Self::is_zero(func, b) {
@@ -334,7 +422,17 @@ impl InstSimplifier {
                 } else if Self::is_zero(func, a) {
                     Some(b)
                 } else {
-                    None
+                    // add base, (sub end, base) -> end
+                    [(a, b), (b, a)].into_iter().find_map(|(base, difference)| {
+                        if let Value::Inst(inst) = func.value(difference)
+                            && let InstKind::Sub(end, start) = func.inst(*inst).kind
+                            && resolve(start) == base
+                        {
+                            Some(resolve(end))
+                        } else {
+                            None
+                        }
+                    })
                 }
             }
             InstKind::Sub(a, b) => {
@@ -343,6 +441,24 @@ impl InstSimplifier {
                     Some(a)
                 } else if a == b {
                     Some(Self::imm(func, U256::ZERO))
+                } else if let Some((a_base, a_offset)) = Self::offset_base(func, a)
+                    && let Some((b_base, b_offset)) = Self::offset_base(func, b)
+                    && resolve(a_base) == resolve(b_base)
+                {
+                    // sub (base + a_offset), (base + b_offset) -> a_offset - b_offset
+                    Some(Self::imm(func, a_offset.wrapping_sub(b_offset)))
+                } else if let Value::Inst(inst) = func.value(a)
+                    && let InstKind::Add(lhs, rhs) = func.inst(*inst).kind
+                {
+                    // sub (add base, offset), base -> offset
+                    let (lhs, rhs) = (resolve(lhs), resolve(rhs));
+                    if lhs == b {
+                        Some(rhs)
+                    } else if rhs == b {
+                        Some(lhs)
+                    } else {
+                        None
+                    }
                 } else {
                     None
                 }
@@ -416,7 +532,9 @@ impl InstSimplifier {
                 } else if Self::is_bitwise_complement_pair(func, a, b) {
                     Some(Self::imm(func, U256::ZERO))
                 } else {
-                    None
+                    // and (or (shift amount, value), constant), mask -> constant & mask
+                    Self::masked_shifted_constant(func, a, b)
+                        .map(|constant| Self::imm(func, constant))
                 }
             }
             InstKind::Or(a, b) => {
@@ -472,6 +590,12 @@ impl InstSimplifier {
                         && func.value_u256(shift).is_some_and(|shift| shift >= U256::from(256)))
                 {
                     Some(Self::imm(func, U256::ZERO))
+                } else if !self.constants_only
+                    && matches!(kind, InstKind::Shr(_, _))
+                    && let Some(base) = Self::unshift_clean_address(func, shift, value)
+                {
+                    // shr amount, (or (shl amount, address), constant) -> address
+                    Some(base)
                 } else {
                     None
                 }
@@ -679,6 +803,14 @@ impl InstSimplifier {
     ) -> bool {
         let resolve = |value| mir_utils::resolve_replacement(value, replacements);
         match kind {
+            // require a known passing condition, payload -> nothing
+            InstKind::ICall { function: Callee::Builtin(Builtin::Require(_)), args } => {
+                func.value_u256(resolve(args[0])).is_some_and(|condition| !condition.is_zero())
+            }
+            // check a known passing condition -> nothing
+            InstKind::Check { condition, is_zero, .. } => func
+                .value_u256(resolve(*condition))
+                .is_some_and(|condition| condition.is_zero() != *is_zero),
             InstKind::MCopy(_, _, size)
             | InstKind::CalldataCopy(_, _, size)
             | InstKind::DataCopy(_, _, size)
@@ -864,6 +996,69 @@ impl InstSimplifier {
             InstKind::And(a, b) => Self::const_operand(func, a, b),
             _ => None,
         }
+    }
+
+    fn rewrite_nested_shift(
+        func: &mut Function,
+        kind: &InstKind,
+        shift: ValueId,
+        value: ValueId,
+    ) -> Option<InstKind> {
+        let Value::Inst(inner) = func.value(value) else { return None };
+        let (inner_shift, base) = match (kind, &func.inst(*inner).kind) {
+            (InstKind::Shl(_, _), InstKind::Shl(shift, base))
+            | (InstKind::Shr(_, _), InstKind::Shr(shift, base))
+            | (InstKind::Sar(_, _), InstKind::Sar(shift, base)) => (*shift, *base),
+            _ => return None,
+        };
+        let limit = U256::from(256);
+        let total = func.value_u256(shift)?.min(limit) + func.value_u256(inner_shift)?.min(limit);
+        let total = Self::imm(func, total.min(limit));
+        // shift outer, (shift inner, base) -> shift min(outer + inner, 256), base
+        Some(match kind {
+            InstKind::Shl(_, _) => InstKind::Shl(total, base),
+            InstKind::Shr(_, _) => InstKind::Shr(total, base),
+            InstKind::Sar(_, _) => InstKind::Sar(total, base),
+            _ => unreachable!(),
+        })
+    }
+
+    fn unshift_clean_address(func: &Function, shift: ValueId, value: ValueId) -> Option<ValueId> {
+        let shift = func.value_u256(shift)?;
+        if shift > U256::from(256 - 160) {
+            return None;
+        }
+        let Value::Inst(inst) = func.value(value) else { return None };
+        let InstKind::Or(a, b) = func.inst(*inst).kind else { return None };
+        let (value, constant) = Self::const_operand(func, a, b)?;
+        let Value::Inst(inst) = func.value(value) else { return None };
+        let InstKind::Shl(inner_shift, base) = func.inst(*inst).kind else { return None };
+        (func.value_u256(inner_shift) == Some(shift)
+            && (constant >> shift.to::<usize>()).is_zero()
+            && Self::is_clean_address(func, base))
+        .then_some(base)
+    }
+
+    fn masked_shifted_constant(func: &Function, a: ValueId, b: ValueId) -> Option<U256> {
+        let (value, mask) = Self::const_operand(func, a, b)?;
+        let Value::Inst(inst) = func.value(value) else { return None };
+        let InstKind::Or(a, b) = func.inst(*inst).kind else { return None };
+        let (value, constant) = Self::const_operand(func, a, b)?;
+        let Value::Inst(inst) = func.value(value) else { return None };
+        let (shift, left) = match func.inst(*inst).kind {
+            InstKind::Shl(shift, _) => (shift, true),
+            InstKind::Shr(shift, _) => (shift, false),
+            _ => return None,
+        };
+        let shift = func.value_u256(shift)?;
+        let unknown_mask = mask & !constant;
+        let known = shift >= U256::from(256)
+            || if left {
+                (unknown_mask >> shift.to::<usize>()).is_zero()
+            } else {
+                (unknown_mask << shift.to::<usize>()).is_zero()
+            };
+        known.then_some(constant & mask)
     }
 
     fn power_of_two_shift(value: U256) -> Option<U256> {

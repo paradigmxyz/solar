@@ -22,10 +22,10 @@ fn @higher3() -> function [pure] {
 
 fn @callReturned() -> u256 [selector=0x0ae2f92f, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = icall @internal_dispatcher_p_none_r_function, 1, 4
-    v1 = icall @internal_dispatcher_p_none_r_function, 1, v0
-    v2 = icall @internal_dispatcher_p_none_r_function, 1, v1
-    v3 = icall @internal_dispatcher_p_none_r_u256, 1, v2
+    v0 = icall @internal_dispatcher_p_none_r_function, 4
+    v1 = icall @internal_dispatcher_p_none_r_function, v0
+    v2 = icall @internal_dispatcher_p_none_r_function, v1
+    v3 = icall @internal_dispatcher_p_none_r_u256, v2
     ret v3
 }
 
@@ -40,17 +40,16 @@ fn @internal_dispatcher_p_none_r_function(arg0: function) -> function [function_
     v4 = eq arg0, 4
     jumpi v4, bb5, bb6
   bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 81 !metadata(memory=scratch)
-    revert 0, 36
+    panic_if true, 0x51
+    invalid
   bb5:
-    v5 = icall @higher3, 1
+    v5 = icall @higher3
     ret v5
   bb3:
-    v3 = icall @higher2, 1
+    v3 = icall @higher2
     ret v3
   bb1:
-    v1 = icall @higher1, 1
+    v1 = icall @higher1
     ret v1
 }
 
@@ -59,10 +58,9 @@ fn @internal_dispatcher_p_none_r_u256(arg0: function) -> u256 [function_pointer_
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2
   bb2:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 81 !metadata(memory=scratch)
-    revert 0, 36
+    panic_if true, 0x51
+    invalid
   bb1:
-    v1 = icall @higher0, 1
+    v1 = icall @higher0
     ret v1
 }

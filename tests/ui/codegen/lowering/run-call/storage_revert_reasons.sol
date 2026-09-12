@@ -1,5 +1,4 @@
-//@ filecheck:
-// CHECK: @module
+//@[mir] filecheck:
 //@ codegen-matrix: standard
 //@ run-call-fail: mappingShort => Error("x")
 //@ run-call-fail: mappingLong => Error("abcdefghijklmnopqrstuvwxyz0123456")
@@ -17,6 +16,9 @@ contract StorageRevertReasons {
     mapping(uint256 => mapping(uint256 => string)) private nested;
     Holder private holder;
 
+    // CHECK-LABEL: fn @mappingShort()
+    // CHECK: [[SLOT:v[0-9]+]] = mapping_slot 0, 0
+    // CHECK-NEXT: store_storage_bytes_literal [[SLOT]], hex"78"
     function mappingShort() external {
         reasons[0] = "x";
         revert(reasons[0]);

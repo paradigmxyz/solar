@@ -6,49 +6,30 @@
 contract SF {
     uint256 public s;
 
-    // The focused checks below cover the frame architecture without depending on the instruction
-    // order within every lowered function.
     // CHECK: push 0x313ae541
-    // CHECK: eq
-    // CHECK-NEXT: push {{bb[0-9]+}}
+    // CHECK-NEXT: eq
+    // CHECK-NEXT: push [[TOP:bb[0-9]+]]
     // CHECK: push 0x86b714e2
-    // CHECK-NEXT: sub
-    // CHECK-NEXT: push {{bb[0-9]+}}
-    // CHECK-NEXT: jumpi
+    // CHECK-NEXT: eq
+    // CHECK-NEXT: push [[GETTER:bb[0-9]+]]
+    // CHECK: [[GETTER]]:
     // CHECK-NEXT: push 0
     // CHECK-NEXT: sload
     // CHECK-NEXT: jump [[GETTER_RETURN:bb[0-9]+]]
     // CHECK: [[GETTER_RETURN]]:
     // CHECK: return
-    // The getter's accessed memory ranges are proven disjoint from the reserved FMP word, so the
-    // allocating entry alone initializes its reachable frame floor.
-    // CHECK-NOT: push 64
-    // CHECK: [[TOP:bb[0-9]+]]:
+    // The allocating entry initializes its reachable frame floor.
+    // CHECK: [[TOP]]:
     // CHECK-NEXT: push 832
     // CHECK-NEXT: push 64
     // CHECK-NEXT: mstore
-    // Runtime static frames omit the unused dynamic-frame header.
-    // CHECK: push 3{{$}}
-    // CHECK-NEXT: push 4{{$}}
-    // CHECK-NEXT: calldataload
-    // CHECK-NEXT: mul
-    // CHECK: push [[OVERFLOW:bb[0-9]+]]
-    // CHECK-NEXT: jumpi
-    // CHECK-NEXT: push [[CHAIN_RET:bb[0-9]+]]
-    // CHECK: push 416
+    // Static locals use fixed addresses without a dynamic-frame header.
+    // CHECK: push 448
     // CHECK-NEXT: mstore
-    // CHECK: [[CHAIN_RET]]:
-    // CHECK-NEXT: dup 1
-    // CHECK-NEXT: push 256
+    // CHECK: push 576
     // CHECK-NEXT: mstore
-    // CHECK: push 7
-    // CHECK-NEXT: push 4
-    // CHECK-NEXT: calldataload
-    // CHECK-NEXT: mod
-    // CHECK: push bb80
-    // CHECK-NEXT: jump [[REC_DISPATCH:bb[0-9]+]]
-    // CHECK: [[REC_DISPATCH]]:
-    // CHECK-NEXT: push 160
+    // Recursive calls reserve dynamic frames through the shared allocator.
+    // CHECK: push 160
     // CHECK-NEXT: mload
     // CHECK: push 288
     // CHECK-NEXT: add

@@ -58,6 +58,35 @@ fn debug_output_selection_and_bytecode_neutrality() {
 }
 
 #[test]
+fn debug_output_selection_preserves_shared_tail_bytecode() {
+    for source in [
+        "../../codegen/lowering/run-call/external_call_returndata_size.sol",
+        "../../codegen/lowering/empty_code_external_call.sol",
+        "../../codegen/lowering/storage_checked_arithmetic.sol",
+    ] {
+        for mode in ["none", "gas", "size"] {
+            let baseline = compile_json(&[source, "-O", mode, "--emit=bin,bin-runtime"]);
+            for selection in DEBUG_OUTPUTS {
+                let output = compile_json(&[
+                    source,
+                    "-O",
+                    mode,
+                    &format!("--emit=bin,bin-runtime,{selection}"),
+                ]);
+                for (name, contract) in baseline["contracts"].as_object().unwrap() {
+                    for bytecode in ["bin", "bin-runtime"] {
+                        assert_eq!(
+                            contract[bytecode], output["contracts"][name][bytecode],
+                            "{mode}: {selection}: {name}: {bytecode}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
 fn debug_outputs_match_standard_json() {
     for (mode, runs) in [("none", 200), ("gas", 200), ("size", 1)] {
         let output = compile_json(&[

@@ -354,10 +354,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(())
     }
 
-    pub(super) fn prepare_revert_payload(
-        &mut self,
-        expr: &hir::Expr<'_>,
-    ) -> Option<PreparedRevertPayload> {
+    pub(super) fn prepare_revert_payload(&mut self, expr: &hir::Expr<'_>) -> Option<RevertPayload> {
         if let ExprKind::Call(callee, args, _) = &expr.kind
             && let Some(hir::Res::Item(hir::ItemId::Error(error_id))) =
                 self.cx.gcx.resolved_expr(callee)
@@ -370,7 +367,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         {
             let length = self.builder.imm(bytes.as_byte_str().len() as u64);
             let data = self.lower_string_literal_word(bytes.as_byte_str());
-            return Some(PreparedRevertPayload::ShortString { length, data });
+            return Some(RevertPayload::ShortString { length, data });
         }
 
         let literal = expr.peel_parens();
@@ -379,61 +376,21 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 &lit.kind
             && bytes.as_byte_str().is_empty()
         {
-            return Some(PreparedRevertPayload::EmptyString);
+            return Some(RevertPayload::EmptyString);
         }
 
         let ty = self.cx.gcx.type_of_expr(expr.id)?;
         let memory_ty = ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
         let value = self.lower_typed_expr(expr, memory_ty)?;
         let value = self.materialize_memory_argument(memory_ty, value, expr.span)?;
-        Some(PreparedRevertPayload::ErrorString(value))
+        Some(RevertPayload::ErrorString(value))
     }
 
-    pub(super) fn emit_revert_payload(&mut self, payload: PreparedRevertPayload) {
-        match payload {
-            PreparedRevertPayload::ShortString { length, data } => {
-                // revert(abi_encode(Error(string), length, data))
-                let helper = self.ensure_revert_error_helper();
-                self.builder.icall_void(helper, vec![length, data], 0);
-                self.builder.invalid();
-            }
-            PreparedRevertPayload::EmptyString => {
-                // payload = abi_encode(Error(string), "")
-                // revert(payload.data, payload.length)
-                let selector = self.builder.imm(ERROR_SELECTOR);
-                let zero = self.builder.imm(0);
-                self.builder.mstore(zero, selector);
-                let offset = self.builder.imm(4);
-                let tuple_offset = self.builder.imm(32);
-                self.builder.mstore(offset, tuple_offset);
-                let length = self.builder.imm(36);
-                let byte_len = self.builder.imm(0);
-                self.builder.mstore(length, byte_len);
-                let size = self.builder.imm(68);
-                self.builder.revert(zero, size);
-            }
-            PreparedRevertPayload::ErrorString(value) => {
-                // payload = abi_encode(Error(string), value)
-                // revert(payload.data, payload.length)
-                let selector = self.builder.imm(ERROR_SELECTOR);
-                let layout = Arc::new(AbiLayout::new(
-                    vec![AbiType::Bytes(SliceLocation::Memory)].into_boxed_slice(),
-                ));
-                let encoded =
-                    self.builder.abi_encode(layout, Some(selector), vec![value].into_boxed_slice());
-                let pointer = self.builder.slice_ptr(encoded);
-                let length = self.builder.slice_len(encoded);
-                self.builder.revert(pointer, length);
-            }
-            PreparedRevertPayload::CustomError { selector, layout, values } => {
-                // payload = abi_encode(selector, values)
-                // revert(payload.data, payload.length)
-                let encoded = self.builder.abi_encode(layout, Some(selector), values);
-                let pointer = self.builder.slice_ptr(encoded);
-                let length = self.builder.slice_len(encoded);
-                self.builder.revert(pointer, length);
-            }
-        }
+    pub(super) fn emit_revert_payload(&mut self, payload: RevertPayload) {
+        // require false, payload; unreachable
+        let condition = self.builder.imm_bool(false);
+        self.builder.require(condition, payload);
+        self.builder.invalid();
     }
 
     fn constant_string_bytes(&self, expr: &hir::Expr<'_>) -> Option<ByteSymbol> {
@@ -458,36 +415,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         None
     }
 
-    fn ensure_revert_error_helper(&mut self) -> FunctionId {
-        // mstore(0, Error(string).selector)
-        // mstore(4, 32); mstore(36, length); mstore(68, word)
-        // revert(0, 100)
-        self.lazy_helper(sym::revert_error, |_, function| {
-            let mut builder = FunctionBuilder::new(function);
-            let length = builder.add_param(MirType::uint256());
-            let value = builder.add_param(MirType::uint256());
-            let selector = builder.imm(ERROR_SELECTOR);
-            let zero = builder.imm(0);
-            builder.mstore(zero, selector);
-            let offset = builder.imm(4);
-            let tuple_offset = builder.imm(32);
-            builder.mstore(offset, tuple_offset);
-            let length_offset = builder.imm(36);
-            builder.mstore(length_offset, length);
-            let data_offset = builder.imm(68);
-            builder.mstore(data_offset, value);
-            let size = builder.imm(100);
-            builder.revert(zero, size);
-            Some(())
-        })
-        .expect("revert error helper construction cannot fail")
-    }
-
     fn prepare_custom_error_payload(
         &mut self,
         error_id: hir::ErrorId,
         args: hir::CallArgs<'_>,
-    ) -> Option<PreparedRevertPayload> {
+    ) -> Option<RevertPayload> {
         let parameters = self.cx.gcx.item_parameters(hir::ItemId::Error(error_id));
         if args.len() != parameters.len() {
             return self.cx.report_unsupported(args.span, "error argument list");
@@ -517,11 +449,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let selector = self
             .builder
             .imm(U256::from_be_slice(&self.cx.gcx.function_selector(error_id).0) << 224);
-        Some(PreparedRevertPayload::CustomError {
-            selector,
-            layout,
-            values: values.into_boxed_slice(),
-        })
+        Some(RevertPayload::CustomError { selector, layout, values: values.into_boxed_slice() })
     }
 
     pub(super) fn lower_emit(&mut self, expr: &hir::Expr<'_>) -> Option<()> {

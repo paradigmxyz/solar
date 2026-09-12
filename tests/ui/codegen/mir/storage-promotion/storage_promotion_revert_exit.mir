@@ -83,3 +83,59 @@ fn @reject_revert_exit_with_call(arg0: u256) [selector=0x01020304] {
   bb5:
     stop
 }
+
+// CHECK-LABEL: {{^[ +].*}}fn @reject_revert_exit_with_payable{{[( ]}}
+// CHECK: + sstore 0, 1
+// CHECK: + {{v[0-9]+}} = sload 0
+// CHECK: {{^[ +].*}}send arg0, 0
+// CHECK: {{^[ +].*}}transfer arg0, 0
+fn @reject_revert_exit_with_payable(arg0: u256) [selector=0x01020304] {
+  bb0:
+    sstore 0, 1
+    jump bb1
+  bb1:
+    jumpi true, bb2, bb5
+  bb2:
+    v1 = sload 0
+    v2 = mul v1, 2
+    sstore 0, v2
+    v3 = lt v2, arg0
+    jumpi v3, bb3, bb4
+  bb4:
+    v4 = send arg0, 0
+    transfer arg0, 0
+    revert_returndata
+  bb3:
+    jump bb1
+  bb5:
+    stop
+}
+
+// Opaque storage reads on rollback exits still contribute to observable revert data.
+// CHECK-LABEL: {{^[ +].*}}fn @reject_revert_exit_with_storage_bytes{{[( ]}}
+// CHECK: {{^[ +].*}}sstore 0, 2
+// CHECK: {{^[ +].*}}sload 0
+// CHECK: {{^[ +].*}}sstore 0,
+// CHECK: {{^[ +].*}}load_storage_bytes 0
+fn @reject_revert_exit_with_storage_bytes(arg0: u256) [selector=0x01020305] {
+  bb0:
+    sstore 0, 2
+    jump bb1
+  bb1:
+    jumpi true, bb2, bb5
+  bb2:
+    v1 = sload 0
+    v2 = add v1, 2
+    sstore 0, v2
+    v3 = lt v2, arg0
+    jumpi v3, bb3, bb4
+  bb4:
+    v4 = load_storage_bytes 0
+    v5 = memory_object_data memorybytes, v4
+    v6 = memory_object_len memorybytes, v4
+    revert v5, v6
+  bb3:
+    jump bb1
+  bb5:
+    stop
+}

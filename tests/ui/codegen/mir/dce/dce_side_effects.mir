@@ -15,3 +15,169 @@ fn @effects(arg0: u256, arg1: u256) {
     v1 = add arg0, arg1
     stop
 }
+
+// CHECK-LABEL: fn @calls
+// CHECK: - icall @empty
+// CHECK: - {{v[0-9]+}} = icall @identity, arg0
+// CHECK: icall @stops
+// CHECK: icall @fails
+// CHECK: icall @logs
+// CHECK: icall @recursive
+// CHECK: icall @looping
+fn @calls(arg0: u256) {
+  bb0:
+    icall @empty
+    v0 = icall @identity, arg0
+    icall @stops
+    icall @fails
+    icall @logs
+    icall @recursive
+    icall @looping
+    ret
+}
+
+fn @empty() {
+  bb0:
+    ret
+}
+
+fn @identity(arg0: u256) -> u256 {
+  bb0:
+    ret arg0
+}
+
+fn @fails() {
+  bb0:
+    revert 0, 0
+}
+
+fn @logs() {
+  bb0:
+    log0 0, 0
+    ret
+}
+
+fn @recursive() {
+  bb0:
+    icall @recursive
+    ret
+}
+
+fn @looping() {
+  bb0:
+    jump bb1
+  bb1:
+    jump bb1
+}
+
+// CHECK-LABEL: fn @memory_observer
+// CHECK: {{^[ +].*}}icall @reads_memory
+fn @memory_observer() -> u256 {
+  bb0:
+    icall @reads_memory
+    v0 = msize
+    ret v0
+}
+
+fn @reads_memory() -> u256 {
+  bb0:
+    v0 = mload 4096
+    ret v0
+}
+
+// CHECK-LABEL: fn @callee_observes_memory
+// CHECK: {{^[ +].*}}mload 0x1000
+// CHECK: {{^[ +].*}}icall @observe_memory
+fn @callee_observes_memory(arg0: bool) -> u256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    v0 = mload 4096
+    jump bb2
+  bb2:
+    v1 = icall @observe_memory
+    ret v1
+}
+
+fn @observe_memory() -> u256 {
+  bb0:
+    v0 = msize
+    ret v0
+}
+
+// CHECK-LABEL: fn @abi_dependency
+// CHECK: {{^[ +].*}}[[FIELD:v[0-9]+]] = memory_object_load_field memorystruct<1>, arg0, 0
+// CHECK: {{^[ +].*}}validate_abi [[FIELD]]
+fn @abi_dependency(arg0: memorystruct) {
+  bb0:
+    v0 = memory_object_load_field memorystruct<1>, arg0, 0
+    validate_abi v0
+    ret
+}
+
+fn @stops() {
+  bb0:
+    stop
+}
+
+// CHECK-LABEL: fn @unused_storage_reads
+// CHECK: {{^[ +].*}}validate_storage_bytes {{v[0-9]+}}
+// CHECK: {{^[ +].*}}load_storage_bytes arg0
+fn @unused_storage_reads(arg0: u256) {
+  bb0:
+    v0 = sload arg0
+    validate_storage_bytes v0
+    v1 = load_storage_bytes arg0
+    ret
+}
+
+// CHECK-LABEL: fn @storage_clear
+// CHECK: {{^[ +].*}}clear_storage_words arg0, 1, arg1
+fn @storage_clear(arg0: u256, arg1: u256) {
+  bb0:
+    clear_storage_words arg0, 1, arg1
+    ret
+}
+
+// CHECK-LABEL: fn @unused_storage_array
+// CHECK: {{^[ +].*}}load_storage_array enum<3>, arg0
+fn @unused_storage_array(arg0: u256) {
+  bb0:
+    v0 = load_storage_array enum<3>, arg0
+    ret
+}
+
+// CHECK-LABEL: fn @dead_memory_observer
+// CHECK: - {{v[0-9]+}} = mload 0x1000
+// CHECK: - {{v[0-9]+}} = msize
+// CHECK: - {{v[0-9]+}} = add {{v[0-9]+}}, {{v[0-9]+}}
+fn @dead_memory_observer() {
+  bb0:
+    v0 = mload 4096
+    v1 = msize
+    v2 = add v1, v1
+    ret
+}
+
+// CHECK-LABEL: fn @unused_state_queries
+// CHECK: - {{v[0-9]+}} = icall @read_storage, arg0
+// CHECK: - {{v[0-9]+}} = icall @read_account, arg0
+// CHECK: {{^[ +].*}}ret
+fn @unused_state_queries(arg0: u256) {
+  bb0:
+    v1 = icall @read_storage, arg0
+    v2 = icall @read_account, arg0
+    ret
+}
+
+fn @read_storage(arg0: u256) -> u256 {
+  bb0:
+    v1 = sload arg0
+    ret v1
+}
+
+fn @read_account(arg0: u256) -> u256 {
+  bb0:
+    v1 = balance arg0
+    ret v1
+}

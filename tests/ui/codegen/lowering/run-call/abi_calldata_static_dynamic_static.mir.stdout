@@ -7,30 +7,21 @@ fn @f(arg0: calldataslice) -> memorybytes [selector=0x15cfcc01, pure, abi_params
     v2 = slice_ptr v1
     v3 = slice_len v1
     v4 = gt v3, 0xffffffffffffffff
-    jumpi v4, bb1, bb2
-  bb2:
+    revert_if v4, invalid_calldata_tail_length
     v5 = calldatasize
     v6 = sub v5, v3
     v7 = sgt v2, v6
-    jumpi v7, bb1, bb3
-  bb3:
+    revert_if v7, calldata_tail_too_short
     v8 = slice_len v1
     v9 = add v8, 63
     v10 = lt v9, v8
-    jumpi v10, bb4, bb5
-  bb5:
+    panic_if v10, 0x41
     v11 = not 31
     v12 = and v9, v11
     v13 = alloc memorybytes, exact, uninitialized, infallible, v12
     set_memory_object_len memorybytes, v13, v8
     memory_object_copy_from_slice memorybytes, v13, v1
     ret v13
-  bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb1:
-    revert 0, 0
 }
 
 fn @f2(arg0: calldataslice) -> memorybytes [selector=0xdc0ee233, pure, abi_params=[array<2, array<_, array<2, u256>>>], abi_returns=[memory_bytes]] {
@@ -40,30 +31,21 @@ fn @f2(arg0: calldataslice) -> memorybytes [selector=0xdc0ee233, pure, abi_param
     v2 = slice_ptr v1
     v3 = slice_len v1
     v4 = gt v3, 0xffffffffffffffff
-    jumpi v4, bb1, bb2
-  bb2:
+    revert_if v4, invalid_calldata_tail_length
     v5 = calldatasize
     v6 = sub v5, v3
     v7 = sgt v2, v6
-    jumpi v7, bb1, bb3
-  bb3:
+    revert_if v7, calldata_tail_too_short
     v8 = slice_len v1
     v9 = add v8, 63
     v10 = lt v9, v8
-    jumpi v10, bb4, bb5
-  bb5:
+    panic_if v10, 0x41
     v11 = not 31
     v12 = and v9, v11
     v13 = alloc memorybytes, exact, uninitialized, infallible, v12
     set_memory_object_len memorybytes, v13, v8
     memory_object_copy_from_slice memorybytes, v13, v1
     ret v13
-  bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb1:
-    revert 0, 0
 }
 
 fn @g() -> memorybytes [selector=0xe2179b8e, view, abi_params=[], abi_returns=[memory_bytes]] {
@@ -80,72 +62,53 @@ fn @g() -> memorybytes [selector=0xe2179b8e, view, abi_params=[], abi_returns=[m
     memory_object_store_element memoryfixedarray<1, 1>, v0, 0, v1
     v6 = lt 0, 1
     v7 = iszero v6
-    jumpi v7, bb4, bb5
-  bb5:
+    panic_if v7, 0x32
     v8 = memory_object_load_element memoryfixedarray<1, 1>, v0, 0
-    v9 = eq v8, 0
-    jumpi v9, bb6, bb7
+    v9 = memory_object_from_ptr memoryarray, v8
+    v10 = eq v9, 0
+    jumpi v10, bb4, bb5
+  bb4:
+    v11 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v11, 0
+    memory_object_store_element memoryfixedarray<1, 1>, v0, 0, v11
+    jump bb5
+  bb5:
+    v12 = phi [bb3: v9], [bb4: v11]
+    v13 = memory_object_len memoryarray, v12
+    v14 = lt 0, v13
+    v15 = iszero v14
+    panic_if v15, 0x32
+    v16 = memory_object_load_element memoryarray<1>, v12, 0
+    v17 = memory_object_from_ptr memoryfixedarray, v16
+    v18 = eq v17, 0
+    jumpi v18, bb6, bb7
   bb6:
-    v10 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v10, 0
-    memory_object_store_element memoryfixedarray<1, 1>, v0, 0, v10
+    v19 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
+    memory_zero v19, 32
+    memory_object_store_element memoryarray<1>, v12, 0, v19
     jump bb7
   bb7:
-    v11 = phi [bb5: v8], [bb6: v10]
-    v12 = memory_object_len memoryarray, v11
-    v13 = lt 0, v12
-    v14 = iszero v13
-    jumpi v14, bb4, bb8
+    v20 = phi [bb5: v17], [bb6: v19]
+    v21 = lt 0, 1
+    v22 = iszero v21
+    panic_if v22, 0x32
+    v23 = and 42, 255
+    memory_object_store_element memoryfixedarray<1, 1>, v20, 0, v23
+    v24 = address
+    v25 = gas
+    v26 = abi_encode [array<1, memory_array<array<1, word<u8>>>>], selector 0x15cfcc0100000000000000000000000000000000000000000000000000000000, args v0
+    v27 = slice_ptr v26
+    v28 = slice_len v26
+    v29 = staticcall v25, v24, v27, v28, 0, 0
+    jumpi v29, bb9, bb8
   bb8:
-    v15 = memory_object_load_element memoryarray<1>, v11, 0
-    v16 = eq v15, 0
-    jumpi v16, bb9, bb10
-  bb9:
-    v17 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
-    memory_zero v17, 32
-    memory_object_store_element memoryarray<1>, v11, 0, v17
-    jump bb10
-  bb10:
-    v18 = phi [bb8: v15], [bb9: v17]
-    v19 = lt 0, 1
-    v20 = iszero v19
-    jumpi v20, bb4, bb11
-  bb11:
-    v21 = and 42, 255
-    memory_object_store_element memoryfixedarray<1, 1>, v18, 0, v21
-    v22 = address
-    v23 = gas
-    v24 = abi_encode [array<1, memory_array<array<1, word<u8>>>>], selector 0x15cfcc0100000000000000000000000000000000000000000000000000000000, args v0
-    v25 = slice_ptr v24
-    v26 = slice_len v24
-    v27 = staticcall v23, v22, v25, v26, 0, 0
-    jumpi v27, bb13, bb12
-  bb12:
     revert_returndata
-  bb13:
-    v28 = returndatasize
-    v29 = add v28, 63
-    v30 = lt v29, v28
-    jumpi v30, bb14, bb15
-  bb15:
-    v31 = not 31
-    v32 = and v29, v31
-    v33 = alloc memorybytes, exact, uninitialized, infallible, v32
-    set_memory_object_len memorybytes, v33, v28
-    v34 = make_returndata_slice 0, v28
-    memory_object_copy_from_slice memorybytes, v33, v34
-    v35 = abi_decode [bytes], v33
-    ret v35
-  bb14:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+  bb9:
+    v30 = returndata_bytes
+    v31 = abi_decode [bytes], v30
+    ret v31
   bb2:
-    v4 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
+    v4 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     memory_zero v4, 32
     memory_object_store_element memoryarray<1>, v1, v2, v4
     v5 = add v2, 1
@@ -175,179 +138,157 @@ fn @i() -> memorybytes [selector=0xe5aa3d58, view, abi_params=[], abi_returns=[m
     memory_object_store_element memoryfixedarray<2, 1>, v0, 1, v6
     v11 = lt 0, 2
     v12 = iszero v11
-    jumpi v12, bb7, bb8
-  bb8:
+    panic_if v12, 0x32
     v13 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
-    v14 = eq v13, 0
-    jumpi v14, bb9, bb10
+    v14 = memory_object_from_ptr memoryarray, v13
+    v15 = eq v14, 0
+    jumpi v15, bb7, bb8
+  bb7:
+    v16 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v16, 0
+    memory_object_store_element memoryfixedarray<2, 1>, v0, 0, v16
+    jump bb8
+  bb8:
+    v17 = phi [bb6: v14], [bb7: v16]
+    v18 = memory_object_len memoryarray, v17
+    v19 = lt 0, v18
+    v20 = iszero v19
+    panic_if v20, 0x32
+    v21 = memory_object_load_element memoryarray<1>, v17, 0
+    v22 = memory_object_from_ptr memoryfixedarray, v21
+    v23 = eq v22, 0
+    jumpi v23, bb9, bb10
   bb9:
-    v15 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v15, 0
-    memory_object_store_element memoryfixedarray<2, 1>, v0, 0, v15
+    v24 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    memory_zero v24, 64
+    memory_object_store_element memoryarray<1>, v17, 0, v24
     jump bb10
   bb10:
-    v16 = phi [bb8: v13], [bb9: v15]
-    v17 = memory_object_len memoryarray, v16
-    v18 = lt 0, v17
-    v19 = iszero v18
-    jumpi v19, bb7, bb11
-  bb11:
-    v20 = memory_object_load_element memoryarray<1>, v16, 0
-    v21 = eq v20, 0
-    jumpi v21, bb12, bb13
-  bb12:
-    v22 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    memory_zero v22, 64
-    memory_object_store_element memoryarray<1>, v16, 0, v22
-    jump bb13
-  bb13:
-    v23 = phi [bb11: v20], [bb12: v22]
-    v24 = lt 0, 2
-    v25 = iszero v24
-    jumpi v25, bb7, bb14
-  bb14:
-    memory_object_store_element memoryfixedarray<2, 1>, v23, 0, 66
+    v25 = phi [bb8: v22], [bb9: v24]
     v26 = lt 0, 2
     v27 = iszero v26
-    jumpi v27, bb7, bb15
+    panic_if v27, 0x32
+    memory_object_store_element memoryfixedarray<2, 1>, v25, 0, 66
+    v28 = lt 0, 2
+    v29 = iszero v28
+    panic_if v29, 0x32
+    v30 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
+    v31 = memory_object_from_ptr memoryarray, v30
+    v32 = eq v31, 0
+    jumpi v32, bb11, bb12
+  bb11:
+    v33 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v33, 0
+    memory_object_store_element memoryfixedarray<2, 1>, v0, 0, v33
+    jump bb12
+  bb12:
+    v34 = phi [bb10: v31], [bb11: v33]
+    v35 = memory_object_len memoryarray, v34
+    v36 = lt 0, v35
+    v37 = iszero v36
+    panic_if v37, 0x32
+    v38 = memory_object_load_element memoryarray<1>, v34, 0
+    v39 = memory_object_from_ptr memoryfixedarray, v38
+    v40 = eq v39, 0
+    jumpi v40, bb13, bb14
+  bb13:
+    v41 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    memory_zero v41, 64
+    memory_object_store_element memoryarray<1>, v34, 0, v41
+    jump bb14
+  bb14:
+    v42 = phi [bb12: v39], [bb13: v41]
+    v43 = lt 1, 2
+    v44 = iszero v43
+    panic_if v44, 0x32
+    memory_object_store_element memoryfixedarray<2, 1>, v42, 1, 322
+    v45 = lt 1, 2
+    v46 = iszero v45
+    panic_if v46, 0x32
+    v47 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
+    v48 = memory_object_from_ptr memoryarray, v47
+    v49 = eq v48, 0
+    jumpi v49, bb15, bb16
   bb15:
-    v28 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
-    v29 = eq v28, 0
-    jumpi v29, bb16, bb17
+    v50 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v50, 0
+    memory_object_store_element memoryfixedarray<2, 1>, v0, 1, v50
+    jump bb16
   bb16:
-    v30 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v30, 0
-    memory_object_store_element memoryfixedarray<2, 1>, v0, 0, v30
-    jump bb17
+    v51 = phi [bb14: v48], [bb15: v50]
+    v52 = memory_object_len memoryarray, v51
+    v53 = lt 0, v52
+    v54 = iszero v53
+    panic_if v54, 0x32
+    v55 = memory_object_load_element memoryarray<1>, v51, 0
+    v56 = memory_object_from_ptr memoryfixedarray, v55
+    v57 = eq v56, 0
+    jumpi v57, bb17, bb18
   bb17:
-    v31 = phi [bb15: v28], [bb16: v30]
-    v32 = memory_object_len memoryarray, v31
-    v33 = lt 0, v32
-    v34 = iszero v33
-    jumpi v34, bb7, bb18
+    v58 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    memory_zero v58, 64
+    memory_object_store_element memoryarray<1>, v51, 0, v58
+    jump bb18
   bb18:
-    v35 = memory_object_load_element memoryarray<1>, v31, 0
-    v36 = eq v35, 0
-    jumpi v36, bb19, bb20
+    v59 = phi [bb16: v56], [bb17: v58]
+    v60 = lt 0, 2
+    v61 = iszero v60
+    panic_if v61, 0x32
+    memory_object_store_element memoryfixedarray<2, 1>, v59, 0, 0x10042
+    v62 = lt 1, 2
+    v63 = iszero v62
+    panic_if v63, 0x32
+    v64 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
+    v65 = memory_object_from_ptr memoryarray, v64
+    v66 = eq v65, 0
+    jumpi v66, bb19, bb20
   bb19:
-    v37 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    memory_zero v37, 64
-    memory_object_store_element memoryarray<1>, v31, 0, v37
+    v67 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v67, 0
+    memory_object_store_element memoryfixedarray<2, 1>, v0, 1, v67
     jump bb20
   bb20:
-    v38 = phi [bb18: v35], [bb19: v37]
-    v39 = lt 1, 2
-    v40 = iszero v39
-    jumpi v40, bb7, bb21
+    v68 = phi [bb18: v65], [bb19: v67]
+    v69 = memory_object_len memoryarray, v68
+    v70 = lt 0, v69
+    v71 = iszero v70
+    panic_if v71, 0x32
+    v72 = memory_object_load_element memoryarray<1>, v68, 0
+    v73 = memory_object_from_ptr memoryfixedarray, v72
+    v74 = eq v73, 0
+    jumpi v74, bb21, bb22
   bb21:
-    memory_object_store_element memoryfixedarray<2, 1>, v38, 1, 322
-    v41 = lt 1, 2
-    v42 = iszero v41
-    jumpi v42, bb7, bb22
+    v75 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    memory_zero v75, 64
+    memory_object_store_element memoryarray<1>, v68, 0, v75
+    jump bb22
   bb22:
-    v43 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
-    v44 = eq v43, 0
-    jumpi v44, bb23, bb24
+    v76 = phi [bb20: v73], [bb21: v75]
+    v77 = lt 1, 2
+    v78 = iszero v77
+    panic_if v78, 0x32
+    memory_object_store_element memoryfixedarray<2, 1>, v76, 1, 0x10142
+    v79 = address
+    v80 = gas
+    v81 = abi_encode [array<2, memory_array<array<2, word>>>], selector 0xdc0ee23300000000000000000000000000000000000000000000000000000000, args v0
+    v82 = slice_ptr v81
+    v83 = slice_len v81
+    v84 = staticcall v80, v79, v82, v83, 0, 0
+    jumpi v84, bb24, bb23
   bb23:
-    v45 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v45, 0
-    memory_object_store_element memoryfixedarray<2, 1>, v0, 1, v45
-    jump bb24
-  bb24:
-    v46 = phi [bb22: v43], [bb23: v45]
-    v47 = memory_object_len memoryarray, v46
-    v48 = lt 0, v47
-    v49 = iszero v48
-    jumpi v49, bb7, bb25
-  bb25:
-    v50 = memory_object_load_element memoryarray<1>, v46, 0
-    v51 = eq v50, 0
-    jumpi v51, bb26, bb27
-  bb26:
-    v52 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    memory_zero v52, 64
-    memory_object_store_element memoryarray<1>, v46, 0, v52
-    jump bb27
-  bb27:
-    v53 = phi [bb25: v50], [bb26: v52]
-    v54 = lt 0, 2
-    v55 = iszero v54
-    jumpi v55, bb7, bb28
-  bb28:
-    memory_object_store_element memoryfixedarray<2, 1>, v53, 0, 0x10042
-    v56 = lt 1, 2
-    v57 = iszero v56
-    jumpi v57, bb7, bb29
-  bb29:
-    v58 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
-    v59 = eq v58, 0
-    jumpi v59, bb30, bb31
-  bb30:
-    v60 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v60, 0
-    memory_object_store_element memoryfixedarray<2, 1>, v0, 1, v60
-    jump bb31
-  bb31:
-    v61 = phi [bb29: v58], [bb30: v60]
-    v62 = memory_object_len memoryarray, v61
-    v63 = lt 0, v62
-    v64 = iszero v63
-    jumpi v64, bb7, bb32
-  bb32:
-    v65 = memory_object_load_element memoryarray<1>, v61, 0
-    v66 = eq v65, 0
-    jumpi v66, bb33, bb34
-  bb33:
-    v67 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    memory_zero v67, 64
-    memory_object_store_element memoryarray<1>, v61, 0, v67
-    jump bb34
-  bb34:
-    v68 = phi [bb32: v65], [bb33: v67]
-    v69 = lt 1, 2
-    v70 = iszero v69
-    jumpi v70, bb7, bb35
-  bb35:
-    memory_object_store_element memoryfixedarray<2, 1>, v68, 1, 0x10142
-    v71 = address
-    v72 = gas
-    v73 = abi_encode [array<2, memory_array<array<2, word>>>], selector 0xdc0ee23300000000000000000000000000000000000000000000000000000000, args v0
-    v74 = slice_ptr v73
-    v75 = slice_len v73
-    v76 = staticcall v72, v71, v74, v75, 0, 0
-    jumpi v76, bb37, bb36
-  bb36:
     revert_returndata
-  bb37:
-    v77 = returndatasize
-    v78 = add v77, 63
-    v79 = lt v78, v77
-    jumpi v79, bb38, bb39
-  bb39:
-    v80 = not 31
-    v81 = and v78, v80
-    v82 = alloc memorybytes, exact, uninitialized, infallible, v81
-    set_memory_object_len memorybytes, v82, v77
-    v83 = make_returndata_slice 0, v77
-    memory_object_copy_from_slice memorybytes, v82, v83
-    v84 = abi_decode [bytes], v82
-    ret v84
-  bb38:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+  bb24:
+    v85 = returndata_bytes
+    v86 = abi_decode [bytes], v85
+    ret v86
   bb5:
-    v9 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v9 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_zero v9, 64
     memory_object_store_element memoryarray<1>, v6, v7, v9
     v10 = add v7, 1
     jump bb4
   bb2:
-    v4 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v4 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_zero v4, 64
     memory_object_store_element memoryarray<1>, v1, v2, v4
     v5 = add v2, 1

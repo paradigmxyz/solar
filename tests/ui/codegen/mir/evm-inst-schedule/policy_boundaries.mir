@@ -10,6 +10,13 @@
 // CHECK-NEXT: [[SUB:v[0-9]+]] = sub [[ADD]], [[MUL]]
 // CHECK-NEXT: - [[XOR]] = xor arg4, arg5
 // CHECK-NEXT: {{v[0-9]+}} = div [[SUB]], [[XOR]]
+types:
+  struct0: {bool, bool, u256}
+  struct1: {u256, u256}
+
+  struct2: {u256, u256, u256}
+  struct3: {bool, u256}
+
 fn @deep_dependency_tree(
   arg0: u256,
   arg1: u256,
@@ -115,7 +122,7 @@ fn @multiple_terminator_roots(
   arg1: u256,
   arg2: u256,
   arg3: u256
-) -> (u256, u256) {
+) -> struct1 [return_abi=[u256, u256]] {
   bb0:
     v4 = add arg0, arg1
     v5 = mul arg2, arg3
@@ -185,7 +192,7 @@ fn @callcode_is_a_barrier(
   arg1: u256,
   arg2: u256,
   arg3: u256
-) -> (bool, u256) {
+) -> struct3 [return_abi=[bool, u256]] {
   bb0:
     v4 = add arg0, arg1
     v5 = mul arg2, arg3
@@ -214,7 +221,7 @@ fn @msize_is_a_barrier(
   arg1: u256,
   arg2: u256,
   arg3: u256
-) -> (u256, u256, u256) {
+) -> struct2 [return_abi=[u256, u256, u256]] {
   bb0:
     v4 = add arg0, arg1
     v5 = mul arg2, arg3
@@ -281,7 +288,7 @@ fn @metadata_effect_is_a_barrier(
 // CHECK: [[CALL:v[0-9]+]] = staticcall 0x3e8, 0xbeef, 0, 0, 0, 0 !metadata(effect=environment_read)
 // CHECK-NEXT: [[SIZE:v[0-9]+]] = returndatasize
 // CHECK-NEXT: ret [[CALL]], [[CALL]], [[SIZE]]
-fn @metadata_cannot_downgrade_effect() -> (bool, bool, u256) {
+fn @metadata_cannot_downgrade_effect() -> struct0 [return_abi=[bool, bool, u256]] {
   bb0:
     v0 = staticcall 1000, 0xbeef, 0, 0, 0, 0 !metadata(effect=environment_read)
     v1 = returndatasize
@@ -323,4 +330,18 @@ fn @block_local_scratch(
     v12 = mul arg1, arg2
     v13 = mod v11, v12
     ret v13
+}
+
+// Semantic failures stay in source order even when their results feed a different operand order.
+// CHECK-LABEL: {{^[ +].*}}fn @checked_operations_are_barriers{{[( ]}}
+// CHECK-NOT: {{^[+-]}}
+// CHECK: [[FIRST:v[0-9]+]] = checked_add u256, arg0, 1
+// CHECK-NEXT: [[SECOND:v[0-9]+]] = checked_mul u256, arg1, 2
+// CHECK-NEXT: {{v[0-9]+}} = sub [[FIRST]], [[SECOND]]
+fn @checked_operations_are_barriers(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    v0 = checked_add u256, arg0, 1
+    v1 = checked_mul u256, arg1, 2
+    v2 = sub v0, v1
+    ret v2
 }

@@ -46,10 +46,10 @@ contract StorageBytesMember {
     // CHECK: [[PUSH_RANGE]]:
     // CHECK: keccak256
     // CHECK: jump [[LOOP:bb[0-9]+]]
-    // CHECK: [[LOOP]]:
+    // CHECK: [[LOOP]] [loop]:
     // CHECK: push [[LOOP_BODY:bb[0-9]+]]
     // CHECK-NEXT: jumpi
-    // CHECK: [[LOOP_BODY]]:
+    // CHECK: [[LOOP_BODY]] [loop]:
     // CHECK: sload
     // CHECK-NOT: mcopy
     // CHECK: sstore

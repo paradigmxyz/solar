@@ -1,4 +1,10 @@
-error: [fn0] [bb0, inst0] use of ValueId(0) precedes its definition in this acyclic block
+error: [fn0] [bb0, inst0] use of ValueId(0) precedes its definition in this block
 
-error: aborting due to 1 previous error
+error: [fn1] [bb1, inst0] use of ValueId(1) precedes its definition in this block
+
+error: [fn2] [bb2] terminator use of ValueId(3) is not dominated by its definition in bb1
+
+error: [fn3] [bb3, inst1] phi input ValueId(3) from bb2 is not dominated by its definition in bb1
+
+error: aborting due to 4 previous errors
 

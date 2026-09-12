@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_struct_field_slice.sol:ERC4337Utils ===
 @module ERC4337Utils
-@phase evm-shaped
+@phase lowered
 @library
 fn @entry() [entry] {
   bb0:
@@ -13,8 +13,8 @@ fn @entry() [entry] {
 
 // === ROOT/tests/ui/codegen/lowering/calldata_struct_field_slice.sol:CalldataStructFieldSlice ===
 @module CalldataStructFieldSlice
-@phase evm-shaped
-fn @factory.0() [selector=0x1af91295, pure] {
+@phase lowered
+fn @factory.0() [selector=0x1af91295, abi_wrapper, pure] {
   bb0:
     v1 = calldatasize
     v2 = lt v1, 36
@@ -30,7 +30,7 @@ fn @factory.0() [selector=0x1af91295, pure] {
     v8 = gt 256, v7
     jumpi v8, bb1, bb4
   bb4:
-    v0 = icall @factory.3, 1, v4, 32
+    v0 = icall @factory.3, v4, 32
     v10 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
     mstore 128, v10
     returndata 128, 32
@@ -38,7 +38,7 @@ fn @factory.0() [selector=0x1af91295, pure] {
     revert 0, 0
 }
 
-fn @tailHash.1() [selector=0x9850c81b, pure] {
+fn @tailHash.1() [selector=0x9850c81b, abi_wrapper, pure] {
   bb0:
     v1 = calldatasize
     v2 = lt v1, 36
@@ -54,14 +54,14 @@ fn @tailHash.1() [selector=0x9850c81b, pure] {
     v8 = gt 256, v7
     jumpi v8, bb1, bb4
   bb4:
-    v0 = icall @tailHash.4, 1, v4, 32
+    v0 = icall @tailHash.4, v4, 32
     mstore 128, v0
     returndata 128, 32
   bb1:
     revert 0, 0
 }
 
-fn @midWord.2() [selector=0xbb6106d2, pure] {
+fn @midWord.2() [selector=0xbb6106d2, abi_wrapper, pure] {
   bb0:
     v1 = calldatasize
     v2 = lt v1, 36
@@ -77,7 +77,7 @@ fn @midWord.2() [selector=0xbb6106d2, pure] {
     v8 = gt 256, v7
     jumpi v8, bb1, bb4
   bb4:
-    v0 = icall @midWord.5, 1, v4, 32
+    v0 = icall @midWord.5, v4, 32
     mstore 128, v0
     returndata 128, 32
   bb1:
@@ -90,58 +90,53 @@ fn @factory.3(arg0: calldataptr, arg1: u256) -> address [pure] {
     v2 = calldatasize
     v3 = sub v2, v1
     v4 = slt v3, 32
-    jumpi v4, bb1, bb2
-  bb2:
+    jumpi v4, bb3, bb4
+  bb4:
     v5 = calldataload v1
     v6 = add arg0, v5
     v7 = calldatasize
     v8 = sub v7, arg0
     v9 = sub v8, 31
     v10 = slt v5, v9
-    jumpi v10, bb3, bb1
-  bb3:
+    jumpi v10, bb5, bb3
+  bb5:
     v12 = calldataload v6
     v13 = gt v12, 0xffffffffffffffff
-    jumpi v13, bb1, bb4
-  bb4:
+    jumpi v13, bb3, bb6
+  bb6:
     v15 = add v6, 32
     v16 = calldatasize
     v17 = sub v16, v12
     v18 = sgt v15, v17
-    jumpi v18, bb1, bb5
-  bb5:
+    jumpi v18, bb3, bb7
+  bb7:
     v22 = lt v12, 20
-    jumpi v22, bb7, bb6
-  bb6:
+    jumpi v22, bb2, bb1
+  bb1:
     v25 = calldatasize
     v26 = sub v25, v1
     v27 = slt v26, 32
-    jumpi v27, bb1, bb8
+    jumpi v27, bb3, bb8
   bb8:
     v30 = calldatasize
     v31 = sub v30, arg0
     v32 = sub v31, 31
     v33 = slt v5, v32
-    jumpi v33, bb9, bb1
+    jumpi v33, bb9, bb3
   bb9:
     v39 = calldatasize
     v40 = sub v39, v12
     v41 = sgt v15, v40
-    jumpi v41, bb1, bb10
+    jumpi v41, bb3, bb10
   bb10:
     v52 = calldataload v15
-    v54 = lt 20, 20
-    v55 = sub 20, 20
-    v56 = shl 3, v55
-    v57 = shl v56, 0xffffffffffffffffffffffffffffffffffffffff000000000000000000000000
-    v58 = select v54, v57, 0xffffffffffffffffffffffffffffffffffffffff000000000000000000000000
-    v59 = and v52, v58
+    v59 = and v52, 0xffffffffffffffffffffffffffffffffffffffff000000000000000000000000
     v60 = shr 96, v59
-    jump bb7
-  bb7:
-    v61 = phi [bb5: 0], [bb10: v60]
+    jump bb2
+  bb2:
+    v61 = phi [bb7: 0], [bb10: v60]
     ret v61
-  bb1:
+  bb3:
     revert 0, 0
 }
 
@@ -151,58 +146,58 @@ fn @tailHash.4(arg0: calldataptr, arg1: u256) -> bytes32 [pure] {
     v2 = calldatasize
     v3 = sub v2, v1
     v4 = slt v3, 32
-    jumpi v4, bb1, bb2
-  bb2:
+    jumpi v4, bb3, bb4
+  bb4:
     v5 = calldataload v1
     v6 = add arg0, v5
     v7 = calldatasize
     v8 = sub v7, arg0
     v9 = sub v8, 31
     v10 = slt v5, v9
-    jumpi v10, bb3, bb1
-  bb3:
+    jumpi v10, bb5, bb3
+  bb5:
     v12 = calldataload v6
     v13 = gt v12, 0xffffffffffffffff
-    jumpi v13, bb1, bb4
-  bb4:
+    jumpi v13, bb3, bb6
+  bb6:
     v15 = add v6, 32
     v16 = calldatasize
     v17 = sub v16, v12
     v18 = sgt v15, v17
-    jumpi v18, bb1, bb5
-  bb5:
+    jumpi v18, bb3, bb7
+  bb7:
     v22 = lt v12, 20
-    jumpi v22, bb7, bb6
-  bb6:
+    jumpi v22, bb2, bb1
+  bb1:
     v25 = calldatasize
     v26 = sub v25, v1
     v27 = slt v26, 32
-    jumpi v27, bb1, bb8
+    jumpi v27, bb3, bb8
   bb8:
     v30 = calldatasize
     v31 = sub v30, arg0
     v32 = sub v31, 31
     v33 = slt v5, v32
-    jumpi v33, bb9, bb1
+    jumpi v33, bb9, bb3
   bb9:
     v39 = calldatasize
     v40 = sub v39, v12
     v41 = sgt v15, v40
-    jumpi v41, bb1, bb10
+    jumpi v41, bb3, bb10
   bb10:
     v49 = sub v12, 20
     v50 = add v15, 20
     v54 = gt v49, 0xffffffffffffffff
-    jumpi v54, bb1, bb11
+    jumpi v54, bb3, bb11
   bb11:
     v55 = calldatasize
     v56 = sub v55, v49
     v57 = sgt v50, v56
-    jumpi v57, bb1, bb12
+    jumpi v57, bb3, bb12
   bb12:
     v59 = add v49, 63
     v62 = and v59, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v63 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v63 = mload 64 !metadata(memory=scratch)
     v71 = add v63, v62
     mstore 64, v71 !metadata(memory=scratch)
     mstore v63, v49
@@ -210,11 +205,11 @@ fn @tailHash.4(arg0: calldataptr, arg1: u256) -> bytes32 [pure] {
     calldatacopy v66, v50, v49
     v69 = mload v63
     v64 = keccak256 v66, v69
-    jump bb7
-  bb7:
-    v65 = phi [bb5: 0], [bb12: v64]
+    jump bb2
+  bb2:
+    v65 = phi [bb7: 0], [bb12: v64]
     ret v65
-  bb1:
+  bb3:
     revert 0, 0
 }
 
@@ -248,12 +243,7 @@ fn @midWord.5(arg0: calldataptr, arg1: u256) -> bytes32 [pure] {
     jumpi v23, bb1, bb6
   bb6:
     v29 = calldataload v15
-    v31 = lt 32, 32
-    v32 = sub 32, 32
-    v33 = shl 3, v32
-    v34 = shl v33, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v35 = select v31, v34, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v36 = and v29, v35
+    v36 = and v29, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     ret v36
   bb1:
     revert 0, 0

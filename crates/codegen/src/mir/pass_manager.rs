@@ -1,7 +1,7 @@
 //! MIR pass execution, following rustc's MIR pass manager.
 
 use crate::{
-    mir::{MirPhase, Module, pass::ModuleAnalyses, validate},
+    mir::{Module, pass::ModuleAnalyses, validate},
     timing::PassTimer,
 };
 use solar_config::OptimizationMode;
@@ -105,34 +105,27 @@ pub trait MirPass: Sync {
         false
     }
 
-    /// Runs the pass and returns whether it changed MIR.
-    #[must_use]
+    /// Runs the pass and returns whether the module changed.
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool;
 }
 
 /// Runs a sequence of MIR passes without validating after each pass.
 #[must_use]
-pub fn run_passes_no_validate(
-    gcx: Gcx<'_>,
-    module: &mut Module,
-    passes: &[&dyn MirPass],
-    phase_change: Option<MirPhase>,
-) -> bool {
+pub fn run_passes_no_validate(gcx: Gcx<'_>, module: &mut Module, passes: &[&dyn MirPass]) -> bool {
     let output = PassOutput { name: None };
-    run_passes_inner(gcx, module, passes, phase_change, false, output)
+    run_passes_inner(gcx, module, passes, false, output)
 }
 
-/// Runs a sequence of MIR passes, then applies `phase_change` when present.
+/// Runs a sequence of MIR passes, checking each changed result when verification is enabled.
 #[must_use]
 pub fn run_passes(
     gcx: Gcx<'_>,
     module: &mut Module,
     passes: &[&dyn MirPass],
-    phase_change: Option<MirPhase>,
     name: Option<&str>,
 ) -> bool {
     let output = PassOutput { name };
-    run_passes_inner(gcx, module, passes, phase_change, true, output)
+    run_passes_inner(gcx, module, passes, true, output)
 }
 
 #[must_use]
@@ -140,12 +133,15 @@ fn run_passes_inner(
     gcx: Gcx<'_>,
     module: &mut Module,
     passes: &[&dyn MirPass],
-    phase_change: Option<MirPhase>,
     validate_each: bool,
     output: PassOutput<'_>,
 ) -> bool {
-    let output_name =
-        output.name.map(ToOwned::to_owned).unwrap_or_else(|| mir_output_name(gcx, module));
+    let output_name = if gcx.sess.opts.unstable.pass_diff || gcx.sess.opts.unstable.print_after_each
+    {
+        output.name.map(ToOwned::to_owned).unwrap_or_else(|| mir_output_name(gcx, module))
+    } else {
+        String::new()
+    };
     let explicit = output.name.is_some();
     let mut changed = false;
     let mut analyses = ModuleAnalyses::default();
@@ -166,6 +162,9 @@ fn run_passes_inner(
             timer.finish("MIR", module.name, pass_name, pass_changed);
             analyses.finish_pass(pass_changed);
             changed |= pass_changed;
+            if gcx.dcx().has_errors().is_err() {
+                return changed;
+            }
             assert_debug_info_handled(module, pass_name, "after");
 
             if pass_changed && validate_each && should_validate_ir(gcx) {
@@ -178,21 +177,6 @@ fn run_passes_inner(
         } else if gcx.sess.opts.unstable.print_after_each && !gcx.sess.opts.unstable.pass_diff {
             println!("// === {output_name} (after {pass_name}) ===");
             print!("{}", module.to_text());
-        }
-    }
-
-    if let Some(new_phase) = phase_change {
-        assert!(
-            module.phase <= new_phase,
-            "invalid MIR phase transition from {} to {}",
-            module.phase.name(),
-            new_phase.name()
-        );
-        let phase_changed = module.phase != new_phase;
-        module.advance_phase(new_phase);
-        changed |= phase_changed;
-        if phase_changed && validate_each && should_validate_ir(gcx) {
-            validate_module_after_pass(module, new_phase.name());
         }
     }
 

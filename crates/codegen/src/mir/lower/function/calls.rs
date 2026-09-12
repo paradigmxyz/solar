@@ -97,7 +97,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let result_ty = types::TypeLowerer::mir_return_type(
             self.cx.gcx.type_of_item(function.returns[0].into()),
         );
-        let result = self.builder.icall(mir_id, values.to_vec(), result_ty, 1);
+        let result = self.builder.icall(mir_id, values.to_vec(), result_ty);
         self.dirty_values.insert(result);
         Some(result)
     }
@@ -505,13 +505,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if function.returns.is_empty() {
             // icall_void(dispatcher, function, args)
             // result = 0
-            self.builder.icall_void(dispatcher, values, 0);
+            self.builder.icall_void(dispatcher, values);
             return Some(self.builder.imm(U256::ZERO));
         }
-        let first_ty = function.returns[0];
-        let result_ty = types::TypeLowerer::mir_return_type(first_ty);
+        let return_types =
+            function.returns.iter().map(|&ty| types::TypeLowerer::mir_return_type(ty)).collect();
+        let result_ty = self.cx.module.intern_return_type(return_types)?;
         // result = icall(dispatcher, function, args)
-        let result = self.builder.icall(dispatcher, values, result_ty, function.returns.len());
+        let result = self.builder.icall(dispatcher, values, result_ty);
         self.dirty_values.insert(result);
         Some(result)
     }
@@ -542,20 +543,23 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // dispatch(function_ptr, params...) -> returns...
         let shape = InternalFunctionPointerShape::from_ty(function);
         let name = shape.helper_name();
-        let InternalFunctionPointerShape { params, returns } = shape;
-        self.lazy_helper(name, |_, function| {
-            function.attributes.is_function_pointer_dispatcher = true;
-            let mut builder = FunctionBuilder::new(function);
-            builder.add_param(MirType::Function);
-            for ty in params {
-                builder.add_param(ty);
-            }
-            for ty in returns {
-                builder.add_return(ty);
-            }
-            Some(())
-        })
-        .expect("internal dispatcher helper construction cannot fail")
+        let InternalFunctionPointerShape { params, returns } = shape.clone();
+        let id = self
+            .lazy_helper(name, |this, function| {
+                function.attributes.is_function_pointer_dispatcher = true;
+                let mut builder = FunctionBuilder::new_semantic(function);
+                builder.add_param(MirType::Function);
+                for ty in params {
+                    builder.add_param(ty);
+                }
+                if let Some(ty) = this.cx.module.intern_return_type(returns) {
+                    builder.set_return_type(ty);
+                }
+                Some(())
+            })
+            .expect("internal dispatcher helper construction cannot fail");
+        self.cx.state.pointer_registry.dispatchers.insert(id, shape);
+        id
     }
 
     pub(super) fn coerce_value(&mut self, value: ValueId, from: Ty<'gcx>, to: Ty<'gcx>) -> ValueId {
@@ -849,13 +853,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if function.returns.is_empty() {
             // icall_void(function, call_args)
             // result = 0
-            self.builder.icall_void(mir_id, values, 0);
+            self.builder.icall_void(mir_id, values);
             return Some(self.builder.imm(U256::ZERO));
         }
-        let first_ty = self.cx.gcx.type_of_item((*function.returns.first()?).into());
-        let result_ty = types::TypeLowerer::mir_return_type(first_ty);
+        let return_types = function
+            .returns
+            .iter()
+            .map(|&ret| types::TypeLowerer::mir_return_type(self.cx.gcx.type_of_item(ret.into())))
+            .collect();
+        let result_ty = self.cx.module.intern_return_type(return_types)?;
         // result = icall(function, call_args)
-        let result = self.builder.icall(mir_id, values, result_ty, function.returns.len());
+        let result = self.builder.icall(mir_id, values, result_ty);
         self.dirty_values.insert(result);
         Some(result)
     }
@@ -1131,6 +1139,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .map(|&ret| self.cx.gcx.type_of_item(ret.into()))
             .collect::<Vec<_>>();
         let return_types = self.external_return_types(&return_types);
+        let address = self.builder.imm(address);
         // buffer = alloc_overlay_return_buffer(returns)
         // input = abi_encode(selector, args)
         let overlay_buffer = self.alloc_overlay_return_buffer(&return_types);
@@ -1144,7 +1153,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let input = self.builder.slice_ptr(encoded);
         let input_size = self.builder.slice_len(encoded);
         let zero = self.builder.imm(U256::ZERO);
-        let address = self.builder.imm(address);
         let gas = evm_version.can_overcharge_gas_for_call().then(|| self.builder.gas());
         // From Byzantium on the return values come out of the return data; before it the
         // delegatecall writes them into an output area overlaying its input and the success path
@@ -1417,19 +1425,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             };
         }
         self.validate_static_returndata(offset, return_tys);
-        if returns > 1 {
-            self.builder.frame_store(0, FrameMode::MultiReturn, FrameSlotKind::Word, offset);
+        let values = (0..returns)
+            .map(|index| {
+                self.load_static_abi_return_value_as(offset, index, returns, return_tys[index])
+            })
+            .collect::<Vec<_>>();
+        if mode == ExternalReturnMode::All {
+            Some(values)
+        } else {
+            let decoded_types = return_tys
+                .iter()
+                .map(|&ty| types::TypeLowerer::return_encoding_ty(self.cx.gcx, ty))
+                .collect::<Vec<_>>();
+            Some(vec![self.pack_return_values(values, &decoded_types)])
         }
-        let first = self.load_multi_return_value_as(offset, 0, returns, return_tys[0]);
-        if mode == ExternalReturnMode::All && returns > 1 {
-            return Some(self.load_multi_return_values(
-                first,
-                offset,
-                returns,
-                return_tys.iter().skip(1).copied().map(Some),
-            ));
-        }
-        Some(vec![first])
     }
 
     fn lower_decoded_return_value(
@@ -1438,18 +1447,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         return_types: &[Ty<'gcx>],
         span: Span,
     ) -> Option<ValueId> {
-        // values = lower_abi_decode_values(return_data, return_types)
-        // multi_return_frame[1..] = values[1..]
-        // return values[0]
+        // values = abi_decode(data)
+        // result = insert_value(undef, field0), ...
         let values = self.lower_abi_decode_values(data, return_types, span)?;
-        if values.len() > 1 {
-            let (object, _, layout) = self.ensure_multi_return_buffer(values.len());
-            for (index, value) in values.iter().copied().enumerate().skip(1) {
-                let index = self.builder.imm(index as u64);
-                self.builder.memory_object_store_element(object, layout, index, value);
-            }
-        }
-        Some(values.into_iter().next().expect("external return list is not empty"))
+        let decoded_types = return_types
+            .iter()
+            .map(|&ty| types::TypeLowerer::return_encoding_ty(self.cx.gcx, ty))
+            .collect::<Vec<_>>();
+        Some(self.pack_return_values(values, &decoded_types))
     }
 
     /// Allocates the buffer a call decodes its static aggregate return values from.
@@ -1494,7 +1499,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.revert_if(short, RevertReason::TupleDataTooShort);
     }
 
+    /// Emit after ABI encoding, whose allocation can fail even with no arguments.
     pub(super) fn revert_if_no_code(&mut self, address: ValueId) {
+        // if iszero(extcodesize(address)) { revert(no_code) }
         let size = self.builder.extcodesize(address);
         let missing = self.builder.iszero(size);
         self.builder.revert_if(missing, RevertReason::TargetContractHasNoCode);
@@ -1504,14 +1511,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // required = returns * 32
         // if returndatasize < required { revert(0, 0) }
         // for i {
-        //     word = load_multi_return_value(offset, i, returns.len)
+        //     word = load_static_abi_return_value(offset, i, returns.len)
         //     if !valid(returns[i], word) { revert(0, 0) }
         // }
         let words = u64::try_from(returns.len()).unwrap_or(u64::MAX);
         let size = self.builder.imm(words.saturating_mul(32));
         self.revert_if_short_returndata(size);
         for (index, &ty) in returns.iter().enumerate() {
-            let value = self.load_multi_return_value(offset, index, returns.len());
+            let value = self.load_static_abi_return_value(offset, index, returns.len());
             self.validate_external_return_value(ty, value);
         }
     }

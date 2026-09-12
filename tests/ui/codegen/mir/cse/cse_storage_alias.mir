@@ -52,3 +52,30 @@ fn @keep_sload_after_external_call(arg0: u256, arg1: address) -> u256 {
     v6 = add v5, v3
     ret v6
 }
+
+// CHECK-LABEL: fn @clear_clobbers_storage
+// CHECK: {{^[ +].*}}[[BEFORE:v[0-9]+]] = sload 0
+// CHECK: {{^[ +].*}}clear_storage_words arg0, 0, arg1
+// CHECK: {{^[ +].*}}[[AFTER:v[0-9]+]] = sload 0
+// CHECK: {{^[ +].*}}sub [[AFTER]], [[BEFORE]]
+fn @clear_clobbers_storage(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    v0 = sload 0
+    clear_storage_words arg0, 0, arg1
+    v1 = sload 0
+    v2 = sub v1, v0
+    ret v2
+}
+
+// CHECK-LABEL: fn @store_bytes_clobbers_storage
+// CHECK: {{^[ +].*}}sload 0
+// CHECK: {{^[ +].*}}store_storage_bytes arg0, arg1
+// CHECK: {{^[ +].*}}sload 0
+fn @store_bytes_clobbers_storage(arg0: u256, arg1: memorybytes) -> u256 {
+  bb0:
+    v0 = sload 0
+    store_storage_bytes arg0, arg1
+    v1 = sload 0
+    v2 = sub v1, v0
+    ret v2
+}

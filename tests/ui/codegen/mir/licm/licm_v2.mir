@@ -10,6 +10,7 @@ fn @hoist_symbolic_offset_sload(arg0: u256) -> u256 {
   bb0:
     jump bb1
   bb1:
+    v8 = phi [bb0: 0], [bb2: v4]
     v1 = phi [bb0: 0], [bb2: v7]
     v2 = lt v1, 4
     jumpi v2, bb2, bb3
@@ -21,7 +22,7 @@ fn @hoist_symbolic_offset_sload(arg0: u256) -> u256 {
     v7 = add v1, 1
     jump bb1
   bb3:
-    ret v4
+    ret v8
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @keep_aliasing_symbolic_offset_sload{{[( ]}}
@@ -33,6 +34,7 @@ fn @keep_aliasing_symbolic_offset_sload(arg0: u256) -> u256 {
   bb0:
     jump bb1
   bb1:
+    v8 = phi [bb0: 0], [bb2: v4]
     v1 = phi [bb0: 0], [bb2: v7]
     v2 = lt v1, 4
     jumpi v2, bb2, bb3
@@ -44,7 +46,7 @@ fn @keep_aliasing_symbolic_offset_sload(arg0: u256) -> u256 {
     v7 = add v1, 1
     jump bb1
   bb3:
-    ret v4
+    ret v8
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @do_not_speculate_symbolic_offset_sload{{[( ]}}
@@ -54,6 +56,7 @@ fn @do_not_speculate_symbolic_offset_sload(arg0: u256, arg1: bool) -> u256 {
   bb0:
     jump bb1
   bb1:
+    v4 = phi [bb0: 0], [bb2: v2]
     jumpi arg1, bb2, bb3
   bb2:
     v1 = add arg0, 1
@@ -62,7 +65,7 @@ fn @do_not_speculate_symbolic_offset_sload(arg0: u256, arg1: bool) -> u256 {
     sstore v3, 9
     jump bb1
   bb3:
-    ret v2
+    ret v4
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @hoist_affine_memory_base{{[( ]}}

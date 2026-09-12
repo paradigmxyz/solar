@@ -59,5 +59,5 @@ fn @constructor() [constructor] {
     v10 = shl 8, v9
     v11 = or v8, v10
     sstore 0, v11 !metadata(storage=slot(0))
-    stop
+    ret
 }

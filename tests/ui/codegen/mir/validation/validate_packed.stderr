@@ -1,0 +1,8 @@
+error: [fn0] [bb0, inst0] packed encoding input has an incompatible shape
+
+error: [fn1] [bb0, inst0] packed encoding input has an incompatible shape
+
+error: [fn2] [bb0, inst0] packed encoding input has an incompatible shape
+
+error: aborting due to 3 previous errors
+

@@ -1,7 +1,7 @@
 //@compile-flags: -Zmir-pipeline=lower-memory-objects
 //@filecheck:
 @module LowerMemoryObjects
-@phase dispatch
+@phase semantic
 
 // CHECK-LABEL: {{^[ +].*}}fn @objects{{[( ]}}
 // CHECK: + [[OBJECT:v[0-9]+]] = alloc raw
@@ -42,4 +42,46 @@ fn @copy_object(arg0: memorybytes, arg1: memorybytes, arg2: u256) {
   bb0:
     memory_object_copy memorybytes, arg0, memorybytes, arg1, arg2
     stop
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @raw_pointer{{[( ]}}
+// CHECK: + ret arg0
+fn @raw_pointer(arg0: u256) -> memorybytes {
+  bb0:
+    v0 = memory_object_from_ptr memorybytes, arg0
+    ret v0
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @word_carrier{{[( ]}}
+// CHECK: - {{v[0-9]+}} = word_cast arg0
+// CHECK: + {{v[0-9]+}} = mload arg0
+fn @word_carrier(arg0: memorystruct) -> u256 {
+  bb0:
+    v0 = word_cast arg0
+    v1 = memory_object_len memorybytes, v0
+    ret v1
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @unreachable_cast_cycle{{[( ]}}
+// CHECK: ret 0
+// CHECK: - {{v[0-9]+}} = word_cast
+fn @unreachable_cast_cycle() -> u256 {
+  bb0:
+    ret 0
+  bb1:
+    v0 = word_cast v1
+    v1 = word_cast v0
+    ret v0
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @merged_allocations{{[( ]}}
+// CHECK: + [[BASE:v[0-9]+]] = alloc raw, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
+// CHECK: + [[NEXT:v[0-9]+]] = add [[BASE]], 32{{$}}
+fn @merged_allocations() -> memorybytes {
+  bb0:
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v0, 0
+    v1 = alloc memorybytes, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+    set_memory_object_len memorybytes, v1, 0
+    ret v1
 }

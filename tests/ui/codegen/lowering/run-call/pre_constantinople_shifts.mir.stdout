@@ -1,10 +1,16 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/pre_constantinople_shifts.sol:PreConstantinopleShifts ===
 @module PreConstantinopleShifts
-fn @shift(arg0: u256, arg1: u256) -> (u256, u256) [selector=0xe50322a2, pure, abi_params=[u256, u256], abi_returns=[word, word]] {
+types:
+  struct0: {u256, u256}
+  struct1: {u256, u256, u256}
+
+fn @shift(arg0: u256, arg1: u256) -> struct0 [selector=0xe50322a2, pure, abi_params=[u256, u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = shl arg1, arg0
     v1 = shr arg1, arg0
-    ret v0, v1
+    v2 = insert_value struct0, undef struct0, 0, v0
+    v3 = insert_value struct0, v2, 1, v1
+    ret v3
 }
 
 fn @signedShift(arg0: i256, arg1: u256) -> i256 [selector=0xa579f6d8, pure, abi_params=[i256, u256], abi_returns=[word]] {
@@ -37,4 +43,32 @@ fn @partialCopy() -> bytes32 [selector=0xb787ef80, pure, abi_params=[], abi_retu
     v4 = add v3, 32
     v5 = mload v4
     ret v5
+}
+
+fn @nested(arg0: i256) -> struct1 [selector=0x847c0acd, pure, abi_params=[i256], abi_returns=[word, word, word], abi_return_params=[u256, u256, i256]] {
+  bb0:
+    v0 = shl 3, arg0
+    v1 = shl 5, v0
+    v2 = shr 3, arg0
+    v3 = shr 5, v2
+    v4 = sar 3, arg0
+    v5 = sar 5, v4
+    v6 = insert_value struct1, undef struct1, 0, v1
+    v7 = insert_value struct1, v6, 1, v3
+    v8 = insert_value struct1, v7, 2, v5
+    ret v8
+}
+
+fn @saturated(arg0: i256) -> struct1 [selector=0x0bfcb37e, pure, abi_params=[i256], abi_returns=[word, word, word], abi_return_params=[u256, u256, i256]] {
+  bb0:
+    v0 = shl 128, arg0
+    v1 = shl 128, v0
+    v2 = shr 255, arg0
+    v3 = shr 1, v2
+    v4 = sar 1, arg0
+    v5 = sar 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v4
+    v6 = insert_value struct1, undef struct1, 0, v1
+    v7 = insert_value struct1, v6, 1, v3
+    v8 = insert_value struct1, v7, 2, v5
+    ret v8
 }

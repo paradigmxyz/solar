@@ -1,0 +1,29 @@
+//@ revisions: structs boundary
+//@[structs] compile-flags: -Zmir-pipeline=lower-structs
+//@[boundary] compile-flags: -Zmir-pipeline=lower-structs,lower-frame-slots,lower-memory-objects,lower-slices,lower-evm-shaped
+//~[boundary]? ERROR: `lower-memory-objects` requires scalar structs; run `lower-structs` first
+@module LegacySlice
+@phase semantic
+
+types:
+  struct0: {memoryslice, u256}
+  struct1: {memorybytes}
+
+fn @legacy(arg0: memorybytes) -> memoryslice {
+  bb0:
+    ret arg0
+}
+
+fn @wrap(arg0: memorybytes) -> struct0 {
+  bb0:
+    v0 = icall @legacy, arg0
+    v1 = insert_value struct0, undef struct0, 0, v0
+    v2 = insert_value struct0, v1, 1, 42
+    ret v2
+}
+
+fn @object(arg0: memorybytes) -> struct1 {
+  bb0:
+    v0 = insert_value struct1, undef struct1, 0, arg0
+    ret v0
+}

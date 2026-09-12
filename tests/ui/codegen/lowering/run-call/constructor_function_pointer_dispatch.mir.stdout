@@ -2,9 +2,9 @@
 @module ConstructorFunctionPointerDispatch
 fn @constructor() [constructor] {
   bb0:
-    icall @internal_dispatcher_p_bytes6_r_none, 0, 3, 0x6162636465660000000000000000000000000000000000000000000000000000
-    icall @applyShift, 0, 4, 3
-    stop
+    icall @internal_dispatcher_p_bytes6_r_none, 3, 0x6162636465660000000000000000000000000000000000000000000000000000
+    icall @applyShift, 4, 3
+    ret
 }
 
 fn @getName() -> bytes6 [selector=0x17d7de7c, view, abi_params=[], abi_returns=[word<bytes6>]] {
@@ -18,21 +18,10 @@ fn @getName() -> bytes6 [selector=0x17d7de7c, view, abi_params=[], abi_returns=[
 fn @leftByteShift(arg0: bytes6, arg1: u256) -> bytes6 [selector=0x49858898, pure, abi_params=[bytes6, u256], abi_returns=[word<bytes6>]] {
   bb0:
     v0 = and arg0, 0xffffffffffff0000000000000000000000000000000000000000000000000000
-    v1 = mul arg1, 8
-    v2 = iszero 8
-    v3 = div v1, 8
-    v4 = eq v3, arg1
-    v5 = or v2, v4
-    v6 = iszero v5
-    jumpi v6, bb1, bb2
-  bb2:
-    v7 = shl v1, v0
-    v8 = and v7, 0xffffffffffff0000000000000000000000000000000000000000000000000000
-    ret v8
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    v1 = checked_mul u256, arg1, 8
+    v2 = shl v1, v0
+    v3 = and v2, 0xffffffffffff0000000000000000000000000000000000000000000000000000
+    ret v3
 }
 
 fn @applyShift(arg0: function, arg1: u256) {
@@ -40,7 +29,7 @@ fn @applyShift(arg0: function, arg1: u256) {
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffff
     v2 = shl 208, v1
-    v3 = icall @internal_dispatcher_p_bytes6_u256_r_bytes6, 1, arg0, v2, arg1
+    v3 = icall @internal_dispatcher_p_bytes6_u256_r_bytes6, arg0, v2, arg1
     v4 = and v3, 0xffffffffffff0000000000000000000000000000000000000000000000000000
     v5 = sload 0 !metadata(storage=slot(0))
     v6 = not 0xffffffffffff
@@ -49,7 +38,7 @@ fn @applyShift(arg0: function, arg1: u256) {
     v9 = and v8, 0xffffffffffff
     v10 = or v7, v9
     sstore 0, v10 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 fn @setName(arg0: bytes6) {
@@ -62,7 +51,7 @@ fn @setName(arg0: bytes6) {
     v5 = and v4, 0xffffffffffff
     v6 = or v3, v5
     sstore 0, v6 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 fn @internal_dispatcher_p_bytes6_r_none(arg0: function, arg1: bytes6) [function_pointer_dispatcher] {
@@ -70,11 +59,10 @@ fn @internal_dispatcher_p_bytes6_r_none(arg0: function, arg1: bytes6) [function_
     v0 = eq arg0, 3
     jumpi v0, bb1, bb2
   bb2:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 81 !metadata(memory=scratch)
-    revert 0, 36
+    panic_if true, 0x51
+    invalid
   bb1:
-    icall @setName, 0, arg1
+    icall @setName, arg1
     ret
 }
 
@@ -83,10 +71,9 @@ fn @internal_dispatcher_p_bytes6_u256_r_bytes6(arg0: function, arg1: bytes6, arg
     v0 = eq arg0, 4
     jumpi v0, bb1, bb2
   bb2:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 81 !metadata(memory=scratch)
-    revert 0, 36
+    panic_if true, 0x51
+    invalid
   bb1:
-    v1 = icall @leftByteShift, 1, arg1, arg2
+    v1 = icall @leftByteShift, arg1, arg2
     ret v1
 }

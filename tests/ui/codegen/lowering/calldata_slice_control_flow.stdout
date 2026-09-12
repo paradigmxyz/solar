@@ -1,8 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_slice_control_flow.sol:CalldataSliceControlFlow ===
 @module CalldataSliceControlFlow
+types:
+  struct0: {u256, u256}
+  struct1: {calldataslice, calldataslice}
+
 fn @trimLen(arg0: calldataslice) -> u256 [selector=0x341fda35, pure, abi_params=[bytes], abi_returns=[word]] {
   bb0:
-    v0 = icall @_trim, 1, arg0
+    v0 = icall @_trim, arg0
     v1 = slice_len v0
     ret v1
 }
@@ -46,36 +50,22 @@ fn @forward(arg0: calldataslice) -> u256 [selector=0xd948d468, pure, abi_params=
     v10 = slice_ptr v8
     v11 = slice_len v8
     v12 = make_calldata_slice v10, v9
-    v13 = icall @_sum, 1, v12, v3
+    v13 = icall @_sum, v12, v3
     ret v13
 }
 
 fn @_sum(arg0: calldataslice, arg1: calldataslice) -> u256 [pure] {
   bb0:
     v0 = slice_len arg0
-    v1 = mul v0, 0x3e8
-    v2 = iszero 0x3e8
-    v3 = div v1, 0x3e8
-    v4 = eq v3, v0
-    v5 = or v2, v4
-    v6 = iszero v5
-    jumpi v6, bb1, bb2
-  bb2:
-    v7 = slice_len arg1
-    v8 = add v1, v7
-    v9 = lt v8, v1
-    jumpi v9, bb1, bb3
-  bb3:
-    ret v8
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    v1 = checked_mul u256, v0, 0x3e8
+    v2 = slice_len arg1
+    v3 = checked_add u256, v1, v2
+    ret v3
 }
 
 fn @explicitTrim(arg0: calldataslice) -> u256 [selector=0xc127ee09, pure, abi_params=[bytes], abi_returns=[word]] {
   bb0:
-    v0 = icall @_explicitTrim, 1, arg0
+    v0 = icall @_explicitTrim, arg0
     v1 = slice_len v0
     ret v1
 }
@@ -96,31 +86,26 @@ fn @_explicitTrim(arg0: calldataslice) -> calldataslice [pure] {
     v5 = gt v4, v4
     v6 = lt v4, 4
     v7 = or v5, v6
-    jumpi v7, bb4, bb5
-  bb5:
+    revert_if v7, empty
     v8 = sub v4, 4
     v9 = add v3, 4
     v10 = make_calldata_slice v9, v8
     ret v10
-  bb4:
-    revert 0, 0
 }
 
-fn @headTail(arg0: calldataslice) -> (u256, u256) [selector=0xdd941f9b, pure, abi_params=[bytes], abi_returns=[word, word]] {
+fn @headTail(arg0: calldataslice) -> struct0 [selector=0xdd941f9b, pure, abi_params=[bytes], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
-    v0 = icall @_split, 2, arg0
-    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v2 = add v1, 64
-    v3 = mload v2
-    v4 = add v1, 96
-    v5 = mload v4
-    v6 = make_calldata_slice v3, v5
-    v7 = slice_len v0
-    v8 = slice_len v6
-    ret v7, v8
+    v0 = icall @_split, arg0
+    v1 = extract_value struct1, v0, 0
+    v2 = extract_value struct1, v0, 1
+    v3 = slice_len v1
+    v4 = slice_len v2
+    v5 = insert_value struct0, undef struct0, 0, v3
+    v6 = insert_value struct0, v5, 1, v4
+    ret v6
 }
 
-fn @_split(arg0: calldataslice) -> (calldataslice, calldataslice) [pure] {
+fn @_split(arg0: calldataslice) -> struct1 [pure] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
@@ -128,17 +113,16 @@ fn @_split(arg0: calldataslice) -> (calldataslice, calldataslice) [pure] {
     v3 = gt v1, v1
     v4 = lt v1, v2
     v5 = or v3, v4
-    jumpi v5, bb1, bb2
-  bb2:
+    revert_if v5, empty
     v6 = sub v1, v2
     v7 = add v0, v2
     v8 = make_calldata_slice v7, v6
     v9 = slice_len arg0
     v10 = gt v9, 8
-    jumpi v10, bb3, bb4
-  bb4:
-    jump bb5
-  bb3:
+    jumpi v10, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
     v11 = slice_ptr arg0
     v12 = add v11, 8
     v13 = slice_ptr v8
@@ -149,10 +133,10 @@ fn @_split(arg0: calldataslice) -> (calldataslice, calldataslice) [pure] {
     v18 = slice_ptr v15
     v19 = slice_len v15
     v20 = make_calldata_slice v18, v17
-    jump bb5
-  bb5:
-    v21 = phi [bb3: v20], [bb4: v8]
-    ret arg0, v21
-  bb1:
-    revert 0, 0
+    jump bb3
+  bb3:
+    v21 = phi [bb1: v20], [bb2: v8]
+    v22 = insert_value struct1, undef struct1, 0, arg0
+    v23 = insert_value struct1, v22, 1, v21
+    ret v23
 }

@@ -2,5 +2,5 @@
 @module TimePasses
 fn @f() [selector=0x26121ff0, pure, abi_params=[], abi_returns=[]] {
   bb0:
-    stop
+    ret
 }

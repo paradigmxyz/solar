@@ -1,0 +1,144 @@
+// === ROOT/tests/ui/codegen/lowering/transfer_send.sol:GasReceiver ===
+@module GasReceiver
+fn @receive() [receive, payable] {
+  bb0:
+    log0 0, 0
+    log0 0, 0
+    log0 0, 0
+    log0 0, 0
+    log0 0, 0
+    log0 0, 0
+    log0 0, 0
+    ret
+}
+
+// === ROOT/tests/ui/codegen/lowering/transfer_send.sol:RevertReceiver ===
+@module RevertReceiver
+fn @receive() [receive, payable] {
+  bb0:
+    v0 = shl 224, 0xdeadbeef
+    mstore 0, v0 !metadata(memory=scratch)
+    revert 0, 4
+}
+
+// === ROOT/tests/ui/codegen/lowering/transfer_send.sol:TransferSend ===
+@module TransferSend
+types:
+  struct0: {u256, u256, u256}
+
+data:
+  GasReceiver_initcode_0: hex"34600d5760218060115f395ff35b5f5ffd36600757600b565b5f5ffd5b5f5fa05f5fa05f5fa05f5fa05f5fa05f5fa05f5fa0"
+  RevertReceiver_initcode_1: hex"34600d57601a8060115f395ff35b5f5ffd36600757600b565b5f5ffd5b63deadbeef60e01b5f5260045ffd"
+
+fn @constructor() [constructor] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 81, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy GasReceiver_initcode_0, v3, 50
+    v4 = slice_ptr v0
+    v5 = add v3, 50
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 50
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = sload 0 !metadata(storage=slot(0))
+    v8 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v9 = and v7, v8
+    v10 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
+    v11 = or v9, v10
+    sstore 0, v11 !metadata(storage=slot(0))
+    v12 = abi_encode []
+    v13 = not 31
+    v14 = and 74, v13
+    v15 = alloc raw, exact, uninitialized, infallible, v14
+    data_copy RevertReceiver_initcode_1, v15, 43
+    v16 = slice_ptr v12
+    v17 = add v15, 43
+    mcopy v17, v16, 0 !metadata(memory=heap)
+    v18 = create 0, v15, 43
+    jumpi v18, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v19 = sload 1 !metadata(storage=slot(1))
+    v20 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v21 = and v19, v20
+    v22 = and v18, 0xffffffffffffffffffffffffffffffffffffffff
+    v23 = or v21, v22
+    sstore 1, v23 !metadata(storage=slot(1))
+    ret
+}
+
+fn @sendValue() -> bool [selector=0x27c845dc, payable, abi_params=[], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
+    v2 = send v1, 1
+    ret v2
+}
+
+fn @transferValue() [selector=0x2d9ed8d5, payable, abi_params=[], abi_returns=[]] {
+  bb0:
+    v0 = sload 1 !metadata(storage=slot(1))
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
+    transfer v1, 1
+    ret
+}
+
+fn @sendZero() -> bool [selector=0xe857d88b, abi_params=[], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = send 0xbeef, 0
+    ret v0
+}
+
+fn @sendInsufficient() -> bool [selector=0x244c33f1, abi_params=[], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = send 0xbeef, 1
+    ret v0
+}
+
+fn @balances() -> struct0 [selector=0x7bb98a68, payable, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
+  bb0:
+    v0 = address
+    v1 = balance v0
+    v2 = send 0xbeef, 1
+    v3 = iszero v2
+    revert_if v3, empty
+    v4 = address
+    v5 = balance v4
+    transfer 0xbeef, 1
+    v6 = address
+    v7 = balance v6
+    v8 = insert_value struct0, undef struct0, 0, v1
+    v9 = insert_value struct0, v8, 1, v5
+    v10 = insert_value struct0, v9, 2, v7
+    ret v10
+}
+
+fn @sendRevertData() -> bytes4 [selector=0x2acce81c, abi_params=[], abi_returns=[word<bytes4>]] {
+  bb0:
+    v0 = sload 1 !metadata(storage=slot(1))
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
+    v2 = send v1, 0
+    returndatacopy 0, 0, 4 !metadata(memory=scratch)
+    v3 = mload 0 !metadata(memory=scratch)
+    ret v3
+}
+
+fn @transferOutOfGas() [selector=0xb3a4387c, payable, abi_params=[], abi_returns=[]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
+    transfer v1, 1
+    ret
+}
+
+fn @transferInsufficient() [selector=0x44d19381, abi_params=[], abi_returns=[]] {
+  bb0:
+    transfer 0xbeef, 1
+    ret
+}

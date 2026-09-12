@@ -1,28 +1,72 @@
-error: [fn0] [bb0, inst0] slice instruction `make_memory_slice` survives the `evm-shaped` phase boundary
+error: [fn0] non-word type `memoryslice` survives the `lowered` phase boundary
 
-error: [fn0] [bb0, inst1] slice instruction `slice_len` survives the `evm-shaped` phase boundary
+error: [fn0] [bb0, inst0] slice instruction `make_memory_slice` survives the `lowered` phase boundary
 
-error: [fn1] [bb0, inst0] ABI encoding instruction `abi_encode` survives the `evm-shaped` phase boundary
+error: [fn0] [bb0, inst1] slice instruction `slice_len` survives the `lowered` phase boundary
 
-error: [fn2] memory-object signature type `memorystruct` survives the `evm-shaped` phase boundary
+error: [fn1] non-word type `memoryslice` survives the `lowered` phase boundary
 
-error: [fn2] [bb0, inst0] aggregate instruction `storage_to_memory` survives the `evm-shaped` phase boundary
+error: [fn1] [bb0, inst0] ABI encoding instruction `abi_encode` survives the `lowered` phase boundary
 
-error: [fn3] [bb0, inst0] abstract allocation instruction `fmp` survives the `evm-shaped` phase boundary
+error: [fn2] non-word type `memorystruct` survives the `lowered` phase boundary
 
-error: [fn3] [bb0, inst1] abstract allocation instruction `set_fmp` survives the `evm-shaped` phase boundary
+error: [fn2] [bb0, inst0] aggregate instruction `storage_to_memory` survives the `lowered` phase boundary
 
-error: [fn3] [bb0, inst2] abstract allocation instruction `alloc` survives the `evm-shaped` phase boundary
+error: [fn3] [bb0, inst0] abstract allocation instruction `fmp` survives the `lowered` phase boundary
 
-error: [fn3] [bb0, inst3] storage slot instruction `mapping_slot` survives the `evm-shaped` phase boundary
+error: [fn3] [bb0, inst1] abstract allocation instruction `set_fmp` survives the `lowered` phase boundary
 
-error: [fn3] [bb0, inst4] storage slot instruction `mapping_slot_memory` survives the `evm-shaped` phase boundary
+error: [fn3] [bb0, inst2] abstract allocation instruction `alloc` survives the `lowered` phase boundary
 
-error: [fn3] [bb0, inst5] storage slot instruction `mapping_slot_calldata` survives the `evm-shaped` phase boundary
+error: [fn3] [bb0, inst3] storage slot instruction `mapping_slot` survives the `lowered` phase boundary
 
-error: [fn3] [bb0, inst6] storage slot instruction `storage_array_data_slot` survives the `evm-shaped` phase boundary
+error: [fn3] [bb0, inst4] storage slot instruction `mapping_slot_memory` survives the `lowered` phase boundary
 
-error: [fn3] [bb0, inst7] storage slot instruction `storage_array_element_slot` survives the `evm-shaped` phase boundary
+error: [fn3] [bb0, inst5] storage slot instruction `mapping_slot_calldata` survives the `lowered` phase boundary
 
-error: aborting due to 13 previous errors
+error: [fn3] [bb0, inst6] storage slot instruction `storage_array_data_slot` survives the `lowered` phase boundary
+
+error: [fn3] [bb0, inst7] storage slot instruction `storage_array_element_slot` survives the `lowered` phase boundary
+
+error: [fn4] non-word type `memoryslice` survives the `lowered` phase boundary
+
+error: [fn5] non-word type `calldataslice` survives the `lowered` phase boundary
+
+error: [fn6] non-word type `returndataslice` survives the `lowered` phase boundary
+
+error: [fn7] [bb0, inst0] memory-object instruction `word_cast` survives the `lowered` phase boundary
+
+error: [fn8] [bb0, inst0] abstract allocation instruction `alloc` survives the `lowered` phase boundary
+
+error: [fn9] [bb0, inst0] deferred allocation requires a constant size
+
+error: [fn10] [bb0, inst0] builtin instruction `ecrecover` survives the `lowered` phase boundary
+
+error: [fn11] [bb0, inst0] checked arithmetic instruction `checked_add` survives the `lowered` phase boundary
+
+error: [fn12] [bb0, inst0] ABI validation instruction `validate_abi` survives the `lowered` phase boundary
+
+error: [fn13] [bb0, inst0] conditional check instruction `panic_if_zero` survives the `lowered` phase boundary
+
+error: [fn14] [bb0, inst0] conditional check instruction `icall` survives the `lowered` phase boundary
+
+error: [fn15] [bb0, inst0] builtin instruction `keccak256_packed` survives the `lowered` phase boundary
+
+error: [fn16] [bb0, inst0] builtin instruction `checked_addmod` survives the `lowered` phase boundary
+
+error: [fn17] [bb0, inst0] builtin instruction `erc7201` survives the `lowered` phase boundary
+
+error: [fn18] [bb0, inst0] builtin instruction `validate_storage_bytes` survives the `lowered` phase boundary
+
+error: [fn19] [bb0, inst0] builtin instruction `send` survives the `lowered` phase boundary
+
+error: [fn19] [bb0, inst1] builtin instruction `transfer` survives the `lowered` phase boundary
+
+error: [fn20] non-word type `memorybytes` survives the `lowered` phase boundary
+
+error: [fn20] [bb0, inst0] builtin instruction `returndata_bytes` survives the `lowered` phase boundary
+
+error: [fn20] [bb0, inst1] builtin instruction `address_call` survives the `lowered` phase boundary
+
+error: aborting due to 35 previous errors
 

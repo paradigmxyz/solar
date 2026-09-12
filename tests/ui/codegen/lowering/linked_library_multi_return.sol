@@ -12,9 +12,10 @@ contract C {
     // returned words before tuple extraction.
     // CHECK-LABEL: fn @pair{{[( ]}}
     // CHECK: delegatecall
-    // CHECK: returndatasize
-    // CHECK: mload
-    // CHECK: mload
+    // CHECK: returndata_bytes
+    // CHECK: [[PAIR:v[0-9]+]] = abi_decode [u256, u256]
+    // CHECK: extract_value {{struct[0-9]+}}, [[PAIR]], 0
+    // CHECK: extract_value {{struct[0-9]+}}, [[PAIR]], 1
     function pair() external pure returns (uint256, uint256) {
         return Lib.pair();
     }

@@ -7,16 +7,17 @@
   fn @dominating_mload(arg0: bool) -> u256 {
     bb0:
       mstore 0, 11
-      v0 = mload 0
+-     v0 = mload 0
       jumpi arg0, bb1, bb2
     bb2:
       mstore 0, 22
-      v2 = mload 0
-      ret v2
+-     v2 = mload 0
+-     ret v2
++     ret 22
     bb1:
 -     v1 = mload 0
 -     ret v1
-+     ret v0
++     ret 11
   }
   
   fn @dominating_sload(arg0: bool) -> u256 {

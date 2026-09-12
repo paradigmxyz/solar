@@ -1,0 +1,95 @@
+- // === ROOT/tests/ui/codegen/mir/load-pre/load_pre.mir (before storage-pre) ===
++ // === ROOT/tests/ui/codegen/mir/load-pre/load_pre.mir (after storage-pre) ===
+  @module LoadPre
+  fn @full_diamond(arg0: bool) -> u256 {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb2:
+      v1 = sload 5
+      jump bb3
+    bb1:
+      v0 = sload 5
+      jump bb3
+    bb3:
+-     v2 = sload 5
+-     ret v2
++     v3 = phi [bb1: v0], [bb2: v1]
++     ret v3
+  }
+  
+  fn @store_forward_arm(arg0: bool, arg1: u256) -> u256 {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb2:
+      v0 = sload 5
+      jump bb3
+    bb1:
+      sstore 5, arg1
+      jump bb3
+    bb3:
+-     v1 = sload 5
+-     ret v1
++     v2 = phi [bb1: arg1], [bb2: v0]
++     ret v2
+  }
+  
+  fn @partial_insert_diamond(arg0: bool) -> u256 {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb2:
++     v2 = sload 5
+      jump bb3
+    bb1:
+      v0 = sload 5
+      jump bb3
+    bb3:
+-     v1 = sload 5
+-     ret v1
++     v3 = phi [bb1: v0], [bb2: v2]
++     ret v3
+  }
+  
+  fn @transient_store_forward(arg0: bool, arg1: u256) -> u256 {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb2:
+      v0 = tload 5
+      jump bb3
+    bb1:
+      tstore 5, arg1
+      jump bb3
+    bb3:
+-     v1 = tload 5
+-     ret v1
++     v2 = phi [bb1: arg1], [bb2: v0]
++     ret v2
+  }
+  
+  fn @memory_join(arg0: bool, arg1: u256) -> u256 {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb2:
+      mstore 128, arg1
+      jump bb3
+    bb1:
+      mstore 128, arg1
+      jump bb3
+    bb3:
+      v0 = mload 128
+      ret v0
+  }
+  
+  fn @call_blocks_load_motion(arg0: bool, arg1: address, arg2: u256) -> u256 {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb2:
+      jump bb3
+    bb1:
+      v0 = sload 5
+      jump bb3
+    bb3:
+      v1 = staticcall arg2, arg1, 0, 0, 0, 0
+      v2 = sload 5
+      ret v2
+  }
+  

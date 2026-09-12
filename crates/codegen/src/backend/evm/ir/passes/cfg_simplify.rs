@@ -7,15 +7,31 @@
 //! [`TerminatorKind::JumpI`] terminators and the physical `PUSH target; JUMPI; jump target` form
 //! emitted when edge-specific stack scheduling lowers one branch edge before EVM IR construction.
 //!
-//! Address-taken blocks remain distinct, and block merging requires one reference so changing a
-//! predecessor cannot affect another edge. The pass preserves the condition's stack effect with a
+//! Final cleanup exposes acyclic branch triangles as structural conditional terminators so
+//! layout can place their taken arm before the join. It preserves source origins and excludes
+//! glued instructions and custom stack effects. Keeping this after
+//! sharing avoids changing which physical instruction sequences earlier passes can merge.
+//! Final cleanup also recognizes labels passed straight to a shared `JUMPI` head as direct
+//! jump targets. Deferring this until sharing is complete avoids exposing larger tails whose
+//! merger would add jumps back to the paths being shortened.
+//! Size cleanup turns a constant label passed to a shared one-instruction `JUMPI` body into
+//! a direct conditional terminator. This lets layout remove the intermediate jump; glued
+//! sequences and custom stack effects remain intact.
+//! Gas cleanup duplicates a word-return body of at most eight bytes into an empty stub
+//! reached by at least two other empty stubs. It amortizes the copy across those paths while
+//! preserving every address-taken label. The copy stays after structural sharing so it cannot
+//! be merged back into the jump it removes. Debug events move to retained operations where
+//! representable; they do not affect rewrite eligibility.
+//! Other address-taken blocks remain distinct, and block merging requires one reference so changing
+//! a predecessor cannot affect another edge. The pass preserves the condition's stack effect with a
 //! `POP`; later dead-code elimination may remove the pure condition computation. Replacing the
 //! physical form's `PUSH target; JUMPI` with that `POP` changes what runs after the condition, so
 //! it only applies where `keep_with_next` allows that boundary to be disturbed.
 
 use super::{
     EvmPass,
-    utils::{is_split_point, remap_block_order, retain_blocks},
+    block_layout::triangle_arm,
+    utils::{instruction_size_lower_bound, is_split_point, remap_block_order, retain_blocks},
 };
 use crate::backend::evm::{
     ir::{Block, BlockId, Metadata, Module, PushValue, Terminator, TerminatorKind},
@@ -24,7 +40,14 @@ use crate::backend::evm::{
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use solar_sema::Gcx;
 
-pub(super) struct CfgSimplify;
+pub(super) struct CfgSimplify {
+    thread_shared_jumps: bool,
+}
+
+impl CfgSimplify {
+    pub(super) const EARLY: Self = Self { thread_shared_jumps: false };
+    pub(super) const FINAL: Self = Self { thread_shared_jumps: true };
+}
 
 impl EvmPass for CfgSimplify {
     fn name(&self) -> &'static str {
@@ -32,19 +55,31 @@ impl EvmPass for CfgSimplify {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        simplify_cfg(gcx, module)
+        simplify_cfg(gcx, module, self.thread_shared_jumps)
     }
 }
 
-fn simplify_cfg(_gcx: Gcx<'_>, module: &mut Module) -> bool {
+fn simplify_cfg(gcx: Gcx<'_>, module: &mut Module, thread_shared_jumps: bool) -> bool {
     let mut state = RunState::default();
     state.reserve(module.blocks.len());
     let mut changed = false;
     loop {
         let truncated = truncate_after_terminal(module);
         let degenerate = simplify_degenerate_branches(module);
-        let redirected =
-            redirect_jump_thunks(module, &mut state.thunks, &mut state.addressed, &mut state.order);
+        let redirected = redirect_jump_thunks(
+            module,
+            thread_shared_jumps,
+            &mut state.thunks,
+            &mut state.addressed,
+            &mut state.jump_heads,
+            &mut state.order,
+        );
+        let inlined = thread_shared_jumps
+            && gcx.sess.opts.optimization.is_gas()
+            && inline_shared_return_thunks(gcx, module, &mut state.references);
+        let branches = thread_shared_jumps
+            && gcx.sess.opts.optimization.is_size()
+            && expose_shared_branches(module);
         let swept = remove_unreachable_blocks(
             module,
             &mut state.reachable,
@@ -53,16 +88,126 @@ fn simplify_cfg(_gcx: Gcx<'_>, module: &mut Module) -> bool {
         );
         let coalesced =
             coalesce_blocks(module, &mut state.references, &mut state.retained, &mut state.order);
-        changed |= truncated || degenerate || redirected || swept || coalesced;
-        if !truncated && !degenerate && !redirected && !swept && !coalesced {
+        changed |=
+            truncated || degenerate || redirected || inlined || branches || swept || coalesced;
+        if !truncated && !degenerate && !redirected && !inlined && !branches && !swept && !coalesced
+        {
+            if thread_shared_jumps {
+                changed |= normalize_triangle_branches(module);
+            }
             return changed;
         }
     }
 }
 
+fn expose_shared_branches(module: &mut Module) -> bool {
+    let mut changed = false;
+    for block_id in module.blocks.indices() {
+        let block = &module.blocks[block_id];
+        if let Some(jump) = &block.terminator
+            && let TerminatorKind::Jump(target) = jump.kind
+            && let Some(pushed) = block.instructions.last()
+            && let Some(PushValue::Block(then_block)) = pushed.value
+            && pushed.is_encoded_push()
+            && pushed.has_canonical_stack_effect()
+            && is_split_point(&block.instructions, block.instructions.len() - 1)
+            && !pushed.keeps_with_next()
+            && let body = &module.blocks[target]
+            && let [jumpi] = body.instructions.as_slice()
+            && jumpi.as_evm_opcode() == Some(op::JUMPI)
+            && jumpi.has_canonical_stack_effect()
+            && !jumpi.keeps_with_next()
+            && let Some(continuation) = &body.terminator
+            && let TerminatorKind::Jump(else_block) = continuation.kind
+            && jump.metadata.stack.is_none()
+            && continuation.metadata.stack.is_none()
+        {
+            // push taken; jump head; head: jumpi; jump other -> jumpi taken, other
+            let mut branch = Terminator::new(TerminatorKind::JumpI { then_block, else_block });
+            branch.metadata.copy_debug_info_from(&jumpi.metadata);
+            branch.metadata.absorb_debug_info(&pushed.metadata);
+            branch.metadata.absorb_debug_info(&jump.metadata);
+            if branch.metadata.function_invoke().is_none()
+                && let Some(function) = body.metadata.function_invoke
+            {
+                branch.metadata.set_function_invoke(function);
+            }
+            branch.metadata.merge_source_spans(&continuation.metadata);
+            let block = &mut module.blocks[block_id];
+            block.instructions.pop();
+            block.terminator = Some(branch);
+            changed = true;
+        }
+    }
+    changed
+}
+
+fn inline_shared_return_thunks(
+    gcx: Gcx<'_>,
+    module: &mut Module,
+    incoming: &mut IndexVec<BlockId, usize>,
+) -> bool {
+    incoming.clear();
+    incoming.resize(module.blocks.len(), 0);
+    for block in &module.blocks {
+        if block.instructions.is_empty()
+            && let Some(TerminatorKind::Jump(target)) =
+                block.terminator.as_ref().map(|term| &term.kind)
+        {
+            incoming[*target] += 1;
+        }
+    }
+    let mut changed = false;
+    for block_id in module.blocks.indices() {
+        let block = &module.blocks[block_id];
+        if incoming[block_id] < 2
+            || !block.instructions.is_empty()
+            || block.metadata.hotness.is_cold()
+        {
+            continue;
+        }
+        let Some(jump) = &block.terminator else { continue };
+        let TerminatorKind::Jump(target) = jump.kind else { continue };
+        let body = &module.blocks[target];
+        let [offset, store, size, returned] = body.instructions.as_slice() else { continue };
+        if !body.instructions.iter().all(|inst| inst.has_canonical_stack_effect())
+            || store.as_evm_opcode() != Some(op::MSTORE)
+            || size.concrete_immediate() != Some(alloy_primitives::U256::from(32))
+            || body
+                .instructions
+                .iter()
+                .map(|inst| instruction_size_lower_bound(gcx, inst))
+                .sum::<usize>()
+                > 7
+            || offset.concrete_immediate().is_none()
+            || returned.concrete_immediate() != offset.concrete_immediate()
+            || !matches!(
+                body.terminator.as_ref().map(|term| &term.kind),
+                Some(TerminatorKind::Op(op::RETURN))
+            )
+        {
+            continue;
+        }
+        // thunk: jump return_body -> thunk: mstore(offset, value); return(offset, 32)
+        let mut instructions = body.instructions.clone();
+        if instructions[0].metadata.function_invoke().is_none()
+            && let Some(function) = body.metadata.function_invoke
+        {
+            instructions[0].metadata.set_function_invoke(function);
+        }
+        instructions[0].metadata.absorb_debug_info(&jump.metadata);
+        let terminator = body.terminator.clone();
+        module.blocks[block_id].instructions = instructions;
+        module.blocks[block_id].terminator = terminator;
+        changed = true;
+    }
+    changed
+}
+
 struct RunState {
     thunks: FxHashMap<BlockId, BlockId>,
     addressed: DenseBitSet<BlockId>,
+    jump_heads: DenseBitSet<BlockId>,
     reachable: DenseBitSet<BlockId>,
     pending: Vec<BlockId>,
     references: IndexVec<BlockId, usize>,
@@ -75,6 +220,7 @@ impl Default for RunState {
         Self {
             thunks: FxHashMap::default(),
             addressed: DenseBitSet::new_empty(0),
+            jump_heads: DenseBitSet::new_empty(0),
             reachable: DenseBitSet::new_empty(0),
             pending: Vec::new(),
             references: IndexVec::new(),
@@ -92,6 +238,39 @@ impl RunState {
     }
 }
 
+fn normalize_triangle_branches(module: &mut Module) -> bool {
+    let mut changed = false;
+    for block_id in module.blocks.indices() {
+        let block = &module.blocks[block_id];
+        if let Some(terminator) = &block.terminator
+            && let TerminatorKind::Jump(else_block) = terminator.kind
+            && let [.., pushed, jumpi] = block.instructions.as_slice()
+            && let Some(PushValue::Block(then_block)) = pushed.value
+            && !block.metadata.in_loop
+            && pushed.is_encoded_push()
+            && pushed.has_canonical_stack_effect()
+            && jumpi.as_evm_opcode() == Some(op::JUMPI)
+            && jumpi.has_canonical_stack_effect()
+            && is_split_point(&block.instructions, block.instructions.len() - 2)
+            && !pushed.keeps_with_next()
+            && !jumpi.keeps_with_next()
+            && terminator.metadata.stack.is_none()
+            && triangle_arm(module, then_block, else_block)
+        {
+            // push arm; jumpi; jump join -> jumpi arm, join
+            let mut branch = Terminator::new(TerminatorKind::JumpI { then_block, else_block });
+            branch.metadata.copy_debug_info_from(&jumpi.metadata);
+            branch.metadata.absorb_debug_info(&pushed.metadata);
+            branch.metadata.merge_source_spans(&terminator.metadata);
+            let block = &mut module.blocks[block_id];
+            block.instructions.truncate(block.instructions.len() - 2);
+            block.terminator = Some(branch);
+            changed = true;
+        }
+    }
+    changed
+}
+
 fn reserve_to<T>(values: &mut Vec<T>, capacity: usize) {
     if values.capacity() < capacity {
         values.reserve(capacity - values.len());
@@ -103,11 +282,8 @@ fn truncate_after_terminal(module: &mut Module) -> bool {
     for block in &mut module.blocks {
         let Some((at, opcode, metadata)) =
             block.instructions.iter().enumerate().find_map(|(at, inst)| {
-                (!inst.is_encoded_push() && op::is_terminal(inst.opcode)).then_some((
-                    at,
-                    inst.opcode,
-                    inst.metadata.clone(),
-                ))
+                (!inst.is_encoded_push() && op::is_terminal(inst.opcode))
+                    .then(|| (at, inst.opcode, inst.metadata.clone()))
             })
         else {
             continue;
@@ -165,19 +341,29 @@ fn simplify_degenerate_branches(module: &mut Module) -> bool {
 
 fn redirect_jump_thunks(
     module: &mut Module,
+    thread_shared_jumps: bool,
     thunks: &mut FxHashMap<BlockId, BlockId>,
     addressed: &mut DenseBitSet<BlockId>,
+    jump_heads: &mut DenseBitSet<BlockId>,
     order: &mut Vec<BlockId>,
 ) -> bool {
-    // A thunk is an empty block that only jumps on. Every reference to it, a direct jump label
-    // or a return address an internal call pushes for its callee to jump back to, lands on the
-    // thunk's target just as well, so the thunk itself is never needed. Preserve any debug event
-    // on the thunk by moving it to each incoming edge before removing the indirection.
+    // Redirect direct edges through empty blocks. Keep labels used as values distinct, and move
+    // each removed thunk's debug event to its incoming edges.
+    jump_heads.clear_to(module.blocks.len());
+    if thread_shared_jumps {
+        for (block_id, block) in module.blocks.iter_enumerated() {
+            if block.instructions.first().is_some_and(|inst| {
+                inst.has_canonical_stack_effect() && inst.as_evm_opcode() == Some(op::JUMPI)
+            }) {
+                jump_heads.insert(block_id);
+            }
+        }
+    }
     addressed.clear_to(module.blocks.len());
     for block in &module.blocks {
         for (at, inst) in block.instructions.iter().enumerate() {
             if let Some(PushValue::Block(target)) = &inst.value
-                && !is_direct_jump_label(block, at)
+                && !is_direct_jump_label(block, at, jump_heads)
             {
                 addressed.insert(*target);
             }
@@ -229,7 +415,7 @@ fn redirect_jump_thunks(
     let mut changed = false;
     for block in &mut module.blocks {
         for at in 0..block.instructions.len() {
-            if is_direct_jump_label(block, at)
+            if is_direct_jump_label(block, at, jump_heads)
                 && let Some(PushValue::Block(target)) = block.instructions[at].value
             {
                 if let Some(metadata) = thunk_metadata.get(&target) {
@@ -262,13 +448,15 @@ fn redirect_jump_thunks(
     changed
 }
 
-fn is_direct_jump_label(block: &Block, at: usize) -> bool {
+// PUSH target; jump head; head: JUMPI -> a direct use of target
+fn is_direct_jump_label(block: &Block, at: usize, jump_heads: &DenseBitSet<BlockId>) -> bool {
     block.instructions.get(at + 1).is_some_and(|inst| matches!(inst.opcode, op::JUMP | op::JUMPI))
         || (at + 1 == block.instructions.len()
-            && block
-                .terminator
-                .as_ref()
-                .is_some_and(|term| matches!(term.kind, TerminatorKind::Op(op::JUMP | op::JUMPI))))
+            && block.terminator.as_ref().is_some_and(|term| match term.kind {
+                TerminatorKind::Op(op::JUMP | op::JUMPI) => true,
+                TerminatorKind::Jump(target) => jump_heads.contains(target),
+                _ => false,
+            }))
 }
 
 #[must_use]
@@ -347,6 +535,8 @@ fn coalesce_blocks(
                 break;
             }
 
+            // predecessor: prefix; jump target
+            // target [loop]: suffix => predecessor [loop]: prefix; suffix
             let mut instructions = std::mem::take(&mut module.blocks[target].instructions);
             let mut terminator = module.blocks[target].terminator.take();
             if let Some(function) = module.blocks[target].metadata.function_invoke {
@@ -356,6 +546,7 @@ fn coalesce_blocks(
                     terminator.metadata.set_function_invoke(function);
                 }
             }
+            module.blocks[predecessor].metadata.in_loop |= module.blocks[target].metadata.in_loop;
             module.blocks[predecessor].instructions.append(&mut instructions);
             module.blocks[predecessor].terminator = terminator;
             retained.remove(target);

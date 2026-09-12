@@ -4,7 +4,7 @@
 contract FunctionPointerSelection {
     // CHECK-LABEL: fn @choose(
     // CHECK: [[FN:v[0-9]+]] = phi [bb1: 2], [bb2: 3]
-    // CHECK: icall @internal_dispatcher{{.*}}, 1, [[FN]], arg1
+    // CHECK: icall @internal_dispatcher{{.*}}, [[FN]], arg1
     function choose(bool add, uint256 value) public returns (uint256) {
         function(uint256) internal returns (uint256) fn = add ? increment : decrement;
         return fn(value);
@@ -19,15 +19,15 @@ contract FunctionPointerSelection {
     }
 
     // CHECK-LABEL: fn @callConstant(
-    // CHECK: icall @internal_dispatcher{{.*}}, 1, 2, arg0
+    // CHECK: icall @internal_dispatcher{{.*}}, 2, arg0
     function callConstant(uint256 value) public returns (uint256) {
         function(uint256) internal returns (uint256) fn = increment;
         return fn(value);
     }
 
     // CHECK-LABEL: fn @throughCast(
-    // CHECK: [[CASTED:v[0-9]+]] = icall @castViewToPure, 1, 7
-    // CHECK: icall @internal_dispatcher{{.*}}, 1, [[CASTED]], arg0
+    // CHECK: [[CASTED:v[0-9]+]] = icall @castViewToPure, 7
+    // CHECK: icall @internal_dispatcher{{.*}}, [[CASTED]], arg0
     // CHECK-LABEL: fn @castViewToPure(
     // CHECK: ret {{v[0-9]+}}
     function throughCast(uint256 value) public pure returns (uint256) {
@@ -51,8 +51,8 @@ contract FunctionPointerSelection {
     // CHECK: eq arg0, 2
     // CHECK: eq arg0, 3
     // CHECK: eq arg0, 7
-    // CHECK: mstore 4, 81
-    // CHECK: icall @incrementView, 1, arg1
-    // CHECK: icall @decrement, 1, arg1
-    // CHECK: icall @increment, 1, arg1
+    // CHECK: panic_if true, 0x51
+    // CHECK: icall @incrementView, arg1
+    // CHECK: icall @decrement, arg1
+    // CHECK: icall @increment, arg1
 }

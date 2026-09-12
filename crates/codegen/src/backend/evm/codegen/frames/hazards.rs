@@ -8,6 +8,7 @@ use super::{
     },
     SPILL_HAZARD_BOUND,
 };
+use crate::mir::Callee;
 
 impl<'gcx> EvmCodegen<'gcx> {
     /// Returns the destination of a symbolic memory write that can cover a
@@ -277,7 +278,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     {
                         Some(true)
                     }
-                    InstKind::ICall { function, returns: 1, .. }
+                    InstKind::ICall { function: Callee::Function(function), .. }
                         if helper_returns.contains(*function) =>
                     {
                         Some(true)
@@ -360,7 +361,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             | InstKind::Log3(offset, size, _, _, _)
             | InstKind::Log4(offset, size, _, _, _, _) => overlaps(*offset, *size),
             InstKind::MSize | InstKind::Fmp | InstKind::SetFmp(_) | InstKind::Alloc { .. } => true,
-            // These semantic memory operations are normally gone by the `evm-shaped` phase. If
+            // These semantic memory operations are normally gone by the `lowered` phase. If
             // one remains, its complete accessed range is not represented as physical operands
             // here, so retain the Solidity memory invariant conservatively.
             InstKind::MemoryObjectLen(_, _)

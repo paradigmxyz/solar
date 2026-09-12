@@ -2,90 +2,32 @@
 
 use super::*;
 
-#[derive(Clone, Copy)]
-enum StorageArrayElement {
-    Bytes(FunctionId),
-    Word,
-    Packed { bytes: u8, encoding: StorageEncoding, enum_variants: Option<u64> },
-}
-
 /// Builds the helper for decoding one storage `bytes`/`string` slot.
 fn build_storage_bytes_helper(function: &mut Function) {
     // load_storage_bytes(slot) -> bytes_object
-    let mut builder = FunctionBuilder::new(function);
+    let mut builder = FunctionBuilder::new_semantic(function);
     let slot = builder.add_param(MirType::uint256());
-    builder.add_return(MirType::MemoryObject(MemoryObjectKind::Bytes));
-    let object = lower_storage_bytes_inline(&mut builder, slot);
+    builder.set_return_type(MirType::MemoryObject(MemoryObjectKind::Bytes));
+    let object = builder.emit_inst(
+        InstKind::StorageBytesLoad(slot),
+        Some(MirType::MemoryObject(MemoryObjectKind::Bytes)),
+    );
     builder.ret([object]);
 }
 
-fn build_storage_array_helper(function: &mut Function, element: StorageArrayElement) {
-    // length = sload(slot)
-    // array = alloc_dynamic_array(length); set_length(array, length)
-    // data_slot = storage_array_data_slot(slot)
-    // for i < length { array[i] = load/unpack(data_slot, i) }
-    let mut builder = FunctionBuilder::new(function);
+fn build_storage_array_helper(
+    function: &mut Function,
+    element: MirType,
+    enum_variants: Option<u64>,
+) {
+    // object = load_storage_array element, slot; ret object
+    let mut builder = FunctionBuilder::new_semantic(function);
     let slot = builder.add_param(MirType::uint256());
-    builder.add_return(MirType::MemoryObject(MemoryObjectKind::DynamicArray));
-
-    let length = builder.sload(slot);
-    let (object, layout) =
-        builder.alloc_dynamic_word_array(length, AllocationSemantics::SOLIDITY_UNINITIALIZED);
-
-    let data_slot = builder.storage_array_data_slot(slot);
-    builder.counted_loop(length, |builder, index| {
-        let value = match element {
-            StorageArrayElement::Bytes(helper) => {
-                let element_slot = builder.add(data_slot, index);
-                builder.icall(
-                    helper,
-                    vec![element_slot],
-                    MirType::MemoryObject(MemoryObjectKind::Bytes),
-                    1,
-                )
-            }
-            StorageArrayElement::Word => {
-                let element_slot = builder.add(data_slot, index);
-                builder.sload(element_slot)
-            }
-            StorageArrayElement::Packed { bytes, encoding, enum_variants } => {
-                let value =
-                    load_packed_storage_array_element(builder, data_slot, index, bytes, encoding);
-                if let Some(variants) = enum_variants {
-                    builder.validate_enum_value(variants, value);
-                }
-                value
-            }
-        };
-        builder.memory_object_store_element(object, layout, index, value);
-    });
+    let ty = MirType::MemoryObject(MemoryObjectKind::DynamicArray);
+    builder.set_return_type(ty);
+    let object =
+        builder.emit_inst(InstKind::StorageArrayLoad { slot, element, enum_variants }, Some(ty));
     builder.ret([object]);
-}
-
-fn load_packed_storage_array_element(
-    builder: &mut FunctionBuilder<'_>,
-    data_slot: ValueId,
-    index: ValueId,
-    bytes: u8,
-    encoding: StorageEncoding,
-) -> ValueId {
-    // per_slot = 32 / bytes
-    // storage_slot = data_slot + index / per_slot
-    // shift = (index % per_slot) * bytes * 8
-    // value = decode(sload(storage_slot), shift, encoding)
-    let (slot_index, index_in_slot) = packed_storage_array_position(builder, index, bytes);
-    let storage_slot = builder.add(data_slot, slot_index);
-    let word = builder.sload(storage_slot);
-    let byte_shift = u64::from(bytes) * 8;
-    let shift = if byte_shift.is_power_of_two() {
-        let shift = builder.imm(u64::from(byte_shift.trailing_zeros()));
-        builder.shl(shift, index_in_slot)
-    } else {
-        let byte_shift = builder.imm(byte_shift);
-        builder.mul(index_in_slot, byte_shift)
-    };
-    let size = TypeSize::new_int_bits(u16::from(bytes) * 8);
-    StorageLocation::packed_word(size, encoding).load_word(builder, word, Some(shift))
 }
 
 fn packed_storage_array_position(
@@ -108,152 +50,16 @@ fn packed_storage_array_position(
     }
 }
 
-/// Builds the helper for clearing the data words of a storage bytes value.
-fn build_storage_clear_helper(function: &mut Function) {
-    // for i in first_word..words { sstore(data_slot + i, 0) }
-    let mut builder = FunctionBuilder::new(function);
-    let slot = builder.add_param(MirType::uint256());
-    let first_word = builder.add_param(MirType::uint256());
-    let words = builder.add_param(MirType::uint256());
-    let zero = builder.imm(0);
-    emit_clear_storage_words(&mut builder, slot, first_word, words, zero);
-    builder.stop();
-}
-
-fn emit_clear_storage_words(
-    builder: &mut FunctionBuilder<'_>,
-    slot: ValueId,
-    first_word: ValueId,
-    words: ValueId,
-    zero: ValueId,
-) {
-    // data_slot = storage_array_data_slot(slot)
-    // for i in first_word..words { sstore(data_slot + i, 0) }
-    let data_slot = builder.storage_array_data_slot(slot);
-    let preheader = builder.current_block();
-    let header = builder.create_block();
-    let body = builder.create_block();
-    let exit = builder.create_block();
-    builder.jump(header);
-    builder.switch_to_block(header);
-    let index = builder.phi(vec![(preheader, first_word)]);
-    let condition = builder.lt(index, words);
-    builder.branch(condition, body, exit);
-    builder.switch_to_block(body);
-    let element_slot = builder.add(data_slot, index);
-    builder.sstore(element_slot, zero);
-    let next = builder.add_u64_offset(index, 1);
-    let backedge = builder.current_block();
-    builder.jump(header);
-    builder.add_phi_incoming(index, backedge, next);
-    builder.switch_to_block(exit);
-}
-
 /// Builds `store_storage_bytes(slot, object)`, shared by every `bytes`/`string` store into
 /// storage like solc's `copy_byte_array_to_storage`: one body per contract instead of one per
 /// assignment site.
-fn build_storage_bytes_store_helper(function: &mut Function, clear_helper: FunctionId) {
-    let mut builder = FunctionBuilder::new(function);
+fn build_storage_bytes_store_helper(function: &mut Function) {
+    // store_storage_bytes(slot, object); ret
+    let mut builder = FunctionBuilder::new_semantic(function);
     let slot = builder.add_param(MirType::uint256());
     let object = builder.add_param(MirType::MemoryObject(MemoryObjectKind::Bytes));
-
-    // old_is_long, old_length = decode_storage_bytes_header(slot)
-    // length, data = bytes(object)
-    let (_, old_is_long, old_length) = decode_storage_bytes_header(&mut builder, slot);
-    let length = builder.memory_object_len(object, MemoryObjectKind::Bytes);
-    let data_ptr = builder.memory_object_data(object, MemoryObjectKind::Bytes);
-    let data = builder.make_slice(data_ptr, length, SliceLocation::Memory);
-    let word_size = builder.imm(32);
-    let thirty_one = builder.imm(31);
-    let old_rounded = builder.add(old_length, thirty_one);
-    let old_words = builder.div(old_rounded, word_size);
-    let rounded = builder.checked_add(length, thirty_one);
-    let words = builder.div(rounded, word_size);
-    let zero = builder.imm(0);
-    let short = builder.lt(length, word_size);
-    let new_words = builder.select(short, zero, words);
-    let shrunk = builder.gt(old_length, length);
-    let needs_cleanup = builder.and(old_is_long, shrunk);
-    let cleanup_block = builder.create_block();
-    let write_block = builder.create_block();
-    builder.branch(needs_cleanup, cleanup_block, write_block);
-
-    // if old_is_long && old_length > length {
-    //     clear_storage_words(slot, new_words, old_words)
-    // }
-    builder.switch_to_block(cleanup_block);
-    builder.icall_void(clear_helper, vec![slot, new_words, old_words], 0);
-    builder.jump(write_block);
-
-    builder.switch_to_block(write_block);
-    let short_block = builder.create_block();
-    let long_block = builder.create_block();
-    let merge_block = builder.create_block();
-    builder.branch(short, short_block, long_block);
-
-    // header = mask(mload(data), length) | length * 2
-    // sstore(slot, header)
-    builder.switch_to_block(short_block);
-    let data_word = builder.memory_slice_load_word(data, zero);
-    let unused_bytes = builder.sub(word_size, length);
-    let bits = builder.imm(8);
-    let shift = builder.mul(unused_bytes, bits);
-    let one = builder.imm(1);
-    let high_bit = builder.shl(shift, one);
-    let low_mask = builder.sub(high_bit, one);
-    let data_mask = builder.not(low_mask);
-    let data_word = builder.and(data_word, data_mask);
-    let two = builder.imm(2);
-    let tag = builder.mul(length, two);
-    let header = builder.or(data_word, tag);
-    builder.sstore(slot, header);
-    builder.jump(merge_block);
-
-    // sstore(slot, length << 1 | 1)
-    // data_slot = storage_array_data_slot(slot)
-    builder.switch_to_block(long_block);
-    let one = builder.imm(1);
-    let shifted = builder.shl(one, length);
-    let tag = builder.or(shifted, one);
-    builder.sstore(slot, tag);
-    let data_slot = builder.storage_array_data_slot(slot);
-
-    // for i in 0..length / 32 {
-    //     sstore(data_slot + i, mload(data + i * 32))
-    // }
-    let full_words = builder.div(length, word_size);
-    builder.counted_loop(full_words, |builder, index| {
-        let byte_offset = builder.mul(index, word_size);
-        let value = builder.memory_slice_load_word(data, byte_offset);
-        let element_slot = builder.add(data_slot, index);
-        builder.sstore(element_slot, value);
-    });
-    // The final memory word can contain dirty padding bytes, so mask it before storage,
-    // matching solc's `copy_byte_array_to_storage`.
-    let partial_block = builder.create_block();
-    let remainder = builder.and(length, thirty_one);
-    let has_partial = builder.iszero(remainder);
-    builder.branch(has_partial, merge_block, partial_block);
-
-    // if length % 32 != 0 {
-    //     sstore(data_slot + full_words, mask(mload(data + full_words * 32), remainder))
-    // }
-    builder.switch_to_block(partial_block);
-    let partial_offset = builder.mul(full_words, word_size);
-    let partial_word = builder.memory_slice_load_word(data, partial_offset);
-    let unused_bytes = builder.sub(word_size, remainder);
-    let bits = builder.imm(8);
-    let shift = builder.mul(unused_bytes, bits);
-    let high_bit = builder.shl(shift, one);
-    let low_mask = builder.sub(high_bit, one);
-    let data_mask = builder.not(low_mask);
-    let partial_word = builder.and(partial_word, data_mask);
-    let partial_slot = builder.add(data_slot, full_words);
-    builder.sstore(partial_slot, partial_word);
-    builder.jump(merge_block);
-
-    builder.switch_to_block(merge_block);
-    builder.stop();
+    builder.store_storage_bytes(slot, object);
+    builder.ret([]);
 }
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
@@ -262,20 +68,25 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         lhs: &hir::Expr<'_>,
         rhs: &hir::Expr<'_>,
     ) -> bool {
-        let ExprKind::Ident(_) = lhs.peel_parens().kind else { return false };
-        let Some(id) = self.cx.gcx.resolved_variable(lhs) else { return false };
+        let mut root = lhs.peel_parens();
+        while let ExprKind::Member(receiver, _) | ExprKind::Index(receiver, Some(_)) = &root.kind {
+            root = receiver.peel_parens();
+        }
+        let ExprKind::Ident(_) = root.kind else { return false };
+        let Some(id) = self.cx.gcx.resolved_variable(root) else { return false };
         if !self.cx.gcx.hir.variable(id).is_state_variable() {
             return false;
         }
         let Some(lhs_ty) = self.cx.gcx.type_of_expr(lhs.id) else { return false };
         let Some(rhs_ty) = self.cx.gcx.type_of_expr(rhs.id) else { return false };
         let target_ty = lhs_ty.peel_refs();
-        if self.types.memory_layout(target_ty).is_none() || target_ty != rhs_ty.peel_refs() {
+        if self.types.memory_layout(target_ty).is_none() {
             return false;
         }
         match target_ty.kind {
             TyKind::Struct(_) => {
-                matches!(rhs.peel_parens().kind, ExprKind::Call(..))
+                target_ty == rhs_ty.peel_refs()
+                    && matches!(rhs.peel_parens().kind, ExprKind::Call(..))
                     && self.is_constant_storage_value(rhs, target_ty)
             }
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
@@ -289,7 +100,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     fn is_constant_storage_value(&self, expr: &hir::Expr<'_>, ty: Ty<'gcx>) -> bool {
         match ty.peel_refs().kind {
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
-                matches!(self.cx.gcx.try_eval_const_value(expr), Ok(ConstValue::String(_)))
+                self.constant_storage_bytes(expr).is_some()
             }
             TyKind::Struct(struct_id) => {
                 let ExprKind::Call(callee, args, _) = &expr.peel_parens().kind else {
@@ -326,6 +137,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
+    fn constant_storage_bytes(&self, expr: &hir::Expr<'_>) -> Option<ByteSymbol> {
+        if let ExprKind::Lit(lit) = &expr.peel_parens().kind
+            && let LitKind::Str(_, bytes, _) = lit.kind
+        {
+            Some(bytes)
+        } else if let Ok(ConstValue::String(bytes)) = self.cx.gcx.try_eval_const_value(expr) {
+            Some(*bytes)
+        } else {
+            None
+        }
+    }
+
     pub(super) fn lower_constant_storage_assignment(
         &mut self,
         lhs: &hir::Expr<'_>,
@@ -346,9 +169,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<()> {
         match ty.peel_refs().kind {
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
-                let Ok(ConstValue::String(value)) = self.cx.gcx.try_eval_const_value(expr) else {
-                    return None;
-                };
+                let value = self.constant_storage_bytes(expr)?;
                 self.store_constant_storage_bytes(
                     access.slot,
                     value.as_byte_str_in(self.cx.gcx.sess),
@@ -595,8 +416,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let too_long = self.builder.gt(new_length, max_length);
         self.builder.panic_if(too_long, PanicCode::MemoryAllocationOverflow);
 
-        let long_block = self.builder.create_block();
+        // branch old_length > 31, long, short; short: ...; long: ...
         let short_block = self.builder.create_block();
+        let long_block = self.builder.create_block();
         let transition_block = self.builder.create_block();
         let packed_block = self.builder.create_block();
         let merge_block = self.builder.create_block();
@@ -781,8 +603,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let too_long = self.builder.iszero(in_range);
         self.builder.panic_if(too_long, PanicCode::MemoryAllocationOverflow);
 
-        let long_block = self.builder.create_block();
+        // Keep the short-header path first so repeated packed pushes can fall through.
         let short_block = self.builder.create_block();
+        let long_block = self.builder.create_block();
         let transition_block = self.builder.create_block();
         let packed_block = self.builder.create_block();
         let merge_block = self.builder.create_block();
@@ -905,10 +728,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let empty = self.builder.eq(old_length, zero);
         self.builder.panic_if(empty, PanicCode::EmptyArrayPop);
 
-        let transition_block = self.builder.create_block();
+        // Keep ordinary resizes first so packed pops fall through to their continuation.
         let resize_block = self.builder.create_block();
         let packed_block = self.builder.create_block();
         let long_block = self.builder.create_block();
+        let transition_block = self.builder.create_block();
         let merge_block = self.builder.create_block();
         let word_size = self.builder.imm(32);
         let at_boundary = self.builder.eq(old_length, word_size);
@@ -1187,9 +1011,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             )
         ) {
             let helper = self
-                .lazy_helper(sym::load_storage_bytes_array, |this, function| {
-                    let bytes_helper = this.ensure_storage_bytes_helper();
-                    build_storage_array_helper(function, StorageArrayElement::Bytes(bytes_helper));
+                .lazy_helper(sym::load_storage_bytes_array, |_, function| {
+                    build_storage_array_helper(
+                        function,
+                        MirType::MemoryObject(MemoryObjectKind::Bytes),
+                        None,
+                    );
                     Some(())
                 })
                 .expect("storage bytes array helper construction cannot fail");
@@ -1224,7 +1051,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 .lazy_helper(name, |_, function| {
                     build_storage_array_helper(
                         function,
-                        StorageArrayElement::Packed { bytes, encoding, enum_variants },
+                        match encoding {
+                            StorageEncoding::Unsigned => MirType::UInt(size),
+                            StorageEncoding::Signed => MirType::Int(size),
+                            StorageEncoding::FixedBytes => MirType::FixedBytes(size),
+                        },
+                        enum_variants,
                     );
                     Some(())
                 })
@@ -1237,7 +1069,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         {
             let helper = self
                 .lazy_helper(sym::load_storage_word_array, |_, function| {
-                    build_storage_array_helper(function, StorageArrayElement::Word);
+                    build_storage_array_helper(function, MirType::uint256(), None);
                     Some(())
                 })
                 .expect("storage word array helper construction cannot fail");
@@ -1269,7 +1101,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         //     element_slot += element_slots
         // }
         let slot = self.builder.add_param(MirType::uint256());
-        self.builder.add_return(MirType::MemoryObject(MemoryObjectKind::DynamicArray));
+        self.builder.set_return_type(MirType::MemoryObject(MemoryObjectKind::DynamicArray));
 
         let length = self.builder.sload(slot);
         let (object, layout) = self
@@ -1317,7 +1149,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 helper,
                 vec![slot],
                 MirType::MemoryObject(layout.kind()),
-                1,
             ));
         }
 
@@ -1379,7 +1210,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         },
                         span,
                     )?;
-                    self.builder.icall_void(helper, vec![slot, object], 0);
+                    self.builder.icall_void(helper, vec![slot, object]);
                     return Some(());
                 }
                 self.store_storage_struct_fields_with_source(
@@ -1447,10 +1278,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn load_storage_bytes(&mut self, slot: ValueId) -> ValueId {
         if !self.cx.share_storage_bytes {
-            return lower_storage_bytes_inline(&mut self.builder, slot);
+            // object = load_storage_bytes(slot)
+            return self.builder.emit_inst(
+                InstKind::StorageBytesLoad(slot),
+                Some(MirType::MemoryObject(MemoryObjectKind::Bytes)),
+            );
         }
         let helper = self.ensure_storage_bytes_helper();
-        self.builder.icall(helper, vec![slot], MirType::MemoryObject(MemoryObjectKind::Bytes), 1)
+        self.builder.icall(helper, vec![slot], MirType::MemoryObject(MemoryObjectKind::Bytes))
     }
 
     /// Reads the length of a storage `bytes`/`string` value from its header slot.
@@ -1497,84 +1332,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn store_storage_bytes(&mut self, slot: ValueId, object: ValueId) -> Option<()> {
         // store_storage_bytes(slot, object)
-        let clear_helper = self.storage_clear_helper();
         let helper = self.lazy_helper(sym::store_storage_bytes, |_, function| {
-            build_storage_bytes_store_helper(function, clear_helper);
+            build_storage_bytes_store_helper(function);
             Some(())
         })?;
-        self.builder.icall_void(helper, vec![slot, object], 0);
+        self.builder.icall_void(helper, vec![slot, object]);
         Some(())
     }
 
-    fn storage_clear_helper(&mut self) -> FunctionId {
-        self.lazy_helper(sym::clear_storage_words, |_, function| {
-            build_storage_clear_helper(function);
-            Some(())
-        })
-        .expect("storage clear helper construction cannot fail")
-    }
-
-    fn clear_storage_words_with_helper(
-        &mut self,
-        slot: ValueId,
-        first_word: ValueId,
-        words: ValueId,
-    ) {
-        let helper = self.storage_clear_helper();
-        self.builder.icall_void(helper, vec![slot, first_word, words], 0);
-    }
-
     fn store_constant_storage_bytes(&mut self, slot: ValueId, bytes: &[u8]) {
-        let (_, old_is_long, old_length) = decode_storage_bytes_header(&mut self.builder, slot);
-        let length = self.builder.imm(bytes.len() as u64);
-        let shrunk = self.builder.gt(old_length, length);
-        let needs_cleanup = self.builder.and(old_is_long, shrunk);
-        let cleanup_block = self.builder.create_block();
-        let write_block = self.builder.create_block();
-        self.builder.branch(needs_cleanup, cleanup_block, write_block);
-
-        // if old_is_long && old_length > length {
-        //     clear_storage_words(slot, new_words, old_words)
-        // }
-        self.builder.switch_to_block(cleanup_block);
-        let word_size = self.builder.imm(32);
-        let thirty_one = self.builder.imm(31);
-        let old_rounded = self.builder.add(old_length, thirty_one);
-        let old_words = self.builder.div(old_rounded, word_size);
-        let new_words = if bytes.len() < 32 {
-            self.builder.imm(0)
-        } else {
-            self.builder.imm(bytes.len().div_ceil(32) as u64)
-        };
-        self.clear_storage_words_with_helper(slot, new_words, old_words);
-        self.builder.jump(write_block);
-
-        self.builder.switch_to_block(write_block);
-        if bytes.len() < 32 {
-            // sstore(slot, bytes_word | length * 2)
-            let word = if bytes.is_empty() {
-                U256::ZERO
-            } else {
-                U256::from_be_slice(bytes) << ((32 - bytes.len()) * 8)
-            };
-            let tag = U256::from((bytes.len() as u64) * 2);
-            let value = self.builder.imm(word | tag);
-            self.builder.sstore(slot, value);
-        } else {
-            // sstore(slot, length * 2 + 1)
-            // for chunk, i { sstore(storage_array_data_slot(slot) + i, chunk) }
-            let tag = U256::from((bytes.len() as u64) * 2 + 1);
-            let value = self.builder.imm(tag);
-            self.builder.sstore(slot, value);
-            let data_slot = self.builder.storage_array_data_slot(slot);
-            for (index, chunk) in bytes.chunks(32).enumerate() {
-                let word = U256::from_be_slice(chunk) << ((32 - chunk.len()) * 8);
-                let index = self.builder.imm(index as u64);
-                let element_slot = self.builder.add(data_slot, index);
-                let value = self.builder.imm(word);
-                self.builder.sstore(element_slot, value);
-            }
-        }
+        // store_storage_bytes_literal slot, bytes
+        self.builder.store_storage_bytes_literal(slot, bytes);
     }
 
     fn store_dynamic_storage_object(
@@ -1750,7 +1518,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
             };
             if lowered {
-                lowerer.builder.stop();
+                // ret
+                lowerer.builder.ret([]);
             }
             lowered.then_some(())
         })
@@ -1784,7 +1553,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let remainder_is_zero = self.builder.iszero(remainder);
                     let has_partial_slot = self.builder.iszero(remainder_is_zero);
                     let slots = self.builder.add(full_slots, has_partial_slot);
-                    emit_clear_storage_words(&mut self.builder, access.slot, zero, slots, zero);
+                    self.builder.clear_storage_words(access.slot, zero, slots);
                     return Some(());
                 }
 
@@ -1801,7 +1570,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         RecursiveStorageHelper::Clear { target: struct_id },
                         span,
                     )?;
-                    self.builder.icall_void(helper, vec![access.slot], 0);
+                    self.builder.icall_void(helper, vec![access.slot]);
                 } else {
                     self.clear_storage_struct_fields(struct_id, access.slot, span)?;
                 }
@@ -1934,7 +1703,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
         // if is_long { clear_storage_words(slot, 0, words) }
         self.builder.switch_to_block(cleanup_block);
-        emit_clear_storage_words(&mut self.builder, slot, zero, words, zero);
+        self.builder.clear_storage_words(slot, zero, words);
         self.builder.jump(write_block);
 
         // sstore(slot, 0)
@@ -1948,23 +1717,11 @@ fn decode_storage_bytes_header(
     slot: ValueId,
 ) -> (ValueId, ValueId, ValueId) {
     // header = sload(slot)
-    // flag = header & 1; is_long = (flag == 1)
-    // half = header >> 1
-    // length = is_long ? half : (half & 0x7f)
-    // if invalid_short_long_encoding { panic(StorageEncoding) }
+    // validate_storage_bytes(header)
+    // is_long, length = storage_bytes_header_parts(header)
     let header = builder.sload(slot);
-    let one = builder.imm(1);
-    let flag = builder.and(header, one);
-    let is_long = builder.eq(flag, one);
-    let shift = builder.imm(1);
-    let half = builder.shr(shift, header);
-    let short_mask = builder.imm(0x7f);
-    let short_len = builder.and(half, short_mask);
-    let length = builder.select(is_long, half, short_len);
-    let thirty_two = builder.imm(32);
-    let short_length = builder.lt(length, thirty_two);
-    let invalid_encoding = builder.eq(is_long, short_length);
-    builder.panic_if(invalid_encoding, PanicCode::StorageEncoding);
+    builder.validate_storage_bytes(header);
+    let (is_long, length) = builder.storage_bytes_header_parts(header);
     (header, is_long, length)
 }
 
@@ -2039,38 +1796,4 @@ fn storage_bytes_byte_access_at(
     let location =
         StorageLocation::packed_word(TypeSize::new_int_bits(8), StorageEncoding::FixedBytes);
     StorageAccess { slot: word_slot, location, offset: Some(offset) }
-}
-
-fn lower_storage_bytes_inline(builder: &mut FunctionBuilder<'_>, slot: ValueId) -> ValueId {
-    let (header, is_long, length) = decode_storage_bytes_header(builder, slot);
-    let thirty_two = builder.imm(32);
-    let thirty_one = builder.imm(31);
-    let rounded = builder.add(length, thirty_one);
-    let words = builder.div(rounded, thirty_two);
-    let object = builder.alloc_bytes_object(length, AllocationSemantics::SOLIDITY_UNINITIALIZED);
-
-    let short_block = builder.create_block();
-    let long_block = builder.create_block();
-    let merge_block = builder.create_block();
-    builder.branch(is_long, long_block, short_block);
-
-    builder.switch_to_block(short_block);
-    let zero = builder.imm(0);
-    let short_mask = builder.imm(U256::MAX << 8);
-    let short_data = builder.and(header, short_mask);
-    builder.memory_object_store_word(object, zero, short_data);
-    builder.jump(merge_block);
-
-    builder.switch_to_block(long_block);
-    let data_slot = builder.storage_array_data_slot(slot);
-    builder.counted_loop(words, |builder, index| {
-        let element_slot = builder.add(data_slot, index);
-        let value = builder.sload(element_slot);
-        let byte_offset = builder.mul(index, thirty_two);
-        builder.memory_object_store_word(object, byte_offset, value);
-    });
-    builder.jump(merge_block);
-
-    builder.switch_to_block(merge_block);
-    object
 }

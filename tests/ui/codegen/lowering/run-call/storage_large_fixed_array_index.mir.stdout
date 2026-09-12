@@ -1,73 +1,56 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_large_fixed_array_index.sol:StorageLargeFixedArrayIndex ===
 @module StorageLargeFixedArrayIndex
-fn @test() -> (u256, u256) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word]] {
+types:
+  struct0: {u256, u256}
+
+fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = mapping_slot 0, 0
     v1 = lt 0x80000000000000000000000000000000000000000000000000, 0x100000000000000000000000000000000000000000000000000
     v2 = iszero v1
-    jumpi v2, bb1, bb2
-  bb2:
+    panic_if v2, 0x32
     v3 = mul 0x80000000000000000000000000000000000000000000000000, 2
     v4 = add v0, v3
     v5 = lt 1, 2
     v6 = iszero v5
-    jumpi v6, bb1, bb3
-  bb3:
+    panic_if v6, 0x32
     v7 = add v4, 1
     sstore v7, 7 !metadata(storage=offset(v4, 1))
-    v8 = add 0x80000000000000000000000000000000000000000000000000, 1
-    v9 = lt v8, 0x80000000000000000000000000000000000000000000000000
-    jumpi v9, bb4, bb5
-  bb5:
-    v10 = lt v8, 0x100000000000000000000000000000000000000000000000000
-    v11 = iszero v10
-    jumpi v11, bb1, bb6
-  bb6:
-    v12 = mul v8, 2
-    v13 = add v0, v12
-    v14 = lt 0, 2
-    v15 = iszero v14
-    jumpi v15, bb1, bb7
-  bb7:
-    v16 = add v13, 0
-    sstore v16, 8 !metadata(storage=symbolic(v13))
-    v17 = lt 0x80000000000000000000000000000000000000000000000000, 0x100000000000000000000000000000000000000000000000000
-    v18 = iszero v17
-    jumpi v18, bb1, bb8
-  bb8:
-    v19 = mul 0x80000000000000000000000000000000000000000000000000, 2
-    v20 = add v0, v19
-    v21 = lt 1, 2
-    v22 = iszero v21
-    jumpi v22, bb1, bb9
-  bb9:
-    v23 = add v20, 1
-    v24 = sload v23 !metadata(storage=offset(v20, 1))
-    v25 = add 0x80000000000000000000000000000000000000000000000000, 1
-    v26 = lt v25, 0x80000000000000000000000000000000000000000000000000
-    jumpi v26, bb4, bb10
-  bb10:
-    v27 = lt v25, 0x100000000000000000000000000000000000000000000000000
-    v28 = iszero v27
-    jumpi v28, bb1, bb11
-  bb11:
-    v29 = mul v25, 2
-    v30 = add v0, v29
-    v31 = lt 0, 2
-    v32 = iszero v31
-    jumpi v32, bb1, bb12
-  bb12:
-    v33 = add v30, 0
-    v34 = sload v33 !metadata(storage=symbolic(v30))
-    ret v24, v34
-  bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    v8 = checked_add u256, 0x80000000000000000000000000000000000000000000000000, 1
+    v9 = lt v8, 0x100000000000000000000000000000000000000000000000000
+    v10 = iszero v9
+    panic_if v10, 0x32
+    v11 = mul v8, 2
+    v12 = add v0, v11
+    v13 = lt 0, 2
+    v14 = iszero v13
+    panic_if v14, 0x32
+    v15 = add v12, 0
+    sstore v15, 8 !metadata(storage=symbolic(v12))
+    v16 = lt 0x80000000000000000000000000000000000000000000000000, 0x100000000000000000000000000000000000000000000000000
+    v17 = iszero v16
+    panic_if v17, 0x32
+    v18 = mul 0x80000000000000000000000000000000000000000000000000, 2
+    v19 = add v0, v18
+    v20 = lt 1, 2
+    v21 = iszero v20
+    panic_if v21, 0x32
+    v22 = add v19, 1
+    v23 = sload v22 !metadata(storage=offset(v19, 1))
+    v24 = checked_add u256, 0x80000000000000000000000000000000000000000000000000, 1
+    v25 = lt v24, 0x100000000000000000000000000000000000000000000000000
+    v26 = iszero v25
+    panic_if v26, 0x32
+    v27 = mul v24, 2
+    v28 = add v0, v27
+    v29 = lt 0, 2
+    v30 = iszero v29
+    panic_if v30, 0x32
+    v31 = add v28, 0
+    v32 = sload v31 !metadata(storage=symbolic(v28))
+    v33 = insert_value struct0, undef struct0, 0, v23
+    v34 = insert_value struct0, v33, 1, v32
+    ret v34
 }
 
 fn @read(arg0: u256) -> u256 [selector=0xed2e5a97, view, abi_params=[u256], abi_returns=[word]] {
@@ -75,21 +58,15 @@ fn @read(arg0: u256) -> u256 [selector=0xed2e5a97, view, abi_params=[u256], abi_
     v0 = mapping_slot 0, 0
     v1 = lt arg0, 0x100000000000000000000000000000000000000000000000000
     v2 = iszero v1
-    jumpi v2, bb1, bb2
-  bb2:
+    panic_if v2, 0x32
     v3 = mul arg0, 2
     v4 = add v0, v3
     v5 = lt 0, 2
     v6 = iszero v5
-    jumpi v6, bb1, bb3
-  bb3:
+    panic_if v6, 0x32
     v7 = add v4, 0
     v8 = sload v7 !metadata(storage=symbolic(v4))
     ret v8
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @hasExpectedLength() -> bool [selector=0xa2fb6983, view, abi_params=[], abi_returns=[word<bool>]] {

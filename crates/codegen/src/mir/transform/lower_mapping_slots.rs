@@ -1,10 +1,12 @@
 //! Lower mapping-slot and storage-array slot builtins to physical hashing.
 //!
-//! Keeping storage-location hashing as one MIR instruction lets dominator-tree
-//! CSE reuse repeated accesses without teaching HIR lowering about scratch
-//! memory. This pass expands the builtins at the memory boundary. Variable-size
+//! This pass expands storage-location hashing at the memory boundary. Variable-size
 //! hash inputs use the free-memory pointer as transient scratch; fixed-width
-//! mapping and storage-array hashes use reserved scratch.
+//! mapping and storage-array hashes use reserved scratch. The semantic instructions
+//! declare these writes so earlier passes cannot forward stale scratch reads.
+//! CSE can share fixed-width hashes only while their inputs and scratch writes
+//! remain unchanged. Variable-width hashes require physical alias proofs.
+//! Memory DSE and CSE also clean up the physical stores and hashes after expansion.
 
 use crate::mir::{
     FunctionBuilder, InstKind, MemoryObjectKind, Module, SliceLocation,
@@ -104,6 +106,8 @@ fn lower_storage_array_data_slot(
     builder: &mut FunctionBuilder<'_>,
     slot: crate::mir::ValueId,
 ) -> crate::mir::ValueId {
+    // mstore(0, slot)
+    // result = keccak256(0, 32)
     let word = builder.imm(32);
     let zero = builder.imm(0);
     builder.mstore(zero, slot);
@@ -116,6 +120,8 @@ fn lower_storage_array_element_slot(
     index: crate::mir::ValueId,
     element_slots: u64,
 ) -> crate::mir::ValueId {
+    // data_slot = storage_array_data_slot(slot)
+    // result = data_slot + index * element_slots
     let data_slot = lower_storage_array_data_slot(builder, slot);
     let offset = if element_slots <= 1 {
         index
@@ -132,6 +138,9 @@ fn lower_word_mapping_slot(
     key: crate::mir::ValueId,
     slot: crate::mir::ValueId,
 ) -> crate::mir::ValueId {
+    // mstore(0, key)
+    // mstore(32, slot)
+    // result = keccak256(0, 64)
     let zero = builder.imm(0);
     let word = builder.imm(32);
     let size = builder.imm(64);
@@ -146,6 +155,11 @@ fn lower_slice_mapping_slot(
     value: crate::mir::ValueId,
     slot: crate::mir::ValueId,
 ) -> crate::mir::ValueId {
+    // length = slice_len(value)
+    // scratch = fmp
+    // copy(scratch, slice_ptr(value), length)
+    // mstore(scratch + length, slot)
+    // result = keccak256(scratch, length + 32)
     let len = match location {
         SliceLocation::Memory => builder.memory_object_len(value, MemoryObjectKind::Bytes),
         SliceLocation::Calldata | SliceLocation::Returndata => builder.slice_len(value),

@@ -12,7 +12,7 @@ contract TryCatchClauses {
     // out of the call's own output area, and the clause runs with no return data at all.
     // CHECK-LABEL: fn @bare
     // CHECK: call
-    // CHECK: returndatasize
+    // CHECK: returndata_bytes
     function bare(ClauseTarget target) external returns (uint256 r) {
         try target.value() returns (uint256 v) {
             r = v;

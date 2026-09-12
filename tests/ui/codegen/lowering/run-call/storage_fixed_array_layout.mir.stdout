@@ -1,17 +1,26 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_fixed_array_layout.sol:StorageFixedArrayLayout ===
 @module StorageFixedArrayLayout
-fn @slots() -> (u256, u256, u256, u256, u256, u256) [selector=0x48547d69, pure, abi_params=[], abi_returns=[word, word, word, word, word, word]] {
+types:
+  struct0: {u256, u256, u256, u256, u256, u256}
+  struct1: {u256, u256, u256, u256}
+
+fn @slots() -> struct0 [selector=0x48547d69, pure, abi_params=[], abi_returns=[word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256]] {
   bb0:
-    ret 0, 3, 4, 7, 8, 10
+    v0 = insert_value struct0, undef struct0, 0, 0
+    v1 = insert_value struct0, v0, 1, 3
+    v2 = insert_value struct0, v1, 2, 4
+    v3 = insert_value struct0, v2, 3, 7
+    v4 = insert_value struct0, v3, 4, 8
+    v5 = insert_value struct0, v4, 5, 10
+    ret v5
 }
 
-fn @preserveNeighbors() -> (bytes9, u256, bytes17, u256, u128, u256) [selector=0xf110cb82, abi_params=[], abi_returns=[word<bytes9>, word, word<bytes17>, word, word<u128>, word]] {
+fn @preserveNeighbors() -> struct0 [selector=0xf110cb82, abi_params=[], abi_returns=[word<bytes9>, word, word<bytes17>, word, word<u128>, word], abi_return_params=[bytes9, u256, bytes17, u256, u128, u256]] {
   bb0:
     v0 = shl 184, 6
     v1 = lt 6, 7
     v2 = iszero v1
-    jumpi v2, bb1, bb2
-  bb2:
+    panic_if v2, 0x32
     v3 = div 6, 3
     v4 = add 0, v3
     v5 = mod 6, 3
@@ -30,8 +39,7 @@ fn @preserveNeighbors() -> (bytes9, u256, bytes17, u256, u128, u256) [selector=0
     v16 = shl 120, 3
     v17 = lt 2, 3
     v18 = iszero v17
-    jumpi v18, bb1, bb3
-  bb3:
+    panic_if v18, 0x32
     v19 = div 2, 1
     v20 = add 4, v19
     v21 = mod 2, 1
@@ -49,8 +57,7 @@ fn @preserveNeighbors() -> (bytes9, u256, bytes17, u256, u128, u256) [selector=0
     sstore 7, 12 !metadata(storage=slot(7))
     v32 = lt 2, 3
     v33 = iszero v32
-    jumpi v33, bb1, bb4
-  bb4:
+    panic_if v33, 0x32
     v34 = div 2, 2
     v35 = add 8, v34
     v36 = mod 2, 2
@@ -67,8 +74,7 @@ fn @preserveNeighbors() -> (bytes9, u256, bytes17, u256, u128, u256) [selector=0
     sstore 10, 13 !metadata(storage=slot(10))
     v46 = lt 6, 7
     v47 = iszero v46
-    jumpi v47, bb1, bb5
-  bb5:
+    panic_if v47, 0x32
     v48 = div 6, 3
     v49 = add 0, v48
     v50 = mod 6, 3
@@ -81,8 +87,7 @@ fn @preserveNeighbors() -> (bytes9, u256, bytes17, u256, u128, u256) [selector=0
     v57 = sload 3 !metadata(storage=slot(3))
     v58 = lt 2, 3
     v59 = iszero v58
-    jumpi v59, bb1, bb6
-  bb6:
+    panic_if v59, 0x32
     v60 = div 2, 1
     v61 = add 4, v60
     v62 = mod 2, 1
@@ -95,8 +100,7 @@ fn @preserveNeighbors() -> (bytes9, u256, bytes17, u256, u128, u256) [selector=0
     v69 = sload 7 !metadata(storage=slot(7))
     v70 = lt 2, 3
     v71 = iszero v70
-    jumpi v71, bb1, bb7
-  bb7:
+    panic_if v71, 0x32
     v72 = div 2, 2
     v73 = add 8, v72
     v74 = mod 2, 2
@@ -106,125 +110,124 @@ fn @preserveNeighbors() -> (bytes9, u256, bytes17, u256, u128, u256) [selector=0
     v78 = shr v77, v76
     v79 = and v78, 0xffffffffffffffffffffffffffffffff
     v80 = sload 10 !metadata(storage=slot(10))
-    ret v56, v57, v68, v69, v79, v80
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    v81 = insert_value struct0, undef struct0, 0, v56
+    v82 = insert_value struct0, v81, 1, v57
+    v83 = insert_value struct0, v82, 2, v68
+    v84 = insert_value struct0, v83, 3, v69
+    v85 = insert_value struct0, v84, 4, v79
+    v86 = insert_value struct0, v85, 5, v80
+    ret v86
 }
 
-fn @copyDoesNotOverlapSource() -> (u72, u72, u72, bytes32) [selector=0x8b005e62, abi_params=[], abi_returns=[word<u72>, word<u72>, word<u72>, word]] {
+fn @copyDoesNotOverlapSource() -> struct1 [selector=0x8b005e62, abi_params=[], abi_returns=[word<u72>, word<u72>, word<u72>, word], abi_return_params=[u72, u72, u72, bytes32]] {
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb10: v0]
-    v1 = phi [bb0: 0], [bb10: v23]
-    v2 = phi [bb0: 0], [bb10: v2]
-    v3 = phi [bb0: 0], [bb10: v3]
-    v4 = phi [bb0: 0], [bb10: v4]
+    v0 = phi [bb0: 0], [bb3: v0]
+    v1 = phi [bb0: 0], [bb3: v23]
+    v2 = phi [bb0: 0], [bb3: v2]
+    v3 = phi [bb0: 0], [bb3: v3]
+    v4 = phi [bb0: 0], [bb3: v4]
     v5 = lt v1, 7
     jumpi v5, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    v25 = shl 192, 2
-    v26 = lt 9, 10
-    v27 = iszero v26
-    jumpi v27, bb7, bb11
-  bb11:
-    v28 = add 11, 9
-    sstore v28, v25 !metadata(storage=slot(20))
-    v29 = lt 8, 10
-    v30 = iszero v29
-    jumpi v30, bb7, bb12
+    v24 = shl 192, 2
+    v25 = lt 9, 10
+    v26 = iszero v25
+    panic_if v26, 0x32
+    v27 = add 11, 9
+    sstore v27, v24 !metadata(storage=slot(20))
+    v28 = lt 8, 10
+    v29 = iszero v28
+    panic_if v29, 0x32
+    v30 = add 11, 8
+    sstore v30, v24 !metadata(storage=slot(19))
+    v31 = alloc memoryfixedarray<7, 1>, exact, uninitialized, panic, 224
+    jump bb7
+  bb7:
+    v32 = phi [bb2: 0], [bb8: v44]
+    v33 = lt v32, 7
+    jumpi v33, bb8, bb9
+  bb9:
+    jump bb10
+  bb10:
+    v45 = phi [bb9: 0], [bb15: v50]
+    v46 = lt v45, 10
+    jumpi v46, bb11, bb12
   bb12:
-    v31 = add 11, 8
-    sstore v31, v25 !metadata(storage=slot(19))
-    v32 = alloc memoryfixedarray<7, 1>, exact, uninitialized, panic, 224
-    jump bb13
-  bb13:
-    v33 = phi [bb12: 0], [bb14: v45]
-    v34 = lt v33, 7
-    jumpi v34, bb14, bb15
-  bb15:
-    jump bb16
-  bb16:
-    v46 = phi [bb15: 0], [bb21: v51]
-    v47 = lt v46, 10
-    jumpi v47, bb17, bb18
-  bb18:
-    v52 = lt 6, 7
-    v53 = iszero v52
-    jumpi v53, bb7, bb22
-  bb22:
-    v54 = div 6, 3
-    v55 = add 0, v54
-    v56 = mod 6, 3
-    v57 = mul v56, 9
-    v58 = sload v55 !metadata(storage=symbolic(v54))
-    v59 = mul v57, 8
-    v60 = shr v59, v58
-    v61 = and v60, 0xffffffffffffffffff
-    v62 = shl 184, v61
-    v63 = shr 184, v62
-    v64 = lt 1, 10
-    v65 = iszero v64
-    jumpi v65, bb7, bb23
-  bb23:
-    v66 = add 11, 1
-    v67 = sload v66 !metadata(storage=slot(12))
-    v68 = and v67, 0xffffffffffffffffff0000000000000000000000000000000000000000000000
-    v69 = shr 184, v68
-    v70 = lt 6, 10
-    v71 = iszero v70
-    jumpi v71, bb7, bb24
-  bb24:
-    v72 = add 11, 6
-    v73 = sload v72 !metadata(storage=slot(17))
-    v74 = and v73, 0xffffffffffffffffff0000000000000000000000000000000000000000000000
-    v75 = shr 184, v74
-    v76 = lt 9, 10
-    v77 = iszero v76
-    jumpi v77, bb7, bb25
-  bb25:
-    v78 = add 11, 9
-    v79 = sload v78 !metadata(storage=slot(20))
-    ret v63, v69, v75, v79
-  bb17:
-    v48 = add 11, v46
-    v49 = lt v46, 7
-    jumpi v49, bb19, bb20
-  bb20:
-    sstore v48, 0 !metadata(storage=offset(v46, 11))
-    jump bb21
-  bb19:
-    v50 = memory_object_load_element memoryfixedarray<7, 1>, v32, v46
-    sstore v48, v50 !metadata(storage=offset(v46, 11))
-    jump bb21
-  bb21:
-    v51 = add v46, 1
-    jump bb16
+    v51 = lt 6, 7
+    v52 = iszero v51
+    panic_if v52, 0x32
+    v53 = div 6, 3
+    v54 = add 0, v53
+    v55 = mod 6, 3
+    v56 = mul v55, 9
+    v57 = sload v54 !metadata(storage=symbolic(v53))
+    v58 = mul v56, 8
+    v59 = shr v58, v57
+    v60 = and v59, 0xffffffffffffffffff
+    v61 = shl 184, v60
+    v62 = shr 184, v61
+    v63 = lt 1, 10
+    v64 = iszero v63
+    panic_if v64, 0x32
+    v65 = add 11, 1
+    v66 = sload v65 !metadata(storage=slot(12))
+    v67 = and v66, 0xffffffffffffffffff0000000000000000000000000000000000000000000000
+    v68 = shr 184, v67
+    v69 = lt 6, 10
+    v70 = iszero v69
+    panic_if v70, 0x32
+    v71 = add 11, 6
+    v72 = sload v71 !metadata(storage=slot(17))
+    v73 = and v72, 0xffffffffffffffffff0000000000000000000000000000000000000000000000
+    v74 = shr 184, v73
+    v75 = lt 9, 10
+    v76 = iszero v75
+    panic_if v76, 0x32
+    v77 = add 11, 9
+    v78 = sload v77 !metadata(storage=slot(20))
+    v79 = insert_value struct1, undef struct1, 0, v62
+    v80 = insert_value struct1, v79, 1, v68
+    v81 = insert_value struct1, v80, 2, v74
+    v82 = insert_value struct1, v81, 3, v78
+    ret v82
+  bb11:
+    v47 = add 11, v45
+    v48 = lt v45, 7
+    jumpi v48, bb13, bb14
   bb14:
-    v35 = div v33, 3
-    v36 = add 0, v35
-    v37 = mod v33, 3
-    v38 = mul v37, 9
-    v39 = sload v36 !metadata(storage=symbolic(v35))
-    v40 = mul v38, 8
-    v41 = shr v40, v39
-    v42 = and v41, 0xffffffffffffffffff
-    v43 = shl 184, v42
-    v44 = and v43, 0xffffffffffffffffff0000000000000000000000000000000000000000000000
-    memory_object_store_element memoryfixedarray<7, 1>, v32, v33, v44
-    v45 = add v33, 1
-    jump bb13
+    sstore v47, 0 !metadata(storage=offset(v45, 11))
+    jump bb15
+  bb13:
+    v49 = memory_object_load_element memoryfixedarray<7, 1>, v31, v45
+    sstore v47, v49 !metadata(storage=offset(v45, 11))
+    jump bb15
+  bb15:
+    v50 = add v45, 1
+    jump bb10
+  bb8:
+    v34 = div v32, 3
+    v35 = add 0, v34
+    v36 = mod v32, 3
+    v37 = mul v36, 9
+    v38 = sload v35 !metadata(storage=symbolic(v34))
+    v39 = mul v37, 8
+    v40 = shr v39, v38
+    v41 = and v40, 0xffffffffffffffffff
+    v42 = shl 184, v41
+    v43 = and v42, 0xffffffffffffffffff0000000000000000000000000000000000000000000000
+    memory_object_store_element memoryfixedarray<7, 1>, v31, v32, v43
+    v44 = add v32, 1
+    jump bb7
   bb4:
     v6 = and v1, 0xffffffffffffffffff
     v7 = shl 184, v6
     v8 = lt v1, 7
     v9 = iszero v8
-    jumpi v9, bb7, bb8
-  bb8:
+    panic_if v9, 0x32
     v10 = div v1, 3
     v11 = add 0, v10
     v12 = mod v1, 3
@@ -243,17 +246,6 @@ fn @copyDoesNotOverlapSource() -> (u72, u72, u72, bytes32) [selector=0x8b005e62,
   bb6:
     jump bb3
   bb3:
-    v23 = add v1, 1
-    v24 = lt v23, v1
-    jumpi v24, bb9, bb10
-  bb10:
+    v23 = checked_add u256, v1, 1
     jump bb1
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
 }

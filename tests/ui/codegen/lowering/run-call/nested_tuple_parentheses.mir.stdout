@@ -1,8 +1,13 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/nested_tuple_parentheses.sol:NestedTupleParentheses ===
 @module NestedTupleParentheses
-fn @f0() -> (i256, bool) [selector=0xa5850475, pure, abi_params=[], abi_returns=[word, word<bool>]] {
+types:
+  struct0: {u256, u256}
+
+fn @f0() -> struct0 [selector=0xa5850475, pure, abi_params=[], abi_returns=[word, word<bool>], abi_return_params=[i256, bool]] {
   bb0:
-    ret 2, 1
+    v0 = insert_value struct0, undef struct0, 0, 2
+    v1 = insert_value struct0, v0, 1, true
+    ret v1
 }
 
 fn @f1() -> i256 [selector=0xc27fc305, pure, abi_params=[], abi_returns=[word]] {
@@ -25,9 +30,11 @@ fn @f4() -> i256 [selector=0xc3f90202, pure, abi_params=[], abi_returns=[word]] 
     ret 4
 }
 
-fn @rhsParens() -> (u256, u256) [selector=0xbcf1ba40, pure, abi_params=[], abi_returns=[word, word]] {
+fn @rhsParens() -> struct0 [selector=0xbcf1ba40, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
-    ret 7, 8
+    v0 = insert_value struct0, undef struct0, 0, 7
+    v1 = insert_value struct0, v0, 1, 8
+    ret v1
 }
 
 fn @scalarParens() -> u256 [selector=0x2d8b3eca, pure, abi_params=[], abi_returns=[word]] {

@@ -1,37 +1,39 @@
-//! EVM-shaped phase lowering: prepare control flow for the EVM backend.
+//! Finish representation conversion and prepare control flow for the EVM backend.
 //!
-//! Real lowered external bodies keep their encode fused: they terminate with
-//! `RETURN`/`REVERT` and never return to a caller. After the ABI and dispatch
-//! phases, wrappers still reach such bodies through `icall`, which
-//! models a returning edge that does not exist — the same dishonesty the
-//! dispatch phase removed from its own case blocks.
+//! After ABI and dispatch lowering, some internal calls still target bodies that
+//! terminate execution instead of returning. This pass drops the continuation of
+//! every call to a bodied callee proven unable to return, including calls with
+//! results. It replaces eligible calls with [`Terminator::TailCall`]; other calls
+//! remain ordinary instructions followed by an unreachable `invalid` terminator.
 //!
-//! This pass rewrites a resultless `icall` to a callee that cannot
-//! return (no reachable `ret` or `stop` terminator) into a
-//! [`Terminator::TailCall`], dropping the dead remainder of the block. The
-//! module comes out in the `evm-shaped` phase: every call edge either returns
-//! or is an explicit tail call, which is the control-flow shape the backend
-//! consumes.
+//! The pass then verifies all lowered-representation requirements and advances the
+//! module from semantic to lowered MIR. A failed check leaves its phase semantic
+//! and prevents the backend from consuming it.
 //!
 //! Arguments ride along: the backend stores them at the callee's compile-time
 //! frame addresses and jumps, pushing no return address. That addressing only
 //! exists for callees the backend gives a static frame (bodied, selectorless,
-//! non-recursive), so calls to any other callee are left as ordinary calls.
+//! non-recursive). Constructor-reachable calls also keep ordinary frames, even
+//! without arguments: callee locals and spills still need a frame base.
+//! Returnability follows explicit returns and tail-call chains conservatively;
+//! unreachable returns can prevent a proof until CFG cleanup removes them. A
+//! caller worklist propagates newly proven nonreturning bodies after cleanup;
+//! it also follows tail-call wrappers without rescanning unrelated functions.
 //!
 //! The backend also eliminates phis by copying each incoming value at the end of its predecessor.
 //! When a phi's previous value remains live on a sibling edge, that copy must run after the branch
 //! selects the phi successor. This pass isolates only those copies in a single-successor block.
 
 use crate::mir::{
-    Function, InstKind, MirPhase, Module, Terminator,
-    analysis::{CallGraphInfo, CfgInfo, Liveness},
+    Callee, Function, InstKind, MirPhase, Module, Terminator,
+    analysis::{CallGraphInfo, Liveness},
     pass::MirPass,
     transform::cfg_simplify::remove_unreachable_blocks,
-    utils::{repair_reachability_phis, split_edge},
+    utils::{replace_terminator, split_edge},
 };
-use solar_data_structures::bit_set::DenseBitSet;
+use solar_data_structures::{bit_set::DenseBitSet, index::index_vec};
 
-/// EVM-shaped phase lowering pass.
+/// Shapes call edges and checks the final MIR phase transition.
 pub(crate) struct LowerEvmShaped;
 
 impl MirPass for LowerEvmShaped {
@@ -40,22 +42,7 @@ impl MirPass for LowerEvmShaped {
     }
 
     fn is_enabled(&self, _gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
-        module.phase == MirPhase::MemoryLowered
-            && module.functions.iter().all(|func| {
-                func.instructions().all(|inst_id| {
-                    let inst = func.inst(inst_id);
-                    match inst.kind {
-                        InstKind::MakeSlice { .. }
-                        | InstKind::SlicePtr(_)
-                        | InstKind::SliceLen(_)
-                        | InstKind::Fmp
-                        | InstKind::SetFmp(_)
-                        | InstKind::StoreImmutable(..) => false,
-                        InstKind::Alloc { .. } => inst.metadata.deferred_alloc(),
-                        _ => true,
-                    }
-                })
-            })
+        module.phase() == MirPhase::Semantic
     }
 
     fn is_required(&self) -> bool {
@@ -64,34 +51,40 @@ impl MirPass for LowerEvmShaped {
 
     fn run_pass(
         &self,
-        _gcx: solar_sema::Gcx<'_>,
+        gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         _analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        lower_evm_shaped(module)
+        let changed = lower_evm_shaped(module);
+        let _ = module.advance_phase(gcx.dcx(), MirPhase::Lowered);
+        changed
     }
 }
 
 fn lower_evm_shaped(module: &mut Module) -> bool {
-    if module.phase != MirPhase::MemoryLowered {
+    if module.phase() != MirPhase::Semantic {
         return false;
     }
 
-    // Entry routing already uses explicit tail calls. Most modules have no
-    // resultless internal call left to reshape, so avoid building a call
-    // graph and classifying every function in that common case.
+    // Skip call-graph analysis when no internal calls remain.
     let has_candidate = module.functions.iter().any(|func| {
         func.instructions().any(|inst_id| {
-            let inst = func.inst(inst_id);
-            inst.result_ty.is_none() && matches!(inst.kind, InstKind::ICall { .. })
+            matches!(func.inst(inst_id).kind, InstKind::ICall { function: Callee::Function(_), .. })
         })
     });
     if has_candidate {
         let call_graph = CallGraphInfo::new(module);
+        let returning = module.returning_functions();
+        let mut nonreturning = DenseBitSet::new_empty(module.functions.len());
         let mut tail_callable = DenseBitSet::new_empty(module.functions.len());
         for (func_id, func) in module.functions.iter_enumerated() {
-            if function_cannot_return(func)
-                && func.selector.is_none()
+            if func.blocks.is_empty() {
+                continue;
+            }
+            if !returning.contains(func_id) {
+                nonreturning.insert(func_id);
+            }
+            if func.selector.is_none()
                 && !func.attributes.is_receive
                 && !func.attributes.is_fallback
                 && !call_graph.is_recursive(func_id)
@@ -100,10 +93,8 @@ fn lower_evm_shaped(module: &mut Module) -> bool {
             }
         }
 
-        // The deployment path emits constructor-reachable bodies without static
-        // frames, so an argument-carrying tail call has no compile-time
-        // argument addresses there. Keep those calls ordinary; argument-less
-        // rewrites need no frame addressing and stay valid on both paths.
+        // Deployment emits these bodies with dynamic frames. Even argumentless
+        // callees need the ordinary call to establish a base for locals and spills.
         let mut constructor_reachable = call_graph.reachable_callees_from(
             module
                 .functions
@@ -116,19 +107,46 @@ fn lower_evm_shaped(module: &mut Module) -> bool {
             }
         }
 
-        for (func_id, func) in module.functions.iter_mut_enumerated() {
+        // Keep reverse edges even when cleanup removes a call: stale edges only
+        // cause a redundant visit, and function IDs stay stable through block cleanup.
+        let mut callers = index_vec![Vec::new(); module.functions.len()];
+        for (caller, func) in module.iter_functions() {
+            for inst in func.instructions() {
+                if let InstKind::ICall { function: Callee::Function(callee), .. } =
+                    func.inst(inst).kind
+                {
+                    callers[callee].push(caller);
+                }
+            }
+            for block in &func.blocks {
+                if let Some(Terminator::TailCall { function, .. }) = block.terminator {
+                    callers[function].push(caller);
+                }
+            }
+        }
+        let mut worklist = Vec::new();
+        let mut queued = DenseBitSet::new_empty(module.functions.len());
+        for callee in &nonreturning {
+            for &caller in &callers[callee] {
+                if queued.insert(caller) {
+                    worklist.push(caller);
+                }
+            }
+        }
+        while let Some(func_id) = worklist.pop() {
+            queued.remove(func_id);
+            let func = &mut module.functions[func_id];
             let mut function_changed = false;
             for block_id in (0..func.blocks.len()).map(crate::mir::BlockId::from_usize) {
                 let insts = &func.blocks[block_id].instructions;
-                let Some((position, function, args)) =
+                let Some((position, function)) =
                     insts.iter().enumerate().find_map(|(position, &inst_id)| {
                         let inst = func.inst(inst_id);
-                        if inst.result_ty.is_none()
-                            && let InstKind::ICall { function, args, .. } = &inst.kind
-                            && tail_callable.contains(*function)
-                            && (args.is_empty() || !constructor_reachable.contains(func_id))
+                        if let InstKind::ICall { function: Callee::Function(function), .. } =
+                            &inst.kind
+                            && nonreturning.contains(*function)
                         {
-                            Some((position, *function, args.iter().copied().collect()))
+                            Some((position, *function))
                         } else {
                             None
                         }
@@ -137,17 +155,45 @@ fn lower_evm_shaped(module: &mut Module) -> bool {
                     continue;
                 };
 
-                let metadata = func.inst(insts[position]).metadata.debug_context();
-                // icall callee, args !metadata(call) -> tail_call callee, args !metadata(call)
-                // Everything after the non-returning call is dead.
-                func.blocks[block_id].instructions.truncate(position);
-                func.blocks[block_id]
-                    .set_terminator(Terminator::TailCall { function, args }, metadata);
+                let inst = func.inst(insts[position]);
+                let metadata = inst.metadata.debug_context();
+                let InstKind::ICall { args, .. } = &inst.kind else { unreachable!() };
+                if tail_callable.contains(function) && !constructor_reachable.contains(func_id) {
+                    // result = icall callee, args -> tail_call callee, args
+                    let terminator =
+                        Terminator::TailCall { function, args: args.iter().copied().collect() };
+                    func.blocks[block_id].instructions.truncate(position);
+                    replace_terminator(func, block_id, terminator);
+                    func.blocks[block_id].terminator_metadata = metadata;
+                } else {
+                    // result = icall callee, args
+                    // invalid
+                    func.blocks[block_id].instructions.truncate(position + 1);
+                    replace_terminator(func, block_id, Terminator::Invalid);
+                    // NOTE: The unreachable terminator has no source checkpoint.
+                    func.blocks[block_id].terminator_metadata.mark_debug_info_dropped();
+                }
                 function_changed = true;
             }
             if function_changed {
-                let _ = repair_reachability_phis(func);
                 let _ = remove_unreachable_blocks(func);
+            }
+            if !nonreturning.contains(func_id)
+                && !func.blocks.is_empty()
+                && !func.blocks.iter().any(|block| match &block.terminator {
+                    Some(Terminator::Return { .. }) => true,
+                    Some(Terminator::TailCall { function, .. }) => {
+                        !nonreturning.contains(*function)
+                    }
+                    _ => false,
+                })
+            {
+                nonreturning.insert(func_id);
+                for &caller in &callers[func_id] {
+                    if queued.insert(caller) {
+                        worklist.push(caller);
+                    }
+                }
             }
         }
     }
@@ -155,7 +201,6 @@ fn lower_evm_shaped(module: &mut Module) -> bool {
         split_clobbering_phi_edges(func);
     }
 
-    module.advance_phase(MirPhase::EvmShaped);
     true
 }
 
@@ -205,17 +250,4 @@ fn split_clobbering_phi_edges(func: &mut Function) {
     for (predecessor, successor) in edges {
         split_edge(func, predecessor, successor);
     }
-}
-
-/// Whether a function can never return to an internal caller: its reachable CFG
-/// has no `ret` or `stop` terminator (`stop` is the internal return of a void
-/// function).
-fn function_cannot_return(func: &Function) -> bool {
-    if func.blocks.is_empty() {
-        return false;
-    }
-    let cfg = CfgInfo::new(func);
-    !cfg.reachable().iter().any(|block| {
-        matches!(func.blocks[block].terminator, Some(Terminator::Return { .. } | Terminator::Stop))
-    })
 }

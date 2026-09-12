@@ -31,41 +31,14 @@ fn @sameShortLiteralSalt() -> bool [selector=0xae55518d, abi_params=[], abi_retu
     v15 = iszero v14
     jumpi v15, bb3, bb4
   bb4:
-    v16 = returndatasize
-    v17 = add v16, 63
-    v18 = lt v17, v16
-    jumpi v18, bb6, bb7
+    jumpi true, bb6, bb7
   bb7:
-    v19 = not 31
-    v20 = and v17, v19
-    v21 = alloc memorybytes, exact, uninitialized, infallible, v20
-    set_memory_object_len memorybytes, v21, v16
-    v22 = make_returndata_slice 0, v16
-    memory_object_copy_from_slice memorybytes, v21, v22
-    v23 = memory_object_data memorybytes, v21
-    v24 = memory_object_len memorybytes, v21
-    v25 = make_memory_slice v23, v24
-    v26 = memory_slice_load_word memory, v25, 0
-    v27 = lt v24, 4
-    v28 = iszero v27
-    v29 = shr 224, v26
-    v30 = eq v29, 0x8c379a0
-    v31 = and v28, v30
-    v32 = lt v24, 36
-    v33 = iszero v32
-    v34 = eq v29, 0x4e487b71
-    v35 = and v33, v34
-    jumpi 1, bb8, bb9
-  bb9:
-    revert v23, v24
-  bb8:
-    ret 1
+    revert_if true, empty
+    invalid
   bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    ret true
   bb3:
-    ret 0
+    ret false
   bb5:
     ret 0
 }
@@ -98,41 +71,14 @@ fn @sameEmptyLiteralSalt() -> bool [selector=0x01dd6ed9, abi_params=[], abi_retu
     v15 = iszero v14
     jumpi v15, bb3, bb4
   bb4:
-    v16 = returndatasize
-    v17 = add v16, 63
-    v18 = lt v17, v16
-    jumpi v18, bb6, bb7
+    jumpi true, bb6, bb7
   bb7:
-    v19 = not 31
-    v20 = and v17, v19
-    v21 = alloc memorybytes, exact, uninitialized, infallible, v20
-    set_memory_object_len memorybytes, v21, v16
-    v22 = make_returndata_slice 0, v16
-    memory_object_copy_from_slice memorybytes, v21, v22
-    v23 = memory_object_data memorybytes, v21
-    v24 = memory_object_len memorybytes, v21
-    v25 = make_memory_slice v23, v24
-    v26 = memory_slice_load_word memory, v25, 0
-    v27 = lt v24, 4
-    v28 = iszero v27
-    v29 = shr 224, v26
-    v30 = eq v29, 0x8c379a0
-    v31 = and v28, v30
-    v32 = lt v24, 36
-    v33 = iszero v32
-    v34 = eq v29, 0x4e487b71
-    v35 = and v33, v34
-    jumpi 1, bb8, bb9
-  bb9:
-    revert v23, v24
-  bb8:
-    ret 1
+    revert_if true, empty
+    invalid
   bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    ret true
   bb3:
-    ret 0
+    ret false
   bb5:
     ret 0
 }
@@ -165,41 +111,14 @@ fn @sameFullLiteralSalt() -> bool [selector=0xaf96a2f0, abi_params=[], abi_retur
     v15 = iszero v14
     jumpi v15, bb3, bb4
   bb4:
-    v16 = returndatasize
-    v17 = add v16, 63
-    v18 = lt v17, v16
-    jumpi v18, bb6, bb7
+    jumpi true, bb6, bb7
   bb7:
-    v19 = not 31
-    v20 = and v17, v19
-    v21 = alloc memorybytes, exact, uninitialized, infallible, v20
-    set_memory_object_len memorybytes, v21, v16
-    v22 = make_returndata_slice 0, v16
-    memory_object_copy_from_slice memorybytes, v21, v22
-    v23 = memory_object_data memorybytes, v21
-    v24 = memory_object_len memorybytes, v21
-    v25 = make_memory_slice v23, v24
-    v26 = memory_slice_load_word memory, v25, 0
-    v27 = lt v24, 4
-    v28 = iszero v27
-    v29 = shr 224, v26
-    v30 = eq v29, 0x8c379a0
-    v31 = and v28, v30
-    v32 = lt v24, 36
-    v33 = iszero v32
-    v34 = eq v29, 0x4e487b71
-    v35 = and v33, v34
-    jumpi 1, bb8, bb9
-  bb9:
-    revert v23, v24
-  bb8:
-    ret 1
+    revert_if true, empty
+    invalid
   bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    ret true
   bb3:
-    ret 0
+    ret false
   bb5:
     ret 0
 }

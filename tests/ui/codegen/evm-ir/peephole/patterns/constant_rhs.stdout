@@ -107,4 +107,110 @@
 -   sub
 +   push 26
     stop
+  bb20:
+    calldatasize
+-   push 31
++   push 32
+    dup 2
+-   gt
+-   iszero
++   lt
+    push 0
+    mstore
+    pop
+    stop
+  bb21:
+    calldatasize
+-   push 32
++   push 31
+    dup 2
+-   lt
+-   iszero
++   gt
+    push 0
+    mstore
+    pop
+    stop
+  bb22:
+    calldatasize
+-   push 31
+-   gt
+-   iszero
++   push 30
++   lt
+    push 0
+    mstore
+    stop
+  bb23:
+    calldatasize
+-   push 31
+-   lt
+-   iszero
++   push 32
++   gt
+    push 0
+    mstore
+    stop
+  bb24:
+    calldatasize
+-   push 255
++   push 256
+    dup 2
+-   gt
+-   iszero
++   lt
+    push 0
+    mstore
+    pop
+    stop
+  bb25:
+    calldatasize
+    push 31
+    dup 1
+    gt
+    iszero
+    push 0
+    mstore
+    pop
+    stop
+  bb26:
+    calldatasize
+    push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    dup 2
+    gt
+    iszero
+    push 0
+    mstore
+    pop
+    stop
+  bb27:
+    calldatasize
+    push 0
+    dup 2
+    lt
+    iszero
+    push 0
+    mstore
+    pop
+    stop
+  bb28:
+    calldatasize
+    push 0x8000000000000000000000000000000000000000000000000000000000000000
+    dup 2
+    gt
+    iszero
+    push 0
+    mstore
+    pop
+    stop
+  bb29:
+    calldatasize
+    push 31
+    dup 2
+    sgt
+    iszero
+    push 0
+    mstore
+    pop
+    stop
   

@@ -17,7 +17,6 @@
 //!     &mut module,
 //!     &[&dce::Dce],
 //!     None,
-//!     None,
 //! );
 //! ```
 
@@ -27,6 +26,7 @@ use crate::mir::{
     pass_manager::{mir_output_name, parse_pass_pipeline, print_pass_diff},
     transform::*,
 };
+use smallvec::SmallVec;
 use solar_data_structures::map::FxHashMap;
 use std::{
     any::{Any, TypeId},
@@ -37,7 +37,7 @@ use std::{
 pub use crate::mir::pass_manager::{MirPass, pipeline_label, run_passes, run_passes_no_validate};
 
 /// All known MIR passes exposed by `-Zmir-pipeline`.
-pub static ALL_PASSES: &[&dyn MirPass] = &[
+static ALL_PASSES: &[&dyn MirPass] = &[
     &inline::Inline,
     &inline::InlineConstantLeaves,
     &inline::InlineTinyLeaves,
@@ -47,18 +47,22 @@ pub static ALL_PASSES: &[&dyn MirPass] = &[
     &sccp::Sccp,
     &pure_eval::PureEval,
     &inst_simplify::InstSimplify,
+    &inst_simplify::ConstFold,
     &cse::Cse,
+    &cse::FmpCse,
     &pre::Pre,
     &gvn::Gvn,
     &storage_load_cse::StorageLoadCse,
     &storage_dse::StorageDse,
-    &load_pre::LoadPre,
+    &load_pre::LoadPre::All,
+    &load_pre::LoadPre::Storage,
     &loop_canonicalize::LoopCanonicalize,
     &indvar_simplify::IndVarSimplify,
     &storage_promotion::StorageScalarPromotion,
     &loop_opt::Licm,
     &check_elim::CheckElim,
     &jump_threading::JumpThreading,
+    &cfg_simplify::BranchSimplify,
     &cfg_simplify::CfgSimplify,
     &frame_promotion::FrameSlotPromotion,
     &function_compaction::DeadArgElim,
@@ -70,8 +74,12 @@ pub static ALL_PASSES: &[&dyn MirPass] = &[
     &copy_elision::CopyElision,
     &dce::Dce,
     &adce::Adce,
+    &lower_arithmetic::LowerArithmetic,
+    &lower_builtins::LowerBuiltins,
+    &lower_checks::LowerChecks,
     &lower_abi::LowerAbi,
     &lower_dispatch::LowerDispatch,
+    &lower_structs::LowerStructs,
     &lower_frame_slots::LowerFrameSlots,
     &lower_evm_shaped::LowerEvmShaped,
     &lower_immutables::LowerImmutables,
@@ -154,7 +162,7 @@ impl<P: MirPass> MirPass for GasOnly<P> {
 }
 
 /// The canonical MIR pipeline used by EVM codegen.
-pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
+static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     // Clone one constant call to a shared pure leaf so scalar passes can fold it.
     &GasOnly::new(inline::InlineConstantLeaves),
     // Broad MIR inlining remains available as an ad-hoc pass, but static internal
@@ -171,7 +179,7 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &pre::Pre,
     &storage_load_cse::StorageLoadCse,
     &storage_dse::StorageDse,
-    &load_pre::LoadPre,
+    &load_pre::LoadPre::All,
     &frame_promotion::FrameSlotPromotion,
     &loop_canonicalize::LoopCanonicalize,
     &indvar_simplify::IndVarSimplify,
@@ -181,15 +189,10 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &jump_threading::JumpThreading,
     &cfg_simplify::CfgSimplify,
     &sroa::Sroa,
-    &copy_elision::CopyElision,
     &memory_dse::MemoryDse,
     &adce::Adce,
     &dce::Dce,
-    // MIR outlining remains profitable even though EVM IR can merge
-    // equivalent terminal blocks: lowering and stack scheduling can
-    // hide their shared semantic shape from the backend passes.
-    &outline_reverts::OutlineReverts,
-    // Outlining and late control-flow rewrites expose scalar simplifications.
+    // Late control-flow rewrites expose scalar simplifications.
     // Thread and clean the CFG first so the rest of this sequence observes the
     // simplified graph in one pass through the pipeline.
     &jump_threading::JumpThreading,
@@ -200,6 +203,20 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &inline::SpecializeFunctionPointers,
     &function_compaction::DeadArgElim,
     &cfg_simplify::FunctionDce,
+    &function_compaction::MergeEquivalentFunctions,
+    &cfg_simplify::FunctionDce,
+];
+
+/// Expands semantic operations and makes the backend representation explicit.
+static LOWERING_PIPELINE: &[&dyn MirPass] = &[
+    &lower_checks::LowerChecks,
+    &lower_builtins::LowerBuiltins,
+    // Gas mode keeps arithmetic failure edges local for stack scheduling.
+    &GasOnly::new(outline_reverts::OutlineReverts),
+    &lower_arithmetic::LowerArithmetic,
+    // Size mode shares arithmetic payloads too, before selecting stack layouts.
+    &SizeOnly::new(outline_reverts::OutlineReverts),
+    // Expansion exposes scalar checks and object copies to this bounded cleanup group.
     &sccp::Sccp,
     &inst_simplify::InstSimplify,
     &gvn::Gvn,
@@ -207,13 +224,9 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &jump_threading::JumpThreading,
     &cfg_simplify::CfgSimplify,
     &frame_promotion::FrameSlotPromotion,
+    &copy_elision::CopyElision,
     &memory_dse::MemoryDse,
     &adce::Adce,
-    &function_compaction::MergeEquivalentFunctions,
-    &cfg_simplify::FunctionDce,
-    // Progressive lowering materializes ABI wrappers, selector routing, and
-    // tail-call edges as MIR. Each pass bails without advancing the phase
-    // when the module is outside its scope.
     &lower_abi::LowerAbi,
     // ABI lowering leaves tiny canonical-word helpers after the earlier
     // inlining pass; expand those leaves before encoding wrappers.
@@ -233,8 +246,13 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     // Late CSE reduces runtime gas after aggregate lowering, but can grow
     // bytecode through longer live ranges, so keep it out of `-Osize`.
     &GasOnly::new(cse::Cse),
+    // Common dominated loads before PRE replaces join loads with phis, then
+    // fold checks exposed by forwarding the stored values.
+    &GasOnly::new(load_pre::LoadPre::Storage),
+    &GasOnly::new(check_elim::CheckElim),
     &dce::Dce,
     &lower_dispatch::LowerDispatch,
+    &lower_structs::LowerStructs,
     &lower_frame_slots::LowerFrameSlots,
     // Expand semantic mapping locations after ABI, dispatch, and frame
     // lowering, while keeping variable-size hash objects ahead of the memory
@@ -256,6 +274,13 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &lower_memory_zero::LowerMemoryZero,
     &lower_mcopy::LowerMCopy,
     &lower_evm_shaped::LowerEvmShaped,
+];
+
+/// Optimizes lowered word SSA before physical stack scheduling.
+static LOWERED_PIPELINE: &[&dyn MirPass] = &[
+    &GasOnly::new(cse::FmpCse),
+    &inst_simplify::ConstFold,
+    &cfg_simplify::BranchSimplify,
     // Late lowering can leave pure address and length calculations unused.
     // Remove their complete dependency chains before selecting physical stack order.
     &dce::Dce,
@@ -265,8 +290,8 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
 /// Runs the configured MIR pipeline, substituting it for the canonical pipeline.
 ///
 /// `name` overrides the module name in pass output. The canonical pipeline advances the module
-/// through optimization and lowering. Ad-hoc pass lists passed to `-Zmir-pipeline` do not advance
-/// the optimized phase.
+/// through semantic optimization, representation conversion, and word optimization. Individual
+/// passes preserve the phase except the checked completion of `lower-evm-shaped`.
 #[tracing::instrument(
     name = "mir_pipeline",
     level = "debug",
@@ -283,10 +308,16 @@ pub fn run_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module, name: Option<
         if let Some(passes) = pipeline {
             let name = name.map(ToOwned::to_owned).unwrap_or_else(|| mir_output_name(gcx, module));
             let mut changed = false;
-            for pass in passes {
-                if let Some(pass) = pass {
-                    changed |= run_passes(gcx, module, &[pass], None, Some(&name));
-                } else if gcx.sess.opts.unstable.pass_diff {
+            let mut remaining = passes.as_slice();
+            while !remaining.is_empty() {
+                let end = remaining.iter().position(Option::is_none).unwrap_or(remaining.len());
+                let batch = remaining[..end].iter().copied().flatten().collect::<Vec<_>>();
+                changed |= run_passes(gcx, module, &batch, Some(&name));
+                if gcx.dcx().has_errors().is_err() || end == remaining.len() {
+                    return changed;
+                }
+                remaining = &remaining[end + 1..];
+                if gcx.sess.opts.unstable.pass_diff {
                     let text = module.to_text();
                     print_pass_diff(&name, "none", &text, &text);
                 } else if gcx.sess.opts.unstable.print_after_each {
@@ -298,16 +329,17 @@ pub fn run_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module, name: Option<
         }
     }
 
-    let lowering_start = DEFAULT_PIPELINE
-        .iter()
-        .position(|pass| pass.name() == lower_abi::LowerAbi.name())
-        .expect("default pipeline must contain `lower-abi`");
-    let (optimization_passes, lowering_passes) = DEFAULT_PIPELINE.split_at(lowering_start);
     let mut changed = false;
-    if module.phase <= MirPhase::Optimized {
-        changed |= run_passes(gcx, module, optimization_passes, Some(MirPhase::Optimized), None);
+    if module.phase() == MirPhase::Semantic {
+        changed |= run_passes(gcx, module, SEMANTIC_PIPELINE, None);
+        if gcx.dcx().has_errors().is_err() {
+            return changed;
+        }
+        changed |= run_passes(gcx, module, LOWERING_PIPELINE, None);
     }
-    changed |= run_passes(gcx, module, lowering_passes, None, None);
+    if gcx.dcx().has_errors().is_ok() {
+        changed |= run_passes(gcx, module, LOWERED_PIPELINE, None);
+    }
     changed
 }
 
@@ -435,31 +467,30 @@ impl ModuleAnalyses {
     }
 }
 
-fn cfg_edges(func: &Function) -> Vec<(u32, u32)> {
-    let mut edges = Vec::new();
-    for (block_id, block) in func.blocks.iter_enumerated() {
-        if let Some(terminator) = &block.terminator {
-            for successor in terminator.successors() {
-                edges.push((block_id.index() as u32, successor.index() as u32));
+fn verified_preservation(func: &Function, cfg: &CfgInfo, insts_before: usize) -> (bool, bool) {
+    let mut keep_cfg = cfg.num_blocks() == func.blocks.len();
+    let mut only_removed_edges = keep_cfg;
+    if keep_cfg {
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            let before = cfg.successors(block_id);
+            let mut after =
+                block.terminator.as_ref().map(|term| term.successors()).unwrap_or_default();
+            if before == after.as_slice() {
+                continue;
+            }
+            only_removed_edges &= after.iter().all(|edge| before.contains(edge));
+            if keep_cfg {
+                let mut before = SmallVec::<[_; 2]>::from_slice(before);
+                before.sort_unstable();
+                after.sort_unstable();
+                keep_cfg = before == after;
             }
         }
     }
-    edges.sort_unstable();
-    edges
-}
-
-fn verified_preservation(
-    func: &Function,
-    edges_before: &[(u32, u32)],
-    insts_before: usize,
-) -> (bool, bool) {
-    let edges_after = cfg_edges(func);
-    let keep_cfg = edges_after == edges_before;
     let no_new_side_effects = (insts_before..func.num_insts())
         .map(InstId::from_usize)
         .all(|inst_id| !func.inst(inst_id).kind.has_side_effects());
-    let keep_alias = no_new_side_effects
-        && (keep_cfg || edges_after.iter().all(|edge| edges_before.binary_search(edge).is_ok()));
+    let keep_alias = no_new_side_effects && only_removed_edges;
     (keep_alias, keep_cfg)
 }
 
@@ -472,11 +503,10 @@ fn run_function_pass_cached(
 ) -> bool {
     let bundle = analyses.bundle(func_id, &module.functions[func_id]);
     let func = &mut module.functions[func_id];
-    let edges_before = cfg_edges(func);
     let insts_before = func.num_insts();
     let changed = run(func, &bundle);
     if changed {
-        let (keep_alias, keep_cfg) = verified_preservation(func, &edges_before, insts_before);
+        let (keep_alias, keep_cfg) = verified_preservation(func, &bundle.cfg, insts_before);
         analyses.retain(func_id, keep_alias, keep_cfg);
     }
     changed
@@ -522,5 +552,53 @@ impl AnalysisPass for LivenessAnalysis {
 
     fn run(&self, func: &Function) -> Self::Result {
         crate::mir::analysis::Liveness::compute(func)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::mir::{BasicBlock, BlockId, FunctionBuilder, Terminator};
+    use solar_interface::Ident;
+
+    #[test]
+    fn cfg_preservation_uses_snapshot() {
+        let mut func = Function::new(Ident::DUMMY);
+        let left = func.blocks.push(BasicBlock::new());
+        let right = func.blocks.push(BasicBlock::new());
+        // bb0 -> left, right
+        let condition = FunctionBuilder::new(&mut func).imm(1);
+        FunctionBuilder::new(&mut func).branch(condition, left, right);
+        let cfg = CfgInfo::new(&func);
+        assert_eq!(verified_preservation(&func, &cfg, 0), (true, true));
+
+        // bb0 -> right, left
+        FunctionBuilder::new(&mut func).branch(condition, right, left);
+        assert_eq!(verified_preservation(&func, &cfg, 0), (true, true));
+
+        // bb0 -> left
+        FunctionBuilder::new(&mut func).jump(left);
+        assert_eq!(verified_preservation(&func, &cfg, 0), (true, false));
+
+        // bb0 -> bb0
+        FunctionBuilder::new(&mut func).jump(BlockId::ENTRY);
+        assert_eq!(verified_preservation(&func, &cfg, 0), (false, false));
+
+        // bb0 -> left, right; new isolated block
+        FunctionBuilder::new(&mut func).branch(condition, left, right);
+        func.blocks.push(BasicBlock::new());
+        assert_eq!(verified_preservation(&func, &cfg, 0), (false, false));
+        func.blocks.pop();
+
+        // bb0: mstore(0, 0); branch left, right
+        let mut builder = FunctionBuilder::new(&mut func);
+        let zero = builder.imm(0);
+        builder.mstore(zero, zero);
+        assert_eq!(verified_preservation(&func, &cfg, 0), (false, true));
+
+        // bb0 -> left, left
+        func.blocks[BlockId::ENTRY].terminator =
+            Some(Terminator::Branch { condition, then_block: left, else_block: left });
+        assert_eq!(verified_preservation(&func, &cfg, func.num_insts()), (true, false));
     }
 }

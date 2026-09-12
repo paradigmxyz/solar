@@ -1,14 +1,15 @@
 //@compile-flags: -Zmir-pipeline=lower-evm-shaped
 //@filecheck:
-// A resultless internal call to a callee that never returns (no `ret`, no
-// `stop` — it ends in `returndata`) models a returning edge that does not
+// A resultless internal call to a callee that never returns (no `ret`;
+// it ends in `returndata`) models a returning edge that does not
 // exist. The evm-shaped phase rewrites it into a `tail_call` — arguments
 // included — and drops the dead remainder of the block. The rewrite only
 // applies to callees the backend statically frames: `@spin` cannot return
-// either, but it is recursive, so its call stays an ordinary `icall`.
-// `@entry` is present so the module satisfies the memory-lowered phase contract.
+// either, but it is recursive, so its call stays an ordinary `icall` followed
+// by `invalid`, with no dead continuation.
+// `@entry` supplies the lowered representation's runtime dispatch function.
 @module LowerEvmShaped
-@phase memory-lowered
+@phase semantic
 fn @entry() [entry] {
   bb0:
     v0 = calldataload 0
@@ -22,10 +23,10 @@ fn @entry() [entry] {
 // CHECK-LABEL: {{^[ +].*}}fn @caller{{[( ]}}
 // CHECK: - icall @fused
 // CHECK: + tail_call @fused, {{v[0-9]+}} !metadata(span=10..20, modifier_depth=1)
-fn @caller() [selector=0x00000007] {
+fn @caller() [selector=0x00000007, abi_wrapper] {
   bb0:
     v0 = calldataload 4
-    icall fn2, 0, v0 !metadata(span=10..20, modifier_depth=1)
+    icall fn2, v0 !metadata(span=10..20, modifier_depth=1)
     stop !metadata(span=30..40, modifier_depth=2)
 }
 fn @fused(arg0: u256) {
@@ -39,7 +40,7 @@ fn @fused(arg0: u256) {
 // CHECK: {{^[ +].*}}icall @spin
 fn @spin(arg0: u256) {
   bb0:
-    icall fn3, 0, arg0
+    icall fn3, arg0
     revert 0, 0
 }
 
@@ -109,4 +110,167 @@ fn @dead_on_sibling(arg0: bool) -> u256 {
     jumpi arg0, bb1, bb3
   bb3:
     ret 7
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @stop_caller{{[( ]}}
+// CHECK: - icall @stop_helper
+// CHECK: + tail_call @stop_helper
+fn @stop_caller() {
+  bb0:
+    icall @stop_helper
+    ret
+}
+
+fn @stop_helper() {
+  bb0:
+    stop
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @void_caller{{[( ]}}
+// CHECK: {{^[ +].*}}icall @void_helper
+// CHECK: {{^[ +].*}}ret
+fn @void_caller() {
+  bb0:
+    icall @void_helper
+    ret
+}
+
+fn @void_helper() {
+  bb0:
+    ret
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @tail_return_caller{{[( ]}}
+// CHECK: {{^[ +].*}}icall @tail_return_helper
+// CHECK: {{^[ +].*}}sstore 0, 7
+fn @tail_return_caller() {
+  bb0:
+    icall @tail_return_helper
+    sstore 0, 7
+    ret
+}
+
+fn @tail_return_helper() {
+  bb0:
+    tail_call @void_helper
+}
+
+// Removing the call result also removes its edge from a still-reachable phi.
+// CHECK-LABEL: {{^[ +].*}}fn @scalar_caller{{[( ]}}
+// CHECK: + {{v[0-9]+}} = phi [bb0: 7]
+// CHECK: + tail_call @scalar_fail, 17 !metadata(span=50..60)
+fn @scalar_caller(arg0: bool) -> u256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    v0 = icall @scalar_fail, 17 !metadata(span=50..60)
+    v1 = add v0, 1
+    sstore 0, v1
+    jump bb2
+  bb2:
+    v2 = phi [bb0: 7], [bb1: v1]
+    ret v2
+}
+
+fn @scalar_fail(arg0: u256) -> u256 {
+  bb0:
+    mstore 0, arg0
+    revert 0, 32
+}
+
+// Recursive calls retain their call convention but lose the dead continuation.
+// CHECK-LABEL: {{^[ +].*}}fn @recursive_fail{{[( ]}}
+// CHECK: {{^[ +].*}}= icall @recursive_fail, arg0 !metadata(span=70..80)
+// CHECK: - sstore 0,
+// CHECK: + invalid
+fn @recursive_fail(arg0: u256) -> u256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v0 = icall @recursive_fail, arg0 !metadata(span=70..80)
+    sstore 0, v0
+    revert 0, 0 !metadata(span=90..100)
+}
+
+// Constructor calls need dynamic frames even without arguments.
+// CHECK-LABEL: {{^[ +].*}}fn @constructor{{[( ]}}
+// CHECK: {{^[ +].*}}= icall @constructor_helper, 23
+// CHECK: - sstore 0,
+// CHECK: + invalid
+// CHECK: {{^[ +].*}}= icall @constructor_no_args
+// CHECK: + invalid
+fn @constructor() [abi_wrapper] {
+  bb0:
+    v0 = callvalue
+    jumpi v0, bb2, bb1
+  bb1:
+    v1 = icall @constructor_helper, 23
+    sstore 0, v1
+    ret
+  bb2:
+    v2 = icall @constructor_no_args
+    sstore 0, v2
+    ret
+}
+
+fn @constructor_no_args() -> u256 {
+  bb0:
+    revert 0, 0
+}
+
+// Constructor reachability also applies through newly nonreturning helpers.
+// CHECK-LABEL: {{^[ +].*}}fn @constructor_helper{{[( ]}}
+// CHECK: {{^[ +].*}}= icall @scalar_fail, arg0
+// CHECK: - ret
+// CHECK: + invalid
+fn @constructor_helper(arg0: u256) -> u256 {
+  bb0:
+    v0 = icall @scalar_fail, arg0
+    ret v0
+}
+
+// A potentially reverting callee still has a normal continuation.
+// CHECK-LABEL: {{^[ +].*}}fn @maybe_caller{{[( ]}}
+// CHECK: {{^[ +].*}}= icall @maybe_fail, arg0
+// CHECK: {{^[ +].*}}sstore 0,
+// CHECK: {{^[ +].*}}ret
+fn @maybe_caller(arg0: bool) {
+  bb0:
+    v0 = icall @maybe_fail, arg0
+    sstore 0, v0
+    ret
+}
+
+fn @maybe_fail(arg0: bool) -> u256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    ret 7
+}
+
+// A newly nonreturning ordinary call propagates back through tail-call wrappers.
+// CHECK-LABEL: {{^[ +].*}}fn @chain_caller{{[( ]}}
+// CHECK: + tail_call @chain_tail, 31
+fn @chain_caller() -> u256 {
+  bb0:
+    v0 = icall @chain_tail, 31
+    sstore 0, v0
+    ret v0
+}
+
+fn @chain_tail(arg0: u256) -> u256 {
+  bb0:
+    tail_call @chain_body, arg0
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @chain_body{{[( ]}}
+// CHECK: + tail_call @scalar_fail, arg0
+fn @chain_body(arg0: u256) -> u256 {
+  bb0:
+    v0 = icall @scalar_fail, arg0
+    ret v0
 }

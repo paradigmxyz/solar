@@ -5,7 +5,7 @@
     bb0:
 +     v6 = sload 0
 +     mstore 128, v6
-+     mstore 160, 0
++     mstore 160, false
       jump bb1
     bb1:
       v0 = phi [bb0: 0], [bb5: v5]
@@ -29,7 +29,7 @@
     bb4:
 -     sstore 0, v3
 +     mstore 128, v3
-+     mstore 160, 1
++     mstore 160, true
       jump bb5
     bb5:
       v5 = add v0, 1
@@ -44,7 +44,7 @@
 +     mstore 128, 1
       jump bb1
     bb1:
-      jumpi 1, bb2, bb5
+      jumpi true, bb2, bb5
     bb5:
 +     v4 = mload 128
 +     sstore 0, v4
@@ -72,7 +72,7 @@
 +     sstore 0, 1 !metadata(storage=slot(0))
       jump bb1
     bb1:
-      jumpi 1, bb2, bb5
+      jumpi true, bb2, bb5
     bb5:
       stop
     bb2:
@@ -86,6 +86,57 @@
     bb3:
       v3 = call 100, arg0, 0, 0, 0, 0, 32
       revert 0, 32
+    bb4:
+      jump bb1
+  }
+  
+  fn @reject_revert_exit_with_payable(arg0: u256) [selector=0x01020304] {
+    bb0:
+-     sstore 0, 1
++     sstore 0, 1 !metadata(storage=slot(0))
+      jump bb1
+    bb1:
+      jumpi true, bb2, bb5
+    bb5:
+      stop
+    bb2:
+-     v0 = sload 0
++     v0 = sload 0 !metadata(storage=slot(0))
+      v1 = mul v0, 2
+-     sstore 0, v1
++     sstore 0, v1 !metadata(storage=slot(0))
+      v2 = lt v1, arg0
+      jumpi v2, bb4, bb3
+    bb3:
+      v3 = send arg0, 0
+      transfer arg0, 0
+      revert_returndata
+    bb4:
+      jump bb1
+  }
+  
+  fn @reject_revert_exit_with_storage_bytes(arg0: u256) [selector=0x01020305] {
+    bb0:
+-     sstore 0, 2
++     sstore 0, 2 !metadata(storage=slot(0))
+      jump bb1
+    bb1:
+      jumpi true, bb2, bb5
+    bb5:
+      stop
+    bb2:
+-     v0 = sload 0
++     v0 = sload 0 !metadata(storage=slot(0))
+      v1 = add v0, 2
+-     sstore 0, v1
++     sstore 0, v1 !metadata(storage=slot(0))
+      v2 = lt v1, arg0
+      jumpi v2, bb4, bb3
+    bb3:
+      v3 = load_storage_bytes 0
+      v4 = memory_object_data memorybytes, v3
+      v5 = memory_object_len memorybytes, v3
+      revert v4, v5
     bb4:
       jump bb1
   }

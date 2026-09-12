@@ -2,8 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_abi.mir (after lower-abi) ===
   @module LowerAbi
 - fn @add(arg0: u256, arg1: u256) [selector=0x771602f7] {
-+ @phase abi
-+ fn @add() [selector=0x771602f7] {
++ fn @add() [selector=0x771602f7, abi_wrapper] {
     bb0:
 +     v1 = calldatasize
 +     v2 = lt v1, 68
@@ -19,7 +18,7 @@
   }
   
 - fn @flag(arg0: bool) [selector=0x0d2020dd] {
-+ fn @flag() [selector=0x0d2020dd] {
++ fn @flag() [selector=0x0d2020dd, abi_wrapper] {
     bb0:
 +     v0 = calldatasize
 +     v1 = lt v0, 36

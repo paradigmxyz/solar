@@ -75,3 +75,35 @@ fn @keep_weaker_guard(arg0: u256) -> u256 {
   bb4:
     ret 0
 }
+
+// CHECK-LABEL: fn @semantic_guards
+// CHECK: revert_if_zero arg0, empty
+// CHECK: - panic_if_zero arg0, 0x1
+// CHECK: - panic_if_zero v0, 0x32
+fn @semantic_guards(arg0: bool, arg1: u256) {
+  bb0:
+    revert_if_zero arg0, empty
+    panic_if_zero arg0, 0x1
+    v0 = lt arg1, 4
+    revert_if_zero v0, empty
+    panic_if_zero v0, 0x32
+    ret
+}
+
+// CHECK-LABEL: fn @conditional_guard
+// CHECK-DAG: panic_if_zero arg1, 0x1{{$}}
+// CHECK-DAG: - panic_if_zero arg1, 0x32
+// CHECK-DAG: panic_if_zero arg1, 0x12
+fn @conditional_guard(arg0: bool, arg1: bool) {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    panic_if_zero arg1, 0x1
+    panic_if_zero arg1, 0x32
+    jump bb3
+  bb2:
+    panic_if_zero arg1, 0x12
+    jump bb3
+  bb3:
+    ret
+}

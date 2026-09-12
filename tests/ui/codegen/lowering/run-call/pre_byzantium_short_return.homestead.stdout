@@ -1,8 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/pre_byzantium_short_return.sol:ShortReturns ===
 @module ShortReturns
+types:
+  struct0: {u256, u256}
+  struct1: {u256, u256, u256, u256}
+
 fn @fallback() [fallback] {
   bb0:
-    stop
+    ret
 }
 
 fn @shortWord() [selector=0x818f5840, pure, abi_params=[], abi_returns=[]] {
@@ -41,22 +45,19 @@ fn @emptySingle() -> u256 [selector=0x52635aa1, abi_params=[], abi_returns=[word
     v5 = slice_len v3
     v6 = extcodesize v0
     v7 = iszero v6
-    jumpi v7, bb1, bb2
-  bb2:
+    revert_if v7, target_contract_has_no_code
     v8 = gas
     v9 = sub v8, 50
     v10 = call v9, v0, 0, v4, v5, v4, 32
-    jumpi v10, bb4, bb3
-  bb3:
+    jumpi v10, bb2, bb1
+  bb1:
     revert_returndata
-  bb4:
+  bb2:
     v11 = add v4, 0
     v12 = mload v11
     v13 = add v4, 0
     v14 = mload v13
     ret v14
-  bb1:
-    revert 0, 0
 }
 
 fn @emptySingleArg() -> u256 [selector=0x44cc61d5, abi_params=[], abi_returns=[word]] {
@@ -70,25 +71,22 @@ fn @emptySingleArg() -> u256 [selector=0x44cc61d5, abi_params=[], abi_returns=[w
     v5 = slice_len v3
     v6 = extcodesize v0
     v7 = iszero v6
-    jumpi v7, bb1, bb2
-  bb2:
+    revert_if v7, target_contract_has_no_code
     v8 = gas
     v9 = sub v8, 50
     v10 = call v9, v0, 0, v4, v5, v4, 32
-    jumpi v10, bb4, bb3
-  bb3:
+    jumpi v10, bb2, bb1
+  bb1:
     revert_returndata
-  bb4:
+  bb2:
     v11 = add v4, 0
     v12 = mload v11
     v13 = add v4, 0
     v14 = mload v13
     ret v14
-  bb1:
-    revert 0, 0
 }
 
-fn @emptyPair() -> (u256, u256) [selector=0xa086baae, abi_params=[], abi_returns=[word, word]] {
+fn @emptyPair() -> struct0 [selector=0xa086baae, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     mstore 0, 42 !metadata(memory=scratch)
     mstore 32, 43 !metadata(memory=scratch)
@@ -101,31 +99,32 @@ fn @emptyPair() -> (u256, u256) [selector=0xa086baae, abi_params=[], abi_returns
     v5 = slice_len v3
     v6 = extcodesize v0
     v7 = iszero v6
-    jumpi v7, bb1, bb2
-  bb2:
+    revert_if v7, target_contract_has_no_code
     v8 = gas
     v9 = sub v8, 50
     v10 = call v9, v0, 0, v4, v5, v4, 64
-    jumpi v10, bb4, bb3
-  bb3:
+    jumpi v10, bb2, bb1
+  bb1:
     revert_returndata
-  bb4:
+  bb2:
     v11 = add v4, 0
     v12 = mload v11
     v13 = add v4, 32
     v14 = mload v13
-    frame_store multi_return, word, 0, v4 !metadata(memory=scratch)
     v15 = add v4, 0
     v16 = mload v15
-    v17 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v18 = add v17, 32
-    v19 = mload v18
-    ret v16, v19
-  bb1:
-    revert 0, 0
+    v17 = add v4, 32
+    v18 = mload v17
+    v19 = insert_value struct0, undef struct0, 0, v16
+    v20 = insert_value struct0, v19, 1, v18
+    v21 = extract_value struct0, v20, 0
+    v22 = extract_value struct0, v20, 1
+    v23 = insert_value struct0, undef struct0, 0, v21
+    v24 = insert_value struct0, v23, 1, v22
+    ret v24
 }
 
-fn @emptyFour() -> (u256, u256, u256, u256) [selector=0x7bcee116, abi_params=[], abi_returns=[word, word, word, word]] {
+fn @emptyFour() -> struct1 [selector=0x7bcee116, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
     v0 = address
     v1 = fmp
@@ -136,15 +135,14 @@ fn @emptyFour() -> (u256, u256, u256, u256) [selector=0x7bcee116, abi_params=[],
     v5 = slice_len v3
     v6 = extcodesize v0
     v7 = iszero v6
-    jumpi v7, bb1, bb2
-  bb2:
+    revert_if v7, target_contract_has_no_code
     v8 = gas
     v9 = sub v8, 50
     v10 = call v9, v0, 0, v4, v5, v4, 128
-    jumpi v10, bb4, bb3
-  bb3:
+    jumpi v10, bb2, bb1
+  bb1:
     revert_returndata
-  bb4:
+  bb2:
     v11 = add v4, 0
     v12 = mload v11
     v13 = add v4, 32
@@ -153,24 +151,32 @@ fn @emptyFour() -> (u256, u256, u256, u256) [selector=0x7bcee116, abi_params=[],
     v16 = mload v15
     v17 = add v4, 96
     v18 = mload v17
-    frame_store multi_return, word, 0, v4 !metadata(memory=scratch)
     v19 = add v4, 0
     v20 = mload v19
-    v21 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v22 = add v21, 32
-    v23 = mload v22
-    v24 = add v21, 64
-    v25 = mload v24
-    v26 = add v21, 96
-    v27 = mload v26
-    ret v20, v23, v25, v27
-  bb1:
-    revert 0, 0
+    v21 = add v4, 32
+    v22 = mload v21
+    v23 = add v4, 64
+    v24 = mload v23
+    v25 = add v4, 96
+    v26 = mload v25
+    v27 = insert_value struct1, undef struct1, 0, v20
+    v28 = insert_value struct1, v27, 1, v22
+    v29 = insert_value struct1, v28, 2, v24
+    v30 = insert_value struct1, v29, 3, v26
+    v31 = extract_value struct1, v30, 0
+    v32 = extract_value struct1, v30, 1
+    v33 = extract_value struct1, v30, 2
+    v34 = extract_value struct1, v30, 3
+    v35 = insert_value struct1, undef struct1, 0, v31
+    v36 = insert_value struct1, v35, 1, v32
+    v37 = insert_value struct1, v36, 2, v33
+    v38 = insert_value struct1, v37, 3, v34
+    ret v38
 }
 
 fn @emptyAgg() -> memoryfixedarray [selector=0x06df237b, abi_params=[], abi_returns=[array<2, word>]] {
   bb0:
-    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_zero v0, 64
     v1 = address
     v2 = alloc memorybytes, exact, uninitialized, infallible, 96
@@ -184,25 +190,22 @@ fn @emptyAgg() -> memoryfixedarray [selector=0x06df237b, abi_params=[], abi_retu
     v8 = slice_len v6
     v9 = extcodesize v1
     v10 = iszero v9
-    jumpi v10, bb1, bb2
-  bb2:
+    revert_if v10, target_contract_has_no_code
     v11 = gas
     v12 = sub v11, 50
     v13 = call v12, v1, 0, v7, v8, v7, 64
-    jumpi v13, bb4, bb3
-  bb3:
+    jumpi v13, bb2, bb1
+  bb1:
     revert_returndata
-  bb4:
+  bb2:
     mcopy v3, v7, 64
     v14 = abi_decode [array<2, u256>], v2
     ret v14
-  bb1:
-    revert 0, 0
 }
 
 fn @emptyAggArg() -> memoryfixedarray [selector=0x3dd9064d, abi_params=[], abi_returns=[array<2, word>]] {
   bb0:
-    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_zero v0, 64
     v1 = address
     v2 = alloc memorybytes, exact, uninitialized, infallible, 96
@@ -216,20 +219,17 @@ fn @emptyAggArg() -> memoryfixedarray [selector=0x3dd9064d, abi_params=[], abi_r
     v8 = slice_len v6
     v9 = extcodesize v1
     v10 = iszero v9
-    jumpi v10, bb1, bb2
-  bb2:
+    revert_if v10, target_contract_has_no_code
     v11 = gas
     v12 = sub v11, 50
     v13 = call v12, v1, 0, v7, v8, v7, 64
-    jumpi v13, bb4, bb3
-  bb3:
+    jumpi v13, bb2, bb1
+  bb1:
     revert_returndata
-  bb4:
+  bb2:
     mcopy v3, v7, 64
     v14 = abi_decode [array<2, u256>], v2
     ret v14
-  bb1:
-    revert 0, 0
 }
 
 fn @partialSingle() -> u256 [selector=0xe1e2fed5, abi_params=[], abi_returns=[word]] {
@@ -243,25 +243,22 @@ fn @partialSingle() -> u256 [selector=0xe1e2fed5, abi_params=[], abi_returns=[wo
     v5 = slice_len v3
     v6 = extcodesize v0
     v7 = iszero v6
-    jumpi v7, bb1, bb2
-  bb2:
+    revert_if v7, target_contract_has_no_code
     v8 = gas
     v9 = sub v8, 50
     v10 = call v9, v0, 0, v4, v5, v4, 32
-    jumpi v10, bb4, bb3
-  bb3:
+    jumpi v10, bb2, bb1
+  bb1:
     revert_returndata
-  bb4:
+  bb2:
     v11 = add v4, 0
     v12 = mload v11
     v13 = add v4, 0
     v14 = mload v13
     ret v14
-  bb1:
-    revert 0, 0
 }
 
-fn @partialPair() -> (u256, u256) [selector=0x94ae8541, abi_params=[], abi_returns=[word, word]] {
+fn @partialPair() -> struct0 [selector=0x94ae8541, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = address
     v1 = fmp
@@ -272,33 +269,34 @@ fn @partialPair() -> (u256, u256) [selector=0x94ae8541, abi_params=[], abi_retur
     v5 = slice_len v3
     v6 = extcodesize v0
     v7 = iszero v6
-    jumpi v7, bb1, bb2
-  bb2:
+    revert_if v7, target_contract_has_no_code
     v8 = gas
     v9 = sub v8, 50
     v10 = call v9, v0, 0, v4, v5, v4, 64
-    jumpi v10, bb4, bb3
-  bb3:
+    jumpi v10, bb2, bb1
+  bb1:
     revert_returndata
-  bb4:
+  bb2:
     v11 = add v4, 0
     v12 = mload v11
     v13 = add v4, 32
     v14 = mload v13
-    frame_store multi_return, word, 0, v4 !metadata(memory=scratch)
     v15 = add v4, 0
     v16 = mload v15
-    v17 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v18 = add v17, 32
-    v19 = mload v18
-    ret v16, v19
-  bb1:
-    revert 0, 0
+    v17 = add v4, 32
+    v18 = mload v17
+    v19 = insert_value struct0, undef struct0, 0, v16
+    v20 = insert_value struct0, v19, 1, v18
+    v21 = extract_value struct0, v20, 0
+    v22 = extract_value struct0, v20, 1
+    v23 = insert_value struct0, undef struct0, 0, v21
+    v24 = insert_value struct0, v23, 1, v22
+    ret v24
 }
 
 fn @partialAgg() -> memoryfixedarray [selector=0xbf0809fa, abi_params=[], abi_returns=[array<2, word>]] {
   bb0:
-    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_zero v0, 64
     v1 = address
     v2 = alloc memorybytes, exact, uninitialized, infallible, 96
@@ -312,23 +310,20 @@ fn @partialAgg() -> memoryfixedarray [selector=0xbf0809fa, abi_params=[], abi_re
     v8 = slice_len v6
     v9 = extcodesize v1
     v10 = iszero v9
-    jumpi v10, bb1, bb2
-  bb2:
+    revert_if v10, target_contract_has_no_code
     v11 = gas
     v12 = sub v11, 50
     v13 = call v12, v1, 0, v7, v8, v7, 64
-    jumpi v13, bb4, bb3
-  bb3:
+    jumpi v13, bb2, bb1
+  bb1:
     revert_returndata
-  bb4:
+  bb2:
     mcopy v3, v7, 64
     v14 = abi_decode [array<2, u256>], v2
     ret v14
-  bb1:
-    revert 0, 0
 }
 
-fn @dirtyFour() -> (u256, u256, u256, u256) [selector=0x42fc804f, abi_params=[], abi_returns=[word, word, word, word]] {
+fn @dirtyFour() -> struct1 [selector=0x42fc804f, abi_params=[], abi_returns=[word, word, word, word], abi_return_params=[u256, u256, u256, u256]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = not 0
@@ -347,15 +342,14 @@ fn @dirtyFour() -> (u256, u256, u256, u256) [selector=0x42fc804f, abi_params=[],
     v10 = slice_len v8
     v11 = extcodesize v5
     v12 = iszero v11
-    jumpi v12, bb1, bb2
-  bb2:
+    revert_if v12, target_contract_has_no_code
     v13 = gas
     v14 = sub v13, 50
     v15 = call v14, v5, 0, v9, v10, v9, 128
-    jumpi v15, bb4, bb3
-  bb3:
+    jumpi v15, bb2, bb1
+  bb1:
     revert_returndata
-  bb4:
+  bb2:
     v16 = add v9, 0
     v17 = mload v16
     v18 = add v9, 32
@@ -364,17 +358,25 @@ fn @dirtyFour() -> (u256, u256, u256, u256) [selector=0x42fc804f, abi_params=[],
     v21 = mload v20
     v22 = add v9, 96
     v23 = mload v22
-    frame_store multi_return, word, 0, v9 !metadata(memory=scratch)
     v24 = add v9, 0
     v25 = mload v24
-    v26 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v27 = add v26, 32
-    v28 = mload v27
-    v29 = add v26, 64
-    v30 = mload v29
-    v31 = add v26, 96
-    v32 = mload v31
-    ret v25, v28, v30, v32
-  bb1:
-    revert 0, 0
+    v26 = add v9, 32
+    v27 = mload v26
+    v28 = add v9, 64
+    v29 = mload v28
+    v30 = add v9, 96
+    v31 = mload v30
+    v32 = insert_value struct1, undef struct1, 0, v25
+    v33 = insert_value struct1, v32, 1, v27
+    v34 = insert_value struct1, v33, 2, v29
+    v35 = insert_value struct1, v34, 3, v31
+    v36 = extract_value struct1, v35, 0
+    v37 = extract_value struct1, v35, 1
+    v38 = extract_value struct1, v35, 2
+    v39 = extract_value struct1, v35, 3
+    v40 = insert_value struct1, undef struct1, 0, v36
+    v41 = insert_value struct1, v40, 1, v37
+    v42 = insert_value struct1, v41, 2, v38
+    v43 = insert_value struct1, v42, 3, v39
+    ret v43
 }

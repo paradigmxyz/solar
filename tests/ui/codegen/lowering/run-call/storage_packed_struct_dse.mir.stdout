@@ -21,6 +21,6 @@ fn @preservesRawNeighbors() -> bool [selector=0x56c38e53, abi_params=[], abi_ret
     v10 = eq v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     jump bb3
   bb3:
-    v11 = phi [bb1: v10], [bb2: 0]
+    v11 = phi [bb1: v10], [bb2: false]
     ret v11
 }

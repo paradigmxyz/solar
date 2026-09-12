@@ -3,43 +3,24 @@
 fn @assert_panic(arg0: bool) [selector=0x727ee374, pure, abi_params=[bool], abi_returns=[]] {
   bb0:
     v0 = iszero arg0
-    jumpi v0, bb1, bb2
-  bb2:
-    stop
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 1 !metadata(memory=scratch)
-    revert 0, 36
+    panic_if v0, 0x1
+    ret
 }
 
 fn @require_message(arg0: bool) [selector=0x79cfb63f, pure, abi_params=[bool], abi_returns=[]] {
   bb0:
-    v0 = iszero arg0
-    jumpi v0, bb1, bb2
-  bb2:
-    stop
-  bb1:
-    icall @revert_error, 0, 3, 0x6261640000000000000000000000000000000000000000000000000000000000
-    invalid
+    icall require short_string, arg0, 3, 0x6261640000000000000000000000000000000000000000000000000000000000
+    ret
 }
 
 fn @revert_message() [selector=0x0900437f, pure, abi_params=[], abi_returns=[]] {
   bb0:
-    icall @revert_error, 0, 3, 0x6261640000000000000000000000000000000000000000000000000000000000
+    icall require short_string, false, 3, 0x6261640000000000000000000000000000000000000000000000000000000000
     invalid
 }
 
 fn @revert_hex_message() [selector=0x36440c33, pure, abi_params=[], abi_returns=[]] {
   bb0:
-    icall @revert_error, 0, 3, 0x6261640000000000000000000000000000000000000000000000000000000000
+    icall require short_string, false, 3, 0x6261640000000000000000000000000000000000000000000000000000000000
     invalid
-}
-
-fn @revert_error(arg0: u256, arg1: u256) {
-  bb0:
-    mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 32 !metadata(memory=scratch)
-    mstore 36, arg0 !metadata(memory=scratch)
-    mstore 68, arg1 !metadata(memory=scratch)
-    revert 0, 100
 }

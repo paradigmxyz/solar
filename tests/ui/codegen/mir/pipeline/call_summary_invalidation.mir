@@ -1,0 +1,18 @@
+//@ compile-flags: -Zmir-pipeline=cse,cfg-simplify,dce
+// Removing the callee's revert path must refresh its effects before DCE.
+@module CallSummaryInvalidation
+
+fn @caller() {
+  bb0:
+    icall @callee
+    ret
+}
+
+fn @callee() {
+  bb0:
+    jumpi 1, bb1, bb2
+  bb1:
+    ret
+  bb2:
+    revert 0, 0
+}

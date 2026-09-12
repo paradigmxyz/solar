@@ -14,3 +14,39 @@ fn @dead_load() {
     v0 = frame_load scratch, word, 0
     stop
 }
+
+// A conditional load changes a later memory-size observation even when its result is unused.
+// CHECK-LABEL: fn @observed_load
+// CHECK: {{^[ +].*}}jumpi arg0, bb1, bb2
+// CHECK: {{^[ +].*}}mload 0x1000
+// CHECK: {{^[ +].*}}msize
+fn @observed_load(arg0: bool) -> u256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    v0 = mload 4096
+    jump bb2
+  bb2:
+    v1 = msize
+    ret v1
+}
+
+// CHECK-LABEL: fn @callee_observes_memory
+// CHECK: {{^[ +].*}}mload 0x1000
+// CHECK: {{^[ +].*}}icall @observe_memory
+fn @callee_observes_memory(arg0: bool) -> u256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    v0 = mload 4096
+    jump bb2
+  bb2:
+    v1 = icall @observe_memory
+    ret v1
+}
+
+fn @observe_memory() -> u256 {
+  bb0:
+    v0 = msize
+    ret v0
+}

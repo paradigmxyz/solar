@@ -7,10 +7,10 @@ use super::{
 };
 use crate::mir::{
     AbiLayout, AbiParamLayout, AbiParamLocation, AbiParamType, AbiType, AbiWordValidator,
-    AllocationSemantics, BlockId, ERROR_SELECTOR, FrameMode, FrameSlotKind, Function,
+    AddressCallKind, AllocationSemantics, ArithmeticKind, BlockId, CheckedOp, ConcatPart, Function,
     FunctionBuilder, FunctionId, ImmutableId, InstKind, LibraryLink, MemoryObjectKind,
-    MemoryObjectLayout, MirType, Module, PanicCode, RevertReason, SliceLocation, Value, ValueId,
-    memory::EvmMemoryLayout,
+    MemoryObjectLayout, MirType, Module, PackedArraySource, PackedPart, PanicCode, RevertPayload,
+    RevertReason, SliceLocation, Value, ValueId, memory::EvmMemoryLayout,
 };
 use alloy_primitives::{U256, keccak256};
 use solar_ast::{BinOpKind, DataLocation, LitKind, StateMutability, StrKind, TypeSize, UnOpKind};
@@ -168,7 +168,8 @@ pub(super) fn lower(
                 types::TypeLowerer::mir_return_type(gcx.type_of_item(ret.into()))
                     == MirType::Slice(SliceLocation::Calldata)
             });
-            if has_calldata_aggregate_return
+            if hir_function.returns.len() > 1
+                || has_calldata_aggregate_return
                 || output_param_shapes.iter().any(AbiParamType::needs_nested_return_cleanup)
             {
                 mir.abi_return_params =
@@ -212,7 +213,7 @@ pub(super) fn lower_synthetic_constructor(
     lowerer.lower_implicit_base_constructors(contract_id)?;
     lowerer.lower_state_initializers(contract_id)?;
     if !lowerer.is_terminated() {
-        // stop !metadata(contract definition)
+        // ret !metadata(contract definition)
         lowerer.builder.replace_source_span(span);
         lowerer.finish(&[])?;
     }
@@ -328,13 +329,6 @@ struct ReturnTarget {
     states: Vec<LoopState>,
 }
 
-enum PreparedRevertPayload {
-    ShortString { length: ValueId, data: ValueId },
-    EmptyString,
-    ErrorString(ValueId),
-    CustomError { selector: ValueId, layout: Arc<AbiLayout>, values: Box<[ValueId]> },
-}
-
 #[derive(Clone, Copy, PartialEq, Eq)]
 struct StorageAccess {
     slot: ValueId,
@@ -348,12 +342,6 @@ enum LValuePlace<'gcx> {
     MemoryField { object: ValueId, layout: MemoryObjectLayout, field: u64, ty: Ty<'gcx> },
     MemoryElement { object: ValueId, layout: MemoryObjectLayout, index: ValueId, ty: Ty<'gcx> },
     MemoryByte { object: ValueId, index: ValueId, ty: Ty<'gcx> },
-}
-
-#[derive(Clone, Copy)]
-enum ArithmeticKind {
-    Unsigned(u16),
-    Signed(u16),
 }
 
 #[derive(Clone, Copy)]
@@ -395,13 +383,6 @@ impl InternalFunctionPointerShape {
         }
     }
 
-    fn from_function(function: &Function) -> Self {
-        Self {
-            params: function.params.iter().copied().skip(1).collect(),
-            returns: function.returns.clone(),
-        }
-    }
-
     fn is_assembly_cast_compatible_with(&self, target: &Self) -> bool {
         // Assembly casts preserve these full-word argument representations. Keep return shapes
         // exact because internal calls can expose dirty return words.
@@ -437,6 +418,7 @@ fn helper_name(prefix: Symbol, suffix: impl Display) -> Symbol {
 #[derive(Default)]
 pub(super) struct InternalFunctionPointerRegistry {
     targets: FxHashSet<hir::FunctionId>,
+    dispatchers: FxHashMap<FunctionId, InternalFunctionPointerShape>,
 }
 
 fn internal_function_pointer_id(function_id: hir::FunctionId) -> u64 {
@@ -448,7 +430,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let gcx = cx.gcx;
         Self {
             cx,
-            builder: FunctionBuilder::new(function)
+            builder: FunctionBuilder::new_semantic(function)
                 .with_revert_strings(gcx.sess.opts.revert_strings),
             types: types::TypeLowerer::new(gcx),
             values: FxHashMap::default(),
@@ -492,7 +474,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
         let mut function = Function::new(ident);
         if build(self, &mut function).is_none() {
-            FunctionBuilder::new(&mut function).invalid();
+            FunctionBuilder::new_semantic(&mut function).invalid();
             *self.cx.module.function_mut(id) = function;
             self.cx.state.helpers.remove(&name);
             return None;
@@ -922,7 +904,7 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
     let dispatchers = module
         .iter_functions()
         .filter(|(_, function)| function.attributes.is_function_pointer_dispatcher)
-        .map(|(id, function)| (InternalFunctionPointerShape::from_function(function), id))
+        .map(|(id, _)| (state.pointer_registry.dispatchers[&id].clone(), id))
         .collect::<Vec<_>>();
     for (shape, dispatcher) in dispatchers {
         let mut candidates = state
@@ -952,12 +934,12 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
         function.name = reserved.name;
         function.attributes.is_function_pointer_dispatcher = true;
         {
-            let mut builder = FunctionBuilder::new(&mut function);
+            let mut builder = FunctionBuilder::new_semantic(&mut function);
             let function_value = builder.add_param(MirType::Function);
             let arguments =
                 shape.params.iter().copied().map(|ty| builder.add_param(ty)).collect::<Vec<_>>();
-            for ty in shape.returns.iter().copied() {
-                builder.add_return(ty);
+            if let Some(ty) = module.intern_return_type(shape.returns.clone()) {
+                builder.set_return_type(ty);
             }
 
             // for target {
@@ -991,42 +973,14 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                     })
                     .collect::<Vec<_>>();
                 if shape.returns.is_empty() {
-                    builder.icall_void(mir_id, call_arguments, 0);
+                    builder.icall_void(mir_id, call_arguments);
                     builder.ret([]);
                 } else {
-                    let result = builder.icall(
-                        mir_id,
-                        call_arguments,
-                        shape.returns[0],
-                        shape.returns.len(),
-                    );
-                    let mut values = Vec::with_capacity(shape.returns.len());
-                    values.push(result);
-                    if shape.returns.len() > 1 {
-                        let base =
-                            builder.frame_load(0, FrameMode::MultiReturn, FrameSlotKind::Word);
-                        let mut word_index =
-                            if matches!(shape.returns[0], MirType::Slice(_)) { 2 } else { 1 };
-                        for &ty in &shape.returns[1..] {
-                            let offset = u64::try_from(word_index)
-                                .unwrap_or(u64::MAX)
-                                .saturating_mul(EvmMemoryLayout::WORD_SIZE);
-                            let position = builder.add_u64_offset(base, offset);
-                            let first_word = builder.mload(position);
-                            let value = if let MirType::Slice(location) = ty {
-                                let length_position =
-                                    builder.add_u64_offset(position, EvmMemoryLayout::WORD_SIZE);
-                                let length = builder.mload(length_position);
-                                word_index += 2;
-                                builder.make_slice(first_word, length, location)
-                            } else {
-                                word_index += 1;
-                                first_word
-                            };
-                            values.push(value);
-                        }
-                    }
-                    builder.ret(values);
+                    // result = icall target(arguments)
+                    // ret result
+                    let result_ty = builder.func().return_components()[0];
+                    let result = builder.icall(mir_id, call_arguments, result_ty);
+                    builder.ret([result]);
                 }
                 builder.replace_source_span(previous_span);
                 builder.switch_to_block(next_block);
@@ -1063,13 +1017,6 @@ fn is_signed_packed_scalar(ty: Ty<'_>) -> bool {
         TyKind::Elementary(solar_sema::hir::ElementaryType::Int(_)) => true,
         _ => false,
     }
-}
-
-fn signed_bounds(bits: u16, builder: &mut FunctionBuilder<'_>) -> (ValueId, ValueId) {
-    let magnitude = U256::from(1) << (bits - 1);
-    let min = builder.imm(U256::MAX - magnitude + U256::ONE);
-    let max = builder.imm(magnitude - U256::ONE);
-    (min, max)
 }
 
 fn report_error<T>(gcx: Gcx<'_>, span: Span, message: &'static str) -> Option<T> {

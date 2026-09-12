@@ -2,51 +2,43 @@
 @module TryCatchPanicTarget
 fn @ok() [selector=0xd909b403, pure, abi_params=[], abi_returns=[]] {
   bb0:
-    stop
+    ret
 }
 
 fn @fail() [selector=0xa9cc4718, pure, abi_params=[], abi_returns=[]] {
   bb0:
-    v0 = iszero 0
-    jumpi v0, bb1, bb2
-  bb2:
-    stop
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 1 !metadata(memory=scratch)
-    revert 0, 36
+    v0 = iszero false
+    panic_if v0, 0x1
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/try_catch_panic.sol:TryCatchPanic ===
 @module TryCatchPanic
+data:
+  TryCatchPanicTarget_initcode_0: hex"34600d5760478060115f395ff35b5f5ffd346028575f3560e01c8063a9cc4718146020578063d909b403146024576028565b602e565b602c565b5f5ffd5b005b5f1515604657634e487b715f5260016020526024601cfd5b"
+
 fn @constructor() [constructor] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 146, v1
+    v2 = and 119, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    mstore v3, 0x34600d5760628060115f395ff35b5f5ffd346028575f3560e01c8063a9cc4718
-    v4 = add v3, 32
-    mstore v4, 0x146020578063d909b403146024576028565b602e565b602c565b5f5ffd5b005b
-    v5 = add v3, 64
-    mstore v5, 0x5f15156061577f4e487b71000000000000000000000000000000000000000000
-    v6 = add v3, 96
-    mstore v6, 0x5f52600160045260245ffd5b00000000000000000000000000
-    v7 = slice_ptr v0
-    v8 = add v3, 115
-    mcopy v8, v7, 0 !metadata(memory=heap)
-    v9 = create 0, v3, 115
-    jumpi v9, bb2, bb1
+    data_copy TryCatchPanicTarget_initcode_0, v3, 88
+    v4 = slice_ptr v0
+    v5 = add v3, 88
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 88
+    jumpi v6, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v10 = sload 0 !metadata(storage=slot(0))
-    v11 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v12 = and v10, v11
-    v13 = and v9, 0xffffffffffffffffffffffffffffffffffffffff
-    v14 = or v12, v13
-    sstore 0, v14 !metadata(storage=slot(0))
-    stop
+    v7 = sload 0 !metadata(storage=slot(0))
+    v8 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v9 = and v7, v8
+    v10 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
+    v11 = or v9, v10
+    sstore 0, v11 !metadata(storage=slot(0))
+    ret
 }
 
 fn @success() -> u256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[word]] {
@@ -59,54 +51,33 @@ fn @success() -> u256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     v5 = slice_len v3
     v6 = extcodesize v1
     v7 = iszero v6
-    jumpi v7, bb1, bb2
-  bb2:
+    revert_if v7, target_contract_has_no_code
     v8 = staticcall v2, v1, v4, v5, 0, 0
-    jumpi v8, bb3, bb4
-  bb4:
-    v9 = returndatasize
-    v10 = add v9, 63
-    v11 = lt v10, v9
-    jumpi v11, bb6, bb7
-  bb7:
-    v12 = not 31
-    v13 = and v10, v12
-    v14 = alloc memorybytes, exact, uninitialized, infallible, v13
-    set_memory_object_len memorybytes, v14, v9
-    v15 = make_returndata_slice 0, v9
-    memory_object_copy_from_slice memorybytes, v14, v15
-    v16 = memory_object_data memorybytes, v14
-    v17 = memory_object_len memorybytes, v14
-    v18 = make_memory_slice v16, v17
-    v19 = memory_slice_load_word memory, v18, 0
-    v20 = lt v17, 4
-    v21 = iszero v20
-    v22 = shr 224, v19
-    v23 = eq v22, 0x8c379a0
-    v24 = and v21, v23
-    v25 = lt v17, 36
-    v26 = iszero v25
-    v27 = eq v22, 0x4e487b71
-    v28 = and v26, v27
-    jumpi v28, bb8, bb9
-  bb9:
-    revert v16, v17
-  bb8:
-    v29 = memory_object_data memorybytes, v14
-    v30 = add v29, 4
-    v31 = make_memory_slice v30, 32
-    v32 = memory_slice_load_word memory, v31, 0
-    ret v32
-  bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb3:
-    jump bb5
+    jumpi v8, bb1, bb2
+  bb2:
+    v9 = returndata_bytes
+    v10 = memory_object_data memorybytes, v9
+    v11 = memory_object_len memorybytes, v9
+    v12 = make_memory_slice v10, v11
+    v13 = memory_slice_load_word memory, v12, 0
+    v14 = shr 224, v13
+    v15 = eq v14, 0x4e487b71
+    v16 = lt v11, 36
+    v17 = iszero v16
+    v18 = and v15, v17
+    jumpi v18, bb4, bb5
   bb5:
-    ret 7
+    revert v10, v11
+  bb4:
+    v19 = memory_object_data memorybytes, v9
+    v20 = add v19, 4
+    v21 = make_memory_slice v20, 32
+    v22 = memory_slice_load_word memory, v21, 0
+    ret v22
   bb1:
-    revert 0, 0
+    jump bb3
+  bb3:
+    ret 7
 }
 
 fn @failure() -> u256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[word]] {
@@ -119,52 +90,31 @@ fn @failure() -> u256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
     v5 = slice_len v3
     v6 = extcodesize v1
     v7 = iszero v6
-    jumpi v7, bb1, bb2
-  bb2:
+    revert_if v7, target_contract_has_no_code
     v8 = staticcall v2, v1, v4, v5, 0, 0
-    jumpi v8, bb3, bb4
-  bb4:
-    v9 = returndatasize
-    v10 = add v9, 63
-    v11 = lt v10, v9
-    jumpi v11, bb6, bb7
-  bb7:
-    v12 = not 31
-    v13 = and v10, v12
-    v14 = alloc memorybytes, exact, uninitialized, infallible, v13
-    set_memory_object_len memorybytes, v14, v9
-    v15 = make_returndata_slice 0, v9
-    memory_object_copy_from_slice memorybytes, v14, v15
-    v16 = memory_object_data memorybytes, v14
-    v17 = memory_object_len memorybytes, v14
-    v18 = make_memory_slice v16, v17
-    v19 = memory_slice_load_word memory, v18, 0
-    v20 = lt v17, 4
-    v21 = iszero v20
-    v22 = shr 224, v19
-    v23 = eq v22, 0x8c379a0
-    v24 = and v21, v23
-    v25 = lt v17, 36
-    v26 = iszero v25
-    v27 = eq v22, 0x4e487b71
-    v28 = and v26, v27
-    jumpi v28, bb8, bb9
-  bb9:
-    revert v16, v17
-  bb8:
-    v29 = memory_object_data memorybytes, v14
-    v30 = add v29, 4
-    v31 = make_memory_slice v30, 32
-    v32 = memory_slice_load_word memory, v31, 0
-    ret v32
-  bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb3:
-    jump bb5
+    jumpi v8, bb1, bb2
+  bb2:
+    v9 = returndata_bytes
+    v10 = memory_object_data memorybytes, v9
+    v11 = memory_object_len memorybytes, v9
+    v12 = make_memory_slice v10, v11
+    v13 = memory_slice_load_word memory, v12, 0
+    v14 = shr 224, v13
+    v15 = eq v14, 0x4e487b71
+    v16 = lt v11, 36
+    v17 = iszero v16
+    v18 = and v15, v17
+    jumpi v18, bb4, bb5
   bb5:
-    ret 0
+    revert v10, v11
+  bb4:
+    v19 = memory_object_data memorybytes, v9
+    v20 = add v19, 4
+    v21 = make_memory_slice v20, 32
+    v22 = memory_slice_load_word memory, v21, 0
+    ret v22
   bb1:
-    revert 0, 0
+    jump bb3
+  bb3:
+    ret 0
 }

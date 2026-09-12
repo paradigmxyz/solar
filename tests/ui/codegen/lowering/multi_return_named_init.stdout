@@ -1,66 +1,56 @@
 // === ROOT/tests/ui/codegen/lowering/multi_return_named_init.sol:MultiReturnNamedInit ===
 @module MultiReturnNamedInit
-fn @readU64(arg0: calldataslice, arg1: u256) -> (u64, u256) [pure] {
+types:
+  struct0: {u256, u256}
+
+fn @readU64(arg0: calldataslice, arg1: u256) -> struct0 [pure] {
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: arg1], [bb11: v17]
-    v1 = phi [bb0: arg0], [bb11: v1]
-    v2 = phi [bb0: 0], [bb11: v19]
-    v3 = phi [bb0: 0], [bb11: v16]
-    v4 = phi [bb0: arg1], [bb11: v4]
+    v0 = phi [bb0: arg1], [bb3: v17]
+    v1 = phi [bb0: arg0], [bb3: v1]
+    v2 = phi [bb0: 0], [bb3: v18]
+    v3 = phi [bb0: 0], [bb3: v16]
+    v4 = phi [bb0: arg1], [bb3: v4]
     v5 = lt v2, 8
     jumpi v5, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v3, v0
+    v19 = insert_value struct0, undef struct0, 0, v3
+    v20 = insert_value struct0, v19, 1, v0
+    ret v20
   bb4:
     v6 = shl 8, v3
     v7 = and v6, 0xffffffffffffffff
     v8 = slice_len v1
     v9 = lt v0, v8
     v10 = iszero v9
-    jumpi v10, bb7, bb8
-  bb8:
+    panic_if v10, 0x32
     v11 = slice_ptr v1
     v12 = calldata_slice_load_word calldata, v1, v0
     v13 = byte 0, v12
     v14 = shl 248, v13
     v15 = shr 248, v14
     v16 = or v7, v15
-    v17 = add v0, 1
-    v18 = lt v17, v0
-    jumpi v18, bb9, bb10
-  bb10:
+    v17 = checked_add u256, v0, 1
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v19 = add v2, 1
-    v20 = lt v19, v2
-    jumpi v20, bb9, bb11
-  bb11:
+    v18 = checked_add u256, v2, 1
     jump bb1
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
 }
 
-fn @readTwice(arg0: calldataslice) -> (u64, u64) [selector=0xc62a8eb2, pure, abi_params=[bytes], abi_returns=[word<u64>, word<u64>]] {
+fn @readTwice(arg0: calldataslice) -> struct0 [selector=0xc62a8eb2, pure, abi_params=[bytes], abi_returns=[word<u64>, word<u64>], abi_return_params=[u64, u64]] {
   bb0:
-    v0 = icall @readU64, 2, arg0, 0
-    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v2 = add v1, 32
-    v3 = mload v2
-    v4 = icall @readU64, 2, arg0, 8
-    v5 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v6 = add v5, 32
-    v7 = mload v6
-    ret v0, v4
+    v0 = icall @readU64, arg0, 0
+    v1 = extract_value struct0, v0, 0
+    v2 = extract_value struct0, v0, 1
+    v3 = icall @readU64, arg0, 8
+    v4 = extract_value struct0, v3, 0
+    v5 = extract_value struct0, v3, 1
+    v6 = insert_value struct0, undef struct0, 0, v1
+    v7 = insert_value struct0, v6, 1, v4
+    ret v7
 }

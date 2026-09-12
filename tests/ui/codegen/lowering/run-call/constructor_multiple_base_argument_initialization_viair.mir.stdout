@@ -9,7 +9,7 @@ fn @x() -> u256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word]] {
 fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
   bb0:
     sstore 0, 2 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_multiple_base_argument_initialization_viair.sol:ConstructorArgumentInitializationB ===
@@ -23,15 +23,18 @@ fn @y() -> u256 [selector=0xa56dfe4a, view, abi_params=[], abi_returns=[word]] {
 fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
   bb0:
     sstore 0, 3 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_multiple_base_argument_initialization_viair.sol:ConstructorMultipleBaseArgumentInitialization ===
 @module ConstructorMultipleBaseArgumentInitialization
+types:
+  struct0: {u256, u256}
+
 fn @constructor() [constructor] {
   bb0:
-    v0 = icall @touchA, 1
-    v1 = icall @touchB, 1
+    v0 = icall @touchA
+    v1 = icall @touchB
     sstore 0, 2 !metadata(storage=slot(0))
     jump bb1
   bb1:
@@ -40,14 +43,16 @@ fn @constructor() [constructor] {
   bb2:
     jump bb3
   bb3:
-    stop
+    ret
 }
 
-fn @state() -> (u256, u256) [selector=0xc19d93fb, view, abi_params=[], abi_returns=[word, word]] {
+fn @state() -> struct0 [selector=0xc19d93fb, view, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = sload 1 !metadata(storage=slot(1))
-    ret v0, v1
+    v2 = insert_value struct0, undef struct0, 0, v0
+    v3 = insert_value struct0, v2, 1, v1
+    ret v3
 }
 
 fn @y() -> u256 [selector=0xa56dfe4a, view, abi_params=[], abi_returns=[word]] {

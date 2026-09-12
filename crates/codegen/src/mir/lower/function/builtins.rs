@@ -140,30 +140,23 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         let options =
             self.lower_call_options(call_opts, builtin == Builtin::AddressCall, "call option")?;
-        let (value, zero) = (options.value, options.zero);
         // input = materialize_memory(arg)
         let data = self.lower_typed_expr(data, memory_ty)?;
         let data = self.materialize_memory_argument(memory_ty, data, data_span)?;
-        let input = self.builder.memory_object_data(data, MemoryObjectKind::Bytes);
-        let input_size = self.builder.memory_object_len(data, MemoryObjectKind::Bytes);
-        // A bare call has no `extcodesize` guard, so before EIP-150 it also reserves the cost of
-        // creating the callee's account, which is unknowable here; solc reserves it for all three
-        // kinds too (`appendBareCall`).
-        // gas = gas() | sub(gas(), reserve)
-        let gas = self.call_gas(options.gas, options.value_set, true);
-        // ok = call|staticcall|delegatecall(gas, to, value?, input, 0, 0)
-        let success = match builtin {
-            Builtin::AddressCall => {
-                self.builder.call(gas, address, value, input, input_size, zero, zero)
-            }
-            Builtin::AddressStaticcall => {
-                self.builder.staticcall(gas, address, input, input_size, zero, zero)
-            }
-            Builtin::AddressDelegatecall => {
-                self.builder.delegatecall(gas, address, input, input_size, zero, zero)
-            }
+        let kind = match builtin {
+            Builtin::AddressCall => AddressCallKind::Call,
+            Builtin::AddressStaticcall => AddressCallKind::Static,
+            Builtin::AddressDelegatecall => AddressCallKind::Delegate,
             _ => unreachable!(),
         };
+        // success = address_call(address, data, gas?, value?)
+        let success = self.builder.address_call(
+            kind,
+            address,
+            data,
+            options.gas,
+            options.value_set.then_some(options.value),
+        );
         // data = capture ? returndata() : none
         let returndata = capture_returndata.then(|| self.materialize_returndata_bytes());
         Some((success, returndata))
@@ -178,20 +171,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let amount = &self.builtin_args::<1>(builtin, &args)?[0];
         let address = self.lower_expr(receiver)?;
         let amount = self.lower_typed_expr(amount, self.cx.gcx.types.uint(256))?;
-        let zero = self.builder.imm(U256::ZERO);
-        let stipend = self.builder.imm(2300);
-        let amount_is_zero = self.builder.iszero(amount);
-        // gas = amount == 0 ? 2300 : 0
-        let gas = self.builder.select(amount_is_zero, stipend, zero);
-        // ok = call(gas, to, amount, 0, 0, 0, 0)
-        let success = self.builder.call(gas, address, amount, zero, zero, zero, zero);
         match builtin {
             Builtin::AddressPayableTransfer => {
-                // if !ok { revert(0, returndatasize()) }
-                self.revert_external_call(success);
-                Some(zero)
+                // transfer(address, amount)
+                self.builder.transfer(address, amount);
+                Some(self.builder.imm(U256::ZERO))
             }
-            Builtin::AddressPayableSend => Some(success),
+            Builtin::AddressPayableSend => {
+                // success = send(address, amount)
+                Some(self.builder.send(address, amount))
+            }
             _ => unreachable!(),
         }
     }
@@ -597,17 +586,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     Some(message) => Some(self.prepare_revert_payload(message)?),
                     None => None,
                 };
-                let is_false = self.builder.iszero(condition);
                 let Some(message) = message else {
+                    let is_false = self.builder.iszero(condition);
                     self.builder.revert_if(is_false, RevertReason::Empty);
                     return Some(());
                 };
-                let revert_block = self.builder.create_block();
-                let continue_block = self.builder.create_block();
-                self.builder.branch(is_false, revert_block, continue_block);
-                self.builder.switch_to_block(revert_block);
-                self.emit_revert_payload(message);
-                self.builder.switch_to_block(continue_block);
+                // require condition, evaluated_payload
+                self.builder.require(condition, message);
             }
             Builtin::Revert => {
                 let _ = self.builtin_args::<0>(builtin, &args)?;
@@ -701,12 +686,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             Builtin::AddMod | Builtin::MulMod => {
                 let [a, b, modulus] = self.lower_builtin_args(builtin, &args)?;
-                self.builder.panic_if_zero(modulus, PanicCode::DivisionByZero);
-                Some(match builtin {
-                    Builtin::AddMod => self.builder.addmod(a, b, modulus),
-                    Builtin::MulMod => self.builder.mulmod(a, b, modulus),
-                    _ => unreachable!(),
-                })
+                // result = checked_addmod/checked_mulmod(a, b, modulus)
+                let kind = if builtin == Builtin::AddMod {
+                    InstKind::CheckedAddMod(a, b, modulus)
+                } else {
+                    InstKind::CheckedMulMod(a, b, modulus)
+                };
+                Some(self.builder.emit_inst(kind, Some(MirType::uint256())))
             }
             Builtin::Erc7201 => self.lower_erc7201(args),
             Builtin::Sha256 | Builtin::Ripemd160 => self.lower_hash_precompile_call(builtin, args),
@@ -757,43 +743,21 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn lower_erc7201(&mut self, args: hir::CallArgs<'_>) -> Option<ValueId> {
-        // inner = keccak256(bytes(argument)) - 1
-        // outer = keccak256(abi.encode(inner)) & ~0xff
         let argument = &self.builtin_args::<1>(Builtin::Erc7201, &args)?[0];
-        let literal = match &argument.kind {
-            ExprKind::Lit(lit) => match &lit.kind {
-                LitKind::Str(_, bytes, _) => Some(bytes.as_byte_str()),
-                _ => None,
-            },
-            _ => None,
-        };
-        let inner = match literal {
-            Some(bytes) => self.builder.imm(U256::from_be_slice(keccak256(bytes).as_slice())),
-            None => {
-                let argument_ty = self.cx.gcx.type_of_expr(argument.id)?;
-                let memory_ty = argument_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
-                let value = self.lower_typed_expr(argument, memory_ty)?;
-                let value = self.materialize_memory_argument(memory_ty, value, argument.span)?;
-                self.builder.keccak256_bytes(value)
-            }
-        };
-        let one = self.builder.imm(1);
-        let inner = self.builder.sub(inner, one);
-        let zero = self.builder.imm(U256::ZERO);
-        let word_size = self.builder.imm(32);
-        let size =
-            self.builder.imm(EvmMemoryLayout::DYNAMIC_HEADER_SIZE + EvmMemoryLayout::WORD_SIZE);
-        let object = self.builder.alloc_object(
-            size,
-            MemoryObjectLayout::Bytes,
-            AllocationSemantics::INTERNAL,
-        );
-        self.builder.set_memory_object_len(object, word_size, MemoryObjectKind::Bytes);
-        self.builder.memory_object_store_word(object, zero, inner);
-        let data = self.builder.memory_object_data(object, MemoryObjectKind::Bytes);
-        let outer = self.builder.keccak256(data, word_size);
-        let mask = self.builder.imm(!U256::from(0xff));
-        Some(self.builder.and(outer, mask))
+        if let ExprKind::Lit(lit) = self.peel_bytes_conversion(argument).peel_parens().kind
+            && let LitKind::Str(_, bytes, _) = &lit.kind
+        {
+            let inner = U256::from_be_slice(keccak256(bytes.as_byte_str()).as_slice())
+                .wrapping_sub(U256::ONE);
+            let outer = U256::from_be_slice(keccak256(inner.to_be_bytes::<32>()).as_slice());
+            return Some(self.builder.imm(outer & !U256::from(0xff)));
+        }
+        let argument_ty = self.cx.gcx.type_of_expr(argument.id)?;
+        let memory_ty = argument_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
+        let value = self.lower_typed_expr(argument, memory_ty)?;
+        let value = self.materialize_memory_argument(memory_ty, value, argument.span)?;
+        // slot = erc7201(value)
+        Some(self.builder.emit_inst(InstKind::Erc7201(value), Some(MirType::uint256())))
     }
 
     fn lower_concat_builtin_call(
@@ -801,15 +765,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         builtin: Builtin,
         args: hir::CallArgs<'_>,
     ) -> Option<ValueId> {
-        enum Part {
-            Literal(Vec<u8>),
-            Dynamic { value: ValueId, length: ValueId },
-            Fixed { value: ValueId, length: u64 },
-        }
-
         let exprs = self.variadic_builtin_args(builtin, &args)?;
         let mut all_literals = Some(Vec::new());
-        let mut total = self.builder.imm(0);
         let mut parts = Vec::with_capacity(exprs.len());
         for expr in exprs {
             let ty = self.cx.gcx.type_of_expr(expr.id)?;
@@ -823,34 +780,26 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         let bytes = bytes.as_byte_str().to_vec();
                         if let Some(all_literals) = &mut all_literals {
                             all_literals.extend_from_slice(&bytes);
-                        } else {
-                            let length = self.builder.imm(bytes.len() as u64);
-                            total = self.builder.add(total, length);
                         }
-                        parts.push(Part::Literal(bytes));
+                        for chunk in bytes.chunks(32) {
+                            let value = self.lower_string_literal_word(chunk);
+                            parts.push(ConcatPart::Fixed {
+                                value,
+                                size: TypeSize::new_int_bits(chunk.len() as u16 * 8),
+                            });
+                        }
                         continue;
                     }
-                    if let Some(all_literals) = all_literals.take() {
-                        let length = self.builder.imm(all_literals.len() as u64);
-                        total = self.builder.add(total, length);
-                    }
+                    all_literals = None;
                     let memory_ty = ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
                     let value = self.lower_typed_expr(expr, memory_ty)?;
                     let value = self.materialize_memory_argument(memory_ty, value, expr.span)?;
-                    let length = self.builder.memory_object_len(value, MemoryObjectKind::Bytes);
-                    total = self.builder.add(total, length);
-                    parts.push(Part::Dynamic { value, length });
+                    parts.push(ConcatPart::Bytes(value));
                 }
                 TyKind::Elementary(ElementaryType::FixedBytes(size)) => {
-                    if let Some(all_literals) = all_literals.take() {
-                        let length = self.builder.imm(all_literals.len() as u64);
-                        total = self.builder.add(total, length);
-                    }
+                    all_literals = None;
                     let value = self.lower_expr(expr)?;
-                    let length = u64::from(size.bytes());
-                    let length_value = self.builder.imm(length);
-                    total = self.builder.add(total, length_value);
-                    parts.push(Part::Fixed { value, length });
+                    parts.push(ConcatPart::Fixed { value, size });
                 }
                 _ => return self.cx.report_unsupported(expr.span, "concat argument"),
             }
@@ -868,47 +817,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             );
         }
 
-        // output = alloc_bytes(total)
-        let size = self.builder.padded_size(total);
-        let output = self.builder.alloc_object(
-            size,
-            MemoryObjectLayout::Bytes,
-            AllocationSemantics::SOLIDITY_UNINITIALIZED,
-        );
-        self.builder.set_memory_object_len(output, total, MemoryObjectKind::Bytes);
-
-        let mut offset = self.builder.imm(0);
-        // for part { copy(literal | dynamic | fixed, output, offset) }
-        for part in parts {
-            match part {
-                Part::Literal(bytes) => {
-                    for chunk in bytes.chunks(32) {
-                        let value = self.lower_string_literal_word(chunk);
-                        self.builder.memory_object_store_word(output, offset, value);
-                        let length = self.builder.imm(chunk.len() as u64);
-                        offset = self.builder.add(offset, length);
-                    }
-                }
-                Part::Dynamic { value, length } => {
-                    let source_ptr =
-                        self.builder.memory_object_data(value, MemoryObjectKind::Bytes);
-                    let source = self.builder.make_slice(source_ptr, length, SliceLocation::Memory);
-                    self.builder.memory_object_copy_from_slice_at(
-                        output,
-                        MemoryObjectKind::Bytes,
-                        offset,
-                        source,
-                    );
-                    offset = self.builder.add(offset, length);
-                }
-                Part::Fixed { value, length } => {
-                    self.builder.memory_object_store_word(output, offset, value);
-                    let length = self.builder.imm(length);
-                    offset = self.builder.add(offset, length);
-                }
-            }
-        }
-        Some(output)
+        // output = icall concat, parts
+        Some(self.builder.emit_inst(
+            InstKind::concat(parts),
+            Some(MirType::MemoryObject(MemoryObjectKind::Bytes)),
+        ))
     }
 
     fn lower_yul_unit_builtin_call(

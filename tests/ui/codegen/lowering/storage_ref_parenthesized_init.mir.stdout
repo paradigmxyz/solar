@@ -6,7 +6,7 @@ fn @put(arg0: bytes32, arg1: u256) -> u256 [selector=0xda4a9842, abi_params=[byt
     v1 = sload v0 !metadata(storage=symbolic(v0))
     v2 = not 255
     v3 = and v1, v2
-    v4 = and 1, 255
+    v4 = and true, 255
     v5 = or v3, v4
     sstore v0, v5 !metadata(storage=symbolic(v0))
     v6 = add v0, 1

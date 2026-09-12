@@ -15,14 +15,14 @@
   
   fn @wrap_a(arg0: u256) -> u256 {
     bb0:
-      v0 = icall @leaf_a, 1, arg0
+      v0 = icall @leaf_a, arg0
       ret v0
   }
   
   fn @wrap_b(arg0: u256) -> u256 {
     bb0:
--     v0 = icall @leaf_b, 1, arg0
-+     v0 = icall @leaf_a, 1, arg0
+-     v0 = icall @leaf_b, arg0
++     v0 = icall @leaf_a, arg0
       ret v0
   }
   
@@ -34,10 +34,10 @@
   
   fn @entry() -> u256 [selector=0x01020304] {
     bb0:
-      v0 = icall @wrap_a, 1, 1
--     v1 = icall @wrap_b, 1, 2
-+     v1 = icall @wrap_a, 1, 2
-      v2 = icall @different, 1, 3
+      v0 = icall @wrap_a, 1
+-     v1 = icall @wrap_b, 2
++     v1 = icall @wrap_a, 2
+      v2 = icall @different, 3
       v3 = add v0, v1
       v4 = add v3, v2
       ret v4
@@ -49,7 +49,7 @@
     bb2:
       ret arg1
     bb1:
-      v0 = icall @recursive_a, 1, 0, arg1
+      v0 = icall @recursive_a, false, arg1
       ret v0
   }
   
@@ -59,16 +59,95 @@
     bb2:
       ret arg1
     bb1:
--     v0 = icall @recursive_b, 1, 0, arg1
-+     v0 = icall @recursive_a, 1, 0, arg1
+-     v0 = icall @recursive_b, false, arg1
++     v0 = icall @recursive_a, false, arg1
       ret v0
   }
   
   fn @recursive_entry() [selector=0x01020306] {
     bb0:
-      v0 = icall @recursive_a, 1, 1, 1
--     v1 = icall @recursive_b, 1, 1, 2
-+     v1 = icall @recursive_a, 1, 1, 2
+      v0 = icall @recursive_a, true, 1
+-     v1 = icall @recursive_b, true, 2
++     v1 = icall @recursive_a, true, 2
       stop
+  }
+  
+  fn @mutual_a(arg0: u256) -> u256 {
+    bb0:
+      v0 = iszero arg0
+      jumpi v0, bb1, bb2
+    bb2:
+      v1 = sub arg0, 1
+-     v2 = icall @mutual_b, v1 !metadata(span=100..110)
++     v2 = icall @mutual_a, v1 !metadata(spans=[100..110, 120..130])
+      ret v2
+    bb1:
+      ret 7
+  }
+  
+  fn @mutual_b(arg0: u256) -> u256 {
+    bb0:
+      v0 = iszero arg0
+      jumpi v0, bb1, bb2
+    bb2:
+      v1 = sub arg0, 1
+      v2 = icall @mutual_a, v1 !metadata(span=120..130)
+      ret v2
+    bb1:
+      ret 7
+  }
+  
+  fn @mutual_entry() -> u256 [selector=0x01020307] {
+    bb0:
+-     v0 = icall @mutual_b, 2
++     v0 = icall @mutual_a, 2
+      ret v0
+  }
+  
+  fn @different_mutual_a(arg0: u256) -> u256 {
+    bb0:
+      v0 = iszero arg0
+      jumpi v0, bb1, bb2
+    bb2:
+      v1 = sub arg0, 1
+      v2 = icall @different_mutual_b, v1
+      ret v2
+    bb1:
+      ret 17
+  }
+  
+  fn @different_mutual_b(arg0: u256) -> u256 {
+    bb0:
+      v0 = iszero arg0
+      jumpi v0, bb1, bb2
+    bb2:
+      v1 = sub arg0, 1
+      v2 = icall @different_mutual_a, v1
+      ret v2
+    bb1:
+      ret 18
+  }
+  
+  fn @mutual_tail_a(arg0: u256) -> u256 {
+    bb0:
+      v0 = iszero arg0
+      jumpi v0, bb1, bb2
+    bb2:
+      v1 = sub arg0, 1
+-     tail_call @mutual_tail_b, v1
++     tail_call @mutual_tail_a, v1
+    bb1:
+      ret 23
+  }
+  
+  fn @mutual_tail_b(arg0: u256) -> u256 {
+    bb0:
+      v0 = iszero arg0
+      jumpi v0, bb1, bb2
+    bb2:
+      v1 = sub arg0, 1
+      tail_call @mutual_tail_a, v1
+    bb1:
+      ret 23
   }
   

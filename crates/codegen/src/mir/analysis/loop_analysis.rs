@@ -7,7 +7,8 @@
 //! - Loop bound analysis
 
 use crate::mir::{
-    BlockId, Function, InstId, InstKind, Terminator, Value, ValueId, analysis::CfgInfo,
+    ArithmeticKind, BlockId, CheckedOp, Function, InstId, InstKind, Terminator, Value, ValueId,
+    analysis::CfgInfo,
 };
 use smallvec::SmallVec;
 use solar_data_structures::{
@@ -54,8 +55,8 @@ pub(crate) struct InductionVariable {
     pub step: ValueId,
     /// Whether the variable decreases by `step` each iteration (`i = i - step`).
     pub descending: bool,
-    /// The instruction that computes the next value.
-    pub update_inst: Option<InstId>,
+    /// The recognized instruction that computes the next value.
+    pub update_inst: InstId,
 }
 
 /// Result of loop analysis for a function.
@@ -233,17 +234,15 @@ impl LoopAnalyzer {
                 if let (Some(init), Some(step_val)) = (init_value, step_value) {
                     let phi_value = func.inst_result_value(inst_id);
                     if let Some(phi_val) = phi_value
-                        && let Some(update_inst) =
-                            self.find_update_instruction(func, phi_val, step_val)
-                        && let Some((step_amount, descending)) =
-                            self.get_step_amount(func, update_inst, phi_val)
+                        && let Some((update_inst, step_amount, descending)) =
+                            self.induction_step(func, phi_val, step_val)
                     {
                         loop_info.induction_vars.push(InductionVariable {
                             value: phi_val,
                             init,
                             step: step_amount,
                             descending,
-                            update_inst: Some(update_inst),
+                            update_inst,
                         });
                     }
                 }
@@ -251,34 +250,25 @@ impl LoopAnalyzer {
         }
     }
 
-    fn find_update_instruction(
+    /// Recognizes full-word recurrences on paths where the update succeeds. Checked updates
+    /// keep their failure effects; this does not prove that an update can move or disappear.
+    /// Narrow and signed arithmetic require separate cleanup and range reasoning.
+    fn induction_step(
         &self,
         func: &Function,
         phi_val: ValueId,
         step_val: ValueId,
-    ) -> Option<InstId> {
-        if let Value::Inst(inst_id) = func.value(step_val) {
-            let inst = func.inst(*inst_id);
-            match &inst.kind {
-                InstKind::Add(a, b) if *a == phi_val || *b == phi_val => return Some(*inst_id),
-                InstKind::Sub(a, _) if *a == phi_val => return Some(*inst_id),
-                _ => {}
-            }
-        }
-        None
-    }
-
-    /// Returns the step magnitude and whether the induction variable is descending.
-    fn get_step_amount(
-        &self,
-        func: &Function,
-        inst_id: InstId,
-        phi_val: ValueId,
-    ) -> Option<(ValueId, bool)> {
-        let inst = func.inst(inst_id);
-        match &inst.kind {
-            InstKind::Add(a, b) => {
-                let step = if *a == phi_val { *b } else { *a };
+    ) -> Option<(InstId, ValueId, bool)> {
+        let Value::Inst(inst_id) = *func.value(step_val) else { return None };
+        match func.inst(inst_id).kind {
+            InstKind::Add(a, b)
+            | InstKind::CheckedBinary {
+                op: CheckedOp::Add,
+                arithmetic: ArithmeticKind::Unsigned(256),
+                lhs: a,
+                rhs: b,
+            } if a == phi_val || b == phi_val => {
+                let step = if a == phi_val { b } else { a };
                 // A wrapping decrement can be encoded as an addition of a huge
                 // constant (two's-complement negative); classify it as
                 // descending so trip-count and range reasoning bail out.
@@ -286,9 +276,15 @@ impl LoopAnalyzer {
                     func.value(step),
                     Value::Immediate(imm) if imm.as_u256().is_some_and(|v| v.bit(255))
                 );
-                Some((step, descending))
+                Some((inst_id, step, descending))
             }
-            InstKind::Sub(_, b) => Some((*b, true)),
+            InstKind::Sub(a, b)
+            | InstKind::CheckedBinary {
+                op: CheckedOp::Sub,
+                arithmetic: ArithmeticKind::Unsigned(256),
+                lhs: a,
+                rhs: b,
+            } if a == phi_val => Some((inst_id, b, true)),
             _ => None,
         }
     }

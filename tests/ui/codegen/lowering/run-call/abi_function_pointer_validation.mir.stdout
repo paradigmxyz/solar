@@ -18,10 +18,26 @@ fn @h(arg0: calldataslice) -> u256 [selector=0x4fc262ac, pure, abi_params=[tuple
     v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
     v4 = eq v2, v3
     v5 = iszero v4
-    jumpi v5, bb1, bb2
-  bb2:
+    revert_if v5, empty
     v6 = shr 64, v2
     ret 3
-  bb1:
-    revert 0, 0
+}
+
+fn @throughInternal(arg0: calldataslice) -> u256 [selector=0x53b1d360, pure, abi_params=[tuple<function>], abi_returns=[word]] {
+  bb0:
+    icall @checkField, arg0
+    ret 4
+}
+
+fn @checkField(arg0: calldataslice) [pure] {
+  bb0:
+    v0 = slice_ptr arg0
+    v1 = add v0, 0
+    v2 = calldataload v1
+    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
+    v4 = eq v2, v3
+    v5 = iszero v4
+    revert_if v5, empty
+    v6 = shr 64, v2
+    ret
 }

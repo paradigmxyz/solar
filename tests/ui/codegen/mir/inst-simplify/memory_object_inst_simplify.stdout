@@ -10,7 +10,7 @@
 -     v4 = eq v1, v2
 -     v5 = add v3, v4
 +     v4 = eq arg0, arg1
-+     v5 = add v4, 1
++     v5 = add v4, true
       ret v5
   }
   
@@ -20,7 +20,7 @@
   fn @fold_identity_projections(arg0: memorystruct, arg1: memoryfixedarray) -> u256 {
     bb0:
       v4 = eq arg0, arg1
-      v5 = add v4, 1
+      v5 = add v4, true
       ret v5
   }
   

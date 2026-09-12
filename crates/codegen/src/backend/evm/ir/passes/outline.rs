@@ -13,6 +13,9 @@
 //! selected without overlap, and new blocks and labels are installed through the normal EVM IR CFG
 //! representation.
 //!
+//! Gas mode keeps computations and immediate pushes in known loop blocks inline,
+//! since each outlined site adds call and return jumps on every iteration.
+//!
 //! Replacing a site splits its block around the run, so both ends of a candidate run must be
 //! boundaries `keep_with_next` allows to become block boundaries.
 //!
@@ -94,6 +97,9 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
 
     let mut candidates = FxHashMap::<MachineInstSlice<'_>, SmallVec<[Site; 2]>>::default();
     for (block_id, block) in module.blocks.iter_enumerated() {
+        if gcx.sess.opts.optimization.is_gas() && block.metadata.in_loop {
+            continue;
+        }
         for start in 0..block.instructions.len() {
             if !hashes.repeats(block_id, start) || !is_split_point(&block.instructions, start) {
                 continue;
@@ -568,6 +574,9 @@ fn split_parametric_outline_site(
 fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState) -> bool {
     let mut sites = FxHashMap::<U256, SmallVec<[(BlockId, usize); 2]>>::default();
     for (block_id, block) in module.blocks.iter_enumerated() {
+        if gcx.sess.opts.optimization.is_gas() && block.metadata.in_loop {
+            continue;
+        }
         for (index, inst) in block.instructions.iter().enumerate() {
             if inst.is_encoded_push()
                 && inst.deferred_push().is_none()
@@ -664,9 +673,8 @@ fn range_function_invoke(
 ) -> Option<crate::backend::evm::DebugFunction> {
     let mut functions =
         instructions.iter().filter_map(|instruction| instruction.metadata.function_invoke());
-    let function = functions.next();
-    debug_assert!(functions.all(|other| Some(other) == function));
-    function
+    let function = functions.next()?;
+    functions.all(|other| other == function).then_some(function)
 }
 
 fn apply_outline_edits(

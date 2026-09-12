@@ -270,18 +270,10 @@ impl<T> SlotMap<T> {
 
     /// Applies a write to one group, returning whether the group survives.
     ///
-    /// The group shares a region and base, so the region and base rules of
+    /// The group shares a base, so the allocation rules of
     /// [`AliasAnalysis::memory_alias_locations`] settle the whole group at once;
     /// only a write onto that same base reaches the offset comparison.
     fn invalidate_bucket(bucket: &mut SlotBucket<T>, write: MemAddrKey, size: u64) -> bool {
-        // Distinct known regions never overlap.
-        if bucket.region != MemoryRegion::Unknown
-            && write.0.region != MemoryRegion::Unknown
-            && bucket.region != write.0.region
-        {
-            return true;
-        }
-
         let bucket_site = Self::alloc_site(bucket.base);
         let write_site = Self::alloc_site(write.0.base);
         if let (Some(bucket_site), Some(write_site)) = (bucket_site, write_site) {
@@ -1002,14 +994,8 @@ impl MemoryStoreEliminator {
             return;
         }
 
-        for &access in effects.writes() {
-            if let Access::Location(Location::Memory(location)) = access
-                && !Self::insert_memory_location(overwritten, location)
-            {
-                overwritten.clear();
-                return;
-            }
-        }
+        // ModRef describes possible writes, not definite overwrites. Only
+        // the unconditional writes handled by process_block can kill stores.
         for &access in effects.reads() {
             if let Access::Location(Location::Memory(location)) = access {
                 overwritten.retain(|key| {
@@ -1020,21 +1006,6 @@ impl MemoryStoreEliminator {
                 });
             }
         }
-    }
-
-    fn insert_memory_location(
-        overwritten: &mut FxHashSet<MemAddrKey>,
-        location: MemoryLocation,
-    ) -> bool {
-        let LocationSize::Const(size) = location.size else { return false };
-        if !size.is_multiple_of(32) || size > 4096 || !location.address.offset.is_multiple_of(32) {
-            return false;
-        }
-        for offset in (0..size).step_by(32) {
-            let Some(address) = location.address.checked_add(offset) else { return false };
-            overwritten.insert(MemAddrKey(address));
-        }
-        true
     }
 
     fn constant_range_read(kind: &InstKind) -> Option<(ValueId, ValueId)> {

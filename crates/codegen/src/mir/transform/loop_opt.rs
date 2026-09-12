@@ -9,10 +9,14 @@
 //!
 //! This optimization is particularly important for EVM:
 //! - LICM: Avoids recomputing `arr.length` each iteration (MLOAD/SLOAD costs)
+//!
+//! Hoisting loads requires both independence and an execution guarantee. Semantic checks
+//! and calls may exit before a load without an explicit CFG edge; their control effects
+//! therefore constrain the guarantee even when a constant loop bound is known.
 
 use crate::mir::{
-    BlockId, Function, ImmutableId, InstId, InstKind, Module, StorageAlias, Terminator, Value,
-    ValueId,
+    BlockId, EffectKind, Function, ImmutableId, InstId, InstKind, Module, StorageAlias, Terminator,
+    Value, ValueId,
     analysis::{
         AddressSpace, AffineExpr, AliasAnalysis, AliasResult, Location, LocationSize, Loop,
         LoopAnalyzer, ScalarEvolution,
@@ -239,7 +243,7 @@ impl LoopOptimizer {
     fn can_hoist_safely(&self, func: &Function, inst_id: InstId, ctx: LoopOptContext<'_>) -> bool {
         let inst = func.inst(inst_id);
 
-        if inst.kind.has_side_effects() {
+        if inst.must_execute(false) {
             return false;
         }
         if matches!(inst.kind, InstKind::Phi(_)) {
@@ -323,7 +327,7 @@ impl LoopOptimizer {
             }
             _ => {}
         }
-        true
+        inst.kind.effects().can_speculate()
     }
 
     /// Returns true if hoisting `inst_id` into the preheader cannot make it execute when the
@@ -347,6 +351,22 @@ impl LoopOptimizer {
         else {
             return false;
         };
+
+        // Semantic checks and calls can exit without a CFG edge. The candidate must execute
+        // before each such operation, including those earlier in its own block.
+        for block_id in &loop_data.blocks {
+            if block_id != inst_block && ctx.analyzer.dominates(inst_block, block_id) {
+                continue;
+            }
+            if func.blocks[block_id]
+                .instructions
+                .iter()
+                .take_while(|&&other| other != inst_id)
+                .any(|&other| func.inst(other).kind.effects().control.any())
+            {
+                return false;
+            }
+        }
 
         let exiting = self.live_exiting_blocks(func, loop_data);
         // No live exit means the loop only terminates by running out of gas,
@@ -400,17 +420,8 @@ impl LoopOptimizer {
         loop_data.blocks.iter().any(|block_id| {
             func.blocks[block_id].instructions.iter().any(|&inst_id| {
                 matches!(
-                    func.inst(inst_id).kind,
-                    InstKind::Call { .. }
-                        | InstKind::CallCode { .. }
-                        | InstKind::StaticCall { .. }
-                        | InstKind::DelegateCall { .. }
-                        | InstKind::ExtCall { .. }
-                        | InstKind::ExtDelegateCall { .. }
-                        | InstKind::ExtStaticCall { .. }
-                        | InstKind::ICall { .. }
-                        | InstKind::Create(_, _, _)
-                        | InstKind::Create2(_, _, _, _)
+                    func.inst(inst_id).kind.effect_kind(),
+                    EffectKind::ExternalCall | EffectKind::ICall | EffectKind::Create
                 )
             })
         })
@@ -464,7 +475,7 @@ impl LoopOptimizer {
     fn loop_observes_gas(&self, func: &Function, loop_data: &Loop) -> bool {
         for block_id in &loop_data.blocks {
             for &inst_id in &func.blocks[block_id].instructions {
-                if matches!(func.inst(inst_id).kind, InstKind::Gas) {
+                if func.inst(inst_id).kind.observes_gas() {
                     return true;
                 }
             }

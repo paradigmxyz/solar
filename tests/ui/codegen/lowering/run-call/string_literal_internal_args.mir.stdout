@@ -14,7 +14,7 @@ fn @libLiteral() -> u256 [selector=0x71bacd94, pure, abi_params=[], abi_returns=
     set_memory_object_len memorybytes, v0, 2
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0x6869000000000000000000000000000000000000000000000000000000000000
-    v2 = icall @lenPlus, 1, v0, 1
+    v2 = icall @lenPlus, v0, 1
     ret v2
 }
 
@@ -24,7 +24,7 @@ fn @libConstant() -> u256 [selector=0x4f548a6c, pure, abi_params=[], abi_returns
     set_memory_object_len memorybytes, v0, 20
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0x6d61782075696e74313238206578636565646564000000000000000000000000
-    v2 = icall @lenPlus, 1, v0, 0
+    v2 = icall @lenPlus, v0, 0
     ret v2
 }
 
@@ -34,44 +34,31 @@ fn @libHex() -> u256 [selector=0xed6b01e9, pure, abi_params=[], abi_returns=[wor
     set_memory_object_len memorybytes, v0, 2
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0xaabb000000000000000000000000000000000000000000000000000000000000
-    v2 = icall @lenBytes, 1, v0
+    v2 = icall @lenBytes, v0
     ret v2
 }
 
 fn @libLong() -> u256 [selector=0x7a8edc4e, pure, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = icall @literal_bytes_0, 1
-    v1 = icall @lenPlus, 1, v0, 0
+    v0 = icall @literal_bytes_0
+    v1 = icall @lenPlus, v0, 0
     ret v1
 }
 
 fn @sharedLong() -> u256 [selector=0xd83f9e13, pure, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = icall @literal_bytes_0, 1
-    v1 = icall @lenPlus, 1, v0, 0
-    v2 = icall @literal_bytes_0, 1
-    v3 = icall @lenPlus, 1, v2, 0
-    v4 = add v1, v3
-    v5 = lt v4, v1
-    jumpi v5, bb1, bb2
-  bb2:
-    v6 = icall @literal_bytes_0, 1
-    v7 = icall @lenPlus, 1, v6, 0
-    v8 = add v4, v7
-    v9 = lt v8, v4
-    jumpi v9, bb1, bb3
-  bb3:
-    v10 = icall @literal_bytes_0, 1
-    v11 = icall @lenPlus, 1, v10, 0
-    v12 = add v8, v11
-    v13 = lt v12, v8
-    jumpi v13, bb1, bb4
-  bb4:
-    ret v12
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    v0 = icall @literal_bytes_0
+    v1 = icall @lenPlus, v0, 0
+    v2 = icall @literal_bytes_0
+    v3 = icall @lenPlus, v2, 0
+    v4 = checked_add u256, v1, v3
+    v5 = icall @literal_bytes_0
+    v6 = icall @lenPlus, v5, 0
+    v7 = checked_add u256, v4, v6
+    v8 = icall @literal_bytes_0
+    v9 = icall @lenPlus, v8, 0
+    v10 = checked_add u256, v7, v9
+    ret v10
 }
 
 fn @literalContent() -> bytes32 [selector=0x4ab72711, pure, abi_params=[], abi_returns=[word]] {
@@ -80,7 +67,7 @@ fn @literalContent() -> bytes32 [selector=0x4ab72711, pure, abi_params=[], abi_r
     set_memory_object_len memorybytes, v0, 2
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0x6869000000000000000000000000000000000000000000000000000000000000
-    v2 = icall @firstWord, 1, v0
+    v2 = icall @firstWord, v0
     ret v2
 }
 
@@ -109,15 +96,8 @@ fn @encodeConstantCast() -> u256 [selector=0x355fad3a, pure, abi_params=[], abi_
 fn @lenPlus(arg0: memorybytes, arg1: u256) -> u256 [pure] {
   bb0:
     v0 = memory_object_len memorybytes, arg0
-    v1 = add v0, arg1
-    v2 = lt v1, v0
-    jumpi v2, bb1, bb2
-  bb2:
+    v1 = checked_add u256, v0, arg1
     ret v1
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @lenBytes(arg0: memorybytes) -> u256 [pure] {

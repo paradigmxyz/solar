@@ -16,10 +16,16 @@ contract StackPhiLoop {
     // CHECK: push [[CARRIED:bb[0-9]+]]
     // CHECK: jumpi
     // CHECK: [[CARRIED]]:
-    // CHECK: push 7
+    // CHECK-NOT: push 7
+    // CHECK: calldataload
+    // CHECK-NOT: push 7
+    // CHECK: iszero
+    // CHECK-NEXT: push [[ELSE:bb[0-9]+]]
+    // CHECK-NEXT: jumpi
+    // CHECK-NEXT: push 7
     // CHECK: [[CARRIED_MERGE:bb[0-9]+]]:
     // CHECK: jump [[CARRIED_HEADER:bb[0-9]+]]
-    // CHECK: [[CARRIED_HEADER]]:
+    // CHECK: [[CARRIED_HEADER]] [loop]:
     // CHECK: jumpi
     // CHECK: jump [[CARRIED_HEADER]]
     function loopCarried(uint256 n, bool flag) public pure returns (uint256) {

@@ -8,7 +8,10 @@
 // CHECK: - {{v[0-9]+}} = signextend arg1, arg0
 // CHECK: - {{v[0-9]+}} = addmod arg1, arg0, 97
 // CHECK: - {{v[0-9]+}} = select arg2, arg0, arg1
-fn @extended_pure_ops(arg0: u256, arg1: u256, arg2: bool) -> (u256, u256, u256, u256, u256, bool) {
+types:
+  struct0: {u256, u256, u256, u256, u256, bool}
+
+fn @extended_pure_ops(arg0: u256, arg1: u256, arg2: bool) -> struct0 [return_abi=[u256, u256, u256, u256, u256, bool]] {
   bb0:
     v3 = sdiv arg0, arg1
     v4 = sdiv arg0, arg1

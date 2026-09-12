@@ -1,12 +1,12 @@
 //@compile-flags: -Zmir-pipeline=dce
-//~? ERROR: [fn0] memory-object signature type `memorybytes` survives the `memory-lowered` phase boundary
-//~? ERROR: [fn0] memory-object signature type `memorystruct` survives the `memory-lowered` phase boundary
-//~? ERROR: [fn0] [bb0, inst0] memory-object instruction `alloc` survives the `memory-lowered` phase boundary
-//~? ERROR: [fn0] [bb0, inst1] memory-object instruction `memory_object_len` survives the `memory-lowered` phase boundary
-//~? ERROR: [fn0] [bb0, inst2] memory-object instruction `set_memory_object_len` survives the `memory-lowered` phase boundary
-//~? ERROR: [fn0] [bb0, inst3] memory-object instruction `memory_object_load_byte` survives the `memory-lowered` phase boundary
+//~? ERROR: [fn0] non-word type `memorybytes` survives the `lowered` phase boundary
+//~? ERROR: [fn0] [bb0, inst0] abstract allocation instruction `alloc` survives the `lowered` phase boundary
+//~? ERROR: [fn0] [bb0, inst1] memory-object instruction `memory_object_len` survives the `lowered` phase boundary
+//~? ERROR: [fn0] [bb0, inst2] memory-object instruction `set_memory_object_len` survives the `lowered` phase boundary
+//~? ERROR: [fn0] [bb0, inst3] memory-object instruction `memory_object_load_byte` survives the `lowered` phase boundary
+//~? ERROR: [fn1] non-word type `memorybytes` survives the `lowered` phase boundary
 @module ValidateMemoryObjectBoundary
-@phase memory-lowered
+@phase lowered
 
 fn @object(arg0: memorybytes) -> memorystruct {
   bb0:
@@ -15,4 +15,9 @@ fn @object(arg0: memorybytes) -> memorystruct {
     set_memory_object_len memorybytes, arg0, v2
     v3 = memory_object_load_byte memorybytes, arg0, 0
     ret v1
+}
+
+fn @typed_immediate() -> memptr {
+  bb0:
+    ret memorybytes 96
 }

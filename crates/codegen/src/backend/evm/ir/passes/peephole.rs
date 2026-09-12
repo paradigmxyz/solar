@@ -3,7 +3,8 @@
 //! This pass repeatedly applies ordered, bounded rewrites to the end of each block's instruction
 //! prefix until it reaches a local fixed point. The rules cover constant arithmetic, comparison
 //! canonicalization, redundant pushes and copies, target-aware `DUP`/`SWAP`/`EXCHANGE` identities,
-//! and short symbolic stack sequences whose net effect is the identity.
+//! adjacent memory/storage store-load pairs, and short symbolic stack sequences whose net
+//! effect is the identity.
 //!
 //! Rules match only canonical EVM IR instructions and preserve instruction metadata on retained or
 //! replacement operations. Constant materializations use the same target-dependent cost model as
@@ -14,7 +15,14 @@
 //! Peephole runs at several cleanup points after transforms that delete, coalesce, or resynthesize
 //! instructions. [`Cleanup`] couples such a pass with peephole only when the wrapped pass reports a
 //! change, keeping the canonical pipeline at a local fixed point without adding optimization logic
-//! to assembly.
+//! to assembly. Storage reload forwarding runs only after structural sharing, so retaining
+//! a stack copy cannot disturb earlier block resynthesis or outlining choices. Final cleanup
+//! also relocates a word store immediately followed by its return to scratch memory. A prior
+//! canonical word store after the last inline jump destination must prove that the original range
+//! is already expanded, preserving memory-limit halts. Reads cannot supply this proof because later
+//! dead-code cleanup may remove them. Running after sharing preserves common-tail profitability. A
+//! store followed by discarding its copied stack source consumes that source directly; the final
+//! stage keeps this shorter sequence from disrupting earlier sharing.
 
 use super::{
     EvmPass,
@@ -23,7 +31,7 @@ use super::{
 use crate::{
     backend::evm::{
         codegen::StackOp as PhysicalStackOp,
-        ir::{Instruction, Module, PushValue},
+        ir::{Instruction, Module, PushValue, TerminatorKind},
         op,
     },
     mir::utils::eval,
@@ -35,7 +43,14 @@ use solar_sema::Gcx;
 use std::fmt;
 use tracing::trace;
 
-pub(super) struct Peephole;
+pub(super) struct Peephole {
+    final_cleanup: bool,
+}
+
+impl Peephole {
+    pub(super) const EARLY: Self = Self { final_cleanup: false };
+    pub(super) const FINAL: Self = Self { final_cleanup: true };
+}
 
 /// Runs peephole cleanup only when the wrapped pass changes the module.
 pub(super) struct Cleanup<T>(pub(super) T);
@@ -46,7 +61,7 @@ impl EvmPass for Peephole {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        optimize_module(gcx, module)
+        optimize_module(gcx, module, self.final_cleanup)
     }
 }
 
@@ -66,7 +81,7 @@ impl<T: EvmPass> EvmPass for Cleanup<T> {
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
         let changed = self.0.run_pass(gcx, module);
         if changed {
-            let _ = Peephole.run_pass(gcx, module);
+            let _ = Peephole::EARLY.run_pass(gcx, module);
         }
         changed
     }
@@ -74,11 +89,42 @@ impl<T: EvmPass> EvmPass for Cleanup<T> {
 
 const TRACE_TARGET: &str = "solar::codegen::evm_ir::peephole";
 
-fn optimize_module(gcx: Gcx<'_>, module: &mut Module) -> bool {
+fn optimize_module(gcx: Gcx<'_>, module: &mut Module, final_cleanup: bool) -> bool {
     let mut changed = false;
     let mut scratch = Vec::new();
     for block in &mut module.blocks {
-        changed |= optimize(gcx, &mut block.instructions, &mut scratch, block.label);
+        changed |= optimize(gcx, &mut block.instructions, &mut scratch, block.label, final_cleanup);
+        // mstore(offset, value); return(offset, 32)
+        // -> mstore(0, value); return(0, 32)
+        if final_cleanup
+            && matches!(
+                block.terminator.as_ref().map(|term| &term.kind),
+                Some(TerminatorKind::Op(op::RETURN))
+            )
+            && let [prefix @ .., offset, store, size, returned] = block.instructions.as_mut_slice()
+            && [&*offset, &*store, &*size, &*returned]
+                .iter()
+                .all(|inst| inst.has_canonical_stack_effect())
+            && store.as_evm_opcode() == Some(op::MSTORE)
+            && size.concrete_immediate() == Some(U256::from(32))
+            && let Some(address) = offset.concrete_immediate()
+            && !address.is_zero()
+            && returned.concrete_immediate() == Some(address)
+            && prefix
+                .windows(2)
+                .rev()
+                .take_while(|pair| pair[1].as_evm_opcode() != Some(op::JUMPDEST))
+                .any(|pair| {
+                    pair[0].has_canonical_stack_effect()
+                        && pair[1].has_canonical_stack_effect()
+                        && pair[1].as_evm_opcode() == Some(op::MSTORE)
+                        && pair[0].concrete_immediate().is_some_and(|previous| previous >= address)
+                })
+        {
+            offset.replace_preserving_metadata(Instruction::push_value(U256::ZERO));
+            returned.replace_preserving_metadata(Instruction::push_value(U256::ZERO));
+            changed = true;
+        }
     }
     changed
 }
@@ -88,6 +134,7 @@ fn optimize(
     instructions: &mut Vec<Instruction>,
     scratch: &mut Vec<Instruction>,
     block: u32,
+    final_cleanup: bool,
 ) -> bool {
     scratch.clear();
     std::mem::swap(instructions, scratch);
@@ -95,14 +142,22 @@ fn optimize(
     let mut changed = false;
     for inst in scratch.drain(..) {
         instructions.push(inst);
-        while try_peephole(gcx, instructions, block) {
+        while try_peephole(gcx, instructions, block, final_cleanup) {
             changed = true;
         }
     }
     changed
 }
 
-fn try_peephole(gcx: Gcx<'_>, instructions: &mut Vec<Instruction>, block: u32) -> bool {
+fn try_peephole(
+    gcx: Gcx<'_>,
+    instructions: &mut Vec<Instruction>,
+    block: u32,
+    final_cleanup: bool,
+) -> bool {
+    if instructions.last().is_none_or(Instruction::is_encoded_push) {
+        return false;
+    }
     macro_rules! rewrite {
         ($skip:expr, $edit:expr) => {
             rewrite(instructions, $skip, $edit, block)
@@ -232,6 +287,38 @@ fn try_peephole(gcx: Gcx<'_>, instructions: &mut Vec<Instruction>, block: u32) -
         && third.as_evm_opcode() == Some(op::ISZERO)
     {
         return rewrite!(3, Edit::OverwriteOne(op::ISZERO));
+    }
+
+    // PUSH c; [DUPn]; GT/LT; ISZERO -> PUSH c±1; [DUPn]; LT/GT
+    if instructions.last().and_then(Instruction::as_evm_opcode) == Some(op::ISZERO) {
+        let candidate = match instructions.as_slice() {
+            [.., pushed, dup, comparison, _] if matches!(dup.as_stack_op(), Some(PhysicalStackOp::Dup(depth)) if depth >= 2) => {
+                Some((pushed, comparison, true, 4))
+            }
+            [.., pushed, comparison, _] => Some((pushed, comparison, false, 3)),
+            _ => None,
+        };
+        if let Some((pushed, comparison, duplicated, count)) = candidate
+            && let Some(value) = pushed.concrete_immediate()
+            && let Some(opcode @ (op::GT | op::LT)) = comparison.as_evm_opcode()
+            && instructions[instructions.len() - count..]
+                .iter()
+                .all(Instruction::has_canonical_stack_effect)
+        {
+            let bound = if (opcode == op::GT) == duplicated {
+                value.checked_add(U256::ONE)
+            } else {
+                value.checked_sub(U256::ONE)
+            };
+            let evm_version = gcx.sess.opts.evm_version;
+            if let Some(bound) = bound
+                && op::push_len(evm_version, bound)
+                    <= immediate_materialization_cost(evm_version, value).0 + 1
+            {
+                let opcode = if opcode == op::GT { op::LT } else { op::GT };
+                return rewrite!(count, Edit::InvertComparison(bound, opcode));
+            }
+        }
     }
 
     // `SWAP1 OP -> OP'` when the binary operation accepts reversed operands.
@@ -370,21 +457,43 @@ fn try_peephole(gcx: Gcx<'_>, instructions: &mut Vec<Instruction>, block: u32) -
         return rewrite!(6, Edit::Keep(3));
     }
 
-    // `PUSH value PUSH x MSTORE PUSH x MLOAD -> PUSH value DUP1 PUSH x MSTORE`.
-    //
-    // Keeping the stored value saves a push and MLOAD.
+    // PUSH x; MSTORE/SSTORE/TSTORE; PUSH x; MLOAD/SLOAD/TLOAD
+    //   -> DUP1; PUSH x; MSTORE/SSTORE/TSTORE
+    // Keeping the stored word saves a push and reload without extending a MIR live range.
     if let [.., store_addr, store, load_addr, load] = instructions.as_slice()
         && store_addr.has_canonical_stack_effect()
         && store.has_canonical_stack_effect()
         && load_addr.has_canonical_stack_effect()
         && load.has_canonical_stack_effect()
         && let Some(store_addr) = store_addr.concrete_immediate()
-        && store.as_evm_opcode() == Some(op::MSTORE)
         && let Some(load_addr) = load_addr.concrete_immediate()
-        && load.as_evm_opcode() == Some(op::MLOAD)
+        && match (store.as_evm_opcode(), load.as_evm_opcode()) {
+            (Some(op::MSTORE), Some(op::MLOAD)) => true,
+            (Some(op::SSTORE), Some(op::SLOAD)) | (Some(op::TSTORE), Some(op::TLOAD)) => {
+                final_cleanup
+            }
+            _ => false,
+        }
         && store_addr == load_addr
     {
         return rewrite!(4, Edit::ReloadStoredValue);
+    }
+
+    // DUPn; PUSH address; MSTORE; SWAP(n-1); POP
+    // -> SWAP(n-1); PUSH address; MSTORE
+    if final_cleanup
+        && let [.., dup, address, store, swap, pop] = instructions.as_slice()
+        && let Some(op::StackOp::Dup(depth)) = dup.as_stack_op()
+        && depth > 1
+        && address.is_encoded_push()
+        && store.as_evm_opcode() == Some(op::MSTORE)
+        && swap.as_stack_op() == Some(op::StackOp::Swap(depth - 1))
+        && pop.as_evm_opcode() == Some(op::POP)
+        && [dup, address, store, swap, pop]
+            .iter()
+            .all(|inst| inst.has_canonical_stack_effect() && !inst.metadata.keep_with_next)
+    {
+        return rewrite!(5, Edit::ConsumeStoredValue(depth - 1));
     }
 
     // `DUP1 PUSH x MSTORE POP -> PUSH x MSTORE`.
@@ -608,8 +717,10 @@ enum Edit {
     MergeSwapPop(u8),
     DropDiscardedSwap,
     ReloadStoredValue,
+    ConsumeStoredValue(u8),
     DropDoubleIszero,
     EqIszeroJumpi,
+    InvertComparison(U256, u8),
     FoldConstants(U256, EvmVersion),
     StackOp(op::StackOp),
     StackOps(op::StackOp, op::StackOp),
@@ -654,6 +765,15 @@ impl Edit {
             Self::DropDiscardedSwap => {
                 instructions.remove(start);
             }
+            Self::ConsumeStoredValue(depth) => {
+                // SWAP(n-1); PUSH address; MSTORE
+                overwrite_stack_op(&mut instructions[start], PhysicalStackOp::Swap(depth));
+                let (retained, removed) = instructions[start..].split_at_mut(3);
+                for inst in removed {
+                    retained[2].metadata.absorb_debug_info(&inst.metadata);
+                }
+                instructions.truncate(start + 3);
+            }
             Self::ReloadStoredValue => {
                 instructions.swap(start, start + 3);
                 instructions.swap(start + 1, start + 2);
@@ -668,6 +788,14 @@ impl Edit {
                 overwrite_raw(&mut instructions[start], op::SUB);
                 instructions.remove(start + 1);
                 overwrite_raw(&mut instructions[start + 2], op::JUMPI);
+            }
+            Self::InvertComparison(value, opcode) => {
+                // PUSH c; [DUPn]; compare; ISZERO -> PUSH adjusted; [DUPn]; opposite compare
+                instructions[start].replace_preserving_metadata(Instruction::push_value(value));
+                let iszero = instructions.pop().expect("matched ISZERO");
+                let comparison = instructions.last_mut().expect("matched comparison");
+                overwrite_raw(comparison, opcode);
+                comparison.metadata.merge_source_spans(&iszero.metadata);
             }
             Self::FoldConstants(value, evm_version) => {
                 instructions.truncate(start);

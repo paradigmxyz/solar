@@ -1,0 +1,84 @@
+//@compile-flags: -Zmir-pipeline=none
+//~? ERROR: [fn0] [bb0, inst0] aggregate operand does not match its declared struct type
+//~? ERROR: [fn1] [bb0, inst0] inserted value must have type `bool`
+//~? ERROR: [fn2] [bb0] return values do not match the struct signature
+//~? ERROR: [fn3] [bb0, inst0] struct value does not match the required type
+//~? ERROR: [fn4] [bb0] terminator cannot consume a struct value
+//~? ERROR: [fn5] [bb0] tail-call arguments do not match the struct signature
+//~? ERROR: [fn6] internal return ABI does not match the function's result type
+//~? ERROR: [fn7] [bb0, inst0] memory object pointer conversion requires a word and matching object result
+@module InvalidStructValues
+
+types:
+  struct0: {u256, bool}
+  struct1: {struct0, u256}
+
+fn @invalid_operand(arg0: u256) -> u256 {
+  bb0:
+    v0 = extract_value struct0, arg0, 0
+    ret v0
+}
+
+fn @invalid_field(arg0: struct0) -> struct0 {
+  bb0:
+    v0 = insert_value struct0, arg0, 1, 42
+    ret v0
+}
+
+fn @invalid_return(arg0: u256) -> struct0 {
+  bb0:
+    ret arg0
+}
+
+fn @invalid_condition(arg0: struct0) -> struct0 {
+  bb0:
+    v0 = select arg0, arg0, arg0
+    ret v0
+}
+
+fn @invalid_branch(arg0: struct0) {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    ret
+  bb2:
+    ret
+}
+
+fn @invalid_tail(arg0: u256) -> struct0 {
+  bb0:
+    tail_call @invalid_field, arg0
+}
+
+fn @mixed_return(arg0: struct0, arg1: u256) -> struct1 [return_abi=[struct0, u256]] {
+  bb0:
+    ret arg0, arg1
+}
+
+fn @invalid_object_pointer(arg0: struct0) -> memorybytes {
+  bb0:
+    v0 = memory_object_from_ptr memorybytes, arg0
+    ret v0
+}
+
+//~? ERROR: [fn8] [bb0, inst0] memory object has type `memorystruct`, expected `memorybytes`
+fn @wrong_object_kind(arg0: memorystruct) -> u256 {
+  bb0:
+    v0 = memory_object_len memorybytes, arg0
+    ret v0
+}
+
+//~? ERROR: [fn9] [bb0, inst0] memory object has type `memorybytes`, expected `memoryfixedarray`
+fn @wrong_element_layout(arg0: memorybytes) -> u256 {
+  bb0:
+    v0 = memory_object_element_addr memoryfixedarray<4, 1>, arg0, 0
+    v1 = mload v0
+    ret v1
+}
+
+//~? ERROR: [fn10] [bb0, inst0] word cast requires a one-word operand and u256 result
+fn @invalid_word_cast(arg0: calldataslice) -> u256 {
+  bb0:
+    v0 = word_cast arg0
+    ret v0
+}

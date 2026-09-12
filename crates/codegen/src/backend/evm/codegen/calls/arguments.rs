@@ -7,6 +7,7 @@ use super::super::{
     StackArgUseInfo, StackModel, StackOp, StackScheduler, StaticCallEntry, StaticCallStackWord,
     TargetSlot, Terminator, U256, ValueId, WORD_BYTES, op, rematerializable_nullary_value,
 };
+use crate::mir::Callee;
 
 const STACK_ARG_ROTATION_LIMIT: usize = 16;
 
@@ -62,7 +63,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                 Self::is_external_entry(caller) || self.static_frame_functions.contains(caller_id);
             for block in &caller.blocks {
                 for &inst_id in &block.instructions {
-                    let InstKind::ICall { function, args, .. } = &caller.inst(inst_id).kind else {
+                    let InstKind::ICall { function: Callee::Function(function), args, .. } =
+                        &caller.inst(inst_id).kind
+                    else {
                         continue;
                     };
                     let Some(mask) = candidates.get_mut(function) else { continue };
@@ -140,7 +143,11 @@ impl<'gcx> EvmCodegen<'gcx> {
                 func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::Phi(_)));
             let liveness = (func.blocks.len() != 1 || has_phis).then(|| Liveness::compute(func));
             let plan = if let Some(liveness) = &liveness {
-                let phi_plan = has_phis.then(|| self.stack_phi_plan(func_id, func, liveness));
+                let phi_plan = func
+                    .blocks
+                    .iter()
+                    .any(|block| block.predecessors.len() >= 2)
+                    .then(|| self.stack_phi_plan(func_id, func, liveness));
                 let context = self.resident_search_context(func, &values, phi_plan.clone());
                 if let Some((plan, _)) = self.analyze_resident_subset(
                     func,

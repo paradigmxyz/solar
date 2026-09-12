@@ -62,3 +62,25 @@
       stop
   }
   
+  fn @header_observes_store(arg0: u256) {
+    bb0:
+-     sstore arg0, 64
+-     v0 = sload arg0
++     sstore arg0, 64 !metadata(storage=symbolic(arg0))
++     v0 = sload arg0 !metadata(storage=symbolic(arg0))
+      validate_storage_bytes v0
+-     sstore arg0, 0
++     sstore arg0, 0 !metadata(storage=symbolic(arg0))
+      ret
+  }
+  
+  fn @copy_observes_store(arg0: u256, arg1: u256) -> memorybytes {
+    bb0:
+-     sstore arg0, 7
++     sstore arg0, 7 !metadata(storage=symbolic(arg0))
+      v0 = load_storage_bytes arg1
+-     sstore arg0, 0
++     sstore arg0, 0 !metadata(storage=symbolic(arg0))
+      ret v0
+  }
+  

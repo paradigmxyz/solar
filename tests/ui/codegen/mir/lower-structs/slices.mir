@@ -1,0 +1,151 @@
+//@ revisions: structs words
+//@[structs] compile-flags: -Zmir-pipeline=lower-structs
+//@[words] compile-flags: -Zmir-pipeline=lower-structs,lower-frame-slots,lower-slices
+@module StructSlices
+@phase semantic
+
+types:
+  struct0: {}
+  struct1: {calldataslice, u256}
+  struct2: {memoryslice, struct0, struct1, returndataslice}
+  struct3: {memorybytes}
+
+fn @pack(arg0: memoryslice, arg1: calldataslice, arg2: returndataslice) -> struct2 {
+  bb0:
+    v0 = insert_value struct1, undef struct1, 0, arg1
+    v1 = insert_value struct1, v0, 1, 42
+    v2 = insert_value struct2, undef struct2, 0, arg0
+    v3 = insert_value struct2, v2, 1, undef struct0
+    v4 = insert_value struct2, v3, 2, v1
+    v5 = insert_value struct2, v4, 3, arg2
+    ret v5
+}
+
+fn @consume(arg0: memoryslice, arg1: calldataslice, arg2: returndataslice) -> u256 {
+  bb0:
+    v0 = icall @pack, arg0, arg1, arg2
+    v1 = extract_value struct2, v0, 0
+    v2 = extract_value struct2, v0, 2
+    v3 = extract_value struct1, v2, 0
+    v4 = extract_value struct1, v2, 1
+    v5 = extract_value struct2, v0, 3
+    v6 = slice_len v1
+    v7 = slice_len v3
+    v8 = slice_len v5
+    v9 = add v6, v7
+    v10 = add v8, v4
+    v11 = add v9, v10
+    ret v11
+}
+
+fn @loop(arg0: struct2, arg1: bool) -> struct2 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi struct2, [bb0: arg0], [bb2: v4]
+    jumpi arg1, bb2, bb3
+  bb2:
+    v1 = extract_value struct2, v0, 0
+    v2 = slice_ptr v1
+    v3 = make_memory_slice v2, 16
+    v4 = insert_value struct2, v0, 0, v3
+    jump bb1
+  bb3:
+    ret v0
+}
+
+fn @forward(arg0: struct2) -> struct2 {
+  bb0:
+    ret arg0
+}
+
+fn @tail(arg0: struct2) -> struct2 {
+  bb0:
+    tail_call @forward, arg0
+}
+
+fn @from_undef() -> struct1 {
+  bb0:
+    v0 = insert_value struct1, undef struct1, 0, undef calldataslice
+    v1 = insert_value struct1, v0, 1, 42
+    ret v1
+}
+
+fn @phi_undef(arg0: calldataslice, arg1: bool) -> struct1 {
+  bb0:
+    jumpi arg1, bb1, bb2
+  bb1:
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v0 = phi [bb1: arg0], [bb2: undef calldataslice]
+    v1 = insert_value struct1, undef struct1, 0, v0
+    v2 = insert_value struct1, v1, 1, 42
+    ret v2
+}
+
+fn @select_undef(arg0: calldataslice, arg1: bool) -> struct1 {
+  bb0:
+    v0 = select arg1, arg0, undef calldataslice
+    v1 = insert_value struct1, undef struct1, 0, v0
+    v2 = insert_value struct1, v1, 1, 42
+    ret v2
+}
+
+fn @checked_slice(arg0: calldataslice, arg1: bool) -> calldataslice {
+  bb0:
+    jumpi arg1, bb1, bb2
+  bb1:
+    ret arg0
+  bb2:
+    tail_call @revert_stub
+}
+
+fn @revert_stub() {
+  bb0:
+    revert 0, 0
+}
+
+fn @phi_call_results(arg0: bool, arg1: calldataslice) -> struct1 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    v0 = icall @slice_identity, arg1
+    jump bb3
+  bb2:
+    v1 = icall @slice_identity, arg1
+    jump bb3
+  bb3:
+    v2 = phi [bb1: v0], [bb2: v1]
+    v3 = select arg0, v2, v2
+    v4 = insert_value struct1, undef struct1, 0, v3
+    v5 = insert_value struct1, v4, 1, 42
+    ret v5
+}
+
+fn @slice_identity(arg0: calldataslice) -> calldataslice {
+  bb0:
+    ret arg0
+}
+
+fn @memory_call_results(arg0: bool, arg1: memorybytes) -> struct3 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    v0 = icall @memory_identity, arg1
+    jump bb3
+  bb2:
+    v1 = icall @memory_identity, arg1
+    jump bb3
+  bb3:
+    v2 = phi [bb1: v0], [bb2: v1]
+    v3 = select arg0, v2, v2
+    v4 = insert_value struct3, undef struct3, 0, v3
+    ret v4
+}
+
+fn @memory_identity(arg0: memorybytes) -> memorybytes {
+  bb0:
+    ret arg0
+}

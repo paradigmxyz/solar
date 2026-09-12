@@ -31,21 +31,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 && let ExprKind::Tuple(elements) = types.kind
                 && elements.len() > 1
             {
-                let first = self.lower_expr(expr)?;
-                let base = self.multi_return_buffer_base();
-                let gcx = self.cx.gcx;
-                let return_types = elements.iter().skip(1).copied().map(move |element| {
-                    element.and_then(|element| match gcx.type_of_expr(element.id)?.kind {
-                        TyKind::Type(ty) => Some(ty),
-                        _ => None,
-                    })
-                });
-                return Some(self.load_multi_return_values(
-                    first,
-                    base,
-                    elements.len(),
-                    return_types,
-                ));
+                let value = self.lower_expr(expr)?;
+                return Some(self.unpack_return_value(value));
             }
             let function_ty = self.cx.gcx.type_of_expr(callee.id).and_then(|ty| match ty.kind {
                 TyKind::Fn(function) => Some(function),
@@ -66,28 +53,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             if let Some(returns) = returns
                 && returns > 1
             {
-                let first = self.lower_expr(expr)?;
-                let gcx = self.cx.gcx;
-                let return_types = if let Some(function_id) = resolved_function {
-                    gcx.hir
-                        .function(function_id)
-                        .returns
-                        .iter()
-                        .map(|&id| gcx.type_of_item(id.into()))
-                        .collect::<Vec<_>>()
-                } else {
-                    function_pointer?.returns.to_vec()
-                };
-                if function_ty.is_some_and(|function| !function.is_internal()) {
-                    let base = self.multi_return_buffer_base();
-                    let gcx = self.cx.gcx;
-                    let return_types = return_types
-                        .iter()
-                        .skip(1)
-                        .map(|&ty| Some(types::TypeLowerer::return_encoding_ty(gcx, ty)));
-                    return Some(self.load_multi_return_values(first, base, returns, return_types));
-                }
-                return Some(self.load_internal_return_values(first, &return_types));
+                let value = self.lower_expr(expr)?;
+                return Some(self.unpack_return_value(value));
             }
             let returns_empty = returns.is_some_and(|returns| returns == 0)
                 || resolved_builtin.is_some_and(|builtin| {
@@ -574,24 +541,42 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         })
     }
 
-    pub(super) fn multi_return_buffer_base(&mut self) -> ValueId {
-        self.builder.frame_load(0, FrameMode::MultiReturn, FrameSlotKind::Word)
-    }
-
-    pub(super) fn ensure_multi_return_buffer(
+    pub(super) fn pack_return_values(
         &mut self,
-        words: usize,
-    ) -> (ValueId, ValueId, MemoryObjectLayout) {
-        debug_assert!(words > 1);
-        // The published pointer has no capacity, so each producer gets a fresh object.
-        let words = u64::try_from(words).unwrap_or(u64::MAX);
-        let (object, layout) = self.builder.alloc_word_array(words, AllocationSemantics::INTERNAL);
-        let base = self.builder.memory_object_data(object, MemoryObjectKind::FixedArray);
-        self.builder.frame_store(0, FrameMode::MultiReturn, FrameSlotKind::Word, base);
-        (object, base, layout)
+        values: Vec<ValueId>,
+        types: &[Ty<'gcx>],
+    ) -> ValueId {
+        let fields = types.iter().map(|&ty| types::TypeLowerer::mir_return_type(ty)).collect();
+        let ty = self.cx.module.intern_return_type(fields).expect("return values are not empty");
+        if let MirType::Struct(id) = ty {
+            // result = insert_value(undef, field0), ...
+            self.builder.make_struct(id, values)
+        } else {
+            values[0]
+        }
     }
 
-    pub(super) fn load_multi_return_value(
+    pub(super) fn unpack_return_value(&mut self, value: ValueId) -> Vec<ValueId> {
+        let Some(MirType::Struct(id)) = self.builder.func().value_ty(value) else {
+            return vec![value];
+        };
+        let fields = self.cx.module.struct_types[id].fields.clone();
+        let dirty = self.dirty_values.contains(&value);
+        fields
+            .iter()
+            .enumerate()
+            .map(|(index, &field)| {
+                // field = extract_value result, index
+                let result = self.builder.extract_value(id, value, index as u32, field);
+                if dirty || field == MirType::Slice(SliceLocation::Calldata) {
+                    self.dirty_values.insert(result);
+                }
+                result
+            })
+            .collect()
+    }
+
+    pub(super) fn load_static_abi_return_value(
         &mut self,
         base: ValueId,
         index: usize,
@@ -603,7 +588,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.mload(position)
     }
 
-    pub(super) fn load_multi_return_value_as(
+    pub(super) fn load_static_abi_return_value_as(
         &mut self,
         base: ValueId,
         index: usize,
@@ -611,7 +596,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         ty: Ty<'gcx>,
     ) -> ValueId {
         let MirType::MemoryObject(kind) = types::TypeLowerer::mir_return_type(ty) else {
-            return self.load_multi_return_value(base, index, returns);
+            return self.load_static_abi_return_value(base, index, returns);
         };
         let index = self.builder.imm(u64::try_from(index).unwrap_or(u64::MAX));
         self.builder.memory_object_load_object(
@@ -620,62 +605,5 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             index,
             kind,
         )
-    }
-
-    pub(super) fn internal_return_words(ty: Ty<'gcx>) -> usize {
-        if matches!(types::TypeLowerer::mir_return_type(ty), MirType::Slice(_)) { 2 } else { 1 }
-    }
-
-    pub(super) fn internal_returns_words(returns: impl IntoIterator<Item = Ty<'gcx>>) -> usize {
-        returns.into_iter().map(Self::internal_return_words).sum()
-    }
-
-    pub(super) fn load_internal_return_values(
-        &mut self,
-        first: ValueId,
-        return_types: &[Ty<'gcx>],
-    ) -> Vec<ValueId> {
-        let returns = Self::internal_returns_words(return_types.iter().copied());
-        let base = self.multi_return_buffer_base();
-        let mut index = Self::internal_return_words(return_types[0]);
-        let mut values = Vec::with_capacity(return_types.len());
-        let dirty = self.dirty_values.contains(&first);
-        values.push(first);
-        for &ty in &return_types[1..] {
-            let return_ty = types::TypeLowerer::mir_return_type(ty);
-            let value = match return_ty {
-                MirType::Slice(location) => {
-                    let pointer = self.load_multi_return_value(base, index, returns);
-                    let length = self.load_multi_return_value(base, index + 1, returns);
-                    self.builder.make_slice(pointer, length, location)
-                }
-                _ => self.load_multi_return_value_as(base, index, returns, ty),
-            };
-            if dirty || return_ty == MirType::Slice(SliceLocation::Calldata) {
-                self.dirty_values.insert(value);
-            }
-            values.push(value);
-            index += Self::internal_return_words(ty);
-        }
-        values
-    }
-
-    pub(super) fn load_multi_return_values(
-        &mut self,
-        first: ValueId,
-        base: ValueId,
-        returns: usize,
-        return_types: impl IntoIterator<Item = Option<Ty<'gcx>>>,
-    ) -> Vec<ValueId> {
-        let mut values = Vec::with_capacity(returns);
-        values.push(first);
-        for (index, ty) in return_types.into_iter().enumerate() {
-            let index = index + 1;
-            values.push(match ty {
-                Some(ty) => self.load_multi_return_value_as(base, index, returns, ty),
-                None => self.load_multi_return_value(base, index, returns),
-            });
-        }
-        values
     }
 }

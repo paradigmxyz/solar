@@ -1,8 +1,7 @@
 //@compile-flags: -Zmir-pipeline=dce
-//~? ERROR: [fn0] [bb0, inst0] use of ValueId(0) precedes its definition in this acyclic block
-// The acyclic function uses v1 before its definition and must be rejected. The
-// cyclic function has the same textual ordering but remains valid under MIR's
-// deliberately loose SSA rules.
+//~? ERROR: [fn0] [bb0, inst0] use of ValueId(0) precedes its definition in this block
+//~? ERROR: [fn1] [bb1, inst0] use of ValueId(1) precedes its definition in this block
+// Both forward uses are invalid; a backedge requires an explicit phi.
 @module ValidateSameBlockUse
 fn @acyclic() -> u256 {
   bb0:
@@ -19,4 +18,31 @@ fn @cyclic(arg0: bool) -> u256 {
     jumpi arg0, bb1, bb2
   bb2:
     ret v0
+}
+
+// Reachability is insufficient when the definition occurs on only one arm.
+//~? ERROR: [fn2] [bb2] terminator use of ValueId(3) is not dominated by its definition in bb1
+fn @diamond(arg0: bool) -> u256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    v0 = add 1, 2
+    jump bb2
+  bb2:
+    ret v0
+}
+
+// Phi inputs must be available along their own incoming edge.
+//~? ERROR: [fn3] [bb3, inst1] phi input ValueId(3) from bb2 is not dominated by its definition in bb1
+fn @phi_edge(arg0: bool) -> u256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    v0 = add 1, 2
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v1 = phi [bb1: v0], [bb2: v0]
+    ret v1
 }

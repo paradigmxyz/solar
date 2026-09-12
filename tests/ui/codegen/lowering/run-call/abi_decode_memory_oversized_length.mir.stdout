@@ -26,69 +26,47 @@ fn @decodeNestedArray(arg0: memoryarray) -> u256 [selector=0xad885292, pure, abi
 
 fn @wordArray() -> bool [selector=0xdbd2add2, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
-    v0 = icall @oversized, 1, 0x5592ecdf00000000000000000000000000000000000000000000000000000000
+    v0 = icall @oversized, 0x5592ecdf00000000000000000000000000000000000000000000000000000000
     ret v0
 }
 
 fn @narrowArray() -> bool [selector=0x69b43bd0, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
-    v0 = icall @oversized, 1, 0x42670e3200000000000000000000000000000000000000000000000000000000
+    v0 = icall @oversized, 0x42670e3200000000000000000000000000000000000000000000000000000000
     ret v0
 }
 
 fn @bytesValue() -> bool [selector=0x5a286ac0, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
-    v0 = icall @oversized, 1, 0x197621ce00000000000000000000000000000000000000000000000000000000
+    v0 = icall @oversized, 0x197621ce00000000000000000000000000000000000000000000000000000000
     ret v0
 }
 
 fn @nestedArray() -> bool [selector=0x810ef4b8, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
-    v0 = icall @oversized, 1, 0xad88529200000000000000000000000000000000000000000000000000000000
+    v0 = icall @oversized, 0xad88529200000000000000000000000000000000000000000000000000000000
     ret v0
 }
 
 fn @oversized(arg0: bytes4) -> bool {
   bb0:
     v0 = and arg0, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v1 = not 31
-    v2 = and 131, v1
-    v3 = alloc memorybytes, exact, uninitialized, infallible, v2
-    set_memory_object_len memorybytes, v3, 68
-    memory_object_store_word memorybytes, v3, 0, v0
-    memory_object_store_word memorybytes, v3, 4, 32
-    memory_object_store_word memorybytes, v3, 36, 0xffffffffffffffff
-    v4 = address
-    v5 = gas
-    v6 = memory_object_data memorybytes, v3
-    v7 = memory_object_len memorybytes, v3
-    v8 = call v5, v4, 0, v6, v7, 0, 0
-    v9 = returndatasize
-    v10 = add v9, 63
-    v11 = lt v10, v9
-    jumpi v11, bb1, bb2
+    v1 = abi_encode_packed (bytes4 v0, u256 32, u256 0xffffffffffffffff)
+    v2 = address
+    v3 = gas
+    v4 = address_call v2, v1, gas v3
+    v5 = returndata_bytes
+    v6 = iszero v4
+    jumpi v6, bb1, bb2
   bb2:
-    v12 = not 31
-    v13 = and v10, v12
-    v14 = alloc memorybytes, exact, uninitialized, infallible, v13
-    set_memory_object_len memorybytes, v14, v9
-    v15 = make_returndata_slice 0, v9
-    memory_object_copy_from_slice memorybytes, v14, v15
-    v16 = iszero v8
-    jumpi v16, bb3, bb4
-  bb4:
-    jump bb5
-  bb3:
-    v17 = keccak256_bytes v14
-    v18 = abi_encode [word], object, selector 0x4e487b7100000000000000000000000000000000000000000000000000000000, args 65
-    v19 = keccak256_bytes v18
-    v20 = eq v17, v19
-    jump bb5
-  bb5:
-    v21 = phi [bb3: v20], [bb4: 0]
-    ret v21
+    jump bb3
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    v7 = keccak256_bytes v5
+    v8 = abi_encode [word], object, selector 0x4e487b7100000000000000000000000000000000000000000000000000000000, args 65
+    v9 = keccak256_bytes v8
+    v10 = eq v7, v9
+    jump bb3
+  bb3:
+    v11 = phi [bb1: v10], [bb2: false]
+    ret v11
 }

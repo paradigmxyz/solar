@@ -252,6 +252,8 @@ pub struct EvmCodegen<'gcx> {
     block_labels: FxHashMap<BlockId, Label>,
     /// Function labels for direct internal calls.
     function_labels: FxHashMap<FunctionId, Label>,
+    /// Return arities inferred from the final lowered function signatures.
+    function_return_counts: IndexVec<FunctionId, usize>,
     /// Functions whose reachable exits all abort. Calls to these functions
     /// make their containing block cold as well.
     cold_functions: DenseBitSet<FunctionId>,
@@ -409,6 +411,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             scheduler: StackScheduler::for_evm_version(gcx.sess.opts.evm_version),
             block_labels: FxHashMap::default(),
             function_labels: FxHashMap::default(),
+            function_return_counts: IndexVec::new(),
             cold_functions: DenseBitSet::new_empty(0),
             empty_stop_functions: DenseBitSet::new_empty(0),
             cold_blocks: DenseBitSet::new_empty(0),
@@ -631,7 +634,7 @@ mod tests {
         *,
     };
     use crate::mir::{
-        DataRef, FunctionBuilder, Immediate, Instruction, MirType, TypeSize, Value,
+        Callee, DataRef, FunctionBuilder, Immediate, Instruction, MirType, TypeSize, Value,
         utils as mir_utils,
     };
     use solar_config::{CompileOpts, EvmVersion};
@@ -703,7 +706,7 @@ mod tests {
             FunctionBuilder::new(&mut entry).stop();
             let entry = module.add_function(entry);
             module.set_dispatch_entry(entry);
-            module.advance_phase(MirPhase::EvmShaped);
+            module.advance_phase(codegen.gcx.dcx(), MirPhase::Lowered).unwrap();
 
             let mut first_module = module.clone();
             let first = codegen.generate_deployment_bytecode(&mut first_module);
@@ -742,7 +745,7 @@ mod tests {
     fn data_copy_reaches_destination_before_relocation_push() {
         with_codegen(CompileOpts::default(), |mut codegen| {
             let mut module = Module::new(Ident::DUMMY);
-            module.phase = MirPhase::EvmShaped;
+            module.advance_phase(codegen.gcx.dcx(), MirPhase::Lowered).unwrap();
             let data = module.add_data(vec![0; WORD_BYTES].into(), None);
 
             let mut function = Function::new(Ident::DUMMY);
@@ -887,7 +890,7 @@ mod tests {
                 let mut function = Function::new(Ident::DUMMY);
                 let mut builder = FunctionBuilder::new(&mut function);
                 if index < MAX_STACK_DEPTH {
-                    builder.icall_void(FunctionId::from_usize(index + 1), Vec::new(), 0);
+                    builder.icall_void(FunctionId::from_usize(index + 1), Vec::new());
                 }
                 builder.stop();
                 let function = module.add_function(function);
@@ -895,11 +898,12 @@ mod tests {
                     module.set_dispatch_entry(function);
                 }
             }
-            module.advance_phase(MirPhase::EvmShaped);
+            module.advance_phase(codegen.gcx.dcx(), MirPhase::Lowered).unwrap();
             let call_graph = CallGraphInfo::new(&module);
             codegen.cold_functions = DenseBitSet::new_empty(module.functions.len());
 
-            let _ = codegen.generate_runtime_code(&module, &call_graph);
+            let _ = codegen
+                .generate_runtime_code(&module.as_lowered(codegen.gcx.dcx()).unwrap(), &call_graph);
 
             assert!(!codegen.stack_returns_enabled);
             assert!(codegen.gcx.dcx().has_errors().is_err());
@@ -970,9 +974,8 @@ mod tests {
     fn icall_headroom_includes_return_label() {
         let value = ValueId::from_usize(0);
         let call = InstKind::ICall {
-            function: FunctionId::from_usize(0),
+            function: Callee::Function(FunctionId::from_usize(0)),
             args: vec![value; MAX_STACK_ACCESS].into(),
-            returns: 0,
         };
         assert_eq!(
             EvmCodegen::instruction_transient_growth(&call, MAX_STACK_ACCESS),
@@ -1060,7 +1063,7 @@ mod tests {
             function.internal_frame_size = EvmMemoryLayout::WORD_SIZE;
             let mut builder = FunctionBuilder::new(&mut function);
             let argument = builder.add_param(MirType::uint256());
-            builder.add_return(MirType::uint256());
+            builder.set_return_type(MirType::uint256());
             builder.ret([argument]);
             let function = module.add_function(function);
 

@@ -3,11 +3,11 @@
 @module DebugInfo
 
 // CHECK-LABEL: {{^[ +].*}}bb0 [invoke=first@1..30]:
-// CHECK: jump [[TAIL:bb[0-9]+]] !metadata(span=6..10, invoke=inner_first@6..30)
+// CHECK: jump [[TAIL:bb[0-9]+]] !metadata(span=6..10)
 bb0 [invoke=first@1..30]:
   push 11 !metadata(span=1..5)
   push 22 !metadata(span=6..10, invoke=inner_first@6..30)
-  push 33 !metadata(span=11..15)
+  push 33 !metadata(span=11..15, invoke=nested@11..30)
   push 44 !metadata(span=16..20)
   push 55 !metadata(span=21..25)
   revert !metadata(span=26..30)
@@ -21,6 +21,22 @@ bb1 [invoke=second@31..60]:
   push 44 !metadata(span=46..50)
   push 55 !metadata(span=51..55)
   revert !metadata(span=56..60)
+
+
+// Whole-body sharing drops entry events that cannot describe every incoming path.
+// CHECK-LABEL: {{^[ +].*}}bb2:
+// CHECK: {{^[ +].*}}push 0x4d2 !metadata(spans=[61..65, 91..95])
+bb2 [invoke=third@61..90]:
+  push 1234 !metadata(span=61..65, invoke=inner_third@61..90)
+  push 5678 !metadata(span=66..70)
+  return !metadata(span=71..75)
+
+// CHECK-LABEL: {{^[ +].*}}bb3:
+// CHECK: + jump bb2 !metadata(span=91..95)
+bb3:
+  push 1234 !metadata(span=91..95)
+  push 5678 !metadata(span=96..100)
+  return !metadata(span=101..105)
 
 // CHECK: {{^[ +].*}}[[TAIL]]:
 // CHECK: push 22 !metadata(spans=[6..10, 36..40])

@@ -10,7 +10,7 @@ fn @constructor() [constructor] {
     v5 = and 2, 0xffffffffffffffff
     v6 = or v4, v5
     sstore v1, v6 !metadata(storage=symbolic(v1))
-    stop
+    ret
 }
 
 fn @stage0() {
@@ -23,7 +23,7 @@ fn @stage0() {
     v5 = and 3, 0xffffffffffffffff
     v6 = or v4, v5
     sstore v1, v6 !metadata(storage=symbolic(v1))
-    stop
+    ret
 }
 
 fn @stage1() {
@@ -36,7 +36,7 @@ fn @stage1() {
     v5 = and 4, 0xffffffffffffffff
     v6 = or v4, v5
     sstore v1, v6 !metadata(storage=symbolic(v1))
-    stop
+    ret
 }
 
 fn @stage2() {
@@ -44,10 +44,10 @@ fn @stage2() {
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = not 255
     v2 = and v0, v1
-    v3 = and 1, 255
+    v3 = and true, 255
     v4 = or v2, v3
     sstore 0, v4 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 fn @run() -> bool [selector=0xc0406226, abi_params=[], abi_returns=[word<bool>]] {
@@ -56,17 +56,17 @@ fn @run() -> bool [selector=0xc0406226, abi_params=[], abi_returns=[word<bool>]]
     v1 = mapping_slot v0, 1
     v2 = sload v1 !metadata(storage=symbolic(v1))
     v3 = and v2, 0xffffffffffffffff
-    icall @internal_dispatcher_p_none_r_none, 0, v3
+    icall @internal_dispatcher_p_none_r_none, v3
     v4 = and 0x1234, 0xffffffffffffffffffffffffffffffffffffffff
     v5 = mapping_slot v4, 1
     v6 = sload v5 !metadata(storage=symbolic(v5))
     v7 = and v6, 0xffffffffffffffff
-    icall @internal_dispatcher_p_none_r_none, 0, v7
+    icall @internal_dispatcher_p_none_r_none, v7
     v8 = and 0x1234, 0xffffffffffffffffffffffffffffffffffffffff
     v9 = mapping_slot v8, 1
     v10 = sload v9 !metadata(storage=symbolic(v9))
     v11 = and v10, 0xffffffffffffffff
-    icall @internal_dispatcher_p_none_r_none, 0, v11
+    icall @internal_dispatcher_p_none_r_none, v11
     v12 = sload 0 !metadata(storage=slot(0))
     v13 = and v12, 255
     ret v13
@@ -83,16 +83,15 @@ fn @internal_dispatcher_p_none_r_none(arg0: function) [function_pointer_dispatch
     v2 = eq arg0, 4
     jumpi v2, bb5, bb6
   bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 81 !metadata(memory=scratch)
-    revert 0, 36
+    panic_if true, 0x51
+    invalid
   bb5:
-    icall @stage2, 0
+    icall @stage2
     ret
   bb3:
-    icall @stage1, 0
+    icall @stage1
     ret
   bb1:
-    icall @stage0, 0
+    icall @stage0
     ret
 }

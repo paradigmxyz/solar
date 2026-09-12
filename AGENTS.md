@@ -89,44 +89,31 @@ handling.
 
 ### MIR Phases
 
-MIR is a phased IR, like rustc's MIR: a `Module` carries a `MirPhase`, phases
-only move forward (the enum order is the lowering order), and the phase
-round-trips through the text format as `@module Name` and `@phase ...` (printed
-only when not the default). The phases, in order:
+MIR has two stable representations, `semantic` and `lowered`. A module's phase
+round-trips through the text header; `semantic` is the default and is omitted
+when printing. Optimization history does not change the representation phase.
 
-- `built`: fresh from HIR lowering — one MIR function per Solidity function,
-  typed values, dispatch and ABI handling not yet materialized as MIR.
-- `optimized`: the canonical pass pipeline has run
-  (`run_pipeline` is the phase transition; ad-hoc
-  `-Zmir-pipeline` pass lists do not advance the phase).
-- `abi`: each external function is a self-decoding wrapper — it decodes
-  calldata into typed arguments and calls the original body as an internal
-  function; the body keeps its fused external termination. Produced by the
-  `lower-abi` pass.
-- `dispatch`: the selector switch is an ordinary MIR `entry` function routing to
-  the ABI wrappers through `tail_call` terminators (control transfers and does
-  not return, matching the wrappers' external termination). Produced by the
-  `lower-dispatch` pass, which requires the `abi` phase.
-- `memory-lowered`: semantic memory-object layouts and accesses have been
-  lowered through the selected memory-layout policy to physical pointer and
-  word operations. Produced by the `lower-memory-objects` pass.
-- `evm-shaped`: every call edge either returns or is an explicit `tail_call`
-  (arguments included), the shape the backend expects. Produced by the
-  `lower-evm-shaped` pass; argument-carrying tail calls are only formed for
-  callees the backend statically frames, so their arguments store at
-  compile-time frame addresses with no return address pushed.
+Semantic MIR retains typed SSA, aggregates, slices, object references, and
+semantic operations. Required conversion passes expand ABI, selector routing,
+aggregate values, storage addresses, memory layouts, and allocations. An
+external function marked `abi_wrapper` implements its own ABI; this attribute
+is distinct from the module's representation phase.
 
-The `lower-abi`, `lower-dispatch`, `lower-memory-objects`, `lower-alloc`, and
-`lower-evm-shaped` passes are progressive MIR-to-MIR lowering, moving dispatch,
-ABI handling, and memory layout out of the backend. They run in the codegen
-pipeline and the backend only consumes the `evm-shaped` module, with the MIR
-`entry` as the runtime prologue and `tail_call` lowered to a jump. A module
-where a required lowering pass bails keeps its earlier phase and codegen
-reports it as unsupported. When extending them or adding the next phase, make
-the transition a named pass that advances the phase via
-`Module::advance_phase`, keep it conservative (bail rather than miscompile —
-`lower-abi` skips dynamic types), and pin it with `.mir` UI tests under
-`tests/ui/codegen/mir/`.
+`lower-evm-shaped` completes conversion by checking the shared lowered legality
+rules and calling `Module::advance_phase`. Lowered MIR contains word SSA and
+backend-supported operations. Calls and phis survive until stack scheduling;
+only verified static allocation placeholders may remain for backend layout.
+The backend accepts an immutable `LoweredModule` view checked after the last
+MIR rewrite. Required conversion errors stop the pipeline, including custom
+`-Zmir-pipeline` lists; unsupported input must not silently skip a lowering.
+
+Keep conversion passes small and named. They may produce mixed semantic and
+primitive operations during conversion, but every pass preserves general SSA
+and type invariants. Add instruction legality to the exhaustive
+`Instruction::unlowered_reason` match and type/module constraints to the shared
+phase verifier. Test the contracts under `tests/ui/codegen/mir/`, including
+invalid pass ordering and falsely declared lowered input. See `docs/MIR.md`
+for the architecture and remaining semantic-builtin migration.
 
 ### Visitor Pattern
 

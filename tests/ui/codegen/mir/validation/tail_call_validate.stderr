@@ -1,8 +1,22 @@
 error: [fn1] tail_call to `callee` passes 0 argument(s), expected 1
 
-error: [fn2] tail_call targets nonexistent function fn9
+error: [fn2] tail_call targets nonexistent function fn99
 
-error: [fn3] icall targets nonexistent function fn9
+error: [fn3] icall targets nonexistent function fn99
 
-error: aborting due to 3 previous errors
+error: [fn4] icall to `callee` produces a value but the callee returns no values
+
+error: [fn5] [bb0] tail-call results do not match the struct signature
+
+error: [fn8] tail_call to `twoWords` returns 2 value(s), caller signature expects 1
+
+error: [fn11] [bb0] return has 0 value(s), signature expects 1
+
+error: [fn12] [bb0] return has 1 value(s), signature expects 0
+
+error: [fn13] parameter 0 cannot have type `void`
+
+error: [fn14] return signature cannot contain `void`; use an empty return list
+
+error: aborting due to 10 previous errors
 

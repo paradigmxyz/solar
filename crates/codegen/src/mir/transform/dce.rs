@@ -1,14 +1,21 @@
 //! Dead Code Elimination (DCE) optimization pass.
 //!
-//! This pass removes MIR instructions whose results are never used and have no side effects.
+//! Remove unused computations and internal calls whose summaries prove that they have no
+//! observable behavior and terminate normally. Memory reads remain live when `msize` can observe
+//! their expansion. Calls with missing bodies, recursive cycles, checks, or external termination
+//! remain conservative; lowered multi-return buffer writes also prevent removal. Run on either
+//! representation, sharing cached module summaries. A use-count worklist removes dead chains in
+//! linear time; cyclic uses remain live. Reachability is computed once, and memory reads are
+//! reconsidered only when deleting the last `msize` observer makes them discardable.
 
 use crate::mir::{
-    BlockId, EffectKind, Function, InstId, InstKind, Module, Terminator, ValueId,
-    analysis::CfgInfo,
+    Callee, Function, InstId, InstKind, Module, Value, ValueId,
+    analysis::{CfgInfo, MemoryCallSummaries, may_observe_msize},
     pass::{MirPass, run_function_pass},
-    utils::repair_reachability_phis,
+    utils::invalidate_unreachable_block,
 };
-use solar_data_structures::bit_set::GrowableBitSet;
+use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
+use std::sync::Arc;
 
 /// Function pass for dead code elimination.
 pub(crate) struct Dce;
@@ -24,11 +31,15 @@ impl MirPass for Dce {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, _| {
-            let removed = DeadCodeEliminator::new().run_to_fixpoint(func);
-            let repaired = repair_reachability_phis(func);
-            removed != 0 || repaired
-        })
+        let summaries = analyses.call_summaries(module);
+        let changed = run_function_pass(module, analyses, |func, _| {
+            DeadCodeEliminator { call_summaries: Some(Arc::clone(&summaries)) }
+                .run_to_fixpoint(func)
+                != 0
+        });
+        // Removing operations and unreachable blocks cannot add call effects.
+        analyses.preserve_call_summaries();
+        changed
     }
 }
 
@@ -43,12 +54,7 @@ impl MirPass for Dce {
 /// Side-effect instructions (SSTORE, MSTORE, CALL, LOG, etc.) are always kept.
 #[derive(Debug, Default)]
 pub(crate) struct DeadCodeEliminator {
-    /// Number of instructions eliminated in the last run.
-    eliminated_count: usize,
-    /// Values used by instructions or terminators.
-    used_values: GrowableBitSet<ValueId>,
-    /// Dead instructions found in one iteration.
-    dead: Vec<(BlockId, InstId)>,
+    call_summaries: Option<Arc<MemoryCallSummaries>>,
 }
 
 impl DeadCodeEliminator {
@@ -57,119 +63,76 @@ impl DeadCodeEliminator {
         Self::default()
     }
 
-    fn run_once(&mut self, func: &mut Function) -> usize {
-        self.eliminated_count = 0;
-
-        // Phase 1: Remove unreachable blocks
-        self.eliminated_count += self.eliminate_unreachable_blocks(func);
-
-        // Phase 2: Find all used values
-        self.collect_used_values(func);
-
-        // Phase 3: Find dead instructions
-        self.find_dead_instructions(func);
-
-        // Remove dead instructions from blocks
-        self.eliminated_count += self.dead.len();
-        for &(block_id, inst_id) in &self.dead {
-            let block = func.block_mut(block_id);
-            block.instructions.retain(|&id| id != inst_id);
-        }
-
-        self.eliminated_count
-    }
-
-    /// Runs dead code elimination iteratively until no more changes.
+    /// Removes unreachable blocks and unused instructions to a fixed point.
     pub(crate) fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
-        let mut total_eliminated = 0;
-        loop {
-            let eliminated = self.run_once(func);
-            if eliminated == 0 {
-                break;
-            }
-            total_eliminated += eliminated;
-        }
-        total_eliminated
-    }
-
-    /// Eliminates unreachable blocks using CFG reachability analysis.
-    fn eliminate_unreachable_blocks(&mut self, func: &mut Function) -> usize {
         let cfg = CfgInfo::new(func);
-
-        // Collect unreachable block IDs
-        let unreachable: Vec<BlockId> = func
-            .blocks
-            .iter_enumerated()
-            .filter_map(|(id, _)| if !cfg.is_reachable(id) { Some(id) } else { None })
-            .collect();
-
-        // Clear unreachable blocks (we can't actually remove from IndexVec,
-        // but we can clear their contents to prevent codegen)
-        let mut changed = 0;
-        for block_id in unreachable {
-            let block = func.block_mut(block_id);
-            changed += usize::from(
-                !block.instructions.is_empty()
-                    || !matches!(block.terminator, Some(Terminator::Invalid))
-                    || !block.predecessors.is_empty(),
-            );
-            block.instructions.clear();
-            block.terminator = Some(Terminator::Invalid);
-            block.predecessors.clear();
+        let mut removed = 0;
+        for block in func.blocks.indices() {
+            if !cfg.is_reachable(block) {
+                // unreachable block -> invalid
+                removed += usize::from(invalidate_unreachable_block(func, block));
+            }
         }
-        changed
+
+        let observes_msize = may_observe_msize(func, self.call_summaries.as_deref());
+        removed += self.remove_dead_chains(func, observes_msize);
+        if observes_msize && !may_observe_msize(func, self.call_summaries.as_deref()) {
+            removed += self.remove_dead_chains(func, false);
+        }
+        removed
     }
 
-    /// Collects all values that are used (appear in instructions or terminators).
-    fn collect_used_values(&mut self, func: &Function) {
-        self.used_values.clear();
-        self.used_values.ensure(func.num_values());
-
-        // Add values used in terminators
-        for (_, block) in func.blocks.iter_enumerated() {
+    fn remove_dead_chains(&self, func: &mut Function, observes_msize: bool) -> usize {
+        let mut uses = IndexVec::<ValueId, usize>::from_vec(vec![0; func.num_values()]);
+        for block in &func.blocks {
             if let Some(term) = &block.terminator {
                 for operand in term.operands() {
-                    self.used_values.insert(operand);
+                    uses[operand] += 1;
                 }
             }
         }
+        for inst in func.instructions() {
+            for operand in func.inst(inst).kind.operands() {
+                uses[operand] += 1;
+            }
+        }
 
-        // Add values used as operands in instructions
+        let mut discardable = DenseBitSet::new_empty(func.num_insts());
+        let mut pending = Vec::new();
         for inst_id in func.instructions() {
             let inst = func.inst(inst_id);
-            for val in inst.kind.operands() {
-                self.used_values.insert(val);
-            }
-        }
-    }
-
-    /// Finds instructions that are dead (unused result, no side effects).
-    fn find_dead_instructions(&mut self, func: &Function) {
-        self.dead.clear();
-        // A memory read can expand the EVM memory high-water mark, which a later `msize`
-        // observes even when the loaded value is discarded. Keep reads in such functions; a
-        // tighter path-sensitive proof is not worth risking a silent semantic change here.
-        let observes_msize =
-            func.instructions().any(|inst_id| matches!(func.inst(inst_id).kind, InstKind::MSize));
-
-        for (block_id, block) in func.blocks.iter_enumerated() {
-            for &inst_id in &block.instructions {
-                let inst = func.inst(inst_id);
-
-                // Instructions with side effects are always kept.
-                if inst.kind.has_side_effects()
-                    || inst.metadata.abi_validation()
-                    || (observes_msize && inst.kind.effect_kind() == EffectKind::MemoryRead)
-                {
-                    continue;
-                }
-
-                if let Some(result) = func.inst_result_value(inst_id)
-                    && !self.used_values.contains(result)
-                {
-                    self.dead.push((block_id, inst_id));
+            let discardable_call = matches!(&inst.kind, InstKind::ICall { function: Callee::Function(function), .. }
+                if self.call_summaries.as_ref().and_then(|summaries| summaries.get(*function))
+                    .is_some_and(|summary| summary.can_discard_call(observes_msize)));
+            if !inst.must_execute(observes_msize) || discardable_call {
+                discardable.insert(inst_id);
+                if inst.result().is_none_or(|result| uses[result] == 0) {
+                    pending.push(inst_id);
                 }
             }
         }
+
+        let mut dead = DenseBitSet::<InstId>::new_empty(func.num_insts());
+        while let Some(inst) = pending.pop() {
+            if !dead.insert(inst) {
+                continue;
+            }
+            for operand in func.inst(inst).kind.operands() {
+                uses[operand] -= 1;
+                if uses[operand] == 0
+                    && let Value::Inst(producer) = *func.value(operand)
+                    && discardable.contains(producer)
+                {
+                    pending.push(producer);
+                }
+            }
+        }
+        if !dead.is_empty() {
+            for block in &mut func.blocks {
+                // unused, discardable instruction -> removed
+                block.instructions.retain(|&inst| !dead.contains(inst));
+            }
+        }
+        dead.count()
     }
 }

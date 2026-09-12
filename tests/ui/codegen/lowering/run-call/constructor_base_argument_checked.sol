@@ -37,13 +37,8 @@ contract CheckedSignedBase {
 
 // CHECK-LABEL: @module CheckedBaseArgAdd
 // CHECK: fn @constructor(arg0: u256)
-// CHECK: [[SUM:v[0-9]+]] = add arg0, 1
-// CHECK-NEXT: [[OVERFLOW:v[0-9]+]] = lt [[SUM]], arg0
-// CHECK-NEXT: jumpi [[OVERFLOW]], bb[[PANIC:[0-9]+]]
+// CHECK: [[SUM:v[0-9]+]] = checked_add {{[ui][0-9]+}}, arg0, 1
 // CHECK: sstore 0, [[SUM]]
-// CHECK: bb[[PANIC]]:
-// CHECK-NEXT: mstore 0, 0x4e487b71
-// CHECK-NEXT: mstore 4, 17
 contract CheckedBaseArgAdd is CheckedBase {
     constructor(uint256 v) CheckedBase(v + 1) {}
 }

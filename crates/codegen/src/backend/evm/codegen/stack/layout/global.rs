@@ -2,7 +2,7 @@
 
 use super::super::super::{
     ArgIdx, BlockId, CfgInfo, DenseBitSet, Function, FxHashMap, GLOBAL_STACK_LAYOUT_LIMIT,
-    InstKind, Liveness, StackPhiPlan, Terminator, ValueId, WORD_BYTES,
+    InstKind, Liveness, OptimizationMode, StackPhiPlan, Terminator, ValueId, WORD_BYTES,
 };
 
 const GLOBAL_STACK_DENSE_AMORTIZATION_BLOCKS: usize = 16;
@@ -35,6 +35,7 @@ impl GlobalStackPlan {
         func: &Function,
         liveness: &Liveness,
         stack_phi_plan: &StackPhiPlan,
+        optimization: OptimizationMode,
     ) -> Self {
         if func.selector.is_none() {
             return Self::default();
@@ -176,10 +177,13 @@ impl GlobalStackPlan {
 
         // Canonicalization pays DUP/SWAP/POP traffic on every planned edge.
         // Require enough real argument reuse to recover that fixed cost, and
-        // reject dense layout plans unless a long CFG can amortize them.
+        // reject dense layout plans unless a long CFG can amortize them. Size mode
+        // permits dense acyclic plans: carrying arguments avoids repeated calldata
+        // loads without charging stack cleanup on every loop iteration.
         let arg_use_count = arg_uses.iter().map(Vec::len).sum::<usize>();
         if arg_use_count < GLOBAL_STACK_MIN_ARG_USES
             || (entries.len() * 2 > cfg.reachable().count()
+                && (!optimization.is_size() || !cfg.cyclic_blocks().is_empty())
                 && cfg.reachable().count() < GLOBAL_STACK_DENSE_AMORTIZATION_BLOCKS)
         {
             entries.clear();

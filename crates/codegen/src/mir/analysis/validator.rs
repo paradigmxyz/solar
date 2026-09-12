@@ -20,15 +20,18 @@
 //! 8. **Instruction-block consistency**: each instruction's `block` field matches the block whose
 //!    `instructions` vector contains it.
 //! 9. **Predecessor consistency**: every stored predecessor actually branches to the block.
-//! 10. **Use reachability**: for every reachable use of an instruction result, the defining block
-//!     can reach the using block (phi inputs: their incoming predecessor). Within an acyclic block,
-//!     the definition must also precede an instruction use. MIR is deliberately loose SSA, but a
-//!     use its definition can never reach is garbage on every execution.
+//! 10. **SSA dominance**: every instruction result dominates each reachable use (phi inputs: their
+//!     incoming predecessor). Within a block, definitions precede ordinary uses, including in
+//!     loops; loop-carried values must use explicit phis.
 //! 11. **Call consistency**: internal and tail-call targets exist and their argument counts match
 //!     the callee.
 //! 12. **Immutable consistency**: immutable declarations and stores use supported representations,
 //!     and loads use the declared type.
 //! 13. **Program data consistency**: data references name allocated entries at valid offsets.
+//! 14. **Return contracts**: return counts match signatures, including through tail-call chains;
+//!     signatures cannot contain void values.
+//! 15. **Representation boundaries**: SSA aggregates and semantic memory types/operations cannot
+//!     survive their lowering boundaries. Object operations agree with nominal reference kinds.
 //!
 //! # Usage
 //!
@@ -37,13 +40,15 @@
 //! ```
 
 use crate::mir::{
-    BlockId, Function, FunctionId, InstId, InstKind, Module, Value, ValueId, analysis::CfgInfo,
+    AddressCallKind, BlockId, Builtin, Callee, Function, FunctionId, InstId, InstKind,
+    MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module, RequireKind, SliceLocation,
+    StructId, TypeSize, Value, ValueId, analysis::CfgInfo,
 };
 use alloy_primitives::U256;
+use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
-    map::FxHashMap,
 };
 use solar_interface::{diagnostics::DiagCtxt, kw};
 use std::fmt;
@@ -53,12 +58,20 @@ struct Validator<'a> {
     dcx: &'a DiagCtxt,
     function: Option<FunctionId>,
     error_count: usize,
+    returning_functions: Option<DenseBitSet<FunctionId>>,
+    return_field_counts: IndexVec<StructId, Option<usize>>,
 }
 
 impl<'a> Validator<'a> {
     /// Creates a verifier that emits findings into `dcx`.
-    const fn new(dcx: &'a DiagCtxt) -> Self {
-        Self { dcx, function: None, error_count: 0 }
+    fn new(dcx: &'a DiagCtxt) -> Self {
+        Self {
+            dcx,
+            function: None,
+            error_count: 0,
+            returning_functions: None,
+            return_field_counts: IndexVec::new(),
+        }
     }
 
     #[track_caller]
@@ -91,18 +104,28 @@ impl<'a> Validator<'a> {
     }
 
     fn validate_function(&mut self, module: &Module, func: &Function) {
+        let errors_before = self.error_count;
+        for (index, ty) in func.params.iter().enumerate() {
+            if *ty == MirType::Void {
+                self.emit(format_args!("parameter {index} cannot have type `void`"));
+            }
+        }
+        if func.return_components().contains(&MirType::Void) {
+            self.emit("return signature cannot contain `void`; use an empty return list");
+        }
         self.validate_function_body(Some(module), func);
         self.validate_immutables(module, func);
         self.validate_calls(module, func);
-        self.validate_function_phase(module, func);
+        if self.error_count == errors_before {
+            self.validate_struct_values(module, func);
+            self.validate_memory_object_types(func);
+        }
+        self.validate_function_phase(module.phase(), func);
     }
 
-    fn validate_function_body(&mut self, module: Option<&Module>, func: &Function) {
-        let errors_before = self.error_count;
-        let num_values = func.num_values();
+    /// Checks terminators and both directions of the maintained predecessor relation.
+    fn validate_cfg(&mut self, func: &Function) {
         let num_blocks = func.blocks.len();
-        let num_insts = func.num_insts();
-
         if num_blocks == 0 {
             self.emit("function has no entry block");
             return;
@@ -168,6 +191,28 @@ impl<'a> Validator<'a> {
                     );
                 }
             }
+        }
+
+        // ----- Entry block invariants -----
+        if !func.blocks[BlockId::ENTRY].predecessors.is_empty() {
+            self.emit_at_block("entry block must have no predecessors", BlockId::ENTRY);
+        }
+    }
+
+    fn validate_function_body(&mut self, module: Option<&Module>, func: &Function) {
+        let errors_before = self.error_count;
+        let num_values = func.num_values();
+        let num_blocks = func.blocks.len();
+        let num_insts = func.num_insts();
+
+        if num_blocks == 0 {
+            self.emit("function has no entry block");
+            return;
+        }
+
+        self.validate_cfg(func);
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            let Some(term) = &block.terminator else { continue };
 
             // Check terminator operands are in range.
             term.for_each_operand(|op| {
@@ -322,20 +367,8 @@ impl<'a> Validator<'a> {
             }
         }
 
-        // ----- Entry block invariants -----
-        if !func.blocks[BlockId::ENTRY].predecessors.is_empty() {
-            self.emit_at_block("entry block must have no predecessors", BlockId::ENTRY);
-        }
-
-        // ----- Use reachability -----
-        // MIR is deliberately loose SSA: a definition need not dominate its
-        // uses, because cross-block values travel through reserved spill
-        // slots and the source guarantees definite assignment. The invariant
-        // that must still hold is reachability: if the defining block can
-        // never reach the using block (its incoming predecessor, for phi
-        // inputs), the use reads garbage on every execution. Structural
-        // errors are reported first: CFG construction assumes valid block
-        // references.
+        // ----- SSA dominance -----
+        // Structural errors must be reported before constructing the CFG.
         if self.error_count != errors_before {
             return;
         }
@@ -349,24 +382,6 @@ impl<'a> Validator<'a> {
                 }
             }
         }
-        let mut reach_cache: FxHashMap<BlockId, DenseBitSet<BlockId>> = FxHashMap::default();
-        let mut reaches = |from: BlockId, to: BlockId| {
-            let set = reach_cache.entry(from).or_insert_with(|| {
-                let mut seen = DenseBitSet::new_empty(func.blocks.len());
-                let mut stack = vec![from];
-                while let Some(current) = stack.pop() {
-                    if let Some(term) = func.blocks[current].terminator.as_ref() {
-                        term.for_each_successor(|succ| {
-                            if seen.insert(succ) {
-                                stack.push(succ);
-                            }
-                        });
-                    }
-                }
-                seen
-            });
-            set.contains(to)
-        };
         for (block_id, block) in func.blocks.iter_enumerated() {
             if !cfg.is_reachable(block_id) {
                 continue;
@@ -382,13 +397,14 @@ impl<'a> Validator<'a> {
                             if !cfg.is_reachable(pred) {
                                 continue;
                             }
-                            if let Some((def, _)) = def_location_of[value]
+                            if let Some((def, _)) =
+                                self.live_definition(func, &def_location_of, value, block_id)
                                 && def != pred
-                                && !reaches(def, pred)
+                                && !cfg.dominators().dominates(def, pred)
                             {
                                 self.emit_at_inst(
                                     format_args!(
-                                        "phi input {value:?} from bb{} can never be reached by \
+                                        "phi input {value:?} from bb{} is not dominated by \
                                  its definition in bb{}",
                                         pred.index(),
                                         def.index()
@@ -401,23 +417,24 @@ impl<'a> Validator<'a> {
                     }
                     kind => {
                         for &operand in kind.operands().iter() {
-                            if let Some((def, def_index)) = def_location_of[operand] {
+                            if let Some((def, def_index)) =
+                                self.live_definition(func, &def_location_of, operand, block_id)
+                            {
                                 if def == block_id {
-                                    // Only a forward use needs the cycle exception.
-                                    if def_index >= index && !reaches(block_id, block_id) {
+                                    if def_index >= index {
                                         self.emit_at_inst(
                                             format_args!(
                                                 "use of {operand:?} precedes its definition in \
-                                                 this acyclic block"
+                                                 this block"
                                             ),
                                             block_id,
                                             inst_id,
                                         );
                                     }
-                                } else if !reaches(def, block_id) {
+                                } else if !cfg.dominators().dominates(def, block_id) {
                                     self.emit_at_inst(
                                         format_args!(
-                                            "use of {operand:?} can never be reached by its \
+                                            "use of {operand:?} is not dominated by its \
                                              definition in bb{}",
                                             def.index()
                                         ),
@@ -432,13 +449,14 @@ impl<'a> Validator<'a> {
             }
             if let Some(term) = &block.terminator {
                 term.for_each_operand(|operand| {
-                    if let Some((def, _)) = def_location_of[operand]
+                    if let Some((def, _)) =
+                        self.live_definition(func, &def_location_of, operand, block_id)
                         && def != block_id
-                        && !reaches(def, block_id)
+                        && !cfg.dominators().dominates(def, block_id)
                     {
                         self.emit_at_block(
                             format_args!(
-                                "terminator use of {operand:?} can never be reached by its \
+                                "terminator use of {operand:?} is not dominated by its \
                          definition in bb{}",
                                 def.index()
                             ),
@@ -448,6 +466,21 @@ impl<'a> Validator<'a> {
                 });
             }
         }
+    }
+
+    /// Returns an instruction's live definition, rejecting orphaned instruction values.
+    fn live_definition(
+        &mut self,
+        func: &Function,
+        locations: &IndexVec<ValueId, Option<(BlockId, usize)>>,
+        value: ValueId,
+        block: BlockId,
+    ) -> Option<(BlockId, usize)> {
+        let location = locations[value];
+        if location.is_none() && matches!(func.value(value), Value::Inst(_)) {
+            self.emit_at_block(format_args!("use of {value:?} has no live definition"), block);
+        }
+        location
     }
 
     fn validate_immutables(&mut self, module: &Module, func: &Function) {
@@ -522,13 +555,766 @@ impl<'a> Validator<'a> {
 
     /// Validates every function in a module.
     fn validate_module(mut self, module: &Module) {
-        self.validate_module_phase(module);
+        self.returning_functions = Some(module.returning_functions());
+        self.prepare_return_abi_validation(module);
+        for (id, ty) in module.struct_types.iter_enumerated() {
+            for field in &ty.fields {
+                if *field == MirType::Void
+                    || matches!(field, MirType::Struct(nested) if *nested >= id)
+                {
+                    self.emit(format_args!(
+                        "invalid field type `{field}` in `struct{}`",
+                        id.index()
+                    ));
+                }
+            }
+        }
+        self.validate_module_phase(module, module.phase());
         self.validate_immutable_declarations(module);
         for (id, func) in module.iter_functions() {
             self.function = Some(id);
             self.validate_function(module, func);
         }
         self.function = None;
+    }
+
+    fn prepare_return_abi_validation(&mut self, module: &Module) {
+        if !module.functions.iter().any(|func| func.return_abi().is_some()) {
+            return;
+        }
+        for (id, structure) in module.struct_types.iter_enumerated() {
+            let count = structure.fields.iter().try_fold(0usize, |count, &field| {
+                let fields = match field {
+                    MirType::Struct(nested) if nested < id => self.return_field_counts[nested]?,
+                    MirType::Struct(_) | MirType::Void => return None,
+                    _ => 1,
+                };
+                count.checked_add(fields)
+            });
+            self.return_field_counts.push(count);
+        }
+    }
+
+    fn validate_return_abi(&mut self, module: &Module, func: &Function) {
+        if let Some(components) = func.return_abi()
+            && !return_abi_matches(
+                module,
+                func.return_type(),
+                components,
+                &self.return_field_counts,
+            )
+        {
+            self.emit("internal return ABI does not match the function's result type");
+        }
+    }
+
+    /// Checks aggregate operands, field indices, and result types against the module declarations.
+    fn validate_struct_values(&mut self, module: &Module, func: &Function) {
+        self.validate_return_abi(module, func);
+        for ty in func
+            .arg_indices()
+            .map(|index| func.arg_ty(index))
+            .chain(std::iter::once(func.return_type()))
+            .chain(func.return_components().iter().copied())
+            .chain(func.live_values().filter_map(|value| func.value_ty(value)))
+        {
+            if let MirType::Struct(id) = ty
+                && module.struct_types.get(id).is_none()
+            {
+                self.emit(format_args!("undefined struct type `struct{}`", id.index()));
+            }
+        }
+        for (block, body) in func.blocks.iter_enumerated() {
+            for &id in &body.instructions {
+                let inst = func.inst(id);
+                match &inst.kind {
+                    InstKind::Phi(incoming) => {
+                        for &(_, value) in incoming {
+                            self.check_struct_type(func.value_ty(value), inst.result_ty, block, id);
+                        }
+                    }
+                    InstKind::Select(condition, a, b) => {
+                        self.check_struct_type(
+                            func.value_ty(*condition),
+                            Some(MirType::Bool),
+                            block,
+                            id,
+                        );
+                        for value in [*a, *b] {
+                            self.check_struct_type(func.value_ty(value), inst.result_ty, block, id);
+                        }
+                    }
+                    InstKind::ICall { function: Callee::Function(function), args, .. } => {
+                        if let Some(callee) = module.functions.get(*function) {
+                            for (&value, &ty) in args.iter().zip(&callee.params) {
+                                self.check_struct_type(func.value_ty(value), Some(ty), block, id);
+                            }
+                            if inst.result_ty.is_some() {
+                                self.check_struct_type(
+                                    inst.result_ty,
+                                    callee.return_components().first().copied(),
+                                    block,
+                                    id,
+                                );
+                            }
+                        }
+                    }
+                    InstKind::AbiDecode { data, layout } => {
+                        self.check_struct_type(
+                            func.value_ty(*data),
+                            Some(MirType::MemoryObject(MemoryObjectKind::Bytes)),
+                            block,
+                            id,
+                        );
+                        let valid = match inst.result_ty {
+                            Some(MirType::Struct(ty)) => {
+                                module.struct_types.get(ty).is_some_and(|ty| {
+                                    ty.fields.len() == layout.types.len()
+                                        && ty.fields.iter().zip(&layout.types).all(
+                                            |(&field, abi)| {
+                                                field == abi.mir_type().return_field_type()
+                                            },
+                                        )
+                                })
+                            }
+                            Some(ty) => layout.types.len() == 1 && ty == layout.types[0].mir_type(),
+                            None => false,
+                        };
+                        if !valid {
+                            self.emit_at_inst(
+                                "ABI decode result does not match its layout",
+                                block,
+                                id,
+                            );
+                        }
+                    }
+                    InstKind::WordCast(value) => {
+                        if inst.result_ty != Some(MirType::uint256())
+                            || !func.value_ty(*value).is_some_and(MirType::is_word)
+                        {
+                            self.emit_at_inst(
+                                "word cast requires a one-word operand and u256 result",
+                                block,
+                                id,
+                            );
+                        }
+                    }
+                    InstKind::MemoryObjectFromPtr { ptr, kind } => {
+                        if inst.result_ty != Some(MirType::MemoryObject(*kind))
+                            || !func.value_ty(*ptr).is_some_and(MirType::is_word)
+                        {
+                            self.emit_at_inst("memory object pointer conversion requires a word and matching object result", block, id);
+                        }
+                    }
+                    InstKind::InsertValue { .. } | InstKind::ExtractValue { .. } => {}
+                    _ => {
+                        if matches!(inst.result_ty, Some(MirType::Struct(_))) {
+                            self.emit_at_inst(
+                                "instruction cannot produce a struct value",
+                                block,
+                                id,
+                            );
+                        }
+                        for value in inst.kind.operands() {
+                            if matches!(func.value_ty(value), Some(MirType::Struct(_))) {
+                                self.emit_at_inst(
+                                    "instruction cannot consume a struct value",
+                                    block,
+                                    id,
+                                );
+                            }
+                        }
+                    }
+                }
+                let (ty, aggregate, index, inserted) = match inst.kind {
+                    InstKind::InsertValue { ty, aggregate, index, value } => {
+                        (ty, aggregate, index, Some(value))
+                    }
+                    InstKind::ExtractValue { ty, aggregate, index } => (ty, aggregate, index, None),
+                    _ => continue,
+                };
+                let Some(fields) = module.struct_types.get(ty) else {
+                    self.emit_at_inst(
+                        format_args!("undefined struct type `struct{}`", ty.index()),
+                        block,
+                        id,
+                    );
+                    continue;
+                };
+                let Some(&field) = fields.fields.get(index as usize) else {
+                    self.emit_at_inst("struct field index is out of bounds", block, id);
+                    continue;
+                };
+                if func.value_ty(aggregate) != Some(MirType::Struct(ty)) {
+                    self.emit_at_inst(
+                        "aggregate operand does not match its declared struct type",
+                        block,
+                        id,
+                    );
+                }
+                let result = if let Some(value) = inserted {
+                    if !func.value_ty(value).is_some_and(|actual| field.accepts_field_value(actual))
+                    {
+                        self.emit_at_inst(
+                            format_args!("inserted value must have type `{field}`"),
+                            block,
+                            id,
+                        );
+                    }
+                    MirType::Struct(ty)
+                } else {
+                    field
+                };
+                if inst.result_ty != Some(result) {
+                    self.emit_at_inst(
+                        format_args!("struct instruction result must have type `{result}`"),
+                        block,
+                        id,
+                    );
+                }
+            }
+            match &body.terminator {
+                Some(crate::mir::Terminator::Return { values }) => {
+                    let has_struct =
+                        func.return_components().iter().any(|ty| matches!(ty, MirType::Struct(_)))
+                            || values.iter().any(|&value| {
+                                matches!(func.value_ty(value), Some(MirType::Struct(_)))
+                            });
+                    if values.len() != func.return_components().len() {
+                        self.emit_at_block(
+                            format_args!(
+                                "return has {} value(s), signature expects {}",
+                                values.len(),
+                                func.return_components().len()
+                            ),
+                            block,
+                        );
+                    } else if has_struct
+                        && values
+                            .iter()
+                            .zip(func.return_components())
+                            .any(|(&value, &ty)| func.value_ty(value) != Some(ty))
+                    {
+                        self.emit_at_block(
+                            "return values do not match the struct signature",
+                            block,
+                        );
+                    }
+                }
+                Some(crate::mir::Terminator::TailCall { function, args }) => {
+                    if let Some(callee) = module.functions.get(*function) {
+                        if args.iter().zip(&callee.params).any(|(&value, &ty)| {
+                            let actual = func.value_ty(value);
+                            actual != Some(ty)
+                                && (matches!(actual, Some(MirType::Struct(_)))
+                                    || matches!(ty, MirType::Struct(_)))
+                        }) {
+                            self.emit_at_block(
+                                "tail-call arguments do not match the struct signature",
+                                block,
+                            );
+                        }
+                        if func.selector.is_none()
+                            && func.return_components() != callee.return_components()
+                            && func
+                                .return_components()
+                                .iter()
+                                .chain(callee.return_components())
+                                .any(|ty| matches!(ty, MirType::Struct(_)))
+                            && self
+                                .returning_functions
+                                .as_ref()
+                                .is_some_and(|returning| returning.contains(*function))
+                        {
+                            self.emit_at_block(
+                                "tail-call results do not match the struct signature",
+                                block,
+                            );
+                        }
+                    }
+                }
+                Some(term)
+                    if term
+                        .operands()
+                        .iter()
+                        .any(|&value| matches!(func.value_ty(value), Some(MirType::Struct(_)))) =>
+                {
+                    self.emit_at_block("terminator cannot consume a struct value", block);
+                }
+                _ => {}
+            }
+        }
+    }
+
+    /// Checks nominal object kinds without rejecting the raw pointer carriers used during lowering.
+    fn validate_memory_object_types(&mut self, func: &Function) {
+        for (block, body) in func.blocks.iter_enumerated() {
+            for &id in &body.instructions {
+                if let InstKind::ICall { function: Callee::Builtin(Builtin::Require(kind)), args } =
+                    &func.inst(id).kind
+                {
+                    let word = |value| {
+                        func.value_ty(value).is_some_and(|ty| {
+                            ty.is_word() && !matches!(ty, MirType::MemoryObject(_))
+                        })
+                    };
+                    if args.first().is_none_or(|&condition| !word(condition))
+                        || func.inst(id).result_ty.is_some()
+                    {
+                        self.emit_at_inst(
+                            "require needs a word condition and no result",
+                            block,
+                            id,
+                        );
+                    }
+                    let valid = match (kind, args.as_ref()) {
+                        (RequireKind::ShortString, [_, length, data]) => {
+                            word(*length)
+                                && word(*data)
+                                && func
+                                    .value_u64(*length)
+                                    .is_some_and(|length| (1..=32).contains(&length))
+                        }
+                        (RequireKind::EmptyString, [_]) => true,
+                        (RequireKind::ErrorString, [_, value]) => matches!(
+                            func.value_ty(*value),
+                            Some(
+                                MirType::MemoryObject(MemoryObjectKind::Bytes)
+                                    | MirType::MemPtr
+                                    | MirType::UInt(_)
+                            )
+                        ),
+                        (RequireKind::CustomError(layout), [_, selector, values @ ..]) => {
+                            word(*selector) && values.len() == layout.types.len()
+                        }
+                        _ => false,
+                    };
+                    if !valid {
+                        self.emit_at_inst("require payload has incompatible arguments", block, id);
+                    }
+                }
+                if let InstKind::AbiEncodePacked { parts, hash } = &func.inst(id).kind {
+                    for part in parts {
+                        let valid = match part {
+                            crate::mir::PackedPart::Literal(_) => true,
+                            crate::mir::PackedPart::Scalar { value, ty } => {
+                                matches!(
+                                    ty,
+                                    MirType::UInt(_)
+                                        | MirType::Int(_)
+                                        | MirType::FixedBytes(_)
+                                        | MirType::Address
+                                        | MirType::Bool
+                                        | MirType::Function
+                                ) && ty.type_size().is_some_and(|size| size.bytes() != 0)
+                                    && func.value_ty(*value).is_some_and(|ty| {
+                                        ty.is_word() && !matches!(ty, MirType::MemoryObject(_))
+                                    })
+                            }
+                            crate::mir::PackedPart::Bytes(value) => matches!(
+                                func.value_ty(*value),
+                                Some(
+                                    MirType::MemoryObject(MemoryObjectKind::Bytes)
+                                        | MirType::MemPtr
+                                        | MirType::UInt(_)
+                                        | MirType::Slice(
+                                            SliceLocation::Memory | SliceLocation::Calldata
+                                        )
+                                )
+                            ),
+                            crate::mir::PackedPart::Array { value, element, source } => {
+                                !hash
+                                    && crate::mir::packed_element_bytes(element).is_some()
+                                    && match source {
+                                        crate::mir::PackedArraySource::Memory { layout } => {
+                                            matches!(
+                                                layout,
+                                                MemoryObjectLayout::DynamicArray { .. }
+                                                    | MemoryObjectLayout::FixedArray { .. }
+                                            ) && match func.value_ty(*value) {
+                                                Some(MirType::MemoryObject(kind)) => {
+                                                    kind == layout.kind()
+                                                }
+                                                Some(MirType::MemPtr | MirType::UInt(_)) => true,
+                                                _ => false,
+                                            }
+                                        }
+                                        crate::mir::PackedArraySource::Slice(location) => {
+                                            matches!(
+                                                location,
+                                                SliceLocation::Memory | SliceLocation::Calldata
+                                            ) && func.value_ty(*value)
+                                                == Some(MirType::Slice(*location))
+                                        }
+                                    }
+                            }
+                        };
+                        if !valid {
+                            self.emit_at_inst(
+                                "packed encoding input has an incompatible shape",
+                                block,
+                                id,
+                            );
+                        }
+                    }
+                    let result = if *hash {
+                        MirType::bytes32()
+                    } else {
+                        MirType::MemoryObject(MemoryObjectKind::Bytes)
+                    };
+                    if func.inst(id).result_ty != Some(result) {
+                        self.emit_at_inst(
+                            "packed encoding has an incompatible result type",
+                            block,
+                            id,
+                        );
+                    }
+                }
+                if let InstKind::ICall { function: Callee::Builtin(Builtin::Concat(types)), args } =
+                    &func.inst(id).kind
+                {
+                    if types.len() != args.len() {
+                        self.emit_at_inst(
+                            "concat argument count does not match its parameter types",
+                            block,
+                            id,
+                        );
+                    }
+                    for (&ty, &value) in types.iter().zip(args) {
+                        let valid = match ty {
+                            MirType::MemoryObject(MemoryObjectKind::Bytes) => matches!(
+                                func.value_ty(value),
+                                Some(
+                                    MirType::MemoryObject(MemoryObjectKind::Bytes)
+                                        | MirType::MemPtr
+                                        | MirType::UInt(_)
+                                )
+                            ),
+                            MirType::FixedBytes(_) => func.value_ty(value).is_some_and(|ty| {
+                                ty.is_word() && !matches!(ty, MirType::MemoryObject(_))
+                            }),
+                            _ => false,
+                        };
+                        if !valid {
+                            self.emit_at_inst("concat input has an incompatible type", block, id);
+                        }
+                    }
+                    if func.inst(id).result_ty
+                        != Some(MirType::MemoryObject(MemoryObjectKind::Bytes))
+                    {
+                        self.emit_at_inst("concat requires a memorybytes result", block, id);
+                    }
+                }
+                let mut check = |object, expected| {
+                    if let Some(MirType::MemoryObject(actual)) = func.value_ty(object)
+                        && actual != expected
+                    {
+                        self.emit_at_inst(
+                            format_args!(
+                                "memory object has type `{actual}`, expected `{expected}`"
+                            ),
+                            block,
+                            id,
+                        );
+                    }
+                };
+                match func.inst(id).kind {
+                    InstKind::Check { condition, .. } => {
+                        if func.inst(id).result_ty.is_some()
+                            || func.value_ty(condition).is_none_or(|ty| {
+                                !ty.is_word() || matches!(ty, MirType::MemoryObject(_))
+                            })
+                        {
+                            self.emit_at_inst(
+                                "conditional check requires a word condition and no result",
+                                block,
+                                id,
+                            );
+                        }
+                    }
+                    InstKind::ValidateAbi(value) => {
+                        if func.inst(id).result_ty.is_some()
+                            || func.value_ty(value).is_none_or(|ty| !ty.is_word())
+                        {
+                            self.emit_at_inst(
+                                "ABI validation requires one word operand and no result",
+                                block,
+                                id,
+                            );
+                        }
+                    }
+                    InstKind::CheckedAddMod(a, b, modulus)
+                    | InstKind::CheckedMulMod(a, b, modulus) => {
+                        if [a, b, modulus].iter().any(|value| {
+                            func.value_ty(*value).is_none_or(|ty| {
+                                !ty.is_word() || matches!(ty, MirType::MemoryObject(_))
+                            })
+                        }) {
+                            self.emit_at_inst(
+                                "checked modular arithmetic requires word operands",
+                                block,
+                                id,
+                            );
+                        }
+                        if func.inst(id).result_ty != Some(MirType::uint256()) {
+                            self.emit_at_inst(
+                                "checked modular arithmetic requires a u256 result",
+                                block,
+                                id,
+                            );
+                        }
+                    }
+                    InstKind::CheckedBinary { arithmetic, lhs, rhs, .. } => {
+                        let (crate::mir::ArithmeticKind::Unsigned(bits)
+                        | crate::mir::ArithmeticKind::Signed(bits)) = arithmetic;
+                        if !(8..=256).contains(&bits) || bits % 8 != 0 {
+                            self.emit_at_inst("checked arithmetic has an invalid width", block, id);
+                        }
+                        if [lhs, rhs].iter().any(|value| {
+                            func.value_ty(*value).is_none_or(|ty| {
+                                !ty.is_word() || matches!(ty, MirType::MemoryObject(_))
+                            })
+                        }) {
+                            self.emit_at_inst(
+                                "checked arithmetic requires word operands",
+                                block,
+                                id,
+                            );
+                        }
+                        if func.inst(id).result_ty != Some(MirType::uint256()) {
+                            self.emit_at_inst(
+                                "checked arithmetic requires a u256 result",
+                                block,
+                                id,
+                            );
+                        }
+                    }
+                    InstKind::StorageArrayLoad { slot, element, enum_variants } => {
+                        if func.value_ty(slot).is_none_or(|ty| {
+                            !ty.is_word() || matches!(ty, MirType::MemoryObject(_))
+                        }) {
+                            self.emit_at_inst("storage array load requires a word slot", block, id);
+                        }
+                        if !matches!(
+                            element,
+                            MirType::UInt(_)
+                                | MirType::Int(_)
+                                | MirType::FixedBytes(_)
+                                | MirType::MemoryObject(MemoryObjectKind::Bytes)
+                        ) {
+                            self.emit_at_inst("invalid storage array element type", block, id);
+                        }
+                        if let Some(variants) = enum_variants
+                            && (!(1..=256).contains(&variants)
+                                || element != MirType::UInt(TypeSize::new_int_bits(8)))
+                        {
+                            self.emit_at_inst("invalid storage array enum type", block, id);
+                        }
+                        if func.inst(id).result_ty
+                            != Some(MirType::MemoryObject(MemoryObjectKind::DynamicArray))
+                        {
+                            self.emit_at_inst(
+                                "storage array load requires an array result",
+                                block,
+                                id,
+                            );
+                        }
+                    }
+                    InstKind::StorageBytesStore(slot, object) => {
+                        if func.value_ty(slot).is_none_or(|ty| {
+                            !ty.is_word() || matches!(ty, MirType::MemoryObject(_))
+                        }) {
+                            self.emit_at_inst(
+                                "storage bytes store requires a word slot",
+                                block,
+                                id,
+                            );
+                        }
+                        if func.value_ty(object)
+                            != Some(MirType::MemoryObject(MemoryObjectKind::Bytes))
+                        {
+                            self.emit_at_inst(
+                                "storage bytes store requires a bytes object",
+                                block,
+                                id,
+                            );
+                        }
+                        if func.inst(id).result_ty.is_some() {
+                            self.emit_at_inst(
+                                "storage bytes store cannot produce a result",
+                                block,
+                                id,
+                            );
+                        }
+                    }
+                    InstKind::StorageClearWords(slot, first, end) => {
+                        if [slot, first, end].iter().any(|&value| {
+                            func.value_ty(value).is_none_or(|ty| {
+                                !ty.is_word() || matches!(ty, MirType::MemoryObject(_))
+                            })
+                        }) {
+                            self.emit_at_inst("storage clear requires word operands", block, id);
+                        }
+                        if func.inst(id).result_ty.is_some() {
+                            self.emit_at_inst("storage clear cannot produce a result", block, id);
+                        }
+                    }
+                    InstKind::ValidateStorageBytes(operand)
+                    | InstKind::StorageBytesLoad(operand)
+                    | InstKind::StorageBytesStoreLiteral { slot: operand, .. } => {
+                        if func.value_ty(operand).is_none_or(|ty| {
+                            !ty.is_word() || matches!(ty, MirType::MemoryObject(_))
+                        }) {
+                            self.emit_at_inst(
+                                "storage bytes operation requires a word operand",
+                                block,
+                                id,
+                            );
+                        }
+                        let result_ty =
+                            if matches!(func.inst(id).kind, InstKind::StorageBytesLoad(_)) {
+                                Some(MirType::MemoryObject(MemoryObjectKind::Bytes))
+                            } else {
+                                None
+                            };
+                        if func.inst(id).result_ty != result_ty {
+                            self.emit_at_inst(
+                                "storage bytes operation has an invalid result type",
+                                block,
+                                id,
+                            );
+                        }
+                    }
+                    InstKind::Erc7201(object)
+                    | InstKind::Sha256(object)
+                    | InstKind::Ripemd160(object) => {
+                        if !matches!(
+                            func.value_ty(object),
+                            Some(
+                                MirType::MemoryObject(MemoryObjectKind::Bytes)
+                                    | MirType::MemPtr
+                                    | MirType::UInt(_)
+                            )
+                        ) {
+                            self.emit_at_inst(
+                                "hash builtin requires a memorybytes operand",
+                                block,
+                                id,
+                            );
+                        }
+                        if func.inst(id).result_ty != Some(MirType::uint256()) {
+                            self.emit_at_inst("hash builtin requires a u256 result", block, id);
+                        }
+                    }
+                    InstKind::AddressCall { kind, address, input, gas, value } => {
+                        check(input, MemoryObjectKind::Bytes);
+                        if std::iter::once(address).chain(gas).chain(value).any(|operand| {
+                            func.value_ty(operand).is_none_or(|ty| {
+                                !ty.is_word() || matches!(ty, MirType::MemoryObject(_))
+                            })
+                        }) {
+                            self.emit_at_inst(
+                                "address call options require word operands",
+                                block,
+                                id,
+                            );
+                        }
+                        if kind != AddressCallKind::Call && value.is_some() {
+                            self.emit_at_inst(
+                                "only address_call accepts a value option",
+                                block,
+                                id,
+                            );
+                        }
+                        if func.inst(id).result_ty != Some(MirType::uint256()) {
+                            self.emit_at_inst("address call requires a u256 result", block, id);
+                        }
+                    }
+                    InstKind::ReturndataBytes => {
+                        if func.inst(id).result_ty
+                            != Some(MirType::MemoryObject(MemoryObjectKind::Bytes))
+                        {
+                            self.emit_at_inst(
+                                "returndata_bytes requires a bytes object result",
+                                block,
+                                id,
+                            );
+                        }
+                    }
+                    InstKind::Send(address, amount) | InstKind::Transfer(address, amount) => {
+                        if [address, amount].iter().any(|value| {
+                            func.value_ty(*value).is_none_or(|ty| {
+                                !ty.is_word() || matches!(ty, MirType::MemoryObject(_))
+                            })
+                        }) {
+                            self.emit_at_inst("payable call requires word operands", block, id);
+                        }
+                        let expected = matches!(func.inst(id).kind, InstKind::Send(..))
+                            .then_some(MirType::uint256());
+                        if func.inst(id).result_ty != expected {
+                            self.emit_at_inst("payable call has an invalid result type", block, id);
+                        }
+                    }
+                    InstKind::EcRecover(a, b, c, d) => {
+                        if [a, b, c, d].iter().any(|v| {
+                            func.value_ty(*v).is_none_or(|ty| {
+                                !ty.is_word() || matches!(ty, MirType::MemoryObject(_))
+                            })
+                        }) {
+                            self.emit_at_inst("ecrecover requires word operands", block, id);
+                        }
+                        if func.inst(id).result_ty != Some(MirType::uint256()) {
+                            self.emit_at_inst("ecrecover requires a u256 result", block, id);
+                        }
+                    }
+                    InstKind::MemoryObjectLen(object, kind)
+                    | InstKind::SetMemoryObjectLen(object, _, kind)
+                    | InstKind::MemoryObjectData(object, kind)
+                    | InstKind::MemoryObjectCopyFromSlice { object, kind, .. }
+                    | InstKind::MemoryObjectCopyFromSliceAt { object, kind, .. } => {
+                        check(object, kind)
+                    }
+                    InstKind::MemoryObjectFieldAddr { object, layout, .. }
+                    | InstKind::MemoryObjectElementAddr { object, layout, .. }
+                    | InstKind::MemoryObjectLoadField { object, layout, .. }
+                    | InstKind::MemoryObjectStoreField { object, layout, .. }
+                    | InstKind::MemoryObjectLoadElement { object, layout, .. }
+                    | InstKind::MemoryObjectStoreElement { object, layout, .. } => {
+                        check(object, layout.kind())
+                    }
+                    InstKind::MemoryObjectLoadByte { object, .. }
+                    | InstKind::MemoryObjectStoreByte { object, .. }
+                    | InstKind::MemoryObjectStoreWord { object, .. } => {
+                        check(object, MemoryObjectKind::Bytes)
+                    }
+                    InstKind::MemoryObjectCopy {
+                        destination,
+                        destination_kind,
+                        source,
+                        source_kind,
+                        ..
+                    } => {
+                        check(destination, destination_kind);
+                        check(source, source_kind);
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    fn check_struct_type(
+        &mut self,
+        actual: Option<MirType>,
+        expected: Option<MirType>,
+        block: BlockId,
+        inst: InstId,
+    ) {
+        if actual != expected
+            && [actual, expected].iter().any(|ty| matches!(ty, Some(MirType::Struct(_))))
+        {
+            self.emit_at_inst("struct value does not match the required type", block, inst);
+        }
     }
 
     fn validate_data_reference(
@@ -576,7 +1362,9 @@ impl<'a> Validator<'a> {
     /// mirrors how the display and every pass treat instructions.
     fn validate_calls(&mut self, module: &Module, func: &Function) {
         for inst_id in func.instructions() {
-            let InstKind::ICall { function, args, returns } = &func.inst(inst_id).kind else {
+            let InstKind::ICall { function: Callee::Function(function), args } =
+                &func.inst(inst_id).kind
+            else {
                 continue;
             };
             let Some(callee) = module.functions.get(*function) else {
@@ -594,15 +1382,10 @@ impl<'a> Validator<'a> {
                     callee.params.len()
                 ));
             }
-            // Dead-result elimination rewrites the site and the callee signature
-            // together; a disagreement means one side of the return protocol was
-            // dropped and the other still delivers or consumes a value.
-            if *returns as usize != callee.returns.len() {
+            if func.inst(inst_id).result_ty.is_some() && callee.return_components().is_empty() {
                 self.emit(format_args!(
-                    "icall to `{}` expects {} result(s), callee returns {}",
+                    "icall to `{}` produces a value but the callee returns no values",
                     callee.name,
-                    returns,
-                    callee.returns.len()
                 ));
             }
         }
@@ -633,35 +1416,36 @@ impl<'a> Validator<'a> {
             // nothing, and an external caller's MIR signature does not model
             // its ABI returns, so both are exempt.
             if func.selector.is_none()
-                && func.returns.len() != callee.returns.len()
-                && callee.blocks.iter().any(|block| {
-                    matches!(block.terminator, Some(crate::mir::Terminator::Return { .. }))
-                })
+                && func.return_components().len() != callee.return_components().len()
+                && self
+                    .returning_functions
+                    .as_ref()
+                    .is_some_and(|returning| returning.contains(*function))
             {
                 self.emit(format_args!(
                     "tail_call to `{}` returns {} value(s), caller signature expects {}",
                     callee.name,
-                    callee.returns.len(),
-                    func.returns.len()
+                    callee.return_components().len(),
+                    func.return_components().len()
                 ));
             }
         }
     }
 
     /// Checks that the module's content satisfies its declared
-    /// [`MirPhase`](crate::mir::MirPhase), so
+    /// [`MirPhase`], so
     /// the phase is a real contract rather than a label.
-    fn validate_module_phase(&mut self, module: &Module) {
-        // From the `dispatch` phase on, routing is materialized: a module with
+    fn validate_module_phase(&mut self, module: &Module, phase: MirPhase) {
+        // Lowered MIR has explicit routing: a module with
         // a runtime interface must contain exactly one synthesized `entry`.
-        if module.phase < crate::mir::MirPhase::Dispatch {
+        if phase < MirPhase::Lowered {
             return;
         }
         let dispatch_entry = module.dispatch_entry();
         if dispatch_entry.is_some_and(|entry| module.functions.get(entry).is_none()) {
             self.emit(format_args!(
                 "module is in the `{}` phase but has an invalid `entry` routing function",
-                module.phase.name()
+                phase.name()
             ));
         } else if dispatch_entry.is_none()
             && module.functions.iter().any(|f| {
@@ -670,15 +1454,25 @@ impl<'a> Validator<'a> {
         {
             self.emit(format_args!(
                 "module is in the `{}` phase but has no `entry` routing function",
-                module.phase.name()
+                phase.name()
             ));
         }
     }
 
-    fn validate_function_phase(&mut self, module: &Module, func: &Function) {
-        // From the `abi` phase on, every bodied external (selector-bearing)
-        // function is an argument-free self-decoding wrapper.
-        if module.phase >= crate::mir::MirPhase::Abi
+    fn validate_function_phase(&mut self, phase: MirPhase, func: &Function) {
+        if phase == MirPhase::Lowered && func.is_external_entry() && !func.attributes.is_abi_wrapper
+        {
+            self.emit("external entry has no explicit ABI implementation");
+        }
+        if func.attributes.is_abi_wrapper
+            && (func.abi_params.is_some()
+                || func.abi_returns.is_some()
+                || func.abi_return_params.is_some())
+        {
+            self.emit("ABI wrapper retains an implicit ABI layout");
+        }
+        // A self-decoding runtime wrapper has no callable MIR parameters.
+        if (phase == MirPhase::Lowered || func.attributes.is_abi_wrapper)
             && func.selector.is_some()
             && !func.params.is_empty()
         {
@@ -686,103 +1480,49 @@ impl<'a> Validator<'a> {
                 "selector function `{}` still takes arguments in the `{}` phase \
                  (expected an argument-free ABI wrapper)",
                 func.name,
-                module.phase.name()
+                phase.name()
             ));
         }
-        // The memory-lowered phase is a strict representation boundary: no
-        // nominal object types, layouts, or semantic accesses may survive.
-        if module.phase >= crate::mir::MirPhase::MemoryLowered {
-            let signature_types = func
+        if phase == MirPhase::Lowered {
+            let types = func
                 .arg_indices()
                 .map(|index| func.arg_ty(index))
-                .chain(func.returns.iter().copied());
-            for ty in signature_types {
-                if matches!(ty, crate::mir::MirType::MemoryObject(_)) {
-                    self.emit(format_args!(
-                        "memory-object signature type `{ty}` survives the `{}` phase boundary",
-                        module.phase.name()
-                    ));
-                }
-            }
-            let mut values = DenseBitSet::new_empty(func.num_values());
-            for value in func.live_values() {
-                if value.index() < func.num_values() {
-                    values.insert(value);
-                }
-            }
-            for value in values.iter() {
-                if let Value::Undef(ty) = func.value(value)
-                    && matches!(ty, crate::mir::MirType::MemoryObject(_))
-                {
-                    self.emit(format_args!(
-                        "memory-object value type survives the `{}` phase boundary",
-                        module.phase.name()
-                    ));
-                }
+                .chain(func.return_components().iter().copied())
+                .chain(func.live_values().filter_map(|value| func.value_ty(value)))
+                .chain(func.instructions().filter_map(|id| func.inst(id).result_ty));
+            if let Some(ty) =
+                types.into_iter().find(|ty| !ty.is_word() || matches!(ty, MirType::MemoryObject(_)))
+            {
+                self.emit(format_args!(
+                    "non-word type `{ty}` survives the `lowered` phase boundary"
+                ));
             }
             for (block_id, block) in func.blocks.iter_enumerated() {
+                if matches!(block.terminator, Some(crate::mir::Terminator::RevertReturndata)) {
+                    self.emit_at_block(
+                        "returndata bubbling survives the `lowered` phase boundary",
+                        block_id,
+                    );
+                }
                 for &inst_id in &block.instructions {
-                    let inst = func.inst(inst_id);
-                    let semantic = inst.kind.is_memory_object_op()
-                        || matches!(
-                            inst.kind,
-                            InstKind::FrameLoad { .. } | InstKind::FrameStore { .. }
-                        )
-                        || inst
-                            .result_ty
-                            .is_some_and(|ty| matches!(ty, crate::mir::MirType::MemoryObject(_)));
-                    if semantic {
+                    let kind = &func.inst(inst_id).kind;
+                    if let InstKind::Alloc { size, .. } = *kind
+                        && func.inst(inst_id).metadata.deferred_alloc()
+                        && func.value_u64(size).is_none()
+                    {
                         self.emit_at_inst(
-                            format_args!(
-                                "memory-object instruction `{}` survives the `{}` phase boundary",
-                                inst.kind.mnemonic(),
-                                module.phase.name()
-                            ),
+                            "deferred allocation requires a constant size",
                             block_id,
                             inst_id,
                         );
                     }
-                }
-            }
-        }
-        // EVM-shaped MIR is the semantic boundary consumed by the word-based
-        // backend. High-level memory operations must have been expanded by
-        // their named lowering passes before the module enters this phase.
-        if module.phase >= crate::mir::MirPhase::EvmShaped {
-            for (block_id, block) in func.blocks.iter_enumerated() {
-                for &inst_id in &block.instructions {
-                    let kind = &func.inst(inst_id).kind;
-                    let semantic_op = match kind {
-                        InstKind::MakeSlice { .. }
-                        | InstKind::SlicePtr(_)
-                        | InstKind::SliceLen(_) => Some("slice"),
-                        InstKind::Fmp | InstKind::SetFmp(_) => Some("abstract allocation"),
-                        InstKind::Alloc { .. } if !func.inst(inst_id).metadata.deferred_alloc() => {
-                            Some("abstract allocation")
-                        }
-                        InstKind::MemoryZero(_, _) => Some("memory zero"),
-                        InstKind::AbiEncode { .. } => Some("ABI encoding"),
-                        InstKind::AbiDecode { .. } => Some("ABI decoding"),
-                        InstKind::StorageToMemory { .. }
-                        | InstKind::MemoryToStorage { .. }
-                        | InstKind::ClearStorage { .. } => Some("aggregate"),
-                        InstKind::MappingSlot(_, _)
-                        | InstKind::MappingSlotMemory(_, _)
-                        | InstKind::MappingSlotCalldata(_, _)
-                        | InstKind::StorageArrayDataSlot(_)
-                        | InstKind::StorageArrayElementSlot { .. } => Some("storage slot"),
-                        InstKind::StoreImmutable(..) => Some("immutable assignment"),
-                        InstKind::FrameLoad { .. } | InstKind::FrameStore { .. } => {
-                            Some("frame slot")
-                        }
-                        _ => None,
-                    };
+                    let semantic_op = func.inst(inst_id).unlowered_reason();
                     if let Some(semantic_op) = semantic_op {
                         self.emit_at_inst(
                             format_args!(
                                 "{semantic_op} instruction `{}` survives the `{}` phase boundary",
                                 kind.mnemonic(),
-                                module.phase.name()
+                                phase.name()
                             ),
                             block_id,
                             inst_id,
@@ -796,6 +1536,84 @@ impl<'a> Validator<'a> {
 
 pub(crate) fn validate(dcx: &DiagCtxt, module: &Module) {
     Validator::new(dcx).validate_module(module);
+}
+
+/// Checks representation, CFG, and call-target legality without dominance or call summaries.
+pub(crate) fn validate_phase(
+    dcx: &DiagCtxt,
+    module: &Module,
+    phase: MirPhase,
+) -> solar_interface::Result<()> {
+    let mut validator = Validator::new(dcx);
+    validator.prepare_return_abi_validation(module);
+    validator.validate_module_phase(module, phase);
+    for (id, func) in module.iter_functions() {
+        validator.function = Some(id);
+        validator.validate_cfg(func);
+        validator.validate_calls(module, func);
+        validator.validate_return_abi(module, func);
+        validator.validate_function_phase(phase, func);
+    }
+    dcx.has_errors()
+}
+
+/// Matches result components without recursive traversal or expanding repeated empty structs.
+fn return_abi_matches(
+    module: &Module,
+    ty: MirType,
+    mut components: &[MirType],
+    field_counts: &IndexVec<StructId, Option<usize>>,
+) -> bool {
+    let pointer_only = matches!(ty, MirType::Slice(_));
+    let mut pending = SmallVec::<[MirType; 4]>::from_slice(&[ty]);
+    while let Some(ty) = pending.pop() {
+        match ty {
+            MirType::Void => {
+                if !components.is_empty() {
+                    return false;
+                }
+            }
+            MirType::Struct(id) => {
+                let Some(&Some(count)) = field_counts.get(id) else { return false };
+                if count > components.len() {
+                    return false;
+                }
+                if count != 0 {
+                    pending.extend(module.struct_types[id].fields.iter().rev().copied());
+                }
+            }
+            _ => {
+                let Some((&actual, rest)) = components.split_first() else { return false };
+                components = rest;
+                if actual == ty {
+                    continue;
+                }
+                match ty {
+                    MirType::MemoryObject(_) if actual == MirType::MemPtr => {}
+                    MirType::Slice(location) => {
+                        let pointer = match location {
+                            SliceLocation::Memory => MirType::MemPtr,
+                            SliceLocation::Calldata => MirType::CalldataPtr,
+                            SliceLocation::Returndata => MirType::uint256(),
+                        };
+                        if actual != pointer {
+                            return false;
+                        }
+                        if pointer_only && components.is_empty() {
+                            continue;
+                        }
+                        let Some((&length, rest)) = components.split_first() else { return false };
+                        if length != MirType::uint256() {
+                            return false;
+                        }
+                        components = rest;
+                    }
+                    _ => return false,
+                }
+            }
+        }
+    }
+    components.is_empty()
 }
 
 // =============================================================================
@@ -820,22 +1638,133 @@ mod tests {
     }
 
     #[test]
+    fn return_abi_matches_struct_fields() {
+        with_session(|sess| {
+            let mut module = Module::new(Ident::DUMMY);
+            let pair = module.intern_struct(vec![MirType::uint256(), MirType::Bool]);
+            let slice = MirType::Slice(SliceLocation::Memory);
+            let nested = module.intern_struct(vec![pair, slice]);
+            let mut function = make_func();
+            function.set_return_type(nested);
+            let words = [MirType::uint256(), MirType::Bool, MirType::MemPtr, MirType::uint256()];
+            function.set_return_abi(words);
+            module.add_function(function);
+            let mut validator = Validator::new(&sess.dcx);
+            validator.prepare_return_abi_validation(&module);
+            let matches = |ty, words: &[MirType]| {
+                return_abi_matches(&module, ty, words, &validator.return_field_counts)
+            };
+            assert!(matches(nested, &words));
+            assert!(!matches(nested, &words[..3]));
+            assert!(!matches(pair, &words));
+            assert!(!matches(pair, &[MirType::Bool, MirType::uint256()]));
+            assert!(matches(slice, &[MirType::MemPtr]));
+            assert!(matches(slice, &words[2..]));
+            assert!(!matches(slice, &[MirType::MemPtr, MirType::Bool]));
+        });
+    }
+
+    #[test]
+    fn return_abi_skips_repeated_empty_structs() {
+        with_session(|sess| {
+            let mut module = Module::new(Ident::DUMMY);
+            let mut ty = module.intern_struct(Vec::new());
+            for _ in 0..128 {
+                ty = module.intern_struct(vec![ty, ty]);
+            }
+            let mut function = make_func();
+            function.set_return_type(ty);
+            function.set_return_abi([]);
+            module.add_function(function);
+            let mut validator = Validator::new(&sess.dcx);
+            validator.prepare_return_abi_validation(&module);
+            assert!(return_abi_matches(&module, ty, &[], &validator.return_field_counts));
+            assert!(!return_abi_matches(
+                &module,
+                ty,
+                &[MirType::uint256()],
+                &validator.return_field_counts
+            ));
+        });
+    }
+
+    #[test]
+    fn orphaned_instruction_result_is_caught() {
+        with_session(|sess| {
+            let mut func = make_func();
+            {
+                let mut builder = FunctionBuilder::new(&mut func);
+                // value = calldatasize
+                // return value
+                let value = builder.calldatasize();
+                builder.ret([value]);
+            }
+            func.blocks[BlockId::ENTRY].instructions.clear();
+            Validator::new(&sess.dcx).validate_standalone_function(&func);
+            assert_data_eq!(
+                sess.emitted_diagnostics().unwrap().to_string(),
+                str![[r#"
+error: [bb0] use of ValueId(0) has no live definition
+
+
+"#]]
+            );
+        });
+    }
+
+    #[test]
+    fn phase_boundary_checks_predecessors_and_call_targets() {
+        with_session(|sess| {
+            let mut module = Module::new(Ident::DUMMY);
+            let mut func = make_func();
+            let next = func.alloc_block();
+            {
+                let mut builder = FunctionBuilder::new(&mut func);
+                // icall fn99
+                // jump bb1
+                // bb1: tail_call fn98
+                builder.icall_void(FunctionId::from_usize(99), Vec::new());
+                builder.jump(next);
+                builder.switch_to_block(next);
+                builder.tail_call(FunctionId::from_usize(98), Vec::new());
+            }
+            func.blocks[next].predecessors.clear();
+            module.add_function(func);
+            assert!(module.advance_phase(&sess.dcx, MirPhase::Lowered).is_err());
+            assert_eq!(module.phase(), MirPhase::Semantic);
+            assert_data_eq!(
+                sess.emitted_diagnostics().unwrap().to_string(),
+                str![[r#"
+error: [fn0] [bb0] successor bb1 does not list bb0 as a predecessor
+
+error: [fn0] icall targets nonexistent function fn99
+
+error: [fn0] tail_call targets nonexistent function fn98
+
+
+"#]]
+            );
+        });
+    }
+
+    #[test]
     fn missing_dispatch_entry_is_caught_without_runtime_attributes() {
         with_session(|sess| {
             let mut module = Module::new(Ident::DUMMY);
-            module.phase = crate::mir::MirPhase::EvmShaped;
+
             for _ in 0..2 {
                 let mut func = make_func();
                 func.selector = Some([0; 4]);
+                func.attributes.is_abi_wrapper = true;
                 FunctionBuilder::new(&mut func).stop();
                 module.functions.push(func);
             }
-            Validator::new(&sess.dcx).validate_module(&module);
+            let _ = validate_phase(&sess.dcx, &module, MirPhase::Lowered);
             assert!(sess.dcx.has_errors().is_err());
             assert_data_eq!(
                 sess.emitted_diagnostics().unwrap().to_string(),
                 str![[r#"
-error: module is in the `evm-shaped` phase but has no `entry` routing function
+error: module is in the `lowered` phase but has no `entry` routing function
 
 
 "#]]

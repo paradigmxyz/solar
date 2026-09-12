@@ -11,12 +11,13 @@
 // CHECK: {{^ +}}jumpi {{.*}}, [[BODY:bb[0-9]+]], {{bb[0-9]+}}
 // CHECK: {{^ +}}[[BODY]]:
 // CHECK: {{^ +}}frame_store internal_frame, word, 0, arg0
-// CHECK: {{^ +}}v0 = frame_load internal_frame, word, 0
-// CHECK: {{^ +}}v1 = mul v0, v0
+// CHECK: {{^ +}}[[LOAD:v[0-9]+]] = frame_load internal_frame, word, 0
+// CHECK: {{^ +}}{{v[0-9]+}} = mul [[LOAD]], [[LOAD]]
 fn @frame_load_stays_in_body(arg0: u256) -> u256 {
   bb0:
     jump bb1
   bb1:
+    v2 = phi [bb0: 0], [bb2: v1]
     jumpi true, bb2, bb3
   bb2:
     frame_store internal_frame, word, 0, arg0
@@ -24,5 +25,5 @@ fn @frame_load_stays_in_body(arg0: u256) -> u256 {
     v1 = mul v0, v0
     jump bb1
   bb3:
-    ret v1
+    ret v2
 }

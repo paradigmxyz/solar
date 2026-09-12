@@ -1,24 +1,180 @@
 //! Interprocedural memory and pointer-capture summaries.
 //!
-//! Summaries are computed to a fixpoint over internal-call edges. Missing
+//! Summaries are computed only for internal-call targets, to a fixpoint over their edges. Missing
 //! bodies stay fully conservative; recursive groups converge because every
-//! fact only moves from false to true.
+//! effect grows monotonically. Persistent and transient storage retain bounded sets of exact
+//! slots. Memory retains fixed byte ranges relative to formal parameters or absolute addresses.
+//! Unknown accesses and oversized sets widen to the entire address space. Actual arguments
+//! instantiate each call footprint; allocation-relative ranges require a bounds proof before
+//! they can benefit from allocation disjointness. No callee-local
+//! value identities escape into a caller summary.
 
-use super::{AddressSpace, AliasAnalysis};
-use crate::mir::{
-    ArgIdx, Function, FunctionId, InstId, InstKind, Module, Terminator, Value, ValueId,
-    memory::EvmMemoryLayout,
+use super::{
+    Access, AddressSpace, AliasAnalysis, CallGraphInfo, Location, LocationSize, MemoryAddress,
+    MemoryBase, MemoryLocation,
 };
-use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashSet};
-use std::collections::VecDeque;
+use crate::mir::{
+    ArgIdx, Callee, ControlEffects, Function, FunctionId, InstId, InstKind, MemoryRegion, Module,
+    StorageAlias, Terminator, Value, ValueId, memory::EvmMemoryLayout,
+};
+use alloy_primitives::U256;
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    index::IndexVec,
+    map::{FxHashMap, FxHashSet},
+};
+use std::collections::{BTreeSet, VecDeque};
+
+/// Includes observations in callees, conservatively retaining reads without a call summary.
+pub(crate) fn may_observe_msize(func: &Function, summaries: Option<&MemoryCallSummaries>) -> bool {
+    let callee_observes = |callee| {
+        summaries.and_then(|summaries| summaries.get(callee)).is_none_or(|s| s.may_observe_msize())
+    };
+    func.instructions().any(|inst| match &func.inst(inst).kind {
+        InstKind::MSize => true,
+        InstKind::ICall { function: Callee::Function(function), .. } => callee_observes(*function),
+        _ => false,
+    }) || func.blocks.iter().any(|block| {
+        matches!(&block.terminator, Some(Terminator::TailCall { function, .. }) if callee_observes(*function))
+    })
+}
+
+/// A bounded set of storage slots, or an unknown access to the whole space.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct SlotFootprint {
+    slots: BTreeSet<U256>,
+    unknown: bool,
+}
+
+impl SlotFootprint {
+    fn insert(&mut self, slot: Option<U256>) {
+        if self.unknown {
+            return;
+        }
+        if let Some(slot) = slot {
+            self.slots.insert(slot);
+            if self.slots.len() <= 32 {
+                return;
+            }
+        }
+        self.unknown = true;
+        self.slots.clear();
+    }
+
+    fn merge(&mut self, other: &Self) {
+        if other.unknown {
+            self.insert(None);
+        } else {
+            for &slot in &other.slots {
+                self.insert(Some(slot));
+            }
+        }
+    }
+}
+
+/// A memory base that remains meaningful outside the function declaring it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum FootprintBase {
+    Absolute,
+    Parameter(ArgIdx),
+}
+
+/// One fixed byte range relative to an absolute address or formal parameter.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+struct MemoryRange {
+    base: FootprintBase,
+    offset: u64,
+    size: u64,
+}
+
+impl MemoryRange {
+    fn export(func: &Function, access: Access) -> Option<Self> {
+        let Access::Location(Location::Memory(location)) = access else { return None };
+        let size = location.size.as_const()?;
+        location.address.offset.checked_add(size)?;
+        let base = match location.address.base {
+            MemoryBase::Absolute => FootprintBase::Absolute,
+            MemoryBase::Value(value) => {
+                let Value::Arg(index) = func.value(value) else { return None };
+                FootprintBase::Parameter(*index)
+            }
+            _ => return None,
+        };
+        Some(Self { base, offset: location.address.offset, size })
+    }
+
+    fn instantiate(
+        self,
+        func: &Function,
+        aa: &AliasAnalysis,
+        args: &[ValueId],
+    ) -> Option<MemoryLocation> {
+        let mut address = match self.base {
+            FootprintBase::Absolute => MemoryAddress::absolute(self.offset),
+            FootprintBase::Parameter(index) => {
+                aa.memory_address(func, *args.get(index.index())?)?.checked_add(self.offset)?
+            }
+        };
+        let end = address.offset.checked_add(self.size)?;
+        match address.base {
+            MemoryBase::Allocation(inst) | MemoryBase::DynamicAllocation(inst) => {
+                let InstKind::Alloc { size, .. } = func.inst(inst).kind else { return None };
+                if end > func.value_u64(size)? {
+                    return None;
+                }
+            }
+            MemoryBase::InternalFrame => return None,
+            _ => {}
+        }
+        // A range may cross region boundaries even when its starting pointer does not.
+        address.region = MemoryRegion::Unknown;
+        Some(MemoryLocation::new(address, LocationSize::Const(self.size)))
+    }
+}
+
+/// A bounded set of byte ranges. Widening is sticky, including across recursive calls.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct MemoryFootprint {
+    ranges: BTreeSet<MemoryRange>,
+    unknown: bool,
+}
+
+impl MemoryFootprint {
+    fn insert(&mut self, range: Option<MemoryRange>) {
+        if self.unknown {
+            return;
+        }
+        if let Some(range) = range {
+            if range.size == 0 {
+                return;
+            }
+            self.ranges.insert(range);
+            if self.ranges.len() <= 32 {
+                return;
+            }
+        }
+        self.unknown = true;
+        self.ranges.clear();
+    }
+}
 
 /// Conservative memory effects and pointer captures for one MIR function.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct FunctionMemorySummary {
+    control: ControlEffects,
+    observable: bool,
     /// Read address spaces as a bit per [`space_index`].
     reads: u8,
     /// Written address spaces as a bit per [`space_index`].
     writes: u8,
+    /// Exact persistent and transient storage reads.
+    slot_reads: [SlotFootprint; 2],
+    /// Exact persistent and transient storage writes.
+    slot_writes: [SlotFootprint; 2],
+    memory_reads: MemoryFootprint,
+    memory_writes: MemoryFootprint,
+    /// Whether the signature uses the lowered multi-return buffer convention.
+    pub(crate) has_multiple_returns: bool,
     may_reset_fmp: bool,
     /// Whether the function may move the free-memory pointer below its current value.
     may_recycle_fmp: bool,
@@ -37,8 +193,15 @@ pub(crate) struct FunctionMemorySummary {
 impl FunctionMemorySummary {
     fn empty(params: usize) -> Self {
         Self {
+            control: ControlEffects::NONE,
+            observable: false,
             reads: 0,
             writes: 0,
+            slot_reads: Default::default(),
+            slot_writes: Default::default(),
+            memory_reads: Default::default(),
+            memory_writes: Default::default(),
+            has_multiple_returns: false,
             may_reset_fmp: false,
             may_recycle_fmp: false,
             may_observe_fmp: false,
@@ -50,8 +213,21 @@ impl FunctionMemorySummary {
 
     fn conservative(params: usize) -> Self {
         Self {
+            control: ControlEffects::UNKNOWN,
+            observable: true,
             reads: 0b1111,
             writes: 0b1111,
+            slot_reads: std::array::from_fn(|_| SlotFootprint {
+                unknown: true,
+                ..Default::default()
+            }),
+            slot_writes: std::array::from_fn(|_| SlotFootprint {
+                unknown: true,
+                ..Default::default()
+            }),
+            memory_reads: MemoryFootprint { unknown: true, ..Default::default() },
+            memory_writes: MemoryFootprint { unknown: true, ..Default::default() },
+            has_multiple_returns: false,
             may_reset_fmp: true,
             may_recycle_fmp: true,
             may_observe_fmp: true,
@@ -59,6 +235,17 @@ impl FunctionMemorySummary {
             captures: DenseBitSet::new_filled(params),
             observes: DenseBitSet::new_filled(params),
         }
+    }
+
+    /// Whether an unused call can disappear without losing effects or termination behavior.
+    ///
+    /// State reads remain discardable, matching ordinary DCE and solc. Their incidental
+    /// access-list warming does not pin a call whose result is unused.
+    pub(crate) fn can_discard_call(&self, observes_msize: bool) -> bool {
+        !(self.observable
+            || self.control.any()
+            || self.has_multiple_returns
+            || observes_msize && self.reads(AddressSpace::Memory))
     }
 
     /// Returns whether the function may read an address space.
@@ -117,9 +304,67 @@ impl FunctionMemorySummary {
         index.index() >= self.captures.domain_size() || self.captures.contains(index)
     }
 
+    /// Returns exact storage slots, or `None` when the access covers the whole space.
+    pub(crate) fn storage_slots(
+        &self,
+        space: AddressSpace,
+        write: bool,
+    ) -> Option<&BTreeSet<U256>> {
+        let index = slot_space_index(space)?;
+        let footprint = if write { &self.slot_writes[index] } else { &self.slot_reads[index] };
+        (!footprint.unknown).then_some(&footprint.slots)
+    }
+
+    /// Instantiates bounded memory effects using the caller's actual pointer arguments.
+    pub(crate) fn memory_accesses(
+        &self,
+        func: &Function,
+        aa: &AliasAnalysis,
+        args: &[ValueId],
+        write: bool,
+    ) -> impl Iterator<Item = Access> {
+        let footprint = if write { &self.memory_writes } else { &self.memory_reads };
+        footprint.unknown.then_some(Access::Any(AddressSpace::Memory)).into_iter().chain(
+            footprint.ranges.iter().map(move |range| {
+                range
+                    .instantiate(func, aa, args)
+                    .map(|location| Access::Location(Location::Memory(location)))
+                    .unwrap_or(Access::Any(AddressSpace::Memory))
+            }),
+        )
+    }
+
+    fn record_access(&mut self, func: &Function, access: Access, write: bool) {
+        let space = access.address_space();
+        if write {
+            self.writes |= 1 << space_index(space);
+        } else {
+            self.reads |= 1 << space_index(space);
+        }
+        if space == AddressSpace::Memory {
+            let footprint = if write { &mut self.memory_writes } else { &mut self.memory_reads };
+            footprint.insert(MemoryRange::export(func, access));
+        }
+        if let Some(index) = slot_space_index(space) {
+            let slot = match access {
+                Access::Location(Location::Storage(StorageAlias::Slot(slot)))
+                | Access::Location(Location::Transient(StorageAlias::Slot(slot))) => Some(slot),
+                _ => None,
+            };
+            let footprints = if write { &mut self.slot_writes } else { &mut self.slot_reads };
+            footprints[index].insert(slot);
+        }
+    }
+
     fn merge_effects(&mut self, other: &Self) {
+        self.control.merge(other.control);
+        self.observable |= other.observable;
         self.reads |= other.reads;
         self.writes |= other.writes;
+        for index in 0..2 {
+            self.slot_reads[index].merge(&other.slot_reads[index]);
+            self.slot_writes[index].merge(&other.slot_writes[index]);
+        }
         self.may_reset_fmp |= other.may_reset_fmp;
         self.may_recycle_fmp |= other.may_recycle_fmp;
         self.may_observe_fmp |= other.may_observe_fmp;
@@ -130,68 +375,89 @@ impl FunctionMemorySummary {
 /// Cached module-level summaries for all internal-call targets.
 #[derive(Clone, Debug)]
 pub(crate) struct MemoryCallSummaries {
-    summaries: IndexVec<FunctionId, FunctionMemorySummary>,
+    summaries: FxHashMap<FunctionId, FunctionMemorySummary>,
 }
 
 impl MemoryCallSummaries {
     /// Computes summaries to a monotone fixpoint over the module call graph.
     #[must_use]
     pub(crate) fn new(module: &Module) -> Self {
-        if !module.functions.iter().any(|func| {
-            func.instructions()
-                .any(|inst_id| matches!(func.inst(inst_id).kind, InstKind::ICall { .. }))
-                || func
-                    .blocks
-                    .iter()
-                    .any(|block| matches!(block.terminator, Some(Terminator::TailCall { .. })))
-        }) {
-            return Self { summaries: IndexVec::new() };
-        }
-
-        let sources = module.functions.iter().map(parameter_sources).collect::<IndexVec<_, _>>();
-        let mut local = IndexVec::with_capacity(module.functions.len());
-        for (func_id, func) in module.functions.iter_enumerated() {
-            local.push(local_summary(func, &sources[func_id]));
-        }
-        let mut summaries = local.clone();
-
-        let mut callers = IndexVec::from_vec(vec![Vec::new(); module.functions.len()]);
-        for (caller, func) in module.functions.iter_enumerated() {
-            for inst_id in func.instructions() {
-                if let InstKind::ICall { function, .. } = func.inst(inst_id).kind
-                    && let Some(function_callers) = callers.get_mut(function)
+        let mut targets = DenseBitSet::new_empty(module.functions.len());
+        for func in &module.functions {
+            for inst in func.instructions() {
+                if let InstKind::ICall { function: Callee::Function(function), .. } =
+                    func.inst(inst).kind
+                    && module.functions.get(function).is_some()
                 {
-                    function_callers.push(caller);
+                    targets.insert(function);
                 }
             }
             for block in &func.blocks {
                 if let Some(Terminator::TailCall { function, .. }) = &block.terminator
-                    && let Some(function_callers) = callers.get_mut(*function)
+                    && module.functions.get(*function).is_some()
                 {
-                    function_callers.push(caller);
+                    targets.insert(*function);
                 }
             }
         }
-        for function_callers in &mut callers {
+        if targets.is_empty() {
+            return Self { summaries: FxHashMap::default() };
+        }
+
+        let sources = targets
+            .iter()
+            .map(|id| (id, parameter_sources(&module.functions[id])))
+            .collect::<FxHashMap<_, _>>();
+        let calls = CallGraphInfo::new(module);
+        let mut local = FxHashMap::default();
+        for func_id in &targets {
+            let func = &module.functions[func_id];
+            let mut summary = local_summary(module, func, &sources[&func_id]);
+            summary.has_multiple_returns = func.return_components().len() > 1;
+            summary.control.may_diverge |= calls.is_recursive(func_id);
+            local.insert(func_id, summary);
+        }
+        let mut summaries = local.clone();
+
+        let mut callers = FxHashMap::<_, Vec<_>>::default();
+        for caller in &targets {
+            let func = &module.functions[caller];
+            for inst_id in func.instructions() {
+                if let InstKind::ICall { function: Callee::Function(function), .. } =
+                    func.inst(inst_id).kind
+                {
+                    callers.entry(function).or_default().push(caller);
+                }
+            }
+            for block in &func.blocks {
+                if let Some(Terminator::TailCall { function, .. }) = &block.terminator {
+                    callers.entry(*function).or_default().push(caller);
+                }
+            }
+        }
+        for function_callers in callers.values_mut() {
             function_callers.sort_unstable();
             function_callers.dedup();
         }
 
-        let mut queued = DenseBitSet::new_filled(module.functions.len());
-        let mut worklist = module.functions.indices().collect::<VecDeque<_>>();
+        let mut worklist = targets.iter().collect::<VecDeque<_>>();
+        let mut queued = targets;
         while let Some(func_id) = worklist.pop_front() {
             queued.remove(func_id);
             let func = &module.functions[func_id];
-            let mut summary = local[func_id].clone();
+            let mut summary = local[&func_id].clone();
             for block in &func.blocks {
                 for &inst_id in &block.instructions {
-                    if let InstKind::ICall { function, ref args, .. } = func.inst(inst_id).kind {
+                    if let InstKind::ICall {
+                        function: Callee::Function(function), ref args, ..
+                    } = func.inst(inst_id).kind
+                    {
                         merge_call(
                             &mut summary,
                             func,
-                            summaries.get(function),
+                            summaries.get(&function),
                             args,
-                            &sources[func_id],
+                            &sources[&func_id],
                         );
                     }
                 }
@@ -199,16 +465,16 @@ impl MemoryCallSummaries {
                     merge_call(
                         &mut summary,
                         func,
-                        summaries.get(*function),
+                        summaries.get(function),
                         args,
-                        &sources[func_id],
+                        &sources[&func_id],
                     );
                 }
             }
 
-            if summary != summaries[func_id] {
-                summaries[func_id] = summary;
-                for &caller in &callers[func_id] {
+            if summary != summaries[&func_id] {
+                summaries.insert(func_id, summary);
+                for &caller in callers.get(&func_id).into_iter().flatten() {
                     if queued.insert(caller) {
                         worklist.push_back(caller);
                     }
@@ -219,10 +485,10 @@ impl MemoryCallSummaries {
         Self { summaries }
     }
 
-    /// Returns a function summary, if the target belongs to this module.
+    /// Returns a summary for a called function that belongs to this module.
     #[must_use]
     pub(crate) fn get(&self, function: FunctionId) -> Option<&FunctionMemorySummary> {
-        self.summaries.get(function)
+        self.summaries.get(&function)
     }
 }
 
@@ -241,6 +507,12 @@ fn merge_call(
         &conservative
     };
     summary.merge_effects(callee);
+    let aa = AliasAnalysis::new(func);
+    for write in [false, true] {
+        for access in callee.memory_accesses(func, &aa, args, write) {
+            summary.record_access(func, access, write);
+        }
+    }
     for (index, &arg) in args.iter().enumerate() {
         if callee.captures_param(ArgIdx::new(index)) {
             capture_sources(summary, func, sources, arg);
@@ -248,6 +520,14 @@ fn merge_call(
         if callee.observes_param(ArgIdx::new(index)) {
             observe_sources(summary, func, sources, arg);
         }
+    }
+}
+
+const fn slot_space_index(space: AddressSpace) -> Option<usize> {
+    match space {
+        AddressSpace::Storage => Some(0),
+        AddressSpace::Transient => Some(1),
+        _ => None,
     }
 }
 
@@ -261,6 +541,7 @@ const fn space_index(space: AddressSpace) -> usize {
 }
 
 fn local_summary(
+    module: &Module,
     func: &Function,
     sources: &IndexVec<ValueId, DenseBitSet<ArgIdx>>,
 ) -> FunctionMemorySummary {
@@ -271,29 +552,33 @@ fn local_summary(
     let mut summary = FunctionMemorySummary::empty(func.params.len());
     let aa = AliasAnalysis::new(func);
     let heap_derived = heap_derived_values(func);
-    for block in &func.blocks {
+    for (block_id, block) in func.blocks.iter_enumerated() {
         for &inst_id in &block.instructions {
             let kind = &func.inst(inst_id).kind;
-            if let InstKind::ICall { returns, .. } = kind {
+            if let InstKind::ICall { function: Callee::Function(function), .. } = kind {
                 // Callee effects merge through the call graph, but a multi-result
                 // call also writes the caller-side multi-return buffer during
                 // backend lowering. That traffic exists in no MIR body, so it
                 // must be a local memory effect of the calling function.
-                if *returns > 1 {
-                    summary.reads |= 1 << space_index(AddressSpace::Memory);
-                    summary.writes |= 1 << space_index(AddressSpace::Memory);
+                if module
+                    .functions
+                    .get(*function)
+                    .is_none_or(|callee| callee.return_components().len() > 1)
+                {
+                    summary.record_access(func, Access::Any(AddressSpace::Memory), false);
+                    summary.record_access(func, Access::Any(AddressSpace::Memory), true);
                 }
                 continue;
             }
+            let behavior = kind.effects();
+            summary.control.merge(behavior.control);
+            summary.observable |= behavior.observable;
             let effects = aa.instruction_mod_ref(func, inst_id);
-            for space in [
-                AddressSpace::Memory,
-                AddressSpace::Storage,
-                AddressSpace::Transient,
-                AddressSpace::Immutable,
-            ] {
-                summary.reads |= (effects.reads_space(space) as u8) << space_index(space);
-                summary.writes |= (effects.writes_space(space) as u8) << space_index(space);
+            for &access in effects.reads() {
+                summary.record_access(func, access, false);
+            }
+            for &access in effects.writes() {
+                summary.record_access(func, access, true);
             }
             summary.may_reset_fmp |= aa.instruction_may_reset_fmp(func, inst_id);
             summary.may_recycle_fmp |= instruction_may_recycle_fmp(func, inst_id);
@@ -331,6 +616,38 @@ fn local_summary(
                     capture_sources(&mut summary, func, sources, *offset);
                 }
                 _ => {}
+            }
+        }
+
+        if let Some(term) = &block.terminator {
+            // Every CFG cycle contains a non-forward edge. Extra acyclic back edges only
+            // make this termination proof conservative; recursive calls are handled above.
+            term.for_each_successor(|target| summary.control.may_diverge |= target <= block_id);
+            match term {
+                Terminator::Revert { .. } | Terminator::RevertReturndata => {
+                    summary.control.may_revert = true
+                }
+                Terminator::Stop
+                | Terminator::ReturnData { .. }
+                | Terminator::SelfDestruct { .. }
+                | Terminator::Invalid => summary.control.may_terminate = true,
+                Terminator::Jump(_)
+                | Terminator::Branch { .. }
+                | Terminator::Switch { .. }
+                | Terminator::Return { .. }
+                | Terminator::TailCall { .. } => {}
+            }
+        }
+
+        if let Some(term) = &block.terminator
+            && !matches!(term, Terminator::TailCall { .. })
+        {
+            let effects = aa.terminator_mod_ref(func, term);
+            for &access in effects.reads() {
+                summary.record_access(func, access, false);
+            }
+            for &access in effects.writes() {
+                summary.record_access(func, access, true);
             }
         }
 
@@ -407,11 +724,15 @@ fn observe_sources(
 
 /// Returns whether an instruction reads the free-memory pointer or the memory size directly.
 ///
-/// Compiler-owned allocations are still abstract here and cannot relate a pointer argument to
-/// the heap; only source-visible pointer reads and writes can.
+/// Compiler-owned allocations stay abstract. Raw pointer operations and semantic hashes
+/// using transient heap scratch can expose a pointer's position relative to the heap.
 fn instruction_observes_fmp(func: &Function, inst_id: InstId) -> bool {
     match func.inst(inst_id).kind {
-        InstKind::Fmp | InstKind::SetFmp(_) | InstKind::MSize => true,
+        InstKind::Fmp
+        | InstKind::SetFmp(_)
+        | InstKind::MSize
+        | InstKind::MappingSlotMemory(..)
+        | InstKind::MappingSlotCalldata(..) => true,
         InstKind::MLoad(address) | InstKind::MStore(address, _) => {
             func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
         }
@@ -421,7 +742,9 @@ fn instruction_observes_fmp(func: &Function, inst_id: InstId) -> bool {
 
 fn instruction_may_recycle_fmp(func: &Function, inst_id: InstId) -> bool {
     match func.inst(inst_id).kind {
-        InstKind::SetFmp(_) => true,
+        InstKind::SetFmp(_)
+        | InstKind::MappingSlotMemory(..)
+        | InstKind::MappingSlotCalldata(..) => true,
         InstKind::MStore(address, value) => {
             if func.value_u64(address) != Some(EvmMemoryLayout::FMP_SLOT) {
                 return false;
@@ -629,6 +952,83 @@ mod tests {
     use super::*;
     use crate::mir::{FunctionBuilder, MirType};
     use solar_interface::{Ident, sym};
+    use std::sync::Arc;
+
+    #[test]
+    fn propagates_terminator_memory_reads() {
+        for revert in [false, true] {
+            for tail in [false, true] {
+                let mut module = Module::new(Ident::DUMMY);
+                let mut leaf = Function::new(Ident::with_dummy_span(sym::memory_read));
+                {
+                    let mut builder = FunctionBuilder::new(&mut leaf);
+                    // return/revert memory[offset..offset + size]
+                    let pointer = builder.add_param(MirType::MemPtr);
+                    let offset = builder.add_u64_offset(pointer, 32);
+                    let size = builder.imm(32);
+                    let term = if revert {
+                        Terminator::Revert { offset, size }
+                    } else {
+                        Terminator::ReturnData { offset, size }
+                    };
+                    builder.set_terminator(term);
+                }
+                let leaf = module.add_function(leaf);
+                let mut caller = Function::new(Ident::with_dummy_span(sym::icall));
+                {
+                    let mut builder = FunctionBuilder::new(&mut caller);
+                    let pointer = builder.imm(128);
+                    if tail {
+                        // tail_call leaf(128)
+                        builder.set_terminator(Terminator::TailCall {
+                            function: leaf,
+                            args: vec![pointer].into(),
+                        });
+                    } else {
+                        // icall leaf(128)
+                        // ret
+                        builder.icall_void(leaf, vec![pointer]);
+                        builder.ret([]);
+                    }
+                }
+                let caller = module.add_function(caller);
+                let mut entry = Function::new(Ident::DUMMY);
+                // tail_call caller()
+                FunctionBuilder::new(&mut entry).set_terminator(Terminator::TailCall {
+                    function: caller,
+                    args: Default::default(),
+                });
+                let entry = module.add_function(entry);
+                let summaries = MemoryCallSummaries::new(&module);
+                assert!(summaries.get(entry).is_none());
+                for function in [leaf, caller] {
+                    let summary = summaries.get(function).unwrap();
+                    assert!(summary.reads(AddressSpace::Memory), "revert={revert}, tail={tail}");
+                    assert!(!summary.writes(AddressSpace::Memory));
+                }
+                let func = module.function(caller);
+                let aa = AliasAnalysis::with_call_summaries(func, Arc::new(summaries));
+                let effects = if tail {
+                    aa.terminator_mod_ref(
+                        func,
+                        func.blocks[crate::mir::BlockId::ENTRY].terminator.as_ref().unwrap(),
+                    )
+                } else {
+                    aa.instruction_mod_ref(func, func.instructions().next().unwrap())
+                };
+                let mut address = MemoryAddress::absolute(160);
+                address.region = MemoryRegion::Unknown;
+                assert_eq!(
+                    effects.reads(),
+                    &[Access::Location(Location::Memory(MemoryLocation::new(
+                        address,
+                        LocationSize::Const(32)
+                    )))]
+                );
+                assert!(effects.writes().is_empty());
+            }
+        }
+    }
 
     #[test]
     fn propagates_captures_and_fmp_resets() {
@@ -641,7 +1041,7 @@ mod tests {
             let value = builder.mload(ptr);
             builder.ret([value]);
         }
-        reader.returns.push(MirType::uint256());
+        reader.set_return_type(MirType::uint256());
         let reader = module.add_function(reader);
 
         let mut returning = Function::new(Ident::with_dummy_span(sym::ret));
@@ -650,7 +1050,7 @@ mod tests {
             let ptr = builder.add_param(MirType::MemPtr);
             builder.ret([ptr]);
         }
-        returning.returns.push(MirType::MemPtr);
+        returning.set_return_type(MirType::MemPtr);
         let returning = module.add_function(returning);
 
         let mut obfuscated = Function::new(Ident::with_dummy_span(sym::ret));
@@ -661,7 +1061,7 @@ mod tests {
             let value = builder.xor(ptr, zero);
             builder.ret([value]);
         }
-        obfuscated.returns.push(MirType::MemPtr);
+        obfuscated.set_return_type(MirType::MemPtr);
         let obfuscated = module.add_function(obfuscated);
 
         let mut resetter = Function::new(Ident::with_dummy_span(sym::fmp));
@@ -677,7 +1077,7 @@ mod tests {
         {
             let mut builder = FunctionBuilder::new(&mut reader_caller);
             let ptr = builder.add_param(MirType::MemPtr);
-            builder.icall_void(reader, vec![ptr], 1);
+            builder.icall_void(reader, vec![ptr]);
             builder.ret([]);
         }
         let reader_caller = module.add_function(reader_caller);
@@ -686,12 +1086,25 @@ mod tests {
         {
             let mut builder = FunctionBuilder::new(&mut returning_caller);
             let ptr = builder.add_param(MirType::MemPtr);
-            builder.icall_void(returning, vec![ptr], 1);
+            builder.icall_void(returning, vec![ptr]);
             builder.ret([]);
         }
         let returning_caller = module.add_function(returning_caller);
 
+        let mut entry = Function::new(Ident::DUMMY);
+        {
+            let mut builder = FunctionBuilder::new(&mut entry);
+            let pointer = builder.imm(128);
+            // icall each target(pointer)
+            // ret
+            for function in [reader_caller, returning_caller, obfuscated, resetter] {
+                builder.icall_void(function, vec![pointer]);
+            }
+            builder.ret([]);
+        }
+        let entry = module.add_function(entry);
         let summaries = MemoryCallSummaries::new(&module);
+        assert!(summaries.get(entry).is_none());
         assert!(!summaries.get(reader_caller).unwrap().captures_param(ArgIdx::new(0)));
         assert!(summaries.get(returning_caller).unwrap().captures_param(ArgIdx::new(0)));
         assert!(summaries.get(obfuscated).unwrap().captures_param(ArgIdx::new(0)));

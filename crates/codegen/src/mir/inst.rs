@@ -2,10 +2,11 @@
 
 use super::{
     AbiLayoutRef, AbiParamLayoutRef, BlockId, DataRef, FrameMode, FrameSlotKind, Function,
-    FunctionId, ImmutableId, MemoryObjectKind, MemoryObjectLayout, MirType, SliceLocation,
-    StorageLayoutRef, Value, ValueId,
+    ImmutableId, MemoryObjectKind, MemoryObjectLayout, MirType, SliceLocation, StorageLayoutRef,
+    StructId, Value, ValueId,
 };
-use alloy_primitives::U256;
+use crate::mir::{Builtin, Callee};
+use alloy_primitives::{Bytes, U256};
 use smallvec::{Array, SmallVec};
 use solar_interface::Span;
 use solar_sema::hir;
@@ -223,24 +224,13 @@ impl InstructionMetadata {
         self.flags.clear_deferred_alloc();
     }
 
-    /// Returns whether this instruction must survive optimization until ABI lowering.
-    #[must_use]
-    pub(crate) fn abi_validation(&self) -> bool {
-        self.flags.abi_validation()
-    }
-
-    /// Marks this instruction as an ABI validation dependency.
-    pub(crate) fn set_abi_validation(&mut self, value: bool) {
-        self.flags.set_abi_validation(value);
-    }
-
-    /// Returns whether removing this allocation's FMP bump would change Solidity-visible state.
+    /// Returns whether this allocation must keep its free-memory-pointer address and bump.
     #[must_use]
     pub(crate) fn preserves_fmp(&self) -> bool {
         self.flags.preserves_fmp()
     }
 
-    /// Marks an allocation whose FMP bump is observable by Solidity source semantics.
+    /// Marks an allocation whose address or bump is already observable before allocation.
     pub(crate) fn set_preserves_fmp(&mut self, value: bool) {
         self.flags.set_preserves_fmp(value);
     }
@@ -256,7 +246,6 @@ impl MetadataFlags {
     const EFFECT_SHIFT: u16 = 3;
     const UNCHECKED: u16 = 0b1000_0000;
     const DEFERRED_ALLOC: u16 = 0b1_0000_0000;
-    const ABI_VALIDATION: u16 = 0b10_0000_0000;
     const PRESERVES_FMP: u16 = 0b100_0000_0000;
     const DISPLAY_SOURCE_SPAN: u16 = 0b1000_0000_0000;
     const DEBUG_INFO_HANDLED: u16 = 0b1_0000_0000_0000;
@@ -307,18 +296,6 @@ impl MetadataFlags {
 
     fn clear_deferred_alloc(&mut self) {
         self.0 &= !Self::DEFERRED_ALLOC;
-    }
-
-    fn abi_validation(self) -> bool {
-        self.0 & Self::ABI_VALIDATION != 0
-    }
-
-    fn set_abi_validation(&mut self, value: bool) {
-        if value {
-            self.0 |= Self::ABI_VALIDATION;
-        } else {
-            self.0 &= !Self::ABI_VALIDATION;
-        }
     }
 
     fn preserves_fmp(self) -> bool {
@@ -496,7 +473,7 @@ impl StorageAlias {
     }
 }
 
-/// A coarse memory region understood by MIR analyses.
+/// A coarse memory layout annotation, not a proof of disjointness.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum MemoryRegion {
     /// Compiler-owned low-memory scratch space.
@@ -702,6 +679,170 @@ pub(crate) struct Instruction {
 }
 
 impl Instruction {
+    /// Returns whether an unused instruction must retain its execution.
+    pub(crate) fn must_execute(&self, observes_msize: bool) -> bool {
+        self.kind.effects().must_execute(observes_msize)
+    }
+
+    /// Returns the semantic operation that still needs representation lowering.
+    pub(crate) fn unlowered_reason(&self) -> Option<&'static str> {
+        match &self.kind {
+            InstKind::InsertValue { .. } | InstKind::ExtractValue { .. } => Some("struct value"),
+            InstKind::MakeSlice { .. } | InstKind::SlicePtr(..) | InstKind::SliceLen(..) => {
+                Some("slice")
+            }
+            InstKind::Fmp | InstKind::SetFmp(..) => Some("abstract allocation"),
+            InstKind::MemoryZero(..) => Some("memory zero"),
+            InstKind::CheckedBinary { .. } => Some("checked arithmetic"),
+            InstKind::ValidateStorageBytes(..)
+            | InstKind::StorageBytesLoad(..)
+            | InstKind::StorageArrayLoad { .. }
+            | InstKind::StorageBytesStore(..)
+            | InstKind::StorageBytesStoreLiteral { .. }
+            | InstKind::StorageClearWords(..)
+            | InstKind::Erc7201(..)
+            | InstKind::CheckedAddMod(..)
+            | InstKind::CheckedMulMod(..)
+            | InstKind::AbiEncodePacked { .. }
+            | InstKind::ICall { function: Callee::Builtin(Builtin::Concat(_)), .. }
+            | InstKind::Sha256(..)
+            | InstKind::Ripemd160(..)
+            | InstKind::EcRecover(..)
+            | InstKind::Send(..)
+            | InstKind::Transfer(..)
+            | InstKind::AddressCall { .. }
+            | InstKind::ReturndataBytes => Some("builtin"),
+            InstKind::ValidateAbi(..) => Some("ABI validation"),
+            InstKind::Check { .. }
+            | InstKind::ICall { function: Callee::Builtin(Builtin::Require(_)), .. } => {
+                Some("conditional check")
+            }
+            InstKind::AbiEncode { .. } => Some("ABI encoding"),
+            InstKind::AbiDecode { .. } => Some("ABI decoding"),
+            InstKind::StorageToMemory { .. }
+            | InstKind::MemoryToStorage { .. }
+            | InstKind::ClearStorage { .. } => Some("aggregate"),
+            InstKind::MappingSlot(..)
+            | InstKind::MappingSlotMemory(..)
+            | InstKind::MappingSlotCalldata(..)
+            | InstKind::StorageArrayDataSlot(..)
+            | InstKind::StorageArrayElementSlot { .. } => Some("storage slot"),
+            InstKind::StoreImmutable(..) => Some("immutable assignment"),
+            InstKind::FrameLoad { .. } | InstKind::FrameStore { .. } => Some("frame slot"),
+            InstKind::MemoryObjectFromPtr { .. }
+            | InstKind::WordCast(..)
+            | InstKind::MemoryObjectLen(..)
+            | InstKind::SetMemoryObjectLen(..)
+            | InstKind::MemoryObjectData(..)
+            | InstKind::MemoryObjectFieldAddr { .. }
+            | InstKind::MemoryObjectElementAddr { .. }
+            | InstKind::MemoryObjectLoadField { .. }
+            | InstKind::MemoryObjectStoreField { .. }
+            | InstKind::MemoryObjectLoadElement { .. }
+            | InstKind::MemoryObjectLoadByte { .. }
+            | InstKind::MemoryObjectStoreElement { .. }
+            | InstKind::MemoryObjectStoreByte { .. }
+            | InstKind::MemoryObjectStoreWord { .. }
+            | InstKind::MemorySliceLoadWord { .. }
+            | InstKind::CalldataSliceLoadWord { .. }
+            | InstKind::MemoryObjectCopyFromSlice { .. }
+            | InstKind::MemoryObjectCopyFromSliceAt { .. }
+            | InstKind::MemoryObjectCopy { .. }
+            | InstKind::Keccak256Bytes(..) => Some("memory-object"),
+            InstKind::Alloc { kind, semantics, .. } => (!self.metadata.deferred_alloc()
+                || !matches!(kind, AllocationKind::Raw)
+                || *semantics != AllocationSemantics::INTERNAL)
+                .then_some("abstract allocation"),
+            InstKind::Add(..)
+            | InstKind::Sub(..)
+            | InstKind::Mul(..)
+            | InstKind::Div(..)
+            | InstKind::SDiv(..)
+            | InstKind::Mod(..)
+            | InstKind::SMod(..)
+            | InstKind::Exp(..)
+            | InstKind::AddMod(..)
+            | InstKind::MulMod(..)
+            | InstKind::And(..)
+            | InstKind::Or(..)
+            | InstKind::Xor(..)
+            | InstKind::Not(..)
+            | InstKind::Clz(..)
+            | InstKind::Shl(..)
+            | InstKind::Shr(..)
+            | InstKind::Sar(..)
+            | InstKind::Byte(..)
+            | InstKind::Lt(..)
+            | InstKind::Gt(..)
+            | InstKind::SLt(..)
+            | InstKind::SGt(..)
+            | InstKind::Eq(..)
+            | InstKind::IsZero(..)
+            | InstKind::MLoad(..)
+            | InstKind::MStore(..)
+            | InstKind::MStore8(..)
+            | InstKind::MSize
+            | InstKind::MCopy(..)
+            | InstKind::SLoad(..)
+            | InstKind::SStore(..)
+            | InstKind::TLoad(..)
+            | InstKind::TStore(..)
+            | InstKind::CalldataLoad(..)
+            | InstKind::CalldataCopy(..)
+            | InstKind::CalldataSize
+            | InstKind::InternalFrameAddr(..)
+            | InstKind::ConstructorArgsBase
+            | InstKind::ConstructorArgsEnd
+            | InstKind::DataCopy(..)
+            | InstKind::CodeSize
+            | InstKind::CodeCopy(..)
+            | InstKind::ExtCodeSize(..)
+            | InstKind::ExtCodeCopy(..)
+            | InstKind::ExtCodeHash(..)
+            | InstKind::LoadImmutable(..)
+            | InstKind::ReturnDataSize
+            | InstKind::ReturnDataCopy(..)
+            | InstKind::Caller
+            | InstKind::CallValue
+            | InstKind::Origin
+            | InstKind::GasPrice
+            | InstKind::BlockHash(..)
+            | InstKind::Coinbase
+            | InstKind::Timestamp
+            | InstKind::BlockNumber
+            | InstKind::PrevRandao
+            | InstKind::GasLimit
+            | InstKind::SlotNum
+            | InstKind::ChainId
+            | InstKind::Address
+            | InstKind::Balance(..)
+            | InstKind::SelfBalance
+            | InstKind::Gas
+            | InstKind::BaseFee
+            | InstKind::BlobBaseFee
+            | InstKind::BlobHash(..)
+            | InstKind::Keccak256(..)
+            | InstKind::Call { .. }
+            | InstKind::CallCode { .. }
+            | InstKind::StaticCall { .. }
+            | InstKind::DelegateCall { .. }
+            | InstKind::ExtCall { .. }
+            | InstKind::ExtDelegateCall { .. }
+            | InstKind::ExtStaticCall { .. }
+            | InstKind::ICall { .. }
+            | InstKind::Create(..)
+            | InstKind::Create2(..)
+            | InstKind::Log0(..)
+            | InstKind::Log1(..)
+            | InstKind::Log2(..)
+            | InstKind::Log3(..)
+            | InstKind::Log4(..)
+            | InstKind::Phi(..)
+            | InstKind::Select(..)
+            | InstKind::SignExtend(..) => None,
+        }
+    }
+
     /// Creates a new instruction.
     #[must_use]
     pub(crate) const fn new(kind: InstKind, result_ty: Option<MirType>) -> Self {
@@ -733,16 +874,41 @@ impl Instruction {
     }
 }
 
+/// Solidity low-level address-call behavior.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(crate) enum AddressCallKind {
+    Call,
+    Static,
+    Delegate,
+}
+
 /// The kind of an instruction.
 ///
 /// TODO(codegen): Consider separating opcode and operands once the MIR shape stabilizes, e.g.
 /// `Instruction { opcode: Opcode, operands: SmallVec<[ValueId; 4]>, ... }`. That would make generic
 /// operand visitors and rewrites less variant-heavy.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum InstKind {
+    /// Replaces one field of an SSA struct, leaving the other fields unchanged.
+    InsertValue { ty: StructId, aggregate: ValueId, index: u32, value: ValueId },
+    /// Reads one field of an SSA struct without accessing memory.
+    ExtractValue { ty: StructId, aggregate: ValueId, index: u32 },
+
+    /// Treats unchanged word bits as an object pointer without asserting validity or ownership.
+    MemoryObjectFromPtr { ptr: ValueId, kind: MemoryObjectKind },
+    /// Forgets a one-word value's nominal type while preserving all 256 bits.
+    WordCast(ValueId),
+
     // Arithmetic operations
     /// Addition: `a + b`
     Add(ValueId, ValueId),
+    /// Solidity arithmetic with explicit width, signedness, and failure semantics.
+    CheckedBinary {
+        op: super::CheckedOp,
+        arithmetic: super::ArithmeticKind,
+        lhs: ValueId,
+        rhs: ValueId,
+    },
     /// Subtraction: `a - b`
     Sub(ValueId, ValueId),
     /// Multiplication: `a * b`
@@ -972,8 +1138,8 @@ pub(crate) enum InstKind {
     },
     /// Decode a memory-backed ABI tuple into semantic MIR values.
     ///
-    /// The instruction result is the first tuple value. Additional values are
-    /// published through the multi-return buffer, matching ordinary MIR calls.
+    /// A single decoded value is the result directly. Multiple decoded values form one SSA
+    /// struct; aggregate lowering later selects their backend calling convention.
     AbiDecode {
         /// ABI-encoded bytes object.
         data: ValueId,
@@ -1009,6 +1175,18 @@ pub(crate) enum InstKind {
     MCopy(ValueId, ValueId, ValueId),
 
     // Storage operations
+    /// Validate the short/long encoding of a loaded Solidity storage bytes header.
+    ValidateStorageBytes(ValueId),
+    /// Materialize a Solidity storage bytes value as a fresh memory bytes object.
+    StorageBytesLoad(ValueId),
+    /// Materialize a dynamic storage array of scalar words or bytes objects.
+    StorageArrayLoad { slot: ValueId, element: MirType, enum_variants: Option<u64> },
+    /// Store a memory bytes object in Solidity storage, clearing unused old data words.
+    StorageBytesStore(ValueId, ValueId),
+    /// Store literal bytes in Solidity storage, clearing unused old data words.
+    StorageBytesStoreLiteral { slot: ValueId, bytes: Bytes },
+    /// Clears hashed storage data words in the half-open range `first..end`.
+    StorageClearWords(ValueId, ValueId, ValueId),
     /// Load from storage: `sload(slot)`
     SLoad(ValueId),
     /// Store to storage: `sstore(slot, value)`
@@ -1151,22 +1329,55 @@ pub(crate) enum InstKind {
     /// projections. `lower-memory-objects` expands it into those projections
     /// and a physical `keccak256`.
     Keccak256Bytes(ValueId),
+    /// Require materialization and ABI validation of this source value even when unused.
+    /// Entry decoding or an internal typed-body boundary discharges this obligation.
+    ValidateAbi(ValueId),
+    /// Revert with a typed failure if the condition has the selected truth value.
+    Check { condition: ValueId, is_zero: bool, failure: super::RevertKind },
+    /// SHA-256 of a bytes object, including precompile output allocation and returndata effects.
+    Sha256(ValueId),
+    /// ERC-7201 namespace slot derived from a bytes object.
+    Erc7201(ValueId),
+    /// Solidity modular addition, which panics for a zero modulus.
+    CheckedAddMod(ValueId, ValueId, ValueId),
+    /// Solidity modular multiplication, which panics for a zero modulus.
+    CheckedMulMod(ValueId, ValueId, ValueId),
+    /// Encode packed arguments, optionally hashing the temporary result.
+    AbiEncodePacked { parts: Box<[super::PackedPart]>, hash: bool },
+    /// Left-aligned RIPEMD-160 of a bytes object, with the same effects as `sha256`.
+    Ripemd160(ValueId),
+    /// Low-level address call over a bytes object, returning success.
+    ///
+    /// A missing gas operand computes the target's default gas at conversion. A present value
+    /// option, including zero, retains the pre-EIP-150 value-transfer reserve.
+    AddressCall {
+        kind: AddressCallKind,
+        address: ValueId,
+        input: ValueId,
+        gas: Option<ValueId>,
+        value: Option<ValueId>,
+    },
+    /// Copy the current returndata into a fresh bytes object (empty before Byzantium).
+    ReturndataBytes,
+    /// Send value to an address with a 2300 gas stipend, returning success.
+    Send(ValueId, ValueId),
+    /// Transfer value with a 2300 gas stipend, reverting with returndata on failure.
+    Transfer(ValueId, ValueId),
+    /// Recover an address from hash, recovery ID, and signature words.
+    EcRecover(ValueId, ValueId, ValueId, ValueId),
     /// Hash a fixed-width mapping key and its parent slot.
     ///
-    /// The temporary scratch memory used by its late lowering is not an
-    /// observable part of this instruction's MIR semantics.
+    /// Its lowering writes both words of reserved scratch memory.
     MappingSlot(ValueId, ValueId),
     /// Hash a `[length][data...]` memory value and its parent mapping slot.
     MappingSlotMemory(ValueId, ValueId),
     /// Hash a dynamically-sized calldata value and its parent mapping slot.
     ///
-    /// The temporary scratch memory used by its late lowering is not an
-    /// observable part of this instruction's MIR semantics.
+    /// Its lowering writes transient scratch at the free-memory pointer.
     MappingSlotCalldata(ValueId, ValueId),
     /// Hash the slot of a dynamically-sized storage array to find its data.
     ///
-    /// The temporary scratch memory used by its late lowering is not an
-    /// observable part of this instruction's MIR semantics.
+    /// Its lowering writes the first word of reserved scratch memory.
     StorageArrayDataSlot(ValueId),
     /// Resolve one element slot in a dynamic storage array.
     ///
@@ -1223,7 +1434,7 @@ pub(crate) enum InstKind {
     /// EOF external static call: `extstaticcall(addr, argsOffset, argsSize)`.
     ExtStaticCall { addr: ValueId, args_offset: ValueId, args_size: ValueId },
     /// Internal function call lowered to a direct jump.
-    ICall { function: FunctionId, args: Box<[ValueId]>, returns: u32 },
+    ICall { function: super::Callee, args: Box<[ValueId]> },
 
     // Contract creation
     /// Create contract: `create(value, offset, size)`
@@ -1256,13 +1467,21 @@ pub(crate) enum InstKind {
 }
 
 impl InstKind {
+    /// Clones the instruction with zeroed value operands to compare its remaining fields.
+    pub(crate) fn clone_without_operands(&self) -> Self {
+        let mut kind = self.clone();
+        kind.visit_operands_mut(|value| *value = ValueId::from_usize(0));
+        kind
+    }
+
     /// Returns binary operands whose evaluation order may be exchanged during EVM lowering.
     ///
     /// This includes commutative instructions and comparisons whose opcode can be reversed with
     /// their operands.
     pub(crate) const fn reorderable_binary_operands(&self) -> Option<(ValueId, ValueId)> {
         match self {
-            Self::DataCopy(_, a, b)
+            Self::InsertValue { aggregate: a, value: b, .. }
+            | Self::DataCopy(_, a, b)
             | Self::Add(a, b)
             | Self::Mul(a, b)
             | Self::And(a, b)
@@ -1282,7 +1501,9 @@ impl InstKind {
     pub(crate) fn collect_operands<A: Array<Item = ValueId>>(&self, out: &mut SmallVec<A>) {
         match self {
             // Binary operations
-            Self::DataCopy(_, a, b)
+            Self::CheckedBinary { lhs: a, rhs: b, .. }
+            | Self::InsertValue { aggregate: a, value: b, .. }
+            | Self::DataCopy(_, a, b)
             | Self::Add(a, b)
             | Self::Sub(a, b)
             | Self::Mul(a, b)
@@ -1307,6 +1528,9 @@ impl InstKind {
             | Self::MStore8(a, b)
             | Self::MemoryZero(a, b)
             | Self::SStore(a, b)
+            | Self::StorageBytesStore(a, b)
+            | Self::Send(a, b)
+            | Self::Transfer(a, b)
             | Self::TStore(a, b)
             | Self::Keccak256(a, b)
             | Self::MappingSlot(a, b)
@@ -1315,13 +1539,11 @@ impl InstKind {
             | Self::StorageArrayElementSlot { slot: a, index: b, .. }
             | Self::Log0(a, b)
             | Self::SignExtend(a, b) => {
-                out.push(*a);
-                out.push(*b);
+                out.extend_from_slice(&[*a, *b]);
             }
 
             Self::MakeSlice { ptr, len, .. } => {
-                out.push(*ptr);
-                out.push(*len);
+                out.extend_from_slice(&[*ptr, *len]);
             }
 
             Self::FrameStore { value, .. } => out.push(*value),
@@ -1330,64 +1552,52 @@ impl InstKind {
             | Self::MemoryObjectElementAddr { object, index: len, .. }
             | Self::MemoryObjectLoadElement { object, index: len, .. }
             | Self::MemoryObjectLoadByte { object, index: len } => {
-                out.push(*object);
-                out.push(*len);
+                out.extend_from_slice(&[*object, *len]);
             }
 
             Self::MemoryObjectStoreField { object, value, .. } => {
-                out.push(*object);
-                out.push(*value);
+                out.extend_from_slice(&[*object, *value]);
             }
 
             Self::MemoryObjectStoreElement { object, index, value, .. } => {
-                out.push(*object);
-                out.push(*index);
-                out.push(*value);
+                out.extend_from_slice(&[*object, *index, *value]);
             }
 
             Self::MemoryObjectStoreByte { object, index, value } => {
-                out.push(*object);
-                out.push(*index);
-                out.push(*value);
+                out.extend_from_slice(&[*object, *index, *value]);
             }
 
             Self::MemoryObjectStoreWord { object, offset, value } => {
-                out.push(*object);
-                out.push(*offset);
-                out.push(*value);
+                out.extend_from_slice(&[*object, *offset, *value]);
             }
 
             Self::MemorySliceLoadWord { slice, offset } => {
-                out.push(*slice);
-                out.push(*offset);
+                out.extend_from_slice(&[*slice, *offset]);
             }
 
             Self::CalldataSliceLoadWord { slice, offset } => {
-                out.push(*slice);
-                out.push(*offset);
+                out.extend_from_slice(&[*slice, *offset]);
             }
 
             Self::MemoryObjectCopyFromSlice { object, source, .. } => {
-                out.push(*object);
-                out.push(*source);
+                out.extend_from_slice(&[*object, *source]);
             }
 
             Self::MemoryObjectCopyFromSliceAt { object, offset, source, .. } => {
-                out.push(*object);
-                out.push(*offset);
-                out.push(*source);
+                out.extend_from_slice(&[*object, *offset, *source]);
             }
 
             Self::MemoryObjectCopy { destination, source, length, .. } => {
-                out.push(*destination);
-                out.push(*source);
-                out.push(*length);
+                out.extend_from_slice(&[*destination, *source, *length]);
             }
 
             Self::StorageToMemory { storage, memory, .. }
             | Self::MemoryToStorage { memory, storage, .. } => {
-                out.push(*storage);
-                out.push(*memory);
+                out.extend_from_slice(&[*storage, *memory]);
+            }
+
+            Self::AbiEncodePacked { parts, .. } => {
+                out.extend(parts.iter().filter_map(super::PackedPart::value))
             }
 
             Self::AbiEncode { selector, args, .. } => {
@@ -1397,11 +1607,20 @@ impl InstKind {
             Self::AbiDecode { data, .. } => out.push(*data),
 
             // Unary operations
-            Self::Not(a)
+            Self::ExtractValue { aggregate: a, .. }
+            | Self::MemoryObjectFromPtr { ptr: a, .. }
+            | Self::WordCast(a)
+            | Self::ValidateAbi(a)
+            | Self::Check { condition: a, .. }
+            | Self::Not(a)
             | Self::Clz(a)
             | Self::IsZero(a)
             | Self::MLoad(a)
             | Self::SetFmp(a)
+            | Self::ValidateStorageBytes(a)
+            | Self::StorageBytesLoad(a)
+            | Self::StorageArrayLoad { slot: a, .. }
+            | Self::StorageBytesStoreLiteral { slot: a, .. }
             | Self::SLoad(a)
             | Self::TLoad(a)
             | Self::CalldataLoad(a)
@@ -1412,6 +1631,9 @@ impl InstKind {
             | Self::BlobHash(a)
             | Self::StoreImmutable(_, a)
             | Self::Keccak256Bytes(a)
+            | Self::Erc7201(a)
+            | Self::Sha256(a)
+            | Self::Ripemd160(a)
             | Self::StorageArrayDataSlot(a)
             | Self::MemoryObjectLen(a, _)
             | Self::MemoryObjectData(a, _)
@@ -1431,81 +1653,78 @@ impl InstKind {
             | Self::CalldataCopy(a, b, c)
             | Self::CodeCopy(a, b, c)
             | Self::ReturnDataCopy(a, b, c)
+            | Self::CheckedAddMod(a, b, c)
+            | Self::CheckedMulMod(a, b, c)
             | Self::AddMod(a, b, c)
             | Self::MulMod(a, b, c)
+            | Self::StorageClearWords(a, b, c)
             | Self::Create(a, b, c)
             | Self::Log1(a, b, c)
             | Self::Select(a, b, c) => {
-                out.push(*a);
-                out.push(*b);
-                out.push(*c);
+                out.extend_from_slice(&[*a, *b, *c]);
             }
 
             // 4-operand operations
-            Self::ExtCodeCopy(a, b, c, d) | Self::Create2(a, b, c, d) | Self::Log2(a, b, c, d) => {
-                out.push(*a);
-                out.push(*b);
-                out.push(*c);
-                out.push(*d);
+            Self::EcRecover(a, b, c, d)
+            | Self::ExtCodeCopy(a, b, c, d)
+            | Self::Create2(a, b, c, d)
+            | Self::Log2(a, b, c, d) => {
+                out.extend_from_slice(&[*a, *b, *c, *d]);
             }
 
             // 5-operand operations
             Self::Log3(a, b, c, d, e) => {
-                out.push(*a);
-                out.push(*b);
-                out.push(*c);
-                out.push(*d);
-                out.push(*e);
+                out.extend_from_slice(&[*a, *b, *c, *d, *e]);
             }
 
             // 6-operand operations
             Self::Log4(a, b, c, d, e, f) => {
-                out.push(*a);
-                out.push(*b);
-                out.push(*c);
-                out.push(*d);
-                out.push(*e);
-                out.push(*f);
+                out.extend_from_slice(&[*a, *b, *c, *d, *e, *f]);
             }
 
             // Call operations
+            Self::AddressCall { address, input, gas, value, .. } => {
+                out.extend_from_slice(&[*address, *input]);
+                out.extend(gas.iter().chain(value).copied());
+            }
             Self::Call { gas, addr, value, args_offset, args_size, ret_offset, ret_size }
             | Self::CallCode { gas, addr, value, args_offset, args_size, ret_offset, ret_size } => {
-                out.push(*gas);
-                out.push(*addr);
-                out.push(*value);
-                out.push(*args_offset);
-                out.push(*args_size);
-                out.push(*ret_offset);
-                out.push(*ret_size);
+                out.extend_from_slice(&[
+                    *gas,
+                    *addr,
+                    *value,
+                    *args_offset,
+                    *args_size,
+                    *ret_offset,
+                    *ret_size,
+                ]);
             }
             Self::StaticCall { gas, addr, args_offset, args_size, ret_offset, ret_size } => {
-                out.push(*gas);
-                out.push(*addr);
-                out.push(*args_offset);
-                out.push(*args_size);
-                out.push(*ret_offset);
-                out.push(*ret_size);
+                out.extend_from_slice(&[
+                    *gas,
+                    *addr,
+                    *args_offset,
+                    *args_size,
+                    *ret_offset,
+                    *ret_size,
+                ]);
             }
             Self::DelegateCall { gas, addr, args_offset, args_size, ret_offset, ret_size } => {
-                out.push(*gas);
-                out.push(*addr);
-                out.push(*args_offset);
-                out.push(*args_size);
-                out.push(*ret_offset);
-                out.push(*ret_size);
+                out.extend_from_slice(&[
+                    *gas,
+                    *addr,
+                    *args_offset,
+                    *args_size,
+                    *ret_offset,
+                    *ret_size,
+                ]);
             }
             Self::ExtCall { addr, args_offset, args_size, value } => {
-                out.push(*addr);
-                out.push(*args_offset);
-                out.push(*args_size);
-                out.push(*value);
+                out.extend_from_slice(&[*addr, *args_offset, *args_size, *value]);
             }
             Self::ExtDelegateCall { addr, args_offset, args_size }
             | Self::ExtStaticCall { addr, args_offset, args_size } => {
-                out.push(*addr);
-                out.push(*args_offset);
-                out.push(*args_size);
+                out.extend_from_slice(&[*addr, *args_offset, *args_size]);
             }
             Self::ICall { args, .. } => {
                 out.extend(args.iter().copied());
@@ -1529,6 +1748,7 @@ impl InstKind {
             | Self::CodeSize
             | Self::LoadImmutable(_)
             | Self::ReturnDataSize
+            | Self::ReturndataBytes
             | Self::Caller
             | Self::CallValue
             | Self::Origin
@@ -1559,7 +1779,9 @@ impl InstKind {
     /// Visits every operand mutably.
     pub(crate) fn visit_operands_mut(&mut self, mut f: impl FnMut(&mut ValueId)) {
         match self {
-            Self::DataCopy(_, a, b)
+            Self::CheckedBinary { lhs: a, rhs: b, .. }
+            | Self::InsertValue { aggregate: a, value: b, .. }
+            | Self::DataCopy(_, a, b)
             | Self::Add(a, b)
             | Self::Sub(a, b)
             | Self::Mul(a, b)
@@ -1584,6 +1806,9 @@ impl InstKind {
             | Self::MStore8(a, b)
             | Self::MemoryZero(a, b)
             | Self::SStore(a, b)
+            | Self::StorageBytesStore(a, b)
+            | Self::Send(a, b)
+            | Self::Transfer(a, b)
             | Self::TStore(a, b)
             | Self::Keccak256(a, b)
             | Self::MappingSlot(a, b)
@@ -1667,6 +1892,12 @@ impl InstKind {
                 f(memory);
             }
 
+            Self::AbiEncodePacked { parts, .. } => {
+                for value in parts.iter_mut().filter_map(super::PackedPart::value_mut) {
+                    f(value);
+                }
+            }
+
             Self::AbiEncode { selector, args, .. } => {
                 if let Some(selector) = selector {
                     f(selector);
@@ -1678,11 +1909,20 @@ impl InstKind {
 
             Self::AbiDecode { data, .. } => f(data),
 
-            Self::Not(a)
+            Self::ExtractValue { aggregate: a, .. }
+            | Self::MemoryObjectFromPtr { ptr: a, .. }
+            | Self::WordCast(a)
+            | Self::ValidateAbi(a)
+            | Self::Check { condition: a, .. }
+            | Self::Not(a)
             | Self::Clz(a)
             | Self::IsZero(a)
             | Self::MLoad(a)
             | Self::SetFmp(a)
+            | Self::ValidateStorageBytes(a)
+            | Self::StorageBytesLoad(a)
+            | Self::StorageArrayLoad { slot: a, .. }
+            | Self::StorageBytesStoreLiteral { slot: a, .. }
             | Self::SLoad(a)
             | Self::TLoad(a)
             | Self::CalldataLoad(a)
@@ -1694,6 +1934,9 @@ impl InstKind {
             | Self::StoreImmutable(_, a)
             | Self::SlicePtr(a)
             | Self::Keccak256Bytes(a)
+            | Self::Erc7201(a)
+            | Self::Sha256(a)
+            | Self::Ripemd160(a)
             | Self::StorageArrayDataSlot(a)
             | Self::SliceLen(a)
             | Self::MemoryObjectLen(a, _)
@@ -1709,8 +1952,11 @@ impl InstKind {
             | Self::CalldataCopy(a, b, c)
             | Self::CodeCopy(a, b, c)
             | Self::ReturnDataCopy(a, b, c)
+            | Self::CheckedAddMod(a, b, c)
+            | Self::CheckedMulMod(a, b, c)
             | Self::AddMod(a, b, c)
             | Self::MulMod(a, b, c)
+            | Self::StorageClearWords(a, b, c)
             | Self::Create(a, b, c)
             | Self::Log1(a, b, c)
             | Self::Select(a, b, c) => {
@@ -1719,7 +1965,10 @@ impl InstKind {
                 f(c);
             }
 
-            Self::ExtCodeCopy(a, b, c, d) | Self::Create2(a, b, c, d) | Self::Log2(a, b, c, d) => {
+            Self::EcRecover(a, b, c, d)
+            | Self::ExtCodeCopy(a, b, c, d)
+            | Self::Create2(a, b, c, d)
+            | Self::Log2(a, b, c, d) => {
                 f(a);
                 f(b);
                 f(c);
@@ -1743,6 +1992,13 @@ impl InstKind {
                 f(g);
             }
 
+            Self::AddressCall { address, input, gas, value, .. } => {
+                f(address);
+                f(input);
+                for operand in gas.iter_mut().chain(value) {
+                    f(operand);
+                }
+            }
             Self::Call { gas, addr, value, args_offset, args_size, ret_offset, ret_size }
             | Self::CallCode { gas, addr, value, args_offset, args_size, ret_offset, ret_size } => {
                 f(gas);
@@ -1796,6 +2052,7 @@ impl InstKind {
             | Self::CodeSize
             | Self::LoadImmutable(_)
             | Self::ReturnDataSize
+            | Self::ReturndataBytes
             | Self::Caller
             | Self::CallValue
             | Self::Origin
@@ -1819,6 +2076,10 @@ impl InstKind {
     #[must_use]
     pub(crate) const fn mnemonic(&self) -> &'static str {
         match self {
+            Self::InsertValue { .. } => "insert_value",
+            Self::ExtractValue { .. } => "extract_value",
+            Self::MemoryObjectFromPtr { .. } => "memory_object_from_ptr",
+            Self::WordCast(_) => "word_cast",
             Self::Add(_, _) => "add",
             Self::Sub(_, _) => "sub",
             Self::Mul(_, _) => "mul",
@@ -1827,6 +2088,9 @@ impl InstKind {
             Self::Mod(_, _) => "mod",
             Self::SMod(_, _) => "smod",
             Self::Exp(_, _) => "exp",
+            Self::Erc7201(_) => "erc7201",
+            Self::CheckedAddMod(..) => "checked_addmod",
+            Self::CheckedMulMod(..) => "checked_mulmod",
             Self::AddMod(_, _, _) => "addmod",
             Self::MulMod(_, _, _) => "mulmod",
             Self::And(_, _) => "and",
@@ -1875,6 +2139,12 @@ impl InstKind {
             Self::MemoryToStorage { .. } => "memory_to_storage",
             Self::ClearStorage { .. } => "clear_storage",
             Self::MCopy(_, _, _) => "mcopy",
+            Self::ValidateStorageBytes(_) => "validate_storage_bytes",
+            Self::StorageBytesLoad(_) => "load_storage_bytes",
+            Self::StorageArrayLoad { .. } => "load_storage_array",
+            Self::StorageBytesStore(..) => "store_storage_bytes",
+            Self::StorageBytesStoreLiteral { .. } => "store_storage_bytes_literal",
+            Self::StorageClearWords(..) => "clear_storage_words",
             Self::SLoad(_) => "sload",
             Self::SStore(_, _) => "sstore",
             Self::TLoad(_) => "tload",
@@ -1923,6 +2193,30 @@ impl InstKind {
             Self::BlobHash(_) => "blobhash",
             Self::Keccak256(_, _) => "keccak256",
             Self::Keccak256Bytes(_) => "keccak256_bytes",
+            Self::CheckedBinary { op, .. } => op.name(),
+            Self::ValidateAbi(_) => "validate_abi",
+            Self::Check { is_zero, failure, .. } => match (failure, is_zero) {
+                (super::RevertKind::Panic(_), false) => "panic_if",
+                (super::RevertKind::Panic(_), true) => "panic_if_zero",
+                (super::RevertKind::Reason(_), false) => "revert_if",
+                (super::RevertKind::Reason(_), true) => "revert_if_zero",
+            },
+            Self::AbiEncodePacked { hash, .. } => {
+                if *hash {
+                    "keccak256_packed"
+                } else {
+                    "abi_encode_packed"
+                }
+            }
+            Self::Sha256(_) => "sha256",
+            Self::Ripemd160(_) => "ripemd160",
+            Self::EcRecover(..) => "ecrecover",
+            Self::AddressCall { kind: AddressCallKind::Call, .. } => "address_call",
+            Self::AddressCall { kind: AddressCallKind::Static, .. } => "address_staticcall",
+            Self::AddressCall { kind: AddressCallKind::Delegate, .. } => "address_delegatecall",
+            Self::ReturndataBytes => "returndata_bytes",
+            Self::Send(..) => "send",
+            Self::Transfer(..) => "transfer",
             Self::MappingSlot(_, _) => "mapping_slot",
             Self::MappingSlotMemory(_, _) => "mapping_slot_memory",
             Self::MappingSlotCalldata(_, _) => "mapping_slot_calldata",
@@ -1949,63 +2243,10 @@ impl InstKind {
         }
     }
 
-    /// Returns true if this instruction has side effects.
-    /// Side-effect instructions must not be eliminated by DCE.
+    /// Returns whether the instruction has required effects, including control effects.
     #[must_use]
     pub(crate) const fn has_side_effects(&self) -> bool {
-        matches!(
-            self,
-            // Storage writes
-            Self::SStore(_, _)
-            | Self::MemoryToStorage { .. }
-            | Self::ClearStorage { .. }
-            | Self::TStore(_, _)
-            // Memory writes (may affect external calls)
-            | Self::MStore(_, _)
-            | Self::MStore8(_, _)
-            | Self::MemoryZero(_, _)
-            | Self::SetFmp(_)
-            | Self::Alloc { .. }
-            | Self::SetMemoryObjectLen(_, _, _)
-            | Self::FrameStore { .. }
-            | Self::MemoryObjectStoreField { .. }
-            | Self::MemoryObjectStoreElement { .. }
-            | Self::MemoryObjectStoreByte { .. }
-            | Self::MemoryObjectStoreWord { .. }
-            | Self::MemoryObjectCopyFromSlice { .. }
-            | Self::MemoryObjectCopyFromSliceAt { .. }
-            | Self::MemoryObjectCopy { .. }
-            | Self::AbiEncode { .. }
-            | Self::AbiDecode { .. }
-            | Self::StorageToMemory { .. }
-            | Self::MCopy(_, _, _)
-            // External calls
-            | Self::Call { .. }
-            | Self::CallCode { .. }
-            | Self::StaticCall { .. }
-            | Self::DelegateCall { .. }
-            | Self::ExtCall { .. }
-            | Self::ExtDelegateCall { .. }
-            | Self::ExtStaticCall { .. }
-            | Self::ICall { .. }
-            // Contract creation
-            | Self::Create(_, _, _)
-            | Self::Create2(_, _, _, _)
-            // Event emission
-            | Self::Log0(_, _)
-            | Self::Log1(_, _, _)
-            | Self::Log2(_, _, _, _)
-            | Self::Log3(_, _, _, _, _)
-            | Self::Log4(_, _, _, _, _, _)
-            // Data copy operations (write to memory)
-            | Self::CalldataCopy(_, _, _)
-            | Self::DataCopy(_, _, _)
-            | Self::CodeCopy(_, _, _)
-            | Self::ExtCodeCopy(_, _, _, _)
-            | Self::ReturnDataCopy(_, _, _)
-            // Immutable assignment.
-            | Self::StoreImmutable(..)
-        )
+        self.effects().must_execute(false)
     }
 
     /// Returns whether this instruction still carries a semantic memory-object operation.
@@ -2014,6 +2255,8 @@ impl InstKind {
         matches!(
             self,
             Self::Alloc { kind: AllocationKind::Object(_), .. }
+                | Self::MemoryObjectFromPtr { .. }
+                | Self::WordCast(_)
                 | Self::MemoryObjectLen(_, _)
                 | Self::SetMemoryObjectLen(_, _, _)
                 | Self::MemoryObjectData(_, _)
@@ -2039,7 +2282,28 @@ impl InstKind {
     #[must_use]
     pub(crate) const fn effect_kind(&self) -> EffectKind {
         match self {
-            Self::MStore(_, _)
+            Self::ValidateStorageBytes(..)
+            | Self::CheckedAddMod(..)
+            | Self::CheckedMulMod(..)
+            | Self::ValidateAbi(..)
+            | Self::Check { .. }
+            | Self::CheckedBinary { .. }
+            | Self::InsertValue { .. }
+            | Self::ExtractValue { .. }
+            | Self::MemoryObjectFromPtr { .. }
+            | Self::WordCast(_) => EffectKind::Pure,
+            Self::StorageBytesLoad(..)
+            | Self::StorageArrayLoad { .. }
+            | Self::Erc7201(..)
+            | Self::MappingSlot(..)
+            | Self::MappingSlotMemory(..)
+            | Self::MappingSlotCalldata(..)
+            | Self::StorageArrayDataSlot(..)
+            | Self::StorageArrayElementSlot { .. }
+            | Self::AbiEncodePacked { .. }
+            | Self::ICall { function: Callee::Builtin(Builtin::Concat(_)), .. }
+            | Self::ReturndataBytes
+            | Self::MStore(_, _)
             | Self::MStore8(_, _)
             | Self::MemoryZero(_, _)
             | Self::SetFmp(_)
@@ -2063,7 +2327,8 @@ impl InstKind {
             | Self::ExtCodeCopy(_, _, _, _)
             | Self::ReturnDataCopy(_, _, _) => EffectKind::MemoryWrite,
             Self::StoreImmutable(..) => EffectKind::ImmutableWrite,
-            Self::MLoad(_)
+            Self::ICall { function: Callee::Builtin(Builtin::Require(_)), .. }
+            | Self::MLoad(_)
             | Self::MemorySliceLoadWord { .. }
             | Self::FrameLoad { .. }
             | Self::MemoryObjectLen(_, _)
@@ -2073,16 +2338,23 @@ impl InstKind {
             | Self::Fmp
             | Self::MSize
             | Self::Keccak256(_, _)
-            | Self::Keccak256Bytes(_)
-            | Self::MappingSlot(_, _)
-            | Self::MappingSlotMemory(_, _) => EffectKind::MemoryRead,
+            | Self::Keccak256Bytes(_) => EffectKind::MemoryRead,
             Self::SLoad(_) => EffectKind::StorageRead,
-            Self::SStore(_, _) | Self::MemoryToStorage { .. } | Self::ClearStorage { .. } => {
-                EffectKind::StorageWrite
-            }
+            Self::SStore(_, _)
+            | Self::MemoryToStorage { .. }
+            | Self::ClearStorage { .. }
+            | Self::StorageClearWords(..)
+            | Self::StorageBytesStore(..)
+            | Self::StorageBytesStoreLiteral { .. } => EffectKind::StorageWrite,
             Self::TLoad(_) => EffectKind::TransientRead,
             Self::TStore(_, _) => EffectKind::TransientWrite,
-            Self::Call { .. }
+            Self::Sha256(..)
+            | Self::Ripemd160(..)
+            | Self::EcRecover(..)
+            | Self::AddressCall { .. }
+            | Self::Send(..)
+            | Self::Transfer(..)
+            | Self::Call { .. }
             | Self::CallCode { .. }
             | Self::StaticCall { .. }
             | Self::DelegateCall { .. }
@@ -2098,7 +2370,6 @@ impl InstKind {
             | Self::Log4(_, _, _, _, _, _) => EffectKind::Log,
             Self::CalldataLoad(_)
             | Self::CalldataSliceLoadWord { .. }
-            | Self::MappingSlotCalldata(_, _)
             | Self::CalldataSize
             | Self::ConstructorArgsBase
             | Self::ConstructorArgsEnd
@@ -2127,8 +2398,6 @@ impl InstKind {
             | Self::BlobHash(_) => EffectKind::EnvironmentRead,
             Self::LoadImmutable(_) => EffectKind::ImmutableRead,
             Self::Add(_, _)
-            | Self::StorageArrayDataSlot(_)
-            | Self::StorageArrayElementSlot { .. }
             | Self::Sub(_, _)
             | Self::Mul(_, _)
             | Self::Div(_, _)
@@ -2211,6 +2480,21 @@ mod tests {
 
         assert_size::<InstKind>(str!["40"]);
         assert_size::<InstructionMetadata>(str!["40"]);
-        assert_size::<Instruction>(str!["88"]);
+        assert_size::<Instruction>(str!["96"]);
+    }
+}
+
+/// One ordered input to byte concatenation, without allocating buffers for fixed literals.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub(crate) enum ConcatPart {
+    Bytes(ValueId),
+    Fixed { value: ValueId, size: super::TypeSize },
+}
+
+impl ConcatPart {
+    pub(crate) fn value(&self) -> ValueId {
+        match *self {
+            Self::Bytes(value) | Self::Fixed { value, .. } => value,
+        }
     }
 }

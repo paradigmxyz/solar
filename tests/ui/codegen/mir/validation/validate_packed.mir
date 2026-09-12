@@ -1,0 +1,23 @@
+//@ compile-flags: -Zmir-pipeline=none
+//~? ERROR: [fn0] [bb0, inst0] packed encoding input has an incompatible shape
+//~? ERROR: [fn1] [bb0, inst0] packed encoding input has an incompatible shape
+//~? ERROR: [fn2] [bb0, inst0] packed encoding input has an incompatible shape
+@module InvalidPacked
+
+fn @hash_array(arg0: memoryarray) -> bytes32 {
+  bb0:
+    v0 = keccak256_packed (array<word> memoryarray<1> arg0)
+    ret v0
+}
+
+fn @dynamic_element(arg0: memoryarray) -> memorybytes {
+  bb0:
+    v0 = abi_encode_packed (array<memory_bytes> memoryarray<1> arg0)
+    ret v0
+}
+
+fn @wrong_object(arg0: memorybytes) -> memorybytes {
+  bb0:
+    v0 = abi_encode_packed (array<word> memoryarray<1> arg0)
+    ret v0
+}

@@ -4,9 +4,9 @@
 //! protocol and expose further optimization opportunities.
 
 use crate::mir::{
-    AbiLayout, AbiType, BlockId, FrameMode, FrameSlotKind, Function, FunctionBuilder,
-    FunctionId as MirFunctionId, Immediate, ImmutableEncoding, InstId, InstKind, Instruction,
-    MirType, Module, Terminator, Value, ValueId,
+    AbiLayout, AbiType, BlockId, Builtin, Callee, FrameMode, FrameSlotKind, Function,
+    FunctionBuilder, FunctionId as MirFunctionId, Immediate, ImmutableEncoding, InstId, InstKind,
+    Instruction, MirType, Module, Terminator, Value, ValueId,
     analysis::{CallGraphInfo, LoopAnalyzer},
     immutable::immutable_push_type_size,
     memory::{EvmMemoryLayout, MemoryLayoutPolicy},
@@ -268,7 +268,7 @@ impl MirInliner {
                 summaries.get(&caller_id).map(|s| s.instruction_count).unwrap_or_default();
             let mut cursor = (0, 0);
             while let Some(site) =
-                self.find_next_call(module.function(caller_id), cursor, &loop_depths)
+                self.find_next_call(module, module.function(caller_id), cursor, &loop_depths)
             {
                 stats.call_sites += 1;
                 cursor = (site.block.index(), site.inst_index + 1);
@@ -347,7 +347,9 @@ impl MirInliner {
         let mut counts = FxHashMap::default();
         for func in module.functions.iter() {
             for inst_id in func.instructions() {
-                if let InstKind::ICall { function, .. } = func.inst(inst_id).kind {
+                if let InstKind::ICall { function: Callee::Function(function), .. } =
+                    func.inst(inst_id).kind
+                {
                     *counts.entry(function).or_default() += 1;
                 }
             }
@@ -378,7 +380,9 @@ impl MirInliner {
                 summaries.get(&caller).map(|summary| summary.instruction_count).unwrap_or_default();
             for (block_index, block) in func.blocks.iter().enumerate() {
                 for (inst_index, &inst_id) in block.instructions.iter().enumerate() {
-                    let InstKind::ICall { function, ref args, .. } = func.inst(inst_id).kind else {
+                    let InstKind::ICall { function: Callee::Function(function), ref args, .. } =
+                        func.inst(inst_id).kind
+                    else {
                         continue;
                     };
                     if !summaries.get(&function).is_some_and(|summary| {
@@ -414,6 +418,7 @@ impl MirInliner {
 
     fn find_next_call(
         &self,
+        module: &Module,
         func: &Function,
         start: (usize, usize),
         loop_depths: &FxHashMap<BlockId, usize>,
@@ -421,14 +426,16 @@ impl MirInliner {
         for (block, bb) in func.blocks.iter_enumerated().skip(start.0) {
             let start_inst = if block.index() == start.0 { start.1 } else { 0 };
             for (inst_index, &inst_id) in bb.instructions.iter().enumerate().skip(start_inst) {
-                if let InstKind::ICall { function, ref args, returns } = func.inst(inst_id).kind {
+                if let InstKind::ICall { function: Callee::Function(function), ref args } =
+                    func.inst(inst_id).kind
+                {
                     return Some(CallSite {
                         block,
                         inst_index,
                         inst: inst_id,
                         callee: function,
                         args_len: args.len(),
-                        returns: returns as usize,
+                        returns: module.function(function).return_components().len(),
                         loop_depth: loop_depths.get(&block).copied().unwrap_or_default(),
                         has_constant_function_selector: args
                             .first()
@@ -594,7 +601,7 @@ fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInli
             || func.attributes.is_receive
             || func.selector.is_some(),
         is_constructor: func.attributes.is_constructor,
-        has_reference_return: func.returns.iter().any(|ty| {
+        has_reference_return: func.return_components().iter().any(|ty| {
             matches!(
                 ty,
                 MirType::MemPtr
@@ -604,7 +611,7 @@ fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInli
                     | MirType::Slice(_)
             )
         }),
-        is_transparent_forwarder: is_transparent_forwarder(func),
+        is_transparent_forwarder: is_transparent_forwarder(module, func),
         is_function_pointer_dispatcher: func.attributes.is_function_pointer_dispatcher,
         has_function_selector: func.params.first() == Some(&MirType::Function),
         is_pure: func.attributes.state_mutability == StateMutability::Pure,
@@ -619,15 +626,44 @@ fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInli
             summary.estimated_code_size += inst_cost.code_size;
             summary.estimated_runtime_gas += inst_cost.runtime_gas;
             match kind {
-                InstKind::ICall { .. } => summary.has_icall = true,
+                InstKind::ICall { function: Callee::Function(_), .. } => summary.has_icall = true,
                 InstKind::Phi(_) => summary.has_phi = true,
                 // ABI decoding validates its input through branches, and dynamic encoding
                 // emits copy loops and padding branches, so neither operation is a tiny leaf.
-                InstKind::AbiDecode { .. } => summary.has_control_flow = true,
+                InstKind::AbiDecode { .. }
+                | InstKind::ValidateStorageBytes(..)
+                | InstKind::StorageBytesLoad(..)
+                | InstKind::StorageArrayLoad { .. }
+                | InstKind::StorageBytesStore(..)
+                | InstKind::StorageBytesStoreLiteral { .. }
+                | InstKind::StorageClearWords(..)
+                | InstKind::CheckedAddMod(..)
+                | InstKind::CheckedMulMod(..)
+                | InstKind::CheckedBinary { .. }
+                | InstKind::Check { .. }
+                | InstKind::ICall { function: Callee::Builtin(Builtin::Require(_)), .. } => {
+                    summary.has_control_flow = true;
+                }
+                InstKind::AbiEncodePacked { parts, hash: false }
+                    if parts.iter().any(|part| {
+                        matches!(
+                            part,
+                            crate::mir::PackedPart::Bytes(_) | crate::mir::PackedPart::Array { .. }
+                        )
+                    }) =>
+                {
+                    summary.has_control_flow = true;
+                }
                 InstKind::AbiEncode { layout, .. } if abi_layout_has_loops(layout) => {
                     summary.has_control_flow = true;
                 }
-                InstKind::Call { .. }
+                InstKind::Transfer(..) => {
+                    summary.has_control_flow = true;
+                    summary.has_external_call = true;
+                }
+                InstKind::AddressCall { .. }
+                | InstKind::Send(..)
+                | InstKind::Call { .. }
                 | InstKind::CallCode { .. }
                 | InstKind::StaticCall { .. }
                 | InstKind::DelegateCall { .. }
@@ -665,12 +701,6 @@ fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInli
                 summary.estimated_code_size += term_cost.code_size;
                 summary.estimated_runtime_gas += term_cost.runtime_gas;
             }
-            // A void internal function returns via `Stop` (the backend lowers it
-            // to an internal return). Treat it as a return point so void callees
-            // can be inlined.
-            Some(Terminator::Stop) if func.returns.is_empty() => {
-                summary.return_count += 1;
-            }
             Some(Terminator::Jump(_))
             | Some(Terminator::Branch { .. })
             | Some(Terminator::Switch { .. }) => {
@@ -691,7 +721,7 @@ fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInli
     summary
 }
 
-fn is_transparent_forwarder(func: &Function) -> bool {
+fn is_transparent_forwarder(module: &Module, func: &Function) -> bool {
     if func.attributes.no_inline
         || func.selector.is_some()
         || func.attributes.is_constructor
@@ -699,7 +729,7 @@ fn is_transparent_forwarder(func: &Function) -> bool {
         || func.attributes.is_receive
         || func.blocks.len() != 1
         || func.internal_frame_size != 0
-        || func.returns.len() != 1
+        || func.return_components().len() != 1
     {
         return false;
     }
@@ -709,7 +739,12 @@ fn is_transparent_forwarder(func: &Function) -> bool {
     }
 
     let [call] = func.blocks[BlockId::ENTRY].instructions.as_slice() else { return false };
-    let InstKind::ICall { returns: 1, .. } = func.inst(*call).kind else { return false };
+    let InstKind::ICall { function: Callee::Function(function), .. } = func.inst(*call).kind else {
+        return false;
+    };
+    if module.function(function).return_components().len() != 1 {
+        return false;
+    }
     let Some(result) = func.inst_result_value(*call) else { return false };
     matches!(
         func.blocks[BlockId::ENTRY].terminator.as_ref(),
@@ -719,7 +754,7 @@ fn is_transparent_forwarder(func: &Function) -> bool {
 
 fn is_identity_function(func: &Function) -> bool {
     let [param] = func.params.raw.as_slice() else { return false };
-    let [return_ty] = func.returns.as_slice() else { return false };
+    let [return_ty] = func.return_components() else { return false };
     if param != return_ty || func.blocks.len() != 1 {
         return false;
     }
@@ -734,7 +769,7 @@ fn is_identity_function(func: &Function) -> bool {
 
 fn is_transparent_function_pointer_cast(func: &Function) -> bool {
     func.params == [MirType::Function]
-        && func.returns == [MirType::Function]
+        && func.return_components() == [MirType::Function]
         && is_identity_function(func)
 }
 
@@ -773,6 +808,10 @@ struct MirCost {
 
 fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (MirCost, usize) {
     let (runtime_gas, code_size) = match kind {
+        InstKind::InsertValue { .. }
+        | InstKind::ExtractValue { .. }
+        | InstKind::MemoryObjectFromPtr { .. }
+        | InstKind::WordCast(_) => (0, 0),
         InstKind::MakeSlice { .. } | InstKind::SlicePtr(_) | InstKind::SliceLen(_) => (0, 0),
         InstKind::MemoryObjectData(_, kind) => {
             if EvmMemoryLayout::object_data_offset(*kind) == 0 {
@@ -914,6 +953,28 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (MirCos
         | InstKind::Keccak256(..) => (30, 1),
         // Expands to length load + data pointer + physical keccak.
         InstKind::Keccak256Bytes(_) => (36, 5),
+        // Includes allocation, argument packing, the precompile call, and result extraction.
+        InstKind::ValidateStorageBytes(_) => (80, 40),
+        InstKind::StorageBytesLoad(_) => (400, 150),
+        InstKind::StorageArrayLoad { .. } => (400, 150),
+        InstKind::StorageBytesStore(..) => (500, 180),
+        InstKind::StorageBytesStoreLiteral { bytes, .. } => (500, 180 + bytes.len()),
+        InstKind::StorageClearWords(..) => (120, 32),
+        InstKind::Erc7201(_) => (90, 30),
+        InstKind::CheckedAddMod(..) | InstKind::CheckedMulMod(..) => (32, 9),
+        InstKind::Sha256(_) | InstKind::Ripemd160(_) => (800, 64),
+        InstKind::EcRecover(..) => (900, 100),
+        InstKind::Check { .. } => (24, 8),
+        InstKind::ICall { function: Callee::Builtin(Builtin::Require(_)), .. } => (40, 24),
+        InstKind::ValidateAbi(_) => (0, 0),
+        InstKind::CheckedBinary { op: crate::mir::CheckedOp::Pow, .. } => (300, 128),
+        InstKind::CheckedBinary { .. } => (30, 20),
+        InstKind::AbiEncodePacked { parts, .. } => {
+            (60 + parts.len() as u64 * 20, 24 + parts.len() * 12)
+        }
+        InstKind::ICall { function: Callee::Builtin(Builtin::Concat(_)), args: parts } => {
+            (60 + parts.len() as u64 * 20, 24 + parts.len() * 12)
+        }
         InstKind::MappingSlot(..) => (36, 3),
         InstKind::MappingSlotMemory(..) => (60, 8),
         InstKind::MappingSlotCalldata(..) => (63, 9),
@@ -921,6 +982,10 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (MirCos
         InstKind::StorageArrayElementSlot { element_slots, .. } => {
             (36 + u64::from(*element_slots > 1) * 5, 4)
         }
+        InstKind::AddressCall { .. } => (720, 12),
+        InstKind::ReturndataBytes => (60, 24),
+        InstKind::Send(..) => (720, 12),
+        InstKind::Transfer(..) => (740, 20),
         InstKind::Call { .. }
         | InstKind::CallCode { .. }
         | InstKind::StaticCall { .. }
@@ -928,8 +993,8 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (MirCos
         | InstKind::ExtCall { .. }
         | InstKind::ExtDelegateCall { .. }
         | InstKind::ExtStaticCall { .. } => (700, 1),
-        InstKind::ICall { args, returns, .. } => {
-            let returns = *returns as usize;
+        InstKind::ICall { function: Callee::Function(function), args } => {
+            let returns = module.function(*function).return_components().len();
             (80 + ((args.len() + returns) as u64) * 20, 16 + (args.len() + returns) * 4)
         }
         InstKind::Create(..) | InstKind::Create2(..) => (32_000, 1),
@@ -1036,7 +1101,7 @@ fn specialize_function_pointers(module: &mut Module) -> usize {
             }
 
             let dispatcher = module.function(callee).clone();
-            if let Some(target) = direct_dispatch_target(&dispatcher, &selector) {
+            if let Some(target) = direct_dispatch_target(module, &dispatcher, &selector) {
                 if rewrite_dispatch_call(module.function_mut(caller), block, inst_index, target) {
                     specialized += 1;
                 }
@@ -1064,7 +1129,8 @@ fn find_next_constant_function_call(
     for (block, bb) in func.blocks.iter_enumerated().skip(start.0) {
         let start_inst = if block.index() == start.0 { start.1 } else { 0 };
         for (inst_index, &inst_id) in bb.instructions.iter().enumerate().skip(start_inst) {
-            if let InstKind::ICall { function, ref args, .. } = func.inst(inst_id).kind
+            if let InstKind::ICall { function: Callee::Function(function), ref args, .. } =
+                func.inst(inst_id).kind
                 && let Some(selector) =
                     args.first().and_then(|&arg| func.value(arg).as_immediate()).cloned()
             {
@@ -1075,7 +1141,11 @@ fn find_next_constant_function_call(
     None
 }
 
-fn direct_dispatch_target(dispatcher: &Function, selector: &Immediate) -> Option<MirFunctionId> {
+fn direct_dispatch_target(
+    module: &Module,
+    dispatcher: &Function,
+    selector: &Immediate,
+) -> Option<MirFunctionId> {
     let selector = selector.as_u256()?;
     for block in dispatcher.blocks.iter() {
         let Terminator::Branch { condition, then_block, .. } = block.terminator.as_ref()? else {
@@ -1094,18 +1164,24 @@ fn direct_dispatch_target(dispatcher: &Function, selector: &Immediate) -> Option
                     == Some(selector)
         });
         if matches_selector {
-            return direct_dispatch_case_target(dispatcher, *then_block);
+            return direct_dispatch_case_target(module, dispatcher, *then_block);
         }
     }
     None
 }
 
-fn direct_dispatch_case_target(dispatcher: &Function, block: BlockId) -> Option<MirFunctionId> {
+fn direct_dispatch_case_target(
+    module: &Module,
+    dispatcher: &Function,
+    block: BlockId,
+) -> Option<MirFunctionId> {
     let block = &dispatcher.blocks[block];
     let [call] = block.instructions.as_slice() else {
         return None;
     };
-    let InstKind::ICall { function, args, returns } = &dispatcher.inst(*call).kind else {
+    let InstKind::ICall { function: Callee::Function(function), args } =
+        &dispatcher.inst(*call).kind
+    else {
         return None;
     };
     if !args.iter().enumerate().all(|(index, &arg)| {
@@ -1120,7 +1196,7 @@ fn direct_dispatch_case_target(dispatcher: &Function, block: BlockId) -> Option<
     let Some(Terminator::Return { values }) = &block.terminator else {
         return None;
     };
-    match *returns {
+    match module.function(*function).return_components().len() {
         0 if values.is_empty() => Some(*function),
         1 if values.as_slice() == [dispatcher.inst_result_value(*call)?] => Some(*function),
         _ => None,
@@ -1136,7 +1212,9 @@ fn rewrite_dispatch_call(
     let Some(&call) = caller.blocks[call_block].instructions.get(call_inst_index) else {
         return false;
     };
-    let InstKind::ICall { function, args, .. } = &mut caller.inst_mut(call).kind else {
+    let InstKind::ICall { function: Callee::Function(function), args, .. } =
+        &mut caller.inst_mut(call).kind
+    else {
         return false;
     };
     if args.is_empty() {
@@ -1155,7 +1233,7 @@ fn propagate_function_pointer_cast(
     let Some(&call_inst) = caller.blocks[call_block].instructions.get(call_inst_index) else {
         return false;
     };
-    let InstKind::ICall { ref args, returns: 1, .. } = caller.inst(call_inst).kind else {
+    let InstKind::ICall { ref args, .. } = caller.inst(call_inst).kind else {
         return false;
     };
     let Some(&arg) = args.first() else {
@@ -1192,13 +1270,10 @@ fn inline_call_impl(
     callee: &Function,
 ) -> Option<()> {
     let call_inst = caller.blocks[call_block].instructions[call_inst_index];
-    let InstKind::ICall { args, returns, .. } = caller.inst(call_inst).kind.clone() else {
+    let InstKind::ICall { args, .. } = caller.inst(call_inst).kind.clone() else {
         return None;
     };
-    let returns = returns as usize;
-    if returns != callee.returns.len() {
-        return None;
-    }
+    let returns = callee.return_components().len();
 
     let call_result = caller.inst_result_value(call_inst);
     if returns > 0 && call_result.is_none() {
@@ -1227,13 +1302,14 @@ fn inline_call_impl(
     let caller_frame_prefix = if caller_is_external {
         0
     } else {
-        let signature_slots = caller.params.len().checked_add(caller.returns.len())?;
+        let signature_slots = caller.params.len().checked_add(caller.return_components().len())?;
         let signature_size =
             u64::try_from(signature_slots).ok()?.checked_mul(EvmMemoryLayout::WORD_SIZE)?;
         EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE.checked_add(signature_size)?
     };
     let frame_base = caller_frame_prefix.checked_add(caller.internal_frame_size)?;
-    let callee_signature_slots = callee.params.len().checked_add(callee.returns.len())?;
+    let callee_signature_slots =
+        callee.params.len().checked_add(callee.return_components().len())?;
     let callee_signature_size =
         u64::try_from(callee_signature_slots).ok()?.checked_mul(EvmMemoryLayout::WORD_SIZE)?;
     let callee_frame_prefix =
@@ -1253,7 +1329,7 @@ fn inline_call_impl(
         let return_values = build_return_values(
             cloner.caller,
             continuation,
-            &callee.returns,
+            callee.return_components(),
             &cloner.return_edges,
         )?;
         replacements.insert(call_result?, return_values[0]);
@@ -1261,7 +1337,7 @@ fn inline_call_impl(
             cloner.caller,
             continuation,
             &return_values,
-            &callee.returns,
+            callee.return_components(),
             caller_is_external,
             caller_frame_prefix,
         )?;
@@ -1424,11 +1500,6 @@ impl<'a> InlineCloner<'a> {
                     .map(|value| self.clone_value(*value))
                     .collect::<Option<SmallVec<[ValueId; 2]>>>()?;
                 self.return_edges.push((cloned_block, mapped));
-                Terminator::Jump(continuation)
-            }
-            // A void callee's `Stop` is an internal return with no values.
-            Terminator::Stop if self.callee.returns.is_empty() => {
-                self.return_edges.push((cloned_block, SmallVec::new()));
                 Terminator::Jump(continuation)
             }
             Terminator::Revert { offset, size } => Terminator::Revert {
@@ -1608,7 +1679,7 @@ mod tests {
 
         let mut ordinary = Function::new(Ident::DUMMY);
         let mut builder = FunctionBuilder::new(&mut ordinary);
-        builder.icall_void(callee, Vec::new(), 0);
+        builder.icall_void(callee, Vec::new());
         builder.stop();
         module.add_function(ordinary);
 
@@ -1628,7 +1699,7 @@ mod tests {
         let mut caller = Function::new(Ident::DUMMY);
         caller.internal_frame_size = u64::MAX;
         let mut builder = FunctionBuilder::new(&mut caller);
-        builder.icall_void(callee_id, Vec::new(), 0);
+        builder.icall_void(callee_id, Vec::new());
         builder.stop();
         let call = caller.blocks[BlockId::ENTRY].instructions[0];
         let call_index = caller.blocks[BlockId::ENTRY]

@@ -20,7 +20,7 @@
 //! - allocations marked as source-visible FMP advances are never placed statically.
 
 use crate::mir::{
-    ArgIdx, BlockId, Function, FunctionId, Immediate, InstId, InstKind, MemoryObjectKind,
+    ArgIdx, BlockId, Callee, Function, FunctionId, Immediate, InstId, InstKind, MemoryObjectKind,
     MemoryObjectLayout, Module, Terminator, Value, ValueId,
     analysis::{AliasAnalysis, CallGraphInfo, CfgInfo, MemoryCallSummaries},
     memory::{EvmMemoryLayout, MemoryLayoutPolicy},
@@ -446,7 +446,7 @@ fn candidate_uses_are_safe(
                                 .is_some_and(|offset| in_range_at(off, offset, 32))
                         })
                 }
-                InstKind::ICall { function, args, .. } => {
+                InstKind::ICall { function: Callee::Function(function), args, .. } => {
                     call_use_is_safe(function, &args, operand, calls, summaries)
                 }
                 _ => false,

@@ -11,6 +11,9 @@
 //@ run-call: conditionalSelfLoop 3, 4 => 42
 //@ run-call: emptyExitSelfLoop 0 => 7
 //@ run-call: emptyExitSelfLoop 4 => 7
+//@ run-call: repeatedLoopExit 0, 2 => 0, 0
+//@ run-call: repeatedLoopExit 4, 2 => 2, 2
+//@ run-call: repeatedLoopExit 4, 9 => 1, 0
 
 contract AcyclicStackPhi {
     function trimLen(bytes calldata data) external pure returns (uint256) {
@@ -80,5 +83,34 @@ contract AcyclicStackPhi {
             }
         } while (i < n);
         return 7;
+    }
+
+    function repeatedLoopExit(uint256 probe, uint256 needle)
+        external
+        returns (uint256 cursor, uint256 key)
+    {
+        assembly {
+            sstore(0, shl(128, probe))
+            for { let i := probe } i { i := sub(i, 1) } {
+                sstore(i, or(shl(160, i), sub(i, 1)))
+            }
+        }
+        return findLoopExit(needle);
+    }
+
+    function findLoopExit(uint256 needle) internal view returns (uint256 cursor, uint256 key) {
+        assembly {
+            for { let probe := shr(128, sload(0)) } probe {} {
+                cursor := probe
+                let packed := sload(probe)
+                let value := shr(160, packed)
+                if iszero(value) { value := sload(or(probe, shl(255, 1))) }
+                if eq(value, needle) {
+                    key := cursor
+                    break
+                }
+                probe := and(packed, 0xffffffff)
+            }
+        }
     }
 }

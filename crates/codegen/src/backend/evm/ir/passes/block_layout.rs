@@ -2,11 +2,17 @@
 //!
 //! The IR keeps control-flow edges explicit and leaves physical fallthrough to
 //! assembly. This pass follows unconditional jump successors to form linear
-//! traces, making those successor blocks adjacent whenever possible. The
+//! traces, making those successor blocks adjacent whenever possible. For an acyclic branch
+//! whose taken arm jumps to its other successor, it places the arm before that join. Cold arms
+//! stay separate, and known loops keep their existing branch order. The
 //! final lowering can then omit jumps whose target is the next emitted block
 //! without encoding physical layout assumptions in the IR. Independent hot
 //! traces are placed before cold terminal traces so unlikely exit paths do not
-//! interrupt hot code.
+//! interrupt hot code. Small, independently movable traces ending in a terminal are packed
+//! below the PUSH1 address limit by reference density. Moving the entire trace preserves its
+//! fallthrough edges, including a call followed by a shared failure block. Packing also
+//! reserves address space for one-byte indexed jump tables to avoid widening their lookups.
+//! Size estimates guide placement; assembly still resolves the exact offsets and widths.
 
 use super::{
     EvmPass,
@@ -43,8 +49,8 @@ fn layout_blocks(gcx: Gcx<'_>, module: &mut Module) -> bool {
     }
     let mut state = RunState::default();
     state.reset(module.blocks.len());
-    for block in &module.blocks {
-        if let Some(target) = layout_successor(block)
+    for block in module.blocks.indices() {
+        if let Some(target) = layout_successor(module, block)
             && target.index() < state.predecessor_counts.len()
         {
             state.predecessor_counts[target] += 1;
@@ -62,7 +68,7 @@ fn layout_blocks(gcx: Gcx<'_>, module: &mut Module) -> bool {
         }
     }
 
-    pack_hot_terminal_blocks(gcx, module, &mut state);
+    pack_terminal_traces(gcx, module, &mut state);
     for cold in [false, true] {
         for block in module.blocks.indices() {
             if is_cold_terminal_block(&module.blocks[block]) == cold {
@@ -74,6 +80,7 @@ fn layout_blocks(gcx: Gcx<'_>, module: &mut Module) -> bool {
     if state.order.iter().copied().eq(module.blocks.indices()) {
         return false;
     }
+    // branch -> arm -> join; remaining traces
     remap_block_order(module, &state.order);
     true
 }
@@ -120,13 +127,13 @@ impl RunState {
 }
 
 struct Candidate {
-    block: BlockId,
     position: usize,
+    end: usize,
     size: usize,
     references: usize,
 }
 
-fn pack_hot_terminal_blocks(gcx: Gcx<'_>, module: &Module, state: &mut RunState) {
+fn pack_terminal_traces(gcx: Gcx<'_>, module: &Module, state: &mut RunState) {
     let Some(first_terminal) = state.order.iter().enumerate().position(|(position, &block)| {
         is_physical_terminal_boundary(&module.blocks[block], state.order.get(position + 1).copied())
     }) else {
@@ -150,27 +157,45 @@ fn pack_hot_terminal_blocks(gcx: Gcx<'_>, module: &Module, state: &mut RunState)
         return;
     }
 
-    for position in insert_at..state.order.len() {
-        let block = state.order[position];
-        if position == 0
-            || !is_physical_terminal_boundary(
-                &module.blocks[state.order[position - 1]],
-                Some(block),
-            )
-            || !is_terminal_block(&module.blocks[block])
-        {
-            continue;
+    let mut position = insert_at;
+    let mut offset = insert_offset;
+    while position < state.order.len() {
+        let start = position;
+        let mut size = 0;
+        let mut references = 0;
+        loop {
+            let block = state.order[position];
+            let next = state.order.get(position + 1).copied();
+            let block_offset = offset + size;
+            size += estimated_block_size(
+                gcx,
+                &module.blocks[block],
+                next,
+                state.references[block] != 0,
+            );
+            references += state.references[block];
+            position += 1;
+            if is_physical_terminal_boundary(&module.blocks[block], next) {
+                if is_terminal_block(&module.blocks[block])
+                    && size <= 32
+                    && references >= 2
+                    && (position == start + 1
+                        || (block_offset > 0xff && state.references[block] >= 4))
+                {
+                    state.candidates.push(Candidate {
+                        position: start,
+                        end: position,
+                        size,
+                        references,
+                    });
+                }
+                break;
+            }
+            if position == state.order.len() {
+                break;
+            }
         }
-        let size = estimated_block_size(
-            gcx,
-            &module.blocks[block],
-            state.order.get(position + 1).copied(),
-            state.references[block] != 0,
-        );
-        let count = state.references[block];
-        if size <= 32 && count >= 2 {
-            state.candidates.push(Candidate { block, position, size, references: count });
-        }
+        offset += size;
     }
     state.candidates.sort_unstable_by(|a, b| {
         (b.references * a.size)
@@ -178,19 +203,72 @@ fn pack_hot_terminal_blocks(gcx: Gcx<'_>, module: &Module, state: &mut RunState)
             .then(b.references.cmp(&a.references))
             .then(a.position.cmp(&b.position))
     });
-    let mut budget = 0xff_usize.saturating_sub(insert_offset);
+    let mut budget = terminal_packing_budget(gcx, module, state, insert_offset);
     for candidate in &state.candidates {
         if candidate.size <= budget {
             budget -= candidate.size;
-            state.picked.insert(candidate.block);
-            state.picked_order.push(candidate.block);
+            // trace_head; ...; terminal
+            for &block in &state.order[candidate.position..candidate.end] {
+                state.picked.insert(block);
+                state.picked_order.push(block);
+            }
         }
     }
     if state.picked_order.is_empty() {
         return;
     }
+    // entry_trace; selected_traces; other_traces
     state.order.retain(|block| !state.picked.contains(*block));
     state.order.splice(insert_at..insert_at, state.picked_order.drain(..));
+}
+
+// Reserve space for tables whose absolute targets fit in one-byte entries. Widening
+// such a table replaces BYTE with shifts and masking on every dispatch.
+fn terminal_packing_budget(
+    gcx: Gcx<'_>,
+    module: &Module,
+    state: &RunState,
+    insert_offset: usize,
+) -> usize {
+    let mut budget = 0xff_usize.saturating_sub(insert_offset);
+    if module.blocks.iter().any(|block| {
+        matches!(
+            block.terminator.as_ref().map(|term| &term.kind),
+            Some(TerminatorKind::IndexedJump(_))
+        )
+    }) {
+        let mut offsets = IndexVec::from_vec(vec![usize::MAX; module.blocks.len()]);
+        let mut offset = 0;
+        for (position, &block_id) in state.order.iter().enumerate() {
+            offsets[block_id] = offset;
+            let block = &module.blocks[block_id];
+            let next = state.order.get(position + 1).copied();
+            offset += estimated_block_size(gcx, block, next, state.references[block_id] != 0);
+            if let Some(kind @ TerminatorKind::IndexedJump(targets)) =
+                block.terminator.as_ref().map(|term| &term.kind)
+                && targets.len() <= 32
+            {
+                offset -= estimated_terminator_size(gcx, kind, next);
+                offset += estimated_indexed_jump_terminator_size(
+                    targets.len(),
+                    1,
+                    gcx.sess.opts.evm_version,
+                    gcx.sess.opts.optimization.is_size(),
+                );
+            }
+        }
+        for block in &module.blocks {
+            if let Some(TerminatorKind::IndexedJump(targets)) =
+                block.terminator.as_ref().map(|term| &term.kind)
+                && targets.len() <= 32
+                && let Some(last) = targets.iter().map(|&target| offsets[target]).max()
+                && (insert_offset..0xff).contains(&last)
+            {
+                budget = budget.min(0xfe - last);
+            }
+        }
+    }
+    budget
 }
 
 fn block_reference_counts(
@@ -295,16 +373,32 @@ fn append_layout_trace(
 ) {
     while block.index() < module.blocks.len() && placed.insert(block) {
         order.push(block);
-        let Some(target) = layout_successor(&module.blocks[block]) else { return };
+        let Some(target) = layout_successor(module, block) else { return };
         block = target;
     }
 }
 
-fn layout_successor(block: &Block) -> Option<BlockId> {
-    match &block.terminator.as_ref()?.kind {
+fn layout_successor(module: &Module, block: BlockId) -> Option<BlockId> {
+    match &module.blocks[block].terminator.as_ref()?.kind {
         TerminatorKind::Jump(target) => Some(*target),
+        TerminatorKind::JumpI { then_block, else_block }
+            if !module.blocks[block].metadata.in_loop
+                && triangle_arm(module, *then_block, *else_block) =>
+        {
+            Some(*then_block)
+        }
         _ => None,
     }
+}
+
+pub(super) fn triangle_arm(module: &Module, arm: BlockId, join: BlockId) -> bool {
+    arm != join
+        && module.blocks.get(arm).is_some_and(|block| {
+            !block.metadata.hotness.is_cold()
+                && !block.metadata.in_loop
+                && matches!(block.terminator.as_ref().map(|term| &term.kind),
+                    Some(TerminatorKind::Jump(target)) if *target == join)
+        })
 }
 
 fn is_cold_terminal_block(block: &Block) -> bool {

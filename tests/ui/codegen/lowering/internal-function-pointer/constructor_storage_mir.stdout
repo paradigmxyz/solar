@@ -8,7 +8,7 @@ fn @constructor() [constructor] {
     v3 = and 2, 0xffffffffffffffff
     v4 = or v2, v3
     sstore 0, v4 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 fn @onlyStored() -> u256 [pure] {
@@ -20,7 +20,7 @@ fn @callStoredOnly() -> u256 [selector=0x11cfff8f, abi_params=[], abi_returns=[w
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffff
-    v2 = icall @internal_dispatcher_p_none_r_u256, 1, v1
+    v2 = icall @internal_dispatcher_p_none_r_u256, v1
     ret v2
 }
 
@@ -29,10 +29,9 @@ fn @internal_dispatcher_p_none_r_u256(arg0: function) -> u256 [function_pointer_
     v0 = eq arg0, 2
     jumpi v0, bb1, bb2
   bb2:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 81 !metadata(memory=scratch)
-    revert 0, 36
+    panic_if true, 0x51
+    invalid
   bb1:
-    v1 = icall @onlyStored, 1
+    v1 = icall @onlyStored
     ret v1
 }

@@ -12,6 +12,7 @@
 //@ run-call: nestedStaticDefaults => 192
 //@ run-call: literalBytes => 0x31
 //@ run-call: literalAllocation => 64
+//@ run-call: rawAssemblyPointers => 17, 34
 
 contract UninitializedMemoryAllocation {
     struct Pair {
@@ -128,6 +129,23 @@ contract UninitializedMemoryAllocation {
 
     function isEmpty(bytes memory data) private pure returns (bool) {
         return data.length == 0;
+    }
+
+    function rawAssemblyPointers() external pure returns (uint256, uint256) {
+        (bytes memory first, bytes memory second) = rawPointerPair();
+        return (uint8(first[0]), uint8(second[0]));
+    }
+
+    function rawPointerPair() private pure returns (bytes memory first, bytes memory second) {
+        assembly {
+            first := mload(0x40)
+            second := add(first, 0x40)
+            mstore(0x40, add(second, 0x40))
+            mstore(first, 1)
+            mstore(add(first, 0x20), shl(248, 17))
+            mstore(second, 1)
+            mstore(add(second, 0x20), shl(248, 34))
+        }
     }
 
     function freeMemoryPointer() private pure returns (uint256 pointer) {

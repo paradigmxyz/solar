@@ -16,8 +16,7 @@ fn @arrayLength() -> u256 [selector=0xe554482e, abi_params=[], abi_returns=[word
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = gt v0, 0xffffffffffffffff
-    jumpi v1, bb1, bb2
-  bb2:
+    panic_if v1, 0x41
     v2 = add v0, 1
     v3 = storage_array_data_slot 0
     v4 = add v3, v0
@@ -25,8 +24,4 @@ fn @arrayLength() -> u256 [selector=0xe554482e, abi_params=[], abi_returns=[word
     sstore 0, v2 !metadata(storage=slot(0))
     v5 = sload 0 !metadata(storage=slot(0))
     ret v5
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
 }

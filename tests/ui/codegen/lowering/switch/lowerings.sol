@@ -58,8 +58,8 @@ contract SwitchLowerings {
     // DENSE: push 8
     // DENSE-NEXT: swap 1
     // DENSE-NEXT: sub
-    // DENSE: push 57
-    // DENSE-NEXT: gt
+    // DENSE: push 56
+    // DENSE-NEXT: lt
     // DENSE: indexed_jump
 
     // PERFECTGAS-LABEL: @module SwitchLowerings_runtime

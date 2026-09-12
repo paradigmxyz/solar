@@ -1,19 +1,18 @@
-//! Dispatch phase lowering: materialize the selector switch as MIR.
+//! Dispatch lowering: materialize the selector switch as MIR.
 //!
-//! In `built`/`optimized` MIR, selector routing is still implicit. This pass
-//! makes it an ordinary MIR function named `entry` (the dispatch phase of the
-//! sketch in [`MirPhase`]).
+//! Semantic MIR initially leaves selector routing implicit. This conversion pass
+//! creates an ordinary MIR function named `entry` while the module stays semantic.
 //!
 //! The synthesized `entry` function loads the 4-byte selector through a
-//! semantic calldata slice and switches on it to one argument-free `icall`
+//! semantic calldata slice and switches on it to one argument-free `tail_call`
 //! per external wrapper, defaulting to a `revert`. It is meant
 //! to run after [`super::lower_abi::LowerAbi`], which turns external functions into the
 //! argument-free self-decoding wrappers this switch routes to; that is why it
 //! only routes selector-bearing functions that take no MIR arguments.
 //!
-//! It requires the `abi` phase: it routes to the argument-free wrappers that
-//! [`super::lower_abi::LowerAbi`] produces, so it bails on `built`/`optimized` modules
-//! rather than half-dispatching argument-taking functions.
+//! It checks that ABI entries are explicit before creating routes, and reports an error
+//! if no valid entry can be formed. The final conversion verifies the complete lowered
+//! representation before the backend can consume it.
 //!
 //! Library modules differ in two ways, both matching solc. Their entry never
 //! checks `callvalue`: a `DELEGATECALL` sees the caller's value, so a library
@@ -29,7 +28,7 @@
 //! library called without DELEGATECALL" message.
 //!
 //! This pass runs after [`super::lower_abi::LowerAbi`] in the codegen pipeline.
-//! The backend only consumes the final `evm-shaped` module.
+//! The backend only consumes the final `lowered` module.
 
 use crate::mir::{
     Function, FunctionBuilder, FunctionId, MirPhase, MirType, Module, RevertReason, ValueId,
@@ -39,7 +38,7 @@ use alloy_primitives::U256;
 use solar_config::RevertStrings;
 use solar_interface::{Ident, sym};
 
-/// Dispatch phase lowering pass.
+/// Materializes selector routing through explicit ABI wrappers.
 pub(crate) struct LowerDispatch;
 
 impl MirPass for LowerDispatch {
@@ -48,7 +47,7 @@ impl MirPass for LowerDispatch {
     }
 
     fn is_enabled(&self, _gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
-        module.phase == MirPhase::Abi
+        module.phase() == MirPhase::Semantic
     }
 
     fn is_required(&self) -> bool {
@@ -61,11 +60,22 @@ impl MirPass for LowerDispatch {
         module: &mut Module,
         _analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        lower_dispatch(
+        if !module.has_explicit_abi() {
+            gcx.dcx()
+                .err("`lower-dispatch` requires explicit ABI entries; run `lower-abi` first")
+                .emit();
+            return false;
+        }
+        let changed = lower_dispatch(
             module,
             gcx.sess.opts.evm_version.has_bitwise_shifting(),
             gcx.sess.opts.revert_strings,
-        )
+        );
+        if module.dispatch_entry().is_none() {
+            gcx.dcx().err("`lower-dispatch` cannot route this entry signature").emit();
+            return changed;
+        }
+        changed
     }
 }
 
@@ -74,15 +84,12 @@ fn lower_dispatch(
     has_bitwise_shifting: bool,
     revert_strings: RevertStrings,
 ) -> bool {
-    // Dispatch routes to the argument-free ABI wrappers, so it requires the
-    // ABI phase. Running on `built`/`optimized` MIR would leave
-    // argument-taking external functions unroutable while still advancing
-    // the phase; require the precondition and bail otherwise.
-    if module.phase != MirPhase::Abi {
+    // An existing entry already makes selector routing explicit.
+    if module.dispatch_entry().is_some() {
         return false;
     }
 
-    // Collect the routable external wrappers. After the ABI phase every
+    // Collect the routable external wrappers. After ABI lowering every
     // such wrapper is argument-free; assert that rather
     // than silently skipping, since a leftover argument-taking selector
     // function would mean the ABI invariant was violated.
@@ -132,7 +139,6 @@ fn lower_dispatch(
         has_bitwise_shifting,
         revert_strings,
     );
-    module.advance_phase(MirPhase::Dispatch);
     true
 }
 

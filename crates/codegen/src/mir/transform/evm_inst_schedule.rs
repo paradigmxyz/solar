@@ -7,9 +7,9 @@
 //! inside each basic block immediately before EVM codegen.
 //!
 //! The pass deliberately moves only computations and reads. Memory and state writes, calls,
-//! creation, logs, `gas`, `msize`, and phis are barriers, so the transformation cannot move work
-//! across an observable mutation, gas observation, call-gas boundary, or phi definition. Within
-//! each barrier-delimited segment, a deterministic dependency-first traversal emits operand
+//! creation, logs, control effects, `gas`, `msize`, and phis are barriers, so the pass cannot move
+//! work across an observable mutation, gas observation, call-gas boundary, or phi definition.
+//! Within each barrier-delimited segment, a deterministic dependency-first traversal emits operand
 //! producers in EVM push order and places values consumed by the following barrier or terminator
 //! last. Shared-result producers stay at their original positions because moving one use changes
 //! which physical copy should survive for later consumers. Single-use islands between those pinned
@@ -127,7 +127,8 @@ impl EvmInstSchedule {
             return false;
         }
 
-        Self::is_movable_effect(inst.kind.effect_kind())
+        !inst.kind.effects().control.any()
+            && Self::is_movable_effect(inst.kind.effect_kind())
             && inst.metadata.effect().is_none_or(Self::is_movable_effect)
     }
 

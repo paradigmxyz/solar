@@ -12,6 +12,7 @@
 //! - every use of the object is a `MemoryObjectFieldAddr`/ `MemoryObjectElementAddr` with a
 //!   constant field/index or a full-object `memory_zero`, in the same block;
 //! - every field address is used only as the address of an `MStore`/`MLoad` in that block;
+//! - no terminator uses the object or a field address, including non-capturing readers;
 //! - every load is dominated by a store to the same field or a full-object zero, so no
 //!   uninitialized slot is observed.
 //!
@@ -155,6 +156,18 @@ impl SroaCx {
             let addr = func.inst_result_value(inst_id)?;
             slot_of.insert(addr, slot);
             address_insts.insert(inst_id);
+        }
+
+        // Non-capturing terminators can still read the object's memory.
+        if func.blocks.iter().any(|block| {
+            block.terminator.as_ref().is_some_and(|terminator| {
+                terminator
+                    .operands()
+                    .iter()
+                    .any(|value| *value == object || slot_of.contains_key(value))
+            })
+        }) {
+            return None;
         }
 
         // Every field address must be used only as the address of an

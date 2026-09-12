@@ -3,7 +3,7 @@
   @module InlineICall
   fn @caller(arg0: u256) -> u256 {
     bb0:
--     v0 = icall @callee, 1, arg0
+-     v0 = icall @callee, arg0
 -     ret v0
 +     jump bb2
 +   bb2:

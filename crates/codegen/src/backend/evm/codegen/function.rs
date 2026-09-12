@@ -1,4 +1,7 @@
 //! Function emission, phi edge splitting, and cold-block layout.
+//!
+//! Gas mode places the false arm first when both branch arms terminate normally,
+//! so the existing condition can drive the jump without an inversion.
 
 use super::{
     BlockId, CfgInfo, DenseBitSet, EvmCodegen, EvmMemoryLayout, Function, FunctionId, FxHashMap,
@@ -6,6 +9,8 @@ use super::{
     OnceCell, OptimizationMode, PhiEliminator, STACK_PHI_LAYOUT_LIMIT, StackModel, StackPhiPlan,
     Terminator, Value, ValueId, cross_block_values, planned_entry_carries,
 };
+use crate::mir::Callee;
+use either::Either;
 use std::rc::Rc;
 
 impl<'gcx> EvmCodegen<'gcx> {
@@ -121,20 +126,23 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.elided_insts.clear();
         self.collect_late_gas_operands(func);
         let phi_result = PhiEliminator::analyze(func);
-        let has_phis = !phi_result.block_copies.is_empty();
         for (block_id, copies) in phi_result.block_copies {
             self.block_copies.insert(block_id, copies.copies);
         }
-        // Stack-phi planning starts with loop analysis, but cannot produce a
-        // plan without a phi. Avoid that analysis for the overwhelmingly
-        // common phi-free function.
+        // Ordinary joins can carry live values even when no phi remains.
+        // Functions without joins need no inter-block layout analysis.
         // The cached plan is keyed on whole-function liveness; a block-local entry gets its own.
-        let phi_plan = if !has_phis {
+        let phi_plan = if !func.blocks.iter().any(|block| block.predecessors.len() >= 2) {
             None
         } else if whole_function_liveness {
             Some(self.stack_phi_plan(func_id, func, liveness))
         } else {
-            Some(Rc::new(StackPhiPlan::analyze(func, liveness, &self.cold_functions)))
+            Some(Rc::new(StackPhiPlan::analyze(
+                func,
+                liveness,
+                &self.cold_functions,
+                self.gcx.sess.opts.optimization,
+            )))
         };
         let mut stack_phi_plan =
             phi_plan.as_deref().map_or_else(StackPhiPlan::default, StackPhiPlan::clone);
@@ -189,10 +197,15 @@ impl<'gcx> EvmCodegen<'gcx> {
             });
         let has_hazard_stack_plan = hazard_stack_plan.is_some();
         let required_stack_plan = resident_stack_plan.is_some() || hazard_stack_plan.is_some();
-        let mut global_stack_plan = hazard_stack_plan
-            .clone()
-            .or(resident_stack_plan)
-            .unwrap_or_else(|| GlobalStackPlan::analyze(func, liveness, &stack_phi_plan));
+        let mut global_stack_plan =
+            hazard_stack_plan.clone().or(resident_stack_plan).unwrap_or_else(|| {
+                GlobalStackPlan::analyze(
+                    func,
+                    liveness,
+                    &stack_phi_plan,
+                    self.gcx.sess.opts.optimization,
+                )
+            });
         let mut stack_phi_sources = stack_phi_plan.edge_sources();
         if required_stack_plan {
             if !stack_phi_plan.merge_resident(func, &global_stack_plan) {
@@ -325,11 +338,15 @@ impl<'gcx> EvmCodegen<'gcx> {
             if self.block_is_cold(block_id) {
                 self.asm.mark_label_cold(label);
             }
+            if stack_phi_plan.loop_blocks.contains(block_id) {
+                self.asm.mark_label_loop(label);
+            }
             self.block_labels.insert(block_id, label);
         }
 
         // Generate each block.
-        let block_order = self.block_layout_order(func);
+        let store_cfg = CfgInfo::new(func);
+        let block_order = self.block_layout_order(func, &store_cfg);
         let block_pos: FxHashMap<BlockId, usize> =
             block_order.iter().enumerate().map(|(pos, &b)| (b, pos)).collect();
         // Stack layout a block must start with when it is reached by a stack-
@@ -343,7 +360,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         // at a block only when every forward predecessor makes it available —
         // and drop the scheduler's stored guarantee where a live value is not
         // available, so that path stores again before any reload.
-        let store_cfg = CfgInfo::new(func);
         let mut spill_avail_out: FxHashMap<BlockId, FxHashSet<ValueId>> = FxHashMap::default();
         for (pos, &block_id) in block_order.iter().enumerate() {
             let block = &func.blocks[block_id];
@@ -747,10 +763,15 @@ impl<'gcx> EvmCodegen<'gcx> {
                 .flatten()
                 .filter(|target| block_pos.get(target).copied() > Some(pos));
 
-            // A conditional branch whose other arm is a cold revert can carry
-            // its single freshly-computed live-out on the stack into the hot
-            // arm, which restores it as its recorded entry layout.
-            let preserve_branch_targets = if !has_edge_specific_global
+            // A private successor restores its recorded entry stack, so keep live values there
+            // before imposing a global argument layout that would spill them. A cold terminal
+            // sibling can receive the same stack when it does not need the carried values.
+            // Leave a condition that must survive its branch to the global planner.
+            let preserve_branch_targets = if (!has_edge_specific_global
+                || block.terminator.as_ref().is_some_and(|term| {
+                    matches!(term, Terminator::Branch { condition, .. }
+                        if !liveness.live_out(block_id).contains(*condition))
+                }))
                 && !preserve_stack_to_fallthrough
                 && preserve_jump_target.is_none()
                 && !stack_phi_branch_preserved
@@ -779,6 +800,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
             let global_branch_preserved = if !stack_phi_preserved
                 && !stack_phi_branch_preserved
+                && preserve_branch_targets.is_empty()
                 && let Some((then_layout, else_layout)) = &global_branch_layouts
                 && let Some(Terminator::Branch { condition, .. }) = block.terminator.as_ref()
             {
@@ -1097,7 +1119,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     if block.instructions.iter().any(|&inst_id| {
                         matches!(
                             func.inst(inst_id).kind,
-                            InstKind::ICall { function, .. } if cold.contains(function)
+                            InstKind::ICall { function: Callee::Function(function), .. } if cold.contains(function)
                         )
                     }) {
                         saw_exit = true;
@@ -1185,7 +1207,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         ) || block.instructions.iter().any(|&inst_id| {
             matches!(
                 func.inst(inst_id).kind,
-                InstKind::ICall { function, .. }
+                InstKind::ICall { function: Callee::Function(function), .. }
                     if self.cold_functions.contains(function)
             )
         })
@@ -1203,17 +1225,40 @@ impl<'gcx> EvmCodegen<'gcx> {
         label
     }
 
-    fn block_layout_order(&self, func: &Function) -> Vec<BlockId> {
-        // Layout only initializes reachability; RPO, dominators, and
-        // transitive reachability remain unevaluated.
-        let cfg = CfgInfo::new(func);
+    fn block_layout_order(&self, func: &Function, cfg: &CfgInfo) -> Vec<BlockId> {
+        // Visit predecessors before private continuations, including blocks appended by lowering.
         let reachable = cfg.reachable();
         let mut order = Vec::with_capacity(func.blocks.len());
         let mut placed = DenseBitSet::new_empty(func.blocks.len());
+        let mut predecessors = Vec::new();
 
         self.append_layout_chain(func, BlockId::ENTRY, reachable, &mut placed, &mut order);
-        for block_id in func.blocks.indices() {
-            if reachable.contains(block_id) {
+        let blocks = if self.gcx.sess.opts.optimization.is_size() {
+            Either::Left(cfg.rpo().iter().copied())
+        } else {
+            Either::Right(func.blocks.indices())
+        };
+        for block_id in blocks {
+            if reachable.contains(block_id) && !placed.contains(block_id) {
+                if self.gcx.sess.opts.optimization.is_gas() && !self.block_is_cold(block_id) {
+                    // predecessor; private continuation
+                    let mut predecessor = block_id;
+                    while let [parent] = func.blocks[predecessor].predecessors.as_slice()
+                        && !placed.contains(*parent)
+                    {
+                        predecessors.push(*parent);
+                        predecessor = *parent;
+                    }
+                    for predecessor in predecessors.drain(..).rev() {
+                        self.append_layout_chain(
+                            func,
+                            predecessor,
+                            reachable,
+                            &mut placed,
+                            &mut order,
+                        );
+                    }
+                }
                 self.append_layout_chain(func, block_id, reachable, &mut placed, &mut order);
             }
         }
@@ -1247,6 +1292,18 @@ impl<'gcx> EvmCodegen<'gcx> {
                     match (self.block_is_cold(*then_block), self.block_is_cold(*else_block)) {
                         (true, false) => *else_block,
                         (false, true) => *then_block,
+                        // jumpi condition, then; else ... exit; then ... exit
+                        (false, false)
+                            if self.gcx.sess.opts.optimization.is_gas()
+                                && [*then_block, *else_block].into_iter().all(|target| {
+                                    func.blocks[target]
+                                        .terminator
+                                        .as_ref()
+                                        .is_some_and(|term| term.successors().is_empty())
+                                }) =>
+                        {
+                            *else_block
+                        }
                         _ => return,
                     }
                 }

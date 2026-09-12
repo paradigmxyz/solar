@@ -1,12 +1,17 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/transient_storage.sol:TransientStorage ===
 @module TransientStorage
+types:
+  struct0: {u256, u256, u256, u256, u256, u256}
+  struct1: {u256, u256, u256}
+  struct2: {u256, u256}
+
 fn @temporary() -> u256 [selector=0x52099d8b, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = tload 0
     ret v0
 }
 
-fn @separateSpaces(arg0: u256, arg1: u256) -> (u256, u256, u256, u256, u256, u256) [selector=0x9ef32708, abi_params=[u256, u256], abi_returns=[word, word, word, word, word, word]] {
+fn @separateSpaces(arg0: u256, arg1: u256) -> struct0 [selector=0x9ef32708, abi_params=[u256, u256], abi_returns=[word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256]] {
   bb0:
     sstore 0, arg0 !metadata(storage=slot(0))
     tstore 0, arg1
@@ -14,10 +19,16 @@ fn @separateSpaces(arg0: u256, arg1: u256) -> (u256, u256, u256, u256, u256, u25
     v1 = tload 0
     v2 = sload 0 !metadata(storage=slot(0))
     v3 = tload 0
-    ret v0, v1, v2, v3, 0, 0
+    v4 = insert_value struct0, undef struct0, 0, v0
+    v5 = insert_value struct0, v4, 1, v1
+    v6 = insert_value struct0, v5, 2, v2
+    v7 = insert_value struct0, v6, 3, v3
+    v8 = insert_value struct0, v7, 4, 0
+    v9 = insert_value struct0, v8, 5, 0
+    ret v9
 }
 
-fn @packed() -> (u16, u16, u256) [selector=0x8f23d5f6, abi_params=[], abi_returns=[word<u16>, word<u16>, word]] {
+fn @packed() -> struct1 [selector=0x8f23d5f6, abi_params=[], abi_returns=[word<u16>, word<u16>, word], abi_return_params=[u16, u16, u256]] {
   bb0:
     v0 = tload 1
     v1 = not 0xffff
@@ -39,7 +50,10 @@ fn @packed() -> (u16, u16, u256) [selector=0x8f23d5f6, abi_params=[], abi_return
     v15 = tload 1
     v16 = shr 16, v15
     v17 = and v16, 0xffff
-    ret v14, v17, v12
+    v18 = insert_value struct1, undef struct1, 0, v14
+    v19 = insert_value struct1, v18, 1, v17
+    v20 = insert_value struct1, v19, 2, v12
+    ret v20
 }
 
 fn @signed() -> i16 [selector=0x232a6b9d, abi_params=[], abi_returns=[word<i16>]] {
@@ -60,13 +74,15 @@ fn @signed() -> i16 [selector=0x232a6b9d, abi_params=[], abi_returns=[word<i16>]
     ret v11
 }
 
-fn @clear() -> (u256, u256) [selector=0x52efea6e, abi_params=[], abi_returns=[word, word]] {
+fn @clear() -> struct2 [selector=0x52efea6e, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     tstore 0, 42
     tstore 0, 0
     v0 = tload 0
     v1 = tload 0
-    ret v0, v1
+    v2 = insert_value struct2, undef struct2, 0, v0
+    v3 = insert_value struct2, v2, 1, v1
+    ret v3
 }
 
 fn @getter() -> u256 [selector=0x993a04b7, abi_params=[], abi_returns=[word]] {
@@ -84,15 +100,12 @@ fn @getter() -> u256 [selector=0x993a04b7, abi_params=[], abi_returns=[word]] {
   bb2:
     v6 = returndatasize
     v7 = lt v6, 32
-    jumpi v7, bb3, bb4
-  bb4:
+    revert_if v7, tuple_data_too_short
     v8 = add 0, 0
     v9 = mload v8
     v10 = add 0, 0
     v11 = mload v10
     ret v11
-  bb3:
-    revert 0, 0
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/transient_storage.sol:TransientModifier ===
@@ -103,43 +116,27 @@ fn @run() -> u16 [selector=0xc0406226, abi_params=[], abi_returns=[word<u16>]] {
     v1 = and v0, 0xffff
     v2 = tload 0
     v3 = and v2, 0xffff
-    v4 = add v3, 10
-    v5 = gt v4, 0xffff
-    jumpi v5, bb2, bb3
-  bb3:
-    v6 = tload 0
-    v7 = not 0xffff
-    v8 = and v6, v7
-    v9 = and v4, 0xffff
-    v10 = or v8, v9
-    tstore 0, v10
-    v11 = tload 0
-    v12 = and v11, 0xffff
-    v13 = mul v12, 10
-    v14 = iszero 10
-    v15 = div v13, 10
-    v16 = eq v15, v12
-    v17 = or v14, v16
-    v18 = iszero v17
-    v19 = gt v13, 0xffff
-    v20 = or v18, v19
-    jumpi v20, bb2, bb5
-  bb5:
-    v21 = tload 0
-    v22 = not 0xffff
-    v23 = and v21, v22
-    v24 = and v13, 0xffff
-    v25 = or v23, v24
-    tstore 0, v25
-    v26 = tload 0
-    v27 = and v26, 0xffff
-    jump bb4
-  bb4:
+    v4 = checked_add u16, v3, 10
+    v5 = tload 0
+    v6 = not 0xffff
+    v7 = and v5, v6
+    v8 = and v4, 0xffff
+    v9 = or v7, v8
+    tstore 0, v9
+    v10 = tload 0
+    v11 = and v10, 0xffff
+    v12 = checked_mul u16, v11, 10
+    v13 = tload 0
+    v14 = not 0xffff
+    v15 = and v13, v14
+    v16 = and v12, 0xffff
+    v17 = or v15, v16
+    tstore 0, v17
+    v18 = tload 0
+    v19 = and v18, 0xffff
+    jump bb2
+  bb2:
     jump bb1
   bb1:
-    ret v27
-  bb2:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    ret v19
 }

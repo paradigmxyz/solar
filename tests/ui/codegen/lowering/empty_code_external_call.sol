@@ -1,5 +1,4 @@
-//@ filecheck:
-// CHECK: @module
+//@[mir] filecheck:
 //@ compile-flags: --libraries EmptyCodeLibrary=0x1111111111111111111111111111111111111111
 //@ codegen-matrix: standard
 //@ run-call-fail: EmptyCodeCalls::direct => 0x
@@ -26,32 +25,67 @@ library EmptyCodeLibrary {
 }
 
 contract EmptyCodeCalls {
+    // CHECK-LABEL: fn @direct(
+    // CHECK-NOT: extcodesize
+    // CHECK: abi_encode []
+    // CHECK: extcodesize
+    // CHECK: revert_if {{.*}}, target_contract_has_no_code
     function direct() external {
         EmptyCodeTarget(address(0)).noop();
     }
 
+    // CHECK-LABEL: fn @pointer(
+    // CHECK-NOT: extcodesize
+    // CHECK: abi_encode []
+    // CHECK: extcodesize
+    // CHECK: revert_if {{.*}}, target_contract_has_no_code
     function pointer() external {
         function() external target = EmptyCodeTarget(address(0)).noop;
         target();
     }
 
+    // CHECK-LABEL: fn @libraryCall(
+    // CHECK-NOT: extcodesize
+    // CHECK: abi_encode []
+    // CHECK: extcodesize
+    // CHECK: revert_if {{.*}}, target_contract_has_no_code
     function libraryCall() external {
         EmptyCodeLibrary.noop();
     }
 
+    // CHECK-LABEL: fn @tryDirect(
+    // CHECK-NOT: extcodesize
+    // CHECK: abi_encode []
+    // CHECK: extcodesize
+    // CHECK: revert_if {{.*}}, target_contract_has_no_code
     function tryDirect() external {
         try EmptyCodeTarget(address(0)).noop() {} catch {}
     }
 
+    // CHECK-LABEL: fn @tryPointer(
+    // CHECK-NOT: extcodesize
+    // CHECK: abi_encode []
+    // CHECK: extcodesize
+    // CHECK: revert_if {{.*}}, target_contract_has_no_code
     function tryPointer() external {
         function() external target = EmptyCodeTarget(address(0)).noop;
         try target() {} catch {}
     }
 
+    // CHECK-LABEL: fn @tryStatic(
+    // CHECK-NOT: extcodesize
+    // CHECK: abi_encode []
+    // CHECK: extcodesize
+    // CHECK: revert_if {{.*}}, target_contract_has_no_code
     function tryStatic() external view {
         try EmptyCodeViewTarget(address(0)).noop() {} catch {}
     }
 
+    // CHECK-LABEL: fn @trySelf(
+    // CHECK-NOT: extcodesize
+    // CHECK: abi_encode []
+    // CHECK: extcodesize
+    // CHECK: revert_if {{.*}}, target_contract_has_no_code
     function trySelf() external returns (bool) {
         try this.noop() {
             return true;
@@ -64,6 +98,11 @@ contract EmptyCodeCalls {
         (success,) = address(0).call("");
     }
 
+    // CHECK-LABEL: fn @selfCall(
+    // CHECK-NOT: extcodesize
+    // CHECK: abi_encode []
+    // CHECK: extcodesize
+    // CHECK: revert_if {{.*}}, target_contract_has_no_code
     function selfCall() external returns (bool) {
         this.noop();
         return true;
@@ -79,6 +118,12 @@ contract EmptyCodeTryFactory {
 }
 
 contract EmptyCodeTryConstructor {
+    // CHECK-LABEL: @module EmptyCodeTryConstructor
+    // CHECK-LABEL: fn @constructor(
+    // CHECK-NOT: extcodesize
+    // CHECK: abi_encode []
+    // CHECK: extcodesize
+    // CHECK: revert_if {{.*}}, target_contract_has_no_code
     constructor() {
         try this.noop() {} catch {}
     }

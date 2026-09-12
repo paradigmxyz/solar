@@ -2,8 +2,7 @@
 + // === ROOT/tests/ui/codegen/mir/lower-slices/lower_slices.mir (after lower-abi) ===
   @module LowerSlices
 - fn @entry(arg0: calldataslice) [selector=0x12345678] {
-+ @phase abi
-+ fn @entry() [selector=0x12345678] {
++ fn @entry() [selector=0x12345678, abi_wrapper] {
     bb0:
 +     v1 = calldatasize
 +     v2 = lt v1, 36
@@ -11,7 +10,7 @@
 +   bb3:
 +     jump bb1
 +   bb1:
-      v0 = icall @len, 1, arg0
+      v0 = icall @len, arg0
       mstore 128, v0
       returndata 128, 32
 +   bb2:
@@ -31,7 +30,7 @@
       v2 = add v0, arg1
       v3 = sub v1, arg1
       v4 = make_calldata_slice v2, v3
-      v5 = icall @pair_len, 1, v4
+      v5 = icall @pair_len, v4
       ret v5
   }
   
@@ -53,8 +52,7 @@
 - // === ROOT/tests/ui/codegen/mir/lower-slices/lower_slices.mir (before lower-slices) ===
 + // === ROOT/tests/ui/codegen/mir/lower-slices/lower_slices.mir (after lower-slices) ===
   @module LowerSlices
-  @phase abi
-  fn @entry() [selector=0x12345678] {
+  fn @entry() [selector=0x12345678, abi_wrapper] {
     bb0:
       v1 = calldatasize
       v2 = lt v1, 36
@@ -62,7 +60,7 @@
     bb3:
       jump bb1
     bb1:
-      v0 = icall @len, 1, arg0
+      v0 = icall @len, arg0
       mstore 128, v0
       returndata 128, 32
     bb2:
@@ -87,10 +85,10 @@
 -     v2 = add v0, arg1
 -     v3 = sub v1, arg1
 -     v4 = make_calldata_slice v2, v3
--     v5 = icall @pair_len, 1, v4
+-     v5 = icall @pair_len, v4
 +     v2 = add arg0, arg2
 +     v3 = sub arg1, arg2
-+     v5 = icall @pair_len, 1, v2, v3
++     v5 = icall @pair_len, v2, v3
       ret v5
   }
   

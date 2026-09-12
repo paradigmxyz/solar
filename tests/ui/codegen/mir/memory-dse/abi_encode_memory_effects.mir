@@ -11,3 +11,39 @@ fn @encode(arg0: memptr) -> memoryslice {
     v0 = abi_encode [memory_bytes], args arg0
     ret v0
 }
+
+// CHECK-LABEL: fn @require_reads_message
+// CHECK: {{^[ +].*}}mstore arg1, 1
+// CHECK: {{^[ +].*}}icall require error_string, arg0, arg1
+fn @require_reads_message(arg0: bool, arg1: memptr) {
+  bb0:
+    mstore arg1, 1
+    icall require error_string, arg0, arg1
+    ret
+}
+
+// CHECK-LABEL: fn @require_reads_children
+// CHECK: {{^[ +].*}}mstore v0, 7
+// CHECK: {{^[ +].*}}icall require custom_error
+fn @require_reads_children(arg0: bool) {
+  bb0:
+    v0 = alloc raw, exact, uninitialized, infallible, 32
+    v1 = alloc raw, exact, uninitialized, infallible, 32
+    mstore v0, 7
+    mstore v1, v0
+    icall require custom_error [array<1, memory_bytes>], arg0, 0, v1
+    ret
+}
+
+// CHECK-LABEL: fn @packed_reads_children
+// CHECK: {{^[ +].*}}mstore v0, 7
+// CHECK: {{^[ +].*}}abi_encode_packed
+fn @packed_reads_children() -> memorybytes {
+  bb0:
+    v0 = alloc raw, exact, uninitialized, infallible, 32
+    v1 = alloc raw, exact, uninitialized, infallible, 32
+    mstore v0, 7
+    mstore v1, v0
+    v2 = abi_encode_packed (array<array<1, word>> memoryfixedarray<1, 1> v1)
+    ret v2
+}

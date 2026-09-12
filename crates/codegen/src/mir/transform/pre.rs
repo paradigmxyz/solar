@@ -34,7 +34,7 @@ use crate::mir::{
     MemoryObjectKind, MemoryObjectLayout, MirType, Module, Terminator, Value, ValueId,
     analysis::{CfgInfo, DominatorTree},
     pass::{MirPass, run_function_pass},
-    utils::{repair_reachability_phis, split_edge},
+    utils::split_edge,
 };
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
@@ -71,16 +71,12 @@ struct PreStats {
     expressions_eliminated: usize,
     /// Number of predecessor computations inserted.
     expressions_inserted: usize,
-    /// Whether CFG backlinks or phi inputs were repaired.
-    reachability_repaired: bool,
 }
 
 impl PreStats {
     /// Returns the total number of MIR edits made by this pass.
     const fn total(self) -> usize {
-        self.expressions_eliminated
-            + self.expressions_inserted
-            + self.reachability_repaired as usize
+        self.expressions_eliminated + self.expressions_inserted
     }
 }
 
@@ -182,7 +178,6 @@ impl PartialRedundancyEliminator {
                     &mut inserted_insts,
                 );
             }
-            self.stats.reachability_repaired |= repair_reachability_phis(func);
         }
 
         self.stats
@@ -628,18 +623,6 @@ impl PartialRedundancyEliminator {
     }
 
     fn compare_immediate(a: &Immediate, b: &Immediate) -> Ordering {
-        let rank = |imm: &Immediate| match imm {
-            Immediate::Bool(_) => 0,
-            Immediate::UInt(_, _) => 1,
-            Immediate::Int(_, _) => 2,
-        };
-        rank(a).cmp(&rank(b)).then_with(|| match (a, b) {
-            (Immediate::Bool(a), Immediate::Bool(b)) => a.cmp(b),
-            (Immediate::UInt(a_value, a_bits), Immediate::UInt(b_value, b_bits))
-            | (Immediate::Int(a_value, a_bits), Immediate::Int(b_value, b_bits)) => {
-                a_bits.cmp(b_bits).then_with(|| a_value.cmp(b_value))
-            }
-            _ => Ordering::Equal,
-        })
+        a.cmp(b)
     }
 }

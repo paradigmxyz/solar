@@ -1,5 +1,18 @@
-//@compile-flags: -O none -Zdump=mir
-//@filecheck:
+//@ codegen-matrix: standard
+//@[mir] filecheck:
+//@ run-call: memFix 0 => 0
+//@ run-call: memFix 1 => 20
+//@ run-call: memFix 2 => 0
+//@ run-call: memFixConst => 30
+//@ run-call: memDyn 3, 2 => 0
+//@ run-call: stFix 2 => 0
+//@ run-call-fail: memFix 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@ run-call-fail: memFixConstOob => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@ run-call-fail: memDyn 3, 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@ run-call-fail: memDyn 0, 0 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@ run-call-fail: stDyn 0 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@ run-call-fail: stDynWrite 0, 1 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@ run-call-fail: stFix 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
 
 // Array indexing emits a bounds check that reverts with Panic(0x32)
 // (selector 0x4e487b71, code 0x32) when `index >= length`, matching solc:
@@ -10,15 +23,13 @@
 // - calldata dynamic arrays/bytes check against the length word at
 //   `4 + head`;
 // - constant indexes remain explicit in the unoptimized MIR.
-// Runtime-verified differentially against solc 0.8.30 --via-ir on anvil:
-// in-range results match and out-of-range reverts are byte-identical.
 contract ArrayBoundsPanic {
     uint256[] sdyn;
     uint256[3] sfix;
 
     // CHECK-LABEL: fn @memFix{{[( ]}}
     // CHECK: {{v[0-9]+}} = lt arg0, 3
-    // CHECK: jumpi
+    // CHECK: panic_if {{v[0-9]+}}, 0x32
     // CHECK: memory_object_load_element memoryfixedarray<3, 1>, {{v[0-9]+}}, arg0
     function memFix(uint256 i) public pure returns (uint256) {
         uint256[3] memory x;
@@ -28,7 +39,7 @@ contract ArrayBoundsPanic {
 
     // CHECK-LABEL: fn @memFixConst{{[( ]}}
     // CHECK: lt 2, 3
-    // CHECK: jumpi
+    // CHECK: panic_if {{v[0-9]+}}, 0x32
     // CHECK: memory_object_load_element memoryfixedarray<3, 1>, {{v[0-9]+}}, 2
     function memFixConst() public pure returns (uint256) {
         uint256[3] memory x;
@@ -38,7 +49,7 @@ contract ArrayBoundsPanic {
 
     // CHECK-LABEL: fn @memFixConstOob{{[( ]}}
     // CHECK: lt 5, 3
-    // CHECK: jumpi
+    // CHECK: panic_if {{v[0-9]+}}, 0x32
     // CHECK: memory_object_load_element memoryfixedarray<3, 1>, {{v[0-9]+}}, 5
     function memFixConstOob() public pure returns (uint256) {
         uint256[3] memory x;
@@ -48,7 +59,7 @@ contract ArrayBoundsPanic {
     // CHECK-LABEL: fn @memDyn{{[( ]}}
     // CHECK: [[LEN:v[0-9]+]] = memory_object_len memoryarray
     // CHECK: {{v[0-9]+}} = lt arg1, [[LEN]]
-    // CHECK: jumpi
+    // CHECK: panic_if {{v[0-9]+}}, 0x32
     function memDyn(uint256 n, uint256 i) public pure returns (uint256) {
         uint256[] memory x = new uint256[](n);
         return x[i];
@@ -57,7 +68,7 @@ contract ArrayBoundsPanic {
     // CHECK-LABEL: fn @stDyn{{[( ]}}
     // CHECK: [[LEN:v[0-9]+]] = sload 0
     // CHECK: {{v[0-9]+}} = lt arg0, [[LEN]]
-    // CHECK: jumpi
+    // CHECK: panic_if {{v[0-9]+}}, 0x32
     // CHECK: {{v[0-9]+}} = storage_array_data_slot 0
     // CHECK: {{v[0-9]+}} = add {{v[0-9]+}}, arg0
     function stDyn(uint256 i) public view returns (uint256) {
@@ -74,7 +85,7 @@ contract ArrayBoundsPanic {
 
     // CHECK-LABEL: fn @stFix{{[( ]}}
     // CHECK: {{v[0-9]+}} = lt arg0, 3
-    // CHECK: jumpi
+    // CHECK: panic_if {{v[0-9]+}}, 0x32
     // CHECK: sload
     function stFix(uint256 i) public view returns (uint256) {
         return sfix[i];

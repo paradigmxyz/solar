@@ -2,7 +2,7 @@
 @module AbiEncodeCallMemoryTarget
 fn @something() [selector=0xa7a0d537, pure, abi_params=[], abi_returns=[]] {
   bb0:
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_call_memory_v2.sol:AbiEncodeCallMemory ===
@@ -12,7 +12,7 @@ data:
 
 fn @something() [selector=0xa7a0d537, pure, abi_params=[], abi_returns=[]] {
   bb0:
-    stop
+    ret
 }
 
 fn @accept(arg0: calldataslice, arg1: calldataslice) -> bytes32 [selector=0x1403c78f, pure, abi_params=[bytes, array<_, u256>], abi_returns=[word]] {
@@ -42,123 +42,78 @@ fn @memoryLoop() -> u256 [selector=0x0f61b86c, abi_params=[], abi_returns=[word]
     v1 = memory_object_len memoryarray, v0
     v2 = lt 0, v1
     v3 = iszero v2
-    jumpi v3, bb1, bb2
-  bb2:
+    panic_if v3, 0x32
     memory_object_store_element memoryarray<1>, v0, 0, 42
     v4 = memory_object_len memoryarray, v0
     v5 = lt 1, v4
     v6 = iszero v5
-    jumpi v6, bb1, bb3
-  bb3:
+    panic_if v6, 0x32
     memory_object_store_element memoryarray<1>, v0, 1, 99
-    jump bb4
-  bb4:
-    v7 = phi [bb3: 0], [bb20: v51]
-    v8 = phi [bb3: 96], [bb20: v46]
-    v9 = phi [bb3: 0], [bb20: v9]
-    v10 = phi [bb3: v0], [bb20: v47]
+    jump bb1
+  bb1:
+    v7 = phi [bb0: 0], [bb3: v37]
+    v8 = phi [bb0: memorybytes 96], [bb3: v32]
+    v9 = phi [bb0: 0], [bb3: v9]
+    v10 = phi [bb0: v0], [bb3: v33]
     v11 = lt v7, 2
-    jumpi v11, bb7, bb8
-  bb8:
-    jump bb5
+    jumpi v11, bb4, bb5
   bb5:
+    jump bb2
+  bb2:
     ret 1
-  bb7:
+  bb4:
     v12 = abi_encode [memory_bytes, memory_array<word>], object, selector 0x1403c78f00000000000000000000000000000000000000000000000000000000, args v8, v10
     v13 = address
     v14 = gas
-    v15 = memory_object_data memorybytes, v12
-    v16 = memory_object_len memorybytes, v12
-    v17 = call v14, v13, 0, v15, v16, 0, 0
-    v18 = returndatasize
-    v19 = add v18, 63
-    v20 = lt v19, v18
-    jumpi v20, bb10, bb11
-  bb11:
-    v21 = not 31
-    v22 = and v19, v21
-    v23 = alloc memorybytes, exact, uninitialized, infallible, v22
-    set_memory_object_len memorybytes, v23, v18
-    v24 = make_returndata_slice 0, v18
-    memory_object_copy_from_slice memorybytes, v23, v24
-    v25 = iszero v17
-    jumpi v25, bb12, bb13
-  bb13:
-    v26 = abi_decode [bytes32], v23
-    v27 = abi_encode [memory_bytes, memory_array<word>], scratch, args v8, v10
+    v15 = address_call v13, v12, gas v14
+    v16 = returndata_bytes
+    v17 = iszero v15
+    revert_if v17, empty
+    v18 = abi_decode [bytes32], v16
+    v19 = abi_encode [memory_bytes, memory_array<word>], scratch, args v8, v10
+    v20 = slice_ptr v19
+    v21 = slice_len v19
+    v22 = keccak256 v20, v21
+    v23 = eq v18, v22
+    v24 = iszero v23
+    revert_if v24, empty
+    v25 = address
+    v26 = gas
+    v27 = abi_encode [], selector 0x4c8fe52600000000000000000000000000000000000000000000000000000000
     v28 = slice_ptr v27
     v29 = slice_len v27
-    v30 = keccak256 v28, v29
-    v31 = eq v26, v30
-    v32 = iszero v31
-    jumpi v32, bb12, bb14
-  bb14:
-    v33 = address
-    v34 = gas
-    v35 = abi_encode [], selector 0x4c8fe52600000000000000000000000000000000000000000000000000000000
-    v36 = slice_ptr v35
-    v37 = slice_len v35
-    v38 = staticcall v34, v33, v36, v37, 0, 0
-    jumpi v38, bb16, bb15
-  bb15:
+    v30 = staticcall v26, v25, v28, v29, 0, 0
+    jumpi v30, bb8, bb7
+  bb7:
     revert_returndata
-  bb16:
-    v39 = returndatasize
-    v40 = add v39, 63
-    v41 = lt v40, v39
-    jumpi v41, bb10, bb17
-  bb17:
-    v42 = not 31
-    v43 = and v40, v42
-    v44 = alloc memorybytes, exact, uninitialized, infallible, v43
-    set_memory_object_len memorybytes, v44, v39
-    v45 = make_returndata_slice 0, v39
-    memory_object_copy_from_slice memorybytes, v44, v45
-    v46 = abi_decode [bytes], v44
-    v47 = alloc memoryarray<1>, exact, zeroed, panic, 128
-    set_memory_object_len memoryarray, v47, 3
-    v48 = memory_object_len memoryarray, v47
-    v49 = lt 2, v48
-    v50 = iszero v49
-    jumpi v50, bb1, bb18
-  bb18:
-    memory_object_store_element memoryarray<1>, v47, 2, 123
-    jump bb9
-  bb9:
+  bb8:
+    v31 = returndata_bytes
+    v32 = abi_decode [bytes], v31
+    v33 = alloc memoryarray<1>, exact, zeroed, panic, 128
+    set_memory_object_len memoryarray, v33, 3
+    v34 = memory_object_len memoryarray, v33
+    v35 = lt 2, v34
+    v36 = iszero v35
+    panic_if v36, 0x32
+    memory_object_store_element memoryarray<1>, v33, 2, 123
     jump bb6
   bb6:
-    v51 = add v7, 1
-    v52 = lt v51, v7
-    jumpi v52, bb19, bb20
-  bb20:
-    jump bb4
-  bb19:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb12:
-    revert 0, 0
-  bb10:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    jump bb3
+  bb3:
+    v37 = checked_add u256, v7, 1
+    jump bb1
 }
 
 fn @test() -> bytes4 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bytes4>]] {
   bb0:
-    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_zero v0, 64
     v1 = address
     v2 = shl 32, v1
     v3 = or v2, 0xa7a0d537
     v4 = lt 0, 2
     v5 = iszero v4
-    jumpi v5, bb1, bb2
-  bb2:
+    panic_if v5, 0x32
     v6 = shl 64, v3
     memory_object_store_element memoryfixedarray<2, 1>, v0, 0, v6
     v7 = abi_encode []
@@ -170,28 +125,25 @@ fn @test() -> bytes4 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byte
     v12 = add v10, 48
     mcopy v12, v11, 0 !metadata(memory=heap)
     v13 = create 0, v10, 48
-    jumpi v13, bb4, bb3
-  bb3:
+    jumpi v13, bb2, bb1
+  bb1:
     revert_returndata
-  bb4:
+  bb2:
     v14 = shl 32, v13
     v15 = or v14, 0xa7a0d537
     v16 = lt 1, 2
     v17 = iszero v16
-    jumpi v17, bb1, bb5
-  bb5:
+    panic_if v17, 0x32
     v18 = shl 64, v15
     memory_object_store_element memoryfixedarray<2, 1>, v0, 1, v18
     v19 = lt 1, 2
     v20 = iszero v19
-    jumpi v20, bb1, bb6
-  bb6:
+    panic_if v20, 0x32
     v21 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
     v22 = shr 64, v21
     v23 = lt 0, 2
     v24 = iszero v23
-    jumpi v24, bb1, bb7
-  bb7:
+    panic_if v24, 0x32
     v25 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
     v26 = shr 64, v25
     v27 = and v26, 0xffffffff
@@ -199,8 +151,7 @@ fn @test() -> bytes4 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byte
     v29 = abi_encode [], object, selector v28
     v30 = lt 1, 2
     v31 = iszero v30
-    jumpi v31, bb1, bb8
-  bb8:
+    panic_if v31, 0x32
     v32 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
     v33 = shr 64, v32
     v34 = and v33, 0xffffffff
@@ -211,27 +162,26 @@ fn @test() -> bytes4 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byte
     v39 = abi_encode [], object, selector v38
     v40 = memory_object_len memorybytes, v29
     v41 = eq v40, 4
-    jumpi v41, bb9, bb10
-  bb10:
-    jump bb11
-  bb9:
+    jumpi v41, bb3, bb4
+  bb4:
+    jump bb5
+  bb3:
     v42 = memory_object_len memorybytes, v36
     v43 = eq v42, 4
-    jump bb11
-  bb11:
-    v44 = phi [bb9: v43], [bb10: 0]
-    jumpi v44, bb12, bb13
-  bb13:
-    jump bb14
-  bb12:
+    jump bb5
+  bb5:
+    v44 = phi [bb3: v43], [bb4: false]
+    jumpi v44, bb6, bb7
+  bb7:
+    jump bb8
+  bb6:
     v45 = memory_object_len memorybytes, v39
     v46 = eq v45, 4
-    jump bb14
-  bb14:
-    v47 = phi [bb12: v46], [bb13: 0]
+    jump bb8
+  bb8:
+    v47 = phi [bb6: v46], [bb7: false]
     v48 = iszero v47
-    jumpi v48, bb15, bb16
-  bb16:
+    panic_if v48, 0x1
     v49 = memory_object_load_element memorybytes, v29, 0
     v50 = memory_object_len memorybytes, v29
     v51 = lt v50, 4
@@ -250,8 +200,7 @@ fn @test() -> bytes4 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byte
     v64 = and v57, v63
     v65 = eq v56, v64
     v66 = iszero v65
-    jumpi v66, bb15, bb17
-  bb17:
+    panic_if v66, 0x1
     v67 = memory_object_load_element memorybytes, v29, 0
     v68 = memory_object_len memorybytes, v29
     v69 = lt v68, 4
@@ -270,8 +219,7 @@ fn @test() -> bytes4 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byte
     v82 = and v75, v81
     v83 = eq v74, v82
     v84 = iszero v83
-    jumpi v84, bb15, bb18
-  bb18:
+    panic_if v84, 0x1
     v85 = memory_object_load_element memorybytes, v29, 0
     v86 = memory_object_len memorybytes, v29
     v87 = lt v86, 4
@@ -284,8 +232,7 @@ fn @test() -> bytes4 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byte
     v94 = shl 224, v93
     v95 = eq v92, v94
     v96 = iszero v95
-    jumpi v96, bb15, bb19
-  bb19:
+    panic_if v96, 0x1
     v97 = memory_object_load_element memorybytes, v29, 0
     v98 = memory_object_len memorybytes, v29
     v99 = lt v98, 4
@@ -295,12 +242,4 @@ fn @test() -> bytes4 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byte
     v103 = select v99, v102, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v104 = and v97, v103
     ret v104
-  bb15:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 1 !metadata(memory=scratch)
-    revert 0, 36
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
 }

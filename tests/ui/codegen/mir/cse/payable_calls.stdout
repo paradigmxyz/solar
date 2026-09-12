@@ -1,0 +1,66 @@
+- // === ROOT/tests/ui/codegen/mir/cse/payable_calls.mir (before cse) ===
++ // === ROOT/tests/ui/codegen/mir/cse/payable_calls.mir (after cse) ===
+  @module PayableCallEffects
+  fn @observe(arg0: address) -> u256 {
+    bb0:
+      v0 = balance arg0
+      v1 = selfbalance
+      v2 = sload 0
+      v3 = tload 0
+      v4 = send arg0, 1
+      v5 = balance arg0
+      v6 = selfbalance
+      v7 = sload 0
+      v8 = tload 0
+      transfer arg0, 1
+      v9 = balance arg0
+      v10 = selfbalance
+      v11 = sload 0
+      v12 = tload 0
+      v13 = add v0, v1
+      v14 = add v2, v3
+      v15 = add v5, v6
+      v16 = add v7, v8
+      v17 = add v9, v10
+      v18 = add v11, v12
+      v19 = add v13, v14
+      v20 = add v15, v16
+      v21 = add v17, v18
+      v22 = add v19, v20
+      v23 = add v22, v21
+      ret v23
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/cse/payable_calls.mir (before dce) ===
++ // === ROOT/tests/ui/codegen/mir/cse/payable_calls.mir (after dce) ===
+  @module PayableCallEffects
+  fn @observe(arg0: address) -> u256 {
+    bb0:
+      v0 = balance arg0
+      v1 = selfbalance
+      v2 = sload 0
+      v3 = tload 0
+      v4 = send arg0, 1
+      v5 = balance arg0
+      v6 = selfbalance
+      v7 = sload 0
+      v8 = tload 0
+      transfer arg0, 1
+      v9 = balance arg0
+      v10 = selfbalance
+      v11 = sload 0
+      v12 = tload 0
+      v13 = add v0, v1
+      v14 = add v2, v3
+      v15 = add v5, v6
+      v16 = add v7, v8
+      v17 = add v9, v10
+      v18 = add v11, v12
+      v19 = add v13, v14
+      v20 = add v15, v16
+      v21 = add v17, v18
+      v22 = add v19, v20
+      v23 = add v22, v21
+      ret v23
+  }
+  

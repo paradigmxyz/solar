@@ -35,7 +35,7 @@ fn @set(arg0: bool, arg1: bool) [selector=0xf907191a, abi_params=[bool, bool], a
     v14 = shl 8, v13
     v15 = or v12, v14
     sstore 0, v15 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 fn @both() -> bool [selector=0x35f2e0a7, view, abi_params=[], abi_returns=[word<bool>]] {
@@ -51,6 +51,6 @@ fn @both() -> bool [selector=0x35f2e0a7, view, abi_params=[], abi_returns=[word<
     v4 = and v3, 255
     jump bb3
   bb3:
-    v5 = phi [bb1: v4], [bb2: 0]
+    v5 = phi [bb1: v4], [bb2: false]
     ret v5
 }

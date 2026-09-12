@@ -5,8 +5,7 @@ fn @roundTrip(arg0: u256, arg1: u8, arg2: u256) -> u256 [selector=0xfaa172f5, ab
     sstore 0, 7 !metadata(storage=slot(0))
     v0 = lt arg0, 0xffffffffffffffff
     v1 = iszero v0
-    jumpi v1, bb1, bb2
-  bb2:
+    panic_if v1, 0x32
     v2 = div arg0, 32
     v3 = add 1, v2
     v4 = mod arg0, 32
@@ -25,8 +24,7 @@ fn @roundTrip(arg0: u256, arg1: u8, arg2: u256) -> u256 [selector=0xfaa172f5, ab
     v15 = sload 0 !metadata(storage=slot(0))
     v16 = lt arg0, 0xffffffffffffffff
     v17 = iszero v16
-    jumpi v17, bb1, bb3
-  bb3:
+    panic_if v17, 0x32
     v18 = div arg0, 32
     v19 = add 1, v18
     v20 = mod arg0, 32
@@ -35,22 +33,8 @@ fn @roundTrip(arg0: u256, arg1: u8, arg2: u256) -> u256 [selector=0xfaa172f5, ab
     v23 = mul v21, 8
     v24 = shr v23, v22
     v25 = and v24, 255
-    v26 = add v15, v25
-    v27 = lt v26, v15
-    jumpi v27, bb4, bb5
-  bb5:
-    v28 = sload 0x10800000000000000 !metadata(storage=slot(0x10800000000000000))
-    v29 = add v26, v28
-    v30 = lt v29, v26
-    jumpi v30, bb4, bb6
-  bb6:
-    ret v29
-  bb4:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    v26 = checked_add u256, v15, v25
+    v27 = sload 0x10800000000000000 !metadata(storage=slot(0x10800000000000000))
+    v28 = checked_add u256, v26, v27
+    ret v28
 }

@@ -1,4 +1,15 @@
 //! Lower semantic memory-object operations to physical word operations.
+//!
+//! The selected memory-layout policy supplies object headers, field offsets, and element strides.
+//! Semantic accesses and allocations become raw pointer arithmetic, loads, stores, and allocation
+//! operations, then object types are erased. Mixed slice/object merges are materialized before
+//! that erasure so later operations still use the correct representation. Unreachable blocks are
+//! removed before substitution: their definitions need not obey SSA and can contain cast cycles.
+//!
+//! This runs after SSA structs and mutable frame slots have been lowered. It leaves modules with
+//! live SSA structs untouched: erasing an object's type while a struct still declares that field
+//! would break the aggregate type contract. The module stays semantic until
+//! the final conversion verifies all backend representation requirements.
 
 use crate::mir::{
     AllocationAlignment, AllocationKind, AllocationSemantics, Function, FunctionBuilder, Immediate,
@@ -25,20 +36,22 @@ impl MirPass for LowerMemoryObjects {
 
     fn run_pass(
         &self,
-        _gcx: Gcx<'_>,
+        gcx: Gcx<'_>,
         module: &mut Module,
         _analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        if module.phase >= MirPhase::MemoryLowered {
+        if module.has_struct_values() {
+            gcx.dcx()
+                .err("`lower-memory-objects` requires scalar structs; run `lower-structs` first")
+                .emit();
+            return false;
+        }
+        if module.phase() == MirPhase::Lowered {
             return false;
         }
         let mut changed = false;
         for func in module.functions.iter_mut() {
             changed |= lower_function::<EvmMemoryLayout>(func);
-        }
-        if module.phase == MirPhase::Dispatch {
-            module.advance_phase(MirPhase::MemoryLowered);
-            changed = true;
         }
         changed
     }
@@ -47,13 +60,15 @@ impl MirPass for LowerMemoryObjects {
 fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
     let is_object_value = |value| func.value_ty(value).as_ref().is_some_and(is_object_type);
     let has_objects = func.arg_indices().any(|index| is_object_type(&func.arg_ty(index)))
-        || func.returns.iter().any(is_object_type)
+        || func.return_components().iter().any(is_object_type)
         || func.live_values().any(is_object_value)
         || func.instructions().any(|inst_id| func.inst(inst_id).kind.is_memory_object_op());
     if !has_objects {
         return false;
     }
 
+    // unreachable definitions -> removed blocks and phi inputs
+    let _ = super::cfg_simplify::remove_unreachable_blocks(func);
     materialize_mixed_byte_phis(func);
     let mut replacements = FxHashMap::default();
     let blocks = func.blocks.indices();
@@ -70,6 +85,13 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
                         let instruction = builder.func_mut().inst_mut(inst);
                         instruction.kind =
                             InstKind::Alloc { size, kind: AllocationKind::Raw, semantics };
+                    }
+                    InstKind::MemoryObjectFromPtr { ptr, .. } | InstKind::WordCast(ptr) => {
+                        // object -> ptr
+                        if let Some(result) = builder.func().inst_result_value(inst) {
+                            replacements.insert(result, ptr);
+                        }
+                        return false;
                     }
                     InstKind::MemoryObjectLen(object, kind) => {
                         if matches!(builder.func().value_ty(object), Some(MirType::Slice(_))) {
@@ -434,9 +456,13 @@ fn coalesce_constant_allocations(func: &mut Function) {
                 position = scan;
                 continue;
             };
+            let preserves_fmp =
+                allocations.iter().any(|(inst, _, _)| func.inst(*inst).metadata.preserves_fmp());
             let base = allocations[0].1.result;
             let size = func.alloc_value(Value::Immediate(Immediate::uint256(U256::from(total))));
             let mut offset = 0_u64;
+            // base = alloc total !preserves_fmp(any member)
+            // remaining members = base + offset
             for (index, (allocation_id, allocation, _)) in allocations.iter().enumerate() {
                 if index == 0 {
                     let inst = func.inst_mut(*allocation_id);
@@ -445,6 +471,7 @@ fn coalesce_constant_allocations(func: &mut Function) {
                         kind: AllocationKind::Raw,
                         semantics: AllocationSemantics::INTERNAL,
                     };
+                    inst.metadata.set_preserves_fmp(preserves_fmp);
                 } else {
                     let offset_value =
                         func.alloc_value(Value::Immediate(Immediate::uint256(U256::from(offset))));
@@ -454,6 +481,7 @@ fn coalesce_constant_allocations(func: &mut Function) {
                     inst.metadata.set_memory_region(None);
                     inst.metadata.set_storage_alias(None);
                     inst.metadata.clear_deferred_alloc();
+                    inst.metadata.set_preserves_fmp(false);
                 }
                 offset = offset.saturating_add(allocation.size);
             }
@@ -657,7 +685,7 @@ fn erase_object_types(func: &mut Function) {
         erase_object_type(&mut ty);
         func.set_arg_ty(index, ty);
     }
-    for ty in &mut func.returns {
+    for ty in func.return_components_mut() {
         erase_object_type(ty);
     }
     let mut values = DenseBitSet::new_empty(func.num_values());
@@ -666,7 +694,7 @@ fn erase_object_types(func: &mut Function) {
     }
     for value in values.iter() {
         match func.value_mut(value) {
-            Value::Undef(ty) => erase_object_type(ty),
+            Value::Undef(ty) | Value::Immediate(Immediate::Pointer(_, ty)) => erase_object_type(ty),
             Value::Arg(_) | Value::Inst(_) | Value::Immediate(_) | Value::Error(_) => {}
         }
     }

@@ -94,3 +94,17 @@
       stop
   }
   
+  fn @precompiles(arg0: memorybytes) -> u256 {
+    bb0:
+      v0 = sha256 arg0
+      v1 = ripemd160 arg0
+      v2 = ecrecover 0, 0, 0, 0
+      ret v2
+  }
+  
+  fn @concatenate(arg0: memorybytes) -> memorybytes {
+    bb0:
+      v0 = icall concat<memorybytes, bytes2>, arg0, 0x1234000000000000000000000000000000000000000000000000000000000000
+      ret v0
+  }
+  

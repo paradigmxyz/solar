@@ -1,18 +1,32 @@
 // === ROOT/tests/ui/codegen/lowering/storage_layout_base.sol:LayoutSlots ===
 @module LayoutSlots
-fn @slots() -> (u256, u256, u256, u256, u256, u256) [selector=0x48547d69, pure, abi_params=[], abi_returns=[word, word, word, word, word, word]] {
+types:
+  struct0: {u256, u256, u256, u256, u256, u256}
+
+fn @slots() -> struct0 [selector=0x48547d69, pure, abi_params=[], abi_returns=[word, word, word, word, word, word], abi_return_params=[u256, u256, u256, u256, u256, u256]] {
   bb0:
-    ret 7, 0, 7, 1, 8, 0
+    v0 = insert_value struct0, undef struct0, 0, 7
+    v1 = insert_value struct0, v0, 1, 0
+    v2 = insert_value struct0, v1, 2, 7
+    v3 = insert_value struct0, v2, 3, 1
+    v4 = insert_value struct0, v3, 4, 8
+    v5 = insert_value struct0, v4, 5, 0
+    ret v5
 }
 
 // === ROOT/tests/ui/codegen/lowering/storage_layout_base.sol:LayoutStorage ===
 @module LayoutStorage
-fn @store(arg0: u256) -> (u256, u256) [selector=0x6057361d, abi_params=[u256], abi_returns=[word, word]] {
+types:
+  struct0: {u256, u256}
+
+fn @store(arg0: u256) -> struct0 [selector=0x6057361d, abi_params=[u256], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
     sstore 42, arg0 !metadata(storage=slot(42))
     v0 = sload 42 !metadata(storage=slot(42))
     v1 = sload 42 !metadata(storage=slot(42))
-    ret v1, v0
+    v2 = insert_value struct0, undef struct0, 0, v1
+    v3 = insert_value struct0, v2, 1, v0
+    ret v3
 }
 
 // === ROOT/tests/ui/codegen/lowering/storage_layout_base.sol:LayoutBase ===
@@ -22,26 +36,37 @@ fn @store(arg0: u256) -> (u256, u256) [selector=0x6057361d, abi_params=[u256], a
 @module LayoutMiddle
 fn @constructor() [constructor] {
   bb0:
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/storage_layout_base.sol:LayoutDerived ===
 @module LayoutDerived
-fn @slots() -> (u256, u256, u256) [selector=0x48547d69, pure, abi_params=[], abi_returns=[word, word, word]] {
+types:
+  struct0: {u256, u256, u256}
+
+fn @slots() -> struct0 [selector=0x48547d69, pure, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, u256, u256]] {
   bb0:
-    ret 2, 3, 4
+    v0 = insert_value struct0, undef struct0, 0, 2
+    v1 = insert_value struct0, v0, 1, 3
+    v2 = insert_value struct0, v1, 2, 4
+    ret v2
 }
 
 fn @constructor() [constructor] {
   bb0:
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/storage_layout_base.sol:LayoutTransient ===
 @module LayoutTransient
-fn @slots() -> (u256, u256) [selector=0x48547d69, pure, abi_params=[], abi_returns=[word, word]] {
+types:
+  struct0: {u256, u256}
+
+fn @slots() -> struct0 [selector=0x48547d69, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[u256, u256]] {
   bb0:
-    ret 0, 7
+    v0 = insert_value struct0, undef struct0, 0, 0
+    v1 = insert_value struct0, v0, 1, 7
+    ret v1
 }
 
 // === ROOT/tests/ui/codegen/lowering/storage_layout_base.sol:LayoutErc7201 ===
@@ -52,34 +77,19 @@ fn @matchesReference() -> bool [selector=0xedf3feeb, pure, abi_params=[], abi_re
     set_memory_object_len memorybytes, v0, 12
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0x6578616d706c652e6d61696e0000000000000000000000000000000000000000
-    v2 = icall @erc7201Reference, 1, v0
+    v2 = icall @erc7201Reference, v0
     v3 = eq 0x183a6125c38840424c4a85fa12bab2ab606c4b6d0e7cc73c0c06ba5300eab500, v2
     ret v3
 }
 
 fn @erc7201Reference(arg0: memorybytes) -> u256 [pure] {
   bb0:
-    v0 = add 0, 0
-    v1 = keccak256_bytes arg0
-    v2 = sub v1, 1
-    v3 = lt v1, 1
-    jumpi v3, bb1, bb2
-  bb2:
-    v4 = shl 0, v2
-    v5 = add v0, 32
-    v6 = add v5, 63
-    v7 = not 31
-    v8 = and v6, v7
-    v9 = alloc memorybytes, exact, uninitialized, panic, v8
-    set_memory_object_len memorybytes, v9, v5
-    memory_object_store_word memorybytes, v9, 0, v4
-    v10 = add 0, 32
-    v11 = keccak256_bytes v9
-    v12 = not 255
-    v13 = and v11, v12
-    ret v13
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    v0 = keccak256_bytes arg0
+    v1 = checked_sub u256, v0, 1
+    v2 = shl 0, v1
+    v3 = icall concat<bytes32>, v2
+    v4 = keccak256_bytes v3
+    v5 = not 255
+    v6 = and v4, v5
+    ret v6
 }

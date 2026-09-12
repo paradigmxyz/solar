@@ -1,8 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped.mir (before lower-evm-shaped) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_evm_shaped.mir (after lower-evm-shaped) ===
   @module LowerEvmShaped
-- @phase memory-lowered
-+ @phase evm-shaped
++ @phase lowered
   fn @entry() [entry] {
     bb0:
       v0 = calldataload 0
@@ -14,10 +13,10 @@
       revert 0, 0
   }
   
-  fn @caller() [selector=0x00000007] {
+  fn @caller() [selector=0x00000007, abi_wrapper] {
     bb0:
       v0 = calldataload 4
--     icall @fused, 0, v0 !metadata(span=10..20, modifier_depth=1)
+-     icall @fused, v0 !metadata(span=10..20, modifier_depth=1)
 -     stop !metadata(span=30..40, modifier_depth=2)
 +     tail_call @fused, v0 !metadata(span=10..20, modifier_depth=1)
   }
@@ -32,8 +31,9 @@
   
   fn @spin(arg0: u256) {
     bb0:
-      icall @spin, 0, arg0
-      revert 0, 0
+      icall @spin, arg0
+-     revert 0, 0
++     invalid
   }
   
   fn @live_on_sibling(arg0: bool) -> u256 {
@@ -97,5 +97,138 @@
       jumpi arg0, bb1, bb3
     bb3:
       ret 7
+  }
+  
+  fn @stop_caller() {
+    bb0:
+-     icall @stop_helper
+-     ret
++     tail_call @stop_helper
+  }
+  
+  fn @stop_helper() {
+    bb0:
+      stop
+  }
+  
+  fn @void_caller() {
+    bb0:
+      icall @void_helper
+      ret
+  }
+  
+  fn @void_helper() {
+    bb0:
+      ret
+  }
+  
+  fn @tail_return_caller() {
+    bb0:
+      icall @tail_return_helper
+      sstore 0, 7
+      ret
+  }
+  
+  fn @tail_return_helper() {
+    bb0:
+      tail_call @void_helper
+  }
+  
+  fn @scalar_caller(arg0: bool) -> u256 {
+    bb0:
+      jumpi arg0, bb1, bb2
+-   bb1:
+-     v0 = icall @scalar_fail, 17 !metadata(span=50..60)
+-     v1 = add v0, 1
+-     sstore 0, v1
+-     jump bb2
+    bb2:
+-     v2 = phi [bb0: 7], [bb1: v1]
++     v2 = phi [bb0: 7]
+      ret v2
++   bb1:
++     tail_call @scalar_fail, 17 !metadata(span=50..60)
+  }
+  
+  fn @scalar_fail(arg0: u256) -> u256 {
+    bb0:
+      mstore 0, arg0
+      revert 0, 32
+  }
+  
+  fn @recursive_fail(arg0: u256) -> u256 {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb2:
+      v0 = icall @recursive_fail, arg0 !metadata(span=70..80)
+-     sstore 0, v0
+-     revert 0, 0 !metadata(span=90..100)
++     invalid
+    bb1:
+      revert 0, 0
+  }
+  
+  fn @constructor() [abi_wrapper, constructor] {
+    bb0:
+      v0 = callvalue
+      jumpi v0, bb2, bb1
+    bb1:
+      v1 = icall @constructor_helper, 23
+-     sstore 0, v1
+-     ret
++     invalid
+    bb2:
+      v2 = icall @constructor_no_args
+-     sstore 0, v2
+-     ret
++     invalid
+  }
+  
+  fn @constructor_no_args() -> u256 {
+    bb0:
+      revert 0, 0
+  }
+  
+  fn @constructor_helper(arg0: u256) -> u256 {
+    bb0:
+      v0 = icall @scalar_fail, arg0
+-     ret v0
++     invalid
+  }
+  
+  fn @maybe_caller(arg0: bool) {
+    bb0:
+      v0 = icall @maybe_fail, arg0
+      sstore 0, v0
+      ret
+  }
+  
+  fn @maybe_fail(arg0: bool) -> u256 {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb2:
+      ret 7
+    bb1:
+      revert 0, 0
+  }
+  
+  fn @chain_caller() -> u256 {
+    bb0:
+-     v0 = icall @chain_tail, 31
+-     sstore 0, v0
+-     ret v0
++     tail_call @chain_tail, 31
+  }
+  
+  fn @chain_tail(arg0: u256) -> u256 {
+    bb0:
+      tail_call @chain_body, arg0
+  }
+  
+  fn @chain_body(arg0: u256) -> u256 {
+    bb0:
+-     v0 = icall @scalar_fail, arg0
+-     ret v0
++     tail_call @scalar_fail, arg0
   }
   

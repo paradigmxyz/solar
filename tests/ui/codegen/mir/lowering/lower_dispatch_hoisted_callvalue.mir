@@ -4,7 +4,7 @@
 // the top of `entry` once instead of being repeated per case. No
 // receive/fallback: empty calldata and unknown selectors both revert.
 @module DispatchHoisted
-@phase abi
+@phase semantic
 // CHECK-LABEL: {{^[ +].*}}after lower-dispatch
 // CHECK: + fn @entry{{[( ]}}
 // CHECK: + [[VALUE:v[0-9]+]] = callvalue
@@ -13,11 +13,11 @@
 // CHECK: + switch {{.*}}[1 => {{.*}}2 =>
 // CHECK: + tail_call @b
 // CHECK: + tail_call @a
-fn @a() [selector=0x00000001] {
+fn @a() [selector=0x00000001, abi_wrapper] {
   bb0:
     stop
 }
-fn @b() [selector=0x00000002] {
+fn @b() [selector=0x00000002, abi_wrapper] {
   bb0:
     stop
 }

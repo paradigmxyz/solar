@@ -27,8 +27,7 @@ fn @constructor(arg0: bool, arg1: memoryfixedarray) [constructor, abi_params=[bo
     sstore 0, v6 !metadata(storage=slot(0))
     v7 = lt 1, 2
     v8 = iszero v7
-    jumpi v8, bb1, bb2
-  bb2:
+    panic_if v8, 0x32
     v9 = memory_object_load_element memoryfixedarray<2, 1>, arg1, 1
     v10 = eq v9, 0
     v11 = iszero v10
@@ -40,9 +39,5 @@ fn @constructor(arg0: bool, arg1: memoryfixedarray) [constructor, abi_params=[bo
     v17 = shl 8, v16
     v18 = or v15, v17
     sstore 0, v18 !metadata(storage=slot(0))
-    stop
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    ret
 }
