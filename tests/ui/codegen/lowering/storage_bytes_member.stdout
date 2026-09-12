@@ -659,7 +659,7 @@ bb60:
   sstore
   stop
 bb64:
-  push 416
+  push 448
   push 64
   mstore
   caller

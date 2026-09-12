@@ -1907,7 +1907,12 @@ impl AliasAnalysis {
         }
     }
 
-    fn range_may_overlap_fmp(func: &Function, address: ValueId, size: Option<u64>) -> bool {
+    /// Returns whether a physical memory range may touch the reserved FMP word.
+    pub(crate) fn range_may_overlap_fmp(
+        func: &Function,
+        address: ValueId,
+        size: Option<u64>,
+    ) -> bool {
         if size == Some(0) {
             return false;
         }

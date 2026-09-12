@@ -827,6 +827,25 @@ impl<'gcx> EvmCodegen<'gcx> {
                     visiting,
                     memo,
                 ),
+                InstKind::And(first, second) => {
+                    let (base, mask) =
+                        if let Some(mask) = Self::heap_prefix_constant(func, *second, 0) {
+                            (*first, mask)
+                        } else {
+                            (*second, Self::heap_prefix_constant(func, *first, 0)?)
+                        };
+                    if Self::heap_prefix_constant(func, base, 0).is_some() {
+                        return None;
+                    }
+                    // Clearing low bits can move the pointer backward by at most those bits.
+                    let padding = if mask == U256::from(u64::MAX - 31) {
+                        // Allocation ends fit in u64, so word alignment may use this mask.
+                        31
+                    } else {
+                        u256_to_u64(!mask)?
+                    };
+                    derive(base, visiting, memo).unwrap_or(0).checked_add(padding)
+                }
                 InstKind::WordCast(base) | InstKind::MemoryObjectFromPtr { ptr: base, .. } => {
                     derive(*base, visiting, memo)
                 }
@@ -1090,6 +1109,16 @@ mod tests {
         let forward = builder.add(mixed, half_word);
         let negative_sub = builder.sub(mixed, negative_half_word);
         let opaque_prefix = builder.add(opaque, negative_word);
+        // mask = not(31)
+        // aligned = add & mask
+        // commuted_aligned = mask & add
+        let mask = builder.not(last_byte);
+        let aligned = builder.and(add, mask);
+        let commuted_aligned = builder.and(mask, add);
+        let aligned_opaque = builder.and(opaque, mask);
+        // aligned_narrow = add & u64_word_mask
+        let narrow_mask = builder.imm(u64::MAX - 31);
+        let aligned_narrow = builder.and(add, narrow_mask);
         let cases = [
             (base, 0),
             (sub, 32),
@@ -1100,6 +1129,10 @@ mod tests {
             (forward, 32),
             (negative_sub, 32),
             (opaque_prefix, 32),
+            (aligned, 63),
+            (commuted_aligned, 63),
+            (aligned_opaque, 31),
+            (aligned_narrow, 63),
         ];
         let mut visiting = DenseBitSet::new_empty(function.num_values());
         let mut memo = FxHashMap::default();

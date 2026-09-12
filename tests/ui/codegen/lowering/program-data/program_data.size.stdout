@@ -336,7 +336,7 @@ bb12 [cold]:
   push 0
   revert
 bb13:
-  push 384
+  push 416
   dup 1
   push 64
   mstore
@@ -467,7 +467,7 @@ bb41:
   dup 2
   return
 bb16:
-  push 384
+  push 416
   dup 1
   push 64
   mstore
@@ -514,7 +514,7 @@ bb20:
   push 0xfe104a769973081412d46a6d04c990a5e9cc804baf45fa43d99b7dbee24984b8
   jump bb40
 bb21:
-  push 416
+  push 448
   push 64
   mstore
   push bb22
@@ -619,7 +619,7 @@ bb25:
   push 128
   return
 bb26:
-  push 416
+  push 448
   push 64
   mstore
   push bb27

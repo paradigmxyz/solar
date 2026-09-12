@@ -540,10 +540,14 @@ allocation: a guard belongs below the initial heap, while later allocations
 must remain adjacent to their resulting free-memory pointer. Prefix analysis
 covers physical memory reads and writes, including logs, both call buffers,
 and return/revert data. It follows bounded constant add/sub offsets with EVM
-modular arithmetic, including helper returns and merged paths. A known backward offset from an opaque base still reserves space;
-losing pointer provenance does not discard that offset. Forward offsets reduce
-the required prefix, but never below zero. This analysis covers constant working
-prefixes, not arbitrary unbounded assembly pointer arithmetic.
+modular arithmetic, including helper returns and merged paths. Constant masks
+that clear low bits retain the base's prefix and reserve the largest extra
+backward displacement the mask can introduce. A known backward offset from
+an opaque base still reserves space; losing pointer provenance does not discard
+that offset. Forward offsets reduce the required prefix, but never below zero. This analysis covers constant working
+prefixes, not arbitrary unbounded assembly pointer arithmetic. Allocation
+coalescing uses the same address-range proof as alias analysis when crossing
+memory accesses; a pointer type alone cannot establish that they avoid the FMP.
 An allocation marked `preserves_fmp` must keep
 its FMP address and bump, even when folding makes its size constant. ABI encoding
 uses this requirement when it writes the output before reserving its final size.

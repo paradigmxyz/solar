@@ -19,8 +19,8 @@
 
 use crate::mir::{
     AllocationAlignment, AllocationFailure, AllocationInitialization, AllocationKind,
-    AllocationSemantics, BlockId, EffectKind, Function, FunctionBuilder, InstId, InstKind, MirType,
-    Module, ValueId, memory::EvmMemoryLayout, pass::MirPass,
+    AllocationSemantics, BlockId, EffectKind, Function, FunctionBuilder, InstId, InstKind, Module,
+    ValueId, analysis::AliasAnalysis, memory::EvmMemoryLayout, pass::MirPass,
 };
 use solar_sema::Gcx;
 
@@ -170,24 +170,7 @@ fn preserves_group(func: &Function, inst_id: InstId) -> bool {
 ///
 /// `len` is `None` when the access length is not a compile-time constant.
 fn range_avoids_fmp(func: &Function, addr: ValueId, len: Option<u64>) -> bool {
-    if let Some(base) = func.value_u64(addr) {
-        if base >= EvmMemoryLayout::ZERO_SLOT {
-            return true;
-        }
-        return len
-            .and_then(|len| base.checked_add(len))
-            .is_some_and(|end| end <= EvmMemoryLayout::FMP_SLOT);
-    }
-    is_proven_heap_address(func, addr)
-}
-
-/// Returns whether a runtime address is itself a typed heap pointer.
-///
-/// Arbitrary integer arithmetic is not sufficient: EVM addition wraps and can turn an expression
-/// containing a heap pointer into the FMP address. Derived raw addresses therefore remain barriers
-/// unless a separate range analysis proves them safe.
-fn is_proven_heap_address(func: &Function, value: ValueId) -> bool {
-    matches!(func.value_ty(value), Some(MirType::MemPtr | MirType::MemoryObject(_)))
+    !AliasAnalysis::range_may_overlap_fmp(func, addr, len)
 }
 
 /// Rewrites a collected group into one fused allocation plus constant offsets.
