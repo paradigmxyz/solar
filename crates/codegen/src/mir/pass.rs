@@ -59,6 +59,7 @@ pub static ALL_PASSES: &[&dyn MirPass] = &[
     &readonly_eval::ReadonlyEval,
     &cse::Cse,
     &pre::Pre,
+    &element_cleanup::ElementCleanup,
     &egraph::Egraph,
     &word_sequence::WordSequence,
     &storage_load_cse::StorageLoadCse,
@@ -200,6 +201,9 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     // compare against one bound.
     &cse::Cse,
     &load_pre::LoadPre,
+    // Element reads of arrays that only ever hold canonical words drop their
+    // type masks while the accesses are still semantic and calls explicit.
+    &element_cleanup::ElementCleanup,
     &frame_promotion::FrameSlotPromotion,
     &loop_canonicalize::LoopCanonicalize,
     &indvar_simplify::IndVarSimplify,

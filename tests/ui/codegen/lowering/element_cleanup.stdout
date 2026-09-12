@@ -1,0 +1,195 @@
+- // === ROOT/tests/ui/codegen/lowering/element_cleanup.sol:ElementCleanup (before element-cleanup) ===
++ // === ROOT/tests/ui/codegen/lowering/element_cleanup.sol:ElementCleanup (after element-cleanup) ===
+  @module ElementCleanup
+  fn @first(arg0: memoryarray) -> address [selector=0x61c4cbc4, pure, abi_params=[array<_, address>], abi_returns=[word<u160>]] {
+    bb0:
+      v0 = memory_object_len memoryarray, arg0
+      v1 = lt 0, v0
+      v2 = iszero v1
+      jumpi v2, bb1, bb2
+    bb2:
+      v3 = memory_object_load_element memoryarray<1>, arg0, 0
+-     v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
+-     ret v4
++     ret v3
+    bb1:
+      mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+      mstore 4, 50 !metadata(memory=scratch)
+      revert 0, 36
+  }
+  
+  fn @fresh(arg0: u256) -> address [selector=0x0538087c, pure, abi_params=[u256], abi_returns=[word<u160>]] {
+    bb0:
+      v0 = mul arg0, 1
+      v1 = iszero 1
+      v2 = div v0, 1
+      v3 = eq v2, arg0
+      v4 = or v1, v3
+      v5 = iszero v4
+      jumpi v5, bb1, bb2
+    bb2:
+      v6 = add v0, 1
+      v7 = lt v6, v0
+      jumpi v7, bb1, bb3
+    bb3:
+      v8 = mul v6, 32
+      v9 = iszero 32
+      v10 = div v8, 32
+      v11 = eq v10, v6
+      v12 = or v9, v11
+      v13 = iszero v12
+      jumpi v13, bb1, bb4
+    bb4:
+      v14 = alloc memoryarray<1>, exact, zeroed, panic, v8
+      set_memory_object_len memoryarray, v14, arg0
+      v15 = memory_object_len memoryarray, v14
+      v16 = lt 1, v15
+      v17 = iszero v16
+      jumpi v17, bb5, bb6
+    bb6:
+      v18 = memory_object_load_element memoryarray<1>, v14, 1
+-     v19 = and v18, 0xffffffffffffffffffffffffffffffffffffffff
+      v20 = memory_object_len memoryarray, v14
+      v21 = lt 0, v20
+      v22 = iszero v21
+      jumpi v22, bb5, bb7
+    bb7:
+-     memory_object_store_element memoryarray<1>, v14, 0, v19
++     memory_object_store_element memoryarray<1>, v14, 0, v18
+      v23 = memory_object_len memoryarray, v14
+      v24 = lt 2, v23
+      v25 = iszero v24
+      jumpi v25, bb5, bb8
+    bb8:
+      v26 = memory_object_load_element memoryarray<1>, v14, 2
+-     v27 = and v26, 0xffffffffffffffffffffffffffffffffffffffff
+-     ret v27
++     ret v26
+    bb5:
+      mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+      mstore 4, 50 !metadata(memory=scratch)
+      revert 0, 36
+    bb1:
+      mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+      mstore 4, 65 !metadata(memory=scratch)
+      revert 0, 36
+  }
+  
+  fn @last(arg0: memoryarray, arg1: u256) -> address [pure] {
+    bb0:
+      v0 = add arg1, 1
+      v1 = lt v0, arg1
+      jumpi v1, bb1, bb2
+    bb2:
+      v2 = memory_object_len memoryarray, arg0
+      v3 = eq v0, v2
+      jumpi v3, bb3, bb4
+    bb4:
+      jump bb5
+    bb5:
+      v9 = add arg1, 1
+      v10 = lt v9, arg1
+      jumpi v10, bb1, bb8
+    bb8:
+      v11 = icall @last, 1, arg0, v9
+      ret v11
+    bb3:
+      v4 = memory_object_len memoryarray, arg0
+      v5 = lt arg1, v4
+      v6 = iszero v5
+      jumpi v6, bb6, bb7
+    bb7:
+      v7 = memory_object_load_element memoryarray<1>, arg0, arg1
+-     v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffff
+-     ret v8
++     ret v7
+    bb6:
+      mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+      mstore 4, 50 !metadata(memory=scratch)
+      revert 0, 36
+    bb1:
+      mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+      mstore 4, 17 !metadata(memory=scratch)
+      revert 0, 36
+  }
+  
+  fn @tail(arg0: memoryarray) -> address [selector=0x4c8ba82e, pure, abi_params=[array<_, address>], abi_returns=[word<u160>]] {
+    bb0:
+      v0 = icall @last, 1, arg0, 0
+      ret v0
+  }
+  
+  fn @dirty(arg0: memoryarray) -> address [selector=0x74016a59, pure, abi_params=[array<_, address>], abi_returns=[word<u160>]] {
+    bb0:
+      v0 = add arg0, 32
+      mstore v0, 0x123456789abcdef0123456789abcdef0123456789abcdef
+      v1 = memory_object_len memoryarray, arg0
+      v2 = lt 0, v1
+      v3 = iszero v2
+      jumpi v3, bb1, bb2
+    bb2:
+      v4 = memory_object_load_element memoryarray<1>, arg0, 0
+      v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffff
+      ret v5
+    bb1:
+      mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+      mstore 4, 50 !metadata(memory=scratch)
+      revert 0, 36
+  }
+  
+  fn @fill(arg0: memoryarray, arg1: address) [pure] {
+    bb0:
+      v0 = memory_object_len memoryarray, arg0
+      v1 = lt 0, v0
+      v2 = iszero v1
+      jumpi v2, bb1, bb2
+    bb2:
+      v3 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
+      memory_object_store_element memoryarray<1>, arg0, 0, v3
+      stop
+    bb1:
+      mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+      mstore 4, 50 !metadata(memory=scratch)
+      revert 0, 36
+  }
+  
+  fn @filled(arg0: memoryarray, arg1: address) -> address [selector=0xc5c700de, pure, abi_params=[array<_, address>, address], abi_returns=[word<u160>]] {
+    bb0:
+      icall @fill, 0, arg0, arg1
+      v0 = memory_object_len memoryarray, arg0
+      v1 = lt 0, v0
+      v2 = iszero v1
+      jumpi v2, bb1, bb2
+    bb2:
+      v3 = memory_object_load_element memoryarray<1>, arg0, 0
+-     v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
+-     ret v4
++     ret v3
+    bb1:
+      mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+      mstore 4, 50 !metadata(memory=scratch)
+      revert 0, 36
+  }
+  
+  fn @narrowed(arg0: memoryarray, arg1: u256) -> u256 [selector=0xb5215a28, pure, abi_params=[array<_, u256>, u256], abi_returns=[word]] {
+    bb0:
+      v0 = memory_object_len memoryarray, arg0
+      v1 = lt 0, v0
+      v2 = iszero v1
+      jumpi v2, bb1, bb2
+    bb2:
+      memory_object_store_element memoryarray<1>, arg0, 0, arg1
+      v3 = memory_object_len memoryarray, arg0
+      v4 = lt 1, v3
+      v5 = iszero v4
+      jumpi v5, bb1, bb3
+    bb3:
+      v6 = memory_object_load_element memoryarray<1>, arg0, 1
+      v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
+      ret v7
+    bb1:
+      mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+      mstore 4, 50 !metadata(memory=scratch)
+      revert 0, 36
+  }
+  
