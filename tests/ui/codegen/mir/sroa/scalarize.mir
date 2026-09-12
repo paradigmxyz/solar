@@ -13,6 +13,19 @@
 // CHECK: - memory_zero
 // CHECK: - {{.*}}mload
 // CHECK: + ret 0
+// CHECK: {{^[ +].*}}fn @return_zeroed_object{{[( ]}}
+// CHECK: {{^[ +].*}}memory_zero v0, 64
+// CHECK: {{^[ +].*}}returndata v0, 64
+// CHECK: {{^[ +].*}}fn @revert_zeroed_object{{[( ]}}
+// CHECK: {{^[ +].*}}memory_zero v0, 64
+// CHECK: {{^[ +].*}}revert v0, 64
+// CHECK: {{^[ +].*}}fn @return_field{{[( ]}}
+// CHECK: {{^[ +].*}}mstore v1, arg0
+// CHECK: {{^[ +].*}}returndata v1, 32
+// CHECK: {{^[ +].*}}fn @revert_field_successor{{[( ]}}
+// CHECK: {{^[ +].*}}mstore v1, arg0
+// CHECK: {{^[ +].*}}bb1:
+// CHECK: {{^[ +].*}}revert v1, 32
 // CHECK-LABEL: after dce
 // CHECK: {{^[ +].*}}fn @local_struct{{[( ]}}
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = alloc memorystruct<2>, exact, uninitialized, infallible, 64
@@ -40,4 +53,36 @@ fn @zeroed_array() -> u256 {
     v1 = memory_object_element_addr memoryfixedarray<4, 1>, v0, 3
     v2 = mload v1
     ret v2
+}
+
+fn @return_zeroed_object() {
+  bb0:
+    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    memory_zero v0, 64
+    returndata v0, 64
+}
+
+fn @revert_zeroed_object() {
+  bb0:
+    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    memory_zero v0, 64
+    revert v0, 64
+}
+
+fn @return_field(arg0: u256) {
+  bb0:
+    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v1 = memory_object_field_addr memorystruct<2>, v0, 1
+    mstore v1, arg0
+    returndata v1, 32
+}
+
+fn @revert_field_successor(arg0: u256) {
+  bb0:
+    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v1 = memory_object_element_addr memoryfixedarray<2, 1>, v0, 1
+    mstore v1, arg0
+    jump bb1
+  bb1:
+    revert v1, 32
 }
