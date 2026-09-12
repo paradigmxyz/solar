@@ -38,10 +38,10 @@ bb5:
   sload
   jump bb68
 bb68:
-  push 0
+  push 128
   mstore
   push 32
-  push 0
+  push 128
   return
 bb6:
   push 832

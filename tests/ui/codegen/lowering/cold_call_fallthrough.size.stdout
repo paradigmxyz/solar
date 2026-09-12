@@ -41,10 +41,10 @@ bb23:
   jumpi
   push 4
   calldataload
-  push 0
+  push 128
   mstore
   push 32
-  push 0
+  push 128
   return
 bb8 [cold]:
   push 4

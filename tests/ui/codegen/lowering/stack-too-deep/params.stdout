@@ -207,8 +207,8 @@ bb4:
   lt
   push bb25
   jumpi
-  push 0
+  push 128
   mstore
   push 32
-  push 0
+  push 128
   return

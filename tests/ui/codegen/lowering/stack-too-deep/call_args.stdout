@@ -541,8 +541,8 @@ bb4:
   swap 1
   jump
 bb25:
-  push 0
+  push 128
   mstore
   push 32
-  push 0
+  push 128
   return

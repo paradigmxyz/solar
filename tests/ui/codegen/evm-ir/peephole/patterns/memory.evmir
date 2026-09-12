@@ -167,13 +167,12 @@ bb10:
   tload
   stop
 
+// A return cannot establish its own memory-expansion proof.
 // CHECK-LABEL: bb11:
-// CHECK: -   push 128
-// CHECK: +   push 0
+// CHECK: {{^[ +].*}}push 128
 // CHECK: {{^[ +].*}}mstore
 // CHECK: {{^[ +].*}}push 32
-// CHECK: -   push 128
-// CHECK: +   push 0
+// CHECK: {{^[ +].*}}push 128
 bb11:
   calldatasize
   push 128
@@ -270,4 +269,63 @@ bb19:
   mstore
   push 32
   push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  return
+
+// An earlier store proves that the returned word is already in expanded memory.
+// CHECK-LABEL: bb20:
+// CHECK: {{^[ +].*}}push 256
+// CHECK: {{^[ +].*}}mstore
+// CHECK: -   push 128
+// CHECK: +   push 0
+// CHECK: {{^[ +].*}}mstore
+// CHECK: {{^[ +].*}}push 32
+// CHECK: -   push 128
+// CHECK: +   push 0
+bb20:
+  calldatasize
+  push 256
+  mstore
+  caller
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+
+// A lower store does not prove that the returned word is in expanded memory.
+// CHECK-LABEL: bb21:
+// CHECK: {{^[ +].*}}push 64
+// CHECK: {{^[ +].*}}mstore
+// CHECK: {{^[ +].*}}push 128
+// CHECK: {{^[ +].*}}mstore
+// CHECK: {{^[ +].*}}push 32
+// CHECK: {{^[ +].*}}push 128
+bb21:
+  calldatasize
+  push 64
+  mstore
+  caller
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+
+// An inline jump destination can bypass the earlier store.
+// CHECK-LABEL: bb22:
+// CHECK: {{^[ +].*}}jumpdest
+// CHECK: {{^[ +].*}}push 128
+// CHECK: {{^[ +].*}}mstore
+// CHECK: {{^[ +].*}}push 32
+// CHECK: {{^[ +].*}}push 128
+bb22:
+  calldatasize
+  push 256
+  mstore
+  jumpdest
+  caller
+  push 128
+  mstore
+  push 32
+  push 128
   return

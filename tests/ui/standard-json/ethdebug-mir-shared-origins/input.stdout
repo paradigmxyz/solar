@@ -50,7 +50,7 @@
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
-                      "0x2f"
+                      "0x31"
                     ]
                   }
                 },
@@ -113,7 +113,7 @@
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
-                      "0x2f"
+                      "0x31"
                     ]
                   }
                 },
@@ -149,7 +149,7 @@
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
-                      "0x2f"
+                      "0x31"
                     ]
                   }
                 },
@@ -194,7 +194,7 @@
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
-                      "0x2f"
+                      "0x31"
                     ]
                   }
                 },
@@ -341,39 +341,10 @@
                 {
                   "offset": 41,
                   "operation": {
-                    "mnemonic": "PUSH0"
-                  },
-                  "context": {
-                    "pick": [
-                      {
-                        "code": {
-                          "source": {
-                            "id": 0
-                          },
-                          "range": {
-                            "offset": 109,
-                            "length": 13
-                          }
-                        }
-                      },
-                      {
-                        "code": {
-                          "source": {
-                            "id": 0
-                          },
-                          "range": {
-                            "offset": 132,
-                            "length": 13
-                          }
-                        }
-                      }
+                    "mnemonic": "PUSH1",
+                    "arguments": [
+                      "0x80"
                     ]
-                  }
-                },
-                {
-                  "offset": 42,
-                  "operation": {
-                    "mnemonic": "MSTORE"
                   },
                   "context": {
                     "pick": [
@@ -405,16 +376,7 @@
                 {
                   "offset": 43,
                   "operation": {
-                    "mnemonic": "PUSH1",
-                    "arguments": [
-                      "0x20"
-                    ]
-                  }
-                },
-                {
-                  "offset": 45,
-                  "operation": {
-                    "mnemonic": "PUSH0"
+                    "mnemonic": "MSTORE"
                   },
                   "context": {
                     "pick": [
@@ -444,7 +406,51 @@
                   }
                 },
                 {
+                  "offset": 44,
+                  "operation": {
+                    "mnemonic": "PUSH1",
+                    "arguments": [
+                      "0x20"
+                    ]
+                  }
+                },
+                {
                   "offset": 46,
+                  "operation": {
+                    "mnemonic": "PUSH1",
+                    "arguments": [
+                      "0x80"
+                    ]
+                  },
+                  "context": {
+                    "pick": [
+                      {
+                        "code": {
+                          "source": {
+                            "id": 0
+                          },
+                          "range": {
+                            "offset": 109,
+                            "length": 13
+                          }
+                        }
+                      },
+                      {
+                        "code": {
+                          "source": {
+                            "id": 0
+                          },
+                          "range": {
+                            "offset": 132,
+                            "length": 13
+                          }
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "offset": 48,
                   "operation": {
                     "mnemonic": "RETURN"
                   },
@@ -477,25 +483,25 @@
                   }
                 },
                 {
-                  "offset": 47,
+                  "offset": 49,
                   "operation": {
                     "mnemonic": "JUMPDEST"
                   }
                 },
                 {
-                  "offset": 48,
-                  "operation": {
-                    "mnemonic": "PUSH0"
-                  }
-                },
-                {
-                  "offset": 49,
-                  "operation": {
-                    "mnemonic": "PUSH0"
-                  }
-                },
-                {
                   "offset": 50,
+                  "operation": {
+                    "mnemonic": "PUSH0"
+                  }
+                },
+                {
+                  "offset": 51,
+                  "operation": {
+                    "mnemonic": "PUSH0"
+                  }
+                },
+                {
+                  "offset": 52,
                   "operation": {
                     "mnemonic": "REVERT"
                   },

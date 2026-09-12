@@ -41,10 +41,10 @@ bb16:
   push 4
   calldataload
   iszero
-  push 0
+  push 128
   mstore
   push 32
-  push 0
+  push 128
   return
 bb4 [cold]:
   push 0

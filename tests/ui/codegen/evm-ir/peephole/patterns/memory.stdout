@@ -98,12 +98,10 @@
     stop
   bb11:
     calldatasize
--   push 128
-+   push 0
+    push 128
     mstore
     push 32
--   push 128
-+   push 0
+    push 128
     return
   bb12:
     calldatasize
@@ -171,5 +169,38 @@
     mstore
     push 32
     push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    return
+  bb20:
+    calldatasize
+    push 256
+    mstore
+    caller
+-   push 128
++   push 0
+    mstore
+    push 32
+-   push 128
++   push 0
+    return
+  bb21:
+    calldatasize
+    push 64
+    mstore
+    caller
+    push 128
+    mstore
+    push 32
+    push 128
+    return
+  bb22:
+    calldatasize
+    push 256
+    mstore
+    jumpdest
+    caller
+    push 128
+    mstore
+    push 32
+    push 128
     return
   

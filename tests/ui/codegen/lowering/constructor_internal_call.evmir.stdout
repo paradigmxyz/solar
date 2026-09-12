@@ -1,11 +1,11 @@
 // === ROOT/tests/ui/codegen/lowering/constructor_internal_call.sol:ConstructorICall (creation) ===
 @module ConstructorICall_deployment
 bb0:
-  push 310
+  push 312
   codesize
   sub
   dup 1
-  push 310
+  push 312
   push 224
   codecopy
   push 224
@@ -21,7 +21,7 @@ bb0:
   push bb12
   jumpi
   push 224
-  push 310
+  push 312
   codesize
   sub
   add
@@ -192,7 +192,7 @@ bb11:
   mstore
   push 0
   sstore
-  push 31
+  push 33
   dup 1
   push 279
   push 0
@@ -216,10 +216,10 @@ bb0:
   jumpi
   push 0
   sload
-  push 0
+  push 128
   mstore
   push 32
-  push 0
+  push 128
   return
 bb3 [cold]:
   push 0
