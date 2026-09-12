@@ -25,6 +25,7 @@ use solar_sema::{
     ty::{CallableParamSource, Ty, TyKind},
 };
 use std::{
+    cmp::Reverse,
     fmt::Write as _,
     ops::ControlFlow,
     path::{Path, PathBuf},
@@ -1775,9 +1776,16 @@ impl SymbolTables {
             self.file_scopes.entry(uri).or_default().push(scope_id);
         }
         for scopes in self.file_scopes.values_mut() {
+            // Reverse lookup visits the last scope with a matching start first, so equal-start
+            // scopes must place the smallest containing range last.
             scopes.sort_by_key(|&scope_id| {
                 let range = self.scopes[scope_id].range;
-                (range.start.line, range.start.character, range.end.line, range.end.character)
+                (
+                    range.start.line,
+                    range.start.character,
+                    Reverse(range.end.line),
+                    Reverse(range.end.character),
+                )
             });
         }
 
