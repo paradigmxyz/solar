@@ -1028,7 +1028,7 @@ async fn discovery_cleanup_does_not_remove_analysis_handles_for_the_same_epoch()
     let mut tasks = AnalysisTasks {
         coordinator: Some((analysis, coordinator.abort_handle())),
         worker: Some((analysis, worker.abort_handle())),
-        cancellation: None,
+        ..Default::default()
     };
 
     tasks.clear_worker(discovery);
