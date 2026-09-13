@@ -35,9 +35,9 @@
 //! Backward liveness estimates the callee's peak live words and the caller values
 //! surviving the call. Their sum must fit twelve words, leaving stack-addressing
 //! headroom for operand staging. The gas-only hot-leaf pass reuses that estimate
-//! for bounded acyclic scalar helpers called from inside loops, with a ten-word
-//! budget because the loop's carried words stay resident through every join a
-//! clone adds: each such site is cloned when the call protocol it removes, weighed
+//! for bounded acyclic scalar helpers called from inside loops, under the same
+//! twelve-word budget now that the loop's carried words stay resident through
+//! every join a clone adds: each such site is cloned when the call protocol it removes, weighed
 //! over the loop's trip count (ten iterations when none is computable) and the
 //! expected executions, repays the deposited copy; sites outside loops and
 //! callees shared by more than eight sites keep the call. Read-only loops are eligible after
@@ -369,10 +369,12 @@ impl MirInliner {
     /// Live words a caller may hold across an inlined body plus the body's own
     /// peak, leaving stack-addressing headroom for operand staging.
     const STACK_BUDGET: usize = 12;
-    /// The tighter budget for hot leaves: a clone inside a loop body also keeps
-    /// the loop's carried words resident through every join it adds, and the
-    /// Base64 encoder lost half its gas to spills when the two budgets matched.
-    const HOT_LEAF_STACK_BUDGET: usize = 10;
+    /// The budget for hot leaves: a clone inside a loop body also keeps the
+    /// loop's carried words resident through every join it adds. It matched the
+    /// general budget once the backend carried twelve words through a loop's
+    /// joins; at ten, two of the Base64 decoder's four lookups stayed calls
+    /// that drained every carried word, and lifting it took 15% off decoding.
+    const HOT_LEAF_STACK_BUDGET: usize = 12;
 
     /// The live-word budget for inlining at the current mode's sites.
     const fn stack_budget(&self) -> usize {

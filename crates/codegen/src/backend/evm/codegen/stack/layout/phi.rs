@@ -504,6 +504,16 @@ impl<'a> StackPhiPlanner<'a> {
                         })
                         && banned.entry(header).or_default().insert(value)
                     {
+                        tracing::trace!(
+                            function = %func.name,
+                            ?header,
+                            ?value,
+                            latches = ?latches
+                                .iter()
+                                .map(|latch| (latch, state.resident_out.get(latch)))
+                                .collect::<Vec<_>>(),
+                            "live join word banned"
+                        );
                         changed = true;
                     }
                 }
@@ -785,10 +795,17 @@ impl<'a> StackPhiPlanner<'a> {
             // A wide join shuffles every predecessor into one order; a word the join only
             // passes on rarely pays that there. A loop header is different: its latches
             // return with the header's own order, so a word riding around the loop
-            // shuffles nowhere.
+            // shuffles nowhere, and a word an enclosing header carries must ride through
+            // every wide join on the way to the latch, or it is stored and reloaded on
+            // every iteration instead of shuffled once.
             let wide = block.predecessors.len() > 2 && !facts.back_edges.contains_key(&join);
             let used_here = &facts.join_uses[&join];
             let wanted = &state.wanted[join];
+            let loop_carried = |value: ValueId| {
+                facts.loop_headers_of[join].iter().any(|header| {
+                    state.layouts.get(header).is_some_and(|layout| layout.contains(&value))
+                })
+            };
             let mut carried = state
                 .resident_out
                 .get(&first)
@@ -800,7 +817,7 @@ impl<'a> StackPhiPlanner<'a> {
                         && self.carriable(value)
                         && !banned.get(&join).is_some_and(|set| set.contains(&value))
                         && wanted.contains(value)
-                        && (!precise || !wide || used_here.contains(&value))
+                        && (!precise || !wide || used_here.contains(&value) || loop_carried(value))
                         && forward.clone().all(|pred| {
                             state.resident_out.get(&pred).is_some_and(|list| list.contains(&value))
                         })
