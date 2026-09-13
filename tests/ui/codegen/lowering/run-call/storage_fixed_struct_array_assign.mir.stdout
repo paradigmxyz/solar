@@ -28,7 +28,7 @@ fn @setUp() [selector=0x0a9254e4, abi_params=[], abi_returns=[]] {
     v16 = and v12, 255
     v17 = or v15, v16
     sstore v11, v17 !metadata(storage=offset(v6, 2))
-    stop
+    ret
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -197,5 +197,5 @@ fn @testNested() -> (u256, u256, u256) [selector=0xfbd4b8cc, abi_params=[], abi_
 fn @constructor() [constructor] {
   bb0:
     sstore 24, 1 !metadata(storage=slot(24))
-    stop
+    ret
 }

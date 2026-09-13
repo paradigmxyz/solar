@@ -112,7 +112,6 @@ fn returning_guard(func: &Function) -> Option<Guard> {
         let block = &func.blocks[block];
         block.instructions.is_empty()
             && match &block.terminator {
-                Some(Terminator::Stop) => true,
                 Some(Terminator::Return { values }) => values.is_empty(),
                 _ => false,
             }

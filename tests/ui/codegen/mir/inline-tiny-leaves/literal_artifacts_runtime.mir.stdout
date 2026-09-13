@@ -8,7 +8,7 @@ fn @constructor() [constructor] {
     v0 = icall @version, 1
     v1 = keccak256_bytes v0
     storeimmutable initial, v1
-    stop
+    ret
 }
 
 fn @version() -> memorybytes [selector=0x54fd4d50, pure, abi_params=[], abi_returns=[memory_bytes]] {

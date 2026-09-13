@@ -115,9 +115,7 @@ impl EvmCodegen<'_> {
             return None;
         }
         let block = &func.blocks[block];
-        if !matches!(&block.terminator, Some(Terminator::Stop))
-            && !matches!(&block.terminator, Some(Terminator::Return { values }) if values.is_empty())
-        {
+        if !matches!(&block.terminator, Some(Terminator::Return { values }) if values.is_empty()) {
             return None;
         }
         let inst = func.inst(*block.instructions.last()?);
@@ -185,7 +183,6 @@ fn returns_without_work(func: &Function, block: BlockId) -> bool {
             return false;
         }
         match &func.blocks[current].terminator {
-            Some(Terminator::Stop) => return true,
             Some(Terminator::Return { values }) => return values.is_empty(),
             Some(Terminator::Jump(next)) => current = *next,
             _ => return false,

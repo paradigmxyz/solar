@@ -179,6 +179,7 @@ fn eligible(func: &Function) -> bool {
                 .zip(func.value_u64(*size))
                 .and_then(|(offset, size)| offset.checked_add(size))
                 .is_some_and(|end| end <= EvmMemoryLayout::FMP_SLOT),
+            Some(Terminator::Return { values }) => values.is_empty(),
             Some(
                 Terminator::Jump(_)
                 | Terminator::Branch { .. }

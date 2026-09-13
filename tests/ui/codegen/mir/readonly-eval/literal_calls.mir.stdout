@@ -24,7 +24,7 @@ fn @constructor() [constructor] {
     mstore v8, 0x3100000000000000000000000000000000000000000000000000000000000000
     v9 = icall @toShort, 1, v7
     storeimmutable shortWord, v9
-    stop
+    ret
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -147,5 +147,5 @@ fn @overwrite(arg0: memorybytes, arg1: u256) [pure] {
   bb0:
     v0 = add arg0, 32
     mstore v0, arg1
-    stop
+    ret
 }

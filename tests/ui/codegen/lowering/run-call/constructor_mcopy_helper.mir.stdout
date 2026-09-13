@@ -16,7 +16,7 @@ fn @constructor(arg0: memorybytes, arg1: memorybytes) [constructor, abi_params=[
     v2 = slice_len v0
     v3 = keccak256 v1, v2
     storeimmutable digest, v3
-    stop
+    ret
 }
 
 fn @runtimeDigest(arg0: memorybytes, arg1: memorybytes) -> bytes32 [selector=0x8655a0e6, pure, abi_params=[bytes, bytes], abi_returns=[word]] {
