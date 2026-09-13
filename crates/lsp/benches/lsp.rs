@@ -4,16 +4,20 @@
 
 use criterion::{BatchSize, BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use crop::Rope;
-use lsp_types::{GotoDefinitionResponse, HoverContents, OneOf, Position, Url};
+use lsp_types::{
+    GotoDefinitionResponse, HoverContents, OneOf, Position, Range, TextDocumentContentChangeEvent,
+    Url,
+};
 use solar_config::CompileOpts;
 use solar_lsp::{
-    BenchmarkAnalysis, BenchmarkDocumentUpdate, BenchmarkFoldingRangeRequests,
-    BenchmarkOpenDocuments, BenchmarkProject, BenchmarkRepeatedAnalysis, BenchmarkRequest,
-    BenchmarkResponse, BenchmarkSelectionRangeRequests, BenchmarkSignatureHelpRequests,
-    BenchmarkWorkspaceDiscovery, BenchmarkWorkspacePathQueries, BenchmarkWorkspaceReports,
-    benchmark_folding_ranges, benchmark_folding_ranges_from_rope, benchmark_import_path_at,
-    benchmark_selection_ranges,
+    BenchmarkAnalysis, BenchmarkDocumentChange, BenchmarkDocumentUpdate,
+    BenchmarkFoldingRangeRequests, BenchmarkOpenDocuments, BenchmarkProject,
+    BenchmarkRepeatedAnalysis, BenchmarkRequest, BenchmarkResponse,
+    BenchmarkSelectionRangeRequests, BenchmarkSignatureHelpRequests, BenchmarkWorkspaceDiscovery,
+    BenchmarkWorkspacePathQueries, BenchmarkWorkspaceReports, benchmark_folding_ranges,
+    benchmark_folding_ranges_from_rope, benchmark_import_path_at, benchmark_selection_ranges,
 };
+use solar_parse::{Cursor, lexer::token::RawTokenKind};
 use std::{fmt::Write as _, fs, hint::black_box, path::PathBuf};
 
 const ANALYSIS_FUNCTION_COUNTS: [usize; 2] = [64, 256];
@@ -862,6 +866,98 @@ fn workspace_diagnostic_hot_paths(c: &mut Criterion) {
     reports.finish();
 }
 
+fn incoming_document_changes(c: &mut Criterion) {
+    let mut group = c.benchmark_group("lsp/incoming-document-changes");
+    for (name, source, identifier, occurrence_count, edit_counts) in [
+        ("optimism-predeploys", OPTIMISM_SOURCE, "Predeploys", 377, &[1, 8, 64, 377][..]),
+        (
+            "uniswap-tickmath",
+            include_str!("../../../testdata/UniswapV3.sol"),
+            "TickMath",
+            20,
+            &[1, 20][..],
+        ),
+        (
+            "counter",
+            "contract Counter {\n    uint256 count;\n    function increment() public { count++; }\n    function value() public view returns (uint256) { return count; }\n}\n",
+            "count",
+            3,
+            &[1, 3][..],
+        ),
+    ] {
+        let occurrences = Cursor::new(source)
+            .with_position()
+            .filter_map(|(start, token)| {
+                let end = start + token.len as usize;
+                (token.kind == RawTokenKind::Ident && &source[start..end] == identifier)
+                    .then_some(start..end)
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(occurrences.len(), occurrence_count);
+        let position_at = |offset| {
+            let prefix = &source[..offset];
+            Position::new(
+                prefix.bytes().filter(|&byte| byte == b'\n').count() as u32,
+                prefix.rsplit('\n').next().unwrap().encode_utf16().count() as u32,
+            )
+        };
+        let contents = Rope::from(source);
+        for &edit_count in edit_counts {
+            let replacement = format!("{identifier}Renamed");
+            let mut expected = source.to_owned();
+            let mut changes = Vec::with_capacity(edit_count);
+            // Clients apply independent replacements from the end to preserve earlier positions.
+            for range in occurrences.iter().rev().take(edit_count) {
+                changes.push(TextDocumentContentChangeEvent {
+                    range: Some(Range::new(position_at(range.start), position_at(range.end))),
+                    range_length: None,
+                    text: replacement.clone(),
+                });
+                expected.replace_range(range.clone(), &replacement);
+            }
+            let change = BenchmarkDocumentChange::from_changes(contents.clone(), changes);
+            assert_eq!(change.clone().apply().contents().to_string(), expected);
+            group.throughput(Throughput::Elements(edit_count as u64));
+            group.bench_function(
+                BenchmarkId::from_parameter(format!("{name}-{edit_count}")),
+                |b| {
+                    b.iter_batched(
+                        || change.clone(),
+                        |change| black_box(change.apply()),
+                        BatchSize::PerIteration,
+                    );
+                },
+            );
+        }
+    }
+
+    // Overlapping ranges must retain the sequential LSP behavior and exercise the fallback path.
+    let source = Rope::from("abcdef\nghijkl\n");
+    let changes = vec![
+        TextDocumentContentChangeEvent {
+            range: Some(Range::new(Position::new(0, 2), Position::new(0, 4))),
+            range_length: None,
+            text: "X".into(),
+        },
+        TextDocumentContentChangeEvent {
+            range: Some(Range::new(Position::new(0, 1), Position::new(0, 3))),
+            range_length: None,
+            text: "Y".into(),
+        },
+    ];
+    let change = BenchmarkDocumentChange::from_changes(source, changes);
+    assert_eq!(change.clone().apply().contents().to_string(), "aYef\nghijkl\n");
+    group.throughput(Throughput::Elements(2));
+    group.bench_function("sequential-overlap-fallback", |b| {
+        b.iter_batched(
+            || change.clone(),
+            |change| black_box(change.apply()),
+            BatchSize::PerIteration,
+        );
+    });
+    group.finish();
+}
+
 fn open_document_analysis_batches(c: &mut Criterion) {
     let documents = BenchmarkOpenDocuments::new(OPEN_DOCUMENT_COUNT, OPEN_DOCUMENT_BYTES);
     // Prime the initial snapshot so timing measures reuse across later analysis epochs.
@@ -1225,6 +1321,7 @@ criterion_group!(
     selection_range,
     open_document_selection_range,
     workspace_diagnostic_hot_paths,
+    incoming_document_changes,
     open_document_analysis_batches,
     repeated_analysis,
     workspace_index_reuse,

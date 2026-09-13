@@ -509,6 +509,16 @@ pub struct BenchmarkDocumentChange {
 }
 
 impl BenchmarkDocumentChange {
+    /// Prepare incoming document edits without including source construction in timing.
+    pub fn from_changes(contents: Rope, changes: Vec<TextDocumentContentChangeEvent>) -> Self {
+        Self { contents, changes }
+    }
+
+    /// The complete document contents, for verifying prepared edits outside timing.
+    pub fn contents(&self) -> &Rope {
+        &self.contents
+    }
+
     /// Apply this prepared document change and return the edited document.
     #[inline(never)]
     pub fn apply(self) -> Self {
