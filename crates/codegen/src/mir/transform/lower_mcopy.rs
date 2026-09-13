@@ -94,9 +94,7 @@ impl MirPass for LowerMCopy {
             .filter(|(id, _)| !constructor_reachable.contains(*id))
             .map(|(_, func)| {
                 let alias = AliasAnalysis::with_call_summaries(func, summaries.clone());
-                func.instructions()
-                    .filter(|&inst| copy_helper_eligible(func, &alias, &fresh_returns, inst))
-                    .count()
+                func.instructions().filter(|&inst| copy_helper_eligible(func, &alias, inst)).count()
             })
             .sum::<usize>();
         let helper = shared_copy_helper(target, helper_sites);
@@ -167,7 +165,7 @@ fn lower_function(
         directions
             .keys()
             .copied()
-            .filter(|&inst| copy_helper_eligible(func, &alias, fresh_returns, inst))
+            .filter(|&inst| copy_helper_eligible(func, &alias, inst))
             .map(|inst| (inst, helper))
             .collect::<solar_data_structures::map::FxHashMap<_, _>>()
     });
@@ -198,40 +196,19 @@ fn lower_function(
 }
 
 /// Returns whether a helper call frame is provably disjoint from both copy ranges.
-fn copy_helper_eligible(
-    func: &Function,
-    alias: &AliasAnalysis,
-    fresh_returns: &DenseBitSet<FunctionId>,
-    inst: InstId,
-) -> bool {
+fn copy_helper_eligible(func: &Function, alias: &AliasAnalysis, inst: InstId) -> bool {
     let InstKind::MCopy(dest, src, _) = func.inst(inst).kind else { return false };
     [dest, src].into_iter().all(|pointer| {
-        alias
-            .memory_address(func, pointer)
-            .is_some_and(|address| helper_owned_base(func, address.base, fresh_returns))
+        alias.memory_address(func, pointer).is_some_and(|address| helper_owned_base(address.base))
     })
 }
 
 /// Returns whether a base belongs to compiler-managed memory outside a callee's frame.
-fn helper_owned_base(
-    func: &Function,
-    base: MemoryBase,
-    fresh_returns: &DenseBitSet<FunctionId>,
-) -> bool {
-    match base {
-        MemoryBase::InternalFrame
-        | MemoryBase::Allocation(_)
-        | MemoryBase::DynamicAllocation(_) => true,
-        MemoryBase::Value(value) => {
-            let Value::Inst(inst) = func.value(value) else { return false };
-            matches!(
-                func.inst(*inst).kind,
-                InstKind::ICall { function, returns: 1, .. }
-                    if fresh_returns.contains(function)
-            )
-        }
-        MemoryBase::Absolute => false,
-    }
+fn helper_owned_base(base: MemoryBase) -> bool {
+    matches!(
+        base,
+        MemoryBase::InternalFrame | MemoryBase::Allocation(_) | MemoryBase::DynamicAllocation(_)
+    )
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
