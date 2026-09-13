@@ -10,6 +10,7 @@ use lsp_types::{
     TextDocumentClientCapabilities, TextDocumentIdentifier, TextDocumentPositionParams,
     WorkDoneProgressParams, request, request::Request,
 };
+use snapbox::assert_data_eq;
 use solar_config::{CompileOpts, ImportRemapping};
 use std::{
     future::Future,
@@ -89,6 +90,92 @@ Adds one to the provided value.
         let mut unresolved = resolved;
         unresolved.documentation = None;
         assert_eq!(unresolved, original);
+    }
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn preserves_repeated_multiline_natspec_in_both_formats() {
+    let fixture = RequestFixture::new(
+        r#"
+//- /Completion.sol open
+abstract contract Base {
+/** @notice First notice.
+@notice
+@notice Second notice.
+@dev First developer paragraph.
+@dev
+@dev Second developer paragraph.
+@param original
+@param original First parameter paragraph.
+Continued parameter line.
+@param original
+@param original Second parameter paragraph.
+@return result Named return paragraph.
+Continued return line.
+@return Unnamed return paragraph.
+*/
+function documented(uint256 original) public pure virtual returns (uint256 result, address);
+}
+contract C is Base {
+/// @inheritdoc Base
+function documented(uint256 value) public pure override returns (uint256 normalized, address) {
+return (value, address(0));
+}
+function use() public pure {
+documented$1(1);
+}
+}
+        "#,
+        "/Completion.sol",
+    );
+
+    for (format, expected) in [
+        (
+            MarkupKind::PlainText,
+            concat!(
+                "function documented(uint256 value) public pure override returns (uint256 normalized, address)",
+                "\n\nFirst notice.\n\nSecond notice.",
+                "\n\n@dev\n\nFirst developer paragraph.\n\nSecond developer paragraph.",
+                "\n\n@param\n\nvalue: First parameter paragraph.",
+                "\n  Continued parameter line.\n  \n  Second parameter paragraph.",
+                "\n\n@return\n\nnormalized: Named return paragraph.",
+                "\n  Continued return line.\n\nUnnamed return paragraph.",
+            ),
+        ),
+        (
+            MarkupKind::Markdown,
+            concat!(
+                "```solidity\nfunction documented(uint256 value) public pure override returns (uint256 normalized, address)\n```",
+                "\n\nFirst notice.\n\nSecond notice.",
+                "\n\n**@dev**\n\nFirst developer paragraph.\n\nSecond developer paragraph.",
+                "\n\n**@param**\n\n- `value`: First parameter paragraph.",
+                "\n  Continued parameter line.\n  \n  Second parameter paragraph.",
+                "\n\n**@return**\n\n- `normalized`: Named return paragraph.",
+                "\n  Continued return line.\n\n- Unnamed return paragraph.",
+            ),
+        ),
+    ] {
+        let mut router = crate::new_router_with_state(fixture.state());
+        request_initialize_with_resolve_support(
+            &mut router,
+            vec![format.clone()],
+            Some(vec!["documentation".into()]),
+        )
+        .await;
+        let item = request_completion_item(&mut router, &fixture, "$1", "documented").await;
+        let resolved = request_resolve_item(&mut router, item).await;
+        let rendered = match resolved.documentation.unwrap() {
+            Documentation::String(text) => {
+                assert_eq!(format, MarkupKind::PlainText);
+                text
+            }
+            Documentation::MarkupContent(markup) => {
+                assert_eq!(format, MarkupKind::Markdown);
+                assert_eq!(markup.kind, MarkupKind::Markdown);
+                markup.value
+            }
+        };
+        assert_data_eq!(rendered, expected);
     }
 }
 

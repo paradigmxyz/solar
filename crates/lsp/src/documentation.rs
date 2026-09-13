@@ -1,13 +1,16 @@
 //! Resolves and renders NatSpec documentation for LSP responses.
+//!
+//! Borrow resolved compiler text while assembling the output formats. Only the finished strings
+//! escape analysis, so hover and completion requests need no compiler context or deferred
+//! formatting. Intermediate single-tag sections stay inline to avoid temporary allocations.
 
 use lsp_types::{Documentation as LspDocumentation, MarkupContent, MarkupKind};
-use solar_interface::Symbol;
+use solar_interface::{Symbol, data_structures::smallvec::SmallVec};
 use solar_sema::{
     Gcx,
     hir::{self, HirPrinter},
     ty::NatSpecView,
 };
-use std::fmt::Write;
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct ResolvedDocumentation {
@@ -46,15 +49,17 @@ pub(crate) fn resolve(gcx: Gcx<'_>, item_id: hir::ItemId) -> ResolvedDocumentati
     }
 }
 
+// These borrowed sections only live during `resolve`. Keep the common single-tag case inline;
+// published responses own their rendered strings and never retain compiler-owned symbols or text.
 #[derive(Default)]
-struct NatSpecDocumentation {
-    notice: Vec<String>,
-    dev: Vec<String>,
-    params: Vec<(Symbol, String)>,
-    returns: Vec<(Option<Symbol>, String)>,
+struct NatSpecDocumentation<'a> {
+    notice: SmallVec<[&'a str; 1]>,
+    dev: SmallVec<[&'a str; 1]>,
+    params: SmallVec<[(Symbol, &'a [hir::NatSpecItem]); 1]>,
+    returns: SmallVec<[(Option<Symbol>, &'a [hir::NatSpecItem]); 1]>,
 }
 
-fn documentation(gcx: Gcx<'_>, item_id: hir::ItemId) -> NatSpecDocumentation {
+fn documentation(gcx: Gcx<'_>, item_id: hir::ItemId) -> NatSpecDocumentation<'_> {
     match item_id {
         hir::ItemId::Contract(id) => {
             let contract = gcx.hir.contract(id);
@@ -94,13 +99,13 @@ fn documentation(gcx: Gcx<'_>, item_id: hir::ItemId) -> NatSpecDocumentation {
     }
 }
 
-fn callable_documentation(
-    gcx: Gcx<'_>,
+fn callable_documentation<'gcx>(
+    gcx: Gcx<'gcx>,
     item_id: hir::ItemId,
     doc_id: hir::DocId,
     parameters: &[hir::VariableId],
     returns: &[hir::VariableId],
-) -> NatSpecDocumentation {
+) -> NatSpecDocumentation<'gcx> {
     if doc_id.is_empty() {
         return NatSpecDocumentation::default();
     }
@@ -121,7 +126,7 @@ fn callable_documentation(
     documentation
 }
 
-fn variable_documentation(gcx: Gcx<'_>, id: hir::VariableId) -> NatSpecDocumentation {
+fn variable_documentation(gcx: Gcx<'_>, id: hir::VariableId) -> NatSpecDocumentation<'_> {
     let variable = gcx.hir.variable(id);
     match (variable.kind, variable.parent) {
         (hir::VarKind::FunctionParam, Some(hir::ItemId::Function(parent))) => {
@@ -168,12 +173,12 @@ fn variable_documentation(gcx: Gcx<'_>, id: hir::VariableId) -> NatSpecDocumenta
     }
 }
 
-fn selected_parameter_documentation(
-    gcx: Gcx<'_>,
+fn selected_parameter_documentation<'gcx>(
+    gcx: Gcx<'gcx>,
     id: hir::VariableId,
     item_id: hir::ItemId,
     parameters: &[hir::VariableId],
-) -> NatSpecDocumentation {
+) -> NatSpecDocumentation<'gcx> {
     let Some(index) = parameters.iter().position(|&parameter| parameter == id) else {
         return NatSpecDocumentation::default();
     };
@@ -185,12 +190,12 @@ fn selected_parameter_documentation(
     NatSpecDocumentation { params, ..NatSpecDocumentation::default() }
 }
 
-fn selected_return_documentation(
-    gcx: Gcx<'_>,
+fn selected_return_documentation<'gcx>(
+    gcx: Gcx<'gcx>,
     id: hir::VariableId,
     item_id: hir::ItemId,
     returns: &[hir::VariableId],
-) -> NatSpecDocumentation {
+) -> NatSpecDocumentation<'gcx> {
     let Some(index) = returns.iter().position(|&return_id| return_id == id) else {
         return NatSpecDocumentation::default();
     };
@@ -202,13 +207,13 @@ fn selected_return_documentation(
     NatSpecDocumentation { returns, ..NatSpecDocumentation::default() }
 }
 
-fn item_documentation(items: &[hir::NatSpecItem]) -> NatSpecDocumentation {
+fn item_documentation(items: &[hir::NatSpecItem]) -> NatSpecDocumentation<'_> {
     let mut documentation = NatSpecDocumentation::default();
     for item in items {
         let Some(content) = item_content(item) else { continue };
         match item.kind {
-            hir::NatSpecKind::Notice => documentation.notice.push(content.to_string()),
-            hir::NatSpecKind::Dev => documentation.dev.push(content.to_string()),
+            hir::NatSpecKind::Notice => documentation.notice.push(content),
+            hir::NatSpecKind::Dev => documentation.dev.push(content),
             hir::NatSpecKind::Return { .. } => {}
             hir::NatSpecKind::Title
             | hir::NatSpecKind::Author
@@ -221,35 +226,39 @@ fn item_documentation(items: &[hir::NatSpecItem]) -> NatSpecDocumentation {
     documentation
 }
 
-fn return_documentation(items: &[hir::NatSpecItem]) -> Vec<(Option<Symbol>, String)> {
+fn return_documentation(
+    items: &[hir::NatSpecItem],
+) -> SmallVec<[(Option<Symbol>, &[hir::NatSpecItem]); 1]> {
     items
         .iter()
         .filter_map(|item| {
             let hir::NatSpecKind::Return { name } = item.kind else { return None };
-            let content = item_content(item)?;
-            Some((name.map(|name| name.name), content.to_string()))
+            item_content(item)?;
+            Some((name.map(|name| name.name), std::slice::from_ref(item)))
         })
         .collect()
 }
 
-fn parameter_doc_at(
+fn parameter_doc_at<'gcx>(
     gcx: Gcx<'_>,
     id: hir::VariableId,
     index: usize,
-    documentation: NatSpecView<'_>,
-) -> Option<(Symbol, String)> {
-    let content = join_docs(documentation.parameter(index).iter().filter_map(item_content))?;
+    documentation: NatSpecView<'gcx>,
+) -> Option<(Symbol, &'gcx [hir::NatSpecItem])> {
+    let content = documentation.parameter(index);
+    content.iter().find_map(item_content)?;
     let name = gcx.hir.variable(id).name?.name;
     Some((name, content))
 }
 
-fn return_doc_at(
+fn return_doc_at<'gcx>(
     gcx: Gcx<'_>,
     id: hir::VariableId,
     index: usize,
-    documentation: NatSpecView<'_>,
-) -> Option<(Option<Symbol>, String)> {
-    let content = join_docs(documentation.return_(index).iter().filter_map(item_content))?;
+    documentation: NatSpecView<'gcx>,
+) -> Option<(Option<Symbol>, &'gcx [hir::NatSpecItem])> {
+    let content = documentation.return_(index);
+    content.iter().find_map(item_content)?;
     let name = gcx.hir.variable(id).name.map(|name| name.name);
     Some((name, content))
 }
@@ -259,17 +268,11 @@ fn item_content(item: &hir::NatSpecItem) -> Option<&str> {
     (!content.is_empty()).then_some(content)
 }
 
-fn join_docs<'a>(mut docs: impl Iterator<Item = &'a str>) -> Option<String> {
-    let first = docs.next()?;
-    let mut joined = first.to_string();
-    for doc in docs {
-        joined.push_str("\n\n");
-        joined.push_str(doc);
-    }
-    Some(joined)
-}
-
-fn append_documentation(output: &mut String, documentation: &NatSpecDocumentation, markdown: bool) {
+fn append_documentation(
+    output: &mut String,
+    documentation: &NatSpecDocumentation<'_>,
+    markdown: bool,
+) {
     for notice in &documentation.notice {
         output.push_str("\n\n");
         output.push_str(notice);
@@ -284,7 +287,7 @@ fn append_documentation(output: &mut String, documentation: &NatSpecDocumentatio
     append_list(
         output,
         "@param",
-        documentation.params.iter().map(|(name, content)| (Some(name.as_str()), content.as_str())),
+        documentation.params.iter().map(|(name, content)| (Some(name.as_str()), *content)),
         markdown,
     );
     append_list(
@@ -293,7 +296,7 @@ fn append_documentation(output: &mut String, documentation: &NatSpecDocumentatio
         documentation
             .returns
             .iter()
-            .map(|(name, content)| (name.as_ref().map(|name| name.as_str()), content.as_str())),
+            .map(|(name, content)| (name.as_ref().map(|name| name.as_str()), *content)),
         markdown,
     );
 }
@@ -301,7 +304,7 @@ fn append_documentation(output: &mut String, documentation: &NatSpecDocumentatio
 fn append_list<'a>(
     output: &mut String,
     heading: &str,
-    items: impl Iterator<Item = (Option<&'a str>, &'a str)>,
+    items: impl Iterator<Item = (Option<&'a str>, &'a [hir::NatSpecItem])>,
     markdown: bool,
 ) {
     let mut items = items.peekable();
@@ -309,18 +312,31 @@ fn append_list<'a>(
         return;
     }
     let emphasis = if markdown { "**" } else { "" };
-    write!(output, "\n\n{emphasis}{heading}{emphasis}").unwrap();
+    output.push_str("\n\n");
+    output.push_str(emphasis);
+    output.push_str(heading);
+    output.push_str(emphasis);
     for (name, content) in items {
         output.push_str(if markdown { "\n\n- " } else { "\n\n" });
         if let Some(name) = name {
             let quote = if markdown { "`" } else { "" };
-            write!(output, "{quote}{name}{quote}: ").unwrap();
+            output.push_str(quote);
+            output.push_str(name);
+            output.push_str(quote);
+            output.push_str(": ");
         }
-        let mut lines = content.lines();
-        output.push_str(lines.next().unwrap_or_default());
-        for line in lines {
-            output.push_str("\n  ");
-            output.push_str(line);
+        // Render joined paragraphs directly from compiler-owned text. Each additional tag
+        // contributes the same indented blank line as joining with `\n\n` before rendering.
+        for (index, content) in content.iter().filter_map(item_content).enumerate() {
+            if index > 0 {
+                output.push_str("\n  \n  ");
+            }
+            let mut lines = content.lines();
+            output.push_str(lines.next().unwrap_or_default());
+            for line in lines {
+                output.push_str("\n  ");
+                output.push_str(line);
+            }
         }
     }
 }
