@@ -146,7 +146,7 @@
     bb2:
       v3 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
       memory_object_store_element memoryarray<1>, arg0, 0, v3
-      stop
+      ret
     bb1:
       mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
       mstore 4, 50 !metadata(memory=scratch)

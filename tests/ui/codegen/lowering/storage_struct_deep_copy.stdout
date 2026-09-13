@@ -78,7 +78,7 @@ fn @assign() [selector=0x4bd0273c] {
     v61 = sload v73 !metadata(storage=symbolic(v73))
     v62 = and v61, 0xffffffff
     sstore v73, v62 !metadata(storage=symbolic(v73))
-    stop
+    ret
   bb4:
     mstore 0, 1 !metadata(memory=scratch)
     v21 = shr 3, v18
@@ -189,7 +189,7 @@ fn @push() [selector=0xa60249a3] {
     v68 = and v67, 0xffffffff
     sstore v80, v68 !metadata(storage=symbolic(v80))
     sstore 2, v9 !metadata(storage=slot(2))
-    stop
+    ret
   bb6:
     mstore 0, v19 !metadata(memory=scratch)
     v27 = shr 3, v24
@@ -244,7 +244,7 @@ fn @pop() [selector=0xa4ece52c] {
     v15 = lt v14, v12
     jumpi v15, bb4, bb5
   bb5:
-    stop
+    ret
   bb4:
     v16 = add v19, v14
     sstore v16, 0 !metadata(storage=symbolic(v16))
@@ -329,7 +329,7 @@ fn @assignFixed() [selector=0xb7ffd825] {
     v65 = sload v77 !metadata(storage=symbolic(v77))
     v66 = and v65, 0xffffffff
     sstore v77, v66 !metadata(storage=symbolic(v77))
-    stop
+    ret
   bb4:
     mstore 0, 4 !metadata(memory=scratch)
     v25 = shr 3, v22
