@@ -143,6 +143,7 @@ fn pack_hot_terminal_blocks(gcx: Gcx<'_>, module: &Module, state: &mut RunState)
                 &module.blocks[block],
                 state.order.get(index + 1).copied(),
                 state.references[block] != 0,
+                module.code_follows,
             )
         })
         .sum();
@@ -166,6 +167,7 @@ fn pack_hot_terminal_blocks(gcx: Gcx<'_>, module: &Module, state: &mut RunState)
             &module.blocks[block],
             state.order.get(position + 1).copied(),
             state.references[block] != 0,
+            module.code_follows,
         );
         let count = state.references[block];
         if size <= 32 && count >= 2 {
@@ -218,13 +220,14 @@ pub(super) fn estimated_block_size(
     block: &Block,
     next: Option<BlockId>,
     addressed: bool,
+    code_follows: bool,
 ) -> usize {
     usize::from(addressed)
         + block.instructions.iter().map(|inst| estimated_instruction_size(gcx, inst)).sum::<usize>()
         + block
             .terminator
             .as_ref()
-            .map_or(0, |term| estimated_terminator_size(gcx, &term.kind, next))
+            .map_or(0, |term| estimated_terminator_size(gcx, &term.kind, next, code_follows))
 }
 
 fn estimated_instruction_size(gcx: Gcx<'_>, inst: &Instruction) -> usize {
@@ -248,10 +251,15 @@ fn estimated_instruction_size(gcx: Gcx<'_>, inst: &Instruction) -> usize {
     }
 }
 
-fn estimated_terminator_size(gcx: Gcx<'_>, kind: &TerminatorKind, next: Option<BlockId>) -> usize {
+fn estimated_terminator_size(
+    gcx: Gcx<'_>,
+    kind: &TerminatorKind,
+    next: Option<BlockId>,
+    code_follows: bool,
+) -> usize {
     match kind {
         TerminatorKind::Jump(target) => usize::from(Some(*target) != next) * 4,
-        TerminatorKind::Op(op::STOP) => usize::from(next.is_some()),
+        TerminatorKind::Op(op::STOP) => usize::from(next.is_some() || code_follows),
         TerminatorKind::JumpI { then_block, else_block } => {
             if Some(*else_block) == next {
                 4
@@ -333,16 +341,16 @@ mod tests {
             Session::builder().opts(opts(EvmVersion::Osaka, OptimizationMode::Size)).build(),
         );
         compiler.enter(|c| {
-            assert_eq!(estimated_terminator_size(c.gcx(), &one, None), 8);
-            assert_eq!(estimated_terminator_size(c.gcx(), &packed, None), 19);
-            assert_eq!(estimated_terminator_size(c.gcx(), &many, None), 61);
+            assert_eq!(estimated_terminator_size(c.gcx(), &one, None, false), 8);
+            assert_eq!(estimated_terminator_size(c.gcx(), &packed, None, false), 19);
+            assert_eq!(estimated_terminator_size(c.gcx(), &many, None, false), 61);
         });
 
         let compiler = Compiler::new(
             Session::builder().opts(opts(EvmVersion::Byzantium, OptimizationMode::Size)).build(),
         );
         compiler.enter(|c| {
-            assert_eq!(estimated_terminator_size(c.gcx(), &many, None), 9);
+            assert_eq!(estimated_terminator_size(c.gcx(), &many, None, false), 9);
         });
     }
 }

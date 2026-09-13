@@ -427,7 +427,9 @@ fn lower_terminator(
             indexed_jump::lower(assembler, program, targets, module, labels, indexed_jump);
         }
         ir::TerminatorKind::Op(opcode) => {
-            if *opcode != op::STOP || module.next_block(block_id).is_some() {
+            // A final STOP is implicit at the end of runtime code; creation code is
+            // followed by the runtime artifact, so its halt must stay explicit.
+            if *opcode != op::STOP || module.code_follows || module.next_block(block_id).is_some() {
                 program.push_op(*opcode);
             }
         }

@@ -209,6 +209,8 @@ impl<'gcx> Assembler<'gcx> {
     /// Sets the artifact context used by conservative layout estimates.
     pub(crate) fn set_artifact_kind(&mut self, kind: ArtifactKind) {
         self.artifact_kind = kind;
+        // Creation code is followed by the runtime artifact it deploys.
+        self.program.code_follows = matches!(kind, ArtifactKind::Constructor);
     }
 
     /// Sets the source module name carried by emitted EVM IR.

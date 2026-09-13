@@ -92,6 +92,10 @@ pub struct Module {
     pub(crate) data: IndexVec<DataId, Data>,
     /// Whether gas mode is rescuing a runtime that exceeds EIP-170.
     pub(crate) enable_size_outlining: bool,
+    /// Whether bytes that execution must not fall into follow this code: the runtime
+    /// artifact after creation code. A final `STOP` is then kept instead of being
+    /// left implicit at the end of the bytecode.
+    pub(crate) code_follows: bool,
     /// Whether passes must account for every operation's source debug information.
     debug_info_tracked: bool,
 }
@@ -121,6 +125,7 @@ impl Module {
             blocks: IndexVec::new(),
             data: IndexVec::new(),
             enable_size_outlining: false,
+            code_follows: false,
             debug_info_tracked: false,
         }
     }
@@ -130,6 +135,7 @@ impl Module {
         self.blocks.clear();
         self.data.clear();
         self.enable_size_outlining = false;
+        self.code_follows = false;
         self.debug_info_tracked = false;
     }
 
