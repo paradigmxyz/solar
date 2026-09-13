@@ -23,9 +23,10 @@ use crop::Rope;
 use lsp_types::{
     CallHierarchyIncomingCall, CallHierarchyItem, CodeLens, CompletionItem, Diagnostic,
     DidChangeTextDocumentParams, DocumentSymbol, GotoDefinitionResponse, Hover, HoverContents,
-    Location, Position, PreviousResultId, Range, SignatureHelp, SignatureHelpParams,
+    Location, Position, PreviousResultId, Range, RenameParams, SignatureHelp, SignatureHelpParams,
     TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentPositionParams,
-    TypeHierarchyItem, Url, VersionedTextDocumentIdentifier, WorkspaceFolder, WorkspaceSymbol,
+    TypeHierarchyItem, Url, VersionedTextDocumentIdentifier, WorkspaceEdit, WorkspaceFolder,
+    WorkspaceSymbol,
 };
 use normalize_path::NormalizePath;
 use solar_config::{CompileOpts, Threads};
@@ -697,6 +698,47 @@ pub struct BenchmarkFoldingRangeRequests {
 pub struct BenchmarkSignatureHelpRequests {
     state: super::GlobalState,
     params: SignatureHelpParams,
+}
+
+/// A prepared rename request including source validation and workspace-edit construction.
+#[doc(hidden)]
+pub struct BenchmarkRenameRequests {
+    state: super::GlobalState,
+    params: RenameParams,
+    runtime: tokio::runtime::Runtime,
+}
+
+impl BenchmarkRenameRequests {
+    /// Analyze the project and retain all source documents as versioned VFS snapshots.
+    pub fn new(project: BenchmarkProject, uri: Url, position: Position) -> Self {
+        let state = super::GlobalState::new(ClientSocket::new_closed());
+        for (path, contents) in &project.files {
+            state.vfs.write().set_file_contents_with_version(
+                VfsPath::from(path.clone()),
+                Some(Rope::from(contents.as_str())),
+                Some(1),
+            );
+        }
+        state.symbol_tables.store(Arc::new(project.analyze().symbol_tables));
+        let params = RenameParams {
+            text_document_position: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier { uri },
+                position,
+            },
+            new_name: "renamed".into(),
+            work_done_progress_params: Default::default(),
+        };
+        let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+        Self { state, params, runtime }
+    }
+
+    /// Execute a complete rename through the production handler and blocking validation task.
+    #[inline(never)]
+    pub fn run(&mut self) -> Option<WorkspaceEdit> {
+        self.runtime
+            .block_on(handlers::rename(&mut self.state, self.params.clone()))
+            .expect("rename benchmark request should succeed")
+    }
 }
 
 impl BenchmarkSignatureHelpRequests {
