@@ -183,10 +183,13 @@ fn @dFixed() [selector=0xc298c02b, pure] {
     v23 = mload 64 !metadata(memory=scratch, effect=memory_write)
     v43 = add v23, 64
     mstore 64, v43 !metadata(memory=scratch)
+    v48 = shl 5, 2
+    v49 = add v23, v48
     jump bb7
   bb7:
-    v24 = phi [bb6: 0], [bb8: v29]
-    v25 = lt v24, 2
+    v44 = phi [bb6: v18], [bb8: v45]
+    v46 = phi [bb6: v23], [bb8: v47]
+    v25 = lt v46, v49
     jumpi v25, bb8, bb9
   bb9:
     v41 = add v23, 32
@@ -215,13 +218,10 @@ fn @dFixed() [selector=0xc298c02b, pure] {
     mstore 128, v10
     returndata 128, 32
   bb8:
-    v26 = shl 5, v24
-    v27 = add v18, v26
-    v28 = icall @decode_memory_type, 1, v27, v18, v13
-    v39 = shl 5, v24
-    v40 = add v23, v39
-    mstore v40, v28
-    v29 = add v24, 1
+    v28 = icall @decode_memory_type, 1, v44, v18, v13
+    mstore v46, v28
+    v45 = add v44, 32
+    v47 = add v46, 32
     jump bb7
   bb3:
     revert 0, 0

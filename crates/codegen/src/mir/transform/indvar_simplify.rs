@@ -31,20 +31,32 @@
 //! extra carried word it adds. The pass runs on the semantic MIR and once more
 //! in gas mode after memory lowering, where element addresses become explicit.
 //!
+//! When the header's exit test compares the counter with an invariant bound
+//! and the counter has no other use than the addresses being replaced, the
+//! test is replaced by comparing an ascending pointer with its value at the
+//! bound, computed once in the preheader, and the counter's phi and update
+//! die. Then every address family is reduced at once, since removing the
+//! counter pays for a pointer that alone would only break even. The pointer
+//! must not wrap between the start and the bound: its base is a heap address,
+//! bounded by the memory a call can afford, and a loop cannot run
+//! `2^MAX_TRIP_COUNT_BITS` iterations, the trip-count assumption the loop split
+//! also makes, so a scaled bound below that stays far from the word size.
+//!
 //! Safety contract:
 //! - require canonical loops with a preheader and a single latch
 //! - rewrite only affine address expressions derived from the recognized induction variable
 //! - preserve the original address value when it is still used outside the loop
 
 use crate::mir::{
-    BlockId, Function, Immediate, InstId, InstKind, Instruction, MirType, Module, Terminator,
-    Value, ValueId,
-    analysis::{AffineTerm, Loop, LoopAnalyzer, ScalarEvolution},
-    pass::{MirPass, run_function_pass},
+    BlockId, Function, Immediate, InstId, InstKind, Instruction, MemoryRegion, MirType, Module,
+    Terminator, Value, ValueId,
+    analysis::{AffineTerm, AliasAnalysis, Loop, LoopAnalyzer, MemoryBase, ScalarEvolution},
+    pass::{MirPass, run_function_pass_with_alias},
     utils as mir_utils,
 };
 use alloy_primitives::U256;
 use solar_data_structures::map::{FxHashMap, FxHashSet};
+use std::rc::Rc;
 
 /// Function pass for induction-variable simplification and strength reduction.
 pub(crate) struct IndVarSimplify;
@@ -60,8 +72,8 @@ impl MirPass for IndVarSimplify {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, _| {
-            IndVarSimplifier::new().run(func).total() != 0
+        run_function_pass_with_alias(module, analyses, |func, analyses| {
+            IndVarSimplifier::new(Rc::clone(analyses.alias())).run(func).total() != 0
         })
     }
 }
@@ -84,9 +96,18 @@ impl IndVarSimplifyStats {
 }
 
 /// Performs conservative induction-variable strength reduction.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct IndVarSimplifier {
     stats: IndVarSimplifyStats,
+    alias: Rc<AliasAnalysis>,
+}
+
+/// The header's exit test, `lt counter, bound` or `lt bound, counter`.
+#[derive(Clone, Copy)]
+struct ExitTest {
+    condition: InstId,
+    bound: ValueId,
+    counter_first: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -129,8 +150,8 @@ impl AddressKey {
 impl IndVarSimplifier {
     /// Creates a new induction-variable simplifier.
     #[must_use]
-    fn new() -> Self {
-        Self::default()
+    fn new(alias: Rc<AliasAnalysis>) -> Self {
+        Self { stats: IndVarSimplifyStats::default(), alias }
     }
 
     /// Runs induction-variable simplification once over `func`.
@@ -188,23 +209,65 @@ impl IndVarSimplifier {
             return;
         }
 
+        let addresses = candidates.values().flatten().copied().collect::<FxHashSet<_>>();
         let mut families: FxHashMap<AddressKey, Vec<(AddressKey, Vec<ValueId>)>> =
             FxHashMap::default();
         for (key, values) in candidates {
             families.entry(key.family()).or_default().push((key, values));
         }
-
-        let mut replacements = FxHashMap::default();
-        let mut siblings = Vec::new();
-        for (_, mut members) in families {
+        let mut families = families.into_values().collect::<Vec<_>>();
+        for members in &mut families {
             // The most used offset carries the pointer; ties go to the smallest offset.
             members
                 .sort_by_key(|(key, values)| (std::cmp::Reverse(values.len()), key.constant.abs()));
+        }
+        families.sort_by_key(|members| members[0].0.family().constant);
+
+        // With the counter free once every address is a pointer, an ascending pointer
+        // that cannot wrap takes over the exit test and the counter dies; that credit
+        // is weighed across all families at once.
+        let exit_test = self.counter_exit_test(func, loop_data, iv.value);
+        let counter_free = exit_test.is_some_and(|test| {
+            Self::counter_only_feeds(
+                func,
+                loop_data,
+                iv.value,
+                test.condition,
+                iv.update_inst,
+                &addresses,
+            )
+        });
+        let test_family = if counter_free {
+            families.iter().position(|members| {
+                let key = &members[0].0;
+                key.scale > 0
+                    && key.invariants.is_empty()
+                    && key.base.is_some_and(|base| self.is_heap_address(func, base))
+            })
+        } else {
+            None
+        };
+        let reduce_all = test_family.is_some() && {
+            let before = families
+                .iter()
+                .map(|members| Self::family_cost_before(members, &offset_shared))
+                .sum::<usize>();
+            let after = families
+                .iter()
+                .map(|members| Self::family_cost_after(members, carried))
+                .sum::<usize>();
+            before + Self::COUNTER_COST > after
+        };
+
+        let mut replacements = FxHashMap::default();
+        let mut siblings = Vec::new();
+        let mut test_pointer = None;
+        for (index, members) in families.iter().enumerate() {
             let (primary, primary_values) = &members[0];
             // ptr = phi [preheader: start], [latch: ptr + delta]
             // costs one update per iteration plus a carried word the scheduler
             // must keep resident; a sibling offset costs an add at its definition.
-            let pays = Self::reduction_pays_off(&members, &offset_shared, carried);
+            let pays = reduce_all || Self::reduction_pays_off(members, &offset_shared, carried);
             tracing::trace!(
                 function = %func.name,
                 header = ?loop_data.header,
@@ -213,6 +276,12 @@ impl IndVarSimplifier {
                 base = ?primary.base,
                 invariants = primary.invariants.len(),
                 carried,
+                counter_free,
+                test_family = test_family == Some(index),
+                base_region = ?primary
+                    .base
+                    .and_then(|base| self.alias.memory_address(func, base))
+                    .map(|address| (address.region, address.base)),
                 pays,
                 "pointer family"
             );
@@ -222,8 +291,17 @@ impl IndVarSimplifier {
             let Some(pointer) =
                 self.materialize_pointer_phi(func, loop_data, preheader, *latch, primary)
             else {
+                tracing::trace!(
+                    function = %func.name,
+                    header = ?loop_data.header,
+                    ?primary,
+                    "pointer start not materializable"
+                );
                 continue;
             };
+            if reduce_all && test_family == Some(index) {
+                test_pointer = Some((pointer, primary.clone()));
+            }
             for &value in primary_values {
                 replacements.insert(value, pointer);
             }
@@ -233,6 +311,21 @@ impl IndVarSimplifier {
                     siblings.push((value, pointer, offset));
                 }
             }
+        }
+
+        // exit: lt counter, bound  =>  lt ptr, end   with end = ptr's value at the bound
+        let mut test_rewritten = false;
+        if let (Some(test), Some((pointer, key))) = (exit_test, test_pointer.as_ref())
+            && replacements.len() + siblings.len() == addresses.len()
+            && let Some(end) = self.pointer_at(func, preheader, key, test.bound)
+        {
+            func.inst_mut(test.condition).kind = if test.counter_first {
+                InstKind::Lt(*pointer, end)
+            } else {
+                InstKind::Lt(end, *pointer)
+            };
+            self.stats.address_uses_replaced += 1;
+            test_rewritten = true;
         }
 
         // sibling = ptr + offset, in place of its old address arithmetic
@@ -253,6 +346,246 @@ impl IndVarSimplifier {
         }
 
         self.stats.address_uses_replaced += self.replace_loop_uses(func, loop_data, &replacements);
+        // The replaced addresses and the index arithmetic only they read are dead now;
+        // remove them here so the counter's remaining reads are visible below.
+        self.remove_dead_address_arithmetic(func, loop_data);
+        if test_rewritten {
+            self.remove_dead_counter(func, loop_data, iv.value, iv.update_inst);
+        }
+    }
+
+    /// Removes the loop's pure address arithmetic whose results nothing reads any more,
+    /// following each removal to the operands it leaves unread.
+    fn remove_dead_address_arithmetic(&self, func: &mut Function, loop_data: &Loop) {
+        let mut uses = FxHashMap::<ValueId, usize>::default();
+        for block in &func.blocks {
+            for operand in block
+                .instructions
+                .iter()
+                .flat_map(|&inst_id| func.inst(inst_id).kind.operands())
+                .chain(block.terminator.iter().flat_map(Terminator::operands))
+            {
+                *uses.entry(operand).or_default() += 1;
+            }
+        }
+        let in_loop = |func: &Function, inst_id: InstId| {
+            loop_data.blocks.iter().any(|block| func.blocks[block].instructions.contains(&inst_id))
+        };
+        let mut pending = Vec::new();
+        for block in loop_data.blocks.iter() {
+            for &inst_id in &func.blocks[block].instructions {
+                if Self::is_address_builder(&func.inst(inst_id).kind)
+                    && func
+                        .inst_result_value(inst_id)
+                        .is_some_and(|result| uses.get(&result).copied().unwrap_or_default() == 0)
+                {
+                    pending.push(inst_id);
+                }
+            }
+        }
+        while let Some(inst_id) = pending.pop() {
+            let operands = func.inst(inst_id).kind.operands();
+            for block in loop_data.blocks.iter() {
+                func.blocks[block].instructions.retain(|&other| other != inst_id);
+            }
+            for operand in operands {
+                let Some(count) = uses.get_mut(&operand) else { continue };
+                *count = count.saturating_sub(1);
+                if *count == 0
+                    && let Value::Inst(definer) = *func.value(operand)
+                    && in_loop(func, definer)
+                    && Self::is_address_builder(&func.inst(definer).kind)
+                {
+                    pending.push(definer);
+                }
+            }
+        }
+    }
+
+    /// Operations the counter's phi and update cost per iteration: the increment
+    /// and its carried word.
+    const COUNTER_COST: usize = 4;
+
+    /// The header's exit test when it compares the counter with an invariant.
+    fn counter_exit_test(
+        &self,
+        func: &Function,
+        loop_data: &Loop,
+        iv: ValueId,
+    ) -> Option<ExitTest> {
+        let Some(Terminator::Branch { condition, .. }) = &func.blocks[loop_data.header].terminator
+        else {
+            return None;
+        };
+        let Value::Inst(condition) = *func.value(*condition) else { return None };
+        let InstKind::Lt(a, b) = func.inst(condition).kind else { return None };
+        let invariant = |value: ValueId| match func.value(value) {
+            Value::Immediate(_) | Value::Arg(_) => true,
+            Value::Inst(inst_id) => !loop_data
+                .blocks
+                .iter()
+                .any(|block| func.blocks[block].instructions.contains(inst_id)),
+            Value::Undef(_) | Value::Error(_) => false,
+        };
+        if a == iv && invariant(b) {
+            Some(ExitTest { condition, bound: b, counter_first: true })
+        } else if b == iv && invariant(a) {
+            Some(ExitTest { condition, bound: a, counter_first: false })
+        } else {
+            None
+        }
+    }
+
+    /// Whether the counter is read only by its exit test, its update, and the
+    /// address arithmetic in `addresses` that the pointers replace.
+    fn counter_only_feeds(
+        func: &Function,
+        loop_data: &Loop,
+        iv: ValueId,
+        condition: InstId,
+        update: Option<InstId>,
+        addresses: &FxHashSet<ValueId>,
+    ) -> bool {
+        let mut pending = vec![iv];
+        let mut visited = FxHashSet::default();
+        while let Some(value) = pending.pop() {
+            if !visited.insert(value) {
+                continue;
+            }
+            for (block_id, block) in func.blocks.iter_enumerated() {
+                let in_loop = loop_data.blocks.contains(block_id);
+                if block.terminator.as_ref().is_some_and(|term| term.operands().contains(&value)) {
+                    return false;
+                }
+                for &inst_id in &block.instructions {
+                    let inst = func.inst(inst_id);
+                    if !inst.kind.operands().contains(&value) {
+                        continue;
+                    }
+                    if inst_id == condition || Some(inst_id) == update {
+                        continue;
+                    }
+                    let Some(result) = func.inst_result_value(inst_id) else { return false };
+                    if !in_loop || matches!(inst.kind, InstKind::Phi(_)) {
+                        return false;
+                    }
+                    if addresses.contains(&result) {
+                        continue;
+                    }
+                    if !Self::is_address_builder(&inst.kind) {
+                        return false;
+                    }
+                    pending.push(result);
+                }
+            }
+        }
+        true
+    }
+
+    /// Removes the counter phi and its update once nothing else reads either: the plain
+    /// DCE that runs later keeps a cycle that only feeds itself.
+    fn remove_dead_counter(
+        &self,
+        func: &mut Function,
+        loop_data: &Loop,
+        counter: ValueId,
+        update: Option<InstId>,
+    ) {
+        let Some(update) = update else { return };
+        let Value::Inst(phi) = *func.value(counter) else { return };
+        let Some(next) = func.inst_result_value(update) else { return };
+        let read_elsewhere = |value: ValueId, except: InstId| {
+            func.blocks.iter().any(|block| {
+                block.terminator.as_ref().is_some_and(|term| term.operands().contains(&value))
+                    || block.instructions.iter().any(|&inst_id| {
+                        inst_id != except && func.inst(inst_id).kind.operands().contains(&value)
+                    })
+            })
+        };
+        if read_elsewhere(counter, update) || read_elsewhere(next, phi) {
+            return;
+        }
+        for block in loop_data.blocks.iter() {
+            func.blocks[block].instructions.retain(|&inst_id| inst_id != phi && inst_id != update);
+        }
+    }
+
+    /// Whether `value` addresses memory, so scaling a bounded index onto it
+    /// cannot wrap: a heap address, or an offset from a memory-pointer argument,
+    /// which the lowered MIR no longer classifies by region.
+    fn is_heap_address(&self, func: &Function, value: ValueId) -> bool {
+        self.alias.memory_address(func, value).is_some_and(|address| {
+            address.region == MemoryRegion::Heap
+                || matches!(address.base, MemoryBase::Value(base)
+                    if matches!(*func.value(base), Value::Arg(index)
+                        if func.arg_ty(index) == MirType::MemPtr))
+        })
+    }
+
+    /// Appends to `block` the pointer's value at `index`:
+    /// `base + sum(invariant * scale) + index * scale + constant`.
+    fn pointer_at(
+        &self,
+        func: &mut Function,
+        block: BlockId,
+        key: &AddressKey,
+        index: ValueId,
+    ) -> Option<ValueId> {
+        let mut value = key.base;
+        for term in &key.invariants {
+            let scaled = self.scale_value(func, block, term.value, term.scale)?;
+            value = Some(self.add_values(func, block, value, scaled));
+        }
+        let scaled = self.scale_value(func, block, index, key.scale)?;
+        let value = self.add_values(func, block, value, scaled);
+        self.add_signed_offset(func, block, value, key.constant)
+    }
+
+    /// Appends `acc + value` to `block`, or starts the sum with `value`.
+    fn add_values(
+        &self,
+        func: &mut Function,
+        block: BlockId,
+        acc: Option<ValueId>,
+        value: ValueId,
+    ) -> ValueId {
+        match acc {
+            Some(acc) => self.append_inst_value(
+                func,
+                block,
+                InstKind::Add(acc, value),
+                Some(MirType::uint256()),
+            ),
+            None => value,
+        }
+    }
+
+    /// Operations a family's addresses cost per iteration today.
+    fn family_cost_before(
+        members: &[(AddressKey, Vec<ValueId>)],
+        offset_shared: &FxHashSet<ValueId>,
+    ) -> usize {
+        members
+            .iter()
+            .flat_map(|(key, values)| {
+                values.iter().map(move |value| key.use_cost(offset_shared.contains(value)))
+            })
+            .sum::<usize>()
+    }
+
+    /// Operations a family's pointer costs per iteration: one duplication per
+    /// primary use, an add per sibling use, the latch update, and the carried word.
+    fn family_cost_after(members: &[(AddressKey, Vec<ValueId>)], carried: usize) -> usize {
+        let carry = 2 + carried.saturating_sub(4);
+        let byte_pointer = if members[0].0.scale.abs() == 1 { 2 } else { 0 };
+        members
+            .iter()
+            .enumerate()
+            .map(|(index, (_, values))| values.len() * if index == 0 { 1 } else { 3 })
+            .sum::<usize>()
+            + 2
+            + carry
+            + byte_pointer
     }
 
     /// Whether carrying one pointer for a family of addresses saves more per
@@ -275,23 +608,7 @@ impl IndVarSimplifier {
         offset_shared: &FxHashSet<ValueId>,
         carried: usize,
     ) -> bool {
-        let before = members
-            .iter()
-            .flat_map(|(key, values)| {
-                values.iter().map(move |value| key.use_cost(offset_shared.contains(value)))
-            })
-            .sum::<usize>();
-        let carry = 2 + carried.saturating_sub(4);
-        let byte_pointer = if members[0].0.scale.abs() == 1 { 2 } else { 0 };
-        let after = members
-            .iter()
-            .enumerate()
-            .map(|(index, (_, values))| values.len() * if index == 0 { 1 } else { 3 })
-            .sum::<usize>()
-            + 2
-            + carry
-            + byte_pointer;
-        before > after
+        Self::family_cost_before(members, offset_shared) > Self::family_cost_after(members, carried)
     }
 
     /// Whether `value` is computed from `target` through in-loop operands, at
@@ -411,32 +728,19 @@ impl IndVarSimplifier {
         }
 
         // preheader: start = base + sum(invariant * scale) + init * scale + constant
-        let mut initial = key.base;
-        let add_scaled = |func: &mut Function, initial: Option<ValueId>, scaled| {
-            Some(match initial {
-                Some(acc) => self.append_inst_value(
-                    func,
-                    preheader,
-                    InstKind::Add(acc, scaled),
-                    Some(MirType::uint256()),
-                ),
-                None => scaled,
-            })
-        };
-        for term in &key.invariants {
-            let scaled = self.scale_value(func, preheader, term.value, term.scale)?;
-            initial = add_scaled(func, initial, scaled);
-        }
         // A constant start folds into the offset; a loop-invariant start such as an
         // enclosing counter is scaled in the preheader like an invariant term.
-        let mut offset = key.constant;
-        if let Some(init) = self.value_i128(func, iv.init) {
-            offset = offset.checked_add(init.checked_mul(key.scale)?)?;
+        let initial = if let Some(init) = self.value_i128(func, iv.init) {
+            let mut value = key.base;
+            for term in &key.invariants {
+                let scaled = self.scale_value(func, preheader, term.value, term.scale)?;
+                value = Some(self.add_values(func, preheader, value, scaled));
+            }
+            let offset = key.constant.checked_add(init.checked_mul(key.scale)?)?;
+            self.add_signed_offset(func, preheader, value?, offset)?
         } else {
-            let scaled = self.scale_value(func, preheader, iv.init, key.scale)?;
-            initial = add_scaled(func, initial, scaled);
-        }
-        let initial = self.add_signed_offset(func, preheader, initial?, offset)?;
+            self.pointer_at(func, preheader, key, iv.init)?
+        };
         let (phi_inst, phi_value) = func.alloc_value_inst(
             Instruction::new(InstKind::Phi(vec![(preheader, initial)]), Some(MirType::uint256()))
                 .with_debug_info_dropped(),

@@ -198,13 +198,14 @@ bb54:
   push 32
   dup 4
   add
-  push 0
-  exchange 3, 4
+  swap 2
+  dup 2
+  add
+  swap 2
+  swap 1
   jump bb59
 bb61 [loop]:
   dup 1
-  dup 4
-  add
   mload
   push 0
   byte
@@ -237,15 +238,13 @@ bb61 [loop]:
   swap 1
   jump bb59
 bb59 [loop]:
-  dup 5
+  dup 3
   dup 2
   lt
   push bb61
   jumpi
   pop
   pop
-  pop
-  swap 1
   pop
   swap 1
   jump
