@@ -290,6 +290,15 @@ fn latest_analysis_for_uri(
     Some(state.latest_analysis())
 }
 
+fn latest_navigation_analysis_for_uri(
+    state: &GlobalState,
+    uri: &Url,
+) -> Option<impl Future<Output = Result<Arc<ArcSwap<SymbolTables>>, ResponseError>> + use<>> {
+    let analysis = latest_analysis_for_uri(state, uri)?;
+    state.prioritize_pending_analysis();
+    Some(analysis)
+}
+
 fn formatting_edits(source: &str, formatted: String) -> Option<Vec<TextEdit>> {
     if source == formatted {
         return None;
@@ -552,7 +561,7 @@ pub(crate) fn goto_definition(
     params: GotoDefinitionParams,
 ) -> impl Future<Output = Result<Option<GotoDefinitionResponse>, ResponseError>> + use<> {
     let params = params.text_document_position_params;
-    let latest_analysis = latest_analysis_for_uri(state, &params.text_document.uri);
+    let latest_analysis = latest_navigation_analysis_for_uri(state, &params.text_document.uri);
     let analysis_revision = state.analysis_revision();
     let import_request = import_definition_request(
         state,
@@ -725,7 +734,7 @@ pub(crate) fn goto_type_definition(
     params: GotoDefinitionParams,
 ) -> impl Future<Output = Result<Option<GotoDefinitionResponse>, ResponseError>> + use<> {
     let params = params.text_document_position_params;
-    let latest_analysis = latest_analysis_for_uri(state, &params.text_document.uri);
+    let latest_analysis = latest_navigation_analysis_for_uri(state, &params.text_document.uri);
     async move {
         let Some(latest_analysis) = latest_analysis else { return Ok(None) };
         let symbol_tables = latest_analysis.await?;
@@ -740,7 +749,7 @@ pub(crate) fn goto_declaration(
     params: GotoDefinitionParams,
 ) -> impl Future<Output = Result<Option<GotoDefinitionResponse>, ResponseError>> + use<> {
     let params = params.text_document_position_params;
-    let latest_analysis = latest_analysis_for_uri(state, &params.text_document.uri);
+    let latest_analysis = latest_navigation_analysis_for_uri(state, &params.text_document.uri);
     async move {
         let Some(latest_analysis) = latest_analysis else { return Ok(None) };
         let symbol_tables = latest_analysis.await?;
@@ -755,7 +764,7 @@ pub(crate) fn goto_implementation(
     params: GotoImplementationParams,
 ) -> impl Future<Output = Result<Option<GotoDefinitionResponse>, ResponseError>> + use<> {
     let params = params.text_document_position_params;
-    let latest_analysis = latest_analysis_for_uri(state, &params.text_document.uri);
+    let latest_analysis = latest_navigation_analysis_for_uri(state, &params.text_document.uri);
     async move {
         let Some(latest_analysis) = latest_analysis else { return Ok(None) };
         let symbol_tables = latest_analysis.await?;
@@ -814,7 +823,7 @@ pub(crate) fn references(
 ) -> impl Future<Output = Result<Option<Vec<lsp_types::Location>>, ResponseError>> + use<> {
     let include_declaration = params.context.include_declaration;
     let params = params.text_document_position;
-    let latest_analysis = latest_analysis_for_uri(state, &params.text_document.uri);
+    let latest_analysis = latest_navigation_analysis_for_uri(state, &params.text_document.uri);
     async move {
         let Some(latest_analysis) = latest_analysis else { return Ok(None) };
         let symbol_tables = latest_analysis.await?;
@@ -863,7 +872,7 @@ pub(crate) fn hover(
     params: HoverParams,
 ) -> impl Future<Output = Result<Option<Hover>, ResponseError>> + use<> {
     let params = params.text_document_position_params;
-    let latest_analysis = latest_analysis_for_uri(state, &params.text_document.uri);
+    let latest_analysis = latest_navigation_analysis_for_uri(state, &params.text_document.uri);
     async move {
         let Some(latest_analysis) = latest_analysis else { return Ok(None) };
         let symbol_tables = latest_analysis.await?;
@@ -876,7 +885,7 @@ pub(crate) fn prepare_rename(
     state: &mut GlobalState,
     params: TextDocumentPositionParams,
 ) -> impl Future<Output = Result<Option<PrepareRenameResponse>, ResponseError>> + use<> {
-    let latest_analysis = latest_analysis_for_uri(state, &params.text_document.uri);
+    let latest_analysis = latest_navigation_analysis_for_uri(state, &params.text_document.uri);
     async move {
         let Some(latest_analysis) = latest_analysis else { return Ok(None) };
         let symbol_tables = latest_analysis.await?;
@@ -902,7 +911,7 @@ pub(crate) fn rename(
     let latest_analysis = if invalid_name {
         None
     } else {
-        latest_analysis_for_uri(state, &params_position.text_document.uri)
+        latest_navigation_analysis_for_uri(state, &params_position.text_document.uri)
     };
     let vfs = state.vfs.clone();
     let document_changes = state.config.supports_workspace_edit_document_changes();
