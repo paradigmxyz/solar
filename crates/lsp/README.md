@@ -38,7 +38,7 @@ default; when neither is configured, Forge is resolved as `forge` through `PATH`
 Run the LSP benchmarks locally with:
 
 ```console
-cargo bench -p solar-lsp --bench lsp --features bench
+cargo bench -p solar-lsp --bench lsp --bench lsp_diagnostic --features bench
 ```
 
 The current suite measures in-memory project analysis, edits, and queries. Loading manifests and
