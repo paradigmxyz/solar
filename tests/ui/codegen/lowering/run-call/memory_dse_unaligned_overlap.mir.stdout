@@ -1,0 +1,10 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/memory_dse_unaligned_overlap.sol:MemoryDseUnalignedOverlap ===
+@module MemoryDseUnalignedOverlap
+fn @restore() -> bytes32 [selector=0x2fda332e, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    mstore 128, 0x1234
+    mstore 129, 0
+    mstore 128, 0x1234
+    v0 = mload 128
+    ret v0
+}

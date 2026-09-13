@@ -1,4 +1,14 @@
 //! Lower semantic memory-object operations to physical word operations.
+//!
+//! Resolve object headers, fields, element strides, copies, and slice-backed
+//! accesses through the selected memory-layout policy, then erase object types.
+//! This runs after dispatch lowering and before slice erasure, while a slice's
+//! address space is still available to choose memory or calldata loads.
+//!
+//! An earlier simplification can replace a zero-offset object projection with
+//! its slice operand. Such a function still needs slice-load lowering even if
+//! it no longer contains object types or object operations. Unsupported layouts
+//! and address spaces retain their operations for the subsequent phase checks.
 
 use crate::mir::{
     AllocationAlignment, AllocationKind, AllocationSemantics, Function, FunctionBuilder, Immediate,
@@ -46,11 +56,15 @@ impl MirPass for LowerMemoryObjects {
 
 fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
     let is_object_value = |value| func.value_ty(value).as_ref().is_some_and(is_object_type);
-    let has_objects = func.arg_indices().any(|index| is_object_type(&func.arg_ty(index)))
+    let needs_lowering = func.arg_indices().any(|index| is_object_type(&func.arg_ty(index)))
         || func.returns.iter().any(is_object_type)
         || func.live_values().any(is_object_value)
-        || func.instructions().any(|inst_id| func.inst(inst_id).kind.is_memory_object_op());
-    if !has_objects {
+        || func.instructions().any(|inst_id| {
+            let kind = &func.inst(inst_id).kind;
+            kind.is_memory_object_op()
+                || matches!(kind, InstKind::MLoad(object) if func.value_slice_location(*object).is_some())
+        });
+    if !needs_lowering {
         return false;
     }
 
@@ -112,6 +126,8 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
                         let Some(location) = builder.func().value_slice_location(object) else {
                             return true;
                         };
+                        // %source = slice_ptr %object
+                        // %value = mload %source | calldataload %source
                         let source = builder.slice_ptr(object);
                         let Some(kind) = slice_load_kind(location, source) else {
                             return true;

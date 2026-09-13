@@ -15,6 +15,47 @@ env:
   FANDANGO_VERSION: 1.1.1
 
 jobs:
+  evm-rules:
+    name: EVM word and stack proofs
+    runs-on: depot-ubuntu-24.04-arm
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      - name: Install cvc5 1.2.0
+        run: |
+          curl --fail --location --retry 3 --silent --show-error \
+            https://github.com/cvc5/cvc5/releases/download/cvc5-1.2.0/cvc5-Linux-arm64-static.zip \
+            --output "$RUNNER_TEMP/cvc5.zip"
+          echo "142ac177af1ce37922308f69fe519d06e6cb4d0a62a312f28c25001e94c2fb56  $RUNNER_TEMP/cvc5.zip" | sha256sum --check
+          unzip -q "$RUNNER_TEMP/cvc5.zip" -d "$RUNNER_TEMP/cvc5"
+          echo "$RUNNER_TEMP/cvc5/cvc5-Linux-arm64-static/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/cvc5/cvc5-Linux-arm64-static/bin/cvc5" --version
+      - run: uv run scripts/evm-rules/test.py
+      - name: Verify compiled ISLE word and stack rules
+        run: uv run scripts/evm-rules/verify.py verify --partition-shifts --output target/evm-rules/proofs.json --artifacts target/evm-rules/smt
+      - name: Replay every proof query with cvc5
+        run: uv run scripts/evm-rules/replay.py target/evm-rules/proofs.json --output target/evm-rules/cvc5.json
+      - name: Verify MIR e-graph rules
+        run: >-
+          uv run scripts/evm-rules/verify.py verify crates/codegen/isle/egraph.isle
+          --partition-shifts --index-partition-timeout-ms 30000
+          --fallback-solver cvc5 --bit-partition-timeout-ms 120000
+          --output target/evm-rules/egraph.json --artifacts target/evm-rules/egraph-smt
+      - name: Replay e-graph proof queries with cvc5
+        run: uv run scripts/evm-rules/replay.py target/evm-rules/egraph.json --output target/evm-rules/egraph-cvc5.json
+      # Keep SMT queries and coverage to diagnose and replay failed verification.
+      - name: Upload failed proof diagnostics
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: evm-word-proofs
+          path: target/evm-rules
+          if-no-files-found: ignore
+          retention-days: 7
+
   test:
     name: test ${{ matrix.os }} ${{ matrix.rust }}
     runs-on: depot-${{ matrix.os }}
@@ -286,6 +327,7 @@ jobs:
     if: always()
     permissions: {}
     needs:
+      - evm-rules
       - test
       - feature-checks
       - wasm

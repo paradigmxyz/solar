@@ -1,0 +1,71 @@
+//@ compile-flags: -Zmir-pipeline=call-cleanup,dce
+@module BooleanReturns
+
+fn @clean(arg0: u256) -> bool {
+  bb0:
+    v0 = lt arg0, 128
+    jumpi v0, bb1, bb2
+  bb1:
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v1 = phi [bb1: 1], [bb2: 0]
+    ret v1
+}
+
+// A bool signature is insufficient: assembly may return a dirty word.
+fn @dirty(arg0: u256) -> bool {
+  bb0:
+    ret arg0
+}
+
+// Recursive return facts cannot bootstrap their own proof.
+fn @recursive(arg0: u256) -> bool {
+  bb0:
+    v0 = icall @recursive, 1, arg0
+    ret v0
+}
+
+fn @compare(arg0: u256) -> bool {
+  bb0:
+    v0 = icall @clean, 1, arg0
+    v1 = iszero v0
+    v2 = iszero v1
+    ret v2
+}
+
+fn @keep_dirty(arg0: u256) -> bool {
+  bb0:
+    v0 = icall @dirty, 1, arg0
+    v1 = iszero v0
+    v2 = iszero v1
+    ret v2
+}
+
+fn @keep_recursive(arg0: u256) -> bool {
+  bb0:
+    v0 = icall @recursive, 1, arg0
+    v1 = iszero v0
+    v2 = iszero v1
+    ret v2
+}
+
+// A dirty return on one arm prevents proving the complete helper clean.
+fn @mixed(arg0: u256) -> bool {
+  bb0:
+    v0 = lt arg0, 5
+    jumpi v0, bb1, bb2
+  bb1:
+    ret 1
+  bb2:
+    ret 2
+}
+
+fn @keep_mixed(arg0: u256) -> bool {
+  bb0:
+    v0 = icall @mixed, 1, arg0
+    v1 = iszero v0
+    v2 = iszero v1
+    ret v2
+}

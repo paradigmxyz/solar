@@ -145,7 +145,7 @@ fn @g() -> memorybytes [selector=0xe2179b8e, view, abi_params=[], abi_returns=[m
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v4 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
+    v4 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     memory_zero v4, 32
     memory_object_store_element memoryarray<1>, v1, v2, v4
     v5 = add v2, 1
@@ -341,13 +341,13 @@ fn @i() -> memorybytes [selector=0xe5aa3d58, view, abi_params=[], abi_returns=[m
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb5:
-    v9 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v9 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_zero v9, 64
     memory_object_store_element memoryarray<1>, v6, v7, v9
     v10 = add v7, 1
     jump bb4
   bb2:
-    v4 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v4 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_zero v4, 64
     memory_object_store_element memoryarray<1>, v1, v2, v4
     v5 = add v2, 1

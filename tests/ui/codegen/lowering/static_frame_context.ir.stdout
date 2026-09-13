@@ -1,0 +1,242 @@
+// === ROOT/tests/ui/codegen/lowering/static_frame_context.sol:StaticFrameContext (runtime) ===
+@module StaticFrameContext_runtime
+bb0:
+  push 36
+  calldatasize
+  lt
+  callvalue
+  or
+  push bb2
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x10c888cd
+  eq
+  push bb6
+  jumpi
+  dup 1
+  push 0x6257139f
+  eq
+  push bb8
+  jumpi
+  dup 1
+  push 0x727ee1fa
+  eq
+  push bb10
+  jumpi
+  jump bb2
+bb2 [cold]:
+  push 0
+  push 0
+  revert
+bb19 [continuation]:
+  dup 2
+  add
+  swap 1
+  dup 2
+  lt
+  push bb38
+  jumpi
+  swap 1
+  jump
+bb6:
+  push bb39
+  push 4
+  calldataload
+  jump bb16
+bb16:
+  push 160
+  mstore
+  push 0
+  push 0
+  jump bb17
+bb21:
+  push 1
+  push 192
+  mload
+  add
+  push 224
+  mload
+  swap 1
+  jump bb17
+bb17:
+  push 160
+  mload
+  dup 2
+  lt
+  push bb22
+  jumpi
+  pop
+  push bb19
+  push 160
+  mload
+  jump bb32
+bb32:
+  push 0x2060
+  mstore
+  push 0
+  push 0
+  jump bb33
+bb35:
+  push 1
+  push 0x2080
+  mload
+  add
+  push 0x20a0
+  mload
+  swap 1
+  jump bb33
+bb33:
+  push 0x2060
+  mload
+  dup 2
+  lt
+  push bb36
+  jumpi
+  pop
+  swap 1
+  jump
+bb8:
+  push 4
+  calldataload
+  push 0x1fe0
+  mstore
+  push bb9
+  push 4
+  calldataload
+  jump bb24
+bb24:
+  push 0x2000
+  mstore
+  push 0
+  push 0
+  jump bb25
+bb29:
+  push 1
+  push 0x2020
+  mload
+  add
+  push 0x2040
+  mload
+  jump bb25
+bb25:
+  push 0x2000
+  mload
+  dup 3
+  lt
+  push bb30
+  jumpi
+  swap 1
+  pop
+  push bb19
+  push 0x2000
+  mload
+  jump bb32
+bb9 [continuation]:
+  push 0x1fe0
+  mload
+  add
+  jump bb39
+bb39 [continuation]:
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb10:
+  push bb11
+  push 4
+  calldataload
+  jump bb16
+bb11 [continuation]:
+  push bb12
+  push 4
+  calldataload
+  jump bb24
+bb12 [continuation]:
+  dup 2
+  add
+  swap 1
+  dup 2
+  lt
+  push bb38
+  jumpi
+  push 4
+  calldataload
+  dup 2
+  add
+  swap 1
+  dup 2
+  lt
+  push bb38
+  jumpi
+  jump bb39
+bb22:
+  push 2
+  dup 3
+  add
+  dup 1
+  push 224
+  mstore
+  swap 2
+  dup 3
+  lt
+  dup 2
+  push 192
+  mstore
+  swap 2
+  pop
+  pop
+  iszero
+  push bb21
+  jumpi
+  jump bb38
+bb38 [cold]:
+  push 0x4e487b71
+  push 224
+  shl
+  push 0
+  mstore
+  push 17
+  push 4
+  mstore
+  push 36
+  push 0
+  revert
+bb30:
+  push 4
+  dup 2
+  add
+  dup 1
+  push 0x2040
+  mstore
+  swap 1
+  dup 2
+  lt
+  dup 3
+  push 0x2020
+  mstore
+  swap 2
+  pop
+  pop
+  iszero
+  push bb29
+  jumpi
+  jump bb38
+bb36:
+  dup 1
+  push 0x2080
+  mstore
+  dup 2
+  add
+  dup 1
+  push 0x20a0
+  mstore
+  lt
+  iszero
+  push bb35
+  jumpi
+  jump bb38

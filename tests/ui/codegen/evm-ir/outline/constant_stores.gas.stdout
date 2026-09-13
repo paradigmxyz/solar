@@ -1,0 +1,24 @@
+- // === ROOT/tests/ui/codegen/evm-ir/outline/constant_stores.evmir (before outline) ===
++ // === ROOT/tests/ui/codegen/evm-ir/outline/constant_stores.evmir (after outline) ===
+  @module ConstantStores
+  bb0:
+    push 0x30313233343536373839616263646566
+    push 15
+    mstore
+    jump bb1
+  bb1:
+    push 0x30313233343536373839616263646566
+    push 15
+    mstore
+    jump bb2
+  bb2:
+    push 0x30313233343536373839616263646566
+    push 15
+    mstore
+    jump bb3
+  bb3:
+    push 0x30313233343536373839616263646566
+    push 15
+    mstore
+    stop
+  

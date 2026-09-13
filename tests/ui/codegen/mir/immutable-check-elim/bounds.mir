@@ -1,0 +1,98 @@
+//@ revisions: gas size legacy
+//@[gas] compile-flags: -Ogas --evm-version=osaka -Zmir-pipeline=immutable-check-elim
+//@[size] compile-flags: -Osize --evm-version=osaka -Zmir-pipeline=immutable-check-elim
+//@[legacy] compile-flags: -Ogas --evm-version=byzantium -Zmir-pipeline=immutable-check-elim
+@module ImmutableBounds
+immutables:
+  small: u64
+  signed: i64
+  wide: u256
+
+fn @runtime() -> u256 [selector=1] {
+  bb0:
+    v0 = icall @bounded, 1
+    icall @shared, 0
+    v2 = icall @signed_value, 1
+    v3 = icall @wide_value, 1
+    v4 = add v0, v2
+    v5 = add v4, v3
+    ret v5
+}
+
+// Modern targets encode unsigned runtime loads in eight-byte immediates.
+// The legacy target uses a full word and cannot use this bound.
+fn @bounded() -> u256 {
+  bb0:
+    v0 = loadimmutable small
+    v1 = add v0, 1
+    v2 = lt v1, v0
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    ret v1
+}
+
+// Constructor reachability crosses both calls and tail calls. Shared helpers
+// must retain their checks because constructor loads read full staging words.
+fn @constructor(arg0: u64) [constructor] {
+  bb0:
+    storeimmutable small, arg0
+    icall @bridge, 0
+    stop
+}
+
+fn @bridge() {
+  bb0:
+    tail_call @shared
+}
+
+fn @shared() {
+  bb0:
+    v0 = loadimmutable small
+    v1 = add v0, 1
+    v2 = lt v1, v0
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    stop
+}
+
+// Signed values can have every high bit set even with a short immediate.
+fn @signed_value() -> u256 {
+  bb0:
+    v0 = loadimmutable signed
+    v1 = add v0, 1
+    v2 = lt v1, v0
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    ret v1
+}
+
+fn @wide_value() -> u256 {
+  bb0:
+    v0 = loadimmutable wide
+    v1 = add v0, 1
+    v2 = lt v1, v0
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    ret v1
+}
+
+// A helper with no established runtime entry cannot acquire runtime facts.
+fn @unrooted() -> u256 {
+  bb0:
+    v0 = loadimmutable small
+    v1 = add v0, 1
+    v2 = lt v1, v0
+    jumpi v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    ret v1
+}

@@ -4,7 +4,7 @@
 //!
 //! ## Block Merging
 //! If block A unconditionally jumps to B, and B has only A as predecessor,
-//! merge A and B into a single block. This reduces jump instructions (8 gas each).
+//! merge A and B into a single block. This reduces jump instructions (one `JUMP` each).
 //!
 //! ## Empty Block Elimination
 //! Remove blocks that contain no instructions and only an unconditional jump,
@@ -17,12 +17,15 @@
 //! Terminal-block equivalence ignores source context. Shared instructions and
 //! terminators retain the bounded union of their original locations instead.
 
-use crate::mir::{
-    BlockId, Function, FunctionId, Immediate, InstKind, InstructionMetadata, MirType, Module,
-    Terminator, Value, ValueId,
-    analysis::{CallGraphInfo, CfgInfo},
-    pass::{MirPass, run_function_pass},
-    utils::{repair_reachability_phis, retain_blocks},
+use crate::{
+    mir::{
+        BlockId, Function, FunctionId, Immediate, InstKind, InstructionMetadata, MirType, Module,
+        Terminator, Value, ValueId,
+        analysis::{CallGraphInfo, CfgInfo},
+        pass::{MirPass, run_function_pass},
+        utils::{repair_reachability_phis, retain_blocks},
+    },
+    target::GasTier,
 };
 use solar_data_structures::{
     bit_set::DenseBitSet,
@@ -44,10 +47,13 @@ impl MirPass for CfgSimplify {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, _| {
-            CfgSimplifier::new().run_to_fixpoint(func).total() != 0
-        })
+        run_function_pass(module, analyses, |func, _| simplify_function(func))
     }
+}
+
+/// Cleans a function after a local transform changes its control flow.
+pub(super) fn simplify_function(func: &mut Function) -> bool {
+    CfgSimplifier::new().run_to_fixpoint(func).total() != 0
 }
 
 /// Module pass for dead internal function elimination.
@@ -124,7 +130,7 @@ struct CfgSimplifyStats {
     dead_functions_eliminated: usize,
     /// Whether CFG backlinks or phi inputs were repaired.
     reachability_repaired: bool,
-    /// Estimated gas saved (8 gas per eliminated jump).
+    /// Estimated gas saved (one `JUMP` per eliminated jump).
     gas_saved: usize,
 }
 
@@ -495,7 +501,7 @@ impl CfgSimplifier {
                     self.do_merge(func, block_id, target);
                     merged = true;
                     self.stats.blocks_merged += 1;
-                    self.stats.gas_saved += 8;
+                    self.stats.gas_saved += GasTier::Mid.fixed_gas() as usize;
                     break;
                 }
             }
@@ -616,7 +622,7 @@ impl CfgSimplifier {
                     self.eliminate_forwarder(func, block_id);
                     eliminated = true;
                     self.stats.empty_blocks_eliminated += 1;
-                    self.stats.gas_saved += 8;
+                    self.stats.gas_saved += GasTier::Mid.fixed_gas() as usize;
                     break;
                 }
             }

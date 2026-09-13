@@ -44,16 +44,7 @@ impl MirPass for LowerEvmShaped {
             && module.functions.iter().all(|func| {
                 func.instructions().all(|inst_id| {
                     let inst = func.inst(inst_id);
-                    match inst.kind {
-                        InstKind::MakeSlice { .. }
-                        | InstKind::SlicePtr(_)
-                        | InstKind::SliceLen(_)
-                        | InstKind::Fmp
-                        | InstKind::SetFmp(_)
-                        | InstKind::StoreImmutable(..) => false,
-                        InstKind::Alloc { .. } => inst.metadata.deferred_alloc(),
-                        _ => true,
-                    }
+                    inst.kind.phase_violation(MirPhase::EvmShaped, &inst.metadata).is_none()
                 })
             })
     }

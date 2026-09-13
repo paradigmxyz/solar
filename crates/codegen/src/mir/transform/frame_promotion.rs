@@ -67,6 +67,8 @@ enum PromotedSlot {
     InternalFrame(u64),
     /// Slot addressed in the external entry's compiler-owned low-memory locals.
     ExternalLocal(u64),
+    /// A constant word within a non-escaping memory object.
+    Object(ValueId, u64),
 }
 
 /// Per-slot information produced by frame-slot promotion.
@@ -106,6 +108,8 @@ struct FrameSlotPromoter {
 enum PromotableSlot {
     InternalFrame(u64),
     ExternalLocal(u64),
+    /// A constant word within a non-escaping memory object.
+    Object(ValueId, u64),
 }
 
 impl From<PromotableSlot> for PromotedSlot {
@@ -113,6 +117,7 @@ impl From<PromotableSlot> for PromotedSlot {
         match slot {
             PromotableSlot::InternalFrame(offset) => Self::InternalFrame(offset),
             PromotableSlot::ExternalLocal(addr) => Self::ExternalLocal(addr),
+            PromotableSlot::Object(object, slot) => Self::Object(object, slot),
         }
     }
 }
@@ -127,11 +132,12 @@ struct SlotLoad {
 struct SlotStore {
     block: BlockId,
     inst: InstId,
-    value: ValueId,
 }
 
 #[derive(Clone, Debug)]
-struct SlotAccessInfo {
+pub(super) struct SlotAccessInfo {
+    accesses: FxHashMap<InstId, Option<ValueId>>,
+    resets: GrowableBitSet<InstId>,
     slot: PromotableSlot,
     loads: Vec<SlotLoad>,
     stores: Vec<SlotStore>,
@@ -143,6 +149,8 @@ struct SlotAccessInfo {
 impl SlotAccessInfo {
     fn new(slot: PromotableSlot, block_count: usize) -> Self {
         Self {
+            accesses: FxHashMap::default(),
+            resets: GrowableBitSet::new_empty(),
             slot,
             loads: Vec::new(),
             stores: Vec::new(),
@@ -152,16 +160,28 @@ impl SlotAccessInfo {
         }
     }
 
-    fn note_load(&mut self, block: BlockId, inst: InstId) {
+    pub(super) fn note_load(&mut self, block: BlockId, inst: InstId) {
+        self.accesses.insert(inst, None);
         self.loads.push(SlotLoad { block, inst });
         self.use_blocks.insert(block);
         self.access_blocks.insert(block);
     }
 
-    fn note_store(&mut self, block: BlockId, inst: InstId, value: ValueId) {
-        self.stores.push(SlotStore { block, inst, value });
+    pub(super) fn note_store(&mut self, block: BlockId, inst: InstId, value: ValueId) {
+        self.accesses.insert(inst, Some(value));
+        self.stores.push(SlotStore { block, inst });
         self.def_blocks.insert(block);
         self.access_blocks.insert(block);
+    }
+
+    pub(super) fn note_reset(&mut self, block: BlockId, inst: InstId) {
+        self.resets.insert(inst);
+        self.def_blocks.insert(block);
+        self.access_blocks.insert(block);
+    }
+
+    pub(super) fn object(object: ValueId, slot: u64, blocks: usize) -> Self {
+        Self::new(PromotableSlot::Object(object, slot), blocks)
     }
 
     fn sorted_use_blocks(&self) -> Vec<BlockId> {
@@ -184,7 +204,6 @@ struct PendingPhi {
 struct SlotSsaBuilder<'a> {
     info: &'a SlotAccessInfo,
     cfg: &'a CfgInfo,
-    aa: &'a AliasAnalysis,
     replacements: FxHashMap<ValueId, ValueId>,
     dead: GrowableBitSet<InstId>,
     phis: FxHashMap<BlockId, PendingPhi>,
@@ -227,7 +246,7 @@ impl FrameSlotPromoter {
         };
 
         for info in slots {
-            let mut builder = SlotSsaBuilder::new(&info, &cfg, &aa, func.num_insts());
+            let mut builder = SlotSsaBuilder::new(&info, &cfg, func.num_insts());
             if builder.run(func) {
                 self.stats.slots_promoted += 1;
                 self.stats.loads_promoted += builder.loads_promoted;
@@ -297,6 +316,7 @@ impl FrameSlotPromoter {
                 PromotableSlot::ExternalLocal(addr) => {
                     Self::external_local_slot_safe(func, aa, addr)
                 }
+                PromotableSlot::Object(..) => unreachable!("object slots are supplied by SROA"),
             })
             .collect();
         slots.sort_unstable_by_key(|info| info.slot);
@@ -710,17 +730,43 @@ impl FrameSlotPromoter {
     }
 }
 
+/// Promotes a set of prevalidated object fields as one transaction. A shared
+/// zero fill defines every field, so all plans must be built before applying any.
+pub(super) fn promote_object_slots(func: &mut Function, slots: &[SlotAccessInfo]) -> bool {
+    let cfg = CfgInfo::new(func);
+    let snapshot = func.clone();
+    let mut builders = Vec::new();
+    for info in slots {
+        let mut builder = SlotSsaBuilder::new(info, &cfg, func.num_insts());
+        if !builder.run(func) {
+            // Discard speculative phi allocations when a reaching definition is absent.
+            *func = snapshot;
+            return false;
+        }
+        builders.push(builder);
+    }
+    // mstore field, value; ...; result = mload field => result = phi/reaching_value
+    let mut replacements = FxHashMap::default();
+    let mut dead = GrowableBitSet::with_capacity(func.num_insts());
+    for builder in builders {
+        builder.apply_phis(func);
+        replacements.extend(builder.replacements);
+        for inst in builder.dead.iter() {
+            dead.insert(inst);
+        }
+    }
+    func.replace_uses_canonicalized(&replacements);
+    for block in &mut func.blocks {
+        block.instructions.retain(|&inst| !dead.contains(inst));
+    }
+    true
+}
+
 impl<'a> SlotSsaBuilder<'a> {
-    fn new(
-        info: &'a SlotAccessInfo,
-        cfg: &'a CfgInfo,
-        aa: &'a AliasAnalysis,
-        instruction_count: usize,
-    ) -> Self {
+    fn new(info: &'a SlotAccessInfo, cfg: &'a CfgInfo, instruction_count: usize) -> Self {
         Self {
             info,
             cfg,
-            aa,
             replacements: FxHashMap::default(),
             dead: GrowableBitSet::with_capacity(instruction_count),
             phis: FxHashMap::default(),
@@ -771,18 +817,12 @@ impl<'a> SlotSsaBuilder<'a> {
 
             let mut saw_store = false;
             for &inst_id in &func.blocks[block].instructions {
-                match func.inst(inst_id).kind {
-                    InstKind::MLoad(addr)
-                        if !saw_store
-                            && FrameSlotPromoter::promotable_slot(func, self.aa, addr)
-                                == Some(self.info.slot) =>
-                    {
+                saw_store |= self.info.resets.contains(inst_id);
+                match self.info.accesses.get(&inst_id) {
+                    Some(None) if !saw_store => {
                         gen_set.insert(block);
                     }
-                    InstKind::MStore(addr, _)
-                        if FrameSlotPromoter::promotable_slot(func, self.aa, addr)
-                            == Some(self.info.slot) =>
-                    {
+                    Some(Some(_)) => {
                         saw_store = true;
                     }
                     _ => {}
@@ -890,7 +930,8 @@ impl<'a> SlotSsaBuilder<'a> {
         !self.failed
     }
 
-    fn apply(self, func: &mut Function) {
+    fn apply_phis(&self, func: &mut Function) {
+        // field = phi [predecessor: reaching_value], ...
         for pending in self.phis.values() {
             let mut incoming = pending.incoming.clone();
             incoming.sort_by_key(|(block, _)| block.index());
@@ -902,7 +943,11 @@ impl<'a> SlotSsaBuilder<'a> {
                 .count();
             func.blocks[pending.block].instructions.insert(insert_pos, pending.inst);
         }
+    }
 
+    fn apply(self, func: &mut Function) {
+        self.apply_phis(func);
+        // result = mload slot => result = reaching_value
         func.replace_uses_canonicalized(&self.replacements);
 
         for block in func.blocks.iter_mut() {
@@ -923,19 +968,17 @@ impl<'a> SlotSsaBuilder<'a> {
         let mut current = None;
         let mut changed = false;
         for &inst_id in &func.blocks[block].instructions {
-            match func.inst(inst_id).kind {
-                InstKind::MLoad(addr)
-                    if FrameSlotPromoter::promotable_slot(func, self.aa, addr)
-                        == Some(self.info.slot) =>
-                {
+            if self.info.resets.contains(inst_id) {
+                current = None;
+            }
+            match self.info.accesses.get(&inst_id) {
+                Some(None) => {
                     let Some(value) = current else { return false };
                     self.replace_load(func, inst_id, value);
                     changed = true;
                 }
-                InstKind::MStore(addr, value)
-                    if FrameSlotPromoter::promotable_slot(func, self.aa, addr)
-                        == Some(self.info.slot) =>
-                {
+                Some(Some(_)) => {
+                    let value = self.store_value(func, inst_id);
                     current = Some(mir_utils::resolve_replacement(value, &self.replacements));
                     self.remove_store(inst_id);
                     changed = true;
@@ -947,8 +990,12 @@ impl<'a> SlotSsaBuilder<'a> {
     }
 
     fn rewrite_single_store(&mut self, func: &Function) -> bool {
+        if !self.info.resets.is_empty() {
+            return false;
+        }
         let [store] = self.info.stores.as_slice() else { return false };
-        let stored_value = mir_utils::resolve_replacement(store.value, &self.replacements);
+        let stored_value =
+            mir_utils::resolve_replacement(self.store_value(func, store.inst), &self.replacements);
 
         for load in &self.info.loads {
             let dominated = if load.block == store.block {
@@ -973,6 +1020,17 @@ impl<'a> SlotSsaBuilder<'a> {
         }
         self.remove_store(store.inst);
         true
+    }
+
+    /// Earlier slot promotions rewrite store operands. Read the live MStore
+    /// rather than its collection-time value; a semantic zero has no explicit
+    /// value operand and keeps the scalar zero supplied by SROA.
+    fn store_value(&self, func: &Function, inst: InstId) -> ValueId {
+        match func.inst(inst).kind {
+            InstKind::MStore(_, value) => value,
+            InstKind::MemoryZero(..) => self.info.accesses[&inst].expect("zero defines the field"),
+            _ => unreachable!("promoted definition must be a word store or zero fill"),
+        }
     }
 
     fn inst_position(func: &Function, block: BlockId, inst: InstId) -> Option<usize> {
@@ -1004,21 +1062,19 @@ impl<'a> SlotSsaBuilder<'a> {
         let instruction_count = func.blocks[block].instructions.len();
         for index in 0..instruction_count {
             let inst_id = func.blocks[block].instructions[index];
-            match func.inst(inst_id).kind {
-                InstKind::MLoad(addr)
-                    if FrameSlotPromoter::promotable_slot(func, self.aa, addr)
-                        == Some(self.info.slot) =>
-                {
+            if self.info.resets.contains(inst_id) {
+                current = None;
+            }
+            match self.info.accesses.get(&inst_id) {
+                Some(None) => {
                     let Some(value) = current else {
                         self.failed = true;
                         return;
                     };
                     self.replace_load(func, inst_id, value);
                 }
-                InstKind::MStore(addr, value)
-                    if FrameSlotPromoter::promotable_slot(func, self.aa, addr)
-                        == Some(self.info.slot) =>
-                {
+                Some(Some(_)) => {
+                    let value = self.store_value(func, inst_id);
                     current = Some(mir_utils::resolve_replacement(value, &self.replacements));
                     self.remove_store(inst_id);
                 }
@@ -1048,6 +1104,7 @@ impl<'a> SlotSsaBuilder<'a> {
             return pending.value;
         }
 
+        // field = phi []
         let (inst, value) = func.alloc_value_inst(
             Instruction::new(InstKind::Phi(Vec::new()), Some(MirType::uint256()))
                 .with_debug_info_dropped(),

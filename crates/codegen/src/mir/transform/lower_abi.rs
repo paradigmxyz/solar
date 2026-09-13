@@ -3330,12 +3330,13 @@ fn is_canonical_return_scalar(
     {
         return true;
     }
+    // Shifting by the padding width clears every bit outside the fixed-bytes
+    // result, even when the input has dirty upper bits.
     if let MirType::FixedBytes(size) = ty
         && size.bytes() < 32
         && let Value::Inst(inst) = func.value(value)
-        && let InstKind::Shl(shift, source) = func.inst(*inst).kind
+        && let InstKind::Shl(shift, _) = func.inst(*inst).kind
         && func.value_u64(shift) == Some((32 - u64::from(size.bytes())) * 8)
-        && is_canonical_low_bits(func, source, u64::from(size.bytes()) * 8)
     {
         return true;
     }
@@ -3357,17 +3358,6 @@ fn is_canonical_return_scalar(
         return false;
     };
     mask == expected && source != value
-}
-
-fn is_canonical_low_bits(func: &Function, value: ValueId, bits: u64) -> bool {
-    let mask = U256::MAX >> (256 - usize::try_from(bits).expect("bit width fits usize"));
-    if func.value_u256(value).is_some_and(|value| value & !mask == U256::ZERO) {
-        return true;
-    }
-    let Value::Inst(inst) = func.value(value) else { return false };
-    let InstKind::And(lhs, rhs) = func.inst(*inst).kind else { return false };
-    func.value_u256(lhs).is_some_and(|value| value == mask)
-        || func.value_u256(rhs).is_some_and(|value| value == mask)
 }
 
 fn return_cleanup_mask(ty: MirType, source: ReturnValueSource) -> Option<U256> {

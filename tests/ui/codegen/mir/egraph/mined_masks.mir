@@ -1,0 +1,35 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zmir-pipeline=egraph,dce
+//@[size] compile-flags: -Osize -Zmir-pipeline=egraph,dce
+@module MinedMasks
+
+fn @high_mask(arg0: u256) -> u256 {
+  bb0:
+    v0 = shl arg0, 1
+    v1 = sub v0, 1
+    v2 = not v1
+    ret v2
+}
+
+fn @negation(arg0: u256) -> u256 {
+  bb0:
+    v0 = sub arg0, 1
+    v1 = not v0
+    ret v1
+}
+
+fn @shared_mask(arg0: u256) -> (u256, u256) {
+  bb0:
+    v0 = shl arg0, 1
+    v1 = sub v0, 1
+    v2 = not v1
+    ret v1, v2
+}
+
+fn @nonunit(arg0: u256) -> u256 {
+  bb0:
+    v0 = shl arg0, 2
+    v1 = sub v0, 2
+    v2 = not v1
+    ret v2
+}

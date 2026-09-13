@@ -1,0 +1,52 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=cfg-simplify
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=cfg-simplify
+@module LoopExit
+
+// Merge the uniquely referenced body into the header after moving the exit tail.
+bb0:
+  push bb4
+  pop
+  push 10
+  jump bb1
+bb1:
+  dup 1
+  iszero
+  push bb2
+  jumpi
+  push 0
+  jump bb3
+bb2:
+  push 1
+  sub
+  dup 1
+  push bb1
+  jumpi
+  push 1
+  jump bb3
+bb3:
+  pop
+  pop
+  stop
+
+// An address-taken body must retain its distinct block and incoming stack layout.
+bb4:
+  push bb4
+  pop
+  push bb5
+  pop
+  push 10
+  jump bb6
+bb6:
+  dup 1
+  iszero
+  push bb5
+  jumpi
+  stop
+bb5:
+  push 1
+  sub
+  dup 1
+  push bb6
+  jumpi
+  stop

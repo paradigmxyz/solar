@@ -1,0 +1,137 @@
+// === ROOT/tests/ui/codegen/mir/check-elim/join_ranges_runtime.sol:JoinedRanges ===
+@module JoinedRanges
+fn @choose(arg0: bool, arg1: u256, arg2: u256) -> u256 [selector=0x28eac35d, pure, abi_params=[bool, u256, u256], abi_returns=[word]] {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb2:
+    v2 = lt arg2, 80
+    v3 = iszero v2
+    jumpi v3, bb4, bb6
+  bb6:
+    jump bb3
+  bb1:
+    v0 = lt arg1, 100
+    v1 = iszero v0
+    jumpi v1, bb4, bb5
+  bb5:
+    jump bb3
+  bb3:
+    v4 = phi [bb5: arg1], [bb6: arg2]
+    v5 = lt v4, 100
+    v6 = iszero v5
+    jumpi v6, bb4, bb7
+  bb7:
+    v7 = add v4, 1
+    v8 = lt v7, v4
+    jumpi v8, bb8, bb9
+  bb9:
+    ret v7
+  bb8:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    revert 0, 0
+}
+
+fn @boundedLoop(arg0: u256) -> u256 [selector=0x46b5a18f, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = gt arg0, 100
+    v1 = iszero v0
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v3 = phi [bb2: arg0], [bb7: v3]
+    v4 = phi [bb2: 0], [bb7: v6]
+    v5 = lt v4, v3
+    jumpi v5, bb5, bb6
+  bb6:
+    jump bb4
+  bb4:
+    v8 = gt v4, 100
+    v9 = iszero v8
+    v10 = iszero v9
+    jumpi v10, bb1, bb10
+  bb10:
+    ret v4
+  bb5:
+    v6 = add v4, 1
+    v7 = lt v6, v4
+    jumpi v7, bb8, bb9
+  bb9:
+    jump bb7
+  bb7:
+    jump bb3
+  bb8:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    revert 0, 0
+}
+
+fn @wrapLoop(arg0: u256) -> u8 [selector=0xe58d2ef9, pure, abi_params=[u256], abi_returns=[word<u8>]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb8: v0]
+    v1 = phi [bb0: 0], [bb8: v6]
+    v2 = phi [bb0: 0], [bb8: v5]
+    v3 = lt v1, v0
+    jumpi v3, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v2
+  bb4:
+    v4 = add v2, 1
+    v5 = and v4, 255
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v6 = add v1, 1
+    v7 = lt v6, v1
+    jumpi v7, bb7, bb8
+  bb8:
+    jump bb1
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @checked(arg0: u256) -> u8 [selector=0x2e53fee2, pure, abi_params=[u256], abi_returns=[word<u8>]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb9: v4]
+    v1 = phi [bb0: arg0], [bb9: v1]
+    v2 = phi [bb0: 0], [bb9: v6]
+    v3 = lt v2, v1
+    jumpi v3, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v0
+  bb4:
+    v4 = add v0, 1
+    v5 = gt v4, 255
+    jumpi v5, bb7, bb8
+  bb8:
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v6 = add v2, 1
+    v7 = lt v6, v2
+    jumpi v7, bb7, bb9
+  bb9:
+    jump bb1
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}

@@ -13,15 +13,15 @@
       ret v2
   }
   
-  fn @keep_after_same_slot_store() -> u256 {
+  fn @forward_after_same_slot_store() -> u256 {
     bb0:
 -     v0 = sload 0
 -     sstore 0, 9
 -     v1 = sload 0
+-     v2 = add v0, v1
 +     v0 = sload 0 !metadata(storage=slot(0))
 +     sstore 0, 9 !metadata(storage=slot(0))
-+     v1 = sload 0 !metadata(storage=slot(0))
-      v2 = add v0, v1
++     v2 = add v0, 9
       ret v2
   }
   
@@ -75,6 +75,31 @@
 -     v3 = phi [bb0: v1]
 +     v3 = phi [bb0: v0]
       v4 = add v2, v3
+      ret v4
+  }
+  
+  fn @keep_store_forward_after_gas() -> u256 {
+    bb0:
+-     sstore 0, 9
++     sstore 0, 9 !metadata(storage=slot(0))
+      v0 = gas
+-     v1 = sload 0
++     v1 = sload 0 !metadata(storage=slot(0))
+      v2 = gas
+      v3 = add v1, v2
+      ret v3
+  }
+  
+  fn @keep_store_forward_inside_gas_interval() -> u256 {
+    bb0:
+      v0 = gas
+-     sstore 0, 9
+-     v1 = sload 0
++     sstore 0, 9 !metadata(storage=slot(0))
++     v1 = sload 0 !metadata(storage=slot(0))
+      v2 = gas
+      v3 = add v0, v1
+      v4 = add v3, v2
       ret v4
   }
   

@@ -1,0 +1,20 @@
+// === ROOT/tests/ui/codegen/mir/egraph/paired_views.sol:PairedViews ===
+@module PairedViews
+fn @words(arg0: u256, arg1: u256) -> (bool, u256, u256, u256) [selector=0xa5a43888, pure, abi_params=[u256, u256], abi_returns=[word<bool>, word, word, word]] {
+  bb0:
+    v0 = not 0
+    v1 = xor arg1, v0
+    v2 = not 0
+    v3 = xor arg0, v2
+    v4 = eq v3, v1
+    v5 = not 0
+    v6 = xor arg1, v5
+    v7 = not 0
+    v8 = xor arg0, v7
+    v9 = xor v8, v6
+    v10 = shl 248, arg0
+    v11 = byte 0, v10
+    v12 = shl 240, arg0
+    v13 = byte 0, v12
+    ret v4, v9, v11, v13
+}

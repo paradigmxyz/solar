@@ -211,7 +211,7 @@ fn @structMember() -> (u256, bool) [selector=0x9f2d7231, view, abi_params=[], ab
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v3 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    v3 = alloc memorystruct<3>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<3>, v3, 0, 0
     memory_object_store_field memorystruct<3>, v3, 1, 0
     memory_object_store_field memorystruct<3>, v3, 2, 96

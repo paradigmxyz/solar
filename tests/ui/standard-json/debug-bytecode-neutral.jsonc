@@ -1,5 +1,6 @@
 //@ normalize-stdout-test: "solar-[0-9a-f]{64}" -> "solar-COMPILATION_ID"
 //@ filecheck:
+// Include a dynamic low mask so late physical rewrites also remain bytecode-neutral.
 // CHECK-LABEL: "A": {
 // CHECK-LABEL: "bytecode": {
 // CHECK: "object": "[[CREATE:[0-9a-f]+]]"
@@ -23,7 +24,7 @@
   "language": "Solidity",
   "sources": {
     "A.sol": {
-      "content": "contract A { function f(uint256 x) external pure returns (uint256) { return x + 1; } function g(uint256 x) external pure returns (uint256) { return x + 2; } } contract B { function f(uint256 x) external pure returns (uint256) { return x + 1; } function g(uint256 x) external pure returns (uint256) { return x + 2; } } contract C { function f(uint256 x) external pure returns (uint256) { return x + 1; } function g(uint256 x) external pure returns (uint256) { return x + 2; } }"
+      "content": "contract A { function f(uint256 x) external pure returns (uint256) { return x + 1; } function g(uint256 x) external pure returns (uint256) { return x + 2; } function low(uint256 n) external pure returns (uint256 z) { assembly { z := sub(shl(n, 1), 1) } } } contract B { function f(uint256 x) external pure returns (uint256) { return x + 1; } function g(uint256 x) external pure returns (uint256) { return x + 2; } function low(uint256 n) external pure returns (uint256 z) { assembly { z := sub(shl(n, 1), 1) } } } contract C { function f(uint256 x) external pure returns (uint256) { return x + 1; } function g(uint256 x) external pure returns (uint256) { return x + 2; } function low(uint256 n) external pure returns (uint256 z) { assembly { z := sub(shl(n, 1), 1) } } }"
     }
   },
   "settings": {

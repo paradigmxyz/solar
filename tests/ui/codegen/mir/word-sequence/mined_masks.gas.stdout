@@ -1,0 +1,160 @@
+- // === ROOT/tests/ui/codegen/mir/word-sequence/mined_masks.mir (before word-sequence) ===
++ // === ROOT/tests/ui/codegen/mir/word-sequence/mined_masks.mir (after word-sequence) ===
+  @module MinedMasks
+  fn @low_mask(arg0: u256) -> u256 {
+    bb0:
+      v0 = shl arg0, 1
+      v1 = sub v0, 1
+      ret v1
+  }
+  
+  fn @shared_shift(arg0: u256) -> (u256, u256) {
+    bb0:
+      v0 = shl arg0, 1
+      v1 = sub v0, 1
+      ret v0, v1
+  }
+  
+  fn @masked_eq_0(arg0: u256, arg1: u256, arg2: u256) -> bool {
+    bb0:
+-     v0 = and arg0, arg2
+-     v1 = and arg2, arg1
+-     v2 = eq v0, v1
++     v3 = xor arg0, arg1
++     v4 = and v3, arg2
++     v2 = iszero v4
+      ret v2
+  }
+  
+  fn @masked_eq_1(arg0: u256, arg1: u256, arg2: u256) -> bool {
+    bb0:
+-     v0 = and arg0, arg2
+-     v1 = and arg1, arg2
+-     v2 = eq v0, v1
++     v3 = xor arg0, arg1
++     v4 = and v3, arg2
++     v2 = iszero v4
+      ret v2
+  }
+  
+  fn @masked_eq_2(arg0: u256, arg1: u256, arg2: u256) -> bool {
+    bb0:
+-     v0 = and arg2, arg0
+-     v1 = and arg2, arg1
+-     v2 = eq v0, v1
++     v3 = xor arg0, arg1
++     v4 = and v3, arg2
++     v2 = iszero v4
+      ret v2
+  }
+  
+  fn @masked_eq_3(arg0: u256, arg1: u256, arg2: u256) -> bool {
+    bb0:
+-     v0 = and arg2, arg0
+-     v1 = and arg1, arg2
+-     v2 = eq v0, v1
++     v3 = xor arg0, arg1
++     v4 = and v3, arg2
++     v2 = iszero v4
+      ret v2
+  }
+  
+  fn @shared_masked_values(arg0: u256, arg1: u256, arg2: u256) -> (u256, u256, bool) {
+    bb0:
+      v0 = and arg0, arg2
+      v1 = and arg1, arg2
+      v2 = eq v0, v1
+      ret v0, v1, v2
+  }
+  
+  fn @different_masks(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> bool {
+    bb0:
+      v0 = and arg0, arg2
+      v1 = and arg1, arg3
+      v2 = eq v0, v1
+      ret v2
+  }
+  
+  fn @effect_barrier(arg0: u256, arg1: u256, arg2: u256) -> bool {
+    bb0:
+      v0 = and arg0, arg2
+      v1 = and arg1, arg2
+      v2 = gas
+      v3 = eq v0, v1
+      ret v3
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/word-sequence/mined_masks.mir (before dce) ===
++ // === ROOT/tests/ui/codegen/mir/word-sequence/mined_masks.mir (after dce) ===
+  @module MinedMasks
+  fn @low_mask(arg0: u256) -> u256 {
+    bb0:
+      v0 = shl arg0, 1
+      v1 = sub v0, 1
+      ret v1
+  }
+  
+  fn @shared_shift(arg0: u256) -> (u256, u256) {
+    bb0:
+      v0 = shl arg0, 1
+      v1 = sub v0, 1
+      ret v0, v1
+  }
+  
+  fn @masked_eq_0(arg0: u256, arg1: u256, arg2: u256) -> bool {
+    bb0:
+      v3 = xor arg0, arg1
+      v4 = and v3, arg2
+      v2 = iszero v4
+      ret v2
+  }
+  
+  fn @masked_eq_1(arg0: u256, arg1: u256, arg2: u256) -> bool {
+    bb0:
+      v3 = xor arg0, arg1
+      v4 = and v3, arg2
+      v2 = iszero v4
+      ret v2
+  }
+  
+  fn @masked_eq_2(arg0: u256, arg1: u256, arg2: u256) -> bool {
+    bb0:
+      v3 = xor arg0, arg1
+      v4 = and v3, arg2
+      v2 = iszero v4
+      ret v2
+  }
+  
+  fn @masked_eq_3(arg0: u256, arg1: u256, arg2: u256) -> bool {
+    bb0:
+      v3 = xor arg0, arg1
+      v4 = and v3, arg2
+      v2 = iszero v4
+      ret v2
+  }
+  
+  fn @shared_masked_values(arg0: u256, arg1: u256, arg2: u256) -> (u256, u256, bool) {
+    bb0:
+      v0 = and arg0, arg2
+      v1 = and arg1, arg2
+      v2 = eq v0, v1
+      ret v0, v1, v2
+  }
+  
+  fn @different_masks(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> bool {
+    bb0:
+      v0 = and arg0, arg2
+      v1 = and arg1, arg3
+      v2 = eq v0, v1
+      ret v2
+  }
+  
+  fn @effect_barrier(arg0: u256, arg1: u256, arg2: u256) -> bool {
+    bb0:
+      v0 = and arg0, arg2
+      v1 = and arg1, arg2
+-     v2 = gas
+      v3 = eq v0, v1
+      ret v3
+  }
+  

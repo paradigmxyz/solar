@@ -2,7 +2,7 @@
 @module MemoryFixedArrayAlloc
 fn @guardedFix(arg0: u256) -> u256 [selector=0x93390577, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
-    v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     memory_zero v0, 96
     v1 = lt arg0, 3
     v2 = iszero v1
@@ -18,8 +18,8 @@ fn @guardedFix(arg0: u256) -> u256 [selector=0x93390577, pure, abi_params=[u256]
 
 fn @structArr(arg0: u256) -> u256 [selector=0x40b8037f, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
-    v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
-    v1 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
+    v1 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     memory_zero v1, 96
     memory_object_store_field memorystruct<1>, v0, 0, v1
     v2 = memory_object_load_field memorystruct<1>, v0, 0
@@ -37,7 +37,7 @@ fn @structArr(arg0: u256) -> u256 [selector=0x40b8037f, pure, abi_params=[u256],
 
 fn @nested(arg0: u256, arg1: u256) -> u256 [selector=0x50d1f082, pure, abi_params=[u256, u256], abi_returns=[word]] {
   bb0:
-    v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v4]
@@ -88,7 +88,7 @@ fn @nested(arg0: u256, arg1: u256) -> u256 [selector=0x50d1f082, pure, abi_param
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v3 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v3 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_zero v3, 64
     memory_object_store_element memoryfixedarray<3, 1>, v0, v1, v3
     v4 = add v1, 1
@@ -97,7 +97,7 @@ fn @nested(arg0: u256, arg1: u256) -> u256 [selector=0x50d1f082, pure, abi_param
 
 fn @fmpIntegrity() -> (u256, u256) [selector=0xe547cb4d, pure, abi_params=[], abi_returns=[word, word]] {
   bb0:
-    v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     memory_zero v0, 96
     v1 = lt 2, 3
     v2 = iszero v1
@@ -150,7 +150,7 @@ fn @literal() -> u256 [selector=0x1373185e, pure, abi_params=[], abi_returns=[wo
 
 fn @bulkDefault(arg0: u256) -> u256 [selector=0xbe4421b6, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
-    v0 = alloc memoryfixedarray<4, 1>, exact, uninitialized, infallible, 128
+    v0 = alloc memoryfixedarray<4, 1>, exact, uninitialized, infallible, 128 !metadata(preserves_fmp)
     memory_zero v0, 128
     v1 = lt arg0, 4
     v2 = iszero v1
@@ -168,7 +168,7 @@ fn @bulkDefault(arg0: u256) -> u256 [selector=0xbe4421b6, pure, abi_params=[u256
 @module NamedReturnAndDelete
 fn @namedReturn() -> (memoryfixedarray, u256) [selector=0xf76de570, pure, abi_params=[], abi_returns=[array<3, word>, word]] {
   bb0:
-    v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     memory_zero v0, 96
     v1 = lt 0, 3
     v2 = iszero v1
@@ -209,7 +209,7 @@ fn @namedReturn() -> (memoryfixedarray, u256) [selector=0xf76de570, pure, abi_pa
 
 fn @emptyMemoryReferences() -> u256 [selector=0xc82d0745, pure, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<2>, v0, 0, 96
     memory_object_store_field memorystruct<2>, v0, 1, 96
     v1 = memory_object_len memoryarray, 96
@@ -244,7 +244,7 @@ fn @emptyNamedReturns() -> (memoryarray, memorybytes) [selector=0xf4994cb3, pure
 
 fn @emptyWideNamedStruct() -> memorystruct [selector=0x27d08cee, pure, abi_params=[], abi_returns=[tuple<word, memory_bytes, word, word>]] {
   bb0:
-    v0 = alloc memorystruct<4>, exact, uninitialized, infallible, 128
+    v0 = alloc memorystruct<4>, exact, uninitialized, infallible, 128 !metadata(preserves_fmp)
     memory_zero v0, 128
     memory_object_store_field memorystruct<4>, v0, 1, 96
     ret v0
@@ -254,7 +254,7 @@ fn @fullyInitializedNamedStruct() -> memorystruct [selector=0x03e8d290, pure, ab
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1
-    v1 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v1 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<2>, v1, 0, 96
     memory_object_store_field memorystruct<2>, v1, 1, 96
     memory_object_store_field memorystruct<2>, v1, 0, v0
@@ -268,7 +268,7 @@ fn @fullyInitializedNamedStruct() -> memorystruct [selector=0x03e8d290, pure, ab
 
 fn @deleteRebind() -> (u256, u256) [selector=0x81e51eb1, pure, abi_params=[], abi_returns=[word, word]] {
   bb0:
-    v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     memory_zero v0, 96
     v1 = lt 0, 3
     v2 = iszero v1
@@ -311,7 +311,7 @@ fn @deleteRebind() -> (u256, u256) [selector=0x81e51eb1, pure, abi_params=[], ab
 
 fn @bulkDeleteRebind() -> (u256, u256) [selector=0x535bf203, pure, abi_params=[], abi_returns=[word, word]] {
   bb0:
-    v0 = alloc memoryfixedarray<4, 1>, exact, uninitialized, infallible, 128
+    v0 = alloc memoryfixedarray<4, 1>, exact, uninitialized, infallible, 128 !metadata(preserves_fmp)
     memory_zero v0, 128
     v1 = lt 0, 4
     v2 = iszero v1

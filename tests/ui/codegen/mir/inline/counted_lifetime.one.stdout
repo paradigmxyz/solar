@@ -1,0 +1,139 @@
+- // === ROOT/tests/ui/codegen/mir/inline/counted_lifetime.mir (before inline) ===
++ // === ROOT/tests/ui/codegen/mir/inline/counted_lifetime.mir (after inline) ===
+  @module CountedLifetime
+  fn @cold(arg0: u256) -> u256 {
+    bb0:
+      v0 = icall @helper, 1, arg0
+      ret v0
+  }
+  
+  fn @hot(arg0: u256) -> u256 {
+    bb0:
+      jump bb1
+    bb1:
+-     v0 = phi [bb0: 0], [bb2: v3]
++     v0 = phi [bb0: 0], [bb4: v3]
+      v1 = lt v0, 0x3e8
+      jumpi v1, bb2, bb3
+    bb3:
+      v4 = mload 128
+      ret v4
+    bb2:
+-     v2 = icall @helper, 1, arg0
+-     mstore 128, v2
++     jump bb5
++   bb5:
++     v5 = add arg0, 1
++     v6 = xor v5, 2
++     v7 = add v6, 3
++     v8 = xor v7, 4
++     v9 = add v8, 5
++     v10 = xor v9, 6
++     v11 = add v10, 7
++     v12 = xor v11, 8
++     v13 = add v12, 9
++     v14 = xor v13, 10
++     v15 = add v14, 11
++     v16 = xor v15, 12
++     v17 = add v16, 13
++     v18 = xor v17, 14
++     v19 = add v18, 15
++     v20 = xor v19, 16
++     v21 = add v20, 17
++     v22 = xor v21, 18
++     v23 = add v22, 19
++     v24 = xor v23, 20
++     v25 = add v24, 21
++     v26 = xor v25, 22
++     v27 = add v26, 23
++     v28 = xor v27, 24
++     v29 = add v28, 25
++     v30 = xor v29, 26
++     v31 = add v30, 27
++     v32 = xor v31, 28
++     v33 = add v32, 29
++     v34 = xor v33, 30
++     v35 = add v34, 31
++     v36 = xor v35, 32
++     v37 = add v36, 33
++     v38 = xor v37, 34
++     v39 = add v38, 35
++     v40 = xor v39, 36
++     v41 = add v40, 37
++     v42 = xor v41, 38
++     v43 = add v42, 39
++     v44 = xor v43, 40
++     jump bb4
++   bb4:
++     v45 = phi [bb5: v44]
++     mstore 128, v45
+      v3 = add v0, 1
+      jump bb1
+  }
+  
+  fn @conditional(arg0: u256, arg1: bool) -> u256 {
+    bb0:
+      jump bb1
+    bb1:
+      v0 = phi [bb0: 0], [bb4: v3]
+      v1 = lt v0, 0x3e8
+      jumpi v1, bb2, bb5
+    bb5:
+      v4 = mload 128
+      ret v4
+    bb2:
+      jumpi arg1, bb3, bb4
+    bb3:
+      v2 = icall @helper, 1, arg0
+      mstore 128, v2
+      jump bb4
+    bb4:
+      v3 = add v0, 1
+      jump bb1
+  }
+  
+  fn @helper(arg0: u256) -> u256 {
+    bb0:
+      v0 = add arg0, 1
+      v1 = xor v0, 2
+      v2 = add v1, 3
+      v3 = xor v2, 4
+      v4 = add v3, 5
+      v5 = xor v4, 6
+      v6 = add v5, 7
+      v7 = xor v6, 8
+      v8 = add v7, 9
+      v9 = xor v8, 10
+      v10 = add v9, 11
+      v11 = xor v10, 12
+      v12 = add v11, 13
+      v13 = xor v12, 14
+      v14 = add v13, 15
+      v15 = xor v14, 16
+      v16 = add v15, 17
+      v17 = xor v16, 18
+      v18 = add v17, 19
+      v19 = xor v18, 20
+      v20 = add v19, 21
+      v21 = xor v20, 22
+      v22 = add v21, 23
+      v23 = xor v22, 24
+      v24 = add v23, 25
+      v25 = xor v24, 26
+      v26 = add v25, 27
+      v27 = xor v26, 28
+      v28 = add v27, 29
+      v29 = xor v28, 30
+      v30 = add v29, 31
+      v31 = xor v30, 32
+      v32 = add v31, 33
+      v33 = xor v32, 34
+      v34 = add v33, 35
+      v35 = xor v34, 36
+      v36 = add v35, 37
+      v37 = xor v36, 38
+      v38 = add v37, 39
+      v39 = xor v38, 40
+      ret v39
+  }
+  

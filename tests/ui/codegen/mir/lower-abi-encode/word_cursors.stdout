@@ -1,0 +1,130 @@
+- // === ROOT/tests/ui/codegen/mir/lower-abi-encode/word_cursors.mir (before lower-abi-encode) ===
++ // === ROOT/tests/ui/codegen/mir/lower-abi-encode/word_cursors.mir (after lower-abi-encode) ===
+  @module WordCursors
+  fn @words(arg0: memoryarray) -> memoryslice {
+    bb0:
+-     v0 = abi_encode [memory_array<word<u8>>], args arg0
+-     ret v0
++     v1 = fmp
++     v2 = add v1, 32
++     v3 = sub v2, v1
++     mstore v1, v3
++     v4 = memory_object_len memoryarray, arg0
++     v5 = iszero arg0
++     v6 = iszero v5
++     v7 = mul v4, v6
++     mstore v2, v7
++     v8 = mul v7, 32
++     v9 = add v2, 32
++     v10 = memory_object_data memoryarray, arg0
++     v11 = add v9, v8
++     v12 = sub v10, v9
++     jumpi v7, bb1, bb2
++   bb1:
++     v13 = phi [bb0: v7], [bb1: v18]
++     v14 = phi [bb0: v9], [bb1: v19]
++     v15 = add v14, v12
++     v16 = mload v15
++     v17 = and v16, 255
++     mstore v14, v17
++     v18 = sub v13, 1
++     v19 = add v14, 32
++     jumpi v18, bb1, bb2
++   bb2:
++     v20 = phi [bb0: v9], [bb1: v19]
++     v21 = sub v20, v1
++     v22 = add v21, 0
++     v23 = add v22, 31
++     v24 = not 31
++     v25 = and v23, v24
++     v26 = alloc raw, exact, uninitialized, infallible, v25 !metadata(preserves_fmp)
++     v27 = make_memory_slice v26, v22
++     ret v27
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/lower-abi-encode/word_cursors.mir (before egraph) ===
++ // === ROOT/tests/ui/codegen/mir/lower-abi-encode/word_cursors.mir (after egraph) ===
+  @module WordCursors
+  fn @words(arg0: memoryarray) -> memoryslice {
+    bb0:
+      v1 = fmp
+      v2 = add v1, 32
+-     v3 = sub v2, v1
+-     mstore v1, v3
++     mstore v1, 32
+      v4 = memory_object_len memoryarray, arg0
+      v5 = iszero arg0
+      v6 = iszero v5
+      v7 = mul v4, v6
+      mstore v2, v7
+-     v8 = mul v7, 32
++     v8 = shl 5, v7
+      v9 = add v2, 32
+      v10 = memory_object_data memoryarray, arg0
+      v11 = add v9, v8
+      v12 = sub v10, v9
+      jumpi v7, bb1, bb2
+    bb1:
+      v13 = phi [bb0: v7], [bb1: v18]
+      v14 = phi [bb0: v9], [bb1: v19]
+      v15 = add v14, v12
+      v16 = mload v15
+      v17 = and v16, 255
+      mstore v14, v17
+      v18 = sub v13, 1
+      v19 = add v14, 32
+      jumpi v18, bb1, bb2
+    bb2:
+      v20 = phi [bb0: v9], [bb1: v19]
+      v21 = sub v20, v1
+-     v22 = add v21, 0
+-     v23 = add v22, 31
+-     v24 = not 31
+-     v25 = and v23, v24
++     v23 = add v21, 31
++     v25 = and v23, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+      v26 = alloc raw, exact, uninitialized, infallible, v25 !metadata(preserves_fmp)
+-     v27 = make_memory_slice v26, v22
++     v27 = make_memory_slice v26, v21
+      ret v27
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/lower-abi-encode/word_cursors.mir (before dce) ===
++ // === ROOT/tests/ui/codegen/mir/lower-abi-encode/word_cursors.mir (after dce) ===
+  @module WordCursors
+  fn @words(arg0: memoryarray) -> memoryslice {
+    bb0:
+      v1 = fmp
+      v2 = add v1, 32
+      mstore v1, 32
+      v4 = memory_object_len memoryarray, arg0
+      v5 = iszero arg0
+      v6 = iszero v5
+      v7 = mul v4, v6
+      mstore v2, v7
+-     v8 = shl 5, v7
+      v9 = add v2, 32
+      v10 = memory_object_data memoryarray, arg0
+-     v11 = add v9, v8
+      v12 = sub v10, v9
+      jumpi v7, bb1, bb2
+    bb1:
+      v13 = phi [bb0: v7], [bb1: v18]
+      v14 = phi [bb0: v9], [bb1: v19]
+      v15 = add v14, v12
+      v16 = mload v15
+      v17 = and v16, 255
+      mstore v14, v17
+      v18 = sub v13, 1
+      v19 = add v14, 32
+      jumpi v18, bb1, bb2
+    bb2:
+      v20 = phi [bb0: v9], [bb1: v19]
+      v21 = sub v20, v1
+      v23 = add v21, 31
+      v25 = and v23, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+      v26 = alloc raw, exact, uninitialized, infallible, v25 !metadata(preserves_fmp)
+      v27 = make_memory_slice v26, v21
+      ret v27
+  }
+  

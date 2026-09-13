@@ -1,0 +1,77 @@
+- // === ROOT/tests/ui/codegen/mir/word-sequence/mined_words.mir (before egraph) ===
++ // === ROOT/tests/ui/codegen/mir/word-sequence/mined_words.mir (after egraph) ===
+  @module MinedWords
+  fn @odd(arg0: u256) -> u256 {
+    bb0:
+-     v0 = shl 1, arg0
++     v0 = add arg0, arg0
+      v1 = or v0, 1
+      ret v1
+  }
+  
+  fn @double_plus(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+-     v0 = shl 1, arg0
++     v0 = add arg0, arg0
+      v1 = add v0, arg1
+      ret v1
+  }
+  
+  fn @shared(arg0: u256, arg1: u256) -> (u256, u256) {
+    bb0:
+-     v0 = shl 1, arg0
++     v0 = add arg0, arg0
+      v1 = add v0, arg1
+      ret v0, v1
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/word-sequence/mined_words.mir (before word-sequence) ===
++ // === ROOT/tests/ui/codegen/mir/word-sequence/mined_words.mir (after word-sequence) ===
+  @module MinedWords
+  fn @odd(arg0: u256) -> u256 {
+    bb0:
+-     v0 = add arg0, arg0
+-     v1 = or v0, 1
++     v2 = not arg0
++     v1 = sub arg0, v2
+      ret v1
+  }
+  
+  fn @double_plus(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = add arg0, arg0
+      v1 = add v0, arg1
+      ret v1
+  }
+  
+  fn @shared(arg0: u256, arg1: u256) -> (u256, u256) {
+    bb0:
+      v0 = add arg0, arg0
+      v1 = add v0, arg1
+      ret v0, v1
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/word-sequence/mined_words.mir (before dce) ===
++ // === ROOT/tests/ui/codegen/mir/word-sequence/mined_words.mir (after dce) ===
+  @module MinedWords
+  fn @odd(arg0: u256) -> u256 {
+    bb0:
+      v2 = not arg0
+      v1 = sub arg0, v2
+      ret v1
+  }
+  
+  fn @double_plus(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = add arg0, arg0
+      v1 = add v0, arg1
+      ret v1
+  }
+  
+  fn @shared(arg0: u256, arg1: u256) -> (u256, u256) {
+    bb0:
+      v0 = add arg0, arg0
+      v1 = add v0, arg1
+      ret v0, v1
+  }
+  

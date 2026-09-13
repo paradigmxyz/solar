@@ -1,0 +1,73 @@
+- // === ROOT/tests/ui/codegen/mir/cse/gas_cfg.mir (before cse) ===
++ // === ROOT/tests/ui/codegen/mir/cse/gas_cfg.mir (after cse) ===
+  @module GasCfg
+  fn @diamond(arg0: u256, arg1: bool) -> u256 {
+    bb0:
+      v0 = sload arg0
+      jumpi arg1, bb1, bb2
+    bb2:
+      jump bb3
+    bb1:
+      v1 = gas
+      jump bb3
+    bb3:
+      v2 = phi [bb1: v1], [bb2: 0]
+      v3 = sload arg0
+      v4 = sload arg0
+      v5 = gas
+      v6 = sub v2, v5
+      v7 = add v0, v3
+      v8 = add v7, v4
+      v9 = add v8, v6
+      ret v9
+  }
+  
+  fn @loop_backedge(arg0: u256, arg1: bool) -> u256 {
+    bb0:
+      v0 = sload arg0
+      jump bb1
+    bb1:
+      v1 = phi [bb0: 0], [bb2: v4]
+      v2 = sload arg0
+      v3 = sload arg0
+      jumpi arg1, bb2, bb3
+    bb3:
+      v5 = gas
+      v6 = sub v1, v5
+      v7 = add v0, v2
+      v8 = add v7, v3
+      v9 = add v8, v6
+      ret v9
+    bb2:
+      v4 = gas
+      jump bb1
+  }
+  
+  fn @caller(arg0: u256) -> u256 {
+    bb0:
+      v0 = sload arg0
+      v1 = icall @observe, 1
+      jump bb1
+    bb1:
+      v2 = sload arg0
+      v3 = sload arg0
+      v4 = gas
+      v5 = sub v1, v4
+      v6 = add v0, v2
+      v7 = add v6, v3
+      v8 = add v7, v5
+      ret v8
+  }
+  
+  fn @observe() -> u256 {
+    bb0:
+      v0 = icall @read_gas, 1
+      ret v0
+  }
+  
+  fn @read_gas() -> u256 {
+    bb0:
+      v0 = gas
+      ret v0
+  }
+  

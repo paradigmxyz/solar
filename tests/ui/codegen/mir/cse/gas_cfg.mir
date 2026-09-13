@@ -1,0 +1,87 @@
+//@ revisions: cse storage pre
+//@[cse] compile-flags: -Zmir-pipeline=cse
+//@[storage] compile-flags: -Zmir-pipeline=storage-load-cse
+//@[pre] compile-flags: -Zmir-pipeline=load-pre
+//@ filecheck:
+
+@module GasCfg
+
+// A gas read in one arm reaches the join without dominating it. Both the
+// inherited pre-branch load and the local duplicate must remain explicit.
+// CHECK-LABEL: fn @diamond
+// CHECK-COUNT-3: {{^[ +].*}}v{{[0-9]+}} = sload arg0
+fn @diamond(arg0: u256, arg1: bool) -> u256 {
+  bb0:
+    v2 = sload arg0
+    jumpi arg1, bb1, bb2
+  bb1:
+    v3 = gas
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v4 = phi [bb1: v3], [bb2: 0]
+    v5 = sload arg0
+    v6 = sload arg0
+    v7 = gas
+    v8 = sub v4, v7
+    v9 = add v2, v5
+    v10 = add v9, v6
+    v11 = add v10, v8
+    ret v11
+}
+
+// The gas read at the latch observes the next iteration's loads.
+// CHECK-LABEL: fn @loop_backedge
+// CHECK-COUNT-3: {{^[ +].*}}v{{[0-9]+}} = sload arg0
+fn @loop_backedge(arg0: u256, arg1: bool) -> u256 {
+  bb0:
+    v2 = sload arg0
+    jump bb1
+  bb1:
+    v3 = phi [bb0: 0], [bb2: v7]
+    v4 = sload arg0
+    v5 = sload arg0
+    jumpi arg1, bb2, bb3
+  bb2:
+    v7 = gas
+    jump bb1
+  bb3:
+    v8 = gas
+    v9 = sub v3, v8
+    v10 = add v2, v4
+    v11 = add v10, v5
+    v12 = add v11, v9
+    ret v12
+}
+
+// Transitive callee observations must survive memory-effect summaries.
+// CHECK-LABEL: fn @caller
+// CHECK-COUNT-3: {{^[ +].*}}v{{[0-9]+}} = sload arg0
+fn @caller(arg0: u256) -> u256 {
+  bb0:
+    v1 = sload arg0
+    v2 = icall @observe, 1
+    jump bb1
+  bb1:
+    v3 = sload arg0
+    v4 = sload arg0
+    v5 = gas
+    v6 = sub v2, v5
+    v7 = add v1, v3
+    v8 = add v7, v4
+    v9 = add v8, v6
+    ret v9
+}
+
+fn @observe() -> u256 {
+  bb0:
+    v0 = icall @read_gas, 1
+    ret v0
+}
+
+fn @read_gas() -> u256 {
+  bb0:
+    v0 = gas
+    ret v0
+}

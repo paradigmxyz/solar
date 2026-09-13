@@ -166,6 +166,20 @@
       ret
   }
   
+  fn @icall_msize_barrier() -> u256 {
+    bb0:
+      mstore 0x1000, 42
+      v0 = icall @observe_msize, 1
+      mstore 0x1000, 0
+      ret v0
+  }
+  
+  fn @observe_msize() -> u256 {
+    bb0:
+      v0 = msize
+      ret v0
+  }
+  
   fn @chained_forwarding() -> u256 {
     bb0:
       mstore 128, 42

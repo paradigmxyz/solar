@@ -34,15 +34,25 @@
 //! - when inheriting a cache across a dominator-tree edge, also invalidate state-dependent reads by
 //!   clobbers in every block that can lie on a CFG path between the dominator and its child
 //!   (diamond arms, loop bodies), including the child itself when it sits on a cycle
+//!
+//! Local CSE also reuses single-result leaf calls whose bounded memory summary
+//! proves deterministic reads and complete restoration of temporary writes.
+//! Every intervening memory write invalidates these entries. Calls never sink or
+//! inherit a cached result across blocks; no read-footprint disjointness is assumed.
+//! After a `gas` read, state-dependent expressions remain explicit so a later
+//! `gas` read observes their dynamically priced execution. A forward CFG may-observe
+//! analysis includes observations in non-dominating branches and loop backedges.
+//! Internal calls carry the callee's transitive gas-observation summary.
 
 use crate::mir::{
-    BlockId, Function, Immediate, ImmutableId, InstId, InstKind, Instruction, MemoryObjectKind,
-    MemoryObjectLayout, MirType, Module, SliceLocation, StorageAlias, Value, ValueId,
+    BlockId, Function, FunctionId, Immediate, ImmutableId, InstId, InstKind, Instruction,
+    MemoryObjectKind, MemoryObjectLayout, MirType, Module, SliceLocation, StorageAlias, Value,
+    ValueId,
     analysis::{
-        Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, Location, LocationSize,
-        MemoryCallSummaries, MemoryLocation,
+        Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, GasObservations, Location,
+        LocationSize, MemoryCallSummaries, MemoryLocation,
     },
-    pass::{MirPass, run_function_pass},
+    pass::{MirPass, run_function_pass_with_cfg},
     utils as mir_utils,
 };
 use alloy_primitives::U256;
@@ -67,7 +77,7 @@ impl MirPass for Cse {
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         let summaries = analyses.call_summaries(module);
-        let changed = run_function_pass(module, analyses, |func, analyses| {
+        let changed = run_function_pass_with_cfg(module, analyses, |func, analyses| {
             if func
                 .instructions()
                 .filter(|&inst_id| func.inst(inst_id).result_ty.is_some())
@@ -78,11 +88,12 @@ impl MirPass for Cse {
             }
             let mut eliminator =
                 CommonSubexprEliminator::with_call_summaries(Arc::clone(&summaries));
-            eliminator.cfg = Some(Rc::clone(&analyses.cfg));
+            eliminator.cfg = Some(Rc::clone(analyses.cfg()));
             eliminator.run_to_fixpoint(func) != 0
         });
-        // CSE removes only side-effect-free instructions, so these summaries remain valid for
-        // the following allocation pass and avoid recomputing the module call graph.
+        // CSE removes pure computations or repeated restoring calls. Their conservative
+        // summaries remain valid for the following allocation pass and avoid recomputing
+        // the module call graph.
         analyses.preserve_call_summaries();
         changed
     }
@@ -96,6 +107,8 @@ struct CommonSubexprEliminator {
     cfg: Option<Rc<CfgInfo>>,
     /// Number of instructions eliminated.
     eliminated_count: usize,
+    /// Gas observations and their forward CFG closure, including backedges.
+    gas: Option<GasObservations>,
     alias: Option<AliasAnalysis>,
     call_summaries: Option<Arc<MemoryCallSummaries>>,
 }
@@ -133,6 +146,7 @@ enum ExprKey {
     SignExtend(OperandKey, OperandKey),
     Select(OperandKey, OperandKey, OperandKey),
     MLoad(MemRangeKey),
+    RestoringCall(FunctionId, Vec<OperandKey>),
     Keccak256(MemRangeKey),
     MappingSlot(OperandKey, OperandKey),
     MappingSlotMemory(OperandKey, OperandKey),
@@ -215,6 +229,10 @@ impl ExprCache {
         !self.stateful.is_empty()
     }
 
+    fn clear_stateful(&mut self) {
+        Rc::make_mut(&mut self.stateful).clear();
+    }
+
     /// Retains the state-dependent entries matching `keep`. The pure entries are
     /// untouched, which is why no clobber has to walk them.
     fn retain_stateful(&mut self, keep: impl FnMut(&ExprKey, &mut ValueId) -> bool) {
@@ -222,9 +240,11 @@ impl ExprCache {
     }
 }
 
-/// A single cache-invalidating effect of a side-effecting instruction.
+/// A single effect that invalidates state-dependent cached expressions.
 #[derive(Clone, Copy, Debug)]
 enum Clobber {
+    /// A direct or interprocedural gas observation.
+    GasObservation,
     /// A memory write.
     Memory(ClobberScope<MemRangeKey>),
     /// A persistent-storage write.
@@ -286,6 +306,10 @@ impl CommonSubexprEliminator {
         self.alias.as_ref().expect("CSE alias snapshot is initialized")
     }
 
+    fn gas(&self) -> &GasObservations {
+        self.gas.as_ref().expect("CSE gas observations are initialized")
+    }
+
     fn run_with_cfg(&mut self, func: &mut Function, cfg: &CfgInfo) -> usize {
         self.sink_redundant_phi_expressions(func, cfg);
 
@@ -312,6 +336,7 @@ impl CommonSubexprEliminator {
         // fixed point. Drop only its value-address memo between iterations instead of rebuilding
         // alias analysis after every productive round.
         self.refresh_alias(func);
+        self.gas = Some(GasObservations::new(func, &cfg, self.alias()));
         loop {
             let before = self.eliminated_count;
             self.alias().clear_cached_addresses();
@@ -486,8 +511,16 @@ impl CommonSubexprEliminator {
     fn process_global_blocks(&mut self, func: &Function, ctx: &mut GlobalCseContext<'_>) {
         let mut worklist = vec![(BlockId::ENTRY, ExprCache::default())];
         while let Some((block_id, mut cache)) = worklist.pop() {
+            let mut gas_observed = self.gas().at_entry(block_id);
             for &inst_id in &func.blocks[block_id].instructions {
                 let kind = &func.inst(inst_id).kind;
+                if self.gas().observes(inst_id) {
+                    cache.clear_stateful();
+                    gas_observed = true;
+                }
+                if matches!(kind, InstKind::Gas) {
+                    continue;
+                }
                 if kind.has_side_effects() {
                     self.invalidate_for_side_effect(
                         func,
@@ -502,6 +535,9 @@ impl CommonSubexprEliminator {
                 let Some(key) = self.make_expr_key(func, inst_id, kind, ctx.replacements) else {
                     continue;
                 };
+                if gas_observed && Self::is_path_sensitive_expr(&key) {
+                    continue;
+                }
 
                 let Some(result) = func.inst_result_value(inst_id) else {
                     continue;
@@ -577,6 +613,9 @@ impl CommonSubexprEliminator {
             let mut clobbers = Vec::new();
             for &inst_id in &block.instructions {
                 let kind = &func.inst(inst_id).kind;
+                if self.gas().observes(inst_id) {
+                    clobbers.push(Clobber::GasObservation);
+                }
                 if kind.has_side_effects() {
                     self.side_effect_clobbers(func, inst_id, kind, &no_replacements, &mut clobbers);
                 }
@@ -627,12 +666,21 @@ impl CommonSubexprEliminator {
 
         // Instructions to remove
         let mut to_remove = DenseBitSet::new_empty(func.num_insts());
+        let mut gas_observed = self.gas().at_entry(block_id);
 
         let instruction_count = func.blocks[block_id].instructions.len();
         for index in 0..instruction_count {
             let inst_id = func.blocks[block_id].instructions[index];
             let inst = func.inst(inst_id);
             let kind = &inst.kind;
+
+            if self.gas().observes(inst_id) {
+                expr_cache.clear_stateful();
+                gas_observed = true;
+            }
+            if matches!(kind, InstKind::Gas) {
+                continue;
+            }
 
             if kind.has_side_effects() {
                 self.invalidate_for_side_effect(
@@ -642,15 +690,21 @@ impl CommonSubexprEliminator {
                     &replacements,
                     &mut expr_cache,
                 );
-                continue;
+                if !self.is_restoring_call(kind) {
+                    continue;
+                }
             }
 
             // Try to create an expression key
             if let Some(key) = self.make_expr_key(func, inst_id, kind, &replacements)
                 && let Some(result) = func.inst_result_value(inst_id)
             {
+                if gas_observed && Self::is_path_sensitive_expr(&key) {
+                    continue;
+                }
                 if let Some(&cached_value) = expr_cache.get(&key) {
-                    // This expression was already computed - mark for elimination
+                    // first = expr(args); second = expr(args) => second = first
+                    // Restoring calls additionally require unchanged memory.
                     replacements.insert(result, cached_value);
                     to_remove.insert(inst_id);
                     self.eliminated_count += 1;
@@ -685,6 +739,9 @@ impl CommonSubexprEliminator {
         let value = |v: ValueId| mir_utils::resolve_replacement(v, replacements);
 
         match kind {
+            InstKind::ICall { function, args, .. } if self.is_restoring_call(kind) => Some(
+                ExprKey::RestoringCall(*function, args.iter().map(|&arg| operand(arg)).collect()),
+            ),
             // Commutative operations - normalize operand order
             InstKind::Add(a, b) => {
                 if let Some((base, offset)) = Self::offset_expr_for_add(func, *a, *b, replacements)
@@ -904,6 +961,7 @@ impl CommonSubexprEliminator {
     /// Removes cache entries invalidated by a single clobbering effect.
     fn apply_clobber(&self, expr_cache: &mut ExprCache, clobber: &Clobber) {
         match *clobber {
+            Clobber::GasObservation => expr_cache.clear_stateful(),
             Clobber::Memory(write) => self.invalidate_memory(expr_cache, write),
             Clobber::Storage(write) => {
                 expr_cache.retain_stateful(|key, _| match key {
@@ -949,13 +1007,26 @@ impl CommonSubexprEliminator {
                 .preserves(*read, |read, write| {
                     AliasAnalysis::memory_alias_locations(read, write).may_alias()
                 }),
-            ExprKey::MappingSlotMemory(..) => false,
+            ExprKey::MappingSlotMemory(..) | ExprKey::RestoringCall(..) => false,
             _ => true,
         });
     }
 
     fn is_memory_expr(key: &ExprKey) -> bool {
-        matches!(key, ExprKey::MLoad(_) | ExprKey::Keccak256(_) | ExprKey::MappingSlotMemory(..))
+        matches!(
+            key,
+            ExprKey::MLoad(_)
+                | ExprKey::Keccak256(_)
+                | ExprKey::MappingSlotMemory(..)
+                | ExprKey::RestoringCall(..)
+        )
+    }
+
+    fn is_restoring_call(&self, kind: &InstKind) -> bool {
+        matches!(kind, InstKind::ICall { function, args, returns: 1 }
+            if args.len() <= 8 && self.call_summaries.as_ref()
+                .and_then(|summaries| summaries.get(*function))
+                .is_some_and(|summary| summary.restores_memory()))
     }
 
     fn is_account_environment_expr(key: &ExprKey) -> bool {
@@ -989,6 +1060,7 @@ impl CommonSubexprEliminator {
         !matches!(
             key,
             ExprKey::MLoad(_)
+                | ExprKey::RestoringCall(..)
                 | ExprKey::Keccak256(_)
                 | ExprKey::MappingSlot(..)
                 | ExprKey::MappingSlotMemory(..)

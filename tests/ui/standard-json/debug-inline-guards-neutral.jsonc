@@ -1,0 +1,58 @@
+//@ normalize-stdout-test: "solar-[0-9a-f]{64}" -> "solar-COMPILATION_ID"
+//@ filecheck:
+// CHECK-LABEL: "A": {
+// CHECK-LABEL: "bytecode": {
+// CHECK: "object": "[[CREATE:[0-9a-f]+]]"
+// CHECK: "sourceMap":
+// CHECK-LABEL: "deployedBytecode": {
+// CHECK: "object": "[[RUNTIME:[0-9a-f]+]]"
+// CHECK: "sourceMap":
+// CHECK-LABEL: "B": {
+// CHECK-LABEL: "bytecode": {
+// CHECK: "object": "[[CREATE]]"
+// CHECK: "ethdebug": {
+// CHECK-LABEL: "deployedBytecode": {
+// CHECK: "object": "[[RUNTIME]]"
+// CHECK: "ethdebug": {
+// CHECK-LABEL: "C": {
+// CHECK-LABEL: "bytecode": {
+// CHECK: "object": "[[CREATE]]"
+// CHECK-LABEL: "deployedBytecode": {
+// CHECK: "object": "[[RUNTIME]]"
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract Base {\n    uint256 failures;\n    event Failed(uint256 actual, uint256 expected);\n\n    function check(uint256 a, uint256 b) internal {\n        if (a == b) return;\n        ++failures;\n        emit Failed(a, b);\n    }\n\n    function run(uint256 x) external returns (uint256) {\n        for (uint256 i; i < 8; ++i) {\n            check(i, x);\n            check(i, i);\n        }\n        return failures;\n    }\n\n    function requireEqual(uint256 a, uint256 b) internal pure {\n        if (a == b) return;\n        revert();\n    }\n\n    function failing() external pure {\n        for (uint256 i; i < 8; ++i) requireEqual(i, 0);\n    }\n}\n\ncontract A is Base {} contract B is Base {} contract C is Base {}\n"
+    }
+  },
+  "settings": {
+    "metadata": {
+      "appendCBOR": false,
+      "bytecodeHash": "none"
+    },
+    "optimizer": {
+      "enabled": true
+    },
+    "outputSelection": {
+      "A.sol": {
+        "A": [
+          "evm.bytecode.object",
+          "evm.bytecode.sourceMap",
+          "evm.deployedBytecode.object",
+          "evm.deployedBytecode.sourceMap"
+        ],
+        "B": [
+          "evm.bytecode.object",
+          "evm.bytecode.ethdebug",
+          "evm.deployedBytecode.object",
+          "evm.deployedBytecode.ethdebug"
+        ],
+        "C": [
+          "evm.bytecode.object",
+          "evm.deployedBytecode.object"
+        ]
+      }
+    }
+  }
+}

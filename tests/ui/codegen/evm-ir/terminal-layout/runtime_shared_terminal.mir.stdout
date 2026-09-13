@@ -1,0 +1,22 @@
+// === ROOT/tests/ui/codegen/evm-ir/terminal-layout/runtime_shared_terminal.sol:SharedTerminal ===
+@module SharedTerminal
+fn @first(arg0: u256) -> u256 [selector=0x0b3f62f5, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    ret arg0
+}
+
+fn @second(arg0: u256) -> u256 [selector=0x7896dfe3, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    ret arg0
+}
+
+fn @third(arg0: u256) -> u256 [selector=0xf1680ae6, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    ret arg0
+}
+
+fn @masked(arg0: u256) -> u256 [selector=0x38caca52, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = and arg0, 255
+    ret v0
+}

@@ -1,0 +1,42 @@
+//@ revisions: merge simplify
+//@[merge] compile-flags: -Ogas -Zevm-ir-pipeline=tail-merge
+//@[simplify] compile-flags: -Ogas -Zevm-ir-pipeline=tail-merge,cfg-simplify
+@module BranchContinuations
+
+bb0:
+  push bb3
+  push 0
+  mstore
+  push 0
+  calldataload
+  dup 1
+  jumpi bb1, bb2
+
+// The other use of bb3 prevents redirecting its numeric address.
+bb1:
+  push bb3
+  jumpi
+  push 1
+  push 2
+  add
+  push 32
+  mstore
+  stop
+
+// Moving the branch into a shared tail must retain bb4's control-only identity.
+bb2:
+  push bb4
+  jumpi
+  push 1
+  push 2
+  add
+  push 32
+  mstore
+  stop
+
+bb3:
+  jump bb5
+bb4:
+  jump bb5
+bb5:
+  stop

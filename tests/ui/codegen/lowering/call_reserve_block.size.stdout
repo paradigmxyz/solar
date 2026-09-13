@@ -43,7 +43,7 @@ bb0:
   sub
   push bb4
   jumpi
-  push 224
+  push 192
   push 64
   mstore
   push 0
@@ -97,7 +97,7 @@ bb4 [cold]:
   dup 1
   invalid
 bb9:
-  push 256
+  push 160
   push 64
   mstore
   push 0
@@ -110,9 +110,7 @@ bb9:
   mul
   push 0x3fa4f245
   or
-  push 0xffffffff
-  dup 2
-  and
+  dup 1
   push 224
   push 2
   exp
@@ -123,15 +121,11 @@ bb9:
   exp
   swap 1
   div
-  push 64
-  mload
-  dup 1
-  push 160
-  mstore
-  push 32
-  add
   push 0
-  swap 1
+  push 64
+  mload
+  push 32
+  add
   mstore
   push 64
   mload
@@ -139,12 +133,10 @@ bb9:
   dup 2
   add
   push 64
-  mstore
-  dup 3
-  dup 2
   mstore
   swap 2
-  pop
+  dup 3
+  mstore
   dup 1
   extcodesize
   iszero

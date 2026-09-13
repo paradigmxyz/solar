@@ -1,0 +1,33 @@
+//@compile-flags: -Zmir-pipeline=egraph
+//@filecheck:
+@module RewriteMetadata
+
+// Local rewrites invalidate operation-specific facts while retaining provenance.
+// CHECK-LABEL: {{^[ +].*}}fn @arithmetic
+// CHECK: + {{v[0-9]+}} = shl 3, arg0 !metadata(hir=42, span=1..5, modifier_depth=3, unchecked, loop_depth=2)
+fn @arithmetic(arg0: u256) -> u256 {
+  bb0:
+    v0 = mul arg0, 8 !metadata(effect=memory_read, unchecked, hir=42, span=1..5, modifier_depth=3, loop_depth=2)
+    ret v0
+}
+
+// Canonicalizing a storage or memory address must drop its old alias proof.
+// CHECK-LABEL: {{^[ +].*}}fn @operands
+// CHECK: + {{v[0-9]+}} = sload arg0 !metadata(span=5..9)
+// CHECK: + {{v[0-9]+}} = mload arg0 !metadata(span=9..13)
+fn @operands(arg0: u256) -> (u256, u256) {
+  bb0:
+    v0 = add arg0, 0
+    v1 = sload v0 !metadata(storage=symbolic(v0), effect=storage_read, span=5..9)
+    v2 = mload v0 !metadata(memory=heap, effect=memory_read, span=9..13)
+    ret v1, v2
+}
+
+// Instructions whose operands and operation stay unchanged retain their facts.
+// CHECK-LABEL: {{^[ +].*}}fn @unchanged
+// CHECK: {{^[ +].*}}mload arg0 !metadata(memory=heap, span=13..17)
+fn @unchanged(arg0: memptr) -> u256 {
+  bb0:
+    v0 = mload arg0 !metadata(memory=heap, effect=memory_read, span=13..17)
+    ret v0
+}

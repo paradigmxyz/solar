@@ -1,0 +1,47 @@
+// === ROOT/tests/ui/codegen/lowering/stack_word_resident.sol:ResidentWords (runtime) ===
+@module ResidentWords_runtime
+bb0:
+  callvalue
+  push bb3
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x966953d1
+  sub
+  push bb3
+  jumpi
+  push 68
+  calldatasize
+  lt
+  push bb3
+  jumpi
+  push 36
+  calldataload
+  push 4
+  calldataload
+  xor
+  push 36
+  calldataload
+  push 4
+  calldataload
+  and
+  dup 2
+  dup 2
+  add
+  push 128
+  mstore
+  swap 1
+  push 160
+  mstore
+  push 192
+  mstore
+  push 96
+  push 128
+  return
+bb3 [cold]:
+  push 0
+  push 0
+  revert

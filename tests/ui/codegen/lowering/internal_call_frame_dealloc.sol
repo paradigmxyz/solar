@@ -12,16 +12,9 @@ contract ICallFrameDealloc {
     // CHECK-NEXT: mstore
     // CHECK-NEXT: push [[FIRST_RET:bb[0-9]+]]
     // CHECK-NEXT: jump [[SUM:bb[0-9]+]]
-    // CHECK: [[SUM]]:
-    // CHECK: [[FIRST_RET]]:
-    // CHECK: push [[EPILOGUE_RET:bb[0-9]+]]
-    // CHECK-NEXT: jump [[EPILOGUE:bb[0-9]+]]
-    // CHECK: [[EPILOGUE]]:
-    // CHECK-NEXT: push 160
-    // CHECK-NEXT: mload
-    // CHECK: push 64
-    // CHECK-NEXT: mstore
-    // CHECK: push 1{{$}}
+    // The recursive call body precedes its test, giving the call edge a fallthrough.
+    // CHECK: [[RECURSE:bb[0-9]+]]:
+    // CHECK-NEXT: push 1{{$}}
     // CHECK-NEXT: push 160
     // CHECK-NEXT: mload
     // CHECK: push 192
@@ -31,19 +24,32 @@ contract ICallFrameDealloc {
     // CHECK-NEXT: pop
     // CHECK-NEXT: push [[RECURSE_RET:bb[0-9]+]]
     // CHECK-NEXT: jump [[SUM]]
-    // CHECK: [[RECURSE_RET]]:
+    // CHECK: [[SUM]]:
+    // CHECK: push [[RECURSE]]
+    // CHECK-NEXT: jumpi
+    // CHECK: jump [[STORE_RETURN:bb[0-9]+]]
+    // CHECK: [[FIRST_RET]] [continuation]:
+    // CHECK-NEXT: push [[EPILOGUE_RET:bb[0-9]+]]
+    // CHECK-NEXT: jump [[EPILOGUE:bb[0-9]+]]
+    // CHECK: [[EPILOGUE]]:
     // CHECK-NEXT: push 160
     // CHECK-NEXT: mload
-    // CHECK: jump bb22
-    // CHECK: push 1{{$}}
+    // CHECK: push 64
+    // CHECK-NEXT: mstore
+    // CHECK: [[RECURSE_RET]] [continuation]:
+    // CHECK-NEXT: push 160
+    // CHECK-NEXT: mload
+    // CHECK: push 64
+    // CHECK-NEXT: mstore
+    // CHECK: jump [[STORE_RETURN]]
+    // CHECK: [[EPILOGUE_RET]] [continuation]:
+    // CHECK-NEXT: push 1{{$}}
     // CHECK: push 224
     // CHECK-NEXT: mstore
     // CHECK: push 192
     // CHECK-NEXT: add
     // CHECK-NEXT: push 64
     // CHECK-NEXT: mstore
-    // CHECK-NEXT: pop
-    // CHECK-NEXT: pop
     // CHECK-NEXT: push [[SECOND_RET:bb[0-9]+]]
     // CHECK-NEXT: jump [[SUM]]
     function f(uint256 x) public pure returns (uint256) {

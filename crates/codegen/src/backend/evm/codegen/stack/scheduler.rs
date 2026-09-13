@@ -101,10 +101,12 @@ use super::{
 };
 use crate::{
     backend::evm::{
+        codegen::select::{OpcodeLowering, opcode_lowering},
         ir::{ImmediateMaterialization, immediate_materialization_cost},
         op::StackOp,
     },
-    mir::{ArgIdx, BlockId, Function, InstKind, Value, ValueId, analysis::Liveness},
+    mir::{ArgIdx, BlockId, Function, InstKind, OpTraits, Value, ValueId, analysis::Liveness},
+    target::{Cost, StackCosts, Target},
 };
 use smallvec::SmallVec;
 use solar_config::{EvmVersion, OptimizationMode};
@@ -121,27 +123,11 @@ pub(crate) const fn is_rematerializable_leaf(value: &Value) -> bool {
 }
 
 /// Returns the opcode for a stable nullary read that is cheaper to re-emit than preserve.
-pub(crate) const fn rematerializable_nullary_opcode(kind: &InstKind) -> Option<u8> {
-    if matches!(
-        kind,
-        InstKind::CalldataSize
-            | InstKind::CodeSize
-            | InstKind::Caller
-            | InstKind::CallValue
-            | InstKind::Address
-            | InstKind::Origin
-            | InstKind::GasPrice
-            | InstKind::Coinbase
-            | InstKind::Timestamp
-            | InstKind::BlockNumber
-            | InstKind::PrevRandao
-            | InstKind::GasLimit
-            | InstKind::SlotNum
-            | InstKind::ChainId
-            | InstKind::BaseFee
-            | InstKind::BlobBaseFee
-    ) {
-        kind.evm_opcode()
+pub(crate) fn rematerializable_nullary_opcode(kind: &InstKind) -> Option<u8> {
+    if kind.op_def().traits.contains(OpTraits::REMATERIALIZABLE)
+        && let Some(OpcodeLowering::Nullary { opcode }) = opcode_lowering(&kind.op())
+    {
+        Some(opcode)
     } else {
         None
     }
@@ -153,27 +139,9 @@ pub(crate) fn rematerializable_nullary_value(func: &Function, value: ValueId) ->
     rematerializable_nullary_opcode(&func.inst(*inst_id).kind)
 }
 
-/// Returns whether an instruction result can be cheaply rebuilt from stable operands.
-const fn is_cheap_recomputable_kind(kind: &InstKind) -> bool {
-    matches!(
-        kind,
-        InstKind::Add(_, _)
-            | InstKind::Sub(_, _)
-            | InstKind::Mul(_, _)
-            | InstKind::And(_, _)
-            | InstKind::Or(_, _)
-            | InstKind::Xor(_, _)
-            | InstKind::Shl(_, _)
-            | InstKind::Shr(_, _)
-            | InstKind::Sar(_, _)
-            | InstKind::ConstructorArgsBase
-    )
-}
-
 /// Returns whether an instruction result can be rebuilt across basic blocks.
 pub(crate) const fn is_cross_block_recomputable_kind(kind: &InstKind) -> bool {
-    is_cheap_recomputable_kind(kind)
-        || rematerializable_nullary_opcode(kind).is_some()
+    kind.op_def().traits.contains(OpTraits::REMATERIALIZABLE)
         || matches!(kind, InstKind::CalldataLoad(_) | InstKind::InternalFrameAddr(_))
 }
 
@@ -246,6 +214,8 @@ pub(crate) struct StackScheduler {
     pub spills: SpillManager,
     /// Target used to cost logical stack operations before assembly lowers them.
     evm_version: EvmVersion,
+    /// Gas mode may select wider edge permutations; size mode preserves existing sharing choices.
+    wide_permutations: bool,
     /// Values whose ordinary memory home was deliberately omitted.
     ///
     /// These values may only be reached through their physical stack copy. Treating them like
@@ -303,8 +273,7 @@ impl ScheduledOp {
 /// Cost of materializing a spill or argument under the active frame convention.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct OperandCostModel {
-    load_static_gas: u32,
-    load_encoded_bytes: u32,
+    load: Cost,
     spill_load_stack_growth: u8,
     arg_load_stack_growth: u8,
 }
@@ -313,8 +282,7 @@ impl OperandCostModel {
     /// A context-independent estimate for a direct address push followed by `MLOAD` or
     /// `CALLDATALOAD`.
     pub(crate) const DIRECT: Self = Self {
-        load_static_gas: 6,
-        load_encoded_bytes: 4,
+        load: StackCosts::DIRECT_LOAD,
         spill_load_stack_growth: 1,
         arg_load_stack_growth: 1,
     };
@@ -322,16 +290,14 @@ impl OperandCostModel {
     /// A context-independent estimate for a frame-pointer load, offset addition, and final value
     /// load.
     pub(crate) const DYNAMIC_FRAME: Self = Self {
-        load_static_gas: 15,
-        load_encoded_bytes: 7,
+        load: StackCosts::DYNAMIC_FRAME_LOAD,
         spill_load_stack_growth: 2,
         arg_load_stack_growth: 2,
     };
 
     /// Direct spill addressing with constructor arguments based on a deferred code offset.
     pub(crate) const CONSTRUCTOR: Self = Self {
-        load_static_gas: 6,
-        load_encoded_bytes: 4,
+        load: StackCosts::DIRECT_LOAD,
         spill_load_stack_growth: 1,
         arg_load_stack_growth: 2,
     };
@@ -363,6 +329,11 @@ pub(crate) struct ScheduleCost {
 }
 
 impl ScheduleCost {
+    /// Gas and encoded bytes of the complete physical preparation sequence.
+    pub(crate) fn target_cost(self) -> Cost {
+        Cost::new(self.static_gas, self.encoded_bytes)
+    }
+
     fn key(self, optimization: OptimizationMode) -> [u32; 3] {
         match optimization {
             OptimizationMode::Size => [self.encoded_bytes, self.static_gas, self.actions],
@@ -375,24 +346,16 @@ impl ScheduleCost {
         self.key(optimization).cmp(&other.key(optimization))
     }
 
-    /// Compares lifetime cost using the EVM code-deposit price and the configured expected
-    /// executions per deployment. This matches the economic model used by the MIR inliner for
-    /// choices that trade emitted bytes against runtime gas.
-    pub(crate) fn cmp_lifetime_for(
-        self,
-        other: Self,
-        optimization: OptimizationMode,
-        expected_executions: u64,
-    ) -> Ordering {
-        if !optimization.is_gas() {
-            return self.cmp_for(other, optimization);
+    /// Compares lifetime cost under the target's economic model: expected
+    /// executions of the runtime gas plus the code-deposit price of the
+    /// bytes. This matches the model used by the MIR inliner for choices that
+    /// trade emitted bytes against runtime gas.
+    pub(crate) fn cmp_lifetime_for(self, other: Self, target: Target) -> Ordering {
+        if !target.optimization().is_gas() {
+            return self.cmp_for(other, target.optimization());
         }
-
-        const CODE_DEPOSIT_GAS_PER_BYTE: u128 = 200;
-        let score = |cost: Self| {
-            u128::from(cost.static_gas) * u128::from(expected_executions)
-                + u128::from(cost.encoded_bytes) * CODE_DEPOSIT_GAS_PER_BYTE
-        };
+        let score =
+            |cost: Self| target.lifetime_gas(Cost::new(cost.static_gas, cost.encoded_bytes));
         score(self)
             .cmp(&score(other))
             .then_with(|| self.static_gas.cmp(&other.static_gas))
@@ -404,7 +367,11 @@ impl ScheduleCost {
     /// later reloads. This is a strict lower bound for the ordinary call path.
     pub(crate) fn stack_drain_lower_bound(words: usize) -> Self {
         let words = u32::try_from(words).unwrap_or(u32::MAX);
-        Self { static_gas: words.saturating_mul(2), encoded_bytes: words, actions: words }
+        Self::from_cost(StackCosts::POP.times(words), words)
+    }
+
+    const fn from_cost(cost: Cost, actions: u32) -> Self {
+        Self { static_gas: cost.gas, encoded_bytes: cost.bytes, actions }
     }
 
     /// Cost of one stack-only operation.
@@ -421,30 +388,24 @@ impl ScheduleCost {
 
     /// Cost of loading a word through the active frame-address convention.
     pub(crate) fn memory_load(cost_model: OperandCostModel) -> Self {
-        Self {
-            static_gas: cost_model.load_static_gas,
-            encoded_bytes: cost_model.load_encoded_bytes,
-            actions: 2,
-        }
+        Self { static_gas: cost_model.load.gas, encoded_bytes: cost_model.load.bytes, actions: 2 }
     }
 
     /// Cost of storing a word through the active frame-address convention.
     pub(crate) fn memory_store(cost_model: OperandCostModel) -> Self {
-        Self {
-            static_gas: cost_model.load_static_gas.saturating_add(3),
-            encoded_bytes: cost_model.load_encoded_bytes.saturating_add(1),
-            actions: 2,
-        }
+        Self::memory_load(cost_model).plus(Self::from_cost(StackCosts::DUP, 0))
     }
 
     /// Conservative cost of a deferred target push followed by `JUMP`.
+    // push3 label
+    // jump
     pub(crate) fn control_flow_jump() -> Self {
-        Self { static_gas: 11, encoded_bytes: 5, actions: 2 }
+        Self::from_cost(StackCosts::CONTROL_FLOW_JUMP, 2)
     }
 
     /// Cost of the local `JUMPDEST` introduced by a cleanup trampoline.
     pub(crate) fn jumpdest() -> Self {
-        Self { static_gas: 1, encoded_bytes: 1, actions: 1 }
+        Self::from_cost(StackCosts::JUMPDEST, 1)
     }
 
     fn of_op(op: &ScheduledOp, evm_version: EvmVersion, cost_model: OperandCostModel) -> Self {
@@ -465,9 +426,11 @@ impl ScheduleCost {
                 let (bytes, gas) = immediate_materialization_cost(evm_version, *value);
                 (gas as u32, bytes as u32)
             }
-            ScheduledOp::RematerializeNullary(_) => (2, 1),
+            ScheduledOp::RematerializeNullary(_) => {
+                (StackCosts::NULLARY_READ.gas, StackCosts::NULLARY_READ.bytes)
+            }
             ScheduledOp::LoadSpill(_) | ScheduledOp::LoadArg(_) => {
-                (cost_model.load_static_gas, cost_model.load_encoded_bytes)
+                (cost_model.load.gas, cost_model.load.bytes)
             }
             ScheduledOp::Stack(_) => unreachable!(),
         };
@@ -716,6 +679,7 @@ impl StackScheduler {
     /// Creates a scheduler for an EVM version.
     pub(crate) fn for_evm_version(evm_version: EvmVersion) -> Self {
         Self {
+            wide_permutations: true,
             stack: StackModel::new(),
             spills: SpillManager::new(),
             evm_version,
@@ -725,6 +689,12 @@ impl StackScheduler {
             #[cfg(test)]
             operand_search_stats: Cell::new(OperandSearchStats::default()),
         }
+    }
+
+    /// Selects the objective-specific edge permutation search.
+    pub(crate) fn with_wide_permutation_search(mut self, enabled: bool) -> Self {
+        self.wide_permutations = enabled;
+        self
     }
 
     /// Clears per-function state while retaining its backing allocations.
@@ -2523,7 +2493,8 @@ impl StackScheduler {
     /// Returns the shuffle result containing the operations to emit. Failure leaves the live stack
     /// unchanged so callers can use their spill/reload fallback.
     pub(crate) fn shuffle_to_layout(&mut self, target: &[TargetSlot]) -> Option<ShuffleResult> {
-        let shuffler = StackShuffler::for_evm_version(&self.stack, target, self.evm_version);
+        let shuffler = StackShuffler::for_evm_version(&self.stack, target, self.evm_version)
+            .with_wide_permutation_search(self.wide_permutations);
         let result = shuffler.shuffle()?;
 
         let mut next = self.stack.clone();
@@ -2565,6 +2536,11 @@ mod tests {
         assert_eq!(rematerializable_nullary_opcode(&InstKind::SlotNum), Some(op::SLOTNUM));
         assert_eq!(rematerializable_nullary_opcode(&InstKind::BlockNumber), Some(op::NUMBER));
         assert_eq!(rematerializable_nullary_opcode(&InstKind::ReturnDataSize), None);
+        assert_eq!(rematerializable_nullary_opcode(&InstKind::Gas), None);
+        assert_eq!(rematerializable_nullary_opcode(&InstKind::MSize), None);
+        let add = InstKind::Add(ValueId::new(0), ValueId::new(1));
+        assert!(is_cross_block_recomputable_kind(&add));
+        assert_eq!(rematerializable_nullary_opcode(&add), None);
     }
 
     #[test]
@@ -4629,8 +4605,10 @@ mod tests {
 
         assert!(gas_plan.cmp_for(size_plan, OptimizationMode::Gas).is_lt());
         assert!(size_plan.cmp_for(gas_plan, OptimizationMode::Size).is_lt());
-        assert!(size_plan.cmp_lifetime_for(gas_plan, OptimizationMode::Gas, 1).is_lt());
-        assert!(gas_plan.cmp_lifetime_for(size_plan, OptimizationMode::Gas, 200).is_lt());
+        let once = Target::with(EvmVersion::default(), OptimizationMode::Gas, 1);
+        let default_runs = Target::with(EvmVersion::default(), OptimizationMode::Gas, 200);
+        assert!(size_plan.cmp_lifetime_for(gas_plan, once).is_lt());
+        assert!(gas_plan.cmp_lifetime_for(size_plan, default_runs).is_lt());
     }
 
     #[test]

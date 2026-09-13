@@ -46,8 +46,7 @@ fn @add(arg0: i256, arg1: i256) -> i256 [pure] {
     v3 = slt v0, 0
     v5 = xor v3, v1
     v2 = slt arg1, 0
-    v4 = xor v1, v2
-    v6 = iszero v4
+    v6 = eq v1, v2
     v7 = and v6, v5
     jumpi v7, bb1, bb2
   bb2:

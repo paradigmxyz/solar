@@ -10,7 +10,10 @@
 //! 2. **Store-to-load forwarding across joins**: a store in one arm makes the value known on that
 //!    path, so the join reload merges stored and loaded values.
 //! 3. **Partial redundancy**: a read available on some predecessors is inserted at the end of the
-//!    jump-terminated remaining predecessors, then handled as a full redundancy.
+//!    remaining predecessor edges, then handled as a full redundancy. Critical edges are split so
+//!    the read executes only on the path to the join. Their transfer overhead is charged before
+//!    selecting the rewrite. Size mode keeps the existing unsplit-edge policy until physical
+//!    phi/transfer size is known.
 //!
 //! # Keys
 //!
@@ -51,6 +54,8 @@
 //!
 //! # Safety of rewrites
 //!
+//! A join load is never removed or moved after a gas observation on any incoming
+//! CFG path, including loop backedges and observations in transitive callees.
 //! A join load is a candidate only if no kill of its key precedes it in the join block.
 //! For that scan, `gas` is additionally treated as a kill in all spaces and `msize` as a
 //! kill for memory and keccak keys: a partial-redundancy insertion moves the read to the
@@ -60,7 +65,7 @@
 //! reads, but we keep the single conservative scan for both cases for simplicity.
 //!
 //! An inserted load reads exactly the state the original would have read on that path: it
-//! sits at the end of the predecessor (nothing follows it but the jump), and the join
+//! sits at the end of the predecessor or a new edge block (only a jump follows), and the join
 //! prefix above the original load contains no kills of the key.
 //!
 //! # Termination
@@ -72,15 +77,19 @@
 //!    ping-pong between mutually-preceding joins.
 //! 3. A function-size-derived rewrite budget backstops the above.
 
-use crate::mir::{
-    BlockId, Function, InstId, InstKind, Instruction, InstructionMetadata, MemoryObjectKind,
-    MemoryRegion, MirType, Module, StorageAlias, Terminator, Value, ValueId,
-    analysis::{
-        Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, Location, LocationSize,
-        MemoryAddress, MemoryLocation, ModRef,
+use crate::{
+    backend::evm::op,
+    mir::{
+        BlockId, Function, InstId, InstKind, Instruction, InstructionMetadata, MemoryObjectKind,
+        MemoryRegion, MirType, Module, StorageAlias, Terminator, Value, ValueId,
+        analysis::{
+            Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, GasObservations, Location,
+            LocationSize, MemoryAddress, MemoryLocation, ModRef,
+        },
+        pass::{MirPass, run_function_pass_with_alias_and_cfg},
+        utils as mir_utils,
     },
-    pass::{MirPass, run_function_pass},
-    utils as mir_utils,
+    target::{GasTier, Target, Warmth},
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
@@ -99,14 +108,15 @@ impl MirPass for LoadPre {
 
     fn run_pass(
         &self,
-        _gcx: solar_sema::Gcx<'_>,
+        gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, analyses| {
-            let mut eliminator = LoadRedundancyEliminator::new();
-            eliminator.alias = Some(Rc::clone(&analyses.alias));
-            eliminator.cfg = Some(Rc::clone(&analyses.cfg));
+        let target = Target::new(gcx);
+        run_function_pass_with_alias_and_cfg(module, analyses, |func, analyses| {
+            let mut eliminator = LoadRedundancyEliminator::new(target);
+            eliminator.alias = Some(Rc::clone(analyses.alias()));
+            eliminator.cfg = Some(Rc::clone(analyses.cfg()));
             eliminator.run(func).total() != 0
         })
     }
@@ -129,12 +139,13 @@ impl LoadPreStats {
 }
 
 /// Dataflow-based redundancy eliminator for memory-dependent reads.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct LoadRedundancyEliminator {
     /// Shared CFG snapshot for the availability dataflow.
     cfg: Option<Rc<CfgInfo>>,
     stats: LoadPreStats,
     alias: Option<Rc<AliasAnalysis>>,
+    target: Target,
 }
 
 /// A normalized key for a state-dependent read.
@@ -184,8 +195,10 @@ struct Candidate {
 /// MIR instruction count: a join-block reload executes on every predecessor
 /// path, while a compensating load only executes on the paths where the value
 /// was unavailable.
-#[derive(Clone, Copy, Debug, Default)]
-struct LoadPreCostModel;
+#[derive(Clone, Copy, Debug)]
+struct LoadPreCostModel {
+    target: Target,
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct LoadPreCost {
@@ -213,18 +226,31 @@ struct LoadPreCostInput<'a> {
 }
 
 impl LoadPreCostModel {
-    const MEMORY_READ: i64 = 3;
-    const STORAGE_READ: i64 = 100;
-    const TRANSIENT_READ: i64 = 100;
-    const KECCAK_BASE: i64 = 30;
-    const KECCAK_WORD: i64 = 6;
-    const NON_LOOP_PHI_EDGE_COPY: i64 = 3;
-    const CROSS_BLOCK_OPERAND: i64 = 3;
+    const MEMORY_READ: i64 = GasTier::VeryLow.fixed_gas() as i64;
+    const TRANSIENT_READ: i64 = GasTier::Transient.fixed_gas() as i64;
+    const KECCAK_BASE: i64 = GasTier::Keccak.fixed_gas() as i64;
+    const KECCAK_WORD: i64 = GasTier::Keccak.fixed_dynamic_gas() as i64;
+    /// One `DUP` on the edge.
+    const NON_LOOP_PHI_EDGE_COPY: i64 = GasTier::VeryLow.fixed_gas() as i64;
+    /// One `DUP` to reach the operand.
+    const CROSS_BLOCK_OPERAND: i64 = GasTier::VeryLow.fixed_gas() as i64;
 
     fn estimate(&self, input: LoadPreCostInput<'_>) -> LoadPreCost {
-        let read = Self::read_cost(input.key);
+        let read = self.read_cost(input.key);
         let saved = read * input.loads.len() as i64 * input.predecessors.len() as i64;
-        let inserted = read * input.insertions.len() as i64;
+        let splits = input
+            .insertions
+            .iter()
+            .filter(|&&pred| {
+                !matches!(input.func.blocks[pred].terminator, Some(Terminator::Jump(_)))
+            })
+            .count() as i64;
+        let transfer = self
+            .target
+            .opcode(op::PUSH2)
+            .plus(self.target.opcode(op::JUMP))
+            .plus(self.target.opcode(op::JUMPDEST));
+        let inserted = read * input.insertions.len() as i64 + splits * i64::from(transfer.gas);
         let phi = if !input.needs_phi || input.loop_carried {
             0
         } else {
@@ -234,9 +260,10 @@ impl LoadPreCostModel {
         LoadPreCost { saved, inserted, phi, operands }
     }
 
-    const fn read_cost(key: LoadKey) -> i64 {
+    fn read_cost(&self, key: LoadKey) -> i64 {
         match key {
-            LoadKey::Storage(_) => Self::STORAGE_READ,
+            // A repeated storage read is warm, whatever the first access cost.
+            LoadKey::Storage(_) => self.target.opcode_gas_at(op::SLOAD, Warmth::Warm) as i64,
             LoadKey::Transient(_) => Self::TRANSIENT_READ,
             LoadKey::Memory(_) => Self::MEMORY_READ,
             LoadKey::Keccak(_, size) => match size {
@@ -275,6 +302,7 @@ struct Analysis {
     /// Availability at block exit.
     outs: FxHashMap<BlockId, KeySet>,
     inst_blocks: FxHashMap<InstId, BlockId>,
+    gas: GasObservations,
 }
 
 #[derive(Default)]
@@ -418,9 +446,9 @@ struct CandidateCx<'a> {
 }
 
 impl LoadRedundancyEliminator {
-    /// Creates a new load PRE pass.
-    fn new() -> Self {
-        Self::default()
+    /// Creates a new load PRE pass pricing reads on `target`.
+    fn new(target: Target) -> Self {
+        Self { cfg: None, stats: LoadPreStats::default(), alias: None, target }
     }
 
     /// Runs load PRE to a fixed point under the rewrite budget.
@@ -448,10 +476,16 @@ impl LoadRedundancyEliminator {
                 break;
             }
             rewrites += batch.len();
+            let blocks_before = func.blocks.len();
             for candidate in batch {
                 self.apply_candidate(func, candidate, &mut eliminated_keys, &mut inserted_insts);
             }
-            self.alias().clear_cached_addresses();
+            if func.blocks.len() != blocks_before {
+                self.cfg = None;
+                self.alias = Some(Rc::new(AliasAnalysis::new(func)));
+            } else {
+                self.alias().clear_cached_addresses();
+            }
         }
 
         self.stats
@@ -573,7 +607,9 @@ impl LoadRedundancyEliminator {
             }
         }
 
+        let gas = GasObservations::new(func, &cfg, self.alias());
         Some(Analysis {
+            gas,
             keys,
             key_index,
             kill_index,
@@ -600,7 +636,7 @@ impl LoadRedundancyEliminator {
         let mut eliminated_values = DenseBitSet::new_empty(func.num_values());
 
         'targets: for target in func.blocks.indices() {
-            if !cx.analysis.cfg.is_reachable(target) {
+            if !cx.analysis.cfg.is_reachable(target) || cx.analysis.gas.at_entry(target) {
                 continue;
             }
             let predecessors = func.unique_predecessors(target);
@@ -633,7 +669,15 @@ impl LoadRedundancyEliminator {
                 for &(_, value) in &candidate.loads {
                     eliminated_values.insert(value);
                 }
+                let splits_edge = candidate.insertions.iter().any(|&pred| {
+                    !matches!(func.blocks[pred].terminator, Some(Terminator::Jump(_)))
+                });
                 batch.push(candidate);
+                // Rebuild CFG and availability before collecting another
+                // candidate against predecessor lists changed by edge splitting.
+                if splits_edge {
+                    break 'targets;
+                }
             }
         }
 
@@ -679,6 +723,9 @@ impl LoadRedundancyEliminator {
         let mut found = Vec::new();
 
         for &inst_id in &func.blocks[target].instructions {
+            if analysis.gas.observes(inst_id) {
+                break;
+            }
             if let Some((key, GenSource::LoadResult)) = self.gen_key_value(func, inst_id) {
                 if let Some(&idx) = analysis.key_index.get(&key)
                     && !blocked.contains(idx)
@@ -790,9 +837,13 @@ impl LoadRedundancyEliminator {
                 incoming.push((pred, value));
                 continue;
             }
-            // The key is unavailable on this predecessor; a compensating load
-            // can only go on an edge that needs no splitting.
+            // The key is unavailable here; insert only on an explicit CFG edge.
             if !Self::can_insert_on_edge(func, pred, target) {
+                return None;
+            }
+            if self.target.optimization().is_size()
+                && !matches!(func.blocks[pred].terminator, Some(Terminator::Jump(_)))
+            {
                 return None;
             }
             // Termination rule 2: never insert a key into a block it was
@@ -816,7 +867,7 @@ impl LoadRedundancyEliminator {
             || incoming.first().is_none_or(|&(_, first)| {
                 first == result || incoming.iter().any(|&(_, value)| value != first)
             });
-        let model = LoadPreCostModel;
+        let model = LoadPreCostModel { target: self.target };
         let cost = model.estimate(LoadPreCostInput {
             func,
             key,
@@ -964,6 +1015,13 @@ impl LoadRedundancyEliminator {
 
         let fully_available = insertions.is_empty();
         for block in insertions {
+            // pred -> edge: load key; jump target
+            // target: phi [..., edge: loaded_value, ...]
+            let block = if matches!(func.blocks[block].terminator, Some(Terminator::Jump(_))) {
+                block
+            } else {
+                mir_utils::split_edge(func, block, target)
+            };
             let mut instruction = Instruction::new(kind.clone(), Some(result_ty));
             instruction.metadata = metadata.clone();
             let (new_inst, value) = func.alloc_value_inst(instruction);
@@ -1068,6 +1126,9 @@ impl LoadRedundancyEliminator {
 
     #[must_use]
     fn effects_kill_key(&self, effects: &ModRef, key: LoadKey) -> bool {
+        if effects.observes_gas() {
+            return true;
+        }
         let aa = self.alias();
         match key {
             LoadKey::Storage(alias) => effects.may_write(aa, Location::Storage(alias)),
@@ -1207,7 +1268,12 @@ impl LoadRedundancyEliminator {
     // ----- CFG helpers -----
 
     fn can_insert_on_edge(func: &Function, pred: BlockId, target: BlockId) -> bool {
-        matches!(func.blocks[pred].terminator, Some(Terminator::Jump(jump_target)) if jump_target == target)
+        func.blocks[pred].terminator.as_ref().is_some_and(|term| {
+            matches!(
+                term,
+                Terminator::Jump(_) | Terminator::Branch { .. } | Terminator::Switch { .. }
+            ) && term.successors().contains(&target)
+        })
     }
 
     fn operands_dominate_block(

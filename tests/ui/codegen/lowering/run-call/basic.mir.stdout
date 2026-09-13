@@ -135,7 +135,7 @@ fn @fullyInitializedNamedStruct() -> memorystruct [selector=0x03e8d290, pure, ab
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1
-    v1 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v1 = alloc memorystruct<2>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_object_store_field memorystruct<2>, v1, 0, 96
     memory_object_store_field memorystruct<2>, v1, 1, 96
     memory_object_store_field memorystruct<2>, v1, 0, v0

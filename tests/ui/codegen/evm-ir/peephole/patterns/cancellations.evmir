@@ -50,8 +50,9 @@ bb4:
   stop
 
 // CHECK-LABEL: {{^[ +].*}}bb5:
-// CHECK: {{^[ +].*}}iszero
-// CHECK-COUNT-2: - iszero
+// CHECK: - push 1
+// CHECK-COUNT-3: - iszero
+// CHECK: + push 0
 bb5:
   push 1
   iszero

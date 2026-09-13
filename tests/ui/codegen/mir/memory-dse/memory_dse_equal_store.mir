@@ -30,3 +30,44 @@ fn @keep_equal_store_after_copy(arg0: u256, arg1: u256) -> u256 {
     v4 = mload 128
     ret v4
 }
+
+// An unaligned word store overlaps and partially clobbers the remembered word.
+// The later equal store is a required restore, including across unique edges.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_restore_after_overlapping_store{{[( ]}}
+// CHECK: {{^[ +].*}}mstore 128, 0x1234
+// CHECK: {{^[ +].*}}mstore 129, 0
+// CHECK: {{^[ +].*}}mstore 128, 0x1234
+fn @keep_restore_after_overlapping_store() -> u256 {
+  bb0:
+    mstore 128, 4660
+    jump bb1
+  bb1:
+    mstore 129, 0
+    jump bb2
+  bb2:
+    mstore 128, 4660
+    jump bb3
+  bb3:
+    v3 = mload 128
+    ret v3
+}
+
+// An unknown value at a known overlapping address also invalidates the word.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_restore_after_dynamic_overlapping_store{{[( ]}}
+// CHECK: {{^[ +].*}}mstore 128, 0x1234
+// CHECK: {{^[ +].*}}mstore 129, arg0
+// CHECK: {{^[ +].*}}mstore 128, 0x1234
+fn @keep_restore_after_dynamic_overlapping_store(arg0: u256) -> u256 {
+  bb0:
+    mstore 128, 0x1234
+    jump bb1
+  bb1:
+    mstore 129, arg0
+    jump bb2
+  bb2:
+    mstore 128, 0x1234
+    jump bb3
+  bb3:
+    v3 = mload 128
+    ret v3
+}

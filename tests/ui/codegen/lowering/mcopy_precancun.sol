@@ -1,8 +1,8 @@
 //@compile-flags: --evm-version paris -Zdump=disasm-runtime
 //@filecheck:
 
-// On pre-Cancun targets there is no MCOPY; memory copy lowers to an ascending
-// word-copy loop, like solc. The identity precompile would be smaller, but a
+// On pre-Cancun targets there is no MCOPY; memory copy lowers to overlap-safe
+// word-copy loops. The identity precompile would be smaller, but a
 // precompile call is observable by tooling that keys behavior on "the next
 // call" (Foundry's `vm.prank`/`vm.expectRevert`).
 

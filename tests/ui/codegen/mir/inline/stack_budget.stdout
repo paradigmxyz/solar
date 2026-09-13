@@ -1,0 +1,91 @@
+- // === ROOT/tests/ui/codegen/mir/inline/stack_budget.mir (before inline-single-use) ===
++ // === ROOT/tests/ui/codegen/mir/inline/stack_budget.mir (after inline-single-use) ===
+  @module StackBudget
+  fn @low_pressure(arg0: bool, arg1: u256) -> u256 [selector=0x01020304] {
+    bb0:
+-     v0 = icall @choose, 1, arg0, arg1
+-     v1 = add arg1, v0
++     jump bb2
++   bb2:
++     jumpi arg0, bb3, bb4
++   bb4:
++     v3 = xor arg1, 23
++     jump bb5
++   bb3:
++     v2 = add arg1, 7
++     jump bb5
++   bb5:
++     v4 = phi [bb3: v2], [bb4: v3]
++     jump bb1
++   bb1:
++     v5 = phi [bb5: v4]
++     v1 = add arg1, v5
+      ret v1
+  }
+  
+  fn @choose(arg0: bool, arg1: u256) -> u256 {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb2:
+      v1 = xor arg1, 23
+      jump bb3
+    bb1:
+      v0 = add arg1, 7
+      jump bb3
+    bb3:
+      v2 = phi [bb1: v0], [bb2: v1]
+      ret v2
+  }
+  
+  fn @high_pressure(arg0: bool, arg1: u256, arg2: u256, arg3: u256, arg4: u256, arg5: u256, arg6: u256, arg7: u256, arg8: u256, arg9: u256, arg10: u256, arg11: u256, arg12: u256) -> u256 [selector=0x01020305] {
+    bb0:
+      v0 = icall @wide_choose, 1, arg0, arg1
+      v1 = add arg1, arg2
+      v2 = add arg3, arg4
+      v3 = add arg5, arg6
+      v4 = add arg7, arg8
+      v5 = add arg9, arg10
+      v6 = add arg11, arg12
+      v7 = add v0, v1
+      v8 = add v2, v3
+      v9 = add v4, v5
+      v10 = add v6, v7
+      v11 = add v8, v9
+      v12 = add v10, v11
+      ret v12
+  }
+  
+  fn @wide_choose(arg0: bool, arg1: u256) -> u256 {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb2:
+      v1 = xor arg1, 23
+      jump bb3
+    bb1:
+      v0 = add arg1, 7
+      jump bb3
+    bb3:
+      v2 = phi [bb1: v0], [bb2: v1]
+      ret v2
+  }
+  
+  fn @loop_caller(arg0: u256) -> u256 [selector=0x01020306] {
+    bb0:
+      v0 = icall @loop_body, 1, arg0
+      ret v0
+  }
+  
+  fn @loop_body(arg0: u256) -> u256 {
+    bb0:
+      jump bb1
+    bb1:
+      v0 = phi [bb0: 0], [bb2: v2]
+      v1 = lt v0, arg0
+      jumpi v1, bb2, bb3
+    bb3:
+      ret v0
+    bb2:
+      v2 = add v0, 1
+      jump bb1
+  }
+  
