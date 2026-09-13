@@ -29,7 +29,7 @@ fn @pair() -> memoryfixedarray [selector=0xa8aa1b31, pure, abi_params=[], abi_re
 // === ROOT/tests/ui/codegen/lowering/run-call/no_code_call_returns_evm_version.sol:NoCodeReturnCalls ===
 @module NoCodeReturnCalls
 data:
-  NoCodeCallee_initcode_0: hex"34600d5760eb8060115f395ff35b5f5ffd346028575f3560e01c80633fa4f245146020578063a8aa1b31146024576028565b602c565b603e565b5f5ffd5b602a6080526020608001608090036080f35b6101206040526040518060c0528060c05260408101604052604036828060c0523760025f1015156096575b7f4e487b71000000000000000000000000000000000000000000000000000000005f52603260045260245ffd5b8060c052600181526002600110156069576020810160028152505f5b8060e052600281101560db576020818060e05202820151602082026080015260018101905060b2565b6040608001915050608090036080f3"
+  NoCodeCallee_initcode_0: hex"34600d5760e88060115f395ff35b5f5ffd346028575f3560e01c80633fa4f245146024578063a8aa1b31146020576028565b603e565b602c565b5f5ffd5b602a6080526020608001608090036080f35b6101206040526040518060c0528060c05260408101604052604036828060c0523760025f101560bb578060c0526001815260026001101560bb576020810160028152505f5b8060e05260028110609e576040608001915050608090036080f35b6020818060e0520282015160208202608001526001810190506083565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52603260045260245ffd"
 
 fn @direct() -> u256 [selector=0x222b1407, abi_params=[], abi_returns=[word]] {
   bb0:
@@ -184,13 +184,13 @@ fn @live() -> u256 [selector=0x957aa58c, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 283, v1
+    v2 = and 280, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy NoCodeCallee_initcode_0, v3, 252
+    data_copy NoCodeCallee_initcode_0, v3, 249
     v4 = slice_ptr v0
-    v5 = add v3, 252
+    v5 = add v3, 249
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 252
+    v6 = create 0, v3, 249
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata
@@ -221,13 +221,13 @@ fn @liveAggregate() -> (u256, u256) [selector=0xc64a4ee9, abi_params=[], abi_ret
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 283, v1
+    v2 = and 280, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy NoCodeCallee_initcode_0, v3, 252
+    data_copy NoCodeCallee_initcode_0, v3, 249
     v4 = slice_ptr v0
-    v5 = add v3, 252
+    v5 = add v3, 249
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 252
+    v6 = create 0, v3, 249
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata

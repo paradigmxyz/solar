@@ -334,6 +334,12 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     // rewrites from reaching for values the scheduler would have to keep alive.
     &egraph::Egraph,
     &word_sequence::WordSequence,
+    // Memory lowering materializes each element access as `add base, 32`
+    // plus an index term inside the loop that reads it. Hoist the invariant
+    // base once the physical form is final, so a hot loop carries one word
+    // instead of reloading its argument and re-adding the header every
+    // iteration.
+    &GasOnly::new(loop_opt::Licm),
     // Collapse canonical read-only byte scans after bounds cleanup and word
     // simplification expose their final physical shape.
     &GasOnly::new(loop_idioms::LoopIdioms),

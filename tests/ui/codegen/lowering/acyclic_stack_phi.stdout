@@ -57,15 +57,9 @@ bb0:
   push 4
   dup 2
   gt
-  iszero
   push bb11
   jumpi
-  push 4
   swap 1
-  sub
-  swap 1
-  push 4
-  add
   swap 2
   jump
 bb3 [cold]:
@@ -92,6 +86,11 @@ bb7 [continuation]:
   push 128
   return
 bb11:
+  push 4
   swap 1
+  sub
+  swap 1
+  push 4
+  add
   swap 2
   jump

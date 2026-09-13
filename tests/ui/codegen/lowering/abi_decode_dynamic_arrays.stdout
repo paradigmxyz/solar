@@ -116,6 +116,7 @@ fn @bools() [selector=0xcfb203c5, pure] {
     v32 = gt v13, v31
     jumpi v32, bb1, bb8
   bb8:
+    v92 = add v23, 32
     jump bb9
   bb9:
     v33 = phi [bb8: v13], [bb12: v39]
@@ -136,6 +137,8 @@ fn @bools() [selector=0xcfb203c5, pure] {
     v105 = add v54, v48
     mstore 64, v105 !metadata(memory=scratch)
     mstore v54, v45
+    v95 = add v23, 32
+    v98 = add v54, 32
     jump bb15
   bb15:
     v55 = phi [bb14: 0], [bb16: v60]
@@ -175,13 +178,11 @@ fn @bools() [selector=0xcfb203c5, pure] {
     mstore 64, v106 !metadata(memory=scratch)
     returndata v90, v85
   bb16:
-    v95 = add v23, 32
     v96 = shl 5, v55
     v97 = add v95, v96
     v57 = mload v97
     v58 = iszero v57
     v59 = iszero v58
-    v98 = add v54, 32
     v100 = add v98, v96
     mstore v100, v59
     v60 = add v55, 1
@@ -191,7 +192,6 @@ fn @bools() [selector=0xcfb203c5, pure] {
     v38 = lt v37, 2
     jumpi v38, bb12, bb1
   bb12:
-    v92 = add v23, 32
     v93 = shl 5, v35
     v94 = add v92, v93
     mstore v94, v37

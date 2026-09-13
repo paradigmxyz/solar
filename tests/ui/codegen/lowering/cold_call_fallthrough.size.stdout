@@ -6,7 +6,7 @@ bb0:
   lt
   callvalue
   or
-  push bb2
+  push bb4
   jumpi
   push 0
   calldataload
@@ -22,8 +22,8 @@ bb0:
   eq
   push bb8
   jumpi
-  jump bb2
-bb2 [cold]:
+  jump bb4
+bb4 [cold]:
   push 0
   push 0
   revert
@@ -86,11 +86,20 @@ bb8:
 bb13 [cold]:
   push 1
   dup 2
-  sub
-  push bb15
+  eq
+  push bb17
   jumpi
-  pop
-  push 0x6f6e65
+  push 2
+  eq
+  push bb16
+  jumpi
+  push 5
+  push 0x6f74686572
+  push 216
+  shl
+  jump bb18
+bb16 [cold]:
+  push 0x74776f
   jump bb20
 bb20 [cold]:
   push 232
@@ -98,16 +107,7 @@ bb20 [cold]:
   push 3
   swap 1
   jump bb18
-bb15 [cold]:
-  push 2
-  sub
-  push bb17
-  jumpi
-  push 0x74776f
-  jump bb20
 bb17 [cold]:
-  push 5
-  push 0x6f74686572
-  push 216
-  shl
-  jump bb18
+  pop
+  push 0x6f6e65
+  jump bb20

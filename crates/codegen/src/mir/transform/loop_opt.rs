@@ -12,13 +12,30 @@
 //! execution guarantee: its header is allocated memory, so reading it early
 //! cannot expand memory or trap on a zero-trip loop.
 //!
+//! An instruction is a hoisting root when its estimated per-iteration saving reaches the
+//! pass threshold, or when it is the invariant base of an affine address the loop reads or
+//! writes. In gas mode, pure word arithmetic that executes on every iteration is a root as
+//! well: the backend carries a preheader value on the stack through the loop or rebuilds it
+//! at its uses, so hoisting only widens its choice. Those below-threshold hoists are held to
+//! a budget of loop-carried words, the header's phis plus the values the loop reads from
+//! outside, computed per loop of the nest containing the instruction and updated as roots
+//! are accepted: past the budget, the backend's layouts spill loop values to frame slots,
+//! and a hoisted base costs more in reloads of the words it displaces than its in-loop
+//! recomputation saved.
+//!
+//! The pass runs once on the semantic MIR and once more in gas mode after memory lowering,
+//! which materializes each element access as `add base, 32` plus an index term inside the
+//! loop that reads it; the late run hoists that base so a hot loop carries one word instead
+//! of reloading its argument and re-adding the header on every iteration.
+//!
 //! ## Gas Savings
 //!
 //! This optimization is particularly important for EVM:
 //! - LICM: Avoids recomputing `arr.length` each iteration (MLOAD/SLOAD costs)
+//! - The late run removes an argument reload and an add per element access in a loop
 
 use crate::mir::{
-    BlockId, Function, ImmutableId, InstId, InstKind, MemoryRegion, Module, StorageAlias,
+    BlockId, Function, ImmutableId, InstId, InstKind, MemoryRegion, Module, OpTraits, StorageAlias,
     Terminator, Value, ValueId,
     analysis::{
         Access, AddressSpace, AffineExpr, AliasAnalysis, AliasResult, Location, LocationSize, Loop,
@@ -29,8 +46,16 @@ use crate::mir::{
 };
 use alloy_primitives::U256;
 use arrayvec::ArrayVec;
-use solar_data_structures::bit_set::DenseBitSet;
+use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 use std::rc::Rc;
+
+/// Most words a loop may carry after a below-threshold hoist. The count is the header's phis
+/// plus the values defined outside the loop that its body reads, which the backend keeps on
+/// the stack through the loop when they fit. Past this many, its layouts spill loop values to
+/// frame slots, and a hoisted base then costs more in reloads of the words it displaced than
+/// its in-loop recomputation saved: the hash-probe loop of `hasDuplicate` lost 2.4% carrying
+/// eight, while `reverse` with four gained 8%.
+const LOOP_CARRY_BUDGET: usize = 5;
 
 /// Function pass for loop-invariant code motion.
 pub(crate) struct Licm;
@@ -42,12 +67,14 @@ impl MirPass for Licm {
 
     fn run_pass(
         &self,
-        _gcx: solar_sema::Gcx<'_>,
+        gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
+        let hoist_cheap = gcx.sess.opts.optimization.is_gas();
         run_function_pass_with_alias(module, analyses, |func, analyses| {
             let mut optimizer = LoopOptimizer::with_limits(3, 8);
+            optimizer.hoist_cheap = hoist_cheap;
             optimizer.alias = Some(Rc::clone(analyses.alias()));
             optimizer.optimize(func).instructions_hoisted != 0
         })
@@ -81,6 +108,12 @@ struct LoopOptimizer {
     min_licm_profit: u16,
     /// Maximum number of instructions hoisted from one loop.
     max_licm_hoisted_insts: usize,
+    /// Whether pure arithmetic executed on every iteration is hoisted even when its per-iteration
+    /// saving is below `min_licm_profit`. The backend carries a preheader value on the stack
+    /// through a loop or rebuilds it at its use sites, whichever its pricing prefers, so
+    /// hoisting only widens its choice; the cost is bytecode when the value is spilled, which
+    /// gas mode accepts.
+    hoist_cheap: bool,
     stats: LoopOptStats,
     alias: Option<Rc<AliasAnalysis>>,
 }
@@ -90,6 +123,7 @@ impl Default for LoopOptimizer {
         Self {
             min_licm_profit: 0,
             max_licm_hoisted_insts: usize::MAX,
+            hoist_cheap: false,
             stats: LoopOptStats::default(),
             alias: None,
         }
@@ -108,6 +142,7 @@ impl LoopOptimizer {
         Self {
             min_licm_profit,
             max_licm_hoisted_insts,
+            hoist_cheap: false,
             stats: LoopOptStats::default(),
             alias: None,
         }
@@ -128,18 +163,109 @@ impl LoopOptimizer {
             return &self.stats;
         }
 
-        for loop_data in loop_info.loops.values() {
-            self.apply_licm(func, loop_data, &analyzer);
+        let loops = loop_info.loops.values().cloned().collect::<Vec<_>>();
+        let mut carried = loops
+            .iter()
+            .map(|loop_data| (loop_data.header, Self::carried_words(func, loop_data)))
+            .collect::<FxHashMap<_, _>>();
+        for loop_data in &loops {
+            self.apply_licm(func, loop_data, &analyzer, &loops, &mut carried);
         }
 
         &self.stats
+    }
+
+    /// The words the backend carries through a loop: the header's phis and the values defined
+    /// outside the loop that its non-phi instructions read. Immediates, arguments, and nullary
+    /// rematerializable reads are rebuilt where used and cost no word.
+    fn carried_words(func: &Function, loop_data: &Loop) -> usize {
+        let header = &func.blocks[loop_data.header];
+        let mut count = header
+            .instructions
+            .iter()
+            .filter(|&&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
+            .count();
+        let mut seen = DenseBitSet::new_empty(func.num_values());
+        for block in loop_data.blocks.iter() {
+            let block = &func.blocks[block];
+            for operand in block
+                .instructions
+                .iter()
+                .filter(|&&inst_id| !matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
+                .flat_map(|&inst_id| func.inst(inst_id).kind.operands())
+                .chain(block.terminator.iter().flat_map(Terminator::operands))
+            {
+                if Self::is_carried_operand(func, loop_data, operand) && seen.insert(operand) {
+                    count += 1;
+                }
+            }
+        }
+        count
+    }
+
+    /// Whether a value read inside `loop_data` occupies a carried word: an instruction result
+    /// defined outside the loop that is not a nullary rematerializable read.
+    fn is_carried_operand(func: &Function, loop_data: &Loop, value: ValueId) -> bool {
+        let Value::Inst(inst_id) = func.value(value) else { return false };
+        let kind = &func.inst(*inst_id).kind;
+        !loop_data.blocks.iter().any(|block| func.blocks[block].instructions.contains(inst_id))
+            && !(kind.operands().is_empty()
+                && kind.op_def().traits.contains(OpTraits::REMATERIALIZABLE))
+    }
+
+    /// The change in carried words of loop `inner` (the hoisting loop or one nested in it) when
+    /// `closure` moves to the preheader: every closure result still read elsewhere becomes a
+    /// carried word, and every outside operand the closure was the loop's only reader of stops
+    /// being one.
+    fn carried_delta(
+        func: &Function,
+        inner: &Loop,
+        closure: &[InstId],
+        closure_set: &DenseBitSet<InstId>,
+    ) -> isize {
+        let reads_outside_closure = |value: ValueId, block: BlockId| {
+            let block = &func.blocks[block];
+            block
+                .instructions
+                .iter()
+                .filter(|&&inst_id| !closure_set.contains(inst_id))
+                .flat_map(|&inst_id| func.inst(inst_id).kind.operands())
+                .chain(block.terminator.iter().flat_map(Terminator::operands))
+                .any(|operand| operand == value)
+        };
+        let mut delta = 0isize;
+        for &inst_id in closure {
+            if let Some(result) = func.inst_result_value(inst_id)
+                && func.blocks.indices().any(|block| reads_outside_closure(result, block))
+            {
+                delta += 1;
+            }
+        }
+        let mut released = DenseBitSet::new_empty(func.num_values());
+        for operand in closure.iter().flat_map(|&inst_id| func.inst(inst_id).kind.operands()) {
+            if Self::is_carried_operand(func, inner, operand)
+                && !released.contains(operand)
+                && !inner.blocks.iter().any(|block| reads_outside_closure(operand, block))
+            {
+                released.insert(operand);
+                delta -= 1;
+            }
+        }
+        delta
     }
 
     fn alias(&self) -> &AliasAnalysis {
         self.alias.as_ref().expect("loop optimizer alias snapshot is initialized")
     }
 
-    fn apply_licm(&mut self, func: &mut Function, loop_data: &Loop, analyzer: &LoopAnalyzer) {
+    fn apply_licm(
+        &mut self,
+        func: &mut Function,
+        loop_data: &Loop,
+        analyzer: &LoopAnalyzer,
+        loops: &[Loop],
+        carried: &mut FxHashMap<BlockId, usize>,
+    ) {
         let Some(preheader) = loop_data.preheader else { return };
         if self.loop_observes_gas(func, loop_data) {
             return;
@@ -161,8 +287,10 @@ impl LoopOptimizer {
                 .then_with(|| a.index().cmp(&b.index()))
         });
 
+        let inst_blocks = func.inst_blocks();
         let mut selected = DenseBitSet::new_empty(func.num_insts());
         let mut closure = Vec::new();
+        let mut closure_set = DenseBitSet::new_empty(func.num_insts());
         let mut visiting = DenseBitSet::new_empty(func.num_insts());
         for root in roots {
             closure.clear();
@@ -175,6 +303,34 @@ impl LoopOptimizer {
             let new_count = closure.iter().filter(|&&inst_id| !selected.contains(inst_id)).count();
             if selected.count() + new_count > self.max_licm_hoisted_insts {
                 continue;
+            }
+            // The root leaves every loop of this nest that contains it; each of those loops
+            // carries the closure's results from now on. A hoist that only pays through the
+            // backend's residency must keep every one of them within the carry budget.
+            closure_set.clear();
+            for &inst_id in &closure {
+                closure_set.insert(inst_id);
+            }
+            let Some(&root_block) = inst_blocks.get(&root) else { continue };
+            let nest = loops
+                .iter()
+                .filter(|inner| {
+                    inner.blocks.contains(root_block) && loop_data.blocks.superset(&inner.blocks)
+                })
+                .map(|inner| {
+                    (inner.header, Self::carried_delta(func, inner, &closure, &closure_set))
+                })
+                .collect::<Vec<_>>();
+            if self.licm_profit(func, root) < self.min_licm_profit
+                && nest.iter().any(|&(header, delta)| {
+                    carried[&header].saturating_add_signed(delta) > LOOP_CARRY_BUDGET
+                })
+            {
+                continue;
+            }
+            for (header, delta) in nest {
+                let count = carried.get_mut(&header).expect("every loop has a carried count");
+                *count = count.saturating_add_signed(delta);
             }
             for &inst_id in &closure {
                 selected.insert(inst_id);
@@ -473,7 +629,18 @@ impl LoopOptimizer {
             || (self.loop_has_known_multiple_iterations(ctx.loop_data)
                 && self.is_affine_address_base_used_in_loop(func, inst_id, ctx))
             || (self.inst_dominates_loop_backedges(func, inst_id, ctx.loop_data, ctx.analyzer)
-                && self.is_affine_address_base_used_in_loop(func, inst_id, ctx))
+                && (self.is_affine_address_base_used_in_loop(func, inst_id, ctx)
+                    || self.is_cheap_invariant_arithmetic(func, inst_id)))
+    }
+
+    /// Whether `inst_id` is pure word arithmetic whose result the backend can carry or rebuild:
+    /// no memory or storage read, no side effect, and a result value. Hoisted only when it runs
+    /// on every iteration, so the preheader never pays for work a taken exit would have skipped.
+    fn is_cheap_invariant_arithmetic(&self, func: &Function, inst_id: InstId) -> bool {
+        let inst = func.inst(inst_id);
+        self.hoist_cheap
+            && inst.kind.effect_kind() == crate::mir::EffectKind::Pure
+            && func.inst_result_value(inst_id).is_some()
     }
 
     fn loop_has_known_multiple_iterations(&self, loop_data: &Loop) -> bool {

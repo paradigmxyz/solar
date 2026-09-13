@@ -9,6 +9,7 @@ fn @sort() [selector=0x9ec8b026, pure] {
   bb9:
     v44 = icall @decode_calldata_type, 1, 4
     v40 = mload v44
+    v57 = add v44, 32
     jump bb1
   bb1:
     v0 = phi [bb9: 1], [bb5: v38]
@@ -27,7 +28,6 @@ fn @sort() [selector=0x9ec8b026, pure] {
     v55 = add v53, 64
     returndata v44, v55
   bb3:
-    v57 = add v44, 32
     v58 = shl 5, v0
     v59 = add v57, v58
     v8 = mload v59

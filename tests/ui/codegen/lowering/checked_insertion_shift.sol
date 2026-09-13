@@ -19,6 +19,7 @@
 contract CheckedInsertionShift {
     // OPT-LABEL: fn @sort
     // OPT: [[LEN:v[0-9]+]] = mload [[OBJ:v[0-9]+]]
+    // OPT-NEXT: [[BASE:v[0-9]+]] = add [[OBJ]], 32
     // OPT-NEXT: jump [[HEADER:bb[0-9]+]]
     // OPT: [[HEADER]]:
     // OPT-NEXT: [[I:v[0-9]+]] = phi

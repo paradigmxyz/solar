@@ -162,8 +162,8 @@ bb6:
   swap 1
   push 0
   create
-  jump bb29
-bb29:
+  jump bb28
+bb28:
   dup 1
   push 224
   mstore
@@ -246,7 +246,7 @@ bb12:
   swap 2
   push 0
   create2
-  jump bb29
+  jump bb28
 bb18:
   push 352
   push 64
@@ -400,14 +400,14 @@ bb18:
   swap 1
   dup 2
   lt
-  push bb28
+  push bb27
   jumpi
   push 128
   mstore
   push 32
   push 128
   return
-bb28 [cold]:
+bb27 [cold]:
   push 0x4e487b71
   push 224
   shl

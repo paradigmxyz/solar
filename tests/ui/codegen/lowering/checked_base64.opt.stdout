@@ -135,6 +135,7 @@ fn @encode.4(arg0: memptr, arg1: bool, arg2: bool) -> memptr [pure] {
     v273 = calldatasize
     calldatacopy v23, v273, v22
     mstore v23, v18
+    v261 = add v23, 32
     jump bb26
   bb26:
     v120 = phi [bb62: 0], [bb32: v164]
@@ -305,7 +306,6 @@ fn @encode.4(arg0: memptr, arg1: bool, arg2: bool) -> memptr [pure] {
     jumpi v140, bb28, bb11
   bb28:
     v145 = byte 0, v202
-    v261 = add v23, 32
     v262 = add v261, v120
     mstore8 v262, v145
     v146 = shr 12, v144
