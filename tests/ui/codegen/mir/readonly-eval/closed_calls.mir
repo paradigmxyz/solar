@@ -25,7 +25,7 @@ fn @guard(arg0: u256) {
     v0 = eq arg0, 42
     jumpi v0, bb1, bb2
   bb1:
-    stop
+    ret
   bb2:
     mstore 0, 17
     revert 0, 32
@@ -37,7 +37,7 @@ fn @guard(arg0: u256) {
 fn @failure() {
   bb0:
     icall @guard, 0, 41
-    stop
+    ret
 }
 
 // Unknown caller arguments do not satisfy the concrete guard.
@@ -46,7 +46,7 @@ fn @failure() {
 fn @unknown(arg0: u256) {
   bb0:
     icall @guard, 0, arg0
-    stop
+    ret
 }
 
 // Executed writes, environment reads, and unknown memory reads remain calls.
@@ -59,7 +59,7 @@ fn @effects() {
     icall @write, 0, 42
     icall @gas_reader, 0
     icall @memory_reader, 0
-    stop
+    ret
 }
 
 fn @write(arg0: u256) {

@@ -117,7 +117,8 @@ fn build_storage_clear_helper(function: &mut Function) {
     let words = builder.add_param(MirType::uint256());
     let zero = builder.imm(0);
     emit_clear_storage_words(&mut builder, slot, first_word, words, zero);
-    builder.stop();
+    // return
+    builder.ret([]);
 }
 
 fn emit_clear_storage_words(
@@ -253,7 +254,8 @@ fn build_storage_bytes_store_helper(function: &mut Function, clear_helper: Funct
     builder.jump(merge_block);
 
     builder.switch_to_block(merge_block);
-    builder.stop();
+    // return
+    builder.ret([]);
 }
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
@@ -1750,7 +1752,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
             };
             if lowered {
-                lowerer.builder.stop();
+                // return
+                lowerer.builder.ret([]);
             }
             lowered.then_some(())
         })

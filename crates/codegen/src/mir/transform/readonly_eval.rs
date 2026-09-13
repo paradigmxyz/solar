@@ -19,7 +19,8 @@
 //! disappear. Constant scalar arguments also permit evaluation without a memory
 //! allocation. Only the executed path needs to be read-only, so a checked helper
 //! can fold when its failure branch is unreachable for these concrete arguments.
-//! `Stop` in an internal void callee is an internal return, matching lowering.
+//! A normal empty completion uses `Return`; an EVM `Stop` remains non-returning
+//! and therefore rejects evaluation.
 //! No allocation or initialization is removed here, and no code is moved or cloned.
 //! Run after semantic memory lowering and allocation coalescing, before raw
 //! allocations lose their provenance. Facts do not cross caller block boundaries.
@@ -315,7 +316,6 @@ fn evaluate(
                     _ => None,
                 };
             }
-            Terminator::Stop if func.returns.is_empty() => return Some(EvaluatedReturn::Void),
             _ => return None,
         };
         predecessor = Some(current);

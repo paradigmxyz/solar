@@ -10,7 +10,7 @@ fn @constructor(arg0: u256, arg1: memorybytes) [constructor, abi_params=[u256, b
   bb0:
     sstore 0, arg0 !metadata(storage=slot(0))
     icall @store_storage_bytes, 0, 1, arg1
-    stop
+    ret
 }
 
 fn @clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
@@ -22,7 +22,7 @@ fn @clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
     v2 = lt v1, arg2
     jumpi v2, bb2, bb3
   bb3:
-    stop
+    ret
   bb2:
     v3 = add v0, v1
     sstore v3, 0 !metadata(storage=symbolic(v3))
@@ -109,7 +109,7 @@ fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
     sstore arg0, v28 !metadata(storage=symbolic(arg0))
     jump bb9
   bb9:
-    stop
+    ret
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -134,7 +134,7 @@ fn @constructor(arg0: u256, arg1: memorybytes) [constructor, abi_params=[u256, b
   bb3:
     jump bb4
   bb4:
-    stop
+    ret
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -156,7 +156,7 @@ fn @clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
     v2 = lt v1, arg2
     jumpi v2, bb2, bb3
   bb3:
-    stop
+    ret
   bb2:
     v3 = add v0, v1
     sstore v3, 0 !metadata(storage=symbolic(v3))
@@ -243,7 +243,7 @@ fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
     sstore arg0, v28 !metadata(storage=symbolic(arg0))
     jump bb9
   bb9:
-    stop
+    ret
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -284,7 +284,7 @@ fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
   bb5:
     jump bb7
   bb7:
-    stop
+    ret
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -362,7 +362,7 @@ fn @clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
     v2 = lt v1, arg2
     jumpi v2, bb2, bb3
   bb3:
-    stop
+    ret
   bb2:
     v3 = add v0, v1
     sstore v3, 0 !metadata(storage=symbolic(v3))
@@ -449,7 +449,7 @@ fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
     sstore arg0, v28 !metadata(storage=symbolic(arg0))
     jump bb9
   bb9:
-    stop
+    ret
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -464,28 +464,28 @@ fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
 @module OrderA
 fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
   bb0:
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:OrderB ===
 @module OrderB
 fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
   bb0:
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:OrderC ===
 @module OrderC
 fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
   bb0:
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:OrderD ===
 @module OrderD
 fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
   bb0:
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:ConstructorArgumentOrder ===
@@ -506,7 +506,7 @@ fn @constructor() [constructor] {
   bb4:
     jump bb5
   bb5:
-    stop
+    ret
 }
 
 fn @record(arg0: u256) -> u256 {
@@ -579,7 +579,7 @@ fn @x() -> u256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word]] {
 fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
   bb0:
     sstore 0, 2 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:ConstructorInitializationOrder ===
@@ -592,7 +592,7 @@ fn @constructor() [constructor] {
   bb1:
     jump bb2
   bb2:
-    stop
+    ret
 }
 
 fn @x() -> u256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word]] {
@@ -631,7 +631,7 @@ fn @constructor(arg0: u256, arg1: u256) [constructor, abi_params=[u256, u256]] {
     jumpi v7, bb1, bb3
   bb3:
     sstore 0, v6 !metadata(storage=slot(0))
-    stop
+    ret
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -663,7 +663,7 @@ fn @constructor() [constructor] {
     sstore 0, v6 !metadata(storage=slot(0))
     jump bb1
   bb1:
-    stop
+    ret
   bb2:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -681,7 +681,7 @@ fn @value() -> u256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word
 fn @constructor() [constructor] {
   bb0:
     sstore 0, 1 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:BaseConstructorReturn ===
@@ -692,7 +692,7 @@ fn @constructor() [constructor] {
     jump bb1
   bb1:
     sstore 0, 2 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 fn @value() -> u256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word]] {
@@ -706,7 +706,7 @@ fn @value() -> u256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word
 fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
   bb0:
     sstore 0, arg0 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 fn @g() -> u256 [selector=0xe2179b8e, pure, abi_params=[], abi_returns=[word]] {
@@ -727,7 +727,7 @@ fn @constructor() [constructor] {
     sstore 0, v0 !metadata(storage=slot(0))
     jump bb1
   bb1:
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:FunctionUsageDerived ===
@@ -749,7 +749,7 @@ fn @constructor() [constructor] {
     sstore 0, v0 !metadata(storage=slot(0))
     jump bb1
   bb1:
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:VirtualFunctionUsageBaseBase ===
@@ -757,7 +757,7 @@ fn @constructor() [constructor] {
 fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
   bb0:
     sstore 0, arg0 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 fn @overridden() -> u256 [selector=0x275a4dcc, pure, abi_params=[], abi_returns=[word]] {
@@ -790,7 +790,7 @@ fn @constructor() [constructor] {
     sstore 0, v0 !metadata(storage=slot(0))
     jump bb1
   bb1:
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:VirtualFunctionUsageDerived ===
@@ -818,7 +818,7 @@ fn @constructor() [constructor] {
     sstore 0, v0 !metadata(storage=slot(0))
     jump bb1
   bb1:
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:DomainBase ===
@@ -827,7 +827,7 @@ fn @constructor(arg0: memorybytes, arg1: memorybytes) [constructor, abi_params=[
   bb0:
     icall @store_storage_bytes, 0, 0, arg0
     icall @store_storage_bytes, 0, 1, arg1
-    stop
+    ret
 }
 
 fn @domain() -> (memorybytes, memorybytes) [selector=0xc2fb26a6, view, abi_params=[], abi_returns=[memory_bytes, memory_bytes]] {
@@ -846,7 +846,7 @@ fn @clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
     v2 = lt v1, arg2
     jumpi v2, bb2, bb3
   bb3:
-    stop
+    ret
   bb2:
     v3 = add v0, v1
     sstore v3, 0 !metadata(storage=symbolic(v3))
@@ -933,7 +933,7 @@ fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
     sstore arg0, v28 !metadata(storage=symbolic(arg0))
     jump bb9
   bb9:
-    stop
+    ret
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -1013,7 +1013,7 @@ fn @constructor(arg0: memorybytes) [constructor, abi_params=[bytes]] {
   bb1:
     jump bb2
   bb2:
-    stop
+    ret
 }
 
 fn @domain() -> (memorybytes, memorybytes) [selector=0xc2fb26a6, view, abi_params=[], abi_returns=[memory_bytes, memory_bytes]] {
@@ -1032,7 +1032,7 @@ fn @clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
     v2 = lt v1, arg2
     jumpi v2, bb2, bb3
   bb3:
-    stop
+    ret
   bb2:
     v3 = add v0, v1
     sstore v3, 0 !metadata(storage=symbolic(v3))
@@ -1119,7 +1119,7 @@ fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
     sstore arg0, v28 !metadata(storage=symbolic(arg0))
     jump bb9
   bb9:
-    stop
+    ret
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -1189,7 +1189,7 @@ fn @load_storage_bytes(arg0: u256) -> memorybytes {
 @module TokenBase
 fn @constructor(arg0: memorybytes, arg1: memorybytes) [constructor, abi_params=[bytes, bytes]] {
   bb0:
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:EmptyBaseArgumentMask ===
@@ -1224,7 +1224,7 @@ fn @constructor() [constructor] {
   bb3:
     jump bb5
   bb5:
-    stop
+    ret
 }
 
 fn @domain() -> (memorybytes, memorybytes) [selector=0xc2fb26a6, view, abi_params=[], abi_returns=[memory_bytes, memory_bytes]] {
@@ -1243,7 +1243,7 @@ fn @clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
     v2 = lt v1, arg2
     jumpi v2, bb2, bb3
   bb3:
-    stop
+    ret
   bb2:
     v3 = add v0, v1
     sstore v3, 0 !metadata(storage=symbolic(v3))
@@ -1330,7 +1330,7 @@ fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
     sstore arg0, v28 !metadata(storage=symbolic(arg0))
     jump bb9
   bb9:
-    stop
+    ret
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -1400,14 +1400,14 @@ fn @load_storage_bytes(arg0: u256) -> memorybytes {
 @module WriterBaseA
 fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
   bb0:
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:WriterBaseB ===
 @module WriterBaseB
 fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
   bb0:
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:WriterDerived ===
@@ -1426,7 +1426,7 @@ fn @constructor() [constructor] {
   bb3:
     jump bb5
   bb5:
-    stop
+    ret
 }
 
 fn @order() -> u256 [selector=0xbf15071d, view, abi_params=[], abi_returns=[word]] {

@@ -199,14 +199,13 @@ fn split_clobbering_phi_edges(func: &mut Function) {
 }
 
 /// Whether a function can never return to an internal caller: its reachable CFG
-/// has no `ret` or `stop` terminator (`stop` is the internal return of a void
-/// function).
+/// has no `ret` terminator. EVM `stop` halts the whole message call.
 fn function_cannot_return(func: &Function) -> bool {
     if func.blocks.is_empty() {
         return false;
     }
     let cfg = CfgInfo::new(func);
-    !cfg.reachable().iter().any(|block| {
-        matches!(func.blocks[block].terminator, Some(Terminator::Return { .. } | Terminator::Stop))
-    })
+    !cfg.reachable()
+        .iter()
+        .any(|block| matches!(func.blocks[block].terminator, Some(Terminator::Return { .. })))
 }

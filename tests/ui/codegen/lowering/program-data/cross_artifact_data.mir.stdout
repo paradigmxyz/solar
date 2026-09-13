@@ -14,7 +14,7 @@ fn @constructor() [constructor] {
     v3 = slice_ptr v2
     v4 = slice_len v2
     log1 v3, v4, 0xacc2ed49161ac5ef0f14f68f834478c81d087a53b25b23d751b2bfac5fc859df
-    stop
+    ret
 }
 
 fn @runtimeData() -> memorybytes [selector=0x69ad4ffa, pure, abi_params=[], abi_returns=[memory_bytes]] {

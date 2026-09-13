@@ -22,7 +22,7 @@ fn @store(arg0: u256) -> (u256, u256) [selector=0x6057361d, abi_params=[u256], a
 @module LayoutMiddle
 fn @constructor() [constructor] {
   bb0:
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/storage_layout_base.sol:LayoutDerived ===
@@ -34,7 +34,7 @@ fn @slots() -> (u256, u256, u256) [selector=0x48547d69, pure, abi_params=[], abi
 
 fn @constructor() [constructor] {
   bb0:
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/storage_layout_base.sol:LayoutTransient ===

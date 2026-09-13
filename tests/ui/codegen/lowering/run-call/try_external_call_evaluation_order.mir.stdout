@@ -31,7 +31,7 @@ fn @constructor() [constructor] {
     v10 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
     v11 = or v9, v10
     sstore 1, v11 !metadata(storage=slot(1))
-    stop
+    ret
 }
 
 fn @receiver() -> address {

@@ -9,7 +9,7 @@ fn @probe(arg0: bytes4) -> u256 [selector=0x14beb1ca, pure, abi_params=[bytes4],
 
 fn @constructor() [constructor] {
   bb0:
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_number_literals.sol:LibGive ===
@@ -273,5 +273,5 @@ fn @constructor() [constructor] {
     v13 = or v9, v12
     sstore 1, v13 !metadata(storage=slot(1))
     storeimmutable immutableLiteral, 0x5566778800000000000000000000000000000000000000000000000000000000
-    stop
+    ret
 }

@@ -40,7 +40,7 @@ fn @localVarInConditional() [selector=0xf2ca9be5, abi_params=[], abi_returns=[]]
     sstore 0, v3 !metadata(storage=slot(0))
     jump bb3
   bb3:
-    stop
+    ret
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -64,7 +64,7 @@ fn @directStorageInConditional() [selector=0xf5a03547, abi_params=[], abi_return
     sstore 0, v4 !metadata(storage=slot(0))
     jump bb3
   bb3:
-    stop
+    ret
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)

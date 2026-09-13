@@ -23,19 +23,19 @@
       mstore 0, 17
       revert 0, 32
     bb1:
-      stop
+      ret
   }
   
   fn @failure() {
     bb0:
       icall @guard, 0, 41
-      stop
+      ret
   }
   
   fn @unknown(arg0: u256) {
     bb0:
       icall @guard, 0, arg0
-      stop
+      ret
   }
   
   fn @effects() {
@@ -43,7 +43,7 @@
       icall @write, 0, 42
       icall @gas_reader, 0
       icall @memory_reader, 0
-      stop
+      ret
   }
   
   fn @write(arg0: u256) {

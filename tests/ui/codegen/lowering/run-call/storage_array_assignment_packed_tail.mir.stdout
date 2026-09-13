@@ -24,7 +24,7 @@ fn @constructor() [constructor] {
     v14 = mod v8, 8
     v15 = mul v14, 4
     sstore 0, v10 !metadata(storage=slot(0))
-    stop
+    ret
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)

@@ -294,7 +294,7 @@ fn @callMeMaybe(arg0: calldataslice, arg1: i256, arg2: memorybytes) [selector=0x
     v199 = iszero v198
     jumpi v199, bb6, bb48
   bb48:
-    stop
+    ret
   bb34:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)

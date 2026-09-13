@@ -30,7 +30,7 @@ fn @constructor() [constructor] {
     v22 = or v18, v21
     sstore v11, v22 !metadata(storage=symbolic(v11))
     sstore v5, v8 !metadata(storage=slot(1))
-    stop
+    ret
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)

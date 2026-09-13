@@ -17,13 +17,13 @@ fn @check(arg0: u256, arg1: u256) {
     v5 = slice_ptr v4
     v6 = slice_len v4
     log1 v5, v6, 0xb8ead7a4312aee6b04435df614582e3bfceaa60789e94048bd5ec0c5f0ddbecc
-    stop
+    ret
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb1:
-    stop
+    ret
 }
 
 fn @run(arg0: u256) -> u256 [selector=0xa444f5e9, abi_params=[u256], abi_returns=[word]] {
@@ -67,7 +67,7 @@ fn @requireEqual(arg0: u256, arg1: u256) [pure] {
   bb3:
     revert 0, 0
   bb1:
-    stop
+    ret
 }
 
 fn @failing() [selector=0x1118b879, pure, abi_params=[], abi_returns=[]] {
@@ -80,7 +80,7 @@ fn @failing() [selector=0x1118b879, pure, abi_params=[], abi_returns=[]] {
   bb5:
     jump bb2
   bb2:
-    stop
+    ret
   bb4:
     icall @requireEqual, 0, v0, 0
     jump bb6

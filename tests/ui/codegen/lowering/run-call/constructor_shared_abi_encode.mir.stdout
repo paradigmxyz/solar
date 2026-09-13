@@ -14,7 +14,7 @@ fn @record(arg0: address, arg1: calldataslice) [selector=0x01b2c698, abi_params=
     jumpi v2, bb1, bb2
   bb2:
     sstore 0, v1 !metadata(storage=slot(0))
-    stop
+    ret
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -27,7 +27,7 @@ fn @constructor(arg0: address) [constructor, abi_params=[address]] {
   bb0:
     icall @recordFirst, 0, arg0
     icall @recordSecond, 0, arg0
-    stop
+    ret
 }
 
 fn @recordFirst(arg0: address) {
@@ -50,7 +50,7 @@ fn @recordFirst(arg0: address) {
   bb3:
     revert_returndata
   bb4:
-    stop
+    ret
   bb1:
     revert 0, 0
 }
@@ -75,7 +75,7 @@ fn @recordSecond(arg0: address) {
   bb3:
     revert_returndata
   bb4:
-    stop
+    ret
   bb1:
     revert 0, 0
 }

@@ -50,5 +50,5 @@ fn @transientRead(arg0: bool, arg1: bool, arg2: u256) -> u256 [selector=0xd51942
 fn @constructor() [constructor] {
   bb0:
     sstore 0, 17 !metadata(storage=slot(0))
-    stop
+    ret
 }

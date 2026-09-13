@@ -195,7 +195,7 @@ fn @test(arg0: calldataslice) [selector=0x787210b9, abi_params=[array<_, array<_
     v245 = iszero v244
     jumpi v245, bb3, bb64
   bb64:
-    stop
+    ret
   bb37:
     v117 = memory_object_load_element memoryarray<1>, v43, v115
     v118 = eq v117, 0
@@ -646,7 +646,7 @@ fn @test2(arg0: calldataslice) [selector=0x56647b67, abi_params=[array<_, array<
     v376 = iszero v375
     jumpi v376, bb45, bb110
   bb110:
-    stop
+    ret
   bb75:
     v210 = memory_object_load_element memoryarray<1>, v131, v208
     v211 = eq v210, 0

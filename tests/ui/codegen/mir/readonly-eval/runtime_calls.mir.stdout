@@ -93,5 +93,5 @@ fn @overwrite(arg0: memorybytes, arg1: u256) [pure] {
   bb0:
     v0 = add arg0, 32
     mstore v0, arg1
-    stop
+    ret
 }

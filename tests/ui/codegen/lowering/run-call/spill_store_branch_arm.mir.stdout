@@ -53,12 +53,12 @@ fn @phasedDelta(arg0: address) -> i256 [selector=0xf6e32b8b, view, abi_params=[a
 fn @consume(arg0: u256) [selector=0x483f31ab, abi_params=[u256], abi_returns=[]] {
   bb0:
     sstore 0, arg0 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 fn @sync(arg0: address) [selector=0xa5841194, abi_params=[address], abi_returns=[]] {
   bb0:
-    stop
+    ret
 }
 
 fn @advance(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice) -> i256 [selector=0x2360a5fc, abi_params=[tuple<address, address, u24, i24, address>, tuple<bool, i256, u160>, bytes], abi_returns=[word]] {
@@ -149,7 +149,7 @@ fn @constructor() [constructor] {
     v24 = and v20, 0xffffffffffffffffffffffffffffffffffffffff
     v25 = or v23, v24
     sstore 0, v25 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 fn @fetch(arg0: address) -> (u256, u256, i256) [view] {
@@ -780,7 +780,7 @@ fn @settle(arg0: address, arg1: address, arg2: u256) {
   bb6:
     revert_returndata
   bb7:
-    stop
+    ret
   bb1:
     revert 0, 0
 }

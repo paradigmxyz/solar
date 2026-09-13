@@ -24,7 +24,7 @@ fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
   bb5:
     jump bb1
   bb1:
-    stop
+    ret
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -55,7 +55,7 @@ fn @constructor() [constructor] {
   bb1:
     jump bb8
   bb8:
-    stop
+    ret
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)

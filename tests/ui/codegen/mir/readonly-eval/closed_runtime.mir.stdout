@@ -30,7 +30,7 @@ fn @guard(arg0: u256) [pure] {
     v1 = iszero v0
     jumpi v1, bb1, bb2
   bb2:
-    stop
+    ret
   bb1:
     icall @revert_error, 0, 5, 0x6775617264000000000000000000000000000000000000000000000000000000
     invalid
@@ -46,7 +46,7 @@ fn @record() -> u256 [selector=0x266cf109, abi_params=[], abi_returns=[word]] {
 fn @write(arg0: u256) {
   bb0:
     sstore 0, arg0 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 fn @overflow() -> u256 [selector=0x004264c3, pure, abi_params=[], abi_returns=[word]] {

@@ -118,7 +118,7 @@ fn @bump(arg0: storageptr) {
     jumpi v2, bb1, bb2
   bb2:
     sstore arg0, v1 !metadata(storage=symbolic(arg0))
-    stop
+    ret
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)

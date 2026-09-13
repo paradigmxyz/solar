@@ -39,7 +39,7 @@ fn @safeTransfer(arg0: address, arg1: address, arg2: u256) [selector=0xd1660f99,
     v18 = iszero v17
     jumpi v18, bb9, bb10
   bb10:
-    stop
+    ret
   bb9:
     icall @revert_error, 0, 2, 0x5446000000000000000000000000000000000000000000000000000000000000
     invalid

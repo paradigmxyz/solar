@@ -3,7 +3,7 @@
   @module VoidForwarder
   fn @caller(arg0: u256, arg1: u256) -> u256 {
     bb0:
--     icall @forward_stop, 0, arg0, arg1, 7
+-     icall @forward_void, 0, arg0, arg1, 7
 +     jump bb2
 +   bb2:
 +     icall @sink, 0, arg1, arg0, 7
@@ -15,7 +15,7 @@
   
   fn @other(arg0: u256, arg1: u256) -> u256 {
     bb0:
--     icall @forward_stop, 0, arg1, arg0, 9
+-     icall @forward_void, 0, arg1, arg0, 9
 +     jump bb2
 +   bb2:
 +     icall @sink, 0, arg0, arg1, 9
@@ -25,10 +25,10 @@
       ret v0
   }
   
-  fn @forward_stop(arg0: u256, arg1: u256, arg2: u256) {
+  fn @forward_void(arg0: u256, arg1: u256, arg2: u256) {
     bb0:
       icall @sink, 0, arg1, arg0, arg2
-      stop
+      ret
   }
   
   fn @explicit_return(arg0: u256, arg1: u256) {
@@ -39,7 +39,7 @@
 +     icall @sink, 0, arg0, arg1, 9
 +     jump bb1
 +   bb1:
-      stop
+      ret
   }
   
   fn @forward_return(arg0: u256, arg1: u256) {
@@ -56,19 +56,19 @@
     bb1:
       sstore 0, arg1
       sstore 1, arg2
-      stop
+      ret
   }
   
   fn @discard_caller(arg0: u256) {
     bb0:
       icall @discard, 0, arg0
-      stop
+      ret
   }
   
   fn @discard(arg0: u256) {
     bb0:
       v0 = icall @value_sink, 1, arg0
-      stop
+      ret
   }
   
   fn @value_sink(arg0: u256) -> u256 {
@@ -84,27 +84,27 @@
   fn @effect_caller(arg0: u256, arg1: u256) {
     bb0:
       icall @effect, 0, arg0, arg1
-      stop
+      ret
   }
   
   fn @effect(arg0: u256, arg1: u256) {
     bb0:
       icall @sink, 0, arg0, arg1, 11
       sstore 2, arg0
-      stop
+      ret
   }
   
   fn @shared_extra_caller(arg0: u256, arg1: u256) {
     bb0:
       icall @shared_extra, 0, arg0, arg1
       icall @shared_extra, 0, arg1, arg0
-      stop
+      ret
   }
   
   fn @shared_extra(arg0: u256, arg1: u256) {
     bb0:
       icall @sink, 0, arg0, arg1, 13
-      stop
+      ret
   }
   
 - // === ROOT/tests/ui/codegen/mir/inline-tiny-leaves/void_forwarder.mir (before cfg-simplify) ===
@@ -132,10 +132,10 @@
       ret v0
   }
   
-  fn @forward_stop(arg0: u256, arg1: u256, arg2: u256) {
+  fn @forward_void(arg0: u256, arg1: u256, arg2: u256) {
     bb0:
       icall @sink, 0, arg1, arg0, arg2
-      stop
+      ret
   }
   
   fn @explicit_return(arg0: u256, arg1: u256) {
@@ -145,7 +145,7 @@
       icall @sink, 0, arg0, arg1, 9
 -     jump bb1
 -   bb1:
-      stop
+      ret
   }
   
   fn @forward_return(arg0: u256, arg1: u256) {
@@ -162,19 +162,19 @@
     bb1:
       sstore 0, arg1
       sstore 1, arg2
-      stop
+      ret
   }
   
   fn @discard_caller(arg0: u256) {
     bb0:
       icall @discard, 0, arg0
-      stop
+      ret
   }
   
   fn @discard(arg0: u256) {
     bb0:
       v0 = icall @value_sink, 1, arg0
-      stop
+      ret
   }
   
   fn @value_sink(arg0: u256) -> u256 {
@@ -190,26 +190,26 @@
   fn @effect_caller(arg0: u256, arg1: u256) {
     bb0:
       icall @effect, 0, arg0, arg1
-      stop
+      ret
   }
   
   fn @effect(arg0: u256, arg1: u256) {
     bb0:
       icall @sink, 0, arg0, arg1, 11
       sstore 2, arg0
-      stop
+      ret
   }
   
   fn @shared_extra_caller(arg0: u256, arg1: u256) {
     bb0:
       icall @shared_extra, 0, arg0, arg1
       icall @shared_extra, 0, arg1, arg0
-      stop
+      ret
   }
   
   fn @shared_extra(arg0: u256, arg1: u256) {
     bb0:
       icall @sink, 0, arg0, arg1, 13
-      stop
+      ret
   }
   

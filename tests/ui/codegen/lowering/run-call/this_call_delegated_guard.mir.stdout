@@ -23,14 +23,14 @@ fn @init() [selector=0xe1c7392a, abi_params=[], abi_returns=[]] {
     revert_returndata
   bb4:
     sstore 0, 1 !metadata(storage=slot(0))
-    stop
+    ret
   bb1:
     revert 0, 0
 }
 
 fn @ping() [selector=0x5c36b186, abi_params=[], abi_returns=[]] {
   bb0:
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/this_call_delegated_guard.sol:Proxy ===
@@ -51,7 +51,7 @@ fn @constructor(arg0: address) [constructor, abi_params=[address]] {
     v5 = iszero v4
     jumpi v5, bb1, bb2
   bb2:
-    stop
+    ret
   bb1:
     icall @revert_error, 0, 11, 0x696e6974206661696c6564000000000000000000000000000000000000000000
     invalid

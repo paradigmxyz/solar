@@ -162,7 +162,7 @@ fn @constructor() [constructor] {
     v132 = shl v126, v131
     v133 = or v130, v132
     sstore v123, v133 !metadata(storage=offset(v122, 6))
-    stop
+    ret
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

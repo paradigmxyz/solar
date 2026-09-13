@@ -75,7 +75,7 @@ fn @pair(arg0: u256) -> (u256, u256) [pure] {
 fn @callVoid(arg0: u256) [selector=0xf42b07b1, pure, abi_params=[u256], abi_returns=[]] {
   bb0:
     icall @branchingVoid, 0, arg0
-    stop
+    ret
 }
 
 fn @branchingVoid(arg0: u256) [pure] {
@@ -93,7 +93,7 @@ fn @branchingVoid(arg0: u256) [pure] {
     icall @branchingVoid, 0, v2
     jump bb3
   bb3:
-    stop
+    ret
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)

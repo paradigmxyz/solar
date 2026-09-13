@@ -26,7 +26,7 @@ fn @setUp() [selector=0x0a9254e4, abi_params=[], abi_returns=[]] {
     v13 = memory_object_load_field memorystruct<1>, v7, 0
     sstore v12, v13 !metadata(storage=symbolic(v12))
     sstore 0, v10 !metadata(storage=slot(0))
-    stop
+    ret
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)

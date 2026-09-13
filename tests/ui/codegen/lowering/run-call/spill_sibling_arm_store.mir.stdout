@@ -8,7 +8,7 @@ fn @last() -> u256 [selector=0x47799da8, view, abi_params=[], abi_returns=[word]
 
 fn @sync(arg0: address) [selector=0xa5841194, abi_params=[address], abi_returns=[]] {
   bb0:
-    stop
+    ret
 }
 
 fn @transfer(arg0: address, arg1: u256) -> bool [selector=0xa9059cbb, abi_params=[address, u256], abi_returns=[word<bool>]] {
@@ -20,12 +20,12 @@ fn @transfer(arg0: address, arg1: u256) -> bool [selector=0xa9059cbb, abi_params
 fn @take(arg0: address, arg1: address, arg2: u256) [selector=0x0b0d9c09, abi_params=[address, address, u256], abi_returns=[]] {
   bb0:
     sstore 0, arg2 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 fn @settle() [selector=0x11da60b4, payable, abi_params=[], abi_returns=[]] {
   bb0:
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/spill_sibling_arm_store.sol:Settler ===
@@ -158,7 +158,7 @@ fn @_settleOrTake(arg0: address, arg1: i128) {
     icall @take, 0, arg0, v3, v4, v6, 0
     jump bb3
   bb3:
-    stop
+    ret
 }
 
 fn @settle(arg0: address, arg1: address, arg2: address, arg3: u256, arg4: bool) {
@@ -228,13 +228,13 @@ fn @settle(arg0: address, arg1: address, arg2: address, arg3: u256, arg4: bool) 
   bb16:
     revert_returndata
   bb17:
-    stop
+    ret
   bb8:
-    stop
+    ret
   bb4:
     revert 0, 0
   bb1:
-    stop
+    ret
 }
 
 fn @take(arg0: address, arg1: address, arg2: address, arg3: u256, arg4: bool) {
@@ -258,11 +258,11 @@ fn @take(arg0: address, arg1: address, arg2: address, arg3: u256, arg4: bool) {
   bb6:
     revert_returndata
   bb7:
-    stop
+    ret
   bb4:
     revert 0, 0
   bb1:
-    stop
+    ret
 }
 
 fn @constructor() [constructor] {
@@ -286,5 +286,5 @@ fn @constructor() [constructor] {
     v10 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
     v11 = or v9, v10
     sstore 2, v11 !metadata(storage=slot(2))
-    stop
+    ret
 }

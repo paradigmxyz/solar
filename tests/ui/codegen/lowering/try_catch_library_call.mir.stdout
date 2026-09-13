@@ -58,7 +58,7 @@ fn @add(arg0: u256, arg1: u256, arg2: bool) -> u256 [selector=0x07f6a6c2, pure, 
 
 fn @empty() [selector=0xf2a75fe4, pure, abi_params=[], abi_returns=[]] {
   bb0:
-    stop
+    ret
 }
 
 fn @revert_error(arg0: u256, arg1: u256) {
@@ -384,7 +384,7 @@ fn @emptyCode() [selector=0xddb3636e, pure, abi_params=[], abi_returns=[]] {
   bb3:
     jump bb5
   bb5:
-    stop
+    ret
   bb1:
     revert 0, 0
 }

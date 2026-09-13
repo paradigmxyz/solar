@@ -92,7 +92,7 @@ fn @constructor() [constructor] {
     v60 = shl 16, v59
     v61 = or v58, v60
     sstore v54, v61 !metadata(storage=slot(0))
-    stop
+    ret
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

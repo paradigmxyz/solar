@@ -123,8 +123,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                     has_return = true;
                     values.len() == arity
                 }
-                // The backend treats `stop` in an internal function as a void return, which is
-                // incompatible with a non-empty stack-return convention.
+                // `stop` halts the message call, so it cannot satisfy an internal stack-return
+                // convention.
                 Some(Terminator::Stop) => false,
                 _ => true,
             });

@@ -139,7 +139,7 @@ fn @invalidShortDelete() [selector=0x1cba07c2, abi_params=[], abi_returns=[]] {
     jump bb4
   bb4:
     sstore 0, 0 !metadata(storage=slot(0))
-    stop
+    ret
   bb6:
     v13 = add v10, v11
     sstore v13, 0 !metadata(storage=symbolic(v13))
@@ -178,7 +178,7 @@ fn @invalidLongDelete() [selector=0x7dd42e48, abi_params=[], abi_returns=[]] {
     jump bb4
   bb4:
     sstore 0, 0 !metadata(storage=slot(0))
-    stop
+    ret
   bb6:
     v13 = add v10, v11
     sstore v13, 0 !metadata(storage=symbolic(v13))
@@ -360,7 +360,7 @@ fn @invalidShortIndexWrite() [selector=0x9cb6505e, abi_params=[], abi_returns=[]
     v24 = shl v17, v23
     v25 = or v21, v24
     sstore v14, v25 !metadata(storage=symbolic(v14))
-    stop
+    ret
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -411,7 +411,7 @@ fn @invalidLongIndexWrite() [selector=0x31e8b582, abi_params=[], abi_returns=[]]
     v24 = shl v17, v23
     v25 = or v21, v24
     sstore v14, v25 !metadata(storage=symbolic(v14))
-    stop
+    ret
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -461,7 +461,7 @@ fn @invalidShortIndexDelete() [selector=0x5a79d84c, abi_params=[], abi_returns=[
     v23 = shl v16, v22
     v24 = or v20, v23
     sstore v13, v24 !metadata(storage=symbolic(v13))
-    stop
+    ret
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -511,7 +511,7 @@ fn @invalidLongIndexDelete() [selector=0x3cb34688, abi_params=[], abi_returns=[]
     v23 = shl v16, v22
     v24 = or v20, v23
     sstore v13, v24 !metadata(storage=symbolic(v13))
-    stop
+    ret
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -607,7 +607,7 @@ fn @encodingCheckedBeforeBoundsWrite() [selector=0xc6da2038, abi_params=[], abi_
     v24 = shl v17, v23
     v25 = or v21, v24
     sstore v14, v25 !metadata(storage=symbolic(v14))
-    stop
+    ret
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -681,7 +681,7 @@ fn @invalidShortPush() [selector=0x6753fa56, abi_params=[], abi_returns=[]] {
     sstore v14, v25 !metadata(storage=symbolic(v14))
     jump bb9
   bb9:
-    stop
+    ret
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -755,7 +755,7 @@ fn @invalidLongPush() [selector=0xefd41847, abi_params=[], abi_returns=[]] {
     sstore v14, v25 !metadata(storage=symbolic(v14))
     jump bb9
   bb9:
-    stop
+    ret
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -825,7 +825,7 @@ fn @invalidShortPushZero() [selector=0xcba0ded0, abi_params=[], abi_returns=[]] 
     v35 = shr v34, v33
     v36 = and v35, 255
     v37 = shl 248, v36
-    stop
+    ret
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -895,7 +895,7 @@ fn @invalidLongPushZero() [selector=0xe8ec99d3, abi_params=[], abi_returns=[]] {
     v35 = shr v34, v33
     v36 = and v35, 255
     v37 = shl 248, v36
-    stop
+    ret
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -971,7 +971,7 @@ fn @invalidShortPushAssign() [selector=0xa1663e71, abi_params=[], abi_returns=[]
     v41 = shl v34, v40
     v42 = or v38, v41
     sstore v31, v42 !metadata(storage=symbolic(v31))
-    stop
+    ret
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -1047,7 +1047,7 @@ fn @invalidLongPushAssign() [selector=0x666fac34, abi_params=[], abi_returns=[]]
     v41 = shl v34, v40
     v42 = or v38, v41
     sstore v31, v42 !metadata(storage=symbolic(v31))
-    stop
+    ret
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -1125,7 +1125,7 @@ fn @invalidShortPop() [selector=0xeaec3c61, abi_params=[], abi_returns=[]] {
     sstore v10, 0 !metadata(storage=symbolic(v10))
     jump bb9
   bb9:
-    stop
+    ret
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 49 !metadata(memory=scratch)
@@ -1203,7 +1203,7 @@ fn @invalidLongPop() [selector=0x66075ed1, abi_params=[], abi_returns=[]] {
     sstore v10, 0 !metadata(storage=symbolic(v10))
     jump bb9
   bb9:
-    stop
+    ret
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 49 !metadata(memory=scratch)
@@ -1359,7 +1359,7 @@ fn @pushPastMaxLength() [selector=0xd9fa2828, abi_params=[], abi_returns=[]] {
     sstore v17, v28 !metadata(storage=symbolic(v17))
     jump bb9
   bb9:
-    stop
+    ret
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -1432,7 +1432,7 @@ fn @pushZeroPastMaxLength() [selector=0x65c6159f, abi_params=[], abi_returns=[]]
     v38 = shr v37, v36
     v39 = and v38, 255
     v40 = shl 248, v39
-    stop
+    ret
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)

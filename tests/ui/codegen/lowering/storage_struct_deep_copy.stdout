@@ -73,7 +73,7 @@ fn @assign() [selector=0x4bd0273c] {
     sstore v60, v62 !metadata(storage=symbolic(v60))
     jump bb9
   bb9:
-    stop
+    ret
   bb6:
     v74 = add v14, 32
     v75 = shl 5, v35
@@ -200,7 +200,7 @@ fn @push() [selector=0xa60249a3] {
     jump bb11
   bb11:
     sstore 2, v9 !metadata(storage=slot(2))
-    stop
+    ret
   bb8:
     v82 = add v20, 32
     v83 = shl 5, v41
@@ -277,7 +277,7 @@ fn @pop() [selector=0xa4ece52c] {
     v15 = lt v14, v12
     jumpi v15, bb4, bb5
   bb5:
-    stop
+    ret
   bb4:
     sstore v18, 0 !metadata(storage=symbolic(v18))
     v17 = add v14, 1
@@ -357,7 +357,7 @@ fn @assignFixed() [selector=0xb7ffd825] {
     sstore v64, v66 !metadata(storage=symbolic(v64))
     jump bb9
   bb9:
-    stop
+    ret
   bb6:
     v78 = add v18, 32
     v79 = shl 5, v39

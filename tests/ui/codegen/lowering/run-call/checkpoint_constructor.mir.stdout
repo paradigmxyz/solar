@@ -22,7 +22,7 @@ fn @constructor(arg0: memoryarray, arg1: address, arg2: u96) [constructor, abi_p
   bb5:
     jump bb2
   bb2:
-    stop
+    ret
   bb4:
     v6 = memory_object_len memoryarray, v1
     v7 = lt v0, v6
@@ -121,7 +121,7 @@ fn @push(arg0: storageptr, arg1: u96, arg2: u160) {
     v33 = or v30, v32
     sstore v19, v33 !metadata(storage=symbolic(v19))
     sstore arg0, v17 !metadata(storage=symbolic(arg0))
-    stop
+    ret
   bb8:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -367,7 +367,7 @@ fn @constructor() [constructor] {
     v2 = add v1, 32
     v3 = mload v2
     storeimmutable value, v3
-    stop
+    ret
 }
 
 fn @pair() -> (bool, u8) [pure] {

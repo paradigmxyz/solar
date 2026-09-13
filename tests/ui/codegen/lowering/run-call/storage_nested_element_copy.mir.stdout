@@ -522,7 +522,7 @@ fn @constructor() [constructor] {
     v720 = or v717, v719
     sstore v710, v720 !metadata(storage=symbolic(v710))
     sstore v704, v707 !metadata(storage=offset(v701, 1))
-    stop
+    ret
   bb148:
     v472 = memory_object_load_element memoryarray<1>, v444, v470
     v473 = eq v472, 0

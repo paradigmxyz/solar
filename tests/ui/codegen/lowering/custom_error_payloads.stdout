@@ -25,7 +25,7 @@ fn @require_empty(arg0: bool) [selector=0xfa8d4a29, pure, abi_params=[bool], abi
     v0 = iszero arg0
     jumpi v0, bb1, bb2
   bb2:
-    stop
+    ret
   bb1:
     v1 = abi_encode [], selector 0x4f3d7def00000000000000000000000000000000000000000000000000000000
     v2 = slice_ptr v1
@@ -42,7 +42,7 @@ fn @require_named(arg0: bool) [selector=0x868ff2e0, pure, abi_params=[bool], abi
     v2 = iszero arg0
     jumpi v2, bb1, bb2
   bb2:
-    stop
+    ret
   bb1:
     v3 = abi_encode [word, memory_bytes], selector 0xb9344e200000000000000000000000000000000000000000000000000000000, args 7, v0
     v4 = slice_ptr v3

@@ -18,7 +18,7 @@ fn @constructor(arg0: bytes3) [constructor, abi_params=[bytes3]] {
     v5 = and v4, 0xffffff
     v6 = or v3, v5
     sstore 0, v6 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_fixed_bytes.sol:ConstructorBaseFixedBytes ===
@@ -42,5 +42,5 @@ fn @constructor() [constructor] {
     sstore 0, v5 !metadata(storage=slot(0))
     jump bb1
   bb1:
-    stop
+    ret
 }

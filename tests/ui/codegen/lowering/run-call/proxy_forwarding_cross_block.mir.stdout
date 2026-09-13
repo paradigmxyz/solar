@@ -22,7 +22,7 @@ fn @set(arg0: u256, arg1: u256, arg2: u256, arg3: calldataslice) [selector=0x526
     jumpi v6, bb1, bb4
   bb4:
     sstore 1, v5 !metadata(storage=slot(1))
-    stop
+    ret
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -40,7 +40,7 @@ fn @constructor(arg0: address) [constructor, abi_params=[address]] {
     v4 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
     v5 = or v3, v4
     sstore 0, v5 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 fn @fallback() [fallback] {
@@ -80,7 +80,7 @@ fn @constructor(arg0: address) [constructor, abi_params=[address]] {
     v4 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
     v5 = or v3, v4
     sstore 0, v5 !metadata(storage=slot(0))
-    stop
+    ret
 }
 
 fn @fallback() [fallback] {
@@ -417,7 +417,7 @@ immutables:
 fn @constructor(arg0: address) [constructor, abi_params=[address]] {
   bb0:
     storeimmutable producer, arg0
-    stop
+    ret
 }
 
 fn @bubble() -> memorybytes [selector=0x4ce637d6, view, abi_params=[], abi_returns=[memory_bytes]] {

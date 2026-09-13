@@ -5,7 +5,7 @@ fn @assert_panic(arg0: bool) [selector=0x727ee374, pure, abi_params=[bool], abi_
     v0 = iszero arg0
     jumpi v0, bb1, bb2
   bb2:
-    stop
+    ret
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 1 !metadata(memory=scratch)
@@ -17,7 +17,7 @@ fn @require_message(arg0: bool) [selector=0x79cfb63f, pure, abi_params=[bool], a
     v0 = iszero arg0
     jumpi v0, bb1, bb2
   bb2:
-    stop
+    ret
   bb1:
     icall @revert_error, 0, 3, 0x6261640000000000000000000000000000000000000000000000000000000000
     invalid

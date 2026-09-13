@@ -27,5 +27,5 @@ fn @virtualDispatch() -> (u256, u256) [selector=0x9996f134, abi_params=[], abi_r
 
 fn @constructor() [constructor] {
   bb0:
-    stop
+    ret
 }

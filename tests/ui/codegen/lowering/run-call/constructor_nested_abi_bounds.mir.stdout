@@ -89,7 +89,7 @@ fn @constructor(arg0: memoryarray) [constructor, abi_params=[array<_, bytes>]] {
     v32 = memory_object_len memorybytes, v31
     v33 = or v24, v32
     sstore 2, v33 !metadata(storage=slot(2))
-    stop
+    ret
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

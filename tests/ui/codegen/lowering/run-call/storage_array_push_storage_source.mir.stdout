@@ -252,5 +252,5 @@ fn @pushPacked() -> (u256, u256, u256, u256) [selector=0x686690bf, abi_params=[]
 fn @constructor() [constructor] {
   bb0:
     sstore 5, 0xdead !metadata(storage=slot(5))
-    stop
+    ret
 }

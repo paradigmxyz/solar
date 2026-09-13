@@ -2,7 +2,7 @@
 @module CreationEvaluationOrderChild
 fn @constructor(arg0: u256) [constructor, payable, abi_params=[u256]] {
   bb0:
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/run-call/creation_evaluation_order.sol:CreationEvaluationOrder ===

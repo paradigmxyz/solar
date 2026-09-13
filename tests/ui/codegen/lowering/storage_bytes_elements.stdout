@@ -58,7 +58,7 @@ fn @b() -> memorybytes [selector=0x4df7e3d0, view, abi_params=[], abi_returns=[m
 fn @init(arg0: memorybytes) [selector=0x4ddf47d4, abi_params=[bytes], abi_returns=[]] {
   bb0:
     icall @store_storage_bytes, 0, 0, arg0
-    stop
+    ret
 }
 
 fn @poke() [selector=0x18178358, abi_params=[], abi_returns=[]] {
@@ -100,7 +100,7 @@ fn @poke() [selector=0x18178358, abi_params=[], abi_returns=[]] {
     v24 = shl v17, v23
     v25 = or v21, v24
     sstore v14, v25 !metadata(storage=symbolic(v14))
-    stop
+    ret
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -176,7 +176,7 @@ fn @clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
     v2 = lt v1, arg2
     jumpi v2, bb2, bb3
   bb3:
-    stop
+    ret
   bb2:
     v3 = add v0, v1
     sstore v3, 0 !metadata(storage=symbolic(v3))
@@ -263,7 +263,7 @@ fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
     sstore arg0, v28 !metadata(storage=symbolic(arg0))
     jump bb9
   bb9:
-    stop
+    ret
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -292,7 +292,7 @@ fn @constructor(arg0: memorybytes, arg1: memorybytes) [constructor, abi_params=[
   bb0:
     icall @store_storage_bytes, 0, 0, arg0
     icall @store_storage_bytes, 0, 1, arg1
-    stop
+    ret
 }
 
 fn @load_storage_bytes(arg0: u256) -> memorybytes {
@@ -359,7 +359,7 @@ fn @clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
     v2 = lt v1, arg2
     jumpi v2, bb2, bb3
   bb3:
-    stop
+    ret
   bb2:
     v3 = add v0, v1
     sstore v3, 0 !metadata(storage=symbolic(v3))
@@ -446,7 +446,7 @@ fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
     sstore arg0, v28 !metadata(storage=symbolic(arg0))
     jump bb9
   bb9:
-    stop
+    ret
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -475,7 +475,7 @@ fn @constructor(arg0: memorybytes, arg1: memorybytes) [constructor, abi_params=[
   bb0:
     icall @store_storage_bytes, 0, 0, arg0
     icall @store_storage_bytes, 0, 1, arg1
-    stop
+    ret
 }
 
 fn @load_storage_bytes(arg0: u256) -> memorybytes {
@@ -542,7 +542,7 @@ fn @clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
     v2 = lt v1, arg2
     jumpi v2, bb2, bb3
   bb3:
-    stop
+    ret
   bb2:
     v3 = add v0, v1
     sstore v3, 0 !metadata(storage=symbolic(v3))
@@ -629,7 +629,7 @@ fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
     sstore arg0, v28 !metadata(storage=symbolic(arg0))
     jump bb9
   bb9:
-    stop
+    ret
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -658,7 +658,7 @@ fn @constructor() [constructor] {
   bb1:
     jump bb2
   bb2:
-    stop
+    ret
 }
 
 fn @name() -> memorybytes [selector=0x06fdde03, view, abi_params=[], abi_returns=[memory_bytes]] {
@@ -682,7 +682,7 @@ fn @clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
     v2 = lt v1, arg2
     jumpi v2, bb2, bb3
   bb3:
-    stop
+    ret
   bb2:
     v3 = add v0, v1
     sstore v3, 0 !metadata(storage=symbolic(v3))
@@ -769,7 +769,7 @@ fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
     sstore arg0, v28 !metadata(storage=symbolic(arg0))
     jump bb9
   bb9:
-    stop
+    ret
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -918,7 +918,7 @@ fn @constructor() [constructor] {
     icall @store_storage_bytes, 0, 1, v2
     jump bb1
   bb1:
-    stop
+    ret
 }
 
 fn @clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
@@ -930,7 +930,7 @@ fn @clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
     v2 = lt v1, arg2
     jumpi v2, bb2, bb3
   bb3:
-    stop
+    ret
   bb2:
     v3 = add v0, v1
     sstore v3, 0 !metadata(storage=symbolic(v3))
@@ -1017,7 +1017,7 @@ fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
     sstore arg0, v28 !metadata(storage=symbolic(arg0))
     jump bb9
   bb9:
-    stop
+    ret
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)

@@ -1044,12 +1044,6 @@ fn summarize_function(
                 summary.estimated_code_size +=
                     estimate_terminator_cost(target, term).bytes as usize;
             }
-            // A void internal function returns via `Stop` (the backend lowers it
-            // to an internal return). Treat it as a return point so void callees
-            // can be inlined.
-            Some(Terminator::Stop) if func.returns.is_empty() => {
-                summary.return_count += 1;
-            }
             Some(Terminator::Jump(_))
             | Some(Terminator::Branch { .. })
             | Some(Terminator::Switch { .. }) => {
@@ -1227,7 +1221,6 @@ fn is_transparent_forwarder(func: &Function) -> bool {
     let [call] = func.blocks[BlockId::ENTRY].instructions.as_slice() else { return false };
     let InstKind::ICall { returns, .. } = func.inst(*call).kind else { return false };
     match (returns, func.blocks[BlockId::ENTRY].terminator.as_ref()) {
-        (0, Some(Terminator::Stop)) => func.returns.is_empty(),
         (0, Some(Terminator::Return { values })) => func.returns.is_empty() && values.is_empty(),
         (1, Some(Terminator::Return { values })) => {
             func.returns.len() == 1
@@ -2093,11 +2086,6 @@ impl<'a> InlineCloner<'a> {
                     .map(|value| self.clone_value(*value))
                     .collect::<Option<SmallVec<[ValueId; 2]>>>()?;
                 self.return_edges.push((cloned_block, mapped));
-                Terminator::Jump(continuation)
-            }
-            // A void callee's `Stop` is an internal return with no values.
-            Terminator::Stop if self.callee.returns.is_empty() => {
-                self.return_edges.push((cloned_block, SmallVec::new()));
                 Terminator::Jump(continuation)
             }
             Terminator::Revert { offset, size } => Terminator::Revert {

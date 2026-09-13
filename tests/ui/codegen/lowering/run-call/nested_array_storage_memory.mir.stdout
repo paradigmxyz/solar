@@ -218,7 +218,7 @@ fn @constructor() [constructor] {
     v162 = lt v161, 2
     jumpi v162, bb85, bb86
   bb86:
-    stop
+    ret
   bb85:
     v163 = mul v161, 2
     v164 = add 4, v163
