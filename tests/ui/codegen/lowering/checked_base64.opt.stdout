@@ -511,7 +511,7 @@ fn @decode.8(arg0: memptr) -> memptr [pure] {
     v0 = mload arg0
     jumpi v0, bb2, bb1
   bb1:
-    v4 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v4 = mload 64 !metadata(memory=scratch)
     v337 = add v4, 32
     v338 = lt v337, v4
     v339 = gt v337, 0xffffffffffffffff

@@ -33,9 +33,9 @@ fn @encodeFirst() [selector=0xe9a7b169, pure] {
     v24 = sub v23, v8
     v26 = add v24, 31
     v28 = and v26, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v29 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
+    v29 = mload 64 !metadata(preserves_fmp)
     v31 = add v29, v28
-    mstore 64, v31 !metadata(memory=scratch)
+    mstore 64, v31
     returndata v29, v24
   bb1:
     revert 0, 0
@@ -66,11 +66,11 @@ fn @encodeSecond() [selector=0x108c1ec5, pure] {
     jumpi v22, bb3, bb4
   bb4:
     v24 = and v21, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v25 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
+    v25 = mload 64 !metadata(preserves_fmp)
     v50 = add v25, v24
-    mstore 64, v50 !metadata(memory=scratch)
+    mstore 64, v50
     mstore v25, v19
-    v26 = mload 64 !metadata(memory=scratch)
+    v26 = mload 64
     v27 = add v26, 32
     mstore v26, 32
     v30 = iszero v25
@@ -94,13 +94,13 @@ fn @encodeSecond() [selector=0x108c1ec5, pure] {
     v42 = sub v41, v26
     v44 = add v42, 31
     v46 = and v44, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v47 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
+    v47 = mload 64 !metadata(preserves_fmp)
     v51 = add v47, v46
-    mstore 64, v51 !metadata(memory=scratch)
+    mstore 64, v51
     returndata v47, v42
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
+    mstore 4, 65
     revert 0, 36
   bb1:
     revert 0, 0
@@ -126,9 +126,9 @@ fn @roundTrip() [selector=0x00746047, pure] {
     v177 = gt v173, v176
     jumpi v177, bb3, bb45
   bb45:
-    v0 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v0 = mload 64
     v215 = add v0, 64
-    mstore 64, v215 !metadata(memory=scratch)
+    mstore 64, v215
     v3 = shl 5, v173
     v5 = shr 5, v3
     v6 = eq v5, v173
@@ -145,7 +145,7 @@ fn @roundTrip() [selector=0x00746047, pure] {
   bb5:
     v20 = mload 64 !metadata(memory=scratch, effect=memory_write)
     v211 = add v20, v18
-    mstore 64, v211 !metadata(memory=scratch)
+    mstore 64, v211
     mstore v20, v173
     jump bb6
   bb6:
@@ -195,14 +195,14 @@ fn @roundTrip() [selector=0x00746047, pure] {
     v118 = eq v117, v113
     jumpi v118, bb32, bb1
   bb32:
-    v121 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v121 = mload 64
     v203 = add v121, v115
     v204 = lt v203, v121
     v205 = gt v203, 0xffffffffffffffff
     v206 = or v204, v205
     jumpi v206, bb1, bb46
   bb46:
-    mstore 64, v203 !metadata(memory=scratch)
+    mstore 64, v203
     mstore v121, v111
     v122 = shl 5, v111
     v124 = shr 5, v122
@@ -231,9 +231,9 @@ fn @roundTrip() [selector=0x00746047, pure] {
     v66 = mload v188
     jumpi v66, bb18, bb17
   bb17:
-    v68 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v68 = mload 64
     v213 = add v68, 32
-    mstore 64, v213 !metadata(memory=scratch)
+    mstore 64, v213
     mstore v68, 0
     mstore v188, v68
     jump bb18
@@ -256,9 +256,9 @@ fn @roundTrip() [selector=0x00746047, pure] {
     v80 = mload v192
     jumpi v80, bb24, bb23
   bb23:
-    v82 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v82 = mload 64
     v214 = add v82, 32
-    mstore 64, v214 !metadata(memory=scratch)
+    mstore 64, v214
     mstore v82, 0
     mstore v192, v82
     jump bb24
@@ -267,8 +267,8 @@ fn @roundTrip() [selector=0x00746047, pure] {
     v84 = mload v83
     jumpi v84, bb25, bb15
   bb15:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
+    mstore 4, 50
     revert 0, 36
   bb25:
     v194 = add v83, 32
@@ -280,8 +280,8 @@ fn @roundTrip() [selector=0x00746047, pure] {
     mstore 128, v88
     returndata 128, 32
   bb20:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
+    mstore 4, 17
     revert 0, 36
   bb36:
     v135 = mload v132
@@ -301,14 +301,14 @@ fn @roundTrip() [selector=0x00746047, pure] {
     v148 = eq v147, v143
     jumpi v148, bb40, bb1
   bb40:
-    v151 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v151 = mload 64
     v207 = add v151, v145
     v208 = lt v207, v151
     v209 = gt v207, 0xffffffffffffffff
     v210 = or v208, v209
     jumpi v210, bb1, bb47
   bb47:
-    mstore 64, v207 !metadata(memory=scratch)
+    mstore 64, v207
     mstore v151, v141
     v152 = shl 5, v141
     v154 = shr 5, v152
@@ -366,9 +366,9 @@ fn @roundTrip() [selector=0x00746047, pure] {
     jumpi v51, bb14, bb1
   bb14:
     v54 = add v42, 32
-    v56 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v56 = mload 64
     v212 = add v56, v54
-    mstore 64, v212 !metadata(memory=scratch)
+    mstore 64, v212
     mstore v56, v40
     v182 = add v56, 32
     calldatacopy v182, v43, v42
@@ -399,9 +399,9 @@ fn @decode_calldata_type(arg0: u256) -> memptr {
     v6 = gt 64, v5
     jumpi v6, bb1, bb3
   bb3:
-    v7 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v7 = mload 64
     v74 = add v7, 96
-    mstore 64, v74 !metadata(memory=scratch)
+    mstore 64, v74
     v8 = calldataload v2
     mstore v7, v8
     v9 = add v2, 32
@@ -423,14 +423,14 @@ fn @decode_calldata_type(arg0: u256) -> memptr {
     v25 = lt v24, v18
     jumpi v25, bb5, bb7
   bb7:
-    v26 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v26 = mload 64
     v66 = add v26, v24
     v67 = lt v66, v26
     v68 = gt v66, 0xffffffffffffffff
     v69 = or v67, v68
     jumpi v69, bb5, bb16
   bb16:
-    mstore 64, v66 !metadata(memory=scratch)
+    mstore 64, v66
     mstore v26, v16
     v27 = sub v0, v12
     v28 = shr 5, v27
@@ -468,14 +468,14 @@ fn @decode_calldata_type(arg0: u256) -> memptr {
     v49 = lt v48, v42
     jumpi v49, bb5, bb14
   bb14:
-    v50 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v50 = mload 64
     v70 = add v50, v48
     v71 = lt v70, v50
     v72 = gt v70, 0xffffffffffffffff
     v73 = or v71, v72
     jumpi v73, bb5, bb17
   bb17:
-    mstore 64, v70 !metadata(memory=scratch)
+    mstore 64, v70
     mstore v50, v40
     v51 = sub v0, v36
     v52 = shr 5, v51
@@ -493,8 +493,8 @@ fn @decode_calldata_type(arg0: u256) -> memptr {
     v57 = add v32, 1
     jump bb9
   bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
+    mstore 4, 65
     revert 0, 36
   bb1:
     revert 0, 0
@@ -520,9 +520,9 @@ fn @encodeFirst.body(arg0: memptr) -> memptr [pure] {
     jumpi v16, bb1, bb2
   bb2:
     v18 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v19 = mload 64 !metadata(memory=scratch, preserves_fmp, effect=memory_write)
+    v19 = mload 64 !metadata(preserves_fmp)
     v21 = add v19, v18
-    mstore 64, v21 !metadata(memory=scratch)
+    mstore 64, v21
     mstore v19, v13
     ret v19
   bb1:
