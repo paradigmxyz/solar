@@ -41,12 +41,16 @@ pub(super) fn validated_code_actions(
     is_preferred: bool,
     diagnostic_data: bool,
 ) -> Vec<CodeActionOrCommand> {
+    if !crate::code_actions::quick_fixes_requested(&params) {
+        return Vec::new();
+    }
     let uri = params.text_document.uri.clone();
     let source_map = SourceMap::empty();
     let Some((contents, version)) = current_file_contents(&vfs, &source_map, &uri) else {
         return Vec::new();
     };
-    let plans = crate::code_actions::plans(&params, &diagnostics, &contents);
+    let positions = proto::LspPositionIndex::new(&contents);
+    let plans = crate::code_actions::plans(&params, &diagnostics, &positions);
     if plans.is_empty() {
         return Vec::new();
     }
@@ -56,7 +60,7 @@ pub(super) fn validated_code_actions(
         .filter_map(|plan| {
             validated_code_action(
                 plan,
-                &contents,
+                &positions,
                 version,
                 &fingerprint,
                 document_changes,
@@ -69,7 +73,7 @@ pub(super) fn validated_code_actions(
 
 fn validated_code_action(
     plan: CodeActionPlan,
-    contents: &Rope,
+    positions: &proto::LspPositionIndex<&Rope>,
     version: Option<i32>,
     fingerprint: &str,
     document_changes: bool,
@@ -79,7 +83,7 @@ fn validated_code_action(
     if plan.source_fingerprint != fingerprint {
         return None;
     }
-    let edits = validate_code_action_edits(contents, plan.edits)?;
+    let edits = validate_code_action_edits(positions, plan.edits)?;
     let edit = if document_changes {
         WorkspaceEdit {
             changes: None,
@@ -114,11 +118,13 @@ fn validated_code_action(
     )
 }
 
-fn validate_code_action_edits(contents: &Rope, edits: Vec<TextEdit>) -> Option<Vec<TextEdit>> {
+fn validate_code_action_edits(
+    index: &proto::LspPositionIndex<&Rope>,
+    edits: Vec<TextEdit>,
+) -> Option<Vec<TextEdit>> {
     if edits.is_empty() {
         return None;
     }
-    let index = proto::LspPositionIndex::new(contents);
     let mut byte_ranges = Vec::with_capacity(edits.len());
     for edit in &edits {
         let range = index.checked_text_range(edit.range)?;
@@ -341,7 +347,10 @@ mod tests {
             TextEdit::new(Range::new(Position::new(0, 2), Position::new(0, 7)), "y".into()),
         ];
 
-        assert_eq!(validate_code_action_edits(&contents, edits.clone()), Some(edits));
+        assert_eq!(
+            validate_code_action_edits(&proto::LspPositionIndex::new(&contents), edits.clone()),
+            Some(edits)
+        );
     }
 
     #[test]
@@ -376,7 +385,10 @@ mod tests {
         ];
 
         for edits in invalid {
-            assert_eq!(validate_code_action_edits(&contents, edits), None);
+            assert_eq!(
+                validate_code_action_edits(&proto::LspPositionIndex::new(&contents), edits),
+                None
+            );
         }
     }
 }
