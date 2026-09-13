@@ -380,6 +380,7 @@ struct AnalysisTasks {
     coordinator: Option<(AnalysisTaskKey, AbortHandle)>,
     worker: Option<(AnalysisTaskKey, AbortHandle)>,
     cancellation: Option<IndexingCancellation>,
+    debounce: Option<(AnalysisTaskKey, oneshot::Sender<()>)>,
 }
 
 /// Reuses import completion results within one analysis/configuration epoch.
@@ -409,6 +410,7 @@ enum AnalysisTaskStage {
 
 impl AnalysisTasks {
     fn cancel(&mut self) {
+        self.debounce = None;
         if let Some(cancellation) = self.cancellation.take() {
             cancellation.cancel();
         }
@@ -1211,9 +1213,24 @@ impl GlobalState {
             tasks.cancel();
         }
         tasks.cancellation = Some(cancellation.clone());
+        let debounce = if delay.is_zero() {
+            None
+        } else {
+            let (wake, debounce) = oneshot::channel();
+            tasks.debounce = Some((task_key, wake));
+            Some(debounce)
+        };
         let coordinator = tokio::spawn(async move {
-            if !delay.is_zero() {
-                tokio::time::sleep(delay).await;
+            if let Some(debounce) = debounce {
+                // Navigation needs the current snapshot now; background changes still coalesce.
+                tokio::select! {
+                    _ = tokio::time::sleep(delay) => {}
+                    _ = debounce => {}
+                }
+                let mut tasks = task_scheduler.tasks.lock();
+                if tasks.debounce.as_ref().is_some_and(|(key, _)| *key == task_key) {
+                    tasks.debounce = None;
+                }
             }
 
             let Ok(permit) = task_scheduler.gate.clone().acquire_owned().await else {
@@ -1385,6 +1402,23 @@ impl GlobalState {
         }
         commit.natspec_pending_source_changes.extend(changed_paths);
         self.analysis_version.store(version, Ordering::Release);
+    }
+
+    /// Wake delayed analysis when an interactive request needs a fresh semantic snapshot.
+    ///
+    /// This only ends the current debounce. The single-worker gate, cancellation checks and
+    /// publication epoch still apply; a subsequent edit starts a new debounce window.
+    pub(crate) fn prioritize_pending_analysis(&self) {
+        let version = self.analysis_version.load(Ordering::Acquire);
+        if *self.published_analysis_version.borrow() == version {
+            return;
+        }
+        let mut tasks = self.analysis_scheduler.tasks.lock();
+        if tasks.debounce.as_ref().is_some_and(|(key, _)| key.version == version)
+            && let Some((_, wake)) = tasks.debounce.take()
+        {
+            let _ = wake.send(());
+        }
     }
 
     /// Waits for analysis results at least as new as the latest version requested before this call.
