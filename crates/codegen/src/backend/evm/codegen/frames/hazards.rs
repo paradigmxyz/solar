@@ -142,6 +142,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         match address.base {
             MemoryBase::Allocation(_)
             | MemoryBase::DynamicAllocation(_)
+            | MemoryBase::Param(_)
             | MemoryBase::InternalFrame => false,
             MemoryBase::Absolute => {
                 address.offset < EvmMemoryLayout::HEAP_START.saturating_add(SPILL_HAZARD_BOUND)

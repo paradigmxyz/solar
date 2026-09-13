@@ -10,6 +10,9 @@
 //! blocks or the jumps that replace their instruction suffixes. Those jumps also
 //! retain the suffix's entry location before its origins are merged, so single-origin
 //! source maps do not lose both callers' locations on a shared body.
+//! In gas mode, a hot shared suffix must also repay its added transfer over the
+//! requested optimizer run count with deposited-byte savings. Cold suffixes
+//! retain the static size decision.
 //!
 //! A shared tail starts at a block boundary, so both the merged block and the representative may
 //! only be cut where `keep_with_next` allows a split. That keeps sequences whose intervening gas
@@ -38,9 +41,12 @@ use super::{
         is_terminal_boundary,
     },
 };
-use crate::backend::evm::{
-    ir::{Block, BlockId, Hotness, Instruction, Metadata, Module, Terminator, TerminatorKind},
-    op::{self, StackOp, push_len},
+use crate::{
+    backend::evm::{
+        ir::{Block, BlockId, Hotness, Instruction, Metadata, Module, Terminator, TerminatorKind},
+        op::{self, StackOp, push_len},
+    },
+    target::Target,
 };
 use smallvec::SmallVec;
 use solar_data_structures::map::{FxHashMap, FxHashSet};
@@ -111,14 +117,28 @@ impl RunState {
                 gcx.sess.opts.optimization.is_gas() && has_short_word_backedge(module, block_id);
             let matched = self.longest_common_tail(block, keep_branches);
 
-            // A hot shared tail adds a runtime jump, so require one extra byte in gas mode.
+            let target = Target::new(gcx);
+            let transfer_bytes = (target.opcode(op::PUSH2).bytes
+                + target.opcode(op::JUMP).bytes
+                + target.opcode(op::JUMPDEST).bytes) as usize;
+            let transfer_gas = target.opcode_gas(op::PUSH2)
+                + target.opcode_gas(op::JUMP)
+                + target.opcode_gas(op::JUMPDEST);
             if let Some((representative, common)) = matched
                 && common > 0
                 && {
                     let hot = !block.metadata.hotness.is_cold()
                         || !module.blocks[representative].metadata.hotness.is_cold();
-                    let minimum = 5 + usize::from(gcx.sess.opts.optimization.is_gas() && hot);
-                    suffix_size(gcx, module, block_id, common) > minimum
+                    let suffix_size = suffix_size(gcx, module, block_id, common);
+                    let saved_bytes = suffix_size.saturating_sub(transfer_bytes);
+                    suffix_size > transfer_bytes
+                        && (!gcx.sess.opts.optimization.is_gas()
+                            || !hot
+                            || tail_merge_improves_lifetime(
+                                saved_bytes,
+                                transfer_gas,
+                                target.expected_executions(),
+                            ))
                 }
             {
                 self.merges.push(Merge { representative, block: block_id, common });
@@ -379,6 +399,16 @@ impl RunState {
     }
 }
 
+/// Whether one hot transfer into a shared tail repays its deposited-byte saving.
+const fn tail_merge_improves_lifetime(
+    saved_bytes: usize,
+    transfer_gas: u32,
+    expected_executions: u64,
+) -> bool {
+    saved_bytes as u128 * Target::CODE_DEPOSIT_GAS_PER_BYTE as u128
+        > transfer_gas as u128 * expected_executions as u128
+}
+
 /// Preserve an address's control-only identity when its consumer moves into a shared tail.
 fn preserve_split_control_target(
     module: &mut Module,
@@ -521,5 +551,17 @@ impl TailNode {
     fn clear(&mut self) {
         self.children.clear();
         self.representative = None;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn hot_tail_lifetime_profitability() {
+        assert!(tail_merge_improves_lifetime(20, 12, 200));
+        assert!(!tail_merge_improves_lifetime(12, 12, 200));
+        assert!(!tail_merge_improves_lifetime(20, 12, 1_000_000));
     }
 }

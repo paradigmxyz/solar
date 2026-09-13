@@ -1,4 +1,4 @@
-//@compile-flags: -Ogas -Zevm-ir-pipeline=tail-merge --evm-version amsterdam
+//@compile-flags: -Ogas -Zevm-ir-pipeline=tail-merge --evm-version amsterdam --optimize-runs 1
 //@filecheck:
 @module module
 
@@ -148,13 +148,12 @@ bb14 [cold]:
   pop
   stop
 
-// A six-byte hot suffix does not pay for its runtime jump in gas mode.
+// At a single optimizer run the deposit saving pays for a hot suffix's jump
+// too: the first copy jumps to the shared tail and the second falls through
+// into it.
 // CHECK-LABEL: {{^[ +].*}}bb11:
 // CHECK: {{^[ +].*}}push 11
-// CHECK-NEXT: {{^[ +].*}}push 1
-// CHECK-NEXT: {{^[ +].*}}push 2
-// CHECK-NEXT: {{^[ +].*}}push 0
-// CHECK-NEXT: {{^[ +].*}}stop
+// CHECK: + jump [[TAIL_E:bb[0-9]+]]
 bb11:
   push 11
   push 1
@@ -164,10 +163,7 @@ bb11:
 
 // CHECK-LABEL: {{^[ +].*}}bb12:
 // CHECK: {{^[ +].*}}push 12
-// CHECK-NEXT: {{^[ +].*}}push 1
-// CHECK-NEXT: {{^[ +].*}}push 2
-// CHECK-NEXT: {{^[ +].*}}push 0
-// CHECK-NEXT: {{^[ +].*}}stop
+// CHECK-NEXT: + jump [[TAIL_E]]
 bb12:
   push 12
   push 1
@@ -184,3 +180,8 @@ bb12:
 // CHECK: + [[TAIL_C]]:
 // CHECK: {{^[ +].*}}push 222
 // CHECK: {{^[ +].*}}revert
+// CHECK: + [[TAIL_E]]:
+// CHECK-NEXT: {{^[ +].*}}push 1
+// CHECK-NEXT: {{^[ +].*}}push 2
+// CHECK-NEXT: {{^[ +].*}}push 0
+// CHECK-NEXT: {{^[ +].*}}stop

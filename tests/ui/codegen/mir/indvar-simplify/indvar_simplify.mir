@@ -1,11 +1,40 @@
 //@compile-flags: -Zmir-pipeline=indvar-simplify
 //@filecheck:
 @module IndVarSimplify
+// Two shifted address computations share one pointer phi.
 // CHECK-LABEL: {{^[ +].*}}fn @strength_reduce_shifted_address{{[( ]}}
 // CHECK: + [[ADDRESS:v[0-9]+]] = phi [bb0: arg0], [bb2: [[NEXT:v[0-9]+]]]
+// CHECK: + {{v[0-9]+}} = mload [[ADDRESS]]
 // CHECK: + mstore [[ADDRESS]], {{v[0-9]+}}
 // CHECK: + [[NEXT]] = add [[ADDRESS]], 32
 fn @strength_reduce_shifted_address(arg0: u256) -> u256 {
+  bb0:
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb2: v6]
+    v2 = lt v1, 4
+    jumpi v2, bb2, bb3
+  bb2:
+    v3 = shl 5, v1
+    v4 = add arg0, v3
+    v5 = mload v4
+    v7 = shl 5, v1
+    v8 = add arg0, v7
+    v9 = add v5, 1
+    mstore v8, v9
+    v6 = add v1, 1
+    jump bb1
+  bb3:
+    ret 0
+}
+
+// One shifted address saves only its shift and add per iteration, which
+// does not pay for the latch update plus a second loop-carried word.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_shifted_address_single_use{{[( ]}}
+// CHECK-NOT: + {{v[0-9]+}} = phi
+// CHECK: {{^ +}}{{v[0-9]+}} = add arg0, {{v[0-9]+}}
+// CHECK-NEXT: {{^ +}}mstore
+fn @keep_shifted_address_single_use(arg0: u256) -> u256 {
   bb0:
     jump bb1
   bb1:
@@ -45,11 +74,13 @@ fn @strength_reduce_scaled_address_with_offset(arg0: u256) -> u256 {
     ret 0
 }
 
-// CHECK-LABEL: {{^[ +].*}}fn @strength_reduce_scale_one_address{{[( ]}}
-// CHECK: + [[ADDRESS:v[0-9]+]] = phi [bb0: arg0], [bb2: [[NEXT:v[0-9]+]]]
-// CHECK: + mstore8 [[ADDRESS]], {{v[0-9]+}}
-// CHECK: + [[NEXT]] = add [[ADDRESS]], 1
-fn @strength_reduce_scale_one_address(arg0: u256) -> u256 {
+// A lone `base + iv` at one site would trade an add for an add plus a carried
+// pointer word, so it stays in place; scaled or offset addresses reduce above.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_scale_one_single_use{{[( ]}}
+// CHECK-NOT: + {{v[0-9]+}} = phi
+// CHECK: {{^ +}}{{v[0-9]+}} = add arg0, {{v[0-9]+}}
+// CHECK-NEXT: {{^ +}}mstore8
+fn @keep_scale_one_single_use(arg0: u256) -> u256 {
   bb0:
     jump bb1
   bb1:

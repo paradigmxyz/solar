@@ -32,8 +32,6 @@ contract C {
     // CHECK-NEXT: push [[DECL_BODY:bb[0-9]+]]
     // CHECK: [[ACC_BODY]]:
     // CHECK: sload
-    // CHECK: jump [[RETURN:bb[0-9]+]]
-    // CHECK: [[RETURN]]:
     // CHECK: return
     // CHECK: [[DECL_BODY]]:
     // CHECK: sstore

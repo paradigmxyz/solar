@@ -60,9 +60,11 @@ fn @wide_choose(arg0: bool, arg1: u256) -> u256 {
     ret v2
 }
 
-// Cyclic phis do not qualify for the acyclic stack estimate.
+// Backward liveness bounds a read-only loop helper too, so its sole call
+// inlines with the loop-carried phi.
 // CHECK-LABEL: fn @loop_caller
-// CHECK: {{^ +}}v0 = icall @loop_body
+// CHECK: - {{v[0-9]+}} = icall @loop_body
+// CHECK: + {{v[0-9]+}} = phi [{{bb[0-9]+}}: 0], [{{bb[0-9]+}}: {{v[0-9]+}}]
 fn @loop_caller(arg0: u256) -> u256 [selector=0x01020306] {
   bb0:
     v0 = icall @loop_body, 1, arg0

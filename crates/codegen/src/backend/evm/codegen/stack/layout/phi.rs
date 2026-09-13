@@ -24,6 +24,10 @@
 //! avoiding a store-operand exchange and a second exchange on the backedge.
 //! Only gas-mode loops with a direct or empty latch and a small header qualify;
 //! carried invariants retain their order below the two phi words.
+//! In gas mode, a non-nested loop with one phi and multiple byte stores can also
+//! retain its counter across body branches. The extra stores amortize the
+//! transfers. Existing exit-shape, call, and stack-depth restrictions still
+//! apply.
 
 use super::super::super::{
     BlockId, DenseBitSet, Function, FunctionId, FxHashMap, FxHashSet, GlobalStackPlan, IndexVec,
@@ -367,19 +371,31 @@ impl<'a> StackPhiPlanner<'a> {
                     }
             });
             let phis = self.phi_insts(block);
-            // A literal can initialize a self-loop phi and also occur after the loop without
-            // needing a second resident identity: each use can materialize it. Treating that
-            // literal as a carried source excludes zero-initialized copy loops and prevents
-            // enclosing-loop invariants from crossing them. Keep other join shapes unchanged.
+            // A computed phi source that stays live past the join rides the layout twice:
+            // once renamed to its phi result and once as itself. The edge shuffler duplicates
+            // the word, and a source used past the phis keeps its store unless every layout it
+            // is live in carries it. This is the shape of an inner index initialized from an
+            // enclosing counter, `j = i`, whose exit still reads `i`.
+            //
+            // Two kinds of source keep the join out of the plan. A resident argument has one
+            // physical word with no frame fallback, so it cannot be both the phi input and the
+            // invariant prefix the argument layout merges below the phis. A literal that is
+            // also live past the join is admitted only in gas mode, where the branch emitter
+            // materializes an edge-exclusive immediate on its own edge; the other modes keep
+            // the established exclusion outside self-loops, since two loops seeded from one
+            // literal and allocating inside their bodies mislaid the counter at `-O none`.
             let phi_source_is_live_in = block.predecessors.iter().any(|&pred| {
                 self.phi_sources_for_pred(&phis, pred).is_some_and(|sources| {
                     sources.iter().any(|&source| {
                         liveness.live_in(block_id).contains(source)
-                            && !(block.predecessors.contains(&block_id)
-                                && matches!(
-                                    self.func.value(source),
-                                    crate::mir::Value::Immediate(_)
-                                ))
+                            && match self.func.value(source) {
+                                crate::mir::Value::Arg(_) => true,
+                                crate::mir::Value::Immediate(_) => {
+                                    !self.target.optimization().is_gas()
+                                        && !block.predecessors.contains(&block_id)
+                                }
+                                _ => false,
+                            }
                     })
                 })
             });
@@ -952,8 +968,11 @@ impl<'a> StackPhiPlanner<'a> {
         for &value in &facts.own_uses[block_id] {
             scratch.insert(value);
         }
-        let want = |scratch: &mut DenseBitSet<ValueId>, layout: &[ValueId]| {
-            for &value in layout {
+        // A successor's layout names its phi results; this block delivers the
+        // sources of those phis on its edge, so those are the words it wants.
+        let want = |scratch: &mut DenseBitSet<ValueId>, succ: BlockId, layout: &[ValueId]| {
+            let sources = self.layout_sources(succ, layout, block_id);
+            for &value in sources.as_deref().unwrap_or(layout) {
                 if live_through.contains(value) {
                     scratch.insert(value);
                 }
@@ -994,9 +1013,9 @@ impl<'a> StackPhiPlanner<'a> {
                 // for, so asking with the layout alone never bootstraps a loop-carried
                 // word. The latch check and the precise phase prune what it costs.
                 if let Some(layout) = layouts.get(&succ).filter(|_| precise) {
-                    want(scratch, layout);
+                    want(scratch, succ, layout);
                 } else if let Some(entry) = plan.entries.get(&succ) {
-                    want(scratch, entry);
+                    want(scratch, succ, entry);
                 } else {
                     mask.clone_from(&wanted[succ]);
                     mask.intersect(live_through);
@@ -1007,9 +1026,13 @@ impl<'a> StackPhiPlanner<'a> {
         // A word the enclosing loop carries around is wanted everywhere inside it:
         // the joins on the way to a latch must carry it, or the latch cannot deliver
         // it back to the header and the header drops it.
-        for header in &facts.loop_headers_of[block_id] {
-            if let Some(layout) = layouts.get(header) {
-                want(scratch, layout);
+        for &header in &facts.loop_headers_of[block_id] {
+            if let Some(layout) = layouts.get(&header) {
+                for &value in layout {
+                    if live_through.contains(value) {
+                        scratch.insert(value);
+                    }
+                }
             }
         }
         if wanted[block_id] == *scratch {
@@ -1520,7 +1543,27 @@ impl<'a> StackPhiPlanner<'a> {
                         && self.is_noreturn_block(*else_block))
                     || self.branch_phi_shape(loop_info, *then_block, *else_block).is_some()
             });
-        branch_shapes_safe && self.phi_insts(&self.func.blocks[loop_info.header]).len() >= 2
+        let phi_count = self.phi_insts(&self.func.blocks[loop_info.header]).len();
+        let single_counter = self.target.optimization().is_gas()
+            && phi_count == 1
+            && nesting_depth == 0
+            && loop_info.back_edges.len() == 1
+            && !self.loops.iter().any(|other| {
+                other.header != loop_info.header && loop_info.blocks.contains(other.header)
+            });
+        // header: [counter]; ...; mstore8 out_a, a; ...; mstore8 out_b, b
+        // latch: [next_counter] -> header
+        // Multiple byte stores amortize the stack transfers across body branches.
+        let writes_multiple_bytes = single_counter
+            && loop_info
+                .blocks
+                .iter()
+                .flat_map(|block| &self.func.blocks[block].instructions)
+                .filter(|&&inst| matches!(self.func.inst(inst).kind, InstKind::MStore8(..)))
+                .take(2)
+                .count()
+                == 2;
+        branch_shapes_safe && (phi_count >= 2 || writes_multiple_bytes)
     }
 
     fn loop_instructions_are_stack_safe(&self, loop_info: &Loop) -> bool {

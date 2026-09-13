@@ -3,18 +3,19 @@
 @phase evm-shaped
 fn @frame_counter_feeds_affine_address(arg0: u256, arg1: u256) -> u256 {
   bb0:
+    v10 = add arg1, 32
     jump bb1
   bb1:
-    v8 = phi [bb0: 0], [bb2: v6]
-    v9 = phi [bb0: arg1], [bb2: v10]
-    v3 = lt v8, arg0
+    v9 = phi [bb0: 0], [bb2: v7]
+    v11 = phi [bb0: v10], [bb2: v12]
+    v3 = lt v9, arg0
     jumpi v3, bb2, bb3
   bb3:
     ret 0
   bb2:
-    mstore v9, v8
-    v6 = add v8, 1
-    v10 = add v9, 32
+    mstore v11, v9
+    v7 = add v9, 1
+    v12 = add v11, 32
     jump bb1
 }
 

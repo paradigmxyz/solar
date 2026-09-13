@@ -44,7 +44,7 @@ bb0:
   swap 3
   exchange 1, 2
   jump bb15
-bb17:
+bb17 [loop]:
   dup 2
   xor
   swap 1
@@ -60,7 +60,7 @@ bb17:
   swap 2
   swap 1
   jump bb15
-bb15:
+bb15 [loop]:
   dup 5
   dup 5
   lt
@@ -103,7 +103,7 @@ bb2:
   push 0
   swap 2
   jump bb18
-bb20:
+bb20 [loop]:
   dup 2
   sub
   swap 1
@@ -115,15 +115,13 @@ bb20:
   swap 2
   swap 1
   jump bb18
-bb18:
+bb18 [loop]:
   push 288
   mload
   dup 4
   lt
   push bb20
   jumpi
-  jump bb24
-bb24:
   push 128
   mstore
   push 32
@@ -148,7 +146,7 @@ bb3:
   push 0
   swap 2
   jump bb21
-bb23:
+bb23 [loop]:
   dup 2
   push 11
   byte
@@ -164,11 +162,15 @@ bb23:
   swap 2
   swap 1
   jump bb21
-bb21:
+bb21 [loop]:
   push 256
   mload
   dup 4
   lt
   push bb23
   jumpi
-  jump bb24
+  push 128
+  mstore
+  push 32
+  push 128
+  return

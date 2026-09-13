@@ -7,75 +7,6 @@
     indexed_jump bb1, bb2, bb3, bb4
   bb1:
     push 0x3e9
--   push 1
--   push 2
--   push 3
--   push 4
--   push 5
--   push 6
--   push 7
--   push 8
--   push 9
--   push 10
--   push 11
--   push 12
--   push 13
--   push 14
--   push 15
--   push 16
--   push 0x7d1
--   jump
-+   push bb6
-+   jump bb5
-  bb2:
-    push 0x3ea
--   push 1
--   push 2
--   push 3
--   push 4
--   push 5
--   push 6
--   push 7
--   push 8
--   push 9
--   push 10
--   push 11
--   push 12
--   push 13
--   push 14
--   push 15
--   push 16
--   push 0x7d2
--   jump
-+   push bb7
-+   jump bb5
-  bb3:
-    push 0x3eb
--   push 1
--   push 2
--   push 3
--   push 4
--   push 5
--   push 6
--   push 7
--   push 8
--   push 9
--   push 10
--   push 11
--   push 12
--   push 13
--   push 14
--   push 15
--   push 16
--   push 0x7d3
--   jump
-+   push bb8
-+   jump bb5
-  bb4:
-    push 0x3ec
-+   push bb9
-+   jump bb5
-+ bb5:
     push 1
     push 2
     push 3
@@ -92,33 +23,66 @@
     push 14
     push 15
     push 16
-+   swap 1
-+   swap 2
-+   swap 3
-+   swap 4
-+   swap 5
-+   swap 6
-+   swap 7
-+   swap 8
-+   swap 9
-+   swap 10
-+   swap 11
-+   swap 12
-+   swap 13
-+   swap 14
-+   swap 15
-+   swap 16
-+   jump
-+ bb6 [continuation]:
-+   push 0x7d1
-+   jump
-+ bb7 [continuation]:
-+   push 0x7d2
-+   jump
-+ bb8 [continuation]:
-+   push 0x7d3
-+   jump
-+ bb9 [continuation]:
+    push 0x7d1
+    jump
+  bb2:
+    push 0x3ea
+    push 1
+    push 2
+    push 3
+    push 4
+    push 5
+    push 6
+    push 7
+    push 8
+    push 9
+    push 10
+    push 11
+    push 12
+    push 13
+    push 14
+    push 15
+    push 16
+    push 0x7d2
+    jump
+  bb3:
+    push 0x3eb
+    push 1
+    push 2
+    push 3
+    push 4
+    push 5
+    push 6
+    push 7
+    push 8
+    push 9
+    push 10
+    push 11
+    push 12
+    push 13
+    push 14
+    push 15
+    push 16
+    push 0x7d3
+    jump
+  bb4:
+    push 0x3ec
+    push 1
+    push 2
+    push 3
+    push 4
+    push 5
+    push 6
+    push 7
+    push 8
+    push 9
+    push 10
+    push 11
+    push 12
+    push 13
+    push 14
+    push 15
+    push 16
     push 0x7d4
     jump
   

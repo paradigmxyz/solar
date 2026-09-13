@@ -164,8 +164,7 @@ fn @a() [selector=0x1e3badd9, pure] {
     calldatacopy v47, v25, v2
     v39 = iszero v19
     v40 = iszero v39
-    v38 = mload v19
-    v41 = mul v38, v40
+    v41 = mul v29, v40
     v43 = shl 5, v41
     v44 = add v47, 32
     mcopy v44, v47, v43

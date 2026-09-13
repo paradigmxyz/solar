@@ -1,5 +1,5 @@
 //@ revisions: gas size
-//@[gas] compile-flags: -Zevm-ir-pipeline=tail-merge -O gas --evm-version amsterdam
+//@[gas] compile-flags: -Zevm-ir-pipeline=tail-merge -O gas --evm-version amsterdam --optimize-runs 1
 //@[size] compile-flags: -Zevm-ir-pipeline=tail-merge -O size --evm-version amsterdam
 //@[gas] filecheck: --check-prefix=GAS
 //@[size] filecheck: --check-prefix=SIZE

@@ -31,12 +31,19 @@
 //! immutable loads and pure single-opcode computations, retaining the ordinary
 //! tiny-leaf size and lifetime-cost limits. Inlining stays at the original call
 //! site, including constructor calls; no runtime immutable bounds are assumed.
-//! Small acyclic scalar helpers with phis may also inline at their sole call site.
+//! Small scalar helpers with phis may also inline at their sole call site.
 //! Backward liveness estimates the callee's peak live words and the caller values
 //! surviving the call. Their sum must fit twelve words, leaving stack-addressing
-//! headroom for operand staging. Loops, memory operations and shared phi helpers
-//! remain excluded. This is a bounded profitability estimate, not a promise that
-//! the scheduler will emit no spills.
+//! headroom for operand staging. The gas-only hot-leaf pass reuses that estimate
+//! for bounded acyclic scalar helpers called from inside loops, with a ten-word
+//! budget because the loop's carried words stay resident through every join a
+//! clone adds: each such site is cloned when the call protocol it removes, weighed
+//! over the loop's trip count (ten iterations when none is computable) and the
+//! expected executions, repays the deposited copy; sites outside loops and
+//! callees shared by more than eight sites keep the call. Read-only loops are eligible after
+//! loop-idiom lowering when their bounded MIR shape replaces the original scalar loop;
+//! writes and shared phi helpers remain excluded. This is a bounded profitability
+//! estimate, not a promise that the scheduler will emit no spills.
 //! A separate gas-only late adapter accepts frameless wrappers with one returning
 //! call followed by at most five physical address/load/store operations. It clones
 //! the call and subsequent memory operations in order, without moving accesses
@@ -54,9 +61,9 @@ use crate::{
     mir::{
         AbiLayout, AbiType, AllocationSemantics, BlockId, EffectKind, FrameMode, FrameSlotKind,
         Function, FunctionBuilder, FunctionId as MirFunctionId, Immediate, ImmutableEncoding,
-        InstId, InstKind, Instruction, MemoryObjectKind, MirType, Module, Terminator, Value,
-        ValueId,
-        analysis::{CallGraphInfo, CfgInfo, Liveness, LoopAnalyzer},
+        InstId, InstKind, Instruction, MemoryObjectKind, MirPhase, MirType, Module, Terminator,
+        Value, ValueId,
+        analysis::{CallGraphInfo, Liveness, LoopAnalyzer},
         immutable::immutable_push_type_size,
         memory::{EvmMemoryLayout, MemoryLayoutPolicy},
         pass::MirPass,
@@ -168,6 +175,35 @@ impl MirPass for InlineMemoryWrappers {
     }
 }
 
+/// Clones bounded scalar helpers into the loops that call them in gas mode.
+pub(crate) struct InlineHotLeaves;
+
+impl MirPass for InlineHotLeaves {
+    fn name(&self) -> &'static str {
+        "inline-hot-leaves"
+    }
+
+    fn run_pass(
+        &self,
+        gcx: Gcx<'_>,
+        module: &mut Module,
+        _analyses: &mut crate::mir::pass::ModuleAnalyses,
+    ) -> bool {
+        if !gcx.sess.opts.optimization.is_gas() {
+            return false;
+        }
+        MirInliner {
+            mode: InlineMode::HotLeaves,
+            max_shared_callee_blocks: 16,
+            max_caller_inlined_instructions: 128,
+            ..MirInliner::default()
+        }
+        .run(gcx, module)
+        .inlined
+            != 0
+    }
+}
+
 /// Module pass for consuming a single-use helper without duplicating its body.
 pub(crate) struct InlineSingleUse;
 
@@ -182,14 +218,21 @@ impl MirPass for InlineSingleUse {
         module: &mut Module,
         _analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        MirInliner {
+        let stats = MirInliner {
             mode: InlineMode::SingleUse,
             max_single_call_sanity_instructions: 256,
+            frame_staging_allowed: module.phase < MirPhase::MemoryLowered,
             ..MirInliner::default()
         }
-        .run(gcx, module)
-        .inlined
-            != 0
+        .run(gcx, module);
+        // The consumed bodies are dead now. Remove exactly those instead of a
+        // module-wide dead-function sweep, which would also delete uncalled
+        // functions that were never reachable, such as the subjects of
+        // pipeline tests.
+        if !stats.consumed.is_empty() {
+            super::cfg_simplify::remove_unreferenced_functions(module, &stats.consumed);
+        }
+        stats.inlined != 0
     }
 }
 
@@ -264,6 +307,10 @@ struct MirInliner {
     immutable_leaves_only: bool,
     /// Restricts late expansion to small post-call memory wrappers.
     memory_wrappers_only: bool,
+    /// Whether multi-value returns may stage through semantic frame slots. Once
+    /// frame slots are lowered to physical memory, a late run must leave such
+    /// callees alone: the staging instructions would survive the phase boundary.
+    frame_staging_allowed: bool,
     mode: InlineMode,
 }
 
@@ -273,6 +320,18 @@ enum InlineMode {
     TinyLeaves,
     ConstantLeaves,
     SingleUse,
+    HotLeaves,
+}
+
+/// Which callees get a stack-peak estimate when the module is summarized.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum PeakAnalysis {
+    /// No estimate; phi-carrying callees stay shared.
+    None,
+    /// Bounded scalar helpers with phis, for their sole call site.
+    Phis,
+    /// Every bounded scalar helper, for loop call sites.
+    Scalars,
 }
 
 impl Default for MirInliner {
@@ -293,12 +352,39 @@ impl Default for MirInliner {
             max_module_code_size: usize::MAX,
             immutable_leaves_only: false,
             memory_wrappers_only: false,
+            frame_staging_allowed: true,
             mode: InlineMode::Normal,
         }
     }
 }
 
 impl MirInliner {
+    /// How many times a loop without a computable trip count is assumed to
+    /// run per invocation when a hot leaf is weighed: GCC's estimate for such
+    /// loops. Counted loops use their real trip count instead.
+    const UNCOUNTED_LOOP_EXECUTIONS: u64 = 10;
+    /// A hot leaf shared by more call sites than this stays a call: every
+    /// clone deposits the whole body again.
+    const MAX_HOT_LEAF_CALL_SITES: usize = 8;
+    /// Live words a caller may hold across an inlined body plus the body's own
+    /// peak, leaving stack-addressing headroom for operand staging.
+    const STACK_BUDGET: usize = 12;
+    /// The tighter budget for hot leaves: a clone inside a loop body also keeps
+    /// the loop's carried words resident through every join it adds, and the
+    /// Base64 encoder lost half its gas to spills when the two budgets matched.
+    const HOT_LEAF_STACK_BUDGET: usize = 10;
+
+    /// The live-word budget for inlining at the current mode's sites.
+    const fn stack_budget(&self) -> usize {
+        match self.mode {
+            InlineMode::HotLeaves => Self::HOT_LEAF_STACK_BUDGET,
+            InlineMode::Normal
+            | InlineMode::TinyLeaves
+            | InlineMode::ConstantLeaves
+            | InlineMode::SingleUse => Self::STACK_BUDGET,
+        }
+    }
+
     /// Creates the `-O size` inliner: a module budget of zero disables all MIR
     /// inlining, which only ever grows emitted code on real contracts (both
     /// multi-use duplication and the cascades that single-call inlining sets
@@ -336,7 +422,7 @@ impl MirInliner {
 }
 
 /// Statistics for MIR-level inlining.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct MirInlineStats {
     /// Number of internal call sites considered.
     call_sites: usize,
@@ -344,6 +430,8 @@ struct MirInlineStats {
     inlined: usize,
     /// Number of call sites skipped because the callee was not inlineable.
     skipped: usize,
+    /// Callees whose only call site was inlined; nothing calls them afterwards.
+    consumed: Vec<MirFunctionId>,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -351,6 +439,8 @@ struct MirInlineSummary {
     instruction_count: usize,
     block_count: usize,
     return_count: usize,
+    /// Number of values one return delivers; two or more stage through a frame buffer.
+    return_values: usize,
     param_count: usize,
     estimated_code_size: usize,
     internal_frame_size: u64,
@@ -362,6 +452,9 @@ struct MirInlineSummary {
     has_immutable_write: bool,
     has_log: bool,
     has_control_flow: bool,
+    /// Whether the body contains a back edge; a loop cloned into a loop nests
+    /// its carried words inside the caller's.
+    has_loop: bool,
     has_unsupported_terminator: bool,
     has_reference_return: bool,
     /// A one-block helper that forwards an argument, slice components, or one internal call.
@@ -439,7 +532,7 @@ impl MirInliner {
             if !summaries.get(&caller_id).is_some_and(|summary| summary.has_icall) {
                 continue;
             }
-            let loop_costs = block_loop_costs(module.function(caller_id));
+            let mut loop_costs = block_loop_costs(module.function(caller_id));
             // Bound how much each caller may grow from inlining so a function
             // calling many internal helpers (e.g. a large verifier) cannot
             // balloon past the deployable code-size limit.
@@ -499,7 +592,9 @@ impl MirInliner {
                 {
                     let caller = module.function(caller_id);
                     let liveness = caller_liveness.get_or_insert_with(|| Liveness::compute(caller));
-                    if surviving_call_words(caller, liveness, site).saturating_add(peak) > 12 {
+                    if surviving_call_words(caller, liveness, site).saturating_add(peak)
+                        > self.stack_budget()
+                    {
                         stats.skipped += 1;
                         continue;
                     }
@@ -511,12 +606,21 @@ impl MirInliner {
                 let caller = module.function_mut(caller_id);
                 if inline_call(caller, site.block, site.inst_index, &callee) {
                     stats.inlined += 1;
+                    if self.mode == InlineMode::SingleUse && call_count == 1 {
+                        stats.consumed.push(site.callee);
+                    }
                     caller_liveness = None;
+                    // The clone split the call block, so the loop membership
+                    // of the calls that followed it must be recomputed before
+                    // they are weighed.
+                    if self.mode == InlineMode::HotLeaves {
+                        loop_costs = block_loop_costs(module.function(caller_id));
+                    }
                     let new_summary = summarize_function(
                         gcx,
                         module,
                         module.function(caller_id),
-                        self.mode == InlineMode::SingleUse,
+                        self.peak_analysis(),
                     );
                     module_code_size = module_code_size
                         .saturating_sub(old_size)
@@ -557,10 +661,19 @@ impl MirInliner {
         module
             .functions
             .iter_enumerated()
-            .map(|(id, func)| {
-                (id, summarize_function(gcx, module, func, self.mode == InlineMode::SingleUse))
-            })
+            .map(|(id, func)| (id, summarize_function(gcx, module, func, self.peak_analysis())))
             .collect()
+    }
+
+    /// The stack-peak estimate the current mode needs from callee summaries.
+    fn peak_analysis(&self) -> PeakAnalysis {
+        match self.mode {
+            InlineMode::SingleUse => PeakAnalysis::Phis,
+            InlineMode::HotLeaves => PeakAnalysis::Scalars,
+            InlineMode::Normal | InlineMode::TinyLeaves | InlineMode::ConstantLeaves => {
+                PeakAnalysis::None
+            }
+        }
     }
 
     fn call_counts(&self, module: &Module) -> FxHashMap<MirFunctionId, usize> {
@@ -651,6 +764,7 @@ impl MirInliner {
                         returns: returns as usize,
                         loop_depth: loop_costs.get(&block).map_or(0, |cost| cost.depth),
                         loop_executions: loop_costs.get(&block).map_or(1, |cost| cost.executions),
+                        loop_counted: loop_costs.get(&block).is_none_or(|cost| cost.counted),
                         has_constant_function_selector: args
                             .first()
                             .is_some_and(|&arg| func.value(arg).as_immediate().is_some()),
@@ -673,13 +787,33 @@ impl MirInliner {
         preferred_large_call_site: Option<(MirFunctionId, InstId)>,
     ) -> bool {
         let single_call = self.inline_single_call && call_count == 1;
-        let bounded_phi =
-            self.mode == InlineMode::SingleUse && single_call && summary.phi_stack_peak.is_some();
+        let bounded_phi = summary.phi_stack_peak.is_some()
+            && match self.mode {
+                InlineMode::SingleUse => single_call,
+                InlineMode::HotLeaves => true,
+                InlineMode::Normal | InlineMode::TinyLeaves | InlineMode::ConstantLeaves => false,
+            };
         if self.mode == InlineMode::SingleUse
             && (!single_call
                 || summary.internal_frame_size != 0
                 || summary.has_reference_return
-                || (summary.has_phi && !bounded_phi))
+                || (summary.has_phi && !bounded_phi)
+                || (!self.frame_staging_allowed && summary.return_values > 1))
+        {
+            return false;
+        }
+
+        // A hot leaf is a bounded scalar helper called from inside a loop. Its
+        // other call sites keep the shared body; the lifetime check below
+        // weighs each clone against the call protocol it removes per iteration.
+        if self.mode == InlineMode::HotLeaves
+            && (site.loop_depth == 0
+                || summary.phi_stack_peak.is_none()
+                || summary.has_loop
+                || summary.has_icall
+                || summary.internal_frame_size != 0
+                || summary.has_reference_return
+                || call_count > Self::MAX_HOT_LEAF_CALL_SITES)
         {
             return false;
         }
@@ -804,8 +938,13 @@ impl MirInliner {
 
         let added_deposit_cost =
             (inlined_bytes - removed_bytes) as u128 * CODE_DEPOSIT_GAS_PER_BYTE;
-        let loop_executions =
-            if self.target.optimization().is_gas() { site.loop_executions } else { 1 };
+        let loop_executions = if !self.target.optimization().is_gas() {
+            1
+        } else if self.mode == InlineMode::HotLeaves && site.loop_depth > 0 && !site.loop_counted {
+            Self::UNCOUNTED_LOOP_EXECUTIONS
+        } else {
+            site.loop_executions
+        };
         let execution_savings = u128::from(estimated_icall_savings(self.target, site, summary))
             .saturating_mul(u128::from(self.expected_executions_per_deployment))
             .saturating_mul(u128::from(loop_executions));
@@ -823,6 +962,8 @@ struct CallSite {
     returns: usize,
     loop_depth: usize,
     loop_executions: u64,
+    /// Whether every enclosing loop has a computed trip count.
+    loop_counted: bool,
     has_constant_function_selector: bool,
     has_constant_argument: bool,
 }
@@ -960,11 +1101,12 @@ fn summarize_function(
     gcx: Gcx<'_>,
     module: &Module,
     func: &Function,
-    analyze_phi: bool,
+    peak: PeakAnalysis,
 ) -> MirInlineSummary {
     let target = Target::new(gcx);
     let mut summary = MirInlineSummary {
         block_count: func.blocks.len(),
+        return_values: func.returns.len(),
         param_count: func.params.len(),
         internal_frame_size: func.internal_frame_size,
         is_entry_point: func.attributes.is_fallback
@@ -986,6 +1128,7 @@ fn summarize_function(
         is_function_pointer_dispatcher: func.attributes.is_function_pointer_dispatcher,
         has_function_selector: func.params.first() == Some(&MirType::Function),
         is_pure: func.attributes.state_mutability == StateMutability::Pure,
+        has_loop: has_back_edge(func),
         ..MirInlineSummary::default()
     };
 
@@ -1067,22 +1210,57 @@ fn summarize_function(
         }
     }
 
-    if analyze_phi
-        && summary.has_phi
-        && summary.block_count <= 4
-        && summary.instruction_count <= 24
+    if (peak == PeakAnalysis::Scalars || (peak == PeakAnalysis::Phis && summary.has_phi))
+        && summary.block_count <= 16
+        && summary.instruction_count <= 112
         && summary.param_count <= 4
         && !func.params.iter().any(|ty| matches!(ty, MirType::Slice(_)))
-        && summary.return_count == 1
+        && summary.return_count <= 3
+        && summary.return_count != 0
         && summary.internal_frame_size == 0
         && !summary.has_reference_return
         && !summary.has_icall
-        && func.instructions().all(|inst| func.inst(inst).kind.effect_kind() == EffectKind::Pure)
-        && CfgInfo::new(func).cyclic_blocks().is_empty()
+        && func.instructions().all(|inst| {
+            matches!(
+                func.inst(inst).kind.effect_kind(),
+                EffectKind::Pure | EffectKind::MemoryRead | EffectKind::EnvironmentRead
+            )
+        })
     {
         summary.phi_stack_peak = Some(scalar_stack_peak(func));
     }
     summary
+}
+
+/// Whether the control-flow graph has a back edge, found by a depth-first walk
+/// from the entry block that tracks the blocks on the current path.
+fn has_back_edge(func: &Function) -> bool {
+    let mut on_path = DenseBitSet::new_empty(func.blocks.len());
+    let mut finished = DenseBitSet::new_empty(func.blocks.len());
+    let mut stack = vec![(BlockId::ENTRY, 0)];
+    on_path.insert(BlockId::ENTRY);
+    while let Some(top) = stack.last_mut() {
+        let (block, next) = *top;
+        let successors = func.blocks[block]
+            .terminator
+            .as_ref()
+            .map(|term| term.successors())
+            .unwrap_or_default();
+        let Some(&successor) = successors.get(next) else {
+            on_path.remove(block);
+            stack.pop();
+            continue;
+        };
+        top.1 += 1;
+        if on_path.contains(successor) {
+            return true;
+        }
+        if finished.insert(successor) {
+            on_path.insert(successor);
+            stack.push((successor, 0));
+        }
+    }
+    false
 }
 
 /// Peak SSA live words in a small scalar helper; immediates are rematerialized.
@@ -1538,6 +1716,8 @@ fn estimated_internal_return_code_size(
 struct LoopCost {
     depth: usize,
     executions: u64,
+    /// Whether every enclosing loop contributed a computed trip count.
+    counted: bool,
 }
 
 fn block_loop_costs(func: &Function) -> FxHashMap<BlockId, LoopCost> {
@@ -1557,13 +1737,16 @@ fn block_loop_costs(func: &Function) -> FxHashMap<BlockId, LoopCost> {
                 })
         });
         for block in &loop_data.blocks {
-            let cost = costs.entry(block).or_insert(LoopCost { depth: 0, executions: 1 });
+            let cost =
+                costs.entry(block).or_insert(LoopCost { depth: 0, executions: 1, counted: true });
             cost.depth += 1;
             if let Some(count) = counted
                 && loop_data.back_edges.iter().all(|&latch| analyzer.dominates(block, latch))
             {
                 let count = count.saturating_add(u64::from(block == loop_data.header));
                 cost.executions = cost.executions.saturating_mul(count);
+            } else {
+                cost.counted = false;
             }
         }
     }

@@ -379,147 +379,147 @@ fn @nested() -> u256 [selector=0x4ce2d543, abi_params=[], abi_returns=[word]] {
     v156 = alloc memoryfixedarray<2, 1>, exact, uninitialized, panic, 64
     jump bb20
   bb20:
-    v157 = phi [bb19: 0], [bb25: v173]
+    v157 = phi [bb19: 0], [bb25: v172]
     v158 = lt v157, 2
     jumpi v158, bb21, bb22
   bb22:
     jump bb26
   bb26:
-    v174 = phi [bb22: 0], [bb31: v231]
-    v175 = lt v174, 3
-    jumpi v175, bb27, bb28
+    v173 = phi [bb22: 0], [bb31: v230]
+    v174 = lt v173, 3
+    jumpi v174, bb27, bb28
   bb28:
-    v232 = lt 0, 3
-    v233 = iszero v232
-    jumpi v233, bb1, bb44
+    v231 = lt 0, 3
+    v232 = iszero v231
+    jumpi v232, bb1, bb44
   bb44:
-    v234 = mul 0, 3
-    v235 = add 14, v234
-    v236 = lt 4, 6
-    v237 = iszero v236
-    jumpi v237, bb1, bb45
+    v233 = mul 0, 3
+    v234 = add 14, v233
+    v235 = lt 4, 6
+    v236 = iszero v235
+    jumpi v236, bb1, bb45
   bb45:
-    v238 = div 4, 2
-    v239 = add v235, v238
-    v240 = mod 4, 2
-    v241 = mul v240, 15
-    v242 = sload v239 !metadata(storage=symbolic(v239))
-    v243 = mul v241, 8
-    v244 = shr v243, v242
-    v245 = and v244, 0xffffffffffffffffffffffffffffff
-    v246 = add 3, v245
-    v247 = gt v246, 0xffffffffffffffffffffffffffffff
-    jumpi v247, bb46, bb47
+    v237 = div 4, 2
+    v238 = add v234, v237
+    v239 = mod 4, 2
+    v240 = mul v239, 15
+    v241 = sload v238 !metadata(storage=symbolic(v238))
+    v242 = mul v240, 8
+    v243 = shr v242, v241
+    v244 = and v243, 0xffffffffffffffffffffffffffffff
+    v245 = add 3, v244
+    v246 = gt v245, 0xffffffffffffffffffffffffffffff
+    jumpi v246, bb46, bb47
   bb47:
-    ret v246
+    ret v245
   bb46:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb27:
-    v176 = mul v174, 3
-    v177 = add 14, v176
-    v178 = lt v174, 2
-    jumpi v178, bb29, bb30
+    v175 = mul v173, 3
+    v176 = add 14, v175
+    v177 = lt v173, 2
+    jumpi v177, bb29, bb30
   bb30:
-    v205 = alloc memoryfixedarray<6, 1>, exact, uninitialized, infallible, 192
-    memory_zero v205, 192
+    v204 = alloc memoryfixedarray<6, 1>, exact, uninitialized, infallible, 192
+    memory_zero v204, 192
     jump bb38
   bb38:
-    v206 = phi [bb30: 0], [bb43: v230]
-    v207 = lt v206, 6
-    jumpi v207, bb39, bb40
+    v205 = phi [bb30: 0], [bb43: v229]
+    v206 = lt v205, 6
+    jumpi v206, bb39, bb40
   bb40:
     jump bb31
   bb39:
-    v208 = div v206, 2
-    v209 = add v177, v208
-    v210 = mod v206, 2
-    v211 = mul v210, 15
-    v212 = lt v206, 6
-    jumpi v212, bb41, bb42
+    v207 = div v205, 2
+    v208 = add v176, v207
+    v209 = mod v205, 2
+    v210 = mul v209, 15
+    v211 = lt v205, 6
+    jumpi v211, bb41, bb42
   bb42:
-    v222 = mul v211, 8
-    v223 = shl v222, 0xffffffffffffffffffffffffffffff
-    v224 = sload v209 !metadata(storage=symbolic(v209))
-    v225 = not v223
-    v226 = and v224, v225
-    v227 = and 0, 0xffffffffffffffffffffffffffffff
-    v228 = shl v222, v227
-    v229 = or v226, v228
-    sstore v209, v229 !metadata(storage=symbolic(v209))
+    v221 = mul v210, 8
+    v222 = shl v221, 0xffffffffffffffffffffffffffffff
+    v223 = sload v208 !metadata(storage=symbolic(v208))
+    v224 = not v222
+    v225 = and v223, v224
+    v226 = and 0, 0xffffffffffffffffffffffffffffff
+    v227 = shl v221, v226
+    v228 = or v225, v227
+    sstore v208, v228 !metadata(storage=symbolic(v208))
     jump bb43
   bb41:
-    v213 = memory_object_load_element memoryfixedarray<6, 1>, v205, v206
-    v214 = mul v211, 8
-    v215 = shl v214, 0xffffffffffffffffffffffffffffff
-    v216 = sload v209 !metadata(storage=symbolic(v209))
-    v217 = not v215
-    v218 = and v216, v217
-    v219 = and v213, 0xffffffffffffffffffffffffffffff
-    v220 = shl v214, v219
-    v221 = or v218, v220
-    sstore v209, v221 !metadata(storage=symbolic(v209))
+    v212 = memory_object_load_element memoryfixedarray<6, 1>, v204, v205
+    v213 = mul v210, 8
+    v214 = shl v213, 0xffffffffffffffffffffffffffffff
+    v215 = sload v208 !metadata(storage=symbolic(v208))
+    v216 = not v214
+    v217 = and v215, v216
+    v218 = and v212, 0xffffffffffffffffffffffffffffff
+    v219 = shl v213, v218
+    v220 = or v217, v219
+    sstore v208, v220 !metadata(storage=symbolic(v208))
     jump bb43
   bb43:
-    v230 = add v206, 1
+    v229 = add v205, 1
     jump bb38
   bb29:
-    v179 = memory_object_load_element memoryfixedarray<2, 1>, v156, v174
+    v178 = memory_object_load_element memoryfixedarray<2, 1>, v156, v173
     jump bb32
   bb32:
-    v180 = phi [bb29: 0], [bb37: v204]
-    v181 = lt v180, 6
-    jumpi v181, bb33, bb34
+    v179 = phi [bb29: 0], [bb37: v203]
+    v180 = lt v179, 6
+    jumpi v180, bb33, bb34
   bb34:
     jump bb31
   bb31:
-    v231 = add v174, 1
+    v230 = add v173, 1
     jump bb26
   bb33:
-    v182 = div v180, 2
-    v183 = add v177, v182
-    v184 = mod v180, 2
-    v185 = mul v184, 15
-    v186 = lt v180, 5
-    jumpi v186, bb35, bb36
+    v181 = div v179, 2
+    v182 = add v176, v181
+    v183 = mod v179, 2
+    v184 = mul v183, 15
+    v185 = lt v179, 5
+    jumpi v185, bb35, bb36
   bb36:
-    v196 = mul v185, 8
-    v197 = shl v196, 0xffffffffffffffffffffffffffffff
-    v198 = sload v183 !metadata(storage=symbolic(v183))
-    v199 = not v197
-    v200 = and v198, v199
-    v201 = and 0, 0xffffffffffffffffffffffffffffff
-    v202 = shl v196, v201
-    v203 = or v200, v202
-    sstore v183, v203 !metadata(storage=symbolic(v183))
+    v195 = mul v184, 8
+    v196 = shl v195, 0xffffffffffffffffffffffffffffff
+    v197 = sload v182 !metadata(storage=symbolic(v182))
+    v198 = not v196
+    v199 = and v197, v198
+    v200 = and 0, 0xffffffffffffffffffffffffffffff
+    v201 = shl v195, v200
+    v202 = or v199, v201
+    sstore v182, v202 !metadata(storage=symbolic(v182))
     jump bb37
   bb35:
-    v187 = memory_object_load_element memoryfixedarray<5, 1>, v179, v180
-    v188 = mul v185, 8
-    v189 = shl v188, 0xffffffffffffffffffffffffffffff
-    v190 = sload v183 !metadata(storage=symbolic(v183))
-    v191 = not v189
-    v192 = and v190, v191
-    v193 = and v187, 0xffffffffffffffffffffffffffffff
-    v194 = shl v188, v193
-    v195 = or v192, v194
-    sstore v183, v195 !metadata(storage=symbolic(v183))
+    v186 = memory_object_load_element memoryfixedarray<5, 1>, v178, v179
+    v187 = mul v184, 8
+    v188 = shl v187, 0xffffffffffffffffffffffffffffff
+    v189 = sload v182 !metadata(storage=symbolic(v182))
+    v190 = not v188
+    v191 = and v189, v190
+    v192 = and v186, 0xffffffffffffffffffffffffffffff
+    v193 = shl v187, v192
+    v194 = or v191, v193
+    sstore v182, v194 !metadata(storage=symbolic(v182))
     jump bb37
   bb37:
-    v204 = add v180, 1
+    v203 = add v179, 1
     jump bb32
   bb21:
     v159 = add 12, v157
     v160 = alloc memoryfixedarray<5, 1>, exact, uninitialized, panic, 160
     jump bb23
   bb23:
-    v161 = phi [bb21: 0], [bb24: v172]
+    v161 = phi [bb21: 0], [bb24: v171]
     v162 = lt v161, 5
     jumpi v162, bb24, bb25
   bb25:
     memory_object_store_element memoryfixedarray<2, 1>, v156, v157, v160
-    v173 = add v157, 1
+    v172 = add v157, 1
     jump bb20
   bb24:
     v163 = div v161, 5
@@ -530,9 +530,8 @@ fn @nested() -> u256 [selector=0x4ce2d543, abi_params=[], abi_returns=[word]] {
     v168 = mul v166, 8
     v169 = shr v168, v167
     v170 = and v169, 0xffffffffffff
-    v171 = and v170, 0xffffffffffff
-    memory_object_store_element memoryfixedarray<5, 1>, v160, v161, v171
-    v172 = add v161, 1
+    memory_object_store_element memoryfixedarray<5, 1>, v160, v161, v170
+    v171 = add v161, 1
     jump bb23
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)

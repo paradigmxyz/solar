@@ -23,17 +23,11 @@ fn @combine() [selector=0xd9171e32, pure] {
     mstore v19, v2
     v20 = add v0, 64
     mstore v20, 3
-    v3 = mload v0
-    v4 = mload v3
-    v5 = mload v19
-    v22 = add v5, 32
-    v6 = mload v22
-    v7 = add v4, v6
-    v8 = lt v7, v4
+    v7 = add arg0, arg0
+    v8 = lt v7, arg0
     jumpi v8, bb1, bb2
   bb2:
-    v9 = mload v20
-    v10 = add v7, v9
+    v10 = add v7, 3
     v11 = lt v10, v7
     jumpi v11, bb1, bb3
   bb3:

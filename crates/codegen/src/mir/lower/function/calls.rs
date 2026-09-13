@@ -715,6 +715,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     // External functions are low-aligned as scalar MIR values, but Solidity memory stores their
     // 24-byte representation left-aligned. Keep the conversion at typed memory boundaries.
+    // A word read from memory is cleaned like solc cleans it: inline assembly
+    // may have stored a dirty word, so a value that reaches an expression or a
+    // variable is masked to its type.
     pub(super) fn normalize_memory_scalar(&mut self, ty: Ty<'gcx>, value: ValueId) -> ValueId {
         if matches!(ty.peel_refs().kind, TyKind::Fn(function) if function.is_external()) {
             let shift = self.builder.imm(64);
@@ -733,6 +736,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         value
     }
 
+    // A scalar reaching a memory store is canonical unless inline assembly
+    // produced it: arithmetic truncates, conversions clean, and loads from
+    // calldata, storage, and memory yield clean words. Cleaning only the
+    // assembly-dirtied values keeps memory canonical without masking every
+    // element copy, which is also solc's behavior.
     pub(super) fn encode_memory_scalar(&mut self, ty: Ty<'gcx>, value: ValueId) -> ValueId {
         if let TyKind::Fn(function) = ty.peel_refs().kind
             && function.is_external()
@@ -740,7 +748,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let shift = self.builder.imm(64);
             return self.builder.shl(shift, value);
         }
-        self.normalize_abi_scalar(value, ty)
+        self.normalize_dirty_scalar(value, ty)
     }
 
     pub(super) fn lower_function_call(

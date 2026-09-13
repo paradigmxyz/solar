@@ -56,6 +56,45 @@ pub(super) fn simplify_function(func: &mut Function) -> bool {
     CfgSimplifier::new().run_to_fixpoint(func).total() != 0
 }
 
+/// Function pass that only replaces trivial phis by their unique incoming value.
+///
+/// HIR lowering leaves a phi for every local a loop could reassign, including
+/// locals it never does. Those phis hide one object behind several SSA names,
+/// which alias analysis joins to distinct symbolic pointers, so the loop and
+/// memory passes cannot prove that element stores leave a length word alone.
+/// Full CFG cleanup this early would also merge and remove the blocks that
+/// jump threading later recognizes in short-circuit conditions, so this pass
+/// touches nothing but the phis.
+pub(crate) struct SimplifyTrivialPhis;
+
+impl MirPass for SimplifyTrivialPhis {
+    fn name(&self) -> &'static str {
+        "simplify-phis"
+    }
+
+    fn run_pass(
+        &self,
+        _gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut crate::mir::pass::ModuleAnalyses,
+    ) -> bool {
+        run_function_pass(module, analyses, |func, _| {
+            let mut simplifier = CfgSimplifier::new();
+            let mut changed = false;
+            // Replacing one phi can make the phi it fed trivial in turn.
+            loop {
+                let before = simplifier.stats.trivial_phis_simplified;
+                simplifier.simplify_trivial_phis(func);
+                if simplifier.stats.trivial_phis_simplified == before {
+                    break;
+                }
+                changed = true;
+            }
+            changed
+        })
+    }
+}
+
 /// Module pass for dead internal function elimination.
 pub(crate) struct FunctionDce;
 
@@ -811,48 +850,93 @@ impl DeadFunctionEliminator {
             return 0;
         }
 
-        self.stats.dead_functions_eliminated = module.functions.len() - reachable.count();
-        if self.stats.dead_functions_eliminated == 0 {
-            return 0;
-        }
-
-        let mut remap = index_vec![None; module.functions.len()];
-        let mut old_functions = std::mem::take(&mut module.functions)
-            .into_iter()
-            .map(Some)
-            .collect::<IndexVec<FunctionId, _>>();
-        let mut functions = IndexVec::with_capacity(reachable.count());
-        for old_id in reachable {
-            let function = old_functions[old_id].take().expect("reachable function must exist");
-            let new_id = functions.push(function);
-            remap[old_id] = Some(new_id);
-        }
-        module.functions = functions;
-        module.remap_dispatch_entry(
-            module.dispatch_entry().map(|entry| {
-                remap[entry].expect("reachable function cannot be the dispatch entry")
-            }),
-        );
-        module.function_name_index.clear();
-        module.function_name_index.extend(
-            module.functions.iter_enumerated().map(|(id, function)| (function.name.symbol, id)),
-        );
-
-        for func in &mut module.functions {
-            func.for_each_instruction_mut(|_, inst| {
-                if let InstKind::ICall { function, .. } = &mut inst.kind {
-                    *function = remap[*function]
-                        .expect("reachable function cannot call an eliminated function");
-                }
-            });
-            for block in &mut func.blocks {
-                if let Some(Terminator::TailCall { function, .. }) = &mut block.terminator {
-                    *function = remap[*function]
-                        .expect("reachable function cannot tail-call an eliminated function");
-                }
-            }
-        }
-
+        self.stats.dead_functions_eliminated = retain_functions(module, reachable);
         self.stats.dead_functions_eliminated
     }
+}
+
+/// Removes the `candidates` that no remaining function calls or tail-calls and
+/// that are not entry points themselves, renumbering the survivors.
+///
+/// Unlike [`FunctionDce`], this never touches a function outside `candidates`,
+/// so an uncalled function that was never reachable survives.
+pub(super) fn remove_unreferenced_functions(module: &mut Module, candidates: &[FunctionId]) {
+    let count = module.functions.len();
+    let mut referenced = DenseBitSet::new_empty(count);
+    if let Some(entry) = module.dispatch_entry() {
+        referenced.insert(entry);
+    }
+    for (id, func) in module.functions.iter_enumerated() {
+        if func.selector.is_some()
+            || func.attributes.is_constructor
+            || func.attributes.is_fallback
+            || func.attributes.is_receive
+        {
+            referenced.insert(id);
+        }
+        for inst in func.instructions() {
+            if let InstKind::ICall { function, .. } = func.inst(inst).kind {
+                referenced.insert(function);
+            }
+        }
+        for block in func.blocks.iter() {
+            if let Some(Terminator::TailCall { function, .. }) = &block.terminator {
+                referenced.insert(*function);
+            }
+        }
+    }
+    let mut keep = DenseBitSet::new_filled(count);
+    for &candidate in candidates {
+        if !referenced.contains(candidate) {
+            keep.remove(candidate);
+        }
+    }
+    retain_functions(module, &keep);
+}
+
+/// Keeps exactly the functions in `keep`, renumbering call and tail-call
+/// targets. Returns the number of removed functions.
+fn retain_functions(module: &mut Module, keep: &DenseBitSet<FunctionId>) -> usize {
+    let removed = module.functions.len() - keep.count();
+    if removed == 0 {
+        return 0;
+    }
+    let mut remap = index_vec![None; module.functions.len()];
+    let mut old_functions = std::mem::take(&mut module.functions)
+        .into_iter()
+        .map(Some)
+        .collect::<IndexVec<FunctionId, _>>();
+    let mut functions = IndexVec::with_capacity(keep.count());
+    for old_id in keep {
+        let function = old_functions[old_id].take().expect("kept function must exist");
+        let new_id = functions.push(function);
+        remap[old_id] = Some(new_id);
+    }
+    module.functions = functions;
+    module.remap_dispatch_entry(
+        module
+            .dispatch_entry()
+            .map(|entry| remap[entry].expect("kept function cannot be the dispatch entry")),
+    );
+    module.function_name_index.clear();
+    module.function_name_index.extend(
+        module.functions.iter_enumerated().map(|(id, function)| (function.name.symbol, id)),
+    );
+
+    for func in &mut module.functions {
+        func.for_each_instruction_mut(|_, inst| {
+            if let InstKind::ICall { function, .. } = &mut inst.kind {
+                *function =
+                    remap[*function].expect("kept function cannot call an eliminated function");
+            }
+        });
+        for block in &mut func.blocks {
+            if let Some(Terminator::TailCall { function, .. }) = &mut block.terminator {
+                *function = remap[*function]
+                    .expect("kept function cannot tail-call an eliminated function");
+            }
+        }
+    }
+
+    removed
 }

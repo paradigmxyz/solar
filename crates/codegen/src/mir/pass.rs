@@ -43,6 +43,8 @@ pub static ALL_PASSES: &[&dyn MirPass] = &[
     &inline_guards::InlineGuards,
     &inline::InlineConstantLeaves,
     &inline::InlineTinyLeaves,
+    &inline::InlineHotLeaves,
+    &if_convert::IfConvert,
     &inline::InlineImmutableLeaves,
     &inline::InlineMemoryWrappers,
     &inline_dispatch::InlineDispatch,
@@ -51,11 +53,13 @@ pub static ALL_PASSES: &[&dyn MirPass] = &[
     &call_cleanup::CallCleanup,
     &outline_reverts::OutlineReverts,
     &cfg_simplify::FunctionDce,
+    &cfg_simplify::SimplifyTrivialPhis,
     &sccp::Sccp,
     &pure_eval::PureEval,
     &readonly_eval::ReadonlyEval,
     &cse::Cse,
     &pre::Pre,
+    &element_cleanup::ElementCleanup,
     &egraph::Egraph,
     &word_sequence::WordSequence,
     &storage_load_cse::StorageLoadCse,
@@ -63,6 +67,8 @@ pub static ALL_PASSES: &[&dyn MirPass] = &[
     &load_pre::LoadPre,
     &loop_canonicalize::LoopCanonicalize,
     &loop_exit_remat::LoopExitRemat,
+    &loop_idioms::LoopIdioms,
+    &loop_split::LoopSplit,
     &indvar_simplify::IndVarSimplify,
     &storage_promotion::StorageScalarPromotion,
     &loop_opt::Licm,
@@ -172,6 +178,12 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     // Broad MIR inlining remains available as an ad-hoc pass, but static internal
     // frames make calls cheap enough that the measured candidates regress gas.
     &cfg_simplify::FunctionDce,
+    // HIR lowering leaves trivial phis for locals that loops never reassign.
+    // They hide one object behind several SSA names, which alias analysis
+    // joins to distinct symbolic pointers, so remove them before the loop and
+    // memory passes. Only the phis: merging blocks this early hides the
+    // short-circuit shapes jump threading recognizes after check elimination.
+    &cfg_simplify::SimplifyTrivialPhis,
     // Early frame scalarization improves size but can increase hot-path gas.
     &SizeOnly::new(cfg_simplify::CfgSimplify),
     &SizeOnly::new(frame_promotion::FrameSlotPromotion),
@@ -183,7 +195,15 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &pre::Pre,
     &storage_load_cse::StorageLoadCse,
     &storage_dse::StorageDse,
+    // Checked array loops reload one object's length before every bounds
+    // check. Unify the dominated reads while object identity is explicit, so
+    // load PRE and LICM see one loop-invariant load and the later check passes
+    // compare against one bound.
+    &cse::Cse,
     &load_pre::LoadPre,
+    // Element reads of arrays that only ever hold canonical words drop their
+    // type masks while the accesses are still semantic and calls explicit.
+    &element_cleanup::ElementCleanup,
     &frame_promotion::FrameSlotPromotion,
     &loop_canonicalize::LoopCanonicalize,
     &indvar_simplify::IndVarSimplify,
@@ -214,12 +234,24 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &specialize::Specialize,
     &function_compaction::DeadArgElim,
     &cfg_simplify::FunctionDce,
+    // Peel the last groups of lookahead loops so the main loop's bound folds
+    // the body guards in the check elimination below.
+    &GasOnly::new(loop_split::LoopSplit),
     &sccp::Sccp,
     &egraph::Egraph,
     &word_sequence::WordSequence,
     &check_elim::CheckElim,
     &jump_threading::JumpThreading,
     &cfg_simplify::CfgSimplify,
+    // Small pure diamonds become selects once folded conditions are gone, so
+    // bit searches lose their branches and lookup helpers arrive branch-free
+    // at the hot-leaf cloner below.
+    &if_convert::IfConvert,
+    // Lookup helpers called from loops pay for their clones through the
+    // protocol removed per iteration. They run after specialization so the
+    // clones carry no mode flags that every caller fixed; the lowering-time
+    // cleanup folds the exposed bodies.
+    &GasOnly::new(inline::InlineHotLeaves),
     &frame_promotion::FrameSlotPromotion,
     &memory_dse::MemoryDse,
     &adce::Adce,
@@ -302,9 +334,16 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     // rewrites from reaching for values the scheduler would have to keep alive.
     &egraph::Egraph,
     &word_sequence::WordSequence,
+    // Collapse canonical read-only byte scans after bounds cleanup and word
+    // simplification expose their final physical shape.
+    &GasOnly::new(loop_idioms::LoopIdioms),
     // ABI and memory lowering leave dead guards and empty trampoline blocks.
     // Clean them before EVM shaping isolates phi copies on critical edges.
     &cfg_simplify::CfgSimplify,
+    // A word-at-a-time loop is compact enough to consume at its sole call site.
+    // This removes the internal frame protocol without duplicating the body;
+    // the pass drops the consumed callee itself.
+    &GasOnly::new(inline::InlineSingleUse),
     &lower_evm_shaped::LowerEvmShaped,
     // Reconstruct old induction values on exits before selecting physical stack order.
     &loop_exit_remat::LoopExitRemat,
@@ -618,9 +657,19 @@ impl ModuleAnalyses {
         }
     }
 
-    /// Returns the shared alias-analysis snapshot for a function.
-    pub(crate) fn alias(&mut self, func_id: FunctionId) -> Rc<AliasAnalysis> {
-        Rc::clone(self.alias.entry(func_id).or_insert_with(|| Rc::new(AliasAnalysis::empty())))
+    /// Returns the shared alias-analysis snapshot for a function, resolving
+    /// internal calls through the module call summaries when the snapshot is
+    /// first built. A snapshot cached by an earlier pass keeps its own view.
+    fn alias_with_summaries(
+        &mut self,
+        func_id: FunctionId,
+        summaries: Arc<MemoryCallSummaries>,
+    ) -> Rc<AliasAnalysis> {
+        Rc::clone(
+            self.alias
+                .entry(func_id)
+                .or_insert_with(|| Rc::new(AliasAnalysis::empty_with_summaries(summaries))),
+        )
     }
 
     /// Returns the shared CFG snapshot for a function.
@@ -631,12 +680,15 @@ impl ModuleAnalyses {
     fn bundle(
         &mut self,
         func_id: FunctionId,
-        func: &Function,
+        module: &Module,
         requirements: FunctionAnalysisRequirements,
     ) -> FunctionAnalyses {
         FunctionAnalyses {
-            alias: requirements.alias().then(|| self.alias(func_id)),
-            cfg: requirements.cfg().then(|| self.cfg(func_id, func)),
+            alias: requirements.alias().then(|| {
+                let summaries = self.call_summaries(module);
+                self.alias_with_summaries(func_id, summaries)
+            }),
+            cfg: requirements.cfg().then(|| self.cfg(func_id, &module.functions[func_id])),
         }
     }
 
@@ -749,7 +801,7 @@ fn run_function_pass_cached(
     {
         return false;
     }
-    let bundle = analyses.bundle(func_id, &module.functions[func_id], requirements);
+    let bundle = analyses.bundle(func_id, module, requirements);
     let func = &mut module.functions[func_id];
     let insts_before = func.num_insts();
     let changed = run(func, &bundle);

@@ -11,35 +11,26 @@
     jumpi bb1, bb2
   bb1:
     push bb3
--   jumpi
--   push 1
--   push 2
--   add
--   push 32
--   mstore
--   stop
-+   jump bb6
-  bb2:
-    push bb4
-+   jump bb6
-+ bb3:
-+   jump bb5
-+ bb4 [continuation]:
-+   jump bb5
-+ bb5:
-+   stop
-+ bb6:
     jumpi
     push 1
     push 2
     add
     push 32
     mstore
--   stop
-- bb3:
--   jump bb5
-- bb4:
--   jump bb5
-- bb5:
+    stop
+  bb2:
+    push bb4
+    jumpi
+    push 1
+    push 2
+    add
+    push 32
+    mstore
+    stop
+  bb3:
+    jump bb5
+  bb4:
+    jump bb5
+  bb5:
     stop
   

@@ -211,182 +211,182 @@ fn @copy() -> u256 [selector=0x60726abb, abi_params=[], abi_returns=[word]] {
     set_memory_object_len memoryarray, v166, v151
     jump bb29
   bb29:
-    v167 = phi [bb28: 0], [bb34: v185]
+    v167 = phi [bb28: 0], [bb34: v184]
     v168 = lt v167, v151
     jumpi v168, bb30, bb31
   bb31:
-    v186 = memory_object_len memoryarray, v166
-    v187 = lt 0, v186
-    v188 = iszero v187
-    jumpi v188, bb11, bb35
+    v185 = memory_object_len memoryarray, v166
+    v186 = lt 0, v185
+    v187 = iszero v186
+    jumpi v187, bb11, bb35
   bb35:
-    v189 = memory_object_load_element memoryarray<1>, v166, 0
-    v190 = eq v189, 0
-    jumpi v190, bb36, bb37
+    v188 = memory_object_load_element memoryarray<1>, v166, 0
+    v189 = eq v188, 0
+    jumpi v189, bb36, bb37
   bb36:
-    v191 = alloc memoryfixedarray<5, 1>, exact, uninitialized, infallible, 160
-    memory_zero v191, 160
-    memory_object_store_element memoryarray<1>, v166, 0, v191
+    v190 = alloc memoryfixedarray<5, 1>, exact, uninitialized, infallible, 160
+    memory_zero v190, 160
+    memory_object_store_element memoryarray<1>, v166, 0, v190
     jump bb37
   bb37:
-    v192 = phi [bb35: v189], [bb36: v191]
-    v193 = lt 0, 5
-    v194 = iszero v193
-    jumpi v194, bb11, bb38
+    v191 = phi [bb35: v188], [bb36: v190]
+    v192 = lt 0, 5
+    v193 = iszero v192
+    jumpi v193, bb11, bb38
   bb38:
-    v195 = memory_object_load_element memoryfixedarray<5, 1>, v192, 0
-    v196 = and v195, 0xffffffffffffffffff
-    v197 = memory_object_len memoryarray, v166
-    v198 = lt 0, v197
-    v199 = iszero v198
-    jumpi v199, bb11, bb39
+    v194 = memory_object_load_element memoryfixedarray<5, 1>, v191, 0
+    v195 = and v194, 0xffffffffffffffffff
+    v196 = memory_object_len memoryarray, v166
+    v197 = lt 0, v196
+    v198 = iszero v197
+    jumpi v198, bb11, bb39
   bb39:
-    v200 = memory_object_load_element memoryarray<1>, v166, 0
-    v201 = eq v200, 0
-    jumpi v201, bb40, bb41
+    v199 = memory_object_load_element memoryarray<1>, v166, 0
+    v200 = eq v199, 0
+    jumpi v200, bb40, bb41
   bb40:
-    v202 = alloc memoryfixedarray<5, 1>, exact, uninitialized, infallible, 160
-    memory_zero v202, 160
-    memory_object_store_element memoryarray<1>, v166, 0, v202
+    v201 = alloc memoryfixedarray<5, 1>, exact, uninitialized, infallible, 160
+    memory_zero v201, 160
+    memory_object_store_element memoryarray<1>, v166, 0, v201
     jump bb41
   bb41:
-    v203 = phi [bb39: v200], [bb40: v202]
-    v204 = lt 3, 5
-    v205 = iszero v204
-    jumpi v205, bb11, bb42
+    v202 = phi [bb39: v199], [bb40: v201]
+    v203 = lt 3, 5
+    v204 = iszero v203
+    jumpi v204, bb11, bb42
   bb42:
-    v206 = memory_object_load_element memoryfixedarray<5, 1>, v203, 3
-    v207 = and v206, 0xffffffffffffffffff
-    v208 = add v196, v207
-    v209 = gt v208, 0xffffffffffffffffff
-    jumpi v209, bb9, bb43
+    v205 = memory_object_load_element memoryfixedarray<5, 1>, v202, 3
+    v206 = and v205, 0xffffffffffffffffff
+    v207 = add v195, v206
+    v208 = gt v207, 0xffffffffffffffffff
+    jumpi v208, bb9, bb43
   bb43:
-    v210 = memory_object_len memoryarray, v166
-    v211 = lt 1, v210
-    v212 = iszero v211
-    jumpi v212, bb11, bb44
+    v209 = memory_object_len memoryarray, v166
+    v210 = lt 1, v209
+    v211 = iszero v210
+    jumpi v211, bb11, bb44
   bb44:
-    v213 = memory_object_load_element memoryarray<1>, v166, 1
-    v214 = eq v213, 0
-    jumpi v214, bb45, bb46
+    v212 = memory_object_load_element memoryarray<1>, v166, 1
+    v213 = eq v212, 0
+    jumpi v213, bb45, bb46
   bb45:
-    v215 = alloc memoryfixedarray<5, 1>, exact, uninitialized, infallible, 160
-    memory_zero v215, 160
-    memory_object_store_element memoryarray<1>, v166, 1, v215
+    v214 = alloc memoryfixedarray<5, 1>, exact, uninitialized, infallible, 160
+    memory_zero v214, 160
+    memory_object_store_element memoryarray<1>, v166, 1, v214
     jump bb46
   bb46:
-    v216 = phi [bb44: v213], [bb45: v215]
-    v217 = lt 1, 5
-    v218 = iszero v217
-    jumpi v218, bb11, bb47
+    v215 = phi [bb44: v212], [bb45: v214]
+    v216 = lt 1, 5
+    v217 = iszero v216
+    jumpi v217, bb11, bb47
   bb47:
-    v219 = memory_object_load_element memoryfixedarray<5, 1>, v216, 1
-    v220 = and v219, 0xffffffffffffffffff
-    v221 = add v208, v220
-    v222 = gt v221, 0xffffffffffffffffff
-    jumpi v222, bb9, bb48
+    v218 = memory_object_load_element memoryfixedarray<5, 1>, v215, 1
+    v219 = and v218, 0xffffffffffffffffff
+    v220 = add v207, v219
+    v221 = gt v220, 0xffffffffffffffffff
+    jumpi v221, bb9, bb48
   bb48:
-    v223 = memory_object_len memoryarray, v166
-    v224 = lt 1, v223
-    v225 = iszero v224
-    jumpi v225, bb11, bb49
+    v222 = memory_object_len memoryarray, v166
+    v223 = lt 1, v222
+    v224 = iszero v223
+    jumpi v224, bb11, bb49
   bb49:
-    v226 = memory_object_load_element memoryarray<1>, v166, 1
-    v227 = eq v226, 0
-    jumpi v227, bb50, bb51
+    v225 = memory_object_load_element memoryarray<1>, v166, 1
+    v226 = eq v225, 0
+    jumpi v226, bb50, bb51
   bb50:
-    v228 = alloc memoryfixedarray<5, 1>, exact, uninitialized, infallible, 160
-    memory_zero v228, 160
-    memory_object_store_element memoryarray<1>, v166, 1, v228
+    v227 = alloc memoryfixedarray<5, 1>, exact, uninitialized, infallible, 160
+    memory_zero v227, 160
+    memory_object_store_element memoryarray<1>, v166, 1, v227
     jump bb51
   bb51:
-    v229 = phi [bb49: v226], [bb50: v228]
-    v230 = lt 4, 5
-    v231 = iszero v230
-    jumpi v231, bb11, bb52
+    v228 = phi [bb49: v225], [bb50: v227]
+    v229 = lt 4, 5
+    v230 = iszero v229
+    jumpi v230, bb11, bb52
   bb52:
-    v232 = memory_object_load_element memoryfixedarray<5, 1>, v229, 4
-    v233 = and v232, 0xffffffffffffffffff
-    v234 = add v221, v233
-    v235 = gt v234, 0xffffffffffffffffff
-    jumpi v235, bb9, bb53
+    v231 = memory_object_load_element memoryfixedarray<5, 1>, v228, 4
+    v232 = and v231, 0xffffffffffffffffff
+    v233 = add v220, v232
+    v234 = gt v233, 0xffffffffffffffffff
+    jumpi v234, bb9, bb53
   bb53:
-    v236 = memory_object_len memoryarray, v166
-    v237 = lt 2, v236
-    v238 = iszero v237
-    jumpi v238, bb11, bb54
+    v235 = memory_object_len memoryarray, v166
+    v236 = lt 2, v235
+    v237 = iszero v236
+    jumpi v237, bb11, bb54
   bb54:
-    v239 = memory_object_load_element memoryarray<1>, v166, 2
-    v240 = eq v239, 0
-    jumpi v240, bb55, bb56
+    v238 = memory_object_load_element memoryarray<1>, v166, 2
+    v239 = eq v238, 0
+    jumpi v239, bb55, bb56
   bb55:
-    v241 = alloc memoryfixedarray<5, 1>, exact, uninitialized, infallible, 160
-    memory_zero v241, 160
-    memory_object_store_element memoryarray<1>, v166, 2, v241
+    v240 = alloc memoryfixedarray<5, 1>, exact, uninitialized, infallible, 160
+    memory_zero v240, 160
+    memory_object_store_element memoryarray<1>, v166, 2, v240
     jump bb56
   bb56:
-    v242 = phi [bb54: v239], [bb55: v241]
-    v243 = lt 0, 5
-    v244 = iszero v243
-    jumpi v244, bb11, bb57
+    v241 = phi [bb54: v238], [bb55: v240]
+    v242 = lt 0, 5
+    v243 = iszero v242
+    jumpi v243, bb11, bb57
   bb57:
-    v245 = memory_object_load_element memoryfixedarray<5, 1>, v242, 0
-    v246 = and v245, 0xffffffffffffffffff
-    v247 = add v234, v246
-    v248 = gt v247, 0xffffffffffffffffff
-    jumpi v248, bb9, bb58
+    v244 = memory_object_load_element memoryfixedarray<5, 1>, v241, 0
+    v245 = and v244, 0xffffffffffffffffff
+    v246 = add v233, v245
+    v247 = gt v246, 0xffffffffffffffffff
+    jumpi v247, bb9, bb58
   bb58:
-    v249 = memory_object_len memoryarray, v166
-    v250 = lt 3, v249
-    v251 = iszero v250
-    jumpi v251, bb11, bb59
+    v248 = memory_object_len memoryarray, v166
+    v249 = lt 3, v248
+    v250 = iszero v249
+    jumpi v250, bb11, bb59
   bb59:
-    v252 = memory_object_load_element memoryarray<1>, v166, 3
-    v253 = eq v252, 0
-    jumpi v253, bb60, bb61
+    v251 = memory_object_load_element memoryarray<1>, v166, 3
+    v252 = eq v251, 0
+    jumpi v252, bb60, bb61
   bb60:
-    v254 = alloc memoryfixedarray<5, 1>, exact, uninitialized, infallible, 160
-    memory_zero v254, 160
-    memory_object_store_element memoryarray<1>, v166, 3, v254
+    v253 = alloc memoryfixedarray<5, 1>, exact, uninitialized, infallible, 160
+    memory_zero v253, 160
+    memory_object_store_element memoryarray<1>, v166, 3, v253
     jump bb61
   bb61:
-    v255 = phi [bb59: v252], [bb60: v254]
-    v256 = lt 2, 5
-    v257 = iszero v256
-    jumpi v257, bb11, bb62
+    v254 = phi [bb59: v251], [bb60: v253]
+    v255 = lt 2, 5
+    v256 = iszero v255
+    jumpi v256, bb11, bb62
   bb62:
-    v258 = memory_object_load_element memoryfixedarray<5, 1>, v255, 2
-    v259 = and v258, 0xffffffffffffffffff
-    v260 = add v247, v259
-    v261 = gt v260, 0xffffffffffffffffff
-    jumpi v261, bb9, bb63
+    v257 = memory_object_load_element memoryfixedarray<5, 1>, v254, 2
+    v258 = and v257, 0xffffffffffffffffff
+    v259 = add v246, v258
+    v260 = gt v259, 0xffffffffffffffffff
+    jumpi v260, bb9, bb63
   bb63:
-    v262 = memory_object_len memoryarray, v166
-    v263 = lt 3, v262
-    v264 = iszero v263
-    jumpi v264, bb11, bb64
+    v261 = memory_object_len memoryarray, v166
+    v262 = lt 3, v261
+    v263 = iszero v262
+    jumpi v263, bb11, bb64
   bb64:
-    v265 = memory_object_load_element memoryarray<1>, v166, 3
-    v266 = eq v265, 0
-    jumpi v266, bb65, bb66
+    v264 = memory_object_load_element memoryarray<1>, v166, 3
+    v265 = eq v264, 0
+    jumpi v265, bb65, bb66
   bb65:
-    v267 = alloc memoryfixedarray<5, 1>, exact, uninitialized, infallible, 160
-    memory_zero v267, 160
-    memory_object_store_element memoryarray<1>, v166, 3, v267
+    v266 = alloc memoryfixedarray<5, 1>, exact, uninitialized, infallible, 160
+    memory_zero v266, 160
+    memory_object_store_element memoryarray<1>, v166, 3, v266
     jump bb66
   bb66:
-    v268 = phi [bb64: v265], [bb65: v267]
-    v269 = lt 3, 5
-    v270 = iszero v269
-    jumpi v270, bb11, bb67
+    v267 = phi [bb64: v264], [bb65: v266]
+    v268 = lt 3, 5
+    v269 = iszero v268
+    jumpi v269, bb11, bb67
   bb67:
-    v271 = memory_object_load_element memoryfixedarray<5, 1>, v268, 3
-    v272 = and v271, 0xffffffffffffffffff
-    v273 = add v260, v272
-    v274 = gt v273, 0xffffffffffffffffff
-    jumpi v274, bb9, bb68
+    v270 = memory_object_load_element memoryfixedarray<5, 1>, v267, 3
+    v271 = and v270, 0xffffffffffffffffff
+    v272 = add v259, v271
+    v273 = gt v272, 0xffffffffffffffffff
+    jumpi v273, bb9, bb68
   bb68:
-    ret v273
+    ret v272
   bb30:
     v169 = storage_array_data_slot 0
     v170 = mul v167, 2
@@ -394,12 +394,12 @@ fn @copy() -> u256 [selector=0x60726abb, abi_params=[], abi_returns=[word]] {
     v172 = alloc memoryfixedarray<5, 1>, exact, uninitialized, panic, 160
     jump bb32
   bb32:
-    v173 = phi [bb30: 0], [bb33: v184]
+    v173 = phi [bb30: 0], [bb33: v183]
     v174 = lt v173, 5
     jumpi v174, bb33, bb34
   bb34:
     memory_object_store_element memoryarray<1>, v166, v167, v172
-    v185 = add v167, 1
+    v184 = add v167, 1
     jump bb29
   bb33:
     v175 = div v173, 3
@@ -410,9 +410,8 @@ fn @copy() -> u256 [selector=0x60726abb, abi_params=[], abi_returns=[word]] {
     v180 = mul v178, 8
     v181 = shr v180, v179
     v182 = and v181, 0xffffffffffffffffff
-    v183 = and v182, 0xffffffffffffffffff
-    memory_object_store_element memoryfixedarray<5, 1>, v172, v173, v183
-    v184 = add v173, 1
+    memory_object_store_element memoryfixedarray<5, 1>, v172, v173, v182
+    v183 = add v173, 1
     jump bb32
   bb11:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)

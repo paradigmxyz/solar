@@ -1,0 +1,101 @@
+//@compile-flags: -Zmir-pipeline=check-elim
+//@filecheck:
+@module CheckElimMonotonePhi
+
+// `j` starts at `i` and only decrements while nonzero, so `j <= i < n` holds
+// on every iteration: the bounds checks on `a[j - 1]` and `a[j]` fold, while
+// the loop's own `j != 0` test and the element comparison remain.
+// CHECK-LABEL: @fold_descending_index_bounds
+// CHECK: {{^ +}}[[J:v[0-9]+]] = phi
+// CHECK-NEXT: {{^ +}}jumpi [[J]],
+// CHECK: {{^ +}}[[JM1:v[0-9]+]] = sub [[J]], 1
+// CHECK-NEXT: {{^ +}}{{v[0-9]+}} = lt [[JM1]], arg2
+// CHECK-NEXT: -     jumpi
+// CHECK-NEXT: +     jump
+// CHECK: {{^ +}}{{v[0-9]+}} = gt {{v[0-9]+}}, arg0
+// CHECK-NEXT: {{^ +}}jumpi
+// CHECK: {{^ +}}{{v[0-9]+}} = lt [[J]], arg2
+// CHECK-NEXT: -     jumpi
+// CHECK: +     jump
+fn @fold_descending_index_bounds(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+  bb0:
+    v0 = lt arg1, arg2
+    jumpi v0, bb1, bb8
+  bb1:
+    jump bb2
+  bb2:
+    v1 = phi [bb1: arg1], [bb9: v3]
+    jumpi v1, bb3, bb7
+  bb3:
+    v3 = sub v1, 1
+    v4 = lt v3, arg2
+    jumpi v4, bb5, bb8
+  bb5:
+    v5 = mload v3
+    v6 = gt v5, arg0
+    jumpi v6, bb6, bb7
+  bb6:
+    v7 = lt v1, arg2
+    jumpi v7, bb9, bb8
+  bb9:
+    mstore v1, v5
+    jump bb2
+  bb7:
+    ret v1
+  bb8:
+    revert 0, 0
+}
+
+// Without a nonzero guard the decrement can wrap, so no invariant is
+// established and the bounds check stays.
+// CHECK-LABEL: @keep_unguarded_decrement
+// CHECK: {{^ +}}[[J:v[0-9]+]] = phi
+// CHECK: {{^ +}}{{v[0-9]+}} = lt [[J]], arg2
+// CHECK-NEXT: {{^ +}}jumpi
+fn @keep_unguarded_decrement(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+  bb0:
+    v0 = lt arg1, arg2
+    jumpi v0, bb1, bb6
+  bb1:
+    jump bb2
+  bb2:
+    v1 = phi [bb1: arg1], [bb5: v3]
+    v3 = sub v1, 1
+    v4 = lt v1, arg2
+    jumpi v4, bb4, bb6
+  bb4:
+    v5 = mload v3
+    jumpi v5, bb5, bb7
+  bb5:
+    jump bb2
+  bb6:
+    revert 0, 0
+  bb7:
+    ret v1
+}
+
+// An incrementing counter guarded by its loop bound never drops below its
+// initial value, so a lower-bound check against that value folds.
+// CHECK-LABEL: @fold_ascending_lower_bound
+// CHECK: {{^ +}}[[K:v[0-9]+]] = phi
+// CHECK: {{^ +}}{{v[0-9]+}} = lt [[K]], arg0
+// CHECK-NEXT: -     jumpi
+// CHECK-NEXT: +     jump
+fn @fold_ascending_lower_bound(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb3: v4]
+    v1 = lt v0, arg1
+    jumpi v1, bb2, bb4
+  bb2:
+    v2 = lt v0, arg0
+    jumpi v2, bb5, bb3
+  bb3:
+    v4 = add v0, 1
+    jump bb1
+  bb4:
+    ret v0
+  bb5:
+    revert 0, 0
+}

@@ -166,8 +166,6 @@ bb0:
   jumpi
   push 0
   mload
-  jump bb11
-bb11:
   push 128
   mstore
   push 32
@@ -186,7 +184,7 @@ bb8 [cold]:
   push 0
   revert
 bb10:
-  push 224
+  push 512
   push 64
   mstore
   push 0
@@ -213,18 +211,11 @@ bb10:
   iszero
   push bb8
   jumpi
-  push 64
-  mload
-  push 288
-  dup 2
-  add
-  push 64
-  mstore
+  push 224
   push 238
   dup 2
   mstore
   push 32
-  dup 2
   add
   push 224
   dup 2
@@ -236,14 +227,17 @@ bb10:
   push_data CodeTarget_initcode_0+17
   dup 3
   codecopy
-  swap 1
-  mload
+  push 238
   swap 1
   keccak256
   push 192
   mload
   extcodehash
   eq
-  jump bb11
+  push 128
+  mstore
+  push 32
+  push 128
+  return
 
 @data CodeTarget_initcode_0 hex"34600d5760ee8060115f395ff35b5f5ffd34601d575f3560e01c80633fa4f245146021578063a878f85814602c575b5f5ffd5b600760805260206080f35b60808060405260a081016040528081526020810181606e823981151560071b601f8101601f19168083015f9052602083018284825e5060208452915260400181f3112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"

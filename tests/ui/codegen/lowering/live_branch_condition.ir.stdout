@@ -35,8 +35,8 @@ bb0:
   push 160
   mload
   add
-  jump bb13
-bb13:
+  jump bb9
+bb9:
   push 128
   mstore
   push 32
@@ -61,14 +61,18 @@ bb2:
   iszero
   push bb12
   jumpi
-  jump bb13
+  push 128
+  mstore
+  push 32
+  push 128
+  return
 bb6:
   pop
   push 9
   push 160
   mload
   add
-  jump bb13
+  jump bb9
 bb12 [cold]:
   push 0x4e487b71
   push 224

@@ -680,36 +680,59 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     return self.report_unsupported_udvt_operator(expr.span);
                 }
                 let lhs_ty = self.cx.gcx.type_of_expr(lhs.id);
-                let mut lhs = self.lower_expr(lhs)?;
+                let rhs_ty = self.cx.gcx.type_of_expr(rhs.id);
+                let fixed_bytes = |ty: Option<Ty<'gcx>>| {
+                    ty.is_some_and(|ty| {
+                        matches!(
+                            ty.peel_refs().kind,
+                            TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(_))
+                        )
+                    })
+                };
+                let rhs_literal =
+                    rhs_ty.is_some_and(|ty| {
+                        matches!(
+                            ty.peel_refs().kind,
+                            TyKind::IntLiteral(..) | TyKind::StringLiteral(..)
+                        )
+                    }) && !matches!(op.kind, BinOpKind::Shl | BinOpKind::Shr | BinOpKind::Sar);
+                let lhs_literal = lhs_ty
+                    .is_some_and(|ty| matches!(ty.peel_refs().kind, TyKind::StringLiteral(..)));
+                // A literal operand of a fixed-bytes operation is that word.
+                // Build it directly instead of allocating a memory literal and
+                // reading its first word back through a helper call.
+                let rhs_word = if fixed_bytes(lhs_ty) && rhs_literal {
+                    lhs_ty.and_then(|ty| self.lower_fixed_bytes_literal(ty, rhs))
+                } else {
+                    None
+                };
+                let lhs_word = if fixed_bytes(rhs_ty) && lhs_literal {
+                    rhs_ty.and_then(|ty| self.lower_fixed_bytes_literal(ty, lhs))
+                } else {
+                    None
+                };
+                let mut lhs = match lhs_word {
+                    Some(word) => word,
+                    None => self.lower_expr(lhs)?,
+                };
                 if let Some(ty) = lhs_ty {
                     lhs = self.normalize_dirty_scalar(lhs, ty);
                 }
-                let rhs_ty = self.cx.gcx.type_of_expr(rhs.id);
-                let mut rhs = self.lower_expr(rhs)?;
+                let mut rhs = match rhs_word {
+                    Some(word) => word,
+                    None => self.lower_expr(rhs)?,
+                };
                 if let Some(ty) = rhs_ty {
                     rhs = self.normalize_dirty_scalar(rhs, ty);
                 }
                 let (lhs, rhs) = match (lhs_ty, rhs_ty) {
                     (Some(lhs_ty), Some(rhs_ty))
-                        if matches!(
-                            lhs_ty.peel_refs().kind,
-                            TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(_))
-                        ) && matches!(
-                            rhs_ty.peel_refs().kind,
-                            TyKind::IntLiteral(..) | TyKind::StringLiteral(..)
-                        ) && !matches!(
-                            op.kind,
-                            BinOpKind::Shl | BinOpKind::Shr | BinOpKind::Sar
-                        ) =>
+                        if rhs_word.is_none() && fixed_bytes(Some(lhs_ty)) && rhs_literal =>
                     {
                         (lhs, self.coerce_value(rhs, rhs_ty, lhs_ty))
                     }
                     (Some(lhs_ty), Some(rhs_ty))
-                        if matches!(lhs_ty.peel_refs().kind, TyKind::StringLiteral(..))
-                            && matches!(
-                                rhs_ty.peel_refs().kind,
-                                TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(_))
-                            ) =>
+                        if lhs_word.is_none() && lhs_literal && fixed_bytes(Some(rhs_ty)) =>
                     {
                         (self.coerce_value(lhs, lhs_ty, rhs_ty), rhs)
                     }

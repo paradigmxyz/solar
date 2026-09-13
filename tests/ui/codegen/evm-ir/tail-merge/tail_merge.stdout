@@ -90,16 +90,14 @@
 +   jump bb15
   bb11:
     push 11
-    push 1
-    push 2
-    push 0
-    stop
+-   push 1
+-   push 2
+-   push 0
+-   stop
++   jump bb16
   bb12:
     push 12
-    push 1
-    push 2
-    push 0
-+   stop
++   jump bb16
 + bb4:
 +   push 33
 +   push 44
@@ -118,5 +116,10 @@
 +   exchange 1, 2
 +   pop
 +   pop
++   stop
++ bb16:
+    push 1
+    push 2
+    push 0
     stop
   

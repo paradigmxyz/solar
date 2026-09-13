@@ -31,8 +31,7 @@ fn @dFlat() [selector=0x6644232b, pure] {
     mstore v32, v20
     v2 = mload v31
     v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
-    v4 = mload v32
-    v5 = iszero v4
+    v5 = iszero v20
     v6 = iszero v5
     v1 = mload v13
     mstore 128, v1
@@ -125,8 +124,7 @@ fn @dNested() [selector=0xfc7ec666, pure] {
     v3 = mload v79
     v85 = add v3, 32
     v4 = mload v85
-    v5 = mload v83
-    v6 = mload v5
+    v6 = mload v44
     v54 = mload 64 !metadata(memory=scratch)
     v55 = add v54, 96
     mstore v54, v2

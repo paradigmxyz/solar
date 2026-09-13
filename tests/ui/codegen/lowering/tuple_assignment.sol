@@ -31,8 +31,8 @@ contract C {
     // CHECK-NEXT: calldataload
     // CHECK: push 4
     // CHECK-NEXT: calldataload
-    // CHECK: jump [[PAIR_RETURN:bb[0-9]+]]
-    // CHECK: [[PAIR_RETURN]]:
+    // CHECK-NEXT: push 160
+    // CHECK-NEXT: mstore
     // CHECK: return
     function swap(uint256 a, uint256 b) external pure returns (uint256, uint256) {
         (a, b) = (b, a);
@@ -45,13 +45,14 @@ contract C {
 
     // CHECK: [[MULTI]]:
     // The tiny-leaf inliner exposes `two()` as constants and removes its call frame.
-    // Returned SSA words feed the ABI stores directly; the second word remains
-    // on the stack into the shared return block.
+    // Returned SSA words feed the ABI stores directly.
     // CHECK: push 7
     // CHECK-NEXT: push 128
     // CHECK-NEXT: mstore
     // CHECK: push 9
-    // CHECK-NEXT: jump [[PAIR_RETURN]]
+    // CHECK-NEXT: push 160
+    // CHECK-NEXT: mstore
+    // CHECK: return
     function multi() external pure returns (uint256 x, uint256 y) {
         x = 100;
         y = 200;
