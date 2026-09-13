@@ -109,8 +109,6 @@ bb15:
   keccak256
   push 1
   add
-  push 128
-  mstore
   push 0
   jump bb19
 bb19 [loop]:
@@ -128,8 +126,7 @@ bb21 [loop]:
   add
   push 248
   shl
-  push 128
-  mload
+  dup 3
   sload
   push 1
   dup 2
@@ -193,8 +190,7 @@ bb21 [loop]:
   swap 1
   shl
   or
-  push 128
-  mload
+  dup 3
   sstore
   jump bb30
 bb30 [loop]:
@@ -202,8 +198,7 @@ bb30 [loop]:
   add
   jump bb19
 bb28 [loop]:
-  push 128
-  mload
+  dup 5
   push 0
   mstore
   pop
@@ -223,19 +218,16 @@ bb28 [loop]:
   swap 1
   sstore
   push 65
-  push 128
-  mload
+  dup 3
   sstore
   jump bb30
 bb29 [loop]:
   swap 1
   push 2
   add
-  push 128
-  mload
+  dup 5
   sstore
-  push 128
-  mload
+  dup 4
   push 0
   mstore
   dup 1
