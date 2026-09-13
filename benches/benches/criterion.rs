@@ -69,6 +69,31 @@ fn micro_benches(c: &mut Criterion) {
             criterion::BatchSize::PerIteration,
         )
     });
+
+    for (name, source) in [
+        ("ascii", "contract C { function f() external {} }\n".repeat(256)),
+        ("unicode", "contract C { function f() external {} // \u{03b2}\n".repeat(256)),
+    ] {
+        let sm = solar::parse::interface::SourceMap::default();
+        let file = sm
+            .new_source_file(
+                solar::parse::interface::source_map::FileName::Custom(name.into()),
+                source,
+            )
+            .unwrap();
+        let positions =
+            file.src.char_indices().step_by(17).map(|(offset, _)| offset).collect::<Vec<_>>();
+        g.bench_function(format!("source_map/lookup_char_pos/{name}"), |b| {
+            b.iter(|| {
+                let mut total = 0usize;
+                for &offset in &positions {
+                    let loc = sm.lookup_char_pos(solar::parse::interface::BytePos(offset as u32));
+                    total = total.wrapping_add(loc.data.col.0);
+                }
+                black_box(total)
+            });
+        });
+    }
 }
 
 fn compiler_benches(c: &mut Criterion) {

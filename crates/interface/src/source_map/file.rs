@@ -200,6 +200,9 @@ pub struct SourceFile {
     /// Locations of multi-byte characters in the source code.
     #[debug(skip)]
     pub multibyte_chars: Vec<MultiByteChar>,
+    /// Cumulative UTF-8 expansion before each multibyte character.
+    #[debug(skip)]
+    multibyte_extra_bytes: Option<Box<[u32]>>,
 }
 
 impl PartialEq for SourceFile {
@@ -233,6 +236,18 @@ impl SourceFile {
         let source_len = u32::try_from(source_len).map_err(|_| OffsetOverflowError(()))?;
 
         let (lines, multibyte_chars) = super::analyze::analyze_source_file(&src);
+        let mut extra_bytes = 0;
+        let multibyte_extra_bytes = if multibyte_chars.is_empty() {
+            None
+        } else {
+            let mut offsets = Vec::with_capacity(multibyte_chars.len() + 1);
+            offsets.push(0);
+            for mbc in &multibyte_chars {
+                extra_bytes += u32::from(mbc.bytes) - 1;
+                offsets.push(extra_bytes);
+            }
+            Some(offsets.into_boxed_slice())
+        };
 
         if let Some(src) = Arc::get_mut(&mut src) {
             src.shrink_to_fit();
@@ -245,6 +260,7 @@ impl SourceFile {
             source_len: RelativeBytePos::from_u32(source_len),
             lines,
             multibyte_chars,
+            multibyte_extra_bytes,
         })
     }
 
@@ -301,22 +317,19 @@ impl SourceFile {
 
     /// Converts a `RelativeBytePos` to a `CharPos` relative to the `SourceFile`.
     pub(crate) fn bytepos_to_file_charpos(&self, bpos: RelativeBytePos) -> CharPos {
-        // The number of extra bytes due to multibyte chars in the `SourceFile`.
-        let mut total_extra_bytes = 0;
-
-        for mbc in self.multibyte_chars.iter() {
-            if mbc.pos < bpos {
-                // Every character is at least one byte, so we only
-                // count the actual extra bytes.
-                total_extra_bytes += mbc.bytes as u32 - 1;
-                // We should never see a byte position in the middle of a
-                // character.
-                assert!(bpos.to_u32() >= mbc.pos.to_u32() + mbc.bytes as u32);
-            } else {
-                break;
-            }
+        let count = self.multibyte_chars.partition_point(|mbc| mbc.pos < bpos);
+        if count > 0
+            && let Some(mbc) = self.multibyte_chars.get(count - 1)
+        {
+            // Source positions must not point into a UTF-8 character.
+            assert!(bpos.to_u32() >= mbc.pos.to_u32() + u32::from(mbc.bytes));
         }
-
+        let total_extra_bytes = self
+            .multibyte_extra_bytes
+            .as_deref()
+            .and_then(|offsets| offsets.get(count))
+            .copied()
+            .unwrap_or(0);
         assert!(total_extra_bytes <= bpos.to_u32());
         CharPos(bpos.to_usize() - total_extra_bytes as usize)
     }
