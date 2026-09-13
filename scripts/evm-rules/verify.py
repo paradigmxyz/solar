@@ -33,6 +33,8 @@ def main():
     verify.add_argument("--fallback-solver", help="explicit cvc5 executable for incomplete word proofs")
     verify.add_argument("--bit-partition-timeout-ms", type=int, default=0,
                         help="optional total budget per incomplete word rule to prove all output bits separately")
+    verify.add_argument("--bit-partition-jobs", type=int, default=1,
+                        help="parallel solver processes for output-bit partitions")
     verify.add_argument("--index-partition-timeout-ms", type=int, default=0,
                         help="total budget per word rule for exhaustive index partitions (default: --timeout-ms)")
     verify.add_argument("--partition-shifts", action="store_true",
@@ -70,6 +72,8 @@ def main():
         parser.error("--timeout-ms must be positive")
     if getattr(args, "bit_partition_timeout_ms", 0) < 0:
         parser.error("--bit-partition-timeout-ms must be nonnegative")
+    if not 1 <= getattr(args, "bit_partition_jobs", 1) <= 32:
+        parser.error("--bit-partition-jobs must be between 1 and 32")
     if getattr(args, "index_partition_timeout_ms", 0) < 0:
         parser.error("--index-partition-timeout-ms must be nonnegative")
     if args.command == "mine":
@@ -97,7 +101,8 @@ def main():
                 file = verify_late_file(path, args.timeout_ms, args.artifacts)
             else:
                 file = verify_file(path, args.timeout_ms, args.artifacts, args.partition_shifts, fallback,
-                                   args.bit_partition_timeout_ms, args.index_partition_timeout_ms)
+                                   args.bit_partition_timeout_ms, args.index_partition_timeout_ms,
+                                   args.bit_partition_jobs)
             files.append(file)
         for file in files:
             for rule in file["rules"]:
