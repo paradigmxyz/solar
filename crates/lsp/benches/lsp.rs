@@ -12,7 +12,7 @@ use solar_config::CompileOpts;
 use solar_lsp::{
     BenchmarkAnalysis, BenchmarkDocumentChange, BenchmarkDocumentUpdate,
     BenchmarkFoldingRangeRequests, BenchmarkOpenDocuments, BenchmarkProject,
-    BenchmarkRepeatedAnalysis, BenchmarkRequest, BenchmarkResponse,
+    BenchmarkRenameRequests, BenchmarkRepeatedAnalysis, BenchmarkRequest, BenchmarkResponse,
     BenchmarkSelectionRangeRequests, BenchmarkSignatureHelpRequests, BenchmarkWorkspaceDiscovery,
     BenchmarkWorkspacePathQueries, BenchmarkWorkspaceReports, benchmark_folding_ranges,
     benchmark_folding_ranges_from_rope, benchmark_import_path_at, benchmark_selection_ranges,
@@ -223,6 +223,42 @@ fn rename_candidate_queries(c: &mut Criterion) {
     });
     group.bench_function(BenchmarkId::from_parameter("2048-callers-miss-near-eof"), |b| {
         b.iter(|| black_box(analysis.rename_candidate(black_box(&uri), black_box(miss_position))))
+    });
+    group.finish();
+}
+
+fn rename_requests(c: &mut Criterion) {
+    let mut group = c.benchmark_group("lsp/rename");
+    for reference_count in [0, 64, 2_048] {
+        let mut source = String::from("contract Root { function target() internal pure {}\n");
+        for index in 0..reference_count {
+            writeln!(source, "function caller{index}() public pure {{ target(); }}").unwrap();
+        }
+        source.push_str("}\n");
+        let project = BenchmarkProject::from_source(source);
+        let (uri, position) = project.unique_anchor("benchmark.sol", "target() internal").unwrap();
+        let mut requests = BenchmarkRenameRequests::new(project, uri.clone(), position);
+        let response = requests.run().expect("the target should be renameable");
+        let edits = &response.changes.as_ref().unwrap()[&uri];
+        assert_eq!(edits.len(), reference_count + 1);
+        assert!(edits.iter().all(|edit| edit.new_text == "renamed"));
+        group.bench_function(
+            BenchmarkId::from_parameter(format!("{reference_count}-references")),
+            |b| {
+                b.iter(|| black_box(requests.run()));
+            },
+        );
+    }
+
+    let project = unifap_project();
+    let (uri, position) = project.unique_anchor(UNIFAP_ROUTER, "_safeTransferFrom(\n").unwrap();
+    let mut requests = BenchmarkRenameRequests::new(project, uri, position);
+    let response = requests.run().expect("the router helper should be renameable");
+    let edits = response.changes.unwrap();
+    assert_eq!(edits.len(), 1);
+    assert_eq!(edits.values().next().unwrap().len(), 4);
+    group.bench_function(BenchmarkId::from_parameter("unifap-v2-router"), |b| {
+        b.iter(|| black_box(requests.run()));
     });
     group.finish();
 }
@@ -1306,6 +1342,7 @@ criterion_group!(
     benches,
     analysis_build,
     rename_candidate_queries,
+    rename_requests,
     completion_queries,
     member_completion_queries,
     signature_help_requests,
