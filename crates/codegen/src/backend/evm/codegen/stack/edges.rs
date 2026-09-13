@@ -151,7 +151,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 && then_layout == union
                 && GlobalStackPlan::is_terminal_block(func, else_block));
         if terminal_cleanup {
-            self.generate_terminator(
+            let _ = self.generate_terminator(
                 func,
                 &Terminator::Branch { condition, then_block, else_block },
                 fallthrough,

@@ -40,7 +40,7 @@ fn @endPastLength() [selector=0x8063d43b, pure] {
     mstore v37, 0
     mstore v30, v5
     v39 = add v36, v35
-    calldatacopy v36, v6, v5 !metadata(memory=heap)
+    calldatacopy v36, v6, v5
     v40 = sub v39, v29
     v42 = add v40, 31
     v44 = and v42, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -92,7 +92,7 @@ fn @startAfterEnd() [selector=0x598bfb30, pure] {
     mstore v37, 0
     mstore v30, v5
     v39 = add v36, v35
-    calldatacopy v36, v6, v5 !metadata(memory=heap)
+    calldatacopy v36, v6, v5
     v40 = sub v39, v29
     v42 = add v40, 31
     v44 = and v42, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0

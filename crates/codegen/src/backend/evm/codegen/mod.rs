@@ -383,7 +383,7 @@ pub struct EvmCodegen<'gcx> {
     /// Whether we're currently generating constructor code.
     /// When true, arguments load from the copied deployment ABI blob.
     in_constructor: bool,
-    /// Shared constructor completion reached by ordinary `stop` terminators.
+    /// Shared constructor completion reached by ordinary empty returns.
     constructor_exit: Option<Label>,
     /// Number of constructor parameters (used for CODECOPY offset calculation).
     constructor_param_count: u32,

@@ -165,7 +165,7 @@
 +     mstore v4, v0
 +     v12 = slice_ptr v1
 +     v13 = add v10, v9
-+     returndatacopy v10, 0, v0 !metadata(memory=heap)
++     returndatacopy v10, 0, v0
 +     v14 = sub v13, v3
 +     v15 = add v14, 0
 +     v16 = add v15, 31
@@ -191,7 +191,7 @@
 +     v7 = add v3, 32
 +     v8 = slice_ptr v0
 +     v9 = add v7, v6
-+     returndatacopy v7, 0, v6 !metadata(memory=heap)
++     returndatacopy v7, 0, v6
 +     v10 = sub v9, v2
 +     v11 = add v10, 0
 +     v12 = add v11, 31

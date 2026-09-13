@@ -885,15 +885,17 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.asm.set_source_spans(metadata.source_spans());
                 self.asm.set_modifier_depth(metadata.modifier_depth());
             }
-            if let Some(args) = self_tail_call {
+            let emitted_return = if let Some(args) = self_tail_call {
                 // [inherited_return, caller_words], frame(args...)
                 // => [inherited_return], frame(new_args...)
                 // jump self
                 self.emit_void_self_tail_call(func_id, func, args);
+                None
             } else if let Some((callee, args)) = tail_call {
                 // [inherited_return, caller_words] -> [inherited_return, callee_args]
                 // jump callee
                 self.emit_void_tail_call(func_id, func, callee, args);
+                None
             } else if let (
                 Some(union),
                 Some((then_layout, else_layout)),
@@ -910,6 +912,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     union,
                     fallthrough,
                 );
+                None
             } else if let (
                 Some(union),
                 Some(layouts),
@@ -917,6 +920,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             ) = (&global_switch_preserved, &global_switch_layouts, &block.terminator)
             {
                 self.emit_global_stack_switch(func, *value, *default, cases, layouts, union);
+                None
             } else if stack_phi_branch_preserved
                 && let Some(Terminator::Branch { condition, then_block, else_block }) =
                     block.terminator.as_ref()
@@ -930,16 +934,14 @@ impl<'gcx> EvmCodegen<'gcx> {
                     branch,
                     fallthrough,
                 );
+                None
             } else if let Some(term) = &block.terminator {
-                self.generate_terminator(func, term, fallthrough, preserve_stack);
-            }
-            if self.in_internal_function
-                && matches!(block.terminator, Some(Terminator::Return { .. } | Terminator::Stop))
-            {
-                let (block, end) = self.asm.next_instruction_position();
-                if let Some(index) = end.checked_sub(1) {
-                    function_returns.insert((block, index));
-                }
+                self.generate_terminator(func, term, fallthrough, preserve_stack)
+            } else {
+                None
+            };
+            if let Some(position) = emitted_return {
+                function_returns.insert(position);
             }
             if self.capture_debug_info {
                 self.asm.set_source_span(None);

@@ -1871,6 +1871,14 @@ fn inline_literal_call(
         let kind = cloner.clone_inst_kind(source.kind.clone())?;
         let mut instruction = Instruction::new(kind, source.result_ty);
         instruction.metadata.copy_debug_context(&source.metadata);
+        if matches!(instruction.kind, InstKind::Alloc { .. }) {
+            // object = alloc memorybytes, size
+            //   => object = alloc memorybytes, size !metadata(preserves_fmp)
+            //
+            // The inlined result escapes the call. Preserve its heap reservation even when a
+            // later ABI encoding embeds the literal bytes and removes its initialization stores.
+            instruction.metadata.set_preserves_fmp(true);
+        }
         if let InstKind::MStore(ptr, value) = instruction.kind
             && let Value::Inst(data) = cloner.caller.value(ptr)
             && let InstKind::MemoryObjectData(object, MemoryObjectKind::Bytes) =

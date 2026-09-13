@@ -1295,28 +1295,11 @@ impl LoadRedundancyEliminator {
 
     fn replace_uses(func: &mut Function, from: ValueId, to: ValueId) {
         func.for_each_instruction_mut(|_, inst| {
-            let mut changed = false;
-            inst.kind.visit_operands_mut(|value| {
+            inst.rewrite_operands(|value| {
                 if *value == from {
                     *value = to;
-                    changed = true;
                 }
             });
-            if changed {
-                // Operand-derived metadata is stale once the operand changes.
-                if mir_utils::is_memory_inst(&inst.kind) {
-                    inst.metadata.set_memory_region(None);
-                }
-                if matches!(
-                    inst.kind,
-                    InstKind::SLoad(_)
-                        | InstKind::SStore(_, _)
-                        | InstKind::TLoad(_)
-                        | InstKind::TStore(_, _)
-                ) {
-                    inst.metadata.set_storage_alias(None);
-                }
-            }
         });
 
         for block in func.blocks.iter_mut() {

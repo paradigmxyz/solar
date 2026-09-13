@@ -257,6 +257,18 @@ impl<'gcx> Assembler<'gcx> {
         self.program.blocks.len()
     }
 
+    fn debug_assert_dataflow_relocations_sorted(&self) {
+        debug_assert!(self.label_relocations.windows(2).all(|pair| {
+            let [lhs, rhs] = pair else { return true };
+            (lhs.0.index(), lhs.1) <= (rhs.0.index(), rhs.1)
+        }));
+        debug_assert!(
+            self.indexed_jump_relocations
+                .windows(2)
+                .all(|pair| pair[0].0.index() <= pair[1].0.index())
+        );
+    }
+
     /// Control-flow edges among the blocks in `range` before EVM IR finalization.
     ///
     /// Known returns end the current activation. Other indirect jumps conservatively reach every
@@ -267,6 +279,7 @@ impl<'gcx> Assembler<'gcx> {
         range: std::ops::Range<usize>,
         function_returns: &FxHashSet<(ir::BlockId, usize)>,
     ) -> Vec<(ir::BlockId, ir::BlockId)> {
+        self.debug_assert_dataflow_relocations_sorted();
         let in_range = |block: ir::BlockId| range.contains(&block.index());
         let mut edges = Vec::new();
         let mut address_taken = Vec::new();
@@ -404,6 +417,7 @@ impl<'gcx> Assembler<'gcx> {
     pub(crate) fn emit_push_label(&mut self, label: Label) {
         let (block, instruction) = self.push_ir_instruction(ir::Instruction::push_relocation());
         self.label_relocations.push((block, instruction, label));
+        self.debug_assert_dataflow_relocations_sorted();
     }
 
     /// Terminates the current block with an indexed jump to one of `targets`.
@@ -414,6 +428,7 @@ impl<'gcx> Assembler<'gcx> {
         metadata.set_source_spans(self.current_source_spans.iter().copied());
         metadata.set_modifier_depth(self.current_modifier_depth);
         self.indexed_jump_relocations.push((block, targets, metadata));
+        self.debug_assert_dataflow_relocations_sorted();
     }
 
     /// Emits a push instruction for a deferred constant.
@@ -520,6 +535,7 @@ impl<'gcx> Assembler<'gcx> {
         &mut self,
         removals: &mut [(ir::BlockId, std::ops::Range<usize>)],
     ) {
+        self.debug_assert_dataflow_relocations_sorted();
         removals.sort_unstable_by_key(|(block, range)| (*block, range.start));
         let mut per_block =
             FxHashMap::<ir::BlockId, Vec<(std::ops::Range<usize>, usize)>>::default();
@@ -555,9 +571,11 @@ impl<'gcx> Assembler<'gcx> {
                 instructions.drain(range);
             }
         }
+        self.debug_assert_dataflow_relocations_sorted();
     }
 
     pub(in crate::backend) fn finish_evm_ir(&mut self) -> Option<(ir::Module, Vec<Option<Label>>)> {
+        self.debug_assert_dataflow_relocations_sorted();
         let mut module = std::mem::take(&mut self.program);
         self.current_block = None;
         if module.blocks.is_empty() {
