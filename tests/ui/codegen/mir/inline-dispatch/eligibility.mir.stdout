@@ -32,7 +32,7 @@ fn @b(arg0: u256) -> u256 [selector=0xcd580ff3, pure, abi_params=[u256], abi_ret
 
 fn @fallback() [fallback] {
   bb0:
-    stop
+    ret
 }
 
 // === ROOT/tests/ui/codegen/mir/inline-dispatch/eligibility.sol:WithGas ===

@@ -29,7 +29,7 @@ fn @loop(arg0: u256) {
     jump bb1
   bb3:
     icall @check, 0, 42, arg0
-    stop
+    ret
 }
 
 // Reading mutable state cannot be moved out of a call as a pure guard.
@@ -52,7 +52,7 @@ fn @keep_read(arg0: u256) {
     icall @reading, 0, arg0
     jumpi arg0, bb1, bb2
   bb2:
-    stop
+    ret
 }
 
 // Explicit normalization is preserved for dirty boolean words.
@@ -63,10 +63,10 @@ fn @normalize(arg0: bool, arg1: bool) {
     v2 = eq v0, v1
     jumpi v2, bb1, bb2
   bb1:
-    stop
+    ret
   bb2:
     sstore 1, 1
-    stop
+    ret
 }
 
 fn @dirty(arg0: bool, arg1: bool) {
@@ -76,7 +76,7 @@ fn @dirty(arg0: bool, arg1: bool) {
     icall @normalize, 0, arg0, arg1
     jumpi arg0, bb1, bb2
   bb2:
-    stop
+    ret
 }
 
 // Returning on the false edge must invert the bypass, not the comparison.
@@ -98,7 +98,7 @@ fn @false_edge(arg0: u256) {
     icall @inverted, 0, arg0
     jumpi arg0, bb1, bb2
   bb2:
-    stop
+    ret
 }
 
 // An explicit non-pure effect prevents cloning even a comparison opcode.
@@ -120,5 +120,5 @@ fn @keep_opaque(arg0: u256) {
     icall @opaque, 0, arg0
     jumpi arg0, bb1, bb2
   bb2:
-    stop
+    ret
 }

@@ -39,7 +39,7 @@ fn @b() [selector=0xcd580ff3, pure] {
 
 fn @fallback() [fallback] {
   bb0:
-    stop
+    ret
 }
 
 fn @revert_stub() {

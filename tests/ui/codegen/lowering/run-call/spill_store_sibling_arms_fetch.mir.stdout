@@ -50,7 +50,7 @@ fn @constructor() [constructor] {
     v34 = and v30, 255
     v35 = or v33, v34
     sstore v29, v35 !metadata(storage=offset(v27, 1))
-    stop
+    ret
 }
 
 fn @fetch(arg0: u256) -> u256 [view] {
@@ -68,7 +68,7 @@ fn @bump() {
     jumpi v2, bb1, bb2
   bb2:
     sstore 1, v1 !metadata(storage=slot(1))
-    stop
+    ret
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)

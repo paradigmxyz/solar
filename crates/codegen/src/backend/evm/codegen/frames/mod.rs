@@ -516,12 +516,18 @@ impl<'gcx> EvmCodegen<'gcx> {
         // Longest live-chain depth below each function, over all call edges.
         // Only emitted callers count: an unemitted function (an internal
         // `.body` clone nobody calls, unreachable dead code) stacks no real
-        // frame below its callees.
+        // frame below its callees. The dispatch entry has no function label,
+        // but it is emitted and owns its spill and constant-memory region.
+        let mut emitted_callers = DenseBitSet::new_empty(module.functions.len());
+        for &func_id in self.function_labels.keys() {
+            emitted_callers.insert(func_id);
+        }
+        for &func_id in &runtime_entries {
+            emitted_callers.insert(func_id);
+        }
         let mut edges = Vec::new();
-        for (func_id, func) in module.functions.iter_enumerated() {
-            if !self.function_labels.contains_key(&func_id) {
-                continue;
-            }
+        for func_id in emitted_callers.iter() {
+            let func = &module.functions[func_id];
             for inst_id in func.instructions() {
                 if let InstKind::ICall { function: Callee::Function(function), .. } =
                     func.inst(inst_id).kind
@@ -772,22 +778,29 @@ impl<'gcx> EvmCodegen<'gcx> {
             for _ in 0..=module.functions.len() {
                 let mut changed = false;
                 for &(caller, callee) in &edges {
-                    if let Some(&base) = bounds.get(&caller) {
-                        let frame_size = if self.static_frame_functions.contains(caller)
-                            && !self.recursive_frame_functions.contains(caller)
-                        {
-                            self.emitted_frame_size(module, caller)
-                        } else {
-                            0
-                        };
-                        let end = base
-                            .max(low_memory_end)
-                            .checked_add(frame_size)
-                            .expect("static frame bound overflow");
-                        if end > bounds.get(&callee).copied().unwrap_or(0) {
-                            bounds.insert(callee, end);
-                            changed = true;
-                        }
+                    // A missing propagated caller bound retains its conservative
+                    // global placement. This can only occur for an unusual
+                    // emitted-but-unreachable shape; skipping the edge could
+                    // otherwise lower its callee into caller-owned memory.
+                    let base = bounds.get(&caller).copied().unwrap_or_else(|| {
+                        region_start
+                            .checked_add(depth.get(&caller).copied().unwrap_or(0))
+                            .expect("static frame caller bound overflow")
+                    });
+                    let frame_size = if self.static_frame_functions.contains(caller)
+                        && !self.recursive_frame_functions.contains(caller)
+                    {
+                        self.emitted_frame_size(module, caller)
+                    } else {
+                        0
+                    };
+                    let end = base
+                        .max(low_memory_end)
+                        .checked_add(frame_size)
+                        .expect("static frame bound overflow");
+                    if end > bounds.get(&callee).copied().unwrap_or(0) {
+                        bounds.insert(callee, end);
+                        changed = true;
                     }
                 }
                 if !changed {
@@ -805,6 +818,41 @@ impl<'gcx> EvmCodegen<'gcx> {
                         *base = bound.max(low_memory_end);
                     }
                 }
+            }
+
+            // caller frame -> callee frame
+            // [caller_base, caller_base + caller_size) <= callee_base
+            for &(caller, callee) in &edges {
+                let Some(&callee_base) = frame_bases.get(&callee) else { continue };
+                let caller_base = entry_ends
+                    .get(&caller)
+                    .or_else(|| frame_bases.get(&caller))
+                    .or_else(|| bounds.get(&caller))
+                    .copied()
+                    .unwrap_or_else(|| {
+                        region_start
+                            .checked_add(depth.get(&caller).copied().unwrap_or(0))
+                            .expect("static frame caller base overflow")
+                    });
+                let caller_size = if self.static_frame_functions.contains(caller)
+                    && !self.recursive_frame_functions.contains(caller)
+                {
+                    self.emitted_frame_size(module, caller)
+                } else {
+                    0
+                };
+                let required = caller_base
+                    .max(low_memory_end)
+                    .checked_add(caller_size)
+                    .expect("static frame edge bound overflow");
+                assert!(
+                    required <= callee_base,
+                    "static frame for `{}` at {:#x} overlaps emitted caller `{}` ending at {:#x}",
+                    module.functions[callee].name,
+                    callee_base,
+                    module.functions[caller].name,
+                    required
+                );
             }
         }
         // frame[offset] -> absolute(frame_base + offset)

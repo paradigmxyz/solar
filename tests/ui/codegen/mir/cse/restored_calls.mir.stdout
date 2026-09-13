@@ -180,5 +180,5 @@ fn @conditional(arg0: memorybytes, arg1: bool) [pure] {
     mstore v0, v1
     jump bb3
   bb3:
-    stop
+    ret
 }

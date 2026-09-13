@@ -22,7 +22,7 @@ fn @constructor(arg0: u64, arg1: u64) [constructor, abi_params=[u64, u64]] {
     jumpi v3, bb1, bb2
   bb2:
     storeimmutable initial, v2
-    stop
+    ret
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
