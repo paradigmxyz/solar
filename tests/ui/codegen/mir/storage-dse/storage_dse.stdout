@@ -62,3 +62,51 @@
       stop
   }
   
+  fn @keep_store_observed_by_gas() -> u256 {
+    bb0:
+      v0 = gas
+-     sstore 0, 1
++     sstore 0, 1 !metadata(storage=slot(0))
+      v1 = gas
+-     sstore 0, 2
++     sstore 0, 2 !metadata(storage=slot(0))
+      v2 = sub v0, v1
+      ret v2
+  }
+  
+  fn @keep_cross_block_store_observed_by_gas() -> u256 {
+    bb0:
+      v0 = gas
+-     sstore 0, 1
++     sstore 0, 1 !metadata(storage=slot(0))
+      jump bb1
+    bb1:
+      v1 = gas
+-     sstore 0, 2
++     sstore 0, 2 !metadata(storage=slot(0))
+      v2 = sub v0, v1
+      ret v2
+  }
+  
+  fn @keep_store_observed_by_callee() -> u256 {
+    bb0:
+-     sstore 0, 1
++     sstore 0, 1 !metadata(storage=slot(0))
+      v0 = icall @observe_indirect, 1
+-     sstore 0, 2
++     sstore 0, 2 !metadata(storage=slot(0))
+      ret v0
+  }
+  
+  fn @observe_indirect() -> u256 {
+    bb0:
+      v0 = icall @observe_gas, 1
+      ret v0
+  }
+  
+  fn @observe_gas() -> u256 {
+    bb0:
+      v0 = gas
+      ret v0
+  }
+  

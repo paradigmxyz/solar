@@ -1,0 +1,83 @@
+//@ compile-flags: -Zmir-pipeline=cse
+@module RestoredBytes
+fn @reuse(arg0: memptr, arg1: u256) -> u256 {
+  bb0:
+    v0 = icall @temporary_byte, 1, arg0, arg1
+    v1 = icall @temporary_byte, 1, arg0, arg1
+    v2 = add v0, v1
+    ret v2
+}
+fn @temporary_byte(arg0: memptr, arg1: u256) -> u256 {
+  bb0:
+    v0 = mload arg0
+    v1 = add arg0, 31
+    mstore8 v1, arg1
+    v2 = mload arg0
+    mstore arg0, v0
+    ret v2
+}
+fn @outside(arg0: memptr) -> u256 {
+  bb0:
+    v0 = icall @outside_byte, 1, arg0
+    v1 = icall @outside_byte, 1, arg0
+    v2 = add v0, v1
+    ret v2
+}
+fn @outside_byte(arg0: memptr) -> u256 {
+  bb0:
+    v0 = mload arg0
+    v1 = add arg0, 32
+    mstore8 v1, 7
+    v2 = mload arg0
+    mstore arg0, v0
+    ret v2
+}
+fn @dirty(arg0: memptr, arg1: bool) -> u256 {
+  bb0:
+    v0 = icall @dirty_byte, 1, arg0, arg1
+    v1 = icall @dirty_byte, 1, arg0, arg1
+    v2 = add v0, v1
+    ret v2
+}
+fn @dirty_byte(arg0: memptr, arg1: bool) -> u256 {
+  bb0:
+    v0 = mload arg0
+    mstore8 arg0, 7
+    jumpi arg1, bb1, bb2
+  bb1:
+    mstore arg0, v0
+    jump bb2
+  bb2:
+    ret v0
+}
+fn @reuse_five(arg0: memptr) -> u256 {
+  bb0:
+    v0 = icall @five_words, 1, arg0
+    v1 = icall @five_words, 1, arg0
+    v2 = add v0, v1
+    ret v2
+}
+fn @five_words(arg0: memptr) -> u256 {
+  bb0:
+    v0 = add arg0, 32
+    v1 = add arg0, 64
+    v2 = add arg0, 96
+    v3 = add arg0, 128
+    v4 = mload arg0
+    v5 = mload v0
+    v6 = mload v1
+    v7 = mload v2
+    v8 = mload v3
+    mstore8 arg0, 1
+    mstore8 v0, 2
+    mstore8 v1, 3
+    mstore8 v2, 4
+    mstore8 v3, 5
+    v9 = mload arg0
+    mstore v3, v8
+    mstore v2, v7
+    mstore v1, v6
+    mstore v0, v5
+    mstore arg0, v4
+    ret v9
+}

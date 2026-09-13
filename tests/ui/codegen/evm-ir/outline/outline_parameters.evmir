@@ -38,10 +38,10 @@
 // CHECK-COUNT-7: {{^[ +].*}}not
 // CHECK-NEXT: {{^[ +].*}}pop
 // CHECK-NEXT: + jump
-// CHECK: + [[RET0]]:
-// CHECK: + [[RET1]]:
-// CHECK: + [[RET2]]:
-// CHECK: + [[RET3]]:
+// CHECK: + [[RET0]] [continuation]:
+// CHECK: + [[RET1]] [continuation]:
+// CHECK: + [[RET2]] [continuation]:
+// CHECK: + [[RET3]] [continuation]:
 bb0:
   push 1
   not

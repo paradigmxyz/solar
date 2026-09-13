@@ -1,0 +1,42 @@
+//@ compile-flags: -Ogas -Zevm-ir-pipeline=loop-layout
+@module WeightedLoop
+bb0:
+  push 10
+  push 0
+  jump bb1
+bb1:
+  dup 1
+  push 1
+  and
+  push bb5
+  jumpi
+  dup 1
+  push 2
+  and
+  push bb5
+  jumpi
+  dup 1
+  push 4
+  and
+  push bb5
+  jumpi
+  jump bb2
+bb2:
+  push 1
+  add
+  jump bb3
+bb3:
+  dup 2
+  dup 2
+  lt
+  push bb1
+  jumpi
+  jump bb4
+bb4:
+  pop
+  pop
+  stop
+bb5:
+  push 1
+  add
+  jump bb3

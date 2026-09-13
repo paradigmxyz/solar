@@ -11,10 +11,10 @@
 +   push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef !metadata(spans=[1..5, 11..15])
 +   swap 1
 +   jump
-+ bb2:
++ bb2 [continuation]:
     pop !metadata(span=16..20)
     stop !metadata(span=21..25)
-+ bb3:
++ bb3 [continuation]:
 +   pop !metadata(span=6..10)
 +   push bb2
 +   jump bb1 !metadata(invoke=second@11..20)

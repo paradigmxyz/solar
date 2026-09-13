@@ -17,7 +17,7 @@ use crate::mir::{
         AddressSpace, AffineExpr, AliasAnalysis, AliasResult, Location, LocationSize, Loop,
         LoopAnalyzer, ScalarEvolution,
     },
-    pass::{MirPass, run_function_pass},
+    pass::{MirPass, run_function_pass_with_alias},
     utils as mir_utils,
 };
 use alloy_primitives::U256;
@@ -39,9 +39,9 @@ impl MirPass for Licm {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, analyses| {
+        run_function_pass_with_alias(module, analyses, |func, analyses| {
             let mut optimizer = LoopOptimizer::with_limits(3, 8);
-            optimizer.alias = Some(Rc::clone(&analyses.alias));
+            optimizer.alias = Some(Rc::clone(analyses.alias()));
             optimizer.optimize(func).instructions_hoisted != 0
         })
     }

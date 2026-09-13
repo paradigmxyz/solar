@@ -1,0 +1,45 @@
+// === ROOT/tests/ui/codegen/mir/egraph/balance_masks.sol:BalanceMasks ===
+@module BalanceMasks
+fn @masked(arg0: u256) -> u256 [selector=0x38caca52, view, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    v1 = balance v0
+    ret v1
+}
+
+fn @wide(arg0: u256) -> u256 [selector=0x598b5337, view, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = and 0x800000000000000000000000ffffffffffffffffffffffffffffffffffffffff, arg0
+    v1 = balance v0
+    ret v1
+}
+
+fn @shared(arg0: u256) -> (u256, u256) [selector=0x727ee1fa, view, abi_params=[u256], abi_returns=[word, word]] {
+  bb0:
+    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    v1 = balance v0
+    ret v1, v0
+}
+
+fn @funded() -> (u256, u256, u256) [selector=0xf3a504f2, payable, abi_params=[], abi_returns=[word, word, word]] {
+  bb0:
+    v0 = address
+    v1 = shl 200, 1
+    v2 = or v0, v1
+    v3 = icall @shared, 2, v2
+    v4 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v5 = add v4, 32
+    v6 = mload v5
+    v7 = address
+    v8 = eq v6, v7
+    v9 = iszero v8
+    jumpi v9, bb1, bb2
+  bb2:
+    v10 = icall @masked, 1, v2
+    v11 = icall @wide, 1, v2
+    ret v10, v11, v3
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 1 !metadata(memory=scratch)
+    revert 0, 36
+}

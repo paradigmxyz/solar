@@ -16,7 +16,7 @@
 use crate::mir::{
     Function, InstId, InstKind, Module, ValueId,
     analysis::{Access, AddressSpace, AliasAnalysis, Location, LocationSize},
-    pass::{MirPass, run_function_pass},
+    pass::{MirPass, run_function_pass_with_alias},
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 
@@ -34,8 +34,8 @@ impl MirPass for CopyElision {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, analyses| {
-            CopyElisionCx::default().run(func, &analyses.alias)
+        run_function_pass_with_alias(module, analyses, |func, analyses| {
+            CopyElisionCx::default().run(func, analyses.alias())
         })
     }
 }

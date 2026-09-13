@@ -1,4 +1,11 @@
 //! MIR pass execution, following rustc's MIR pass manager.
+//!
+//! Within one pipeline run, an exact pass instance that reported no change is
+//! skipped until another pass mutates the module. Repeating a deterministic
+//! transform on identical MIR cannot produce a new result, while avoiding that
+//! work matters for the deliberately iterative optimization pipeline. The
+//! cache stays module-wide because function-local results can depend on callee
+//! summaries and other module state.
 
 use crate::{
     mir::{MirPhase, Module, pass::ModuleAnalyses, validate},
@@ -149,6 +156,7 @@ fn run_passes_inner(
     let explicit = output.name.is_some();
     let mut changed = false;
     let mut analyses = ModuleAnalyses::default();
+    let mut unchanged = Vec::<&dyn MirPass>::new();
     for pass in passes {
         let pass_name = pass.name();
         let before =
@@ -160,11 +168,22 @@ fn run_passes_inner(
 
         if enabled {
             assert_debug_info_handled(module, pass_name, "before");
-            analyses.begin_pass();
             let timer = PassTimer::new(gcx.sess.opts.unstable.time_passes);
-            let pass_changed = pass.run_pass(gcx, module, &mut analyses);
+            let cached = unchanged.iter().any(|&previous| std::ptr::eq(previous, *pass));
+            let pass_changed = if cached {
+                false
+            } else {
+                analyses.begin_pass();
+                let pass_changed = pass.run_pass(gcx, module, &mut analyses);
+                analyses.finish_pass(pass_changed);
+                pass_changed
+            };
+            if pass_changed {
+                unchanged.clear();
+            } else if !cached {
+                unchanged.push(*pass);
+            }
             timer.finish("MIR", module.name, pass_name, pass_changed);
-            analyses.finish_pass(pass_changed);
             changed |= pass_changed;
             assert_debug_info_handled(module, pass_name, "after");
 

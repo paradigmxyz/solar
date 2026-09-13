@@ -1,0 +1,118 @@
+- // === ROOT/tests/ui/codegen/mir/inline/return_words.mir (before inline-tiny-leaves) ===
++ // === ROOT/tests/ui/codegen/mir/inline/return_words.mir (after inline-tiny-leaves) ===
+  @module ReturnWords
+  fn @entry(arg0: u256, arg1: u256) -> u256 [selector=0x00000001] {
+    bb0:
+-     v0 = icall @swap, 2, arg0, arg1
++     jump bb2
++   bb2:
++     jump bb1
++   bb1:
++     v5 = phi [bb2: arg1]
++     v6 = phi [bb2: arg0]
++     mstore 160, v6
++     frame_store multi_return, word, 0, 128 !metadata(memory=scratch)
+      v1 = frame_load multi_return, word, 0
+      v2 = add v1, 32
+-     v3 = mload v2
+-     v4 = sub v0, v3
++     v4 = sub v5, v6
+      ret v4
+  }
+  
+  fn @swap(arg0: u256, arg1: u256) -> (u256, u256) {
+    bb0:
+      ret arg1, arg0
+  }
+  
+  fn @barrier(arg0: u256, arg1: u256) -> u256 [selector=0x00000002] {
+    bb0:
+-     v0 = icall @swap, 2, arg0, arg1
++     jump bb2
++   bb2:
++     jump bb1
++   bb1:
++     v4 = phi [bb2: arg1]
++     v5 = phi [bb2: arg0]
++     mstore 160, v5
++     frame_store multi_return, word, 0, 128 !metadata(memory=scratch)
+      v1 = frame_load multi_return, word, 0
+      v2 = add v1, 32
+      mstore v2, 99
+      v3 = mload v2
+      ret v3
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/inline/return_words.mir (before cfg-simplify) ===
++ // === ROOT/tests/ui/codegen/mir/inline/return_words.mir (after cfg-simplify) ===
+  @module ReturnWords
+  fn @entry(arg0: u256, arg1: u256) -> u256 [selector=0x00000001] {
+    bb0:
+-     jump bb2
+-   bb2:
+-     jump bb1
+-   bb1:
+-     v5 = phi [bb2: arg1]
+-     v6 = phi [bb2: arg0]
+-     mstore 160, v6
++     mstore 160, arg0
+      frame_store multi_return, word, 0, 128 !metadata(memory=scratch)
+      v1 = frame_load multi_return, word, 0
+      v2 = add v1, 32
+-     v4 = sub v5, v6
++     v4 = sub arg1, arg0
+      ret v4
+  }
+  
+  fn @swap(arg0: u256, arg1: u256) -> (u256, u256) {
+    bb0:
+      ret arg1, arg0
+  }
+  
+  fn @barrier(arg0: u256, arg1: u256) -> u256 [selector=0x00000002] {
+    bb0:
+-     jump bb2
+-   bb2:
+-     jump bb1
+-   bb1:
+-     v4 = phi [bb2: arg1]
+-     v5 = phi [bb2: arg0]
+-     mstore 160, v5
++     mstore 160, arg0
+      frame_store multi_return, word, 0, 128 !metadata(memory=scratch)
+      v1 = frame_load multi_return, word, 0
+      v2 = add v1, 32
+      mstore v2, 99
+      v3 = mload v2
+      ret v3
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/inline/return_words.mir (before dce) ===
++ // === ROOT/tests/ui/codegen/mir/inline/return_words.mir (after dce) ===
+  @module ReturnWords
+  fn @entry(arg0: u256, arg1: u256) -> u256 [selector=0x00000001] {
+    bb0:
+      mstore 160, arg0
+      frame_store multi_return, word, 0, 128 !metadata(memory=scratch)
+-     v1 = frame_load multi_return, word, 0
+-     v2 = add v1, 32
+      v4 = sub arg1, arg0
+      ret v4
+  }
+  
+  fn @swap(arg0: u256, arg1: u256) -> (u256, u256) {
+    bb0:
+      ret arg1, arg0
+  }
+  
+  fn @barrier(arg0: u256, arg1: u256) -> u256 [selector=0x00000002] {
+    bb0:
+      mstore 160, arg0
+      frame_store multi_return, word, 0, 128 !metadata(memory=scratch)
+      v1 = frame_load multi_return, word, 0
+      v2 = add v1, 32
+      mstore v2, 99
+      v3 = mload v2
+      ret v3
+  }
+  

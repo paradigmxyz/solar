@@ -4,7 +4,10 @@
 //! later full-word `mstore` to the same exact address within the same basic
 //! block, before any operation can observe memory or gas. It also forwards
 //! same-block `mload` instructions from the latest exact-address `mstore` when
-//! no intervening operation can mutate memory.
+//! no intervening operation can mutate memory. Across a unique predecessor
+//! edge, equal constant stores can be removed only while no overlapping
+//! 32-byte write has invalidated the remembered word. Gas and memory-size
+//! observations act as barriers to memory elimination.
 
 use crate::mir::{
     BlockId, Function, Immediate, InstId, InstKind, MemoryObjectKind, MemoryRegion, Module,
@@ -14,7 +17,7 @@ use crate::mir::{
         MemoryBase, MemoryLocation,
     },
     memory::EvmMemoryLayout,
-    pass::{MirPass, run_function_pass},
+    pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
     utils as mir_utils,
 };
 use alloy_primitives::{U256, keccak256};
@@ -43,13 +46,47 @@ impl MirPass for MemoryDse {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, analyses| {
-            let mut eliminator = MemoryStoreEliminator::new();
-            eliminator.alias = Some(Rc::clone(&analyses.alias));
-            eliminator.cfg = Some(Rc::clone(&analyses.cfg));
-            eliminator.run_to_fixpoint(func) != 0
-        })
+        let mut selected = DenseBitSet::new_empty(module.functions.len());
+        for (func_id, func) in module.functions.iter_enumerated() {
+            if has_memory_writes(func) {
+                selected.insert(func_id);
+            }
+        }
+        run_selected_function_pass_with_alias_and_cfg(
+            module,
+            analyses,
+            &selected,
+            |func, analyses| {
+                let mut eliminator = MemoryStoreEliminator::new();
+                eliminator.alias = Some(Rc::clone(analyses.alias()));
+                eliminator.cfg = Some(Rc::clone(analyses.cfg()));
+                eliminator.run_to_fixpoint(func) != 0
+            },
+        )
     }
+}
+
+/// Returns whether the function contains a memory write this pass can remove
+/// or forward from.
+fn has_memory_writes(func: &Function) -> bool {
+    func.instructions().any(|inst_id| {
+        matches!(
+            func.inst(inst_id).kind,
+            InstKind::MStore(_, _)
+                | InstKind::MStore8(_, _)
+                | InstKind::MemoryZero(_, _)
+                | InstKind::MCopy(_, _, _)
+                | InstKind::CalldataCopy(_, _, _)
+                | InstKind::DataCopy(_, _, _)
+                | InstKind::CodeCopy(_, _, _)
+                | InstKind::ReturnDataCopy(_, _, _)
+                | InstKind::ExtCodeCopy(_, _, _, _)
+                | InstKind::SetMemoryObjectLen(_, _, _)
+                | InstKind::StorageToMemory { .. }
+                | InstKind::AbiEncode { .. }
+                | InstKind::AbiDecode { .. }
+        )
+    })
 }
 
 /// Local dead memory optimization.
@@ -373,25 +410,7 @@ impl MemoryStoreEliminator {
         // Both store elimination and store-to-load forwarding need at least
         // one memory write to act on; functions without any skip the whole
         // scan and never build the alias snapshot.
-        let has_memory_writes = func.instructions().any(|inst_id| {
-            matches!(
-                func.inst(inst_id).kind,
-                InstKind::MStore(_, _)
-                    | InstKind::MStore8(_, _)
-                    | InstKind::MemoryZero(_, _)
-                    | InstKind::MCopy(_, _, _)
-                    | InstKind::CalldataCopy(_, _, _)
-                    | InstKind::DataCopy(_, _, _)
-                    | InstKind::CodeCopy(_, _, _)
-                    | InstKind::ReturnDataCopy(_, _, _)
-                    | InstKind::ExtCodeCopy(_, _, _, _)
-                    | InstKind::SetMemoryObjectLen(_, _, _)
-                    | InstKind::StorageToMemory { .. }
-                    | InstKind::AbiEncode { .. }
-                    | InstKind::AbiDecode { .. }
-            )
-        });
-        if !has_memory_writes {
+        if !has_memory_writes(func) {
             return 0;
         }
 
@@ -1112,6 +1131,11 @@ impl MemoryStoreEliminator {
             };
             Some((a.as_u256()?.try_into().ok()?, v.as_u256()?))
         };
+        let invalidate_overlapping_words = |known: &mut FxHashMap<u64, U256>, address: u64| {
+            known.retain(|known_address, _| {
+                known_address.abs_diff(address) >= EvmMemoryLayout::WORD_SIZE
+            });
+        };
 
         let mut exit: FxHashMap<BlockId, FxHashMap<u64, U256>> = FxHashMap::default();
         let mut dead = DenseBitSet::new_empty(func.num_insts());
@@ -1134,16 +1158,19 @@ impl MemoryStoreEliminator {
                                 dead.insert(inst_id);
                                 self.eliminated_count += 1;
                             } else {
+                                // mstore a, old; mstore b, value; mstore a, old
+                                // => retain the restore when the words at a and b overlap
+                                invalidate_overlapping_words(&mut known, a);
                                 known.insert(a, v);
                             }
                         }
                         None => {
                             match self.mem_addr_key(func, *addr).and_then(|key| key.0.as_absolute())
                             {
-                                // A non-constant value written to a constant scratch
-                                // slot makes its contents unknown.
+                                // A non-constant word written at a known address
+                                // invalidates every remembered overlapping word.
                                 Some(a) => {
-                                    known.remove(&a);
+                                    invalidate_overlapping_words(&mut known, a);
                                 }
                                 // An address we cannot pin could alias anything.
                                 _ => known.clear(),

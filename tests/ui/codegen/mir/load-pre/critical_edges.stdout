@@ -1,0 +1,80 @@
+- // === ROOT/tests/ui/codegen/mir/load-pre/critical_edges.mir (before load-pre) ===
++ // === ROOT/tests/ui/codegen/mir/load-pre/critical_edges.mir (after load-pre) ===
+  @module CriticalLoadEdges
+  fn @branch(arg0: bool, arg1: bool, arg2: u256) -> u256 {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb2:
+-     jumpi arg1, bb3, bb4
++     jumpi arg1, bb5, bb4
+    bb4:
+      ret 99
++   bb5:
++     v3 = sload 5
++     jump bb3
+    bb1:
+      sstore 5, arg2
+      jump bb3
+    bb3:
+-     v0 = phi [bb1: 3], [bb2: 7]
+-     v1 = sload 5
+-     v2 = add v0, v1
++     v0 = phi [bb1: 3], [bb5: 7]
++     v4 = phi [bb1: arg2], [bb5: v3]
++     v2 = add v0, v4
+      ret v2
+  }
+  
+  fn @switch_edges(arg0: bool, arg1: u256, arg2: u256) -> u256 {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb2:
+-     switch arg1, default bb4, [1 => bb3, 2 => bb3]
++     switch arg1, default bb4, [1 => bb5, 2 => bb5]
++   bb5:
++     v1 = tload 5
++     jump bb3
+    bb4:
+      ret 99
+    bb1:
+      tstore 5, arg2
+      jump bb3
+    bb3:
+-     v0 = tload 5
+-     ret v0
++     v2 = phi [bb1: arg2], [bb5: v1]
++     ret v2
+  }
+  
+  fn @gas_barrier(arg0: bool, arg1: bool) -> u256 {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb2:
+      jumpi arg1, bb3, bb4
+    bb4:
+      ret 99
+    bb1:
+      v0 = sload 5
+      jump bb3
+    bb3:
+      v1 = gas
+      v2 = sload 5
+      v3 = add v1, v2
+      ret v3
+  }
+  
+  fn @cheap_memory(arg0: bool, arg1: bool) -> u256 {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb2:
+      jumpi arg1, bb3, bb4
+    bb4:
+      ret 99
+    bb1:
+      v0 = mload 128
+      jump bb3
+    bb3:
+      v1 = mload 128
+      ret v1
+  }
+  

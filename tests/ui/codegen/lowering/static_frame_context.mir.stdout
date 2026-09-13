@@ -1,0 +1,144 @@
+// === ROOT/tests/ui/codegen/lowering/static_frame_context.sol:StaticFrameContext ===
+@module StaticFrameContext
+fn @low(arg0: u256) -> u256 [selector=0x10c888cd, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = icall @twice, 1, arg0
+    ret v0
+}
+
+fn @high(arg0: u256) -> u256 [selector=0x6257139f, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    mstore 0x1fe0, arg0
+    v0 = icall @fourTimes, 1, arg0
+    v1 = mload 0x1fe0
+    v2 = add v0, v1
+    ret v2
+}
+
+fn @shared(arg0: u256) -> u256 [selector=0x727ee1fa, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = icall @twice, 1, arg0
+    v1 = icall @fourTimes, 1, arg0
+    v2 = add v0, v1
+    v3 = lt v2, v0
+    jumpi v3, bb1, bb2
+  bb2:
+    v4 = add v2, arg0
+    v5 = lt v4, v2
+    jumpi v5, bb1, bb3
+  bb3:
+    ret v4
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @twice(arg0: u256) -> u256 [pure] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb9: v0]
+    v1 = phi [bb0: 0], [bb9: v6]
+    v2 = phi [bb0: 0], [bb9: v4]
+    v3 = lt v1, v0
+    jumpi v3, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    v8 = icall @sum, 1, v0
+    v9 = add v2, v8
+    v10 = lt v9, v2
+    jumpi v10, bb7, bb10
+  bb10:
+    ret v9
+  bb4:
+    v4 = add v2, 2
+    v5 = lt v4, v2
+    jumpi v5, bb7, bb8
+  bb8:
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v6 = add v1, 1
+    v7 = lt v6, v1
+    jumpi v7, bb7, bb9
+  bb9:
+    jump bb1
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @fourTimes(arg0: u256) -> u256 [pure] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb9: v4]
+    v1 = phi [bb0: arg0], [bb9: v1]
+    v2 = phi [bb0: 0], [bb9: v6]
+    v3 = lt v2, v1
+    jumpi v3, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    v8 = icall @sum, 1, v1
+    v9 = add v0, v8
+    v10 = lt v9, v0
+    jumpi v10, bb7, bb10
+  bb10:
+    ret v9
+  bb4:
+    v4 = add v0, 4
+    v5 = lt v4, v0
+    jumpi v5, bb7, bb8
+  bb8:
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v6 = add v2, 1
+    v7 = lt v6, v2
+    jumpi v7, bb7, bb9
+  bb9:
+    jump bb1
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @sum(arg0: u256) -> u256 [pure] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb9: v6]
+    v1 = phi [bb0: 0], [bb9: v4]
+    v2 = phi [bb0: arg0], [bb9: v2]
+    v3 = lt v0, v2
+    jumpi v3, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v1
+  bb4:
+    v4 = add v1, v0
+    v5 = lt v4, v1
+    jumpi v5, bb7, bb8
+  bb8:
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v6 = add v0, 1
+    v7 = lt v6, v0
+    jumpi v7, bb7, bb9
+  bb9:
+    jump bb1
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}

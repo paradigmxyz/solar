@@ -8,7 +8,7 @@ fn @makeFixedArray() -> memoryfixedarray {
     jumpi v2, bb1, bb2
   bb2:
     sstore 0, v1 !metadata(storage=slot(0))
-    v3 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v3 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_zero v3, 64
     ret v3
   bb1:

@@ -1,12 +1,18 @@
 //! Local storage-load forwarding.
 //!
 //! This pass removes redundant `sload` instructions on straight-line paths when
-//! no intervening storage write may alias the loaded slot.
+//! no intervening storage write may alias the loaded slot. Exact stores also
+//! forward their full word to subsequent loads. This exposes packed field
+//! updates as word expressions, allowing storage DSE to remove intermediate
+//! writes while retaining every preserved bit. Calls and possible aliases
+//! invalidate both load and store facts. After a `gas` read, storage accesses
+//! remain explicit so a later `gas` read observes their cost and warmness
+//! effects, including observations in predecessor blocks and transitive callees.
 
 use crate::mir::{
     BlockId, Function, InstId, InstKind, Module, StorageAlias, ValueId,
-    analysis::{Access, AddressSpace, AliasAnalysis, Liveness, Location},
-    pass::{AnalysisManager, LivenessAnalysis, MirPass, run_function_pass},
+    analysis::{Access, AddressSpace, AliasAnalysis, CfgInfo, GasObservations, Liveness, Location},
+    pass::{AnalysisManager, LivenessAnalysis, MirPass, run_function_pass_with_alias},
     utils as mir_utils,
 };
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
@@ -26,9 +32,9 @@ impl MirPass for StorageLoadCse {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, analyses| {
+        run_function_pass_with_alias(module, analyses, |func, analyses| {
             let mut cse = StorageLoadCseCx::new();
-            cse.alias = Some(Rc::clone(&analyses.alias));
+            cse.alias = Some(Rc::clone(analyses.alias()));
             cse.run_to_fixpoint(func) != 0
         })
     }
@@ -45,7 +51,7 @@ struct StorageLoadCseCx {
 struct RunState {
     replacements: FxHashMap<ValueId, ValueId>,
     dead: DenseBitSet<InstId>,
-    cached_loads: FxHashMap<StorageAlias, ValueId>,
+    cached_loads: FxHashMap<StorageAlias, (ValueId, bool)>,
 }
 
 impl RunState {
@@ -76,9 +82,10 @@ impl StorageLoadCseCx {
         state.replacements.clear();
         state.dead.clear();
 
+        let gas = GasObservations::new(func, &CfgInfo::new(func), self.alias.as_ref().unwrap());
         for block_id in func.blocks.indices() {
             state.cached_loads.clear();
-            self.process_block(func, block_id, liveness, state);
+            self.process_block(func, block_id, liveness, &gas, state);
         }
 
         if !state.replacements.is_empty() {
@@ -112,9 +119,11 @@ impl StorageLoadCseCx {
         func: &Function,
         block_id: BlockId,
         liveness: &Liveness,
+        gas: &GasObservations,
         state: &mut RunState,
     ) {
         let aa = self.alias.as_ref().expect("storage-load CSE alias snapshot is initialized");
+        let mut gas_observed = gas.at_entry(block_id);
         for (inst_idx, &inst_id) in func.blocks[block_id].instructions.iter().enumerate() {
             match &func.inst(inst_id).kind {
                 InstKind::SLoad(slot) => {
@@ -127,19 +136,23 @@ impl StorageLoadCseCx {
                     let Some(result) = func.inst_result_value(inst_id) else {
                         continue;
                     };
-                    if let Some(&cached) = state.cached_loads.get(&alias) {
-                        if !liveness.is_used_at_or_after(cached, block_id, inst_idx) {
-                            state.cached_loads.insert(alias, result);
+                    if gas_observed {
+                        continue;
+                    }
+                    if let Some(&(cached, from_store)) = state.cached_loads.get(&alias) {
+                        if !from_store && !liveness.is_used_at_or_after(cached, block_id, inst_idx)
+                        {
+                            state.cached_loads.insert(alias, (result, false));
                             continue;
                         }
                         state.replacements.insert(result, cached);
                         state.dead.insert(inst_id);
                         self.eliminated_count += 1;
                     } else {
-                        state.cached_loads.insert(alias, result);
+                        state.cached_loads.insert(alias, (result, false));
                     }
                 }
-                InstKind::SStore(slot, _) => {
+                InstKind::SStore(slot, value) => {
                     let alias = aa.storage_alias_after_replacements(
                         func,
                         inst_id,
@@ -150,6 +163,12 @@ impl StorageLoadCseCx {
                         !aa.alias(Location::Storage(*cached_alias), Location::Storage(alias))
                             .may_alias()
                     });
+                    if gas_observed {
+                        continue;
+                    }
+                    // sstore slot, value; result = sload slot => result = value
+                    let value = mir_utils::resolve_replacement(*value, &state.replacements);
+                    state.cached_loads.insert(alias, (value, true));
                 }
                 _ => {
                     let effects = aa.instruction_mod_ref_with_replacements(
@@ -157,6 +176,11 @@ impl StorageLoadCseCx {
                         inst_id,
                         &state.replacements,
                     );
+                    if gas.observes(inst_id) {
+                        state.cached_loads.clear();
+                        gas_observed = true;
+                        continue;
+                    }
                     for &access in effects.writes() {
                         match access {
                             Access::Any(AddressSpace::Storage) => {

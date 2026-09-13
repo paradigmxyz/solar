@@ -1,0 +1,20 @@
+//@revisions: blocked lowered
+//@[blocked] compile-flags: -Zmir-pipeline=lower-evm-shaped
+//@[lowered] compile-flags: -Zmir-pipeline=lower-mapping-slots,lower-evm-shaped
+//@[blocked] filecheck: --check-prefix=BLOCKED
+//@[lowered] filecheck: --check-prefix=LOWERED
+@module LowerEvmShapedLegality
+@phase memory-lowered
+
+// The phase gate must consult the operation schema: a semantic slot operation
+// is not ready for the EVM backend until its lowering pass has consumed it.
+// BLOCKED: {{^[ +].*}}@phase memory-lowered
+// BLOCKED-NOT: + @phase evm-shaped
+// LOWERED: + @phase evm-shaped
+fn @entry() [entry] {
+  bb0:
+    v0 = storage_array_data_slot 7
+    v1 = sload v0
+    mstore 128, v1
+    returndata 128, 32
+}

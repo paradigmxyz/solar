@@ -472,7 +472,7 @@ fn @test1() -> u256 [selector=0x6b59084d, abi_params=[], abi_returns=[word]] {
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v3 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v3 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_zero v3, 64
     memory_object_store_element memoryarray<1>, v0, v1, v3
     v4 = add v1, 1
@@ -481,7 +481,7 @@ fn @test1() -> u256 [selector=0x6b59084d, abi_params=[], abi_returns=[word]] {
 
 fn @test2() -> u256 [selector=0x66e41cb7, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v4]
@@ -660,7 +660,7 @@ fn @test2() -> u256 [selector=0x66e41cb7, abi_params=[], abi_returns=[word]] {
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v3 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v3 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_zero v3, 64
     memory_object_store_element memoryfixedarray<2, 1>, v0, v1, v3
     v4 = add v1, 1
@@ -669,7 +669,7 @@ fn @test2() -> u256 [selector=0x66e41cb7, abi_params=[], abi_returns=[word]] {
 
 fn @test3() -> u256 [selector=0x0a8e8e01, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96 !metadata(preserves_fmp)
     jump bb1
   bb1:
     v1 = phi [bb0: 0], [bb2: v4]
@@ -938,7 +938,7 @@ fn @test3() -> u256 [selector=0x0a8e8e01, abi_params=[], abi_returns=[word]] {
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v3 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v3 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64 !metadata(preserves_fmp)
     memory_zero v3, 64
     memory_object_store_element memoryfixedarray<3, 1>, v0, v1, v3
     v4 = add v1, 1

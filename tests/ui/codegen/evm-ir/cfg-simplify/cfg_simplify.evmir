@@ -4,7 +4,7 @@
 
 // CHECK-LABEL: bb0:
 // CHECK: - push bb1
-// CHECK: + push bb2
+// CHECK: - jump
 bb0:
   push bb1
   jump

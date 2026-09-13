@@ -8,12 +8,12 @@
     push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef1
 +   swap 1
 +   jump
-+ bb1:
++ bb1 [continuation]:
     pop
 -   push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef1
 -   pop
     stop
-+ bb2:
++ bb2 [continuation]:
 +   pop
 +   push bb1
 +   jump bb0

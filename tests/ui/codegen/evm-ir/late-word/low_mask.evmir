@@ -1,0 +1,128 @@
+//@ revisions: gas size paris
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=late-word
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=late-word
+//@[paris] compile-flags: -Ogas --evm-version=paris -Zevm-ir-pipeline=late-word
+@module LateMasks
+
+bb0:
+  push 0
+  calldataload
+  indexed_jump bb1, bb2, bb3, bb4, bb5, bb6, bb7, bb8, bb9, bb10
+
+// A closed calldata read does not depend on the two leading ones.
+bb1:
+  push 1
+  dup 1
+  push 0
+  calldataload
+  shl
+  sub
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+
+// Count arithmetic and memory reads stay in their original order.
+bb2:
+  push 1
+  dup 1
+  push 64
+  mload
+  push 32
+  sub
+  push 3
+  shl
+  shl
+  sub
+  stop
+
+// Reading either initial one makes the count depend on the replaced prefix.
+bb3:
+  push 1
+  dup 1
+  dup 2
+  shl
+  sub
+  stop
+
+// The count may not observe the gas saved by the replacement prefix.
+bb4:
+  push 1
+  dup 1
+  gas
+  shl
+  sub
+  stop
+
+// PC observes an instruction position changed by shortening the prefix.
+bb5:
+  push 1
+  dup 1
+  pc
+  shl
+  sub
+  stop
+
+// The low-mask identity requires a leading one.
+bb6:
+  push 2
+  dup 1
+  push 0
+  calldataload
+  shl
+  sub
+  stop
+
+// The shifted one stays unique while unrelated words are loaded and shuffled.
+bb7:
+  push 64
+  push 8
+  push 1
+  dup 2
+  mload
+  swap 3
+  shl
+  push 1
+  swap 1
+  sub
+  stop
+
+// A second copy of the protected one would change an unrelated output.
+bb8:
+  push 1
+  dup 1
+  push 8
+  shl
+  push 1
+  swap 1
+  sub
+  stop
+
+// Using the one in count arithmetic is not independent of its value.
+bb9:
+  push 1
+  push 2
+  add
+  push 8
+  shl
+  push 1
+  swap 1
+  sub
+  stop
+
+// The body may move the protected word to the top and back without inspecting it.
+bb10:
+  push 64
+  push 8
+  push 1
+  swap 2
+  dup 2
+  pop
+  swap 2
+  dup 2
+  shl
+  push 1
+  swap 1
+  sub
+  stop

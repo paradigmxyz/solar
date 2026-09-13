@@ -1,0 +1,31 @@
+// === ROOT/tests/ui/codegen/lowering/store_operand_order.sol:StoreOperands ===
+@module StoreOperands
+fn @memoryWords(arg0: u256) -> (u256, u256, u256) [selector=0x9d17b978, pure, abi_params=[u256], abi_returns=[word, word, word]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    mstore v0, arg0
+    v1 = mload v0
+    v2 = add v1, 1
+    mstore v0, v2
+    v3 = add v0, 63
+    mstore8 v3, v1
+    v4 = mload v0
+    v5 = add v0, 32
+    v6 = mload v5
+    v7 = and v6, 255
+    v8 = add v0, 64
+    mstore 64, v8 !metadata(memory=scratch)
+    ret v1, v4, v7
+}
+
+fn @stateWords(arg0: u256) -> (u256, u256, u256) [selector=0x0797de3c, abi_params=[u256], abi_returns=[word, word, word]] {
+  bb0:
+    sstore arg0, arg0 !metadata(storage=symbolic(arg0))
+    v0 = sload arg0 !metadata(storage=symbolic(arg0))
+    v1 = add v0, 1
+    sstore arg0, v1 !metadata(storage=symbolic(arg0))
+    tstore arg0, v0
+    v2 = sload arg0 !metadata(storage=symbolic(arg0))
+    v3 = tload arg0
+    ret v0, v2, v3
+}

@@ -18,6 +18,8 @@ Options:
           Stop execution after the given compiler stage [possible values: parsing, lowering, analysis]
   -O, --optimize <OPTIMIZATION>
           MIR optimization objective [default: gas] [possible values: none, gas, size]
+      --optimize-runs <RUNS>
+          Expected executions per deployment used by lifetime-aware optimizer decisions
       --revert-strings <REVERT_STRINGS>
           Strip revert (and require) reason strings or add additional debugging information [default: default] [possible values: default, strip, debug, verboseDebug]
       --libraries <NAME=ADDRESS>

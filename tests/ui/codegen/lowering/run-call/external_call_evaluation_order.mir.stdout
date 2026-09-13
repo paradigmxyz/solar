@@ -200,7 +200,7 @@ fn @dirtySend() -> bool [selector=0x82ec93de, payable, abi_params=[], abi_return
 
 fn @dirtyIndex() -> u256 [selector=0xe98f4d7c, pure, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = alloc memoryfixedarray<257, 1>, exact, uninitialized, infallible, 0x2020
+    v0 = alloc memoryfixedarray<257, 1>, exact, uninitialized, infallible, 0x2020 !metadata(preserves_fmp)
     memory_zero v0, 0x2020
     v1 = lt 0, 257
     v2 = iszero v1

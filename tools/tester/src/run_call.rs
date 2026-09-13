@@ -19,7 +19,13 @@ use ui_test::{
 };
 
 const CALLER: Address = Address::repeat_byte(0x22);
-const DEFAULT_GAS_LIMIT: u64 = 10_000_000;
+
+/// Amsterdam splits execution gas from a reservoir for more expensive state
+/// creation (EIP-8037). Keep a generous state budget for correctness fixtures;
+/// the interpreter still enforces the fork's execution-gas cap.
+fn default_gas_limit(spec: SpecId) -> u64 {
+    if spec >= SpecId::AMSTERDAM { 100_000_000 } else { 10_000_000 }
+}
 
 #[derive(Debug, Clone)]
 pub(crate) struct RunCall {
@@ -61,7 +67,7 @@ struct ResolvedCall<'a> {
     constructor_args: Vec<u8>,
     input: Vec<u8>,
     expected: Vec<u8>,
-    gas_limit: u64,
+    gas_limit: Option<u64>,
     value: U256,
 }
 
@@ -123,7 +129,7 @@ impl RunCall {
             &call.constructor_args,
             setup,
             call.input,
-            call.gas_limit,
+            call.gas_limit.unwrap_or_else(|| default_gas_limit(spec_id)),
             call.value,
             spec_id,
         )?;
@@ -180,7 +186,7 @@ impl RunCallFail {
             &call.constructor_args,
             setup,
             call.input,
-            call.gas_limit,
+            call.gas_limit.unwrap_or_else(|| default_gas_limit(spec_id)),
             call.value,
             spec_id,
         )?;
@@ -338,7 +344,7 @@ fn resolve_call<'a>(
             constructor_args,
             input,
             expected,
-            gas_limit: settings.gas.unwrap_or(DEFAULT_GAS_LIMIT),
+            gas_limit: settings.gas,
             value: settings.value.unwrap_or_default(),
         });
     }
@@ -358,7 +364,7 @@ fn resolve_call<'a>(
         constructor_args,
         input,
         expected,
-        gas_limit: settings.gas.unwrap_or(DEFAULT_GAS_LIMIT),
+        gas_limit: settings.gas,
         value: settings.value.unwrap_or_default(),
     })
 }
@@ -698,7 +704,8 @@ fn execute(
         Precompiles::base(spec_id),
     );
     let initcode = Bytes::from_iter(initcode.iter().chain(constructor_args).copied());
-    let result = transact(&mut evm, 0, TxKind::Create, initcode, DEFAULT_GAS_LIMIT, U256::ZERO)?;
+    let result =
+        transact(&mut evm, 0, TxKind::Create, initcode, default_gas_limit(spec_id), U256::ZERO)?;
     if !result.status {
         return Err(format!(
             "contract deployment failed with {:?}: 0x{}",
@@ -717,7 +724,7 @@ fn execute(
             nonce,
             TxKind::Call(contract),
             Bytes::from(setup),
-            DEFAULT_GAS_LIMIT,
+            default_gas_limit(spec_id),
             U256::ZERO,
         )?);
         nonce += 1;

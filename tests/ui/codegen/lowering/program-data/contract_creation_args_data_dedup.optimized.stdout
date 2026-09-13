@@ -31,123 +31,57 @@ bb5:
   push 128
   return
 bb6:
-  push 320
+  push 128
   dup 1
   push 64
-  mstore
-  dup 1
-  push 288
   mstore
   push 160
   dup 2
   add
   push 64
   mstore
-  push 128
+  dup 1
   dup 2
   mstore
   push 32
   dup 2
   add
-  dup 1
-  push 160
-  mstore
-  push 128
+  dup 2
   push_data literal_0
   dup 3
   codecopy
-  push 64
-  mload
-  dup 1
-  push 256
-  mstore
-  push 32
   dup 2
-  add
-  dup 2
-  dup 2
-  sub
-  dup 3
-  mstore
-  dup 4
   iszero
   iszero
-  swap 4
-  mload
-  swap 1
-  swap 4
-  mul
-  dup 1
-  push 128
-  mstore
-  dup 4
-  mstore
-  swap 2
-  pop
+  push 7
+  shl
   push 31
-  push 128
-  mload
+  dup 2
   add
   push 31
   not
   and
   dup 1
-  push 192
-  mstore
-  push 64
   dup 4
   add
-  push 224
-  mstore
-  swap 2
-  pop
-  pop
-  iszero
-  push bb8
-  jumpi
   push 0
+  swap 1
+  mstore
   push 32
-  push 192
-  mload
-  sub
-  push 224
-  mload
-  add
-  mstore
-  jump bb8
-bb8:
-  push 224
-  mload
-  push 192
-  mload
-  dup 2
-  add
-  push 128
-  mload
-  push 160
-  mload
   dup 4
+  add
+  dup 3
+  dup 5
+  dup 3
   mcopy
-  swap 1
   pop
-  push 256
-  mload
-  swap 1
-  sub
-  push 31
-  dup 2
-  add
-  push 31
-  not
-  and
-  push 64
-  mload
-  swap 1
-  dup 2
-  add
-  push 64
+  push 32
+  dup 5
   mstore
-  dup 2
+  swap 2
+  mstore
+  push 64
+  add
   dup 2
   return
 
@@ -191,10 +125,10 @@ bb26 [cold]:
   push 0
   revert
 bb6:
-  push 288
+  push 256
   push 64
   mstore
-  push 224
+  push 160
   push 32
   dup 2
   mstore
@@ -203,21 +137,57 @@ bb6:
   push 11
   dup 2
   mstore
+  push bb33
+  jump bb32
+bb32:
   push 64
   mload
-  dup 1
-  push 192
-  mstore
-  push 608
+  push 512
   dup 2
   add
   push 64
   mstore
-  push 560
+  push 470
   push_data ChildWithArg_initcode_0
   dup 3
+  swap 1
+  swap 2
+  swap 3
+  swap 4
+  jump
+bb12:
+  push 256
+  push 64
+  mstore
+  push 160
+  push 32
+  dup 2
+  mstore
+  push 32
+  add
+  push 22
+  dup 2
+  mstore
+  push bb34
+  jump bb32
+bb18:
+  push 352
+  push 64
+  mstore
+  push 224
+  push 32
+  dup 2
+  mstore
+  push 32
+  add
+  push 3
+  dup 2
+  mstore
+  push bb38
+  jump bb32
+bb33 [continuation]:
   codecopy
-  push 560
+  push 470
   dup 2
   add
   push 32
@@ -227,19 +197,19 @@ bb6:
   pop
   swap 1
   pop
-  push 592
+  push 502
   swap 1
   push 0
   create
   jump bb30
 bb30:
   dup 1
-  push 160
+  push 224
   mstore
   iszero
   push bb26
   jumpi
-  push bb34
+  push bb39
   jump bb31
 bb31:
   push 64
@@ -254,36 +224,19 @@ bb31:
   shl
   dup 2
   mstore
+  push 32
+  push 0
+  push 4
+  dup 4
   swap 1
+  swap 2
+  swap 3
+  swap 4
+  swap 5
   jump
-bb12:
-  push 288
-  push 64
-  mstore
-  push 224
-  push 32
-  dup 2
-  mstore
-  push 32
-  add
-  push 22
-  dup 2
-  mstore
-  push 64
-  mload
-  dup 1
-  push 192
-  mstore
-  push 608
-  dup 2
-  add
-  push 64
-  mstore
-  push 560
-  push_data ChildWithArg_initcode_0
-  dup 3
+bb34 [continuation]:
   codecopy
-  push 560
+  push 470
   dup 2
   add
   push 32
@@ -293,106 +246,13 @@ bb12:
   pop
   swap 1
   pop
-  push 592
+  push 502
   push 1
   swap 2
   push 0
   create2
   jump bb30
-bb18:
-  push 384
-  push 64
-  mstore
-  push 256
-  push 32
-  dup 2
-  mstore
-  push 32
-  add
-  push 3
-  dup 2
-  mstore
-  push 64
-  mload
-  dup 1
-  push 224
-  mstore
-  push 608
-  dup 2
-  add
-  push 64
-  mstore
-  push 560
-  push_data ChildWithArg_initcode_0
-  dup 3
-  codecopy
-  push 560
-  dup 2
-  add
-  push 32
-  dup 4
-  dup 3
-  mcopy
-  pop
-  swap 1
-  pop
-  push 592
-  swap 1
-  push 0
-  create
-  dup 1
-  push 160
-  mstore
-  iszero
-  push bb26
-  jumpi
-  push 320
-  push 32
-  dup 2
-  mstore
-  push 32
-  add
-  push 4
-  dup 2
-  mstore
-  push 64
-  mload
-  push 608
-  dup 2
-  add
-  push 64
-  mstore
-  push 560
-  push_data ChildWithArg_initcode_0
-  dup 3
-  codecopy
-  push 560
-  dup 2
-  add
-  push 32
-  dup 4
-  dup 3
-  mcopy
-  pop
-  swap 1
-  pop
-  push 592
-  swap 1
-  push 0
-  create
-  dup 1
-  push 192
-  mstore
-  iszero
-  push bb26
-  jumpi
-  push bb33
-  jump bb31
-bb32:
-  push 32
-  push 0
-  push 4
-  dup 4
+bb35 [continuation]:
   push 192
   mload
   gas
@@ -423,11 +283,7 @@ bb29:
   push 32
   push 128
   return
-bb33:
-  push 32
-  push 0
-  push 4
-  dup 4
+bb36 [continuation]:
   push 160
   mload
   gas
@@ -444,14 +300,67 @@ bb33:
   jumpi
   push 0
   mload
-  push bb32
+  push bb35
   jump bb31
-bb34:
+bb37 [continuation]:
+  codecopy
+  push 470
+  dup 2
+  add
   push 32
-  push 0
-  push 4
   dup 4
+  dup 3
+  mcopy
+  pop
+  swap 1
+  pop
+  push 502
+  swap 1
+  push 0
+  create
+  dup 1
+  push 192
+  mstore
+  iszero
+  push bb26
+  jumpi
+  push bb36
+  jump bb31
+bb38 [continuation]:
+  codecopy
+  push 470
+  dup 2
+  add
+  push 32
+  dup 4
+  dup 3
+  mcopy
+  pop
+  swap 1
+  pop
+  push 502
+  swap 1
+  push 0
+  create
+  dup 1
   push 160
+  mstore
+  iszero
+  push bb26
+  jumpi
+  push 288
+  push 32
+  dup 2
+  mstore
+  push 32
+  add
+  push 4
+  dup 2
+  mstore
+  push bb37
+  jump bb32
+bb39 [continuation]:
+  push 224
   mload
   gas
   staticcall
@@ -481,4 +390,4 @@ bb28 [cold]:
   push 0
   revert
 
-@data ChildWithArg_initcode_0 hex"61023038038061023060e03960e001601f01601f19166040523460455760e06102303803016101001160455760e05160c0526101678060c960e03960c0516101035260e0f35b5f5ffdffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa9988776655443322110034601d575f3560e01c80633fa4f245146021578063a878f85814604b575b5f5ffd5b7f000000000000000000000000000000000000000000000000000000000000000060805260206080f35b61014080604052806101205260a0810160405260808152602081018060a052608060e78239604051806101005260208101818103825283151593519093028060805283529150601f60805101601f19168060c0526040830160e0529150501560ba575f602060c0510360e05101525b60e05160c051810160805160a051835e9050610100519003601f8101601f19166040519081016040528181f3ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100"
+@data ChildWithArg_initcode_0 hex"6101d63803806101d660e03960e001601f01601f19166040523460455760e06101d63803016101001160455760e05160c05261010d8060c960e03960c0516101035260e0f35b5f5ffdffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa9988776655443322110034601d575f3560e01c80633fa4f245146021578063a878f85814604b575b5f5ffd5b7f000000000000000000000000000000000000000000000000000000000000000060805260206080f35b60808060405260a081016040528081526020810181608d823981151560071b601f8101601f19168083015f9052602083018284825e5060208452915260400181f3ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100"

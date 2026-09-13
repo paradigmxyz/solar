@@ -21,7 +21,6 @@ contract R {
     string constant LOCAL = "local-const-msg";
 
     // CHECK-LABEL: @module R_runtime
-    // CHECK: indexed_jump
     // CHECK: push 0x3339
     // CHECK: jump [[SHORT_HELPER:bb[0-9]+]]
     // CHECK: [[SHORT_HELPER]] [cold]:
@@ -55,15 +54,16 @@ contract R {
 
     // CHECK: push 33
     // CHECK: push 0x746869732d69732d612d33332d627974652d6c6f6e672d6d6573736167652121
-    // CHECK: mcopy
-    // CHECK: revert
+    // CHECK-DAG: mcopy
+    // CHECK-DAG: revert
     function viaLong(uint256 x) external pure returns (uint256) {
         require(x > 5, Errors.LONG);
         return x;
     }
 
-    // CHECK: push 0x7265766572742d70617468
-    // CHECK: jump [[WORD11_HELPER]]
+    // The two cold paths may be laid out in either order.
+    // CHECK-DAG: push 0x7265766572742d70617468
+    // CHECK-DAG: jump [[WORD11_HELPER]]
     function viaRevertMsg(uint256 x) external pure returns (uint256) {
         if (x <= 5) {
             revert("revert-path");

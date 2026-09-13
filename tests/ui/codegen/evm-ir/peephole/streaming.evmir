@@ -1,0 +1,53 @@
+//@ compile-flags: -Zevm-ir-pipeline=peephole
+
+@module streaming
+
+// No matching prefix: retain the complete block.
+bb0:
+  calldatasize
+  push 0
+  mstore
+  stop
+
+// The first edit empties the prefix, then processing resumes at the suffix.
+bb1:
+  push 7
+  pop
+  calldatasize
+  push 0
+  add
+  push 0
+  mstore
+  stop
+
+// A late first edit exposes another edit spanning the previously inspected prefix.
+// Further instructions in the suffix also simplify.
+bb2:
+  calldatasize
+  push 0
+  mstore
+  push 1
+  push 0
+  add
+  pop
+  push 2
+  push 0
+  add
+  pop
+  stop
+
+// The first edit is the last instruction before the terminator.
+bb3:
+  calldatasize
+  push 0
+  mstore
+  push 3
+  pop
+  stop
+
+// An unchanged block after changed blocks must not replay their scratch storage.
+bb4:
+  push 4
+  push_deferred 0
+  pop
+  stop

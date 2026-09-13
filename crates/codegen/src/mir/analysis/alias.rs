@@ -286,6 +286,12 @@ impl ModRef {
         self.writes.contains(&Access::Any(space))
     }
 
+    /// Returns whether this operation may read `location`.
+    #[must_use]
+    pub(crate) fn may_read(&self, aa: &AliasAnalysis, location: Location) -> bool {
+        self.reads.iter().any(|&access| aa.access_may_alias(access, location))
+    }
+
     /// Returns whether this operation may write `location`.
     #[must_use]
     pub(crate) fn may_write(&self, aa: &AliasAnalysis, location: Location) -> bool {
@@ -1185,6 +1191,7 @@ impl AliasAnalysis {
                 if let Some(summary) =
                     self.call_summaries.as_deref().and_then(|summaries| summaries.get(function))
                 {
+                    effects.observes_gas = summary.may_observe_gas();
                     for space in [
                         AddressSpace::Memory,
                         AddressSpace::Storage,
@@ -1199,6 +1206,7 @@ impl AliasAnalysis {
                         }
                     }
                 } else {
+                    effects.observes_gas = true;
                     effects.read_any(AddressSpace::Memory);
                     effects.write_any(AddressSpace::Memory);
                     effects.read_any(AddressSpace::Storage);
@@ -1250,6 +1258,7 @@ impl AliasAnalysis {
                 if let Some(summary) =
                     self.call_summaries.as_deref().and_then(|summaries| summaries.get(function))
                 {
+                    effects.observes_gas = summary.may_observe_gas();
                     for space in [
                         AddressSpace::Memory,
                         AddressSpace::Storage,
@@ -1264,6 +1273,7 @@ impl AliasAnalysis {
                         }
                     }
                 } else {
+                    effects.observes_gas = true;
                     effects.read_any(AddressSpace::Memory);
                     effects.write_any(AddressSpace::Memory);
                     effects.read_any(AddressSpace::Storage);

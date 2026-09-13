@@ -100,7 +100,7 @@ pub struct CompileOpts {
     #[cfg_attr(feature = "clap", arg(short = 'O', long = "optimize", value_enum, default_value_t))]
     pub optimization: OptimizationMode,
     /// Expected executions per deployment used by lifetime-aware optimizer decisions.
-    #[cfg_attr(feature = "clap", arg(skip))]
+    #[cfg_attr(feature = "clap", arg(long = "optimize-runs", value_name = "RUNS"))]
     pub optimizer_runs: Option<u64>,
     /// Strip revert (and require) reason strings or add additional debugging information.
     ///

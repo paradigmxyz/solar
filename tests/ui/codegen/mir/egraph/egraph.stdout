@@ -1,0 +1,59 @@
+- // === ROOT/tests/ui/codegen/mir/egraph/egraph.mir (before egraph) ===
++ // === ROOT/tests/ui/codegen/mir/egraph/egraph.mir (after egraph) ===
+  @module Egraph
+  fn @value_numbering(arg0: u256, arg1: u256) -> u256 {
+    bb0:
+      v0 = add arg0, arg1
+-     v1 = add arg1, arg0
+      v2 = lt arg0, arg1
+-     v3 = gt arg1, arg0
+-     v4 = mul v0, v1
+-     v5 = and v2, v3
+-     v6 = add v4, v5
++     v4 = mul v0, v0
++     v6 = add v4, v2
+      ret v6
+  }
+  
+  fn @cheapest_node(arg0: u256) -> u256 {
+    bb0:
+-     v0 = mul arg0, 8
++     v0 = shl 3, arg0
+      v1 = add arg0, 4
+-     v2 = add v1, 5
++     v2 = add arg0, 9
+      v3 = add v0, v2
+      ret v3
+  }
+  
+  fn @dominance(arg0: u256, arg1: bool) -> u256 {
+    bb0:
+      v0 = add arg0, 1
+      jumpi arg1, bb1, bb2
+    bb2:
+-     v3 = add arg0, 1
+-     v4 = mul v3, 3
++     v4 = mul v0, 3
+      jump bb3
+    bb1:
+-     v1 = add arg0, 1
+-     v2 = mul v1, 3
++     v2 = mul v0, 3
+      jump bb3
+    bb3:
+      v5 = phi [bb1: v2], [bb2: v4]
+      ret v5
+  }
+  
+  fn @skeleton(arg0: u256) -> u256 {
+    bb0:
+      v0 = add arg0, 1
+-     v1 = add 1, 2
+-     v2 = add arg0, 1
+-     sstore v0, v1
+-     v3 = sload v2
++     sstore v0, 3
++     v3 = sload v0
+      ret v3
+  }
+  

@@ -1,4 +1,4 @@
 @module HotnessMetadata
 
-bb0 [hotness=cold]: //~ ERROR: expected `cold`, `loop`, or `invoke` block attribute
+bb0 [hotness=cold]: //~ ERROR: expected `cold`, `loop`, `continuation`, or `invoke` block attribute
   stop

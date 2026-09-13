@@ -9,7 +9,7 @@ fn @pushStr() [selector=0xe6e6accc] {
   bb4:
     v7 = calldataload 4
     v8 = add v7, 4
-    v9 = add v7, 36
+    v9 = add v8, 32
     v10 = gt v7, 0xffffffffffffffff
     v11 = gt v9, v5
     v12 = or v10, v11
@@ -26,7 +26,7 @@ fn @pushStr() [selector=0xe6e6accc] {
     v28 = lt v27, v19
     v29 = gt v27, 0xffffffffffffffff
     v30 = or v28, v29
-    jumpi v30, bb10, bb9
+    jumpi v30, bb6, bb9
   bb9:
     mstore 64, v27 !metadata(memory=scratch)
     mstore v19, v13
@@ -49,10 +49,6 @@ fn @pushStr() [selector=0xe6e6accc] {
     stop
   bb1:
     tail_call @revert_stub.7
-  bb10:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb6:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -77,17 +73,16 @@ fn @popStr() [selector=0x5d7696c3] {
     v4 = add v22, v2
     v5 = sload v4 !metadata(storage=symbolic(v4))
     v6 = and v5, 1
-    v7 = eq v6, 1
     v8 = shr 1, v5
     v9 = and v8, 127
-    v10 = select v7, v8, v9
+    v10 = select v6, v8, v9
     v11 = lt v10, 32
-    v12 = eq v7, v11
+    v12 = eq v6, v11
     jumpi v12, bb3, bb4
   bb4:
     v13 = add v10, 31
     v14 = shr 5, v13
-    jumpi v7, bb5, bb6
+    jumpi v6, bb5, bb6
   bb5:
     mstore 0, v4 !metadata(memory=scratch)
     v23 = keccak256 0, 32 !metadata(memory=scratch)
@@ -124,38 +119,24 @@ fn @blobAt() [selector=0x8f236983, view] {
     revert 0, 36
   bb2:
     mstore 0, 2 !metadata(memory=scratch)
-    v34 = keccak256 0, 32 !metadata(memory=scratch)
-    v4 = add v34, arg0
+    v23 = keccak256 0, 32 !metadata(memory=scratch)
+    v4 = add v23, arg0
     v5 = icall @load_storage_bytes, 1, v4
-    v11 = mload 64 !metadata(memory=scratch)
-    v12 = add v11, 32
-    v13 = sub v12, v11
-    mstore v11, v13
-    v15 = iszero v5
-    v16 = iszero v15
-    v14 = mload v5
-    v17 = mul v14, v16
-    mstore v12, v17
-    v19 = add v17, 31
-    v20 = and v19, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v21 = add v11, 64
-    jumpi v20, bb5, bb6
-  bb5:
-    v23 = sub v20, 32
-    v24 = add v21, v23
-    mstore v24, 0
-    jump bb6
-  bb6:
-    v26 = add v21, v20
-    v25 = add v5, 32
-    mcopy v21, v25, v17 !metadata(memory=heap)
-    v27 = sub v26, v11
-    v29 = add v27, 31
-    v31 = and v29, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v32 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v35 = add v32, v31
-    mstore 64, v35 !metadata(memory=scratch)
-    returndata v32, v27
+    v12 = iszero v5
+    v13 = iszero v12
+    v11 = mload v5
+    v14 = mul v11, v13
+    v15 = add v5, 32
+    v16 = add v14, 31
+    v18 = and v16, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v19 = add v15, v18
+    mstore v19, 0
+    v20 = add v15, 32
+    mcopy v20, v15, v14
+    mstore v5, 32
+    mstore v15, v14
+    v21 = add v18, 64
+    returndata v5, v21
   bb3:
     revert 0, 0
 }
@@ -195,12 +176,11 @@ fn @store_storage_bytes(arg0: u256, arg1: memptr) {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = and v0, 1
-    v2 = eq v1, 1
     v3 = shr 1, v0
     v4 = and v3, 127
-    v5 = select v2, v3, v4
+    v5 = select v1, v3, v4
     v6 = lt v5, 32
-    v7 = eq v2, v6
+    v7 = eq v1, v6
     jumpi v7, bb1, bb2
   bb2:
     v8 = mload arg1
@@ -215,7 +195,7 @@ fn @store_storage_bytes(arg0: u256, arg1: memptr) {
     v16 = lt v8, 32
     v17 = select v16, 0, v15
     v18 = gt v5, v8
-    v19 = and v2, v18
+    v19 = and v1, v18
     jumpi v19, bb5, bb6
   bb5:
     icall @clear_storage_words, 0, arg0, v17, v12
@@ -223,16 +203,16 @@ fn @store_storage_bytes(arg0: u256, arg1: memptr) {
   bb6:
     jumpi v16, bb7, bb8
   bb8:
-    v29 = shl 1, v8
-    v30 = or v29, 1
+    v50 = not v8
+    v30 = sub v8, v50
     sstore arg0, v30 !metadata(storage=symbolic(arg0))
     mstore 0, arg0 !metadata(memory=scratch)
-    v52 = keccak256 0, 32 !metadata(memory=scratch)
+    v53 = keccak256 0, 32 !metadata(memory=scratch)
     v32 = shr 5, v8
     jump bb10
   bb10:
     v33 = phi [bb8: 0], [bb11: v38]
-    v50 = phi [bb8: v52], [bb11: v51]
+    v51 = phi [bb8: v53], [bb11: v52]
     v34 = lt v33, v32
     jumpi v34, bb11, bb12
   bb12:
@@ -240,34 +220,30 @@ fn @store_storage_bytes(arg0: u256, arg1: memptr) {
     jumpi v39, bb13, bb9
   bb13:
     v41 = shl 5, v32
-    v57 = add v9, v41
-    v42 = mload v57
+    v58 = add v9, v41
+    v42 = mload v58
     v43 = sub 32, v39
     v44 = shl 3, v43
-    v45 = shl v44, 1
-    v46 = sub v45, 1
-    v47 = not v46
+    v47 = shl v44, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v48 = and v42, v47
-    v49 = add v52, v32
+    v49 = add v53, v32
     sstore v49, v48 !metadata(storage=symbolic(v49))
     jump bb9
   bb11:
     v35 = shl 5, v33
-    v55 = add v9, v35
-    v36 = mload v55
-    sstore v50, v36 !metadata(storage=symbolic(v50))
+    v56 = add v9, v35
+    v36 = mload v56
+    sstore v51, v36 !metadata(storage=symbolic(v51))
     v38 = add v33, 1
-    v51 = add v50, 1
+    v52 = add v51, 1
     jump bb10
   bb7:
     v20 = mload v9
     v21 = sub 32, v8
     v22 = shl 3, v21
-    v23 = shl v22, 1
-    v24 = sub v23, 1
-    v25 = not v24
+    v25 = shl v22, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     v26 = and v20, v25
-    v27 = shl 1, v8
+    v27 = add v8, v8
     v28 = or v26, v27
     sstore arg0, v28 !metadata(storage=symbolic(arg0))
     jump bb9
@@ -283,12 +259,11 @@ fn @load_storage_bytes(arg0: u256) -> memptr {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = and v0, 1
-    v2 = eq v1, 1
     v3 = shr 1, v0
     v4 = and v3, 127
-    v5 = select v2, v3, v4
+    v5 = select v1, v3, v4
     v6 = lt v5, 32
-    v7 = eq v2, v6
+    v7 = eq v1, v6
     jumpi v7, bb1, bb2
   bb2:
     v8 = add v5, 31
@@ -307,7 +282,7 @@ fn @load_storage_bytes(arg0: u256) -> memptr {
   bb10:
     mstore 64, v30 !metadata(memory=scratch)
     mstore v14, v5
-    jumpi v2, bb6, bb5
+    jumpi v1, bb6, bb5
   bb5:
     v15 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
     v26 = add v14, 32

@@ -1,0 +1,19 @@
+;; (1 << n) - 1 => ~(MAX << n), after outlining and final stack cleanup.
+;; closed_count computes n without reading its incoming stack or observing gas/PC.
+;; PUSH1 1; DUP1; closed_count; SHL; SUB => PUSH0; NOT; closed_count; SHL; NOT
+(rule 2 (late_peep (and window (late_window (push one) (dup 1) (opcode $SHL) (opcode $SUB))))
+      (if-let true (u256_is_one one))
+      (if-let true (closed_count window))
+      (if-let true (low_mask_profitable))
+      (rewrite (late_length window) (Edit.LowMask)))
+
+;; The body may shuffle the initial one but cannot duplicate, consume or inspect it.
+;; It leaves that one directly below n, preserving all other stack results.
+;; PUSH1 1; protected_count; SHL; PUSH1 1; SWAP1; SUB
+;;   => PUSH0; NOT; protected_count; SHL; NOT
+(rule 1 (late_peep (and window (protected_window (push one) (opcode $SHL) (push decrement) (swap 1) (opcode $SUB))))
+      (if-let true (u256_is_one one))
+      (if-let true (u256_is_one decrement))
+      (if-let true (protected_count window))
+      (if-let true (protected_mask_profitable))
+      (rewrite (late_length window) (Edit.LowMaskWithSwap)))

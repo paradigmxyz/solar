@@ -1,0 +1,124 @@
+//@ compile-flags: -Ogas -Zmir-pipeline=inline-guards
+@module ReturningGuard
+
+// A shared failure body stays behind a call; the successful guard bypasses it.
+fn @check(arg0: u256, arg1: u256) {
+  bb0:
+    v0 = eq arg0, arg1 !metadata(effect=pure)
+    jumpi v0, bb1, bb2
+  bb1:
+    ret
+  bb2:
+    sstore 0, arg0
+    ret
+}
+
+// Both calls split the same loop block. Its back-edge phi must name the final
+// continuation, and the call after the loop must remain intact.
+fn @loop(arg0: u256) {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb2: v2]
+    v1 = lt v0, 8
+    jumpi v1, bb2, bb3
+  bb2:
+    icall @check, 0, v0, arg0
+    icall @check, 0, v0, v0
+    v2 = add v0, 1
+    jump bb1
+  bb3:
+    icall @check, 0, 42, arg0
+    stop
+}
+
+// Reading mutable state cannot be moved out of a call as a pure guard.
+fn @reading(arg0: u256) {
+  bb0:
+    v0 = sload 0
+    v1 = eq v0, arg0
+    jumpi v1, bb1, bb2
+  bb1:
+    ret
+  bb2:
+    sstore 0, arg0
+    ret
+}
+
+fn @keep_read(arg0: u256) {
+  bb0:
+    jump bb1
+  bb1:
+    icall @reading, 0, arg0
+    jumpi arg0, bb1, bb2
+  bb2:
+    stop
+}
+
+// Explicit normalization is preserved for dirty boolean words.
+fn @normalize(arg0: bool, arg1: bool) {
+  bb0:
+    v0 = iszero arg0
+    v1 = iszero arg1
+    v2 = eq v0, v1
+    jumpi v2, bb1, bb2
+  bb1:
+    stop
+  bb2:
+    sstore 1, 1
+    stop
+}
+
+fn @dirty(arg0: bool, arg1: bool) {
+  bb0:
+    jump bb1
+  bb1:
+    icall @normalize, 0, arg0, arg1
+    jumpi arg0, bb1, bb2
+  bb2:
+    stop
+}
+
+// Returning on the false edge must invert the bypass, not the comparison.
+fn @inverted(arg0: u256) {
+  bb0:
+    v0 = lt arg0, 8
+    jumpi v0, bb1, bb2
+  bb1:
+    sstore 2, arg0
+    ret
+  bb2:
+    ret
+}
+
+fn @false_edge(arg0: u256) {
+  bb0:
+    jump bb1
+  bb1:
+    icall @inverted, 0, arg0
+    jumpi arg0, bb1, bb2
+  bb2:
+    stop
+}
+
+// An explicit non-pure effect prevents cloning even a comparison opcode.
+fn @opaque(arg0: u256) {
+  bb0:
+    v0 = eq arg0, 0 !metadata(effect=memory_read)
+    jumpi v0, bb1, bb2
+  bb1:
+    ret
+  bb2:
+    sstore 3, 1
+    ret
+}
+
+fn @keep_opaque(arg0: u256) {
+  bb0:
+    jump bb1
+  bb1:
+    icall @opaque, 0, arg0
+    jumpi arg0, bb1, bb2
+  bb2:
+    stop
+}

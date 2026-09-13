@@ -890,7 +890,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         let mut removals = Vec::new();
         self.spill_stores.retain(|store| {
             let remove = store.block == current_block
-                && store.value != *condition
+                && (store.value != *condition
+                    || self.scheduler.stack.iter().skip(1).any(|value| value == Some(*condition)))
                 && self.scheduler.stack.contains(store.value)
                 && !reloaded_here.contains(&store.slot)
                 && matches!(func.value(store.value), Value::Inst(inst)
@@ -919,7 +920,10 @@ impl<'gcx> EvmCodegen<'gcx> {
             .extend(removals.into_iter().map(|store| (store.block, store.range)));
     }
 
-    pub(in crate::backend::evm::codegen) fn remove_dead_spill_stores(&mut self) {
+    pub(in crate::backend::evm::codegen) fn remove_dead_spill_stores(
+        &mut self,
+        function_returns: &FxHashSet<(ir::BlockId, usize)>,
+    ) {
         enum Event {
             Store(usize),
             Load(SpillSlot),
@@ -935,6 +939,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         let stores = std::mem::take(&mut self.spill_stores);
         let loads = std::mem::take(&mut self.spill_loads);
         if stores.is_empty() {
+            // A carried branch may have removed the last tracked store. Its deferred edits still
+            // have to reach EVM IR even when there is nothing left for the backward analysis.
+            // store carried_value; branch -> branch
+            self.asm.remove_instructions(&mut self.early_spill_removals);
             return;
         }
 
@@ -951,7 +959,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         let range = self.function_ir_block_start..self.asm.block_count();
         let mut successors = FxHashMap::<ir::BlockId, Vec<ir::BlockId>>::default();
-        for (source, target) in self.asm.dataflow_edges(range.clone()) {
+        for (source, target) in self.asm.dataflow_edges(range.clone(), function_returns) {
             successors.entry(source).or_default().push(target);
         }
         let blocks = range.map(ir::BlockId::from_usize).collect::<Vec<_>>();

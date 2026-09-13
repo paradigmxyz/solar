@@ -6,10 +6,14 @@
 //! stack parameters in size-oriented modes. A final specialized path shares repeated large pushes
 //! when the call and return sequence is smaller than spelling out each literal.
 //!
-//! Candidates must be closed stack computations with known effects: they consume a fixed number
-//! of inputs, produce a fixed number of outputs, contain no control flow or observable operation,
-//! and contain no control flow or observable operation. Profitability includes the shared body,
-//! per-site call sequence, continuation labels, and target-dependent push widths. Sites are
+//! Gas-mode candidates are closed stack computations: they leave the incoming stack untouched
+//! and produce up to sixteen outputs. The hidden return address remains below those outputs;
+//! `SWAP1` through `SWAPn` rotate it to the top for the return jump. Size mode also permits bounded
+//! input arguments. Candidates have known stack effects and contain no control flow or position
+//! or gas observations. Profitability includes the shared body,
+//! per-site call sequence, continuation labels, and target-dependent push widths. Constant
+//! store prefixes additionally charge call/return gas against deposited bytes using the requested
+//! optimizer run count in gas mode; other recipes retain the size-based sharing policy. Sites are
 //! selected without overlap, and new blocks and labels are installed through the normal EVM IR CFG
 //! representation.
 //!
@@ -27,16 +31,19 @@ use super::{
     compact_pushes::selected_len,
     utils::{FreshLabels, MachineInstKey, instruction_size_lower_bound, is_split_point},
 };
-use crate::backend::evm::{
-    ir::{Block, BlockId, Instruction, Module, PushValue, Terminator, TerminatorKind},
-    op,
+use crate::{
+    backend::evm::{
+        ir::{Block, BlockId, Instruction, Module, PushValue, Terminator, TerminatorKind},
+        op,
+    },
+    target::Target,
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
     index::IndexVec,
-    map::{FxHashMap, FxHasher},
+    map::{FxHashMap, FxHashSet, FxHasher},
 };
 use solar_sema::Gcx;
 use std::hash::{Hash, Hasher};
@@ -53,7 +60,7 @@ impl EvmPass for Outline {
     }
 }
 
-const MIN_MACHINE_RUN: usize = 4;
+const MIN_MACHINE_RUN: usize = 3;
 const MAX_MACHINE_RUN_CANDIDATES: usize = 2_000_000;
 
 type BlockEdits = SmallVec<[(usize, usize, BlockId, u16); 1]>;
@@ -91,41 +98,53 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
         return false;
     }
     let max_run_length = max_machine_run_length(repeated_instructions);
+    let target = Target::new(gcx);
+    let transfer_size = (target.opcode(op::PUSH2).bytes * 2
+        + target.opcode(op::JUMP).bytes
+        + target.opcode(op::JUMPDEST).bytes) as usize;
+    let shuffle_size = target.opcode(op::SWAP1).bytes as usize;
 
     let mut candidates = FxHashMap::<MachineInstSlice<'_>, SmallVec<[Site; 2]>>::default();
+    let mut metrics = Vec::new();
     for (block_id, block) in module.blocks.iter_enumerated() {
+        // Overlapping candidate windows revisit each instruction. Decode its stack
+        // effect and select its push size once, without changing window order or limits.
+        metrics.clear();
+        metrics.extend(block.instructions.iter().enumerate().map(|(index, inst)| {
+            hashes
+                .repeats(block_id, index)
+                .then(|| {
+                    whitelisted_effect(inst)
+                        .map(|effect| (effect, instruction_size_lower_bound(gcx, inst)))
+                })
+                .flatten()
+        }));
         for start in 0..block.instructions.len() {
             if !hashes.repeats(block_id, start) || !is_split_point(&block.instructions, start) {
                 continue;
             }
             let mut delta = 0i32;
             let mut inputs = 0i32;
-            let mut peak = 0i32;
             let mut run_size = 0usize;
             let limit = block.instructions.len().min(start + max_run_length);
-            for end in start..limit {
-                let inst = &block.instructions[end];
-                if !hashes.repeats(block_id, end) {
-                    break;
-                }
-                let Some((reads, pops, pushes)) = whitelisted_effect(inst) else { break };
-                run_size += instruction_size_lower_bound(gcx, inst);
+            for (end, &metric) in metrics.iter().enumerate().take(limit).skip(start) {
+                let Some(((reads, pops, pushes), size)) = metric else { break };
+                run_size += size;
                 inputs = inputs.max(i32::from(reads) - delta);
                 delta = delta - i32::from(pops) + i32::from(pushes);
-                peak = peak.max(delta);
                 let outputs = inputs + delta;
                 if inputs != 0 && !gcx.sess.opts.optimization.is_size() {
                     break;
                 }
                 let len = end + 1 - start;
-                let closed = inputs == 0 && matches!(outputs, 0 | 1);
+                let closed = inputs == 0 && (0..=16).contains(&outputs);
                 let open_size_run = gcx.sess.opts.optimization.is_size()
                     && (0..=16).contains(&inputs)
                     && (0..=16).contains(&outputs);
-                // An outlined site costs at least seven bytes plus one stack shuffle per input,
-                // before the shared stub's fixed overhead. A run no larger than that site can
-                // never save bytes regardless of its occurrence count, so do not intern it.
-                let can_amortize = run_size > 7 + inputs as usize;
+                // Price both address pushes at PUSH2, plus the jump, continuation label, and
+                // input shuffles. Runs no larger than this site cannot pass the shared stub's
+                // profitability check regardless of occurrence count, so do not intern them.
+                let can_amortize = run_size > transfer_size + inputs as usize * shuffle_size;
                 if len >= MIN_MACHINE_RUN
                     && can_amortize
                     && (closed || open_size_run)
@@ -193,10 +212,38 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
         merge_site_source_spans(module, &mut body, &free);
         clear_function_invokes(&mut body);
         let run_size = lower_bound(gcx, &body);
-        let stub_size = 1 + run_size + usize::from(first.outputs) + 1;
-        let site_size = (if free.len() >= 4 { 7 } else { 8 }) + usize::from(first.inputs);
-        if free.len() * run_size < free.len() * site_size + stub_size + 1 {
+        let stub_size = run_size
+            + (target.opcode(op::JUMPDEST).bytes
+                + target.opcode(op::SWAP1).bytes * u32::from(first.outputs)
+                + target.opcode(op::JUMP).bytes) as usize;
+        let site_size = transfer_size + usize::from(first.inputs) * shuffle_size;
+        if free.len() * run_size <= free.len() * site_size + stub_size {
             continue;
+        }
+        // A constant store takes only two pushes and a memory opcode. Sharing it adds
+        // more transfer gas than the computation itself, so charge that overhead against
+        // the deposited bytes at the requested run count. Other recipes retain their
+        // existing size policy until their execution frequencies can be estimated.
+        if gcx.sess.opts.optimization.is_gas()
+            && matches!(body.get(..3), Some([value, address, store])
+                if value.is_encoded_push() && address.is_encoded_push()
+                    && matches!(store.opcode, op::MSTORE | op::MSTORE8))
+        {
+            let saved_bytes = free.len() * (run_size - site_size) - stub_size;
+            let transfer_gas = target.opcode_gas(op::PUSH2) * 2
+                + target.opcode_gas(op::JUMP) * 2
+                + target.opcode_gas(op::JUMPDEST) * 2
+                + target.opcode_gas(op::SWAP1) * u32::from(first.outputs);
+            if saved_bytes as u128 * u128::from(Target::CODE_DEPOSIT_GAS_PER_BYTE)
+                <= free.len() as u128
+                    * u128::from(transfer_gas)
+                    * u128::from(target.expected_executions())
+            {
+                if let Some(PushValue::Immediate(value)) = body[0].value {
+                    state.inline_store_literals.insert(value);
+                }
+                continue;
+            }
         }
         for site in &free {
             claimed
@@ -543,8 +590,11 @@ fn split_parametric_outline_site(
     let function_invoke = range_function_invoke(
         &module.blocks[block].instructions[edit.start..edit.start + edit.len],
     );
+    // prefix; parameters; push continuation; rotate return below inputs; jump stub
+    // continuation: suffix; original terminator
     let mut continuation = Block::new(continuation_label);
     continuation.metadata = module.blocks[block].metadata;
+    continuation.metadata.is_continuation = true;
     continuation.instructions = module.blocks[block].instructions.split_off(edit.start + edit.len);
     module.blocks[block].instructions.truncate(edit.start);
     continuation.terminator = module.blocks[block].terminator.take();
@@ -581,14 +631,33 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
         }
     }
 
-    const SITE_BYTES: usize = 8;
+    let target = Target::new(gcx);
+    // Each site:
+    // push2 return
+    // push2 body
+    // jump
+    // jumpdest
+    let site_bytes = (2 * target.opcode(op::PUSH2).bytes
+        + target.opcode(op::JUMP).bytes
+        + target.opcode(op::JUMPDEST).bytes) as usize;
+    // The shared body around the push:
+    // jumpdest
+    // swap1
+    // jump
+    let body_bytes = (target.opcode(op::JUMPDEST).bytes
+        + target.opcode(op::SWAP1).bytes
+        + target.opcode(op::JUMP).bytes) as usize;
     const MIN_SAVING: usize = 8;
     let mut values: Vec<_> = sites
         .iter()
         .filter_map(|(&value, occurrences)| {
+            // Do not recreate the rejected store outline as a literal-returning call.
+            if state.inline_store_literals.contains(&value) {
+                return None;
+            }
             let push_size = selected_len(gcx, value);
             let inline = occurrences.len() * push_size;
-            let outlined = occurrences.len() * SITE_BYTES + push_size + 3;
+            let outlined = occurrences.len() * site_bytes + push_size + body_bytes;
             (occurrences.len() >= 2 && inline >= outlined + MIN_SAVING)
                 .then_some((value, push_size))
         })
@@ -599,7 +668,7 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
     values.retain(|(value, push_size)| {
         let occurrences = &sites[value];
         let inline = occurrences.len() * push_size;
-        let outlined = occurrences.len() * SITE_BYTES + push_size + 3;
+        let outlined = occurrences.len() * site_bytes + push_size + body_bytes;
         occurrences.len() >= 2 && inline >= outlined + MIN_SAVING
     });
     if values.is_empty() {
@@ -703,8 +772,11 @@ fn split_outline_site(
 ) {
     let function_invoke =
         range_function_invoke(&module.blocks[block].instructions[start..start + len]);
+    // prefix; push continuation; rotate return below inputs; jump stub
+    // continuation: suffix; original terminator
     let mut continuation = Block::new(continuation_label);
     continuation.metadata = module.blocks[block].metadata;
+    continuation.metadata.is_continuation = true;
     continuation.instructions = module.blocks[block].instructions.split_off(start + len);
     module.blocks[block].instructions.truncate(start);
     continuation.terminator = module.blocks[block].terminator.take();
@@ -996,6 +1068,7 @@ impl Hash for ParamMachineInstSlice<'_> {
 
 #[derive(Default)]
 struct RunState {
+    inline_store_literals: FxHashSet<U256>,
     labels: Option<FreshLabels>,
 }
 

@@ -1,0 +1,214 @@
+- // === ROOT/tests/ui/codegen/mir/inline-immutable-leaves/leaves.mir (before inline-immutable-leaves) ===
++ // === ROOT/tests/ui/codegen/mir/inline-immutable-leaves/leaves.mir (after inline-immutable-leaves) ===
+  @module ImmutableLeaves
+  immutables:
+    start: u64
+    duration: u64
+    initial: u256
+  
+  fn @entry() -> u256 [selector=0x00000001] {
+    bb0:
+-     v0 = icall @end, 1
++     jump bb2
++   bb2:
++     v7 = loadimmutable start
++     v8 = loadimmutable duration
++     v9 = add v7, v8
++     jump bb1
++   bb1:
++     v10 = phi [bb2: v9]
+      v1 = icall @memory, 1
+      v2 = icall @ordinary, 1
+-     v3 = icall @argument, 1, v0
+-     v4 = add v0, v1
++     v3 = icall @argument, 1, v10
++     v4 = add v10, v1
+      v5 = add v2, v3
+      v6 = add v4, v5
+      ret v6
+  }
+  
+  fn @constructor(arg0: u64, arg1: u64) [constructor] {
+    bb0:
+      storeimmutable start, arg0
+      storeimmutable duration, arg1
+-     v0 = icall @end, 1
+-     storeimmutable initial, v0
++     jump bb2
++   bb2:
++     v1 = loadimmutable start
++     v2 = loadimmutable duration
++     v3 = add v1, v2
++     jump bb1
++   bb1:
++     v4 = phi [bb2: v3]
++     storeimmutable initial, v4
+      stop
+  }
+  
+  fn @end() -> u256 {
+    bb0:
+      v0 = loadimmutable start
+      v1 = loadimmutable duration
+      v2 = add v0, v1
+      ret v2
+  }
+  
+  fn @memory() -> u256 {
+    bb0:
+      v0 = mload 0
+      v1 = loadimmutable start
+      v2 = add v0, v1
+      ret v2
+  }
+  
+  fn @ordinary() -> u256 {
+    bb0:
+      v0 = add 1, 2
+      ret v0
+  }
+  
+  fn @argument(arg0: u256) -> u256 {
+    bb0:
+      v0 = loadimmutable start
+      v1 = add v0, arg0
+      ret v1
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/inline-immutable-leaves/leaves.mir (before cfg-simplify) ===
++ // === ROOT/tests/ui/codegen/mir/inline-immutable-leaves/leaves.mir (after cfg-simplify) ===
+  @module ImmutableLeaves
+  immutables:
+    start: u64
+    duration: u64
+    initial: u256
+  
+  fn @entry() -> u256 [selector=0x00000001] {
+    bb0:
+-     jump bb2
+-   bb2:
+      v7 = loadimmutable start
+      v8 = loadimmutable duration
+      v9 = add v7, v8
+-     jump bb1
+-   bb1:
+-     v10 = phi [bb2: v9]
+      v1 = icall @memory, 1
+      v2 = icall @ordinary, 1
+-     v3 = icall @argument, 1, v10
+-     v4 = add v10, v1
++     v3 = icall @argument, 1, v9
++     v4 = add v9, v1
+      v5 = add v2, v3
+      v6 = add v4, v5
+      ret v6
+  }
+  
+  fn @constructor(arg0: u64, arg1: u64) [constructor] {
+    bb0:
+      storeimmutable start, arg0
+      storeimmutable duration, arg1
+-     jump bb2
+-   bb2:
+      v1 = loadimmutable start
+      v2 = loadimmutable duration
+      v3 = add v1, v2
+-     jump bb1
+-   bb1:
+-     v4 = phi [bb2: v3]
+-     storeimmutable initial, v4
++     storeimmutable initial, v3
+      stop
+  }
+  
+  fn @end() -> u256 {
+    bb0:
+      v0 = loadimmutable start
+      v1 = loadimmutable duration
+      v2 = add v0, v1
+      ret v2
+  }
+  
+  fn @memory() -> u256 {
+    bb0:
+      v0 = mload 0
+      v1 = loadimmutable start
+      v2 = add v0, v1
+      ret v2
+  }
+  
+  fn @ordinary() -> u256 {
+    bb0:
+      v0 = add 1, 2
+      ret v0
+  }
+  
+  fn @argument(arg0: u256) -> u256 {
+    bb0:
+      v0 = loadimmutable start
+      v1 = add v0, arg0
+      ret v1
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/inline-immutable-leaves/leaves.mir (before dce) ===
++ // === ROOT/tests/ui/codegen/mir/inline-immutable-leaves/leaves.mir (after dce) ===
+  @module ImmutableLeaves
+  immutables:
+    start: u64
+    duration: u64
+    initial: u256
+  
+  fn @entry() -> u256 [selector=0x00000001] {
+    bb0:
+      v7 = loadimmutable start
+      v8 = loadimmutable duration
+      v9 = add v7, v8
+      v1 = icall @memory, 1
+      v2 = icall @ordinary, 1
+      v3 = icall @argument, 1, v9
+      v4 = add v9, v1
+      v5 = add v2, v3
+      v6 = add v4, v5
+      ret v6
+  }
+  
+  fn @constructor(arg0: u64, arg1: u64) [constructor] {
+    bb0:
+      storeimmutable start, arg0
+      storeimmutable duration, arg1
+      v1 = loadimmutable start
+      v2 = loadimmutable duration
+      v3 = add v1, v2
+      storeimmutable initial, v3
+      stop
+  }
+  
+  fn @end() -> u256 {
+    bb0:
+      v0 = loadimmutable start
+      v1 = loadimmutable duration
+      v2 = add v0, v1
+      ret v2
+  }
+  
+  fn @memory() -> u256 {
+    bb0:
+      v0 = mload 0
+      v1 = loadimmutable start
+      v2 = add v0, v1
+      ret v2
+  }
+  
+  fn @ordinary() -> u256 {
+    bb0:
+      v0 = add 1, 2
+      ret v0
+  }
+  
+  fn @argument(arg0: u256) -> u256 {
+    bb0:
+      v0 = loadimmutable start
+      v1 = add v0, arg0
+      ret v1
+  }
+  

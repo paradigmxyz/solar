@@ -23,7 +23,7 @@ fn @structField() -> u8 [selector=0x3442156e, pure, abi_params=[], abi_returns=[
 
 fn @fixedArrayElement() -> u8 [selector=0x43876e90, pure, abi_params=[], abi_returns=[word<enum 2>], abi_return_params=[enum<2, u8>]] {
   bb0:
-    v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
+    v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32 !metadata(preserves_fmp)
     memory_zero v0, 32
     mstore v0, 2
     v1 = lt 0, 1

@@ -1,0 +1,15 @@
+// === ROOT/tests/ui/codegen/lowering/fixed_bytes_shift_cleanup.sol:FixedBytesShiftCleanup ===
+@module FixedBytesShiftCleanup
+fn @aligned(arg0: u256) -> (bytes1, bytes2, bytes4) [selector=0x86ae3e38, pure, abi_params=[u256], abi_returns=[word<bytes1>, word<bytes2>, word<bytes4>]] {
+  bb0:
+    v0 = shl 248, arg0
+    v1 = shl 240, arg0
+    v2 = shl 224, arg0
+    ret v0, v1, v2
+}
+
+fn @narrower(arg0: u256) -> bytes1 [selector=0x10c18f79, pure, abi_params=[u256], abi_returns=[word<bytes1>]] {
+  bb0:
+    v0 = shl 240, arg0
+    ret v0
+}

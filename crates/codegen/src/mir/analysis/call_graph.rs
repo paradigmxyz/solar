@@ -13,6 +13,36 @@ pub(crate) struct CallGraphInfo {
 }
 
 impl CallGraphInfo {
+    /// Checks the phase contract for helpers that require runtime static frames.
+    /// Constructor ABI staging may already occupy the free-memory pointer, so
+    /// these helpers must not be reachable through any constructor call chain.
+    pub(crate) fn assert_runtime_helpers(
+        module: &Module,
+        helpers: impl IntoIterator<Item = FunctionId>,
+    ) {
+        if cfg!(debug_assertions) {
+            let helpers = helpers.into_iter().collect::<Vec<_>>();
+            if helpers.is_empty() {
+                return;
+            }
+            let graph = Self::new(module);
+            let reachable = graph.reachable_callees_from(
+                module
+                    .functions
+                    .iter_enumerated()
+                    .filter_map(|(id, function)| function.attributes.is_constructor.then_some(id)),
+            );
+            for helper in helpers {
+                assert!(
+                    !reachable.contains(helper)
+                        && !module.function(helper).attributes.is_constructor,
+                    "runtime helper `{}` is constructor-reachable and may overlap ABI staging",
+                    module.function(helper).name
+                );
+            }
+        }
+    }
+
     /// Computes call graph facts for `module`.
     #[must_use]
     pub(crate) fn new(module: &Module) -> Self {

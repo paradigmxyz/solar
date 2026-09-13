@@ -1,0 +1,68 @@
+// === ROOT/tests/ui/codegen/mir/specialize/shared_runtime.sol:SharedConstants ===
+@module SharedConstants
+fn @first(arg0: u256) -> u256 [selector=0x0b3f62f5, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = icall @helper, 1, 0, arg0
+    ret v0
+}
+
+fn @second(arg0: u256) -> u256 [selector=0x7896dfe3, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = icall @helper, 1, 0, arg0
+    ret v0
+}
+
+fn @third(arg0: u256) -> u256 [selector=0xf1680ae6, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = icall @helper, 1, 0, arg0
+    ret v0
+}
+
+fn @generic(arg0: bool, arg1: u256) -> u256 [selector=0x01213f39, pure, abi_params=[bool, u256], abi_returns=[word]] {
+  bb0:
+    v0 = icall @helper, 1, arg0, arg1
+    ret v0
+}
+
+fn @helper(arg0: bool, arg1: u256) -> u256 [pure] {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v18 = add arg1, 7
+    v19 = lt v18, arg1
+    jumpi v19, bb4, bb8
+  bb8:
+    ret v18
+  bb1:
+    v0 = mul arg1, arg1
+    v1 = iszero arg1
+    v2 = div v0, arg1
+    v3 = eq v2, arg1
+    v4 = or v1, v3
+    v5 = iszero v4
+    jumpi v5, bb4, bb5
+  bb5:
+    v6 = mul v0, arg1
+    v7 = iszero arg1
+    v8 = div v6, arg1
+    v9 = eq v8, v0
+    v10 = or v7, v9
+    v11 = iszero v10
+    jumpi v11, bb4, bb6
+  bb6:
+    v12 = mul v6, arg1
+    v13 = iszero arg1
+    v14 = div v12, arg1
+    v15 = eq v14, v6
+    v16 = or v13, v15
+    v17 = iszero v16
+    jumpi v17, bb4, bb7
+  bb7:
+    ret v12
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}

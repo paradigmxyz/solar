@@ -1,0 +1,53 @@
+// === ROOT/tests/ui/codegen/mir/inline-dispatch/signatures.sol:Signatures ===
+@module Signatures
+@phase evm-shaped
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    jumpi v0, bb5, bb1
+  bb1:
+    v1 = calldataload 0
+    v2 = shr 224, v1
+    v3 = calldataload 4
+    v4 = calldataload 36
+    switch v2, default bb5, [0x5c36b186 => bb2, 0xcad0899b => bb3, 0xfd0d50d7 => bb4]
+  bb4:
+    v9 = calldatasize
+    v10 = lt v9, 36
+    jumpi v10, bb5, bb9
+  bb9:
+    v12 = add v3, 4
+    v13 = add v12, 32
+    v14 = gt v3, 0xffffffffffffffff
+    v15 = gt v13, v9
+    v16 = or v14, v15
+    jumpi v16, bb5, bb10
+  bb10:
+    v17 = calldataload v12
+    v18 = sub v9, v13
+    v19 = shr 5, v18
+    v20 = gt v17, v19
+    jumpi v20, bb5, bb11
+  bb11:
+    mstore 128, v17
+    returndata 128, 32
+  bb3:
+    v5 = calldatasize
+    v6 = lt v5, 68
+    jumpi v6, bb5, bb8
+  bb8:
+    v7 = add v3, v4
+    v8 = lt v7, v3
+    jumpi v8, bb6, bb7
+  bb7:
+    mstore 128, v7
+    returndata 128, 32
+  bb6:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
+    mstore 4, 17
+    revert 0, 36
+  bb2:
+    stop
+  bb5:
+    revert 0, 0
+}
