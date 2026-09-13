@@ -875,6 +875,10 @@ fn equivalent_attributes(lhs: &Function, rhs: &Function) -> bool {
         && lhs.attributes.is_function_pointer_dispatcher
             == rhs.attributes.is_function_pointer_dispatcher
         && lhs.attributes.no_inline == rhs.attributes.no_inline
+        // A proved element width is part of what callers rely on: merging a body
+        // whose address array is proved canonical into one that is not would make
+        // its callers re-clean every returned element.
+        && lhs.attributes.array_element_bits == rhs.attributes.array_element_bits
 }
 
 /// Compares the non-operand fields of two instructions. Operands are zeroed because their
