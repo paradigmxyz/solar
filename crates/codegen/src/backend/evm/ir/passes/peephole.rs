@@ -84,6 +84,10 @@ impl<T: EvmPass> EvmPass for Cleanup<T> {
         self.0.is_required()
     }
 
+    fn cache_config(&self) -> u64 {
+        self.0.cache_config()
+    }
+
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
         let changed = self.0.run_pass(gcx, module);
         if changed {

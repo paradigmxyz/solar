@@ -321,8 +321,7 @@ impl IndVarSimplifier {
             let instruction_count = func.blocks[block].instructions.len();
             for index in 0..instruction_count {
                 let inst_id = func.blocks[block].instructions[index];
-                replaced +=
-                    mir_utils::replace_inst_uses(&mut func.inst_mut(inst_id).kind, replacements);
+                replaced += mir_utils::replace_inst_uses(func.inst_mut(inst_id), replacements);
             }
             if let Some(term) = &mut func.blocks[block].terminator {
                 replaced += mir_utils::replace_terminator_uses(term, replacements);

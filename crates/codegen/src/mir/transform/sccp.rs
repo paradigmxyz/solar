@@ -594,7 +594,7 @@ impl SccpCx {
             let all_insts: Vec<InstId> =
                 func.instructions().filter(|&id| !dead_insts.contains(id)).collect();
             for inst_id in all_insts {
-                mir_utils::replace_inst_uses(&mut func.inst_mut(inst_id).kind, &const_values);
+                mir_utils::replace_inst_uses(func.inst_mut(inst_id), &const_values);
             }
             for block_id in func.blocks.indices() {
                 if let Some(term) = &mut func.blocks[block_id].terminator {

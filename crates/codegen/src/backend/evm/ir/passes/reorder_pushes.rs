@@ -55,6 +55,11 @@ impl EvmPass for ReorderPushes {
         !matches!(gcx.sess.opts.optimization, OptimizationMode::None)
     }
 
+    fn cache_config(&self) -> u64 {
+        u64::from(self.reorder_legacy_size_expressions)
+            | (u64::from(self.reorder_closed_expressions) << 1)
+    }
+
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
         let evm_version = gcx.sess.opts.evm_version;
         let reorder_expressions = self.reorder_legacy_size_expressions

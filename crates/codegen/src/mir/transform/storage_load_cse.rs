@@ -219,7 +219,7 @@ impl StorageLoadCseCx {
         }
 
         func.for_each_instruction_mut(|_, inst| {
-            mir_utils::replace_inst_uses_canonicalized(&mut inst.kind, replacements);
+            mir_utils::replace_inst_uses_canonicalized(inst, replacements);
             if matches!(inst.kind, InstKind::SLoad(_) | InstKind::SStore(_, _)) {
                 inst.metadata.set_storage_alias(None);
             }

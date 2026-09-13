@@ -3,7 +3,7 @@
 use super::{
     BlockId, CopyDest, CopySource, DebugFunctionExit, EvmCodegen, EvmMemoryLayout, Function,
     FxHashMap, Label, ParallelCopy, StackEffect, StackOp, StackPush, TargetSlot, Terminator, U256,
-    ValueId, WORD_BYTES, op,
+    ValueId, WORD_BYTES, ir, op,
 };
 
 impl<'gcx> EvmCodegen<'gcx> {
@@ -65,7 +65,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
-    fn emit_internal_return(&mut self, func: &Function, values: &[ValueId]) {
+    fn emit_internal_return(
+        &mut self,
+        func: &Function,
+        values: &[ValueId],
+    ) -> Option<(ir::BlockId, usize)> {
         if let Some(plan) =
             self.current_internal_function.and_then(|func_id| self.stack_return_plan(func_id))
         {
@@ -95,7 +99,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     .expect("stack-return plans only cover internal functions");
                 self.disabled_stack_only_functions.insert(func_id);
                 self.scheduler.clear_stack();
-                return;
+                return None;
             };
             for op in shuffle.ops {
                 self.asm.emit_stack_op(op);
@@ -107,10 +111,11 @@ impl<'gcx> EvmCodegen<'gcx> {
             for depth in 1..=plan.arity {
                 self.asm.emit_stack_op(StackOp::Swap(depth as u8));
             }
+            let position = self.asm.next_instruction_position();
             self.asm.emit_op(op::JUMP);
             self.mark_debug_function_exit(func, DebugFunctionExit::Return);
             self.scheduler.clear_stack();
-            return;
+            return Some(position);
         }
 
         let return_base = EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
@@ -125,15 +130,19 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.pop_all_stack_values();
         // The caller's return address is the untracked value at the bottom of
         // the stack; after popping every tracked value it is on top.
+        let position = self.asm.next_instruction_position();
         self.asm.emit_op(op::JUMP);
         self.mark_debug_function_exit(func, DebugFunctionExit::Return);
+        Some(position)
     }
 
-    fn emit_external_stop(&mut self, func: &Function) {
+    fn emit_external_return(&mut self, func: &Function) {
         if let Some(exit) = self.constructor_exit {
+            // return [] => push constructor_exit; jump
             self.emit_push_label(exit);
             self.asm.emit_op(op::JUMP);
         } else {
+            // return [] => stop
             self.asm.emit_op(op::STOP);
         }
         self.mark_debug_function_exit(func, DebugFunctionExit::Return);
@@ -195,7 +204,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         term: &Terminator,
         fallthrough: Option<BlockId>,
         preserve_stack: bool,
-    ) {
+    ) -> Option<(ir::BlockId, usize)> {
         match term {
             Terminator::TailCall { function, args } => {
                 // Control transfers to the target and never returns. A stack ABI reuses the
@@ -266,7 +275,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                             // runtime with the callee on the frame convention;
                             // the partially emitted attempt is discarded.
                             self.disabled_stack_only_functions.insert(*function);
-                            return;
+                            return None;
                         };
                         for op in shuffle.ops {
                             self.asm.emit_stack_op(op);
@@ -287,7 +296,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     if !preserve_stack {
                         self.pop_all_stack_values();
                     }
-                    return;
+                    return None;
                 }
                 if !preserve_stack {
                     self.pop_all_stack_values();
@@ -362,12 +371,11 @@ impl<'gcx> EvmCodegen<'gcx> {
 
             Terminator::Return { values } => {
                 if self.in_internal_function {
-                    self.emit_internal_return(func, values);
-                    return;
+                    return self.emit_internal_return(func, values);
                 }
 
                 assert!(values.is_empty(), "external ABI returns with values must use ReturnData");
-                self.emit_external_stop(func);
+                self.emit_external_return(func);
             }
 
             Terminator::Revert { offset, size } => {
@@ -390,7 +398,10 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
 
             Terminator::Stop => {
-                // STOP
+                // stop => stop
+                //
+                // An initcode STOP completes creation with empty output. It must not reach the
+                // ordinary constructor-return epilogue that deploys the runtime artifact.
                 self.asm.emit_op(op::STOP);
                 self.mark_debug_function_exit(func, DebugFunctionExit::Return);
             }
@@ -405,5 +416,6 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.asm.emit_op(op::INVALID);
             }
         }
+        None
     }
 }
