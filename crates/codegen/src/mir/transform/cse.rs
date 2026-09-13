@@ -1402,7 +1402,7 @@ impl CommonSubexprEliminator {
         for index in 0..instruction_count {
             let inst_id = func.blocks[block_id].instructions[index];
             let inst = func.inst_mut(inst_id);
-            if mir_utils::replace_inst_uses_canonicalized(&mut inst.kind, replacements) != 0 {
+            if mir_utils::replace_inst_uses_canonicalized(inst, replacements) != 0 {
                 if mir_utils::is_memory_inst(&inst.kind) {
                     inst.metadata.set_memory_region(None);
                 }

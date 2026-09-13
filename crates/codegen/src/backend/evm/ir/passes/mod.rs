@@ -4,8 +4,8 @@
 //! transforms live in their own modules so their implementation and invariants
 //! remain local, matching the organization of the MIR transforms.
 //! Within a pipeline run, a pass that reported no change need not repeat until
-//! another pass changes the module. The cache uses the complete trait-object
-//! identity so differently configured adapters with the same name stay distinct.
+//! another pass changes the module. The cache uses the pass type, name, and an
+//! explicit configuration key so differently configured adapters stay distinct.
 //! A changing pass clears the cache; no pass is assumed to reach a fixed point.
 
 mod block_cse;
@@ -42,11 +42,12 @@ use crate::{
 use solar_config::OptimizationMode;
 use solar_interface::diagnostics::DiagCtxt;
 use solar_sema::Gcx;
+use std::any::{Any, TypeId};
 
 pub use crate::mir::pass_manager::pipeline_label;
 
 /// A streamlined trait for an EVM IR transformation pass.
-pub trait EvmPass: Sync {
+pub trait EvmPass: Any + Sync {
     /// Command-line and pipeline name.
     fn name(&self) -> &'static str;
 
@@ -60,9 +61,27 @@ pub trait EvmPass: Sync {
         false
     }
 
+    /// Stable discriminator for configured instances of the same pass type and name.
+    fn cache_config(&self) -> u64 {
+        0
+    }
+
     /// Runs the pass and returns whether it changed EVM IR.
     #[must_use]
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool;
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+struct PassCacheKey {
+    type_id: TypeId,
+    name: &'static str,
+    config: u64,
+}
+
+impl PassCacheKey {
+    fn new(pass: &dyn EvmPass) -> Self {
+        Self { type_id: pass.type_id(), name: pass.name(), config: pass.cache_config() }
+    }
 }
 
 /// All EVM IR passes exposed by `-Zevm-ir-pipeline`.
@@ -199,7 +218,7 @@ fn run_passes_inner(
         name.map(ToOwned::to_owned).unwrap_or_else(|| pipeline_output_name(gcx, module.name()));
     let explicit = name.is_some();
     let mut changed = false;
-    let mut unchanged = Vec::<&dyn EvmPass>::new();
+    let mut unchanged = Vec::<PassCacheKey>::new();
     for pass in passes {
         let pass_name = pass.name();
         let before =
@@ -213,14 +232,16 @@ fn run_passes_inner(
             assert_debug_info_handled(module, pass_name, "before");
             let errors_before = gcx.dcx().err_count();
             let timer = PassTimer::new(gcx.sess.opts.unstable.time_passes);
-            let cached = unchanged.iter().any(|&previous| std::ptr::eq(previous, *pass));
+            let cache_key = PassCacheKey::new(*pass);
+            let cached = unchanged.contains(&cache_key);
+            debug_assert!(unchanged.iter().filter(|entry| **entry == cache_key).count() <= 1);
             let target_support_before = (!cached && validate_each && should_validate_ir(gcx))
                 .then(|| super::verify::Verifier::new(gcx).target_support_snapshot(module));
             let pass_changed = !cached && pass.run_pass(gcx, module);
             if pass_changed {
                 unchanged.clear();
             } else if !cached {
-                unchanged.push(*pass);
+                unchanged.push(cache_key);
             }
             timer.finish("EVM IR", module.name(), pass_name, pass_changed);
             changed |= pass_changed;
@@ -318,4 +339,24 @@ pub fn run_pipeline(gcx: Gcx<'_>, module: &mut Module, name: Option<&str>) -> bo
         }
     }
     changed
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pass_cache_keys_include_configuration() {
+        let ordinary = PassCacheKey::new(&reorder_pushes::REORDER_PUSHES);
+        let final_pushes = PassCacheKey::new(&reorder_pushes::FINAL_REORDER_PUSHES);
+        let expressions = PassCacheKey::new(&reorder_pushes::REORDER_EXPRESSIONS);
+
+        assert_ne!(ordinary, final_pushes);
+        assert_ne!(final_pushes, expressions);
+        assert_ne!(ordinary, expressions);
+        assert_eq!(ordinary, PassCacheKey::new(&reorder_pushes::REORDER_PUSHES));
+
+        let dce_with_cleanup = peephole::Cleanup(dce::Dce);
+        assert_ne!(PassCacheKey::new(&dce::Dce), PassCacheKey::new(&dce_with_cleanup));
+    }
 }

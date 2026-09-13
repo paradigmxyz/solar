@@ -22,7 +22,7 @@
 +     mstore v5, 0
 +     v13 = slice_ptr v0
 +     v14 = add v11, v10
-+     calldatacopy v11, 0, 0 !metadata(memory=heap)
++     calldatacopy v11, 0, 0
 +     v15 = sub v14, v4
 +     v16 = add v15, 0
 +     v17 = add v16, 31
@@ -57,7 +57,7 @@
 +     mstore v5, 0
       v13 = slice_ptr v0
 -     v14 = add v11, v10
--     calldatacopy v11, 0, 0 !metadata(memory=heap)
+-     calldatacopy v11, 0, 0
 -     v15 = sub v14, v4
 -     v16 = add v15, 0
 -     v17 = add v16, 31
