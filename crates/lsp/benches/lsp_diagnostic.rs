@@ -1,8 +1,9 @@
 #![allow(unused_crate_dependencies)]
 
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
-use solar_lsp::benchmark_diagnostic_conversion;
-use std::hint::black_box;
+use lsp_types::CodeActionOrCommand;
+use solar_lsp::{BenchmarkCodeActionRequests, benchmark_diagnostic_conversion};
+use std::{fmt::Write as _, hint::black_box};
 
 const OPTIMISM_SOURCE: &str = include_str!("../../../testdata/Optimism.sol");
 
@@ -34,5 +35,44 @@ fn diagnostic_conversion(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, diagnostic_conversion);
+fn code_actions(c: &mut Criterion) {
+    let mut group = c.benchmark_group("lsp/code-actions");
+    for function_count in [1, 64, 256] {
+        let mut source = String::from(
+            "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.0;\ncontract Actions {\n",
+        );
+        for index in 0..function_count {
+            writeln!(
+                source,
+                "function value{index}() public returns (uint256) {{ return {index}; }}"
+            )
+            .unwrap();
+        }
+        source.push_str("}\n");
+        for whole_document in [false, true] {
+            let mut requests = BenchmarkCodeActionRequests::new(source.clone(), whole_document);
+            let actions = requests.run();
+            assert_eq!(actions.len(), if whole_document { function_count } else { 1 });
+            for action in &actions {
+                let CodeActionOrCommand::CodeAction(action) = action else {
+                    panic!("expected a literal quick fix");
+                };
+                assert_eq!(action.title, "Change state mutability to `pure`");
+                assert!(action.edit.is_some());
+            }
+            group.bench_function(
+                BenchmarkId::new(
+                    if whole_document { "document" } else { "cursor" },
+                    function_count,
+                ),
+                |b| {
+                    b.iter(|| black_box(requests.run()));
+                },
+            );
+        }
+    }
+    group.finish();
+}
+
+criterion_group!(benches, diagnostic_conversion, code_actions);
 criterion_main!(benches);

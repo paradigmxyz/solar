@@ -6,7 +6,7 @@ use super::{
 };
 use crate::{
     config::negotiate_capabilities,
-    diagnostics::{AnalyzedDocuments, DiagnosticStore, PullReport},
+    diagnostics::{AnalyzedDocuments, DiagnosticOwner, DiagnosticStore, PullReport},
     handlers,
     project_fixture::ProjectFixture,
     symbols::CompletionContext,
@@ -708,6 +708,76 @@ pub struct BenchmarkFoldingRangeRequests {
 pub struct BenchmarkSignatureHelpRequests {
     state: super::GlobalState,
     params: SignatureHelpParams,
+}
+
+/// A prepared quick-fix request using diagnostics from a real compiler analysis.
+#[doc(hidden)]
+pub struct BenchmarkCodeActionRequests {
+    state: super::GlobalState,
+    params: lsp_types::CodeActionParams,
+    runtime: tokio::runtime::Runtime,
+}
+
+impl BenchmarkCodeActionRequests {
+    /// Analyze the source and select either its whole range or its first mutability warning.
+    pub fn new(source: String, whole_document: bool) -> Self {
+        let analysis = BenchmarkAnalysis::from_source(source.clone());
+        let (mut state, path) = open_benchmark_document(&source, "benchmark.sol", 1);
+        let uri = Url::from_file_path(path.as_path().unwrap()).unwrap();
+        let mut initialize = lsp_types::InitializeParams::default();
+        initialize.capabilities.text_document.get_or_insert_default().code_action =
+            Some(lsp_types::CodeActionClientCapabilities {
+                code_action_literal_support: Some(lsp_types::CodeActionLiteralSupport {
+                    code_action_kind: lsp_types::CodeActionKindLiteralSupport {
+                        value_set: vec![lsp_types::CodeActionKind::QUICKFIX.as_str().into()],
+                    },
+                }),
+                ..Default::default()
+            });
+        state.config = Arc::new(negotiate_capabilities(initialize).1);
+        let range = if whole_document {
+            let rope = Rope::from(source);
+            Range::new(
+                Position::default(),
+                crate::proto::position_at_byte(&rope, rope.byte_len()).unwrap(),
+            )
+        } else {
+            analysis.diagnostics[&uri]
+                .iter()
+                .find(|diagnostic| {
+                    diagnostic.code == Some(lsp_types::NumberOrString::String("2018".into()))
+                })
+                .expect("source should emit a mutability warning")
+                .range
+        };
+        state
+            .diagnostics
+            .write()
+            .replace_and_publish_batches(DiagnosticOwner::Compiler, analysis.diagnostics);
+        state.symbol_tables.store(Arc::new(analysis.symbol_tables));
+        let params = lsp_types::CodeActionParams {
+            text_document: TextDocumentIdentifier { uri },
+            range,
+            context: lsp_types::CodeActionContext {
+                diagnostics: Vec::new(),
+                only: Some(vec![lsp_types::CodeActionKind::QUICKFIX]),
+                trigger_kind: None,
+            },
+            work_done_progress_params: Default::default(),
+            partial_result_params: Default::default(),
+        };
+        let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+        Self { state, params, runtime }
+    }
+
+    /// Execute the production handler, including source validation and blocking-task dispatch.
+    #[inline(never)]
+    pub fn run(&mut self) -> lsp_types::CodeActionResponse {
+        self.runtime
+            .block_on(handlers::code_actions(&mut self.state, self.params.clone()))
+            .expect("code-action benchmark request should succeed")
+            .unwrap()
+    }
 }
 
 /// A prepared rename request including source validation and workspace-edit construction.
