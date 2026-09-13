@@ -777,7 +777,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                 let mut changed = false;
                 for &(caller, callee) in &edges {
                     if let Some(&base) = bounds.get(&caller) {
-                        let frame_size = if self.static_frame_functions.contains(caller) {
+                        let frame_size = if self.static_frame_functions.contains(caller)
+                            && !self.recursive_frame_functions.contains(caller)
+                        {
                             self.emitted_frame_size(module, caller)
                         } else {
                             0

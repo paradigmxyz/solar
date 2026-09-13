@@ -249,6 +249,24 @@ fn @callee() {
     ret
 }
 
+// CHECK-LABEL: @icall_msize_barrier
+// CHECK: {{^ +}}mstore 0x1000, 42
+// CHECK: {{^ +}}{{v[0-9]+}} = icall @observe_msize
+// CHECK: {{^ +}}mstore 0x1000, 0
+fn @icall_msize_barrier() -> u256 {
+  bb0:
+    mstore 4096, 42
+    v0 = icall @observe_msize, 1
+    mstore 4096, 0
+    ret v0
+}
+
+fn @observe_msize() -> u256 {
+  bb0:
+    v0 = msize
+    ret v0
+}
+
 // CHECK-LABEL: @chained_forwarding
 // CHECK:       mstore [[FIRST_ADDR:[0-9]+]], 42
 // CHECK: -     [[FIRST:v[0-9]+]] = mload [[FIRST_ADDR]]
