@@ -431,6 +431,7 @@ fn lower_terminator(
             // Its final STOP must halt before those bytes instead of falling into them.
             if *opcode != op::STOP
                 || module.next_block(block_id).is_some()
+                || module.code_follows
                 || assembler.artifact_kind == ArtifactKind::Constructor
             {
                 program.push_op(*opcode);
