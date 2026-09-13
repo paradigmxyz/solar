@@ -340,6 +340,10 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     // instead of reloading its argument and re-adding the header every
     // iteration.
     &GasOnly::new(loop_opt::Licm),
+    // With the base hoisted, each element address is `base + scale * index`
+    // plus invariants; carry it as a pointer stepped on the latch instead of
+    // rebuilding it from the index every iteration.
+    &GasOnly::new(indvar_simplify::IndVarSimplify),
     // Collapse canonical read-only byte scans after bounds cleanup and word
     // simplification expose their final physical shape.
     &GasOnly::new(loop_idioms::LoopIdioms),

@@ -904,6 +904,10 @@ impl LoopOptimizer {
         width: u64,
         tight: bool,
     ) -> Option<AffineRange> {
+        // A scaled invariant has no known range here.
+        if !expr.invariants.is_empty() {
+            return None;
+        }
         let mut start = expr.constant;
         let mut end = expr.constant;
         if !expr.terms.is_empty() {
@@ -935,6 +939,7 @@ impl LoopOptimizer {
     fn const_affine_expr(&self, func: &Function, value: ValueId) -> Option<AffineExpr> {
         Some(AffineExpr {
             base: None,
+            invariants: Default::default(),
             constant: self.const_i128(func, value)?,
             terms: Default::default(),
         })

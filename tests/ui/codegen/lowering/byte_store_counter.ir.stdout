@@ -216,15 +216,8 @@ bb61 [loop]:
   shl
   swap 1
   byte
-  dup 3
-  dup 1
-  add
-  dup 1
-  dup 6
-  add
-  exchange 1, 2
+  dup 4
   mstore8
-  swap 1
   push 15
   and
   push 0x30313233343536373839616263646566
@@ -232,14 +225,16 @@ bb61 [loop]:
   shl
   swap 1
   byte
-  swap 1
   push 1
-  add
   dup 4
   add
   mstore8
   push 1
   add
+  swap 1
+  push 2
+  add
+  swap 1
   jump bb59
 bb59 [loop]:
   dup 5

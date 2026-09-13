@@ -35,7 +35,7 @@ mod loop_analysis;
 pub(crate) use loop_analysis::{Loop, LoopAnalyzer, LoopInfo};
 
 mod scalar_evolution;
-pub(crate) use scalar_evolution::{AffineExpr, ScalarEvolution};
+pub(crate) use scalar_evolution::{AffineExpr, AffineTerm, ScalarEvolution};
 
 mod validator;
 pub(crate) use validator::validate;
