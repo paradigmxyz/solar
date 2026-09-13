@@ -14,6 +14,23 @@
 //! ScalarEvolution-backed transform without guessing from ad hoc instruction
 //! patterns.
 //!
+//! The address may scale the induction variable negatively (a pointer walking
+//! down from the end of an array) and may add scaled loop invariants, such as
+//! `base + 32 * length - 32 * i`: the pointer's start is computed once in the
+//! preheader and the latch adds or subtracts the stride. All arithmetic is the
+//! same modular word arithmetic as the expression it replaces.
+//!
+//! Addresses that differ only by a constant, such as `a[j]` and `a[j - 1]`,
+//! share one pointer: the most used one becomes the phi and each sibling's
+//! definition is rewritten in place to the pointer plus its offset, so the loop
+//! carries one word instead of one per offset.
+//!
+//! A rewrite pays when the operations it removes from every iteration, the
+//! index duplication, scaling, base duplication and additions, outweigh the one
+//! duplication per pointer use, two per sibling use, the latch update, and the
+//! extra carried word it adds. The pass runs on the semantic MIR and once more
+//! in gas mode after memory lowering, where element addresses become explicit.
+//!
 //! Safety contract:
 //! - require canonical loops with a preheader and a single latch
 //! - rewrite only affine address expressions derived from the recognized induction variable
@@ -22,13 +39,14 @@
 //! - add only one scaled address counter when the original update must stay live.
 
 use crate::mir::{
-    BlockId, Function, Immediate, InstId, InstKind, Instruction, MirType, Module, Value, ValueId,
-    analysis::{Loop, LoopAnalyzer, ScalarEvolution},
+    BlockId, Function, Immediate, InstId, InstKind, Instruction, MirType, Module, Terminator,
+    Value, ValueId,
+    analysis::{AffineTerm, Loop, LoopAnalyzer, ScalarEvolution},
     pass::{MirPass, run_function_pass},
     utils as mir_utils,
 };
 use alloy_primitives::U256;
-use solar_data_structures::map::FxHashMap;
+use solar_data_structures::map::{FxHashMap, FxHashSet};
 
 /// Function pass for induction-variable simplification and strength reduction.
 pub(crate) struct IndVarSimplify;
@@ -73,12 +91,41 @@ struct IndVarSimplifier {
     stats: IndVarSimplifyStats,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 struct AddressKey {
-    base: ValueId,
+    /// The unscaled invariant base, if any.
+    base: Option<ValueId>,
+    /// Scaled invariant terms, ordered by value.
+    invariants: Vec<AffineTerm>,
     iv: ValueId,
     scale: i128,
     constant: i128,
+}
+
+impl AddressKey {
+    /// The key without its constant: addresses sharing it walk in step and can
+    /// share one pointer.
+    fn family(&self) -> Self {
+        Self { constant: 0, ..self.clone() }
+    }
+
+    /// Operations one use of the expression costs inside the loop. The offset
+    /// is free when the address is built from the variable's own update,
+    /// `a[--i]` or `a[j - 1]` beside `--j`, which the loop computes anyway. A
+    /// scaled invariant costs its scaling and an add; an unscaled one only
+    /// the add, and often not even that when the loop shares the sum with a
+    /// bounds check.
+    fn use_cost(&self, offset_shared: bool) -> usize {
+        let scaling = if self.scale.abs() == 1 { 0 } else { 2 };
+        let base = if self.base.is_some() { 2 } else { 0 };
+        let invariants = self
+            .invariants
+            .iter()
+            .map(|term| if term.scale.abs() == 1 { 2 } else { 4 })
+            .sum::<usize>();
+        let offset = if self.constant != 0 && !offset_shared { 2 } else { 0 };
+        1 + scaling + base + invariants + offset
+    }
 }
 
 impl IndVarSimplifier {
@@ -114,7 +161,10 @@ impl IndVarSimplifier {
         let must_keep_update = func.inst(iv.update_inst).kind.effects().must_execute(false);
 
         let scev = ScalarEvolution::analyze(func, loop_data);
+        let carried = Self::carried_words(func, loop_data);
+        let update_value = iv.update_inst.and_then(|inst_id| func.inst_result_value(inst_id));
         let mut candidates: FxHashMap<AddressKey, Vec<ValueId>> = FxHashMap::default();
+        let mut offset_shared = FxHashSet::default();
 
         for block in &loop_data.blocks {
             for &inst_id in &func.blocks[block].instructions {
@@ -130,8 +180,13 @@ impl IndVarSimplifier {
                     continue;
                 }
                 let Some(delta) = key.scale.checked_mul(step) else { continue };
-                if delta <= 0 || !self.has_non_address_loop_use(func, loop_data, value) {
+                if delta == 0 || !self.has_non_address_loop_use(func, loop_data, value) {
                     continue;
+                }
+                if update_value
+                    .is_some_and(|update| Self::depends_on(func, loop_data, value, update, 0))
+                {
+                    offset_shared.insert(value);
                 }
                 candidates.entry(key).or_default().push(value);
             }
@@ -143,24 +198,64 @@ impl IndVarSimplifier {
             return;
         }
 
-        let mut replacements = FxHashMap::default();
+        let mut families: FxHashMap<AddressKey, Vec<(AddressKey, Vec<ValueId>)>> =
+            FxHashMap::default();
         for (key, values) in candidates {
-            // ptr = phi [preheader: base + init], [latch: ptr + delta]
-            // costs one add per iteration plus a carried word the scheduler
-            // must keep resident. A plain `base + iv` at one site only trades
-            // an add for an add and a phi, so the rewrite must remove more
-            // than that across its uses; scaled or offset forms remove more.
-            if !Self::reduction_pays_off(key, values.len()) {
+            families.entry(key.family()).or_default().push((key, values));
+        }
+
+        let mut replacements = FxHashMap::default();
+        let mut siblings = Vec::new();
+        for (_, mut members) in families {
+            // The most used offset carries the pointer; ties go to the smallest offset.
+            members
+                .sort_by_key(|(key, values)| (std::cmp::Reverse(values.len()), key.constant.abs()));
+            let (primary, primary_values) = &members[0];
+            // ptr = phi [preheader: start], [latch: ptr + delta]
+            // costs one update per iteration plus a carried word the scheduler
+            // must keep resident; a sibling offset costs an add at its definition.
+            let pays = Self::reduction_pays_off(&members, &offset_shared, carried);
+            tracing::trace!(
+                function = %func.name,
+                header = ?loop_data.header,
+                family = ?members.iter().map(|(key, values)| (key.constant, values.len())).collect::<Vec<_>>(),
+                scale = primary.scale,
+                base = ?primary.base,
+                invariants = primary.invariants.len(),
+                carried,
+                pays,
+                "pointer family"
+            );
+            if !pays {
                 continue;
             }
             let Some(pointer) =
-                self.materialize_pointer_phi(func, loop_data, preheader, *latch, key)
+                self.materialize_pointer_phi(func, loop_data, preheader, *latch, primary)
             else {
                 continue;
             };
-            for value in values {
+            for &value in primary_values {
                 replacements.insert(value, pointer);
             }
+            for (key, values) in &members[1..] {
+                let Some(offset) = key.constant.checked_sub(primary.constant) else { continue };
+                for &value in values {
+                    siblings.push((value, pointer, offset));
+                }
+            }
+        }
+
+        // sibling = ptr + offset, in place of its old address arithmetic
+        for (value, pointer, offset) in siblings {
+            let Value::Inst(inst_id) = *func.value(value) else { continue };
+            let Some(magnitude) = offset.checked_abs() else { continue };
+            let Some(magnitude) = self.offset_value(func, magnitude) else { continue };
+            func.inst_mut(inst_id).kind = if offset >= 0 {
+                InstKind::Add(pointer, magnitude)
+            } else {
+                InstKind::Sub(pointer, magnitude)
+            };
+            self.stats.address_uses_replaced += 1;
         }
 
         if replacements.is_empty() {
@@ -170,17 +265,105 @@ impl IndVarSimplifier {
         self.stats.address_uses_replaced += self.replace_loop_uses(func, loop_data, &replacements);
     }
 
-    /// Whether replacing `uses` occurrences of the affine address saves more
-    /// per iteration than the latch update costs. Every use drops one add,
-    /// plus a scaling operation and an offset add when present; the rewrite
-    /// adds one update and one loop-carried word that the counter's exit test
-    /// keeps alive beside it. Saving two operations only pays for the update
-    /// and the extra word (the LibString `replace` copy loop loses seven
-    /// percent when a lone `base + c + iv` is reduced), so the rewrite must
-    /// save at least three.
-    const fn reduction_pays_off(key: AddressKey, uses: usize) -> bool {
-        let per_use = 1 + (key.scale != 1) as usize + (key.constant != 0) as usize;
-        uses * per_use > 2
+    /// Whether carrying one pointer for a family of addresses saves more per
+    /// iteration than it costs. Every use of an expression duplicates the
+    /// index, scales it, duplicates and adds the base and every scaled
+    /// invariant, and adds the offset; the pointer costs one duplication per
+    /// use of the primary offset, an add per use of a sibling offset, a latch
+    /// update of two operations, and one loop-carried word beside the counter
+    /// its exit test keeps alive. That word costs two operations, so a
+    /// single scaled use only breaks even and is left alone (the `copy` loop
+    /// lost 1.2% carrying two such pointers, and charging one in loops with
+    /// three carried words still cost every sorting kernel a few tenths of a
+    /// percent), plus one for every word past four the loop already carries,
+    /// since each deepens the accesses to all the others. A byte pointer, one
+    /// whose index is unscaled, is charged two more: its address is one add
+    /// away from words the loop holds anyway, and the `replace` search loop
+    /// lost 1.3% carrying one.
+    fn reduction_pays_off(
+        members: &[(AddressKey, Vec<ValueId>)],
+        offset_shared: &FxHashSet<ValueId>,
+        carried: usize,
+    ) -> bool {
+        let before = members
+            .iter()
+            .flat_map(|(key, values)| {
+                values.iter().map(move |value| key.use_cost(offset_shared.contains(value)))
+            })
+            .sum::<usize>();
+        let carry = 2 + carried.saturating_sub(4);
+        let byte_pointer = if members[0].0.scale.abs() == 1 { 2 } else { 0 };
+        let after = members
+            .iter()
+            .enumerate()
+            .map(|(index, (_, values))| values.len() * if index == 0 { 1 } else { 3 })
+            .sum::<usize>()
+            + 2
+            + carry
+            + byte_pointer;
+        before > after
+    }
+
+    /// Whether `value` is computed from `target` through in-loop operands, at
+    /// most four instructions deep. Phis are not traversed: their incoming
+    /// values are edge uses, and the header phi's backedge would otherwise
+    /// reach the update from every address.
+    fn depends_on(
+        func: &Function,
+        loop_data: &Loop,
+        value: ValueId,
+        target: ValueId,
+        depth: usize,
+    ) -> bool {
+        if value == target {
+            return true;
+        }
+        if depth >= 4 {
+            return false;
+        }
+        let Value::Inst(inst_id) = func.value(value) else { return false };
+        let kind = &func.inst(*inst_id).kind;
+        !matches!(kind, InstKind::Phi(_))
+            && loop_data
+                .blocks
+                .iter()
+                .any(|block| func.blocks[block].instructions.contains(inst_id))
+            && kind
+                .operands()
+                .iter()
+                .any(|&operand| Self::depends_on(func, loop_data, operand, target, depth + 1))
+    }
+
+    /// The words the backend carries through the loop: the header's phis and
+    /// the instruction results defined outside that the loop reads.
+    fn carried_words(func: &Function, loop_data: &Loop) -> usize {
+        let header = &func.blocks[loop_data.header];
+        let mut count = header
+            .instructions
+            .iter()
+            .filter(|&&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
+            .count();
+        let mut seen = FxHashSet::default();
+        for block in loop_data.blocks.iter() {
+            let block = &func.blocks[block];
+            for operand in block
+                .instructions
+                .iter()
+                .filter(|&&inst_id| !matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
+                .flat_map(|&inst_id| func.inst(inst_id).kind.operands())
+                .chain(block.terminator.iter().flat_map(Terminator::operands))
+            {
+                let Value::Inst(inst_id) = func.value(operand) else { continue };
+                let defined_inside = loop_data
+                    .blocks
+                    .iter()
+                    .any(|block| func.blocks[block].instructions.contains(inst_id));
+                if !defined_inside && seen.insert(operand) {
+                    count += 1;
+                }
+            }
+        }
+        count
     }
 
     fn additive_step(
@@ -190,17 +373,12 @@ impl IndVarSimplifier {
         update_inst: Option<InstId>,
     ) -> Option<i128> {
         let update_inst = update_inst?;
-        let InstKind::Add(a, b) = func.inst(update_inst).kind else {
-            return None;
-        };
-        let step = if a == iv_value {
-            b
-        } else if b == iv_value {
-            a
-        } else {
-            return None;
-        };
-        self.value_i128(func, step)
+        match func.inst(update_inst).kind {
+            InstKind::Add(a, b) if a == iv_value => self.value_i128(func, b),
+            InstKind::Add(a, b) if b == iv_value => self.value_i128(func, a),
+            InstKind::Sub(a, b) if a == iv_value => self.value_i128(func, b)?.checked_neg(),
+            _ => None,
+        }
     }
 
     fn address_key(
@@ -210,15 +388,22 @@ impl IndVarSimplifier {
         iv_value: ValueId,
     ) -> Option<AddressKey> {
         let expr = scev.get(value)?;
-        let base = expr.base?;
+        if expr.base.is_none() && expr.invariants.is_empty() {
+            return None;
+        }
         let [term] = expr.terms.as_slice() else { return None };
-        if term.value != iv_value || term.scale <= 0 {
+        if term.value != iv_value || term.scale == 0 {
             return None;
         }
-        if expr.constant < 0 {
-            return None;
-        }
-        Some(AddressKey { base, iv: iv_value, scale: term.scale, constant: expr.constant })
+        let mut invariants = expr.invariants.to_vec();
+        invariants.sort_unstable_by_key(|term| term.value.index());
+        Some(AddressKey {
+            base: expr.base,
+            invariants,
+            iv: iv_value,
+            scale: term.scale,
+            constant: expr.constant,
+        })
     }
 
     fn materialize_pointer_phi(
@@ -227,30 +412,49 @@ impl IndVarSimplifier {
         loop_data: &Loop,
         preheader: BlockId,
         latch: BlockId,
-        key: AddressKey,
+        key: &AddressKey,
     ) -> Option<ValueId> {
         let iv = loop_data.induction_vars.iter().find(|iv| iv.value == key.iv)?;
-        let init = self.value_i128(func, iv.init)?;
-        let init_offset = init.checked_mul(key.scale)?.checked_add(key.constant)?;
-        let delta = self.value_i128(func, iv.step)?.checked_mul(key.scale)?;
-        if delta <= 0 {
+        let delta = self.additive_step(func, key.iv, iv.update_inst)?.checked_mul(key.scale)?;
+        if delta == 0 {
             return None;
         }
 
-        let initial = self.build_base_plus_offset(func, preheader, key.base, init_offset)?;
+        // preheader: start = base + sum(invariant * scale) + init * scale + constant
+        let mut initial = key.base;
+        let add_scaled = |func: &mut Function, initial: Option<ValueId>, scaled| {
+            Some(match initial {
+                Some(acc) => self.append_inst_value(
+                    func,
+                    preheader,
+                    InstKind::Add(acc, scaled),
+                    Some(MirType::uint256()),
+                ),
+                None => scaled,
+            })
+        };
+        for term in &key.invariants {
+            let scaled = self.scale_value(func, preheader, term.value, term.scale)?;
+            initial = add_scaled(func, initial, scaled);
+        }
+        // A constant start folds into the offset; a loop-invariant start such as an
+        // enclosing counter is scaled in the preheader like an invariant term.
+        let mut offset = key.constant;
+        if let Some(init) = self.value_i128(func, iv.init) {
+            offset = offset.checked_add(init.checked_mul(key.scale)?)?;
+        } else {
+            let scaled = self.scale_value(func, preheader, iv.init, key.scale)?;
+            initial = add_scaled(func, initial, scaled);
+        }
+        let initial = self.add_signed_offset(func, preheader, initial?, offset)?;
         let (phi_inst, phi_value) = func.alloc_value_inst(
             Instruction::new(InstKind::Phi(vec![(preheader, initial)]), Some(MirType::uint256()))
                 .with_debug_info_dropped(),
         );
         self.insert_header_phi(func, loop_data.header, phi_inst);
 
-        let delta = self.offset_value(func, delta)?;
-        let next = self.append_inst_value(
-            func,
-            latch,
-            InstKind::Add(phi_value, delta),
-            Some(MirType::uint256()),
-        );
+        // latch: next = ptr + delta, or ptr - |delta| for a pointer walking down
+        let next = self.add_signed_offset(func, latch, phi_value, delta)?;
         let InstKind::Phi(incoming) = &mut func.inst_mut(phi_inst).kind else {
             return None;
         };
@@ -259,21 +463,63 @@ impl IndVarSimplifier {
         Some(phi_value)
     }
 
-    fn build_base_plus_offset(
+    /// Appends `value + offset` to `block`, as an add or a subtraction by the magnitude.
+    fn add_signed_offset(
         &self,
         func: &mut Function,
         block: BlockId,
-        base: ValueId,
+        value: ValueId,
         offset: i128,
     ) -> Option<ValueId> {
         if offset == 0 {
-            return Some(base);
+            return Some(value);
         }
-        let offset = self.offset_value(func, offset)?;
+        let magnitude = self.offset_value(func, offset.checked_abs()?)?;
+        let kind = if offset > 0 {
+            InstKind::Add(value, magnitude)
+        } else {
+            InstKind::Sub(value, magnitude)
+        };
+        Some(self.append_inst_value(func, block, kind, Some(MirType::uint256())))
+    }
+
+    /// Appends `value * scale` to `block`: a shift for a power of two, a
+    /// multiplication otherwise, negated by subtraction from zero.
+    fn scale_value(
+        &self,
+        func: &mut Function,
+        block: BlockId,
+        value: ValueId,
+        scale: i128,
+    ) -> Option<ValueId> {
+        let magnitude = scale.checked_abs()?.unsigned_abs();
+        let scaled = if magnitude == 1 {
+            value
+        } else if magnitude.is_power_of_two() {
+            let shift = self.offset_value(func, i128::from(magnitude.trailing_zeros()))?;
+            self.append_inst_value(
+                func,
+                block,
+                InstKind::Shl(shift, value),
+                Some(MirType::uint256()),
+            )
+        } else {
+            let factor = self.offset_value(func, i128::try_from(magnitude).ok()?)?;
+            self.append_inst_value(
+                func,
+                block,
+                InstKind::Mul(value, factor),
+                Some(MirType::uint256()),
+            )
+        };
+        if scale > 0 {
+            return Some(scaled);
+        }
+        let zero = self.offset_value(func, 0)?;
         Some(self.append_inst_value(
             func,
             block,
-            InstKind::Add(base, offset),
+            InstKind::Sub(zero, scaled),
             Some(MirType::uint256()),
         ))
     }
