@@ -297,7 +297,7 @@ class Context:
 
 
 def verify_file(path, timeout_ms, artifacts=None, partition_shifts=False, fallback=None, bit_partition_timeout_ms=0,
-                index_partition_timeout_ms=0):
+                index_partition_timeout_ms=0, bit_partition_jobs=1):
     source = path.read_text()
     rules = [Rule(form, line, str(path)) for form, line in forms(source) if form[0] == "rule"]
     if not rules:
@@ -344,7 +344,8 @@ def verify_file(path, timeout_ms, artifacts=None, partition_shifts=False, fallba
                 # Do not hide a fallback solver's SAT result or process failure.
                 previous_fallback = result.get("fallback")
                 result, partitions = partition_bits(lhs, rhs, context.assumptions,
-                                                    bit_partition_timeout_ms, context.model)
+                                                    bit_partition_timeout_ms, context.model,
+                                                    bit_partition_jobs)
                 if constants:
                     result["constant_specializations"] = constants
                 if previous_fallback is not None:
