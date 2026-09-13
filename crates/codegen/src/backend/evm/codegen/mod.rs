@@ -81,6 +81,7 @@ const GLOBAL_STACK_LAYOUT_LIMIT: usize = 8;
 #[derive(Default)]
 struct GeneratedCode {
     bytecode: Vec<u8>,
+    library_offsets: Vec<usize>,
     evm_ir: Option<ir::Module>,
     debug_info: Option<Vec<DebugInstruction>>,
 }
@@ -604,6 +605,10 @@ pub struct EvmArtifact {
     pub deployment: Vec<u8>,
     /// Runtime bytecode, i.e. the code stored on-chain.
     pub runtime: Vec<u8>,
+    /// Library address offsets in the deployment bytecode.
+    pub(crate) deployment_library_offsets: Vec<usize>,
+    /// Library address offsets in the runtime bytecode.
+    pub(crate) runtime_library_offsets: Vec<usize>,
     /// Immutable placeholders in the runtime bytecode.
     pub(crate) immutable_references: Vec<ImmutableRef>,
     /// Final deployment-prefix EVM IR immediately before byte emission.

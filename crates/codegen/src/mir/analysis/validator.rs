@@ -454,6 +454,11 @@ impl<'a> Validator<'a> {
         for inst_id in func.instructions() {
             let inst = func.inst(inst_id);
             match inst.kind {
+                InstKind::LibraryAddress(value) => {
+                    if !(153..=160).contains(&value.bit_len()) {
+                        self.emit("library placeholder must occupy exactly 20 bytes");
+                    }
+                }
                 InstKind::LoadImmutable(id) => {
                     match (module.get_immutable_type(id), inst.result_ty) {
                         (Some(expected), Some(actual)) if actual != expected => {

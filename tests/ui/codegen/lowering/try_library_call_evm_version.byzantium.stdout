@@ -33,60 +33,61 @@ fn @seen() -> u256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word]
 
 fn @libCall(arg0: u256) -> u256 [selector=0x34ea0c3e, abi_params=[u256], abi_returns=[word]] {
   bb0:
-    v0 = gas
-    v1 = abi_encode [word], selector 0xeee9720600000000000000000000000000000000000000000000000000000000, args arg0
-    v2 = slice_ptr v1
-    v3 = slice_len v1
-    v4 = delegatecall v0, 0xc0eda96c2648cd3a6a6e9ddfea8fc5f701ed980d, v2, v3, 0, 0
-    jumpi v4, bb1, bb2
+    v0 = library_address 1101426263387935713016127546853954681764951463949
+    v1 = gas
+    v2 = abi_encode [word], selector 0xeee9720600000000000000000000000000000000000000000000000000000000, args arg0
+    v3 = slice_ptr v2
+    v4 = slice_len v2
+    v5 = delegatecall v1, v0, v3, v4, 0, 0
+    jumpi v5, bb1, bb2
   bb2:
-    v13 = returndatasize
-    v14 = add v13, 63
-    v15 = lt v14, v13
-    jumpi v15, bb4, bb6
+    v14 = returndatasize
+    v15 = add v14, 63
+    v16 = lt v15, v14
+    jumpi v16, bb4, bb6
   bb6:
-    v16 = not 31
-    v17 = and v14, v16
-    v18 = alloc memorybytes, exact, uninitialized, infallible, v17
-    set_memory_object_len memorybytes, v18, v13
-    v19 = make_returndata_slice 0, v13
-    memory_object_copy_from_slice memorybytes, v18, v19
-    v20 = memory_object_data memorybytes, v18
-    v21 = memory_object_len memorybytes, v18
-    v22 = make_memory_slice v20, v21
-    v23 = memory_slice_load_word memory, v22, 0
-    v24 = lt v21, 4
-    v25 = iszero v24
-    v26 = shr 224, v23
-    v27 = eq v26, 0x8c379a0
-    v28 = and v25, v27
-    v29 = lt v21, 36
-    v30 = iszero v29
-    v31 = eq v26, 0x4e487b71
-    v32 = and v30, v31
+    v17 = not 31
+    v18 = and v15, v17
+    v19 = alloc memorybytes, exact, uninitialized, infallible, v18
+    set_memory_object_len memorybytes, v19, v14
+    v20 = make_returndata_slice 0, v14
+    memory_object_copy_from_slice memorybytes, v19, v20
+    v21 = memory_object_data memorybytes, v19
+    v22 = memory_object_len memorybytes, v19
+    v23 = make_memory_slice v21, v22
+    v24 = memory_slice_load_word memory, v23, 0
+    v25 = lt v22, 4
+    v26 = iszero v25
+    v27 = shr 224, v24
+    v28 = eq v27, 0x8c379a0
+    v29 = and v26, v28
+    v30 = lt v22, 36
+    v31 = iszero v30
+    v32 = eq v27, 0x4e487b71
+    v33 = and v31, v32
     jumpi 1, bb7, bb8
   bb8:
-    revert v20, v21
+    revert v21, v22
   bb7:
     jump bb3
   bb1:
-    v5 = returndatasize
-    v6 = add v5, 63
-    v7 = lt v6, v5
-    jumpi v7, bb4, bb5
+    v6 = returndatasize
+    v7 = add v6, 63
+    v8 = lt v7, v6
+    jumpi v8, bb4, bb5
   bb5:
-    v8 = not 31
-    v9 = and v6, v8
-    v10 = alloc memorybytes, exact, uninitialized, infallible, v9
-    set_memory_object_len memorybytes, v10, v5
-    v11 = make_returndata_slice 0, v5
-    memory_object_copy_from_slice memorybytes, v10, v11
-    v12 = abi_decode [u256], v10
-    sstore 0, v12 !metadata(storage=slot(0))
+    v9 = not 31
+    v10 = and v7, v9
+    v11 = alloc memorybytes, exact, uninitialized, infallible, v10
+    set_memory_object_len memorybytes, v11, v6
+    v12 = make_returndata_slice 0, v6
+    memory_object_copy_from_slice memorybytes, v11, v12
+    v13 = abi_decode [u256], v11
+    sstore 0, v13 !metadata(storage=slot(0))
     jump bb3
   bb3:
-    v33 = phi [bb5: v12], [bb7: 7]
-    ret v33
+    v34 = phi [bb5: v13], [bb7: 7]
+    ret v34
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -95,44 +96,45 @@ fn @libCall(arg0: u256) -> u256 [selector=0x34ea0c3e, abi_params=[u256], abi_ret
 
 fn @libNoReturn(arg0: u256) -> u256 [selector=0x364676bf, abi_params=[u256], abi_returns=[word]] {
   bb0:
-    v0 = gas
-    v1 = abi_encode [word], selector 0x6719039500000000000000000000000000000000000000000000000000000000, args arg0
-    v2 = slice_ptr v1
-    v3 = slice_len v1
-    v4 = extcodesize 0xc0eda96c2648cd3a6a6e9ddfea8fc5f701ed980d
-    v5 = iszero v4
-    jumpi v5, bb1, bb2
+    v0 = library_address 1101426263387935713016127546853954681764951463949
+    v1 = gas
+    v2 = abi_encode [word], selector 0x6719039500000000000000000000000000000000000000000000000000000000, args arg0
+    v3 = slice_ptr v2
+    v4 = slice_len v2
+    v5 = extcodesize v0
+    v6 = iszero v5
+    jumpi v6, bb1, bb2
   bb2:
-    v6 = delegatecall v0, 0xc0eda96c2648cd3a6a6e9ddfea8fc5f701ed980d, v2, v3, 0, 0
-    jumpi v6, bb3, bb4
+    v7 = delegatecall v1, v0, v3, v4, 0, 0
+    jumpi v7, bb3, bb4
   bb4:
-    v7 = returndatasize
-    v8 = add v7, 63
-    v9 = lt v8, v7
-    jumpi v9, bb6, bb7
+    v8 = returndatasize
+    v9 = add v8, 63
+    v10 = lt v9, v8
+    jumpi v10, bb6, bb7
   bb7:
-    v10 = not 31
-    v11 = and v8, v10
-    v12 = alloc memorybytes, exact, uninitialized, infallible, v11
-    set_memory_object_len memorybytes, v12, v7
-    v13 = make_returndata_slice 0, v7
-    memory_object_copy_from_slice memorybytes, v12, v13
-    v14 = memory_object_data memorybytes, v12
-    v15 = memory_object_len memorybytes, v12
-    v16 = make_memory_slice v14, v15
-    v17 = memory_slice_load_word memory, v16, 0
-    v18 = lt v15, 4
-    v19 = iszero v18
-    v20 = shr 224, v17
-    v21 = eq v20, 0x8c379a0
-    v22 = and v19, v21
-    v23 = lt v15, 36
-    v24 = iszero v23
-    v25 = eq v20, 0x4e487b71
-    v26 = and v24, v25
+    v11 = not 31
+    v12 = and v9, v11
+    v13 = alloc memorybytes, exact, uninitialized, infallible, v12
+    set_memory_object_len memorybytes, v13, v8
+    v14 = make_returndata_slice 0, v8
+    memory_object_copy_from_slice memorybytes, v13, v14
+    v15 = memory_object_data memorybytes, v13
+    v16 = memory_object_len memorybytes, v13
+    v17 = make_memory_slice v15, v16
+    v18 = memory_slice_load_word memory, v17, 0
+    v19 = lt v16, 4
+    v20 = iszero v19
+    v21 = shr 224, v18
+    v22 = eq v21, 0x8c379a0
+    v23 = and v20, v22
+    v24 = lt v16, 36
+    v25 = iszero v24
+    v26 = eq v21, 0x4e487b71
+    v27 = and v25, v26
     jumpi 1, bb8, bb9
   bb9:
-    revert v14, v15
+    revert v15, v16
   bb8:
     jump bb5
   bb6:
@@ -143,8 +145,8 @@ fn @libNoReturn(arg0: u256) -> u256 [selector=0x364676bf, abi_params=[u256], abi
     sstore 0, 1 !metadata(storage=slot(0))
     jump bb5
   bb5:
-    v27 = phi [bb3: 1], [bb8: 7]
-    ret v27
+    v28 = phi [bb3: 1], [bb8: 7]
+    ret v28
   bb1:
     revert 0, 0
 }

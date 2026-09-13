@@ -1,9 +1,9 @@
 use alloy_primitives::{Bytes, U256};
 use solar_ast::{
     Arena,
-    token::{BinOpToken, Token, TokenKind, TokenLitKind},
+    token::{BinOpToken, Delimiter, Token, TokenKind, TokenLitKind},
 };
-use solar_interface::{Session, Span, Symbol, source_map::SourceFile};
+use solar_interface::{Session, Span, Symbol, source_map::SourceFile, sym};
 use solar_parse::PErr;
 
 /// Shared parser primitives for the textual IR parsers.
@@ -130,6 +130,36 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             .map_err(|err| self.error(format!("invalid data: {err}")))?;
         self.bump();
         Ok(bytes.into())
+    }
+
+    /// Parses optional library relocations following a constant-data declaration.
+    pub(crate) fn parse_data_library_offsets(
+        &mut self,
+        bytes: &[u8],
+    ) -> Result<Vec<usize>, PErr<'sess>> {
+        let mut offsets = Vec::new();
+        if self.eat_keyword(sym::library_offsets) {
+            self.expect(TokenKind::OpenDelim(Delimiter::Bracket))?;
+            while !self.eat(TokenKind::CloseDelim(Delimiter::Bracket)) {
+                let value = self.parse_uint()?;
+                let offset = usize::try_from(value)
+                    .map_err(|_| self.error("library offset exceeds `usize`"))?;
+                if offset.checked_add(20).is_none_or(|end| end > bytes.len()) {
+                    return Err(self.error("library relocation exceeds data size"));
+                }
+                if offsets.last().is_some_and(|&previous| previous + 20 > offset) {
+                    return Err(
+                        self.error("library relocations must be ordered and non-overlapping")
+                    );
+                }
+                offsets.push(offset);
+                if !self.eat(TokenKind::Comma) {
+                    self.expect(TokenKind::CloseDelim(Delimiter::Bracket))?;
+                    break;
+                }
+            }
+        }
+        Ok(offsets)
     }
 
     /// Parses the canonical `lo..hi` source-span bounds syntax.

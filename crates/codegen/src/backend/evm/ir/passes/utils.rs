@@ -80,6 +80,9 @@ pub(super) fn instruction_size_lower_bound(gcx: Gcx<'_>, inst: &Instruction) -> 
                 .expect("EVM IR passes only run on target-compatible stack operations")
         });
     }
+    if inst.pushed_library().is_some() {
+        return 21;
+    }
     if let Some(type_size) = inst.immutable_type_size() {
         return usize::from(type_size.bytes()) + 1;
     }

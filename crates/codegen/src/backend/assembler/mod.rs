@@ -58,6 +58,8 @@ pub(crate) struct AssembledCode {
     pub bytecode: Vec<u8>,
     /// All immutable placeholders, in emission order.
     pub immutable_refs: Vec<ImmutableRef>,
+    /// Byte offsets of library addresses, including embedded program data.
+    pub library_offsets: Vec<usize>,
     /// Final EVM IR captured immediately before byte emission.
     pub evm_ir: Option<ir::Module>,
     /// Final instruction offsets and source spans.
@@ -480,6 +482,9 @@ impl<'gcx> Assembler<'gcx> {
                 program.function_invokes.as_ref().and_then(|invokes| invokes[idx]);
             let function_exit = program.function_exits.as_ref().and_then(|exits| exits[idx]);
             let modifier_depth = program.modifier_depths.as_ref().map_or(0, |depths| depths[idx]);
+            if program.library_pushes.contains(&idx) {
+                out.library_offsets.push(out.bytecode.len() + 1);
+            }
             out.set_function_events(function_invoke, function_exit);
             out.set_modifier_depth(modifier_depth);
             match inst.kind() {
@@ -553,6 +558,10 @@ impl<'gcx> Assembler<'gcx> {
                     out.emit_op(op::JUMPDEST, source_spans);
                 }
                 AsmInstKind::Data(data) => {
+                    let base = out.bytecode.len();
+                    out.library_offsets.extend(
+                        program.data[data].library_offsets.iter().map(|offset| base + offset),
+                    );
                     out.bytecode.extend_from_slice(&program.data[data].bytes);
                 }
             }
@@ -592,6 +601,7 @@ struct BytecodeAssembler<'gcx> {
     gcx: Gcx<'gcx>,
     bytecode: Vec<u8>,
     immutable_refs: Vec<ImmutableRef>,
+    library_offsets: Vec<usize>,
     debug_info: Option<Vec<DebugInstruction>>,
     function_invoke: Option<DebugFunction>,
     function_exit: Option<DebugFunctionExit>,
@@ -604,6 +614,7 @@ impl<'gcx> BytecodeAssembler<'gcx> {
             gcx,
             bytecode: Vec::new(),
             immutable_refs: Vec::new(),
+            library_offsets: Vec::new(),
             debug_info: capture_debug_info.then(Vec::new),
             function_invoke: None,
             function_exit: None,
@@ -704,6 +715,7 @@ impl<'gcx> BytecodeAssembler<'gcx> {
         AssembledCode {
             bytecode: self.bytecode,
             immutable_refs: self.immutable_refs,
+            library_offsets: self.library_offsets,
             evm_ir: None,
             debug_info: self.debug_info,
         }

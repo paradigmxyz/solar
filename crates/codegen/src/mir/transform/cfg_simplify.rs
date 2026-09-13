@@ -24,6 +24,7 @@ use crate::mir::{
     pass::{MirPass, run_function_pass},
     utils::{repair_reachability_phis, retain_blocks},
 };
+use alloy_primitives::U256;
 use solar_data_structures::{
     bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
@@ -93,6 +94,7 @@ struct CanonInst {
 enum CanonPayload {
     None,
     FrameAddr(u64),
+    LibraryAddress(U256),
     Call(FunctionId, usize),
 }
 
@@ -280,6 +282,7 @@ impl CfgSimplifier {
             let extra = match &inst.kind {
                 InstKind::Phi(_) => return None,
                 InstKind::InternalFrameAddr(offset) => CanonPayload::FrameAddr(*offset),
+                InstKind::LibraryAddress(address) => CanonPayload::LibraryAddress(*address),
                 InstKind::ICall { function, returns, .. } => {
                     CanonPayload::Call(*function, *returns as usize)
                 }

@@ -2,10 +2,7 @@
 
 use crate::{
     Backend, EvmCodegen,
-    backend::{
-        evm,
-        evm::{DebugInstruction, ir},
-    },
+    backend::evm::{DebugInstruction, ir},
     mir::{LibraryLink, Module, lower, pass::run_pipeline},
 };
 use alloy_primitives::Bytes;
@@ -360,13 +357,17 @@ fn generate_contract_bytecode(
             let artifact = artifacts[dependency]
                 .get()
                 .expect("dependency artifact should have been generated");
-            (
-                dependency,
-                lower::ContractBytecodes::new(
+            (dependency, {
+                let mut bytecodes = lower::ContractBytecodes::new(
                     artifact.deployment.clone(),
                     artifact.runtime.clone(),
-                ),
-            )
+                );
+                bytecodes.deployment_library_offsets =
+                    artifact.deployment_link_references.iter().map(|r| r.start).collect();
+                bytecodes.runtime_library_offsets =
+                    artifact.runtime_link_references.iter().map(|r| r.start).collect();
+                bytecodes
+            })
         })
         .collect();
     let mut module =
@@ -467,9 +468,16 @@ fn generate_contract_bytecode(
             }
         }
     }
-    let deployment_link_references =
-        collect_library_references(&artifact.deployment, &library_links);
-    let runtime_link_references = collect_library_references(&artifact.runtime, &library_links);
+    let deployment_link_references = collect_library_references(
+        &artifact.deployment,
+        &artifact.deployment_library_offsets,
+        &library_links,
+    );
+    let runtime_link_references = collect_library_references(
+        &artifact.runtime,
+        &artifact.runtime_library_offsets,
+        &library_links,
+    );
     let mir = capture_mir.then(|| built_mir.unwrap_or(module));
 
     Ok(ContractArtifact {
@@ -487,36 +495,23 @@ fn generate_contract_bytecode(
     })
 }
 
-/// Locates every instruction-aligned `PUSH20 <placeholder>` in the bytecode.
-///
-/// The placeholders stay in the artifact bytes: a dependent contract embeds this artifact
-/// verbatim and must find them again in its own scan, and outputs print them in solc's textual
-/// form rather than as a silently linked zero address.
-fn collect_library_references(bytecode: &[u8], links: &[LibraryLink]) -> Vec<LibraryReference> {
-    let mut references = Vec::new();
-    let mut offset = 0;
-    while let Some(&opcode) = bytecode.get(offset) {
-        offset += 1;
-        let push_width = if (evm::op::PUSH1..=evm::op::PUSH32).contains(&opcode) {
-            usize::from(opcode - evm::op::PUSH1 + 1)
-        } else {
-            0
-        };
-        let Some(data) = bytecode.get(offset..offset.saturating_add(push_width)) else {
-            break;
-        };
-        if opcode == evm::op::PUSH20
-            && let Some(link) = links.iter().find(|link| data == link.placeholder)
-        {
-            references.push(LibraryReference {
-                source: link.source.clone(),
-                name: link.name.clone(),
-                start: offset,
-            });
-        }
-        offset += push_width;
-    }
-    references
+/// Resolves the assembler's library relocations to source-qualified names.
+fn collect_library_references(
+    bytecode: &[u8],
+    offsets: &[usize],
+    links: &[LibraryLink],
+) -> Vec<LibraryReference> {
+    offsets
+        .iter()
+        .map(|&start| {
+            let placeholder = &bytecode[start..start + 20];
+            let link = links
+                .iter()
+                .find(|link| placeholder == link.placeholder)
+                .expect("library relocation must name a registered library");
+            LibraryReference { source: link.source.clone(), name: link.name.clone(), start }
+        })
+        .collect()
 }
 
 fn append_runtime_data(module: &mut Module, data: Option<&Bytes>) {
@@ -528,9 +523,10 @@ fn append_runtime_data(module: &mut Module, data: Option<&Bytes>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::backend::evm;
 
     #[test]
-    fn library_references_skip_push_data() {
+    fn library_references_use_recorded_offsets() {
         let link = LibraryLink {
             source: "source.sol".to_string(),
             name: "Library".to_string(),
@@ -543,7 +539,7 @@ mod tests {
         bytecode.extend(link.placeholder);
 
         assert_eq!(
-            collect_library_references(&bytecode, &[link]),
+            collect_library_references(&bytecode, &[start], &[link]),
             [LibraryReference {
                 source: "source.sol".to_string(),
                 name: "Library".to_string(),

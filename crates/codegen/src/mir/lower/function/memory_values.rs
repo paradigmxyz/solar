@@ -156,6 +156,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             bytes,
             AllocationSemantics::INTERNAL,
             None,
+            &[],
         )
     }
 
@@ -219,6 +220,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         bytes: &[u8],
         semantics: AllocationSemantics,
         name: Option<Symbol>,
+        library_offsets: &[usize],
     ) -> Option<ValueId> {
         // object = bytes(len)
         let words = u64::try_from(bytes.len().div_ceil(32)).ok()?;
@@ -235,6 +237,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             bytes,
             usize::try_from(words.checked_mul(32)?).ok()?,
             name,
+            library_offsets,
         );
         Some(object)
     }
@@ -251,6 +254,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 symbol.as_byte_str(),
                 AllocationSemantics::INTERNAL,
                 None,
+                &[],
             )
             .expect("literal length fits in a memory object");
             builder.ret([object]);

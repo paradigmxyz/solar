@@ -6,6 +6,9 @@
 // CHECK: {{^[ +].*}}push_data small_0
 // CHECK: {{^[ +].*}}push_data small_0+1
 // CHECK: {{^[ +].*}}push_data container_1+1
+// CHECK: {{^[ +].*}}push_data linked_container_2
+// CHECK: {{^[ +].*}}push_data linked_container_2+2
+// CHECK: {{^[ +].*}}push_data literal_address_3
 bb0:
   push 5
   push_data small_0
@@ -19,6 +22,18 @@ bb0:
   push_data container_2+1
   push 64
   codecopy
+  push 24
+  push_data linked_container_3
+  push 96
+  codecopy
+  push 20
+  push_data linked_address_4
+  push 128
+  codecopy
+  push 20
+  push_data literal_address_5
+  push 160
+  codecopy
   stop
 
 // CHECK: @data small_0 hex"1122334455"
@@ -27,3 +42,9 @@ bb0:
 @data small_0 hex"1122334455"
 @data needle_1 hex"2233"
 @data container_2 hex"00112233445566"
+
+// CHECK: @data linked_container_2 hex"0073800000000000000000000000000000000000000000ff" library_offsets [2]
+// CHECK: @data literal_address_3 hex"8000000000000000000000000000000000000000"
+@data linked_container_3 hex"0073800000000000000000000000000000000000000000ff" library_offsets [2]
+@data linked_address_4 hex"8000000000000000000000000000000000000000" library_offsets [0]
+@data literal_address_5 hex"8000000000000000000000000000000000000000"

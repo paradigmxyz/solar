@@ -9,7 +9,7 @@ use crate::backend::evm::{
     ir::{Data, DataId},
     op::WORD_BYTES,
 };
-use solar_data_structures::index::IndexVec;
+use solar_data_structures::{index::IndexVec, map::FxHashSet};
 use solar_interface::Span;
 
 mod indexed_jump;
@@ -38,6 +38,7 @@ pub(in crate::backend) struct PackedLabels {
 #[derive(Clone, Debug, Default)]
 pub(in crate::backend) struct Program {
     pub(in crate::backend) instructions: Vec<AsmInst>,
+    pub(in crate::backend) library_pushes: FxHashSet<usize>,
     pub(in crate::backend) packed_labels: IndexVec<PackedLabelsId, PackedLabels>,
     pub(in crate::backend) data: IndexVec<DataId, Data>,
     pub(in crate::backend) data_refs: IndexVec<DataRefId, crate::backend::evm::ir::DataRef>,

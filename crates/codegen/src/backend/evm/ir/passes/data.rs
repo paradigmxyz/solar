@@ -5,7 +5,8 @@
 //! scores the instruction and data-pool cost in the selected optimization mode, then interns the
 //! accepted bytes. Both passes leave a module alone when `CODESIZE` can observe the changed data
 //! layout. Pooling uses bounded substring search to avoid quadratic compile time on large data
-//! sets.
+//! sets. Library relocations must match within a shared range; literal stores never share
+//! relocatable bytes.
 
 use super::{EvmPass, utils::instruction_size_lower_bound};
 use crate::{
@@ -126,10 +127,12 @@ impl DataPool {
         Self {
             entries: data
                 .iter_enumerated()
+                .filter(|(_, data)| data.library_offsets.is_empty())
                 .map(|(id, data)| PoolEntry { id, bytes: data.bytes.clone() })
                 .collect(),
             exact: data
                 .iter_enumerated()
+                .filter(|(_, data)| data.library_offsets.is_empty())
                 .map(|(id, data)| (data.bytes.clone(), DataRef::new(id, 0)))
                 .collect(),
         }
@@ -158,6 +161,7 @@ impl DataPool {
             bytes: bytes.clone(),
             name: Some(sym::literal),
             emit_in_runtime: false,
+            library_offsets: Vec::new(),
         });
         self.entries.push(PoolEntry { id, bytes: bytes.clone() });
         self.exact.insert(bytes, DataRef::new(id, 0));
@@ -371,31 +375,28 @@ fn pack_data(module: &mut Module, references: &DataReferences, allow_subslices: 
 
     let mut packed = IndexVec::<DataId, Data>::new();
     let mut sources = IndexVec::<DataId, DataId>::new();
-    let mut exact = FxHashMap::<Bytes, DataId>::default();
+    let mut exact = FxHashMap::<(Bytes, Vec<usize>), DataId>::default();
     let mut remap = FxHashMap::default();
     for old_id in referenced {
         let data = &module.data[old_id];
+        let key = (data.bytes.clone(), data.library_offsets.clone());
         let data_ref = if data.emit_in_runtime {
             let id = packed.push(data.clone());
             sources.push(old_id);
             DataRef::new(id, 0)
-        } else if let Some(&id) = exact.get(&data.bytes) {
+        } else if let Some(&id) = exact.get(&key) {
             DataRef::new(id, 0)
         } else if let Some(data_ref) = (allow_subslices
             && references.subslice_safe[old_id]
             && module.data.len() < MAX_DATA_SUBSTRING_ENTRIES)
-            .then(|| find_data(&packed, &sources, &data.bytes, old_id))
+            .then(|| find_data(&packed, &sources, data, old_id))
             .flatten()
         {
             data_ref
         } else {
-            let id = packed.push(Data {
-                bytes: data.bytes.clone(),
-                name: data.name,
-                emit_in_runtime: false,
-            });
+            let id = packed.push(data.clone());
             sources.push(old_id);
-            exact.insert(data.bytes.clone(), id);
+            exact.insert(key, id);
             DataRef::new(id, 0)
         };
         if packed[data_ref.id].name.is_none() {
@@ -435,15 +436,23 @@ fn pack_data(module: &mut Module, references: &DataReferences, allow_subslices: 
 fn find_data(
     data: &IndexVec<DataId, Data>,
     sources: &IndexVec<DataId, DataId>,
-    needle: &[u8],
+    needle: &Data,
     needle_id: DataId,
 ) -> Option<DataRef> {
     data.iter_enumerated().find_map(|(id, known)| {
-        if sources[id] < needle_id {
-            memmem::find(&known.bytes, needle).map(|offset| DataRef::new(id, data_offset(offset)))
-        } else {
-            None
+        if sources[id] >= needle_id {
+            return None;
         }
+        let offset = memmem::find(&known.bytes, &needle.bytes)?;
+        let end = offset + needle.bytes.len();
+        let compatible = known
+            .library_offsets
+            .iter()
+            .copied()
+            .filter(|&start| start < end && start + 20 > offset)
+            .map(|start| start.checked_sub(offset))
+            .eq(needle.library_offsets.iter().copied().map(Some));
+        compatible.then(|| DataRef::new(id, data_offset(offset)))
     })
 }
 
