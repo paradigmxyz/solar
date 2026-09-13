@@ -464,6 +464,14 @@ class SemanticsTests(unittest.TestCase):
 
 
 class OutputBitPartitionTests(unittest.TestCase):
+    def test_parallel_partition_proves_every_bit(self):
+        x = Expr.var("x")
+        result, queries = partition_bits(x, x, [], 30000, Model(), jobs=2)
+        self.assertEqual(result, {
+            "status": "proved", "proof_method": "exhaustive-output-bit-partition", "bits": 256,
+        })
+        self.assertEqual([name for name, _ in queries], [f"bit-{i}" for i in range(256)])
+
     def test_every_bit_keeps_the_original_guards_and_inputs(self):
         x, y = map(Expr.var, ("x", "y"))
         guards = [z3.BitVec("x", 256) == z3.BitVec("y", 256)]
@@ -485,7 +493,7 @@ class OutputBitPartitionTests(unittest.TestCase):
         x, n = map(Expr.var, ("x", "n"))
         lhs = expression("shr", n, x)
         wrong = expression("select", expression("eq", n, MASK), expression("xor", lhs, SIGN), lhs)
-        result, queries = partition_bits(lhs, wrong, [], 5000, Model())
+        result, queries = partition_bits(lhs, wrong, [], 30000, Model(), jobs=2)
         self.assertEqual(len(queries), 256)
         self.assertEqual(result["status"], "counterexample")
         self.assertEqual(int(result["inputs"]["n"], 16), MASK)

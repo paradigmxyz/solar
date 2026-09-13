@@ -42,7 +42,7 @@ jobs:
         run: >-
           uv run scripts/evm-rules/verify.py verify crates/codegen/isle/egraph.isle
           --partition-shifts --index-partition-timeout-ms 30000
-          --fallback-solver cvc5 --bit-partition-timeout-ms 120000
+          --fallback-solver cvc5 --bit-partition-timeout-ms 120000 --bit-partition-jobs 4
           --output target/evm-rules/egraph.json --artifacts target/evm-rules/egraph-smt
       - name: Replay e-graph proof queries with cvc5
         run: uv run scripts/evm-rules/replay.py target/evm-rules/egraph.json --output target/evm-rules/egraph-cvc5.json

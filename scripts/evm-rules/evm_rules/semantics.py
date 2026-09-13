@@ -7,6 +7,7 @@ Unsupported operations raise: they are never unconstrained functions.
 
 from dataclasses import dataclass
 import json
+import multiprocessing
 import time
 
 import z3
@@ -373,7 +374,17 @@ def replay_counterexample(lhs, rhs, model, witness):
             "lhs_value": hex(actual[0]), "rhs_value": hex(actual[1]), "replayed": True, **details}
 
 
-def partition_bits(lhs, rhs, assumptions, timeout_ms, model):
+def _check_bit_query(task):
+    """Solve one serialized output-bit obligation in an isolated process."""
+    index, query, logic, timeout_ms = task
+    solver = z3.SolverFor(logic)
+    solver.set(timeout=timeout_ms)
+    solver.add(*z3.parse_smt2_string(query))
+    result = solver.check()
+    return index, str(result), solver.reason_unknown() if result == z3.unknown else ""
+
+
+def partition_bits(lhs, rhs, assumptions, timeout_ms, model, jobs=1):
     """Prove all 256 output bits separately, leaving every input fully symbolic.
 
     Called only after applicability was SAT. Word equality is exactly the
@@ -385,6 +396,7 @@ def partition_bits(lhs, rhs, assumptions, timeout_ms, model):
     deadline = time.monotonic() + timeout_ms / 1000
     left, right = model.eval(lhs), model.eval(rhs)
     queries = []
+    obligations = []
     for bit in range(WIDTH):
         remaining = int((deadline - time.monotonic()) * 1000)
         if remaining <= 0:
@@ -392,12 +404,46 @@ def partition_bits(lhs, rhs, assumptions, timeout_ms, model):
         solver = model.solver()
         solver.set(timeout=remaining)
         solver.add(*assumptions, model.difference(z3.Extract(bit, bit, left), z3.Extract(bit, bit, right)))
-        queries.append((f"bit-{bit}", portable_query(solver)))
+        query = portable_query(solver)
+        queries.append((f"bit-{bit}", query))
+        obligations.append((bit, query, "QF_ABV" if model.environment is not None else "QF_BV", remaining))
+        if jobs > 1:
+            continue
         result = solver.check()
         if result == z3.sat:
             return replay_counterexample(lhs, rhs, model, solver.model()), queries
         if result != z3.unsat:
             return {"status": "unknown", "reason": solver.reason_unknown()}, queries
+    if jobs > 1:
+        pool = multiprocessing.get_context("spawn").Pool(processes=jobs)
+        complete = False
+        try:
+            pending = pool.imap_unordered(_check_bit_query, obligations, chunksize=1)
+            for _ in obligations:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    return {"status": "unknown", "reason": "output bit partition budget exhausted"}, queries
+                try:
+                    bit, status, reason = pending.next(remaining)
+                except multiprocessing.TimeoutError:
+                    return {"status": "unknown", "reason": "output bit partition budget exhausted"}, queries
+                if status == "sat":
+                    solver = model.solver()
+                    solver.set(timeout=max(1, int((deadline - time.monotonic()) * 1000)))
+                    solver.add(*assumptions,
+                               model.difference(z3.Extract(bit, bit, left), z3.Extract(bit, bit, right)))
+                    if solver.check() == z3.sat:
+                        return replay_counterexample(lhs, rhs, model, solver.model()), queries
+                    return {"status": "unknown", "reason": "parallel SAT result could not be replayed"}, queries
+                if status != "unsat":
+                    return {"status": "unknown", "reason": reason}, queries
+            complete = True
+        finally:
+            if complete:
+                pool.close()
+            else:
+                pool.terminate()
+            pool.join()
     return {"status": "proved", "proof_method": "exhaustive-output-bit-partition", "bits": WIDTH}, queries
 
 

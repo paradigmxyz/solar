@@ -121,6 +121,7 @@ proving every output bit separately:
 ```sh
 uv run scripts/evm-rules/verify.py verify crates/codegen/isle/egraph.isle \
   --fallback-solver cvc5 --bit-partition-timeout-ms 120000 \
+  --bit-partition-jobs 4 \
   --output target/evm-rules/legacy-bits.json \
   --artifacts target/evm-rules/legacy-bits-smt
 ```
@@ -136,6 +137,11 @@ alongside the attempted bit queries. SAT witnesses replay as complete words in
 the independent integer evaluator. Replay rejects a proof missing any bit or
 claiming a shorter word width. A separate coverage query is unnecessary here:
 the fixed list of output positions is exactly 0 through 255.
+
+`--bit-partition-jobs` checks independent output bits in isolated solver
+processes. They share the same wall-clock budget and produce the same ordered
+queries as the single-process path. CI uses four processes so proof completion
+does not depend on the speed of one runner core.
 
 This option runs only after satisfiable applicability and incomplete earlier
 proof attempts. It cannot override an inapplicable rule, a counterexample, or
