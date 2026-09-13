@@ -6,7 +6,7 @@ bb0:
   lt
   callvalue
   or
-  push bb2
+  push bb4
   jumpi
   push 0
   calldataload
@@ -22,8 +22,8 @@ bb0:
   eq
   push bb5
   jumpi
-  jump bb2
-bb2 [cold]:
+  jump bb4
+bb4 [cold]:
   push 0
   push 0
   revert
@@ -35,7 +35,7 @@ bb5:
   calldataload
   push 160
   shr
-  push bb2
+  push bb4
   jumpi
   push bb7
   push 36
@@ -71,7 +71,7 @@ bb17:
   swap 2
   gt
   or
-  push bb2
+  push bb4
   jumpi
   swap 1
   jump
@@ -88,14 +88,14 @@ bb7 [continuation]:
   shr
   dup 4
   gt
-  push bb2
+  push bb4
   jumpi
   dup 3
   calldatasize
   sub
   dup 3
   sgt
-  push bb2
+  push bb4
   jumpi
   push 63
   dup 4
@@ -149,7 +149,7 @@ bb11:
   calldataload
   push 160
   shr
-  push bb2
+  push bb4
   jumpi
   push bb13
   push 36
@@ -167,14 +167,14 @@ bb13 [continuation]:
   shr
   dup 4
   gt
-  push bb2
+  push bb4
   jumpi
   dup 3
   calldatasize
   sub
   dup 3
   sgt
-  push bb2
+  push bb4
   jumpi
   push 63
   dup 4

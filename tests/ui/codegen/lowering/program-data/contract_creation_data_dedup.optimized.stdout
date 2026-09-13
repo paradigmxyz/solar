@@ -99,12 +99,12 @@ bb0:
   dup 1
   push 0x3df4ddf4
   eq
-  push bb29
+  push bb28
   jumpi
   dup 1
   push 0x5a8ac02d
   eq
-  push bb29
+  push bb28
   jumpi
   dup 1
   push 0xa8aa1b31
@@ -245,14 +245,14 @@ bb18:
   swap 1
   dup 2
   lt
-  push bb28
+  push bb27
   jumpi
   push 128
   mstore
   push 32
   push 128
   return
-bb29:
+bb28:
   push 224
   push 64
   mstore
@@ -317,7 +317,7 @@ bb29:
   push 32
   push 128
   return
-bb28 [cold]:
+bb27 [cold]:
   push 0x4e487b71
   push 0
   mstore

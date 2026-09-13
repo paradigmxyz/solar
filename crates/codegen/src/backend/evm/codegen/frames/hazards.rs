@@ -64,8 +64,32 @@ impl<'gcx> EvmCodegen<'gcx> {
             {
                 dynamic_range(dest, size)
             }
+            // A fixed-width store through a loop-carried pointer that starts below the spill
+            // area sweeps every slot the loop reaches; across the iterations it is as unbounded
+            // as a variable-length copy.
+            InstKind::MStore(dest, _) | InstKind::MStore8(dest, _)
+                if Self::is_low_sweeping_pointer(func, dest) =>
+            {
+                Some(dest)
+            }
             _ => None,
         }
+    }
+
+    /// Whether `pointer` is a phi that enters from an address below the spill area and is
+    /// advanced by its own increment on another edge.
+    fn is_low_sweeping_pointer(func: &Function, pointer: ValueId) -> bool {
+        let Value::Inst(inst_id) = func.value(pointer) else { return false };
+        let InstKind::Phi(incoming) = &func.inst(*inst_id).kind else { return false };
+        let starts_low = incoming.iter().any(|&(_, value)| {
+            func.value_u64(value).is_some_and(|address| address < EvmMemoryLayout::HEAP_START)
+        });
+        let advances = incoming.iter().any(|&(_, value)| {
+            matches!(func.value(value), Value::Inst(step)
+                if matches!(func.inst(*step).kind, InstKind::Add(lhs, rhs)
+                    if lhs == pointer || rhs == pointer))
+        });
+        starts_low && advances
     }
 
     /// Returns a conservative upper bound for a small integer expression.
@@ -97,9 +121,10 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Collects symbolic low-memory clobbers that can overwrite the spill
     /// area. This includes variable-length copy opcodes and call return
     /// buffers. Alias analysis excludes destinations rooted at the free-memory
-    /// pointer, allocations, or internal frames. Single-word stores do not
-    /// need the forwarding-buffer protocol: their exact runtime address does
-    /// not create an unbounded clobber range.
+    /// pointer, allocations, or internal frames. A single-word store does not
+    /// need the forwarding-buffer protocol: its exact runtime address does
+    /// not create an unbounded clobber range, unless it is repeated through a
+    /// loop-carried pointer that starts below the spill area and sweeps it.
     pub(in crate::backend::evm::codegen) fn compute_spill_hazard_insts(
         &self,
         func: &Function,

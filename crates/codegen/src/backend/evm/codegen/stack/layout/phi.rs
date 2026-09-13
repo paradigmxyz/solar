@@ -235,7 +235,7 @@ struct StackPhiPlanner<'a> {
 }
 
 /// Longest entry layout `plan_live_joins` carries into a block.
-const LIVE_JOIN_LAYOUT_LIMIT: usize = 12;
+pub(in crate::backend::evm::codegen) const LIVE_JOIN_LAYOUT_LIMIT: usize = 12;
 
 /// Most forward-and-backward rounds `plan_live_joins` spends converging its layouts.
 const LIVE_JOIN_ROUNDS: usize = 64;
@@ -338,6 +338,13 @@ impl<'a> StackPhiPlanner<'a> {
         for block in self.func.blocks.indices() {
             self.plan_join(block, &mut plan);
         }
+        tracing::trace!(
+            function = %self.func.name,
+            entries = ?plan.entries,
+            edges = ?plan.edges,
+            branch_edges = ?plan.branch_edges,
+            "stack phi plan"
+        );
         plan
     }
 
@@ -411,6 +418,7 @@ impl<'a> StackPhiPlanner<'a> {
                 joins.push(block_id);
             }
         }
+        tracing::trace!(function = %func.name, ?joins, "live join candidates");
         if joins.is_empty() {
             return;
         }
@@ -510,6 +518,12 @@ impl<'a> StackPhiPlanner<'a> {
         }
         let mut layouts = state.layouts;
         layouts.retain(|_, layout| !layout.is_empty());
+        tracing::trace!(
+            function = %func.name,
+            ?layouts,
+            ?banned,
+            "live join layouts converged"
+        );
         let mut join_layouts = layouts.clone();
         join_layouts.retain(|block, _| facts.is_join.contains(block));
         let mut arm_layouts = layouts;
@@ -590,6 +604,7 @@ impl<'a> StackPhiPlanner<'a> {
                 }
             }
             if !dropped.is_empty() {
+                tracing::trace!(function = %func.name, ?dropped, "live joins dropped");
                 for block in dropped {
                     join_layouts.remove(&block);
                 }
@@ -1311,14 +1326,14 @@ impl<'a> StackPhiPlanner<'a> {
 
     fn plan_loop(&self, loop_info: &Loop, liveness: &Liveness, plan: &mut StackPhiPlan) {
         let Some(preheader) = loop_info.preheader else {
-            return;
+            return self.reject_loop(loop_info, "no preheader");
         };
         if loop_info.back_edges.is_empty() {
-            return;
+            return self.reject_loop(loop_info, "no back edge");
         }
         if !matches!(self.func.blocks[preheader].terminator, Some(Terminator::Jump(target)) if target == loop_info.header)
         {
-            return;
+            return self.reject_loop(loop_info, "preheader does not jump to the header");
         }
         if let [latch] = loop_info.back_edges.as_slice()
             && *latch == loop_info.header
@@ -1336,14 +1351,16 @@ impl<'a> StackPhiPlanner<'a> {
                     } else if else_block == loop_info.header {
                         (false, then_block)
                     } else {
-                        return;
+                        return self
+                            .reject_loop(loop_info, "latch branch does not target the header");
                     };
                     if loop_info.blocks.contains(exit)
                         || !self.is_noreturn_block(exit)
                         || !self.phi_insts(&self.func.blocks[exit]).is_empty()
                         || plan.entries.contains_key(&exit)
                     {
-                        return;
+                        return self
+                            .reject_loop(loop_info, "conditional latch exit is not an abort");
                     }
                     conditional_latches.insert(latch, backedge_is_then);
                 }
@@ -1356,7 +1373,7 @@ impl<'a> StackPhiPlanner<'a> {
                 plan.edges.contains_key(latch) || plan.branch_edges.contains_key(latch)
             })
         {
-            return;
+            return self.reject_loop(loop_info, "preheader or latch already planned");
         }
         let has_branching_body = loop_info.blocks.iter().any(|block_id| {
             block_id != loop_info.header
@@ -1366,19 +1383,19 @@ impl<'a> StackPhiPlanner<'a> {
             other.header != loop_info.header && loop_info.blocks.contains(other.header)
         });
         if has_branching_body && !self.can_plan_branching_loop(loop_info) {
-            return;
+            return self.reject_loop(loop_info, "unsupported branching body");
         }
         let block = &self.func.blocks[loop_info.header];
         let phi_insts = self.phi_insts(block);
         if phi_insts.is_empty() || phi_insts.len() > STACK_PHI_LAYOUT_LIMIT {
-            return;
+            return self.reject_loop(loop_info, "no phis or too many phis");
         }
 
         let Some(results) = self.phi_result_values(&phi_insts) else {
-            return;
+            return self.reject_loop(loop_info, "phi results unavailable");
         };
         if results.len() > STACK_PHI_LAYOUT_LIMIT {
-            return;
+            return self.reject_loop(loop_info, "too many phi results");
         }
 
         let mut carry_through = self.carry_through_values(loop_info);
@@ -1392,7 +1409,7 @@ impl<'a> StackPhiPlanner<'a> {
             self.extend_live_through_values(loop_info, &mut carry_through);
         }
         if carry_through.len() + results.len() > STACK_PHI_LAYOUT_LIMIT {
-            return;
+            return self.reject_loop(loop_info, "layout exceeds the phi limit");
         }
         let mut entry = carry_through.clone();
         entry.extend(results.iter().copied());
@@ -1400,7 +1417,7 @@ impl<'a> StackPhiPlanner<'a> {
         let mut edges = Vec::with_capacity(loop_info.back_edges.len() + 1);
         for pred in std::iter::once(preheader).chain(loop_info.back_edges.iter().copied()) {
             let Some(phi_sources) = self.phi_sources_for_pred(&phi_insts, pred) else {
-                return;
+                return self.reject_loop(loop_info, "phi sources unavailable for a predecessor");
             };
             if pred != preheader
                 && !has_branching_body
@@ -1410,7 +1427,7 @@ impl<'a> StackPhiPlanner<'a> {
                         && !self.is_loop_header_phi(source)
                 })
             {
-                return;
+                return self.reject_loop(loop_info, "backedge source is a foreign phi");
             }
             let mut sources = carry_through.clone();
             sources.extend(phi_sources);
@@ -1420,6 +1437,12 @@ impl<'a> StackPhiPlanner<'a> {
 
         // header(phi_results := initial_sources)
         // latch: jumpi condition, header(phi_results := backedge_sources), abort()
+        tracing::trace!(
+            function = %self.func.name,
+            header = ?loop_info.header,
+            ?entry,
+            "loop plan"
+        );
         plan.entries.insert(loop_info.header, entry.clone());
         for (pred, sources) in edges {
             let edge = StackPhiEdge { sources, results: entry.clone() };
@@ -1433,6 +1456,16 @@ impl<'a> StackPhiPlanner<'a> {
                 plan.edges.insert(pred, edge);
             }
         }
+    }
+
+    /// Records why a loop keeps its established fallback instead of a stack-phi plan.
+    fn reject_loop(&self, loop_info: &Loop, reason: &str) {
+        tracing::trace!(
+            function = %self.func.name,
+            header = ?loop_info.header,
+            reason,
+            "loop plan rejected"
+        );
     }
 
     fn plan_conditional_self_loop(
