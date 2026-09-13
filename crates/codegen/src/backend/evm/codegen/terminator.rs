@@ -2,8 +2,8 @@
 
 use super::{
     BlockId, CopyDest, CopySource, DebugFunctionExit, EvmCodegen, EvmMemoryLayout, Function,
-    FxHashMap, Label, ParallelCopy, StackEffect, StackOp, StackPush, TargetSlot, Terminator, U256,
-    ValueId, WORD_BYTES, op,
+    FxHashMap, ImmutableId, Label, ParallelCopy, StackEffect, StackOp, StackPush, TargetSlot,
+    Terminator, U256, ValueId, WORD_BYTES, immutable_staging_addr, op,
 };
 
 impl<'gcx> EvmCodegen<'gcx> {
@@ -83,7 +83,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             // last result on top so the caller can stage anonymous results N-1..1 before adopting
             // the MIR-visible first result.
             let target: Vec<_> = values.iter().rev().copied().map(TargetSlot::Value).collect();
-            let Some(shuffle) = self.scheduler.shuffle_to_layout(&target) else {
+            if !self.emit_stack_layout(&target) {
                 // A forwarded multi-result call leaves adopted copies of the
                 // returned values on the stack; re-emitting them for the
                 // return doubles every word and the bounded shuffler cannot
@@ -96,9 +96,6 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.disabled_stack_only_functions.insert(func_id);
                 self.scheduler.clear_stack();
                 return;
-            };
-            for op in shuffle.ops {
-                self.asm.emit_stack_op(op);
             }
 
             // Rotate the untracked return address from below the result tuple to the top without
@@ -113,6 +110,13 @@ impl<'gcx> EvmCodegen<'gcx> {
             return;
         }
 
+        if !values.is_empty()
+            && self
+                .current_internal_function
+                .is_some_and(|id| self.stack_only_memory_functions.contains(id))
+        {
+            self.report_private_memory_required(func, "internal return values");
+        }
         let return_base = EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
             + (func.params.len() as u64) * EvmMemoryLayout::WORD_SIZE;
         for (i, &value) in values.iter().enumerate() {
@@ -230,6 +234,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                         .enumerate()
                         .filter(|&(index, _)| {
                             stack_mask.as_ref().is_none_or(|mask| !mask.contains(index))
+                                && !self
+                                    .static_call_abis
+                                    .get(function)
+                                    .is_some_and(|abi| abi.ignored_args.contains(index))
                         })
                         .map(|(index, &arg)| (index, arg))
                         .collect::<Vec<_>>();
@@ -261,15 +269,12 @@ impl<'gcx> EvmCodegen<'gcx> {
                         }
                         let target: Vec<_> =
                             stack_args.iter().copied().map(TargetSlot::Value).collect();
-                        let Some(shuffle) = self.scheduler.shuffle_to_layout(&target) else {
+                        if !self.emit_stack_layout(&target) {
                             // An unconstructible entry layout regenerates the
                             // runtime with the callee on the frame convention;
                             // the partially emitted attempt is discarded.
                             self.disabled_stack_only_functions.insert(*function);
                             return;
-                        };
-                        for op in shuffle.ops {
-                            self.asm.emit_stack_op(op);
                         }
                     }
                 }
@@ -366,6 +371,33 @@ impl<'gcx> EvmCodegen<'gcx> {
                     return;
                 }
 
+                if self.in_constructor && !values.is_empty() {
+                    assert_eq!(
+                        values.len(),
+                        self.immutable_encodings.len(),
+                        "constructor immutable payload has the wrong arity"
+                    );
+                    // ret [immutable0, ...]
+                    // materialize every payload operand before ending source execution
+                    // mstore staging(id), payload[id]
+                    for &value in values {
+                        self.emit_operand(func, value);
+                    }
+                    let source_only = self.asm.source_memory_required();
+                    self.asm.require_source_memory(false);
+                    for index in (0..values.len()).rev() {
+                        self.asm.emit_push(U256::from(immutable_staging_addr(
+                            self.immutable_staging_base,
+                            ImmutableId::from_usize(index),
+                        )));
+                        self.asm.emit_op(op::MSTORE);
+                        self.scheduler.stack.pop();
+                    }
+                    self.asm.require_source_memory(source_only);
+                    self.emit_external_stop(func);
+                    return;
+                }
+
                 assert!(values.is_empty(), "external ABI returns with values must use ReturnData");
                 self.emit_external_stop(func);
             }
@@ -373,7 +405,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             Terminator::Revert { offset, size } => {
                 self.emit_value(func, *size);
                 self.emit_operand(func, *offset);
-                self.asm.emit_op(op::REVERT);
+                self.asm.emit_source_op(op::REVERT);
                 self.mark_debug_function_exit(func, DebugFunctionExit::Revert);
             }
 
@@ -383,9 +415,15 @@ impl<'gcx> EvmCodegen<'gcx> {
                 // Valid in internal functions too: a fused external body called
                 // through an ABI wrapper returns straight to the external
                 // caller, abandoning the internal frame.
-                self.emit_value(func, *size);
-                self.emit_operand(func, *offset);
-                self.asm.emit_op(op::RETURN);
+                // return_data(offset, 0) -> STOP
+                // return_data(offset, size) -> RETURN(offset, size)
+                if func.value_u64(*size) == Some(0) {
+                    self.asm.emit_op(op::STOP);
+                } else {
+                    self.emit_value(func, *size);
+                    self.emit_operand(func, *offset);
+                    self.asm.emit_source_op(op::RETURN);
+                }
                 self.mark_debug_function_exit(func, DebugFunctionExit::Return);
             }
 

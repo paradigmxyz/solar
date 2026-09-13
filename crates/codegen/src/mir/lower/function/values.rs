@@ -1,6 +1,6 @@
 //! Tuple, return, and multi-value lowering.
 
-use super::*;
+use super::{calls::ExternalReturnMode, *};
 
 enum PreparedTupleAssignment<'gcx> {
     Value { place: LValuePlace<'gcx>, rhs: TupleAssignmentRhs<'gcx> },
@@ -44,6 +44,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     first,
                     base,
                     elements.len(),
+                    true,
                     return_types,
                 ));
             }
@@ -66,6 +67,54 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             if let Some(returns) = returns
                 && returns > 1
             {
+                if function_ty.is_some_and(|function| function.is_delegate_call())
+                    && let Some(function_id) = resolved_function
+                {
+                    let receiver = if self
+                        .cx
+                        .gcx
+                        .resolved_callee(callee.id)
+                        .is_some_and(|callee| callee.attached)
+                    {
+                        let ExprKind::Member(receiver, _) = callee.kind else {
+                            return self
+                                .cx
+                                .report_unsupported(expr.span, "attached function receiver");
+                        };
+                        Some(receiver)
+                    } else {
+                        None
+                    };
+                    let function_id = self.resolve_call_target(callee, function_id);
+                    let address = self.library_address(function_id);
+                    // values = delegatecall(library, selector, receiver, args)
+                    return self.lower_library_call_values(
+                        expr,
+                        function_id,
+                        receiver,
+                        *args,
+                        address,
+                        ExternalReturnMode::All,
+                    );
+                }
+                if function_ty.is_some_and(|function| function.is_external())
+                    && let Some(mut function_id) = resolved_function
+                {
+                    if let ExprKind::Member(receiver, _) = callee.kind
+                        && self.cx.gcx.resolved_builtin(receiver) == Some(Builtin::This)
+                    {
+                        function_id = self.resolve_call_target(callee, function_id);
+                    }
+                    // values = external_call(receiver, selector, args)
+                    return self.lower_external_function_call_values(
+                        expr,
+                        callee,
+                        function_id,
+                        *args,
+                        *call_opts,
+                        ExternalReturnMode::All,
+                    );
+                }
                 let first = self.lower_expr(expr)?;
                 let gcx = self.cx.gcx;
                 let return_types = if let Some(function_id) = resolved_function {
@@ -85,7 +134,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         .iter()
                         .skip(1)
                         .map(|&ty| Some(types::TypeLowerer::return_encoding_ty(gcx, ty)));
-                    return Some(self.load_multi_return_values(first, base, returns, return_types));
+                    return Some(self.load_multi_return_values(
+                        first,
+                        base,
+                        returns,
+                        false,
+                        return_types,
+                    ));
                 }
                 return Some(self.load_internal_return_values(first, &return_types));
             }
@@ -596,11 +651,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         base: ValueId,
         index: usize,
         words: usize,
+        compiler_memory: bool,
     ) -> ValueId {
         let offset = self.builder.imm(u64::try_from(index).unwrap_or(u64::MAX).saturating_mul(32));
         debug_assert!(index < words);
         let position = self.builder.add(base, offset);
-        self.builder.mload(position)
+        // value = mload position !metadata(compiler_memory) for compiler tuple buffers
+        if compiler_memory {
+            self.builder.private_mload(position)
+        } else {
+            self.builder.mload(position)
+        }
     }
 
     pub(super) fn load_multi_return_value_as(
@@ -609,17 +670,25 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         index: usize,
         returns: usize,
         ty: Ty<'gcx>,
+        compiler_memory: bool,
     ) -> ValueId {
         let MirType::MemoryObject(kind) = types::TypeLowerer::mir_return_type(ty) else {
-            return self.load_multi_return_value(base, index, returns);
+            return self.load_multi_return_value(base, index, returns, compiler_memory);
         };
         let index = self.builder.imm(u64::try_from(index).unwrap_or(u64::MAX));
-        self.builder.memory_object_load_object(
+        // value = memory_object_load_element base, index
+        let value = self.builder.memory_object_load_object(
             base,
             MemoryObjectLayout::word_fixed_array(u64::try_from(returns).unwrap_or(u64::MAX)),
             index,
             kind,
-        )
+        );
+        if compiler_memory {
+            let func = self.builder.func_mut();
+            let Value::Inst(inst) = *func.value(value) else { unreachable!() };
+            func.inst_mut(inst).metadata.set_requires_private_memory();
+        }
+        value
     }
 
     pub(super) fn internal_return_words(ty: Ty<'gcx>) -> usize {
@@ -645,11 +714,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let return_ty = types::TypeLowerer::mir_return_type(ty);
             let value = match return_ty {
                 MirType::Slice(location) => {
-                    let pointer = self.load_multi_return_value(base, index, returns);
-                    let length = self.load_multi_return_value(base, index + 1, returns);
+                    let pointer = self.load_multi_return_value(base, index, returns, true);
+                    let length = self.load_multi_return_value(base, index + 1, returns, true);
                     self.builder.make_slice(pointer, length, location)
                 }
-                _ => self.load_multi_return_value_as(base, index, returns, ty),
+                _ => self.load_multi_return_value_as(base, index, returns, ty, true),
             };
             if dirty || return_ty == MirType::Slice(SliceLocation::Calldata) {
                 self.dirty_values.insert(value);
@@ -665,6 +734,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         first: ValueId,
         base: ValueId,
         returns: usize,
+        compiler_memory: bool,
         return_types: impl IntoIterator<Item = Option<Ty<'gcx>>>,
     ) -> Vec<ValueId> {
         let mut values = Vec::with_capacity(returns);
@@ -672,8 +742,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         for (index, ty) in return_types.into_iter().enumerate() {
             let index = index + 1;
             values.push(match ty {
-                Some(ty) => self.load_multi_return_value_as(base, index, returns, ty),
-                None => self.load_multi_return_value(base, index, returns),
+                Some(ty) => {
+                    self.load_multi_return_value_as(base, index, returns, ty, compiler_memory)
+                }
+                None => self.load_multi_return_value(base, index, returns, compiler_memory),
             });
         }
         values

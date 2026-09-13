@@ -9,11 +9,11 @@ fn @test() -> u256 [selector=0xf8a8fd6d, pure, abi_params=[], abi_returns=[word]
     v0 = icall @sort, 2, 2, 1
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 32
-    v3 = mload v2
+    v3 = mload v2 !metadata(compiler_memory)
     v4 = icall @sort, 2, 4, 3
     v5 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v6 = add v5, 32
-    v7 = mload v6
+    v7 = mload v6 !metadata(compiler_memory)
     v8 = eq v0, 1
     jumpi v8, bb1, bb2
   bb2:

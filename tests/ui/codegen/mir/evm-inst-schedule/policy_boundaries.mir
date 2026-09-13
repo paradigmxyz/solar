@@ -324,3 +324,100 @@ fn @block_local_scratch(
     v13 = mod v11, v12
     ret v13
 }
+
+// Reduce stack-owned gas observations before a call, after its gas operand is read.
+// CHECK-LABEL: {{^[ +].*}}fn @gas_reduction_before_call{{[( ]}}
+// CHECK: [[CALLGAS:v17]] = gas
+// CHECK-NEXT: - {{v[0-9]+}} = staticcall [[CALLGAS]], 4, 0, 0, 0, 0
+// CHECK-NOT: = gas
+// CHECK: v34 = and v0, v33
+// CHECK-NEXT: + {{v[0-9]+}} = staticcall [[CALLGAS]], 4, 0, 0, 0, 0
+fn @gas_reduction_before_call() -> u256 [unrestricted_memory] {
+  bb0:
+    v0 = gas
+    v1 = gas
+    v2 = gas
+    v3 = gas
+    v4 = gas
+    v5 = gas
+    v6 = gas
+    v7 = gas
+    v8 = gas
+    v9 = gas
+    v10 = gas
+    v11 = gas
+    v12 = gas
+    v13 = gas
+    v14 = gas
+    v15 = gas
+    v16 = gas
+    v17 = gas
+    v18 = staticcall v17, 4, 0, 0, 0, 0
+    jumpi v18, bb1, bb2
+  bb1:
+    v19 = and v15, v16
+    v20 = and v14, v19
+    v21 = and v13, v20
+    v22 = and v12, v21
+    v23 = and v11, v22
+    v24 = and v10, v23
+    v25 = and v9, v24
+    v26 = and v8, v25
+    v27 = and v7, v26
+    v28 = and v6, v27
+    v29 = and v5, v28
+    v30 = and v4, v29
+    v31 = and v3, v30
+    v32 = and v2, v31
+    v33 = and v1, v32
+    v34 = and v0, v33
+    ret v34
+  bb2:
+    revert 0, 0
+}
+
+// Recompute offsets from a base already live in a crowded successor.
+// CHECK-LABEL: {{^[ +].*}}fn @resident_offsets{{[( ]}}
+// CHECK: - {{v[0-9]+}} = add arg0, 32
+// CHECK: bb1:
+// CHECK: + {{v[0-9]+}} = add arg0, 32
+fn @resident_offsets(arg0: u256) -> u256 [unrestricted_memory] {
+  bb0:
+    v1 = add arg0, 32
+    v2 = gas
+    v3 = gas
+    v4 = gas
+    v5 = gas
+    v6 = gas
+    v7 = gas
+    v8 = gas
+    v9 = gas
+    v10 = gas
+    v11 = gas
+    v12 = gas
+    v13 = gas
+    v14 = gas
+    v15 = gas
+    v16 = gas
+    v17 = gas
+    jump bb1
+  bb1:
+    mstore arg0, v1
+    mstore 64, v2
+    mstore 96, v3
+    mstore 128, v4
+    mstore 160, v5
+    mstore 192, v6
+    mstore 224, v7
+    mstore 256, v8
+    mstore 288, v9
+    mstore 320, v10
+    mstore 352, v11
+    mstore 384, v12
+    mstore 416, v13
+    mstore 448, v14
+    mstore 480, v15
+    mstore 512, v16
+    mstore 544, v17
+    ret arg0
+}

@@ -2,6 +2,9 @@
 //@ run-call: MutualRecursiveYulFrames::encode 0 => 1, 1, 0xc000000000000000000000000000000000000000000000000000000000000000
 //@ run-call: MutualRecursiveYulFrames::encode 3 => 4, 4, 0xa3a2a1c000000000000000000000000000000000000000000000000000000000
 
+//@ run-call: MutualRecursiveYulFrames::arithmetic 0 => 7, 1
+//@ run-call: MutualRecursiveYulFrames::arithmetic 3 => 13, 4
+
 contract MutualRecursiveYulFrames {
     function encode(uint256 depth)
         external
@@ -30,4 +33,30 @@ contract MutualRecursiveYulFrames {
             word := mload(out)
         }
     }
+
+    function arithmetic(uint256 depth) external pure returns (uint256 sum, uint256 count) {
+        /// @solidity memory-safe-assembly
+        assembly {
+            function walk(n, acc) -> total, items {
+                switch n
+                case 0 {
+                    total := acc
+                    items := 1
+                }
+                default { total, items := container(n, acc) }
+            }
+            function container(n, acc) -> total, items {
+                total, items := walk(sub(n, 1), addSteps(n, acc))
+                items := add(items, 1)
+            }
+            function addSteps(n, acc) -> total {
+                total := acc
+                for { let i := 0 } lt(i, n) { i := add(i, 1) } {
+                    total := add(total, 1)
+                }
+            }
+            sum, count := walk(depth, 7)
+        }
+    }
+
 }

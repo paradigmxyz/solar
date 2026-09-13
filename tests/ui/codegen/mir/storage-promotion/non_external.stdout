@@ -18,3 +18,69 @@
       jump bb1
   }
   
+  fn @unrestricted_entry() [selector=0x00000001, unrestricted_memory] {
+    bb0:
+      jump bb1
+    bb1:
+      sstore 0, 1
+      jump bb2
+    bb2:
+      jumpi 1, bb3, bb4
+    bb4:
+      stop
+    bb3:
+      v0 = sload 0
+      v1 = mul v0, 2
+      sstore 0, v1
+      jump bb2
+  }
+  
+  fn @indirect_unrestricted_entry() [selector=0x00000002] {
+    bb0:
+      icall @bridge, 0
+      jump bb1
+    bb1:
+      sstore 0, 1
+      jump bb2
+    bb2:
+      jumpi 1, bb3, bb4
+    bb4:
+      stop
+    bb3:
+      v0 = sload 0
+      v1 = mul v0, 2
+      sstore 0, v1
+      jump bb2
+  }
+  
+  fn @bridge() {
+    bb0:
+      icall @unrestricted_leaf, 0
+      stop
+  }
+  
+  fn @unrestricted_leaf() [unrestricted_memory] {
+    bb0:
+      stop
+  }
+  
+  fn @independent_entry() [selector=0x00000003] {
+    bb0:
+-     sstore 0, 1
++     mstore 128, 1 !metadata(compiler_memory)
+      jump bb1
+    bb1:
+      jumpi 1, bb2, bb3
+    bb3:
++     v2 = mload 128 !metadata(compiler_memory)
++     sstore 0, v2
+      stop
+    bb2:
+-     v0 = sload 0
++     v0 = mload 128 !metadata(compiler_memory)
+      v1 = mul v0, 2
+-     sstore 0, v1
++     mstore 128, v1 !metadata(compiler_memory)
+      jump bb1
+  }
+  

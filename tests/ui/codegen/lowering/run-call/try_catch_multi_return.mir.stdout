@@ -113,7 +113,7 @@ fn @success() -> u256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     memory_object_copy_from_slice memorybytes, v14, v15
     v16 = abi_decode [u256, bytes], v14
     v17 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v18 = memory_object_load_element memoryfixedarray<2, 1>, v17, 1
+    v18 = memory_object_load_element<memorybytes> memoryfixedarray<2, 1>, v17, 1 !metadata(compiler_memory)
     v19 = memory_object_len memorybytes, v18
     v20 = add v16, v19
     v21 = lt v20, v16
@@ -188,7 +188,7 @@ fn @failure() -> u256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
     memory_object_copy_from_slice memorybytes, v14, v15
     v16 = abi_decode [u256, bytes], v14
     v17 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v18 = memory_object_load_element memoryfixedarray<2, 1>, v17, 1
+    v18 = memory_object_load_element<memorybytes> memoryfixedarray<2, 1>, v17, 1 !metadata(compiler_memory)
     ret 0
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)

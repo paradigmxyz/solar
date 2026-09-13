@@ -807,6 +807,8 @@ fn equivalent_functions(
                     rhs_inst.kind.operands(),
                 )
                 || !equivalent_inst_payload(lhs_id, &lhs_inst.kind, rhs_id, &rhs_inst.kind)
+                || lhs_inst.metadata.requires_private_memory()
+                    != rhs_inst.metadata.requires_private_memory()
                 || lhs_inst.metadata.memory_region() != rhs_inst.metadata.memory_region()
                 || lhs_inst.metadata.effect() != rhs_inst.metadata.effect()
                 || lhs_inst.metadata.unchecked() != rhs_inst.metadata.unchecked()
@@ -870,7 +872,9 @@ fn equivalent_attributes(lhs: &Function, rhs: &Function) -> bool {
         && lhs.attributes.is_constructor == rhs.attributes.is_constructor
         && lhs.attributes.is_fallback == rhs.attributes.is_fallback
         && lhs.attributes.is_receive == rhs.attributes.is_receive
+        && lhs.attributes.is_yul == rhs.attributes.is_yul
         && lhs.attributes.may_return_memory == rhs.attributes.may_return_memory
+        && lhs.attributes.unrestricted_memory == rhs.attributes.unrestricted_memory
         && lhs.attributes.is_function_pointer_dispatcher
             == rhs.attributes.is_function_pointer_dispatcher
         && lhs.attributes.no_inline == rhs.attributes.no_inline
@@ -943,5 +947,22 @@ fn redirect_calls(module: &mut Module, replacements: &FxHashMap<FunctionId, Func
                 *function = replacement;
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use solar_interface::Ident;
+
+    #[test]
+    fn equivalent_attributes_preserve_yul_semantics() {
+        let mut solidity = Function::new(Ident::DUMMY);
+        let mut yul = solidity.clone();
+        assert!(equivalent_attributes(&solidity, &yul));
+        yul.attributes.is_yul = true;
+        assert!(!equivalent_attributes(&solidity, &yul));
+        solidity.attributes.is_yul = true;
+        assert!(equivalent_attributes(&solidity, &yul));
     }
 }

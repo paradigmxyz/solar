@@ -17,7 +17,7 @@ fn @append.1(arg0: memorystruct, arg1: u256) -> memorystruct [pure] {
     ret arg0
 }
 
-fn @append.2(arg0: memorystruct, arg1: memorystruct) -> memorystruct [pure] {
+fn @append.2(arg0: memorystruct, arg1: memorystruct) -> memorystruct [unrestricted_memory, pure] {
   bb0:
     v0 = shl 8, arg1
     v1 = or 3, v0
@@ -29,7 +29,7 @@ fn @append.2(arg0: memorystruct, arg1: memorystruct) -> memorystruct [pure] {
     ret arg0
 }
 
-fn @dirtyFreeMemory() [view] {
+fn @dirtyFreeMemory() [unrestricted_memory, view] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = gas
@@ -42,7 +42,7 @@ fn @dirtyFreeMemory() [view] {
     stop
 }
 
-fn @defaultLocal() -> bool [selector=0x2f73c827, view, abi_params=[], abi_returns=[word<bool>]] {
+fn @defaultLocal() -> bool [selector=0x2f73c827, unrestricted_memory, view, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     memory_object_store_field memorystruct<1>, v0, 0, 0
@@ -52,7 +52,7 @@ fn @defaultLocal() -> bool [selector=0x2f73c827, view, abi_params=[], abi_return
     ret v2
 }
 
-fn @defaultReturn() -> bool [selector=0x099c80fd, view, abi_params=[], abi_returns=[word<bool>]] {
+fn @defaultReturn() -> bool [selector=0x099c80fd, unrestricted_memory, view, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     icall @dirtyFreeMemory, 0
     v0 = icall @empty, 1
@@ -61,7 +61,7 @@ fn @defaultReturn() -> bool [selector=0x099c80fd, view, abi_params=[], abi_retur
     ret v2
 }
 
-fn @firstAppend() -> bool [selector=0x9d2b282b, view, abi_params=[], abi_returns=[word<bool>]] {
+fn @firstAppend() -> bool [selector=0x9d2b282b, unrestricted_memory, view, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     memory_object_store_field memorystruct<1>, v0, 0, 0
@@ -81,7 +81,7 @@ fn @firstAppend() -> bool [selector=0x9d2b282b, view, abi_params=[], abi_returns
     ret v12
 }
 
-fn @secondAppend() -> bool [selector=0xdce19125, view, abi_params=[], abi_returns=[word<bool>]] {
+fn @secondAppend() -> bool [selector=0xdce19125, unrestricted_memory, view, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     memory_object_store_field memorystruct<1>, v0, 0, 0
@@ -101,7 +101,7 @@ fn @secondAppend() -> bool [selector=0xdce19125, view, abi_params=[], abi_return
     ret v12
 }
 
-fn @recursiveYul(arg0: u256) -> (u256, bytes1) [selector=0x2aa1bcc4, pure, abi_params=[u256], abi_returns=[word, word<bytes1>]] {
+fn @recursiveYul(arg0: u256) -> (u256, bytes1) [selector=0x2aa1bcc4, unrestricted_memory, pure, abi_params=[u256], abi_returns=[word, word<bytes1>]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = icall @encode, 1, arg0, v0
@@ -110,7 +110,7 @@ fn @recursiveYul(arg0: u256) -> (u256, bytes1) [selector=0x2aa1bcc4, pure, abi_p
     ret v2, v3
 }
 
-fn @nestedListEncoding() -> (u256, bytes32) [selector=0xb61d93a1, pure, abi_params=[], abi_returns=[word, word]] {
+fn @nestedListEncoding() -> (u256, bytes32) [selector=0xb61d93a1, unrestricted_memory, pure, abi_params=[], abi_returns=[word, word]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     memory_object_store_field memorystruct<1>, v0, 0, 0
@@ -135,7 +135,7 @@ fn @nestedListEncoding() -> (u256, bytes32) [selector=0xb61d93a1, pure, abi_para
     ret v17, v18
 }
 
-fn @updateTail(arg0: memorystruct, arg1: memorystruct) [pure] {
+fn @updateTail(arg0: memorystruct, arg1: memorystruct) [unrestricted_memory, pure] {
   bb0:
     v0 = mload arg0
     v1 = mload arg0
@@ -152,7 +152,7 @@ fn @updateTail(arg0: memorystruct, arg1: memorystruct) [pure] {
     stop
 }
 
-fn @encode(arg0: u256, arg1: u256) -> u256 {
+fn @encode(arg0: u256, arg1: u256) -> u256 [yul, unrestricted_memory] {
   bb0:
     v0 = iszero arg0
     v1 = eq v0, 0
@@ -173,7 +173,7 @@ fn @encode(arg0: u256, arg1: u256) -> u256 {
     ret v3
 }
 
-fn @encodeUint(arg0: u256, arg1: u256) -> u256 {
+fn @encodeUint(arg0: u256, arg1: u256) -> u256 [yul, unrestricted_memory] {
   bb0:
     v0 = add arg1, 1
     v1 = gt arg0, 127
@@ -219,7 +219,7 @@ fn @encodeUint(arg0: u256, arg1: u256) -> u256 {
     ret v0
 }
 
-fn @encodeAddress(arg0: u256, arg1: u256) -> u256 {
+fn @encodeAddress(arg0: u256, arg1: u256) -> u256 [yul, unrestricted_memory] {
   bb0:
     v0 = add arg1, 21
     v1 = shl 88, arg0
@@ -228,7 +228,7 @@ fn @encodeAddress(arg0: u256, arg1: u256) -> u256 {
     ret v0
 }
 
-fn @encodeBytes(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+fn @encodeBytes(arg0: u256, arg1: u256, arg2: u256) -> u256 [yul, unrestricted_memory] {
   bb0:
     v0 = add arg1, 1
     v1 = mload arg0
@@ -328,7 +328,7 @@ fn @encodeBytes(arg0: u256, arg1: u256, arg2: u256) -> u256 {
     ret v19
 }
 
-fn @encodeList(arg0: u256, arg1: u256) -> u256 {
+fn @encodeList(arg0: u256, arg1: u256) -> u256 [yul, unrestricted_memory] {
   bb0:
     v0 = mload arg0
     v1 = iszero v0

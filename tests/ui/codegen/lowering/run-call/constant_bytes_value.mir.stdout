@@ -12,7 +12,7 @@ fn @length() -> u256 [selector=0x1f7b6d32, pure, abi_params=[], abi_returns=[wor
     ret v3
 }
 
-fn @firstWord() -> bytes32 [selector=0x20cb3a4a, pure, abi_params=[], abi_returns=[word]] {
+fn @firstWord() -> bytes32 [selector=0x20cb3a4a, unrestricted_memory, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 96
     set_memory_object_len memorybytes, v0, 40

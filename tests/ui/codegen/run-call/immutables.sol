@@ -1,4 +1,6 @@
-//@ revisions: default size byzantium
+//@ revisions: default none gas size byzantium
+//@[none] compile-flags: -O none
+//@[gas] compile-flags: -O gas
 //@[size] compile-flags: -O size
 //@[byzantium] compile-flags: --evm-version byzantium
 //@ run-call: tiny; constructor=[171, -1234, 0x000000000000000000000000000000000000beef, 48879, true] => 171
@@ -12,6 +14,11 @@
 //@ run-call: callFunctionPointer; constructor=[171, -1234, 0x000000000000000000000000000000000000beef, 48879, true] => 7
 //@ run-call: OneByteImmutables::read; constructor=[171, -5, 0xab] => 171, -5, 0xab
 //@ run-call: SyntheticImmutableFrame::marker => 77
+
+//@ run-call: ImmutableSourceMemory::read; constructor=[77] => 77, 77, 78, 0
+
+//@ run-call: ImmutableBranchValues::read; constructor=[false, 0] => 20, 20, 0, 0, false, 0x0000000000000000000000000000000000000000, 0x000000
+//@ run-call: ImmutableBranchValues::read; constructor=[true, 2] => 12, 10, 0, 0, false, 0x0000000000000000000000000000000000000000, 0x000000
 
 type Tiny is uint16;
 
@@ -79,4 +86,57 @@ contract SyntheticFrameBase {
 
 contract SyntheticImmutableFrame is SyntheticFrameBase {
     uint256 public immutable marker = 77;
+}
+
+contract ImmutableSourceMemory {
+    uint256 public immutable first;
+    uint256 public immutable duplicate;
+    uint256 public immutable next;
+    uint256 public observed;
+
+    constructor(uint256 value) {
+        first = value;
+        duplicate = first;
+        next = readNext();
+        uint256 word;
+        assembly {
+            word := mload(0xc0)
+            mstore(0xc0, 0xdead)
+            mstore(0xe0, 0xbeef)
+            mstore(0x100, 0xbad)
+        }
+        observed = word;
+    }
+
+    function readNext() internal view returns (uint256) {
+        return duplicate + 1;
+    }
+
+    function read() external view returns (uint256, uint256, uint256, uint256) {
+        return (first, duplicate, next, observed);
+    }
+}
+
+contract ImmutableBranchValues {
+    uint256 immutable value;
+    uint256 immutable initial;
+    uint256 immutable defaultValue;
+    bool immutable defaultFlag;
+    address immutable defaultAddress;
+    bytes3 immutable defaultBytes;
+    uint256 beforeAssignment;
+
+    constructor(bool branch, uint256 rounds) {
+        beforeAssignment = value;
+        if (branch) value = 10;
+        else value = 20;
+        initial = value;
+        for (uint256 i; i < rounds; ++i) value = value + 1;
+        uint256[] memory scratch = new uint256[](1);
+        assembly { mstore(add(scratch, 32), 42) }
+    }
+
+    function read() external view returns (uint256, uint256, uint256, uint256, bool, address, bytes3) {
+        return (value, initial, beforeAssignment, defaultValue, defaultFlag, defaultAddress, defaultBytes);
+    }
 }

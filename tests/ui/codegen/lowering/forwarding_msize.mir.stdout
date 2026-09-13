@@ -1,0 +1,58 @@
+// === ROOT/tests/ui/codegen/lowering/forwarding_msize.sol:ForwardingMsize ===
+@module ForwardingMsize
+fn @fallback() [fallback] {
+  bb0:
+    icall @recover, 0
+    v0 = icall @readSize, 1
+    mstore 0, v0 !metadata(memory=scratch)
+    returndata 0, 32
+}
+
+fn @readSize() -> u256 [unrestricted_memory, pure] {
+  bb0:
+    v0 = msize
+    ret v0
+}
+
+fn @recover() [unrestricted_memory] {
+  bb0:
+    v0 = calldatasize
+    calldatacopy 0, 0, v0 !metadata(memory=scratch)
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = sload 1 !metadata(storage=slot(1))
+    v3 = sload 2 !metadata(storage=slot(2))
+    v4 = sload 3 !metadata(storage=slot(3))
+    v5 = sload 4 !metadata(storage=slot(4))
+    v6 = sload 5 !metadata(storage=slot(5))
+    v7 = sload 6 !metadata(storage=slot(6))
+    v8 = sload 7 !metadata(storage=slot(7))
+    v9 = sload 8 !metadata(storage=slot(8))
+    v10 = sload 9 !metadata(storage=slot(9))
+    v11 = sload 10 !metadata(storage=slot(10))
+    v12 = sload 11 !metadata(storage=slot(11))
+    v13 = sload 12 !metadata(storage=slot(12))
+    v14 = sload 13 !metadata(storage=slot(13))
+    v15 = sload 14 !metadata(storage=slot(14))
+    v16 = sload 15 !metadata(storage=slot(15))
+    v17 = sload 16 !metadata(storage=slot(16))
+    v18 = sload 17 !metadata(storage=slot(17))
+    sstore 0, v1 !metadata(storage=slot(0))
+    sstore 1, v2 !metadata(storage=slot(1))
+    sstore 2, v3 !metadata(storage=slot(2))
+    sstore 3, v4 !metadata(storage=slot(3))
+    sstore 4, v5 !metadata(storage=slot(4))
+    sstore 5, v6 !metadata(storage=slot(5))
+    sstore 6, v7 !metadata(storage=slot(6))
+    sstore 7, v8 !metadata(storage=slot(7))
+    sstore 8, v9 !metadata(storage=slot(8))
+    sstore 9, v10 !metadata(storage=slot(9))
+    sstore 10, v11 !metadata(storage=slot(10))
+    sstore 11, v12 !metadata(storage=slot(11))
+    sstore 12, v13 !metadata(storage=slot(12))
+    sstore 13, v14 !metadata(storage=slot(13))
+    sstore 14, v15 !metadata(storage=slot(14))
+    sstore 15, v16 !metadata(storage=slot(15))
+    sstore 16, v17 !metadata(storage=slot(16))
+    sstore 17, v18 !metadata(storage=slot(17))
+    stop
+}

@@ -65,20 +65,20 @@
   fn @reserve_frame() [selector=0x01020308] {
     bb0:
 -     sstore 0, 1
-+     mstore 128, 1
++     mstore 128, 1 !metadata(compiler_memory)
       jump bb1
     bb1:
       jumpi 1, bb2, bb4
     bb4:
-+     v2 = mload 128
++     v2 = mload 128 !metadata(compiler_memory)
 +     sstore 0, v2
       stop
     bb2:
 -     v0 = sload 0
-+     v0 = mload 128
++     v0 = mload 128 !metadata(compiler_memory)
       v1 = add v0, 1
 -     sstore 0, v1
-+     mstore 128, v1
++     mstore 128, v1 !metadata(compiler_memory)
       jump bb3
     bb3:
       jump bb1
@@ -171,18 +171,18 @@
   
   fn @reserve_frame() [selector=0x01020308] {
     bb0:
-      mstore 128, 1
+      mstore 128, 1 !metadata(compiler_memory)
       jump bb1
     bb1:
       jumpi 1, bb2, bb4
     bb4:
-      v2 = mload 128
+      v2 = mload 128 !metadata(compiler_memory)
       sstore 0, v2
       stop
     bb2:
-      v0 = mload 128
+      v0 = mload 128 !metadata(compiler_memory)
       v1 = add v0, 1
-      mstore 128, v1
+      mstore 128, v1 !metadata(compiler_memory)
       jump bb3
     bb3:
       jump bb1

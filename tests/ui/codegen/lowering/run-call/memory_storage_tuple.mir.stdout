@@ -13,7 +13,7 @@ fn @declared() -> u256 [selector=0xfd2ed72a, abi_params=[], abi_returns=[word]] 
     v1 = icall @f, 2
     v2 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v3 = add v2, 32
-    v4 = mload v3
+    v4 = mload v3 !metadata(compiler_memory)
     v5 = alloc memorystruct<2>, exact, uninitialized, panic, 64
     v6 = sload v4 !metadata(storage=symbolic(v4))
     memory_object_store_field memorystruct<2>, v5, 0, v6
@@ -65,7 +65,7 @@ fn @assigned() -> u256 [selector=0xadb4d990, abi_params=[], abi_returns=[word]] 
     v2 = icall @f, 2
     v3 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v4 = add v3, 32
-    v5 = mload v4
+    v5 = mload v4 !metadata(compiler_memory)
     v6 = alloc memorystruct<2>, exact, uninitialized, panic, 64
     v7 = sload v5 !metadata(storage=symbolic(v5))
     memory_object_store_field memorystruct<2>, v6, 0, v7

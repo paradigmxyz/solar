@@ -57,10 +57,10 @@ fn @readTwice(arg0: calldataslice) -> (u64, u64) [selector=0xc62a8eb2, pure, abi
     v0 = icall @readU64, 2, arg0, 0
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 32
-    v3 = mload v2
+    v3 = mload v2 !metadata(compiler_memory)
     v4 = icall @readU64, 2, arg0, 8
     v5 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v6 = add v5, 32
-    v7 = mload v6
+    v7 = mload v6 !metadata(compiler_memory)
     ret v0, v4
 }

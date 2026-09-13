@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_bytes_dirty_tail.sol:StorageBytesDirtyTail ===
 @module StorageBytesDirtyTail
-fn @storeLong() -> (bytes32, bytes32, u256) [selector=0xc4a6ec73, abi_params=[], abi_returns=[word, word, word]] {
+fn @storeLong() -> (bytes32, bytes32, u256) [selector=0xc4a6ec73, unrestricted_memory, abi_params=[], abi_returns=[word, word, word]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     mstore v0, 33
@@ -34,7 +34,7 @@ fn @storeLong() -> (bytes32, bytes32, u256) [selector=0xc4a6ec73, abi_params=[],
     revert 0, 36
 }
 
-fn @storeShort() -> (bytes32, u256) [selector=0x5296e6c1, abi_params=[], abi_returns=[word, word]] {
+fn @storeShort() -> (bytes32, u256) [selector=0x5296e6c1, unrestricted_memory, abi_params=[], abi_returns=[word, word]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     mstore v0, 5

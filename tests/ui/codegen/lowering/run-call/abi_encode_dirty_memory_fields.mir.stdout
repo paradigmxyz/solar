@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_dirty_memory_fields.sol:AbiEncodeDirtyMemoryFields ===
 @module AbiEncodeDirtyMemoryFields
-fn @dirty() -> memorystruct [pure] {
+fn @dirty() -> memorystruct [unrestricted_memory, pure] {
   bb0:
     v0 = alloc memorystruct<6>, exact, uninitialized, infallible, 192
     memory_zero v0, 192
@@ -48,7 +48,7 @@ fn @encodeStruct() -> bytes32 [selector=0x01e941a3, pure, abi_params=[], abi_ret
     ret v4
 }
 
-fn @encodeArray() -> bytes32 [selector=0x7a13e494, pure, abi_params=[], abi_returns=[word]] {
+fn @encodeArray() -> bytes32 [selector=0x7a13e494, unrestricted_memory, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
     set_memory_object_len memoryarray, v0, 2
@@ -81,7 +81,7 @@ fn @encodeArray() -> bytes32 [selector=0x7a13e494, pure, abi_params=[], abi_retu
     revert 0, 36
 }
 
-fn @encodeBadEnum() -> memorybytes [selector=0xc72bddb9, pure, abi_params=[], abi_returns=[memory_bytes]] {
+fn @encodeBadEnum() -> memorybytes [selector=0xc72bddb9, unrestricted_memory, pure, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = icall @dirty, 1
     v1 = add v0, 64

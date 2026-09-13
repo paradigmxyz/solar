@@ -127,7 +127,6 @@ struct SlotLoad {
 struct SlotStore {
     block: BlockId,
     inst: InstId,
-    value: ValueId,
 }
 
 #[derive(Clone, Debug)]
@@ -158,8 +157,8 @@ impl SlotAccessInfo {
         self.access_blocks.insert(block);
     }
 
-    fn note_store(&mut self, block: BlockId, inst: InstId, value: ValueId) {
-        self.stores.push(SlotStore { block, inst, value });
+    fn note_store(&mut self, block: BlockId, inst: InstId) {
+        self.stores.push(SlotStore { block, inst });
         self.def_blocks.insert(block);
         self.access_blocks.insert(block);
     }
@@ -274,12 +273,12 @@ impl FrameSlotPromoter {
                                 .note_load(block_id, inst_id);
                         }
                     }
-                    InstKind::MStore(addr, value) => {
+                    InstKind::MStore(addr, _) => {
                         if let Some(slot) = Self::promotable_slot(func, aa, addr) {
                             accesses
                                 .entry(slot)
                                 .or_insert_with(|| SlotAccessInfo::new(slot, func.blocks.len()))
-                                .note_store(block_id, inst_id, value);
+                                .note_store(block_id, inst_id);
                         }
                     }
                     _ => {}
@@ -948,7 +947,11 @@ impl<'a> SlotSsaBuilder<'a> {
 
     fn rewrite_single_store(&mut self, func: &Function) -> bool {
         let [store] = self.info.stores.as_slice() else { return false };
-        let stored_value = mir_utils::resolve_replacement(store.value, &self.replacements);
+        // Earlier slot promotions can replace this store's operand.
+        let InstKind::MStore(_, value) = func.inst(store.inst).kind else {
+            unreachable!("collected slot store")
+        };
+        let stored_value = mir_utils::resolve_replacement(value, &self.replacements);
 
         for load in &self.info.loads {
             let dominated = if load.block == store.block {

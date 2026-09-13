@@ -18,7 +18,7 @@ HIR STATS
 │ - If            ┆              216 ┆  1.0 ┆     9 ┆        24 │
 │ - Loop          ┆              160 ┆  0.7 ┆     4 ┆        40 │
 │ - Expr          ┆               80 ┆  0.4 ┆    10 ┆         8 │
-│ - AssemblyBlock ┆               48 ┆  0.2 ┆     2 ┆        24 │
+│ - AssemblyBlock ┆               64 ┆  0.3 ┆     2 ┆        32 │
 │ - DeclSingle    ┆               32 ┆  0.1 ┆     4 ┆         8 │
 │ - Return        ┆               24 ┆  0.1 ┆     3 ┆         8 │
 │ - Emit          ┆               16 ┆  0.1 ┆     2 ┆         8 │

@@ -30,7 +30,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         #[cfg(debug_assertions)]
         let before = self.scheduler.depth();
 
-        self.asm.emit_op(opcode);
+        self.asm.emit_source_op(opcode);
 
         // Pop consumed values
         for _ in 0..effect.pops {
@@ -108,6 +108,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         // This ensures cross-block values are preserved in memory.
         self.spill_live_out_operands(func, liveness, block, &operands);
 
+        if func.inst(inst_id).metadata.requires_private_memory() {
+            self.asm.require_private_memory();
+        }
         match kind {
             kind if let Some(opcode) = kind.evm_opcode() => {
                 self.emit_evm_opcode(
@@ -158,6 +161,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     self.emit_operand_plan(func, plan);
                 } else {
                     self.preserve_stack_only_operands(
+                        func,
                         &[*false_val, *true_val, *cond],
                         liveness,
                         block,
@@ -211,17 +215,12 @@ impl<'gcx> EvmCodegen<'gcx> {
                 // last (TOS)
                 let operands =
                     [*gas, *addr, *value, *args_offset, *args_size, *ret_offset, *ret_size];
-                self.preserve_stack_only_operands(&operands, liveness, block, inst_idx);
+                self.preserve_stack_only_operands(func, &operands, liveness, block, inst_idx);
                 self.prepare_fresh_operands(func, &operands);
-                self.stage_stack_only_fresh_operands(&[
-                    *ret_size,
-                    *ret_offset,
-                    *args_size,
-                    *args_offset,
-                    *value,
-                    *addr,
-                    *gas,
-                ]);
+                self.stage_stack_only_fresh_operands(
+                    func,
+                    &[*ret_size, *ret_offset, *args_size, *args_offset, *value, *addr, *gas],
+                );
                 self.emit_value_fresh(func, *ret_size);
                 self.emit_value_fresh(func, *ret_offset);
                 self.emit_value_fresh(func, *args_size);
@@ -246,17 +245,12 @@ impl<'gcx> EvmCodegen<'gcx> {
             } => {
                 let operands =
                     [*gas, *addr, *value, *args_offset, *args_size, *ret_offset, *ret_size];
-                self.preserve_stack_only_operands(&operands, liveness, block, inst_idx);
+                self.preserve_stack_only_operands(func, &operands, liveness, block, inst_idx);
                 self.prepare_fresh_operands(func, &operands);
-                self.stage_stack_only_fresh_operands(&[
-                    *ret_size,
-                    *ret_offset,
-                    *args_size,
-                    *args_offset,
-                    *value,
-                    *addr,
-                    *gas,
-                ]);
+                self.stage_stack_only_fresh_operands(
+                    func,
+                    &[*ret_size, *ret_offset, *args_size, *args_offset, *value, *addr, *gas],
+                );
                 self.emit_value_fresh(func, *ret_size);
                 self.emit_value_fresh(func, *ret_offset);
                 self.emit_value_fresh(func, *args_size);
@@ -272,16 +266,12 @@ impl<'gcx> EvmCodegen<'gcx> {
             InstKind::StaticCall { gas, addr, args_offset, args_size, ret_offset, ret_size } => {
                 // STATICCALL(gas, addr, argsOffset, argsSize, retOffset, retSize)
                 let operands = [*gas, *addr, *args_offset, *args_size, *ret_offset, *ret_size];
-                self.preserve_stack_only_operands(&operands, liveness, block, inst_idx);
+                self.preserve_stack_only_operands(func, &operands, liveness, block, inst_idx);
                 self.prepare_fresh_operands(func, &operands);
-                self.stage_stack_only_fresh_operands(&[
-                    *ret_size,
-                    *ret_offset,
-                    *args_size,
-                    *args_offset,
-                    *addr,
-                    *gas,
-                ]);
+                self.stage_stack_only_fresh_operands(
+                    func,
+                    &[*ret_size, *ret_offset, *args_size, *args_offset, *addr, *gas],
+                );
                 self.emit_value_fresh(func, *ret_size);
                 self.emit_value_fresh(func, *ret_offset);
                 self.emit_value_fresh(func, *args_size);
@@ -295,16 +285,12 @@ impl<'gcx> EvmCodegen<'gcx> {
 
             InstKind::DelegateCall { gas, addr, args_offset, args_size, ret_offset, ret_size } => {
                 let operands = [*gas, *addr, *args_offset, *args_size, *ret_offset, *ret_size];
-                self.preserve_stack_only_operands(&operands, liveness, block, inst_idx);
+                self.preserve_stack_only_operands(func, &operands, liveness, block, inst_idx);
                 self.prepare_fresh_operands(func, &operands);
-                self.stage_stack_only_fresh_operands(&[
-                    *ret_size,
-                    *ret_offset,
-                    *args_size,
-                    *args_offset,
-                    *addr,
-                    *gas,
-                ]);
+                self.stage_stack_only_fresh_operands(
+                    func,
+                    &[*ret_size, *ret_offset, *args_size, *args_offset, *addr, *gas],
+                );
                 // DELEGATECALL(gas, addr, argsOffset, argsSize, retOffset, retSize)
                 self.emit_value_fresh(func, *ret_size);
                 self.emit_value_fresh(func, *ret_offset);
@@ -322,7 +308,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
 
             InstKind::ICall { function, args, returns } => {
-                self.preserve_stack_only_operands(args, liveness, block, inst_idx);
+                self.preserve_stack_only_operands(func, args, liveness, block, inst_idx);
                 self.emit_icall(
                     func_id,
                     func,
@@ -549,7 +535,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         match (inputs, outputs) {
             (0, 1) => {
-                self.asm.emit_op(opcode);
+                self.asm.emit_source_op(opcode);
                 self.scheduler.instruction_executed(0, result);
             }
             (1, 1) => self.emit_unary_op_with_result(
@@ -604,6 +590,11 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Even a one-operand terminator needs the baseline check: an operand already below `DUP16`
     /// cannot be emitted without first materializing its frame fallback.
     pub(super) fn terminator_transient_growth(term: &Terminator) -> usize {
+        // Switch arms are compared one at a time: a scrutinee copy, comparison operand,
+        // and jump label bound the temporary words, regardless of the case count.
+        if matches!(term, Terminator::Switch { .. }) {
+            return 3;
+        }
         let operands = term.operands().len();
         if operands == 0 { 0 } else { operands.saturating_sub(1).max(1) }
     }
@@ -626,7 +617,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.emit_value_fresh(func, b);
             self.emit_value_fresh(func, a);
         }
-        self.asm.emit_op(opcode);
+        self.asm.emit_source_op(opcode);
         self.scheduler.stack.pop();
         self.scheduler.stack.pop();
         self.scheduler.stack.push(result);
@@ -660,12 +651,12 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         if let Some((opcode, plan)) = selected {
             self.emit_operand_plan(func, plan);
-            self.asm.emit_op(opcode);
+            self.asm.emit_source_op(opcode);
             self.scheduler.instruction_executed(2, result);
             return;
         }
 
-        self.preserve_stack_only_operands(&[a, b], liveness, block, inst_idx);
+        self.preserve_stack_only_operands(func, &[a, b], liveness, block, inst_idx);
 
         // Check if operands are still live after this instruction.
         let a_is_live = !liveness.is_dead_after(a, block, inst_idx);
@@ -677,7 +668,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.spill_top_value_if_live(func, liveness, block, inst_idx, a);
             }
             self.emit_operand(func, a);
-            self.asm.emit_op(opcode);
+            self.asm.emit_source_op(opcode);
             self.scheduler.instruction_executed(2, result);
             return;
         }
@@ -696,7 +687,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             && b_dead_free
         {
             // The stack is already [b, a].
-            self.asm.emit_op(opcode);
+            self.asm.emit_source_op(opcode);
             self.scheduler.instruction_executed(2, result);
             return;
         }
@@ -712,7 +703,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             {
                 self.spill_value_if_needed(func, a);
             }
-            self.asm.emit_op(opcode);
+            self.asm.emit_source_op(opcode);
             self.scheduler.instruction_executed(2, result);
             return;
         }
@@ -726,7 +717,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.spill_top_value_if_live(func, liveness, block, inst_idx, b);
             }
             self.emit_stack_op(StackOp::Swap(1));
-            self.asm.emit_op(opcode);
+            self.asm.emit_source_op(opcode);
             self.scheduler.instruction_executed(2, result);
             return;
         }
@@ -774,7 +765,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
 
-        self.asm.emit_op(opcode);
+        self.asm.emit_source_op(opcode);
         self.scheduler.instruction_executed(2, result);
     }
 
@@ -793,19 +784,19 @@ impl<'gcx> EvmCodegen<'gcx> {
     ) {
         if let Some(plan) = self.plan_operands(func, &[a], liveness, block, inst_idx) {
             self.emit_operand_plan(func, plan);
-            self.asm.emit_op(opcode);
+            self.asm.emit_source_op(opcode);
             self.scheduler.instruction_executed(1, result);
             return;
         }
 
-        self.preserve_stack_only_operands(&[a], liveness, block, inst_idx);
+        self.preserve_stack_only_operands(func, &[a], liveness, block, inst_idx);
 
         self.emit_value(func, a);
         if !self.block_local_copy_survives(liveness, block, a, 1) {
             self.spill_top_value_if_live(func, liveness, block, inst_idx, a);
         }
 
-        self.asm.emit_op(opcode);
+        self.asm.emit_source_op(opcode);
         self.scheduler.instruction_executed(1, result);
     }
 
@@ -827,12 +818,12 @@ impl<'gcx> EvmCodegen<'gcx> {
     ) {
         if let Some(plan) = self.plan_operands(func, operands, liveness, block, inst_idx) {
             self.emit_operand_plan(func, plan);
-            self.asm.emit_op(opcode);
+            self.asm.emit_source_op(opcode);
             self.scheduler.instruction_executed(operands.len(), None);
             return;
         }
 
-        self.preserve_stack_only_operands(operands, liveness, block, inst_idx);
+        self.preserve_stack_only_operands(func, operands, liveness, block, inst_idx);
 
         for (i, &operand) in operands.iter().enumerate() {
             if i == 0 {
@@ -849,7 +840,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.spill_top_value_if_live(func, liveness, block, inst_idx, operand);
             }
         }
-        self.asm.emit_op(opcode);
+        self.asm.emit_source_op(opcode);
         self.scheduler.instruction_executed(operands.len(), None);
     }
 
@@ -867,7 +858,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         block: BlockId,
         inst_idx: usize,
     ) {
-        self.preserve_stack_only_operands(&[addr, val], liveness, block, inst_idx);
+        self.preserve_stack_only_operands(func, &[addr, val], liveness, block, inst_idx);
 
         // Check if addr is still live after this instruction.
         let addr_is_live = !liveness.is_dead_after(addr, block, inst_idx);
@@ -884,14 +875,14 @@ impl<'gcx> EvmCodegen<'gcx> {
             if self.scheduler.stack.top() == Some(addr) && self.scheduler.stack.peek(1) == Some(val)
             {
                 // The stack is already [addr, val].
-                self.asm.emit_op(opcode);
+                self.asm.emit_source_op(opcode);
                 self.scheduler.instruction_executed(2, None);
                 return;
             }
             if self.scheduler.stack.top() == Some(val) && self.scheduler.stack.peek(1) == Some(addr)
             {
                 self.emit_stack_op(StackOp::Swap(1));
-                self.asm.emit_op(opcode);
+                self.asm.emit_source_op(opcode);
                 self.scheduler.instruction_executed(2, None);
                 return;
             }
@@ -914,7 +905,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.spill_value_if_needed(func, addr);
         }
 
-        self.asm.emit_op(opcode);
+        self.asm.emit_source_op(opcode);
         self.scheduler.instruction_executed(2, None);
     }
 
@@ -931,7 +922,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         block: BlockId,
         inst_idx: usize,
     ) {
-        self.preserve_stack_only_operands(operands, liveness, block, inst_idx);
+        self.preserve_stack_only_operands(func, operands, liveness, block, inst_idx);
 
         for (i, &op) in operands.iter().enumerate() {
             if i == 0 {
@@ -947,7 +938,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
 
-        self.asm.emit_op(opcode);
+        self.asm.emit_source_op(opcode);
         self.scheduler.instruction_executed(operands.len(), None);
     }
 
@@ -964,7 +955,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         inst_idx: usize,
     ) {
         let operands = [size, dest];
-        self.preserve_stack_only_operands(&operands, liveness, block, inst_idx);
+        self.preserve_stack_only_operands(func, &operands, liveness, block, inst_idx);
 
         self.emit_value(func, size);
         if !self.block_local_copy_survives(liveness, block, size, 1) {
@@ -982,7 +973,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.scheduler.stack.push_unknown();
         self.emit_stack_op(StackOp::Swap(1));
 
-        self.asm.emit_op(op::CODECOPY);
+        self.asm.emit_source_op(op::CODECOPY);
         self.scheduler.instruction_executed(3, None);
     }
 
@@ -1000,12 +991,12 @@ impl<'gcx> EvmCodegen<'gcx> {
     ) {
         if let Some(plan) = self.plan_operands(func, operands, liveness, block, inst_idx) {
             self.emit_operand_plan(func, plan);
-            self.asm.emit_op(opcode);
+            self.asm.emit_source_op(opcode);
             self.scheduler.instruction_executed(operands.len(), result);
             return;
         }
 
-        self.preserve_stack_only_operands(operands, liveness, block, inst_idx);
+        self.preserve_stack_only_operands(func, operands, liveness, block, inst_idx);
 
         for (i, &operand) in operands.iter().enumerate() {
             if i == 0 {
@@ -1018,7 +1009,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.spill_top_value_if_live(func, liveness, block, inst_idx, operand);
             }
         }
-        self.asm.emit_op(opcode);
+        self.asm.emit_source_op(opcode);
         self.scheduler.instruction_executed(operands.len(), result);
     }
 }

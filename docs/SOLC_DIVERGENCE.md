@@ -309,3 +309,19 @@ No intentional divergences documented yet.
 - Coverage: `tests/ui/standard-json/debug/`,
   `tests/ui/codegen/lowering/revert-strings/`,
   `tests/ui/codegen/lowering/library_delegatecall_guard.sol`.
+
+### CODEGEN-008: Deep forwarding stacks with observable memory size
+
+- ID: CODEGEN-008
+- Status: parity debt
+- Difference: Code generation rejects functions with unrestricted assembly when
+  accessing a buried stack value or arranging a wide control-flow edge requires
+  temporary memory and source-level `msize()` can observe that expansion. This
+  includes observations in internal callers, callees, and sibling calls, but
+  excludes separate external dispatcher arms.
+- Rationale: Clearing temporary words restores their contents but cannot shrink
+  the memory extent.
+  Until a stack-only plan exists, this case must report an error. The check
+  conservatively ignores the order of internal calls and `msize()` observations.
+- Coverage: `tests/ui/codegen/lowering/forwarding_msize.sol` and
+  `tests/ui/codegen/lowering/run-call/proxy_forwarding_spill.sol`.

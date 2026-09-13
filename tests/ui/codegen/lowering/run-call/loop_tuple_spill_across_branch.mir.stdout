@@ -79,7 +79,7 @@ fn @loopTuple(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0x2a5696fb, 
     v29 = icall @step, 2, v23, v26
     v30 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v31 = add v30, 32
-    v32 = mload v31
+    v32 = mload v31 !metadata(compiler_memory)
     jump bb9
   bb9:
     jump bb6

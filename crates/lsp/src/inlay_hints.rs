@@ -284,7 +284,7 @@ impl<'gcx> Visit<'gcx> for InlayHintCollector<'_, 'gcx> {
     }
 
     fn visit_stmt(&mut self, stmt: &'gcx hir::Stmt<'gcx>) -> ControlFlow<Self::BreakValue> {
-        if matches!(stmt.kind, StmtKind::AssemblyBlock(_)) {
+        if matches!(stmt.kind, StmtKind::AssemblyBlock(..)) {
             return ControlFlow::Continue(());
         }
         hir::Visit::walk_stmt(self, stmt)

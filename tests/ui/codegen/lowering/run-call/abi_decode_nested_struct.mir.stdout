@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_nested_struct.sol:Probe ===
 @module Probe
-fn @roundTrip() -> u256 [selector=0x6643a628, pure, abi_params=[], abi_returns=[word]] {
+fn @roundTrip() -> u256 [selector=0x6643a628, unrestricted_memory, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = alloc memorystruct<6>, exact, uninitialized, infallible, 192
     v1 = and 0x7fa9385be102ac3eac297483dd6233d62b3e1496, 0xffffffffffffffffffffffffffffffffffffffff
@@ -199,7 +199,7 @@ fn @revert_error(arg0: u256, arg1: u256) {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_nested_struct.sol:Probe2 ===
 @module Probe2
-fn @outer() -> u256 [selector=0x87c3dbb6, view, abi_params=[], abi_returns=[word]] {
+fn @outer() -> u256 [selector=0x87c3dbb6, unrestricted_memory, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = alloc memorystruct<4>, exact, uninitialized, infallible, 128
     v1 = and 0x7fa9385be102ac3eac297483dd6233d62b3e1496, 0xffffffffffffffffffffffffffffffffffffffff
@@ -255,7 +255,7 @@ fn @outer() -> u256 [selector=0x87c3dbb6, view, abi_params=[], abi_returns=[word
     revert 0, 0
 }
 
-fn @inner(arg0: calldataslice) -> bytes32 [selector=0x3c12b05c, pure, abi_params=[bytes], abi_returns=[word]] {
+fn @inner(arg0: calldataslice) -> bytes32 [selector=0x3c12b05c, unrestricted_memory, pure, abi_params=[bytes], abi_returns=[word]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
@@ -300,19 +300,19 @@ fn @revert_error(arg0: u256, arg1: u256) {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_nested_struct.sol:Probe3 ===
 @module Probe3
-fn @idOfKeyOnly(arg0: memorystruct, arg1: u160) -> bytes32 [selector=0x128e91fc, pure, abi_params=[tuple<address, address, u24, i24, address>, u160], abi_returns=[word]] {
+fn @idOfKeyOnly(arg0: memorystruct, arg1: u160) -> bytes32 [selector=0x128e91fc, unrestricted_memory, pure, abi_params=[tuple<address, address, u24, i24, address>, u160], abi_returns=[word]] {
   bb0:
     v0 = keccak256 arg0, 160
     ret v0
 }
 
-fn @idOfKeyMixed(arg0: memorystruct, arg1: memorystruct, arg2: calldataslice) -> bytes32 [selector=0xd0a3f749, pure, abi_params=[tuple<address, address, u24, i24, address>, tuple<i24, i24, i256, bytes32>, bytes], abi_returns=[word]] {
+fn @idOfKeyMixed(arg0: memorystruct, arg1: memorystruct, arg2: calldataslice) -> bytes32 [selector=0xd0a3f749, unrestricted_memory, pure, abi_params=[tuple<address, address, u24, i24, address>, tuple<i24, i24, i256, bytes32>, bytes], abi_returns=[word]] {
   bb0:
     v0 = keccak256 arg0, 160
     ret v0
 }
 
-fn @run() -> u256 [selector=0xc0406226, view, abi_params=[], abi_returns=[word]] {
+fn @run() -> u256 [selector=0xc0406226, unrestricted_memory, view, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = alloc memorystruct<5>, exact, uninitialized, infallible, 160
     v1 = and 0x15cf58144ef33af1e14b5208015d11f9143e27b9, 0xffffffffffffffffffffffffffffffffffffffff

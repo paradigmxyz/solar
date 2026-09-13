@@ -5,22 +5,22 @@
     bb0:
       v0 = add arg0, 1
 -     sstore v0, 1
-+     mstore 128, 1
++     mstore 128, 1 !metadata(compiler_memory)
       jump bb1
     bb1:
       jumpi 1, bb2, bb4
     bb4:
-+     v5 = mload 128
++     v5 = mload 128 !metadata(compiler_memory)
 +     sstore v0, v5
       stop
     bb2:
       v1 = add arg0, 1
 -     v2 = sload v1
-+     v2 = mload 128
++     v2 = mload 128 !metadata(compiler_memory)
       v3 = mul v2, 2
       v4 = add arg0, 1
 -     sstore v4, v3
-+     mstore 128, v3
++     mstore 128, v3 !metadata(compiler_memory)
       jump bb3
     bb3:
       jump bb1
@@ -47,23 +47,23 @@
   
   fn @promote_store_only_without_initial_load() [selector=0x01020304] {
     bb0:
-+     mstore 160, 0
++     mstore 160, 0 !metadata(compiler_memory)
       jump bb1
     bb1:
       jumpi 1, bb2, bb4
     bb4:
-+     v0 = mload 160
++     v0 = mload 160 !metadata(compiler_memory)
 +     jumpi v0, bb6, bb5
 +   bb6:
-+     v1 = mload 128
++     v1 = mload 128 !metadata(compiler_memory)
 +     sstore 0, v1
 +     jump bb5
 +   bb5:
       stop
     bb2:
 -     sstore 0, 7
-+     mstore 128, 7
-+     mstore 160, 1
++     mstore 128, 7 !metadata(compiler_memory)
++     mstore 160, 1 !metadata(compiler_memory)
       jump bb3
     bb3:
       jump bb1
@@ -73,28 +73,28 @@
     bb0:
 -     sstore 0, 1
 -     sstore 1, 2
-+     mstore 128, 1
-+     mstore 160, 2
++     mstore 128, 1 !metadata(compiler_memory)
++     mstore 160, 2 !metadata(compiler_memory)
       jump bb1
     bb1:
       jumpi 1, bb2, bb4
     bb4:
-+     v5 = mload 160
++     v5 = mload 160 !metadata(compiler_memory)
 +     sstore 1, v5
-+     v4 = mload 128
++     v4 = mload 128 !metadata(compiler_memory)
 +     sstore 0, v4
       stop
     bb2:
 -     v0 = sload 0
-+     v0 = mload 128
++     v0 = mload 128 !metadata(compiler_memory)
       v1 = mul v0, 2
 -     sstore 0, v1
 -     v2 = sload 1
-+     mstore 128, v1
-+     v2 = mload 160
++     mstore 128, v1 !metadata(compiler_memory)
++     v2 = mload 160 !metadata(compiler_memory)
       v3 = add v2, 3
 -     sstore 1, v3
-+     mstore 160, v3
++     mstore 160, v3 !metadata(compiler_memory)
       jump bb3
     bb3:
       jump bb1
@@ -103,16 +103,16 @@
   fn @promote_without_init_rewrites_successor_phi() -> u256 [selector=0x01020304] {
     bb0:
 +     v3 = sload 0
-+     mstore 128, v3
-+     mstore 160, 0
++     mstore 128, v3 !metadata(compiler_memory)
++     mstore 160, 0 !metadata(compiler_memory)
       jump bb1
     bb1:
       jumpi 1, bb2, bb4
     bb4:
-+     v4 = mload 160
++     v4 = mload 160 !metadata(compiler_memory)
 +     jumpi v4, bb8, bb7
 +   bb8:
-+     v5 = mload 128
++     v5 = mload 128 !metadata(compiler_memory)
 +     sstore 0, v5
 +     jump bb7
 +   bb7:
@@ -123,11 +123,11 @@
       ret v2
     bb2:
 -     v0 = sload 0
-+     v0 = mload 128
++     v0 = mload 128 !metadata(compiler_memory)
       v1 = add v0, 2
 -     sstore 0, v1
-+     mstore 128, v1
-+     mstore 160, 1
++     mstore 128, v1 !metadata(compiler_memory)
++     mstore 160, 1 !metadata(compiler_memory)
       jump bb3
     bb3:
       jump bb1

@@ -13,13 +13,15 @@
 //!   so the unflushed slot is unobservable there; reads of the promoted slot on those paths are
 //!   rewritten to the memory temp so revert data still sees the current value
 //! - leave loop-variant mapping/array slots in storage
+//! - skip call contexts that require source-owned memory
+//! - mark every promoted temporary access as compiler-owned memory
 
 use crate::mir::{
-    BlockId, Function, Immediate, InstId, InstKind, Instruction, MirType, Module, StorageAlias,
-    Terminator, Value, ValueId,
-    analysis::{AliasAnalysis, Loop, LoopAnalyzer},
+    BlockId, Function, Immediate, InstId, InstKind, Instruction, MemoryRegion, MirType, Module,
+    StorageAlias, Terminator, Value, ValueId,
+    analysis::{AliasAnalysis, CallGraphInfo, Loop, LoopAnalyzer},
     memory::EvmMemoryLayout,
-    pass::{MirPass, run_function_pass},
+    pass::MirPass,
     utils as mir_utils,
 };
 use alloy_primitives::U256;
@@ -37,13 +39,19 @@ impl MirPass for StorageScalarPromotion {
         &self,
         _gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
-        analyses: &mut crate::mir::pass::ModuleAnalyses,
+        _analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, _| {
+        let source_only = CallGraphInfo::new(module).source_only_memory_contexts(module);
+        let mut changed = false;
+        for (id, func) in module.functions.iter_mut_enumerated() {
+            if source_only.contains(id) || func.blocks.is_empty() {
+                continue;
+            }
             let mut promoter = StorageScalarPromoter::new();
             let stats = promoter.run(func);
-            stats.loops_promoted + stats.loads_promoted + stats.stores_promoted != 0
-        })
+            changed |= stats.loops_promoted + stats.loads_promoted + stats.stores_promoted != 0;
+        }
+        changed
     }
 }
 
@@ -574,8 +582,9 @@ impl StorageScalarPromoter {
                     .position(|&inst_id| inst_id == init_store)
                     .expect("candidate init store should be in the preheader");
                 temps.insert(candidate.candidate.slot, (candidate.temp_addr, init_pos));
+                // sstore slot, init -> mstore temp, init
                 func.inst_mut(init_store).kind = InstKind::MStore(candidate.temp_addr, *init);
-                func.inst_mut(init_store).metadata.set_storage_alias(None);
+                Self::mark_private_memory_access(func.inst_mut(init_store));
                 self.stats.stores_promoted += 1;
             }
         }
@@ -588,8 +597,9 @@ impl StorageScalarPromoter {
                 if let Some(&(temp_addr, init_pos)) = temps.get(&alias)
                     && pos > init_pos
                 {
+                    // sload slot -> mload temp
                     func.inst_mut(inst_id).kind = InstKind::MLoad(temp_addr);
-                    func.inst_mut(inst_id).metadata.set_storage_alias(None);
+                    Self::mark_private_memory_access(func.inst_mut(inst_id));
                     self.stats.loads_promoted += 1;
                 }
             }
@@ -627,8 +637,10 @@ impl StorageScalarPromoter {
                         InstKind::MStore(_, _) => self.stats.stores_promoted += 1,
                         _ => {}
                     }
+                    // sload slot -> mload temp
+                    // sstore slot, value -> mstore temp, value
                     func.inst_mut(inst_id).kind = new_kind;
-                    func.inst_mut(inst_id).metadata.set_storage_alias(None);
+                    Self::mark_private_memory_access(func.inst_mut(inst_id));
                 }
             }
         }
@@ -670,8 +682,10 @@ impl StorageScalarPromoter {
                         InstKind::MStore(_, _) => self.stats.stores_promoted += 1,
                         _ => {}
                     }
+                    // sload slot -> mload temp
+                    // sstore slot, value -> mstore temp, value
                     func.inst_mut(inst_id).kind = new_kind;
-                    func.inst_mut(inst_id).metadata.set_storage_alias(None);
+                    Self::mark_private_memory_access(func.inst_mut(inst_id));
                     if track_dirty
                         && let (Some(dirty_addr), Some(dirty_value)) =
                             (promoted.dirty_addr, promoted.dirty_value)
@@ -712,8 +726,9 @@ impl StorageScalarPromoter {
         match candidate.init_store {
             Some(init_store) => {
                 if let InstKind::SStore(_, init) = &func.inst(init_store).kind {
+                    // sstore slot, init -> mstore temp, init
                     func.inst_mut(init_store).kind = InstKind::MStore(promoted.temp_addr, *init);
-                    func.inst_mut(init_store).metadata.set_storage_alias(None);
+                    Self::mark_private_memory_access(func.inst_mut(init_store));
                     self.stats.stores_promoted += 1;
                 }
 
@@ -728,8 +743,9 @@ impl StorageScalarPromoter {
                     if let InstKind::SLoad(load_slot) = &func.inst(inst_id).kind
                         && self.storage_alias(func, inst_id, *load_slot) == candidate.slot
                     {
+                        // sload slot -> mload temp
                         func.inst_mut(inst_id).kind = InstKind::MLoad(promoted.temp_addr);
-                        func.inst_mut(inst_id).metadata.set_storage_alias(None);
+                        Self::mark_private_memory_access(func.inst_mut(inst_id));
                         self.stats.loads_promoted += 1;
                     }
                 }
@@ -775,10 +791,10 @@ impl StorageScalarPromoter {
         slot_value: ValueId,
         temp_addr: ValueId,
     ) {
-        let (load_inst, load_value) = func.alloc_value_inst(
-            Instruction::new(InstKind::MLoad(temp_addr), Some(MirType::uint256()))
-                .with_debug_info_dropped(),
-        );
+        // value = mload temp !metadata(compiler_memory)
+        // sstore slot, value
+        let (load_inst, load_value) =
+            self.alloc_inst_value(func, InstKind::MLoad(temp_addr), MirType::uint256());
         let store_inst = func.alloc_inst(
             Instruction::new(InstKind::SStore(slot_value, load_value), None)
                 .with_debug_info_dropped(),
@@ -817,10 +833,9 @@ impl StorageScalarPromoter {
         let mut exit_instructions = old_instructions[..split_pos].to_vec();
         let continuation_instructions = old_instructions[split_pos..].to_vec();
 
-        let (dirty_load_inst, dirty_value) = func.alloc_value_inst(
-            Instruction::new(InstKind::MLoad(dirty_addr), Some(MirType::Bool))
-                .with_debug_info_dropped(),
-        );
+        // dirty = mload dirty_addr !metadata(compiler_memory)
+        let (dirty_load_inst, dirty_value) =
+            self.alloc_inst_value(func, InstKind::MLoad(dirty_addr), MirType::Bool);
         exit_instructions.push(dirty_load_inst);
 
         // dirty = mload dirty_addr
@@ -832,10 +847,10 @@ impl StorageScalarPromoter {
             else_block: continuation,
         });
 
-        let (load_inst, load_value) = func.alloc_value_inst(
-            Instruction::new(InstKind::MLoad(temp_addr), Some(MirType::uint256()))
-                .with_debug_info_dropped(),
-        );
+        // value = mload temp !metadata(compiler_memory)
+        // sstore slot, value
+        let (load_inst, load_value) =
+            self.alloc_inst_value(func, InstKind::MLoad(temp_addr), MirType::uint256());
         let store_inst = func.alloc_inst(
             Instruction::new(InstKind::SStore(slot_value, load_value), None)
                 .with_debug_info_dropped(),
@@ -906,13 +921,29 @@ impl StorageScalarPromoter {
         kind: InstKind,
         ty: MirType,
     ) -> (InstId, ValueId) {
-        func.alloc_value_inst(Instruction::new(kind, Some(ty)).with_debug_info_dropped())
+        // result = kind !metadata(intentionally dropped, compiler_memory if memory access)
+        let mut inst = Instruction::new(kind, Some(ty)).with_debug_info_dropped();
+        Self::mark_private_memory_access(&mut inst);
+        func.alloc_value_inst(inst)
     }
 
     /// Allocates an instruction that produces no value, so no result [`Value`]
     /// entry is created for it.
     fn alloc_void_inst(&self, func: &mut Function, kind: InstKind) -> InstId {
-        func.alloc_inst(Instruction::new(kind, None).with_debug_info_dropped())
+        // kind !metadata(intentionally dropped, compiler_memory if memory access)
+        let mut inst = Instruction::new(kind, None).with_debug_info_dropped();
+        Self::mark_private_memory_access(&mut inst);
+        func.alloc_inst(inst)
+    }
+
+    fn mark_private_memory_access(inst: &mut Instruction) {
+        // mload/mstore -> !metadata(compiler_memory, memory effect)
+        if matches!(inst.kind, InstKind::MLoad(_) | InstKind::MStore(_, _)) {
+            inst.metadata.set_storage_alias(None);
+            inst.metadata.set_effect(Some(inst.kind.effect_kind()));
+            inst.metadata.set_memory_region(Some(MemoryRegion::Unknown));
+            inst.metadata.set_requires_private_memory();
+        }
     }
 
     fn storage_alias_for_loop_value(

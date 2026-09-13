@@ -52,3 +52,9 @@ fn @over.load.5() -> u256 {
   bb0:
     ret 1
 }
+
+// CHECK-LABEL: fn @yul_tuple(arg0: u256) -> (u256, u256) [yul]
+fn @yul_tuple(arg0: u256) -> (u256, u256) [yul] {
+  bb0:
+    ret arg0, 42
+}

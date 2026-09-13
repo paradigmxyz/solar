@@ -1,5 +1,210 @@
 // === ROOT/tests/ui/codegen/lowering/acyclic_stack_phi_runtime.sol:AcyclicStackPhi ===
 @module AcyclicStackPhi
+fn @reserve(arg0: memorystruct, arg1: u256) [pure] {
+  bb0:
+    v0 = mul arg1, 1
+    v1 = iszero 1
+    v2 = div v0, 1
+    v3 = eq v2, arg1
+    v4 = or v1, v3
+    v5 = iszero v4
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = add v0, 1
+    v7 = lt v6, v0
+    jumpi v7, bb1, bb3
+  bb3:
+    v8 = mul v6, 32
+    v9 = iszero 32
+    v10 = div v8, 32
+    v11 = eq v10, v6
+    v12 = or v9, v11
+    v13 = iszero v12
+    jumpi v13, bb1, bb4
+  bb4:
+    v14 = alloc memoryarray<1>, exact, zeroed, panic, v8
+    set_memory_object_len memoryarray, v14, arg1
+    memory_object_store_field memorystruct<1>, arg0, 0, v14
+    stop
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @resize(arg0: memorystruct, arg1: u256) [unrestricted_memory, pure] {
+  bb0:
+    icall @reserve, 0, arg0, arg1
+    v0 = mload arg0
+    v1 = eq arg1, 0
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v3 = shl 5, arg1
+    v4 = calldatasize
+    v5 = add v0, 32
+    calldatacopy v5, v4, v3
+    jump bb3
+  bb3:
+    mstore v0, arg1
+    stop
+}
+
+fn @checkedMemoryLoop(arg0: u256) -> u256 [selector=0x806bed90, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    memory_object_store_field memorystruct<1>, v0, 0, 96
+    icall @resize, 0, v0, arg0
+    v1 = memory_object_load_field memorystruct<1>, v0, 0
+    v2 = memory_object_len memoryarray, v1
+    v3 = eq v2, arg0
+    v4 = iszero v3
+    jumpi v4, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v5 = phi [bb2: 0], [bb13: v5]
+    v6 = phi [bb2: 0], [bb13: v19]
+    v7 = phi [bb2: arg0], [bb13: v7]
+    v8 = phi [bb2: v0], [bb13: v8]
+    v9 = memory_object_load_field memorystruct<1>, v8, 0
+    v10 = memory_object_len memoryarray, v9
+    v11 = lt v6, v10
+    jumpi v11, bb6, bb7
+  bb7:
+    jump bb4
+  bb4:
+    v21 = memory_object_load_field memorystruct<1>, v8, 0
+    v22 = memory_object_len memoryarray, v21
+    ret v22
+  bb6:
+    v12 = memory_object_load_field memorystruct<1>, v8, 0
+    v13 = memory_object_len memoryarray, v12
+    v14 = lt v6, v13
+    v15 = iszero v14
+    jumpi v15, bb9, bb10
+  bb10:
+    v16 = memory_object_load_element memoryarray<1>, v12, v6
+    v17 = eq v16, 0
+    v18 = iszero v17
+    jumpi v18, bb1, bb11
+  bb11:
+    jump bb8
+  bb8:
+    jump bb5
+  bb5:
+    v19 = add v6, 1
+    v20 = lt v19, v6
+    jumpi v20, bb12, bb13
+  bb13:
+    jump bb3
+  bb12:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    revert 0, 0
+}
+
+fn @callLoop(arg0: u256) -> u256 [selector=0xf7307644, unrestricted_memory, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    mstore v0, 7
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb3: v20]
+    v2 = phi [bb0: 0], [bb3: v19]
+    v3 = phi [bb0: 0], [bb3: v3]
+    v4 = phi [bb0: arg0], [bb3: v4]
+    v5 = phi [bb0: v0], [bb3: v5]
+    v6 = lt v1, v4
+    v7 = eq v6, 0
+    v8 = iszero v7
+    jumpi v8, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    v21 = mload v5
+    v22 = add v2, v21
+    ret v22
+  bb4:
+    mstore v5, v1
+    v9 = codesize
+    v10 = selfbalance
+    v11 = gas
+    v12 = call v11, 4, v10, v5, 32, v9, 0
+    v13 = iszero v12
+    v14 = eq v13, 0
+    v15 = iszero v14
+    jumpi v15, bb7, bb8
+  bb8:
+    jump bb9
+  bb9:
+    v18 = returndatasize
+    v19 = add v2, v18
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v20 = add v1, 1
+    jump bb1
+  bb7:
+    v16 = returndatasize
+    returndatacopy v5, 0, v16
+    v17 = returndatasize
+    revert v5, v17
+}
+
+fn @copyLoop(arg0: u256) -> u256 [selector=0xd5e7f79b, unrestricted_memory, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    mstore v0, 7
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb3: v1]
+    v2 = phi [bb0: 0], [bb3: v16]
+    v3 = phi [bb0: 0], [bb3: v15]
+    v4 = phi [bb0: arg0], [bb3: v4]
+    v5 = phi [bb0: v0], [bb3: v5]
+    v6 = phi [bb0: v0], [bb3: v13]
+    v7 = lt v2, v4
+    v8 = eq v7, 0
+    v9 = iszero v8
+    jumpi v9, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    v17 = mload v5
+    v18 = add v3, v17
+    ret v18
+  bb4:
+    v10 = and v2, 1
+    v11 = eq v10, 0
+    v12 = iszero v11
+    jumpi v12, bb7, bb8
+  bb8:
+    jump bb9
+  bb7:
+    mcopy v6, v5, 32
+    jump bb9
+  bb9:
+    v13 = add v6, 32
+    v14 = mload v5
+    v15 = add v3, v14
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v16 = add v2, 1
+    jump bb1
+}
+
 fn @trimLen(arg0: calldataslice) -> u256 [selector=0x341fda35, pure, abi_params=[bytes], abi_returns=[word]] {
   bb0:
     v0 = icall @trim, 1, arg0
@@ -49,43 +254,43 @@ fn @loopJoin(arg0: u256) -> u256 [selector=0x136d329b, pure, abi_params=[u256], 
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb14: v11]
-    v1 = phi [bb0: arg0], [bb14: v1]
-    v2 = phi [bb0: 0], [bb14: v13]
-    v3 = lt v2, v1
+    v0 = phi [bb0: arg0], [bb14: v0]
+    v1 = phi [bb0: 0], [bb14: v13]
+    v2 = phi [bb0: 0], [bb14: v11]
+    v3 = lt v1, v0
     jumpi v3, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v0
+    ret v2
   bb4:
-    v4 = and v2, 1
+    v4 = and v1, 1
     v5 = eq v4, 0
     jumpi v5, bb7, bb8
   bb8:
-    v8 = add v2, 2
-    v9 = lt v8, v2
+    v8 = add v1, 2
+    v9 = lt v8, v1
     jumpi v9, bb10, bb12
   bb12:
     jump bb9
   bb7:
-    v6 = add v2, 1
-    v7 = lt v6, v2
+    v6 = add v1, 1
+    v7 = lt v6, v1
     jumpi v7, bb10, bb11
   bb11:
     jump bb9
   bb9:
     v10 = phi [bb11: v6], [bb12: v8]
-    v11 = add v0, v10
-    v12 = lt v11, v0
+    v11 = add v2, v10
+    v12 = lt v11, v2
     jumpi v12, bb10, bb13
   bb13:
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v13 = add v2, 1
-    v14 = lt v13, v2
+    v13 = add v1, 1
+    v14 = lt v13, v1
     jumpi v14, bb10, bb14
   bb14:
     jump bb1
@@ -99,25 +304,25 @@ fn @nestedLoops(arg0: u256, arg1: u256) -> u256 [selector=0xc538770a, pure, abi_
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: arg1], [bb18: v5]
-    v1 = phi [bb0: 0], [bb18: v19]
-    v2 = phi [bb0: arg0], [bb18: v7]
-    v3 = phi [bb0: 0], [bb18: v8]
-    v4 = lt v1, v2
+    v0 = phi [bb0: 0], [bb18: v5]
+    v1 = phi [bb0: arg1], [bb18: v7]
+    v2 = phi [bb0: 0], [bb18: v19]
+    v3 = phi [bb0: arg0], [bb18: v9]
+    v4 = lt v2, v3
     jumpi v4, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v3
+    ret v0
   bb4:
     jump bb7
   bb7:
-    v5 = phi [bb4: v0], [bb17: v5]
-    v6 = phi [bb4: v1], [bb17: v6]
-    v7 = phi [bb4: v2], [bb17: v7]
-    v8 = phi [bb4: v3], [bb17: v15]
-    v9 = phi [bb4: 0], [bb17: v17]
-    v10 = lt v9, v5
+    v5 = phi [bb4: v0], [bb17: v15]
+    v6 = phi [bb4: 0], [bb17: v17]
+    v7 = phi [bb4: v1], [bb17: v7]
+    v8 = phi [bb4: v2], [bb17: v8]
+    v9 = phi [bb4: v3], [bb17: v9]
+    v10 = lt v6, v7
     jumpi v10, bb10, bb11
   bb11:
     jump bb8
@@ -126,30 +331,30 @@ fn @nestedLoops(arg0: u256, arg1: u256) -> u256 [selector=0xc538770a, pure, abi_
   bb6:
     jump bb3
   bb3:
-    v19 = add v6, 1
-    v20 = lt v19, v6
+    v19 = add v8, 1
+    v20 = lt v19, v8
     jumpi v20, bb13, bb18
   bb18:
     jump bb1
   bb10:
-    v11 = add v6, v9
-    v12 = lt v11, v6
+    v11 = add v8, v6
+    v12 = lt v11, v8
     jumpi v12, bb13, bb14
   bb14:
     v13 = add v11, 1
     v14 = lt v13, v11
     jumpi v14, bb13, bb15
   bb15:
-    v15 = add v8, v13
-    v16 = lt v15, v8
+    v15 = add v5, v13
+    v16 = lt v15, v5
     jumpi v16, bb13, bb16
   bb16:
     jump bb12
   bb12:
     jump bb9
   bb9:
-    v17 = add v9, 1
-    v18 = lt v17, v9
+    v17 = add v6, 1
+    v18 = lt v17, v6
     jumpi v18, bb13, bb17
   bb17:
     jump bb7
@@ -163,18 +368,18 @@ fn @conditionalSelfLoop(arg0: u256, arg1: u256) -> u256 [selector=0x5ade831a, pu
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: arg0], [bb17: v16]
-    v1 = phi [bb0: 0], [bb17: v17]
-    v2 = phi [bb0: arg1], [bb17: v18]
-    v3 = phi [bb0: 0], [bb17: v20]
-    v4 = lt v3, v0
+    v0 = phi [bb0: arg1], [bb17: v16]
+    v1 = phi [bb0: 0], [bb17: v20]
+    v2 = phi [bb0: arg0], [bb17: v18]
+    v3 = phi [bb0: 0], [bb17: v19]
+    v4 = lt v1, v2
     jumpi v4, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    ret v1
+    ret v3
   bb4:
-    v5 = eq v2, 0
+    v5 = eq v0, 0
     jumpi v5, bb7, bb8
   bb8:
     jump bb9
@@ -182,17 +387,17 @@ fn @conditionalSelfLoop(arg0: u256, arg1: u256) -> u256 [selector=0x5ade831a, pu
     jump bb10
   bb10:
     v6 = phi [bb9: v0], [bb13: v6]
-    v7 = phi [bb9: v1], [bb13: v13]
-    v8 = phi [bb9: 0], [bb13: v14]
-    v9 = phi [bb9: v2], [bb13: v9]
-    v10 = phi [bb9: v3], [bb13: v10]
-    v11 = add v10, v8
+    v7 = phi [bb9: v1], [bb13: v7]
+    v8 = phi [bb9: v2], [bb13: v8]
+    v9 = phi [bb9: v3], [bb13: v13]
+    v10 = phi [bb9: 0], [bb13: v14]
+    v11 = add v7, v10
     v12 = add v11, 1
-    v13 = add v7, v12
-    v14 = add v8, 1
+    v13 = add v9, v12
+    v14 = add v10, 1
     jump bb12
   bb12:
-    v15 = lt v14, v9
+    v15 = lt v14, v6
     jumpi v15, bb13, bb14
   bb14:
     jump bb11
@@ -206,11 +411,11 @@ fn @conditionalSelfLoop(arg0: u256, arg1: u256) -> u256 [selector=0x5ade831a, pu
     jump bb3
   bb3:
     v16 = phi [bb6: v6], [bb7: v0]
-    v17 = phi [bb6: v13], [bb7: v1]
-    v18 = phi [bb6: v9], [bb7: v2]
-    v19 = phi [bb6: v10], [bb7: v3]
-    v20 = add v19, 1
-    v21 = lt v20, v19
+    v17 = phi [bb6: v7], [bb7: v1]
+    v18 = phi [bb6: v8], [bb7: v2]
+    v19 = phi [bb6: v13], [bb7: v3]
+    v20 = add v17, 1
+    v21 = lt v20, v17
     jumpi v21, bb16, bb17
   bb17:
     jump bb1
@@ -226,13 +431,13 @@ fn @emptyExitSelfLoop(arg0: u256) -> u256 [selector=0xe817f803, pure, abi_params
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb4: v3]
-    v1 = phi [bb0: 0], [bb4: v1]
-    v2 = phi [bb0: arg0], [bb4: v2]
-    v3 = add v0, 1
+    v0 = phi [bb0: 0], [bb4: v0]
+    v1 = phi [bb0: arg0], [bb4: v1]
+    v2 = phi [bb0: 0], [bb4: v3]
+    v3 = add v2, 1
     jump bb3
   bb3:
-    v4 = lt v3, v2
+    v4 = lt v3, v1
     jumpi v4, bb4, bb5
   bb5:
     jump bb2

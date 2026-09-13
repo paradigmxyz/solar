@@ -1012,11 +1012,13 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                                 .unwrap_or(u64::MAX)
                                 .saturating_mul(EvmMemoryLayout::WORD_SIZE);
                             let position = builder.add_u64_offset(base, offset);
-                            let first_word = builder.mload(position);
+                            // word = mload position !metadata(compiler_memory)
+                            let first_word = builder.private_mload(position);
                             let value = if let MirType::Slice(location) = ty {
                                 let length_position =
                                     builder.add_u64_offset(position, EvmMemoryLayout::WORD_SIZE);
-                                let length = builder.mload(length_position);
+                                // length = mload length_position !metadata(compiler_memory)
+                                let length = builder.private_mload(length_position);
                                 word_index += 2;
                                 builder.make_slice(first_word, length, location)
                             } else {

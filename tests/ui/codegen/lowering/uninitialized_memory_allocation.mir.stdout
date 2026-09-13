@@ -52,7 +52,7 @@ fn @aliasDoesNotAllocate() -> u256 [selector=0xb2b4bf46, pure, abi_params=[], ab
     revert 0, 36
 }
 
-fn @dynamicDefaults() -> (u256, u256, u256, u256) [selector=0xd295ba8d, pure, abi_params=[], abi_returns=[word, word, word, word]] {
+fn @dynamicDefaults() -> (u256, u256, u256, u256) [selector=0xd295ba8d, unrestricted_memory, pure, abi_params=[], abi_returns=[word, word, word, word]] {
   bb0:
     v0 = icall @freeMemoryPointer, 1
     v1 = icall @freeMemoryPointer, 1
@@ -73,7 +73,7 @@ fn @dynamicDefaults() -> (u256, u256, u256, u256) [selector=0xd295ba8d, pure, ab
     revert 0, 36
 }
 
-fn @nestedDynamicDefaults() -> (u256, u256, u256, bool) [selector=0xd34386dc, pure, abi_params=[], abi_returns=[word, word, word, word<bool>]] {
+fn @nestedDynamicDefaults() -> (u256, u256, u256, bool) [selector=0xd34386dc, unrestricted_memory, pure, abi_params=[], abi_returns=[word, word, word, word<bool>]] {
   bb0:
     v0 = icall @freeMemoryPointer, 1
     v1 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
@@ -113,7 +113,7 @@ fn @defaultThroughICall() -> bool [selector=0x4ed54f6b, pure, abi_params=[], abi
     ret v0
 }
 
-fn @fixedArrayDynamicDefaults() -> (u256, u256, u256) [selector=0x94633452, pure, abi_params=[], abi_returns=[word, word, word]] {
+fn @fixedArrayDynamicDefaults() -> (u256, u256, u256) [selector=0x94633452, unrestricted_memory, pure, abi_params=[], abi_returns=[word, word, word]] {
   bb0:
     v0 = icall @freeMemoryPointer, 1
     v1 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64

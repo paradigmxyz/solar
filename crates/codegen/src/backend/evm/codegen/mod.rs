@@ -13,6 +13,7 @@
 //! planning, edge transitions, and spilling.
 
 use self::{
+    memory_contract::MemoryCheckedEmitter,
     stack::{
         MAX_STACK_ACCESS, OperandCostModel, OperandPlan, ScheduleCost, ScheduledOp, SpillSlot,
         StackScheduler, TargetSlot, cross_block_values, is_cross_block_recomputable_kind,
@@ -71,11 +72,13 @@ mod deployment;
 mod frames;
 mod function;
 mod instructions;
+mod memory_contract;
 mod runtime;
 mod terminator;
 mod values;
 
 const STACK_PHI_LAYOUT_LIMIT: usize = 8;
+/// Bounds profitability search; physical layouts use the EVM stack-access limit.
 const GLOBAL_STACK_LAYOUT_LIMIT: usize = 8;
 
 #[derive(Default)]
@@ -168,13 +171,15 @@ struct StaticCallStackPlan {
     caller_stack: StackModel,
 }
 
-/// Stack-native exit signature for a non-recursive static callee.
+/// Stack-native exit signature for an internal callee.
 #[derive(Clone, Copy, Debug)]
 struct StackReturnPlan {
     /// Number of result words left on the physical stack.
     arity: usize,
     /// First local/spill byte in the original MIR frame layout.
     local_base: u64,
+    /// Whether the call occurs within assembly that may retain source scratch contents.
+    preserve_source_scratch: bool,
 }
 
 /// Caller-side binding of stack-returned tuple words to their multi-return
@@ -184,7 +189,7 @@ struct StackResultProjection {
     /// loads; all skipped during emission.
     elided: Vec<InstId>,
     /// The adopted load result for each extra return index `1..arity`.
-    extras: Vec<ValueId>,
+    extras: Vec<Option<ValueId>>,
 }
 
 /// Subset-invariant analyses shared by one resident-layout subset search.
@@ -197,12 +202,16 @@ struct ResidentSearchContext {
     value_uses: FxHashMap<ValueId, usize>,
 }
 
-/// Complete stack calling convention selected for one non-recursive static callee.
+/// Complete stack calling convention selected for one internal callee.
 #[derive(Clone, Debug)]
 struct StaticCallAbi {
+    /// Recursive activations use only stack arguments, locals, and results.
+    recursive_stack: bool,
     /// Argument positions delivered above the return address. Arguments not selected here keep
     /// their static-frame homes, which is the conservative per-word spill fallback.
     stack_args: DenseBitSet<usize>,
+    /// Unused parameters whose argument values need no delivery or frame home.
+    ignored_args: DenseBitSet<usize>,
     /// How the callee adopts the incoming argument tuple.
     entry: StaticCallEntry,
     /// Complete tuple returned above the preserved caller prefix, when profitable.
@@ -213,6 +222,8 @@ impl StaticCallAbi {
     fn new(arg_count: usize) -> Self {
         Self {
             stack_args: DenseBitSet::new_empty(arg_count),
+            recursive_stack: false,
+            ignored_args: DenseBitSet::new_empty(arg_count),
             entry: StaticCallEntry::Stored,
             returns: None,
         }
@@ -245,7 +256,7 @@ struct ICallStackEdge {
 pub struct EvmCodegen<'gcx> {
     gcx: Gcx<'gcx>,
     /// The assembler for bytecode generation.
-    asm: Assembler<'gcx>,
+    asm: MemoryCheckedEmitter<'gcx>,
     /// Stack scheduler.
     scheduler: StackScheduler,
     /// Block labels.
@@ -268,8 +279,10 @@ pub struct EvmCodegen<'gcx> {
     /// an argument not selected by a plan, uses the existing static-memory convention.
     static_call_abis: FxHashMap<FunctionId, StaticCallAbi>,
     /// Functions whose stack-only argument convention had to materialize a frame fallback during
-    /// emission. They stay on the ordinary stack-argument convention on the regenerated runtime.
+    /// emission. They stay on the ordinary stack-argument convention in later emission attempts.
     disabled_stack_only_functions: DenseBitSet<FunctionId>,
+    /// Functions already excluded when the current emission attempt began.
+    disabled_stack_only_at_attempt_start: DenseBitSet<FunctionId>,
     /// Whether stack-native return tuples may be selected. Cleared when the
     /// whole-program stack proof fails even without preserved prefixes or
     /// stack arguments, falling back to the frame-backed return convention.
@@ -358,6 +371,19 @@ pub struct EvmCodegen<'gcx> {
     /// across one are kept stack-resident instead of reloaded from the
     /// overwritten slot. Empty for every function without such a forward.
     spill_hazard_insts: FxHashSet<InstId>,
+    /// Cross-block values whose spill homes would overlap a forwarding buffer.
+    spill_hazard_values: DenseBitSet<ValueId>,
+    /// Functions that can share a call's memory with a source-level `msize` observation.
+    msize_observed_functions: GrowableBitSet<FunctionId>,
+    /// Functions that can overwrite their caller's low-memory frame.
+    spill_clobber_functions: GrowableBitSet<FunctionId>,
+    /// Functions requiring stack-owned compiler state due to source memory access or a
+    /// frame-free recursive caller. Source annotation attributes remain separate from this set.
+    stack_only_memory_functions: GrowableBitSet<FunctionId>,
+    /// Heap-pointer arguments sufficient to keep a helper's writes out of caller spills.
+    spill_clobber_args: FxHashMap<FunctionId, DenseBitSet<ArgIdx>>,
+    /// Whether deep forwarding recovery must avoid expanding memory in this function.
+    forwarding_scratch_observable: bool,
     /// Leaf helpers whose sole returned word is derived from the free-memory pointer.
     /// Their callers may safely use the result as a dynamic forwarding-buffer base.
     heap_pointer_return_functions: DenseBitSet<FunctionId>,
@@ -405,7 +431,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let switch_gas_code_growth_remaining = Self::switch_gas_code_growth_limit(gcx);
         Self {
             gcx,
-            asm: Assembler::new(gcx),
+            asm: MemoryCheckedEmitter::new(gcx),
             scheduler: StackScheduler::for_evm_version(gcx.sess.opts.evm_version),
             block_labels: FxHashMap::default(),
             function_labels: FxHashMap::default(),
@@ -416,6 +442,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             pending_frame_size_consts: Vec::new(),
             static_call_abis: FxHashMap::default(),
             disabled_stack_only_functions: DenseBitSet::new_empty(0),
+            disabled_stack_only_at_attempt_start: DenseBitSet::new_empty(0),
             stack_returns_enabled: true,
             preserve_caller_stack: false,
             recursive_stack_functions: DenseBitSet::new_empty(0),
@@ -446,6 +473,12 @@ impl<'gcx> EvmCodegen<'gcx> {
             stack_phi_plans: FxHashMap::default(),
             function_ir_block_start: 0,
             spill_hazard_insts: FxHashSet::default(),
+            spill_hazard_values: DenseBitSet::new_empty(0),
+            msize_observed_functions: GrowableBitSet::new_empty(),
+            spill_clobber_functions: GrowableBitSet::new_empty(),
+            stack_only_memory_functions: GrowableBitSet::new_empty(),
+            spill_clobber_args: FxHashMap::default(),
+            forwarding_scratch_observable: false,
             heap_pointer_return_functions: DenseBitSet::new_empty(0),
             global_stack_active: false,
             global_stack_aliases: FxHashMap::default(),
@@ -480,6 +513,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.pending_frame_size_consts.clear();
         self.static_call_abis.clear();
         self.disabled_stack_only_functions.clear_to(module.functions.len());
+        self.disabled_stack_only_at_attempt_start.clear_to(module.functions.len());
         self.stack_returns_enabled = true;
         self.preserve_caller_stack = false;
         self.recursive_stack_functions.clear_to(module.functions.len());
@@ -505,7 +539,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.elided_insts.clear();
         self.late_gas_operands.clear();
         self.stack_phi_plans.clear();
+        self.spill_clobber_functions.clear();
+        self.stack_only_memory_functions.clear();
+        self.spill_clobber_args.clear();
         self.spill_hazard_insts.clear();
+        self.spill_hazard_values.clear();
         self.heap_pointer_return_functions.clear_to(module.functions.len());
         self.global_stack_active = false;
         self.global_stack_aliases.clear();
@@ -947,6 +985,7 @@ mod tests {
             ]),
             aliases: FxHashMap::default(),
             terminal_sensitive: true,
+            layout_limit: MAX_STACK_ACCESS,
         };
 
         assert_eq!(plan.uniformly_carried_values(&function, &term), [first]);
@@ -1008,10 +1047,29 @@ mod tests {
             entries: FxHashMap::from_iter([(join, vec![ValueId::from_usize(MAX_STACK_ACCESS)])]),
             aliases: FxHashMap::default(),
             terminal_sensitive: true,
+            layout_limit: MAX_STACK_ACCESS,
         };
 
         assert!(!phi.merge_resident(&function, &resident));
         assert_eq!(phi.entries[&join].len(), MAX_STACK_ACCESS);
+    }
+
+    #[test]
+    fn repeated_stack_abandonment_rejects_only_a_later_attempt() {
+        with_codegen(CompileOpts::default(), |mut codegen| {
+            let function = FunctionId::from_usize(0);
+            codegen.disabled_stack_only_functions = DenseBitSet::new_empty(1);
+            codegen.disabled_stack_only_at_attempt_start = DenseBitSet::new_empty(1);
+            codegen.abandon_stack_only_function(function);
+            codegen.abandon_stack_only_function(function);
+            assert_eq!(codegen.disabled_stack_only_functions.count(), 1);
+            assert!(codegen.gcx.dcx().has_errors().is_ok());
+
+            codegen.disabled_stack_only_at_attempt_start =
+                codegen.disabled_stack_only_functions.clone();
+            codegen.abandon_stack_only_function(function);
+            assert!(codegen.gcx.dcx().has_errors().is_err());
+        });
     }
 
     #[test]

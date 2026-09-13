@@ -19,14 +19,33 @@ impl<'gcx> EvmCodegen<'gcx> {
         &mut self,
         module: &Module,
         arg_values: &FxHashMap<FunctionId, CanonicalArgValues>,
+        callers: &DenseBitSet<FunctionId>,
     ) {
         for abi in self.static_call_abis.values_mut() {
             if matches!(abi.entry, StaticCallEntry::Resident { .. }) {
                 abi.entry = StaticCallEntry::Stored;
             }
         }
-        if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
+        if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None)
+            && !(self.in_constructor && self.preserve_caller_stack)
+            && self.stack_only_memory_functions.is_empty()
+        {
             return;
+        }
+
+        for func_id in self.stack_only_memory_functions.iter().collect::<Vec<_>>() {
+            if !self.static_frame_functions.contains(func_id) {
+                continue;
+            }
+            let func = &module.functions[func_id];
+            let values = arg_values.get(&func_id);
+            let abi = self.static_call_abi_mut(func_id, func.params.len());
+            for index in 0..func.params.len() {
+                if values.is_none_or(|values| values[ArgIdx::new(index)].is_none()) {
+                    abi.ignored_args.insert(index);
+                    abi.stack_args.remove(index);
+                }
+            }
         }
 
         // Start with every used canonical argument of an eligible function.
@@ -38,8 +57,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         for (&func_id, values) in arg_values {
             if self.disabled_stack_only_functions.contains(func_id)
                 || !self.static_frame_functions.contains(func_id)
-                || self.recursive_stack_functions.contains(func_id)
-                || self.recursion_reaching_functions.contains(func_id)
+                || ((self.recursive_stack_functions.contains(func_id)
+                    || self.recursion_reaching_functions.contains(func_id))
+                    && !self.stack_only_memory_functions.contains(func_id))
             {
                 continue;
             }
@@ -57,9 +77,12 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         let mut seen = DenseBitSet::new_empty(module.functions.len());
         let mut excluded = DenseBitSet::new_empty(module.functions.len());
-        for (caller_id, caller) in module.functions.iter_enumerated() {
-            let raw_leaves_ok =
-                Self::is_external_entry(caller) || self.static_frame_functions.contains(caller_id);
+        for caller_id in callers.iter() {
+            let caller = &module.functions[caller_id];
+            let raw_leaves_ok = Self::is_external_entry(caller)
+                || self.static_frame_functions.contains(caller_id)
+                || self.stack_only_memory_functions.contains(caller_id)
+                || caller.attributes.is_constructor;
             for block in &caller.blocks {
                 for &inst_id in &block.instructions {
                     let InstKind::ICall { function, args, .. } = &caller.inst(inst_id).kind else {
@@ -100,7 +123,13 @@ impl<'gcx> EvmCodegen<'gcx> {
             if !seen.contains(func_id) || excluded.contains(func_id) || mask.is_empty() {
                 continue;
             }
-            if mask.count() > GLOBAL_STACK_LAYOUT_LIMIT {
+            let required = self.stack_only_memory_functions.contains(func_id);
+            let argument_limit =
+                if required { MAX_STACK_ACCESS } else { GLOBAL_STACK_LAYOUT_LIMIT };
+            if mask.count() > argument_limit {
+                if required {
+                    continue;
+                }
                 let retained: Vec<_> = mask.iter().take(GLOBAL_STACK_LAYOUT_LIMIT).collect();
                 mask.clear();
                 for index in retained {
@@ -148,19 +177,26 @@ impl<'gcx> EvmCodegen<'gcx> {
                     &values,
                     self.preserve_caller_stack,
                     &context,
+                    required.then(|| {
+                        Self::required_stack_layout_limit(
+                            !self.msize_observed_functions.contains(func_id),
+                        )
+                    }),
                 ) {
                     // Preserve the established full-tuple layout when it passes the structural
                     // amortization guard. Costed subset selection is a fallback for tuples where
                     // one difficult value would otherwise disable every independent resident
                     // argument.
                     plan
-                } else if let Some((subset, plan)) = self.select_resident_layout(
-                    func,
-                    liveness,
-                    &values,
-                    self.preserve_caller_stack,
-                    phi_plan,
-                ) {
+                } else if !required
+                    && let Some((subset, plan)) = self.select_resident_layout(
+                        func,
+                        liveness,
+                        &values,
+                        self.preserve_caller_stack,
+                        phi_plan,
+                    )
+                {
                     values = subset;
                     mask.clear();
                     for &value in &values {
@@ -178,11 +214,12 @@ impl<'gcx> EvmCodegen<'gcx> {
                     entries: FxHashMap::default(),
                     aliases: FxHashMap::default(),
                     terminal_sensitive: true,
+                    layout_limit: MAX_STACK_ACCESS,
                 }
             };
             let abi = self.static_call_abi_mut(func_id, func.params.len());
             let mut stack_args = DenseBitSet::new_empty(func.params.len());
-            for index in abi.stack_args.iter().chain(mask.iter()) {
+            for index in mask.iter().chain(abi.stack_args.iter().filter(|_| !required)) {
                 if arg_values[ArgIdx::new(index)].is_some() {
                     stack_args.insert(index);
                 }
@@ -198,7 +235,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         module: &Module,
     ) -> FxHashMap<FunctionId, StackArgUseInfo> {
         let mut all_uses = FxHashMap::default();
-        if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
+        if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None)
+            && !(self.in_constructor && self.preserve_caller_stack)
+            && self.stack_only_memory_functions.is_empty()
+        {
             return all_uses;
         }
 
@@ -270,7 +310,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                 abi.entry = StaticCallEntry::Stored;
             }
         }
-        if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
+        if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None)
+            && !(self.in_constructor && self.preserve_caller_stack)
+            && self.stack_only_memory_functions.is_empty()
+        {
             return;
         }
 
@@ -355,7 +398,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                 abi.entry = StaticCallEntry::Stored;
             }
         }
-        if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
+        if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None)
+            && !(self.in_constructor && self.preserve_caller_stack)
+            && self.stack_only_memory_functions.is_empty()
+        {
             return;
         }
 
@@ -470,9 +516,22 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         if let Some(depth) = caller_stack.and_then(|stack| stack.find(val)) {
             let dup = depth + words_above + 1;
+            if dup > self.stack_access_limit()
+                && self.asm.source_memory_required()
+                && !self.forwarding_scratch_observable
+            {
+                let reach = self.stack_access_limit();
+                self.asm.emit_atomic_deep_stack_dup(dup - reach, reach, false);
+                self.scheduler.stack.observe_peak(
+                    caller_stack.expect("resident argument has a caller stack").depth()
+                        + words_above
+                        + 4,
+                );
+                return;
+            }
             assert!(
-                dup <= MAX_STACK_ACCESS,
-                "resident caller argument exceeded DUP16 reach at an internal call"
+                dup <= self.stack_access_limit(),
+                "resident caller argument exceeded DUP reach at an internal call"
             );
             self.asm.emit_stack_op(StackOp::Dup(dup as u8));
             return;
@@ -494,6 +553,12 @@ impl<'gcx> EvmCodegen<'gcx> {
                     );
                     self.asm.emit_push_deferred(addr);
                     self.asm.emit_op(op::MLOAD);
+                } else if self.in_constructor {
+                    self.scheduler.stack.observe_peak(
+                        self.scheduler.depth().saturating_add(words_above).saturating_add(4),
+                    );
+                    // value = constructor_arg index
+                    self.emit_constructor_arg_load(*index);
                 } else {
                     self.asm.emit_push(U256::from(4 + (index.index() as u64) * WORD_BYTES as u64));
                     self.asm.emit_op(op::CALLDATALOAD);
@@ -516,7 +581,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         func_id: FunctionId,
         func: &Function,
     ) {
-        if !self.runtime_stack_args {
+        if self.uses_recursive_stack_abi(func_id) || !self.runtime_stack_args {
             return;
         }
         if self.direct_stack_args(func_id).is_some() || self.lazy_stack_args(func_id).is_some() {
@@ -623,6 +688,14 @@ impl<'gcx> EvmCodegen<'gcx> {
         if !self.scheduler.is_stack_only_value(value) {
             return;
         }
+        if self.stack_only_memory_functions.contains(func_id) {
+            self.report_private_memory_required(func, "stack-only arguments and values");
+        } else if self.spill_hazard_values.contains(value) {
+            self.gcx.dcx().err(format!(
+                "codegen cannot spill stack-only values around a low-memory forwarding buffer in `{}`",
+                func.name
+            )).emit();
+        }
         match func.value(value) {
             crate::mir::Value::Arg(index) => self.materialize_stack_arg(func_id, *index, value),
             crate::mir::Value::Inst(_) => {
@@ -652,7 +725,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         func: &Function,
         transient_growth: usize,
     ) {
-        if transient_growth == 0 {
+        if transient_growth == 0
+            || (self.asm.source_memory_required() && !self.forwarding_scratch_observable)
+        {
             return;
         }
         let materialize_depth = MAX_STACK_ACCESS.saturating_sub(transient_growth);
@@ -661,11 +736,16 @@ impl<'gcx> EvmCodegen<'gcx> {
             let entry = self.scheduler.stack.iter().enumerate().find_map(|(depth, value)| {
                 value
                     .filter(|&value| {
-                        depth >= materialize_depth && self.scheduler.is_stack_only_value(value)
+                        depth >= materialize_depth
+                            && self.scheduler.is_stack_only_value(value)
+                            && !self.spill_hazard_values.contains(value)
                     })
                     .map(|value| (depth, value))
             });
             let Some((_, value)) = entry else { break };
+            if self.asm.source_memory_required() && self.discard_excess_stack_copy(&[]) {
+                continue;
+            }
             disabled_residency |= matches!(func.value(value), crate::mir::Value::Arg(_));
             self.materialize_stack_only_home(func_id, func, value);
         }

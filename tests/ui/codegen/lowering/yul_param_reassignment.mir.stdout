@@ -10,7 +10,7 @@ fn @indexOf.0(arg0: memorybytes, arg1: memorybytes, arg2: u256) -> u256 [selecto
     ret v0
 }
 
-fn @indexOf.1(arg0: memorybytes, arg1: memorybytes, arg2: u256) -> u256 [pure] {
+fn @indexOf.1(arg0: memorybytes, arg1: memorybytes, arg2: u256) -> u256 [unrestricted_memory, pure] {
   bb0:
     v0 = not 0
     v1 = mload arg0

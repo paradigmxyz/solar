@@ -3,6 +3,63 @@
 use super::*;
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
+    /// Scratch-only assembly cannot address frames reserved above the initial heap.
+    /// Check complete constant ranges; unknown bounds never establish ownership.
+    fn assembly_scratch_range(&self, offset: ValueId, size: Option<u64>) -> bool {
+        size.is_some_and(|size| {
+            size == 0
+                || self.builder.func().value_u64(offset).is_some_and(|offset| {
+                    offset.checked_add(size).is_some_and(|end| end <= EvmMemoryLayout::FMP_SLOT)
+                })
+        })
+    }
+
+    fn assembly_access_needs_contract(&self, kind: &InstKind) -> bool {
+        let range =
+            |offset, size| self.assembly_scratch_range(offset, self.builder.func().value_u64(size));
+        match *kind {
+            // The allocator pointer is public state; reading it grants no heap ownership.
+            InstKind::MLoad(offset)
+                if self.builder.func().value_u64(offset) == Some(EvmMemoryLayout::FMP_SLOT) =>
+            {
+                false
+            }
+            InstKind::MLoad(offset) | InstKind::MStore(offset, _) => {
+                !self.assembly_scratch_range(offset, Some(EvmMemoryLayout::WORD_SIZE))
+            }
+            InstKind::MStore8(offset, _) => !self.assembly_scratch_range(offset, Some(1)),
+            InstKind::CalldataCopy(offset, _, size)
+            | InstKind::CodeCopy(offset, _, size)
+            | InstKind::ReturnDataCopy(offset, _, size)
+            | InstKind::ExtCodeCopy(_, offset, _, size)
+            | InstKind::Keccak256(offset, size)
+            | InstKind::Log0(offset, size)
+            | InstKind::Log1(offset, size, _)
+            | InstKind::Log2(offset, size, _, _)
+            | InstKind::Log3(offset, size, _, _, _)
+            | InstKind::Log4(offset, size, _, _, _, _)
+            | InstKind::Create(_, offset, size)
+            | InstKind::Create2(_, offset, size, _) => !range(offset, size),
+            InstKind::MCopy(dest, source, size) => !range(dest, size) || !range(source, size),
+            InstKind::Call { args_offset, args_size, ret_offset, ret_size, .. }
+            | InstKind::CallCode { args_offset, args_size, ret_offset, ret_size, .. }
+            | InstKind::StaticCall { args_offset, args_size, ret_offset, ret_size, .. }
+            | InstKind::DelegateCall { args_offset, args_size, ret_offset, ret_size, .. } => {
+                !range(args_offset, args_size) || !range(ret_offset, ret_size)
+            }
+            // These accesses implement scalar bindings, not source assembly memory operations.
+            InstKind::FrameLoad { .. } | InstKind::FrameStore { .. } => false,
+            _ => matches!(
+                kind.effect_kind(),
+                crate::mir::EffectKind::MemoryRead
+                    | crate::mir::EffectKind::MemoryWrite
+                    | crate::mir::EffectKind::ExternalCall
+                    | crate::mir::EffectKind::Create
+                    | crate::mir::EffectKind::Log
+            ),
+        }
+    }
+
     pub(super) fn lower_stmt(&mut self, stmt: &hir::Stmt<'_>) -> Option<()> {
         let previous = self.builder.replace_source_span(stmt.span);
         let previous_modifier_depth = self.builder.replace_modifier_depth(self.modifier_depth);
@@ -270,11 +327,49 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
             }
             StmtKind::Revert(expr) => self.lower_revert_payload(expr)?,
-            StmtKind::AssemblyBlock(block) => {
+            StmtKind::AssemblyBlock(block, memory_safe) => {
+                let first_inst = self.builder.func().num_insts();
+                let first_block = self.builder.func().blocks.len();
+                let entry_block = self.builder.current_block();
+                let memory_bindings = self
+                    .values
+                    .iter()
+                    .filter(|(id, _)| {
+                        self.cx.gcx.type_of_item((**id).into()).is_ref_at(DataLocation::Memory)
+                    })
+                    .map(|(&id, &value)| (id, value))
+                    .collect::<FxHashMap<_, _>>();
                 let previous = std::mem::replace(&mut self.in_inline_assembly, true);
                 let result = self.lower_block(*block);
                 self.in_inline_assembly = previous;
                 result?;
+                if !memory_safe {
+                    let accesses_memory = self.builder.func().instructions().any(|id| {
+                        id.index() >= first_inst
+                            && self
+                                .assembly_access_needs_contract(&self.builder.func().inst(id).kind)
+                    });
+                    let changes_pointer = self.values.iter().any(|(id, value)| {
+                        self.cx.gcx.type_of_item((*id).into()).is_ref_at(DataLocation::Memory)
+                            && memory_bindings.get(id) != Some(value)
+                    });
+                    let returns_memory =
+                        self.builder.func().blocks.iter_enumerated().any(|(id, block)| {
+                            (id == entry_block || id.index() >= first_block)
+                                && match block.terminator {
+                                    Some(
+                                        crate::mir::Terminator::ReturnData { offset, size }
+                                        | crate::mir::Terminator::Revert { offset, size },
+                                    ) => !self.assembly_scratch_range(
+                                        offset,
+                                        self.builder.func().value_u64(size),
+                                    ),
+                                    _ => false,
+                                }
+                        });
+                    self.builder.func_mut().attributes.unrestricted_memory |=
+                        accesses_memory || changes_pointer || returns_memory;
+                }
             }
             StmtKind::Placeholder => {
                 self.lower_modifier_placeholder(stmt.span)?;

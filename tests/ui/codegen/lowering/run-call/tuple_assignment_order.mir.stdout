@@ -70,9 +70,9 @@ fn @repeatedCallTarget() -> u256 [selector=0xbf139358, pure, abi_params=[], abi_
     v0 = icall @threeValues, 3
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 32
-    v3 = mload v2
+    v3 = mload v2 !metadata(compiler_memory)
     v4 = add v1, 64
-    v5 = mload v4
+    v5 = mload v4 !metadata(compiler_memory)
     ret v0
 }
 

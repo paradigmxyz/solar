@@ -54,7 +54,7 @@ fn @test_g() -> (u256, u256) [selector=0xc51b800f, abi_params=[], abi_returns=[w
     v0 = icall @f, 2
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 32
-    v3 = mload v2
+    v3 = mload v2 !metadata(compiler_memory)
     v4 = sload 0 !metadata(storage=slot(0))
     v5 = lt 1, v4
     v6 = iszero v5
@@ -89,7 +89,7 @@ fn @test_h() -> u256 [selector=0xeafd81e0, abi_params=[], abi_returns=[word]] {
     v0 = icall @f, 2
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 32
-    v3 = mload v2
+    v3 = mload v2 !metadata(compiler_memory)
     sstore v3, 42 !metadata(storage=symbolic(v3))
     v4 = sload 0 !metadata(storage=slot(0))
     v5 = lt 0, v4

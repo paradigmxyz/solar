@@ -10,7 +10,7 @@ fn @test() -> bool [selector=0xf8a8fd6d, pure, abi_params=[], abi_returns=[word<
     ret v1
 }
 
-fn @testFlags() -> bool [selector=0x74da97f7, pure, abi_params=[], abi_returns=[word<bool>]] {
+fn @testFlags() -> bool [selector=0x74da97f7, unrestricted_memory, pure, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = icall @auth, 1
     v1 = mload v0
@@ -65,7 +65,7 @@ fn @auth() -> memorystruct [pure] {
     ret v2
 }
 
-fn @check(arg0: bool, arg1: memorystruct) -> bool [pure] {
+fn @check(arg0: bool, arg1: memorystruct) -> bool [unrestricted_memory, pure] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 2

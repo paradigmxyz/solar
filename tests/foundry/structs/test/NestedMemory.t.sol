@@ -6,6 +6,31 @@ import "../src/NestedMemory.sol";
 contract NestedMemoryTest {
     NestedMemory public nm;
 
+    struct Array { uint256[] data; }
+
+    function reserve(Array memory a, uint256 n) internal pure {
+        a.data = new uint256[](n);
+    }
+
+    function resize(Array memory a, uint256 n) internal pure {
+        reserve(a, n);
+        assembly {
+            let data := mload(a)
+            if n {
+                calldatacopy(add(data, 32), calldatasize(), shl(5, n))
+            }
+            mstore(data, n)
+        }
+    }
+
+    function testResizeAfterHelper() public pure {
+        Array memory a;
+        resize(a, 37);
+        require(a.data.length == 37);
+        for (uint256 i; i < a.data.length; ++i) require(a.data[i] == 0);
+    }
+
+
     function setUp() public {
         nm = new NestedMemory();
     }

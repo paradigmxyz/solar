@@ -111,9 +111,9 @@ fn @headTail(arg0: calldataslice) -> (u256, u256) [selector=0xdd941f9b, pure, ab
     v0 = icall @_split, 2, arg0
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 64
-    v3 = mload v2
+    v3 = mload v2 !metadata(compiler_memory)
     v4 = add v1, 96
-    v5 = mload v4
+    v5 = mload v4 !metadata(compiler_memory)
     v6 = make_calldata_slice v3, v5
     v7 = slice_len v0
     v8 = slice_len v6

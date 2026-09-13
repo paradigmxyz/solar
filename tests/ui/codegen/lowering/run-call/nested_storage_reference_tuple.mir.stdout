@@ -16,7 +16,7 @@ fn @fromCall() -> (u256, u256, u256, u256) [selector=0xbe4b486b, abi_params=[], 
     v6 = icall @pair, 2
     v7 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v8 = add v7, 32
-    v9 = mload v8
+    v9 = mload v8 !metadata(compiler_memory)
     sstore v6, 31 !metadata(storage=symbolic(v6))
     sstore v9, 41 !metadata(storage=symbolic(v9))
     v10 = lt 0, 3
@@ -117,7 +117,7 @@ fn @fromFunctionPointer() -> (u256, u256, u256, u256) [selector=0xceab4ac0, abi_
     v7 = icall @internal_dispatcher_p_none_r_storageptr_storageptr, 2, v6
     v8 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v9 = add v8, 32
-    v10 = mload v9
+    v10 = mload v9 !metadata(compiler_memory)
     sstore v7, 31 !metadata(storage=symbolic(v7))
     sstore v10, 41 !metadata(storage=symbolic(v10))
     v11 = lt 0, 3
@@ -225,6 +225,6 @@ fn @internal_dispatcher_p_none_r_storageptr_storageptr(arg0: function) -> (stora
     v1 = icall @pair, 2
     v2 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v3 = add v2, 32
-    v4 = mload v3
+    v4 = mload v3 !metadata(compiler_memory)
     ret v1, v4
 }

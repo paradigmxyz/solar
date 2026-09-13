@@ -680,6 +680,12 @@ impl CommonSubexprEliminator {
         kind: &InstKind,
         replacements: &FxHashMap<ValueId, ValueId>,
     ) -> Option<ExprKey> {
+        // Compiler-frame reads can become stack projections in the backend. Caching them
+        // with source reads would expose the return-buffer protocol to source assembly.
+        if func.inst(inst_id).metadata.requires_private_memory() {
+            return None;
+        }
+
         // Helper to get canonical operands after in-block replacements.
         let operand = |v: ValueId| Self::operand_key(func, v, replacements);
         let value = |v: ValueId| mir_utils::resolve_replacement(v, replacements);

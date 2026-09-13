@@ -5,8 +5,8 @@ fn @decode(arg0: memorybytes) -> (u256, bool, address) [selector=0xe5c5e9a3, pur
     v0 = abi_decode [u256, bool, address], arg0
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 32
-    v3 = mload v2
+    v3 = mload v2 !metadata(compiler_memory)
     v4 = add v1, 64
-    v5 = mload v4
+    v5 = mload v4 !metadata(compiler_memory)
     ret v0, v3, v5
 }

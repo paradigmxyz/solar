@@ -34,3 +34,8 @@
       ret 1
   }
   
+  fn @yul_tuple(arg0: u256) -> (u256, u256) [yul] {
+    bb0:
+      ret arg0, 42
+  }
+  

@@ -40,7 +40,7 @@ fn @decode(arg0: memorybytes) -> (u256, u256, bytes1) [selector=0xe5c5e9a3, abi_
   bb7:
     v23 = abi_decode [u256, bytes], v14
     v24 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v25 = memory_object_load_element memoryfixedarray<2, 1>, v24, 1
+    v25 = memory_object_load_element<memorybytes> memoryfixedarray<2, 1>, v24, 1 !metadata(compiler_memory)
     v26 = memory_object_len memorybytes, v25
     v27 = memory_object_len memorybytes, v25
     v28 = lt 0, v27

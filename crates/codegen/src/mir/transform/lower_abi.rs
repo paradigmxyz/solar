@@ -30,6 +30,12 @@
 //! raw-data boundary: it gets an argument-free dispatch wrapper and an
 //! internal body that terminates with unencoded returndata.
 //!
+//! Decoded tuples remain SSA values when all implicit return-buffer reads have
+//! a producer in the same block and captured pointers only feed fixed-index projections.
+//! Those projections use decoder results directly, without allocating or publishing a
+//! tuple buffer. Cross-block reads, escaping pointers, and reads after scalar calls
+//! keep the guarded publication path.
+//!
 //! Together with [`super::lower_dispatch::LowerDispatch`], which routes a selector switch
 //! to these argument-free wrappers, this materializes the ABI boundary before
 //! EVM codegen. Both passes must complete before the backend runs.
@@ -45,7 +51,7 @@ use crate::mir::{
 use alloy_primitives::U256;
 use solar_config::{EvmVersion, RevertStrings};
 use solar_data_structures::{
-    bit_set::DenseBitSet,
+    bit_set::{DenseBitSet, GrowableBitSet},
     index::IndexVec,
     map::{FxHashMap, FxHashSet},
 };
@@ -547,6 +553,8 @@ impl LowerAbiCx {
 
         for func_id in decode_functions.iter() {
             let func = module.function_mut(func_id);
+            let projections = decode_result_projections(func);
+            let mut removed = GrowableBitSet::with_capacity(func.num_insts());
             let mut replacements = FxHashMap::default();
             let mut builder = self.builder(func);
             let blocks = builder.func().blocks.indices();
@@ -601,11 +609,21 @@ impl LowerAbiCx {
                     };
                     replacements.insert(result, values[0]);
 
-                    if values.len() > 1 {
+                    if let Some(plan) = projections.get(&inst) {
+                        // frame_load multi_return; add base, 32 * index; mload address
+                        //   -> decoded_values[index]
+                        for &(result, index) in &plan.values {
+                            replacements.insert(result, values[index]);
+                        }
+                        for &inst in &plan.removed {
+                            removed.insert(inst);
+                        }
+                    } else if values.len() > 1 {
                         let words = values.len() as u64;
                         let (object, object_layout) =
                             builder.alloc_word_array(words, AllocationSemantics::INTERNAL);
                         let base = builder.memory_object_data(object, MemoryObjectKind::FixedArray);
+                        // frame_store multi_return, decoded_buffer
                         builder.frame_store(0, FrameMode::MultiReturn, FrameSlotKind::Word, base);
                         for (index, value) in values.iter().copied().enumerate().skip(1) {
                             let index = builder.imm(index as u64);
@@ -624,6 +642,10 @@ impl LowerAbiCx {
                     terminator,
                     terminator_metadata,
                 );
+            }
+            // captured_base; word_address; projection_load -> decoded_value
+            for block in &mut builder.func_mut().blocks {
+                block.instructions.retain(|&inst| !removed.contains(inst));
             }
             builder.func_mut().replace_uses_canonicalized(&replacements);
             let _ = crate::mir::utils::repair_reachability_phis(builder.func_mut());
@@ -1000,9 +1022,13 @@ impl LowerAbiCx {
                             base,
                             u64::try_from(index).unwrap_or(u64::MAX).saturating_mul(32),
                         );
-                        builder.mload(position)
+                        builder.private_mload(position)
                     }
                 };
+                // tuple projection -> !metadata(compiler_memory)
+                let func = builder.func_mut();
+                let Value::Inst(inst) = *func.value(value) else { unreachable!() };
+                func.inst_mut(inst).metadata.set_requires_private_memory();
                 values.push(value);
             }
             builder.ret(values);
@@ -2903,6 +2929,120 @@ impl LowerAbiCx {
             .collect::<Vec<_>>();
         crate::mir::utils::remap_block_order(func, &order);
     }
+}
+
+struct DecodeProjections {
+    values: Vec<(ValueId, usize)>,
+    removed: Vec<InstId>,
+}
+
+/// Resolve tuple projections only when captured addresses do not escape.
+/// Every base use must be a typed fixed-index element load or a constant word-offset
+/// addition whose users are loads. Decoded memory objects keep their source allocation.
+/// Unsupported captures retain the complete guarded publication path.
+fn decode_result_projections(func: &Function) -> FxHashMap<InstId, DecodeProjections> {
+    if !return_buffer_reads_are_local(func) {
+        return FxHashMap::default();
+    }
+    let mut users = IndexVec::<ValueId, _>::from_vec(vec![Vec::new(); func.num_values()]);
+    let mut terminal_uses = DenseBitSet::new_empty(func.num_values());
+    let mut captures = FxHashMap::<InstId, Vec<InstId>>::default();
+    for block in &func.blocks {
+        let mut decoder = None;
+        for &inst in &block.instructions {
+            let kind = &func.inst(inst).kind;
+            for value in kind.operands() {
+                users[value].push(inst);
+            }
+            match kind {
+                InstKind::AbiDecode { layout, .. } => {
+                    decoder = (layout.types.len() > 1).then_some(inst);
+                    if let Some(decoder) = decoder {
+                        captures.entry(decoder).or_default();
+                    }
+                }
+                InstKind::ICall { .. }
+                | InstKind::FrameStore { mode: FrameMode::MultiReturn, .. } => decoder = None,
+                InstKind::FrameLoad { mode: FrameMode::MultiReturn, .. } => {
+                    if let Some(decoder) = decoder {
+                        captures.entry(decoder).or_default().push(inst);
+                    }
+                }
+                _ => {}
+            }
+        }
+        if let Some(term) = &block.terminator {
+            for value in term.operands() {
+                terminal_uses.insert(value);
+            }
+        }
+    }
+    captures.into_iter().filter_map(|(decoder, captures)| {
+        let InstKind::AbiDecode { layout, .. } = &func.inst(decoder).kind else { unreachable!() };
+        let mut plan = DecodeProjections { values: Vec::new(), removed: Vec::new() };
+        for capture in captures {
+            let base = func.inst_result_value(capture)?;
+            if terminal_uses.contains(base) { return None; }
+            plan.removed.push(capture);
+            for &address_inst in &users[base] {
+                if let InstKind::MemoryObjectLoadElement { object, layout: object_layout, index } = &func.inst(address_inst).kind {
+                    let index: usize = func.value(*index).as_immediate()?.as_u256()?.try_into().ok()?;
+                    if *object != base || *object_layout != MemoryObjectLayout::word_fixed_array(layout.types.len() as u64)
+                        || index == 0 || index >= layout.types.len()
+                    { return None; }
+                    let result = func.inst_result_value(address_inst)?;
+                    if func.value_ty(result) != Some(layout.types[index].mir_type()) { return None; }
+                    plan.values.push((result, index));
+                    plan.removed.push(address_inst);
+                    continue;
+                }
+                let InstKind::Add(lhs, rhs) = func.inst(address_inst).kind else { return None };
+                let offset = if lhs == base { rhs } else if rhs == base { lhs } else { return None };
+                let offset: usize = func.value(offset).as_immediate()?.as_u256()?.try_into().ok()?;
+                let index = offset / 32;
+                if !offset.is_multiple_of(32) || index == 0 || index >= layout.types.len() { return None; }
+                let address = func.inst_result_value(address_inst)?;
+                if terminal_uses.contains(address) { return None; }
+                plan.removed.push(address_inst);
+                for &load in &users[address] {
+                    if !matches!(func.inst(load).kind, InstKind::MLoad(value) if value == address) { return None; }
+                    plan.values.push((func.inst_result_value(load)?, index));
+                    plan.removed.push(load);
+                }
+            }
+        }
+        Some((decoder, plan))
+    }).collect()
+}
+
+/// A decoded tuple can keep its publication pointer in SSA only when every implicit
+/// read has a producer in the same block. Scalar calls may clobber publication state;
+/// rejecting their later reads also excludes reliance on a preceding block's buffer.
+fn return_buffer_reads_are_local(func: &Function) -> bool {
+    for block in &func.blocks {
+        let mut published = false;
+        for &inst in &block.instructions {
+            match &func.inst(inst).kind {
+                InstKind::AbiDecode { layout, .. } => published = layout.types.len() > 1,
+                InstKind::ICall { returns, .. } => published = *returns > 1,
+                InstKind::FrameStore {
+                    offset: 0,
+                    mode: FrameMode::MultiReturn,
+                    kind: FrameSlotKind::Word,
+                    ..
+                } => published = true,
+                InstKind::FrameLoad {
+                    offset: 0,
+                    mode: FrameMode::MultiReturn,
+                    kind: FrameSlotKind::Word,
+                } if published => {}
+                InstKind::FrameLoad { mode: FrameMode::MultiReturn, .. }
+                | InstKind::FrameStore { mode: FrameMode::MultiReturn, .. } => return false,
+                _ => {}
+            }
+        }
+    }
+    true
 }
 
 /// Decodes a memory-backed ABI tuple through the shared ABI-layer decoder.

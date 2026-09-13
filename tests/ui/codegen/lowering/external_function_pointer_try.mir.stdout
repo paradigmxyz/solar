@@ -141,7 +141,7 @@ fn @invokePair(arg0: function, arg1: memorystruct) -> (u256, memorybytes) {
     memory_object_copy_from_slice memorybytes, v13, v14
     v15 = abi_decode [u256, bytes], v13
     v16 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v17 = memory_object_load_element memoryfixedarray<2, 1>, v16, 1
+    v17 = memory_object_load_element<memorybytes> memoryfixedarray<2, 1>, v16, 1 !metadata(compiler_memory)
     ret v15, v17
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
@@ -184,7 +184,7 @@ fn @tryPair() -> (u256, memorybytes) [selector=0xf8a3207b, abi_params=[], abi_re
     memory_object_store_field memorystruct<1>, v3, 0, 7
     v4 = icall @invokePair, 2, v2, v3
     v5 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v6 = memory_object_load_element memoryfixedarray<2, 1>, v5, 1
+    v6 = memory_object_load_element<memorybytes> memoryfixedarray<2, 1>, v5, 1 !metadata(compiler_memory)
     ret v4, v6
 }
 

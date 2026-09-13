@@ -37,7 +37,7 @@ fn @f(arg0: u256, arg1: u256) -> (u256, u256, u256, u256) [selector=0x13d1aa2e, 
     v22 = abi_decode [u256, u256], v21
     v23 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v24 = add v23, 32
-    v25 = mload v24
+    v25 = mload v24 !metadata(compiler_memory)
     v26 = calldatasize
     v27 = make_calldata_slice 0, v26
     v28 = slice_ptr v27

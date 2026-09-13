@@ -172,6 +172,19 @@ impl<'gcx> EvmCodegen<'gcx> {
         {
             return;
         }
+        if self.scheduler.spills.is_recompute_only(val)
+            && self.scheduler.stack.find(val).is_none_or(|depth| depth >= self.stack_access_limit())
+        {
+            self.emit_value_fresh(func, val);
+            return;
+        }
+        if let Some(depth) = self.scheduler.stack.find(val)
+            && depth >= self.stack_access_limit()
+            && (!self.spill_hazard_insts.is_empty() || self.asm.source_memory_required())
+        {
+            self.duplicate_deep_forwarding_value(func, val, depth);
+            return;
+        }
         if let Some(depth) = self.scheduler.stack.find(val)
             && depth >= self.stack_access_limit()
             && self.scheduler.reloadable_spill(val).is_none()
@@ -305,6 +318,14 @@ impl<'gcx> EvmCodegen<'gcx> {
         {
             return;
         }
+        if let Some(depth) = self.scheduler.stack.find(val)
+            && depth >= self.stack_access_limit()
+            && !self.spill_hazard_insts.is_empty()
+            && !self.scheduler.spills.is_recompute_only(val)
+        {
+            self.duplicate_deep_forwarding_value(func, val, depth);
+            return;
+        }
         match func.value(val) {
             crate::mir::Value::Immediate(imm) => {
                 if let Some(u256) = imm.as_u256() {
@@ -385,6 +406,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                                 self.scheduler.stack.push(val);
                             }
                             crate::mir::InstKind::MLoad(offset) => {
+                                if func.inst(*inst_id).metadata.requires_private_memory() {
+                                    self.asm.require_private_memory();
+                                }
                                 // Re-reading a constant scratch location is safe, but the
                                 // free-memory-pointer word moves: a pointer defined as
                                 // `mload(0x40)` must reach this point through its spill
@@ -407,7 +431,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                                     );
                                 }
                                 self.emit_value_fresh(func, *offset);
-                                self.asm.emit_op(op::MLOAD);
+                                self.asm.emit_source_op(op::MLOAD);
                                 // Pop offset, push result
                                 self.scheduler.stack.pop();
                                 self.scheduler.stack.push(val);

@@ -11,11 +11,50 @@ fn @outer() -> u256 [pure] {
     v0 = icall @pair, 2
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 32
-    v3 = mload v2
+    v3 = mload v2 !metadata(compiler_memory)
     ret v3
 }
 
 fn @pair() -> (u256, u256) [pure] {
   bb0:
     ret 0xabcd, 0x1234
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/inlined_multi_return_frame_alias.sol:TransitiveTupleMemory ===
+@module TransitiveTupleMemory
+fn @run(arg0: u256) -> (u256, u256) [selector=0xa444f5e9, pure, abi_params=[u256], abi_returns=[word, word]] {
+  bb0:
+    v0 = icall @pair, 2, arg0
+    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v2 = add v1, 32
+    v3 = mload v2 !metadata(compiler_memory)
+    v4 = icall @observe, 1
+    v5 = add v0, v3
+    v6 = lt v5, v0
+    jumpi v6, bb1, bb2
+  bb2:
+    ret v5, v4
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @pair(arg0: u256) -> (u256, u256) [pure] {
+  bb0:
+    v0 = add arg0, 1
+    v1 = lt v0, arg0
+    jumpi v1, bb1, bb2
+  bb2:
+    ret arg0, v0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @observe() -> u256 [unrestricted_memory, pure] {
+  bb0:
+    mstore 64, 128 !metadata(memory=scratch)
+    ret 0
 }

@@ -71,26 +71,92 @@ impl StackPhiPlan {
         StackPhiPlanner::new(func, cold_functions).plan(liveness)
     }
 
+    /// Assigns every phi result an entry word and maps each predecessor's incoming value to it.
+    /// This required layout has no profitability gates; unsupported edges or oversized tuples
+    /// keep the ordinary planner. Other live values are composed by the resident layout planner.
+    pub(in crate::backend::evm::codegen) fn all_phis(
+        func: &Function,
+        layout_limit: usize,
+    ) -> Option<Self> {
+        let mut plan = Self::default();
+        for (block, data) in func.blocks.iter_enumerated() {
+            let results = data
+                .instructions
+                .iter()
+                .filter_map(|&inst| {
+                    matches!(func.inst(inst).kind, InstKind::Phi(_))
+                        .then(|| func.inst_result_value(inst))
+                        .flatten()
+                })
+                .collect::<Vec<_>>();
+            if results.len() > layout_limit {
+                return None;
+            }
+            if !results.is_empty() {
+                plan.entries.insert(block, results);
+            }
+        }
+        let edge = |pred, target| -> Option<StackPhiEdge> {
+            let results = plan.entries.get(&target).cloned().unwrap_or_default();
+            let sources = results
+                .iter()
+                .map(|&value| {
+                    let crate::mir::Value::Inst(inst) = func.value(value) else { return None };
+                    let InstKind::Phi(incoming) = &func.inst(*inst).kind else { return None };
+                    incoming.iter().find_map(|&(block, value)| (block == pred).then_some(value))
+                })
+                .collect::<Option<Vec<_>>>()?;
+            Some(StackPhiEdge { sources, results })
+        };
+        let mut edges = FxHashMap::default();
+        let mut branches = FxHashMap::default();
+        for (pred, data) in func.blocks.iter_enumerated() {
+            let Some(term) = &data.terminator else { continue };
+            if !term.successors().iter().any(|target| plan.entries.contains_key(target)) {
+                continue;
+            }
+            match *term {
+                Terminator::Jump(target) => {
+                    edges.insert(pred, edge(pred, target)?);
+                }
+                Terminator::Branch { then_block, else_block, .. } => {
+                    let then_edge = edge(pred, then_block)?;
+                    let else_edge = edge(pred, else_block)?;
+                    let union = union_values(&then_edge.sources, &else_edge.sources);
+                    if union.len() > layout_limit {
+                        return None;
+                    }
+                    branches.insert(pred, StackPhiBranch { then_edge, else_edge, union });
+                }
+                _ => return None,
+            }
+        }
+        plan.edges = edges;
+        plan.branch_edges = branches;
+        Some(plan)
+    }
+
     pub(in crate::backend::evm::codegen) fn edge_fits(
         edge: &StackPhiEdge,
         values: &[ValueId],
+        layout_limit: usize,
     ) -> bool {
-        let source_additions = values.iter().filter(|value| !edge.sources.contains(value)).count();
-        let result_additions = values.iter().filter(|value| !edge.results.contains(value)).count();
-        edge.sources.len().saturating_add(source_additions) <= MAX_STACK_ACCESS
-            && edge.results.len().saturating_add(result_additions) <= MAX_STACK_ACCESS
+        let additions = values.iter().filter(|value| !edge.results.contains(value)).count();
+        edge.sources.len().saturating_add(additions) <= layout_limit
+            && edge.results.len().saturating_add(additions) <= layout_limit
     }
 
     pub(in crate::backend::evm::codegen) fn merge_edge(
         edge: &mut StackPhiEdge,
         values: &[ValueId],
     ) {
-        let source_additions: Vec<_> =
-            values.iter().copied().filter(|value| !edge.sources.contains(value)).collect();
-        let result_additions: Vec<_> =
-            values.iter().copied().filter(|value| !edge.results.contains(value)).collect();
-        edge.sources.extend(source_additions);
-        edge.results.extend(result_additions);
+        for &value in values {
+            if !edge.results.contains(&value) {
+                // [..., source] -> [..., phi, source]
+                edge.sources.push(value);
+                edge.results.push(value);
+            }
+        }
     }
 
     pub(in crate::backend::evm::codegen) fn edge_sources(
@@ -119,7 +185,7 @@ impl StackPhiPlan {
         for (&block, entry) in &self.entries {
             if let Some(values) = resident.entry(block) {
                 let additions = values.iter().filter(|value| !entry.contains(value)).count();
-                if entry.len().saturating_add(additions) > MAX_STACK_ACCESS {
+                if entry.len().saturating_add(additions) > resident.layout_limit() {
                     return false;
                 }
             }
@@ -127,7 +193,7 @@ impl StackPhiPlan {
         for (&pred, edge) in &self.edges {
             let Some(term) = func.blocks[pred].terminator.as_ref() else { return false };
             if let Some(values) = resident.edge_layout(func, term)
-                && !Self::edge_fits(edge, values)
+                && !Self::edge_fits(edge, values, resident.layout_limit())
             {
                 return false;
             }
@@ -145,9 +211,17 @@ impl StackPhiPlan {
             for (edge, values) in
                 [(&branch.then_edge, then_values), (&branch.else_edge, else_values)]
             {
-                if !Self::edge_fits(edge, values) {
+                if !Self::edge_fits(edge, values, resident.layout_limit()) {
                     return false;
                 }
+            }
+            let mut then_edge = branch.then_edge.clone();
+            let mut else_edge = branch.else_edge.clone();
+            Self::merge_edge(&mut then_edge, then_values);
+            Self::merge_edge(&mut else_edge, else_values);
+            if union_values(&then_edge.sources, &else_edge.sources).len() > resident.layout_limit()
+            {
+                return false;
             }
         }
 
@@ -1339,53 +1413,80 @@ impl<'a> StackPhiPlanner<'a> {
                         && self.is_noreturn_block(*else_block))
                     || self.branch_phi_shape(loop_info, *then_block, *else_block).is_some()
             });
-        branch_shapes_safe && self.phi_insts(&self.func.blocks[loop_info.header]).len() >= 2
+        let phi_count = self.phi_insts(&self.func.blocks[loop_info.header]).len();
+        branch_shapes_safe
+            && (phi_count >= 2
+                || (phi_count == 1
+                    && !self.loops.iter().any(|other| {
+                        other.header != loop_info.header && loop_info.blocks.contains(other.header)
+                    })
+                    && loop_info.blocks.iter().filter(|&block| block != loop_info.header).all(
+                        |block| {
+                            let Some(Terminator::Branch { then_block, else_block, .. }) =
+                                self.func.blocks[block].terminator.as_ref()
+                            else {
+                                return true;
+                            };
+                            [*then_block, *else_block].into_iter().all(|successor| {
+                                loop_info.blocks.contains(successor)
+                                    || self.is_noreturn_block(successor)
+                            })
+                        },
+                    )))
     }
 
     fn loop_instructions_are_stack_safe(&self, loop_info: &Loop) -> bool {
         for block_id in loop_info.blocks.iter() {
             for &inst_id in &self.func.blocks[block_id].instructions {
                 let kind = &self.func.inst(inst_id).kind;
-                if !matches!(
-                    kind,
-                    InstKind::Add(_, _)
-                        | InstKind::Sub(_, _)
-                        | InstKind::Mul(_, _)
-                        | InstKind::Div(_, _)
-                        | InstKind::SDiv(_, _)
-                        | InstKind::Mod(_, _)
-                        | InstKind::SMod(_, _)
-                        | InstKind::Exp(_, _)
-                        | InstKind::AddMod(_, _, _)
-                        | InstKind::MulMod(_, _, _)
-                        | InstKind::And(_, _)
-                        | InstKind::Or(_, _)
-                        | InstKind::Xor(_, _)
-                        | InstKind::Not(_)
-                        | InstKind::Clz(_)
-                        | InstKind::Shl(_, _)
-                        | InstKind::Shr(_, _)
-                        | InstKind::Sar(_, _)
-                        | InstKind::Byte(_, _)
-                        | InstKind::Lt(_, _)
-                        | InstKind::Gt(_, _)
-                        | InstKind::SLt(_, _)
-                        | InstKind::SGt(_, _)
-                        | InstKind::Eq(_, _)
-                        | InstKind::IsZero(_)
-                        | InstKind::MLoad(_)
-                        | InstKind::MStore(_, _)
-                        | InstKind::MStore8(_, _)
-                        | InstKind::CalldataLoad(_)
-                        | InstKind::CalldataSize
-                        | InstKind::CalldataCopy(_, _, _)
-                        | InstKind::MSize
-                        | InstKind::Fmp
-                        | InstKind::Keccak256(_, _)
-                        | InstKind::Phi(_)
-                        | InstKind::Select(_, _, _)
-                        | InstKind::SignExtend(_, _)
-                ) {
+                if rematerializable_nullary_opcode(kind).is_none()
+                    && !matches!(
+                        kind,
+                        InstKind::Add(_, _)
+                            | InstKind::Sub(_, _)
+                            | InstKind::Mul(_, _)
+                            | InstKind::Div(_, _)
+                            | InstKind::SDiv(_, _)
+                            | InstKind::Mod(_, _)
+                            | InstKind::SMod(_, _)
+                            | InstKind::Exp(_, _)
+                            | InstKind::AddMod(_, _, _)
+                            | InstKind::MulMod(_, _, _)
+                            | InstKind::And(_, _)
+                            | InstKind::Or(_, _)
+                            | InstKind::Xor(_, _)
+                            | InstKind::Not(_)
+                            | InstKind::Clz(_)
+                            | InstKind::Shl(_, _)
+                            | InstKind::Shr(_, _)
+                            | InstKind::Sar(_, _)
+                            | InstKind::Byte(_, _)
+                            | InstKind::Lt(_, _)
+                            | InstKind::Gt(_, _)
+                            | InstKind::SLt(_, _)
+                            | InstKind::SGt(_, _)
+                            | InstKind::Eq(_, _)
+                            | InstKind::IsZero(_)
+                            | InstKind::MLoad(_)
+                            | InstKind::MStore(_, _)
+                            | InstKind::MStore8(_, _)
+                            | InstKind::CalldataLoad(_)
+                            | InstKind::CalldataSize
+                            | InstKind::CalldataCopy(_, _, _)
+                            | InstKind::MCopy(_, _, _)
+                            | InstKind::ReturnDataCopy(_, _, _)
+                            | InstKind::ReturnDataSize
+                            | InstKind::Gas
+                            | InstKind::SelfBalance
+                            | InstKind::Call { .. }
+                            | InstKind::MSize
+                            | InstKind::Fmp
+                            | InstKind::Keccak256(_, _)
+                            | InstKind::Phi(_)
+                            | InstKind::Select(_, _, _)
+                            | InstKind::SignExtend(_, _)
+                    )
+                {
                     return false;
                 }
             }

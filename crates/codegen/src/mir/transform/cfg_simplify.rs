@@ -50,6 +50,14 @@ impl MirPass for CfgSimplify {
     }
 }
 
+impl CfgSimplify {
+    /// Removes invariant phi aliases without changing the control-flow graph.
+    pub(crate) fn simplify_trivial_phis(func: &mut Function) {
+        // phi [entry: value], [backedge: self] -> value
+        CfgSimplifier::new().simplify_trivial_phis(func);
+    }
+}
+
 /// Module pass for dead internal function elimination.
 pub(crate) struct FunctionDce;
 

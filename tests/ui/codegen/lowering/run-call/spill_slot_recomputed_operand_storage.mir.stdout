@@ -112,7 +112,7 @@ fn @g(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0x191157d1, abi_para
     v57 = icall @step, 2, v44, v45
     v58 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v59 = add v58, 32
-    v60 = mload v59
+    v60 = mload v59 !metadata(compiler_memory)
     v61 = and v41, 7
     v62 = lt v61, 8
     v63 = iszero v62

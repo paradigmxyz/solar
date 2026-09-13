@@ -611,6 +611,9 @@ pub(crate) struct FunctionAttributes {
     /// original signature's frame-lifetime constraint. The backend uses this sticky bit to avoid
     /// reclaiming memory that may have escaped through inline assembly.
     pub(crate) may_return_memory: bool,
+    /// Whether source assembly lacks a memory-ownership contract.
+    /// This property remains set when the assembly is inlined or optimized away.
+    pub(crate) unrestricted_memory: bool,
     /// Whether this function dispatches an internal function-pointer shape.
     pub(crate) is_function_pointer_dispatcher: bool,
     /// Never clone this function into multiple callers.
@@ -627,6 +630,7 @@ impl Default for FunctionAttributes {
             is_receive: false,
             is_yul: false,
             may_return_memory: false,
+            unrestricted_memory: false,
             is_function_pointer_dispatcher: false,
             no_inline: false,
         }

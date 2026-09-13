@@ -16,8 +16,16 @@
 //! producers are still scheduled independently; references left in the arena by eliminated
 //! instructions do not count as sharing. The pass also preserves the producer order of binary
 //! operations whose lowering already costs both equivalent operand orientations.
-//! Instruction and value identities do not change; codegen recomputes liveness from the resulting
-//! order before stack scheduling.
+//! In functions with unrestricted assembly memory, a single-use bitwise reduction of more than
+//! sixteen gas observations may move from a dominated acyclic block to just before a call in the
+//! observations' block. Only total bitwise operations move, after every gas observation in that
+//! block; neither reads nor calls move. This lets the backend carry one result across the call
+//! without private memory. Cyclic blocks and shared intermediate values are excluded.
+//! In modules requiring stack-owned state, constant offset additions may also move into their
+//! use blocks when an incoming layout exceeds sixteen live values and already carries the base.
+//! Each use block receives its own addition; phi operands and bases not already live at entry
+//! are excluded. This removes redundant incoming words without extending the base across edges.
+//! Codegen recomputes liveness after these rewrites before stack scheduling.
 //!
 //! This is a locality heuristic, not a whole-function profitability search. It does not price the
 //! residual physical stack left by each possible order, so an isolated function can grow even when
@@ -36,10 +44,12 @@
 //! [solx's EVM single-use-expression pass]: https://github.com/NomicFoundation/solx-llvm/blob/a2a603232892c9824f8783b55b49d5655d77a62c/llvm/lib/Target/EVM/EVMSingleUseExpression.cpp
 
 use crate::mir::{
-    Function, InstId, InstKind, Instruction, Module, Terminator, Value, ValueId,
+    BlockId, Function, InstId, InstKind, Instruction, Module, Terminator, Value, ValueId,
+    analysis::{CfgInfo, Liveness},
     pass::{MirPass, ModuleAnalyses, run_function_pass},
 };
 use smallvec::SmallVec;
+use solar_config::OptimizationMode;
 use solar_data_structures::{
     bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
@@ -54,8 +64,22 @@ impl MirPass for EvmInstSchedule {
         "evm-inst-schedule"
     }
 
-    fn run_pass(&self, _gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
-        run_function_pass(module, analyses, |func, _| Self::run_on_function(func))
+    fn is_required(&self) -> bool {
+        true
+    }
+
+    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
+        let needs_stack_memory =
+            module.functions.iter().any(|func| func.attributes.unrestricted_memory);
+        run_function_pass(module, analyses, |func, _| {
+            let changed = needs_stack_memory && Self::sink_resident_offsets(func);
+            changed
+                | if matches!(gcx.sess.opts.optimization, OptimizationMode::None) {
+                    Self::hoist_bitwise_reductions(func)
+                } else {
+                    Self::run_on_function(func)
+                }
+        })
     }
 }
 
@@ -116,11 +140,234 @@ impl EvmInstSchedule {
             }
         }
 
-        changed
+        changed | Self::hoist_bitwise_reductions(func)
     }
 }
 
 impl EvmInstSchedule {
+    /// Rebuilds constant offsets where their base already occupies an incoming stack word.
+    fn sink_resident_offsets(func: &mut Function) -> bool {
+        let liveness = Liveness::compute(func);
+        let mut candidates = Vec::new();
+        for (block, data) in func.blocks.iter_enumerated() {
+            for &id in &data.instructions {
+                let inst = func.inst(id);
+                if let InstKind::Add(a, b) = inst.kind
+                    && inst
+                        .metadata
+                        .effect()
+                        .is_none_or(|effect| effect == crate::mir::EffectKind::Pure)
+                    && let Some(value) = func.inst_result_value(id)
+                {
+                    let base = if func.value_u256(a).is_some() {
+                        b
+                    } else if func.value_u256(b).is_some() {
+                        a
+                    } else {
+                        continue;
+                    };
+                    candidates.push((block, id, value, base, inst.clone()));
+                }
+            }
+        }
+        let mut changed = false;
+        for (definition, id, value, base, original) in candidates {
+            if func.inst(id).kind != original.kind {
+                continue;
+            }
+            let mut uses = Vec::new();
+            let mut eligible = true;
+            let mut pressured = false;
+            for (block, data) in func.blocks.iter_enumerated() {
+                let mut first = None;
+                for (index, &inst) in data.instructions.iter().enumerate() {
+                    if func.inst(inst).kind.operands().contains(&value) {
+                        if matches!(func.inst(inst).kind, InstKind::Phi(_)) {
+                            eligible = false;
+                        }
+                        first.get_or_insert(index);
+                    }
+                }
+                if data.terminator.as_ref().is_some_and(|term| term.operands().contains(&value)) {
+                    first.get_or_insert(data.instructions.len());
+                }
+                if let Some(first) = first
+                    && block != definition
+                {
+                    eligible &= liveness.live_in(block).contains(base);
+                    pressured |= liveness.live_in(block).count() > 16;
+                    uses.push((block, first));
+                }
+            }
+            if !eligible || !pressured || uses.is_empty() {
+                continue;
+            }
+            for (block, first) in uses {
+                let mut cloned = original.clone();
+                cloned.set_result(None);
+                // local = add base, offset
+                // use(local)
+                let (cloned, local) = func.alloc_value_inst(cloned);
+                let instructions = func.blocks[block].instructions.clone();
+                for inst in instructions {
+                    func.inst_mut(inst).kind.visit_operands_mut(|operand| {
+                        if *operand == value {
+                            *operand = local;
+                        }
+                    });
+                }
+                if let Some(term) = &mut func.blocks[block].terminator {
+                    term.visit_operands_mut(|operand| {
+                        if *operand == value {
+                            *operand = local;
+                        }
+                    });
+                }
+                func.blocks[block].instructions.insert(first, cloned);
+            }
+            if !func.blocks[definition]
+                .instructions
+                .iter()
+                .any(|&inst| func.inst(inst).kind.operands().contains(&value))
+                && !func.blocks[definition]
+                    .terminator
+                    .as_ref()
+                    .is_some_and(|term| term.operands().contains(&value))
+            {
+                // Remove the offset whose uses now compute their own local value.
+                func.blocks[definition].instructions.retain(|&inst| inst != id);
+            }
+            changed = true;
+        }
+        changed
+    }
+
+    /// Carries a single reduction result across a call instead of its inaccessible inputs.
+    fn hoist_bitwise_reductions(func: &mut Function) -> bool {
+        if !func.attributes.unrestricted_memory {
+            return false;
+        }
+        let cfg = CfgInfo::new(func);
+        let shared = Self::shared_results(func);
+        let mut locations = index_vec![None; func.num_insts()];
+        for (block, data) in func.blocks.iter_enumerated() {
+            for &inst in &data.instructions {
+                locations[inst] = Some(block);
+            }
+        }
+        let mut changed = false;
+        for block in func.blocks.indices() {
+            if cfg.cyclic_blocks().contains(block) {
+                continue;
+            }
+            let candidates = func.blocks[block].instructions.clone();
+            for root in candidates {
+                if locations[root] != Some(block) {
+                    continue;
+                }
+                let mut tree = Vec::new();
+                let mut leaves = Vec::new();
+                if !Self::collect_bitwise_reduction(
+                    func,
+                    root,
+                    block,
+                    &locations,
+                    &shared,
+                    &mut tree,
+                    &mut leaves,
+                ) || leaves.len() <= 16
+                {
+                    continue;
+                }
+                let Some(source) = locations[leaves[0]] else { continue };
+                if source == block
+                    || cfg.cyclic_blocks().contains(source)
+                    || !cfg.dominators().dominates(source, block)
+                    || leaves.iter().any(|&leaf| locations[leaf] != Some(source))
+                {
+                    continue;
+                }
+                let source_insts = &func.blocks[source].instructions;
+                let Some(last_gas) = source_insts
+                    .iter()
+                    .rposition(|&id| matches!(func.inst(id).kind, InstKind::Gas))
+                else {
+                    continue;
+                };
+                let Some(call) =
+                    source_insts.iter().enumerate().skip(last_gas + 1).find_map(|(index, &id)| {
+                        matches!(
+                            func.inst(id).kind.effect_kind(),
+                            crate::mir::EffectKind::ExternalCall
+                        )
+                        .then_some(index)
+                    })
+                else {
+                    continue;
+                };
+
+                // gas0, ..., gasN; call; and-tree(gas0, ..., gasN)
+                // gas0, ..., gasN; and-tree(gas0, ..., gasN); call
+                let mut moved = DenseBitSet::new_empty(func.num_insts());
+                for &id in &tree {
+                    moved.insert(id);
+                }
+                func.blocks[block].instructions.retain(|&id| !moved.contains(id));
+                for &id in &tree {
+                    locations[id] = Some(source);
+                }
+                func.blocks[source].instructions.splice(call..call, tree);
+                changed = true;
+            }
+        }
+        changed
+    }
+
+    fn collect_bitwise_reduction(
+        func: &Function,
+        root: InstId,
+        block: BlockId,
+        locations: &IndexVec<InstId, Option<BlockId>>,
+        shared: &DenseBitSet<InstId>,
+        tree: &mut Vec<InstId>,
+        leaves: &mut Vec<InstId>,
+    ) -> bool {
+        let mut seen = DenseBitSet::new_empty(func.num_insts());
+        let mut work = vec![(root, false)];
+        while let Some((inst, emit)) = work.pop() {
+            if emit {
+                tree.push(inst);
+                continue;
+            }
+            if !seen.insert(inst) || (inst != root && shared.contains(inst)) {
+                return false;
+            }
+            let instruction = func.inst(inst);
+            if matches!(instruction.kind, InstKind::Gas) {
+                leaves.push(inst);
+                continue;
+            }
+            if locations[inst] != Some(block)
+                || !matches!(
+                    instruction.kind,
+                    InstKind::And(..) | InstKind::Or(..) | InstKind::Xor(..)
+                )
+                || instruction
+                    .metadata
+                    .effect()
+                    .is_some_and(|effect| effect != crate::mir::EffectKind::Pure)
+            {
+                return false;
+            }
+            work.push((inst, true));
+            for operand in instruction.kind.operands() {
+                let Value::Inst(dependency) = func.value(operand) else { return false };
+                work.push((*dependency, false));
+            }
+        }
+        true
+    }
+
     /// Whether an instruction may move among other read-only instructions in the same segment.
     fn is_movable(inst: &Instruction) -> bool {
         if matches!(inst.kind, InstKind::Phi(_) | InstKind::Gas | InstKind::MSize) {

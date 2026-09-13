@@ -1,18 +1,27 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/mutual_recursive_yul_frames.sol:MutualRecursiveYulFrames ===
 @module MutualRecursiveYulFrames
-fn @encode(arg0: u256) -> (u256, u256, bytes32) [selector=0xdeb21fa2, pure, abi_params=[u256], abi_returns=[word, word, word]] {
+fn @encode(arg0: u256) -> (u256, u256, bytes32) [selector=0xdeb21fa2, unrestricted_memory, pure, abi_params=[u256], abi_returns=[word, word, word]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
-    v1 = icall @walk, 2, arg0, v0
+    v1 = icall @walk.2, 2, arg0, v0
     v2 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v3 = add v2, 32
-    v4 = mload v3
+    v4 = mload v3 !metadata(compiler_memory)
     v5 = sub v1, v0
     v6 = mload v0
     ret v5, v4, v6
 }
 
-fn @walk(arg0: u256, arg1: u256) -> (u256, u256) {
+fn @arithmetic(arg0: u256) -> (u256, u256) [selector=0x9381a585, pure, abi_params=[u256], abi_returns=[word, word]] {
+  bb0:
+    v0 = icall @walk.4, 2, arg0, 7
+    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v2 = add v1, 32
+    v3 = mload v2 !metadata(compiler_memory)
+    ret v0, v3
+}
+
+fn @walk.2(arg0: u256, arg1: u256) -> (u256, u256) [yul, unrestricted_memory] {
   bb0:
     v0 = iszero arg0
     v1 = eq v0, 0
@@ -21,10 +30,10 @@ fn @walk(arg0: u256, arg1: u256) -> (u256, u256) {
   bb2:
     jump bb3
   bb3:
-    v4 = icall @container, 2, arg0, arg1
+    v4 = icall @container.3, 2, arg0, arg1
     v5 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v6 = add v5, 32
-    v7 = mload v6
+    v7 = mload v6 !metadata(compiler_memory)
     ret v4, v7
   bb1:
     mstore8 arg1, 192
@@ -32,16 +41,71 @@ fn @walk(arg0: u256, arg1: u256) -> (u256, u256) {
     ret v3, 1
 }
 
-fn @container(arg0: u256, arg1: u256) -> (u256, u256) {
+fn @container.3(arg0: u256, arg1: u256) -> (u256, u256) [yul, unrestricted_memory] {
   bb0:
     v0 = add arg1, 1
     v1 = sub arg0, 1
-    v2 = icall @walk, 2, v1, v0
+    v2 = icall @walk.2, 2, v1, v0
     v3 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v4 = add v3, 32
-    v5 = mload v4
+    v5 = mload v4 !metadata(compiler_memory)
     v6 = add 160, arg0
     mstore8 arg1, v6
     v7 = add v5, 1
     ret v2, v7
+}
+
+fn @walk.4(arg0: u256, arg1: u256) -> (u256, u256) [yul] {
+  bb0:
+    switch arg0, default bb3, [0 => bb2]
+  bb2:
+    jump bb1
+  bb3:
+    v0 = icall @container.5, 2, arg0, arg1
+    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v2 = add v1, 32
+    v3 = mload v2 !metadata(compiler_memory)
+    jump bb1
+  bb1:
+    v4 = phi [bb2: arg1], [bb3: v0]
+    v5 = phi [bb2: 1], [bb3: v3]
+    ret v4, v5
+}
+
+fn @container.5(arg0: u256, arg1: u256) -> (u256, u256) [yul] {
+  bb0:
+    v0 = icall @addSteps, 1, arg0, arg1
+    v1 = sub arg0, 1
+    v2 = icall @walk.4, 2, v1, v0
+    v3 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v4 = add v3, 32
+    v5 = mload v4 !metadata(compiler_memory)
+    v6 = add v5, 1
+    ret v2, v6
+}
+
+fn @addSteps(arg0: u256, arg1: u256) -> u256 [yul] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg1], [bb3: v0]
+    v1 = phi [bb0: 0], [bb3: v8]
+    v2 = phi [bb0: arg0], [bb3: v2]
+    v3 = phi [bb0: arg1], [bb3: v7]
+    v4 = lt v1, v2
+    v5 = eq v4, 0
+    v6 = iszero v5
+    jumpi v6, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v3
+  bb4:
+    v7 = add v3, 1
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v8 = add v1, 1
+    jump bb1
 }

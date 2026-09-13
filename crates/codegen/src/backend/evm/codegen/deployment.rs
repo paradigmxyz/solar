@@ -69,8 +69,13 @@ impl<'gcx> EvmCodegen<'gcx> {
         // terminator, which executes them on every outgoing edge. Late CFG
         // passes can leave critical edges whose copies would clobber values
         // still live on a sibling edge, so give each such edge its own block.
-        for func in &mut module.functions {
-            Self::split_phi_critical_edges(func);
+        let call_graph = CallGraphInfo::new(module);
+        self.stack_only_memory_functions =
+            Self::collect_stack_only_memory_functions(module, &call_graph).into();
+        for (id, func) in module.functions.iter_mut_enumerated() {
+            let stack_phis = self.stack_only_memory_functions.contains(id)
+                || (func.attributes.is_yul && func.returns.len() > 1);
+            Self::split_phi_critical_edges(func, stack_phis);
         }
         if !matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
             for func in &mut module.functions {
@@ -82,8 +87,20 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         // Runtime and constructor emission inspect the same final MIR. Compute module-wide facts
         // once instead of rebuilding them for each artifact and caller-stack retry.
-        let call_graph = CallGraphInfo::new(module);
+        self.msize_observed_functions =
+            Self::collect_msize_observed_functions(module, &call_graph).into();
         self.heap_pointer_return_functions = Self::collect_heap_pointer_return_functions(module);
+        if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
+            for (id, func) in module.functions.iter_mut_enumerated() {
+                if self.stack_only_memory_functions.contains(id)
+                    || (func.attributes.is_yul && func.returns.len() > 1)
+                {
+                    // arg N (each use) -> one canonical arg N
+                    func.canonicalize_argument_uses();
+                }
+            }
+        }
+        self.spill_clobber_functions = self.collect_spill_clobber_functions(module).into();
         self.cold_functions = if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
             DenseBitSet::new_empty(module.functions.len())
         } else {
@@ -317,6 +334,46 @@ impl<'gcx> EvmCodegen<'gcx> {
         copy_base: u64,
         immutable_refs: &[ImmutableRef],
     ) -> PreparedDeploymentPrefix {
+        // Constructor and runtime ABI choices belong to separate emission attempts. Preserve
+        // constructor fallback decisions across retries, but do not inherit runtime decisions.
+        self.disabled_stack_only_functions.clear_to(module.functions.len());
+        let switch_gas_code_growth_remaining = self.switch_gas_code_growth_remaining;
+        loop {
+            self.switch_gas_code_growth_remaining = switch_gas_code_growth_remaining;
+            let disabled_stack_only_functions = self.disabled_stack_only_functions.count();
+            self.disabled_stack_only_at_attempt_start = self.disabled_stack_only_functions.clone();
+            let (constructor_arg_offset, runtime_offset) = self.emit_deployment_prefix(
+                module,
+                call_graph,
+                runtime_len,
+                copy_base,
+                immutable_refs,
+            );
+            if self.disabled_stack_only_functions.count() > disabled_stack_only_functions {
+                continue;
+            }
+            if let Some((ctor_id, _)) =
+                module.functions.iter_enumerated().find(|(_, f)| f.attributes.is_constructor)
+                && !self.stack_prefixes_fit_from(module, ctor_id, MAX_STACK_DEPTH)
+            {
+                self.report_stack_limit_error();
+            }
+            return PreparedDeploymentPrefix {
+                assembly: self.asm.prepare(self.capture_evm_ir, self.capture_debug_info),
+                constructor_arg_offset,
+                runtime_offset,
+            };
+        }
+    }
+
+    fn emit_deployment_prefix(
+        &mut self,
+        module: &Module,
+        call_graph: &CallGraphInfo,
+        runtime_len: usize,
+        copy_base: u64,
+        immutable_refs: &[ImmutableRef],
+    ) -> (Option<DeferredConst>, DeferredConst) {
         self.asm.clear();
         self.asm.set_artifact_kind(ArtifactKind::Constructor);
         self.asm.set_evm_ir_name(module.name.name);
@@ -335,6 +392,16 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
 
         let constructor_arg_offset = if let Some((ctor_id, ctor)) = constructor {
+            let internal_targets = call_graph.reachable_callees_from([ctor_id]);
+            // Deployment and runtime execute in separate EVM memory instances.
+            self.asm.require_source_memory(
+                std::iter::once(ctor_id)
+                    .chain(internal_targets.iter())
+                    .any(|id| module.functions[id].attributes.unrestricted_memory),
+            );
+            if module.immutable_count() != 0 && ctor.returns.is_empty() {
+                self.asm.require_private_memory();
+            }
             // Generate constructor bytecode
             // Clear state and generate function body
             self.block_labels.clear();
@@ -346,9 +413,14 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.static_frame_functions.clear_to(module.functions.len());
             self.static_call_abis.clear();
             self.runtime_stack_args = false;
-            // Constructor code has a separate call graph and is not part of
-            // the runtime prefix validation below.
-            self.preserve_caller_stack = false;
+            // Constructor prefixes have their own stack-depth check below.
+            self.preserve_caller_stack =
+                std::iter::once(ctor_id).chain(internal_targets.iter()).any(|id| {
+                    self.stack_only_memory_functions.contains(id)
+                        || (module.functions[id].attributes.is_yul
+                            && module.functions[id].returns.len() > 1)
+                        || !self.compute_spill_hazard_insts(&module.functions[id]).is_empty()
+                });
             self.static_frame_addr_consts.clear();
             self.external_spill_addr_consts.clear();
             self.pending_static_allocs.clear();
@@ -368,7 +440,32 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
 
-            let internal_targets = call_graph.reachable_callees_from(std::iter::once(ctor_id));
+            // Set constructor context for LoadArg handling.
+            self.in_constructor = true;
+            self.constructor_param_count = ctor.params.len() as u32;
+            if self.preserve_caller_stack {
+                for id in internal_targets.iter() {
+                    if !call_graph.is_recursive(id)
+                        && Self::static_frame_offsets_are_local(&module.functions[id])
+                    {
+                        self.static_frame_functions.insert(id);
+                    }
+                }
+                self.runtime_stack_args = true;
+                self.stack_returns_enabled = true;
+                let mut callers = internal_targets.clone();
+                callers.insert(ctor_id);
+                self.compute_stack_arg_masks(module, &callers);
+                let values = self.collect_canonical_stack_arg_values(module);
+                self.compute_resident_stack_args(module, &values, &callers);
+                let uses = self.collect_stack_arg_uses(module);
+                self.compute_lazy_stack_args(module, &values, &uses);
+                self.compute_direct_stack_args(module, &values, &uses);
+                self.compute_stack_return_plans(module);
+                self.compute_recursive_stack_abis(module, call_graph);
+                self.validate_memory_call_abis(module, &internal_targets);
+            }
+
             for func_id in &internal_targets {
                 let label = self.new_function_label(func_id);
                 self.function_labels.insert(func_id, label);
@@ -380,10 +477,6 @@ impl<'gcx> EvmCodegen<'gcx> {
             let constructor_fixed_memory_end = self.asm.new_deferred_const();
             let constructor_arg_offset =
                 (!ctor.params.is_empty()).then(|| self.asm.new_deferred_const());
-
-            // Set constructor context for LoadArg handling
-            self.in_constructor = true;
-            self.constructor_param_count = ctor.params.len() as u32;
 
             // Constructor args are appended after generated deployment bytecode.
             // Copy the complete blob above every fixed compiler-owned region,
@@ -397,7 +490,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.asm.emit_stack_op(StackOp::Dup(1));
                 self.asm.emit_push_deferred(arg_offset); // code offset
                 self.asm.emit_push_deferred(constructor_fixed_memory_end);
-                self.asm.emit_op(op::CODECOPY);
+                // This blob is ABI decoding input and backing for source memory objects.
+                // Scalar arguments reload immutable initcode when source assembly can
+                // overwrite the blob; it must not become a private scalar reload home.
+                self.asm.emit_source_op(op::CODECOPY);
 
                 self.asm.emit_push_deferred(constructor_fixed_memory_end);
                 self.asm.emit_op(op::ADD);
@@ -406,11 +502,11 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.asm.emit_push(U256::MAX - U256::from(EvmMemoryLayout::WORD_SIZE - 1));
                 self.asm.emit_op(op::AND);
                 self.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
-                self.asm.emit_op(op::MSTORE);
+                self.asm.emit_source_op(op::MSTORE);
             } else {
                 self.asm.emit_push_deferred(constructor_fixed_memory_end);
                 self.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
-                self.asm.emit_op(op::MSTORE);
+                self.asm.emit_source_op(op::MSTORE);
             }
 
             if !internal_targets.is_empty() {
@@ -425,9 +521,14 @@ impl<'gcx> EvmCodegen<'gcx> {
                     let label = self.function_labels[&func_id];
                     self.asm.define_label(label);
                     self.mark_debug_function_invoke(func);
+                    self.asm
+                        .require_source_memory(self.stack_only_memory_functions.contains(func_id));
+                    self.emit_stack_arg_prologue(func_id, func);
                     self.in_internal_function = true;
+                    self.current_internal_function = Some(func_id);
                     self.generate_function_body(func_id, func);
                     self.in_internal_function = false;
+                    self.current_internal_function = None;
                     self.record_function_spill_size(func_id);
                 }
 
@@ -441,21 +542,22 @@ impl<'gcx> EvmCodegen<'gcx> {
             let constructor_exit = self.asm.new_label();
             self.constructor_exit = Some(constructor_exit);
             self.mark_debug_function_invoke(ctor);
+            self.asm.require_source_memory(self.stack_only_memory_functions.contains(ctor_id));
             self.generate_function_body(ctor_id, ctor);
             let constructor_spill_size = self.record_function_spill_size(ctor_id);
-            self.asm.set_deferred_const(
-                constructor_fixed_memory_end,
-                U256::from(self.constructor_fixed_memory_end(
-                    module.immutable_count(),
-                    constructor_spill_size,
-                )),
-            );
+            let mut fixed_end =
+                self.constructor_fixed_memory_end(module.immutable_count(), constructor_spill_size);
+            for id in self.static_frame_functions.iter() {
+                for (&(function, offset), &(address, _)) in &self.static_frame_addr_consts {
+                    if function == id {
+                        self.asm.set_deferred_const(address, U256::from(fixed_end + offset));
+                    }
+                }
+                fixed_end += self.emitted_frame_size(module, id);
+            }
+            self.asm.set_deferred_const(constructor_fixed_memory_end, U256::from(fixed_end));
 
             self.resolve_pending_frame_size_consts(module);
-
-            if !self.stack_prefixes_fit_from(module, ctor_id, MAX_STACK_DEPTH) {
-                self.report_stack_limit_error();
-            }
 
             // Reset constructor context
             self.in_constructor = false;
@@ -470,6 +572,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             None
         };
 
+        self.asm.require_source_memory(false);
         self.emit_deployment_postlude(
             module,
             runtime_offset,
@@ -483,11 +586,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.asm.emit_push(U256::ZERO);
             self.asm.emit_op(op::REVERT);
         }
-        PreparedDeploymentPrefix {
-            assembly: self.asm.prepare(self.capture_evm_ir, self.capture_debug_info),
-            constructor_arg_offset,
-            runtime_offset,
-        }
+        (constructor_arg_offset, runtime_offset)
     }
 
     fn assemble_deployment_prefix(

@@ -3,6 +3,26 @@
 //! High-level MIR refers to memory objects, slices, and allocations without
 //! embedding these addresses. Inline assembly can still access the conventional
 //! words directly, so alias analysis and backend lowering share this policy.
+//!
+//! Compiler-owned memory must remain disjoint from source-accessible memory
+//! for the lifetime of the stored value. The free-memory pointer is writable
+//! source state; its current value alone does not establish ownership.
+//!
+//! Memory-safe assembly promises to respect source allocations, scratch space,
+//! and the heap boundary. Without that promise, we accept accesses proved to
+//! stay within scratch space and reads of the public free-memory pointer.
+//! Unknown ranges and writes to the allocator state supply no ownership proof.
+//! Their call context must keep compiler state on the stack and
+//! reject emission that still needs memory for frames, spills, return buffers,
+//! or immutable staging. Constructor and runtime memory have separate lifetimes.
+//! Textual MIR declares the same obligation with `unrestricted_memory`; raw
+//! memory instructions alone do not infer source ownership after HIR lowering.
+//!
+//! Physical MIR accesses to compiler-owned memory carry `compiler_memory`.
+//! This requirement survives operand substitution and cloning independently of
+//! alias facts and debug information. The MIR-to-EVM boundary checks both these
+//! accesses and memory operations introduced by stack scheduling. Removing an
+//! unused frame reservation is allowed; emitting an unchecked frame access is not.
 
 use crate::mir::{MemoryObjectKind, MemoryObjectLayout};
 
@@ -32,6 +52,8 @@ impl EvmMemoryLayout {
     /// EVM word size in bytes.
     pub(crate) const WORD_SIZE: u64 = 32;
     /// Scratch word used to publish ephemeral multi-return buffers.
+    /// The caller captures this pointer before source memory access or another call.
+    /// Source assembly may use the word outside that publication-to-capture interval.
     pub(crate) const MULTI_RETURN_BUFFER_PTR_SLOT: u64 = 0x20;
     /// Scratch word containing the free-memory pointer.
     pub(crate) const FMP_SLOT: u64 = 0x40;

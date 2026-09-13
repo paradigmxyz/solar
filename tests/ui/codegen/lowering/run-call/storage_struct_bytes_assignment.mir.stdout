@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_struct_bytes_assignment.sol:StorageStructBytesAssignment ===
 @module StorageStructBytesAssignment
-fn @roundTrip() -> (u256, u256) [selector=0x6643a628, abi_params=[], abi_returns=[word, word]] {
+fn @roundTrip() -> (u256, u256) [selector=0x6643a628, unrestricted_memory, abi_params=[], abi_returns=[word, word]] {
   bb0:
     v0 = not 31
     v1 = and 159, v0

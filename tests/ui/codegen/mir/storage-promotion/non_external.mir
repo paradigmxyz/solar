@@ -23,3 +23,79 @@ fn @non_external() {
   bb4:
     stop
 }
+
+// CHECK-LABEL: @unrestricted_entry
+// CHECK-NOT: + {{.*}}mstore
+// CHECK: sstore 0, 1
+// CHECK: [[LOAD:v[0-9]+]] = sload 0
+// CHECK: [[VALUE:v[0-9]+]] = mul [[LOAD]], 2
+// CHECK: sstore 0, [[VALUE]]
+fn @unrestricted_entry() [selector=1, unrestricted_memory] {
+  bb0:
+    jump bb1
+  bb1:
+    sstore 0, 1
+    jump bb2
+  bb2:
+    jumpi true, bb3, bb4
+  bb3:
+    v0 = sload 0
+    v1 = mul v0, 2
+    sstore 0, v1
+    jump bb2
+  bb4:
+    stop
+}
+
+// CHECK-LABEL: @indirect_unrestricted_entry
+// CHECK-NOT: + {{.*}}mstore
+// CHECK: sstore 0, 1
+// CHECK: [[LOAD:v[0-9]+]] = sload 0
+// CHECK: [[VALUE:v[0-9]+]] = mul [[LOAD]], 2
+// CHECK: sstore 0, [[VALUE]]
+fn @indirect_unrestricted_entry() [selector=2] {
+  bb0:
+    icall @bridge, 0
+    jump bb1
+  bb1:
+    sstore 0, 1
+    jump bb2
+  bb2:
+    jumpi true, bb3, bb4
+  bb3:
+    v0 = sload 0
+    v1 = mul v0, 2
+    sstore 0, v1
+    jump bb2
+  bb4:
+    stop
+}
+
+fn @bridge() {
+  bb0:
+    icall @unrestricted_leaf, 0
+    stop
+}
+
+fn @unrestricted_leaf() [unrestricted_memory] {
+  bb0:
+    stop
+}
+
+// CHECK-LABEL: @independent_entry
+// CHECK: +     mstore [[TEMP:[0-9]+]], 1 !metadata(compiler_memory)
+// CHECK: +     [[LOAD:v[0-9]+]] = mload [[TEMP]] !metadata(compiler_memory)
+fn @independent_entry() [selector=3] {
+  bb0:
+    sstore 0, 1
+    jump bb1
+  bb1:
+    jumpi true, bb2, bb3
+  bb2:
+    v0 = sload 0
+    v1 = mul v0, 2
+    sstore 0, v1
+    jump bb1
+  bb3:
+    stop
+}

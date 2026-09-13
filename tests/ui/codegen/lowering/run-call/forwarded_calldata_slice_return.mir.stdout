@@ -26,9 +26,9 @@ fn @delegate(arg0: calldataslice) -> (address, memorybytes) [selector=0x0ccfac9e
     v0 = icall @_delegate, 2, arg0
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 32
-    v3 = mload v2
+    v3 = mload v2 !metadata(compiler_memory)
     v4 = add v1, 64
-    v5 = mload v4
+    v5 = mload v4 !metadata(compiler_memory)
     v6 = make_calldata_slice v3, v5
     v7 = slice_len v6
     v8 = add v7, 63
@@ -64,11 +64,11 @@ fn @single(arg0: calldataslice) -> (address, u256, memorybytes) [selector=0xd61d
     v0 = icall @_single, 3, arg0
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 32
-    v3 = mload v2
+    v3 = mload v2 !metadata(compiler_memory)
     v4 = add v1, 64
-    v5 = mload v4
+    v5 = mload v4 !metadata(compiler_memory)
     v6 = add v1, 96
-    v7 = mload v6
+    v7 = mload v6 !metadata(compiler_memory)
     v8 = make_calldata_slice v5, v7
     v9 = slice_len v8
     v10 = add v9, 63
@@ -104,11 +104,11 @@ fn @nested(arg0: calldataslice) -> (address, u256, memorybytes) [selector=0xb26b
     v0 = icall @_nested, 3, arg0
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 32
-    v3 = mload v2
+    v3 = mload v2 !metadata(compiler_memory)
     v4 = add v1, 64
-    v5 = mload v4
+    v5 = mload v4 !metadata(compiler_memory)
     v6 = add v1, 96
-    v7 = mload v6
+    v7 = mload v6 !metadata(compiler_memory)
     v8 = make_calldata_slice v5, v7
     v9 = slice_len v8
     v10 = add v9, 63
@@ -145,11 +145,11 @@ fn @_nested(arg0: calldataslice) -> (address, u256, calldataslice) [pure] {
     v1 = icall @_single, 3, arg0
     v2 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v3 = add v2, 32
-    v4 = mload v3
+    v4 = mload v3 !metadata(compiler_memory)
     v5 = add v2, 64
-    v6 = mload v5
+    v6 = mload v5 !metadata(compiler_memory)
     v7 = add v2, 96
-    v8 = mload v7
+    v8 = mload v7 !metadata(compiler_memory)
     v9 = make_calldata_slice v6, v8
     ret v1, v4, v9
 }
@@ -171,7 +171,7 @@ fn @nestedSlices(arg0: calldataslice) -> (u256, address) [selector=0xb12341a6, p
     v0 = icall @_parseSlices, 2, arg0
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 32
-    v3 = mload v2
+    v3 = mload v2 !metadata(compiler_memory)
     ret v0, v3
 }
 
@@ -180,9 +180,9 @@ fn @_parseSlices(arg0: calldataslice) -> (u256, address) [pure] {
     v0 = icall @_tryParseSlices, 3, arg0
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 32
-    v3 = mload v2
+    v3 = mload v2 !metadata(compiler_memory)
     v4 = add v1, 64
-    v5 = mload v4
+    v5 = mload v4 !metadata(compiler_memory)
     v6 = iszero v0
     jumpi v6, bb1, bb2
   bb2:
@@ -191,14 +191,14 @@ fn @_parseSlices(arg0: calldataslice) -> (u256, address) [pure] {
     revert 0, 0
 }
 
-fn @_tryParseSlices(arg0: calldataslice) -> (bool, u256, address) [pure] {
+fn @_tryParseSlices(arg0: calldataslice) -> (bool, u256, address) [unrestricted_memory, pure] {
   bb0:
     v0 = icall @_splitSlices, 4, arg0
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 32
-    v3 = mload v2
-    v4 = memory_object_load_element memoryfixedarray<4, 1>, v1, 2
-    v5 = memory_object_load_element memoryfixedarray<4, 1>, v1, 3
+    v3 = mload v2 !metadata(compiler_memory)
+    v4 = memory_object_load_element<memorybytes> memoryfixedarray<4, 1>, v1, 2 !metadata(compiler_memory)
+    v5 = memory_object_load_element<memorybytes> memoryfixedarray<4, 1>, v1, 3 !metadata(compiler_memory)
     v6 = memory_object_len memorybytes, v4
     v7 = lt 0, v6
     v8 = iszero v7

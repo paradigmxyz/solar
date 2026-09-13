@@ -12,7 +12,7 @@ fn @second(arg0: bool) -> u256 [selector=0xc04a1ee8, pure, abi_params=[bool], ab
     ret v0
 }
 
-fn @storeAtDerivedAddress(arg0: u256, arg1: bool) -> u256 [pure] {
+fn @storeAtDerivedAddress(arg0: u256, arg1: bool) -> u256 [unrestricted_memory, pure] {
   bb0:
     v0 = add arg0, 32
     jumpi arg1, bb1, bb2

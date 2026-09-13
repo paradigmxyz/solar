@@ -186,7 +186,7 @@ fn @liveTwo() -> u256 [selector=0xa9b44a2a, abi_params=[], abi_returns=[word]] {
     v19 = abi_decode [u256, u256], v17
     v20 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v21 = add v20, 32
-    v22 = mload v21
+    v22 = mload v21 !metadata(compiler_memory)
     v23 = add v19, v22
     v24 = lt v23, v19
     jumpi v24, bb8, bb9

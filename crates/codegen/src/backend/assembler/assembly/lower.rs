@@ -200,15 +200,18 @@ fn lower_evm_ir_once(
         program.set_modifier_depth(block_modifier_depth);
         let original = block.label as usize;
         if let Some(function) = block.metadata.function_invoke {
-            debug_assert!(
-                pending_block_invoke.is_none() || pending_block_invoke == Some(function),
-                "an instruction-free block cannot enter two functions"
-            );
-            pending_block_invoke = Some(function);
+            // NOTE: Distinct entries in an instruction-free chain cannot share one activation
+            // event. Keep that event unknown until an instruction is emitted; debug metadata
+            // must not force a label or jump into the executable stream.
+            pending_block_invoke = Some(match pending_block_invoke {
+                None => Some(function),
+                Some(Some(previous)) if previous == function => Some(function),
+                _ => None,
+            });
         }
         if let Some(label) = labels.get(original).copied().flatten() {
             program.define_label(label);
-            program.mark_last_function_invoke(pending_block_invoke.take());
+            program.mark_last_function_invoke(pending_block_invoke.take().flatten());
         }
 
         for inst in &block.instructions {
@@ -217,7 +220,7 @@ fn lower_evm_ir_once(
             let first = program.instructions.len();
             lower_instruction(assembler, &mut program, inst, module, labels);
             if first < program.instructions.len() {
-                if let Some(function) = pending_block_invoke.take() {
+                if let Some(function) = pending_block_invoke.take().flatten() {
                     program.set_function_invoke(first, Some(function));
                 }
                 if let Some(function) = inst.metadata.function_invoke() {
@@ -244,7 +247,7 @@ fn lower_evm_ir_once(
             // unknown, not an event on the preceding instruction. Do not retain
             // a jump or change layout just to preserve this debug information.
             if first < program.instructions.len() {
-                if let Some(function) = pending_block_invoke.take() {
+                if let Some(function) = pending_block_invoke.take().flatten() {
                     program.set_function_invoke(first, Some(function));
                 }
                 if let Some(function) = terminator.metadata.function_invoke() {
@@ -445,9 +448,45 @@ pub(super) fn label_for_block(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::backend::evm::ir::Block;
-    use solar_interface::{Session, sym};
+    use crate::backend::evm::{DebugFunction, ir::Block};
+    use solar_interface::{Session, Span, sym};
     use solar_sema::Compiler;
+
+    #[test]
+    fn instruction_free_function_entries_do_not_change_code() {
+        let first = DebugFunction { identifier: sym::module, declaration: Span::DUMMY };
+        let second = DebugFunction { identifier: sym::word, declaration: Span::DUMMY };
+        let compiler = Compiler::new(Session::builder().opts(Default::default()).build());
+        compiler.enter(|c| {
+            for middle in [first, second] {
+                let mut module = ir::Module::new(sym::module);
+                let entry = module.add_block(Block::new(0));
+                let empty = module.add_block(Block::new(1));
+                let terminal = module.add_block(Block::new(2));
+                // entry(first) -> empty(middle) -> terminal(first)
+                module.blocks[entry].metadata.function_invoke = Some(first);
+                module.blocks[entry].terminator =
+                    Some(ir::Terminator::new(ir::TerminatorKind::Jump(empty)));
+                module.blocks[empty].metadata.function_invoke = Some(middle);
+                module.blocks[empty].terminator =
+                    Some(ir::Terminator::new(ir::TerminatorKind::Jump(terminal)));
+                module.blocks[terminal].metadata.function_invoke = Some(first);
+                module.blocks[terminal].terminator =
+                    Some(ir::Terminator::new(ir::TerminatorKind::Op(op::INVALID)));
+
+                let mut assembler = Assembler::new(c.gcx());
+                let mut labels = Vec::new();
+                let plain = lower_evm_ir(&mut assembler, &mut module, &mut labels, false);
+                let captured = lower_evm_ir(&mut assembler, &mut module, &mut labels, true);
+                assert_eq!(plain.instructions, captured.instructions);
+                assert!(plain.function_invokes.is_none());
+                assert_eq!(
+                    captured.function_invokes,
+                    Some(vec![(middle == first).then_some(first)])
+                );
+            }
+        });
+    }
 
     #[test]
     fn finalized_ir_does_not_retain_builder_labels() {

@@ -31,7 +31,7 @@ fn @echoArray(arg0: memoryarray) -> memoryarray [selector=0xb4b16456, pure, abi_
     ret arg0
 }
 
-fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
+fn @run() -> u256 [selector=0xc0406226, unrestricted_memory, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = address
     v1 = shl 32, v0

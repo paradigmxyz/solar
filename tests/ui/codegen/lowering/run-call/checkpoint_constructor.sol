@@ -1,6 +1,7 @@
 //@ codegen-matrix: standard
 //@ run-call: CheckpointConstructor::deploy => 5090
 //@ run-call: CheckpointConstructor::multiReturn => 18
+//@ run-call: CheckpointConstructor::lookup => 4660
 
 library PackedCheckpoints {
     struct Trace {
@@ -29,6 +30,26 @@ library PackedCheckpoints {
         }
     }
 
+    function lowerLookup(Trace storage self, uint96 key) internal view returns (uint160) {
+        uint256 length = self.checkpoints.length;
+        uint256 index = lowerBinaryLookup(self.checkpoints, key, 0, length);
+        return index == length ? 0 : unsafeAccess(self.checkpoints, index).value;
+    }
+
+    function lowerBinaryLookup(Checkpoint[] storage self, uint96 key, uint256 low, uint256 high)
+        private view returns (uint256)
+    {
+        while (low < high) {
+            uint256 mid = (low & high) + (low ^ high) / 2;
+            if (unsafeAccess(self, mid).key < key) {
+                low = mid + 1;
+            } else {
+                high = mid;
+            }
+        }
+        return high;
+    }
+
     function unsafeAccess(Checkpoint[] storage self, uint256 index)
         private
         pure
@@ -48,6 +69,7 @@ contract CheckpointTarget {
 
     uint256[6] private unused;
     PackedCheckpoints.Trace private checkpoints;
+    PackedCheckpoints.Trace private otherCheckpoints;
     uint96 private immutable offset;
 
     constructor(uint96[] memory batches, address receiver, uint96 startingId) {
@@ -55,6 +77,7 @@ contract CheckpointTarget {
         for (uint256 i; i < batches.length; ++i) {
             mint(receiver, batches[i]);
         }
+        assembly { mstore(0x40, 0x80) }
     }
 
     function mint(address receiver, uint96 batch) private returns (uint96 next) {
@@ -73,6 +96,11 @@ contract CheckpointTarget {
         (, key,) = checkpoints.latest();
     }
 
+    function lookup(uint96 key, bool useOther) external view returns (uint160) {
+        PackedCheckpoints.Trace storage selected = useOther ? otherCheckpoints : checkpoints;
+        return selected.lowerLookup(key);
+    }
+
     function next() external view returns (uint96) {
         return nextId();
     }
@@ -84,6 +112,16 @@ contract CheckpointConstructor {
         batches[0] = 3922;
         batches[1] = 6;
         return new CheckpointTarget(batches, address(0x1234), 1163).latestKey();
+    }
+
+    function lookup() external returns (uint160) {
+        uint96[] memory batches = new uint96[](2);
+        batches[0] = 3922;
+        batches[1] = 6;
+        CheckpointTarget target = new CheckpointTarget(batches, address(0x1234), 1163);
+        require(target.lookup(5091, false) == 0);
+        require(target.lookup(5085, true) == 0);
+        return target.lookup(5085, false);
     }
 
     function multiReturn() external returns (uint8) {

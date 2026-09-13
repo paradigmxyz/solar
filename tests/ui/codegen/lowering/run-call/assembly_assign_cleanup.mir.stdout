@@ -113,7 +113,7 @@ fn @readRaw(arg0: u8) -> u256 [pure] {
     ret arg0
 }
 
-fn @memoryStoreCleanup() -> u256 [selector=0xa32f54c2, pure, abi_params=[], abi_returns=[word]] {
+fn @memoryStoreCleanup() -> u256 [selector=0xa32f54c2, unrestricted_memory, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = not 0
     v1 = alloc memoryarray<1>, exact, zeroed, panic, 64

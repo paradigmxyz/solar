@@ -43,3 +43,13 @@ fn @copy_object(arg0: memorybytes, arg1: memorybytes, arg2: u256) {
     memory_object_copy memorybytes, arg0, memorybytes, arg1, arg2
     stop
 }
+
+// CHECK-LABEL: {{^[ +].*}}fn @typed_loads{{[( ]}}
+// CHECK: memory_object_load_field<memorybytes> memorystruct<1>, arg0, 0
+// CHECK: memory_object_load_element<memorybytes> memoryfixedarray<2, 1>, arg1, 1
+fn @typed_loads(arg0: memorystruct, arg1: memoryfixedarray) -> memorybytes {
+  bb0:
+    v2 = memory_object_load_field<memorybytes> memorystruct<1>, arg0, 0
+    v3 = memory_object_load_element<memorybytes> memoryfixedarray<2, 1>, arg1, 1
+    ret v3
+}

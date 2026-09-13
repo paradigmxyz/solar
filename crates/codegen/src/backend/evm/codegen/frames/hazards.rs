@@ -2,14 +2,215 @@
 
 use super::{
     super::{
-        AliasAnalysis, DenseBitSet, EvmCodegen, EvmMemoryLayout, Function, FunctionId, FxHashMap,
-        FxHashSet, InstId, InstKind, MemoryBase, MemoryRegion, MirType, Module, Terminator, U256,
-        Value, ValueId,
+        AliasAnalysis, ArgIdx, CallGraphInfo, DenseBitSet, EffectKind, EvmCodegen, EvmMemoryLayout,
+        Function, FunctionId, FxHashMap, FxHashSet, IndexVec, InstId, InstKind, MemoryBase,
+        MemoryRegion, MirType, Module, Terminator, U256, Value, ValueId,
     },
     SPILL_HAZARD_BOUND,
 };
 
 impl<'gcx> EvmCodegen<'gcx> {
+    /// Finds functions whose temporary memory expansion could reach an `msize` observation.
+    /// Internal callers, callees, and sibling calls share memory. Separate dispatcher arms do
+    /// not, so the synthetic dispatcher is excluded from the roots. The order of calls and
+    /// observations is deliberately conservative.
+    pub(in crate::backend::evm::codegen) fn collect_msize_observed_functions(
+        module: &Module,
+        call_graph: &CallGraphInfo,
+    ) -> DenseBitSet<FunctionId> {
+        let mut observers = DenseBitSet::new_empty(module.functions.len());
+        for (id, func) in module.functions.iter_enumerated() {
+            if func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::MSize)) {
+                observers.insert(id);
+            }
+        }
+        let mut observed = observers.clone();
+        if observers.is_empty() {
+            return observed;
+        }
+        for id in module.functions.indices() {
+            if Some(id) == module.dispatch_entry() {
+                continue;
+            }
+            let mut reachable = call_graph.reachable_callees_from([id]);
+            reachable.insert(id);
+            if observers.iter().any(|observer| reachable.contains(observer)) {
+                observed.union(&reachable);
+            }
+        }
+        observed
+    }
+
+    /// Propagates low-memory clobbers that can return to an internal caller. A copy followed
+    /// only by revert/returndata exits the entire call and cannot invalidate caller live-outs.
+    pub(in crate::backend::evm::codegen) fn collect_spill_clobber_functions(
+        &mut self,
+        module: &Module,
+    ) -> DenseBitSet<FunctionId> {
+        self.spill_clobber_args.clear();
+        let mut clobbers = DenseBitSet::new_empty(module.functions.len());
+        let mut direct_args = IndexVec::<FunctionId, _>::with_capacity(module.functions.len());
+        let mut callees = IndexVec::<FunctionId, Vec<(FunctionId, Option<InstId>)>>::with_capacity(
+            module.functions.len(),
+        );
+        for (id, func) in module.functions.iter_enumerated() {
+            let mut returning = DenseBitSet::new_empty(func.blocks.len());
+            let mut pending = func
+                .blocks
+                .iter_enumerated()
+                .filter_map(|(id, block)| {
+                    matches!(
+                        block.terminator,
+                        Some(
+                            Terminator::Return { .. }
+                                | Terminator::Stop
+                                | Terminator::TailCall { .. }
+                        )
+                    )
+                    .then_some(id)
+                })
+                .collect::<Vec<_>>();
+            while let Some(block) = pending.pop() {
+                if returning.insert(block) {
+                    pending.extend(func.blocks[block].predecessors.iter().copied());
+                }
+            }
+            let hazards = self.compute_spill_hazard_insts(func);
+            let aa = AliasAnalysis::new(func);
+            let mut returning_callees = Vec::new();
+            let mut clobber_args = DenseBitSet::new_empty(func.params.len());
+            let mut only_args = true;
+            for block in returning.iter() {
+                for &inst in &func.blocks[block].instructions {
+                    if hazards.contains(&inst) {
+                        clobbers.insert(id);
+                        if let Some(dest) = Self::dynamic_spill_write_dest(func, inst)
+                            && let Some(args) = self.spill_destination_args(func, &aa, dest)
+                        {
+                            clobber_args.union(&args);
+                        } else {
+                            only_args = false;
+                        }
+                    }
+                    if let InstKind::ICall { function, .. } = func.inst(inst).kind {
+                        returning_callees.push((function, Some(inst)));
+                    }
+                }
+                if let Some(Terminator::TailCall { function, .. }) = func.blocks[block].terminator {
+                    returning_callees.push((function, None));
+                }
+            }
+            if clobbers.contains(id) && only_args && returning_callees.is_empty() {
+                self.spill_clobber_args.insert(id, clobber_args.clone());
+            }
+            direct_args.push(only_args.then_some(clobber_args));
+            callees.push(returning_callees);
+        }
+        loop {
+            let mut changed = false;
+            for (id, callees) in callees.iter_enumerated() {
+                if callees.iter().any(|&(callee, inst)| {
+                    clobbers.contains(callee)
+                        && inst.is_none_or(|inst| {
+                            self.call_may_clobber_spills(&module.functions[id], inst)
+                        })
+                }) {
+                    changed |= clobbers.insert(id);
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+        loop {
+            let mut changed = false;
+            for (id, calls) in callees.iter_enumerated() {
+                if !clobbers.contains(id) || self.spill_clobber_args.contains_key(&id) {
+                    continue;
+                }
+                let Some(mut args) = direct_args[id].clone() else { continue };
+                let func = &module.functions[id];
+                let aa = AliasAnalysis::new(func);
+                let known = calls.iter().all(|&(callee, inst)| {
+                    if !clobbers.contains(callee) {
+                        return true;
+                    }
+                    let Some(destinations) = self.spill_clobber_args.get(&callee) else {
+                        return false;
+                    };
+                    let Some(inst) = inst else { return false };
+                    let InstKind::ICall { args: actuals, .. } = &func.inst(inst).kind else {
+                        return false;
+                    };
+                    destinations.iter().all(|arg| {
+                        if let Some(&dest) = actuals.get(arg.index())
+                            && let Some(required) = self.spill_destination_args(func, &aa, dest)
+                        {
+                            args.union(&required);
+                            true
+                        } else {
+                            false
+                        }
+                    })
+                });
+                if known {
+                    self.spill_clobber_args.insert(id, args);
+                    changed = true;
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+        clobbers
+    }
+
+    /// Finds a sufficient set of heap-pointer arguments for a symbolic destination.
+    /// Start with every argument, then remove assumptions whose absence still proves the pointer.
+    fn spill_destination_args(
+        &self,
+        func: &Function,
+        aa: &AliasAnalysis,
+        dest: ValueId,
+    ) -> Option<DenseBitSet<ArgIdx>> {
+        let mut args = DenseBitSet::new_filled(func.params.len());
+        let prove = |args: &DenseBitSet<ArgIdx>| {
+            let mut visiting = DenseBitSet::new_empty(func.num_values());
+            let mut memo = FxHashMap::default();
+            Self::heap_pointer_provenance_with_helpers(
+                func,
+                aa,
+                dest,
+                &self.heap_pointer_return_functions,
+                Some(args),
+                &mut visiting,
+                &mut memo,
+            ) == Some(true)
+        };
+        if !prove(&args) {
+            return None;
+        }
+        for arg in args.iter().collect::<Vec<_>>() {
+            args.remove(arg);
+            if !prove(&args) {
+                args.insert(arg);
+            }
+        }
+        Some(args)
+    }
+
+    /// A copy helper only clobbers its destination arguments. Prove those actuals
+    /// are heap pointers before propagating its low-memory hazard into a caller.
+    fn call_may_clobber_spills(&self, func: &Function, inst: InstId) -> bool {
+        let InstKind::ICall { function, args, .. } = &func.inst(inst).kind else { return true };
+        let Some(destinations) = self.spill_clobber_args.get(function) else { return true };
+        let aa = AliasAnalysis::new(func);
+        destinations.iter().any(|arg| {
+            args.get(arg.index())
+                .is_none_or(|&dest| self.write_dest_may_reach_spills(func, &aa, dest))
+        })
+    }
+
     /// Returns the destination of a symbolic memory write that can cover a
     /// compiler spill slot. Constant ranges are handled by the static memory
     /// high-water mark instead.
@@ -49,11 +250,12 @@ impl<'gcx> EvmCodegen<'gcx> {
                 // `returndatacopy(_, returndatasize(), n)` is an OOG guard:
                 // `n == 0` writes nothing, while every nonzero length is out
                 // of bounds and traps before memory is modified.
-                let starts_at_end = matches!(
-                    func.value(offset),
-                    Value::Inst(inst) if matches!(func.inst(*inst).kind, InstKind::ReturnDataSize)
-                );
-                if starts_at_end { None } else { dynamic_range(dest, size) }
+                let starts_at_end = Self::is_current_returndata_size(func, offset, inst_id);
+                if starts_at_end || Self::returndata_copy_below_spills(func, inst_id, dest) {
+                    None
+                } else {
+                    dynamic_range(dest, size)
+                }
             }
             InstKind::Call { ret_offset: dest, ret_size: size, .. }
             | InstKind::CallCode { ret_offset: dest, ret_size: size, .. }
@@ -65,6 +267,87 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             _ => None,
         }
+    }
+
+    /// Proves that a guarded return-data buffer cannot reach spill slots. Only a direct
+    /// switch predecessor is considered, and neither block may replace the observed buffer.
+    fn returndata_copy_below_spills(func: &Function, copy: InstId, dest: ValueId) -> bool {
+        let Some(dest) = func.value_u64(dest) else { return false };
+        let Some((block_id, block, position)) =
+            func.blocks.iter_enumerated().find_map(|(id, block)| {
+                block
+                    .instructions
+                    .iter()
+                    .position(|&inst| inst == copy)
+                    .map(|position| (id, block, position))
+            })
+        else {
+            return false;
+        };
+        let [predecessor] = block.predecessors.as_slice() else { return false };
+        let predecessor = &func.blocks[*predecessor];
+        let Some(Terminator::Switch { value, default, cases }) = &predecessor.terminator else {
+            return false;
+        };
+        if *default == block_id
+            || !Self::returndata_size_is_current(func, *value, &predecessor.instructions)
+            || block.instructions[..position]
+                .iter()
+                .any(|&inst| Self::replaces_returndata(func, inst))
+        {
+            return false;
+        }
+        let mut matched = false;
+        for &(value, target) in cases {
+            if target == block_id {
+                matched = true;
+                if func
+                    .value_u64(value)
+                    .and_then(|size| dest.checked_add(size))
+                    .is_none_or(|end| end > EvmMemoryLayout::HEAP_START)
+                {
+                    return false;
+                }
+            }
+        }
+        matched
+    }
+
+    /// Proves that a size observation still describes the current return-data buffer.
+    /// Restrict the proof to one block; calls and creations can replace that buffer.
+    fn is_current_returndata_size(func: &Function, value: ValueId, before: InstId) -> bool {
+        func.blocks.iter().any(|block| {
+            block.instructions.iter().position(|&inst| inst == before).is_some_and(|position| {
+                Self::returndata_size_is_current(func, value, &block.instructions[..position])
+            })
+        })
+    }
+
+    fn returndata_size_is_current(
+        func: &Function,
+        value: ValueId,
+        instructions: &[InstId],
+    ) -> bool {
+        let Value::Inst(definition) = func.value(value) else { return false };
+        if !matches!(func.inst(*definition).kind, InstKind::ReturnDataSize) {
+            return false;
+        }
+        for &inst in instructions.iter().rev() {
+            if inst == *definition {
+                return true;
+            }
+            if Self::replaces_returndata(func, inst) {
+                return false;
+            }
+        }
+        false
+    }
+
+    fn replaces_returndata(func: &Function, inst: InstId) -> bool {
+        matches!(
+            func.inst(inst).kind.effect_kind(),
+            EffectKind::ExternalCall | EffectKind::ICall | EffectKind::Create
+        )
     }
 
     /// Returns a conservative upper bound for a small integer expression.
@@ -103,7 +386,13 @@ impl<'gcx> EvmCodegen<'gcx> {
         &self,
         func: &Function,
     ) -> FxHashSet<InstId> {
-        let mut hazards = FxHashSet::default();
+        let mut hazards = func
+            .instructions()
+            .filter(|&inst| {
+                matches!(func.inst(inst).kind, InstKind::ICall { function, .. }
+                if self.spill_clobber_functions.contains(function) && self.call_may_clobber_spills(func, inst))
+            })
+            .collect::<FxHashSet<_>>();
         let candidates = func
             .instructions()
             .filter_map(|inst_id| {
@@ -192,6 +481,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     &aa,
                     values[0],
                     &no_helpers,
+                    None,
                     &mut visiting,
                     &mut memo,
                 ) != Some(true)
@@ -223,6 +513,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             aa,
             value,
             &self.heap_pointer_return_functions,
+            None,
             visiting,
             memo,
         )
@@ -233,6 +524,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         aa: &AliasAnalysis,
         value: ValueId,
         helper_returns: &DenseBitSet<FunctionId>,
+        heap_args: Option<&DenseBitSet<ArgIdx>>,
         visiting: &mut DenseBitSet<ValueId>,
         memo: &mut FxHashMap<ValueId, bool>,
     ) -> Option<bool> {
@@ -244,7 +536,12 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
 
         let aligned_mask = |value: ValueId| {
-            func.value_u256(value).is_some_and(|mask| {
+            let mask = func.value_u256(value).or_else(|| {
+                let Value::Inst(inst) = func.value(value) else { return None };
+                let InstKind::Not(operand) = func.inst(*inst).kind else { return None };
+                func.value_u256(operand).map(|value| !value)
+            });
+            mask.is_some_and(|mask| {
                 mask == U256::MAX - U256::from(31)
                     || mask == U256::from(u64::MAX.saturating_sub(31))
             })
@@ -255,6 +552,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 aa,
                 value,
                 helper_returns,
+                heap_args,
                 visiting,
                 memo,
             )
@@ -264,8 +562,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             .memory_address(func, value)
             .and_then(|address| matches!(address.region, MemoryRegion::Heap).then_some(true))
             .or_else(|| {
-                if matches!(func.value(value), Value::Arg(_))
-                    && func.value_ty(value).is_some_and(MirType::is_memory_reference)
+                if let Value::Arg(arg) = func.value(value)
+                    && (func.value_ty(value).is_some_and(MirType::is_memory_reference)
+                        || heap_args.is_some_and(|args| args.contains(*arg)))
                 {
                     return Some(true);
                 }

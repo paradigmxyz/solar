@@ -178,9 +178,9 @@ fn @full() [selector=0xd17b272f, view] {
     v173 = add v12, 32
     returndatacopy v173, 0, v7
     v55 = icall @decode_aggregate.4, 2, v12
-    v172 = mload 32 !metadata(memory=scratch)
+    v172 = mload 32 !metadata(memory=scratch, compiler_memory)
     v176 = add v172, 32
-    v16 = mload v176
+    v16 = mload v176 !metadata(compiler_memory)
     v74 = mload 64 !metadata(memory=scratch)
     v75 = add v74, 64
     mstore v74, v55

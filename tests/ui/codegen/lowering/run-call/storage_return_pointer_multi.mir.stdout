@@ -10,7 +10,7 @@ fn @test() -> u256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
     v0 = icall @refs, 2
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 32
-    v3 = mload v2
+    v3 = mload v2 !metadata(compiler_memory)
     v4 = sload v0 !metadata(storage=symbolic(v0))
     v5 = gt v4, 0xffffffffffffffff
     jumpi v5, bb1, bb2

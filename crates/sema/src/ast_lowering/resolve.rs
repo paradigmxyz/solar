@@ -16,6 +16,116 @@ use std::fmt;
 
 pub(crate) use crate::hir::Res;
 
+/// Recognizes the legacy marker after the scanner's documentation normalization.
+fn legacy_memory_safe_annotation(sess: &Session, docs: &ast::DocComments<'_>) -> bool {
+    let Some(last) = docs.last() else { return false };
+    // The scanner retains the last block comment or contiguous group of line comments.
+    let mut first = docs.len() - 1;
+    if last.kind == ast::CommentKind::Line {
+        while first > 0 && docs[first - 1].kind == ast::CommentKind::Line {
+            let gap = Span::new(docs[first - 1].span.hi(), docs[first].span.lo());
+            if !sess.source_map().span_to_snippet(gap).is_ok_and(|gap| {
+                gap.strip_prefix("\r\n")
+                    .or_else(|| gap.strip_prefix(['\n', '\r']))
+                    .is_some_and(|indent| indent.bytes().all(|byte| matches!(byte, b' ' | b'\t')))
+            }) {
+                break;
+            }
+            first -= 1;
+        }
+    }
+    let mut normalized = String::new();
+    if last.kind == ast::CommentKind::Block {
+        normalized = normalize_block_documentation(last.symbol.as_str());
+    } else {
+        for doc in &docs[first..] {
+            let text = doc.symbol.as_str();
+            let text = text.trim_end_matches(['\n', '\r']);
+            // Empty continuation comments do not introduce a line in the scanner's literal.
+            if text.is_empty() {
+                continue;
+            }
+            if !normalized.is_empty() {
+                normalized.push('\n');
+            }
+            normalized.push_str(text);
+        }
+    }
+    contains_memory_safe_tag(&normalized)
+}
+
+/// Applies the Solidity scanner's continuation and closing-delimiter rules.
+fn normalize_block_documentation(text: &str) -> String {
+    // The stored symbol omits the delimiter, whose first star affects continuation joining.
+    let mut input = text.chars().chain("*/".chars()).peekable();
+    let mut normalized = String::new();
+    while matches!(input.peek(), Some(' ' | '\t')) {
+        input.next();
+    }
+    while input.peek().is_some() {
+        if matches!(input.peek(), Some('\n' | '\r')) {
+            while matches!(input.peek(), Some(' ' | '\n' | '\t' | '\r')) {
+                input.next();
+            }
+            match (input.peek().copied(), input.clone().nth(1)) {
+                (Some('*'), Some('*')) => {
+                    normalized.push('*');
+                    input.next();
+                }
+                (Some('*'), Some('/')) => break,
+                (Some('*'), _) => {
+                    input.next();
+                    if matches!(input.peek(), Some('\n' | '\r')) {
+                        continue;
+                    }
+                    if !normalized.is_empty() {
+                        normalized.push('\n');
+                    }
+                }
+                _ => {
+                    if !normalized.is_empty() {
+                        normalized.push('\n');
+                    }
+                }
+            }
+        }
+        if input.peek() == Some(&'*') && input.clone().nth(1) == Some('/') {
+            break;
+        }
+        if let Some(ch) = input.next() {
+            normalized.push(ch);
+        }
+    }
+    normalized
+}
+
+/// Mirrors the tag/value boundaries used by Solidity's DocStringParser.
+fn contains_memory_safe_tag(mut text: &str) -> bool {
+    let mut solidity = false;
+    while !text.is_empty() {
+        let end = text.find('\n').unwrap_or(text.len());
+        if let Some(tag) = text[..end].find('@') {
+            text = &text[tag + 1..];
+            let end = text.find([' ', '\t', '\n']).unwrap_or(text.len());
+            if end != 0 {
+                solidity = &text[..end] == sym::solidity.as_str();
+            }
+            // A tag ending at a newline consumes the following line as its value.
+            text = text.get(end + 1..).unwrap_or_default();
+        }
+        let end = text.find('\n').unwrap_or(text.len());
+        if solidity
+            && text[..end]
+                .split([' ', '\n', '\t', '\r'])
+                .any(|value| value == sym::memory_dash_safe_dash_assembly.as_str())
+        {
+            return true;
+        }
+        text = text.get(end + 1..).unwrap_or_default();
+    }
+    false
+}
+
 impl super::LoweringContext<'_> {
     #[instrument(level = "debug", skip_all)]
     pub(super) fn collect_exports(&mut self) {
@@ -260,6 +370,7 @@ pub(super) struct ResolveContext<'gcx> {
     function_id: Option<hir::FunctionId>,
     yul_scopes: Vec<usize>,
     yul_function_scope: Option<usize>,
+    yul_memory_safe: bool,
 }
 
 impl<'gcx> std::ops::Deref for ResolveContext<'gcx> {
@@ -285,6 +396,7 @@ impl<'gcx> ResolveContext<'gcx> {
             function_id: None,
             yul_scopes: Vec::new(),
             yul_function_scope: None,
+            yul_memory_safe: false,
         }
     }
 
@@ -1022,7 +1134,7 @@ impl<'gcx> ResolveContext<'gcx> {
                 })),
                 self.lower_expr(expr),
             ),
-            ast::StmtKind::Assembly(assembly) => self.lower_yul_assembly(assembly),
+            ast::StmtKind::Assembly(assembly) => self.lower_yul_assembly(assembly, &stmt.docs),
             ast::StmtKind::Block(stmts) => hir::StmtKind::Block(self.lower_block(stmts)),
             ast::StmtKind::UncheckedBlock(stmts) => {
                 hir::StmtKind::UncheckedBlock(self.lower_block(stmts))
@@ -1066,7 +1178,11 @@ impl<'gcx> ResolveContext<'gcx> {
         hir::Stmt { span: stmt.span, kind }
     }
 
-    fn lower_yul_assembly(&mut self, assembly: &ast::StmtAssembly<'_>) -> hir::StmtKind<'gcx> {
+    fn lower_yul_assembly(
+        &mut self,
+        assembly: &ast::StmtAssembly<'_>,
+        docs: &ast::DocComments<'_>,
+    ) -> hir::StmtKind<'gcx> {
         let mut memory_safe = false;
         for flag in assembly.flags.iter() {
             let span = flag.span;
@@ -1087,7 +1203,11 @@ impl<'gcx> ResolveContext<'gcx> {
             }
         }
 
-        hir::StmtKind::AssemblyBlock(self.lower_yul_block(&assembly.block))
+        memory_safe |= legacy_memory_safe_annotation(self.sess, docs);
+        let previous = std::mem::replace(&mut self.yul_memory_safe, memory_safe);
+        let block = self.lower_yul_block(&assembly.block);
+        self.yul_memory_safe = previous;
+        hir::StmtKind::AssemblyBlock(block, memory_safe)
     }
 
     fn lower_yul_block(&mut self, block: &ast::yul::Block<'_>) -> hir::Block<'gcx> {
@@ -1143,7 +1263,9 @@ impl<'gcx> ResolveContext<'gcx> {
             self.lower_yul_function_variables(id, function.returns, hir::VarKind::FunctionReturn);
 
         let block = self.lower_yul_block(&function.body);
-        let unchecked = self.hir_builder().stmt(hir::StmtKind::AssemblyBlock(block), block.span);
+        let unchecked = self
+            .hir_builder()
+            .stmt(hir::StmtKind::AssemblyBlock(block, self.yul_memory_safe), block.span);
         let body = self.hir_builder().block(self.arena.alloc_as_slice(unchecked), block.span);
 
         self.yul_function_scope = previous_yul_function_scope;

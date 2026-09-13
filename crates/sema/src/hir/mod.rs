@@ -1465,8 +1465,8 @@ pub enum StmtKind<'hir> {
     /// An unchecked block: `unchecked { ... }`.
     UncheckedBlock(Block<'hir>),
 
-    /// An inline assembly block: `assembly { ... }`.
-    AssemblyBlock(Block<'hir>),
+    /// An inline assembly block and whether it declares the memory-safe contract.
+    AssemblyBlock(Block<'hir>, bool),
 
     /// An emit statement: `emit Foo.bar(42);`.
     ///

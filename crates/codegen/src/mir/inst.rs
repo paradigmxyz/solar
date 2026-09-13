@@ -174,6 +174,18 @@ impl InstructionMetadata {
         metadata
     }
 
+    /// Returns whether this instruction accesses compiler-owned memory.
+    /// This is a semantic requirement, independent of alias and debug metadata.
+    #[must_use]
+    pub(crate) fn requires_private_memory(&self) -> bool {
+        self.flags.0 & MetadataFlags::PRIVATE_MEMORY != 0
+    }
+
+    /// Preserves the compiler-memory requirement through operand rewrites.
+    pub(crate) fn set_requires_private_memory(&mut self) {
+        self.flags.0 |= MetadataFlags::PRIVATE_MEMORY;
+    }
+
     /// Returns the proven memory region.
     #[must_use]
     pub(crate) fn memory_region(&self) -> Option<MemoryRegion> {
@@ -260,6 +272,7 @@ impl MetadataFlags {
     const PRESERVES_FMP: u16 = 0b100_0000_0000;
     const DISPLAY_SOURCE_SPAN: u16 = 0b1000_0000_0000;
     const DEBUG_INFO_HANDLED: u16 = 0b1_0000_0000_0000;
+    const PRIVATE_MEMORY: u16 = 0b10_0000_0000_0000;
 
     fn memory_region(self) -> Option<MemoryRegion> {
         match self.0 & Self::MEMORY_MASK {

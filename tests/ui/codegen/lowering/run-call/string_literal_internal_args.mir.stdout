@@ -126,7 +126,7 @@ fn @lenBytes(arg0: memorybytes) -> u256 [pure] {
     ret v0
 }
 
-fn @firstWord(arg0: memorybytes) -> bytes32 [pure] {
+fn @firstWord(arg0: memorybytes) -> bytes32 [unrestricted_memory, pure] {
   bb0:
     v0 = add arg0, 32
     v1 = mload v0

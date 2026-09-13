@@ -103,7 +103,7 @@ fn @writeStructs() -> u256 [selector=0xa4c02825, pure, abi_params=[], abi_return
     jump bb1
 }
 
-fn @sharedBytesDefault() -> bool [selector=0x8e773052, pure, abi_params=[], abi_returns=[word<bool>]] {
+fn @sharedBytesDefault() -> bool [selector=0x8e773052, unrestricted_memory, pure, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
     set_memory_object_len memoryarray, v0, 2
