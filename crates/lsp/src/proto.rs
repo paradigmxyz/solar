@@ -160,18 +160,20 @@ pub(crate) fn text_range(rope: &Rope, range: lsp_types::Range) -> std::ops::Rang
 /// Maps between byte offsets and LSP UTF-16 positions for one document.
 pub(crate) struct LspPositionIndex<R> {
     rope: R,
-    line_starts: Vec<usize>,
+    // The rope already indexes LF lines. CR-containing documents retain the LSP line index
+    // because standalone CR is also a line terminator in the protocol.
+    line_starts: Option<Vec<usize>>,
 }
 
 impl<'a> LspPositionIndex<&'a Rope> {
     pub(crate) fn new(rope: &'a Rope) -> Self {
-        Self { rope, line_starts: collect_line_starts(rope) }
+        Self { rope, line_starts: lsp_line_starts(rope) }
     }
 }
 
 impl LspPositionIndex<Rope> {
     pub(crate) fn from_rope(rope: Rope) -> Self {
-        let line_starts = collect_line_starts(&rope);
+        let line_starts = lsp_line_starts(&rope);
         Self { rope, line_starts }
     }
 }
@@ -199,7 +201,7 @@ impl<R: Borrow<Rope>> LspPositionIndex<R> {
     fn byte_position_clamped(&self, position: lsp_types::Position) -> usize {
         let rope = self.rope();
         let line = usize::try_from(position.line).unwrap_or(usize::MAX);
-        let start = self.line_starts.get(line).copied().unwrap_or_else(|| {
+        let start = self.line_start(line).unwrap_or_else(|| {
             if position.line > rope.line_len() as u32 { 0 } else { rope.byte_of_line(line) }
         });
         let start_utf16 = rope.utf16_code_unit_of_byte(start);
@@ -209,7 +211,7 @@ impl<R: Borrow<Rope>> LspPositionIndex<R> {
     fn byte_position(&self, position: lsp_types::Position) -> Option<usize> {
         let rope = self.rope();
         let line = usize::try_from(position.line).ok()?;
-        let start = *self.line_starts.get(line)?;
+        let start = self.line_start(line)?;
         let end = self.line_end(line);
         let target = usize::try_from(position.character).ok()?;
         let contents = rope.byte_slice(start..end);
@@ -236,7 +238,7 @@ impl<R: Borrow<Rope>> LspPositionIndex<R> {
     pub(crate) fn position_at_byte(&self, byte: usize) -> Option<lsp_types::Position> {
         let rope = self.rope();
         let line = self.line_at_byte(byte)?;
-        let start = self.line_starts[line];
+        let start = self.line_start(line)?;
         let character = rope.byte_slice(start..byte).utf16_len();
         Some(lsp_types::Position::new(u32::try_from(line).ok()?, u32::try_from(character).ok()?))
     }
@@ -246,7 +248,11 @@ impl<R: Borrow<Rope>> LspPositionIndex<R> {
         if byte > rope.byte_len() || !rope.is_char_boundary(byte) {
             return None;
         }
-        let line = self.line_starts.partition_point(|&start| start <= byte).checked_sub(1)?;
+        let line = if let Some(line_starts) = &self.line_starts {
+            line_starts.partition_point(|&start| start <= byte).checked_sub(1)?
+        } else {
+            rope.line_of_byte(byte)
+        };
         (byte <= self.line_end(line)).then_some(line)
     }
 
@@ -254,9 +260,21 @@ impl<R: Borrow<Rope>> LspPositionIndex<R> {
         self.rope().byte_len()
     }
 
+    fn line_start(&self, line: usize) -> Option<usize> {
+        if let Some(line_starts) = &self.line_starts {
+            return line_starts.get(line).copied();
+        }
+        let rope = self.rope();
+        // LSP includes an empty final line after a terminator, including line zero for empty text.
+        (line < rope.line_len()
+            || (line == rope.line_len()
+                && (rope.byte_len() == 0 || rope.byte(rope.byte_len() - 1) == b'\n')))
+            .then(|| rope.byte_of_line(line))
+    }
+
     fn line_end(&self, line: usize) -> usize {
         let rope = self.rope();
-        let Some(&next_start) = self.line_starts.get(line + 1) else {
+        let Some(next_start) = self.line_start(line + 1) else {
             return rope.byte_len();
         };
         if rope.byte(next_start - 1) == b'\n'
@@ -268,6 +286,12 @@ impl<R: Borrow<Rope>> LspPositionIndex<R> {
             next_start - 1
         }
     }
+}
+
+fn lsp_line_starts(rope: &Rope) -> Option<Vec<usize>> {
+    rope.chunks()
+        .any(|chunk| memchr::memchr(b'\r', chunk.as_bytes()).is_some())
+        .then(|| collect_line_starts(rope))
 }
 
 fn collect_line_starts(rope: &Rope) -> Vec<usize> {
@@ -949,6 +973,125 @@ mod tests {
             let range = Range::new(position, position);
             assert_eq!(checked_text_range(&rope, range), Some(rope.byte_len()..rope.byte_len()));
             assert_eq!(position_at_byte(&rope, rope.byte_len()), Some(position));
+        }
+    }
+
+    #[test]
+    fn lsp_position_index_matches_eager_lines_at_boundaries() {
+        for source in [
+            "",
+            "a",
+            "\n",
+            "\n\n",
+            "a\n",
+            "a\nb",
+            "a\nb\n",
+            "\r",
+            "\r\n",
+            "a\r\nb",
+            "a\r\nb\r\n",
+            "a\rb\r",
+            "a\r\nb\rc\n",
+            "a😀é中",
+            "a😀é中\n",
+            "😀\né\n中",
+            "😀\r\né\r中\n",
+        ] {
+            assert_position_index_matches_eager_lines(&Rope::from(source));
+        }
+    }
+
+    #[test]
+    fn lsp_position_index_matches_eager_lines_after_newline_edits() {
+        let mut rope = Rope::from("a😀é中\n".repeat(160));
+        assert!(rope.chunks().count() > 1);
+        assert_position_index_matches_eager_lines(&rope);
+        // Adding and removing CR switches between LF-only and mixed newline documents.
+        let newline = "a😀é中".len();
+        rope.insert(newline, "\r");
+        assert_position_index_matches_eager_lines(&rope);
+        rope.delete(newline..newline + 1);
+        assert_position_index_matches_eager_lines(&rope);
+        rope.insert(rope.byte_len(), "tail\r");
+        assert_position_index_matches_eager_lines(&rope);
+    }
+
+    fn assert_position_index_matches_eager_lines(rope: &Rope) {
+        let source = rope.to_string();
+        let starts = collect_line_starts(rope);
+        let borrowed = super::LspPositionIndex::new(rope);
+        let owned = super::LspPositionIndex::from_rope(rope.clone());
+        for line in (0..starts.len() as u32 + 2).chain([u32::MAX]) {
+            for character in (0..12).chain([u32::MAX]) {
+                let position = Position::new(line, character);
+                let range = Range::new(position, position);
+                let expected = eager_line_byte_position(&source, &starts, position).map(|b| b..b);
+                assert_eq!(borrowed.checked_text_range(range), expected, "{position:?}");
+                assert_eq!(owned.checked_text_range(range), expected, "{position:?}");
+            }
+        }
+        for byte in (0..=source.len() + 1).chain([usize::MAX]) {
+            let expected_line = source.get(..byte).and_then(|_| {
+                let line = starts.iter().rposition(|&start| start <= byte).unwrap();
+                (byte <= eager_line_end(&source, &starts, line)).then_some(line)
+            });
+            let expected_position = expected_line.map(|line| {
+                Position::new(line as u32, source[starts[line]..byte].encode_utf16().count() as u32)
+            });
+            assert_eq!(borrowed.line_at_byte(byte), expected_line, "byte {byte}");
+            assert_eq!(owned.line_at_byte(byte), expected_line, "byte {byte}");
+            assert_eq!(borrowed.position_at_byte(byte), expected_position, "byte {byte}");
+            assert_eq!(owned.position_at_byte(byte), expected_position, "byte {byte}");
+        }
+    }
+
+    fn eager_line_byte_position(
+        source: &str,
+        starts: &[usize],
+        position: Position,
+    ) -> Option<usize> {
+        let line = position.line as usize;
+        let start = *starts.get(line)?;
+        let end = eager_line_end(source, starts, line);
+        let mut remaining = position.character as usize;
+        for (byte, ch) in source[start..end].char_indices() {
+            if remaining == 0 {
+                return Some(start + byte);
+            }
+            remaining = remaining.checked_sub(ch.len_utf16())?;
+        }
+        Some(end)
+    }
+
+    fn eager_line_end(source: &str, starts: &[usize], line: usize) -> usize {
+        starts
+            .get(line + 1)
+            .map_or(source.len(), |&end| end - if source[..end].ends_with("\r\n") { 2 } else { 1 })
+    }
+
+    #[test]
+    fn text_range_preserves_legacy_missing_line_and_cross_line_columns() {
+        for source in ["", "a", "a\nb", "a\nb\n", "a\r\nb", "a\rb", "a😀\n中", "😀\r\n"] {
+            let rope = Rope::from(source);
+            let starts = collect_line_starts(&rope);
+            let borrowed = super::LspPositionIndex::new(&rope);
+            let owned = super::LspPositionIndex::from_rope(rope.clone());
+            for line in (0..starts.len() as u32 + 2).chain([u32::MAX]) {
+                let start = starts.get(line as usize).copied().unwrap_or_else(|| {
+                    if line > rope.line_len() as u32 { 0 } else { rope.byte_of_line(line as usize) }
+                });
+                let first_utf16 = source[..start].encode_utf16().count();
+                // Test every non-panicking legacy column, including columns crossing a line end.
+                for byte in source.char_indices().map(|(byte, _)| byte).chain([source.len()]) {
+                    let utf16 = source[..byte].encode_utf16().count();
+                    if let Some(character) = utf16.checked_sub(first_utf16) {
+                        let position = Position::new(line, character as u32);
+                        let range = Range::new(position, position);
+                        assert_eq!(borrowed.text_range(range), byte..byte, "{position:?}");
+                        assert_eq!(owned.text_range(range), byte..byte, "{position:?}");
+                    }
+                }
+            }
         }
     }
 }
