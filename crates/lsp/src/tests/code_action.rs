@@ -131,6 +131,122 @@ fn returns_multipart_suggestion_alternatives_with_utf16_ranges() {
 }
 
 #[test]
+fn mixed_quick_fixes_share_current_syntax_and_preserve_order() {
+    for eol in ["\n", "\r\n", "\r"] {
+        let mut project =
+            TestProject::from_fixture("//- /Test.sol open\ncontract Placeholder {}\n");
+        let contents = [
+            "// 😀",
+            "contract Test {",
+            "function first() public returns (uint256) { return 1; }",
+            "function second() public view returns (uint256) { return 2; }",
+            "}",
+            "",
+        ]
+        .join(eol);
+        project.write_file("/Test.sol", &contents);
+        project.open_file("/Test.sol", &contents);
+        let range_of = |text: &str| {
+            let start = contents.find(text).unwrap();
+            lsp_range(&contents, start, start + text.len())
+        };
+        let first = "function first() public returns (uint256) { return 1; }";
+        let second = "function second() public view returns (uint256) { return 2; }";
+        let (uri, first_diagnostic, mut params) = fallback_request(
+            &project,
+            range_of(first),
+            "solar",
+            Some("2018"),
+            "function state mutability can be restricted to pure",
+        );
+        let (_, second_diagnostic, _) = fallback_request(
+            &project,
+            range_of(second),
+            "flycheck",
+            Some("2018"),
+            "Function state mutability can be restricted to pure.",
+        );
+        let native_edit = TextEdit::new(range_of("Test"), "Renamed".into());
+        let mut native = first_diagnostic.clone();
+        native.range = native_edit.range;
+        native.message = "rename contract".into();
+        native.data = Some(
+            crate::code_actions::DiagnosticData::new(
+                uri.clone(),
+                &contents,
+                vec![crate::code_actions::DiagnosticSuggestion::new(
+                    "Rename contract".into(),
+                    solar_interface::diagnostics::Applicability::MachineApplicable,
+                    vec![vec![native_edit.clone()]],
+                )],
+            )
+            .to_value(),
+        );
+        params.range = lsp_range(&contents, 0, contents.len());
+        params.context.diagnostics = vec![first_diagnostic, native, second_diagnostic];
+        let mut state = state(&project, true);
+        let response = authorized_code_actions(&mut state, params);
+        let insert = contents.find("returns").unwrap();
+        let expected = [
+            TextEdit::new(lsp_range(&contents, insert, insert), "pure ".into()),
+            native_edit,
+            TextEdit::new(range_of("view"), "pure".into()),
+        ];
+        assert_eq!(response.len(), expected.len(), "{eol:?}");
+        for (action, edit) in response.into_iter().zip(expected) {
+            let CodeActionOrCommand::CodeAction(action) = action else {
+                panic!("expected a literal action")
+            };
+            let Some(DocumentChanges::Edits(documents)) = action.edit.unwrap().document_changes
+            else {
+                panic!("expected versioned edits")
+            };
+            assert_eq!(documents.len(), 1);
+            assert_eq!(documents[0].text_document.uri, uri);
+            assert_eq!(documents[0].text_document.version, Some(0));
+            assert_eq!(documents[0].edits, [lsp_types::OneOf::Left(edit)]);
+        }
+    }
+}
+
+#[test]
+fn failed_fallback_parse_preserves_native_suggestions() {
+    let project = TestProject::from_fixture(
+        "//- /Test.sol\ncontract Test { function first() public { uint256 broken = ;\n",
+    );
+    let contents = project.read_file("/Test.sol");
+    let (uri, fallback, mut params) = fallback_request(
+        &project,
+        lsp_range(&contents, contents.find("function").unwrap(), contents.len()),
+        "solar",
+        Some("2018"),
+        "function state mutability can be restricted to pure",
+    );
+    let edit = TextEdit::new(lsp_range(&contents, contents.len(), contents.len()), "} }".into());
+    let mut native = fallback.clone();
+    native.message = "close blocks".into();
+    native.data = Some(
+        crate::code_actions::DiagnosticData::new(
+            uri.clone(),
+            &contents,
+            vec![crate::code_actions::DiagnosticSuggestion::new(
+                "Close blocks".into(),
+                solar_interface::diagnostics::Applicability::MachineApplicable,
+                vec![vec![edit.clone()]],
+            )],
+        )
+        .to_value(),
+    );
+    params.range = lsp_range(&contents, 0, contents.len());
+    params.context.diagnostics = vec![fallback.clone(), native, fallback];
+    let response = authorized_code_actions(&mut state(&project, false), params);
+    let [CodeActionOrCommand::CodeAction(action)] = response.as_slice() else {
+        panic!("expected only the native suggestion: {response:?}")
+    };
+    assert_eq!(action.edit.as_ref().unwrap().changes.as_ref().unwrap()[&uri], [edit]);
+}
+
+#[test]
 fn returns_current_open_document_version_when_supported() {
     let project = TestProject::from_fixture(
         r#"
@@ -614,7 +730,7 @@ fn rejects_malformed_message_derived_pragma_for_solc_3420() {
     let plans = crate::code_actions::plans(
         &params,
         std::slice::from_ref(&diagnostic),
-        &crop::Rope::from(contents),
+        &crate::proto::LspPositionIndex::new(&crop::Rope::from(contents)),
     );
 
     assert!(plans.is_empty());
@@ -713,7 +829,7 @@ fn rejects_whole_item_range_for_named_unused_import() {
     let plans = crate::code_actions::plans(
         &params,
         std::slice::from_ref(&diagnostic),
-        &crop::Rope::from(contents),
+        &crate::proto::LspPositionIndex::new(&crop::Rope::from(contents)),
     );
 
     assert!(plans.is_empty());

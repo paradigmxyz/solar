@@ -353,11 +353,12 @@ mod workspace;
 #[cfg(feature = "bench")]
 #[doc(hidden)]
 pub use global_state::benchmark::{
-    BenchmarkAnalysis, BenchmarkDocumentChange, BenchmarkDocumentUpdate, BenchmarkEdit,
-    BenchmarkError, BenchmarkFoldingRangeRequests, BenchmarkOpenDocuments, BenchmarkProject,
-    BenchmarkRenameRequests, BenchmarkRepeatedAnalysis, BenchmarkRequest, BenchmarkResponse,
-    BenchmarkSelectionRangeRequests, BenchmarkSignatureHelpRequests, BenchmarkWorkspaceDiscovery,
-    BenchmarkWorkspacePathQueries, BenchmarkWorkspaceReports,
+    BenchmarkAnalysis, BenchmarkCodeActionRequests, BenchmarkDocumentChange,
+    BenchmarkDocumentUpdate, BenchmarkEdit, BenchmarkError, BenchmarkFoldingRangeRequests,
+    BenchmarkOpenDocuments, BenchmarkProject, BenchmarkRenameRequests, BenchmarkRepeatedAnalysis,
+    BenchmarkRequest, BenchmarkResponse, BenchmarkSelectionRangeRequests,
+    BenchmarkSignatureHelpRequests, BenchmarkWorkspaceDiscovery, BenchmarkWorkspacePathQueries,
+    BenchmarkWorkspaceReports,
 };
 
 /// Checks whether a source position belongs to a parsed import path.
