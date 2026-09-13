@@ -29,7 +29,7 @@ use std::{
     fmt::Write as _,
     ops::ControlFlow,
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{Arc, OnceLock},
 };
 
 use crate::{
@@ -49,6 +49,13 @@ use crate::{
 };
 
 const COMPLETION_ITEM_DATA_VERSION: u8 = 1;
+const WORKSPACE_SEARCH_CORPUS_THRESHOLD: usize = 512;
+
+#[derive(Clone, Debug)]
+struct WorkspaceSearchCorpus {
+    names: String,
+    ends: Vec<usize>,
+}
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct SymbolTables {
@@ -58,6 +65,7 @@ pub(crate) struct SymbolTables {
     file_declaration_positions: FxHashMap<Url, PositionIndex<SymbolId>>,
     document_symbol_children: IndexVec<SymbolId, Vec<SymbolId>>,
     workspace_symbol_ids: Vec<SymbolId>,
+    workspace_search: OnceLock<WorkspaceSearchCorpus>,
     symbols_by_key: FxHashMap<SymbolKey, SymbolId>,
     scopes: IndexVec<ScopeId, Scope>,
     global_completions: Vec<CompletionItem>,
@@ -133,7 +141,6 @@ type ReferenceTargets = SmallVec<[SymbolId; 1]>;
 pub(crate) struct DeclarationSymbol {
     pub(crate) id: SymbolId,
     pub(crate) name: String,
-    search_name: String,
     pub(crate) kind: SymbolKind,
     pub(crate) location: Location,
     pub(crate) name_range: Range,
@@ -346,7 +353,6 @@ impl SymbolTables {
                 SymbolKey::Item(item_id),
                 DeclarationSymbol {
                     id: tables.declarations.next_idx(),
-                    search_name: search_name(&name),
                     name,
                     kind: item_symbol_kind(gcx, item_id),
                     location,
@@ -726,29 +732,83 @@ impl SymbolTables {
     }
 
     pub(crate) fn workspace_symbols(&self, query: &str) -> Vec<WorkspaceSymbol> {
-        let query = (!query.is_empty()).then(|| search_name(query));
-        let mut symbols =
-            Vec::with_capacity(query.as_ref().map_or(self.workspace_symbol_ids.len(), |_| 0));
+        if query.is_empty() {
+            return self
+                .workspace_symbol_ids
+                .iter()
+                .map(|&symbol_id| self.workspace_symbol(symbol_id))
+                .collect();
+        }
+        // Names cannot contain NUL, which separates them in the search corpus. Reject it in
+        // queries as well so a match cannot span multiple names.
+        if query.contains('\0') {
+            return Vec::new();
+        }
 
-        for &symbol_id in &self.workspace_symbol_ids {
-            let symbol = &self.declarations[symbol_id];
-            if let Some(query) = &query
-                && !symbol.search_name.contains(query)
-            {
-                continue;
-            }
-
-            symbols.push(WorkspaceSymbol {
-                name: symbol.name.clone(),
-                kind: symbol.kind,
-                tags: None,
-                container_name: self.container_name(symbol),
-                location: OneOf::Left(symbol.location.clone()),
-                data: None,
-            });
+        let query = query.to_lowercase();
+        if self.workspace_symbol_ids.len() < WORKSPACE_SEARCH_CORPUS_THRESHOLD {
+            return self
+                .workspace_symbol_ids
+                .iter()
+                .filter_map(|&symbol_id| {
+                    let symbol = &self.declarations[symbol_id];
+                    symbol
+                        .name
+                        .to_lowercase()
+                        .contains(&query)
+                        .then(|| self.workspace_symbol(symbol_id))
+                })
+                .collect();
+        }
+        let corpus = self.workspace_search.get_or_init(|| self.build_workspace_search_corpus());
+        let finder = memchr::memmem::Finder::new(query.as_bytes());
+        let mut symbols = Vec::new();
+        let mut offset = 0;
+        while let Some(relative) = finder.find(&corpus.names.as_bytes()[offset..]) {
+            let start = offset + relative;
+            let index = corpus.ends.partition_point(|&end| end <= start);
+            symbols.push(self.workspace_symbol(self.workspace_symbol_ids[index]));
+            // Emit each declaration once, including when its name contains repeated matches.
+            offset = corpus.ends[index];
         }
 
         symbols
+    }
+
+    fn build_workspace_search_corpus(&self) -> WorkspaceSearchCorpus {
+        let mut names = String::new();
+        names.reserve(
+            self.workspace_symbol_ids
+                .iter()
+                .map(|&symbol_id| self.declarations[symbol_id].name.len() + 1)
+                .sum(),
+        );
+        let mut ends = Vec::with_capacity(self.workspace_symbol_ids.len());
+        for &symbol_id in &self.workspace_symbol_ids {
+            let name = &self.declarations[symbol_id].name;
+            if name.is_ascii() {
+                let start = names.len();
+                names.push_str(name);
+                names[start..].make_ascii_lowercase();
+            } else {
+                names.push_str(&name.to_lowercase());
+            }
+            names.push('\0');
+            ends.push(names.len());
+        }
+        WorkspaceSearchCorpus { names, ends }
+    }
+
+    fn workspace_symbol(&self, symbol_id: SymbolId) -> WorkspaceSymbol {
+        let symbol = &self.declarations[symbol_id];
+        WorkspaceSymbol {
+            name: symbol.name.clone(),
+            kind: symbol.kind,
+            tags: None,
+            container_name: self.container_name(symbol),
+            location: OneOf::Left(symbol.location.clone()),
+            data: None,
+        }
     }
 
     /// Whether an unambiguous source snapshot indexes code at this position.
@@ -1066,14 +1126,40 @@ impl SymbolTables {
             scope = current.parent;
         }
 
-        let mut items =
-            seen.into_values().map(|symbol_id| self.completion_item(symbol_id)).collect::<Vec<_>>();
-        items.extend(
-            self.global_completions.iter().filter(|item| matches_prefix(&item.label)).cloned(),
+        enum Candidate<'a> {
+            Symbol(&'a str, SymbolId),
+            Global(&'a CompletionItem),
+        }
+        impl<'a> Candidate<'a> {
+            fn label(&self) -> &'a str {
+                match self {
+                    Self::Symbol(label, _) => label,
+                    Self::Global(item) => item.label.as_str(),
+                }
+            }
+        }
+
+        let mut candidates = seen
+            .into_values()
+            .map(|symbol_id| Candidate::Symbol(&self.declarations[symbol_id].name, symbol_id))
+            .collect::<Vec<_>>();
+        candidates.extend(
+            self.global_completions
+                .iter()
+                .filter(|item| matches_prefix(&item.label))
+                .map(Candidate::Global),
         );
-        items.sort_by(|a, b| a.label.cmp(&b.label));
-        items.dedup_by(|a, b| a.label == b.label);
-        items
+        // Keep candidates compact while sorting and deduplicating; materialize the larger
+        // completion response objects only for labels that survive both operations.
+        candidates.sort_by(|lhs, rhs| lhs.label().cmp(rhs.label()));
+        candidates.dedup_by(|lhs, rhs| lhs.label() == rhs.label());
+        candidates
+            .into_iter()
+            .map(|candidate| match candidate {
+                Candidate::Symbol(_, symbol_id) => self.completion_item(symbol_id),
+                Candidate::Global(item) => item.clone(),
+            })
+            .collect()
     }
 
     pub(crate) fn resolve_completion_item(
@@ -1407,7 +1493,6 @@ impl SymbolTables {
         let pushed_id = self.push_test_declaration(DeclarationSymbol {
             id: symbol_id,
             name: name.into(),
-            search_name: search_name(name),
             kind,
             location: Location { uri: uri.clone(), range: location },
             name_range,
@@ -1771,6 +1856,7 @@ impl SymbolTables {
         self.workspace_symbol_ids.reserve(self.declarations.len());
         self.workspace_symbol_ids.extend(self.declarations.indices());
         sort_symbol_ids(&self.declarations, &mut self.workspace_symbol_ids);
+        self.workspace_search = OnceLock::new();
 
         self.file_scopes.clear();
         for scope_id in self.scopes.indices() {
@@ -2686,10 +2772,6 @@ fn fuzzy_completion_match(prefix: &str, label: &str) -> bool {
         .all(|prefix_char| label_chars.by_ref().any(|label_char| label_char == prefix_char))
 }
 
-fn search_name(name: &str) -> String {
-    name.to_lowercase()
-}
-
 #[cfg(test)]
 pub(crate) fn push_symbol_for_test(
     tables: &mut SymbolTables,
@@ -2889,6 +2971,45 @@ mod tests {
                 ("Lib", SymbolKind::MODULE)
             ]
         );
+    }
+
+    #[test]
+    fn workspace_symbols_search_corpus_respects_name_boundaries_and_unicode() {
+        let uri = parse_uri("file:///workspace/src/Contract.sol");
+        let mut tables = SymbolTables::default();
+        push(&mut tables, &uri, "Alpha", SymbolKind::FUNCTION, 0, 0, None);
+        push(&mut tables, &uri, "Alphabet", SymbolKind::FUNCTION, 1, 0, None);
+        push(&mut tables, &uri, "ALPHA", SymbolKind::FUNCTION, 2, 0, None);
+        push(&mut tables, &uri, "Éclair", SymbolKind::FUNCTION, 3, 0, None);
+        for index in 0..WORKSPACE_SEARCH_CORPUS_THRESHOLD {
+            push(
+                &mut tables,
+                &uri,
+                &format!("Unrelated{index}"),
+                SymbolKind::FUNCTION,
+                (index + 4) as u32,
+                0,
+                None,
+            );
+        }
+
+        assert_eq!(
+            tables
+                .workspace_symbols("ha")
+                .iter()
+                .map(|symbol| symbol.name.as_str())
+                .collect::<Vec<_>>(),
+            ["Alpha", "Alphabet", "ALPHA"]
+        );
+        assert_eq!(
+            tables
+                .workspace_symbols("ÉC")
+                .iter()
+                .map(|symbol| symbol.name.as_str())
+                .collect::<Vec<_>>(),
+            ["Éclair"]
+        );
+        assert!(tables.workspace_symbols("pha\0bet").is_empty());
     }
 
     #[test]
