@@ -277,31 +277,48 @@ fn check_payable_fallback_without_receive(gcx: Gcx<'_>, contract_id: hir::Contra
 }
 
 /// Checks for definitions that have the same name and parameter types in the given scope.
+///
+/// Normalizes parameter types lazily once per declaration in each name group. The pairwise
+/// traversal is retained so diagnostic grouping and ordering remain unchanged.
 fn check_duplicate_definitions(gcx: Gcx<'_>, scope: &Declarations) {
-    let is_duplicate = |a: Declaration, b: Declaration| -> bool {
-        let (Res::Item(a), Res::Item(b)) = (a.res, b.res) else { return false };
-        if !a.matches(&b) {
-            return false;
-        }
-        if !(a.is_function() || a.is_event()) {
-            return false;
-        }
-        // Don't check inheritance since this check would be incorrect with virtual/override.
-        if let (hir::ItemId::Function(f1), hir::ItemId::Function(f2)) = (a, b) {
-            let f1 = gcx.hir.function(f1);
-            let f2 = gcx.hir.function(f2);
-            if f1.contract != f2.contract {
-                return false;
-            }
-        }
-        same_external_params(gcx, gcx.type_of_item(a), gcx.type_of_item(b))
-    };
-
+    let mut external_params = Vec::new();
     let mut reported = GrowableBitSet::new_empty();
     for (_name, decls) in scope.iter() {
         if decls.len() <= 1 {
             continue;
         }
+        external_params.clear();
+        external_params.resize(decls.len(), None);
+        let mut is_duplicate = |i: usize, a: Declaration, j: usize, b: Declaration| -> bool {
+            let (Res::Item(a), Res::Item(b)) = (a.res, b.res) else { return false };
+            if !a.matches(&b) {
+                return false;
+            }
+            if !(a.is_function() || a.is_event()) {
+                return false;
+            }
+            // Don't check inheritance since this check would be incorrect with virtual/override.
+            if let (hir::ItemId::Function(f1), hir::ItemId::Function(f2)) = (a, b) {
+                let f1 = gcx.hir.function(f1);
+                let f2 = gcx.hir.function(f2);
+                if f1.contract != f2.contract {
+                    return false;
+                }
+            }
+            // Keep type queries before normalization, matching `same_external_params`.
+            let a_ty = external_params[i].is_none().then(|| gcx.type_of_item(a));
+            let b_ty = external_params[j].is_none().then(|| gcx.type_of_item(b));
+            if let Some(ty) = a_ty {
+                external_params[i] =
+                    Some(ty.as_externally_callable_function(false, gcx).parameters().unwrap());
+            }
+            if let Some(ty) = b_ty {
+                external_params[j] =
+                    Some(ty.as_externally_callable_function(false, gcx).parameters().unwrap());
+            }
+            external_params[i] == external_params[j]
+        };
+
         reported.clear();
         for (i, &decl) in decls.iter().enumerate() {
             if reported.contains(i) {
@@ -310,7 +327,7 @@ fn check_duplicate_definitions(gcx: Gcx<'_>, scope: &Declarations) {
 
             let mut duplicates = Vec::new();
             for (j, &other_decl) in decls.iter().enumerate().skip(i + 1) {
-                if is_duplicate(decl, other_decl) {
+                if is_duplicate(i, decl, j, other_decl) {
                     reported.insert(j);
                     duplicates.push(other_decl.span);
                 }

@@ -1824,7 +1824,11 @@ impl SymbolTables {
 
     fn rebuild_indexes(&mut self) {
         for symbols in self.files.values_mut() {
-            sort_symbol_ids(&self.declarations, symbols);
+            // Each group has one URI, so only source position and ID can affect its order.
+            symbols.sort_by_key(|&id| {
+                let position = self.declarations[id].location.range.start;
+                (position.line, position.character, id.index())
+            });
         }
 
         self.file_declaration_positions.clear();
@@ -1854,8 +1858,11 @@ impl SymbolTables {
 
         self.workspace_symbol_ids.clear();
         self.workspace_symbol_ids.reserve(self.declarations.len());
-        self.workspace_symbol_ids.extend(self.declarations.indices());
-        sort_symbol_ids(&self.declarations, &mut self.workspace_symbol_ids);
+        // Per-file declarations are already ordered. Concatenate files in URI order instead of
+        // sorting every declaration again with repeated URI comparisons.
+        let mut files = self.files.iter().collect::<Vec<_>>();
+        files.sort_unstable_by(|(a, _), (b, _)| a.as_str().cmp(b.as_str()));
+        self.workspace_symbol_ids.extend(files.into_iter().flat_map(|(_, symbols)| symbols));
         self.workspace_search = OnceLock::new();
 
         self.file_scopes.clear();
@@ -2585,21 +2592,6 @@ impl<'gcx> hir::Visit<'gcx> for ReferenceCollector<'_, 'gcx> {
         self.in_yul = previous;
         result
     }
-}
-
-fn sort_symbol_ids(
-    declarations: &IndexVec<SymbolId, DeclarationSymbol>,
-    symbol_ids: &mut [SymbolId],
-) {
-    symbol_ids.sort_by_key(|symbol_id| {
-        let location = &declarations[*symbol_id].location;
-        (
-            location.uri.as_str(),
-            location.range.start.line,
-            location.range.start.character,
-            symbol_id.index(),
-        )
-    });
 }
 
 fn sort_locations(locations: &mut [Location]) {

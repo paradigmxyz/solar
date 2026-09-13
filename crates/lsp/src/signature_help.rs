@@ -241,7 +241,12 @@ impl SignatureHelpIndex {
         let signature = self.intern_signature(signature);
         let entries = self.callables_by_name.entry(name).or_default();
         if !entries.iter().any(|entry| {
-            entry.location == location && entry.form == form && entry.signature == signature
+            // Most same-name declarations differ in range; compare it before their longer URI.
+            entry.form == form
+                && entry.location.as_ref().map(|location| location.range)
+                    == location.as_ref().map(|location| location.range)
+                && entry.location == location
+                && entry.signature == signature
         }) {
             entries.push(CatalogEntry { location, form, signature });
         }
