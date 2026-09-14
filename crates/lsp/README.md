@@ -57,6 +57,16 @@ The benchmark groups intentionally keep separate timing boundaries:
 - `project-analysis` and `project-analysis-after-edit` measure compiler and symbol-table rebuilds.
 - `project-edit-application` measures UTF-16 document edit application without analysis.
 - `symbol-table-queries` measures synchronous query kernels, not complete LSP request latency.
+- `call-hierarchy-request` measures warm prepare, incoming, and outgoing requests through the
+  production handlers on the tracked Unifap project. Parameters are cloned into owned requests;
+  snapshot lookup, response construction, and response destruction are timed. Transport, JSON
+  encoding, analysis, and waiting for in-progress analysis are excluded.
+- `call-hierarchy-expand` follows the router's transfer helper to both liquidity callers, expands
+  their outgoing calls, and follows the helper to the ERC20 interface. Results are per five-request
+  burst. Preflight checks pin callable identities, grouped call-site ranges, and expanded targets.
+- `call-hierarchy-first-request` includes lazy query-index construction in the first prepare after
+  analysis. Cloning the semantic snapshot and destroying the snapshot and response are untimed.
+  Compare this group against its own baseline, separately from repeated request latency.
 - `code-lens` measures repeated queries, including response destruction. The separate
   `code-lens-first-request` group clones an unqueried analysis snapshot outside timing and
   includes the first query's reference-count initialization; snapshot and response destruction

@@ -10,12 +10,13 @@ use lsp_types::{
 };
 use solar_config::CompileOpts;
 use solar_lsp::{
-    BenchmarkAnalysis, BenchmarkDocumentChange, BenchmarkDocumentUpdate,
-    BenchmarkFoldingRangeRequests, BenchmarkOpenDocuments, BenchmarkProject,
-    BenchmarkRenameRequests, BenchmarkRepeatedAnalysis, BenchmarkRequest, BenchmarkResponse,
-    BenchmarkSelectionRangeRequests, BenchmarkSignatureHelpRequests, BenchmarkWorkspaceDiscovery,
-    BenchmarkWorkspacePathQueries, BenchmarkWorkspaceReports, benchmark_folding_ranges,
-    benchmark_folding_ranges_from_rope, benchmark_import_path_at, benchmark_selection_ranges,
+    BenchmarkAnalysis, BenchmarkCallHierarchyRequests, BenchmarkDocumentChange,
+    BenchmarkDocumentUpdate, BenchmarkFoldingRangeRequests, BenchmarkOpenDocuments,
+    BenchmarkProject, BenchmarkRenameRequests, BenchmarkRepeatedAnalysis, BenchmarkRequest,
+    BenchmarkResponse, BenchmarkSelectionRangeRequests, BenchmarkSignatureHelpRequests,
+    BenchmarkWorkspaceDiscovery, BenchmarkWorkspacePathQueries, BenchmarkWorkspaceReports,
+    benchmark_folding_ranges, benchmark_folding_ranges_from_rope, benchmark_import_path_at,
+    benchmark_selection_ranges,
 };
 use solar_parse::{Cursor, lexer::token::RawTokenKind};
 use std::{fmt::Write as _, fs, hint::black_box, path::PathBuf};
@@ -190,6 +191,139 @@ fn call_hierarchy_queries(c: &mut Criterion) {
             },
         );
     }
+    group.finish();
+}
+
+fn call_hierarchy_requests(c: &mut Criterion) {
+    let project = unifap_project();
+    let analysis = project.clone().analyze();
+    assert_clean(&analysis);
+    let mut requests = BenchmarkCallHierarchyRequests::new(analysis);
+    let (uri, mut declaration) =
+        project.unique_anchor(UNIFAP_ROUTER, "function _safeTransferFrom(").unwrap();
+    declaration.character += "function ".len() as u32;
+    let (_, body) = project.unique_anchor(UNIFAP_ROUTER, "success = IERC20(token)").unwrap();
+    let (_, callsite) = project
+        .unique_anchor(UNIFAP_ROUTER, "_safeTransferFrom(tokenA, msg.sender, pair, amountA)")
+        .unwrap();
+    let prepared = requests.prepare(&uri, declaration).unwrap();
+    assert_eq!(prepared.len(), 1);
+    let helper = &prepared[0];
+    assert_eq!(helper.name, "_safeTransferFrom");
+    assert_eq!(helper.detail.as_deref(), Some("UnifapV2Router"));
+    assert_eq!(helper.uri, uri);
+    assert_eq!(
+        helper.selection_range,
+        Range::new(
+            declaration,
+            Position::new(declaration.line, declaration.character + helper.name.len() as u32),
+        ),
+    );
+    let positions = [("declaration", declaration), ("body", body), ("callsite", callsite)];
+    for (_, position) in positions {
+        assert_eq!(requests.prepare(&uri, position), Some(prepared.clone()));
+        assert_eq!(requests.before_first_request().prepare(&uri, position), Some(prepared.clone()));
+    }
+
+    let call_range = |call: &str, name: &str| {
+        let (_, mut start) = project.unique_anchor(UNIFAP_ROUTER, call).unwrap();
+        start.character += call.find(name).unwrap() as u32;
+        Range::new(start, Position::new(start.line, start.character + name.len() as u32))
+    };
+    let incoming = requests.incoming(helper).unwrap();
+    assert_eq!(incoming.len(), 2);
+    for (call, name, expected_ranges) in [
+        (
+            &incoming[0],
+            "addLiquidity",
+            vec![
+                call_range("_safeTransferFrom(tokenA, msg.sender, pair, amountA)", &helper.name),
+                call_range("_safeTransferFrom(tokenB, msg.sender, pair, amountB)", &helper.name),
+            ],
+        ),
+        (
+            &incoming[1],
+            "removeLiquidity",
+            vec![call_range(
+                "_safeTransferFrom(address(pair), msg.sender, address(pair), liquidity)",
+                &helper.name,
+            )],
+        ),
+    ] {
+        let (_, mut position) =
+            project.unique_anchor(UNIFAP_ROUTER, &format!("function {name}(")).unwrap();
+        position.character += "function ".len() as u32;
+        assert_eq!(requests.prepare(&uri, position), Some(vec![call.from.clone()]));
+        assert_eq!(call.from.name, name);
+        assert_eq!(call.from_ranges, expected_ranges);
+    }
+    let outgoing = requests.outgoing(helper).unwrap();
+    assert_eq!(outgoing.len(), 1);
+    let (token_uri, mut token_position) =
+        project.unique_anchor("src/interfaces/IERC20.sol", "function transferFrom(").unwrap();
+    token_position.character += "function ".len() as u32;
+    assert_eq!(requests.prepare(&token_uri, token_position), Some(vec![outgoing[0].to.clone()]));
+    assert_eq!(outgoing[0].to.name, "transferFrom");
+    assert_eq!(
+        outgoing[0].from_ranges,
+        [call_range("IERC20(token).transferFrom(from, to, amount)", "transferFrom")],
+    );
+    for (caller, expected_names, range_count) in [
+        (
+            &incoming[0],
+            &["check", "_computeLiquidityAmounts", "_safeTransferFrom", "pairs", "mint"][..],
+            6,
+        ),
+        (&incoming[1], &["check", "_safeTransferFrom", "pairs", "burn", "sortPairs"][..], 5),
+    ] {
+        let expanded = requests.outgoing(&caller.from).unwrap();
+        assert_eq!(
+            expanded.iter().map(|call| call.to.name.as_str()).collect::<Vec<_>>(),
+            expected_names
+        );
+        assert_eq!(expanded.iter().map(|call| call.from_ranges.len()).sum::<usize>(), range_count);
+        assert_eq!(requests.before_first_request().outgoing(&caller.from), Some(expanded));
+    }
+    assert_eq!(requests.before_first_request().incoming(helper), Some(incoming));
+    assert_eq!(requests.before_first_request().outgoing(helper), Some(outgoing));
+
+    let mut group = c.benchmark_group("lsp/call-hierarchy-request");
+    for (location, position) in positions {
+        group.bench_function(
+            BenchmarkId::from_parameter(format!("unifap-v2-prepare-{location}")),
+            |b| b.iter(|| black_box(requests.prepare(black_box(&uri), black_box(position)))),
+        );
+    }
+    group.bench_function(BenchmarkId::from_parameter("unifap-v2-incoming"), |b| {
+        b.iter(|| black_box(requests.incoming(black_box(helper))));
+    });
+    group.bench_function(BenchmarkId::from_parameter("unifap-v2-outgoing"), |b| {
+        b.iter(|| black_box(requests.outgoing(black_box(helper))));
+    });
+    group.finish();
+
+    let mut group = c.benchmark_group("lsp/call-hierarchy-expand");
+    group.throughput(Throughput::Elements(5));
+    group.bench_function(BenchmarkId::from_parameter("unifap-v2-transfer-helper"), |b| {
+        b.iter(|| {
+            let items = requests.prepare(black_box(&uri), black_box(callsite)).unwrap();
+            let callers = requests.incoming(black_box(&items[0])).unwrap();
+            for caller in &callers {
+                black_box(requests.outgoing(black_box(&caller.from)));
+            }
+            black_box(requests.outgoing(black_box(&items[0])));
+        });
+    });
+    group.finish();
+
+    let mut group = c.benchmark_group("lsp/call-hierarchy-first-request");
+    group.bench_function(BenchmarkId::from_parameter("unifap-v2-router"), |b| {
+        b.iter_batched_ref(
+            || requests.before_first_request(),
+            |requests| black_box(requests.prepare(black_box(&uri), black_box(callsite))),
+            BatchSize::PerIteration,
+        );
+    });
     group.finish();
 }
 
@@ -1526,6 +1660,7 @@ criterion_group!(
     document_symbol_queries,
     type_hierarchy_queries,
     call_hierarchy_queries,
+    call_hierarchy_requests,
     import_path_queries,
     bounded_workspace_discovery,
     symbol_table_aggregation,
