@@ -967,12 +967,12 @@ impl SymbolTables {
         if let Some(items) = self.member_completion_items(uri, position) {
             return filtered_completion_items(items, context.prefix);
         }
-        if let Some(items) = self.builtin_member_completion_items(context.member_receiver) {
-            return filtered_completion_items(items, context.prefix);
-        }
         if let Some(items) =
             self.receiver_member_completion_items(uri, position, context.member_receiver)
         {
+            return filtered_completion_items(items, context.prefix);
+        }
+        if let Some(items) = self.builtin_member_completion_items(context.member_receiver) {
             return filtered_completion_items(items, context.prefix);
         }
 
@@ -1055,7 +1055,14 @@ impl SymbolTables {
             .filter(|symbol| symbol.name_range == data.selection_range);
         let Some(symbol) = candidates.next() else { return };
         let Some(kind) = item.kind else { return };
-        if item.label != symbol.name || !symbol_supports_completion_kind(symbol, kind) {
+        let matches_name = item.label == symbol.name
+            || self.scopes.iter().any(|scope| {
+                scope.declarations.iter().any(|declaration| {
+                    declaration.name.as_deref() == Some(&item.label)
+                        && self.declarations[declaration.symbol_id].location == symbol.location
+                })
+            });
+        if !matches_name || !symbol_supports_completion_kind(symbol, kind) {
             return;
         }
         let Some(documentation) = symbol.documentation.as_ref() else { return };

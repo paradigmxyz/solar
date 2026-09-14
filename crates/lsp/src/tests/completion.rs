@@ -1892,3 +1892,43 @@ fn incomplete_uint_members_do_not_complete_globals() {
         fixture.check_completion("$1", str![""]);
     }
 }
+
+#[test]
+fn pending_members_respect_shadowing_and_chained_receivers() {
+    let fixture = RequestFixture::new_allowing_diagnostics(
+        r#"
+        //- /Completion.sol open
+        contract C {
+            struct Data { uint field; }
+            function f() public pure {
+                Data memory msg;
+                Data memory field;
+                msg;$1
+                msg.field;$2
+            }
+        }
+        "#,
+        "/Completion.sol",
+    );
+    let changed = fixture
+        .project_contents("/Completion.sol")
+        .replace("msg;", "msg.")
+        .replace("msg.field;", "msg.field.");
+    fixture.check_completion_details_after_change(
+        "$1",
+        "/Completion.sol",
+        &changed,
+        str![[r#"
+label=field
+kind=Property
+detail=Data
+sort_text=<none>
+text_edit=<none>
+insert_text_format=<none>
+new_text:
+<none>
+
+"#]],
+    );
+    fixture.check_completion_details_after_change("$2", "/Completion.sol", &changed, str![""]);
+}

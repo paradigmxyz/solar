@@ -566,3 +566,26 @@ async fn request_resolve_item(
     let response = router.call(resolve).await.unwrap();
     serde_json::from_value(response).unwrap()
 }
+
+#[tokio::test(flavor = "current_thread")]
+async fn resolves_import_alias_documentation() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Math.sol
+        /// @notice Integer helpers.
+        library Math {}
+        //- /Main.sol open
+        import {Math as Numbers} from "./Math.sol";
+        contract C { using Num$1bers for uint256; }
+        "#,
+        "/Main.sol",
+    );
+    let mut router = crate::new_router_with_state(fixture.state());
+    let item = request_completion_item(&mut router, &fixture, "$1", "Numbers").await;
+    let resolved = request_resolve_item(&mut router, item).await;
+    assert_eq!(resolved.label, "Numbers");
+    assert_eq!(
+        resolved.documentation,
+        Some(Documentation::String("library Math\n\nInteger helpers.".into()))
+    );
+}

@@ -1107,7 +1107,11 @@ fn completion_input_from_line_prefix(line_prefix: &str) -> CompletionInput {
     let member_receiver = before_prefix.trim_end().strip_suffix('.').map(|before_dot| {
         let before_dot = before_dot.trim_end();
         let receiver_start = start_of_trailing_ident(before_dot);
-        before_dot[receiver_start..].to_string()
+        if before_dot[..receiver_start].trim_end().ends_with('.') {
+            String::new()
+        } else {
+            before_dot[receiver_start..].to_string()
+        }
     });
     CompletionInput { prefix, member_receiver }
 }

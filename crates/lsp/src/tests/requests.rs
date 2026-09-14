@@ -28,6 +28,8 @@ fn completion_input_extracts_prefix_and_member_receiver() {
     assert_completion_input("        msg.", "", Some("msg"));
     assert_completion_input("        msg.s", "s", Some("msg"));
     assert_completion_input("        getToken().", "", Some(""));
+    assert_completion_input("        object.field.", "", Some(""));
+    assert_completion_input("        object . field . tw", "tw", Some(""));
     assert_completion_input("        value . ", "", Some("value"));
     assert_completion_input("        value . tw", "tw", Some("value"));
 }
