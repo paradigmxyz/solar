@@ -19,8 +19,7 @@ contract StackPhiLoop {
     // CHECK-NOT: push 7
     // CHECK: calldataload
     // CHECK-NOT: push 7
-    // CHECK: calldataload
-    // CHECK-NEXT: iszero
+    // CHECK: iszero
     // CHECK-NEXT: push [[ELSE:bb[0-9]+]]
     // CHECK-NEXT: jumpi
     // CHECK-NEXT: push 7

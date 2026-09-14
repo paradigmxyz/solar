@@ -27,12 +27,39 @@
 -   push 1
 -   pop
 -   jump bb1
-+   push bb3
-+   jump bb2
-  bb1:
 +   push bb4
-+   jump bb2
-+ bb2:
++   jump bb3
+  bb1:
++   push bb5
++   jump bb3
++ bb2 [loop]:
+    push 1
+    pop
+    push 1
+    pop
+    push 1
+    pop
+    push 1
+    pop
+    push 1
+    pop
+    push 1
+    pop
+    push 1
+    pop
+    push 1
+    pop
+    push 1
+    pop
+    push 1
+    pop
+    push 1
+    pop
+    push 1
+    pop
+    stop
+- bb2 [loop]:
++ bb3:
     push 1
     pop
     push 1
@@ -58,8 +85,8 @@
     push 1
     pop
 +   jump
-+ bb3:
-+   jump bb1
 + bb4:
++   jump bb1
++ bb5:
     stop
   
