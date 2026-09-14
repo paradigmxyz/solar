@@ -442,7 +442,8 @@ impl Session {
     }
 
     /// Spawns the given closure on the thread pool or executes it immediately if parallelism is not
-    /// enabled or the session uses a shared pool. Shared-pool work cannot outlive its session binding.
+    /// enabled or the session uses a shared pool. Shared-pool work cannot outlive its session
+    /// binding.
     ///
     /// NOTE: on a `use_current_thread` thread pool `rayon::spawn` will never execute without
     /// yielding to rayon, so prefer using this method over `rayon::spawn`.
