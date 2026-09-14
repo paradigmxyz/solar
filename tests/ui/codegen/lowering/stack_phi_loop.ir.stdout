@@ -51,8 +51,9 @@ bb7:
   jumpi
   push 36
   calldataload
-  push 1
-  lt
+  push 2
+  gt
+  iszero
   push bb6
   jumpi
   push 36

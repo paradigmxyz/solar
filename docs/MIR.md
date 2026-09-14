@@ -569,29 +569,11 @@ incoming path can still replace a redundant load without inserting an access.
 CSE and load PRE avoid extending a load from an allocation base across blocks
 solely to eliminate a cheap reload. They can reuse a value already live across
 the edge, and load PRE prefers an equivalent constant or already-live value.
-The EVM revert pass removes an existing branch inversion around a cold payload
-when success can fall through after layout; it preserves the payload's target.
-After code sharing, the EVM peephole keeps a stored word on the stack for an
-immediate reload of the same storage or transient slot. This avoids extending
-MIR live ranges or changing earlier outlining choices.
 
 Private branch successors can retain their live stack before the backend imposes
 an argument-only layout. A condition that remains live keeps the global plan,
 which avoids disturbing loop-entry layouts. Cold terminal siblings may keep
 unused stack words, but their payloads and required live-ins stay explicit.
-
-Final CFG cleanup exposes acyclic branch triangles as structural conditional
-terminators. Layout places the taken arm before its join so assembly can omit
-the arm’s jump. Known loops and cold arms keep their existing order, and the
-conversion preserves source origins and keeps glued instructions and custom stack
-effects intact. Debug events move to retained operations where representable.
-
-EVM layout packs small shared terminal traces below the PUSH1 address limit.
-It moves the whole fallthrough trace, so moving a shared exit does not insert
-jumps between its predecessor blocks. Multi-block traces must end at an exit
-with at least four references beyond the low-address range; the stricter limit
-avoids moving hot code for weak size gains. Packing reserves space for one-byte
-indexed jump tables, since wider entries add shifts and masking to each lookup.
 
 Packed ABI encoding skips allocation rounding when every component occupies
 whole words, while retaining overflow checks. Storage-byte pushes place the
@@ -625,41 +607,15 @@ used on only one branch off its sibling edge when the sibling can retain an
 identity layout; the edge that needs them emits their pushes. Size mode keeps
 the shared layout to preserve opportunities for merging tails.
 
-Final EVM peepholes move a word store immediately followed by a return of that
-word to scratch memory only when a preceding word store in the same block proves
-that the original range is already expanded. The proof stops at inline jump
-destinations. This keeps memory-limit halts and reduces pushes after tail sharing
-has settled. Reads do not establish this proof because later dead-code cleanup
-may remove them. A different return range or an intervening instruction keeps
-the original address, including an `MSIZE` that observes the store.
-
-Final store cleanup consumes a stack word directly when a duplicate is stored
-and its original is discarded immediately afterward. It preserves the order of
-the remaining stack and does not cross a glued boundary. Debug events move to
-the retained store.
-
 Two-word branch layouts place one reloaded join value above the resident word.
 Preparing the condition then needs one swap. Wider layouts retain their existing
 order because downstream joins can outweigh that local saving.
-
-Gas cleanup can copy an eight-byte word-return body into a stub shared by
-multiple empty stubs. This removes an extra jump while retaining distinct
-return labels. Size mode keeps the shared body. Debug events from the copied
-body and replaced jump move to retained operations where representable.
 
 When both branch arms terminate normally, gas layout places the false arm first.
 The true arm then uses the existing condition directly, avoiding an inversion
 and exposing its return path to later sharing and placement.
 
-Tail merging reuses an existing whole-body terminal suffix when there are no
-nested shared tails. Other return labels remain distinct jump stubs, so sharing
-avoids an extra block without changing address identity or nested fallthrough
-paths. Ambiguous function-entry events are dropped after selecting the rewrite.
-
 The lowered pipeline folds constant results before branch cleanup and stack scheduling. It keeps other value identities and instruction choices intact to avoid lengthening live ranges after representation lowering.
 
 The scheduler carries known loop membership into EVM IR, and block merging
-preserves it. Gas-mode outlining keeps loop computations and large pushes
-inline. Tail merging can reuse an existing non-loop tail from a loop, but loop
-blocks do not seed new sharing groups. Index non-loop paths first so their
-position in the block list does not prevent reuse.
+preserves it.

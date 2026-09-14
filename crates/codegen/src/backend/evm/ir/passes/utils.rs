@@ -18,31 +18,13 @@ use solar_sema::Gcx;
 /// The machine-level identity shared by transforms that compare instructions.
 ///
 /// `keep_with_next` is part of the identity: sharing one copy of two otherwise equal instructions
-/// must not drop one copy's constraint on the boundary that follows it. The small fields share
-/// one word so the suffix and outlining tables hash them together.
+/// must not drop one copy's constraint on the boundary that follows it.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub(super) struct MachineInstKey(u64, Option<PushValue>);
+pub(super) struct MachineInstKey(u8, u8, Option<PushValue>, Option<op::StackOp>, bool);
 
 impl MachineInstKey {
     pub(super) fn new(inst: &Instruction) -> Self {
-        let (stack_kind, first, second) = match inst.as_stack_op() {
-            None => (0, 0, 0),
-            Some(op::StackOp::Dup(depth)) => (1, depth, 0),
-            Some(op::StackOp::Swap(depth)) => (2, depth, 0),
-            Some(op::StackOp::Exchange(first, second)) => (3, first, second),
-            Some(op::StackOp::Pop) => (4, 0, 0),
-        };
-        let operation = u64::from_le_bytes([
-            inst.opcode,
-            inst.encoding,
-            u8::from(inst.keeps_with_next()),
-            stack_kind,
-            first,
-            second,
-            0,
-            0,
-        ]);
-        Self(operation, inst.value)
+        Self(inst.opcode, inst.encoding, inst.value, inst.as_stack_op(), inst.keeps_with_next())
     }
 }
 
@@ -155,27 +137,4 @@ fn remap_terminator_blocks(kind: &mut TerminatorKind, remap: &IndexVec<BlockId, 
     kind.visit_targets_mut(|target| {
         *target = remap[*target].expect("terminator target must be retained");
     });
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn machine_keys_preserve_stack_depths_and_boundaries() {
-        let mut keys = FxHashSet::default();
-        let mut operations = vec![op::StackOp::Pop];
-        for first in [1, 16, 17, 255] {
-            operations.extend([op::StackOp::Dup(first), op::StackOp::Swap(first)]);
-            for second in [1, 16, 17, 255] {
-                operations.push(op::StackOp::Exchange(first, second));
-            }
-        }
-        for operation in operations {
-            let mut instruction = Instruction::stack_op(operation);
-            assert!(keys.insert(MachineInstKey::new(&instruction)));
-            instruction.metadata.keep_with_next = true;
-            assert!(keys.insert(MachineInstKey::new(&instruction)));
-        }
-    }
 }

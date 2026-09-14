@@ -22,20 +22,28 @@ bb0:
   swap 4
   push 1
   signextend
-  swap 5
+  dup 6
   push 128
   mstore
-  swap 4
+  swap 5
+  pop
+  dup 5
   push 160
   mstore
-  swap 1
+  swap 4
+  pop
+  dup 2
   push 192
   mstore
+  swap 1
+  pop
   push 224
   mstore
-  swap 1
+  dup 2
   push 256
   mstore
+  swap 1
+  pop
   push 288
   mstore
   push 192
