@@ -32,7 +32,7 @@ use lsp_types::{
 use normalize_path::NormalizePath;
 use solar_config::CompileOpts;
 use solar_interface::{
-    Session,
+    Session, SessionThreadPool,
     data_structures::{
         map::{FxHashMap, FxHashSet},
         sync::{Mutex, RwLock},
@@ -447,6 +447,7 @@ pub(crate) struct GlobalState {
     analysis_commit: Arc<Mutex<AnalysisCommitState>>,
     analysis_progress: ProgressCoordinator,
     analysis_scheduler: Arc<AnalysisScheduler>,
+    analysis_thread_pool: Arc<SessionThreadPool>,
     watched_file_registration: Arc<WatchedFileRegistrationCoordinator>,
     background_discovery: bool,
     protocol_trace: ProtocolTrace,
@@ -495,6 +496,7 @@ impl GlobalState {
             analysis_commit: Arc::new(Default::default()),
             analysis_progress,
             analysis_scheduler: Arc::new(Default::default()),
+            analysis_thread_pool: Arc::new(SessionThreadPool::default()),
             watched_file_registration: Arc::new(Default::default()),
             background_discovery: false,
             protocol_trace,
@@ -1681,6 +1683,7 @@ impl GlobalState {
             analysis_version: self.analysis_version.clone(),
             published_analysis_version: self.published_analysis_version.clone(),
             analysis_commit: self.analysis_commit.clone(),
+            analysis_thread_pool: self.analysis_thread_pool.clone(),
             watched_file_registration: self.watched_file_registration.clone(),
             flycheck_versions: self.flycheck_versions.clone(),
             symbol_tables: self.symbol_tables.clone(),
@@ -1908,9 +1911,12 @@ fn run_analysis(
             result
         } else {
             let dependencies = cache_batches.then(DependencySnapshot::default);
-            let Some(result) =
-                analyze_recording_dependencies(batch, cancellation, dependencies.clone())
-            else {
+            let Some(result) = analyze_recording_dependencies(
+                batch,
+                cancellation,
+                dependencies.clone(),
+                snapshot.analysis_thread_pool.clone(),
+            ) else {
                 return AnalysisTaskOutcome::Superseded;
             };
             // Root text alone cannot establish freshness: replay all disk reads and path probes.
@@ -2413,6 +2419,7 @@ pub(crate) struct GlobalStateSnapshot {
     analysis_version: Arc<AtomicUsize>,
     published_analysis_version: watch::Sender<usize>,
     analysis_commit: Arc<Mutex<AnalysisCommitState>>,
+    analysis_thread_pool: Arc<SessionThreadPool>,
     watched_file_registration: Arc<WatchedFileRegistrationCoordinator>,
     flycheck_versions: Arc<RwLock<FxHashMap<DiagnosticOwner, usize>>>,
     symbol_tables: Arc<ArcSwap<SymbolTables>>,
@@ -2916,30 +2923,8 @@ mod analysis_batch_tests {
     use super::*;
     use crate::{config::negotiate_capabilities, test_support::TestProject};
 
-    struct WorkerFileLoader(std::thread::ThreadId);
-
-    impl FileLoader for WorkerFileLoader {
-        fn canonicalize_path(&self, path: &Path) -> io::Result<PathBuf> {
-            assert_eq!(std::thread::current().id(), self.0);
-            RealFileLoader.canonicalize_path(path)
-        }
-
-        fn load_file(&self, path: &Path) -> io::Result<String> {
-            assert_eq!(std::thread::current().id(), self.0);
-            RealFileLoader.load_file(path)
-        }
-
-        fn load_stdin(&self) -> io::Result<String> {
-            unreachable!()
-        }
-
-        fn load_binary_file(&self, _: &Path) -> io::Result<Vec<u8>> {
-            unreachable!()
-        }
-    }
-
     #[test]
-    fn analysis_reuses_worker_with_fresh_revision_state() {
+    fn analysis_preserves_snapshots_across_shared_pool_revisions() {
         let project = TestProject::from_fixture(
             r#"
             //- /Dependency.sol
@@ -2947,9 +2932,9 @@ mod analysis_batch_tests {
             "#,
         );
         let path = project.path("/Main.sol");
+        let pool = Arc::new(SessionThreadPool::new(4));
         let analyze_revision = |name| {
             let source_map = Arc::new(SourceMap::empty());
-            source_map.set_file_loader(WorkerFileLoader(std::thread::current().id()));
             let batch = AnalysisBatch::from_files(
                 CompileOpts { threads: 8.into(), ..Default::default() },
                 [(
@@ -2957,7 +2942,15 @@ mod analysis_batch_tests {
                     format!("import './Dependency.sol'; contract {name} is Dependency {{}}"),
                 )],
             );
-            analyze_with_source_map(batch, source_map)
+            analyze_cancellable_with_source_map(
+                batch,
+                source_map,
+                ImportPathTracker::default(),
+                &IndexingCancellation::default(),
+                pool.clone(),
+            )
+            .unwrap()
+            .result
         };
 
         let first = analyze_revision("First");
@@ -3120,6 +3113,14 @@ mod analysis_batch_tests {
 }
 
 #[cfg(any(test, feature = "bench"))]
+fn analysis_test_pool() -> Arc<SessionThreadPool> {
+    thread_local! {
+        static POOL: Arc<SessionThreadPool> = Arc::new(SessionThreadPool::new(1));
+    }
+    POOL.with(Arc::clone)
+}
+
+#[cfg(any(test, feature = "bench"))]
 fn analyze(batch: AnalysisBatch) -> AnalysisResult {
     analyze_cancellable(batch, &IndexingCancellation::default())
         .expect("fresh analysis cancellation cannot be cancelled")
@@ -3133,6 +3134,7 @@ fn analyze_with_source_map(batch: AnalysisBatch, source_map: Arc<SourceMap>) -> 
         source_map,
         ImportPathTracker::default(),
         &IndexingCancellation::default(),
+        analysis_test_pool(),
     )
     .expect("fresh analysis cancellation cannot be cancelled")
     .result
@@ -3143,18 +3145,19 @@ fn analyze_cancellable(
     batch: AnalysisBatch,
     cancellation: &IndexingCancellation,
 ) -> Option<AnalysisOutput> {
-    analyze_recording_dependencies(batch, cancellation, None)
+    analyze_recording_dependencies(batch, cancellation, None, analysis_test_pool())
 }
 
 fn analyze_recording_dependencies(
     batch: AnalysisBatch,
     cancellation: &IndexingCancellation,
     dependencies: Option<DependencySnapshot>,
+    thread_pool: Arc<SessionThreadPool>,
 ) -> Option<AnalysisOutput> {
     let tracker = ImportPathTracker::default();
     let source_map = Arc::new(SourceMap::empty());
     source_map.set_file_loader(TrackingFileLoader { tracker: tracker.clone(), dependencies });
-    analyze_cancellable_with_source_map(batch, source_map, tracker, cancellation)
+    analyze_cancellable_with_source_map(batch, source_map, tracker, cancellation, thread_pool)
 }
 
 fn analyze_cancellable_with_source_map(
@@ -3162,6 +3165,7 @@ fn analyze_cancellable_with_source_map(
     source_map: Arc<SourceMap>,
     import_paths: ImportPathTracker,
     cancellation: &IndexingCancellation,
+    thread_pool: Arc<SessionThreadPool>,
 ) -> Option<AnalysisOutput> {
     if cancellation.is_cancelled() {
         return None;
@@ -3178,11 +3182,9 @@ fn analyze_cancellable_with_source_map(
     debug_assert_eq!(files.len(), document_link_sources.len());
     debug_assert!(files.iter().all(|(path, _)| document_link_sources.contains(path)));
     opts.unstable.recover_incomplete_input = true;
-    // Analysis already runs on a blocking worker. Reuse its current-thread Rayon context
-    // across revisions while keeping source maps, interners, and diagnostics fresh.
     let sess = Session::builder()
         .opts(opts)
-        .single_threaded()
+        .thread_pool(thread_pool)
         .source_map(source_map)
         .dcx(DiagCtxt::new(Box::new(emitter)))
         .build();
@@ -3192,6 +3194,9 @@ fn analyze_cancellable_with_source_map(
 
     let mut compiler = Compiler::new(sess);
     compiler.enter_mut(move |compiler| {
+        if cancellation.is_cancelled() {
+            return None;
+        }
         let sources_loaded = {
             let mut parsing_context = compiler.parse();
             for (path, contents) in preloaded_files {

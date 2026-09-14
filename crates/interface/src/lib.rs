@@ -19,7 +19,7 @@ mod pos;
 pub use pos::{BytePos, CharPos, RelativeBytePos};
 
 mod session;
-pub use session::{Session, SessionBuilder};
+pub use session::{Session, SessionBuilder, SessionThreadPool};
 
 pub mod source_map;
 pub use source_map::SourceMap;

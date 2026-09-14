@@ -1,9 +1,11 @@
 use crate::{
     ByteSymbol, ColorChoice, SessionGlobals, SourceMap, Symbol,
+    data_structures::sync::Mutex,
     diagnostics::{DiagCtxt, EmittedDiagnostics},
 };
 use solar_config::{
-    CompileOpts, CompilerOutput, CompilerStage, Language, SINGLE_THREADED_TARGET, UnstableOpts,
+    CompileOpts, CompilerOutput, CompilerStage, Language, SINGLE_THREADED_TARGET, Threads,
+    UnstableOpts,
 };
 use std::{
     fmt,
@@ -23,6 +25,7 @@ pub struct Session {
     /// The rayon thread pool. This is spawned lazily on first use, rather than always constructing
     /// one with `SessionBuilder`.
     thread_pool: OnceLock<rayon::ThreadPool>,
+    shared_thread_pool: Option<Arc<SessionThreadPool>>,
 }
 
 impl Default for Session {
@@ -47,9 +50,67 @@ pub struct SessionBuilder {
     dcx: Option<DiagCtxt>,
     globals: Option<SessionGlobals>,
     opts: Option<CompileOpts>,
+    thread_pool: Option<Arc<SessionThreadPool>>,
+}
+
+/// A reusable worker pool for successive compiler sessions.
+///
+/// Sessions enter this pool one at a time; each session still uses all configured workers.
+/// Every worker binds that session's globals until its scoped work finishes, then clears them.
+/// The pool owns its thread count. Dropping the last owner shuts down the workers, including
+/// for a one-thread pool.
+///
+/// Work must finish before `Session::enter` returns: use joins, scopes, and parallel iterators,
+/// not detached Rayon tasks. `Session::spawn` runs inline for sessions using this pool.
+pub struct SessionThreadPool {
+    threads: Threads,
+    pool: Mutex<Option<rayon::ThreadPool>>,
+}
+
+impl Default for SessionThreadPool {
+    fn default() -> Self {
+        Self { threads: Threads::default(), pool: Mutex::new(None) }
+    }
+}
+
+impl SessionThreadPool {
+    /// Creates a lazily initialized pool. Zero selects the number of available logical cores.
+    pub fn new(threads: usize) -> Self {
+        Self { threads: Threads::resolve(threads), pool: Mutex::new(None) }
+    }
+
+    fn enter<R: Send>(&self, sess: &Session, f: impl FnOnce() -> R + Send) -> R {
+        assert!(!in_rayon(), "cannot enter a shared pool from a different Rayon context");
+        let mut pool = self.pool.lock();
+        let pool = pool.get_or_insert_with(|| {
+            rayon::ThreadPoolBuilder::new()
+                .num_threads(self.threads.0.get())
+                .thread_name(|i| format!("solar-{i}"))
+                .build()
+                .unwrap_or_else(|e| sess.handle_thread_pool_build_error(e))
+        });
+        pool.broadcast(|_| SessionGlobals::set_pool_globals(Some(sess.globals.clone())));
+        let _globals = PoolGlobalsGuard(pool);
+        sess.enter_sequential(|| pool.install(|| sess.enter_sequential(f)))
+    }
+}
+
+struct PoolGlobalsGuard<'a>(&'a rayon::ThreadPool);
+
+impl Drop for PoolGlobalsGuard<'_> {
+    fn drop(&mut self) {
+        self.0.broadcast(|_| SessionGlobals::set_pool_globals(None));
+    }
 }
 
 impl SessionBuilder {
+    /// Reuses a worker pool across sessions without sharing their source maps or interners.
+    /// The pool determines the session thread count, overriding the compiler options.
+    pub fn thread_pool(mut self, thread_pool: Arc<SessionThreadPool>) -> Self {
+        self.thread_pool = Some(thread_pool);
+        self
+    }
+
     /// Sets the diagnostic context.
     ///
     /// If `opts` is set this will default to [`DiagCtxt::from_opts`], otherwise this is required.
@@ -170,8 +231,17 @@ impl SessionBuilder {
             }
         });
         let mut opts = opts.unwrap_or_default();
+        if let Some(pool) = &self.thread_pool {
+            opts.threads = pool.threads;
+        }
         Session::infer_language(&mut opts);
-        let sess = Session { globals, dcx, opts, thread_pool: OnceLock::new() };
+        let sess = Session {
+            globals,
+            dcx,
+            opts,
+            thread_pool: OnceLock::new(),
+            shared_thread_pool: self.thread_pool,
+        };
         sess.reconfigure();
         debug!(version = %solar_config::version::SEMVER_VERSION, "created new session");
         sess
@@ -372,13 +442,13 @@ impl Session {
     }
 
     /// Spawns the given closure on the thread pool or executes it immediately if parallelism is not
-    /// enabled.
+    /// enabled or the session uses a shared pool. Shared-pool work cannot outlive its session binding.
     ///
     /// NOTE: on a `use_current_thread` thread pool `rayon::spawn` will never execute without
     /// yielding to rayon, so prefer using this method over `rayon::spawn`.
     #[inline]
     pub fn spawn(&self, f: impl FnOnce() + Send + 'static) {
-        if self.is_sequential() {
+        if self.is_sequential() || self.shared_thread_pool.is_some() {
             f();
         } else {
             rayon::spawn(f);
@@ -415,10 +485,19 @@ impl Session {
 
     /// Sets up the session globals and executes the given closure in the thread pool.
     ///
+    /// Sessions sharing a pool enter serially. Reentering the same session is supported;
+    /// entering from a different Rayon context panics to avoid recursive pool locking.
+    ///
     /// The thread pool and globals are stored in this [`Session`] itself, meaning multiple
     /// consecutive calls to [`enter`](Self::enter) will share the same globals and resources.
     #[track_caller]
     pub fn enter<R: Send>(&self, f: impl FnOnce() -> R + Send) -> R {
+        if let Some(pool) = &self.shared_thread_pool {
+            if self.globals.is_pool_session() {
+                return self.enter_sequential(f);
+            }
+            return pool.enter(self, f);
+        }
         if in_rayon() {
             // Avoid panicking if we were to build a `current_thread` thread pool.
             if self.is_sequential() {
@@ -552,7 +631,12 @@ fn in_rayon() -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
+    use std::{
+        cell::RefCell,
+        path::PathBuf,
+        sync::{Barrier, mpsc},
+        time::Duration,
+    };
 
     /// Session to test `enter`.
     fn enter_tests_session() -> Session {
@@ -593,6 +677,134 @@ mod tests {
     #[track_caller]
     fn cant_use_globals() {
         std::panic::catch_unwind(|| use_globals()).unwrap_err();
+    }
+
+    #[test]
+    fn shared_pool_reuses_workers_and_releases_globals() {
+        let pool = Arc::new(SessionThreadPool::new(4));
+        let run = || {
+            let sess =
+                Session::builder().with_test_emitter().threads(1).thread_pool(pool.clone()).build();
+            assert_eq!(sess.threads(), 4);
+            let globals = Arc::downgrade(&sess.globals);
+            let workers = sess.enter(|| {
+                sess.enter(|| assert!(sess.is_entered()));
+                sess.spawn(|| assert!(SessionGlobals::is_set()));
+                rayon::broadcast(|_| {
+                    assert!(sess.is_entered());
+                    std::thread::current().id()
+                })
+            });
+            assert_eq!(workers.len(), 4);
+            assert!(!workers.contains(&std::thread::current().id()));
+            drop(sess);
+            assert!(globals.upgrade().is_none());
+            workers
+        };
+        assert_eq!(run(), run());
+        pool.pool.lock().as_ref().unwrap().broadcast(|_| assert!(!SessionGlobals::is_set()));
+    }
+
+    #[test]
+    fn shared_pool_isolates_concurrent_sessions_and_recovers_from_panic() {
+        let pool = Arc::new(SessionThreadPool::new(2));
+        let barrier = Barrier::new(2);
+        std::thread::scope(|scope| {
+            for index in 0..2 {
+                let pool = &pool;
+                let barrier = &barrier;
+                scope.spawn(move || {
+                    let sess = Session::builder()
+                        .with_test_emitter()
+                        .threads(2)
+                        .thread_pool(pool.clone())
+                        .build();
+                    let name = format!("source{index}");
+                    sess.source_map().new_source_file(PathBuf::from(&name), "abcd").unwrap();
+                    barrier.wait();
+                    for _ in 0..4 {
+                        sess.enter(|| {
+                            rayon::broadcast(|_| {
+                                assert!(sess.is_entered());
+                                let span = crate::Span::new(crate::BytePos(0), crate::BytePos(1));
+                                assert_eq!(format!("{span:?}"), format!("{name}:1:1: 1:2"));
+                            });
+                        });
+                    }
+                });
+            }
+        });
+        let sess =
+            Session::builder().with_test_emitter().threads(2).thread_pool(pool.clone()).build();
+        let globals = Arc::downgrade(&sess.globals);
+        assert!(
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                sess.enter(|| panic!("analysis panic"));
+            }))
+            .is_err()
+        );
+        drop(sess);
+        assert!(globals.upgrade().is_none());
+        pool.pool.lock().as_ref().unwrap().broadcast(|_| assert!(!SessionGlobals::is_set()));
+        let sess = Session::builder().with_test_emitter().threads(2).thread_pool(pool).build();
+        sess.enter(|| rayon::broadcast(|_| assert!(sess.is_entered())));
+    }
+
+    #[test]
+    fn shared_pool_rejects_nested_session_with_overridden_globals() {
+        let pool = Arc::new(SessionThreadPool::new(2));
+        let first = Session::builder().with_test_emitter().thread_pool(pool.clone()).build();
+        let second = Session::builder().with_test_emitter().thread_pool(pool).build();
+        let dedicated = Session::builder().with_test_emitter().threads(2).build();
+        first.enter(|| {
+            assert!(
+                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    dedicated.enter(|| first.enter(|| {}));
+                }))
+                .is_err()
+            );
+            second.enter_sequential(|| {
+                first.enter(|| rayon::broadcast(|_| assert!(first.is_entered())));
+                assert!(
+                    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                        second.enter(|| {});
+                    }))
+                    .is_err()
+                );
+            });
+            assert!(first.is_entered());
+        });
+        second.enter(|| rayon::broadcast(|_| assert!(second.is_entered())));
+    }
+
+    struct WorkerExit(mpsc::Sender<()>);
+
+    impl Drop for WorkerExit {
+        fn drop(&mut self) {
+            let _ = self.0.send(());
+        }
+    }
+
+    #[test]
+    fn shared_pool_shuts_down_all_workers() {
+        thread_local! {
+            static EXIT: RefCell<Option<WorkerExit>> = const { RefCell::new(None) };
+        }
+        for threads in [1, 4] {
+            let pool = Arc::new(SessionThreadPool::new(threads));
+            let sess = Session::builder()
+                .with_test_emitter()
+                .threads(threads)
+                .thread_pool(pool.clone())
+                .build();
+            let (tx, rx) = mpsc::channel();
+            sess.enter(|| rayon::broadcast(|_| EXIT.set(Some(WorkerExit(tx.clone())))));
+            drop(sess);
+            drop(pool);
+            for _ in 0..threads {
+                rx.recv_timeout(Duration::from_secs(5)).expect("shared pool worker did not exit");
+            }
+        }
     }
 
     #[test]
