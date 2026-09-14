@@ -850,15 +850,36 @@ impl BenchmarkSignatureHelpRequests {
 
     /// Prepare an edited document with unchanged analysis, outside the request timing.
     pub fn after_edit(&self) -> Self {
+        self.fresh_document(true)
+    }
+
+    /// Prepare the same analyzed document with no request caches, outside the request timing.
+    pub fn before_first_request(&self) -> Self {
+        self.fresh_document(false)
+    }
+
+    fn fresh_document(&self, edit: bool) -> Self {
         let path =
             crate::proto::vfs_path(&self.params.text_document_position_params.text_document.uri)
                 .expect("signature-help benchmark URI should be a file");
         let mut contents = self.state.vfs.read().get_file_contents(&path).unwrap().clone();
-        contents.insert(contents.byte_len(), " ");
+        if edit {
+            contents.insert(contents.byte_len(), " ");
+        }
         let state = super::GlobalState::new(ClientSocket::new_closed());
-        state.vfs.write().set_file_contents_with_version(path, Some(contents), Some(2));
+        state.vfs.write().set_file_contents_with_version(
+            path,
+            Some(contents),
+            Some(if edit { 2 } else { 1 }),
+        );
         state.symbol_tables.store(self.state.symbol_tables.load_full());
         Self { state, params: self.params.clone() }
+    }
+
+    /// Move the cursor and execute a complete request against the same open document.
+    pub fn run_at(&mut self, position: Position) -> Option<SignatureHelp> {
+        self.params.text_document_position_params.position = position;
+        self.run()
     }
 
     /// Execute one synchronous signature-help request through the production handler.
