@@ -1,0 +1,49 @@
+// === ROOT/tests/ui/codegen/lowering/fixed_bytes_literal_assign.sol:FixedBytesLiteralAssign ===
+@module FixedBytesLiteralAssign
+fn @patch(arg0: bool) -> bytes1 [selector=0x7f603a02, pure, abi_params=[bool], abi_returns=[word<bytes1>]] {
+  bb0:
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v0, 2
+    v1 = memory_object_data memorybytes, v0
+    mstore v1, 0x4142000000000000000000000000000000000000000000000000000000000000
+    jumpi arg0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v2 = memory_object_len memorybytes, v0
+    v3 = lt 0, v2
+    v4 = iszero v3
+    jumpi v4, bb4, bb5
+  bb5:
+    v5 = byte 0, 0x2d00000000000000000000000000000000000000000000000000000000000000
+    memory_object_store_byte memorybytes, v0, 0, v5
+    jump bb3
+  bb3:
+    v6 = memory_object_len memorybytes, v0
+    v7 = lt 0, v6
+    v8 = iszero v7
+    jumpi v8, bb4, bb6
+  bb6:
+    v9 = memory_object_load_byte memorybytes, v0, 0
+    v10 = shl 248, v9
+    ret v10
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @store() -> bytes1 [selector=0x975057e7, abi_params=[], abi_returns=[word<bytes1>]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = not 255
+    v2 = and v0, v1
+    v3 = shr 248, 0x2d00000000000000000000000000000000000000000000000000000000000000
+    v4 = and v3, 255
+    v5 = or v2, v4
+    sstore 0, v5 !metadata(storage=slot(0))
+    v6 = sload 0 !metadata(storage=slot(0))
+    v7 = and v6, 255
+    v8 = shl 248, v7
+    ret v8
+}

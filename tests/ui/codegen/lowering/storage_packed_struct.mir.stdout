@@ -108,60 +108,58 @@ fn @constructor() [constructor] {
     v86 = shl 168, v85
     v87 = or v84, v86
     sstore 3, v87 !metadata(storage=slot(3))
-    v88 = shl 224, 0x11223344
-    v89 = sload 4 !metadata(storage=slot(4))
-    v90 = not 0xffffffff
-    v91 = and v89, v90
-    v92 = shr 224, v88
-    v93 = and v92, 0xffffffff
-    v94 = or v91, v93
-    sstore 4, v94 !metadata(storage=slot(4))
-    v95 = sub 0, 7
-    v96 = shl 32, 255
-    v97 = sload 4 !metadata(storage=slot(4))
-    v98 = not v96
-    v99 = and v97, v98
-    v100 = and v95, 255
-    v101 = shl 32, v100
-    v102 = or v99, v101
-    sstore 4, v102 !metadata(storage=slot(4))
-    v103 = shl 224, 0x55667788
-    v104 = lt 1, 2
-    v105 = iszero v104
-    jumpi v105, bb1, bb6
+    v88 = sload 4 !metadata(storage=slot(4))
+    v89 = not 0xffffffff
+    v90 = and v88, v89
+    v91 = shr 224, 0x1122334400000000000000000000000000000000000000000000000000000000
+    v92 = and v91, 0xffffffff
+    v93 = or v90, v92
+    sstore 4, v93 !metadata(storage=slot(4))
+    v94 = sub 0, 7
+    v95 = shl 32, 255
+    v96 = sload 4 !metadata(storage=slot(4))
+    v97 = not v95
+    v98 = and v96, v97
+    v99 = and v94, 255
+    v100 = shl 32, v99
+    v101 = or v98, v100
+    sstore 4, v101 !metadata(storage=slot(4))
+    v102 = lt 1, 2
+    v103 = iszero v102
+    jumpi v103, bb1, bb6
   bb6:
-    v106 = div 1, 8
-    v107 = add 5, v106
-    v108 = mod 1, 8
-    v109 = mul v108, 4
-    v110 = mul v109, 8
-    v111 = shl v110, 0xffffffff
-    v112 = sload v107 !metadata(storage=offset(v106, 5))
-    v113 = not v111
-    v114 = and v112, v113
-    v115 = shr 224, v103
-    v116 = and v115, 0xffffffff
-    v117 = shl v110, v116
-    v118 = or v114, v117
-    sstore v107, v118 !metadata(storage=offset(v106, 5))
-    v119 = sub 0, 8
-    v120 = lt 1, 2
-    v121 = iszero v120
-    jumpi v121, bb1, bb7
+    v104 = div 1, 8
+    v105 = add 5, v104
+    v106 = mod 1, 8
+    v107 = mul v106, 4
+    v108 = mul v107, 8
+    v109 = shl v108, 0xffffffff
+    v110 = sload v105 !metadata(storage=offset(v104, 5))
+    v111 = not v109
+    v112 = and v110, v111
+    v113 = shr 224, 0x5566778800000000000000000000000000000000000000000000000000000000
+    v114 = and v113, 0xffffffff
+    v115 = shl v108, v114
+    v116 = or v112, v115
+    sstore v105, v116 !metadata(storage=offset(v104, 5))
+    v117 = sub 0, 8
+    v118 = lt 1, 2
+    v119 = iszero v118
+    jumpi v119, bb1, bb7
   bb7:
-    v122 = div 1, 32
-    v123 = add 6, v122
-    v124 = mod 1, 32
-    v125 = mul v124, 1
-    v126 = mul v125, 8
-    v127 = shl v126, 255
-    v128 = sload v123 !metadata(storage=offset(v122, 6))
-    v129 = not v127
-    v130 = and v128, v129
-    v131 = and v119, 255
-    v132 = shl v126, v131
-    v133 = or v130, v132
-    sstore v123, v133 !metadata(storage=offset(v122, 6))
+    v120 = div 1, 32
+    v121 = add 6, v120
+    v122 = mod 1, 32
+    v123 = mul v122, 1
+    v124 = mul v123, 8
+    v125 = shl v124, 255
+    v126 = sload v121 !metadata(storage=offset(v120, 6))
+    v127 = not v125
+    v128 = and v126, v127
+    v129 = and v117, 255
+    v130 = shl v124, v129
+    v131 = or v128, v130
+    sstore v121, v131 !metadata(storage=offset(v120, 6))
     ret
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
