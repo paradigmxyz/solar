@@ -4,7 +4,6 @@
 
 use criterion::{BatchSize, BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use crop::Rope;
-use flate2::read::GzDecoder;
 use lsp_types::{
     GotoDefinitionResponse, HoverContents, OneOf, Position, Range, TextDocumentContentChangeEvent,
     Url,
@@ -162,75 +161,6 @@ fn import_diamond_analysis(c: &mut Criterion) {
             );
         });
     }
-    group.finish();
-}
-
-fn solady_analysis(c: &mut Criterion) {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let archive = root.join("../../testdata/projects/solady-0.1.26.json.gz");
-    let input: serde_json::Value =
-        serde_json::from_reader(GzDecoder::new(fs::File::open(archive).unwrap())).unwrap();
-    let sources = input["sources"].as_object().unwrap().iter().map(|(path, source)| {
-        (PathBuf::from(path), source["content"].as_str().unwrap().to_owned())
-    });
-    let mut opts =
-        CompileOpts { base_path: Some(root.join("benches/solady")), ..Default::default() };
-    opts.import_remappings = input["settings"]["remappings"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|value| value.as_str().unwrap().parse().unwrap())
-        .collect();
-    let project = BenchmarkProject::from_sources(opts, sources).unwrap();
-    assert_eq!(project.file_count(), 208);
-    let analysis = project.clone().analyze();
-    assert_clean(&analysis);
-    let query = BenchmarkRequest::WorkspaceSymbols { query: "lspReadyValue".into() };
-    assert!(
-        matches!(analysis.execute(&query), BenchmarkResponse::WorkspaceSymbols(items) if items.is_empty())
-    );
-    drop(analysis);
-
-    let edit = project
-        .replacement_edit(
-            "src/tokens/WETH.sol",
-            "contract WETH is ERC20 {",
-            "contract WETH is ERC20 {\nfunction lspReadyValue() public pure returns (uint256) { return 1; }",
-        )
-        .unwrap();
-    let mut edited = project.clone();
-    edited.apply_edit(&edit).unwrap();
-    let analysis = edited.analyze();
-    assert_clean(&analysis);
-    assert!(
-        matches!(analysis.execute(&query), BenchmarkResponse::WorkspaceSymbols(items) if items.len() == 1)
-    );
-    drop(analysis);
-
-    let mut group = c.benchmark_group("lsp/project-analysis");
-    group.throughput(Throughput::Bytes(project.source_bytes() as u64));
-    group.bench_function(BenchmarkId::from_parameter("solady-0.1.26"), |b| {
-        b.iter_batched(
-            || project.clone(),
-            |project| black_box(project.analyze()),
-            BatchSize::PerIteration,
-        );
-    });
-    group.finish();
-
-    let mut group = c.benchmark_group("lsp/project-analysis-after-edit");
-    group.throughput(Throughput::Bytes(project.source_bytes() as u64));
-    group.bench_function(BenchmarkId::from_parameter("solady-0.1.26"), |b| {
-        b.iter_batched(
-            || {
-                let mut project = project.clone();
-                project.apply_edit(&edit).unwrap();
-                project
-            },
-            |project| black_box(project.analyze()),
-            BatchSize::PerIteration,
-        );
-    });
     group.finish();
 }
 
@@ -1474,7 +1404,6 @@ criterion_group!(
     repeated_analysis,
     workspace_index_reuse,
     workspace_path_queries,
-    unifap_benches,
-    solady_analysis
+    unifap_benches
 );
 criterion_main!(benches);

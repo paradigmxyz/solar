@@ -52,7 +52,6 @@ tokio = { workspace = true, features = ["rt", "io-std"] }
 
 [dev-dependencies]
 criterion.workspace = true
-flate2.workspace = true
 snapbox.workspace = true
 tempfile.workspace = true
 tokio = { workspace = true, features = ["io-util", "macros", "rt", "sync", "test-util", "time"] }

@@ -12,8 +12,6 @@ use async_lsp::{
 };
 #[cfg(test)]
 use criterion as _;
-#[cfg(test)]
-use flate2 as _;
 use lsp_types::{notification as notif, request as req};
 use normalize_path::NormalizePath;
 use serde_json as _;

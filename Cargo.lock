@@ -4659,7 +4659,6 @@ dependencies = [
  "codspeed-criterion-compat",
  "crop",
  "either",
- "flate2",
  "glob",
  "lsp-types",
  "memchr",
