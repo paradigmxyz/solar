@@ -13,12 +13,14 @@ use super::{
     compact_pushes::selected_len,
     utils::{is_terminal_boundary, remap_block_order},
 };
-use crate::backend::evm::{
-    ir::{
-        Block, BlockId, Instruction, Module, PushValue, TerminatorKind,
-        assembly::{estimated_indexed_jump_terminator_size, indexed_jump_target_width_bound},
+use crate::backend::{
+    assembler::assembly::{
+        estimated_indexed_jump_terminator_size, indexed_jump_target_width_bound,
     },
-    op,
+    evm::{
+        ir::{Block, BlockId, Instruction, Module, PushValue, TerminatorKind},
+        op,
+    },
 };
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
 use solar_sema::Gcx;

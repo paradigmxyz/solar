@@ -1,4 +1,6 @@
 use super::{GlobalState, support::RequestFixture};
+use crate::vfs::VfsPath;
+use crop::Rope;
 use lsp_types::{
     CompletionParams, CompletionResponse, CompletionTextEdit, DidChangeWatchedFilesParams,
     FileChangeType, FileEvent, PartialResultParams, Position, TextDocumentIdentifier,
@@ -48,6 +50,40 @@ async fn remappings_change_refreshes_import_completion_context() {
         .unwrap();
 
     assert_eq!(import_completion_labels(&mut state, uri, position).await, ["pkg/New.sol"]);
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn open_overlay_changes_invalidate_import_completion_cache() {
+    let fixture = RequestFixture::new_allowing_diagnostics(
+        r#"
+        //- /foundry.toml
+
+        //- /src/Main.sol open
+        import "./$1";
+
+        //- /src/Existing.sol
+        contract Existing {}
+        "#,
+        "/src/Main.sol",
+    );
+    let mut state = fixture.state();
+    let (uri, position) = fixture.marker_location("$1");
+
+    assert_eq!(
+        import_completion_labels(&mut state, uri.clone(), position).await,
+        ["./Existing.sol", "./Main.sol"]
+    );
+
+    let overlay = fixture.project_path("/src/Overlay.sol");
+    state.vfs.write().set_file_contents_with_version(
+        VfsPath::from(overlay),
+        Some(Rope::from("contract Overlay {}")),
+        Some(1),
+    );
+    state.recompute_after_opening_source(Vec::new());
+
+    let labels = import_completion_labels(&mut state, uri, position).await;
+    assert_eq!(labels, ["./Existing.sol", "./Main.sol", "./Overlay.sol"]);
 }
 
 async fn import_completion_labels(

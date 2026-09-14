@@ -1,0 +1,26 @@
+//@ normalize-stdout-test: "solar-[0-9a-f]{64}" -> "solar-COMPILATION_ID"
+//@ filecheck:
+// The require and both instruction-free returns retain executable source origins.
+// CHECK-LABEL: "deployedBytecode": {
+// CHECK: "offset": 75,
+// CHECK-NEXT: "length": 15
+// CHECK: "offset": 92,
+// CHECK-NEXT: "length": 9
+// CHECK: "offset": 172,
+// CHECK-NEXT: "length": 19
+// Legacy maps keep the path-specific return locations, not an arbitrary shared origin.
+// CHECK: "sourceMap": "{{.*}}92:9{{.*}}172:19
+{
+  "language": "Solidity",
+  "sources": {
+    "Returns.sol": {
+      "content": "contract Returns {\nfunction checked(uint x) external pure returns (uint) {\nrequire(x != 0);\nreturn x;\n}\nfunction length(bytes calldata data) external pure returns (uint) {\nreturn data.length;\n}\n}"
+    }
+  },
+  "settings": {
+    "optimizer": {"enabled": true},
+    "outputSelection": {
+      "*": {"*": ["evm.deployedBytecode.ethdebug", "evm.deployedBytecode.sourceMap"]}
+    }
+  }
+}

@@ -1,0 +1,31 @@
+//@ compile-flags: -Zmir-pipeline=cfg-simplify,lower-abi,lower-abi-encode,lower-dispatch,lower-frame-slots,lower-memory-objects,lower-slices,lower-alloc,lower-evm-shaped
+//@ normalize-stdout-test: "solar-[0-9a-f]{64}" -> "solar-COMPILATION_ID"
+//@ filecheck:
+// MIR sharing reaches ETHDebug as alternatives, never as a guessed legacy location.
+// CHECK-LABEL: "deployedBytecode": {
+// CHECK: "mnemonic": "ADD"
+// CHECK: "pick": [
+// CHECK: "offset": 116,
+// CHECK-NEXT: "length": 5
+// CHECK: "offset": 139,
+// CHECK-NEXT: "length": 5
+// CHECK: "mnemonic": "RETURN"
+// CHECK: "offset": 109,
+// CHECK-NEXT: "length": 13
+// CHECK: "offset": 132,
+// CHECK-NEXT: "length": 13
+// CHECK: "sourceMap": ":::-:0;{{[;:io-]*}}"
+{
+  "language": "Solidity",
+  "sources": {
+    "Shared.sol": {
+      "content": "contract Shared {\nfunction run(uint x, bool choose) external pure returns (uint) {\nunchecked {\nif (choose) { return x + 1; }\nelse { return x + 1; }\n}\n}\n}"
+    }
+  },
+  "settings": {
+    "optimizer": {"enabled": true},
+    "outputSelection": {
+      "*": {"*": ["evm.deployedBytecode.ethdebug", "evm.deployedBytecode.sourceMap"]}
+    }
+  }
+}

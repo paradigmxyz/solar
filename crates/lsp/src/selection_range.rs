@@ -16,6 +16,9 @@ use std::{
     sync::{Arc, OnceLock},
 };
 
+#[cfg(test)]
+mod tests;
+
 pub(crate) fn selection_ranges(
     source: String,
     positions: &[Position],
@@ -33,7 +36,7 @@ pub(crate) fn selection_ranges(
 pub(crate) struct SelectionRangeIndex {
     source: Arc<String>,
     positions: proto::LspPositionIndex<Rope>,
-    candidates: OnceLock<Vec<ByteRange<usize>>>,
+    candidates: OnceLock<CandidateRanges>,
 }
 
 impl SelectionRangeIndex {
@@ -49,10 +52,108 @@ impl SelectionRangeIndex {
             return Some(Vec::new());
         }
 
-        let candidates = self
-            .candidates
-            .get_or_init(|| collect_ranges(SourceCode::Shared(self.source.clone()), index.rope()));
-        selection_ranges_for_cursors(index, candidates, cursors)
+        let candidates = self.candidates.get_or_init(|| {
+            CandidateRanges::new(collect_ranges(
+                SourceCode::Shared(self.source.clone()),
+                index.rope(),
+            ))
+        });
+        cursors
+            .into_iter()
+            .map(|cursor| selection_range_for_cursor(index, candidates.at(cursor), cursor))
+            .collect()
+    }
+}
+
+/// Syntax ranges grouped by traversal order, with a bounding interval for each block.
+///
+/// AST traversal keeps most neighboring ranges close in the source, so point queries can
+/// skip unrelated blocks. An implicit balanced interval tree orders blocks by start offset and
+/// tracks each subtree's maximum end; individual ranges are still checked for exact containment.
+struct CandidateRanges {
+    ranges: Vec<ByteRange<usize>>,
+    bounds: Vec<ByteRange<usize>>,
+    /// Blocks ordered by start offset for logarithmic point-query narrowing.
+    block_order: Vec<usize>,
+    /// Maximum end offset in each implicit subtree of `block_order`.
+    ///
+    /// A prefix maximum cannot prune when an early, broad AST range (such as a contract) spans
+    /// the whole file. Subtree maxima let queries skip disjoint branches while retaining those
+    /// broad ranges in their original blocks.
+    subtree_max_end: Vec<usize>,
+}
+
+impl CandidateRanges {
+    const BLOCK_SIZE: usize = 64;
+
+    fn new(ranges: Vec<ByteRange<usize>>) -> Self {
+        let bounds: Vec<ByteRange<usize>> = ranges
+            .chunks(Self::BLOCK_SIZE)
+            .map(|block| {
+                block.iter().fold(block[0].clone(), |bounds, range| {
+                    bounds.start.min(range.start)..bounds.end.max(range.end)
+                })
+            })
+            .collect();
+        let mut block_order = (0..bounds.len()).collect::<Vec<_>>();
+        block_order.sort_unstable_by_key(|&index| bounds[index].start);
+        let subtree_max_end = vec![0; bounds.len()];
+        let mut index = Self { ranges, bounds, block_order, subtree_max_end };
+        if !index.block_order.is_empty() {
+            index.build_subtree_max_end(0, index.block_order.len());
+        }
+        index
+    }
+
+    fn at(&self, cursor: usize) -> Vec<ByteRange<usize>> {
+        let mut candidates = Vec::new();
+        self.collect_candidates(0, self.block_order.len(), cursor, &mut candidates);
+        candidates
+    }
+
+    fn build_subtree_max_end(&mut self, start: usize, end: usize) -> usize {
+        let mid = start + (end - start) / 2;
+        let block_index = self.block_order[mid];
+        let mut max_end = self.bounds[block_index].end;
+        if start < mid {
+            max_end = max_end.max(self.build_subtree_max_end(start, mid));
+        }
+        if mid + 1 < end {
+            max_end = max_end.max(self.build_subtree_max_end(mid + 1, end));
+        }
+        self.subtree_max_end[mid] = max_end;
+        max_end
+    }
+
+    fn collect_candidates(
+        &self,
+        start: usize,
+        end: usize,
+        cursor: usize,
+        candidates: &mut Vec<ByteRange<usize>>,
+    ) {
+        if start >= end {
+            return;
+        }
+        let mid = start + (end - start) / 2;
+        if self.subtree_max_end[mid] <= cursor {
+            return;
+        }
+        let block_index = self.block_order[mid];
+        let bounds = &self.bounds[block_index];
+        if bounds.start <= cursor && bounds.end > cursor {
+            let block = &self.ranges[block_index * Self::BLOCK_SIZE
+                ..((block_index + 1) * Self::BLOCK_SIZE).min(self.ranges.len())];
+            candidates.extend(block.iter().filter(|range| range.contains(&cursor)).cloned());
+        }
+        // Blocks are sorted by start; once a node starts after the cursor, its right subtree
+        // cannot contain a match, while a left subtree may still contain earlier broad ranges.
+        if start < mid {
+            self.collect_candidates(start, mid, cursor, candidates);
+        }
+        if bounds.start <= cursor && mid + 1 < end {
+            self.collect_candidates(mid + 1, end, cursor, candidates);
+        }
     }
 }
 
@@ -113,20 +214,19 @@ fn selection_ranges_for_cursors<R: Borrow<Rope>>(
 ) -> Option<Vec<SelectionRange>> {
     cursors
         .into_iter()
-        .map(|cursor| selection_range_for_cursor(index, candidates, cursor))
+        .map(|cursor| {
+            let candidates =
+                candidates.iter().filter(|range| range.contains(&cursor)).cloned().collect();
+            selection_range_for_cursor(index, candidates, cursor)
+        })
         .collect()
 }
 
 fn selection_range_for_cursor<R: Borrow<Rope>>(
     index: &proto::LspPositionIndex<R>,
-    candidates: &[ByteRange<usize>],
+    mut candidates: Vec<ByteRange<usize>>,
     cursor: usize,
 ) -> Option<SelectionRange> {
-    let mut candidates = candidates
-        .iter()
-        .filter(|range| range.start <= cursor && cursor < range.end)
-        .cloned()
-        .collect::<Vec<_>>();
     candidates
         .sort_unstable_by_key(|range| (range.end - range.start, Reverse(range.start), range.end));
     candidates.dedup();

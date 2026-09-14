@@ -3,7 +3,7 @@
 @module DebugInfo
 
 // CHECK-LABEL: {{^[ +].*}}bb0 [invoke=first@1..30]:
-// CHECK: jump [[TAIL:bb[0-9]+]] !metadata(invoke=inner_first@6..30)
+// CHECK: jump [[TAIL:bb[0-9]+]] !metadata(span=6..10, invoke=inner_first@6..30)
 bb0 [invoke=first@1..30]:
   push 11 !metadata(span=1..5)
   push 22 !metadata(span=6..10, invoke=inner_first@6..30)
@@ -13,7 +13,7 @@ bb0 [invoke=first@1..30]:
   revert !metadata(span=26..30)
 
 // CHECK-LABEL: {{^[ +].*}}bb1 [invoke=second@31..60]:
-// CHECK: jump [[TAIL]] !metadata(invoke=inner_second@36..60)
+// CHECK: jump [[TAIL]] !metadata(span=36..40, invoke=inner_second@36..60)
 bb1 [invoke=second@31..60]:
   push 99 !metadata(span=31..35)
   push 22 !metadata(span=36..40, invoke=inner_second@36..60)

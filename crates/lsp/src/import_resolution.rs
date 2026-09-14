@@ -39,6 +39,15 @@ pub(crate) fn import_path_at(source: &str, cursor: usize) -> Option<ImportPathAt
         return None;
     }
 
+    // Most navigation requests are issued from ordinary code. Avoid lexing the complete prefix
+    // when the cursor's line cannot contain a string (the lexer remains the source of truth when
+    // a quote or an escaped line continuation is present).
+    if !may_complete_string(source, cursor) {
+        return None;
+    }
+
+    // Import paths are plain strings; code navigation does not need a full-file parse.
+    plain_string_at(source, cursor)?;
     parse_import_path(source, cursor)
 }
 
@@ -47,10 +56,12 @@ pub(crate) fn import_path_at_for_completion(source: &str, cursor: usize) -> Opti
     if cursor > source.len() || !source.is_char_boundary(cursor) {
         return None;
     }
+    if !may_complete_string(source, cursor) {
+        return None;
+    }
 
-    let Some(string) = plain_string_at(source, cursor) else {
-        return parse_import_path(source, cursor);
-    };
+    // Import paths are plain string tokens. Avoid parsing the whole file for code completions.
+    let string = plain_string_at(source, cursor)?;
     if string.first_unescaped_line_break.is_some_and(|line_break| cursor > line_break) {
         return None;
     }
@@ -61,6 +72,25 @@ pub(crate) fn import_path_at_for_completion(source: &str, cursor: usize) -> Opti
         return None;
     }
     recover_unterminated_import_path(source, cursor, string)
+}
+
+/// Rejects code lines that cannot contain a completable import string.
+fn may_complete_string(source: &str, cursor: usize) -> bool {
+    let prefix = &source.as_bytes()[..cursor];
+    let line_break = memchr::memrchr2(b'\r', b'\n', prefix);
+    let line_start = line_break.map_or(0, |offset| offset + 1);
+    if matches!(source.as_bytes().get(cursor), Some(b'\'' | b'"'))
+        || memchr::memchr2(b'\'', b'"', &prefix[line_start..]).is_some()
+    {
+        return true;
+    }
+    let Some(mut line_break) = line_break else { return false };
+    if prefix[line_break] == b'\n' && line_break > 0 && prefix[line_break - 1] == b'\r' {
+        line_break -= 1;
+    }
+    // A string from an earlier line must cross this line break. Completion already rejects
+    // unescaped line breaks; possible continuations still use the full lexer and parser.
+    line_break > 0 && prefix[line_break - 1] == b'\\'
 }
 
 fn parse_import_path(source: &str, cursor: usize) -> Option<ImportPathAt> {
@@ -139,6 +169,9 @@ struct PlainStringAt {
 
 fn plain_string_at(source: &str, cursor: usize) -> Option<PlainStringAt> {
     for (start, token) in Cursor::new(source).with_position() {
+        if start > cursor {
+            break;
+        }
         let end = start + token.len as usize;
         let RawTokenKind::Literal { kind: RawLiteralKind::Str { kind: StrKind::Str, terminated } } =
             token.kind
@@ -147,7 +180,7 @@ fn plain_string_at(source: &str, cursor: usize) -> Option<PlainStringAt> {
         };
         let content_start = start + 1;
         let content_end = if terminated { end - 1 } else { end };
-        if !(content_start..=content_end).contains(&cursor) {
+        if !(start..=content_end).contains(&cursor) {
             continue;
         }
 
@@ -207,6 +240,7 @@ pub(crate) struct ImportResolutionContext<'a> {
 }
 
 impl<'a> ImportResolutionContext<'a> {
+    #[cfg(test)]
     pub(crate) fn for_workspaces(
         workspaces: &'a [Workspace],
         importing_file: &Path,
@@ -214,6 +248,21 @@ impl<'a> ImportResolutionContext<'a> {
         let importing_file = importing_file.normalize();
         let idx =
             WorkspacePathIndex::new(workspaces).workspace_idx_for_import_path(&importing_file)?;
+        Self::from_workspace_index(workspaces, idx)
+    }
+
+    pub(crate) fn for_workspaces_with_index(
+        workspaces: &'a [Workspace],
+        importing_file: &Path,
+        entries: std::sync::Arc<Vec<crate::workspace::WorkspaceImportPathIndexEntry>>,
+    ) -> Option<Self> {
+        let importing_file = importing_file.normalize();
+        let index = WorkspacePathIndex::with_import_entries(workspaces, entries);
+        let idx = index.workspace_idx_for_import_path(&importing_file)?;
+        Self::from_workspace_index(workspaces, idx)
+    }
+
+    fn from_workspace_index(workspaces: &'a [Workspace], idx: usize) -> Option<Self> {
         let compile_opts = workspaces.get(idx)?.compile_opts();
         let workspace_root = compile_opts.base_path.as_deref()?.normalize();
         Some(Self { workspace_root, compile_opts })

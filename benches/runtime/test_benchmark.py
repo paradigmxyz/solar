@@ -16,12 +16,66 @@ SPEC.loader.exec_module(benchmark)
 
 
 class CorpusTests(unittest.TestCase):
+    def test_source_links_pin_checkout_and_upstream(self) -> None:
+        case = next(
+            case
+            for case in benchmark.TEST_CASES
+            if case.test_id == "forge-std-1.16.1-project"
+        )
+        with mock.patch.object(benchmark, "source_revision", return_value="a" * 40):
+            links = benchmark.source_links(case)
+            failed = benchmark.failed_test_result(case, [], "hot", ValueError("test"))
+        self.assertEqual(
+            links,
+            [
+                {
+                    "label": "testdata/projects/forge-std-1.16.1.json.gz",
+                    "url": "https://github.com/paradigmxyz/solar/blob/"
+                    + "a" * 40
+                    + "/testdata/projects/forge-std-1.16.1.json.gz",
+                },
+                {
+                    "label": "foundry-rs/forge-std",
+                    "url": "https://github.com/foundry-rs/forge-std/tree/"
+                    "620536fa5277db4e3fd46772d5cbc1ea0696fb43",
+                },
+            ],
+        )
+        self.assertEqual(failed["source_links"], links)
+
+    def test_source_metadata_covers_corpus(self) -> None:
+        for case in benchmark.TEST_CASES:
+            with self.subTest(case=case.test_id):
+                if case.source_code is not None:
+                    self.assertTrue(case.source_path)
+                    self.assertEqual(
+                        (benchmark.REPOSITORY_ROOT / case.source_path).read_text(),
+                        case.source_code,
+                    )
+                if case.project_file:
+                    origins = case.project.sources
+                    self.assertTrue(origins)
+                    for source in origins:
+                        self.assertRegex(source.commit, r"^[0-9a-f]{40}$")
+        wrapper = next(
+            case for case in benchmark.TEST_CASES if case.test_id == "solady-encoding"
+        )
+        with mock.patch.object(benchmark, "source_revision", return_value="a" * 40):
+            self.assertEqual(
+                [link["label"] for link in benchmark.source_links(wrapper)],
+                [
+                    "testdata/projects/solady-0.1.26.json.gz",
+                    "testdata/runtime/Encoding.sol",
+                    "Vectorized/solady",
+                ],
+            )
+
     def test_vendored_cases_and_projects_exist(self) -> None:
-        self.assertEqual(len(benchmark.TEST_CASES), 25)
+        self.assertEqual(len(benchmark.TEST_CASES), 31)
         repository_cases = [
             case for case in benchmark.TEST_CASES if case.suite == "repository"
         ]
-        self.assertEqual(len(repository_cases), 9)
+        self.assertEqual(len(repository_cases), 11)
         heavy_cases = [case for case in benchmark.TEST_CASES if case.suite == "heavy"]
         self.assertEqual(len(heavy_cases), 9)
         for case in heavy_cases:
@@ -38,6 +92,8 @@ class CorpusTests(unittest.TestCase):
             "lilweb3-flashloan": 2,
             "lilweb3-fractional": 3,
             "maple-erc20": 2,
+            "solady-encoding": 3,
+            "solady-algorithms": 5,
         }
         for case in repository_cases:
             self.assertTrue(case.project_path.is_file(), case.test_id)
@@ -47,6 +103,7 @@ class CorpusTests(unittest.TestCase):
                     case.source,
                     case.contract_name,
                     case.settings_profile,
+                    case.source_code,
                 )
             )
             self.assertIn(case.source, payload["sources"], case.test_id)
@@ -58,6 +115,32 @@ class CorpusTests(unittest.TestCase):
                 payload["settings"]["metadata"],
                 {"appendCBOR": False, "bytecodeHash": "none"},
             )
+
+    def test_benchmark_wrapper_preserves_pinned_sources(self) -> None:
+        for test_id, count in (("solady-encoding", 153), ("solady-algorithms", 85)):
+            with self.subTest(test_id=test_id):
+                case = next(
+                    case for case in benchmark.TEST_CASES if case.test_id == test_id
+                )
+                project = benchmark.load_project(case.project_path)
+                self.assertNotIn(case.source, project["sources"])
+                payload = json.loads(benchmark.compiler_input(case, None)[0])
+                self.assertEqual(
+                    payload["sources"][case.source]["content"], case.source_code
+                )
+                self.assertIn("src/utils/LibString.sol", payload["sources"])
+                self.assertNotIn("test/LibString.t.sol", payload["sources"])
+                for source, contents in payload["sources"].items():
+                    if source != case.source:
+                        self.assertEqual(contents, project["sources"][source])
+                self.assertNotIn(
+                    case.source, benchmark.load_project(case.project_path)["sources"]
+                )
+                self.assertEqual(len(case.gas_calls), count)
+                self.assertEqual(len(case.runtime_checks), count)
+                labels = [call.label for call in case.gas_calls]
+                self.assertEqual(len(set(labels)), count)
+                self.assertEqual(labels, [call.label for call in case.runtime_checks])
 
     def test_runtime_projects_are_loaded_by_codspeed(self) -> None:
         criterion_sources = (
@@ -79,7 +162,9 @@ class CorpusTests(unittest.TestCase):
         heavy_cases = [case for case in benchmark.TEST_CASES if case.suite == "heavy"]
         self.assertEqual(len(heavy_cases), 9)
         self.assertTrue(all(case.whole_project for case in heavy_cases))
-        case = next(case for case in heavy_cases if case.project == "solady-0.1.26")
+        case = next(
+            case for case in heavy_cases if case.project.name == "solady-0.1.26"
+        )
         archive = benchmark.load_project(case.project_path)
         payload = json.loads(
             benchmark.full_project_standard_json_input(case.project_file)
@@ -217,13 +302,26 @@ class FailureHandlingTests(unittest.TestCase):
         self.assertIn("Argument list too long", result.stderr)
 
     def test_unexpected_test_error_is_written_as_a_failure(self) -> None:
+        for flags, compilers in (
+            ([], {"solar"}),
+            (["--solar-only"], {"solar"}),
+            (["--solc", "solc"], {"solar", "solc"}),
+            (["--solc", "solc", "--solar-only"], {"solar"}),
+            (["--solx", "solx"], {"solar", "solx"}),
+            (["--solc", "solc", "--solx", "solx"], {"solar", "solc", "solx"}),
+            (["--solx", "solx", "--solar-only"], {"solar"}),
+        ):
+            with self.subTest(flags=flags):
+                self.check_unexpected_test_error(flags, compilers)
+
+    def check_unexpected_test_error(self, flags, compilers) -> None:
         test_id = benchmark.TEST_CASES[0].test_id
         with (
             tempfile.TemporaryDirectory() as directory,
             mock.patch.object(
                 benchmark,
                 "find_binary",
-                side_effect=lambda value, _fallbacks: Path(value),
+                side_effect=lambda value, _fallbacks: Path(value) if value else None,
             ),
             mock.patch.object(
                 benchmark,
@@ -239,8 +337,7 @@ class FailureHandlingTests(unittest.TestCase):
             output = Path(directory) / "results.json"
             return_code = benchmark.main(
                 [
-                    "--solc",
-                    "solc",
+                    *flags,
                     "--solar",
                     "solar",
                     "--tests",
@@ -255,6 +352,7 @@ class FailureHandlingTests(unittest.TestCase):
         self.assertEqual(return_code, 0)
         self.assertEqual(len(document["results"]), 1)
         failure = document["results"][0]
+        self.assertEqual(set(failure["compilers"]), compilers)
         self.assertIn("RuntimeError: unexpected", failure["benchmark_error"])
         self.assertEqual(
             {compiler["status"] for compiler in failure["compilers"].values()},
@@ -338,6 +436,53 @@ class RuntimeComparisonTests(unittest.TestCase):
         self.assertEqual(entry["runtime_status"], "ok")
         self.assertEqual(list(entry["compilers"]), ["solc", "solar"])
 
+        references[("runtime", "test")]["compilers"]["solx"] = references[
+            ("runtime", "test")
+        ]["compilers"]["solc"]
+        self.assertTrue(benchmark.merge_reference_compiler(entry, references, "solx"))
+        benchmark.compare_runtime_results(
+            entry,
+            (*specs, benchmark.CompilerSpec("solx", "solx", Path("solx"), "solx")),
+        )
+        self.assertEqual(entry["runtime_status"], "ok")
+        self.assertEqual(set(entry["compilers"]), {"solar", "solc", "solx"})
+
+    def test_reuses_compile_failure_without_runtime_observations(self) -> None:
+        entry = {
+            "test_id": "test",
+            "suite": "runtime",
+            "gas_profile": "hot",
+            "compilers": {
+                "solar": {
+                    "input_fingerprint": "input",
+                    "runtime_results": [{"label": "value", "value": "1"}],
+                },
+            },
+        }
+        failure = {
+            "status": "failed",
+            "error": "unsupported input",
+            "input_fingerprint": "input",
+        }
+        references = {
+            ("runtime", "test"): {
+                "gas_profile": "hot",
+                "compilers": {"solx": failure},
+            },
+        }
+        self.assertTrue(benchmark.merge_reference_compiler(entry, references, "solx"))
+        self.assertEqual(entry["compilers"]["solx"], failure)
+        self.assertIsNot(entry["compilers"]["solx"], failure)
+
+        entry["compilers"].pop("solx")
+        for fingerprint, profile in (("other", "hot"), ("input", "smoke")):
+            with self.subTest(fingerprint=fingerprint, profile=profile):
+                failure["input_fingerprint"] = fingerprint
+                entry["gas_profile"] = profile
+                self.assertFalse(
+                    benchmark.merge_reference_compiler(entry, references, "solx")
+                )
+
 
 class ArtifactTests(unittest.TestCase):
     def test_artifact_input_requests_portable_outputs(self) -> None:
@@ -350,17 +495,26 @@ class ArtifactTests(unittest.TestCase):
         solc = json.loads(
             benchmark.artifact_compiler_input(input_text, test_case, "solc")
         )
+        solx = json.loads(
+            benchmark.artifact_compiler_input(input_text, test_case, "solx")
+        )
         solar_outputs = next(iter(solar["settings"]["outputSelection"].values()))[
             test_case.contract_name
         ]
         solc_outputs = next(iter(solc["settings"]["outputSelection"].values()))[
             test_case.contract_name
         ]
+        solx_outputs = next(iter(solx["settings"]["outputSelection"].values()))[
+            test_case.contract_name
+        ]
 
         self.assertNotIn("evm.deployedBytecode.opcodes", solar_outputs)
         self.assertNotIn("evm.deployedBytecode.opcodes", solc_outputs)
         self.assertNotIn("irOptimized", solar_outputs)
+        self.assertNotIn("ir", solar_outputs)
+        self.assertIn("ir", solc_outputs)
         self.assertIn("irOptimized", solc_outputs)
+        self.assertEqual(solx_outputs, solc_outputs)
 
     def test_disassemble_evm_matches_solar_dump_style(self) -> None:
         self.assertEqual(
@@ -476,6 +630,18 @@ class ArtifactTests(unittest.TestCase):
             entry["runtime_mismatches"],
             [{"label": "value", "values": {"solc": "1", "solar": "2"}}],
         )
+        specs = (*specs, benchmark.CompilerSpec("solx", "solx", Path("solx"), "solx"))
+        entry["compilers"]["solx"] = {"status": "failed"}
+        benchmark.compare_runtime_results(entry, specs)
+        self.assertEqual(entry["runtime_status"], "mismatch")
+        self.assertEqual(
+            entry["runtime_mismatches"],
+            [{"label": "value", "values": {"solc": "1", "solar": "2", "solx": None}}],
+        )
+        entry["compilers"]["solar"]["runtime_results"][0]["value"] = "1"
+        benchmark.compare_runtime_results(entry, specs)
+        self.assertEqual(entry["runtime_status"], "failed")
+        self.assertEqual(entry["runtime_mismatches"], [])
 
 
 class RpcTransportTests(unittest.TestCase):

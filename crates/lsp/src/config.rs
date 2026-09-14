@@ -35,6 +35,7 @@ use std::{
     collections::BTreeSet,
     env,
     path::{Path, PathBuf},
+    sync::{Arc, OnceLock},
     time::Duration,
 };
 use tracing::{info, warn};
@@ -51,6 +52,7 @@ pub(crate) struct Config {
     selected_profile: Option<String>,
     foundry_workspace_config_source: FoundryWorkspaceConfigSource,
     workspaces: Vec<Workspace>,
+    workspace_path_cache: Arc<OnceLock<Arc<crate::workspace::WorkspacePathIndexCache>>>,
     manifest_watch_roots: Vec<SourceWatchRoot>,
     git_marker_watch_roots: Vec<PathBuf>,
     index_policy: WorkspaceIndexPolicy,
@@ -135,6 +137,7 @@ impl Default for Config {
             selected_profile: None,
             foundry_workspace_config_source: FoundryWorkspaceConfigSource::default(),
             workspaces: Vec::new(),
+            workspace_path_cache: Arc::new(OnceLock::new()),
             manifest_watch_roots: Vec::new(),
             git_marker_watch_roots: Vec::new(),
             index_policy: WorkspaceIndexPolicy::default(),
@@ -339,7 +342,20 @@ impl Config {
         &self,
         path: &Path,
     ) -> Option<ImportResolutionContext<'_>> {
-        ImportResolutionContext::for_workspaces(&self.workspaces, path)
+        let entries = self.workspace_path_index().clone_import_entries();
+        ImportResolutionContext::for_workspaces_with_index(&self.workspaces, path, entries)
+    }
+
+    fn invalidate_workspace_path_cache(&mut self) {
+        self.workspace_path_cache = Arc::new(OnceLock::new());
+    }
+
+    pub(crate) fn workspace_path_index(&self) -> WorkspacePathIndex<'_> {
+        let cache = Arc::clone(
+            self.workspace_path_cache
+                .get_or_init(|| Arc::new(WorkspacePathIndex::cache(&self.workspaces))),
+        );
+        WorkspacePathIndex::with_cache(&self.workspaces, cache)
     }
 
     pub(crate) fn is_index_import_only_path(&self, path: &Path) -> bool {
@@ -481,7 +497,7 @@ impl Config {
     }
 
     pub(crate) fn tracks_source_file(&self, path: &Path) -> bool {
-        WorkspacePathIndex::new(&self.workspaces)
+        self.workspace_path_index()
             .workspace_idx_for_source_path(&self.index_policy, path)
             .is_some()
     }
@@ -491,8 +507,6 @@ impl Config {
             || self.workspaces.iter().any(|workspace| {
                 !workspace.source_files_complete()
                     || workspace.has_unindexed_flycheck_source_files()
-                    || self.index_policy.uses_default_excludes()
-                        && workspace.has_whole_root_foundry_source()
             })
     }
 
@@ -501,7 +515,7 @@ impl Config {
     }
 
     pub(crate) fn tracks_flycheck_file(&self, path: &Path) -> bool {
-        WorkspacePathIndex::new(&self.workspaces)
+        self.workspace_path_index()
             .workspace_idx_for_flycheck_path(&self.index_policy, path)
             .is_some()
     }
@@ -812,6 +826,7 @@ impl Config {
         &mut self,
         result: WorkspaceDiscoveryResult,
     ) -> Vec<DiagnosticOwner> {
+        self.invalidate_workspace_path_cache();
         self.workspaces = result.workspaces;
         self.manifest_watch_roots = result.manifest_watch_roots;
         self.git_marker_watch_roots = result.git_marker_watch_roots;
@@ -821,11 +836,13 @@ impl Config {
 
     pub(crate) fn remove_workspace(&mut self, path: &Path) {
         if let Some(pos) = self.workspace_roots.iter().position(|it| it == path) {
+            self.invalidate_workspace_path_cache();
             self.workspace_roots.remove(pos);
         }
     }
 
     pub(crate) fn add_workspaces(&mut self, paths: impl IntoIterator<Item = PathBuf>) {
+        self.invalidate_workspace_path_cache();
         for path in paths {
             if !self.workspace_roots.contains(&path) {
                 self.workspace_roots.push(path);
@@ -834,6 +851,7 @@ impl Config {
     }
 
     pub(crate) fn replace_workspace_roots(&mut self, roots: Vec<PathBuf>) {
+        self.invalidate_workspace_path_cache();
         self.workspace_roots = roots;
     }
 
@@ -852,12 +870,16 @@ impl Config {
         }
         let mut seen = FxHashSet::default();
         self.workspace_roots.retain(|root| seen.insert(root.clone()));
-        self.workspace_roots != previous
+        let changed = self.workspace_roots != previous;
+        if changed {
+            self.invalidate_workspace_path_cache();
+        }
+        changed
     }
 
     pub(crate) fn add_source_file(&mut self, path: PathBuf) {
         let (source_idx, flycheck_idx) = {
-            let index = WorkspacePathIndex::new(&self.workspaces);
+            let index = self.workspace_path_index();
             (
                 index.workspace_idx_for_source_path(&self.index_policy, &path),
                 index.workspace_idx_for_flycheck_path(&self.index_policy, &path),
@@ -873,7 +895,7 @@ impl Config {
 
     pub(crate) fn remove_source_file(&mut self, path: &Path) {
         let (source_idx, flycheck_idx) = {
-            let index = WorkspacePathIndex::new(&self.workspaces);
+            let index = self.workspace_path_index();
             (
                 index.workspace_idx_for_source_path(&self.index_policy, path),
                 index.workspace_idx_for_flycheck_path(&self.index_policy, path),
@@ -2226,7 +2248,15 @@ mod tests {
         assert!(
             config.workspaces().iter().all(|workspace| workspace.kind() == WorkspaceKind::Foundry)
         );
-        assert_eq!(nested.source_roots(), &[project.path("/packages/token/contracts")]);
+        assert_eq!(
+            nested.source_roots(),
+            &[
+                project.path("/packages/token"),
+                project.path("/packages/token/contracts"),
+                project.path("/packages/token/test"),
+                project.path("/packages/token/script")
+            ]
+        );
     }
 
     #[test]
@@ -2510,14 +2540,34 @@ mod tests {
             ));
             expected.push(WatchedFileSpec::new(root, "**/foundry.toml"));
         }
-        let nested_source_root = project.path("/repo/workspace/nested/src");
-        expected.push(WatchedFileSpec::new(nested_source_root.clone(), "**/*.sol"));
+        for path in [
+            "/repo/test",
+            "/repo/script",
+            "/repo/workspace/nested/src",
+            "/repo/workspace/nested/test",
+            "/repo/workspace/nested/script",
+        ] {
+            let root = project.path(path);
+            expected.push(WatchedFileSpec::new(root.clone(), "**/*.sol"));
+            expected.push(WatchedFileSpec::with_kind(
+                root.clone(),
+                "**/.git",
+                WatchKind::Create | WatchKind::Delete,
+            ));
+            expected.push(WatchedFileSpec::new(root, "**/foundry.toml"));
+        }
+        for path in ["/repo", "/repo/workspace", "/repo/workspace/nested"] {
+            expected.push(WatchedFileSpec::with_kind(
+                project.path(path),
+                "*.sol",
+                WatchKind::Change,
+            ));
+        }
         expected.push(WatchedFileSpec::with_kind(
-            nested_source_root.clone(),
-            "**/.git",
+            explicit_root.clone(),
+            "*",
             WatchKind::Create | WatchKind::Delete,
         ));
-        expected.push(WatchedFileSpec::new(nested_source_root, "**/foundry.toml"));
         expected.extend(
             explicit_root
                 .ancestors()
@@ -2669,7 +2719,15 @@ mod tests {
             .iter()
             .find(|workspace| workspace.kind() == WorkspaceKind::Foundry)
             .unwrap();
-        assert_eq!(foundry.source_roots(), &[project.path("/configured/contracts")]);
+        assert_eq!(
+            foundry.source_roots(),
+            &[
+                project.path("/configured"),
+                project.path("/configured/contracts"),
+                project.path("/configured/test"),
+                project.path("/configured/script")
+            ]
+        );
 
         project.remove_file("/configured/foundry.toml");
         config.rediscover_workspaces();
@@ -2702,7 +2760,13 @@ mod tests {
         }));
         assert!(config.workspaces().iter().any(|workspace| {
             workspace.kind() == WorkspaceKind::Foundry
-                && workspace.source_roots() == [project.path("/configured/contracts")]
+                && workspace.source_roots()
+                    == [
+                        project.path("/configured"),
+                        project.path("/configured/contracts"),
+                        project.path("/configured/test"),
+                        project.path("/configured/script"),
+                    ]
         }));
     }
 }

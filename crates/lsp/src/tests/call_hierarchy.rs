@@ -49,6 +49,36 @@ fn basic_direct_call_hierarchy() {
 }
 
 #[test]
+fn call_site_endpoint_selects_enclosing_body() {
+    let marked = MarkedProject::from_fixture(
+        r#"
+        //- /Endpoint.sol
+        contract C {
+            function $1callee() internal {}
+            function $2caller() external {
+                $3callee();
+            }
+        }
+        "#,
+    );
+    let project = marked.project();
+    let path = project.path("/Endpoint.sol");
+    let tables = analyze(AnalysisBatch::from_files(
+        CompileOpts::default(),
+        [(path.clone(), project.read_file("/Endpoint.sol"))],
+    ))
+    .symbol_tables;
+    let uri = Url::from_file_path(path).unwrap();
+    let caller =
+        tables.prepare_call_hierarchy(&uri, marked.marker("$2").position()).unwrap().pop().unwrap();
+    let call_start = marked.marker("$3").position();
+    let call_end = Position::new(call_start.line, call_start.character + "callee".len() as u32);
+
+    // Call ranges are end-exclusive, so the first position after the callee belongs to the body.
+    assert_eq!(tables.prepare_call_hierarchy(&uri, call_end), Some(vec![caller]));
+}
+
+#[test]
 fn prepares_enclosing_callable_bodies_only() {
     let marked = MarkedProject::from_fixture(
         r#"

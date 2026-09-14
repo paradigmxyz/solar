@@ -1,14 +1,15 @@
 //! Benchmark-only, in-memory LSP analysis support.
 
 use super::{
-    AnalysisBatch, AnalysisResult, AnalysisResultAccumulator, DiagnosticMap, SymbolTables, analyze,
-    analyze_with_source_map,
+    AnalysisBatch, AnalysisResult, AnalysisResultAccumulator, AnalysisTaskOutcome, DiagnosticMap,
+    SymbolTables, analyze, analyze_with_source_map, run_analysis,
 };
 use crate::{
     config::negotiate_capabilities,
-    diagnostics::{AnalyzedDocuments, DiagnosticStore, PullReport},
+    diagnostics::{AnalyzedDocuments, DiagnosticOwner, DiagnosticStore, PullReport},
     handlers,
     project_fixture::ProjectFixture,
+    symbols::CompletionContext,
     utils::apply_document_changes,
     vfs::VfsPath,
     workspace::{
@@ -20,9 +21,12 @@ use crate::{
 use async_lsp::ClientSocket;
 use crop::Rope;
 use lsp_types::{
-    Diagnostic, DidChangeTextDocumentParams, GotoDefinitionResponse, Hover, HoverContents,
-    Location, Position, PreviousResultId, Range, TextDocumentContentChangeEvent, Url,
-    VersionedTextDocumentIdentifier, WorkspaceFolder, WorkspaceSymbol,
+    CallHierarchyIncomingCall, CallHierarchyItem, CodeLens, CompletionItem, Diagnostic,
+    DidChangeTextDocumentParams, DocumentSymbol, GotoDefinitionResponse, Hover, HoverContents,
+    Location, Position, PreviousResultId, Range, RenameParams, SignatureHelp, SignatureHelpParams,
+    TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentPositionParams,
+    TypeHierarchyItem, Url, VersionedTextDocumentIdentifier, WorkspaceEdit, WorkspaceFolder,
+    WorkspaceSymbol,
 };
 use normalize_path::NormalizePath;
 use solar_config::{CompileOpts, Threads};
@@ -31,10 +35,10 @@ use solar_interface::{
     source_map::{FileLoader, SourceMap},
 };
 use std::{
-    collections::BTreeMap,
     io,
     path::{Component, Path, PathBuf},
     sync::Arc,
+    task::{Context, Poll, Waker},
 };
 
 /// An opaque error returned while preparing an LSP benchmark project.
@@ -115,6 +119,7 @@ impl BenchmarkError {
 pub struct BenchmarkWorkspacePathQueries {
     workspaces: Vec<Workspace>,
     paths: Vec<PathBuf>,
+    path_cache: Arc<crate::workspace::WorkspacePathIndexCache>,
 }
 
 impl BenchmarkWorkspacePathQueries {
@@ -129,30 +134,48 @@ impl BenchmarkWorkspacePathQueries {
             workspaces.push(Workspace::naked(root.clone()));
         }
         let paths = (0..query_count).map(|index| root.join(format!("Query-{index}.sol"))).collect();
-        Self { workspaces, paths }
+        let path_cache = Arc::new(WorkspacePathIndex::cache(&workspaces));
+        Self { workspaces, paths, path_cache }
     }
 
     /// Execute ownership and overlay-recipient queries for every prepared path.
     pub fn run(&self) -> usize {
+        self.run_paths(&self.paths)
+    }
+
+    /// Construct the index and execute one ownership and overlay-recipient query.
+    pub fn run_one(&self) -> usize {
+        self.run_paths(&self.paths[..1])
+    }
+
+    /// Execute the same queries with a prebuilt workspace path index.
+    pub fn run_cached(&self) -> usize {
+        self.run_paths_cached(&self.paths)
+    }
+
+    /// Execute one query with a prebuilt workspace path index.
+    pub fn run_cached_one(&self) -> usize {
+        self.run_paths_cached(&self.paths[..1])
+    }
+
+    fn run_paths(&self, paths: &[PathBuf]) -> usize {
         let index = WorkspacePathIndex::new(&self.workspaces);
-        self.paths.iter().fold(0, |fingerprint, path| {
+        self.run_with_index(&index, paths)
+    }
+
+    fn run_paths_cached(&self, paths: &[PathBuf]) -> usize {
+        let index = WorkspacePathIndex::with_cache(&self.workspaces, Arc::clone(&self.path_cache));
+        self.run_with_index(&index, paths)
+    }
+
+    fn run_with_index(&self, index: &WorkspacePathIndex<'_>, paths: &[PathBuf]) -> usize {
+        paths.iter().fold(0, |fingerprint, path| {
             let query = index.query(path);
             let primary = query.workspace_idx_for_path();
             let owner = query.workspace_idx_for_import_path().unwrap_or_default();
             let overlays = query.workspace_idxs_for_import_path().fold(0, usize::wrapping_add);
             fingerprint.wrapping_add(primary).wrapping_add(owner).wrapping_add(overlays)
         })
-    }
-
-    /// Construct the index and execute one ownership and overlay-recipient query.
-    pub fn run_one(&self) -> usize {
-        let index = WorkspacePathIndex::new(&self.workspaces);
-        let path = &self.paths[0];
-        let query = index.query(path);
-        let primary = query.workspace_idx_for_path();
-        let owner = query.workspace_idx_for_import_path().unwrap_or_default();
-        let overlays = query.workspace_idxs_for_import_path().fold(0, usize::wrapping_add);
-        primary.wrapping_add(owner).wrapping_add(overlays)
     }
 
     /// Construct the index and execute one base-path containment query.
@@ -169,7 +192,7 @@ pub struct BenchmarkProject {
     opts: CompileOpts,
     files: Vec<(PathBuf, String)>,
     loader: InMemoryFileLoader,
-    markers: BTreeMap<String, Vec<(PathBuf, Position)>>,
+    markers: FxHashMap<String, Vec<(PathBuf, Position)>>,
 }
 
 impl BenchmarkProject {
@@ -218,7 +241,7 @@ impl BenchmarkProject {
 
         let loader_sources = files.iter().cloned().collect();
         let loader = InMemoryFileLoader::new(root.clone(), loader_sources);
-        Ok(Self { root, opts, files, loader, markers: BTreeMap::new() })
+        Ok(Self { root, opts, files, loader, markers: FxHashMap::default() })
     }
 
     /// Prepare a stable multi-file project from the fixture format shared with LSP tests.
@@ -316,7 +339,7 @@ impl BenchmarkProject {
 
         let root = root.normalize();
         let loader = InMemoryFileLoader::new(root.clone(), loader_sources);
-        Ok(Self { root, opts, files, loader, markers: BTreeMap::new() })
+        Ok(Self { root, opts, files, loader, markers: FxHashMap::default() })
     }
 
     /// The number of primary Solidity source files in this project.
@@ -383,13 +406,7 @@ impl BenchmarkProject {
 
     /// Apply an edit with the same UTF-16 range logic used by document-change notifications.
     pub fn apply_edit(&mut self, edit: &BenchmarkEdit) -> Result<(), BenchmarkError> {
-        let index =
-            self.files.binary_search_by(|(path, _)| path.cmp(&edit.path)).map_err(|_| {
-                BenchmarkError::new(format!(
-                    "benchmark edit targets unknown source `{}`",
-                    edit.path.display()
-                ))
-            })?;
+        let index = self.edit_source_index(edit)?;
         let source = &mut self.files[index].1;
         let updated =
             apply_document_changes(&Rope::from(source.as_str()), vec![edit.change.clone()])
@@ -404,16 +421,19 @@ impl BenchmarkProject {
         &self,
         edit: &BenchmarkEdit,
     ) -> Result<BenchmarkDocumentChange, BenchmarkError> {
-        let index =
-            self.files.binary_search_by(|(path, _)| path.cmp(&edit.path)).map_err(|_| {
-                BenchmarkError::new(format!(
-                    "benchmark edit targets unknown source `{}`",
-                    edit.path.display()
-                ))
-            })?;
+        let index = self.edit_source_index(edit)?;
         Ok(BenchmarkDocumentChange {
             contents: Rope::from(self.files[index].1.as_str()),
             changes: vec![edit.change.clone()],
+        })
+    }
+
+    fn edit_source_index(&self, edit: &BenchmarkEdit) -> Result<usize, BenchmarkError> {
+        self.files.binary_search_by(|(path, _)| path.cmp(&edit.path)).map_err(|_| {
+            BenchmarkError::new(format!(
+                "benchmark edit targets unknown source `{}`",
+                edit.path.display()
+            ))
         })
     }
 
@@ -490,6 +510,16 @@ pub struct BenchmarkDocumentChange {
 }
 
 impl BenchmarkDocumentChange {
+    /// Prepare incoming document edits without including source construction in timing.
+    pub fn from_changes(contents: Rope, changes: Vec<TextDocumentContentChangeEvent>) -> Self {
+        Self { contents, changes }
+    }
+
+    /// The complete document contents, for verifying prepared edits outside timing.
+    pub fn contents(&self) -> &Rope {
+        &self.contents
+    }
+
     /// Apply this prepared document change and return the edited document.
     #[inline(never)]
     pub fn apply(self) -> Self {
@@ -505,17 +535,133 @@ pub struct BenchmarkDocumentUpdate {
     params: DidChangeTextDocumentParams,
 }
 
+/// A production analysis state used to compare a cold run with an unchanged-snapshot reuse.
+#[doc(hidden)]
+pub struct BenchmarkRepeatedAnalysis {
+    state: super::GlobalState,
+}
+
+impl BenchmarkRepeatedAnalysis {
+    /// Prepare one open document and reserve a stable analysis epoch.
+    pub fn new(source: String) -> Self {
+        let (state, _) = open_benchmark_document(&source, "repeated-analysis.sol", 1);
+        let version = 1;
+        state.analysis_version.store(version, std::sync::atomic::Ordering::Release);
+        state.analysis_commit.lock().vfs_content_revision = state.vfs.read().content_revision();
+        Self { state }
+    }
+
+    /// Prepare one open document in each independently configured workspace.
+    ///
+    /// The caller keeps these roots and their disk dependencies alive for the workload.
+    pub fn from_workspaces(roots: &[PathBuf], source: &str) -> Self {
+        let params = lsp_types::InitializeParams {
+            workspace_folders: Some(
+                roots
+                    .iter()
+                    .enumerate()
+                    .map(|(index, root)| WorkspaceFolder {
+                        uri: Url::from_file_path(root).expect("benchmark root should be absolute"),
+                        name: format!("workspace-{index}"),
+                    })
+                    .collect(),
+            ),
+            ..Default::default()
+        };
+        let (_, mut config) = negotiate_capabilities(params);
+        config.try_rediscover_workspaces().expect("benchmark workspace discovery should succeed");
+        assert_eq!(config.workspaces().len(), roots.len());
+        assert!(config.workspaces().iter().all(|workspace| {
+            workspace.source_files().len() == 1
+                && workspace.source_files()[0].file_name().is_some_and(|name| name == "Main.sol")
+        }));
+        let mut state = super::GlobalState::new(ClientSocket::new_closed());
+        state.config = Arc::new(config);
+        for root in roots {
+            state.vfs.write().set_file_contents_with_version(
+                VfsPath::from(root.join("Main.sol")),
+                Some(Rope::from(source)),
+                Some(1),
+            );
+        }
+        Self { state }
+    }
+
+    /// Open or replace one source while leaving the other workspaces unchanged.
+    pub fn replace_source(&mut self, path: &Path, source: &str) {
+        let path = VfsPath::from(path.to_path_buf());
+        let mut vfs = self.state.vfs.write();
+        let version = vfs.get_file_version(&path).unwrap_or_default() + 1;
+        vfs.set_file_contents_with_version(path, Some(Rope::from(source)), Some(version));
+    }
+
+    /// Remove all document overlays before preparing an initial disk-only analysis.
+    pub fn clear_open_documents(&mut self) {
+        *self.state.vfs.write() = Default::default();
+    }
+
+    /// Advance and synchronously run a production document-analysis epoch.
+    #[inline(never)]
+    pub fn run_epoch(&mut self) -> bool {
+        let version = self.state.next_analysis_version();
+        self.state.commit_analysis_epoch(
+            &mut self.state.analysis_commit.lock(),
+            version,
+            Vec::new(),
+            false,
+        );
+        let mut snapshot = self.state.snapshot();
+        let progress = self.state.analysis_progress.reserve(version);
+        matches!(
+            run_analysis(
+                &mut snapshot,
+                version,
+                Vec::new(),
+                &progress,
+                &IndexingCancellation::default(),
+            ),
+            AnalysisTaskOutcome::Published
+        )
+    }
+
+    /// Prepare call hierarchy against the latest published snapshot.
+    pub fn prepare_call_hierarchy(
+        &self,
+        uri: &Url,
+        position: Position,
+    ) -> Option<Vec<CallHierarchyItem>> {
+        self.state.symbol_tables.load().prepare_call_hierarchy(uri, position)
+    }
+
+    /// Advance the VFS revision through an edit and undo before analysis begins.
+    pub fn edit_and_revert(&mut self) {
+        let mut vfs = self.state.vfs.write();
+        let (path, source) =
+            vfs.iter().next().map(|(path, source)| (path.clone(), source.clone())).unwrap();
+        let mut edited = source.clone();
+        edited.insert(0, " ");
+        vfs.set_file_contents(path.clone(), Some(edited));
+        vfs.set_file_contents(path, Some(source));
+    }
+
+    /// Run one production analysis epoch, returning whether it published successfully.
+    #[inline(never)]
+    pub fn run(&mut self) -> bool {
+        let mut snapshot = self.state.snapshot();
+        let progress = self.state.analysis_progress.reserve(1);
+        matches!(
+            run_analysis(&mut snapshot, 1, Vec::new(), &progress, &IndexingCancellation::default()),
+            AnalysisTaskOutcome::Published
+        )
+    }
+}
+
 impl BenchmarkDocumentUpdate {
     /// Prepare one open document and a full-content update with the same source text.
     pub fn from_source(source: String) -> Self {
-        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("benches/benchmark.sol");
-        let uri = Url::from_file_path(&path).expect("benchmark path should be a file URL");
-        let state = super::GlobalState::new(ClientSocket::new_closed());
-        state.vfs.write().set_file_contents_with_version(
-            VfsPath::from(path),
-            Some(Rope::from(source.as_str())),
-            Some(0),
-        );
+        let (state, path) = open_benchmark_document(&source, "benchmark.sol", 0);
+        let uri = Url::from_file_path(path.as_path().unwrap())
+            .expect("benchmark path should be a file URL");
         let params = DidChangeTextDocumentParams {
             text_document: VersionedTextDocumentIdentifier::new(uri, 1),
             content_changes: vec![TextDocumentContentChangeEvent {
@@ -550,18 +696,243 @@ pub struct BenchmarkSelectionRangeRequests {
     positions: Vec<Position>,
 }
 
+/// A prepared open-document folding-range request workload.
+#[doc(hidden)]
+pub struct BenchmarkFoldingRangeRequests {
+    state: super::GlobalState,
+    path: VfsPath,
+}
+
+/// A prepared open-document signature-help request using production analysis and its handler.
+#[doc(hidden)]
+pub struct BenchmarkSignatureHelpRequests {
+    state: super::GlobalState,
+    params: SignatureHelpParams,
+}
+
+/// A prepared quick-fix request using diagnostics from a real compiler analysis.
+#[doc(hidden)]
+pub struct BenchmarkCodeActionRequests {
+    state: super::GlobalState,
+    params: lsp_types::CodeActionParams,
+    runtime: tokio::runtime::Runtime,
+}
+
+impl BenchmarkCodeActionRequests {
+    /// Analyze the source and select either its whole range or its first mutability warning.
+    pub fn new(source: String, whole_document: bool) -> Self {
+        let analysis = BenchmarkAnalysis::from_source(source.clone());
+        let (mut state, path) = open_benchmark_document(&source, "benchmark.sol", 1);
+        let uri = Url::from_file_path(path.as_path().unwrap()).unwrap();
+        let mut initialize = lsp_types::InitializeParams::default();
+        initialize.capabilities.text_document.get_or_insert_default().code_action =
+            Some(lsp_types::CodeActionClientCapabilities {
+                code_action_literal_support: Some(lsp_types::CodeActionLiteralSupport {
+                    code_action_kind: lsp_types::CodeActionKindLiteralSupport {
+                        value_set: vec![lsp_types::CodeActionKind::QUICKFIX.as_str().into()],
+                    },
+                }),
+                ..Default::default()
+            });
+        state.config = Arc::new(negotiate_capabilities(initialize).1);
+        let range = if whole_document {
+            let rope = Rope::from(source);
+            Range::new(
+                Position::default(),
+                crate::proto::position_at_byte(&rope, rope.byte_len()).unwrap(),
+            )
+        } else {
+            analysis.diagnostics[&uri]
+                .iter()
+                .find(|diagnostic| {
+                    diagnostic.code == Some(lsp_types::NumberOrString::String("2018".into()))
+                })
+                .expect("source should emit a mutability warning")
+                .range
+        };
+        state
+            .diagnostics
+            .write()
+            .replace_and_publish_batches(DiagnosticOwner::Compiler, analysis.diagnostics);
+        state.symbol_tables.store(Arc::new(analysis.symbol_tables));
+        let params = lsp_types::CodeActionParams {
+            text_document: TextDocumentIdentifier { uri },
+            range,
+            context: lsp_types::CodeActionContext {
+                diagnostics: Vec::new(),
+                only: Some(vec![lsp_types::CodeActionKind::QUICKFIX]),
+                trigger_kind: None,
+            },
+            work_done_progress_params: Default::default(),
+            partial_result_params: Default::default(),
+        };
+        let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+        Self { state, params, runtime }
+    }
+
+    /// Execute the production handler, including source validation and blocking-task dispatch.
+    #[inline(never)]
+    pub fn run(&mut self) -> lsp_types::CodeActionResponse {
+        self.runtime
+            .block_on(handlers::code_actions(&mut self.state, self.params.clone()))
+            .expect("code-action benchmark request should succeed")
+            .unwrap()
+    }
+}
+
+/// A prepared rename request including source validation and workspace-edit construction.
+#[doc(hidden)]
+pub struct BenchmarkRenameRequests {
+    state: super::GlobalState,
+    params: RenameParams,
+    runtime: tokio::runtime::Runtime,
+}
+
+impl BenchmarkRenameRequests {
+    /// Analyze the project and retain all source documents as versioned VFS snapshots.
+    pub fn new(project: BenchmarkProject, uri: Url, position: Position) -> Self {
+        let state = super::GlobalState::new(ClientSocket::new_closed());
+        for (path, contents) in &project.files {
+            state.vfs.write().set_file_contents_with_version(
+                VfsPath::from(path.clone()),
+                Some(Rope::from(contents.as_str())),
+                Some(1),
+            );
+        }
+        state.symbol_tables.store(Arc::new(project.analyze().symbol_tables));
+        let params = RenameParams {
+            text_document_position: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier { uri },
+                position,
+            },
+            new_name: "renamed".into(),
+            work_done_progress_params: Default::default(),
+        };
+        let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+        Self { state, params, runtime }
+    }
+
+    /// Execute a complete rename through the production handler and blocking validation task.
+    #[inline(never)]
+    pub fn run(&mut self) -> Option<WorkspaceEdit> {
+        self.runtime
+            .block_on(handlers::rename(&mut self.state, self.params.clone()))
+            .expect("rename benchmark request should succeed")
+    }
+}
+
+impl BenchmarkSignatureHelpRequests {
+    /// Analyze a project and open the document containing the requested call argument.
+    pub fn new(project: BenchmarkProject, uri: Url, position: Position) -> Self {
+        let path = uri.to_file_path().expect("signature-help benchmark URI should be a file");
+        let (_, contents) = project
+            .files
+            .iter()
+            .find(|(source_path, _)| *source_path == path)
+            .expect("signature-help benchmark document should belong to the project");
+        let state = super::GlobalState::new(ClientSocket::new_closed());
+        state.vfs.write().set_file_contents_with_version(
+            VfsPath::from(path),
+            Some(Rope::from(contents.as_str())),
+            Some(1),
+        );
+        state.symbol_tables.store(Arc::new(project.analyze().symbol_tables));
+        let params = SignatureHelpParams {
+            text_document_position_params: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier { uri },
+                position,
+            },
+            work_done_progress_params: Default::default(),
+            context: None,
+        };
+        Self { state, params }
+    }
+
+    /// Prepare an edited document with unchanged analysis, outside the request timing.
+    pub fn after_edit(&self) -> Self {
+        self.fresh_document(true)
+    }
+
+    /// Prepare the same analyzed document with no request caches, outside the request timing.
+    pub fn before_first_request(&self) -> Self {
+        self.fresh_document(false)
+    }
+
+    fn fresh_document(&self, edit: bool) -> Self {
+        let path =
+            crate::proto::vfs_path(&self.params.text_document_position_params.text_document.uri)
+                .expect("signature-help benchmark URI should be a file");
+        let mut contents = self.state.vfs.read().get_file_contents(&path).unwrap().clone();
+        if edit {
+            contents.insert(contents.byte_len(), " ");
+        }
+        let state = super::GlobalState::new(ClientSocket::new_closed());
+        state.vfs.write().set_file_contents_with_version(
+            path,
+            Some(contents),
+            Some(if edit { 2 } else { 1 }),
+        );
+        state.symbol_tables.store(self.state.symbol_tables.load_full());
+        Self { state, params: self.params.clone() }
+    }
+
+    /// Move the cursor and execute a complete request against the same open document.
+    pub fn run_at(&mut self, position: Position) -> Option<SignatureHelp> {
+        self.params.text_document_position_params.position = position;
+        self.run()
+    }
+
+    /// Execute one synchronous signature-help request through the production handler.
+    #[inline(never)]
+    pub fn run(&mut self) -> Option<SignatureHelp> {
+        let request = handlers::signature_help(&mut self.state, self.params.clone());
+        let mut request = std::pin::pin!(request);
+        let mut context = Context::from_waker(Waker::noop());
+        let Poll::Ready(response) = request.as_mut().poll(&mut context) else {
+            panic!("signature-help benchmark request should complete immediately");
+        };
+        response.expect("signature-help benchmark request should succeed")
+    }
+}
+
+fn open_benchmark_document(
+    source: &str,
+    name: &str,
+    version: i32,
+) -> (super::GlobalState, VfsPath) {
+    let state = super::GlobalState::new(ClientSocket::new_closed());
+    let path = VfsPath::from(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("benches").join(name));
+    state.vfs.write().set_file_contents_with_version(
+        path.clone(),
+        Some(Rope::from(source)),
+        Some(version),
+    );
+    (state, path)
+}
+
+impl BenchmarkFoldingRangeRequests {
+    /// Prepare one immutable open document for repeated folding-range requests.
+    pub fn new(source: String) -> Self {
+        let (state, path) = open_benchmark_document(&source, "open-folding-range.sol", 1);
+        Self { state, path }
+    }
+
+    /// Run one folding-range request through the open-document source path.
+    #[inline(never)]
+    pub fn run(&self) -> Vec<lsp_types::FoldingRange> {
+        self.state
+            .vfs
+            .read()
+            .get_file_folding_range_source(&self.path)
+            .expect("the benchmark document should be open")
+            .folding_ranges()
+    }
+}
+
 impl BenchmarkSelectionRangeRequests {
     /// Prepare one immutable open document and the positions queried on every request.
     pub fn new(source: String, positions: impl IntoIterator<Item = Position>) -> Self {
-        let state = super::GlobalState::new(ClientSocket::new_closed());
-        let path = VfsPath::from(
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("benches/open-selection-range.sol"),
-        );
-        state.vfs.write().set_file_contents_with_version(
-            path.clone(),
-            Some(Rope::from(source.as_str())),
-            Some(1),
-        );
+        let (state, path) = open_benchmark_document(&source, "open-selection-range.sol", 1);
         let positions = positions.into_iter().collect();
         Self { state, path, positions }
     }
@@ -788,6 +1159,59 @@ impl BenchmarkAnalysis {
                 BenchmarkResponse::WorkspaceSymbols(self.symbol_tables.workspace_symbols(query))
             }
         }
+    }
+
+    /// Prepare a callable and query its incoming calls.
+    #[inline(never)]
+    pub fn incoming_calls(&self, uri: &Url, position: Position) -> Vec<CallHierarchyIncomingCall> {
+        let items = self.symbol_tables.prepare_call_hierarchy(uri, position).unwrap();
+        self.symbol_tables.call_hierarchy_incoming(&items[0]).unwrap()
+    }
+
+    /// Prepare one call hierarchy item at a source position.
+    #[inline(never)]
+    pub fn prepare_call_hierarchy(
+        &self,
+        uri: &Url,
+        position: Position,
+    ) -> Option<Vec<CallHierarchyItem>> {
+        self.symbol_tables.prepare_call_hierarchy(uri, position)
+    }
+
+    /// Return the selected range and edit count from a complete rename candidate lookup.
+    #[inline(never)]
+    pub fn rename_candidate(&self, uri: &Url, position: Position) -> Option<(Range, usize)> {
+        self.symbol_tables
+            .rename_candidate(uri, position)
+            .map(|candidate| (candidate.range, candidate.locations.len()))
+    }
+
+    /// Prepare a hierarchy item and query its direct subtypes.
+    #[inline(never)]
+    pub fn type_hierarchy(&self, uri: &Url, position: Position) -> Vec<TypeHierarchyItem> {
+        let items = self.symbol_tables.prepare_type_hierarchy(uri, position).unwrap();
+        self.symbol_tables.type_hierarchy_subtypes(&items[0]).unwrap()
+    }
+
+    /// Render CodeLens annotations with the VS Code client commands enabled.
+    #[inline(never)]
+    pub fn code_lenses(&self, uri: &Url) -> Vec<CodeLens> {
+        self.symbol_tables.code_lenses(
+            uri,
+            crate::config::CodeLensConfig { client_commands: true, ..Default::default() },
+        )
+    }
+
+    /// Build hierarchical document symbols for one analyzed source file.
+    #[inline(never)]
+    pub fn document_symbols(&self, uri: &Url) -> Vec<DocumentSymbol> {
+        self.symbol_tables.document_symbols(uri)
+    }
+
+    /// Complete names at a source position without protocol transport or parsing.
+    #[inline(never)]
+    pub fn completions(&self, uri: &Url, position: Position, prefix: &str) -> Vec<CompletionItem> {
+        self.symbol_tables.completion_items(uri, position, CompletionContext::new(prefix, None))
     }
 
     /// Resolve one declaration or reference position synchronously.
@@ -1277,5 +1701,37 @@ mod tests {
         ] {
             assert!(BenchmarkProject::from_fixture("malformed", fixture).is_err());
         }
+    }
+
+    #[test]
+    fn repeated_analysis_reuses_and_invalidates_snapshot() {
+        let mut analysis = BenchmarkRepeatedAnalysis::new("contract Cached {}".into());
+        assert!(analysis.run());
+        let first_revision = analysis
+            .state
+            .analysis_commit
+            .lock()
+            .cached_output
+            .as_ref()
+            .unwrap()
+            .vfs_content_revision;
+
+        assert!(analysis.run());
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("benches/repeated-analysis.sol");
+        analysis.state.vfs.write().set_file_contents_with_version(
+            VfsPath::from(path),
+            Some(Rope::from("contract Cached { uint value; }")),
+            Some(2),
+        );
+        assert!(analysis.run());
+        let second_revision = analysis
+            .state
+            .analysis_commit
+            .lock()
+            .cached_output
+            .as_ref()
+            .unwrap()
+            .vfs_content_revision;
+        assert_ne!(first_revision, second_revision);
     }
 }

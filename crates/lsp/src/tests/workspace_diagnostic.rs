@@ -63,13 +63,7 @@ fn workspace_diagnostic_harness() -> WorkspaceDiagnosticHarness {
         });
         router
     });
-    let (server_stream, client_stream) = tokio::io::duplex(64 << 10);
-    let (server_rx, server_tx) = tokio::io::split(server_stream);
-    let server_task =
-        tokio::spawn(server_main.run_buffered(server_rx.compat(), server_tx.compat_write()));
-    let (client_rx, client_tx) = tokio::io::split(client_stream);
-    let client_task =
-        tokio::spawn(client_main.run_buffered(client_rx.compat(), client_tx.compat_write()));
+    let (server_task, client_task) = spawn_lsp_pair(server_main, client_main);
 
     WorkspaceDiagnosticHarness { client, server, progress, server_task, client_task }
 }
@@ -94,7 +88,7 @@ async fn workspace_diagnostic_progress_precedes_the_final_response_on_the_wire()
             AnalysisResult {
                 analyzed_documents: AnalyzedDocuments::from_iter([(uri, None)]),
                 diagnostics: DiagnosticMap::default(),
-                symbol_tables: SymbolTables::default(),
+                symbol_tables: Default::default(),
             },
         ));
         ServiceBuilder::new()
@@ -247,7 +241,7 @@ async fn workspace_diagnostics_stream_at_most_64_reports_per_partial_result() {
         AnalysisResult {
             analyzed_documents,
             diagnostics: DiagnosticMap::default(),
-            symbol_tables: SymbolTables::default(),
+            symbol_tables: Default::default(),
         },
     ));
     let partial_result_token = NumberOrString::String("workspace-partial".into());
@@ -304,7 +298,7 @@ async fn workspace_diagnostics_can_be_cancelled_between_partial_batches() {
         AnalysisResult {
             analyzed_documents,
             diagnostics: DiagnosticMap::default(),
-            symbol_tables: SymbolTables::default(),
+            symbol_tables: Default::default(),
         },
     ));
     let router = crate::new_router_with_state(state);
@@ -448,7 +442,7 @@ fn workspace_diagnostics_round_trip_previous_result_ids_and_clear_stale_reports_
             diagnostics: DiagnosticMap::from_iter([
                 (stale_uri.clone(), vec![diagnostic("stale")],)
             ]),
-            symbol_tables: SymbolTables::default(),
+            symbol_tables: Default::default(),
         },
     ));
 
@@ -505,7 +499,7 @@ fn workspace_diagnostics_round_trip_previous_result_ids_and_clear_stale_reports_
         AnalysisResult {
             analyzed_documents: AnalyzedDocuments::from_iter([(current_uri.clone(), Some(9),)]),
             diagnostics: DiagnosticMap::default(),
-            symbol_tables: SymbolTables::default(),
+            symbol_tables: Default::default(),
         },
     ));
     let mut params = workspace_diagnostic_params();
@@ -566,7 +560,7 @@ fn unchanged_document_changes_update_workspace_report_versions_without_analysis(
         AnalysisResult {
             analyzed_documents: AnalyzedDocuments::from_iter([(uri.clone(), Some(0))]),
             diagnostics: DiagnosticMap::default(),
-            symbol_tables: SymbolTables::default(),
+            symbol_tables: Default::default(),
         },
     ));
     let analysis_version = state.analysis_version.load(Ordering::Acquire);
@@ -637,7 +631,7 @@ fn current_analysis_cannot_overwrite_a_newer_unchanged_document_version() {
         AnalysisResult {
             analyzed_documents: AnalyzedDocuments::from_iter([(uri.clone(), Some(0))]),
             diagnostics: DiagnosticMap::default(),
-            symbol_tables: SymbolTables::default(),
+            symbol_tables: Default::default(),
         },
     ));
 
@@ -677,7 +671,7 @@ fn changed_document_version_does_not_relabel_pending_analysis() {
                 uri.clone(),
                 vec![diagnostic("old analysis")],
             )]),
-            symbol_tables: SymbolTables::default(),
+            symbol_tables: Default::default(),
         },
     ));
 
@@ -713,7 +707,7 @@ async fn unchanged_edit_does_not_relabel_stale_diagnostics_after_failed_analysis
                 uri.clone(),
                 vec![diagnostic("old analysis")],
             )]),
-            symbol_tables: SymbolTables::default(),
+            symbol_tables: Default::default(),
         },
     ));
 
@@ -802,7 +796,7 @@ async fn removed_workspace_membership_stays_cleared_after_failed_reindex() {
                 removed_uri.clone(),
                 vec![diagnostic("stale")],
             )]),
-            symbol_tables: SymbolTables::default(),
+            symbol_tables: Default::default(),
         },
     ));
     let previous = state
@@ -887,7 +881,7 @@ async fn stale_clearing_report_keeps_the_removed_open_document_version() {
         AnalysisResult {
             analyzed_documents: AnalyzedDocuments::from_iter([(uri.clone(), Some(7))]),
             diagnostics: DiagnosticMap::from_iter([(uri.clone(), vec![diagnostic("stale")],)]),
-            symbol_tables: SymbolTables::default(),
+            symbol_tables: Default::default(),
         },
     ));
     let [initial] = state.diagnostics.read().workspace_pull_reports(Vec::new()).try_into().unwrap();
@@ -979,7 +973,7 @@ fn concurrent_workspace_diagnostic_requests_share_the_published_analysis() {
                 broken_uri.clone(),
                 vec![diagnostic("broken")],
             )]),
-            symbol_tables: SymbolTables::default(),
+            symbol_tables: Default::default(),
         },
     ));
 

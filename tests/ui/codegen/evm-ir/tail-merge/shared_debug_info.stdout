@@ -1,0 +1,37 @@
+- // === ROOT/tests/ui/codegen/evm-ir/tail-merge/shared_debug_info.evmir (before tail-merge) ===
++ // === ROOT/tests/ui/codegen/evm-ir/tail-merge/shared_debug_info.evmir (after tail-merge) ===
+  @module SharedDebugInfo
+  bb0:
+    push 11
+-   push 22 !metadata(spans=[10..20, 50..60])
+-   push 33 !metadata(spans=[10..20, 50..60])
+-   push 44 !metadata(spans=[10..20, 50..60])
+-   push 55 !metadata(spans=[10..20, 50..60])
+-   revert !metadata(span=30..40)
++   jump bb2 !metadata(span=30..40)
+  bb1:
+    push 99
++   jump bb2
++ bb2:
+    push 22 !metadata(spans=[10..20, 50..60])
+    push 33 !metadata(spans=[10..20, 50..60])
+    push 44 !metadata(spans=[10..20, 50..60])
+    push 55 !metadata(spans=[10..20, 50..60])
+    revert !metadata(spans=[30..40, 70..80])
+  
+- // === ROOT/tests/ui/codegen/evm-ir/tail-merge/shared_debug_info.evmir (before tail-merge) ===
++ // === ROOT/tests/ui/codegen/evm-ir/tail-merge/shared_debug_info.evmir (after tail-merge) ===
+  @module SharedDebugInfo
+  bb0:
+    push 11
+    jump bb2 !metadata(span=30..40)
+  bb1:
+    push 99
+    jump bb2
+  bb2:
+    push 22 !metadata(spans=[10..20, 50..60])
+    push 33 !metadata(spans=[10..20, 50..60])
+    push 44 !metadata(spans=[10..20, 50..60])
+    push 55 !metadata(spans=[10..20, 50..60])
+    revert !metadata(spans=[30..40, 70..80])
+  

@@ -22,6 +22,84 @@ EDGE_BYTES32 = "0x" + "ff" * 31 + "f0"
 MIXED_BYTES32 = "0x" + "ff" * 30 + "0000"
 SIGNED_HASH = "0x7d768af957ef8cbf6219a37e743d5546d911dae3e46449d8a5810522db2ef65e"
 
+# Exercise both array iteration and bytes tails around the ABI word boundary.
+GOVERNOR_PROPOSALS = tuple(
+    (
+        f"hash-proposal-{length}-elements",
+        (
+            "[" + ",".join(f"0x{i + 1:040x}" for i in range(length)) + "]",
+            "[" + ",".join(str(i) for i in range(length)) + "]",
+            "["
+            + ",".join("0x" + "42" * (0, 1, 31, 32, 33)[i % 5] for i in range(length))
+            + "]",
+            "0x" + "42" * 32,
+        ),
+    )
+    for length in (1, 2, 8)
+)
+
+
+# Nonuniform bytes exercise both nibbles and the ABI/loop word boundaries.
+ENCODING_INPUTS = tuple(
+    (f"mixed-{length}", "0x" + bytes((i * 37 + 11) % 256 for i in range(length)).hex())
+    for length in (0, 1, 15, 16, 31, 32, 33, 63, 64, 65, 256)
+) + (
+    ("ascii-65", "0x" + "41" * 65),
+    ("high-first", "0x80" + "41" * 64),
+    ("high-boundary", "0x" + "41" * 31 + "80" + "41" * 33),
+    ("high-tail", "0x" + "41" * 64 + "80"),
+)
+# Additional boundaries and long scans are checked independently of the original
+# short-input tuning set, using a different nonuniform byte pattern.
+ENCODING_INPUTS += tuple(
+    (f"boundary-{length}", "0x" + bytes((i * 73 + 19) % 256 for i in range(length)).hex())
+    for length in (2, 7, 8, 17, 47, 95, 127, 128, 129, 255, 257, 511, 512, 513, 1023, 1024)
+) + tuple(
+    (f"ascii-{length}", "0x" + "41" * length)
+    for length in (0, 1, 2, 31, 32, 33, 63, 64, 127, 128, 129, 256, 257, 1024)
+) + tuple(
+    (f"high-{position}-{length}", "0x" + "41" * offset + "80" + "41" * (length - offset - 1))
+    for length in (257, 1024)
+    for position, offset in (("first", 0), ("boundary", 31), ("tail", length - 1))
+)
+
+
+# Isolated decimal and sorting calls avoid upstream assertions and gas-dependent
+# memory stress. Use the same inputs for timing and return-value comparison.
+ALGORITHM_INPUTS = tuple(
+    (f"decimal-{value}", "decimal(uint256)", "string", str(value))
+    for value in (
+        0, 1, 9, 10, 99, 100, (1 << 64) - 1, 10**31 - 1, 10**31,
+        (1 << 255) - 1, (1 << 256) - 1,
+    )
+) + tuple(
+    (f"signed-{value}", "signedDecimal(int256)", "string", str(value))
+    for value in (-1, -10, -(1 << 255), 0, 1, (1 << 255) - 1)
+) + tuple(
+    (
+        f"{method}-{pattern}-{length}",
+        f"{method}(uint256[])",
+        "uint256[]",
+        "[" + ",".join(map(str, values)) + "]",
+    )
+    for length in (0, 1, 2, 4, 12, 13, 32, 64)
+    for pattern, values in (
+        ("sorted", range(length)),
+        ("reversed", range(length - 1, -1, -1)),
+        ("equal", [1] * length),
+        ("mixed", [(i * 73 + 7) % 37 for i in range(length)]),
+    )
+    for method in ("insertion", "sort")
+) + tuple(
+    (label, "decode(string)", "bytes", value)
+    for label, value in (
+        ("base64-empty", ""),
+        ("base64-one", "YQ=="),
+        ("base64-three", "YWJj"),
+        ("base64-long", "YWJj" * 32),
+    )
+)
+
 
 @dataclass(frozen=True)
 class RuntimeCheck:
@@ -39,6 +117,131 @@ class GasCall:
 
 
 @dataclass(frozen=True)
+class Source:
+    repo: str
+    commit: str
+
+
+@dataclass(frozen=True)
+class Project:
+    name: str
+    file: str
+    sources: Sequence[Source]
+
+    @property
+    def path(self) -> Path:
+        return PROJECTS_ROOT / self.file
+
+
+PROJECTS = {
+    "uniswap-v2-pair": Project(
+        "v2-core",
+        "uniswap-v2-pair.json.gz",
+        (Source("Uniswap/v2-core", "ee547b17853e71ed4e0101ccfd52e70d5acded58"),),
+    ),
+    "openzeppelin-contracts": Project(
+        "openzeppelin-contracts",
+        "openzeppelin-5.6.1.json.gz",
+        (
+            Source(
+                "OpenZeppelin/openzeppelin-contracts",
+                "5fd1781b1454fd1ef8e722282f86f9293cacf256",
+            ),
+        ),
+    ),
+    "openzeppelin-5.6.1": Project(
+        "openzeppelin-5.6.1",
+        "openzeppelin-5.6.1.json.gz",
+        (
+            Source(
+                "OpenZeppelin/openzeppelin-contracts",
+                "5fd1781b1454fd1ef8e722282f86f9293cacf256",
+            ),
+        ),
+    ),
+    "nitro-one-step-proof": Project(
+        "nitro-contracts",
+        "nitro-one-step-proof.json.gz",
+        (
+            Source(
+                "OffchainLabs/nitro-contracts",
+                "0b8c04e8f5f66fe6678a4f53aa15f23da417260e",
+            ),
+        ),
+    ),
+    "aave-l2-encoder": Project(
+        "aave-v3-core",
+        "aave-l2-encoder.json.gz",
+        (Source("aave/aave-v3-core", "782f51917056a53a2c228701058a6c3fb233684a"),),
+    ),
+    "lilweb3-ens": Project(
+        "lil-web3",
+        "lilweb3-ens.json.gz",
+        (Source("m1guelpf/lil-web3", "7346bd28c2586da3b07102d5290175a276949b15"),),
+    ),
+    "lilweb3-runtime": Project(
+        "lil-web3",
+        "lilweb3-runtime.json.gz",
+        (
+            Source("m1guelpf/lil-web3", "7346bd28c2586da3b07102d5290175a276949b15"),
+            Source(
+                "transmissions11/solmate", "e802bcf2fb24dda2bf7e513bea86d15c48b57486"
+            ),
+        ),
+    ),
+    "maple-erc20": Project(
+        "maple-erc20",
+        "maple-erc20.json.gz",
+        (Source("maple-labs/erc20", "baf791a9f894b0b319a2d42d5b9f8d30349ebaad"),),
+    ),
+    "solady-0.1.26": Project(
+        "solady-0.1.26",
+        "solady-0.1.26.json.gz",
+        (Source("Vectorized/solady", "acd959aa4bd04720d640bf4e6a5c71037510cc4b"),),
+    ),
+    "seaport-1.6": Project(
+        "seaport-1.6",
+        "seaport-1.6.json.gz",
+        (Source("ProjectOpenSea/seaport", "22ea29df3c241ebc17c95268164dde47e1186287"),),
+    ),
+    "v4-core-4.0.0": Project(
+        "v4-core-4.0.0",
+        "v4-core-4.0.0.json.gz",
+        (Source("Uniswap/v4-core", "e50237c43811bd9b526eff40f26772152a42daba"),),
+    ),
+    "morpho-blue-1.0.0": Project(
+        "morpho-blue-1.0.0",
+        "morpho-blue-1.0.0.json.gz",
+        (Source("morpho-org/morpho-blue", "55d2d99304fb3fb930c688462ae2ccabb1d533ad"),),
+    ),
+    "forge-std-1.16.1": Project(
+        "forge-std-1.16.1",
+        "forge-std-1.16.1.json.gz",
+        (Source("foundry-rs/forge-std", "620536fa5277db4e3fd46772d5cbc1ea0696fb43"),),
+    ),
+    "prb-math-4.1.1": Project(
+        "prb-math-4.1.1",
+        "prb-math-4.1.1.json.gz",
+        (Source("PaulRBerg/prb-math", "b51e8631ed28d3cc917c491dd47cd6c3ff652edc"),),
+    ),
+    "solmate-6": Project(
+        "solmate-6",
+        "solmate-6.json.gz",
+        (
+            Source(
+                "transmissions11/solmate", "a9e3ea26a2dc73bfa87f0cb189687d029028e0c5"
+            ),
+        ),
+    ),
+    "solarray-a547630": Project(
+        "solarray-a547630",
+        "solarray-a547630.json.gz",
+        (Source("evmcheb/solarray", "a547630f9bf7837af9e6919d217672afe7abf7f1"),),
+    ),
+}
+
+
+@dataclass(frozen=True)
 class TestCase:
     test_id: str
     description: str
@@ -46,8 +249,8 @@ class TestCase:
     test_calls: Sequence[tuple[str, Sequence[str]]] = field(default_factory=tuple)
     source_code: str | None = None
     source_name: str = ""
-    project: str = ""
-    project_file: str | None = None
+    source_path: str = ""
+    project: Project | None = None
     settings_profile: str = ""
     source: str = ""
     gas_calls: Sequence[GasCall] = field(default_factory=tuple)
@@ -63,10 +266,14 @@ class TestCase:
     whole_project: bool = False
 
     @property
+    def project_file(self) -> str | None:
+        return self.project.file if self.project is not None else None
+
+    @property
     def project_path(self) -> Path:
-        if self.project_file is None:
+        if self.project is None:
             raise ValueError(f"inline case {self.test_id} has no project archive")
-        return PROJECTS_ROOT / self.project_file
+        return self.project.path
 
 
 def source(name: str) -> str:
@@ -78,6 +285,7 @@ TEST_CASES: Sequence[TestCase] = (
         test_id="factorial",
         description="Factorial with storage caching opportunity",
         source_code=source("Factorial.sol"),
+        source_path="testdata/Factorial.sol",
         contract_name="FactorialStorage",
         test_calls=(
             ("computeFactorial(uint256)", ("5",)),
@@ -91,6 +299,7 @@ TEST_CASES: Sequence[TestCase] = (
         test_id="counter",
         description="Simple counter with setter and increment",
         source_code=source("Counter.sol"),
+        source_path="testdata/Counter.sol",
         contract_name="Counter",
         test_calls=(
             ("setNumber(uint256)", ("10",)),
@@ -104,6 +313,7 @@ TEST_CASES: Sequence[TestCase] = (
         test_id="sum-array",
         description="Sum computation with storage writes",
         source_code=source("SumArray.sol"),
+        source_path="testdata/SumArray.sol",
         contract_name="SumStorage",
         test_calls=(
             ("sumRange(uint256,uint256)", ("1", "10")),
@@ -117,6 +327,7 @@ TEST_CASES: Sequence[TestCase] = (
         test_id="arithmetic",
         description="Mixed arithmetic operations",
         source_code=source("Arithmetic.sol"),
+        source_path="testdata/Arithmetic.sol",
         contract_name="Arithmetic",
         test_calls=(
             ("compute(uint256,uint256,uint256)", ("100", "3", "10")),
@@ -126,10 +337,100 @@ TEST_CASES: Sequence[TestCase] = (
         runtime_checks=(RuntimeCheck("value", "value()(uint256)"),),
     ),
     TestCase(
+        test_id="verified-words",
+        description="Synthetic bitwise and signed arithmetic loops for verified rules",
+        source_code=(TESTDATA_ROOT / "runtime/VerifiedWords.sol").read_text(),
+        source_path="testdata/runtime/VerifiedWords.sol",
+        source_name="VerifiedWords.sol",
+        contract_name="VerifiedWords",
+        gas_calls=(
+            GasCall("mix", "mix(uint256,uint256,uint256)", ("32769", "65408", "64")),
+            GasCall("merge", "merge(uint256,uint256,uint256)", ("32769", "65408", "64")),
+            GasCall("negate", "negate(uint256,uint256)", (str(1 << 255), "64")),
+        ),
+        runtime_checks=(
+            RuntimeCheck("mix", "mix(uint256,uint256,uint256)(uint256)", ("32769", "65408", "64")),
+            RuntimeCheck("merge", "merge(uint256,uint256,uint256)(uint256)", ("32769", "65408", "64")),
+            RuntimeCheck("negate", "negate(uint256,uint256)(uint256)", (str(1 << 255), "64")),
+            RuntimeCheck("zero-rounds", "mix(uint256,uint256,uint256)(uint256)", (MAX_UINT256, "1", "0")),
+        ),
+    ),
+    TestCase(
+        test_id="word-recipes",
+        description="Synthetic arithmetic, factoring, byte extraction and bounded comparisons",
+        source_code=(TESTDATA_ROOT / "runtime/WordRecipes.sol").read_text(),
+        source_path="testdata/runtime/WordRecipes.sol",
+        source_name="WordRecipes.sol",
+        contract_name="WordRecipes",
+        gas_calls=(
+            GasCall("mixed", "mixed(uint256,uint256,uint256)", ("32769", "65408", "64")),
+            GasCall("factored", "factored(uint256,uint256,uint256,uint256)", ("32769", "65408", MAX_UINT256, "64")),
+            GasCall("packed", "packed(uint256,uint256)", (MAX_UINT256, "64")),
+            GasCall("bounded", "bounded(uint256)", (str((1 << 160) - 1),)),
+        ),
+        runtime_checks=(
+            RuntimeCheck("mixed", "mixed(uint256,uint256,uint256)(uint256)", ("32769", "65408", "64")),
+            RuntimeCheck("factored", "factored(uint256,uint256,uint256,uint256)(uint256)", ("32769", "65408", MAX_UINT256, "64")),
+            RuntimeCheck("packed", "packed(uint256,uint256)(uint256)", (MAX_UINT256, "64")),
+            RuntimeCheck("bounded-max", "bounded(uint256)(bool)", (str((1 << 160) - 1),)),
+            RuntimeCheck("bounded-overflow", "bounded(uint256)(bool)", (str(1 << 160),)),
+        ),
+    ),
+    TestCase(
+        test_id="seeded-words",
+        description="Synthetic mixed-word reductions found by seeded discovery",
+        source_code=(TESTDATA_ROOT / "runtime/SeededWords.sol").read_text(),
+        source_path="testdata/runtime/SeededWords.sol",
+        source_name="SeededWords.sol",
+        contract_name="SeededWords",
+        gas_calls=tuple(
+            GasCall(name, f"{name}(uint256,uint256,uint256)", ("32769", "65408", "64"))
+            for name in ("difference", "sumDifference", "complement", "absorb")
+        ),
+        runtime_checks=tuple(
+            RuntimeCheck(f"{name}-{label}", f"{name}(uint256,uint256,uint256)(uint256)", args)
+            for name in ("difference", "sumDifference", "complement", "absorb")
+            for label, args in (
+                ("loop", ("32769", "65408", "64")),
+                ("wrap", (MAX_UINT256, "1", "64")),
+                ("zero", ("0", "0", "0")),
+            )
+        ),
+    ),
+    TestCase(
+        test_id="compiler-optimizations",
+        description="CFG scalars, range proofs, shared constants, and storage writes",
+        source_code=(TESTDATA_ROOT / "runtime/CompilerOptimizations.sol").read_text(),
+        source_path="testdata/runtime/CompilerOptimizations.sol",
+        source_name="CompilerOptimizations.sol",
+        contract_name="CompilerOptimizations",
+        gas_calls=(
+            GasCall("aggregate-true", "aggregate(bool,uint256)", ("true", "30"), repeat=2),
+            GasCall("aggregate-false", "aggregate(bool,uint256)", ("false", "30"), repeat=2),
+            GasCall("bounds-left", "bounds(bool,uint256,uint256)", ("true", "99", "79")),
+            GasCall("bounds-right", "bounds(bool,uint256,uint256)", ("false", "99", "79")),
+            GasCall("packed", "packed(uint8,uint8)", ("255", "128"), repeat=3),
+            GasCall("overwrite", "overwrite(bool,uint256)", ("true", "37"), repeat=3),
+            GasCall("stack-equal", "stackShape(uint256,uint256)", ("7", "7"), repeat=2),
+            GasCall("stack-different", "stackShape(uint256,uint256)", ("9", "4"), repeat=2),
+            GasCall("shared-first", "first(uint256)", ("17",)),
+            GasCall("shared-second", "second(uint256)", ("23",)),
+            GasCall("shared-third", "third(uint256)", ("31",)),
+        ),
+        runtime_checks=(
+            RuntimeCheck("aggregate", "aggregate(bool,uint256)(uint256)", ("true", "30")),
+            RuntimeCheck("bounds", "bounds(bool,uint256,uint256)(uint256)", ("false", "99", "79")),
+            RuntimeCheck("stack-shape", "stackShape(uint256,uint256)(uint256,uint256,bool)", ("9", "4")),
+            RuntimeCheck("generic", "generic(bool,uint256)(uint256)", ("true", "3")),
+            RuntimeCheck("word", "word()(uint256)"),
+            RuntimeCheck("low", "low()(uint8)"),
+            RuntimeCheck("high", "high()(uint8)"),
+        ),
+    ),
+    TestCase(
         test_id="uniswap-v2-pair",
         description="Uniswap V2 Pair",
-        project="v2-core",
-        project_file="uniswap-v2-pair.json.gz",
+        project=PROJECTS["uniswap-v2-pair"],
         source="contracts/UniswapV2Pair.sol",
         contract_name="UniswapV2Pair",
         suite="repository",
@@ -140,8 +441,7 @@ TEST_CASES: Sequence[TestCase] = (
     TestCase(
         test_id="openzeppelin-erc20-mock",
         description="OpenZeppelin ERC20Mock",
-        project="openzeppelin-contracts",
-        project_file="openzeppelin-5.6.1.json.gz",
+        project=PROJECTS["openzeppelin-contracts"],
         source="contracts/mocks/token/ERC20Mock.sol",
         contract_name="ERC20Mock",
         suite="repository",
@@ -195,8 +495,7 @@ TEST_CASES: Sequence[TestCase] = (
     TestCase(
         test_id="openzeppelin-vesting-wallet",
         description="OpenZeppelin VestingWallet",
-        project="openzeppelin-contracts",
-        project_file="openzeppelin-5.6.1.json.gz",
+        project=PROJECTS["openzeppelin-contracts"],
         source="contracts/finance/VestingWallet.sol",
         contract_name="VestingWallet",
         suite="repository",
@@ -245,8 +544,7 @@ TEST_CASES: Sequence[TestCase] = (
     TestCase(
         test_id="nitro-one-step-proof",
         description="Nitro OneStepProofEntry",
-        project="nitro-contracts",
-        project_file="nitro-one-step-proof.json.gz",
+        project=PROJECTS["nitro-one-step-proof"],
         source="src/osp/OneStepProofEntry.sol",
         contract_name="OneStepProofEntry",
         suite="repository",
@@ -319,8 +617,7 @@ TEST_CASES: Sequence[TestCase] = (
     TestCase(
         test_id="aave-l2-encoder",
         description="Aave V3 L2Encoder",
-        project="aave-v3-core",
-        project_file="aave-l2-encoder.json.gz",
+        project=PROJECTS["aave-l2-encoder"],
         source="fixtures/aave/L2EncoderHarness.sol",
         contract_name="L2EncoderHarness",
         suite="repository",
@@ -492,8 +789,7 @@ TEST_CASES: Sequence[TestCase] = (
     TestCase(
         test_id="lilweb3-ens",
         description="LilENS",
-        project="lil-web3",
-        project_file="lilweb3-ens.json.gz",
+        project=PROJECTS["lilweb3-ens"],
         source="src/LilENS.sol",
         contract_name="LilENS",
         suite="repository",
@@ -529,8 +825,7 @@ TEST_CASES: Sequence[TestCase] = (
     TestCase(
         test_id="lilweb3-flashloan",
         description="LilFlashloan",
-        project="lil-web3",
-        project_file="lilweb3-runtime.json.gz",
+        project=PROJECTS["lilweb3-runtime"],
         source="src/LilFlashloan.sol",
         contract_name="LilFlashloan",
         suite="repository",
@@ -594,8 +889,7 @@ TEST_CASES: Sequence[TestCase] = (
     TestCase(
         test_id="lilweb3-fractional",
         description="LilFractional",
-        project="lil-web3",
-        project_file="lilweb3-runtime.json.gz",
+        project=PROJECTS["lilweb3-runtime"],
         source="src/LilFractional.sol",
         contract_name="LilFractional",
         suite="repository",
@@ -654,8 +948,7 @@ TEST_CASES: Sequence[TestCase] = (
     TestCase(
         test_id="maple-erc20",
         description="Maple ERC20",
-        project="maple-erc20",
-        project_file="maple-erc20.json.gz",
+        project=PROJECTS["maple-erc20"],
         source="contracts/ERC20.sol",
         contract_name="ERC20",
         suite="repository",
@@ -727,8 +1020,7 @@ TEST_CASES: Sequence[TestCase] = (
     TestCase(
         test_id="openzeppelin-governor",
         description="OpenZeppelin Governor",
-        project="openzeppelin-5.6.1",
-        project_file="openzeppelin-5.6.1.json.gz",
+        project=PROJECTS["openzeppelin-5.6.1"],
         source="test/governance/Governor.t.sol",
         contract_name="GovernorInternalTest",
         gas_calls=(
@@ -746,6 +1038,15 @@ TEST_CASES: Sequence[TestCase] = (
             ),
             GasCall("name", "name()", repeat=3),
             GasCall("version", "version()", repeat=3),
+            *(
+                GasCall(
+                    label,
+                    "hashProposal(address[],uint256[],bytes[],bytes32)",
+                    args,
+                    repeat=3,
+                )
+                for label, args in GOVERNOR_PROPOSALS
+            ),
         ),
         runtime_checks=(
             RuntimeCheck("name", "name()(string)"),
@@ -755,14 +1056,21 @@ TEST_CASES: Sequence[TestCase] = (
                 "hashProposal(address[],uint256[],bytes[],bytes32)(uint256)",
                 ("[]", "[]", "[]", "0x" + "00" * 32),
             ),
+            *(
+                RuntimeCheck(
+                    label,
+                    "hashProposal(address[],uint256[],bytes[],bytes32)(uint256)",
+                    args,
+                )
+                for label, args in GOVERNOR_PROPOSALS
+            ),
         ),
         suite="large",
     ),
     TestCase(
         test_id="solady-signature-checker",
         description="Solady SignatureCheckerLib",
-        project="solady-0.1.26",
-        project_file="solady-0.1.26.json.gz",
+        project=PROJECTS["solady-0.1.26"],
         source="test/SignatureCheckerLib.t.sol",
         contract_name="SignatureCheckerLibTest",
         gas_calls=(
@@ -798,8 +1106,7 @@ TEST_CASES: Sequence[TestCase] = (
     TestCase(
         test_id="solady-lib-string",
         description="Solady LibString",
-        project="solady-0.1.26",
-        project_file="solady-0.1.26.json.gz",
+        project=PROJECTS["solady-0.1.26"],
         source="test/LibString.t.sol",
         contract_name="LibStringTest",
         gas_calls=(
@@ -816,6 +1123,42 @@ TEST_CASES: Sequence[TestCase] = (
             ),
             GasCall("replace-medium", "testStringReplaceMedium()", repeat=3),
             GasCall("replace-long", "testStringReplaceLong()", repeat=3),
+            GasCall("hex-bytes-no-prefix", "testBytesToHexStringNoPrefix()", repeat=3),
+            GasCall("hex-bytes", "testBytesToHexString()", repeat=3),
+            GasCall("ascii-all-bytes", "testStringIs7BitASCII()", repeat=3),
+            *(
+                GasCall(f"hex-tail-{length}", "testBytesToHexStringNoPrefix(bytes)", ("0x" + "42" * length,))
+                for length in (0, 1, 31, 32, 33, 64, 65)
+            ),
+            *(
+                GasCall(f"hex-prefixed-tail-{length}", "testBytesToHexString(bytes)", ("0x" + "ff" * length,))
+                for length in (0, 1, 31, 32, 33, 64, 65)
+            ),
+            *(
+                GasCall(label, "testStringIs7BitASCIIDifferential(bytes)", (value,))
+                for label, value in (
+                    ("ascii-empty", "0x"),
+                    ("ascii-31", "0x" + "41" * 31),
+                    ("ascii-32", "0x" + "41" * 32),
+                    ("ascii-33", "0x" + "41" * 33),
+                    ("ascii-65", "0x" + "41" * 65),
+                    ("ascii-high-first", "0x80" + "41" * 64),
+                    ("ascii-high-boundary", "0x" + "41" * 31 + "80" + "41" * 33),
+                    ("ascii-high-tail", "0x" + "41" * 64 + "80"),
+                )
+            ),
+            *(
+                GasCall(label, "testStringRuneCountDifferential(string)", (value,), repeat=3)
+                for label, value in (
+                    ("runes-empty", ""),
+                    ("runes-one", "A"),
+                    ("runes-31", "A" * 31),
+                    ("runes-32", "A" * 32),
+                    ("runes-33", "A" * 33),
+                    ("runes-utf8-two-byte", "\u03bb" * 64),
+                    ("runes-utf8-four-byte", "\U0001f600" * 64),
+                )
+            ),
         ),
         runtime_checks=(
             RuntimeCheck("serial-number", "checkIsSN(string)(bool)", ("123456789",)),
@@ -832,11 +1175,56 @@ TEST_CASES: Sequence[TestCase] = (
         suite="large",
     ),
     TestCase(
+        test_id="solady-encoding",
+        description="Solady hex and ASCII with ordinary ABI calls",
+        min_solc="0.8.20",
+        project=PROJECTS["solady-0.1.26"],
+        source="Encoding.sol",
+        source_code=(TESTDATA_ROOT / "runtime/Encoding.sol").read_text(),
+        source_path="testdata/runtime/Encoding.sol",
+        contract_name="Encoding",
+        settings_profile="runtime",
+        gas_calls=tuple(
+            GasCall(f"{name}-{label}", f"{name}(bytes)", (value,))
+            for name in ("hexNoPrefix", "hexPrefixed", "ascii")
+            for label, value in ENCODING_INPUTS
+        ),
+        runtime_checks=tuple(
+            RuntimeCheck(f"{name}-{label}", f"{name}(bytes)({result})", (value,))
+            for name, result in (
+                ("hexNoPrefix", "string"),
+                ("hexPrefixed", "string"),
+                ("ascii", "bool"),
+            )
+            for label, value in ENCODING_INPUTS
+        ),
+        suite="repository",
+    ),
+    TestCase(
+        test_id="solady-algorithms",
+        description="Solady decimal conversion, sorting and Base64 decoding",
+        min_solc="0.8.20",
+        project=PROJECTS["solady-0.1.26"],
+        source="Algorithms.sol",
+        source_code=(TESTDATA_ROOT / "runtime/Algorithms.sol").read_text(),
+        source_path="testdata/runtime/Algorithms.sol",
+        contract_name="Algorithms",
+        settings_profile="runtime",
+        gas_calls=tuple(
+            GasCall(label, signature, (value,))
+            for label, signature, _, value in ALGORITHM_INPUTS
+        ),
+        runtime_checks=tuple(
+            RuntimeCheck(label, f"{signature}({result})", (value,))
+            for label, signature, result, value in ALGORITHM_INPUTS
+        ),
+        suite="repository",
+    ),
+    TestCase(
         test_id="seaport-1.6-project",
         description="Seaport 1.6 full project",
         contract_name="*",
-        project="seaport-1.6",
-        project_file="seaport-1.6.json.gz",
+        project=PROJECTS["seaport-1.6"],
         whole_project=True,
         suite="heavy",
     ),
@@ -844,8 +1232,7 @@ TEST_CASES: Sequence[TestCase] = (
         test_id="v4-core-project",
         description="Uniswap v4-core full project (viaIR)",
         contract_name="*",
-        project="v4-core-4.0.0",
-        project_file="v4-core-4.0.0.json.gz",
+        project=PROJECTS["v4-core-4.0.0"],
         whole_project=True,
         suite="heavy",
     ),
@@ -853,8 +1240,7 @@ TEST_CASES: Sequence[TestCase] = (
         test_id="morpho-blue-project",
         description="Morpho Blue full project (viaIR)",
         contract_name="*",
-        project="morpho-blue-1.0.0",
-        project_file="morpho-blue-1.0.0.json.gz",
+        project=PROJECTS["morpho-blue-1.0.0"],
         whole_project=True,
         suite="heavy",
     ),
@@ -862,8 +1248,7 @@ TEST_CASES: Sequence[TestCase] = (
         test_id="openzeppelin-5.6.1-project",
         description="OpenZeppelin 5.6.1 full project",
         contract_name="*",
-        project="openzeppelin-5.6.1",
-        project_file="openzeppelin-5.6.1.json.gz",
+        project=PROJECTS["openzeppelin-5.6.1"],
         whole_project=True,
         suite="heavy",
     ),
@@ -871,8 +1256,7 @@ TEST_CASES: Sequence[TestCase] = (
         test_id="solady-0.1.26-project",
         description="Solady 0.1.26 full project",
         contract_name="*",
-        project="solady-0.1.26",
-        project_file="solady-0.1.26.json.gz",
+        project=PROJECTS["solady-0.1.26"],
         whole_project=True,
         suite="heavy",
     ),
@@ -880,8 +1264,7 @@ TEST_CASES: Sequence[TestCase] = (
         test_id="forge-std-1.16.1-project",
         description="Forge Std 1.16.1 full project",
         contract_name="*",
-        project="forge-std-1.16.1",
-        project_file="forge-std-1.16.1.json.gz",
+        project=PROJECTS["forge-std-1.16.1"],
         whole_project=True,
         suite="heavy",
     ),
@@ -889,8 +1272,7 @@ TEST_CASES: Sequence[TestCase] = (
         test_id="prb-math-4.1.1-project",
         description="PRBMath 4.1.1 full project",
         contract_name="*",
-        project="prb-math-4.1.1",
-        project_file="prb-math-4.1.1.json.gz",
+        project=PROJECTS["prb-math-4.1.1"],
         whole_project=True,
         suite="heavy",
     ),
@@ -898,8 +1280,7 @@ TEST_CASES: Sequence[TestCase] = (
         test_id="solmate-6-project",
         description="Solmate 6 full project",
         contract_name="*",
-        project="solmate-6",
-        project_file="solmate-6.json.gz",
+        project=PROJECTS["solmate-6"],
         whole_project=True,
         suite="heavy",
     ),
@@ -907,8 +1288,7 @@ TEST_CASES: Sequence[TestCase] = (
         test_id="solarray-a547630-project",
         description="Solarray full project",
         contract_name="*",
-        project="solarray-a547630",
-        project_file="solarray-a547630.json.gz",
+        project=PROJECTS["solarray-a547630"],
         whole_project=True,
         suite="heavy",
     ),

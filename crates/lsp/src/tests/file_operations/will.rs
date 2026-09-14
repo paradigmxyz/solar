@@ -33,7 +33,7 @@ fn state_with_config(project: &TestProject, config: Config) -> GlobalState {
     let mut state = GlobalState::new(ClientSocket::new_closed());
     state.config = Arc::new(config);
     *state.vfs.write() = project.vfs();
-    *state.symbol_tables.write() = output.result.symbol_tables;
+    state.symbol_tables.store(Arc::new(output.result.symbol_tables));
     state.analysis_commit.lock().analysis_paths = output.analysis_paths;
     state
 }
@@ -61,7 +61,7 @@ fn assert_will_file_operations_refuse_pruned_importer(
 
     let mut delete_state = state_with_config(project, config.clone());
     assert!(
-        delete_state.symbol_tables.read().document_links(&importer).is_empty(),
+        delete_state.symbol_tables.load().document_links(&importer).is_empty(),
         "pruned importer was unexpectedly analyzed: {}",
         importer.display()
     );
@@ -76,7 +76,7 @@ fn assert_will_file_operations_refuse_pruned_importer(
 
     let mut rename_state = state_with_config(project, config);
     assert!(
-        rename_state.symbol_tables.read().document_links(&importer).is_empty(),
+        rename_state.symbol_tables.load().document_links(&importer).is_empty(),
         "pruned importer was unexpectedly analyzed: {}",
         importer.display()
     );
@@ -182,6 +182,44 @@ fn will_delete_returns_import_edits_without_default_foundry_flycheck_roots() {
 }
 
 #[test]
+fn file_import_edits_ignore_project_metadata_and_dependency_roots() {
+    for ignored in [".git/config", "lib/Unused.sol", "out/Generated.sol"] {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /foundry.toml
+            [profile.default]
+            //- /checks/Importer.sol
+            import "../src/Target.sol";
+            //- /src/Target.sol
+            contract Target {}
+            "#,
+        );
+        project.write_file(&format!("/{ignored}"), "contract Ignored {}");
+        let mut state = state(&project);
+        let uri = Url::from_file_path(project.path("/src/Target.sol")).unwrap();
+        let deleted = block_on(crate::handlers::will_delete_files(
+            &mut state,
+            DeleteFilesParams { files: vec![FileDelete { uri: uri.to_string() }] },
+        ))
+        .unwrap();
+        assert!(deleted.is_some(), "{ignored} must not suppress project import edits");
+        let renamed = block_on(crate::handlers::will_rename_files(
+            &mut state,
+            RenameFilesParams {
+                files: vec![FileRename {
+                    old_uri: uri.to_string(),
+                    new_uri: Url::from_file_path(project.path("/src/Renamed.sol"))
+                        .unwrap()
+                        .to_string(),
+                }],
+            },
+        ))
+        .unwrap();
+        assert!(renamed.is_some(), "{ignored} must not suppress project import edits");
+    }
+}
+
+#[test]
 fn will_delete_refuses_partial_import_edits() {
     let project = TestProject::from_fixture(
         r#"
@@ -249,7 +287,7 @@ fn will_delete_refuses_closed_default_named_source_importers() {
 }
 
 #[test]
-fn will_delete_refuses_closed_flycheck_source_importers() {
+fn will_delete_updates_closed_foundry_test_importers() {
     let project = TestProject::from_fixture(
         r#"
         //- /foundry.toml
@@ -278,7 +316,11 @@ fn will_delete_refuses_closed_flycheck_source_importers() {
     ))
     .unwrap();
 
-    assert!(edit.is_none());
+    let changes = edit.unwrap().changes.unwrap();
+    assert_eq!(changes.len(), 2);
+    for path in ["/src/Main.sol", "/test/Importer.t.sol"] {
+        assert_eq!(changes[&Url::from_file_path(project.path(path)).unwrap()].len(), 1);
+    }
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -570,7 +612,7 @@ fn will_rename_refuses_closed_default_named_source_importers() {
 }
 
 #[test]
-fn will_rename_refuses_closed_flycheck_source_importers() {
+fn will_rename_updates_closed_foundry_script_importers() {
     let project = TestProject::from_fixture(
         r#"
         //- /foundry.toml
@@ -600,7 +642,11 @@ fn will_rename_refuses_closed_flycheck_source_importers() {
     ))
     .unwrap();
 
-    assert!(edit.is_none());
+    let changes = edit.unwrap().changes.unwrap();
+    assert_eq!(changes.len(), 2);
+    for path in ["/src/Main.sol", "/script/Importer.s.sol"] {
+        assert_eq!(changes[&Url::from_file_path(project.path(path)).unwrap()].len(), 1);
+    }
 }
 
 #[test]
@@ -687,7 +733,7 @@ fn will_rename_returns_import_edits_without_mutating_state() {
         "import \"./Target.sol\";"
     );
     assert_eq!(
-        state.symbol_tables.read().document_links(&importer)[0].target,
+        state.symbol_tables.load().document_links(&importer)[0].target,
         Some(old_target_uri)
     );
 }

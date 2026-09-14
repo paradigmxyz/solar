@@ -25,11 +25,14 @@
 use super::VfsPath;
 use crate::{
     file_operations::{FileMoveBatch, FileMoveError},
+    folding_range,
+    proto::LspPositionIndex,
     selection_range::SelectionRangeIndex,
+    signature_help::StatementBoundaryIndex,
 };
 use crop::Rope;
 use lsp_types::{Position, SelectionRange};
-use solar_interface::data_structures::map::rustc_hash::FxHashMap;
+use solar_interface::data_structures::{map::rustc_hash::FxHashMap, sync::Mutex};
 use std::{
     collections::hash_map::Entry,
     mem,
@@ -40,24 +43,64 @@ use std::{
 struct VfsFile {
     contents: Rope,
     analysis_source: OnceLock<Arc<String>>,
+    positions: OnceLock<LspPositionIndex<Rope>>,
     selection_range_index: OnceLock<SelectionRangeIndex>,
+    folding_ranges: OnceLock<Vec<lsp_types::FoldingRange>>,
+    first_statement_boundary: OnceLock<(usize, usize)>,
+    statement_boundaries: Mutex<StatementBoundaryIndex>,
 }
 
 impl VfsFile {
     fn new(contents: Rope) -> Self {
-        Self { contents, analysis_source: OnceLock::new(), selection_range_index: OnceLock::new() }
+        Self {
+            contents,
+            analysis_source: OnceLock::new(),
+            positions: OnceLock::new(),
+            selection_range_index: OnceLock::new(),
+            folding_ranges: OnceLock::new(),
+            first_statement_boundary: OnceLock::new(),
+            statement_boundaries: Mutex::default(),
+        }
     }
 
     fn analysis_source(&self) -> Arc<String> {
         self.analysis_source
-            .get_or_init(|| {
-                let mut source = String::with_capacity(self.contents.byte_len());
-                for chunk in self.contents.chunks() {
-                    source.push_str(chunk);
-                }
-                Arc::new(source)
-            })
+            .get_or_init(|| Arc::new(crate::utils::rope_to_string(&self.contents)))
             .clone()
+    }
+}
+
+/// An exact-content handle for sharing source text and its position index.
+#[derive(Clone)]
+pub(crate) struct DocumentSource(Arc<VfsFile>);
+
+impl DocumentSource {
+    pub(crate) fn contents(&self) -> &Rope {
+        &self.0.contents
+    }
+
+    pub(crate) fn positions(&self) -> &LspPositionIndex<Rope> {
+        self.0.positions.get_or_init(|| LspPositionIndex::from_rope(self.0.contents.clone()))
+    }
+
+    pub(crate) fn source(&self) -> Arc<String> {
+        self.0.analysis_source()
+    }
+
+    /// Returns the last statement boundary before any cursor in this exact source snapshot.
+    pub(crate) fn statement_boundary(&self, cursor: usize) -> usize {
+        if let Some(&(first_cursor, boundary)) = self.0.first_statement_boundary.get() {
+            if first_cursor == cursor {
+                return boundary;
+            }
+            return self.0.statement_boundaries.lock().at(&self.source(), cursor);
+        }
+        // A single request after an edit needs no index. Only build the broader index when
+        // the cursor moves, keeping the first request's scan allocation-free.
+        let source = self.source();
+        let boundary = crate::signature_help::last_statement_boundary(&source[..cursor]);
+        let _ = self.0.first_statement_boundary.set((cursor, boundary));
+        boundary
     }
 }
 
@@ -74,6 +117,19 @@ impl SelectionRangeSource {
 
     pub(crate) fn selection_ranges(&self, positions: &[Position]) -> Option<Vec<SelectionRange>> {
         self.index().selection_ranges(positions)
+    }
+}
+
+/// An exact-content handle whose folding ranges are parsed at most once.
+#[derive(Clone)]
+pub(crate) struct FoldingRangeSource(Arc<VfsFile>);
+
+impl FoldingRangeSource {
+    pub(crate) fn folding_ranges(&self) -> Vec<lsp_types::FoldingRange> {
+        self.0
+            .folding_ranges
+            .get_or_init(|| folding_range::folding_ranges_from_rope(self.0.contents.clone()))
+            .clone()
     }
 }
 
@@ -133,6 +189,13 @@ impl Vfs {
         }
     }
 
+    /// Update an existing file's client version without replacing its contents.
+    pub(crate) fn set_file_version(&mut self, path: VfsPath, version: i32) {
+        debug_assert!(self.data.contains_key(&path));
+        self.versions.insert(path, version);
+        self.dirty = true;
+    }
+
     pub(crate) fn get_file_contents(&self, path: &VfsPath) -> Option<&Rope> {
         self.data.get(path).map(|file| &file.contents)
     }
@@ -142,12 +205,23 @@ impl Vfs {
         self.data.get(path).map(|file| file.analysis_source())
     }
 
+    pub(crate) fn get_file_source(&self, path: &VfsPath) -> Option<DocumentSource> {
+        self.data.get(path).cloned().map(DocumentSource)
+    }
+
     /// Returns an exact-content handle whose derived index can initialize outside the VFS lock.
     pub(crate) fn get_file_selection_range_source(
         &self,
         path: &VfsPath,
     ) -> Option<SelectionRangeSource> {
         self.data.get(path).cloned().map(SelectionRangeSource)
+    }
+
+    pub(crate) fn get_file_folding_range_source(
+        &self,
+        path: &VfsPath,
+    ) -> Option<FoldingRangeSource> {
+        self.data.get(path).cloned().map(FoldingRangeSource)
     }
 
     pub(crate) fn get_file_version(&self, path: &VfsPath) -> Option<i32> {
@@ -354,6 +428,87 @@ mod tests {
     }
 
     #[test]
+    fn document_sources_keep_text_and_positions_from_the_same_contents() {
+        let mut vfs = Vfs::default();
+        let file = path("/workspace/Test.sol");
+        insert(&mut vfs, "/workspace/Test.sol", "α😀\r\nnext\rtail\n", 1);
+        let original = vfs.get_file_source(&file).unwrap();
+        let at = |source: &DocumentSource, line, character| {
+            let position = Position::new(line, character);
+            source.positions().checked_text_range(lsp_types::Range::new(position, position))
+        };
+        assert_eq!(at(&original, 0, 2), None);
+        assert_eq!(at(&original, 0, 99), Some(6..6));
+        assert_eq!(at(&original, 1, 2), Some(10..10));
+        assert_eq!(at(&original, 2, 4), Some(17..17));
+        assert_eq!(at(&original, 3, 0), Some(18..18));
+        assert_eq!(at(&original, 4, 0), None);
+
+        assert!(!vfs.set_file_contents_with_version(
+            file.clone(),
+            Some(original.contents().clone()),
+            Some(2),
+        ));
+        let unchanged = vfs.get_file_source(&file).unwrap();
+        assert!(std::ptr::eq(original.positions(), unchanged.positions()));
+        assert!(Arc::ptr_eq(&original.source(), &unchanged.source()));
+
+        insert(&mut vfs, "/workspace/Test.sol", "x\n😀z\n", 3);
+        let changed = vfs.get_file_source(&file).unwrap();
+        assert_eq!(at(&changed, 1, 2), Some(6..6));
+        assert_eq!(at(&changed, 2, 0), Some(8..8));
+        assert_eq!(changed.source().as_str(), "x\n😀z\n");
+        assert_eq!(at(&original, 1, 2), Some(10..10));
+        assert_eq!(original.source().as_str(), "α😀\r\nnext\rtail\n");
+
+        let moved = path("/workspace/Moved.sol");
+        vfs.rename_file_prefixes(&moves([(
+            PathBuf::from("/workspace/Test.sol"),
+            PathBuf::from("/workspace/Moved.sol"),
+        )]))
+        .unwrap();
+        assert!(vfs.get_file_source(&file).is_none());
+        let renamed = vfs.get_file_source(&moved).unwrap();
+        assert!(std::ptr::eq(changed.positions(), renamed.positions()));
+        assert_eq!(at(&renamed, 1, 2), Some(6..6));
+        vfs.set_file_contents(moved, None);
+        assert_eq!(renamed.source().as_str(), "x\n😀z\n");
+    }
+
+    #[test]
+    fn statement_boundaries_follow_source_snapshots() {
+        let mut vfs = Vfs::default();
+        let file = path("/workspace/Test.sol");
+        let original = "start(); target(\";\", 1); // ;\nnext(2, 3);";
+        insert(&mut vfs, "/workspace/Test.sol", original, 1);
+        let source = vfs.get_file_source(&file).unwrap();
+        let first = original.find(';').unwrap();
+        let second = original.find("; //").unwrap();
+        let earlier = original.find('1').unwrap();
+        let later = original.find('3').unwrap();
+        for cursor in [later, earlier, later] {
+            assert_eq!(
+                source.statement_boundary(cursor),
+                if cursor == earlier { first } else { second }
+            );
+        }
+
+        insert(&mut vfs, "/workspace/Test.sol", original, 2);
+        let unchanged = vfs.get_file_source(&file).unwrap();
+        assert!(Arc::ptr_eq(&source.0, &unchanged.0));
+        assert_eq!(unchanged.statement_boundary(earlier), first);
+
+        let edited = "start(); /* target(\";\", 1); */ next(2, 3);";
+        insert(&mut vfs, "/workspace/Test.sol", edited, 3);
+        let changed = vfs.get_file_source(&file).unwrap();
+        assert_eq!(changed.statement_boundary(edited.find('3').unwrap()), first);
+        assert_eq!(source.statement_boundary(later), second);
+        vfs.set_file_contents(file, None);
+        assert_eq!(changed.statement_boundary(edited.find('3').unwrap()), first);
+        assert_eq!(source.statement_boundary(earlier), first);
+    }
+
+    #[test]
     fn selection_range_indexes_are_cached_until_contents_change() {
         let mut vfs = Vfs::default();
         let file = path("/workspace/Test.sol");
@@ -381,6 +536,37 @@ mod tests {
         ));
         let changed_source = vfs.get_file_selection_range_source(&file).unwrap();
         let changed = changed_source.index();
+        assert!(!std::ptr::eq(first, changed));
+    }
+
+    #[test]
+    fn folding_ranges_are_cached_until_contents_change() {
+        let mut vfs = Vfs::default();
+        let file = path("/workspace/Test.sol");
+        insert(&mut vfs, "/workspace/Test.sol", "contract Test {\n}\n", 1);
+
+        let first_source = vfs.get_file_folding_range_source(&file).unwrap();
+        let first = first_source
+            .0
+            .folding_ranges
+            .get_or_init(|| folding_range::folding_ranges(first_source.0.contents.to_string()));
+        let cached_source = vfs.get_file_folding_range_source(&file).unwrap();
+        let cached = cached_source
+            .0
+            .folding_ranges
+            .get_or_init(|| folding_range::folding_ranges(cached_source.0.contents.to_string()));
+        assert!(std::ptr::eq(first, cached));
+
+        assert!(vfs.set_file_contents_with_version(
+            file.clone(),
+            Some(Rope::from("contract Changed {\n}\n")),
+            Some(2),
+        ));
+        let changed_source = vfs.get_file_folding_range_source(&file).unwrap();
+        let changed = changed_source
+            .0
+            .folding_ranges
+            .get_or_init(|| folding_range::folding_ranges(changed_source.0.contents.to_string()));
         assert!(!std::ptr::eq(first, changed));
     }
 

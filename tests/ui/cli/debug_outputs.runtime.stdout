@@ -1,0 +1,172 @@
+{
+  "contracts": {
+    "ROOT/tests/ui/cli/debug_outputs.sol:C": {
+      "ethdebug-runtime": {
+        "compilation": {
+          "id": "solar-COMPILATION_ID"
+        },
+        "contract": {
+          "name": "C",
+          "definition": {
+            "source": {
+              "id": 0
+            },
+            "range": {
+              "offset": 375,
+              "length": 43
+            }
+          }
+        },
+        "environment": "call",
+        "instructions": [
+          {
+            "offset": 0,
+            "operation": {
+              "mnemonic": "CALLVALUE"
+            }
+          },
+          {
+            "offset": 1,
+            "operation": {
+              "mnemonic": "PUSH1",
+              "arguments": [
+                "0x14"
+              ]
+            }
+          },
+          {
+            "offset": 3,
+            "operation": {
+              "mnemonic": "JUMPI"
+            }
+          },
+          {
+            "offset": 4,
+            "operation": {
+              "mnemonic": "PUSH0"
+            }
+          },
+          {
+            "offset": 5,
+            "operation": {
+              "mnemonic": "CALLDATALOAD"
+            }
+          },
+          {
+            "offset": 6,
+            "operation": {
+              "mnemonic": "PUSH1",
+              "arguments": [
+                "0xe0"
+              ]
+            }
+          },
+          {
+            "offset": 8,
+            "operation": {
+              "mnemonic": "SHR"
+            }
+          },
+          {
+            "offset": 9,
+            "operation": {
+              "mnemonic": "DUP1"
+            }
+          },
+          {
+            "offset": 10,
+            "operation": {
+              "mnemonic": "PUSH4",
+              "arguments": [
+                "0x26121ff0"
+              ]
+            }
+          },
+          {
+            "offset": 15,
+            "operation": {
+              "mnemonic": "SUB"
+            }
+          },
+          {
+            "offset": 16,
+            "operation": {
+              "mnemonic": "PUSH1",
+              "arguments": [
+                "0x14"
+              ]
+            }
+          },
+          {
+            "offset": 18,
+            "operation": {
+              "mnemonic": "JUMPI"
+            }
+          },
+          {
+            "offset": 19,
+            "operation": {
+              "mnemonic": "STOP"
+            },
+            "context": {
+              "code": {
+                "source": {
+                  "id": 0
+                },
+                "range": {
+                  "offset": 392,
+                  "length": 24
+                }
+              },
+              "return": {}
+            }
+          },
+          {
+            "offset": 20,
+            "operation": {
+              "mnemonic": "JUMPDEST"
+            }
+          },
+          {
+            "offset": 21,
+            "operation": {
+              "mnemonic": "PUSH0"
+            }
+          },
+          {
+            "offset": 22,
+            "operation": {
+              "mnemonic": "PUSH0"
+            }
+          },
+          {
+            "offset": 23,
+            "operation": {
+              "mnemonic": "REVERT"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "ethdebug": {
+    "compilation": {
+      "id": "solar-COMPILATION_ID",
+      "compiler": {
+        "name": "solar",
+        "version": "VERSION"
+      },
+      "sources": [
+        {
+          "id": 0,
+          "path": "ROOT/tests/ui/cli/debug_outputs.sol",
+          "contents": "//@ revisions: creation runtime maps resources\n//@ compile-flags: --pretty-json --allow 2264\n//@[creation] compile-flags: --emit=ethdebug\n//@[runtime] compile-flags: --emit=ethdebug-runtime\n//@[maps] compile-flags: --emit=srcmap,srcmap-runtime\n//@[resources] compile-flags: --emit=ethdebug-resources\n//@ normalize-stdout-test: \"solar-[0-9a-f]{64}\" -> \"solar-COMPILATION_ID\"\n\ncontract C {\n    function f() external {}\n}\n",
+          "language": "Solidity"
+        }
+      ]
+    },
+    "types": {},
+    "pointers": {}
+  },
+  "version": "VERSION"
+}

@@ -1,0 +1,5 @@
+error: the argument '--standard-json' cannot be used with '--emit <EMIT>'
+
+Usage: solar --threads <THREADS> --error-format <ERROR_FORMAT> -Z <FLAG> --standard-json --pretty-json <INPUT>...
+
+For more information, try '--help'.

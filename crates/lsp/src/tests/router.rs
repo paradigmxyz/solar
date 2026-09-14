@@ -1,5 +1,5 @@
 use super::*;
-use crate::test_support::{TestProject, assert_request_cancelled, start_request};
+use crate::test_support::{TestProject, assert_request_cancelled, spawn_lsp_pair, start_request};
 use async_lsp::{
     AnyEvent, AnyNotification, AnyRequest, LanguageServer, LspService, ResponseError,
     router::Router,
@@ -30,7 +30,6 @@ use std::{
     time::Duration,
 };
 use tokio::sync::{mpsc, oneshot};
-use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 use tower::Service;
 
 fn new_router(client: ClientSocket) -> Router<GlobalState> {
@@ -769,15 +768,7 @@ async fn pending_analysis_requests_do_not_block_completion_or_cancellation() {
     });
     let (client_main, mut server) = async_lsp::MainLoop::new_client(|_| Router::new(()));
 
-    let (server_stream, client_stream) = tokio::io::duplex(64 << 10);
-    let (server_rx, server_tx) = tokio::io::split(server_stream);
-    let (server_rx, server_tx) = (server_rx.compat(), server_tx.compat_write());
-    let server_main =
-        tokio::spawn(async move { server_main.run_buffered(server_rx, server_tx).await });
-    let (client_rx, client_tx) = tokio::io::split(client_stream);
-    let (client_rx, client_tx) = (client_rx.compat(), client_tx.compat_write());
-    let client_main =
-        tokio::spawn(async move { client_main.run_buffered(client_rx, client_tx).await });
+    let (server_main, client_main) = spawn_lsp_pair(server_main, client_main);
 
     let document_symbols =
         start_request(server.request::<request::DocumentSymbolRequest>(DocumentSymbolParams {
@@ -886,13 +877,7 @@ fn reindex_progress_honors_client_cancellation() {
             router
         });
 
-        let (server_stream, client_stream) = tokio::io::duplex(64 << 10);
-        let (server_rx, server_tx) = tokio::io::split(server_stream);
-        let server_task =
-            tokio::spawn(server_main.run_buffered(server_rx.compat(), server_tx.compat_write()));
-        let (client_rx, client_tx) = tokio::io::split(client_stream);
-        let client_task =
-            tokio::spawn(client_main.run_buffered(client_rx.compat(), client_tx.compat_write()));
+        let (server_task, client_task) = spawn_lsp_pair(server_main, client_main);
 
         server.initialize(initialize).await.unwrap();
         server.initialized(InitializedParams {}).unwrap();
@@ -1058,15 +1043,7 @@ async fn initialized_registers_watched_files_when_client_supports_dynamic_regist
         router
     });
 
-    let (server_stream, client_stream) = tokio::io::duplex(64 << 10);
-    let (server_rx, server_tx) = tokio::io::split(server_stream);
-    let (server_rx, server_tx) = (server_rx.compat(), server_tx.compat_write());
-    let server_main =
-        tokio::spawn(async move { server_main.run_buffered(server_rx, server_tx).await });
-    let (client_rx, client_tx) = tokio::io::split(client_stream);
-    let (client_rx, client_tx) = (client_rx.compat(), client_tx.compat_write());
-    let client_main =
-        tokio::spawn(async move { client_main.run_buffered(client_rx, client_tx).await });
+    let (server_main, client_main) = spawn_lsp_pair(server_main, client_main);
 
     let mut params = InitializeParams::default();
     params.capabilities.workspace = Some(WorkspaceClientCapabilities {
@@ -1133,13 +1110,7 @@ async fn watched_file_reregistration_keeps_latest_workspace_folders() {
         router
     });
 
-    let (server_stream, client_stream) = tokio::io::duplex(64 << 10);
-    let (server_rx, server_tx) = tokio::io::split(server_stream);
-    let server_main =
-        tokio::spawn(server_main.run_buffered(server_rx.compat(), server_tx.compat_write()));
-    let (client_rx, client_tx) = tokio::io::split(client_stream);
-    let client_main =
-        tokio::spawn(client_main.run_buffered(client_rx.compat(), client_tx.compat_write()));
+    let (server_main, client_main) = spawn_lsp_pair(server_main, client_main);
 
     let mut params = project.initialize_params_with_roots(&["/initial"]);
     params.capabilities.workspace = Some(WorkspaceClientCapabilities {
@@ -1259,13 +1230,7 @@ async fn watched_file_reregistration_follows_workspace_root_file_operations() {
         router
     });
 
-    let (server_stream, client_stream) = tokio::io::duplex(64 << 10);
-    let (server_rx, server_tx) = tokio::io::split(server_stream);
-    let server_main =
-        tokio::spawn(server_main.run_buffered(server_rx.compat(), server_tx.compat_write()));
-    let (client_rx, client_tx) = tokio::io::split(client_stream);
-    let client_main =
-        tokio::spawn(client_main.run_buffered(client_rx.compat(), client_tx.compat_write()));
+    let (server_main, client_main) = spawn_lsp_pair(server_main, client_main);
 
     let mut params = project.initialize_params_with_roots(&["/old"]);
     params.capabilities.workspace = Some(WorkspaceClientCapabilities {

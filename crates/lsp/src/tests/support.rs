@@ -168,23 +168,12 @@ impl RequestFixture {
         changed_contents: &str,
         expected: impl IntoData,
     ) {
-        let mut state = self.state_with_completion_snippets(true);
-        let path = self.marked.project().path(path);
-        state.mark_source_analysis_pending_for_test(path.clone());
-        let uri = Url::from_file_path(&path).unwrap();
-        state.vfs.write().set_file_contents(
-            crate::vfs::VfsPath::from(path),
-            Some(crop::Rope::from(changed_contents)),
+        self.check_completion_details_after_changes(
+            marker,
+            path,
+            &[(path, changed_contents)],
+            expected,
         );
-        let position = self.marked.marker(marker).position();
-        let response =
-            expect_ready(crate::handlers::completion(&mut state, completion_params(uri, position)))
-                .unwrap()
-                .unwrap();
-        let CompletionResponse::Array(items) = response else {
-            panic!("expected completion array");
-        };
-        assert_data_eq!(completion_details_output(&items), expected);
     }
 
     pub(super) fn check_completion_details_after_changes(
@@ -528,8 +517,9 @@ impl RequestFixture {
 
     pub(super) fn check_selection_ranges(&self, markers: &[&str], expected: impl IntoData) {
         let mut state = self.state();
-        let (_, positions) = self.selection_range_request(markers);
-        let response = self.selection_range_response_in_state(&mut state, markers);
+        let (params, positions) = self.selection_range_request(markers);
+        let response =
+            block_on(crate::handlers::selection_range(&mut state, params)).unwrap().unwrap();
         check_selection_range_response(response, &positions, expected);
     }
 
@@ -563,11 +553,7 @@ impl RequestFixture {
         markers: &[&str],
         expected: impl IntoData,
     ) {
-        let mut state = self.state();
-        let (params, positions) = self.selection_range_request(markers);
-        let response =
-            block_on(crate::handlers::selection_range(&mut state, params)).unwrap().unwrap();
-        check_selection_range_response(response, &positions, expected);
+        self.check_selection_ranges(markers, expected);
     }
 
     pub(super) fn check_selection_ranges_while_analysis_pending(
@@ -671,7 +657,7 @@ impl RequestFixture {
             crate::vfs::VfsPath::from(path),
             Some(crop::Rope::from(changed_contents)),
         );
-        *state.symbol_tables.write() = result.symbol_tables;
+        state.symbol_tables.store(Arc::new(result.symbol_tables));
         let position = self.marked.marker(marker).position();
         self.check_signature_help_in_state(&mut state, uri, position, expected);
     }
@@ -730,7 +716,7 @@ impl RequestFixture {
         }
         let output = outputs.finish();
         let state = self.state_with_label_offsets(true);
-        *state.symbol_tables.write() = output.result.symbol_tables;
+        state.symbol_tables.store(Arc::new(output.result.symbol_tables));
         state.analysis_commit.lock().analysis_paths = output.analysis_paths;
         state
     }
@@ -751,7 +737,7 @@ impl RequestFixture {
         }
         state.config = Arc::new(config);
         *state.vfs.write() = self.marked.project().vfs();
-        *state.symbol_tables.write() = self.result.symbol_tables.clone();
+        state.symbol_tables.store(Arc::new(self.result.symbol_tables.clone()));
         state.analysis_commit.lock().vfs_content_revision = state.vfs.read().content_revision();
         state
     }

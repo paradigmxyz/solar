@@ -21,12 +21,12 @@ fn @entry() [entry] {
 }
 // CHECK-LABEL: {{^[ +].*}}fn @caller{{[( ]}}
 // CHECK: - icall @fused
-// CHECK: + tail_call @fused, {{v[0-9]+}}
+// CHECK: + tail_call @fused, {{v[0-9]+}} !metadata(span=10..20, modifier_depth=1)
 fn @caller() [selector=0x00000007] {
   bb0:
     v0 = calldataload 4
-    icall fn2, 0, v0
-    stop
+    icall fn2, 0, v0 !metadata(span=10..20, modifier_depth=1)
+    stop !metadata(span=30..40, modifier_depth=2)
 }
 fn @fused(arg0: u256) {
   bb0:

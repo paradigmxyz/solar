@@ -1,0 +1,234 @@
+//! Compact instructions for finalized, layout-linear EVM IR.
+
+use crate::backend::evm::ir::DataId;
+use solar_data_structures::{index::Idx, newtype_index};
+
+newtype_index! {
+    /// A label identifier.
+    pub(crate) struct Label;
+
+    /// A deferred constant identifier.
+    ///
+    /// Deferred constants are immediates whose final value is only known after
+    /// bytecode emission has observed lazy backend state, such as exact spill
+    /// slot allocation. They must be resolved before assembly.
+    pub(crate) struct DeferredConst;
+
+    /// A deferred heap allocation identifier.
+    pub(in crate::backend) struct DeferredAlloc;
+
+    /// An interned push immediate identifier.
+    pub(in crate::backend) struct PushValueId;
+
+    /// A packed-label immediate identifier.
+    pub(in crate::backend) struct PackedLabelsId;
+
+    /// An interned immutable placeholder identifier.
+    pub(in crate::backend) struct ImmutablePushId;
+
+    /// An interned relocatable program-data reference.
+    pub(in crate::backend) struct DataRefId;
+}
+
+pub(in crate::backend) trait AsmIndex: Idx {
+    const NAME: &'static str;
+
+    fn inst_payload(self) -> u32 {
+        let index =
+            u32::try_from(self.index()).unwrap_or_else(|_| panic!("{} overflow", Self::NAME));
+        assert!(index <= AsmInst::PAYLOAD_MASK, "{} overflow", Self::NAME);
+        index
+    }
+
+    fn from_inst_payload(payload: u32) -> Self {
+        Self::from_usize(payload as usize)
+    }
+}
+
+impl AsmIndex for Label {
+    const NAME: &'static str = "assembler label index";
+}
+
+impl AsmIndex for DeferredConst {
+    const NAME: &'static str = "assembler deferred constant index";
+}
+
+impl AsmIndex for DeferredAlloc {
+    const NAME: &'static str = "assembler deferred allocation index";
+}
+
+impl AsmIndex for PushValueId {
+    const NAME: &'static str = "assembler push value index";
+}
+
+impl AsmIndex for ImmutablePushId {
+    const NAME: &'static str = "assembler immutable push index";
+}
+
+impl AsmIndex for PackedLabelsId {
+    const NAME: &'static str = "assembler packed labels index";
+}
+
+impl AsmIndex for DataRefId {
+    const NAME: &'static str = "assembler program data reference index";
+}
+
+impl AsmIndex for DataId {
+    const NAME: &'static str = "assembler program data index";
+}
+
+/// An instruction in the assembler.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(in crate::backend) struct AsmInst(u32);
+
+impl AsmInst {
+    pub(in crate::backend) const PAYLOAD_MASK: u32 = 0x0fff_ffff;
+    const INLINE_PUSH_MAX: u32 = 0x7fff_ffff;
+    const TAG_MASK: u32 = 0xf000_0000;
+    const TAG_OP: u32 = 0x8000_0000;
+    const OP_IMMEDIATE_FLAG: u32 = 0x0001_0000;
+    const TAG_PUSH: u32 = 0x9000_0000;
+    const TAG_PUSH_LABEL: u32 = 0xa000_0000;
+    const TAG_PUSH_DEFERRED: u32 = 0xb000_0000;
+    const TAG_PUSH_IMMUTABLE: u32 = 0xc000_0000;
+    const TAG_LABEL: u32 = 0xd000_0000;
+    const TAG_PUSH_LABEL_FIXED: u32 = 0xe000_0000;
+    const TAG_EXTENDED: u32 = 0xf000_0000;
+    const FIXED_LABEL_MASK: u32 = 0x007f_ffff;
+    const FIXED_WIDTH_SHIFT: u32 = 23;
+    const EXTENDED_KIND_MASK: u32 = 0x0c00_0000;
+    const EXTENDED_PAYLOAD_MASK: u32 = 0x03ff_ffff;
+    const EXTENDED_PUSH_PACKED_LABELS: u32 = 0;
+    const EXTENDED_PUSH_DATA: u32 = 0x0400_0000;
+    const EXTENDED_DATA: u32 = 0x0800_0000;
+
+    pub(in crate::backend) fn op(opcode: u8) -> Self {
+        Self(Self::TAG_OP | u32::from(opcode))
+    }
+
+    pub(in crate::backend) fn op_immediate(opcode: u8, immediate: u8) -> Self {
+        Self(
+            Self::TAG_OP
+                | Self::OP_IMMEDIATE_FLAG
+                | u32::from(opcode)
+                | (u32::from(immediate) << 8),
+        )
+    }
+
+    pub(in crate::backend) fn push_inline(value: u32) -> Option<Self> {
+        (value <= Self::INLINE_PUSH_MAX).then_some(Self(value))
+    }
+
+    pub(in crate::backend) fn push(index: PushValueId) -> Self {
+        Self::tagged(Self::TAG_PUSH, index.inst_payload())
+    }
+
+    pub(in crate::backend) fn push_label(label: Label) -> Self {
+        Self::tagged(Self::TAG_PUSH_LABEL, label.inst_payload())
+    }
+
+    pub(in crate::backend) fn push_label_fixed(label: Label, width: u8) -> Self {
+        assert!((1..=32).contains(&width), "invalid fixed label width");
+        let label = label.inst_payload();
+        assert!(label <= Self::FIXED_LABEL_MASK, "assembler label index overflow");
+        let width = u32::from(width - 1) << Self::FIXED_WIDTH_SHIFT;
+        Self::tagged(Self::TAG_PUSH_LABEL_FIXED, width | label)
+    }
+
+    pub(in crate::backend) fn push_packed_labels(labels: PackedLabelsId) -> Self {
+        Self::extended(Self::EXTENDED_PUSH_PACKED_LABELS, labels.inst_payload())
+    }
+
+    pub(in crate::backend) fn push_deferred(id: DeferredConst) -> Self {
+        Self::tagged(Self::TAG_PUSH_DEFERRED, id.inst_payload())
+    }
+
+    pub(in crate::backend) fn push_immutable(id: ImmutablePushId) -> Self {
+        Self::tagged(Self::TAG_PUSH_IMMUTABLE, id.inst_payload())
+    }
+
+    pub(in crate::backend) fn label(label: Label) -> Self {
+        Self::tagged(Self::TAG_LABEL, label.inst_payload())
+    }
+
+    pub(in crate::backend) fn push_data(data: DataRefId) -> Self {
+        Self::extended(Self::EXTENDED_PUSH_DATA, data.inst_payload())
+    }
+
+    pub(in crate::backend) fn data(data: DataId) -> Self {
+        Self::extended(Self::EXTENDED_DATA, data.inst_payload())
+    }
+
+    fn extended(kind: u32, payload: u32) -> Self {
+        assert!(payload <= Self::EXTENDED_PAYLOAD_MASK, "assembler extended index overflow");
+        Self(Self::TAG_EXTENDED | kind | payload)
+    }
+
+    fn tagged(tag: u32, payload: u32) -> Self {
+        assert!(payload <= Self::PAYLOAD_MASK, "assembler instruction payload overflow");
+        Self(tag | payload)
+    }
+
+    pub(in crate::backend) fn kind(self) -> AsmInstKind {
+        if self.0 <= Self::INLINE_PUSH_MAX {
+            return AsmInstKind::PushInline(self.0);
+        }
+
+        let payload = self.0 & Self::PAYLOAD_MASK;
+        match self.0 & Self::TAG_MASK {
+            Self::TAG_OP => {
+                let opcode = payload as u8;
+                let immediate = (payload >> 8) as u8;
+                if payload & Self::OP_IMMEDIATE_FLAG != 0 {
+                    AsmInstKind::OpImmediate(opcode, immediate)
+                } else {
+                    AsmInstKind::Op(opcode)
+                }
+            }
+            Self::TAG_PUSH => AsmInstKind::Push(PushValueId::from_inst_payload(payload)),
+            Self::TAG_PUSH_LABEL => AsmInstKind::PushLabel(Label::from_inst_payload(payload)),
+            Self::TAG_PUSH_DEFERRED => {
+                AsmInstKind::PushDeferred(DeferredConst::from_inst_payload(payload))
+            }
+            Self::TAG_PUSH_IMMUTABLE => {
+                AsmInstKind::PushImmutable(ImmutablePushId::from_inst_payload(payload))
+            }
+            Self::TAG_LABEL => AsmInstKind::Label(Label::from_inst_payload(payload)),
+            Self::TAG_PUSH_LABEL_FIXED => {
+                let label = Label::from_inst_payload(payload & Self::FIXED_LABEL_MASK);
+                let width = ((payload >> Self::FIXED_WIDTH_SHIFT) + 1) as u8;
+                AsmInstKind::PushLabelFixed(label, width)
+            }
+            Self::TAG_EXTENDED => {
+                let index = payload & Self::EXTENDED_PAYLOAD_MASK;
+                match payload & Self::EXTENDED_KIND_MASK {
+                    Self::EXTENDED_PUSH_PACKED_LABELS => {
+                        AsmInstKind::PushPackedLabels(PackedLabelsId::from_inst_payload(index))
+                    }
+                    Self::EXTENDED_PUSH_DATA => {
+                        AsmInstKind::PushData(DataRefId::from_inst_payload(index))
+                    }
+                    Self::EXTENDED_DATA => AsmInstKind::Data(DataId::from_inst_payload(index)),
+                    _ => unreachable!("invalid extended assembler instruction tag"),
+                }
+            }
+            _ => unreachable!("invalid assembler instruction tag"),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::backend) enum AsmInstKind {
+    Op(u8),
+    OpImmediate(u8, u8),
+    PushInline(u32),
+    Push(PushValueId),
+    PushLabel(Label),
+    PushLabelFixed(Label, u8),
+    PushPackedLabels(PackedLabelsId),
+    PushDeferred(DeferredConst),
+    PushImmutable(ImmutablePushId),
+    Label(Label),
+    PushData(DataRefId),
+    Data(DataId),
+}

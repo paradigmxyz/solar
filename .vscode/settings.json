@@ -1,6 +1,5 @@
 {
   "rust-analyzer.linkedProjects": [
-    "Cargo.toml",
-    "editors/zed/Cargo.toml"
+    "Cargo.toml"
   ]
 }

@@ -25,7 +25,6 @@
 + fn @caller() [selector=0x0a0a0a02] {
     bb0:
 -     v0 = icall @pub, 1, arg0
--     ret v0
 +     v1 = calldatasize
 +     v2 = lt v1, 36
 +     jumpi v2, bb2, bb3
@@ -39,14 +38,10 @@
 +     returndata 128, v4
 +   bb2:
 +     revert 0, 0
-  }
-  
-- fn @literal() -> memorybytes [selector=0x0a0a0a03, abi_params=[], abi_returns=[memory_bytes]] {
++ }
++ 
 + fn @literal() [selector=0x0a0a0a03] {
-    bb0:
--     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
--     set_memory_object_len memorybytes, v0, 1
--     memory_object_store_word memorybytes, v0, 0, 0x31ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
++   bb0:
 +     mstore 128, 32
 +     mstore 160, 1
 +     mstore 192, 0x3100000000000000000000000000000000000000000000000000000000000000
@@ -62,19 +57,58 @@
 +     returndata v2, v3
 + }
 + 
++ fn @sliceBody() [selector=0x0a0a0a05] {
++   bb0:
++     v2 = icall @sliceBody.body, 1
++     mstore 128, v2
++     v3 = add 128, 32
++     v4 = sub v3, 128
++     returndata 128, v4
++ }
++ 
++ fn @sliceCaller() [selector=0x0a0a0a06] {
++   bb0:
++     v0 = icall @sliceBody.body, 1
++     mstore 128, v0
++     v1 = add 128, 32
++     v2 = sub v1, 128
++     returndata 128, v2
++ }
++ 
 + fn @pub.body(arg0: u256) -> u256 {
 +   bb0:
 +     v0 = add arg0, 1
       ret v0
   }
   
-- fn @literalCaller() -> memorybytes [selector=0x0a0a0a04, abi_params=[], abi_returns=[memory_bytes]] {
+- fn @literal() -> memorybytes [selector=0x0a0a0a03, abi_params=[], abi_returns=[memory_bytes]] {
 + fn @literal.body() -> memorybytes {
     bb0:
--     v0 = icall @literal, 1
-+     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
-+     set_memory_object_len memorybytes, v0, 1
-+     memory_object_store_word memorybytes, v0, 0, 0x31ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+      set_memory_object_len memorybytes, v0, 1
+      memory_object_store_word memorybytes, v0, 0, 0x31ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
       ret v0
+  }
+  
+- fn @literalCaller() -> memorybytes [selector=0x0a0a0a04, abi_params=[], abi_returns=[memory_bytes]] {
++ fn @sliceBody.body() -> u256 {
+    bb0:
+-     v0 = icall @literal, 1
+-     ret v0
+- }
+- 
+- fn @sliceBody() -> u256 [selector=0x0a0a0a05, abi_params=[], abi_returns=[word]] {
+-   bb0:
+      v0 = make_calldata_slice 4, 32
+      jump bb1
+    bb1:
+      v1 = slice_ptr v0
+      ret v1
+- }
+- 
+- fn @sliceCaller() -> u256 [selector=0x0a0a0a06, abi_params=[], abi_returns=[word]] {
+-   bb0:
+-     v0 = icall @sliceBody, 1
+-     ret v0
   }
   

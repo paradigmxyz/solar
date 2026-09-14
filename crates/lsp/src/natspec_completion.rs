@@ -1,8 +1,7 @@
 use crate::{config::CompletionClientOptions, proto};
 use crop::Rope;
 use lsp_types::{
-    CompletionItem, CompletionItemKind, CompletionTextEdit, InsertTextFormat, Position, Range,
-    TextEdit,
+    CompletionItem, CompletionItemKind, CompletionTextEdit, InsertTextFormat, Range, TextEdit,
 };
 use solar_config::CompileOpts;
 use solar_interface::{Session, source_map::FileName};
@@ -309,16 +308,14 @@ enum CandidateResult {
     Candidate(CommentCandidate),
 }
 
-pub(crate) fn target(contents: &Rope, position: Position) -> NatSpecCompletionResult {
-    let Some(cursor) = proto::checked_text_range(contents, Range::new(position, position))
-        .map(|range| range.start)
-    else {
+pub(crate) fn target(contents: &Rope, cursor: Option<usize>) -> NatSpecCompletionResult {
+    let Some(cursor) = cursor else {
         return NatSpecCompletionResult::Claimed(None);
     };
     if !has_natspec_prefix(contents, cursor) {
         return NatSpecCompletionResult::NotApplicable;
     }
-    let source = rope_to_string(contents);
+    let source = crate::utils::rope_to_string(contents);
     let candidate = match comment_candidate(&source, cursor) {
         CandidateResult::NotApplicable => return NatSpecCompletionResult::NotApplicable,
         CandidateResult::Invalid => return NatSpecCompletionResult::Claimed(None),
@@ -338,7 +335,7 @@ pub(crate) fn target(contents: &Rope, position: Position) -> NatSpecCompletionRe
         candidate.style,
     ) {
         Some(mut target) => {
-            let Some(edit_range) = byte_range_to_lsp(contents, candidate.edit_range) else {
+            let Some(edit_range) = proto::byte_range_to_lsp(contents, candidate.edit_range) else {
                 return NatSpecCompletionResult::Claimed(None);
             };
             target.edit_range = edit_range;
@@ -346,7 +343,7 @@ pub(crate) fn target(contents: &Rope, position: Position) -> NatSpecCompletionRe
             target.source_fingerprint = source_fingerprint;
             target.additional_text_edits = candidate
                 .additional_edit_range
-                .and_then(|range| byte_range_to_lsp(contents, range))
+                .and_then(|range| proto::byte_range_to_lsp(contents, range))
                 .map(|range| vec![TextEdit { range, new_text: String::new() }]);
             NatSpecCompletionResult::Claimed(Some(Box::new(target)))
         }
@@ -474,13 +471,6 @@ fn source_eol(source: &str, line_end: usize) -> &str {
     } else {
         "\n"
     }
-}
-
-fn byte_range_to_lsp(contents: &Rope, range: ByteRange<usize>) -> Option<Range> {
-    Some(Range::new(
-        proto::position_at_byte(contents, range.start)?,
-        proto::position_at_byte(contents, range.end)?,
-    ))
 }
 
 fn parse_target(
@@ -665,17 +655,16 @@ fn is_adjacent_doc_comment(gap: &str, style: CommentStyle) -> bool {
         .is_some_and(|rest| rest.bytes().all(|byte| matches!(byte, b' ' | b'\t')))
 }
 
-fn rope_to_string(contents: &Rope) -> String {
-    let mut source = String::with_capacity(contents.byte_len());
-    for chunk in contents.chunks() {
-        source.push_str(chunk);
-    }
-    source
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use lsp_types::Position;
+
+    fn target(contents: &Rope, position: Position) -> NatSpecCompletionResult {
+        let cursor = proto::checked_text_range(contents, Range::new(position, position))
+            .map(|range| range.start);
+        super::target(contents, cursor)
+    }
 
     #[test]
     fn rejects_a_line_doc_comment_separated_by_a_blank_line() {

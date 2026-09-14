@@ -20,6 +20,13 @@ fn main() -> anyhow::Result<()> {
         flags::XtaskCmd::Test(flags::Test { bless, test_name, rest }) => {
             let sh = Shell::new()?;
 
+            if test_name.as_deref() == Some("debug-diff") {
+                anyhow::ensure!(!bless, "debug differentials cannot be blessed");
+                cmd!(sh, "cargo build --package=solar-compiler --bin=solar").run()?;
+                cmd!(sh, "python3 scripts/debug_diff.py").args(rest).run()?;
+                return Ok(());
+            }
+
             if test_name.as_deref() == Some("foundry-external") {
                 // Release: external projects are compile-heavy, and the runner
                 // prefers an existing release binary over a fresh debug one.

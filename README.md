@@ -127,10 +127,10 @@ solar $(forge re) src/Contract.sol
 
 ### Editor integrations
 
-Editor integrations for VS Code and Zed live in [`editors/`](/editors). They
-provide Solidity language support by starting `solar lsp` from the local system
-or, for Zed, by downloading a released binary when one is not available on
-`PATH`.
+The VS Code and Zed clients are maintained by [Foundry](https://github.com/foundry-rs/foundry/pull/16730).
+Use [`forge lsp`](https://github.com/foundry-rs/foundry/pull/16730) to launch
+Foundry's editor integration. This repository continues to provide the Solar
+LSP server used by Foundry.
 
 ### C API, WASM, and JavaScript usage
 

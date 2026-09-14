@@ -1,12 +1,17 @@
-use crate::bytecode::MaybeHexBytecode;
+use crate::{
+    bytecode::MaybeHexBytecode,
+    ethdebug::{
+        EthdebugProgram, EthdebugResources, make_ethdebug_compilation, make_ethdebug_program,
+    },
+    source_map::SourceMapEncoder,
+};
 use alloy_json_abi::AbiItem;
 use anstyle::{AnsiColor, Color, Style};
 use solar_codegen::{
     ContractArtifact, ContractSelection, RuntimeDataFn,
     backend::evm::{self, ir},
     generate_contract_bytecodes,
-    mir::{Module, validate},
-    pass,
+    mir::{Module, pass, validate},
 };
 use solar_config::{CompilerOutput, Dump, DumpKind};
 use solar_data_structures::map::FxHashMap;
@@ -25,6 +30,10 @@ type Hashes = BTreeMap<String, String>;
 struct CombinedJson<'a> {
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     contracts: BTreeMap<String, CombinedJsonContract<'a>>,
+    #[serde(rename = "sourceList", skip_serializing_if = "Option::is_none")]
+    source_list: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    ethdebug: Option<EthdebugResources>,
     version: &'static str,
 }
 
@@ -40,6 +49,14 @@ struct CombinedJsonContract<'a> {
     bin_runtime: Option<MaybeHexBytecode>,
     #[serde(skip_serializing_if = "Option::is_none")]
     hashes: Option<Hashes>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    ethdebug: Option<EthdebugProgram>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    ethdebug_runtime: Option<EthdebugProgram>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    srcmap: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    srcmap_runtime: Option<String>,
 }
 
 pub(crate) fn emit_requested(
@@ -268,28 +285,54 @@ fn emit_combined_json(
     artifacts: Option<&FxHashMap<ContractId, ContractArtifact>>,
 ) -> Result {
     let sess = gcx.sess;
-    let (mut emit_abi, mut emit_hashes, mut emit_bin, mut emit_bin_runtime) =
-        (false, false, false, false);
+    if sess.opts.standard_json || sess.opts.emit.is_empty() {
+        return Ok(());
+    }
+
+    let [
+        mut emit_abi,
+        mut emit_hashes,
+        mut emit_bin,
+        mut emit_bin_runtime,
+        mut emit_ethdebug,
+        mut emit_ethdebug_runtime,
+        mut emit_ethdebug_resources,
+        mut emit_srcmap,
+        mut emit_srcmap_runtime,
+        mut codegen_requested,
+    ] = [false; _];
     for output in &sess.opts.emit {
+        codegen_requested |= output.is_codegen();
         match output {
             CompilerOutput::Abi => emit_abi = true,
             CompilerOutput::Hashes => emit_hashes = true,
             CompilerOutput::Bin => emit_bin = true,
             CompilerOutput::BinRuntime => emit_bin_runtime = true,
+            CompilerOutput::Ethdebug => emit_ethdebug = true,
+            CompilerOutput::EthdebugRuntime => emit_ethdebug_runtime = true,
+            CompilerOutput::EthdebugResources => emit_ethdebug_resources = true,
+            CompilerOutput::Srcmap => emit_srcmap = true,
+            CompilerOutput::SrcmapRuntime => emit_srcmap_runtime = true,
             _ => {}
         }
     }
-
-    if !emit_abi && !emit_hashes && !emit_bin && !emit_bin_runtime {
-        return Ok(());
-    }
-
+    let compilation = (emit_ethdebug || emit_ethdebug_runtime || emit_ethdebug_resources)
+        .then(|| make_ethdebug_compilation(gcx, None));
+    let source_map_encoder =
+        (emit_srcmap || emit_srcmap_runtime).then(|| SourceMapEncoder::new(gcx));
     let mut output = CombinedJson {
-        contracts: BTreeMap::default(),
+        source_list: source_map_encoder.as_ref().map(|_| {
+            gcx.hir
+                .source_ids()
+                .map(|id| gcx.hir.source(id).file.name.display().to_string().replace('\\', "/"))
+                .collect()
+        }),
         version: solar_config::version::SEMVER_VERSION,
+        ..Default::default()
     };
 
-    for id in gcx.hir.contract_ids() {
+    let emit_contracts = emit_abi || emit_hashes || codegen_requested;
+    for id in gcx.hir.contract_ids().filter(|_| emit_contracts) {
         let name = contract_output_name(gcx, id);
         let contract_output = output.contracts.entry(name).or_default();
 
@@ -313,10 +356,32 @@ fn emit_combined_json(
                     &artifact.runtime_link_references,
                 ));
             }
+            if let Some(compilation) = &compilation {
+                if emit_ethdebug {
+                    contract_output.ethdebug =
+                        make_ethdebug_program(gcx, id, artifact, compilation.id(), false);
+                }
+                if emit_ethdebug_runtime {
+                    contract_output.ethdebug_runtime =
+                        make_ethdebug_program(gcx, id, artifact, compilation.id(), true);
+                }
+            }
+            if let Some(encoder) = &source_map_encoder {
+                if emit_srcmap && let Some(instructions) = &artifact.deployment_debug_info {
+                    contract_output.srcmap =
+                        Some(encoder.encode(gcx, &artifact.deployment, instructions));
+                }
+                if emit_srcmap_runtime && let Some(instructions) = &artifact.runtime_debug_info {
+                    contract_output.srcmap_runtime =
+                        Some(encoder.encode(gcx, &artifact.runtime, instructions));
+                }
+            }
         }
     }
 
-    write_output_json(gcx, &output, emit_bin || emit_bin_runtime)
+    // Every emitted program references this resource, including its source contents.
+    output.ethdebug = compilation.map(|compilation| compilation.into_resources());
+    write_output_json(gcx, &output, codegen_requested || output.ethdebug.is_some())
 }
 
 fn write_output_json<T: serde::Serialize>(
@@ -522,15 +587,10 @@ fn write_evm_ir_dump_contract(
     if dump.kinds.contains(&DumpKind::EvmIr) {
         writeln!(writer, "// === {name} (creation) ===")
             .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
-        write_highlighted(
-            writer,
-            format_deployment_evm_ir(
-                artifact.deployment_evm_ir.as_ref(),
-                artifact.runtime_evm_ir.as_ref(),
-            ),
-            Syntax::Ir,
-        )
-        .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
+        if let Some(deployment_evm_ir) = &artifact.deployment_evm_ir {
+            write_highlighted(writer, deployment_evm_ir.to_text().to_string(), Syntax::Ir)
+                .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
+        }
     }
     if dump.kinds.contains(&DumpKind::EvmIrRuntime) {
         writeln!(writer, "// === {name} (runtime) ===")
@@ -602,23 +662,6 @@ fn write_disassembly_dump_contract(
         .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
     }
     Ok(())
-}
-
-pub(crate) fn format_deployment_evm_ir(
-    deployment: Option<&ir::Module>,
-    runtime: Option<&ir::Module>,
-) -> String {
-    use std::fmt::Write;
-
-    let mut output = String::new();
-    for (index, module) in deployment.into_iter().chain(runtime).enumerate() {
-        if index != 0 {
-            output.push('\n');
-        }
-        writeln!(output, "// === {} ===", module.name()).unwrap();
-        write!(output, "{}", module.to_text()).unwrap();
-    }
-    output
 }
 
 fn contract_hashes(gcx: Gcx<'_>, id: ContractId) -> Hashes {

@@ -1,4 +1,4 @@
-use super::{AnalysisBatch, GlobalState, SymbolTables, analyze, support::RequestFixture};
+use super::{AnalysisBatch, GlobalState, analyze, support::RequestFixture};
 use crate::test_support::TestProject;
 use async_lsp::ClientSocket;
 use lsp_types::{
@@ -7,7 +7,10 @@ use lsp_types::{
 };
 use snapbox::str;
 use solar_config::CompileOpts;
-use std::task::{Context, Poll, Waker};
+use std::{
+    sync::Arc,
+    task::{Context, Poll, Waker},
+};
 
 #[test]
 fn shows_function_signature_at_a_reference() {
@@ -1221,7 +1224,7 @@ fn waits_for_latest_analysis_before_returning_hover() {
         work_done_progress_params: WorkDoneProgressParams::default(),
     };
     let mut state = GlobalState::new(ClientSocket::new_closed());
-    *state.symbol_tables.write() = old_tables;
+    state.symbol_tables.store(Arc::new(old_tables));
     state.mark_analysis_pending_for_test();
 
     let mut request = std::pin::pin!(crate::handlers::hover(&mut state, params));
@@ -1231,8 +1234,8 @@ fn waits_for_latest_analysis_before_returning_hover() {
 
     state.mark_analysis_pending_for_test();
     let mut snapshot = state.snapshot();
-    assert!(snapshot.publish_symbol_tables(2, new_tables));
-    assert!(!snapshot.publish_symbol_tables(1, SymbolTables::default()));
+    assert!(snapshot.publish_symbol_tables(2, Arc::new(new_tables)));
+    assert!(!snapshot.publish_symbol_tables(1, Default::default()));
 
     let Poll::Ready(response) = request.as_mut().poll(&mut context) else {
         panic!("hover request should complete after analysis is published");

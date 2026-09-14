@@ -3,7 +3,7 @@ use super::*;
 use crate::test_support::process_exists;
 use crate::{
     config::negotiate_capabilities,
-    test_support::{MarkedProject, TestProject},
+    test_support::{MarkedProject, TestProject, spawn_lsp_pair},
 };
 use async_lsp::{ClientSocket, ErrorCode, ResponseError, ServerSocket, router::Router};
 use lsp_types::{
@@ -38,6 +38,7 @@ mod code_lens;
 mod compatibility_sessions;
 mod completion;
 mod completion_resolve;
+mod definition_fast_path;
 mod document_highlight;
 mod document_link;
 mod file_operations;
@@ -49,6 +50,7 @@ mod import_completion;
 mod import_definition;
 mod indexing;
 mod inlay_hint;
+mod interactive_analysis;
 #[path = "protocol_trace.rs"]
 mod protocol_trace_tests;
 mod references;
@@ -142,13 +144,7 @@ fn work_done_harness() -> WorkDoneHarness {
         router
     });
 
-    let (server_stream, client_stream) = tokio::io::duplex(64 << 10);
-    let (server_rx, server_tx) = tokio::io::split(server_stream);
-    let server_task =
-        tokio::spawn(server_main.run_buffered(server_rx.compat(), server_tx.compat_write()));
-    let (client_rx, client_tx) = tokio::io::split(client_stream);
-    let client_task =
-        tokio::spawn(client_main.run_buffered(client_rx.compat(), client_tx.compat_write()));
+    let (server_task, client_task) = spawn_lsp_pair(server_main, client_main);
 
     WorkDoneHarness {
         client,
@@ -319,13 +315,7 @@ async fn analysis_updates_refresh_code_lenses_only_when_active() {
         });
         router
     });
-    let (server_stream, client_stream) = tokio::io::duplex(64 << 10);
-    let (server_rx, server_tx) = tokio::io::split(server_stream);
-    let server_task =
-        tokio::spawn(server_main.run_buffered(server_rx.compat(), server_tx.compat_write()));
-    let (client_rx, client_tx) = tokio::io::split(client_stream);
-    let client_task =
-        tokio::spawn(client_main.run_buffered(client_rx.compat(), client_tx.compat_write()));
+    let (server_task, client_task) = spawn_lsp_pair(server_main, client_main);
 
     let mut params = InitializeParams::default();
     params.capabilities.workspace = Some(lsp_types::WorkspaceClientCapabilities {
@@ -341,7 +331,7 @@ async fn analysis_updates_refresh_code_lenses_only_when_active() {
         AnalysisResult {
             analyzed_documents: AnalyzedDocuments::default(),
             diagnostics: DiagnosticMap::default(),
-            symbol_tables: SymbolTables::default(),
+            symbol_tables: Default::default(),
         },
     ));
     tokio::time::timeout(ASYNC_TEST_TIMEOUT, refresh_rx.recv())
@@ -371,7 +361,7 @@ async fn analysis_updates_refresh_code_lenses_only_when_active() {
         AnalysisResult {
             analyzed_documents: AnalyzedDocuments::default(),
             diagnostics: DiagnosticMap::default(),
-            symbol_tables: SymbolTables::default(),
+            symbol_tables: Default::default(),
         },
     ));
     state.clear_analysis_cache();
@@ -452,7 +442,7 @@ fn document_diagnostic_waits_for_committed_analysis_diagnostics() {
         AnalysisResult {
             analyzed_documents: AnalyzedDocuments::default(),
             diagnostics: DiagnosticMap::from_iter([(uri, vec![diagnostic("current")])]),
-            symbol_tables: SymbolTables::default(),
+            symbol_tables: Default::default(),
         },
     ));
 
@@ -683,7 +673,7 @@ async fn clearing_analysis_cache_publishes_an_empty_current_snapshot() {
     assert!(!old_tables.workspace_symbols("").is_empty());
 
     let mut state = GlobalState::new(ClientSocket::new_closed());
-    *state.symbol_tables.write() = old_tables;
+    state.symbol_tables.store(Arc::new(old_tables));
     let uri = Url::from_file_path(project.path("/Cached.sol")).unwrap();
     let owner = flycheck_owner(project.root());
     let compiler_diagnostic = diagnostic("compiler");
@@ -704,7 +694,7 @@ async fn clearing_analysis_cache_publishes_an_empty_current_snapshot() {
         .await
         .expect("cleared analysis should be published")
         .unwrap();
-    assert!(tables.read().workspace_symbols("").is_empty());
+    assert!(tables.load().workspace_symbols("").is_empty());
     assert!(state.analysis_cache_invalidated());
 
     let probe_owner =
@@ -737,13 +727,7 @@ async fn clearing_analysis_cache_publishes_compiler_diagnostic_removals() {
         router
     });
 
-    let (server_stream, client_stream) = tokio::io::duplex(64 << 10);
-    let (server_rx, server_tx) = tokio::io::split(server_stream);
-    let server_task =
-        tokio::spawn(server_main.run_buffered(server_rx.compat(), server_tx.compat_write()));
-    let (client_rx, client_tx) = tokio::io::split(client_stream);
-    let client_task =
-        tokio::spawn(client_main.run_buffered(client_rx.compat(), client_tx.compat_write()));
+    let (server_task, client_task) = spawn_lsp_pair(server_main, client_main);
 
     let mut state = GlobalState::new(client_socket);
     let compiler_only = Url::parse("file:///workspace/CompilerOnly.sol").unwrap();
@@ -967,7 +951,7 @@ async fn superseded_analysis_cannot_publish_or_end_latest_progress() {
     let stale_result = AnalysisResult {
         analyzed_documents: AnalyzedDocuments::default(),
         diagnostics: DiagnosticMap::from_iter([(uri.clone(), vec![diagnostic("stale")])]),
-        symbol_tables: SymbolTables::default(),
+        symbol_tables: Default::default(),
     };
     assert!(!stale_snapshot.publish_analysis(stale_version, stale_result));
     assert!(matches!(harness.events.try_recv(), Err(mpsc::error::TryRecvError::Empty)));
@@ -975,7 +959,7 @@ async fn superseded_analysis_cannot_publish_or_end_latest_progress() {
     let latest_result = AnalysisResult {
         analyzed_documents: AnalyzedDocuments::default(),
         diagnostics: DiagnosticMap::from_iter([(uri.clone(), vec![diagnostic("current")])]),
-        symbol_tables: SymbolTables::default(),
+        symbol_tables: Default::default(),
     };
     assert!(latest_snapshot.publish_analysis(latest_version, latest_result));
     match harness.next_event().await {
@@ -1033,7 +1017,7 @@ fn clearing_analysis_cache_rejects_older_analysis_results() {
     state.clear_analysis_cache();
 
     assert!(!stale_snapshot.publish_analysis(1, stale_result));
-    assert!(state.symbol_tables.read().workspace_symbols("").is_empty());
+    assert!(state.symbol_tables.load().workspace_symbols("").is_empty());
     let probe_owner =
         DiagnosticOwner::Flycheck { id: "probe".into(), workspace: project.root().into() };
     let batches = state
@@ -1121,7 +1105,7 @@ async fn failed_current_analysis_recovers_after_save() {
     let uri = Url::from_file_path(project.path("/Old.sol")).unwrap();
     let mut state = GlobalState::new(ClientSocket::new_closed());
     state.config = Arc::new(project.config());
-    *state.symbol_tables.write() = old_tables;
+    state.symbol_tables.store(Arc::new(old_tables));
     state.snapshot().publish_diagnostics(
         DiagnosticOwner::Compiler,
         DiagnosticMap::from_iter([(uri.clone(), vec![diagnostic("old compiler")])]),
@@ -1137,7 +1121,7 @@ async fn failed_current_analysis_recovers_after_save() {
         .await
         .expect("failed analysis should release waiters")
         .unwrap();
-    assert!(tables.read().workspace_symbols("Old").iter().any(|symbol| symbol.name == "Old"));
+    assert!(tables.load().workspace_symbols("Old").iter().any(|symbol| symbol.name == "Old"));
     assert!(state.analysis_cache_invalidated());
     assert!(!state.natspec_semantics_are_usable(&uri));
 
@@ -1170,7 +1154,7 @@ async fn failed_current_analysis_recovers_after_save() {
         .await
         .expect("save should recover failed analysis")
         .unwrap();
-    let tables = tables.read();
+    let tables = tables.load();
     assert!(tables.workspace_symbols("Old").is_empty());
     assert!(tables.workspace_symbols("Recovered").iter().any(|symbol| symbol.name == "Recovered"));
     drop(tables);
@@ -1201,7 +1185,7 @@ async fn cancelled_current_analysis_recovers_after_save() {
         .await
         .expect("cancelled analysis should release waiters")
         .unwrap();
-    assert!(tables.read().workspace_symbols("").is_empty());
+    assert!(tables.load().workspace_symbols("").is_empty());
     assert!(state.analysis_cache_invalidated());
     assert!(!state.natspec_semantics_are_usable(&uri));
 
@@ -1219,7 +1203,7 @@ async fn cancelled_current_analysis_recovers_after_save() {
         .unwrap();
     assert!(
         tables
-            .read()
+            .load()
             .workspace_symbols("Recovered")
             .iter()
             .any(|symbol| symbol.name == "Recovered")
@@ -1248,13 +1232,12 @@ async fn reindex_rediscovers_disk_files_without_preclearing_the_old_index() {
 
     let mut state = GlobalState::new(ClientSocket::new_closed());
     state.config = Arc::new(config);
-    *state.symbol_tables.write() = old_tables;
+    state.symbol_tables.store(Arc::new(old_tables));
     let tables = state.symbol_tables.clone();
     {
-        let current_tables = tables.write();
-
         state.reindex();
 
+        let current_tables = tables.load();
         assert!(state.analysis_commit.lock().external_refresh.is_some());
         assert!(current_tables.workspace_symbols("Old").iter().any(|symbol| symbol.name == "Old"));
         assert!(current_tables.workspace_symbols("New").is_empty());
@@ -1264,7 +1247,7 @@ async fn reindex_rediscovers_disk_files_without_preclearing_the_old_index() {
         .await
         .expect("reindex should finish")
         .unwrap();
-    let new_tables = new_tables.read();
+    let new_tables = new_tables.load();
     assert!(new_tables.workspace_symbols("Old").is_empty());
     assert!(new_tables.workspace_symbols("New").iter().any(|symbol| symbol.name == "New"));
 }
@@ -1305,7 +1288,7 @@ async fn save_after_clear_rediscovers_disk_files_and_preserves_vfs_overlays() {
         .await
         .expect("save should rebuild an invalidated cache")
         .unwrap();
-    let tables = tables.read();
+    let tables = tables.load();
     assert!(tables.workspace_symbols("DiskVersion").is_empty());
     assert!(tables.workspace_symbols("Unsaved").iter().any(|symbol| symbol.name == "Unsaved"));
     assert!(tables.workspace_symbols("New").iter().any(|symbol| symbol.name == "New"));
@@ -1350,7 +1333,7 @@ async fn no_op_change_after_clear_recovers_the_invalidated_cache() {
         .await
         .expect("no-op change should rebuild an invalidated cache")
         .unwrap();
-    let tables = tables.read();
+    let tables = tables.load();
     assert!(tables.workspace_symbols("DiskVersion").is_empty());
     assert!(tables.workspace_symbols("Unsaved").iter().any(|symbol| symbol.name == "Unsaved"));
     assert!(tables.workspace_symbols("New").iter().any(|symbol| symbol.name == "New"));
@@ -1581,7 +1564,7 @@ fn did_change_tracks_the_request_source_until_analysis_publishes() {
         let mut state = GlobalState::new(ClientSocket::new_closed());
         state.config = Arc::new(project.config());
         state.vfs = Arc::new(RwLock::new(project.vfs()));
-        *state.symbol_tables.write() = old_result.symbol_tables;
+        state.symbol_tables.store(Arc::new(old_result.symbol_tables));
         let (release_worker, worker) = pause_blocking_pool();
 
         let result = crate::handlers::did_change_text_document(
@@ -1610,7 +1593,7 @@ fn did_change_tracks_the_request_source_until_analysis_publishes() {
             .await
             .expect("changed-source analysis should finish")
             .unwrap();
-        let tables = tables.read();
+        let tables = tables.load();
         assert!(tables.workspace_symbols("Before").is_empty());
         assert!(tables.workspace_symbols("After").iter().any(|symbol| symbol.name == "After"));
         drop(tables);
@@ -1827,7 +1810,7 @@ async fn rapid_did_changes_debounce_to_the_latest_source() {
         .await
         .expect("latest source analysis should finish")
         .unwrap();
-    let tables = tables.read();
+    let tables = tables.load();
     assert!(tables.workspace_symbols("Intermediate").is_empty());
     assert!(tables.workspace_symbols("Latest").iter().any(|symbol| symbol.name == "Latest"));
 }
@@ -1880,7 +1863,7 @@ fn publishing_current_epoch_clears_pending_source_changes() {
         .natspec_pending_source_changes
         .extend([first_path, second_path]);
 
-    assert!(snapshot.publish_symbol_tables(1, SymbolTables::default()));
+    assert!(snapshot.publish_symbol_tables(1, Default::default()));
 
     let commit = snapshot.analysis_commit.lock();
     assert_eq!(commit.symbol_tables_version, 1);
@@ -2320,15 +2303,15 @@ fn analysis_batches_use_cached_workspace_source_files() {
     assert_eq!(batch.files, vec![(cached_path, Arc::new("contract Cached {}".into()))]);
 
     config.add_source_file(created_after_discovery.clone());
-    let outside_source_root = project.path("/test/Outside.sol");
-    project.write_file("/test/Outside.sol", "contract Outside {}");
+    let outside_source_root = project.path("/other/Outside.sol");
+    project.write_file("/other/Outside.sol", "contract Outside {}");
     config.add_source_file(outside_source_root.clone());
     let snapshot = snapshot_with_config(config, Vfs::default());
 
     let mut batches = snapshot.analysis_batches(Vec::new());
     let batch = batches.pop().unwrap();
     assert!(batch.files.iter().any(|(path, _)| path == &created_after_discovery));
-    assert!(!batch.files.iter().any(|(path, _)| path == &outside_source_root));
+    assert!(batch.files.iter().any(|(path, _)| path == &outside_source_root));
 }
 
 #[test]

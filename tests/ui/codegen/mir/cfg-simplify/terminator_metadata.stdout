@@ -1,0 +1,33 @@
+- // === ROOT/tests/ui/codegen/mir/cfg-simplify/terminator_metadata.mir (before cfg-simplify) ===
++ // === ROOT/tests/ui/codegen/mir/cfg-simplify/terminator_metadata.mir (after cfg-simplify) ===
+  @module TerminatorMetadata
+  fn @merge(arg0: u256) -> u256 {
+    bb0:
+-     jump bb1 !metadata(span=10..20)
+-   bb1:
+      ret arg0 !metadata(span=30..40)
+  }
+  
+  fn @distinct_returns(arg0: u256, arg1: bool) -> u256 {
+    bb0:
+-     jumpi arg1, bb1, bb2 !metadata(span=50..60)
+-   bb2:
+-     ret arg0 !metadata(span=90..100)
+-   bb1:
+-     ret arg0 !metadata(span=70..80)
++     ret arg0 !metadata(spans=[70..80, 90..100])
+  }
+  
+  fn @shared_values(arg0: u256, arg1: bool) -> u256 {
+    bb0:
+-     jumpi arg1, bb1, bb2
+-   bb2:
+-     v1 = add arg0, 1 !metadata(span=150..160, modifier_depth=2)
+-     ret v1 !metadata(span=170..180, modifier_depth=2)
+-   bb1:
+-     v0 = add arg0, 1 !metadata(span=110..120, modifier_depth=1)
+-     ret v0 !metadata(span=130..140, modifier_depth=1)
++     v0 = add arg0, 1 !metadata(spans=[110..120, 150..160])
++     ret v0 !metadata(spans=[130..140, 170..180])
+  }
+  

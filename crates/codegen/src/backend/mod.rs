@@ -6,6 +6,8 @@
 
 use crate::mir::Module;
 
+pub(crate) mod assembler;
+
 pub mod evm;
 
 /// A code generation backend that lowers MIR to a target artifact.

@@ -4,6 +4,14 @@
 
 use solar_data_structures::newtype_index;
 
+pub(crate) mod analysis;
+pub(crate) mod immutable;
+pub mod lower;
+pub(crate) mod memory;
+pub mod pass;
+pub(crate) mod pass_manager;
+mod transform;
+
 mod types;
 pub(crate) use types::{
     FrameMode, FrameSlotKind, ImmutableEncoding, MemoryObjectKind, MemoryObjectLayout, MirType,
@@ -51,7 +59,7 @@ mod parser;
 
 /// Validates the invariants of a MIR module.
 pub fn validate(dcx: &solar_interface::diagnostics::DiagCtxt, module: &Module) {
-    crate::analysis::validate(dcx, module);
+    crate::mir::analysis::validate(dcx, module);
 }
 
 pub(crate) mod utils;
@@ -114,7 +122,7 @@ impl BlockId {
 #[cfg(test)]
 mod round_trip {
     use super::Module;
-    use crate::lower;
+    use crate::mir::lower;
     use solar_data_structures::map::FxHashMap;
     use solar_interface::{ColorChoice, Session};
     use solar_sema::Compiler;

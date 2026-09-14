@@ -72,6 +72,12 @@ impl<'gcx> Gcx<'gcx> {
         }
     }
 
+    pub(crate) fn eval_const_value_result(self, expr: &hir::Expr<'_>) -> &'gcx EvalResult {
+        // Constant values can own big-integer buffers. Keep them in the cache itself so they
+        // are dropped with the compilation instead of leaking from the dropless HIR arena.
+        self.eval_cache.insert(expr.id, |_| Box::new(eval_const(self, expr)))
+    }
+
     /// Emits a diagnostic for the given constant evaluation error.
     pub fn emit_const_eval_error(self, expr: &hir::Expr<'_>, err: EvalError) -> ErrorGuaranteed {
         match err.kind {

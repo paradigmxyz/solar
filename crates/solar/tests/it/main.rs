@@ -3,4 +3,7 @@
 mod lint;
 
 #[cfg(feature = "cli")]
+mod debug_outputs;
+
+#[cfg(feature = "cli")]
 mod lsp;

@@ -37,9 +37,9 @@ pub(crate) fn resolve(gcx: Gcx<'_>, item_id: hir::ItemId) -> ResolvedDocumentati
     let signature = HirPrinter::display(gcx, item_id).to_string();
     let documentation = documentation(gcx, item_id);
     let mut markdown = format!("```solidity\n{signature}\n```");
-    append_markdown_documentation(&mut markdown, &documentation);
+    append_documentation(&mut markdown, &documentation, true);
     let mut plain_text = signature;
-    append_plain_documentation(&mut plain_text, &documentation);
+    append_documentation(&mut plain_text, &documentation, false);
     ResolvedDocumentation {
         markdown: MarkupContent { kind: MarkupKind::Markdown, value: markdown },
         plain_text,
@@ -269,100 +269,52 @@ fn join_docs<'a>(mut docs: impl Iterator<Item = &'a str>) -> Option<String> {
     Some(joined)
 }
 
-fn append_markdown_documentation(output: &mut String, documentation: &NatSpecDocumentation) {
+fn append_documentation(output: &mut String, documentation: &NatSpecDocumentation, markdown: bool) {
     for notice in &documentation.notice {
         output.push_str("\n\n");
         output.push_str(notice);
     }
     if !documentation.dev.is_empty() {
-        output.push_str("\n\n**@dev**\n\n");
-        for (index, dev) in documentation.dev.iter().enumerate() {
-            if index != 0 {
-                output.push_str("\n\n");
-            }
-            output.push_str(dev);
-        }
-    }
-    append_list(
-        output,
-        "@param",
-        documentation.params.iter().map(|(name, content)| (Some(name.as_str()), content.as_str())),
-    );
-    append_list(
-        output,
-        "@return",
-        documentation
-            .returns
-            .iter()
-            .map(|(name, content)| (name.as_ref().map(|name| name.as_str()), content.as_str())),
-    );
-}
-
-fn append_plain_documentation(output: &mut String, documentation: &NatSpecDocumentation) {
-    for notice in &documentation.notice {
-        output.push_str("\n\n");
-        output.push_str(notice);
-    }
-    if !documentation.dev.is_empty() {
-        output.push_str("\n\n@dev");
+        output.push_str(if markdown { "\n\n**@dev**" } else { "\n\n@dev" });
         for dev in &documentation.dev {
             output.push_str("\n\n");
             output.push_str(dev);
         }
     }
-    append_plain_list(
+    append_list(
         output,
         "@param",
         documentation.params.iter().map(|(name, content)| (Some(name.as_str()), content.as_str())),
+        markdown,
     );
-    append_plain_list(
+    append_list(
         output,
         "@return",
         documentation
             .returns
             .iter()
             .map(|(name, content)| (name.as_ref().map(|name| name.as_str()), content.as_str())),
+        markdown,
     );
-}
-
-fn append_plain_list<'a>(
-    output: &mut String,
-    heading: &str,
-    items: impl Iterator<Item = (Option<&'a str>, &'a str)>,
-) {
-    let mut items = items.peekable();
-    if items.peek().is_none() {
-        return;
-    }
-    write!(output, "\n\n{heading}").unwrap();
-    for (name, content) in items {
-        output.push_str("\n\n");
-        if let Some(name) = name {
-            write!(output, "{name}: ").unwrap();
-        }
-        let mut lines = content.lines();
-        output.push_str(lines.next().unwrap_or_default());
-        for line in lines {
-            output.push_str("\n  ");
-            output.push_str(line);
-        }
-    }
 }
 
 fn append_list<'a>(
     output: &mut String,
     heading: &str,
     items: impl Iterator<Item = (Option<&'a str>, &'a str)>,
+    markdown: bool,
 ) {
     let mut items = items.peekable();
     if items.peek().is_none() {
         return;
     }
-    write!(output, "\n\n**{heading}**").unwrap();
+    let emphasis = if markdown { "**" } else { "" };
+    write!(output, "\n\n{emphasis}{heading}{emphasis}").unwrap();
     for (name, content) in items {
-        output.push_str("\n\n- ");
+        output.push_str(if markdown { "\n\n- " } else { "\n\n" });
         if let Some(name) = name {
-            write!(output, "`{name}`: ").unwrap();
+            let quote = if markdown { "`" } else { "" };
+            write!(output, "{quote}{name}{quote}: ").unwrap();
         }
         let mut lines = content.lines();
         output.push_str(lines.next().unwrap_or_default());

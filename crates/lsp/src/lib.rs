@@ -110,6 +110,8 @@ impl FoundryWorkspaceConfig {
     }
 
     /// Sets the effective workspace source roots.
+    ///
+    /// Include the project root to discover callers outside build entry-point directories.
     pub fn with_source_roots<I, P>(mut self, roots: I) -> Self
     where
         I: IntoIterator<Item = P>,
@@ -324,6 +326,7 @@ mod folding_range;
 mod formatter;
 mod global_state;
 mod handlers;
+mod hierarchy;
 mod import_resolution;
 mod inlay_hints;
 mod lifecycle;
@@ -350,11 +353,45 @@ mod workspace;
 #[cfg(feature = "bench")]
 #[doc(hidden)]
 pub use global_state::benchmark::{
-    BenchmarkAnalysis, BenchmarkDocumentChange, BenchmarkDocumentUpdate, BenchmarkEdit,
-    BenchmarkError, BenchmarkOpenDocuments, BenchmarkProject, BenchmarkRequest, BenchmarkResponse,
-    BenchmarkSelectionRangeRequests, BenchmarkWorkspaceDiscovery, BenchmarkWorkspacePathQueries,
+    BenchmarkAnalysis, BenchmarkCodeActionRequests, BenchmarkDocumentChange,
+    BenchmarkDocumentUpdate, BenchmarkEdit, BenchmarkError, BenchmarkFoldingRangeRequests,
+    BenchmarkOpenDocuments, BenchmarkProject, BenchmarkRenameRequests, BenchmarkRepeatedAnalysis,
+    BenchmarkRequest, BenchmarkResponse, BenchmarkSelectionRangeRequests,
+    BenchmarkSignatureHelpRequests, BenchmarkWorkspaceDiscovery, BenchmarkWorkspacePathQueries,
     BenchmarkWorkspaceReports,
 };
+
+/// Checks whether a source position belongs to a parsed import path.
+#[cfg(feature = "bench")]
+#[doc(hidden)]
+pub fn benchmark_import_path_at(source: &str, cursor: usize) -> bool {
+    import_resolution::import_path_at(source, cursor).is_some()
+}
+
+/// Runs the folding-range kernel for Criterion benchmarks.
+#[cfg(feature = "bench")]
+#[doc(hidden)]
+pub fn benchmark_folding_ranges(source: String) -> Vec<lsp_types::FoldingRange> {
+    folding_range::folding_ranges(source)
+}
+
+/// Runs the open-document folding-range kernel for Criterion benchmarks.
+#[cfg(feature = "bench")]
+#[doc(hidden)]
+pub fn benchmark_folding_ranges_from_rope(source: crop::Rope) -> Vec<lsp_types::FoldingRange> {
+    folding_range::folding_ranges_from_rope(source)
+}
+
+/// Converts repeated compiler diagnostics for a source file for Criterion benchmarks.
+#[cfg(feature = "bench")]
+#[doc(hidden)]
+pub fn benchmark_diagnostic_conversion(
+    source: String,
+    diagnostic_count: usize,
+    cached: bool,
+) -> usize {
+    proto::benchmark_diagnostic_conversion(source, diagnostic_count, cached)
+}
 
 /// Runs the selection-range kernel for Criterion benchmarks.
 #[cfg(feature = "bench")]

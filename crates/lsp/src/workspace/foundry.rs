@@ -1,10 +1,8 @@
 use normalize_path::NormalizePath;
 use serde::Deserialize;
 use solar_config::{EvmVersion, ImportRemapping};
-use std::{
-    collections::BTreeMap,
-    path::{Path, PathBuf},
-};
+use solar_interface::data_structures::map::FxHashMap;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Default, Deserialize)]
 pub(crate) struct FoundryDocument {
@@ -38,7 +36,7 @@ impl FoundryDocument {
 struct FoundryProfiles {
     default: Option<FoundryProfile>,
     #[serde(flatten)]
-    profiles: BTreeMap<String, serde_json::Value>,
+    profiles: FxHashMap<String, serde_json::Value>,
 }
 
 impl FoundryProfiles {
@@ -77,11 +75,7 @@ impl FoundryProfile {
         }
     }
 
-    pub(crate) fn source_roots(&self, root: &Path) -> Vec<PathBuf> {
-        vec![root.join(self.src.as_deref().unwrap_or_else(|| Path::new("src"))).normalize()]
-    }
-
-    pub(crate) fn flycheck_source_roots(&self, root: &Path) -> Vec<PathBuf> {
+    pub(crate) fn build_source_roots(&self, root: &Path) -> Vec<PathBuf> {
         [
             self.src.as_deref().unwrap_or_else(|| Path::new("src")),
             self.test.as_deref().unwrap_or_else(|| Path::new("test")),
@@ -204,11 +198,7 @@ mod tests {
 
         let profile = document.profile_for(Some("custom"));
         assert_eq!(
-            profile.source_roots(Path::new("workspace")),
-            [PathBuf::from("workspace/custom-src")]
-        );
-        assert_eq!(
-            profile.flycheck_source_roots(Path::new("workspace")),
+            profile.build_source_roots(Path::new("workspace")),
             [
                 PathBuf::from("workspace/custom-src"),
                 PathBuf::from("workspace/default-test"),
@@ -236,13 +226,13 @@ mod tests {
         )
         .unwrap();
 
-        let default_roots = document.profile_for(None).source_roots(Path::new("workspace"));
+        let default_roots = document.profile_for(None).build_source_roots(Path::new("workspace"));
         assert_eq!(
-            document.profile_for(Some("default")).source_roots(Path::new("workspace")),
+            document.profile_for(Some("default")).build_source_roots(Path::new("workspace")),
             default_roots
         );
         assert_eq!(
-            document.profile_for(Some("missing")).source_roots(Path::new("workspace")),
+            document.profile_for(Some("missing")).build_source_roots(Path::new("workspace")),
             default_roots
         );
     }
@@ -258,12 +248,20 @@ mod tests {
         .unwrap();
 
         assert_eq!(
-            document.profile_for(None).source_roots(Path::new("workspace")),
-            [PathBuf::from("workspace/legacy-src")]
+            document.profile_for(None).build_source_roots(Path::new("workspace")),
+            [
+                PathBuf::from("workspace/legacy-src"),
+                PathBuf::from("workspace/test"),
+                PathBuf::from("workspace/script")
+            ]
         );
         assert_eq!(
-            document.profile_for(Some("missing")).source_roots(Path::new("workspace")),
-            [PathBuf::from("workspace/legacy-src")]
+            document.profile_for(Some("missing")).build_source_roots(Path::new("workspace")),
+            [
+                PathBuf::from("workspace/legacy-src"),
+                PathBuf::from("workspace/test"),
+                PathBuf::from("workspace/script")
+            ]
         );
     }
 
@@ -281,8 +279,12 @@ mod tests {
         .unwrap();
 
         assert_eq!(
-            document.profile_for(None).source_roots(Path::new("workspace")),
-            [PathBuf::from("workspace/default-src")]
+            document.profile_for(None).build_source_roots(Path::new("workspace")),
+            [
+                PathBuf::from("workspace/default-src"),
+                PathBuf::from("workspace/test"),
+                PathBuf::from("workspace/script")
+            ]
         );
     }
 

@@ -279,7 +279,10 @@ No intentional divergences documented yet.
 - Status: implemented
 - Behavior: Legacy `sourceMap` output carries the compiler's modifier nesting
   depth in the `m` field, preserving it through MIR and EVM IR lowering and
-  optimization.
+  optimization. Shared code with different modifier depths has no unique
+  modifier frame and uses depth zero. Shared code with multiple source origins
+  is unmapped in legacy output; ETHDebug retains bounded source alternatives.
+  This policy applies equally to MIR and EVM IR sharing.
 - Coverage: `tests/ui/standard-json/source-maps/modifier.jsonc`.
 
 ### CODEGEN-007: `revertStrings: debug` message parity is best effort

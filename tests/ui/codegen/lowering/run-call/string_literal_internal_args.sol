@@ -3,6 +3,7 @@
 //@ run-call: libConstant => 20
 //@ run-call: libHex => 2
 //@ run-call: libLong => 40
+//@ run-call: sharedLong => 160
 //@ run-call: literalContent => 0x6869000000000000000000000000000000000000000000000000000000000000
 //@ run-call: encodeConstant => 132
 //@ run-call: encodeConstantCast => 100
@@ -48,6 +49,13 @@ contract StringLiteralInternalArgs {
 
     function libLong() external pure returns (uint256) {
         return L.lenPlus("0123456789012345678901234567890123456789", 0);
+    }
+
+    function sharedLong() external pure returns (uint256) {
+        return L.lenPlus("0123456789012345678901234567890123456789", 0)
+            + L.lenPlus("0123456789012345678901234567890123456789", 0)
+            + L.lenPlus("0123456789012345678901234567890123456789", 0)
+            + L.lenPlus("0123456789012345678901234567890123456789", 0);
     }
 
     function literalContent() external pure returns (bytes32) {

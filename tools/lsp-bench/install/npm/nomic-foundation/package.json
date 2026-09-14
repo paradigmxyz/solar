@@ -1,0 +1,8 @@
+{
+  "name": "solar-lsp-bench-nomic-foundation",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "@nomicfoundation/solidity-language-server": "0.8.25"
+  }
+}

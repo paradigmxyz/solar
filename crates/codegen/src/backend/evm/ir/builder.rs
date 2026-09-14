@@ -2,14 +2,19 @@
 
 use super::{self as ir};
 use crate::{
-    backend::evm::{
-        DebugFunction, DebugFunctionExit,
-        assembler::{ArtifactKind, Assembler, DeferredAllocResolution, DeferredConst, Label},
-        ir::assembly::DeferredAlloc,
-        op::{self, push_len},
+    backend::{
+        assembler::{
+            ArtifactKind, Assembler, DeferredAllocResolution, DeferredConst, Label,
+            assembly::DeferredAlloc,
+        },
+        evm::{
+            DebugFunction, DebugFunctionExit,
+            op::{self, push_len},
+        },
     },
-    memory::EvmMemoryLayout,
-    mir::{DataRef as MirDataRef, ImmutableId, Module as MirModule, TypeSize},
+    mir::{
+        DataRef as MirDataRef, ImmutableId, Module as MirModule, TypeSize, memory::EvmMemoryLayout,
+    },
 };
 use alloy_primitives::U256;
 use solar_data_structures::{index::index_vec, map::FxHashMap};
@@ -17,7 +22,7 @@ use solar_sema::Gcx;
 
 impl<'gcx> Assembler<'gcx> {
     /// Creates an assembler with finalized EVM IR loaded into the ordinary backend pipeline.
-    pub(in crate::backend::evm) fn from_evm_ir(
+    pub(in crate::backend) fn from_evm_ir(
         gcx: Gcx<'gcx>,
         mut module: ir::Module,
     ) -> solar_interface::Result<Self> {
@@ -86,8 +91,17 @@ impl<'gcx> Assembler<'gcx> {
 
     /// Sets the source span attached to subsequently emitted operations.
     pub(crate) fn set_source_span(&mut self, span: Option<solar_interface::Span>) {
+        self.set_source_spans(span);
+    }
+
+    /// Sets all retained source origins attached to subsequently emitted operations.
+    pub(crate) fn set_source_spans(
+        &mut self,
+        spans: impl IntoIterator<Item = solar_interface::Span>,
+    ) {
         self.program.track_debug_info();
-        self.current_source_span = span.unwrap_or(solar_interface::Span::DUMMY);
+        self.current_source_spans.clear();
+        self.current_source_spans.extend(spans.into_iter().filter(|span| !span.is_dummy()));
     }
 
     /// Sets the legacy source-map modifier nesting depth attached to new operations.
@@ -377,7 +391,7 @@ impl<'gcx> Assembler<'gcx> {
         assert!(!targets.is_empty(), "indexed jump must have at least one target");
         let block = self.current_block.take().expect("indexed jump requires a current block");
         let mut metadata = ir::Metadata::default();
-        metadata.set_source_span(Some(self.current_source_span));
+        metadata.set_source_spans(self.current_source_spans.iter().copied());
         metadata.set_modifier_depth(self.current_modifier_depth);
         self.indexed_jump_relocations.push((block, targets, metadata));
     }
@@ -395,7 +409,7 @@ impl<'gcx> Assembler<'gcx> {
 
     /// Emits an allocation whose static or dynamic placement is chosen after
     /// exact backend frame layout is known.
-    pub(in crate::backend::evm) fn emit_deferred_alloc(&mut self) -> DeferredAlloc {
+    pub(in crate::backend) fn emit_deferred_alloc(&mut self) -> DeferredAlloc {
         let id = self.next_deferred_alloc.next();
         let (block, instruction) = self.push_ir_instruction(ir::Instruction::push_relocation());
         self.alloc_relocations.push((block, instruction, id));
@@ -403,7 +417,7 @@ impl<'gcx> Assembler<'gcx> {
     }
 
     /// Resolves an allocation to a compile-time address.
-    pub(in crate::backend::evm) fn set_deferred_alloc_static(
+    pub(in crate::backend) fn set_deferred_alloc_static(
         &mut self,
         id: DeferredAlloc,
         address: U256,
@@ -412,11 +426,7 @@ impl<'gcx> Assembler<'gcx> {
     }
 
     /// Resolves an allocation to the ordinary free-memory-pointer bump.
-    pub(in crate::backend::evm) fn set_deferred_alloc_dynamic(
-        &mut self,
-        id: DeferredAlloc,
-        size: U256,
-    ) {
+    pub(in crate::backend) fn set_deferred_alloc_dynamic(&mut self, id: DeferredAlloc, size: U256) {
         self.deferred_allocations.insert(id, DeferredAllocResolution::Dynamic(size));
     }
 
@@ -441,7 +451,7 @@ impl<'gcx> Assembler<'gcx> {
     }
 
     /// Marks a label-started block as cold for EVM IR layout passes.
-    pub(in crate::backend::evm) fn mark_label_cold(&mut self, label: Label) {
+    pub(in crate::backend) fn mark_label_cold(&mut self, label: Label) {
         self.cold_labels.insert(label);
         if let Some(&block) = self.label_blocks.get(&label) {
             self.program.blocks[block].metadata.hotness = ir::Hotness::Cold;
@@ -459,7 +469,7 @@ impl<'gcx> Assembler<'gcx> {
     }
 
     fn push_ir_instruction(&mut self, mut instruction: ir::Instruction) -> (ir::BlockId, usize) {
-        instruction.metadata.set_source_span(Some(self.current_source_span));
+        instruction.metadata.set_source_spans(self.current_source_spans.iter().copied());
         instruction.metadata.set_modifier_depth(self.current_modifier_depth);
         let (block, index) = self.next_instruction_position();
         self.program.blocks[block].instructions.push(instruction);
@@ -513,9 +523,7 @@ impl<'gcx> Assembler<'gcx> {
         }
     }
 
-    pub(in crate::backend::evm) fn finish_evm_ir(
-        &mut self,
-    ) -> Option<(ir::Module, Vec<Option<Label>>)> {
+    pub(in crate::backend) fn finish_evm_ir(&mut self) -> Option<(ir::Module, Vec<Option<Label>>)> {
         let mut module = std::mem::take(&mut self.program);
         self.current_block = None;
         if module.blocks.is_empty() {
@@ -657,7 +665,7 @@ impl<'gcx> Assembler<'gcx> {
     }
 }
 
-pub(in crate::backend::evm) fn resolve_known_deferred_constants(
+pub(in crate::backend) fn resolve_known_deferred_constants(
     module: &mut ir::Module,
     values: &FxHashMap<DeferredConst, U256>,
 ) {

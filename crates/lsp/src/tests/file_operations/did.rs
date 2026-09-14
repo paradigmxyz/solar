@@ -108,7 +108,7 @@ async fn did_create_files_rediscovers_files_and_folder_descendants_once() {
         .await
         .expect("create-file analysis should finish")
         .unwrap();
-    let tables = tables.read();
+    let tables = tables.load();
     assert!(tables.workspace_symbols("Direct").iter().any(|symbol| symbol.name == "Direct"));
     assert!(tables.workspace_symbols("Nested").iter().any(|symbol| symbol.name == "Nested"));
 }
@@ -188,7 +188,7 @@ async fn did_create_nested_manifest_discovers_the_project() {
         .await
         .expect("nested manifest analysis should finish")
         .unwrap();
-    assert!(tables.read().workspace_symbols("Nested").iter().any(|symbol| symbol.name == "Nested"));
+    assert!(tables.load().workspace_symbols("Nested").iter().any(|symbol| symbol.name == "Nested"));
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -226,7 +226,7 @@ async fn did_create_nested_manifest_under_overlapping_source_root_discovers_proj
         .await
         .expect("nested manifest analysis should finish")
         .unwrap();
-    assert!(tables.read().workspace_symbols("Nested").iter().any(|symbol| symbol.name == "Nested"));
+    assert!(tables.load().workspace_symbols("Nested").iter().any(|symbol| symbol.name == "Nested"));
     assert!(state.config.workspaces().iter().any(|workspace| {
         workspace.compile_opts().base_path.as_deref()
             == Some(project.path("/lib/package").as_path())
@@ -265,7 +265,7 @@ async fn deleting_manifest_directory_with_external_sources_rediscovers_workspace
         .await
         .expect("manifest-directory deletion analysis should finish")
         .unwrap();
-    assert!(tables.read().workspace_symbols("Main").iter().any(|symbol| symbol.name == "Main"));
+    assert!(tables.load().workspace_symbols("Main").iter().any(|symbol| symbol.name == "Main"));
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -386,7 +386,7 @@ async fn delayed_create_after_empty_folder_did_create_is_processed() {
         .await
         .expect("delayed file create analysis should finish")
         .unwrap();
-    assert!(tables.read().workspace_symbols("Later").iter().any(|symbol| symbol.name == "Later"));
+    assert!(tables.load().workspace_symbols("Later").iter().any(|symbol| symbol.name == "Later"));
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -639,7 +639,7 @@ async fn watcher_delete_preserves_open_file_for_later_changes() {
         .unwrap();
     assert!(
         tables
-            .read()
+            .load()
             .workspace_symbols("AfterDelete")
             .iter()
             .any(|symbol| symbol.name == "AfterDelete")
@@ -692,7 +692,7 @@ async fn watcher_delete_followed_later_by_did_delete_starts_one_epoch() {
         .await
         .expect("reconciled delete analysis should remain available")
         .unwrap();
-    assert!(tables.read().workspace_symbols("Deleted").is_empty());
+    assert!(tables.load().workspace_symbols("Deleted").is_empty());
     let vfs_revision = state.vfs.read().content_revision();
     assert!(state.analysis_revision().is_current(vfs_revision));
 }
@@ -738,7 +738,7 @@ async fn watcher_delete_preserves_open_file_until_did_close() {
         .await
         .expect("document-close analysis should finish")
         .unwrap();
-    assert!(tables.read().workspace_symbols("Deleted").is_empty());
+    assert!(tables.load().workspace_symbols("Deleted").is_empty());
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -779,7 +779,7 @@ async fn mixed_watcher_batch_preserves_an_unrelated_deleted_open_file() {
         .await
         .expect("mixed watcher analysis should finish")
         .unwrap();
-    let tables = tables.read();
+    let tables = tables.load();
     assert!(tables.workspace_symbols("Deleted").iter().any(|symbol| symbol.name == "Deleted"));
     assert!(tables.workspace_symbols("Created").iter().any(|symbol| symbol.name == "Created"));
 }
@@ -1212,7 +1212,7 @@ async fn did_rename_folder_migrates_open_buffers_before_one_reanalysis() {
         .await
         .expect("rename-file analysis should finish")
         .unwrap();
-    let tables = tables.read();
+    let tables = tables.load();
     assert!(tables.workspace_symbols("DiskVersion").is_empty());
     assert!(tables.workspace_symbols("Unsaved").iter().any(|symbol| symbol.name == "Unsaved"));
 }
@@ -2154,9 +2154,9 @@ async fn did_rename_workspace_root_preserves_foundry_configuration_and_closed_fi
     assert_eq!(workspaces.len(), 1);
     assert_eq!(workspaces[0].kind(), WorkspaceKind::Foundry);
     assert_eq!(workspaces[0].compile_opts().base_path.as_deref(), Some(new_root.as_path()));
-    assert!(tables.read().workspace_symbols("Main").iter().any(|symbol| symbol.name == "Main"));
+    assert!(tables.load().workspace_symbols("Main").iter().any(|symbol| symbol.name == "Main"));
     assert_eq!(
-        tables.read().document_links(&new_root.join("src/Main.sol"))[0].target,
+        tables.load().document_links(&new_root.join("src/Main.sol"))[0].target,
         Some(Url::from_file_path(new_root.join("lib/Dependency.sol")).unwrap())
     );
 
@@ -2297,10 +2297,10 @@ async fn watcher_can_commit_workspace_root_rename_once() {
         .expect("workspace-root rename analysis should finish")
         .unwrap();
     assert!(
-        tables.read().workspace_symbols("Unsaved").iter().any(|symbol| symbol.name == "Unsaved")
+        tables.load().workspace_symbols("Unsaved").iter().any(|symbol| symbol.name == "Unsaved")
     );
     assert_eq!(
-        tables.read().document_links(&new_main)[0].target,
+        tables.load().document_links(&new_main)[0].target,
         Some(Url::from_file_path(new_root.join("lib/Dependency.sol")).unwrap())
     );
 }
@@ -2351,7 +2351,7 @@ async fn did_rename_replay_does_not_remap_workspace_root_again() {
         state.config.workspaces()[0].compile_opts().base_path.as_deref(),
         Some(moved_root.as_path())
     );
-    assert!(tables.read().workspace_symbols("Main").iter().any(|symbol| symbol.name == "Main"));
+    assert!(tables.load().workspace_symbols("Main").iter().any(|symbol| symbol.name == "Main"));
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -2446,7 +2446,7 @@ async fn did_delete_folder_removes_open_descendants_but_not_prefix_siblings() {
         .await
         .expect("delete-file analysis should finish")
         .unwrap();
-    let tables = tables.read();
+    let tables = tables.load();
     assert!(tables.workspace_symbols("Deleted").is_empty());
     assert!(tables.workspace_symbols("Keep").iter().any(|symbol| symbol.name == "Keep"));
 }
@@ -2540,5 +2540,5 @@ async fn did_delete_workspace_root_removes_configuration_and_closed_files() {
         .expect("workspace-root delete analysis should finish")
         .unwrap();
     assert!(state.config.workspaces().is_empty());
-    assert!(tables.read().workspace_symbols("Deleted").is_empty());
+    assert!(tables.load().workspace_symbols("Deleted").is_empty());
 }

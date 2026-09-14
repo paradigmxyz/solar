@@ -21,7 +21,7 @@ use solar_sema::{
     Gcx,
     hir::{self, ItemId, VariableId},
 };
-use std::{collections::hash_map::Entry, path::PathBuf, sync::Arc};
+use std::{path::PathBuf, sync::Arc};
 
 newtype_index! {
     /// A file-local import alias in the rename index.
@@ -76,9 +76,37 @@ pub(crate) struct RenameIndex {
     symbol_targets: FxHashSet<SymbolId>,
     yul_symbol_targets: FxHashSet<SymbolId>,
     occurrences: Vec<RenameOccurrence>,
-    file_occurrences: FxHashMap<Url, Vec<usize>>,
-    target_occurrences: FxHashMap<RenameTarget, Vec<Location>>,
+    file_occurrences: FxHashMap<Url, OccurrenceIndex>,
+    target_occurrences: FxHashMap<RenameTarget, Vec<usize>>,
     ambiguous_targets: FxHashSet<RenameTarget>,
+}
+
+/// Start-sorted occurrence indexes with a prefix maximum end for point queries.
+#[derive(Clone, Debug, Default)]
+struct OccurrenceIndex {
+    entries: Vec<usize>,
+    prefix_max_end: Vec<Position>,
+}
+
+impl OccurrenceIndex {
+    fn rebuild(&mut self, occurrences: &[RenameOccurrence]) {
+        // `normalize_occurrences` orders the global list by URI and range before these
+        // per-file indexes are populated, so the entries are already start-sorted.
+        debug_assert!(self.entries.windows(2).all(|pair| {
+            let lhs = occurrences[pair[0]].location.range;
+            let rhs = occurrences[pair[1]].location.range;
+            (lhs.start, lhs.end, pair[0]) <= (rhs.start, rhs.end, pair[1])
+        }));
+
+        self.prefix_max_end.clear();
+        self.prefix_max_end.reserve(self.entries.len());
+        let mut max_end = None;
+        for &index in &self.entries {
+            let end = occurrences[index].location.range.end;
+            max_end = Some(max_end.map_or(end, |max_end: Position| max_end.max(end)));
+            self.prefix_max_end.push(max_end.unwrap());
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -553,23 +581,34 @@ impl RenameIndex {
             RenameTarget::ImportAlias(alias_id) => self.aliases[alias_id].name.clone(),
             RenameTarget::MappingName(name_id) => self.mapping_names[name_id].name.clone(),
         };
-        let mut locations = targets
+        // Occurrences are unique and URI/range-sorted by `normalize_occurrences`. Each target's
+        // index list already follows that order; only combining targets requires normalization.
+        let mut indices = Vec::new();
+        let indices = if let [target] = targets.as_slice() {
+            self.target_occurrences.get(target).map(Vec::as_slice).unwrap_or_default()
+        } else {
+            indices.extend(
+                targets
+                    .iter()
+                    .filter_map(|target| self.target_occurrences.get(target))
+                    .flatten()
+                    .copied(),
+            );
+            indices.sort_unstable();
+            indices.dedup();
+            &indices
+        };
+        let locations = indices
             .iter()
-            .filter_map(|target| self.target_occurrences.get(target))
-            .flatten()
-            .cloned()
+            .map(|&index| self.occurrences[index].location.clone())
             .collect::<Vec<_>>();
-        sort_locations(&mut locations);
-        locations.dedup_by(|a, b| a.uri == b.uri && a.range == b.range);
         let mut analyzed_contents = FxHashMap::default();
-        for location in &locations {
-            if let Entry::Vacant(entry) = analyzed_contents.entry(location.uri.clone()) {
-                let contents = self.analyzed_contents.get(&location.uri)?.clone();
-                entry.insert(contents);
-            }
+        let mut conflicting_contents = false;
+        for locations in locations.chunk_by(|a, b| a.uri == b.uri) {
+            let uri = &locations[0].uri;
+            analyzed_contents.insert(uri.clone(), self.analyzed_contents.get(uri)?.clone());
+            conflicting_contents |= self.conflicting_contents.contains(uri);
         }
-        let conflicting_contents =
-            locations.iter().any(|location| self.conflicting_contents.contains(&location.uri));
         Some(RenameCandidate {
             old_name,
             range: occurrence.location.range,
@@ -637,7 +676,11 @@ impl RenameIndex {
         self.ambiguous_targets.clear();
 
         for (index, occurrence) in self.occurrences.iter().enumerate() {
-            self.file_occurrences.entry(occurrence.location.uri.clone()).or_default().push(index);
+            self.file_occurrences
+                .entry(occurrence.location.uri.clone())
+                .or_default()
+                .entries
+                .push(index);
             if occurrence.targets.len() > 1
                 && !same_rename_targets(
                     &self.aliases,
@@ -649,16 +692,11 @@ impl RenameIndex {
                 self.ambiguous_targets.extend(occurrence.targets.iter().copied());
             }
             for &target in &occurrence.targets {
-                self.target_occurrences
-                    .entry(target)
-                    .or_default()
-                    .push(occurrence.location.clone());
+                self.target_occurrences.entry(target).or_default().push(index);
             }
         }
-
-        for locations in self.target_occurrences.values_mut() {
-            sort_locations(locations);
-            locations.dedup_by(|a, b| a.uri == b.uri && a.range == b.range);
+        for occurrences in self.file_occurrences.values_mut() {
+            occurrences.rebuild(&self.occurrences);
         }
     }
 
@@ -839,14 +877,27 @@ impl RenameIndex {
     }
 
     fn occurrence_at(&self, uri: &Url, position: Position) -> Option<&RenameOccurrence> {
-        self.file_occurrences
-            .get(uri)?
-            .iter()
-            .filter_map(|&index| {
-                let occurrence = &self.occurrences[index];
-                range_contains(occurrence.location.range, position).then_some(occurrence)
-            })
-            .min_by_key(|occurrence| range_size_key(occurrence.location.range))
+        let index = self.file_occurrences.get(uri)?;
+        let end = index
+            .entries
+            .partition_point(|&entry| self.occurrences[entry].location.range.start <= position);
+        let mut best = None;
+        for (&entry, &prefix_max_end) in
+            index.entries[..end].iter().zip(&index.prefix_max_end[..end]).rev()
+        {
+            if prefix_max_end < position {
+                break;
+            }
+            let occurrence = &self.occurrences[entry];
+            if !proto::range_contains(occurrence.location.range, position) {
+                continue;
+            }
+            let key = (proto::range_size_key(occurrence.location.range), entry);
+            if best.as_ref().is_none_or(|(best_key, _)| key < *best_key) {
+                best = Some((key, occurrence));
+            }
+        }
+        best.map(|(_, occurrence)| occurrence)
     }
 
     fn normalize_occurrences(&mut self) {
@@ -979,28 +1030,10 @@ fn remap_mapping_name_id(name_id: MappingNameId, offset: usize) -> MappingNameId
     MappingNameId::from_usize(name_id.index() + offset)
 }
 
-fn range_contains(range: Range, position: Position) -> bool {
-    if range.start == range.end {
-        return position == range.start;
-    }
-    position >= range.start && position < range.end
-}
-
-fn range_size_key(range: Range) -> (u32, u32) {
-    (
-        range.end.line.saturating_sub(range.start.line),
-        range.end.character.saturating_sub(range.start.character),
-    )
-}
-
 fn compare_locations(a: &Location, b: &Location) -> std::cmp::Ordering {
     a.uri.as_str().cmp(b.uri.as_str()).then_with(|| {
         (a.range.start.line, a.range.start.character, a.range.end.line, a.range.end.character).cmp(
             &(b.range.start.line, b.range.start.character, b.range.end.line, b.range.end.character),
         )
     })
-}
-
-fn sort_locations(locations: &mut [Location]) {
-    locations.sort_by(compare_locations);
 }

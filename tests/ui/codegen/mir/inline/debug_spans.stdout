@@ -4,19 +4,19 @@
   fn @caller(arg0: u256) -> u256 {
     bb0:
 -     v0 = icall @callee, 1, arg0 !metadata(span=10..20)
--     ret v0
-+     jump bb2
+-     ret v0 !metadata(span=20..30)
++     jump bb2 !metadata(span=10..20)
 +   bb2:
-+     v1 = add arg0, 1 !metadata(span=100..110)
-+     jump bb1
++     v1 = add arg0, 1 !metadata(spans=[100..110, 130..140])
++     jump bb1 !metadata(spans=[110..120, 150..160])
 +   bb1:
 +     v2 = phi [bb2: v1]
-+     ret v2
++     ret v2 !metadata(span=20..30)
   }
   
   fn @callee(arg0: u256) -> u256 {
     bb0:
-      v0 = add arg0, 1 !metadata(span=100..110)
-      ret v0
+      v0 = add arg0, 1 !metadata(spans=[100..110, 130..140])
+      ret v0 !metadata(spans=[110..120, 150..160])
   }
   

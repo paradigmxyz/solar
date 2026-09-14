@@ -1,0 +1,13 @@
+[
+  {
+    "source": "Arithmetic.sol",
+    "contract": "Arithmetic",
+    "cases": [
+      {"name": "constructor", "deploy": true},
+      {"name": "increment", "signature": "increment(uint256)", "args": ["41"], "output": "000000000000000000000000000000000000000000000000000000000000002a"},
+      {"name": "branch-then", "signature": "branch(uint256)", "args": ["20"], "output": "0000000000000000000000000000000000000000000000000000000000000013"},
+      {"name": "branch-else", "signature": "branch(uint256)", "args": ["2"], "output": "0000000000000000000000000000000000000000000000000000000000000004"},
+      {"name": "read", "signature": "read()", "output": "0000000000000000000000000000000000000000000000000000000000000007"}
+    ]
+  }
+]

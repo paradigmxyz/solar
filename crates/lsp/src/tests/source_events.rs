@@ -101,7 +101,7 @@ async fn watched_nested_manifest_create_discovers_the_project() {
         .await
         .expect("nested manifest analysis should finish")
         .unwrap();
-    assert!(tables.read().workspace_symbols("Nested").iter().any(|symbol| symbol.name == "Nested"));
+    assert!(tables.load().workspace_symbols("Nested").iter().any(|symbol| symbol.name == "Nested"));
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -576,7 +576,7 @@ async fn watched_excluded_dependency_change_and_delete_schedule_analysis() {
             analyze_cancellable(batches.pop().unwrap(), &IndexingCancellation::default()).unwrap();
         let mut state = GlobalState::new(ClientSocket::new_closed());
         state.config = Arc::new(config);
-        state.snapshot().publish_analysis_output(0, output);
+        state.snapshot().publish_analysis_output(0, output.into_shared());
         let path = project.path("/generated/Dependency.sol");
         let uri = Url::from_file_path(path).unwrap();
 
@@ -652,7 +652,16 @@ async fn watched_flycheck_only_source_change_schedules_analysis() {
         "#,
     );
     let path = project.path("/test/Main.t.sol");
-    let config = project.config();
+    let (_, mut config) = crate::config::negotiate_capabilities_with_pull_diagnostic_data(
+        project.initialize_params(),
+        false,
+        &crate::LaunchConfig::default().with_foundry_workspace_configs([
+            crate::FoundryWorkspaceConfig::new(project.root())
+                .with_source_roots(["src"])
+                .with_flycheck_source_roots(["src", "test"]),
+        ]),
+    );
+    config.rediscover_workspaces();
     assert!(!config.tracks_source_file(&path));
     assert!(config.tracks_flycheck_file(&path));
     let mut state = GlobalState::new(ClientSocket::new_closed());
@@ -712,7 +721,7 @@ async fn watched_source_respects_the_most_specific_flycheck_owner() {
         ),
         ControlFlow::Continue(())
     ));
-    assert_eq!(state.analysis_version.load(Ordering::Acquire), 0);
+    assert_eq!(state.analysis_version.load(Ordering::Acquire), 1);
     assert!(
         state
             .config
@@ -791,7 +800,7 @@ fn did_create_defers_a_candidate_first_learned_by_pending_analysis() {
         state.analysis_commit.lock().deferred_source_file_events.get(&path),
         Some(&FileChangeType::CREATED)
     );
-    assert!(!state.snapshot().publish_analysis_output(version, output));
+    assert!(!state.snapshot().publish_analysis_output(version, output.into_shared()));
 }
 
 #[test]
@@ -832,7 +841,7 @@ fn did_delete_defers_a_dependency_first_learned_by_pending_analysis() {
         state.analysis_commit.lock().deferred_source_file_events.get(&path),
         Some(&FileChangeType::DELETED)
     );
-    assert!(!state.snapshot().publish_analysis_output(version, output));
+    assert!(!state.snapshot().publish_analysis_output(version, output.into_shared()));
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -888,8 +897,8 @@ async fn source_events_during_initial_discovery_are_replayed_after_policy_is_kno
         .await
         .expect("initial discovery analysis should finish")
         .unwrap();
-    assert!(tables.read().workspace_symbols("Active").iter().any(|symbol| symbol.name == "Active"));
-    assert!(tables.read().workspace_symbols("Ignored").is_empty());
+    assert!(tables.load().workspace_symbols("Active").iter().any(|symbol| symbol.name == "Active"));
+    assert!(tables.load().workspace_symbols("Ignored").is_empty());
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -958,7 +967,7 @@ async fn source_events_during_discovery_are_deferred_with_existing_workspaces() 
         .await
         .expect("rediscovered source analysis should finish")
         .unwrap();
-    assert!(tables.read().workspace_symbols("Active").iter().any(|symbol| symbol.name == "Active"));
+    assert!(tables.load().workspace_symbols("Active").iter().any(|symbol| symbol.name == "Active"));
     drop(tables);
 
     state.recompute_after_source_changes(vec![project.path("/existing/Existing.sol")]);
@@ -966,7 +975,7 @@ async fn source_events_during_discovery_are_deferred_with_existing_workspaces() 
         .await
         .expect("subsequent analysis should finish")
         .unwrap();
-    assert!(tables.read().workspace_symbols("Active").iter().any(|symbol| symbol.name == "Active"));
+    assert!(tables.load().workspace_symbols("Active").iter().any(|symbol| symbol.name == "Active"));
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -1006,7 +1015,7 @@ async fn watched_existing_unresolved_candidate_change_and_delete_schedule_analys
         let uri = Url::from_file_path(path).unwrap();
         let mut state = GlobalState::new(ClientSocket::new_closed());
         state.config = Arc::new(config);
-        state.snapshot().publish_analysis_output(0, output);
+        state.snapshot().publish_analysis_output(0, output.into_shared());
 
         let result = crate::handlers::did_change_watched_files(
             &mut state,
@@ -1036,7 +1045,7 @@ async fn watched_missing_excluded_dependency_recovers_only_on_create() {
         analyze_cancellable(batches.pop().unwrap(), &IndexingCancellation::default()).unwrap();
     let mut state = GlobalState::new(ClientSocket::new_closed());
     state.config = Arc::new(config);
-    state.snapshot().publish_analysis_output(0, output);
+    state.snapshot().publish_analysis_output(0, output.into_shared());
     let path = project.path("/generated/Missing.sol");
     let uri = Url::from_file_path(&path).unwrap();
 
@@ -1064,7 +1073,7 @@ async fn watched_missing_excluded_dependency_recovers_only_on_create() {
         .expect("created import candidate should be analyzed")
         .unwrap();
     assert!(
-        tables.read().workspace_symbols("Missing").iter().any(|symbol| symbol.name == "Missing")
+        tables.load().workspace_symbols("Missing").iter().any(|symbol| symbol.name == "Missing")
     );
 }
 
@@ -1084,7 +1093,7 @@ async fn watched_missing_candidate_change_supersedes_pending_create_analysis() {
         analyze_cancellable(batches.pop().unwrap(), &IndexingCancellation::default()).unwrap();
     let mut state = GlobalState::new(ClientSocket::new_closed());
     state.config = Arc::new(config);
-    state.snapshot().publish_analysis_output(0, output);
+    state.snapshot().publish_analysis_output(0, output.into_shared());
     let path = project.path("/generated/Missing.sol");
     let uri = Url::from_file_path(&path).unwrap();
 

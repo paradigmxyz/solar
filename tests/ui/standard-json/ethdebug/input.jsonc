@@ -1,5 +1,5 @@
 //@ normalize-stdout-test: "solar-[0-9a-f]{64}" -> "solar-COMPILATION_ID"
-//@ filecheck:
+//@ filecheck: --implicit-check-not=invoke
 // CHECK-LABEL: "bytecode": {
 // CHECK-NEXT: "ethdebug": {
 // CHECK: "environment": "create"
@@ -10,9 +10,7 @@
 // CHECK: "mnemonic": "JUMPI"
 // CHECK: "offset": 19
 // CHECK: "mnemonic": "PUSH1"
-// CHECK-COUNT-1: "invoke": {
-// CHECK-NEXT: "identifier": "f"
-// CHECK-NOT: "target":
+// The external entry falls through; PUSH1 cannot establish an internal call.
 // CHECK: "mnemonic": "ADD"
 // CHECK: "offset": 79
 // CHECK-NEXT: "length": 5

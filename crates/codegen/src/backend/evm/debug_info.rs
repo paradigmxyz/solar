@@ -3,14 +3,10 @@
 use smallvec::SmallVec;
 use solar_interface::{Span, Symbol};
 
+pub use crate::source_info::MAX_DEBUG_SPANS;
+
 /// Source origins associated with one machine instruction.
 pub type DebugSpans = SmallVec<[Span; 2]>;
-
-/// Maximum number of source origins retained for one optimized instruction.
-///
-/// Keeping this bounded prevents a large number of equivalent optimization
-/// sites from turning debug metadata into an unbounded side channel.
-pub const MAX_DEBUG_SPANS: usize = 8;
 
 /// Source-language identity of a function activation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

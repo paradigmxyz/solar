@@ -288,6 +288,8 @@ impl OptimizationMode {
 
 str_enum! {
     /// Type of output for the compiler to emit.
+    ///
+    /// Output names follow solc's `--combined-json`, extended with ETHDebug artifacts.
     #[strum(serialize_all = "kebab-case")]
     #[non_exhaustive]
     pub enum CompilerOutput {
@@ -299,13 +301,28 @@ str_enum! {
         BinRuntime,
         /// Function signature hashes.
         Hashes,
+        /// ETHDebug creation program and source resources.
+        Ethdebug,
+        /// ETHDebug runtime program and source resources.
+        EthdebugRuntime,
+        /// ETHDebug source resources without bytecode generation.
+        EthdebugResources,
+        /// Legacy creation source map and source file list.
+        Srcmap,
+        /// Legacy runtime source map and source file list.
+        SrcmapRuntime,
     }
 }
 
 impl CompilerOutput {
     /// Returns `true` for outputs produced by the codegen backend.
     pub fn is_codegen(self) -> bool {
-        matches!(self, Self::Bin | Self::BinRuntime)
+        matches!(self, Self::Bin | Self::BinRuntime) || self.needs_debug_info()
+    }
+
+    /// Returns `true` for outputs that need final instruction debug metadata.
+    pub fn needs_debug_info(self) -> bool {
+        matches!(self, Self::Ethdebug | Self::EthdebugRuntime | Self::Srcmap | Self::SrcmapRuntime)
     }
 }
 

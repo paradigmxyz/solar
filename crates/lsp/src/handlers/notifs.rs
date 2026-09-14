@@ -2,7 +2,7 @@ use crate::{
     NotifyResult,
     global_state::{GlobalState, SourceFileEventDisposition},
     proto,
-    utils::apply_document_changes,
+    utils::{apply_document_changes, rope_eq_str},
 };
 use crop::Rope;
 use lsp_types::{
@@ -44,6 +44,30 @@ pub(crate) fn did_change_text_document(
 ) -> NotifyResult {
     if let Some(path) = proto::vfs_path(&params.text_document.uri) {
         let disk_path = path.as_path().map(ToOwned::to_owned);
+        // A full-document update with identical text only changes the client version.
+        // Avoid constructing a replacement Rope and comparing the entire document again.
+        if params.content_changes.len() == 1
+            && let Some(change) = params.content_changes.first()
+            && change.range.is_none()
+        {
+            let unchanged = {
+                let vfs = state.vfs.read();
+                let Some(contents) = vfs.get_file_contents(&path) else {
+                    error!(?path, "orphan DidChangeTextDocument");
+                    return ControlFlow::Continue(());
+                };
+                rope_eq_str(contents, &change.text)
+            };
+            if unchanged {
+                state.vfs.write().set_file_version(path, params.text_document.version);
+                state.update_analyzed_document_version(
+                    params.text_document.uri,
+                    params.text_document.version,
+                );
+                state.reindex_if_invalidated();
+                return ControlFlow::Continue(());
+            }
+        }
         let new_contents = {
             let _guard = state.vfs.read();
             let Some(contents) = _guard.get_file_contents(&path) else {

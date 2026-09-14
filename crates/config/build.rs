@@ -2,7 +2,7 @@
 use std::{env, io::Read, path::Path};
 
 #[cfg(feature = "version")]
-const SOLC_VERSION_FALLBACK: &str = "0.8.36";
+const SOLC_VERSION_FALLBACK: &str = "0.8.37";
 #[cfg(feature = "version")]
 const VERSION_UNKNOWN: &str = "unknown";
 #[cfg(feature = "version")]

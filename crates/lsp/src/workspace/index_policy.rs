@@ -94,10 +94,6 @@ impl WorkspaceIndexPolicy {
         self.options.exclude_nested_repositories
     }
 
-    pub(crate) fn uses_default_excludes(&self) -> bool {
-        self.options.use_default_excludes
-    }
-
     pub(crate) fn should_prune_directory(
         &self,
         workspace_root: &Path,
@@ -187,7 +183,12 @@ impl WorkspaceIndexPolicy {
             || self.options.use_default_excludes && DEFAULT_EXCLUDED_DIRECTORIES.contains(&name)
     }
 
-    fn excludes_relative_path(&self, workspace_root: &Path, path: &Path, directory: bool) -> bool {
+    pub(crate) fn excludes_relative_path(
+        &self,
+        workspace_root: &Path,
+        path: &Path,
+        directory: bool,
+    ) -> bool {
         if self.excludes.is_empty() {
             return false;
         }

@@ -177,8 +177,8 @@ def main() -> None:
 
     root = (args.root or repo_root()).resolve()
     scopes = {
-        "hir": "crates/codegen/src/lower",
-        "passes": "crates/codegen/src/transform/lower_*.rs",
+        "hir": "crates/codegen/src/mir/lower",
+        "passes": "crates/codegen/src/mir/transform/lower_*.rs",
     }
     base = {scope: measure_base(root, args.base, path) for scope, path in scopes.items()}
     current = {scope: measure_current(root, path) for scope, path in scopes.items()}

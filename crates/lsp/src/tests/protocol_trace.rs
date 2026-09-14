@@ -2,7 +2,9 @@ use crate::{
     LaunchConfig,
     global_state::GlobalState,
     new_router_with_state, new_server_service, new_server_service_with_router,
-    test_support::{assert_request_cancelled, read_lsp_frame, start_request, write_lsp_frame},
+    test_support::{
+        assert_request_cancelled, read_lsp_frame, spawn_lsp_pair, start_request, write_lsp_frame,
+    },
 };
 use async_lsp::{
     AnyEvent, AnyNotification, AnyRequest, ClientSocket, LanguageServer, LspService, ResponseError,
@@ -206,13 +208,7 @@ where
         router
     });
 
-    let (server_stream, client_stream) = tokio::io::duplex(64 << 10);
-    let (server_rx, server_tx) = tokio::io::split(server_stream);
-    let server_task =
-        tokio::spawn(server_main.run_buffered(server_rx.compat(), server_tx.compat_write()));
-    let (client_rx, client_tx) = tokio::io::split(client_stream);
-    let client_task =
-        tokio::spawn(client_main.run_buffered(client_rx.compat(), client_tx.compat_write()));
+    let (server_task, client_task) = spawn_lsp_pair(server_main, client_main);
 
     ProtocolTraceHarness { client, server, traces, server_task, client_task }
 }

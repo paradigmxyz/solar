@@ -22,6 +22,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from functools import cache, lru_cache
 from pathlib import Path
+from urllib.parse import quote
 
 from cases import (
     DEFAULT_FOURTH,
@@ -297,7 +298,7 @@ def with_evm_version(input_text: str, evm_version: str | None) -> str:
 def compiler_input(
     test_case: TestCase, evm_version: str | None
 ) -> tuple[str, int, str]:
-    if test_case.project_file is not None:
+    if test_case.project is not None:
         if test_case.whole_project:
             input_text = project_full_standard_json_input(test_case.project_file)
             timeout = 900
@@ -307,6 +308,7 @@ def compiler_input(
                 test_case.source,
                 test_case.contract_name,
                 test_case.settings_profile,
+                test_case.source_code,
             )
             timeout = 180
     else:
@@ -324,8 +326,8 @@ def artifact_compiler_input(input_text: str, test_case: TestCase, kind: str) -> 
         "evm.bytecode.object",
         "evm.deployedBytecode.object",
     ]
-    if kind == "solc":
-        outputs.append("irOptimized")
+    if kind in ("solc", "solx"):
+        outputs.extend(("ir", "irOptimized"))
     payload.setdefault("settings", {})["outputSelection"] = {
         source: {test_case.contract_name: outputs}
     }
@@ -431,7 +433,7 @@ def write_artifacts(
                 return f"invalid {prefix} bytecode: {error}"
             bytecodes[prefix] = bytes_
             (output_dir / f"{prefix}.hex").write_text(str(object_hex) + "\n")
-    if spec.kind == "solc":
+    if spec.kind != "solar":
         runtime = bytecodes.get("runtime", b"")
         creation = bytecodes.get("creation", b"")
         if creation:
@@ -439,16 +441,28 @@ def write_artifacts(
             (output_dir / "creation.disasm").write_text(disassemble_evm(deployment))
         if runtime:
             (output_dir / "runtime.disasm").write_text(disassemble_evm(runtime))
-    if spec.kind == "solc" and (ir := contract.get("irOptimized")):
+    if spec.kind in ("solc", "solx") and (ir := contract.get("ir")):
+        (output_dir / "ir.yul").write_text(str(ir).rstrip() + "\n")
+    if spec.kind in ("solc", "solx") and (ir := contract.get("irOptimized")):
         (output_dir / "optimized-ir.yul").write_text(str(ir).rstrip() + "\n")
     return ""
 
 
 def project_standard_json_input(
-    project_file: str, source: str, contract_name: str, settings_profile: str = ""
+    project_file: str,
+    source: str,
+    contract_name: str,
+    settings_profile: str = "",
+    source_code: str | None = None,
 ) -> str:
     path = PROJECTS_ROOT / project_file
     project = load_project(path)
+    if source_code is not None:
+        # Keep the pinned archive cache intact when adding a benchmark wrapper.
+        project = {
+            **project,
+            "sources": {**project["sources"], source: {"content": source_code}},
+        }
     if settings_profile == "runtime":
         project_settings = project["settings"]
         settings = {
@@ -498,8 +512,8 @@ def compile_case(
         "peak_rss_bytes": None,
         "error": "",
     }
-    if test_case.project_file is not None:
-        result.update(source=test_case.source, project=test_case.project)
+    if test_case.project is not None:
+        result.update(source=test_case.source, project=test_case.project.name)
         if not test_case.project_path.exists():
             result["status"] = "failed"
             result["error"] = f"vendored project not found: {test_case.project_file}"
@@ -1431,8 +1445,7 @@ def compare_runtime_results(
         }
         if any(value is None for value in values.values()):
             failed = True
-            continue
-        unique_values = set(values.values())
+        unique_values = {value for value in values.values() if value is not None}
         if len(unique_values) > 1:
             mismatches.append({"label": label, "values": values})
 
@@ -1508,7 +1521,8 @@ def merge_reference_compiler(
         return False
     if entry.get("gas_profile") != reference.get("gas_profile"):
         return False
-    if not any(
+    # Compilation failures have no runtime workload to match.
+    if reference_data.get("status") != "failed" and not any(
         workload_signature(data) == workload_signature(reference_data)
         for data in compilers.values()
         if isinstance(data, dict)
@@ -1520,6 +1534,40 @@ def merge_reference_compiler(
         **compilers,
     }
     return True
+
+
+@cache
+def source_revision() -> str:
+    return subprocess.check_output(
+        ["git", "rev-parse", "HEAD"], cwd=REPOSITORY_ROOT, text=True
+    ).strip()
+
+
+def source_links(test_case: TestCase) -> list[dict[str, str]]:
+    paths = []
+    if test_case.project is not None:
+        paths.append(str(test_case.project_path.relative_to(REPOSITORY_ROOT)))
+    if test_case.source_path:
+        paths.append(test_case.source_path)
+    if not paths:
+        paths.append("benches/runtime/cases.py")
+    links = [
+        {
+            "label": path,
+            "url": f"https://github.com/paradigmxyz/solar/blob/{source_revision()}/{quote(path)}",
+        }
+        for path in paths
+    ]
+    links.extend(
+        {
+            "label": source.repo,
+            "url": f"https://github.com/{source.repo}/tree/{source.commit}",
+        }
+        for source in (
+            test_case.project.sources if test_case.project is not None else ()
+        )
+    )
+    return links
 
 
 def failed_test_result(
@@ -1535,13 +1583,14 @@ def failed_test_result(
         "contract_name": test_case.contract_name,
         "suite": test_case.suite,
         "gas_profile": gas_profile,
+        "source_links": source_links(test_case),
         "benchmark_error": message,
         "compilers": {
             spec.compiler_id: {"status": "failed", "error": message} for spec in specs
         },
     }
-    if test_case.project_file is not None:
-        entry["project"] = test_case.project
+    if test_case.project is not None:
+        entry["project"] = test_case.project.name
         entry["source"] = test_case.source
     return entry
 
@@ -1566,10 +1615,11 @@ def run_test_case(
         "contract_name": test_case.contract_name,
         "suite": test_case.suite,
         "gas_profile": gas_profile,
+        "source_links": source_links(test_case),
         "compilers": {},
     }
-    if test_case.project_file is not None:
-        entry["project"] = test_case.project
+    if test_case.project is not None:
+        entry["project"] = test_case.project.name
         entry["source"] = test_case.source
     reference_solc = next(
         (spec.path for spec in specs if spec.kind == "solc"), reference_solc_path
@@ -1754,7 +1804,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         description="Benchmark solc vs Solar codegen on inline and repository contracts"
     )
     parser.add_argument(
-        "--solc", default="solc", help="Path to solc binary (default: solc)"
+        "--solc",
+        help="Path to solc binary; enables solc comparison unless --solar-only is set",
+    )
+    parser.add_argument(
+        "--solx",
+        help="Path to solx binary; enables solx comparison unless --solar-only is set",
     )
     parser.add_argument(
         "--solar",
@@ -1791,12 +1846,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--solar-only",
         action="store_true",
-        help="Benchmark Solar without compiling each case with solc",
+        help="Skip reference compiler compilation even when --solc or --solx is supplied",
     )
     parser.add_argument(
         "--reference-results",
         type=Path,
-        help="Reuse matching solc results from another benchmark result document",
+        help="Reuse matching solc and solx results from another benchmark result document",
     )
     parser.add_argument("--tests", nargs="*", help="Subset of test IDs to run")
     parser.add_argument(
@@ -1849,9 +1904,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="Exit successfully even if a compiler fails for one or more tests",
     )
     args = parser.parse_args(argv)
+    args.solar_only = args.solar_only or (args.solc is None and args.solx is None)
 
     if args.reference_results and not args.solar_only:
-        parser.error("--reference-results requires --solar-only")
+        parser.error("--reference-results with --solc or --solx requires --solar-only")
     try:
         reference_results = (
             load_reference_results(args.reference_results)
@@ -1865,14 +1921,18 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.projects:
         project_set = set(args.projects)
-        suite_tests = [test for test in suite_tests if test.project in project_set]
+        suite_tests = [
+            test
+            for test in suite_tests
+            if test.project is not None and test.project.name in project_set
+        ]
 
     test_map = {test.test_id: test for test in suite_tests}
     if args.list_tests:
         for test in suite_tests:
-            if test.project_file is not None:
+            if test.project is not None:
                 print(
-                    f"{test.test_id}	{test.project}	{test.source}	{test.contract_name}"
+                    f"{test.test_id}	{test.project.name}	{test.source}	{test.contract_name}"
                 )
             else:
                 print(
@@ -1881,7 +1941,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
 
     solc = find_binary(args.solc, ["solc"])
-    if not solc and (not args.solar_only or args.reference_results):
+    if not solc and ((args.solc and not args.solar_only) or args.reference_results):
         print(_color(f"solc not found: {args.solc}", RED), file=sys.stderr)
         return 1
 
@@ -1919,14 +1979,22 @@ def main(argv: Sequence[str] | None = None) -> int:
     solar_version, solar_version_error = binary_version(solar)
 
     specs = []
-    if not args.solar_only:
+    if args.solc and not args.solar_only:
         assert solc is not None
         specs.append(CompilerSpec("solc", f"solc {solc_version}", solc, "solc"))
+    if args.solx and not args.solar_only:
+        solx = find_binary(args.solx, ["solx"])
+        if solx is None:
+            parser.error(f"solx not found: {args.solx}")
+        solx_version, solx_error = binary_version(solx)
+        if solx_error:
+            parser.error(f"solx --version failed: {solx_error}")
+        specs.append(CompilerSpec("solx", f"solx {solx_version}", solx, "solx"))
     specs.append(CompilerSpec("solar", f"solar {solar_version}", solar, "solar"))
-    reference_solc_spec = (
-        CompilerSpec("solc", f"solc {solc_version}", solc, "solc")
-        if use_reference_solc and solc is not None
-        else None
+    reference_specs = (
+        [CompilerSpec(name, name, Path(name), name) for name in ("solc", "solx")]
+        if args.reference_results
+        else []
     )
 
     if args.tests:
@@ -1941,7 +2009,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         tests = list(suite_tests)
 
     skipped = []
-    if (not args.solar_only or use_reference_solc) and not args.include_incompatible:
+    if (
+        (args.solc and not args.solar_only) or use_reference_solc
+    ) and not args.include_incompatible:
         compatible_tests = []
         for test in tests:
             if test.project_file is not None and not version_in_range(
@@ -1977,7 +2047,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     for spec in specs:
         print(f"Using {spec.label}")
     if args.reference_results:
-        print(f"Reusing solc results from {display_path(args.reference_results)}")
+        print(f"Reusing reference results from {display_path(args.reference_results)}")
     if (not args.solar_only or use_reference_solc) and solc_version_error:
         print(
             _color(
@@ -2055,8 +2125,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                     file=sys.stderr,
                 )
                 result = failed_test_result(test, specs, args.gas_profile, exc)
-            if reference_solc_spec:
-                if merge_reference_compiler(result, reference_results, "solc"):
+            merged_specs = []
+            for reference_spec in reference_specs:
+                compiler_id = reference_spec.compiler_id
+                if merge_reference_compiler(result, reference_results, compiler_id):
+                    merged_specs.append(reference_spec)
                     if (
                         args.artifacts is not None
                         and args.reference_results is not None
@@ -2065,24 +2138,24 @@ def main(argv: Sequence[str] | None = None) -> int:
                             args.reference_results.parent
                             / "artifacts"
                             / test.test_id
-                            / "solc"
+                            / compiler_id
                         )
                         if source.is_dir():
                             shutil.copytree(
                                 source,
-                                args.artifacts / test.test_id / "solc",
+                                args.artifacts / test.test_id / compiler_id,
                                 dirs_exist_ok=True,
                             )
-                    if args.gas:
-                        compare_runtime_results(result, (reference_solc_spec, *specs))
                 else:
                     print(
                         _color(
-                            f"[{test.test_id}] matching solc reference result not found",
+                            f"[{test.test_id}] matching {compiler_id} reference result not found",
                             YELLOW,
                         ),
                         file=sys.stderr,
                     )
+            if args.gas and merged_specs:
+                compare_runtime_results(result, (*merged_specs, *specs))
             results.append(result)
         if current_suite is not None and suite_started is not None:
             timings[current_suite] = (

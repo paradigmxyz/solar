@@ -8,7 +8,7 @@
 -   push 44 !metadata(span=16..20)
 -   push 55 !metadata(span=21..25)
 -   revert !metadata(span=26..30)
-+   jump bb2 !metadata(invoke=inner_first@6..30)
++   jump bb2 !metadata(span=6..10, invoke=inner_first@6..30)
   bb1 [invoke=second@31..60]:
     push 99 !metadata(span=31..35)
 -   push 22 !metadata(span=36..40, invoke=inner_second@36..60)
@@ -16,7 +16,7 @@
 -   push 44 !metadata(span=46..50)
 -   push 55 !metadata(span=51..55)
 -   revert !metadata(span=56..60)
-+   jump bb2 !metadata(invoke=inner_second@36..60)
++   jump bb2 !metadata(span=36..40, invoke=inner_second@36..60)
 + bb2:
 +   push 22 !metadata(spans=[6..10, 36..40])
 +   push 33 !metadata(spans=[11..15, 41..45])

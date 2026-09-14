@@ -13,7 +13,7 @@ use solar_parse::{
     Parser,
     ast::{self, visit::Visit},
 };
-use std::ops::ControlFlow;
+use std::{cell::OnceCell, ops::ControlFlow, sync::Arc};
 
 const DIAGNOSTIC_DATA_VERSION: u8 = 1;
 
@@ -27,6 +27,7 @@ pub(crate) struct DiagnosticData {
 }
 
 impl DiagnosticData {
+    #[cfg(test)]
     pub(crate) fn new(uri: Url, source: &str, suggestions: Vec<DiagnosticSuggestion>) -> Self {
         Self {
             version: DIAGNOSTIC_DATA_VERSION,
@@ -47,6 +48,14 @@ impl DiagnosticData {
             source_fingerprint: source_fingerprint_chunks(source.chunks()),
             suggestions,
         }
+    }
+
+    pub(crate) fn from_fingerprint(
+        uri: Url,
+        source_fingerprint: String,
+        suggestions: Vec<DiagnosticSuggestion>,
+    ) -> Self {
+        Self { version: DIAGNOSTIC_DATA_VERSION, uri, source_fingerprint, suggestions }
     }
 
     pub(crate) fn to_value(&self) -> serde_json::Value {
@@ -95,30 +104,41 @@ pub(crate) struct CodeActionPlan {
     pub(crate) edits: Vec<TextEdit>,
 }
 
-pub(crate) fn plans(
-    params: &CodeActionParams,
-    current_diagnostics: &[Diagnostic],
-    contents: &Rope,
-) -> Vec<CodeActionPlan> {
-    if params
+/// Reject unrelated action kinds before loading or indexing the document.
+pub(crate) fn quick_fixes_requested(params: &CodeActionParams) -> bool {
+    params
         .context
         .only
         .as_ref()
-        .is_some_and(|only| !only.iter().any(|kind| kind_contains(kind, &CodeActionKind::QUICKFIX)))
-    {
+        .is_none_or(|only| only.iter().any(|kind| kind_contains(kind, &CodeActionKind::QUICKFIX)))
+}
+
+pub(crate) fn plans(
+    params: &CodeActionParams,
+    current_diagnostics: &[Diagnostic],
+    index: &proto::LspPositionIndex<&Rope>,
+) -> Vec<CodeActionPlan> {
+    if !quick_fixes_requested(params) {
         return Vec::new();
     }
-    let index = proto::LspPositionIndex::new(contents);
-    let Some(request_range) = exact_byte_range(&index, params.range) else {
+    let Some(request_range) = exact_byte_range(index, params.range) else {
         return Vec::new();
     };
     let uri = &params.text_document.uri;
     let mut plans = Vec::new();
+    let arena = ast::Arena::new();
+    let source = CodeActionSource {
+        index,
+        arena: &arena,
+        source: OnceCell::new(),
+        session: OnceCell::new(),
+        parsed: OnceCell::new(),
+    };
     let candidates = current_diagnostics
         .iter()
         .filter_map(|diagnostic| {
             if !matches!(diagnostic.source.as_deref(), Some("solar" | "flycheck" | "forge-lint"))
-                || !exact_byte_range(&index, diagnostic.range)
+                || !exact_byte_range(index, diagnostic.range)
                     .is_some_and(|range| code_action_ranges_intersect(&request_range, &range))
             {
                 return None;
@@ -153,7 +173,7 @@ pub(crate) fn plans(
             continue;
         }
         if data.suggestions.is_empty() {
-            for plan in fallback_plans(diagnostic, data, contents) {
+            for plan in fallback_plans(diagnostic, data, &source) {
                 push_unique_plan(&mut plans, plan);
             }
         } else {
@@ -177,6 +197,37 @@ pub(crate) fn plans(
         }
     }
     plans
+}
+
+/// Source and syntax shared by fallback fixes within one request.
+///
+/// Native suggestions and unsupported diagnostics do not initialize the parser. Cache failed
+/// parses too, so malformed documents are attempted only once. The AST borrows a request-local
+/// arena and never survives the source snapshot that produced it.
+struct CodeActionSource<'a> {
+    index: &'a proto::LspPositionIndex<&'a Rope>,
+    arena: &'a ast::Arena,
+    source: OnceCell<Arc<String>>,
+    session: OnceCell<Session>,
+    parsed: OnceCell<Option<ParsedSource<'a>>>,
+}
+
+struct ParsedSource<'ast> {
+    source_unit: &'ast ast::SourceUnit<'ast>,
+    file: Arc<SourceFile>,
+}
+
+impl CodeActionSource<'_> {
+    fn source(&self) -> &Arc<String> {
+        self.source.get_or_init(|| Arc::new(crate::utils::rope_to_string(self.index.rope())))
+    }
+
+    fn lsp_range(&self, range: std::ops::Range<usize>) -> Option<lsp_types::Range> {
+        Some(lsp_types::Range::new(
+            self.index.position_at_byte(range.start)?,
+            self.index.position_at_byte(range.end)?,
+        ))
+    }
 }
 
 fn exact_byte_range(
@@ -226,21 +277,21 @@ fn push_unique_plan(plans: &mut Vec<CodeActionPlan>, plan: CodeActionPlan) {
 fn fallback_plans(
     diagnostic: &Diagnostic,
     data: DiagnosticData,
-    contents: &Rope,
+    source: &CodeActionSource<'_>,
 ) -> Vec<CodeActionPlan> {
     let fixes = if is_unused_import_diagnostic(diagnostic) {
-        unused_import_fix(diagnostic, contents).into_iter().collect()
+        unused_import_fix(diagnostic, source).into_iter().collect()
     } else {
         let Some(NumberOrString::String(code)) = diagnostic.code.as_ref() else {
             return Vec::new();
         };
         match code.as_str() {
-            "1878" => spdx_fixes(diagnostic, contents),
-            "2018" => function_mutability_fix(diagnostic, contents).into_iter().collect(),
-            "2072" => unused_local_variable_fix(diagnostic, contents).into_iter().collect(),
-            "3420" => compiler_pragma_fix(diagnostic, contents).into_iter().collect(),
-            "5424" => unimplemented_function_fix(diagnostic, contents).into_iter().collect(),
-            "9456" => missing_override_fix(diagnostic, contents).into_iter().collect(),
+            "1878" => spdx_fixes(diagnostic, source),
+            "2018" => function_mutability_fix(diagnostic, source).into_iter().collect(),
+            "2072" => unused_local_variable_fix(diagnostic, source).into_iter().collect(),
+            "3420" => compiler_pragma_fix(diagnostic, source).into_iter().collect(),
+            "5424" => unimplemented_function_fix(diagnostic, source).into_iter().collect(),
+            "9456" => missing_override_fix(diagnostic, source).into_iter().collect(),
             _ => return Vec::new(),
         }
     };
@@ -272,18 +323,18 @@ fn is_unused_import_diagnostic(diagnostic: &Diagnostic) -> bool {
 
 fn unused_local_variable_fix(
     diagnostic: &Diagnostic,
-    contents: &Rope,
+    context: &CodeActionSource<'_>,
 ) -> Option<(String, Applicability, Vec<TextEdit>)> {
     let message = diagnostic.message.trim_end();
     let message = message.strip_suffix('.').unwrap_or(message);
     if !matches!(message, "unused local variable" | "Unused local variable") {
         return None;
     }
-    with_parsed_target(diagnostic, contents, |source_unit, file, source, target| {
+    with_parsed_target(diagnostic, context, |source_unit, file, source, target| {
         let mut finder = UnusedLocalStatementFinder { file, source, target };
         let ControlFlow::Break(range) = finder.visit_source_unit(source_unit) else { return None };
         let range = standalone_statement_range(source, range);
-        let edit = TextEdit::new(byte_range_to_lsp(contents, range)?, String::new());
+        let edit = TextEdit::new(context.lsp_range(range)?, String::new());
         Some(("Remove unused local variable".into(), Applicability::MachineApplicable, vec![edit]))
     })
 }
@@ -320,9 +371,9 @@ impl<'ast> Visit<'ast> for UnusedLocalStatementFinder<'_> {
 
 fn unused_import_fix(
     diagnostic: &Diagnostic,
-    contents: &Rope,
+    context: &CodeActionSource<'_>,
 ) -> Option<(String, Applicability, Vec<TextEdit>)> {
-    with_parsed_target(diagnostic, contents, |source_unit, file, source, target| {
+    with_parsed_target(diagnostic, context, |source_unit, file, source, target| {
         let item = source_unit.items.iter().find(|item| {
             matches!(item.kind, ast::ItemKind::Import(_)) && {
                 let range = local_range(file, item.span);
@@ -342,7 +393,7 @@ fn unused_import_fix(
         } else {
             named_import_removal_range(source, file, import, target, item_range)?
         };
-        let edit = TextEdit::new(byte_range_to_lsp(contents, range)?, String::new());
+        let edit = TextEdit::new(context.lsp_range(range)?, String::new());
         Some(("Remove unused import".into(), Applicability::MachineApplicable, vec![edit]))
     })
 }
@@ -406,14 +457,14 @@ fn standalone_statement_range(
 
 fn spdx_fixes(
     diagnostic: &Diagnostic,
-    contents: &Rope,
+    context: &CodeActionSource<'_>,
 ) -> Vec<(String, Applicability, Vec<TextEdit>)> {
     if diagnostic.range != lsp_types::Range::default()
         || !diagnostic.message.starts_with("SPDX license identifier not provided in source file.")
     {
         return Vec::new();
     }
-    let source = rope_to_string(contents);
+    let source = context.source();
     let eol = if source.contains("\r\n") { "\r\n" } else { "\n" };
     ["MIT", "UNLICENSED"]
         .into_iter()
@@ -430,7 +481,7 @@ fn spdx_fixes(
 
 fn compiler_pragma_fix(
     diagnostic: &Diagnostic,
-    contents: &Rope,
+    context: &CodeActionSource<'_>,
 ) -> Option<(String, Applicability, Vec<TextEdit>)> {
     const PREFIX: &str =
         "Source file does not specify required compiler version! Consider adding \"";
@@ -438,7 +489,7 @@ fn compiler_pragma_fix(
     if diagnostic.range != lsp_types::Range::default() {
         return None;
     }
-    let source = rope_to_string(contents);
+    let source = context.source();
     let recommendation = diagnostic.message.trim_end().strip_prefix(PREFIX)?;
     let recommendation = recommendation.strip_suffix('.').unwrap_or(recommendation);
     let pragma = recommendation.strip_suffix('"')?;
@@ -507,7 +558,7 @@ fn is_single_solidity_pragma(pragma: &str) -> bool {
 
 fn function_mutability_fix(
     diagnostic: &Diagnostic,
-    contents: &Rope,
+    context: &CodeActionSource<'_>,
 ) -> Option<(String, Applicability, Vec<TextEdit>)> {
     let message = diagnostic.message.trim_end();
     let message = message.strip_suffix('.').unwrap_or(message);
@@ -518,7 +569,7 @@ fn function_mutability_fix(
         | "Function state mutability can be restricted to pure" => ast::StateMutability::Pure,
         _ => return None,
     };
-    with_target_item(diagnostic, contents, |item, file, source| {
+    with_target_item(diagnostic, context, |item, file, source| {
         let ast::ItemKind::Function(function) = &item.kind else { return None };
         if !function.kind.is_ordinary() || function.body.is_none() {
             return None;
@@ -527,13 +578,13 @@ fn function_mutability_fix(
         let edit = match (function.header.state_mutability, target) {
             (None, ast::StateMutability::View | ast::StateMutability::Pure) => {
                 let position = qualifier_insertion_position(function, file, source)?;
-                keyword_insertion(contents, source, position, target.to_str())?
+                keyword_insertion(context, source, position, target.to_str())?
             }
             (Some(current), ast::StateMutability::Pure)
                 if current.data == ast::StateMutability::View =>
             {
                 let range = local_range(file, current.span);
-                TextEdit::new(byte_range_to_lsp(contents, range)?, target.to_string())
+                TextEdit::new(context.lsp_range(range)?, target.to_string())
             }
             _ => return None,
         };
@@ -547,7 +598,7 @@ fn function_mutability_fix(
 
 fn unimplemented_function_fix(
     diagnostic: &Diagnostic,
-    contents: &Rope,
+    context: &CodeActionSource<'_>,
 ) -> Option<(String, Applicability, Vec<TextEdit>)> {
     let message = diagnostic.message.trim_end();
     let message = message.strip_suffix('.').unwrap_or(message);
@@ -558,7 +609,7 @@ fn unimplemented_function_fix(
     ) {
         return None;
     }
-    with_target_item(diagnostic, contents, |item, file, source| {
+    with_target_item(diagnostic, context, |item, file, source| {
         let ast::ItemKind::Function(function) = &item.kind else { return None };
         if !function.kind.is_ordinary()
             || function.body.is_some()
@@ -568,14 +619,14 @@ fn unimplemented_function_fix(
             return None;
         }
         let position = qualifier_insertion_position(function, file, source)?;
-        let edit = keyword_insertion(contents, source, position, "virtual")?;
+        let edit = keyword_insertion(context, source, position, "virtual")?;
         Some(("Add `virtual`".into(), Applicability::MachineApplicable, vec![edit]))
     })
 }
 
 fn missing_override_fix(
     diagnostic: &Diagnostic,
-    contents: &Rope,
+    context: &CodeActionSource<'_>,
 ) -> Option<(String, Applicability, Vec<TextEdit>)> {
     #[derive(Clone, Copy)]
     enum Target {
@@ -597,7 +648,7 @@ fn missing_override_fix(
         }
         _ => return None,
     };
-    with_target_item(diagnostic, contents, |item, file, source| {
+    with_target_item(diagnostic, context, |item, file, source| {
         let position = match (&item.kind, target) {
             (ast::ItemKind::Function(function), Target::Function)
                 if matches!(
@@ -623,17 +674,17 @@ fn missing_override_fix(
             }
             _ => return None,
         };
-        let edit = keyword_insertion(contents, source, position, "override")?;
+        let edit = keyword_insertion(context, source, position, "override")?;
         Some(("Add `override`".into(), Applicability::MaybeIncorrect, vec![edit]))
     })
 }
 
 fn with_target_item<T>(
     diagnostic: &Diagnostic,
-    contents: &Rope,
+    context: &CodeActionSource<'_>,
     f: impl FnOnce(&ast::Item<'_>, &SourceFile, &str) -> Option<T>,
 ) -> Option<T> {
-    with_parsed_target(diagnostic, contents, |source_unit, file, source, target| {
+    with_parsed_target(diagnostic, context, |source_unit, file, source, target| {
         let item = find_item(source_unit.items.as_raw_slice(), file, target)?;
         f(item, file, source)
     })
@@ -641,7 +692,7 @@ fn with_target_item<T>(
 
 fn with_parsed_target<T>(
     diagnostic: &Diagnostic,
-    contents: &Rope,
+    context: &CodeActionSource<'_>,
     f: impl for<'ast> FnOnce(
         &'ast ast::SourceUnit<'ast>,
         &SourceFile,
@@ -649,34 +700,38 @@ fn with_parsed_target<T>(
         &std::ops::Range<usize>,
     ) -> Option<T>,
 ) -> Option<T> {
-    let target_range =
-        proto::LspPositionIndex::new(contents).checked_text_range(diagnostic.range)?;
-    let source = rope_to_string(contents);
-    let sess = Session::builder()
-        .opts(CompileOpts::default())
-        .with_silent_emitter(None)
-        .single_threaded()
-        .build();
+    let target_range = context.index.checked_text_range(diagnostic.range)?;
+    let sess = context.session.get_or_init(|| {
+        Session::builder()
+            .opts(CompileOpts::default())
+            .with_silent_emitter(None)
+            .single_threaded()
+            .build()
+    });
 
     sess.enter_sequential(|| {
-        let arena = ast::Arena::new();
-        let mut parser = Parser::from_source_code(
-            &sess,
-            &arena,
-            FileName::Custom("lsp-code-action.sol".into()),
-            source.as_str(),
-        )
-        .ok()?;
-        let source_unit = match parser.parse_file() {
-            Ok(source_unit) => source_unit,
-            Err(error) => {
-                error.emit();
-                return None;
-            }
-        };
-        drop(parser);
-        let file = sess.source_map().files().first()?.clone();
-        f(&source_unit, &file, &source, &target_range)
+        let parsed = context
+            .parsed
+            .get_or_init(|| {
+                let file = sess
+                    .source_map()
+                    .new_source_file_shared(
+                        FileName::Custom("lsp-code-action.sol".into()),
+                        context.source().clone(),
+                    )
+                    .ok()?;
+                let mut parser = Parser::from_source_file(sess, context.arena, &file);
+                let source_unit = match parser.parse_file() {
+                    Ok(source_unit) => source_unit,
+                    Err(error) => {
+                        error.emit();
+                        return None;
+                    }
+                };
+                Some(ParsedSource { source_unit: context.arena.alloc(source_unit), file })
+            })
+            .as_ref()?;
+        f(parsed.source_unit, &parsed.file, context.source(), &target_range)
     })
 }
 
@@ -715,7 +770,7 @@ fn qualifier_insertion_position(
 }
 
 fn keyword_insertion(
-    contents: &Rope,
+    context: &CodeActionSource<'_>,
     source: &str,
     position: usize,
     keyword: &str,
@@ -730,27 +785,12 @@ fn keyword_insertion(
     if after.is_some_and(|character| !character.is_whitespace() && character != ';') {
         new_text.push(' ');
     }
-    let position = proto::position_at_byte(contents, position)?;
+    let position = context.index.position_at_byte(position)?;
     Some(TextEdit::new(lsp_types::Range::new(position, position), new_text))
 }
 
 fn local_range(file: &SourceFile, span: solar_interface::Span) -> std::ops::Range<usize> {
     file.relative_position(span.lo()).to_usize()..file.relative_position(span.hi()).to_usize()
-}
-
-fn byte_range_to_lsp(contents: &Rope, range: std::ops::Range<usize>) -> Option<lsp_types::Range> {
-    Some(lsp_types::Range::new(
-        proto::position_at_byte(contents, range.start)?,
-        proto::position_at_byte(contents, range.end)?,
-    ))
-}
-
-fn rope_to_string(contents: &Rope) -> String {
-    let mut source = String::with_capacity(contents.byte_len());
-    for chunk in contents.chunks() {
-        source.push_str(chunk);
-    }
-    source
 }
 
 fn kind_contains(requested: &CodeActionKind, action: &CodeActionKind) -> bool {
@@ -815,20 +855,21 @@ mod tests {
         .to_value();
 
         let contents = Rope::from("a");
+        let index = proto::LspPositionIndex::new(&contents);
         let first_params = params(first.clone(), data.clone());
-        assert_eq!(plans(&first_params, &first_params.context.diagnostics, &contents).len(), 1);
+        assert_eq!(plans(&first_params, &first_params.context.diagnostics, &index).len(), 1);
         let second_params = params(second, data.clone());
-        assert!(plans(&second_params, &second_params.context.diagnostics, &contents).is_empty());
+        assert!(plans(&second_params, &second_params.context.diagnostics, &index).is_empty());
 
         let mut wrong_version = data.clone();
         wrong_version["version"] = serde_json::json!(2);
         let wrong_version = params(first.clone(), wrong_version);
-        assert!(plans(&wrong_version, &wrong_version.context.diagnostics, &contents).is_empty());
+        assert!(plans(&wrong_version, &wrong_version.context.diagnostics, &index).is_empty());
 
         let mut extra_field = data;
         extra_field["unexpected"] = serde_json::json!(true);
         let extra_field = params(first, extra_field);
-        assert!(plans(&extra_field, &extra_field.context.diagnostics, &contents).is_empty());
+        assert!(plans(&extra_field, &extra_field.context.diagnostics, &index).is_empty());
     }
 
     #[test]
@@ -855,20 +896,21 @@ mod tests {
         second.data = Some(data("second", 1));
         let current = [first, second];
         let contents = Rope::from("ab");
+        let index = proto::LspPositionIndex::new(&contents);
 
-        let exact = plans(&requested, &current, &contents);
+        let exact = plans(&requested, &current, &index);
         assert_eq!(exact.len(), 1);
         assert_eq!(exact[0].title, "first");
 
         requested.context.diagnostics[0].data = None;
-        let without_data = plans(&requested, &current, &contents);
+        let without_data = plans(&requested, &current, &index);
         assert_eq!(
             without_data.iter().map(|plan| plan.title.as_str()).collect::<Vec<_>>(),
             ["first", "second"]
         );
 
         requested.context.diagnostics[0].data = Some(serde_json::json!({ "modified": true }));
-        let modified = plans(&requested, &current, &contents);
+        let modified = plans(&requested, &current, &index);
         assert_eq!(
             modified.iter().map(|plan| plan.title.as_str()).collect::<Vec<_>>(),
             ["first", "second"]
@@ -899,7 +941,10 @@ mod tests {
         current.related_information = Some(Vec::new());
         current.tags = Some(Vec::new());
 
-        assert_eq!(plans(&params, &[current], &Rope::from("a")).len(), 1);
+        assert_eq!(
+            plans(&params, &[current], &proto::LspPositionIndex::new(&Rope::from("a"))).len(),
+            1
+        );
     }
 
     fn params(uri: Url, data: serde_json::Value) -> CodeActionParams {

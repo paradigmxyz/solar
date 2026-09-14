@@ -25,9 +25,11 @@ use solar_sema::{
     ty::{CallableParamSource, Ty, TyKind},
 };
 use std::{
+    cmp::Reverse,
     fmt::Write as _,
     ops::ControlFlow,
     path::{Path, PathBuf},
+    sync::{Arc, OnceLock},
 };
 
 use crate::{
@@ -47,6 +49,13 @@ use crate::{
 };
 
 const COMPLETION_ITEM_DATA_VERSION: u8 = 1;
+const WORKSPACE_SEARCH_CORPUS_THRESHOLD: usize = 512;
+
+#[derive(Clone, Debug)]
+struct WorkspaceSearchCorpus {
+    names: String,
+    ends: Vec<usize>,
+}
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct SymbolTables {
@@ -54,14 +63,16 @@ pub(crate) struct SymbolTables {
     type_definitions: FxHashMap<SymbolId, TypeDefinitionTargets>,
     files: FxHashMap<Url, Vec<SymbolId>>,
     file_declaration_positions: FxHashMap<Url, PositionIndex<SymbolId>>,
+    document_symbol_children: IndexVec<SymbolId, Vec<SymbolId>>,
     workspace_symbol_ids: Vec<SymbolId>,
+    workspace_search: OnceLock<WorkspaceSearchCorpus>,
     symbols_by_key: FxHashMap<SymbolKey, SymbolId>,
     scopes: IndexVec<ScopeId, Scope>,
     global_completions: Vec<CompletionItem>,
     builtin_member_completions: FxHashMap<String, Vec<CompletionItem>>,
-    receiver_member_completions: FxHashMap<SymbolId, Vec<CompletionItem>>,
+    receiver_member_completions: FxHashMap<SymbolId, Arc<[CompletionItem]>>,
     member_completions: Vec<MemberCompletionScope>,
-    file_member_completions: FxHashMap<Url, Vec<usize>>,
+    file_member_completions: FxHashMap<Url, PositionIndex<usize>>,
     file_scopes: FxHashMap<Url, Vec<ScopeId>>,
     references: Vec<SymbolReference>,
     file_references: FxHashMap<Url, PositionIndex<usize>>,
@@ -130,7 +141,6 @@ type ReferenceTargets = SmallVec<[SymbolId; 1]>;
 pub(crate) struct DeclarationSymbol {
     pub(crate) id: SymbolId,
     pub(crate) name: String,
-    search_name: String,
     pub(crate) kind: SymbolKind,
     pub(crate) location: Location,
     pub(crate) name_range: Range,
@@ -203,7 +213,7 @@ struct ScopedDeclaration {
 struct MemberCompletionScope {
     uri: Url,
     range: Range,
-    items: Vec<CompletionItem>,
+    items: Arc<[CompletionItem]>,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -269,6 +279,15 @@ impl<T: Copy> PositionIndex<T> {
         position: Position,
         range: impl Fn(T) -> Range + Copy + 'a,
     ) -> impl Iterator<Item = T> + 'a {
+        self.candidates_at_with(position, range, proto::range_contains)
+    }
+
+    fn candidates_at_with<'a>(
+        &'a self,
+        position: Position,
+        range: impl Fn(T) -> Range + Copy + 'a,
+        contains: impl Fn(Range, Position) -> bool + 'a,
+    ) -> impl Iterator<Item = T> + 'a {
         let end = self.entries.partition_point(|&entry| range(entry).start <= position);
         self.entries[..end]
             .iter()
@@ -276,7 +295,7 @@ impl<T: Copy> PositionIndex<T> {
             .zip(self.prefix_max_end[..end].iter().copied())
             .rev()
             .take_while(move |(_, prefix_max_end)| *prefix_max_end >= position)
-            .filter(move |&(entry, _)| range_contains(range(entry), position))
+            .filter(move |&(entry, _)| contains(range(entry), position))
             .map(|(entry, _)| entry)
     }
 }
@@ -336,7 +355,6 @@ impl SymbolTables {
                 SymbolKey::Item(item_id),
                 DeclarationSymbol {
                     id: tables.declarations.next_idx(),
-                    search_name: search_name(&name),
                     name,
                     kind: item_symbol_kind(gcx, item_id),
                     location,
@@ -384,8 +402,10 @@ impl SymbolTables {
         }
         tables.type_hierarchy = TypeHierarchyIndex::build(gcx, &item_symbols, &tables.declarations);
         tables.build_scopes(gcx, &locations);
-        tables.build_receiver_member_completions(gcx);
-        tables.build_member_completions(gcx, &locations);
+        let mut member_completions = FxHashMap::default();
+        tables.build_receiver_member_completions(gcx, &mut member_completions);
+        tables.build_member_completions(gcx, &locations, &mut member_completions);
+        drop(member_completions);
         tables.build_references(gcx, &locations, &item_symbols);
         // HIR IDs are scoped to this compiler run and cannot back published LSP queries.
         tables.symbols_by_key = FxHashMap::default();
@@ -492,14 +512,23 @@ impl SymbolTables {
         if !options.enable {
             return Vec::new();
         }
+        let Some(file) = self.code_lens.file(uri) else { return Vec::new() };
+        let reference_counts = options.references.then(|| {
+            file.reference_counts.get_or_init(|| {
+                file.entries.iter().map(|entry| self.reference_count(&entry.symbol_ids)).collect()
+            })
+        });
 
-        let mut lenses = Vec::new();
-        for entry in self.code_lens.entries(uri) {
+        let mut lenses = Vec::with_capacity(
+            file.entries.len()
+                * (options.references as usize
+                    + options.selectors as usize
+                    + if options.inheritance { 2 } else { 0 }),
+        );
+        for (index, entry) in file.entries.iter().enumerate() {
             let position = entry.range.start;
 
-            if options.references
-                && let Some(count) = self.reference_count(&entry.symbol_ids)
-            {
+            if let Some(count) = reference_counts.and_then(|counts| counts[index]) {
                 let title = format_reference_title(count);
                 let (command, arguments) = if count > 0 && options.client_commands {
                     (
@@ -570,12 +599,33 @@ impl SymbolTables {
     }
 
     fn reference_count(&self, targets: &[SymbolId]) -> Option<usize> {
-        let mut locations = FxHashSet::default();
-        for index in self.complete_reference_indices_for_targets(targets)? {
+        // Count the common zero/one-reference cases without allocating a hash set.  A set is
+        // materialized only after the first distinct location is observed.
+        let mut first = None;
+        let mut locations: Option<FxHashSet<(&Url, Range)>> = None;
+        for &index in
+            targets.iter().filter_map(|target| self.symbol_references.get(target)).flatten()
+        {
             let location = &self.references[index].location;
-            locations.insert((&location.uri, location.range));
+            if self.rename.conflicting_contents().contains(&location.uri) {
+                return None;
+            }
+            let key = (&location.uri, location.range);
+            if let Some(set) = &mut locations {
+                set.insert(key);
+            } else if let Some(previous) = first {
+                if previous != key {
+                    let mut set = FxHashSet::default();
+                    set.reserve(2);
+                    set.insert(previous);
+                    set.insert(key);
+                    locations = Some(set);
+                }
+            } else {
+                first = Some(key);
+            }
         }
-        Some(locations.len())
+        Some(locations.map_or(usize::from(first.is_some()), |set| set.len()))
     }
 
     pub(crate) fn document_links(&self, path: &Path) -> Vec<lsp_types::DocumentLink> {
@@ -627,13 +677,17 @@ impl SymbolTables {
         &self,
         uri: &Url,
         position: Position,
-        contents: &crop::Rope,
+        positions: &proto::LspPositionIndex<crop::Rope>,
+        source: &str,
+        statement_boundary: Option<usize>,
         options: crate::config::SignatureHelpClientOptions,
     ) -> Option<lsp_types::SignatureHelp> {
         self.signature_help.signature_help(
             uri,
             position,
-            contents,
+            positions,
+            source,
+            statement_boundary,
             |name| self.visible_declaration_locations(uri, position, name),
             options,
         )
@@ -644,18 +698,6 @@ impl SymbolTables {
             return Vec::new();
         };
 
-        let mut child_symbols = FxHashMap::<SymbolId, Vec<SymbolId>>::with_capacity_and_hasher(
-            file_symbol_ids.len(),
-            Default::default(),
-        );
-        for &symbol_id in file_symbol_ids {
-            if let Some(parent) = self.declarations[symbol_id].parent
-                && self.declarations[parent].location.uri == *uri
-            {
-                child_symbols.entry(parent).or_default().push(symbol_id);
-            }
-        }
-
         file_symbol_ids
             .iter()
             .copied()
@@ -664,7 +706,7 @@ impl SymbolTables {
                     .parent
                     .is_none_or(|parent| self.declarations[parent].location.uri != *uri)
             })
-            .map(|symbol_id| self.document_symbol(symbol_id, &child_symbols))
+            .map(|symbol_id| self.document_symbol(symbol_id))
             .collect()
     }
 
@@ -692,29 +734,93 @@ impl SymbolTables {
     }
 
     pub(crate) fn workspace_symbols(&self, query: &str) -> Vec<WorkspaceSymbol> {
-        let query = (!query.is_empty()).then(|| search_name(query));
-        let mut symbols =
-            Vec::with_capacity(query.as_ref().map_or(self.workspace_symbol_ids.len(), |_| 0));
+        if query.is_empty() {
+            return self
+                .workspace_symbol_ids
+                .iter()
+                .map(|&symbol_id| self.workspace_symbol(symbol_id))
+                .collect();
+        }
+        // Names cannot contain NUL, which separates them in the search corpus. Reject it in
+        // queries as well so a match cannot span multiple names.
+        if query.contains('\0') {
+            return Vec::new();
+        }
 
-        for &symbol_id in &self.workspace_symbol_ids {
-            let symbol = &self.declarations[symbol_id];
-            if let Some(query) = &query
-                && !symbol.search_name.contains(query)
-            {
-                continue;
-            }
-
-            symbols.push(WorkspaceSymbol {
-                name: symbol.name.clone(),
-                kind: symbol.kind,
-                tags: None,
-                container_name: self.container_name(symbol),
-                location: OneOf::Left(symbol.location.clone()),
-                data: None,
-            });
+        let query = query.to_lowercase();
+        if self.workspace_symbol_ids.len() < WORKSPACE_SEARCH_CORPUS_THRESHOLD {
+            return self
+                .workspace_symbol_ids
+                .iter()
+                .filter_map(|&symbol_id| {
+                    let symbol = &self.declarations[symbol_id];
+                    symbol
+                        .name
+                        .to_lowercase()
+                        .contains(&query)
+                        .then(|| self.workspace_symbol(symbol_id))
+                })
+                .collect();
+        }
+        let corpus = self.workspace_search.get_or_init(|| self.build_workspace_search_corpus());
+        let finder = memchr::memmem::Finder::new(query.as_bytes());
+        let mut symbols = Vec::new();
+        let mut offset = 0;
+        while let Some(relative) = finder.find(&corpus.names.as_bytes()[offset..]) {
+            let start = offset + relative;
+            let index = corpus.ends.partition_point(|&end| end <= start);
+            symbols.push(self.workspace_symbol(self.workspace_symbol_ids[index]));
+            // Emit each declaration once, including when its name contains repeated matches.
+            offset = corpus.ends[index];
         }
 
         symbols
+    }
+
+    fn build_workspace_search_corpus(&self) -> WorkspaceSearchCorpus {
+        let mut names = String::new();
+        names.reserve(
+            self.workspace_symbol_ids
+                .iter()
+                .map(|&symbol_id| self.declarations[symbol_id].name.len() + 1)
+                .sum(),
+        );
+        let mut ends = Vec::with_capacity(self.workspace_symbol_ids.len());
+        for &symbol_id in &self.workspace_symbol_ids {
+            let name = &self.declarations[symbol_id].name;
+            if name.is_ascii() {
+                let start = names.len();
+                names.push_str(name);
+                names[start..].make_ascii_lowercase();
+            } else {
+                names.push_str(&name.to_lowercase());
+            }
+            names.push('\0');
+            ends.push(names.len());
+        }
+        WorkspaceSearchCorpus { names, ends }
+    }
+
+    fn workspace_symbol(&self, symbol_id: SymbolId) -> WorkspaceSymbol {
+        let symbol = &self.declarations[symbol_id];
+        WorkspaceSymbol {
+            name: symbol.name.clone(),
+            kind: symbol.kind,
+            tags: None,
+            container_name: self.container_name(symbol),
+            location: OneOf::Left(symbol.location.clone()),
+            data: None,
+        }
+    }
+
+    /// Whether an unambiguous source snapshot indexes code at this position.
+    ///
+    /// These ranges cover HIR references and declaration names, never import path literals.
+    /// Callers must separately ensure that the current source matches this analysis.
+    pub(crate) fn has_code_symbol_at_position(&self, uri: &Url, position: Position) -> bool {
+        !self.rename.conflicting_contents().contains(uri)
+            && (self.reference_at_position(uri, position).is_some()
+                || self.declaration_at_position(uri, position).is_some())
     }
 
     pub(crate) fn goto_definition(
@@ -921,15 +1027,33 @@ impl SymbolTables {
             .collect::<Vec<_>>();
 
         if let Some(references) = self.file_references.get(uri) {
-            highlights.extend(references.iter().filter_map(|&index| {
-                let reference = &self.references[index];
-                reference.targets.iter().any(|target| targets.contains(target)).then_some(
-                    DocumentHighlight {
+            let target_references = match targets.as_slice() {
+                [target] => Some(self.symbol_references.get(target).map_or(&[][..], Vec::as_slice)),
+                _ => None,
+            };
+            // Prefer the smaller index for a single target. Reference indices retain insertion
+            // order, preserving the file index's tie order after the stable range sort below.
+            if let Some(indices) = target_references
+                && indices.len() < references.entries.len()
+            {
+                highlights.extend(indices.iter().filter_map(|&index| {
+                    let reference = &self.references[index];
+                    (&reference.location.uri == uri).then_some(DocumentHighlight {
                         range: reference.location.range,
                         kind: Some(reference.kind),
-                    },
-                )
-            }));
+                    })
+                }));
+            } else {
+                highlights.extend(references.iter().filter_map(|&index| {
+                    let reference = &self.references[index];
+                    reference.targets.iter().any(|target| targets.contains(target)).then_some(
+                        DocumentHighlight {
+                            range: reference.location.range,
+                            kind: Some(reference.kind),
+                        },
+                    )
+                }));
+            }
         }
 
         highlights.sort_by_key(|highlight| (highlight.range.start, highlight.range.end));
@@ -964,7 +1088,9 @@ impl SymbolTables {
         position: Position,
         context: CompletionContext<'_>,
     ) -> Vec<CompletionItem> {
-        if let Some(items) = self.member_completion_items(uri, position) {
+        if !self.member_completions.is_empty()
+            && let Some(items) = self.member_completion_items(uri, position)
+        {
             return filtered_completion_items(items, context.prefix);
         }
         if let Some(items) =
@@ -984,6 +1110,9 @@ impl SymbolTables {
             return Vec::new();
         };
 
+        let prefix = completion_filter_prefix(context.prefix);
+        let matches_prefix =
+            |name: &str| prefix.as_ref().is_none_or(|prefix| fuzzy_completion_match(prefix, name));
         let mut seen = FxHashMap::<&str, SymbolId>::default();
         let mut scope = Some(scope_id);
         while let Some(scope_id) = scope {
@@ -996,24 +1125,52 @@ impl SymbolTables {
                     continue;
                 }
                 let symbol = &self.declarations[declaration.symbol_id];
-                seen.entry(declaration.name.as_deref().unwrap_or(&symbol.name))
-                    .or_insert(declaration.symbol_id);
+                let name = declaration.name.as_deref().unwrap_or(&symbol.name);
+                if matches_prefix(name) {
+                    seen.entry(name).or_insert(declaration.symbol_id);
+                }
             }
             scope = current.parent;
         }
 
-        let mut items = seen
+        enum Candidate<'a> {
+            Symbol(&'a str, SymbolId),
+            Global(&'a CompletionItem),
+        }
+        impl<'a> Candidate<'a> {
+            fn label(&self) -> &'a str {
+                match self {
+                    Self::Symbol(label, _) => label,
+                    Self::Global(item) => item.label.as_str(),
+                }
+            }
+        }
+
+        let mut candidates = seen
             .into_iter()
-            .map(|(name, symbol_id)| {
-                let mut item = self.completion_item(symbol_id);
-                item.label = name.to_string();
-                item
-            })
+            .map(|(name, symbol_id)| Candidate::Symbol(name, symbol_id))
             .collect::<Vec<_>>();
-        items.extend(self.global_completions.iter().cloned());
-        items.sort_by(|a, b| a.label.cmp(&b.label));
-        items.dedup_by(|a, b| a.label == b.label);
-        filter_completion_items(items, context.prefix)
+        candidates.extend(
+            self.global_completions
+                .iter()
+                .filter(|item| matches_prefix(&item.label))
+                .map(Candidate::Global),
+        );
+        // Keep candidates compact while sorting and deduplicating; materialize the larger
+        // completion response objects only for labels that survive both operations.
+        candidates.sort_by(|lhs, rhs| lhs.label().cmp(rhs.label()));
+        candidates.dedup_by(|lhs, rhs| lhs.label() == rhs.label());
+        candidates
+            .into_iter()
+            .map(|candidate| match candidate {
+                Candidate::Symbol(name, symbol_id) => {
+                    let mut item = self.completion_item(symbol_id);
+                    item.label = name.to_string();
+                    item
+                }
+                Candidate::Global(item) => item.clone(),
+            })
+            .collect()
     }
 
     pub(crate) fn resolve_completion_item(
@@ -1092,7 +1249,11 @@ impl SymbolTables {
             .collect();
     }
 
-    fn build_receiver_member_completions(&mut self, gcx: Gcx<'_>) {
+    fn build_receiver_member_completions<'gcx>(
+        &mut self,
+        gcx: Gcx<'gcx>,
+        cache: &mut MemberCompletionCache<'gcx>,
+    ) {
         for contract_id in gcx.hir.contract_ids() {
             let contract = gcx.hir.contract(contract_id);
             if contract.kind.is_library()
@@ -1100,7 +1261,8 @@ impl SymbolTables {
                     self.symbols_by_key.get(&SymbolKey::Item(ItemId::Contract(contract_id)))
             {
                 let ty = gcx.mk_ty(TyKind::Type(gcx.type_of_item(contract_id.into())));
-                let items = self.member_completion_items_for_ty(gcx, ty, contract.source, None);
+                let items =
+                    self.member_completion_items_for_ty(gcx, ty, contract.source, None, cache);
                 self.receiver_member_completions.insert(symbol_id, items);
             }
         }
@@ -1112,8 +1274,13 @@ impl SymbolTables {
             };
             let variable = gcx.hir.variable(variable_id);
             let ty = gcx.type_of_item(ItemId::Variable(variable_id));
-            let items =
-                self.member_completion_items_for_ty(gcx, ty, variable.source, variable.contract);
+            let items = self.member_completion_items_for_ty(
+                gcx,
+                ty,
+                variable.source,
+                variable.contract,
+                cache,
+            );
             if !items.is_empty() {
                 self.receiver_member_completions.insert(symbol_id, items);
             }
@@ -1126,14 +1293,19 @@ impl SymbolTables {
         ty: Ty<'gcx>,
         source: hir::SourceId,
         contract: Option<hir::ContractId>,
-    ) -> Vec<CompletionItem> {
-        let mut items = gcx
-            .members_of(ty, source, contract)
-            .map(|member| self.completion_item_for_member(gcx, member))
-            .collect::<Vec<_>>();
-        sort_completion_items(&mut items);
-        items.dedup_by(|a, b| a.label == b.label);
-        items
+        cache: &mut MemberCompletionCache<'gcx>,
+    ) -> Arc<[CompletionItem]> {
+        // Member visibility and attached functions depend on both source and contract context.
+        // Keep compiler types in this analysis-local cache and share only the owned LSP items.
+        Arc::clone(cache.entry((ty, source, contract)).or_insert_with(|| {
+            let mut items = gcx
+                .members_of(ty, source, contract)
+                .map(|member| self.completion_item_for_member(gcx, member))
+                .collect::<Vec<_>>();
+            sort_completion_items(&mut items);
+            items.dedup_by(|a, b| a.label == b.label);
+            Arc::from(items)
+        }))
     }
 
     fn push_declaration(&mut self, key: SymbolKey, declaration: DeclarationSymbol) -> SymbolId {
@@ -1175,11 +1347,17 @@ impl SymbolTables {
         }
     }
 
-    fn build_member_completions(&mut self, gcx: Gcx<'_>, locations: &proto::LocationConverter) {
+    fn build_member_completions<'gcx>(
+        &mut self,
+        gcx: Gcx<'gcx>,
+        locations: &proto::LocationConverter,
+        cache: &mut MemberCompletionCache<'gcx>,
+    ) {
         let mut collector = MemberCompletionCollector {
             tables: self,
             locations,
             gcx,
+            cache,
             source: None,
             contract: None,
         };
@@ -1351,7 +1529,6 @@ impl SymbolTables {
         let pushed_id = self.push_test_declaration(DeclarationSymbol {
             id: symbol_id,
             name: name.into(),
-            search_name: search_name(name),
             kind,
             location: Location { uri: uri.clone(), range: location },
             name_range,
@@ -1364,14 +1541,14 @@ impl SymbolTables {
         pushed_id
     }
 
-    fn document_symbol(
-        &self,
-        symbol_id: SymbolId,
-        child_symbols: &FxHashMap<SymbolId, Vec<SymbolId>>,
-    ) -> DocumentSymbol {
+    fn document_symbol(&self, symbol_id: SymbolId) -> DocumentSymbol {
         let symbol = &self.declarations[symbol_id];
-        let children = child_symbols.get(&symbol_id).map(|children| {
-            children.iter().map(|&child| self.document_symbol(child, child_symbols)).collect()
+        let children = (!self.document_symbol_children[symbol_id].is_empty()).then(|| {
+            self.document_symbol_children[symbol_id]
+                .iter()
+                .copied()
+                .map(|child| self.document_symbol(child))
+                .collect()
         });
 
         DocumentSymbol {
@@ -1490,7 +1667,7 @@ impl SymbolTables {
             .min_by_key(|&index| {
                 let reference = &self.references[index];
                 let range = reference.location.range;
-                (range_size_key(range), range.start, range.end, index)
+                (proto::range_size_key(range), range.start, range.end, index)
             })
             .map(|index| &self.references[index])
     }
@@ -1502,7 +1679,7 @@ impl SymbolTables {
             .min_by_key(|&symbol_id| {
                 let declaration = &self.declarations[symbol_id];
                 (
-                    range_size_key(declaration.name_range),
+                    proto::range_size_key(declaration.name_range),
                     declaration.location.range.start,
                     symbol_id.index(),
                 )
@@ -1510,15 +1687,27 @@ impl SymbolTables {
     }
 
     fn scope_at_position(&self, uri: &Url, position: Position) -> Option<ScopeId> {
-        self.file_scopes
-            .get(uri)?
-            .iter()
-            .copied()
-            .filter(|&scope_id| range_contains(self.scopes[scope_id].range, position))
-            .min_by_key(|&scope_id| {
-                let (lines, chars) = range_size_key(self.scopes[scope_id].range);
-                (lines, chars, u32::MAX - self.scope_depth(scope_id))
-            })
+        let scopes = self.file_scopes.get(uri)?;
+        let mut index =
+            scopes.partition_point(|&scope_id| self.scopes[scope_id].range.start <= position);
+        while index > 0 {
+            index -= 1;
+            let mut scope_id = scopes[index];
+            loop {
+                if proto::range_contains(self.scopes[scope_id].range, position) {
+                    return Some(scope_id);
+                }
+                let Some(parent) = self.scopes[scope_id].parent else { break };
+                scope_id = parent;
+            }
+            if index == 0
+                || self.scopes[scopes[index - 1]].range.start
+                    != self.scopes[scopes[index]].range.start
+            {
+                break;
+            }
+        }
+        None
     }
 
     fn visible_declaration_locations<'a>(
@@ -1550,26 +1739,30 @@ impl SymbolTables {
         Vec::new()
     }
 
-    fn scope_depth(&self, mut scope_id: ScopeId) -> u32 {
-        let mut depth = 0;
-        while let Some(parent) = self.scopes[scope_id].parent {
-            depth += 1;
-            scope_id = parent;
-        }
-        depth
+    fn member_completion_items(&self, uri: &Url, position: Position) -> Option<&[CompletionItem]> {
+        let completions = self.file_member_completions.get(uri)?;
+        self.member_completion_items_at(completions, position)
     }
 
-    fn member_completion_items(&self, uri: &Url, position: Position) -> Option<&[CompletionItem]> {
-        let completion = self
-            .file_member_completions
-            .get(uri)?
-            .iter()
-            .filter_map(|&index| {
-                let completion = &self.member_completions[index];
-                completion_range_contains(completion.range, position).then_some(completion)
-            })
-            .min_by_key(|completion| range_size_key(completion.range))?;
-        Some(&completion.items)
+    // Keep interval traversal and its stack state out of the map-lookup wrapper.
+    #[inline(never)]
+    fn member_completion_items_at(
+        &self,
+        completions: &PositionIndex<usize>,
+        position: Position,
+    ) -> Option<&[CompletionItem]> {
+        let index = completions
+            .candidates_at_with(
+                position,
+                |index| self.member_completions[index].range,
+                completion_range_contains,
+            )
+            .min_by_key(|&index| {
+                let range = self.member_completions[index].range;
+                // Preserve the stable source order when equally small ranges overlap.
+                (proto::range_size_key(range), range.start, range.end, index)
+            })?;
+        Some(&self.member_completions[index].items)
     }
 
     fn builtin_member_completion_items(&self, receiver: Option<&str>) -> Option<&[CompletionItem]> {
@@ -1600,7 +1793,7 @@ impl SymbolTables {
                     return self
                         .receiver_member_completions
                         .get(&symbol_id)
-                        .map(Vec::as_slice)
+                        .map(AsRef::as_ref)
                         .or(Some(&[]));
                 }
             }
@@ -1669,7 +1862,11 @@ impl SymbolTables {
 
     fn rebuild_indexes(&mut self) {
         for symbols in self.files.values_mut() {
-            sort_symbol_ids(&self.declarations, symbols);
+            // Each group has one URI, so only source position and ID can affect its order.
+            symbols.sort_by_key(|&id| {
+                let position = self.declarations[id].location.range.start;
+                (position.line, position.character, id.index())
+            });
         }
 
         self.file_declaration_positions.clear();
@@ -1681,10 +1878,30 @@ impl SymbolTables {
             self.file_declaration_positions.insert(uri.clone(), positions);
         }
 
+        self.document_symbol_children.clear();
+        self.document_symbol_children.reserve(self.declarations.len());
+        for _ in self.declarations.indices() {
+            self.document_symbol_children.push(Vec::new());
+        }
+        for symbols in self.files.values() {
+            for &symbol_id in symbols {
+                if let Some(parent) = self.declarations[symbol_id].parent
+                    && self.declarations[parent].location.uri
+                        == self.declarations[symbol_id].location.uri
+                {
+                    self.document_symbol_children[parent].push(symbol_id);
+                }
+            }
+        }
+
         self.workspace_symbol_ids.clear();
         self.workspace_symbol_ids.reserve(self.declarations.len());
-        self.workspace_symbol_ids.extend(self.declarations.indices());
-        sort_symbol_ids(&self.declarations, &mut self.workspace_symbol_ids);
+        // Per-file declarations are already ordered. Concatenate files in URI order instead of
+        // sorting every declaration again with repeated URI comparisons.
+        let mut files = self.files.iter().collect::<Vec<_>>();
+        files.sort_unstable_by(|(a, _), (b, _)| a.as_str().cmp(b.as_str()));
+        self.workspace_symbol_ids.extend(files.into_iter().flat_map(|(_, symbols)| symbols));
+        self.workspace_search = OnceLock::new();
 
         self.file_scopes.clear();
         for scope_id in self.scopes.indices() {
@@ -1692,9 +1909,16 @@ impl SymbolTables {
             self.file_scopes.entry(uri).or_default().push(scope_id);
         }
         for scopes in self.file_scopes.values_mut() {
+            // Reverse lookup visits the last scope with a matching start first, so equal-start
+            // scopes must place the smallest containing range last.
             scopes.sort_by_key(|&scope_id| {
                 let range = self.scopes[scope_id].range;
-                (range.start.line, range.start.character, range.end.line, range.end.character)
+                (
+                    range.start.line,
+                    range.start.character,
+                    Reverse(range.end.line),
+                    Reverse(range.end.character),
+                )
             });
         }
 
@@ -1703,10 +1927,7 @@ impl SymbolTables {
             self.file_member_completions.entry(completion.uri.clone()).or_default().push(index);
         }
         for completions in self.file_member_completions.values_mut() {
-            completions.sort_by_key(|&index| {
-                let range = self.member_completions[index].range;
-                (range.start.line, range.start.character, range.end.line, range.end.character)
-            });
+            completions.rebuild(|index| self.member_completions[index].range);
         }
 
         self.file_references.clear();
@@ -2014,7 +2235,11 @@ impl<'gcx> hir::Visit<'gcx> for ScopeBuilder<'_, 'gcx> {
     }
 }
 
+type MemberCompletionCache<'gcx> =
+    FxHashMap<(Ty<'gcx>, hir::SourceId, Option<hir::ContractId>), Arc<[CompletionItem]>>;
+
 struct MemberCompletionCollector<'a, 'gcx> {
+    cache: &'a mut MemberCompletionCache<'gcx>,
     tables: &'a mut SymbolTables,
     locations: &'a proto::LocationConverter,
     gcx: Gcx<'gcx>,
@@ -2046,6 +2271,7 @@ impl<'gcx> MemberCompletionCollector<'_, 'gcx> {
             receiver_ty,
             source,
             self.contract,
+            self.cache,
         );
         self.tables.member_completions.push(MemberCompletionScope {
             uri: location.uri,
@@ -2402,28 +2628,7 @@ impl<'gcx> hir::Visit<'gcx> for ReferenceCollector<'_, 'gcx> {
 
     fn visit_ty(&mut self, ty: &'gcx hir::Type<'gcx>) -> ControlFlow<Self::BreakValue> {
         self.push_type_reference(ty);
-        match ty.kind {
-            TypeKind::Elementary(_) | TypeKind::Custom(_) | TypeKind::Err(_) => {}
-            TypeKind::Array(array) => {
-                self.visit_ty(&array.element)?;
-                if let Some(size) = array.size {
-                    self.visit_expr(size)?;
-                }
-            }
-            TypeKind::Function(function) => {
-                for &param in function.parameters {
-                    self.visit_nested_var(param)?;
-                }
-                for &ret in function.returns {
-                    self.visit_nested_var(ret)?;
-                }
-            }
-            TypeKind::Mapping(mapping) => {
-                self.visit_ty(&mapping.key)?;
-                self.visit_ty(&mapping.value)?;
-            }
-        }
-        ControlFlow::Continue(())
+        hir::Visit::walk_ty(self, ty)
     }
 
     fn visit_stmt(&mut self, stmt: &'gcx hir::Stmt<'gcx>) -> ControlFlow<Self::BreakValue> {
@@ -2433,21 +2638,6 @@ impl<'gcx> hir::Visit<'gcx> for ReferenceCollector<'_, 'gcx> {
         self.in_yul = previous;
         result
     }
-}
-
-fn sort_symbol_ids(
-    declarations: &IndexVec<SymbolId, DeclarationSymbol>,
-    symbol_ids: &mut [SymbolId],
-) {
-    symbol_ids.sort_by_key(|symbol_id| {
-        let location = &declarations[*symbol_id].location;
-        (
-            location.uri.as_str(),
-            location.range.start.line,
-            location.range.start.character,
-            symbol_id.index(),
-        )
-    });
 }
 
 fn sort_locations(locations: &mut [Location]) {
@@ -2528,25 +2718,11 @@ fn sort_completion_items(items: &mut [CompletionItem]) {
     items.sort_by(|a, b| a.label.cmp(&b.label));
 }
 
-fn range_contains(range: Range, position: Position) -> bool {
-    if range.start == range.end {
-        return position == range.start;
-    }
-    position >= range.start && position < range.end
-}
-
 fn completion_range_contains(range: Range, position: Position) -> bool {
     if range.start == range.end {
         return position == range.start;
     }
     position >= range.start && position <= range.end
-}
-
-fn range_size_key(range: Range) -> (u32, u32) {
-    (
-        range.end.line.saturating_sub(range.start.line),
-        range.end.character.saturating_sub(range.start.character),
-    )
 }
 
 fn member_completion_item_kind(gcx: Gcx<'_>, member: Member<'_>) -> CompletionItemKind {
@@ -2610,12 +2786,6 @@ fn completion_item_for_builtin(builtin: Builtin) -> CompletionItem {
     }
 }
 
-fn filter_completion_items(mut items: Vec<CompletionItem>, prefix: &str) -> Vec<CompletionItem> {
-    let Some(prefix) = completion_filter_prefix(prefix) else { return items };
-    items.retain(|item| fuzzy_completion_match(&prefix, &item.label));
-    items
-}
-
 fn filtered_completion_items(items: &[CompletionItem], prefix: &str) -> Vec<CompletionItem> {
     let Some(prefix) = completion_filter_prefix(prefix) else { return items.to_vec() };
     items.iter().filter(|item| fuzzy_completion_match(&prefix, &item.label)).cloned().collect()
@@ -2626,14 +2796,18 @@ fn completion_filter_prefix(prefix: &str) -> Option<String> {
 }
 
 fn fuzzy_completion_match(prefix: &str, label: &str) -> bool {
+    // Match ASCII names byte by byte, retaining Unicode case folding for other labels.
+    if prefix.is_ascii() && label.is_ascii() {
+        let mut label = label.bytes();
+        return prefix.bytes().all(|prefix_byte| {
+            label.by_ref().any(|label_byte| label_byte.eq_ignore_ascii_case(&prefix_byte))
+        });
+    }
+
     let mut label_chars = label.chars().flat_map(char::to_lowercase);
     prefix
         .chars()
         .all(|prefix_char| label_chars.by_ref().any(|label_char| label_char == prefix_char))
-}
-
-fn search_name(name: &str) -> String {
-    name.to_lowercase()
 }
 
 #[cfg(test)]
@@ -2748,6 +2922,14 @@ mod tests {
     use lsp_types::Position;
 
     #[test]
+    fn fuzzy_completion_match_handles_ascii_and_unicode() {
+        assert!(fuzzy_completion_match("FN", "FunctionName"));
+        assert!(fuzzy_completion_match("fnn", "FunctionName"));
+        assert!(!fuzzy_completion_match("fz", "FunctionName"));
+        assert!(fuzzy_completion_match("é", "Éclair"));
+    }
+
+    #[test]
     fn document_symbols_are_nested_by_parent_and_ordered_by_source() {
         let uri = parse_uri("file:///workspace/src/Contract.sol");
         let tables = sample_tables(&uri, &parse_uri("file:///workspace/src/Other.sol"));
@@ -2830,6 +3012,45 @@ mod tests {
     }
 
     #[test]
+    fn workspace_symbols_search_corpus_respects_name_boundaries_and_unicode() {
+        let uri = parse_uri("file:///workspace/src/Contract.sol");
+        let mut tables = SymbolTables::default();
+        push(&mut tables, &uri, "Alpha", SymbolKind::FUNCTION, 0, 0, None);
+        push(&mut tables, &uri, "Alphabet", SymbolKind::FUNCTION, 1, 0, None);
+        push(&mut tables, &uri, "ALPHA", SymbolKind::FUNCTION, 2, 0, None);
+        push(&mut tables, &uri, "Éclair", SymbolKind::FUNCTION, 3, 0, None);
+        for index in 0..WORKSPACE_SEARCH_CORPUS_THRESHOLD {
+            push(
+                &mut tables,
+                &uri,
+                &format!("Unrelated{index}"),
+                SymbolKind::FUNCTION,
+                (index + 4) as u32,
+                0,
+                None,
+            );
+        }
+
+        assert_eq!(
+            tables
+                .workspace_symbols("ha")
+                .iter()
+                .map(|symbol| symbol.name.as_str())
+                .collect::<Vec<_>>(),
+            ["Alpha", "Alphabet", "ALPHA"]
+        );
+        assert_eq!(
+            tables
+                .workspace_symbols("ÉC")
+                .iter()
+                .map(|symbol| symbol.name.as_str())
+                .collect::<Vec<_>>(),
+            ["Éclair"]
+        );
+        assert!(tables.workspace_symbols("pha\0bet").is_empty());
+    }
+
+    #[test]
     fn position_lookups_handle_nested_multiline_and_point_ranges() {
         let uri = parse_uri("file:///workspace/src/Contract.sol");
         let mut tables = SymbolTables::default();
@@ -2894,6 +3115,55 @@ mod tests {
             tables.reference_at_position(&uri, Position::new(4, 2)).unwrap().targets,
             ReferenceTargets::from_buf([point])
         );
+    }
+
+    #[test]
+    fn member_completion_lookups_preserve_endpoints_and_overlap_order() {
+        let uri = parse_uri("file:///workspace/src/Contract.sol");
+        let mut tables = SymbolTables::default();
+        for (label, range) in [
+            ("later", range(1, 2, 1, 6)),
+            ("outer", range(0, 0, 4, 0)),
+            ("earlier", range(1, 0, 1, 4)),
+            ("point", range(2, 3, 2, 3)),
+        ] {
+            tables.member_completions.push(MemberCompletionScope {
+                uri: uri.clone(),
+                range,
+                items: Arc::from([CompletionItem { label: label.into(), ..Default::default() }]),
+            });
+        }
+        tables.rebuild_indexes();
+
+        let mut duplicate = SymbolTables::default();
+        duplicate.member_completions.push(MemberCompletionScope {
+            uri: uri.clone(),
+            range: range(1, 0, 1, 4),
+            items: Arc::from([CompletionItem { label: "duplicate".into(), ..Default::default() }]),
+        });
+        duplicate.rebuild_indexes();
+        let mut aggregator = SymbolTablesAggregator::default();
+        aggregator.push(tables);
+        aggregator.push(duplicate);
+        let tables = aggregator.finish();
+
+        for (position, expected) in [
+            (Position::new(0, 0), Some("outer")),
+            (Position::new(1, 0), Some("earlier")),
+            (Position::new(1, 3), Some("earlier")),
+            (Position::new(1, 4), Some("earlier")),
+            (Position::new(1, 5), Some("later")),
+            (Position::new(1, 6), Some("later")),
+            (Position::new(2, 3), Some("point")),
+            (Position::new(4, 0), Some("outer")),
+            (Position::new(4, 1), None),
+        ] {
+            assert_eq!(
+                tables.member_completion_items(&uri, position).map(|items| items[0].label.as_str()),
+                expected,
+                "{position:?}",
+            );
+        }
     }
 
     #[test]
