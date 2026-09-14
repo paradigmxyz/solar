@@ -23,11 +23,12 @@
 use crate::mir::{
     Function, FunctionId, InstId, MirPhase, Module,
     analysis::{AliasAnalysis, CfgInfo, MemoryCallSummaries},
-    pass_manager::{mir_output_name, parse_pass_pipeline, print_pass_diff},
+    pass_manager::{mir_output_name, parse_pass_pipeline, print_pass_diff, run_passes_inner},
     transform::*,
 };
 use smallvec::SmallVec;
 use solar_data_structures::map::FxHashMap;
+use solar_interface::diagnostics::ErrorGuaranteed;
 use std::{
     any::{Any, TypeId},
     rc::Rc,
@@ -312,8 +313,10 @@ pub fn run_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module, name: Option<
             while !remaining.is_empty() {
                 let end = remaining.iter().position(Option::is_none).unwrap_or(remaining.len());
                 let batch = remaining[..end].iter().copied().flatten().collect::<Vec<_>>();
-                changed |= run_passes(gcx, module, &batch, Some(&name));
-                if gcx.dcx().has_errors().is_err() || end == remaining.len() {
+                let (pass_changed, error) =
+                    run_passes_inner(gcx, module, &batch, true, Some(&name));
+                changed |= pass_changed;
+                if error.is_some() || end == remaining.len() {
                     return changed;
                 }
                 remaining = &remaining[end + 1..];
@@ -331,15 +334,18 @@ pub fn run_pipeline(gcx: solar_sema::Gcx<'_>, module: &mut Module, name: Option<
 
     let mut changed = false;
     if module.phase() == MirPhase::Semantic {
-        changed |= run_passes(gcx, module, SEMANTIC_PIPELINE, None);
-        if gcx.dcx().has_errors().is_err() {
+        let (pass_changed, error) = run_passes_inner(gcx, module, SEMANTIC_PIPELINE, true, None);
+        changed |= pass_changed;
+        if error.is_some() {
             return changed;
         }
-        changed |= run_passes(gcx, module, LOWERING_PIPELINE, None);
+        let (pass_changed, error) = run_passes_inner(gcx, module, LOWERING_PIPELINE, true, None);
+        changed |= pass_changed;
+        if error.is_some() {
+            return changed;
+        }
     }
-    if gcx.dcx().has_errors().is_ok() {
-        changed |= run_passes(gcx, module, LOWERED_PIPELINE, None);
-    }
+    changed |= run_passes_inner(gcx, module, LOWERED_PIPELINE, true, None).0;
     changed
 }
 
@@ -396,6 +402,8 @@ pub(crate) struct FunctionAnalyses {
 #[doc(hidden)]
 #[derive(Default)]
 pub struct ModuleAnalyses {
+    /// A diagnostic emitted by this pipeline, independent of other modules.
+    pub(crate) error: Option<ErrorGuaranteed>,
     alias: FxHashMap<FunctionId, Rc<AliasAnalysis>>,
     cfg: FxHashMap<FunctionId, Rc<CfgInfo>>,
     call_summaries: Option<Arc<MemoryCallSummaries>>,
@@ -404,6 +412,11 @@ pub struct ModuleAnalyses {
 }
 
 impl ModuleAnalyses {
+    /// Stops this pipeline after a pass emits a diagnostic.
+    pub fn fail(&mut self, error: ErrorGuaranteed) {
+        self.error = Some(error);
+    }
+
     pub(crate) fn begin_pass(&mut self) {
         self.preserved_by_pass = false;
         self.call_summaries_preserved = false;

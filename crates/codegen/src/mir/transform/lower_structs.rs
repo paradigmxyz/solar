@@ -13,7 +13,7 @@
 //! whole module before changing signatures. Slice fields expand directly to pointer/length words;
 //! standalone slice signatures remain for slice lowering. Before expanding a slice field, check
 //! that slice producers and returns agree with their types. Legacy pointer-only pseudo-slices
-//! cannot supply a pair and make this pass bail without changing the module.
+//! cannot supply a pair. Failed preflight checks report their reason without changing the module.
 
 use crate::mir::{
     ArgIdx, Callee, FrameMode, FrameSlotKind, Function, FunctionBuilder, FunctionId, InstKind,
@@ -36,8 +36,18 @@ impl MirPass for LowerStructs {
         true
     }
 
-    fn run_pass(&self, _gcx: Gcx<'_>, module: &mut Module, _analyses: &mut ModuleAnalyses) -> bool {
-        lower_structs(module)
+    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
+        match lower_structs(module) {
+            Ok(changed) => changed,
+            Err(reason) => {
+                analyses.fail(
+                    gcx.dcx()
+                        .err(format!("`lower-structs` cannot lower this module: {reason}"))
+                        .emit(),
+                );
+                false
+            }
+        }
     }
 }
 
@@ -88,22 +98,22 @@ impl Layouts {
     }
 }
 
-fn lower_structs(module: &mut Module) -> bool {
+fn lower_structs(module: &mut Module) -> Result<bool, &'static str> {
     if !module.has_struct_values() {
-        return false;
+        return Ok(false);
     }
     if module.functions.iter().any(|func| {
         func.arg_indices().any(|index| {
             index.index() >= func.params.len() && matches!(func.arg_ty(index), MirType::Struct(_))
         })
     }) {
-        return false;
+        return Err("aggregate argument is absent from the function signature");
     }
     if module.functions.iter().any(|func| {
         func.return_components().len() > 1
             && func.return_components().iter().any(|ty| matches!(ty, MirType::Struct(_)))
     }) {
-        return false;
+        return Err("aggregate result is mixed with an expanded return ABI");
     }
     if module
         .struct_types
@@ -111,9 +121,10 @@ fn lower_structs(module: &mut Module) -> bool {
         .any(|ty| ty.fields.iter().any(|ty| matches!(ty, MirType::Slice(_))))
         && !slice_values_are_pairs(module)
     {
-        return false;
+        return Err("slice producers or returns do not provide pointer/length pairs");
     }
-    let Some(layouts) = Layouts::new(module) else { return false };
+    let layouts =
+        Layouts::new(module).ok_or("struct fields contain void or a forward type reference")?;
     let mut shifts = IndexVec::new();
     for func in &module.functions {
         let slots = func
@@ -122,7 +133,8 @@ fn lower_structs(module: &mut Module) -> bool {
             .chain(func.return_components())
             .map(|&ty| layouts.flatten(ty).len())
             .sum();
-        let Some(offsets) = super::utils::rebase_frame_offsets(func, slots) else { return false };
+        let offsets = super::utils::rebase_frame_offsets(func, slots)
+            .ok_or("local frame offsets cannot be rebased for the expanded signature")?;
         shifts.push(offsets);
     }
     for (id, func) in module.functions.iter_mut_enumerated() {
@@ -134,7 +146,7 @@ fn lower_structs(module: &mut Module) -> bool {
             func.inst_mut(inst).kind = InstKind::InternalFrameAddr(offset);
         }
     }
-    true
+    Ok(true)
 }
 
 /// Checks the slice representation contract before exposing a field's two words.

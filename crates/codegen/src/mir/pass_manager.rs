@@ -6,7 +6,10 @@ use crate::{
 };
 use solar_config::OptimizationMode;
 use solar_data_structures::fmt::line_diff;
-use solar_interface::{Result, diagnostics::DiagCtxt};
+use solar_interface::{
+    Result,
+    diagnostics::{DiagCtxt, ErrorGuaranteed},
+};
 use solar_sema::Gcx;
 use std::fmt::Display;
 
@@ -83,11 +86,6 @@ pub(crate) fn mir_output_name(gcx: Gcx<'_>, module: &Module) -> String {
     pipeline_output_name(gcx, module.name)
 }
 
-#[derive(Clone, Copy)]
-struct PassOutput<'a> {
-    name: Option<&'a str>,
-}
-
 /// A streamlined trait for a MIR transformation pass.
 pub trait MirPass: Sync {
     /// Command-line and pipeline name.
@@ -106,14 +104,15 @@ pub trait MirPass: Sync {
     }
 
     /// Runs the pass and returns whether the module changed.
+    ///
+    /// Report an emitted error with [`ModuleAnalyses::fail`] to stop this pipeline.
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool;
 }
 
 /// Runs a sequence of MIR passes without validating after each pass.
 #[must_use]
 pub fn run_passes_no_validate(gcx: Gcx<'_>, module: &mut Module, passes: &[&dyn MirPass]) -> bool {
-    let output = PassOutput { name: None };
-    run_passes_inner(gcx, module, passes, false, output)
+    run_passes_inner(gcx, module, passes, false, None).0
 }
 
 /// Runs a sequence of MIR passes, checking each changed result when verification is enabled.
@@ -124,25 +123,24 @@ pub fn run_passes(
     passes: &[&dyn MirPass],
     name: Option<&str>,
 ) -> bool {
-    let output = PassOutput { name };
-    run_passes_inner(gcx, module, passes, true, output)
+    run_passes_inner(gcx, module, passes, true, name).0
 }
 
 #[must_use]
-fn run_passes_inner(
+pub(crate) fn run_passes_inner(
     gcx: Gcx<'_>,
     module: &mut Module,
     passes: &[&dyn MirPass],
     validate_each: bool,
-    output: PassOutput<'_>,
-) -> bool {
+    name: Option<&str>,
+) -> (bool, Option<ErrorGuaranteed>) {
     let output_name = if gcx.sess.opts.unstable.pass_diff || gcx.sess.opts.unstable.print_after_each
     {
-        output.name.map(ToOwned::to_owned).unwrap_or_else(|| mir_output_name(gcx, module))
+        name.map(ToOwned::to_owned).unwrap_or_else(|| mir_output_name(gcx, module))
     } else {
         String::new()
     };
-    let explicit = output.name.is_some();
+    let explicit = name.is_some();
     let mut changed = false;
     let mut analyses = ModuleAnalyses::default();
     for pass in passes {
@@ -162,8 +160,8 @@ fn run_passes_inner(
             timer.finish("MIR", module.name, pass_name, pass_changed);
             analyses.finish_pass(pass_changed);
             changed |= pass_changed;
-            if gcx.dcx().has_errors().is_err() {
-                return changed;
+            if analyses.error.is_some() {
+                return (changed, analyses.error);
             }
             assert_debug_info_handled(module, pass_name, "after");
 
@@ -180,7 +178,7 @@ fn run_passes_inner(
         }
     }
 
-    changed
+    (changed, None)
 }
 
 fn assert_debug_info_handled(module: &Module, pass_name: &str, when: &str) {
@@ -228,4 +226,64 @@ pub(crate) fn print_pass_diff(
     let before = format!("// === {name} (before {pass}) ===\n{before}");
     let after = format!("// === {name} (after {pass}) ===\n{after}");
     print!("{}", line_diff(&before, &after));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use solar_interface::{ColorChoice, Ident, Session};
+    use solar_sema::Compiler;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    struct Fail;
+
+    impl MirPass for Fail {
+        fn is_required(&self) -> bool {
+            true
+        }
+
+        fn run_pass(
+            &self,
+            gcx: Gcx<'_>,
+            _module: &mut Module,
+            analyses: &mut ModuleAnalyses,
+        ) -> bool {
+            analyses.fail(gcx.dcx().err("this module failed").emit());
+            false
+        }
+    }
+
+    struct Checkpoint<'a>(&'a AtomicUsize);
+
+    impl MirPass for Checkpoint<'_> {
+        fn is_required(&self) -> bool {
+            true
+        }
+
+        fn run_pass(
+            &self,
+            _gcx: Gcx<'_>,
+            _module: &mut Module,
+            _analyses: &mut ModuleAnalyses,
+        ) -> bool {
+            self.0.fetch_add(1, Ordering::Relaxed);
+            false
+        }
+    }
+
+    #[test]
+    fn failed_pass_only_stops_its_own_pipeline() {
+        let compiler =
+            Compiler::new(Session::builder().with_buffer_emitter(ColorChoice::Never).build());
+        compiler.enter(|c| {
+            let hits = AtomicUsize::new(0);
+            let checkpoint = Checkpoint(&hits);
+            let mut failed = Module::new(Ident::DUMMY);
+            let _ = run_passes_no_validate(c.gcx(), &mut failed, &[&Fail, &checkpoint]);
+            assert_eq!(hits.load(Ordering::Relaxed), 0);
+            let mut independent = Module::new(Ident::DUMMY);
+            let _ = run_passes_no_validate(c.gcx(), &mut independent, &[&checkpoint, &checkpoint]);
+            assert_eq!(hits.load(Ordering::Relaxed), 2);
+        });
+    }
 }

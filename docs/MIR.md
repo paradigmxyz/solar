@@ -207,14 +207,16 @@ Make the phase field private to parsing and checked transitions. Advance it
 only after verifying the destination contract, with monotonicity enforced in
 all builds. Parsing an `@phase` header declares a contract to verify; it does
 not prove that contract. Required conversion emits a diagnostic on failure, and the pass manager stops
-the pipeline. Preflight
+only that module's pipeline. The pass records the emitted error in its pipeline state;
+errors from concurrently lowered contracts do not truncate this module. Preflight
 unsupported cases before editing where practical. Otherwise discard the failed
 compilation's module; do not publish a partially lowered module as successful
 or clone every module just to provide rollback.
 
 Run a cheap representation check at each stable boundary in all builds. Check
-terminator targets, predecessor back-links, and call targets and arities there
-too, so the backend can trust the maintained CFG and function signatures. Keep
+terminator targets, predecessor back-links, and call targets and arities there,
+including return contracts through tail calls, even when `-Zvalidate-ir=false`,
+so the backend can trust the maintained CFG and function signatures. Keep
 full SSA, dominance, and type verification after each changed pass in debug
 builds and with `-Zvalidate-ir`; validate untrusted textual MIR fully at ingress.
 The backend should receive a verified immutable view after the last MIR pass,

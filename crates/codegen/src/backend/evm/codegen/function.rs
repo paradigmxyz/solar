@@ -790,6 +790,18 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.spill_value_if_needed(func, *condition);
             }
             if !preserve_branch_targets.is_empty() {
+                // Junk-terminal siblings may have argument padding in their global plan,
+                // but every planned value must be dead here; no phi layout may be bypassed.
+                debug_assert!(block.terminator.as_ref().is_none_or(|term| {
+                    term.successors().iter().all(|target| {
+                        preserve_branch_targets.contains(target)
+                            || (global_stack_plan.entry(*target).is_none_or(|entry| {
+                                entry
+                                    .iter()
+                                    .all(|value| !liveness.live_in(*target).contains(*value))
+                            }) && stack_phi_plan.entries.get(target).is_none_or(Vec::is_empty))
+                    })
+                }));
                 self.remove_dead_carried_spill_stores(
                     func,
                     liveness,

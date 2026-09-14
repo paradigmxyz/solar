@@ -72,7 +72,7 @@ impl MirPass for LowerAbi {
         &self,
         gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
-        _analyses: &mut crate::mir::pass::ModuleAnalyses,
+        analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         let changed =
             LowerAbiCx { revert_strings: gcx.sess.opts.revert_strings, ..Default::default() }.run(
@@ -86,7 +86,7 @@ impl MirPass for LowerAbi {
                     .any(|id| matches!(func.inst(id).kind, InstKind::AbiDecode { .. }))
             })
         {
-            gcx.dcx().err("`lower-abi` cannot lower this ABI shape").emit();
+            analyses.fail(gcx.dcx().err("`lower-abi` cannot lower this ABI shape").emit());
             return changed;
         }
         changed
