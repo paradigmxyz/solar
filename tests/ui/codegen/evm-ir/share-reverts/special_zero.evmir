@@ -3,8 +3,7 @@
 @module module
 
 // CHECK-LABEL: {{^[ +].*}}bb0:
-// CHECK: + push bb1
-// CHECK: + jump bb2
+// CHECK: {{^[ +].*}}jump bb1
 bb0:
   push 1
   iszero
@@ -21,8 +20,7 @@ bb1 [cold]:
   revert
 
 // CHECK-LABEL: {{^[ +].*}}bb2:
-// CHECK: + push bb3
-// CHECK: + jump bb4
+// CHECK: {{^[ +].*}}jump bb3
 bb2:
   push 1
   iszero

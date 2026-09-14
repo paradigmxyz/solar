@@ -219,9 +219,11 @@ bb26 [loop]:
   add
   dup 4
   sstore
-  swap 2
+  dup 3
   push 0
   mstore
+  swap 2
+  pop
   dup 2
   push 5
   shr
@@ -527,18 +529,8 @@ bb45:
   iszero
   push bb80
   jumpi
-  jumpi bb49, bb50
-bb49:
-  push 0
-  mstore
-  push 32
-  push 0
-  keccak256
-  push 4
-  calldataload
-  push 5
-  shr
-  add
+  push bb49
+  jumpi
   jump bb50
 bb50:
   sload
@@ -556,6 +548,18 @@ bb50:
   push 248
   shl
   jump bb82
+bb49:
+  push 0
+  mstore
+  push 32
+  push 0
+  keccak256
+  push 4
+  calldataload
+  push 5
+  shr
+  add
+  jump bb50
 bb54:
   push 68
   calldatasize
@@ -611,18 +615,8 @@ bb54:
   iszero
   push bb80
   jumpi
-  jumpi bb59, bb60
-bb59:
-  push 0
-  mstore
-  push 32
-  push 0
-  keccak256
-  push 4
-  calldataload
-  push 5
-  shr
-  add
+  push bb59
+  jumpi
   jump bb60
 bb60:
   push 255
@@ -658,6 +652,18 @@ bb60:
   swap 1
   sstore
   stop
+bb59:
+  push 0
+  mstore
+  push 32
+  push 0
+  keccak256
+  push 4
+  calldataload
+  push 5
+  shr
+  add
+  jump bb60
 bb64:
   push 384
   push 64
@@ -803,16 +809,8 @@ bb72:
   swap 3
   swap 2
   swap 1
-  jumpi bb75, bb76
-bb75:
-  push 32
-  dup 3
-  sub
-  dup 2
-  add
-  push 0
-  swap 1
-  mstore
+  push bb75
+  jumpi
   jump bb76
 bb76:
   swap 1
@@ -890,6 +888,16 @@ bb74 [loop]:
   push 1
   add
   jump bb73
+bb75:
+  push 32
+  dup 3
+  sub
+  dup 2
+  add
+  push 0
+  swap 1
+  mstore
+  jump bb76
 bb40 [cold]:
   push 0x4e487b71
   push 0
