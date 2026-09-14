@@ -194,11 +194,13 @@ fn validate_rename(
 
     // Rename candidates are URI-sorted. Reuse one position index per file and release it
     // before validating the next file so peak index memory stays bounded by one document.
+    let mut changes = HashMap::<Url, Vec<TextEdit>>::new();
     for locations in candidate.locations.chunk_by(|a, b| a.uri == b.uri) {
         let Some((contents, _)) = contents.get(&locations[0].uri) else {
             return Err(content_modified());
         };
         let index = proto::LspPositionIndex::new(contents);
+        let mut edits = Vec::with_capacity(locations.len());
         for location in locations {
             let Some(range) = index.checked_text_range(location.range) else {
                 return Err(content_modified());
@@ -206,15 +208,9 @@ fn validate_rename(
             if contents.byte_slice(range) != candidate.old_name.as_str() {
                 return Err(content_modified());
             }
+            edits.push(TextEdit::new(location.range, new_name.clone()));
         }
-    }
-
-    let mut changes = HashMap::<Url, Vec<TextEdit>>::new();
-    for location in candidate.locations {
-        changes
-            .entry(location.uri)
-            .or_default()
-            .push(TextEdit::new(location.range, new_name.clone()));
+        changes.insert(locations[0].uri.clone(), edits);
     }
     let versions = contents.into_iter().map(|(uri, (_, version))| (uri, version)).collect();
     Ok(ValidatedWorkspaceEdit { changes, versions })

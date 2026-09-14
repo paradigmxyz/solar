@@ -2,7 +2,7 @@ use crate::{
     code_actions::{DiagnosticData, DiagnosticSuggestion},
     vfs::{self, VfsPath},
 };
-use crop::Rope;
+use crop::{Rope, RopeSlice};
 use lsp_types::{
     DiagnosticSeverity, NumberOrString, ServerCapabilities, ServerInfo,
     request::{Initialize as LspInitialize, Request},
@@ -185,8 +185,18 @@ impl<R: Borrow<Rope>> LspPositionIndex<R> {
         &self,
         range: lsp_types::Range,
     ) -> Option<std::ops::Range<usize>> {
-        let start = self.byte_position(range.start)?;
-        let end = if range.start == range.end { start } else { self.byte_position(range.end)? };
+        let line = usize::try_from(range.start.line).ok()?;
+        let line_start = *self.line_starts.get(line)?;
+        // Most source ranges stay on one line; reuse its slice for both UTF-16 endpoints.
+        let contents = self.rope().byte_slice(line_start..self.line_end(line));
+        let start = line_start + byte_column(&contents, range.start.character)?;
+        let end = if range.start == range.end {
+            start
+        } else if range.start.line == range.end.line {
+            line_start + byte_column(&contents, range.end.character)?
+        } else {
+            self.byte_position(range.end)?
+        };
         (start <= end).then_some(start..end)
     }
 
@@ -211,26 +221,8 @@ impl<R: Borrow<Rope>> LspPositionIndex<R> {
         let line = usize::try_from(position.line).ok()?;
         let start = *self.line_starts.get(line)?;
         let end = self.line_end(line);
-        let target = usize::try_from(position.character).ok()?;
         let contents = rope.byte_slice(start..end);
-        // ASCII lines use one UTF-16 code unit per byte.
-        if contents.byte_len() == contents.utf16_len() {
-            return Some(start + target.min(contents.byte_len()));
-        }
-        let mut utf16 = 0;
-        let mut byte = start;
-        for ch in contents.chars() {
-            if utf16 == target {
-                return Some(byte);
-            }
-            let next = utf16 + ch.len_utf16();
-            if target < next {
-                return None;
-            }
-            utf16 = next;
-            byte += ch.len_utf8();
-        }
-        Some(end)
+        Some(start + byte_column(&contents, position.character)?)
     }
 
     pub(crate) fn position_at_byte(&self, byte: usize) -> Option<lsp_types::Position> {
@@ -268,6 +260,28 @@ impl<R: Borrow<Rope>> LspPositionIndex<R> {
             next_start - 1
         }
     }
+}
+
+fn byte_column(contents: &RopeSlice<'_>, character: u32) -> Option<usize> {
+    let target = usize::try_from(character).ok()?;
+    // ASCII lines use one UTF-16 code unit per byte.
+    if contents.byte_len() == contents.utf16_len() {
+        return Some(target.min(contents.byte_len()));
+    }
+    let mut utf16 = 0;
+    let mut byte = 0;
+    for ch in contents.chars() {
+        if utf16 == target {
+            return Some(byte);
+        }
+        let next = utf16 + ch.len_utf16();
+        if target < next {
+            return None;
+        }
+        utf16 = next;
+        byte += ch.len_utf8();
+    }
+    Some(contents.byte_len())
 }
 
 fn collect_line_starts(rope: &Rope) -> Vec<usize> {
@@ -969,6 +983,37 @@ mod tests {
                 ),
                 Some(5..5)
             );
+        }
+    }
+
+    #[test]
+    fn checked_text_range_validates_same_line_endpoint_pairs() {
+        let columns = [0, 1, 2, 3, 4, 5, 6, u32::MAX];
+        for (line, offsets) in [
+            ("value", [Some(0), Some(1), Some(2), Some(3), Some(4), Some(5), Some(5), Some(5)]),
+            ("a😀中z", [Some(0), Some(1), None, Some(5), Some(8), Some(9), Some(9), Some(9)]),
+        ] {
+            for ending in ["\n", "\r\n", "\r"] {
+                let prefix = format!("😀{ending}");
+                let source = format!("{prefix}{line}{ending}tail");
+                let rope = Rope::from(source.as_str());
+                let index = super::LspPositionIndex::new(&rope);
+                for (&start, &start_offset) in columns.iter().zip(&offsets) {
+                    for (&end, &end_offset) in columns.iter().zip(&offsets) {
+                        let expected = start_offset.zip(end_offset).and_then(|(start, end)| {
+                            (start <= end).then_some(prefix.len() + start..prefix.len() + end)
+                        });
+                        assert_eq!(
+                            index.checked_text_range(Range::new(
+                                Position::new(1, start),
+                                Position::new(1, end),
+                            )),
+                            expected,
+                            "source: {source:?}, columns: {start}..{end}",
+                        );
+                    }
+                }
+            }
         }
     }
 
