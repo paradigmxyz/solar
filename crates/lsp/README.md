@@ -57,11 +57,6 @@ The benchmark groups intentionally keep separate timing boundaries:
 - `project-analysis` and `project-analysis-after-edit` measure compiler and symbol-table rebuilds.
 - `project-edit-application` measures UTF-16 document edit application without analysis.
 - `symbol-table-queries` measures synchronous query kernels, not complete LSP request latency.
-- `type-hierarchy-prepare`, `type-hierarchy-prepare-merged`, and `type-hierarchy-expand` use the
-  production handlers with a ready analysis snapshot. They include request cloning, snapshot
-  access, echoed-item validation, and response construction/destruction. Unifap reference and
-  declaration sites, identical merged batches, and small/128-child expansions have preflight
-  response checks. Analysis, executor scheduling, transport, and editor rendering are excluded.
 - `code-lens` measures repeated queries, including response destruction. The separate
   `code-lens-first-request` group clones an unqueried analysis snapshot outside timing and
   includes the first query's reference-count initialization; snapshot and response destruction
@@ -70,10 +65,7 @@ The benchmark groups intentionally keep separate timing boundaries:
   including UTF-16 conversion and response construction. It covers start, middle, and end positions
   in an unchanged document and multiple cursors, excluding transport and blocking-pool scheduling.
 - `open-document-selection-range-cold` includes the first request's parsing and index construction;
-  preparing and destroying the open document stays outside timing. Optimism and the Unifap router
-  cover real source files; small ASCII and CRLF/Unicode cases check setup overhead and UTF-16
-  boundaries. Each request after a content change rebuilds this index on demand. Matching warm
-  cases reuse the index, and preflight checks compare the complete selection chains.
+  preparing and destroying the open document stays outside timing.
 - `rename` includes the production handler, source validation, blocking task, and edit construction.
   Its `optimism-predeploys` case renames the `getName` argument at all 31 occurrences in the original
   self-contained Predeploys module extracted from `testdata/Optimism.sol`. The corresponding
