@@ -310,6 +310,27 @@ TEST_CASES: Sequence[TestCase] = (
         runtime_checks=(RuntimeCheck("number", "number()(uint256)"),),
     ),
     TestCase(
+        test_id="minimal-proxy",
+        description="Minimal proxy with an assembly fallback and immutable target",
+        source_code=source("MinimalProxy.sol"),
+        source_name="MinimalProxy.sol",
+        source_path="testdata/MinimalProxy.sol",
+        contract_name="MinimalProxy",
+        gas_calls=(
+            GasCall("set-number", "setNumber(uint256)", ("42",)),
+            GasCall("number", "number()"),
+            GasCall("echo-empty", "echo(bytes)", ("0x",)),
+            GasCall("echo-short", "echo(bytes)", ("0x123456",)),
+            GasCall("echo-long", "echo(bytes)", ("0x" + "ab" * 1024,)),
+        ),
+        runtime_checks=(
+            RuntimeCheck("number", "number()(uint256)"),
+            RuntimeCheck("echo-empty", "echo(bytes)(bytes)", ("0x",)),
+            RuntimeCheck("echo-short", "echo(bytes)(bytes)", ("0x123456",)),
+            RuntimeCheck("echo-long", "echo(bytes)(bytes)", ("0x" + "ab" * 1024,)),
+        ),
+    ),
+    TestCase(
         test_id="sum-array",
         description="Sum computation with storage writes",
         source_code=source("SumArray.sol"),
