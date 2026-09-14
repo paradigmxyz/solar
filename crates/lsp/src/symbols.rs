@@ -1184,11 +1184,7 @@ impl SymbolTables {
         candidates
             .into_iter()
             .map(|candidate| match candidate {
-                Candidate::Symbol(name, symbol_id) => {
-                    let mut item = self.completion_item(symbol_id);
-                    item.label = name.to_string();
-                    item
-                }
+                Candidate::Symbol(name, symbol_id) => self.completion_item(symbol_id, name),
                 Candidate::Namespace(name) => CompletionItem {
                     label: name.to_string(),
                     kind: Some(CompletionItemKind::MODULE),
@@ -1893,10 +1889,10 @@ impl SymbolTables {
         None
     }
 
-    fn completion_item(&self, symbol_id: SymbolId) -> CompletionItem {
+    fn completion_item(&self, symbol_id: SymbolId, name: &str) -> CompletionItem {
         let symbol = &self.declarations[symbol_id];
         CompletionItem {
-            label: symbol.name.clone(),
+            label: name.to_string(),
             kind: Some(completion_item_kind(symbol.kind)),
             detail: self.container_name(symbol),
             data: Some(self.completion_item_data(symbol_id)),
@@ -1906,9 +1902,7 @@ impl SymbolTables {
 
     fn completion_item_for_member(&self, gcx: Gcx<'_>, member: Member<'_>) -> CompletionItem {
         if let Some(symbol_id) = self.symbol_id_for_member_completion(member) {
-            let mut item = self.completion_item(symbol_id);
-            item.label = member.name.to_string();
-            return item;
+            return self.completion_item(symbol_id, member.name.as_str());
         }
 
         CompletionItem {
@@ -2122,7 +2116,8 @@ impl<'gcx> ScopeBuilder<'_, 'gcx> {
                 if let Some(symbol_id) = this.tables.symbol_id_for_member_completion(member) {
                     this.tables.scopes[root].declarations.push(ScopedDeclaration {
                         symbol_id,
-                        name: Some(member.name.to_string()),
+                        name: (member.name.as_str() != this.tables.declarations[symbol_id].name)
+                            .then(|| member.name.to_string()),
                         available_from: None,
                     });
                 } else if matches!(member.res, Some(Res::Namespace(_))) {
