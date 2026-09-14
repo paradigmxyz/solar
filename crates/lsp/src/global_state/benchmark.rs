@@ -25,8 +25,9 @@ use lsp_types::{
     DidChangeTextDocumentParams, DocumentSymbol, GotoDefinitionResponse, Hover, HoverContents,
     Location, Position, PreviousResultId, Range, RenameParams, SignatureHelp, SignatureHelpParams,
     TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentPositionParams,
-    TypeHierarchyItem, Url, VersionedTextDocumentIdentifier, WorkspaceEdit, WorkspaceFolder,
-    WorkspaceSymbol,
+    TypeHierarchyItem, TypeHierarchyPrepareParams, TypeHierarchySubtypesParams,
+    TypeHierarchySupertypesParams, Url, VersionedTextDocumentIdentifier, WorkspaceEdit,
+    WorkspaceFolder, WorkspaceSymbol,
 };
 use normalize_path::NormalizePath;
 use solar_config::{CompileOpts, Threads};
@@ -708,6 +709,77 @@ pub struct BenchmarkFoldingRangeRequests {
 pub struct BenchmarkSignatureHelpRequests {
     state: super::GlobalState,
     params: SignatureHelpParams,
+}
+
+/// Prepared type-hierarchy requests against an already published analysis snapshot.
+#[doc(hidden)]
+pub struct BenchmarkTypeHierarchyRequests {
+    state: super::GlobalState,
+}
+
+impl BenchmarkTypeHierarchyRequests {
+    /// Publish one analysis snapshot outside the request timing.
+    pub fn new(analysis: BenchmarkAnalysis) -> Self {
+        let state = super::GlobalState::new(ClientSocket::new_closed());
+        state.symbol_tables.store(Arc::new(analysis.symbol_tables));
+        Self { state }
+    }
+
+    /// Prepare hierarchy items through the production handler without analysis or transport.
+    ///
+    /// The snapshot is ready, so no analysis scheduling or executor dispatch is included.
+    /// Callers own the response and include its destruction in the measured iteration.
+    #[inline(never)]
+    pub fn prepare(&mut self, uri: &Url, position: Position) -> Option<Vec<TypeHierarchyItem>> {
+        let params = TypeHierarchyPrepareParams {
+            text_document_position_params: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier { uri: uri.clone() },
+                position,
+            },
+            work_done_progress_params: Default::default(),
+        };
+        let request = handlers::prepare_type_hierarchy(&mut self.state, params);
+        let mut request = std::pin::pin!(request);
+        let mut context = Context::from_waker(Waker::noop());
+        let Poll::Ready(response) = request.as_mut().poll(&mut context) else {
+            panic!("type-hierarchy benchmark request should complete immediately");
+        };
+        response.expect("type-hierarchy benchmark request should succeed")
+    }
+
+    /// Expand direct base types through the production handler, including echoed-item validation.
+    #[inline(never)]
+    pub fn supertypes(&mut self, item: &TypeHierarchyItem) -> Option<Vec<TypeHierarchyItem>> {
+        let params = TypeHierarchySupertypesParams {
+            item: item.clone(),
+            work_done_progress_params: Default::default(),
+            partial_result_params: Default::default(),
+        };
+        let request = handlers::type_hierarchy_supertypes(&mut self.state, params);
+        let mut request = std::pin::pin!(request);
+        let mut context = Context::from_waker(Waker::noop());
+        let Poll::Ready(response) = request.as_mut().poll(&mut context) else {
+            panic!("type-hierarchy benchmark request should complete immediately");
+        };
+        response.expect("type-hierarchy benchmark request should succeed")
+    }
+
+    /// Expand direct derived types through the production handler, including response ownership.
+    #[inline(never)]
+    pub fn subtypes(&mut self, item: &TypeHierarchyItem) -> Option<Vec<TypeHierarchyItem>> {
+        let params = TypeHierarchySubtypesParams {
+            item: item.clone(),
+            work_done_progress_params: Default::default(),
+            partial_result_params: Default::default(),
+        };
+        let request = handlers::type_hierarchy_subtypes(&mut self.state, params);
+        let mut request = std::pin::pin!(request);
+        let mut context = Context::from_waker(Waker::noop());
+        let Poll::Ready(response) = request.as_mut().poll(&mut context) else {
+            panic!("type-hierarchy benchmark request should complete immediately");
+        };
+        response.expect("type-hierarchy benchmark request should succeed")
+    }
 }
 
 /// A prepared quick-fix request using diagnostics from a real compiler analysis.

@@ -5,17 +5,19 @@
 use criterion::{BatchSize, BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use crop::Rope;
 use lsp_types::{
-    GotoDefinitionResponse, HoverContents, OneOf, Position, Range, TextDocumentContentChangeEvent,
-    Url,
+    GotoDefinitionResponse, HoverContents, OneOf, Position, Range, SymbolKind,
+    TextDocumentContentChangeEvent, Url,
 };
 use solar_config::CompileOpts;
+use solar_interface::SourceMap;
 use solar_lsp::{
     BenchmarkAnalysis, BenchmarkDocumentChange, BenchmarkDocumentUpdate,
     BenchmarkFoldingRangeRequests, BenchmarkOpenDocuments, BenchmarkProject,
     BenchmarkRenameRequests, BenchmarkRepeatedAnalysis, BenchmarkRequest, BenchmarkResponse,
-    BenchmarkSelectionRangeRequests, BenchmarkSignatureHelpRequests, BenchmarkWorkspaceDiscovery,
-    BenchmarkWorkspacePathQueries, BenchmarkWorkspaceReports, benchmark_folding_ranges,
-    benchmark_folding_ranges_from_rope, benchmark_import_path_at, benchmark_selection_ranges,
+    BenchmarkSelectionRangeRequests, BenchmarkSignatureHelpRequests,
+    BenchmarkTypeHierarchyRequests, BenchmarkWorkspaceDiscovery, BenchmarkWorkspacePathQueries,
+    BenchmarkWorkspaceReports, benchmark_folding_ranges, benchmark_folding_ranges_from_rope,
+    benchmark_import_path_at, benchmark_selection_ranges,
 };
 use solar_parse::{Cursor, lexer::token::RawTokenKind};
 use std::{fmt::Write as _, fs, hint::black_box, path::PathBuf};
@@ -278,6 +280,201 @@ fn type_hierarchy_queries(c: &mut Criterion) {
     group.bench_function(BenchmarkId::from_parameter("128-subtypes"), |b| {
         b.iter(|| black_box(analysis.type_hierarchy(black_box(&uri), black_box(position))));
     });
+    group.finish();
+}
+
+fn type_hierarchy_prepare_requests(c: &mut Criterion) {
+    let project = unifap_project();
+    let analysis = project.clone().analyze();
+    assert_clean(&analysis);
+    let merged = BenchmarkAnalysis::merge(vec![analysis.clone(), analysis.clone()]);
+    let mut requests = BenchmarkTypeHierarchyRequests::new(analysis);
+    let mut merged_requests = BenchmarkTypeHierarchyRequests::new(merged);
+    let mut cases = Vec::new();
+    for (name, path, declaration, selection, end, reference, display_name, kind) in [
+        (
+            "unifap-v2-factory",
+            "src/interfaces/IUnifapV2Factory.sol",
+            "interface IUnifapV2Factory",
+            "IUnifapV2Factory {",
+            "}",
+            "IUnifapV2Factory public immutable",
+            "IUnifapV2Factory",
+            SymbolKind::INTERFACE,
+        ),
+        (
+            "unifap-v2-pair",
+            "src/interfaces/IUnifapV2Pair.sol",
+            "interface IUnifapV2Pair",
+            "IUnifapV2Pair {",
+            "}",
+            "IUnifapV2Pair(pair).mint",
+            "IUnifapV2Pair",
+            SymbolKind::INTERFACE,
+        ),
+        (
+            "unifap-v2-mint",
+            "src/interfaces/IUnifapV2Pair.sol",
+            "function mint(address) external returns (uint256);",
+            "mint(address)",
+            "function mint(address) external returns (uint256);",
+            "mint(to)",
+            "IUnifapV2Pair.mint(address)",
+            SymbolKind::METHOD,
+        ),
+    ] {
+        let (uri, declaration_start) = project.unique_anchor(path, declaration).unwrap();
+        let (_, selection_start) = project.unique_anchor(path, selection).unwrap();
+        let (_, mut declaration_end) = project.unique_anchor(path, end).unwrap();
+        declaration_end.character += end.len() as u32;
+        let name_length = selection.find([' ', '(']).unwrap();
+        let selection_end =
+            Position::new(selection_start.line, selection_start.character + name_length as u32);
+        let expected = requests.prepare(&uri, selection_start).unwrap();
+        assert_eq!(expected.len(), 1);
+        assert_eq!(expected[0].name, display_name);
+        assert_eq!(expected[0].kind, kind);
+        assert_eq!(expected[0].uri, uri);
+        assert_eq!(expected[0].selection_range, Range::new(selection_start, selection_end));
+        assert_eq!(expected[0].range, Range::new(declaration_start, declaration_end));
+        let (reference_uri, reference_position) =
+            project.unique_anchor(UNIFAP_ROUTER, reference).unwrap();
+        assert_eq!(requests.prepare(&reference_uri, reference_position), Some(expected.clone()));
+        cases.push((format!("{name}-declaration"), uri, selection_start, Some(expected.clone())));
+        cases.push((
+            format!("{name}-reference"),
+            reference_uri,
+            reference_position,
+            Some(expected),
+        ));
+    }
+    let (uri, position) = project.unique_anchor(UNIFAP_ROUTER, "SPDX-License-Identifier").unwrap();
+    cases.push(("unifap-v2-comment".into(), uri, position, None));
+
+    // Include handler setup, snapshot access, response construction and destruction. Analysis,
+    // scheduling, transport and editor rendering are outside the measured request.
+    for (group_name, requests) in [
+        ("lsp/type-hierarchy-prepare", &mut requests),
+        ("lsp/type-hierarchy-prepare-merged", &mut merged_requests),
+    ] {
+        let mut group = c.benchmark_group(group_name);
+        for (name, uri, position, expected) in &cases {
+            assert_eq!(requests.prepare(uri, *position).as_ref(), expected.as_ref());
+            group.bench_function(BenchmarkId::from_parameter(name), |b| {
+                b.iter(|| black_box(requests.prepare(black_box(uri), black_box(*position))));
+            });
+        }
+        group.finish();
+    }
+
+    let project =
+        BenchmarkProject::from_source("contract Base {}\ncontract Child is Base {}\n".into());
+    let analysis = project.clone().analyze();
+    assert_clean(&analysis);
+    let mut requests = BenchmarkTypeHierarchyRequests::new(analysis);
+    let (uri, declaration) = project.unique_anchor("benchmark.sol", "Base {}\ncontract").unwrap();
+    let (_, mut reference) = project.unique_anchor("benchmark.sol", "is Base").unwrap();
+    reference.character += "is ".len() as u32;
+    let expected = requests.prepare(&uri, declaration).unwrap();
+    assert_eq!(expected.len(), 1);
+    assert_eq!(expected[0].name, "Base");
+    assert_eq!(expected[0].kind, SymbolKind::CLASS);
+    assert_eq!(expected[0].uri, uri);
+    assert_eq!(expected[0].selection_range, Range::new(Position::new(0, 9), Position::new(0, 13)));
+    assert_eq!(expected[0].range, Range::new(Position::new(0, 0), Position::new(0, 16)));
+    assert_eq!(requests.prepare(&uri, reference), Some(expected));
+    let mut group = c.benchmark_group("lsp/type-hierarchy-prepare");
+    for (name, position) in [("small-declaration", declaration), ("small-reference", reference)] {
+        group.bench_function(BenchmarkId::from_parameter(name), |b| {
+            b.iter(|| black_box(requests.prepare(black_box(&uri), black_box(position))));
+        });
+    }
+    group.finish();
+}
+
+fn type_hierarchy_expansion_requests(c: &mut Criterion) {
+    let project = unifap_project();
+    let analysis = project.clone().analyze();
+    assert_clean(&analysis);
+    let mut requests = BenchmarkTypeHierarchyRequests::new(analysis);
+    let (uri, position) = project.unique_anchor(UNIFAP_PAIR, "UnifapV2Pair is ERC20").unwrap();
+    let pair = requests.prepare(&uri, position).unwrap().pop().unwrap();
+    assert_eq!(pair.name, "UnifapV2Pair");
+    assert_eq!(pair.uri, uri);
+    let mut expected = Vec::new();
+    for (path, name) in [
+        ("lib/openzeppelin-contracts/contracts/proxy/utils/Initializable.sol", "Initializable"),
+        ("lib/solmate/src/tokens/ERC20.sol", "ERC20"),
+        ("lib/solmate/src/utils/ReentrancyGuard.sol", "ReentrancyGuard"),
+    ] {
+        let uri = pair.uri.join(&format!("../{path}")).unwrap();
+        let source =
+            SourceMap::empty().file_loader().load_file(&uri.to_file_path().unwrap()).unwrap();
+        let needle = format!("{name} {{");
+        assert_eq!(source.matches(&needle).count(), 1);
+        let prefix = &source[..source.find(&needle).unwrap()];
+        let position = Position::new(
+            prefix.bytes().filter(|&byte| byte == b'\n').count() as u32,
+            prefix.rsplit('\n').next().unwrap().encode_utf16().count() as u32,
+        );
+        let items = requests.prepare(&uri, position).unwrap();
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].name, name);
+        assert_eq!(items[0].kind, SymbolKind::CLASS);
+        assert_eq!(items[0].uri, uri);
+        assert_eq!(
+            items[0].selection_range,
+            Range::new(
+                position,
+                Position::new(position.line, position.character + name.len() as u32)
+            ),
+        );
+        expected.extend(items);
+    }
+    expected.sort_by(|a, b| a.uri.as_str().cmp(b.uri.as_str()));
+    assert_eq!(requests.supertypes(&pair), Some(expected));
+    assert_eq!(requests.subtypes(&pair), Some(Vec::new()));
+    let mut group = c.benchmark_group("lsp/type-hierarchy-expand");
+    group.bench_function("unifap-v2-pair-supertypes", |b| {
+        b.iter(|| black_box(requests.supertypes(black_box(&pair))));
+    });
+    group.bench_function("unifap-v2-pair-no-subtypes", |b| {
+        b.iter(|| black_box(requests.subtypes(black_box(&pair))));
+    });
+
+    for child_count in [1, 128] {
+        let mut source = String::from("contract Root {}\n");
+        for index in 0..child_count {
+            writeln!(source, "contract Child{index} is Root {{}}").unwrap();
+        }
+        let project = BenchmarkProject::from_source(source);
+        let analysis = project.clone().analyze();
+        assert_clean(&analysis);
+        let mut requests = BenchmarkTypeHierarchyRequests::new(analysis);
+        let (uri, position) =
+            project.unique_anchor("benchmark.sol", "Root {}\ncontract Child0").unwrap();
+        let root = requests.prepare(&uri, position).unwrap().pop().unwrap();
+        assert_eq!(root.name, "Root");
+        let mut expected = Vec::new();
+        for index in 0..child_count {
+            let name = format!("Child{index}");
+            let (_, position) =
+                project.unique_anchor("benchmark.sol", &format!("{name} is")).unwrap();
+            let item = requests.prepare(&uri, position).unwrap().pop().unwrap();
+            assert_eq!(item.name, name);
+            assert_eq!(item.uri, uri);
+            assert_eq!(item.selection_range.start, position);
+            assert_eq!(requests.supertypes(&item), Some(vec![root.clone()]));
+            expected.push(item);
+        }
+        assert_eq!(requests.subtypes(&root).as_ref(), Some(&expected));
+        group.bench_function(BenchmarkId::new("subtypes", child_count), |b| {
+            b.iter(|| black_box(requests.subtypes(black_box(&root))));
+        });
+        group.bench_function(BenchmarkId::new("one-supertype", child_count), |b| {
+            b.iter(|| black_box(requests.supertypes(black_box(expected.last().unwrap()))));
+        });
+    }
     group.finish();
 }
 
@@ -958,6 +1155,79 @@ fn open_document_selection_range(c: &mut Criterion) {
             b.iter(|| black_box(black_box(&requests).run()));
         });
     }
+
+    let mut cold_sources = Vec::new();
+    for (name, source, token, expression, statement) in [
+        (
+            "unifap-v2-router-expression",
+            include_str!("../../../tests/foundry/unifap-v2/src/UnifapV2Router.sol"),
+            "amountADesired",
+            "amountA = amountADesired",
+            "amountA = amountADesired;",
+        ),
+        (
+            "small-ascii",
+            concat!(
+                "contract Selection {\n",
+                "    function value(uint256 input) external pure returns (uint256) {\n",
+                "        return (input + 1) * 2;\n",
+                "    }\n",
+                "}\n",
+            ),
+            "input",
+            "input + 1",
+            "return (input + 1) * 2;",
+        ),
+        (
+            "small-unicode",
+            concat!(
+                "contract Selection {\r\n",
+                "    function value(uint256 input) external pure returns (uint256) {\r\n",
+                "        /* 中😀 */ return (input + 1) * 2;\r\n",
+                "    }\r\n",
+                "}\r\n",
+            ),
+            "input",
+            "input + 1",
+            "return (input + 1) * 2;",
+        ),
+    ] {
+        let statement_start = source.find(statement).expect("the statement should be present");
+        assert_eq!(source.matches(statement).count(), 1);
+        let token_start = statement_start + statement.find(token).unwrap();
+        let positions = [position_at(source, token_start + 2)];
+        let expected = benchmark_selection_ranges(source.to_owned(), &positions)
+            .expect("the benchmark position should be valid");
+        assert_eq!(expected.len(), 1);
+        assert_eq!(
+            expected[0].range,
+            Range::new(
+                position_at(source, token_start),
+                position_at(source, token_start + token.len()),
+            ),
+        );
+        let chain = std::iter::successors(Some(&expected[0]), |range| range.parent.as_deref())
+            .map(|range| range.range)
+            .collect::<Vec<_>>();
+        for enclosing in [expression, statement] {
+            let start = statement_start + statement.find(enclosing).unwrap();
+            assert!(chain.contains(&Range::new(
+                position_at(source, start),
+                position_at(source, start + enclosing.len()),
+            )));
+        }
+        assert_eq!(chain.last(), Some(&Range::new(start, position_at(source, source.len()))));
+
+        let requests = BenchmarkSelectionRangeRequests::new(source.to_owned(), positions);
+        let first = requests.run().expect("the first request should have selection ranges");
+        assert_eq!(first, expected);
+        assert_eq!(requests.run(), Some(first));
+        group.throughput(Throughput::Bytes(source.len() as u64));
+        group.bench_function(BenchmarkId::from_parameter(name), |b| {
+            b.iter(|| black_box(black_box(&requests).run()));
+        });
+        cold_sources.push((name, source, positions));
+    }
     group.finish();
 
     let mut lines = c.benchmark_group("lsp/open-document-selection-range-line-layout");
@@ -1005,6 +1275,16 @@ fn open_document_selection_range(c: &mut Criterion) {
             BatchSize::PerIteration,
         );
     });
+    for (name, source, positions) in cold_sources {
+        cold.throughput(Throughput::Bytes(source.len() as u64));
+        cold.bench_function(BenchmarkId::from_parameter(name), |b| {
+            b.iter_batched_ref(
+                || BenchmarkSelectionRangeRequests::new(source.to_owned(), positions),
+                |requests| black_box(requests.run()),
+                BatchSize::PerIteration,
+            );
+        });
+    }
     cold.finish();
 }
 
@@ -1525,6 +1805,8 @@ criterion_group!(
     code_lens_queries,
     document_symbol_queries,
     type_hierarchy_queries,
+    type_hierarchy_prepare_requests,
+    type_hierarchy_expansion_requests,
     call_hierarchy_queries,
     import_path_queries,
     bounded_workspace_discovery,
