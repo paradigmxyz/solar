@@ -775,7 +775,7 @@ fn stale_analysis_does_not_replace_published_path_index() {
     let output = |path| AnalysisOutput {
         result: AnalysisResult {
             analyzed_documents: AnalyzedDocuments::default(),
-            diagnostics: DiagnosticMap::default(),
+            diagnostics: Arc::default(),
             symbol_tables: Default::default(),
         },
         analysis_paths: AnalysisPathIndex {

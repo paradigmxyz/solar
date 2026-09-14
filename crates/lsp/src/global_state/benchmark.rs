@@ -551,6 +551,42 @@ impl BenchmarkRepeatedAnalysis {
         Self { state }
     }
 
+    /// Prepare one open document with negotiated push or pull diagnostic delivery.
+    pub fn with_diagnostic_delivery(source: String, pull: bool) -> Self {
+        let mut analysis = Self::new(source);
+        let mut params = lsp_types::InitializeParams::default();
+        params.capabilities.text_document = Some(lsp_types::TextDocumentClientCapabilities {
+            diagnostic: pull.then(lsp_types::DiagnosticClientCapabilities::default),
+            ..Default::default()
+        });
+        params.capabilities.workspace = Some(lsp_types::WorkspaceClientCapabilities {
+            diagnostic: Some(lsp_types::DiagnosticWorkspaceClientCapabilities {
+                refresh_support: Some(pull),
+            }),
+            ..Default::default()
+        });
+        let (_, config) = negotiate_capabilities(params);
+        assert_eq!(config.uses_pull_diagnostics(), pull);
+        analysis.state.config = Arc::new(config);
+        analysis
+    }
+
+    /// Read complete published reports and result IDs outside the timed benchmark loop.
+    pub fn diagnostic_reports(&self) -> Vec<(Url, String, Vec<Diagnostic>)> {
+        self.state
+            .diagnostics
+            .read()
+            .workspace_pull_reports(Vec::new())
+            .into_iter()
+            .map(|report| {
+                let PullReport::Full { result_id, diagnostics } = report.report else {
+                    unreachable!("a report without a previous result ID is full")
+                };
+                (report.uri, result_id, diagnostics)
+            })
+            .collect()
+    }
+
     /// Prepare one open document in each independently configured workspace.
     ///
     /// The caller keeps these roots and their disk dependencies alive for the workload.
@@ -1014,7 +1050,7 @@ impl BenchmarkWorkspaceReports {
             .map(|uri| (uri, vec![Diagnostic::new_simple(Range::default(), "benchmark".into())]))
             .collect::<DiagnosticMap>();
         let mut store = DiagnosticStore::default();
-        store.replace_compiler_snapshot_and_publish_batches(diagnostics, analyzed_documents);
+        store.replace_compiler_snapshot_and_publish_batches(diagnostics, analyzed_documents, true);
         let mut previous = store
             .workspace_pull_reports(Vec::new())
             .into_iter()

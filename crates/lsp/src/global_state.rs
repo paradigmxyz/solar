@@ -290,7 +290,7 @@ struct AnalysisCommitState {
 struct CachedAnalysisOutput {
     vfs_content_revision: u64,
     config: Arc<Config>,
-    output: AnalysisOutput<Arc<SymbolTables>>,
+    output: AnalysisOutput<Arc<SymbolTables>, Arc<DiagnosticMap>>,
     inputs: Vec<AnalysisBatchInputs>,
     /// Independently reusable batches whose inputs and loader observations can be revalidated.
     ///
@@ -932,6 +932,7 @@ impl GlobalState {
                 let update = diagnostics.write().replace_compiler_snapshot_and_publish_batches(
                     DiagnosticMap::default(),
                     AnalyzedDocuments::default(),
+                    self.config.uses_push_diagnostics(),
                 );
                 let pull_results_changed =
                     update.pull_reports_changed || update.workspace_documents_changed;
@@ -2031,28 +2032,29 @@ fn handle_analysis_failure(
     Some(refresh_requests)
 }
 
+/// Batch results own their data; completed aggregates share indexes and diagnostics with the cache.
 #[derive(Clone)]
-struct AnalysisResult<T = SymbolTables> {
+struct AnalysisResult<T = SymbolTables, D = DiagnosticMap> {
     analyzed_documents: AnalyzedDocuments,
-    diagnostics: DiagnosticMap,
+    diagnostics: D,
     symbol_tables: T,
 }
 
 #[derive(Clone)]
-struct AnalysisOutput<T = SymbolTables> {
-    result: AnalysisResult<T>,
+struct AnalysisOutput<T = SymbolTables, D = DiagnosticMap> {
+    result: AnalysisResult<T, D>,
     analysis_paths: AnalysisPathIndex,
 }
 
 impl AnalysisOutput {
-    /// Share the completed index between the cache and published snapshot.
-    fn into_shared(self) -> AnalysisOutput<Arc<SymbolTables>> {
+    /// Share the completed index and diagnostics between the cache and published snapshot.
+    fn into_shared(self) -> AnalysisOutput<Arc<SymbolTables>, Arc<DiagnosticMap>> {
         let Self { result, analysis_paths } = self;
         let AnalysisResult { analyzed_documents, diagnostics, symbol_tables } = result;
         AnalysisOutput {
             result: AnalysisResult {
                 analyzed_documents,
-                diagnostics,
+                diagnostics: Arc::new(diagnostics),
                 symbol_tables: Arc::new(symbol_tables),
             },
             analysis_paths,
@@ -2590,7 +2592,7 @@ impl GlobalStateSnapshot {
     fn publish_analysis_output(
         &mut self,
         version: usize,
-        output: AnalysisOutput<Arc<SymbolTables>>,
+        output: AnalysisOutput<Arc<SymbolTables>, Arc<DiagnosticMap>>,
     ) -> bool {
         let refresh_code_lenses =
             self.config.supports_code_lens_refresh() && self.config.code_lens_options().is_active();
@@ -2658,10 +2660,11 @@ impl GlobalStateSnapshot {
             commit.symbol_tables_version = version;
             commit.analysis_config = Some(self.config.clone());
             commit.natspec_pending_source_changes.clear();
-            let update = self
-                .diagnostics
-                .write()
-                .replace_compiler_snapshot_and_publish_batches(diagnostics, analyzed_documents);
+            let update = self.diagnostics.write().replace_compiler_snapshot_and_publish_batches(
+                diagnostics,
+                analyzed_documents,
+                self.config.uses_push_diagnostics(),
+            );
             drop(vfs);
             let external_refresh =
                 commit.finish_external_refresh(update.pull_reports_changed, inlay_hints_changed);
@@ -2714,7 +2717,7 @@ impl GlobalStateSnapshot {
             AnalysisOutput {
                 result: AnalysisResult {
                     analyzed_documents: AnalyzedDocuments::default(),
-                    diagnostics: DiagnosticMap::default(),
+                    diagnostics: Arc::default(),
                     symbol_tables,
                 },
                 analysis_paths: AnalysisPathIndex::default(),

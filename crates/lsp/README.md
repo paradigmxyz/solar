@@ -38,7 +38,7 @@ default; when neither is configured, Forge is resolved as `forge` through `PATH`
 Run the LSP benchmarks locally with:
 
 ```console
-cargo bench -p solar-lsp --bench lsp --bench lsp_diagnostic --features bench
+cargo bench -p solar-lsp --bench lsp --bench lsp_diagnostic --bench lsp_publication --features bench
 ```
 
 The current suite measures in-memory project analysis, edits, and queries. Loading manifests and
@@ -56,6 +56,12 @@ The benchmark groups intentionally keep separate timing boundaries:
 - `analysis-build` preserves the historical single-source workload for comparable BASE results.
 - `project-analysis` and `project-analysis-after-edit` measure compiler and symbol-table rebuilds.
 - `project-edit-application` measures UTF-16 document edit application without analysis.
+- `cached-diagnostic-publication` measures cached analysis publication with push and pull clients,
+  including diagnostic replacement and push notification construction, but excluding transport
+  writes and compiler work. Files with zero or one warning control for small-payload overhead.
+  `reverted-edit-diagnostic-publication` includes an edit and undo before publication, exercising
+  input validation after the document revision changes. Both check complete diagnostics and stable
+  result IDs outside timing; neither measures editor latency or ordinary per-keystroke analysis.
 - `symbol-table-queries` measures synchronous query kernels, not complete LSP request latency.
 - `code-lens` measures repeated queries, including response destruction. The separate
   `code-lens-first-request` group clones an unqueried analysis snapshot outside timing and
