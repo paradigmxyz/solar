@@ -92,8 +92,7 @@ fn @declLit() -> bytes4 [selector=0xe5489b44, pure, abi_params=[], abi_returns=[
 
 fn @assignLit() -> bytes4 [selector=0xa4d2a382, pure, abi_params=[], abi_returns=[word<bytes4>]] {
   bb0:
-    v0 = shl 224, 0x66778899
-    ret v0
+    ret 0x6677889900000000000000000000000000000000000000000000000000000000
 }
 
 fn @mapKeyCross() -> u256 [selector=0xef866c75, abi_params=[], abi_returns=[word]] {

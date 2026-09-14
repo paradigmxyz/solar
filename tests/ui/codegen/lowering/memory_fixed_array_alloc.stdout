@@ -184,23 +184,22 @@ fn @namedReturn() -> (memoryfixedarray, u256) [selector=0xf76de570, pure, abi_pa
     v6 = and 95, v5
     v7 = alloc memorybytes, exact, zeroed, panic, v6
     set_memory_object_len memorybytes, v7, 32
-    v8 = shl 248, 238
-    v9 = memory_object_len memorybytes, v7
-    v10 = lt 0, v9
-    v11 = iszero v10
-    jumpi v11, bb1, bb4
+    v8 = memory_object_len memorybytes, v7
+    v9 = lt 0, v8
+    v10 = iszero v9
+    jumpi v10, bb1, bb4
   bb4:
-    v12 = byte 0, v8
-    memory_object_store_byte memorybytes, v7, 0, v12
-    v13 = memory_object_len memorybytes, v7
-    v14 = lt 0, v13
-    v15 = iszero v14
-    jumpi v15, bb1, bb5
+    v11 = byte 0, 0xee00000000000000000000000000000000000000000000000000000000000000
+    memory_object_store_byte memorybytes, v7, 0, v11
+    v12 = memory_object_len memorybytes, v7
+    v13 = lt 0, v12
+    v14 = iszero v13
+    jumpi v14, bb1, bb5
   bb5:
-    v16 = memory_object_load_byte memorybytes, v7, 0
-    v17 = shl 248, v16
-    v18 = shr 248, v17
-    ret v0, v18
+    v15 = memory_object_load_byte memorybytes, v7, 0
+    v16 = shl 248, v15
+    v17 = shr 248, v16
+    ret v0, v17
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

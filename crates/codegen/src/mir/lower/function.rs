@@ -840,7 +840,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let fixed_bytes = operators::fixed_bytes_width(lhs_ty);
                 let rhs_ty = self.cx.gcx.type_of_expr(rhs.id).unwrap_or(lhs_ty);
                 let memory_rhs_ty = rhs_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
-                let rhs_value = if self.in_inline_assembly {
+                // A literal assigned to a fixed-bytes place is that word.
+                // Building it directly avoids allocating a memory literal whose
+                // only use is the first word read back out of it; the
+                // allocation writes memory, so nothing later removes it.
+                let fixed_bytes_literal = (fixed_bytes.is_some() && compound_op.is_none())
+                    .then(|| self.lower_fixed_bytes_literal(lhs_ty, rhs))
+                    .flatten();
+                let rhs_value = if let Some(word) = fixed_bytes_literal {
+                    word
+                } else if self.in_inline_assembly {
                     self.lower_yul_word_expr(rhs)?
                 } else if self.types.memory_layout(memory_rhs_ty).is_some()
                     && rhs_ty.is_ref_at(DataLocation::Storage)
@@ -855,6 +864,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 } else {
                     self.lower_expr(rhs)?
                 };
+                // The literal word above is already the place's type, so the
+                // conversion below must not widen or shift it a second time.
+                let rhs_ty = if fixed_bytes_literal.is_some() { lhs_ty } else { rhs_ty };
                 if let Some(kind) = compound_op {
                     let place = self.resolve_lvalue_place(lhs)?;
                     let lhs_value = self.load_lvalue_place(&place)?;
