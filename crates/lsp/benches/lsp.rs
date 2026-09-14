@@ -4,6 +4,7 @@
 
 use criterion::{BatchSize, BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use crop::Rope;
+use flate2::read::GzDecoder;
 use lsp_types::{
     GotoDefinitionResponse, HoverContents, OneOf, Position, Range, TextDocumentContentChangeEvent,
     Url,
@@ -118,6 +119,115 @@ fn analysis_build(c: &mut Criterion) {
         b.iter_batched(
             || source.clone(),
             |source| black_box(BenchmarkAnalysis::from_source(black_box(source))),
+            BatchSize::PerIteration,
+        );
+    });
+    group.finish();
+}
+
+fn import_diamond_analysis(c: &mut Criterion) {
+    let mut group = c.benchmark_group("lsp/import-diamond-analysis");
+    for depth in [4, 8, 16] {
+        let mut fixture = String::from("//- /Base.sol\ninterface Base {\n");
+        for index in 0..8 {
+            writeln!(fixture, "function method{index}() external;").unwrap();
+        }
+        fixture.push_str("}\n");
+        for layer in 0..depth {
+            for side in ["Left", "Right"] {
+                writeln!(fixture, "//- /{side}{layer}.sol").unwrap();
+                if layer == 0 {
+                    fixture.push_str("import \"./Base.sol\";\n");
+                } else {
+                    writeln!(fixture, "import \"./Left{}.sol\";", layer - 1).unwrap();
+                    writeln!(fixture, "import \"./Right{}.sol\";", layer - 1).unwrap();
+                }
+            }
+        }
+        writeln!(fixture, "//- /Child.sol\nimport \"./Left{}.sol\";", depth - 1).unwrap();
+        writeln!(fixture, "import \"./Right{}.sol\";", depth - 1).unwrap();
+        fixture.push_str("contract Child is Base {\n");
+        for index in 0..8 {
+            writeln!(fixture, "function method{index}() external override {{}}").unwrap();
+        }
+        fixture.push_str("}\n");
+        let project = BenchmarkProject::from_fixture("import-diamond", &fixture).unwrap();
+        assert_clean(&project.clone().analyze());
+        group.throughput(Throughput::Elements(project.file_count() as u64));
+        group.bench_function(BenchmarkId::from_parameter(depth), |b| {
+            b.iter_batched(
+                || project.clone(),
+                |project| black_box(project.analyze()),
+                BatchSize::PerIteration,
+            );
+        });
+    }
+    group.finish();
+}
+
+fn solady_analysis(c: &mut Criterion) {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let archive = root.join("../../testdata/projects/solady-0.1.26.json.gz");
+    let input: serde_json::Value =
+        serde_json::from_reader(GzDecoder::new(fs::File::open(archive).unwrap())).unwrap();
+    let sources = input["sources"].as_object().unwrap().iter().map(|(path, source)| {
+        (PathBuf::from(path), source["content"].as_str().unwrap().to_owned())
+    });
+    let mut opts =
+        CompileOpts { base_path: Some(root.join("benches/solady")), ..Default::default() };
+    opts.import_remappings = input["settings"]["remappings"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|value| value.as_str().unwrap().parse().unwrap())
+        .collect();
+    let project = BenchmarkProject::from_sources(opts, sources).unwrap();
+    assert_eq!(project.file_count(), 208);
+    let analysis = project.clone().analyze();
+    assert_clean(&analysis);
+    let query = BenchmarkRequest::WorkspaceSymbols { query: "lspReadyValue".into() };
+    assert!(
+        matches!(analysis.execute(&query), BenchmarkResponse::WorkspaceSymbols(items) if items.is_empty())
+    );
+    drop(analysis);
+
+    let edit = project
+        .replacement_edit(
+            "src/tokens/WETH.sol",
+            "contract WETH is ERC20 {",
+            "contract WETH is ERC20 {\nfunction lspReadyValue() public pure returns (uint256) { return 1; }",
+        )
+        .unwrap();
+    let mut edited = project.clone();
+    edited.apply_edit(&edit).unwrap();
+    let analysis = edited.analyze();
+    assert_clean(&analysis);
+    assert!(
+        matches!(analysis.execute(&query), BenchmarkResponse::WorkspaceSymbols(items) if items.len() == 1)
+    );
+    drop(analysis);
+
+    let mut group = c.benchmark_group("lsp/project-analysis");
+    group.throughput(Throughput::Bytes(project.source_bytes() as u64));
+    group.bench_function(BenchmarkId::from_parameter("solady-0.1.26"), |b| {
+        b.iter_batched(
+            || project.clone(),
+            |project| black_box(project.analyze()),
+            BatchSize::PerIteration,
+        );
+    });
+    group.finish();
+
+    let mut group = c.benchmark_group("lsp/project-analysis-after-edit");
+    group.throughput(Throughput::Bytes(project.source_bytes() as u64));
+    group.bench_function(BenchmarkId::from_parameter("solady-0.1.26"), |b| {
+        b.iter_batched(
+            || {
+                let mut project = project.clone();
+                project.apply_edit(&edit).unwrap();
+                project
+            },
+            |project| black_box(project.analyze()),
             BatchSize::PerIteration,
         );
     });
@@ -1341,6 +1451,7 @@ fn unifap_benches(c: &mut Criterion) {
 criterion_group!(
     benches,
     analysis_build,
+    import_diamond_analysis,
     rename_candidate_queries,
     rename_requests,
     completion_queries,
@@ -1363,6 +1474,7 @@ criterion_group!(
     repeated_analysis,
     workspace_index_reuse,
     workspace_path_queries,
-    unifap_benches
+    unifap_benches,
+    solady_analysis
 );
 criterion_main!(benches);

@@ -55,6 +55,13 @@ The benchmark groups intentionally keep separate timing boundaries:
 
 - `analysis-build` preserves the historical single-source workload for comparable BASE results.
 - `project-analysis` and `project-analysis-after-edit` measure compiler and symbol-table rebuilds.
+- Their `solady-0.1.26` cases load all 208 sources from the pinned project archive, including its
+  test sources and import remapping. The edit adds a pure helper to WETH; preflight checks verify
+  that analysis is clean and the new symbol appears only after the edit. Archive decompression,
+  cloning the project, applying the edit, and destroying the analysis result stay outside timing.
+- `import-diamond-analysis` measures complete analysis of shared import graphs with 4, 8, and 16
+  layers and eight overridden methods. It catches indexing that enumerates import paths instead
+  of using resolved source scopes; its synthetic scaling results are separate from project results.
 - `project-edit-application` measures UTF-16 document edit application without analysis.
 - `symbol-table-queries` measures synchronous query kernels, not complete LSP request latency.
 - `code-lens` measures repeated queries, including response destruction. The separate

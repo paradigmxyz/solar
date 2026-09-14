@@ -656,6 +656,176 @@ new_text:
 }
 
 #[test]
+fn completes_inheritdoc_with_the_lexically_first_alias() {
+    for aliases in ["Original as Zulu, Original as Alpha", "Original as Alpha, Original as Zulu"] {
+        let fixture = RequestFixture::new(
+            &format!(
+                r#"
+                //- /Base.sol
+                interface Original {{ function value() external; }}
+
+                //- /Completion.sol open
+                import {{{aliases}}} from "./Base.sol";
+                contract Child is Zulu {{
+                    ///$1
+                    function value() external override {{}}
+                }}
+                "#,
+            ),
+            "/Completion.sol",
+        );
+
+        fixture.check_completion(
+            "$1",
+            str![[r#"
+NatSpec function documentation Snippet
+NatSpec @inheritdoc Alpha Snippet
+
+"#]],
+        );
+    }
+}
+
+#[test]
+fn completes_inheritdoc_through_renamed_diamond_reexports_once() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Base.sol
+        interface Original { function value() external; }
+
+        //- /Left.sol
+        import {Original as LeftAlias} from "./Base.sol";
+
+        //- /Right.sol
+        import {Original as RightAlias} from "./Base.sol";
+
+        //- /Middle.sol
+        import {LeftAlias as Shared} from "./Left.sol";
+        import {RightAlias as Shared} from "./Right.sol";
+
+        //- /Completion.sol open
+        import {Shared as Alias} from "./Middle.sol";
+        contract Child is Alias {
+            ///$1
+            function value() external override {}
+        }
+        "#,
+        "/Completion.sol",
+    );
+
+    fixture.check_completion(
+        "$1",
+        str![[r#"
+NatSpec function documentation Snippet
+NatSpec @inheritdoc Alias Snippet
+
+"#]],
+    );
+}
+
+#[test]
+fn omits_inheritdoc_for_namespace_only_imports() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Base.sol
+        interface Original { function value() external; }
+
+        //- /Completion.sol open
+        import "./Base.sol" as Named;
+        import * as Glob from "./Base.sol";
+        contract First is Named.Original {
+            ///$1
+            function value() external override {}
+        }
+        contract Second is Glob.Original {
+            ///$2
+            function value() external override {}
+        }
+        "#,
+        "/Completion.sol",
+    );
+
+    let expected = str![[r#"
+NatSpec function documentation Snippet
+
+"#]];
+    fixture.check_completion("$1", expected.clone());
+    fixture.check_completion("$2", expected);
+}
+
+#[test]
+fn completes_inheritdoc_with_each_sources_own_alias() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Base.sol
+        interface Original { function value() external; }
+
+        //- /First.sol open
+        import {Original as Alpha} from "./Base.sol";
+        contract First is Alpha {
+            ///$1
+            function value() external override {}
+        }
+
+        //- /Second.sol open
+        import {Original as Zulu} from "./Base.sol";
+        contract Second is Zulu {
+            ///$2
+            function value() external override {}
+        }
+
+        //- /Main.sol
+        import "./First.sol";
+        import "./Second.sol";
+        "#,
+        "/Main.sol",
+    );
+
+    fixture.check_completion(
+        "$1",
+        str![[r#"
+NatSpec function documentation Snippet
+NatSpec @inheritdoc Alpha Snippet
+
+"#]],
+    );
+    fixture.check_completion(
+        "$2",
+        str![[r#"
+NatSpec function documentation Snippet
+NatSpec @inheritdoc Zulu Snippet
+
+"#]],
+    );
+}
+
+#[test]
+fn completes_inheritdoc_with_a_resolved_self_import_alias() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Completion.sol open
+        import {Original as Alias} from "./Completion.sol";
+        interface Original { function value() external; }
+        contract Child is Alias {
+            ///$1
+            function value() external override {}
+        }
+        "#,
+        "/Completion.sol",
+    );
+
+    // Self-import aliases are already resolved in the source scope.
+    fixture.check_completion(
+        "$1",
+        str![[r#"
+NatSpec function documentation Snippet
+NatSpec @inheritdoc Alias Snippet
+
+"#]],
+    );
+}
+
+#[test]
 fn omits_inheritdoc_for_a_base_function_with_a_different_signature() {
     let fixture = RequestFixture::new_allowing_diagnostics(
         r#"

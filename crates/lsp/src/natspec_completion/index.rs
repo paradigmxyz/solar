@@ -1,6 +1,6 @@
 use lsp_types::Url;
 use solar_interface::{
-    Ident, Span,
+    Span, Symbol,
     data_structures::map::{FxHashMap, FxHashSet},
     source_map::SourceFile,
 };
@@ -147,20 +147,69 @@ struct SemanticItem {
     semantics: NatSpecTargetSemantics,
 }
 
+/// Reverse resolved names only for sources that need inherited documentation completions.
+///
+/// Import diamonds can have exponentially many paths to the same declaration. The compiler has
+/// already resolved those imports, including aliases and cycles; scan each needed scope once and
+/// retain the lexicographically first name for each contract for this analysis build only.
+#[derive(Default)]
+struct SourceContractNames {
+    by_source: FxHashMap<hir::SourceId, FxHashMap<hir::ContractId, Symbol>>,
+}
+
+impl SourceContractNames {
+    fn get(
+        &mut self,
+        gcx: Gcx<'_>,
+        source: hir::SourceId,
+        contract: hir::ContractId,
+    ) -> Option<Symbol> {
+        self.by_source
+            .entry(source)
+            .or_insert_with(|| {
+                let mut names = FxHashMap::<hir::ContractId, Symbol>::default();
+                for (name, contract) in gcx.natspec_contracts(source) {
+                    names
+                        .entry(contract)
+                        .and_modify(|current| {
+                            if name.as_str() < current.as_str() {
+                                *current = name;
+                            }
+                        })
+                        .or_insert(name);
+                }
+                names
+            })
+            .get(&contract)
+            .copied()
+    }
+}
+
 impl NatSpecCompletionIndex {
     pub(crate) fn build(gcx: Gcx<'_>) -> Self {
         let mut index = Self::default();
         let mut semantic_items_by_source =
             FxHashMap::<hir::SourceId, FxHashMap<Span, Vec<SemanticItem>>>::default();
+        let mut contract_names = SourceContractNames::default();
 
         for source in gcx.hir.sources() {
             for &item_id in source.items {
                 if let ItemId::Contract(contract_id) = item_id {
                     for &contract_item_id in gcx.hir.contract(contract_id).items {
-                        collect_semantic_item(gcx, &mut semantic_items_by_source, contract_item_id);
+                        collect_semantic_item(
+                            gcx,
+                            &mut semantic_items_by_source,
+                            &mut contract_names,
+                            contract_item_id,
+                        );
                     }
                 } else {
-                    collect_semantic_item(gcx, &mut semantic_items_by_source, item_id);
+                    collect_semantic_item(
+                        gcx,
+                        &mut semantic_items_by_source,
+                        &mut contract_names,
+                        item_id,
+                    );
                 }
             }
         }
@@ -282,6 +331,7 @@ impl NatSpecCompletionIndex {
 fn collect_semantic_item(
     gcx: Gcx<'_>,
     semantic_items_by_source: &mut FxHashMap<hir::SourceId, FxHashMap<Span, Vec<SemanticItem>>>,
+    contract_names: &mut SourceContractNames,
     item_id: ItemId,
 ) {
     let eligible = match item_id {
@@ -302,7 +352,7 @@ fn collect_semantic_item(
         return;
     }
 
-    let semantics = target_semantics(gcx, item_id);
+    let semantics = target_semantics(gcx, contract_names, item_id);
     if semantics.is_empty() {
         return;
     }
@@ -342,7 +392,11 @@ fn hir_target_kind(gcx: Gcx<'_>, item_id: ItemId) -> Option<TargetKind> {
     })
 }
 
-fn target_semantics(gcx: Gcx<'_>, item_id: ItemId) -> NatSpecTargetSemantics {
+fn target_semantics(
+    gcx: Gcx<'_>,
+    contract_names: &mut SourceContractNames,
+    item_id: ItemId,
+) -> NatSpecTargetSemantics {
     let getter_returns = match item_id {
         ItemId::Variable(id) => gcx.hir.variable(id).getter.map_or_else(Vec::new, |getter| {
             gcx.hir
@@ -355,13 +409,17 @@ fn target_semantics(gcx: Gcx<'_>, item_id: ItemId) -> NatSpecTargetSemantics {
         _ => Vec::new(),
     };
 
-    let mut inheritdoc_contracts = inherited_contract_names(gcx, item_id);
+    let mut inheritdoc_contracts = inherited_contract_names(gcx, contract_names, item_id);
     inheritdoc_contracts.sort_unstable();
     inheritdoc_contracts.dedup();
     NatSpecTargetSemantics { getter_returns, inheritdoc_contracts }
 }
 
-fn inherited_contract_names(gcx: Gcx<'_>, item_id: ItemId) -> Vec<String> {
+fn inherited_contract_names(
+    gcx: Gcx<'_>,
+    contract_names: &mut SourceContractNames,
+    item_id: ItemId,
+) -> Vec<String> {
     let source_id = gcx.hir.item(item_id).source();
     let mut pending = gcx.base_override_items(item_id).to_vec();
     let mut seen = FxHashSet::default();
@@ -371,77 +429,13 @@ fn inherited_contract_names(gcx: Gcx<'_>, item_id: ItemId) -> Vec<String> {
             continue;
         }
         if let Some(contract_id) = gcx.hir.item(base_item).contract()
-            && let Some(name) = source_visible_contract_name(gcx, source_id, contract_id)
+            && let Some(name) = contract_names.get(gcx, source_id, contract_id)
         {
-            names.push(name);
+            names.push(name.to_string());
         }
         pending.extend_from_slice(gcx.base_override_items(base_item));
     }
     names
-}
-
-fn source_visible_contract_name(
-    gcx: Gcx<'_>,
-    source_id: hir::SourceId,
-    contract_id: hir::ContractId,
-) -> Option<String> {
-    let mut visiting = FxHashSet::default();
-    let mut candidates =
-        visible_contract_names_in_source(gcx, source_id, contract_id, &mut visiting);
-    candidates.sort_unstable_by(|lhs, rhs| lhs.as_str().cmp(rhs.as_str()));
-    candidates.dedup_by_key(|candidate| candidate.name);
-    candidates
-        .into_iter()
-        .find_map(|candidate| visible_contract_name(gcx, source_id, contract_id, candidate))
-}
-
-fn visible_contract_names_in_source(
-    gcx: Gcx<'_>,
-    source_id: hir::SourceId,
-    contract_id: hir::ContractId,
-    visiting: &mut FxHashSet<hir::SourceId>,
-) -> Vec<Ident> {
-    if !visiting.insert(source_id) {
-        return Vec::new();
-    }
-
-    let contract = gcx.hir.contract(contract_id);
-    let mut names = if contract.source == source_id { vec![contract.name] } else { Vec::new() };
-    if let Some(source) = gcx.sources.get(source_id)
-        && let Some(ast) = &source.ast
-    {
-        for &(import_item_id, imported_source_id) in &source.imports {
-            let ItemKind::Import(import) = &ast.items[import_item_id].kind else { continue };
-            let imported_names =
-                visible_contract_names_in_source(gcx, imported_source_id, contract_id, visiting);
-            match &import.items {
-                ast::ImportItems::Plain(None) => names.extend(imported_names),
-                ast::ImportItems::Aliases(aliases) => {
-                    for imported_name in imported_names {
-                        names.extend(
-                            aliases
-                                .iter()
-                                .filter(|(name, _)| name.name == imported_name.name)
-                                .map(|(name, alias)| alias.unwrap_or(*name)),
-                        );
-                    }
-                }
-                ast::ImportItems::Plain(Some(_)) | ast::ImportItems::Glob(_) => {}
-            }
-        }
-    }
-    visiting.remove(&source_id);
-    names
-}
-
-fn visible_contract_name(
-    gcx: Gcx<'_>,
-    source_id: hir::SourceId,
-    contract_id: hir::ContractId,
-    candidate: solar_interface::Ident,
-) -> Option<String> {
-    (gcx.natspec_contract(candidate.name, source_id) == Some(contract_id))
-        .then(|| candidate.to_string())
 }
 
 fn merge_entry(

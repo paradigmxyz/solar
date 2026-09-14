@@ -664,6 +664,22 @@ impl<'gcx> Gcx<'gcx> {
         self.natspec_contract_in_source((name, source))
     }
 
+    /// Returns contract names visible in a source's resolved scope for NatSpec `@inheritdoc`.
+    ///
+    /// Aliases are included, namespaces are excluded, and each name selects the same contract
+    /// as [`Self::natspec_contract`]. Iteration order is unspecified.
+    pub fn natspec_contracts(
+        self,
+        source: hir::SourceId,
+    ) -> impl Iterator<Item = (Symbol, hir::ContractId)> + 'gcx {
+        self.symbol_resolver.source_scopes[source].iter().filter_map(|(name, declarations)| {
+            declarations.iter().find_map(|declaration| match declaration.res {
+                hir::Res::Item(hir::ItemId::Contract(id)) => Some((name, id)),
+                _ => None,
+            })
+        })
+    }
+
     /// Returns the resolved NatSpec doc comments for the given doc ID.
     ///
     /// This preserves the flat representation used by compiler outputs. Use [`Gcx::natspec_view`]

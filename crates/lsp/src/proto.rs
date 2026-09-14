@@ -14,7 +14,7 @@ use solar_interface::{
     diagnostics::{Diag, Level},
     source_map::SourceFile,
 };
-use std::{borrow::Borrow, sync::Arc};
+use std::{borrow::Borrow, cell::Cell, sync::Arc};
 
 #[derive(Debug)]
 pub(crate) enum Initialize {}
@@ -418,36 +418,128 @@ pub(crate) fn benchmark_diagnostic_conversion(
     converted
 }
 
-/// Converts compiler spans to LSP locations while caching each source file URI.
+/// Converts compiler spans to LSP locations using an immutable source snapshot.
 ///
-/// The cache is local to one source map and must not outlive its analysis build. Construct it
-/// after source loading is complete so every source file is included in the eager snapshot.
+/// Construct this after source loading is complete. The snapshot avoids source-map locking and
+/// stores cumulative UTF-8 to UTF-16 adjustments only at multibyte characters, so conversion never
+/// scans source text preceding an endpoint.
 pub(crate) struct LocationConverter {
-    source_map: Arc<SourceMap>,
-    uris: FxHashMap<BytePos, lsp_types::Url>,
+    files: Vec<LocationFile>,
+    recent_file: Cell<usize>,
+}
+
+struct LocationFile {
+    source: Arc<SourceFile>,
+    uri: Option<lsp_types::Url>,
+    /// Cumulative UTF-8 bytes minus UTF-16 units, including each multibyte character.
+    utf16_excess: Vec<u32>,
+    recent_line: Cell<usize>,
 }
 
 impl LocationConverter {
     pub(crate) fn new(source_map: Arc<SourceMap>) -> Self {
-        let files = source_map.files();
-        let mut uris = FxHashMap::with_capacity_and_hasher(files.len(), Default::default());
-        for file in files.iter() {
-            if let Some(path) = file.name.as_real()
-                && let Ok(uri) = lsp_types::Url::from_file_path(path)
-            {
-                uris.insert(file.start_pos, uri);
-            }
-        }
-        drop(files);
-        Self { source_map, uris }
+        let files = source_map
+            .files()
+            .iter()
+            .map(|source| {
+                let uri = source
+                    .name
+                    .as_real()
+                    .and_then(|path| lsp_types::Url::from_file_path(path).ok());
+                let mut excess = 0;
+                let utf16_excess = source
+                    .multibyte_chars
+                    .iter()
+                    .map(|character| {
+                        // Four-byte UTF-8 characters use a surrogate pair; all others use one unit.
+                        excess +=
+                            u32::from(character.bytes) - if character.bytes == 4 { 2 } else { 1 };
+                        excess
+                    })
+                    .collect();
+                LocationFile {
+                    source: Arc::clone(source),
+                    uri,
+                    utf16_excess,
+                    recent_line: Cell::new(0),
+                }
+            })
+            .collect();
+        Self { files, recent_file: Cell::new(0) }
     }
 
     pub(crate) fn file_uri(&self, file: &SourceFile) -> Option<&lsp_types::Url> {
-        self.uris.get(&file.start_pos)
+        let index =
+            self.files.binary_search_by_key(&file.start_pos, |file| file.source.start_pos).ok()?;
+        self.files[index].uri.as_ref()
     }
 
     pub(crate) fn location(&self, span: Span) -> Option<lsp_types::Location> {
-        span_to_location_with(&self.source_map, span, |file| self.file_uri(file).cloned())
+        if span.is_dummy() {
+            return None;
+        }
+        // Neighboring HIR locations usually share a file. Check both bounds before reusing it.
+        let recent = self.recent_file.get();
+        let next = if self.files.get(recent).is_some_and(|file| file.source.start_pos <= span.lo())
+            && self.files.get(recent + 1).is_none_or(|file| span.lo() < file.source.start_pos)
+        {
+            recent + 1
+        } else {
+            self.files.partition_point(|file| file.source.start_pos <= span.lo())
+        };
+        let file = self.files.get(next.checked_sub(1)?)?;
+        if self.files.get(next).is_some_and(|file| file.source.start_pos <= span.hi()) {
+            return None;
+        }
+        self.recent_file.set(next - 1);
+        let uri = file.uri.as_ref()?;
+        let start = file.position(span.lo())?;
+        let end = if span.lo() == span.hi() { start } else { file.position(span.hi())? };
+        Some(lsp_types::Location { uri: uri.clone(), range: lsp_types::Range::new(start, end) })
+    }
+}
+
+impl LocationFile {
+    fn position(&self, pos: BytePos) -> Option<lsp_types::Position> {
+        let file = &self.source;
+        let offset = file.relative_position(pos);
+        // Both ends of a name normally occupy the same line, as do nearby references.
+        let recent = self.recent_line.get();
+        let line = if file.lines().get(recent).is_some_and(|&start| start <= offset)
+            && file.lines().get(recent + 1).is_none_or(|&start| offset < start)
+        {
+            recent
+        } else {
+            let line = file.lookup_line(offset)?;
+            self.recent_line.set(line);
+            line
+        };
+        let start = file.lines()[line].to_usize();
+        let mut end = file
+            .lines()
+            .get(line + 1)
+            .map_or_else(|| file.source_len.to_usize(), |pos| pos.to_usize());
+        // Preserve compiler-source line semantics: clamp before LF and retain CR in CRLF.
+        if end > start && file.src.as_bytes().get(end - 1) == Some(&b'\n') {
+            end -= 1;
+        }
+        let offset = offset.to_usize().min(end);
+        let mut character = offset.checked_sub(start)?;
+        if !self.utf16_excess.is_empty() {
+            if !file.src.is_char_boundary(offset) {
+                return None;
+            }
+            character -= (self.excess_before(offset) - self.excess_before(start)) as usize;
+        }
+        Some(lsp_types::Position::new(u32::try_from(line).ok()?, u32::try_from(character).ok()?))
+    }
+
+    fn excess_before(&self, offset: usize) -> u32 {
+        let count = self
+            .source
+            .multibyte_chars
+            .partition_point(|character| character.pos.to_usize() < offset);
+        count.checked_sub(1).map_or(0, |index| self.utf16_excess[index])
     }
 }
 
@@ -526,7 +618,9 @@ mod tests {
     use solar_interface::{
         BytePos, SourceMap, Span,
         diagnostics::{Applicability, Diag, DiagMsg, Level},
+        source_map::FileName,
     };
+    use std::sync::Arc;
 
     fn diagnostic_refresh_support(workspace: serde_json::Value) -> Option<bool> {
         let params: <super::Initialize as Request>::Params =
@@ -768,6 +862,75 @@ mod tests {
         let cross_file = Span::new(first.start_pos, second.start_pos);
 
         assert!(super::span_to_location(&source_map, cross_file).is_none());
+    }
+
+    #[test]
+    fn location_converter_matches_reference_at_every_byte_offset() {
+        let source_map = Arc::new(SourceMap::empty());
+        let sources = [
+            "",
+            "a",
+            "abc\n",
+            "abc\r\n",
+            "a\rb",
+            "a\r",
+            "\n",
+            "\r\n",
+            "é中😀",
+            "aé\n",
+            "é\r\n中\r😀\n",
+            "ascii\né\nascii😀end",
+            "",
+        ];
+        let mut files = sources
+            .into_iter()
+            .enumerate()
+            .map(|(index, source)| {
+                source_map
+                    .new_source_file(
+                        std::env::temp_dir().join(format!("IndexedLocation{index}.sol")),
+                        source,
+                    )
+                    .unwrap()
+            })
+            .collect::<Vec<_>>();
+        files.push(
+            source_map.new_source_file(FileName::Custom("generated".into()), "custom😀\n").unwrap(),
+        );
+        files.push(
+            source_map
+                .new_source_file(std::env::temp_dir().join("LastIndexedLocation.sol"), "end😀\n")
+                .unwrap(),
+        );
+        let converter = super::LocationConverter::new(Arc::clone(&source_map));
+        for file in &files {
+            let expected_uri =
+                file.name.as_real().and_then(|path| lsp_types::Url::from_file_path(path).ok());
+            assert_eq!(converter.file_uri(file), expected_uri.as_ref());
+        }
+
+        // Include character interiors, line terminators, EOF, dummy and cross-file spans, plus
+        // offsets past the last EOF, which the reference clamps to its final line's end.
+        let end = files.last().unwrap().end_position().to_u32() + 2;
+        // Repeat in reverse order so both locality caches also move back to earlier files/lines.
+        for lo in (0..=end).chain((0..=end).rev()) {
+            for hi in lo..=end {
+                let span = Span::new(BytePos::from_u32(lo), BytePos::from_u32(hi));
+                let expected = super::span_to_location_with(&source_map, span, |file| {
+                    file.name.as_real().and_then(|path| lsp_types::Url::from_file_path(path).ok())
+                });
+                assert_eq!(converter.location(span), expected, "span {lo}..{hi}");
+            }
+        }
+    }
+
+    #[test]
+    fn location_converter_rejects_spans_without_sources() {
+        let source_map = Arc::new(SourceMap::empty());
+        let converter = super::LocationConverter::new(Arc::clone(&source_map));
+        for span in [Span::DUMMY, Span::new(BytePos(1), BytePos(2))] {
+            assert_eq!(converter.location(span), super::span_to_location(&source_map, span));
+        }
     }
 
     #[test]
