@@ -68,6 +68,21 @@ impl MirPass for ElementCleanup {
     ) -> bool {
         let transitive = transitive_bounds(module);
         let params = param_bounds(module, &transitive);
+        if tracing::enabled!(tracing::Level::TRACE) {
+            for (id, func) in module.functions.iter_enumerated() {
+                tracing::trace!(
+                    function = %func.name,
+                    store = store_bound(func),
+                    transitive = transitive[id],
+                    params = ?func
+                        .params
+                        .indices()
+                        .filter_map(|index| params.get(&(id, index)).map(|bound| (index, *bound)))
+                        .collect::<Vec<_>>(),
+                    "element bounds"
+                );
+            }
+        }
         let mut changed = false;
         for (id, func) in module.functions.iter_mut_enumerated() {
             let reading = transitive[id];

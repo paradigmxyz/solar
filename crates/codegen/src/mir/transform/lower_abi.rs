@@ -389,6 +389,7 @@ impl LowerAbiCx {
         input_params: Option<&AbiParamLayout>,
         canonical_calls: &FxHashSet<(FunctionId, AbiParamType)>,
         static_bytes_return: Option<StaticBytesReturn>,
+        decoded_params: &[Option<ValueId>],
     ) {
         let cleanup_helpers = &self.return_cleanup_helpers;
         let has_bitwise_shifting = self.has_bitwise_shifting;
@@ -426,6 +427,31 @@ impl LowerAbiCx {
         } else {
             FxHashMap::default()
         };
+        // An array this wrapper decoded keeps ABI-validated words when element cleanup
+        // proved that neither it nor anything it calls widens them. Returning it then
+        // needs neither the cleanup helper nor the encoder's per-element copy, so strip
+        // the element cleanup from its layout and let the encoder copy the payload once.
+        let mut canonical_decoded = FxHashSet::default();
+        if let [return_block] = return_blocks.as_slice() {
+            let values = match &func.blocks[*return_block].terminator {
+                Some(Terminator::Return { values }) => values.to_vec(),
+                _ => unreachable!("return block collected above"),
+            };
+            for (index, &value) in values.iter().enumerate() {
+                if return_params
+                    .and_then(|params| params.types.get(index))
+                    .is_some_and(|ty| is_canonical_decoded_array(func, ty, value, decoded_params))
+                {
+                    canonical_decoded.insert(index);
+                }
+            }
+            canonical_decoded.retain(|&index| {
+                std::sync::Arc::make_mut(&mut layout)
+                    .types
+                    .get_mut(index)
+                    .is_some_and(strip_array_element_cleanup)
+            });
+        }
         if !layout.types.iter().any(crate::mir::AbiType::is_dynamic) {
             // Static return data occupies the low-memory ABI buffer. Keep the
             // backend spill area above it so a cross-block value cannot be
@@ -463,6 +489,9 @@ impl LowerAbiCx {
                             value,
                             has_bitwise_shifting,
                         );
+                    }
+                    if canonical_decoded.contains(&index) {
+                        return value;
                     }
                     if let Some(&helper) = cleanup_helpers.get(&ty)
                         && builder.func().value_ty(value) == Some(ty.mir_type())
@@ -906,6 +935,9 @@ impl LowerAbiCx {
             false,
             call_body,
         );
+        // A wrapper that keeps its body in place returns values computed from these
+        // decoded parameters; one that calls the body returns the call's results instead.
+        let decoded_params = if call_body { Vec::new() } else { logical_values.clone() };
         if call_body && logical_values.iter().all(Option::is_some) {
             Self::replace_body_with_call(
                 module.function_mut(wrapper_id),
@@ -967,6 +999,7 @@ impl LowerAbiCx {
             abi_params.as_ref(),
             canonical_return_calls,
             static_bytes_return,
+            &decoded_params,
         );
 
         // External wrappers take no MIR arguments; constructor parameters
@@ -3542,6 +3575,9 @@ fn is_canonical_return_array(
     visiting: &mut FxHashSet<ValueId>,
     calls: &mut CanonicalCallProof<'_>,
 ) -> bool {
+    if is_canonical_return_array_param(func, element, object) {
+        return true;
+    }
     let Value::Inst(alloc) = func.value(object) else { return false };
     if !matches!(func.inst(*alloc).kind, InstKind::Alloc { kind: AllocationKind::Object(_), .. }) {
         return false;
@@ -3580,6 +3616,64 @@ fn is_canonical_return_array(
 }
 
 /// Proves canonicality for arrays built by a counted loop with no escaping reads.
+/// Whether `object` is the array this wrapper decoded for one of its own parameters and
+/// element cleanup proved every word in it fits the ABI element type. Decoding validates
+/// each element, and the proof covers everything the function and its callees store, so
+/// the array still holds validated words where it is returned.
+fn is_canonical_decoded_array(
+    func: &Function,
+    ty: &AbiParamType,
+    value: ValueId,
+    decoded_params: &[Option<ValueId>],
+) -> bool {
+    let (AbiParamType::DynamicArray(element) | AbiParamType::FixedArray { element, .. }) = ty
+    else {
+        return false;
+    };
+    let AbiParamType::Scalar(scalar) = &**element else { return false };
+    let Some(AbiWordValidator::Unsigned(bits)) = AbiWordValidator::from_mir_type(*scalar) else {
+        return false;
+    };
+    decoded_params.iter().position(|decoded| *decoded == Some(value)).is_some_and(|index| {
+        func.attributes
+            .array_element_bits
+            .get(&ArgIdx::new(index))
+            .is_some_and(|&proved| proved <= u32::from(bits))
+    })
+}
+
+/// Drops the per-element cleanup from a memory word array's encoding, leaving one payload
+/// copy. Returns whether the layout had such a cleanup to drop.
+fn strip_array_element_cleanup(ty: &mut AbiType) -> bool {
+    let (AbiType::DynamicArray { element, location: SliceLocation::Memory }
+    | AbiType::FixedArray { element, .. }) = ty
+    else {
+        return false;
+    };
+    if !matches!(**element, AbiType::Word(Some(_))) {
+        return false;
+    }
+    **element = AbiType::Word(None);
+    true
+}
+
+/// Whether `object` is an array parameter whose words element cleanup proved
+/// narrow enough for the ABI element type. The proof covers everything this
+/// function and its callees store into the array, so an array it returns
+/// unchanged needs no per-element cleanup.
+fn is_canonical_return_array_param(
+    func: &Function,
+    element: &AbiParamType,
+    object: ValueId,
+) -> bool {
+    let Value::Arg(index) = *func.value(object) else { return false };
+    let AbiParamType::Scalar(ty) = element else { return false };
+    let Some(AbiWordValidator::Unsigned(bits)) = AbiWordValidator::from_mir_type(*ty) else {
+        return false;
+    };
+    func.attributes.array_element_bits.get(&index).is_some_and(|&proved| proved <= u32::from(bits))
+}
+
 fn is_canonical_return_dynamic_array(
     func: &Function,
     element: &AbiParamType,
@@ -3588,6 +3682,9 @@ fn is_canonical_return_dynamic_array(
     visiting: &mut FxHashSet<ValueId>,
     calls: &mut CanonicalCallProof<'_>,
 ) -> bool {
+    if is_canonical_return_array_param(func, element, object) {
+        return true;
+    }
     let Value::Inst(alloc) = func.value(object) else { return false };
     let InstKind::Alloc { kind: AllocationKind::Object(layout), .. } = &func.inst(*alloc).kind
     else {
