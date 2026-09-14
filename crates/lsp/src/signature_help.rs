@@ -868,6 +868,41 @@ struct DelimiterFrame {
     open: usize,
 }
 
+/// Semicolon-token offsets collected on demand from one immutable source snapshot.
+///
+/// Forward requests extend the scanned prefix; backward requests use binary search. Ordinary
+/// code is scanned in bulk, and the lexer skips strings and comments so their semicolons cannot
+/// become boundaries. A skipped token may end beyond the requested cursor, but contains no
+/// semicolon tokens. The index must never be reused with different source contents.
+#[derive(Default)]
+pub(crate) struct StatementBoundaryIndex {
+    boundaries: Vec<usize>,
+    scanned: usize,
+}
+
+impl StatementBoundaryIndex {
+    pub(crate) fn at(&mut self, source: &str, cursor: usize) -> usize {
+        let bytes = source.as_bytes();
+        while self.scanned < cursor {
+            let start = self.scanned;
+            let next = memchr::memchr3(b'\'', b'"', b'/', &bytes[start..cursor])
+                .map_or(cursor, |offset| start + offset);
+            self.boundaries.extend(
+                memchr::memchr_iter(b';', &bytes[start..next]).map(|offset| start + offset),
+            );
+            self.scanned = if next == cursor {
+                cursor
+            } else {
+                // Finish this token using the full snapshot, so the next query never resumes
+                // inside a string or comment, even when this cursor lies inside that token.
+                next + Cursor::new(&source[next..]).slop().len as usize
+            };
+        }
+        let end = self.boundaries.partition_point(|&boundary| boundary < cursor);
+        end.checked_sub(1).map_or(0, |index| self.boundaries[index])
+    }
+}
+
 /// Finds the last semicolon token, where call-context tracking resets.
 /// Retain the token itself as the barrier for backward call-form lookup.
 pub(crate) fn last_statement_boundary(text: &str) -> usize {
@@ -897,7 +932,7 @@ fn call_context(text: &str) -> Option<CallContext<'_>> {
 /// Finds call context using a previously computed statement boundary when available.
 ///
 /// The boundary is only reused when supplied by the exact source snapshot that owns the request;
-/// callers must leave it as `None` after edits or when querying a different cursor.
+/// callers must compute it for the current cursor and leave it as `None` without that snapshot.
 fn call_context_with_boundary(
     text: &str,
     statement_boundary: Option<usize>,
@@ -1144,6 +1179,7 @@ mod tests {
         for left in fragments {
             for right in fragments {
                 let text = format!("{left}{right}; tail(");
+                let mut index = StatementBoundaryIndex::default();
                 for cursor in 0..=text.len() {
                     if !text.is_char_boundary(cursor) {
                         continue;
@@ -1156,6 +1192,16 @@ mod tests {
                         .last()
                         .unwrap_or(0);
                     assert_eq!(last_statement_boundary(prefix), expected, "{prefix:?}");
+                    assert_eq!(index.at(&text, cursor), expected, "{prefix:?}");
+                }
+                for cursor in (0..=text.len()).rev() {
+                    if text.is_char_boundary(cursor) {
+                        assert_eq!(
+                            index.at(&text, cursor),
+                            last_statement_boundary(&text[..cursor]),
+                            "backward cursor {cursor} in {text:?}"
+                        );
+                    }
                 }
             }
         }

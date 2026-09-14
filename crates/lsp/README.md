@@ -72,3 +72,10 @@ The benchmark groups intentionally keep separate timing boundaries:
   `project-analysis/optimism-predeploys` case measures fresh analysis. These cover one real module;
   the full flattened Optimism corpus contains conflicting dependency versions and is used only for
   source-level workloads, such as folding and selection ranges.
+- `signature-help` measures repeated requests at one cursor through the production handler.
+  `signature-help-moving-cursor` cycles through arguments and calls in generated contracts and the
+  tracked Unifap router, including snapshot lookup, position conversion, and response destruction.
+  Results are per burst; throughput counts requests. Transport and compiler analysis are excluded.
+- `signature-help-first-request` and `signature-help-first-after-edit` measure an early or late
+  request with fresh document caches. The edited case appends whitespace while retaining analysis,
+  exercising signature help before reanalysis. Preparing and destroying snapshots is untimed.

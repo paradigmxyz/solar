@@ -508,6 +508,144 @@ fn signature_help_requests(c: &mut Criterion) {
     group.finish();
 }
 
+fn signature_help_moving_cursors(c: &mut Criterion) {
+    let mut workloads = Vec::new();
+    for function_count in [64, 256, 1024] {
+        let source = benchmark_source(function_count).source.replacen(
+            "contract Benchmark {\n",
+            "contract Benchmark {\nconstructor() { function_0000(3, 4, address(0)); }\n",
+            1,
+        );
+        let project = BenchmarkProject::from_source(source);
+        let signature = |index| {
+            format!(
+                "function function_{index:04}(uint256 first, uint256 second, address account) public pure returns (uint256 total, address owner)"
+            )
+        };
+        let (uri, mut early) =
+            project.unique_anchor("benchmark.sol", "function_0000(3, 4, address(0))").unwrap();
+        early.character += "function_0000(".len() as u32;
+        let mut positions = Vec::new();
+        for index in function_count - 8..function_count {
+            let callee = format!("function_{index:04}(");
+            let (_, start) = project
+                .unique_anchor("benchmark.sol", &format!("{callee}1, 2, address(0))"))
+                .unwrap();
+            for (parameter, prefix) in ["", "1, ", "1, 2, "].into_iter().enumerate() {
+                let position = Position::new(
+                    start.line,
+                    start.character + (callee.len() + prefix.len()) as u32,
+                );
+                positions.push((position, parameter as u32, signature(index)));
+            }
+        }
+        let late = positions.last().unwrap().clone();
+        let requests = BenchmarkSignatureHelpRequests::new(project, uri, early);
+        workloads.push((
+            function_count.to_string(),
+            requests,
+            positions,
+            (early, 0, signature(0)),
+            late,
+        ));
+    }
+
+    let project = unifap_project();
+    let mut positions = Vec::new();
+    for (call, arguments, label) in [
+        (
+            "_safeTransferFrom(tokenA, msg.sender, pair, amountA)",
+            &["tokenA", "msg.sender", "pair", "amountA"][..],
+            "function _safeTransferFrom(address token, address from, address to, uint256 amount) internal returns (bool success)",
+        ),
+        (
+            "_safeTransferFrom(tokenB, msg.sender, pair, amountB)",
+            &["tokenB", "msg.sender", "pair", "amountB"][..],
+            "function _safeTransferFrom(address token, address from, address to, uint256 amount) internal returns (bool success)",
+        ),
+        (
+            "UnifapV2Library.sortPairs(tokenA, tokenB)",
+            &["tokenA", "tokenB"][..],
+            "function sortPairs(address token0, address token1) internal pure returns (address, address)",
+        ),
+        (
+            "UnifapV2Library.quote(amountADesired, reserveA, reserveB)",
+            &["amountADesired", "reserveA", "reserveB"][..],
+            "function quote(uint256 amount0, uint256 reserve0, uint256 reserve1) internal pure returns (uint256)",
+        ),
+        (
+            "IERC20(token).transferFrom(from, to, amount)",
+            &["from", "to,", "amount"][..],
+            "function transferFrom(address from, address to, uint256 amount) external returns (bool)",
+        ),
+    ] {
+        let (_, start) = project.unique_anchor(UNIFAP_ROUTER, call).unwrap();
+        for (parameter, argument) in arguments.iter().enumerate() {
+            let position =
+                Position::new(start.line, start.character + call.find(argument).unwrap() as u32);
+            positions.push((position, parameter as u32, label.to_owned()));
+        }
+    }
+    let early = positions.first().unwrap().clone();
+    let late = positions.last().unwrap().clone();
+    let (uri, _) = project
+        .unique_anchor(UNIFAP_ROUTER, "_safeTransferFrom(tokenA, msg.sender, pair, amountA)")
+        .unwrap();
+    let requests = BenchmarkSignatureHelpRequests::new(project, uri, early.0);
+    workloads.push(("unifap-v2-router".into(), requests, positions, early, late));
+
+    for (_, requests, positions, early, late) in &mut workloads {
+        for (position, parameter, label) in positions.iter().chain([&*early, &*late]) {
+            let response = requests.run_at(*position).expect("moving cursor should resolve a call");
+            assert_eq!(response.active_signature, Some(0));
+            assert_eq!(response.active_parameter, Some(*parameter));
+            assert_eq!(response.signatures.len(), 1);
+            assert_eq!(&response.signatures[0].label, label);
+            assert_eq!(requests.before_first_request().run_at(*position), Some(response.clone()));
+            assert_eq!(requests.after_edit().run_at(*position), Some(response));
+        }
+    }
+
+    let mut group = c.benchmark_group("lsp/signature-help-moving-cursor");
+    for (name, requests, positions, _, _) in &mut workloads {
+        group.throughput(Throughput::Elements(positions.len() as u64));
+        group.bench_function(BenchmarkId::from_parameter(name), |b| {
+            b.iter(|| {
+                for (position, _, _) in black_box(&*positions) {
+                    black_box(requests.run_at(black_box(*position)));
+                }
+            });
+        });
+    }
+    group.finish();
+
+    for edited in [false, true] {
+        let mut group = c.benchmark_group(if edited {
+            "lsp/signature-help-first-after-edit"
+        } else {
+            "lsp/signature-help-first-request"
+        });
+        for (name, requests, _, early, late) in &workloads {
+            for (location, &(position, _, _)) in [("early", early), ("late", late)] {
+                group.bench_function(BenchmarkId::new(name, location), |b| {
+                    b.iter_batched_ref(
+                        || {
+                            if edited {
+                                requests.after_edit()
+                            } else {
+                                requests.before_first_request()
+                            }
+                        },
+                        |requests| black_box(requests.run_at(black_box(position))),
+                        BatchSize::PerIteration,
+                    );
+                });
+            }
+        }
+        group.finish();
+    }
+}
+
 fn bounded_workspace_discovery(c: &mut Criterion) {
     let temp = tempfile::tempdir().expect("benchmark temporary directory");
     let project = temp.path().join("project");
@@ -1383,6 +1521,7 @@ criterion_group!(
     completion_queries,
     member_completion_queries,
     signature_help_requests,
+    signature_help_moving_cursors,
     code_lens_queries,
     document_symbol_queries,
     type_hierarchy_queries,
