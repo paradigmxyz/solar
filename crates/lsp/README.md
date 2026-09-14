@@ -66,3 +66,9 @@ The benchmark groups intentionally keep separate timing boundaries:
   in an unchanged document and multiple cursors, excluding transport and blocking-pool scheduling.
 - `open-document-selection-range-cold` includes the first request's parsing and index construction;
   preparing and destroying the open document stays outside timing.
+- `rename` includes the production handler, source validation, blocking task, and edit construction.
+  Its `optimism-predeploys` case renames the `getName` argument at all 31 occurrences in the original
+  self-contained Predeploys module extracted from `testdata/Optimism.sol`. The corresponding
+  `project-analysis/optimism-predeploys` case measures fresh analysis. These cover one real module;
+  the full flattened Optimism corpus contains conflicting dependency versions and is used only for
+  source-level workloads, such as folding and selection ranges.

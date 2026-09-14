@@ -387,13 +387,17 @@ fn completion_queries(c: &mut Criterion) {
     let analysis = fixture.project.analyze();
     assert_clean(&analysis);
     let mut group = c.benchmark_group("lsp/completion");
-    for (name, prefix) in
-        [("all", ""), ("selective", "function_0255"), ("no-match", "not_a_symbol")]
-    {
+    for (name, prefix) in [
+        ("all", ""),
+        ("selective", "function_0255"),
+        ("fuzzy", "f0255"),
+        ("no-match", "not_a_symbol"),
+        ("long-no-match", "function_0255_extra"),
+    ] {
         let items = analysis.completions(&uri, position, prefix);
         match name {
             "all" => assert!(items.len() >= HOVER_FUNCTION_COUNT),
-            "selective" => assert_eq!(
+            "selective" | "fuzzy" => assert_eq!(
                 items.iter().map(|item| item.label.as_str()).collect::<Vec<_>>(),
                 ["function_0255"]
             ),
@@ -1268,6 +1272,39 @@ fn assert_clean(analysis: &solar_lsp::BenchmarkAnalysis) {
     assert_eq!(analysis.diagnostic_count(), 0, "{}", analysis.diagnostic_fingerprint());
 }
 
+fn optimism_requests(c: &mut Criterion) {
+    // The flattened Optimism corpus contains conflicting declarations from different dependency
+    // versions. Its original Predeploys module is self-contained and can be analyzed unchanged.
+    let source = OPTIMISM_SOURCE
+        .split_once("// src/libraries/Predeploys.sol\n")
+        .unwrap()
+        .1
+        .split_once("// src/cannon/PreimageKeyLib.sol\n")
+        .unwrap()
+        .0;
+    let project = BenchmarkProject::from_source(source.to_owned());
+    let analysis = project.clone().analyze();
+    assert_clean(&analysis);
+    let (uri, position) = project
+        .unique_anchor("benchmark.sol", "_addr) internal pure returns (string memory out_)")
+        .unwrap();
+    let mut requests = BenchmarkRenameRequests::new(project.clone(), uri.clone(), position);
+    let response = requests.run().expect("the Predeploys getName argument should be renameable");
+    let edits = &response.changes.as_ref().unwrap()[&uri];
+    assert_eq!(edits.len(), 31);
+    assert!(edits.iter().all(|edit| edit.new_text == "renamed"));
+    c.benchmark_group("lsp/rename").bench_function("optimism-predeploys", |b| {
+        b.iter(|| black_box(requests.run()));
+    });
+    c.benchmark_group("lsp/project-analysis").bench_function("optimism-predeploys", |b| {
+        b.iter_batched(
+            || project.clone(),
+            |project| black_box(project.analyze()),
+            BatchSize::PerIteration,
+        );
+    });
+}
+
 fn unifap_benches(c: &mut Criterion) {
     let project = unifap_project();
     let edit = project
@@ -1363,6 +1400,7 @@ criterion_group!(
     repeated_analysis,
     workspace_index_reuse,
     workspace_path_queries,
+    optimism_requests,
     unifap_benches
 );
 criterion_main!(benches);

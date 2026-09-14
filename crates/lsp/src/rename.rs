@@ -21,7 +21,7 @@ use solar_sema::{
     Gcx,
     hir::{self, ItemId, VariableId},
 };
-use std::{collections::hash_map::Entry, path::PathBuf, sync::Arc};
+use std::{path::PathBuf, sync::Arc};
 
 newtype_index! {
     /// A file-local import alias in the rename index.
@@ -581,23 +581,34 @@ impl RenameIndex {
             RenameTarget::ImportAlias(alias_id) => self.aliases[alias_id].name.clone(),
             RenameTarget::MappingName(name_id) => self.mapping_names[name_id].name.clone(),
         };
-        let mut locations = targets
+        // Occurrences are unique and URI/range-sorted by `normalize_occurrences`. Each target's
+        // index list already follows that order; only combining targets requires normalization.
+        let mut indices = Vec::new();
+        let indices = if let [target] = targets.as_slice() {
+            self.target_occurrences.get(target).map(Vec::as_slice).unwrap_or_default()
+        } else {
+            indices.extend(
+                targets
+                    .iter()
+                    .filter_map(|target| self.target_occurrences.get(target))
+                    .flatten()
+                    .copied(),
+            );
+            indices.sort_unstable();
+            indices.dedup();
+            &indices
+        };
+        let locations = indices
             .iter()
-            .filter_map(|target| self.target_occurrences.get(target))
-            .flatten()
             .map(|&index| self.occurrences[index].location.clone())
             .collect::<Vec<_>>();
-        sort_locations(&mut locations);
-        locations.dedup_by(|a, b| a.uri == b.uri && a.range == b.range);
         let mut analyzed_contents = FxHashMap::default();
-        for location in &locations {
-            if let Entry::Vacant(entry) = analyzed_contents.entry(location.uri.clone()) {
-                let contents = self.analyzed_contents.get(&location.uri)?.clone();
-                entry.insert(contents);
-            }
+        let mut conflicting_contents = false;
+        for locations in locations.chunk_by(|a, b| a.uri == b.uri) {
+            let uri = &locations[0].uri;
+            analyzed_contents.insert(uri.clone(), self.analyzed_contents.get(uri)?.clone());
+            conflicting_contents |= self.conflicting_contents.contains(uri);
         }
-        let conflicting_contents =
-            locations.iter().any(|location| self.conflicting_contents.contains(&location.uri));
         Some(RenameCandidate {
             old_name,
             range: occurrence.location.range,
@@ -1025,8 +1036,4 @@ fn compare_locations(a: &Location, b: &Location) -> std::cmp::Ordering {
             &(b.range.start.line, b.range.start.character, b.range.end.line, b.range.end.character),
         )
     })
-}
-
-fn sort_locations(locations: &mut [Location]) {
-    locations.sort_by(compare_locations);
 }
