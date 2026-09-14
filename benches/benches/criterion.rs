@@ -13,12 +13,24 @@ fn micro_benches(c: &mut Criterion) {
     let mut g = make_group(c, "micro");
 
     g.bench_function("session/new", |b| {
-        b.iter(|| solar::parse::interface::Session::builder().with_stderr_emitter().build());
+        b.iter(|| {
+            solar::parse::interface::Session::builder()
+                .with_stderr_emitter()
+                .single_threaded()
+                .build()
+        });
     });
 
     {
-        let sess =
-            &black_box(solar::parse::interface::Session::builder().with_stderr_emitter().build());
+        let sess = &black_box(
+            solar::parse::interface::Session::builder()
+                .with_stderr_emitter()
+                .single_threaded()
+                .build(),
+        );
+
+        // Initialize the current-thread pool outside the measured samples.
+        sess.enter(|| {});
 
         g.bench_function("session/enter", |b| {
             b.iter(|| black_box(sess).enter(|| black_box(sess)));

@@ -17,6 +17,10 @@ This takes around 24 minutes to complete: `sources (12) * benchmark cases (8) * 
 This crate is excluded from the main workspace to avoid compiling it (and its dependencies) when
 invoking other commands such as `cargo test`.
 
+Session microbenchmarks use one thread and initialize the Rayon context before measuring entry,
+so worker scheduling does not dominate the measured session overhead. LSP analysis benchmarks use
+the production thread policy, including repeated analysis and workspace batches.
+
 ## Results
 
 You can view the Solar-only results on [codspeed.io](https://codspeed.io/paradigmxyz/solar).

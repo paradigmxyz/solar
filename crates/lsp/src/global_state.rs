@@ -2916,6 +2916,59 @@ mod analysis_batch_tests {
     use super::*;
     use crate::{config::negotiate_capabilities, test_support::TestProject};
 
+    struct WorkerFileLoader(std::thread::ThreadId);
+
+    impl FileLoader for WorkerFileLoader {
+        fn canonicalize_path(&self, path: &Path) -> io::Result<PathBuf> {
+            assert_eq!(std::thread::current().id(), self.0);
+            RealFileLoader.canonicalize_path(path)
+        }
+
+        fn load_file(&self, path: &Path) -> io::Result<String> {
+            assert_eq!(std::thread::current().id(), self.0);
+            RealFileLoader.load_file(path)
+        }
+
+        fn load_stdin(&self) -> io::Result<String> {
+            unreachable!()
+        }
+
+        fn load_binary_file(&self, _: &Path) -> io::Result<Vec<u8>> {
+            unreachable!()
+        }
+    }
+
+    #[test]
+    fn analysis_reuses_worker_with_fresh_revision_state() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /Dependency.sol
+            contract Dependency {}
+            "#,
+        );
+        let path = project.path("/Main.sol");
+        let analyze_revision = |name| {
+            let source_map = Arc::new(SourceMap::empty());
+            source_map.set_file_loader(WorkerFileLoader(std::thread::current().id()));
+            let batch = AnalysisBatch::from_files(
+                CompileOpts { threads: 8.into(), ..Default::default() },
+                [(
+                    path.clone(),
+                    format!("import './Dependency.sol'; contract {name} is Dependency {{}}"),
+                )],
+            );
+            analyze_with_source_map(batch, source_map)
+        };
+
+        let first = analyze_revision("First");
+        let second = analyze_revision("Second");
+        assert_eq!(first.symbol_tables.workspace_symbols("First").len(), 1);
+        assert!(first.symbol_tables.workspace_symbols("Second").is_empty());
+        assert_eq!(second.symbol_tables.workspace_symbols("Second").len(), 1);
+        assert!(second.symbol_tables.workspace_symbols("First").is_empty());
+        assert_eq!(second.symbol_tables.workspace_symbols("Dependency").len(), 1);
+    }
+
     #[test]
     fn from_files_tracks_unique_sorted_paths() {
         let a = PathBuf::from("a.sol");
@@ -3125,8 +3178,11 @@ fn analyze_cancellable_with_source_map(
     debug_assert_eq!(files.len(), document_link_sources.len());
     debug_assert!(files.iter().all(|(path, _)| document_link_sources.contains(path)));
     opts.unstable.recover_incomplete_input = true;
+    // Analysis already runs on a blocking worker. Reuse its current-thread Rayon context
+    // across revisions while keeping source maps, interners, and diagnostics fresh.
     let sess = Session::builder()
         .opts(opts)
+        .single_threaded()
         .source_map(source_map)
         .dcx(DiagCtxt::new(Box::new(emitter)))
         .build();
