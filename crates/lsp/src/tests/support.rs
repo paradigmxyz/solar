@@ -176,6 +176,17 @@ impl RequestFixture {
         );
     }
 
+    pub(super) fn check_completion_after_change(
+        &self,
+        marker: &str,
+        path: &str,
+        contents: &str,
+        expected: impl IntoData,
+    ) {
+        let items = self.completion_after_changes(marker, path, &[(path, contents)]);
+        assert_data_eq!(completion_output(&items), expected);
+    }
+
     pub(super) fn check_completion_details_after_changes(
         &self,
         marker: &str,
@@ -183,6 +194,16 @@ impl RequestFixture {
         changes: &[(&str, &str)],
         expected: impl IntoData,
     ) {
+        let items = self.completion_after_changes(marker, request_path, changes);
+        assert_data_eq!(completion_details_output(&items), expected);
+    }
+
+    fn completion_after_changes(
+        &self,
+        marker: &str,
+        request_path: &str,
+        changes: &[(&str, &str)],
+    ) -> Vec<CompletionItem> {
         let mut state = self.state_with_completion_snippets(true);
         for &(path, contents) in changes {
             let path = self.marked.project().path(path);
@@ -201,7 +222,7 @@ impl RequestFixture {
         let CompletionResponse::Array(items) = response else {
             panic!("expected completion array");
         };
-        assert_data_eq!(completion_details_output(&items), expected);
+        items
     }
 
     pub(super) fn check_completion_details_after_deleted_source(
