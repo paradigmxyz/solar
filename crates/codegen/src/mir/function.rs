@@ -682,6 +682,9 @@ pub(crate) struct FunctionAttributes {
     /// hold while this function reads it, recorded by element cleanup for
     /// the ABI return proofs that run after the element masks are gone.
     pub(crate) array_element_bits: FxHashMap<ArgIdx, u32>,
+    /// The widest word the single array this function returns can hold, when element
+    /// cleanup proved one. Its caller can re-encode the array without cleaning it.
+    pub(crate) array_return_element_bits: Option<u32>,
 }
 
 impl Default for FunctionAttributes {
@@ -698,6 +701,7 @@ impl Default for FunctionAttributes {
             is_function_pointer_dispatcher: false,
             no_inline: false,
             array_element_bits: FxHashMap::default(),
+            array_return_element_bits: None,
         }
     }
 }

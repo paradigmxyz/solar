@@ -966,6 +966,7 @@ fn equivalent_attributes(lhs: &Function, rhs: &Function) -> bool {
         // whose address array is proved canonical into one that is not would make
         // its callers re-clean every returned element.
         && lhs.attributes.array_element_bits == rhs.attributes.array_element_bits
+        && lhs.attributes.array_return_element_bits == rhs.attributes.array_return_element_bits
 }
 
 /// Compares the non-operand fields of two instructions. Operands are zeroed because their
