@@ -311,7 +311,7 @@ TEST_CASES: Sequence[TestCase] = (
     ),
     TestCase(
         test_id="minimal-proxy",
-        description="Minimal proxy with an assembly fallback and immutable target",
+        description="Minimal proxy with a high-level fallback and immutable target",
         source_code=source("MinimalProxy.sol"),
         source_name="MinimalProxy.sol",
         source_path="testdata/MinimalProxy.sol",

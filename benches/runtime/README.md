@@ -196,8 +196,9 @@ wrapping inputs as well as hot loops. These targeted results are separate from
 the pinned project corpus and do not establish general superiority over solc.
 
 The local `minimal-proxy` micro benchmark uses `../../testdata/MinimalProxy.sol`.
-Its payable assembly fallback delegates to an immutable implementation deployed by
-its constructor. Both gas profiles measure storage writes, reads, and empty, short,
-and 1 KiB byte echoes through the proxy. Runtime checks compare the stored value
-and returned bytes across compilers. Runtime size measures the proxy alone;
+Its payable high-level fallback delegates to an immutable implementation deployed
+by its constructor, using assembly only to forward revert data. Both gas profiles
+measure storage writes, reads, and empty, short, and 1 KiB byte echoes through the
+proxy. Runtime checks compare the stored value and returned bytes across compilers.
+Runtime size measures the proxy alone;
 creation size and deployment gas include the helper implementation.
