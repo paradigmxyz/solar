@@ -35,6 +35,7 @@ use crate::mir::{
     AbiParamType, AbiWordValidator, AllocationInitialization, AllocationKind, ArgIdx, EffectKind,
     Function, FunctionId, InstId, InstKind, MemoryObjectKind, MemoryObjectLayout, MemoryRegion,
     MirType, Module, Terminator, Value, ValueId,
+    memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses},
     utils,
 };
@@ -99,6 +100,30 @@ impl MirPass for ElementCleanup {
                 }
             }
             let objects = object_bounds(func, id, &params);
+            // Publish the width of an array this function returns, so its caller can
+            // re-encode the payload in one copy. A fresh array holds what this function
+            // and its callees store; a returned parameter holds that and what it arrived
+            // with. Several return blocks must all stay within the bound.
+            if func.returns.len() == 1 {
+                let returned = func
+                    .blocks
+                    .iter()
+                    .filter_map(|block| match &block.terminator {
+                        Some(Terminator::Return { values }) => Some(values.first().copied()),
+                        _ => None,
+                    })
+                    .map(|value| {
+                        value
+                            .and_then(|value| objects.get(&value).copied())
+                            .unwrap_or(FULL_WIDTH)
+                            .max(reading)
+                    })
+                    .max();
+                tracing::trace!(function = %func.name, ?returned, reading, "array return bits");
+                if let Some(bound) = returned.filter(|bound| *bound < FULL_WIDTH) {
+                    func.attributes.array_return_element_bits = Some(bound);
+                }
+            }
             let mut replacements = FxHashMap::default();
             let mut dead = DenseBitSet::new_empty(func.num_insts());
             for inst in func.instructions() {
@@ -347,11 +372,22 @@ fn object_bounds(
             {
                 bounds.insert(result, 0);
             }
-            InstKind::Phi(incoming) if func.value_ty(result).is_some_and(is_array) => {
+            // Every phi joins, not only the array-typed ones: lowering types a returned
+            // array as the raw pointer it is, and an object reaches its uses through
+            // those. A phi whose incoming values are not tracked still joins to the full
+            // width, so this only adds entries the join can prove.
+            InstKind::Phi(incoming) => {
                 bounds.insert(result, 0);
                 phis.push((result, incoming.iter().map(|&(_, value)| value).collect::<Vec<_>>()));
             }
             _ => {}
+        }
+    }
+    // The canonical empty array lives at the zero slot and holds no elements.
+    for index in 0..func.num_values() {
+        let value = ValueId::new(index);
+        if func.value_u64(value) == Some(EvmMemoryLayout::ZERO_SLOT) {
+            bounds.insert(value, 0);
         }
     }
     // A phi holds whatever its widest incoming array holds.
