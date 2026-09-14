@@ -2,7 +2,7 @@ use crate::{PResult, Parser};
 use smallvec::SmallVec;
 use solar_ast::{token::*, *};
 
-use solar_interface::{Ident, Symbol, kw};
+use solar_interface::{Ident, SpannedOption, Symbol, kw};
 
 impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// Parses an expression.
