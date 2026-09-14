@@ -1490,7 +1490,34 @@ impl SymbolTables {
             );
         }
         let mapping_bindings = self.rename.build_mapping_names(gcx, locations);
-        self.rename.build_natspec(gcx, locations, &bindings, item_symbols, &self.declarations);
+        for item_id in gcx.hir.item_ids() {
+            let item = gcx.hir.item(item_id);
+            if item.doc().is_empty() {
+                continue;
+            }
+            for (span, resolutions) in gcx.natspec_references(item_id) {
+                let targets = resolutions
+                    .iter()
+                    .filter_map(|res| {
+                        if let Res::Item(id) = res { item_symbols.get(id).copied() } else { None }
+                    })
+                    .collect::<SmallVec<_>>();
+                self.rename.push_symbol_reference(
+                    gcx,
+                    locations,
+                    RenameReferenceContext {
+                        bindings: &bindings,
+                        source: item.source(),
+                        contract: item.contract(),
+                        item_symbols,
+                        declarations: &self.declarations,
+                    },
+                    span,
+                    &targets,
+                );
+                self.push_reference_entry(locations, span, targets, DocumentHighlightKind::READ);
+            }
+        }
         self.rename.build_overrides(
             gcx,
             locations,
@@ -2177,19 +2204,13 @@ impl<'gcx> hir::Visit<'gcx> for ScopeBuilder<'_, 'gcx> {
         self.tables.scopes[scope].member_scope = scope;
         self.contexts.insert(scope, (contract.source, Some(id)));
         self.with_scope(scope, |this| {
-            for &item_id in contract.items {
-                this.tables.add_scope_declaration(scope, item_id);
-                let _ = this.visit_nested_item(item_id);
-            }
-            for &base in contract.linearized_bases.iter().skip(1) {
-                let ty = this.gcx.type_of_res(Res::Item(base.into()));
-                for member in this.gcx.members_of(ty, contract.source, Some(id)) {
-                    if let Some(Res::Item(item)) = member.res
-                        && !matches!(item, ItemId::Function(function) if this.gcx.hir.function(function).visibility == hir::Visibility::External)
-                    {
-                        this.tables.add_scope_declaration(scope, item);
-                    }
+            for (_, res) in this.gcx.scope_declarations(contract.source, Some(id)) {
+                if let Res::Item(item) = res {
+                    this.tables.add_scope_declaration(scope, item);
                 }
+            }
+            for &item_id in contract.items {
+                let _ = this.visit_nested_item(item_id);
             }
         });
         ControlFlow::Continue(())
