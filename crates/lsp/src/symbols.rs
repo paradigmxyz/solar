@@ -192,9 +192,10 @@ struct Scope {
     declarations: Vec<ScopedDeclaration>,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 struct ScopedDeclaration {
     symbol_id: SymbolId,
+    name: Option<String>,
     available_from: Option<Position>,
 }
 
@@ -208,6 +209,7 @@ struct MemberCompletionScope {
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct CompletionContext<'a> {
     pub(crate) prefix: &'a str,
+    /// Present after a dot, with an empty receiver for non-identifier expressions.
     pub(crate) member_receiver: Option<&'a str>,
 }
 
@@ -974,6 +976,10 @@ impl SymbolTables {
             return filtered_completion_items(items, context.prefix);
         }
 
+        if context.member_receiver.is_some() {
+            return Vec::new();
+        }
+
         let Some(scope_id) = self.scope_at_position(uri, position) else {
             return Vec::new();
         };
@@ -990,13 +996,20 @@ impl SymbolTables {
                     continue;
                 }
                 let symbol = &self.declarations[declaration.symbol_id];
-                seen.entry(symbol.name.as_str()).or_insert(declaration.symbol_id);
+                seen.entry(declaration.name.as_deref().unwrap_or(&symbol.name))
+                    .or_insert(declaration.symbol_id);
             }
             scope = current.parent;
         }
 
-        let mut items =
-            seen.into_values().map(|symbol_id| self.completion_item(symbol_id)).collect::<Vec<_>>();
+        let mut items = seen
+            .into_iter()
+            .map(|(name, symbol_id)| {
+                let mut item = self.completion_item(symbol_id);
+                item.label = name.to_string();
+                item
+            })
+            .collect::<Vec<_>>();
         items.extend(self.global_completions.iter().cloned());
         items.sort_by(|a, b| a.label.cmp(&b.label));
         items.dedup_by(|a, b| a.label == b.label);
@@ -1073,6 +1086,17 @@ impl SymbolTables {
     }
 
     fn build_receiver_member_completions(&mut self, gcx: Gcx<'_>) {
+        for contract_id in gcx.hir.contract_ids() {
+            let contract = gcx.hir.contract(contract_id);
+            if contract.kind.is_library()
+                && let Some(&symbol_id) =
+                    self.symbols_by_key.get(&SymbolKey::Item(ItemId::Contract(contract_id)))
+            {
+                let ty = gcx.mk_ty(TyKind::Type(gcx.type_of_item(contract_id.into())));
+                let items = self.member_completion_items_for_ty(gcx, ty, contract.source, None);
+                self.receiver_member_completions.insert(symbol_id, items);
+            }
+        }
         for variable_id in gcx.hir.variable_ids() {
             let Some(&symbol_id) =
                 self.symbols_by_key.get(&SymbolKey::Item(ItemId::Variable(variable_id)))
@@ -1193,7 +1217,11 @@ impl SymbolTables {
     }
 
     fn add_symbol_to_scope(&mut self, scope: ScopeId, symbol_id: SymbolId) {
-        self.scopes[scope].declarations.push(ScopedDeclaration { symbol_id, available_from: None });
+        self.scopes[scope].declarations.push(ScopedDeclaration {
+            symbol_id,
+            name: None,
+            available_from: None,
+        });
     }
 
     fn add_local_symbol_to_scope(
@@ -1207,9 +1235,11 @@ impl SymbolTables {
             .location(span)
             .map(|location| location.range.end)
             .unwrap_or(self.declarations[symbol_id].location.range.end);
-        self.scopes[scope]
-            .declarations
-            .push(ScopedDeclaration { symbol_id, available_from: Some(available_from) });
+        self.scopes[scope].declarations.push(ScopedDeclaration {
+            symbol_id,
+            name: None,
+            available_from: Some(available_from),
+        });
     }
 
     fn build_references(
@@ -1557,7 +1587,9 @@ impl SymbolTables {
                     continue;
                 }
                 let symbol_id = declaration.symbol_id;
-                if self.declarations[symbol_id].name == receiver {
+                if declaration.name.as_deref().unwrap_or(&self.declarations[symbol_id].name)
+                    == receiver
+                {
                     return self
                         .receiver_member_completions
                         .get(&symbol_id)
@@ -1761,8 +1793,17 @@ impl<'gcx> ScopeBuilder<'_, 'gcx> {
 
         let root = self.tables.push_scope(location.uri, location.range, None);
         self.with_scope(root, |this| {
+            let ty = this.gcx.mk_ty(TyKind::Module(source_id));
+            for member in this.gcx.members_of(ty, source_id, None) {
+                if let Some(symbol_id) = this.tables.symbol_id_for_member_completion(member) {
+                    this.tables.scopes[root].declarations.push(ScopedDeclaration {
+                        symbol_id,
+                        name: Some(member.name.to_string()),
+                        available_from: None,
+                    });
+                }
+            }
             for &item_id in source.items {
-                this.tables.add_scope_declaration(root, item_id);
                 let _ = this.visit_nested_item(item_id);
             }
         });
@@ -1986,6 +2027,9 @@ impl<'gcx> MemberCompletionCollector<'_, 'gcx> {
         let Some(receiver_ty) = self.gcx.type_of_expr(receiver.id) else {
             return;
         };
+        if receiver_ty.references_error() {
+            return;
+        }
         let Some(location) = self.locations.location(member.span) else {
             return;
         };
@@ -1996,10 +2040,6 @@ impl<'gcx> MemberCompletionCollector<'_, 'gcx> {
             source,
             self.contract,
         );
-        if items.is_empty() {
-            return;
-        }
-
         self.tables.member_completions.push(MemberCompletionScope {
             uri: location.uri,
             range: location.range,

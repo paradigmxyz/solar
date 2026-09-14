@@ -1682,3 +1682,213 @@ field Property
 "#]],
     );
 }
+
+#[test]
+fn completes_library_names_and_members() {
+    let fixture = RequestFixture::new_allowing_diagnostics(
+        r#"
+        //- /Completion.sol open
+        library Math {
+            function twice(uint256 value) internal pure returns (uint256) { return value * 2; }
+            function hidden(uint256 value) private pure returns (uint256) { return value; }
+        }
+        contract C {
+            using Ma$1th for uint256;
+            function f() public pure {
+                Math.$2;
+                Math.tw$3;
+            }
+        }
+        "#,
+        "/Completion.sol",
+    );
+    fixture.check_completion(
+        "$1",
+        str![[r#"
+Math Module
+
+"#]],
+    );
+    for marker in ["$2", "$3"] {
+        fixture.check_completion(
+            marker,
+            str![[r#"
+twice Method
+
+"#]],
+        );
+    }
+}
+
+#[test]
+fn completes_using_for_members() {
+    let fixture = RequestFixture::new_allowing_diagnostics(
+        r#"
+        //- /Completion.sol open
+        library Math {
+            function twice(uint256 value) internal pure returns (uint256) { return value * 2; }
+            function wrong(address value) internal pure returns (address) { return value; }
+            function hidden(uint256 value) private pure returns (uint256) { return value; }
+        }
+        function triple(uint256 value) pure returns (uint256) { return value * 3; }
+        contract C {
+            using Math for uint256;
+            using {triple} for uint256;
+            function f(uint256 value) public pure {
+                value.$1;
+                value.tw$2;
+                (value + 1).$3;
+            }
+        }
+        "#,
+        "/Completion.sol",
+    );
+    for marker in ["$1", "$3"] {
+        fixture.check_completion(
+            marker,
+            str![[r#"
+triple Function
+twice Method
+
+"#]],
+        );
+    }
+    fixture.check_completion(
+        "$2",
+        str![[r#"
+twice Method
+
+"#]],
+    );
+}
+
+#[test]
+fn dot_completions_never_fall_back_to_globals() {
+    let fixture = RequestFixture::new_allowing_diagnostics(
+        r#"
+        //- /Completion.sol open
+        contract C {
+            function f(uint256 value) public pure {
+                value.$1;
+                (value + 1).$2;
+                missing.$3;
+                unknown().$4;
+                value . $5;
+            }
+        }
+        "#,
+        "/Completion.sol",
+    );
+    for marker in ["$1", "$2", "$3", "$4", "$5"] {
+        fixture.check_completion(marker, str![""]);
+    }
+}
+
+#[test]
+fn completes_library_members_before_analysis_finishes() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Math.sol
+        library Math {
+            function twice(uint256 value) internal pure returns (uint256) { return value * 2; }
+            function hidden(uint256 value) private pure returns (uint256) { return value; }
+        }
+        //- /Completion.sol open
+        import {Math as Numbers} from "./Math.sol";
+        contract C {
+            using Nu$3mbers for uint256;
+            function f(uint256 value) public pure {
+                uint x = 1;
+                Numbers;$1
+                value;$2
+                x;$4
+            }
+        }
+        "#,
+        "/Completion.sol",
+    );
+    fixture.check_completion(
+        "$3",
+        str![[r#"
+Numbers Module
+
+"#]],
+    );
+    let changed = fixture
+        .project_contents("/Completion.sol")
+        .replace("Numbers;", "Numbers.")
+        .replace("value;", "value.")
+        .replace("x;", "x.");
+    for marker in ["$1", "$2", "$4"] {
+        fixture.check_completion_details_after_change(
+            marker,
+            "/Completion.sol",
+            &changed,
+            str![[r#"
+label=twice
+kind=Method
+detail=Math
+sort_text=<none>
+text_edit=<none>
+insert_text_format=<none>
+new_text:
+<none>
+
+"#]],
+        );
+    }
+}
+
+#[test]
+fn completes_members_with_incomplete_syntax() {
+    for expression in
+        ["x.$1", "x.tw$1", "(x + 1).$1", "Math.$1", "uint broken = ;\nx.$1", "missing();\nx.$1"]
+    {
+        for ending in ["\n}\n}", ""] {
+            let fixture = RequestFixture::new_allowing_diagnostics(
+                &format!(
+                    r#"
+                    //- /Completion.sol open
+                    library Math {{
+                        function twice(uint256 value) internal pure returns (uint256) {{
+                            return value * 2;
+                        }}
+                    }}
+                    contract C {{
+                        using Math for uint256;
+                        function f() public pure {{
+                            uint x;
+                            {expression}{ending}
+                    "#,
+                ),
+                "/Completion.sol",
+            );
+            fixture.check_completion(
+                "$1",
+                str![[r#"
+twice Method
+
+"#]],
+            );
+        }
+    }
+}
+
+#[test]
+fn incomplete_uint_members_do_not_complete_globals() {
+    for ending in ["\n}\n}", ""] {
+        let fixture = RequestFixture::new_allowing_diagnostics(
+            &format!(
+                r#"
+                //- /Completion.sol open
+                contract C {{
+                    function f() public pure {{
+                        uint x;
+                        x.$1{ending}
+                "#,
+            ),
+            "/Completion.sol",
+        );
+        fixture.check_completion("$1", str![""]);
+    }
+}

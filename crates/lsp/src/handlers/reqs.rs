@@ -1104,10 +1104,10 @@ fn completion_input_from_line_prefix(line_prefix: &str) -> CompletionInput {
     let prefix_start = start_of_trailing_ident(line_prefix);
     let prefix = line_prefix[prefix_start..].to_string();
     let before_prefix = &line_prefix[..prefix_start];
-    let member_receiver = before_prefix.strip_suffix('.').and_then(|before_dot| {
+    let member_receiver = before_prefix.trim_end().strip_suffix('.').map(|before_dot| {
+        let before_dot = before_dot.trim_end();
         let receiver_start = start_of_trailing_ident(before_dot);
-        let receiver = &before_dot[receiver_start..];
-        (!receiver.is_empty()).then(|| receiver.to_string())
+        before_dot[receiver_start..].to_string()
     });
     CompletionInput { prefix, member_receiver }
 }
