@@ -22,7 +22,7 @@ jobs:
   build:
     name: ${{ matrix.target }}
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 45
+    timeout-minutes: 120
     permissions:
       contents: read
     strategy:
@@ -75,6 +75,10 @@ jobs:
       - name: Install musl tools
         if: matrix.target == 'x86_64-unknown-linux-musl'
         run: sudo apt-get update && sudo apt-get install --yes musl-tools
+      - uses: ./.github/actions/setup-evm-llvm
+        if: matrix.target != 'x86_64-unknown-linux-musl'
+        with:
+          static-crt: 'true'
       - name: Build release binary
         shell: bash
         run: |

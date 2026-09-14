@@ -1,0 +1,72 @@
+{
+  "errors": [
+    {
+      "sourceLocation": null,
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "2264",
+      "message": "code generation is experimental",
+      "formattedMessage": "warning[2264]: code generation is experimental\n\n"
+    }
+  ],
+  "sources": {
+    "A.sol": {
+      "id": 0
+    }
+  },
+  "contracts": {
+    "A.sol": {
+      "A": {
+        "evm": {
+          "bytecode": {
+            "object": "60806040523415600d575f5ffd5b607060195f3960705ff3fe34606b575f3560e01c63e420264a811460615763b3de648b03606b5760243610606b575f1960043514604d5760015b6004350160805260206080f35b6002602e565b6002196004351115603b575b634e487b7160e01b5f52601160045260245ffd5b5060243610156041575b5f5ffdfe",
+            "sourceMap": ""
+          },
+          "deployedBytecode": {
+            "object": "34606b575f3560e01c63e420264a811460615763b3de648b03606b5760243610606b575f1960043514604d5760015b6004350160805260206080f35b6002602e565b6002196004351115603b575b634e487b7160e01b5f52601160045260245ffd5b5060243610156041575b5f5ffdfe",
+            "sourceMap": ""
+          }
+        }
+      },
+      "B": {
+        "evm": {
+          "bytecode": {
+            "object": "60806040523415600d575f5ffd5b607060195f3960705ff3fe34606b575f3560e01c63e420264a811460615763b3de648b03606b5760243610606b575f1960043514604d5760015b6004350160805260206080f35b6002602e565b6002196004351115603b575b634e487b7160e01b5f52601160045260245ffd5b5060243610156041575b5f5ffdfe"
+          },
+          "deployedBytecode": {
+            "object": "34606b575f3560e01c63e420264a811460615763b3de648b03606b5760243610606b575f1960043514604d5760015b6004350160805260206080f35b6002602e565b6002196004351115603b575b634e487b7160e01b5f52601160045260245ffd5b5060243610156041575b5f5ffdfe"
+          }
+        }
+      },
+      "C": {
+        "evm": {
+          "bytecode": {
+            "object": "60806040523415600d575f5ffd5b607060195f3960705ff3fe34606b575f3560e01c63e420264a811460615763b3de648b03606b5760243610606b575f1960043514604d5760015b6004350160805260206080f35b6002602e565b6002196004351115603b575b634e487b7160e01b5f52601160045260245ffd5b5060243610156041575b5f5ffdfe"
+          },
+          "deployedBytecode": {
+            "object": "34606b575f3560e01c63e420264a811460615763b3de648b03606b5760243610606b575f1960043514604d5760015b6004350160805260206080f35b6002602e565b6002196004351115603b575b634e487b7160e01b5f52601160045260245ffd5b5060243610156041575b5f5ffdfe"
+          }
+        }
+      }
+    }
+  },
+  "ethdebug": {
+    "compilation": {
+      "id": "solar-COMPILATION_ID",
+      "compiler": {
+        "name": "solar",
+        "version": "VERSION"
+      },
+      "sources": [
+        {
+          "id": 0,
+          "path": "A.sol",
+          "contents": "contract A { function f(uint256 x) external pure returns (uint256) { return x + 1; } function g(uint256 x) external pure returns (uint256) { return x + 2; } } contract B { function f(uint256 x) external pure returns (uint256) { return x + 1; } function g(uint256 x) external pure returns (uint256) { return x + 2; } } contract C { function f(uint256 x) external pure returns (uint256) { return x + 1; } function g(uint256 x) external pure returns (uint256) { return x + 2; } }",
+          "language": "Solidity"
+        }
+      ]
+    }
+  }
+}

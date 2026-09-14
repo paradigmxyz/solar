@@ -201,6 +201,26 @@ impl EvmVersion {
 }
 
 str_enum! {
+    /// Code generation backend.
+    #[derive(Default)]
+    #[strum(serialize_all = "kebab-case")]
+    #[non_exhaustive]
+    pub enum CodegenBackend {
+        /// Built-in EVM backend.
+        #[default]
+        Evm,
+        /// Yul through solc.
+        Yul,
+        /// Sonatina IR.
+        Sonatina,
+        /// Plank Sensei IR.
+        Sir,
+        /// LLVM IR through solx.
+        Llvm,
+    }
+}
+
+str_enum! {
     /// MIR optimization objective.
     #[derive(Default)]
     #[strum(serialize_all = "kebab-case")]
@@ -343,6 +363,7 @@ impl Dump {
                     | DumpKind::MirCfg
                     | DumpKind::EvmIr
                     | DumpKind::EvmIrRuntime
+                    | DumpKind::BackendIr
                     | DumpKind::DisasmDeploy
                     | DumpKind::DisasmRuntime
             )
@@ -385,6 +406,8 @@ str_enum! {
         EvmIr,
         /// Print runtime EVM IR.
         EvmIrRuntime,
+        /// Print the selected optional backend IR.
+        BackendIr,
         /// Print deployment bytecode disassembly.
         DisasmDeploy,
         /// Print runtime bytecode disassembly.

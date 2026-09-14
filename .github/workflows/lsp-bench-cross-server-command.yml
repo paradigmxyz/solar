@@ -167,7 +167,7 @@ jobs:
           SOLAR_LSP_BENCH_BUILD_REVISION: ${{ needs.resolve.outputs.merge_sha }}
         run: |
           cargo build --locked --release -p solar-lsp-bench
-          cargo build --locked --release -p solar-compiler --bin solar
+          cargo build --locked --release -p solar-compiler --bin solar --no-default-features --features cli,mimalloc,tracing
 
       - name: Prepare servers and synthetic fixture
         run: >-
