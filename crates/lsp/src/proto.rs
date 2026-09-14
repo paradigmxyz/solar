@@ -432,18 +432,18 @@ pub(crate) fn benchmark_diagnostic_conversion(
     converted
 }
 
-/// Converts compiler spans to LSP locations while caching each source file URI.
+/// Converts compiler spans to LSP locations from a snapshot of source files and their URIs.
 ///
 /// The cache is local to one source map and must not outlive its analysis build. Construct it
 /// after source loading is complete so every source file is included in the eager snapshot.
 pub(crate) struct LocationConverter {
-    source_map: Arc<SourceMap>,
+    files: Vec<Arc<SourceFile>>,
     uris: FxHashMap<BytePos, lsp_types::Url>,
 }
 
 impl LocationConverter {
     pub(crate) fn new(source_map: Arc<SourceMap>) -> Self {
-        let files = source_map.files();
+        let files = source_map.files().to_vec();
         let mut uris = FxHashMap::with_capacity_and_hasher(files.len(), Default::default());
         for file in files.iter() {
             if let Some(path) = file.name.as_real()
@@ -452,8 +452,7 @@ impl LocationConverter {
                 uris.insert(file.start_pos, uri);
             }
         }
-        drop(files);
-        Self { source_map, uris }
+        Self { files, uris }
     }
 
     pub(crate) fn file_uri(&self, file: &SourceFile) -> Option<&lsp_types::Url> {
@@ -461,7 +460,23 @@ impl LocationConverter {
     }
 
     pub(crate) fn location(&self, span: Span) -> Option<lsp_types::Location> {
-        span_to_location_with(&self.source_map, span, |file| self.file_uri(file).cloned())
+        if span.is_dummy() {
+            return None;
+        }
+        let next = self.files.partition_point(|file| file.start_pos <= span.lo());
+        let file = self.files.get(next.checked_sub(1)?)?;
+        // Source files are ordered by start position. The next file alone determines whether
+        // the span crosses files, so neither endpoint needs a locked source-map lookup.
+        if self.files.get(next).is_some_and(|next| span.hi() >= next.start_pos) {
+            return None;
+        }
+        Some(lsp_types::Location {
+            uri: self.file_uri(file)?.clone(),
+            range: lsp_types::Range {
+                start: lsp_position(file, span.lo())?,
+                end: lsp_position(file, span.hi())?,
+            },
+        })
     }
 }
 
@@ -540,7 +555,9 @@ mod tests {
     use solar_interface::{
         BytePos, SourceMap, Span,
         diagnostics::{Applicability, Diag, DiagMsg, Level},
+        source_map::FileName,
     };
+    use std::sync::Arc;
 
     fn diagnostic_refresh_support(workspace: serde_json::Value) -> Option<bool> {
         let params: <super::Initialize as Request>::Params =
@@ -782,6 +799,88 @@ mod tests {
         let cross_file = Span::new(first.start_pos, second.start_pos);
 
         assert!(super::span_to_location(&source_map, cross_file).is_none());
+    }
+
+    #[test]
+    fn location_converter_matches_source_map_positions() {
+        let source_map = Arc::new(SourceMap::empty());
+        let empty = super::LocationConverter::new(source_map.clone());
+        for span in [Span::DUMMY, Span::new(BytePos(1), BytePos(2))] {
+            assert_eq!(empty.location(span), super::span_to_location(&source_map, span));
+        }
+
+        let files = ["value\n", "", "a😀中value\r\nsecond line\n", "value\r\n", "last"]
+            .iter()
+            .enumerate()
+            .map(|(index, &source)| {
+                source_map
+                    .new_source_file(
+                        std::env::temp_dir().join(format!("Location {index}.sol")),
+                        source,
+                    )
+                    .unwrap()
+            })
+            .collect::<Vec<_>>();
+        let locations = super::LocationConverter::new(source_map.clone());
+        for file in &files {
+            assert_eq!(
+                locations.file_uri(file),
+                lsp_types::Url::from_file_path(file.name.as_real().unwrap()).ok().as_ref()
+            );
+            let positions = file
+                .src
+                .char_indices()
+                .map(|(offset, _)| offset)
+                .chain([file.src.len()])
+                .map(|offset| file.start_pos + BytePos::from_usize(offset))
+                .collect::<Vec<_>>();
+            for (index, &lo) in positions.iter().enumerate() {
+                for &hi in &positions[index..] {
+                    let span = Span::new(lo, hi);
+                    assert_eq!(
+                        locations.location(span),
+                        super::span_to_location(&source_map, span),
+                        "span {lo:?}..{hi:?}"
+                    );
+                }
+            }
+        }
+        for pair in files.windows(2) {
+            let span = Span::new(pair[0].end_position(), pair[1].start_pos);
+            assert_eq!(locations.location(span), super::span_to_location(&source_map, span));
+            assert!(locations.location(span).is_none());
+        }
+
+        // The original conversion clamps positions beyond the last file's end.
+        let last = files.last().unwrap();
+        let span = Span::new(last.start_pos, last.end_position() + BytePos(5));
+        assert_eq!(locations.location(span), super::span_to_location(&source_map, span));
+    }
+
+    #[test]
+    fn location_converter_preserves_files_without_uris() {
+        let source_map = Arc::new(SourceMap::empty());
+        let first =
+            source_map.new_source_file(std::env::temp_dir().join("FirstUri.sol"), "first").unwrap();
+        let custom = source_map.new_source_file(FileName::custom("virtual.sol"), "custom").unwrap();
+        let relative =
+            source_map.new_source_file(FileName::real("relative.sol"), "relative").unwrap();
+        let last =
+            source_map.new_source_file(std::env::temp_dir().join("LastUri.sol"), "last").unwrap();
+        let locations = super::LocationConverter::new(source_map.clone());
+
+        for file in [&custom, &relative] {
+            assert!(locations.file_uri(file).is_none());
+            assert!(locations.location(Span::new(file.start_pos, file.end_position())).is_none());
+            assert!(locations.location(Span::new(first.start_pos, file.start_pos)).is_none());
+        }
+        let relative_span = Span::new(relative.start_pos, relative.end_position());
+        assert_eq!(
+            locations.location(relative_span),
+            super::span_to_location(&source_map, relative_span)
+        );
+        let last_span = Span::new(last.start_pos, last.end_position());
+        assert_eq!(locations.location(last_span), super::span_to_location(&source_map, last_span));
     }
 
     #[test]
