@@ -62,6 +62,8 @@ pub struct Parser<'sess, 'ast, 'cb> {
     in_modifier: bool,
     /// Whether incomplete input should be recovered into a partial AST.
     recover_incomplete_input: bool,
+    /// Whether optional trailing commas are accepted for source formatting.
+    allow_trailing_commas: bool,
 
     /// Current recursion depth for recursive parsing operations.
     recursion_depth: usize,
@@ -164,11 +166,20 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             in_contract: false,
             in_modifier: false,
             recover_incomplete_input: sess.opts.unstable.recover_incomplete_input,
+            allow_trailing_commas: false,
             recursion_depth: 0,
             import_callback: None,
         };
         parser.bump();
         parser
+    }
+
+    /// Sets whether optional trailing commas are accepted without diagnostics.
+    ///
+    /// Defaults to `false`. Intended for formatters that remove these commas before compilation.
+    /// Tuple omissions are preserved, and other syntax errors are still reported.
+    pub fn set_allow_trailing_commas(&mut self, allow: bool) {
+        self.allow_trailing_commas = allow;
     }
 
     /// Sets the import callback.
@@ -735,7 +746,10 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             {
                 e.emit();
             }
-            if !sep.trailing_sep_allowed && trailing {
+            if !sep.trailing_sep_allowed
+                && trailing
+                && !(self.allow_trailing_commas && sep_kind == TokenKind::Comma)
+            {
                 let msg = format!("trailing `{sep_kind}` separator is not allowed");
                 self.dcx().emit_err(self.prev_token.span, msg);
             }
@@ -1340,6 +1354,91 @@ import * as B from "b.sol";
                 r#"import "a.sol";"#
             );
         });
+    }
+
+    #[test]
+    fn optional_trailing_commas() {
+        for src in [
+            r#"import {A, B,} from "a.sol";"#,
+            "enum E { A, B, }",
+            "using {f, g,} for uint256;",
+            "error E(uint256 a,); event Ev(uint256 a,);",
+            "contract C { constructor(uint256 a,) {} }",
+            "function f(uint256 a,) returns (uint256,) {}",
+            "function f() { g(1, /* trailing */); g({a: 1,}); g{value: 1,}(); }",
+            "function f() { uint256[2] memory a = [uint256(1), 2,]; }",
+            "function f() { try g() returns (uint256 a,) {} catch {} }",
+            "function f() { assembly { let x := add(1, 2,) } }",
+        ] {
+            for allow in [false, true] {
+                let sess = Session::builder()
+                    .with_buffer_emitter(Default::default())
+                    .single_threaded()
+                    .build();
+                sess.enter_sequential(|| {
+                    let arena = ast::Arena::new();
+                    let mut parser =
+                        Parser::from_source_code(&sess, &arena, "test.sol".to_string().into(), src)
+                            .unwrap();
+                    parser.set_allow_trailing_commas(allow);
+                    let _ = parser.parse_file().map_err(|err| err.emit());
+                    assert_eq!(sess.dcx.has_errors().is_ok(), allow, "{src}");
+                });
+            }
+        }
+    }
+
+    #[test]
+    fn trailing_commas_do_not_accept_other_syntax_errors() {
+        for src in [
+            "function f(uint256 a,,) {}",
+            "function f() { g(,); }",
+            "function f() { g(1,,); }",
+            "function f() { g({a:,}); }",
+            "function f() { g(1,; }",
+            "function f() { uint256[2] memory a = [1,,]; }",
+            "function f() { uint256[2] memory a = [,1,]; }",
+            "function f() { uint256[2] memory a = [,]; }",
+        ] {
+            let sess = Session::builder()
+                .with_buffer_emitter(Default::default())
+                .single_threaded()
+                .build();
+            sess.enter_sequential(|| {
+                let arena = ast::Arena::new();
+                let mut parser =
+                    Parser::from_source_code(&sess, &arena, "test.sol".to_string().into(), src)
+                        .unwrap();
+                parser.set_allow_trailing_commas(true);
+                let _ = parser.parse_file().map_err(|err| err.emit());
+                assert!(sess.dcx.has_errors().is_err(), "{src}");
+            });
+        }
+    }
+
+    #[test]
+    fn trailing_comma_mode_preserves_tuple_omissions() {
+        for (src, expected) in [
+            ("(a,)", &[true, false][..]),
+            ("(,a,)", &[false, true, false][..]),
+            ("(,)", &[false, false][..]),
+        ] {
+            let sess = Session::builder()
+                .with_buffer_emitter(Default::default())
+                .single_threaded()
+                .build();
+            sess.enter_sequential(|| {
+                let arena = ast::Arena::new();
+                let mut parser =
+                    Parser::from_source_code(&sess, &arena, "test.sol".to_string().into(), src)
+                        .unwrap();
+                parser.set_allow_trailing_commas(true);
+                let expr = parser.parse_expr().unwrap();
+                let ast::ExprKind::Tuple(items) = &expr.kind else { panic!("expected tuple") };
+                assert!(items.iter().map(|item| item.is_some()).eq(expected.iter().copied()));
+                assert!(sess.dcx.has_errors().is_ok());
+            });
+        }
     }
 
     #[test]

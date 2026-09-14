@@ -206,8 +206,15 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             // Array or tuple expression.
             let TokenKind::OpenDelim(close_delim) = self.token.kind else { unreachable!() };
             let is_array = close_delim == Delimiter::Bracket;
-            let list = self.parse_optional_items_seq(close_delim, Self::parse_expr)?;
+            let mut list = self.parse_optional_items_seq(close_delim, Self::parse_expr)?;
             if is_array {
+                // A formatter may discard one trailing comma, but never an interior array hole.
+                if self.allow_trailing_commas
+                    && list.len() > 1
+                    && matches!(list.last(), Some(SpannedOption::None(_)))
+                {
+                    list.pop();
+                }
                 let list = list
                     .into_iter()
                     .map(|item| match item.into() {

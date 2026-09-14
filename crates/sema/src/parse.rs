@@ -44,6 +44,8 @@ pub struct ParsingContext<'gcx> {
     pub(crate) arenas: &'gcx ThreadLocal<ast::Arena>,
     /// Whether to recursively resolve and parse imports.
     resolve_imports: bool,
+    /// Whether optional trailing commas are accepted for source formatting.
+    allow_trailing_commas: bool,
     /// Whether `parse` has been called.
     parsed: bool,
     gcx: Gcx<'gcx>,
@@ -62,6 +64,7 @@ impl<'gcx> ParsingContext<'gcx> {
             sources: &mut gcx.sources,
             arenas: &gcx.ast_arenas,
             resolve_imports: !sess.opts.unstable.no_resolve_imports,
+            allow_trailing_commas: false,
             parsed: false,
             gcx: gcx_.get(),
         }
@@ -78,6 +81,14 @@ impl<'gcx> ParsingContext<'gcx> {
     /// Default: `!sess.opts.unstable.no_resolve_imports`, `true`.
     pub fn set_resolve_imports(&mut self, resolve_imports: bool) {
         self.resolve_imports = resolve_imports;
+    }
+
+    /// Sets whether optional trailing commas are accepted without diagnostics.
+    ///
+    /// Defaults to `false`. Intended for formatters that remove these commas before compilation.
+    /// Tuple omissions are preserved, and other syntax errors are still reported.
+    pub fn set_allow_trailing_commas(&mut self, allow: bool) {
+        self.allow_trailing_commas = allow;
     }
 
     /// Resolves a file.
@@ -351,6 +362,7 @@ impl<'gcx> ParsingContext<'gcx> {
     ) -> Option<ast::SourceUnit<'ast>> {
         let lexer = Lexer::from_source_file(self.sess, file);
         let mut parser = Parser::from_lexer(arena, lexer);
+        parser.set_allow_trailing_commas(self.allow_trailing_commas);
         if self.resolve_imports {
             parser.set_import_callback(import_callback);
         }
@@ -732,6 +744,30 @@ mod tests {
     use solar_ast::ItemId;
 
     use super::*;
+
+    #[test]
+    fn trailing_commas_are_opt_in_per_parse() {
+        let mut compiler = crate::Compiler::new(
+            Session::builder().with_buffer_emitter(Default::default()).single_threaded().build(),
+        );
+        for allow in [true, false] {
+            compiler.enter_mut(|compiler| {
+                let mut pcx = compiler.parse();
+                pcx.set_resolve_imports(false);
+                if allow {
+                    pcx.set_allow_trailing_commas(true);
+                }
+                let file = pcx
+                    .sess
+                    .source_map()
+                    .new_source_file(format!("{allow}.sol"), "function f(uint256 a,) {}")
+                    .unwrap();
+                pcx.add_file(file);
+                pcx.parse();
+                assert_eq!(compiler.dcx().has_errors().is_ok(), allow);
+            });
+        }
+    }
 
     #[test]
     fn sources_consistency() {
