@@ -1,7 +1,8 @@
-//@ revisions: structs boundary
+//@ revisions: structs boundary checkpoint
 //@[structs] compile-flags: -Zmir-pipeline=lower-structs
 //@[boundary] compile-flags: -Zmir-pipeline=lower-structs,lower-frame-slots,lower-memory-objects,lower-slices,lower-evm-shaped
-//~[boundary]? ERROR: `lower-memory-objects` requires scalar structs; run `lower-structs` first
+//@[checkpoint] compile-flags: -Zmir-pipeline=lower-structs,none,lower-slices
+//~? ERROR: `lower-structs` cannot lower this module: slice producers or returns do not provide pointer/length pairs
 @module LegacySlice
 @phase semantic
 

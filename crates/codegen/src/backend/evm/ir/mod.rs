@@ -704,6 +704,11 @@ pub(crate) struct Metadata {
     debug_info_handled: bool,
 }
 
+fn common_debug_event<T: Eq>(mut events: impl Iterator<Item = T>) -> Option<T> {
+    let first = events.next()?;
+    events.all(|event| event == first).then_some(first)
+}
+
 impl Metadata {
     /// Returns the source span associated with this operation.
     #[must_use]
@@ -796,19 +801,24 @@ impl Metadata {
         self.debug_info_handled |= other.debug_info_handled;
     }
 
-    /// Merges source origins and compatible exits, dropping ambiguous function invocations.
-    pub(crate) fn merge_equivalent_debug_info(&mut self, other: &Self) {
-        self.merge_source_spans(other);
-        if self.function_invoke != other.function_invoke {
-            self.function_invoke = None;
-        }
-        debug_assert!(
-            self.function_exit.is_none()
-                || other.function_exit.is_none()
-                || self.function_exit == other.function_exit,
-            "cannot merge different function exits"
+    /// Merges source origins and function events across equivalent operations.
+    pub(crate) fn merge_equivalent_debug_info<'a>(
+        &mut self,
+        others: impl Iterator<Item = &'a Self> + Clone,
+    ) {
+        // NOTE: Missing events do not conflict with known ones. Conflicting events become
+        // unknown across the whole group; a later known event must not resurrect them.
+        self.function_invoke = common_debug_event(
+            self.function_invoke
+                .into_iter()
+                .chain(others.clone().filter_map(Self::function_invoke)),
         );
-        self.function_exit = self.function_exit.or(other.function_exit);
+        self.function_exit = common_debug_event(
+            self.function_exit.into_iter().chain(others.clone().filter_map(Self::function_exit)),
+        );
+        for other in others {
+            self.merge_source_spans(other);
+        }
     }
 
     /// Returns the function entered after this operation.

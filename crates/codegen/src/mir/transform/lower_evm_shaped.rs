@@ -53,10 +53,12 @@ impl MirPass for LowerEvmShaped {
         &self,
         gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
-        _analyses: &mut crate::mir::pass::ModuleAnalyses,
+        analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         let changed = lower_evm_shaped(module);
-        let _ = module.advance_phase(gcx.dcx(), MirPhase::Lowered);
+        if let Err(error) = module.advance_phase(gcx.dcx(), MirPhase::Lowered) {
+            analyses.fail(error);
+        }
         changed
     }
 }

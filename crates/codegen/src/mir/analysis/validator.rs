@@ -50,7 +50,10 @@ use solar_data_structures::{
     bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
 };
-use solar_interface::{diagnostics::DiagCtxt, kw};
+use solar_interface::{
+    diagnostics::{DiagCtxt, ErrorGuaranteed},
+    kw,
+};
 use std::fmt;
 
 /// Stateful MIR verifier.
@@ -58,6 +61,7 @@ struct Validator<'a> {
     dcx: &'a DiagCtxt,
     function: Option<FunctionId>,
     error_count: usize,
+    error: Option<ErrorGuaranteed>,
     returning_functions: Option<DenseBitSet<FunctionId>>,
     return_field_counts: IndexVec<StructId, Option<usize>>,
 }
@@ -69,6 +73,7 @@ impl<'a> Validator<'a> {
             dcx,
             function: None,
             error_count: 0,
+            error: None,
             returning_functions: None,
             return_field_counts: IndexVec::new(),
         }
@@ -83,7 +88,7 @@ impl<'a> Validator<'a> {
             }
             write!(f, "{message}")
         });
-        self.dcx.err(message.to_string()).emit();
+        self.error = Some(self.dcx.err(message.to_string()).emit());
         self.error_count += 1;
     }
 
@@ -1545,6 +1550,7 @@ pub(crate) fn validate_phase(
     phase: MirPhase,
 ) -> solar_interface::Result<()> {
     let mut validator = Validator::new(dcx);
+    validator.returning_functions = Some(module.returning_functions());
     validator.prepare_return_abi_validation(module);
     validator.validate_module_phase(module, phase);
     for (id, func) in module.iter_functions() {
@@ -1554,7 +1560,7 @@ pub(crate) fn validate_phase(
         validator.validate_return_abi(module, func);
         validator.validate_function_phase(phase, func);
     }
-    dcx.has_errors()
+    validator.error.map_or(Ok(()), Err)
 }
 
 /// Matches result components without recursive traversal or expanding repeated empty structs.
@@ -1740,6 +1746,64 @@ error: [fn0] [bb0] successor bb1 does not list bb0 as a predecessor
 error: [fn0] icall targets nonexistent function fn99
 
 error: [fn0] tail_call targets nonexistent function fn98
+
+
+"#]]
+            );
+        });
+    }
+
+    #[test]
+    fn phase_boundary_checks_tail_call_results() {
+        for mode in 0..3 {
+            with_session(|sess| {
+                let mut module = Module::new(Ident::DUMMY);
+                let mut callee = make_func();
+                callee.set_return_type(MirType::uint256());
+                // ret 0
+                let mut builder = FunctionBuilder::new(&mut callee);
+                let zero = builder.imm(0);
+                builder.ret([zero]);
+                let callee = module.add_function(callee);
+                let mut caller = make_func();
+                caller.set_return_type(MirType::uint256());
+                // tail_call callee
+                FunctionBuilder::new(&mut caller).tail_call(callee, Vec::new());
+                let caller = module.add_function(caller);
+                assert!(module.advance_phase(&sess.dcx, MirPhase::Lowered).is_ok());
+                module.functions[caller].set_return_type(MirType::Void);
+                match mode {
+                    0 => validate(&sess.dcx, &module),
+                    1 => assert!(module.advance_phase(&sess.dcx, MirPhase::Lowered).is_err()),
+                    _ => assert!(module.as_lowered(&sess.dcx).is_err()),
+                }
+                assert_data_eq!(
+                    sess.emitted_diagnostics().unwrap().to_string(),
+                    str![[r#"
+error: [fn1] tail_call to `.0` returns 1 value(s), caller signature expects 0
+
+
+"#]]
+                );
+            });
+        }
+    }
+
+    #[test]
+    fn phase_boundary_ignores_other_modules_errors() {
+        with_session(|sess| {
+            sess.dcx.err("another module failed").emit();
+            let mut module = Module::new(Ident::DUMMY);
+            let mut func = make_func();
+            // stop
+            FunctionBuilder::new(&mut func).stop();
+            module.add_function(func);
+            assert!(module.advance_phase(&sess.dcx, MirPhase::Lowered).is_ok());
+            assert!(module.as_lowered(&sess.dcx).is_ok());
+            assert_data_eq!(
+                sess.emitted_diagnostics().unwrap().to_string(),
+                str![[r#"
+error: another module failed
 
 
 "#]]

@@ -58,12 +58,14 @@ impl MirPass for LowerDispatch {
         &self,
         gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
-        _analyses: &mut crate::mir::pass::ModuleAnalyses,
+        analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         if !module.has_explicit_abi() {
-            gcx.dcx()
-                .err("`lower-dispatch` requires explicit ABI entries; run `lower-abi` first")
-                .emit();
+            analyses.fail(
+                gcx.dcx()
+                    .err("`lower-dispatch` requires explicit ABI entries; run `lower-abi` first")
+                    .emit(),
+            );
             return false;
         }
         let changed = lower_dispatch(
@@ -72,7 +74,8 @@ impl MirPass for LowerDispatch {
             gcx.sess.opts.revert_strings,
         );
         if module.dispatch_entry().is_none() {
-            gcx.dcx().err("`lower-dispatch` cannot route this entry signature").emit();
+            analyses
+                .fail(gcx.dcx().err("`lower-dispatch` cannot route this entry signature").emit());
             return changed;
         }
         changed

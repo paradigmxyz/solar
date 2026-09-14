@@ -38,12 +38,16 @@ impl MirPass for LowerMemoryObjects {
         &self,
         gcx: Gcx<'_>,
         module: &mut Module,
-        _analyses: &mut crate::mir::pass::ModuleAnalyses,
+        analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         if module.has_struct_values() {
-            gcx.dcx()
-                .err("`lower-memory-objects` requires scalar structs; run `lower-structs` first")
-                .emit();
+            analyses.fail(
+                gcx.dcx()
+                    .err(
+                        "`lower-memory-objects` requires scalar structs; run `lower-structs` first",
+                    )
+                    .emit(),
+            );
             return false;
         }
         if module.phase() == MirPhase::Lowered {

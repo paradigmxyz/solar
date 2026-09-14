@@ -16,4 +16,40 @@
 -   dup 1 !metadata(span=36..39)
 -   revert !metadata(span=40..45)
 +   jump bb1
+  bb3:
+-   push 0 !metadata(invoke=nested_first@11..25)
+-   dup 1
+-   revert
++   jump bb1
+  bb4:
+-   push 32
+-   pop !metadata(invoke=known@51..60)
+-   stop
+- bb5:
+    push 32 !metadata(invoke=known@51..60)
+-   pop
++   pop !metadata(invoke=known@51..60)
+    stop !metadata(invoke=known@51..60, exit=return)
++ bb5:
++   jump bb4
+  bb6:
+-   push 32
+-   pop
+-   stop
++   jump bb4
+  bb7:
+    push 64
+    pop
+-   stop !metadata(invoke=first@1..10, exit=return)
++   stop
+  bb8:
+-   push 64
+-   pop
+-   stop !metadata(invoke=second@11..20, exit=revert)
++   jump bb7
+  bb9:
+-   push 64
+-   pop
+-   stop !metadata(invoke=first@1..10, exit=return)
++   jump bb7
   
