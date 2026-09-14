@@ -904,7 +904,11 @@ impl SymbolTables {
                 .candidates_at(position, |index| self.references[index].location.range)
                 .filter(|&index| self.references[index].location.range == range)
                 .all(|index| {
-                    self.type_hierarchy.prepare(&self.references[index].targets) == prepared
+                    let targets = &self.references[index].targets;
+                    // The selected reference also appears in this scan. Identical targets have
+                    // identical responses; differing targets still need the cross-batch check.
+                    targets == &reference.targets
+                        || self.type_hierarchy.prepare(targets) == prepared
                 });
             return if agree { prepared } else { None };
         }
