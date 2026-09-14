@@ -200,3 +200,149 @@ bb19:
   push 31
   sub
   stop
+
+// CHECK-LABEL: {{^[ +].*}}bb20:
+// CHECK: +   push 32
+// CHECK: -   gt
+// CHECK: -   iszero
+// CHECK: +   lt
+bb20:
+  calldatasize
+  push 31
+  dup 2
+  gt
+  iszero
+  push 0
+  mstore
+  pop
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb21:
+// CHECK: +   push 31
+// CHECK: -   lt
+// CHECK: -   iszero
+// CHECK: +   gt
+bb21:
+  calldatasize
+  push 32
+  dup 2
+  lt
+  iszero
+  push 0
+  mstore
+  pop
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb22:
+// CHECK: -   gt
+// CHECK: -   iszero
+// CHECK: +   push 30
+// CHECK: +   lt
+bb22:
+  calldatasize
+  push 31
+  gt
+  iszero
+  push 0
+  mstore
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb23:
+// CHECK: -   lt
+// CHECK: -   iszero
+// CHECK: +   push 32
+// CHECK: +   gt
+bb23:
+  calldatasize
+  push 31
+  lt
+  iszero
+  push 0
+  mstore
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb24:
+// CHECK: +   push 256
+// CHECK: -   gt
+// CHECK: -   iszero
+// CHECK: +   lt
+bb24:
+  calldatasize
+  push 255
+  dup 2
+  gt
+  iszero
+  push 0
+  mstore
+  pop
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb25:
+// CHECK: {{^[ +].*}}gt
+// CHECK-NEXT: {{^[ +].*}}iszero
+bb25:
+  calldatasize
+  push 31
+  dup 1
+  gt
+  iszero
+  push 0
+  mstore
+  pop
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb26:
+// CHECK: {{^[ +].*}}gt
+// CHECK-NEXT: {{^[ +].*}}iszero
+bb26:
+  calldatasize
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  dup 2
+  gt
+  iszero
+  push 0
+  mstore
+  pop
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb27:
+// CHECK: {{^[ +].*}}lt
+// CHECK-NEXT: {{^[ +].*}}iszero
+bb27:
+  calldatasize
+  push 0
+  dup 2
+  lt
+  iszero
+  push 0
+  mstore
+  pop
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb28:
+// CHECK: {{^[ +].*}}gt
+// CHECK-NEXT: {{^[ +].*}}iszero
+bb28:
+  calldatasize
+  push 0x8000000000000000000000000000000000000000000000000000000000000000
+  dup 2
+  gt
+  iszero
+  push 0
+  mstore
+  pop
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb29:
+// CHECK: {{^[ +].*}}sgt
+// CHECK-NEXT: {{^[ +].*}}iszero
+bb29:
+  calldatasize
+  push 31
+  dup 2
+  sgt
+  iszero
+  push 0
+  mstore
+  pop
+  stop

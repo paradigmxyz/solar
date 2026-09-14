@@ -1,0 +1,52 @@
+- // === ROOT/tests/ui/codegen/evm-ir/cfg-simplify/shared_branches.evmir (before cfg-simplify) ===
++ // === ROOT/tests/ui/codegen/evm-ir/cfg-simplify/shared_branches.evmir (after cfg-simplify) ===
+  @module SharedBranches
+  bb0:
+    push bb1
+    pop
+    push bb2
+    pop
+    push bb3
+    pop
+    push bb4
+    pop
+    push bb5
+    pop
+    stop
+  bb1:
+    push 1
+-   push bb7
+-   jump bb6
++   jumpi bb7, bb8
+  bb2:
+    push 0
+-   push bb7 !metadata(invoke=caller@5..10)
+-   jump bb6
++   jumpi bb7, bb8 !metadata(invoke=caller@5..10)
+  bb3:
+    push 1
+-   push bb7
+-   jump bb6 !metadata(invoke=callee@1..5)
++   jumpi bb7, bb8 !metadata(invoke=callee@1..5)
+  bb4:
+    push 1
+-   push bb7
+-   jump bb9
++   jumpi bb7, bb8 !metadata(invoke=callee@10..20)
+  bb5:
+    push 1
+    push bb7
+-   jump bb6
+- bb6:
+    jumpi
+    jump bb8
+  bb7:
+    stop
+  bb8:
+    push 0
+    push 0
+    revert
+- bb9 [invoke=callee@10..20]:
+-   jumpi
+-   jump bb8
+  

@@ -6,6 +6,12 @@
 // CHECK: {{^[ +].*}}bb2:
 // CHECK: {{^[ +].*}}bb3:
 // CHECK: {{^[ +].*}}bb1:
+// CHECK-NEXT: {{^[ +].*}}stop
+// CHECK: {{^[ +].*}}bb8:
+// CHECK: {{^[ +].*}}push bb10
+// CHECK-NEXT: {{^[ +].*}}jumpi
+// CHECK-NEXT: {{^[ +].*}}jump bb9
+// CHECK-NEXT: {{^[ +].*}}bb9 [cold]:
 // CHECK: {{^[ +].*}}bb4:
 bb0:
   push 1
@@ -28,4 +34,44 @@ bb5:
   push 4
   jump bb6
 bb6:
+  stop
+
+// Keep the shared exit beyond the PUSH1 range before packing.
+bb7:
+  push 0x1234567890abcdef112233445566778899aabbccddeeff001122334455667788
+  pop
+  push 0x1234567890abcdef112233445566778899aabbccddeeff001122334455667788
+  pop
+  push 0x1234567890abcdef112233445566778899aabbccddeeff001122334455667788
+  pop
+  push 0x1234567890abcdef112233445566778899aabbccddeeff001122334455667788
+  pop
+  push 0x1234567890abcdef112233445566778899aabbccddeeff001122334455667788
+  pop
+  push 0x1234567890abcdef112233445566778899aabbccddeeff001122334455667788
+  pop
+  push 0x1234567890abcdef112233445566778899aabbccddeeff001122334455667788
+  pop
+  push 0x1234567890abcdef112233445566778899aabbccddeeff001122334455667788
+  pop
+  stop
+
+bb8:
+  push bb9
+  pop
+  push bb9
+  pop
+  push bb9
+  pop
+  push bb9
+  pop
+  push 1
+  push bb10
+  jumpi
+  jump bb9
+bb9 [cold]:
+  push 0
+  push 0
+  revert
+bb10:
   stop
