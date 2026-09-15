@@ -621,7 +621,7 @@ mod tests {
         {
             let rope = Rope::from(source);
             let expected = super::LspPositionIndex::from_rope(rope.clone());
-            let actual = super::LspPositionIndex::from_rope_for_cursor(rope.clone());
+            let actual = super::LspPositionIndex::from_rope_for_cursor(rope);
             for byte in 0..=source.len() + 1 {
                 assert_eq!(actual.line_at_byte(byte), expected.line_at_byte(byte));
                 assert_eq!(actual.position_at_byte(byte), expected.position_at_byte(byte));

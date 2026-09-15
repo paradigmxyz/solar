@@ -1,2 +1,0 @@
-#!/usr/bin/env sh
-SOLC_WRAPPER=1 exec "${SOLAR:-solar}" "$@"

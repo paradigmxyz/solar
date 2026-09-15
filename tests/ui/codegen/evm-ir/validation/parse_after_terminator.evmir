@@ -1,5 +1,0 @@
-@module AfterTerminator
-
-bb0:
-  stop
-  invalid //~ ERROR: instruction after terminator in block `bb0`

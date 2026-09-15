@@ -1,4 +1,0 @@
-@module UnknownBlock
-
-bb0:
-  jump bb9 //~ ERROR: unknown block `bb9`

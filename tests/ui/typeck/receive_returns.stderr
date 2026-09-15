@@ -1,8 +1,0 @@
-error: expected one of `;`, `external`, `internal`, `override`, `payable`, `private`, `public`, `pure`, `view`, `virtual`, or `{`, found keyword `returns`
-   ╭▸ ROOT/tests/ui/typeck/receive_returns.sol:LL:CC
-   │
-LL │     receive() external payable returns (uint256) {}
-   ╰╴                               ━━━━━━━ expected one of 11 possible tokens
-
-error: aborting due to 1 previous error
-

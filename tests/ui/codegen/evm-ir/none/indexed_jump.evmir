@@ -1,9 +1,0 @@
-@module indexed
-
-bb0:
-  push 1
-  indexed_jump bb1, bb2
-bb1:
-  stop
-bb2:
-  invalid

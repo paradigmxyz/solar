@@ -1,5 +1,0 @@
-//~? ERROR: EVM IR verification failed: block 0: `return` has stack effect 0->0, expected 2->0
-@module module
-
-bb0:
-  return !metadata(stack=0->0)

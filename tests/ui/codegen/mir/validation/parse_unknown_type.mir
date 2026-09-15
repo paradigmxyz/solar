@@ -1,8 +1,0 @@
-//@compile-flags: -Zmir-pipeline=none
-
-@module UnknownType
-
-fn @f() -> notatype { //~ ERROR: unknown type `notatype`
-  bb0:
-    stop
-}

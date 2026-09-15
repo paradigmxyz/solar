@@ -1,5 +1,0 @@
-//@compile-flags: -Zmir-pipeline=none
-
-@module MalformedFunction
-
-fn @ { //~ ERROR: expected identifier

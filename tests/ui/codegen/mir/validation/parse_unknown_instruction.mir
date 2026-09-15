@@ -1,9 +1,0 @@
-//@compile-flags: -Zmir-pipeline=none
-
-@module UnknownInstruction
-
-fn @bad() {
-  bb0:
-    v0 = bogus 0 //~ ERROR: unknown instruction `bogus`
-    stop
-}

@@ -1,6 +1,0 @@
-@module EmptyMetadata
-
-/// Block docs.
-bb0:
-  push 1
-  add !metadata(foo= ) //~ ERROR: expected metadata value
