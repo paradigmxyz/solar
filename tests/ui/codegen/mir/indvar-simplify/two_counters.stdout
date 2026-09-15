@@ -1,0 +1,136 @@
+// === ROOT/tests/ui/codegen/mir/indvar-simplify/two_counters.sol:Test ===
+@module Test
+@phase evm-shaped
+fn @pack() [selector=0x62b0ae87, pure] {
+  bb0:
+    v71 = calldatasize
+    v72 = lt v71, 36
+    jumpi v72, bb9, bb10
+  bb10:
+    v73 = calldataload 4
+    v74 = add v73, 4
+    v75 = add v74, 32
+    v76 = gt v73, 0xffffffffffffffff
+    v77 = gt v75, v71
+    v78 = or v76, v77
+    jumpi v78, bb9, bb11
+  bb11:
+    v79 = calldataload v74
+    v81 = add v79, 63
+    v82 = lt v81, v79
+    jumpi v82, bb3, bb12
+  bb12:
+    v84 = and v81, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v85 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v131 = add v85, v84
+    v132 = lt v131, v85
+    v133 = gt v131, 0xffffffffffffffff
+    v134 = or v132, v133
+    jumpi v134, bb3, bb15
+  bb15:
+    mstore 64, v131 !metadata(memory=scratch)
+    mstore v85, v79
+    v86 = sub v71, v75
+    v87 = gt v79, v86
+    jumpi v87, bb9, bb13
+  bb13:
+    v124 = add v85, 32
+    calldatacopy v124, v75, v79
+    v0 = mload v85
+    v1 = div v0, 3
+    v2 = shl 2, v1
+    v4 = shr 2, v2
+    v5 = eq v4, v1
+    jumpi v5, bb2, bb1
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v8 = add v2, 63
+    v9 = lt v8, v2
+    jumpi v9, bb3, bb4
+  bb4:
+    v11 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v12 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v127 = add v12, v11
+    v128 = lt v127, v12
+    v129 = gt v127, 0xffffffffffffffff
+    v130 = or v128, v129
+    jumpi v130, bb3, bb14
+  bb14:
+    mstore 64, v127 !metadata(memory=scratch)
+    v135 = calldatasize
+    calldatacopy v12, v135, v11
+    mstore v12, v2
+    v136 = add v12, 32
+    jump bb5
+  bb5:
+    v14 = phi [bb14: 0], [bb8: v69]
+    v17 = phi [bb14: 0], [bb8: v67]
+    v137 = phi [bb14: v136], [bb8: v138]
+    v19 = add v17, 2
+    v21 = lt v19, v0
+    jumpi v21, bb7, bb6
+  bb7:
+    v22 = add v14, 3
+    v24 = lt v22, v2
+    jumpi v24, bb8, bb6
+  bb6:
+    v93 = iszero v12
+    v94 = iszero v93
+    v95 = mul v2, v94
+    v96 = add v12, 32
+    v97 = add v95, 31
+    v99 = and v97, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v100 = add v96, v99
+    mstore v100, 0
+    v101 = add v96, 32
+    mcopy v101, v96, v95
+    mstore v12, 32
+    mstore v96, v95
+    v102 = add v99, 64
+    returndata v12, v102
+  bb8:
+    v105 = add v124, v17
+    v106 = mload v105
+    v107 = byte 0, v106
+    mstore8 v137, v107
+    v35 = add v17, 1
+    v111 = add v124, v35
+    v112 = mload v111
+    v113 = byte 0, v112
+    v115 = add v137, 1
+    mstore8 v115, v113
+    v117 = add v124, v19
+    v118 = mload v117
+    v119 = byte 0, v118
+    v121 = add v137, 2
+    mstore8 v121, v119
+    v123 = add v137, 3
+    mstore8 v123, 0
+    v67 = add v17, 3
+    v69 = add v14, 4
+    v138 = add v137, 4
+    jump bb5
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb9:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    jumpi v0, bb3, bb1
+  bb1:
+    v1 = calldataload 0
+    v2 = shr 224, v1
+    switch v2, default bb3, [0x62b0ae87 => bb2]
+  bb2:
+    tail_call @pack
+  bb3:
+    revert 0, 0
+}
