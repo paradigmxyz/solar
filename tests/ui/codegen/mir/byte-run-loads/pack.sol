@@ -15,9 +15,13 @@
 // CHECK-LABEL: fn @two
 // CHECK: shr 240
 
-// Offsets that skip a byte are not a run, so the reads stay separate.
+// Offsets that skip a byte are not a run and keep their shift and OR, but the
+// two reads still land in one word, so the second takes the byte its offset
+// names out of the first read's value.
 // CHECK-LABEL: fn @gapped
-// CHECK-NOT: shr 2
+// CHECK: byte 0, [[WORD:v[0-9]+]]
+// CHECK-NOT: mload
+// CHECK: byte 2, [[WORD]]
 
 // A store between the reads may change what the later ones see, so the read
 // above it cannot join their run.
