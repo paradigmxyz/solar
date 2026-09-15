@@ -129,6 +129,7 @@ def connect(root):
             id VARCHAR PRIMARY KEY, job VARCHAR, compilation_id VARCHAR,
             compiler VARCHAR, status VARCHAR, directory VARCHAR, started DOUBLE
         );
+        CREATE INDEX IF NOT EXISTS attempts_job ON attempts(job);
     """)
     return db
 
@@ -318,9 +319,12 @@ def execute(command, directory, timeout, input_path=None):
             try:
                 process.wait(timeout=timeout)
             except (subprocess.TimeoutExpired, KeyboardInterrupt) as error:
-                os.killpg(process.pid, signal.SIGKILL)
-                process.wait()
                 result["error"] = type(error).__name__
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                process.wait()
             result["returncode"] = process.returncode
         except OSError as error:
             result["error"] = str(error)
@@ -398,12 +402,14 @@ def run(db, root, args):
     ]
     if len({compiler["name"] for compiler in compilers}) != len(compilers):
         raise ValueError("compiler names must be unique")
+    script_hash = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
     failures = jobs = 0
     reader = db.cursor().execute("SELECT id FROM compilations ORDER BY id")
     try:
         while row := reader.fetchone():
             compilation_id = row[0]
             request, record = make_input(db, compilation_id)
+            request_text = None
             for compiler in compilers:
                 identity = {
                     key: compiler[key]
@@ -436,7 +442,9 @@ def run(db, root, args):
                 attempt_id = uuid.uuid4().hex
                 directory = root / "runs" / attempt_id
                 directory.mkdir(parents=True)
-                write_json(directory / "input.json", request)
+                if request_text is None:
+                    request_text = json_text(request)
+                (directory / "input.json").write_text(request_text, encoding="utf-8")
                 write_json(directory / "compilation.json", record)
                 write_json(directory / "compiler.json", compiler)
                 replay = '#!/bin/sh\nset -eu\ncd -- "$(dirname -- "$0")"\nexport TMPDIR="$PWD" TMP="$PWD" TEMP="$PWD"\n'
@@ -471,9 +479,7 @@ def run(db, root, args):
                         "python": sys.version,
                         "job": job,
                         "tag": args.tag,
-                        "script_sha256": hashlib.sha256(
-                            Path(__file__).read_bytes()
-                        ).hexdigest(),
+                        "script_sha256": script_hash,
                         "export": EXPORT,
                     }
                 )
@@ -669,6 +675,23 @@ class Tests(unittest.TestCase):
         directory.mkdir()
         result = execute([str(self.root / "no-compiler")], directory, 1)
         self.assertIsNotNone(output_error(directory, result))
+
+    def test_exit_during_interrupt(self):
+        for interrupted in (
+            KeyboardInterrupt(),
+            subprocess.TimeoutExpired("compiler", 1),
+        ):
+            with (
+                self.subTest(error=type(interrupted).__name__),
+                patch("subprocess.Popen") as spawn,
+                patch("os.killpg", side_effect=ProcessLookupError),
+            ):
+                spawn.return_value.wait.side_effect = [interrupted, 0]
+                spawn.return_value.returncode = 0
+                result = execute(["compiler"], self.root, 1)
+                self.assertEqual(result["error"], type(interrupted).__name__)
+                self.assertEqual(result["returncode"], 0)
+                self.assertEqual(spawn.return_value.wait.call_count, 2)
 
     def test_import_resume_and_selection(self):
         fixture = self.root / "compilations.parquet"
