@@ -1238,6 +1238,7 @@ impl SymbolTables {
             .filter(|symbol| symbol.name_range == data.selection_range);
         let Some(symbol) = candidates.next() else { return };
         let Some(kind) = item.kind else { return };
+        let Some(documentation) = symbol.documentation.as_ref() else { return };
         let matches_name = item.label == symbol.name
             || self.scopes.iter().any(|scope| {
                 scope.declarations.iter().any(|declaration| {
@@ -1248,7 +1249,6 @@ impl SymbolTables {
         if !matches_name || !symbol_supports_completion_kind(symbol, kind) {
             return;
         }
-        let Some(documentation) = symbol.documentation.as_ref() else { return };
         if candidates.any(|candidate| {
             candidate.name != symbol.name
                 || !symbol_supports_completion_kind(candidate, kind)
@@ -1490,7 +1490,34 @@ impl SymbolTables {
             );
         }
         let mapping_bindings = self.rename.build_mapping_names(gcx, locations);
-        self.rename.build_natspec(gcx, locations, &bindings, item_symbols, &self.declarations);
+        for item_id in gcx.hir.item_ids() {
+            let item = gcx.hir.item(item_id);
+            if item.doc().is_empty() {
+                continue;
+            }
+            for (span, resolutions) in gcx.natspec_references(item_id) {
+                let targets = resolutions
+                    .iter()
+                    .filter_map(|res| {
+                        if let Res::Item(id) = res { item_symbols.get(id).copied() } else { None }
+                    })
+                    .collect::<SmallVec<_>>();
+                self.rename.push_symbol_reference(
+                    gcx,
+                    locations,
+                    RenameReferenceContext {
+                        bindings: &bindings,
+                        source: item.source(),
+                        contract: item.contract(),
+                        item_symbols,
+                        declarations: &self.declarations,
+                    },
+                    span,
+                    &targets,
+                );
+                self.push_reference_entry(locations, span, targets, DocumentHighlightKind::READ);
+            }
+        }
         self.rename.build_overrides(
             gcx,
             locations,
@@ -2176,7 +2203,7 @@ impl<'gcx> hir::Visit<'gcx> for ScopeBuilder<'_, 'gcx> {
         self.tables.scopes[scope].member_scope = scope;
         self.contexts.insert(scope, (contract.source, Some(id)));
         self.with_scope(scope, |this| {
-            for (_, res) in this.gcx.scope_declarations(contract.source, Some(id)) {
+            for res in this.gcx.contract_scope_declarations(id) {
                 if let Res::Item(item) = res {
                     this.tables.add_scope_declaration(scope, item);
                 }
