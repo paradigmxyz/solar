@@ -338,18 +338,7 @@ fn @encode.4(arg0: memptr, arg1: bool, arg2: bool) -> memptr [pure] {
     v301 = add arg0, 32
     v302 = add v301, v121
     v303 = mload v302
-    v304 = byte 0, v303
-    v126 = shl 16, v304
-    v127 = add v121, 1
-    v306 = add v301, v127
-    v307 = mload v306
-    v308 = byte 0, v307
-    v135 = shl 8, v308
-    v136 = or v126, v135
-    v310 = add v301, v172
-    v311 = mload v310
-    v312 = byte 0, v311
-    v144 = or v136, v312
+    v144 = shr 232, v303
     v138 = shr 18, v144
     jumpi arg1, bb63, bb65
   bb63:
