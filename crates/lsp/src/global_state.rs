@@ -297,6 +297,8 @@ struct CachedAnalysisOutput {
     /// Keep these only for multiple nonempty workspaces: a single workspace can reuse the
     /// aggregate directly, without retaining another copy of its symbol tables.
     batches: Vec<Option<Arc<CachedAnalysisBatch>>>,
+    /// Loader observations for reusing a single workspace's aggregate after identical inputs.
+    dependencies: Option<DependencySnapshot>,
 }
 
 struct CachedAnalysisBatch {
@@ -1774,12 +1776,12 @@ fn run_analysis(
 
     if !has_disk_paths && source_files_complete {
         let cached = {
-            let mut commit = snapshot.analysis_commit.lock();
+            let commit = snapshot.analysis_commit.lock();
             if !commit.cache_invalidated
-                && let Some(cached) = &mut commit.cached_output
+                && let Some(cached) = &commit.cached_output
                 && Arc::ptr_eq(&cached.config, &config)
-                // The compared batches do not include disk-only imports or resolver probes.
-                && cached.output.analysis_paths.is_empty()
+                // Disk imports and resolver probes need exact observation replay outside the lock.
+                && (cached.output.analysis_paths.is_empty() || cached.dependencies.is_some())
                 // Multi-workspace caches must validate each batch's filesystem observations below.
                 && cached.batches.is_empty()
                 && cached.inputs.len() == batches.len()
@@ -1787,13 +1789,29 @@ fn run_analysis(
                     inputs.files == batch.files && inputs.preloaded_files == batch.preloaded_files
                 })
             {
-                cached.vfs_content_revision = vfs_content_revision;
-                Some(cached.output.clone())
+                Some(cached.dependencies.clone())
             } else {
                 None
             }
         };
-        if let Some(output) = cached {
+        if let Some(dependencies) = cached
+            && dependencies.as_ref().is_none_or(|dependencies| dependencies.unchanged(cancellation))
+        {
+            let output = {
+                let mut commit = snapshot.analysis_commit.lock();
+                if !snapshot.is_current(version)
+                    || cancellation.is_cancelled()
+                    || commit.cache_invalidated
+                {
+                    return AnalysisTaskOutcome::Superseded;
+                }
+                let Some(cached) = &mut commit.cached_output else {
+                    return AnalysisTaskOutcome::Superseded;
+                };
+                cached.vfs_content_revision = vfs_content_revision;
+                cached.output.update_document_versions(&batches);
+                cached.output.clone()
+            };
             progress.report("Reusing workspace index");
             return if snapshot.publish_analysis_output(version, output) {
                 AnalysisTaskOutcome::Published
@@ -1806,6 +1824,10 @@ fn run_analysis(
     let cache_batches = !has_disk_paths
         && source_files_complete
         && batches.iter().filter(|batch| !batch.files.is_empty()).take(2).count() > 1;
+    // A single workspace retains only observations beside its shared aggregate, avoiding the
+    // second symbol-table copy needed for independently reusable multi-workspace batches.
+    let dependencies = (!has_disk_paths && source_files_complete && !cache_batches)
+        .then(DependencySnapshot::default);
     let cached_batches = if cache_batches {
         let commit = snapshot.analysis_commit.lock();
         commit.cached_output.as_ref().and_then(|cached| {
@@ -1856,16 +1878,7 @@ fn run_analysis(
                 }
             };
             if let Some(mut output) = cached {
-                // Opening or closing an overlay can change versions without changing its text.
-                // Match batch aggregation's maximum version, clearing versions no longer open.
-                for (uri, version) in &mut output.result.analyzed_documents {
-                    *version = batches
-                        .iter()
-                        .filter(|batch| !batch.files.is_empty())
-                        .filter_map(|batch| batch.open_file_versions.get(uri))
-                        .copied()
-                        .max();
-                }
+                output.update_document_versions(&batches);
                 progress.report("Reusing workspace index");
                 return if snapshot.publish_analysis_output(version, output) {
                     AnalysisTaskOutcome::Published
@@ -1907,14 +1920,18 @@ fn run_analysis(
             next_cached_batches[idx] = Some(cached);
             result
         } else {
-            let dependencies = cache_batches.then(DependencySnapshot::default);
+            let batch_dependencies = if cache_batches {
+                Some(DependencySnapshot::default())
+            } else {
+                dependencies.clone()
+            };
             let Some(result) =
-                analyze_recording_dependencies(batch, cancellation, dependencies.clone())
+                analyze_recording_dependencies(batch, cancellation, batch_dependencies.clone())
             else {
                 return AnalysisTaskOutcome::Superseded;
             };
             // Root text alone cannot establish freshness: replay all disk reads and path probes.
-            if let Some(dependencies) = dependencies {
+            if cache_batches && let Some(dependencies) = batch_dependencies {
                 next_cached_batches[idx] =
                     Some(Arc::new(CachedAnalysisBatch { output: result.clone(), dependencies }));
             }
@@ -1935,12 +1952,16 @@ fn run_analysis(
                 vfs_content_revision,
                 config,
                 output: output.clone(),
-                inputs: if output.analysis_paths.is_empty() || cache_batches {
+                inputs: if output.analysis_paths.is_empty()
+                    || cache_batches
+                    || dependencies.is_some()
+                {
                     inputs
                 } else {
                     Vec::new()
                 },
                 batches: next_cached_batches,
+                dependencies: dependencies.filter(|_| !output.analysis_paths.is_empty()),
             });
         }
     }
@@ -2042,6 +2063,21 @@ struct AnalysisResult<T = SymbolTables> {
 struct AnalysisOutput<T = SymbolTables> {
     result: AnalysisResult<T>,
     analysis_paths: AnalysisPathIndex,
+}
+
+impl<T> AnalysisOutput<T> {
+    /// Opening or closing an identical overlay changes versions without changing analysis.
+    /// Match aggregation's maximum version, clearing versions no longer open.
+    fn update_document_versions(&mut self, batches: &[AnalysisBatch]) {
+        for (uri, version) in &mut self.result.analyzed_documents {
+            *version = batches
+                .iter()
+                .filter(|batch| !batch.files.is_empty())
+                .filter_map(|batch| batch.open_file_versions.get(uri))
+                .copied()
+                .max();
+        }
+    }
 }
 
 impl AnalysisOutput {

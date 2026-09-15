@@ -588,6 +588,20 @@ impl BenchmarkRepeatedAnalysis {
         Self { state }
     }
 
+    /// Check that the published workspace has no compiler diagnostics.
+    pub fn assert_no_diagnostics(&self) {
+        for report in self.state.diagnostics.read().workspace_pull_reports(Vec::new()) {
+            let PullReport::Full { diagnostics, .. } = report.report else {
+                unreachable!("a first pull always includes a full report");
+            };
+            assert!(
+                diagnostics.is_empty(),
+                "unexpected diagnostics for {}: {diagnostics:?}",
+                report.uri
+            );
+        }
+    }
+
     /// Open or replace one source while leaving the other workspaces unchanged.
     pub fn replace_source(&mut self, path: &Path, source: &str) {
         let path = VfsPath::from(path.to_path_buf());
